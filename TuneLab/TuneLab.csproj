@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
+    One for Windows with net8.0-windows TFM, one for MacOS with net8.0-macos and one with net8.0 TFM for Linux.-->
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<AvaloniaResource Include="Assets\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Avalonia" Version="11.0.10" />
+		<PackageReference Include="Avalonia.Svg.Skia" Version="11.0.0.17" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
+		<PackageReference Include="Avalonia.ReactiveUI" Version="11.0.10" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
+		<!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.10" />
+		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.3" />
+		<PackageReference Include="NAudio" Version="2.2.1" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="Svg.Skia" Version="1.0.0.17" />
+		<PackageReference Include="ZstdSharp.Port" Version="0.8.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\TuneLab.Base\TuneLab.Base.csproj" />
+	  <ProjectReference Include="..\TuneLab.Extensions.Formats\TuneLab.Extensions.Formats.csproj" />
+	  <ProjectReference Include="..\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="GUI\Dialog.axaml.cs">
+	    <DependentUpon>Dialog.axaml</DependentUpon>
+	  </Compile>
+	  <Compile Update="Views\MainWindow.axaml.cs">
+	    <DependentUpon>MainWindow.axaml</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+</Project>

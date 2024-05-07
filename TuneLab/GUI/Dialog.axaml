@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="432" d:DesignHeight="204"
+        x:Class="TuneLab.GUI.Dialog"
+        Title="TuneLab"
+		Width="432"
+		Height="204"
+		ExtendClientAreaChromeHints="NoChrome"
+		ExtendClientAreaTitleBarHeightHint="40"
+		ExtendClientAreaToDecorationsHint="True"
+		UseLayoutRounding="True">
+		<Window.Styles>
+			<Style Selector="TitleBar">
+				<Setter Property="Background" Value="DarkGray"/>
+				<Setter Property="Foreground" Value="White"/>
+			</Style>
+			<Style Selector="Window">
+				<Setter Property="CornerRadius" Value="12"/>
+			</Style>
+		</Window.Styles>
+
+		<DockPanel Margin="0">
+			<Grid DockPanel.Dock="Top" IsHitTestVisible="False" x:Name="TitleBar" Height="40">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*" />
+				</Grid.ColumnDefinitions>
+				
+				<Label x:Name="TitleLabel" Content="Message" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+			</Grid>
+
+			<Grid Margin="0">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="108" />
+					<RowDefinition Height="56" />
+				</Grid.RowDefinitions>
+
+				<StackPanel Grid.Row="0" Orientation="Vertical" Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center">
+					<TextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
+				</StackPanel>
+
+				<Grid Grid.Row="1" x:Name="ButtonsPanel" Margin="0, 0, 0, 16"/>
+			</Grid>
+		</DockPanel>
+</Window>
