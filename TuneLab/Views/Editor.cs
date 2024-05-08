@@ -541,32 +541,29 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var name = Path.GetFileNameWithoutExtension(filePath);
         var dir = Path.Combine(PathManager.ExtensionsFolder, name);
 
-        async void Install()
-        {
-            try
-            {
-                ZipFile.ExtractToDirectory(filePath, dir);
-                ExtensionManager.Load(dir);
-                await this.ShowMessage("Tips", name + " has been successfully installed!");
-            }
-            catch (Exception ex)
-            {
-                await this.ShowMessage("Error", "Installating " + name + " failed: \n" + ex.Message);
-            }
-        }
-
         if (Directory.Exists(dir))
         {
             var dialog = new Dialog();
             dialog.SetTitle("Tips");
-            dialog.SetMessage("The extension is already installed.\nDo you want to override the installation?");
-            dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => { Directory.Delete(dir, true); Install(); };
+            dialog.SetMessage("The extension is already installed. \nDo you want to restart and perform a reinstall?");
+            dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => { 
+                Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), [Environment.ProcessId.ToString(), filePath]); 
+            };
             dialog.AddButton("No", ButtonType.Primary);
             await dialog.ShowDialog(this.Window());
             return;
         }
 
-        Install();
+        try
+        {
+            ZipFile.ExtractToDirectory(filePath, dir);
+            ExtensionManager.Load(dir);
+            await this.ShowMessage("Tips", name + " has been successfully installed!");
+        }
+        catch (Exception ex)
+        {
+            await this.ShowMessage("Error", "Installating " + name + " failed: \n" + ex.Message);
+        }
     }
 
     [MemberNotNull(nameof(mUndoMenuItem))]
