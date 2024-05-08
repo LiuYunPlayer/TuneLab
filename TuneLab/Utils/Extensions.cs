@@ -13,6 +13,7 @@ using TuneLab.GUI;
 using TuneLab.Views;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
+using System.Threading.Tasks;
 
 namespace TuneLab.Utils;
 
@@ -215,6 +216,15 @@ internal static class Extensions
     public static Window Window(this Avalonia.Visual visual)
     {
         return (Window)TopLevel.GetTopLevel(visual)!;
+    }
+
+    public static async Task ShowMessage(this Avalonia.Visual visual, string title, string message)
+    {
+        var dialog = new Dialog();
+        dialog.SetTitle(title);
+        dialog.SetMessage(message);
+        dialog.AddButton("OK", Dialog.ButtonType.Primary);
+        await dialog.ShowDialog(visual.Window());
     }
 
     public static Color Lerp(this Color c1, Color c2, double ratio)

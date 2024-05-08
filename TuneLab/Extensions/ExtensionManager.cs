@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,8 +15,12 @@ internal static class ExtensionManager
     public static void LoadExtensions()
     {
         PathManager.MakeSure(PathManager.ExtensionsFolder);
-        LoadFormats();
-        LoadVoices();
+        FormatsManager.LoadBuiltIn();
+        VoicesManager.LoadBuiltIn();
+        foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
+        {
+            Load(dir);
+        }
     }
 
     public static void Destroy()
@@ -23,21 +28,9 @@ internal static class ExtensionManager
         VoicesManager.Destroy();
     }
 
-    static void LoadFormats()
+    public static void Load(string path)
     {
-        FormatsManager.LoadBuiltIn();
-        foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
-        {
-            FormatsManager.Load(dir);
-        }
-    }
-
-    static void LoadVoices()
-    {
-        VoicesManager.LoadBuiltIn();
-        foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
-        {
-            VoicesManager.Load(dir);
-        }
+        FormatsManager.Load(path);
+        VoicesManager.Load(path);
     }
 }

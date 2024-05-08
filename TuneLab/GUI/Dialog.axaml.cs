@@ -7,7 +7,6 @@ using System;
 using System.Threading.Tasks;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
-using TuneLab.GUI;
 using TuneLab.Utils;
 using Button = TuneLab.GUI.Components.Button;
 
@@ -32,6 +31,7 @@ internal partial class Dialog : Window
         CanResize = false;
         WindowState = WindowState.Normal;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Topmost = true;
 
         this.DataContext = this;
         this.Background = Style.INTERFACE.ToBrush();

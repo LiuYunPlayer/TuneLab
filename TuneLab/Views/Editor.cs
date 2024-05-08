@@ -28,6 +28,8 @@ using static TuneLab.GUI.Dialog;
 using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
+using TuneLab.Extensions;
+using System.IO.Compression;
 
 namespace TuneLab.Views;
 
@@ -142,31 +144,31 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     void OnDrop(object? sender, DragEventArgs e)
     {
-        var formats = FormatsManager.GetAllImportFormats();
-        if (e.Data.GetFiles().Any())
-        {
-            var files = e.Data.GetFiles().ToList();
-            if (files.Count() >= 1)
-            {
-                var path = files[0].TryGetLocalPath();
-                var importFileFormat = Path.GetExtension(path);
-                if (formats.Contains(importFileFormat.Split('.').Last()))
-                {
-                    if (!FormatsManager.Deserialize(path, out var info, out var error))
-                    {
-                        Log.Error("Open file error: " + error);
-                        return;
-                    }
+        var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
+        if (path == null)
+            return;
 
-                    mDocument.SetProject(new Project(info), path);
-                }
-                else
-                {
-                    Trace.WriteLine("Unsupported file");
-                }
-            }
+        var extension = Path.GetExtension(path);
+        if (extension == ".tlx")
+        {
+            e.Handled = true;
+            InstallTLX(path);
         }
-        e.Handled = true;
+        else if (FormatsManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
+        {
+            e.Handled = true;
+            if (!FormatsManager.Deserialize(path, out var info, out var error))
+            {
+                Log.Error("Open file error: " + error);
+                return;
+            }
+
+            mDocument.SetProject(new Project(info), path);
+        }
+        else
+        {
+            Trace.WriteLine("Unsupported file");
+        }
     }
 
     void OnProjectWillChange()
@@ -496,11 +498,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
         catch (Exception ex)
         {
-            var dialog = new Dialog();
-            dialog.SetTitle("Error");
-            dialog.SetMessage("Export failed: \n" + ex.Message);
-            dialog.AddButton("OK", Dialog.ButtonType.Primary);
-            await dialog.ShowDialog(this.Window());
+            await this.ShowMessage("Error", "Export failed: \n" + ex.Message);
         }
     }
 
@@ -536,6 +534,39 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         if (AudioEngine.IsPlaying) AudioEngine.Pause();
         else AudioEngine.Play();
+    }
+
+    public async void InstallTLX(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        var dir = Path.Combine(PathManager.ExtensionsFolder, name);
+
+        async void Install()
+        {
+            try
+            {
+                ZipFile.ExtractToDirectory(filePath, dir);
+                ExtensionManager.Load(dir);
+                await this.ShowMessage("Tips", name + " has been successfully installed!");
+            }
+            catch (Exception ex)
+            {
+                await this.ShowMessage("Error", "Installating " + name + " failed: \n" + ex.Message);
+            }
+        }
+
+        if (Directory.Exists(dir))
+        {
+            var dialog = new Dialog();
+            dialog.SetTitle("Tips");
+            dialog.SetMessage("The extension is already installed.\nDo you want to override the installation?");
+            dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => { Directory.Delete(dir, true); Install(); };
+            dialog.AddButton("No", ButtonType.Primary);
+            await dialog.ShowDialog(this.Window());
+            return;
+        }
+
+        Install();
     }
 
     [MemberNotNull(nameof(mUndoMenuItem))]

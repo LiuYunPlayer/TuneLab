@@ -84,11 +84,7 @@ internal class TrackHead : Panel
                 }
                 catch (Exception ex)
                 {
-                    var dialog = new Dialog();
-                    dialog.SetTitle("Error");
-                    dialog.SetMessage("Export failed: \n" + ex.Message);
-                    dialog.AddButton("OK", Dialog.ButtonType.Primary);
-                    await dialog.ShowDialog(this.Window());
+                    await this.ShowMessage("Error", "Export failed: \n" + ex.Message);
                 }
             });
             menu.Items.Add(menuItem);
