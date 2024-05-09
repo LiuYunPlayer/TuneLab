@@ -30,6 +30,7 @@ using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Extensions;
 using System.IO.Compression;
+using System.Xml.Linq;
 
 namespace TuneLab.Views;
 
@@ -144,30 +145,41 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     void OnDrop(object? sender, DragEventArgs e)
     {
-        var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
-        if (path == null)
+        var files = e.Data.GetFiles()?.Select(s => s.TryGetLocalPath()!).Where(s => s != null);
+        if (files == null)
             return;
 
-        var extension = Path.GetExtension(path);
-        if (extension == ".tlx")
+        List<string> tlxs = [];
+        string? projectFile = null;
+
+        foreach (var file in files)
         {
-            e.Handled = true;
-            InstallTLX(path);
+            var extension = Path.GetExtension(file);
+            if (extension == ".tlx")
+            {
+                tlxs.Add(file);
+            }
+            else if (FormatsManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
+            {
+                projectFile = file; 
+            }
         }
-        else if (FormatsManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
+
+        if (projectFile != null)
         {
             e.Handled = true;
-            if (!FormatsManager.Deserialize(path, out var info, out var error))
+            if (!FormatsManager.Deserialize(projectFile, out var info, out var error))
             {
                 Log.Error("Open file error: " + error);
                 return;
             }
 
-            mDocument.SetProject(new Project(info), path);
+            mDocument.SetProject(new Project(info), projectFile);
         }
-        else
+        else if (!tlxs.IsEmpty())
         {
-            Trace.WriteLine("Unsupported file");
+            e.Handled = true;
+            InstallExtensions(tlxs);
         }
     }
 
@@ -536,34 +548,53 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         else AudioEngine.Play();
     }
 
-    public async void InstallTLX(string filePath)
+    public async void InstallExtensions(IEnumerable<string> files)
     {
-        var name = Path.GetFileNameWithoutExtension(filePath);
-        var dir = Path.Combine(PathManager.ExtensionsFolder, name);
-
-        if (Directory.Exists(dir))
+        List<string> installedExtension = [];
+        foreach (var file in files)
         {
-            var dialog = new Dialog();
-            dialog.SetTitle("Tips");
-            dialog.SetMessage("The extension is already installed. \nDo you want to restart and perform a reinstall?");
-            dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => { 
-                Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), [Environment.ProcessId.ToString(), filePath]); 
-            };
-            dialog.AddButton("No", ButtonType.Primary);
-            await dialog.ShowDialog(this.Window());
+            var name = Path.GetFileNameWithoutExtension(file);
+            var dir = Path.Combine(PathManager.ExtensionsFolder, name);
+            if (Directory.Exists(dir))
+            {
+                installedExtension.Add(file);
+                continue;
+            }
+
+            try
+            {
+                ZipFile.ExtractToDirectory(file, dir);
+                ExtensionManager.Load(dir);
+                await this.ShowMessage("Tips", name + " has been successfully installed!");
+            }
+            catch (Exception ex)
+            {
+                await this.ShowMessage("Error", "Installating " + name + " failed: \n" + ex.Message);
+            }
+        }
+
+        if (installedExtension.IsEmpty())
             return;
-        }
 
-        try
-        {
-            ZipFile.ExtractToDirectory(filePath, dir);
-            ExtensionManager.Load(dir);
-            await this.ShowMessage("Tips", name + " has been successfully installed!");
-        }
-        catch (Exception ex)
-        {
-            await this.ShowMessage("Error", "Installating " + name + " failed: \n" + ex.Message);
-        }
+        var dialog = new Dialog();
+        dialog.SetTitle("Tips");
+        dialog.SetMessage("Detected an installed extension. \nDo you want to restart and perform a reinstall?");
+        dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => {
+            string args = "-restart";
+            foreach (var file in installedExtension)
+            {
+                args += " \"" + file + "\"";
+            }
+            ProcessStartInfo processStartInfo = new ProcessStartInfo()
+            {
+                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"),
+                Arguments = args,
+            };
+            Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
+            this.Window().Close();
+        };
+        dialog.AddButton("No", ButtonType.Primary);
+        await dialog.ShowDialog(this.Window());
     }
 
     [MemberNotNull(nameof(mUndoMenuItem))]

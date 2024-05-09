@@ -7,29 +7,62 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        if (args.Length < 2)
-            return;
-
-        var processID = args[0];
-        var process = Process.GetProcessById(int.Parse(processID));
-        var processFileName = process.MainModule!.FileName;
-        var tlxs = args.Skip(1);
-
-        process.CloseMainWindow();
-        process.WaitForExit();
-
-        var extensionFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TuneLab", "Extensions");
-        foreach (var filePath in tlxs)
+        try
         {
-            var name = Path.GetFileNameWithoutExtension(filePath);
-            var dir = Path.Combine(extensionFolder, name);
+            string lockFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TuneLab", "TuneLab.lock");
+            if (File.Exists(lockFilePath))
+            {
+                Console.WriteLine("Waiting for TuneLab to exit...");
+                do
+                {
+                    Thread.Sleep(1000);
+                }
+                while (File.Exists(lockFilePath));
+            }
 
-            if (Directory.Exists(dir))
-                Directory.Delete(dir, true);
+            bool restart = false;
+            var extensionFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TuneLab", "Extensions");
+            foreach (var arg in args)
+            {
+                if (arg == "-restart")
+                {
+                    restart = true;
+                    continue;
+                }
 
-            ZipFile.ExtractToDirectory(filePath, dir, true);
+                var name = Path.GetFileNameWithoutExtension(arg);
+                var dir = Path.Combine(extensionFolder, name);
+
+                Console.WriteLine("Uninstalling " + name + "...");
+                if (Directory.Exists(dir))
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            Directory.Delete(dir, true);
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("Failed to delete file: " + ex.ToString());
+                            Console.WriteLine("Try again...");
+                            Thread.Sleep(1000);
+                        }
+                    }
+                }
+
+                Console.WriteLine("Installing " + name + "...");
+                ZipFile.ExtractToDirectory(arg, dir, true);
+                Console.WriteLine(name + " has been successfully installed!\n");
+            }
+
+            if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TuneLab.exe"));
         }
-
-        Process.Start(processFileName, tlxs);
+        catch (Exception ex)
+        {
+            Console.WriteLine("Installation failed: " + ex.ToString());
+            while (true) Console.ReadLine();
+        }
     }
 }
