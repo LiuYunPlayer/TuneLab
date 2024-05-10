@@ -13,6 +13,7 @@ internal class LockFile : IDisposable
     {
         try
         {
+            PathManager.MakeSure(Path.GetDirectoryName(path)!);
             return new LockFile(File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
         }
         catch
