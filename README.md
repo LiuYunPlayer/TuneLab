@@ -15,9 +15,14 @@ You can develop your own project formats and synthesis engine extensions.
 |assemblies|string Array|×|Assemblies containing extension interfaces. If null, TuneLab will try to load all assemblies.
 |version|string|×|Your extension version.
 
--  Platforms
-Platform field consists of \<OS>-\<Architecture> or \<OS> (e.g. "win-x64" "osx").
+- Platforms
+
+    Platform field consists of \<OS>-\<Architecture> or \<OS> (e.g. "win-x64" "osx").
     - Available OS values: `osx` `win`
     - Available Architecture values: `x64` `x86` `arm64` `arm32`
 
     If the value is only \<OS>, all architectures of the operating system are considered supported.
+
+- Pack
+
+    Compress the extension package into a zip and change the suffix to `.tlx`.
