@@ -580,17 +580,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         dialog.SetTitle("Tips");
         dialog.SetMessage("Detected an installed extension. \nDo you want to restart and perform a reinstall?");
         dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => {
-            string args = "-restart";
-            foreach (var file in installedExtension)
-            {
-                args += " \"" + file + "\"";
-            }
-            ProcessStartInfo processStartInfo = new ProcessStartInfo()
-            {
-                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"),
-                Arguments = args,
-            };
-            Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
+            List<string> args = ["-restart"];
+            args.AddRange(installedExtension);
+            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
             this.Window().Close();
         };
         dialog.AddButton("No", ButtonType.Primary);
