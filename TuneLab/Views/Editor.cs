@@ -31,6 +31,7 @@ using TuneLab.Base.Utils;
 using TuneLab.Extensions;
 using System.IO.Compression;
 using System.Xml.Linq;
+using System.Text.Json;
 
 namespace TuneLab.Views;
 
@@ -548,12 +549,24 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         else AudioEngine.Play();
     }
 
+    struct Description
+    {
+        public string name { get; set; }
+    }
+
     public async void InstallExtensions(IEnumerable<string> files)
     {
         List<string> installedExtension = [];
         foreach (var file in files)
         {
             var name = Path.GetFileNameWithoutExtension(file);
+            var entry = ZipFile.OpenRead(file).GetEntry("description.json");
+            if (entry != null)
+            {
+                var description = JsonSerializer.Deserialize<Description>(entry.Open());
+                if (!string.IsNullOrEmpty(description.name))
+                    name = description.name;
+            }
             var dir = Path.Combine(PathManager.ExtensionsFolder, name);
             if (Directory.Exists(dir))
             {

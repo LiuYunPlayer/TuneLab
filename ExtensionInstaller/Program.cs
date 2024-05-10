@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace ExtensionInstaller;
 
@@ -31,6 +33,13 @@ internal class Program
                 }
 
                 var name = Path.GetFileNameWithoutExtension(arg);
+                var entry = ZipFile.OpenRead(arg).GetEntry("description.json");
+                if (entry != null)
+                {
+                    var description = JsonSerializer.Deserialize<Description>(entry.Open());
+                    if (!string.IsNullOrEmpty(description.name))
+                        name = description.name;
+                }
                 var dir = Path.Combine(extensionFolder, name);
 
                 Console.WriteLine("Uninstalling " + name + "...");
@@ -53,6 +62,7 @@ internal class Program
                 }
 
                 Console.WriteLine("Installing " + name + "...");
+
                 ZipFile.ExtractToDirectory(arg, dir, true);
                 Console.WriteLine(name + " has been successfully installed!\n");
             }
@@ -64,5 +74,10 @@ internal class Program
             Console.WriteLine("Installation failed: " + ex.ToString());
             while (true) Console.ReadLine();
         }
+    }
+
+    struct Description
+    {
+        public string name { get; set; }
     }
 }
