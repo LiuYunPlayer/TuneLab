@@ -63,7 +63,7 @@ jobs:
     - name: Package artifacts
       shell: pwsh
       run: |
-        Compress-Archive -Path TuneLab\bin\${{ matrix.configuration }}\net8.0 -DestinationPath ${env:ARCHIVE_NAME}'.zip'
+        Compress-Archive -Path TuneLab\bin\${{ matrix.configuration }}\net8.0\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
 
     - name: Upload built zip
       uses: actions/upload-artifact@v4
