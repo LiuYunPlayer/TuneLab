@@ -1,0 +1,83 @@
+# Modified from https://github.com/actions/starter-workflows/blob/main/ci/dotnet-desktop.yml
+
+name: Build artifacts
+
+on:
+  push:
+    branches: [ "master" ]
+    tags:
+    - 'v*'
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+
+  build:
+
+    strategy:
+      matrix:
+        configuration: [Release] # [Debug, Release]
+
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    # Restore the application to populate the obj folder with RuntimeIdentifiers
+    - name: Restore the application
+      run: msbuild TuneLab.sln /t:Restore /p:Configuration=$env:Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    # Create the app package by building and packaging the Windows Application Packaging project
+    - name: Create the app package
+      run: msbuild TuneLab\TuneLab.csproj /p:Configuration=$env:Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    - name: Set short SHA as package name
+      if: "!startsWith(github.event.ref, 'refs/tags/')"
+      run: echo "ARCHIVE_NAME=TuneLab-$(git rev-parse --short HEAD)-Windows" >> $env:GITHUB_ENV
+      
+    - name: Set tag version into env
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "TAG_NAME=${env:GITHUB_REF_NAME}" >> $env:GITHUB_ENV
+      
+    - name: Set tag version as package name
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "ARCHIVE_NAME=TuneLab-${env:TAG_NAME}-Windows" >> $env:GITHUB_ENV
+
+    - name: Package artifacts
+      shell: pwsh
+      run: |
+        Compress-Archive -Path TuneLab\bin\${{ matrix.configuration }}\net8.0 -DestinationPath ${env:ARCHIVE_NAME}'.zip'
+
+    - name: Upload built zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}.zip
+        path: ${{ env.ARCHIVE_NAME }}.zip
+
+    - name: Create release (draft)
+      if: startsWith(github.event.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        name: TuneLab - ${{ env.TAG_NAME }}
+        tag_name: ${{ env.TAG_NAME }}
+        generate_release_notes: true
+        draft: true
+        files: |
+          ${{ env.ARCHIVE_NAME }}.zip
