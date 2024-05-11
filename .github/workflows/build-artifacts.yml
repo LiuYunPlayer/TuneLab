@@ -12,7 +12,8 @@ on:
 
 jobs:
 
-  build:
+  build-windows:
+    name: Build windows version
 
     strategy:
       matrix:
@@ -50,7 +51,7 @@ jobs:
 
     - name: Set short SHA as package name
       if: "!startsWith(github.event.ref, 'refs/tags/')"
-      run: echo "ARCHIVE_NAME=TuneLab-$(git rev-parse --short HEAD)-Windows" >> $env:GITHUB_ENV
+      run: echo "ARCHIVE_NAME=TuneLab-win-x64-$(git rev-parse --short HEAD)" >> $env:GITHUB_ENV
       
     - name: Set tag version into env
       if: startsWith(github.event.ref, 'refs/tags/')
@@ -58,7 +59,7 @@ jobs:
       
     - name: Set tag version as package name
       if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "ARCHIVE_NAME=TuneLab-${env:TAG_NAME}-Windows" >> $env:GITHUB_ENV
+      run: echo "ARCHIVE_NAME=TuneLab-win-x64-${env:TAG_NAME}" >> $env:GITHUB_ENV
 
     - name: Move artifacts
       shell: pwsh
