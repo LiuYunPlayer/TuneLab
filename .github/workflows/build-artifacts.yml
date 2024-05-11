@@ -60,16 +60,21 @@ jobs:
       if: startsWith(github.event.ref, 'refs/tags/')
       run: echo "ARCHIVE_NAME=TuneLab-${env:TAG_NAME}-Windows" >> $env:GITHUB_ENV
 
+    - name: Move artifacts
+      shell: pwsh
+      run: |
+        Move-Item -Path TuneLab\bin\${{ matrix.configuration }}\net8.0 -Destination workspace
+
     - name: Package artifacts
       shell: pwsh
       run: |
-        Compress-Archive -Path TuneLab\bin\${{ matrix.configuration }}\net8.0\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
+        Compress-Archive -Path workspace\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
 
     - name: Upload built zip
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.ARCHIVE_NAME }}.zip
-        path: ${{ env.ARCHIVE_NAME }}.zip
+        name: ${{ env.ARCHIVE_NAME }}
+        path: workspace
 
     - name: Create release (draft)
       if: startsWith(github.event.ref, 'refs/tags/')
