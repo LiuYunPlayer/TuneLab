@@ -17,7 +17,8 @@ jobs:
 
     strategy:
       matrix:
-        configuration: [Release] # [Debug, Release]
+        configuration: [ "Release" ] # [Debug, Release]
+        runtime: [ "win-x64" ]
 
     runs-on: windows-latest
 
@@ -51,7 +52,7 @@ jobs:
 
     - name: Set short SHA as package name
       if: "!startsWith(github.event.ref, 'refs/tags/')"
-      run: echo "ARCHIVE_NAME=TuneLab-win-x64-$(git rev-parse --short HEAD)" >> $env:GITHUB_ENV
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $env:GITHUB_ENV
       
     - name: Set tag version into env
       if: startsWith(github.event.ref, 'refs/tags/')
@@ -59,12 +60,28 @@ jobs:
       
     - name: Set tag version as package name
       if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "ARCHIVE_NAME=TuneLab-win-x64-${env:TAG_NAME}" >> $env:GITHUB_ENV
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-${env:TAG_NAME}" >> $env:GITHUB_ENV
+
+    - name: Split runtimes
+      shell: pwsh
+      run: |
+        Move-Item -Path TuneLab\bin\${{ matrix.configuration }}\net8.0\runtimes -Destination runtimes
 
     - name: Move artifacts
       shell: pwsh
       run: |
         Move-Item -Path TuneLab\bin\${{ matrix.configuration }}\net8.0 -Destination workspace
+
+    - name: Prepare runtime directory
+      shell: pwsh
+      run: |
+        # Prepare workspace dir
+        New-Item -ItemType Directory workspace\runtimes
+
+    - name: Copy specific runtime only
+      shell: pwsh
+      run: |
+        Move-Item -Path runtimes\${{ matrix.runtime }} -Destination workspace\runtimes\${{ matrix.runtime }}
 
     - name: Pack artifacts
       shell: pwsh
