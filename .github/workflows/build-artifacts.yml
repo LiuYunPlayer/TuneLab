@@ -94,13 +94,212 @@ jobs:
         name: ${{ env.ARCHIVE_NAME }}
         path: workspace
 
-    - name: Create release (draft)
+    - name: Upload artifacts for release
       if: startsWith(github.event.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}.zip
+        path: ${{ env.ARCHIVE_NAME }}.zip
+        if-no-files-found: error
+        retention-days: 1
+
+
+  build-macos:
+    name: Build macOS version
+
+    strategy:
+      matrix:
+        configuration: [ "Release" ] # [Debug, Release]
+        runtime: [ "osx" ]
+
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    # Restore the application to populate the obj folder with RuntimeIdentifiers
+    - name: Restore the application
+      run: msbuild TuneLab.sln -t:Restore -p:Configuration=$Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    # Create the app package by building and packaging the Windows Application Packaging project
+    - name: Create the app package
+      run: msbuild TuneLab/TuneLab.csproj -p:Configuration=$Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    - name: Set short SHA as package name
+      if: "!startsWith(github.event.ref, 'refs/tags/')"
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      
+    - name: Set tag version into env
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
+      
+    - name: Set tag version as package name
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$TAG_NAME" >> $GITHUB_ENV
+
+    - name: Split runtimes
+      run: |
+        mv TuneLab/bin/${{ matrix.configuration }}/net8.0/runtimes runtimes
+
+    - name: Move artifacts
+      run: |
+        mv TuneLab/bin/${{ matrix.configuration }}/net8.0 workspace
+
+    - name: Prepare runtime directory
+      run: |
+        mkdir -p workspace/runtimes
+
+    - name: Copy specific runtime only
+      run: |
+        mv runtimes/${{ matrix.runtime }} workspace/runtimes/${{ matrix.runtime }}
+
+    - name: Pack artifacts
+      run: |
+        zip $ARCHIVE_NAME.zip workspace/*
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}
+        path: workspace
+
+    - name: Upload artifacts for release
+      if: startsWith(github.event.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}.zip
+        path: ${{ env.ARCHIVE_NAME }}.zip
+        if-no-files-found: error
+        retention-days: 1
+
+
+  build-linux:
+    name: Build Linux version
+
+    strategy:
+      matrix:
+        configuration: [ "Release" ] # [Debug, Release]
+        runtime: [ "linux-x64" ]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # Install the .NET Core workload
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    # Restore the application to populate the obj folder with RuntimeIdentifiers
+    - name: Restore the application
+      run: msbuild TuneLab.sln -t:Restore -p:Configuration=$Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    # Create the app package by building and packaging the Windows Application Packaging project
+    - name: Create the app package
+      run: msbuild TuneLab/TuneLab.csproj -p:Configuration=$Configuration
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    - name: Set short SHA as package name
+      if: "!startsWith(github.event.ref, 'refs/tags/')"
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      
+    - name: Set tag version into env
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
+      
+    - name: Set tag version as package name
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$TAG_NAME" >> $GITHUB_ENV
+
+    - name: Split runtimes
+      run: |
+        mv TuneLab/bin/${{ matrix.configuration }}/net8.0/runtimes runtimes
+
+    - name: Move artifacts
+      run: |
+        mv TuneLab/bin/${{ matrix.configuration }}/net8.0 workspace
+
+    - name: Prepare runtime directory
+      run: |
+        mkdir -p workspace/runtimes
+
+    - name: Copy specific runtime only
+      run: |
+        mv runtimes/${{ matrix.runtime }} workspace/runtimes/${{ matrix.runtime }}
+
+    - name: Pack artifacts
+      run: |
+        zip $ARCHIVE_NAME.zip workspace/*
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}
+        path: workspace
+
+    - name: Upload artifacts for release
+      if: startsWith(github.event.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}.zip
+        path: ${{ env.ARCHIVE_NAME }}.zip
+        if-no-files-found: error
+        retention-days: 1
+
+
+  prepare-release:
+    name: Prepare release
+    if: startsWith(github.event.ref, 'refs/tags/')
+    needs:
+      - build-windows
+      - build-macos
+      - build-linux
+    
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        # Name of the artifact to download.
+        # If unspecified, all artifacts for the run are downloaded.
+        # Optional.
+        pattern: ./*.zip
+
+    - name: Create release (draft)
       uses: softprops/action-gh-release@v2
       with:
         name: TuneLab - ${{ env.TAG_NAME }}
         tag_name: ${{ env.TAG_NAME }}
         generate_release_notes: true
         draft: true
-        files: |
-          ${{ env.ARCHIVE_NAME }}.zip
+        files: ./*.zip
