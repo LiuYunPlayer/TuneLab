@@ -66,12 +66,12 @@ jobs:
       run: |
         Move-Item -Path TuneLab\bin\${{ matrix.configuration }}\net8.0 -Destination workspace
 
-    - name: Package artifacts
+    - name: Pack artifacts
       shell: pwsh
       run: |
         Compress-Archive -Path workspace\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
 
-    - name: Upload built zip
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.ARCHIVE_NAME }}
