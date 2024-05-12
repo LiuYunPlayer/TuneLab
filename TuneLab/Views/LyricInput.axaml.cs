@@ -33,6 +33,8 @@ namespace TuneLab.Views
             LyricInputBox.Background = Style.BACK.ToBrush();
             LyricInputBox.Padding = new(8, 8);
             LyricInputBox.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Top;
+            LyricInputBox.Foreground = Style.WHITE.ToBrush();
+            LyricInputBox.TextWrapping = TextWrapping.Wrap;
             TextareaBox.Children.Add(LyricInputBox);
 
             var SkipTenutoLabelPanel = new StackPanel();
