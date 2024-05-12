@@ -22,7 +22,7 @@
 	</Window.Styles>
 
 	<DockPanel Margin="0">
-		<Grid DockPanel.Dock="Top" IsHitTestVisible="False" x:Name="TitleBar" Height="40" Width="480">
+		<Grid DockPanel.Dock="Top" IsHitTestVisible="False" x:Name="TitleBar" Height="40">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="*" />
 			</Grid.ColumnDefinitions>
@@ -30,15 +30,15 @@
 			<Label x:Name="TitleLabel" Content="Input Lyrics" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
 		</Grid>
 
-		<Grid Margin="0" Width="480">
+		<Grid Margin="0">
 			<Grid.RowDefinitions>
-				<RowDefinition Height="163" />
-				<RowDefinition Height="58" />
+				<RowDefinition Height="184" />
+				<RowDefinition Height="28" />
 			</Grid.RowDefinitions>
 
-			<StackPanel Grid.Row="0" Orientation="Vertical" Margin="21, 21, 24, 0" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TextareaBox" />
+			<StackPanel Grid.Row="0" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TextareaBox" />
 
-			<Grid Grid.Row="1" x:Name="ActionsPanel" Margin="20,24" Width="430">
+			<Grid Grid.Row="1" x:Name="ActionsPanel" Margin="24, 16, 24, 16">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="*" />
 					<ColumnDefinition Width="Auto" />
