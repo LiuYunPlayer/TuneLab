@@ -76,6 +76,9 @@ internal static class VoicesManager
             {
                 if (typeof(IVoiceEngine).IsAssignableFrom(type))
                 {
+                    if (mVoiceEngines.ContainsKey(attribute.Type))
+                        continue;
+
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
                         mVoiceEngines.Add(attribute.Type, new VoiceEngineStatus((IVoiceEngine)constructor.Invoke(null), path));
