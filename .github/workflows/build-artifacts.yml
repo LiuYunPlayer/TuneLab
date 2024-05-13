@@ -17,7 +17,6 @@ jobs:
 
     strategy:
       matrix:
-        configuration: [ "Release" ] # [Debug, Release]
         runtime: [ "win-x64" ]
 
     runs-on: windows-latest
@@ -28,27 +27,13 @@ jobs:
       with:
         fetch-depth: 0
 
-    # Install the .NET Core workload
     - name: Install .NET Core
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
 
-    # Add  MSBuild to the PATH: https://github.com/microsoft/setup-msbuild
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
-
-    # Restore the application to populate the obj folder with RuntimeIdentifiers
-    - name: Restore the application
-      run: msbuild TuneLab.sln /t:Restore /p:Configuration=$env:Configuration
-      env:
-        Configuration: ${{ matrix.configuration }}
-
-    # Create the app package by building and packaging the Windows Application Packaging project
-    - name: Create the app package
-      run: msbuild TuneLab\TuneLab.csproj /p:Configuration=$env:Configuration
-      env:
-        Configuration: ${{ matrix.configuration }}
+    - name: Build the application
+      run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
 
     - name: Set short SHA as package name
       if: "!startsWith(github.event.ref, 'refs/tags/')"
@@ -62,31 +47,13 @@ jobs:
       if: startsWith(github.event.ref, 'refs/tags/')
       run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-${env:TAG_NAME}" >> $env:GITHUB_ENV
 
-    - name: Split runtimes
-      shell: pwsh
-      run: |
-        Move-Item -Path TuneLab\bin\${{ matrix.configuration }}\net8.0\runtimes -Destination runtimes
-
     - name: Move artifacts
       shell: pwsh
-      run: |
-        Move-Item -Path TuneLab\bin\${{ matrix.configuration }}\net8.0 -Destination workspace
-
-    - name: Prepare runtime directory
-      shell: pwsh
-      run: |
-        # Prepare workspace dir
-        New-Item -ItemType Directory workspace\runtimes
-
-    - name: Copy specific runtime only
-      shell: pwsh
-      run: |
-        Move-Item -Path runtimes\${{ matrix.runtime }} -Destination workspace\runtimes\${{ matrix.runtime }}
+      run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
 
     - name: Pack artifacts
       shell: pwsh
-      run: |
-        Compress-Archive -Path workspace\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
+      run: Compress-Archive -Path workspace\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -94,13 +61,143 @@ jobs:
         name: ${{ env.ARCHIVE_NAME }}
         path: workspace
 
-    - name: Create release (draft)
+    - name: Upload release artifact
       if: startsWith(github.event.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        files: ${{ env.ARCHIVE_NAME }}.zip
+
+
+  build-macos:
+    name: Build macOS version
+
+    strategy:
+      matrix:
+        runtime: [ "osx-arm64" ]
+
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Build the application
+      run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
+
+    - name: Set short SHA as package name
+      if: "!startsWith(github.event.ref, 'refs/tags/')"
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      
+    - name: Set tag version into env
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
+      
+    - name: Set tag version as package name
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$TAG_NAME" >> $GITHUB_ENV
+
+    - name: Move artifacts
+      run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
+
+    - name: Pack artifacts
+      run: |
+        cd workspace
+        tar -zcvf ../$ARCHIVE_NAME.tar.gz .
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}.tar.gz
+        path: ${{ env.ARCHIVE_NAME }}.tar.gz
+
+    - name: Upload release artifact
+      if: startsWith(github.event.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        files: ${{ env.ARCHIVE_NAME }}.tar.gz
+
+
+  build-linux:
+    name: Build Linux version
+
+    strategy:
+      matrix:
+        runtime: [ "linux-x64" ]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Build the application
+      run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
+
+    - name: Set short SHA as package name
+      if: "!startsWith(github.event.ref, 'refs/tags/')"
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      
+    - name: Set tag version into env
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
+      
+    - name: Set tag version as package name
+      if: startsWith(github.event.ref, 'refs/tags/')
+      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$TAG_NAME" >> $GITHUB_ENV
+
+    - name: Move artifacts
+      run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
+
+    - name: Pack artifacts
+      run: |
+        cd workspace
+        tar -zcvf ../$ARCHIVE_NAME.tar.gz .
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.ARCHIVE_NAME }}.tar.gz
+        path: ${{ env.ARCHIVE_NAME }}.tar.gz
+
+    - name: Upload release artifact
+      if: startsWith(github.event.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        files: ${{ env.ARCHIVE_NAME }}.tar.gz
+
+
+  prepare-release:
+    name: Prepare release
+    if: startsWith(github.event.ref, 'refs/tags/')
+    needs:
+      - build-windows
+      - build-macos
+      - build-linux
+    
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Create release (draft)
       uses: softprops/action-gh-release@v2
       with:
         name: TuneLab - ${{ env.TAG_NAME }}
         tag_name: ${{ env.TAG_NAME }}
         generate_release_notes: true
         draft: true
-        files: |
-          ${{ env.ARCHIVE_NAME }}.zip
