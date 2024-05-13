@@ -61,12 +61,13 @@ jobs:
         name: ${{ env.ARCHIVE_NAME }}
         path: workspace
 
-    - name: Upload release artifact
+    - name: Upload release artifacts
       if: startsWith(github.event.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v2
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: ${{ env.TAG_NAME }}
-        files: ${{ env.ARCHIVE_NAME }}.zip
+        name: ${{ env.ARCHIVE_NAME }}.zip
+        path: ${{ env.ARCHIVE_NAME }}.zip
+        retention-days: 1
 
 
   build-macos:
@@ -118,13 +119,6 @@ jobs:
         name: ${{ env.ARCHIVE_NAME }}.tar.gz
         path: ${{ env.ARCHIVE_NAME }}.tar.gz
 
-    - name: Upload release artifact
-      if: startsWith(github.event.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ env.TAG_NAME }}
-        files: ${{ env.ARCHIVE_NAME }}.tar.gz
-
 
   build-linux:
     name: Build Linux version
@@ -175,13 +169,6 @@ jobs:
         name: ${{ env.ARCHIVE_NAME }}.tar.gz
         path: ${{ env.ARCHIVE_NAME }}.tar.gz
 
-    - name: Upload release artifact
-      if: startsWith(github.event.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ env.TAG_NAME }}
-        files: ${{ env.ARCHIVE_NAME }}.tar.gz
-
 
   prepare-release:
     name: Prepare release
@@ -194,6 +181,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true
+
     - name: Create release (draft)
       uses: softprops/action-gh-release@v2
       with:
@@ -201,3 +193,6 @@ jobs:
         tag_name: ${{ env.TAG_NAME }}
         generate_release_notes: true
         draft: true
+        files: |
+          TuneLab-*.zip
+          TuneLab-*.tar.gz
