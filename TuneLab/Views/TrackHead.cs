@@ -95,7 +95,9 @@ internal class TrackHead : Panel
                 if (Track == null)
                     return;
 
-                Track.Project.RemoveTrack(Track);
+                var project = Track.Project;
+                project.RemoveTrack(Track);
+                project.Commit();
             }).SetInputGesture(new KeyGesture(Key.Delete));
             menu.Items.Add(menuItem);
         }
