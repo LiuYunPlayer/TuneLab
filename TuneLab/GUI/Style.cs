@@ -23,4 +23,8 @@ internal static class Style
     public static readonly Color TEXT_LIGHT = new(255, 255, 255, 255);
     public static readonly Color WHITE_KEY = new(255, 39, 39, 54);
     public static readonly Color BLACK_KEY = new(255, 27, 27, 36);
+    public static readonly Color BUTTON_PRIMARY = new(255, 96, 96, 192);
+    public static readonly Color BUTTON_NORMAL = new(255, 58, 63, 105);
+    public static readonly Color BUTTON_PRIMARY_HOVER = new(255, 127, 127, 255);
+    public static readonly Color BUTTON_NORMAL_HOVER = new(255, 85, 92, 153);
 }

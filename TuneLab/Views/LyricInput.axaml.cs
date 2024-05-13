@@ -49,7 +49,7 @@ namespace TuneLab.Views
             OkButtonPanel.Orientation = Orientation.Horizontal;
             OkButtonPanel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
             var OkButton = new Button() { Width = 64, Height = 28 };
-            OkButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = new(255, 96, 96, 192), HoveredColor = new(255, 127, 127, 255) } });
+            OkButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_PRIMARY, HoveredColor = Style.BUTTON_PRIMARY_HOVER } });
             OkButton.AddContent(new() { Item = new TextItem() { Text = "OK" }, ColorSet = new() { Color = Colors.White } });
             OkButtonPanel.Children.Add(OkButton);
             ActionsPanel.Children.Add(OkButtonPanel);
