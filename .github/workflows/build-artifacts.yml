@@ -194,4 +194,4 @@ jobs:
         draft: true
         files: |
           TuneLab-*.zip
-          TuneLab-*.tar.gz
+#          TuneLab-*.tar.gz    # 因为还没有解决跨平台的问题所以这个先注释掉，等跨平台完成了就可以去掉这个注释一并发布 linux 和 osx 的版本了
