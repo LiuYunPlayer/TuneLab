@@ -60,10 +60,10 @@ internal partial class Dialog : Window
         var button = new Button() { MinWidth = 96, Height = 40 };
 
         if (type == ButtonType.Primary)
-            button.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = new(255, 96, 96, 192), HoveredColor = new(255, 127, 127, 255) } });
+            button.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_PRIMARY, HoveredColor = Style.BUTTON_PRIMARY_HOVER } });
 
         if (type == ButtonType.Normal)
-            button.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = new(255, 58, 63, 105), HoveredColor = new(255, 85, 92, 153) } });
+            button.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
 
         button.AddContent(new() { Item = new TextItem() { Text = text }, ColorSet = new() { Color = type == ButtonType.Primary ? Colors.White : Style.LIGHT_WHITE } });
 
