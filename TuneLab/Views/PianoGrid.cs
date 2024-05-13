@@ -264,7 +264,16 @@ internal partial class PianoGrid : View, IPianoScrollView
             };
             double left = TickAxis.Tick2X(tempoManager.GetTick(piece.StartTime()));
             double right = TickAxis.Tick2X(tempoManager.GetTick(piece.EndTime()));
-            context.FillRectangle(brush, new Rect(left, 12, right - left, 8), 2);
+            if (piece.SynthesisStatus == SynthesisStatus.Synthesizing)
+            {
+                double center = MathUtility.LineValue(0, left, 1, right, piece.SynthesisProgress);
+                context.DrawRectangle(Colors.Green.Opacity(0.5).ToBrush(), null, new RoundedRect(new(left, 12, center - left, 8), 2, 0, 0, 2));
+                context.DrawRectangle(Colors.Orange.Opacity(0.5).ToBrush(), null, new RoundedRect(new(center, 12, right - center, 8), 0, 2, 2, 0));
+            }
+            else
+            {
+                context.FillRectangle(brush, new Rect(left, 12, right - left, 8), 2);
+            }
         }
 
         // draw pitch
@@ -386,7 +395,6 @@ internal partial class PianoGrid : View, IPianoScrollView
                 context.DrawCurve(points, pitchColor, 1);
             }
         }
-
     }
 
     void DrawPitch(DrawingContext context, double left, double right, Func<IReadOnlyList<double>, double[]> getPitch, double pitchOpacity, Color pitchColor, double thickness)
