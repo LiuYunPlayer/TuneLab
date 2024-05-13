@@ -189,7 +189,7 @@ jobs:
     - name: Create release (draft)
       uses: softprops/action-gh-release@v2
       with:
-        name: TuneLab - ${{ vars.GITHUB_REF_NAME }}
+        name: TuneLab - ${{ github.ref_name }}
         generate_release_notes: true
         draft: true
         files: |
