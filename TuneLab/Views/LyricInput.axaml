@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="284"
+        x:Class="TuneLab.Views.LyricInput"
+        Title="TuneLab"
+		Width="480"
+		Height="284"
+		ExtendClientAreaChromeHints="NoChrome"
+		ExtendClientAreaTitleBarHeightHint="40"
+		ExtendClientAreaToDecorationsHint="True"
+		UseLayoutRounding="True">
+	<Window.Styles>
+		<Style Selector="TitleBar">
+			<Setter Property="Background" Value="DarkGray"/>
+			<Setter Property="Foreground" Value="White"/>
+		</Style>
+		<Style Selector="Window">
+			<Setter Property="CornerRadius" Value="12"/>
+		</Style>
+	</Window.Styles>
+
+	<DockPanel Margin="0">
+		<Grid DockPanel.Dock="Top" IsHitTestVisible="False" x:Name="TitleBar" Height="40">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*" />
+			</Grid.ColumnDefinitions>
+
+			<Label x:Name="TitleLabel" Content="Input Lyrics" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+		</Grid>
+
+		<Grid Margin="0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="184" />
+				<RowDefinition Height="28" />
+			</Grid.RowDefinitions>
+
+			<StackPanel Grid.Row="0" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TextareaBox" />
+
+			<Grid Grid.Row="1" x:Name="ActionsPanel" Margin="24, 16, 24, 16">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*" />
+					<ColumnDefinition Width="Auto" />
+				</Grid.ColumnDefinitions>
+			</Grid>
+		</Grid>
+	</DockPanel>
+</Window>
