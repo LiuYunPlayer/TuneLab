@@ -26,6 +26,7 @@
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.3" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="PinYinConverterCore" Version="1.0.2" />
 		<PackageReference Include="Svg.Skia" Version="1.0.0.17" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.0" />
 	</ItemGroup>

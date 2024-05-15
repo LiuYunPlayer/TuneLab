@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.International.Converters.PinYinConverter;
+using TuneLab.Base.Structures;
 
 namespace TuneLab.Utils;
 
@@ -49,5 +51,31 @@ internal static class LyricUtils
             '.', ',', '!', '?', ';', ':', '"', '(', ')', '[', ']', '{', '}', '/', '\'', '%', '$', '£', '€',
             '。', '，', '！', '？', '；', '：', '“', '”', '‘', '’', '（', '）', '【', '】', '『', '』', '—', '·'])
             .Where(s => !string.IsNullOrEmpty(s));
+    }
+
+    public static IReadOnlyCollection<string> GetPronunciations(string lyric)
+    {
+        if (lyric.Length == 1)
+        {
+            var c = lyric[0];
+            if (ChineseChar.IsValidChar(c))
+            {
+                var chineseChar = new ChineseChar(c);
+                return chineseChar.Pinyins.Take(chineseChar.PinyinCount).Convert(ToPinyin).ToArray();
+            }
+        }
+
+        return [];
+    }
+
+    static string ToPinyin(string pinyin)
+    {
+        if (string.IsNullOrEmpty(pinyin))
+            return string.Empty;
+
+        if (char.IsNumber(pinyin[^1]))
+            return pinyin.Substring(0, pinyin.Length - 1).ToLower();
+
+        return pinyin.ToLower();
     }
 }

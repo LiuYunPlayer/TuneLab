@@ -31,7 +31,6 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     INote? LastInSegment { get; set; }
 
     int ISynthesisNote.Pitch => Pitch.Value;
-    string ISynthesisNote.Lyric => Lyric.Value;
     PropertyObject ISynthesisNote.Properties => new(Properties);
     IReadOnlyList<SynthesizedPhoneme> ISynthesisNote.Phonemes => Phonemes.Convert(GetPhoneme);
     ISynthesisNote? ISynthesisNote.Next => NextInSegment;

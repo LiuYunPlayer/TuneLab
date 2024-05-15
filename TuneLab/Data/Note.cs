@@ -42,6 +42,8 @@ internal class Note : DataObject, INote
     IDataProperty<string> INote.Lyric => Lyric;
     IDataObjectList<IPhoneme> INote.Phonemes => Phonemes;
 
+    string ISynthesisNote.Lyric => Lyric.Pronunciation ?? Lyric.Value;
+
     INote? ILinkedNode<INote>.Next { get; set; } = null;
     INote? ILinkedNode<INote>.Last { get; set; } = null;
     ILinkedList<INote>? ILinkedNode<INote>.LinkedList { get; set; }
@@ -85,13 +87,29 @@ internal class Note : DataObject, INote
         IDataObject<NoteInfo>.SetInfo(Phonemes, info.Phonemes.Convert(Phoneme.Create).ToArray());
     }
 
-    class DataLyric(Note note) : DataString(note)
+    class DataLyric : DataString
     {
+        public string? Pronunciation => mPronunciation;
+
+        public DataLyric(Note note) : base(note)
+        {
+            mNote = note;
+            Modified.Subscribe(() =>
+            {
+                var pronunciations = LyricUtils.GetPronunciations(Value);
+                if (!pronunciations.IsEmpty())
+                    mPronunciation = pronunciations.First();
+            });
+        }
+
         public override void Set(string value)
         {
             base.Set(value);
-            note.Phonemes.Clear();
+            mNote.Phonemes.Clear();
         }
+
+        string? mPronunciation;
+        Note mNote;
     }
 
     readonly IMidiPart mPart;
