@@ -226,6 +226,10 @@ internal partial class PianoGrid
                                             var menuItem = new MenuItem().SetName("Octave Down").SetAction(OctaveDown).SetInputGesture(new KeyGesture(Key.Down, KeyModifiers.Shift));
                                             menu.Items.Add(menuItem);
                                         }
+                                        {
+                                            var menuItem = new MenuItem().SetName("Input Lyrics").SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems()); });
+                                            menu.Items.Add(menuItem);
+                                        }
                                         if (note.Next != null)
                                         {
                                             var menuItem = new MenuItem().SetName("Move Lyrics Forward").SetAction(() =>
