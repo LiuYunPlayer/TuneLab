@@ -37,7 +37,6 @@ namespace TuneLab.Views
             this.AttachDevTools();
 #endif
 
-            this.DataContext = this;
             Focusable = true;
             IsTabStop = false;
             isCloseConfirm = false;
