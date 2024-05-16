@@ -728,7 +728,7 @@ internal class MidiPart : Part, IMidiPart
             mIsPrepared = part.AutoPrepare;
             mTask = mPart.Voice.CreateSynthesisTask(this);
             mTask.Complete += (result) => // FIXME: 将信号转发到主线程执行
-            { 
+            {
                 mSynthesisResult = result; 
                 mWaveform = new(mSynthesisResult.AudioData); 
                 foreach (var note in Notes)

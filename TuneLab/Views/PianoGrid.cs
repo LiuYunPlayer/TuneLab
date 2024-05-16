@@ -270,6 +270,12 @@ internal partial class PianoGrid : View, IPianoScrollView
                 context.DrawRectangle(Colors.Green.Opacity(0.5).ToBrush(), null, new RoundedRect(new(left, 12, center - left, 8), 2, 0, 0, 2));
                 context.DrawRectangle(Colors.Orange.Opacity(0.5).ToBrush(), null, new RoundedRect(new(center, 12, right - center, 8), 0, 2, 2, 0));
             }
+            else if (piece.SynthesisStatus == SynthesisStatus.SynthesisFailed && !string.IsNullOrEmpty(piece.LastError))
+            {
+                var rect = new Rect(left, 8, right - left, 16);
+                using var clip = context.PushClip(rect);
+                context.DrawString(piece.LastError, rect, Colors.Red.ToBrush(), 12, Alignment.LeftCenter, Alignment.LeftCenter);
+            }
             else
             {
                 context.FillRectangle(brush, new Rect(left, 12, right - left, 8), 2);
