@@ -14,7 +14,7 @@ namespace TuneLab.Views;
 
 internal partial class LyricInput : Window
 {
-    LyricInput()
+    public LyricInput()
     {
         InitializeComponent();
         Focusable = true;

@@ -19,7 +19,7 @@
 				<ColumnDefinition Width="*"/>
 			</Grid.ColumnDefinitions>
 			
-			<StackPanel Grid.Column="0" x:Name="MenuBar" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False"/>
+			<StackPanel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False"/>
 			<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
 				<Label Content="Input Lyrics" x:Name="TitleLabel" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" BorderThickness="0" IsHitTestVisible="False"/>
 			</StackPanel>
@@ -27,7 +27,7 @@
 		</Grid>
 
 		<ContentControl>
-			<Grid Width="480" Height="244" DockPanel.Dock="Bottom">
+			<Grid Width="480" Height="244">
 				<Grid.RowDefinitions>
 					<RowDefinition Height="184" />
 					<RowDefinition Height="28" />
