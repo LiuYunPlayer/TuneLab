@@ -37,7 +37,7 @@ namespace TuneLab.Views
             this.AttachDevTools();
 #endif
 
-            Focusable = false;
+            Focusable = true;
             IsTabStop = false;
             isCloseConfirm = false;
             Background = Style.BACK.ToBrush();
