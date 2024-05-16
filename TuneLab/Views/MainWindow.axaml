@@ -10,17 +10,7 @@
 		ExtendClientAreaChromeHints="NoChrome"
 		ExtendClientAreaTitleBarHeightHint="40"
 		ExtendClientAreaToDecorationsHint="True"
-		UseLayoutRounding="True"
 		SizeChanged="Window_SizeChanged">
-	<Window.Styles>
-		<Style Selector="TitleBar">
-			<Setter Property="Background" Value="DarkGray"/>
-			<Setter Property="Foreground" Value="White"/>
-		</Style>
-		<Style Selector="Window">
-			<Setter Property="CornerRadius" Value="20"/>
-		</Style>
-	</Window.Styles>
 
 	<DockPanel Margin="{Binding $parent[Window].OffScreenMargin}">
 		<!-- Custom title bar -->

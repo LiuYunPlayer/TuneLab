@@ -9,8 +9,7 @@
 		Height="204"
 		ExtendClientAreaChromeHints="NoChrome"
 		ExtendClientAreaTitleBarHeightHint="40"
-		ExtendClientAreaToDecorationsHint="True"
-		UseLayoutRounding="True">
+		ExtendClientAreaToDecorationsHint="True">
 		<Window.Styles>
 			<Style Selector="TitleBar">
 				<Setter Property="Background" Value="DarkGray"/>

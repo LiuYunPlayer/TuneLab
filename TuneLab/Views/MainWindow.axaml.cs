@@ -37,7 +37,7 @@ namespace TuneLab.Views
             this.AttachDevTools();
 #endif
 
-            Focusable = true;
+            Focusable = false;
             IsTabStop = false;
             isCloseConfirm = false;
             Background = Style.BACK.ToBrush();
@@ -129,7 +129,6 @@ namespace TuneLab.Views
                         }
                         break;
                     case WindowState.Minimized:
-                        Trace.WriteLine("窗口状态：最小化");
                         break;
                 }
 
