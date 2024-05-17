@@ -1,22 +1,20 @@
 using Avalonia.Controls;
-using Avalonia.Controls.Chrome;
-using System;
-using TuneLab.Utils;
-using TuneLab.GUI;
-using TuneLab.GUI.Components;
-using CheckBox = TuneLab.GUI.Components.CheckBox;
 using Avalonia.Layout;
-using Button = TuneLab.GUI.Components.Button;
 using Avalonia.Media;
-using TuneLab.Data;
 using System.Collections.Generic;
 using System.Linq;
+using TuneLab.Data;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.Utils;
+using Button = TuneLab.GUI.Components.Button;
+using CheckBox = TuneLab.GUI.Components.CheckBox;
 
 namespace TuneLab.Views;
 
 internal partial class LyricInput : Window
 {
-    LyricInput()
+    public LyricInput()
     {
         InitializeComponent();
         Focusable = true;
@@ -25,9 +23,16 @@ internal partial class LyricInput : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Topmost = true;
 
-        this.DataContext = this;
         this.Background = Style.INTERFACE.ToBrush();
         TitleBar.Background = Style.BACK.ToBrush();
+        TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
+
+        var closeButton = new Button() { Width = 48, Height = 40 }
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+                .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
+        closeButton.Clicked += () => Close();
+
+        WindowControl.Children.Add(closeButton);
 
         mLyricInputBox = new TextInput();
         mLyricInputBox.AcceptsReturn = true;
