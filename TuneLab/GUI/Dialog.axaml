@@ -21,25 +21,29 @@
 		</Window.Styles>
 
 		<DockPanel Margin="0">
-			<Grid DockPanel.Dock="Top" IsHitTestVisible="False" x:Name="TitleBar" Height="40">
+			<Grid DockPanel.Dock="Top" x:Name="TitleBar" Height="40">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="*" />
 				</Grid.ColumnDefinitions>
-				
-				<Label x:Name="TitleLabel" Content="Message" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
-			</Grid>
 
-			<Grid Margin="0">
-				<Grid.RowDefinitions>
-					<RowDefinition Height="108" />
-					<RowDefinition Height="56" />
-				</Grid.RowDefinitions>
-
-				<StackPanel Grid.Row="0" Orientation="Vertical" Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center">
-					<TextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
+				<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
+					<Label x:Name="TitleLabel" Content="Message" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
 				</StackPanel>
-
-				<Grid Grid.Row="1" x:Name="ButtonsPanel" Margin="0, 0, 0, 16"/>
 			</Grid>
+
+			<ContentControl x:Name="Content">
+				<Grid Margin="0">
+					<Grid.RowDefinitions>
+						<RowDefinition Height="108" />
+						<RowDefinition Height="56" />
+					</Grid.RowDefinitions>
+
+					<StackPanel Grid.Row="0" Orientation="Vertical" Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center">
+						<TextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
+					</StackPanel>
+
+					<Grid Grid.Row="1" x:Name="ButtonsPanel" Margin="0, 0, 0, 16"/>
+				</Grid>
+			</ContentControl>
 		</DockPanel>
 </Window>
