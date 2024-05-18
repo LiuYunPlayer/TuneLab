@@ -24,6 +24,7 @@ internal partial class TimelineView : View
         IProvider<ITimeline> TimelineProvider { get; }
         IPlayhead Playhead { get; }
         bool IsAutoPage { get; }
+        void EnterInputBpm(ITempo tempo);
     }
 
     public TimelineView(IDependency dependency)
@@ -156,12 +157,12 @@ internal partial class TimelineView : View
         }
     }
 
-    string BpmString(ITempo tempo)
+    public string BpmString(ITempo tempo)
     {
         return tempo.Bpm.Value.ToString("F2");
     }
 
-    double TempoWidth(ITempo tempo)
+    public double TempoWidth(ITempo tempo)
     {
         return new FormattedText(BpmString(tempo), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
     }

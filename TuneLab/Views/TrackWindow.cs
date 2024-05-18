@@ -19,7 +19,7 @@ using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Views;
 
-internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
+internal class TrackWindow : DockPanel, TimelineScrollView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
 {
     public IProvider<Project> ProjectProvider => mDependency.ProjectProvider;
     public IProvider<ITimeline> TimelineProvider => mDependency.ProjectProvider;
@@ -74,9 +74,9 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         {
             var layer = new DockPanel();
             {
-                mTimelineView = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
-                layer.Children.Add(mTimelineView);
-                DockPanel.SetDock(mTimelineView, Dock.Top);
+                mTimelineScrollView = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+                layer.Children.Add(mTimelineScrollView);
+                DockPanel.SetDock(mTimelineScrollView, Dock.Top);
 
                 mTrackScrollView = new(this);
                 layer.Children.Add(mTrackScrollView);
@@ -99,7 +99,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         mTickAxis.ViewLength = e.NewSize.Width - mTrackHeadList.Width;
-        mTrackVerticalAxis.ViewLength = e.NewSize.Height - mTimelineView.Height;
+        mTrackVerticalAxis.ViewLength = e.NewSize.Height - mTimelineScrollView.Height;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -144,7 +144,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     readonly TrackVerticalAxis mTrackVerticalAxis;
 
     readonly TrackHeadList mTrackHeadList;
-    readonly TimelineView mTimelineView;
+    readonly TimelineScrollView mTimelineScrollView;
     readonly TrackScrollView mTrackScrollView;
     readonly PlayheadLayer mPlayheadLayer;
 
