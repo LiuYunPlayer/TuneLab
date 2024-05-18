@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using ReactiveUI;
 using System;
+using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -34,13 +35,12 @@ internal partial class Dialog : Window
         Topmost = true;
 
         this.DataContext = this;
-        this.Background = Style.INTERFACE.ToBrush();
+        this.Background = Style.BACK.ToBrush();
+        Content.Background = Style.INTERFACE.ToBrush();
 
         titleBar = this.FindControl<Grid>("TitleBar") ?? throw new InvalidOperationException("TitleBar not found");
         titleLabel = this.FindControl<Label>("TitleLabel") ?? throw new InvalidOperationException("TitleLabel not found");
         messageTextBlock = this.FindControl<TextBlock>("MessageTextBlock") ?? throw new InvalidOperationException("MessageTextBlock not found");
-
-        titleBar.Background = Style.BACK.ToBrush();
     }
 
     public void SetTitle(string title)

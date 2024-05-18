@@ -23,8 +23,7 @@ internal partial class LyricInput : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Topmost = true;
 
-        this.Background = Style.INTERFACE.ToBrush();
-        TitleBar.Background = Style.BACK.ToBrush();
+        this.Background = Style.BACK.ToBrush();
         TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
 
         var closeButton = new Button() { Width = 48, Height = 40 }
@@ -33,6 +32,8 @@ internal partial class LyricInput : Window
         closeButton.Clicked += () => Close();
 
         WindowControl.Children.Add(closeButton);
+
+        Content.Background = Style.INTERFACE.ToBrush();
 
         mLyricInputBox = new TextInput();
         mLyricInputBox.AcceptsReturn = true;
