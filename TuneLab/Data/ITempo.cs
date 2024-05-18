@@ -10,6 +10,6 @@ namespace TuneLab.Data;
 
 internal interface ITempo : IDataObject<TempoInfo>
 {
-    IDataProperty<double> Pos { get; }
-    IDataProperty<double> Bpm { get; }
+    IReadOnlyDataProperty<double> Pos { get; }
+    IReadOnlyDataProperty<double> Bpm { get; }
 }

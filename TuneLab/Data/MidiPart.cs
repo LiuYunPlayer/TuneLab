@@ -308,18 +308,6 @@ internal class MidiPart : Part, IMidiPart
         PushAndDo(new Command(mPrepareMergeHandler.End, mPrepareMergeHandler.Begin));
     }
 
-    public void BeginMergeDirty()
-    {
-        BeginMergeReSegment();
-        DisableAutoPrepare();
-    }
-
-    public void EndMergeDirty()
-    {
-        EnableAutoPrepare();
-        EndMergeReSegment();
-    }
-
     void ReSegment()
     {
         mReSegmentMergeHandler.Trigger();

@@ -12,6 +12,7 @@ using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
+using NAudio.CoreAudioApi;
 
 namespace TuneLab.Data;
 
@@ -35,8 +36,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     Vibrato CreateVibrato(VibratoInfo info);
     void InsertVibrato(Vibrato note);
     bool RemoveVibrato(Vibrato note);
-    void BeginMergeDirty();
-    void EndMergeDirty();
+    void BeginMergeReSegment();
+    void EndMergeReSegment();
     void DisableAutoPrepare();
     void EnableAutoPrepare();
 }
@@ -112,6 +113,18 @@ internal static class IMidiPartExtension
         }
 
         return (min, max);
+    }
+
+    public static void BeginMergeDirty(this IMidiPart part)
+    {
+        part.BeginMergeReSegment();
+        part.DisableAutoPrepare();
+    }
+
+    public static void EndMergeDirty(this IMidiPart part)
+    {
+        part.EnableAutoPrepare();
+        part.EndMergeReSegment();
     }
 
     public static List<INote> AllNotesInSelection(this IMidiPart part, double start, double end)

@@ -9,6 +9,9 @@ using TuneLab.Base.Utils;
 using TuneLab.Data;
 using TuneLab.GUI.Input;
 using TuneLab.Animation;
+using TuneLab.Base.Data;
+using Avalonia.Controls;
+using TuneLab.Utils;
 
 namespace TuneLab.Views;
 
@@ -29,13 +32,73 @@ internal partial class TimelineView
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
+        bool alt = (e.KeyModifiers & ModifierKeys.Alt) != 0;
         switch (mState)
         {
             case State.None:
+                var item = ItemAt(e.Position);
                 switch (e.MouseButtonType)
                 {
                     case MouseButtonType.PrimaryButton:
-                        mSeekOperation.Down(e.Position.X);
+                        {
+                            if (item is TempoItem tempoItem)
+                            {
+                                if (e.IsDoubleClick)
+                                {
+                                    // Enter Input Tempo
+                                }
+                                else
+                                {
+                                    mTempoMovingOperation.Down(e.Position.X, tempoItem);
+                                }
+                            }
+                            else
+                            {
+                                mSeekOperation.Down(e.Position.X);
+                            }
+                        }
+                        break;
+                    case MouseButtonType.SecondaryButton:
+                        {
+                            if (Timeline == null)
+                                break;
+
+                            if (item is TempoItem tempoItem)
+                            {
+                                var menu = new ContextMenu();
+                                {
+                                    var menuItem = new MenuItem().SetName("Edit Tempo").SetAction(() =>
+                                    {
+                                        // Enter edit
+                                    });
+                                    menu.Items.Add(menuItem);
+                                }
+                                if (tempoItem.TempoIndex != 0)
+                                {
+                                    var menuItem = new MenuItem().SetName("Delete Tempo").SetAction(() =>
+                                    {
+                                        Timeline.TempoManager.RemoveTempoAt(tempoItem.TempoIndex);
+                                        Timeline.TempoManager.Project.Commit();
+                                    });
+                                    menu.Items.Add(menuItem);
+                                }
+                                menu.Open(this);
+                            }
+                            else
+                            {
+                                var pos = TickAxis.X2Tick(e.Position.X);
+                                if (!alt) pos = GetQuantizedTick(pos);
+                                var menu = new ContextMenu();
+                                var menuItem = new MenuItem().SetName("Add Tempo").SetAction(() =>
+                                {
+                                    var bpm = Timeline.TempoManager.GetBpmAt(pos);
+                                    Timeline.TempoManager.AddTempo(pos, bpm);
+                                    Timeline.TempoManager.Project.Commit();
+                                });
+                                menu.Items.Add(menuItem);
+                                menu.Open(this);
+                            }
+                        }
                         break;
                     default:
                         break;
@@ -57,10 +120,14 @@ internal partial class TimelineView
 
     protected override void OnMouseRelativeMoveToView(MouseMoveEventArgs e)
     {
+        bool alt = (e.KeyModifiers & ModifierKeys.Alt) != 0;
         switch (mState)
         {
             case State.Seeking:
                 mSeekOperation.Move(e.Position.X);
+                break;
+            case State.TempoMoving:
+                mTempoMovingOperation.Move(e.Position.X, alt);
                 break;
             default:
                 break;
@@ -75,6 +142,10 @@ internal partial class TimelineView
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mSeekOperation.Up();
                 break;
+            case State.TempoMoving:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mTempoMovingOperation.Up();
+                break;
             default:
                 break;
         }
@@ -83,13 +154,37 @@ internal partial class TimelineView
             mMiddleDragOperation.Up();
     }
 
-    class Operation(TimelineView pianoTimelineView)
+    protected override void UpdateItems(IItemCollection items)
     {
-        public TimelineView TimelineView => pianoTimelineView;
+        if (Timeline == null)
+            return;
+
+        double startPos = TickAxis.X2Tick(-48);
+        double endPos = TickAxis.MaxVisibleTick;
+
+        var tempoManager = Timeline.TempoManager;
+
+        for (int i = 0; i < tempoManager.Tempos.Count; i++)
+        {
+            var tempo = tempoManager.Tempos[i];
+
+            if (tempo.Pos.Value < startPos)
+                continue;
+
+            if (tempo.Pos.Value > endPos)
+                break;
+
+            items.Add(new TempoItem(this) { TempoManager = tempoManager, TempoIndex = i });
+        }
+    }
+
+    class Operation(TimelineView timelineView)
+    {
+        public TimelineView TimelineView => timelineView;
         public State State { get => TimelineView.mState; set => TimelineView.mState = value; }
     }
 
-    class MiddleDragOperation(TimelineView pianoTimelineView) : Operation(pianoTimelineView)
+    class MiddleDragOperation(TimelineView timelineView) : Operation(timelineView)
     {
         public bool IsOperating => mIsDragging;
 
@@ -125,7 +220,7 @@ internal partial class TimelineView
 
     readonly MiddleDragOperation mMiddleDragOperation;
 
-    class SeekOperation(TimelineView pianoTimelineView) : Operation(pianoTimelineView)
+    class SeekOperation(TimelineView timelineView) : Operation(timelineView)
     {
         public bool IsOperating => State == State.Seeking;
 
@@ -177,10 +272,72 @@ internal partial class TimelineView
 
     readonly SeekOperation mSeekOperation;
 
+    class TempoMovingOperation(TimelineView timelineView) : Operation(timelineView)
+    {
+        public ITempo Tempo => mTempoItem.TempoManager.Tempos[mTempoIndexAfterMove];
+
+        public void Down(double x, TempoItem tempoItem)
+        {
+            if (tempoItem.TempoIndex == 0)
+                return;
+
+            State = State.TempoMoving;
+            mTempoItem = tempoItem;
+            mTempoIndexAfterMove = tempoItem.TempoIndex;
+            mOffset = x - tempoItem.Left;
+
+            mTempoItem.TempoManager.Project.DisableAutoPrepare();
+            mHead = tempoItem.TempoManager.Head;
+
+            TimelineView.InvalidateVisual();
+        }
+
+        public void Move(double x, bool alt)
+        {
+            mTempoItem.TempoManager.DiscardTo(mHead);
+
+            double pos = TimelineView.TickAxis.X2Tick(x - mOffset);
+            if (!alt) pos = TimelineView.GetQuantizedTick(pos);
+            double bpm = mTempoItem.Tempo.Bpm.Value;
+
+            mTempoItem.TempoManager.Project.BeginMergeReSegment();
+            mTempoItem.TempoManager.RemoveTempoAt(mTempoItem.TempoIndex);
+            mTempoIndexAfterMove = mTempoItem.TempoManager.AddTempo(pos, bpm);
+            mTempoItem.TempoManager.Project.EndMergeReSegment();
+        }
+
+        public void Up()
+        {
+            State = State.None;
+
+            var head = mTempoItem.TempoManager.Head;
+
+            mTempoItem.TempoManager.Project.EnableAutoPrepare();
+            if (head == mHead)
+            {
+                mTempoItem.TempoManager.Discard();
+            }
+            else
+            {
+                mTempoItem.TempoManager.Commit();
+            }
+
+            TimelineView.InvalidateVisual();
+        }
+
+        Head mHead;
+        TempoItem mTempoItem;
+        int mTempoIndexAfterMove;
+        double mOffset;
+    }
+
+    readonly TempoMovingOperation mTempoMovingOperation;
+
     enum State
     {
         None,
         Seeking,
+        TempoMoving,
     }
 
     State mState = State.None;

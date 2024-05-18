@@ -32,6 +32,7 @@ internal partial class TimelineView : View
 
         mMiddleDragOperation = new(this);
         mSeekOperation = new(this);
+        mTempoMovingOperation = new(this);
 
         Height = 48;
 
@@ -76,6 +77,8 @@ internal partial class TimelineView : View
         }, s);
         TickAxis.AxisChanged += Update;
         Quantization.QuantizationChanged += InvalidateVisual;
+        mDependency.TimelineProvider.When(timeline => timeline.TempoManager.Modified).Subscribe(InvalidateVisual, s);
+        // TODO: Subscribe TimeSignatureManger like TempoManager.
     }
 
     ~TimelineView()
@@ -138,20 +141,42 @@ internal partial class TimelineView : View
         }
 
         // draw tempos
-        var tempoManager = Timeline.TempoManager;
-
-        for (int i = 0; i < tempoManager.Tempos.Count; i++)
+        foreach (var item in Items)
         {
-            var tempo = tempoManager.Tempos[i];
-            if (tempo.Pos.Value < startPos)
-                continue;
+            if (item is TempoItem tempoItem)
+            {
+                var tempo = tempoItem.Tempo;
+                if (mState == State.TempoMoving && tempo == mTempoMovingOperation.Tempo)
+                {
+                    context.FillRectangle(Style.BACK.ToBrush(), tempoItem.Rect());
+                }
 
-            if (tempo.Pos.Value > endPos)
-                break;
-
-            double x = TickAxis.Tick2X(tempo.Pos.Value);
-            context.DrawText(new FormattedText(tempo.Bpm.Value.ToString("F2"), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, textBrush), new Point(x + 8, 28));
+                context.DrawString(BpmString(tempo), tempoItem.Rect(), textBrush, 12, Alignment.Center, Alignment.Center);
+            }
         }
+    }
+
+    string BpmString(ITempo tempo)
+    {
+        return tempo.Bpm.Value.ToString("F2");
+    }
+
+    double TempoWidth(ITempo tempo)
+    {
+        return new FormattedText(BpmString(tempo), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
+    }
+
+    double QuantizedCellTicks()
+    {
+        int quantizationBase = (int)Quantization.Base;
+        double division = (int)Math.Pow(2, Math.Log2(TickAxis.PixelsPerTick * MusicTheory.RESOLUTION / quantizationBase / 12).Floor()).Limit(1, 32);
+        return MusicTheory.RESOLUTION / quantizationBase / division;
+    }
+
+    double GetQuantizedTick(double tick)
+    {
+        double cell = QuantizedCellTicks();
+        return (tick / cell).Round() * cell;
     }
 
     class PageCurve : IAnimationCurve

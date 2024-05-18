@@ -219,15 +219,15 @@ internal partial class PianoGrid
                                             menu.Items.Add(menuItem);
                                         }
                                         {
+                                            var menuItem = new MenuItem().SetName("Input Lyrics").SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems()); });
+                                            menu.Items.Add(menuItem);
+                                        }
+                                        {
                                             var menuItem = new MenuItem().SetName("Octave Up").SetAction(OctaveUp).SetInputGesture(new KeyGesture(Key.Up, KeyModifiers.Shift));
                                             menu.Items.Add(menuItem);
                                         }
                                         {
                                             var menuItem = new MenuItem().SetName("Octave Down").SetAction(OctaveDown).SetInputGesture(new KeyGesture(Key.Down, KeyModifiers.Shift));
-                                            menu.Items.Add(menuItem);
-                                        }
-                                        {
-                                            var menuItem = new MenuItem().SetName("Input Lyrics").SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems()); });
                                             menu.Items.Add(menuItem);
                                         }
                                         if (note.Next != null)

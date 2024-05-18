@@ -14,8 +14,9 @@ namespace TuneLab.Data;
 
 internal interface ITempoManager : IDataObject<List<TempoInfo>>
 {
+    IProject Project { get; }
     IReadOnlyList<ITempo> Tempos { get; }
-    void AddTempo(double pos, double bpm);
+    int AddTempo(double pos, double bpm);
     void RemoveTempoAt(int index);
     void SetBpm(int index, double bpm);
     double[] GetTimes(IReadOnlyList<double> ticks);
@@ -34,5 +35,17 @@ internal static class ITempoManagerExtension
     public static void SetBpm(this ITempoManager manager, ITempo tempo, double bpm)
     {
         manager.SetBpm(manager.Tempos.IndexOf(tempo), bpm);
+    }
+
+    public static double GetBpmAt(this ITempoManager manager, double tick)
+    {
+        for (int i = manager.Tempos.Count - 1; i >= 0; i--)
+        {
+            var tempo = manager.Tempos[i];
+            if (tempo.Pos.Value <= tick)
+                return tempo.Bpm.Value;
+        }
+
+        return manager.Tempos[0].Bpm.Value;
     }
 }

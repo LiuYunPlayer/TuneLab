@@ -5,25 +5,30 @@ using TuneLab.Base.Structures;
 using TuneLab.Base.Science;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Base.Utils;
+using System;
 
 namespace TuneLab.Data;
 
 internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
 {
+    public IProject Project => mProject;
     public IReadOnlyList<ITempo> Tempos => mTempos;
 
     public const double DefaultBpm = 120;
 
-    public TempoManager(DataObject parent, double bpm = DefaultBpm) : this(parent, [new() { Pos = 0, Bpm = bpm }]) { }
+    public TempoManager(IProject project, double bpm = DefaultBpm) : this(project, [new() { Pos = 0, Bpm = bpm }]) { }
 
-    public TempoManager(DataObject parent, List<TempoInfo> tempos) : base(parent)
+    public TempoManager(IProject project, List<TempoInfo> tempos) : base(project)
     {
         mTempos = new(this);
+        mProject = project;
         IDataObject<IReadOnlyList<TempoInfo>>.SetInfo(this, tempos);
     }
 
-    public void AddTempo(double pos, double bpm)
+    public int AddTempo(double pos, double bpm)
     {
+        pos = Math.Max(pos, Tempos[0].Pos.Value);
+
         int i = mTempos.Count - 1;
         for (; i >= 0; --i)
         {
@@ -31,12 +36,20 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
                 break;
         }
 
+        int result;
         if (mTempos[i].Pos == pos)
+        {
             mTempos[i].Bpm.Set(bpm);
+            result = i;
+        }
         else
+        {
             mTempos.Insert(i + 1, new TempoForTempoManager(new() { Pos = pos, Bpm = bpm }));
+            result = i + 1;
+        }
 
         CorrectStatusFrom(i + 1);
+        return result;
     }
 
     public void RemoveTempoAt(int index)
@@ -113,6 +126,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
     IReadOnlyList<ITempoHelper> ITempoCalculatorHelper.Tempos => mTempos;
 
     readonly DataObjectList<TempoForTempoManager> mTempos;
+    readonly IProject mProject;
 
     class TempoForTempoManager : DataObject, ITempo, ITempoHelper
     {
@@ -124,8 +138,8 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         double ITempoHelper.Pos => Pos;
         double ITempoHelper.Bpm => Bpm;
 
-        IDataProperty<double> ITempo.Pos => Pos;
-        IDataProperty<double> ITempo.Bpm => Bpm;
+        IReadOnlyDataProperty<double> ITempo.Pos => Pos;
+        IReadOnlyDataProperty<double> ITempo.Bpm => Bpm;
 
         public TempoForTempoManager(TempoInfo info)
         {
