@@ -48,6 +48,10 @@ internal class Track : DataObject, ITrack
         Pan = new DataStruct<double>(this);
         mParts = new();
         mParts.Attach(this);
+
+        mParts.ItemAdded.Subscribe(part => { part.Activate(); });
+        mParts.ItemRemoved.Subscribe(part => { part.Deactivate(); });
+
         IDataObject<TrackInfo>.SetInfo(this, info);
     }
 
@@ -81,12 +85,19 @@ internal class Track : DataObject, ITrack
         throw new ArgumentException();
     }
 
-    public void ReSegment()
+    public void Activate()
     {
         foreach (var part in mParts)
         {
-            if (part is MidiPart midiPart)
-                midiPart.ReSegment();
+            part.Activate();
+        }
+    }
+
+    public void Deactivate()
+    {
+        foreach (var part in mParts)
+        {
+            part.Deactivate();
         }
     }
 

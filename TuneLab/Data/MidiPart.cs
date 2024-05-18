@@ -320,9 +320,23 @@ internal class MidiPart : Part, IMidiPart
         EndMergeReSegment();
     }
 
-    public void ReSegment()
+    void ReSegment()
     {
         mReSegmentMergeHandler.Trigger();
+    }
+
+    public override void Activate()
+    {
+        ReSegment();
+    }
+
+    public override void Deactivate()
+    {
+        foreach (var piece in mSynthesisPieces)
+        {
+            piece.Dispose();
+        }
+        mSynthesisPieces.Clear();
     }
 
     void ReSegmentImpl()
@@ -469,12 +483,8 @@ internal class MidiPart : Part, IMidiPart
 
     void ReGeneratePieces()
     {
-        foreach (var piece in mSynthesisPieces)
-        {
-            piece.Dispose();
-        }
-        mSynthesisPieces.Clear();
-        ReSegment();
+        Deactivate();
+        Activate();
     }
 
     string GetNotePropertyDirtyType(PropertyPath path)

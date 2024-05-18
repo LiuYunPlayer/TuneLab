@@ -40,6 +40,9 @@ namespace TuneLab.Data
             return (int)(((IAudioSource)this).SamplingRate * (TempoManager.GetTime(EndPos) - TempoManager.GetTime(StartPos)));
         }
 
+        public virtual void Activate() { }
+        public virtual void Deactivate() { }
+
         IActionEvent IDuration.DurationChanged => mDurationChanged;
         double IDuration.Duration => Dur.Value;
 

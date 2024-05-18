@@ -17,6 +17,8 @@ internal interface IPart : IReadOnlyDataObject<PartInfo>, ITimeline, IDuration, 
     IDataProperty<string> Name { get; }
     IDataProperty<double> Pos { get; }
     IDataProperty<double> Dur { get; }
+    void Activate();
+    void Deactivate();
 }
 
 internal static class IPartExtension

@@ -29,6 +29,9 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);
 
+    void Activate();
+    void Deactivate();
+
     bool IAudioTrack.IsMute => IsMute.Value;
     bool IAudioTrack.IsSolo => IsSolo.Value;
     double IAudioTrack.Volume => MusicTheory.dB2Level(Gain.Value);

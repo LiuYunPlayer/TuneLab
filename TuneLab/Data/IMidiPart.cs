@@ -35,7 +35,6 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     Vibrato CreateVibrato(VibratoInfo info);
     void InsertVibrato(Vibrato note);
     bool RemoveVibrato(Vibrato note);
-    void ReSegment();
     void BeginMergeDirty();
     void EndMergeDirty();
     void DisableAutoPrepare();

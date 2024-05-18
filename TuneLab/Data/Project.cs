@@ -25,8 +25,8 @@ internal class Project : DataObject, IProject
         mTempoManager = new(this);
         mTracks = new(this);
 
-        mTracks.ItemAdded.Subscribe(AudioEngine.AddTrack);
-        mTracks.ItemRemoved.Subscribe(AudioEngine.RemoveTrack);
+        mTracks.ItemAdded.Subscribe(OnTrackAdded);
+        mTracks.ItemRemoved.Subscribe(OnTrackRemoved);
 
         IDataObject<ProjectInfo>.SetInfo(this, info);
     }
@@ -82,16 +82,26 @@ internal class Project : DataObject, IProject
 
     Track CreateTrack(TrackInfo info)
     {
-        var track = new Track(this, info);
-        track.ReSegment();
-        return track;
+        return new Track(this, info);
+    }
+
+    void OnTrackAdded(ITrack track)
+    {
+        track.Activate();
+        AudioEngine.AddTrack(track);
+    }
+
+    void OnTrackRemoved(ITrack track)
+    {
+        AudioEngine.RemoveTrack(track);
+        track.Deactivate();
     }
 
     public void Dispose()
     {
         foreach (var track in mTracks)
         {
-            AudioEngine.RemoveTrack(track);
+            track.Deactivate();
         }
     }
 
