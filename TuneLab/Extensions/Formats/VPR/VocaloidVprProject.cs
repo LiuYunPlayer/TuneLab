@@ -173,62 +173,101 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     var newDynamicsList = new AutomationInfo();
                     var dynamics = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "dynamics")?["events"] ?? new JArray();
-                    foreach (JObject dyn in dynamics)
+                    if (dynamics.Count() > 0 && (int)dynamics[0]["pos"] != 0)
                     {
-                        newDynamicsList.Points.Add(new Point((int)dyn["pos"], RangeMapper((int)dyn["value"], 0, 127, -1.0, 1.0)));
+                        newDynamicsList.Points.Add(new Point(0, 0));
+                        newDynamicsList.Points.Add(new Point((int)dynamics[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; dynamics.Count() > 0 && i < dynamics.Count(); i++)
+                    {
+                        if (i != 0)
+                        {
+                            newDynamicsList.Points.Add(new Point((int)dynamics[i]["pos"] - 1, RangeMapper((int)dynamics[i - 1]["value"], 0, 127, -1.0, 1.0)));
+                        }
+                        newDynamicsList.Points.Add(new Point((int)dynamics[i]["pos"], RangeMapper((int)dynamics[i]["value"], 0, 127, -1.0, 1.0)));
                     }
                     newDynamicsList.DefaultValue = 0.0;
-
-                    if (newDynamicsList.Points.Count > 0)
-                        midiPartInfo.Automations.Add("Dynamics", newDynamicsList);
+                    midiPartInfo.Automations.Add("Dynamics", newDynamicsList);
 
                     var newBrightness = new AutomationInfo();
                     var brightness = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "brightness")?["events"] ?? new JArray();
 
-                    foreach (JObject bri in brightness)
+                    if (brightness.Count() > 0 && (int)brightness[0]["pos"] != 0)
                     {
-                        newBrightness.Points.Add(new Point((int)bri["pos"], RangeMapper((int)bri["value"], 0, 127, -1.0, 1.0)));
+                        newBrightness.Points.Add(new Point(0, 0));
+                        newBrightness.Points.Add(new Point((int)brightness[0]["pos"] - 1, 0));
                     }
-                    var defaultBrightness = parameters.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "Breathiness")?["value"];
-                    newBrightness.DefaultValue = defaultBrightness != null ? RangeMapper((double)defaultBrightness, 0, 127, -1.0, 1.0) : 0.0;
 
-                    if (newBrightness.Points.Count > 0)
-                        midiPartInfo.Automations.Add("Brightness", newBrightness);
+                    for (int i = 0; brightness.Count() > 0 && i < brightness.Count(); i++)
+                    {
+                        if (i != 0)
+                        {
+                            newBrightness.Points.Add(new Point((int)brightness[i]["pos"] - 1, RangeMapper((int)brightness[i - 1]["value"], 0, 127, -1.0, 1.0)));
+                        }
+                        newBrightness.Points.Add(new Point((int)brightness[i]["pos"], RangeMapper((int)brightness[i]["value"], 0, 127, -1.0, 1.0)));
+                    }
+                    newBrightness.DefaultValue = 0.0;
+                    midiPartInfo.Automations.Add("Brightness", newBrightness);
 
                     var newCharacter = new AutomationInfo();
                     var character = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "character")?["events"] ?? new JArray();
 
-                    foreach (JObject chr in character)
+                    if (character.Count() > 0 && (int)character[0]["pos"] != 0)
                     {
-                        newCharacter.Points.Add(new Point((int)chr["pos"], RangeMapper((int)chr["value"], -64, 64, -1.0, 1.0)));
+                        newCharacter.Points.Add(new Point(0, 0));
+                        newCharacter.Points.Add(new Point((int)character[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; character.Count() > 0 && i < character.Count(); i++)
+                    {
+                        if (i != 0)
+                        {
+                            newCharacter.Points.Add(new Point((int)character[i]["pos"] - 1, RangeMapper((int)character[i - 1]["value"], -64, 64, -1.0, 1.0)));
+                        }
+                        newCharacter.Points.Add(new Point((int)character[i]["pos"], RangeMapper((int)character[i]["value"], -64, 64, -1.0, 1.0)));
                     }
                     newCharacter.DefaultValue = 0.0;
-
-                    if (newCharacter.Points.Count > 0)
-                        midiPartInfo.Automations.Add("Gender", newCharacter);
+                    midiPartInfo.Automations.Add("Gender", newCharacter);
 
                     var newGrowl = new AutomationInfo();
                     var growl = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "growl")?["events"] ?? new JArray();
-                    foreach (JObject chr in growl)
+                    if (growl.Count() > 0 && (int)growl[0]["pos"] != 0)
                     {
-                        newGrowl.Points.Add(new Point((int)chr["pos"], RangeMapper((int)chr["value"], 0, 127, -1.0, 1.0)));
+                        newGrowl.Points.Add(new Point(0, 0));
+                        newGrowl.Points.Add(new Point((int)growl[0]["pos"] - 1, 0));
                     }
-                    var defaultGrowl = parameters.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "Growl")?["value"];
-                    newGrowl.DefaultValue = defaultGrowl != null ? RangeMapper((double)defaultGrowl, 0, 127, -1.0, 1.0) : 0.0;
 
-                    if (newGrowl.Points.Count > 0)
-                        midiPartInfo.Automations.Add("Growl", newGrowl);
+                    for (int i = 0; growl.Count() > 0 && i < growl.Count(); i++)
+                    {
+                        if (i != 0)
+                        {
+                            newGrowl.Points.Add(new Point((int)growl[i]["pos"] - 1, RangeMapper((int)growl[i - 1]["value"], 0, 127, 0, 1.0)));
+                        }
+                        newGrowl.Points.Add(new Point((int)growl[i]["pos"], RangeMapper((int)growl[i]["value"], 0, 127, 0, 1.0)));
+                    }
+                    newGrowl.DefaultValue = 0.0;
+                    midiPartInfo.Automations.Add("Growl", newGrowl);
 
                     var newClearness = new AutomationInfo();
                     var clearness = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "clearness")?["events"] ?? new JArray();
-                    foreach (JObject chr in clearness)
+
+                    if (clearness.Count() > 0 && (int)clearness[0]["pos"] != 0)
                     {
-                        newClearness.Points.Add(new Point((int)chr["pos"], RangeMapper((int)chr["value"], 0, 127, -1.0, 1.0)));
+                        newClearness.Points.Add(new Point(0, 0));
+                        newClearness.Points.Add(new Point((int)clearness[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; clearness.Count() > 0 && i < clearness.Count(); i++)
+                    {
+                        if (i != 0)
+                        {
+                            newClearness.Points.Add(new Point((int)clearness[i]["pos"] - 1, RangeMapper((int)clearness[i - 1]["value"], 0, 127, 0, 1.0)));
+                        }
+                        newClearness.Points.Add(new Point((int)clearness[i]["pos"], RangeMapper((int)clearness[i]["value"], 0, 127, 0, 1.0)));
                     }
                     newClearness.DefaultValue = 0.0;
-
-                    if (newClearness.Points.Count > 0)
-                        midiPartInfo.Automations.Add("Clearness", newClearness);
+                    midiPartInfo.Automations.Add("Clearness", newClearness);
 
                     partInfo = midiPartInfo;
 
