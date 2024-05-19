@@ -670,43 +670,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Part", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
-            {
-                var menuItem = new MenuItem() { Header = "Set Voice" };
-                var allEngines = VoicesManager.GetAllVoiceEngines();
-                for (int i = 0; i < allEngines.Count; i++)
-                {
-                    var type = allEngines[i];
-                    var infos = VoicesManager.GetAllVoiceInfos(type);
-                    if (infos == null)
-                        continue;
-
-                    var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In" : type };
-                    {
-                        foreach (var info in infos)
-                        {
-                            var voice = new MenuItem().
-                                SetName(info.Value.Name).
-                                SetAction(() =>
-                                {
-                                    var part = PianoWindow.Part;
-                                    if (part == null)
-                                        return;
-
-                                    part.Voice.Set(new VoiceInfo() { Type = type, ID = info.Key });
-                                    part.Commit();
-                                });
-                            engine.Items.Add(voice);
-                        }
-                    }
-                    menuItem.Items.Add(engine);
-                }
-                menuBarItem.Items.Add(menuItem);
-            }
-            menu.Items.Add(menuBarItem);
-        }
-
-        {
             var menuBarItem = new MenuItem { Header = "Transport", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
                 var menuItem = new MenuItem().
