@@ -27,7 +27,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
 
     public int AddTempo(double pos, double bpm)
     {
-        pos = Math.Max(pos, Tempos[0].Pos.Value);
+        pos = Math.Max(pos, Tempos[0].Pos);
 
         int i = mTempos.Count - 1;
         for (; i >= 0; --i)
@@ -138,8 +138,8 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         double ITempoHelper.Pos => Pos;
         double ITempoHelper.Bpm => Bpm;
 
-        IReadOnlyDataProperty<double> ITempo.Pos => Pos;
-        IReadOnlyDataProperty<double> ITempo.Bpm => Bpm;
+        double ITempo.Pos => Pos;
+        double ITempo.Bpm => Bpm;
 
         public TempoForTempoManager(TempoInfo info)
         {

@@ -159,7 +159,7 @@ internal partial class TimelineView : View
 
     public string BpmString(ITempo tempo)
     {
-        return tempo.Bpm.Value.ToString("F2");
+        return tempo.Bpm.ToString("F2");
     }
 
     public double TempoWidth(ITempo tempo)

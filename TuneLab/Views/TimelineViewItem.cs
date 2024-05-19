@@ -22,7 +22,7 @@ internal partial class TimelineView
         public required ITempoManager TempoManager;
         public required int TempoIndex;
 
-        public double Left => TimelineView.TickAxis.Tick2X(Tempo.Pos.Value);
+        public double Left => TimelineView.TickAxis.Tick2X(Tempo.Pos);
 
         public Rect Rect()
         {

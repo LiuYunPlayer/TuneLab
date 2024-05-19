@@ -168,10 +168,10 @@ internal partial class TimelineView
         {
             var tempo = tempoManager.Tempos[i];
 
-            if (tempo.Pos.Value < startPos)
+            if (tempo.Pos < startPos)
                 continue;
 
-            if (tempo.Pos.Value > endPos)
+            if (tempo.Pos > endPos)
                 break;
 
             items.Add(new TempoItem(this) { TempoManager = tempoManager, TempoIndex = i });
@@ -298,7 +298,7 @@ internal partial class TimelineView
 
             double pos = TimelineView.TickAxis.X2Tick(x - mOffset);
             if (!alt) pos = TimelineView.GetQuantizedTick(pos);
-            double bpm = mTempoItem.Tempo.Bpm.Value;
+            double bpm = mTempoItem.Tempo.Bpm;
 
             mTempoItem.TempoManager.Project.BeginMergeReSegment();
             mTempoItem.TempoManager.RemoveTempoAt(mTempoItem.TempoIndex);

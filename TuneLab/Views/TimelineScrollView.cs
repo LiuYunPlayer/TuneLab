@@ -91,10 +91,10 @@ internal class TimelineScrollView : Panel, TimelineView.IDependency
 
         if (!double.TryParse(mBpmInput.Text, out var newBpm))
         {
-            newBpm = mInputBpmTempo.Bpm.Value;
+            newBpm = mInputBpmTempo.Bpm;
         }
         newBpm = newBpm.Limit(10, 960);
-        if (newBpm != mInputBpmTempo.Bpm.Value)
+        if (newBpm != mInputBpmTempo.Bpm)
         {
             Timeline.TempoManager.SetBpm(mInputBpmTempo, newBpm);
             mInputBpmTempo.Commit();
@@ -109,7 +109,7 @@ internal class TimelineScrollView : Panel, TimelineView.IDependency
         if (mInputBpmTempo == null)
             return new Rect();
 
-        return new Rect(mDependency.TickAxis.Tick2X(mInputBpmTempo.Pos.Value), 24, 54, 24);
+        return new Rect(mDependency.TickAxis.Tick2X(mInputBpmTempo.Pos), 24, 54, 24);
     }
 
     ITempo? mInputBpmTempo;

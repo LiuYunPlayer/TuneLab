@@ -42,10 +42,10 @@ internal static class ITempoManagerExtension
         for (int i = manager.Tempos.Count - 1; i >= 0; i--)
         {
             var tempo = manager.Tempos[i];
-            if (tempo.Pos.Value <= tick)
-                return tempo.Bpm.Value;
+            if (tempo.Pos <= tick)
+                return tempo.Bpm;
         }
 
-        return manager.Tempos[0].Bpm.Value;
+        return manager.Tempos[0].Bpm;
     }
 }
