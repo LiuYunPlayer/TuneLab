@@ -159,8 +159,14 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     var newPitchBend = new AutomationInfo();
                     foreach (JObject pb in pitchBend)
-                    { 
-                        newPitchBend.Points.Add(new Point((double)pb["pos"], (double)pb["value"] / 8192.0d));
+                    {
+                        if ((double)pb["value"] > 0)
+                        {
+                            newPitchBend.Points.Add(new Point((double)pb["pos"], (double)pb["value"] / 8191.0d));
+                        } else
+                        {
+                            newPitchBend.Points.Add(new Point((double)pb["pos"], (double)pb["value"] / 8192.0d));
+                        }
                     }
                     midiPartInfo.Automations.Add("PitchBend", newPitchBend);
 
