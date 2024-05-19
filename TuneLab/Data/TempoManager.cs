@@ -29,6 +29,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
     {
         pos = Math.Max(pos, Tempos[0].Pos);
 
+        BeginMergeNotify();
         int i = mTempos.Count - 1;
         for (; i >= 0; --i)
         {
@@ -49,6 +50,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         }
 
         CorrectStatusFrom(i + 1);
+        EndMergeNotify();
         return result;
     }
 
@@ -57,8 +59,10 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         if (index < 0 || index >= mTempos.Count)
             return;
 
+        BeginMergeNotify();
         mTempos.RemoveAt(index);
         CorrectStatusFrom(index);
+        EndMergeNotify();
     }
 
     public void SetBpm(int index, double bpm)
@@ -66,8 +70,10 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         if (index < 0 || index >= Tempos.Count)
             return;
 
+        BeginMergeNotify();
         mTempos[index].Bpm.Set(bpm);
         CorrectStatusFrom(index + 1);
+        EndMergeNotify();
     }
 
     void CorrectStatusFrom(int index)
