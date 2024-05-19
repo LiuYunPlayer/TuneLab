@@ -774,7 +774,8 @@ internal class MidiPart : Part, IMidiPart
         public void SetDirty(string dirtyType)
         {
             mIsPrepared = mPart.AutoPrepare;
-            mTask.Stop();
+            if (SynthesisStatus == SynthesisStatus.Synthesizing)
+                mTask.Stop();
             mTask.SetDirty(dirtyType);
             SynthesisStatus = SynthesisStatus.NotSynthesized;
         }
