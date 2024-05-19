@@ -751,6 +751,7 @@ internal class MidiPart : Part, IMidiPart
                 note.Dur.Modified.Subscribe(SetDirtyAndResegment);
                 note.Pitch.Modified.Subscribe(SetDirtyAndResegment);
                 note.Lyric.Modified.Subscribe(SetDirtyAndResegment);
+                note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment);
                 note.Properties.PropertyModified.Subscribe(OnNotePropertyModified);
                 note.Phonemes.Modified.Subscribe(OnPhonemeChanged);
             }
@@ -787,6 +788,7 @@ internal class MidiPart : Part, IMidiPart
                 note.Dur.Modified.Unsubscribe(SetDirtyAndResegment);
                 note.Pitch.Modified.Unsubscribe(SetDirtyAndResegment);
                 note.Lyric.Modified.Unsubscribe(SetDirtyAndResegment);
+                note.Pronunciation.Modified.Unsubscribe(SetDirtyAndResegment);
                 note.Properties.PropertyModified.Unsubscribe(OnNotePropertyModified);
                 note.Phonemes.Modified.Unsubscribe(OnPhonemeChanged);
             }

@@ -23,14 +23,17 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     IDataProperty<double> Dur { get; }
     new IDataProperty<int> Pitch { get; }
     new IDataProperty<string> Lyric { get; }
+    IDataProperty<string> Pronunciation { get; }
     new DataPropertyObject Properties { get; }
     new IDataObjectList<IPhoneme> Phonemes { get; }
     SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
+    IReadOnlyCollection<string> Pronunciations { get; }
 
     INote? NextInSegment { get; set; }
     INote? LastInSegment { get; set; }
 
     int ISynthesisNote.Pitch => Pitch.Value;
+    string ISynthesisNote.Lyric => this.FinalPronunciation() ?? Lyric.Value;
     PropertyObject ISynthesisNote.Properties => new(Properties);
     IReadOnlyList<SynthesizedPhoneme> ISynthesisNote.Phonemes => Phonemes.Convert(GetPhoneme);
     ISynthesisNote? ISynthesisNote.Next => NextInSegment;
@@ -105,5 +108,13 @@ internal static class INoteExtension
         {
             note.Phonemes.Add(Phoneme.Create(new PhonemeInfo() { StartTime = phoneme.StartTime - startTime, EndTime = phoneme.EndTime - startTime, Symbol = phoneme.Symbol }));
         }
+    }
+
+    public static string? FinalPronunciation(this INote note)
+    {
+        if (!string.IsNullOrEmpty(note.Pronunciation.Value))
+            return note.Pronunciation.Value;
+
+        return note.Pronunciations.FirstOrDefault();
     }
 }

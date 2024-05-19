@@ -97,6 +97,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 Dur = (int)note["dur"],
                                 Pitch = (int)note["pitch"],
                                 Lyric = (string)note["lyric"],
+                                Pronunciation = (string)note["pronunciation"],
                                 Properties = FromJson(note["properties"])
                             };
 
@@ -293,6 +294,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         note.Add("dur", noteInfo.Dur);
                         note.Add("pitch", noteInfo.Pitch);
                         note.Add("lyric", noteInfo.Lyric);
+                        note.Add("pronunciation", noteInfo.Pronunciation);
                         note.Add("properties", ToJson(noteInfo.Properties));
                         if (!noteInfo.Phonemes.IsEmpty())
                         {

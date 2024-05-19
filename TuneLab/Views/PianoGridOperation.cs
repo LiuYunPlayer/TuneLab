@@ -11,8 +11,6 @@ using Rect = Avalonia.Rect;
 using ContextMenu = Avalonia.Controls.ContextMenu;
 using MenuItem = Avalonia.Controls.MenuItem;
 using Avalonia.Input;
-using NAudio.CoreAudioApi;
-using System.Reflection;
 using TuneLab.Extensions.Voices;
 using TuneLab.Utils;
 using TuneLab.Base.Science;
@@ -123,6 +121,24 @@ internal partial class PianoGrid
                                     {
                                         mNoteStartResizeOperation.Down(e.Position.X, noteStartResizeItem.Note);
                                     }
+                                    else if (item is NotePronunciationItem notePronunciationItem)
+                                    {
+                                        var note = notePronunciationItem.Note;
+                                        if (!note.Pronunciations.IsEmpty())
+                                        {
+                                            var menu = new ContextMenu();
+                                            foreach (var pronunciation in note.Pronunciations)
+                                            {
+                                                var menuItem = new MenuItem().SetName(pronunciation).SetAction(() =>
+                                                {
+                                                    note.Pronunciation.Set(pronunciation);
+                                                    note.Commit();
+                                                });
+                                                menu.Items.Add(menuItem);
+                                            }
+                                            menu.Open(this);
+                                        }
+                                    }
                                     else
                                     {
                                         if (e.IsDoubleClick)
@@ -163,6 +179,8 @@ internal partial class PianoGrid
                                             var menuItem = new MenuItem().SetName("Cut").SetAction(Cut).SetInputGesture(new KeyGesture(Key.X, KeyModifiers.Control));
                                             menu.Items.Add(menuItem);
                                         }
+
+                                        menu.Items.Add(new Avalonia.Controls.Separator());
                                         var position = e.Position;
                                         var splitPos = TickAxis.X2Tick(position.X);
                                         if (!alt) splitPos = GetQuantizedTick(splitPos);
@@ -218,10 +236,8 @@ internal partial class PianoGrid
                                             });
                                             menu.Items.Add(menuItem);
                                         }
-                                        {
-                                            var menuItem = new MenuItem().SetName("Input Lyrics").SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems()); });
-                                            menu.Items.Add(menuItem);
-                                        }
+                                        
+                                        menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
                                             var menuItem = new MenuItem().SetName("Octave Up").SetAction(OctaveUp).SetInputGesture(new KeyGesture(Key.Up, KeyModifiers.Shift));
                                             menu.Items.Add(menuItem);
@@ -230,6 +246,8 @@ internal partial class PianoGrid
                                             var menuItem = new MenuItem().SetName("Octave Down").SetAction(OctaveDown).SetInputGesture(new KeyGesture(Key.Down, KeyModifiers.Shift));
                                             menu.Items.Add(menuItem);
                                         }
+
+                                        menu.Items.Add(new Avalonia.Controls.Separator());
                                         if (note.Next != null)
                                         {
                                             var menuItem = new MenuItem().SetName("Move Lyrics Forward").SetAction(() =>
@@ -265,6 +283,12 @@ internal partial class PianoGrid
                                             });
                                             menu.Items.Add(menuItem);
                                         }
+                                        {
+                                            var menuItem = new MenuItem().SetName("Input Lyrics").SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems()); });
+                                            menu.Items.Add(menuItem);
+                                        }
+
+                                        menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
                                             var menuItem = new MenuItem().SetName("Delete").SetAction(Delete).SetInputGesture(new KeyGesture(Key.Delete));
                                             menu.Items.Add(menuItem);
@@ -803,6 +827,10 @@ internal partial class PianoGrid
                         break;
 
                     items.Add(new NoteItem(this) { Note = note });
+                    if (!string.IsNullOrEmpty(note.FinalPronunciation()))
+                    {
+                        items.Add(new NotePronunciationItem(this) { Note = note });
+                    }
                     items.Add(new NoteEndResizeItem(this) { Note = note });
                     items.Add(new NoteStartResizeItem(this) { Note = note });
                 }

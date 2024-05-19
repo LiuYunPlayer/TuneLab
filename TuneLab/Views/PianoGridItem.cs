@@ -10,6 +10,7 @@ using TuneLab.Data;
 using TuneLab.Utils;
 using TuneLab.Extensions.Voices;
 using TuneLab.Base.Utils;
+using Avalonia.Media;
 
 namespace TuneLab.Views;
 
@@ -22,7 +23,7 @@ internal partial class PianoGrid
 
     class NoteItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
     {
-        public INote Note;
+        public required INote Note;
 
         public Rect Rect()
         {
@@ -37,7 +38,7 @@ internal partial class PianoGrid
 
     class NoteStartResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
     {
-        public INote Note;
+        public required INote Note;
 
         public override bool Raycast(Avalonia.Point point)
         {
@@ -58,7 +59,7 @@ internal partial class PianoGrid
 
     class NoteEndResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
     {
-        public INote Note;
+        public required INote Note;
 
         public override bool Raycast(Avalonia.Point point)
         {
@@ -68,6 +69,20 @@ internal partial class PianoGrid
             double top = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
             double bottom = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value);
             return point.Y >= top && point.Y <= bottom && point.X >= left && point.X <= right;
+        }
+    }
+
+    class NotePronunciationItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    {
+        public required INote Note;
+
+        public override bool Raycast(Point point)
+        {
+            double left = PianoGrid.TickAxis.Tick2X(Note.GlobalStartPos());
+            double width = new FormattedText(Note.FinalPronunciation() ?? string.Empty, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
+            double bottom = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
+            double top = bottom - 28;
+            return new Rect(left, top, width, bottom - top).Contains(point);
         }
     }
 
@@ -100,7 +115,7 @@ internal partial class PianoGrid
 
     class VibratoItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
     {
-        public Vibrato Vibrato { get; set; }
+        public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
@@ -112,7 +127,7 @@ internal partial class PianoGrid
 
     class VibratoAmplitudeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
     {
-        public Vibrato Vibrato { get; set; }
+        public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
@@ -130,7 +145,7 @@ internal partial class PianoGrid
 
     class VibratoStartResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
     {
-        public Vibrato Vibrato { get; set; }
+        public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
@@ -141,7 +156,7 @@ internal partial class PianoGrid
 
     class VibratoEndResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
     {
-        public Vibrato Vibrato { get; set; }
+        public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
@@ -152,7 +167,7 @@ internal partial class PianoGrid
 
     class VibratoFrequencyItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
     {
-        public Vibrato Vibrato { get; set; }
+        public required Vibrato Vibrato { get; set; }
 
         public Point Position()
         {
@@ -171,7 +186,7 @@ internal partial class PianoGrid
 
     class VibratoPhaseItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
     {
-        public Vibrato Vibrato { get; set; }
+        public required Vibrato Vibrato { get; set; }
 
         public Point Position()
         {
@@ -215,7 +230,7 @@ internal partial class PianoGrid
 
     class WaveformPhonemeResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
     {
-        public INote Note;
+        public required INote Note;
         public int PhonemeIndex;
 
         public override bool Raycast(Point point)

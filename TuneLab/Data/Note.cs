@@ -24,6 +24,7 @@ internal class Note : DataObject, INote
     public DataStruct<double> Dur { get; }
     public DataStruct<int> Pitch { get; }
     DataLyric Lyric { get; }
+    DataString Pronunciation { get; }
     public DataPropertyObject Properties { get; }
     public DataObjectList<IPhoneme> Phonemes { get; } = new();
     public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
@@ -35,14 +36,14 @@ internal class Note : DataObject, INote
     public double EndTime => mPart.TempoManager.GetTime(Next == null ? this.GlobalEndPos() : Math.Min(this.GlobalEndPos(), Next.GlobalStartPos()));
 
     public SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
+    public IReadOnlyCollection<string> Pronunciations => Lyric.Pronunciations;
 
     IDataProperty<double> INote.Pos => Pos;
     IDataProperty<double> INote.Dur => Dur;
     IDataProperty<int> INote.Pitch => Pitch;
     IDataProperty<string> INote.Lyric => Lyric;
+    IDataProperty<string> INote.Pronunciation => Pronunciation;
     IDataObjectList<IPhoneme> INote.Phonemes => Phonemes;
-
-    string ISynthesisNote.Lyric => Lyric.Pronunciation ?? Lyric.Value;
 
     INote? ILinkedNode<INote>.Next { get; set; } = null;
     INote? ILinkedNode<INote>.Last { get; set; } = null;
@@ -56,6 +57,7 @@ internal class Note : DataObject, INote
         Dur = new(this);
         Pitch = new(this);
         Lyric = new(this);
+        Pronunciation = new(this);
         Properties = new(this);
         Phonemes.Attach(this);
         mPart = part;
@@ -70,8 +72,9 @@ internal class Note : DataObject, INote
             Dur = Dur,
             Pitch = Pitch,
             Lyric = Lyric,
+            Pronunciation = Pronunciation,
             Properties = Properties.GetInfo(),
-            Phonemes = Phonemes.GetInfo().ToInfo()
+            Phonemes = Phonemes.GetInfo().ToInfo(),
         };
 
         return info;
@@ -83,22 +86,21 @@ internal class Note : DataObject, INote
         IDataObject<NoteInfo>.SetInfo(Dur, info.Dur);
         IDataObject<NoteInfo>.SetInfo(Pitch, info.Pitch);
         IDataObject<NoteInfo>.SetInfo(Lyric, info.Lyric);
+        IDataObject<NoteInfo>.SetInfo(Pronunciation, info.Pronunciation);
         IDataObject<NoteInfo>.SetInfo(Properties, info.Properties);
         IDataObject<NoteInfo>.SetInfo(Phonemes, info.Phonemes.Convert(Phoneme.Create).ToArray());
     }
 
     class DataLyric : DataString
     {
-        public string? Pronunciation => mPronunciation;
+        public IReadOnlyCollection<string> Pronunciations { get; private set; } = [];
 
         public DataLyric(Note note) : base(note)
         {
             mNote = note;
             Modified.Subscribe(() =>
             {
-                var pronunciations = LyricUtils.GetPronunciations(Value);
-                if (!pronunciations.IsEmpty())
-                    mPronunciation = pronunciations.First();
+                Pronunciations = LyricUtils.GetPronunciations(Value);
             });
         }
 
@@ -106,9 +108,9 @@ internal class Note : DataObject, INote
         {
             base.Set(value);
             mNote.Phonemes.Clear();
+            mNote.Pronunciation.Set(string.Empty);
         }
 
-        string? mPronunciation;
         Note mNote;
     }
 

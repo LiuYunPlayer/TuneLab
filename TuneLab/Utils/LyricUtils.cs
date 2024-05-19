@@ -61,7 +61,7 @@ internal static class LyricUtils
             if (ChineseChar.IsValidChar(c))
             {
                 var chineseChar = new ChineseChar(c);
-                return chineseChar.Pinyins.Take(chineseChar.PinyinCount).Convert(ToPinyin).ToArray();
+                return chineseChar.Pinyins.Take(chineseChar.PinyinCount).Convert(ToPinyin).ToHashSet();
             }
         }
 

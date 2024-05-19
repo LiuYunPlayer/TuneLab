@@ -228,7 +228,7 @@ internal partial class PianoGrid : View, IPianoScrollView
         IBrush noteBrush = NoteColor.ToBrush();
         IBrush selectedNoteBrush = SelectedNoteColor.ToBrush();
         IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();
-        //IBrush selectedLyricBrush = GUI.Style.INTERFACE.ToBrush();
+        IBrush pronunciationBrush = Style.LIGHT_WHITE.ToBrush();
         foreach (var note in Part.Notes)
         {
             if (note.GlobalEndPos() < minVisibleTick)
@@ -240,13 +240,17 @@ internal partial class PianoGrid : View, IPianoScrollView
             var rect = this.NoteRect(note);
             context.FillRectangle(note.IsSelected ? selectedNoteBrush : noteBrush, rect, (float)round);
 
-            rect = rect.Adjusted(8, 0, -8, 0);
+            rect = rect.Adjusted(8, -28, -8, 0);
             if (rect.Width <= 0)
                 continue;
 
             var clip = context.PushClip(rect);
-            string text = note.Lyric.Value;
-            context.DrawString(text, rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+            context.DrawString(note.Lyric.Value, rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
+            var pronunciation = note.FinalPronunciation();
+            if (!string.IsNullOrEmpty(pronunciation))
+            {
+                context.DrawString(pronunciation, rect, pronunciationBrush, 12, Alignment.LeftTop, Alignment.LeftCenter, new(0, 14));
+            }
             clip.Dispose();
         }
 
