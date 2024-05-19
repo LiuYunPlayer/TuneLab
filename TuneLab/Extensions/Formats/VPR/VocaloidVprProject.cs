@@ -158,23 +158,45 @@ namespace TuneLab.Extensions.Formats.VPR
                     var pitchBend = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "pitchBend")?["events"] ?? new JArray();
 
                     var newPitchBend = new AutomationInfo();
-                    foreach (JObject pb in pitchBend)
+                    if (pitchBend.Count() > 0 && (int)pitchBend[0]["pos"] != 0)
                     {
-                        if ((double)pb["value"] > 0)
+                        newPitchBend.Points.Add(new Point(0, 0));
+                        newPitchBend.Points.Add(new Point((int)pitchBend[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; pitchBend.Count() > 0 && i < pitchBend.Count(); i++)
+                    {
+                        if ((int)pitchBend[i]["value"] > 0)
                         {
-                            newPitchBend.Points.Add(new Point((double)pb["pos"], (double)pb["value"] / 8191.0d));
-                        } else
+                            if (i != 0 && (double)pitchBend[i]["pos"] - 1 != (double)pitchBend[i - 1]["pos"])
+                                newPitchBend.Points.Add(new Point((double)pitchBend[i]["pos"] - 1, (double)pitchBend[i - 1]["value"] / 8191.0d));
+                            newPitchBend.Points.Add(new Point((double)pitchBend[i]["pos"], (double)pitchBend[i]["value"] / 8191.0d));
+                        }
+                        else
                         {
-                            newPitchBend.Points.Add(new Point((double)pb["pos"], (double)pb["value"] / 8192.0d));
+                            if (i != 0 && (double)pitchBend[i]["pos"] - 1 != (double)pitchBend[i - 1]["pos"])
+                                newPitchBend.Points.Add(new Point((double)pitchBend[i]["pos"] - 1, (double)pitchBend[i - 1]["value"] / 8192.0d));
+                            newPitchBend.Points.Add(new Point((double)pitchBend[i]["pos"], (double)pitchBend[i]["value"] / 8192.0d));
                         }
                     }
                     midiPartInfo.Automations.Add("PitchBend", newPitchBend);
 
                     var newPitchBendSens = new AutomationInfo();
-                    foreach (JObject pbs in pitchBendSens)
-                    { 
-                        newPitchBendSens.Points.Add(new Point((double)pbs["pos"], (double)pbs["value"]));
+                    if (pitchBendSens.Count() > 0 && (int)pitchBendSens[0]["pos"] != 0)
+                    {
+                        newPitchBendSens.Points.Add(new Point(0, 2));
+                        newPitchBendSens.Points.Add(new Point((int)pitchBendSens[0]["pos"] - 1, 2));
                     }
+
+                    for (int i = 0; pitchBendSens.Count() > 0 && i < pitchBendSens.Count(); i++)
+                    {
+                        if (i != 0 && (int)pitchBendSens[i]["pos"] - 1 != (int)pitchBendSens[i - 1]["pos"])
+                        {
+                            newPitchBendSens.Points.Add(new Point((double)pitchBendSens[i]["pos"] - 1, (double)pitchBendSens[i - 1]["value"]));
+                        }
+                        newPitchBendSens.Points.Add(new Point((double)pitchBendSens[i]["pos"], (double)pitchBendSens[i]["value"]));
+                    }
+
                     midiPartInfo.Automations.Add("PitchBendSensitive", newPitchBendSens);
 
                     var newDynamicsList = new AutomationInfo();
@@ -187,7 +209,7 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     for (int i = 0; dynamics.Count() > 0 && i < dynamics.Count(); i++)
                     {
-                        if (i != 0)
+                        if (i != 0 && (int)dynamics[i]["pos"] - 1 != (int)dynamics[i - 1]["pos"])
                         {
                             newDynamicsList.Points.Add(new Point((int)dynamics[i]["pos"] - 1, RangeMapper((int)dynamics[i - 1]["value"], 0, 127, -1.0, 1.0)));
                         }
@@ -207,7 +229,7 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     for (int i = 0; brightness.Count() > 0 && i < brightness.Count(); i++)
                     {
-                        if (i != 0)
+                        if (i != 0 && (int)brightness[i]["pos"] - 1 != (int)brightness[i - 1]["pos"])
                         {
                             newBrightness.Points.Add(new Point((int)brightness[i]["pos"] - 1, RangeMapper((int)brightness[i - 1]["value"], 0, 127, -1.0, 1.0)));
                         }
@@ -227,7 +249,7 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     for (int i = 0; character.Count() > 0 && i < character.Count(); i++)
                     {
-                        if (i != 0)
+                        if (i != 0 && (int)character[i]["pos"] - 1 != (int)character[i - 1]["pos"])
                         {
                             newCharacter.Points.Add(new Point((int)character[i]["pos"] - 1, RangeMapper((int)character[i - 1]["value"], -64, 64, -1.0, 1.0)));
                         }
@@ -246,7 +268,7 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     for (int i = 0; growl.Count() > 0 && i < growl.Count(); i++)
                     {
-                        if (i != 0)
+                        if (i != 0 && (int)growl[i]["pos"] - 1 != (int)growl[i - 1]["pos"])
                         {
                             newGrowl.Points.Add(new Point((int)growl[i]["pos"] - 1, RangeMapper((int)growl[i - 1]["value"], 0, 127, 0, 1.0)));
                         }
@@ -266,7 +288,7 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     for (int i = 0; clearness.Count() > 0 && i < clearness.Count(); i++)
                     {
-                        if (i != 0)
+                        if (i != 0 && (int)clearness[i]["pos"] - 1 != (int)clearness[i - 1]["pos"])
                         {
                             newClearness.Points.Add(new Point((int)clearness[i]["pos"] - 1, RangeMapper((int)clearness[i - 1]["value"], 0, 127, 0, 1.0)));
                         }
