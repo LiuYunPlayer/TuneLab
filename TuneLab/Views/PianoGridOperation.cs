@@ -216,6 +216,8 @@ internal partial class PianoGrid
                                                         info.Pos = tempoManager.GetTick(phoneme.StartTime) - pos;
                                                         info.Dur = tempoManager.GetTick(phoneme.EndTime) - pos - info.Pos;
                                                         info.Lyric = "." + phoneme.Symbol;
+                                                        info.Pronunciation = string.Empty;
+                                                        info.Phonemes = [];
                                                         phonemeNoteInfos.Add(info);
                                                     }
 
