@@ -88,12 +88,10 @@ internal class Project : DataObject, IProject
     void OnTrackAdded(ITrack track)
     {
         track.Activate();
-        AudioEngine.AddTrack(track);
     }
 
     void OnTrackRemoved(ITrack track)
     {
-        AudioEngine.RemoveTrack(track);
         track.Deactivate();
     }
 

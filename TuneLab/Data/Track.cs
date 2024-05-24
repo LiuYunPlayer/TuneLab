@@ -1,5 +1,4 @@
-﻿using NAudio.Utils;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -11,7 +10,6 @@ using TuneLab.Base.Structures;
 using TuneLab.Base.Science;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using NAudio.CoreAudioApi;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
 
@@ -87,6 +85,7 @@ internal class Track : DataObject, ITrack
 
     public void Activate()
     {
+        AudioEngine.AddTrack(this);
         foreach (var part in mParts)
         {
             part.Activate();
@@ -95,6 +94,7 @@ internal class Track : DataObject, ITrack
 
     public void Deactivate()
     {
+        AudioEngine.RemoveTrack(this);
         foreach (var part in mParts)
         {
             part.Deactivate();
