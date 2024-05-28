@@ -93,23 +93,40 @@ internal partial class PianoGrid
 
         public Point FrequencyPosition()
         {
-            var (x, pitch) = PositionAndPitch();
+            double pitch = Pitch();
             double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch + Vibrato.Amplitude) - 24;
-            return new Point(x, y);
+            return new Point(CenterX(), y);
         }
 
         public Point PhasePosition()
         {
-            var (x, pitch) = PositionAndPitch();
+            double pitch = Pitch();
             double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch - Vibrato.Amplitude) + 24;
-            return new Point(x, y);
+            return new Point(CenterX(), y);
         }
 
-        (double, double) PositionAndPitch()
+        public Point AttackPosition()
         {
-            double x = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos() + Vibrato.Dur / 2);
-            double pitch = PianoGrid.Part == null ? double.NaN : PianoGrid.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
-            return (x, pitch);
+            double pitch = Pitch();
+            double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch);
+            return new Point(PianoGrid.TickAxis.Tick2X(Vibrato.GlobalAttackTick()), y);
+        }
+
+        public Point ReleasePosition()
+        {
+            double pitch = Pitch();
+            double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch);
+            return new Point(PianoGrid.TickAxis.Tick2X(Vibrato.GlobalReleaseTick()), y);
+        }
+
+        double CenterX()
+        {
+            return PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos() + Vibrato.Dur / 2);
+        }
+
+        double Pitch()
+        {
+            return PianoGrid.Part == null ? double.NaN : PianoGrid.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
         }
     }
 
@@ -200,6 +217,44 @@ internal partial class PianoGrid
                 return false;
 
             return (point - position).ToVector().Length <= 12;
+        }
+    }
+
+    class VibratoAttackItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    {
+        public required Vibrato Vibrato { get; set; }
+
+        public Point Position()
+        {
+            return ((IVibratoItem)this).AttackPosition();
+        }
+
+        public override bool Raycast(Point point)
+        {
+            var position = Position();
+            if (double.IsNaN(position.Y))
+                return false;
+
+            return new Rect(position, position).Adjusted(-8, -8, 8, 8).Contains(point);
+        }
+    }
+
+    class VibratoReleaseItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    {
+        public required Vibrato Vibrato { get; set; }
+
+        public Point Position()
+        {
+            return ((IVibratoItem)this).ReleasePosition();
+        }
+
+        public override bool Raycast(Point point)
+        {
+            var position = Position();
+            if (double.IsNaN(position.Y))
+                return false;
+
+            return new Rect(position, position).Adjusted(-8, -8, 8, 8).Contains(point);
         }
     }
 

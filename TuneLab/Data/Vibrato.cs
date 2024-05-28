@@ -118,4 +118,34 @@ internal static class VibratoExtension
     {
         return vibrato.Part.Pos.Value + vibrato.EndPos();
     }
+
+    public static double GlobalStartTime(this Vibrato vibrato)
+    {
+        return vibrato.Part.TempoManager.GetTime(vibrato.GlobalStartPos());
+    }
+
+    public static double GlobalEndTime(this Vibrato vibrato)
+    {
+        return vibrato.Part.TempoManager.GetTime(vibrato.GlobalEndPos());
+    }
+
+    public static double GlobalAttackTime(this Vibrato vibrato)
+    {
+        return vibrato.GlobalStartTime() + vibrato.Attack;
+    }
+
+    public static double GlobalReleaseTime(this Vibrato vibrato)
+    {
+        return vibrato.GlobalEndTime() - vibrato.Release;
+    }
+
+    public static double GlobalAttackTick(this Vibrato vibrato)
+    {
+        return vibrato.Part.TempoManager.GetTick(vibrato.GlobalAttackTime());
+    }
+
+    public static double GlobalReleaseTick(this Vibrato vibrato)
+    {
+        return vibrato.Part.TempoManager.GetTick(vibrato.GlobalReleaseTime());
+    }
 }

@@ -67,6 +67,8 @@ internal partial class PianoGrid : View, IPianoScrollView
         mVibratoAmplitudeOperation = new(this);
         mVibratoFrequencyOperation = new(this);
         mVibratoPhaseOperation = new(this);
+        mVibratoAttackOperation = new(this);
+        mVibratoReleaseOperation = new(this);
         mVibratoMoveOperation = new(this);
         mWaveformNoteResizeOperation = new(this);
         mWaveformPhonemeResizeOperation = new(this);
@@ -478,6 +480,8 @@ internal partial class PianoGrid : View, IPianoScrollView
         IBrush phaseBrush = Colors.White.ToBrush();
         IPen frequencyPen = new Pen(frequencyBrush, 1);
         IPen phasePen = new Pen(phaseBrush, 1);
+        IBrush arBrush = Colors.White.ToBrush();
+        IPen arPen = new Pen(arBrush, 1);
         IBrush textBrush = Brushes.White;
         var raycastItem = ItemAt(MousePosition);
         IVibratoItem? hoverVibratoItem = mOperatingVibratoItem;
@@ -498,6 +502,26 @@ internal partial class PianoGrid : View, IPianoScrollView
             {
                 context.DrawEllipse(hoverVibratoItem is VibratoPhaseItem || mVibratoPhaseOperation.IsOperating ? phaseBrush : null, phasePen, phasePosition, 6, 6);
                 context.DrawString("Phase: " + hoverVibrato.Phase.Value.ToString("+0.00;-0.00"), phasePosition + new Point(0, 18), textBrush, new Typeface(Assets.NotoMono), 12, Alignment.Center);
+            }
+
+            var attackPosition = hoverVibratoItem.AttackPosition();
+            if (!double.IsNaN(attackPosition.Y))
+            {
+                context.DrawGeometry(arBrush, null, new PolylineGeometry([ 
+                    attackPosition + new Point(-4, 0), 
+                    attackPosition + new Point(0, -12), 
+                    attackPosition + new Point(0, 12), 
+                ], true));
+            }
+
+            var releasePosition = hoverVibratoItem.ReleasePosition();
+            if (!double.IsNaN(releasePosition.Y))
+            {
+                context.DrawGeometry(arBrush, null, new PolylineGeometry([
+                    releasePosition + new Point(0, -12),
+                    releasePosition + new Point(4, 0),
+                    releasePosition + new Point(0, 12),
+                ], true));
             }
         }
     }

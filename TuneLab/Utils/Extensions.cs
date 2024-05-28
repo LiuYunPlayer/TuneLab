@@ -158,13 +158,14 @@ internal static class Extensions
         context.DrawText(formattedText, point + new Avalonia.Point(x, y));
     }
 
-    public static void DrawCurve(this DrawingContext context, IEnumerable<Avalonia.Point> points, Color color, double thickness = 1, bool isClosed = false)
+    public static PathGeometry ToPath(this IEnumerable<Avalonia.Point> points, bool isClosed = false)
     {
+        var path = new PathGeometry();
+
         using var it = points.GetEnumerator();
         if (!it.MoveNext())
-            return;
+            return path;
 
-        var path = new PathGeometry();
         using (var pathContext = path.Open())
         {
             pathContext.BeginFigure(it.Current, false);
@@ -175,7 +176,12 @@ internal static class Extensions
             pathContext.EndFigure(isClosed);
         }
 
-        context.DrawGeometry(null, new Pen(color.ToBrush(), thickness, null, PenLineCap.Round, PenLineJoin.Round), path);
+        return path;
+    }
+
+    public static void DrawCurve(this DrawingContext context, IEnumerable<Avalonia.Point> points, Color color, double thickness = 1, bool isClosed = false)
+    {
+        context.DrawGeometry(null, new Pen(color.ToBrush(), thickness, null, PenLineCap.Round, PenLineJoin.Round), points.ToPath(isClosed));
     }
 
     public static void DrawCurveLines(this DrawingContext context, IEnumerable<Avalonia.Point> points, Color color, double thickness = 1, bool isClosed = false)

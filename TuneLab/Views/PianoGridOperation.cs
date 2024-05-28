@@ -388,6 +388,14 @@ internal partial class PianoGrid
                                 {
                                     mVibratoPhaseOperation.Down(e.Position.X, vibratoPhaseItem);
                                 }
+                                else if (item is VibratoAttackItem vibratoAttackItem)
+                                {
+                                    mVibratoAttackOperation.Down(e.Position.X, vibratoAttackItem);
+                                }
+                                else if (item is VibratoReleaseItem vibratoReleaseItem)
+                                {
+                                    mVibratoReleaseOperation.Down(e.Position.X, vibratoReleaseItem);
+                                }
                                 else
                                 {
                                     if (e.IsDoubleClick)
@@ -528,6 +536,12 @@ internal partial class PianoGrid
             case State.VibratoPhaseAdjusting:
                 mVibratoPhaseOperation.Move(e.Position.X);
                 break;
+            case State.VibratoAttackAdjusting:
+                mVibratoAttackOperation.Move(e.Position.X);
+                break;
+            case State.VibratoReleaseAdjusting:
+                mVibratoReleaseOperation.Move(e.Position.X);
+                break;
             case State.VibratoMoving:
                 mVibratoMoveOperation.Move(e.Position, alt);
                 break;
@@ -566,7 +580,7 @@ internal partial class PianoGrid
                             }
                             break;
                         case PianoTool.Vibrato:
-                            if (item is VibratoStartResizeItem || item is VibratoEndResizeItem || item is VibratoFrequencyItem || item is VibratoPhaseItem)
+                            if (item is VibratoStartResizeItem || item is VibratoEndResizeItem || item is VibratoFrequencyItem || item is VibratoPhaseItem || item is VibratoAttackItem || item is VibratoReleaseItem)
                             {
                                 Cursor = new Cursor(StandardCursorType.SizeWestEast);
                             }
@@ -655,6 +669,14 @@ internal partial class PianoGrid
             case State.VibratoPhaseAdjusting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mVibratoPhaseOperation.Up();
+                break;
+            case State.VibratoAttackAdjusting:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mVibratoAttackOperation.Up();
+                break;
+            case State.VibratoReleaseAdjusting:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mVibratoReleaseOperation.Up();
                 break;
             case State.VibratoMoving:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
@@ -855,6 +877,8 @@ internal partial class PianoGrid
                     items.Add(new VibratoPhaseItem(this) { Vibrato = vibrato });
                     items.Add(new VibratoEndResizeItem(this) { Vibrato = vibrato });
                     items.Add(new VibratoStartResizeItem(this) { Vibrato = vibrato });
+                    items.Add(new VibratoAttackItem(this) { Vibrato = vibrato });
+                    items.Add(new VibratoReleaseItem(this) { Vibrato = vibrato });
                 }
                 break;
             default:
@@ -1293,7 +1317,7 @@ internal partial class PianoGrid
 
     readonly PitchLockOperation mPitchLockOperation;
 
-    class NoteMoveOperation(PianoGrid trackGrid) : Operation(trackGrid)
+    class NoteMoveOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
     {
         public void Down(Avalonia.Point point, bool ctrl, INote note)
         {
@@ -1991,7 +2015,133 @@ internal partial class PianoGrid
 
     readonly VibratoPhaseOperation mVibratoPhaseOperation;
 
-    class VibratoMoveOperation(PianoGrid trackGrid) : Operation(trackGrid)
+    class VibratoAttackOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    {
+        public void Down(double x, IVibratoItem vibratoItem)
+        {
+            mPart = vibratoItem.Vibrato.Part;
+            var vibratos = mPart.Vibratos.AllSelectedItems();
+            if (vibratos.IsEmpty())
+                return;
+
+            State = State.VibratoAttackAdjusting;
+            mPart.DisableAutoPrepare();
+            mHead = mPart.Head;
+            PianoGrid.mOperatingVibratoItem = vibratoItem;
+            mVibratos = vibratos;
+            mTime = vibratoItem.Vibrato.GlobalAttackTime();
+        }
+
+        public void Move(double x)
+        {
+            if (mPart == null)
+                return;
+
+            if (mVibratos == null)
+                return;
+
+            mPart.DiscardTo(mHead);
+            double time = mPart.TempoManager.GetTime(PianoGrid.TickAxis.X2Tick(x));
+            double offset = time - mTime;
+            foreach (var vibrato in mVibratos)
+            {
+                vibrato.Attack.Set(Math.Max(0, vibrato.Attack + offset));
+            }
+        }
+
+        public void Up()
+        {
+            if (mPart == null)
+                return;
+
+            State = State.None;
+            var head = mPart.Head;
+            mPart.EnableAutoPrepare();
+            if (head == mHead)
+            {
+                mPart.Discard();
+            }
+            else
+            {
+                mPart.Commit();
+            }
+            mVibratos = null;
+            mPart = null;
+            PianoGrid.mOperatingVibratoItem = null;
+        }
+
+        IMidiPart? mPart;
+        IReadOnlyCollection<Vibrato>? mVibratos;
+        double mTime;
+        Head mHead;
+    }
+
+    readonly VibratoAttackOperation mVibratoAttackOperation;
+
+    class VibratoReleaseOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    {
+        public void Down(double x, IVibratoItem vibratoItem)
+        {
+            mPart = vibratoItem.Vibrato.Part;
+            var vibratos = mPart.Vibratos.AllSelectedItems();
+            if (vibratos.IsEmpty())
+                return;
+
+            State = State.VibratoReleaseAdjusting;
+            mPart.DisableAutoPrepare();
+            mHead = mPart.Head;
+            PianoGrid.mOperatingVibratoItem = vibratoItem;
+            mVibratos = vibratos;
+            mTime = vibratoItem.Vibrato.GlobalReleaseTime();
+        }
+
+        public void Move(double x)
+        {
+            if (mPart == null)
+                return;
+
+            if (mVibratos == null)
+                return;
+
+            mPart.DiscardTo(mHead);
+            double time = mPart.TempoManager.GetTime(PianoGrid.TickAxis.X2Tick(x));
+            double offset = time - mTime;
+            foreach (var vibrato in mVibratos)
+            {
+                vibrato.Release.Set(Math.Max(0, vibrato.Release - offset));
+            }
+        }
+
+        public void Up()
+        {
+            if (mPart == null)
+                return;
+
+            State = State.None;
+            var head = mPart.Head;
+            mPart.EnableAutoPrepare();
+            if (head == mHead)
+            {
+                mPart.Discard();
+            }
+            else
+            {
+                mPart.Commit();
+            }
+            mVibratos = null;
+            mPart = null;
+            PianoGrid.mOperatingVibratoItem = null;
+        }
+
+        IMidiPart? mPart;
+        IReadOnlyCollection<Vibrato>? mVibratos;
+        double mTime;
+        Head mHead;
+    }
+
+    readonly VibratoReleaseOperation mVibratoReleaseOperation;
+
+    class VibratoMoveOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
     {
         public void Down(Avalonia.Point point, bool ctrl, Vibrato vibrato)
         {
@@ -2341,6 +2491,8 @@ internal partial class PianoGrid
         VibratoAmplitudeAdjusting,
         VibratoFrequencyAdjusting,
         VibratoPhaseAdjusting,
+        VibratoAttackAdjusting,
+        VibratoReleaseAdjusting,
         VibratoMoving,
         WaveformNoteResizing,
         WaveformPhonemeResizing,
