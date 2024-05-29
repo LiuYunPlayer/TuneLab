@@ -53,9 +53,6 @@ internal static class VoicesManager
             }
             catch { }
         }
-
-        if (GetInitedEngine(string.Empty) == null)
-            throw new Exception("Default engine init failed!");
     }
 
     public static void Destroy()
@@ -76,9 +73,6 @@ internal static class VoicesManager
             {
                 if (typeof(IVoiceEngine).IsAssignableFrom(type))
                 {
-                    if (mVoiceEngines.ContainsKey(attribute.Type))
-                        continue;
-
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
                         mVoiceEngines.Add(attribute.Type, new VoiceEngineStatus((IVoiceEngine)constructor.Invoke(null), path));
@@ -115,6 +109,16 @@ internal static class VoicesManager
             return Create(string.Empty, string.Empty);
     }
 
+    public static void InitEngine(string type)
+    {
+        var engine = mVoiceEngines[type];
+        if (engine.IsInited)
+            return;
+
+        if (!engine.Init(out var error))
+            throw new Exception(error);
+    }
+
     static IVoiceEngine? GetInitedEngine(string type)
     {
         if (!mVoiceEngines.ContainsKey(type))
@@ -126,10 +130,13 @@ internal static class VoicesManager
 
         if (!engine.IsInited)
         {
-            bool success = engine.Init(out string? error);
-            if (!success)
+            try
             {
-                Log.Error(string.Format("Engine {0} init failed: {1}", type, error));
+                InitEngine(type);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(string.Format("Engine {0} init failed: {1}", type, ex));
                 return null;
             }
         }

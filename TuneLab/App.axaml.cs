@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System;
 using Tmds.DBus.Protocol;
 using TuneLab.GUI;
+using TuneLab.Extensions.Voices;
 
 namespace TuneLab;
 
@@ -57,6 +58,23 @@ public partial class App : Application
                 dialog.SetMessage(ex.ToString());
                 dialog.AddButton("Quit", Dialog.ButtonType.Primary).Clicked += () => { Process.GetCurrentProcess().Kill(); };
                 dialog.Show();
+            }
+
+            // 暂时改为提前初始化，使Set Voice右键菜单能更快弹出
+            foreach (var engine in VoicesManager.GetAllVoiceEngines())
+            {
+                try
+                {
+                    VoicesManager.InitEngine(engine);
+                }
+                catch (Exception ex)
+                {
+                    var dialog = new Dialog();
+                    dialog.SetTitle("Error");
+                    dialog.SetMessage(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
+                    dialog.AddButton("OK", Dialog.ButtonType.Primary);
+                    dialog.Show();
+                }
             }
         }
 

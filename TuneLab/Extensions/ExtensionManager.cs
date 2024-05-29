@@ -16,11 +16,11 @@ internal static class ExtensionManager
     {
         PathManager.MakeSure(PathManager.ExtensionsFolder);
         FormatsManager.LoadBuiltIn();
-        VoicesManager.LoadBuiltIn();
         foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
         {
             Load(dir);
         }
+        VoicesManager.LoadBuiltIn();
     }
 
     public static void Destroy()
