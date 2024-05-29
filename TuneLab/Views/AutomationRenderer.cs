@@ -183,6 +183,16 @@ internal partial class AutomationRenderer : View
             context.DrawCurve(points, Color.Parse(config.Color).Opacity(0.5), lineWidth);
         }
 
+        if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
+        {
+            if (!vibratoItem.Vibrato.AffectedAutomations.ContainsKey(activeAutomation))
+            {
+                var vibrato = vibratoItem.Vibrato;
+                double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
+                context.DrawString("Drag to associate the vibrato.", new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+            }
+        }
+
         lineWidth = 2;
         Draw(activeAutomation);
     }

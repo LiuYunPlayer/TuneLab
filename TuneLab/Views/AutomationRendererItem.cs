@@ -17,7 +17,7 @@ internal partial class AutomationRenderer
 
     class VibratoItem(AutomationRenderer automationRenderer) : AutomationRenderItem(automationRenderer)
     {
-        public Vibrato Vibrato;
+        public required Vibrato Vibrato;
 
         public override bool Raycast(Point point)
         {

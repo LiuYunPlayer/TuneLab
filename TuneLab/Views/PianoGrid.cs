@@ -490,6 +490,13 @@ internal partial class PianoGrid : View, IPianoScrollView
         {
             var hoverVibrato = hoverVibratoItem.Vibrato;
 
+            var centerX = hoverVibratoItem.CenterX();
+            var pitch = hoverVibratoItem.Pitch();
+            if (double.IsNaN(pitch))
+            {
+                context.DrawString("Please draw pitch first in the area.", new Point(centerX, 32), textBrush, 12, Alignment.CenterTop);
+            }
+
             var frequencyPosition = hoverVibratoItem.FrequencyPosition();
             if (!double.IsNaN(frequencyPosition.Y))
             {

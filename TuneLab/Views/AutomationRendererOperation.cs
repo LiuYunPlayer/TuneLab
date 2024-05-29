@@ -122,6 +122,8 @@ internal partial class AutomationRenderer
                 }
                 break;
         }
+
+        InvalidateVisual();
     }
 
     protected override void OnMouseUp(MouseUpEventArgs e)
@@ -146,6 +148,16 @@ internal partial class AutomationRenderer
 
         if (mMiddleDragOperation.IsOperating)
             mMiddleDragOperation.Up();
+    }
+
+    protected override void OnMouseEnter(MouseEnterEventArgs e)
+    {
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave()
+    {
+        InvalidateVisual();
     }
 
     protected override void UpdateItems(IItemCollection items)

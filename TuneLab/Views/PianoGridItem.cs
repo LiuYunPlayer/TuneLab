@@ -119,12 +119,12 @@ internal partial class PianoGrid
             return new Point(PianoGrid.TickAxis.Tick2X(Vibrato.GlobalReleaseTick()), y);
         }
 
-        double CenterX()
+        public double CenterX()
         {
             return PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos() + Vibrato.Dur / 2);
         }
 
-        double Pitch()
+        public double Pitch()
         {
             return PianoGrid.Part == null ? double.NaN : PianoGrid.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
         }
