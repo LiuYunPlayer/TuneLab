@@ -52,6 +52,8 @@ internal class TrackHead : Panel
         mTrackProvider.When(track => track.Name.Modified).Subscribe(() => { if (Track == null) return; mName.Text = Track.Name.Value; }, s);
         mTrackProvider.When(track => track.Gain.Modified).Subscribe(() => { if (Track == null) return; mGainSlider.Display(Track.Gain.Value); }, s);
         mTrackProvider.When(track => track.Pan.Modified).Subscribe(() => { if (Track == null) return; mPanSlider.Display(Track.Pan.Value); }, s);
+        mTrackProvider.When(track => track.IsMute.Modified).Subscribe(() => { if (Track == null) return; mMuteToggle.Display(Track.IsMute.Value); }, s);
+        mTrackProvider.When(track => track.IsSolo.Modified).Subscribe(() => { if (Track == null) return; mSoloToggle.Display(Track.IsSolo.Value); }, s);
 
         MinWidth = 160;
 
