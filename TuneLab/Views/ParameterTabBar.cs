@@ -41,8 +41,8 @@ internal class ParameterTabBar : Panel
         mPitchButton = new ParameterButton(Color.Parse(ConstantDefine.PitchColor), ConstantDefine.PitchName);
         mPitchButton.State = ParameterButton.ButtonState.Visible;
         mPitchButton.StateChangeAsked += (state) => { mPitchButton.State = state; };
-        mParameterLayout.Children.Add(mPitchButton);
-        mParameterLayout.Children.Add(new Border() { Background = Style.DARK.ToBrush(), Width = 2, Height = 18, CornerRadius = new CornerRadius(1) });
+        //mParameterLayout.Children.Add(mPitchButton);
+        //mParameterLayout.Children.Add(new Border() { Background = Style.DARK.ToBrush(), Width = 2, Height = 18, CornerRadius = new CornerRadius(1) });
         mAutomationLayout = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0), Spacing = 12 };
         mParameterLayout.Children.Add(mAutomationLayout);
 
