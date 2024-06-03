@@ -21,6 +21,11 @@ jobs:
 
     runs-on: windows-latest
 
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -51,6 +56,11 @@ jobs:
       shell: pwsh
       run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
 
+    - name: Generate artifact attestation
+      uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: '"workspace/*.dll","workspace/*.exe"'
+
     - name: Pack artifacts
       shell: pwsh
       run: Compress-Archive -Path workspace\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
@@ -79,6 +89,11 @@ jobs:
 
     runs-on: macos-latest
 
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -107,6 +122,11 @@ jobs:
 
     - name: Move artifacts
       run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
+
+    - name: Generate artifact attestation
+      uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
 
     - name: Pack artifacts
       run: |
@@ -129,6 +149,11 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -157,6 +182,11 @@ jobs:
 
     - name: Move artifacts
       run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
+
+    - name: Generate artifact attestation
+      uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
 
     - name: Pack artifacts
       run: |
