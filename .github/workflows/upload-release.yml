@@ -24,7 +24,7 @@ jobs:
       steps:
         - name: Generate release notes
           id: notes
-          uses: RedCrafter07/release-notes-action@v1
+          uses: RedCrafter07/release-notes-action@v1.0.0
           with:
             tag-name: ${{ github.ref }}
             token: ${{ secrets.GITHUB_TOKEN }}
