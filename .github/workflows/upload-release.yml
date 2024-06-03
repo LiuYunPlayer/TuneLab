@@ -42,7 +42,7 @@ jobs:
             tag_name: ${{ github.ref }}
             release_name: TuneLab ${{ github.ref }}
             body: ${{ steps.notes.outputs.release-notes }}
-            draft: true
+            draft: false
             prerelease: false
     
     release:
@@ -61,6 +61,9 @@ jobs:
               os: "macos-latest"
             - runtime: "linux-x64"
               os: "ubuntu-latest"
+
+      permissions:
+        contents: write
     
       steps:
         - name: Download artifact
