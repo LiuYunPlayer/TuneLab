@@ -1,0 +1,112 @@
+name: Upload release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  
+jobs:
+    call-build:
+      uses: ./.github/workflows/build-artifacts.yml
+
+      permissions:
+        id-token: write
+        contents: read
+        attestations: write
+
+    create-release:
+      name: Create release
+      runs-on: ubuntu-latest
+    
+      outputs:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+    
+      permissions:
+        contents: write
+
+      steps:
+        - name: Generate release notes
+          id: notes
+          uses: RedCrafter07/release-notes-action@v1.0.0
+          with:
+            tag-name: ${{ github.ref }}
+            token: ${{ secrets.GITHUB_TOKEN }}
+            branch: 'master'
+
+        - name: Create release
+          id: create_release
+          uses: actions/create-release@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            tag_name: ${{ github.ref }}
+            release_name: TuneLab ${{ github.ref }}
+            body: ${{ steps.notes.outputs.release-notes }}
+            draft: false
+            prerelease: false
+    
+    release:
+      name: Upload release
+      needs: [call-build, create-release]
+      runs-on: ${{matrix.os}}
+    
+      strategy:
+        fail-fast: false
+        matrix:
+          runtime: [ "win-x64", "osx-arm64", "linux-x64" ]
+          include:
+            - runtime: "win-x64"
+              os: "windows-latest"
+            - runtime: "osx-arm64"
+              os: "macos-latest"
+            - runtime: "linux-x64"
+              os: "ubuntu-latest"
+
+      permissions:
+        contents: write
+    
+      steps:
+        - name: Get short SHA
+          uses: benjlevesque/short-sha@v3.0
+          id: short-sha
+          with:
+            length: 7
+
+        - name: Download artifact
+          uses: actions/download-artifact@v4
+          with:
+            name: TuneLab-${{ matrix.runtime }}-${{ steps.short-sha.outputs.sha }}
+          
+        - name: Package - Windows
+          if: runner.os == 'Windows'
+          shell: pwsh
+          working-directory: ${{github.workspace}}
+          run: Compress-Archive -Path .\* -DestinationPath package.zip
+          
+        - name: Package - MacOS and Linux
+          if: runner.os != 'Windows'
+          working-directory: ${{github.workspace}}
+          run: tar -zcvf package.tar.gz ./*
+    
+        - name: Upload - Windows
+          if: runner.os == 'Windows'
+          uses: actions/upload-release-asset@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ needs.create-release.outputs.upload_url }}
+            asset_path: ./package.zip
+            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref_name }}.zip
+            asset_content_type: application/zip
+    
+        # 因为还没有解决跨平台的问题所以这个先关掉掉，等跨平台完成了就可以去掉执行条件里的 false 一并发布 linux 和 osx 的版本了
+        - name: Upload - MacOS and Linux
+          if: runner.os != 'Windows' && false
+          uses: actions/upload-release-asset@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ needs.create-release.outputs.upload_url }}
+            asset_path: ./package.tar.gz
+            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref_name }}.tar.gz
+            asset_content_type: application/gzip

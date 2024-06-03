@@ -297,6 +297,66 @@ namespace TuneLab.Extensions.Formats.VPR
                     newClearness.DefaultValue = 0.0;
                     midiPartInfo.Automations.Add("Clearness", newClearness);
 
+                    var newExciter = new AutomationInfo();
+                    var exciter = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "exciter")?["events"] ?? new JArray();
+
+                    if (exciter.Count() > 0 && (int)exciter[0]["pos"] != 0)
+                    {
+                        newExciter.Points.Add(new Point(0, 0));
+                        newExciter.Points.Add(new Point((int)exciter[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; exciter.Count() > 0 && i < exciter.Count(); i++)
+                    {
+                        if (i != 0 && (int)exciter[i]["pos"] - 1 != (int)exciter[i - 1]["pos"])
+                        {
+                            newExciter.Points.Add(new Point((int)exciter[i]["pos"] - 1, RangeMapper((int)exciter[i - 1]["value"], -64, 63, -1.0, 1.0)));
+                        }
+                        newExciter.Points.Add(new Point((int)exciter[i]["pos"], RangeMapper((int)exciter[i]["value"], -64, 63, -1.0, 1.0)));
+                    }
+                    newExciter.DefaultValue = 0.0;
+                    midiPartInfo.Automations.Add("Exciter", newExciter);
+
+                    var newBreathiness = new AutomationInfo();
+                    var breathiness = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "breathiness")?["events"] ?? new JArray();
+
+                    if (breathiness.Count() > 0 && (int)breathiness[0]["pos"] != 0)
+                    {
+                        newBreathiness.Points.Add(new Point(0, 0));
+                        newBreathiness.Points.Add(new Point((int)breathiness[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; breathiness.Count() > 0 && i < breathiness.Count(); i++)
+                    {
+                        if (i != 0 && (int)breathiness[i]["pos"] - 1 != (int)breathiness[i - 1]["pos"])
+                        {
+                            newBreathiness.Points.Add(new Point((int)breathiness[i]["pos"] - 1, RangeMapper((int)breathiness[i - 1]["value"], 0, 127, 0, 1.0)));
+                        }
+                        newBreathiness.Points.Add(new Point((int)breathiness[i]["pos"], RangeMapper((int)breathiness[i]["value"], 0, 127, 0, 1.0)));
+                    }
+                    newBreathiness.DefaultValue = 0.0;
+                    midiPartInfo.Automations.Add("Breathiness", newBreathiness);
+
+                    var newAir = new AutomationInfo();
+                    var air = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "air")?["events"] ?? new JArray();
+
+                    if (air.Count() > 0 && (int)air[0]["pos"] != 0)
+                    {
+                        newAir.Points.Add(new Point(0, 0));
+                        newAir.Points.Add(new Point((int)air[0]["pos"] - 1, 0));
+                    }
+
+                    for (int i = 0; air.Count() > 0 && i < air.Count(); i++)
+                    {
+                        if (i != 0 && (int)air[i]["pos"] - 1 != (int)air[i - 1]["pos"])
+                        {
+                            newAir.Points.Add(new Point((int)air[i]["pos"] - 1, RangeMapper((int)air[i - 1]["value"], 0, 127, 0, 1.0)));
+                        }
+                        newAir.Points.Add(new Point((int)air[i]["pos"], RangeMapper((int)air[i]["value"], 0, 127, 0, 1.0)));
+                    }
+                    newAir.DefaultValue = 0.0;
+                    midiPartInfo.Automations.Add("Air", newAir);
+
                     partInfo = midiPartInfo;
 
                     if (partInfo != null)
