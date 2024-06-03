@@ -31,6 +31,7 @@ jobs:
           with:
             tag-name: ${{ github.ref }}
             token: ${{ secrets.GITHUB_TOKEN }}
+            branch: 'master'
 
         - name: Create release
           id: create_release
