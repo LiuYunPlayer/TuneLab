@@ -1,0 +1,93 @@
+name: Upload release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  
+jobs:
+    call-build:
+      uses: ./.github/workflows/build-artifacts.yml
+
+    create-release:
+      name: Create release
+      runs-on: ubuntu-latest
+    
+      outputs:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+    
+      steps:
+        - name: Generate release notes
+          id: notes
+          uses: RedCrafter07/release-notes-action@v1
+          with:
+            tag-name: ${{ github.ref }}
+            token: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: Create release
+          id: create_release
+          uses: actions/create-release@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            tag_name: ${{ github.ref }}
+            release_name: TuneLab ${{ github.ref }}
+            body: ${{ steps.notes.outputs.release-notes }}
+            draft: true
+            prerelease: false
+    
+    release:
+      name: Upload release
+      needs: [call-build, create-release]
+      runs-on: ${{matrix.os}}
+    
+      strategy:
+        fail-fast: false
+        matrix:
+          runtime: [ "win-x64", "osx-arm64", "linux-x64" ]
+          include:
+            - runtime: "win-x64"
+              os: "windows-latest"
+            - runtime: "osx-arm64"
+              os: "macos-latest"
+            - runtime: "linux-x64"
+              os: "ubuntu-latest"
+    
+      steps:
+        - name: Download artifact
+          uses: actions/download-artifact@v4
+          with:
+            name: TuneLab-${{ matrix.runtime }}-${{github.sha}}
+          
+        - name: Package - Windows
+          if: runner.os == 'Windows'
+          shell: pwsh
+          working-directory: ${{github.workspace}}
+          run: Compress-Archive -Path .\* -DestinationPath package.zip
+          
+        - name: Package - MacOS and Linux
+          if: runner.os != 'Windows'
+          working-directory: ${{github.workspace}}
+          run: tar -zcvf package.tar.gz ./*
+    
+        - name: Upload - Windows
+          if: runner.os == 'Windows'
+          uses: actions/upload-release-asset@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ needs.create-release.outputs.upload_url }}
+            asset_path: ./package.zip
+            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref }}.zip
+            asset_content_type: application/zip
+    
+        - name: Upload - MacOS and Linux
+          if: runner.os != 'Windows'
+          uses: actions/upload-release-asset@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ needs.create-release.outputs.upload_url }}
+            asset_path: ./package.tar.gz
+            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref }}.tar.gz
+            asset_content_type: application/gzip
