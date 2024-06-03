@@ -90,7 +90,7 @@ jobs:
           with:
             upload_url: ${{ needs.create-release.outputs.upload_url }}
             asset_path: ./package.zip
-            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref }}.zip
+            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref_name }}.zip
             asset_content_type: application/zip
     
         - name: Upload - MacOS and Linux
@@ -101,5 +101,5 @@ jobs:
           with:
             upload_url: ${{ needs.create-release.outputs.upload_url }}
             asset_path: ./package.tar.gz
-            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref }}.tar.gz
+            asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref_name }}.tar.gz
             asset_content_type: application/gzip
