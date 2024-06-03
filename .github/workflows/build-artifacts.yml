@@ -54,13 +54,13 @@ jobs:
       run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
 
     - name: Generate artifact attestation - Windows
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && github.event_name != 'pull_request'
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: '"workspace/*.dll","workspace/*.exe"'
 
     - name: Generate artifact attestation - MacOS and Linux
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' && github.event_name != 'pull_request'
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
