@@ -104,9 +104,9 @@ internal class Note : DataObject, INote
             });
         }
 
-        public override void Set(string value)
+        public void Set(string value)
         {
-            base.Set(value);
+            IDataObject<string>.Set(this, value);
             mNote.Phonemes.Clear();
             mNote.Pronunciation.Set(string.Empty);
         }

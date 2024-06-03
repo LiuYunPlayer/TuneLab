@@ -253,12 +253,15 @@ public interface IDataObject<T> : IReadOnlyDataObject<T>
     public T Info { set => Set(value); }
     public void Set(T info)
     {
-        SetImpl(this, info);
+        Set(this, info);
     }
 
-    protected static void SetImpl(IDataObject<T> dataObject, T info)
+    protected static void Set(IDataObject<T> dataObject, T info)
     {
         var before = dataObject.GetInfo();
+        if (Equals(before, info))
+            return;
+
         dataObject.SetInfoAndNotify(info);
         if (dataObject.Parent == null)
             return;

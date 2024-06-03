@@ -12,59 +12,25 @@ using TuneLab.GUI;
 using TuneLab.GUI.Controllers;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
+using TuneLab.Base.Properties;
+using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Base.Structures;
 
 namespace TuneLab.Views;
 
 internal class MidiPartFixedController : StackPanel
 {
-    public MidiPart? Part { get => mPart; set => mPart.Set(value); }
+    public IMidiPart? Part { get => mPart.Object; set => mPart.Set(value); }
     public MidiPartFixedController()
     {
         Background = Style.INTERFACE.ToBrush();
         Orientation = Avalonia.Layout.Orientation.Vertical;
 
         AddController(mGainController, "Gain");
-
         mGainController.SetRange(-12, +12);
         mGainController.SetDefaultValue(0);
-        mGainController.ValueWillChange.Subscribe(() =>
-        {
-            if (Part == null)
-                return;
+        mGainController.Bind(mPart.Select(part => part.Gain), s);
 
-            mHead = Part.Head;
-        });
-
-        mGainController.ValueChanged.Subscribe(() =>
-        {
-            if (Part == null)
-                return;
-
-            double value = mGainController.Value;
-            Part.Gain.DiscardTo(mHead);
-            Part.Gain.Set(value);
-        });
-
-        mGainController.ValueCommited.Subscribe(() =>
-        {
-            if (Part == null)
-                return;
-
-            Part.Gain.Commit();
-        });
-
-        mPart.When(part => part.Gain.Modified).Subscribe(() => { if (Part == null) return;  mGainController.Display(Part.Gain); }, s);
-        mPart.ObjectChanged.Subscribe(() =>
-        {
-            if (Part == null)
-            {
-                mGainController.Display(double.NaN);
-            }
-            else
-            {
-                mGainController.Display(Part.Gain);
-            }
-        });
     }
 
     void AddController(Control control, string name)
@@ -82,9 +48,9 @@ internal class MidiPartFixedController : StackPanel
         Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
     }
 
-    readonly Owner<MidiPart> mPart = new();
+    readonly Owner<IMidiPart> mPart = new();
 
     readonly SliderController mGainController = new();
-    Head mHead;
+    readonly DropDownController mPitchModeController = new();
     readonly DisposableManager s = new();
 }

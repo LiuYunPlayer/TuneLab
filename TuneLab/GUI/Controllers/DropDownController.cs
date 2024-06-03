@@ -9,10 +9,13 @@ using TuneLab.Base.Event;
 using TuneLab.Base.Properties;
 using TuneLab.GUI.Components;
 using TuneLab.Base.Utils;
+using System.Runtime.InteropServices.ComTypes;
+using TuneLab.Base.Data;
+using System.Threading;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class DropDownController : DockPanel
+internal class DropDownController : DockPanel, IValueController<string>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
@@ -39,18 +42,23 @@ internal class DropDownController : DockPanel
         Display(config.DefaultValue);
     }
 
+    public void Display(object? value)
+    {
+        Display(value is string s ? s : string.Empty);
+    }
+
     public void Display(string value)
     {
         mValue = value;
         acceptSelectionChanged = false;
-        int index = Options.IndexOf(value);
+        int index = Options.IndexOf(mValue);
         if ((uint)index < Options.Count)
         {
             mDropDown.SelectedIndex = index;
         }
         else
         {
-            mDropDown.PlaceholderText = value;
+            mDropDown.PlaceholderText = mValue;
             mDropDown.SelectedIndex = -1;
         }
         acceptSelectionChanged = true;

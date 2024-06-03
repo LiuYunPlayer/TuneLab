@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Base.Structures;
 using TuneLab.Base.Science;
+using TuneLab.Base.Utils;
 
 namespace TuneLab.Base.Properties;
 
@@ -56,5 +57,10 @@ public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map)
     public int GetInt(string key, int defaultValue = 0)
     {
         return GetDouble(key, defaultValue).Round();
+    }
+
+    public T GetEnum<T>(string key, T defaultValue = default) where T : struct, Enum
+    {
+        return GetValue(key, string.Empty).ToEnum(defaultValue);
     }
 }

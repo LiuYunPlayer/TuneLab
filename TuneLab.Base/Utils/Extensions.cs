@@ -77,6 +77,11 @@ public static class Extensions
         return infoMap;
     }
 
+    public static T ToEnum<T>(this string value, T defaultValue = default) where T : struct, Enum
+    {
+        return Enum.TryParse(typeof(T), value, out var result) ? (T)result : defaultValue;
+    }
+
     public static void Resize<T>(this IList<T> list, int count) where T : new()
     {
         int remain = count - list.Count;

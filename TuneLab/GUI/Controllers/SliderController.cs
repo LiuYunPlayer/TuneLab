@@ -13,7 +13,7 @@ using Slider = TuneLab.GUI.Components.Slider;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class SliderController : DockPanel
+internal class SliderController : DockPanel, IValueController<double>
 {
     public IActionEvent ValueWillChange => mSlider.ValueWillChange;
     public IActionEvent ValueChanged => mSlider.ValueChanged;
@@ -51,6 +51,11 @@ internal class SliderController : DockPanel
     public void SetDefaultValue(double value)
     {
         mSlider.DefaultValue = value;
+    }
+
+    public void Display(object? value)
+    {
+        Display(value is double d ? d : double.NaN);
     }
 
     public void Display(double value)

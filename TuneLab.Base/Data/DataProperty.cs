@@ -21,23 +21,16 @@ public interface IDataProperty<T> : IDataObject<T>, IReadOnlyDataProperty<T> whe
     }
 }
 
-public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(parent), IDataProperty<T> where T : notnull, IEquatable<T>
+public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(parent), IDataProperty<T> where T : notnull
 {
     public static implicit operator T(DataProperty<T> dataProperty) => dataProperty.GetInfo();
     public T Value => GetInfo();
     public abstract T GetInfo();
-    public virtual void Set(T value)
-    {
-        if (value.Equals(Value))
-            return;
-
-        IDataObject<T>.SetImpl(this, value);
-    }
     protected abstract void SetInfo(T info);
     void IDataObject<T>.SetInfo(T info) => SetInfo(info);
 }
 
-public class DataStruct<T>(DataObject? parent = null) : DataProperty<T>(parent) where T : IEquatable<T>, new()
+public class DataStruct<T>(DataObject? parent = null) : DataProperty<T>(parent) where T : struct
 {
     public override T GetInfo()
     {
