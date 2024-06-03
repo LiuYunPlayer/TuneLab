@@ -21,6 +21,9 @@ jobs:
       outputs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
     
+      permissions:
+        contents: read
+
       steps:
         - name: Generate release notes
           id: notes
