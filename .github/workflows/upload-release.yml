@@ -9,6 +9,11 @@ jobs:
     call-build:
       uses: ./.github/workflows/build-artifacts.yml
 
+      permissions:
+        id-token: write
+        contents: read
+        attestations: write
+
     create-release:
       name: Create release
       runs-on: ubuntu-latest
