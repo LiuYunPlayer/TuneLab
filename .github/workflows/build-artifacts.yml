@@ -72,8 +72,16 @@ jobs:
         length: 7
 
     - name: Upload artifacts
+      if: github.event_name != 'pull_request'
       uses: actions/upload-artifact@v4
       with:
         name: TuneLab-${{ matrix.runtime }}-${{ steps.short-sha.outputs.sha }}
+        path: workspace
+
+    - name: Upload artifacts (Not signed)
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: TuneLab-${{ matrix.runtime }}-${{ steps.short-sha.outputs.sha }}-Unsafe
         path: workspace
 
