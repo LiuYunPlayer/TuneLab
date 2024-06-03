@@ -66,10 +66,16 @@ jobs:
         contents: write
     
       steps:
+        - name: Get short SHA
+          uses: benjlevesque/short-sha@v3.0
+          id: short-sha
+          with:
+            length: 7
+
         - name: Download artifact
           uses: actions/download-artifact@v4
           with:
-            name: TuneLab-${{ matrix.runtime }}-${{github.sha}}
+            name: TuneLab-${{ matrix.runtime }}-${{ steps.short-sha.outputs.sha }}
           
         - name: Package - Windows
           if: runner.os == 'Windows'
