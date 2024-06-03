@@ -21,6 +21,11 @@ jobs:
 
     runs-on: windows-latest
 
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -84,6 +89,11 @@ jobs:
 
     runs-on: macos-latest
 
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -138,6 +148,11 @@ jobs:
         runtime: [ "linux-x64" ]
 
     runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
 
     steps:
     - name: Checkout
