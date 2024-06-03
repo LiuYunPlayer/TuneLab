@@ -5,27 +5,31 @@ name: Build artifacts
 on:
   push:
     branches: [ "master" ]
-    tags:
-    - 'v*'
   pull_request:
     branches: [ "master" ]
+  workflow_call:
 
 jobs:
-
-  build-windows:
-    name: Build Windows version
+  build:
+    runs-on: ${{matrix.os}}
 
     strategy:
+      fail-fast: false
       matrix:
-        runtime: [ "win-x64" ]
-
-    runs-on: windows-latest
+        runtime: [ "win-x64", "osx-arm64", "linux-x64" ]
+        include:
+          - runtime: "win-x64"
+            os: "windows-latest"
+          - runtime: "osx-arm64"
+            os: "macos-latest"
+          - runtime: "linux-x64"
+            os: "ubuntu-latest"
 
     permissions:
       id-token: write
       contents: read
       attestations: write
-
+    
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -40,188 +44,36 @@ jobs:
     - name: Build the application
       run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
 
-    - name: Set short SHA as package name
-      if: "!startsWith(github.event.ref, 'refs/tags/')"
-      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $env:GITHUB_ENV
-      
-    - name: Set tag version into env
-      if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "TAG_NAME=${env:GITHUB_REF_NAME}" >> $env:GITHUB_ENV
-      
-    - name: Set tag version as package name
-      if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-${env:TAG_NAME}" >> $env:GITHUB_ENV
-
-    - name: Move artifacts
+    - name: Move artifacts - Windows
+      if: runner.os == 'Windows'
       shell: pwsh
       run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
 
-    - name: Generate artifact attestation
+    - name: Move artifacts - MacOS and Linux
+      if: runner.os != 'Windows'
+      run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
+
+    - name: Generate artifact attestation - Windows
+      if: runner.os == 'Windows' && github.event_name != 'pull_request'
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: '"workspace/*.dll","workspace/*.exe"'
 
-    - name: Pack artifacts
-      shell: pwsh
-      run: Compress-Archive -Path workspace\* -DestinationPath ${env:ARCHIVE_NAME}'.zip'
+    - name: Generate artifact attestation - MacOS and Linux
+      if: runner.os != 'Windows' && github.event_name != 'pull_request'
+      uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
+
+    - name: Get short SHA
+      uses: benjlevesque/short-sha@v3.0
+      id: short-sha
+      with:
+        length: 7
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.ARCHIVE_NAME }}
+        name: TuneLab-${{ matrix.runtime }}-${{ steps.short-sha.outputs.sha }}
         path: workspace
 
-    - name: Upload release artifacts
-      if: startsWith(github.event.ref, 'refs/tags/')
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARCHIVE_NAME }}.zip
-        path: ${{ env.ARCHIVE_NAME }}.zip
-        retention-days: 1
-
-
-  build-macos:
-    name: Build macOS version
-
-    strategy:
-      matrix:
-        runtime: [ "osx-arm64" ]
-
-    runs-on: macos-latest
-
-    permissions:
-      id-token: write
-      contents: read
-      attestations: write
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Install .NET Core
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-
-    - name: Build the application
-      run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
-
-    - name: Set short SHA as package name
-      if: "!startsWith(github.event.ref, 'refs/tags/')"
-      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      
-    - name: Set tag version into env
-      if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
-      
-    - name: Set tag version as package name
-      if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$TAG_NAME" >> $GITHUB_ENV
-
-    - name: Move artifacts
-      run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
-
-    - name: Generate artifact attestation
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
-
-    - name: Pack artifacts
-      run: |
-        cd workspace
-        tar -zcvf ../$ARCHIVE_NAME.tar.gz .
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARCHIVE_NAME }}.tar.gz
-        path: ${{ env.ARCHIVE_NAME }}.tar.gz
-
-
-  build-linux:
-    name: Build Linux version
-
-    strategy:
-      matrix:
-        runtime: [ "linux-x64" ]
-
-    runs-on: ubuntu-latest
-
-    permissions:
-      id-token: write
-      contents: read
-      attestations: write
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Install .NET Core
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
-
-    - name: Build the application
-      run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
-
-    - name: Set short SHA as package name
-      if: "!startsWith(github.event.ref, 'refs/tags/')"
-      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      
-    - name: Set tag version into env
-      if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
-      
-    - name: Set tag version as package name
-      if: startsWith(github.event.ref, 'refs/tags/')
-      run: echo "ARCHIVE_NAME=TuneLab-${{ matrix.runtime }}-$TAG_NAME" >> $GITHUB_ENV
-
-    - name: Move artifacts
-      run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
-
-    - name: Generate artifact attestation
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
-
-    - name: Pack artifacts
-      run: |
-        cd workspace
-        tar -zcvf ../$ARCHIVE_NAME.tar.gz .
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.ARCHIVE_NAME }}.tar.gz
-        path: ${{ env.ARCHIVE_NAME }}.tar.gz
-
-
-  prepare-release:
-    name: Prepare release
-    if: startsWith(github.event.ref, 'refs/tags/')
-    needs:
-      - build-windows
-      - build-macos
-      - build-linux
-    
-    runs-on: ubuntu-latest
-    steps:
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        merge-multiple: true
-
-    - name: Create release (draft)
-      uses: softprops/action-gh-release@v2
-      with:
-        name: TuneLab - ${{ github.ref_name }}
-        generate_release_notes: true
-        draft: true
-        files: |
-          TuneLab-*.zip
-#          TuneLab-*.tar.gz    # 因为还没有解决跨平台的问题所以这个先注释掉，等跨平台完成了就可以去掉这个注释一并发布 linux 和 osx 的版本了
