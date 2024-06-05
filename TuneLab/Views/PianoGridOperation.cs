@@ -1163,7 +1163,7 @@ internal partial class PianoGrid
             PianoGrid.Part.Pitch.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                PianoGrid.Part.Pitch.AddLine(line.Simplify(5), 5);
+                PianoGrid.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
             }
         }
 
@@ -1181,7 +1181,7 @@ internal partial class PianoGrid
             PianoGrid.Part.EndMergeDirty();
             foreach (var line in mPointLines)
             {
-                PianoGrid.Part.Pitch.AddLine(line.Simplify(5), 5);
+                PianoGrid.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
             }
             PianoGrid.Part.Pitch.Commit();
             mPointLines.Clear();

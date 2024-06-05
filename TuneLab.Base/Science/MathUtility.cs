@@ -106,6 +106,39 @@ public static class MathUtility
         return HermiteInterpolation.Calculate(points, xs, mMonotonicHermiteSlopeCalculator);
     }
 
+    public static List<Point> Simplify(this IReadOnlyList<Point> points, double gap, double tolerance)
+    {
+        if (points.Count <= 2)
+            return points.ToList();
+
+        var last = points.ConstFirst();
+        var result = new List<Point>() { last };
+        for (int i = 1; i < points.Count - 1; i++)
+        {
+            var point = points[i];
+            var next = points[i + 1];
+            var kLast = Slope(point, last);
+            var kNext = Slope(point, next);
+            if (kLast == 0 && kNext == 0)
+                continue;
+
+            if (point.X - last.X < gap)
+            {
+                if (kLast * kNext > 0)
+                {
+                    if (Math.Abs(Math.Log2(kLast / kNext)) < tolerance)
+                        continue;
+                }
+            }
+
+            last = point;
+            result.Add(point);
+        }
+        result.Add(points.ConstLast());
+
+        return result;
+    }
+
     public static List<Point> Simplify(this IReadOnlyList<Point> points, double gap)
     {
         if (points.Count <= 2)

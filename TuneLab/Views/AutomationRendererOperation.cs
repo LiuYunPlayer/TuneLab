@@ -305,7 +305,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                mAutomation.AddLine(line.Simplify(5), 5);
+                mAutomation.AddLine(line.Simplify(5, 2), 5);
             }
         }
 
@@ -320,7 +320,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                mAutomation.AddLine(line.Simplify(5), 5);
+                mAutomation.AddLine(line.Simplify(5, 2), 5);
             }
             AutomationRenderer.Part.EndMergeDirty();
             mAutomation.Commit();
