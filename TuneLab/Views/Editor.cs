@@ -711,12 +711,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         public PlayheadForProject(Editor editor)
         {
             mEditor = editor;
-            AudioEngine.Progress += OnAudioEngineProgress;
+            AudioEngine.ProgressChanged += OnAudioEngineProgress;
         }
 
         ~PlayheadForProject()
         {
-            AudioEngine.Progress -= OnAudioEngineProgress;
+            AudioEngine.ProgressChanged -= OnAudioEngineProgress;
         }
 
         void OnAudioEngineProgress()

@@ -47,7 +47,7 @@ public partial class App : Application
                     mLockFile?.Dispose();
                 };
 
-                AudioEngine.Init();
+                AudioEngine.Init(new NAudioEngine());
                 ExtensionManager.LoadExtensions();
                 desktop.MainWindow = new MainWindow();
             }

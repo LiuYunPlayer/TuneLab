@@ -6,11 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using ExCSS;
-using Microsoft.VisualBasic;
-using NAudio.Utils;
 using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
 
@@ -18,67 +14,47 @@ namespace TuneLab.Audio;
 
 internal static class AudioEngine
 {
-    public static event Action? PlayStateChanged;
-    public static event Action? Progress;
-    public static bool IsPlaying => mIsPlaying;
-    public static int SamplingRate => 44100;
-    public static double CurrentTime => (double)(mPlayer.GetPosition() / sizeof(float) / mPlayer.OutputWaveFormat.Channels + mStartPosition) / SamplingRate;
+    public static event Action? PlayStateChanged { add => mAudioEngine!.PlayStateChanged += value; remove => mAudioEngine!.PlayStateChanged -= value; }
+    public static event Action? ProgressChanged { add => mAudioEngine!.ProgressChanged += value; remove => mAudioEngine!.ProgressChanged -= value; }
+    public static bool IsPlaying => mAudioEngine!.IsPlaying;
+    public static int SamplingRate => mAudioEngine!.SamplingRate;
+    public static double CurrentTime => mAudioEngine!.CurrentTime;
 
-    public static void Init()
+    public static bool Init(IAudioEngine audioEngine)
     {
-        var context = SynchronizationContext.Current;
-        if (context == null)
+        try
         {
-            Log.Error("AudioEngine init failed!");
-            return;
+            mAudioEngine = audioEngine;
+            mAudioEngine.Init(mAudioGraph);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to init audio engine: " + ex);
+            return false;
         }
 
-        mPlayer.NumberOfBuffers = 20;
-        mPlayer.DesiredLatency = 320;
-        mPlayer.Init(mAudioGraph);
-
-        System.Timers.Timer timer = new(16);
-        timer.Elapsed += (s, e) => { context.Post(_ => { if (mIsPlaying) Progress?.Invoke(); }, null); };
-        timer.Start();
+        return true;
     }
 
     public static void Destroy()
     {
-        Pause();
+        mAudioEngine!.Destroy();
+        mAudioEngine = null;
     }
 
     public static void Play()
     {
-        if (IsPlaying)
-            return;
-
-        mIsPlaying = true;
-        PlayStateChanged?.Invoke();
-        mPlayer.Play();
+        mAudioEngine!.Play();
     }
 
     public static void Pause()
     {
-        if (!IsPlaying)
-            return;
-
-        mIsPlaying = false;
-        PlayStateChanged?.Invoke();
-        mPlayer.Pause();
+        mAudioEngine!.Pause();
     }
 
     public static void Seek(double time)
     {
-        mPlayer.Stop();
-        mStartPosition = (int)(time * SamplingRate);
-        mPosition = mStartPosition;
-
-        if (IsPlaying)
-        {
-            mPlayer.Play();
-        }
-
-        Progress?.Invoke();
+        mAudioEngine!.Seek(time);
     }
 
     public static void AddTrack(IAudioTrack track)
@@ -200,38 +176,15 @@ internal static class AudioEngine
         }
     }
 
-    class AudioGraph : ISampleProvider
+    class AudioGraph : IAudioProcessor
     {
-        public WaveFormat WaveFormat => mWaveFormat;
-
-        public int Read(float[] buffer, int offset, int count)
+        public void ProcessBlock(float[] buffer, int offset, int position, int count)
         {
-            int position = mPosition;
-            int length = count / 2;
-            int endPosition = position + length;
-
-            mPosition += length;
-
-            for (int i = offset; i < offset + count; i++)
-            {
-                buffer[i] = 0;
-            }
-
-            try // TODO: 使用线程同步机制避免异常
-            {
-                MixData(position, endPosition, true, buffer, offset);
-            }
-            catch { }
-
-            return endPosition;
+            MixData(position, position + count, true, buffer, offset);
         }
     }
 
-    static bool mIsPlaying = false;
-    static int mPosition = 0;
-    static int mStartPosition = 0;
-    static WaveOutEvent mPlayer = new();
-    static AudioGraph mAudioGraph = new();
-    static WaveFormat mWaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(SamplingRate, 2);
+    static IAudioEngine? mAudioEngine;
     static List<IAudioTrack> mTracks = new();
+    static AudioGraph mAudioGraph = new();
 }
