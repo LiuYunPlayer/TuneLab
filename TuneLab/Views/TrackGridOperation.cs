@@ -2,7 +2,6 @@
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
-using NAudio.CoreAudioApi;
 using System;
 using System.Collections.Generic;
 using System.IO;

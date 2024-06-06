@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Utils;
 
-namespace TuneLab.Audio;
+namespace TuneLab.Audio.NAudio;
 
 internal class NAudioEngine : IAudioEngine
 {

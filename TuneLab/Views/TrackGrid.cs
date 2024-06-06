@@ -516,7 +516,7 @@ internal partial class TrackGrid : View
         {
             Title = "Open File",
             AllowMultiple = false,
-            FileTypeFilter = [new("Audio Formats") { Patterns = AudioUtils.AllSupportedFormats }]
+            FileTypeFilter = [new("Audio Formats") { Patterns = AudioUtils.AllDecodableFormats.Select(format => "*." + format).ToList() }]
         });
         var path = files.IsEmpty() ? null : files[0].TryGetLocalPath();
         if (path == null)

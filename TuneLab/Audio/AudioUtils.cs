@@ -1,5 +1,4 @@
-﻿using NAudio.Wave;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -11,22 +10,36 @@ namespace TuneLab.Audio;
 
 internal static class AudioUtils
 {
-    public readonly static string[] AllSupportedFormats = ["*.wav", "*.mp3", "*.aiff", "*.aac", "*.wma", "*.mp4"];
+    public static IEnumerable<string> AllDecodableFormats => mAudioCodec!.AllDecodableFormats;
+
+    public static void Init(IAudioCodec audioCodec)
+    {
+        mAudioCodec = audioCodec;
+    }
 
     public static bool TryGetAudioInfo(string path, [NotNullWhen(true)] out AudioInfo audioInfo)
     {
-        audioInfo = new AudioInfo();
         try
         {
-            using (var reader = new AudioFileReader(path))
-            {
-                audioInfo.duration = reader.TotalTime.TotalSeconds;
-                return true;
-            }
+            audioInfo = mAudioCodec!.GetAudioInfo(path);
+            return true;
         }
         catch
         {
+            audioInfo = new();
             return false; 
         }
     }
+
+    public static float[][] Decode(string path, ref int samplingRate)
+    {
+        return mAudioCodec!.Decode(path, ref samplingRate);
+    }
+
+    public static void EncodeToWav(string path, float[] buffer, int samplingRate, int bitPerSample, int channelCount)
+    {
+        mAudioCodec!.EncodeToWav(path, buffer, samplingRate, bitPerSample, channelCount);
+    }
+
+    static IAudioCodec? mAudioCodec;
 }

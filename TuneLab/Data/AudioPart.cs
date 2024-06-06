@@ -1,11 +1,9 @@
-﻿using NAudio.Wave;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using TuneLab.Audio;
 using TuneLab.Base.Data;
 using TuneLab.Base.Event;
@@ -40,40 +38,21 @@ internal class AudioPart : Part, IAudioPart
             {
                 try
                 {
-                    ISampleProvider sampleProvider;
-                    var reader = new AudioFileReader(Path);
-                    sampleProvider = reader;
-                    if (reader.WaveFormat.SampleRate != AudioEngine.SamplingRate)
+                    int samplingRate = 0;
+                    var data = AudioUtils.Decode(Path, ref samplingRate);
+                    switch (data.Length)
                     {
-                        var resampler = new MediaFoundationResampler(reader, new WaveFormat(AudioEngine.SamplingRate, reader.WaveFormat.Channels));
-                        resampler.ResamplerQuality = 60;
-                        sampleProvider = resampler.ToSampleProvider();
+                        case 1:
+                            audioData = new MonoAudioData(data[0]);
+                            waveforms = [new(data[0])];
+                            break;
+                        case 2:
+                            audioData = new StereoAudioData(data[0], data[1]);
+                            waveforms = [new(data[0]), new(data[1])];
+                            break;
                     }
-
-                    float[] buffer = new float[reader.Length * AudioEngine.SamplingRate / reader.WaveFormat.SampleRate];
-                    var count = sampleProvider.Read(buffer, 0, buffer.Length);
-
-                    int channelCount = sampleProvider.WaveFormat.Channels;
-                    if (channelCount == 1)
-                    {
-                        audioData = new MonoAudioData(buffer);
-                        waveforms = [new(buffer)];
-                    }
-                    else if (channelCount == 2)
-                    {
-                        float[] left = new float[buffer.Length / 2];
-                        float[] right = new float[buffer.Length / 2];
-                        for (int i = 0; i < buffer.Length / 2; i++)
-                        {
-                            left[i] = buffer[i * 2];
-                            right[i] = buffer[i * 2 + 1];
-                        }
-                        audioData = new StereoAudioData(left, right);
-                        waveforms = [new(left), new(right)];
-                    }
-                    reader.Dispose();
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
                     audioData = null;
                     waveforms = null;

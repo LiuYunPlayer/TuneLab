@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using NAudio.CoreAudioApi;
 using System;
 using TuneLab.Audio;
 using TuneLab.Base.Event;

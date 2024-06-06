@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using NAudio.Wave;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
 
@@ -39,7 +38,6 @@ internal static class AudioEngine
     public static void Destroy()
     {
         mAudioEngine!.Destroy();
-        mAudioEngine = null;
     }
 
     public static void Play()
@@ -74,13 +72,8 @@ internal static class AudioEngine
         endTime += 1;
         int endPosition = (endTime * SamplingRate).Ceil();
         float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
-        WaveFormat waveFormat = new WaveFormat(SamplingRate, 16, isStereo ? 2 : 1);
-        using (WaveFileWriter writer = new WaveFileWriter(filePath, waveFormat))
-        {
-            AddData(track, 0, endPosition, isStereo, buffer, 0);
-            var bytes = To16BitsBytes(buffer);
-            writer.Write(bytes, 0, bytes.Length);
-        }
+        AddData(track, 0, endPosition, isStereo, buffer, 0);
+        AudioUtils.EncodeToWav(filePath, buffer, SamplingRate, 16, isStereo ? 2 : 1);
     }
 
     public static void ExportMaster(string filePath, bool isStereo)
@@ -93,26 +86,8 @@ internal static class AudioEngine
         endTime += 1;
         int endPosition = (endTime * SamplingRate).Ceil();
         float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
-        WaveFormat waveFormat = new WaveFormat(SamplingRate, 16, isStereo ? 2 : 1);
-        using (WaveFileWriter writer = new WaveFileWriter(filePath, waveFormat))
-        {
-            MixData(0, endPosition, isStereo, buffer, 0);
-            var bytes = To16BitsBytes(buffer);
-            writer.Write(bytes, 0, bytes.Length);
-        }
-    }
-
-    static byte[] To16BitsBytes(float[] data)
-    {
-        byte[] results = new byte[data.Length * 2];
-        for (int i = 0; i < data.Length; i++)
-        {
-            short shortValue = (short)(data[i] * 32768);
-            byte[] shortBytes = BitConverter.GetBytes(shortValue);
-            results[i * 2] = shortBytes[0];
-            results[i * 2 + 1] = shortBytes[1];
-        }
-        return results;
+        MixData(0, endPosition, isStereo, buffer, 0);
+        AudioUtils.EncodeToWav(filePath, buffer, SamplingRate, 16, isStereo ? 2 : 1);
     }
 
     static void AddData(IAudioTrack track, int position, int endPosition, bool isStereo, float[] buffer, int offset)

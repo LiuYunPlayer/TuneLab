@@ -8,9 +8,9 @@ using TuneLab.Views;
 using TuneLab.Utils;
 using System.Diagnostics;
 using System;
-using Tmds.DBus.Protocol;
 using TuneLab.GUI;
 using TuneLab.Extensions.Voices;
+using TuneLab.Audio.NAudio;
 
 namespace TuneLab;
 
@@ -47,6 +47,7 @@ public partial class App : Application
                     mLockFile?.Dispose();
                 };
 
+                AudioUtils.Init(new NAudioCodec());
                 AudioEngine.Init(new NAudioEngine());
                 ExtensionManager.LoadExtensions();
                 desktop.MainWindow = new MainWindow();

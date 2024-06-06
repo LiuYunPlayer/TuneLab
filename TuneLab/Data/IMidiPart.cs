@@ -12,7 +12,6 @@ using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using NAudio.CoreAudioApi;
 
 namespace TuneLab.Data;
 
