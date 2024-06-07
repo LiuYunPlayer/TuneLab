@@ -17,7 +17,7 @@ internal class SDLAudioEngine : IAudioEngine
 
     public int SamplingRate => 44100;
 
-    public double CurrentTime => (double)_realPosition / SamplingRate;
+    public double CurrentTime => (double)_lastPosition / SamplingRate;
 
     public void Init(IAudioProcessor processor)
     {
@@ -60,7 +60,6 @@ internal class SDLAudioEngine : IAudioEngine
             {
                 context.Post(_ =>
                 {
-                    _realPosition += val / 2;
                     if (IsPlaying)
                     {
                         ProgressChanged?.Invoke();
@@ -130,7 +129,7 @@ internal class SDLAudioEngine : IAudioEngine
     public void Seek(double time)
     {
         _position = (int)(time * SamplingRate);
-        _realPosition = _position;
+        _lastPosition = _position;
     }
 
     // 获取所有音频设备
@@ -202,7 +201,7 @@ internal class SDLAudioEngine : IAudioEngine
     // 成员变量
     private IAudioProcessor? _audioProcessor;
     private int _position = 0;
-    private int _realPosition = 0;
+    private int _lastPosition = 0;
 
     // SDL 相关
     private SDLPlaybackData _d;
@@ -216,6 +215,7 @@ internal class SDLAudioEngine : IAudioEngine
             int position = engine._position;
             int length = count / 2;
 
+            engine._lastPosition = position;
             engine._position += length;
 
             for (int i = offset; i < offset + count; i++)
