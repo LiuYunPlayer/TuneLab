@@ -11,6 +11,7 @@ using System;
 using TuneLab.GUI;
 using TuneLab.Extensions.Voices;
 using TuneLab.Audio.NAudio;
+using TuneLab.Audio.SDL2;
 
 namespace TuneLab;
 
@@ -48,7 +49,7 @@ public partial class App : Application
                 };
 
                 AudioUtils.Init(new NAudioCodec());
-                AudioEngine.Init(new NAudioEngine());
+                AudioEngine.Init(new SDLAudioEngine());
                 ExtensionManager.LoadExtensions();
                 desktop.MainWindow = new MainWindow();
             }
