@@ -20,6 +20,8 @@ internal class SDLPlaybackData
 
     public SDLGlobal.ValueChangeEvent<PlaybackState>? stateChanged;
 
+    public SDLGlobal.ValueEvent<int>? samplesConsumed;
+
     // 播放信息
     public string driver = "";
 
@@ -117,7 +119,6 @@ internal class SDLPlaybackData
             if (cnt == 0)
             {
                 pcm_buffer = null;
-                // scb.audio_chunk = IntPtr.Zero;
             }
             else if (pcm_buffer == null || cnt != pcm_buffer.Length)
             {
@@ -168,6 +169,8 @@ internal class SDLPlaybackData
 
             scb.audio_pos += len;
             scb.audio_len -= len;
+
+            samplesConsumed?.Invoke(len / sizeof(float));
 
             // 判断是否完毕
             if (scb.audio_len == 0)
@@ -237,7 +240,7 @@ internal class SDLPlaybackData
                         {
                             // 重置缓冲区
                             scb.audio_chunk = Marshal.UnsafeAddrOfPinnedArrayElement(pcm_buffer, 0);
-                            scb.audio_len = samples * 4; // 长度为读出数据长度，在read_audio_data中做减法
+                            scb.audio_len = samples * sizeof(float); // 长度为读出数据长度，在read_audio_data中做减法
                             scb.audio_pos = 0; // 设置当前位置为缓冲区头部
                         }
 

@@ -10,7 +10,7 @@ internal static class SDLGlobal
 
     public static readonly ushort PLAYBACK_BUFFER_SAMPLES = 1024; // 默认缓冲区长度
 
-    public static readonly uint PLAYBACK_POLL_INTERVAL = 1; // 轮循时间间隔(ms)
+    public static readonly uint PLAYBACK_POLL_INTERVAL = 5; // 轮循时间间隔(ms)
 
     // 用户事件
     public enum UserEvent
@@ -20,6 +20,8 @@ internal static class SDLGlobal
     }
 
     public delegate void ValueChangeEvent<T>(T newVal, T orgVal);
+
+    public delegate void ValueEvent<T>(T val);
 
     public static void FloatsToBytes(float[] floats, byte[] bytes, int size)
     {

@@ -17,7 +17,7 @@ internal class SDLAudioEngine : IAudioEngine
 
     public int SamplingRate => 44100;
 
-    public double CurrentTime => (double)(_position) / SamplingRate;
+    public double CurrentTime => (double)_realPosition / SamplingRate;
 
     public void Init(IAudioProcessor processor)
     {
@@ -37,22 +37,35 @@ internal class SDLAudioEngine : IAudioEngine
             // 创建私有结构
             _d = new SDLPlaybackData();
 
-            // 转发事件
+            // 转发事件：设备更改
             _d.devChanged = (newVal, oldVal) =>
             {
                 context.Post(_ =>
                 {
                     // ...
                 }, null);
-                Console.WriteLine($"SDLPLayback: Audio device change to {newVal}.");
+                // Console.WriteLine($"SDLPLayback: Audio device change to {newVal}.");
             };
+            // 转发事件：播放状态更改
             _d.stateChanged = (newVal, oldVal) =>
             {
                 context.Post(_ =>
                 {
                     PlayStateChanged?.Invoke(); //
                 }, null);
-                Console.WriteLine($"SDLPLayback: Play state change to {newVal}.");
+                // Console.WriteLine($"SDLPLayback: Play state change to {newVal}.");
+            };
+            // 转发事件：当前缓冲区被播放
+            _d.samplesConsumed = val =>
+            {
+                context.Post(_ =>
+                {
+                    _realPosition += val / 2;
+                    if (IsPlaying)
+                    {
+                        ProgressChanged?.Invoke();
+                    }
+                }, null);
             };
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -75,19 +88,6 @@ internal class SDLAudioEngine : IAudioEngine
             // 打开默认音频设备延迟到播放操作时
         }
         // End initialize SDL
-
-        System.Timers.Timer timer = new(16);
-        timer.Elapsed += (s, e) =>
-        {
-            context.Post(_ =>
-            {
-                if (IsPlaying)
-                {
-                    ProgressChanged?.Invoke();
-                }
-            }, null);
-        };
-        timer.Start();
     }
 
     public void Destroy()
@@ -103,7 +103,6 @@ internal class SDLAudioEngine : IAudioEngine
 
     public void Play()
     {
-        Console.WriteLine("Play");
         if (IsPlaying)
         {
             return;
@@ -131,8 +130,23 @@ internal class SDLAudioEngine : IAudioEngine
     public void Seek(double time)
     {
         _position = (int)(time * SamplingRate);
+        _realPosition = _position;
     }
 
+    // 获取所有音频设备
+    public List<string> GetDevices()
+    {
+        var res = new List<string>();
+        int cnt = SDL.SDL_GetNumAudioDevices(0);
+        for (int i = 0; i < cnt; i++)
+        {
+            res.Add(SDL.SDL_GetAudioDeviceName(i, 0));
+        }
+
+        return res;
+    }
+
+    // 切换音频设备
     public void SwitchDevice(int deviceNumber)
     {
         if (_d.state == SDLPlaybackData.PlaybackState.Playing)
@@ -160,6 +174,7 @@ internal class SDLAudioEngine : IAudioEngine
         _d.setDevId(id);
     }
 
+    // 获取所有音频驱动
     public List<string> GetDrivers()
     {
         var res = new List<string>();
@@ -178,19 +193,21 @@ internal class SDLAudioEngine : IAudioEngine
         return res;
     }
 
+    // 切换音频驱动
     public void SwitchDriver(string driver)
     {
         _d.setDriver(driver);
     }
 
     // 成员变量
-    IAudioProcessor? _audioProcessor;
-    int _position = 0;
+    private IAudioProcessor? _audioProcessor;
+    private int _position = 0;
+    private int _realPosition = 0;
 
     // SDL 相关
-    SDLPlaybackData _d;
+    private SDLPlaybackData _d;
 
-    class SampleProvider(SDLAudioEngine engine) : ISampleProvider
+    private class SampleProvider(SDLAudioEngine engine) : ISampleProvider
     {
         public WaveFormat WaveFormat => WaveFormat.CreateIeeeFloatWaveFormat(engine.SamplingRate, 2);
 
