@@ -19,20 +19,10 @@ internal static class AudioEngine
     public static int SamplingRate => mAudioEngine!.SamplingRate;
     public static double CurrentTime => mAudioEngine!.CurrentTime;
 
-    public static bool Init(IAudioEngine audioEngine)
+    public static void Init(IAudioEngine audioEngine)
     {
-        try
-        {
-            mAudioEngine = audioEngine;
-            mAudioEngine.Init(mAudioGraph);
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Failed to init audio engine: " + ex);
-            return false;
-        }
-
-        return true;
+        mAudioEngine = audioEngine;
+        mAudioEngine.Init(mAudioGraph);
     }
 
     public static void Destroy()

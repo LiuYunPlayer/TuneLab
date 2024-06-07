@@ -19,12 +19,7 @@ internal class NAudioEngine : IAudioEngine
 
     public void Init(IAudioProcessor processor)
     {
-        var context = SynchronizationContext.Current;
-        if (context == null)
-        {
-            throw new Exception("Can't get SynchronizationContext");
-        }
-
+        var context = SynchronizationContext.Current ?? throw new Exception("Can't get SynchronizationContext");
         mAudioProcessor = processor;
 
         mPlayer.NumberOfBuffers = 20;
