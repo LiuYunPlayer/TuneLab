@@ -93,7 +93,7 @@ internal class NAudioEngine : IAudioEngine
             }
             catch { }
 
-            return endPosition;
+            return count;
         }
     }
 
