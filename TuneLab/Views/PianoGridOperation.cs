@@ -2365,9 +2365,17 @@ internal partial class PianoGrid
                 return;
             }
 
-            if (index == 0)
+            var last = note.LastInSegment;
+            while (last != null)
             {
-                note.LastInSegment?.LockPhonemes();
+                last.LockPhonemes();
+                last = last.LastInSegment;
+            }
+            var next = note.NextInSegment;
+            while (next != null)
+            {
+                next.LockPhonemes();
+                next = next.NextInSegment;
             }
 
             State = State.WaveformPhonemeResizing;
