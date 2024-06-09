@@ -51,6 +51,5 @@ internal class MidiPartFixedController : StackPanel
     readonly Owner<IMidiPart> mPart = new();
 
     readonly SliderController mGainController = new();
-    readonly DropDownController mPitchModeController = new();
     readonly DisposableManager s = new();
 }

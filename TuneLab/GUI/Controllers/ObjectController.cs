@@ -46,6 +46,10 @@ internal class ObjectController : StackPanel
             {
                 mDisposableManager += new SingleLineTextCreator(this, key, stringConfig);
             }
+            else if (value is EnumConfig enumConfig)
+            {
+                mDisposableManager += new ComboBoxCreator(this, key, enumConfig);
+            }
             mDisposableManager += new BorderCreator(this);
         }
     }
@@ -232,7 +236,6 @@ internal class ObjectController : StackPanel
 
     class SingleLineTextCreator : IDisposable, IValueController
     {
-        public string? Invalid => null;
         public SingleLineTextCreator(ObjectController controller, string key, StringConfig config)
         {
             mController = controller;
@@ -283,6 +286,61 @@ internal class ObjectController : StackPanel
         readonly string mKey;
         readonly ObjectController mController;
         readonly SingleLineTextController mSingleLineTextController;
+    }
+
+    class ComboBoxCreator : IDisposable, IValueController
+    {
+        public ComboBoxCreator(ObjectController controller, string key, EnumConfig config)
+        {
+            mController = controller;
+            mKey = key;
+
+            mComboBoxController = ObjectPoolManager.Get<ComboBoxController>();
+            mComboBoxController.SetConfig(config);
+            mComboBoxController.Display(config.DefaultValue);
+            mComboBoxController.ValueWillChange.Subscribe(OnValueWillChange);
+            mComboBoxController.ValueChanged.Subscribe(OnValueChanged);
+            mComboBoxController.ValueCommited.Subscribe(OnValueCommited);
+            mController.Children.Add(mComboBoxController);
+            mController.mControllers.Add(mKey, this);
+        }
+
+        public void Dispose()
+        {
+            mController.mControllers.Remove(mKey);
+            mController.Children.Remove(mComboBoxController);
+            mComboBoxController.ValueWillChange.Unsubscribe(OnValueWillChange);
+            mComboBoxController.ValueChanged.Unsubscribe(OnValueChanged);
+            mComboBoxController.ValueCommited.Unsubscribe(OnValueCommited);
+            ObjectPoolManager.Return(mComboBoxController);
+        }
+
+        public void Display(PropertyValue propertyValue)
+        {
+            if (propertyValue.ToString(out var value))
+                mComboBoxController.Display(value);
+            else
+                mComboBoxController.Display("-");
+        }
+
+        void OnValueWillChange()
+        {
+            mController.mValueWillChange.Invoke(new PropertyPath(mKey));
+        }
+
+        void OnValueChanged()
+        {
+            mController.mValueChanged.Invoke(new PropertyPath(mKey), mComboBoxController.Value);
+        }
+
+        void OnValueCommited()
+        {
+            mController.mValueCommited.Invoke(new PropertyPath(mKey), mComboBoxController.Value);
+        }
+
+        readonly string mKey;
+        readonly ObjectController mController;
+        readonly ComboBoxController mComboBoxController;
     }
 
     Map<string, IController> mControllers = new();

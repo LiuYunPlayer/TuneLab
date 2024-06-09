@@ -15,7 +15,7 @@ using System.Threading;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class DropDownController : DockPanel, IValueController<string>
+internal class ComboBoxController : DockPanel, IValueController<string>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
@@ -25,7 +25,7 @@ internal class DropDownController : DockPanel, IValueController<string>
     public int SelectedIndex => mDropDown.SelectedIndex;
     public IReadOnlyList<string> Options => mConfig.Options;
 
-    public DropDownController()
+    public ComboBoxController()
     {
         Children.Add(mDropDown);
         mDropDown.SelectionChanged += OnDropDownSelectionChanged;
