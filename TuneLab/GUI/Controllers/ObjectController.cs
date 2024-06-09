@@ -420,7 +420,7 @@ internal class ObjectController : StackPanel
         public void Dispose()
         {
             mController.mControllers.Remove(mKey);
-            mController.Children.Remove(mCheckBoxController);
+            mController.Children.Remove(mDockPanel);
             mLabelCreator.Dispose();
             mDockPanel.Children.Clear();
             mCheckBoxController.ValueWillChange.Unsubscribe(OnValueWillChange);
