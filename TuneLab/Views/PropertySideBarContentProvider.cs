@@ -70,7 +70,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mPartPropertiesController.ValueCommited.Subscribe(OnPartValueCommited, s);
 
             mPart.Notes.SelectionChanged.Subscribe(OnNoteSelectionChanged, s);
-            mPart.Notes.Any(note => note.Properties.PropertyModified).Subscribe(OnNotePropertyChanged, s);
+            mPart.Notes.Any(note => note.Properties.PropertyModified).Subscribe(OnNotePropertyModified, s);
             mNotePropertiesController.ValueCommited.Subscribe(OnNoteValueCommited, s);
 
             Setup(mPart);
@@ -111,7 +111,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         RefreshNotePropertiesController();
     }
 
-    void OnNotePropertyChanged(PropertyPath path)
+    void OnNotePropertyModified(PropertyPath path)
     {
         RefreshNotePropertiesController();
     }
@@ -212,13 +212,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     void OnPartPropertyModified(PropertyPath path)
     {
-        if (mPart == null)
-            return;
-
-        var key = path.GetKey();
-        var value = mPart.Properties.GetValue(key);
-
-        mPartPropertiesController.Display(key, value);
+        RefreshPartPropertiesController();
     }
 
     void OnPartValueCommited(PropertyPath path, PropertyValue value)
@@ -241,13 +235,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     void OnAutomationDefaultValueModified()
     {
-        if (mPart == null)
-            return;
-
-        foreach (var kvp in mPart.Automations)
-        {
-            mAutomationController.Display(new PropertyPath(kvp.Key).GetKey(), kvp.Value.DefaultValue.Value);
-        }
+        RefreshAutomationController();
     }
 
     Head mAutomationHead;
