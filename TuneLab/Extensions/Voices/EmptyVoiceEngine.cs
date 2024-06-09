@@ -34,27 +34,11 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public IReadOnlyOrderedMap<string, IPropertyConfig> PartProperties => mPartProperties;
         public IReadOnlyOrderedMap<string, IPropertyConfig> NoteProperties => mNoteProperties;
 
-        public string DefaultLyric => "a";
-
+        public string DefaultLyric { get; } = "a";
 
         public EmptyVoiceSource(string id)
         {
             mID = id;
-        }
-
-        public VoiceInfo GetInfo()
-        {
-            return new VoiceInfo() { ID = mID };
-        }
-
-        public void SetInfo(VoiceInfo info)
-        {
-            mID = info.ID;
-        }
-
-        public string GraphemeToPhoneme(string lyric)
-        {
-            return lyric;
         }
 
         public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote

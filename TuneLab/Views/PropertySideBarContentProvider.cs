@@ -189,7 +189,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
                 var key = propertyPath.GetKey();
                 if (notes.IsEmpty())
                 {
-                    mNotePropertiesController.Display(key, PropertyValue.Invalid);
+                    mNotePropertiesController.DisplayNull(key);
                 }
                 else
                 {

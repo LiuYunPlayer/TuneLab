@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using TuneLab.GUI;
 using TuneLab.GUI.Input;
 using TuneLab.Animation;
-using TuneLab.GUI;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;
@@ -97,7 +96,7 @@ internal class Button : Component
     {
         foreach (var controller in mButtonContentControllers)
         {
-            controller.Color.SetTo(DestinationColor(ref controller.Content.ColorSet), 150, AnimationCurve.QuadOut);
+            controller.Color.SetTo(DestinationColor(ref controller.Content.ColorSet), AnimationMillisec, AnimationCurve.QuadOut);
         }
         InvalidateVisual();
     }

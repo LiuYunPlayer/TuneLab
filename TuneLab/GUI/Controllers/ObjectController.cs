@@ -33,7 +33,6 @@ internal class ObjectController : StackPanel
         {
             var key = kvp.Key;
             var value = kvp.Value;
-            mDisposableManager += new LabelCreator(this, key);
             if (value is ObjectConfig objectConfig)
             {
                 mDisposableManager += new ObjectCreator(this, key, objectConfig);
@@ -50,6 +49,10 @@ internal class ObjectController : StackPanel
             {
                 mDisposableManager += new ComboBoxCreator(this, key, enumConfig);
             }
+            else if (value is BooleanConfig booleanConfig)
+            {
+                mDisposableManager += new CheckBoxCreator(this, key, booleanConfig);
+            }
             mDisposableManager += new BorderCreator(this);
         }
     }
@@ -57,6 +60,12 @@ internal class ObjectController : StackPanel
     public void ResetConfig()
     {
         mDisposableManager.DisposeAll();
+    }
+
+    public void DisplayNull(PropertyPath.Key key)
+    {
+        if (mControllers.TryGetValue(key, out var controller))
+            controller.DisplayNull(key);
     }
 
     public void Display(PropertyPath.Key key, PropertyValue value)
@@ -68,6 +77,7 @@ internal class ObjectController : StackPanel
     interface IController
     {
         void Display(PropertyPath.Key key, PropertyValue value);
+        void DisplayNull(PropertyPath.Key key);
     }
 
     interface IValueController : IController
@@ -80,12 +90,23 @@ internal class ObjectController : StackPanel
             Display(propertyValue);
         }
 
+        void IController.DisplayNull(PropertyPath.Key key)
+        {
+            if (key.IsObject)
+                return;
+
+            DisplayNull();
+        }
+
         void Display(PropertyValue propertyValue);
+        void DisplayNull();
     }
 
     class LabelCreator : IDisposable
     {
-        public LabelCreator(ObjectController controller, string key)
+        public Label Label => label;
+
+        public LabelCreator(Panel controller, string key)
         {
             mController = controller;
 
@@ -105,7 +126,7 @@ internal class ObjectController : StackPanel
             ObjectPoolManager.Return(label);
         }
 
-        readonly ObjectController mController;
+        readonly Panel mController;
         readonly Label label;
     }
 
@@ -136,6 +157,7 @@ internal class ObjectController : StackPanel
         {
             mController = controller;
             mKey = key;
+            mLabelCreator = new LabelCreator(controller, key);
 
             objectController = ObjectPoolManager.Get<ObjectController>();
             objectController.SetConfig(config);
@@ -148,6 +170,7 @@ internal class ObjectController : StackPanel
 
         public void Dispose()
         {
+            mLabelCreator.Dispose();
             mController.mControllers.Remove(mKey);
             mController.Children.Remove(objectController);
             objectController.ValueWillChange.Unsubscribe(mController.mValueWillChange);
@@ -162,6 +185,11 @@ internal class ObjectController : StackPanel
             objectController.Display(key.Next, value);
         }
 
+        public void DisplayNull(PropertyPath.Key key)
+        {
+            objectController.DisplayNull(key.Next);
+        }
+
         void OnValueChanged(PropertyPath path, PropertyValue value)
         {
             mController.mValueChanged.Invoke(new PropertyPath(mKey).Combine(path), value);
@@ -173,6 +201,7 @@ internal class ObjectController : StackPanel
         }
 
         readonly string mKey;
+        readonly LabelCreator mLabelCreator;
         readonly ObjectController mController;
         readonly ObjectController objectController;
     }
@@ -183,6 +212,7 @@ internal class ObjectController : StackPanel
         {
             mController = controller;
             mKey = key;
+            mLabelCreator = new LabelCreator(controller, key);
 
             mSliderController = ObjectPoolManager.Get<SliderController>();
             mSliderController.SetRange(config.MinValue, config.MaxValue);
@@ -198,6 +228,7 @@ internal class ObjectController : StackPanel
 
         public void Dispose()
         {
+            mLabelCreator.Dispose();
             mController.mControllers.Remove(mKey);
             mController.Children.Remove(mSliderController);
             mSliderController.ValueWillChange.Unsubscribe(OnValueWillChange);
@@ -212,6 +243,11 @@ internal class ObjectController : StackPanel
                 mSliderController.Display(value);
             else
                 mSliderController.Display(double.NaN);
+        }
+
+        public void DisplayNull()
+        {
+            mSliderController.Display(double.NaN);
         }
 
         void OnValueWillChange()
@@ -230,6 +266,7 @@ internal class ObjectController : StackPanel
         }
 
         readonly string mKey;
+        readonly LabelCreator mLabelCreator;
         readonly ObjectController mController;
         readonly SliderController mSliderController;
     }
@@ -240,6 +277,7 @@ internal class ObjectController : StackPanel
         {
             mController = controller;
             mKey = key;
+            mLabelCreator = new LabelCreator(controller, key);
 
             mSingleLineTextController = ObjectPoolManager.Get<SingleLineTextController>();
             mSingleLineTextController.Display(config.DefaultValue);
@@ -252,6 +290,7 @@ internal class ObjectController : StackPanel
 
         public void Dispose()
         {
+            mLabelCreator.Dispose();
             mController.mControllers.Remove(mKey);
             mController.Children.Remove(mSingleLineTextController);
             mSingleLineTextController.ValueWillChange.Unsubscribe(OnValueWillChange);
@@ -266,6 +305,11 @@ internal class ObjectController : StackPanel
                 mSingleLineTextController.Display(value);
             else
                 mSingleLineTextController.Display("-");
+        }
+
+        public void DisplayNull()
+        {
+            mSingleLineTextController.Display("-");
         }
 
         void OnValueWillChange()
@@ -284,6 +328,7 @@ internal class ObjectController : StackPanel
         }
 
         readonly string mKey;
+        readonly LabelCreator mLabelCreator;
         readonly ObjectController mController;
         readonly SingleLineTextController mSingleLineTextController;
     }
@@ -294,6 +339,7 @@ internal class ObjectController : StackPanel
         {
             mController = controller;
             mKey = key;
+            mLabelCreator = new LabelCreator(controller, key);
 
             mComboBoxController = ObjectPoolManager.Get<ComboBoxController>();
             mComboBoxController.SetConfig(config);
@@ -307,6 +353,7 @@ internal class ObjectController : StackPanel
 
         public void Dispose()
         {
+            mLabelCreator.Dispose();
             mController.mControllers.Remove(mKey);
             mController.Children.Remove(mComboBoxController);
             mComboBoxController.ValueWillChange.Unsubscribe(OnValueWillChange);
@@ -321,6 +368,11 @@ internal class ObjectController : StackPanel
                 mComboBoxController.Display(value);
             else
                 mComboBoxController.Display("-");
+        }
+
+        public void DisplayNull()
+        {
+            mComboBoxController.Display("-");
         }
 
         void OnValueWillChange()
@@ -339,8 +391,78 @@ internal class ObjectController : StackPanel
         }
 
         readonly string mKey;
+        readonly LabelCreator mLabelCreator;
         readonly ObjectController mController;
         readonly ComboBoxController mComboBoxController;
+    }
+
+    class CheckBoxCreator : IDisposable, IValueController
+    {
+        public CheckBoxCreator(ObjectController controller, string key, BooleanConfig config)
+        {
+            mController = controller;
+            mKey = key;
+            mDockPanel = ObjectPoolManager.Get<DockPanel>();
+            mCheckBoxController = ObjectPoolManager.Get<CheckBoxController>();
+            mCheckBoxController.Margin = new(24, 12);
+            mCheckBoxController.Display(config.DefaultValue);
+            mCheckBoxController.ValueWillChange.Subscribe(OnValueWillChange);
+            mCheckBoxController.ValueChanged.Subscribe(OnValueChanged);
+            mCheckBoxController.ValueCommited.Subscribe(OnValueCommited);
+            mDockPanel.Children.Add(mCheckBoxController);
+            DockPanel.SetDock(mCheckBoxController, Dock.Right);
+            mLabelCreator = new LabelCreator(mDockPanel, key);
+            mLabelCreator.Label.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            mController.Children.Add(mDockPanel);
+            mController.mControllers.Add(mKey, this);
+        }
+
+        public void Dispose()
+        {
+            mController.mControllers.Remove(mKey);
+            mController.Children.Remove(mCheckBoxController);
+            mLabelCreator.Dispose();
+            mDockPanel.Children.Clear();
+            mCheckBoxController.ValueWillChange.Unsubscribe(OnValueWillChange);
+            mCheckBoxController.ValueChanged.Unsubscribe(OnValueChanged);
+            mCheckBoxController.ValueCommited.Unsubscribe(OnValueCommited);
+            ObjectPoolManager.Return(mCheckBoxController);
+            ObjectPoolManager.Return(mDockPanel);
+        }
+
+        public void Display(PropertyValue propertyValue)
+        {
+            if (propertyValue.ToBool(out var value))
+                mCheckBoxController.Display(value);
+            else
+                mCheckBoxController.Display(new object());
+        }
+
+        public void DisplayNull()
+        {
+            mCheckBoxController.Display(null);
+        }
+
+        void OnValueWillChange()
+        {
+            mController.mValueWillChange.Invoke(new PropertyPath(mKey));
+        }
+
+        void OnValueChanged()
+        {
+            mController.mValueChanged.Invoke(new PropertyPath(mKey), mCheckBoxController.Value);
+        }
+
+        void OnValueCommited()
+        {
+            mController.mValueCommited.Invoke(new PropertyPath(mKey), mCheckBoxController.Value);
+        }
+
+        readonly string mKey;
+        readonly DockPanel mDockPanel;
+        readonly LabelCreator mLabelCreator;
+        readonly ObjectController mController;
+        readonly CheckBoxController mCheckBoxController;
     }
 
     Map<string, IController> mControllers = new();

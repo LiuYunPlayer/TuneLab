@@ -22,7 +22,7 @@ internal class BorderItem : IItem
 
     public void Paint(DrawingContext context, Rect rect, Color color)
     {
-        context.FillRectangle(color.ToBrush(), rect, (float)CornerRadius);
+        context.DrawRectangle(color.ToBrush(), null, rect, CornerRadius, CornerRadius);
     }
 }
 
