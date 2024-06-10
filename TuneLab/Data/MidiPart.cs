@@ -744,15 +744,16 @@ internal class MidiPart : Part, IMidiPart
             };
             mTask.Error += (error) => { mLastError = error; SynthesisStatus = SynthesisStatus.SynthesisFailed; Complete?.Invoke(); };
             mTask.Progress += (progress) => { mSynthesisProgress = progress; Progress?.Invoke(); };
+            part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
             foreach (var note in Notes)
             {
-                note.Pos.Modified.Subscribe(SetDirtyAndResegment);
-                note.Dur.Modified.Subscribe(SetDirtyAndResegment);
-                note.Pitch.Modified.Subscribe(SetDirtyAndResegment);
-                note.Lyric.Modified.Subscribe(SetDirtyAndResegment);
-                note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment);
-                note.Properties.PropertyModified.Subscribe(OnNotePropertyModified);
-                note.Phonemes.Modified.Subscribe(OnPhonemeChanged);
+                note.Pos.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Dur.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Pitch.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Lyric.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Properties.PropertyModified.Subscribe(OnNotePropertyModified, s);
+                note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
             }
         }
 
@@ -781,17 +782,7 @@ internal class MidiPart : Part, IMidiPart
 
         public void Dispose()
         {
-            foreach (var note in Notes)
-            {
-                note.SynthesizedPhonemes = null;
-                note.Pos.Modified.Unsubscribe(SetDirtyAndResegment);
-                note.Dur.Modified.Unsubscribe(SetDirtyAndResegment);
-                note.Pitch.Modified.Unsubscribe(SetDirtyAndResegment);
-                note.Lyric.Modified.Unsubscribe(SetDirtyAndResegment);
-                note.Pronunciation.Modified.Unsubscribe(SetDirtyAndResegment);
-                note.Properties.PropertyModified.Unsubscribe(OnNotePropertyModified);
-                note.Phonemes.Modified.Unsubscribe(OnPhonemeChanged);
-            }
+            s.DisposeAll();
 
             if (SynthesisStatus == SynthesisStatus.Synthesizing)
                 mTask.Stop();
@@ -840,6 +831,8 @@ internal class MidiPart : Part, IMidiPart
         Waveform? mWaveform = null;
         double mSynthesisProgress = 0;
         string? mLastError = null;
+
+        DisposableManager s = new();
     }
 
     List<SynthesisPiece> mSynthesisPieces = new();
