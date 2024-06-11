@@ -28,6 +28,7 @@ public partial class App : Application
         {
             try
             {
+                Log.Info("Version: " + AppInfo.Version);
                 mLockFile = LockFile.Create(PathManager.LockFilePath);
                 if (mLockFile == null)
                 {
