@@ -328,7 +328,7 @@ internal class MidiPart : Part, IMidiPart
 
     void ReSegmentImpl()
     {
-        var newSegments = mVoice.Segment(new SynthesisSegment<INote>() { Notes = mNotes });
+        var newSegments = mVoice.Segment(new SynthesisSegment<INote>() { Notes = mNotes, PartProperties = new(Properties) });
         List<SynthesisPiece> newPieces = new();
         foreach (var segment in newSegments)
         {
