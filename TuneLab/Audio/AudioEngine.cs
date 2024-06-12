@@ -47,12 +47,18 @@ internal static class AudioEngine
 
     public static void AddTrack(IAudioTrack track)
     {
-        mTracks.Add(track);
+        lock (mTrackLockObject)
+        {
+            mTracks.Add(track);
+        }
     }
 
     public static void RemoveTrack(IAudioTrack track)
     {
-        mTracks.Remove(track);
+        lock (mTrackLockObject)
+        {
+            mTracks.Remove(track);
+        }
     }
 
     public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo)
@@ -122,22 +128,25 @@ internal static class AudioEngine
 
     static void MixData(int position, int endPosition, bool isStereo, float[] buffer, int offset)
     {
-        bool hasSolo = false;
-        foreach (var track in mTracks)
+        lock (mTrackLockObject)
         {
-            if (track.IsSolo)
+            bool hasSolo = false;
+            foreach (var track in mTracks)
             {
-                hasSolo = true;
-                break;
+                if (track.IsSolo)
+                {
+                    hasSolo = true;
+                    break;
+                }
             }
-        }
 
-        foreach (var track in mTracks)
-        {
-            if (!track.IsSolo && (track.IsMute || hasSolo))
-                continue;
+            foreach (var track in mTracks)
+            {
+                if (!track.IsSolo && (track.IsMute || hasSolo))
+                    continue;
 
-            AddData(track, position, endPosition, isStereo, buffer, offset);
+                AddData(track, position, endPosition, isStereo, buffer, offset);
+            }
         }
     }
 
@@ -151,5 +160,6 @@ internal static class AudioEngine
 
     static IAudioEngine? mAudioEngine;
     static List<IAudioTrack> mTracks = new();
+    static object mTrackLockObject = new();
     static AudioGraph mAudioGraph = new();
 }
