@@ -724,8 +724,69 @@ internal class MidiPart : Part, IMidiPart
                 mNotes[i].LastInSegment = mNotes[i - 1];
             }
             mIsPrepared = part.AutoPrepare;
+            
+            part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
+            foreach (var note in Notes)
+            {
+                note.Pos.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Dur.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Pitch.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Lyric.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment, s);
+                note.Properties.PropertyModified.Subscribe(OnNotePropertyModified, s);
+                note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
+            }
+        }
+
+        public void Prepare()
+        {
+            mIsPrepared = true;
+        }
+
+        public void StartSynthesis()
+        {
+            if (SynthesisStatus != SynthesisStatus.NotSynthesized)
+                return;
+
+            SynthesisStatus = SynthesisStatus.Synthesizing;
+            if (mTask == null)
+                CreateSynthesisTask();
+
+            mTask.Start();
+        }
+
+        public void SetDirty(string dirtyType)
+        {
+            mIsPrepared = mPart.AutoPrepare;
+            if (SynthesisStatus == SynthesisStatus.Synthesizing)
+                mTask?.Stop();
+            mTask?.SetDirty(dirtyType);
+            SynthesisStatus = SynthesisStatus.NotSynthesized;
+        }
+
+        public void Dispose()
+        {
+            s.DisposeAll();
+
+            if (SynthesisStatus == SynthesisStatus.Synthesizing)
+                mTask?.Stop();
+        }
+
+        public IAudioData GetAudioData(int offset, int count)
+        {
+            return new MonoAudioData(GetAudioFloatArray(offset, count));
+        }
+
+        public float[] GetAudioFloatArray(int offset, int count)
+        {
+            return mSynthesisResult == null ? new float[count] : mSynthesisResult.Read(offset, count);
+        }
+
+        [MemberNotNull(nameof(mTask))]
+        void CreateSynthesisTask()
+        {
             mTask = mPart.Voice.CreateSynthesisTask(this);
-            mTask.Complete += (result) => // FIXME: 将信号转发到主线程执行
+            mTask.Complete += (result) =>
             {
                 context.Post(_ =>
                 {
@@ -755,7 +816,7 @@ internal class MidiPart : Part, IMidiPart
                     Finished?.Invoke();
                 }, null);
             };
-            mTask.Progress += (progress) => 
+            mTask.Progress += (progress) =>
             {
                 context.Post(_ =>
                 {
@@ -763,58 +824,6 @@ internal class MidiPart : Part, IMidiPart
                     Progress?.Invoke();
                 }, null);
             };
-            part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
-            foreach (var note in Notes)
-            {
-                note.Pos.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Dur.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Pitch.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Lyric.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Properties.PropertyModified.Subscribe(OnNotePropertyModified, s);
-                note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
-            }
-        }
-
-        public void Prepare()
-        {
-            mIsPrepared = true;
-        }
-
-        public void StartSynthesis()
-        {
-            if (SynthesisStatus != SynthesisStatus.NotSynthesized)
-                return;
-
-            SynthesisStatus = SynthesisStatus.Synthesizing;
-            mTask.Start();
-        }
-
-        public void SetDirty(string dirtyType)
-        {
-            mIsPrepared = mPart.AutoPrepare;
-            if (SynthesisStatus == SynthesisStatus.Synthesizing)
-                mTask.Stop();
-            mTask.SetDirty(dirtyType);
-            SynthesisStatus = SynthesisStatus.NotSynthesized;
-        }
-
-        public void Dispose()
-        {
-            s.DisposeAll();
-
-            if (SynthesisStatus == SynthesisStatus.Synthesizing)
-                mTask.Stop();
-        }
-
-        public IAudioData GetAudioData(int offset, int count)
-        {
-            return new MonoAudioData(GetAudioFloatArray(offset, count));
-        }
-
-        public float[] GetAudioFloatArray(int offset, int count)
-        {
-            return mSynthesisResult == null ? new float[count] : mSynthesisResult.Read(offset, count);
         }
 
         void SetDirtyAndResegment()
@@ -852,7 +861,7 @@ internal class MidiPart : Part, IMidiPart
         INote[] mNotes;
         SynthesisStatus mSynthesisStatus = SynthesisStatus.NotSynthesized;
         bool mIsPrepared;
-        ISynthesisTask mTask;
+        ISynthesisTask? mTask;
         SynthesisResult? mSynthesisResult = null;
         Waveform? mWaveform = null;
         double mSynthesisProgress = 0;
