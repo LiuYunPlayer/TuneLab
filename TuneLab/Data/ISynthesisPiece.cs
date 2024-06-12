@@ -10,7 +10,7 @@ namespace TuneLab.Data;
 
 internal interface ISynthesisPiece : ISynthesisData, IAudioSource
 {
-    event Action? Complete;
+    event Action? Finished;
     event Action? Progress;
     new IEnumerable<INote> Notes { get; }
     double SynthesisProgress { get; }

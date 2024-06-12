@@ -17,6 +17,7 @@ using System.Reactive.Linq;
 using TuneLab.Base.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
+using System.Threading;
 
 namespace TuneLab.Data;
 
@@ -347,7 +348,7 @@ internal class MidiPart : Part, IMidiPart
             {
                 var newPiece = new SynthesisPiece(this, segment);
                 newPiece.SynthesisStatusChanged += () => { mSynthesisStatusChanged.Invoke(newPiece); };
-                newPiece.Complete += () => { if (string.IsNullOrEmpty(newPiece.LastError)) return; Log.Debug(string.Format("Synthesis error: {0} {1}", Voice.Name, newPiece.LastError)); };
+                newPiece.Finished += () => { if (string.IsNullOrEmpty(newPiece.LastError)) return; Log.Debug(string.Format("Synthesis error: {0} {1}", Voice.Name, newPiece.LastError)); };
                 newPieces.Add(newPiece);
             }
         }
@@ -679,7 +680,7 @@ internal class MidiPart : Part, IMidiPart
 
     class SynthesisPiece : ISynthesisPiece, IDisposable
     {
-        public event Action? Complete;
+        public event Action? Finished;
         public event Action? Progress;
         public event Action? SynthesisStatusChanged;
         public double SynthesisProgress => mSynthesisProgress;
@@ -726,24 +727,42 @@ internal class MidiPart : Part, IMidiPart
             mTask = mPart.Voice.CreateSynthesisTask(this);
             mTask.Complete += (result) => // FIXME: 将信号转发到主线程执行
             {
-                mSynthesisResult = result; 
-                mWaveform = new(mSynthesisResult.AudioData); 
-                foreach (var note in Notes)
+                context.Post(_ =>
                 {
-                    if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
+                    mSynthesisResult = result;
+                    mWaveform = new(mSynthesisResult.AudioData);
+                    foreach (var note in Notes)
                     {
-                        note.SynthesizedPhonemes = phonemes;
+                        if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
+                        {
+                            note.SynthesizedPhonemes = phonemes;
+                        }
+                        else
+                        {
+                            note.SynthesizedPhonemes = null;
+                        }
                     }
-                    else 
-                    {
-                        note.SynthesizedPhonemes = null;
-                    }
-                }
-                SynthesisStatus = SynthesisStatus.SynthesisSucceeded; 
-                Complete?.Invoke(); 
+                    SynthesisStatus = SynthesisStatus.SynthesisSucceeded;
+                    Finished?.Invoke();
+                }, null);
             };
-            mTask.Error += (error) => { mLastError = error; SynthesisStatus = SynthesisStatus.SynthesisFailed; Complete?.Invoke(); };
-            mTask.Progress += (progress) => { mSynthesisProgress = progress; Progress?.Invoke(); };
+            mTask.Error += (error) =>
+            {
+                context.Post(_ =>
+                {
+                    mLastError = error;
+                    SynthesisStatus = SynthesisStatus.SynthesisFailed;
+                    Finished?.Invoke();
+                }, null);
+            };
+            mTask.Progress += (progress) => 
+            {
+                context.Post(_ =>
+                {
+                    mSynthesisProgress = progress;
+                    Progress?.Invoke();
+                }, null);
+            };
             part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
             foreach (var note in Notes)
             {
@@ -821,6 +840,13 @@ internal class MidiPart : Part, IMidiPart
             automation = result ? new AutomationValueGetter(mPart, automationID) : null;
             return result;
         }
+
+        static SynthesisPiece()
+        {
+            context = SynchronizationContext.Current!;
+        }
+
+        static SynchronizationContext context;
 
         MidiPart mPart;
         INote[] mNotes;
