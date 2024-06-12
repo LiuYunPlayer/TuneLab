@@ -20,12 +20,12 @@ using Slider = TuneLab.GUI.Components.Slider;
 
 namespace TuneLab.Views;
 
-internal class TrackHead : Panel
+internal class TrackHead : DockPanel
 {
     public TrackHead()
     {
         mName.EndInput.Subscribe(() => { if (Track == null) return; Track.Name.Set(mName.Text); Track.Name.Commit(); });
-        mGainSlider.SetRange(-24, 24);
+        mGainSlider.SetRange(-24, 6);
         mGainSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); });
         mGainSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); Track.Gain.Commit(); });
         mPanSlider.SetRange(-1, 1);
@@ -40,14 +40,20 @@ internal class TrackHead : Panel
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Switched += () => { if (Track == null) return; Track.IsSolo.Set(mSoloToggle.IsChecked); Track.IsSolo.Commit(); };
 
-        Children.Add(mBorder);
-        Children.Add(mName);
-        Children.Add(mGainIcon);
-        Children.Add(mPanIcon);
-        Children.Add(mGainSlider);
-        Children.Add(mPanSlider);
-        Children.Add(mMuteToggle);
-        Children.Add(mSoloToggle);
+        var topArea = new DockPanel() { Margin = new(12, 12, 12, 0) };
+        {
+            topArea.AddDock(mBorder, Dock.Left);
+            topArea.AddDock(mSoloToggle, Dock.Right);
+            topArea.AddDock(mMuteToggle, Dock.Right);
+            topArea.AddDock(mName);
+        }
+        this.AddDock(topArea, Dock.Top);
+        var bottomArea = new DockPanel() { Margin = new(12, 12, 12, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+        {
+            bottomArea.AddDock(mPanSlider, Dock.Right);
+            bottomArea.AddDock(mGainSlider);
+        }
+        this.AddDock(bottomArea);
 
         mTrackProvider.When(track => track.Name.Modified).Subscribe(() => { if (Track == null) return; mName.Text = Track.Name.Value; }, s);
         mTrackProvider.When(track => track.Gain.Modified).Subscribe(() => { if (Track == null) return; mGainSlider.Display(Track.Gain.Value); }, s);
@@ -55,7 +61,7 @@ internal class TrackHead : Panel
         mTrackProvider.When(track => track.IsMute.Modified).Subscribe(() => { if (Track == null) return; mMuteToggle.Display(Track.IsMute.Value); }, s);
         mTrackProvider.When(track => track.IsSolo.Modified).Subscribe(() => { if (Track == null) return; mSoloToggle.Display(Track.IsSolo.Value); }, s);
 
-        MinWidth = 160;
+        MinWidth = 200;
 
         var menu = new ContextMenu();
         {
@@ -126,29 +132,14 @@ internal class TrackHead : Panel
         }
     }
 
-    protected override Size ArrangeOverride(Size finalSize)
-    {
-        mBorder.Arrange(new(16, 12, 16, 16));
-        mName.Arrange(new(44, 12, finalSize.Width - 60, 16));
-        mGainIcon.Arrange(new(16, 40, 16, 16));
-        mPanIcon.Arrange(new(16, 68, 16, 16));
-        mGainSlider.Arrange(new(44, 42, finalSize.Width - 88, 12));
-        mPanSlider.Arrange(new(44, 70, finalSize.Width - 88, 12));
-        mMuteToggle.Arrange(new(finalSize.Width - 32, 42, 16, 16));
-        mSoloToggle.Arrange(new(finalSize.Width - 32, 70, 16, 16));
-        return finalSize;
-    }
-
     Owner<ITrack> mTrackProvider = new();
     ITrack? Track => mTrackProvider.Object;
 
-    readonly Border mBorder = new() { Background = Style.ITEM.ToBrush() };
-    readonly EditableLabel mName= new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush() };
-    readonly Image mGainIcon = new() { Source = GUI.Assets.Gain.GetImage(Style.LIGHT_WHITE.Opacity(0.5)) };
-    readonly Image mPanIcon = new() { Source = GUI.Assets.Pan.GetImage(Style.LIGHT_WHITE.Opacity(0.5)) };
-    readonly Slider mGainSlider = new();
-    readonly Slider mPanSlider = new();
-    readonly Toggle mMuteToggle = new() { Width = 16, Height = 16 };
-    readonly Toggle mSoloToggle = new() { Width = 16, Height = 16 };
+    readonly Border mBorder = new() { Background = Style.ITEM.ToBrush(), Width = 16, Height = 16, Margin = new(0, 0, 12, 0) };
+    readonly EditableLabel mName= new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
+    readonly GainSlider mGainSlider = new() { Height = 12 };
+    readonly PanSlider mPanSlider = new() { Width = 40, Height = 12, Margin = new(8, 0, 0, 0) };
+    readonly Toggle mMuteToggle = new() { Width = 16, Height = 16, Margin = new(8, 0, 0, 0) };
+    readonly Toggle mSoloToggle = new() { Width = 16, Height = 16, Margin = new(8, 0, 0, 0) };
     readonly DisposableManager s = new();
 }

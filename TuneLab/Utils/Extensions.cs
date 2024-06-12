@@ -242,4 +242,15 @@ internal static class Extensions
             (byte)MathUtility.Lerp(c1.B, c2.B, ratio)
         );
     }
+
+    public static void AddDock(this DockPanel panel, Control control, Dock dock)
+    {
+        panel.Children.Add(control);
+        DockPanel.SetDock(control, dock);
+    }
+
+    public static void AddDock(this DockPanel panel, Control control)
+    {
+        panel.Children.Add(control);
+    }
 }

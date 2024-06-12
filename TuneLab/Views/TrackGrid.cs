@@ -209,7 +209,7 @@ internal partial class TrackGrid : View
                 var partRect = new Rect(left, top, right - left, bottom - top);
                 context.DrawRectangle(part.IsSelected ? selectedPartBrush : partBrush, part == mDependency.EditingPart.Object ? editPartPen : part.IsSelected ? partSelectPen : partPen, partRect.Inflate(-partLineWidth / 2));
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
-                var contentRect = partRect.Adjusted(0, 16 + 8, 0, -8);
+                var contentRect = partRect.Adjusted(0, 16, 0, 0);
                 if (part is MidiPart midiPart)
                 {
                     using (context.PushClip(titleRect))

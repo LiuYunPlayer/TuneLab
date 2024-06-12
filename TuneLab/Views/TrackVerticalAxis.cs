@@ -42,7 +42,7 @@ internal class TrackVerticalAxis : AnimationScalableScrollAxis
     {
         mDependency = dependency;
 
-        TrackHeight = 96;
+        TrackHeight = 64;
 
         mDependency.ProjectProvider.When(p => p.Tracks.Modified).Subscribe(OnTracksChanged, s);
         mDependency.ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);

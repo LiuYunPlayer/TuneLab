@@ -25,7 +25,7 @@ internal abstract class AbstractSlider : Panel
 
     public abstract class AbstractThumb(AbstractSlider slider) : MovableComponent
     {
-        public abstract Avalonia.Point Piovt { get; }
+        public virtual Avalonia.Point Piovt => new(Bounds.Width / 2, Bounds.Height / 2);
 
         protected override void OnMouseDown(MouseDownEventArgs e)
         {
@@ -201,6 +201,7 @@ internal abstract class AbstractSlider : Panel
             mThumb.Object.IsVisible = !double.IsNaN(mValue);
 
         InvalidateArrange();
+        mSliderArea.InvalidateVisual();
     }
 
     class SliderArea(AbstractSlider slider) : Component

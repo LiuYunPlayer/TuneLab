@@ -54,39 +54,34 @@ internal class TrackWindow : DockPanel, TimelineScrollView.IDependency, TrackScr
             var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
             {
                 var border = new Border() { Height = 1, Background = Style.BACK.ToBrush() };
-                title.Children.Add(border);
-                DockPanel.SetDock(border, Dock.Bottom);
-                var icon = new Avalonia.Controls.Image() { Source = GUI.Assets.Track.GetImage(Style.LIGHT_WHITE), Width = 24, Height = 24, Margin = new(16, 12, 12, 12) };
-                title.Children.Add(icon);
-                DockPanel.SetDock(icon, Dock.Left);
+                title.AddDock(border, Dock.Bottom);
+                var icon = new Image() { Source = Assets.Track.GetImage(Style.LIGHT_WHITE), Width = 24, Height = 24, Margin = new(16, 12, 12, 12) };
+                title.AddDock(icon, Dock.Left);
                 var name = new Label() { Content = "Track", FontSize = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush() };
-                title.Children.Add(name);
+                title.AddDock(name);
             }
-            headArea.Children.Add(title);
-            DockPanel.SetDock(title, Dock.Top);
+            headArea.AddDock(title, Dock.Top);
 
-            headArea.Children.Add(mTrackHeadList);
+            headArea.AddDock(mTrackHeadList);
         }
-        Children.Add(headArea);
-        DockPanel.SetDock(headArea, Dock.Right);
+        this.AddDock(headArea, Dock.Right);
 
         var layerPanel = new LayerPanel();
         {
             var layer = new DockPanel();
             {
                 mTimelineScrollView = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
-                layer.Children.Add(mTimelineScrollView);
-                DockPanel.SetDock(mTimelineScrollView, Dock.Top);
+                layer.AddDock(mTimelineScrollView, Dock.Top);
 
                 mTrackScrollView = new(this);
-                layer.Children.Add(mTrackScrollView);
+                layer.AddDock(mTrackScrollView);
             }
             layerPanel.Children.Add(layer);
 
             mPlayheadLayer = new(this);
             layerPanel.Children.Add(mPlayheadLayer);
         }
-        Children.Add(layerPanel);
+        this.AddDock(layerPanel);
 
         TickAxis.ScaleLevel = -8;
     }

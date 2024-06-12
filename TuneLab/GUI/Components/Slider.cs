@@ -73,10 +73,8 @@ internal class Slider : AbstractSlider
         _ => new()
     };
 
-    class SliderThumb : AbstractThumb
+    protected class SliderThumb : AbstractThumb
     {
-        public override Avalonia.Point Piovt => new(Bounds.Width / 2, Bounds.Height / 2);
-
         public SliderThumb(AbstractSlider slider) : base(slider)
         {
             Width = ThumbRadius * 2;
