@@ -111,7 +111,7 @@ internal class NAudioCodec : IAudioCodec
 
         public int Read(byte[] buffer, int offset, int count)
         {
-            int length = count * sizeof(float);
+            int length = count / sizeof(float);
             float[] samples = new float[length];
             provider.Read(samples, 0, length);
             for (int i = 0; i < length; i++)

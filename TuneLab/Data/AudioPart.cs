@@ -38,7 +38,7 @@ internal class AudioPart : Part, IAudioPart
             {
                 try
                 {
-                    int samplingRate = 0;
+                    int samplingRate = AudioEngine.SamplingRate;
                     var data = AudioUtils.Decode(Path, ref samplingRate);
                     switch (data.Length)
                     {
