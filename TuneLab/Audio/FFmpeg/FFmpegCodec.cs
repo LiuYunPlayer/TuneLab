@@ -1,17 +1,113 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using FFmpeg.AutoGen;
+using NAudio.Wave;
+using TuneLab.Audio.NAudio;
+using TuneLab.Base.Utils;
 using Buffer = System.Buffer;
-using Marshal = System.Runtime.InteropServices.Marshal;
+using FFmpegNative = FFmpeg.AutoGen.Native;
 
 namespace TuneLab.Audio.FFmpeg;
+
+internal static class Utils
+{
+    public static T[] GetBuffer<T>(this List<T> list)
+    {
+        var fieldInfo = list.GetType().GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
+        return (T[])fieldInfo!.GetValue(list)!;
+    }
+
+    public static unsafe void BytesToFloats<T>(float[] dest, int destIndex, byte[] bytes, int bytesSize,
+        int channelCount)
+    {
+        int sizeOfT = Marshal.SizeOf<T>();
+        int totalSamples = bytesSize / (sizeOfT * channelCount) * channelCount;
+
+        fixed (byte* src = bytes)
+        {
+            if (typeof(T) == typeof(byte))
+            {
+                const float max = byte.MaxValue;
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    var intPtr = src + i * sizeOfT;
+                    dest[i + destIndex] = *intPtr / max;
+                }
+
+                return;
+            }
+
+            if (typeof(T) == typeof(int))
+            {
+                const float max = int.MaxValue;
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    var intPtr = (int*)(src + i * sizeOfT);
+                    dest[i + destIndex] = *intPtr / max;
+                }
+
+                return;
+            }
+
+            if (typeof(T) == typeof(short))
+            {
+                const float max = short.MaxValue;
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    var shortPtr = (short*)(src + i * sizeOfT);
+                    dest[i] = *shortPtr / max;
+                }
+
+                return;
+            }
+
+            if (typeof(T) == typeof(float))
+            {
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    var floatPtr = (float*)(src + i * sizeOfT);
+                    dest[i] = *floatPtr;
+                }
+
+                return;
+            }
+
+            if (typeof(T) == typeof(double))
+            {
+                for (var i = 0; i < totalSamples; i++)
+                {
+                    var doublePtr = (double*)(src + i * sizeOfT);
+                    dest[i] = (float)*doublePtr;
+                }
+            }
+        }
+    }
+}
 
 internal class FFmpegCodec : IAudioCodec
 {
     public IEnumerable<string> AllDecodableFormats { get; } = ["wav", "mp3", "aiff", "aac", "wma", "mp4"];
+
+    public FFmpegCodec(string libraryDir)
+    {
+        var libs = new[] { "avcodec", "avutil", "avformat", "swresample" };
+        ffmpeg.RootPath = libraryDir;
+        foreach (var lib in libs)
+        {
+            var ver = ffmpeg.LibraryVersionMap[lib];
+            var nativeLibraryName = FFmpegNative.LibraryLoader.GetNativeLibraryName(lib, ver);
+            var fullName = Path.Combine(ffmpeg.RootPath, nativeLibraryName);
+            if (!File.Exists(fullName))
+            {
+                throw new FileNotFoundException($"FFmpeg library {fullName} not found!");
+            }
+        }
+    }
 
     public AudioInfo GetAudioInfo(string path)
     {
@@ -20,32 +116,40 @@ internal class FFmpegCodec : IAudioCodec
 
     public IAudioStream Decode(string path)
     {
-        return new FileAudioStream(path);
+        return new FileDecoderStream(path);
     }
 
     public void EncodeToWav(string path, float[] buffer, int samplingRate, int bitPerSample, int channelCount)
     {
+        WaveFormat waveFormat = new WaveFormat(samplingRate, 16, channelCount);
+        using WaveFileWriter writer = new WaveFileWriter(path, waveFormat);
+        var bytes = NAudioCodec.To16BitsBytes(buffer);
+        writer.Write(bytes, 0, bytes.Length);
     }
 
     public IAudioStream Resample(IAudioProvider input, int outputSamplingRate)
     {
-        return null;
+        // return new ResampledAudioStream(input, outputSamplingRate);
+        return new NAudioCodec.NAudioResamplerStream(input, outputSamplingRate);
     }
 
-    private unsafe class FileAudioStream : IAudioStream
+    private unsafe class FileDecoderStream : IAudioStream
     {
         public int SamplingRate => _codecContext != null ? _codecContext->sample_rate : 0;
         public int ChannelCount => _codecContext != null ? _codecContext->ch_layout.nb_channels : 0;
         public int SamplesPerChannel => (int)_samples;
 
-        public FileAudioStream(string fileName)
+        public FileDecoderStream(string fileName)
         {
+            _cachedBuffer = new List<byte>();
+            _cachedBufferPos = 0;
             try
             {
                 OpenFile(fileName);
             }
             catch (Exception e)
             {
+                Console.WriteLine(e);
                 CloseFile();
                 throw;
             }
@@ -53,11 +157,67 @@ internal class FFmpegCodec : IAudioCodec
 
         public void Dispose()
         {
-            CloseFile();
+            if (_fileName != string.Empty)
+            {
+                CloseFile();
+            }
         }
 
         public void Read(float[] buffer, int offset, int count)
         {
+            var channels = ChannelCount;
+            var samplesPerChannel = count / channels;
+
+            // 解码
+            var bytesRequired = ffmpeg.av_samples_get_buffer_size(null, channels,
+                samplesPerChannel, _format, 1);
+            var bytes = new byte[bytesRequired];
+            var bytesRead = Decode(bytes, bytesRequired);
+            if (bytesRead == 0)
+            {
+                return;
+            }
+
+            // 将解码的字节流转为浮点
+            switch (_format)
+            {
+                case AVSampleFormat.AV_SAMPLE_FMT_U8:
+                case AVSampleFormat.AV_SAMPLE_FMT_U8P:
+                {
+                    Utils.BytesToFloats<byte>(buffer, offset, bytes, bytesRead, channels);
+                    break;
+                }
+                case AVSampleFormat.AV_SAMPLE_FMT_S16:
+                case AVSampleFormat.AV_SAMPLE_FMT_S16P:
+                {
+                    Utils.BytesToFloats<short>(buffer, offset, bytes, bytesRead, channels);
+                    break;
+                }
+                case AVSampleFormat.AV_SAMPLE_FMT_S32:
+                case AVSampleFormat.AV_SAMPLE_FMT_S32P:
+                {
+                    Utils.BytesToFloats<int>(buffer, offset, bytes, bytesRead, channels);
+                    break;
+                }
+                case AVSampleFormat.AV_SAMPLE_FMT_FLT:
+                case AVSampleFormat.AV_SAMPLE_FMT_FLTP:
+                {
+                    Utils.BytesToFloats<float>(buffer, offset, bytes, bytesRead, channels);
+                    break;
+                }
+                case AVSampleFormat.AV_SAMPLE_FMT_DBL:
+                case AVSampleFormat.AV_SAMPLE_FMT_DBLP:
+                {
+                    Utils.BytesToFloats<double>(buffer, offset, bytes, bytesRead, channels);
+                    break;
+                }
+                case AVSampleFormat.AV_SAMPLE_FMT_S64:
+                case AVSampleFormat.AV_SAMPLE_FMT_S64P:
+                {
+                    Utils.BytesToFloats<long>(buffer, offset, bytes, bytesRead, channels);
+                    break;
+                }
+            }
         }
 
         // 文件信息
@@ -72,9 +232,10 @@ internal class FFmpegCodec : IAudioCodec
         // 音频信息
         private int _audioIndex; // 音频流序号
         private long _samples; // 不包括声道
+        private AVSampleFormat _format;
 
         // 内部缓冲区相关
-        SimpleVector<byte> _cachedBuffer; // 缓冲区
+        List<byte> _cachedBuffer; // 缓冲区
         int _cachedBufferPos; // 缓冲区读取位置
 
         // 打开音频
@@ -139,10 +300,15 @@ internal class FFmpegCodec : IAudioCodec
             _samples = (long)(stream->duration * codec_ctx->sample_rate *
                     stream->time_base.num / (float)stream->time_base.den
                 );
+            _format = (AVSampleFormat)codec_param->format;
+            
+            // 初始化数据包和数据帧
+            var pkt = ffmpeg.av_packet_alloc();
+            var frame = ffmpeg.av_frame_alloc();
 
-            // 初始化缓冲区
-            _cachedBuffer = new SimpleVector<byte>();
-            _cachedBufferPos = 0;
+            // 等待进一步的解码
+            _packet = pkt;
+            _frame = frame;
         }
 
         private void CloseFile()
@@ -174,7 +340,12 @@ internal class FFmpegCodec : IAudioCodec
                 ffmpeg.avformat_close_input(&fmt_ctx);
             }
 
+            _cachedBuffer.Clear();
+            _cachedBufferPos = 0;
+
+            _format = 0;
             _samples = 0;
+
             _audioIndex = 0;
 
             _frame = null;
@@ -196,15 +367,22 @@ internal class FFmpegCodec : IAudioCodec
             // 采取边解码边写到输出缓冲区的方式。策略是先把 cache 全部写出，然后边解码边写，写到最后剩下的再存入 cache
             int bytesWritten = 0;
             {
-                var cacheSize = Math.Min(_cachedBuffer.Size - _cachedBufferPos, requiredSize);
+                var cacheSize = Math.Min(_cachedBuffer.Count - _cachedBufferPos, requiredSize);
                 if (cacheSize > 0)
                 {
-                    Buffer.BlockCopy(_cachedBuffer.Data, _cachedBufferPos, buf, 0, cacheSize);
+                    Buffer.BlockCopy(_cachedBuffer.GetBuffer(), _cachedBufferPos, buf, 0, cacheSize);
                     _cachedBufferPos += cacheSize;
                     bytesWritten = cacheSize;
                 }
+
+                // 如果 cache 用完了，那么清除 cache
+                if (_cachedBufferPos == _cachedBuffer.Count)
+                {
+                    _cachedBuffer.Resize(0);
+                }
             }
 
+            // 如果 cache 不够需要，那么继续从音频中读取
             while (bytesWritten < requiredSize)
             {
                 int ret = ffmpeg.av_read_frame(fmt_ctx, pkt);
@@ -249,7 +427,8 @@ internal class FFmpegCodec : IAudioCodec
                         // 结束
                         break;
                     }
-                    else if (ret < 0)
+
+                    if (ret < 0)
                     {
                         // 出错
                         ffmpeg.av_frame_unref(frame);
@@ -259,21 +438,44 @@ internal class FFmpegCodec : IAudioCodec
                         continue;
                     }
 
-                    int size_need = requiredSize - bytesWritten;
-                    int size_supply = ffmpeg.av_samples_get_buffer_size(null, frame->ch_layout.nb_channels,
-                        frame->nb_samples, (AVSampleFormat)frame->format, 1);
+                    var sampleFormat = (AVSampleFormat)frame->format;
+                    var sampleCount = frame->nb_samples;
+                    var channelCount = frame->ch_layout.nb_channels;
 
-                    var arr = frame->data[0];
+                    var bytesNeeded = requiredSize - bytesWritten;
+                    var bytesSupply = ffmpeg.av_samples_get_buffer_size(null, channelCount,
+                        sampleCount, sampleFormat, 1);
 
-                    var size_cached = size_supply - size_need;
-                    if (size_cached > 0)
+                    var nonPlainBuffer = new byte[bytesSupply];
+                    if (ffmpeg.av_sample_fmt_is_planar(sampleFormat) != 0)
+                    {
+                        // 平面格式
+                        var bytesPerSample = ffmpeg.av_get_bytes_per_sample(sampleFormat);
+                        for (var i = 0; i < sampleCount; ++i)
+                        {
+                            for (var j = 0; j < channelCount; ++j)
+                            {
+                                var src = frame->extended_data[j] + i * bytesPerSample;
+                                var dstIdx = (i * channelCount + j) * bytesPerSample;
+                                Marshal.Copy((IntPtr)src, nonPlainBuffer, dstIdx, bytesPerSample);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 交织格式
+                        Marshal.Copy((IntPtr)frame->data[0], nonPlainBuffer, 0, bytesSupply);
+                    }
+
+                    var sizeToCache = bytesSupply - bytesNeeded;
+                    if (sizeToCache > 0)
                     {
                         // 写到输出缓冲区
-                        Marshal.Copy((IntPtr)arr, buf, bytesWritten, size_need);
+                        Buffer.BlockCopy(nonPlainBuffer, 0, buf, bytesWritten, bytesNeeded);
 
                         // 剩下的存入 cache
-                        _cachedBuffer.Resize(size_cached);
-                        Marshal.Copy(IntPtr.Add((IntPtr)arr, size_need), _cachedBuffer.Data, 0, size_cached);
+                        _cachedBuffer.Resize(sizeToCache);
+                        Buffer.BlockCopy(nonPlainBuffer, bytesNeeded, _cachedBuffer.GetBuffer(), 0, sizeToCache);
                         _cachedBufferPos = 0;
 
                         bytesWritten = requiredSize;
@@ -281,8 +483,8 @@ internal class FFmpegCodec : IAudioCodec
                     else
                     {
                         // 全部写到输出缓冲区
-                        Marshal.Copy((IntPtr)arr, buf, bytesWritten, size_supply);
-                        bytesWritten += size_supply;
+                        Buffer.BlockCopy(nonPlainBuffer, 0, buf, bytesWritten, bytesSupply);
+                        bytesWritten += bytesSupply;
                     }
 
                     ffmpeg.av_frame_unref(frame);
@@ -293,29 +495,93 @@ internal class FFmpegCodec : IAudioCodec
         }
     }
 
-    protected unsafe class ResampledAudioStream : IAudioStream
+    private unsafe class ResampledAudioStream : IAudioStream
     {
         public int SamplingRate { get; }
         public int ChannelCount { get; }
         public int SamplesPerChannel { get; }
 
-        public ResampledAudioStream(IAudioStream input, int sampleRate)
+        public ResampledAudioStream(IAudioProvider input, int sampleRate)
         {
             SamplingRate = sampleRate;
             ChannelCount = input.ChannelCount;
             SamplesPerChannel = (int)((long)input.SamplesPerChannel * sampleRate / input.SamplingRate);
 
-            _stream = input;
+            _provider = input;
+
+            try
+            {
+                OpenResampler();
+            }
+            catch (Exception e)
+            {
+                CloseResampler();
+                throw;
+            }
         }
 
         public void Read(float[] buffer, int offset, int count)
         {
+            var channels = ChannelCount;
+            var dstSamplesPerChannel = count / channels;
+
+            var srcSamplesPerChannel = ffmpeg.av_rescale_rnd(ffmpeg.swr_get_delay(_swrContext, _provider.SamplingRate) +
+                                                             dstSamplesPerChannel, _provider.SamplingRate, SamplingRate,
+                AVRounding.AV_ROUND_UP);
         }
 
         public void Dispose()
         {
+            if (_swrContext != null)
+            {
+                CloseResampler();
+            }
         }
 
-        private IAudioStream _stream;
+        private readonly IAudioProvider _provider;
+
+        // FFmpeg 数据
+        private SwrContext* _swrContext;
+
+        private void OpenResampler()
+        {
+            // 初始化重采样器
+            var swr = ffmpeg.swr_alloc();
+            _swrContext = swr;
+
+            // 初始化输入输出声道
+            int ret;
+            {
+                AVChannelLayout chLayout;
+                ffmpeg.av_channel_layout_default(&chLayout, ChannelCount);
+
+                ret = ffmpeg.swr_alloc_set_opts2(&swr, &chLayout, AVSampleFormat.AV_SAMPLE_FMT_FLT,
+                    SamplingRate, &chLayout,
+                    AVSampleFormat.AV_SAMPLE_FMT_FLT, _provider.SamplingRate, 0, null);
+
+                ffmpeg.av_channel_layout_uninit(&chLayout);
+            }
+            if (ret != 0)
+            {
+                throw new DecoderFallbackException("FFmpeg: Failed to create resampler.");
+            }
+
+            ret = ffmpeg.swr_init(swr);
+            if (ret < 0)
+            {
+                throw new DecoderFallbackException("FFmpeg: Failed to init resampler.");
+            }
+        }
+
+        private void CloseResampler()
+        {
+            var swr_ctx = _swrContext;
+            if (swr_ctx != null)
+            {
+                ffmpeg.swr_close(swr_ctx);
+                ffmpeg.swr_free(&swr_ctx);
+            }
+            _swrContext = null;
+        }
     }
 }
