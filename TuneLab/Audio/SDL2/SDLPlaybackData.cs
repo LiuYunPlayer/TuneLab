@@ -25,8 +25,6 @@ internal class SDLPlaybackData
     // 播放信息
     public string driver = "";
 
-    public int devNum = -1;
-
     public PlaybackState state = PlaybackState.Stopped;
 
     public ISampleProvider? sampleProvider = null;
