@@ -79,7 +79,7 @@ namespace TuneLab.Extensions.Formats.VPR
                 {
                     var tempoInfo = new TempoInfo()
                     {
-                        Pos = ((int?)tempo["pos"] ?? 0) / 100d,
+                        Pos = ((int?)tempo["pos"] ?? 0),
                         Bpm = ((int?)tempo["value"] ?? 0) / 100d,
                     };
 
