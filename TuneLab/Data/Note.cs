@@ -32,9 +32,6 @@ internal class Note : DataObject, INote
     public double StartPos => Pos.Value;
     public double EndPos => Pos.Value + Dur.Value;
 
-    public double StartTime => mPart.TempoManager.GetTime(this.GlobalStartPos());
-    public double EndTime => mPart.TempoManager.GetTime(Next == null ? this.GlobalEndPos() : Math.Min(this.GlobalEndPos(), Next.GlobalStartPos()));
-
     public SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
     public IReadOnlyCollection<string> Pronunciations => Lyric.Pronunciations;
 
