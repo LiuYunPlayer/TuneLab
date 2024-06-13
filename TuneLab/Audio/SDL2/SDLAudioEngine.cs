@@ -110,7 +110,7 @@ internal class SDLAudioEngine : IAudioEngine
         // 如果没有打开音频设备那么打开第一个音频设备
         if (_d.curDevId == 0)
         {
-            SwitchDevice(0);
+            SwitchDevice(-1);
         }
 
         _d.start();
@@ -154,12 +154,11 @@ internal class SDLAudioEngine : IAudioEngine
             return;
         }
 
-        _d.devNum = deviceNumber;
-
         // 打开音频设备
         uint id;
+        string? deviceToOpen = deviceNumber < 0 ? null : SDL.SDL_GetAudioDeviceName(deviceNumber, 0);
         if ((id = SDL.SDL_OpenAudioDevice(
-                SDL.SDL_GetAudioDeviceName(_d.devNum, 0),
+                deviceToOpen,
                 0,
                 ref _d.spec,
                 out _,
@@ -168,7 +167,14 @@ internal class SDLAudioEngine : IAudioEngine
             throw new IOException($"SDLPlayback: Failed to open audio device: {SDL.SDL_GetError()}.");
         }
 
-        Console.WriteLine($"SDLPlayback: {SDL.SDL_GetAudioDeviceName(_d.devNum, 0)}");
+        if (deviceToOpen == null)
+        {
+            Console.WriteLine($"SDLPlayback: Current Device");
+        }
+        else
+        {
+            Console.WriteLine($"SDLPlayback: {deviceToOpen}");
+        }
 
         _d.setDevId(id);
     }
