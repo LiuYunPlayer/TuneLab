@@ -87,11 +87,7 @@ internal class NAudioEngine : IAudioEngine
                 buffer[i] = 0;
             }
 
-            try // TODO: 使用线程同步机制避免异常
-            {
-                engine.mAudioProcessor?.ProcessBlock(buffer, offset, position, endPosition - position);
-            }
-            catch { }
+            engine.mAudioProcessor?.ProcessBlock(buffer, offset, position, endPosition - position);
 
             return count;
         }

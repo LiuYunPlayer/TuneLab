@@ -154,7 +154,11 @@ internal static class AudioEngine
     {
         public void ProcessBlock(float[] buffer, int offset, int position, int count)
         {
-            MixData(position, position + count, true, buffer, offset);
+            try
+            {
+                MixData(position, position + count, true, buffer, offset);
+            }
+            catch { }
         }
     }
 
