@@ -80,37 +80,34 @@ internal class NAudioCodec : IAudioCodec
             mSampleProvider.Read(buffer, offset, count);
         }
 
-        WaveStream Create(string filepath)
+        WaveStream Create(string path)
         {
-            var ext = Path.GetExtension(filepath);
-            byte[] buffer = new byte[128];
+            var ext = Path.GetExtension(path);
+            byte[] buffer = new byte[4];
             string tag = "";
-            using (var stream = File.Open(filepath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                if (stream.CanSeek)
-                {
-                    stream.Read(buffer, 0, 128);
-                    tag = System.Text.Encoding.UTF8.GetString(buffer.AsSpan(0, 4));
-                }
+                stream.Read(buffer, 0, 4);
+                tag = Encoding.UTF8.GetString(buffer.AsSpan(0, 4));
             }
             if (tag == "RIFF")
             {
-                return new WaveFileReader(filepath);
+                return new WaveFileReader(path);
             }
             if (ext == ".mp3")
             {
-                return new Mp3FileReaderBase(filepath, wf => new Mp3FrameDecompressor(wf));
+                return new Mp3FileReaderBase(path, wf => new Mp3FrameDecompressor(wf));
             }
             if (tag == "fLaC")
             {
-                return new FlacReader(filepath);
+                return new FlacReader(path);
             }
             if (ext == ".aiff" || ext == ".aif" || ext == ".aifc")
             {
-                return new AiffFileReader(filepath);
+                return new AiffFileReader(path);
             }
 
-            throw new Exception("Unsupported audio file format.");
+            return new AudioFileReader(path);
         }
 
         readonly WaveStream mWaveStream;
