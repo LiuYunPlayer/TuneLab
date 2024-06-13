@@ -195,7 +195,7 @@ internal partial class PianoGrid
                                             menu.Items.Add(menuItem);
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Convert to Phonemes").SetAction(() =>
+                                            var menuItem = new MenuItem().SetName("Split by Phonemes").SetAction(() =>
                                             {
                                                 var selectedNotes = Part.Notes.AllSelectedItems();
                                                 if (selectedNotes.IsEmpty())
@@ -215,9 +215,9 @@ internal partial class PianoGrid
                                                         var info = note.GetInfo();
                                                         info.Pos = tempoManager.GetTick(phoneme.StartTime) - pos;
                                                         info.Dur = tempoManager.GetTick(phoneme.EndTime) - pos - info.Pos;
-                                                        info.Lyric = "." + phoneme.Symbol;
+                                                        info.Lyric = phoneme.Symbol;
                                                         info.Pronunciation = string.Empty;
-                                                        info.Phonemes = [];
+                                                        info.Phonemes = [new() { StartTime = 0, EndTime = phoneme.EndTime - phoneme.StartTime, Symbol = phoneme.Symbol }];
                                                         phonemeNoteInfos.Add(info);
                                                     }
 
@@ -241,11 +241,11 @@ internal partial class PianoGrid
                                         
                                         menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
-                                            var menuItem = new MenuItem().SetName("Octave Up").SetAction(OctaveUp).SetInputGesture(new KeyGesture(Key.Up, KeyModifiers.Shift));
+                                            var menuItem = new MenuItem().SetName("Octave Up").SetAction(OctaveUp);
                                             menu.Items.Add(menuItem);
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Octave Down").SetAction(OctaveDown).SetInputGesture(new KeyGesture(Key.Down, KeyModifiers.Shift));
+                                            var menuItem = new MenuItem().SetName("Octave Down").SetAction(OctaveDown);
                                             menu.Items.Add(menuItem);
                                         }
 

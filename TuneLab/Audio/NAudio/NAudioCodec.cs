@@ -80,7 +80,7 @@ internal class NAudioCodec : IAudioCodec
             mSampleProvider.Read(buffer, offset, count);
         }
 
-        WaveStream Create(string path)
+        static WaveStream Create(string path)
         {
             var ext = Path.GetExtension(path);
             byte[] buffer = new byte[4];
