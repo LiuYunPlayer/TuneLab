@@ -24,7 +24,7 @@ internal class Note : DataObject, INote
     public DataStruct<double> Dur { get; }
     public DataStruct<int> Pitch { get; }
     DataLyric Lyric { get; }
-    DataString Pronunciation { get; }
+    DataPronunciation Pronunciation { get; }
     public DataPropertyObject Properties { get; }
     public DataObjectList<IPhoneme> Phonemes { get; } = new();
     public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
@@ -104,14 +104,23 @@ internal class Note : DataObject, INote
             });
         }
 
-        public void Set(string value)
+        protected override void Set(string value)
         {
-            IDataObject<string>.Set(this, value);
+            base.Set(value);
             mNote.Phonemes.Clear();
             mNote.Pronunciation.Set(string.Empty);
         }
 
         Note mNote;
+    }
+
+    class DataPronunciation(Note note) : DataString(note)
+    {
+        protected override void Set(string value)
+        {
+            base.Set(value);
+            note.Phonemes.Clear();
+        }
     }
 
     readonly IMidiPart mPart;

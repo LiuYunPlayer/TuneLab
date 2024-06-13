@@ -27,7 +27,9 @@ public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(pa
     public T Value => GetInfo();
     public abstract T GetInfo();
     protected abstract void SetInfo(T info);
+    protected virtual void Set(T value) => IDataObject<T>.Set(this, value);
     void IDataObject<T>.SetInfo(T info) => SetInfo(info);
+    void IDataObject<T>.Set(T value) => Set(value);
 }
 
 public class DataStruct<T>(DataObject? parent = null) : DataProperty<T>(parent) where T : struct
