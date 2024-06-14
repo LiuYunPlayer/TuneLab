@@ -23,6 +23,8 @@ internal static class SDLGlobal
 
     public delegate void ValueEvent<T>(T val);
 
+    public delegate void VoidEvent();
+
     public static void FloatsToBytes(float[] floats, byte[] bytes, int size)
     {
         for (int i = 0; i < size; i++)

@@ -13,11 +13,19 @@ internal class SDLAudioEngine : IAudioEngine
     public event Action? PlayStateChanged;
     public event Action? ProgressChanged;
 
+    public event Action? DeviceChanged;
+
+    public event Action? DevicesUpdated;
+
     public bool IsPlaying => _d.state == SDLPlaybackData.PlaybackState.Playing;
 
     public int SamplingRate => 44100;
 
     public double CurrentTime => (double)_lastPosition / SamplingRate;
+
+    public int CurrentDeviceIndex => _deviceIndex;
+
+    public string CurrentDriver => _d.driver;
 
     public void Init(IAudioProcessor processor)
     {
@@ -38,14 +46,7 @@ internal class SDLAudioEngine : IAudioEngine
             _d = new SDLPlaybackData();
 
             // 转发事件：设备更改
-            _d.devChanged = (newVal, oldVal) =>
-            {
-                context.Post(_ =>
-                {
-                    // ...
-                }, null);
-                // Console.WriteLine($"SDLPLayback: Audio device change to {newVal}.");
-            };
+            _d.devChanged = (newVal, oldVal) => { context.Post(_ => { DeviceChanged?.Invoke(); }, null); };
             // 转发事件：播放状态更改
             _d.stateChanged = (newVal, oldVal) =>
             {
@@ -53,7 +54,14 @@ internal class SDLAudioEngine : IAudioEngine
                 {
                     PlayStateChanged?.Invoke(); //
                 }, null);
-                // Console.WriteLine($"SDLPLayback: Play state change to {newVal}.");
+            };
+            // 转发事件：设备列表更新
+            _d.devicesUpdated = () =>
+            {
+                context.Post(_ =>
+                {
+                    DevicesUpdated?.Invoke(); //
+                }, null);
             };
             // 转发事件：当前缓冲区被播放
             _d.samplesConsumed = val =>
@@ -107,7 +115,7 @@ internal class SDLAudioEngine : IAudioEngine
             return;
         }
 
-        // 如果没有打开音频设备那么打开第一个音频设备
+        // 如果没有打开音频设备那么打开默认音频设备
         if (_d.curDevId == 0)
         {
             SwitchDevice(-1);
@@ -150,13 +158,22 @@ internal class SDLAudioEngine : IAudioEngine
     {
         if (_d.state == SDLPlaybackData.PlaybackState.Playing)
         {
-            Console.WriteLine("SDLPlayback: Don't change audio device when playing.");
+            Console.WriteLine("SDL: Don't change audio device when playing.");
             return;
         }
 
         // 打开音频设备
         uint id;
         string? deviceToOpen = deviceNumber < 0 ? null : SDL.SDL_GetAudioDeviceName(deviceNumber, 0);
+        if (deviceToOpen == null)
+        {
+            Console.WriteLine($"SDL: Open default device");
+        }
+        else
+        {
+            Console.WriteLine($"SDL: Open \"{deviceToOpen}\"");
+        }
+
         if ((id = SDL.SDL_OpenAudioDevice(
                 deviceToOpen,
                 0,
@@ -164,18 +181,10 @@ internal class SDLAudioEngine : IAudioEngine
                 out _,
                 0)) == 0)
         {
-            throw new IOException($"SDLPlayback: Failed to open audio device: {SDL.SDL_GetError()}.");
+            throw new IOException($"SDL: Failed to open audio device: {SDL.SDL_GetError()}.");
         }
 
-        if (deviceToOpen == null)
-        {
-            Console.WriteLine($"SDLPlayback: Current Device");
-        }
-        else
-        {
-            Console.WriteLine($"SDLPlayback: {deviceToOpen}");
-        }
-
+        _deviceIndex = deviceNumber;
         _d.setDevId(id);
     }
 
@@ -211,6 +220,7 @@ internal class SDLAudioEngine : IAudioEngine
 
     // SDL 相关
     private SDLPlaybackData _d;
+    private int _deviceIndex = 0;
 
     private class SampleProvider(SDLAudioEngine engine) : ISampleProvider
     {

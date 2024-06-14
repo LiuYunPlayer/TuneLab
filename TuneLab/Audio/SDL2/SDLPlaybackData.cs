@@ -22,8 +22,10 @@ internal class SDLPlaybackData
 
     public SDLGlobal.ValueEvent<int>? samplesConsumed;
 
+    public SDLGlobal.VoidEvent? devicesUpdated;
+
     // 播放信息
-    public string driver = "";
+    public string driver = string.Empty;
 
     public PlaybackState state = PlaybackState.Stopped;
 
@@ -103,7 +105,6 @@ internal class SDLPlaybackData
     {
         var orgId = curDevId;
         curDevId = newId;
-
         if (orgId > 0)
         {
             SDL.SDL_CloseAudioDevice(orgId);
@@ -254,6 +255,14 @@ internal class SDLPlaybackData
                         break;
                     }
 
+                    case (int)SDL.SDL_EventType.SDL_AUDIODEVICEADDED:
+                    {
+                        // 重新检测音频设备
+                        _ = SDL.SDL_GetNumAudioDevices(0);
+                        devicesUpdated?.Invoke();
+                        break;
+                    }
+
                     // 音频设备移除
                     case (int)SDL.SDL_EventType.SDL_AUDIODEVICEREMOVED:
                     {
@@ -264,10 +273,11 @@ internal class SDLPlaybackData
                             over = true;
                         }
 
+                        // 重新检测音频设备
+                        _ = SDL.SDL_GetNumAudioDevices(0);
+                        devicesUpdated?.Invoke();
                         break;
                     }
-                    default:
-                        break;
                 }
             }
 
