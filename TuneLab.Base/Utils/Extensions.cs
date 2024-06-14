@@ -82,23 +82,23 @@ public static class Extensions
         return Enum.TryParse(typeof(T), value, out var result) ? (T)result : defaultValue;
     }
 
-    public static void Resize<T>(this IList<T> list, int count) where T : new()
+    public static void Resize<T>(this IList<T> list, int size) where T : new()
     {
-        int remain = count - list.Count;
-        if (remain > 0)
+        int currentSize = list.Count;
+        if (size < currentSize)
         {
-            for (int i = 0; i < remain; i++)
+            for (int i = currentSize - 1; i >= size; i--)
             {
-                list.Add(new T());
+                list.RemoveAt(i);
             }
             return;
         }
 
-        if (remain < 0)
+        if (size > currentSize)
         {
-            for (int i = 0; i < remain; i++)
+            for (int i = currentSize; i < size; i++)
             {
-                list.RemoveAt(list.Count - 1);
+                list.Add(new T());
             }
         }
     }
