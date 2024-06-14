@@ -118,7 +118,7 @@ internal class SDLAudioEngine : IAudioEngine
         // 如果没有打开音频设备那么打开默认音频设备
         if (_d.curDevId == 0)
         {
-            SwitchDevice(0);
+            SwitchDevice(-1);
         }
 
         _d.start();
