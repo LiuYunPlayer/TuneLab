@@ -8,6 +8,7 @@ using NAudio.Wave;
 using NAudio.Flac;
 using NLayer.NAudioSupport;
 using TuneLab.Base.Science;
+using NAudio.Dsp;
 
 namespace TuneLab.Audio.NAudio;
 
@@ -49,7 +50,7 @@ internal class NAudioCodec : IAudioCodec
 
     public IAudioStream Resample(IAudioProvider input, int outputSamplingRate)
     {
-        return new NAudioResamplerStream(input, outputSamplingRate);
+        return new WdlResamplerStream(input, outputSamplingRate);
     }
 
     class NAudioFileReader : IAudioStream
@@ -142,6 +143,58 @@ internal class NAudioCodec : IAudioCodec
 
         readonly MediaFoundationResampler mMediaFoundationResampler;
         readonly ISampleProvider mSampleProvider; 
+    }
+
+    class WdlResamplerStream : IAudioStream
+    {
+        public int SamplingRate { get; }
+        public int ChannelCount { get; }
+        public int SamplesPerChannel { get; }
+
+        public WdlResamplerStream(IAudioProvider input, int outputSamplingRate)
+        {
+            mInput = input;
+
+            SamplingRate = outputSamplingRate;
+            ChannelCount = input.ChannelCount;
+            SamplesPerChannel = ((double)input.SamplesPerChannel * outputSamplingRate / input.SamplingRate).Ceil();
+
+            mWdlResampler = new WdlResampler();
+            mWdlResampler.SetRates(input.SamplingRate, outputSamplingRate);
+            prepareCount = mWdlResampler.ResamplePrepare(SamplesPerChannel, ChannelCount, out inBuffer, out inBufferOffset);
+        }
+
+        public void Read(float[] buffer, int offset, int count)
+        {
+            if (outBuffer == null)
+            {
+                mInput.Read(inBuffer, inBufferOffset, ChannelCount * Math.Min(prepareCount, mInput.SamplesPerChannel));
+                outBuffer = new float[SamplesPerChannel * ChannelCount];
+                mWdlResampler.ResampleOut(outBuffer, 0, prepareCount, SamplesPerChannel, ChannelCount);
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                buffer[offset + i] = outBuffer[alreadyReadCount + i];
+            }
+
+            alreadyReadCount += count;
+        }
+
+        public void Dispose()
+        {
+            
+        }
+
+        float[]? outBuffer = null;
+        int alreadyReadCount = 0;
+
+        readonly float[] inBuffer;
+        readonly int inBufferOffset;
+        readonly int prepareCount;
+        readonly WdlResampler mWdlResampler;
+
+        readonly IAudioProvider mInput;
     }
 
     class NAudioWaveProvider(IAudioProvider provider) : IWaveProvider
