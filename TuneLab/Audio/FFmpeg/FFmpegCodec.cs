@@ -154,7 +154,7 @@ internal static class Utils
 internal class FFmpegCodec : IAudioCodec
 {
     public IEnumerable<string> AllDecodableFormats { get; } =
-        ["wav", "mp3", "aiff", "aac", "wma", "mp4", "m4a", "flac"];
+        ["wav", "mp3", "aac", "aiff", "m4a", "flac", "wma", "ogg", "opus"];
 
     public FFmpegCodec(string libraryDir)
     {
@@ -229,7 +229,7 @@ internal class FFmpegCodec : IAudioCodec
                 {
                     _cachedBuffer.Clear();
                     _cachedBufferPos = 0;
-                } 
+                }
             }
 
             // 如果 cache 不够需要，那么继续读取
@@ -396,15 +396,15 @@ internal class FFmpegCodec : IAudioCodec
         {
             _fileName = fileName;
 
-            var fmt_ctx = ffmpeg.avformat_alloc_context();
-            _formatContext = fmt_ctx;
-
             // 打开文件
+            AVFormatContext* fmt_ctx = null;
             var ret = ffmpeg.avformat_open_input(&fmt_ctx, fileName, null, null);
             if (ret != 0)
             {
                 throw new FileLoadException($"FFmpeg: Failed to load file {fileName}.", fileName);
             }
+
+            _formatContext = fmt_ctx;
 
             // 查找流信息
             ret = ffmpeg.avformat_find_stream_info(fmt_ctx, null);
@@ -450,9 +450,9 @@ internal class FFmpegCodec : IAudioCodec
                 throw new DecoderFallbackException("FFmpeg: Failed to open decoder.");
             }
 
-            _samples = (long)(stream->duration * codec_ctx->sample_rate *
+            _samples = (long)Math.Round((stream->duration * codec_ctx->sample_rate *
                     stream->time_base.num / (double)stream->time_base.den
-                );
+                ));
             _format = (AVSampleFormat)codec_param->format;
 
             // 初始化数据包和数据帧
