@@ -105,10 +105,10 @@ internal class Note : DataObject, INote
         {
             base.Set(value);
             mNote.Phonemes.Clear();
-            mNote.Pronunciation.Set(string.Empty);
+            mNote.Pronunciation.Set(LyricUtils.GetPreferredPronunciation(Value));
         }
 
-        Note mNote;
+        readonly Note mNote;
     }
 
     class DataPronunciation(Note note) : DataString(note)

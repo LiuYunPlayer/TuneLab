@@ -83,15 +83,20 @@ internal partial class LyricInput : Window
         if (mNotes.Count == 0)
             return;
 
-        var lyrics = LyricUtils.SplitLyrics(mLyricInputBox.Text);
+        var lyricResults = LyricUtils.Split(mLyricInputBox.Text);
         var notes = mSkipTenutoCheckBox.IsChecked ? mNotes.Where(note => note.Lyric.Value != "-") : mNotes;
-        using var enumerator = (mSkipTenutoCheckBox.IsChecked ? lyrics.Where(lyric => lyric != "-") : lyrics).GetEnumerator();
+        using var enumerator = (mSkipTenutoCheckBox.IsChecked ? lyricResults.Where(lyricResult => lyricResult.Lyric != "-") : lyricResults).GetEnumerator();
         foreach (var note in notes)
         {
             if (!enumerator.MoveNext())
                 break;
 
-            note.Lyric.Set(enumerator.Current);
+            var current = enumerator.Current;
+            note.Lyric.Set(current.Lyric);
+            if (current.Lyric == "-")
+                continue;
+
+            note.Pronunciation.Set(current.Pronunciation);
         }
 
         mNotes.First().Commit();
