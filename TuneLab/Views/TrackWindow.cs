@@ -19,7 +19,7 @@ using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Views;
 
-internal class TrackWindow : DockPanel, TimelineScrollView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
+internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
 {
     public IProvider<Project> ProjectProvider => mDependency.ProjectProvider;
     public IProvider<ITimeline> TimelineProvider => mDependency.ProjectProvider;
@@ -70,8 +70,8 @@ internal class TrackWindow : DockPanel, TimelineScrollView.IDependency, TrackScr
         {
             var layer = new DockPanel();
             {
-                mTimelineScrollView = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
-                layer.AddDock(mTimelineScrollView, Dock.Top);
+                mTimelineView = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+                layer.AddDock(mTimelineView, Dock.Top);
 
                 mTrackScrollView = new(this);
                 layer.AddDock(mTrackScrollView);
@@ -94,7 +94,7 @@ internal class TrackWindow : DockPanel, TimelineScrollView.IDependency, TrackScr
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         mTickAxis.ViewLength = e.NewSize.Width - mTrackHeadList.Width;
-        mTrackVerticalAxis.ViewLength = e.NewSize.Height - mTimelineScrollView.Height;
+        mTrackVerticalAxis.ViewLength = e.NewSize.Height - mTimelineView.Height;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -139,7 +139,7 @@ internal class TrackWindow : DockPanel, TimelineScrollView.IDependency, TrackScr
     readonly TrackVerticalAxis mTrackVerticalAxis;
 
     readonly TrackHeadList mTrackHeadList;
-    readonly TimelineScrollView mTimelineScrollView;
+    readonly TimelineView mTimelineView;
     readonly TrackScrollView mTrackScrollView;
     readonly PlayheadLayer mPlayheadLayer;
 

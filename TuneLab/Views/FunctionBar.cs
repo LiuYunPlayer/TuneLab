@@ -9,7 +9,6 @@ using TuneLab.Audio;
 using TuneLab.Base.Event;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
-using TuneLab.GUI;
 using TuneLab.Utils;
 
 namespace TuneLab.Views;

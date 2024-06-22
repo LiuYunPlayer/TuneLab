@@ -23,7 +23,6 @@ internal partial class TimelineView : View
         IProvider<ITimeline> TimelineProvider { get; }
         IPlayhead Playhead { get; }
         bool IsAutoPage { get; }
-        void EnterInputBpm(ITempo tempo);
     }
 
     public TimelineView(IDependency dependency)
@@ -33,8 +32,25 @@ internal partial class TimelineView : View
         mMiddleDragOperation = new(this);
         mSeekOperation = new(this);
         mTempoMovingOperation = new(this);
+        mBpmInput = new TextInput()
+        {
+            Padding = new Thickness(8, 4),
+            Background = Brushes.White,
+            Foreground = Brushes.Black,
+            BorderThickness = new(0),
+            FontSize = 12,
+            CaretBrush = Brushes.Black,
+            MinWidth = 24,
+            CornerRadius = new CornerRadius(0),
+            IsVisible = false
+        };
+        mBpmInput.EndInput.Subscribe(OnBpmInputComplete);
+        Children.Add(mBpmInput);
 
         Height = 48;
+        ClipToBounds = true;
+
+        TickAxis.AxisChanged += InvalidateArrange;
 
         mDependency.TimelineProvider.ObjectChanged.Subscribe(OnTickAxisChanged, s);
         mDependency.Playhead.PosChanged.Subscribe(() =>
@@ -179,6 +195,62 @@ internal partial class TimelineView : View
         return (tick / cell).Round() * cell;
     }
 
+    protected override Size OnArrangeOverride(Size finalSize)
+    {
+        if (mBpmInput.IsVisible)
+            mBpmInput.Arrange(BpmInputRect());
+
+        return finalSize;
+    }
+
+    public void EnterInputBpm(ITempo tempo)
+    {
+        if (mInputBpmTempo != null)
+            return;
+
+        mInputBpmTempo = tempo;
+        mBpmInput.Text = BpmString(tempo);
+        mBpmInput.IsVisible = true;
+        mBpmInput.Focus();
+        mBpmInput.SelectAll();
+    }
+
+    void OnBpmInputComplete()
+    {
+        if (mInputBpmTempo == null)
+            return;
+
+        if (Timeline == null)
+            return;
+
+        if (!double.TryParse(mBpmInput.Text, out var newBpm))
+        {
+            newBpm = mInputBpmTempo.Bpm;
+        }
+        newBpm = newBpm.Limit(10, 960);
+        if (newBpm != mInputBpmTempo.Bpm)
+        {
+            Timeline.TempoManager.SetBpm(mInputBpmTempo, newBpm);
+            mInputBpmTempo.Commit();
+        }
+
+        mBpmInput.IsVisible = false;
+        mInputBpmTempo = null;
+    }
+
+    Rect BpmInputRect()
+    {
+        if (mInputBpmTempo == null)
+            return new Rect();
+
+        return new Rect(mDependency.TickAxis.Tick2X(mInputBpmTempo.Pos), 24, 54, 24);
+    }
+
+    ITempo? mInputBpmTempo;
+    ITimeline? Timeline => mDependency.TimelineProvider.Object;
+
+    readonly TextInput mBpmInput;
+
     class PageCurve : IAnimationCurve
     {
         public double GetRatio(double timeRatio)
@@ -195,7 +267,6 @@ internal partial class TimelineView : View
     TickAxis TickAxis => mDependency.TickAxis;
     IQuantization Quantization => mDependency.Quantization;
     IPlayhead Playhead => mDependency.Playhead;
-    ITimeline? Timeline => mDependency.TimelineProvider.Object;
 
     readonly IDependency mDependency;
     readonly DisposableManager s = new();

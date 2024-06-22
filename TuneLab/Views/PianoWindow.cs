@@ -15,7 +15,7 @@ using TuneLab.Extensions.Voices;
 
 namespace TuneLab.Views;
 
-internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineScrollView.IDependency, ParameterTabBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency, FunctionBar.IDependency
+internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency, FunctionBar.IDependency
 {
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
@@ -81,8 +81,8 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
         mPianoScrollView = new PianoScrollView(this);
         Children.Add(mPianoScrollView);
 
-        mPianoTimelineScrollView = new TimelineScrollView(this);
-        Children.Add(mPianoTimelineScrollView);
+        mPianoTimelineView = new TimelineView(this);
+        Children.Add(mPianoTimelineView);
 
         mPlayheadLayer = new PlayheadLayer(this);
         Children.Add(mPlayheadLayer);
@@ -151,7 +151,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     {
         double parameterHeight = mParameterHeight.Limit(0, finalSize.Height - TIME_AXIS_HEIGHT - PARAMETER_TAB_BAR_HEIGHT - PARAMETER_TITLE_BAR_HEIGHT);
         mPianoScrollView.Arrange(new Rect(finalSize).Adjusted(ROLL_WIDTH, TIME_AXIS_HEIGHT, 0, -PARAMETER_TAB_BAR_HEIGHT));
-        mPianoTimelineScrollView.Arrange(new Rect(ROLL_WIDTH, 0, finalSize.Width - ROLL_WIDTH, TIME_AXIS_HEIGHT));
+        mPianoTimelineView.Arrange(new Rect(ROLL_WIDTH, 0, finalSize.Width - ROLL_WIDTH, TIME_AXIS_HEIGHT));
         mPlayheadLayer.Arrange(new Rect(ROLL_WIDTH, 0, finalSize.Width - ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT));
         mParameterContainer.Arrange(new Rect(ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT - parameterHeight, finalSize.Width - ROLL_WIDTH, parameterHeight));
         mParameterTitleBar.Arrange(new Rect(ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT - parameterHeight - PARAMETER_TITLE_BAR_HEIGHT, finalSize.Width - ROLL_WIDTH, PARAMETER_TITLE_BAR_HEIGHT));
@@ -260,7 +260,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     readonly PitchAxis mPitchAxis;
 
     readonly PianoScrollView mPianoScrollView;
-    readonly TimelineScrollView mPianoTimelineScrollView;
+    readonly TimelineView mPianoTimelineView;
     readonly PlayheadLayer mPlayheadLayer;
     readonly ParameterContainer mParameterContainer;
     readonly ParameterTitleBar mParameterTitleBar;

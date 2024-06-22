@@ -45,7 +45,7 @@ internal partial class TimelineView
                             {
                                 if (e.IsDoubleClick)
                                 {
-                                    mDependency.EnterInputBpm(tempoItem.Tempo);
+                                    EnterInputBpm(tempoItem.Tempo);
                                 }
                                 else
                                 {
@@ -69,7 +69,7 @@ internal partial class TimelineView
                                 {
                                     var menuItem = new MenuItem().SetName("Edit Tempo").SetAction(() =>
                                     {
-                                        mDependency.EnterInputBpm(tempoItem.Tempo);
+                                        EnterInputBpm(tempoItem.Tempo);
                                     });
                                     menu.Items.Add(menuItem);
                                 }
