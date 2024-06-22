@@ -540,7 +540,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (Project == null)
             return;
 
-        TrackWindow.TrackGrid.ImportAudioAt(0, Project.Tracks.Count);
+        TrackWindow.TrackScrollView.ImportAudioAt(0, Project.Tracks.Count);
     }
 
     public void ChangePlayState()

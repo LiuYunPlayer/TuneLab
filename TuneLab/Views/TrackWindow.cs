@@ -29,7 +29,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     public IPlayhead Playhead => mDependency.Playhead;
     public IProvider<Part> EditingPart => mDependency.EditingPart;
     public Project? Project => ProjectProvider.Object;
-    public TrackGrid TrackGrid => mTrackScrollView.TrackGrid;
+    public TrackScrollView TrackScrollView => mTrackScrollView;
     public bool IsAutoPage => true;
 
     public interface IDependency
@@ -102,25 +102,25 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         if (e.IsHandledByTextBox())
             return;
 
-        switch (TrackGrid.OperationState)
+        switch (TrackScrollView.OperationState)
         {
-            case TrackGrid.State.None:
+            case TrackScrollView.State.None:
                 e.Handled = true;
                 if (e.Match(Key.Delete))
                 {
-                    TrackGrid.DeleteAllSelectedParts();
+                    TrackScrollView.DeleteAllSelectedParts();
                 }
                 else if (e.Match(Key.C, ModifierKeys.Ctrl))
                 {
-                    TrackGrid.Copy();
+                    TrackScrollView.Copy();
                 }
                 else if (e.Match(Key.X, ModifierKeys.Ctrl))
                 {
-                    TrackGrid.Cut();
+                    TrackScrollView.Cut();
                 }
                 else if (e.Match(Key.V, ModifierKeys.Ctrl))
                 {
-                    TrackGrid.PasteAt(TrackGrid.GetQuantizedTick(Playhead.Pos));
+                    TrackScrollView.PasteAt(TrackScrollView.GetQuantizedTick(Playhead.Pos));
                 }
                 else if (e.Match(Key.A, ModifierKeys.Ctrl))
                 {

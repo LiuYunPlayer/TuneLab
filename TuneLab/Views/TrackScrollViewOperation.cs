@@ -24,7 +24,7 @@ using Rect = Avalonia.Rect;
 
 namespace TuneLab.Views;
 
-internal partial class TrackGrid
+internal partial class TrackScrollView
 {
     protected override void OnScroll(WheelEventArgs e)
     {
@@ -74,7 +74,7 @@ internal partial class TrackGrid
                             }
                             else if (e.IsDoubleClick && item is PartNameItem partNameItem)
                             {
-                                mDependency.EnterInputPartName(partNameItem.Part, partNameItem.TrackIndex);
+                                EnterInputPartName(partNameItem.Part, partNameItem.TrackIndex);
                             }
                             else if (item is PartEndResizeItem partEndResizeItem)
                             {
@@ -401,13 +401,13 @@ internal partial class TrackGrid
         }
     }
 
-    class Operation(TrackGrid trackGrid)
+    class Operation(TrackScrollView trackScrollView)
     {
-        public TrackGrid TrackGrid => trackGrid;
-        public State State { get => TrackGrid.mState; set => TrackGrid.mState = value; }
+        public TrackScrollView TrackScrollView => trackScrollView;
+        public State State { get => TrackScrollView.mState; set => TrackScrollView.mState = value; }
     }
 
-    class MiddleDragOperation(TrackGrid trackGrid) : Operation(trackGrid)
+    class MiddleDragOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
         public bool IsOperating => mIsDragging;
 
@@ -417,10 +417,10 @@ internal partial class TrackGrid
                 return;
 
             mIsDragging = true;
-            mDownTick = TrackGrid.TickAxis.X2Tick(point.X);
-            mDownYPos = TrackGrid.TrackVerticalAxis.Coor2Pos(point.Y);
-            TrackGrid.TickAxis.StopMoveAnimation();
-            TrackGrid.TrackVerticalAxis.StopMoveAnimation();
+            mDownTick = TrackScrollView.TickAxis.X2Tick(point.X);
+            mDownYPos = TrackScrollView.TrackVerticalAxis.Coor2Pos(point.Y);
+            TrackScrollView.TickAxis.StopMoveAnimation();
+            TrackScrollView.TrackVerticalAxis.StopMoveAnimation();
         }
 
         public void Move(Avalonia.Point point)
@@ -428,8 +428,8 @@ internal partial class TrackGrid
             if (!mIsDragging)
                 return;
 
-            TrackGrid.TickAxis.MoveTickToX(mDownTick, point.X);
-            TrackGrid.TrackVerticalAxis.MovePosToCoor(mDownYPos, point.Y);
+            TrackScrollView.TickAxis.MoveTickToX(mDownTick, point.X);
+            TrackScrollView.TrackVerticalAxis.MovePosToCoor(mDownYPos, point.Y);
         }
 
         public void Up()
@@ -447,7 +447,7 @@ internal partial class TrackGrid
 
     readonly MiddleDragOperation mMiddleDragOperation;
 
-    class SelectOperation(TrackGrid trackGrid) : Operation(trackGrid)
+    class SelectOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
         public bool IsOperating => State == State.Selecting;
 
@@ -456,15 +456,15 @@ internal partial class TrackGrid
             if (State != State.None)
                 return;
 
-            if (TrackGrid.Project == null)
+            if (TrackScrollView.Project == null)
                 return;
 
             State = State.Selecting;
-            mDownTick = TrackGrid.TickAxis.X2Tick(point.X);
-            mDownPosition = TrackGrid.TrackVerticalAxis.GetPosition(point.Y);
+            mDownTick = TrackScrollView.TickAxis.X2Tick(point.X);
+            mDownPosition = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y);
             if (ctrl)
             {
-                mSelectedParts = TrackGrid.Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems();
+                mSelectedParts = TrackScrollView.Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems();
             }
             Move(point);
         }
@@ -474,12 +474,12 @@ internal partial class TrackGrid
             if (!IsOperating)
                 return;
 
-            mTick = TrackGrid.TickAxis.X2Tick(point.X);
-            mPosition = TrackGrid.TrackVerticalAxis.GetPosition(point.Y);
-            if (TrackGrid.Project == null)
+            mTick = TrackScrollView.TickAxis.X2Tick(point.X);
+            mPosition = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y);
+            if (TrackScrollView.Project == null)
                 return;
 
-            TrackGrid.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
+            TrackScrollView.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
             if (mSelectedParts != null)
             {
                 foreach (var part in mSelectedParts)
@@ -489,17 +489,17 @@ internal partial class TrackGrid
             double maxTick = Math.Max(mTick, mDownTick);
             double minY = Math.Min(mPosition.Y, mDownPosition.Y);
             double maxY = Math.Max(mPosition.Y, mDownPosition.Y);
-            for (int i = 0; i < TrackGrid.Project.Tracks.Count; i++)
+            for (int i = 0; i < TrackScrollView.Project.Tracks.Count; i++)
             {
-                double bottom = TrackGrid.TrackVerticalAxis.GetBottom(i);
+                double bottom = TrackScrollView.TrackVerticalAxis.GetBottom(i);
                 if (bottom <= minY)
                     continue;
 
-                double top = TrackGrid.TrackVerticalAxis.GetTop(i);
+                double top = TrackScrollView.TrackVerticalAxis.GetTop(i);
                 if (top >= maxY)
                     break;
 
-                var track = TrackGrid.Project.Tracks[i];
+                var track = TrackScrollView.Project.Tracks[i];
                 foreach (var part in track.Parts)
                 {
                     if (part.EndPos() <= minTick)
@@ -511,7 +511,7 @@ internal partial class TrackGrid
                     part.Select();
                 }
             }
-            TrackGrid.InvalidateVisual();
+            TrackScrollView.InvalidateVisual();
         }
 
         public void Up()
@@ -521,15 +521,15 @@ internal partial class TrackGrid
 
             State = State.None;
             mSelectedParts = null;
-            TrackGrid.InvalidateVisual();
+            TrackScrollView.InvalidateVisual();
         }
 
         public Rect SelectionRect()
         {
             double minTick = Math.Min(mTick, mDownTick);
             double maxTick = Math.Max(mTick, mDownTick);
-            double left = TrackGrid.TickAxis.Tick2X(minTick);
-            double right = TrackGrid.TickAxis.Tick2X(maxTick);
+            double left = TrackScrollView.TickAxis.Tick2X(minTick);
+            double right = TrackScrollView.TickAxis.Tick2X(maxTick);
             double top = Math.Min(mPosition.Y, mDownPosition.Y);
             double bottom = Math.Max(mPosition.Y, mDownPosition.Y);
             return new Rect(left, top, right - left, bottom - top);
@@ -544,24 +544,24 @@ internal partial class TrackGrid
 
     readonly SelectOperation mSelectOperation;
 
-    class PartMoveOperation(TrackGrid trackGrid) : Operation(trackGrid)
+    class PartMoveOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
         public void Down(Avalonia.Point point, bool ctrl, IPart part)
         {
-            if (TrackGrid.Project == null)
+            if (TrackScrollView.Project == null)
                 return;
 
             mCtrl = ctrl;
             mIsSelected = part.IsSelected;
             if (!mCtrl && !mIsSelected)
             {
-                TrackGrid.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
+                TrackScrollView.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
             }
             part.Select();
 
-            for (int trackIndex = 0; trackIndex < TrackGrid.Project.Tracks.Count; trackIndex++)
+            for (int trackIndex = 0; trackIndex < TrackScrollView.Project.Tracks.Count; trackIndex++)
             {
-                var selectedParts = TrackGrid.Project.Tracks[trackIndex].Parts.AllSelectedItems();
+                var selectedParts = TrackScrollView.Project.Tracks[trackIndex].Parts.AllSelectedItems();
                 if (selectedParts.IsEmpty())
                     continue;
 
@@ -579,14 +579,14 @@ internal partial class TrackGrid
             mHead = part.Head;
             mPart = part;
             mDownPartPos = mPart.Pos.Value;
-            mTickOffset = TrackGrid.TickAxis.X2Tick(point.X) - part.Pos.Value;
-            mTrackIndex = TrackGrid.TrackVerticalAxis.GetPosition(point.Y).TrackIndex;
-            TrackGrid.TrackVerticalAxis.SetAutoContentSize(false);
+            mTickOffset = TrackScrollView.TickAxis.X2Tick(point.X) - part.Pos.Value;
+            mTrackIndex = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y).TrackIndex;
+            TrackScrollView.TrackVerticalAxis.SetAutoContentSize(false);
         }
 
         public void Move(Avalonia.Point point)
         {
-            var project = TrackGrid.Project;
+            var project = TrackScrollView.Project;
             if (project == null)
                 return;
 
@@ -596,10 +596,10 @@ internal partial class TrackGrid
             if (mMoveParts.IsEmpty())
                 return;
 
-            var position = TrackGrid.TrackVerticalAxis.GetPosition(point.Y);
+            var position = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y);
             var trackIndex = position.TrackIndex;
             int trackIndexOffset = Math.Max(-mMoveParts.First().trackIndex, trackIndex - mTrackIndex);
-            double pos = TrackGrid.GetQuantizedTick(TrackGrid.TickAxis.X2Tick(point.X) - mTickOffset);
+            double pos = TrackScrollView.GetQuantizedTick(TrackScrollView.TickAxis.X2Tick(point.X) - mTickOffset);
             double posOffset = pos - mDownPartPos;
             if (posOffset == mLastPosOffset && trackIndexOffset == mLastTrackIndexOffset)
                 return;
@@ -643,7 +643,7 @@ internal partial class TrackGrid
             if (mPart == null)
                 return;
 
-            if (TrackGrid.Project == null)
+            if (TrackScrollView.Project == null)
                 return;
 
             foreach (var movePart in mMoveParts.SelectMany(p => p.parts))
@@ -653,7 +653,7 @@ internal partial class TrackGrid
             }
             if (mMoved)
             {
-                TrackGrid.Project.Commit();
+                TrackScrollView.Project.Commit();
             }
             else
             {
@@ -667,11 +667,11 @@ internal partial class TrackGrid
                 }
                 else
                 {
-                    TrackGrid.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
+                    TrackScrollView.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
                     mPart.Select();
                 }
             }
-            TrackGrid.TrackVerticalAxis.SetAutoContentSize(true);
+            TrackScrollView.TrackVerticalAxis.SetAutoContentSize(true);
             mMoved = false;
             mPart = null;
             mMoveParts.Clear();
@@ -702,14 +702,14 @@ internal partial class TrackGrid
 
     readonly PartMoveOperation mPartMoveOperation;
 
-    class PartEndResizeOperation(TrackGrid trackGrid) : Operation(trackGrid)
+    class PartEndResizeOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
         public void Down(double x, IPart part, ITrack track)
         {
             State = State.PartEndResizing;
             mPart = part;
             mTrack = track;
-            double end = TrackGrid.TickAxis.Tick2X(mPart.EndPos());
+            double end = TrackScrollView.TickAxis.Tick2X(mPart.EndPos());
             mOffset = x - end;
             mHead = mPart.Head;
         }
@@ -724,8 +724,8 @@ internal partial class TrackGrid
 
             mPart.DiscardTo(mHead);
             double end = x - mOffset;
-            double endTick = TrackGrid.TickAxis.X2Tick(end);
-            mPart.Dur.Set(Math.Max(TrackGrid.GetQuantizedTick(endTick) - mPart.Pos.Value, TrackGrid.QuantizedCellTicks()));
+            double endTick = TrackScrollView.TickAxis.X2Tick(end);
+            mPart.Dur.Set(Math.Max(TrackScrollView.GetQuantizedTick(endTick) - mPart.Pos.Value, TrackScrollView.QuantizedCellTicks()));
             mTrack.RemovePart(mPart);
             mTrack.InsertPart(mPart);
         }
@@ -750,7 +750,7 @@ internal partial class TrackGrid
 
     readonly PartEndResizeOperation mPartEndResizeOperation;
 
-    class DragFileOperation(TrackGrid trackGrid) : Operation(trackGrid)
+    class DragFileOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
         public bool IsOperating => State == State.FileDragging;
         public double Pos => mLastPos;
@@ -782,10 +782,10 @@ internal partial class TrackGrid
 
         public void Over(Avalonia.Point point)
         {
-            mLastTrackIndex = TrackGrid.TrackVerticalAxis.GetPosition(point.Y).TrackIndex;
-            mLastPos = TrackGrid.GetQuantizedTick(TrackGrid.TickAxis.X2Tick(point.X));
+            mLastTrackIndex = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y).TrackIndex;
+            mLastPos = TrackScrollView.GetQuantizedTick(TrackScrollView.TickAxis.X2Tick(point.X));
 
-            TrackGrid.InvalidateVisual();
+            TrackScrollView.InvalidateVisual();
         }
 
         public void Leave()
@@ -802,26 +802,26 @@ internal partial class TrackGrid
             if (mPreImportAudioInfos.IsEmpty())
                 return;
 
-            if (TrackGrid.Project == null)
+            if (TrackScrollView.Project == null)
                 return;
 
-            while (TrackGrid.Project.Tracks.Count < mLastTrackIndex + mPreImportAudioInfos.Count)
-                TrackGrid.Project.NewTrack();
+            while (TrackScrollView.Project.Tracks.Count < mLastTrackIndex + mPreImportAudioInfos.Count)
+                TrackScrollView.Project.NewTrack();
 
             var trackIndex = mLastTrackIndex;
             foreach (var info in mPreImportAudioInfos)
             {
-                var track = TrackGrid.Project.Tracks[trackIndex];
+                var track = TrackScrollView.Project.Tracks[trackIndex];
                 track.InsertPart(track.CreatePart(new AudioPartInfo() { Pos = mLastPos, Dur = info.Dur, Name = info.name, Path = info.path }));
                 trackIndex++;
             }
-            TrackGrid.Project.Commit();
+            TrackScrollView.Project.Commit();
             mPreImportAudioInfos.Clear();
         }
 
         public class PreImportAudioInfo(DragFileOperation operation)
         {
-            public double EndPos => operation.TrackGrid.Project!.TempoManager.GetTick(operation.TrackGrid.Project.TempoManager.GetTime(operation.mLastPos) + duration);
+            public double EndPos => operation.TrackScrollView.Project!.TempoManager.GetTick(operation.TrackScrollView.Project.TempoManager.GetTime(operation.mLastPos) + duration);
             public double Dur => EndPos - operation.mLastPos;
             public required string path;
             public required string name;
