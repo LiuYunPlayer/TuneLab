@@ -13,7 +13,7 @@ using TuneLab.Base.Utils;
 
 namespace TuneLab.GUI.Components;
 
-internal class View : Component
+internal class View : Container
 {
     protected virtual void OnRender(DrawingContext context) { }
     protected virtual void OnMouseAbsoluteMove(MouseMoveEventArgs e) { }

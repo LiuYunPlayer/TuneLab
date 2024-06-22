@@ -95,7 +95,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         Menu = CreateMenu();
 
-        mFunctionBar.GotFocus += (s, e) => { mPianoWindow.PianoGrid.Focus(); };
+        mFunctionBar.GotFocus += (s, e) => { mPianoWindow.PianoScrollView.Focus(); };
         mDocument.StatusChanged += () => { mUndoMenuItem.IsEnabled = mDocument.Undoable(); mRedoMenuItem.IsEnabled = mDocument.Redoable(); };
         mAutoSaveTimer.Tick += (s, e) => { AutoSave(); };
         PathManager.MakeSure(PathManager.AutoSaveFolder);

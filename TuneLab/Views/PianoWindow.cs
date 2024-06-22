@@ -32,7 +32,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
         set => mPartProvider.Set(value);
     }
     public ParameterButton PitchButton => mParameterTabBar.PitchButton;
-    public PianoGrid PianoGrid => mPianoScrollView.PianoGrid;
+    public PianoScrollView PianoScrollView => mPianoScrollView;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
     public PianoTool PianoTool { get => mPianoTool; set { if (mPianoTool == value) return; mPianoTool = value; mPianoToolChanged.Invoke(); } }
@@ -165,25 +165,25 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
         if (e.IsHandledByTextBox())
             return;
 
-        switch (PianoGrid.OperationState)
+        switch (PianoScrollView.OperationState)
         {
-            case PianoGrid.State.None:
+            case PianoScrollView.State.None:
                 e.Handled = true;
                 if (e.Match(Key.Delete))
                 {
-                    PianoGrid.Delete();
+                    PianoScrollView.Delete();
                 }
                 else if (e.Match(Key.C, ModifierKeys.Ctrl))
                 {
-                    PianoGrid.Copy();
+                    PianoScrollView.Copy();
                 }
                 else if (e.Match(Key.X, ModifierKeys.Ctrl))
                 {
-                    PianoGrid.Cut();
+                    PianoScrollView.Cut();
                 }
                 else if (e.Match(Key.V, ModifierKeys.Ctrl))
                 {
-                    PianoGrid.Paste();
+                    PianoScrollView.Paste();
                 }
                 else if (e.Match(Key.A, ModifierKeys.Ctrl))
                 {
@@ -202,19 +202,19 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
                 }
                 else if (e.Match(Key.Up, ModifierKeys.Shift))
                 {
-                    PianoGrid.OctaveUp();
+                    PianoScrollView.OctaveUp();
                 }
                 else if (e.Match(Key.Down, ModifierKeys.Shift))
                 {
-                    PianoGrid.OctaveDown();
+                    PianoScrollView.OctaveDown();
                 }
                 else if (e.Match(Key.Up))
                 {
-                    PianoGrid.ChangeKey(+1);
+                    PianoScrollView.ChangeKey(+1);
                 }
                 else if (e.Match(Key.Down))
                 {
-                    PianoGrid.ChangeKey(-1);
+                    PianoScrollView.ChangeKey(-1);
                 }
                 else
                 {

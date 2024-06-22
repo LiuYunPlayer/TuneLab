@@ -14,20 +14,20 @@ using Avalonia.Media;
 
 namespace TuneLab.Views;
 
-internal partial class PianoGrid
+internal partial class PianoScrollView
 {
-    class PianoGridItem(PianoGrid pianoGrid) : Item
+    class PianoScrollViewItem(PianoScrollView pianoScrollView) : Item
     {
-        public PianoGrid PianoGrid => pianoGrid;
+        public PianoScrollView PianoScrollView => pianoScrollView;
     }
 
-    class NoteItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class NoteItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
 
         public Rect Rect()
         {
-            return PianoGrid.NoteRect(Note);
+            return PianoScrollView.NoteRect(Note);
         }
 
         public override bool Raycast(Avalonia.Point point)
@@ -36,51 +36,51 @@ internal partial class PianoGrid
         }
     }
 
-    class NoteStartResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class NoteStartResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
 
         public override bool Raycast(Avalonia.Point point)
         {
-            double x = PianoGrid.TickAxis.Tick2X(Note.GlobalStartPos());
+            double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
             double left = x - 8;
             double right = x + 8;
             var last = Note.Last;
             if (last != null && last.Pitch.Value == Note.Pitch.Value)
             {
-                double lastX = PianoGrid.TickAxis.Tick2X(last.GlobalEndPos());
+                double lastX = PianoScrollView.TickAxis.Tick2X(last.GlobalEndPos());
                 left = x - Math.Min(8, Math.Abs(lastX - x));
             }
-            double top = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
-            double bottom = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value);
+            double top = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
+            double bottom = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value);
             return point.Y >= top && point.Y <= bottom && point.X >= left && point.X <= right;
         }
     }
 
-    class NoteEndResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class NoteEndResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
 
         public override bool Raycast(Avalonia.Point point)
         {
-            double x = PianoGrid.TickAxis.Tick2X(Note.GlobalEndPos());
+            double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalEndPos());
             double left = x - 8;
             double right = x + 8;
-            double top = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
-            double bottom = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value);
+            double top = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
+            double bottom = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value);
             return point.Y >= top && point.Y <= bottom && point.X >= left && point.X <= right;
         }
     }
 
-    class NotePronunciationItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class NotePronunciationItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
 
         public override bool Raycast(Point point)
         {
-            double left = PianoGrid.TickAxis.Tick2X(Note.GlobalStartPos());
+            double left = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
             double width = new FormattedText(Note.FinalPronunciation() ?? string.Empty, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
-            double bottom = PianoGrid.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
+            double bottom = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
             double top = bottom - 28;
             return new Rect(left, top, width, bottom - top).Contains(point);
         }
@@ -89,100 +89,100 @@ internal partial class PianoGrid
     interface IVibratoItem
     {
         Vibrato Vibrato { get; }
-        PianoGrid PianoGrid { get; }
+        PianoScrollView PianoScrollView { get; }
 
         public Point FrequencyPosition()
         {
             double pitch = Pitch();
-            double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch + Vibrato.Amplitude) - 24;
+            double y = double.IsNaN(pitch) ? double.NaN : PianoScrollView.PitchAxis.Pitch2Y(pitch + Vibrato.Amplitude) - 24;
             return new Point(CenterX(), y);
         }
 
         public Point PhasePosition()
         {
             double pitch = Pitch();
-            double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch - Vibrato.Amplitude) + 24;
+            double y = double.IsNaN(pitch) ? double.NaN : PianoScrollView.PitchAxis.Pitch2Y(pitch - Vibrato.Amplitude) + 24;
             return new Point(CenterX(), y);
         }
 
         public Point AttackPosition()
         {
             double pitch = Pitch();
-            double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch);
-            return new Point(PianoGrid.TickAxis.Tick2X(Vibrato.GlobalAttackTick()), y);
+            double y = double.IsNaN(pitch) ? double.NaN : PianoScrollView.PitchAxis.Pitch2Y(pitch);
+            return new Point(PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalAttackTick()), y);
         }
 
         public Point ReleasePosition()
         {
             double pitch = Pitch();
-            double y = double.IsNaN(pitch) ? double.NaN : PianoGrid.PitchAxis.Pitch2Y(pitch);
-            return new Point(PianoGrid.TickAxis.Tick2X(Vibrato.GlobalReleaseTick()), y);
+            double y = double.IsNaN(pitch) ? double.NaN : PianoScrollView.PitchAxis.Pitch2Y(pitch);
+            return new Point(PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalReleaseTick()), y);
         }
 
         public double CenterX()
         {
-            return PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos() + Vibrato.Dur / 2);
+            return PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalStartPos() + Vibrato.Dur / 2);
         }
 
         public double Pitch()
         {
-            return PianoGrid.Part == null ? double.NaN : PianoGrid.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
+            return PianoScrollView.Part == null ? double.NaN : PianoScrollView.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
         }
     }
 
-    class VibratoItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
-            double left = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos());
-            double right = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalEndPos());
+            double left = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalStartPos());
+            double right = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalEndPos());
             return point.X > left && point.X < right;
         }
     }
 
-    class VibratoAmplitudeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoAmplitudeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
-            double left = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos());
-            double right = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalEndPos());
-            double pitch = PianoGrid.Part == null ? double.NaN : PianoGrid.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2);
+            double left = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalStartPos());
+            double right = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalEndPos());
+            double pitch = PianoScrollView.Part == null ? double.NaN : PianoScrollView.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2);
             if (double.IsNaN(pitch))
                 return false;
 
-            double top = PianoGrid.PitchAxis.Pitch2Y(pitch + 0.5 + Vibrato.Amplitude) - 24;
-            double bottom = PianoGrid.PitchAxis.Pitch2Y(pitch + 0.5 - Vibrato.Amplitude) + 24;
+            double top = PianoScrollView.PitchAxis.Pitch2Y(pitch + 0.5 + Vibrato.Amplitude) - 24;
+            double bottom = PianoScrollView.PitchAxis.Pitch2Y(pitch + 0.5 - Vibrato.Amplitude) + 24;
             return point.X > left && point.X < right && point.Y > top && point.Y < bottom;
         }
     }
 
-    class VibratoStartResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoStartResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
-            double x = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalStartPos());
+            double x = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalStartPos());
             return point.X > x - 8 && point.X < x + 8;
         }
     }
 
-    class VibratoEndResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoEndResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
         public override bool Raycast(Point point)
         {
-            double x = PianoGrid.TickAxis.Tick2X(Vibrato.GlobalEndPos());
+            double x = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalEndPos());
             return point.X > x - 8 && point.X < x + 8;
         }
     }
 
-    class VibratoFrequencyItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoFrequencyItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
@@ -201,7 +201,7 @@ internal partial class PianoGrid
         }
     }
 
-    class VibratoPhaseItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoPhaseItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
@@ -220,7 +220,7 @@ internal partial class PianoGrid
         }
     }
 
-    class VibratoAttackItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoAttackItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
@@ -239,7 +239,7 @@ internal partial class PianoGrid
         }
     }
 
-    class VibratoReleaseItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid), IVibratoItem
+    class VibratoReleaseItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView), IVibratoItem
     {
         public required Vibrato Vibrato { get; set; }
 
@@ -258,15 +258,15 @@ internal partial class PianoGrid
         }
     }
 
-    class WaveformBackItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class WaveformBackItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public override bool Raycast(Point point)
         {
-            return point.Y >= PianoGrid.WaveformTop && point.Y <= PianoGrid.WaveformBottom;
+            return point.Y >= PianoScrollView.WaveformTop && point.Y <= PianoScrollView.WaveformBottom;
         }
     }
 
-    class WaveformNoteResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class WaveformNoteResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public INote? Left;
         public INote? Right;
@@ -276,14 +276,14 @@ internal partial class PianoGrid
             if (Left == null && Right == null)
                 return false;
 
-            double center = (PianoGrid.WaveformTop + PianoGrid.WaveformBottom) / 2;
+            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
             double pos = Left == null ? Right!.GlobalStartPos() : Left.GlobalEndPos();
-            double x = PianoGrid.TickAxis.Tick2X(pos);
+            double x = PianoScrollView.TickAxis.Tick2X(pos);
             return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
         }
     }
 
-    class WaveformPhonemeResizeItem(PianoGrid pianoGrid) : PianoGridItem(pianoGrid)
+    class WaveformPhonemeResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
         public int PhonemeIndex;
@@ -297,10 +297,10 @@ internal partial class PianoGrid
             if (phonemes == null || phonemes.IsEmpty() || PhonemeIndex > phonemes.Count)
                 return false;
 
-            double center = (PianoGrid.WaveformTop + PianoGrid.WaveformBottom) / 2;
+            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
             double time = phonemes.Count == PhonemeIndex ? phonemes.ConstLast().EndTime : phonemes[PhonemeIndex].StartTime;
             double pos = Note.Part.TempoManager.GetTick(time);
-            double x = PianoGrid.TickAxis.Tick2X(pos);
+            double x = PianoScrollView.TickAxis.Tick2X(pos);
             return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
         }
     }

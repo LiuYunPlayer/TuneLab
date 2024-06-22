@@ -18,7 +18,7 @@ using TuneLab.Base.Utils;
 
 namespace TuneLab.Views;
 
-internal partial class PianoGrid
+internal partial class PianoScrollView
 {
     protected override void OnScroll(WheelEventArgs e)
     {
@@ -106,7 +106,7 @@ internal partial class PianoGrid
 
                                         if (e.IsDoubleClick)
                                         {
-                                            mDependency.EnterInputLyric(note);
+                                            EnterInputLyric(note);
                                         }
                                         else
                                         {
@@ -933,13 +933,13 @@ internal partial class PianoGrid
         }
     }
 
-    class Operation(PianoGrid pianoGrid)
+    class Operation(PianoScrollView pianoScrollView)
     {
-        public PianoGrid PianoGrid => pianoGrid;
-        public State State { get => PianoGrid.mState; set => PianoGrid.mState = value; }
+        public PianoScrollView PianoScrollView => pianoScrollView;
+        public State State { get => PianoScrollView.mState; set => PianoScrollView.mState = value; }
     }
 
-    class MiddleDragOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class MiddleDragOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public bool IsOperating => mIsDragging;
 
@@ -949,10 +949,10 @@ internal partial class PianoGrid
                 return;
 
             mIsDragging = true;
-            mDownTick = PianoGrid.TickAxis.X2Tick(point.X);
-            mDownPitch = PianoGrid.PitchAxis.Y2Pitch(point.Y);
-            PianoGrid.TickAxis.StopMoveAnimation();
-            PianoGrid.PitchAxis.StopMoveAnimation();
+            mDownTick = PianoScrollView.TickAxis.X2Tick(point.X);
+            mDownPitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y);
+            PianoScrollView.TickAxis.StopMoveAnimation();
+            PianoScrollView.PitchAxis.StopMoveAnimation();
         }
 
         public void Move(Avalonia.Point point)
@@ -960,8 +960,8 @@ internal partial class PianoGrid
             if (!mIsDragging)
                 return;
 
-            PianoGrid.TickAxis.MoveTickToX(mDownTick, point.X);
-            PianoGrid.PitchAxis.MovePitchToY(mDownPitch, point.Y);
+            PianoScrollView.TickAxis.MoveTickToX(mDownTick, point.X);
+            PianoScrollView.PitchAxis.MovePitchToY(mDownPitch, point.Y);
         }
 
         public void Up()
@@ -979,7 +979,7 @@ internal partial class PianoGrid
 
     readonly MiddleDragOperation mMiddleDragOperation;
 
-    abstract class SelectOperation<T>(PianoGrid pianoGrid) : Operation(pianoGrid) where T : ISelectable
+    abstract class SelectOperation<T>(PianoScrollView pianoScrollView) : Operation(pianoScrollView) where T : ISelectable
     {
         public bool IsOperating => State == SelectState;
 
@@ -991,13 +991,13 @@ internal partial class PianoGrid
             if (Collection == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = SelectState;
-            PianoGrid.mSelection.IsAcitve = false;
-            mDownTick = PianoGrid.TickAxis.X2Tick(point.X) - PianoGrid.Part.Pos;
-            mDownPitch = PianoGrid.PitchAxis.Y2Pitch(point.Y);
+            PianoScrollView.mSelection.IsAcitve = false;
+            mDownTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos;
+            mDownPitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             if (ctrl)
             {
                 mSelectedItems = Collection.AllSelectedItems();
@@ -1010,11 +1010,11 @@ internal partial class PianoGrid
             if (!IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            mTick = PianoGrid.TickAxis.X2Tick(point.X) - PianoGrid.Part.Pos;
-            mPitch = PianoGrid.PitchAxis.Y2Pitch(point.Y);
+            mTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos;
+            mPitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             if (Collection == null)
                 return;
 
@@ -1031,7 +1031,7 @@ internal partial class PianoGrid
             double maxPitch = Math.Max(mPitch, mDownPitch);
             Select(Collection, minTick, maxTick, minPitch, maxPitch);
             EndSelect();
-            PianoGrid.InvalidateVisual();
+            PianoScrollView.InvalidateVisual();
         }
 
         public void Up()
@@ -1040,21 +1040,21 @@ internal partial class PianoGrid
                 return;
 
             State = State.None;
-            PianoGrid.InvalidateVisual();
+            PianoScrollView.InvalidateVisual();
             mSelectedItems = null;
         }
 
         public Rect SelectionRect()
         {
-            double pos = PianoGrid.Part == null ? 0 : PianoGrid.Part.Pos;
+            double pos = PianoScrollView.Part == null ? 0 : PianoScrollView.Part.Pos;
             double minTick = Math.Min(mTick, mDownTick) + pos;
             double maxTick = Math.Max(mTick, mDownTick) + pos;
             double minPitch = Math.Min(mPitch, mDownPitch);
             double maxPitch = Math.Max(mPitch, mDownPitch);
-            double left = PianoGrid.TickAxis.Tick2X(minTick);
-            double right = PianoGrid.TickAxis.Tick2X(maxTick);
-            double top = PianoGrid.PitchAxis.Pitch2Y(maxPitch);
-            double bottom = PianoGrid.PitchAxis.Pitch2Y(minPitch);
+            double left = PianoScrollView.TickAxis.Tick2X(minTick);
+            double right = PianoScrollView.TickAxis.Tick2X(maxTick);
+            double top = PianoScrollView.PitchAxis.Pitch2Y(maxPitch);
+            double bottom = PianoScrollView.PitchAxis.Pitch2Y(minPitch);
             return new Rect(left, top, right - left, bottom - top);
         }
 
@@ -1071,10 +1071,10 @@ internal partial class PianoGrid
         double mPitch;
     }
 
-    class NoteSelectOperation(PianoGrid pianoGrid) : SelectOperation<INote>(pianoGrid)
+    class NoteSelectOperation(PianoScrollView pianoScrollView) : SelectOperation<INote>(pianoScrollView)
     {
         protected override State SelectState => State.NoteSelecting;
-        protected override IEnumerable<INote>? Collection => PianoGrid.Part?.Notes;
+        protected override IEnumerable<INote>? Collection => PianoScrollView.Part?.Notes;
 
         protected override void Select(IEnumerable<INote> notes, double minTick, double maxTick, double minPitch, double maxPitch)
         {
@@ -1093,18 +1093,18 @@ internal partial class PianoGrid
 
         protected override void BeginSelect()
         {
-            PianoGrid.Part?.Notes.SelectionChanged.BeginMerge();
+            PianoScrollView.Part?.Notes.SelectionChanged.BeginMerge();
         }
 
         protected override void EndSelect()
         {
-            PianoGrid.Part?.Notes.SelectionChanged.EndMerge();
+            PianoScrollView.Part?.Notes.SelectionChanged.EndMerge();
         }
     }
 
     readonly NoteSelectOperation mNoteSelectOperation;
 
-    class PitchDrawOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class PitchDrawOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public bool IsOperating => State == State.PitchDrawing;
 
@@ -1113,15 +1113,15 @@ internal partial class PianoGrid
             if (IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.PitchDrawing;
-            PianoGrid.Part.BeginMergeDirty();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.BeginMergeDirty();
+            mHead = PianoScrollView.Part.Head;
 
             mPointLines.Add([ToTickAndValue(mousePosition)]);
-            PianoGrid.Part.Pitch.AddLine(mPointLines[0], 5);
+            PianoScrollView.Part.Pitch.AddLine(mPointLines[0], 5);
         }
 
         public void Move(Avalonia.Point mousePosition)
@@ -1129,7 +1129,7 @@ internal partial class PianoGrid
             if (!IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             var point = ToTickAndValue(mousePosition);
@@ -1160,10 +1160,10 @@ internal partial class PianoGrid
                 mDirection = direction;
             }
 
-            PianoGrid.Part.Pitch.DiscardTo(mHead);
+            PianoScrollView.Part.Pitch.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                PianoGrid.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
+                PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
             }
         }
 
@@ -1174,22 +1174,22 @@ internal partial class PianoGrid
 
             State = State.None;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.Pitch.DiscardTo(mHead);
-            PianoGrid.Part.EndMergeDirty();
+            PianoScrollView.Part.Pitch.DiscardTo(mHead);
+            PianoScrollView.Part.EndMergeDirty();
             foreach (var line in mPointLines)
             {
-                PianoGrid.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
+                PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
             }
-            PianoGrid.Part.Pitch.Commit();
+            PianoScrollView.Part.Pitch.Commit();
             mPointLines.Clear();
         }
 
         Point ToTickAndValue(Avalonia.Point mousePosition)
         {
-            return new(PianoGrid.TickAxis.X2Tick(mousePosition.X) - PianoGrid.Part!.Pos, PianoGrid.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5);
+            return new(PianoScrollView.TickAxis.X2Tick(mousePosition.X) - PianoScrollView.Part!.Pos, PianoScrollView.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5);
         }
 
         bool mDirection;
@@ -1199,7 +1199,7 @@ internal partial class PianoGrid
 
     readonly PitchDrawOperation mPitchDrawOperation;
 
-    class PitchClearOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class PitchClearOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public bool IsOperating => State == State.PitchClearing;
 
@@ -1208,16 +1208,16 @@ internal partial class PianoGrid
             if (IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.PitchClearing;
-            PianoGrid.Part.BeginMergeDirty();
-            mHead = PianoGrid.Part.Head;
-            double tick = PianoGrid.TickAxis.X2Tick(x) - PianoGrid.Part.Pos;
+            PianoScrollView.Part.BeginMergeDirty();
+            mHead = PianoScrollView.Part.Head;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = tick;
             mEnd = tick;
-            PianoGrid.Part.Pitch.Clear(mStart, mEnd);
+            PianoScrollView.Part.Pitch.Clear(mStart, mEnd);
         }
 
         public void Move(double x)
@@ -1225,14 +1225,14 @@ internal partial class PianoGrid
             if (!IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.Pitch.DiscardTo(mHead);
-            double tick = PianoGrid.TickAxis.X2Tick(x) - PianoGrid.Part.Pos;
+            PianoScrollView.Part.Pitch.DiscardTo(mHead);
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
-            PianoGrid.Part.Pitch.Clear(mStart, mEnd);
+            PianoScrollView.Part.Pitch.Clear(mStart, mEnd);
         }
 
         public void Up()
@@ -1242,13 +1242,13 @@ internal partial class PianoGrid
 
             State = State.None;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.Pitch.DiscardTo(mHead);
-            PianoGrid.Part.Pitch.Clear(mStart, mEnd);
-            PianoGrid.Part.EndMergeDirty();
-            PianoGrid.Part.Pitch.Commit();
+            PianoScrollView.Part.Pitch.DiscardTo(mHead);
+            PianoScrollView.Part.Pitch.Clear(mStart, mEnd);
+            PianoScrollView.Part.EndMergeDirty();
+            PianoScrollView.Part.Pitch.Commit();
         }
 
         double mStart;
@@ -1258,7 +1258,7 @@ internal partial class PianoGrid
 
     readonly PitchClearOperation mPitchClearOperation;
 
-    class PitchLockOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class PitchLockOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public bool IsOperating => State == State.PitchLocking;
 
@@ -1267,16 +1267,16 @@ internal partial class PianoGrid
             if (IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.PitchLocking;
-            PianoGrid.Part.BeginMergeDirty();
-            mHead = PianoGrid.Part.Head;
-            double tick = PianoGrid.TickAxis.X2Tick(x) - PianoGrid.Part.Pos;
+            PianoScrollView.Part.BeginMergeDirty();
+            mHead = PianoScrollView.Part.Head;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = tick;
             mEnd = tick;
-            PianoGrid.Part.LockPitch(mStart, mEnd, 5);
+            PianoScrollView.Part.LockPitch(mStart, mEnd, 5);
         }
 
         public void Move(double x)
@@ -1284,14 +1284,14 @@ internal partial class PianoGrid
             if (!IsOperating)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
-            double tick = PianoGrid.TickAxis.X2Tick(x) - PianoGrid.Part.Pos;
+            PianoScrollView.Part.DiscardTo(mHead);
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
-            PianoGrid.Part.LockPitch(mStart, mEnd, 5);
+            PianoScrollView.Part.LockPitch(mStart, mEnd, 5);
         }
 
         public void Up()
@@ -1301,13 +1301,13 @@ internal partial class PianoGrid
 
             State = State.None;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
-            PianoGrid.Part.LockPitch(mStart, mEnd, 5);
-            PianoGrid.Part.EndMergeDirty();
-            PianoGrid.Part.Commit();
+            PianoScrollView.Part.DiscardTo(mHead);
+            PianoScrollView.Part.LockPitch(mStart, mEnd, 5);
+            PianoScrollView.Part.EndMergeDirty();
+            PianoScrollView.Part.Commit();
         }
 
         double mStart;
@@ -1317,23 +1317,23 @@ internal partial class PianoGrid
 
     readonly PitchLockOperation mPitchLockOperation;
 
-    class NoteMoveOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class NoteMoveOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(Avalonia.Point point, bool ctrl, INote note)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             mCtrl = ctrl;
             mIsSelected = note.IsSelected;
             if (!mCtrl && !mIsSelected)
             {
-                PianoGrid.Part.Notes.DeselectAllItems();
+                PianoScrollView.Part.Notes.DeselectAllItems();
             }
             note.Select();
 
-            var (minPitch, maxPitch) = PianoGrid.Part.PitchRange();
-            foreach (var selectedNote in PianoGrid.Part.Notes.Where(note => note.IsSelected))
+            var (minPitch, maxPitch) = PianoScrollView.Part.PitchRange();
+            foreach (var selectedNote in PianoScrollView.Part.Notes.Where(note => note.IsSelected))
             {
                 mMoveNotes.Add(selectedNote);
 
@@ -1347,11 +1347,11 @@ internal partial class PianoGrid
                 return;
 
             State = State.NoteMoving;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mNote = note;
             mDownPartPos = mNote.GlobalStartPos();
-            mTickOffset = PianoGrid.TickAxis.X2Tick(point.X) - PianoGrid.Part.Pos - note.Pos.Value;
+            mTickOffset = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos - note.Pos.Value;
             mPitch = note.Pitch.Value;
             mMinPitch = minPitch;
             mMaxPitch = maxPitch;
@@ -1359,7 +1359,7 @@ internal partial class PianoGrid
 
         public void Move(Avalonia.Point point, bool alt, bool shift)
         {
-            var part = PianoGrid.Part;
+            var part = PianoScrollView.Part;
             if (part == null)
                 return;
 
@@ -1369,10 +1369,10 @@ internal partial class PianoGrid
             if (mMoveNotes.IsEmpty())
                 return;
 
-            int pitch = (int)PianoGrid.PitchAxis.Y2Pitch(point.Y);
+            int pitch = (int)PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             int pitchOffset = (pitch - mPitch).Limit(MusicTheory.MIN_PITCH - mMinPitch, MusicTheory.MAX_PITCH - mMaxPitch);
-            double pos = PianoGrid.TickAxis.X2Tick(point.X) - mTickOffset;
-            if (!alt) pos = PianoGrid.GetQuantizedTick(pos);
+            double pos = PianoScrollView.TickAxis.X2Tick(point.X) - mTickOffset;
+            if (!alt) pos = PianoScrollView.GetQuantizedTick(pos);
             double posOffset = pos - mDownPartPos;
             if (shift) posOffset = 0;
             if (posOffset == mLastPosOffset && pitchOffset == mLastPitchOffset)
@@ -1406,17 +1406,17 @@ internal partial class PianoGrid
             if (mNote == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EnableAutoPrepare();
             if (mMoved)
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             else
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
                 if (mCtrl)
                 {
                     if (mIsSelected)
@@ -1426,7 +1426,7 @@ internal partial class PianoGrid
                 }
                 else
                 {
-                    PianoGrid.Part.Notes.DeselectAllItems();
+                    PianoScrollView.Part.Notes.DeselectAllItems();
                     mNote.Select();
                 }
             }
@@ -1456,18 +1456,18 @@ internal partial class PianoGrid
 
     readonly NoteMoveOperation mNoteMoveOperation;
 
-    class NoteStartResizeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class NoteStartResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, INote note)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.NoteStartResizing;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mNote = note;
-            double start = PianoGrid.TickAxis.Tick2X(mNote.GlobalStartPos());
+            double start = PianoScrollView.TickAxis.Tick2X(mNote.GlobalStartPos());
             mOffset = x - start;
         }
 
@@ -1476,22 +1476,22 @@ internal partial class PianoGrid
             if (mNote == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
+            PianoScrollView.Part.DiscardTo(mHead);
             double start = x - mOffset;
-            double startTick = PianoGrid.TickAxis.X2Tick(start);
-            if (!alt) startTick = Math.Min(PianoGrid.GetQuantizedTick(startTick), PianoGrid.GetQuantizedTick(mNote.GlobalEndPos()) - PianoGrid.QuantizedCellTicks());
-            startTick -= PianoGrid.Part.Pos;
+            double startTick = PianoScrollView.TickAxis.X2Tick(start);
+            if (!alt) startTick = Math.Min(PianoScrollView.GetQuantizedTick(startTick), PianoScrollView.GetQuantizedTick(mNote.GlobalEndPos()) - PianoScrollView.QuantizedCellTicks());
+            startTick -= PianoScrollView.Part.Pos;
             if (startTick >= mNote.EndPos())
             {
-                PianoGrid.Part.RemoveNote(mNote);
+                PianoScrollView.Part.RemoveNote(mNote);
                 return;
             }
 
             List<INote> modifiedNotes = new();
-            PianoGrid.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeReSegment();
             double offsetTick = startTick - mNote.StartPos();
             mNote.Pos.Set(mNote.Pos.Value + offsetTick);
             mNote.Dur.Set(mNote.Dur.Value - offsetTick);
@@ -1503,7 +1503,7 @@ internal partial class PianoGrid
                     note = note.Last;
                     if (note.StartPos() >= startTick)
                     {
-                        PianoGrid.Part.RemoveNote(note);
+                        PianoScrollView.Part.RemoveNote(note);
                         continue;
                     }
 
@@ -1516,13 +1516,13 @@ internal partial class PianoGrid
             }
             foreach (var note in modifiedNotes)
             {
-                PianoGrid.Part.RemoveNote(note);
+                PianoScrollView.Part.RemoveNote(note);
             }
             foreach (var note in modifiedNotes)
             {
-                PianoGrid.Part.InsertNote(note);
+                PianoScrollView.Part.InsertNote(note);
             }
-            PianoGrid.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeReSegment();
         }
 
         public void Up()
@@ -1532,18 +1532,18 @@ internal partial class PianoGrid
             if (mNote == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mNote = null;
         }
@@ -1555,18 +1555,18 @@ internal partial class PianoGrid
 
     readonly NoteStartResizeOperation mNoteStartResizeOperation;
 
-    class NoteEndResizeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class NoteEndResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, INote note)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.NoteEndResizing;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mNote = note;
-            double end = PianoGrid.TickAxis.Tick2X(mNote.GlobalEndPos());
+            double end = PianoScrollView.TickAxis.Tick2X(mNote.GlobalEndPos());
             mOffset = x - end;
         }
 
@@ -1575,23 +1575,23 @@ internal partial class PianoGrid
             if (mNote == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
+            PianoScrollView.Part.DiscardTo(mHead);
             double end = x - mOffset;
-            double endTick = PianoGrid.TickAxis.X2Tick(end);
-            if (!alt) endTick = Math.Max(PianoGrid.GetQuantizedTick(endTick), PianoGrid.GetQuantizedTick(mNote.GlobalStartPos()) + PianoGrid.QuantizedCellTicks());
-            endTick -= PianoGrid.Part.Pos;
+            double endTick = PianoScrollView.TickAxis.X2Tick(end);
+            if (!alt) endTick = Math.Max(PianoScrollView.GetQuantizedTick(endTick), PianoScrollView.GetQuantizedTick(mNote.GlobalStartPos()) + PianoScrollView.QuantizedCellTicks());
+            endTick -= PianoScrollView.Part.Pos;
             if (endTick <= mNote.StartPos())
             {
-                PianoGrid.Part.RemoveNote(mNote);
+                PianoScrollView.Part.RemoveNote(mNote);
                 return;
             }
 
             List<INote> modifiedNotes = new();
-            int index = PianoGrid.Part.Notes.IndexOf(mNote);
-            PianoGrid.Part.BeginMergeReSegment();
+            int index = PianoScrollView.Part.Notes.IndexOf(mNote);
+            PianoScrollView.Part.BeginMergeReSegment();
             mNote.Dur.Set(endTick - mNote.Pos.Value);
             modifiedNotes.Add(mNote);
             {
@@ -1601,7 +1601,7 @@ internal partial class PianoGrid
                     note = note.Next;
                     if (note.EndPos() <= endTick)
                     {
-                        PianoGrid.Part.RemoveNote(note);
+                        PianoScrollView.Part.RemoveNote(note);
                         index--;
                         continue;
                     }
@@ -1616,13 +1616,13 @@ internal partial class PianoGrid
             }
             foreach (var note in modifiedNotes)
             {
-                PianoGrid.Part.RemoveNote(note);
+                PianoScrollView.Part.RemoveNote(note);
             }
             foreach (var note in modifiedNotes)
             {
-                PianoGrid.Part.InsertNote(note);
+                PianoScrollView.Part.InsertNote(note);
             }
-            PianoGrid.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeReSegment();
         }
 
         public void Up()
@@ -1632,18 +1632,18 @@ internal partial class PianoGrid
             if (mNote == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mNote = null;
         }
@@ -1655,11 +1655,11 @@ internal partial class PianoGrid
 
     readonly NoteEndResizeOperation mNoteEndResizeOperation;
 
-    class VibratoSelectOperation(PianoGrid pianoGrid) : SelectOperation<Vibrato>(pianoGrid)
+    class VibratoSelectOperation(PianoScrollView pianoScrollView) : SelectOperation<Vibrato>(pianoScrollView)
     {
         protected override State SelectState => State.VibratoSelecting;
 
-        protected override IEnumerable<Vibrato>? Collection => PianoGrid.Part?.Vibratos;
+        protected override IEnumerable<Vibrato>? Collection => PianoScrollView.Part?.Vibratos;
 
         protected override void Select(IEnumerable<Vibrato> vibratos, double minTick, double maxTick, double minPitch, double maxPitch)
         {
@@ -1678,18 +1678,18 @@ internal partial class PianoGrid
 
     readonly VibratoSelectOperation mVibratoSelectOperation;
 
-    class VibratoStartResizeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoStartResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, Vibrato vibrato)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.VibratoStartResizing;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
-            double start = PianoGrid.TickAxis.Tick2X(mVibrato.GlobalStartPos());
+            double start = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalStartPos());
             mOffset = x - start;
         }
 
@@ -1698,27 +1698,27 @@ internal partial class PianoGrid
             if (mVibrato == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
+            PianoScrollView.Part.DiscardTo(mHead);
             double start = x - mOffset;
-            double startTick = PianoGrid.TickAxis.X2Tick(start);
-            if (!alt) startTick = Math.Min(PianoGrid.GetQuantizedTick(startTick), PianoGrid.GetQuantizedTick(mVibrato.GlobalEndPos()) - PianoGrid.QuantizedCellTicks());
-            startTick -= PianoGrid.Part.Pos;
+            double startTick = PianoScrollView.TickAxis.X2Tick(start);
+            if (!alt) startTick = Math.Min(PianoScrollView.GetQuantizedTick(startTick), PianoScrollView.GetQuantizedTick(mVibrato.GlobalEndPos()) - PianoScrollView.QuantizedCellTicks());
+            startTick -= PianoScrollView.Part.Pos;
             if (startTick >= mVibrato.EndPos())
             {
-                PianoGrid.Part.RemoveVibrato(mVibrato);
+                PianoScrollView.Part.RemoveVibrato(mVibrato);
                 return;
             }
 
             double offsetTick = startTick - mVibrato.StartPos();
-            PianoGrid.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeReSegment();
             mVibrato.Pos.Set(mVibrato.Pos + offsetTick);
             mVibrato.Dur.Set(mVibrato.Dur - offsetTick);
-            PianoGrid.Part.RemoveVibrato(mVibrato);
-            PianoGrid.Part.InsertVibrato(mVibrato);
-            PianoGrid.Part.EndMergeReSegment();
+            PianoScrollView.Part.RemoveVibrato(mVibrato);
+            PianoScrollView.Part.InsertVibrato(mVibrato);
+            PianoScrollView.Part.EndMergeReSegment();
         }
 
         public void Up()
@@ -1728,18 +1728,18 @@ internal partial class PianoGrid
             if (mVibrato == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mVibrato = null;
         }
@@ -1751,18 +1751,18 @@ internal partial class PianoGrid
 
     readonly VibratoStartResizeOperation mVibratoStartResizeOperation;
 
-    class VibratoEndResizeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoEndResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, Vibrato vibrato)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.VibratoEndResizing;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
-            double end = PianoGrid.TickAxis.Tick2X(mVibrato.GlobalEndPos());
+            double end = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalEndPos());
             mOffset = x - end;
         }
 
@@ -1771,25 +1771,25 @@ internal partial class PianoGrid
             if (mVibrato == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
+            PianoScrollView.Part.DiscardTo(mHead);
             double end = x - mOffset;
-            double endTick = PianoGrid.TickAxis.X2Tick(end);
-            if (!alt) endTick = Math.Max(PianoGrid.GetQuantizedTick(endTick), PianoGrid.GetQuantizedTick(mVibrato.GlobalStartPos()) + PianoGrid.QuantizedCellTicks());
-            endTick -= PianoGrid.Part.Pos;
+            double endTick = PianoScrollView.TickAxis.X2Tick(end);
+            if (!alt) endTick = Math.Max(PianoScrollView.GetQuantizedTick(endTick), PianoScrollView.GetQuantizedTick(mVibrato.GlobalStartPos()) + PianoScrollView.QuantizedCellTicks());
+            endTick -= PianoScrollView.Part.Pos;
             if (endTick <= mVibrato.StartPos())
             {
-                PianoGrid.Part.RemoveVibrato(mVibrato);
+                PianoScrollView.Part.RemoveVibrato(mVibrato);
                 return;
             }
 
-            PianoGrid.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeReSegment();
             mVibrato.Dur.Set(endTick - mVibrato.Pos);
-            PianoGrid.Part.RemoveVibrato(mVibrato);
-            PianoGrid.Part.InsertVibrato(mVibrato);
-            PianoGrid.Part.EndMergeReSegment();
+            PianoScrollView.Part.RemoveVibrato(mVibrato);
+            PianoScrollView.Part.InsertVibrato(mVibrato);
+            PianoScrollView.Part.EndMergeReSegment();
         }
 
         public void Up()
@@ -1799,18 +1799,18 @@ internal partial class PianoGrid
             if (mVibrato == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mVibrato = null;
         }
@@ -1822,35 +1822,35 @@ internal partial class PianoGrid
 
     readonly VibratoEndResizeOperation mVibratoEndResizeOperation;
 
-    class VibratoAmplitudeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoAmplitudeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double y, IVibratoItem vibratoItem)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var vibratos = PianoGrid.Part.Vibratos.AllSelectedItems();
+            var vibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
             if (vibratos.IsEmpty())
                 return;
 
             State = State.VibratoAmplitudeAdjusting;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mVibratos = vibratos;
-            PianoGrid.mOperatingVibratoItem = vibratoItem;
-            mPitch = PianoGrid.PitchAxis.Y2Pitch(y);
+            PianoScrollView.mOperatingVibratoItem = vibratoItem;
+            mPitch = PianoScrollView.PitchAxis.Y2Pitch(y);
         }
 
         public void Move(double y)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             if (mVibratos == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
-            double pitch = PianoGrid.PitchAxis.Y2Pitch(y);
+            PianoScrollView.Part.DiscardTo(mHead);
+            double pitch = PianoScrollView.PitchAxis.Y2Pitch(y);
             double offset = pitch - mPitch;
             foreach (var vibrato in mVibratos)
             {
@@ -1860,22 +1860,22 @@ internal partial class PianoGrid
 
         public void Up()
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.None;
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mVibratos = null;
-            PianoGrid.mOperatingVibratoItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         IReadOnlyCollection<Vibrato>? mVibratos;
@@ -1885,37 +1885,37 @@ internal partial class PianoGrid
 
     readonly VibratoAmplitudeOperation mVibratoAmplitudeOperation;
 
-    class VibratoFrequencyOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoFrequencyOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public bool IsOperating => State == State.VibratoFrequencyAdjusting;
 
         public void Down(double x, IVibratoItem vibratoItem)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var vibratos = PianoGrid.Part.Vibratos.AllSelectedItems();
+            var vibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
             if (vibratos.IsEmpty())
                 return;
 
             State = State.VibratoFrequencyAdjusting;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mVibratos = vibratos;
-            PianoGrid.mOperatingVibratoItem = vibratoItem;
-            mPos = PianoGrid.TickAxis.X2Tick(x);
+            PianoScrollView.mOperatingVibratoItem = vibratoItem;
+            mPos = PianoScrollView.TickAxis.X2Tick(x);
         }
 
         public void Move(double x)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             if (mVibratos == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
-            double mX = PianoGrid.TickAxis.Tick2X(mPos);
+            PianoScrollView.Part.DiscardTo(mHead);
+            double mX = PianoScrollView.TickAxis.Tick2X(mPos);
             double offset = x - mX;
             foreach (var vibrato in mVibratos)
             {
@@ -1925,22 +1925,22 @@ internal partial class PianoGrid
 
         public void Up()
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.None;
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mVibratos = null;
-            PianoGrid.mOperatingVibratoItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         IReadOnlyCollection<Vibrato>? mVibratos;
@@ -1950,37 +1950,37 @@ internal partial class PianoGrid
 
     readonly VibratoFrequencyOperation mVibratoFrequencyOperation;
 
-    class VibratoPhaseOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoPhaseOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public bool IsOperating => State == State.VibratoPhaseAdjusting;
 
         public void Down(double x, IVibratoItem vibratoItem)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var vibratos = PianoGrid.Part.Vibratos.AllSelectedItems();
+            var vibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
             if (vibratos.IsEmpty())
                 return;
 
             State = State.VibratoPhaseAdjusting;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
-            PianoGrid.mOperatingVibratoItem = vibratoItem;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
+            PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
-            mPos = PianoGrid.TickAxis.X2Tick(x);
+            mPos = PianoScrollView.TickAxis.X2Tick(x);
         }
 
         public void Move(double x)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             if (mVibratos == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
-            double mX = PianoGrid.TickAxis.Tick2X(mPos);
+            PianoScrollView.Part.DiscardTo(mHead);
+            double mX = PianoScrollView.TickAxis.Tick2X(mPos);
             double offset = x - mX;
             foreach (var vibrato in mVibratos)
             {
@@ -1990,22 +1990,22 @@ internal partial class PianoGrid
 
         public void Up()
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.None;
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mVibratos = null;
-            PianoGrid.mOperatingVibratoItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         IReadOnlyCollection<Vibrato>? mVibratos;
@@ -2015,7 +2015,7 @@ internal partial class PianoGrid
 
     readonly VibratoPhaseOperation mVibratoPhaseOperation;
 
-    class VibratoAttackOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoAttackOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, IVibratoItem vibratoItem)
         {
@@ -2027,7 +2027,7 @@ internal partial class PianoGrid
             State = State.VibratoAttackAdjusting;
             mPart.DisableAutoPrepare();
             mHead = mPart.Head;
-            PianoGrid.mOperatingVibratoItem = vibratoItem;
+            PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
             mTime = vibratoItem.Vibrato.GlobalAttackTime();
         }
@@ -2041,7 +2041,7 @@ internal partial class PianoGrid
                 return;
 
             mPart.DiscardTo(mHead);
-            double time = mPart.TempoManager.GetTime(PianoGrid.TickAxis.X2Tick(x));
+            double time = mPart.TempoManager.GetTime(PianoScrollView.TickAxis.X2Tick(x));
             double offset = time - mTime;
             foreach (var vibrato in mVibratos)
             {
@@ -2067,7 +2067,7 @@ internal partial class PianoGrid
             }
             mVibratos = null;
             mPart = null;
-            PianoGrid.mOperatingVibratoItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         IMidiPart? mPart;
@@ -2078,7 +2078,7 @@ internal partial class PianoGrid
 
     readonly VibratoAttackOperation mVibratoAttackOperation;
 
-    class VibratoReleaseOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoReleaseOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, IVibratoItem vibratoItem)
         {
@@ -2090,7 +2090,7 @@ internal partial class PianoGrid
             State = State.VibratoReleaseAdjusting;
             mPart.DisableAutoPrepare();
             mHead = mPart.Head;
-            PianoGrid.mOperatingVibratoItem = vibratoItem;
+            PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
             mTime = vibratoItem.Vibrato.GlobalReleaseTime();
         }
@@ -2104,7 +2104,7 @@ internal partial class PianoGrid
                 return;
 
             mPart.DiscardTo(mHead);
-            double time = mPart.TempoManager.GetTime(PianoGrid.TickAxis.X2Tick(x));
+            double time = mPart.TempoManager.GetTime(PianoScrollView.TickAxis.X2Tick(x));
             double offset = time - mTime;
             foreach (var vibrato in mVibratos)
             {
@@ -2130,7 +2130,7 @@ internal partial class PianoGrid
             }
             mVibratos = null;
             mPart = null;
-            PianoGrid.mOperatingVibratoItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         IMidiPart? mPart;
@@ -2141,36 +2141,36 @@ internal partial class PianoGrid
 
     readonly VibratoReleaseOperation mVibratoReleaseOperation;
 
-    class VibratoMoveOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class VibratoMoveOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(Avalonia.Point point, bool ctrl, Vibrato vibrato)
         {
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             mCtrl = ctrl;
             mIsSelected = vibrato.IsSelected;
             if (!mCtrl && !mIsSelected)
             {
-                PianoGrid.Part.Vibratos.DeselectAllItems();
+                PianoScrollView.Part.Vibratos.DeselectAllItems();
             }
             vibrato.Select();
 
-            mMoveVibratos = PianoGrid.Part.Vibratos.AllSelectedItems();
+            mMoveVibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
             if (mMoveVibratos.IsEmpty())
                 return;
 
             State = State.VibratoMoving;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
             mDownPos = mVibrato.GlobalStartPos();
-            mTickOffset = PianoGrid.TickAxis.X2Tick(point.X) - mDownPos;
+            mTickOffset = PianoScrollView.TickAxis.X2Tick(point.X) - mDownPos;
         }
 
         public void Move(Avalonia.Point point, bool alt)
         {
-            var part = PianoGrid.Part;
+            var part = PianoScrollView.Part;
             if (part == null)
                 return;
 
@@ -2180,8 +2180,8 @@ internal partial class PianoGrid
             if (mMoveVibratos == null)
                 return;
 
-            double pos = PianoGrid.TickAxis.X2Tick(point.X) - mTickOffset;
-            if (!alt) pos = PianoGrid.GetQuantizedTick(pos);
+            double pos = PianoScrollView.TickAxis.X2Tick(point.X) - mTickOffset;
+            if (!alt) pos = PianoScrollView.GetQuantizedTick(pos);
             double posOffset = pos - mDownPos;
             if (posOffset == mLastPosOffset)
                 return;
@@ -2210,17 +2210,17 @@ internal partial class PianoGrid
             if (mVibrato == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EnableAutoPrepare();
             if (mMoved)
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             else
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
                 if (mCtrl)
                 {
                     if (mIsSelected)
@@ -2230,7 +2230,7 @@ internal partial class PianoGrid
                 }
                 else
                 {
-                    PianoGrid.Part.Vibratos.DeselectAllItems();
+                    PianoScrollView.Part.Vibratos.DeselectAllItems();
                     mVibrato.Select();
                 }
             }
@@ -2257,22 +2257,22 @@ internal partial class PianoGrid
 
     IVibratoItem? mOperatingVibratoItem = null;
 
-    class WaveformNoteResizeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class WaveformNoteResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, INote? left, INote? right)
         {
             if (left == null && right == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
             State = State.WaveformNoteResizing;
-            PianoGrid.Part.DisableAutoPrepare();
-            mHead = PianoGrid.Part.Head;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
             mLeft = left;
             mRight = right;
-            mOffset = x - PianoGrid.TickAxis.Tick2X(mLeft == null ? mRight!.GlobalStartPos() : mLeft.GlobalEndPos()); ;
+            mOffset = x - PianoScrollView.TickAxis.Tick2X(mLeft == null ? mRight!.GlobalStartPos() : mLeft.GlobalEndPos()); ;
         }
 
         public void Move(double x, bool alt)
@@ -2280,25 +2280,25 @@ internal partial class PianoGrid
             if (mLeft == null && mRight == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            PianoGrid.Part.DiscardTo(mHead);
+            PianoScrollView.Part.DiscardTo(mHead);
             double posX = x - mOffset;
-            double pos = PianoGrid.TickAxis.X2Tick(posX);
-            if (alt) pos = PianoGrid.GetQuantizedTick(pos);
-            pos -= PianoGrid.Part.Pos;
+            double pos = PianoScrollView.TickAxis.X2Tick(posX);
+            if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
+            pos -= PianoScrollView.Part.Pos;
             var last = mLeft == null ? mRight?.Last : mLeft;
             if (last != null) pos = Math.Max(pos, last.StartPos());
             var next = mRight == null ? mLeft?.Next : mRight;
             if (next != null) pos = Math.Min(pos, next.EndPos());
 
-            PianoGrid.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeReSegment();
             if (mLeft != null)
             {
                 if (pos == mLeft.StartPos())
                 {
-                    PianoGrid.Part.RemoveNote(mLeft);
+                    PianoScrollView.Part.RemoveNote(mLeft);
                 }
                 else 
                 { 
@@ -2310,7 +2310,7 @@ internal partial class PianoGrid
             {
                 if (pos == mRight.EndPos())
                 {
-                    PianoGrid.Part.RemoveNote(mRight);
+                    PianoScrollView.Part.RemoveNote(mRight);
                 }
                 else
                 {
@@ -2318,7 +2318,7 @@ internal partial class PianoGrid
                     mRight.Pos.Set(pos);
                 }
             }
-            PianoGrid.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeReSegment();
         }
 
         public void Up()
@@ -2328,18 +2328,18 @@ internal partial class PianoGrid
             if (mLeft == null && mRight == null)
                 return;
 
-            if (PianoGrid.Part == null)
+            if (PianoScrollView.Part == null)
                 return;
 
-            var head = PianoGrid.Part.Head;
-            PianoGrid.Part.EnableAutoPrepare();
+            var head = PianoScrollView.Part.Head;
+            PianoScrollView.Part.EnableAutoPrepare();
             if (head == mHead)
             {
-                PianoGrid.Part.Discard();
+                PianoScrollView.Part.Discard();
             }
             else
             {
-                PianoGrid.Part.Commit();
+                PianoScrollView.Part.Commit();
             }
             mLeft = null;
             mRight = null;
@@ -2353,7 +2353,7 @@ internal partial class PianoGrid
 
     readonly WaveformNoteResizeOperation mWaveformNoteResizeOperation;
 
-    class WaveformPhonemeResizeOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class WaveformPhonemeResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, INote note, int index)
         {
@@ -2384,7 +2384,7 @@ internal partial class PianoGrid
             mNote = note;
             mIndex = index;
             var phonemes = ((ISynthesisNote)note).Phonemes;
-            mOffset = x - PianoGrid.TickAxis.Tick2X(note.Part.TempoManager.GetTick(index == phonemes.Count ? phonemes.ConstLast().EndTime : phonemes[index].StartTime));
+            mOffset = x - PianoScrollView.TickAxis.Tick2X(note.Part.TempoManager.GetTick(index == phonemes.Count ? phonemes.ConstLast().EndTime : phonemes[index].StartTime));
         }
 
         public void Move(double x, bool alt)
@@ -2394,8 +2394,8 @@ internal partial class PianoGrid
 
             mNote.Part.DiscardTo(mHead);
             double posX = x - mOffset;
-            double pos = PianoGrid.TickAxis.X2Tick(posX);
-            if (alt) pos = PianoGrid.GetQuantizedTick(pos);
+            double pos = PianoScrollView.TickAxis.X2Tick(posX);
+            if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
             double time = mNote.Part.TempoManager.GetTime(pos) - mNote.StartTime;
             double ratio = time <= 0 ? mNote.StartPhonemeRatio : mNote.EndPhonemeRatio;
             if (ratio == 0)
@@ -2442,40 +2442,40 @@ internal partial class PianoGrid
 
     readonly WaveformPhonemeResizeOperation mWaveformPhonemeResizeOperation;
 
-    class SelectionOperation(PianoGrid pianoGrid) : Operation(pianoGrid)
+    class SelectionOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, bool alt)
         {
             State = State.SelectionCreating;
 
-            double pos = PianoGrid.TickAxis.X2Tick(x);
-            if (!alt) pos = PianoGrid.GetQuantizedTick(pos);
+            double pos = PianoScrollView.TickAxis.X2Tick(x);
+            if (!alt) pos = PianoScrollView.GetQuantizedTick(pos);
             mDownPos = pos;
-            PianoGrid.mSelection.IsAcitve = true;
-            PianoGrid.mSelection.Start = pos;
-            PianoGrid.mSelection.End = pos;
-            PianoGrid.InvalidateVisual();
+            PianoScrollView.mSelection.IsAcitve = true;
+            PianoScrollView.mSelection.Start = pos;
+            PianoScrollView.mSelection.End = pos;
+            PianoScrollView.InvalidateVisual();
         }
 
         public void Move(double x, bool alt)
         {
-            double pos = PianoGrid.TickAxis.X2Tick(x);
-            if (!alt) pos = PianoGrid.GetQuantizedTick(pos);
+            double pos = PianoScrollView.TickAxis.X2Tick(x);
+            if (!alt) pos = PianoScrollView.GetQuantizedTick(pos);
             var min = Math.Min(pos, mDownPos);
             var max = Math.Max(pos, mDownPos);
-            PianoGrid.mSelection.Start = min;
-            PianoGrid.mSelection.End = max;
-            PianoGrid.InvalidateVisual();
+            PianoScrollView.mSelection.Start = min;
+            PianoScrollView.mSelection.End = max;
+            PianoScrollView.InvalidateVisual();
         }
 
         public void Up()
         {
             State = State.None;
 
-            if (PianoGrid.mSelection.Duration == 0)
-                PianoGrid.mSelection.IsAcitve = false;
+            if (PianoScrollView.mSelection.Duration == 0)
+                PianoScrollView.mSelection.IsAcitve = false;
 
-            PianoGrid.InvalidateVisual();
+            PianoScrollView.InvalidateVisual();
         }
 
         double mDownPos;
