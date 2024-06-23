@@ -251,9 +251,9 @@ namespace TuneLab.Extensions.Formats.VPR
                     {
                         if (i != 0 && (int)character[i]["pos"] - 1 != (int)character[i - 1]["pos"])
                         {
-                            newCharacter.Points.Add(new Point((int)character[i]["pos"] - 1, RangeMapper((int)character[i - 1]["value"], -64, 64, -1.0, 1.0)));
+                            newCharacter.Points.Add(new Point((int)character[i]["pos"] - 1, RangeMapper((int)character[i - 1]["value"], -64, 64, 1.0, -1.0)));
                         }
-                        newCharacter.Points.Add(new Point((int)character[i]["pos"], RangeMapper((int)character[i]["value"], -64, 64, -1.0, 1.0)));
+                        newCharacter.Points.Add(new Point((int)character[i]["pos"], RangeMapper((int)character[i]["value"], -64, 64, 1.0, -1.0)));
                     }
                     newCharacter.DefaultValue = 0.0;
                     midiPartInfo.Automations.Add("Gender", newCharacter);
