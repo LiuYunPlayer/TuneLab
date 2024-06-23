@@ -110,7 +110,7 @@ namespace TuneLab.Extensions.Formats.VPR
                 var trackInfo = new TrackInfo()
                 {
                     Name = ((string?)track["name"] ?? "Track_" + trackNum.ToString()),
-                    Gain = RangeMapper(importGain, -89.8, 6.0, -24.0, 24.0),
+                    Gain = RangeMapper(importGain, -89.8, 6.0, -24.0, 6.0),
                     Pan = RangeMapper(importPan, -64.0, 64.0, -1.0, 1.0),
                     Mute = ((bool?)track["isMuted"] ?? false),
                     Solo = ((bool?)track["isSoloMode"] ?? false),
