@@ -2,11 +2,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace TuneLab.GUI.Input;
 
+[Flags]
 internal enum ModifierKeys : uint
 {
     None = 0x0u,
@@ -31,5 +33,21 @@ internal static class KeyModifierExtension
             modifierKeys |= ModifierKeys.Ctrl;
 
         return modifierKeys;
+    }
+
+    public static KeyModifiers ToAvalonia(this ModifierKeys modifierKeys)
+    {
+        KeyModifiers keyModifiers = KeyModifiers.None;
+
+        if ((modifierKeys & ModifierKeys.Alt) != 0)
+            keyModifiers |= KeyModifiers.Alt;
+        if ((modifierKeys & ModifierKeys.Shift) != 0)
+            keyModifiers |= KeyModifiers.Shift;
+        if ((modifierKeys & ModifierKeys.Ctrl) != 0)
+            keyModifiers |= RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? KeyModifiers.Control
+                : KeyModifiers.Meta;
+
+        return keyModifiers;
     }
 }

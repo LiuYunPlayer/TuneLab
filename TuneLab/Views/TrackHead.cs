@@ -106,7 +106,7 @@ internal class TrackHead : DockPanel
                 var project = Track.Project;
                 project.RemoveTrack(Track);
                 project.Commit();
-            }).SetInputGesture(new KeyGesture(Key.Delete));
+            }).SetInputGesture(Key.Delete);
             menu.Items.Add(menuItem);
         }
 

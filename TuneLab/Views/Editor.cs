@@ -610,19 +610,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var menuBarItem = new MenuItem { Header = "File", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
-                var menuItem = new MenuItem().SetName("New").SetAction(NewProject).SetShortcut(new(Key.N, KeyModifiers.Control));
+                var menuItem = new MenuItem().SetName("New").SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Open").SetAction(OpenProject).SetShortcut(new(Key.O, KeyModifiers.Control));
+                var menuItem = new MenuItem().SetName("Open").SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Save").SetAction(async () => { await SaveProject(); }).SetShortcut(new(Key.S, KeyModifiers.Control));
+                var menuItem = new MenuItem().SetName("Save").SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Save As").SetAction(async () => { await SaveProjectAs(); }).SetShortcut(new(Key.S, KeyModifiers.Control | KeyModifiers.Shift));
+                var menuItem = new MenuItem().SetName("Save As").SetAction(async () => { await SaveProjectAs(); }).SetShortcut(Key.S, ModifierKeys.Ctrl | ModifierKeys.Shift);
                 menuBarItem.Items.Add(menuItem);
             }
             {
@@ -644,12 +644,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var menuBarItem = new MenuItem { Header = "Edit", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
-                var menuItem = new MenuItem().SetName("Undo").SetAction(Undo).SetInputGesture(new(Key.Z, KeyModifiers.Control));
+                var menuItem = new MenuItem().SetName("Undo").SetAction(Undo).SetInputGesture(Key.Z, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
                 mUndoMenuItem = menuItem;
             }
             {
-                var menuItem = new MenuItem().SetName("Redo").SetAction(Redo).SetInputGesture(new(Key.Y, KeyModifiers.Control));
+                var menuItem = new MenuItem().SetName("Redo").SetAction(Redo).SetInputGesture(Key.Y, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
                 mRedoMenuItem = menuItem;
             }
@@ -675,7 +675,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var menuItem = new MenuItem().
                     SetName("Play").
                     SetAction(ChangePlayState).
-                    SetInputGesture(new(Key.Space));
+                    SetInputGesture(Key.Space);
                 AudioEngine.PlayStateChanged += () =>
                 {
                     menuItem.Header = AudioEngine.IsPlaying ? "Pause" : "Play";
