@@ -201,6 +201,11 @@ internal partial class TrackScrollView
                                         ImportAudioAt(pos, trackIndex);
                                     });
                                     menu.Items.Add(menuItem);
+                                    menuItem = new MenuItem().SetName("Import Track").SetAction(() =>
+                                    {
+                                        ImportTrack();
+                                    });
+                                    menu.Items.Add(menuItem);
                                 }
                                 if (CanPaste)
                                 {

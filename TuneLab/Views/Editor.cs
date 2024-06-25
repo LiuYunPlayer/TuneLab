@@ -542,6 +542,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         TrackWindow.TrackScrollView.ImportAudioAt(0, Project.Tracks.Count);
     }
+    public async void ImportTrack()
+    {
+        if (Project == null)
+            return;
+
+        TrackWindow.TrackScrollView.ImportTrack();
+    }
 
     public void ChangePlayState()
     {
@@ -664,6 +671,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
             {
                 var menuItem = new MenuItem().SetName("Import Audio").SetAction(ImportAudio);
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetName("Import Track").SetAction(ImportTrack);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);

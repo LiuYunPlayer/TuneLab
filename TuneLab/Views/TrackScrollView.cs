@@ -19,6 +19,7 @@ using System.IO;
 using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
+using TuneLab.Extensions.Formats;
 
 namespace TuneLab.Views;
 
@@ -563,6 +564,126 @@ internal partial class TrackScrollView : View
             track.Name.Set(name);
         }
         project.Commit();
+    }
+
+
+    public async void ImportTrack()
+    {
+        var dstProject = Project;
+        if (dstProject == null)
+            return;
+
+        var formats = FormatsManager.GetAllImportFormats();
+        var patterns = new List<string>();
+        foreach (var format in formats)
+        {
+            patterns.Add("*." + format);
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null)
+            return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open File",
+            AllowMultiple = false,
+            FileTypeFilter = [new("Importable Formats") { Patterns = patterns }]
+        });
+        var path = files.IsEmpty() ? null : files[0].TryGetLocalPath();
+        if (path == null)
+            return;
+
+        if (!File.Exists(path))
+            return;
+
+        if (!FormatsManager.Deserialize(path, out var srcProjectInfo, out var error))
+        {
+            Log.Error("Open file error: " + error);
+            return;
+        }
+        //SelectOne
+        var srcProject = new Project(srcProjectInfo);
+        TrackSelector trackSelector = new TrackSelector();
+        for (int i = 0; i < srcProject.Tracks.Count; i++)
+        {
+            var trackItem = new ListBoxItem()
+            {
+                Content = String.Format("Track {0} : {1}", i, srcProject.Tracks[i].Name),
+                FontSize = 12,
+                Tag = srcProject.Tracks[i]
+            };
+            trackSelector.TrackList.Items.Add(trackItem);
+        }
+        await trackSelector.ShowDialog(this.Window());
+        if (!trackSelector.isOK) return;
+        bool keepTempo = trackSelector.isKeepTempo;
+        foreach (var selectedTrack in trackSelector.TrackList.SelectedItems)
+        {
+            ITrack srcTrack = (ITrack)((ListBoxItem)selectedTrack).Tag;
+            //Sync
+            dstProject.NewTrack();
+            var dstTrack = dstProject.Tracks[dstProject.Tracks.Count - 1];
+            double SyncTick(double src)
+            {
+                return dstProject.TempoManager.GetTick(srcProject.TempoManager.GetTime(src));
+            }
+            foreach (var srcPart in srcTrack.Parts)
+            {
+                if (srcPart.GetInfo().GetType() != typeof(MidiPartInfo)) continue;
+                var partInfo = (MidiPartInfo)srcPart.GetInfo();
+                if (!keepTempo)
+                {
+                    //SyncPartTick
+                    {
+                        partInfo.Pos = SyncTick(partInfo.Pos);
+                        partInfo.Dur = SyncTick(partInfo.Pos + partInfo.Dur) - partInfo.Pos;
+                    }
+                    //SyncPitchTick
+                    {
+                        for (var i = 0; i < partInfo.Pitch.Count; i++)
+                        {
+                            for (var j = 0; j < partInfo.Pitch[i].Count; j++)
+                            {
+                                partInfo.Pitch[i][j] = new Base.Structures.Point() { X = SyncTick(partInfo.Pitch[i][j].X), Y = partInfo.Pitch[i][j].Y };
+                            }
+                        }
+                    }
+                    //SyncNoteTick
+                    {
+                        for (var i = 0; i < partInfo.Notes.Count; i++)
+                        {
+                            partInfo.Notes[i].Dur = SyncTick(partInfo.Notes[i].Pos + partInfo.Notes[i].Dur);
+                            partInfo.Notes[i].Pos = SyncTick(partInfo.Notes[i].Pos);
+                            partInfo.Notes[i].Dur -= partInfo.Notes[i].Pos;
+                        }
+                    }
+                    //SyncVib
+                    {
+                        for (var i = 0; i < partInfo.Vibratos.Count; i++)
+                        {
+                            partInfo.Vibratos[i].Dur = SyncTick(partInfo.Vibratos[i].Pos + partInfo.Vibratos[i].Dur);
+                            partInfo.Vibratos[i].Pos = SyncTick(partInfo.Vibratos[i].Pos);
+                            partInfo.Vibratos[i].Dur -= partInfo.Vibratos[i].Pos;
+                        }
+                    }
+                    //SyncAutomn
+                    {
+                        var automationKeys = partInfo.Automations.Keys.ToList();
+                        for (var i = 0; i < automationKeys.Count; i++)
+                        {
+                            for (var j = 0; j < partInfo.Automations[automationKeys[i]].Points.Count; j++)
+                            {
+                                partInfo.Automations[automationKeys[i]].Points[j] = new Base.Structures.Point() { X = SyncTick(partInfo.Automations[automationKeys[i]].Points[j].X), Y = partInfo.Automations[automationKeys[i]].Points[j].Y };
+                            }
+                        }
+                    }
+                }
+                dstTrack.InsertPart(dstTrack.CreatePart(partInfo));
+            }
+            dstTrack.Name.Set(srcTrack.Name.Value);
+        }
+        dstProject.Commit();
     }
 
     public void EnterInputPartName(IPart part, int trackIndex)
