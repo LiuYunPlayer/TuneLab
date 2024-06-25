@@ -258,6 +258,24 @@ internal partial class PianoScrollView
         }
     }
 
+    class AnchorItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
+    {
+        public required AnchorPoint AnchorPoint { get; set; }
+
+        public Point Position()
+        {
+            if (PianoScrollView.Part == null)
+                return new Point();
+
+            return new Point(PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos + AnchorPoint.Pos), PianoScrollView.PitchAxis.Pitch2Y(AnchorPoint.Value + 0.5));
+        }
+
+        public override bool Raycast(Point point)
+        {
+            return Point.Distance(Position(), point) <= 6;
+        }
+    }
+
     class WaveformBackItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public override bool Raycast(Point point)

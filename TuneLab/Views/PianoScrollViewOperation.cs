@@ -339,6 +339,26 @@ internal partial class PianoScrollView
                                 break;
                         }
                         break;
+                    case PianoTool.Anchor:
+                        switch (e.MouseButtonType)
+                        {
+                            case MouseButtonType.PrimaryButton:
+                                if (!DetectWaveformPrimaryButton())
+                                {
+                                    if (item is AnchorItem anchorItem)
+                                    {
+
+                                    }
+                                    else
+                                    {
+                                        mAnchorSelectOperation.Down(e.Position, ctrl);
+                                    }
+                                }
+                                break;
+                            case MouseButtonType.SecondaryButton:
+                                break;
+                        }
+                        break;
                     case PianoTool.Lock:
                         switch (e.MouseButtonType)
                         {
@@ -555,6 +575,9 @@ internal partial class PianoScrollView
                 Cursor = new Cursor(StandardCursorType.Ibeam);
                 mSelectionOperation.Move(e.Position.X, alt);
                 break;
+            case State.AnchorSelecting:
+                mAnchorSelectOperation.Move(e.Position);
+                break;
             default:
                 var item = ItemAt(e.Position);
                 if (item is WaveformNoteResizeItem || item is WaveformPhonemeResizeItem)
@@ -693,6 +716,10 @@ internal partial class PianoScrollView
             case State.SelectionCreating:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mSelectionOperation.Up();
+                break;
+            case State.AnchorSelecting:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mAnchorSelectOperation.Up();
                 break;
             default:
                 break;
@@ -838,6 +865,7 @@ internal partial class PianoScrollView
         var tempoManager = Part.TempoManager;
         var viewStartTime = tempoManager.GetTime(startPos);
         var viewEndTime = tempoManager.GetTime(endPos);
+        double partPos = Part.Pos;
 
         switch (mDependency.PianoTool)
         {
@@ -879,6 +907,27 @@ internal partial class PianoScrollView
                     items.Add(new VibratoStartResizeItem(this) { Vibrato = vibrato });
                     items.Add(new VibratoAttackItem(this) { Vibrato = vibrato });
                     items.Add(new VibratoReleaseItem(this) { Vibrato = vibrato });
+                }
+                break;
+            case PianoTool.Anchor:
+                foreach (var anchorLine in Part.Pitch.AnchorLines)
+                {
+                    if (partPos + anchorLine.End < startPos)
+                        continue;
+
+                    if (partPos + anchorLine.Start > endPos)
+                        break;
+
+                    foreach (var anchor in anchorLine)
+                    {
+                        if (partPos + anchor.Pos < startPos)
+                            continue;
+
+                        if (partPos + anchor.Pos > endPos)
+                            break;
+
+                        items.Add(new AnchorItem(this) { AnchorPoint = anchor });
+                    }
                 }
                 break;
             default:
@@ -2257,6 +2306,31 @@ internal partial class PianoScrollView
 
     IVibratoItem? mOperatingVibratoItem = null;
 
+    class AnchorSelectOperation(PianoScrollView pianoScrollView) : SelectOperation<AnchorPoint>(pianoScrollView)
+    {
+        protected override State SelectState => State.AnchorSelecting;
+
+        protected override IEnumerable<AnchorPoint>? Collection => PianoScrollView.Part?.Pitch.AnchorLines.SelectMany(anchorLine => anchorLine);
+
+        protected override void Select(IEnumerable<AnchorPoint> items, double minTick, double maxTick, double minPitch, double maxPitch)
+        {
+            foreach (var item in items)
+            {
+                if (item.Pos < minTick)
+                    continue;
+
+                if (item.Pos > maxTick)
+                    break;
+
+                var pitch = item.Value + 0.5;
+                if (pitch >= minPitch && pitch <= maxPitch)
+                    item.Select();
+            }
+        }
+    }
+
+    readonly AnchorSelectOperation mAnchorSelectOperation;
+
     class WaveformNoteResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, INote? left, INote? right)
@@ -2505,6 +2579,7 @@ internal partial class PianoScrollView
         WaveformNoteResizing,
         WaveformPhonemeResizing,
         SelectionCreating,
+        AnchorSelecting,
     }
 
     State mState = State.None;

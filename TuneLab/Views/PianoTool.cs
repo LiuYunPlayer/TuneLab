@@ -10,6 +10,7 @@ internal enum PianoTool
 {
     Note,
     Pitch,
+    Anchor,
     Lock,
     Vibrato,
     Select,

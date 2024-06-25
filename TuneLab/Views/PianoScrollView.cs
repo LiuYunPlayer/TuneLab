@@ -72,6 +72,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mWaveformNoteResizeOperation = new(this);
         mWaveformPhonemeResizeOperation = new(this);
         mSelectionOperation = new(this);
+        mAnchorSelectOperation = new(this);
 
         mDependency.PartProvider.ObjectChanged.Subscribe(Update, s);
         mDependency.PartProvider.When(p => p.Modified).Subscribe(Update, s);
@@ -307,11 +308,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         // draw pitch
         double pitchOpacity = MathUtility.LineValue(-6.7, 0, -4.3, 1, TickAxis.ScaleLevel).Limit(0, 1);
+        if (pitchOpacity == 0)
+            goto FinishDrawPitch;
+
         Color pitchColor = mDependency.PianoTool == PianoTool.Note ? Colors.White.Opacity(pitchOpacity * 0.3) : Color.Parse(ConstantDefine.PitchColor).Opacity(pitchOpacity);
 
-        DrawSynthesizedPitch(context, pitchOpacity, pitchColor);
+        DrawSynthesizedPitch(context, pitchColor);
 
-        if (mDependency.PianoTool == PianoTool.Pitch || mDependency.PianoTool == PianoTool.Lock)
+        if (mDependency.PianoTool == PianoTool.Pitch || mDependency.PianoTool == PianoTool.Lock || mDependency.PianoTool == PianoTool.Anchor)
             context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
 
         DrawVibratos(context);
@@ -326,10 +330,11 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 if (vibrato.GlobalStartPos() >= maxVisibleTick)
                     break;
 
-                DrawPitch(context, TickAxis.Tick2X(vibrato.GlobalStartPos()), TickAxis.Tick2X(vibrato.GlobalEndPos()), Part.Pitch.GetValues, pitchOpacity, pitchColor.Opacity(0.5), 1);
+                DrawPitch(context, TickAxis.Tick2X(vibrato.GlobalStartPos()), TickAxis.Tick2X(vibrato.GlobalEndPos()), Part.Pitch.GetValues, pitchColor.Opacity(0.5), 1);
             }
         }
-        DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchOpacity, pitchColor, mDependency.PianoTool == PianoTool.Note ? 1 : 2);
+        DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool == PianoTool.Note ? 1 : 2);
+    FinishDrawPitch:
 
         // draw select
         if (mNoteSelectOperation.IsOperating)
@@ -341,6 +346,12 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (mVibratoSelectOperation.IsOperating)
         {
             var rect = mVibratoSelectOperation.SelectionRect();
+            context.DrawRectangle(SelectionColor.Opacity(0.25).ToBrush(), new Pen(SelectionColor.ToUInt32()), rect);
+        }
+
+        if (mAnchorSelectOperation.IsOperating)
+        {
+            var rect = mAnchorSelectOperation.SelectionRect();
             context.DrawRectangle(SelectionColor.Opacity(0.25).ToBrush(), new Pen(SelectionColor.ToUInt32()), rect);
         }
 
@@ -367,11 +378,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         DrawWaveform(context);
     }
 
-    void DrawSynthesizedPitch(DrawingContext context, double pitchOpacity, Color pitchColor)
+    void DrawSynthesizedPitch(DrawingContext context, Color pitchColor)
     {
-        if (pitchOpacity == 0)
-            return;
-
         if (Part == null)
             return;
 
@@ -382,9 +390,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         foreach (var piece in Part.SynthesisPieces)
         {
-            if (pitchOpacity == 0)
-                continue;
-
             var result = piece.SynthesisResult;
             if (result == null)
                 continue;
@@ -426,11 +431,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
     }
 
-    void DrawPitch(DrawingContext context, double left, double right, Func<IReadOnlyList<double>, double[]> getPitch, double pitchOpacity, Color pitchColor, double thickness)
+    void DrawPitch(DrawingContext context, double left, double right, Func<IReadOnlyList<double>, double[]> getPitch, Color pitchColor, double thickness)
     {
-        if (pitchOpacity == 0)
-            return;
-
         if (Part == null)
             return;
 
@@ -461,9 +463,41 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (pitchLine.Count != 0)
             pitchLines.Add(pitchLine);
 
+        var start = TickAxis.X2Tick(left) - pos;
+        var end = TickAxis.X2Tick(right) - pos;
         foreach (var pitchPoints in pitchLines)
         {
             context.DrawCurve(pitchPoints, pitchColor, thickness);
+        }
+
+        if (mDependency.PianoTool != PianoTool.Anchor)
+            return;
+
+        IBrush pointBrush = pitchColor.ToBrush();
+        IPen pointPen = new Pen(pointBrush);
+        foreach (var anchorLine in Part.Pitch.AnchorLines)
+        {
+            if (anchorLine.End <= start)
+                continue;
+
+            if (anchorLine.Start >= end)
+                break;
+
+            foreach (var anchor in anchorLine)
+            {
+                if (anchor.Pos < start)
+                    continue;
+
+                if (anchor.Pos > end)
+                    break;
+
+                var center = new Point(TickAxis.Tick2X(pos + anchor.Pos), PitchAxis.Pitch2Y(anchor.Value + 0.5));
+                context.DrawEllipse(pointBrush, null, center, 2, 2);
+                if (!anchor.IsSelected)
+                    continue;
+
+                context.DrawEllipse(null, pointPen, center, 5.5, 5.5);
+            }
         }
     }
 
