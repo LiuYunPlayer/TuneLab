@@ -617,6 +617,7 @@ internal partial class TrackScrollView : View
         }
         await trackSelector.ShowDialog(this.Window());
         if (!trackSelector.isOK) return;
+        bool keepTempo = trackSelector.isKeepTempo;
         foreach (var selectedTrack in trackSelector.TrackList.SelectedItems)
         {
             ITrack srcTrack = (ITrack)((ListBoxItem)selectedTrack).Tag;
@@ -627,11 +628,12 @@ internal partial class TrackScrollView : View
             {
                 return dstProject.TempoManager.GetTick(srcProject.TempoManager.GetTime(src));
             }
+            foreach (var srcPart in srcTrack.Parts)
             {
-                foreach (var srcPart in srcTrack.Parts)
+                if (srcPart.GetInfo().GetType() != typeof(MidiPartInfo)) continue;
+                var partInfo = (MidiPartInfo)srcPart.GetInfo();
+                if (!keepTempo)
                 {
-                    if (srcPart.GetInfo().GetType() != typeof(MidiPartInfo)) continue;
-                    var partInfo = (MidiPartInfo)srcPart.GetInfo();
                     //SyncPartTick
                     {
                         partInfo.Pos = SyncTick(partInfo.Pos);
@@ -676,10 +678,10 @@ internal partial class TrackScrollView : View
                             }
                         }
                     }
-                    dstTrack.InsertPart(dstTrack.CreatePart(partInfo));
                 }
-                dstTrack.Name.Set(srcTrack.Name.Value);
+                dstTrack.InsertPart(dstTrack.CreatePart(partInfo));
             }
+            dstTrack.Name.Set(srcTrack.Name.Value);
         }
         dstProject.Commit();
     }

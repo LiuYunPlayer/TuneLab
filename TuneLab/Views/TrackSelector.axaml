@@ -34,7 +34,7 @@
 					<RowDefinition Height="28" />
 				</Grid.RowDefinitions>
 				<StackPanel Grid.Row="0" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Left" VerticalAlignment="Center">
-					<Label Content="Select the track for import:" x:Name="SelectorActionLabel" FontWeight="Normal" FontSize="12" VerticalAlignment="Center" BorderThickness="0" IsHitTestVisible="False"/>
+					<Label Content="Select the track to import:" x:Name="SelectorActionLabel" FontWeight="Normal" FontSize="12" VerticalAlignment="Center" BorderThickness="0" IsHitTestVisible="False"/>
 				</StackPanel>
 
 				<StackPanel Grid.Row="1" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TrackSelectBox">

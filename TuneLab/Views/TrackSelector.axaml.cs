@@ -36,6 +36,16 @@ internal partial class TrackSelector : Window
         mTrackList.Background = Style.BACK.ToBrush();
         mTrackList.SelectionMode = SelectionMode.Multiple | SelectionMode.Toggle;
 
+
+        var KeepTempoPanel = new StackPanel();
+        mKeepTempoCheckBox = new CheckBox();
+        KeepTempoPanel.Orientation = Orientation.Horizontal;
+        KeepTempoPanel.Height = 24;
+        KeepTempoPanel.Children.Add(mKeepTempoCheckBox);
+        KeepTempoPanel.Children.Add(new Label() { Content = "Keep Tempo", FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(0, 1) });
+        ActionsPanel.Children.Add(KeepTempoPanel);
+        Grid.SetColumn(KeepTempoPanel, 0);
+
         var OkButtonPanel = new StackPanel();
         OkButtonPanel.Orientation = Orientation.Horizontal;
         OkButtonPanel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
@@ -49,6 +59,8 @@ internal partial class TrackSelector : Window
         OkButton.Clicked += () => { isOK = true;this.Close(); };
     }
 
+    CheckBox mKeepTempoCheckBox;
     public ListBox TrackList { get => mTrackList; }
     public bool isOK { get; set; } = false;
+    public bool isKeepTempo { get => mKeepTempoCheckBox.IsChecked==null?false:(bool)mKeepTempoCheckBox.IsChecked; }
 }
