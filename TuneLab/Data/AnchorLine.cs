@@ -9,10 +9,10 @@ using TuneLab.Base.Science;
 
 namespace TuneLab.Data;
 
-internal class AnchorLine : DataList<Point>, IAnchorLine
+internal class AnchorLine : DataList<AnchorPoint>, IAnchorLine
 {
-    public double Start => this.First().X;
-    public double End => this.Last().X;
+    public double Start => this.First().Pos;
+    public double End => this.Last().Pos;
 
     public AnchorLine()
     {
@@ -21,6 +21,6 @@ internal class AnchorLine : DataList<Point>, IAnchorLine
 
     public double[] GetValues(IReadOnlyList<double> ticks)
     {
-        return this.MonotonicHermiteInterpolation(ticks);
+        return this.Convert(p => p.ToPoint()).MonotonicHermiteInterpolation(ticks);
     }
 }

@@ -14,7 +14,7 @@ internal interface IAnchorLineGroup : IDataObject<IEnumerable<IReadOnlyCollectio
     IActionEvent<double, double> RangeModified { get; }
     IReadOnlyList<IAnchorLine> AnchorLines { get; }
     double[] GetValues(IReadOnlyList<double> ticks);
-    void AddLine(IReadOnlyList<Point> points, double extend);
+    void AddLine(IReadOnlyList<AnchorPoint> points, double extend);
     void Clear(double start, double end);
     new List<List<Point>> GetInfo();
 
@@ -42,5 +42,10 @@ internal static class IAnchorLineGroupExtension
             result.Add(anchorLine.RangeInfo(start, end));
         }
         return result;
+    }
+
+    public static void AddLine(this IAnchorLineGroup anchorLineGroup, IReadOnlyList<Point> points, double extend)
+    {
+        anchorLineGroup.AddLine(points.Convert(p => new AnchorPoint(p)), extend);
     }
 }

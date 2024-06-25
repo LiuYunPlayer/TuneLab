@@ -8,7 +8,7 @@ using TuneLab.Base.Structures;
 
 namespace TuneLab.Data;
 
-internal interface IAnchorLine : IDataList<Point>
+internal interface IAnchorLine : IDataList<AnchorPoint>
 {
     double Start { get; }
     double End { get; }
@@ -35,13 +35,13 @@ internal static class IAnchorLineExtension
 
         foreach (var point in anchorLine)
         {
-            if (point.X <= start)
+            if (point.Pos <= start)
                 continue;
 
-            if (point.X >= end)
+            if (point.Pos >= end)
                 break;
 
-            result.Add(new(point.X - start, point.Y));
+            result.Add(new(point.Pos - start, point.Value));
         }
 
         if (end <= anchorLine.End)

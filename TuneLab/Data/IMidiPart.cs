@@ -284,7 +284,7 @@ internal static class IMidiPartExtension
 
         foreach (var points in clipboard.Pitch)
         {
-            part.Pitch.AddLine(points.Convert(point => new Point(point.X + pos, point.Y)), extend);
+            part.Pitch.AddLine(points.Convert(point => new AnchorPoint(point.X + pos, point.Y)), extend);
         }
     }
 

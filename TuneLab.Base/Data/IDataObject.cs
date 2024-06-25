@@ -250,7 +250,6 @@ public interface IReadOnlyDataObject<out T> : IDataObject
 
 public interface IDataObject<T> : IReadOnlyDataObject<T>
 {
-    public T Info { set => Set(value); }
     public void Set(T info)
     {
         Set(this, info);

@@ -20,17 +20,17 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
         mAnchorLines.Attach(this);
     }
 
-    public void AddLine(IReadOnlyList<Point> points, double extension)
+    public void AddLine(IReadOnlyList<AnchorPoint> points, double extension)
     {
         if (points.IsEmpty())
             return;
 
-        double start = points[0].X;
-        double end = points[points.Count - 1].X;
+        double start = points[0].Pos;
+        double end = points[points.Count - 1].Pos;
         void NotifyRangeModified() => mRangeModified.Invoke(start, end);
         Push(new UndoOnlyCommand(NotifyRangeModified));
-        var startPoints = new System.Collections.Generic.LinkedList<Point>();
-        var endPoints = new System.Collections.Generic.LinkedList<Point>();
+        var startPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
+        var endPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
         int insertIndex = mAnchorLines.Count;
         int removeCount = 0;
         for (int gi = 0; gi < mAnchorLines.Count; gi++)
@@ -57,9 +57,9 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
                     for (int pi = 0; pi < anchorLine.Count; pi++)
                     {
                         var point = anchorLine[pi];
-                        if (point.X >= start)
+                        if (point.Pos >= start)
                         {
-                            startPoints.AddLast(new Point(start, anchorLine.GetValue(start)));
+                            startPoints.AddLast(new AnchorPoint(start, anchorLine.GetValue(start)));
                             break;
                         }
 
@@ -81,9 +81,9 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
                     for (int pi = anchorLine.Count - 1; pi >= 0; pi--)
                     {
                         var point = anchorLine[pi];
-                        if (point.X <= end)
+                        if (point.Pos <= end)
                         {
-                            endPoints.AddFirst(new Point(end, anchorLine.GetValue(end)));
+                            endPoints.AddFirst(new AnchorPoint(end, anchorLine.GetValue(end)));
                             break;
                         }
 
@@ -124,13 +124,13 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
 
             if (anchorLine.End > end)
             {
-                var endPoints = new System.Collections.Generic.LinkedList<Point>();
+                var endPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
                 for (int pi = anchorLine.Count - 1; pi >= 0; pi--)
                 {
                     var point = anchorLine[pi];
-                    if (point.X <= end)
+                    if (point.Pos <= end)
                     {
-                        endPoints.AddFirst(new Point(end, anchorLine.GetValue(end)));
+                        endPoints.AddFirst(new AnchorPoint(end, anchorLine.GetValue(end)));
                         break;
                     }
 
@@ -144,11 +144,11 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
 
             if (anchorLine.Start < start)
             {
-                var newPoint = new Point(start, anchorLine.GetValue(start));
+                var newPoint = new AnchorPoint(start, anchorLine.GetValue(start));
                 for (int pi = anchorLine.Count - 1; pi >= 0; pi--)
                 {
                     var point = anchorLine[pi];
-                    if (point.X >= start)
+                    if (point.Pos >= start)
                     {
                         anchorLine.RemoveAt(pi);
                     }
@@ -166,7 +166,7 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
 
     public List<List<Point>> GetInfo()
     {
-        return mAnchorLines.GetInfo().ToInfo<IAnchorLine, List<Point>>();
+        return mAnchorLines.GetInfo().Select(line => line.GetInfo().Select(p => p.ToPoint()).ToList()).ToList();
     }
 
     public double[] GetValues(IReadOnlyList<double> ticks)
@@ -212,7 +212,7 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
 
     void IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(IEnumerable<IReadOnlyCollection<Point>> info)
     {
-        IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(mAnchorLines, info.Where(points => points.Count > 1).Convert(points => { var t = new T(); t.Set(points); return t; }).ToArray());
+        IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(mAnchorLines, info.Where(points => points.Count > 1).Convert(points => { var t = new T(); t.Set(points.Select(point => new AnchorPoint(point))); return t; }).ToArray());
     }
 
     readonly DataObjectList<T> mAnchorLines = new();
