@@ -120,11 +120,11 @@ internal partial class TrackScrollView
                                         part.Select();
                                     }
                                     {
-                                        var menuItem = new MenuItem().SetName("Copy").SetAction(Copy).SetInputGesture(new KeyGesture(Key.C, KeyModifiers.Control));
+                                        var menuItem = new MenuItem().SetName("Copy").SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
                                         menu.Items.Add(menuItem);
                                     }
                                     {
-                                        var menuItem = new MenuItem().SetName("Cut").SetAction(Cut).SetInputGesture(new KeyGesture(Key.X, KeyModifiers.Control));
+                                        var menuItem = new MenuItem().SetName("Cut").SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
                                         menu.Items.Add(menuItem);
                                     }
                                     
@@ -186,7 +186,7 @@ internal partial class TrackScrollView
                                         }
                                     }
                                     {
-                                        var menuItem = new MenuItem().SetName("Delete").SetAction(DeleteAllSelectedParts).SetInputGesture(new KeyGesture(Key.Delete));
+                                        var menuItem = new MenuItem().SetName("Delete").SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
                                         menu.Items.Add(menuItem);
                                     }
                                 }
@@ -209,7 +209,7 @@ internal partial class TrackScrollView
                                         var menuItem = new MenuItem().SetName("Paste").SetAction(() =>
                                         {
                                             PasteAt(pos);
-                                        }).SetInputGesture(new KeyGesture(Key.V, KeyModifiers.Control));
+                                        }).SetInputGesture(Key.V, ModifierKeys.Ctrl);
                                         menu.Items.Add(menuItem);
                                     }
                                 }
@@ -218,7 +218,7 @@ internal partial class TrackScrollView
                                     var menuItem = new MenuItem().SetName("Delete").SetAction(() =>
                                     {
                                         DeleteTrackAt(trackIndex);
-                                    }).SetInputGesture(new KeyGesture(Key.Delete));
+                                    }).SetInputGesture(Key.Delete);
                                     menu.Items.Add(menuItem);
                                 }
                             }

@@ -183,7 +183,7 @@ internal class Component : Control
     void CallMouseUp(MouseUpEventArgs e)
     {
         mLastClickTime = mStopwatch.ElapsedMilliseconds;
-        e.IsClick = mDownPosition == e.Position;
+        e.IsClick = Math.Abs(mDownPosition.X - e.Position.X) < 1 && Math.Abs(mDownPosition.Y - e.Position.Y) < 1;
         if (e.IsClick) mLastClickPosition = e.Position;
 
         switch (e.MouseButtonType)

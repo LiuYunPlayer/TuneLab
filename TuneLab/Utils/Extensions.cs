@@ -76,15 +76,17 @@ internal static class Extensions
         return menuItem;
     }
 
-    public static MenuItem SetShortcut(this MenuItem menuItem, KeyGesture shortcut)
+    public static MenuItem SetShortcut(this MenuItem menuItem, Key key, ModifierKeys modifierKeys = GUI.Input.ModifierKeys.None)
     {
+        var shortcut = new KeyGesture(key, modifierKeys.ToAvalonia());
         menuItem.InputGesture = shortcut;
         menuItem.HotKey = shortcut;
         return menuItem;
     }
 
-    public static MenuItem SetInputGesture(this MenuItem menuItem, KeyGesture keyGesture)
+    public static MenuItem SetInputGesture(this MenuItem menuItem, Key key, ModifierKeys modifierKeys = GUI.Input.ModifierKeys.None)
     {
+        var keyGesture = new KeyGesture(key, modifierKeys.ToAvalonia());
         menuItem.InputGesture = keyGesture;
         return menuItem;
     }
