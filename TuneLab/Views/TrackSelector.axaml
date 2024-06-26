@@ -38,8 +38,7 @@
 				</StackPanel>
 
 				<StackPanel Grid.Row="1" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TrackSelectBox">
-					<ListBox x:Name="mTrackList" Width="432" Height="168" FontSize="14">
-					</ListBox>
+					<ListBox x:Name="mTrackList" Width="432" Height="168" FontSize="14" CornerRadius="4" />
 				</StackPanel>
 
 				<Grid Grid.Row="2" x:Name="ActionsPanel" Margin="24, 16, 24, 16">
