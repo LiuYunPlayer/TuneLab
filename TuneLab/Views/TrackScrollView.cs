@@ -603,15 +603,15 @@ internal partial class TrackScrollView : View
             return;
         }
         //SelectOne
-        var srcProject = new Project(srcProjectInfo);
+       // 
         TrackSelector trackSelector = new TrackSelector();
-        for (int i = 0; i < srcProject.Tracks.Count; i++)
+        for (int i = 0; i < srcProjectInfo.Tracks.Count; i++)
         {
             var trackItem = new ListBoxItem()
             {
-                Content = String.Format("Track {0} : {1}", i, srcProject.Tracks[i].Name),
+                Content = String.Format("Track {0} : {1}", i, srcProjectInfo.Tracks[i].Name),
                 FontSize = 12,
-                Tag = srcProject.Tracks[i]
+                Tag = srcProjectInfo.Tracks[i]
             };
             trackSelector.TrackList.Items.Add(trackItem);
         }
@@ -620,21 +620,23 @@ internal partial class TrackScrollView : View
         bool keepTempo = trackSelector.isKeepTempo;
         foreach (var selectedTrack in trackSelector.TrackList.SelectedItems)
         {
-            ITrack srcTrack = (ITrack)((ListBoxItem)selectedTrack).Tag;
-            TrackInfo srcTrackInfo = srcTrack.GetInfo();
-            double SyncTick(double src)
-            {
-                return dstProject.TempoManager.GetTick(srcProject.TempoManager.GetTime(src));
-            }
+            TrackInfo srcTrackInfo = (TrackInfo)((ListBoxItem)selectedTrack).Tag;
             List<PartInfo> parts = new List<PartInfo>();
             foreach (var partInfo in srcTrackInfo.Parts)
             {
                 bool isMidiPart =(partInfo.GetType() == typeof(MidiPartInfo));
                 if (!keepTempo)
                 {
+                    //Only declare SyncFunction in Useful
+                    var srcTempoManager = (new Project(new ProjectInfo { Tempos=srcProjectInfo.Tempos })).TempoManager;
+                    double SyncTick(double src)
+                    {
+                        return dstProject.TempoManager.GetTick(srcTempoManager.GetTime(src));
+                    }
                     //SyncPartTick
+                    partInfo.Dur = SyncTick(partInfo.Pos + partInfo.Dur);
                     partInfo.Pos = SyncTick(partInfo.Pos);
-                    partInfo.Dur = SyncTick(partInfo.Pos + partInfo.Dur) - partInfo.Pos;
+                    partInfo.Dur -= partInfo.Pos;
                     if (isMidiPart)
                     {
                         var midiPartInfo = (MidiPartInfo)partInfo;
