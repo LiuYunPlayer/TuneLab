@@ -8,6 +8,7 @@ using System;
 using TuneLab.GUI;
 using TuneLab.Utils;
 using Button = TuneLab.GUI.Components.Button;
+using CheckBox = TuneLab.GUI.Components.CheckBox;
 
 namespace TuneLab.Views;
 internal partial class TrackSelector : Window
@@ -42,7 +43,7 @@ internal partial class TrackSelector : Window
         KeepTempoPanel.Orientation = Orientation.Horizontal;
         KeepTempoPanel.Height = 24;
         KeepTempoPanel.Children.Add(mKeepTempoCheckBox);
-        KeepTempoPanel.Children.Add(new Label() { Content = "Keep Tempo", FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(0, 1) });
+        KeepTempoPanel.Children.Add(new Label() { Content = "Keep Tempo", FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
         ActionsPanel.Children.Add(KeepTempoPanel);
         Grid.SetColumn(KeepTempoPanel, 0);
 
