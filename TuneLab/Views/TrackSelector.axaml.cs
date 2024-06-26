@@ -8,6 +8,7 @@ using System;
 using TuneLab.GUI;
 using TuneLab.Utils;
 using Button = TuneLab.GUI.Components.Button;
+using CheckBox = TuneLab.GUI.Components.CheckBox;
 
 namespace TuneLab.Views;
 internal partial class TrackSelector : Window
