@@ -6,6 +6,7 @@
 
     <Application.Styles>
         <FluentTheme />
+		<StyleInclude Source="avares://TuneLab/Assets/GlobalStyle.axaml"/>
     </Application.Styles>
 	<Application.Resources>
 		<FontFamily x:Key="NotoMono">avares://TuneLab/Assets/Fonts#NotoMono</FontFamily>

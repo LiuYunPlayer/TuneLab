@@ -11,13 +11,7 @@
 		ExtendClientAreaTitleBarHeightHint="40"
 		ExtendClientAreaToDecorationsHint="True"
 		SizeChanged="Window_SizeChanged">
-
-	<Window.Styles>
-		<Style Selector="MenuItem > MenuItem">
-			<Setter Property="Foreground" Value="White"/>
-			<Setter Property="Background" Value="#272736"/>
-		</Style>
-	</Window.Styles>
+	
 	<Window.Resources>
 		<SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#272736</SolidColorBrush>
 	</Window.Resources>
