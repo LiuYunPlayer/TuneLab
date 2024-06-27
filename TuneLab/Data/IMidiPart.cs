@@ -279,7 +279,7 @@ internal static class IMidiPartExtension
                 continue;
 
             var defaultValue = automation.DefaultValue.Value;
-            automation.AddLine(kvp.Value.Convert(point => new Point(point.X + pos, point.Y + defaultValue)), extend);
+            automation.AddLine(kvp.Value.Convert(point => new AnchorPoint(point.X + pos, point.Y + defaultValue)), extend);
         }
 
         foreach (var points in clipboard.Pitch)

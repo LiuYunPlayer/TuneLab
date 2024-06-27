@@ -16,7 +16,7 @@ internal class Automation : DataObject, IAutomation
 {
     public IActionEvent<double, double> RangeModified => mRangeModified;
     public IMidiPart Part => mPart;
-    public IReadOnlyList<Point> Points => mPoints;
+    public IReadOnlyList<AnchorPoint> Points => mPoints;
     public DataStruct<double> DefaultValue { get; }
 
     IDataProperty<double> IAutomation.DefaultValue => DefaultValue;
@@ -31,7 +31,7 @@ internal class Automation : DataObject, IAutomation
 
     public double[] GetValues(IReadOnlyList<double> ticks)
     {
-        var values = mPoints.MonotonicHermiteInterpolation(ticks);
+        var values = mPoints.Convert(p => p.ToPoint()).MonotonicHermiteInterpolation(ticks);
 
         double defaultValue = DefaultValue;
         if (defaultValue != 0)
@@ -50,34 +50,34 @@ internal class Automation : DataObject, IAutomation
         return new()
         {
             DefaultValue = DefaultValue,
-            Points = mPoints.GetInfo(),
+            Points = mPoints.GetInfo().Select(p => p.ToPoint()).ToList(),
         };
     }
 
     void IDataObject<AutomationInfo>.SetInfo(AutomationInfo info)
     {
         IDataObject<AutomationInfo>.SetInfo(DefaultValue, info.DefaultValue);
-        IDataObject<AutomationInfo>.SetInfo(mPoints, info.Points);
+        IDataObject<AutomationInfo>.SetInfo(mPoints, info.Points.Select(p => new AnchorPoint(p)));
     }
 
-    public void AddLine(IReadOnlyList<Point> points, double extend)
+    public void AddLine(IReadOnlyList<AnchorPoint> points, double extend)
     {
         if (points.IsEmpty())
             return;
 
         // FIXME: 不同插值影响的范围不一样
-        double start = points[0].X - extend;
-        double end = points[points.Count - 1].X + extend;
+        double start = points[0].Pos - extend;
+        double end = points[points.Count - 1].Pos + extend;
         void NotifyRangeModified() => mRangeModified.Invoke(start, end);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         var y = GetValues([start, end]);
         AddPoints([new(start, y[0]), new(end, y[1])]);
         for (int i = mPoints.Count - 1; i >= 0; i--)
         {
-            if (mPoints[i].X >= end)
+            if (mPoints[i].Pos >= end)
                 continue;
 
-            if (mPoints[i].X <= start)
+            if (mPoints[i].Pos <= start)
                 break;
 
             mPoints.RemoveAt(i);
@@ -102,15 +102,15 @@ internal class Automation : DataObject, IAutomation
         AddLine([new(start, defaultValue), new(end, defaultValue)], extend);
     }
 
-    void AddPoints(IReadOnlyList<Point> points)
+    public void AddPoints(IReadOnlyList<AnchorPoint> points)
     {
         double defaultValue = DefaultValue;
         if (defaultValue != 0)
         {
-            var ps = new Point[points.Count];
+            var ps = new AnchorPoint[points.Count];
             for (int i = 0; i < points.Count; i++)
             {
-                ps[i] = new(points[i].X, points[i].Y - defaultValue);
+                ps[i] = new(points[i].Pos, points[i].Value - defaultValue);
             }
             points = ps;
         }
@@ -119,12 +119,12 @@ internal class Automation : DataObject, IAutomation
         for (int i = points.Count - 1; i >= 0; i--)
         {
             var point = points[i];
-            while (pointIndex >= 0 && mPoints[pointIndex].X > point.X)
+            while (pointIndex >= 0 && mPoints[pointIndex].Pos > point.Pos)
             {
                 pointIndex--;
             }
 
-            if (pointIndex >= 0 && mPoints[pointIndex].X == point.X)
+            if (pointIndex >= 0 && mPoints[pointIndex].Pos == point.Pos)
             {
                 mPoints[pointIndex] = point;
                 continue;
@@ -134,12 +134,12 @@ internal class Automation : DataObject, IAutomation
         }
     }
 
-    void RemovePoints(IReadOnlyList<Point> points)
+    public void DeletePoints(IReadOnlyList<AnchorPoint> points)
     {
         mPoints.Remove(points);
     }
 
-    readonly DataList<Point> mPoints;
+    readonly DataList<AnchorPoint> mPoints;
     readonly ActionEvent<double, double> mRangeModified = new();
     readonly IMidiPart mPart;
 }
