@@ -9,12 +9,12 @@ using TuneLab.Base.Science;
 
 namespace TuneLab.Data;
 
-internal class AnchorLine : DataList<AnchorPoint>, IAnchorLine
+internal class AnchorGroup : DataList<AnchorPoint>, IAnchorGroup
 {
     public double Start => this.First().Pos;
     public double End => this.Last().Pos;
 
-    public AnchorLine()
+    public AnchorGroup()
     {
 
     }

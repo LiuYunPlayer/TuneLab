@@ -9,13 +9,13 @@ using TuneLab.Base.Utils;
 
 namespace TuneLab.Data;
 
-internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class, IAnchorLine, new()
+internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, IAnchorGroup, new()
 {
     public IActionEvent<double, double> RangeModified => mRangeModified;
 
-    public IReadOnlyList<IAnchorLine> AnchorLines => mAnchorLines;
+    public IReadOnlyList<IAnchorGroup> AnchorGroups => mAnchorLines;
 
-    public AnchorLineGroup()
+    public PiecewiseCurve()
     {
         mAnchorLines.Attach(this);
     }
@@ -35,31 +35,31 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
         int removeCount = 0;
         for (int gi = 0; gi < mAnchorLines.Count; gi++)
         {
-            var anchorLine = mAnchorLines[gi];
-            if (anchorLine.End < start)
+            var anchorGroup = mAnchorLines[gi];
+            if (anchorGroup.End < start)
                 continue;
 
             insertIndex = Math.Min(insertIndex, gi);
-            if (anchorLine.Start > end)
+            if (anchorGroup.Start > end)
                 break;
 
             removeCount++;
-            if (anchorLine.Start < start)
+            if (anchorGroup.Start < start)
             {
-                if (start - anchorLine.Start <= extension)
+                if (start - anchorGroup.Start <= extension)
                 {
-                    start = anchorLine.Start;
-                    startPoints.AddLast(anchorLine.First());
+                    start = anchorGroup.Start;
+                    startPoints.AddLast(anchorGroup.First());
                 }
                 else
                 {
                     start -= extension;
-                    for (int pi = 0; pi < anchorLine.Count; pi++)
+                    for (int pi = 0; pi < anchorGroup.Count; pi++)
                     {
-                        var point = anchorLine[pi];
+                        var point = anchorGroup[pi];
                         if (point.Pos >= start)
                         {
-                            startPoints.AddLast(new AnchorPoint(start, anchorLine.GetValue(start)));
+                            startPoints.AddLast(new AnchorPoint(start, anchorGroup.GetValue(start)));
                             break;
                         }
 
@@ -68,22 +68,22 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
                 }
             }
 
-            if (anchorLine.End > end)
+            if (anchorGroup.End > end)
             {
-                if (anchorLine.End - end <= extension)
+                if (anchorGroup.End - end <= extension)
                 {
-                    end = anchorLine.End;
-                    endPoints.AddFirst(anchorLine.Last());
+                    end = anchorGroup.End;
+                    endPoints.AddFirst(anchorGroup.Last());
                 }
                 else
                 {
                     end += extension;
-                    for (int pi = anchorLine.Count - 1; pi >= 0; pi--)
+                    for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
                     {
-                        var point = anchorLine[pi];
+                        var point = anchorGroup[pi];
                         if (point.Pos <= end)
                         {
-                            endPoints.AddFirst(new AnchorPoint(end, anchorLine.GetValue(end)));
+                            endPoints.AddFirst(new AnchorPoint(end, anchorGroup.GetValue(end)));
                             break;
                         }
 
@@ -109,28 +109,28 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
         Push(new UndoOnlyCommand(NotifyRangeModified));
         for (int gi = mAnchorLines.Count - 1; gi >= 0; gi--)
         {
-            var anchorLine = mAnchorLines[gi];
-            if (anchorLine.Start >= end)
+            var anchorGroup = mAnchorLines[gi];
+            if (anchorGroup.Start >= end)
                 continue;
 
-            if (anchorLine.End <= start)
+            if (anchorGroup.End <= start)
                 break;
 
-            if (anchorLine.End <= end && anchorLine.Start >= start)
+            if (anchorGroup.End <= end && anchorGroup.Start >= start)
             {
                 mAnchorLines.RemoveAt(gi);
                 continue;
             }
 
-            if (anchorLine.End > end)
+            if (anchorGroup.End > end)
             {
                 var endPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
-                for (int pi = anchorLine.Count - 1; pi >= 0; pi--)
+                for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
                 {
-                    var point = anchorLine[pi];
+                    var point = anchorGroup[pi];
                     if (point.Pos <= end)
                     {
-                        endPoints.AddFirst(new AnchorPoint(end, anchorLine.GetValue(end)));
+                        endPoints.AddFirst(new AnchorPoint(end, anchorGroup.GetValue(end)));
                         break;
                     }
 
@@ -142,18 +142,18 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
                 mAnchorLines.Insert(gi + 1, endLine);
             }
 
-            if (anchorLine.Start < start)
+            if (anchorGroup.Start < start)
             {
-                var newPoint = new AnchorPoint(start, anchorLine.GetValue(start));
-                for (int pi = anchorLine.Count - 1; pi >= 0; pi--)
+                var newPoint = new AnchorPoint(start, anchorGroup.GetValue(start));
+                for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
                 {
-                    var point = anchorLine[pi];
+                    var point = anchorGroup[pi];
                     if (point.Pos >= start)
                     {
-                        anchorLine.RemoveAt(pi);
+                        anchorGroup.RemoveAt(pi);
                     }
                 }
-                anchorLine.Add(newPoint);
+                anchorGroup.Add(newPoint);
             }
             else
             {
@@ -178,20 +178,20 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
         int tickIndex = 0;
         for (int i = 0; i < mAnchorLines.Count; i++)
         {
-            var anchorLine = mAnchorLines[i];
-            if (anchorLine.End < start)
+            var anchorGroup = mAnchorLines[i];
+            if (anchorGroup.End < start)
                 continue;
 
-            if (anchorLine.Start > end)
+            if (anchorGroup.Start > end)
                 break;
 
-            while (tickIndex < ticks.Count && ticks[tickIndex] < anchorLine.Start)
+            while (tickIndex < ticks.Count && ticks[tickIndex] < anchorGroup.Start)
             {
                 tickIndex++;
             }
 
             int offset = tickIndex;
-            while (tickIndex < ticks.Count && ticks[tickIndex] <= anchorLine.End)
+            while (tickIndex < ticks.Count && ticks[tickIndex] <= anchorGroup.End)
             {
                 tickIndex++;
             }
@@ -201,7 +201,7 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
             {
                 ts[j] = ticks[j + offset];
             }
-            anchorLine.GetValues(ts).CopyTo(values, offset);
+            anchorGroup.GetValues(ts).CopyTo(values, offset);
 
             if (tickIndex == ticks.Count)
                 break;
@@ -219,4 +219,4 @@ internal class AnchorLineGroup<T> : DataObject, IAnchorLineGroup where T : class
     readonly ActionEvent<double, double> mRangeModified = new();
 }
 
-internal class AnchorLineGroup : AnchorLineGroup<AnchorLine> { }
+internal class piecewiseCurve : PiecewiseCurve<AnchorGroup> { }

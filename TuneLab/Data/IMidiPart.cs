@@ -24,7 +24,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IVoice Voice { get; }
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
-    IAnchorLineGroup Pitch { get; }
+    IPiecewiseCurve Pitch { get; }
     IReadOnlyList<ISynthesisPiece> SynthesisPieces { get; }
     IAutomation? AddAutomation(string automationID);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);

@@ -475,15 +475,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         IBrush pointBrush = pitchColor.ToBrush();
         IPen pointPen = new Pen(pointBrush);
-        foreach (var anchorLine in Part.Pitch.AnchorLines)
+        foreach (var anchorGroup in Part.Pitch.AnchorGroups)
         {
-            if (anchorLine.End <= start)
+            if (anchorGroup.End <= start)
                 continue;
 
-            if (anchorLine.Start >= end)
+            if (anchorGroup.Start >= end)
                 break;
 
-            foreach (var anchor in anchorLine)
+            foreach (var anchor in anchorGroup)
             {
                 if (anchor.Pos < start)
                     continue;

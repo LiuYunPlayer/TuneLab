@@ -910,15 +910,15 @@ internal partial class PianoScrollView
                 }
                 break;
             case PianoTool.Anchor:
-                foreach (var anchorLine in Part.Pitch.AnchorLines)
+                foreach (var anchorGroup in Part.Pitch.AnchorGroups)
                 {
-                    if (partPos + anchorLine.End < startPos)
+                    if (partPos + anchorGroup.End < startPos)
                         continue;
 
-                    if (partPos + anchorLine.Start > endPos)
+                    if (partPos + anchorGroup.Start > endPos)
                         break;
 
-                    foreach (var anchor in anchorLine)
+                    foreach (var anchor in anchorGroup)
                     {
                         if (partPos + anchor.Pos < startPos)
                             continue;
@@ -2310,7 +2310,7 @@ internal partial class PianoScrollView
     {
         protected override State SelectState => State.AnchorSelecting;
 
-        protected override IEnumerable<AnchorPoint>? Collection => PianoScrollView.Part?.Pitch.AnchorLines.SelectMany(anchorLine => anchorLine);
+        protected override IEnumerable<AnchorPoint>? Collection => PianoScrollView.Part?.Pitch.AnchorGroups.SelectMany(anchorGroup => anchorGroup);
 
         protected override void Select(IEnumerable<AnchorPoint> items, double minTick, double maxTick, double minPitch, double maxPitch)
         {
