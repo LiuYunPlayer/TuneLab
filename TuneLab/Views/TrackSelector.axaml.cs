@@ -6,6 +6,7 @@ using Avalonia.Markup.Xaml.Templates;
 using Avalonia.Media;
 using System;
 using TuneLab.GUI;
+using TuneLab.I18N;
 using TuneLab.Utils;
 using Button = TuneLab.GUI.Components.Button;
 using CheckBox = TuneLab.GUI.Components.CheckBox;
@@ -21,6 +22,9 @@ internal partial class TrackSelector : Window
         WindowState = WindowState.Normal;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Topmost = true;
+
+        TitleLabel.Content = "Select Track".Tr(TC.Dialog);
+        SelectorActionLabel.Content = "Select the track to import:".Tr(TC.Dialog);
 
         this.Background = Style.BACK.ToBrush();
         TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
@@ -43,7 +47,7 @@ internal partial class TrackSelector : Window
         KeepTempoPanel.Orientation = Orientation.Horizontal;
         KeepTempoPanel.Height = 24;
         KeepTempoPanel.Children.Add(mKeepTempoCheckBox);
-        KeepTempoPanel.Children.Add(new Label() { Content = "Keep Tempo", FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
+        KeepTempoPanel.Children.Add(new Label() { Content = "Keep Tempo".Tr(TC.Dialog), FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
         ActionsPanel.Children.Add(KeepTempoPanel);
         Grid.SetColumn(KeepTempoPanel, 0);
 
@@ -52,7 +56,7 @@ internal partial class TrackSelector : Window
         OkButtonPanel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
         var OkButton = new Button() { Width = 64, Height = 28 };
         OkButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_PRIMARY, HoveredColor = Style.BUTTON_PRIMARY_HOVER } });
-        OkButton.AddContent(new() { Item = new TextItem() { Text = "OK" }, ColorSet = new() { Color = Colors.White } });
+        OkButton.AddContent(new() { Item = new TextItem() { Text = "OK".Tr(TC.Dialog) }, ColorSet = new() { Color = Colors.White } });
         OkButtonPanel.Children.Add(OkButton);
         ActionsPanel.Children.Add(OkButtonPanel);
         Grid.SetColumn(OkButton, 1);

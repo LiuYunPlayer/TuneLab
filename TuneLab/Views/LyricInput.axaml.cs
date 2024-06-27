@@ -6,6 +6,7 @@ using System.Linq;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
+using TuneLab.I18N;
 using TuneLab.Utils;
 using Button = TuneLab.GUI.Components.Button;
 using CheckBox = TuneLab.GUI.Components.CheckBox;
@@ -22,6 +23,8 @@ internal partial class LyricInput : Window
         WindowState = WindowState.Normal;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Topmost = true;
+
+        TitleLabel.Content = "Input Lyrics".Tr(TC.Dialog);
 
         this.Background = Style.BACK.ToBrush();
         TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
@@ -51,7 +54,7 @@ internal partial class LyricInput : Window
         SkipTenutoLabelPanel.Orientation = Orientation.Horizontal;
         SkipTenutoLabelPanel.Height = 24;
         SkipTenutoLabelPanel.Children.Add(mSkipTenutoCheckBox);
-        SkipTenutoLabelPanel.Children.Add(new Label() { Content = "Skip Tenuto", FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
+        SkipTenutoLabelPanel.Children.Add(new Label() { Content = "Skip Tenuto".Tr(TC.Dialog), FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
         ActionsPanel.Children.Add(SkipTenutoLabelPanel);
         Grid.SetColumn(SkipTenutoLabelPanel, 0);
         var OkButtonPanel = new StackPanel();
@@ -59,7 +62,7 @@ internal partial class LyricInput : Window
         OkButtonPanel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
         var OkButton = new Button() { Width = 64, Height = 28 };
         OkButton.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_PRIMARY, HoveredColor = Style.BUTTON_PRIMARY_HOVER } });
-        OkButton.AddContent(new() { Item = new TextItem() { Text = "OK" }, ColorSet = new() { Color = Colors.White } });
+        OkButton.AddContent(new() { Item = new TextItem() { Text = "OK".Tr(TC.Dialog) }, ColorSet = new() { Color = Colors.White } });
         OkButtonPanel.Children.Add(OkButton);
         ActionsPanel.Children.Add(OkButtonPanel);
         Grid.SetColumn(OkButton, 1);

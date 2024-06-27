@@ -17,6 +17,10 @@ internal static class PathManager
     public static string ExtensionsFolder => Path.Combine(TuneLabFolder, "Extensions");
     public static string LockFilePath => Path.Combine(TuneLabFolder, "TuneLab.lock");
 
+    public static string ExcutableFolder => AppDomain.CurrentDomain.BaseDirectory;
+    public static string ResourcesFolder => Path.Combine(ExcutableFolder, "Resources");
+    public static string TranslationsFolder => Path.Combine(ResourcesFolder, "Translations");
+
     public static void MakeSure(string folder)
     {
         if (!Directory.Exists(folder))
