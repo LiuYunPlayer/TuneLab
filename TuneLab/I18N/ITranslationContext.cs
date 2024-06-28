@@ -13,6 +13,11 @@ internal interface ITranslationContext
 
 internal static class ITranslateContextExtension
 {
+    public static string Tr(this string text, object context)
+    {
+        return TranslationManager.CurrentTranslator.Translate(text, [context.GetType().Name]);
+    }
+
     public static string Tr(this ITranslationContext translationContext, string text, params string[] context)
     {
         return TranslationManager.CurrentTranslator.Translate(text, translationContext.TranslationContextKeys.Concat(context));

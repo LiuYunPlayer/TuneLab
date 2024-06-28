@@ -36,7 +36,7 @@ using TuneLab.I18N;
 
 namespace TuneLab.Views;
 
-internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency, ITranslationContext
+internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency
 {
     public Menu Menu { get; }
     public TrackWindow TrackWindow => mTrackWindow;
@@ -327,11 +327,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         var modal = new Dialog();
-        modal.SetTitle("Tips");
-        modal.SetMessage("The project has not been saved.\n Do you want to save it?");
-        modal.AddButton("Cancel", ButtonType.Normal);
-        modal.AddButton("No", ButtonType.Normal).Clicked += () => { CreateAndSwitchNewProject(); };
-        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); CreateAndSwitchNewProject(); };
+        modal.SetTitle("Tips".Tr(TC.Dialog));
+        modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
+        modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
+        modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { CreateAndSwitchNewProject(); };
+        modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await SaveProject(); CreateAndSwitchNewProject(); };
         modal.Topmost = true;
         await modal.ShowDialog(this.Window());
     }
@@ -361,11 +361,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         var modal = new Dialog();
-        modal.SetTitle("Tips");
-        modal.SetMessage("The project has not been saved.\n Do you want to save it?");
-        modal.AddButton("Cancel", ButtonType.Normal);
-        modal.AddButton("No", ButtonType.Normal).Clicked += () => { OpenAndSwitchProject(); };
-        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); OpenAndSwitchProject(); };
+        modal.SetTitle("Tips".Tr(TC.Dialog));
+        modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
+        modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
+        modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { OpenAndSwitchProject(); };
+        modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await SaveProject(); OpenAndSwitchProject(); };
         modal.Topmost = true;
         await modal.ShowDialog(this.Window());
     }
