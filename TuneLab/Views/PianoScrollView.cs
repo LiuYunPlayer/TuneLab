@@ -961,19 +961,19 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Match(Key.Tab))
+        if (e.Key == Key.Tab)
         {
             if (Part != null && mInputLyricNote != null)
             {
                 var x = TickAxis.Tick2X(mInputLyricNote.GlobalStartPos());
                 var y = PitchAxis.Pitch2Y(mInputLyricNote.Pitch.Value);
-                var nextNote = mInputLyricNote.Next;
+                var note = e.HasModifiers(ModifierKeys.Shift) ? mInputLyricNote.Last : mInputLyricNote.Next;
                 mLyricInput.Unfocus();
-                if (nextNote != null)
+                if (note != null)
                 {
-                    EnterInputLyric(nextNote);
-                    TickAxis.AnimateMove(x - TickAxis.Tick2X(nextNote.GlobalStartPos()));
-                    PitchAxis.AnimateMove(y - PitchAxis.Pitch2Y(nextNote.Pitch.Value));
+                    EnterInputLyric(note);
+                    TickAxis.AnimateMove(x - TickAxis.Tick2X(note.GlobalStartPos()));
+                    PitchAxis.AnimateMove(y - PitchAxis.Pitch2Y(note.Pitch.Value));
                 }
                 e.Handled = true;
             }

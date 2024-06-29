@@ -134,6 +134,11 @@ internal static class Extensions
         return e.Key == key && e.ModifierKeys() == modifiers;
     }
 
+    public static bool HasModifiers(this KeyEventArgs e, ModifierKeys modifiers)
+    {
+        return (e.ModifierKeys() & modifiers) != 0;
+    }
+
     public static SolidColorBrush ToBrush(this Color color)
     {
         return new SolidColorBrush(color);
