@@ -49,17 +49,22 @@ internal static class IPiecewiseCurveExtension
         piecewiseCurve.AddLine(points.Convert(p => new AnchorPoint(p)), extend);
     }
 
-    public static void MoveLine(this IPiecewiseCurve piecewiseCurve, double start, double end, double TickOffset,double PitchOffset)
+    public static void MoveLine(this IPiecewiseCurve piecewiseCurve, Tuple<double,double>[] ranges, double TickOffset,double PitchOffset)
     {
-        List<double> ticks = new List<double>();
-        for (long i = (long)start; i < (long)end; i++) ticks.Add(i);
-        double[] pitches=piecewiseCurve.GetValues(ticks.ToArray());
-        List<Point> newLine = new List<Point>();
-        for (int i = 0; i < ticks.Count; i++)
+        List<List<Point>> newLines = new List<List<Point>>();
+        foreach (var range in ranges)
         {
-            newLine.Add(new Point() { X = ticks[i] +TickOffset,Y=pitches[i]+PitchOffset });
+            List<double> ticks = new List<double>();
+            for (long i = (long)range.Item1; i < (long)range.Item2; i++) ticks.Add(i);
+            double[] pitches = piecewiseCurve.GetValues(ticks.ToArray());
+            List<Point> newLine = new List<Point>();
+            for (int i = 0; i < ticks.Count; i++)
+            {
+                newLine.Add(new Point() { X = ticks[i] + TickOffset, Y = pitches[i] + PitchOffset });
+            }
+            newLines.Add(newLine);
+            piecewiseCurve.Clear(range.Item1, range.Item2);
         }
-        piecewiseCurve.Clear(start, end);
-        AddLine(piecewiseCurve, newLine,5);
+        foreach(var newLine in newLines) AddLine(piecewiseCurve, newLine,5);
     }
 }

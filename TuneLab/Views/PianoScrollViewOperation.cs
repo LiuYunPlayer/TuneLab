@@ -1434,9 +1434,10 @@ internal partial class PianoScrollView
             part.DiscardTo(mHead);
             part.BeginMergeReSegment();
             part.Notes.ListModified.BeginMerge();
+            List<Tuple<double, double>> ranges = new List<Tuple<double, double>>();
             foreach (var note in mMoveNotes)
             {
-                if (movePitchLine) part.Pitch.MoveLine(note.StartPos(), note.EndPos(), posOffset, pitchOffset);//跟随Note移动Pitch
+                ranges.Add(new Tuple<double, double>(note.StartPos(), note.EndPos()));
                 note.Pos.Set(note.Pos.Value + posOffset);
                 note.Pitch.Set(note.Pitch.Value + pitchOffset);
                 part.RemoveNote(note);
@@ -1445,6 +1446,7 @@ internal partial class PianoScrollView
             {
                 part.InsertNote(note);
             }
+            if (movePitchLine) part.Pitch.MoveLine(ranges.ToArray(), posOffset, pitchOffset);//跟随Note移动Pitch
             part.Notes.ListModified.EndMerge();
             part.EndMergeReSegment();
         }

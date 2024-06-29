@@ -921,11 +921,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
             return;
 
         Part.BeginMergeDirty();
+        List<Tuple<double, double>> ranges = new List<Tuple<double, double>>();
         foreach (var note in selectedNotes)
         {
             note.Pitch.Set(note.Pitch.Value + offset);
-            if(withPitchLine) Part.Pitch.MoveLine(note.StartPos(), note.EndPos(), 0, offset);
+            ranges.Add(new Tuple<double,double>(note.StartPos(), note.EndPos()));
         }
+        if (withPitchLine) Part.Pitch.MoveLine(ranges.ToArray(), 0, offset);
         Part.EndMergeDirty();
         Part.Commit();
     }
