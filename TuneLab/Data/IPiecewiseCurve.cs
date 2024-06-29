@@ -48,4 +48,18 @@ internal static class IPiecewiseCurveExtension
     {
         piecewiseCurve.AddLine(points.Convert(p => new AnchorPoint(p)), extend);
     }
+
+    public static void MoveLine(this IPiecewiseCurve piecewiseCurve, double start, double end, double TickOffset,double PitchOffset)
+    {
+        List<double> ticks = new List<double>();
+        for (long i = (long)start; i < (long)end; i++) ticks.Add(i);
+        double[] pitches=piecewiseCurve.GetValues(ticks.ToArray());
+        List<Point> newLine = new List<Point>();
+        for (int i = 0; i < ticks.Count; i++)
+        {
+            newLine.Add(new Point() { X = ticks[i] +TickOffset,Y=pitches[i]+PitchOffset });
+        }
+        piecewiseCurve.Clear(start, end);
+        AddLine(piecewiseCurve, newLine,5);
+    }
 }

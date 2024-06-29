@@ -908,7 +908,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
     }
 
-    public void ChangeKey(int offset)
+    public void ChangeKey(int offset, bool withPitchLine = false)
     {
         if (Part == null)
             return;
@@ -924,6 +924,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         foreach (var note in selectedNotes)
         {
             note.Pitch.Set(note.Pitch.Value + offset);
+            if(withPitchLine) Part.Pitch.MoveLine(note.StartPos(), note.EndPos(), 0, offset);
         }
         Part.EndMergeDirty();
         Part.Commit();
