@@ -35,7 +35,7 @@ internal class TrackVerticalAxis : AnimationScalableScrollAxis
 
     public interface IDependency
     {
-        IProvider<Project> ProjectProvider { get; }
+        IProvider<IProject> ProjectProvider { get; }
     }
 
     public TrackVerticalAxis(IDependency dependency)

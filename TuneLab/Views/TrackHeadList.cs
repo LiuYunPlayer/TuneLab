@@ -21,7 +21,7 @@ internal class TrackHeadList : LayerPanel
 {
     public interface IDependency
     {
-        IProvider<Project> ProjectProvider { get; }
+        IProvider<IProject> ProjectProvider { get; }
         TrackVerticalAxis TrackVerticalAxis { get; }
     }
 

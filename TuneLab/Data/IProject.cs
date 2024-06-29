@@ -14,7 +14,7 @@ internal interface IProject : IDataObject<ProjectInfo>, ITimeline, IDisposable
     IReadOnlyDataObjectList<ITrack> Tracks { get; }
     void AddTrack(TrackInfo info);
     void RemoveTrack(ITrack track);
-    void InsertTrack(int index, TrackInfo info);
+    void RemoveTrackAt(int index);
     void InsertTrack(int index, ITrack track);
 }
 

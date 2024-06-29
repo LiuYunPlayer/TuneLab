@@ -90,6 +90,14 @@ internal class Project : DataObject, IProject
         mTracks.RemoveAt(trackIndex);
     }
 
+    public void InsertTrack(int trackIndex, ITrack track)
+    {
+        if ((uint)trackIndex > mTracks.Count)
+            return;
+
+        mTracks.Insert(trackIndex, track);
+    }
+
     Track CreateTrack(TrackInfo info)
     {
         return new Track(this, info);

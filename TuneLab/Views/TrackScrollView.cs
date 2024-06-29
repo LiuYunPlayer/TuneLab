@@ -30,7 +30,7 @@ internal partial class TrackScrollView : View
         TickAxis TickAxis { get; }
         TrackVerticalAxis TrackVerticalAxis { get; }
         IQuantization Quantization { get; }
-        IProvider<Project> ProjectProvider { get; }
+        IProvider<IProject> ProjectProvider { get; }
         IProvider<Part> EditingPart { get; }
         void SwitchEditingPart(IPart part);
     }
@@ -743,7 +743,7 @@ internal partial class TrackScrollView : View
     TickAxis TickAxis => mDependency.TickAxis;
     TrackVerticalAxis TrackVerticalAxis => mDependency.TrackVerticalAxis;
     IQuantization Quantization => mDependency.Quantization;
-    Project? Project => mDependency.ProjectProvider.Object;
+    IProject? Project => mDependency.ProjectProvider.Object;
 
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
