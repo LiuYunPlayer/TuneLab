@@ -172,7 +172,7 @@ namespace TuneLab.Views
             this.WindowState = WindowState.Minimized;
         }
 
-        private async void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             if (!isCloseConfirm && !mEditor.Document.IsSaved)
             {
