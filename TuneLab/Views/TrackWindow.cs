@@ -21,20 +21,20 @@ namespace TuneLab.Views;
 
 internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
 {
-    public IProvider<Project> ProjectProvider => mDependency.ProjectProvider;
+    public IProvider<IProject> ProjectProvider => mDependency.ProjectProvider;
     public IProvider<ITimeline> TimelineProvider => mDependency.ProjectProvider;
     public IQuantization Quantization => mQuantization;
     public TickAxis TickAxis => mTickAxis;
     public TrackVerticalAxis TrackVerticalAxis => mTrackVerticalAxis;
     public IPlayhead Playhead => mDependency.Playhead;
     public IProvider<Part> EditingPart => mDependency.EditingPart;
-    public Project? Project => ProjectProvider.Object;
+    public IProject? Project => ProjectProvider.Object;
     public TrackScrollView TrackScrollView => mTrackScrollView;
     public bool IsAutoPage => true;
 
     public interface IDependency
     {
-        IProvider<Project> ProjectProvider { get; }
+        IProvider<IProject> ProjectProvider { get; }
         IPlayhead Playhead { get; }
         IProvider<Part> EditingPart { get; }
         void SwitchEditingPart(IPart? part);

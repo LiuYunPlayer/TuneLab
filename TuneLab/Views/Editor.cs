@@ -43,7 +43,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public ProjectDocument Document => mDocument;
     public Project? Project => mDocument.Project;
     public IPlayhead Playhead => mPlayhead;
-    public IProvider<Project> ProjectProvider => mDocument.ProjectProvider;
+    public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
     public IProvider<Part> EditingPart => mPianoWindow.PartProvider;
 
     public Editor()
