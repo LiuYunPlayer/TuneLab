@@ -20,7 +20,6 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
     public IActionEvent PianoToolChanged => mPianoToolChanged;
-    public IActionEvent IsAutoPageChanged => mIsAutoPageChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
@@ -36,7 +35,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
     public PianoTool PianoTool { get => mPianoTool; set { if (mPianoTool == value) return; mPianoTool = value; mPianoToolChanged.Invoke(); } }
-    public bool IsAutoPage { get => mIsAutoPage; set { if (mIsAutoPage == value) return; mIsAutoPage = value; mIsAutoPageChanged.Invoke(); } }
+    public bool IsAutoPage => mDependency.IsAutoPage;
     public string? ActiveAutomation
     {
         get
@@ -65,6 +64,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     public interface IDependency
     {
         IPlayhead Playhead { get; }
+        bool IsAutoPage { get; }
     }
 
     public PianoWindow(IDependency dependency)
@@ -249,10 +249,8 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     string? mActiveAutomation;
     readonly List<string> mVisibleAutomations = new();
     PianoTool mPianoTool = PianoTool.Note;
-    bool mIsAutoPage = false;
 
     readonly ActionEvent mPianoToolChanged = new();
-    readonly ActionEvent mIsAutoPageChanged = new();
     readonly ActionEvent mWaveformBottomChanged = new();
 
     readonly Quantization mQuantization;

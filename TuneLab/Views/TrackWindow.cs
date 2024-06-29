@@ -30,7 +30,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     public IProvider<Part> EditingPart => mDependency.EditingPart;
     public IProject? Project => ProjectProvider.Object;
     public TrackScrollView TrackScrollView => mTrackScrollView;
-    public bool IsAutoPage => true;
+    public bool IsAutoPage => mDependency.IsAutoPage;
 
     public interface IDependency
     {
@@ -38,6 +38,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         IPlayhead Playhead { get; }
         IProvider<Part> EditingPart { get; }
         void SwitchEditingPart(IPart? part);
+        bool IsAutoPage { get; }
     }
 
     public TrackWindow(IDependency dependency)
