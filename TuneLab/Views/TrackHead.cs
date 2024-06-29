@@ -109,7 +109,34 @@ internal class TrackHead : DockPanel
             }).SetInputGesture(Key.Delete);
             menu.Items.Add(menuItem);
         }
-
+        {
+            var menuItem = new MenuItem().SetName("Move Up").SetAction(() =>
+            {
+                var project = Track.Project;
+                int index = project.Tracks.IndexOf(Track);
+                if (index == -1) return;
+                if (index == 0) return;
+                ITrack t = project.Tracks[index];
+                project.RemoveTrack(Track);
+                project.InsertTrack(index-1, t);
+                project.Commit();
+            });
+            menu.Items.Add(menuItem);
+        }
+        { 
+            var menuItem = new MenuItem().SetName("Move Down").SetAction(() =>
+            {
+                var project = Track.Project;
+                int index = project.Tracks.IndexOf(Track);
+                if (index == -1) return;
+                if (index == project.Tracks.Count - 1) return;
+                ITrack t = project.Tracks[index];
+                project.RemoveTrack(Track);
+                project.InsertTrack(index + 1, t);
+                project.Commit();
+            });
+            menu.Items.Add(menuItem);
+        }
         ContextMenu = menu;
         Background = Brushes.Transparent;
     }

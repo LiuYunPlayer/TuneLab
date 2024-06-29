@@ -67,6 +67,16 @@ internal class Project : DataObject, IProject
         mTracks.Add(CreateTrack(info));
     }
 
+    public void InsertTrack(int index,TrackInfo info)
+    {
+        mTracks.Insert(index,CreateTrack(info));
+    }
+
+    public void InsertTrack(int index, ITrack track)
+    {
+        mTracks.Insert(index, track);
+    }
+
     public void RemoveTrack(ITrack track)
     {
         mTracks.Remove(track);

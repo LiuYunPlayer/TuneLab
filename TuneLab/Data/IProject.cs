@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Avalonia.Controls.Primitives;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +14,8 @@ internal interface IProject : IDataObject<ProjectInfo>, ITimeline, IDisposable
     IReadOnlyDataObjectList<ITrack> Tracks { get; }
     void AddTrack(TrackInfo info);
     void RemoveTrack(ITrack track);
+    void InsertTrack(int index, TrackInfo info);
+    void InsertTrack(int index, ITrack track);
 }
 
 internal static class IProjectExtension
