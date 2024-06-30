@@ -14,6 +14,7 @@ using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
+using Avalonia.Threading;
 
 namespace TuneLab.Views;
 
@@ -48,12 +49,21 @@ internal class TrackHeadList : LayerPanel
             mTrackHeadList = trackHeadList;
 
             mAddTrackButton = new(mTrackHeadList);
+            mDirtyHandler.OnDirty += () => 
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    OnTrackListModified();
+                    mDirtyHandler.Reset();
+                }, DispatcherPriority.Normal);
+            };
 
             mTrackHeadList.mDependency.TrackVerticalAxis.AxisChanged += InvalidateArrange;
-            mTrackHeadList.mDependency.ProjectProvider.ObjectChanged.Subscribe(OnTrackListModified, s);
-            mTrackHeadList.mDependency.ProjectProvider.When(project => project.Tracks.ListModified).Subscribe(OnTrackListModified, s);
+            mTrackHeadList.mDependency.ProjectProvider.ObjectChanged.Subscribe(mDirtyHandler.SetDirty, s);
+            mTrackHeadList.mDependency.ProjectProvider.When(project => project.Tracks.ListModified).Subscribe(mDirtyHandler.SetDirty, s);
 
             ClipToBounds = true;
+            Children.Add(mAddTrackButton);
         }
 
         ~TrackHeadLayer()
@@ -74,27 +84,45 @@ internal class TrackHeadList : LayerPanel
 
         void OnTrackListModified()
         {
+            int trackCount = 0;
             foreach (var child in Children)
             {
                 if (child is TrackHead trackHead)
                 {
                     trackHead.SetTrack(null);
-                    ObjectPoolManager.Return(trackHead);
+                    trackCount++;
                 }
             }
-            Children.Clear();
 
             var project = mTrackHeadList.mDependency.ProjectProvider.Object;
             if (project == null)
                 return;
 
+            int diffCount = project.Tracks.Count - trackCount;
+            if (diffCount > 0)
+            {
+                for (int i = 0; i < diffCount; i++)
+                {
+                    var trackHead = ObjectPoolManager.Get<TrackHead>();
+                    Children.Insert(Children.Count - 1, trackHead);
+                }
+            }
+            if (diffCount < 0)
+            {
+                for (int i = 0; i < -diffCount; i++)
+                {
+                    var trackHead = (TrackHead)Children[Children.Count - 2];
+                    Children.RemoveAt(Children.Count - 2);
+                    ObjectPoolManager.Return(trackHead);
+                }
+            }
+
+            int childrenIndex = 0;
             foreach (var track in project.Tracks)
             {
-                var trackHead = ObjectPoolManager.Get<TrackHead>();
+                var trackHead = (TrackHead)Children[childrenIndex++];
                 trackHead.SetTrack(track);
-                Children.Add(trackHead);
             }
-            Children.Add(mAddTrackButton);
         }
 
         class AddTrackButton(TrackHeadList trackHeadList) : Component
@@ -122,6 +150,7 @@ internal class TrackHeadList : LayerPanel
             }
         }
 
+        readonly DirtyHandler mDirtyHandler = new();
         readonly AddTrackButton mAddTrackButton;
         readonly TrackHeadList mTrackHeadList;
         readonly DisposableManager s = new();
