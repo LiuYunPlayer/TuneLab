@@ -804,6 +804,13 @@ internal class MidiPart : Part, IMidiPart
                     subPiece.Finished += () => { 
                         if(subPiece.SynthesisStatus== SynthesisStatus.SynthesisSucceeded && SynthesisStatus==SynthesisStatus.SynthesisHalfSuccessed)
                         {
+                            foreach (var note in Notes)
+                            {
+                                if (subPiece.SynthesisResult!=null && subPiece.SynthesisResult.SynthesizedPhonemes.TryGetValue(mSynthesisNoteMap[note], out var XvsPhonemes))
+                                {
+                                    note.SynthesizedPhonemes = XvsPhonemes;
+                                }
+                            }
                             SynthesisStatus = SynthesisStatus.SynthesisSucceeded;
                             Finished?.Invoke();
                         }
@@ -839,6 +846,7 @@ internal class MidiPart : Part, IMidiPart
                 note.Properties.PropertyModified.Subscribe(OnNotePropertyModified, s);
                 note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
             }
+             mSynthesisNoteMap = new Dictionary<INote, INote>();
         }
 
         public void Prepare()
@@ -886,13 +894,45 @@ internal class MidiPart : Part, IMidiPart
             return mSynthesisResult == null ? new float[count] : mSynthesisResult.Read(offset, count);
         }
 
+        SynthesisPiece getSynthesisData(bool isBaseVoice = true)
+        {
+            if (mNotes.Where(p => (p.Lyric.GetInfo().IndexOf("<") > 1 && p.Lyric.GetInfo().EndsWith(">"))).Count()==0) return this;
+            var clonePiece = (SynthesisPiece)this.MemberwiseClone();
+            List<INote> newNoteList = new List<INote>();
+            foreach (var note in clonePiece.Notes)
+            {
+                var noteInfo = note.GetInfo();
+                if (noteInfo.Lyric.IndexOf("<") > 1 && noteInfo.Lyric.IndexOf(">") > noteInfo.Lyric.IndexOf("<") + 1)
+                {
+                    if (isBaseVoice)
+                    {
+                        noteInfo.Lyric = noteInfo.Lyric.Split("<")[0];
+                    }
+                    else
+                    {
+                        noteInfo.Lyric = noteInfo.Lyric.Split("<")[1].Split(">")[0];
+                    }
+                    var newNote = new Note(mPart, noteInfo);
+                    mSynthesisNoteMap.Add(note, newNote);
+                    newNoteList.Add(newNote);
+                }
+                else
+                {
+                    mSynthesisNoteMap.Add(note, note);
+                    newNoteList.Add(note);
+                }
+            }
+            clonePiece.mNotes = newNoteList.ToArray();
+            return clonePiece;
+        }
+
         [MemberNotNull(nameof(mTask))]
         void CreateSynthesisTask(bool isBaseVoice = true)
         {
             if(isBaseVoice)
-                mTask = mPart.Voice.CreateSynthesisTask(this);
+                mTask = mPart.Voice.CreateSynthesisTask(this.getSynthesisData());
             else
-                mTask = mPart.Voice2.CreateSynthesisTask(this);
+                mTask = mPart.Voice2.CreateSynthesisTask(this.getSynthesisData(false));
             mTask.Complete += (result) =>
             {
                 context.Post(_ =>
@@ -903,7 +943,11 @@ internal class MidiPart : Part, IMidiPart
 
                     foreach (var note in Notes)
                     {
-                        if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
+                        if (SynthesisStatus == SynthesisStatus.SynthesisSucceeded && XvsPiece != null && XvsPiece.SynthesisResult.SynthesizedPhonemes.TryGetValue(mSynthesisNoteMap[note], out var XvsPhonemes))
+                        {
+                            note.SynthesizedPhonemes = XvsPhonemes;
+                        }
+                        else if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(mSynthesisNoteMap[note], out var phonemes))
                         {
                             note.SynthesizedPhonemes = phonemes;
                         }
@@ -978,6 +1022,7 @@ internal class MidiPart : Part, IMidiPart
         double mSynthesisProgress = 0;
         string? mLastError = null;
 
+        Dictionary<INote, INote> mSynthesisNoteMap;
         ISynthesisPiece? mXvsPiece = null;
 
         DisposableManager s = new();
