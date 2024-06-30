@@ -806,7 +806,7 @@ internal class MidiPart : Part, IMidiPart
                         {
                             foreach (var note in Notes)
                             {
-                                if (subPiece.SynthesisResult!=null && subPiece.SynthesisResult.SynthesizedPhonemes.TryGetValue(mSynthesisNoteMap[note], out var XvsPhonemes))
+                                if (subPiece.SynthesisResult!=null && subPiece.SynthesisResult.SynthesizedPhonemes.TryGetValue(peekSynthesisNote(note), out var XvsPhonemes))
                                 {
                                     note.SynthesizedPhonemes = XvsPhonemes;
                                 }
@@ -896,7 +896,7 @@ internal class MidiPart : Part, IMidiPart
 
         SynthesisPiece getSynthesisData(bool isBaseVoice = true)
         {
-            if (mNotes.Where(p => (p.Lyric.GetInfo().IndexOf("<") > 1 && p.Lyric.GetInfo().EndsWith(">"))).Count()==0) return this;
+            if (mNotes.Where(p => (p.Lyric.GetInfo().IndexOf("<") > 1 && p.Lyric.GetInfo().EndsWith(">"))).Count()==0) return this;//当直接返回是不会在Map中添加映射的，也没必要，所以PeekNote直接return note即可
             var clonePiece = (SynthesisPiece)this.MemberwiseClone();
             List<INote> newNoteList = new List<INote>();
             foreach (var note in clonePiece.Notes)
@@ -926,6 +926,12 @@ internal class MidiPart : Part, IMidiPart
             return clonePiece;
         }
 
+        INote peekSynthesisNote(INote note)
+        {
+            if (mSynthesisNoteMap.ContainsKey(note)) return mSynthesisNoteMap[note];
+            return note;
+        }
+
         [MemberNotNull(nameof(mTask))]
         void CreateSynthesisTask(bool isBaseVoice = true)
         {
@@ -943,11 +949,11 @@ internal class MidiPart : Part, IMidiPart
 
                     foreach (var note in Notes)
                     {
-                        if (SynthesisStatus == SynthesisStatus.SynthesisSucceeded && XvsPiece != null && XvsPiece.SynthesisResult.SynthesizedPhonemes.TryGetValue(mSynthesisNoteMap[note], out var XvsPhonemes))
+                        if (SynthesisStatus == SynthesisStatus.SynthesisSucceeded && XvsPiece != null && XvsPiece.SynthesisResult.SynthesizedPhonemes.TryGetValue(peekSynthesisNote(note), out var XvsPhonemes))
                         {
                             note.SynthesizedPhonemes = XvsPhonemes;
                         }
-                        else if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(mSynthesisNoteMap[note], out var phonemes))
+                        else if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(peekSynthesisNote(note), out var phonemes))
                         {
                             note.SynthesizedPhonemes = phonemes;
                         }
