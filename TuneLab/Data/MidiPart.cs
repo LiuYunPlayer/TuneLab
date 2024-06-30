@@ -18,6 +18,7 @@ using TuneLab.Base.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
 using System.Threading;
+using NAudio.CoreAudioApi;
 
 namespace TuneLab.Data;
 
@@ -31,6 +32,7 @@ internal class MidiPart : Part, IMidiPart
     public DataPropertyObject Properties { get; }
     public INoteList Notes => mNotes;
     public IVoice Voice => mVoice;
+    public IVoice Voice2 => mVoice2; //XST
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     public IPiecewiseCurve Pitch => mPitchLine;
@@ -47,6 +49,7 @@ internal class MidiPart : Part, IMidiPart
         Gain = new(this);
         Properties = new(this);
         mVoice = new(this, new VoiceInfo());
+        mVoice2 = new(this, new VoiceInfo());
         mNotes = new();
         mNotes.Attach(this);
         mVibratos = new(this);
@@ -55,6 +58,7 @@ internal class MidiPart : Part, IMidiPart
         mPitchLine.Attach(this);
         Dur.Modified.Subscribe(mDurationChanged);
         mVoice.Modified.Subscribe(ReGeneratePieces);
+        mVoice2.Modified.Subscribe(ReGeneratePieces);
         mPitchLine.RangeModified.Subscribe(OnPitchRangeModified);
         mNotes.ListModified.Subscribe(ReSegment);
         mVibratos.Any(vibrato => vibrato.RangeModified).Subscribe(OnPitchRangeModified);
@@ -347,6 +351,40 @@ internal class MidiPart : Part, IMidiPart
             if (!exist)
             {
                 var newPiece = new SynthesisPiece(this, segment);
+                if (!(this.Voice2 is Voice && ((Voice)this.Voice2).isEmptyVoice))
+                {
+                    int XvsState = 0;//0:Voice1 1:Voice2 2:XVS
+                    {
+                        //这段代码用来判断不需要启动XVS的区块儿，如果是那么就不开XVS了
+                        if (segment.Notes.Count > 0)
+                        {
+                            int tickDur = (int)(segment.Notes.Last().EndPos() - segment.Notes.First().StartPos());
+                            double[] ticks = Enumerable.Range(0, tickDur).Select(i => this.StartPos() + segment.Notes.First().StartPos() + i).ToArray();
+                            double[] values = this.GetAutomationValues(ticks, ConstantDefine.XvsLineID);
+                            if (values.Length > 0)
+                            {
+                                XvsState = (
+                                    values.All(p => p == 0) ? 0 :
+                                    values.All(p => p == 1) ? 1 :
+                                    2
+                                    );
+                            }
+
+                        }
+                    }
+                    if (XvsState == 2)
+                    {
+                        //如果是XVS区块，开始副轨
+                        newPiece.XvsPiece = new SynthesisPiece(this, segment);
+                        ((SynthesisPiece)newPiece.XvsPiece).SynthesisStatusChanged += () => { mSynthesisStatusChanged.Invoke(newPiece); };
+                    }else if (XvsState==1)
+                    {
+                        //如果全第二轨，那么不渲染第一轨
+                        var newPart = (MidiPart)this.MemberwiseClone();
+                        newPart.Voice.Set(newPart.Voice2.GetInfo());
+                        newPiece = new SynthesisPiece(newPart, segment);
+                    }
+                }
                 newPiece.SynthesisStatusChanged += () => { mSynthesisStatusChanged.Invoke(newPiece); };
                 newPiece.Finished += () => { if (string.IsNullOrEmpty(newPiece.LastError)) return; Log.Debug(string.Format("Synthesis error: {0} {1}", Voice.Name, newPiece.LastError)); };
                 newPieces.Add(newPiece);
@@ -408,7 +446,9 @@ internal class MidiPart : Part, IMidiPart
         foreach (var piece in SynthesisPieces)
         {
             if (!piece.IsSynthesisEnabled || piece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded || piece.SynthesisStatus == SynthesisStatus.SynthesisFailed)
-                continue;
+                if(piece.XvsPiece==null) continue;
+                else if (!piece.XvsPiece.IsSynthesisEnabled || piece.XvsPiece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded || piece.XvsPiece.SynthesisStatus == SynthesisStatus.SynthesisFailed)
+                    continue;
 
             if (result == null)
             {
@@ -450,7 +490,8 @@ internal class MidiPart : Part, IMidiPart
             Pitch = mPitchLine.GetInfo(),
             Vibratos = mVibratos.GetInfo().ToInfo(),
             Voice = mVoice.GetInfo(),
-            Properties = Properties.GetInfo(),
+            Voice2 = mVoice2.GetInfo(),
+            Properties = Properties.GetInfo()
         };
     }
 
@@ -466,6 +507,7 @@ internal class MidiPart : Part, IMidiPart
         IDataObject<MidiPartInfo>.SetInfo(mAutomations, info.Automations.Convert(CreateAutomation).ToMap());
         IDataObject<MidiPartInfo>.SetInfo(mPitchLine, info.Pitch);
         IDataObject<MidiPartInfo>.SetInfo(mVoice, info.Voice);
+        IDataObject<MidiPartInfo>.SetInfo(mVoice2, info.Voice2);
         IDataObject<MidiPartInfo>.SetInfo(Properties, info.Properties);
     }
 
@@ -483,7 +525,12 @@ internal class MidiPart : Part, IMidiPart
     Automation CreateAutomation(string automationID, AutomationInfo info)
     {
         var automation = new Automation(this, info);
-        if (automationID != ConstantDefine.VolumeID)
+        if(automationID == ConstantDefine.XvsLineID)
+        {
+            automation.RangeModified.Subscribe(OnXvsRangeModified);
+            automation.DefaultValue.Modified.Subscribe(() => { SetAllPieceDirty(""); }); // TODO: 传递id
+        }
+        else if (automationID != ConstantDefine.VolumeID)
         {
             automation.RangeModified.Subscribe(OnAutomationRangeModified);
             automation.DefaultValue.Modified.Subscribe(() => { SetAllPieceDirty(""); }); // TODO: 传递id
@@ -512,7 +559,23 @@ internal class MidiPart : Part, IMidiPart
             piece.SetDirty("TODO");
         }
     }
+    void OnXvsRangeModified(double start, double end)
+    {
+        double startTime = TempoManager.GetTime(Pos + start);
+        double endTime = TempoManager.GetTime(Pos + end);
+        foreach (var piece in mSynthesisPieces)
+        {
+            if (piece.AudioEndTime() < startTime)
+                continue;
 
+            if (piece.AudioStartTime() > endTime)
+                break;
+
+            piece.SetDirty("TODO");
+            if (piece.XvsPiece != null)
+                ((SynthesisPiece)piece.XvsPiece).SetDirty("TODO");
+        }
+    }
     void OnAutomationRangeModified(double start, double end)
     {
         double startTime = TempoManager.GetTime(Pos + start);
@@ -532,6 +595,7 @@ internal class MidiPart : Part, IMidiPart
     protected override IAudioData GetAudioData(int offset, int count)
     {
         float[] data = new float[count];
+        float[] data2 = new float[count];
         int sampleRate = ((IAudioSource)this).SamplingRate;
         double startTime = ((IAudioSource)this).StartTime;
         int partOffset = (int)(sampleRate * startTime);
@@ -549,6 +613,24 @@ internal class MidiPart : Part, IMidiPart
             var pieceData = piece.GetAudioFloatArray(startIndex, endIndex - startIndex);
             for (int i = 0; i < count; i++)
                 data[i] += pieceData[i];
+
+            if (piece.XvsPiece != null && piece.XvsPiece is SynthesisPiece piece2)
+            {
+                int pieceOffset2 = (int)(piece2.AudioStartTime() * ((IAudioSource)piece2).SamplingRate);
+                int startIndex2 = partOffset + offset - pieceOffset2;
+                if (startIndex2 >= ((IAudioSource)piece2).SampleCount)
+                    continue;
+
+                int endIndex2 = startIndex2 + count;
+                if (endIndex2 <= 0)
+                    break;
+
+                var pieceData2 = piece2.GetAudioFloatArray(startIndex2, endIndex2 - startIndex2);
+                for (int i = 0; i < count; i++)
+                    data2[i] += pieceData2[i];
+            } else
+            for (int i = 0; i < count; i++)
+                data2[i] = pieceData[i];
         }
         double pos = Pos;
         var ticks = new double[count];
@@ -557,8 +639,10 @@ internal class MidiPart : Part, IMidiPart
             ticks[i] = TempoManager.GetTick((double)(offset + i) / sampleRate + startTime) - pos;
         }
         var volumes = GetFinalAutomationValues(ticks, ConstantDefine.VolumeID);
+        var xvslines = GetFinalAutomationValues(ticks, ConstantDefine.XvsLineID);
         for (int i = 0; i < volumes.Length; i++)
         {
+            data[i] = (float)(data2[i] * (1.0f - xvslines[i]) + data[i] * (xvslines[i]));
             data[i] = (float)(data[i] * Volume2Level(volumes[i]));
         }
         if (Gain != 0)
@@ -605,6 +689,7 @@ internal class MidiPart : Part, IMidiPart
     readonly DataObjectMap<string, IAutomation> mAutomations;
     readonly piecewiseCurve mPitchLine;
     readonly Voice mVoice;
+    readonly Voice mVoice2;
 
     class AutomationValueGetter(MidiPart part, string automationID) : IAutomationValueGetter
     {
@@ -709,6 +794,24 @@ internal class MidiPart : Part, IMidiPart
         PropertyObject ISynthesisData.PartProperties => new(mPart.Properties);
         public IAutomationValueGetter Pitch => new PitchValueGetter(mPart);
 
+        public ISynthesisPiece? XvsPiece
+        {
+            get => mXvsPiece; set
+            {
+                mXvsPiece = value;
+                if (mXvsPiece is SynthesisPiece subPiece)
+                {
+                    subPiece.Finished += () => { 
+                        if(subPiece.SynthesisStatus== SynthesisStatus.SynthesisSucceeded && SynthesisStatus==SynthesisStatus.SynthesisHalfSuccessed)
+                        {
+                            SynthesisStatus = SynthesisStatus.SynthesisSucceeded;
+                            Finished?.Invoke();
+                        }
+                    };
+                }
+            }
+        }
+
         public SynthesisPiece(MidiPart part, SynthesisSegment<INote> segment)
         {
             mPart = part;
@@ -724,7 +827,7 @@ internal class MidiPart : Part, IMidiPart
                 mNotes[i].LastInSegment = mNotes[i - 1];
             }
             mIsPrepared = part.AutoPrepare;
-            
+
             part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
             foreach (var note in Notes)
             {
@@ -749,8 +852,9 @@ internal class MidiPart : Part, IMidiPart
                 return;
 
             SynthesisStatus = SynthesisStatus.Synthesizing;
+
             if (mTask == null)
-                CreateSynthesisTask();
+                CreateSynthesisTask(this.mXvsPiece == null);
 
             mTask.Start();
         }
@@ -783,15 +887,20 @@ internal class MidiPart : Part, IMidiPart
         }
 
         [MemberNotNull(nameof(mTask))]
-        void CreateSynthesisTask()
+        void CreateSynthesisTask(bool isBaseVoice = true)
         {
-            mTask = mPart.Voice.CreateSynthesisTask(this);
+            if(isBaseVoice)
+                mTask = mPart.Voice.CreateSynthesisTask(this);
+            else
+                mTask = mPart.Voice2.CreateSynthesisTask(this);
             mTask.Complete += (result) =>
             {
                 context.Post(_ =>
                 {
+                    SynthesisStatus = (XvsPiece == null || (XvsPiece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded && XvsPiece.SynthesisResult!=null)) ? SynthesisStatus.SynthesisSucceeded : SynthesisStatus.SynthesisHalfSuccessed;
                     mSynthesisResult = result;
                     mWaveform = new(mSynthesisResult.AudioData);
+
                     foreach (var note in Notes)
                     {
                         if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
@@ -803,8 +912,10 @@ internal class MidiPart : Part, IMidiPart
                             note.SynthesizedPhonemes = null;
                         }
                     }
-                    SynthesisStatus = SynthesisStatus.SynthesisSucceeded;
-                    Finished?.Invoke();
+                    if (SynthesisStatus == SynthesisStatus.SynthesisSucceeded)
+                    {
+                        Finished?.Invoke();
+                    }
                 }, null);
             };
             mTask.Error += (error) =>
@@ -866,6 +977,8 @@ internal class MidiPart : Part, IMidiPart
         Waveform? mWaveform = null;
         double mSynthesisProgress = 0;
         string? mLastError = null;
+
+        ISynthesisPiece? mXvsPiece = null;
 
         DisposableManager s = new();
     }

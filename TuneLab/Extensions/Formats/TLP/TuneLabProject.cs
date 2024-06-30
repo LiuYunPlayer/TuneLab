@@ -87,6 +87,11 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         midiPartInfo.Properties = FromJson(part["properties"]);
                         midiPartInfo.Voice.Type = (string)part["voice"]["type"];
                         midiPartInfo.Voice.ID = (string)part["voice"]["id"];
+                        if (part.ContainsKey("voice2"))
+                        {
+                            midiPartInfo.Voice2.Type = (string)part["voice2"]["type"];
+                            midiPartInfo.Voice2.ID = (string)part["voice2"]["id"];
+                        }
 
                         var notes = part["notes"].ToArray();
                         foreach (JObject note in notes)
@@ -283,6 +288,11 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     {
                         { "type", midiPartInfo.Voice.Type },
                         { "id", midiPartInfo.Voice.ID },
+                    });
+                    part.Add("voice2", new JObject()
+                    {
+                        { "type", midiPartInfo.Voice2.Type },
+                        { "id", midiPartInfo.Voice2.ID },
                     });
                     part.Add("properties", ToJson(midiPartInfo.Properties));
 

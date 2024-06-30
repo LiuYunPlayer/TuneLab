@@ -186,6 +186,47 @@ internal partial class TrackScrollView
                                         }
                                     }
                                     {
+                                        var menuItem = new MenuItem() { Header = "Append Voice" };
+                                        var allEngines = VoicesManager.GetAllVoiceEngines();
+                                        for (int i = 0; i < allEngines.Count; i++)
+                                        {
+                                            var type = allEngines[i];
+                                            var infos = VoicesManager.GetAllVoiceInfos(type);
+                                            if (infos == null)
+                                                continue;
+
+                                            var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In" : type };
+                                            {
+                                                foreach (var info in infos)
+                                                {
+                                                    var voice = new MenuItem().
+                                                        SetName(info.Value.Name).
+                                                        SetAction(() =>
+                                                        {
+                                                            foreach (var part in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
+                                                            {
+                                                                if (part is MidiPart midiPart)
+                                                                {
+                                                                    if (midiPart.Voice is Voice && ((Voice)midiPart.Voice).isEmptyVoice)
+                                                                    {
+                                                                        midiPart.Voice.Set(new VoiceInfo() { Type = type, ID = info.Key });
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        midiPart.Voice2.Set(new VoiceInfo() { Type = type, ID = info.Key });
+                                                                    }
+                                                                }
+                                                            }
+                                                            Project.Commit();
+                                                        });
+                                                    engine.Items.Add(voice);
+                                                }
+                                            }
+                                            menuItem.Items.Add(engine);
+                                        }
+                                        menu.Items.Add(menuItem);
+                                    }
+                                    { 
                                         var menuItem = new MenuItem().SetName("Delete").SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
                                         menu.Items.Add(menuItem);
                                     }

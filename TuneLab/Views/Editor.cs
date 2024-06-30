@@ -250,7 +250,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     continue;
 
                 var piece = midiPart.FindNextNotCompletePiece(AudioEngine.CurrentTime);
-                if (piece != null && piece.SynthesisStatus == SynthesisStatus.NotSynthesized)
+                if (
+                    (piece != null && piece.SynthesisStatus == SynthesisStatus.NotSynthesized) ||
+                    (piece != null && piece.XvsPiece != null && piece.XvsPiece.SynthesisStatus == SynthesisStatus.NotSynthesized)
+                    )
                 {
                     pieces.Add(piece);
                 }
@@ -261,10 +264,26 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (min == null)
             return;
 
-        min.StartSynthesis();
-        if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded)
+        if (min.XvsPiece == null)
         {
-            SynthesisNext();
+            //单轨道
+            min.StartSynthesis();
+            if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded)
+            {
+                SynthesisNext();
+            }
+        }
+        else
+        {
+            //双轨道
+            min.StartSynthesis();
+            min.XvsPiece.StartSynthesis();
+            if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded &&
+                min.XvsPiece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded
+                )
+            {
+                SynthesisNext();
+            }
         }
     }
 

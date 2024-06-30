@@ -12,6 +12,7 @@ public class MidiPartInfo : PartInfo
 {
     public double Gain { get; set; } = 0;
     public VoiceInfo Voice { get; set; } = new VoiceInfo();
+    public VoiceInfo Voice2 { get; set; } = new VoiceInfo();
     public List<NoteInfo> Notes { get; set; } = new();
     public Map<string, AutomationInfo> Automations { get; set; } = new();
     public List<List<Point>> Pitch { get; set; } = new();

@@ -22,6 +22,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IReadOnlyDataObjectList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
     IVoice Voice { get; }
+    IVoice Voice2 { get; } //XSY
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IPiecewiseCurve Pitch { get; }
