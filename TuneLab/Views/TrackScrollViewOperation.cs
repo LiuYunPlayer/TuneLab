@@ -21,6 +21,7 @@ using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
 using Part = TuneLab.Data.Part;
 using Rect = Avalonia.Rect;
+using TuneLab.I18N;
 
 namespace TuneLab.Views;
 
@@ -120,11 +121,11 @@ internal partial class TrackScrollView
                                         part.Select();
                                     }
                                     {
-                                        var menuItem = new MenuItem().SetName("Copy").SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
+                                        var menuItem = new MenuItem().SetName("Copy".Tr(TC.Menu)).SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
                                         menu.Items.Add(menuItem);
                                     }
                                     {
-                                        var menuItem = new MenuItem().SetName("Cut").SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
+                                        var menuItem = new MenuItem().SetName("Cut".Tr(TC.Menu)).SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
                                         menu.Items.Add(menuItem);
                                     }
                                     
@@ -135,7 +136,7 @@ internal partial class TrackScrollView
                                             if (!alt) splitPos = GetQuantizedTick(splitPos);
                                             if (splitPos > part.StartPos() && splitPos < part.EndPos())
                                             {
-                                                var menuItem = new MenuItem().SetName("Split").SetAction(() =>
+                                                var menuItem = new MenuItem().SetName("Split".Tr(TC.Menu)).SetAction(() =>
                                                 {
                                                     double pos = midiPart.Pos.Value;
                                                     var leftInfo = midiPart.RangeInfo(midiPart.StartPos() - pos, splitPos - pos);
@@ -151,7 +152,7 @@ internal partial class TrackScrollView
                                             }
                                         }
                                         {
-                                            var menuItem = new MenuItem() { Header = "Set Voice" };
+                                            var menuItem = new MenuItem() { Header = "Set Voice".Tr(TC.Menu) };
                                             var allEngines = VoicesManager.GetAllVoiceEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
@@ -160,7 +161,7 @@ internal partial class TrackScrollView
                                                 if (infos == null)
                                                     continue;
 
-                                                var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In" : type };
+                                                var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In".Tr(TC.Menu) : type };
                                                 {
                                                     foreach (var info in infos)
                                                     {
@@ -186,7 +187,7 @@ internal partial class TrackScrollView
                                         }
                                     }
                                     {
-                                        var menuItem = new MenuItem() { Header = "Append Voice" };
+                                        var menuItem = new MenuItem() { Header = "Append Voice".Tr(TC.Menu) };
                                         var allEngines = VoicesManager.GetAllVoiceEngines();
                                         for (int i = 0; i < allEngines.Count; i++)
                                         {
@@ -227,7 +228,7 @@ internal partial class TrackScrollView
                                         menu.Items.Add(menuItem);
                                     }
                                     { 
-                                        var menuItem = new MenuItem().SetName("Delete").SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
+                                        var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
                                         menu.Items.Add(menuItem);
                                     }
                                 }
@@ -237,12 +238,12 @@ internal partial class TrackScrollView
                                 var trackIndex = TrackVerticalAxis.GetPosition(position.Y).TrackIndex;
                                 {
                                     var pos = GetQuantizedTick(TickAxis.X2Tick(position.X));
-                                    var menuItem = new MenuItem().SetName("Import Audio").SetAction(() =>
+                                    var menuItem = new MenuItem().SetName("Import Audio".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         ImportAudioAt(pos, trackIndex);
                                     });
                                     menu.Items.Add(menuItem);
-                                    menuItem = new MenuItem().SetName("Import Track").SetAction(() =>
+                                    menuItem = new MenuItem().SetName("Import Track".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         ImportTrack();
                                     });
@@ -252,7 +253,7 @@ internal partial class TrackScrollView
                                 {
                                     {
                                         var pos = GetQuantizedTick(TickAxis.X2Tick(position.X));
-                                        var menuItem = new MenuItem().SetName("Paste").SetAction(() =>
+                                        var menuItem = new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() =>
                                         {
                                             PasteAt(pos);
                                         }).SetInputGesture(Key.V, ModifierKeys.Ctrl);
@@ -261,7 +262,7 @@ internal partial class TrackScrollView
                                 }
                                 if ((uint)trackIndex < Project.Tracks.Count)
                                 {
-                                    var menuItem = new MenuItem().SetName("Delete").SetAction(() =>
+                                    var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         DeleteTrackAt(trackIndex);
                                     }).SetInputGesture(Key.Delete);

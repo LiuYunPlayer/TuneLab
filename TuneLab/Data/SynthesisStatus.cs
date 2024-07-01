@@ -11,5 +11,6 @@ internal enum SynthesisStatus
     NotSynthesized,
     Synthesizing,
     SynthesisFailed,
-    SynthesisSucceeded
+    SynthesisSucceeded,
+    SynthesisHalfSuccessed
 }

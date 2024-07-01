@@ -8,7 +8,8 @@
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<LangVersion>latest</LangVersion>
-		<Version>1.3.1</Version>
+		<Version>1.3.2</Version>
+		<PlatformTarget>x64</PlatformTarget>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -33,6 +34,7 @@
 		<PackageReference Include="PinYinConverterCore" Version="1.0.2" />
 		<PackageReference Include="ppy.SDL2-CS" Version="1.0.741-alpha" />
 		<PackageReference Include="Svg.Skia" Version="1.0.0.18" />
+		<PackageReference Include="Tomlyn" Version="0.17.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.1" />
 	</ItemGroup>
 
@@ -54,4 +56,15 @@
 		<DependentUpon>LyricInput.axaml</DependentUpon>
 	  </Compile>
 	</ItemGroup>
+
+	<Target Name="CopyFiles" AfterTargets="Build">
+		<ItemGroup>
+			<Resources Include="Resources\**\*.*"/>
+		</ItemGroup>
+
+		<Copy
+            SourceFiles="@(Resources)"
+            DestinationFolder="$(TargetDir)\Resources\%(RecursiveDir)"
+        />
+	</Target>
 </Project>

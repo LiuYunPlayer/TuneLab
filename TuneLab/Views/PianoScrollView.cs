@@ -284,6 +284,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 SynthesisStatus.SynthesisFailed => Colors.Red.Opacity(0.5).ToBrush(),
                 SynthesisStatus.SynthesisSucceeded => Colors.Green.Opacity(0.5).ToBrush(),
                 SynthesisStatus.Synthesizing => Colors.Orange.Opacity(0.5).ToBrush(),
+                SynthesisStatus.SynthesisHalfSuccessed => Colors.Orange.Opacity(0.5).ToBrush(),
                 _ => throw new UnreachableException(),
             };
             double left = TickAxis.Tick2X(tempoManager.GetTick(piece.StartTime()));
@@ -608,6 +609,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             var waveform = piece.Waveform;
             if (waveform == null)
                 continue;
+            var waveform2 = piece.XvsPiece == null ? null : piece.XvsPiece.Waveform;
 
             var result = piece.SynthesisResult;
             if (result == null)
@@ -640,6 +642,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
             var values = waveform.GetValues(positions);
             var peaks = waveform.GetPeaks(positions, values);
+            var values2 = waveform2 == null ? values : waveform2.GetValues(positions);
+            var peaks2 = waveform2 == null ? peaks : waveform2.GetPeaks(positions, values);
 
             double pos = Part.Pos;
             var ticks = new double[xs.Count];
@@ -648,18 +652,19 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 ticks[i] = TickAxis.X2Tick(xs[i]) - pos;
             }
             var volumes = Part.GetFinalAutomationValues(ticks, ConstantDefine.VolumeID);
+            var xvslines = Part.GetFinalAutomationValues(ticks, ConstantDefine.XvsLineID);
             for (int i = 0; i < volumes.Length; i++)
             {
                 volumes[i] = MidiPart.Volume2Level(volumes[i]);
             }
             for (int i = 0; i < values.Length; i++)
             {
-                values[i] *= (float)volumes[i];
+                values[i] = (float)((values2[i] * (1.0f - xvslines[i]) + values[i] * xvslines[i]) * volumes[i]);
             }
             for (int i = 0; i < peaks.Length; i++)
             {
-                peaks[i].min *= (float)volumes[i];
-                peaks[i].max *= (float)volumes[i];
+                peaks[i].min = (float)((peaks2[i].min * (1.0f - xvslines[i]) + peaks[i].min * xvslines[i]) * volumes[i]);
+                peaks[i].max = (float)((peaks2[i].max * (1.0f - xvslines[i]) + peaks[i].max * xvslines[i]) * volumes[i]);
             }
 
             for (int i = 0; i < xs.Count; i++)
