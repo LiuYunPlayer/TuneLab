@@ -34,6 +34,8 @@ internal class Voice : DataObject, IVoice
         };
     }
 
+    public bool isEmptyVoice { get => (mVoiceSource.GetType().Name.Equals("EmptyVoiceSource")); }
+
     [MemberNotNull(nameof(mType))]
     [MemberNotNull(nameof(mID))]
     [MemberNotNull(nameof(mVoiceSource))]

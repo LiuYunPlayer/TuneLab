@@ -16,6 +16,7 @@ using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.I18N;
+using ZstdSharp.Unsafe;
 
 namespace TuneLab.Views;
 
@@ -531,7 +532,7 @@ internal partial class PianoScrollView
                 mPitchLockOperation.Move(e.Position.X);
                 break;
             case State.NoteMoving:
-                mNoteMoveOperation.Move(e.Position, alt, shift);
+                mNoteMoveOperation.Move(e.Position, ctrl, alt, shift);
                 break;
             case State.NoteStartResizing:
                 mNoteStartResizeOperation.Move(e.Position.X, alt);
@@ -749,9 +750,9 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.NoteMoving:
-                if (e.Key == Key.LeftAlt || e.Key == Key.LeftShift)
+                if (e.Key == Key.LeftAlt || e.Key == Key.LeftShift || e.Key == Key.LeftCtrl)
                 {
-                    mNoteMoveOperation.Move(MousePosition, (e.KeyModifiers & KeyModifiers.Alt) != 0, (e.KeyModifiers & KeyModifiers.Shift) != 0);
+                    mNoteMoveOperation.Move(MousePosition, (e.KeyModifiers & KeyModifiers.Control) != 0, (e.KeyModifiers & KeyModifiers.Alt) != 0, (e.KeyModifiers & KeyModifiers.Shift) != 0);
                     e.Handled = true;
                 }
                 break;
@@ -812,9 +813,9 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.NoteMoving:
-                if (e.Key == Key.LeftAlt || e.Key == Key.LeftShift)
+                if (e.Key == Key.LeftAlt || e.Key == Key.LeftShift || e.Key == Key.LeftCtrl)
                 {
-                    mNoteMoveOperation.Move(MousePosition, (e.KeyModifiers & KeyModifiers.Alt) != 0, (e.KeyModifiers & KeyModifiers.Shift) != 0);
+                    mNoteMoveOperation.Move(MousePosition, (e.KeyModifiers & KeyModifiers.Control) != 0, (e.KeyModifiers & KeyModifiers.Alt) != 0, (e.KeyModifiers & KeyModifiers.Shift) != 0);
                     e.Handled = true;
                 }
                 break;
@@ -1407,7 +1408,7 @@ internal partial class PianoScrollView
             mMaxPitch = maxPitch;
         }
 
-        public void Move(Avalonia.Point point, bool alt, bool shift)
+        public void Move(Avalonia.Point point, bool ctrl, bool alt, bool shift)
         {
             var part = PianoScrollView.Part;
             if (part == null)
@@ -1419,6 +1420,8 @@ internal partial class PianoScrollView
             if (mMoveNotes.IsEmpty())
                 return;
 
+            bool movePitchLine = (ctrl && shift);//定义同时按下Shift和Ctrl为带Pitch移动
+            if (movePitchLine) { shift = false; }//当触发Pitch移动时无视Shift事件，避免冲突
             int pitch = (int)PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             int pitchOffset = (pitch - mPitch).Limit(MusicTheory.MIN_PITCH - mMinPitch, MusicTheory.MAX_PITCH - mMaxPitch);
             double pos = PianoScrollView.TickAxis.X2Tick(point.X) - mTickOffset;
@@ -1434,8 +1437,10 @@ internal partial class PianoScrollView
             part.DiscardTo(mHead);
             part.BeginMergeReSegment();
             part.Notes.ListModified.BeginMerge();
+            List<Tuple<double, double>> ranges = new List<Tuple<double, double>>();
             foreach (var note in mMoveNotes)
             {
+                ranges.Add(new Tuple<double, double>(note.StartPos(), note.EndPos()));
                 note.Pos.Set(note.Pos.Value + posOffset);
                 note.Pitch.Set(note.Pitch.Value + pitchOffset);
                 part.RemoveNote(note);
@@ -1445,6 +1450,8 @@ internal partial class PianoScrollView
             {
                 part.InsertNote(note);
             }
+
+            if (movePitchLine) part.Pitch.MoveLine(ranges.ToArray(), posOffset, pitchOffset);//跟随Note移动Pitch
             part.Notes.ListModified.EndMerge();
             part.EndMergeReSegment();
         }

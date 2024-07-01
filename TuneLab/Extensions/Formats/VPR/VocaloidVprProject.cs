@@ -197,7 +197,7 @@ namespace TuneLab.Extensions.Formats.VPR
                         newPitchBendSens.Points.Add(new Point((double)pitchBendSens[i]["pos"], (double)pitchBendSens[i]["value"]));
                     }
 
-                    midiPartInfo.Automations.Add("PitchBendSensitive", newPitchBendSens);
+                    midiPartInfo.Automations.Add("PitchBendSensitivity", newPitchBendSens);
 
                     var newDynamicsList = new AutomationInfo();
                     var dynamics = controllers.Cast<JObject>().FirstOrDefault(c => (string?)c["name"] == "dynamics")?["events"] ?? new JArray();

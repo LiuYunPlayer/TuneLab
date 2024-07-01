@@ -13,8 +13,8 @@ namespace TuneLab.Audio;
 
 internal static class AudioEngine
 {
-    public static event Action? PlayStateChanged { add => mAudioEngine!.PlayStateChanged += value; remove => mAudioEngine!.PlayStateChanged -= value; }
-    public static event Action? ProgressChanged { add => mAudioEngine!.ProgressChanged += value; remove => mAudioEngine!.ProgressChanged -= value; }
+    public static event Action? PlayStateChanged;
+    public static event Action? ProgressChanged;
     public static bool IsPlaying => mAudioEngine!.IsPlaying;
     public static int SamplingRate => mAudioEngine!.SamplingRate;
     public static double CurrentTime => mAudioEngine!.CurrentTime;
@@ -23,11 +23,17 @@ internal static class AudioEngine
     {
         mAudioEngine = audioEngine;
         mAudioEngine.Init(mAudioGraph);
+        mAudioEngine.PlayStateChanged += () => { PlayStateChanged?.Invoke(); };
+        mAudioEngine.ProgressChanged += () => { ProgressChanged?.Invoke(); };
     }
 
     public static void Destroy()
     {
-        mAudioEngine!.Destroy();
+        if (mAudioEngine == null)
+            throw new Exception("Engine is not inited!");
+
+        mAudioEngine.Destroy();
+        mAudioEngine = null;
     }
 
     public static void Play()
@@ -74,12 +80,7 @@ internal static class AudioEngine
 
     public static void ExportMaster(string filePath, bool isStereo)
     {
-        double endTime = 0;
-        foreach (var track in mTracks)
-        {
-            endTime = Math.Max(endTime, track.EndTime);
-        }
-        endTime += 1;
+        var endTime = EndTime;
         int endPosition = (endTime * SamplingRate).Ceil();
         float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
         MixData(0, endPosition, isStereo, buffer, 0);
@@ -148,6 +149,29 @@ internal static class AudioEngine
                 AddData(track, position, endPosition, isStereo, buffer, offset);
             }
         }
+    }
+
+    static double EndTime
+    {
+        get
+        {
+            double endTime = 0;
+            foreach (var track in mTracks)
+            {
+                endTime = Math.Max(endTime, track.EndTime);
+            }
+            endTime += 1;
+            return endTime;
+        }
+    }
+
+    static AudioEngine()
+    {
+        ProgressChanged += () =>
+        {
+            if (CurrentTime > EndTime)
+                Pause();
+        };
     }
 
     class AudioGraph : IAudioProcessor

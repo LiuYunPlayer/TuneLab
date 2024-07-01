@@ -99,7 +99,69 @@ internal class TrackHead : DockPanel
             menu.Items.Add(menuItem);
         }
         {
-            var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
+            var menuItem = new MenuItem().SetName("Move Up").SetAction(() =>
+            {
+                var track = Track;
+                if (track == null)
+                    return;
+
+                var project = track.Project;
+                int index = project.Tracks.IndexOf(track);
+                if (index == 0) 
+                    return;
+
+                project.RemoveTrackAt(index);
+                project.InsertTrack(index - 1, track);
+                project.Commit();
+            });
+            menu.Items.Add(menuItem);
+            menu.Opening += (s, e) =>
+            {
+                menuItem.IsEnabled = false;
+                if (Track == null)
+                    return;
+
+                var project = Track.Project;
+                int index = project.Tracks.IndexOf(Track);
+                if (index == 0)
+                    return;
+
+                menuItem.IsEnabled = true;
+            };
+        }
+        {
+            var menuItem = new MenuItem().SetName("Move Down").SetAction(() =>
+            {
+                var track = Track;
+                if (track == null)
+                    return;
+
+                var project = track.Project;
+                int index = project.Tracks.IndexOf(track);
+                if (index == project.Tracks.Count - 1)
+                    return;
+
+                project.RemoveTrackAt(index);
+                project.InsertTrack(index + 1, track);
+                project.Commit();
+            });
+            menu.Items.Add(menuItem);
+            menu.Opening += (s, e) =>
+            {
+                menuItem.IsEnabled = false;
+                if (Track == null)
+                    return;
+
+                var project = Track.Project;
+                int index = project.Tracks.IndexOf(Track);
+                if (index == project.Tracks.Count - 1)
+                    return;
+
+                menuItem.IsEnabled = true;
+            };
+        }
+        {
+            var menuItem = new MenuItem().SetName("Delete").SetAction(() =>
             {
                 if (Track == null)
                     return;

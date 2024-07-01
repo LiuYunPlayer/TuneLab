@@ -16,13 +16,13 @@ namespace TuneLab.Views;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
-    
+    public IActionEvent IsAutoPageChanged => mIsAutoPageChanged;
+    public bool IsAutoPage { get => mIsAutoPage; set { if (mIsAutoPage == value) return; mIsAutoPage = value; mIsAutoPageChanged.Invoke(); } }
+
     public interface IDependency
     {
         public IActionEvent PianoToolChanged { get; }
-        public IActionEvent IsAutoPageChanged { get; }
         public PianoTool PianoTool { get; set; }
-        public bool IsAutoPage { get; set; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -51,8 +51,8 @@ internal class FunctionBar : LayerPanel
                     .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.AutoPage }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
 
-                autoPageButton.Switched += () => mDependency.IsAutoPage = autoPageButton.IsChecked;
-                mDependency.IsAutoPageChanged.Subscribe(() => { autoPageButton.Display(mDependency.IsAutoPage); });
+                autoPageButton.Switched += () => mIsAutoPage = autoPageButton.IsChecked;
+                mIsAutoPageChanged.Subscribe(() => { autoPageButton.Display(mIsAutoPage); });
                 audioControlPanel.Children.Add(autoPageButton);
             }
             DockPanel.SetDock(audioControlPanel, Dock.Left);
@@ -86,8 +86,6 @@ internal class FunctionBar : LayerPanel
         }
         Children.Add(dockPanel);
 
-
-
         Height = 64;
         Background = Style.BACK.ToBrush();
     }
@@ -99,6 +97,10 @@ internal class FunctionBar : LayerPanel
             context.FillRectangle(Style.INTERFACE.ToBrush(), this.Rect());
         }
     }
+
+
+    bool mIsAutoPage = false;
+    readonly ActionEvent mIsAutoPageChanged = new();
 
     readonly IDependency mDependency;
 }

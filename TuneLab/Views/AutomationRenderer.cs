@@ -16,6 +16,7 @@ using TuneLab.Base.Event;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
+using Avalonia.Controls;
 
 namespace TuneLab.Views;
 
@@ -139,6 +140,9 @@ internal partial class AutomationRenderer : View
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
+        var config = Part.GetEffectiveAutomationConfig(activeAutomation);
+        double min = config.MinValue;
+        double max = config.MaxValue;
         foreach (var vibrato in Part.Vibratos)
         {
             if (vibrato.GlobalEndPos() <= minVisibleTick)
@@ -161,9 +165,6 @@ internal partial class AutomationRenderer : View
                 vticks[i] = TickAxis.X2Tick(vxs[i]) - pos;
             }
 
-            var config = Part.GetEffectiveAutomationConfig(activeAutomation);
-            double min = config.MinValue;
-            double max = config.MaxValue;
             double range = max - min;
             double r = Bounds.Height / range;
 
@@ -195,6 +196,9 @@ internal partial class AutomationRenderer : View
 
         lineWidth = 2;
         Draw(activeAutomation);
+
+        context.DrawString(max.ToString("+0.00;-0.00"), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+        context.DrawString(min.ToString("+0.00;-0.00"), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
     }
 
     readonly IDependency mDependency;

@@ -15,6 +15,23 @@ namespace TuneLab.GUI.Components;
 
 internal class View : Container
 {
+    public View()
+    {
+        mDirtyHandler.OnDirty += () =>
+        {
+            InvalidateVisual();
+            Dispatcher.UIThread.Post(() =>
+            {
+                CallOnMouseRelativeMoveToView(new()
+                {
+                    KeyModifiers = Modifiers,
+                    Position = MousePosition
+                });
+                mDirtyHandler.Reset();
+            }, DispatcherPriority.Normal);
+        };
+    }
+
     protected virtual void OnRender(DrawingContext context) { }
     protected virtual void OnMouseAbsoluteMove(MouseMoveEventArgs e) { }
     protected virtual void OnMouseRelativeMoveToView(MouseMoveEventArgs e) { }
@@ -35,20 +52,7 @@ internal class View : Container
 
     protected void Update()
     {
-        if (mViewNeedUpdate)
-            return;
-
-        mViewNeedUpdate = true;
-        InvalidateVisual();
-        Dispatcher.UIThread.Post(() =>
-        {
-            CallOnMouseRelativeMoveToView(new()
-            {
-                KeyModifiers = Modifiers,
-                Position = MousePosition
-            });
-            mViewNeedUpdate = false;
-        }, DispatcherPriority.Normal);
+        mDirtyHandler.SetDirty();
     }
 
     protected Item? ItemAt(Point point)
@@ -86,5 +90,5 @@ internal class View : Container
     protected IEnumerable<Item> Items => mItemCollection;
 
     readonly ItemCollection mItemCollection = new();
-    bool mViewNeedUpdate = false;
+    readonly DirtyHandler mDirtyHandler = new();
 }

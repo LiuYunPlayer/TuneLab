@@ -20,6 +20,7 @@ using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Voices;
 
 namespace TuneLab.Views;
 
@@ -30,7 +31,7 @@ internal partial class TrackScrollView : View
         TickAxis TickAxis { get; }
         TrackVerticalAxis TrackVerticalAxis { get; }
         IQuantization Quantization { get; }
-        IProvider<Project> ProjectProvider { get; }
+        IProvider<IProject> ProjectProvider { get; }
         IProvider<Part> EditingPart { get; }
         void SwitchEditingPart(IPart part);
     }
@@ -233,7 +234,13 @@ internal partial class TrackScrollView : View
                 {
                     using (context.PushClip(titleRect))
                     {
-                        context.DrawString(string.Format("{0}[{1}]", midiPart.Name, midiPart.Voice.Name), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                        if (midiPart.Voice2 is Voice && ((Voice)midiPart.Voice2).isEmptyVoice)
+                        {
+                            context.DrawString(string.Format("{0}[{1}]", midiPart.Name, midiPart.Voice.Name), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                        }else
+                        {
+                            context.DrawString(string.Format("{0}[xVs0:{1} xVs1:{2}]", midiPart.Name, midiPart.Voice.Name, midiPart.Voice2.Name), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                        }
                     }
 
                     if (midiPart.Notes.IsEmpty())
@@ -743,7 +750,7 @@ internal partial class TrackScrollView : View
     TickAxis TickAxis => mDependency.TickAxis;
     TrackVerticalAxis TrackVerticalAxis => mDependency.TrackVerticalAxis;
     IQuantization Quantization => mDependency.Quantization;
-    Project? Project => mDependency.ProjectProvider.Object;
+    IProject? Project => mDependency.ProjectProvider.Object;
 
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
