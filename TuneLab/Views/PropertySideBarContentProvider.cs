@@ -17,27 +17,28 @@ using TuneLab.GUI.Components;
 using TuneLab.Base.Data;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
+using TuneLab.I18N;
 
 namespace TuneLab.Views;
 
 internal class PropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties", Items = [mPartContent, mAutomationContent, mNotePanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPartContent, mAutomationContent, mNotePanel] };
 
     public PropertySideBarContentProvider()
     {
-        var partName = new Label() { Content = "Part", Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        var partName = new Label() { Content = "Part".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mPartContent.Children.Add(partName);
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mPartContent.Children.Add(mPartFixedController);
         mPartContent.Children.Add(mPartPropertiesController);
 
-        var automationName = new Label() { Content = "Automation", Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        var automationName = new Label() { Content = "Automation".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mAutomationContent.Children.Add(automationName);
         mAutomationContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mAutomationContent.Children.Add(mAutomationController);
 
-        var noteName = new Label() { Content = "Note", Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        var noteName = new Label() { Content = "Note".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mNoteContent.Children.Add(noteName);
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mNoteContent.Children.Add(mNotePropertiesController);

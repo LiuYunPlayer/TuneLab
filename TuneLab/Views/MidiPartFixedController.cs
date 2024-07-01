@@ -15,6 +15,7 @@ using TuneLab.Base.Utils;
 using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Base.Structures;
+using TuneLab.I18N;
 
 namespace TuneLab.Views;
 
@@ -26,7 +27,7 @@ internal class MidiPartFixedController : StackPanel
         Background = Style.INTERFACE.ToBrush();
         Orientation = Avalonia.Layout.Orientation.Vertical;
 
-        AddController(mGainController, "Gain");
+        AddController(mGainController, "Gain".Tr(TC.Property));
         mGainController.SetRange(-12, +12);
         mGainController.SetDefaultValue(0);
         mGainController.Bind(mPart.Select(part => part.Gain), s);
