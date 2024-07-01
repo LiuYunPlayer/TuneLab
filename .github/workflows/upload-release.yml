@@ -53,12 +53,10 @@ jobs:
       strategy:
         fail-fast: false
         matrix:
-          runtime: [ "win-x64", "osx-arm64", "linux-x64" ]
+          runtime: [ "win-x64", "linux-x64" ]
           include:
             - runtime: "win-x64"
               os: "windows-latest"
-            - runtime: "osx-arm64"
-              os: "macos-latest"
             - runtime: "linux-x64"
               os: "ubuntu-latest"
 
