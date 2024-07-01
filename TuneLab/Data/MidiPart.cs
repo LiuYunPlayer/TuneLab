@@ -31,6 +31,7 @@ internal class MidiPart : Part, IMidiPart
     public DataPropertyObject Properties { get; }
     public INoteList Notes => mNotes;
     public IVoice Voice => mVoice;
+    public IVoice Voice2 => mVoice2;
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     public IPiecewiseCurve Pitch => mPitchLine;
@@ -47,6 +48,7 @@ internal class MidiPart : Part, IMidiPart
         Gain = new(this);
         Properties = new(this);
         mVoice = new(this, new VoiceInfo());
+        mVoice2 = new(this, new VoiceInfo());
         mNotes = new();
         mNotes.Attach(this);
         mVibratos = new(this);
@@ -450,6 +452,7 @@ internal class MidiPart : Part, IMidiPart
             Pitch = mPitchLine.GetInfo(),
             Vibratos = mVibratos.GetInfo().ToInfo(),
             Voice = mVoice.GetInfo(),
+            Voice2 = mVoice2.GetInfo(),
             Properties = Properties.GetInfo(),
         };
     }
@@ -466,6 +469,7 @@ internal class MidiPart : Part, IMidiPart
         IDataObject<MidiPartInfo>.SetInfo(mAutomations, info.Automations.Convert(CreateAutomation).ToMap());
         IDataObject<MidiPartInfo>.SetInfo(mPitchLine, info.Pitch);
         IDataObject<MidiPartInfo>.SetInfo(mVoice, info.Voice);
+        IDataObject<MidiPartInfo>.SetInfo(mVoice2, info.Voice2);
         IDataObject<MidiPartInfo>.SetInfo(Properties, info.Properties);
     }
 
@@ -605,6 +609,7 @@ internal class MidiPart : Part, IMidiPart
     readonly DataObjectMap<string, IAutomation> mAutomations;
     readonly piecewiseCurve mPitchLine;
     readonly Voice mVoice;
+    readonly Voice mVoice2;
 
     class AutomationValueGetter(MidiPart part, string automationID) : IAutomationValueGetter
     {
@@ -785,7 +790,7 @@ internal class MidiPart : Part, IMidiPart
         [MemberNotNull(nameof(mTask))]
         void CreateSynthesisTask()
         {
-            mTask = mPart.Voice.CreateSynthesisTask(this);
+            mTask = new XvsSynthesisTask(mPart.Voice,mPart.Voice2,this);
             mTask.Complete += (result) =>
             {
                 context.Post(_ =>
