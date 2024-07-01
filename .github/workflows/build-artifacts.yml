@@ -47,6 +47,10 @@ jobs:
       shell: pwsh
       run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
 
+    - name: Move Resources - Windows
+      if: runner.os == 'Windows'
+      run: cp -r TuneLab/Resources workspace/
+
     - name: Move artifacts - MacOS and Linux
       if: runner.os != 'Windows'
       run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
