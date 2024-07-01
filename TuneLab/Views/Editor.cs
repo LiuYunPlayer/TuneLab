@@ -32,7 +32,6 @@ using TuneLab.Extensions;
 using System.IO.Compression;
 using System.Xml.Linq;
 using System.Text.Json;
-using TuneLab.I18N;
 
 namespace TuneLab.Views;
 
@@ -251,10 +250,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     continue;
 
                 var piece = midiPart.FindNextNotCompletePiece(AudioEngine.CurrentTime);
-                if (
-                    (piece != null && piece.SynthesisStatus == SynthesisStatus.NotSynthesized) ||
-                    (piece != null && piece.XvsPiece != null && piece.XvsPiece.SynthesisStatus == SynthesisStatus.NotSynthesized)
-                    )
+                if (piece != null && piece.SynthesisStatus == SynthesisStatus.NotSynthesized)
                 {
                     pieces.Add(piece);
                 }
@@ -265,26 +261,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (min == null)
             return;
 
-        if (min.XvsPiece == null)
+        min.StartSynthesis();
+        if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded)
         {
-            //单轨道
-            min.StartSynthesis();
-            if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded)
-            {
-                SynthesisNext();
-            }
-        }
-        else
-        {
-            //双轨道
-            min.StartSynthesis();
-            min.XvsPiece.StartSynthesis();
-            if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded &&
-                min.XvsPiece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded
-                )
-            {
-                SynthesisNext();
-            }
+            SynthesisNext();
         }
     }
 
@@ -346,11 +326,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         var modal = new Dialog();
-        modal.SetTitle("Tips".Tr(TC.Dialog));
-        modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
-        modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
-        modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { CreateAndSwitchNewProject(); };
-        modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await SaveProject(); CreateAndSwitchNewProject(); };
+        modal.SetTitle("Tips");
+        modal.SetMessage("The project has not been saved.\n Do you want to save it?");
+        modal.AddButton("Cancel", ButtonType.Normal);
+        modal.AddButton("No", ButtonType.Normal).Clicked += () => { CreateAndSwitchNewProject(); };
+        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); CreateAndSwitchNewProject(); };
         modal.Topmost = true;
         await modal.ShowDialog(this.Window());
     }
@@ -380,11 +360,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         var modal = new Dialog();
-        modal.SetTitle("Tips".Tr(TC.Dialog));
-        modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
-        modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
-        modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { OpenAndSwitchProject(); };
-        modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await SaveProject(); OpenAndSwitchProject(); };
+        modal.SetTitle("Tips");
+        modal.SetMessage("The project has not been saved.\n Do you want to save it?");
+        modal.AddButton("Cancel", ButtonType.Normal);
+        modal.AddButton("No", ButtonType.Normal).Clicked += () => { OpenAndSwitchProject(); };
+        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); OpenAndSwitchProject(); };
         modal.Topmost = true;
         await modal.ShowDialog(this.Window());
     }
@@ -404,9 +384,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open File".Tr(TC.Dialog),
+            Title = "Open File",
             AllowMultiple = false,
-            FileTypeFilter = [new("Importable Formats".Tr(TC.Dialog)) { Patterns = patterns }]
+            FileTypeFilter = [new("Importable Formats") { Patterns = patterns }]
         });
         var path = files.IsEmpty() ? null : files[0].TryGetLocalPath();
         if (path == null)
@@ -433,11 +413,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Save File".Tr(TC.Dialog),
+            Title = "Save File",
             DefaultExtension = ".tlp",
             SuggestedFileName = Path.GetFileNameWithoutExtension(mDocument.Name),
             ShowOverwritePrompt = true,
-            FileTypeChoices = [new("TuneLab Project".Tr(TC.Dialog)) { Patterns = ["*.tlp"] }]
+            FileTypeChoices = [new("TuneLab Project") { Patterns = ["*.tlp"] }]
         });
         var path = file?.TryGetLocalPath();
         if (path == null)
@@ -457,7 +437,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Export As".Tr(TC.Dialog),
+            Title = "Export As",
             DefaultExtension = extension,
             SuggestedFileName = Path.GetFileNameWithoutExtension(mDocument.Name),
             ShowOverwritePrompt = true,
@@ -515,11 +495,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Save File".Tr(TC.Dialog),
+            Title = "Save File",
             DefaultExtension = ".wav",
             SuggestedFileName = Path.GetFileNameWithoutExtension(mDocument.Name),
             ShowOverwritePrompt = true,
-            FileTypeChoices = [new("WAVE File".Tr(TC.Dialog)) { Patterns = ["*.wav"] }]
+            FileTypeChoices = [new("WAVE File") { Patterns = ["*.wav"] }]
         });
         var path = file?.TryGetLocalPath();
         if (path == null)
@@ -531,7 +511,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
         catch (Exception ex)
         {
-            await this.ShowMessage("Error".Tr(TC.Dialog), "Export failed: \n" + ex.Message);
+            await this.ShowMessage("Error", "Export failed: \n" + ex.Message);
         }
     }
 
@@ -562,8 +542,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         TrackWindow.TrackScrollView.ImportAudioAt(0, Project.Tracks.Count);
     }
-
-    public void ImportTrack()
+    public async void ImportTrack()
     {
         if (Project == null)
             return;
@@ -606,11 +585,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             {
                 ZipFile.ExtractToDirectory(file, dir);
                 ExtensionManager.Load(dir);
-                await this.ShowMessage("Tips".Tr(TC.Dialog), name + " has been successfully installed!".Tr(TC.Dialog));
+                await this.ShowMessage("Tips", name + " has been successfully installed!");
             }
             catch (Exception ex)
             {
-                await this.ShowMessage("Error".Tr(TC.Dialog), "Installating " + name + " failed: \n".Tr(TC.Dialog) + ex.Message);
+                await this.ShowMessage("Error", "Installating " + name + " failed: \n" + ex.Message);
             }
         }
 
@@ -618,15 +597,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return;
 
         var dialog = new Dialog();
-        dialog.SetTitle("Tips".Tr(TC.Dialog));
-        dialog.SetMessage("Detected an installed extension. \nDo you want to restart and perform a reinstall?".Tr(TC.Dialog));
-        dialog.AddButton("Yes".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => {
+        dialog.SetTitle("Tips");
+        dialog.SetMessage("Detected an installed extension. \nDo you want to restart and perform a reinstall?");
+        dialog.AddButton("Yes", ButtonType.Normal).Clicked += () => {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
             ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
             this.Window().Close();
         };
-        dialog.AddButton("No".Tr(TC.Dialog), ButtonType.Primary);
+        dialog.AddButton("No", ButtonType.Primary);
         await dialog.ShowDialog(this.Window());
     }
 
@@ -636,25 +615,25 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         var menu = new Menu() { Background = Style.BACK.ToBrush(), Height = 40 };
         {
-            var menuBarItem = new MenuItem { Header = "File".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Header = "File", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
-                var menuItem = new MenuItem().SetName("New".Tr(TC.Menu)).SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetName("New").SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Open".Tr(TC.Menu)).SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetName("Open").SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Save".Tr(TC.Menu)).SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetName("Save").SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Save As".Tr(TC.Menu)).SetAction(async () => { await SaveProjectAs(); }).SetShortcut(Key.S, ModifierKeys.Ctrl | ModifierKeys.Shift);
+                var menuItem = new MenuItem().SetName("Save As").SetAction(async () => { await SaveProjectAs(); }).SetShortcut(Key.S, ModifierKeys.Ctrl | ModifierKeys.Shift);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem() { Header = "Export As (test)".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush() };
+                var menuItem = new MenuItem() { Header = "Export As (test)", Foreground = Style.TEXT_LIGHT.ToBrush() };
                 foreach (var format in FormatsManager.GetAllExportFormats())
                 {
                     var menuItem2 = new MenuItem().SetName(format).SetAction(() => ExportAs(format));
@@ -663,21 +642,21 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Export Mix".Tr(TC.Menu)).SetAction(ExportMix);
+                var menuItem = new MenuItem().SetName("Export Mix").SetAction(ExportMix);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Edit".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Header = "Edit", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
-                var menuItem = new MenuItem().SetName("Undo".Tr(TC.Menu)).SetAction(Undo).SetInputGesture(Key.Z, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetName("Undo").SetAction(Undo).SetInputGesture(Key.Z, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
                 mUndoMenuItem = menuItem;
             }
             {
-                var menuItem = new MenuItem().SetName("Redo".Tr(TC.Menu)).SetAction(Redo).SetInputGesture(Key.Y, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetName("Redo").SetAction(Redo).SetInputGesture(Key.Y, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
                 mRedoMenuItem = menuItem;
             }
@@ -685,32 +664,32 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Project".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Header = "Project", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
-                var menuItem = new MenuItem().SetName("Add Track".Tr(TC.Menu)).SetAction(AddTrack);
+                var menuItem = new MenuItem().SetName("Add Track").SetAction(AddTrack);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Import Audio".Tr(TC.Menu)).SetAction(ImportAudio);
+                var menuItem = new MenuItem().SetName("Import Audio").SetAction(ImportAudio);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Import Track".Tr(TC.Menu)).SetAction(ImportTrack);
+                var menuItem = new MenuItem().SetName("Import Track").SetAction(ImportTrack);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Transport".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Header = "Transport", Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
             {
                 var menuItem = new MenuItem().
-                    SetName("Play".Tr(TC.Menu)).
+                    SetName("Play").
                     SetAction(ChangePlayState).
                     SetInputGesture(Key.Space);
                 AudioEngine.PlayStateChanged += () =>
                 {
-                    menuItem.Header = AudioEngine.IsPlaying ? "Pause".Tr(TC.Menu) : "Play".Tr(TC.Menu);
+                    menuItem.Header = AudioEngine.IsPlaying ? "Pause" : "Play";
                 };
                 menuBarItem.Items.Add(menuItem);
             }

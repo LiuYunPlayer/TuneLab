@@ -4,9 +4,9 @@ name: Build artifacts
 
 on:
   push:
-    branches: [ "extremist", "master" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "extremist", "master" ]
+    branches: [ "master" ]
   workflow_call:
 
 jobs:
@@ -16,10 +16,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runtime: [ "win-x64", "linux-x64" ]
+        runtime: [ "win-x64", "osx-arm64", "linux-x64" ]
         include:
           - runtime: "win-x64"
             os: "windows-latest"
+          - runtime: "osx-arm64"
+            os: "macos-latest"
           - runtime: "linux-x64"
             os: "ubuntu-latest"
 
@@ -46,10 +48,6 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
-
-    - name: Move Resources - Windows
-      if: runner.os == 'Windows'
-      run: cp -r TuneLab/Resources workspace/
 
     - name: Move artifacts - MacOS and Linux
       if: runner.os != 'Windows'

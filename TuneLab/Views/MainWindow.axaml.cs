@@ -17,7 +17,6 @@ using TuneLab.Base.Utils;
 using static TuneLab.GUI.Dialog;
 using Button = TuneLab.GUI.Components.Button;
 using Style = TuneLab.GUI.Style;
-using TuneLab.I18N;
 
 namespace TuneLab.Views
 {
@@ -93,10 +92,10 @@ namespace TuneLab.Views
             {
                 var path = files.Current;
                 var modal = new Dialog();
-                modal.SetTitle("Tips".Tr(TC.Dialog));
-                modal.SetMessage("Program crashed last time. Open auto-backup file?".Tr(TC.Dialog));
-                modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal);
-                modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () => 
+                modal.SetTitle("Tips");
+                modal.SetMessage("Program crashed last time. Open auto-backup file?");
+                modal.AddButton("No", ButtonType.Normal);
+                modal.AddButton("OK", ButtonType.Primary).Clicked += () => 
                 {
                     if (!FormatsManager.Deserialize(path, out var info, out var error))
                     {
@@ -179,11 +178,11 @@ namespace TuneLab.Views
             {
                 e.Cancel = true;
                 var modal = new Dialog();
-                modal.SetTitle("Tips".Tr(TC.Dialog));
-                modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
-                modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
-                modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { isCloseConfirm = true; Close(); };
-                modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await mEditor.SaveProject(); isCloseConfirm = true; Close(); };
+                modal.SetTitle("Tips");
+                modal.SetMessage("The project has not been saved.\n Do you want to save it?");
+                modal.AddButton("Cancel", ButtonType.Normal);
+                modal.AddButton("No", ButtonType.Normal).Clicked += () => { isCloseConfirm = true; Close(); };
+                modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await mEditor.SaveProject(); isCloseConfirm = true; Close(); };
                 modal.Topmost = true;
                 await modal.ShowDialog(this);
                 return;
