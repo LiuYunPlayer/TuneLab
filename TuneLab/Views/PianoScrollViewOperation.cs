@@ -449,15 +449,15 @@ internal partial class PianoScrollView
                                             vibrato.Select();
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Copy").SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
+                                            var menuItem = new MenuItem().SetName("Copy".Tr(TC.Menu)).SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
                                             menu.Items.Add(menuItem);
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Cut").SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
+                                            var menuItem = new MenuItem().SetName("Cut".Tr(TC.Menu)).SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
                                             menu.Items.Add(menuItem);
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Delete").SetAction(Delete).SetInputGesture(Key.Delete);
+                                            var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(Delete).SetInputGesture(Key.Delete);
                                             menu.Items.Add(menuItem);
                                         }
                                     }
@@ -468,7 +468,7 @@ internal partial class PianoScrollView
                                             {
                                                 var position = e.Position;
                                                 var pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos;
-                                                var menuItem = new MenuItem().SetName("Paste").SetAction(() =>
+                                                var menuItem = new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() =>
                                                 {
                                                     PasteAt(pos);
                                                 }).SetInputGesture(Key.V, ModifierKeys.Ctrl);

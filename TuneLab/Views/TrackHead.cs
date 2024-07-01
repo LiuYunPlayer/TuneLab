@@ -99,7 +99,7 @@ internal class TrackHead : DockPanel
             menu.Items.Add(menuItem);
         }
         {
-            var menuItem = new MenuItem().SetName("Move Up").SetAction(() =>
+            var menuItem = new MenuItem().SetName("Move Up".Tr(TC.Menu)).SetAction(() =>
             {
                 var track = Track;
                 if (track == null)
@@ -130,7 +130,7 @@ internal class TrackHead : DockPanel
             };
         }
         {
-            var menuItem = new MenuItem().SetName("Move Down").SetAction(() =>
+            var menuItem = new MenuItem().SetName("Move Down".Tr(TC.Menu)).SetAction(() =>
             {
                 var track = Track;
                 if (track == null)
@@ -161,7 +161,7 @@ internal class TrackHead : DockPanel
             };
         }
         {
-            var menuItem = new MenuItem().SetName("Delete").SetAction(() =>
+            var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
             {
                 if (Track == null)
                     return;

@@ -187,7 +187,7 @@ internal partial class TrackScrollView
                                         }
                                     }
                                     {
-                                        var menuItem = new MenuItem() { Header = "Append Voice" };
+                                        var menuItem = new MenuItem() { Header = "Append Voice".Tr(TC.Menu) };
                                         var allEngines = VoicesManager.GetAllVoiceEngines();
                                         for (int i = 0; i < allEngines.Count; i++)
                                         {
@@ -228,7 +228,7 @@ internal partial class TrackScrollView
                                         menu.Items.Add(menuItem);
                                     }
                                     { 
-                                        var menuItem = new MenuItem().SetName("Delete").SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
+                                        var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
                                         menu.Items.Add(menuItem);
                                     }
                                 }

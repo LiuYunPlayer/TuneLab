@@ -13,6 +13,7 @@ using TuneLab.Base.Data;
 using Microsoft.Extensions.ObjectPool;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
+using TuneLab.I18N;
 
 namespace TuneLab.GUI.Controllers;
 
@@ -115,7 +116,7 @@ internal class ObjectController : StackPanel
             label.FontSize = 12;
             label.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom;
             label.Foreground = Style.LIGHT_WHITE.ToBrush();
-            label.Content = key;
+            label.Content = key.Tr(TC.Property);
             label.Padding = new(24, 0);
             controller.Children.Add(label);
         }

@@ -34,6 +34,7 @@
 "Volume" = "音量"
 "VibratoEnvelope" = "颤音包络"
 "Pitch" = "音高"
+"CrossVoiceSynth" = "交叉合成"
 
 [Menu]
 "File" = "文件"
@@ -62,6 +63,7 @@
 "Paste" = "粘贴"
 "Split" = "拆分"
 "Set Voice" = "设置声源"
+"Append Voice" = "追加声源"
 "Built-In" = "内建"
 "Delete" = "删除"
 
@@ -78,3 +80,5 @@
 "Move Lyrics Backward" = "由此后置歌词"
 
 "Input Lyrics" = "输入歌词"
+"Move Up" = "下移"
+"Move Down" = "上移"
