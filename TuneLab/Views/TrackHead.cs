@@ -28,15 +28,15 @@ internal class TrackHead : DockPanel
     {
         mName.EndInput.Subscribe(() => { if (Track == null) return; Track.Name.Set(mName.Text); Track.Name.Commit(); });
         mGainSlider.SetRange(-24, 6);
-        mGainSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value);if (value == mGainSlider.MinValue) { Track.IsMute.Set(true); } else if(Track.IsMute.GetInfo()) { Track.IsMute.Set(false); } });
-        mGainSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); Track.Gain.Commit(); if (value == mGainSlider.MinValue) { Track.IsMute.Set(true); Track.IsMute.Commit(); } else if (Track.IsMute.GetInfo()) { Track.IsMute.Set(false);Track.IsMute.Commit(); } });
+        mGainSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value);if (value <= mGainSlider.MinValue) { Track.IsMute.Set(true); } else if(Track.IsMute.GetInfo()) { Track.IsMute.Set(false); } });
+        mGainSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); Track.Gain.Commit(); if (value <= mGainSlider.MinValue) { Track.IsMute.Set(true); Track.IsMute.Commit(); } else if (Track.IsMute.GetInfo()) { Track.IsMute.Set(false);Track.IsMute.Commit(); } });
         mPanSlider.SetRange(-1, 1);
         mPanSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mPanSlider.Value; Track.Pan.Discard(); Track.Pan.Set(value); });
         mPanSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mPanSlider.Value; Track.Pan.Discard(); Track.Pan.Set(value); Track.Pan.Commit(); });
         mMuteToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 0, 186, 173) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.M }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mMuteToggle.Switched += () => { if (Track == null) return; Track.IsMute.Set(mMuteToggle.IsChecked); Track.IsMute.Commit(); };
+        mMuteToggle.Switched += () => { if (Track == null) return; Track.IsMute.Set(Track.Gain.GetInfo()<=mGainSlider.MinValue || mMuteToggle.IsChecked); Track.IsMute.Commit(); };
         mSoloToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 135, 84, 255) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
