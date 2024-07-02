@@ -9,7 +9,6 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<LangVersion>latest</LangVersion>
 		<Version>1.3.1</Version>
-		<PlatformTarget>x64</PlatformTarget>
 	</PropertyGroup>
 
 	<ItemGroup>
