@@ -13,6 +13,7 @@ internal static class Style
     public static readonly Color WHITE = new(255, 255, 255, 255);
     public static readonly Color LIGHT_WHITE = new(255, 181, 181, 191);
     public static readonly Color BLACK = new(255, 0, 0, 0);
+    public static readonly Color TIP = new(255, 40, 40, 40);
     public static readonly Color DARK = new(255, 18, 18, 26);
     public static readonly Color BACK = new(255, 27, 27, 36);
     public static readonly Color INTERFACE = new(255, 39, 39, 54);

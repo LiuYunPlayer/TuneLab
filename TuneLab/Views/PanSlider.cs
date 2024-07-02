@@ -1,10 +1,12 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TuneLab.Base.Science;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
@@ -32,6 +34,18 @@ internal class PanSlider : AbstractSlider
         double left = Math.Min(thumbX, center);
         double right = Math.Max(thumbX, center);
         context.FillRectangle(Style.HIGH_LIGHT.ToBrush(), new Rect(left, 0, right - left, Bounds.Height));
+
+        {
+            ToolTip.SetPlacement(this, PlacementMode.Top);
+            ToolTip.SetVerticalOffset(this, -Thumb.Height / 2);
+            ToolTip.SetTip(this,
+                Value > 0 ?
+                string.Format("R+{0}%", (Value * 100.0d).Ceil()) :
+                Value < 0 ?
+                string.Format("L+{0}%", (-Value * 100.0d).Ceil()) :
+                "Balance"
+                );
+        }
     }
 
     protected override void OnSizeChanged(Avalonia.Controls.SizeChangedEventArgs e)
