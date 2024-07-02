@@ -17,6 +17,8 @@ using TuneLab.Data;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using Slider = TuneLab.GUI.Components.Slider;
+using System.Net.WebSockets;
+using System.Threading;
 
 namespace TuneLab.Views;
 
@@ -191,7 +193,46 @@ internal class TrackHead : DockPanel
             mPanSlider.Display(Track.Pan.Value);
             mMuteToggle.Display(Track.IsMute.Value);
             mSoloToggle.Display(Track.IsSolo.Value);
+            AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
+            AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
         }
+    }
+
+    private void AudioEngine_PlayStateChanged()
+    {
+        try
+        {
+            if(!AudioEngine.IsPlaying)
+            {
+                mGainSlider.RealtimeAmplitude = new Tuple<double, double>(double.NaN, double.NaN);
+                mGainSlider.Update();
+            }
+        }
+        catch {; }
+    }
+
+    private void AudioEngine_ProgressChanged()
+    {
+        try
+        {
+            if (AudioEngine.IsPlaying)
+            {
+                Tuple<double, double> MapDb(Tuple<double, double> db)
+                {
+                    double MinDb = mGainSlider.MinValue;
+                    double MaxDb = mGainSlider.MaxValue;
+                    double valueL = (db.Item1 - MinDb) / (MaxDb - MinDb);
+                    double valueR = (db.Item2 - MinDb) / (MaxDb - MinDb);
+                    valueL = Math.Max(0.0, Math.Min(1.0, valueL));
+                    valueR = Math.Max(0.0, Math.Min(1.0, valueR));
+                    return new Tuple<double, double>(valueL, valueR);
+                }
+                var db = AudioEngine.CurrentAmplitude[Track];
+                mGainSlider.RealtimeAmplitude = MapDb(db);
+                mGainSlider.Update();
+            }
+        }
+        catch {; }
     }
 
     Owner<ITrack> mTrackProvider = new();

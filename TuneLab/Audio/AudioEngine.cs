@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Transactions;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
 
@@ -18,6 +19,7 @@ internal static class AudioEngine
     public static bool IsPlaying => mAudioEngine!.IsPlaying;
     public static int SamplingRate => mAudioEngine!.SamplingRate;
     public static double CurrentTime => mAudioEngine!.CurrentTime;
+    public static Dictionary<IAudioTrack,Tuple<double,double>> CurrentAmplitude => mCurrentAmplitude;
 
     public static void Init(IAudioEngine audioEngine)
     {
@@ -85,6 +87,40 @@ internal static class AudioEngine
         float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
         MixData(0, endPosition, isStereo, buffer, 0);
         AudioUtils.EncodeToWav(filePath, buffer, SamplingRate, 16, isStereo ? 2 : 1);
+    }
+
+    public static Dictionary<IAudioTrack, Tuple<double, double>> RealtimeAmplitude()
+    {
+        double Sample2Amplitude(float Sample)
+        {
+            return Math.Abs(Sample);
+        }
+        double Amplitude2Db(double amplitude)
+        {
+            double referenceAmplitude = 1.0;
+            double amplitudeRatio = amplitude / referenceAmplitude;
+            double db = 20 * Math.Log10(amplitudeRatio);
+            return db;
+        }
+
+        double currentTime = mAudioEngine.CurrentTime;
+        int position = (currentTime * SamplingRate).Ceil();
+        Dictionary<IAudioTrack, Tuple<double, double>> amplitude = new Dictionary<IAudioTrack, Tuple<double, double>>();
+        int sampleWindow = 64;
+        bool hasSolo = mTracks.Where(t => t.IsSolo).Count() > 0;
+        foreach (var track in mTracks)
+        {
+            if (track.IsMute || (hasSolo && !track.IsSolo)) { amplitude.Add(track,new Tuple<double, double>(double.NaN, double.NaN)); continue; }
+            float[] buffer = new float[sampleWindow * 2];
+            AddData(track, position, position + sampleWindow, true, buffer, 0);
+            float[] amp = {0,0};
+            for(int i = 0; i < sampleWindow * 2; i = i + 2) { amp[0] = (float)Math.Max(amp[0], Sample2Amplitude(buffer[i])); amp[1] = (float)Math.Max(amp[1], Sample2Amplitude(buffer[i + 1])); };
+            amplitude.Add(track,new Tuple<double, double>(
+                Amplitude2Db(amp[0]), //L
+                Amplitude2Db(amp[1])  //R
+                ));
+        }
+        return amplitude;
     }
 
     static void AddData(IAudioTrack track, int position, int endPosition, bool isStereo, float[] buffer, int offset)
@@ -171,6 +207,7 @@ internal static class AudioEngine
         {
             if (CurrentTime > EndTime)
                 Pause();
+            mCurrentAmplitude = RealtimeAmplitude();
         };
     }
 
@@ -190,4 +227,5 @@ internal static class AudioEngine
     static List<IAudioTrack> mTracks = new();
     static object mTrackLockObject = new();
     static AudioGraph mAudioGraph = new();
+    static Dictionary<IAudioTrack, Tuple<double, double>> mCurrentAmplitude;
 }
