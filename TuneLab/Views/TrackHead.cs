@@ -28,8 +28,8 @@ internal class TrackHead : DockPanel
     {
         mName.EndInput.Subscribe(() => { if (Track == null) return; Track.Name.Set(mName.Text); Track.Name.Commit(); });
         mGainSlider.SetRange(-24, 6);
-        mGainSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); });
-        mGainSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); Track.Gain.Commit(); });
+        mGainSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value);if (value == mGainSlider.MinValue) { Track.IsMute.Set(true); } else if(Track.IsMute.GetInfo()) { Track.IsMute.Set(false); } });
+        mGainSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; Track.Gain.Discard(); Track.Gain.Set(value); Track.Gain.Commit(); if (value == mGainSlider.MinValue) { Track.IsMute.Set(true); Track.IsMute.Commit(); } else if (Track.IsMute.GetInfo()) { Track.IsMute.Set(false);Track.IsMute.Commit(); } });
         mPanSlider.SetRange(-1, 1);
         mPanSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mPanSlider.Value; Track.Pan.Discard(); Track.Pan.Set(value); });
         mPanSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mPanSlider.Value; Track.Pan.Discard(); Track.Pan.Set(value); Track.Pan.Commit(); });
@@ -42,9 +42,19 @@ internal class TrackHead : DockPanel
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Switched += () => { if (Track == null) return; Track.IsSolo.Set(mSoloToggle.IsChecked); Track.IsSolo.Commit(); };
 
+        var leftArea = new DockPanel() { Margin = new(5, 5, 0, 5) };
+        {
+            leftArea.AddDock(mAmplitudeViewer);
+        }
+        this.AddDock(leftArea, Dock.Left);
+        var rightArea = new DockPanel() { Margin = new(0, 0, 0, 0) };
+        {
+            mIndexPanel.Children.Add(mIndexLabel);
+            rightArea.AddDock(mIndexPanel);
+        }
+        this.AddDock(rightArea, Dock.Right);
         var topArea = new DockPanel() { Margin = new(12, 12, 12, 0) };
         {
-            topArea.AddDock(mBorder, Dock.Left);
             topArea.AddDock(mSoloToggle, Dock.Right);
             topArea.AddDock(mMuteToggle, Dock.Right);
             topArea.AddDock(mName);
@@ -108,7 +118,7 @@ internal class TrackHead : DockPanel
 
                 var project = track.Project;
                 int index = project.Tracks.IndexOf(track);
-                if (index == 0) 
+                if (index == 0)
                     return;
 
                 project.RemoveTrackAt(index);
@@ -183,8 +193,9 @@ internal class TrackHead : DockPanel
         s.DisposeAll();
     }
 
-    public void SetTrack(ITrack? track)
+    public void SetTrack(ITrack? track, int index=0)
     {
+        mIndexLabel.Content = index.ToString();
         mTrackProvider.Set(track);
         if (Track != null)
         {
@@ -202,10 +213,9 @@ internal class TrackHead : DockPanel
     {
         try
         {
-            if(!AudioEngine.IsPlaying)
+            if (!AudioEngine.IsPlaying)
             {
-                mGainSlider.RealtimeAmplitude = new Tuple<double, double>(double.NaN, double.NaN);
-                mGainSlider.Update();
+                mAmplitudeViewer.Reset();
             }
         }
         catch {; }
@@ -215,21 +225,10 @@ internal class TrackHead : DockPanel
     {
         try
         {
-            if (AudioEngine.IsPlaying)
+            if (Track != null && AudioEngine.IsPlaying)
             {
-                Tuple<double, double> MapDb(Tuple<double, double> db)
-                {
-                    double MinDb = mGainSlider.MinValue;
-                    double MaxDb = mGainSlider.MaxValue;
-                    double valueL = (db.Item1 - MinDb) / (MaxDb - MinDb);
-                    double valueR = (db.Item2 - MinDb) / (MaxDb - MinDb);
-                    valueL = Math.Max(0.0, Math.Min(1.0, valueL));
-                    valueR = Math.Max(0.0, Math.Min(1.0, valueR));
-                    return new Tuple<double, double>(valueL, valueR);
-                }
-                var db = AudioEngine.CurrentAmplitude[Track];
-                mGainSlider.RealtimeAmplitude = MapDb(db);
-                mGainSlider.Update();
+                AudioEngine.InvokeRealtimeAmplitude(Track, out var amp);
+                if (amp == null) mAmplitudeViewer.Reset(); else mAmplitudeViewer.SetValue(amp);
             }
         }
         catch {; }
@@ -238,11 +237,13 @@ internal class TrackHead : DockPanel
     Owner<ITrack> mTrackProvider = new();
     ITrack? Track => mTrackProvider.Object;
 
-    readonly Border mBorder = new() { Background = Style.ITEM.ToBrush(), Width = 16, Height = 16, Margin = new(0, 0, 12, 0) };
-    readonly EditableLabel mName= new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
+    readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 1, 0, 1) };
+    readonly Label mIndexLabel = new() { FontSize=12, VerticalAlignment=Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center };
+    readonly EditableLabel mName = new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
     readonly GainSlider mGainSlider = new() { Height = 12 };
     readonly PanSlider mPanSlider = new() { Width = 40, Height = 12, Margin = new(8, 0, 0, 0) };
     readonly Toggle mMuteToggle = new() { Width = 16, Height = 16, Margin = new(8, 0, 0, 0) };
     readonly Toggle mSoloToggle = new() { Width = 16, Height = 16, Margin = new(8, 0, 0, 0) };
     readonly DisposableManager s = new();
+    readonly StereoAmplitudeViewer mAmplitudeViewer = new();
 }

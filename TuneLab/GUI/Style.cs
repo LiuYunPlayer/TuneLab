@@ -27,4 +27,7 @@ internal static class Style
     public static readonly Color BUTTON_NORMAL = new(255, 58, 63, 105);
     public static readonly Color BUTTON_PRIMARY_HOVER = new(255, 127, 127, 255);
     public static readonly Color BUTTON_NORMAL_HOVER = new(255, 85, 92, 153);
+
+    public static readonly Color AMP_NORMAL = new(255,0, 255, 0);
+    public static readonly Color AMP_DELAY = new(100, 0, 255, 0);
 }

@@ -121,7 +121,7 @@ internal class TrackHeadList : LayerPanel
             foreach (var track in project.Tracks)
             {
                 var trackHead = (TrackHead)Children[childrenIndex++];
-                trackHead.SetTrack(track);
+                trackHead.SetTrack(track, childrenIndex);
             }
         }
 
