@@ -30,7 +30,7 @@ internal class GainSlider : AbstractSlider
         ToolTip.SetShowDelay(this, 0);
         var x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value) - Bounds.Width / 2;
         ToolTip.SetHorizontalOffset(this, x);
-        ToolTip.SetTip(this, Value.ToString("0.00dB"));
+        ToolTip.SetTip(this, Value.ToString("+0.00dB;-0.00dB"));
     }
 
     protected override Point StartPoint => new(2, 0);
