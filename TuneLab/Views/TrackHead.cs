@@ -42,7 +42,7 @@ internal class TrackHead : DockPanel
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Switched += () => { if (Track == null) return; Track.IsSolo.Set(mSoloToggle.IsChecked); Track.IsSolo.Commit(); };
 
-        var leftArea = new DockPanel() { Margin = new(6, 2, 0, 2) };
+        var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {
             leftArea.AddDock(mAmplitudeViewer);
         }
