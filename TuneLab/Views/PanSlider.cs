@@ -18,6 +18,21 @@ internal class PanSlider : AbstractSlider
     public PanSlider()
     {
         Thumb = new PanThumb(this);
+        PointerMoved += (s, e) => { ShowTip(); };
+        ShowTip();
+    }
+
+    private void ShowTip()
+    {
+        ToolTip.SetPlacement(this, PlacementMode.Top);
+        ToolTip.SetVerticalOffset(this, -Thumb.Height / 2);
+        ToolTip.SetTip(this,
+            Value > 0 ?
+            string.Format("R+{0}", Value.ToString("f2")) :
+            Value < 0 ?
+            string.Format("L+{0}", (-Value).ToString("f2")) :
+            "Balance"
+            );
     }
 
     protected override Point StartPoint => new(0, 0);
@@ -34,18 +49,6 @@ internal class PanSlider : AbstractSlider
         double left = Math.Min(thumbX, center);
         double right = Math.Max(thumbX, center);
         context.FillRectangle(Style.HIGH_LIGHT.ToBrush(), new Rect(left, 0, right - left, Bounds.Height));
-
-        {
-            ToolTip.SetPlacement(this, PlacementMode.Top);
-            ToolTip.SetVerticalOffset(this, -Thumb.Height / 2);
-            ToolTip.SetTip(this,
-                Value > 0 ?
-                string.Format("R+{0}", Value.ToString("f2")) :
-                Value < 0 ?
-                string.Format("L+{0}", (-Value).ToString("f2")) :
-                "Balance"
-                );
-        }
     }
 
     protected override void OnSizeChanged(Avalonia.Controls.SizeChangedEventArgs e)
