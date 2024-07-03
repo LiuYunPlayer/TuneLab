@@ -19,6 +19,7 @@ using TuneLab.Utils;
 using Slider = TuneLab.GUI.Components.Slider;
 using System.Net.WebSockets;
 using System.Threading;
+using TuneLab.Base.Science;
 
 namespace TuneLab.Views;
 
@@ -41,7 +42,7 @@ internal class TrackHead : DockPanel
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 135, 84, 255) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Switched += () => { if (Track == null) return; Track.IsSolo.Set(mSoloToggle.IsChecked); Track.IsSolo.Commit(); };
-
+        mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
         var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {
             leftArea.AddDock(mAmplitudeViewer);
@@ -193,9 +194,25 @@ internal class TrackHead : DockPanel
         s.DisposeAll();
     }
 
+    private void MoveToIndex(int newIndex)
+    {
+        if (Track == null) return;
+        var track = Track;
+        var project = track.Project;
+        int index = project.Tracks.IndexOf(track);
+        if (index == newIndex) mIndexLabel.Text = mTrackIndex.ToString();
+        else
+        {
+            project.RemoveTrackAt(index);
+            project.InsertTrack(newIndex, track);
+            project.Commit();
+        }
+    }
+
     public void SetTrack(ITrack? track, int index=0)
     {
-        mIndexLabel.Content = index.ToString();
+        mTrackIndex = index;
+        mIndexLabel.Text = mTrackIndex.ToString();
         mTrackProvider.Set(track);
         if (Track != null)
         {
@@ -236,9 +253,10 @@ internal class TrackHead : DockPanel
 
     Owner<ITrack> mTrackProvider = new();
     ITrack? Track => mTrackProvider.Object;
+    int mTrackIndex = -1;
 
     readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 0, 0, 1) };
-    readonly Label mIndexLabel = new() { FontSize=12, VerticalAlignment=Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center };
+    readonly EditableLabel mIndexLabel = new() { Background = Style.ITEM.ToBrush(), CornerRadius = new(0), Padding = new(0), FontSize = 12, VerticalAlignment =Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center };
     readonly EditableLabel mName = new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
     readonly GainSlider mGainSlider = new() { Height = 12 };
     readonly PanSlider mPanSlider = new() { Width = 40, Height = 12, Margin = new(8, 0, 0, 0) };

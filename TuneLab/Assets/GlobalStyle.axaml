@@ -18,4 +18,10 @@
 	<Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
 		<Setter Property="Background" Value="#6060C0"/>
 	</Style>
+
+	<Style Selector="ToolTip">
+		<Setter Property="Background" Value="#393940" />
+		<Setter Property="Padding" Value="4" />
+		<Setter Property="BorderBrush" Value="#45454D" />
+	</Style>
 </Styles>
