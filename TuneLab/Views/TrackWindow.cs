@@ -49,7 +49,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         mTickAxis = new();
         mTrackVerticalAxis = new(this);
 
-        mTrackHeadList = new(this) { Width = 200, Margin = new(1, 0) };
+        mTrackHeadList = new(this) { Width = 232, Margin = new(1, 0) };
         var headArea = new DockPanel();
         {
             var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };

@@ -13,6 +13,7 @@ internal static class Style
     public static readonly Color WHITE = new(255, 255, 255, 255);
     public static readonly Color LIGHT_WHITE = new(255, 181, 181, 191);
     public static readonly Color BLACK = new(255, 0, 0, 0);
+    public static readonly Color TOOL_TIP_BACK = new(255, 57, 57, 64);
     public static readonly Color DARK = new(255, 18, 18, 26);
     public static readonly Color BACK = new(255, 27, 27, 36);
     public static readonly Color INTERFACE = new(255, 39, 39, 54);
@@ -27,4 +28,7 @@ internal static class Style
     public static readonly Color BUTTON_NORMAL = new(255, 58, 63, 105);
     public static readonly Color BUTTON_PRIMARY_HOVER = new(255, 127, 127, 255);
     public static readonly Color BUTTON_NORMAL_HOVER = new(255, 85, 92, 153);
+
+    public static readonly Color AMP_NORMAL = new(255, 102, 255, 51);
+    public static readonly Color AMP_DELAY = new((int)(0.5 * 255), 102, 255, 51);
 }

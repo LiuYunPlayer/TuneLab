@@ -43,7 +43,7 @@ internal class EditableLabel : LayerPanel
             mTextInput.IsVisible = false;
             mEndInput.Invoke();
         });
-
+        
         Children.Add(mBorder);
         Children.Add(mTextBlock);
         Children.Add(mTextInput);
@@ -52,6 +52,6 @@ internal class EditableLabel : LayerPanel
     Border mBorder = new();
     TextBlock mTextBlock = new TextBlock() { IsHitTestVisible = false };
     TextInput mTextInput = new TextInput() { IsVisible = false };
-
+    
     readonly ActionEvent mEndInput = new();
 }

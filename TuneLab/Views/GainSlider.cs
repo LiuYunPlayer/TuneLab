@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using TuneLab.GUI.Components;
 using TuneLab.GUI;
 using TuneLab.Utils;
+using TuneLab.Base.Science;
+using Avalonia.Controls;
 
 namespace TuneLab.Views;
 
@@ -17,6 +19,18 @@ internal class GainSlider : AbstractSlider
     public GainSlider()
     {
         Thumb = new GainThumb(this);
+        PointerMoved += (s, e) => { ShowTip(); };
+        ShowTip();
+    }
+
+    private void ShowTip()
+    {
+        ToolTip.SetPlacement(this, PlacementMode.Top);
+        ToolTip.SetVerticalOffset(this, -this.Height / 2);
+        ToolTip.SetShowDelay(this, 0);
+        var x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value) - Bounds.Width / 2;
+        ToolTip.SetHorizontalOffset(this, x);
+        ToolTip.SetTip(this, Value.ToString("+0.00dB;-0.00dB"));
     }
 
     protected override Point StartPoint => new(2, 0);
