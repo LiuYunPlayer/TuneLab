@@ -276,6 +276,19 @@ internal partial class PianoScrollView
         }
     }
 
+    class PreviewAnchorGroupItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
+    {
+        public required IPiecewiseCurve PiecewiseCurve { get; set; }
+
+        public override void Render(DrawingContext context)
+        {
+            if (PianoScrollView.Part == null)
+                return;
+
+            PianoScrollView.DrawPitch(context, 0, PianoScrollView.Bounds.Width, PiecewiseCurve.GetValues, Colors.White, 1);
+        }
+    }
+
     class WaveformBackItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public override bool Raycast(Point point)

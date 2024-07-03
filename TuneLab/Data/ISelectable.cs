@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Avalonia.Controls.Documents;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -66,5 +67,16 @@ internal static class ISelectableExtension
             item.IsSelected = false;
         }
         if (canMerge) ((ISelectableCollection<T>)selectableCollection).SelectionChanged.EndMerge();
+    }
+
+    public static bool HasSelectedItem<T>(this IEnumerable<T> selectableCollection) where T : ISelectable
+    {
+        foreach (var item in selectableCollection)
+        {
+            if (item.IsSelected)
+                return true;
+        }
+
+        return false;
     }
 }

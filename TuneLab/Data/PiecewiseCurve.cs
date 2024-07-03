@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using TuneLab.Base.Data;
 using TuneLab.Base.Event;
+using TuneLab.Base.Science;
 using TuneLab.Base.Structures;
 using TuneLab.Base.Utils;
 
@@ -13,11 +15,11 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
 {
     public IActionEvent<double, double> RangeModified => mRangeModified;
 
-    public IReadOnlyList<IAnchorGroup> AnchorGroups => mAnchorLines;
+    public IReadOnlyList<IAnchorGroup> AnchorGroups => mAnchorGroups;
 
     public PiecewiseCurve()
     {
-        mAnchorLines.Attach(this);
+        mAnchorGroups.Attach(this);
     }
 
     public void AddLine(IReadOnlyList<AnchorPoint> points, double extension)
@@ -31,11 +33,11 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
         Push(new UndoOnlyCommand(NotifyRangeModified));
         var startPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
         var endPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
-        int insertIndex = mAnchorLines.Count;
+        int insertIndex = mAnchorGroups.Count;
         int removeCount = 0;
-        for (int gi = 0; gi < mAnchorLines.Count; gi++)
+        for (int gi = 0; gi < mAnchorGroups.Count; gi++)
         {
-            var anchorGroup = mAnchorLines[gi];
+            var anchorGroup = mAnchorGroups[gi];
             if (anchorGroup.End < start)
                 continue;
 
@@ -96,9 +98,9 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
         newLine.Set(startPoints.Concat(points).Concat(endPoints));
         for (int i = 0; i < removeCount; i++)
         {
-            mAnchorLines.RemoveAt(insertIndex);
+            mAnchorGroups.RemoveAt(insertIndex);
         }
-        mAnchorLines.Insert(insertIndex, newLine);
+        mAnchorGroups.Insert(insertIndex, newLine);
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }
@@ -107,9 +109,9 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
     {
         void NotifyRangeModified() => mRangeModified.Invoke(start, end);
         Push(new UndoOnlyCommand(NotifyRangeModified));
-        for (int gi = mAnchorLines.Count - 1; gi >= 0; gi--)
+        for (int gi = mAnchorGroups.Count - 1; gi >= 0; gi--)
         {
-            var anchorGroup = mAnchorLines[gi];
+            var anchorGroup = mAnchorGroups[gi];
             if (anchorGroup.Start >= end)
                 continue;
 
@@ -118,7 +120,7 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
 
             if (anchorGroup.End <= end && anchorGroup.Start >= start)
             {
-                mAnchorLines.RemoveAt(gi);
+                mAnchorGroups.RemoveAt(gi);
                 continue;
             }
 
@@ -139,7 +141,7 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
 
                 var endLine = new T();
                 endLine.Set(endPoints);
-                mAnchorLines.Insert(gi + 1, endLine);
+                mAnchorGroups.Insert(gi + 1, endLine);
             }
 
             if (anchorGroup.Start < start)
@@ -157,16 +159,151 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
             }
             else
             {
-                mAnchorLines.RemoveAt(gi);
+                mAnchorGroups.RemoveAt(gi);
             }
         }
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }
 
+    public void RemoveAnchorGroupAt(int index)
+    {
+        var anchorGroup = mAnchorGroups[index];
+        var start = anchorGroup.Start;
+        var end = anchorGroup.End;
+        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        Push(new UndoOnlyCommand(NotifyRangeModified));
+        mAnchorGroups.RemoveAt(index);
+        NotifyRangeModified();
+        Push(new RedoOnlyCommand(NotifyRangeModified));
+    }
+
+    public void DeleteAnchors(double s, double e)
+    {
+        for (int gi = AnchorGroups.Count - 1; gi >= 0; gi--)
+        {
+            var anchorGroup = AnchorGroups[gi];
+            double start = anchorGroup.End;
+            double end = anchorGroup.Start;
+            bool hasSelectedAnchor = false;
+            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
+            {
+                if (anchorGroup[pi].Pos > e)
+                    continue;
+
+                if (anchorGroup[pi].Pos < s)
+                    break;
+
+                if (!hasSelectedAnchor)
+                {
+                    Push(new UndoOnlyCommand(NotifyRangeModified));
+                    hasSelectedAnchor = true;
+                }
+
+                end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                anchorGroup.RemoveAt(pi);
+            }
+            if (anchorGroup.IsEmpty())
+                mAnchorGroups.RemoveAt(gi);
+
+            if (hasSelectedAnchor)
+            {
+                NotifyRangeModified();
+                Push(new RedoOnlyCommand(NotifyRangeModified));
+            }
+        }
+    }
+
+    public void DeleteAllSelectedAnchors()
+    {
+        for (int gi = AnchorGroups.Count - 1; gi >= 0; gi--)
+        {
+            var anchorGroup = AnchorGroups[gi];
+            double start = anchorGroup.End;
+            double end = anchorGroup.Start;
+            bool hasSelectedAnchor = false;
+            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
+            {
+                if (anchorGroup[pi].IsSelected)
+                {
+                    if (!hasSelectedAnchor)
+                    {
+                        Push(new UndoOnlyCommand(NotifyRangeModified));
+                        hasSelectedAnchor = true;
+                    }
+
+                    end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    anchorGroup.RemoveAt(pi);
+                }
+            }
+            if (anchorGroup.IsEmpty())
+                mAnchorGroups.RemoveAt(gi);
+
+            if (hasSelectedAnchor)
+            {
+                NotifyRangeModified();
+                Push(new RedoOnlyCommand(NotifyRangeModified));
+            }
+        }
+    }
+
+    public void DeletePoints(IReadOnlyList<AnchorPoint> points)
+    {
+        if (points.IsEmpty()) 
+            return;
+
+        int flag = points.Count - 1;
+        var point = points[flag];
+
+        for (int gi = AnchorGroups.Count - 1; gi >= 0; gi--)
+        {
+            var anchorGroup = AnchorGroups[gi];
+            double start = anchorGroup.End;
+            double end = anchorGroup.Start;
+            bool hasDeleteAnchor = false;
+            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
+            {
+                if (anchorGroup[pi] == point)
+                {
+                    if (!hasDeleteAnchor)
+                    {
+                        Push(new UndoOnlyCommand(NotifyRangeModified));
+                        hasDeleteAnchor = true;
+                    }
+
+                    end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    anchorGroup.RemoveAt(pi);
+
+                    flag--;
+                    if (flag == -1)
+                        break;
+
+                    point = points[flag];
+                }
+            }
+            if (anchorGroup.IsEmpty())
+                mAnchorGroups.RemoveAt(gi);
+
+            if (hasDeleteAnchor)
+            {
+                NotifyRangeModified();
+                Push(new RedoOnlyCommand(NotifyRangeModified));
+            }
+
+            if (flag == -1)
+                break;
+        }
+    }
+
     public List<List<Point>> GetInfo()
     {
-        return mAnchorLines.GetInfo().Select(line => line.GetInfo().Select(p => p.ToPoint()).ToList()).ToList();
+        return mAnchorGroups.GetInfo().Select(anchorGroup => anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList()).ToList();
     }
 
     public double[] GetValues(IReadOnlyList<double> ticks)
@@ -176,9 +313,9 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
         double start = ticks.First();
         double end = ticks.Last();
         int tickIndex = 0;
-        for (int i = 0; i < mAnchorLines.Count; i++)
+        for (int i = 0; i < mAnchorGroups.Count; i++)
         {
-            var anchorGroup = mAnchorLines[i];
+            var anchorGroup = mAnchorGroups[i];
             if (anchorGroup.End < start)
                 continue;
 
@@ -212,11 +349,11 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
 
     void IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(IEnumerable<IReadOnlyCollection<Point>> info)
     {
-        IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(mAnchorLines, info.Where(points => points.Count > 1).Convert(points => { var t = new T(); t.Set(points.Select(point => new AnchorPoint(point))); return t; }).ToArray());
+        IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(mAnchorGroups, info.Where(points => points.Count > 1).Convert(points => { var t = new T(); t.Set(points.Select(point => new AnchorPoint(point))); return t; }).ToArray());
     }
 
-    readonly DataObjectList<T> mAnchorLines = new();
+    readonly DataObjectList<T> mAnchorGroups = new();
     readonly ActionEvent<double, double> mRangeModified = new();
 }
 
-internal class piecewiseCurve : PiecewiseCurve<AnchorGroup> { }
+internal class PiecewiseCurve : PiecewiseCurve<AnchorGroup> { }

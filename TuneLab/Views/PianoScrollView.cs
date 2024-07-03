@@ -73,6 +73,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mWaveformPhonemeResizeOperation = new(this);
         mSelectionOperation = new(this);
         mAnchorSelectOperation = new(this);
+        mAnchorDeleteOperation = new(this);
 
         mDependency.PartProvider.ObjectChanged.Subscribe(Update, s);
         mDependency.PartProvider.When(p => p.Modified).Subscribe(Update, s);
@@ -891,6 +892,18 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 if (mSelection.IsAcitve)
                 {
                     Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
+                    Part.Commit();
+                }
+                break;
+            case PianoTool.Anchor:
+                if (mSelection.IsAcitve)
+                {
+                    Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
+                    Part.Commit();
+                }
+                else
+                {
+                    Part.Pitch.DeleteAllSelectedAnchors();
                     Part.Commit();
                 }
                 break;

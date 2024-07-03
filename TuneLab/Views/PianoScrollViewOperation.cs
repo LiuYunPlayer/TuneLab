@@ -347,7 +347,7 @@ internal partial class PianoScrollView
                                 {
                                     if (item is AnchorItem anchorItem)
                                     {
-
+                                        // Move
                                     }
                                     else
                                     {
@@ -356,6 +356,17 @@ internal partial class PianoScrollView
                                 }
                                 break;
                             case MouseButtonType.SecondaryButton:
+                                {
+                                    if (Part == null)
+                                        break;
+
+                                    Part.Pitch.DeselectAllAnchors();
+                                    if (item is AnchorItem anchorItem)
+                                    {
+                                        Part.Pitch.DeletePoints([anchorItem.AnchorPoint]);
+                                    }
+                                    mAnchorDeleteOperation.Down(e.Position.X);
+                                }
                                 break;
                         }
                         break;
@@ -578,6 +589,9 @@ internal partial class PianoScrollView
             case State.AnchorSelecting:
                 mAnchorSelectOperation.Move(e.Position);
                 break;
+            case State.AnchorDeleting:
+                mAnchorDeleteOperation.Move(e.Position.X);
+                break;
             default:
                 var item = ItemAt(e.Position);
                 if (item is WaveformNoteResizeItem || item is WaveformPhonemeResizeItem)
@@ -720,6 +734,10 @@ internal partial class PianoScrollView
             case State.AnchorSelecting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mAnchorSelectOperation.Up();
+                break;
+            case State.AnchorDeleting:
+                if (e.MouseButtonType == MouseButtonType.SecondaryButton)
+                    mAnchorDeleteOperation.Up();
                 break;
             default:
                 break;
@@ -929,6 +947,38 @@ internal partial class PianoScrollView
                         items.Add(new AnchorItem(this) { AnchorPoint = anchor });
                     }
                 }
+                if (mState != State.None)
+                    break;
+
+                var areaID = Part.Pitch.GetAreaID(TickAxis.X2Tick(MousePosition.X) - Part.Pos);
+                var previewInfo = new List<List<Point>>();
+                if (areaID.IsInGroup)
+                {
+                    previewInfo.Add(Part.Pitch.AnchorGroups[areaID.Index].GetInfo().Select(p => p.ToPoint()).ToList());
+                }
+                else
+                {
+                    if (areaID.LeftIndex >= 0)
+                    {
+                        var anchorGroup = Part.Pitch.AnchorGroups[areaID.LeftIndex];
+                        if (anchorGroup.HasSelectedItem())
+                            previewInfo.Add(anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList());
+                    }
+                    if (areaID.RightIndex < Part.Pitch.AnchorGroups.Count)
+                    {
+                        var anchorGroup = Part.Pitch.AnchorGroups[areaID.RightIndex];
+                        if (anchorGroup.HasSelectedItem())
+                            previewInfo.Add(anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList());
+                    }
+                }
+
+                if (previewInfo.Count == 0)
+                    break;
+
+                var previewAnchorGroups = new PiecewiseCurve();
+                previewAnchorGroups.Set(previewInfo);
+                items.Add(new PreviewAnchorGroupItem(this) { PiecewiseCurve = previewAnchorGroups });
+
                 break;
             default:
                 break;
@@ -2306,6 +2356,65 @@ internal partial class PianoScrollView
 
     IVibratoItem? mOperatingVibratoItem = null;
 
+    class AnchorDeleteOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
+    {
+        public bool IsOperating => State == State.AnchorDeleting;
+
+        public void Down(double x)
+        {
+            if (IsOperating)
+                return;
+
+            if (PianoScrollView.Part == null)
+                return;
+
+            State = State.AnchorDeleting;
+            PianoScrollView.Part.BeginMergeDirty();
+            mHead = PianoScrollView.Part.Head;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            mStart = tick;
+            mEnd = tick;
+            PianoScrollView.Part.Pitch.DeleteAnchors(mStart, mEnd);
+        }
+
+        public void Move(double x)
+        {
+            if (!IsOperating)
+                return;
+
+            if (PianoScrollView.Part == null)
+                return;
+
+            PianoScrollView.Part.Pitch.DiscardTo(mHead);
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            mStart = Math.Min(mStart, tick);
+            mEnd = Math.Max(mEnd, tick);
+            PianoScrollView.Part.Pitch.DeleteAnchors(mStart, mEnd);
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            State = State.None;
+
+            if (PianoScrollView.Part == null)
+                return;
+
+            PianoScrollView.Part.Pitch.DiscardTo(mHead);
+            PianoScrollView.Part.Pitch.DeleteAnchors(mStart, mEnd);
+            PianoScrollView.Part.EndMergeDirty();
+            PianoScrollView.Part.Pitch.Commit();
+        }
+
+        double mStart;
+        double mEnd;
+        Head mHead;
+    }
+
+    readonly AnchorDeleteOperation mAnchorDeleteOperation;
+
     class AnchorSelectOperation(PianoScrollView pianoScrollView) : SelectOperation<AnchorPoint>(pianoScrollView)
     {
         protected override State SelectState => State.AnchorSelecting;
@@ -2580,6 +2689,8 @@ internal partial class PianoScrollView
         WaveformPhonemeResizing,
         SelectionCreating,
         AnchorSelecting,
+        AnchorDeleting,
+        AnchorMoving,
     }
 
     State mState = State.None;

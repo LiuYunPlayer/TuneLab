@@ -42,6 +42,10 @@ internal class View : Container
         mItemCollection.Clear();
         UpdateItems(mItemCollection);
         OnRender(context);
+        foreach (var item in mItemCollection)
+        {
+            item.Render(context);
+        }
     }
 
     protected sealed override void OnMouseMove(MouseMoveEventArgs e)
@@ -78,6 +82,8 @@ internal class View : Container
         {
             return false;
         }
+
+        public virtual void Render(DrawingContext context) { }
     }
 
     protected interface IItemCollection : IEnumerable<Item>
