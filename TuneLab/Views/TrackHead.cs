@@ -1,14 +1,10 @@
-﻿using Avalonia;
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Base.Event;
 using TuneLab.GUI;
@@ -16,9 +12,6 @@ using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
-using Slider = TuneLab.GUI.Components.Slider;
-using System.Net.WebSockets;
-using System.Threading;
 using TuneLab.Base.Science;
 
 namespace TuneLab.Views;
@@ -76,6 +69,101 @@ internal class TrackHead : DockPanel
 
         MinWidth = 200;
 
+        var trackBarMenu = new ContextMenu();
+        {
+            {
+                var menuItem = new MenuItem().SetName("Move Up").SetAction(() =>
+                {
+                    var track = Track;
+                    if (track == null)
+                        return;
+
+                    var project = track.Project;
+                    int index = project.Tracks.IndexOf(track);
+                    if (index == 0)
+                        return;
+
+                    project.RemoveTrackAt(index);
+                    project.InsertTrack(index - 1, track);
+                    project.Commit();
+                });
+                trackBarMenu.Items.Add(menuItem);
+                trackBarMenu.Opening += (s, e) =>
+                {
+                    menuItem.IsEnabled = false;
+                    if (Track == null)
+                        return;
+
+                    var project = Track.Project;
+                    int index = project.Tracks.IndexOf(Track);
+                    if (index == 0)
+                        return;
+
+                    menuItem.IsEnabled = true;
+                };
+            }
+            {
+                var menuItem = new MenuItem().SetName("Move Down").SetAction(() =>
+                {
+                    var track = Track;
+                    if (track == null)
+                        return;
+
+                    var project = track.Project;
+                    int index = project.Tracks.IndexOf(track);
+                    if (index == project.Tracks.Count - 1)
+                        return;
+
+                    project.RemoveTrackAt(index);
+                    project.InsertTrack(index + 1, track);
+                    project.Commit();
+                });
+                trackBarMenu.Items.Add(menuItem);
+                trackBarMenu.Opening += (s, e) =>
+                {
+                    menuItem.IsEnabled = false;
+                    if (Track == null)
+                        return;
+
+                    var project = Track.Project;
+                    int index = project.Tracks.IndexOf(Track);
+                    if (index == project.Tracks.Count - 1)
+                        return;
+
+                    menuItem.IsEnabled = true;
+                };
+            }
+            {
+                var menuItem = new MenuItem().SetName("Set Color");
+                {
+                    foreach (var color in Style.TRACK_COLORS)
+                    {
+                        MenuItem colorItem = new MenuItem
+                        {
+                            Header = new Border
+                            {
+                                Background = new SolidColorBrush(color),
+                                Width = 20,
+                                Height = 20
+                            },
+                            Tag = color
+                        };
+                        colorItem.Width = 20;
+                        colorItem.Height = 20;
+                        colorItem.Margin = new Avalonia.Thickness(5);
+                        colorItem.SetAction(() =>
+                        {
+                            Track.Color.Set((Color)colorItem.Tag);
+                            Track.Color.Commit();
+                        });
+                        menuItem.Items.Add(colorItem);
+                    }
+                }
+                trackBarMenu.Items.Add(menuItem);
+            }
+        }
+        rightArea.ContextMenu = trackBarMenu;
+
         var menu = new ContextMenu();
         {
             var menuItem = new MenuItem().SetName("Export Audio").SetAction(async () =>
@@ -109,68 +197,6 @@ internal class TrackHead : DockPanel
                 }
             });
             menu.Items.Add(menuItem);
-        }
-        {
-            var menuItem = new MenuItem().SetName("Move Up").SetAction(() =>
-            {
-                var track = Track;
-                if (track == null)
-                    return;
-
-                var project = track.Project;
-                int index = project.Tracks.IndexOf(track);
-                if (index == 0)
-                    return;
-
-                project.RemoveTrackAt(index);
-                project.InsertTrack(index - 1, track);
-                project.Commit();
-            });
-            menu.Items.Add(menuItem);
-            menu.Opening += (s, e) =>
-            {
-                menuItem.IsEnabled = false;
-                if (Track == null)
-                    return;
-
-                var project = Track.Project;
-                int index = project.Tracks.IndexOf(Track);
-                if (index == 0)
-                    return;
-
-                menuItem.IsEnabled = true;
-            };
-        }
-        {
-            var menuItem = new MenuItem().SetName("Move Down").SetAction(() =>
-            {
-                var track = Track;
-                if (track == null)
-                    return;
-
-                var project = track.Project;
-                int index = project.Tracks.IndexOf(track);
-                if (index == project.Tracks.Count - 1)
-                    return;
-
-                project.RemoveTrackAt(index);
-                project.InsertTrack(index + 1, track);
-                project.Commit();
-            });
-            menu.Items.Add(menuItem);
-            menu.Opening += (s, e) =>
-            {
-                menuItem.IsEnabled = false;
-                if (Track == null)
-                    return;
-
-                var project = Track.Project;
-                int index = project.Tracks.IndexOf(Track);
-                if (index == project.Tracks.Count - 1)
-                    return;
-
-                menuItem.IsEnabled = true;
-            };
         }
         {
             var menuItem = new MenuItem().SetName("Delete").SetAction(() =>
@@ -212,6 +238,7 @@ internal class TrackHead : DockPanel
     public void SetTrack(ITrack? track, int index=0)
     {
         mTrackIndex = index;
+
         mIndexLabel.Text = mTrackIndex.ToString();
         mTrackProvider.Set(track);
         if (Track != null)
@@ -223,6 +250,9 @@ internal class TrackHead : DockPanel
             mSoloToggle.Display(Track.IsSolo.Value);
             AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
             AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
+            mIndexLabel.Background = Track.Color.Value.ToBrush();
+            mIndexPanel.Background = Track.Color.Value.ToBrush();
+            Track.Color.Modified.Subscribe(() => {mIndexLabel.Background = Track.Color.Value.ToBrush();mIndexPanel.Background = Track.Color.Value.ToBrush();});
         }
     }
 

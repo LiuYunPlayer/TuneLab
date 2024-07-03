@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Avalonia.Media;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,6 +28,8 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     MidiPart CreatePart(MidiPartInfo info);
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);
+
+    new IDataProperty<Color> Color { get; }
 
     void Activate();
     void Deactivate();

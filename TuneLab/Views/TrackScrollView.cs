@@ -89,6 +89,13 @@ internal partial class TrackScrollView : View
         TrackVerticalAxis.AxisChanged -= Update;
     }
 
+    Color getPartColor(ITrack? track, bool isHighLight)
+    {
+        var color = track != null ? track.Color.Value : Style.TRACK_COLORS[0];
+        if (isHighLight) return new Color(color.A, (byte)(color.R + 40).Limit(0, 255), (byte)(color.G + 40).Limit(0, 255), (byte)(color.B + 40).Limit(0, 255));
+        return color;
+    }
+
     protected override void OnRender(DrawingContext context)
     {
         context.FillRectangle(Brushes.Transparent, this.Rect());
@@ -188,15 +195,9 @@ internal partial class TrackScrollView : View
 
         // draw parts
         IBrush lineBrush = Style.DARK.ToBrush();
-        IBrush partBrush = Style.ITEM.Opacity(0.25).ToBrush();
-        IBrush selectedPartBrush = Style.HIGH_LIGHT.Opacity(0.25).ToBrush();
         double partLineWidth = 1;
         IPen editPartPen = new Pen(Style.LIGHT_WHITE.ToBrush(), partLineWidth);
-        IPen partSelectPen = new Pen(Style.HIGH_LIGHT.ToBrush(), partLineWidth);
-        IPen partPen = new Pen(Style.HIGH_LIGHT.Opacity(0.5).ToBrush(), partLineWidth);
         IBrush titleBrush = Colors.White.Opacity(0.7).ToBrush();
-        IBrush noteBrush = Style.ITEM.ToBrush();
-        IBrush noteSelectBrush = Style.HIGH_LIGHT.ToBrush();
         for (int trackIndex = 0; trackIndex < Project.Tracks.Count; trackIndex++)
         {
             double lineBottom = TrackVerticalAxis.GetTop(trackIndex + 1);
@@ -226,7 +227,7 @@ internal partial class TrackScrollView : View
                 double right = Math.Min(TickAxis.Tick2X(part.EndPos()), Bounds.Width + 8);
 
                 var partRect = new Rect(left, top, right - left, bottom - top);
-                context.DrawRectangle(part.IsSelected ? selectedPartBrush : partBrush, part == mDependency.EditingPart.Object ? editPartPen : part.IsSelected ? partSelectPen : partPen, partRect.Inflate(-partLineWidth / 2));
+                context.DrawRectangle(getPartColor(track, part.IsSelected).Opacity(0.25).ToBrush(), part == mDependency.EditingPart.Object ? editPartPen : new Pen(getPartColor(track,true).Opacity(part.IsSelected ?1:0.5).ToBrush(), partLineWidth), partRect.Inflate(-partLineWidth / 2));
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
                 var contentRect = partRect.Adjusted(0, 16, 0, 0);
                 if (part is MidiPart midiPart)
@@ -246,7 +247,7 @@ internal partial class TrackScrollView : View
                         double pitchHeight = Math.Min(contentRect.Height / pitchGap, 8);
                         double partStartPos = Math.Max(startPos, midiPart.StartPos) - midiPart.Pos;
                         double partEndPos = Math.Min(endPos, midiPart.EndPos) - midiPart.Pos;
-                        IBrush brush = part.IsSelected ? noteSelectBrush : noteBrush;
+                        IBrush brush = getPartColor(track, part.IsSelected).ToBrush();
                         foreach (var note in midiPart.Notes)
                         {
                             if (note.EndPos() <= partStartPos)
@@ -329,7 +330,7 @@ internal partial class TrackScrollView : View
                                     context.FillRectangle(Style.LIGHT_WHITE.ToBrush(), new(xs[i], peak.max, gap, peak.min - peak.max));
                                 }
                             }
-                            
+
                             /*
                             for (int i = 0; i < peaks.Length; i++)
                             {
@@ -395,7 +396,7 @@ internal partial class TrackScrollView : View
                 double top = TrackVerticalAxis.GetTop(mDragFileOperation.TrackIndex + i);
                 double bottom = TrackVerticalAxis.GetBottom(mDragFileOperation.TrackIndex + i);
                 var partRect = new Rect(left, top, right - left, bottom - top);
-                context.FillRectangle(partBrush, partRect);
+                context.FillRectangle(getPartColor(null,false).Opacity(0.25).ToBrush(), partRect);
 
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
                 var contentRect = partRect.Adjusted(0, 16 + 8, 0, -8);

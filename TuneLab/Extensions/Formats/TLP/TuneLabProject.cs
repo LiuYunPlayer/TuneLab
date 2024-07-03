@@ -70,7 +70,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     Gain = (double)track["gain"],
                     Pan = (double)track["pan"],
                     Mute = (bool)track["mute"],
-                    Solo = (bool)track["solo"]
+                    Solo = (bool)track["solo"],
+                    Color = (System.Drawing.Color)(track.ContainsKey("color") ? System.Drawing.Color.FromArgb((int)track["color"]) : System.Drawing.Color.FromArgb(255, 58, 63, 105))
                 };
 
                 var parts = track["parts"].ToArray();
@@ -266,6 +267,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             track.Add("pan", trackInfo.Pan);
             track.Add("mute", trackInfo.Mute);
             track.Add("solo", trackInfo.Solo);
+            track.Add("color", trackInfo.Color.ToArgb());
 
             var parts = new JArray();
             foreach (var partInfo in trackInfo.Parts)
