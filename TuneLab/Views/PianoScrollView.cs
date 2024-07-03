@@ -256,7 +256,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 break;
 
             var rect = this.NoteRect(note);
-            context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
+            //context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
+            context.FillRectangle((note.IsSelected?Style.HIGH_LIGHT:Style.ITEM).ToBrush(), rect, (float)round);
 
             rect = rect.Adjusted(8, -28, -8, 0);
             if (rect.Width <= 0)
