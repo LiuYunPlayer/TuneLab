@@ -59,7 +59,7 @@ namespace TuneLab.GUI.Components
         }
         public override void Render(DrawingContext context)
         {
-            context.FillRectangle(Style.BLACK.ToBrush(), this.Rect());//Bg
+            context.FillRectangle(Style.BACK.ToBrush(), this.Rect());//Bg
 
             Rect delayRect = AmpRect(mDelayAmpValue);
             Rect ampRect = AmpRect(mAmpValue);

@@ -40,9 +40,9 @@ internal class PanSlider : AbstractSlider
             ToolTip.SetVerticalOffset(this, -Thumb.Height / 2);
             ToolTip.SetTip(this,
                 Value > 0 ?
-                string.Format("R+{0}%", (Value * 100.0d).Ceil()) :
+                string.Format("R+{0}", Value.ToString("f2")) :
                 Value < 0 ?
-                string.Format("L+{0}%", (-Value * 100.0d).Ceil()) :
+                string.Format("L+{0}", (-Value).ToString("f2")) :
                 "Balance"
                 );
         }

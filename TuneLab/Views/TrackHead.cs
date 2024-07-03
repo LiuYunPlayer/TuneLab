@@ -42,7 +42,7 @@ internal class TrackHead : DockPanel
             .AddContent(new() { Item = new IconItem() { Icon = GUI.Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Switched += () => { if (Track == null) return; Track.IsSolo.Set(mSoloToggle.IsChecked); Track.IsSolo.Commit(); };
 
-        var leftArea = new DockPanel() { Margin = new(5, 5, 0, 5) };
+        var leftArea = new DockPanel() { Margin = new(6, 2, 0, 2) };
         {
             leftArea.AddDock(mAmplitudeViewer);
         }
@@ -237,7 +237,7 @@ internal class TrackHead : DockPanel
     Owner<ITrack> mTrackProvider = new();
     ITrack? Track => mTrackProvider.Object;
 
-    readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 1, 0, 1) };
+    readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 0, 0, 1) };
     readonly Label mIndexLabel = new() { FontSize=12, VerticalAlignment=Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center };
     readonly EditableLabel mName = new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
     readonly GainSlider mGainSlider = new() { Height = 12 };
