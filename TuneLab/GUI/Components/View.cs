@@ -39,6 +39,7 @@ internal class View : Container
 
     public sealed override void Render(DrawingContext context)
     {
+        mDetectedHover = false;
         mItemCollection.Clear();
         UpdateItems(mItemCollection);
         OnRender(context);
@@ -58,6 +59,20 @@ internal class View : Container
     {
         mDirtyHandler.SetDirty();
     }
+
+    protected Item? HoverItem()
+    {
+        if (!mDetectedHover)
+        {
+            mHoverItem = ItemAt(MousePosition);
+            mDetectedHover = true;
+        }
+
+        return mHoverItem;
+    }
+
+    bool mDetectedHover = false;
+    Item? mHoverItem;
 
     protected Item? ItemAt(Point point)
     {
