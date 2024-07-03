@@ -47,7 +47,7 @@ internal class Track : DataObject, ITrack
         mParts = new();
         mParts.Attach(this);
 
-        mParts.ItemAdded.Subscribe(part => { part.Activate(); });
+        mParts.ItemAdded.Subscribe(part => { part.Track = this; part.Activate(); });
         mParts.ItemRemoved.Subscribe(part => { part.Deactivate(); });
 
         IDataObject<TrackInfo>.SetInfo(this, info);
@@ -65,12 +65,12 @@ internal class Track : DataObject, ITrack
 
     public MidiPart CreatePart(MidiPartInfo info)
     {
-        return new MidiPart(TempoManager, TimeSignatureManager, info);
+        return new MidiPart(this, info);
     }
 
     public AudioPart CreatePart(AudioPartInfo info)
     {
-        return new AudioPart(TempoManager, TimeSignatureManager, info);
+        return new AudioPart(this, info);
     }
 
     public Part CreatePart(PartInfo info)

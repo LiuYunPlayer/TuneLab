@@ -12,6 +12,7 @@ namespace TuneLab.Data;
 
 internal interface IPart : IReadOnlyDataObject<PartInfo>, ITimeline, IDuration, IAudioSource, ISelectable, ILinkedNode<IPart>
 {
+    ITrack Track { get; set; }
     new IPart? Next { get; }
     new IPart? Last { get; }
     IDataProperty<string> Name { get; }

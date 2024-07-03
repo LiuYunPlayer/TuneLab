@@ -20,7 +20,7 @@ internal class AudioPart : Part, IAudioPart
     public DataString Path { get; }
     IDataProperty<string> IAudioPart.Path => Path;
 
-    public AudioPart(ITempoManager tempoManager, ITimeSignatureManager timeSignatureManager, AudioPartInfo info) : base(tempoManager, timeSignatureManager)
+    public AudioPart(ITrack track, AudioPartInfo info) : base(track)
     {
         Name = new(this, string.Empty);
         Pos = new(this);

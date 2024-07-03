@@ -14,8 +14,9 @@ namespace TuneLab.Data
     internal abstract class Part : DataObject, IPart, IReadOnlyDataObject<PartInfo>, IAudioSource, IDuration, ITimeline
     {
         public IActionEvent SelectionChanged => mSelectionChanged;
-        public ITempoManager TempoManager { get; }
-        public ITimeSignatureManager TimeSignatureManager { get; }
+        public ITrack Track { get; set; }
+        public ITempoManager TempoManager => Track.TempoManager;
+        public ITimeSignatureManager TimeSignatureManager => Track.TimeSignatureManager;
         public IPart? Next => ((ILinkedNode<IPart>)this).Next;
         public IPart? Last => ((ILinkedNode<IPart>)this).Last;
         public abstract IDataProperty<string> Name { get; }
@@ -26,10 +27,9 @@ namespace TuneLab.Data
         public double StartPos => Pos.Value;
         public double EndPos => Pos.Value + Dur.Value;
 
-        public Part(ITempoManager tempoManager, ITimeSignatureManager timeSignatureManager)
+        public Part(ITrack track)
         {
-            TempoManager = tempoManager;
-            TimeSignatureManager = timeSignatureManager;
+            Track = track;
         }
 
         public abstract PartInfo GetInfo();
