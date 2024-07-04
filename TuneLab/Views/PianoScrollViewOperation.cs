@@ -345,13 +345,27 @@ internal partial class PianoScrollView
                             case MouseButtonType.PrimaryButton:
                                 if (!DetectWaveformPrimaryButton())
                                 {
+                                    if (Part == null)
+                                        break;
+
                                     if (item is AnchorItem anchorItem)
                                     {
-                                        // Move
+                                        mAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.AnchorPoint);
                                     }
                                     else
                                     {
-                                        mAnchorSelectOperation.Down(e.Position, ctrl);
+                                        if (e.IsDoubleClick || mPreviewPitch != null)
+                                        {
+                                            var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
+                                            Part.Pitch.InsertPoint(anchor);
+                                            Part.Pitch.DeselectAllAnchors();
+                                            anchor.Select();
+                                            mAnchorMoveOperation.Down(e.Position, ctrl, anchor);
+                                        }
+                                        else
+                                        {
+                                            mAnchorSelectOperation.Down(e.Position, ctrl);
+                                        }
                                     }
                                 }
                                 break;
@@ -592,6 +606,9 @@ internal partial class PianoScrollView
             case State.AnchorDeleting:
                 mAnchorDeleteOperation.Move(e.Position.X);
                 break;
+            case State.AnchorMoving:
+                mAnchorMoveOperation.Move(e.Position);
+                break;
             default:
                 var item = ItemAt(e.Position);
                 if (item is WaveformNoteResizeItem || item is WaveformPhonemeResizeItem)
@@ -739,6 +756,10 @@ internal partial class PianoScrollView
                 if (e.MouseButtonType == MouseButtonType.SecondaryButton)
                     mAnchorDeleteOperation.Up();
                 break;
+            case State.AnchorMoving:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mAnchorMoveOperation.Up();
+                break;
             default:
                 break;
         }
@@ -875,6 +896,7 @@ internal partial class PianoScrollView
 
     protected override void UpdateItems(IItemCollection items)
     {
+        mPreviewPitch = null;
         if (Part == null)
             return;
 
@@ -950,34 +972,32 @@ internal partial class PianoScrollView
                 if (mState != State.None)
                     break;
 
-                var areaID = Part.Pitch.GetAreaID(TickAxis.X2Tick(MousePosition.X) - Part.Pos);
-                var previewInfo = new List<List<Point>>();
-                if (areaID.IsInGroup)
-                {
-                    previewInfo.Add(Part.Pitch.AnchorGroups[areaID.Index].GetInfo().Select(p => p.ToPoint()).ToList());
-                }
-                else
-                {
-                    if (areaID.LeftIndex >= 0)
-                    {
-                        var anchorGroup = Part.Pitch.AnchorGroups[areaID.LeftIndex];
-                        if (anchorGroup.HasSelectedItem())
-                            previewInfo.Add(anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList());
-                    }
-                    if (areaID.RightIndex < Part.Pitch.AnchorGroups.Count)
-                    {
-                        var anchorGroup = Part.Pitch.AnchorGroups[areaID.RightIndex];
-                        if (anchorGroup.HasSelectedItem())
-                            previewInfo.Add(anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList());
-                    }
-                }
+                if (!IsHover)
+                    break;
+
+                if (HoverItem() != null)
+                    break;
+
+                var pos = TickAxis.X2Tick(MousePosition.X) - Part.Pos;
+                var areaID = Part.Pitch.GetAreaID(pos);
+                int[] previewIndex = areaID.IsInGroup ? [areaID.Index] : [areaID.LeftIndex, areaID.RightIndex];
+                var previewInfo = previewIndex
+                    .Where(index => (uint)index < Part.Pitch.AnchorGroups.Count)
+                    .Select(index => Part.Pitch.AnchorGroups[index])
+                    .Where(anchorGroup => anchorGroup.HasSelectedItem())
+                    .Select(anchorGroup => anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList()).ToList();
 
                 if (previewInfo.Count == 0)
                     break;
 
-                var previewAnchorGroups = new PiecewiseCurve();
-                previewAnchorGroups.Set(previewInfo);
-                items.Add(new PreviewAnchorGroupItem(this) { PiecewiseCurve = previewAnchorGroups });
+                mPreviewPitch = new PiecewiseCurve();
+                mPreviewPitch.Set(previewInfo);
+                foreach (var anchorGroup in mPreviewPitch.AnchorGroups)
+                {
+                    anchorGroup[0].Select();
+                }
+                mPreviewPitch.InsertPoint(new AnchorPoint(pos, PitchAxis.Y2Pitch(MousePosition.Y) - 0.5));
+                items.Add(new PreviewAnchorGroupItem(this) { PiecewiseCurve = mPreviewPitch });
 
                 break;
             default:
@@ -1030,6 +1050,16 @@ internal partial class PianoScrollView
             items.Add(item);
             lastItem = item;
         }
+    }
+
+    protected override void OnMouseEnter(MouseEnterEventArgs e)
+    {
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave()
+    {
+        InvalidateVisual();
     }
 
     class Operation(PianoScrollView pianoScrollView)
@@ -2288,7 +2318,6 @@ internal partial class PianoScrollView
             mLastPosOffset = posOffset;
             mMoved = true;
             part.DiscardTo(mHead);
-            part.BeginMergeReSegment();
             foreach (var vibrato in mMoveVibratos)
             {
                 vibrato.Pos.Set(vibrato.Pos.Value + posOffset);
@@ -2299,7 +2328,6 @@ internal partial class PianoScrollView
             {
                 part.InsertVibrato(vibrato);
             }
-            part.EndMergeReSegment();
         }
 
         public void Up()
@@ -2374,7 +2402,7 @@ internal partial class PianoScrollView
             double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = tick;
             mEnd = tick;
-            PianoScrollView.Part.Pitch.DeleteAnchors(mStart, mEnd);
+            PianoScrollView.Part.Pitch.DeletePoints(mStart, mEnd);
         }
 
         public void Move(double x)
@@ -2389,7 +2417,7 @@ internal partial class PianoScrollView
             double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
-            PianoScrollView.Part.Pitch.DeleteAnchors(mStart, mEnd);
+            PianoScrollView.Part.Pitch.DeletePoints(mStart, mEnd);
         }
 
         public void Up()
@@ -2403,7 +2431,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.Pitch.DiscardTo(mHead);
-            PianoScrollView.Part.Pitch.DeleteAnchors(mStart, mEnd);
+            PianoScrollView.Part.Pitch.DeletePoints(mStart, mEnd);
             PianoScrollView.Part.EndMergeDirty();
             PianoScrollView.Part.Pitch.Commit();
         }
@@ -2414,6 +2442,96 @@ internal partial class PianoScrollView
     }
 
     readonly AnchorDeleteOperation mAnchorDeleteOperation;
+
+    class AnchorMoveOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
+    {
+        public void Down(Avalonia.Point point, bool ctrl, AnchorPoint anchor)
+        {
+            if (PianoScrollView.Part == null)
+                return;
+
+            mCtrl = ctrl;
+            mIsSelected = anchor.IsSelected;
+            if (!mCtrl && !mIsSelected)
+            {
+                PianoScrollView.Part.Pitch.DeselectAllAnchors();
+            }
+            anchor.Select();
+
+            State = State.AnchorMoving;
+            PianoScrollView.Part.DisableAutoPrepare();
+            mHead = PianoScrollView.Part.Head;
+            mAnchor = anchor;
+            mXOffset = point.X - PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos + anchor.Pos);
+            mYOffset = point.Y - PianoScrollView.PitchAxis.Pitch2Y(anchor.Value + 0.5);
+        }
+
+        public void Move(Avalonia.Point point)
+        {
+            var part = PianoScrollView.Part;
+            if (part == null)
+                return;
+
+            if (mAnchor == null)
+                return;
+
+            double pos = PianoScrollView.TickAxis.X2Tick(point.X - mXOffset) - part.Pos;
+            double posOffset = pos - mAnchor.Pos;
+            double pitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y - mYOffset) - 0.5;
+            double pitchOffset = pitch - mAnchor.Value;
+
+            mMoved = true;
+            part.DiscardTo(mHead);
+            part.Pitch.MoveSelectedPoints(posOffset, pitchOffset);
+        }
+
+        public void Up()
+        {
+            State = State.None;
+
+            if (mAnchor == null)
+                return;
+
+            if (PianoScrollView.Part == null)
+                return;
+
+            PianoScrollView.Part.EnableAutoPrepare();
+            if (mMoved)
+            {
+                PianoScrollView.Part.Commit();
+            }
+            else
+            {
+                PianoScrollView.Part.Discard();
+                if (mCtrl)
+                {
+                    if (mIsSelected)
+                    {
+                        mAnchor.Inselect();
+                    }
+                }
+                else
+                {
+                    PianoScrollView.Part.Pitch.DeselectAllAnchors();
+                    mAnchor.Select();
+                }
+            }
+            mMoved = false;
+            mAnchor = null;
+        }
+
+        AnchorPoint? mAnchor;
+
+        bool mCtrl;
+        bool mIsSelected;
+        bool mMoved = false;
+        double mXOffset;
+        double mYOffset;
+
+        Head mHead;
+    }
+
+    readonly AnchorMoveOperation mAnchorMoveOperation;
 
     class AnchorSelectOperation(PianoScrollView pianoScrollView) : SelectOperation<AnchorPoint>(pianoScrollView)
     {
@@ -2665,6 +2783,8 @@ internal partial class PianoScrollView
     }
 
     readonly SelectionOperation mSelectionOperation;
+
+    IPiecewiseCurve? mPreviewPitch = null;
 
     public enum State
     {

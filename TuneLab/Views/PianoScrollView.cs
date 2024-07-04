@@ -74,6 +74,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mSelectionOperation = new(this);
         mAnchorSelectOperation = new(this);
         mAnchorDeleteOperation = new(this);
+        mAnchorMoveOperation = new(this);
 
         mDependency.PartProvider.ObjectChanged.Subscribe(Update, s);
         mDependency.PartProvider.When(p => p.Modified).Subscribe(Update, s);

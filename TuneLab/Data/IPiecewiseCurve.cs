@@ -17,10 +17,13 @@ internal interface IPiecewiseCurve : IDataObject<IEnumerable<IReadOnlyCollection
     double[] GetValues(IReadOnlyList<double> ticks);
     void AddLine(IReadOnlyList<AnchorPoint> points, double extend);
     void Clear(double start, double end);
-    void DeleteAnchors(double start, double end);
+    void InsertPoint(AnchorPoint point);
+    void DeletePoints(double start, double end);
     void DeletePoints(IReadOnlyList<AnchorPoint> points);
     void DeleteAllSelectedAnchors();
-    void RemoveAnchorGroupAt(int index);
+    void DeleteAnchorGroupAt(int index);
+    void ConnectAnchorGroup(int leftIndex);
+    void MoveSelectedPoints(double offsetPos, double offsetValue);
 
     new List<List<Point>> GetInfo();
 
@@ -97,9 +100,17 @@ internal static class IPiecewiseCurveExtension
             }
 
             if (anchorGroup.IsEmpty())
-                piecewiseCurve.RemoveAnchorGroupAt(gi);
+                piecewiseCurve.DeleteAnchorGroupAt(gi);
         }
         return result;
+    }
+
+    public static void SelectAllAnchors(this IPiecewiseCurve piecewiseCurve)
+    {
+        foreach (var anchorGroup in piecewiseCurve.AnchorGroups)
+        {
+            anchorGroup.SelectAllItems();
+        }
     }
 
     public static void DeselectAllAnchors(this IPiecewiseCurve piecewiseCurve)
