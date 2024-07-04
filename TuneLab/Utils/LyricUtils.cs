@@ -3,6 +3,7 @@ using Microsoft.International.Converters.PinYinConverter;
 using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Base.Structures;
+using TuneLab.Base.Utils;
 
 namespace TuneLab.Utils;
 
@@ -53,11 +54,15 @@ internal static class LyricUtils
 
     public static string GetPreferredPronunciation(string lyric)
     {
-        var pinyin = ZhG2p.MandarinInstance.Convert(lyric, false, true)[0];
-        if (!pinyin.error)
-            return pinyin.syllable;
+        var pinyins = ZhG2p.MandarinInstance.Convert(lyric, false, true);
+        if (pinyins.IsEmpty())
+            return string.Empty;
 
-        return string.Empty;
+        var pinyin = pinyins[0];
+        if (pinyin.error)
+            return string.Empty;
+
+        return pinyin.syllable;
     }
 
     public static IReadOnlyCollection<string> GetPronunciations(string lyric)
