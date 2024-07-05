@@ -228,6 +228,8 @@ internal class TrackHead : DockPanel
 
         ContextMenu = menu;
         Background = Brushes.Transparent;
+
+        
     }
 
     ~TrackHead()
@@ -263,11 +265,16 @@ internal class TrackHead : DockPanel
             mPanSlider.Display(Track.Pan.Value);
             mMuteToggle.Display(Track.IsMute.Value);
             mSoloToggle.Display(Track.IsSolo.Value);
-            AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
-            AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
             mIndexLabel.Background = Track.GetColor().ToBrush();
             mIndexPanel.Background = Track.GetColor().ToBrush();
             Track.Color.Modified.Subscribe(() => {mIndexLabel.Background = Track.GetColor().ToBrush();mIndexPanel.Background = Track.GetColor().ToBrush();});
+            AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
+            AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
+        }
+        else
+        {
+            AudioEngine.ProgressChanged -= AudioEngine_ProgressChanged;
+            AudioEngine.PlayStateChanged -= AudioEngine_PlayStateChanged;
         }
     }
 
