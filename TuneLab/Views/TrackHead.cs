@@ -169,8 +169,8 @@ internal class TrackHead : DockPanel
                     if (track == null)
                         return;
 
-                    track.IsGuide.Set(!track.IsGuide.GetInfo());
-                    track.IsGuide.Commit();
+                    track.AsRefer.Set(!track.AsRefer.GetInfo());
+                    track.AsRefer.Commit();
                 });
                 trackBarMenu.Items.Add(menuItem);
                 trackBarMenu.Opening += (s, e) =>
@@ -178,7 +178,7 @@ internal class TrackHead : DockPanel
                     if (Track == null)
                         return;
 
-                    menuItem.SetName(!Track.IsGuide.GetInfo() ? "Visible as Guide" : "Hidden as Guide");
+                    menuItem.SetName(!Track.AsRefer.GetInfo() ? "Visible as Guide" : "Hidden as Guide");
                 };
             }
         }

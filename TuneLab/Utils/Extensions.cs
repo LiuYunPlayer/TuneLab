@@ -14,6 +14,7 @@ using TuneLab.Views;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using System.Threading.Tasks;
+using TuneLab.Data;
 
 namespace TuneLab.Utils;
 
@@ -259,5 +260,13 @@ internal static class Extensions
     public static void AddDock(this DockPanel panel, Control control)
     {
         panel.Children.Add(control);
+    }
+
+    public static Color GetColor(this ITrack track)
+    {
+        if (Color.TryParse(track.Color.Value, out var color)) 
+            return color;
+
+        return Style.ITEM;
     }
 }

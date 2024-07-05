@@ -71,8 +71,13 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     Pan = (double)track["pan"],
                     Mute = (bool)track["mute"],
                     Solo = (bool)track["solo"],
-                    Color = (string)(track.ContainsKey("color") ? (string)track["color"] : "#3A3F69")
                 };
+
+                if (track.TryGetValue("color", out var color))
+                    trackInfo.Color = (string)color;
+
+                if (track.TryGetValue("asRefer", out var asRefer))
+                    trackInfo.AsRefer = (bool)asRefer;
 
                 var parts = track["parts"].ToArray();
                 foreach (JObject part in parts)

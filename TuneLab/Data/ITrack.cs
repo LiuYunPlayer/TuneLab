@@ -1,5 +1,4 @@
-﻿using Avalonia.Media;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,9 +18,10 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     IDataProperty<string> Name { get; }
     new IDataProperty<bool> IsMute { get; }
     new IDataProperty<bool> IsSolo { get; }
-    new IDataProperty<bool> IsGuide { get; }
+    IDataProperty<bool> AsRefer { get; }
     IDataProperty<double> Gain { get; }
     new IDataProperty<double> Pan { get; }
+    IDataProperty<string> Color { get; }
     IReadOnlyDataObjectLinkedList<IPart> Parts { get; }
 
     void InsertPart(IPart part);
@@ -29,14 +29,6 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     MidiPart CreatePart(MidiPartInfo info);
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);
-
-    IDataProperty<string> Color { get; }
-
-    Color GetColor()
-    {
-        if(Avalonia.Media.Color.TryParse(Color.Value,out var color)) return color;
-        return Avalonia.Media.Color.Parse("#3A3F69");
-    }
 
     void Activate();
     void Deactivate();

@@ -20,7 +20,7 @@ using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats;
-using Avalonia.Controls.Primitives;
+
 namespace TuneLab.Views;
 
 internal partial class TrackScrollView : View
@@ -236,7 +236,7 @@ internal partial class TrackScrollView : View
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
                 context.FillRectangle(getPartColor(track, part.IsSelected).ToBrush(), partRect.WithHeight(18).Adjusted(1, 1, -1, -1),5);
                 context.FillRectangle(getPartColor(track, part.IsSelected).ToBrush(),partRect.WithHeight(18).Adjusted(1, 10, -1, -1));
-                var contentRect = partRect.Adjusted(0, 18 + 3, 0, -3);
+                var contentRect = partRect.Adjusted(0, 20, 0, -4);
                 if (part is MidiPart midiPart)
                 {
                     using (context.PushClip(titleRect))
@@ -408,7 +408,6 @@ internal partial class TrackScrollView : View
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
                 context.FillRectangle(getPartColor(null,false).ToBrush(), partRect.WithHeight(18).Adjusted(Math.Max(0, -partRect.Left) + 1, 1, -1, -1), 5);
                 context.FillRectangle(getPartColor(null,false).ToBrush(), partRect.WithHeight(18).Adjusted(Math.Max(0, -partRect.Left) + 1, 10, -1, -1));
-                var contentRect = partRect.Adjusted(0, 18 + 8 + 3, 0, -8);
                 using (context.PushClip(titleRect))
                 {
                     context.DrawString(string.Format("{0}[{1}]", info.name, info.path), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);

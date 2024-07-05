@@ -6,10 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using System.Transactions;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
-using static TuneLab.Views.TrackVerticalAxis;
 
 namespace TuneLab.Audio;
 

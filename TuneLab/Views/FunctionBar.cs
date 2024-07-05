@@ -1,15 +1,12 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Media;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Base.Event;
-using TuneLab.Base.Science;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
@@ -89,12 +86,12 @@ internal class FunctionBar : LayerPanel
                     pianoToolPanel.Children.Add(toggle);
                     OnPianoToolChanged();
                 }
-                AddButton(PianoTool.Note, Assets.Pointer, "Note Edit");
-                AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Edit");
+                AddButton(PianoTool.Note, Assets.Pointer, "Note Tool");
+                AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Pen");
                 AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool");
                 AddButton(PianoTool.Lock, Assets.Brush, "Pitch Lock Brush");
-                AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Builder");
-                AddButton(PianoTool.Select, Assets.Select, "Area Select");
+                AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool");
+                AddButton(PianoTool.Select, Assets.Select, "Selection Tool");
             }
             dockPanel.Children.Add(pianoToolPanel);
         }

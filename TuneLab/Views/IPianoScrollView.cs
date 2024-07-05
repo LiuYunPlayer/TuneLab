@@ -24,7 +24,8 @@ internal static class IPianoScrollViewExtension
         double h = view.PitchAxis.KeyHeight;
         return new Rect(x, y, w, h);
     }
-    public static Rect GuideRect(this IPianoScrollView view, INote note)
+
+    public static Rect ReferNoteRect(this IPianoScrollView view, INote note)
     {
         double keyHeight = view.PitchAxis.KeyHeight / 10.0d;
         double keyOffset = (view.PitchAxis.KeyHeight - keyHeight) / 2;

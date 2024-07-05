@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,6 +14,7 @@ public class TrackInfo
     public double Pan { get; set; } = 0;
     public bool Mute { get; set; } = false;
     public bool Solo { get; set; } = false;
+    public bool AsRefer { get; set; } = false;
+    public string Color { get; set; } = string.Empty;
     public List<PartInfo> Parts { get; set; } = new();
-    public string Color { get; set; } = "#3A3F69";
 }

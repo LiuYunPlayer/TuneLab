@@ -80,7 +80,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartProvider.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Vibratos.Any(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
-        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.IsGuide.Modified)).Subscribe(Update, s);
+        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
         mDependency.PianoToolChanged.Subscribe(InvalidateVisual);
         TickAxis.AxisChanged += Update;
@@ -243,14 +243,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 }
             }
         }
-        // draw guide note
+        // draw refer note
         if (Part.Track != null && Part.Track.Project != null)
             foreach (var track in Part.Track.Project.Tracks)
             {
                 if (track == Part.Track) continue;
-                if (!track.IsGuide.GetInfo()) continue;
+                if (!track.AsRefer.Value) continue;
                 double guideRound = 4;
-                IBrush guideBrush = getPartColor(track, false).ToBrush();
+                IBrush guideBrush = getPartColor(track, false).Opacity(0.5).ToBrush();
                 foreach (var part in track.Parts)
                 {
                     if (part.EndPos() < minVisibleTick) continue;
@@ -264,7 +264,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                         if (note.GlobalStartPos() > maxVisibleTick)
                             break;
 
-                        var rect = this.GuideRect(note);
+                        var rect = this.ReferNoteRect(note);
                         context.FillRectangle(guideBrush, rect, (float)guideRound);
                     }
                 }
