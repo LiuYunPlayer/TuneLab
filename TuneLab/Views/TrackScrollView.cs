@@ -236,7 +236,7 @@ internal partial class TrackScrollView : View
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
                 context.FillRectangle(getPartColor(track, part.IsSelected).ToBrush(), partRect.WithHeight(18).Adjusted(1, 1, -1, -1),5);
                 context.FillRectangle(getPartColor(track, part.IsSelected).ToBrush(),partRect.WithHeight(18).Adjusted(1, 10, -1, -1));
-                var contentRect = partRect.Adjusted(0, 18 + 3, 0, 0);
+                var contentRect = partRect.Adjusted(0, 18 + 3, 0, -3);
                 if (part is MidiPart midiPart)
                 {
                     using (context.PushClip(titleRect))
