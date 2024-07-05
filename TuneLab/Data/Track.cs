@@ -12,7 +12,6 @@ using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
-using Avalonia.Media;
 
 namespace TuneLab.Data;
 

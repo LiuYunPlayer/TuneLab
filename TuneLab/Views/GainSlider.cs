@@ -28,7 +28,7 @@ internal class GainSlider : AbstractSlider
         ToolTip.SetPlacement(this, PlacementMode.Top);
         ToolTip.SetVerticalOffset(this, -this.Height / 2);
         ToolTip.SetShowDelay(this, 0);
-        var x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value) - Bounds.Width / 2;
+        var x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value.Limit(MinValue, MaxValue)) - Bounds.Width / 2;
         ToolTip.SetHorizontalOffset(this, x);
         ToolTip.SetTip(this, Value.ToString("+0.00dB;-0.00dB"));
     }

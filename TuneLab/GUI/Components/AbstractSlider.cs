@@ -190,8 +190,8 @@ internal abstract class AbstractSlider : Panel
 
     Avalonia.Point ThumbPosition()
     {
-        double x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value);
-        double y = MathUtility.LineValue(MinValue, StartPoint.Y, MaxValue, EndPoint.Y, Value);
+        double x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value.Limit(mMinValue, mMaxValue));
+        double y = MathUtility.LineValue(MinValue, StartPoint.Y, MaxValue, EndPoint.Y, Value.Limit(mMinValue, mMaxValue));
         return new Avalonia.Point(x, y);
     }
 
