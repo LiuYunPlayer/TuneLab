@@ -274,6 +274,38 @@ internal partial class PianoScrollView
         {
             return Point.Distance(Position(), point) <= 6;
         }
+
+        public override void Render(DrawingContext context)
+        {
+            AnchorPoint? hoverAnchor = (PianoScrollView.HoverItem() as AnchorItem)?.AnchorPoint;
+            var center = Position();
+            context.DrawEllipse(PointBrush, null, center, 2, 2);
+            if (AnchorPoint.IsSelected)
+            {
+                context.DrawEllipse(null, SelectedPointPen, center, 5.5, 5.5);
+            }
+            else if (AnchorPoint == hoverAnchor)
+            {
+                context.DrawEllipse(null, HoverPointPen, center, 5.5, 5.5);
+            }
+        }
+
+        static IBrush PointBrush = Color.Parse(ConstantDefine.PitchColor).ToBrush();
+        static IPen SelectedPointPen = new Pen(PointBrush);
+        static IPen HoverPointPen = new Pen(Brushes.White);
+    }
+
+    class PreviewAnchorGroupItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
+    {
+        public required IPiecewiseCurve PiecewiseCurve { get; set; }
+
+        public override void Render(DrawingContext context)
+        {
+            if (PianoScrollView.Part == null)
+                return;
+
+            PianoScrollView.DrawPitch(context, 0, PianoScrollView.Bounds.Width, PiecewiseCurve.GetValues, Colors.White, 1);
+        }
     }
 
     class WaveformBackItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)

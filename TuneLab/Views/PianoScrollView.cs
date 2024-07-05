@@ -73,6 +73,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mWaveformPhonemeResizeOperation = new(this);
         mSelectionOperation = new(this);
         mAnchorSelectOperation = new(this);
+        mAnchorDeleteOperation = new(this);
+        mAnchorMoveOperation = new(this);
 
         mDependency.PartProvider.ObjectChanged.Subscribe(Update, s);
         mDependency.PartProvider.When(p => p.Modified).Subscribe(Update, s);
@@ -496,36 +498,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
         {
             context.DrawCurve(pitchPoints, pitchColor, thickness);
         }
-
-        if (mDependency.PianoTool != PianoTool.Anchor)
-            return;
-
-        IBrush pointBrush = pitchColor.ToBrush();
-        IPen pointPen = new Pen(pointBrush);
-        foreach (var anchorGroup in Part.Pitch.AnchorGroups)
-        {
-            if (anchorGroup.End <= start)
-                continue;
-
-            if (anchorGroup.Start >= end)
-                break;
-
-            foreach (var anchor in anchorGroup)
-            {
-                if (anchor.Pos < start)
-                    continue;
-
-                if (anchor.Pos > end)
-                    break;
-
-                var center = new Point(TickAxis.Tick2X(pos + anchor.Pos), PitchAxis.Pitch2Y(anchor.Value + 0.5));
-                context.DrawEllipse(pointBrush, null, center, 2, 2);
-                if (!anchor.IsSelected)
-                    continue;
-
-                context.DrawEllipse(null, pointPen, center, 5.5, 5.5);
-            }
-        }
     }
 
     void DrawVibratos(DrawingContext context)
@@ -918,6 +890,18 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 if (mSelection.IsAcitve)
                 {
                     Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
+                    Part.Commit();
+                }
+                break;
+            case PianoTool.Anchor:
+                if (mSelection.IsAcitve)
+                {
+                    Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
+                    Part.Commit();
+                }
+                else
+                {
+                    Part.Pitch.DeleteAllSelectedAnchors();
                     Part.Commit();
                 }
                 break;

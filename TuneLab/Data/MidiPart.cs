@@ -603,7 +603,7 @@ internal class MidiPart : Part, IMidiPart
     readonly NoteList mNotes;
     readonly DataObjectList<Vibrato> mVibratos;
     readonly DataObjectMap<string, IAutomation> mAutomations;
-    readonly piecewiseCurve mPitchLine;
+    readonly PiecewiseCurve mPitchLine;
     readonly Voice mVoice;
 
     class AutomationValueGetter(MidiPart part, string automationID) : IAutomationValueGetter
