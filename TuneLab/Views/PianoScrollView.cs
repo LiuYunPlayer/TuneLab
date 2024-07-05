@@ -1000,7 +1000,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     Color getPartColor(ITrack? track, bool isHighLight)
     {
-        var color = track != null ? track.Color.Value : Style.TRACK_COLORS[0];
+        var color = track != null ? track.GetColor() : Style.TRACK_COLORS[0];
         if (isHighLight) return new Color(color.A, (byte)(color.R + 40).Limit(0, 255), (byte)(color.G + 40).Limit(0, 255), (byte)(color.B + 40).Limit(0, 255));
         return color;
     }

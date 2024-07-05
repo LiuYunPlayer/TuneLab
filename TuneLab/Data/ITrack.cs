@@ -29,7 +29,13 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);
 
-    new IDataProperty<Color> Color { get; }
+    new IDataProperty<string> Color { get; }
+
+    Color GetColor()
+    {
+        if(Avalonia.Media.Color.TryParse(Color.Value,out var color)) return color;
+        return Avalonia.Media.Color.Parse("#3A3F69");
+    }
 
     void Activate();
     void Deactivate();

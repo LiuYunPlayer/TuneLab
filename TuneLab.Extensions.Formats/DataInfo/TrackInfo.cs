@@ -16,5 +16,5 @@ public class TrackInfo
     public bool Mute { get; set; } = false;
     public bool Solo { get; set; } = false;
     public List<PartInfo> Parts { get; set; } = new();
-    public Color Color { get; set; } = Color.FromArgb(255, 58, 63, 105);
+    public string Color { get; set; } = "#3A3F69";
 }

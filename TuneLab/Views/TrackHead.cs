@@ -153,7 +153,7 @@ internal class TrackHead : DockPanel
                         colorItem.Margin = new Avalonia.Thickness(5);
                         colorItem.SetAction(() =>
                         {
-                            Track.Color.Set((Color)colorItem.Tag);
+                            Track.Color.Set(((Color)colorItem.Tag).ToString());
                             Track.Color.Commit();
                         });
                         menuItem.Items.Add(colorItem);
@@ -250,9 +250,9 @@ internal class TrackHead : DockPanel
             mSoloToggle.Display(Track.IsSolo.Value);
             AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
             AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
-            mIndexLabel.Background = Track.Color.Value.ToBrush();
-            mIndexPanel.Background = Track.Color.Value.ToBrush();
-            Track.Color.Modified.Subscribe(() => {mIndexLabel.Background = Track.Color.Value.ToBrush();mIndexPanel.Background = Track.Color.Value.ToBrush();});
+            mIndexLabel.Background = Track.GetColor().ToBrush();
+            mIndexPanel.Background = Track.GetColor().ToBrush();
+            Track.Color.Modified.Subscribe(() => {mIndexLabel.Background = Track.GetColor().ToBrush();mIndexPanel.Background = Track.GetColor().ToBrush();});
         }
     }
 

@@ -91,7 +91,7 @@ internal class FunctionBar : LayerPanel
                 }
                 AddButton(PianoTool.Note, Assets.Pointer, "Note Edit");
                 AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Edit");
-                AddButton(PianoTool.Anchor, Assets.Anchor, "Pitch Anchor");
+                AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool");
                 AddButton(PianoTool.Lock, Assets.Brush, "Pitch Lock Brush");
                 AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Builder");
                 AddButton(PianoTool.Select, Assets.Select, "Area Select");

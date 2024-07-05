@@ -26,7 +26,7 @@ internal class Track : DataObject, ITrack
     public DataProperty<bool> IsSolo { get; }
     public DataProperty<double> Gain { get; }
     public DataProperty<double> Pan { get; }
-    public DataProperty<Color> Color { get; }
+    public DataProperty<string> Color { get; }
     public IReadOnlyDataObjectLinkedList<IPart> Parts => mParts;
 
     IDataProperty<string> ITrack.Name => Name;
@@ -37,7 +37,7 @@ internal class Track : DataObject, ITrack
 
     IDataProperty<double> ITrack.Gain => Gain;
     IDataProperty<double> ITrack.Pan => Pan;
-    IDataProperty<Color> ITrack.Color => Color;
+    IDataProperty<string> ITrack.Color => Color;
 
     public Track(IProject project, TrackInfo info)
     {
@@ -47,7 +47,7 @@ internal class Track : DataObject, ITrack
         IsSolo = new DataStruct<bool>(this);
         Gain = new DataStruct<double>(this);
         Pan = new DataStruct<double>(this);
-        Color = new DataStruct<Color>(this);
+        Color = new DataString(this, "#3A3F69");
         mParts = new();
         mParts.Attach(this);
 
@@ -114,7 +114,7 @@ internal class Track : DataObject, ITrack
             Solo = IsSolo,
             Gain = Gain,
             Pan = Pan,
-            Color = System.Drawing.Color.FromArgb(Color.Value.A,Color.Value.R,Color.Value.G,Color.Value.B),
+            Color = Color.Value,
             Parts = mParts.GetInfo().ToInfo()
         };
     }
@@ -127,7 +127,7 @@ internal class Track : DataObject, ITrack
         IDataObject<TrackInfo>.SetInfo(Gain, info.Gain);
         IDataObject<TrackInfo>.SetInfo(Pan, info.Pan);
         IDataObject<TrackInfo>.SetInfo(mParts, info.Parts.Convert(CreatePart).ToArray());
-        IDataObject<TrackInfo>.SetInfo(Color, new Color(info.Color.A,info.Color.R,info.Color.G,info.Color.B));
+        IDataObject<TrackInfo>.SetInfo(Color, info.Color);
     }
 
     class PartList : DataObjectLinkedList<IPart>
