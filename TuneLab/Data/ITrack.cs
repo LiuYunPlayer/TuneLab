@@ -19,6 +19,7 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     IDataProperty<string> Name { get; }
     new IDataProperty<bool> IsMute { get; }
     new IDataProperty<bool> IsSolo { get; }
+    new IDataProperty<bool> IsGuide { get; }
     IDataProperty<double> Gain { get; }
     new IDataProperty<double> Pan { get; }
     IReadOnlyDataObjectLinkedList<IPart> Parts { get; }
@@ -29,7 +30,7 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);
 
-    new IDataProperty<string> Color { get; }
+    IDataProperty<string> Color { get; }
 
     Color GetColor()
     {

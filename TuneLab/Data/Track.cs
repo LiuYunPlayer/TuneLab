@@ -24,6 +24,7 @@ internal class Track : DataObject, ITrack
     public DataProperty<string> Name { get; }
     public DataProperty<bool> IsMute { get; }
     public DataProperty<bool> IsSolo { get; }
+    public DataProperty<bool> IsGuide { get; }
     public DataProperty<double> Gain { get; }
     public DataProperty<double> Pan { get; }
     public DataProperty<string> Color { get; }
@@ -35,6 +36,8 @@ internal class Track : DataObject, ITrack
 
     IDataProperty<bool> ITrack.IsSolo => IsSolo;
 
+    IDataProperty<bool> ITrack.IsGuide => IsGuide;
+
     IDataProperty<double> ITrack.Gain => Gain;
     IDataProperty<double> ITrack.Pan => Pan;
     IDataProperty<string> ITrack.Color => Color;
@@ -45,6 +48,7 @@ internal class Track : DataObject, ITrack
         Name = new DataString(this, string.Empty);
         IsMute = new DataStruct<bool>(this);
         IsSolo = new DataStruct<bool>(this);
+        IsGuide = new DataStruct<bool>(this);
         Gain = new DataStruct<double>(this);
         Pan = new DataStruct<double>(this);
         Color = new DataString(this, "#3A3F69");

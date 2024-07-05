@@ -13,6 +13,7 @@ using TuneLab.Data;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using TuneLab.Base.Science;
+using Avalonia.Controls.Primitives;
 
 namespace TuneLab.Views;
 
@@ -160,6 +161,25 @@ internal class TrackHead : DockPanel
                     }
                 }
                 trackBarMenu.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetName("Guide Visible").SetAction(() =>
+                {
+                    var track = Track;
+                    if (track == null)
+                        return;
+
+                    track.IsGuide.Set(!track.IsGuide.GetInfo());
+                    track.IsGuide.Commit();
+                });
+                trackBarMenu.Items.Add(menuItem);
+                trackBarMenu.Opening += (s, e) =>
+                {
+                    if (Track == null)
+                        return;
+
+                    menuItem.SetName(!Track.IsGuide.GetInfo() ? "Visible as Guide" : "Hidden as Guide");
+                };
             }
         }
         rightArea.ContextMenu = trackBarMenu;
