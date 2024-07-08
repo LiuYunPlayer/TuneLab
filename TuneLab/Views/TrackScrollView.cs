@@ -188,15 +188,9 @@ internal partial class TrackScrollView : View
 
         // draw parts
         IBrush lineBrush = Style.DARK.ToBrush();
-        IBrush partBrush = Style.ITEM.Opacity(0.25).ToBrush();
-        IBrush selectedPartBrush = Style.HIGH_LIGHT.Opacity(0.25).ToBrush();
         double partLineWidth = 1;
         IPen editPartPen = new Pen(Style.LIGHT_WHITE.ToBrush(), partLineWidth);
-        IPen partSelectPen = new Pen(Style.HIGH_LIGHT.ToBrush(), partLineWidth);
-        IPen partPen = new Pen(Style.HIGH_LIGHT.Opacity(0.5).ToBrush(), partLineWidth);
-        IBrush titleBrush = Colors.White.Opacity(0.7).ToBrush();
-        IBrush noteBrush = Style.ITEM.ToBrush();
-        IBrush noteSelectBrush = Style.HIGH_LIGHT.ToBrush();
+        IBrush titleBrush = Brushes.Black;
         for (int trackIndex = 0; trackIndex < Project.Tracks.Count; trackIndex++)
         {
             double lineBottom = TrackVerticalAxis.GetTop(trackIndex + 1);
@@ -222,44 +216,50 @@ internal partial class TrackScrollView : View
                 if (part.StartPos() >= endPos)
                     break;
 
+                bool isEditingPart = part == mDependency.EditingPart.Object;
                 double left = Math.Max(TickAxis.Tick2X(part.StartPos()), -8);
                 double right = Math.Min(TickAxis.Tick2X(part.EndPos()), Bounds.Width + 8);
 
+                var trackColor = track.GetColor();
+                var frameColor = part.IsSelected ? trackColor.Lighter() : trackColor;
+
                 var partRect = new Rect(left, top, right - left, bottom - top);
-                context.DrawRectangle(part.IsSelected ? selectedPartBrush : partBrush, part == mDependency.EditingPart.Object ? editPartPen : part.IsSelected ? partSelectPen : partPen, partRect.Inflate(-partLineWidth / 2));
+                context.DrawRectangle(trackColor.Opacity(0.25).ToBrush(), null, partRect, 4, 4);
+                
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
-                var contentRect = partRect.Adjusted(0, 16, 0, 0);
+                context.DrawRectangle(frameColor.ToBrush(), null, partRect.WithHeight(16).ToRoundedRect(new(4, 4, 0, 0)));
+                var contentRect = partRect.Adjusted(0, 20, 0, -4);
                 if (part is MidiPart midiPart)
                 {
                     using (context.PushClip(titleRect))
                     {
-                        context.DrawString(string.Format("{0}[{1}]", midiPart.Name, midiPart.Voice.Name), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                        context.DrawString(string.Format("{0}[{1}]", midiPart.Name, midiPart.Voice.Name), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface : new Typeface(FontFamily.Default, weight : isEditingPart ? FontWeight.Bold : FontWeight.Normal));
                     }
 
-                    if (midiPart.Notes.IsEmpty())
-                        continue;
-
-                    using (context.PushClip(contentRect))
+                    if (!midiPart.Notes.IsEmpty())
                     {
-                        var (minPitch, maxPitch) = midiPart.PitchRange();
-                        double pitchGap = maxPitch - minPitch + 1;
-                        double pitchHeight = Math.Min(contentRect.Height / pitchGap, 8);
-                        double partStartPos = Math.Max(startPos, midiPart.StartPos) - midiPart.Pos;
-                        double partEndPos = Math.Min(endPos, midiPart.EndPos) - midiPart.Pos;
-                        IBrush brush = part.IsSelected ? noteSelectBrush : noteBrush;
-                        foreach (var note in midiPart.Notes)
+                        using (context.PushClip(contentRect))
                         {
-                            if (note.EndPos() <= partStartPos)
-                                continue;
+                            var (minPitch, maxPitch) = midiPart.PitchRange();
+                            double pitchGap = maxPitch - minPitch + 1;
+                            double pitchHeight = Math.Min(contentRect.Height / pitchGap, 8);
+                            double partStartPos = Math.Max(startPos, midiPart.StartPos) - midiPart.Pos;
+                            double partEndPos = Math.Min(endPos, midiPart.EndPos) - midiPart.Pos;
+                            IBrush brush = frameColor.ToBrush();
+                            foreach (var note in midiPart.Notes)
+                            {
+                                if (note.EndPos() <= partStartPos)
+                                    continue;
 
-                            if (note.StartPos() >= partEndPos)
-                                break;
+                                if (note.StartPos() >= partEndPos)
+                                    break;
 
-                            double noteLeft = TickAxis.Tick2X(note.StartPos() + midiPart.Pos);
-                            double noteRight = TickAxis.Tick2X(note.EndPos() + midiPart.Pos);
-                            context.FillRectangle(brush, new(noteLeft, contentRect.Y + (maxPitch - note.Pitch.Value) * pitchHeight, noteRight - noteLeft, pitchHeight));
+                                double noteLeft = TickAxis.Tick2X(note.StartPos() + midiPart.Pos);
+                                double noteRight = TickAxis.Tick2X(note.EndPos() + midiPart.Pos);
+                                context.FillRectangle(brush, new(noteLeft, contentRect.Y + (maxPitch - note.Pitch.Value) * pitchHeight, noteRight - noteLeft, pitchHeight));
+                            }
                         }
-                    }
+                    } 
                 }
                 else if (part is AudioPart audioPart)
                 {
@@ -320,16 +320,14 @@ internal partial class TrackScrollView : View
                                 peaks[i].max = toY(peaks[i].max);
                             }
                             // 性能优先先采用画矩形的方案
-                            using (var mask = context.PushOpacity(0.5))
+                            IBrush waveformBrush = frameColor.ToBrush();
+                            for (int i = 0; i < peaks.Length; i++)
                             {
-                                for (int i = 0; i < peaks.Length; i++)
-                                {
-                                    double x = xs[i];
-                                    var peak = peaks[i];
-                                    context.FillRectangle(Style.LIGHT_WHITE.ToBrush(), new(xs[i], peak.max, gap, peak.min - peak.max));
-                                }
+                                double x = xs[i];
+                                var peak = peaks[i];
+                                context.FillRectangle(waveformBrush, new(xs[i], peak.max, gap, peak.min - peak.max));
                             }
-                            
+
                             /*
                             for (int i = 0; i < peaks.Length; i++)
                             {
@@ -381,6 +379,12 @@ internal partial class TrackScrollView : View
                         }
                     }
                 }
+
+                context.DrawRectangle(
+                    null,
+                    isEditingPart ? editPartPen : new Pen(frameColor.Opacity(part.IsSelected ? 1 : 0.5).ToBrush(), partLineWidth),
+                    partRect.Inflate(-partLineWidth / 2),
+                    4, 4);
             }
         }
 
@@ -390,15 +394,20 @@ internal partial class TrackScrollView : View
             double left = Math.Max(TickAxis.Tick2X(mDragFileOperation.Pos), -8);
             for (int i = 0; i < mDragFileOperation.PreImportAudioInfos.Count; i++)
             {
+                int trackIndex = mDragFileOperation.TrackIndex + i;
                 var info = mDragFileOperation.PreImportAudioInfos[i];
                 double right = Math.Min(TickAxis.Tick2X(info.EndPos), Bounds.Width + 8);
-                double top = TrackVerticalAxis.GetTop(mDragFileOperation.TrackIndex + i);
-                double bottom = TrackVerticalAxis.GetBottom(mDragFileOperation.TrackIndex + i);
+                double top = TrackVerticalAxis.GetTop(trackIndex);
+                double bottom = TrackVerticalAxis.GetBottom(trackIndex);
                 var partRect = new Rect(left, top, right - left, bottom - top);
-                context.FillRectangle(partBrush, partRect);
+
+                var trackColor = (uint)trackIndex < Project.Tracks.Count ? Project.Tracks[trackIndex].GetColor() : Color.Parse(Style.GetNewColor(trackIndex));
+
+                var frameColor = trackColor;
+                context.DrawRectangle(trackColor.Opacity(0.25).ToBrush(), null, partRect, 4, 4);
 
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
-                var contentRect = partRect.Adjusted(0, 16 + 8, 0, -8);
+                context.DrawRectangle(frameColor.ToBrush(), null, partRect.WithHeight(16).ToRoundedRect(new(4, 4, 0, 0)));
                 using (context.PushClip(titleRect))
                 {
                     context.DrawString(string.Format("{0}[{1}]", info.name, info.path), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);

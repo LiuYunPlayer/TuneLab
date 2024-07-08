@@ -15,6 +15,7 @@ internal abstract class AbstractSlider : Panel
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
     public IActionEvent ValueCommited => mValueCommited;
+    public IActionEvent ValueDisplayed => mValueDisplayed;
     public double Value { get => mValue; set { if (value == Value) return; mValueWillChange.Invoke(); ChangeValue(value); mValueCommited.Invoke(); } }
     public double MinValue => mMinValue;
     public double MaxValue => mMaxValue;
@@ -188,10 +189,10 @@ internal abstract class AbstractSlider : Panel
         mValueChanged.Invoke();
     }
 
-    Avalonia.Point ThumbPosition()
+    public Avalonia.Point ThumbPosition()
     {
-        double x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value);
-        double y = MathUtility.LineValue(MinValue, StartPoint.Y, MaxValue, EndPoint.Y, Value);
+        double x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value.Limit(mMinValue, mMaxValue));
+        double y = MathUtility.LineValue(MinValue, StartPoint.Y, MaxValue, EndPoint.Y, Value.Limit(mMinValue, mMaxValue));
         return new Avalonia.Point(x, y);
     }
 
@@ -202,6 +203,7 @@ internal abstract class AbstractSlider : Panel
 
         InvalidateArrange();
         mSliderArea.InvalidateVisual();
+        mValueDisplayed.Invoke();
     }
 
     class SliderArea(AbstractSlider slider) : Component
@@ -239,5 +241,6 @@ internal abstract class AbstractSlider : Panel
     readonly ActionEvent mValueWillChange = new();
     readonly ActionEvent mValueChanged = new();
     readonly ActionEvent mValueCommited = new();
+    readonly ActionEvent mValueDisplayed = new();
     readonly DisposableManager s = new();
 }

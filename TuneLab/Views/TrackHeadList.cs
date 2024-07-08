@@ -30,10 +30,30 @@ internal class TrackHeadList : LayerPanel
     {
         mDependency = dependency;
 
-        Children.Add(new BackLayer(this));
+        mBackLayer = new BackLayer(this);
+        Children.Add(mBackLayer);
 
         mTrackHeadLayer = new(this);
         Children.Add(mTrackHeadLayer);
+
+        mDirtyHandler.OnDirty += () =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                mTrackHeadLayer.OnTrackListModified();
+                mBackLayer.InvalidateVisual();
+                mDirtyHandler.Reset();
+            }, DispatcherPriority.Normal);
+        };
+
+        mDependency.TrackVerticalAxis.AxisChanged += mTrackHeadLayer.InvalidateArrange;
+        mDependency.ProjectProvider.ObjectChanged.Subscribe(mDirtyHandler.SetDirty, s);
+        mDependency.ProjectProvider.When(project => project.Tracks.ListModified).Subscribe(mDirtyHandler.SetDirty, s);
+    }
+
+    ~TrackHeadList()
+    {
+        s.DisposeAll();
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -49,18 +69,7 @@ internal class TrackHeadList : LayerPanel
             mTrackHeadList = trackHeadList;
 
             mAddTrackButton = new(mTrackHeadList);
-            mDirtyHandler.OnDirty += () => 
-            {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    OnTrackListModified();
-                    mDirtyHandler.Reset();
-                }, DispatcherPriority.Normal);
-            };
-
-            mTrackHeadList.mDependency.TrackVerticalAxis.AxisChanged += InvalidateArrange;
-            mTrackHeadList.mDependency.ProjectProvider.ObjectChanged.Subscribe(mDirtyHandler.SetDirty, s);
-            mTrackHeadList.mDependency.ProjectProvider.When(project => project.Tracks.ListModified).Subscribe(mDirtyHandler.SetDirty, s);
+            
 
             ClipToBounds = true;
             Children.Add(mAddTrackButton);
@@ -68,7 +77,7 @@ internal class TrackHeadList : LayerPanel
 
         ~TrackHeadLayer()
         {
-            s.DisposeAll();
+
         }
 
         protected override Size ArrangeOverride(Size finalSize)
@@ -82,7 +91,7 @@ internal class TrackHeadList : LayerPanel
             return finalSize;
         }
 
-        void OnTrackListModified()
+        public void OnTrackListModified()
         {
             int trackCount = 0;
             foreach (var child in Children)
@@ -121,7 +130,7 @@ internal class TrackHeadList : LayerPanel
             foreach (var track in project.Tracks)
             {
                 var trackHead = (TrackHead)Children[childrenIndex++];
-                trackHead.SetTrack(track);
+                trackHead.SetTrack(track, childrenIndex);
             }
         }
 
@@ -150,10 +159,8 @@ internal class TrackHeadList : LayerPanel
             }
         }
 
-        readonly DirtyHandler mDirtyHandler = new();
         readonly AddTrackButton mAddTrackButton;
         readonly TrackHeadList mTrackHeadList;
-        readonly DisposableManager s = new();
     }
 
     class BackLayer : Component
@@ -191,6 +198,10 @@ internal class TrackHeadList : LayerPanel
         readonly TrackHeadList mTrackHeadList;
     }
 
+    readonly DirtyHandler mDirtyHandler = new();
+    readonly DisposableManager s = new();
+
+    readonly BackLayer mBackLayer;
     readonly TrackHeadLayer mTrackHeadLayer;
     readonly IDependency mDependency;
 }

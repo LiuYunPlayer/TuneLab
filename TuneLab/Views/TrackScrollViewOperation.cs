@@ -69,12 +69,19 @@ internal partial class TrackScrollView
                                 }
                                 else
                                 {
-                                    mPartMoveOperation.Down(e.Position, ctrl, part);
+                                    mSelectOperation.Down(e.Position, ctrl);
                                 }
                             }
-                            else if (e.IsDoubleClick && item is PartNameItem partNameItem)
+                            else if (item is PartNameItem partNameItem)
                             {
-                                EnterInputPartName(partNameItem.Part, partNameItem.TrackIndex);
+                                if (e.IsDoubleClick)
+                                {
+                                    EnterInputPartName(partNameItem.Part, partNameItem.TrackIndex);
+                                }
+                                else
+                                {
+                                    mPartMoveOperation.Down(e.Position, ctrl, partNameItem.Part);
+                                }
                             }
                             else if (item is PartEndResizeItem partEndResizeItem)
                             {

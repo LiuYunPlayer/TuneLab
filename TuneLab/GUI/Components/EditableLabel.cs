@@ -21,8 +21,9 @@ internal class EditableLabel : LayerPanel
     public CornerRadius CornerRadius { get => mBorder.CornerRadius; set { mBorder.CornerRadius = value; mTextInput.CornerRadius = value; } }
     public Avalonia.Layout.HorizontalAlignment HorizontalContentAlignment { get => mTextBlock.HorizontalAlignment; set { mTextBlock.HorizontalAlignment = value; mTextInput.HorizontalContentAlignment = value; } }
     public Avalonia.Layout.VerticalAlignment VerticalContentAlignment { get => mTextBlock.VerticalAlignment; set { mTextBlock.VerticalAlignment = value; mTextInput.VerticalContentAlignment = value; } }
-    public IBrush? Foreground { get => mTextBlock.Foreground; set { mTextBlock.Foreground = value; mTextInput.Foreground = value; } }
+    public IBrush? Foreground { get => mTextBlock.Foreground; set { mTextBlock.Foreground = value; } }
     public new IBrush? Background { get => mTextBlock.Background; set { mBorder.Background = value; } }
+    public IBrush? InputForeground { get => mTextInput.Foreground; set => mTextInput.Foreground = value; }
     public IBrush? InputBackground { get => mTextInput.Background; set => mTextInput.Background = value; }
     public string Text { get => mTextBlock.Text ?? string.Empty; set => mTextBlock.Text = value; }
 

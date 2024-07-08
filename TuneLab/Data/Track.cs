@@ -23,8 +23,10 @@ internal class Track : DataObject, ITrack
     public DataProperty<string> Name { get; }
     public DataProperty<bool> IsMute { get; }
     public DataProperty<bool> IsSolo { get; }
+    public DataProperty<bool> AsRefer { get; }
     public DataProperty<double> Gain { get; }
     public DataProperty<double> Pan { get; }
+    public DataProperty<string> Color { get; }
     public IReadOnlyDataObjectLinkedList<IPart> Parts => mParts;
 
     IDataProperty<string> ITrack.Name => Name;
@@ -33,8 +35,11 @@ internal class Track : DataObject, ITrack
 
     IDataProperty<bool> ITrack.IsSolo => IsSolo;
 
+    IDataProperty<bool> ITrack.AsRefer => AsRefer;
+
     IDataProperty<double> ITrack.Gain => Gain;
     IDataProperty<double> ITrack.Pan => Pan;
+    IDataProperty<string> ITrack.Color => Color;
 
     public Track(IProject project, TrackInfo info)
     {
@@ -42,8 +47,10 @@ internal class Track : DataObject, ITrack
         Name = new DataString(this, string.Empty);
         IsMute = new DataStruct<bool>(this);
         IsSolo = new DataStruct<bool>(this);
+        AsRefer = new DataStruct<bool>(this);
         Gain = new DataStruct<double>(this);
         Pan = new DataStruct<double>(this);
+        Color = new DataString(this);
         mParts = new();
         mParts.Attach(this);
 
@@ -110,6 +117,8 @@ internal class Track : DataObject, ITrack
             Solo = IsSolo,
             Gain = Gain,
             Pan = Pan,
+            Color = Color,
+            AsRefer = AsRefer,
             Parts = mParts.GetInfo().ToInfo()
         };
     }
@@ -121,6 +130,8 @@ internal class Track : DataObject, ITrack
         IDataObject<TrackInfo>.SetInfo(IsSolo, info.Solo);
         IDataObject<TrackInfo>.SetInfo(Gain, info.Gain);
         IDataObject<TrackInfo>.SetInfo(Pan, info.Pan);
+        IDataObject<TrackInfo>.SetInfo(Color, info.Color);
+        IDataObject<TrackInfo>.SetInfo(AsRefer, info.AsRefer);
         IDataObject<TrackInfo>.SetInfo(mParts, info.Parts.Convert(CreatePart).ToArray());
     }
 

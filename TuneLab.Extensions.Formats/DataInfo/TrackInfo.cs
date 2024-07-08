@@ -14,5 +14,7 @@ public class TrackInfo
     public double Pan { get; set; } = 0;
     public bool Mute { get; set; } = false;
     public bool Solo { get; set; } = false;
+    public bool AsRefer { get; set; } = false;
+    public string Color { get; set; } = string.Empty;
     public List<PartInfo> Parts { get; set; } = new();
 }

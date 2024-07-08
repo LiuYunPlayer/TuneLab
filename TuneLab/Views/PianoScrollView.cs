@@ -81,7 +81,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartProvider.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
         mDependency.PartProvider.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Vibratos.Any(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
+        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
         mDependency.PianoToolChanged.Subscribe(InvalidateVisual);
         TickAxis.AxisChanged += Update;
@@ -244,11 +246,35 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 }
             }
         }
+        // draw refer note
+        if (Part.Track != null && Part.Track.Project != null)
+            foreach (var track in Part.Track.Project.Tracks)
+            {
+                if (track == Part.Track) continue;
+                if (!track.AsRefer.Value) continue;
+                IBrush referBrush = track.GetColor().Opacity(0.5).ToBrush();
+                foreach (var part in track.Parts)
+                {
+                    if (part.EndPos() < minVisibleTick) continue;
+                    if (part.StartPos() > maxVisibleTick) continue;
+                    if (!(part is MidiPart midiPart)) continue;
+                    foreach(var note in midiPart.Notes)
+                    {
+                        if (note.GlobalEndPos() < minVisibleTick)
+                            continue;
 
+                        if (note.GlobalStartPos() > maxVisibleTick)
+                            break;
+
+                        var rect = this.ReferNoteRect(note);
+                        context.FillRectangle(referBrush, rect);
+                    }
+                }
+            }
         // draw note
         double round = 4;
-        IBrush noteBrush = NoteColor.ToBrush();
-        IBrush selectedNoteBrush = SelectedNoteColor.ToBrush();
+        IBrush noteBrush = Style.ITEM.ToBrush();
+        IBrush selectedNoteBrush = Style.HIGH_LIGHT.ToBrush();
         IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();
         IBrush pronunciationBrush = Style.LIGHT_WHITE.ToBrush();
         foreach (var note in Part.Notes)
@@ -260,6 +286,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 break;
 
             var rect = this.NoteRect(note);
+            //context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
             context.FillRectangle(note.IsSelected ? selectedNoteBrush : noteBrush, rect, (float)round);
 
             rect = rect.Adjusted(8, -28, -8, 0);
@@ -1007,8 +1034,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
     Color WhiteKeyColor => GUI.Style.WHITE_KEY;
     Color BlackKeyColor => GUI.Style.BLACK_KEY;
     Color LineColor => GUI.Style.LINE;
-    Color NoteColor => GUI.Style.ITEM;
-    Color SelectedNoteColor => GUI.Style.HIGH_LIGHT;
     Color SelectionColor => GUI.Style.HIGH_LIGHT;
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;

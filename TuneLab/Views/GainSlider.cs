@@ -9,6 +9,10 @@ using System.Threading.Tasks;
 using TuneLab.GUI.Components;
 using TuneLab.GUI;
 using TuneLab.Utils;
+using TuneLab.Base.Science;
+using Avalonia.Controls;
+using TuneLab.Base.Utils;
+using Avalonia.Threading;
 
 namespace TuneLab.Views;
 
@@ -17,6 +21,22 @@ internal class GainSlider : AbstractSlider
     public GainSlider()
     {
         Thumb = new GainThumb(this);
+        mDirtyHandler.OnReset += SetupTip;
+        mDirtyHandler.OnDirty += () =>
+        {
+            Dispatcher.UIThread.Post(mDirtyHandler.Reset, DispatcherPriority.Normal);
+        };
+        ValueDisplayed.Subscribe(mDirtyHandler.SetDirty);
+    }
+
+    private void SetupTip()
+    {
+        ToolTip.SetPlacement(this, PlacementMode.Top);
+        ToolTip.SetVerticalOffset(this, -8);
+        ToolTip.SetShowDelay(this, 0);
+        var x = ThumbPosition().X;
+        ToolTip.SetHorizontalOffset(this, x - Bounds.Width / 2);
+        ToolTip.SetTip(this, Value.ToString("+0.00dB;-0.00dB"));
     }
 
     protected override Point StartPoint => new(2, 0);
@@ -36,6 +56,7 @@ internal class GainSlider : AbstractSlider
 
         Thumb.Height = e.NewSize.Height;
         InvalidateArrange();
+        SetupTip();
     }
 
     class GainThumb : AbstractThumb
@@ -50,4 +71,6 @@ internal class GainSlider : AbstractSlider
             context.FillRectangle(Style.LIGHT_WHITE.ToBrush(), this.Rect(), 1);
         }
     }
+
+    DirtyHandler mDirtyHandler = new();
 }

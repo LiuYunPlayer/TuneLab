@@ -87,6 +87,40 @@ internal static class AudioEngine
         AudioUtils.EncodeToWav(filePath, buffer, SamplingRate, 16, isStereo ? 2 : 1);
     }
 
+    public static void InvokeRealtimeAmplitude(IAudioTrack track,out Tuple<double,double>? amplitude)
+    {
+        amplitude = null;
+
+        if (track.IsMute) return;
+        bool hasSolo = mTracks.Where(t => t.IsSolo).Count() > 0;
+        if (hasSolo && !track.IsSolo) return;
+
+        double Sample2Amplitude(float Sample)
+        {
+            return Math.Abs(Sample);
+        }
+        double Amplitude2Db(double amplitude)
+        {
+            double referenceAmplitude = 1.0;
+            double amplitudeRatio = amplitude / referenceAmplitude;
+            double db = 20 * Math.Log10(amplitudeRatio);
+            return db;
+        }
+
+        float[] amp = { 0, 0 };
+        {
+            int sampleWindow = 64;
+            float[] buffer = new float[sampleWindow * 2];
+            int position = (mAudioEngine.CurrentTime * SamplingRate).Ceil();
+            AddData(track, position, position + sampleWindow, true, buffer, 0);
+            for (int i = 0; i < sampleWindow * 2; i = i + 2) { amp[0] = (float)Math.Max(amp[0], Sample2Amplitude(buffer[i])); amp[1] = (float)Math.Max(amp[1], Sample2Amplitude(buffer[i + 1])); };
+        }
+        amplitude = new Tuple<double, double>(
+                Amplitude2Db(amp[0]), //L
+                Amplitude2Db(amp[1])  //R
+                );
+    }
+
     static void AddData(IAudioTrack track, int position, int endPosition, bool isStereo, float[] buffer, int offset)
     {
         double volume = track.Volume;

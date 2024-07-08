@@ -1,10 +1,14 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TuneLab.Base.Science;
+using TuneLab.Base.Utils;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
@@ -16,6 +20,26 @@ internal class PanSlider : AbstractSlider
     public PanSlider()
     {
         Thumb = new PanThumb(this);
+        mDirtyHandler.OnReset += SetupTip;
+        mDirtyHandler.OnDirty += () =>
+        {
+            Dispatcher.UIThread.Post(mDirtyHandler.Reset, DispatcherPriority.Normal);
+        };
+        ValueDisplayed.Subscribe(mDirtyHandler.SetDirty);
+        SetupTip();
+    }
+
+    private void SetupTip()
+    {
+        ToolTip.SetPlacement(this, PlacementMode.Top);
+        ToolTip.SetVerticalOffset(this, -8);
+        ToolTip.SetTip(this,
+            Value > 0 ?
+            string.Format("R+{0}", Value.ToString("f2")) :
+            Value < 0 ?
+            string.Format("L+{0}", (-Value).ToString("f2")) :
+            "Balance"
+            );
     }
 
     protected override Point StartPoint => new(0, 0);
@@ -41,6 +65,7 @@ internal class PanSlider : AbstractSlider
 
         Thumb.Height = e.NewSize.Height;
         InvalidateArrange();
+        SetupTip();
     }
 
     class PanThumb : AbstractThumb
@@ -55,4 +80,6 @@ internal class PanSlider : AbstractSlider
             context.FillRectangle(Brushes.White, this.Rect());
         }
     }
+
+    DirtyHandler mDirtyHandler = new();
 }

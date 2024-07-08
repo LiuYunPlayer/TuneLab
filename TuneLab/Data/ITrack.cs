@@ -18,8 +18,10 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     IDataProperty<string> Name { get; }
     new IDataProperty<bool> IsMute { get; }
     new IDataProperty<bool> IsSolo { get; }
+    IDataProperty<bool> AsRefer { get; }
     IDataProperty<double> Gain { get; }
     new IDataProperty<double> Pan { get; }
+    IDataProperty<string> Color { get; }
     IReadOnlyDataObjectLinkedList<IPart> Parts { get; }
 
     void InsertPart(IPart part);
