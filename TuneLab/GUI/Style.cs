@@ -32,22 +32,26 @@ internal static class Style
     public static readonly Color AMP_NORMAL = new(255, 102, 255, 51);
     public static readonly Color AMP_DELAY = new((int)(0.5 * 255), 102, 255, 51);
 
-    public static readonly List<Color> TRACK_COLORS =
+    public static readonly string[] TRACK_COLORS =
     [
-        Color.FromRgb(58, 63, 105),      
-        Color.FromRgb(4, 177, 42),  
-        Color.FromRgb(146, 22, 46),  
-        Color.FromRgb(253, 23, 100),
-        Color.FromRgb(208, 95, 138),   
-        Color.FromRgb(138, 36, 179),  
-        Color.FromRgb(4, 151, 244),  
-        Color.FromRgb(1, 152, 135),  
-        Color.FromRgb(1, 90, 44), 
-        Color.FromRgb(155, 197, 27),
-        Color.FromRgb(213, 197, 39), 
-        Color.FromRgb(254, 90, 29),    
-        Color.FromRgb(133, 86, 70),   
-        Color.FromRgb(188, 72, 223),  
-        Color.FromRgb(128, 126, 127)
+        "#737CE5",
+        "#73B5E5",
+        "#73E5DB",
+        "#73E5A2",
+        "#7DE573",
+        "#B5E573",
+        "#E5DB73",
+        "#E5A273",
+        "#E5737D",
+        "#E573B5",
+        "#DB73E5",
+        "#A273E5",
     ];
+
+    public static Color DefaultTrackColor => Color.Parse(TRACK_COLORS[0]);
+
+    public static string GetNewColor(int index)
+    {
+        return TRACK_COLORS[index % TRACK_COLORS.Length];
+    }
 }

@@ -27,7 +27,7 @@ internal static class IPianoScrollViewExtension
 
     public static Rect ReferNoteRect(this IPianoScrollView view, INote note)
     {
-        double keyHeight = view.PitchAxis.KeyHeight / 10.0d;
+        double keyHeight = view.PitchAxis.KeyHeight / 7;
         double keyOffset = (view.PitchAxis.KeyHeight - keyHeight) / 2;
         double x = view.TickAxis.Tick2X(note.GlobalStartPos());
         double y = view.PitchAxis.Pitch2Y(note.Pitch.Value + 1) +  keyOffset;

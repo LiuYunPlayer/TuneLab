@@ -83,6 +83,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartProvider.When(p => p.Vibratos.Any(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
         mDependency.PianoToolChanged.Subscribe(InvalidateVisual);
         TickAxis.AxisChanged += Update;
@@ -251,8 +252,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             {
                 if (track == Part.Track) continue;
                 if (!track.AsRefer.Value) continue;
-                double guideRound = 4;
-                IBrush guideBrush = getPartColor(track, false).Opacity(0.5).ToBrush();
+                IBrush referBrush = track.GetColor().Opacity(0.5).ToBrush();
                 foreach (var part in track.Parts)
                 {
                     if (part.EndPos() < minVisibleTick) continue;
@@ -267,7 +267,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                             break;
 
                         var rect = this.ReferNoteRect(note);
-                        context.FillRectangle(guideBrush, rect, (float)guideRound);
+                        context.FillRectangle(referBrush, rect);
                     }
                 }
             }
@@ -1008,13 +1008,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         mLyricInput.IsVisible = false;
         mInputLyricNote = null;
-    }
-
-    Color getPartColor(ITrack? track, bool isHighLight)
-    {
-        var color = track != null ? track.GetColor() : Style.TRACK_COLORS[0];
-        if (isHighLight) return new Color(color.A, (byte)(color.R + 40).Limit(0, 255), (byte)(color.G + 40).Limit(0, 255), (byte)(color.B + 40).Limit(0, 255));
-        return color;
     }
 
     Rect LyricInputRect()

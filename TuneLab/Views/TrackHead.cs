@@ -67,6 +67,23 @@ internal class TrackHead : DockPanel
         mTrackProvider.When(track => track.Pan.Modified).Subscribe(() => { if (Track == null) return; mPanSlider.Display(Track.Pan.Value); }, s);
         mTrackProvider.When(track => track.IsMute.Modified).Subscribe(() => { if (Track == null) return; mMuteToggle.Display(Track.IsMute.Value); }, s);
         mTrackProvider.When(track => track.IsSolo.Modified).Subscribe(() => { if (Track == null) return; mSoloToggle.Display(Track.IsSolo.Value); }, s);
+        mTrackProvider.When(track => track.Color.Modified).Subscribe(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); }, s);
+        mTrackProvider.ObjectWillChange.Subscribe(() =>
+        {
+            if (Track == null)
+                return;
+
+            AudioEngine.ProgressChanged -= AudioEngine_ProgressChanged;
+            AudioEngine.PlayStateChanged -= AudioEngine_PlayStateChanged;
+        }, s);
+        mTrackProvider.ObjectChanged.Subscribe(() =>
+        {
+            if (Track == null)
+                return;
+
+            AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
+            AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
+        }, s);
 
         MinWidth = 200;
 
@@ -136,7 +153,7 @@ internal class TrackHead : DockPanel
         {
             var menuItem = new MenuItem().SetName("Set Color");
             {
-                foreach (var color in Style.TRACK_COLORS)
+                foreach (var color in Style.TRACK_COLORS.Select(Color.Parse))
                 {
                     MenuItem colorItem = new MenuItem
                     {
@@ -153,6 +170,9 @@ internal class TrackHead : DockPanel
                     colorItem.Margin = new Avalonia.Thickness(5);
                     colorItem.SetAction(() =>
                     {
+                        if (Track == null)
+                            return;
+
                         Track.Color.Set(((Color)colorItem.Tag).ToString());
                         Track.Color.Commit();
                     });
@@ -267,14 +287,6 @@ internal class TrackHead : DockPanel
             mSoloToggle.Display(Track.IsSolo.Value);
             mIndexLabel.Background = Track.GetColor().ToBrush();
             mIndexPanel.Background = Track.GetColor().ToBrush();
-            Track.Color.Modified.Subscribe(() => {mIndexLabel.Background = Track.GetColor().ToBrush();mIndexPanel.Background = Track.GetColor().ToBrush();});
-            AudioEngine.ProgressChanged += AudioEngine_ProgressChanged;
-            AudioEngine.PlayStateChanged += AudioEngine_PlayStateChanged;
-        }
-        else
-        {
-            AudioEngine.ProgressChanged -= AudioEngine_ProgressChanged;
-            AudioEngine.PlayStateChanged -= AudioEngine_PlayStateChanged;
         }
     }
 
@@ -308,7 +320,7 @@ internal class TrackHead : DockPanel
     int mTrackIndex = -1;
 
     readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 0, 0, 1) };
-    readonly EditableLabel mIndexLabel = new() { Background = Style.ITEM.ToBrush(), CornerRadius = new(0), Padding = new(0), FontSize = 12, VerticalAlignment =Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center };
+    readonly EditableLabel mIndexLabel = new() { MinWidth = 16, Foreground = Brushes.Black, CornerRadius = new(0), Padding = new(0), FontSize = 12, VerticalAlignment =Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
     readonly EditableLabel mName = new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
     readonly GainSlider mGainSlider = new() { Height = 12 };
     readonly PanSlider mPanSlider = new() { Width = 40, Height = 12, Margin = new(8, 0, 0, 0) };

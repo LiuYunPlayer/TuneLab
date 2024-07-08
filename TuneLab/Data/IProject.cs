@@ -34,11 +34,6 @@ internal static class IProjectExtension
         return project.AllParts().OfType<IAudioPart>();
     }
 
-    public static void NewTrack(this IProject project)
-    {
-        project.AddTrack(new TrackInfo() { Name = "Track_" + (project.Tracks.Count + 1) });
-    }
-
     public static void DisableAutoPrepare(this IProject project)
     {
         foreach (var part in project.AllMidiParts())

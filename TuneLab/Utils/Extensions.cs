@@ -9,12 +9,14 @@ using TuneLab.Base.Data;
 using TuneLab.Base.Structures;
 using TuneLab.GUI.Input;
 using Rect = Avalonia.Rect;
+using RoundedRect = Avalonia.RoundedRect;
 using TuneLab.GUI;
 using TuneLab.Views;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using System.Threading.Tasks;
 using TuneLab.Data;
+using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Utils;
 
@@ -33,6 +35,11 @@ internal static class Extensions
     public static Rect Rect(this Layoutable layoutable)
     {
         return new Rect(0, 0, layoutable.Bounds.Width, layoutable.Bounds.Height);
+    }
+
+    public static RoundedRect ToRoundedRect(this Rect rect, Avalonia.CornerRadius radius)
+    {
+        return new RoundedRect(rect, radius);
     }
 
     public static Point ToPoint(this Avalonia.Point point)
@@ -145,15 +152,16 @@ internal static class Extensions
         return new SolidColorBrush(color);
     }
 
-    public static void DrawString(this DrawingContext context, string text, Rect rect, IBrush brush, double fontSize, int alignment, int pivotAlignment, Avalonia.Point offset = new Avalonia.Point())
+    public static void DrawString(this DrawingContext context, string text, Rect rect, IBrush brush, double fontSize, int alignment, int pivotAlignment, Avalonia.Point offset = new Avalonia.Point(), Typeface? typeface = null)
     {
         var anchor = alignment.Offset(rect.Width, rect.Height);
-        context.DrawString(text, new Avalonia.Point(rect.X - anchor.Item1 + offset.X, rect.Y - anchor.Item2 + offset.Y), brush, fontSize, pivotAlignment);
+        context.DrawString(text, new Avalonia.Point(rect.X - anchor.Item1 + offset.X, rect.Y - anchor.Item2 + offset.Y), brush, fontSize, pivotAlignment, typeface);
     }
 
-    public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, double fontSize, int alignment)
+    public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, double fontSize, int alignment, Typeface? typeface = null)
     {
-        context.DrawString(text, point, brush, Typeface.Default, fontSize, alignment);
+        typeface ??= Typeface.Default;
+        context.DrawString(text, point, brush, typeface.Value, fontSize, alignment);
     }
 
     public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, Typeface typeface, double fontSize, int alignment)
@@ -251,6 +259,32 @@ internal static class Extensions
         );
     }
 
+    public static Color Brighter(this Color color, double ratio = 0.25)
+    {
+        var hsv = color.ToHsv();
+        hsv = new HsvColor(hsv.A, hsv.H, hsv.S, hsv.V * (1 + ratio)); 
+        return hsv.ToRgb();
+    }
+
+    public static Color Lighter(this Color color, double ratio = 0.25)
+    {
+        var d = (int)(255 * ratio);
+        return new Color(color.A,
+            (byte)(color.R + d).Limit(0, 255),
+            (byte)(color.G + d).Limit(0, 255),
+            (byte)(color.B + d).Limit(0, 255));
+    }
+
+    public static Color Whiter(this Color color, double ratio = 0.25)
+    {
+        return color.Lerp(new Color(color.A, 255, 255, 255), ratio);
+    }
+
+    public static Color Blacker(this Color color, double ratio = 0.2)
+    {
+        return color.Lerp(new Color(color.A, 0, 0, 0), ratio);
+    }
+
     public static void AddDock(this DockPanel panel, Control control, Dock dock)
     {
         panel.Children.Add(control);
@@ -267,6 +301,11 @@ internal static class Extensions
         if (Color.TryParse(track.Color.Value, out var color)) 
             return color;
 
-        return Style.ITEM;
+        return Style.DefaultTrackColor;
+    }
+
+    public static void NewTrack(this IProject project)
+    {
+        project.AddTrack(new TrackInfo() { Name = "Track_" + (project.Tracks.Count + 1), Color = Style.GetNewColor(project.Tracks.Count) });
     }
 }
