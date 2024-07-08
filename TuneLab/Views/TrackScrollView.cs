@@ -412,6 +412,11 @@ internal partial class TrackScrollView : View
                 {
                     context.DrawString(string.Format("{0}[{1}]", info.name, info.path), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
                 }
+                context.DrawRectangle(
+                    null,
+                    new Pen(frameColor.ToBrush(), partLineWidth),
+                    partRect.Inflate(-partLineWidth / 2),
+                    4, 4);
             }
         }
 

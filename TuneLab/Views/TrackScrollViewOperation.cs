@@ -817,6 +817,8 @@ internal partial class TrackScrollView
             if (TrackScrollView.Project == null)
                 return;
 
+            TrackScrollView.Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
+
             while (TrackScrollView.Project.Tracks.Count < mLastTrackIndex + mPreImportAudioInfos.Count)
                 TrackScrollView.Project.NewTrack();
 
@@ -824,7 +826,9 @@ internal partial class TrackScrollView
             foreach (var info in mPreImportAudioInfos)
             {
                 var track = TrackScrollView.Project.Tracks[trackIndex];
-                track.InsertPart(track.CreatePart(new AudioPartInfo() { Pos = mLastPos, Dur = info.Dur, Name = info.name, Path = info.path }));
+                var part = track.CreatePart(new AudioPartInfo() { Pos = mLastPos, Dur = info.Dur, Name = info.name, Path = info.path });
+                part.Select();
+                track.InsertPart(part);
                 trackIndex++;
             }
             TrackScrollView.Project.Commit();
