@@ -273,6 +273,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             track.Add("mute", trackInfo.Mute);
             track.Add("solo", trackInfo.Solo);
             track.Add("color", trackInfo.Color);
+            track.Add("asRefer", trackInfo.AsRefer);
 
             var parts = new JArray();
             foreach (var partInfo in trackInfo.Parts)

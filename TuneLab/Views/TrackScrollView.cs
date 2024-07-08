@@ -394,15 +394,14 @@ internal partial class TrackScrollView : View
             double left = Math.Max(TickAxis.Tick2X(mDragFileOperation.Pos), -8);
             for (int i = 0; i < mDragFileOperation.PreImportAudioInfos.Count; i++)
             {
+                int trackIndex = mDragFileOperation.TrackIndex + i;
                 var info = mDragFileOperation.PreImportAudioInfos[i];
                 double right = Math.Min(TickAxis.Tick2X(info.EndPos), Bounds.Width + 8);
-                double top = TrackVerticalAxis.GetTop(mDragFileOperation.TrackIndex + i);
-                double bottom = TrackVerticalAxis.GetBottom(mDragFileOperation.TrackIndex + i);
+                double top = TrackVerticalAxis.GetTop(trackIndex);
+                double bottom = TrackVerticalAxis.GetBottom(trackIndex);
                 var partRect = new Rect(left, top, right - left, bottom - top);
 
-                Color trackColor = Style.DefaultTrackColor;
-                if ((uint)(mDragFileOperation.TrackIndex + i) < Project.Tracks.Count)
-                    trackColor = Project.Tracks[mDragFileOperation.TrackIndex + i].GetColor();
+                var trackColor = (uint)trackIndex < Project.Tracks.Count ? Project.Tracks[trackIndex].GetColor() : Color.Parse(Style.GetNewColor(trackIndex));
 
                 var frameColor = trackColor;
                 context.DrawRectangle(trackColor.Opacity(0.25).ToBrush(), null, partRect, 4, 4);
