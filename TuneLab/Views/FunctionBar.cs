@@ -40,7 +40,7 @@ internal class FunctionBar : LayerPanel
             void SetupToolTip(Toggle toggleButton,string ToolTipText)
             {
                 ToolTip.SetPlacement(toggleButton, PlacementMode.Top);
-                ToolTip.SetVerticalOffset(toggleButton, -6);
+                ToolTip.SetVerticalOffset(toggleButton, -8);
                 ToolTip.SetShowDelay(toggleButton, 0);
                 ToolTip.SetTip(toggleButton, ToolTipText);
             }
