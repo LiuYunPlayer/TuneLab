@@ -195,7 +195,7 @@ internal partial class TimelineView : View
         return (tick / cell).Round() * cell;
     }
 
-    protected override Size OnArrangeOverride(Size finalSize)
+    protected override Size ArrangeOverride(Size finalSize)
     {
         if (mBpmInput.IsVisible)
             mBpmInput.Arrange(BpmInputRect());

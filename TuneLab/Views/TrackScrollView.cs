@@ -708,7 +708,7 @@ internal partial class TrackScrollView : View
         mNameInput.SelectAll();
     }
 
-    protected override Size OnArrangeOverride(Size finalSize)
+    protected override Size ArrangeOverride(Size finalSize)
     {
         if (mNameInput.IsVisible)
             mNameInput.Arrange(NameInputRect());

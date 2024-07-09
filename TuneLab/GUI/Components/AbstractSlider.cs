@@ -126,7 +126,7 @@ internal abstract class AbstractSlider : Container
         mValueCommited.Invoke();
     }
 
-    protected override Size OnArrangeOverride(Size finalSize)
+    protected override Size ArrangeOverride(Size finalSize)
     {
         if (double.IsNaN(mValue))
             return finalSize;

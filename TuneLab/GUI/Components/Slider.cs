@@ -51,7 +51,7 @@ internal class Slider : AbstractSlider
             context.FillRectangle(Style.BACK.ToBrush(), new((Bounds.Width - 4) / 2, 0, 4, Bounds.Height), 2);
     }
 
-    protected override Avalonia.Size OnMeasureOverride(Avalonia.Size availableSize)
+    protected override Avalonia.Size MeasureOverride(Avalonia.Size availableSize)
     {
         return new(ThumbRadius * 2, ThumbRadius * 2);
     }

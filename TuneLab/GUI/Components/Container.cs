@@ -11,7 +11,7 @@ using TuneLab.GUI.Input;
 
 namespace TuneLab.GUI.Components;
 
-internal class Container : Panel
+internal class Container : ContainerBase
 {
     public ModifierKeys Modifiers => mMainComponent.Modifiers;
     public Avalonia.Point MousePosition => mMainComponent.MousePosition;
@@ -44,27 +44,27 @@ internal class Container : Panel
     protected virtual void OnKeyPressedEvent(KeyEventArgs e) { }
     protected virtual void OnKeyUpEvent(KeyEventArgs e) { }
 
-    protected virtual Size OnMeasureOverride(Size availableSize)
+    protected new virtual Size MeasureOverride(Size availableSize)
     {
         return mLayoutPanel.BaseMeasureOverride(availableSize);
     }
 
-    protected virtual Size OnMeasureCore(Size availableSize)
+    protected new virtual Size MeasureCore(Size availableSize)
     {
         return mLayoutPanel.BaseMeasureCore(availableSize);
     }
 
-    protected virtual Size OnArrangeOverride(Size finalSize)
+    protected new virtual Size ArrangeOverride(Size finalSize)
     {
         return mLayoutPanel.BaseArrangeOverride(finalSize);
     }
 
-    protected virtual void OnArrangeCore(Rect finalRect)
+    protected new virtual void ArrangeCore(Rect finalRect)
     {
         mLayoutPanel.BaseArrangeCore(finalRect);
     }
 
-    protected virtual void MeasureInvalidated()
+    protected new virtual void OnMeasureInvalidated()
     {
         mLayoutPanel.BaseOnMeasureInvalidated();
     }
@@ -87,31 +87,11 @@ internal class Container : Panel
         mMainComponent.InvalidateVisual();
     }
 
-    protected sealed override Size MeasureCore(Size availableSize)
-    {
-        return base.MeasureCore(availableSize);
-    }
-
-    protected sealed override Size MeasureOverride(Size availableSize)
-    {
-        return base.MeasureOverride(availableSize);
-    }
-
-    protected sealed override void ArrangeCore(Rect finalRect)
-    {
-        base.ArrangeCore(finalRect);
-    }
-
-    protected sealed override Size ArrangeOverride(Size finalSize)
+    protected sealed override Size ArrangeOverrideImpl(Size finalSize)
     {
         mMainComponent.Arrange(new(finalSize));
         mLayoutPanel.Arrange(new(finalSize));
         return finalSize;
-    }
-
-    protected sealed override void OnMeasureInvalidated()
-    {
-        base.OnMeasureInvalidated();
     }
 
     class MainComponent(Container container) : Component
@@ -171,27 +151,27 @@ internal class Container : Panel
     {
         protected override Size MeasureOverride(Size availableSize)
         {
-            return container.OnMeasureOverride(availableSize);
+            return container.MeasureOverride(availableSize);
         }
 
         protected override Size MeasureCore(Size availableSize)
         {
-            return container.OnMeasureCore(availableSize);
+            return container.MeasureCore(availableSize);
         }
 
         protected override Size ArrangeOverride(Size finalSize)
         {
-            return container.OnArrangeOverride(finalSize);
+            return container.ArrangeOverride(finalSize);
         }
 
         protected override void ArrangeCore(Rect finalRect)
         {
-            container.OnArrangeCore(finalRect);
+            container.ArrangeCore(finalRect);
         }
 
         protected override void OnMeasureInvalidated()
         {
-            container.MeasureInvalidated();
+            container.OnMeasureInvalidated();
         }
 
         public Size BaseMeasureOverride(Size availableSize)
@@ -222,4 +202,34 @@ internal class Container : Panel
 
     readonly MainComponent mMainComponent;
     readonly LayoutPanel mLayoutPanel;
+}
+
+internal abstract class ContainerBase : Panel
+{
+    protected sealed override Size MeasureCore(Size availableSize)
+    {
+        return base.MeasureCore(availableSize);
+    }
+
+    protected sealed override Size MeasureOverride(Size availableSize)
+    {
+        return base.MeasureOverride(availableSize);
+    }
+
+    protected sealed override void ArrangeCore(Rect finalRect)
+    {
+        base.ArrangeCore(finalRect);
+    }
+
+    protected sealed override Size ArrangeOverride(Size finalSize)
+    {
+        return ArrangeOverrideImpl(finalSize);
+    }
+
+    protected sealed override void OnMeasureInvalidated()
+    {
+        base.OnMeasureInvalidated();
+    }
+
+    protected abstract Size ArrangeOverrideImpl(Size finalSize);
 }

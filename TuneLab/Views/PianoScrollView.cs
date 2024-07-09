@@ -962,7 +962,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mLyricInput.SelectAll();
     }
 
-    protected override Size OnArrangeOverride(Size finalSize)
+    protected override Size ArrangeOverride(Size finalSize)
     {
         if (mLyricInput.IsVisible)
             mLyricInput.Arrange(LyricInputRect());
