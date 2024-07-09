@@ -169,13 +169,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (projectFile != null)
         {
             e.Handled = true;
-            if (!FormatsManager.Deserialize(projectFile, out var info, out var error))
+            SwitchProjectSafely(() => 
             {
-                Log.Error("Open file error: " + error);
-                return;
-            }
-
-            mDocument.SetProject(new Project(info), projectFile);
+                LoadProject(projectFile);
+            });
         }
         else if (!tlxs.IsEmpty())
         {
@@ -317,11 +314,33 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
     }
 
-    async void NewProject()
+    void NewProject()
+    {
+        SwitchProjectSafely(() =>
+        {
+            mDocument.SetProject(CreateProject(new ProjectInfo()
+            {
+                Tracks = [new()
+                {
+                    Name = "Track_1",
+                    Parts =
+                    [
+                        new MidiPartInfo()
+                        {
+                            Name = "Part_1",
+                            Dur = 64 * MusicTheory.RESOLUTION * 4
+                        }
+                    ]
+                }]
+            }));
+        });
+    }
+
+    async void SwitchProjectSafely(Action SwitchProject)
     {
         if (mDocument.IsSaved)
         {
-            CreateAndSwitchNewProject();
+            SwitchProject();
             return;
         }
 
@@ -329,70 +348,63 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         modal.SetTitle("Tips");
         modal.SetMessage("The project has not been saved.\n Do you want to save it?");
         modal.AddButton("Cancel", ButtonType.Normal);
-        modal.AddButton("No", ButtonType.Normal).Clicked += () => { CreateAndSwitchNewProject(); };
-        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); CreateAndSwitchNewProject(); };
+        modal.AddButton("No", ButtonType.Normal).Clicked += () => { SwitchProject(); };
+        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); SwitchProject(); };
         modal.Topmost = true;
         await modal.ShowDialog(this.Window());
     }
 
-    void CreateAndSwitchNewProject()
-    {
-        mDocument.SetProject(new Project(new ProjectInfo() { Tracks = [new() { Name = "Track_1", Parts = [new MidiPartInfo() { Name = "Part_1", Dur = 64 * MusicTheory.RESOLUTION * 4 }] }] }));
-    }
-
-    public void LoadProject(string path)
+    void LoadProject(string path)
     {
         if (!FormatsManager.Deserialize(path, out var info, out var error))
         {
-            Log.Error("Open file error: " + error);
+            Log.Error("Deserialize file error: " + error);
             return;
         }
 
-        mDocument.SetProject(new Project(info), path);
+        mDocument.SetProject(CreateProject(info), path);
     }
 
-    public async void OpenProject()
+    Project CreateProject(ProjectInfo info)
     {
-        if (mDocument.IsSaved)
+        for (int i = 0; i < info.Tracks.Count; i++)
         {
-            OpenAndSwitchProject();
-            return;
+            if (string.IsNullOrEmpty(info.Tracks[i].Color))
+            {
+                info.Tracks[i].Color = Style.GetNewColor(i);
+            }
         }
 
-        var modal = new Dialog();
-        modal.SetTitle("Tips");
-        modal.SetMessage("The project has not been saved.\n Do you want to save it?");
-        modal.AddButton("Cancel", ButtonType.Normal);
-        modal.AddButton("No", ButtonType.Normal).Clicked += () => { OpenAndSwitchProject(); };
-        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); OpenAndSwitchProject(); };
-        modal.Topmost = true;
-        await modal.ShowDialog(this.Window());
+        return new Project(info);
     }
 
-    async void OpenAndSwitchProject()
+    public void OpenProject()
     {
-        var formats = FormatsManager.GetAllImportFormats();
-        var patterns = new List<string>();
-        foreach (var format in formats)
+        SwitchProjectSafely(async () =>
         {
-            patterns.Add("*." + format);
-        }
+            var formats = FormatsManager.GetAllImportFormats();
+            var patterns = new List<string>();
+            foreach (var format in formats)
+            {
+                patterns.Add("*." + format);
+            }
 
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null)
-            return;
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null)
+                return;
 
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Open File",
-            AllowMultiple = false,
-            FileTypeFilter = [new("Importable Formats") { Patterns = patterns }]
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Open File",
+                AllowMultiple = false,
+                FileTypeFilter = [new("Importable Formats") { Patterns = patterns }]
+            });
+            var path = files.IsEmpty() ? null : files[0].TryGetLocalPath();
+            if (path == null)
+                return;
+
+            LoadProject(path);
         });
-        var path = files.IsEmpty() ? null : files[0].TryGetLocalPath();
-        if (path == null)
-            return;
-
-        LoadProject(path);
     }
 
     public async Task SaveProject()
