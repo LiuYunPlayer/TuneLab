@@ -12,6 +12,7 @@ using TuneLab.Animation;
 using TuneLab.Base.Data;
 using Avalonia.Controls;
 using TuneLab.Utils;
+using TuneLab.I18N;
 
 namespace TuneLab.Views;
 
@@ -67,7 +68,7 @@ internal partial class TimelineView
                             {
                                 var menu = new ContextMenu();
                                 {
-                                    var menuItem = new MenuItem().SetName("Edit Tempo").SetAction(() =>
+                                    var menuItem = new MenuItem().SetName("Edit Tempo".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         EnterInputBpm(tempoItem.Tempo);
                                     });
@@ -75,7 +76,7 @@ internal partial class TimelineView
                                 }
                                 if (tempoItem.TempoIndex != 0)
                                 {
-                                    var menuItem = new MenuItem().SetName("Delete Tempo").SetAction(() =>
+                                    var menuItem = new MenuItem().SetName("Delete Tempo".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         Timeline.TempoManager.RemoveTempoAt(tempoItem.TempoIndex);
                                         Timeline.TempoManager.Project.Commit();
@@ -89,7 +90,7 @@ internal partial class TimelineView
                                 var pos = TickAxis.X2Tick(e.Position.X);
                                 if (!alt) pos = GetQuantizedTick(pos);
                                 var menu = new ContextMenu();
-                                var menuItem = new MenuItem().SetName("Add Tempo").SetAction(() =>
+                                var menuItem = new MenuItem().SetName("Add Tempo".Tr(TC.Menu)).SetAction(() =>
                                 {
                                     var bpm = Timeline.TempoManager.GetBpmAt(pos);
                                     Timeline.TempoManager.AddTempo(pos, bpm);
