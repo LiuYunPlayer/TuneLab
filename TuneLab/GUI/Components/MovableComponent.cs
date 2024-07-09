@@ -57,7 +57,7 @@ internal class MovableComponent : Component
         CorrectCursor();
     }
 
-    protected override void OnMouseLeave()
+    protected override void OnMouseLeave(MouseLeaveEventArgs e)
     {
         if (IsPressed)
             return;

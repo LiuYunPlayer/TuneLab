@@ -43,7 +43,7 @@ internal class Component : Control
     protected virtual void OnMouseMove(MouseMoveEventArgs e) { }
     protected virtual void OnMouseUp(MouseUpEventArgs e) { }
     protected virtual void OnMouseEnter(MouseEnterEventArgs e) { }
-    protected virtual void OnMouseLeave() { }
+    protected virtual void OnMouseLeave(MouseLeaveEventArgs e) { }
     protected virtual void OnKeyDownEvent(KeyEventArgs e) { }
     protected virtual void OnKeyPressedEvent(KeyEventArgs e) { }
     protected virtual void OnKeyUpEvent(KeyEventArgs e) { }
@@ -138,7 +138,12 @@ internal class Component : Control
 
     protected sealed override void OnPointerExited(PointerEventArgs e)
     {
-        CallMouseLeave();
+        var p = e.GetCurrentPoint(this);
+        CallMouseLeave(new()
+        {
+            KeyModifiers = e.KeyModifiers.ToModifierKeys(),
+            Position = p.Position,
+        });
     }
 
     protected sealed override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -205,15 +210,15 @@ internal class Component : Control
     void CallMouseEnter(MouseEnterEventArgs e)
     {
         mHoverComponent = this;
-
+        mLastMousePosition = e.Position;
         OnMouseEnter(e);
     }
 
-    void CallMouseLeave()
+    void CallMouseLeave(MouseLeaveEventArgs e)
     {
         mHoverComponent = null;
-
-        OnMouseLeave();
+        mLastMousePosition = e.Position;
+        OnMouseLeave(e);
     }
 
     static Component? mHoverComponent = null;
@@ -225,6 +230,6 @@ internal class Component : Control
     static Avalonia.Point mLastClickPosition;
     static bool mFirstKeyDown = true;
     static ModifierKeys mLastKeyModifiers = ModifierKeys.None;
-    Avalonia.Point mLastMousePosition;
+    Avalonia.Point mLastMousePosition = new(-1, -1);
     static Avalonia.Point mDownPosition;
 }

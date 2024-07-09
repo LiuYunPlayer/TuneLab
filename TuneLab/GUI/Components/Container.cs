@@ -39,7 +39,7 @@ internal class Container : ContainerBase
     protected virtual void OnMouseMove(MouseMoveEventArgs e) { }
     protected virtual void OnMouseUp(MouseUpEventArgs e) { }
     protected virtual void OnMouseEnter(MouseEnterEventArgs e) { }
-    protected virtual void OnMouseLeave() { }
+    protected virtual void OnMouseLeave(MouseLeaveEventArgs e) { }
     protected virtual void OnKeyDownEvent(KeyEventArgs e) { }
     protected virtual void OnKeyPressedEvent(KeyEventArgs e) { }
     protected virtual void OnKeyUpEvent(KeyEventArgs e) { }
@@ -126,9 +126,9 @@ internal class Container : ContainerBase
             container.OnMouseEnter(e);
         }
 
-        protected override void OnMouseLeave()
+        protected override void OnMouseLeave(MouseLeaveEventArgs e)
         {
-            container.OnMouseLeave();
+            container.OnMouseLeave(e);
         }
 
         protected override void OnKeyDownEvent(KeyEventArgs e)

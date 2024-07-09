@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.GUI.Input;
 using TuneLab.Base.Utils;
+using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;
 
@@ -62,6 +63,9 @@ internal class View : Container
 
     protected Item? HoverItem()
     {
+        if (!this.Rect().Contains(MousePosition))
+            return null;
+
         if (!mDetectedHover)
         {
             mHoverItem = ItemAt(MousePosition);

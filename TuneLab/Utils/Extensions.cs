@@ -161,15 +161,10 @@ internal static class Extensions
     public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, double fontSize, int alignment, Typeface? typeface = null)
     {
         typeface ??= Typeface.Default;
-        context.DrawString(text, point, brush, typeface.Value, fontSize, alignment);
-    }
-
-    public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, Typeface typeface, double fontSize, int alignment)
-    {
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        var formattedText = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, fontSize, brush);
+        var formattedText = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface.Value, fontSize, brush);
         var (x, y) = alignment.Offset(formattedText.Width, formattedText.Height);
         context.DrawText(formattedText, point + new Avalonia.Point(x, y));
     }

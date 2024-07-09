@@ -27,6 +27,7 @@ internal class MouseDownEventArgs : MouseButtonEventArgs { public bool IsDoubleC
 internal class MouseMoveEventArgs : MouseEventArgs { }
 internal class MouseUpEventArgs : MouseButtonEventArgs { public bool IsClick { get; set; } }
 internal class MouseEnterEventArgs : MouseEventArgs { }
+internal class MouseLeaveEventArgs : MouseEventArgs { }
 
 internal class WheelEventArgs : MouseEventArgs
 {

@@ -61,7 +61,7 @@ internal class Button : Component
         CorrectColor();
     }
 
-    protected override void OnMouseLeave()
+    protected override void OnMouseLeave(MouseLeaveEventArgs e)
     {
         CorrectColor();
     }

@@ -1057,7 +1057,7 @@ internal partial class PianoScrollView
         InvalidateVisual();
     }
 
-    protected override void OnMouseLeave()
+    protected override void OnMouseLeave(MouseLeaveEventArgs e)
     {
         InvalidateVisual();
     }

@@ -551,14 +551,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
             if (!double.IsNaN(frequencyPosition.Y))
             {
                 context.DrawEllipse(hoverVibratoItem is VibratoFrequencyItem || mVibratoFrequencyOperation.IsOperating ? frequencyBrush : null, frequencyPen, frequencyPosition, 6, 6);
-                context.DrawString("Frequency: " + hoverVibrato.Frequency.Value.ToString("F2"), frequencyPosition - new Point(0, 18), textBrush, new Typeface(Assets.NotoMono), 12, Alignment.Center);
+                context.DrawString("Frequency: " + hoverVibrato.Frequency.Value.ToString("F2"), frequencyPosition - new Point(0, 18), textBrush, 12, Alignment.Center, new Typeface(Assets.NotoMono));
             }
 
             var phasePosition = hoverVibratoItem.PhasePosition();
             if (!double.IsNaN(phasePosition.Y))
             {
                 context.DrawEllipse(hoverVibratoItem is VibratoPhaseItem || mVibratoPhaseOperation.IsOperating ? phaseBrush : null, phasePen, phasePosition, 6, 6);
-                context.DrawString("Phase: " + hoverVibrato.Phase.Value.ToString("+0.00;-0.00"), phasePosition + new Point(0, 18), textBrush, new Typeface(Assets.NotoMono), 12, Alignment.Center);
+                context.DrawString("Phase: " + hoverVibrato.Phase.Value.ToString("+0.00;-0.00"), phasePosition + new Point(0, 18), textBrush, 12, Alignment.Center, new Typeface(Assets.NotoMono));
             }
 
             var attackPosition = hoverVibratoItem.AttackPosition();

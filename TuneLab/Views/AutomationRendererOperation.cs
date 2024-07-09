@@ -155,7 +155,7 @@ internal partial class AutomationRenderer
         InvalidateVisual();
     }
 
-    protected override void OnMouseLeave()
+    protected override void OnMouseLeave(MouseLeaveEventArgs e)
     {
         InvalidateVisual();
     }
