@@ -42,7 +42,7 @@ internal class GainSlider : AbstractSlider
     protected override Point StartPoint => new(2, 0);
     protected override Point EndPoint => new(Bounds.Width - 2, 0);
 
-    protected override void OnDraw(DrawingContext context)
+    public override void Render(DrawingContext context)
     {
         context.FillRectangle(Brushes.Transparent, this.Rect());
         const double height = 6;

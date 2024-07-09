@@ -10,7 +10,7 @@ using TuneLab.Base.Utils;
 
 namespace TuneLab.GUI.Components;
 
-internal abstract class AbstractSlider : Panel
+internal abstract class AbstractSlider : Container
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
@@ -63,8 +63,6 @@ internal abstract class AbstractSlider : Panel
         mThumb.ObjectWillChange.Subscribe(() => { if (mThumb.Object == null) return; Children.Remove(mThumb.Object); }, s);
         mThumb.ObjectChanged.Subscribe(() => { if (mThumb.Object == null) return; Children.Add(mThumb.Object); }, s);
         ValueChanged.Subscribe(RefreshUI);
-        mSliderArea = new(this);
-        Children.Add(mSliderArea);
     }
 
     ~AbstractSlider()
@@ -88,14 +86,9 @@ internal abstract class AbstractSlider : Panel
     protected abstract Avalonia.Point StartPoint { get; }
     protected abstract Avalonia.Point EndPoint { get; }
 
-    protected virtual void OnDraw(DrawingContext context)
-    {
-
-    }
-
     bool mLastDownIsDoubleClick = false;
 
-    protected void OnMouseDown(MouseDownEventArgs e)
+    protected override void OnMouseDown(MouseDownEventArgs e)
     {
         if (e.MouseButtonType != MouseButtonType.PrimaryButton)
             return;
@@ -111,15 +104,15 @@ internal abstract class AbstractSlider : Panel
         MoveTo(e.Position);
     }
 
-    protected void OnMouseMove(MouseMoveEventArgs e)
+    protected override void OnMouseMove(MouseMoveEventArgs e)
     {
-        if (!mSliderArea.IsPrimaryButtonPressed)
+        if (!IsPrimaryButtonPressed)
             return;
 
         MoveTo(e.Position);
     }
 
-    protected void OnMouseUp(MouseUpEventArgs e)
+    protected override void OnMouseUp(MouseUpEventArgs e)
     {
         if (e.MouseButtonType != MouseButtonType.PrimaryButton)
             return;
@@ -133,9 +126,8 @@ internal abstract class AbstractSlider : Panel
         mValueCommited.Invoke();
     }
 
-    protected override Size ArrangeOverride(Size finalSize)
+    protected override Size OnArrangeOverride(Size finalSize)
     {
-        mSliderArea.Arrange(new(finalSize));
         if (double.IsNaN(mValue))
             return finalSize;
 
@@ -202,31 +194,8 @@ internal abstract class AbstractSlider : Panel
             mThumb.Object.IsVisible = !double.IsNaN(mValue);
 
         InvalidateArrange();
-        mSliderArea.InvalidateVisual();
+        InvalidateVisual();
         mValueDisplayed.Invoke();
-    }
-
-    class SliderArea(AbstractSlider slider) : Component
-    {
-        protected override void OnMouseDown(MouseDownEventArgs e)
-        {
-            slider.OnMouseDown(e);
-        }
-
-        protected override void OnMouseMove(MouseMoveEventArgs e)
-        {
-            slider.OnMouseMove(e);
-        }
-
-        protected override void OnMouseUp(MouseUpEventArgs e)
-        {
-            slider.OnMouseUp(e);
-        }
-
-        public override void Render(DrawingContext context)
-        {
-            slider.OnDraw(context);
-        }
     }
 
     double mMinValue = 0;
@@ -235,7 +204,6 @@ internal abstract class AbstractSlider : Panel
     bool mIsInterger = false;
     double mValue = 0;
 
-    readonly SliderArea mSliderArea;
     readonly Owner<AbstractThumb> mThumb = new();
 
     readonly ActionEvent mValueWillChange = new();

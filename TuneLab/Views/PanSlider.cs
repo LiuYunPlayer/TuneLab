@@ -45,7 +45,7 @@ internal class PanSlider : AbstractSlider
     protected override Point StartPoint => new(0, 0);
     protected override Point EndPoint => new(Bounds.Width, 0);
 
-    protected override void OnDraw(DrawingContext context)
+    public override void Render(DrawingContext context)
     {
         context.FillRectangle(Style.BACK.ToBrush(), this.Rect());
         if (Thumb == null)
