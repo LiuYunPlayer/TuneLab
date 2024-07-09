@@ -56,7 +56,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
 
     public void RemoveTempoAt(int index)
     {
-        if (index < 0 || index >= mTempos.Count)
+        if ((uint)index >= Tempos.Count)
             return;
 
         BeginMergeNotify();
@@ -67,7 +67,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
 
     public void SetBpm(int index, double bpm)
     {
-        if (index < 0 || index >= Tempos.Count)
+        if ((uint)index >= Tempos.Count)
             return;
 
         BeginMergeNotify();
@@ -137,21 +137,21 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
     class TempoForTempoManager : DataObject, ITempo, ITempoHelper
     {
         public DataStruct<double> Pos { get; } = new();
-        public DataStruct<double> Bpm { get; } = new();
+        public DataStruct<double> Bpm => mBpm;
         public double Time { get; set; }
-        public double Coe { get; private set; }
+        public double Coe => mBpm.Coe;
 
         double ITempoHelper.Pos => Pos;
         double ITempoHelper.Bpm => Bpm;
 
         double ITempo.Pos => Pos;
         double ITempo.Bpm => Bpm;
+        BPM mBpm { get; } = new();
 
         public TempoForTempoManager(TempoInfo info)
         {
             Pos.Attach(this);
             Bpm.Attach(this);
-            Bpm.Modified.Subscribe(() => { Coe = Bpm / 60 * MusicTheory.RESOLUTION; });
             IDataObject<TempoInfo>.SetInfo(this, info);
         }
 
@@ -161,6 +161,17 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         {
             IDataObject<TempoInfo>.SetInfo(Pos, info.Pos);
             IDataObject<TempoInfo>.SetInfo(Bpm, info.Bpm);
+        }
+
+        class BPM : DataStruct<double>
+        {
+            public double Coe { get; private set; }
+
+            protected override void SetInfo(double info)
+            {
+                base.SetInfo(info);
+                Coe = info / 60 * MusicTheory.RESOLUTION;
+            }
         }
     }
 }

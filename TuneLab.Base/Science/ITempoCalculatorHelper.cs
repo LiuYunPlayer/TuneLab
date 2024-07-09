@@ -69,11 +69,11 @@ public static class ITempoCalculatorHelperExtension
 
     public static double GetTime(this ITempoCalculatorHelper calculator, double tick)
     {
-        return calculator.GetTimes(new double[] { tick })[0];
+        return calculator.GetTimes([tick])[0];
     }
 
     public static double GetTick(this ITempoCalculatorHelper calculator, double time)
     {
-        return calculator.GetTicks(new double[] { time })[0];
+        return calculator.GetTicks([time])[0];
     }
 }
