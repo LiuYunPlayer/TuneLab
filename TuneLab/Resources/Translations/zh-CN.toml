@@ -24,6 +24,7 @@
 "Detected an installed extension. \nDo you want to restart and perform a reinstall?" = "检测到插件已经安装过了。 \n是否需要重启编辑器并重新安装吗？"
 "Track" = "轨道"
 "Export failed: \n" = "导出失败： \n"
+"The file failed to open because it does not exist." = "打开失败，目标文件不存在。"
 
 [Property]
 "Properties" = "属性"
@@ -78,3 +79,5 @@
 "Move Lyrics Backward" = "由此后置歌词"
 
 "Input Lyrics" = "输入歌词"
+
+"Recent Files" = "最近打开的文件"

@@ -47,6 +47,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
     public IProvider<Part> EditingPart => mPianoWindow.PartProvider;
     public bool IsAutoPage => mFunctionBar.IsAutoPage;
+    private MenuItem _recentFilesMenuItem;
     public Editor()
     {
         Background = Style.BACK.ToBrush();
@@ -102,6 +103,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mDocument.StatusChanged += () => { mUndoMenuItem.IsEnabled = mDocument.Undoable(); mRedoMenuItem.IsEnabled = mDocument.Redoable(); };
         mAutoSaveTimer.Tick += (s, e) => { AutoSave(); };
         PathManager.MakeSure(PathManager.AutoSaveFolder);
+        _recentFilesMenuItem = FindOrCreateRecentFilesMenuItem();
+        OpenRecent.Init();
+        OpenRecent.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 
         NewProject();
     }
@@ -366,6 +370,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         mDocument.SetProject(CreateProject(info), path);
+        OpenRecent.AddFile(path);
     }
 
     Project CreateProject(ProjectInfo info)
@@ -410,6 +415,23 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         });
     }
 
+    async public void OpenProjectByPath(string path)
+    {
+        if (!File.Exists(path))
+        {
+            var modal = new Dialog();
+            modal.SetTitle("Tips".Tr(TC.Dialog));
+            modal.SetMessage("The file failed to open because it does not exist.".Tr(TC.Dialog));
+            modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary);
+            modal.Topmost = true;
+            await modal.ShowDialog(this.Window());
+
+            return;
+        }
+
+        LoadProject(path);
+    }
+
     public async Task SaveProject()
     {
         if (!File.Exists(mDocument.Path) || Path.GetExtension(mDocument.Path) != ".tlp")
@@ -418,6 +440,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return;
         }
         SaveToFile(mDocument.Path);
+        OpenRecent.AddFile(mDocument.Path);
     }
 
     public async Task SaveProjectAs()
@@ -439,6 +462,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return;
 
         SaveToFile(path);
+        OpenRecent.AddFile(path);
     }
 
     public async void ExportAs(string extension)
@@ -472,6 +496,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             stream.CopyTo(fileStream);
         }
+        OpenRecent.AddFile(path);
     }
 
     void SaveToFile(string path)
@@ -640,6 +665,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var menuItem = new MenuItem().SetName("Open".Tr(TC.Menu)).SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
+            { 
+                var menuItem = new MenuItem() { Header = "Recent Files".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush() };
+                foreach (var recentFile in OpenRecent.GetRecentFiles())
+                {
+                    var menuItem2 = new MenuItem().SetName(recentFile.FileName).SetAction(() => OpenProjectByPath(recentFile.FilePath));
+                    menuItem.Items.Add(menuItem2);
+                }
+                menuBarItem.Items.Add(menuItem);
+            }
             {
                 var menuItem = new MenuItem().SetName("Save".Tr(TC.Menu)).SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
@@ -769,6 +803,51 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         readonly Editor mEditor;
         readonly ActionEvent mPosChanged = new();
+    }
+
+    private void UpdateRecentFilesMenu()
+    {
+        _recentFilesMenuItem.Items.Clear();
+
+        foreach (var recentFile in OpenRecent.GetRecentFiles())
+        {
+            var menuItem = new MenuItem().SetName(recentFile.FileName).SetAction(() => {
+                OpenProjectByPath(recentFile.FilePath);
+            });
+            _recentFilesMenuItem.Items.Add(menuItem);
+        }
+
+        Menu.Close();
+    }
+
+    private MenuItem FindOrCreateRecentFilesMenuItem()
+    {
+        // Find "File" menu item
+        var fileMenuItem = Menu.Items.FirstOrDefault(item => item is MenuItem menuItem && menuItem.Header.Equals("File".Tr(TC.Menu))) as MenuItem;
+
+        if (fileMenuItem != null)
+        {
+            // Find or create "Recent Files" menu item
+            var recentFilesMenuItem = fileMenuItem.Items.FirstOrDefault(item => item is MenuItem menuItem && menuItem.Header.Equals("Recent Files".Tr(TC.Menu))) as MenuItem;
+
+            if (recentFilesMenuItem != null)
+            {
+                return recentFilesMenuItem;
+            }
+            else
+            {
+                // Create "Recent Files" menu item if not found
+                var newRecentFilesMenuItem = new MenuItem()
+                {
+                    Header = "Recent Files".Tr(TC.Menu),
+                    Foreground = Avalonia.Media.Brushes.Black // Customize as needed
+                };
+                fileMenuItem.Items.Add(newRecentFilesMenuItem);
+                return newRecentFilesMenuItem;
+            }
+        }
+
+        return null;
     }
 
     double mTrackWindowHeight = 240;
