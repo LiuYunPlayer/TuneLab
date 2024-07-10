@@ -28,8 +28,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
 {
     public interface IDependency
     {
-        IActionEvent PianoToolChanged { get; }
-        PianoTool PianoTool { get; }
+        INotifiableProperty<PianoTool> PianoTool { get; }
         IPlayhead Playhead { get; }
         TickAxis TickAxis { get; }
         PitchAxis PitchAxis { get; }
@@ -40,7 +39,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IActionEvent WaveformBottomChanged { get; }
     }
 
-    public bool CanPaste => mDependency.PianoTool switch 
+    public bool CanPaste => mDependency.PianoTool.Value switch 
     { 
         PianoTool.Note => !mNoteClipboard.IsEmpty(), 
         PianoTool.Vibrato => !mVibratoClipboard.IsEmpty(),
@@ -85,7 +84,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
-        mDependency.PianoToolChanged.Subscribe(InvalidateVisual);
+        mDependency.PianoTool.Modified.Subscribe(InvalidateVisual, s);
         TickAxis.AxisChanged += Update;
         PitchAxis.AxisChanged += Update;
         Quantization.QuantizationChanged += InvalidateVisual;
@@ -113,7 +112,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
     ~PianoScrollView()
     {
         s.DisposeAll();
-        mDependency.PianoToolChanged.Unsubscribe(InvalidateVisual);
         TickAxis.AxisChanged -= Update;
         PitchAxis.AxisChanged -= Update;
         Quantization.QuantizationChanged -= InvalidateVisual;
@@ -340,16 +338,16 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (pitchOpacity == 0)
             goto FinishDrawPitch;
 
-        Color pitchColor = mDependency.PianoTool == PianoTool.Note ? Colors.White.Opacity(pitchOpacity * 0.3) : Color.Parse(ConstantDefine.PitchColor).Opacity(pitchOpacity);
+        Color pitchColor = mDependency.PianoTool.Value == PianoTool.Note ? Colors.White.Opacity(pitchOpacity * 0.3) : Color.Parse(ConstantDefine.PitchColor).Opacity(pitchOpacity);
 
         DrawSynthesizedPitch(context, pitchColor);
 
-        if (mDependency.PianoTool == PianoTool.Pitch || mDependency.PianoTool == PianoTool.Lock || mDependency.PianoTool == PianoTool.Anchor)
+        if (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock || mDependency.PianoTool.Value == PianoTool.Anchor)
             context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
 
         DrawVibratos(context);
 
-        if (mDependency.PianoTool == PianoTool.Pitch || mDependency.PianoTool == PianoTool.Lock || mDependency.PianoTool == PianoTool.Vibrato)
+        if (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock || mDependency.PianoTool.Value == PianoTool.Vibrato)
         {
             foreach (var vibrato in Part.Vibratos)
             {
@@ -362,7 +360,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 DrawPitch(context, TickAxis.Tick2X(vibrato.GlobalStartPos()), TickAxis.Tick2X(vibrato.GlobalEndPos()), Part.Pitch.GetValues, pitchColor.Opacity(0.5), 1);
             }
         }
-        DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool == PianoTool.Note ? 1 : 2);
+        DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool.Value == PianoTool.Note ? 1 : 2);
     FinishDrawPitch:
 
         // draw select
@@ -502,7 +500,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     void DrawVibratos(DrawingContext context)
     {
-        if (mDependency.PianoTool != PianoTool.Vibrato)
+        if (mDependency.PianoTool.Value != PianoTool.Vibrato)
             return;
 
         if (Part == null)
@@ -784,7 +782,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             return;
 
         double pos = Part.Pos.Value;
-        switch (mDependency.PianoTool)
+        switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Note:
                 mNoteClipboard = mSelection.IsAcitve ? Part.CopyNotes(mSelection.Start - pos, mSelection.End - pos) : Part.CopyNotes();
@@ -823,7 +821,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (Part == null)
             return;
 
-        switch (mDependency.PianoTool)
+        switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Note:
                 Part.PasteAt(mNoteClipboard, pos);
@@ -859,7 +857,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             return;
 
         double pos = Part.Pos.Value;
-        switch (mDependency.PianoTool)
+        switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Note:
                 if (mSelection.IsAcitve)

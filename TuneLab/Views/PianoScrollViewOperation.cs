@@ -90,7 +90,7 @@ internal partial class PianoScrollView
 
                     return true;
                 }
-                switch (mDependency.PianoTool)
+                switch (mDependency.PianoTool.Value)
                 {
                     case PianoTool.Note:
                         switch (e.MouseButtonType)
@@ -622,7 +622,7 @@ internal partial class PianoScrollView
                 }
                 else
                 {
-                    switch (mDependency.PianoTool)
+                    switch (mDependency.PianoTool.Value)
                     {
                         case PianoTool.Note:
                             if (item is NoteStartResizeItem || item is NoteEndResizeItem)
@@ -823,7 +823,7 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.None:
-                if (e.Key == Key.LeftCtrl && (mDependency.PianoTool == PianoTool.Pitch || mDependency.PianoTool == PianoTool.Lock))
+                if (e.Key == Key.LeftCtrl && (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock))
                 {
                     Cursor = new Cursor(StandardCursorType.Ibeam);
                     e.Handled = true;
@@ -886,7 +886,7 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.None:
-                if (e.Key == Key.LeftCtrl && (mDependency.PianoTool == PianoTool.Pitch || mDependency.PianoTool == PianoTool.Lock))
+                if (e.Key == Key.LeftCtrl && (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock))
                 {
                     Cursor = null;
                     e.Handled = true;
@@ -908,7 +908,7 @@ internal partial class PianoScrollView
         var viewEndTime = tempoManager.GetTime(endPos);
         double partPos = Part.Pos;
 
-        switch (mDependency.PianoTool)
+        switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Note:
                 foreach (var note in Part.Notes)

@@ -27,7 +27,6 @@ internal partial class AutomationRenderer : View
 
     public interface IDependency
     {
-        IActionEvent PianoToolChanged { get; }
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
         IProvider<MidiPart> PartProvider { get; }
@@ -35,7 +34,7 @@ internal partial class AutomationRenderer : View
         string? ActiveAutomation { get; }
         bool IsAutomationVisible(string automationID);
         IReadOnlyList<string> VisibleAutomations { get; }
-        PianoTool PianoTool { get; }
+        INotifiableProperty<PianoTool> PianoTool { get; }
     }
 
     public AutomationRenderer(IDependency dependency)
@@ -51,7 +50,7 @@ internal partial class AutomationRenderer : View
         mDependency.PartProvider.When(p => p.Automations.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Pos.Modified).Subscribe(InvalidateVisual, s);
-        mDependency.PianoToolChanged.Subscribe(Update, s);
+        mDependency.PianoTool.Modified.Subscribe(Update, s);
         mDependency.ActiveAutomationChanged += InvalidateVisual;
         mDependency.VisibleAutomationChanged += InvalidateVisual;
         mDependency.TickAxis.AxisChanged += Update;

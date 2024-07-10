@@ -20,15 +20,13 @@ namespace TuneLab.Views;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
-    public IActionEvent IsAutoPageChanged => mIsAutoPageChanged;
-    public bool IsAutoPage { get => mIsAutoPage; set { if (mIsAutoPage == value) return; mIsAutoPage = value; mIsAutoPageChanged.Invoke(); } }
+    public INotifiableProperty<bool> IsAutoPage { get; } = new NotifiableProperty<bool>(false);
 
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
 
     public interface IDependency
     {
-        public IActionEvent PianoToolChanged { get; }
-        public PianoTool PianoTool { get; set; }
+        public INotifiableProperty<PianoTool> PianoTool { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -67,8 +65,8 @@ internal class FunctionBar : LayerPanel
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.AutoPage }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
 
                 SetupToolTip(autoPageButton, "Auto Scroll");
-                autoPageButton.Switched += () => mIsAutoPage = autoPageButton.IsChecked;
-                mIsAutoPageChanged.Subscribe(() => { autoPageButton.Display(mIsAutoPage); });
+                autoPageButton.Switched += () => IsAutoPage.Value = autoPageButton.IsChecked;
+                IsAutoPage.Modified.Subscribe(() => { autoPageButton.Display(IsAutoPage.Value); });
                 audioControlPanel.Children.Add(autoPageButton);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
@@ -114,12 +112,12 @@ internal class FunctionBar : LayerPanel
                         .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                     void OnPianoToolChanged()
                     {
-                        toggle.Display(mDependency.PianoTool == tool);
+                        toggle.Display(mDependency.PianoTool.Value == tool);
                     }
                     SetupToolTip(toggle, tipText);
                     toggle.AllowSwitch += () => !toggle.IsChecked;
-                    toggle.Switched += () => mDependency.PianoTool = tool;
-                    mDependency.PianoToolChanged.Subscribe(OnPianoToolChanged);
+                    toggle.Switched += () => mDependency.PianoTool.Value = tool;
+                    mDependency.PianoTool.Modified.Subscribe(OnPianoToolChanged);
                     pianoToolPanel.Children.Add(toggle);
                     OnPianoToolChanged();
                 }
@@ -146,8 +144,6 @@ internal class FunctionBar : LayerPanel
         }
     }
 
-    bool mIsAutoPage = false;
-    readonly ActionEvent mIsAutoPageChanged = new();
     readonly ActionEvent<QuantizationBase, QuantizationDivision> mQuantizationChanged = new();
 
     readonly IDependency mDependency;
