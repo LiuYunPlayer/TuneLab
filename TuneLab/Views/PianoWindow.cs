@@ -19,7 +19,6 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
 {
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
-    public IActionEvent PianoToolChanged => mPianoToolChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
@@ -34,7 +33,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     public PianoScrollView PianoScrollView => mPianoScrollView;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
-    public PianoTool PianoTool { get => mPianoTool; set { if (mPianoTool == value) return; mPianoTool = value; mPianoToolChanged.Invoke(); } }
+    public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(Views.PianoTool.Note);
     public bool IsAutoPage => mDependency.IsAutoPage;
     public string? ActiveAutomation
     {
@@ -187,12 +186,12 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
                 }
                 else if (e.Match(Key.A, ModifierKeys.Ctrl))
                 {
-                    switch (mPianoTool)
+                    switch (PianoTool.Value)
                     {
-                        case PianoTool.Note:
+                        case Views.PianoTool.Note:
                             Part?.Notes.SelectAllItems();
                             break;
-                        case PianoTool.Vibrato:
+                        case Views.PianoTool.Vibrato:
                             Part?.Vibratos.SelectAllItems();
                             break;
                         default:
@@ -248,9 +247,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
 
     string? mActiveAutomation;
     readonly List<string> mVisibleAutomations = new();
-    PianoTool mPianoTool = PianoTool.Note;
 
-    readonly ActionEvent mPianoToolChanged = new();
     readonly ActionEvent mWaveformBottomChanged = new();
 
     readonly Quantization mQuantization;
