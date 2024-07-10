@@ -168,7 +168,7 @@ internal partial class AutomationRenderer
         double startPos = TickAxis.MinVisibleTick;
         double endPos = TickAxis.MaxVisibleTick;
 
-        switch (mDependency.PianoTool)
+        switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Vibrato:
                 var automationID = mDependency.ActiveAutomation;

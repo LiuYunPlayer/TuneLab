@@ -46,7 +46,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IPlayhead Playhead => mPlayhead;
     public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
     public IProvider<Part> EditingPart => mPianoWindow.PartProvider;
-    public bool IsAutoPage => mFunctionBar.IsAutoPage;
+    public bool IsAutoPage => mFunctionBar.IsAutoPage.Value;
     public Editor()
     {
         Background = Style.BACK.ToBrush();
