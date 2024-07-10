@@ -192,6 +192,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (Project == null)
             return;
 
+        SwitchEditingPart(null);
         StopAutoSynthesis();
         mAutoSaveTimer.Stop();
         ClearAutoSaveFile();

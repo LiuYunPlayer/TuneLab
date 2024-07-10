@@ -105,8 +105,20 @@ namespace TuneLab.Views
                     }
 
                     mEditor.Document.SetSavePath(path);
-                    mEditor.Project?.Set(info);
-                    mEditor.Project?.Commit();
+                    if (mEditor.Project == null)
+                        return;
+
+                    mEditor.Project.Set(info);
+                    mEditor.Project.Commit();
+                    foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
+                    {
+                        if (part is MidiPart midiPart)
+                        {
+                            mEditor.SwitchEditingPart(midiPart);
+                            break;
+                        }
+                    }
+
                 };
                 modal.Topmost = true;
                 await modal.ShowDialog(this);
