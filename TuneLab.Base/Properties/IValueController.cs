@@ -11,26 +11,26 @@ namespace TuneLab.Base.Properties;
 
 public interface IValueController<T>
 {
-    IActionEvent ValueWillChange { get; }
-    IActionEvent ValueChanged { get; }
+    IActionEvent ValueWillChange => ActionEvent.Empty;
+    IActionEvent ValueChanged => ActionEvent.Empty;
     IActionEvent ValueCommited { get; }
     T Value { get; }
     void Display(T value);
-    void DisplayNull();
-    void DisplayMultiple();
+    void DisplayNull() { }
+    void DisplayMultiple() { }
 }
 
 public static class IValueControllerExtension
 {
     public static void Bind<T>(this IValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider, DisposableManager? context = null) where T : notnull
     {
-        var binding = new Binding<T>(controller, propertyProvider);
+        var binding = new DataPropertyProviderBinding<T>(controller, propertyProvider);
         context?.Add(binding);
     }
 
-    class Binding<T> : IDisposable where T : notnull
+    class DataPropertyProviderBinding<T> : IDisposable where T : notnull
     {
-        public Binding(IValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider)
+        public DataPropertyProviderBinding(IValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider)
         {
             mController = controller;
             mPropertyProvider = propertyProvider;
@@ -93,5 +93,32 @@ public static class IValueControllerExtension
 
         readonly IValueController<T> mController;
         readonly IProvider<IDataProperty<T>> mPropertyProvider;
+    }
+
+    public static void Bind<T>(this IValueController<T> controller, INotifiableProperty<T> property, bool syncWhileModifying = false, DisposableManager? context = null)
+    {
+        var binding = new NotifiablePropertyBinding<T>(controller, property, syncWhileModifying);
+        context?.Add(binding);
+    }
+
+    class NotifiablePropertyBinding<T> : IDisposable
+    {
+        public NotifiablePropertyBinding(IValueController<T> controller, INotifiableProperty<T> property, bool syncWhileModifying)
+        {
+            void SyncPropertyValue() => property.Value = controller.Value;
+
+            if (syncWhileModifying)
+                controller.ValueChanged.Subscribe(SyncPropertyValue);
+
+            controller.ValueCommited.Subscribe(SyncPropertyValue);
+            property.Modified.Subscribe(() => controller.Display(property.Value));
+        }
+
+        public void Dispose()
+        {
+            s.DisposeAll();
+        }
+
+        readonly DisposableManager s = new();
     }
 }

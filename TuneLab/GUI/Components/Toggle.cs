@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Base.Event;
+using TuneLab.Base.Properties;
 
 namespace TuneLab.GUI.Components;
 
@@ -14,12 +15,15 @@ internal class ToggleContent
     public ColorSet CheckedColorSet;
 }
 
-internal class Toggle : Button
+internal class Toggle : Button, IValueController<bool>
 {
     public event Func<bool>? AllowSwitch;
-    public event Action? Switched;
+    public IActionEvent Switched => mSwitched;
 
     public bool IsChecked { get; private set; }
+
+    public IActionEvent ValueCommited => Switched;
+    public bool Value => IsChecked;
 
     public Toggle()
     {
@@ -29,7 +33,7 @@ internal class Toggle : Button
                 return;
 
             IsChecked = !IsChecked;
-            Switched?.Invoke();
+            mSwitched.Invoke();
             foreach (var kvp in mContentMap)
             {
                 kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
@@ -55,5 +59,6 @@ internal class Toggle : Button
         CorrectColor();
     }
 
+    readonly ActionEvent mSwitched = new();
     Dictionary<ToggleContent, ButtonContent> mContentMap = new();
 }

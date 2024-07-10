@@ -23,12 +23,12 @@ internal class CheckBoxController : DockPanel, IValueController<bool>
     {
         Children.Add(mCheckBox);
 
-        mCheckBox.Switched += () =>
+        mCheckBox.Switched.Subscribe(() =>
         {
             mValueWillChange.Invoke();
             mValueChanged.Invoke();
             mValueCommited.Invoke();
-        };
+        });
     }
 
     public void Display(bool value)

@@ -28,6 +28,13 @@ public class ActionEvent : IActionEvent
     }
 
     event Action? Action;
+
+    public readonly static IActionEvent Empty = new EmptyEvent();
+    class EmptyEvent : IActionEvent
+    {
+        public void Subscribe(Action invokable) { }
+        public void Unsubscribe(Action invokable) { }
+    }
 }
 
 public class ActionEvent<T> : IActionEvent<T>
@@ -50,6 +57,13 @@ public class ActionEvent<T> : IActionEvent<T>
     }
 
     event Action<T>? Action;
+
+    public readonly static IActionEvent<T> Empty = new EmptyEvent();
+    class EmptyEvent : IActionEvent<T>
+    {
+        public void Subscribe(Action<T> invokable) { }
+        public void Unsubscribe(Action<T> invokable) { }
+    }
 }
 
 public class ActionEvent<T1, T2> : IActionEvent<T1, T2>
@@ -72,6 +86,13 @@ public class ActionEvent<T1, T2> : IActionEvent<T1, T2>
     }
 
     event Action<T1, T2>? Action;
+
+    public readonly static IActionEvent<T1, T2> Empty = new EmptyEvent();
+    class EmptyEvent : IActionEvent<T1, T2>
+    {
+        public void Subscribe(Action<T1, T2> invokable) { }
+        public void Unsubscribe(Action<T1, T2> invokable) { }
+    }
 }
 
 public class ActionEvent<T1, T2, T3> : IActionEvent<T1, T2, T3>
@@ -94,4 +115,11 @@ public class ActionEvent<T1, T2, T3> : IActionEvent<T1, T2, T3>
     }
 
     event Action<T1, T2, T3>? Action;
+
+    public readonly static IActionEvent<T1, T2, T3> Empty = new EmptyEvent();
+    class EmptyEvent : IActionEvent<T1, T2, T3>
+    {
+        public void Subscribe(Action<T1, T2, T3> invokable) { }
+        public void Unsubscribe(Action<T1, T2, T3> invokable) { }
+    }
 }
