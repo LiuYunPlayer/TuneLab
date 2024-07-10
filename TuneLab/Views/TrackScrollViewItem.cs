@@ -19,10 +19,16 @@ internal partial class TrackScrollView
         public TrackScrollView TrackScrollView => trackScrollView;
     }
 
-    class PartItem(TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView)
+    interface IPartItem
     {
-        public IPart Part;
-        public int TrackIndex;
+        IPart Part { get; }
+        int TrackIndex { get; }
+    }
+
+    class PartItem(TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView), IPartItem
+    {
+        public IPart Part { get; set; }
+        public int TrackIndex { get; set; }
 
         public Rect Rect()
         {
@@ -54,10 +60,10 @@ internal partial class TrackScrollView
         }
     }
 
-    class PartNameItem (TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView)
+    class PartNameItem (TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView), IPartItem
     {
-        public IPart Part;
-        public int TrackIndex;
+        public IPart Part { get; set; }
+        public int TrackIndex { get; set; }
 
         public override bool Raycast(Avalonia.Point point)
         {

@@ -118,7 +118,7 @@ internal partial class TrackScrollView
                             var item = ItemAt(e.Position);
                             var position = e.Position;
                             var menu = new ContextMenu();
-                            if (item is PartItem partItem)
+                            if (item is IPartItem partItem)
                             {
                                 {
                                     var part = partItem.Part;
@@ -133,6 +133,11 @@ internal partial class TrackScrollView
                                     }
                                     {
                                         var menuItem = new MenuItem().SetName("Cut".Tr(TC.Menu)).SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
+                                        menu.Items.Add(menuItem);
+                                    }
+
+                                    {
+                                        var menuItem = new MenuItem().SetName("Rename".Tr(TC.Menu)).SetAction(() => { EnterInputPartName(partItem.Part, partItem.TrackIndex); });
                                         menu.Items.Add(menuItem);
                                     }
                                     
