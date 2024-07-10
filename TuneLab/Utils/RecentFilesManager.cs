@@ -5,10 +5,10 @@ using System.Linq;
 
 namespace TuneLab.Utils;
 
-internal static class OpenRecent
+internal static class RecentFilesManager
 {
     private const int MaxFiles = 20;
-    private static readonly string storageFile = Path.Combine(PathManager.ConfigsFolder, "recentFiles.txt");
+    private static readonly string storageFile = Path.Combine(PathManager.ConfigsFolder, "RecentFiles.txt");
     public static event EventHandler RecentFilesChanged;
 
     public static void Init()
