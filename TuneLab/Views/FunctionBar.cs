@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Base.Event;
+using TuneLab.Base.Properties;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -56,7 +57,7 @@ internal class FunctionBar : LayerPanel
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.Play }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                 
                 SetupToolTip(playButton,"Play");
-                playButton.Switched += () => { if (playButton.IsChecked) AudioEngine.Play(); else AudioEngine.Pause(); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause" : "Play"); };
+                playButton.Switched.Subscribe(() => { if (playButton.IsChecked) AudioEngine.Play(); else AudioEngine.Pause(); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause" : "Play"); });
                 AudioEngine.PlayStateChanged += () => { playButton.Display(AudioEngine.IsPlaying);SetupToolTip(playButton, AudioEngine.IsPlaying?"Pause":"Play");};
                 audioControlPanel.Children.Add(playButton);
 
@@ -65,8 +66,7 @@ internal class FunctionBar : LayerPanel
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.AutoPage }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
 
                 SetupToolTip(autoPageButton, "Auto Scroll");
-                autoPageButton.Switched += () => IsAutoPage.Value = autoPageButton.IsChecked;
-                IsAutoPage.Modified.Subscribe(() => { autoPageButton.Display(IsAutoPage.Value); });
+                autoPageButton.Bind(IsAutoPage);
                 audioControlPanel.Children.Add(autoPageButton);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
@@ -116,7 +116,7 @@ internal class FunctionBar : LayerPanel
                     }
                     SetupToolTip(toggle, tipText);
                     toggle.AllowSwitch += () => !toggle.IsChecked;
-                    toggle.Switched += () => mDependency.PianoTool.Value = tool;
+                    toggle.Switched.Subscribe(() => mDependency.PianoTool.Value = tool);
                     mDependency.PianoTool.Modified.Subscribe(OnPianoToolChanged);
                     pianoToolPanel.Children.Add(toggle);
                     OnPianoToolChanged();

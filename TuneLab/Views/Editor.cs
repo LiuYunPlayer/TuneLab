@@ -746,6 +746,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             menu.Items.Add(menuBarItem);
         }
 
+        {
+            var menuBarItem = new MenuItem { Header = "Help".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            {
+                var menuItem = new MenuItem().SetName("TuneLab Forum".Tr(TC.Menu)).SetAction(() => ProcessHelper.OpenUrl("https://forum.tunelab.app"));
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetName("TuneLab GitHub".Tr(TC.Menu)).SetAction(() => ProcessHelper.OpenUrl("https://github.com/LiuYunPlayer/TuneLab"));
+                menuBarItem.Items.Add(menuItem);
+            }
+            menu.Items.Add(menuBarItem);
+        }
+
         return menu;
     }
 
