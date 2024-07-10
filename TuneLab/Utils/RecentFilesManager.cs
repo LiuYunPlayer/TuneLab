@@ -89,7 +89,7 @@ internal static class RecentFilesManager
                     {
                         recentFiles.Add(new FileRecord
                         {
-                            FileName = Path.GetFileName(line),
+                            FileName = Path.Combine(Path.GetFileName(Path.GetDirectoryName(line)), Path.GetFileName(line)),
                             FilePath = line
                         });
                     }
