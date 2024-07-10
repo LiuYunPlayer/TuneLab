@@ -1,6 +1,7 @@
 ﻿using System;
 
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.ReactiveUI;
 
 namespace TuneLab;
@@ -24,6 +25,13 @@ class Program
             .UseSkia()
             .WithInterFont()
             .LogToTrace()
-            .UseReactiveUI();
+            .UseReactiveUI()
+            .With(new FontManagerOptions()
+            {
+                FontFallbacks = 
+                [
+                    new FontFallback() { FontFamily = "Microsoft YaHei" },
+                ]
+            });
     }
 }
