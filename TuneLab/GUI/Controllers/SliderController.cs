@@ -25,10 +25,9 @@ internal class SliderController : DockPanel, IValueController<double>
         Background = Style.INTERFACE.ToBrush();
 
         mEditableLabel = new() { Height = 24, Width = 48, Margin = new(0, 12, 24, 12), Padding = new(0), FontFamily = Assets.NotoMono, FontSize = 12, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
-        Children.Add(mEditableLabel);
-        DockPanel.SetDock(mEditableLabel, Dock.Right);
+        this.AddDock(mEditableLabel, Dock.Right);
 
-        Children.Add(mSlider);
+        this.AddDock(mSlider);
 
         mEditableLabel.EndInput.Subscribe(() =>
         {
@@ -53,15 +52,20 @@ internal class SliderController : DockPanel, IValueController<double>
         mSlider.DefaultValue = value;
     }
 
-    public void Display(object? value)
-    {
-        Display(value is double d ? d : double.NaN);
-    }
-
     public void Display(double value)
     {
         mSlider.Display(value);
         RefreshLabel();
+    }
+
+    public void DisplayNull()
+    {
+        Display(double.NaN);
+    }
+
+    public void DisplayMultiple()
+    {
+        Display(double.NaN);
     }
 
     protected string GetValueString()

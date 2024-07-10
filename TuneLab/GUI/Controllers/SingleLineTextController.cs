@@ -19,7 +19,7 @@ using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class SingleLineTextController : StackPanel
+internal class SingleLineTextController : StackPanel, IValueController<string>
 {
     public IActionEvent ValueWillChange => mTextInput.EnterInput;
     public IActionEvent ValueChanged => mTextInput.TextChanged;
@@ -43,6 +43,16 @@ internal class SingleLineTextController : StackPanel
     public void Display(string text)
     {
         mTextInput.Display(text);
+    }
+
+    public void DisplayNull()
+    {
+        mTextInput.Display("-");
+    }
+
+    public void DisplayMultiple()
+    {
+        mTextInput.Display("(Multiple)");
     }
 
     readonly TextInput mTextInput;

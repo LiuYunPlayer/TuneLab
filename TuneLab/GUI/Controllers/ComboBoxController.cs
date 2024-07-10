@@ -9,42 +9,48 @@ using TuneLab.Base.Event;
 using TuneLab.Base.Properties;
 using TuneLab.GUI.Components;
 using TuneLab.Base.Utils;
-using System.Runtime.InteropServices.ComTypes;
-using TuneLab.Base.Data;
 using System.Threading;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class ComboBoxController : DockPanel, IValueController<string>
+internal class ComboBoxController : DropDown, IValueController<string>, IValueController<int>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
     public IActionEvent ValueCommited => mValueCommited;
     public string Value { get => mValue; set { SetValue((uint)Options.IndexOf(value) < Options.Count ? value : mConfig.DefaultValue); Display(Value); } }
-
-    public int SelectedIndex => mDropDown.SelectedIndex;
+    public int Index { get => Options.IndexOf(Value); }
+    int IValueController<int>.Value => Index;
     public IReadOnlyList<string> Options => mConfig.Options;
 
     public ComboBoxController()
     {
-        Children.Add(mDropDown);
-        mDropDown.SelectionChanged += OnDropDownSelectionChanged;
+        Height = 28;
+        SelectionChanged += OnDropDownSelectionChanged;
     }
 
     public void SetConfig(EnumConfig config)
     {
         mConfig = config;
-        mDropDown.Items.Clear();
+        Items.Clear();
         foreach (var option in config.Options)
         {
-            mDropDown.Items.Add(option);
+            Items.Add(option);
         }
         Display(config.DefaultValue);
     }
 
-    public void Display(object? value)
+    public void Display(int value)
     {
-        Display(value is string s ? s : string.Empty);
+        if ((uint)value >= Options.Count)
+        {
+            value = -1;
+            PlaceholderText = "-";
+        }
+
+        acceptSelectionChanged = false;
+        SelectedIndex = value;
+        acceptSelectionChanged = true;
     }
 
     public void Display(string value)
@@ -54,19 +60,32 @@ internal class ComboBoxController : DockPanel, IValueController<string>
         int index = Options.IndexOf(mValue);
         if ((uint)index < Options.Count)
         {
-            mDropDown.SelectedIndex = index;
+            SelectedIndex = index;
         }
         else
         {
-            mDropDown.PlaceholderText = mValue;
-            mDropDown.SelectedIndex = -1;
+            PlaceholderText = mValue;
+            SelectedIndex = -1;
         }
         acceptSelectionChanged = true;
     }
 
-    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    public void DisplayNull()
     {
-        mDropDown.Width = e.NewSize.Width - 48;
+        mValue = string.Empty;
+        acceptSelectionChanged = false;
+        PlaceholderText = "(Null)";
+        SelectedIndex = -1;
+        acceptSelectionChanged = true;
+    }
+
+    public void DisplayMultiple()
+    {
+        mValue = string.Empty;
+        acceptSelectionChanged = false;
+        PlaceholderText = "(Multiple)";
+        SelectedIndex = -1;
+        acceptSelectionChanged = true;
     }
 
     bool acceptSelectionChanged = true;
@@ -93,7 +112,6 @@ internal class ComboBoxController : DockPanel, IValueController<string>
     ActionEvent mValueChanged = new();
     ActionEvent mValueCommited = new();
 
-    DropDown mDropDown = new() { Height = 28, Margin = new(24, 12) };
     EnumConfig mConfig = new([]);
     string mValue = string.Empty;
 }

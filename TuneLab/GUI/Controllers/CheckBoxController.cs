@@ -31,20 +31,25 @@ internal class CheckBoxController : DockPanel, IValueController<bool>
         };
     }
 
-    public void Display(object? value)
+    public void Display(bool value)
     {
-        mCheckBox.Background = value == null ? Colors.Transparent : Style.HIGH_LIGHT;
-        if (value is bool boolValue)
-        {
-            if (boolValue)
-                mCheckBox.CheckIcon = Assets.Check;
-            mCheckBox.Display(boolValue);
-        }
-        else
-        {
-            mCheckBox.CheckIcon = Assets.Hyphen;
-            mCheckBox.Display(true);
-        }
+        mCheckBox.Background = Style.HIGH_LIGHT;
+        mCheckBox.CheckIcon = Assets.Check;
+        mCheckBox.Display(value);
+    }
+
+    public void DisplayNull()
+    {
+        mCheckBox.Background = Colors.Transparent;
+        mCheckBox.CheckIcon = Assets.Hyphen;
+        mCheckBox.Display(false);
+    }
+
+    public void DisplayMultiple()
+    {
+        mCheckBox.Background = Style.HIGH_LIGHT;
+        mCheckBox.CheckIcon = Assets.Hyphen;
+        mCheckBox.Display(true);
     }
 
     readonly ActionEvent mValueWillChange = new();

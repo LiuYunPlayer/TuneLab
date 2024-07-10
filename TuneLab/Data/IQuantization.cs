@@ -26,6 +26,12 @@ internal static class IQuantizationExtension
         return MusicTheory.RESOLUTION / quantization.Level();
     }
 
+    public static void Set(this IQuantization quantization, MusicTheory.QuantizationBase quantizationBase, MusicTheory.QuantizationDivision quantizationDivision)
+    {
+        quantization.Base = quantizationBase;
+        quantization.Division = quantizationDivision;
+    }
+
     public static void Set(this IQuantization quantization, int level)
     {
         switch (level)

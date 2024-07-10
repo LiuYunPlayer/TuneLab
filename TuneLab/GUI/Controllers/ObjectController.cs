@@ -242,12 +242,12 @@ internal class ObjectController : StackPanel
             if (propertyValue.ToDouble(out var value))
                 mSliderController.Display(value);
             else
-                mSliderController.Display(double.NaN);
+                mSliderController.DisplayMultiple();
         }
 
         public void DisplayNull()
         {
-            mSliderController.Display(double.NaN);
+            mSliderController.DisplayNull();
         }
 
         void OnValueWillChange()
@@ -304,12 +304,12 @@ internal class ObjectController : StackPanel
             if (propertyValue.ToString(out var value))
                 mSingleLineTextController.Display(value);
             else
-                mSingleLineTextController.Display("-");
+                mSingleLineTextController.DisplayMultiple();
         }
 
         public void DisplayNull()
         {
-            mSingleLineTextController.Display("-");
+            mSingleLineTextController.DisplayNull();
         }
 
         void OnValueWillChange()
@@ -342,6 +342,8 @@ internal class ObjectController : StackPanel
             mLabelCreator = new LabelCreator(controller, key);
 
             mComboBoxController = ObjectPoolManager.Get<ComboBoxController>();
+            mComboBoxController.Margin = new(24, 12);
+            mComboBoxController.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
             mComboBoxController.SetConfig(config);
             mComboBoxController.Display(config.DefaultValue);
             mComboBoxController.ValueWillChange.Subscribe(OnValueWillChange);
@@ -367,12 +369,12 @@ internal class ObjectController : StackPanel
             if (propertyValue.ToString(out var value))
                 mComboBoxController.Display(value);
             else
-                mComboBoxController.Display("-");
+                mComboBoxController.DisplayMultiple();
         }
 
         public void DisplayNull()
         {
-            mComboBoxController.Display("-");
+            mComboBoxController.DisplayNull();
         }
 
         void OnValueWillChange()
@@ -435,12 +437,12 @@ internal class ObjectController : StackPanel
             if (propertyValue.ToBool(out var value))
                 mCheckBoxController.Display(value);
             else
-                mCheckBoxController.Display(new object());
+                mCheckBoxController.DisplayMultiple();
         }
 
         public void DisplayNull()
         {
-            mCheckBoxController.Display(null);
+            mCheckBoxController.DisplayNull();
         }
 
         void OnValueWillChange()

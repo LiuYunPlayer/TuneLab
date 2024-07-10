@@ -15,7 +15,9 @@ public interface IValueController<T>
     IActionEvent ValueChanged { get; }
     IActionEvent ValueCommited { get; }
     T Value { get; }
-    void Display(object? value);
+    void Display(T value);
+    void DisplayNull();
+    void DisplayMultiple();
 }
 
 public static class IValueControllerExtension
@@ -70,7 +72,7 @@ public static class IValueControllerExtension
             {
                 if (Property == null)
                 {
-                    mController.Display(null);
+                    mController.DisplayNull();
                 }
                 else
                 {

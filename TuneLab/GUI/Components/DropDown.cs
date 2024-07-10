@@ -28,6 +28,8 @@ internal class DropDown : ComboBox
         Foreground = Style.LIGHT_WHITE.ToBrush();
         PlaceholderForeground = Style.LIGHT_WHITE.ToBrush();
 
+        Focusable = false;
+
         mStyles = new(this);
         Styles.Add(mStyles);
     }
