@@ -47,7 +47,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
     public IProvider<Part> EditingPart => mPianoWindow.PartProvider;
     public bool IsAutoPage => mFunctionBar.IsAutoPage.Value;
-    public MenuItem mRecentFilesMenu;
     public Editor()
     {
         Background = Style.BACK.ToBrush();
@@ -652,6 +651,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     [MemberNotNull(nameof(mUndoMenuItem))]
     [MemberNotNull(nameof(mRedoMenuItem))]
+    [MemberNotNull(nameof(mRecentFilesMenu))]
     Menu CreateMenu()
     {
         var menu = new Menu() { Background = Style.BACK.ToBrush(), Height = 40 };
@@ -773,7 +773,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     MenuItem mUndoMenuItem;
     MenuItem mRedoMenuItem;
-    MenuItem mRecentFilesMenuItem;
+    public MenuItem mRecentFilesMenu;
 
     class PlayheadForProject : IPlayhead
     {
