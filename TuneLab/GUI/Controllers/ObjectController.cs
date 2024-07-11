@@ -405,7 +405,7 @@ internal class ObjectController : StackPanel
             mController = controller;
             mKey = key;
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
-            mCheckBoxController = ObjectPoolManager.Get<CheckBoxController>();
+            mCheckBoxController = ObjectPoolManager.Get<Components.CheckBox>();
             mCheckBoxController.Margin = new(24, 12);
             mCheckBoxController.Display(config.DefaultValue);
             mCheckBoxController.ValueWillChange.Subscribe(OnValueWillChange);
@@ -464,7 +464,7 @@ internal class ObjectController : StackPanel
         readonly DockPanel mDockPanel;
         readonly LabelCreator mLabelCreator;
         readonly ObjectController mController;
-        readonly CheckBoxController mCheckBoxController;
+        readonly Components.CheckBox mCheckBoxController;
     }
 
     Map<string, IController> mControllers = new();

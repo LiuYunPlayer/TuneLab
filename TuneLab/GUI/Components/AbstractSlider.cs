@@ -7,10 +7,11 @@ using TuneLab.GUI.Input;
 using TuneLab.Base.Science;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
+using TuneLab.Base.Properties;
 
 namespace TuneLab.GUI.Components;
 
-internal abstract class AbstractSlider : Container
+internal abstract class AbstractSlider : Container, IDataValueController<double>, IDataValueController<int>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
@@ -23,6 +24,8 @@ internal abstract class AbstractSlider : Container
     public bool IsInterger { get => mIsInterger; set { mIsInterger = value; RefreshUI(); } }
     public int IntergerValue => mValue.Round();
     public AbstractThumb? Thumb { get => mThumb.Object; set => mThumb.Set(value); }
+
+    int IValueController<int>.Value => IntergerValue;
 
     public abstract class AbstractThumb(AbstractSlider slider) : MovableComponent
     {
@@ -81,6 +84,21 @@ internal abstract class AbstractSlider : Container
     {
         mValue = value;
         RefreshUI();
+    }
+
+    public void Display(int value)
+    {
+        Display((double)value);
+    }
+
+    public void DisplayNull()
+    {
+        Display(double.NaN);
+    }
+
+    public void DisplayMultiple()
+    {
+        Display(double.NaN);
     }
 
     protected abstract Avalonia.Point StartPoint { get; }

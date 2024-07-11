@@ -15,7 +15,7 @@ internal class ToggleContent
     public ColorSet CheckedColorSet;
 }
 
-internal class Toggle : Button, IMultipleValueController<bool>
+internal class Toggle : Button, IDataValueController<bool>
 {
     public event Func<bool>? AllowSwitch;
     public IActionEvent Switched => mValueChanged;

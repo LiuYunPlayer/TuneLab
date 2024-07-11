@@ -13,7 +13,7 @@ using Slider = TuneLab.GUI.Components.Slider;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class SliderController : DockPanel, IMultipleValueController<double>
+internal class SliderController : DockPanel, IDataValueController<double>
 {
     public IActionEvent ValueWillChange => mSlider.ValueWillChange;
     public IActionEvent ValueChanged => mSlider.ValueChanged;

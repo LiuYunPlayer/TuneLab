@@ -6,11 +6,12 @@ using Avalonia.Styling;
 using System;
 using System.Linq;
 using TuneLab.Base.Event;
+using TuneLab.Base.Properties;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;
 
-internal class TextInput : TextBox
+internal class TextInput : TextBox, IDataValueController<string>
 {
     public new IBrush? Background { get => base.Background; set { base.Background = value; RefreshStyles(); } }
     public new Thickness BorderThickness { get => base.BorderThickness; set { base.BorderThickness = value; RefreshStyles(); } }
@@ -18,6 +19,12 @@ internal class TextInput : TextBox
     public new IActionEvent TextChanged => mTextChanged;
     public IActionEvent EndInput => mEndInput;
     public new string Text { get => base.Text ?? string.Empty; set => base.Text = value; }
+
+    public IActionEvent ValueWillChange => EnterInput;
+    public IActionEvent ValueChanged => TextChanged;
+    public IActionEvent ValueCommited => EndInput;
+    public string Value => Text;
+
     public TextInput()
     {
         MinWidth = 0;
@@ -48,6 +55,16 @@ internal class TextInput : TextBox
     public void Display(string text)
     {
         Text = text;
+    }
+
+    public void DisplayNull()
+    {
+        Text = string.Empty;
+    }
+
+    public void DisplayMultiple()
+    {
+        Text = "(Multiple)";
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

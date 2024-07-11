@@ -13,6 +13,7 @@ using TuneLab.Data;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using TuneLab.Base.Science;
+using TuneLab.Base.Properties;
 using Avalonia.Controls.Primitives;
 using Slider = TuneLab.GUI.Components.Slider;
 using TuneLab.I18N;
@@ -23,21 +24,19 @@ internal class TrackHead : DockPanel
 {
     public TrackHead()
     {
-        mName.EndInput.Subscribe(() => { if (Track == null) return; Track.Name.Set(mName.Text); Track.Name.Commit(); });
+        mName.Bind(mTrackProvider.Select(track => track.Name), s);
         mGainSlider.SetRange(-24, 6);
-        mGainSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; if (value <= mGainSlider.MinValue) value = double.NegativeInfinity; Track.Gain.Discard(); Track.Gain.Set(value); });
-        mGainSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mGainSlider.Value; if (value <= mGainSlider.MinValue) value = double.NegativeInfinity; Track.Gain.Discard(); Track.Gain.Set(value); Track.Gain.Commit(); });
+        mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).Bind(mTrackProvider.Select(track => track.Gain), s);
         mPanSlider.SetRange(-1, 1);
-        mPanSlider.ValueChanged.Subscribe(() => { if (Track == null) return; var value = mPanSlider.Value; Track.Pan.Discard(); Track.Pan.Set(value); });
-        mPanSlider.ValueCommited.Subscribe(() => { if (Track == null) return; var value = mPanSlider.Value; Track.Pan.Discard(); Track.Pan.Set(value); Track.Pan.Commit(); });
+        mPanSlider.Bind(mTrackProvider.Select(track => track.Pan), s);
         mMuteToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 0, 186, 173) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.M }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mMuteToggle.Switched.Subscribe(() => { if (Track == null) return; Track.IsMute.Set(mMuteToggle.IsChecked); Track.IsMute.Commit(); });
+        mMuteToggle.Bind(mTrackProvider.Select(track => track.IsMute), s);
         mSoloToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 135, 84, 255) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mSoloToggle.Switched.Subscribe(() => { if (Track == null) return; Track.IsSolo.Set(mSoloToggle.IsChecked); Track.IsSolo.Commit(); });
+        mSoloToggle.Bind(mTrackProvider.Select(track => track.IsSolo), s);
         mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
         var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {
@@ -64,11 +63,6 @@ internal class TrackHead : DockPanel
         }
         this.AddDock(bottomArea);
 
-        mTrackProvider.When(track => track.Name.Modified).Subscribe(() => { if (Track == null) return; mName.Text = Track.Name.Value; }, s);
-        mTrackProvider.When(track => track.Gain.Modified).Subscribe(() => { if (Track == null) return; mGainSlider.Display(Track.Gain.Value); }, s);
-        mTrackProvider.When(track => track.Pan.Modified).Subscribe(() => { if (Track == null) return; mPanSlider.Display(Track.Pan.Value); }, s);
-        mTrackProvider.When(track => track.IsMute.Modified).Subscribe(() => { if (Track == null) return; mMuteToggle.Display(Track.IsMute.Value); }, s);
-        mTrackProvider.When(track => track.IsSolo.Modified).Subscribe(() => { if (Track == null) return; mSoloToggle.Display(Track.IsSolo.Value); }, s);
         mTrackProvider.When(track => track.Color.Modified).Subscribe(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); }, s);
         mTrackProvider.ObjectWillChange.Subscribe(() =>
         {

@@ -13,7 +13,7 @@ using System.Threading;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class ComboBoxController : DropDown, IMultipleValueController<string>, IMultipleValueController<int>
+internal class ComboBoxController : DropDown, IDataValueController<string>, IDataValueController<int>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;

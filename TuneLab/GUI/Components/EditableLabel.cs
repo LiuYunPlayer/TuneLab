@@ -7,12 +7,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Base.Event;
+using TuneLab.Base.Properties;
 using TuneLab.Base.Utils;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Components;
 
-internal class EditableLabel : LayerPanel
+internal class EditableLabel : LayerPanel, IDataValueController<string>
 {
     public IActionEvent EndInput => mEndInput;
     public Thickness Padding { get => mTextInput.Padding; set { mTextBlock.Padding = value; mTextInput.Padding = value; } }
@@ -26,6 +27,11 @@ internal class EditableLabel : LayerPanel
     public IBrush? InputForeground { get => mTextInput.Foreground; set => mTextInput.Foreground = value; }
     public IBrush? InputBackground { get => mTextInput.Background; set => mTextInput.Background = value; }
     public string Text { get => mTextBlock.Text ?? string.Empty; set => mTextBlock.Text = value; }
+
+    public IActionEvent ValueWillChange => mTextInput.ValueWillChange;
+    public IActionEvent ValueChanged => mTextInput.ValueChanged;
+    public IActionEvent ValueCommited => mEndInput;
+    public string Value => mTextInput.IsVisible ? mTextInput.Value : Text;
 
     public EditableLabel()
     {
@@ -55,4 +61,19 @@ internal class EditableLabel : LayerPanel
     TextInput mTextInput = new TextInput() { IsVisible = false };
 
     readonly ActionEvent mEndInput = new();
+
+    public void Display(string value)
+    {
+        Text = value;
+    }
+
+    public void DisplayNull()
+    {
+        Text = string.Empty;
+    }
+
+    public void DisplayMultiple()
+    {
+        Text = "(Multiple)";
+    }
 }
