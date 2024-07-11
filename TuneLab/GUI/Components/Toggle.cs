@@ -15,14 +15,15 @@ internal class ToggleContent
     public ColorSet CheckedColorSet;
 }
 
-internal class Toggle : Button, IValueController<bool>
+internal class Toggle : Button, IMultipleValueController<bool>
 {
     public event Func<bool>? AllowSwitch;
-    public IActionEvent Switched => mSwitched;
-
+    public IActionEvent Switched => mValueChanged;
     public bool IsChecked { get; private set; }
 
-    public IActionEvent ValueCommited => Switched;
+    public IActionEvent ValueWillChange => mValueWillChange;
+    public IActionEvent ValueChanged => mValueChanged;
+    public IActionEvent ValueCommited => mValueCommited;
     public bool Value => IsChecked;
 
     public Toggle()
@@ -32,8 +33,10 @@ internal class Toggle : Button, IValueController<bool>
             if (AllowSwitch != null && !AllowSwitch())
                 return;
 
+            mValueWillChange.Invoke();
             IsChecked = !IsChecked;
-            mSwitched.Invoke();
+            mValueChanged.Invoke();
+            mValueCommited.Invoke();
             foreach (var kvp in mContentMap)
             {
                 kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
@@ -59,6 +62,8 @@ internal class Toggle : Button, IValueController<bool>
         CorrectColor();
     }
 
-    readonly ActionEvent mSwitched = new();
+    readonly ActionEvent mValueWillChange = new();
+    readonly ActionEvent mValueChanged = new();
+    readonly ActionEvent mValueCommited = new();
     Dictionary<ToggleContent, ButtonContent> mContentMap = new();
 }

@@ -11,7 +11,7 @@ using CheckBox = TuneLab.GUI.Components.CheckBox;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class CheckBoxController : DockPanel, IValueController<bool>
+internal class CheckBoxController : DockPanel, IMultipleValueController<bool>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
