@@ -290,7 +290,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         try
         {
             var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_") + Path.GetFileNameWithoutExtension(mDocument.Name) + ".tlp");
-            
+
             await Task.Run(() =>
             {
                 if (!FormatsManager.Serialize(projectInfo, "tlp", out var stream, out var error))

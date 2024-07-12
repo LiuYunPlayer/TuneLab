@@ -36,15 +36,12 @@ internal class ParameterTabBar : Panel
 
         Background = Back.ToBrush();
 
-        mParameterLayout = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 9), Spacing = 12 };
-        Children.Add(mParameterLayout);
         mPitchButton = new ParameterButton(Color.Parse(ConstantDefine.PitchColor), ConstantDefine.PitchName);
         mPitchButton.State = ParameterButton.ButtonState.Visible;
         mPitchButton.StateChangeAsked += (state) => { mPitchButton.State = state; };
-        //mParameterLayout.Children.Add(mPitchButton);
-        //mParameterLayout.Children.Add(new Border() { Background = Style.DARK.ToBrush(), Width = 2, Height = 18, CornerRadius = new CornerRadius(1) });
-        mAutomationLayout = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0), Spacing = 12 };
-        mParameterLayout.Children.Add(mAutomationLayout);
+
+        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(0, 9) };;
+        Children.Add(mAutomationLayout);
 
         mDependency.PartProvider.ObjectChanged.Subscribe(OnPartChanged, s);
         mDependency.PartProvider.When(p => p.Voice.Modified).Subscribe(OnAutomationConfigsChanged, s);
@@ -67,10 +64,15 @@ internal class ParameterTabBar : Panel
             mAutomationButtons[automationID].State = state;
     }
 
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        mAutomationLayout.Measure(availableSize);
+        return base.MeasureOverride(availableSize);
+    }
+
     protected override Size ArrangeOverride(Size finalSize)
     {
-        double horizontalMargin = (finalSize.Width - mParameterLayout.DesiredSize.Width) / 2;
-        mParameterLayout.Arrange(new Rect(finalSize).Adjusted(horizontalMargin, 0, -horizontalMargin, 0));
+        mAutomationLayout.Arrange(new Rect(finalSize));
         return finalSize;
     }
 
@@ -88,6 +90,8 @@ internal class ParameterTabBar : Panel
             if (!mCacheParameterButtons.TryGetValue(kvp.Key, out var button))
             {
                 button = new ParameterButton(Color.Parse(config.Color), config.Name);
+                /*if(config.Name== Part.Voice.AutomationConfigs[0].Value.Name) button.Margin = new Thickness(0,0,12,0);*/
+                button.Margin = new(6, 0);
                 mCacheParameterButtons.Add(kvp.Key, button);
             }
             mAutomationButtons.Add(kvp.Key, button);
@@ -132,12 +136,12 @@ internal class ParameterTabBar : Panel
         SyncAutomationButtonsState();
     }
 
+    public double AutoHeight => mAutomationLayout.DesiredSize.Height;
     MidiPart? Part => mDependency.PartProvider.Object;
 
     Color Back => Style.INTERFACE;
 
-    readonly StackPanel mParameterLayout;
-    readonly StackPanel mAutomationLayout;
+    readonly WrapPanel mAutomationLayout;
     readonly ParameterButton mPitchButton;
     readonly OrderedMap<string, ParameterButton> mAutomationButtons = new();
     readonly Map<string, ParameterButton> mCacheParameterButtons = new();

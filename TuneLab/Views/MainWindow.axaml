@@ -27,7 +27,7 @@
 			
 			<StackPanel Grid.Column="0" x:Name="MenuBar" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal"/>
 			<StackPanel Grid.Column="1" IsHitTestVisible="False" VerticalAlignment="Center" Orientation="Horizontal">
-				<Label Content="{Binding $parent[Window].Title}" x:Name="TitleLabel" FontSize="12" VerticalAlignment="Center" BorderThickness="0"/>
+				<TextBlock Text="{Binding $parent[Window].Title}" x:Name="TitleLabel" FontSize="12" VerticalAlignment="Center"/>
 			</StackPanel>
 			<StackPanel Grid.Column="2" x:Name="WindowControl" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal"/>
 		</Grid>
