@@ -100,11 +100,11 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
         box.Arrange(new Rect(0, 0, ROLL_WIDTH, TIME_AXIS_HEIGHT));
 
         mParameterTabBar.StateChangeAsked += OnParameterTabBarStateChangeAsked;
-        mParameterTitleBar.Moved += top => SetParameterHeight(Bounds.Height - top - PARAMETER_TITLE_BAR_HEIGHT - PARAMETER_TAB_BAR_HEIGHT);
+        mParameterTitleBar.Moved += top => SetParameterHeight(Bounds.Height - top - PARAMETER_TITLE_BAR_HEIGHT - mParameterTabbarHeight);
 
         ClipToBounds = true;
         MinWidth = ROLL_WIDTH;
-        MinHeight = TIME_AXIS_HEIGHT + PARAMETER_TITLE_BAR_HEIGHT + PARAMETER_TAB_BAR_HEIGHT;
+        MinHeight = TIME_AXIS_HEIGHT + PARAMETER_TITLE_BAR_HEIGHT + mParameterTabbarHeight;
 
         ActiveAutomation = ConstantDefine.PreCommonAutomationConfigs[0].Key;
     }
@@ -138,24 +138,26 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         mTickAxis.ViewLength = Bounds.Width - ROLL_WIDTH;
-        mPitchAxis.ViewLength = Bounds.Height - TIME_AXIS_HEIGHT - PARAMETER_TAB_BAR_HEIGHT;
+        mPitchAxis.ViewLength = Bounds.Height - TIME_AXIS_HEIGHT - mParameterTabbarHeight;
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        mParameterTabBar.Measure(availableSize);
         return new Size(Math.Max(availableSize.Width, MinWidth), Math.Max(availableSize.Height, MinHeight));
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        double parameterHeight = mParameterHeight.Limit(0, finalSize.Height - TIME_AXIS_HEIGHT - PARAMETER_TAB_BAR_HEIGHT - PARAMETER_TITLE_BAR_HEIGHT);
-        mPianoScrollView.Arrange(new Rect(finalSize).Adjusted(ROLL_WIDTH, TIME_AXIS_HEIGHT, 0, -PARAMETER_TAB_BAR_HEIGHT));
+        mParameterTabbarHeight = Math.Max(PARAMETER_TAB_BAR_MINHEIGHT, mParameterTabBar.AutoHeight);
+        double parameterHeight = mParameterHeight.Limit(0, finalSize.Height - TIME_AXIS_HEIGHT - mParameterTabbarHeight - PARAMETER_TITLE_BAR_HEIGHT);
+        mPianoScrollView.Arrange(new Rect(finalSize).Adjusted(ROLL_WIDTH, TIME_AXIS_HEIGHT, 0, -mParameterTabbarHeight));
         mPianoTimelineView.Arrange(new Rect(ROLL_WIDTH, 0, finalSize.Width - ROLL_WIDTH, TIME_AXIS_HEIGHT));
-        mPlayheadLayer.Arrange(new Rect(ROLL_WIDTH, 0, finalSize.Width - ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT));
-        mParameterContainer.Arrange(new Rect(ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT - parameterHeight, finalSize.Width - ROLL_WIDTH, parameterHeight));
-        mParameterTitleBar.Arrange(new Rect(ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT - parameterHeight - PARAMETER_TITLE_BAR_HEIGHT, finalSize.Width - ROLL_WIDTH, PARAMETER_TITLE_BAR_HEIGHT));
-        mPianoRoll.Arrange(new Rect(0, TIME_AXIS_HEIGHT, ROLL_WIDTH, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT - TIME_AXIS_HEIGHT));
-        mParameterTabBar.Arrange(new Rect(0, finalSize.Height - PARAMETER_TAB_BAR_HEIGHT, finalSize.Width, PARAMETER_TAB_BAR_HEIGHT));
+        mPlayheadLayer.Arrange(new Rect(ROLL_WIDTH, 0, finalSize.Width - ROLL_WIDTH, finalSize.Height - mParameterTabbarHeight));
+        mParameterContainer.Arrange(new Rect(ROLL_WIDTH, finalSize.Height - mParameterTabbarHeight - parameterHeight, finalSize.Width - ROLL_WIDTH, parameterHeight));
+        mParameterTitleBar.Arrange(new Rect(ROLL_WIDTH, finalSize.Height - mParameterTabbarHeight - parameterHeight - PARAMETER_TITLE_BAR_HEIGHT, finalSize.Width - ROLL_WIDTH, PARAMETER_TITLE_BAR_HEIGHT));
+        mPianoRoll.Arrange(new Rect(0, TIME_AXIS_HEIGHT, ROLL_WIDTH, finalSize.Height - mParameterTabbarHeight - TIME_AXIS_HEIGHT));
+        mParameterTabBar.Arrange(new Rect(0, finalSize.Height - mParameterTabbarHeight, finalSize.Width, mParameterTabbarHeight));
         return finalSize;
     }
 
@@ -225,7 +227,7 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
 
     void SetParameterHeight(double height)
     {
-        mParameterHeight = height.Limit(0, Bounds.Height - TIME_AXIS_HEIGHT - PARAMETER_TAB_BAR_HEIGHT - PARAMETER_TITLE_BAR_HEIGHT);
+        mParameterHeight = height.Limit(0, Bounds.Height - TIME_AXIS_HEIGHT - mParameterTabbarHeight - PARAMETER_TITLE_BAR_HEIGHT);
         mWaveformBottomChanged.Invoke();
         InvalidateArrange();
     }
@@ -240,7 +242,8 @@ internal class PianoWindow : Panel, PianoRoll.IDependency, PianoScrollView.IDepe
 
     const double TIME_AXIS_HEIGHT = 48;
     const double ROLL_WIDTH = 64;
-    const double PARAMETER_TAB_BAR_HEIGHT = 42;
+    double mParameterTabbarHeight = 42;
+    const double PARAMETER_TAB_BAR_MINHEIGHT = 42;
     const double PARAMETER_TITLE_BAR_HEIGHT = 20;
 
     double mParameterHeight = 200;
