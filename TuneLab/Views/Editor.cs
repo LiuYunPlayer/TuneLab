@@ -291,12 +291,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_") + Path.GetFileNameWithoutExtension(mDocument.Name) + ".tlp");
 
-            if (autoSavePath.Length > 255)
-            {
-                string cache_time = DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_");
-                autoSavePath = Path.Combine(PathManager.AutoSaveFolder, DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_") + Path.GetFileNameWithoutExtension(mDocument.Name).Substring(cache_time.Length) + ".tlp");
-            }
-
             await Task.Run(() =>
             {
                 if (!FormatsManager.Serialize(projectInfo, "tlp", out var stream, out var error))

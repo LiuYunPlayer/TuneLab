@@ -104,7 +104,13 @@ namespace TuneLab.Views
                         return;
                     }
 
-                    mEditor.Document.SetSavePath(path);
+                    var fileName = Path.GetFileName(path);
+                    var timeSpan = "yyyy-MM-dd_hh-mm-ss_";
+                    if (fileName.Length > timeSpan.Length)
+                    {
+                        fileName = fileName[timeSpan.Length..];
+                    }
+                    mEditor.Document.SetSavePath(fileName);
                     if (mEditor.Project == null)
                         return;
 
