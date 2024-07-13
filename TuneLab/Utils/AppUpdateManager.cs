@@ -63,6 +63,11 @@ internal static class AppUpdateManager
             throw new Exception("CheckUpdateFailed");
         }
 
+        if (data.version <= AppInfo.Version)
+        {
+            return null;
+        }
+
         // read ignore version
         string mIgnoredVersion = File.ReadAllText(storageFile);
         if (Version.TryParse(mIgnoredVersion, out var ignoredVersion) && ignoredVersion == data.version && ignoreVersion)
