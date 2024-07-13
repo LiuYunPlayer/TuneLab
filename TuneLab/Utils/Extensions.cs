@@ -11,7 +11,6 @@ using TuneLab.GUI.Input;
 using Rect = Avalonia.Rect;
 using RoundedRect = Avalonia.RoundedRect;
 using TuneLab.GUI;
-using TuneLab.Views;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using System.Threading.Tasks;

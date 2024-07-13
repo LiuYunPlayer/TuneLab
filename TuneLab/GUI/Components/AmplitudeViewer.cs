@@ -13,7 +13,6 @@ using TuneLab.Base.Structures;
 using TuneLab.Base.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
-using TuneLab.Views;
 
 namespace TuneLab.GUI.Components
 {

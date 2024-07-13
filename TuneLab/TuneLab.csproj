@@ -48,22 +48,16 @@
 	  <Compile Update="GUI\Dialog.axaml.cs">
 	    <DependentUpon>Dialog.axaml</DependentUpon>
 	  </Compile>
-	  <Compile Update="Views\MainWindow.axaml.cs">
-	    <DependentUpon>MainWindow.axaml</DependentUpon>
-	  </Compile>
-	  <Compile Update="Views\LyricInput.axaml.cs">
-		<DependentUpon>LyricInput.axaml</DependentUpon>
+	  <Compile Update="UI\ImportTrackSelector\ImportTrackSelector.axaml.cs">
+	    <DependentUpon>ImportTrackSelector.axaml</DependentUpon>
 	  </Compile>
 	</ItemGroup>
 
 	<Target Name="CopyFiles" AfterTargets="Build">
 		<ItemGroup>
-			<Resources Include="Resources\**\*.*"/>
+			<Resources Include="Resources\**\*.*" />
 		</ItemGroup>
 
-		<Copy
-            SourceFiles="@(Resources)"
-            DestinationFolder="$(TargetDir)\Resources\%(RecursiveDir)"
-        />
+		<Copy SourceFiles="@(Resources)" DestinationFolder="$(TargetDir)\Resources\%(RecursiveDir)" />
 	</Target>
 </Project>

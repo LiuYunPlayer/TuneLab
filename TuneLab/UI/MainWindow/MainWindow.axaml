@@ -1,0 +1,38 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="768"
+        x:Class="TuneLab.UI.MainWindow"
+        Title="TuneLab"
+		MinHeight="600"
+		MinWidth="800"
+		ExtendClientAreaChromeHints="NoChrome"
+		ExtendClientAreaTitleBarHeightHint="40"
+		ExtendClientAreaToDecorationsHint="True"
+		SizeChanged="Window_SizeChanged">
+	
+	<Window.Resources>
+		<SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#272736</SolidColorBrush>
+	</Window.Resources>
+		
+	<DockPanel Margin="{Binding $parent[Window].OffScreenMargin}">
+		<!-- Custom title bar -->
+		<Grid DockPanel.Dock="Top" Height="40" x:Name="CustomTitleBar">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="Auto" />
+				<ColumnDefinition Width="*"/>
+			</Grid.ColumnDefinitions>
+			
+			<StackPanel Grid.Column="0" x:Name="MenuBar" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal"/>
+			<StackPanel Grid.Column="1" IsHitTestVisible="False" VerticalAlignment="Center" Orientation="Horizontal">
+				<TextBlock Text="{Binding $parent[Window].Title}" x:Name="TitleLabel" FontSize="12" VerticalAlignment="Center"/>
+			</StackPanel>
+			<StackPanel Grid.Column="2" x:Name="WindowControl" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal"/>
+		</Grid>
+		
+		<!-- Main content area -->
+		<ContentControl x:Name="Content" DragDrop.AllowDrop="True" />
+	</DockPanel>
+</Window>

@@ -4,7 +4,6 @@ using Avalonia.Markup.Xaml;
 using TuneLab.Audio;
 using TuneLab.Animation;
 using TuneLab.Extensions;
-using TuneLab.Views;
 using TuneLab.Utils;
 using System.Diagnostics;
 using System;
@@ -12,6 +11,7 @@ using TuneLab.GUI;
 using TuneLab.Extensions.Voices;
 using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
+using TuneLab.UI;
 
 namespace TuneLab;
 
