@@ -7,11 +7,13 @@ using TuneLab.Extensions;
 using TuneLab.Utils;
 using System.Diagnostics;
 using System;
+using System.IO;
 using TuneLab.GUI;
 using TuneLab.Extensions.Voices;
 using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
 using TuneLab.UI;
+using TuneLab.Base.Utils;
 
 namespace TuneLab;
 
@@ -28,6 +30,7 @@ public partial class App : Application
         {
             try
             {
+                Log.SetupLogger(new FileLogger(Path.Combine(PathManager.LogsFolder, "TuneLab_" + DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss") + ".log")));
                 Log.Info("Version: " + AppInfo.Version);
                 mLockFile = LockFile.Create(PathManager.LockFilePath);
                 if (mLockFile == null)

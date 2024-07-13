@@ -14,7 +14,7 @@ internal static class ExtensionManager
 {
     public static void LoadExtensions()
     {
-        PathManager.MakeSure(PathManager.ExtensionsFolder);
+        PathManager.MakeSureExist(PathManager.ExtensionsFolder);
         FormatsManager.LoadBuiltIn();
         foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
         {

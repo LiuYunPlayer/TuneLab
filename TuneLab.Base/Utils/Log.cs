@@ -4,10 +4,20 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.Utils;
+namespace TuneLab.Base.Utils;
 
-internal static class Log
+public interface ILogger
 {
+    void WriteLine(string message);
+}
+
+public static class Log
+{
+    public static void SetupLogger(ILogger logger)
+    {
+        mLogger = logger;
+    }
+
     public static void Debug(object? value)
     {
         Write("Debug", value);
@@ -30,6 +40,8 @@ internal static class Log
 
     static void Write(string type, object? value)
     {
-        System.Diagnostics.Debug.WriteLine(string.Format("[{0}][{1}]{2}", type, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), value));
+        mLogger?.WriteLine(string.Format("[{0}][{1}] {2}", type, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), value));
     }
+
+    static ILogger? mLogger;
 }

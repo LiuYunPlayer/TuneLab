@@ -101,7 +101,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mFunctionBar.QuantizationChanged.Subscribe(mTrackWindow.Quantization.Set);
         mDocument.StatusChanged += () => { mUndoMenuItem.IsEnabled = mDocument.Undoable(); mRedoMenuItem.IsEnabled = mDocument.Redoable(); };
         mAutoSaveTimer.Tick += (s, e) => { AutoSave(); };
-        PathManager.MakeSure(PathManager.AutoSaveFolder);
+        PathManager.MakeSureExist(PathManager.AutoSaveFolder);
         RecentFilesManager.Init();
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 

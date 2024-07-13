@@ -21,7 +21,7 @@ internal static class PathManager
     public static string ResourcesFolder => Path.Combine(ExcutableFolder, "Resources");
     public static string TranslationsFolder => Path.Combine(ResourcesFolder, "Translations");
 
-    public static void MakeSure(string folder)
+    public static void MakeSureExist(string folder)
     {
         if (!Directory.Exists(folder))
             Directory.CreateDirectory(folder);

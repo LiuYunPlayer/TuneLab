@@ -8,7 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TuneLab.Base.Structures;
-using TuneLab.Utils;
+using TuneLab.Base.Utils;
 
 namespace TuneLab.Extensions.Voices;
 
