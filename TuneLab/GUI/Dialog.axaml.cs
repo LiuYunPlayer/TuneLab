@@ -41,6 +41,14 @@ internal partial class Dialog : Window
         titleBar = this.FindControl<Grid>("TitleBar") ?? throw new InvalidOperationException("TitleBar not found");
         titleLabel = this.FindControl<Label>("TitleLabel") ?? throw new InvalidOperationException("TitleLabel not found");
         messageTextBlock = this.FindControl<TextBlock>("MessageTextBlock") ?? throw new InvalidOperationException("MessageTextBlock not found");
+
+        messageTextBlock.SizeChanged += (s, e) => {
+            if (e.NewSize.Height > 108)
+            {
+                Height = Height - 108 + e.NewSize.Height + 32;
+                MessageStackPanel.Margin = new Thickness(12, 16);
+            }
+        };
     }
 
     public void SetTitle(string title)
@@ -52,6 +60,11 @@ internal partial class Dialog : Window
     public void SetMessage(string message)
     {
         messageTextBlock.Text = message;
+    }
+
+    public void SetTextAlignment(TextAlignment alignment)
+    {
+        messageTextBlock.TextAlignment = alignment;
     }
 
     public Button AddButton(string text, ButtonType type)
