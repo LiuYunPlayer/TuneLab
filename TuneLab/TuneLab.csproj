@@ -44,15 +44,6 @@
 	  <ProjectReference Include="..\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <Compile Update="GUI\Dialog.axaml.cs">
-	    <DependentUpon>Dialog.axaml</DependentUpon>
-	  </Compile>
-	  <Compile Update="UI\ImportTrackSelector\ImportTrackSelector.axaml.cs">
-	    <DependentUpon>ImportTrackSelector.axaml</DependentUpon>
-	  </Compile>
-	</ItemGroup>
-
 	<Target Name="CopyFiles" AfterTargets="Build">
 		<ItemGroup>
 			<Resources Include="Resources\**\*.*" />
