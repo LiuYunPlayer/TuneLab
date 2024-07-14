@@ -669,7 +669,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var menuItem = new MenuItem() { Header = "Recent Files".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush() };
                 foreach (var mRecentFile in RecentFilesManager.GetRecentFiles())
                 {
-                    var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => OpenProjectByPath(mRecentFile.FilePath));
+                    var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => {
+                        OpenProjectByPath(mRecentFile.FilePath);
+                        Menu.Close();
+                    });
                     menuItem.Items.Add(mRecentFilesMenuItem);
                 }
 
