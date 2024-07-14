@@ -25,6 +25,14 @@
 "Track" = "轨道"
 "Export failed: \n" = "导出失败： \n"
 "The file failed to open because it does not exist." = "打开失败，目标文件不存在。"
+"Update Available" = "新版本可用"
+"Version" = "版本号"
+"Public Date" = "发布时间"
+"Ignore" = "忽略"
+"Later" = "稍后"
+"Download" = "下载"
+"Update" = "更新"
+"No updates at the moment." = "暂无新版本。"
 
 [Property]
 "Properties" = "属性"
@@ -87,3 +95,4 @@
 "TuneLab GitHub" = "TuneLab 项目仓库"
 
 "Empty" = "空"
+"Check for Updates..." = "检查更新..."

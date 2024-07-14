@@ -3,21 +3,20 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using TuneLab.Base.Data;
+using TuneLab.Base.Utils;
+using TuneLab.Data;
+using TuneLab.Extensions.Formats;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
-using TuneLab.Data;
+using TuneLab.I18N;
 using TuneLab.Utils;
-using TuneLab.Extensions.Formats;
-using TuneLab.Base.Utils;
 using static TuneLab.GUI.Dialog;
 using Button = TuneLab.GUI.Components.Button;
 using Style = TuneLab.GUI.Style;
-using TuneLab.I18N;
 
 namespace TuneLab.UI;
 
@@ -49,9 +48,9 @@ public partial class MainWindow : Window
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
         binimizeButton.Clicked += () => WindowState = WindowState.Minimized;
 
-         maximizeButton = new Button() { Width = 48, Height = 40 }
-            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
-            .AddContent(maximizeIconContent);
+        maximizeButton = new Button() { Width = 48, Height = 40 }
+           .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+           .AddContent(maximizeIconContent);
         maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
         var closeButton = new Button() { Width = 48, Height = 40 }
@@ -96,7 +95,7 @@ public partial class MainWindow : Window
             modal.SetTitle("Tips".Tr(TC.Dialog));
             modal.SetMessage("Program crashed last time. Open auto-backup file?".Tr(TC.Dialog));
             modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal);
-            modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () => 
+            modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
             {
                 if (!FormatsManager.Deserialize(path, out var info, out var error))
                 {

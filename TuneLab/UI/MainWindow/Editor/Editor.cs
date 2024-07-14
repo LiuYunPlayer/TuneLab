@@ -106,6 +106,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 
         NewProject();
+        CheckUpdate();
     }
 
     ~Editor()
@@ -649,6 +650,64 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         await dialog.ShowDialog(this.Window());
     }
 
+    private void UpdateDialog(UpdateInfo mUpdateCheck, bool IsAutoCheck)
+    {
+        var dialog = new Dialog();
+        dialog.SetTitle("Update Available".Tr(TC.Dialog));
+        dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}\n\n{mUpdateCheck.description}");
+        dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
+        if (IsAutoCheck)
+            dialog.AddButton("Ignore".Tr(TC.Dialog), Dialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
+        dialog.AddButton("Later".Tr(TC.Dialog), Dialog.ButtonType.Normal);
+        dialog.AddButton("Download".Tr(TC.Dialog), Dialog.ButtonType.Primary).Clicked += () =>
+        {
+            ProcessHelper.OpenUrl(mUpdateCheck.url);
+        };
+        dialog.Show();
+    }
+
+    private void NoUpdateDialog()
+    {
+        var dialog = new Dialog();
+        dialog.SetTitle("Update".Tr(TC.Dialog));
+        dialog.SetMessage("No updates at the moment.".Tr(TC.Dialog));
+        dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
+        dialog.AddButton("OK".Tr(TC.Dialog), Dialog.ButtonType.Normal);
+        dialog.Show();
+    }
+    public async void CheckUpdate(bool IsAutoCheck = true)
+    {
+        try
+        {
+            var mUpdateCheck = await AppUpdateManager.CheckForUpdate(false);
+            if (mUpdateCheck != null)
+            {
+                Log.Info($"Update available: {mUpdateCheck.version}");
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    UpdateDialog(mUpdateCheck, IsAutoCheck);
+                });
+            }
+            else
+            {
+                Log.Info("No update available.");
+                if(!IsAutoCheck)
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        NoUpdateDialog();
+                    });
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"CheckUpdate: {ex.Message}");
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                NoUpdateDialog();
+            });
+        }
+    }
+
     [MemberNotNull(nameof(mUndoMenuItem))]
     [MemberNotNull(nameof(mRedoMenuItem))]
     [MemberNotNull(nameof(mRecentFilesMenu))]
@@ -766,6 +825,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
             {
                 var menuItem = new MenuItem().SetName("TuneLab GitHub".Tr(TC.Menu)).SetAction(() => ProcessHelper.OpenUrl("https://github.com/LiuYunPlayer/TuneLab"));
+                menuBarItem.Items.Add(menuItem);
+            }
+            { 
+                var menuItem = new MenuItem().SetName("Check for Updates...".Tr(TC.Menu)).SetAction(() => CheckUpdate(false));
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
