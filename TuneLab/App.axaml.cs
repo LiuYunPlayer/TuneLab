@@ -1,21 +1,19 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using TuneLab.Audio;
-using TuneLab.Animation;
-using TuneLab.Extensions;
-using TuneLab.Utils;
-using System.Diagnostics;
 using System;
+using System.Diagnostics;
 using System.IO;
-using TuneLab.GUI;
-using TuneLab.Extensions.Voices;
+using TuneLab.Animation;
+using TuneLab.Audio;
 using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
-using TuneLab.UI;
 using TuneLab.Base.Utils;
-using TuneLab.I18N;
-using Avalonia.Threading;
+using TuneLab.Extensions;
+using TuneLab.Extensions.Voices;
+using TuneLab.GUI;
+using TuneLab.UI;
+using TuneLab.Utils;
 
 namespace TuneLab;
 
