@@ -19,7 +19,7 @@ You can develop your own project formats and synthesis engine extensions.
 
     Platform field consists of \<OS>-\<Architecture> or \<OS> (e.g. "win-x64" "osx").
     - Available OS values: `osx` `win`
-    - Available Architecture values: `x64` `x86` `arm64` `arm32`
+    - Available Architecture values: `x64` `x86` `arm64` `arm`
 
     If the value is only \<OS>, all architectures of the operating system are considered supported.
 

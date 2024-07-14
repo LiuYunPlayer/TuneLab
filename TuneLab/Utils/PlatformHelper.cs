@@ -6,17 +6,33 @@ namespace TuneLab.Utils
     {
         public static string GetPlatform()
         {
-            string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win" :
-             RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "macos" :
-             RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "linux" : "unknown";
+            return $"{GetOS()}-{GetArchitecture()}";
+        }
 
-            string arch = RuntimeInformation.ProcessArchitecture == Architecture.X64 ? "x64" :
-                           RuntimeInformation.ProcessArchitecture == Architecture.X86 ? "x86" :
-                           RuntimeInformation.ProcessArchitecture == Architecture.Arm ? "arm" :
-                           RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "unknown";
+        public static string GetOS()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return "win";
 
-            string platform = $"{os}-{arch}";
-            return platform;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return "osx";
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                return "linux";
+
+            return  "unknown";
+        }
+
+        public static string GetArchitecture()
+        {
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X86 => "x86",
+                Architecture.X64 => "x64",
+                Architecture.Arm => "arm",
+                Architecture.Arm64 => "arm64",
+                _ => "unknown"
+            };
         }
     }
 }
