@@ -18,6 +18,7 @@ using static TuneLab.GUI.Dialog;
 using Button = TuneLab.GUI.Components.Button;
 using Style = TuneLab.GUI.Style;
 using TuneLab.I18N;
+using Avalonia.Threading;
 
 namespace TuneLab.UI;
 
@@ -85,8 +86,47 @@ public partial class MainWindow : Window
         this.Closing += MainWindow_Closing;
     }
 
+    private void UpdateDialog(UpdateInfo mUpdateCheck)
+    {
+        var dialog = new Dialog();
+        dialog.SetTitle("Update Available".Tr(TC.Dialog));
+        dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}\n\n{mUpdateCheck.description}");
+        dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
+        dialog.AddButton("Ignore".Tr(TC.Dialog), Dialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
+        dialog.AddButton("Later".Tr(TC.Dialog), Dialog.ButtonType.Normal);
+        dialog.AddButton("Download".Tr(TC.Dialog), Dialog.ButtonType.Primary).Clicked += () =>
+        {
+            ProcessHelper.OpenUrl(mUpdateCheck.url);
+        };
+        dialog.Show();
+    }
+    public async void CheckUpdate()
+    {
+        try
+        {
+            var mUpdateCheck = await AppUpdateManager.CheckForUpdate();
+            if (mUpdateCheck != null)
+            {
+                Log.Info($"Update available: {mUpdateCheck.version}");
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    UpdateDialog(mUpdateCheck);
+                });
+            }
+            else
+            {
+                Log.Info("No update available.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"CheckUpdate: {ex.Message}");
+        }
+    }
+
     protected override async void OnOpened(EventArgs e)
     {
+        CheckUpdate();
         // 崩溃检测
         using var files = Directory.GetFiles(PathManager.AutoSaveFolder).Where(file => Path.GetExtension(file) == ".tlp").GetEnumerator();
         if (files.MoveNext())

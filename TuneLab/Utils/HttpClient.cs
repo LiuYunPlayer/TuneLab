@@ -1,7 +1,8 @@
 ﻿using Flurl;
 using Flurl.Http;
 using System;
-using TuneLab.Base.Structures;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TuneLab.Base.Utils;
 
