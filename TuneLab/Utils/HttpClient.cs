@@ -51,8 +51,8 @@ public class HttpClient
         }
         catch (FlurlHttpException e)
         {
-            Log.Error("HTTP Error: " + e.Message);
-            response.ErrorMessage = "HTTP错误: " + e.Message;
+            Log.Error("HTTP Error" + e.Message);
+            response.ErrorMessage = "HTTP Error: " + e.Message;
         }
         catch (Exception e)
         {
@@ -87,7 +87,7 @@ public class HttpClient
         catch (FlurlHttpException e)
         {
             Log.Error("HTTP Error: " + e.Message);
-            response.ErrorMessage = "HTTP错误: " + e.Message;
+            response.ErrorMessage = "HTTP Error: " + e.Message;
         }
         catch (Exception e)
         {
