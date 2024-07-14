@@ -672,7 +672,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         dialog.SetTitle("Update".Tr(TC.Dialog));
         dialog.SetMessage("No updates at the moment.".Tr(TC.Dialog));
         dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
-        dialog.AddButton("OK".Tr(TC.Dialog), Dialog.ButtonType.Normal);
+        dialog.AddButton("OK".Tr(TC.Dialog), Dialog.ButtonType.Primary);
         dialog.Show();
     }
     public async void CheckUpdate(bool IsAutoCheck = true)
