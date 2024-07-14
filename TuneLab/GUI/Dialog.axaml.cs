@@ -17,7 +17,7 @@ internal partial class Dialog : Window
 
     private Grid titleBar;
     private Label titleLabel;
-    private TextBlock messageTextBlock;
+    private SelectableTextBlock messageTextBlock;
 
     public Dialog()
     {
@@ -34,7 +34,7 @@ internal partial class Dialog : Window
 
         titleBar = this.FindControl<Grid>("TitleBar") ?? throw new InvalidOperationException("TitleBar not found");
         titleLabel = this.FindControl<Label>("TitleLabel") ?? throw new InvalidOperationException("TitleLabel not found");
-        messageTextBlock = this.FindControl<TextBlock>("MessageTextBlock") ?? throw new InvalidOperationException("MessageTextBlock not found");
+        messageTextBlock = this.FindControl<SelectableTextBlock>("MessageTextBlock") ?? throw new InvalidOperationException("MessageTextBlock not found");
 
         messageTextBlock.SizeChanged += (s, e) => {
             if (e.NewSize.Height > 108)
