@@ -49,7 +49,7 @@ internal static class AppUpdateManager
                 { "platform", PlatformHelper.GetPlatform() }
             };
 
-        var response = await new HttpClient("https://api.tunelab.app").GetAsync($"/api/app/get-update", queryParams);
+        var response = await new HttpClient("https://api.tunelab.app").GetAsync("/api/app/get-update", queryParams);
 
         if (!response.IsSuccessful)
         {

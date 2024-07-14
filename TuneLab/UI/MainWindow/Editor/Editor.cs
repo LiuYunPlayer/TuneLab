@@ -106,6 +106,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 
         NewProject();
+        CheckUpdate();
     }
 
     ~Editor()
@@ -649,12 +650,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         await dialog.ShowDialog(this.Window());
     }
 
-    private void UpdateDialog(UpdateInfo mUpdateCheck)
+    private void UpdateDialog(UpdateInfo mUpdateCheck, bool IsAutoCheck)
     {
         var dialog = new Dialog();
         dialog.SetTitle("Update Available".Tr(TC.Dialog));
         dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}\n\n{mUpdateCheck.description}");
         dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
+        if (IsAutoCheck)
+            dialog.AddButton("Ignore".Tr(TC.Dialog), Dialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
         dialog.AddButton("Later".Tr(TC.Dialog), Dialog.ButtonType.Normal);
         dialog.AddButton("Download".Tr(TC.Dialog), Dialog.ButtonType.Primary).Clicked += () =>
         {
@@ -672,7 +675,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         dialog.AddButton("OK".Tr(TC.Dialog), Dialog.ButtonType.Normal);
         dialog.Show();
     }
-    public async void CheckUpdate()
+    public async void CheckUpdate(bool IsAutoCheck = true)
     {
         try
         {
@@ -682,16 +685,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 Log.Info($"Update available: {mUpdateCheck.version}");
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    UpdateDialog(mUpdateCheck);
+                    UpdateDialog(mUpdateCheck, IsAutoCheck);
                 });
             }
             else
             {
                 Log.Info("No update available.");
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    NoUpdateDialog();
-                });
+                if(!IsAutoCheck)
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        NoUpdateDialog();
+                    });
             }
         }
         catch (Exception ex)
@@ -821,7 +825,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             { 
-                var menuItem = new MenuItem().SetName("Check for Updates...".Tr(TC.Menu)).SetAction(() => CheckUpdate());
+                var menuItem = new MenuItem().SetName("Check for Updates...".Tr(TC.Menu)).SetAction(() => CheckUpdate(false));
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
