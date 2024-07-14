@@ -1,13 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Media;
-using ReactiveUI;
 using System;
-using System.Reflection.Metadata;
-using System.Threading.Tasks;
-using TuneLab.GUI;
-using TuneLab.GUI.Components;
 using TuneLab.Utils;
 using Button = TuneLab.GUI.Components.Button;
 

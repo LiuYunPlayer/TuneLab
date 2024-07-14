@@ -16,7 +16,7 @@ public class UpdateInfo
 
 internal static class AppUpdateManager
 {
-    private static readonly string storageFile = Path.Combine(PathManager.ConfigsFolder, ".UpdateIgoneVersion");
+    private static readonly string storageFile = Path.Combine(PathManager.ConfigsFolder, "UpdateIgnoreVersion.txt");
 
     public static async Task<UpdateInfo> CheckForUpdate(bool ignoreVersion = true)
     {
