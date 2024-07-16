@@ -54,7 +54,7 @@ internal static class LyricUtils
 
     public static string GetPreferredPronunciation(string lyric)
     {
-        var pinyins = ZhG2p.MandarinInstance.Convert(lyric, false, true);
+        var pinyins = ZhG2p.MandarinInstance.Convert(lyric, false);
         if (pinyins.IsEmpty())
             return string.Empty;
 
