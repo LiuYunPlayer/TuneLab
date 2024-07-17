@@ -16,6 +16,7 @@ using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.I18N;
+using TuneLab.Configs;
 
 namespace TuneLab.UI;
 
@@ -1251,7 +1252,7 @@ internal partial class PianoScrollView
             mHead = PianoScrollView.Part.Head;
 
             mPointLines.Add([ToTickAndValue(mousePosition)]);
-            PianoScrollView.Part.Pitch.AddLine(mPointLines[0], 5);
+            PianoScrollView.Part.Pitch.AddLine(mPointLines[0], Settings.ParameterExtend);
         }
 
         public void Move(Avalonia.Point mousePosition)
@@ -1293,7 +1294,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.Pitch.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
+                PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), Settings.ParameterExtend);
             }
         }
 
@@ -1311,7 +1312,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.EndMergeDirty();
             foreach (var line in mPointLines)
             {
-                PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), 5);
+                PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), Settings.ParameterExtend);
             }
             PianoScrollView.Part.Pitch.Commit();
             mPointLines.Clear();
@@ -1406,7 +1407,7 @@ internal partial class PianoScrollView
             double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = tick;
             mEnd = tick;
-            PianoScrollView.Part.LockPitch(mStart, mEnd, 5);
+            PianoScrollView.Part.LockPitch(mStart, mEnd, Settings.ParameterExtend);
         }
 
         public void Move(double x)
@@ -1421,7 +1422,7 @@ internal partial class PianoScrollView
             double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
-            PianoScrollView.Part.LockPitch(mStart, mEnd, 5);
+            PianoScrollView.Part.LockPitch(mStart, mEnd, Settings.ParameterExtend);
         }
 
         public void Up()
@@ -1435,7 +1436,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.DiscardTo(mHead);
-            PianoScrollView.Part.LockPitch(mStart, mEnd, 5);
+            PianoScrollView.Part.LockPitch(mStart, mEnd, Settings.ParameterExtend);
             PianoScrollView.Part.EndMergeDirty();
             PianoScrollView.Part.Commit();
         }
