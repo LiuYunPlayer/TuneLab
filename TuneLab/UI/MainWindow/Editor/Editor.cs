@@ -102,6 +102,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mFunctionBar.QuantizationChanged.Subscribe(mTrackWindow.Quantization.Set);
         mDocument.StatusChanged += () => { mUndoMenuItem.IsEnabled = mDocument.Undoable(); mRedoMenuItem.IsEnabled = mDocument.Redoable(); };
         mAutoSaveTimer.Tick += (s, e) => { AutoSave(); };
+        Settings.AutoSaveInterval.Modified.Subscribe(() => mAutoSaveTimer.Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval), s);
         PathManager.MakeSureExist(PathManager.AutoSaveFolder);
         RecentFilesManager.Init();
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
@@ -782,6 +783,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
                 mRedoMenuItem = menuItem;
             }
+            {
+                var menuItem = new MenuItem().SetName("Settings".Tr(TC.Menu)).SetAction(() =>
+                {
+                    var settingsWindow = new SettingsWindow();
+                    settingsWindow.Show();
+                });
+                menuBarItem.Items.Add(menuItem);
+            }
             menu.Items.Add(menuBarItem);
         }
 
@@ -913,7 +922,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     }
 
     Timer? mTimer;
-    readonly DispatcherTimer mAutoSaveTimer = new() { Interval = new TimeSpan(0, 0, 10) };
+    readonly DispatcherTimer mAutoSaveTimer = new() { Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval) };
     Head mAutoSaveHead;
 
     MidiPart? mEditingPart = null;

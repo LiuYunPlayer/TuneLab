@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="284"
+        x:Class="TuneLab.UI.SettingsWindow"
+        Title="Settings - TuneLab"
+		Width="480"
+		Height="284"
+		ExtendClientAreaChromeHints="NoChrome"
+		ExtendClientAreaTitleBarHeightHint="40"
+		ExtendClientAreaToDecorationsHint="True">
+	
+	<DockPanel>
+		<Grid DockPanel.Dock="Top" Height="40" x:Name="TitleBar">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="Auto" />
+				<ColumnDefinition Width="*"/>
+			</Grid.ColumnDefinitions>
+			
+			<StackPanel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False"/>
+			<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
+				<Label Content="Settings" x:Name="TitleLabel" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" BorderThickness="0" IsHitTestVisible="False"/>
+			</StackPanel>
+			<StackPanel Grid.Column="2" x:Name="WindowControl" HorizontalAlignment="Right" VerticalAlignment="Center" />
+		</Grid>
+
+		<ContentControl x:Name="Content">
+			<Grid Width="480" Height="244">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="184" />
+					<RowDefinition Height="28" />
+				</Grid.RowDefinitions>
+
+				<StackPanel Grid.Row="0" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TextareaBox" />
+
+				<Grid Grid.Row="1" x:Name="ActionsPanel" Margin="24, 16, 24, 16">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+					</Grid.ColumnDefinitions>
+				</Grid>
+			</Grid>
+		</ContentControl>
+	</DockPanel>
+</Window>

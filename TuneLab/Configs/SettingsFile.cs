@@ -12,4 +12,5 @@ internal class SettingsFile
     public string BackgroudPath { get; set; } = string.Empty;
     public double ParameterExtend { get; set; } = 5;
     public string KeySamplesPath { get; set; } = string.Empty;
+    public int AutoSaveInterval { get; set; } = 10;
 }
