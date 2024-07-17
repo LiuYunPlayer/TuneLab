@@ -12,6 +12,7 @@ using TuneLab.Base.Utils;
 using TuneLab.Extensions;
 using TuneLab.Extensions.Voices;
 using TuneLab.GUI;
+using TuneLab.Configs;
 using TuneLab.UI;
 using TuneLab.Utils;
 
@@ -30,6 +31,7 @@ public partial class App : Application
         {
             try
             {
+                Settings.Init(PathManager.SettingsFilePath);
                 Log.SetupLogger(new FileLogger(Path.Combine(PathManager.LogsFolder, "TuneLab_" + DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss") + ".log")));
                 Log.Info("Version: " + AppInfo.Version);
                 mLockFile = LockFile.Create(PathManager.LockFilePath);

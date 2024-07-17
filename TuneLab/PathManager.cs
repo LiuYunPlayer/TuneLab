@@ -14,6 +14,7 @@ internal static class PathManager
     public static string AutoSaveFolder => Path.Combine(TuneLabFolder, "AutoSave");
     public static string LogsFolder => Path.Combine(TuneLabFolder, "Logs");
     public static string ConfigsFolder => Path.Combine(TuneLabFolder, "Configs");
+    public static string SettingsFilePath => Path.Combine(ConfigsFolder, "Settings.json");
     public static string ExtensionsFolder => Path.Combine(TuneLabFolder, "Extensions");
     public static string LockFilePath => Path.Combine(TuneLabFolder, "TuneLab.lock");
 

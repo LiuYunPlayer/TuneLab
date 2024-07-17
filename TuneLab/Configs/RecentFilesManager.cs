@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using TuneLab.Base.Utils;
 
-namespace TuneLab.Utils;
+namespace TuneLab.Configs;
 
 internal static class RecentFilesManager
 {

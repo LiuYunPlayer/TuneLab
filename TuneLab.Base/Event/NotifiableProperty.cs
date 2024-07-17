@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Base.Event;
 
-public class NotifiableProperty<T>(T defaultValue = default) : INotifiableProperty<T> where T : struct
+public class NotifiableProperty<T>(T defaultValue) : INotifiableProperty<T> where T : notnull
 {
     public IActionEvent WillModify => mWillModify;
     public IActionEvent Modified => mModified;
