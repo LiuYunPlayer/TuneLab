@@ -15,6 +15,8 @@ using TuneLab.GUI;
 using TuneLab.Configs;
 using TuneLab.UI;
 using TuneLab.Utils;
+using TuneLab.I18N;
+using System.Linq;
 
 namespace TuneLab;
 
@@ -54,6 +56,8 @@ public partial class App : Application
                     mLockFile?.Dispose();
                 };
 
+                TranslationManager.Init(PathManager.TranslationsFolder);
+                TranslationManager.CurrentLanguage.Value = TranslationManager.Languages.Contains(Settings.Language.Value) ? Settings.Language : TranslationManager.GetCurrentOSLanguage();
                 AudioUtils.Init(new NAudioCodec());
                 AudioEngine.Init(new SDLAudioEngine());
                 ExtensionManager.LoadExtensions();
