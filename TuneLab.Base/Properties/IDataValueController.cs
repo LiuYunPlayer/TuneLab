@@ -93,6 +93,9 @@ public static class IDataValueControllerExtension
                     mController.Display(Property.Value);
                 }
             });
+
+            if (Property != null)
+                mController.Display(Property.Value);
         }
 
         public void Dispose()

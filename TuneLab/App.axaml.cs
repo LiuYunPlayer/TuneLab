@@ -58,6 +58,7 @@ public partial class App : Application
 
                 TranslationManager.Init(PathManager.TranslationsFolder);
                 TranslationManager.CurrentLanguage.Value = TranslationManager.Languages.Contains(Settings.Language.Value) ? Settings.Language : TranslationManager.GetCurrentOSLanguage();
+                Settings.Language.Modified.Subscribe(() => TranslationManager.CurrentLanguage.Value = Settings.Language);
                 AudioUtils.Init(new NAudioCodec());
                 AudioEngine.Init(new SDLAudioEngine());
                 ExtensionManager.LoadExtensions();

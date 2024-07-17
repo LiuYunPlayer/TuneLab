@@ -13,7 +13,7 @@ namespace TuneLab.Configs;
 
 internal static class Settings
 {
-    static readonly SettingsFile DefaultSettings = new();
+    public static readonly SettingsFile DefaultSettings = new();
     public static NotifiableProperty<string> Language { get; } = DefaultSettings.Language;
     public static NotifiableProperty<string> BackgroundPath { get; } = DefaultSettings.BackgroudPath;
     public static NotifiableProperty<double> ParameterExtend { get; } = DefaultSettings.ParameterExtend;

@@ -215,6 +215,7 @@ internal class ObjectController : StackPanel
             mLabelCreator = new LabelCreator(controller, key);
 
             mSliderController = ObjectPoolManager.Get<SliderController>();
+            mSliderController.Margin = new(24, 12);
             mSliderController.SetRange(config.MinValue, config.MaxValue);
             mSliderController.SetDefaultValue(config.DefaultValue);
             mSliderController.IsInterger = config.IsInterger;

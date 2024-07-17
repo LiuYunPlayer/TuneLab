@@ -71,6 +71,7 @@ public static class IValueControllerExtension
 
             controller.ValueCommited.Subscribe(SyncPropertyValue);
             property.Modified.Subscribe(() => controller.Display(property.Value));
+            controller.Display(property.Value);
         }
 
         public void Dispose()

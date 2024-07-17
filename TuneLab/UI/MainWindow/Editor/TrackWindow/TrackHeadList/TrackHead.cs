@@ -85,7 +85,7 @@ internal class TrackHead : DockPanel
 
         var menu = new ContextMenu();
         {
-            var menuItem = new MenuItem().SetName("Move Up").SetAction(() =>
+            var menuItem = new MenuItem().SetTrName("Move Up").SetAction(() =>
             {
                 var track = Track;
                 if (track == null)
@@ -116,7 +116,7 @@ internal class TrackHead : DockPanel
             };
         }
         {
-            var menuItem = new MenuItem().SetName("Move Down").SetAction(() =>
+            var menuItem = new MenuItem().SetTrName("Move Down").SetAction(() =>
             {
                 var track = Track;
                 if (track == null)
@@ -147,7 +147,7 @@ internal class TrackHead : DockPanel
             };
         }
         {
-            var menuItem = new MenuItem().SetName("Set Color");
+            var menuItem = new MenuItem().SetTrName("Set Color");
             {
                 foreach (var color in Style.TRACK_COLORS.Select(Color.Parse))
                 {
@@ -178,7 +178,7 @@ internal class TrackHead : DockPanel
             menu.Items.Add(menuItem);
         }
         {
-            var menuItem = new MenuItem().SetName("As Refer").SetAction(() =>
+            var menuItem = new MenuItem().SetTrName("As Refer").SetAction(() =>
             {
                 var track = Track;
                 if (track == null)
@@ -193,11 +193,11 @@ internal class TrackHead : DockPanel
                 if (Track == null)
                     return;
 
-                menuItem.SetName(!Track.AsRefer.GetInfo() ? "Visible as Refer" : "Hidden as Refer");
+                menuItem.SetName(!Track.AsRefer.GetInfo() ? "Visible as Refer".Tr() : "Hidden as Refer".Tr());
             };
         }
         {
-            var menuItem = new MenuItem().SetName("Export Audio").SetAction(async () =>
+            var menuItem = new MenuItem().SetTrName("Export Audio").SetAction(async () =>
             {
                 if (Track == null)
                     return;
@@ -230,7 +230,7 @@ internal class TrackHead : DockPanel
             menu.Items.Add(menuItem);
         }
         {
-            var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
+            var menuItem = new MenuItem().SetTrName("Delete").SetAction(() =>
             {
                 if (Track == null)
                     return;

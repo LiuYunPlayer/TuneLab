@@ -5,10 +5,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TuneLab.Base.Utils;
 using TuneLab.Configs;
 using TuneLab.GUI;
+using TuneLab.GUI.Components;
 using TuneLab.I18N;
 using TuneLab.Utils;
+using TuneLab.Base.Properties;
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.UI;
 
@@ -34,11 +38,61 @@ internal partial class SettingsWindow : Window
         closeButton.Clicked += () =>
         {
             Settings.Save(PathManager.SettingsFilePath);
+            s.DisposeAll();
             Close();
         };
 
         WindowControl.Children.Add(closeButton);
 
         Content.Background = Style.INTERFACE.ToBrush();
+
+        var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var comboBox = new ComboBoxController() { Width = 180 };
+                comboBox.SetConfig(new(TranslationManager.Languages));
+                comboBox.Bind(Settings.Language, false, s);
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Language".Tr() + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInterger = true };
+                slider.SetRange(10, 60);
+                slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveInterval);
+                slider.Bind(Settings.AutoSaveInterval, false, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Auto Save Interval".Tr() + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInterger = true };
+                slider.SetRange(1, 60);
+                slider.SetDefaultValue(Settings.DefaultSettings.ParameterExtend);
+                slider.Bind(Settings.ParameterExtend, false, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Parameter Extend".Tr() + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        Content.AddDock(listView);
     }
+
+    readonly DisposableManager s = new();
 }

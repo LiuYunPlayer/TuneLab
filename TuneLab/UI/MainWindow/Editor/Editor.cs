@@ -717,17 +717,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         var menu = new Menu() { Background = Style.BACK.ToBrush(), Height = 40 };
         {
-            var menuBarItem = new MenuItem { Header = "File".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("File");
             {
-                var menuItem = new MenuItem().SetName("New".Tr(TC.Menu)).SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("New").SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Open".Tr(TC.Menu)).SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Open").SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             { 
-                var menuItem = new MenuItem() { Header = "Recent Files".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush() };
+                var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Recent Files");
                 foreach (var mRecentFile in RecentFilesManager.GetRecentFiles())
                 {
                     var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => {
@@ -739,7 +739,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
                 if (menuItem.Items.Count == 0)
                 {
-                    var mRecentFilesMenuItem = new MenuItem().SetName("Empty".Tr(TC.Menu));
+                    var mRecentFilesMenuItem = new MenuItem().SetTrName("Empty");
                     mRecentFilesMenuItem.IsEnabled = false;
                     menuItem.Items.Add(mRecentFilesMenuItem);
                 }
@@ -748,15 +748,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(mRecentFilesMenu);
             }
             {
-                var menuItem = new MenuItem().SetName("Save".Tr(TC.Menu)).SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Save").SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Save As".Tr(TC.Menu)).SetAction(async () => { await SaveProjectAs(); }).SetShortcut(Key.S, ModifierKeys.Ctrl | ModifierKeys.Shift);
+                var menuItem = new MenuItem().SetTrName("Save As").SetAction(async () => { await SaveProjectAs(); }).SetShortcut(Key.S, ModifierKeys.Ctrl | ModifierKeys.Shift);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem() { Header = "Export As (test)".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush() };
+                var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Export As (test)");
                 foreach (var format in FormatsManager.GetAllExportFormats())
                 {
                     var menuItem2 = new MenuItem().SetName(format).SetAction(() => ExportAs(format));
@@ -765,26 +765,26 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Export Mix".Tr(TC.Menu)).SetAction(ExportMix);
+                var menuItem = new MenuItem().SetTrName("Export Mix").SetAction(ExportMix);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Edit".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Edit");
             {
-                var menuItem = new MenuItem().SetName("Undo".Tr(TC.Menu)).SetAction(Undo).SetInputGesture(Key.Z, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Undo").SetAction(Undo).SetInputGesture(Key.Z, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
                 mUndoMenuItem = menuItem;
             }
             {
-                var menuItem = new MenuItem().SetName("Redo".Tr(TC.Menu)).SetAction(Redo).SetInputGesture(Key.Y, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Redo").SetAction(Redo).SetInputGesture(Key.Y, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
                 mRedoMenuItem = menuItem;
             }
             {
-                var menuItem = new MenuItem().SetName("Settings".Tr(TC.Menu)).SetAction(() =>
+                var menuItem = new MenuItem().SetTrName("Settings").SetAction(() =>
                 {
                     var settingsWindow = new SettingsWindow();
                     settingsWindow.Show();
@@ -795,50 +795,49 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Project".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Project");
             {
-                var menuItem = new MenuItem().SetName("Add Track".Tr(TC.Menu)).SetAction(AddTrack);
+                var menuItem = new MenuItem().SetTrName("Add Track").SetAction(AddTrack);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Import Audio".Tr(TC.Menu)).SetAction(ImportAudio);
+                var menuItem = new MenuItem().SetTrName("Import Audio").SetAction(ImportAudio);
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("Import Track".Tr(TC.Menu)).SetAction(ImportTrack);
+                var menuItem = new MenuItem().SetTrName("Import Track").SetAction(ImportTrack);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Transport".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Transport");
             {
                 var menuItem = new MenuItem().
                     SetName("Play".Tr(TC.Menu)).
                     SetAction(ChangePlayState).
                     SetInputGesture(Key.Space);
-                AudioEngine.PlayStateChanged += () =>
-                {
-                    menuItem.Header = AudioEngine.IsPlaying ? "Pause".Tr(TC.Menu) : "Play".Tr(TC.Menu);
-                };
+                void UpdateHeader() => menuItem.SetName(AudioEngine.IsPlaying ? "Pause".Tr(TC.Menu) : "Play".Tr(TC.Menu));
+                AudioEngine.PlayStateChanged += UpdateHeader;
+                TranslationManager.CurrentLanguage.Modified.Subscribe(UpdateHeader);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
         }
 
         {
-            var menuBarItem = new MenuItem { Header = "Help".Tr(TC.Menu), Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false };
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Help");
             {
-                var menuItem = new MenuItem().SetName("TuneLab Forum".Tr(TC.Menu)).SetAction(() => ProcessHelper.OpenUrl("https://forum.tunelab.app"));
+                var menuItem = new MenuItem().SetTrName("TuneLab Forum").SetAction(() => ProcessHelper.OpenUrl("https://forum.tunelab.app"));
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetName("TuneLab GitHub".Tr(TC.Menu)).SetAction(() => ProcessHelper.OpenUrl("https://github.com/LiuYunPlayer/TuneLab"));
+                var menuItem = new MenuItem().SetTrName("TuneLab GitHub").SetAction(() => ProcessHelper.OpenUrl("https://github.com/LiuYunPlayer/TuneLab"));
                 menuBarItem.Items.Add(menuItem);
             }
             { 
-                var menuItem = new MenuItem().SetName("Check for Updates...".Tr(TC.Menu)).SetAction(() => CheckUpdate(false));
+                var menuItem = new MenuItem().SetTrName("Check for Updates...").SetAction(() => CheckUpdate(false));
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);

@@ -6,7 +6,7 @@
         x:Class="TuneLab.UI.SettingsWindow"
         Title="Settings - TuneLab"
 		Width="480"
-		Height="284"
+		Height="240"
 		ExtendClientAreaChromeHints="NoChrome"
 		ExtendClientAreaTitleBarHeightHint="40"
 		ExtendClientAreaToDecorationsHint="True">
@@ -26,22 +26,8 @@
 			<StackPanel Grid.Column="2" x:Name="WindowControl" HorizontalAlignment="Right" VerticalAlignment="Center" />
 		</Grid>
 
-		<ContentControl x:Name="Content">
-			<Grid Width="480" Height="244">
-				<Grid.RowDefinitions>
-					<RowDefinition Height="184" />
-					<RowDefinition Height="28" />
-				</Grid.RowDefinitions>
+		<DockPanel x:Name="Content">
 
-				<StackPanel Grid.Row="0" Orientation="Vertical" Margin="24, 16, 24, 16" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="TextareaBox" />
-
-				<Grid Grid.Row="1" x:Name="ActionsPanel" Margin="24, 16, 24, 16">
-					<Grid.ColumnDefinitions>
-						<ColumnDefinition Width="*" />
-						<ColumnDefinition Width="Auto" />
-					</Grid.ColumnDefinitions>
-				</Grid>
-			</Grid>
-		</ContentControl>
+		</DockPanel>
 	</DockPanel>
 </Window>

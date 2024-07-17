@@ -16,6 +16,7 @@ using TuneLab.Base.Utils;
 using System.Threading.Tasks;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.I18N;
 
 namespace TuneLab.Utils;
 
@@ -74,6 +75,13 @@ internal static class Extensions
     public static MenuItem SetName(this MenuItem menuItem, string name)
     {
         menuItem.Header = name;
+        return menuItem;
+    }
+
+    public static MenuItem SetTrName(this MenuItem menuItem, string name)
+    {
+        menuItem.Header = name.Tr(TC.Menu);
+        TranslationManager.CurrentLanguage.Modified.Subscribe(() => menuItem.Header = name.Tr(TC.Menu));
         return menuItem;
     }
 

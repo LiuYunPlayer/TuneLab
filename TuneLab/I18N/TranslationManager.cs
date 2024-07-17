@@ -12,7 +12,7 @@ namespace TuneLab.I18N;
 internal static class TranslationManager
 {
     static readonly ITranslator DefaultTranslator = new DummyTranslator();
-    public static IReadOnlyCollection<string> Languages => mTranslators.Keys;
+    public static IReadOnlyList<string> Languages => mLanguages;
     public static NotifiableProperty<string> CurrentLanguage { get; } = string.Empty;
     public static ITranslator CurrentTranslator { get; private set; } = DefaultTranslator;
 
@@ -31,6 +31,7 @@ internal static class TranslationManager
 
             var translator = new TomlTranslator(file.FullName);
             mTranslators.Add(i18nName, translator);
+            mLanguages.Add(i18nName);
         }
     }
 
@@ -50,4 +51,5 @@ internal static class TranslationManager
     }
 
     static Dictionary<string, ITranslator> mTranslators = [];
+    static List<string> mLanguages = [];
 }

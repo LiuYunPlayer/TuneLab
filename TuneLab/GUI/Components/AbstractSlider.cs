@@ -183,7 +183,8 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         Vector axis = (EndPoint - StartPoint).ToVector();
         Vector vector = (point - StartPoint).ToVector();
         var r = vector * axis / axis.SquaredLength;
-        return MathUtility.LineValue(0, MinValue, 1, MaxValue, r);
+        var v = MathUtility.LineValue(0, MinValue, 1, MaxValue, r);
+        return double.IsNaN(v) ? DefaultValue : v;
     }
 
     void ChangeValue(double value)
