@@ -34,13 +34,13 @@ internal class GainSlider : AbstractSlider
         ToolTip.SetPlacement(this, PlacementMode.Top);
         ToolTip.SetVerticalOffset(this, -8);
         ToolTip.SetShowDelay(this, 0);
-        var x = ThumbPosition().X;
+        var x = ThumbPivotPosition().X;
         ToolTip.SetHorizontalOffset(this, x - Bounds.Width / 2);
         ToolTip.SetTip(this, Value.ToString("+0.00dB;-0.00dB"));
     }
 
-    protected override Point StartPoint => new(2, 0);
-    protected override Point EndPoint => new(Bounds.Width - 2, 0);
+    protected override Point StartPoint => new(2, Bounds.Height / 2);
+    protected override Point EndPoint => new(Bounds.Width - 2, Bounds.Height / 2);
 
     public override void Render(DrawingContext context)
     {

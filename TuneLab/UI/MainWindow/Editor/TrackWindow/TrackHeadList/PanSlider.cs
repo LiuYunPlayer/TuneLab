@@ -42,8 +42,8 @@ internal class PanSlider : AbstractSlider
             );
     }
 
-    protected override Point StartPoint => new(0, 0);
-    protected override Point EndPoint => new(Bounds.Width, 0);
+    protected override Point StartPoint => new(0, Bounds.Height / 2);
+    protected override Point EndPoint => new(Bounds.Width, Bounds.Height / 2);
 
     public override void Render(DrawingContext context)
     {
