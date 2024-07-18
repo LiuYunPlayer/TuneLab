@@ -70,12 +70,12 @@ internal partial class LyricInput : Window
         OkButton.Clicked += OnLyricInputConfirm;
     }
 
-    public static void EnterInput(IReadOnlyCollection<INote> notes)
+    public static void EnterInput(IReadOnlyCollection<INote> notes, Window owner)
     {
         var lyricInput = new LyricInput();
         lyricInput.mNotes = notes;
         lyricInput.mLyricInputBox.Text = string.Join(' ', notes.Select(note => note.Lyric.Value));
-        lyricInput.Show();
+        lyricInput.Show(owner);
     }
 
     void OnLyricInputConfirm()

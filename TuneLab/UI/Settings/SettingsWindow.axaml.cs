@@ -46,6 +46,8 @@ internal partial class SettingsWindow : Window
 
         Content.Background = Style.INTERFACE.ToBrush();
 
+        Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(), "Please restart to apply settings".Tr()));
+
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
@@ -53,6 +55,7 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 180 };
                 comboBox.SetConfig(new(TranslationManager.Languages));
                 comboBox.Bind(Settings.Language, false, s);
+                
                 panel.AddDock(comboBox, Dock.Right);
             }
             {

@@ -288,7 +288,7 @@ internal partial class PianoScrollView
                                             menu.Items.Add(menuItem);
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Input Lyrics".Tr(TC.Menu)).SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems()); });
+                                            var menuItem = new MenuItem().SetName("Input Lyrics".Tr(TC.Menu)).SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems(), this.Window()); });
                                             menu.Items.Add(menuItem);
                                         }
 

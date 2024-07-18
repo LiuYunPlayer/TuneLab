@@ -787,7 +787,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var menuItem = new MenuItem().SetTrName("Settings").SetAction(() =>
                 {
                     var settingsWindow = new SettingsWindow();
-                    settingsWindow.Show();
+                    settingsWindow.Show(this.Window());
                 });
                 menuBarItem.Items.Add(menuItem);
             }
