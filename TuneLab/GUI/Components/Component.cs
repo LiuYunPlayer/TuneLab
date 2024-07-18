@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Base.Structures;
+using TuneLab.Base.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
 
@@ -106,11 +107,18 @@ internal class Component : Control
                 });
                 break;
             default:
-                CallMouseMove(new()
+                var args = new MouseMoveEventArgs()
                 {
                     KeyModifiers = e.KeyModifiers.ToModifierKeys(),
                     Position = p.Position,
-                });
+                };
+                // 一些情况比如设置tooltip时会异常触发此事件，这里用与上次触发此事件时鼠标的绝对位置的比较来避免这种异常事件
+                var globalPosition = e.GetPosition(null);
+                if (globalPosition.FuzzyEquals(mLastMoveGlobalPosition))
+                    break;
+
+                CallMouseMove(args);
+                mLastMoveGlobalPosition = globalPosition;
                 break;
         }
     }
@@ -188,7 +196,7 @@ internal class Component : Control
     void CallMouseUp(MouseUpEventArgs e)
     {
         mLastClickTime = mStopwatch.ElapsedMilliseconds;
-        e.IsClick = Math.Abs(mDownPosition.X - e.Position.X) < 1 && Math.Abs(mDownPosition.Y - e.Position.Y) < 1;
+        e.IsClick = e.Position.FuzzyEquals(mDownPosition);
         if (e.IsClick) mLastClickPosition = e.Position;
 
         switch (e.MouseButtonType)
@@ -232,4 +240,5 @@ internal class Component : Control
     static ModifierKeys mLastKeyModifiers = ModifierKeys.None;
     Avalonia.Point mLastMousePosition = new(-1, -1);
     static Avalonia.Point mDownPosition;
+    static Avalonia.Point mLastMoveGlobalPosition = new(-1, -1);
 }

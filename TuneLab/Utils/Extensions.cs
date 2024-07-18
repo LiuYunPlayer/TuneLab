@@ -72,6 +72,11 @@ internal static class Extensions
         return new Avalonia.Vector(point.X, point.Y);
     }
 
+    public static bool FuzzyEquals(this Avalonia.Point point, Avalonia.Point other, double tolerance = 1)
+    {
+        return Math.Abs(point.X - other.X) < tolerance && Math.Abs(point.Y - other.Y) < tolerance;
+    }
+
     public static MenuItem SetName(this MenuItem menuItem, string name)
     {
         menuItem.Header = name;
