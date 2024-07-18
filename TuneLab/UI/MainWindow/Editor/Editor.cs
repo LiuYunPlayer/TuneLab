@@ -331,12 +331,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             {
                 Tracks = [new()
                 {
-                    Name = "Track_1",
+                    Name = "Track".Tr(TC.Document) + "_1",
                     Parts =
                     [
                         new MidiPartInfo()
                         {
-                            Name = "Part_1",
+                            Name = "Part".Tr(TC.Document) + "_1",
                             Dur = 64 * MusicTheory.RESOLUTION * 4
                         }
                     ]

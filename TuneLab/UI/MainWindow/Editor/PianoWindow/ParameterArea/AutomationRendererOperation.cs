@@ -267,7 +267,7 @@ internal partial class AutomationRenderer
             mMax = config.MaxValue;
 
             mPointLines.Add([ToTickAndValue(mousePosition)]);
-            mAutomation.AddLine(mPointLines[0], Settings.ParameterExtend);
+            mAutomation.AddLine(mPointLines[0], Settings.ParameterBoundaryExtension);
         }
 
         public void Move(Avalonia.Point mousePosition)
@@ -306,7 +306,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                mAutomation.AddLine(line.Simplify(5, 2), Settings.ParameterExtend);
+                mAutomation.AddLine(line.Simplify(5, 2), Settings.ParameterBoundaryExtension);
             }
         }
 
@@ -321,7 +321,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             foreach (var line in mPointLines)
             {
-                mAutomation.AddLine(line.Simplify(5, 2), Settings.ParameterExtend);
+                mAutomation.AddLine(line.Simplify(5, 2), Settings.ParameterBoundaryExtension);
             }
             AutomationRenderer.Part.EndMergeDirty();
             mAutomation.Commit();
@@ -375,7 +375,7 @@ internal partial class AutomationRenderer
             double tick = AutomationRenderer.TickAxis.X2Tick(x) - mAutomation.Part.Pos.Value;
             mStart = tick;
             mEnd = tick;
-            mAutomation.Clear(mStart, mEnd, Settings.ParameterExtend);
+            mAutomation.Clear(mStart, mEnd, Settings.ParameterBoundaryExtension);
         }
 
         public void Move(double x)
@@ -387,7 +387,7 @@ internal partial class AutomationRenderer
             double tick = AutomationRenderer.TickAxis.X2Tick(x) - mAutomation.Part.Pos.Value;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
-            mAutomation.Clear(mStart, mEnd, Settings.ParameterExtend);
+            mAutomation.Clear(mStart, mEnd, Settings.ParameterBoundaryExtension);
         }
 
         public void Up()
@@ -399,7 +399,7 @@ internal partial class AutomationRenderer
                 return;
 
             mAutomation.DiscardTo(mHead);
-            mAutomation.Clear(mStart, mEnd, Settings.ParameterExtend);
+            mAutomation.Clear(mStart, mEnd, Settings.ParameterBoundaryExtension);
             AutomationRenderer.Part.EndMergeDirty();
             mAutomation.Commit();
             mAutomation = null;

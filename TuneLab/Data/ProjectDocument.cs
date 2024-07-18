@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Base.Data;
 using TuneLab.Base.Event;
+using TuneLab.I18N;
 
 namespace TuneLab.Data;
 
@@ -42,7 +43,7 @@ internal class ProjectDocument : DataDocument
     public void SetSavePath(string path)
     {
         mPath = path;
-        mName = File.Exists(path) ? new FileInfo(path).Name : "Untitled Project";
+        mName = File.Exists(path) ? new FileInfo(path).Name : "Untitled Project".Tr(TC.Document);
         mLastSavedHead = Head;
         mProjectNameChanged?.Invoke();
     }

@@ -193,7 +193,7 @@ internal class TrackHead : DockPanel
                 if (Track == null)
                     return;
 
-                menuItem.SetName(!Track.AsRefer.GetInfo() ? "Visible as Refer".Tr() : "Hidden as Refer".Tr());
+                menuItem.SetName(!Track.AsRefer.GetInfo() ? "Visible as Refer".Tr(TC.Menu) : "Hidden as Refer".Tr(TC.Menu));
             };
         }
         {

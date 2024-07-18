@@ -99,7 +99,7 @@ internal partial class TrackScrollView
                                     }
                                     var track = Project.Tracks[trackIndex];
                                     var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X));
-                                    var part = track.CreatePart(new MidiPartInfo() { Pos = pos, Dur = QuantizedCellTicks() });
+                                    var part = track.CreatePart(new MidiPartInfo() { Name = "Part".Tr(TC.Document) + "_" + (track.Project.PartsCount() + 1), Pos = pos, Dur = QuantizedCellTicks() });
                                     track.InsertPart(part);
                                     mPartEndResizeOperation.Down(TickAxis.Tick2X(part.EndPos), part, track);
                                 }

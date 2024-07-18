@@ -81,7 +81,8 @@ internal static class Extensions
     public static MenuItem SetTrName(this MenuItem menuItem, string name)
     {
         menuItem.Header = name.Tr(TC.Menu);
-        TranslationManager.CurrentLanguage.Modified.Subscribe(() => menuItem.Header = name.Tr(TC.Menu));
+        // 由于其他组件未实现翻译热更新，菜单先禁掉热更新
+        // TranslationManager.CurrentLanguage.Modified.Subscribe(() => menuItem.Header = name.Tr(TC.Menu));
         return menuItem;
     }
 
@@ -308,6 +309,16 @@ internal static class Extensions
 
     public static void NewTrack(this IProject project)
     {
-        project.AddTrack(new TrackInfo() { Name = "Track_" + (project.Tracks.Count + 1), Color = Style.GetNewColor(project.Tracks.Count) });
+        project.AddTrack(new TrackInfo() { Name = "Track".Tr(TC.Document) + "_" + (project.Tracks.Count + 1), Color = Style.GetNewColor(project.Tracks.Count) });
+    }
+
+    public static int PartsCount(this IProject project)
+    {
+        int count = 0;
+        foreach (var track in project.Tracks)
+        {
+            count += track.Parts.Count;
+        }
+        return count;
     }
 }

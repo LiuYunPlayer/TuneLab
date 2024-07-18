@@ -27,7 +27,7 @@ internal partial class SettingsWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Topmost = true;
 
-        TitleLabel.Content = "Settings".Tr(TC.Dialog);
+        TitleLabel.Content = "Settings".Tr(this);
 
         this.Background = Style.BACK.ToBrush();
         TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
@@ -46,7 +46,7 @@ internal partial class SettingsWindow : Window
 
         Content.Background = Style.INTERFACE.ToBrush();
 
-        Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(), "Please restart to apply settings".Tr()));
+        Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)));
 
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
         {
@@ -59,7 +59,7 @@ internal partial class SettingsWindow : Window
                 panel.AddDock(comboBox, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Language".Tr() + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Language".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);
@@ -74,7 +74,7 @@ internal partial class SettingsWindow : Window
                 panel.AddDock(slider, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Auto Save Interval".Tr() + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Auto Save Interval (second)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);
@@ -84,12 +84,12 @@ internal partial class SettingsWindow : Window
             {
                 var slider = new SliderController() { Width = 180, IsInterger = true };
                 slider.SetRange(1, 60);
-                slider.SetDefaultValue(Settings.DefaultSettings.ParameterExtend);
-                slider.Bind(Settings.ParameterExtend, false, s);
+                slider.SetDefaultValue(Settings.DefaultSettings.ParameterBoundaryExtension);
+                slider.Bind(Settings.ParameterBoundaryExtension, false, s);
                 panel.AddDock(slider, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Parameter Extend".Tr() + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Parameter Boundary Extension (tick)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);

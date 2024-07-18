@@ -1,3 +1,30 @@
+[SettingsWindow]
+"Settings" = "设置"
+"Please restart to apply settings." = "请重启以应用设置"
+"Language" = "语言"
+"Auto Save Interval (second)" = "自动保存间隔（秒）"
+"Parameter Boundary Extension (tick)" = "参数边界扩展（tick）"
+
+[FunctionBar]
+"Play" = "播放"
+"Pause" = "暂停"
+"Auto Scroll" = "自动翻页"
+"Quantization" = "量化"
+"Note Tool" = "音符工具"
+"Pitch Pen" = "音高画笔"
+"Anchor Tool" = "锚点工具"
+"Pitch Locking Brush" = "音高锁定笔刷"
+"Vibrato Tool" = "颤音工具"
+"Selection Tool" = "选区工具"
+
+[PianoScrollView]
+"Please draw pitch first in the area" = "请先在此区域绘制音高"
+"Frequency" = "频率"
+"Phase" = "相位"
+
+[AutomationRenderer]
+"Drag to associate the vibrato" = "拖拽以关联颤音"
+
 [Dialog]
 "OK" = "确认"
 "Cancel" = "取消"
@@ -44,6 +71,11 @@
 "VibratoEnvelope" = "颤音包络"
 "Pitch" = "音高"
 
+[Document]
+"Untitled Project" = "未命名工程"
+"Part" = "片段"
+"Track" = "轨道"
+
 [Menu]
 "File" = "文件"
 "New" = "新建"
@@ -56,6 +88,7 @@
 "Edit" = "编辑"
 "Undo" = "撤销"
 "Redo" = "重做"
+"Settings" = "设置"
 
 "Project" = "工程"
 "Add Track" = "添加轨道"
@@ -90,6 +123,13 @@
 
 "Recent Files" = "最近打开的文件"
 "Help" = "帮助"
+
+"Move Up" = "上移"
+"Move Down" = "下移"
+"Set Color" = "设置颜色"
+"As Refer" = "作为参考"
+"Visible as Refer" = "作为参考显示"
+"Hidden as Refer" = "隐藏参考显示"
 
 "TuneLab Forum" = "TuneLab 社区"
 "TuneLab GitHub" = "TuneLab 项目仓库"

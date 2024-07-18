@@ -17,6 +17,7 @@ using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using Avalonia.Controls;
+using TuneLab.I18N;
 
 namespace TuneLab.UI;
 
@@ -189,7 +190,7 @@ internal partial class AutomationRenderer : View
             {
                 var vibrato = vibratoItem.Vibrato;
                 double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
-                context.DrawString("Drag to associate the vibrato.", new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+                context.DrawString("Drag to associate the vibrato".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
             }
         }
 

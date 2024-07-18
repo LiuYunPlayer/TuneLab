@@ -21,6 +21,7 @@ using TuneLab.Extensions.Voices;
 using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
+using TuneLab.I18N;
 
 namespace TuneLab.UI;
 
@@ -542,21 +543,21 @@ internal partial class PianoScrollView : View, IPianoScrollView
             var pitch = hoverVibratoItem.Pitch();
             if (double.IsNaN(pitch))
             {
-                context.DrawString("Please draw pitch first in the area.", new Point(centerX, 32), textBrush, 12, Alignment.CenterTop);
+                context.DrawString("Please draw pitch first in the area".Tr(this), new Point(centerX, 32), textBrush, 12, Alignment.CenterTop);
             }
 
             var frequencyPosition = hoverVibratoItem.FrequencyPosition();
             if (!double.IsNaN(frequencyPosition.Y))
             {
                 context.DrawEllipse(hoverVibratoItem is VibratoFrequencyItem || mVibratoFrequencyOperation.IsOperating ? frequencyBrush : null, frequencyPen, frequencyPosition, 6, 6);
-                context.DrawString("Frequency: " + hoverVibrato.Frequency.Value.ToString("F2"), frequencyPosition - new Point(0, 18), textBrush, 12, Alignment.Center, new Typeface(Assets.NotoMono));
+                context.DrawString("Frequency".Tr(this) + ": " + hoverVibrato.Frequency.Value.ToString("F2"), frequencyPosition - new Point(0, 18), textBrush, 12, Alignment.Center, new Typeface(Assets.NotoMono));
             }
 
             var phasePosition = hoverVibratoItem.PhasePosition();
             if (!double.IsNaN(phasePosition.Y))
             {
                 context.DrawEllipse(hoverVibratoItem is VibratoPhaseItem || mVibratoPhaseOperation.IsOperating ? phaseBrush : null, phasePen, phasePosition, 6, 6);
-                context.DrawString("Phase: " + hoverVibrato.Phase.Value.ToString("+0.00;-0.00"), phasePosition + new Point(0, 18), textBrush, 12, Alignment.Center, new Typeface(Assets.NotoMono));
+                context.DrawString("Phase".Tr(this) + ": " + hoverVibrato.Phase.Value.ToString(" +0.00;-0.00"), phasePosition + new Point(0, 18), textBrush, 12, Alignment.Center, new Typeface(Assets.NotoMono));
             }
 
             var attackPosition = hoverVibratoItem.AttackPosition();

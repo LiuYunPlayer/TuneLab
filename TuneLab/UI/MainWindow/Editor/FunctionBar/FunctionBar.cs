@@ -56,16 +56,16 @@ internal class FunctionBar : LayerPanel
                     .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.Play }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                 
-                SetupToolTip(playButton,"Play");
-                playButton.Switched.Subscribe(() => { if (playButton.IsChecked) AudioEngine.Play(); else AudioEngine.Pause(); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause" : "Play"); });
-                AudioEngine.PlayStateChanged += () => { playButton.Display(AudioEngine.IsPlaying);SetupToolTip(playButton, AudioEngine.IsPlaying?"Pause":"Play");};
+                SetupToolTip(playButton, "Play".Tr(this));
+                playButton.Switched.Subscribe(() => { if (playButton.IsChecked) AudioEngine.Play(); else AudioEngine.Pause(); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this)); });
+                AudioEngine.PlayStateChanged += () => { playButton.Display(AudioEngine.IsPlaying); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this));};
                 audioControlPanel.Children.Add(playButton);
 
                 var autoPageButton = new Toggle() { Width = 36, Height = 36 }
-                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.AutoPage }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
 
-                SetupToolTip(autoPageButton, "Auto Scroll");
+                SetupToolTip(autoPageButton, "Auto Scroll".Tr(this));
                 autoPageButton.Bind(IsAutoPage);
                 audioControlPanel.Children.Add(autoPageButton);
             }
@@ -73,7 +73,7 @@ internal class FunctionBar : LayerPanel
 
             var quantizationPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             {
-                var quantizationLabel = new TextBlock() { Text = ("Quantization: ").Tr(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var quantizationLabel = new TextBlock() { Text = "Quantization".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 quantizationPanel.Children.Add(quantizationLabel);
                 var quantizationComboBox = new ComboBoxController() { Width = 96 };
                 (string option, QuantizationBase quantizationBase, QuantizationDivision quantizationDivision)[] options = 
@@ -121,12 +121,12 @@ internal class FunctionBar : LayerPanel
                     pianoToolPanel.Children.Add(toggle);
                     OnPianoToolChanged();
                 }
-                AddButton(PianoTool.Note, Assets.Pointer, "Note Tool");
-                AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Pen");
-                AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool");
-                AddButton(PianoTool.Lock, Assets.Brush, "Pitch Lock Brush");
-                AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool");
-                AddButton(PianoTool.Select, Assets.Select, "Selection Tool");
+                AddButton(PianoTool.Note, Assets.Pointer, "Note Tool".Tr(this));
+                AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Pen".Tr(this));
+                AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool".Tr(this));
+                AddButton(PianoTool.Lock, Assets.Brush, "Pitch Locking Brush".Tr(this));
+                AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool".Tr(this));
+                AddButton(PianoTool.Select, Assets.Select, "Selection Tool".Tr(this));
             }
             dockPanel.AddDock(pianoToolPanel);
         }
