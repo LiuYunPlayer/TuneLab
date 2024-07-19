@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using TuneLab.Base.Science;
+using TuneLab.Base.Utils;
 using TuneLab.Utils;
 
 namespace TuneLab.Audio;
@@ -117,6 +119,59 @@ internal static class AudioEngine
                 );
     }
 
+    public static void LoadKeySamples(string path)
+    {
+        try
+        {
+            mKeySamples.Fill(null);
+            if (!Directory.Exists(path))
+                return;
+
+            foreach (var file in Directory.GetFiles(path))
+            {
+                var name = Path.GetFileNameWithoutExtension(file);
+                if (int.TryParse(name, out var keyNumber))
+                {
+                    int keyIndex = keyNumber - MusicTheory.MIN_PITCH;
+                    if ((uint)keyIndex < MusicTheory.PITCH_COUNT)
+                    {
+                        try
+                        {
+                            int samplingRate = SamplingRate;
+                            var data = AudioUtils.Decode(file, ref samplingRate);
+                            switch (data.Length)
+                            {
+                                case 1:
+                                    mKeySamples[keyIndex] = new MonoAudioData(data[0]);
+                                    break;
+                                case 2:
+                                    mKeySamples[keyIndex] = new StereoAudioData(data[0], data[1]);
+                                    break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error("Failed to decode key sample: " + file + ex);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to load key samples: " + ex);
+        }
+    }
+
+    public static void PlayKeySample(int keyNumber)
+    {
+        var keyIndex = keyNumber - MusicTheory.MIN_PITCH;
+        if ((uint)keyIndex >= mKeySamples.Length)
+            return;
+
+        mAudioPlayer.Play(mKeySamples[keyIndex]);
+    }
+
     static AudioEngine()
     {
         ProgressChanged += () =>
@@ -133,6 +188,7 @@ internal static class AudioEngine
             try
             {
                 mAudioGraph.MixData(position, position + count, true, buffer, offset);
+                mAudioPlayer.AddData(count, buffer, offset);
             }
             catch { }
         }
@@ -140,5 +196,8 @@ internal static class AudioEngine
 
     static IAudioEngine? mAudioEngine;
     static AudioGraph mAudioGraph;
+    static AudioPlayer mAudioPlayer = new();
     static AudioProcessor mAudioProcessor = new();
+
+    static readonly IAudioData[] mKeySamples = new IAudioData[MusicTheory.PITCH_COUNT];
 }

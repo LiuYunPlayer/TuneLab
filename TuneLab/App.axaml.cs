@@ -43,11 +43,17 @@ public partial class App : Application
                     AudioEngine.Destroy();
                 };
 
+                // init translation
                 TranslationManager.Init(PathManager.TranslationsFolder);
                 TranslationManager.CurrentLanguage.Value = TranslationManager.Languages.Contains(Settings.Language.Value) ? Settings.Language : TranslationManager.GetCurrentOSLanguage();
                 Settings.Language.Modified.Subscribe(() => TranslationManager.CurrentLanguage.Value = Settings.Language);
+
+                // init audio engine
                 AudioUtils.Init(new NAudioCodec());
                 AudioEngine.Init(new SDLAudioEngine());
+                AudioEngine.LoadKeySamples(Settings.KeySamplesPath);
+                Settings.KeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.KeySamplesPath));
+
                 ExtensionManager.LoadExtensions();
                 desktop.MainWindow = new MainWindow();
             }
