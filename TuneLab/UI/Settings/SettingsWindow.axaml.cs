@@ -14,6 +14,7 @@ using TuneLab.Utils;
 using TuneLab.Base.Properties;
 using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
+using TuneLab.Base.Event;
 
 namespace TuneLab.UI;
 
@@ -47,7 +48,7 @@ internal partial class SettingsWindow : Window
 
         Content.Background = Style.INTERFACE.ToBrush();
 
-        Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)));
+        Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)), s);
 
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
         {
