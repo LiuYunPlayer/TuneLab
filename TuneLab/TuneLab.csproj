@@ -27,6 +27,7 @@
 		<PackageReference Include="BunLabs.NAudio.Flac" Version="2.0.1" />
 		<PackageReference Include="Flurl.Http" Version="4.0.2" />
 		<PackageReference Include="IkG2p" Version="1.0.2" />
+		<PackageReference Include="Markdown.Avalonia" Version="11.0.2" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.6" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
