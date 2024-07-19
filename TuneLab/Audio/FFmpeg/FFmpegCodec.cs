@@ -202,15 +202,15 @@ internal class FFmpegCodec : IAudioCodec
         // return new NAudioCodec.NAudioResamplerStream(input, outputSamplingRate);
     }
 
-    private abstract class CacheableStream
+    private abstract class FIFOStream<T>
     {
-        public CacheableStream()
+        public FIFOStream()
         {
-            _cachedBuffer = new List<byte>();
+            _cachedBuffer = new List<T>();
             _cachedBufferPos = 0;
         }
 
-        protected int Decode(byte[] buf, int requiredSize)
+        protected int Decode(T[] buf, int requiredSize)
         {
             // 采取边解码边写到输出缓冲区的方式。策略是先把 cache 全部写出，然后边解码边写，写到最后剩下的再存入 cache
             int bytesWritten = 0;
@@ -241,6 +241,7 @@ internal class FFmpegCodec : IAudioCodec
                     break;
                 }
 
+                // 本次没读到任何内容
                 if (decodedBytes.IsEmpty())
                 {
                     continue;
@@ -255,7 +256,7 @@ internal class FFmpegCodec : IAudioCodec
                     Buffer.BlockCopy(decodedBytes, 0, buf, bytesWritten, bytesNeeded);
 
                     // 剩下的存入 cache
-                    _cachedBuffer.AddRange(Enumerable.Repeat<byte>(0, sizeToCache));
+                    _cachedBuffer.AddRange(Enumerable.Repeat<T>(default!, sizeToCache));
                     _cachedBufferPos = 0;
                     Buffer.BlockCopy(decodedBytes, bytesNeeded, _cachedBuffer.GetBuffer(), 0, sizeToCache);
 
@@ -275,11 +276,11 @@ internal class FFmpegCodec : IAudioCodec
         protected abstract byte[]? DecodeOnce();
 
         // 内部缓冲区相关
-        protected List<byte> _cachedBuffer; // 缓冲区
+        protected List<T> _cachedBuffer; // 缓冲区
         protected int _cachedBufferPos; // 缓冲区读取位置
     }
 
-    private unsafe class FileDecoderStream : CacheableStream, IAudioStream
+    private unsafe class FileDecoderStream : FIFOStream<byte>, IAudioStream
     {
         public int SamplingRate => _codecContext != null ? _codecContext->sample_rate : 0;
         public int ChannelCount => _codecContext != null ? _codecContext->ch_layout.nb_channels : 0;
@@ -609,7 +610,7 @@ internal class FFmpegCodec : IAudioCodec
         }
     }
 
-    private unsafe class ResampledAudioStream : CacheableStream, IAudioStream
+    private unsafe class ResampledAudioStream : FIFOStream<byte>, IAudioStream
     {
         public int SamplingRate { get; }
         public int ChannelCount { get; }
