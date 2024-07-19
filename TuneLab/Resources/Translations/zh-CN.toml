@@ -63,6 +63,8 @@
 "Download" = "下载"
 "Update" = "更新"
 "No updates at the moment." = "暂无新版本。"
+"Check update failed" = "检查更新失败"
+"An error occurred while checking for updates. Please check the log for more details." = "检查更新时发生了错误，详细信息请检查日志文件。"
 
 [Property]
 "Properties" = "属性"
