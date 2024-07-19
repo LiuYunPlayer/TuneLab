@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using SDL2;
@@ -16,7 +17,7 @@ internal class SDLPlaybackData
     }
 
     // 事件委托
-    public SDLGlobal.ValueChangeEvent<uint>? devChanged;
+    public SDLGlobal.ValueChangeEvent<string>? devChanged;
 
     public SDLGlobal.ValueChangeEvent<PlaybackState>? stateChanged;
 
@@ -32,7 +33,8 @@ internal class SDLPlaybackData
     public ISampleProvider? sampleProvider = null;
 
     // 控制参数
-    public uint curDevId = 0; // 当前播放设备
+    public uint devId = 0; // 当前播放设备
+    public string devName = string.Empty; // 当前播放设备名
 
     public SDL.SDL_AudioSpec spec;
 
@@ -64,7 +66,7 @@ internal class SDLPlaybackData
         mutex = new Mutex();
     }
 
-    public void start()
+    public void Start()
     {
         // 初始化控制块
         scb.audio_chunk = IntPtr.Zero;
@@ -76,7 +78,7 @@ internal class SDLPlaybackData
         producer.Start();
     }
 
-    public void stop()
+    public void Stop()
     {
         // 结束生产者线程
         notifyStop();
@@ -86,35 +88,77 @@ internal class SDLPlaybackData
         producer = null;
     }
 
-    public void setDriver(string drv)
+    public void SetDriver(string drv)
     {
-        if (driver != "")
+        if (!string.IsNullOrEmpty(driver))
         {
+            if (devId > 0)
+            {
+                // 停止播放
+                if (state == PlaybackState.Playing)
+                {
+                    Stop();
+                }
+
+                // 关闭音频设备
+                SDL.SDL_CloseAudioDevice(devId);
+
+                devId = 0;
+                devName = string.Empty;
+            }
+
+            // 关闭上一个驱动
             SDL.SDL_AudioQuit();
         }
 
-        if (drv != "")
+        if (!string.IsNullOrEmpty(drv))
         {
+            // 打开当前驱动
             SDL.SDL_AudioInit(drv);
+
+            // 刷新音频设备
+            _ = SDL.SDL_GetNumAudioDevices(0);
         }
 
         driver = drv;
     }
 
-    public void setDevId(uint newId)
+    public void SetDevice(string dev)
     {
-        var orgId = curDevId;
-        curDevId = newId;
+        var orgId = devId;
+        var orgName = devName;
+
         if (orgId > 0)
         {
+            // 停止播放
+            if (state == PlaybackState.Playing)
+            {
+                Stop();
+            }
+
+            // 关闭上一个设备
             SDL.SDL_CloseAudioDevice(orgId);
         }
 
-        if (newId > 0)
+        if (dev != SDLGlobal.PLAYBACK_EMPTY_DEVICE)
         {
-            var cnt = spec.samples * spec.channels;
+            // 打开当前设备
+            uint id;
+            if ((id = SDL.SDL_OpenAudioDevice(
+                    string.IsNullOrEmpty(dev) ? null : dev,
+                    0,
+                    ref spec,
+                    out _,
+                    0)) == 0)
+            {
+                throw new IOException($"SDL: Failed to open audio device \"{dev}\": {SDL.SDL_GetError()}");
+            }
+
+            devId = id;
+            devName = dev;
 
             // 初始化临时浮点数组
+            var cnt = spec.samples * spec.channels;
             if (cnt == 0)
             {
                 pcm_buffer = null;
@@ -124,15 +168,20 @@ internal class SDLPlaybackData
                 pcm_buffer = new float[cnt];
             }
         }
+        else
+        {
+            devId = 0;
+            devName = string.Empty;
+        }
 
         // 通知音频设备已更改
-        if (newId != orgId)
+        if (orgName != devName)
         {
-            devChanged?.Invoke(newId, orgId);
+            devChanged?.Invoke(devName, orgName);
         }
     }
 
-    public void setState(PlaybackState newState)
+    public void SetState(PlaybackState newState)
     {
         var orgState = state;
         state = newState;
@@ -145,7 +194,7 @@ internal class SDLPlaybackData
     }
 
     // 消费者
-    public void workCallback(IntPtr udata, IntPtr stream, int len)
+    private void workCallback(IntPtr udata, IntPtr stream, int len)
     {
         // 上锁
         mutex.WaitOne();
@@ -183,7 +232,7 @@ internal class SDLPlaybackData
     }
 
     // 通知缓冲区已空
-    public void notifyGetAudioFrame()
+    private void notifyGetAudioFrame()
     {
         var e = new SDL.SDL_Event();
         e.type = (SDL.SDL_EventType)SDLGlobal.UserEvent.SDL_EVENT_BUFFER_END;
@@ -191,7 +240,7 @@ internal class SDLPlaybackData
     }
 
     // 通知暂停
-    public void notifyStop()
+    private void notifyStop()
     {
         var e = new SDL.SDL_Event();
         e.type = (SDL.SDL_EventType)SDLGlobal.UserEvent.SDL_EVENT_MANUAL_STOP;
@@ -199,19 +248,20 @@ internal class SDLPlaybackData
     }
 
     // 生产者
-    public void poll()
+    private void poll()
     {
         // 固定缓冲区
         var gch = GCHandle.Alloc(pcm_buffer, GCHandleType.Pinned);
 
         // 设置暂停标识位
-        SDL.SDL_PauseAudioDevice(curDevId, 0);
-        setState(PlaybackState.Playing);
+        SDL.SDL_PauseAudioDevice(devId, 0);
+        SetState(PlaybackState.Playing);
 
         // 第一次事件
         notifyGetAudioFrame();
 
         // 外层循环
+        bool devicesChanged = false;
         while (true)
         {
             bool over = false;
@@ -255,11 +305,10 @@ internal class SDLPlaybackData
                         break;
                     }
 
+                    // 音频设备插入
                     case (int)SDL.SDL_EventType.SDL_AUDIODEVICEADDED:
                     {
-                        // 重新检测音频设备
-                        _ = SDL.SDL_GetNumAudioDevices(0);
-                        devicesUpdated?.Invoke();
+                        devicesChanged = true;
                         break;
                     }
 
@@ -267,15 +316,13 @@ internal class SDLPlaybackData
                     case (int)SDL.SDL_EventType.SDL_AUDIODEVICEREMOVED:
                     {
                         var dev = e.adevice.which;
-                        if (dev == curDevId)
+                        if (dev == devId)
                         {
-                            setDevId(0);
+                            SetDevice(SDLGlobal.PLAYBACK_EMPTY_DEVICE);
                             over = true;
                         }
 
-                        // 重新检测音频设备
-                        _ = SDL.SDL_GetNumAudioDevices(0);
-                        devicesUpdated?.Invoke();
+                        devicesChanged = true;
                         break;
                     }
                 }
@@ -290,8 +337,15 @@ internal class SDLPlaybackData
         }
 
         // 设置暂停标识位
-        SDL.SDL_PauseAudioDevice(curDevId, 1);
-        setState(PlaybackState.Stopped);
+        SDL.SDL_PauseAudioDevice(devId, 1);
+        SetState(PlaybackState.Stopped);
+
+        // 设备变动后重新检测音频设备
+        if (devicesChanged)
+        {
+            _ = SDL.SDL_GetNumAudioDevices(0);
+            devicesUpdated?.Invoke();
+        }
 
         // 解除固定缓冲区
         gch.Free();
