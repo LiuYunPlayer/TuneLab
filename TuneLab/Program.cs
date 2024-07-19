@@ -51,9 +51,11 @@ class Program
             .UseReactiveUI()
             .With(new FontManagerOptions()
             {
-                FontFallbacks = 
+                FontFallbacks =
                 [
-                    new FontFallback() { FontFamily = "Microsoft YaHei" },
+                    (Settings.Language.Value == "ja-JP") ?
+                        new FontFallback() { FontFamily = "Yu Gothic UI" } :
+                        new FontFallback() { FontFamily = "Microsoft YaHei" },
                 ]
             });
     }
