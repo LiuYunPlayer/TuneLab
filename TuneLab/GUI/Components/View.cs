@@ -63,6 +63,9 @@ internal class View : Container
 
     protected Item? HoverItem()
     {
+        if (!IsHover)
+            return null;
+
         if (!this.Rect().Contains(MousePosition))
             return null;
 
