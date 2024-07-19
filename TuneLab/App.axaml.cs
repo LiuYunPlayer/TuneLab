@@ -51,8 +51,8 @@ public partial class App : Application
                 // init audio engine
                 AudioUtils.Init(new NAudioCodec());
                 AudioEngine.Init(new SDLPlaybackHandler());
-                AudioEngine.LoadKeySamples(Settings.KeySamplesPath);
-                Settings.KeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.KeySamplesPath));
+                AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath);
+                Settings.PianoKeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath));
 
                 ExtensionManager.LoadExtensions();
                 desktop.MainWindow = new MainWindow();

@@ -18,7 +18,7 @@ internal static class Settings
     public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
     public static NotifiableProperty<double> BackgroundImageOpacity { get; } = DefaultSettings.BackgroundImageOpacity;
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
-    public static NotifiableProperty<string> KeySamplesPath { get; } = DefaultSettings.KeySamplesPath;
+    public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
     
     public static void Init(string path)
@@ -41,7 +41,7 @@ internal static class Settings
         Language.Value = settingsFile.Language;
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
-        KeySamplesPath.Value = settingsFile.KeySamplesPath;
+        PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
     }
 
@@ -54,7 +54,7 @@ internal static class Settings
                 Language = Language,
                 BackgroundImagePath = BackgroundImagePath,
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
-                KeySamplesPath = KeySamplesPath,
+                PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
             }, JsonSerializerOptions);
 

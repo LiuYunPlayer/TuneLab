@@ -774,12 +774,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (!File.Exists(Settings.BackgroundImagePath))
         {
             mBackgroundImage = null;
+            InvalidateVisual();
             return;
         }
 
         try
         {
             mBackgroundImage = new Bitmap(Settings.BackgroundImagePath);
+            InvalidateVisual();
         }
         catch (Exception ex)
         {

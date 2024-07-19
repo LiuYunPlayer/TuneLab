@@ -17,6 +17,8 @@ using System.Threading.Tasks;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.I18N;
+using Avalonia.Platform.Storage;
+using System.Linq;
 
 namespace TuneLab.Utils;
 
@@ -255,6 +257,76 @@ internal static class Extensions
         dialog.SetMessage(message);
         dialog.AddButton("OK", Dialog.ButtonType.Primary);
         await dialog.ShowDialog(visual.Window());
+    }
+
+    public static async Task<IReadOnlyList<string>> OpenFiles(this Avalonia.Visual visual, FilePickerOpenOptions options)
+    {
+        options.AllowMultiple = true;
+        return await visual.OpenFilesInternal(options);
+    }
+
+    public static async Task<IReadOnlyList<string>> OpenFolders(this Avalonia.Visual visual, FolderPickerOpenOptions options)
+    {
+        options.AllowMultiple = true;
+        return await visual.OpenFoldersInternal(options);
+    }
+
+    public static async Task<string?> OpenFile(this Avalonia.Visual visual, FilePickerOpenOptions options)
+    {
+        options.AllowMultiple = false;
+        var files = await OpenFilesInternal(visual, options);
+        if (files.IsEmpty())
+            return null;
+
+        return files[0];
+    }
+
+    public static async Task<string?> OpenFolder(this Avalonia.Visual visual, FolderPickerOpenOptions options)
+    {
+        options.AllowMultiple = false;
+        var files = await OpenFoldersInternal(visual, options);
+        if (files.IsEmpty())
+            return null;
+
+        return files[0];
+    }
+
+    static async Task<IReadOnlyList<string>> OpenFilesInternal(this Avalonia.Visual visual, FilePickerOpenOptions options)
+    {
+        var toplevel = TopLevel.GetTopLevel(visual);
+        if (toplevel == null)
+            return [];
+
+        var files = await toplevel.StorageProvider.OpenFilePickerAsync(options);
+        List<string> result = [];
+        foreach (var file in files)
+        {
+            var path = file.TryGetLocalPath();
+            if (path == null)
+                continue;
+
+            result.Add(path);
+        }
+        return result;
+    }
+
+    static async Task<IReadOnlyList<string>> OpenFoldersInternal(this Avalonia.Visual visual, FolderPickerOpenOptions options)
+    {
+        var toplevel = TopLevel.GetTopLevel(visual);
+        if (toplevel == null)
+            return [];
+
+        var files = await toplevel.StorageProvider.OpenFolderPickerAsync(options);
+        List<string> result = [];
+        foreach (var file in files)
+        {
+            var path = file.TryGetLocalPath();
+            if (path == null)
+                continue;
+
+            result.Add(path);
+        }
+        return result;
     }
 
     public static Color Lerp(this Color c1, Color c2, double ratio)

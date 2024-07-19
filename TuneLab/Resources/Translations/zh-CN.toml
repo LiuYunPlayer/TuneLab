@@ -2,7 +2,9 @@
 "Settings" = "设置"
 "Please restart to apply settings." = "请重启以应用设置"
 "Language" = "语言"
-"Custom Background Image Opacity" = "自定义背景图透明度"
+"Custom Background Image" = "自定义背景图"
+"Opacity" = "透明度"
+"Piano Key Samples" = "钢琴音采样"
 "Auto Save Interval (second)" = "自动保存间隔（秒）"
 "Parameter Boundary Extension (tick)" = "参数边界扩展（tick）"
 
@@ -103,6 +105,7 @@
 "Cut" = "剪切"
 "Copy" = "复制"
 "Paste" = "粘贴"
+"Rename" = "重命名"
 "Split" = "拆分"
 "Set Voice" = "设置声源"
 "Built-In" = "内建"

@@ -19,7 +19,7 @@ using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class SingleLineTextController : StackPanel, IDataValueController<string>
+internal class SingleLineTextController : LayerPanel, IDataValueController<string>
 {
     public IActionEvent ValueWillChange => mTextInput.EnterInput;
     public IActionEvent ValueChanged => mTextInput.TextChanged;
@@ -28,12 +28,9 @@ internal class SingleLineTextController : StackPanel, IDataValueController<strin
 
     public SingleLineTextController()
     {
-        Orientation = Orientation.Vertical;
-
         mTextInput = new TextInput()
         {
             Height = 28,
-            Margin = new(24, 12),
             AcceptsReturn = false
         };
 

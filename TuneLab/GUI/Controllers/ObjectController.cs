@@ -281,6 +281,7 @@ internal class ObjectController : StackPanel
             mLabelCreator = new LabelCreator(controller, key);
 
             mSingleLineTextController = ObjectPoolManager.Get<SingleLineTextController>();
+            mSingleLineTextController.Margin = new(24, 12);
             mSingleLineTextController.Display(config.DefaultValue);
             mSingleLineTextController.ValueWillChange.Subscribe(OnValueWillChange);
             mSingleLineTextController.ValueChanged.Subscribe(OnValueChanged);

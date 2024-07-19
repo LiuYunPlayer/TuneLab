@@ -13,6 +13,7 @@ using TuneLab.I18N;
 using TuneLab.Utils;
 using TuneLab.Base.Properties;
 using TuneLab.GUI.Controllers;
+using Avalonia.Platform.Storage;
 
 namespace TuneLab.UI;
 
@@ -74,10 +75,28 @@ internal partial class SettingsWindow : Window
                 panel.AddDock(slider, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Custom Background Image Opacity".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Opacity".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new(0, 0, 12, 0) };
+                panel.AddDock(name, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Custom Background Image".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);
+        }
+        {
+            var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [FilePickerFileTypes.ImageAll] } };
+            controller.Bind(Settings.BackgroundImagePath, false, s);
+            listView.Content.Children.Add(controller);
+        }
+        {
+            var name = new TextBlock() { Margin = new(24, 12), Text = "Piano Key Samples".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            listView.Content.Children.Add(name);
+        }
+        {
+            var controller = new PathInput() { Margin = new(24, 12), Options = new FolderPickerOpenOptions() };
+            controller.Bind(Settings.PianoKeySamplesPath, false, s);
+            listView.Content.Children.Add(controller);
         }
         {
             var panel = new DockPanel() { Margin = new(24, 12) };

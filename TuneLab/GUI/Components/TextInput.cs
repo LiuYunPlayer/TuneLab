@@ -18,7 +18,7 @@ internal class TextInput : TextBox, IDataValueController<string>
     public IActionEvent EnterInput => mEnterInput;
     public new IActionEvent TextChanged => mTextChanged;
     public IActionEvent EndInput => mEndInput;
-    public new string Text { get => base.Text ?? string.Empty; set => base.Text = value; }
+    public new string Text { get => base.Text ?? string.Empty; set { mEnterInput.Invoke(); base.Text = value; mEndInput.Invoke(); } }
 
     public IActionEvent ValueWillChange => EnterInput;
     public IActionEvent ValueChanged => TextChanged;
