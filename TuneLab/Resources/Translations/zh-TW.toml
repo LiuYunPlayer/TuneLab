@@ -2,9 +2,9 @@
 "Settings" = "設定"
 "Please restart to apply settings." = "請重新啟動以套用設定"
 "Language" = "語言"
-"Custom Background Image" = ""
-"Opacity" = ""
-"Piano Key Samples" = ""
+"Custom Background Image" = "自訂背景圖片"
+"Opacity" = "透明度"
+"Piano Key Samples" = "鋼琴音採樣"
 "Auto Save Interval (second)" = "自動儲存間隔（秒）"
 "Parameter Boundary Extension (tick)" = "參數邊界擴展（tick）"
 
