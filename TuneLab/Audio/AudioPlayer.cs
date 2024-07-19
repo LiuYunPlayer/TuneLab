@@ -25,7 +25,7 @@ internal class AudioPlayer
         {
             foreach (var audio in mAudioClips)
             {
-                AddData(count, buffer, offset);
+                audio.AddData(count, buffer, offset);
                 if (audio.Played)
                     playedAudioClips.Add(audio);
             }
@@ -41,8 +41,8 @@ internal class AudioPlayer
             int endPosition = Math.Min(audioData.Count, position + count);
             for (int i = position; i < endPosition; i++)
             {
-                buffer[offset + (i - position) * 2] = audioData.GetLeft(i);
-                buffer[offset + (i - position) * 2 + 1] = audioData.GetRight(i);
+                buffer[offset + (i - position) * 2] += audioData.GetLeft(i);
+                buffer[offset + (i - position) * 2 + 1] += audioData.GetRight(i);
             }
             position += count;
         }

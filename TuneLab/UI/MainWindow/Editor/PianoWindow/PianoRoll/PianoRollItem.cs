@@ -17,10 +17,15 @@ internal partial class PianoRoll
         public PianoRoll PianoRoll => pianoRoll;
     }
 
-    class WhiteKeyItem(PianoRoll pianoRoll) : PianoRollItem(pianoRoll)
+    interface IKeyItem
     {
-        public Rect Rect { get; set; }
-        public int KeyNumber { get; set; }
+        int KeyNumber { get; }
+    }
+
+    class WhiteKeyItem(PianoRoll pianoRoll) : PianoRollItem(pianoRoll), IKeyItem
+    {
+        public required Rect Rect { get; set; }
+        public required int KeyNumber { get; set; }
 
         public override void Render(DrawingContext context)
         {
@@ -36,10 +41,10 @@ internal partial class PianoRoll
         static readonly IBrush WhiteKeyBrush = new Color(255, 204, 204, 204).ToBrush();
     }
 
-    class BlackKeyItem(PianoRoll pianoRoll) : PianoRollItem(pianoRoll)
+    class BlackKeyItem(PianoRoll pianoRoll) : PianoRollItem(pianoRoll), IKeyItem
     {
-        public Rect Rect { get; set; }
-        public int KeyNumber { get; set; }
+        public required Rect Rect { get; set; }
+        public required int KeyNumber { get; set; }
 
         public override void Render(DrawingContext context)
         {

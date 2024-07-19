@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using TuneLab.Base.Science;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
+using TuneLab.Audio;
 
 namespace TuneLab.UI;
 
@@ -24,6 +25,14 @@ internal partial class PianoRoll
         {
             case MouseButtonType.MiddleButton:
                 mMiddleDragOperation.Down(e.Position.Y);
+                break;
+            case MouseButtonType.PrimaryButton:
+                var item = HoverItem();
+                if (item is IKeyItem keyItem)
+                {
+                    mPlayKeySampleOperation.Down();
+                    mPlayKeySampleOperation.Trigger(keyItem.KeyNumber);
+                }
                 break;
             default:
                 break;
@@ -42,6 +51,9 @@ internal partial class PianoRoll
             case MouseButtonType.MiddleButton:
                 mMiddleDragOperation.Up();
                 break;
+            case MouseButtonType.PrimaryButton:
+                mPlayKeySampleOperation.Up();
+                break;
             default:
                 break;
         }
@@ -49,16 +61,39 @@ internal partial class PianoRoll
 
     protected override void OnMouseRelativeMoveToView(MouseMoveEventArgs e)
     {
+        if (mPlayKeySampleOperation.IsOperating)
+        {
+            var item = HoverItem();
+            if (item is IKeyItem keyItem)
+            {
+                mPlayKeySampleOperation.Trigger(keyItem.KeyNumber);
+            }
+        }
+
         InvalidateVisual();
     }
 
     protected override void OnMouseEnter(MouseEnterEventArgs e)
     {
+        if (mPlayKeySampleOperation.IsOperating)
+        {
+            var item = HoverItem();
+            if (item is IKeyItem keyItem)
+            {
+                mPlayKeySampleOperation.Trigger(keyItem.KeyNumber);
+            }
+        }
+
         InvalidateVisual();
     }
 
     protected override void OnMouseLeave(MouseLeaveEventArgs e)
     {
+        if (mPlayKeySampleOperation.IsOperating)
+        {
+            mPlayKeySampleOperation.Reset();
+        }
+
         InvalidateVisual();
     }
 
@@ -71,11 +106,21 @@ internal partial class PianoRoll
         double c0hide = hideHeight - (MusicTheory.C0_PITCH - MusicTheory.MIN_PITCH) * keyHeight;
         int minWhite = (int)Math.Floor(c0hide / whiteKeyHeight);
         int maxWhite = (int)Math.Ceiling((c0hide + Bounds.Height) / whiteKeyHeight);
+        int GetKeyNumberForWhiteKeyIndex(int index)
+        {
+            int group = index / 7;
+            int mod = index % 7;
+            mod *= 2;
+            if (mod > 5)
+                mod--;
+
+            return group * 12 + mod + MusicTheory.C0_PITCH;
+        }
         for (int i = minWhite; i < maxWhite; i++)
         {
             double bottom = PitchAxis.Pitch2Y(MusicTheory.C0_PITCH + (double)i * 12 / 7) - 0.5;
             double top = PitchAxis.Pitch2Y(MusicTheory.C0_PITCH + (double)(i + 1) * 12 / 7) + 0.5;
-            items.Add(new WhiteKeyItem(this) { Rect = new Rect(-4, top, Bounds.Width + 4, bottom - top) });
+            items.Add(new WhiteKeyItem(this) { Rect = new Rect(-4, top, Bounds.Width + 4, bottom - top), KeyNumber = GetKeyNumberForWhiteKeyIndex(i) });
         }
 
         int minBlack = (int)Math.Floor(PitchAxis.MinVisiblePitch);
@@ -85,7 +130,7 @@ internal partial class PianoRoll
             if (MusicTheory.IsBlack(i))
             {
                 double top = PitchAxis.Pitch2Y(i + 1);
-                items.Add(new BlackKeyItem(this) { Rect = new Rect(0, top, 32, keyHeight) });
+                items.Add(new BlackKeyItem(this) { Rect = new Rect(0, top, 32, keyHeight) , KeyNumber = i });
             }
         }
     
@@ -101,7 +146,7 @@ internal partial class PianoRoll
     class Operation
     {
         public PianoRoll PianoRoll => mPianoRoll;
-        //public State State { get => PianoRoll.mState; set => PianoRoll.mState = value; }
+
         public Operation(PianoRoll pianoRoll)
         {
             mPianoRoll = pianoRoll;
@@ -145,4 +190,38 @@ internal partial class PianoRoll
     }
 
     readonly MiddleDragOperation mMiddleDragOperation;
+
+    class PlayKeySampleOperation(PianoRoll pianoRoll) : Operation(pianoRoll)
+    {
+        public bool IsOperating => mIsOperating;
+        public void Down()
+        {
+            mIsOperating = true;
+        }
+
+        public void Trigger(int keyNumber)
+        {
+            if (mLastKeyNumber == keyNumber)
+                return;
+
+            AudioEngine.PlayKeySample(keyNumber);
+            mLastKeyNumber = keyNumber;
+        }
+
+        public void Reset()
+        {
+            mLastKeyNumber = int.MaxValue;
+        }
+
+        public void Up()
+        {
+            mIsOperating = false;
+            Reset();
+        }
+
+        int mLastKeyNumber = int.MaxValue;
+        bool mIsOperating = false;
+    }
+
+    readonly PlayKeySampleOperation mPlayKeySampleOperation;
 }

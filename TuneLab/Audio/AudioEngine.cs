@@ -151,7 +151,7 @@ internal static class AudioEngine
                         }
                         catch (Exception ex)
                         {
-                            Log.Error("Failed to decode key sample: " + file + ex);
+                            Log.Error("Failed to decode key sample: " + file + " " + ex);
                         }
                     }
                 }
@@ -169,7 +169,11 @@ internal static class AudioEngine
         if ((uint)keyIndex >= mKeySamples.Length)
             return;
 
-        mAudioPlayer.Play(mKeySamples[keyIndex]);
+        var keySample = mKeySamples[keyIndex];
+        if (keySample == null)
+            return;
+
+        mAudioPlayer.Play(keySample);
     }
 
     static AudioEngine()
@@ -199,5 +203,5 @@ internal static class AudioEngine
     static AudioPlayer mAudioPlayer = new();
     static AudioProcessor mAudioProcessor = new();
 
-    static readonly IAudioData[] mKeySamples = new IAudioData[MusicTheory.PITCH_COUNT];
+    static readonly IAudioData?[] mKeySamples = new IAudioData?[MusicTheory.PITCH_COUNT];
 }

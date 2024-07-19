@@ -27,6 +27,7 @@ internal partial class PianoRoll : View
         mDependency = dependency;
 
         mMiddleDragOperation = new(this);
+        mPlayKeySampleOperation = new(this);
 
         PitchAxis.AxisChanged += InvalidateVisual;
     }
