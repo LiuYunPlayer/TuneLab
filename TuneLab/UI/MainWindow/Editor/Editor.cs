@@ -170,14 +170,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
             else if (FormatsManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
             {
-                projectFile = file; 
+                projectFile = file;
             }
         }
 
         if (projectFile != null)
         {
             e.Handled = true;
-            SwitchProjectSafely(() => 
+            SwitchProjectSafely(() =>
             {
                 LoadProject(projectFile);
             });
@@ -493,7 +493,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             Log.Error("Save file error: " + error);
             return;
         }
-        
+
         using (FileStream fileStream = new FileStream(path, FileMode.Create))
         {
             stream.CopyTo(fileStream);
@@ -642,7 +642,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var dialog = new Dialog();
         dialog.SetTitle("Tips".Tr(TC.Dialog));
         dialog.SetMessage("Detected an installed extension. \nDo you want to restart and perform a reinstall?".Tr(TC.Dialog));
-        dialog.AddButton("Yes".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => {
+        dialog.AddButton("Yes".Tr(TC.Dialog), ButtonType.Normal).Clicked += () =>
+        {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
             ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
@@ -684,19 +685,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             else
             {
                 Log.Info("No update available.");
-                if(!IsAutoCheck)
-                    await Dispatcher.UIThread.InvokeAsync(() =>
+                if (!IsAutoCheck)
+                    await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
-                        this.ShowMessage("Update".Tr(TC.Dialog), "No updates at the moment.".Tr(TC.Dialog));
+                        await this.ShowMessage("Update".Tr(TC.Dialog), "No updates at the moment.".Tr(TC.Dialog));
                     });
             }
         }
         catch (Exception ex)
         {
             Log.Error($"CheckUpdate: {ex.Message}");
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                this.ShowMessage("Check update failed".Tr(TC.Dialog), "An error occurred while checking for updates. Please check the log for more details.".Tr(TC.Dialog));
+                await this.ShowMessage("Check update failed".Tr(TC.Dialog), "An error occurred while checking for updates. Please check the log for more details.".Tr(TC.Dialog));
             });
         }
     }
@@ -717,11 +718,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var menuItem = new MenuItem().SetTrName("Open").SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
             }
-            { 
+            {
                 var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Recent Files");
                 foreach (var mRecentFile in RecentFilesManager.GetRecentFiles())
                 {
-                    var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => {
+                    var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() =>
+                    {
                         OpenProjectByPath(mRecentFile.FilePath);
                         Menu.Close();
                     });
@@ -827,7 +829,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 var menuItem = new MenuItem().SetTrName("TuneLab GitHub").SetAction(() => ProcessHelper.OpenUrl("https://github.com/LiuYunPlayer/TuneLab"));
                 menuBarItem.Items.Add(menuItem);
             }
-            { 
+            {
                 var menuItem = new MenuItem().SetTrName("Check for Updates...").SetAction(() => CheckUpdate(false));
                 menuBarItem.Items.Add(menuItem);
             }
