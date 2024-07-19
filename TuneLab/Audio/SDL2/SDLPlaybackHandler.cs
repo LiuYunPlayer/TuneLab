@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using NAudio.Wave;
 using SDL2;
-using TuneLab.Base.Utils;
 
 namespace TuneLab.Audio.SDL2;
 
@@ -13,24 +12,42 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
 {
     public event Action? PlayStateChanged;
     public event Action? ProgressChanged;
-
     public event Action? CurrentDeviceChanged;
     public event Action? DevicesChanged;
 
     public bool IsPlaying => _d.state == SDLPlaybackData.PlaybackState.Playing;
-    public double CurrentTime => (double)_position / _audioProvider.SamplingRate;
 
-    public string CurrentDriver { get => _d.driver; set => _d.setDriver(value); }
-    public string CurrentDevice { get => SDL.SDL_GetAudioDeviceName(_deviceIndex, 0); set => SwitchDevice(GetAllDevices().IndexOf(value)); }
+    public double CurrentTime => 0;
 
-    public int CurrentDeviceIndex => _deviceIndex;
+    // 当前音频驱动
+    public string CurrentDriver
+    {
+        get => _d.driver;
+        set { _d.SetDriver(value); }
+    }
+
+    // 当前音频设备
+    public string CurrentDevice
+    {
+        get => _d.devName;
+        set
+        {
+            // 打开音频设备
+            if (value == null)
+            {
+                value = string.Empty;
+            }
+
+            _d.SetDevice(value);
+        }
+    }
 
     public void Init(IAudioProvider provider)
     {
         var context = SynchronizationContext.Current;
         if (context == null)
         {
-            throw new Exception("Can't get SynchronizationContext");
+            throw new Exception("Failed to get SynchronizationContext");
         }
 
         _audioProvider = provider;
@@ -44,7 +61,13 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             _d = new SDLPlaybackData();
 
             // 转发事件：设备更改
-            _d.devChanged = (newVal, oldVal) => { context.Post(_ => { CurrentDeviceChanged?.Invoke(); }, null); };
+            _d.devChanged = (newVal, oldVal) =>
+            {
+                context.Post(_ =>
+                {
+                    CurrentDeviceChanged?.Invoke(); //
+                }, null);
+            };
             // 转发事件：播放状态更改
             _d.stateChanged = (newVal, oldVal) =>
             {
@@ -68,7 +91,6 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
                 {
                     if (IsPlaying)
                     {
-                        _position += val;
                         ProgressChanged?.Invoke();
                     }
                 }, null);
@@ -76,7 +98,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                _d.setDriver("directsound");
+                _d.SetDriver("directsound");
             }
 
             // 创建 sample provider
@@ -89,7 +111,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             _d.spec.silence = 0;
 
             _d.sampleProvider = sampleProvider;
-            _d.setDevId(0);
+            _d.SetDevice(SDLGlobal.PLAYBACK_EMPTY_DEVICE);
 
             // 打开默认音频设备延迟到播放操作时
         }
@@ -102,9 +124,8 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         Stop();
 
         _d.sampleProvider = null;
-        _d.setDevId(0);
-
-        _d.setDriver("");
+        _d.SetDevice(SDLGlobal.PLAYBACK_EMPTY_DEVICE);
+        _d.SetDriver(string.Empty);
     }
 
     public void Start()
@@ -115,12 +136,12 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         }
 
         // 如果没有打开音频设备那么打开默认音频设备
-        if (_d.curDevId == 0)
+        if (_d.devId == 0)
         {
-            SwitchDevice(-1);
+            CurrentDevice = string.Empty;
         }
 
-        _d.start();
+        _d.Start();
     }
 
     public void Stop()
@@ -130,13 +151,17 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             return;
         }
 
-        _d.stop();
+        _d.Stop();
     }
 
     // 获取所有音频设备
     public IReadOnlyList<string> GetAllDevices()
     {
-        var res = new List<string>();
+        var res = new List<string>
+        {
+            string.Empty // 全自动音频设备
+        };
+
         int cnt = SDL.SDL_GetNumAudioDevices(0);
         for (int i = 0; i < cnt; i++)
         {
@@ -144,41 +169,6 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         }
 
         return res;
-    }
-
-    // 切换音频设备
-    public void SwitchDevice(int deviceNumber)
-    {
-        if (_d.state == SDLPlaybackData.PlaybackState.Playing)
-        {
-            Log.Warning("SDL: Don't change audio device when playing.");
-            return;
-        }
-
-        // 打开音频设备
-        uint id;
-        string? deviceToOpen = deviceNumber < 0 ? null : SDL.SDL_GetAudioDeviceName(deviceNumber, 0);
-        if (deviceToOpen == null)
-        {
-            Log.Info($"SDL: Open default device");
-        }
-        else
-        {
-            Log.Info($"SDL: Open \"{deviceToOpen}\"");
-        }
-
-        if ((id = SDL.SDL_OpenAudioDevice(
-                deviceToOpen,
-                0,
-                ref _d.spec,
-                out _,
-                0)) == 0)
-        {
-            throw new IOException($"SDL: Failed to open audio device: {SDL.SDL_GetError()}.");
-        }
-
-        _deviceIndex = deviceNumber;
-        _d.setDevId(id);
     }
 
     // 获取所有音频驱动
@@ -202,11 +192,9 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
 
     // 成员变量
     private IAudioProvider? _audioProvider;
-    private int _position = 0;
 
     // SDL 相关
     private SDLPlaybackData _d;
-    private int _deviceIndex = 0;
 
     private class SampleProvider(SDLPlaybackHandler engine) : ISampleProvider
     {
