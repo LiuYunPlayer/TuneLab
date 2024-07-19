@@ -354,11 +354,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         var modal = new Dialog();
-        modal.SetTitle("Tips");
-        modal.SetMessage("The project has not been saved.\n Do you want to save it?");
-        modal.AddButton("Cancel", ButtonType.Normal);
-        modal.AddButton("No", ButtonType.Normal).Clicked += () => { SwitchProject(); };
-        modal.AddButton("Save", ButtonType.Primary).Clicked += async () => { await SaveProject(); SwitchProject(); };
+        modal.SetTitle("Tips".Tr(TC.Dialog));
+        modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
+        modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
+        modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { SwitchProject(); };
+        modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await SaveProject(); SwitchProject(); };
         modal.Topmost = true;
         await modal.ShowDialog(this.Window());
     }
