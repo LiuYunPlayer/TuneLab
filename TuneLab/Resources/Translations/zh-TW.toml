@@ -1,0 +1,141 @@
+[SettingsWindow]
+"Settings" = "設定"
+"Please restart to apply settings." = "請重新啟動以套用設定"
+"Language" = "語言"
+"Custom Background Image Opacity" = "自訂背景圖片透明度"
+"Auto Save Interval (second)" = "自動儲存間隔（秒）"
+"Parameter Boundary Extension (tick)" = "參數邊界擴展（tick）"
+
+[FunctionBar]
+"Play" = "播放"
+"Pause" = "暫停"
+"Auto Scroll" = "自動翻頁"
+"Quantization" = "量化"
+"Note Tool" = "音符工具"
+"Pitch Pen" = "音高畫筆"
+"Anchor Tool" = "錨點工具"
+"Pitch Locking Brush" = "音高鎖定筆刷"
+"Vibrato Tool" = "顫音工具"
+"Selection Tool" = "選區工具"
+
+[PianoScrollView]
+"Please draw pitch first in the area" = "請先在此區域繪製音高"
+"Frequency" = "頻率"
+"Phase" = "相位"
+
+[AutomationRenderer]
+"Drag to associate the vibrato" = "拖曳以關聯顫音"
+
+[Dialog]
+"OK" = "確定"
+"Cancel" = "取消"
+"Yes" = "是"
+"No" = "否"
+"Save" = "儲存"
+"Tips" = "提醒"
+"Error" = "錯誤"
+"Program crashed last time. Open auto-backup file?" = "程式意外關閉。要打開自動備份專案嗎？"
+"The project has not been saved.\n Do you want to save it?" = "專案還未儲存。\n 是否儲存？"
+"Input Lyrics" = "輸入歌詞"
+"Skip Tenuto" = "跳過延音符"
+"Select Track" = "選擇軌道"
+"Select the track to import:" = "選擇要匯入的軌道:"
+"Keep Tempo" = "保留原曲速"
+"Open File" = "打開檔案"
+"Importable Formats" = "可匯入格式"
+"Save File" = "儲存檔案"
+"TuneLab Project" = "TuneLab 專案"
+"WAVE File" = "波形檔案"
+"Export As" = "匯出為"
+"{0} has been successfully installed!" = "擴充功能 {0} 安裝成功!"
+"Installating {0} failed: \n{1}" = "無法安裝擴充功能 {0} : \n{1}"
+"Detected an installed extension. \nDo you want to restart and perform a reinstall?" = "偵測到擴充功能已經安裝過了。 \n是否要重新開啟編輯器並重新安裝？"
+"Track" = "軌道"
+"Export failed: \n" = "無法匯出： \n"
+"The file failed to open because it does not exist." = "無法打開，目標檔案不存在。"
+"Update Available" = "有新版本可用"
+"Version" = "版本號"
+"Public Date" = "發布時間"
+"Ignore" = "忽略"
+"Later" = "稍後"
+"Download" = "下載"
+"Update" = "更新"
+"No updates at the moment." = "暫無新版本。"
+"Check update failed" = "無法檢查更新"
+"An error occurred while checking for updates. Please check the log for more details." = "檢查更新時發生了錯誤，詳細資料請參閱日誌檔案。"
+
+[Property]
+"Properties" = "屬性"
+"Part" = "片段"
+"Note" = "音符"
+"Automation" = "參數"
+"Gain" = "增益"
+"Volume" = "音量"
+"VibratoEnvelope" = "顫音包絡"
+"Pitch" = "音高"
+
+[Document]
+"Untitled Project" = "未命名專案"
+"Part" = "片段"
+"Track" = "軌道"
+
+[Menu]
+"File" = "檔案"
+"New" = "新增"
+"Open" = "打開"
+"Save" = "儲存"
+"Save As" = "另存為"
+"Export As (test)" = "匯出為 (實驗性功能)"
+"Export Mix" = "匯出為混音檔案"
+
+"Edit" = "編輯"
+"Undo" = "復原"
+"Redo" = "重做"
+"Settings" = "設定"
+
+"Project" = "專案"
+"Add Track" = "新增軌道"
+"Import Track" = "匯入專案軌道"
+"Import Audio" = "匯入音訊軌道"
+
+"Transport" = "播放控制"
+"Play" = "播放"
+"Pause" = "暫停"
+
+"Cut" = "剪切"
+"Copy" = "複製"
+"Paste" = "貼上"
+"Split" = "拆分"
+"Set Voice" = "設定聲庫"
+"Built-In" = "內建"
+"Delete" = "刪除"
+
+"Add Tempo" = "新增曲速"
+"Delete Tempo" = "刪除曲速"
+"Edit Tempo" = "編輯曲速"
+
+"Export Audio" = "匯出音訊"
+
+"Split by Phonemes" = "按音素拆分"
+"Octave Up" = "升八度"
+"Octave Down" = "降八度"
+"Move Lyrics Forward" = "由此前移歌詞"
+"Move Lyrics Backward" = "由此後移歌詞"
+
+"Input Lyrics" = "輸入歌詞"
+
+"Recent Files" = "最近打開的檔案"
+"Help" = "說明"
+
+"Move Up" = "上移"
+"Move Down" = "下移"
+"Set Color" = "設定顏色"
+"As Refer" = "作為參考"
+"Visible as Refer" = "作為參考顯示"
+"Hidden as Refer" = "隱藏參考顯示"
+
+"TuneLab Forum" = "TuneLab 論壇"
+"TuneLab GitHub" = "TuneLab Github"
+
+"Empty" = "空"
+"Check for Updates..." = "檢查更新..."
