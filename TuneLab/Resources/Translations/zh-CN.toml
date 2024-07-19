@@ -2,6 +2,7 @@
 "Settings" = "设置"
 "Please restart to apply settings." = "请重启以应用设置"
 "Language" = "语言"
+"Custom Background Image Opacity" = "自定义背景图透明度"
 "Auto Save Interval (second)" = "自动保存间隔（秒）"
 "Parameter Boundary Extension (tick)" = "参数边界扩展（tick）"
 

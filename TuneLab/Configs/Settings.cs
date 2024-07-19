@@ -15,7 +15,8 @@ internal static class Settings
 {
     public static readonly SettingsFile DefaultSettings = new();
     public static NotifiableProperty<string> Language { get; } = DefaultSettings.Language;
-    public static NotifiableProperty<string> BackgroundPath { get; } = DefaultSettings.BackgroudPath;
+    public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
+    public static NotifiableProperty<double> BackgroundImageOpacity { get; } = DefaultSettings.BackgroundImageOpacity;
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
     public static NotifiableProperty<string> KeySamplesPath { get; } = DefaultSettings.KeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
@@ -38,7 +39,7 @@ internal static class Settings
         settingsFile ??= DefaultSettings;
 
         Language.Value = settingsFile.Language;
-        BackgroundPath.Value = settingsFile.BackgroudPath;
+        BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
         KeySamplesPath.Value = settingsFile.KeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
@@ -51,7 +52,7 @@ internal static class Settings
             var content = JsonSerializer.Serialize(new SettingsFile()
             {
                 Language = Language,
-                BackgroudPath = BackgroundPath,
+                BackgroundImagePath = BackgroundImagePath,
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
                 KeySamplesPath = KeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,

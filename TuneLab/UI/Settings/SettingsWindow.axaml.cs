@@ -67,6 +67,21 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
+                var slider = new SliderController() { Width = 180, IsInterger = false };
+                slider.SetRange(0, 1);
+                slider.SetDefaultValue(Settings.DefaultSettings.BackgroundImageOpacity);
+                slider.Bind(Settings.BackgroundImageOpacity, true, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Custom Background Image Opacity".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
                 var slider = new SliderController() { Width = 180, IsInterger = true };
                 slider.SetRange(10, 60);
                 slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveInterval);

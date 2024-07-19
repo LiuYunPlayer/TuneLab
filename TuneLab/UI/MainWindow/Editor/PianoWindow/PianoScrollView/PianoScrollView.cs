@@ -22,6 +22,9 @@ using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.I18N;
+using Avalonia.Media.Imaging;
+using TuneLab.Configs;
+using System.IO;
 
 namespace TuneLab.UI;
 
@@ -108,6 +111,10 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         TickAxis.AxisChanged += InvalidateArrange;
         PitchAxis.AxisChanged += InvalidateArrange;
+
+        Settings.BackgroundImagePath.Modified.Subscribe(LoadBackgroundImage, s);
+        Settings.BackgroundImageOpacity.Modified.Subscribe(InvalidateVisual, s);
+        LoadBackgroundImage();
     }
 
     ~PianoScrollView()
@@ -245,6 +252,17 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 }
             }
         }
+        
+        // draw background
+        if (mBackgroundImage != null)
+        {
+            var imageSize = mBackgroundImage.Size;
+            var ratio = Bounds.Height / imageSize.Height;
+            imageSize *= ratio;
+            using var _ = context.PushOpacity(Settings.BackgroundImageOpacity);
+            context.DrawImage(mBackgroundImage, new Rect(Bounds.Width - imageSize.Width, 0, imageSize.Width, imageSize.Height));
+        }
+
         // draw refer note
         if (Part.Track != null && Part.Track.Project != null)
             foreach (var track in Part.Track.Project.Tracks)
@@ -270,6 +288,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                     }
                 }
             }
+        
         // draw note
         double round = 4;
         IBrush noteBrush = Style.ITEM.ToBrush();
@@ -750,6 +769,24 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
     }
 
+    void LoadBackgroundImage()
+    {
+        if (!File.Exists(Settings.BackgroundImagePath))
+        {
+            mBackgroundImage = null;
+            return;
+        }
+
+        try
+        {
+            mBackgroundImage = new Bitmap(Settings.BackgroundImagePath);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to load background image: " + ex);
+        }
+    }
+
     double QuantizedCellTicks()
     {
         int quantizationBase = (int)Quantization.Base;
@@ -1029,6 +1066,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
     const double LyricInputMinWidth = 60;
 
     readonly TextInput mLyricInput;
+
+    IImage? mBackgroundImage = null;
 
     Color WhiteKeyColor => GUI.Style.WHITE_KEY;
     Color BlackKeyColor => GUI.Style.BLACK_KEY;
