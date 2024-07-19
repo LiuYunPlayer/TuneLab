@@ -652,7 +652,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         await dialog.ShowDialog(this.Window());
     }
 
-    private void UpdateDialog(UpdateInfo mUpdateCheck, bool IsAutoCheck)
+    private async void UpdateDialog(UpdateInfo mUpdateCheck, bool IsAutoCheck)
     {
         var dialog = new Dialog();
         dialog.SetTitle("Update Available".Tr(TC.Dialog));
@@ -665,18 +665,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             ProcessHelper.OpenUrl(mUpdateCheck.url);
         };
-        dialog.Show();
+        await dialog.ShowDialog(this.Window());
     }
 
-    private void NoUpdateDialog()
-    {
-        var dialog = new Dialog();
-        dialog.SetTitle("Update".Tr(TC.Dialog));
-        dialog.SetMessage("No updates at the moment.".Tr(TC.Dialog));
-        dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
-        dialog.AddButton("OK".Tr(TC.Dialog), Dialog.ButtonType.Primary);
-        dialog.Show();
-    }
     public async void CheckUpdate(bool IsAutoCheck = true)
     {
         try
@@ -696,7 +687,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 if(!IsAutoCheck)
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        NoUpdateDialog();
+                        this.ShowMessage("Update".Tr(TC.Dialog), "No updates at the moment.".Tr(TC.Dialog));
                     });
             }
         }
@@ -705,7 +696,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             Log.Error($"CheckUpdate: {ex.Message}");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                NoUpdateDialog();
+                this.ShowMessage("Check update failed".Tr(TC.Dialog), "An error occurred while checking for updates. Please check the log for more details.".Tr(TC.Dialog));
             });
         }
     }
