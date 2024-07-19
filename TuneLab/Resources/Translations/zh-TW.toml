@@ -104,12 +104,12 @@
 "Play" = "播放"
 "Pause" = "暫停"
 
-"Cut" = "剪切"
+"Cut" = "剪下"
 "Copy" = "複製"
 "Paste" = "貼上"
-"Rename" = ""
+"Rename" = "重新命名"
 "Split" = "拆分"
-"Set Voice" = "設定聲庫"
+"Set Voice" = "設定音源"
 "Built-In" = "內建"
 "Delete" = "刪除"
 
