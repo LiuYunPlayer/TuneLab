@@ -33,18 +33,6 @@ public partial class App : Application
         {
             try
             {
-                Settings.Init(PathManager.SettingsFilePath);
-                Log.SetupLogger(new FileLogger(Path.Combine(PathManager.LogsFolder, "TuneLab_" + DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss") + ".log")));
-                Log.Info("Version: " + AppInfo.Version);
-                mLockFile = LockFile.Create(PathManager.LockFilePath);
-                if (mLockFile == null)
-                {
-                    // TODO: 传递启动参数给当前运行的app
-                    Process.GetCurrentProcess().Kill();
-                    Process.GetCurrentProcess().WaitForExit();
-                    return;
-                }
-
                 desktop.Startup += (s, e) =>
                 {
                     AnimationManager.SharedManager.Init();
@@ -53,7 +41,6 @@ public partial class App : Application
                 {
                     ExtensionManager.Destroy();
                     AudioEngine.Destroy();
-                    mLockFile?.Dispose();
                 };
 
                 TranslationManager.Init(PathManager.TranslationsFolder);
@@ -93,6 +80,4 @@ public partial class App : Application
 
         base.OnFrameworkInitializationCompleted();
     }
-
-    LockFile? mLockFile;
 }
