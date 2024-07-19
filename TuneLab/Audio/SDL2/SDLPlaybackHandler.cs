@@ -18,8 +18,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
     public event Action? DevicesChanged;
 
     public bool IsPlaying => _d.state == SDLPlaybackData.PlaybackState.Playing;
-    public int SamplingRate => 44100;
-    public double CurrentTime => (double)_position / SamplingRate;
+    public double CurrentTime => (double)_position / _audioProvider.SamplingRate;
 
     public string CurrentDriver { get => _d.driver; set => _d.setDriver(value); }
     public string CurrentDevice { get => SDL.SDL_GetAudioDeviceName(_deviceIndex, 0); set => SwitchDevice(GetAllDevices().IndexOf(value)); }
@@ -84,7 +83,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             var sampleProvider = new SampleProvider(this);
 
             // 创建音频结构体
-            _d.spec.freq = SamplingRate;
+            _d.spec.freq = _audioProvider.SamplingRate;
             _d.spec.format = SDLGlobal.PLAYBACK_FORMAT;
             _d.spec.channels = (byte)sampleProvider.WaveFormat.Channels;
             _d.spec.silence = 0;
@@ -211,7 +210,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
 
     private class SampleProvider(SDLPlaybackHandler engine) : ISampleProvider
     {
-        public WaveFormat WaveFormat => WaveFormat.CreateIeeeFloatWaveFormat(engine.SamplingRate, 2);
+        public WaveFormat WaveFormat => WaveFormat.CreateIeeeFloatWaveFormat(engine._audioProvider.SamplingRate, 2);
 
         public int Read(float[] buffer, int offset, int count)
         {

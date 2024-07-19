@@ -15,7 +15,6 @@ internal interface IAudioPlaybackHandler
     event Action? DevicesChanged;
 
     bool IsPlaying { get; }
-    int SamplingRate { get; }
     double CurrentTime { get; }
 
     string CurrentDriver { get; set; }

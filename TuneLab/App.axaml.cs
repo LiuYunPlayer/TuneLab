@@ -50,7 +50,7 @@ public partial class App : Application
 
                 // init audio engine
                 AudioUtils.Init(new NAudioCodec());
-                AudioEngine.Init(new SDLAudioEngine());
+                AudioEngine.Init(new SDLPlaybackHandler());
                 AudioEngine.LoadKeySamples(Settings.KeySamplesPath);
                 Settings.KeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.KeySamplesPath));
 
