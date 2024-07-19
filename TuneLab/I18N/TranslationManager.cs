@@ -23,7 +23,9 @@ internal static class TranslationManager
 
     public static void Init(string path)
     {
-        foreach (var file in new DirectoryInfo(path).GetFiles("*.toml"))
+        DirectoryInfo resDir = new DirectoryInfo(path);
+        if (!resDir.Exists) return;
+        foreach (var file in resDir.GetFiles("*.toml"))
         {
             var i18nName = Path.GetFileNameWithoutExtension(file.FullName);
             if (mTranslators.ContainsKey(i18nName))
