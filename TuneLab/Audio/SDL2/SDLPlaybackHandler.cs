@@ -17,8 +17,6 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
 
     public bool IsPlaying => _d.state == SDLPlaybackData.PlaybackState.Playing;
 
-    public double CurrentTime => 0;
-
     // 当前音频驱动
     public string CurrentDriver
     {

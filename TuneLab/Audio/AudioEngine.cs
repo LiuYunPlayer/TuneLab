@@ -27,7 +27,7 @@ internal static class AudioEngine
 
         mAudioPlaybackHandler = playbackHandler;
         mAudioPlaybackHandler.Init(mAudioProvider);
-        mAudioPlaybackHandler.ProgressChanged += () => { ProgressChanged?.Invoke(); };
+        mAudioPlaybackHandler.ProgressChanged += () => { if (IsPlaying) ProgressChanged?.Invoke(); };
 
         ProgressChanged += OnProgressChanged;
 
@@ -62,6 +62,7 @@ internal static class AudioEngine
     public static void Seek(double time)
     {
         mAudioProvider.Seek(time);
+        ProgressChanged?.Invoke();
     }
 
     public static void AddTrack(IAudioTrack track)
