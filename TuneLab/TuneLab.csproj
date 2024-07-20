@@ -46,11 +46,9 @@
 	  <ProjectReference Include="..\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" />
 	</ItemGroup>
 
-	<Target Name="CopyFiles" AfterTargets="Build">
-		<ItemGroup>
-			<Resources Include="Resources\**\*.*" />
-		</ItemGroup>
-
-		<Copy SourceFiles="@(Resources)" DestinationFolder="$(TargetDir)\Resources\%(RecursiveDir)" />
-	</Target>
+	<ItemGroup>
+	  <None Update="Resources\**\*.*">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
 </Project>

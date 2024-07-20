@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.ReactiveUI;
 using TuneLab.Base.Utils;
 using TuneLab.Configs;
+using TuneLab.I18N;
 using TuneLab.Utils;
 
 namespace TuneLab;
@@ -18,9 +20,11 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // init logger
         Log.SetupLogger(new FileLogger(Path.Combine(PathManager.LogsFolder, "TuneLab_" + DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss") + ".log")));
         Log.Info("Version: " + AppInfo.Version);
 
+        // check if other instance is running
         var lockFile = LockFile.Create(PathManager.LockFilePath);
         if (lockFile == null)
         {
@@ -30,11 +34,19 @@ class Program
             return;
         }
 
+        // init setting
         Settings.Init(PathManager.SettingsFilePath);
 
+        // init translation
+        TranslationManager.Init(PathManager.TranslationsFolder);
+        TranslationManager.CurrentLanguage.Value = TranslationManager.Languages.Contains(Settings.Language.Value) ? Settings.Language : TranslationManager.GetCurrentOSLanguage();
+        Settings.Language.Modified.Subscribe(() => TranslationManager.CurrentLanguage.Value = Settings.Language);
+
+        // event loop
         BuildAvaloniaApp()
         .StartWithClassicDesktopLifetime(args);
 
+        // exit
         lockFile.Dispose();
     }
 
