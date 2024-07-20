@@ -54,17 +54,17 @@ internal class TextInput : TextBox, IDataValueController<string>
 
     public void Display(string text)
     {
-        Text = text;
+        base.Text = text;
     }
 
     public void DisplayNull()
     {
-        Text = string.Empty;
+        base.Text = string.Empty;
     }
 
     public void DisplayMultiple()
     {
-        Text = "(Multiple)";
+        base.Text = "(Multiple)";
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
