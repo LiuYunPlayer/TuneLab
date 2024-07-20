@@ -994,7 +994,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             return;
 
         mInputLyricNote = note;
-        mLyricInput.Text = note.Lyric.Value;
+        mLyricInput.Display(note.Lyric.Value);
         mLyricInput.IsVisible = true;
         mLyricInput.Focus();
         mLyricInput.SelectAll();

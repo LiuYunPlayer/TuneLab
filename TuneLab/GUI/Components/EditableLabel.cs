@@ -39,7 +39,7 @@ internal class EditableLabel : LayerPanel, IDataValueController<string>
 
         mBorder.DoubleTapped += (s, e) =>
         {
-            mTextInput.Text = mTextBlock.Text ?? string.Empty;
+            mTextInput.Display(mTextBlock.Text ?? string.Empty);
             mTextInput.IsVisible = true;
             mTextInput.Focus();
             mTextInput.SelectAll();

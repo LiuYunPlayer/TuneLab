@@ -702,7 +702,7 @@ internal partial class TrackScrollView : View
 
         mInputNamePart = part;
         mInputNameTrackIndex = trackIndex;
-        mNameInput.Text = part.Name.Value;
+        mNameInput.Display(part.Name.Value);
         mNameInput.IsVisible = true;
         mNameInput.Focus();
         mNameInput.SelectAll();

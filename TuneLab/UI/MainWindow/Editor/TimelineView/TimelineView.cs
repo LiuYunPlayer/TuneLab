@@ -209,7 +209,7 @@ internal partial class TimelineView : View
             return;
 
         mInputBpmTempo = tempo;
-        mBpmInput.Text = BpmString(tempo);
+        mBpmInput.Display(BpmString(tempo));
         mBpmInput.IsVisible = true;
         mBpmInput.Focus();
         mBpmInput.SelectAll();

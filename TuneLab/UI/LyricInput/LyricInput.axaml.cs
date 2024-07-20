@@ -74,7 +74,7 @@ internal partial class LyricInput : Window
     {
         var lyricInput = new LyricInput();
         lyricInput.mNotes = notes;
-        lyricInput.mLyricInputBox.Text = string.Join(' ', notes.Select(note => note.Lyric.Value));
+        lyricInput.mLyricInputBox.Display(string.Join(' ', notes.Select(note => note.Lyric.Value)));
         lyricInput.Show(owner);
     }
 
