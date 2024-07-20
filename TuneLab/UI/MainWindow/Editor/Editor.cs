@@ -655,14 +655,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     private async void UpdateDialog(UpdateInfo mUpdateCheck, bool IsAutoCheck)
     {
-        var dialog = new Dialog();
-        dialog.SetTitle("Update Available".Tr(TC.Dialog));
-        dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}\n\n{mUpdateCheck.description}");
-        dialog.SetTextAlignment(Avalonia.Media.TextAlignment.Left);
+        var dialog = new UpdateDialog();
+        dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}");
+        dialog.SetMDMessage(mUpdateCheck.description ?? "");
         if (IsAutoCheck)
-            dialog.AddButton("Ignore".Tr(TC.Dialog), Dialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
-        dialog.AddButton("Later".Tr(TC.Dialog), Dialog.ButtonType.Normal);
-        dialog.AddButton("Download".Tr(TC.Dialog), Dialog.ButtonType.Primary).Clicked += () =>
+            dialog.AddButton("Ignore".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
+        dialog.AddButton("Later".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal);
+        dialog.AddButton("Download".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Primary).Clicked += () =>
         {
             ProcessHelper.OpenUrl(mUpdateCheck.url);
         };
