@@ -9,10 +9,15 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<LangVersion>latest</LangVersion>
 		<Version>1.5.3</Version>
+		<ApplicationIcon>Assets\Images\Logo.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<AvaloniaResource Include="Assets\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="Assets\Images\Logo.ico" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -10,7 +10,8 @@
 		ExtendClientAreaChromeHints="NoChrome"
 		ExtendClientAreaTitleBarHeightHint="40"
 		ExtendClientAreaToDecorationsHint="True"
-		SizeChanged="Window_SizeChanged">
+		SizeChanged="Window_SizeChanged"
+		Icon="/Assets/Images/Logo.ico">
 	
 	<Window.Resources>
 		<SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#272736</SolidColorBrush>
@@ -25,7 +26,9 @@
 				<ColumnDefinition Width="*"/>
 			</Grid.ColumnDefinitions>
 			
-			<StackPanel Grid.Column="0" x:Name="MenuBar" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal"/>
+			<StackPanel Grid.Column="0" x:Name="MenuBar" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal">
+				<Image Margin="8,2,8,0" Width="28" Height="28" Source="avares://TuneLab/Assets/Images/Logo.ico"/>
+			</StackPanel>
 			<StackPanel Grid.Column="1" IsHitTestVisible="False" VerticalAlignment="Center" Orientation="Horizontal">
 				<TextBlock Text="{Binding $parent[Window].Title}" x:Name="TitleLabel" FontSize="12" VerticalAlignment="Center"/>
 			</StackPanel>
