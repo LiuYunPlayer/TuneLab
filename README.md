@@ -26,3 +26,13 @@ You can develop your own project formats and synthesis engine extensions.
 - Pack
 
     Compress the extension package into a zip and change the suffix to `.tlx`.
+
+# Translation contributor
+| Lang | contributor |
+|------|:-----------:|
+|en-US|-|
+|zh-CN|-|
+|zh-TW|@justln1113|
+|ja-JP|@sevenc-nanashi|
+|pt-BR|@overdramatic|
+|fr-FR|@LittleAcrasy|
