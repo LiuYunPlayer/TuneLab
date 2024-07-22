@@ -17,9 +17,9 @@ internal static class AudioEngine
 {
     public static event Action? PlayStateChanged;
     public static event Action? ProgressChanged;
-    public static bool IsPlaying => mAudioProvider.IsPlaying;
-    public static int SamplingRate => mAudioProvider.SamplingRate;
-    public static double CurrentTime => mAudioProvider.CurrentTime;
+    public static bool IsPlaying => mAudioProvider!.IsPlaying;
+    public static int SamplingRate => mAudioProvider!.SamplingRate;
+    public static double CurrentTime => mAudioProvider!.CurrentTime;
 
     public static void Init(IAudioPlaybackHandler playbackHandler)
     {
@@ -49,19 +49,19 @@ internal static class AudioEngine
 
     public static void Play()
     {
-        mAudioProvider.IsPlaying = true;
+        mAudioProvider!.IsPlaying = true;
         PlayStateChanged?.Invoke();
     }
 
     public static void Pause()
     {
-        mAudioProvider.IsPlaying = false;
+        mAudioProvider!.IsPlaying = false;
         PlayStateChanged?.Invoke();
     }
 
     public static void Seek(double time)
     {
-        mAudioProvider.Seek(time);
+        mAudioProvider?.Seek(time);
         ProgressChanged?.Invoke();
     }
 
@@ -121,7 +121,7 @@ internal static class AudioEngine
             float[] buffer = new float[sampleWindow * 2];
             int position = (CurrentTime * SamplingRate).Ceil();
             AudioGraph.AddData(track, position, position + sampleWindow, true, buffer, 0);
-            for (int i = 0; i < sampleWindow * 2; i = i + 2) { amp[0] = (float)Math.Max(amp[0], Sample2Amplitude(buffer[i])); amp[1] = (float)Math.Max(amp[1], Sample2Amplitude(buffer[i + 1])); };
+            for (int i = 0; i < sampleWindow * 2; i += 2) { amp[0] = (float)Math.Max(amp[0], Sample2Amplitude(buffer[i])); amp[1] = (float)Math.Max(amp[1], Sample2Amplitude(buffer[i + 1])); };
         }
         amplitude = new Tuple<double, double>(
                 Amplitude2Db(amp[0]), //L
@@ -212,7 +212,11 @@ internal static class AudioEngine
                 {
                     int position = mGraphPosition;
                     int endPosition = position + count;
-                    mAudioGraph.MixData(position, endPosition, true, buffer, offset);
+                    try
+                    {
+                        mAudioGraph.MixData(position, endPosition, true, buffer, offset);
+                    }
+                    catch { }
                     mGraphPosition = endPosition;
                 }
             }
@@ -227,16 +231,16 @@ internal static class AudioEngine
             }
         }
 
-        AudioPlayer mAudioPlayer = new();
-        AudioGraph mAudioGraph = new(samplingRate);
+        readonly AudioPlayer mAudioPlayer = new();
+        readonly AudioGraph mAudioGraph = new(samplingRate);
         int mGraphPosition = 0;
-        object mSeekLockObject = new();
+        readonly object mSeekLockObject = new();
     }
 
     static IAudioPlaybackHandler? mAudioPlaybackHandler;
-    static AudioProvider mAudioProvider;
-    static AudioGraph AudioGraph => mAudioProvider.AudioGraph;
-    static AudioPlayer AudioPlayer => mAudioProvider.AudioPlayer;
+    static AudioProvider? mAudioProvider;
+    static AudioGraph AudioGraph => mAudioProvider!.AudioGraph;
+    static AudioPlayer AudioPlayer => mAudioProvider!.AudioPlayer;
 
     static readonly IAudioData?[] mKeySamples = new IAudioData?[MusicTheory.PITCH_COUNT];
 }

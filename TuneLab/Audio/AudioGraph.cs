@@ -107,7 +107,7 @@ internal class AudioGraph(int samplingRate = 44100)
     }
 
 
-    List<IAudioTrack> mTracks = new();
+    List<IAudioTrack> mTracks = [];
 
-    object mTrackLockObject = new();
+    readonly object mTrackLockObject = new();
 }

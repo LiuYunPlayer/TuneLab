@@ -50,7 +50,7 @@ internal class AudioPlayer
         int position = 0;
     }
 
-    HashSet<AudioClip> mAudioClips = [];
+    readonly HashSet<AudioClip> mAudioClips = [];
 
-    object mLockObject = new();
+    readonly object mLockObject = new();
 }
