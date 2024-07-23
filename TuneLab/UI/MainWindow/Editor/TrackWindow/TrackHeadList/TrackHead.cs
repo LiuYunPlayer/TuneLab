@@ -85,6 +85,39 @@ internal class TrackHead : DockPanel
 
         var menu = new ContextMenu();
         {
+            var menuItem = new MenuItem().SetTrName("Export Audio").SetAction(async () =>
+            {
+                if (Track == null)
+                    return;
+
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel == null)
+                    return;
+
+                var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "Save File".Tr(TC.Dialog),
+                    DefaultExtension = ".wav",
+                    SuggestedFileName = Track.Name.Value,
+                    ShowOverwritePrompt = true,
+                    FileTypeChoices = [new("WAVE File".Tr(TC.Dialog)) { Patterns = ["*.wav"] }]
+                });
+                var result = file?.TryGetLocalPath();
+                if (result == null)
+                    return;
+
+                try
+                {
+                    AudioEngine.ExportTrack(result, Track, false);
+                }
+                catch (Exception ex)
+                {
+                    await this.ShowMessage("Error".Tr(TC.Dialog), "Export failed: \n".Tr(TC.Dialog) + ex.Message);
+                }
+            });
+            menu.Items.Add(menuItem);
+        }
+        {
             var menuItem = new MenuItem().SetTrName("Move Up").SetAction(() =>
             {
                 var track = Track;
@@ -195,39 +228,6 @@ internal class TrackHead : DockPanel
 
                 menuItem.SetName(!Track.AsRefer.GetInfo() ? "Visible as Refer".Tr(TC.Menu) : "Hidden as Refer".Tr(TC.Menu));
             };
-        }
-        {
-            var menuItem = new MenuItem().SetTrName("Export Audio").SetAction(async () =>
-            {
-                if (Track == null)
-                    return;
-
-                var topLevel = TopLevel.GetTopLevel(this);
-                if (topLevel == null)
-                    return;
-
-                var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-                {
-                    Title = "Save File".Tr(TC.Dialog),
-                    DefaultExtension = ".wav",
-                    SuggestedFileName = Track.Name.Value,
-                    ShowOverwritePrompt = true,
-                    FileTypeChoices = [new("WAVE File".Tr(TC.Dialog)) { Patterns = ["*.wav"] }]
-                });
-                var result = file?.TryGetLocalPath();
-                if (result == null)
-                    return;
-
-                try
-                {
-                    AudioEngine.ExportTrack(result, Track, false);
-                }
-                catch (Exception ex)
-                {
-                    await this.ShowMessage("Error".Tr(TC.Dialog), "Export failed: \n".Tr(TC.Dialog) + ex.Message);
-                }
-            });
-            menu.Items.Add(menuItem);
         }
         {
             var menuItem = new MenuItem().SetTrName("Delete").SetAction(() =>
