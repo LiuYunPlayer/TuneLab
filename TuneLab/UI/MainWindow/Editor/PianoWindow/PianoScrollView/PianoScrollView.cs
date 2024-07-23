@@ -358,7 +358,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (pitchOpacity == 0)
             goto FinishDrawPitch;
 
-        Color pitchColor = mDependency.PianoTool.Value == PianoTool.Note ? Colors.White.Opacity(pitchOpacity * 0.3) : Color.Parse(ConstantDefine.PitchColor).Opacity(pitchOpacity);
+        Color pitchColor = Colors.White.Opacity(pitchOpacity * (mDependency.PianoTool.Value == PianoTool.Note ? 0.3 : 1));
 
         DrawSynthesizedPitch(context, pitchColor);
 

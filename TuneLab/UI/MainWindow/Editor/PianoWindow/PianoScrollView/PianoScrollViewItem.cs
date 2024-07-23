@@ -290,7 +290,7 @@ internal partial class PianoScrollView
             }
         }
 
-        static IBrush PointBrush = Color.Parse(ConstantDefine.PitchColor).ToBrush();
+        static IBrush PointBrush = Brushes.White;
         static IPen SelectedPointPen = new Pen(PointBrush);
         static IPen HoverPointPen = new Pen(Brushes.White);
     }
