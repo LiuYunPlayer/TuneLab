@@ -36,3 +36,4 @@ You can develop your own project formats and synthesis engine extensions.
 |ja-JP|@sevenc-nanashi|
 |pt-BR|@overdramatic|
 |fr-FR|@LittleAcrasy|
+|nl-NL|@RhelaRazer|
