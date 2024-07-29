@@ -22,6 +22,11 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IReadOnlyDataObjectList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
     IVoice Voice { get; }
+    IReadOnlyDataObjectList<IEffect> Effects { get; }
+    IEffect CreateEffect(EffectInfo info);
+    void InsertEffect(int index, IEffect effect);
+    void RemoveEffect(IEffect effect);
+    void RemoveEffectAt(int index);
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IPiecewiseCurve Pitch { get; }
@@ -29,6 +34,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IAutomation? AddAutomation(string automationID);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);
     double[] GetFinalAutomationValues(IReadOnlyList<double> ticks, string automationID);
+    double[] GetVibratoDeviation(IReadOnlyList<double> ticks, string automationID = "");
     INote CreateNote(NoteInfo info);
     void InsertNote(INote note);
     bool RemoveNote(INote note);

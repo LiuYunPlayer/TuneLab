@@ -9,7 +9,7 @@ namespace TuneLab.Base.Structures;
 
 public class Map<TKey, TValue> : Dictionary<TKey, TValue>, IReadOnlyMap<TKey, TValue> where TKey : notnull
 {
-    public static IReadOnlyMap<TKey, TValue> Empty = new Map<TKey, TValue>();
+    public readonly static IReadOnlyMap<TKey, TValue> Empty = new Map<TKey, TValue>();
     IEnumerable<TKey> IReadOnlyMap<TKey, TValue>.Keys => Keys;
     IEnumerable<TValue> IReadOnlyMap<TKey, TValue>.Values => Values;
 

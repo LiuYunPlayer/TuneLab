@@ -33,6 +33,7 @@ internal class MidiPart : Part, IMidiPart
     public IVoice Voice => mVoice;
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
+    public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
     public IPiecewiseCurve Pitch => mPitchLine;
     public IReadOnlyList<ISynthesisPiece> SynthesisPieces => mSynthesisPieces;
     public IReadOnlyDataObjectList<Vibrato> Vibratos => mVibratos;
@@ -51,6 +52,7 @@ internal class MidiPart : Part, IMidiPart
         mNotes.Attach(this);
         mVibratos = new(this);
         mAutomations = new(this);
+        mEffects = new(this);
         mPitchLine = new();
         mPitchLine.Attach(this);
         Dur.Modified.Subscribe(mDurationChanged);
@@ -374,6 +376,11 @@ internal class MidiPart : Part, IMidiPart
         return vibrato;
     }
 
+    public IEffect CreateEffect(EffectInfo info)
+    {
+        return new Effect(this, info);
+    }
+
     public IAutomation? AddAutomation(string automationID)
     {
         if (mAutomations.TryGetValue(automationID, out var value))
@@ -386,6 +393,21 @@ internal class MidiPart : Part, IMidiPart
         var automation = CreateAutomation(automationID, new() { DefaultValue = config.DefaultValue });
         mAutomations.Add(automationID, automation);
         return automation;
+    }
+
+    public void InsertEffect(int index, IEffect effect)
+    {
+        mEffects.Insert(index, effect);
+    }
+
+    public void RemoveEffect(IEffect effect)
+    {
+        mEffects.Remove(effect);
+    }
+
+    public void RemoveEffectAt(int index)
+    {
+        mEffects.RemoveAt(index);
     }
 
     public bool IsEffectiveAutomation(string id)
@@ -447,6 +469,7 @@ internal class MidiPart : Part, IMidiPart
             Gain = Gain,
             Notes = mNotes.GetInfo().ToInfo(),
             Automations = mAutomations.GetInfo().ToInfo(),
+            Effects = mEffects.GetInfo().ToInfo(),
             Pitch = mPitchLine.GetInfo(),
             Vibratos = mVibratos.GetInfo().ToInfo(),
             Voice = mVoice.GetInfo(),
@@ -464,6 +487,7 @@ internal class MidiPart : Part, IMidiPart
         IDataObject<MidiPartInfo>.SetInfo(mNotes, info.Notes.Convert(CreateNote).ToArray());
         IDataObject<MidiPartInfo>.SetInfo(mVibratos, info.Vibratos.Convert(CreateVibrato).ToArray());
         IDataObject<MidiPartInfo>.SetInfo(mAutomations, info.Automations.Convert(CreateAutomation).ToMap());
+        IDataObject<MidiPartInfo>.SetInfo(mEffects, info.Effects.Convert(CreateEffect).ToArray());
         IDataObject<MidiPartInfo>.SetInfo(mPitchLine, info.Pitch);
         IDataObject<MidiPartInfo>.SetInfo(mVoice, info.Voice);
         IDataObject<MidiPartInfo>.SetInfo(Properties, info.Properties);
@@ -589,6 +613,7 @@ internal class MidiPart : Part, IMidiPart
 
         return 0;
     }
+
     static readonly double x0;
     static readonly double k;
 
@@ -603,6 +628,7 @@ internal class MidiPart : Part, IMidiPart
     readonly NoteList mNotes;
     readonly DataObjectList<Vibrato> mVibratos;
     readonly DataObjectMap<string, IAutomation> mAutomations;
+    readonly DataObjectList<IEffect> mEffects;
     readonly PiecewiseCurve mPitchLine;
     readonly Voice mVoice;
 

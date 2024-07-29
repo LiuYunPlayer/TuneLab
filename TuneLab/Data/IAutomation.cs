@@ -12,7 +12,7 @@ namespace TuneLab.Data;
 
 internal interface IAutomation : IDataObject<AutomationInfo>
 {
-    IMidiPart Part { get; }
+    IPart Part { get; }
     IActionEvent<double, double> RangeModified { get; }
     IDataProperty<double> DefaultValue { get; }
     IReadOnlyList<AnchorPoint> Points { get; }

@@ -34,6 +34,11 @@ public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(pa
 
 public class DataStruct<T>(DataObject? parent = null) : DataProperty<T>(parent) where T : struct
 {
+    public static implicit operator DataStruct<T>(T value)
+    {
+        return new DataStruct<T>() { mValue = value };
+    } 
+
     public override T GetInfo()
     {
         return mValue;

@@ -15,13 +15,13 @@ namespace TuneLab.Data;
 internal class Automation : DataObject, IAutomation
 {
     public IActionEvent<double, double> RangeModified => mRangeModified;
-    public IMidiPart Part => mPart;
+    public IPart Part => mPart;
     public IReadOnlyList<AnchorPoint> Points => mPoints;
     public DataStruct<double> DefaultValue { get; }
 
     IDataProperty<double> IAutomation.DefaultValue => DefaultValue;
 
-    public Automation(MidiPart part, AutomationInfo info)
+    public Automation(IPart part, AutomationInfo info)
     {
         mPart = part;
         DefaultValue = new(this); //TODO: DefaultValue改动触发RangeModified
@@ -141,5 +141,5 @@ internal class Automation : DataObject, IAutomation
 
     readonly DataList<AnchorPoint> mPoints;
     readonly ActionEvent<double, double> mRangeModified = new();
-    readonly IMidiPart mPart;
+    readonly IPart mPart;
 }
