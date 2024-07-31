@@ -10,7 +10,7 @@ fi
 directory=$1
 
 # Find ELF, Mach-O and Universal Binary files in the specified directory
-files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -qE "ELF|Mach-O|universal binary" && echo "$1"' _ {} \;)
+files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -qE "ELF|Mach-O|universal binary" && echo "$1" | sed "s:/\{1,\}:/:g"' _ {} \;)
 
 # Initialize an empty string for the output
 output=""
