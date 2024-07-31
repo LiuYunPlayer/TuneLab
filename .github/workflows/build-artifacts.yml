@@ -61,7 +61,8 @@ jobs:
       run: |
         chmod +x ./CIUtils/find-executable.sh
         ELF_FILES=$(./CIUtils/find-executable.sh "workspace/")
-        echo "::set-output name=elf_files::$ELF_FILES"
+        echo "Found ELF files: $ELF_FILES"
+        echo "elf_files=$ELF_FILES" >> $GITHUB_OUTPUT
 
     - name: Generate artifact attestation - MacOS and Linux
       if: runner.os != 'Windows' && github.event_name != 'pull_request'
