@@ -54,21 +54,21 @@ jobs:
       with:
         subject-path: '"workspace/*.dll","workspace/*.exe"'
     
-    - name: Find ELF files - MacOS and Linux
+    - name: Find executable and dynamic library files - MacOS and Linux
       if: runner.os != 'Windows' && github.event_name != 'pull_request'
-      id: find-elf-files
+      id: find-executable-files
       working-directory: ${{github.workspace}}
       run: |
         chmod +x ./CIUtils/find-executable.sh
-        ELF_FILES=$(./CIUtils/find-executable.sh "workspace/")
-        echo "Found ELF files: $ELF_FILES"
-        echo "elf_files=$ELF_FILES" >> $GITHUB_OUTPUT
+        EXEC_FILES=$(./CIUtils/find-executable.sh "workspace/")
+        echo "Found executable and dynamic library files: $EXEC_FILES"
+        echo "exec_files=$EXEC_FILES" >> $GITHUB_OUTPUT
 
     - name: Generate artifact attestation - MacOS and Linux
       if: runner.os != 'Windows' && github.event_name != 'pull_request'
       uses: actions/attest-build-provenance@v1
       with:
-        subject-path: '"workspace/*.dll",${{  steps.find-elf-files.outputs.elf_files  }}'
+        subject-path: '"workspace/*.dll",${{ steps.find-executable-files.outputs.exec_files }}'
 
     - name: Get short SHA
       uses: benjlevesque/short-sha@v3.0

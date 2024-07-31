@@ -9,8 +9,8 @@ fi
 # Directory to search
 directory=$1
 
-# Find ELF files in the specified directory
-files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -q "ELF" && echo "$1"' _ {} \;)
+# Find ELF, Mach-O and Universal Binary files in the specified directory
+files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -q "ELF|Mach-O|universal binary" && echo "$1"' _ {} \;)
 
 # Initialize an empty string for the output
 output=""
