@@ -59,6 +59,7 @@ jobs:
       id: find-elf-files
       working-directory: ${{github.workspace}}
       run: |
+        chmod +x ./CIUtils/find-executable.sh
         ELF_FILES=$(./CIUtils/find-executable.sh "workspace/")
         echo "::set-output name=elf_files::$ELF_FILES"
 
