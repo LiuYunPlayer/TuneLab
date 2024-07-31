@@ -57,6 +57,7 @@ jobs:
     - name: Find executable and dynamic library files - MacOS and Linux
       if: runner.os != 'Windows' && github.event_name != 'pull_request'
       id: find-executable-files
+      shell: bash
       working-directory: ${{github.workspace}}
       run: |
         find ./CIUtils/ -name "*.sh" -exec chmod +x {} \;
