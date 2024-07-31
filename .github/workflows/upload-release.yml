@@ -85,6 +85,7 @@ jobs:
           
         - name: Package - MacOS and Linux
           if: runner.os != 'Windows'
+          shell: bash
           working-directory: ${{github.workspace}}
           run: tar -zcvf package.tar.gz ./*
     
