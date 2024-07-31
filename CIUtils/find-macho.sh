@@ -9,20 +9,20 @@ fi
 # Directory to search
 directory=$1
 
-# Find Mach-O and Universal Binary files in the specified directory
-files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -q "Mach-O|universal binary" && echo "$1"' _ {} \;)
-
 # Initialize an empty string for the output
 output=""
 
-# Loop through each file and format it
-for file in $files; do
-  if [ -z "$output" ]; then
-    output="\"$file\""
-  else
-    output="$output,\"$file\""
-  fi
-done
+# Find Mach-O and Universal Binary files in the specified directory
+find "$directory" -type f -exec sh -c '
+  for file do
+    if file "$file" | grep -qE "Mach-O|universal binary"; then
+      if [ -n "$output" ]; then
+        output="${output},"
+      fi
+      output="${output}\"$file\""
+    fi
+  done
+' sh {} +
 
-# Print the formatted output
+# Print the output
 echo $output
