@@ -53,12 +53,20 @@ jobs:
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: '"workspace/*.dll","workspace/*.exe"'
+    
+    - name: Find ELF files - MacOS and Linux
+      if: runner.os != 'Windows' && github.event_name != 'pull_request'
+      id: find-elf-files
+      working-directory: ${{github.workspace}}
+      run: |
+        ELF_FILES=$(./CIUtils/find-executable.sh "workspace/")
+        echo "::set-output name=elf_files::$ELF_FILES"
 
     - name: Generate artifact attestation - MacOS and Linux
       if: runner.os != 'Windows' && github.event_name != 'pull_request'
       uses: actions/attest-build-provenance@v1
       with:
-        subject-path: '"workspace/*.dll","workspace/ExtensionInstaller","workspace/TuneLab"'
+        subject-path: '"workspace/*.dll",${{  steps.find-elf-files.outputs.elf_files  }}'
 
     - name: Get short SHA
       uses: benjlevesque/short-sha@v3.0
