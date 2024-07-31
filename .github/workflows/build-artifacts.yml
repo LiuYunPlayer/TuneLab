@@ -59,7 +59,7 @@ jobs:
       id: find-executable-files
       working-directory: ${{github.workspace}}
       run: |
-        chmod +x ./CIUtils/find-executable.sh
+        find ./CIUtils/ -name "*.sh" -exec chmod +x {} \;
         EXEC_FILES=$(./CIUtils/find-executable.sh "workspace/")
         echo "Found executable and dynamic library files: $EXEC_FILES"
         echo "exec_files=$EXEC_FILES" >> $GITHUB_OUTPUT
