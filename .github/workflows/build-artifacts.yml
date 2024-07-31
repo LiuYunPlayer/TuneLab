@@ -44,14 +44,9 @@ jobs:
     - name: Build the application
       run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
 
-    - name: Move artifacts - Windows
-      if: runner.os == 'Windows'
+    - name: Move artifacts
       shell: pwsh
       run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
-
-    - name: Move artifacts - MacOS and Linux
-      if: runner.os != 'Windows'
-      run: mv TuneLab/bin/Release/net8.0/${{ matrix.runtime }}/publish workspace
 
     - name: Generate artifact attestation - Windows
       if: runner.os == 'Windows' && github.event_name != 'pull_request'
