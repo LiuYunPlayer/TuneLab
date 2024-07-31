@@ -1,21 +1,28 @@
 #!/bin/bash
 
-# Get the directory of the current script
-script_dir=$(dirname "$0")
+# Check if a directory is provided as an argument
+if [ -z "$1" ]; then
+  echo "Usage: $0 <directory>"
+  exit 1
+fi
 
-# Detect the operating system
-os_type=$(uname)
+# Directory to search
+directory=$1
 
-# Execute the corresponding script based on the operating system
-case "$os_type" in
-  Linux)
-    echo $("$script_dir/find-elf.sh" "$1")
-    ;;
-  Darwin)
-    echo $("$script_dir/find-macho.sh" "$1")
-    ;;
-  *)
-    echo "Unsupported OS: $os_type"
-    exit 1
-    ;;
-esac
+# Find ELF, Mach-O and Universal Binary files in the specified directory
+files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -qE "ELF|Mach-O|universal binary" && echo "$1"' _ {} \;)
+
+# Initialize an empty string for the output
+output=""
+
+# Loop through each file and format it
+for file in $files; do
+  if [ -z "$output" ]; then
+    output="\"$file\""
+  else
+    output="$output,\"$file\""
+  fi
+done
+
+# Print the formatted output
+echo $output
