@@ -10,7 +10,7 @@ fi
 directory=$1
 
 # Find ELF files in the specified directory
-files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -q "ELF" && echo "$1"' _ {} \;)
+files=$(find "$directory" -type f -exec sh -c 'file -b "$1" | grep -qE "ELF" && echo "$1"' _ {} \;)
 
 # Initialize an empty string for the output
 output=""
