@@ -46,7 +46,13 @@ jobs:
 
     - name: Move artifacts
       shell: pwsh
-      run: Move-Item -Path TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish -Destination workspace
+      working-directory: ${{github.workspace}}
+      run: Move-Item -Path "TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish" -Destination "workspace\"
+    
+    - name: Copy license to artifacts path
+      shell: pwsh
+      working-directory: ${{github.workspace}}
+      run: Copy-Item "LICENSE.txt" -Destination "workspace\"
 
     - name: Generate artifact attestation - Windows
       if: runner.os == 'Windows' && github.event_name != 'pull_request'
