@@ -38,3 +38,4 @@ You can develop your own project formats and synthesis engine extensions.
 |fr-FR|@LittleAcrasy|
 |nl-NL|@RhelaRazer|
 |it-IT|@sykhro|
+|el-GR|@A-MAIN|
