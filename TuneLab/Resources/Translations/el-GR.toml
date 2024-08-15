@@ -5,7 +5,7 @@
 "Custom Background Image" = "Εικόνα Φόντου"
 "Opacity" = "Αδιαφάνεια"
 "Piano Key Samples" = "Δείγματα Πλήκτρων Πιάνου"
-"Auto Save Interval (second)" = "Διάστημα Αυτόματης Αποθήκευσης"
+"Auto Save Interval (second)" = "Διάστημα Αυτόματης Αποθήκευσης (ανα Δευτερόλεπτου)"
 "Parameter Boundary Extension (tick)" = "Επέκταση Ορίων Παραμέτρων (ανα Tick)"
 
 [FunctionBar]
@@ -47,11 +47,11 @@
 "Importable Formats" = "Εισαγώγιμες Μορφές Αρχείου"
 "Save File" = "Αποθήκευση Αρχείου"
 "TuneLab Project" = "Έργο TuneLab"
-"WAVE File" = "Αρχείο WAVE"
+"WAVE File" = " WAVE Αρχείο"
 "Export As" = "Εξαγωγή Ως"
-"{0} has been successfully installed!" = "{0} εγκαταστάθηκε με επιτυχία!"
-"Installating {0} failed: \n{1}" = "Εγκατάσταση {0} απέτυχε: \n{1}"
-"Detected an installed extension. \nDo you want to restart and perform a reinstall?" = "Εντοπίστηκε μια εγκατεστημένη επέκταση. \n Θέλετε να κάνετε επανεκκίνηση και επανεγκατάσταση;"
+"{0} has been successfully installed!" = "Το {0} εγκαταστάθηκε με επιτυχία!"
+"Installating {0} failed: \n{1}" = "Η εγκατάσταση του {0} απέτυχε: \n{1}"
+"Detected an installed extension. \nDo you want to restart and perform a reinstall?" = "Εντοπίστηκε μια εγκατεστημένη TuneLab επέκταση. \n Θέλετε να κάνετε επανεκκίνηση και επανεγκατάσταση;"
 "Track" = "Κομμάτι"
 "Export failed: \n" = "Η Εξαγωγή απέτυχε： \n"
 "The file failed to open because it does not exist." = "Το Αρχείο απέτυχε να ανοίξει γιατί δεν υπάρχει."
@@ -63,7 +63,7 @@
 "Download" = "Λήξη"
 "Update" = "Ενημέρωση"
 "No updates at the moment." = "Δεν υπάρχουν ενημερώσεις αυτή τη στιγμή."
-"Check update failed" = "Ο Έλεγχος ενημέρωσης απέτυχε."
+"Check update failed" = "Ο Έλεγχος Ενημέρωσης απέτυχε."
 "An error occurred while checking for updates. Please check the log for more details." = "Παρουσιάστηκε σφάλμα κατά τον έλεγχο για ενημερώσεις.\n Παρακαλώ, ελέγξτε το αρχείο καταγραφής για περισσότερες λεπτομέρειες."
 
 [Property]
