@@ -35,6 +35,7 @@ You can develop your own project formats and synthesis engine extensions.
 |zh-TW|@justln1113|
 |ja-JP|@sevenc-nanashi|
 |ko-KR|@Su-Yong|
+|es-US|@AnotherNN|
 |pt-BR|@overdramatic|
 |fr-FR|@LittleAcrasy|
 |nl-NL|@RhelaRazer|
