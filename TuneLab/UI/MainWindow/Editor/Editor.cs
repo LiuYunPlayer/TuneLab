@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -40,6 +40,7 @@ namespace TuneLab.UI;
 internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency
 {
     public Menu Menu { get; }
+    public NativeMenu NativeMenu { get; }
     public TrackWindow TrackWindow => mTrackWindow;
     public PianoWindow PianoWindow => mPianoWindow;
     public ProjectDocument Document => mDocument;
@@ -646,7 +647,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
-            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
+            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, PlatformHelper.GetOS() == "win" ? "ExtensionInstaller.exe" : "ExtensionInstaller"), args);
             this.Window().Close();
         };
         dialog.AddButton("No".Tr(TC.Dialog), ButtonType.Primary);
