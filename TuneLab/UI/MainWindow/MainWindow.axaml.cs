@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -30,6 +30,14 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // if macOS
+        if (PlatformHelper.GetOS() == "osx")
+        {
+            ExtendClientAreaChromeHints = Avalonia.Platform.ExtendClientAreaChromeHints.PreferSystemChrome;
+            CustomTitleBar.Height = 28;
+            ExtendClientAreaTitleBarHeightHint = 28;
+        }
+
         platform = Environment.OSVersion.Platform;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
@@ -43,24 +51,28 @@ public partial class MainWindow : Window
         Background = Style.BACK.ToBrush();
         Content.Margin = new(1, 0);
 
-        var binimizeButton = new Button() { Width = 48, Height = 40 }
+        // if not macOS
+        if (PlatformHelper.GetOS() != "osx")
+        {
+            var binimizeButton = new Button() { Width = 48, Height = 40 }
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
+                .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
+            binimizeButton.Clicked += () => WindowState = WindowState.Minimized;
+
+            maximizeButton = new Button() { Width = 48, Height = 40 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
-            .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
-        binimizeButton.Clicked += () => WindowState = WindowState.Minimized;
+            .AddContent(maximizeIconContent);
+            maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
-        maximizeButton = new Button() { Width = 48, Height = 40 }
-           .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
-           .AddContent(maximizeIconContent);
-        maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            var closeButton = new Button() { Width = 48, Height = 40 }
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = new(255, 232, 17, 35), PressedColor = new(255, 232, 17, 35) } })
+                .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
+            closeButton.Clicked += () => Close();
 
-        var closeButton = new Button() { Width = 48, Height = 40 }
-            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = new(255, 232, 17, 35), PressedColor = new(255, 232, 17, 35) } })
-            .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
-        closeButton.Clicked += () => Close();
-
-        WindowControl.Children.Add(binimizeButton);
-        WindowControl.Children.Add(maximizeButton);
-        WindowControl.Children.Add(closeButton);
+            WindowControl.Children.Add(binimizeButton);
+            WindowControl.Children.Add(maximizeButton);
+            WindowControl.Children.Add(closeButton);
+        }
 
         this.AttachWindowStateHandler();
 
@@ -69,7 +81,10 @@ public partial class MainWindow : Window
         mEditor = new Editor();
         mEditor.Document.ProjectNameChanged.Subscribe(UpdateTitle);
         mEditor.Document.StatusChanged += UpdateTitle;
-        MenuBar.Children.Add(mEditor.Menu);
+
+        // if not macOS
+        if (PlatformHelper.GetOS() != "osx")
+            MenuBar.Children.Add(mEditor.Menu);
 
         var dockPanelEditor = new DockPanel();
 
