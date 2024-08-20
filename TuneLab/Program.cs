@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -55,13 +55,16 @@ class Program
     {
         GC.KeepAlive(typeof(Avalonia.Svg.Skia.SvgImageExtension).Assembly);
         GC.KeepAlive(typeof(Avalonia.Svg.Skia.Svg).Assembly);
-        return AppBuilder.Configure<App>()
+        var appBuilder = AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .UseSkia()
             .WithInterFont()
             .LogToTrace()
-            .UseReactiveUI()
-            .With(new FontManagerOptions()
+            .UseReactiveUI();
+
+        if (PlatformHelper.GetOS() == "win")
+        {
+            return appBuilder.With(new FontManagerOptions()
             {
                 FontFallbacks =
                 [
@@ -70,5 +73,8 @@ class Program
                         new FontFallback() { FontFamily = "Microsoft YaHei" },
                 ]
             });
+        }
+
+        return appBuilder;
     }
 }
