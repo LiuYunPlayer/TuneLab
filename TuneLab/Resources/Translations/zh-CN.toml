@@ -3,7 +3,7 @@
 "Please restart to apply settings." = "请重启以应用设置"
 "Language" = "语言"
 "Custom Background Image" = "自定义背景图"
-"Opacity" = "透明度"
+"Opacity" = "不透明度"
 "Piano Key Samples" = "钢琴音采样"
 "Auto Save Interval (second)" = "自动保存间隔（秒）"
 "Parameter Boundary Extension (tick)" = "参数边界扩展（tick）"
