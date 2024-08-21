@@ -20,6 +20,7 @@ internal static class AudioEngine
     public static bool IsPlaying => mAudioProvider!.IsPlaying;
     public static int SamplingRate => mAudioProvider!.SamplingRate;
     public static double CurrentTime => mAudioProvider!.CurrentTime;
+    public static double MasterGain { get; set; } = 0;
 
     public static void Init(IAudioPlaybackHandler playbackHandler)
     {
@@ -217,6 +218,16 @@ internal static class AudioEngine
                         mAudioGraph.MixData(position, endPosition, true, buffer, offset);
                     }
                     catch { }
+                    if (MasterGain != 0)
+                    {
+                        float masterVolume = (float)MusicTheory.dB2Level(MasterGain);
+                        int startIndex = offset;
+                        int endIndex = offset + count * 2;
+                        for (int i = startIndex; i < endIndex; i++)
+                        {
+                            buffer[i] *= masterVolume;
+                        }
+                    }
                     mGraphPosition = endPosition;
                 }
             }
