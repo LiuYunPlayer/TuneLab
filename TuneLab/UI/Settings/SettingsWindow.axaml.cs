@@ -76,7 +76,7 @@ internal partial class SettingsWindow : Window
                 panel.AddDock(slider, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Master Gain".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Master Gain (dB)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);

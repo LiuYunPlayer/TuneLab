@@ -218,20 +218,20 @@ internal static class AudioEngine
                         mAudioGraph.MixData(position, endPosition, true, buffer, offset);
                     }
                     catch { }
-                    if (MasterGain != 0)
-                    {
-                        float masterVolume = (float)MusicTheory.dB2Level(MasterGain);
-                        int startIndex = offset;
-                        int endIndex = offset + count * 2;
-                        for (int i = startIndex; i < endIndex; i++)
-                        {
-                            buffer[i] *= masterVolume;
-                        }
-                    }
                     mGraphPosition = endPosition;
                 }
             }
             mAudioPlayer.AddData(count, buffer, offset);
+            if (MasterGain == 0)
+                return;
+
+            float masterVolume = (float)MusicTheory.dB2Level(MasterGain);
+            int startIndex = offset;
+            int endIndex = offset + count * 2;
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                buffer[i] *= masterVolume;
+            }
         }
 
         public void Seek(double time)
