@@ -1,13 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <CFBundleShortVersionString>1.0.0</CFBundleShortVersionString>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TuneLab.Base\TuneLab.Base.csproj" />
+    <PackageReference Include="Dotnet.Bundle" Version="0.9.13" />
   </ItemGroup>
 
 </Project>

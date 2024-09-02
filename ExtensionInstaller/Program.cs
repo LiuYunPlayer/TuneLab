@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -67,7 +67,7 @@ internal class Program
                 Console.WriteLine(name + " has been successfully installed!\n");
             }
 
-            if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TuneLab.exe"));
+            if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "TuneLab.exe" : "TuneLab"));
         }
         catch (Exception ex)
         {
