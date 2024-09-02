@@ -41,3 +41,5 @@ You can develop your own project formats and synthesis engine extensions.
 |nl-NL|@RhelaRazer|
 |it-IT|@sykhro|
 |el-GR|@A-MAIN|
+|ru-RU|@Ksauxion|
+|uk-UA|@Ksauxion|
