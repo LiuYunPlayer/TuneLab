@@ -56,29 +56,26 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mPlayhead = new(this);
 
-        mPianoWindow = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
+        mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
         mTrackWindow = new(this);
         mFunctionBar = new(mPianoWindow);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 280 };
 
-        Children.Add(mTrackWindow);
-        DockPanel.SetDock(mTrackWindow, Dock.Top);
+        this.AddDock(mTrackWindow, Dock.Top);
 
-        Children.Add(mFunctionBar);
-        DockPanel.SetDock(mFunctionBar, Dock.Top);
+        this.AddDock(mFunctionBar, Dock.Top);
 
         //Children.Add(mRightSideTabBar);
         //DockPanel.SetDock(mRightSideTabBar, Dock.Right);
 
         var pianoLayer = new DockPanel() { ClipToBounds = true };
         {
-            pianoLayer.Children.Add(mRightSideBar);
-            DockPanel.SetDock(mRightSideBar, Dock.Right);
+            pianoLayer.AddDock(mRightSideBar, Dock.Right);
 
-            pianoLayer.Children.Add(mPianoWindow);
+            pianoLayer.AddDock(mPianoWindow);
         }
-        Children.Add(pianoLayer);
+        this.AddDock(pianoLayer);
 
         MinHeight = mFunctionBar.Height;
 
