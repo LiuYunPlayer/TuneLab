@@ -143,6 +143,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             Redo();
         }
+        else if (e.ModifierKeys() == ModifierKeys.None && e.Key >= Key.D1 && e.Key <= Key.D6)
+        {
+            mPianoWindow.PianoTool.Value = (PianoTool)(e.Key - Key.D1);
+        }
         else
         {
             e.Handled = false;
