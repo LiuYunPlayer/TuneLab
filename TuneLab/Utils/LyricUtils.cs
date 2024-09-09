@@ -1,8 +1,6 @@
-﻿using IKg2p;
-using Microsoft.International.Converters.PinYinConverter;
+﻿using Pinyin;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Base.Structures;
 using TuneLab.Base.Utils;
 
 namespace TuneLab.Utils;
@@ -18,11 +16,11 @@ internal static class LyricUtils
 
     public static List<LyricResult> Split(string lyrics)
     {
-        var g2pResults = ZhG2p.MandarinInstance.Convert(lyrics, false, true);
+        var pinyinResults = Pinyin.Pinyin.Instance.HanziToPinyin(lyrics, ManTone.Style.NORMAL, Error.Default, true, false);
         var results = new List<LyricResult>();
-        foreach (var g2pRes in g2pResults)
+        foreach (var pinyinRes in pinyinResults)
         {
-            results.Add(new LyricResult() { Lyric = g2pRes.lyric, Pronunciation = g2pRes.syllable/*, Candidates = g2pRes.candidates*/ });
+            results.Add(new LyricResult() { Lyric = pinyinRes.hanzi, Pronunciation = pinyinRes.pinyin/*, Candidates = pinyinRes.candidates*/ });
         }
         return results;
     }
@@ -41,7 +39,7 @@ internal static class LyricUtils
 
     public static List<string> SplitToWords(string lyric)
     {
-        return ZhG2p.SplitString(lyric);
+        return Pinyin.ChineseG2p.SplitString(lyric);
     }
 
     public static IEnumerable<string> SplitByInvailidChars(string lyric)
@@ -54,7 +52,7 @@ internal static class LyricUtils
 
     public static string GetPreferredPronunciation(string lyric)
     {
-        var pinyins = ZhG2p.MandarinInstance.Convert(lyric, false);
+        var pinyins = Pinyin.Pinyin.Instance.HanziToPinyin(lyric, ManTone.Style.NORMAL, Error.Default, true, false);
         if (pinyins.IsEmpty())
             return string.Empty;
 
@@ -62,32 +60,19 @@ internal static class LyricUtils
         if (pinyin.error)
             return string.Empty;
 
-        return pinyin.syllable;
+        return pinyin.pinyin;
     }
 
     public static IReadOnlyCollection<string> GetPronunciations(string lyric)
     {
         if (lyric.Length == 1)
         {
-            var c = lyric[0];
-            if (ChineseChar.IsValidChar(c))
+            if (Pinyin.Pinyin.Instance.IsHanzi(lyric))
             {
-                var chineseChar = new ChineseChar(c);
-                return chineseChar.Pinyins.Take(chineseChar.PinyinCount).Convert(ToPinyin).ToHashSet();
+                return Pinyin.Pinyin.Instance.GetDefaultPinyin(lyric, ManTone.Style.NORMAL, false, false);
             }
         }
 
         return [];
-    }
-
-    static string ToPinyin(string pinyin)
-    {
-        if (string.IsNullOrEmpty(pinyin))
-            return string.Empty;
-
-        if (char.IsNumber(pinyin[^1]))
-            return pinyin[..^1].ToLower();
-
-        return pinyin.ToLower();
     }
 }
