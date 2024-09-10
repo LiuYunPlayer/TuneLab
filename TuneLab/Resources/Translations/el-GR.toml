@@ -2,10 +2,11 @@
 "Settings" = "Ρυθμίσεις"
 "Please restart to apply settings." = "Παρακαλώ, Κάντε επανεκκίνηση την εφαρμογή για να εφαρμόσετε τις ρυθμίσεις."
 "Language" = "Γλώσσες"
+"Master Gain (dB)" = "Κύρια Ενίσχυση (σε dB)"
 "Custom Background Image" = "Εικόνα Φόντου"
 "Opacity" = "Αδιαφάνεια"
 "Piano Key Samples" = "Δείγματα Πλήκτρων Πιάνου"
-"Auto Save Interval (second)" = "Διάστημα Αυτόματης Αποθήκευσης (ανα Δευτερόλεπτου)"
+"Auto Save Interval (second)" = "Διάστημα Αυτόματης Αποθήκευσης (ανα Δευτερoλέπτου)"
 "Parameter Boundary Extension (tick)" = "Επέκταση Ορίων Παραμέτρων (ανα Tick)"
 
 [FunctionBar]
@@ -26,7 +27,7 @@
 "Phase" = "Πέρασμα"
 
 [AutomationRenderer]
-"Drag to associate the vibrato" = "Σύρετε για να συνδυάσετε το βιμπράτο"
+"Drag to associate the vibrato" = "Σύρετε το πεδίο για να συνδυάσετε το βιμπράτο"
 
 [Dialog]
 "OK" = "OK"
@@ -38,7 +39,7 @@
 "Error" = "Σφάλμα"
 "Program crashed last time. Open auto-backup file?" = "Το πρόγραμμα κατέρρευσε την τελευταία φορά. Θέλετε να ανοίξετε το αρχείο αυτόματου backup;"
 "The project has not been saved.\n Do you want to save it?" = "Το έργο δεν έχει αποθηκευτεί.\n Θέλετε να το αποθηκεύσετε;"
-"Input Lyrics" = "Εισάγη Στίχων"
+"Input Lyrics" = "Eισαγωγή Στίχων"
 "Skip Tenuto" = "Παράλειψη Tenuto"
 "Select Track" = "Επιλογή Κομματιού"
 "Select the track to import:" = "Επιλέξτε το κομμάτι που θα εισάγετε:"
