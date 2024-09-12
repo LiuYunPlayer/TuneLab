@@ -1,7 +1,6 @@
 ﻿using Pinyin;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Base.Utils;
 
 namespace TuneLab.Utils;
 
@@ -16,11 +15,22 @@ internal static class LyricUtils
 
     public static List<LyricResult> Split(string lyrics)
     {
-        var pinyinResults = Pinyin.Pinyin.Instance.HanziToPinyin(lyrics, ManTone.Style.NORMAL, Error.Default, true, false);
+        var lyricList = SplitToWords(lyrics);
+        // 设置Error.Default、转换失败时，发音元素会返回原文本，error为true；Size与输入列表相同
+        var pinyinResults = Pinyin.Pinyin.Instance.HanziToPinyin(lyricList, ManTone.Style.NORMAL, Pinyin.Error.Default, true, false);
+        var kanaResults = Kana.Kana.KanaToRomaji(lyricList);
+
         var results = new List<LyricResult>();
-        foreach (var pinyinRes in pinyinResults)
+
+        for (int i = 0; i < lyricList.Count; i++)
         {
-            results.Add(new LyricResult() { Lyric = pinyinRes.hanzi, Pronunciation = pinyinRes.pinyin/*, Candidates = pinyinRes.candidates*/ });
+            if (pinyinResults[i].error == false)
+                results.Add(new LyricResult() { Lyric = pinyinResults[i].hanzi, Pronunciation = pinyinResults[i].pinyin/*, Candidates = pinyinRes.candidates*/ });
+            else if (kanaResults[i].Error == false)
+                results.Add(new LyricResult() { Lyric = kanaResults[i].Kana, Pronunciation = kanaResults[i].Romaji });
+            else
+                results.Add(new LyricResult() { Lyric = lyricList[i], Pronunciation = string.Empty });
+
         }
         return results;
     }
@@ -52,26 +62,22 @@ internal static class LyricUtils
 
     public static string GetPreferredPronunciation(string lyric)
     {
-        var pinyins = Pinyin.Pinyin.Instance.HanziToPinyin(lyric, ManTone.Style.NORMAL, Error.Default, true, false);
-        if (pinyins.IsEmpty())
-            return string.Empty;
+        // 校验字符后可直接返回发音
+        if (Pinyin.Pinyin.Instance.IsHanzi(lyric))
+            return Pinyin.Pinyin.Instance.GetDefaultPinyin(lyric, ManTone.Style.NORMAL, false, false)[0];
+        else if (Kana.Kana.IsKana(lyric))
+            return Kana.Kana.KanaToRomaji(lyric)[0].Romaji;
 
-        var pinyin = pinyins[0];
-        if (pinyin.error)
-            return string.Empty;
-
-        return pinyin.pinyin;
+        return string.Empty;
     }
 
     public static IReadOnlyCollection<string> GetPronunciations(string lyric)
     {
-        if (lyric.Length == 1)
-        {
-            if (Pinyin.Pinyin.Instance.IsHanzi(lyric))
-            {
-                return Pinyin.Pinyin.Instance.GetDefaultPinyin(lyric, ManTone.Style.NORMAL, false, false);
-            }
-        }
+        // 校验字符后可直接返回发音
+        if (Pinyin.Pinyin.Instance.IsHanzi(lyric))
+            return Pinyin.Pinyin.Instance.GetDefaultPinyin(lyric, ManTone.Style.NORMAL, false, false);
+        else if (Kana.Kana.IsKana(lyric))
+            return Kana.Kana.KanaToRomaji(lyric).ToStrList();
 
         return [];
     }
