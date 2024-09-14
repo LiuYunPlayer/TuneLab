@@ -43,3 +43,4 @@ You can develop your own project formats and synthesis engine extensions.
 |el-GR|@A-MAIN|
 |ru-RU|@Ksauxion|
 |uk-UA|@Ksauxion|
+|de-DE|@RedBlackAka|
