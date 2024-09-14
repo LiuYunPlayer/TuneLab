@@ -173,16 +173,7 @@ internal partial class PianoScrollView
                                             Part.Notes.DeselectAllItems();
                                             note.Select();
                                         }
-                                        {
-                                            var menuItem = new MenuItem().SetName("Copy".Tr(TC.Menu)).SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
-                                            menu.Items.Add(menuItem);
-                                        }
-                                        {
-                                            var menuItem = new MenuItem().SetName("Cut".Tr(TC.Menu)).SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
-                                            menu.Items.Add(menuItem);
-                                        }
 
-                                        menu.Items.Add(new Avalonia.Controls.Separator());
                                         var position = e.Position;
                                         var splitPos = TickAxis.X2Tick(position.X);
                                         if (!alt) splitPos = GetQuantizedTick(splitPos);
@@ -240,7 +231,17 @@ internal partial class PianoScrollView
                                             });
                                             menu.Items.Add(menuItem);
                                         }
-                                        
+
+                                        menu.Items.Add(new Avalonia.Controls.Separator());
+                                        {
+                                            var menuItem = new MenuItem().SetName("Copy".Tr(TC.Menu)).SetAction(Copy).SetInputGesture(Key.C, ModifierKeys.Ctrl);
+                                            menu.Items.Add(menuItem);
+                                        }
+                                        {
+                                            var menuItem = new MenuItem().SetName("Cut".Tr(TC.Menu)).SetAction(Cut).SetInputGesture(Key.X, ModifierKeys.Ctrl);
+                                            menu.Items.Add(menuItem);
+                                        }
+
                                         menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
                                             var menuItem = new MenuItem().SetName("Octave Up".Tr(TC.Menu)).SetAction(OctaveUp);

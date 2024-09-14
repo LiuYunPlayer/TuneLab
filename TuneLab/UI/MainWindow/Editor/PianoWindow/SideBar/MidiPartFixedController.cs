@@ -28,7 +28,7 @@ internal class MidiPartFixedController : StackPanel
         Orientation = Avalonia.Layout.Orientation.Vertical;
 
         AddController(mGainController, "Gain".Tr(TC.Property));
-        mGainController.SetRange(-12, +12);
+        mGainController.SetRange(-24, +24);
         mGainController.SetDefaultValue(0);
         mGainController.Bind(mPart.Select(part => part.Gain), s);
 

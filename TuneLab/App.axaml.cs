@@ -47,7 +47,9 @@ public partial class App : Application
                 AudioUtils.Init(new NAudioCodec());
                 AudioEngine.Init(new SDLPlaybackHandler());
                 AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath);
+                AudioEngine.MasterGain = Settings.MasterGain;
                 Settings.PianoKeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath));
+                Settings.MasterGain.Modified.Subscribe(() => { AudioEngine.MasterGain = Settings.MasterGain; });
 
                 ExtensionManager.LoadExtensions();
                 desktop.MainWindow = new MainWindow();

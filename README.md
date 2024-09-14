@@ -34,6 +34,13 @@ You can develop your own project formats and synthesis engine extensions.
 |zh-CN|-|
 |zh-TW|@justln1113|
 |ja-JP|@sevenc-nanashi|
+|ko-KR|@Su-Yong|
+|es-US|@AnotherNN|
 |pt-BR|@overdramatic|
 |fr-FR|@LittleAcrasy|
 |nl-NL|@RhelaRazer|
+|it-IT|@sykhro|
+|el-GR|@A-MAIN|
+|ru-RU|@Ksauxion|
+|uk-UA|@Ksauxion|
+|de-DE|@RedBlackAka|

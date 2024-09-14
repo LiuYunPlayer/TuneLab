@@ -8,7 +8,7 @@
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<LangVersion>latest</LangVersion>
-		<Version>1.5.4</Version>
+		<Version>1.5.6</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -25,8 +25,9 @@
 		<!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
 		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.11" />
 		<PackageReference Include="BunLabs.NAudio.Flac" Version="2.0.1" />
+		<PackageReference Include="csharp-kana" Version="1.0.1" />
+		<PackageReference Include="csharp-pinyin" Version="1.0.0" />
 		<PackageReference Include="Flurl.Http" Version="4.0.2" />
-		<PackageReference Include="IkG2p" Version="1.0.2" />
 		<PackageReference Include="Markdown.Avalonia" Version="11.0.2" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.6" />
 		<PackageReference Include="NAudio" Version="2.2.1" />

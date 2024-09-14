@@ -15,6 +15,7 @@ internal static class Settings
 {
     public static readonly SettingsFile DefaultSettings = new();
     public static NotifiableProperty<string> Language { get; } = DefaultSettings.Language;
+    public static NotifiableProperty<double> MasterGain { get; } = DefaultSettings.MasterGain;
     public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
     public static NotifiableProperty<double> BackgroundImageOpacity { get; } = DefaultSettings.BackgroundImageOpacity;
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
@@ -39,6 +40,7 @@ internal static class Settings
         settingsFile ??= DefaultSettings;
 
         Language.Value = settingsFile.Language;
+        MasterGain.Value = settingsFile.MasterGain;
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
@@ -52,6 +54,7 @@ internal static class Settings
             var content = JsonSerializer.Serialize(new SettingsFile()
             {
                 Language = Language,
+                MasterGain = MasterGain,
                 BackgroundImagePath = BackgroundImagePath,
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
                 PianoKeySamplesPath = PianoKeySamplesPath,

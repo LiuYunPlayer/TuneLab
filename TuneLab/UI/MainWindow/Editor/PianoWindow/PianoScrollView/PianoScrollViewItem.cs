@@ -43,8 +43,8 @@ internal partial class PianoScrollView
         public override bool Raycast(Avalonia.Point point)
         {
             double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
-            double left = x - 8;
-            double right = x + 8;
+            double left = x - 4;
+            double right = x + 4;
             var last = Note.Last;
             if (last != null && last.Pitch.Value == Note.Pitch.Value)
             {
@@ -64,8 +64,8 @@ internal partial class PianoScrollView
         public override bool Raycast(Avalonia.Point point)
         {
             double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalEndPos());
-            double left = x - 8;
-            double right = x + 8;
+            double left = x - 4;
+            double right = x + 4;
             double top = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
             double bottom = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value);
             return point.Y >= top && point.Y <= bottom && point.X >= left && point.X <= right;
@@ -167,7 +167,7 @@ internal partial class PianoScrollView
         public override bool Raycast(Point point)
         {
             double x = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalStartPos());
-            return point.X > x - 8 && point.X < x + 8;
+            return point.X > x - 4 && point.X < x + 4;
         }
     }
 
@@ -178,7 +178,7 @@ internal partial class PianoScrollView
         public override bool Raycast(Point point)
         {
             double x = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalEndPos());
-            return point.X > x - 8 && point.X < x + 8;
+            return point.X > x - 4 && point.X < x + 4;
         }
     }
 
