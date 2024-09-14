@@ -9,7 +9,7 @@ using TuneLab.Synthesizer;
 
 namespace TuneLab.Extensions.Effect;
 
-public interface IEffectSynthesisData
+public interface IEffectSynthesisInput
 {
     Audio Audio { get; }
     PropertyObject Properties { get; }

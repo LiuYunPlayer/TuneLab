@@ -7,7 +7,7 @@ using TuneLab.Base.Structures;
 
 namespace TuneLab.Synthesizer;
 
-public interface ISynthesisResult
+public interface ISynthesisOutput
 {
     Audio Audio { get; set; }
     IDictionary<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedAutomations { get; }

@@ -20,29 +20,8 @@ internal static class FormatsManager
         LoadFromTypes(types);
     }
 
-    public static void Load(string path)
+    public static void Load(string path, ExtensionDescription? description = null)
     {
-        string descriptionPath = Path.Combine(path, "description.json");
-        var extensionName = Path.GetFileName(path);
-        ExtensionDescription? description = null;
-        if (File.Exists(descriptionPath))
-        {
-            try
-            {
-                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath));
-                if (description != null && !description.IsPlatformAvailable())
-                {
-                    Log.Warning(string.Format("Failed to load extension {0}: Platform not supported.", extensionName));
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(string.Format("Failed to parse description of {0}: {1}", extensionName, ex));
-                return;
-            }
-        }
-
         var assemblies = description == null ? Directory.GetFiles(path, "*.dll") : description.assemblies.Convert(s => Path.Combine(path, s));
         foreach (var file in assemblies)
         {

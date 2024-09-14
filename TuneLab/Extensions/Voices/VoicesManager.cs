@@ -20,29 +20,8 @@ internal static class VoicesManager
         LoadFromTypes(types, AppDomain.CurrentDomain.BaseDirectory);
     }
 
-    public static void Load(string path)
+    public static void Load(string path, ExtensionDescription? description = null)
     {
-        string descriptionPath = Path.Combine(path, "description.json");
-        var extensionName = Path.GetFileName(path);
-        ExtensionDescription? description = null;
-        if (File.Exists(descriptionPath))
-        {
-            try
-            {
-                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath));
-                if (description != null && !description.IsPlatformAvailable())
-                {
-                    Log.Warning(string.Format("Failed to load extension {0}: Platform not supported.", extensionName));
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(string.Format("Failed to parse description of {0}: {1}", extensionName, ex));
-                return;
-            }
-        }
-
         var assemblies = description == null ? Directory.GetFiles(path, "*.dll") : description.assemblies.Convert(s => Path.Combine(path, s));
         foreach (var file in assemblies)
         {
@@ -57,11 +36,13 @@ internal static class VoicesManager
 
     public static void Destroy()
     {
-        foreach (var engine in mVoiceEngines.Values)
+        foreach (var engine in mVoiceEngineStates.Values)
         {
             if (engine.IsInited)
                 engine.Engine.Destroy();
         }
+
+        mVoiceEngineStates.Clear();
     }
 
     static void LoadFromTypes(Type[] types, string path)
@@ -75,7 +56,7 @@ internal static class VoicesManager
                 {
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
-                        mVoiceEngines.Add(attribute.Type, new VoiceEngineStatus((IVoiceEngine)constructor.Invoke(null), path));
+                        mVoiceEngineStates.Add(attribute.Type, new VoiceEngineState((IVoiceEngine)constructor.Invoke(null), path));
                 }
             }
         }
@@ -83,7 +64,7 @@ internal static class VoicesManager
 
     public static IReadOnlyList<string> GetAllVoiceEngines()
     {
-        return mVoiceEngines.Keys;
+        return mVoiceEngineStates.Keys;
     }
 
     public static IReadOnlyOrderedMap<string, VoiceSourceInfo>? GetAllVoiceInfos(string type)
@@ -111,20 +92,20 @@ internal static class VoicesManager
 
     public static void InitEngine(string type)
     {
-        var engine = mVoiceEngines[type];
-        if (engine.IsInited)
+        var state = mVoiceEngineStates[type];
+        if (state.IsInited)
             return;
 
-        if (!engine.Init(out var error))
+        if (!state.Init(out var error))
             throw new Exception(error);
     }
 
     static IVoiceEngine? GetInitedEngine(string type)
     {
-        if (!mVoiceEngines.ContainsKey(type))
+        if (!mVoiceEngineStates.ContainsKey(type))
             return null;
 
-        var engine = mVoiceEngines[type];
+        var engine = mVoiceEngineStates[type];
         if (engine.IsInited)
             return engine.Engine;
 
@@ -144,13 +125,13 @@ internal static class VoicesManager
         return engine.IsInited ? engine.Engine : null;
     }
 
-    class VoiceEngineStatus
+    class VoiceEngineState
     {
         public IVoiceEngine? Engine => IsInited ? mVoiceEngine : null;
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public VoiceEngineStatus(IVoiceEngine engine, string enginePath)
+        public VoiceEngineState(IVoiceEngine engine, string enginePath)
         {
             mVoiceEngine = engine;
             mEnginePath = enginePath;
@@ -167,8 +148,8 @@ internal static class VoicesManager
         bool mIsInited = false;
     }
 
-    static OrderedMap<string, VoiceEngineStatus> mVoiceEngines = new();
+    static OrderedMap<string, VoiceEngineState> mVoiceEngineStates = new();
 #nullable disable
-    static IVoiceEngine mDefaultEngine => mVoiceEngines[string.Empty].Engine;
+    static IVoiceEngine mDefaultEngine => mVoiceEngineStates[string.Empty].Engine;
 #nullable enable
 }

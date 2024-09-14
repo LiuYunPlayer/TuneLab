@@ -10,7 +10,8 @@ namespace TuneLab.Extensions.Effect;
 public interface IEffectSynthesisTask
 {
     event Action<double>? Progress;
-    event Action<SynthesisException?> Finished;
+    event Action<SynthesisException?>? Finished;
+
     void Start();
     void Stop();
     void SetDirty(string context, string key);

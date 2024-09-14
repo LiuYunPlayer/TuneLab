@@ -11,4 +11,11 @@ public struct Audio
     public double StartTime;
     public int SampleRate;
     public float[] Samples;
+
+    public Audio Clone()
+    {
+        Audio clone = this;
+        clone.Samples = (float[])Samples.Clone();
+        return clone;
+    }
 }

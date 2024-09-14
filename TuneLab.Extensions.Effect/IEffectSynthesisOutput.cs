@@ -7,7 +7,7 @@ using TuneLab.Synthesizer;
 
 namespace TuneLab.Extensions.Effect;
 
-public interface IEffectSynthesisResult : ISynthesisResult
+public interface IEffectSynthesisOutput : ISynthesisOutput
 {
     
 }

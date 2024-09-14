@@ -9,7 +9,7 @@ using TuneLab.Base.Utils;
 
 namespace TuneLab.Base.Properties;
 
-public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map)
+public struct PropertyObject(IReadOnlyMap<string, PropertyValue> map)
 {
     public readonly static PropertyObject Empty = new(Map<string, PropertyValue>.Empty);
 
