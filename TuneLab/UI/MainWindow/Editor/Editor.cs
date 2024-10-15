@@ -115,6 +115,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     public void SwitchEditingPart(IPart? part)
     {
+        mLastPart = mEditingPart;
         mEditingPart = part;
         if (part is IMidiPart midiPart)
         {
@@ -144,6 +145,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         else if (e.Match(Key.Y, ModifierKeys.Ctrl))
         {
             Redo();
+        }
+        else if (e.Match(Key.Tab, ModifierKeys.Ctrl))
+        {
+            if (mLastPart != null)
+            {
+                var track = mLastPart.Track;
+                if (track.Parts.Contains(mLastPart) && track.Project.Tracks.Contains(track))
+                {
+                    SwitchEditingPart(mLastPart);
+                }
+            }
         }
         else if (e.ModifierKeys() == ModifierKeys.None && e.Key >= Key.D1 && e.Key <= Key.D6)
         {
@@ -920,6 +932,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     Head mAutoSaveHead;
 
     IPart? mEditingPart = null;
+    IPart? mLastPart = null;
 
     readonly TrackWindow mTrackWindow;
     readonly FunctionBar mFunctionBar;
