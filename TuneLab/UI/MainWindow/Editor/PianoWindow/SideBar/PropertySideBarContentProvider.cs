@@ -49,7 +49,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mNotePanel.Content = mNoteContentPanel;
     }
 
-    public void SetPart(MidiPart? part)
+    public void SetPart(IMidiPart? part)
     {
         if (mPart != null)
         {
@@ -80,7 +80,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         }
     }
 
-    void Setup(MidiPart part)
+    void Setup(IMidiPart part)
     {
         mAutomationController.SetConfig(new(part.Voice.AutomationConfigs));
         mPartFixedController.Part = part;
@@ -297,6 +297,6 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     readonly Border mNoteContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
 
-    MidiPart? mPart = null;
+    IMidiPart? mPart = null;
     readonly DisposableManager s = new();
 }

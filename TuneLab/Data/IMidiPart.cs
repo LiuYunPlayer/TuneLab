@@ -27,6 +27,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IPiecewiseCurve Pitch { get; }
     IReadOnlyList<ISynthesisPiece> SynthesisPieces { get; }
     IAutomation? AddAutomation(string automationID);
+    double[] GetFinalPitch(IReadOnlyList<double> ticks);
+    void LockPitch(double start, double end, double extension);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);
     double[] GetFinalAutomationValues(IReadOnlyList<double> ticks, string automationID);
     INote CreateNote(NoteInfo info);

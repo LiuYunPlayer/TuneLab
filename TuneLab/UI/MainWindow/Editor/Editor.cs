@@ -46,7 +46,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public Project? Project => mDocument.Project;
     public IPlayhead Playhead => mPlayhead;
     public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
-    public IProvider<Part> EditingPart => mPianoWindow.PartProvider;
+    public IProvider<IPart> EditingPart => mPianoWindow.PartProvider;
     public bool IsAutoPage => mFunctionBar.IsAutoPage.Value;
     public Editor()
     {
@@ -82,10 +82,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mFunctionBar.Moved += y => TrackWindowHeight = y;
         ProjectProvider.ObjectWillChange.Subscribe(OnProjectWillChange, s);
         ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
-        ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) mPianoWindow.Part = null; });
-        ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemAdded)).Subscribe(part => { if (part == mEditingPart) mPianoWindow.Part = mEditingPart; });
-        ProjectProvider.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) mPianoWindow.Part = null; });
-        ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) mPianoWindow.Part = mEditingPart; });
+        ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });
+        ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemAdded)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(mEditingPart); });
+        ProjectProvider.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(null); });
+        ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); });
         mPianoWindow.PartProvider.ObjectChanged.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
         mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
@@ -115,9 +115,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     public void SwitchEditingPart(IPart? part)
     {
-        var midiPart = part as MidiPart;
-        mEditingPart = midiPart;
-        mPianoWindow.Part = midiPart;
+        mEditingPart = part;
+        if (part is IMidiPart midiPart)
+        {
+            mPianoWindow.Part = midiPart;
+        }
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -917,7 +919,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly DispatcherTimer mAutoSaveTimer = new() { Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval) };
     Head mAutoSaveHead;
 
-    MidiPart? mEditingPart = null;
+    IPart? mEditingPart = null;
 
     readonly TrackWindow mTrackWindow;
     readonly FunctionBar mFunctionBar;
