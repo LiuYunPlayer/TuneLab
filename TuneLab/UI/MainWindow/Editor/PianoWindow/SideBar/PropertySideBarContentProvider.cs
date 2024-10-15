@@ -23,28 +23,30 @@ namespace TuneLab.UI;
 
 internal class PropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPartContent, mAutomationContent, mNotePanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPartPanel, mAutomationPanel, mNotePanel] };
 
     public PropertySideBarContentProvider()
     {
         var partName = new Label() { Content = "Part".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mPartContent.Children.Add(partName);
+        mPartPanel.Title = partName;
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mPartContent.Children.Add(mPartFixedController);
         mPartContent.Children.Add(mPartPropertiesController);
+        mPartPanel.Content = mPartContent;
 
         var automationName = new Label() { Content = "Automation".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mAutomationContent.Children.Add(automationName);
+        mAutomationPanel.Title = automationName;
         mAutomationContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mAutomationContent.Children.Add(mAutomationController);
+        mAutomationPanel.Content = mAutomationContent;
 
         var noteName = new Label() { Content = "Note".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
-        mNoteContent.Children.Add(noteName);
+        mNotePanel.Title = noteName;
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mNoteContent.Children.Add(mNotePropertiesController);
-
-        mNotePanel.Children.Add(mNoteContent);
-        mNotePanel.Children.Add(mNoteContentMask);
+        mNoteContentPanel.Children.Add(mNoteContent);
+        mNoteContentPanel.Children.Add(mNoteContentMask);
+        mNotePanel.Content = mNoteContentPanel;
     }
 
     public void SetPart(MidiPart? part)
@@ -283,7 +285,10 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
-    readonly LayerPanel mNotePanel = new();
+    readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
+    readonly LayerPanel mNoteContentPanel = new();
 
     readonly ObjectController mAutomationController = new();
     readonly MidiPartFixedController mPartFixedController = new();
