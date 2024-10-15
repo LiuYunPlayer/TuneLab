@@ -24,9 +24,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
-    public IProvider<MidiPart> PartProvider => mPartProvider;
+    public IProvider<IMidiPart> PartProvider => mPartProvider;
     public IProvider<ITimeline> TimelineProvider => mPartProvider;
-    public MidiPart? Part
+    public IMidiPart? Part
     {
         get => mPartProvider.Object;
         set => mPartProvider.Set(value);
@@ -264,7 +264,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly ParameterTabBar mParameterTabBar;
     readonly DockPanel mParameterLayer;
 
-    readonly Owner<MidiPart> mPartProvider = new();
+    readonly Owner<IMidiPart> mPartProvider = new();
 
     readonly IDependency mDependency;
 }

@@ -25,7 +25,7 @@ internal class ParameterTabBar : Panel
     {
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
-        IProvider<MidiPart> PartProvider { get; }
+        IProvider<IMidiPart> PartProvider { get; }
         string? ActiveAutomation { get; }
         bool IsAutomationVisible(string automationID);
     }
@@ -137,7 +137,7 @@ internal class ParameterTabBar : Panel
     }
 
     public double AutoHeight => mAutomationLayout.DesiredSize.Height;
-    MidiPart? Part => mDependency.PartProvider.Object;
+    IMidiPart? Part => mDependency.PartProvider.Object;
 
     Color Back => Style.INTERFACE;
 

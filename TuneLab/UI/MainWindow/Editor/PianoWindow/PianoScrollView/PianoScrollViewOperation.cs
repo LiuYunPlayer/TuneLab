@@ -60,7 +60,7 @@ internal partial class PianoScrollView
                         {
                             var pos = TickAxis.X2Tick(e.Position.X);
                             if (alt) pos = GetQuantizedTick(pos);
-                            pos -= Part.Pos;
+                            pos -= Part.Pos.Value;
                             foreach (var note in Part.Notes)
                             {
                                 if (note.StartPos() < pos && note.EndPos() > pos)
@@ -148,7 +148,7 @@ internal partial class PianoScrollView
                                             var pitch = (int)PitchAxis.Y2Pitch(e.Position.Y);
                                             var pos = TickAxis.X2Tick(e.Position.X);
                                             if (!alt) pos = GetQuantizedTick(pos);
-                                            var note = Part.CreateNote(new NoteInfo() { Pos = pos - Part.Pos, Dur = QuantizedCellTicks(), Pitch = pitch, Lyric = Part.Voice.DefaultLyric });
+                                            var note = Part.CreateNote(new NoteInfo() { Pos = pos - Part.Pos.Value, Dur = QuantizedCellTicks(), Pitch = pitch, Lyric = Part.Voice.DefaultLyric });
                                             Part.InsertNote(note);
                                             mNoteEndResizeOperation.Down(TickAxis.Tick2X(note.GlobalEndPos()), note);
                                         }
@@ -177,7 +177,7 @@ internal partial class PianoScrollView
                                         var position = e.Position;
                                         var splitPos = TickAxis.X2Tick(position.X);
                                         if (!alt) splitPos = GetQuantizedTick(splitPos);
-                                        splitPos -= Part.Pos;
+                                        splitPos -= Part.Pos.Value;
                                         if (splitPos > note.StartPos() && splitPos < note.EndPos())
                                         {
                                             var menuItem = new MenuItem().SetName("Split".Tr(TC.Menu)).SetAction(() =>
@@ -195,7 +195,7 @@ internal partial class PianoScrollView
                                                     return;
 
                                                 var tempoManager = Part.TempoManager;
-                                                double pos = Part.Pos;
+                                                double pos = Part.Pos.Value;
                                                 List<NoteInfo> phonemeNoteInfos = new();
                                                 List<INote> removeNotes = new();
                                                 foreach (var note in selectedNotes)
@@ -305,7 +305,7 @@ internal partial class PianoScrollView
                                         {
                                             {
                                                 var position = e.Position;
-                                                var pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos;
+                                                var pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos.Value;
                                                 var menuItem = new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() =>
                                                 {
                                                     PasteAt(pos);
@@ -359,7 +359,7 @@ internal partial class PianoScrollView
                                     {
                                         if (e.IsDoubleClick || mPreviewPitch != null)
                                         {
-                                            var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
+                                            var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
                                             Part.Pitch.InsertPoint(anchor);
                                             Part.Pitch.DeselectAllAnchors();
                                             anchor.Select();
@@ -448,7 +448,7 @@ internal partial class PianoScrollView
                                 {
                                     if (e.IsDoubleClick)
                                     {
-                                        var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X)) - Part.Pos;
+                                        var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X)) - Part.Pos.Value;
                                         var vibrato = Part.CreateVibrato(new VibratoInfo() { Pos = pos, Dur = QuantizedCellTicks(), Amplitude = 0.5, Frequency = 6, Phase = 0, Attack = 0.2, Release = 0.2 });
                                         vibrato.Select();
                                         Part.InsertVibrato(vibrato);
@@ -493,7 +493,7 @@ internal partial class PianoScrollView
                                         {
                                             {
                                                 var position = e.Position;
-                                                var pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos;
+                                                var pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos.Value;
                                                 var menuItem = new MenuItem().SetName("Paste").SetAction(() =>
                                                 {
                                                     PasteAt(pos);
@@ -908,7 +908,7 @@ internal partial class PianoScrollView
         var tempoManager = Part.TempoManager;
         var viewStartTime = tempoManager.GetTime(startPos);
         var viewEndTime = tempoManager.GetTime(endPos);
-        double partPos = Part.Pos;
+        double partPos = Part.Pos.Value;
 
         switch (mDependency.PianoTool.Value)
         {
@@ -981,7 +981,7 @@ internal partial class PianoScrollView
                 if (HoverItem() != null)
                     break;
 
-                var pos = TickAxis.X2Tick(MousePosition.X) - Part.Pos;
+                var pos = TickAxis.X2Tick(MousePosition.X) - Part.Pos.Value;
                 var areaID = Part.Pitch.GetAreaID(pos);
                 int[] previewIndex = areaID.IsInGroup ? [areaID.Index] : [areaID.LeftIndex, areaID.RightIndex];
                 var previewInfo = previewIndex
@@ -1128,7 +1128,7 @@ internal partial class PianoScrollView
 
             State = SelectState;
             PianoScrollView.mSelection.IsAcitve = false;
-            mDownTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos;
+            mDownTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos.Value;
             mDownPitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             if (ctrl)
             {
@@ -1145,7 +1145,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            mTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos;
+            mTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos.Value;
             mPitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             if (Collection == null)
                 return;
@@ -1178,7 +1178,7 @@ internal partial class PianoScrollView
 
         public Rect SelectionRect()
         {
-            double pos = PianoScrollView.Part == null ? 0 : PianoScrollView.Part.Pos;
+            double pos = PianoScrollView.Part == null ? 0 : PianoScrollView.Part.Pos.Value;
             double minTick = Math.Min(mTick, mDownTick) + pos;
             double maxTick = Math.Max(mTick, mDownTick) + pos;
             double minPitch = Math.Min(mPitch, mDownPitch);
@@ -1321,7 +1321,7 @@ internal partial class PianoScrollView
 
         Point ToTickAndValue(Avalonia.Point mousePosition)
         {
-            return new(PianoScrollView.TickAxis.X2Tick(mousePosition.X) - PianoScrollView.Part!.Pos, PianoScrollView.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5);
+            return new(PianoScrollView.TickAxis.X2Tick(mousePosition.X) - PianoScrollView.Part!.Pos.Value, PianoScrollView.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5);
         }
 
         bool mDirection;
@@ -1346,7 +1346,7 @@ internal partial class PianoScrollView
             State = State.PitchClearing;
             PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
-            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos.Value;
             mStart = tick;
             mEnd = tick;
             PianoScrollView.Part.Pitch.Clear(mStart, mEnd);
@@ -1361,7 +1361,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.Pitch.DiscardTo(mHead);
-            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos.Value;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
             PianoScrollView.Part.Pitch.Clear(mStart, mEnd);
@@ -1405,7 +1405,7 @@ internal partial class PianoScrollView
             State = State.PitchLocking;
             PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
-            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos.Value;
             mStart = tick;
             mEnd = tick;
             PianoScrollView.Part.LockPitch(mStart, mEnd, Settings.ParameterBoundaryExtension);
@@ -1420,7 +1420,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.DiscardTo(mHead);
-            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos.Value;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
             PianoScrollView.Part.LockPitch(mStart, mEnd, Settings.ParameterBoundaryExtension);
@@ -1483,7 +1483,7 @@ internal partial class PianoScrollView
             mHead = PianoScrollView.Part.Head;
             mNote = note;
             mDownPartPos = mNote.GlobalStartPos();
-            mTickOffset = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos - note.Pos.Value;
+            mTickOffset = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos.Value - note.Pos.Value;
             mPitch = note.Pitch.Value;
             mMinPitch = minPitch;
             mMaxPitch = maxPitch;
@@ -1615,7 +1615,7 @@ internal partial class PianoScrollView
             double start = x - mOffset;
             double startTick = PianoScrollView.TickAxis.X2Tick(start);
             if (!alt) startTick = Math.Min(PianoScrollView.GetQuantizedTick(startTick), PianoScrollView.GetQuantizedTick(mNote.GlobalEndPos()) - PianoScrollView.QuantizedCellTicks());
-            startTick -= PianoScrollView.Part.Pos;
+            startTick -= PianoScrollView.Part.Pos.Value;
             if (startTick >= mNote.EndPos())
             {
                 PianoScrollView.Part.RemoveNote(mNote);
@@ -1714,7 +1714,7 @@ internal partial class PianoScrollView
             double end = x - mOffset;
             double endTick = PianoScrollView.TickAxis.X2Tick(end);
             if (!alt) endTick = Math.Max(PianoScrollView.GetQuantizedTick(endTick), PianoScrollView.GetQuantizedTick(mNote.GlobalStartPos()) + PianoScrollView.QuantizedCellTicks());
-            endTick -= PianoScrollView.Part.Pos;
+            endTick -= PianoScrollView.Part.Pos.Value;
             if (endTick <= mNote.StartPos())
             {
                 PianoScrollView.Part.RemoveNote(mNote);
@@ -1837,7 +1837,7 @@ internal partial class PianoScrollView
             double start = x - mOffset;
             double startTick = PianoScrollView.TickAxis.X2Tick(start);
             if (!alt) startTick = Math.Min(PianoScrollView.GetQuantizedTick(startTick), PianoScrollView.GetQuantizedTick(mVibrato.GlobalEndPos()) - PianoScrollView.QuantizedCellTicks());
-            startTick -= PianoScrollView.Part.Pos;
+            startTick -= PianoScrollView.Part.Pos.Value;
             if (startTick >= mVibrato.EndPos())
             {
                 PianoScrollView.Part.RemoveVibrato(mVibrato);
@@ -1910,7 +1910,7 @@ internal partial class PianoScrollView
             double end = x - mOffset;
             double endTick = PianoScrollView.TickAxis.X2Tick(end);
             if (!alt) endTick = Math.Max(PianoScrollView.GetQuantizedTick(endTick), PianoScrollView.GetQuantizedTick(mVibrato.GlobalStartPos()) + PianoScrollView.QuantizedCellTicks());
-            endTick -= PianoScrollView.Part.Pos;
+            endTick -= PianoScrollView.Part.Pos.Value;
             if (endTick <= mVibrato.StartPos())
             {
                 PianoScrollView.Part.RemoveVibrato(mVibrato);
@@ -2402,7 +2402,7 @@ internal partial class PianoScrollView
             State = State.AnchorDeleting;
             PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
-            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos.Value;
             mStart = tick;
             mEnd = tick;
             PianoScrollView.Part.Pitch.DeletePoints(mStart, mEnd);
@@ -2417,7 +2417,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.Pitch.DiscardTo(mHead);
-            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos;
+            double tick = PianoScrollView.TickAxis.X2Tick(x) - PianoScrollView.Part.Pos.Value;
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
             PianoScrollView.Part.Pitch.DeletePoints(mStart, mEnd);
@@ -2465,7 +2465,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.DisableAutoPrepare();
             mHead = PianoScrollView.Part.Head;
             mAnchor = anchor;
-            mXOffset = point.X - PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos + anchor.Pos);
+            mXOffset = point.X - PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos.Value + anchor.Pos);
             mYOffset = point.Y - PianoScrollView.PitchAxis.Pitch2Y(anchor.Value + 0.5);
         }
 
@@ -2478,7 +2478,7 @@ internal partial class PianoScrollView
             if (mAnchor == null)
                 return;
 
-            double pos = PianoScrollView.TickAxis.X2Tick(point.X - mXOffset) - part.Pos;
+            double pos = PianoScrollView.TickAxis.X2Tick(point.X - mXOffset) - part.Pos.Value;
             double posOffset = pos - mAnchor.Pos;
             double pitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y - mYOffset) - 0.5;
             double pitchOffset = pitch - mAnchor.Value;
@@ -2591,7 +2591,7 @@ internal partial class PianoScrollView
             double posX = x - mOffset;
             double pos = PianoScrollView.TickAxis.X2Tick(posX);
             if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
-            pos -= PianoScrollView.Part.Pos;
+            pos -= PianoScrollView.Part.Pos.Value;
             var last = mLeft == null ? mRight?.Last : mLeft;
             if (last != null) pos = Math.Max(pos, last.StartPos());
             var next = mRight == null ? mLeft?.Next : mRight;

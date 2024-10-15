@@ -267,7 +267,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return new Point();
 
-            return new Point(PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos + AnchorPoint.Pos), PianoScrollView.PitchAxis.Pitch2Y(AnchorPoint.Value + 0.5));
+            return new Point(PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos.Value + AnchorPoint.Pos), PianoScrollView.PitchAxis.Pitch2Y(AnchorPoint.Value + 0.5));
         }
 
         public override bool Raycast(Point point)

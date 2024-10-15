@@ -31,7 +31,7 @@ internal partial class TrackScrollView : View
         TrackVerticalAxis TrackVerticalAxis { get; }
         IQuantization Quantization { get; }
         IProvider<IProject> ProjectProvider { get; }
-        IProvider<Part> EditingPart { get; }
+        IProvider<IPart> EditingPart { get; }
         void SwitchEditingPart(IPart part);
     }
 

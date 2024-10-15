@@ -267,16 +267,17 @@ internal partial class TrackScrollView
 
     protected override void OnMouseRelativeMoveToView(MouseMoveEventArgs e)
     {
+        bool alt = (e.KeyModifiers & ModifierKeys.Alt) != 0;
         switch (mState)
         {
             case State.Selecting:
                 mSelectOperation.Move(e.Position);
                 break;
             case State.PartMoving:
-                mPartMoveOperation.Move(e.Position);
+                mPartMoveOperation.Move(e.Position, alt);
                 break;
             case State.PartEndResizing:
-                mPartEndResizeOperation.Move(e.Position.X);
+                mPartEndResizeOperation.Move(e.Position.X, alt);
                 break;
             default:
                 var item = ItemAt(e.Position);
@@ -314,6 +315,48 @@ internal partial class TrackScrollView
 
         if (e.MouseButtonType == MouseButtonType.MiddleButton)
             mMiddleDragOperation.Up();
+    }
+
+    protected override void OnKeyDownEvent(KeyEventArgs e)
+    {
+        switch (mState)
+        {
+            case State.PartMoving:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mPartMoveOperation.Move(MousePosition, true);
+                    e.Handled = true;
+                }
+                break;
+            case State.PartEndResizing:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mPartEndResizeOperation.Move(MousePosition.X, true);
+                    e.Handled = true;
+                }
+                break;
+        }
+    }
+
+    protected override void OnKeyUpEvent(KeyEventArgs e)
+    {
+        switch (mState)
+        {
+            case State.PartMoving:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mPartMoveOperation.Move(MousePosition, false);
+                    e.Handled = true;
+                }
+                break;
+            case State.PartEndResizing:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mPartEndResizeOperation.Move(MousePosition.X, false);
+                    e.Handled = true;
+                }
+                break;
+        }
     }
 
     protected override void UpdateItems(IItemCollection items)
@@ -602,7 +645,7 @@ internal partial class TrackScrollView
             TrackScrollView.TrackVerticalAxis.SetAutoContentSize(false);
         }
 
-        public void Move(Avalonia.Point point)
+        public void Move(Avalonia.Point point, bool alt)
         {
             var project = TrackScrollView.Project;
             if (project == null)
@@ -617,7 +660,11 @@ internal partial class TrackScrollView
             var position = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y);
             var trackIndex = position.TrackIndex;
             int trackIndexOffset = Math.Max(-mMoveParts.First().trackIndex, trackIndex - mTrackIndex);
-            double pos = TrackScrollView.GetQuantizedTick(TrackScrollView.TickAxis.X2Tick(point.X) - mTickOffset);
+            double pos = TrackScrollView.TickAxis.X2Tick(point.X) - mTickOffset;
+            if (!alt)
+            {
+                pos = TrackScrollView.GetQuantizedTick(pos);
+            }
             double posOffset = pos - mDownPartPos;
             if (posOffset == mLastPosOffset && trackIndexOffset == mLastTrackIndexOffset)
                 return;
@@ -732,7 +779,7 @@ internal partial class TrackScrollView
             mHead = mPart.Head;
         }
 
-        public void Move(double x)
+        public void Move(double x, bool alt)
         {
             if (mPart == null)
                 return;
@@ -743,7 +790,11 @@ internal partial class TrackScrollView
             mPart.DiscardTo(mHead);
             double end = x - mOffset;
             double endTick = TrackScrollView.TickAxis.X2Tick(end);
-            mPart.Dur.Set(Math.Max(TrackScrollView.GetQuantizedTick(endTick) - mPart.Pos.Value, TrackScrollView.QuantizedCellTicks()));
+            if (!alt)
+            {
+                endTick = TrackScrollView.GetQuantizedTick(endTick);
+            }
+            mPart.Dur.Set(Math.Max(endTick - mPart.Pos.Value, TrackScrollView.QuantizedCellTicks()));
             mTrack.RemovePart(mPart);
             mTrack.InsertPart(mPart);
         }

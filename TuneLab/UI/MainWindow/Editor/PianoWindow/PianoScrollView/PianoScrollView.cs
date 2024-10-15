@@ -37,7 +37,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         TickAxis TickAxis { get; }
         PitchAxis PitchAxis { get; }
         IQuantization Quantization { get; }
-        IProvider<MidiPart> PartProvider { get; }
+        IProvider<IMidiPart> PartProvider { get; }
         ParameterButton PitchButton { get; }
         double WaveformBottom { get; }
         IActionEvent WaveformBottomChanged { get; }
@@ -402,13 +402,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
             context.DrawRectangle(SelectionColor.Opacity(0.25).ToBrush(), new Pen(SelectionColor.ToUInt32()), rect);
         }
 
-        double start = TickAxis.Tick2X(Part.StartPos);
+        double start = TickAxis.Tick2X(Part.StartPos());
         if (start > 0)
         {
             context.FillRectangle(Colors.Black.Opacity(0.3).ToBrush(), this.Rect().Adjusted(0, 0, start - Bounds.Width, 0));
         }
 
-        double end = TickAxis.Tick2X(Part.EndPos);
+        double end = TickAxis.Tick2X(Part.EndPos());
         if (end < Bounds.Width)
         {
             context.FillRectangle(Colors.Black.Opacity(0.3).ToBrush(), this.Rect().Adjusted(end, 0, 0, 0));
@@ -483,7 +483,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (Part == null)
             return;
 
-        double pos = Part.Pos;
+        double pos = Part.Pos.Value;
         double[] ticks = new double[(int)(right - left) + 1];
         for (int i = 0; i < ticks.Length; i++)
         {
@@ -650,7 +650,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             if (positions.Count < 2)
                 continue;
 
-            float level = (float)MusicTheory.dB2Level(Part.Gain);
+            float level = (float)MusicTheory.dB2Level(Part.Gain.Value);
             float r = (float)height / 2;
             float top = (float)WaveformTop;
             float toY(float value) => (1 - value * level) * r + top;
@@ -658,7 +658,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             var values = waveform.GetValues(positions);
             var peaks = waveform.GetPeaks(positions, values);
 
-            double pos = Part.Pos;
+            double pos = Part.Pos.Value;
             var ticks = new double[xs.Count];
             for (int i = 0; i < ticks.Length; i++)
             {
@@ -853,7 +853,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (Part == null)
             return;
 
-        PasteAt(GetQuantizedTick(mDependency.Playhead.Pos) - Part.Pos);
+        PasteAt(GetQuantizedTick(mDependency.Playhead.Pos) - Part.Pos.Value);
     }
 
     public void PasteAt(double pos)
@@ -1089,6 +1089,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
     public TickAxis TickAxis => mDependency.TickAxis;
     public PitchAxis PitchAxis => mDependency.PitchAxis;
     IQuantization Quantization => mDependency.Quantization;
-    MidiPart? Part => mDependency.PartProvider.Object;
+    IMidiPart? Part => mDependency.PartProvider.Object;
     ParameterButton PitchButton => mDependency.PitchButton;
 }

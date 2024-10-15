@@ -30,7 +30,7 @@ internal partial class AutomationRenderer : View
     {
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
-        IProvider<MidiPart> PartProvider { get; }
+        IProvider<IMidiPart> PartProvider { get; }
         TickAxis TickAxis { get; }
         string? ActiveAutomation { get; }
         bool IsAutomationVisible(string automationID);
