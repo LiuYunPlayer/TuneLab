@@ -687,7 +687,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         try
         {
-            var mUpdateCheck = await AppUpdateManager.CheckForUpdate(false);
+            var mUpdateCheck = await AppUpdateManager.CheckForUpdate(IsAutoCheck);
             if (mUpdateCheck != null)
             {
                 Log.Info($"Update available: {mUpdateCheck.version}");
@@ -709,10 +709,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         catch (Exception ex)
         {
             Log.Error($"CheckUpdate: {ex.Message}");
-            await Dispatcher.UIThread.InvokeAsync(async () =>
+            if (!IsAutoCheck)
             {
-                await this.ShowMessage("Check update failed".Tr(TC.Dialog), "An error occurred while checking for updates. Please check the log for more details.".Tr(TC.Dialog));
-            });
+                await Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    await this.ShowMessage("Check update failed".Tr(TC.Dialog), "An error occurred while checking for updates. Please check the log for more details.".Tr(TC.Dialog));
+                });
+            }
         }
     }
 
