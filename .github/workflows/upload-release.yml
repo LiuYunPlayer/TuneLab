@@ -100,9 +100,8 @@ jobs:
             asset_name: TuneLab-${{ matrix.runtime }}-${{ github.ref_name }}.zip
             asset_content_type: application/zip
     
-        # 因为还没有解决跨平台的问题所以这个先关掉掉，等跨平台完成了就可以去掉执行条件里的 false 一并发布 linux 和 osx 的版本了
         - name: Upload - MacOS and Linux
-          if: runner.os != 'Windows' && false
+          if: runner.os != 'Windows'
           uses: actions/upload-release-asset@v1
           env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
