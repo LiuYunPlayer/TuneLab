@@ -39,7 +39,13 @@ internal partial class UpdateDialog : Window
         titleLabel = this.FindControl<Label>("TitleLabel") ?? throw new InvalidOperationException("TitleLabel not found");
         messageTextBlock = this.FindControl<SelectableTextBlock>("MessageTextBlock") ?? throw new InvalidOperationException("MessageTextBlock not found");
         markDownScrollViewer = this.FindControl<MarkdownScrollViewer>("MarkDownScrollViewer") ?? throw new InvalidOperationException("MarkDownScrollViewer not found");
-
+        
+        bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
+	    if(UseSystemTitle){
+		    titleBar.Height = 0;
+		    Height -= 40;
+	    }
+     
         titleLabel.Content = "Update Available".Tr(TC.Dialog);
     }
 
