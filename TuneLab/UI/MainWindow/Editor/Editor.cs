@@ -117,7 +117,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         mLastPart = mEditingPart;
         mEditingPart = part;
-        if (part is IMidiPart midiPart)
+        if (part == null)
+        {
+            mPianoWindow.Part = null;
+        }
+        else if (part is IMidiPart midiPart)
         {
             mPianoWindow.Part = midiPart;
         }
