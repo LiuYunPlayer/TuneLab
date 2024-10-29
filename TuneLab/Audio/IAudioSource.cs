@@ -9,7 +9,7 @@ namespace TuneLab.Audio;
 internal interface IAudioSource
 {
     double StartTime { get; }
-    int SamplingRate { get; }
+    int SampleRate { get; }
     int SampleCount { get; }
     IAudioData GetAudioData(int offset, int count);
 }
@@ -23,7 +23,7 @@ internal static class IAudioSourceExtension
 
     public static double Duration(this IAudioSource source)
     {
-        return source.SampleCount == 0 ? 0 : (double)source.SampleCount / source.SamplingRate;
+        return source.SampleCount == 0 ? 0 : (double)source.SampleCount / source.SampleRate;
     }
 
     public static double EndTime(this IAudioSource source)

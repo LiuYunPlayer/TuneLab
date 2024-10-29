@@ -40,7 +40,11 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         }
     }
 
-    public void Init(IAudioProvider provider)
+    public int BufferSize { get; set; } = 1024; // TODO @SineStriker
+    public int SampleRate { get; set; } = 44100; // TODO @SineStriker
+    public int ChannelCount { get; set; } = 2; // TODO @SineStriker
+
+    public void Init(IAudioSampleProvider provider)
     {
         var context = SynchronizationContext.Current;
         if (context == null)
@@ -103,7 +107,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             var sampleProvider = new SampleProvider(this);
 
             // 创建音频结构体
-            _d.spec.freq = _audioProvider.SamplingRate;
+            _d.spec.freq = SampleRate;
             _d.spec.format = SDLGlobal.PLAYBACK_FORMAT;
             _d.spec.channels = (byte)sampleProvider.WaveFormat.Channels;
             _d.spec.silence = 0;
@@ -189,14 +193,14 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
     }
 
     // 成员变量
-    private IAudioProvider? _audioProvider;
+    private IAudioSampleProvider? _audioProvider;
 
     // SDL 相关
     private SDLPlaybackData _d;
 
     private class SampleProvider(SDLPlaybackHandler engine) : ISampleProvider
     {
-        public WaveFormat WaveFormat => WaveFormat.CreateIeeeFloatWaveFormat(engine._audioProvider.SamplingRate, 2);
+        public WaveFormat WaveFormat => WaveFormat.CreateIeeeFloatWaveFormat(engine.SampleRate, 2);
 
         public int Read(float[] buffer, int offset, int count)
         {

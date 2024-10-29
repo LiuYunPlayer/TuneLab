@@ -296,7 +296,7 @@ internal partial class TrackScrollView : View
                                 xp += gap;
                                 xs.Add(xp);
                                 double time = tempoManager.GetTime(TickAxis.X2Tick(xp));
-                                positions.Add((time - startTime) * ((IAudioSource)audioPart).SamplingRate);
+                                positions.Add((time - startTime) * ((IAudioSource)audioPart).SampleRate);
                             }
                             while (xp < maxX);
 

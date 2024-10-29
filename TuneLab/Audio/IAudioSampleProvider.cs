@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Audio;
 
-internal interface IAudioEncoder
+internal interface IAudioSampleProvider
 {
-    void EncodeToWav(string path, float[] buffer, int sampleRate, int bitPerSample, int channelCount);
+    void Read(float[] buffer, int offset, int count);
 }

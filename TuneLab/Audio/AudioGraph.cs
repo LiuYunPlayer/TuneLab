@@ -8,7 +8,7 @@ namespace TuneLab.Audio;
 
 internal class AudioGraph(int samplingRate = 44100)
 {
-    public int SamplingRate => samplingRate;
+    public int SampleRate => samplingRate;
 
     public IReadOnlyCollection<IAudioTrack> Tracks => mTracks;
 
@@ -36,7 +36,7 @@ internal class AudioGraph(int samplingRate = 44100)
         float rightVolume = (float)(volume * (1 + pan));
         foreach (var audioSource in track.AudioSources)
         {
-            int audioSourceStart = (int)(audioSource.StartTime * SamplingRate);
+            int audioSourceStart = (int)(audioSource.StartTime * SampleRate);
             int audioSourceEnd = audioSourceStart + audioSource.SampleCount;
             if (audioSourceEnd < position)
                 continue;

@@ -38,8 +38,8 @@ internal class AudioPart : Part, IAudioPart
             {
                 try
                 {
-                    int samplingRate = AudioEngine.SamplingRate;
-                    var data = AudioUtils.Decode(Path, ref samplingRate);
+                    int sampleRate = AudioEngine.SampleRate;
+                    var data = AudioUtils.Decode(Path, ref sampleRate);
                     switch (data.Length)
                     {
                         case 1:
@@ -106,7 +106,7 @@ internal class AudioPart : Part, IAudioPart
         return mAudioData == null ? 0 : Math.Min(base.SampleCount(), mAudioData.Count);
     }
 
-    protected override int SamplingRate => AudioEngine.SamplingRate;
+    protected override int SampleRate => AudioEngine.SampleRate;
     public int ChannelCount => mWaveforms.Length;
 
     Waveform[] mWaveforms = [];

@@ -45,7 +45,7 @@ public partial class App : Application
 
                 // init audio engine
                 AudioUtils.Init(new NAudioCodec());
-                AudioEngine.Init(new SDLPlaybackHandler());
+                AudioEngine.Init(new SDLPlaybackHandler() { SampleRate = 44100, BufferSize = 1024, ChannelCount = 2 });
                 AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath);
                 AudioEngine.MasterGain = Settings.MasterGain;
                 Settings.PianoKeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath));

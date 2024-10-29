@@ -19,7 +19,11 @@ internal interface IAudioPlaybackHandler
     string CurrentDriver { get; set; }
     string CurrentDevice { get; set; }
 
-    void Init(IAudioProvider audioProvider);
+    int BufferSize { get; set; }
+    int SampleRate { get; set; }
+    int ChannelCount { get; set; }
+
+    void Init(IAudioSampleProvider audioSampleProvider);
     void Destroy();
 
     void Start();
