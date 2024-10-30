@@ -15,4 +15,8 @@ internal class SettingsFile
     public double ParameterBoundaryExtension { get; set; } = 5;
     public string PianoKeySamplesPath { get; set; } = string.Empty;
     public int AutoSaveInterval { get; set; } = 10;
+    public int BufferSize { get; set; } = 1024;
+    public int SampleRate { get; set; } = 44100;
+    public string AudioDriver { get; set; } = string.Empty;
+    public string AudioDevice { get; set; } = string.Empty;
 }

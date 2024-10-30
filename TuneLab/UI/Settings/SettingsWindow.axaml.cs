@@ -15,6 +15,7 @@ using TuneLab.Base.Properties;
 using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
 using TuneLab.Base.Event;
+using TuneLab.Audio;
 
 namespace TuneLab.UI;
 
@@ -55,6 +56,7 @@ internal partial class SettingsWindow : Window
         Content.Background = Style.INTERFACE.ToBrush();
 
         Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)), s);
+        Settings.SampleRate.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)), s);
 
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
         {
@@ -83,6 +85,70 @@ internal partial class SettingsWindow : Window
             }
             {
                 var name = new TextBlock() { Text = "Master Gain (dB)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var comboBox = new ComboBoxController() { Width = 300 };
+                comboBox.SetConfig(new(AudioEngine.GetAllDrivers()));
+                comboBox.Bind(Settings.AudioDriver, false, s);
+                comboBox.Display(AudioEngine.CurrentDriver);
+
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Audio Driver".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var comboBox = new ComboBoxController() { Width = 300 };
+                comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
+                comboBox.Bind(Settings.AudioDevice, false, s);
+                comboBox.Display(string.IsNullOrEmpty(AudioEngine.CurrentDevice) ? "(Default)".Tr(this) : AudioEngine.CurrentDevice);
+
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Audio Device".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var comboBox = new ComboBoxController() { Width = 180 };
+                comboBox.SetConfig(new(["32000", "44100", "48000", "96000", "192000"]));
+                comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.SampleRate, false, s);
+                comboBox.Display(AudioEngine.SampleRate.ToString());
+
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Sample Rate".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var comboBox = new ComboBoxController() { Width = 180 };
+                comboBox.SetConfig(new(["64", "128", "256", "512", "1024", "2048", "4096", "8192"]));
+                comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.BufferSize, false, s);
+                comboBox.Display(AudioEngine.BufferSize.ToString());
+
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Buffer Size".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);

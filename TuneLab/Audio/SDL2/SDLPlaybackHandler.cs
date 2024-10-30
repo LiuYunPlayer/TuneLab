@@ -59,9 +59,6 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             // 初始化SDL引擎，有备无患
             _ = SDLHost.InitHost();
 
-            // 创建私有结构
-            _d = new SDLPlaybackData();
-
             // 转发事件：设备更改
             _d.devChanged = (newVal, oldVal) =>
             {
@@ -196,7 +193,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
     private IAudioSampleProvider? _audioProvider;
 
     // SDL 相关
-    private SDLPlaybackData _d;
+    private SDLPlaybackData _d = new();
 
     private class SampleProvider(SDLPlaybackHandler engine) : ISampleProvider
     {

@@ -21,6 +21,11 @@ internal static class AudioEngine
     public static int SampleRate => mAudioSampleProvider!.SampleRate;
     public static double CurrentTime => mAudioSampleProvider!.CurrentTime;
     public static double MasterGain { get; set; } = 0;
+    public static int BufferSize { get => mAudioPlaybackHandler!.BufferSize; set => mAudioPlaybackHandler!.BufferSize = value; }
+    public static string CurrentDriver { get => mAudioPlaybackHandler!.CurrentDriver; set => mAudioPlaybackHandler!.CurrentDriver = value; }
+    public static string CurrentDevice { get => mAudioPlaybackHandler!.CurrentDevice; set => mAudioPlaybackHandler!.CurrentDevice = value; }
+    public static IReadOnlyList<string> GetAllDrivers() => mAudioPlaybackHandler!.GetAllDrivers();
+    public static IReadOnlyList<string> GetAllDevices() => mAudioPlaybackHandler!.GetAllDevices();
 
     public static void Init(IAudioPlaybackHandler playbackHandler)
     {

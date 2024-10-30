@@ -21,6 +21,10 @@ internal static class Settings
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
     public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
+    public static NotifiableProperty<int> BufferSize { get; } = DefaultSettings.BufferSize;
+    public static NotifiableProperty<int> SampleRate { get; } = DefaultSettings.SampleRate;
+    public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
+    public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
     
     public static void Init(string path)
     {
@@ -45,6 +49,10 @@ internal static class Settings
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
+        BufferSize.Value = settingsFile.BufferSize;
+        SampleRate.Value = settingsFile.SampleRate;
+        AudioDriver.Value = settingsFile.AudioDriver;
+        AudioDevice.Value = settingsFile.AudioDevice;
     }
 
     public static void Save(string path)
@@ -59,6 +67,10 @@ internal static class Settings
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
                 PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
+                BufferSize = BufferSize,
+                SampleRate = SampleRate,
+                AudioDriver = AudioDriver,
+                AudioDevice = AudioDevice,
             }, JsonSerializerOptions);
 
             File.WriteAllText(path, content);
