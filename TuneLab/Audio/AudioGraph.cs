@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Audio;
 
-internal class AudioGraph(int samplingRate = 44100)
+internal class AudioGraph(int sampleRate = 44100)
 {
-    public int SampleRate => samplingRate;
+    public int SampleRate => sampleRate;
 
     public IReadOnlyCollection<IAudioTrack> Tracks => mTracks;
 

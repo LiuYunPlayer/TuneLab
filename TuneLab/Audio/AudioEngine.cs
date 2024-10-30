@@ -43,7 +43,10 @@ internal static class AudioEngine
     public static void Destroy()
     {
         if (mAudioPlaybackHandler == null)
-            throw new Exception("Engine is not inited!");
+        {
+            Log.Error("Engine is not inited!");
+            return;
+        }
 
         mAudioPlaybackHandler.Stop();
 

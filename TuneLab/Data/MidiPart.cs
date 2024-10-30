@@ -788,6 +788,12 @@ internal class MidiPart : Part, IMidiPart
             mTask = mPart.Voice.CreateSynthesisTask(this);
             mTask.Complete += (result) =>
             {
+                if (result.SamplingRate != AudioEngine.SampleRate)
+                {
+                    var data = AudioUtils.Resample(result.AudioData, 1, result.SamplingRate, AudioEngine.SampleRate);
+                    result = new SynthesisResult(result.StartTime, AudioEngine.SampleRate, data, result.SynthesizedPitch, result.SynthesizedPhonemes);
+                }
+
                 context.Post(_ =>
                 {
                     mSynthesisResult = result;

@@ -8,5 +8,5 @@ namespace TuneLab.Audio;
 
 internal interface IAudioResampler
 {
-    IAudioStream Resample(IAudioProvider input, int outputSamplingRate);
+    IAudioStream Resample(IAudioProvider input, int outputSampleRate);
 }
