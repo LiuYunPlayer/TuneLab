@@ -15,4 +15,5 @@ internal interface IAudioPart : IPart, IDataObject<AudioPartInfo>
     IDataProperty<string> Path { get; }
     int ChannelCount { get; }
     Waveform GetWaveform(int channelIndex);
+    void Reload();
 }

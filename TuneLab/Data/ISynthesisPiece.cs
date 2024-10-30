@@ -20,6 +20,7 @@ internal interface ISynthesisPiece : ISynthesisData, IAudioSource
     SynthesisResult? SynthesisResult { get; }
     Waveform? Waveform { get; }
     void StartSynthesis();
+    void SetDirty(string dirtyType);
     IEnumerable<ISynthesisNote> ISynthesisData.Notes => Notes;
 }
 

@@ -486,15 +486,9 @@ internal class MidiPart : Part, IMidiPart
         if (automationID != ConstantDefine.VolumeID)
         {
             automation.RangeModified.Subscribe(OnAutomationRangeModified);
-            automation.DefaultValue.Modified.Subscribe(() => { SetAllPieceDirty(""); }); // TODO: 传递id
+            automation.DefaultValue.Modified.Subscribe(() => { this.SetAllPieceDirty(""); }); // TODO: 传递id
         }
         return automation;
-    }
-
-    void SetAllPieceDirty(string dirtyType)
-    {
-        foreach (var piece in mSynthesisPieces)
-            piece.SetDirty(dirtyType);
     }
 
     void OnPitchRangeModified(double start, double end)

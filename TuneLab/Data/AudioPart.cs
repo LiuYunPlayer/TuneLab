@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Base.Data;
 using TuneLab.Base.Event;
+using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;
@@ -27,45 +28,7 @@ internal class AudioPart : Part, IAudioPart
         Dur = new(this);
         Path = new(this, string.Empty);
         Dur.Modified.Subscribe(mDurationChanged);
-        Path.Modified.Subscribe(async () =>
-        {
-            mAudioData = null;
-            mWaveforms = [];
-            mAudioChanged.Invoke();
-            IAudioData? audioData = null;
-            Waveform[]? waveforms = null;
-            await Task.Run(() =>
-            {
-                try
-                {
-                    int sampleRate = AudioEngine.SampleRate;
-                    var data = AudioUtils.Decode(Path, ref sampleRate);
-                    switch (data.Length)
-                    {
-                        case 1:
-                            audioData = new MonoAudioData(data[0]);
-                            waveforms = [new(data[0])];
-                            break;
-                        case 2:
-                            audioData = new StereoAudioData(data[0], data[1]);
-                            waveforms = [new(data[0]), new(data[1])];
-                            break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    audioData = null;
-                    waveforms = null;
-                }
-            });
-
-            if (audioData == null || waveforms == null)
-                return;
-
-            mAudioData = audioData;
-            mWaveforms = waveforms;
-            mAudioChanged.Invoke();
-        });
+        Path.Modified.Subscribe(Reload);
         IDataObject<AudioPartInfo>.SetInfo(this, info);
     }
 
@@ -99,6 +62,47 @@ internal class AudioPart : Part, IAudioPart
     public Waveform GetWaveform(int channelIndex)
     {
         return mWaveforms[channelIndex];
+    }
+
+    public async void Reload()
+    {
+        mAudioData = null;
+        mWaveforms = [];
+        mAudioChanged.Invoke();
+        IAudioData? audioData = null;
+        Waveform[]? waveforms = null;
+        await Task.Run(() =>
+        {
+            try
+            {
+                int sampleRate = AudioEngine.SampleRate;
+                var data = AudioUtils.Decode(Path, ref sampleRate);
+                switch (data.Length)
+                {
+                    case 1:
+                        audioData = new MonoAudioData(data[0]);
+                        waveforms = [new(data[0])];
+                        break;
+                    case 2:
+                        audioData = new StereoAudioData(data[0], data[1]);
+                        waveforms = [new(data[0]), new(data[1])];
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                audioData = null;
+                waveforms = null;
+                Log.Error($"Failed to load audio data from {Path}: {ex.Message}");
+            }
+        });
+
+        if (audioData == null || waveforms == null)
+            return;
+
+        mAudioData = audioData;
+        mWaveforms = waveforms;
+        mAudioChanged.Invoke();
     }
 
     protected override int SampleCount()
