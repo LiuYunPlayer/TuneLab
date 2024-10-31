@@ -46,6 +46,7 @@
 	  <ProjectReference Include="..\TuneLab.Extensions.Effect\TuneLab.SDK.Effect.csproj" />
 	  <ProjectReference Include="..\TuneLab.Extensions.Formats\TuneLab.Extensions.Formats.csproj" />
 	  <ProjectReference Include="..\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" />
+	  <ProjectReference Include="..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" />
 	  <ProjectReference Include="..\TuneLab.Synthesizer\TuneLab.SDK.Synthesizer.csproj" />
 	</ItemGroup>
 
