@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Base.Properties;
 using TuneLab.Base.Structures;
 using TuneLab.Extensions.Formats.DataInfo;
@@ -13,17 +10,7 @@ namespace TuneLab.Extensions.Format.Adapters;
 
 internal static class ImportableFormatAdapterExtensions
 {
-    public static TMap Convert<TMap, TKey, TSource, TResult>(this IReadOnlyDictionary<TKey, TSource> dictionary, Func<TSource, TResult> converter) where TMap : IDictionary<TKey, TResult>, new()
-    {
-        TMap map = [];
-        foreach (var item in dictionary)
-        {
-            map.Add(item.Key, converter(item.Value));
-        }
-        return map;
-    }
-
-    public static Map<TKey, TResult> Convert<TKey, TSource, TResult>(this IReadOnlyDictionary<TKey, TSource> dictionary, Func<TSource, TResult> converter) where TKey : notnull
+    public static Map<TKey, TResult> ConvertToMap<TKey, TSource, TResult>(this IReadOnlyDictionary<TKey, TSource> dictionary, Func<TSource, TResult> converter) where TKey : notnull
     {
         return dictionary.Convert<Map<TKey, TResult>, TKey, TSource, TResult>(converter);
     }
@@ -43,7 +30,7 @@ internal static class ImportableFormatAdapterExtensions
         Map<string, PropertyValue> map = [];
         foreach (var property in propertyObject_V1)
         {
-            map.Add(property.Key, Convert(property.Value));
+            map.Add(property.Key, property.Value.Convert());
         }
         return new PropertyObject(map);
     }
@@ -124,7 +111,7 @@ internal static class ImportableFormatAdapterExtensions
         {
             Type = effectInfo_V1.Type,
             IsEnabled = effectInfo_V1.IsEnabled,
-            Automations = effectInfo_V1.Automations.Convert(Convert),
+            Automations = effectInfo_V1.Automations.ConvertToMap(Convert),
             Properties = effectInfo_V1.Properties.Convert(),
         };
     }
@@ -168,7 +155,7 @@ internal static class ImportableFormatAdapterExtensions
             Voice = midiPartInfo_V1.Voice.Convert(),
             Effects = midiPartInfo_V1.Effects.ConvertAll(Convert),
             Notes = midiPartInfo_V1.Notes.ConvertAll(Convert),
-            Automations = midiPartInfo_V1.Automations.Convert(Convert),
+            Automations = midiPartInfo_V1.Automations.ConvertToMap(Convert),
             Pitch = midiPartInfo_V1.Pitch.ConvertAll(list => list.ConvertAll(Convert)),
             Vibratos = midiPartInfo_V1.Vibratos.ConvertAll(Convert),
             Properties = midiPartInfo_V1.Properties.Convert(),

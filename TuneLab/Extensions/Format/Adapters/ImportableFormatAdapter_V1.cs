@@ -1,19 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
+﻿using System.IO;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.SDK.Base.DataStructures;
 using TuneLab.SDK.Format;
-using TuneLab.SDK.Format.DataInfo;
 
 namespace TuneLab.Extensions.Format.Adapters;
 
-public class ImportableFormatAdapter_V1(IImportableFormat_V1 importableFormat) : IImportableFormat
+internal class ImportableFormatAdapter_V1(IImportableFormat_V1 importableFormat) : IImportableFormat
 {
     public string Extension => importableFormat.Extension;
 
