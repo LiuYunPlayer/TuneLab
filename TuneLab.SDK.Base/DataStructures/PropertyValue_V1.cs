@@ -5,6 +5,7 @@ public readonly struct PropertyValue_V1
     public static implicit operator PropertyValue_V1(PropertyBoolean_V1 value) => new(value);
     public static implicit operator PropertyValue_V1(PropertyNumber_V1 value) => new(value);
     public static implicit operator PropertyValue_V1(PropertyString_V1 value) => new(value);
+    public static implicit operator PropertyValue_V1(PropertyArray_V1 value) => new(value);
     public static implicit operator PropertyValue_V1(PropertyObject_V1 value) => new(value);
 
     public static implicit operator PropertyValue_V1(bool value) => new((PropertyBoolean_V1)value);
@@ -28,6 +29,7 @@ public readonly struct PropertyValue_V1
     public PropertyValue_V1(PropertyBoolean_V1 value) : this((object)value) { }
     public PropertyValue_V1(PropertyNumber_V1 value) : this((object)value) { }
     public PropertyValue_V1(PropertyString_V1 value) : this((object)value) { }
+    public PropertyValue_V1(PropertyArray_V1 value) : this((object)value) { }
     public PropertyValue_V1(PropertyObject_V1 value) : this((object)value) { }
 
     PropertyValue_V1(object? value = null) { mValue = value; }
@@ -36,16 +38,19 @@ public readonly struct PropertyValue_V1
     public bool IsBoolean() => mValue is PropertyBoolean_V1;
     public bool IsNumber() => mValue is PropertyNumber_V1;
     public bool IsString() => mValue is PropertyString_V1;
+    public bool IsArray() => mValue is PropertyArray_V1;
     public bool IsObject() => mValue is PropertyObject_V1;
 
     public PropertyBoolean_V1 AsBoolean() => (PropertyBoolean_V1)mValue!;
     public PropertyNumber_V1 AsNumber() => (PropertyNumber_V1)mValue!;
     public PropertyString_V1 AsString() => (PropertyString_V1)mValue!;
+    public PropertyArray_V1 AsArray() => (PropertyArray_V1)mValue!;
     public PropertyObject_V1 AsObject() => (PropertyObject_V1)mValue!;
 
     public bool ToBoolean(out PropertyBoolean_V1 value) { if (IsBoolean()) { value = AsBoolean(); return true; } value = default; return false; }
     public bool ToNumber(out PropertyNumber_V1 value) { if (IsNumber()) { value = AsNumber(); return true; } value = default; return false; }
     public bool ToString(out PropertyString_V1 value) { if (IsString()) { value = AsString(); return true; } value = default; return false; }
+    public bool ToArray(out PropertyArray_V1 value) { if (IsArray()) { value = AsArray(); return true; } value = default; return false; }
     public bool ToObject(out PropertyObject_V1 value) { if (IsObject()) { value = AsObject(); return true; } value = default; return false; }
 
     readonly object? mValue;

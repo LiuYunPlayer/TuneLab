@@ -85,6 +85,7 @@ public struct PropertyObject_V1 : IDictionary<string, PropertyValue_V1>
     public PropertyBoolean_V1 GetBoolean(string key, PropertyBoolean_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToBoolean(out var result) ? result : defaultValue : defaultValue;
     public PropertyNumber_V1 GetNumber(string key, PropertyNumber_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToNumber(out var result) ? result : defaultValue : defaultValue;
     public PropertyString_V1 GetString(string key, PropertyString_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToString(out var result) ? result : defaultValue : defaultValue;
+    public PropertyArray_V1 GetArray(string key, PropertyArray_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToArray(out var result) ? result : defaultValue : defaultValue;
     public PropertyObject_V1 GetObject(string key, PropertyObject_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToObject(out var result) ? result : defaultValue : defaultValue;
 
     Dictionary<string, PropertyValue_V1>? mProperties;
