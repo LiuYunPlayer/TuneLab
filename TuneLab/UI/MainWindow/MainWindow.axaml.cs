@@ -24,6 +24,7 @@ public partial class MainWindow : Window
 {
     private PlatformID platform;
     private bool isCloseConfirm;
+    private TextBlock TitleLabel;
     private Button maximizeButton;
     private ButtonContent maximizeIconContent = new() { Item = new IconItem() { Icon = Assets.WindowRestore }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.6) } };
 
@@ -43,6 +44,9 @@ public partial class MainWindow : Window
         Background = Style.BACK.ToBrush();
         Content.Margin = new(1, 0);
 
+	    TitleLabel = new() { Text="", FontSize=12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush()};
+	    TitleLabel.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding{Path="Title",Source=this});
+ 
         var binimizeButton = new Button() { Width = 48, Height = 40 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
@@ -58,13 +62,15 @@ public partial class MainWindow : Window
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
         closeButton.Clicked += () => Close();
 
-        WindowControl.Children.Add(binimizeButton);
-        WindowControl.Children.Add(maximizeButton);
-        WindowControl.Children.Add(closeButton);
-
+        bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux); //Is Only Linux have double title case X11?
+	    if(!UseSystemTitle){
+        	WindowControl.Children.Add(binimizeButton);
+        	WindowControl.Children.Add(maximizeButton);
+        	WindowControl.Children.Add(closeButton);
+		    TitleBar.Children.Add(TitleLabel);
+	    }
+ 
         this.AttachWindowStateHandler();
-
-        TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
 
         mEditor = new Editor();
         mEditor.Document.ProjectNameChanged.Subscribe(UpdateTitle);

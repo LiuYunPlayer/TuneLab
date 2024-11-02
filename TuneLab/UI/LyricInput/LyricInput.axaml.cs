@@ -36,6 +36,13 @@ internal partial class LyricInput : Window
 
         WindowControl.Children.Add(closeButton);
 
+        var titleBar = this.FindControl<Grid>("TitleBar") ?? throw new System.InvalidOperationException("TitleBar not found");
+        bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
+	    if(UseSystemTitle){
+		    titleBar.Height = 0;
+		    Height -= 40;
+	    }
+
         Content.Background = Style.INTERFACE.ToBrush();
 
         mLyricInputBox = new TextInput();
