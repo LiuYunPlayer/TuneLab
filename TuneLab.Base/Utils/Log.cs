@@ -40,8 +40,13 @@ public static class Log
 
     static void Write(string type, object? value)
     {
-        mLogger?.WriteLine(string.Format("[{0}][{1}] {2}", type, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), value));
+        lock (mLock)
+        {
+            mLogger?.WriteLine(string.Format("[{0}][{1}][TID:{2}] {3}", type, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), Environment.CurrentManagedThreadId, value));
+        }
     }
+    
+    static readonly object mLock = new();
 
     static ILogger? mLogger;
 }

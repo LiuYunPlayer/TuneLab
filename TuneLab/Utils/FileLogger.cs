@@ -29,5 +29,5 @@ internal class FileLogger : ILogger
         mStreamWriter.Flush();
     }
 
-    StreamWriter mStreamWriter;
+    readonly StreamWriter mStreamWriter;
 }
