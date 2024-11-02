@@ -15,16 +15,6 @@ internal static class ExportableFormatAdapterExtensions
         return dictionary.Convert<Dictionary<TKey, TResult>, TKey, TSource, TResult>(converter);
     }
 
-    public static Dictionary<TKey, TValue> ToDictionary<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary) where TKey : notnull
-    {
-        Dictionary<TKey, TValue> map = [];
-        foreach (var item in dictionary)
-        {
-            map.Add(item.Key, item.Value);
-        }
-        return map;
-    }
-
     public static PropertyObject_V1 ConvertToV1(this PropertyObject propertyObject)
     {
         PropertyObject_V1 propertyObject_V1 = [];
