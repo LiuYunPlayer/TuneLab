@@ -745,7 +745,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 {
                     var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() =>
                     {
-                        OpenProjectByPath(mRecentFile.FilePath);
+                        SwitchProjectSafely(() => OpenProjectByPath(mRecentFile.FilePath));
                         Menu.Close();
                     });
                     menuItem.Items.Add(mRecentFilesMenuItem);
@@ -929,7 +929,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mRecentFilesMenu.Items.Clear();
         foreach (var mRecentFile in RecentFilesManager.GetRecentFiles())
         {
-            var menuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => OpenProjectByPath(mRecentFile.FilePath));
+            var menuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => SwitchProjectSafely(() => OpenProjectByPath(mRecentFile.FilePath)));
             mRecentFilesMenu.Items.Add(menuItem);
         }
     }
