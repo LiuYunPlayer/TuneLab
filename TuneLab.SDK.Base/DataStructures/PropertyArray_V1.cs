@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base.DataStructures;
 
-public struct PropertyArray_V1 : IList<PropertyValue_V1>
+public class PropertyArray_V1 : IPropertyValue_V1, IList<PropertyValue_V1>
 {
     public PropertyValue_V1 this[int index] { get => ((IList<PropertyValue_V1>)mList!)[index]; set => ((IList<PropertyValue_V1>)mList!)[index] = value; }
     public int Count => mList == null ? 0: ((ICollection<PropertyValue_V1>)mList).Count;

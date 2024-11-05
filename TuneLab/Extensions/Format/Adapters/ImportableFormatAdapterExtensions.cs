@@ -37,7 +37,7 @@ internal static class ImportableFormatAdapterExtensions
 
     public static PropertyValue Convert(this PropertyValue_V1 propertyValue_V1)
     {
-        if (propertyValue_V1.IsNull())
+        if (propertyValue_V1.IsNull)
         {
             return PropertyValue.Invalid;
         }

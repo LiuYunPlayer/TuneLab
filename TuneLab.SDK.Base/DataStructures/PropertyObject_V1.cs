@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base.DataStructures;
 
-public struct PropertyObject_V1 : IDictionary<string, PropertyValue_V1>
+public class PropertyObject_V1 : IPropertyValue_V1, IDictionary<string, PropertyValue_V1>
 {
     public PropertyValue_V1 this[string key] { get => ((IDictionary<string, PropertyValue_V1>)mProperties!)[key]; set => ((IDictionary<string, PropertyValue_V1>)mProperties!)[key] = value; }
     public ICollection<string> Keys => mProperties == null ? Array.Empty<string>() : ((IDictionary<string, PropertyValue_V1>)mProperties).Keys;
@@ -82,11 +82,12 @@ public struct PropertyObject_V1 : IDictionary<string, PropertyValue_V1>
         return GetEnumerator();
     }
 
-    public PropertyBoolean_V1 GetBoolean(string key, PropertyBoolean_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToBoolean(out var result) ? result : defaultValue : defaultValue;
-    public PropertyNumber_V1 GetNumber(string key, PropertyNumber_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToNumber(out var result) ? result : defaultValue : defaultValue;
-    public PropertyString_V1 GetString(string key, PropertyString_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToString(out var result) ? result : defaultValue : defaultValue;
-    public PropertyArray_V1 GetArray(string key, PropertyArray_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToArray(out var result) ? result : defaultValue : defaultValue;
-    public PropertyObject_V1 GetObject(string key, PropertyObject_V1 defaultValue = default) => TryGetValue(key, out var value) ? value.ToObject(out var result) ? result : defaultValue : defaultValue;
+    public PropertyValue_V1 GetValue(string key, PropertyValue_V1 defaultValue = default) => TryGetValue(key, out var value) ? value : defaultValue;
+    public PropertyBoolean_V1 GetBoolean(string key, PropertyBoolean_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsBoolean(defaultValue) : defaultValue;
+    public PropertyNumber_V1 GetNumber(string key, PropertyNumber_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsNumber(defaultValue) : defaultValue;
+    public PropertyString_V1 GetString(string key, PropertyString_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsString(defaultValue) : defaultValue;
+    public PropertyArray_V1 GetArray(string key, PropertyArray_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsArray(defaultValue) : defaultValue;
+    public PropertyObject_V1 GetObject(string key, PropertyObject_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsObject(defaultValue) : defaultValue;
 
     Dictionary<string, PropertyValue_V1>? mProperties;
 }
