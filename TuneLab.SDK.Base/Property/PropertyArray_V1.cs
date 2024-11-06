@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.SDK.Base.DataStructures;
+namespace TuneLab.SDK.Base;
 
 public class PropertyArray_V1 : IPropertyValue_V1, IList<PropertyValue_V1>
 {

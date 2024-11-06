@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.SDK.Base.DataStructures;
+namespace TuneLab.SDK.Base;
 
 public class PropertyString_V1 : IPropertyValue_V1
 {

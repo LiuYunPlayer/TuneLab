@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace TuneLab.SDK.Base.DataStructures;
+namespace TuneLab.SDK.Base;
 
 public readonly struct PropertyValue_V1
 {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using TuneLab.Base.Properties;
 using TuneLab.Base.Structures;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.SDK.Base.DataStructures;
+using TuneLab.SDK.Base;
 using TuneLab.SDK.Format.DataInfo;
 
 namespace TuneLab.Extensions.Format.Adapters;
