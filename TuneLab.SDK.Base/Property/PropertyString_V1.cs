@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-public class PropertyString_V1 : IPropertyValue_V1
+public class PropertyString_V1 : IPrimitiveValue_V1
 {
     public static implicit operator string(PropertyString_V1 property) => property.mValue ?? string.Empty;
 

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-public class PropertyNumber_V1 : IPropertyValue_V1
+public class PropertyNumber_V1 : IPrimitiveValue_V1
 {
     public static implicit operator sbyte(PropertyNumber_V1 property) => (sbyte)property.mValue;
     public static implicit operator byte(PropertyNumber_V1 property) => (byte)property.mValue;

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-public class PropertyObject_V1 : IPropertyValue_V1, IDictionary<string, PropertyValue_V1>
+public class PropertyObject_V1 : IContainerValue_V1, IDictionary<string, PropertyValue_V1>
 {
     public PropertyValue_V1 this[string key] { get => GetValue(key); set => SetValue(key, value); }
     public ICollection<string> Keys => mProperties == null ? [] : ((IDictionary<string, PropertyValue_V1>)mProperties).Keys;
