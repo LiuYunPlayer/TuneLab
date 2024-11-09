@@ -28,6 +28,9 @@ public readonly struct PropertyValue_V1
 
     public static implicit operator PropertyValue_V1(string value) => new((PropertyString_V1)value);
 
+    public static bool operator ==(PropertyValue_V1 left, PropertyValue_V1 right) => Equals(left.mValue, right.mValue);
+    public static bool operator !=(PropertyValue_V1 left, PropertyValue_V1 right) => !Equals(left.mValue, right.mValue);
+
     public PropertyValue_V1(PropertyBoolean_V1 value) : this((IPropertyValue_V1)value) { }
     public PropertyValue_V1(PropertyNumber_V1 value) : this((IPropertyValue_V1)value) { }
     public PropertyValue_V1(PropertyString_V1 value) : this((IPropertyValue_V1)value) { }
@@ -62,6 +65,27 @@ public readonly struct PropertyValue_V1
     public bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out PropertyObject_V1? value) { value = mValue as PropertyObject_V1; return value != null; }
 
     readonly IPropertyValue_V1? mValue;
+
+    public override bool Equals(object? obj)
+    {
+        return obj is PropertyValue_V1 other && this == other;
+    }
+
+    public override int GetHashCode()
+    {
+        return mValue?.GetHashCode() ?? 0;
+    }
+
+    static bool Equals(IPropertyValue_V1? valueA, IPropertyValue_V1? valueB)
+    {
+        if (valueA == valueB)
+            return true;
+
+        if (valueA == null || valueB == null)
+            return false;
+
+        return valueA.Equals(valueB);
+    }
 }
 
 public static class PropertyValue_V1Extensions

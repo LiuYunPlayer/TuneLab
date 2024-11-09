@@ -14,5 +14,7 @@ public class PropertyString_V1 : IPropertyValue_V1
 
     public PropertyString_V1(string value) { mValue = value; }
 
+    bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other) => other is PropertyString_V1 property && property.mValue == mValue;
+
     readonly string? mValue;
 }

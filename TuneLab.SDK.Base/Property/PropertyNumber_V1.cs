@@ -22,21 +22,23 @@ public class PropertyNumber_V1 : IPropertyValue_V1
     public static implicit operator double(PropertyNumber_V1 property) => (double)property.mValue;
     public static implicit operator decimal(PropertyNumber_V1 property) => property.mValue;
 
-    public static implicit operator PropertyNumber_V1(sbyte value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(byte value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(short value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(ushort value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(int value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(uint value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(long value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(ulong value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(nint value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(nuint value) => new PropertyNumber_V1(value);
-    public static implicit operator PropertyNumber_V1(float value) => new PropertyNumber_V1((decimal)value);
-    public static implicit operator PropertyNumber_V1(double value) => new PropertyNumber_V1((decimal)value);
-    public static implicit operator PropertyNumber_V1(decimal value) => new PropertyNumber_V1(value);
+    public static implicit operator PropertyNumber_V1(sbyte value) => new(value);
+    public static implicit operator PropertyNumber_V1(byte value) => new(value);
+    public static implicit operator PropertyNumber_V1(short value) => new(value);
+    public static implicit operator PropertyNumber_V1(ushort value) => new(value);
+    public static implicit operator PropertyNumber_V1(int value) => new(value);
+    public static implicit operator PropertyNumber_V1(uint value) => new(value);
+    public static implicit operator PropertyNumber_V1(long value) => new(value);
+    public static implicit operator PropertyNumber_V1(ulong value) => new(value);
+    public static implicit operator PropertyNumber_V1(nint value) => new(value);
+    public static implicit operator PropertyNumber_V1(nuint value) => new(value);
+    public static implicit operator PropertyNumber_V1(float value) => new((decimal)value);
+    public static implicit operator PropertyNumber_V1(double value) => new((decimal)value);
+    public static implicit operator PropertyNumber_V1(decimal value) => new(value);
 
     public PropertyNumber_V1(decimal number) { mValue = number; }
+
+    bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other) => other is PropertyNumber_V1 property && property.mValue == mValue;
 
     readonly decimal mValue;
 }

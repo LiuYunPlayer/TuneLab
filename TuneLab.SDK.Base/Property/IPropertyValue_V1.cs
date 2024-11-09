@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-internal interface IPropertyValue_V1
+internal interface IPropertyValue_V1 : IEquatable<IPropertyValue_V1>
 {
 
 }

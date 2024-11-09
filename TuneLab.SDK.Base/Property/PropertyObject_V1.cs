@@ -10,8 +10,8 @@ namespace TuneLab.SDK.Base;
 
 public class PropertyObject_V1 : IPropertyValue_V1, IDictionary<string, PropertyValue_V1>
 {
-    public PropertyValue_V1 this[string key] { get => ((IDictionary<string, PropertyValue_V1>)mProperties!)[key]; set => ((IDictionary<string, PropertyValue_V1>)mProperties!)[key] = value; }
-    public ICollection<string> Keys => mProperties == null ? Array.Empty<string>() : ((IDictionary<string, PropertyValue_V1>)mProperties).Keys;
+    public PropertyValue_V1 this[string key] { get => GetValue(key); set => SetValue(key, value); }
+    public ICollection<string> Keys => mProperties == null ? [] : ((IDictionary<string, PropertyValue_V1>)mProperties).Keys;
     public ICollection<PropertyValue_V1> Values => mProperties == null ? Array.Empty<PropertyValue_V1>() : ((IDictionary<string, PropertyValue_V1>)mProperties).Values;
     public int Count => mProperties == null ? 0 : ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).Count;
     public bool IsReadOnly => mProperties == null ? true : ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).IsReadOnly;
@@ -82,6 +82,14 @@ public class PropertyObject_V1 : IPropertyValue_V1, IDictionary<string, Property
         return GetEnumerator();
     }
 
+    public void SetValue(string key, PropertyValue_V1 value)
+    {
+        mProperties ??= [];
+        if (mProperties.ContainsKey(key))
+            mProperties["key"] = value;
+        else
+            mProperties.Add(key, value);
+    }
     public PropertyValue_V1 GetValue(string key, PropertyValue_V1 defaultValue = default) => TryGetValue(key, out var value) ? value : defaultValue;
     public PropertyBoolean_V1 GetBoolean(string key, PropertyBoolean_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsBoolean(defaultValue) : defaultValue;
     public PropertyNumber_V1 GetNumber(string key, PropertyNumber_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsNumber(defaultValue) : defaultValue;
@@ -89,5 +97,19 @@ public class PropertyObject_V1 : IPropertyValue_V1, IDictionary<string, Property
     public PropertyArray_V1 GetArray(string key, PropertyArray_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsArray(defaultValue) : defaultValue;
     public PropertyObject_V1 GetObject(string key, PropertyObject_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsObject(defaultValue) : defaultValue;
 
-    Dictionary<string, PropertyValue_V1>? mProperties;
+    bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other)
+    {
+        if (other is not PropertyObject_V1 property)
+            return false;
+
+        if (mProperties == property.mProperties)
+            return true;
+
+        if (mProperties == null || property.mProperties == null)
+            return false;
+
+        return mProperties.SequenceEqual(property.mProperties);
+    }
+
+    Dictionary<string, PropertyValue_V1>? mProperties = null;
 }

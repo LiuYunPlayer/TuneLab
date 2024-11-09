@@ -65,5 +65,19 @@ public class PropertyArray_V1 : IPropertyValue_V1, IList<PropertyValue_V1>
         return GetEnumerator();
     }
 
+    bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other)
+    {
+        if (other is not PropertyArray_V1 property)
+            return false;
+
+        if (mList == property.mList)
+            return true;
+
+        if (mList == null || property.mList == null)
+            return false;
+
+        return mList.SequenceEqual(property.mList);
+    }
+
     List<PropertyValue_V1>? mList;
 }
