@@ -38,6 +38,8 @@ public class PropertyNumber_V1 : IPropertyValue_V1
 
     public PropertyNumber_V1(decimal number) { mValue = number; }
 
+    public override string ToString() => mValue.ToString();
+
     bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other) => other is PropertyNumber_V1 property && property.mValue == mValue;
 
     readonly decimal mValue;

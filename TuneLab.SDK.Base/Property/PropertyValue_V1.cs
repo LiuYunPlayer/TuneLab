@@ -76,6 +76,11 @@ public readonly struct PropertyValue_V1
         return mValue?.GetHashCode() ?? 0;
     }
 
+    public override string ToString()
+    {
+        return mValue?.ToString() ?? "null";
+    }
+
     static bool Equals(IPropertyValue_V1? valueA, IPropertyValue_V1? valueB)
     {
         if (valueA == valueB)

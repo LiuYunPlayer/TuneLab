@@ -14,6 +14,8 @@ public class PropertyBoolean_V1 : IPropertyValue_V1
 
     public PropertyBoolean_V1(bool value) { mValue = value; }
 
+    public override string ToString() => mValue.ToString();
+
     bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other) => other is PropertyBoolean_V1 property && property.mValue == mValue;
 
     readonly bool mValue;
