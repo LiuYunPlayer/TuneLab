@@ -668,7 +668,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
-            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
+            string installer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ExtensionInstaller.exe" : "ExtensionInstaller";
+            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, installer), args);
             this.Window().Close();
         };
         dialog.AddButton("No".Tr(TC.Dialog), ButtonType.Primary);
