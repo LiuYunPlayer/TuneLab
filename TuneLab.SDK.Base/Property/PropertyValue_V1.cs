@@ -37,7 +37,7 @@ public readonly struct PropertyValue_V1
     public PropertyValue_V1(PropertyArray_V1 value) : this((IPropertyValue_V1)value) { }
     public PropertyValue_V1(PropertyObject_V1 value) : this((IPropertyValue_V1)value) { }
 
-    PropertyValue_V1(IPropertyValue_V1? value = null) { mValue = value; }
+    internal PropertyValue_V1(IPropertyValue_V1? value = null) { mValue = value; }
 
     public bool IsNull => mValue is null;
     public bool IsBoolean => mValue is PropertyBoolean_V1;
