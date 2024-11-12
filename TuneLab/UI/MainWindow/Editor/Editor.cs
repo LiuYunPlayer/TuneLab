@@ -34,6 +34,9 @@ using System.Xml.Linq;
 using System.Text.Json;
 using TuneLab.I18N;
 using TuneLab.Configs;
+using Splat;
+using System.Reactive.Joins;
+using System.Runtime.InteropServices;
 
 namespace TuneLab.UI;
 
@@ -804,6 +807,24 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     settingsWindow.Show(this.Window());
                 });
                 menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetTrName("Install Extensions").SetAction(async () =>
+                {
+                    var topLevel = TopLevel.GetTopLevel(this);
+                    if (topLevel == null)
+                        return;
+                    var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                    {
+                        Title = "Open Tlx File",
+                        AllowMultiple = false,
+                        FileTypeFilter = [new("Tlx Package") { Patterns = ["*.tlx"] }]
+                    });
+                    if (files.IsEmpty()) return;
+                    var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
+                    if (fileList != null) InstallExtensions(fileList);
+                });
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
         }
