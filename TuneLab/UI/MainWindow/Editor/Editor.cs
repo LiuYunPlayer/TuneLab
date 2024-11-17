@@ -387,14 +387,18 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     void LoadProject(string path)
     {
-        if (!FormatsManager.Deserialize(path, out var info, out var error))
+        Task.Run(() =>
         {
-            Log.Error("Deserialize file error: " + error);
-            return;
-        }
-
-        mDocument.SetProject(CreateProject(info), path);
-        RecentFilesManager.AddFile(path);
+            if (!FormatsManager.Deserialize(path, out var info, out var error))
+            {
+                Log.Error("Deserialize file error: " + error);
+                return;
+            }
+            Dispatcher.UIThread.Post(() => {
+                mDocument.SetProject(CreateProject(info), path);
+                RecentFilesManager.AddFile(path);
+            });
+        });
     }
 
     Project CreateProject(ProjectInfo info)
@@ -509,18 +513,24 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var path = file?.TryGetLocalPath();
         if (path == null)
             return;
-
-        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), extension, out var stream, out var error))
+        _ = Task.Run(() =>
         {
-            Log.Error("Save file error: " + error);
-            return;
-        }
+            if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), extension, out var stream, out var error))
+            {
+                Log.Error("Save file error: " + error);
+                return;
+            }
 
-        using (FileStream fileStream = new FileStream(path, FileMode.Create))
-        {
-            stream.CopyTo(fileStream);
-        }
-        RecentFilesManager.AddFile(path);
+            using (FileStream fileStream = new FileStream(path, FileMode.Create))
+            {
+                stream.CopyTo(fileStream);
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                RecentFilesManager.AddFile(path);
+            });
+        });
     }
 
     void SaveToFile(string path)
