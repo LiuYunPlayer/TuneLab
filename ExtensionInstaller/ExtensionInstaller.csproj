@@ -8,4 +8,8 @@
     <BaseOutputPath>..\TuneLab\bin</BaseOutputPath>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SharpCompress" Version="0.38.0" />
+  </ItemGroup>
+
 </Project>

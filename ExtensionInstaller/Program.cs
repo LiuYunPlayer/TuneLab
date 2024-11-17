@@ -1,7 +1,10 @@
 ﻿using System.Diagnostics;
-using System.IO.Compression;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using SharpCompress.Archives;
+using SharpCompress.Common;
+using SharpCompress.Readers;
 
 namespace ExtensionInstaller;
 
@@ -18,8 +21,7 @@ internal class Program
                 do
                 {
                     Thread.Sleep(1000);
-                }
-                while (File.Exists(lockFilePath));
+                } while (File.Exists(lockFilePath));
             }
 
             bool restart = false;
@@ -33,45 +35,61 @@ internal class Program
                 }
 
                 var name = Path.GetFileNameWithoutExtension(arg);
-                var entry = ZipFile.OpenRead(arg).GetEntry("description.json");
-                if (entry != null)
+                using (var archive = ArchiveFactory.Open(arg))
                 {
-                    var description = JsonSerializer.Deserialize<Description>(entry.Open());
-                    if (!string.IsNullOrEmpty(description.name))
-                        name = description.name;
-                }
-                var dir = Path.Combine(extensionFolder, name);
-
-                Console.WriteLine("Uninstalling " + name + "...");
-                if (Directory.Exists(dir))
-                {
-                    while (true)
+                    var entry = archive.Entries.FirstOrDefault(e => e.Key.EndsWith("description.json", StringComparison.OrdinalIgnoreCase));
+                    if (entry != null)
                     {
-                        try
+                        using (var stream = entry.OpenEntryStream())
                         {
-                            Directory.Delete(dir, true);
-                            break;
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine("Failed to delete file: " + ex.ToString());
-                            Console.WriteLine("Try again...");
-                            Thread.Sleep(1000);
+                            var description = JsonSerializer.Deserialize<Description>(stream);
+                            if (!string.IsNullOrEmpty(description.name))
+                                name = description.name;
                         }
                     }
+
+                    var dir = Path.Combine(extensionFolder, name);
+
+                    Console.WriteLine("Uninstalling " + name + "...");
+                    if (Directory.Exists(dir))
+                    {
+                        while (true)
+                        {
+                            try
+                            {
+                                Directory.Delete(dir, true);
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine("Failed to delete directory: " + ex);
+                                Console.WriteLine("Try again...");
+                                Thread.Sleep(1000);
+                            }
+                        }
+                    }
+
+                    Console.WriteLine("Installing " + name + "...");
+
+                    foreach (var archiveEntry in archive.Entries.Where(e => !e.IsDirectory))
+                    {
+                        // Extract entries
+                        archiveEntry.WriteToDirectory(dir, new ExtractionOptions
+                        {
+                            ExtractFullPath = true,
+                            Overwrite = true
+                        });
+                    }
+
+                    Console.WriteLine(name + " has been successfully installed!\n");
                 }
-
-                Console.WriteLine("Installing " + name + "...");
-
-                ZipFile.ExtractToDirectory(arg, dir, true);
-                Console.WriteLine(name + " has been successfully installed!\n");
             }
 
             if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TuneLab.exe"));
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Installation failed: " + ex.ToString());
+            Console.WriteLine("Installation failed: " + ex);
             while (true) Console.ReadLine();
         }
     }
