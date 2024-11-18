@@ -23,6 +23,11 @@ public class DataDocument : DataObject
         StatusChanged?.Invoke();
     }
 
+    public bool Pushable()
+    {
+        return mUncommitedCommands.IsEmpty();
+    }
+
     public bool Undoable()
     {
         if (!mUncommitedCommands.IsEmpty())

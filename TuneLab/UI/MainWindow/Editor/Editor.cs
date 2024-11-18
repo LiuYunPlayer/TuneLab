@@ -152,7 +152,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
         else if (e.Match(Key.Tab, ModifierKeys.Ctrl))
         {
-            if (mLastPart != null)
+            if (mLastPart != null && mDocument.Pushable())
             {
                 var track = mLastPart.Track;
                 if (track.Parts.Contains(mLastPart) && track.Project.Tracks.Contains(track))
