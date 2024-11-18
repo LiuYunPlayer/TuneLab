@@ -34,6 +34,9 @@ using System.Xml.Linq;
 using System.Text.Json;
 using TuneLab.I18N;
 using TuneLab.Configs;
+using Splat;
+using System.Reactive.Joins;
+using System.Runtime.InteropServices;
 
 namespace TuneLab.UI;
 
@@ -645,7 +648,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
             try
             {
-                ZipFile.ExtractToDirectory(file, dir);
+                ZipFileHelper.ExtractToDirectory(file, dir);
                 ExtensionManager.Load(dir);
                 await this.ShowMessage("Tips".Tr(TC.Dialog), name + " has been successfully installed!".Tr(TC.Dialog));
             }
@@ -665,7 +668,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
-            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
+            string installer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ExtensionInstaller.exe" : "ExtensionInstaller";
+            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, installer), args);
             this.Window().Close();
         };
         dialog.AddButton("No".Tr(TC.Dialog), ButtonType.Primary);
@@ -805,6 +809,24 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 });
                 menuBarItem.Items.Add(menuItem);
             }
+            {
+                var menuItem = new MenuItem().SetTrName("Install Extensions").SetAction(async () =>
+                {
+                    var topLevel = TopLevel.GetTopLevel(this);
+                    if (topLevel == null)
+                        return;
+                    var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                    {
+                        Title = "Open Tlx File",
+                        AllowMultiple = false,
+                        FileTypeFilter = [new("Tlx Package") { Patterns = ["*.tlx"] }]
+                    });
+                    if (files.IsEmpty()) return;
+                    var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
+                    if (fileList != null) InstallExtensions(fileList);
+                });
+                menuBarItem.Items.Add(menuItem);
+            }
             menu.Items.Add(menuBarItem);
         }
 
@@ -835,6 +857,29 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 void UpdateHeader() => menuItem.SetName(AudioEngine.IsPlaying ? "Pause".Tr(TC.Menu) : "Play".Tr(TC.Menu));
                 AudioEngine.PlayStateChanged += UpdateHeader;
                 TranslationManager.CurrentLanguage.Modified.Subscribe(UpdateHeader);
+                menuBarItem.Items.Add(menuItem);
+            }
+            menu.Items.Add(menuBarItem);
+        }
+
+        {
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Extensions");
+            {
+                var menuItem = new MenuItem().SetTrName("Install/Update").SetAction(async () =>
+                {
+                    var topLevel = TopLevel.GetTopLevel(this);
+                    if (topLevel == null)
+                        return;
+                    var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                    {
+                        Title = "Open Tlx File",
+                        AllowMultiple = false,
+                        FileTypeFilter = [new("Tlx Package") { Patterns = ["*.tlx"] }]
+                    });
+                    if (files.IsEmpty()) return;
+                    var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
+                    if (fileList != null) InstallExtensions(fileList);
+                });
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);
