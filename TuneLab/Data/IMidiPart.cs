@@ -12,9 +12,6 @@ using TuneLab.Base.Utils;
 using TuneLab.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using NAudio.CoreAudioApi;
-using AvaloniaEdit.Utils;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace TuneLab.Data;
 
