@@ -164,6 +164,32 @@ internal partial class TrackScrollView
                                             }
                                         }
                                         {
+                                            var trackIndex = TrackVerticalAxis.GetPosition(e.Position.Y).TrackIndex;
+                                            var track = Project.Tracks[trackIndex];
+                                            if (part.IsSelected && track.Parts.Count(p => p.IsSelected) > 1)
+                                            {   
+                                                var partArray = track.Parts.OrderBy(p => p.StartTime).ToArray();
+                                                int partIndex = Array.FindIndex(partArray, p => p == part);
+                                                int prevIndex = partIndex;
+                                                int nextIndex = partIndex;
+                                                while (prevIndex > 0) { if (!partArray[prevIndex - 1].IsSelected || partArray[prevIndex - 1] is not MidiPart) break;prevIndex--; }
+                                                while (nextIndex < partArray.Length-1) { if (!partArray[nextIndex + 1].IsSelected || partArray[nextIndex+1] is not MidiPart) break; nextIndex++; }
+                                                if (nextIndex > prevIndex)
+                                                {
+                                                    var menuItem = new MenuItem().SetName("Merge".Tr(TC.Menu)).SetAction(() =>
+                                                    {
+                                                        var oldParts = partArray.Skip(prevIndex).Take(nextIndex - prevIndex + 1);
+                                                        var oldPartInfos = oldParts.Select(p=>(MidiPartInfo)p.GetInfo()).ToArray();
+                                                        var newPartInfo = IMidiPartExtension.MergePartInfos(oldPartInfos);
+                                                        foreach(var oldPart in oldParts) track.RemovePart(oldPart);
+                                                        track.InsertPart(track.CreatePart(newPartInfo));
+                                                        track.Commit();
+                                                    });
+                                                    menu.Items.Add(menuItem);
+                                                }
+                                            }
+                                        }
+                                        {
                                             var menuItem = new MenuItem() { Header = "Set Voice".Tr(TC.Menu) };
                                             var allEngines = VoicesManager.GetAllVoiceEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
