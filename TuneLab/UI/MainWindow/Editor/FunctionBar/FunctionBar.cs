@@ -106,8 +106,10 @@ internal class FunctionBar : LayerPanel
 
             var pianoToolPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
             {
+                int index = 0;
                 void AddButton(PianoTool tool, SvgIcon icon, string tipText)
                 {
+                    index++;
                     var toggle = new Toggle() { Width = 36, Height = 36 }
                         .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                         .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
@@ -115,7 +117,7 @@ internal class FunctionBar : LayerPanel
                     {
                         toggle.Display(mDependency.PianoTool.Value == tool);
                     }
-                    SetupToolTip(toggle, tipText);
+                    SetupToolTip(toggle, $"{tipText} {index}");
                     toggle.AllowSwitch += () => !toggle.IsChecked;
                     toggle.Switched.Subscribe(() => mDependency.PianoTool.Value = tool);
                     mDependency.PianoTool.Modified.Subscribe(OnPianoToolChanged);
