@@ -20,6 +20,8 @@
 "Pitch Locking Brush" = "音高锁定笔刷"
 "Vibrato Tool" = "颤音工具"
 "Selection Tool" = "选区工具"
+"Show Properties" = "显示属性面板"
+"Hide Properties" = "隐藏属性面板"
 
 [PianoScrollView]
 "Please draw pitch first in the area" = "请先在此区域绘制音高"

@@ -44,7 +44,7 @@ internal class FunctionBar : LayerPanel
         {
             var hoverBack = Colors.White.Opacity(0.05);
 
-            var collapseTextItem = new TextItem() { Text = "Show Properties".Tr(this) };
+            var collapseTextItem = new TextItem() { Text = "Hide Properties".Tr(this) };
             var collapseButton = new Toggle() { Width = 120, Height = 36 };
             collapseButton
                 .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.ITEM } })
