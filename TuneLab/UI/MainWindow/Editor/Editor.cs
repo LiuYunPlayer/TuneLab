@@ -40,7 +40,7 @@ using System.Runtime.InteropServices;
 
 namespace TuneLab.UI;
 
-internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency
+internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency, FunctionBar.IDependency
 {
     public Menu Menu { get; }
     public TrackWindow TrackWindow => mTrackWindow;
@@ -50,7 +50,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IPlayhead Playhead => mPlayhead;
     public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
     public IProvider<IPart> EditingPart => mPianoWindow.PartProvider;
-    public bool IsAutoPage => mFunctionBar.IsAutoPage.Value;
+    public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(UI.PianoTool.Note);
+    public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; } = new NotifiableProperty<PlayScrollTarget>(UI.PlayScrollTarget.None);
     public Editor()
     {
         Background = Style.BACK.ToBrush();
@@ -59,9 +60,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mPlayhead = new(this);
 
+        mFunctionBar = new(this);
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
         mTrackWindow = new(this);
-        mFunctionBar = new(mPianoWindow);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 280 };
 

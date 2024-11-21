@@ -21,13 +21,14 @@ namespace TuneLab.UI;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
-    public INotifiableProperty<bool> IsAutoPage { get; } = new NotifiableProperty<bool>(false);
 
+    public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
 
     public interface IDependency
     {
         public INotifiableProperty<PianoTool> PianoTool { get; }
+        public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -42,7 +43,7 @@ internal class FunctionBar : LayerPanel
         {
             var hoverBack = Colors.White.Opacity(0.05);
 
-            void SetupToolTip(Toggle toggleButton,string ToolTipText)
+            void SetupToolTip(Control toggleButton,string ToolTipText)
             {
                 ToolTip.SetPlacement(toggleButton, PlacementMode.Top);
                 ToolTip.SetVerticalOffset(toggleButton, -8);
@@ -62,12 +63,9 @@ internal class FunctionBar : LayerPanel
                 AudioEngine.PlayStateChanged += () => { playButtonIconItem.Icon = AudioEngine.IsPlaying ? Assets.Pause : Assets.Play; playButton.Display(AudioEngine.IsPlaying); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this));};
                 audioControlPanel.Children.Add(playButton);
 
-                var autoPageButton = new Toggle() { Width = 36, Height = 36 }
-                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
-                    .AddContent(new() { Item = new IconItem() { Icon = Assets.AutoPage }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                var autoPageButton = new AutoPageButton(mDependency.PlayScrollTarget) { Width = 36, Height = 36 };
 
                 SetupToolTip(autoPageButton, "Auto Scroll".Tr(this));
-                autoPageButton.Bind(IsAutoPage);
                 audioControlPanel.Children.Add(autoPageButton);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
