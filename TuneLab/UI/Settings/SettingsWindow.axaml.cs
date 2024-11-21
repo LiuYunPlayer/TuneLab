@@ -150,6 +150,21 @@ internal partial class SettingsWindow : Window
             }
             listView.Content.Children.Add(panel);
         }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInterger = true };
+                slider.SetRange(-720, 720);
+                slider.SetDefaultValue(Settings.DefaultSettings.TrackHueChangeRate);
+                slider.Bind(Settings.TrackHueChangeRate, true, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Track Hue Change Rate (degree/second)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
         Content.AddDock(listView);
     }
 

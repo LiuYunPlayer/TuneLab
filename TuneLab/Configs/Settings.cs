@@ -21,6 +21,7 @@ internal static class Settings
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
     public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
+    public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
     
     public static void Init(string path)
     {
@@ -45,6 +46,7 @@ internal static class Settings
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
+        TrackHueChangeRate.Value = settingsFile.TrackHueChangeRate;
     }
 
     public static void Save(string path)
@@ -59,6 +61,7 @@ internal static class Settings
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
                 PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
+                TrackHueChangeRate = TrackHueChangeRate
             }, JsonSerializerOptions);
 
             File.WriteAllText(path, content);
