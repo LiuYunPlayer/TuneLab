@@ -21,7 +21,7 @@ namespace TuneLab.UI;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
-    public event Action<bool> CollapsePropertiesAsked;
+    public event Action<bool>? CollapsePropertiesAsked;
 
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
