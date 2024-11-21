@@ -84,6 +84,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         MinHeight = mFunctionBar.Height;
 
         mFunctionBar.Moved += y => TrackWindowHeight = y;
+        mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
         ProjectProvider.ObjectWillChange.Subscribe(OnProjectWillChange, s);
         ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
         ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });

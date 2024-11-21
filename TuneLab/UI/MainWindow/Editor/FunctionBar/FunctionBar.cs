@@ -21,6 +21,7 @@ namespace TuneLab.UI;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
+    public event Action<bool> CollapsePropertiesAsked;
 
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
@@ -39,9 +40,20 @@ internal class FunctionBar : LayerPanel
         mover.Moved.Subscribe(p => Moved?.Invoke(p.Y + Bounds.Y));
         Children.Add(mover);
 
-        var dockPanel = new DockPanel() { Margin = new(64, 0, 360, 0) };
+        var dockPanel = new DockPanel() { Margin = new(64, 0, 12, 0) };
         {
             var hoverBack = Colors.White.Opacity(0.05);
+
+            var collapseTextItem = new TextItem() { Text = "Show Properties".Tr(this) };
+            var collapseButton = new Toggle() { Width = 120, Height = 36 };
+            collapseButton
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.ITEM } })
+                .AddContent(new() { Item = collapseTextItem, ColorSet = new() { Color = Style.LIGHT_WHITE } });
+            collapseButton.IsChecked = true;
+            collapseButton.Switched.Subscribe(() => { collapseTextItem.Text = collapseButton.IsChecked ? "Hide Properties".Tr(this) : "Show Properties".Tr(this); CollapsePropertiesAsked?.Invoke(collapseButton.IsChecked); });
+            dockPanel.AddDock(collapseButton, Dock.Right);
+
+            dockPanel.AddDock(new Border() { Width = 240, Background = Brushes.Transparent }, Dock.Right);
 
             void SetupToolTip(Control toggleButton,string ToolTipText)
             {

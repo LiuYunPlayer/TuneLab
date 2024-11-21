@@ -13,6 +13,7 @@ internal class ToggleContent
     public required IItem Item { get; set; }
     public ColorSet UncheckedColorSet;
     public ColorSet CheckedColorSet;
+    public ColorSet ColorSet { set { CheckedColorSet = value; UncheckedColorSet = value; } }
 }
 
 internal class Toggle : Button, IDataValueController<bool>
