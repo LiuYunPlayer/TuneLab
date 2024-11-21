@@ -53,7 +53,7 @@ internal class FunctionBar : LayerPanel
             collapseButton.Switched.Subscribe(() => { collapseTextItem.Text = collapseButton.IsChecked ? "Hide Properties".Tr(this) : "Show Properties".Tr(this); CollapsePropertiesAsked?.Invoke(collapseButton.IsChecked); });
             dockPanel.AddDock(collapseButton, Dock.Right);
 
-            dockPanel.AddDock(new Border() { Width = 240, Background = Brushes.Transparent }, Dock.Right);
+            dockPanel.AddDock(new Border() { Width = 240, Background = Brushes.Transparent, IsHitTestVisible = false }, Dock.Right);
 
             void SetupToolTip(Control toggleButton,string ToolTipText)
             {
