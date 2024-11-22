@@ -17,7 +17,7 @@ using TuneLab.Base.Utils;
 
 namespace TuneLab.UI;
 
-internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency, FunctionBar.IDependency
+internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency
 {
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
@@ -35,8 +35,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public PianoScrollView PianoScrollView => mPianoScrollView;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
-    public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(UI.PianoTool.Note);
-    public bool IsAutoPage => mDependency.IsAutoPage;
+    public INotifiableProperty<PianoTool> PianoTool => mDependency.PianoTool;
+    public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public string? ActiveAutomation
     {
         get
@@ -65,7 +65,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public interface IDependency
     {
         IPlayhead Playhead { get; }
-        bool IsAutoPage { get; }
+        INotifiableProperty<PianoTool> PianoTool { get; }
+        INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public PianoWindow(IDependency dependency)

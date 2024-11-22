@@ -21,13 +21,15 @@ namespace TuneLab.UI;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
-    public INotifiableProperty<bool> IsAutoPage { get; } = new NotifiableProperty<bool>(false);
+    public event Action<bool>? CollapsePropertiesAsked;
 
+    public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
 
     public interface IDependency
     {
         public INotifiableProperty<PianoTool> PianoTool { get; }
+        public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -38,11 +40,22 @@ internal class FunctionBar : LayerPanel
         mover.Moved.Subscribe(p => Moved?.Invoke(p.Y + Bounds.Y));
         Children.Add(mover);
 
-        var dockPanel = new DockPanel() { Margin = new(64, 0, 360, 0) };
+        var dockPanel = new DockPanel() { Margin = new(64, 0, 12, 0) };
         {
             var hoverBack = Colors.White.Opacity(0.05);
 
-            void SetupToolTip(Toggle toggleButton,string ToolTipText)
+            var collapseTextItem = new TextItem() { Text = "Hide Properties".Tr(this) };
+            var collapseButton = new Toggle() { Width = 120, Height = 36 };
+            collapseButton
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.ITEM } })
+                .AddContent(new() { Item = collapseTextItem, ColorSet = new() { Color = Style.LIGHT_WHITE } });
+            collapseButton.IsChecked = true;
+            collapseButton.Switched.Subscribe(() => { collapseTextItem.Text = collapseButton.IsChecked ? "Hide Properties".Tr(this) : "Show Properties".Tr(this); CollapsePropertiesAsked?.Invoke(collapseButton.IsChecked); });
+            dockPanel.AddDock(collapseButton, Dock.Right);
+
+            dockPanel.AddDock(new Border() { Width = 240, Background = Brushes.Transparent, IsHitTestVisible = false }, Dock.Right);
+
+            void SetupToolTip(Control toggleButton,string ToolTipText)
             {
                 ToolTip.SetPlacement(toggleButton, PlacementMode.Top);
                 ToolTip.SetVerticalOffset(toggleButton, -8);
@@ -62,12 +75,9 @@ internal class FunctionBar : LayerPanel
                 AudioEngine.PlayStateChanged += () => { playButtonIconItem.Icon = AudioEngine.IsPlaying ? Assets.Pause : Assets.Play; playButton.Display(AudioEngine.IsPlaying); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this));};
                 audioControlPanel.Children.Add(playButton);
 
-                var autoPageButton = new Toggle() { Width = 36, Height = 36 }
-                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
-                    .AddContent(new() { Item = new IconItem() { Icon = Assets.AutoPage }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                var autoPageButton = new AutoPageButton(mDependency.PlayScrollTarget) { Width = 36, Height = 36 };
 
                 SetupToolTip(autoPageButton, "Auto Scroll".Tr(this));
-                autoPageButton.Bind(IsAutoPage);
                 audioControlPanel.Children.Add(autoPageButton);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
@@ -106,8 +116,10 @@ internal class FunctionBar : LayerPanel
 
             var pianoToolPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
             {
+                int index = 0;
                 void AddButton(PianoTool tool, SvgIcon icon, string tipText)
                 {
+                    index++;
                     var toggle = new Toggle() { Width = 36, Height = 36 }
                         .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                         .AddContent(new() { Item = new IconItem() { Icon = icon }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
@@ -115,7 +127,7 @@ internal class FunctionBar : LayerPanel
                     {
                         toggle.Display(mDependency.PianoTool.Value == tool);
                     }
-                    SetupToolTip(toggle, tipText);
+                    SetupToolTip(toggle, $"{tipText} {index}");
                     toggle.AllowSwitch += () => !toggle.IsChecked;
                     toggle.Switched.Subscribe(() => mDependency.PianoTool.Value = tool);
                     mDependency.PianoTool.Modified.Subscribe(OnPianoToolChanged);

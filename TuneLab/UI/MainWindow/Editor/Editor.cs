@@ -34,10 +34,13 @@ using System.Xml.Linq;
 using System.Text.Json;
 using TuneLab.I18N;
 using TuneLab.Configs;
+using Splat;
+using System.Reactive.Joins;
+using System.Runtime.InteropServices;
 
 namespace TuneLab.UI;
 
-internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency
+internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency, FunctionBar.IDependency
 {
     public Menu Menu { get; }
     public TrackWindow TrackWindow => mTrackWindow;
@@ -47,7 +50,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IPlayhead Playhead => mPlayhead;
     public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
     public IProvider<IPart> EditingPart => mPianoWindow.PartProvider;
-    public bool IsAutoPage => mFunctionBar.IsAutoPage.Value;
+    public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(UI.PianoTool.Note);
+    public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; } = new NotifiableProperty<PlayScrollTarget>(UI.PlayScrollTarget.None);
     public Editor()
     {
         Background = Style.BACK.ToBrush();
@@ -56,9 +60,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mPlayhead = new(this);
 
+        mFunctionBar = new(this);
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
         mTrackWindow = new(this);
-        mFunctionBar = new(mPianoWindow);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 280 };
 
@@ -80,6 +84,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         MinHeight = mFunctionBar.Height;
 
         mFunctionBar.Moved += y => TrackWindowHeight = y;
+        mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
         ProjectProvider.ObjectWillChange.Subscribe(OnProjectWillChange, s);
         ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
         ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });
@@ -152,7 +157,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
         else if (e.Match(Key.Tab, ModifierKeys.Ctrl))
         {
-            if (mLastPart != null)
+            if (mLastPart != null && mDocument.Pushable())
             {
                 var track = mLastPart.Track;
                 if (track.Parts.Contains(mLastPart) && track.Project.Tracks.Contains(track))
@@ -645,7 +650,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
             try
             {
-                ZipFile.ExtractToDirectory(file, dir);
+                ZipFileHelper.ExtractToDirectory(file, dir);
                 ExtensionManager.Load(dir);
                 await this.ShowMessage("Tips".Tr(TC.Dialog), name + " has been successfully installed!".Tr(TC.Dialog));
             }
@@ -665,7 +670,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
-            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller.exe"), args);
+            string installer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ExtensionInstaller.exe" : "ExtensionInstaller";
+            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, installer), args);
             this.Window().Close();
         };
         dialog.AddButton("No".Tr(TC.Dialog), ButtonType.Primary);
@@ -835,6 +841,29 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 void UpdateHeader() => menuItem.SetName(AudioEngine.IsPlaying ? "Pause".Tr(TC.Menu) : "Play".Tr(TC.Menu));
                 AudioEngine.PlayStateChanged += UpdateHeader;
                 TranslationManager.CurrentLanguage.Modified.Subscribe(UpdateHeader);
+                menuBarItem.Items.Add(menuItem);
+            }
+            menu.Items.Add(menuBarItem);
+        }
+
+        {
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Extensions");
+            {
+                var menuItem = new MenuItem().SetTrName("Install/Update").SetAction(async () =>
+                {
+                    var topLevel = TopLevel.GetTopLevel(this);
+                    if (topLevel == null)
+                        return;
+                    var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                    {
+                        Title = "Open Tlx File",
+                        AllowMultiple = false,
+                        FileTypeFilter = [new("TuneLab Extension") { Patterns = ["*.tlx"] }]
+                    });
+                    if (files.IsEmpty()) return;
+                    var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
+                    if (fileList != null) InstallExtensions(fileList);
+                });
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);

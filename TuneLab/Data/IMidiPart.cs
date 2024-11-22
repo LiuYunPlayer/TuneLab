@@ -348,6 +348,69 @@ internal static class IMidiPartExtension
             automation.Clear(start, end, 5);
         }
     }
+    internal static MidiPartInfo MergePartInfos(MidiPartInfo[] SortedPartInfos)
+    {
+        double PosAxisTrans(PartInfo curPart, double pos)
+        {
+            var startPos = SortedPartInfos[0].Pos;
+            var absPos = pos + curPart.Pos;
+            return absPos - startPos;
+        }
+        var ret = new MidiPartInfo();
+        var basePart = SortedPartInfos[0];
+        ret.Pos = SortedPartInfos.First().Pos;
+        ret.Dur = SortedPartInfos.Last().Dur + SortedPartInfos.Last().Pos - ret.Pos;
+        ret.Voice = basePart.Voice;
+        ret.Gain = basePart.Gain;
+        ret.Name = basePart.Name;
+        ret.Properties = basePart.Properties;
+
+        for (int i = 0; i < SortedPartInfos.Length; i++)
+        {
+            var curPart = SortedPartInfos[i];
+            var curPartPos = PosAxisTrans(curPart, 0);
+            var nextPartPos = i + 1 < SortedPartInfos.Length ? PosAxisTrans(SortedPartInfos[i + 1], 0) : double.MaxValue;
+            foreach(var item in curPart.Notes)
+            {
+                item.Pos=PosAxisTrans(curPart,item.Pos);
+                if (item.Pos < curPartPos) continue;
+                if (item.Pos >= nextPartPos) break;
+                ret.Notes.Add(item);
+            }
+            foreach (var item in curPart.Vibratos)
+            {
+                item.Pos = PosAxisTrans(curPart, item.Pos);
+                if (item.Pos < curPartPos) continue;
+                if (item.Pos >= nextPartPos) break;
+                ret.Vibratos.Add(item);
+            }
+            foreach (var item in curPart.Pitch)
+            {
+                List<Base.Structures.Point> line= new List<Base.Structures.Point>();
+                foreach (var point in item)
+                {
+                    var X = PosAxisTrans(curPart, point.X);
+                    if (X < curPartPos) continue;
+                    if (X >= nextPartPos) break;
+                    line.Add(new Base.Structures.Point(X, point.Y));
+                }
+                ret.Pitch.Add(line);
+            }
+            foreach (var kvp in curPart.Automations)
+            {
+                if (!ret.Automations.ContainsKey(kvp.Key)) { ret.Automations.Add(kvp.Key, new AutomationInfo() { DefaultValue = kvp.Value.DefaultValue, Points = new List<Base.Structures.Point>() }); }
+
+                foreach (var point in kvp.Value.Points)
+                {
+                    var X = PosAxisTrans(curPart, point.X);
+                    if (X < curPartPos) continue;
+                    if (X >= nextPartPos) break;
+                    ret.Automations[kvp.Key].Points.Add(new Base.Structures.Point(X, point.Y));
+                }
+            }
+        }
+        return ret;
+    }
 
     public static MidiPartInfo RangeInfo(this IMidiPart part, double start, double end)
     {

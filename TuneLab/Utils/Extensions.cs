@@ -376,14 +376,6 @@ internal static class Extensions
         panel.Children.Add(control);
     }
 
-    public static Color GetColor(this ITrack track)
-    {
-        if (Color.TryParse(track.Color.Value, out var color)) 
-            return color;
-
-        return Style.DefaultTrackColor;
-    }
-
     public static void NewTrack(this IProject project)
     {
         project.AddTrack(new TrackInfo() { Name = "Track".Tr(TC.Document) + "_" + (project.Tracks.Count + 1), Color = Style.GetNewColor(project.Tracks.Count) });

@@ -22,7 +22,7 @@ internal partial class TimelineView : View
         IQuantization Quantization { get; }
         IProvider<ITimeline> TimelineProvider { get; }
         IPlayhead Playhead { get; }
-        bool IsAutoPage { get; }
+        INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public TimelineView(IDependency dependency)
@@ -52,32 +52,41 @@ internal partial class TimelineView : View
 
         TickAxis.AxisChanged += InvalidateArrange;
 
+        mDependency.PlayScrollTarget.Modified.Subscribe(() => mFixedPlayheadX = TickAxis.Tick2X(Playhead.Pos));
         mDependency.TimelineProvider.ObjectChanged.Subscribe(OnTickAxisChanged, s);
         mDependency.Playhead.PosChanged.Subscribe(() =>
         {
             if (AudioEngine.IsPlaying)
             {
-                if (!mDependency.IsAutoPage)
+                if (mDependency.PlayScrollTarget.Value == PlayScrollTarget.None)
                     return;
 
                 if (Timeline == null)
                     return;
 
-                if (TickAxis.IsMoveAnimating)
-                    return;
-
-                const double autoPageTime = 500;
-                var minVisibeTime = Timeline.TempoManager.GetTime(TickAxis.MinVisibleTick);
-                var maxVisibeTime = Timeline.TempoManager.GetTime(TickAxis.MaxVisibleTick);
-
-                var time = Timeline.TempoManager.GetTime(Playhead.Pos);
-                if (time + autoPageTime / 1000 >= maxVisibeTime)
+                if (mDependency.PlayScrollTarget.Value == PlayScrollTarget.View)
                 {
-                    TickAxis.AnimateMoveTickToX(TickAxis.MaxVisibleTick, 0, autoPageTime, mPageCurve);
+                    if (TickAxis.IsMoveAnimating)
+                        return;
+
+                    const double autoPageTime = 500;
+                    var minVisibeTime = Timeline.TempoManager.GetTime(TickAxis.MinVisibleTick);
+                    var maxVisibeTime = Timeline.TempoManager.GetTime(TickAxis.MaxVisibleTick);
+
+                    var time = Timeline.TempoManager.GetTime(Playhead.Pos);
+                    if (time + autoPageTime / 1000 >= maxVisibeTime)
+                    {
+                        TickAxis.AnimateMoveTickToX(TickAxis.MaxVisibleTick, 0, autoPageTime, mPageCurve);
+                    }
                 }
+                else
+                {
+                    TickAxis.MoveTickToX(Playhead.Pos, mFixedPlayheadX);
+                }           
             }
             else
             {
+                mFixedPlayheadX = TickAxis.Tick2X(Playhead.Pos);
                 if (mState == State.Seeking)
                     return;
 
@@ -267,6 +276,7 @@ internal partial class TimelineView : View
     TickAxis TickAxis => mDependency.TickAxis;
     IQuantization Quantization => mDependency.Quantization;
     IPlayhead Playhead => mDependency.Playhead;
+    double mFixedPlayheadX;
 
     readonly IDependency mDependency;
     readonly DisposableManager s = new();

@@ -64,6 +64,7 @@ internal class TrackHead : DockPanel
         this.AddDock(bottomArea);
 
         mTrackProvider.When(track => track.Color.Modified).Subscribe(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); }, s);
+        mIndexPanel.RegisterOnTrackColorUpdated(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); });
         mTrackProvider.ObjectWillChange.Subscribe(() =>
         {
             if (Track == null)
@@ -245,6 +246,7 @@ internal class TrackHead : DockPanel
         ContextMenu = menu;
         Background = Brushes.Transparent;
 
+        this.RegisterOnTrackColorUpdated();
         
     }
 

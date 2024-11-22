@@ -86,9 +86,9 @@ internal class Button : Component
         var rect = this.Rect();
         context.FillRectangle(Brushes.Transparent, rect);
 
-        foreach (var content in mButtonContentControllers)
+        foreach (var controller in mButtonContentControllers)
         {
-            content.Content.Item.Paint(context, rect, content.Color);
+            controller.Content.Item.Paint(context, rect, controller.Color);
         }
     }
 

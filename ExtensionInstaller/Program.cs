@@ -63,7 +63,7 @@ internal class Program
 
                 Console.WriteLine("Installing " + name + "...");
 
-                ZipFile.ExtractToDirectory(arg, dir, true);
+                ZipFileHelper.ExtractToDirectory(arg, dir);
                 Console.WriteLine(name + " has been successfully installed!\n");
             }
 

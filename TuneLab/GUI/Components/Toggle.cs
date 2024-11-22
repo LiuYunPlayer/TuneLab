@@ -13,13 +13,35 @@ internal class ToggleContent
     public required IItem Item { get; set; }
     public ColorSet UncheckedColorSet;
     public ColorSet CheckedColorSet;
+    public ColorSet ColorSet { set { CheckedColorSet = value; UncheckedColorSet = value; } }
 }
 
 internal class Toggle : Button, IDataValueController<bool>
 {
     public event Func<bool>? AllowSwitch;
     public IActionEvent Switched => mValueChanged;
-    public bool IsChecked { get; private set; }
+    public bool IsChecked 
+    { 
+        get => mIsChecked; 
+        set 
+        {
+            if (AllowSwitch != null && !AllowSwitch())
+                return;
+
+            if (IsChecked == value)
+                return;
+
+            mValueWillChange.Invoke();
+            mIsChecked = value;
+            mValueChanged.Invoke();
+            mValueCommited.Invoke();
+            foreach (var kvp in mContentMap)
+            {
+                kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
+            }
+            CorrectColor();
+        } 
+    }
 
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
@@ -28,20 +50,7 @@ internal class Toggle : Button, IDataValueController<bool>
 
     public Toggle()
     {
-        Pressed += () =>
-        {
-            if (AllowSwitch != null && !AllowSwitch())
-                return;
-
-            mValueWillChange.Invoke();
-            IsChecked = !IsChecked;
-            mValueChanged.Invoke();
-            mValueCommited.Invoke();
-            foreach (var kvp in mContentMap)
-            {
-                kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
-            }
-        };
+        Pressed += () => IsChecked = !IsChecked;
     }
 
     public Toggle AddContent(ToggleContent content)
@@ -54,7 +63,7 @@ internal class Toggle : Button, IDataValueController<bool>
 
     public void Display(bool value)
     {
-        IsChecked = value;
+        mIsChecked = value;
         foreach (var kvp in mContentMap)
         {
             kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
@@ -62,8 +71,9 @@ internal class Toggle : Button, IDataValueController<bool>
         CorrectColor();
     }
 
+    bool mIsChecked = false;
     readonly ActionEvent mValueWillChange = new();
     readonly ActionEvent mValueChanged = new();
     readonly ActionEvent mValueCommited = new();
-    Dictionary<ToggleContent, ButtonContent> mContentMap = new();
+    readonly Dictionary<ToggleContent, ButtonContent> mContentMap = [];
 }
