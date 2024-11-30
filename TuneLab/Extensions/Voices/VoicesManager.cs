@@ -20,7 +20,7 @@ internal static class VoicesManager
         LoadFromTypes(types, AppDomain.CurrentDomain.BaseDirectory);
     }
 
-    public static void Load(string path, ExtensionDescription? description = null)
+    public static void Load(string path, ExtensionInfo? description = null)
     {
         var assemblies = description == null ? Directory.GetFiles(path, "*.dll") : description.assemblies.Convert(s => Path.Combine(path, s));
         foreach (var file in assemblies)

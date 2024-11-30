@@ -40,12 +40,7 @@ internal static class ExtensionManager
         {
             try
             {
-                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath));
-                if (description != null && !description.IsPlatformAvailable())
-                {
-                    Log.Warning(string.Format("Failed to load extension {0}: Platform not supported.", extensionName));
-                    return;
-                }
+                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath)); 
             }
             catch (Exception ex)
             {
@@ -53,8 +48,40 @@ internal static class ExtensionManager
             }
         }
 
-        FormatsManager.Load(path, description);
-        VoicesManager.Load(path, description);
-        EffectManager.Load(path, description);
+        description ??= new ExtensionDescription() { name = extensionName };
+
+        var extensionInfos = description.extensions;
+        if (extensionInfos.IsEmpty())
+        {
+            extensionInfos = [description];
+        }
+
+        foreach (var extensionInfo in extensionInfos)
+        {
+            if (!extensionInfo.IsPlatformAvailable())
+            {
+                Log.Warning(string.Format("Failed to load extension {0}: Platform not supported.", extensionName));
+                continue;
+            }
+
+            if (extensionInfo.type == "format")
+            {
+                FormatsManager.Load(path, extensionInfo);
+            }
+            else if (extensionInfo.type == "voice")
+            {
+                VoicesManager.Load(path, extensionInfo);
+            }
+            else if (extensionInfo.type == "effect")
+            {
+                EffectManager.Load(path, extensionInfo);
+            }
+            else
+            {
+                FormatsManager.Load(path, extensionInfo);
+                VoicesManager.Load(path, extensionInfo);
+                EffectManager.Load(path, extensionInfo);
+            }
+        }       
     }
 }
