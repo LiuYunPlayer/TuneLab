@@ -5,14 +5,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Buffers;
 using TuneLab.Base.Properties;
 using TuneLab.Base.Structures;
 using TuneLab.Base.Event;
 using TuneLab.Base.Data;
-using Microsoft.Extensions.ObjectPool;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
+using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
 
@@ -157,27 +156,62 @@ internal class ObjectController : StackPanel
         {
             mController = controller;
             mKey = key;
-            mLabelCreator = new LabelCreator(controller, key);
+
+            var label = ObjectPoolManager.Get<Label>();
+            label = ObjectPoolManager.Get<Label>();
+            label.Height = 26;
+            label.FontSize = 12;
+            label.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom;
+            label.Foreground = Style.LIGHT_WHITE.ToBrush();
+            label.Content = key;
+            label.Padding = new(24, 0);
+            mLabel = label;
+
+            mBorder = ObjectPoolManager.Get<Border>();
+            mBorder.Margin = new(23, 12, 0, 0);
+            mBorder.Width = 1;
+            mBorder.Background = Style.BACK.ToBrush();
 
             objectController = ObjectPoolManager.Get<ObjectController>();
             objectController.SetConfig(config);
             objectController.ValueWillChange.Subscribe(mController.mValueWillChange);
             objectController.ValueChanged.Subscribe(OnValueChanged);
             objectController.ValueCommited.Subscribe(OnValueCommited);
-            mController.Children.Add(objectController);
+
+            mDockPanel = ObjectPoolManager.Get<DockPanel>();
+            mDockPanel.Margin = new(0, 0, 0, 0);
+            mDockPanel.AddDock(mBorder, Dock.Left);
+            mDockPanel.AddDock(objectController);
+
+            mCollapsiblePanel = ObjectPoolManager.Get<CollapsiblePanel>();
+            mCollapsiblePanel.Margin = new(0, 0, 0, 12);
+            mCollapsiblePanel.Title = label;
+            mCollapsiblePanel.Content = mDockPanel;
+
+            mController.Children.Add(mCollapsiblePanel);
             mController.mControllers.Add(mKey, this);
         }
 
         public void Dispose()
         {
-            mLabelCreator.Dispose();
             mController.mControllers.Remove(mKey);
-            mController.Children.Remove(objectController);
+            mController.Children.Remove(mCollapsiblePanel);
+
+            mCollapsiblePanel.Title = null;
+            mCollapsiblePanel.Content = null;
+            ObjectPoolManager.Return(mCollapsiblePanel);
+
+            mDockPanel.Children.Clear();
+            ObjectPoolManager.Return(mDockPanel);
+            ObjectPoolManager.Return(mBorder);
+
             objectController.ValueWillChange.Unsubscribe(mController.mValueWillChange);
             objectController.ValueChanged.Unsubscribe(OnValueChanged);
             objectController.ValueCommited.Unsubscribe(OnValueCommited);
             objectController.ResetConfig();
             ObjectPoolManager.Return(objectController);
+
+            ObjectPoolManager.Return(mLabel);
         }
 
         public void Display(PropertyPath.Key key, PropertyValue value)
@@ -201,7 +235,10 @@ internal class ObjectController : StackPanel
         }
 
         readonly string mKey;
-        readonly LabelCreator mLabelCreator;
+        readonly Border mBorder;
+        readonly DockPanel mDockPanel;
+        readonly CollapsiblePanel mCollapsiblePanel;
+        readonly Label mLabel;
         readonly ObjectController mController;
         readonly ObjectController objectController;
     }

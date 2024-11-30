@@ -37,11 +37,12 @@ internal static class MidiUtility
         var info = new ProjectInfo();
 
         var midi = new MidiFile(stream, true);
+        var toTuneLabTick = (double midiTick) => midiTick * MusicTheory.RESOLUTION / midi.DeltaTicksPerQuarterNote;
         for (int i = 0; i < midi.Tracks; i++)
         {
             var part = new MidiPartInfo();
             var notes = part.Notes;
-            string lyric = "du";
+            var lyrics = new Dictionary<double, string>();
             long lastTimeSignaturePos = 0;
             int lastTimeSignatureBarIndex = 0;
             foreach (var e in midi.Events.GetTrackEvents(i))
@@ -53,18 +54,16 @@ internal static class MidiUtility
 
                     var note = new NoteInfo
                     {
-                        Pos = (int)(ne.AbsoluteTime * MusicTheory.RESOLUTION / midi.DeltaTicksPerQuarterNote),
-                        Dur = (int)(ne.NoteLength * MusicTheory.RESOLUTION / midi.DeltaTicksPerQuarterNote),
+                        Pos = toTuneLabTick(ne.AbsoluteTime),
+                        Dur = toTuneLabTick(ne.NoteLength),
                         Pitch = ne.NoteNumber,
-                        Lyric = lyric,
                     };
                     notes.Add(note);
-                    lyric = "du";
                 }
                 else if (e is TextEvent le && le.MetaEventType == MetaEventType.Lyric)
                 {
                     if (le.MetaEventType == MetaEventType.Lyric)
-                        lyric = Encoding.UTF8.GetString(le.Data);
+                        lyrics.Add(toTuneLabTick(le.AbsoluteTime), Encoding.UTF8.GetString(le.Data));
                     else if (le.MetaEventType == MetaEventType.SequenceTrackName)
                         part.Name = Encoding.UTF8.GetString(le.Data);
                 }
@@ -95,6 +94,20 @@ internal static class MidiUtility
                 track.Name = part.Name;
                 track.Parts.Add(part);
                 info.Tracks.Add(track);
+                double lastNoteEndPos = notes.First().Pos - 1;
+                for (int noteIndex = 0; noteIndex < notes.Count; noteIndex++)
+                {
+                    var note = notes[noteIndex];
+                    if (lyrics.TryGetValue(note.Pos, out var lyric))
+                    {
+                        note.Lyric = lyric;
+                    }
+                    else
+                    {
+                        note.Lyric = lastNoteEndPos == note.Pos ? "-" : "a";
+                    }
+                    lastNoteEndPos = note.EndPos();
+                }
                 if (string.IsNullOrEmpty(part.Name))
                 {
                     part.Name = "Part_1";

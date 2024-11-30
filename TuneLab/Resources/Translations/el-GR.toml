@@ -8,6 +8,7 @@
 "Piano Key Samples" = "Δείγματα Πλήκτρων Πιάνου"
 "Auto Save Interval (second)" = "Διάστημα Αυτόματης Αποθήκευσης (ανα Δευτερoλέπτου)"
 "Parameter Boundary Extension (tick)" = "Επέκταση Ορίων Παραμέτρων (ανα Tick)"
+"Track Hue Change Rate (degree/second)" = "Ρυθμός Aλλαγής Aπόχρωσης Κομματιού（ανα Βαφμού/Δευτερoλέπτου）"
 
 [FunctionBar]
 "Play" = "Αναπαραγωγή"
@@ -20,6 +21,8 @@
 "Pitch Locking Brush" = "Κλείδωμα Ύψους Φωνής (σε Εργαλείο Βούρτσας)"
 "Vibrato Tool" = "Εργαλείο Βιμπράτο"
 "Selection Tool" = "Εργαλείο Επιλογής"
+"Show Properties" = "Εμφάνιση Iδιοτήτων"
+"Hide Properties" = "Απόκρυψη Iδιοτήτων"
 
 [PianoScrollView]
 "Please draw pitch first in the area" = "Σχεδιάστε πρώτα το ύψος φωνής στην επιλεγμένη περιοχή"
@@ -95,6 +98,9 @@
 "Undo" = "Αναίρεση"
 "Redo" = "Επαναφορά"
 "Settings" = "Ρυθμίσεις"
+
+"Extensions" = "Επεκτάσεις"
+"Install/Update" = "Εγκατάσταση / Ενημέρωση"
 
 "Project" = "Έργο"
 "Add Track" = "Προσθήκη Κομματιού"

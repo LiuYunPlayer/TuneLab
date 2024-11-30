@@ -66,20 +66,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 280 };
 
+        this.AddDock(mRightSideBar, Dock.Right);
         this.AddDock(mTrackWindow, Dock.Top);
-
         this.AddDock(mFunctionBar, Dock.Top);
-
-        //Children.Add(mRightSideTabBar);
-        //DockPanel.SetDock(mRightSideTabBar, Dock.Right);
-
-        var pianoLayer = new DockPanel() { ClipToBounds = true };
-        {
-            pianoLayer.AddDock(mRightSideBar, Dock.Right);
-
-            pianoLayer.AddDock(mPianoWindow);
-        }
-        this.AddDock(pianoLayer);
+        this.AddDock(mPianoWindow);
 
         MinHeight = mFunctionBar.Height;
 
