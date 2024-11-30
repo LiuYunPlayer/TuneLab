@@ -1,4 +1,5 @@
 ﻿using Avalonia.Controls;
+using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,6 +30,6 @@ internal class CollapsiblePanel : StackPanel
         mTitlePanel.PointerPressed += (s, e) => { mContentPanel.IsVisible = !mContentPanel.IsVisible; };
     }
 
-    LayerPanel mTitlePanel = new();
+    LayerPanel mTitlePanel = new() { Background = Brushes.Transparent } ;
     LayerPanel mContentPanel = new();
 }

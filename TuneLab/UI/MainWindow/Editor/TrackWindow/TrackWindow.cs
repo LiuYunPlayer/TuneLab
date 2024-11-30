@@ -31,7 +31,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     public IProvider<IPart> EditingPart => mDependency.EditingPart;
     public IProject? Project => ProjectProvider.Object;
     public TrackScrollView TrackScrollView => mTrackScrollView;
-    public bool IsAutoPage => mDependency.IsAutoPage;
+    public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
 
     public interface IDependency
     {
@@ -39,7 +39,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         IPlayhead Playhead { get; }
         IProvider<IPart> EditingPart { get; }
         void SwitchEditingPart(IPart? part);
-        bool IsAutoPage { get; }
+        INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public TrackWindow(IDependency dependency)
@@ -50,10 +50,10 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         mTickAxis = new();
         mTrackVerticalAxis = new(this);
 
-        mTrackHeadList = new(this) { Width = 232, Margin = new(1, 0) };
+        mTrackHeadList = new(this) { Width = 232, Margin = new(1, 0, 0, 0) };
         var headArea = new DockPanel();
         {
-            var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+            var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
             {
                 var border = new Border() { Height = 1, Background = Style.BACK.ToBrush() };
                 title.AddDock(border, Dock.Bottom);

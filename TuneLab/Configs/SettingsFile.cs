@@ -19,4 +19,5 @@ internal class SettingsFile
     public int SampleRate { get; set; } = 44100;
     public string AudioDriver { get; set; } = string.Empty;
     public string AudioDevice { get; set; } = string.Empty;
+    public double TrackHueChangeRate { get; set; } = 0;
 }

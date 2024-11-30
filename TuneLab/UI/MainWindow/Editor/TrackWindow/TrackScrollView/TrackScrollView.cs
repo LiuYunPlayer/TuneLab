@@ -79,6 +79,8 @@ internal partial class TrackScrollView : View
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
+
+        this.RegisterOnTrackColorUpdated(InvalidateVisual);
     }
 
     ~TrackScrollView()

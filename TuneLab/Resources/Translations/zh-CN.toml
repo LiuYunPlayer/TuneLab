@@ -8,6 +8,7 @@
 "Piano Key Samples" = "钢琴音采样"
 "Auto Save Interval (second)" = "自动保存间隔（秒）"
 "Parameter Boundary Extension (tick)" = "参数边界扩展（tick）"
+"Track Hue Change Rate (degree/second)" = "轨道色相变化速率（度/秒）"
 
 [FunctionBar]
 "Play" = "播放"
@@ -20,6 +21,8 @@
 "Pitch Locking Brush" = "音高锁定笔刷"
 "Vibrato Tool" = "颤音工具"
 "Selection Tool" = "选区工具"
+"Show Properties" = "显示属性面板"
+"Hide Properties" = "隐藏属性面板"
 
 [PianoScrollView]
 "Please draw pitch first in the area" = "请先在此区域绘制音高"
@@ -95,6 +98,9 @@
 "Undo" = "撤销"
 "Redo" = "重做"
 "Settings" = "设置"
+
+"Extensions" = "扩展"
+"Install/Update" = "安装或更新"
 
 "Project" = "工程"
 "Add Track" = "添加轨道"

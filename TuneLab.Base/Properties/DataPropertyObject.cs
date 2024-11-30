@@ -68,12 +68,19 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
 
     public DataPropertyValue SetValue(PropertyPath.Key key, PropertyValue value)
     {
-        var dataPropertyValue = FindValue(key);
-        var propertyValue = dataPropertyValue.Value;
-        if (key.IsObject && propertyValue.ToObject(out var propertyObject))
+        var dataPropertyValue = FindValue(key); 
+        if (key.IsObject)
         {
+            var propertyValue = dataPropertyValue.Value;
+            if (!propertyValue.ToObject(out var propertyObject))
+            {
+                propertyObject = new(new DataPropertyObject());
+                dataPropertyValue.Set(propertyObject);
+            }
+
             var dataPropertyObject = (DataPropertyObject)propertyObject.Map;
             dataPropertyObject.SetValue(key.Next, value);
+
         }
         else
         {
