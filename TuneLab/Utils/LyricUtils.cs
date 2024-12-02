@@ -1,6 +1,7 @@
 ﻿using Pinyin;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace TuneLab.Utils;
 
@@ -49,7 +50,9 @@ internal static class LyricUtils
 
     public static List<string> SplitToWords(string lyric)
     {
-        return Pinyin.ChineseG2p.SplitString(lyric);
+        string pattern = "(?![ー\u309c])([a-zA-Z]+|[+-]|[0-9]|[\\u4e00-\\u9fa5]|[\\u3040-\\u309F\\u30A0-\\u30FF][ャュョゃゅょァィゥェォぁぃぅぇぉ]?)";
+        return (from Match m in Regex.Matches(lyric, pattern)
+                select m.Value).ToList();
     }
 
     public static IEnumerable<string> SplitByInvailidChars(string lyric)
