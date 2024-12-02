@@ -17,14 +17,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Avalonia" Version="11.0.11" />
-		<PackageReference Include="Avalonia.Svg.Skia" Version="11.0.0.18" />
-		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.11" />
-		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.11" />
-		<PackageReference Include="Avalonia.ReactiveUI" Version="11.0.11" />
-		<PackageReference Include="Avalonia.Desktop" Version="11.0.11" />
+		<PackageReference Include="Avalonia" Version="11.2.2" />
+		<PackageReference Include="Avalonia.Svg.Skia" Version="11.2.0.2" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.2" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.2" />
+		<PackageReference Include="Avalonia.ReactiveUI" Version="11.2.2" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.2.2" />
 		<!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.0.11" />
+		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.2.2" />
 		<PackageReference Include="BunLabs.NAudio.Flac" Version="2.0.1" />
 		<PackageReference Include="csharp-kana" Version="1.0.1" />
 		<PackageReference Include="csharp-pinyin" Version="1.0.0" />
@@ -36,7 +36,7 @@
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
 		<PackageReference Include="PinYinConverterCore" Version="1.0.2" />
 		<PackageReference Include="ppy.SDL2-CS" Version="1.0.741-alpha" />
-		<PackageReference Include="Svg.Skia" Version="1.0.0.18" />
+		<PackageReference Include="Svg.Skia" Version="2.0.0.4" />
 		<PackageReference Include="Tomlyn" Version="0.17.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.1" />
 	</ItemGroup>
