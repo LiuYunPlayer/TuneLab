@@ -59,7 +59,16 @@ public partial class App : Application
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice = Settings.AudioDevice; });
 
                 ExtensionManager.LoadExtensions();
-                desktop.MainWindow = new MainWindow();
+                var mainWindow = new MainWindow();
+                desktop.MainWindow = mainWindow;
+
+                // 检测启动参数
+                var args = Environment.GetCommandLineArgs();
+                if (args.Length > 1)
+                {
+                    var filePath = args[1];
+                    mainWindow.Editor.OpenProjectByPath(filePath);
+                }
             }
             catch (Exception ex)
             {
