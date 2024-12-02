@@ -44,6 +44,11 @@ jobs:
     - name: Build the application
       run: dotnet publish --configuration Release -r ${{ matrix.runtime }}
 
+    - name: Create Installer
+      uses: joncloud/makensis-action@v4.1
+      with:
+        script-file: TuneLab.nsi
+
     - name: Move artifacts
       shell: pwsh
       working-directory: ${{github.workspace}}
