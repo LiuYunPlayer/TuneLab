@@ -48,6 +48,7 @@ jobs:
       uses: joncloud/makensis-action@v4.1
       with:
         script-file: TuneLab.nsi
+      if: ${{ matrix.arch.os == 'win' }}
 
     - name: Move artifacts
       shell: pwsh
