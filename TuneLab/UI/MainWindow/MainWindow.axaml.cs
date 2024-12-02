@@ -22,6 +22,8 @@ namespace TuneLab.UI;
 
 public partial class MainWindow : Window
 {
+    internal Editor Editor => mEditor;
+
     private PlatformID platform;
     private bool isCloseConfirm;
     private TextBlock TitleLabel;
