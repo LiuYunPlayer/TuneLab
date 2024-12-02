@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -51,27 +52,14 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
         return mMap.ContainsKey(key);
     }
 
-    public TKey KeyAt(int index)
-    {
-        return mKeys[index];
-    }
-
-    public TValue ValueAt(int index)
-    {
-        return mMap[mKeys[index]];
-    }
-
-    public KeyWithValue<TKey, TValue> At(int index)
-    {
-        TKey key = mKeys[index];
-        TValue value = mMap[key];
-        return new KeyWithValue<TKey, TValue>(key, value);
-    }
-
     public Enumerator GetEnumerator() => new(this);
 
-    IEnumerable<TKey> IReadOnlyMap<TKey, TValue>.Keys => Keys;
-    IEnumerable<TValue> IReadOnlyMap<TKey, TValue>.Values => Values;
+    TKey KeyAt(int index) => mKeys[index];
+    TValue ValueAt(int index) => mMap[KeyAt(index)];
+    KeyWithValue<TKey, TValue> At(int index) => new(KeyAt(index), ValueAt(index));
+
+    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => Keys;
+    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => Values;
 
     IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator() => GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -86,19 +74,14 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
     readonly Map<TKey, TValue> mMap = new();
     readonly List<TKey> mKeys = new();
 
-    public struct Enumerator : IEnumerator<KeyWithValue<TKey, TValue>>, IEnumerator<TValue>
+    public struct Enumerator(OrderedMap<TKey , TValue> map) : IEnumerator<KeyWithValue<TKey, TValue>>, IEnumerator<TValue>
     {
-        public KeyWithValue<TKey, TValue> Current => mMap.At(mCurrentIndex);
-
-        public Enumerator(OrderedMap<TKey, TValue> map)
-        {
-            mMap = map;
-        }
+        public KeyWithValue<TKey, TValue> Current => map.At(mCurrentIndex);
 
         public bool MoveNext()
         {
             mCurrentIndex++;
-            if (mCurrentIndex >= mMap.Count)
+            if (mCurrentIndex >= map.Count)
                 return false;
 
             return true;
@@ -111,25 +94,18 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
 
         public void Dispose() { }
 
-        TValue IEnumerator<TValue>.Current => mMap.ValueAt(mCurrentIndex);
+        TValue IEnumerator<TValue>.Current => map.ValueAt(mCurrentIndex);
         object IEnumerator.Current => Current;
 
-        readonly OrderedMap<TKey, TValue> mMap;
         int mCurrentIndex = -1;
     }
 
-    class ValueCollection : IReadOnlyList<TValue>
+    class ValueCollection(OrderedMap<TKey, TValue> map) : IReadOnlyList<TValue>
     {
-        public TValue this[int index] => mMap.ValueAt(index);
-        public int Count => mMap.Count;
-        public IEnumerator<TValue> GetEnumerator() => mMap.GetEnumerator();
+        public int Count => map.Count;
+        TValue IReadOnlyList<TValue>.this[int index] => map.ValueAt(index);
+        public IEnumerator<TValue> GetEnumerator() => map.GetEnumerator();
+
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        public ValueCollection(OrderedMap<TKey, TValue> map)
-        {
-            mMap = map;
-        }
-
-        readonly OrderedMap<TKey, TValue> mMap;
     }
 }

@@ -16,12 +16,12 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
     public IActionEvent<TKey, TValue> ItemAdded => mItemAdded;
     public IActionEvent<TKey, TValue> ItemRemoved => mItemRemoved;
     public IActionEvent<TKey, TValue, TValue> ItemReplaced => mItemReplaced;
-    public ICollection<TKey> Keys => ((IDictionary<TKey, TValue>)mMap).Keys;
-    public ICollection<TValue> Values => ((IDictionary<TKey, TValue>)mMap).Values;
-    public int Count => ((ICollection<KeyValuePair<TKey, TValue>>)mMap).Count;
+    public IReadOnlyCollection<TKey> Keys => mMap.Keys;
+    public IReadOnlyCollection<TValue> Values => mMap.Values;
+    public int Count => mMap.Count;
     public TValue this[TKey key]
     {
-        get => ((IDictionary<TKey, TValue>)mMap)[key];
+        get => mMap[key];
         set
         {
             PushAndDo(new ModifiedCommand(this, key, mMap[key], value));
@@ -52,57 +52,22 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         EndMergeNotify();
     }
 
-    public bool Contains(KeyValuePair<TKey, TValue> item)
-    {
-        return ((ICollection<KeyValuePair<TKey, TValue>>)mMap).Contains(item);
-    }
-
     public bool ContainsKey(TKey key)
     {
-        return ((IDictionary<TKey, TValue>)mMap).ContainsKey(key);
-    }
-
-    public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
-    {
-        ((ICollection<KeyValuePair<TKey, TValue>>)mMap).CopyTo(array, arrayIndex);
-    }
-
-    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
-    {
-        return ((IEnumerable<KeyValuePair<TKey, TValue>>)mMap).GetEnumerator();
+        return mMap.ContainsKey(key);
     }
 
     public bool Remove(TKey key)
     {
-        if (!TryGetValue(key, out var value))
+        if (!this.TryGetValue(key, out var value))
             return false;
 
         PushAndDo(new RemoveCommand(this, key, value));
         return true;
     }
 
-    public bool Remove(KeyValuePair<TKey, TValue> item)
-    {
-        if (!((ICollection<KeyValuePair<TKey, TValue>>)mMap).Remove(item))
-            return false;
-
-        mItemRemoved.Invoke(item.Key, item.Value);
-        Notify();
-        Push(new RemoveCommand(this, item.Key, item.Value));
-
-        return true;
-    }
-
-    public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
-    {
-        return ((IDictionary<TKey, TValue>)mMap).TryGetValue(key, out value);
-    }
-
-    bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => ((ICollection<KeyValuePair<TKey, TValue>>)mMap).IsReadOnly;
-    IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => ((IReadOnlyDictionary<TKey, TValue>)mMap).Keys;
-    IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => ((IReadOnlyDictionary<TKey, TValue>)mMap).Values;
-    IEnumerable<TKey> IReadOnlyMap<TKey, TValue>.Keys => ((IReadOnlyMap<TKey, TValue>)mMap).Keys;
-    IEnumerable<TValue> IReadOnlyMap<TKey, TValue>.Values => ((IReadOnlyMap<TKey, TValue>)mMap).Values;
+    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => ((IReadOnlyMap<TKey, TValue>)mMap).Keys;
+    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => ((IReadOnlyMap<TKey, TValue>)mMap).Values;
 
     public Map<TKey, TValue> GetInfo()
     {

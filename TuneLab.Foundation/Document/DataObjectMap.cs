@@ -15,8 +15,8 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     public IActionEvent<TKey, TValue> ItemAdded => mMap.ItemAdded;
     public IActionEvent<TKey, TValue> ItemRemoved => mMap.ItemRemoved;
     public IActionEvent<TKey, TValue, TValue> ItemReplaced => mMap.ItemReplaced;
-    public ICollection<TKey> Keys => mMap.Keys;
-    public ICollection<TValue> Values => mMap.Values;
+    public IReadOnlyCollection<TKey> Keys => mMap.Keys;
+    public IReadOnlyCollection<TValue> Values => mMap.Values;
     public int Count => mMap.Count;
     public TValue this[TKey key] { get => mMap[key]; set => mMap[key] = value; }
 
@@ -63,26 +63,6 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         mMap.Clear();
     }
 
-    public bool Contains(KeyValuePair<TKey, TValue> item)
-    {
-        return mMap.Contains(item);
-    }
-
-    public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
-    {
-        mMap.CopyTo(array, arrayIndex);
-    }
-
-    public bool Remove(KeyValuePair<TKey, TValue> item)
-    {
-        return mMap.Remove(item);
-    }
-
-    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
-    {
-        return mMap.GetEnumerator();
-    }
-
     public TValue? GetValue(TKey key, out bool success)
     {
         return mMap.GetValue(key, out success);
@@ -93,12 +73,6 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         return mMap.GetInfo();
     }
 
-    bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => ((ICollection<KeyValuePair<TKey, TValue>>)mMap).IsReadOnly;
-    IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => Keys;
-    IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => Values;
-    IEnumerable<TKey> IReadOnlyMap<TKey, TValue>.Keys => Keys;
-    IEnumerable<TValue> IReadOnlyMap<TKey, TValue>.Values => Values;
-
     IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator()
     {
         return ((IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>)mMap).GetEnumerator();
@@ -106,7 +80,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
 
     IEnumerator IEnumerable.GetEnumerator()
     {
-        return GetEnumerator();
+        return ((IEnumerable)mMap).GetEnumerator();
     }
 
     void IDataObject<IReadOnlyMap<TKey, TValue>>.SetInfo(IReadOnlyMap<TKey, TValue> info)

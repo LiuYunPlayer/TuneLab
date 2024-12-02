@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-public interface IReadOnlyMap_V1<TKey, out TValue> : IReadOnlyCollection<IReadOnlyKeyValuePair_V1<TKey, TValue>>, IEnumerable<IReadOnlyKeyValuePair_V1<TKey, TValue>>, IEnumerable where TKey : notnull
+public interface IReadOnlyMap_V1<TKey, out TValue> : IReadOnlyCollection<IReadOnlyKeyValuePair_V1<TKey, TValue>> where TKey : notnull
 {
     TValue this[TKey key] { get; }
     IReadOnlyCollection<TKey> Keys { get; }
