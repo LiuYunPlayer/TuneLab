@@ -25,4 +25,14 @@ public readonly struct Head(int head) : IEquatable<Head>
     }
 
     readonly int mHead = head;
+
+    public override bool Equals(object? obj)
+    {
+        return obj is Head h && Equals(h);
+    }
+
+    public override int GetHashCode()
+    {
+        return mHead.GetHashCode();
+    }
 }

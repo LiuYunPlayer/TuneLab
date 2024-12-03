@@ -51,15 +51,9 @@ public static class Expression_V1
             return new ReturnExpression_V1<T>(new ConditionResult_V1<T>(condition, result));
         }
 
-        class ConditionResult_V1<T> : IConditionResult_V1<T>
+        class ConditionResult_V1<T>(IExpression_V1<bool> condition, T result) : IConditionResult_V1<T>
         {
             public event Action? ConditionChanged { add => mCondition.ResultChanged += value; remove => mCondition.ResultChanged -= value; }
-
-            public ConditionResult_V1(IExpression_V1<bool> condition, T result)
-            {
-                mCondition = condition;
-                mResult = result;
-            }
 
             public bool GetResult([NotNullWhen(true)] out T? result)
             {
@@ -67,8 +61,8 @@ public static class Expression_V1
                 return mCondition.Result;
             }
 
-            readonly IExpression_V1<bool> mCondition;
-            readonly T mResult;
+            readonly IExpression_V1<bool> mCondition = condition;
+            readonly T mResult = result;
         }
     }
 
@@ -160,7 +154,7 @@ public static class Expression_V1
             Result = conditionResult.GetResult(out var result) ? result : mElseResult;
         }
 
-        T mElseResult;
+        readonly T mElseResult;
     }
 
     interface IConditionResult_V1<T>

@@ -71,12 +71,12 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
 
     IReadOnlyKeyWithValue<TKey, TValue> IReadOnlyList<IReadOnlyKeyWithValue<TKey, TValue>>.this[int index] => At(index);
 
-    readonly Map<TKey, TValue> mMap = new();
-    readonly List<TKey> mKeys = new();
+    readonly Map<TKey, TValue> mMap = [];
+    readonly List<TKey> mKeys = [];
 
     public struct Enumerator(OrderedMap<TKey , TValue> map) : IEnumerator<KeyWithValue<TKey, TValue>>, IEnumerator<TValue>
     {
-        public KeyWithValue<TKey, TValue> Current => map.At(mCurrentIndex);
+        public readonly KeyWithValue<TKey, TValue> Current => map.At(mCurrentIndex);
 
         public bool MoveNext()
         {
@@ -92,10 +92,11 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
             mCurrentIndex = -1;
         }
 
-        public void Dispose() { }
+        public readonly void Dispose() { }
 
-        TValue IEnumerator<TValue>.Current => map.ValueAt(mCurrentIndex);
-        object IEnumerator.Current => Current;
+        readonly TValue IEnumerator<TValue>.Current => map.ValueAt(mCurrentIndex);
+
+        readonly object IEnumerator.Current => Current;
 
         int mCurrentIndex = -1;
     }
