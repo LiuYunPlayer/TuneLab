@@ -22,14 +22,16 @@ internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
     public event Action<bool>? CollapsePropertiesAsked;
+    public event Action? GotoStartAsked;
+    public event Action? GotoEndAsked;
 
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
 
     public interface IDependency
     {
-        public INotifiableProperty<PianoTool> PianoTool { get; }
-        public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
+        INotifiableProperty<PianoTool> PianoTool { get; }
+        INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -79,6 +81,20 @@ internal class FunctionBar : LayerPanel
 
                 SetupToolTip(autoPageButton, "Auto Scroll".Tr(this));
                 audioControlPanel.Children.Add(autoPageButton);
+
+                var gotoStartButton = new GUI.Components.Button() { Width = 36, Height = 36 }
+                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+                    .AddContent(new() { Item = new IconItem() { Icon = Assets.GotoStart }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                SetupToolTip(gotoStartButton, "Go to Start".Tr(this));
+                gotoStartButton.Clicked += () => { GotoStartAsked?.Invoke(); };
+                audioControlPanel.Children.Add(gotoStartButton);
+
+                var gotoEndButton = new GUI.Components.Button() { Width = 36, Height = 36 }
+                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+                    .AddContent(new() { Item = new IconItem() { Icon = Assets.GotoEnd }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                SetupToolTip(gotoEndButton, "Go to End".Tr(this));
+                gotoEndButton.Clicked += () => { GotoEndAsked?.Invoke(); };
+                audioControlPanel.Children.Add(gotoEndButton);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
 

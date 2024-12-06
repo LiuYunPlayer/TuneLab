@@ -58,6 +58,7 @@ internal partial class TimelineView : View
         {
             if (AudioEngine.IsPlaying)
             {
+                // Auto Page
                 if (mDependency.PlayScrollTarget.Value == PlayScrollTarget.None)
                     return;
 
@@ -87,9 +88,13 @@ internal partial class TimelineView : View
             else
             {
                 mFixedPlayheadX = TickAxis.Tick2X(Playhead.Pos);
+                if (!mIsSeeking)
+                    return;
+
                 if (mState == State.Seeking)
                     return;
 
+                // Move view
                 if (Playhead.Pos < TickAxis.MinVisibleTick)
                 {
                     TickAxis.MoveTickToX(Playhead.Pos, 0);

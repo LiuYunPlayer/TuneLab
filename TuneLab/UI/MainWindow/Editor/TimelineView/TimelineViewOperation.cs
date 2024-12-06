@@ -230,6 +230,7 @@ internal partial class TimelineView
             if (State != State.None)
                 return;
 
+            mIsSeeking = true;
             State = State.Seeking;
             mIsPlaying = AudioEngine.IsPlaying;
             if (mIsPlaying) AudioEngine.Pause();
@@ -263,6 +264,7 @@ internal partial class TimelineView
             if (!IsOperating)
                 return;
 
+            mIsSeeking = false;
             State = State.None;
             TimelineView.TickAxis.StopMoveAnimation();
             if (mIsPlaying) AudioEngine.Play();
@@ -272,6 +274,7 @@ internal partial class TimelineView
     }
 
     readonly SeekOperation mSeekOperation;
+    static bool mIsSeeking = false;
 
     class TempoMovingOperation(TimelineView timelineView) : Operation(timelineView)
     {
