@@ -14,6 +14,7 @@ namespace TuneLab.Data;
 internal class AudioPart : Part, IAudioPart
 {
     public IActionEvent AudioChanged => mAudioChanged;
+    public INotifiableProperty<string> BaseDirectory { get; } = new NotifiableProperty<string>(string.Empty);
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> Dur { get; }
@@ -27,56 +28,32 @@ internal class AudioPart : Part, IAudioPart
         Dur = new(this);
         Path = new(this, string.Empty);
         Dur.Modified.Subscribe(mDurationChanged);
-        Path.Modified.Subscribe(async () =>
-        {
-            mAudioData = null;
-            mWaveforms = [];
-            mAudioChanged.Invoke();
-            IAudioData? audioData = null;
-            Waveform[]? waveforms = null;
-            await Task.Run(() =>
-            {
-                try
-                {
-                    int samplingRate = AudioEngine.SamplingRate;
-                    var data = AudioUtils.Decode(Path, ref samplingRate);
-                    switch (data.Length)
-                    {
-                        case 1:
-                            audioData = new MonoAudioData(data[0]);
-                            waveforms = [new(data[0])];
-                            break;
-                        case 2:
-                            audioData = new StereoAudioData(data[0], data[1]);
-                            waveforms = [new(data[0]), new(data[1])];
-                            break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    audioData = null;
-                    waveforms = null;
-                }
-            });
-
-            if (audioData == null || waveforms == null)
-                return;
-
-            mAudioData = audioData;
-            mWaveforms = waveforms;
-            mAudioChanged.Invoke();
+        Path.Modified.Subscribe(Reload);
+        BaseDirectory.Modified.Subscribe(() =>
+        { 
+            if (Path.Value.StartsWith("..")) 
+                Reload(); 
         });
         IDataObject<AudioPartInfo>.SetInfo(this, info);
     }
 
     public override AudioPartInfo GetInfo()
     {
+        var path = Path.Value;
+        if (!string.IsNullOrEmpty(BaseDirectory.Value))
+        {
+            if (path.StartsWith(BaseDirectory.Value))
+            {
+                path = ".." + path[BaseDirectory.Value.Length..];
+            }
+        }
+
         return new()
         {
             Name = Name,
             Pos = Pos,
             Dur = Dur,
-            Path = Path
+            Path = path
         };
     }
 
@@ -104,6 +81,51 @@ internal class AudioPart : Part, IAudioPart
     protected override int SampleCount()
     {
         return mAudioData == null ? 0 : Math.Min(base.SampleCount(), mAudioData.Count);
+    }
+
+    async void Reload()
+    {
+        mAudioData = null;
+        mWaveforms = [];
+        mAudioChanged.Invoke();
+        IAudioData? audioData = null;
+        Waveform[]? waveforms = null;
+        await Task.Run(() =>
+        {
+            try
+            {
+                string path = Path;
+                if (path.StartsWith(".."))
+                {
+                    path = System.IO.Path.Combine(BaseDirectory.Value, path[3..]);
+                }
+                int samplingRate = AudioEngine.SamplingRate;
+                var data = AudioUtils.Decode(path, ref samplingRate);
+                switch (data.Length)
+                {
+                    case 1:
+                        audioData = new MonoAudioData(data[0]);
+                        waveforms = [new(data[0])];
+                        break;
+                    case 2:
+                        audioData = new StereoAudioData(data[0], data[1]);
+                        waveforms = [new(data[0]), new(data[1])];
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                audioData = null;
+                waveforms = null;
+            }
+        });
+
+        if (audioData == null || waveforms == null)
+            return;
+
+        mAudioData = audioData;
+        mWaveforms = waveforms;
+        mAudioChanged.Invoke();
     }
 
     protected override int SamplingRate => AudioEngine.SamplingRate;

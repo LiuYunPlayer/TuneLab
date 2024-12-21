@@ -12,6 +12,7 @@ namespace TuneLab.Data;
 internal interface IAudioPart : IPart, IDataObject<AudioPartInfo>
 {
     IActionEvent AudioChanged { get; }
+    INotifiableProperty<string> BaseDirectory { get; }
     IDataProperty<string> Path { get; }
     int ChannelCount { get; }
     Waveform GetWaveform(int channelIndex);
