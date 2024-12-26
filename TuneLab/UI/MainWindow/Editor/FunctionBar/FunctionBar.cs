@@ -1,9 +1,11 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Media;
+using DynamicData;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
@@ -28,9 +30,12 @@ internal class FunctionBar : LayerPanel
 
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
+    public IProvider<IProject> ProjectProvider => mDependency.ProjectProvider;
+    public IProject? Project => ProjectProvider.Object;
 
     public interface IDependency
     {
+        IProvider<IProject> ProjectProvider { get; }
         INotifiableProperty<PianoTool> PianoTool { get; }
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
@@ -43,7 +48,7 @@ internal class FunctionBar : LayerPanel
         mover.Moved.Subscribe(p => Moved?.Invoke(p.Y + Bounds.Y));
         Children.Add(mover);
 
-        var dockPanel = new DockPanel() { Margin = new(64, 0, 12, 0) };
+        var dockPanel = new DockPanel() { Margin = new(12, 0, 12, 0) };
         {
             var hoverBack = Colors.White.Opacity(0.05);
 
@@ -66,7 +71,7 @@ internal class FunctionBar : LayerPanel
                 ToolTip.SetTip(toggleButton, ToolTipText);
             }
 
-            var audioControlPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(12, 0) };
+            var audioControlPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(0, 0) };
             {
                 var playButtonIconItem = new IconItem() { Icon = Assets.Play };
                 var playButton = new Toggle() { Width = 36, Height = 36 }
@@ -114,6 +119,66 @@ internal class FunctionBar : LayerPanel
                 };
             }
             dockPanel.AddDock(trackProgressTimePanel, Dock.Left);
+
+            var bpmInputPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(12, 0) };
+            {
+                var bpmInput = new EditableLabel() { Width = 70, Padding = new(0), FontFamily = Assets.NotoMono, FontSize = 20, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
+                bpmInput.Text = "120.00";
+                bpmInput.EndInput.Subscribe(() =>
+                {
+                    // 查找当前时间对应的bpm和index
+                    var bpm = Project?.TempoManager.GetBpmAt((double)(Project?.TempoManager.GetTick(AudioEngine.CurrentTime)));
+                    var index = Project?.TempoManager.Tempos.IndexOf(Project?.TempoManager.Tempos.FirstOrDefault(x => x.Bpm == bpm));
+                    // 设置bpm
+                    if (index == null) return;
+                    Project?.TempoManager.SetBpm((int)index, double.Parse(bpmInput.Text));
+                    Project?.Commit();
+                });
+                AudioEngine.ProgressChanged += () =>
+                {
+                    if (Project?.TempoManager.Tempos.Count == 0) return;
+                    var bpm = Project?.TempoManager.GetBpmAt((double)(Project?.TempoManager.GetTick(AudioEngine.CurrentTime)));
+                    bpmInput.Text = bpm?.ToString("f2") ?? "120.00";
+                };
+                ProjectProvider.ObjectChanged.Subscribe(() =>
+                {
+                    if (Project?.TempoManager.Tempos.Count == 0) return;
+                    var bpm = Project?.TempoManager.GetBpmAt((double)(Project?.TempoManager.GetTick(AudioEngine.CurrentTime)));
+                    bpmInput.Text = bpm?.ToString("f2") ?? "120.00";
+                });
+                bpmInputPanel.Children.Add(bpmInput);
+            };
+            dockPanel.AddDock(bpmInputPanel, Dock.Left);
+
+            var timeSigPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(12, 0) };
+            {
+                var timeSigEdit = new EditableLabel() { Width = 30, Padding = new(0), FontFamily = Assets.NotoMono, FontSize = 20, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
+                timeSigEdit.Text = Project?.TimeSignatureManager.TimeSignatures[0].Numerator.ToString() ?? "4";
+                timeSigEdit.EndInput.Subscribe(() =>
+                {
+                    var numerator = int.Parse(timeSigEdit.Text);
+                    var index = Project?.TimeSignatureManager.TimeSignatures.IndexOf(Project?.TimeSignatureManager.TimeSignatures.FirstOrDefault(x => x.Numerator == numerator));
+                    if (index == null) return;
+                    Project?.TimeSignatureManager.SetNumeratorAndDenominator((int)index, numerator, 4);
+                    Project?.Commit();
+                });
+                AudioEngine.ProgressChanged += () =>
+                {
+                    var tick = Project?.TempoManager.GetTick(AudioEngine.CurrentTime);
+                    var timeSig = Project?.TimeSignatureManager.TimeSignatures.FirstOrDefault(x => x.BarIndex < tick);
+                    timeSigEdit.Text = timeSig?.Numerator.ToString() ?? "4";
+                };
+                ProjectProvider.ObjectChanged.Subscribe(() =>
+                {
+                    var tick = Project?.TempoManager.GetTick(AudioEngine.CurrentTime);
+                    var timeSig = Project?.TimeSignatureManager.TimeSignatures.FirstOrDefault(x => x.BarIndex < tick);
+                    timeSigEdit.Text = timeSig?.Numerator.ToString() ?? "4";
+                });
+                timeSigPanel.Children.Add(timeSigEdit);
+                var timeSigLabel = new TextBlock() { Text = "/4", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, FontSize = 20, FontWeight = FontWeight.Bold, Foreground = Style.TEXT_LIGHT.ToBrush(), FontFamily = "Consolas", Margin = new(4, 2, 0, 0) };
+                timeSigPanel.Children.Add(timeSigLabel);
+            };
+            dockPanel.AddDock(timeSigPanel, Dock.Left);
 
             var quantizationPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             {
