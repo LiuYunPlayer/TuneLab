@@ -48,7 +48,7 @@ internal class FunctionBar : LayerPanel
         mover.Moved.Subscribe(p => Moved?.Invoke(p.Y + Bounds.Y));
         Children.Add(mover);
 
-        var dockPanel = new DockPanel() { Margin = new(12, 0, 12, 0) };
+        var dockPanel = new DockPanel() { Margin = new(64, 0, 12, 0) };
         {
             var hoverBack = Colors.White.Opacity(0.05);
 
