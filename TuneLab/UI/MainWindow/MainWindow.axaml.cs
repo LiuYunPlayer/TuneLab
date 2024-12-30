@@ -36,6 +36,8 @@ public partial class MainWindow : Window
         platform = Environment.OSVersion.Platform;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
+        this.KeyDown += OnKeyDown;
+
 #if AVALONIA
         this.AttachDevTools();
 #endif
@@ -223,5 +225,25 @@ public partial class MainWindow : Window
         Title = "TuneLab - " + mEditor.Document.Name + (mEditor.Document.IsSaved ? string.Empty : "*");
     }
 
+    void OnKeyDown(object sender, KeyEventArgs args)
+    {
+        if (args.KeyModifiers == KeyModifiers.None)
+        {
+            switch (args.Key)
+            {
+                case Key.F11:
+                    OnMenuFullScreen(this, new RoutedEventArgs()); // Call your existing method
+                    args.Handled = true;
+                    break;
+            }
+        }
+    }
+    
+    void OnMenuFullScreen(object sender, RoutedEventArgs args) {
+            this.WindowState = this.WindowState == WindowState.FullScreen
+                ? WindowState.Normal
+                : WindowState.FullScreen;
+    }
+    
     readonly Editor mEditor;
 }
