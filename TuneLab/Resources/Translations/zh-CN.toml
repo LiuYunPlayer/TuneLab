@@ -24,6 +24,10 @@
 "Show Properties" = "显示属性面板"
 "Hide Properties" = "隐藏属性面板"
 
+[TrackScrollView]
+"Loading..." = "加载中..."
+"Failed to load audio. Double click to relink." = "音频加载失败，双击以重新链接。"
+
 [PianoScrollView]
 "Please draw pitch first in the area" = "请先在此区域绘制音高"
 "Frequency" = "频率"
@@ -123,6 +127,10 @@
 "Add Tempo" = "添加节奏"
 "Delete Tempo" = "删除节奏"
 "Edit Tempo" = "编辑节奏"
+
+"Add Time Signature" = "添加节拍"
+"Delete Time Signature" = "删除节拍"
+"Edit Time Signature" = "编辑节拍"
 
 "Export Audio" = "导出音频"
 
