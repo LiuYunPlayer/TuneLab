@@ -22,7 +22,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
     {
         mTempos = new(this);
         mProject = project;
-        IDataObject<IReadOnlyList<TempoInfo>>.SetInfo(this, tempos);
+        IDataObject<List<TempoInfo>>.SetInfo(this, tempos);
     }
 
     public int AddTempo(double pos, double bpm)
@@ -125,7 +125,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         if (info.Count == 0)
             info = [new() { Pos = 0, Bpm = DefaultBpm }];
 
-        IDataObject<IReadOnlyList<TempoInfo>>.SetInfo(mTempos, info.Convert(t => new TempoForTempoManager(t)).ToArray());
+        IDataObject<List<TempoInfo>>.SetInfo(mTempos, info.Convert(t => new TempoForTempoManager(t)).ToArray());
         CorrectStatusFrom(0);
     }
 
