@@ -9,8 +9,17 @@ using TuneLab.Base.Event;
 using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;
+
+internal enum AudioPartStatus
+{
+    Linked,
+    Loading,
+    Unlinked,
+}
+
 internal interface IAudioPart : IPart, IDataObject<AudioPartInfo>
 {
+    INotifiableProperty<AudioPartStatus> Status { get; }
     IActionEvent AudioChanged { get; }
     INotifiableProperty<string> BaseDirectory { get; }
     IDataProperty<string> Path { get; }
