@@ -47,7 +47,7 @@ internal class FunctionBar : LayerPanel
             var hoverBack = Colors.White.Opacity(0.05);
 
             var collapseTextItem = new TextItem() { Text = "Hide Properties".Tr(this) };
-            var collapseButton = new Toggle() { Width = 120, Height = 36 };
+            var collapseButton = new Toggle() { Width = 120, Height = 32 };
             collapseButton
                 .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.ITEM } })
                 .AddContent(new() { Item = collapseTextItem, ColorSet = new() { Color = Style.LIGHT_WHITE } });
@@ -55,7 +55,7 @@ internal class FunctionBar : LayerPanel
             collapseButton.Switched.Subscribe(() => { collapseTextItem.Text = collapseButton.IsChecked ? "Hide Properties".Tr(this) : "Show Properties".Tr(this); CollapsePropertiesAsked?.Invoke(collapseButton.IsChecked); });
             dockPanel.AddDock(collapseButton, Dock.Right);
 
-            dockPanel.AddDock(new Border() { Width = 240, Background = Brushes.Transparent, IsHitTestVisible = false }, Dock.Right);
+            dockPanel.AddDock(new Border() { Width = 12, Background = Brushes.Transparent, IsHitTestVisible = false }, Dock.Right);
 
             void SetupToolTip(Control toggleButton,string ToolTipText)
             {
