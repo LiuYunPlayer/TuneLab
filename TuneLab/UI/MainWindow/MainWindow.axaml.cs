@@ -60,7 +60,7 @@ public partial class MainWindow : Window
         maximizeButton = new Button() { Width = 48, Height = 40 }
            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
            .AddContent(maximizeIconContent);
-        maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Normal ? WindowState.Maximized : WindowState.Normal;
 
         var closeButton = new Button() { Width = 48, Height = 40 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = new(255, 232, 17, 35), PressedColor = new(255, 232, 17, 35) } })
@@ -158,6 +158,9 @@ public partial class MainWindow : Window
                     }
                     break;
                 case WindowState.Minimized:
+                    break;
+                case WindowState.FullScreen:
+                    maximizeIconContent.Item = new IconItem() { Icon = Assets.WindowRestore };
                     break;
             }
 
