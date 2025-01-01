@@ -95,7 +95,17 @@ internal static class SDLGlobal
     // 全局配置信息
     public static readonly ushort PLAYBACK_FORMAT = SDL.AUDIO_F32SYS; // 32位浮点
 
-    public static readonly ushort PLAYBACK_BUFFER_SAMPLES = 1024; // 默认缓冲区长度
+    private static readonly ushort PLAYBACK_BUFFER_SAMPLES_SDL = 4096; // 默认缓冲区长度_SDL
+    private static readonly ushort PLAYBACK_BUFFER_SAMPLES_DX = 1024; // 默认缓冲区长度_DIRECTSOUND
+    public static ushort PLAYBACK_BUFFER_SAMPLES {
+        get {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return PLAYBACK_BUFFER_SAMPLES_DX;
+            }
+            return PLAYBACK_BUFFER_SAMPLES_SDL;
+        }
+    }
 
     public static readonly uint PLAYBACK_POLL_INTERVAL = 5; // 轮循时间间隔(ms)
 

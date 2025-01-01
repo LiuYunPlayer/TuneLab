@@ -40,7 +40,7 @@ internal class SDLPlaybackData
 
     public Thread producer;
 
-    public Mutex mutex;
+    public object mLocker = new object();
 
     // 控制块
     public struct CallbackBlock
@@ -62,8 +62,6 @@ internal class SDLPlaybackData
         spec.callback = workCallback;
 
         pcm_buffer = null;
-
-        mutex = new Mutex();
     }
 
     public void Start()
@@ -197,38 +195,38 @@ internal class SDLPlaybackData
     private void workCallback(IntPtr udata, IntPtr stream, int len)
     {
         // 上锁
-        mutex.WaitOne();
+        lock(mLocker){
 
-        // 缓冲区置为静音
-        SDLReimpl.SDL_memset(stream, 0, (IntPtr)len);
-
-        if (scb.audio_len > 0 && scb.audio_chunk != IntPtr.Zero)
-        {
-            len = Math.Min(len, scb.audio_len);
-
-            // 将缓冲区中的声音写入流
-            SDL.SDL_MixAudioFormat(
-                stream,
-                IntPtr.Add(scb.audio_chunk, scb.audio_pos),
-                spec.format,
-                (uint)len,
-                SDL.SDL_MIX_MAXVOLUME
-            );
-
-            scb.audio_pos += len;
-            scb.audio_len -= len;
-
-            samplesConsumed?.Invoke(len / sizeof(float));
-
-            // 判断是否完毕
-            if (scb.audio_len == 0)
+            // 缓冲区置为静音
+            SDLReimpl.SDL_memset(stream, 0, (IntPtr)len);
+    
+            if (scb.audio_len > 0 && scb.audio_chunk != IntPtr.Zero)
             {
-                notifyGetAudioFrame();
+                len = Math.Min(len, scb.audio_len);
+    
+                // 将缓冲区中的声音写入流
+                SDL.SDL_MixAudioFormat(
+                    stream,
+                    IntPtr.Add(scb.audio_chunk, scb.audio_pos),
+                    spec.format,
+                    (uint)len,
+                    SDL.SDL_MIX_MAXVOLUME
+                );
+    
+                scb.audio_pos += len;
+                scb.audio_len -= len;
+    
+                samplesConsumed?.Invoke(len / sizeof(float));
+    
+                // 判断是否完毕
+                if (scb.audio_len == 0)
+                {
+                    notifyGetAudioFrame();
+                }
             }
-        }
 
         // 放锁
-        mutex.ReleaseMutex();
+        }
     }
 
     // 通知缓冲区已空
@@ -275,26 +273,26 @@ internal class SDLPlaybackData
                     case (int)SDLGlobal.UserEvent.SDL_EVENT_BUFFER_END:
                     {
                         // 上锁
-                        mutex.WaitOne();
+                        lock(mLocker){
 
-                        // 从文件中读取数据，剩下的就交给音频设备去完成了
-                        // 它播放完一段数据后会执行回调函数，获取等多的数据
-                        int samples = sampleProvider.Read(pcm_buffer, 0, spec.samples * spec.channels);
-                        if (samples <= 0)
-                        {
-                            // 播放完毕
-                            over = true;
-                        }
-                        else
-                        {
-                            // 重置缓冲区
-                            scb.audio_chunk = Marshal.UnsafeAddrOfPinnedArrayElement(pcm_buffer, 0);
-                            scb.audio_len = samples * sizeof(float); // 长度为读出数据长度，在read_audio_data中做减法
-                            scb.audio_pos = 0; // 设置当前位置为缓冲区头部
-                        }
+                            // 从文件中读取数据，剩下的就交给音频设备去完成了
+                            // 它播放完一段数据后会执行回调函数，获取等多的数据
+                            int samples = sampleProvider.Read(pcm_buffer, 0, spec.samples * spec.channels);
+                            if (samples <= 0)
+                            {
+                                // 播放完毕
+                                over = true;
+                            }
+                            else
+                            {
+                                // 重置缓冲区
+                                scb.audio_chunk = Marshal.UnsafeAddrOfPinnedArrayElement(pcm_buffer, 0);
+                                scb.audio_len = samples * sizeof(float); // 长度为读出数据长度，在read_audio_data中做减法
+                                scb.audio_pos = 0; // 设置当前位置为缓冲区头部
+                            }
 
                         // 放锁
-                        mutex.ReleaseMutex();
+                        }
                         break;
                     }
 
