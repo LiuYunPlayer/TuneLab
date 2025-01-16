@@ -75,6 +75,28 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mFunctionBar.Moved += y => TrackWindowHeight = y;
         mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
+        mFunctionBar.GotoStartAsked += () =>
+        {
+            var startTime = 0;
+            AudioEngine.Seek(startTime);
+            if (Project == null) 
+                return;
+
+            var startTick = Project.TempoManager.GetTick(startTime);
+            mTrackWindow.TickAxis.AnimateMoveTickToX(startTick, 0);
+            mPianoWindow.TickAxis.AnimateMoveTickToX(startTick, 0);
+        };
+        mFunctionBar.GotoEndAsked += () =>
+        {
+            var endTime = AudioEngine.EndTime;
+            AudioEngine.Seek(endTime);
+            if (Project == null) 
+                return;
+
+            var endTick = Project.TempoManager.GetTick(endTime);
+            mTrackWindow.TickAxis.AnimateMoveTickToX(endTick, mTrackWindow.TickAxis.ViewLength);
+            mPianoWindow.TickAxis.AnimateMoveTickToX(endTick, mPianoWindow.TickAxis.ViewLength);
+        };
         ProjectProvider.ObjectWillChange.Subscribe(OnProjectWillChange, s);
         ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
         ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });

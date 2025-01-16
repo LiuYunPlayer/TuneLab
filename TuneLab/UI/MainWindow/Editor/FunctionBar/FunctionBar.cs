@@ -22,14 +22,16 @@ internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
     public event Action<bool>? CollapsePropertiesAsked;
+    public event Action? GotoStartAsked;
+    public event Action? GotoEndAsked;
 
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
 
     public interface IDependency
     {
-        public INotifiableProperty<PianoTool> PianoTool { get; }
-        public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
+        INotifiableProperty<PianoTool> PianoTool { get; }
+        INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -45,7 +47,7 @@ internal class FunctionBar : LayerPanel
             var hoverBack = Colors.White.Opacity(0.05);
 
             var collapseTextItem = new TextItem() { Text = "Hide Properties".Tr(this) };
-            var collapseButton = new Toggle() { Width = 120, Height = 36 };
+            var collapseButton = new Toggle() { Width = 120, Height = 32 };
             collapseButton
                 .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.ITEM } })
                 .AddContent(new() { Item = collapseTextItem, ColorSet = new() { Color = Style.LIGHT_WHITE } });
@@ -53,7 +55,7 @@ internal class FunctionBar : LayerPanel
             collapseButton.Switched.Subscribe(() => { collapseTextItem.Text = collapseButton.IsChecked ? "Hide Properties".Tr(this) : "Show Properties".Tr(this); CollapsePropertiesAsked?.Invoke(collapseButton.IsChecked); });
             dockPanel.AddDock(collapseButton, Dock.Right);
 
-            dockPanel.AddDock(new Border() { Width = 240, Background = Brushes.Transparent, IsHitTestVisible = false }, Dock.Right);
+            dockPanel.AddDock(new Border() { Width = 12, Background = Brushes.Transparent, IsHitTestVisible = false }, Dock.Right);
 
             void SetupToolTip(Control toggleButton,string ToolTipText)
             {
@@ -79,6 +81,20 @@ internal class FunctionBar : LayerPanel
 
                 SetupToolTip(autoPageButton, "Auto Scroll".Tr(this));
                 audioControlPanel.Children.Add(autoPageButton);
+
+                var gotoStartButton = new GUI.Components.Button() { Width = 36, Height = 36 }
+                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+                    .AddContent(new() { Item = new IconItem() { Icon = Assets.GotoStart }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                SetupToolTip(gotoStartButton, "Go to Start".Tr(this));
+                gotoStartButton.Clicked += () => { GotoStartAsked?.Invoke(); };
+                audioControlPanel.Children.Add(gotoStartButton);
+
+                var gotoEndButton = new GUI.Components.Button() { Width = 36, Height = 36 }
+                    .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
+                    .AddContent(new() { Item = new IconItem() { Icon = Assets.GotoEnd }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
+                SetupToolTip(gotoEndButton, "Go to End".Tr(this));
+                gotoEndButton.Clicked += () => { GotoEndAsked?.Invoke(); };
+                audioControlPanel.Children.Add(gotoEndButton);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
 

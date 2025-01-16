@@ -20,6 +20,7 @@ using TuneLab.Utils;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats;
+using TuneLab.I18N;
 
 namespace TuneLab.UI;
 
@@ -71,6 +72,7 @@ internal partial class TrackScrollView : View
         mDependency.EditingPart.ObjectChanged.Subscribe(InvalidateVisual, s);
         mDependency.ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.Any(part => part.SelectionChanged))).Subscribe(InvalidateVisual, s);
         mDependency.ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.Any(part => part is AudioPart audioPart ? audioPart.AudioChanged : new ActionEvent()))).Subscribe(InvalidateVisual, s); // TODO: 支持一下可空类型的event
+        mDependency.ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.Any(part => part is AudioPart audioPart ? audioPart.Status.Modified : new ActionEvent()))).Subscribe(InvalidateVisual, s);
         Quantization.QuantizationChanged += InvalidateVisual;
         TickAxis.AxisChanged += Update;
         TrackVerticalAxis.AxisChanged += Update;
@@ -193,6 +195,7 @@ internal partial class TrackScrollView : View
         double partLineWidth = 1;
         IPen editPartPen = new Pen(Style.LIGHT_WHITE.ToBrush(), partLineWidth);
         IBrush titleBrush = Brushes.Black;
+        IBrush statusBrush = Brushes.White;
         for (int trackIndex = 0; trackIndex < Project.Tracks.Count; trackIndex++)
         {
             double lineBottom = TrackVerticalAxis.GetTop(trackIndex + 1);
@@ -235,7 +238,7 @@ internal partial class TrackScrollView : View
                 {
                     using (context.PushClip(titleRect))
                     {
-                        context.DrawString(string.Format("{0}[{1}]", midiPart.Name, midiPart.Voice.Name), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface : new Typeface(FontFamily.Default, weight : isEditingPart ? FontWeight.Bold : FontWeight.Normal));
+                        context.DrawString($"{midiPart.Name}[{midiPart.Voice.Name}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface : new Typeface(FontFamily.Default, weight : isEditingPart ? FontWeight.Bold : FontWeight.Normal));
                     }
 
                     if (!midiPart.Notes.IsEmpty())
@@ -267,118 +270,132 @@ internal partial class TrackScrollView : View
                 {
                     using (context.PushClip(titleRect))
                     {
-                        context.DrawString(string.Format("{0}[{1}]", audioPart.Name, audioPart.Path), titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                        context.DrawString($"{audioPart.Name}[{audioPart.Path}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
                     }
 
-                    if (audioPart.ChannelCount > 0)
+                    var statusRect = contentRect.Adjusted(Math.Max(0, -contentRect.Left) + 8, 0, -8, 0);
+                    switch (audioPart.Status.Value)
                     {
-                        for (int channelIndex = 0; channelIndex < audioPart.ChannelCount; channelIndex++)
-                        {
-                            if (audioPart.EndPos < TickAxis.MinVisibleTick)
-                                continue;
-
-                            if (audioPart.StartPos > TickAxis.MaxVisibleTick)
-                                break;
-
-                            var waveform = audioPart.GetWaveform(channelIndex);
-                            if (waveform == null)
-                                continue;
-
-                            double minTick = Math.Max(TickAxis.MinVisibleTick, audioPart.StartPos);
-                            double maxTick = Math.Min(TickAxis.MaxVisibleTick, audioPart.EndPos);
-                            double minX = TickAxis.Tick2X(minTick);
-                            double maxX = TickAxis.Tick2X(maxTick);
-                            var xs = new List<double>();
-                            var positions = new List<double>();
-                            double gap = 1;
-                            double xp = minX - gap;
-                            double startTime = audioPart.TempoManager.GetTime(audioPart.StartPos);
-                            do
+                        case AudioPartStatus.Loading:
+                            using (context.PushClip(statusRect))
+                                context.DrawString("Loading...".Tr(this), statusRect, statusBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                            break;
+                        case AudioPartStatus.Unlinked:
+                            using (context.PushClip(statusRect))
+                                context.DrawString("Failed to load audio. Double click to relink.".Tr(this), statusRect, statusBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                            break;
+                        case AudioPartStatus.Linked:
+                            if (audioPart.ChannelCount > 0)
                             {
-                                xp += gap;
-                                xs.Add(xp);
-                                double time = tempoManager.GetTime(TickAxis.X2Tick(xp));
-                                positions.Add((time - startTime) * ((IAudioSource)audioPart).SamplingRate);
-                            }
-                            while (xp < maxX);
-
-                            if (positions.Count < 2)
-                                continue;
-
-                            double channelHeight = contentRect.Height / audioPart.ChannelCount;
-                            float channelTop = (float)(contentRect.Top + channelHeight * channelIndex);
-                            float r = (float)channelHeight / 2;
-                            float toY(float value) => channelTop + (1 - value) * r;
-
-                            var values = waveform.GetValues(positions);
-                            var peaks = waveform.GetPeaks(positions, values);
-                            for (int i = 0; i < xs.Count; i++)
-                            {
-                                values[i] = toY(values[i]);
-                            }
-                            for (int i = 0; i < peaks.Length; i++)
-                            {
-                                peaks[i].min = toY(peaks[i].min);
-                                peaks[i].max = toY(peaks[i].max);
-                            }
-                            // 性能优先先采用画矩形的方案
-                            IBrush waveformBrush = frameColor.ToBrush();
-                            for (int i = 0; i < peaks.Length; i++)
-                            {
-                                double x = xs[i];
-                                var peak = peaks[i];
-                                context.FillRectangle(waveformBrush, new(xs[i], peak.max, gap, peak.min - peak.max));
-                            }
-
-                            /*
-                            for (int i = 0; i < peaks.Length; i++)
-                            {
-                                double x = xs[i];
-                                var peak = peaks[i];
-                                var path = new PathGeometry();
-                                using (var pathContext = path.Open())
+                                for (int channelIndex = 0; channelIndex < audioPart.ChannelCount; channelIndex++)
                                 {
-                                    pathContext.BeginFigure(new Point(x, values[i]), true);
-                                    pathContext.LineTo(new Point(x + gap * peak.minRatio, peak.min));
-                                    pathContext.LineTo(new Point(xs[i + 1], values[i + 1]));
-                                    pathContext.LineTo(new Point(x + gap * peak.maxRatio, peak.max));
-                                    pathContext.EndFigure(true);
+                                    if (audioPart.EndPos < TickAxis.MinVisibleTick)
+                                        continue;
+
+                                    if (audioPart.StartPos > TickAxis.MaxVisibleTick)
+                                        break;
+
+                                    var waveform = audioPart.GetWaveform(channelIndex);
+                                    if (waveform == null)
+                                        continue;
+
+                                    double minTick = Math.Max(TickAxis.MinVisibleTick, audioPart.StartPos);
+                                    double maxTick = Math.Min(TickAxis.MaxVisibleTick, audioPart.EndPos);
+                                    double minX = TickAxis.Tick2X(minTick);
+                                    double maxX = TickAxis.Tick2X(maxTick);
+                                    var xs = new List<double>();
+                                    var positions = new List<double>();
+                                    double gap = 1;
+                                    double xp = minX - gap;
+                                    double startTime = audioPart.TempoManager.GetTime(audioPart.StartPos);
+                                    do
+                                    {
+                                        xp += gap;
+                                        xs.Add(xp);
+                                        double time = tempoManager.GetTime(TickAxis.X2Tick(xp));
+                                        positions.Add((time - startTime) * ((IAudioSource)audioPart).SamplingRate);
+                                    }
+                                    while (xp < maxX);
+
+                                    if (positions.Count < 2)
+                                        continue;
+
+                                    double channelHeight = contentRect.Height / audioPart.ChannelCount;
+                                    float channelTop = (float)(contentRect.Top + channelHeight * channelIndex);
+                                    float r = (float)channelHeight / 2;
+                                    float toY(float value) => channelTop + (1 - value) * r;
+
+                                    var values = waveform.GetValues(positions);
+                                    var peaks = waveform.GetPeaks(positions, values);
+                                    for (int i = 0; i < xs.Count; i++)
+                                    {
+                                        values[i] = toY(values[i]);
+                                    }
+                                    for (int i = 0; i < peaks.Length; i++)
+                                    {
+                                        peaks[i].min = toY(peaks[i].min);
+                                        peaks[i].max = toY(peaks[i].max);
+                                    }
+                                    // 性能优先先采用画矩形的方案
+                                    IBrush waveformBrush = frameColor.ToBrush();
+                                    for (int i = 0; i < peaks.Length; i++)
+                                    {
+                                        double x = xs[i];
+                                        var peak = peaks[i];
+                                        context.FillRectangle(waveformBrush, new(xs[i], peak.max, gap, peak.min - peak.max));
+                                    }
+
+                                    /*
+                                    for (int i = 0; i < peaks.Length; i++)
+                                    {
+                                        double x = xs[i];
+                                        var peak = peaks[i];
+                                        var path = new PathGeometry();
+                                        using (var pathContext = path.Open())
+                                        {
+                                            pathContext.BeginFigure(new Point(x, values[i]), true);
+                                            pathContext.LineTo(new Point(x + gap * peak.minRatio, peak.min));
+                                            pathContext.LineTo(new Point(xs[i + 1], values[i + 1]));
+                                            pathContext.LineTo(new Point(x + gap * peak.maxRatio, peak.max));
+                                            pathContext.EndFigure(true);
+                                        }
+                                        context.DrawGeometry(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), null, path);
+                                    }
+                                    */
+                                    /*
+                                    for (int i = 0; i < peaks.Length; i++)
+                                    {
+                                        var points = new List<Point>();
+                                        double x = xs[i];
+                                        var peak = peaks[i];
+                                        points.Add(new Point(x, values[i]));
+                                        points.Add(new Point(x + gap * peak.minRatio, peak.min));
+                                        points.Add(new Point(xs[i + 1], values[i + 1]));
+                                        points.Add(new Point(x + gap * peak.maxRatio, peak.max));
+                                        context.DrawCurve(points, Style.LIGHT_WHITE.Opacity(0.5), gap, true);
+                                    }
+                                    */
+                                    /*
+                                    var points = new List<Point>();
+                                    for (int i = 0; i < peaks.Length; i++)
+                                    {
+                                        double x = xs[i];
+                                        var peak = peaks[i];
+                                        points.Add(new Point(x, values[i]));
+                                        points.Add(new Point(x + gap * peak.minRatio, peak.min));
+                                    }
+                                    for (int i = peaks.Length; i > 0; i--)
+                                    {
+                                        double x = xs[i];
+                                        var peak = peaks[i - 1];
+                                        points.Add(new Point(x, values[i]));
+                                        points.Add(new Point(x + gap * peak.maxRatio, peak.max));
+                                    }
+                                    context.DrawCurve(points, Style.LIGHT_WHITE.Opacity(0.5), gap, true);
+                                    */
                                 }
-                                context.DrawGeometry(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), null, path);
                             }
-                            */
-                            /*
-                            for (int i = 0; i < peaks.Length; i++)
-                            {
-                                var points = new List<Point>();
-                                double x = xs[i];
-                                var peak = peaks[i];
-                                points.Add(new Point(x, values[i]));
-                                points.Add(new Point(x + gap * peak.minRatio, peak.min));
-                                points.Add(new Point(xs[i + 1], values[i + 1]));
-                                points.Add(new Point(x + gap * peak.maxRatio, peak.max));
-                                context.DrawCurve(points, Style.LIGHT_WHITE.Opacity(0.5), gap, true);
-                            }
-                            */
-                            /*
-                            var points = new List<Point>();
-                            for (int i = 0; i < peaks.Length; i++)
-                            {
-                                double x = xs[i];
-                                var peak = peaks[i];
-                                points.Add(new Point(x, values[i]));
-                                points.Add(new Point(x + gap * peak.minRatio, peak.min));
-                            }
-                            for (int i = peaks.Length; i > 0; i--)
-                            {
-                                double x = xs[i];
-                                var peak = peaks[i - 1];
-                                points.Add(new Point(x, values[i]));
-                                points.Add(new Point(x + gap * peak.maxRatio, peak.max));
-                            }
-                            context.DrawCurve(points, Style.LIGHT_WHITE.Opacity(0.5), gap, true);
-                            */
-                        }
+                            break;
                     }
                 }
 

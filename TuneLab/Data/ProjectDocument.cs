@@ -31,21 +31,69 @@ internal class ProjectDocument : DataDocument
         {
             Project?.Attach(this);
         });
+
+        mProject.When(project => project.Tracks.ItemAdded).Subscribe(track =>
+        {
+            var dir = AudioPartBaseDirectory();
+            if (string.IsNullOrEmpty(dir))
+                return;
+
+            foreach (var audioPart in track.Parts.OfType<IAudioPart>())
+            {
+                audioPart.BaseDirectory.Value = dir;
+            }
+        });
+
+        mProject.When(project => project.Tracks.Any(track => track.Parts.ItemAdded)).Subscribe(part =>
+        {
+            if (part is not IAudioPart audioPart)
+                return;
+
+            var dir = AudioPartBaseDirectory();
+            if (string.IsNullOrEmpty(dir))
+                return;
+
+            audioPart.BaseDirectory.Value = dir;
+        });
     }
 
     public void SetProject(Project project, string path = "")
     {
         Clear();
-        SetSavePath(path);
         mProject.Set(project);
+        SetSavePath(path);
     }
 
     public void SetSavePath(string path)
     {
         mPath = path;
+        ResetAudioPartBaseDirectory();
         mName = File.Exists(path) ? new FileInfo(path).Name : "Untitled Project".Tr(TC.Document);
         mLastSavedHead = Head;
         mProjectNameChanged?.Invoke();
+    }
+
+    string? AudioPartBaseDirectory()
+    {
+        if (Project == null)
+            return null;
+
+        return System.IO.Path.GetDirectoryName(mPath);
+    }
+
+    void ResetAudioPartBaseDirectory()
+    {
+        if (Project == null)
+            return;
+
+        var dir = AudioPartBaseDirectory();
+        if (string.IsNullOrEmpty(dir))
+            return;
+
+        foreach (var audioPart in Project.AllAudioParts())
+        {
+            audioPart.BaseDirectory.Value = dir;
+        }
     }
 
     string mPath = string.Empty;

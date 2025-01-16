@@ -21,6 +21,7 @@ internal static class AudioEngine
     public static int SamplingRate => mAudioProvider!.SamplingRate;
     public static double CurrentTime => mAudioProvider!.CurrentTime;
     public static double MasterGain { get; set; } = 0;
+    public static double EndTime => AudioGraph.EndTime;
 
     public static void Init(IAudioPlaybackHandler playbackHandler)
     {

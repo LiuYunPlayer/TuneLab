@@ -87,6 +87,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartProvider.When(p => p.TempoManager.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartProvider.When(p => p.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
         mDependency.PianoTool.Modified.Subscribe(InvalidateVisual, s);
         TickAxis.AxisChanged += Update;

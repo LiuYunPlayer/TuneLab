@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Media;
 using System;
 using System.IO;
@@ -36,6 +37,8 @@ public partial class MainWindow : Window
         platform = Environment.OSVersion.Platform;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
+        this.KeyDown += OnKeyDown;
+
 #if AVALONIA
         this.AttachDevTools();
 #endif
@@ -57,7 +60,7 @@ public partial class MainWindow : Window
         maximizeButton = new Button() { Width = 48, Height = 40 }
            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
            .AddContent(maximizeIconContent);
-        maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        maximizeButton.Clicked += () => WindowState = WindowState == WindowState.Normal ? WindowState.Maximized : WindowState.Normal;
 
         var closeButton = new Button() { Width = 48, Height = 40 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = new(255, 232, 17, 35), PressedColor = new(255, 232, 17, 35) } })
@@ -156,6 +159,9 @@ public partial class MainWindow : Window
                     break;
                 case WindowState.Minimized:
                     break;
+                case WindowState.FullScreen:
+                    maximizeIconContent.Item = new IconItem() { Icon = Assets.WindowRestore };
+                    break;
             }
 
             if (CustomTitleBar.ColumnDefinitions[0] != null && CustomTitleBar.ColumnDefinitions[2] != null)
@@ -223,5 +229,25 @@ public partial class MainWindow : Window
         Title = "TuneLab - " + mEditor.Document.Name + (mEditor.Document.IsSaved ? string.Empty : "*");
     }
 
+    void OnKeyDown(object sender, KeyEventArgs args)
+    {
+        if (args.KeyModifiers == KeyModifiers.None)
+        {
+            switch (args.Key)
+            {
+                case Key.F11:
+                    OnMenuFullScreen(this, new RoutedEventArgs()); // Call your existing method
+                    args.Handled = true;
+                    break;
+            }
+        }
+    }
+    
+    void OnMenuFullScreen(object sender, RoutedEventArgs args) {
+            this.WindowState = this.WindowState == WindowState.FullScreen
+                ? WindowState.Normal
+                : WindowState.FullScreen;
+    }
+    
     readonly Editor mEditor;
 }

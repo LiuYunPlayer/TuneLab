@@ -14,7 +14,7 @@ namespace TuneLab.Data;
 
 internal interface ITempoManager : IDataObject<List<TempoInfo>>
 {
-    IProject Project { get; }
+    IProject Project { get; } // TODO: Remove this
     IReadOnlyList<ITempo> Tempos { get; }
     int AddTempo(double pos, double bpm);
     void RemoveTempoAt(int index);
