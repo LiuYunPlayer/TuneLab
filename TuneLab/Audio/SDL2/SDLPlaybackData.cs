@@ -17,52 +17,67 @@ internal class SDLPlaybackData
     }
 
     // 事件委托
-    public SDLGlobal.ValueChangeEvent<string>? devChanged;
+    public SDLGlobal.ValueChangeEvent<string>? onDevChanged;
 
-    public SDLGlobal.ValueChangeEvent<PlaybackState>? stateChanged;
+    public SDLGlobal.ValueChangeEvent<PlaybackState>? onStateChanged;
 
-    public SDLGlobal.ValueEvent<int>? samplesConsumed;
+    public SDLGlobal.ValueEvent<int>? onSamplesConsumed;
 
-    public SDLGlobal.VoidEvent? devicesUpdated;
+    public SDLGlobal.VoidEvent? onDevicesUpdated;
+
+    public delegate int BufferEndEvent(float[] buffer, int offset, int count);
+
+    public BufferEndEvent onBufferEnd;
 
     // 播放信息
     public string driver = string.Empty;
 
     public PlaybackState state = PlaybackState.Stopped;
 
-    public ISampleProvider? sampleProvider = null;
+    // 当前播放设备
+    // (a) 0：无设备
+    // (b) 非零：递增的设备 ID
+    public uint devId;
 
-    // 控制参数
-    public uint devId = 0; // 当前播放设备
-    public string devName = string.Empty; // 当前播放设备名
+    // 当前播放设备名
+    // (a) 空：自动
+    // (b) SDLGlobal.PLAYBACK_EMPTY_DEVICE：无设备
+    // (c) 其他：指定的其他设备
+    public string devName = SDLGlobal.PLAYBACK_EMPTY_DEVICE;
 
     public SDL.SDL_AudioSpec spec;
 
-    public Thread producer;
+    // 线程相关
+    private Thread producer;
 
-    public Mutex mutex;
+    private Mutex mutex;
 
     // 控制块
-    public struct CallbackBlock
+    private struct CallbackBlock
     {
         public IntPtr audio_chunk;
         public int audio_len;
         public int audio_pos;
     }
 
-    public CallbackBlock scb;
+    private CallbackBlock scb;
 
-    public float[] pcm_buffer;
+    private float[] pcm_buffer;
 
     // 构造函数
     public SDLPlaybackData()
     {
-        spec.samples = SDLGlobal.PLAYBACK_BUFFER_SAMPLES; //缓冲区字节数/单个采样字节数/声道数
+        // 默认音频配置
+        spec.samples = 1024;
+        spec.freq = 44100;
+        spec.channels = 2;
+        
         spec.userdata = IntPtr.Zero; // 不使用
-        spec.callback = workCallback;
+        spec.callback = AudioSpecCallback;
+        spec.format = SDLGlobal.PLAYBACK_FORMAT;
+        spec.silence = 0;
 
         pcm_buffer = null;
-
         mutex = new Mutex();
     }
 
@@ -74,14 +89,14 @@ internal class SDLPlaybackData
         scb.audio_pos = 0;
 
         // 启动生产者线程
-        producer = new Thread(poll);
+        producer = new Thread(AudioLoop);
         producer.Start();
     }
 
     public void Stop()
     {
         // 结束生产者线程
-        notifyStop();
+        NotifyStop();
 
         // 等待结束
         producer.Join();
@@ -100,8 +115,7 @@ internal class SDLPlaybackData
                     Stop();
                 }
 
-                // 关闭音频设备
-                SDL.SDL_CloseAudioDevice(devId);
+                SDL.SDL_CloseAudioDevice(devId); // 关闭音频设备
 
                 devId = 0;
                 devName = string.Empty;
@@ -114,7 +128,10 @@ internal class SDLPlaybackData
         if (!string.IsNullOrEmpty(drv))
         {
             // 打开当前驱动
-            SDL.SDL_AudioInit(drv);
+            if (SDL.SDL_AudioInit(drv) < 0)
+            {
+                throw new IOException($"SDL: failed to open audio driver: {SDL.SDL_GetError()}");
+            }
 
             // 刷新音频设备
             _ = SDL.SDL_GetNumAudioDevices(0);
@@ -151,7 +168,7 @@ internal class SDLPlaybackData
                     out _,
                     0)) == 0)
             {
-                throw new IOException($"SDL: Failed to open audio device \"{dev}\": {SDL.SDL_GetError()}");
+                throw new IOException($"SDL: failed to open audio device \"{dev}\": {SDL.SDL_GetError()}");
             }
 
             devId = id;
@@ -171,13 +188,13 @@ internal class SDLPlaybackData
         else
         {
             devId = 0;
-            devName = string.Empty;
+            devName = dev;
         }
 
         // 通知音频设备已更改
         if (orgName != devName)
         {
-            devChanged?.Invoke(devName, orgName);
+            onDevChanged?.Invoke(devName, orgName);
         }
     }
 
@@ -189,12 +206,12 @@ internal class SDLPlaybackData
         // 通知播放状态已更改
         if (state != orgState)
         {
-            stateChanged?.Invoke(state, orgState);
+            onStateChanged?.Invoke(state, orgState);
         }
     }
 
     // 消费者
-    private void workCallback(IntPtr udata, IntPtr stream, int len)
+    private void AudioSpecCallback(IntPtr udata, IntPtr stream, int len)
     {
         // 上锁
         mutex.WaitOne();
@@ -218,12 +235,12 @@ internal class SDLPlaybackData
             scb.audio_pos += len;
             scb.audio_len -= len;
 
-            samplesConsumed?.Invoke(len / sizeof(float));
+            onSamplesConsumed?.Invoke(len / sizeof(float));
 
             // 判断是否完毕
             if (scb.audio_len == 0)
             {
-                notifyGetAudioFrame();
+                NotifyAudioBufferEnd();
             }
         }
 
@@ -232,7 +249,7 @@ internal class SDLPlaybackData
     }
 
     // 通知缓冲区已空
-    private void notifyGetAudioFrame()
+    private static void NotifyAudioBufferEnd()
     {
         var e = new SDL.SDL_Event();
         e.type = (SDL.SDL_EventType)SDLGlobal.UserEvent.SDL_EVENT_BUFFER_END;
@@ -240,7 +257,7 @@ internal class SDLPlaybackData
     }
 
     // 通知暂停
-    private void notifyStop()
+    private static void NotifyStop()
     {
         var e = new SDL.SDL_Event();
         e.type = (SDL.SDL_EventType)SDLGlobal.UserEvent.SDL_EVENT_MANUAL_STOP;
@@ -248,7 +265,7 @@ internal class SDLPlaybackData
     }
 
     // 生产者
-    private void poll()
+    private void AudioLoop()
     {
         // 固定缓冲区
         var gch = GCHandle.Alloc(pcm_buffer, GCHandleType.Pinned);
@@ -258,7 +275,7 @@ internal class SDLPlaybackData
         SetState(PlaybackState.Playing);
 
         // 第一次事件
-        notifyGetAudioFrame();
+        NotifyAudioBufferEnd();
 
         // 外层循环
         bool devicesChanged = false;
@@ -279,7 +296,7 @@ internal class SDLPlaybackData
 
                         // 从文件中读取数据，剩下的就交给音频设备去完成了
                         // 它播放完一段数据后会执行回调函数，获取等多的数据
-                        int samples = sampleProvider.Read(pcm_buffer, 0, spec.samples * spec.channels);
+                        int samples = onBufferEnd(pcm_buffer, 0, spec.samples * spec.channels);
                         if (samples <= 0)
                         {
                             // 播放完毕
@@ -344,7 +361,7 @@ internal class SDLPlaybackData
         if (devicesChanged)
         {
             _ = SDL.SDL_GetNumAudioDevices(0);
-            devicesUpdated?.Invoke();
+            onDevicesUpdated?.Invoke();
         }
 
         // 解除固定缓冲区
