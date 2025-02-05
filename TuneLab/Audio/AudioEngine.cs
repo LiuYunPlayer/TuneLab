@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using TuneLab.Base.Event;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
 using TuneLab.Utils;
@@ -22,8 +23,8 @@ internal static class AudioEngine
     public static double CurrentTime => mAudioSampleProvider!.CurrentTime;
     public static double MasterGain { get; set; } = 0;
     public static int BufferSize { get => mAudioPlaybackHandler!.BufferSize; set => mAudioPlaybackHandler!.BufferSize = value; }
-    public static string CurrentDriver { get => mAudioPlaybackHandler!.CurrentDriver; set => mAudioPlaybackHandler!.CurrentDriver = value; }
-    public static string CurrentDevice { get => mAudioPlaybackHandler!.CurrentDevice; set => mAudioPlaybackHandler!.CurrentDevice = value; }
+    public static INotifiableProperty<string> CurrentDriver { get; } = new NotifiableProperty<string>(string.Empty);
+    public static INotifiableProperty<string> CurrentDevice { get; } = new NotifiableProperty<string>(string.Empty);
     public static IReadOnlyList<string> GetAllDrivers() => mAudioPlaybackHandler!.GetAllDrivers();
     public static IReadOnlyList<string> GetAllDevices() => mAudioPlaybackHandler!.GetAllDevices();
 
@@ -34,6 +35,22 @@ internal static class AudioEngine
         mAudioPlaybackHandler = playbackHandler;
         mAudioPlaybackHandler.Init(mAudioSampleProvider);
         mAudioPlaybackHandler.ProgressChanged += () => { if (IsPlaying) ProgressChanged?.Invoke(); };
+        mAudioPlaybackHandler.CurrentDeviceChanged += () => 
+        {
+            CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
+            mAudioPlaybackHandler.Start(); 
+        };
+        mAudioPlaybackHandler.DevicesChanged += () =>
+        {
+            var deviecs = mAudioPlaybackHandler.GetAllDevices();
+            if (deviecs.Contains(CurrentDevice.Value))
+                return;
+
+            CurrentDevice.Value = deviecs.IsEmpty() ? string.Empty : deviecs[0];
+        };
+
+        CurrentDriver.Value = mAudioPlaybackHandler.CurrentDriver;
+        CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
 
         ProgressChanged += OnProgressChanged;
 

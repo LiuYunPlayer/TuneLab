@@ -15,7 +15,7 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
 
     public bool IsPlaying => _d.state == SDLPlaybackData.PlaybackState.Playing;
 
-    public static readonly string AutoDeviceName = "[AUTO]";
+    static string AutoDeviceName => IAudioPlaybackHandler.AutoDeviceName;
 
     // 当前音频驱动
     public string CurrentDriver

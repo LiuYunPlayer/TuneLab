@@ -16,6 +16,7 @@ using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
 using TuneLab.Base.Event;
 using TuneLab.Audio;
+using TuneLab.Base.Structures;
 
 namespace TuneLab.UI;
 
@@ -95,7 +96,7 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 300 };
                 comboBox.SetConfig(new(AudioEngine.GetAllDrivers()));
                 comboBox.Bind(Settings.AudioDriver, false, s);
-                comboBox.Display(AudioEngine.CurrentDriver);
+                comboBox.Display(AudioEngine.CurrentDriver.Value);
 
                 panel.AddDock(comboBox, Dock.Right);
             }
@@ -109,10 +110,10 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
+                comboBox.SetConfig(new(AudioEngine.GetAllDevices().Convert(name => name == IAudioPlaybackHandler.AutoDeviceName ? "(Auto)".Tr(this) : name)));
                 comboBox.Bind(Settings.AudioDevice, false, s);
-                comboBox.Display(string.IsNullOrEmpty(AudioEngine.CurrentDevice) ? "(Default)".Tr(this) : AudioEngine.CurrentDevice);
-
+                comboBox.Display(AudioEngine.CurrentDevice.Value == IAudioPlaybackHandler.AutoDeviceName ? "(Auto)".Tr(this) : AudioEngine.CurrentDevice.Value);
+                
                 panel.AddDock(comboBox, Dock.Right);
             }
             {

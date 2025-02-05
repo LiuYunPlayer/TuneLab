@@ -55,8 +55,8 @@ public partial class App : Application
                 Settings.MasterGain.Modified.Subscribe(() => { AudioEngine.MasterGain = Settings.MasterGain; });
                 Settings.BufferSize.Modified.Subscribe(() => { AudioEngine.BufferSize = Settings.BufferSize; });
                 //TODO: Settings.SampleRate.Modified.Subscribe(() => { AudioEngine.SampleRate = Settings.SampleRate; });
-                Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver = Settings.AudioDriver; });
-                Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice = Settings.AudioDevice; });
+                Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
+                Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
                 ExtensionManager.LoadExtensions();
                 var mainWindow = new MainWindow();
