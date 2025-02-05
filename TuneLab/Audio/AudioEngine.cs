@@ -223,6 +223,8 @@ internal static class AudioEngine
 
         mAudioPlaybackHandler.CurrentDriver = drivers.Contains(CurrentDriver.Value) ? CurrentDriver.Value : drivers[0];
         CurrentDriver.Value = mAudioPlaybackHandler.CurrentDriver;
+
+        SetDeviceToPlaybackHandler();
     }
 
     static void SetDeviceToPlaybackHandler()
