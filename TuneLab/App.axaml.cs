@@ -45,10 +45,9 @@ public partial class App : Application
 
                 // init audio engine
                 AudioUtils.Init(new NAudioCodec());
-                var playbackHandlder = new SDLPlaybackHandler() { SampleRate = Settings.SampleRate, BufferSize = Settings.BufferSize, ChannelCount = 2 };
-                if (!string.IsNullOrEmpty(Settings.AudioDriver)) playbackHandlder.CurrentDriver = Settings.AudioDriver;
-                if (!string.IsNullOrEmpty(Settings.AudioDevice)) playbackHandlder.CurrentDevice = Settings.AudioDevice;
-                AudioEngine.Init(playbackHandlder);
+                if (!string.IsNullOrEmpty(Settings.AudioDriver)) AudioEngine.CurrentDriver.Value = Settings.AudioDriver;
+                if (!string.IsNullOrEmpty(Settings.AudioDevice)) AudioEngine.CurrentDevice.Value = Settings.AudioDevice;
+                AudioEngine.Init(new SDLPlaybackHandler() { SampleRate = Settings.SampleRate, BufferSize = Settings.BufferSize, ChannelCount = 2 });
                 AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath);
                 AudioEngine.MasterGain = Settings.MasterGain;
                 Settings.PianoKeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath));

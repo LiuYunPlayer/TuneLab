@@ -34,6 +34,8 @@ internal static class AudioEngine
 
         mAudioPlaybackHandler = playbackHandler;
         mAudioPlaybackHandler.Init(mAudioSampleProvider);
+        SetDriverToPlaybackHandler();
+        SetDeviceToPlaybackHandler();
         mAudioPlaybackHandler.ProgressChanged += () => { if (IsPlaying) ProgressChanged?.Invoke(); };
         mAudioPlaybackHandler.CurrentDeviceChanged += () => 
         {
@@ -42,17 +44,12 @@ internal static class AudioEngine
         };
         mAudioPlaybackHandler.DevicesChanged += () =>
         {
-            var deviecs = mAudioPlaybackHandler.GetAllDevices();
-            if (deviecs.Contains(CurrentDevice.Value))
-                return;
-
-            CurrentDevice.Value = deviecs.IsEmpty() ? string.Empty : deviecs[0];
+            SetDeviceToPlaybackHandler();
         };
 
-        CurrentDriver.Value = mAudioPlaybackHandler.CurrentDriver;
-        CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
-
         ProgressChanged += OnProgressChanged;
+        CurrentDriver.Modified.Subscribe(SetDriverToPlaybackHandler);
+        CurrentDevice.Modified.Subscribe(SetDeviceToPlaybackHandler);
 
         mAudioPlaybackHandler.Start();
     }
@@ -216,6 +213,26 @@ internal static class AudioEngine
     {
         if (CurrentTime > AudioGraph.EndTime)
             Pause();
+    }
+
+    static void SetDriverToPlaybackHandler()
+    {
+        var drivers = mAudioPlaybackHandler!.GetAllDrivers();
+        if (drivers.IsEmpty())
+            return;
+
+        mAudioPlaybackHandler.CurrentDriver = drivers.Contains(CurrentDriver.Value) ? CurrentDriver.Value : drivers[0];
+        CurrentDriver.Value = mAudioPlaybackHandler.CurrentDriver;
+    }
+
+    static void SetDeviceToPlaybackHandler()
+    {
+        var devices = mAudioPlaybackHandler!.GetAllDevices();
+        if (devices.IsEmpty())
+            return;
+
+        mAudioPlaybackHandler.CurrentDevice = devices.Contains(CurrentDevice.Value) ? CurrentDevice.Value : devices[0];
+        CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
     }
 
     class AudioSampleProvider(int sampleRate) : IAudioSampleProvider
