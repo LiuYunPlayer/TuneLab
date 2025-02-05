@@ -48,8 +48,8 @@ internal static class AudioEngine
         };
 
         ProgressChanged += OnProgressChanged;
-        CurrentDriver.Modified.Subscribe(SetDriverToPlaybackHandler);
-        CurrentDevice.Modified.Subscribe(SetDeviceToPlaybackHandler);
+        CurrentDriver.Modified.Subscribe(() => { SetDriverToPlaybackHandler(); SetDeviceToPlaybackHandler(); mAudioPlaybackHandler.Start(); });
+        CurrentDevice.Modified.Subscribe(() => { SetDeviceToPlaybackHandler(); mAudioPlaybackHandler.Start(); });
 
         mAudioPlaybackHandler.Start();
     }
@@ -221,10 +221,11 @@ internal static class AudioEngine
         if (drivers.IsEmpty())
             return;
 
-        mAudioPlaybackHandler.CurrentDriver = drivers.Contains(CurrentDriver.Value) ? CurrentDriver.Value : drivers[0];
-        CurrentDriver.Value = mAudioPlaybackHandler.CurrentDriver;
+        var driver = drivers.Contains(CurrentDriver.Value) ? CurrentDriver.Value : drivers[0];
+        if (mAudioPlaybackHandler.CurrentDriver != driver)
+            mAudioPlaybackHandler.CurrentDriver = driver;
 
-        SetDeviceToPlaybackHandler();
+        CurrentDriver.Value = mAudioPlaybackHandler.CurrentDriver;
     }
 
     static void SetDeviceToPlaybackHandler()
@@ -233,7 +234,10 @@ internal static class AudioEngine
         if (devices.IsEmpty())
             return;
 
-        mAudioPlaybackHandler.CurrentDevice = devices.Contains(CurrentDevice.Value) ? CurrentDevice.Value : devices[0];
+        var device = devices.Contains(CurrentDevice.Value) ? CurrentDevice.Value : devices[0];
+        if (mAudioPlaybackHandler.CurrentDevice != device)
+            mAudioPlaybackHandler.CurrentDevice = device;
+
         CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
     }
 
