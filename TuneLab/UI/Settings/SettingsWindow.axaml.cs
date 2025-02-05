@@ -110,9 +110,9 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(new(AudioEngine.GetAllDevices().Convert(name => name == IAudioPlaybackHandler.AutoDeviceName ? "(Auto)".Tr(this) : name)));
+                comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
                 comboBox.Bind(Settings.AudioDevice, false, s);
-                comboBox.Display(AudioEngine.CurrentDevice.Value == IAudioPlaybackHandler.AutoDeviceName ? "(Auto)".Tr(this) : AudioEngine.CurrentDevice.Value);
+                comboBox.Display(AudioEngine.CurrentDevice.Value);
                 
                 panel.AddDock(comboBox, Dock.Right);
             }

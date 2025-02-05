@@ -8,7 +8,7 @@ namespace TuneLab.Audio;
 
 internal interface IAudioPlaybackHandler
 {
-    public static readonly string AutoDeviceName = "[AUTO]";
+    public static readonly string AutoDeviceName = "(Auto)";
 
     event Action? PlayStateChanged;
     event Action? ProgressChanged;
