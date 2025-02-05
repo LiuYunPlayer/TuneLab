@@ -71,7 +71,7 @@ internal class SDLPlaybackData
         spec.samples = 1024;
         spec.freq = 44100;
         spec.channels = 2;
-        
+
         spec.userdata = IntPtr.Zero; // 不使用
         spec.callback = AudioSpecCallback;
         spec.format = SDLGlobal.PLAYBACK_FORMAT;
@@ -133,8 +133,9 @@ internal class SDLPlaybackData
                 throw new IOException($"SDL: failed to open audio driver: {SDL.SDL_GetError()}");
             }
 
-            // 刷新音频设备
+            // 重新检测音频设备
             _ = SDL.SDL_GetNumAudioDevices(0);
+            onDevicesUpdated?.Invoke();
         }
 
         driver = drv;
@@ -338,7 +339,6 @@ internal class SDLPlaybackData
                             SetDevice(SDLGlobal.PLAYBACK_EMPTY_DEVICE);
                             over = true;
                         }
-
                         devicesChanged = true;
                         break;
                     }
@@ -350,19 +350,17 @@ internal class SDLPlaybackData
                 break;
             }
 
+            if (devicesChanged)
+            {
+                onDevicesUpdated?.Invoke();
+            }
+
             SDL.SDL_Delay(SDLGlobal.PLAYBACK_POLL_INTERVAL);
         }
 
         // 设置暂停标识位
         SDL.SDL_PauseAudioDevice(devId, 1);
         SetState(PlaybackState.Stopped);
-
-        // 设备变动后重新检测音频设备
-        if (devicesChanged)
-        {
-            _ = SDL.SDL_GetNumAudioDevices(0);
-            onDevicesUpdated?.Invoke();
-        }
 
         // 解除固定缓冲区
         gch.Free();

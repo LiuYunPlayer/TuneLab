@@ -29,6 +29,11 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
                 return;
             }
 
+            if (_d.driver == value)
+            {
+                return;
+            }
+
             _d.SetDriver(value); // 请传入合法的音频驱动
         }
     }
@@ -58,9 +63,6 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
                 return;
             }
 
-            var isPlaying = IsPlaying;
-            Stop();
-
             if (string.IsNullOrEmpty(value))
             {
                 value = SDLGlobal.PLAYBACK_EMPTY_DEVICE;
@@ -70,12 +72,14 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
                 value = string.Empty;
             }
 
-            _d.SetDevice(value);
-
-            if (isPlaying)
+            if (_d.devName == value)
             {
-                Start();
+                return;
             }
+
+            Stop();
+
+            _d.SetDevice(value);
         }
     }
 
@@ -160,6 +164,9 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             {
                 context.Post(_ =>
                 {
+                    // 设备变动后重新检测音频设备
+                    SDL.SDL_GetNumAudioDevices(0);
+
                     DevicesChanged?.Invoke(); //
                 }, null);
             };
