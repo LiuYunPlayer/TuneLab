@@ -83,6 +83,8 @@ internal class SDLPlaybackData
 
     public void Start()
     {
+        SetState(PlaybackState.Playing);
+
         // 初始化控制块
         scb.audio_chunk = IntPtr.Zero;
         scb.audio_len = 0;
@@ -101,6 +103,8 @@ internal class SDLPlaybackData
         // 等待结束
         producer.Join();
         producer = null;
+
+        SetState(PlaybackState.Stopped);
     }
 
     public void SetDriver(string drv)
@@ -273,7 +277,6 @@ internal class SDLPlaybackData
 
         // 设置暂停标识位
         SDL.SDL_PauseAudioDevice(devId, 0);
-        SetState(PlaybackState.Playing);
 
         // 第一次事件
         NotifyAudioBufferEnd();
@@ -360,7 +363,6 @@ internal class SDLPlaybackData
 
         // 设置暂停标识位
         SDL.SDL_PauseAudioDevice(devId, 1);
-        SetState(PlaybackState.Stopped);
 
         // 解除固定缓冲区
         gch.Free();
