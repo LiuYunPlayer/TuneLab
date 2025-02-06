@@ -104,11 +104,11 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
             if (!_initialized)
             {
                 if (value > 0)
-                    _d.spec.samples = (byte)value;
+                    _d.spec.samples = (ushort)value;
                 return;
             }
 
-            ResetAudioSpec((byte)value, null, null);
+            ResetAudioSpec((ushort)value, null, null);
         }
     }
 
