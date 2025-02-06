@@ -122,7 +122,7 @@ internal class SDLPlaybackData
                 SDL.SDL_CloseAudioDevice(devId); // 关闭音频设备
 
                 devId = 0;
-                devName = string.Empty;
+                devName = SDLGlobal.PLAYBACK_EMPTY_DEVICE;
             }
 
             // 关闭上一个驱动
