@@ -16,6 +16,7 @@ using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
 using TuneLab.Base.Event;
 using TuneLab.Audio;
+using TuneLab.Base.Structures;
 
 namespace TuneLab.UI;
 
@@ -56,7 +57,6 @@ internal partial class SettingsWindow : Window
         Content.Background = Style.INTERFACE.ToBrush();
 
         Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)), s);
-        Settings.SampleRate.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)), s);
 
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
         {
@@ -95,7 +95,7 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 300 };
                 comboBox.SetConfig(new(AudioEngine.GetAllDrivers()));
                 comboBox.Bind(Settings.AudioDriver, false, s);
-                comboBox.Display(AudioEngine.CurrentDriver);
+                comboBox.Display(AudioEngine.CurrentDriver.Value);
 
                 panel.AddDock(comboBox, Dock.Right);
             }
@@ -111,8 +111,8 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 300 };
                 comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
                 comboBox.Bind(Settings.AudioDevice, false, s);
-                comboBox.Display(string.IsNullOrEmpty(AudioEngine.CurrentDevice) ? "(Default)".Tr(this) : AudioEngine.CurrentDevice);
-
+                comboBox.Display(AudioEngine.CurrentDevice.Value);
+                
                 panel.AddDock(comboBox, Dock.Right);
             }
             {
@@ -127,7 +127,7 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 180 };
                 comboBox.SetConfig(new(["32000", "44100", "48000", "96000", "192000"]));
                 comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.SampleRate, false, s);
-                comboBox.Display(AudioEngine.SampleRate.ToString());
+                comboBox.Display(AudioEngine.SampleRate.Value.ToString());
 
                 panel.AddDock(comboBox, Dock.Right);
             }
@@ -143,7 +143,7 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 180 };
                 comboBox.SetConfig(new(["64", "128", "256", "512", "1024", "2048", "4096", "8192"]));
                 comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.BufferSize, false, s);
-                comboBox.Display(AudioEngine.BufferSize.ToString());
+                comboBox.Display(AudioEngine.BufferSize.Value.ToString());
 
                 panel.AddDock(comboBox, Dock.Right);
             }

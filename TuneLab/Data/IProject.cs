@@ -81,19 +81,4 @@ internal static class IProjectExtension
             part.EndMergeDirty();
         }
     }
-
-    public static void OnSampleRateChanged(this IProject project)
-    {
-        foreach (var part in project.AllParts())
-        {
-            if (part is IAudioPart audioPart)
-            {
-                audioPart.Reload();
-            } 
-            else if (part is IMidiPart midiPart)
-            {
-                midiPart.SetAllPieceDirty("");
-            }
-        }
-    }
 }

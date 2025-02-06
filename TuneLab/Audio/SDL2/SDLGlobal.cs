@@ -95,8 +95,6 @@ internal static class SDLGlobal
     // 全局配置信息
     public static readonly ushort PLAYBACK_FORMAT = SDL.AUDIO_F32SYS; // 32位浮点
 
-    public static readonly ushort PLAYBACK_BUFFER_SAMPLES = 1024; // 默认缓冲区长度
-
     public static readonly uint PLAYBACK_POLL_INTERVAL = 5; // 轮循时间间隔(ms)
 
     public static readonly string PLAYBACK_EMPTY_DEVICE = "%EMPTY_DEVICE%";
@@ -154,7 +152,7 @@ internal class SDLHost
             SDL.SDL_LogPriority.SDL_LOG_PRIORITY_INFO
         );
 
-        // 初始化
+        // 初始化：默认会调用 SDL_AudioInit，需要更换驱动时再手动调用 SDL_AudioInit
         if (SDL.SDL_Init(SDL.SDL_INIT_AUDIO) < 0)
         {
             throw new Exception($"SDLHost: Failed to initialize SDL: {SDL.SDL_GetError()}.");
