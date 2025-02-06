@@ -86,53 +86,12 @@ internal class AudioPart : Part, IAudioPart
         return mWaveforms[channelIndex];
     }
 
-    public async void Reload()
-    {
-        mAudioData = null;
-        mWaveforms = [];
-        mAudioChanged.Invoke();
-        IAudioData? audioData = null;
-        Waveform[]? waveforms = null;
-        await Task.Run(() =>
-        {
-            try
-            {
-                int sampleRate = AudioEngine.SampleRate.Value;
-                var data = AudioUtils.Decode(Path, ref sampleRate);
-                switch (data.Length)
-                {
-                    case 1:
-                        audioData = new MonoAudioData(data[0]);
-                        waveforms = [new(data[0])];
-                        break;
-                    case 2:
-                        audioData = new StereoAudioData(data[0], data[1]);
-                        waveforms = [new(data[0]), new(data[1])];
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                audioData = null;
-                waveforms = null;
-                Log.Error($"Failed to load audio data from {Path}: {ex.Message}");
-            }
-        });
-
-        if (audioData == null || waveforms == null)
-            return;
-
-        mAudioData = audioData;
-        mWaveforms = waveforms;
-        mAudioChanged.Invoke();
-    }
-
     protected override int SampleCount()
     {
         return mAudioData == null ? 0 : Math.Min(base.SampleCount(), mAudioData.Count);
     }
 
-    async void Reload()
+    public async void Reload()
     {
         if (mLoadCancelTokenSource != null)
         {
@@ -157,7 +116,7 @@ internal class AudioPart : Part, IAudioPart
                 {
                     path = System.IO.Path.Combine(BaseDirectory.Value, path[3..]);
                 }
-                int samplingRate = AudioEngine.SamplingRate;
+                int samplingRate = AudioEngine.SampleRate.Value;
                 var data = AudioUtils.Decode(path, ref samplingRate);
                 switch (data.Length)
                 {
