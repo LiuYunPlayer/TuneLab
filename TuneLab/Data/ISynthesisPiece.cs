@@ -8,7 +8,7 @@ using TuneLab.Extensions.Voices;
 
 namespace TuneLab.Data;
 
-internal interface ISynthesisPiece : ISynthesisData, IAudioSource
+internal interface ISynthesisPiece : ISynthesisData
 {
     event Action? Finished;
     event Action? Progress;
@@ -22,6 +22,9 @@ internal interface ISynthesisPiece : ISynthesisData, IAudioSource
     void StartSynthesis();
     void SetDirty(string dirtyType);
     IEnumerable<ISynthesisNote> ISynthesisData.Notes => Notes;
+    double AudioStartTime { get; }
+    int SampleRate { get; }
+    int SampleCount { get; }
 }
 
 internal static class ISynthesisPieceExtension
@@ -38,11 +41,11 @@ internal static class ISynthesisPieceExtension
 
     public static double AudioStartTime(this ISynthesisPiece piece)
     {
-        return ((IAudioSource)piece).StartTime();
+        return piece.AudioStartTime;
     }
 
     public static double AudioEndTime(this ISynthesisPiece piece)
     {
-        return ((IAudioSource)piece).EndTime();
+        return piece.AudioStartTime + (piece.SampleCount == 0 ? 0 : (double)piece.SampleCount / piece.SampleRate);
     }
 }

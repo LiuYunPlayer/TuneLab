@@ -12,6 +12,7 @@ internal interface IAudioSource
     int SampleRate { get; }
     int SampleCount { get; }
     IAudioData GetAudioData(int offset, int count);
+    void OnSampleRateChanged();
 }
 
 internal static class IAudioSourceExtension

@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using TuneLab.Audio.SDL2;
 using TuneLab.Base.Event;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
@@ -18,21 +19,20 @@ internal static class AudioEngine
 {
     public static event Action? PlayStateChanged;
     public static event Action? ProgressChanged;
-    public static bool IsPlaying => mAudioSampleProvider!.IsPlaying;
-    public static int SampleRate => mAudioSampleProvider!.SampleRate;
-    public static double CurrentTime => mAudioSampleProvider!.CurrentTime;
+    public static bool IsPlaying => mAudioSampleProvider.IsPlaying;
+    public static INotifiableProperty<int> SampleRate { get; } = new NotifiableProperty<int>(44100);
+    public static double CurrentTime => mAudioSampleProvider.CurrentTime;
     public static double MasterGain { get; set; } = 0;
-    public static int BufferSize { get => mAudioPlaybackHandler!.BufferSize; set => mAudioPlaybackHandler!.BufferSize = value; }
+    public static INotifiableProperty<int> BufferSize { get; } = new NotifiableProperty<int>(1024);
     public static INotifiableProperty<string> CurrentDriver { get; } = new NotifiableProperty<string>(string.Empty);
     public static INotifiableProperty<string> CurrentDevice { get; } = new NotifiableProperty<string>(string.Empty);
     public static IReadOnlyList<string> GetAllDrivers() => mAudioPlaybackHandler!.GetAllDrivers();
     public static IReadOnlyList<string> GetAllDevices() => mAudioPlaybackHandler!.GetAllDevices();
 
-    public static void Init(IAudioPlaybackHandler playbackHandler)
+    public static void Init()
     {
-        mAudioSampleProvider = new(playbackHandler.SampleRate);
-
-        mAudioPlaybackHandler = playbackHandler;
+        mAudioSampleProvider.SampleRate = SampleRate.Value;
+        mAudioPlaybackHandler = new SDLPlaybackHandler() { SampleRate = SampleRate.Value, BufferSize = BufferSize.Value, ChannelCount = 2 };
         mAudioPlaybackHandler.Init(mAudioSampleProvider);
         SetDriverToPlaybackHandler();
         SetDeviceToPlaybackHandler();
@@ -40,7 +40,7 @@ internal static class AudioEngine
         mAudioPlaybackHandler.CurrentDeviceChanged += () => 
         {
             CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
-            mAudioPlaybackHandler.Start(); 
+            mAudioPlaybackHandler.Start();
         };
         mAudioPlaybackHandler.DevicesChanged += () =>
         {
@@ -48,6 +48,8 @@ internal static class AudioEngine
         };
 
         ProgressChanged += OnProgressChanged;
+        SampleRate.Modified.Subscribe(OnSampleRateModified);
+        BufferSize.Modified.Subscribe(OnBufferSizeModified);
         CurrentDriver.Modified.Subscribe(OnCurrentDriverModified);
         CurrentDevice.Modified.Subscribe(OnCurrentDeviceModified);
 
@@ -65,6 +67,7 @@ internal static class AudioEngine
         mAudioPlaybackHandler.Stop();
 
         ProgressChanged -= OnProgressChanged;
+        SampleRate.Modified.Unsubscribe(OnSampleRateModified);
         CurrentDriver.Modified.Unsubscribe(OnCurrentDriverModified);
         CurrentDevice.Modified.Unsubscribe(OnCurrentDeviceModified);
 
@@ -74,19 +77,19 @@ internal static class AudioEngine
 
     public static void Play()
     {
-        mAudioSampleProvider!.IsPlaying = true;
+        mAudioSampleProvider.IsPlaying = true;
         PlayStateChanged?.Invoke();
     }
 
     public static void Pause()
     {
-        mAudioSampleProvider!.IsPlaying = false;
+        mAudioSampleProvider.IsPlaying = false;
         PlayStateChanged?.Invoke();
     }
 
     public static void Seek(double time)
     {
-        mAudioSampleProvider?.Seek(time);
+        mAudioSampleProvider.Seek(time);
         ProgressChanged?.Invoke();
     }
 
@@ -105,19 +108,19 @@ internal static class AudioEngine
         double endTime = track.EndTime;
         endTime = Math.Max(endTime, 0);
         endTime += 1;
-        int endPosition = (endTime * SampleRate).Ceil();
+        int endPosition = (endTime * SampleRate.Value).Ceil();
         float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
         AudioGraph.AddData(track, 0, endPosition, isStereo, buffer, 0);
-        AudioUtils.EncodeToWav(filePath, buffer, SampleRate, 16, isStereo ? 2 : 1);
+        AudioUtils.EncodeToWav(filePath, buffer, SampleRate.Value, 16, isStereo ? 2 : 1);
     }
 
     public static void ExportMaster(string filePath, bool isStereo)
     {
         var endTime = AudioGraph.EndTime;
-        int endPosition = (endTime * SampleRate).Ceil();
+        int endPosition = (endTime * SampleRate.Value).Ceil();
         float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
         AudioGraph.MixData(0, endPosition, isStereo, buffer, 0);
-        AudioUtils.EncodeToWav(filePath, buffer, SampleRate, 16, isStereo ? 2 : 1);
+        AudioUtils.EncodeToWav(filePath, buffer, SampleRate.Value, 16, isStereo ? 2 : 1);
     }
 
     public static void InvokeRealtimeAmplitude(IAudioTrack track,out Tuple<double,double>? amplitude)
@@ -144,7 +147,7 @@ internal static class AudioEngine
         {
             int sampleWindow = 64;
             float[] buffer = new float[sampleWindow * 2];
-            int position = (CurrentTime * SampleRate).Ceil();
+            int position = (CurrentTime * SampleRate.Value).Ceil();
             AudioGraph.AddData(track, position, position + sampleWindow, true, buffer, 0);
             for (int i = 0; i < sampleWindow * 2; i += 2) { amp[0] = (float)Math.Max(amp[0], Sample2Amplitude(buffer[i])); amp[1] = (float)Math.Max(amp[1], Sample2Amplitude(buffer[i + 1])); };
         }
@@ -156,6 +159,7 @@ internal static class AudioEngine
 
     public static void LoadKeySamples(string path)
     {
+        mKeySamplesPath = path;
         try
         {
             mKeySamples.Fill(null);
@@ -172,7 +176,7 @@ internal static class AudioEngine
                     {
                         try
                         {
-                            int sampleRate = SampleRate;
+                            int sampleRate = SampleRate.Value;
                             var data = AudioUtils.Decode(file, ref sampleRate);
                             switch (data.Length)
                             {
@@ -217,6 +221,21 @@ internal static class AudioEngine
             Pause();
     }
 
+    static void OnSampleRateModified()
+    {
+        mAudioSampleProvider.SampleRate = SampleRate.Value;
+        if (mAudioPlaybackHandler != null)
+            mAudioPlaybackHandler.SampleRate = SampleRate.Value;
+        if (mKeySamplesPath != null)
+            LoadKeySamples(mKeySamplesPath);
+    }
+
+    static void OnBufferSizeModified()
+    {
+        if (mAudioPlaybackHandler != null)
+            mAudioPlaybackHandler.BufferSize = BufferSize.Value;
+    }
+
     static void OnCurrentDriverModified()
     {
         SetDriverToPlaybackHandler(); 
@@ -256,11 +275,11 @@ internal static class AudioEngine
         CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
     }
 
-    class AudioSampleProvider(int sampleRate) : IAudioSampleProvider
+    class AudioSampleProvider() : IAudioSampleProvider
     {
         public AudioGraph AudioGraph => mAudioGraph;
         public AudioPlayer AudioPlayer => mAudioPlayer;
-        public int SampleRate => mAudioGraph.SampleRate;
+        public int SampleRate { get => mAudioGraph.SampleRate; set => mAudioGraph.SampleRate = value; }
         public bool IsPlaying {  get; set; }
         public double CurrentTime => (double)mGraphPosition / SampleRate;
 
@@ -302,15 +321,16 @@ internal static class AudioEngine
         }
 
         readonly AudioPlayer mAudioPlayer = new();
-        readonly AudioGraph mAudioGraph = new(sampleRate);
+        readonly AudioGraph mAudioGraph = new();
         int mGraphPosition = 0;
         readonly object mSeekLockObject = new();
     }
 
     static IAudioPlaybackHandler? mAudioPlaybackHandler;
-    static AudioSampleProvider? mAudioSampleProvider;
-    static AudioGraph AudioGraph => mAudioSampleProvider!.AudioGraph;
-    static AudioPlayer AudioPlayer => mAudioSampleProvider!.AudioPlayer;
+    static AudioSampleProvider mAudioSampleProvider = new();
+    static AudioGraph AudioGraph => mAudioSampleProvider.AudioGraph;
+    static AudioPlayer AudioPlayer => mAudioSampleProvider.AudioPlayer;
 
     static readonly IAudioData?[] mKeySamples = new IAudioData?[MusicTheory.PITCH_COUNT];
+    static string? mKeySamplesPath = null;
 }
