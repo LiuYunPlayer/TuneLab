@@ -48,8 +48,8 @@ internal static class AudioEngine
         };
 
         ProgressChanged += OnProgressChanged;
-        CurrentDriver.Modified.Subscribe(() => { SetDriverToPlaybackHandler(); SetDeviceToPlaybackHandler(); mAudioPlaybackHandler.Start(); });
-        CurrentDevice.Modified.Subscribe(() => { SetDeviceToPlaybackHandler(); mAudioPlaybackHandler.Start(); });
+        CurrentDriver.Modified.Subscribe(OnCurrentDriverModified);
+        CurrentDevice.Modified.Subscribe(OnCurrentDeviceModified);
 
         mAudioPlaybackHandler.Start();
     }
@@ -65,6 +65,8 @@ internal static class AudioEngine
         mAudioPlaybackHandler.Stop();
 
         ProgressChanged -= OnProgressChanged;
+        CurrentDriver.Modified.Unsubscribe(OnCurrentDriverModified);
+        CurrentDevice.Modified.Unsubscribe(OnCurrentDeviceModified);
 
         mAudioPlaybackHandler.Destroy();
         mAudioPlaybackHandler = null;
@@ -213,6 +215,19 @@ internal static class AudioEngine
     {
         if (CurrentTime > AudioGraph.EndTime)
             Pause();
+    }
+
+    static void OnCurrentDriverModified()
+    {
+        SetDriverToPlaybackHandler(); 
+        SetDeviceToPlaybackHandler();
+        mAudioPlaybackHandler?.Start();
+    }
+
+    static void OnCurrentDeviceModified()
+    {
+        SetDeviceToPlaybackHandler();
+        mAudioPlaybackHandler?.Start();
     }
 
     static void SetDriverToPlaybackHandler()
