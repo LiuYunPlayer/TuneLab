@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Audio;
 
-internal interface IAudioResampler
+internal interface IAudioSampleProvider
 {
-    IAudioStream Resample(IAudioProvider input, int outputSampleRate);
+    void Read(float[] buffer, int offset, int count);
 }

@@ -33,11 +33,12 @@ namespace TuneLab.Data
         }
 
         public abstract PartInfo GetInfo();
-        protected abstract int SamplingRate { get; }
-        protected abstract IAudioData GetAudioData(int offset, int count);
+        protected abstract int SampleRate { get; }
+        public abstract IAudioData GetAudioData(int offset, int count);
+        public abstract void OnSampleRateChanged();
         protected virtual int SampleCount()
         {
-            return (int)(((IAudioSource)this).SamplingRate * (TempoManager.GetTime(EndPos) - TempoManager.GetTime(StartPos)));
+            return (int)(((IAudioSource)this).SampleRate * (TempoManager.GetTime(EndPos) - TempoManager.GetTime(StartPos)));
         }
 
         public virtual void Activate() { }
@@ -47,14 +48,12 @@ namespace TuneLab.Data
         double IDuration.Duration => Dur.Value;
 
         double IAudioSource.StartTime => TempoManager.GetTime(StartPos);
-        int IAudioSource.SamplingRate => SamplingRate;
+        int IAudioSource.SampleRate => SampleRate;
         int IAudioSource.SampleCount => SampleCount();
 
         IPart? ILinkedNode<IPart>.Next { get; set; }
         IPart? ILinkedNode<IPart>.Last { get; set; }
         ILinkedList<IPart>? ILinkedNode<IPart>.LinkedList { get; set; }
-
-        IAudioData IAudioSource.GetAudioData(int offset, int count) => GetAudioData(offset, count);
 
         protected readonly ActionEvent mDurationChanged = new();
         readonly ActionEvent mSelectionChanged = new();

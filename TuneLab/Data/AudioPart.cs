@@ -68,7 +68,7 @@ internal class AudioPart : Part, IAudioPart
         IDataObject<AudioPartInfo>.SetInfo(Path, info.Path);
     }
 
-    protected override IAudioData GetAudioData(int offset, int count)
+    public override IAudioData GetAudioData(int offset, int count)
     {
         if (mAudioData == null)
             return new EmptyAudioData();
@@ -76,9 +76,55 @@ internal class AudioPart : Part, IAudioPart
         return mAudioData.GetAudioData(offset, count);
     }
 
+    public override void OnSampleRateChanged()
+    {
+        Reload();
+    }
+
     public Waveform GetWaveform(int channelIndex)
     {
         return mWaveforms[channelIndex];
+    }
+
+    public async void Reload()
+    {
+        mAudioData = null;
+        mWaveforms = [];
+        mAudioChanged.Invoke();
+        IAudioData? audioData = null;
+        Waveform[]? waveforms = null;
+        await Task.Run(() =>
+        {
+            try
+            {
+                int sampleRate = AudioEngine.SampleRate.Value;
+                var data = AudioUtils.Decode(Path, ref sampleRate);
+                switch (data.Length)
+                {
+                    case 1:
+                        audioData = new MonoAudioData(data[0]);
+                        waveforms = [new(data[0])];
+                        break;
+                    case 2:
+                        audioData = new StereoAudioData(data[0], data[1]);
+                        waveforms = [new(data[0]), new(data[1])];
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                audioData = null;
+                waveforms = null;
+                Log.Error($"Failed to load audio data from {Path}: {ex.Message}");
+            }
+        });
+
+        if (audioData == null || waveforms == null)
+            return;
+
+        mAudioData = audioData;
+        mWaveforms = waveforms;
+        mAudioChanged.Invoke();
     }
 
     protected override int SampleCount()
@@ -156,7 +202,7 @@ internal class AudioPart : Part, IAudioPart
     }
     CancellationTokenSource? mLoadCancelTokenSource = null;
 
-    protected override int SamplingRate => AudioEngine.SamplingRate;
+    protected override int SampleRate => AudioEngine.SampleRate.Value;
     public int ChannelCount => mWaveforms.Length;
 
     Waveform[] mWaveforms = [];
