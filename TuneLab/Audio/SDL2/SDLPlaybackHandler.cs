@@ -20,7 +20,15 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
     // 当前音频驱动
     public string CurrentDriver
     {
-        get => _d.driver;
+        get
+        {
+            if (!_initialized)
+            {
+                return _cachedArguments.CurrentDriver == null ? string.Empty : _cachedArguments.CurrentDriver;
+            }
+
+            return _d.driver;
+        }
         set
         {
             if (!_initialized)
@@ -43,6 +51,11 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
     {
         get
         {
+            if (!_initialized)
+            {
+                return _cachedArguments.CurrentDevice == null ? string.Empty : _cachedArguments.CurrentDevice;
+            }
+
             if (_d.devName == SDLGlobal.PLAYBACK_EMPTY_DEVICE)
             {
                 return string.Empty;
@@ -90,7 +103,8 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         {
             if (!_initialized)
             {
-                _cachedArguments.BufferSize = value;
+                if (value > 0)
+                    _d.spec.samples = (byte)value;
                 return;
             }
 
@@ -105,7 +119,8 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         {
             if (!_initialized)
             {
-                _cachedArguments.SampleRate = value;
+                if (value > 0)
+                    _d.spec.freq = value;
                 return;
             }
 
@@ -120,7 +135,8 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         {
             if (!_initialized)
             {
-                _cachedArguments.ChannelCount = value;
+                if (value > 0)
+                    _d.spec.channels = (byte)value;
                 return;
             }
 
@@ -214,21 +230,6 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
         if (_cachedArguments.CurrentDevice != null)
         {
             CurrentDevice = _cachedArguments.CurrentDevice;
-        }
-
-        if (_cachedArguments.BufferSize.HasValue)
-        {
-            BufferSize = _cachedArguments.BufferSize.Value;
-        }
-
-        if (_cachedArguments.SampleRate.HasValue)
-        {
-            SampleRate = _cachedArguments.SampleRate.Value;
-        }
-
-        if (_cachedArguments.ChannelCount.HasValue)
-        {
-            ChannelCount = _cachedArguments.ChannelCount.Value;
         }
     }
 
@@ -341,17 +342,11 @@ internal class SDLPlaybackHandler : IAudioPlaybackHandler
     {
         public string? CurrentDriver;
         public string? CurrentDevice;
-        public int? BufferSize;
-        public int? SampleRate;
-        public int? ChannelCount;
 
         public CachedArguments()
         {
             CurrentDriver = null;
             CurrentDevice = null;
-            BufferSize = null;
-            SampleRate = null;
-            ChannelCount = null;
         }
     }
 
