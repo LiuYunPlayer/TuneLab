@@ -204,6 +204,24 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             {
                 tlxs.Add(file);
             }
+            else if (extension == ".zip" && Path.GetFileName(file).StartsWith("【vsqx分享平台】"))
+            {
+                using ZipArchive zip = ZipFile.OpenRead(file);
+                foreach (ZipArchiveEntry entry in zip.Entries)
+                {
+                    if (entry.FullName.StartsWith("【调音者："))
+                    {
+                        using Stream stream = entry.Open();
+                        var tempFilePath = Path.Combine(Path.GetTempPath(), entry.FullName);
+                        using (var tempFileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write))
+                        {
+                            stream.CopyTo(tempFileStream);
+                        }
+                        LoadProject(tempFilePath);
+                        break;
+                    }
+                }
+            }
             else if (FormatsManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
             {
                 projectFile = file;
