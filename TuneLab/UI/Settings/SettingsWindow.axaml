@@ -6,7 +6,7 @@
         x:Class="TuneLab.UI.SettingsWindow"
         Title="Settings - TuneLab"
 		Width="600"
-		Height="620"
+		Height="720"
 		ExtendClientAreaChromeHints="NoChrome"
 		ExtendClientAreaTitleBarHeightHint="40"
 		ExtendClientAreaToDecorationsHint="True">
