@@ -134,6 +134,12 @@ internal static class IMidiPartExtension
         part.EndMergeReSegment();
     }
 
+    public static void SetAllPieceDirty(this IMidiPart part, string dirtyType)
+    {
+        foreach (var piece in part.SynthesisPieces)
+            piece.SetDirty(dirtyType);
+    }
+
     public static List<INote> AllNotesInSelection(this IMidiPart part, double start, double end)
     {
         var result = new List<INote>();

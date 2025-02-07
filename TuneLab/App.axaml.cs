@@ -45,11 +45,19 @@ public partial class App : Application
 
                 // init audio engine
                 AudioUtils.Init(new NAudioCodec());
-                AudioEngine.Init(new SDLPlaybackHandler());
+                AudioEngine.SampleRate.Value = Settings.SampleRate;
+                AudioEngine.BufferSize.Value = Settings.BufferSize;
+                if (!string.IsNullOrEmpty(Settings.AudioDriver)) AudioEngine.CurrentDriver.Value = Settings.AudioDriver;
+                if (!string.IsNullOrEmpty(Settings.AudioDevice)) AudioEngine.CurrentDevice.Value = Settings.AudioDevice;
+                AudioEngine.Init();
                 AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath);
                 AudioEngine.MasterGain = Settings.MasterGain;
                 Settings.PianoKeySamplesPath.Modified.Subscribe(() => AudioEngine.LoadKeySamples(Settings.PianoKeySamplesPath));
                 Settings.MasterGain.Modified.Subscribe(() => { AudioEngine.MasterGain = Settings.MasterGain; });
+                Settings.BufferSize.Modified.Subscribe(() => { AudioEngine.BufferSize.Value = Settings.BufferSize; });
+                Settings.SampleRate.Modified.Subscribe(() => { AudioEngine.SampleRate.Value = Settings.SampleRate; });
+                Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
+                Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
                 ExtensionManager.LoadExtensions();
                 var mainWindow = new MainWindow();

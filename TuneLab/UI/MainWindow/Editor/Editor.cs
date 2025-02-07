@@ -892,6 +892,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
+                var menuItem = new MenuItem().SetTrName("Open TuneLab Folder").SetAction(() => ProcessHelper.OpenUrl(PathManager.TuneLabFolder));
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
                 var menuItem = new MenuItem().SetTrName("Check for Updates...").SetAction(() => CheckUpdate(false));
                 menuBarItem.Items.Add(menuItem);
             }
