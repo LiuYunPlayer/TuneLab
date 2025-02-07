@@ -77,12 +77,7 @@ public partial class App : Application
                 }
 
                 // 获取主线程SynchronizationContext
-                var context = SynchronizationContext.Current;
-                if (context == null)
-                {
-                    Log.Error("SynchronizationContext.Current is null");
-                    return;
-                }
+                var context = SynchronizationContext.Current ?? throw new InvalidOperationException("SynchronizationContext.Current is null");
 
                 // 监听其他实例的启动参数
                 Task.Run(() =>
