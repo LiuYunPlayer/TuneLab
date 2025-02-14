@@ -21,6 +21,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using System.Threading;
 using System.IO.Pipes;
+using System.Reflection;
+using TuneLab.Audio.FFmpeg;
 
 namespace TuneLab;
 
@@ -48,7 +50,9 @@ public partial class App : Application
                 };
 
                 // init audio engine
-                AudioUtils.Init(new NAudioCodec());
+                // AudioUtils.Init(new NAudioCodec());
+                AudioUtils.Init(new FFmpegCodec(Path.Combine(
+                    Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "ffmpeg")));
                 AudioEngine.SampleRate.Value = Settings.SampleRate;
                 AudioEngine.BufferSize.Value = Settings.BufferSize;
                 if (!string.IsNullOrEmpty(Settings.AudioDriver)) AudioEngine.CurrentDriver.Value = Settings.AudioDriver;

@@ -188,18 +188,18 @@ internal class FFmpegCodec : IAudioCodec
         return new FileDecoderStream(path);
     }
 
-    public void EncodeToWav(string path, float[] buffer, int samplingRate, int bitPerSample, int channelCount)
+    public void EncodeToWav(string path, float[] buffer, int SampleRate, int bitPerSample, int channelCount)
     {
-        WaveFormat waveFormat = new WaveFormat(samplingRate, 16, channelCount);
+        WaveFormat waveFormat = new WaveFormat(SampleRate, 16, channelCount);
         using WaveFileWriter writer = new WaveFileWriter(path, waveFormat);
         var bytes = NAudioCodec.To16BitsBytes(buffer);
         writer.Write(bytes, 0, bytes.Length);
     }
 
-    public IAudioStream Resample(IAudioProvider input, int outputSamplingRate)
+    public IAudioStream Resample(IAudioProvider input, int outputSampleRate)
     {
-        return new ResampledAudioStream(input, outputSamplingRate);
-        // return new NAudioCodec.NAudioResamplerStream(input, outputSamplingRate);
+        return new ResampledAudioStream(input, outputSampleRate);
+        // return new NAudioCodec.NAudioResamplerStream(input, outputSampleRate);
     }
 
     private abstract class FIFOStream<T>
@@ -282,7 +282,7 @@ internal class FFmpegCodec : IAudioCodec
 
     private unsafe class FileDecoderStream : FIFOStream<byte>, IAudioStream
     {
-        public int SamplingRate => _codecContext != null ? _codecContext->sample_rate : 0;
+        public int SampleRate => _codecContext != null ? _codecContext->sample_rate : 0;
         public int ChannelCount => _codecContext != null ? _codecContext->ch_layout.nb_channels : 0;
         public int SamplesPerChannel => (int)_samples;
 
@@ -612,18 +612,18 @@ internal class FFmpegCodec : IAudioCodec
 
     private unsafe class ResampledAudioStream : FIFOStream<byte>, IAudioStream
     {
-        public int SamplingRate { get; }
+        public int SampleRate { get; }
         public int ChannelCount { get; }
         public int SamplesPerChannel { get; }
 
-        public int InputSamplingRate { get; }
+        public int InputSampleRate { get; }
 
         public ResampledAudioStream(IAudioProvider input, int sampleRate)
         {
-            SamplingRate = sampleRate;
+            SampleRate = sampleRate;
             ChannelCount = input.ChannelCount;
-            SamplesPerChannel = (int)((long)input.SamplesPerChannel * sampleRate / input.SamplingRate);
-            InputSamplingRate = input.SamplingRate;
+            SamplesPerChannel = (int)((long)input.SamplesPerChannel * sampleRate / input.SampleRate);
+            InputSampleRate = input.SampleRate;
 
             _provider = input;
             _cachedBuffer = new List<byte>();
@@ -699,8 +699,8 @@ internal class FFmpegCodec : IAudioCodec
                 ffmpeg.av_channel_layout_default(&chLayout, ChannelCount);
 
                 ret = ffmpeg.swr_alloc_set_opts2(&swr, &chLayout, AVSampleFormat.AV_SAMPLE_FMT_FLT,
-                    SamplingRate, &chLayout,
-                    AVSampleFormat.AV_SAMPLE_FMT_FLT, InputSamplingRate, 0, null);
+                    SampleRate, &chLayout,
+                    AVSampleFormat.AV_SAMPLE_FMT_FLT, InputSampleRate, 0, null);
 
                 ffmpeg.av_channel_layout_uninit(&chLayout);
             }
@@ -734,7 +734,7 @@ internal class FFmpegCodec : IAudioCodec
              * ensuring that the output buffer will contain at least all the
              * converted input samples */
             _max_dst_nb_samples = _dst_nb_samples =
-                ffmpeg.av_rescale_rnd(src_nb_samples, SamplingRate, InputSamplingRate, AVRounding.AV_ROUND_UP);
+                ffmpeg.av_rescale_rnd(src_nb_samples, SampleRate, InputSampleRate, AVRounding.AV_ROUND_UP);
 
             /* buffer is going to be directly written to a rawaudio file, no alignment */
             var dst_data = _dst_data;
@@ -793,8 +793,8 @@ internal class FFmpegCodec : IAudioCodec
             }
 
             /* compute destination number of samples */
-            _dst_nb_samples = ffmpeg.av_rescale_rnd(ffmpeg.swr_get_delay(swr_ctx, InputSamplingRate) +
-                                                    src_nb_samples, SamplingRate, InputSamplingRate,
+            _dst_nb_samples = ffmpeg.av_rescale_rnd(ffmpeg.swr_get_delay(swr_ctx, InputSampleRate) +
+                                                    src_nb_samples, SampleRate, InputSampleRate,
                 AVRounding.AV_ROUND_UP);
             if (_dst_nb_samples > _max_dst_nb_samples)
             {

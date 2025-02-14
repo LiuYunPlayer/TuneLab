@@ -41,6 +41,7 @@
 		<PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
 		<PackageReference Include="Tomlyn" Version="0.17.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.3" />
+		<PackageReference Include="FFmpeg.AutoGen" Version="5.1.1" />
 	</ItemGroup>
 
 	<ItemGroup>
