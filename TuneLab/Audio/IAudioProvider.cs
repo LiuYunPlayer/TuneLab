@@ -8,7 +8,7 @@ namespace TuneLab.Audio;
 
 internal interface IAudioProvider
 {
-    int SamplingRate { get; }
+    int SampleRate { get; }
     int ChannelCount { get; }
     int SamplesPerChannel { get; }
 
@@ -17,7 +17,7 @@ internal interface IAudioProvider
 
 internal static class IAudioProviderExtension
 {
-    public static float[][] ToSamples(this IAudioProvider provider)
+    public static float[][] ToChannelSamples(this IAudioProvider provider)
     {
         int channelCount = provider.ChannelCount;
         int samplesPerChannel = provider.SamplesPerChannel;
@@ -41,6 +41,13 @@ internal static class IAudioProviderExtension
                 }
             }
         }
+        return result;
+    }
+
+    public static float[] ToSamples(this IAudioProvider provider)
+    {
+        float[] result = new float[provider.SamplesPerChannel * provider.ChannelCount];
+        provider.Read(result, 0, result.Length);
         return result;
     }
 }

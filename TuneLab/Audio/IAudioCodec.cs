@@ -15,20 +15,20 @@ internal static class IAudioCodecExtension
 {
     // 传入的采样率若为0，则返回时采样率值为音频本身的采样率；
     // 传入的采样率若为非0值，则返回时采样率为传入的采样率
-    public static float[][] Decode(this IAudioCodec codec, string path, ref int samplingRate)
+    public static float[][] Decode(this IAudioCodec codec, string path, ref int sampleRate)
     {
         using var stream = codec.Decode(path);
-        if (samplingRate == 0)
+        if (sampleRate == 0)
         {
-            samplingRate = stream.SamplingRate;
+            sampleRate = stream.SampleRate;
         }
         IAudioStream resampled = stream;
-        if (stream.SamplingRate != samplingRate)
+        if (stream.SampleRate != sampleRate)
         {
-            resampled = codec.Resample(stream, samplingRate);
+            resampled = codec.Resample(stream, sampleRate);
         }
 
-        var result = resampled.ToSamples();
+        var result = resampled.ToChannelSamples();
 
         if (resampled != stream)
             resampled.Dispose();

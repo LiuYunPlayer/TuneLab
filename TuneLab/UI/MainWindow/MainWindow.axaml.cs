@@ -229,7 +229,7 @@ public partial class MainWindow : Window
         Title = "TuneLab - " + mEditor.Document.Name + (mEditor.Document.IsSaved ? string.Empty : "*");
     }
 
-    void OnKeyDown(object sender, KeyEventArgs args)
+    void OnKeyDown(object? sender, KeyEventArgs args)
     {
         if (args.KeyModifiers == KeyModifiers.None)
         {
