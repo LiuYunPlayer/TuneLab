@@ -45,3 +45,4 @@ You can develop your own project formats and synthesis engine extensions.
 |uk-UA|@Ksauxion|
 |de-DE|@RedBlackAka|
 |sv-SE|@ItzIcoza|
+|tr-TR|@kulisfy|
