@@ -10,9 +10,7 @@
 		<LangVersion>latest</LangVersion>
 		<Version>1.5.10</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<VcpkgRoot Condition="'$(VCPKG_ROOT)' != '' AND Exists('$(VCPKG_ROOT)\vcpkg.exe')">$(VCPKG_ROOT)</VcpkgRoot>
-		<VcpkgRoot Condition="'$(VCPKG_ROOT)' != '' AND Exists('$(VCPKG_ROOT)\vcpkg')">$(VCPKG_ROOT)</VcpkgRoot>
-		<VcpkgRoot Condition="'$(VcpkgRoot)' == ''">$(MSBuildThisFileDirectory)vcpkg</VcpkgRoot>
+		<VcpkgRoot>$(MSBuildThisFileDirectory)vcpkg\</VcpkgRoot>
 		<ScriptsPath>$(MSBuildThisFileDirectory)scripts\</ScriptsPath>
 		<VcpkgOverlayRoot>$(ScriptsPath)vcpkg-overlay\</VcpkgOverlayRoot>
 		<!-- 定义平台相关的路径 -->
