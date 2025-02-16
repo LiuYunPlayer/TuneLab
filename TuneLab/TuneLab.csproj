@@ -10,6 +10,13 @@
 		<LangVersion>latest</LangVersion>
 		<Version>1.5.10</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<VcpkgRoot>$(MSBuildThisFileDirectory)vcpkg\</VcpkgRoot>
+		<ScriptsPath>$(MSBuildThisFileDirectory)scripts\</ScriptsPath>
+		<VcpkgOverlayRoot>$(ScriptsPath)vcpkg-overlay\</VcpkgOverlayRoot>
+		<!-- 定义平台相关的路径 -->
+		<VcpkgTriplet Condition="'$(OS)' == 'Windows_NT'">x64-windows</VcpkgTriplet>
+		<VcpkgTriplet Condition="'$(OS)' == 'Unix' AND $([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))">x64-osx</VcpkgTriplet>
+		<VcpkgTriplet Condition="'$(OS)' == 'Unix' AND $([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))">x64-linux</VcpkgTriplet>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -41,6 +48,7 @@
 		<PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
 		<PackageReference Include="Tomlyn" Version="0.17.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.3" />
+		<PackageReference Include="FFmpeg.AutoGen" Version="5.1.1" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -55,4 +63,28 @@
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </None>
 	</ItemGroup>
+
+	<!-- 自定义目标：检查并安装 vcpkg -->
+	<Target Name="InstallVcpkg" BeforeTargets="Build">
+		<Exec Command="git clone https://github.com/SineStriker/vcpkg-overlay.git $(VcpkgOverlayRoot)" Condition="!Exists('$(VcpkgOverlayRoot)')" />
+		<Exec Command="git clone https://github.com/microsoft/vcpkg.git $(VcpkgRoot)" Condition="!Exists('$(VcpkgRoot)')" />
+		<!-- Windows -->
+		<Exec Command="$(VcpkgRoot)\bootstrap-vcpkg.bat" Condition="'$(OS)' == 'Windows_NT' AND !Exists('$(VcpkgRoot)\vcpkg.exe')" />
+		<!-- macOS/Linux -->
+		<Exec Command="$(VcpkgRoot)\bootstrap-vcpkg.sh" Condition="'$(OS)' == 'Unix' AND !Exists('$(VcpkgRoot)\vcpkg')" />
+		<Exec Command="$(VcpkgRoot)\vcpkg install --x-manifest-root=$(ScriptsPath)vcpkg-manifest --x-install-root=$(VcpkgOverlayRoot)\installed --triplet $(VcpkgTriplet)" />
+	</Target>
+
+	<!-- 将 FFmpeg 的动态库复制到输出目录 -->
+	<Target Name="CopyLibraries" AfterTargets="Build">
+		<ItemGroup>
+			<!-- Windows -->
+			<FFmpegLibraries Include="$(VcpkgOverlayRoot)\installed\$(VcpkgTriplet)\bin\*.dll" Condition="'$(OS)' == 'Windows_NT'" />
+			<!-- macOS -->
+			<FFmpegLibraries Include="$(VcpkgOverlayRoot)\installed\$(VcpkgTriplet)\lib\*.dylib" Condition="'$(OS)' == 'Unix' AND $([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))" />
+			<!-- Linux -->
+			<FFmpegLibraries Include="$(VcpkgOverlayRoot)\installed\$(VcpkgTriplet)\lib\*.so" Condition="'$(OS)' == 'Unix' AND $([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))" />
+		</ItemGroup>
+		<Copy SourceFiles="@(FFmpegLibraries)" DestinationFolder="$(OutputPath)\ffmpeg" />
+	</Target>
 </Project>

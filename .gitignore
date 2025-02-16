@@ -455,3 +455,7 @@ $RECYCLE.BIN/
 
 # Extensions Projects
 /[Ee]xtensions/
+
+# vcpkg
+/TuneLab/vcpkg/
+/TuneLab/scripts/vcpkg-overlay/
