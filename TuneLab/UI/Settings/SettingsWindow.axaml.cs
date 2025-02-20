@@ -17,6 +17,7 @@ using Avalonia.Platform.Storage;
 using TuneLab.Base.Event;
 using TuneLab.Audio;
 using TuneLab.Base.Structures;
+using CheckBox = TuneLab.GUI.Components.CheckBox;
 
 namespace TuneLab.UI;
 
@@ -227,6 +228,19 @@ internal partial class SettingsWindow : Window
             }
             {
                 var name = new TextBlock() { Text = "Track Hue Change Rate (degree/second)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var checkBox = new CheckBox();
+                checkBox.Bind(Settings.IsAutoDownloadUpdate, false, s);
+                panel.AddDock(checkBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Auto Download Update".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);

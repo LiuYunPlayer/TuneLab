@@ -37,6 +37,7 @@ using TuneLab.Configs;
 using Splat;
 using System.Reactive.Joins;
 using System.Runtime.InteropServices;
+using TuneLab.Update;
 
 namespace TuneLab.UI;
 
@@ -700,8 +701,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             List<string> args = ["-restart"];
             args.AddRange(installedExtension);
-            string installer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ExtensionInstaller.exe" : "ExtensionInstaller";
-            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, installer), args);
+            ProcessHelper.CreateProcess(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ExtensionInstaller"), args);
             this.Window().Close();
         };
         dialog.AddButton("No".Tr(TC.Dialog), ButtonType.Primary);
@@ -714,11 +714,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}");
         dialog.SetMDMessage(mUpdateCheck.description ?? "");
         if (IsAutoCheck)
-            dialog.AddButton("Ignore".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
-        dialog.AddButton("Later".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal);
-        dialog.AddButton("Download".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Primary).Clicked += () =>
+            dialog.AddButton("Ignore".Tr(TC.Dialog), UI.UpdateDialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
+        dialog.AddButton("Later".Tr(TC.Dialog), UI.UpdateDialog.ButtonType.Normal);
+        dialog.AddButton("Update Background".Tr(TC.Dialog), UI.UpdateDialog.ButtonType.Primary, 140).Clicked += () =>
         {
-            ProcessHelper.OpenUrl(mUpdateCheck.url);
+            AppUpdateManager.UpdateBackground(mUpdateCheck.url);
         };
         await dialog.ShowDialog(this.Window());
     }

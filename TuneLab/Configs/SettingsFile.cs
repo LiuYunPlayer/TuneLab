@@ -20,4 +20,5 @@ internal class SettingsFile
     public string AudioDriver { get; set; } = string.Empty;
     public string AudioDevice { get; set; } = string.Empty;
     public double TrackHueChangeRate { get; set; } = 0;
+    public bool IsAutoDownloadUpdate { get; set; } = true;
 }

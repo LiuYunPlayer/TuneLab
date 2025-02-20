@@ -8,7 +8,7 @@
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<LangVersion>latest</LangVersion>
-		<Version>1.5.10</Version>
+		<Version>1.5.1</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 
@@ -45,6 +45,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\ExtensionInstaller\ExtensionInstaller.csproj" />
+	  <ProjectReference Include="..\Updater\Updater.csproj" />
 	  <ProjectReference Include="..\TuneLab.Base\TuneLab.Base.csproj" />
 	  <ProjectReference Include="..\TuneLab.Extensions.Formats\TuneLab.Extensions.Formats.csproj" />
 	  <ProjectReference Include="..\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" />

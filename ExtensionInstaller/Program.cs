@@ -67,7 +67,7 @@ internal class Program
                 Console.WriteLine(name + " has been successfully installed!\n");
             }
 
-            if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TuneLab.exe"));
+            if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TuneLab"));
         }
         catch (Exception ex)
         {

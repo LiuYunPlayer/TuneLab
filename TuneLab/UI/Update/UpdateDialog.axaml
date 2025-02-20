@@ -4,7 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 		xmlns:md="https://github.com/whistyun/Markdown.Avalonia"
         mc:Ignorable="d" d:DesignWidth="432" d:DesignHeight="604"
-        x:Class="TuneLab.GUI.UpdateDialog"
+        x:Class="TuneLab.UI.UpdateDialog"
         Title="TuneLab"
 		Width="432"
 		Height="604"
