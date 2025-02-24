@@ -47,6 +47,7 @@ internal static class Settings
         Language.Value = settingsFile.Language;
         MasterGain.Value = settingsFile.MasterGain;
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
+        BackgroundImageOpacity.Value = settingsFile.BackgroundImageOpacity;
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
@@ -66,6 +67,7 @@ internal static class Settings
                 Language = Language,
                 MasterGain = MasterGain,
                 BackgroundImagePath = BackgroundImagePath,
+                BackgroundImageOpacity = BackgroundImageOpacity,
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
                 PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
