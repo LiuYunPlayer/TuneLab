@@ -64,9 +64,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
         mTrackWindow = new(this);
         mRightSideTabBar = new();
-        mRightSideBar = new() { Width = 280 };
+        mRightSideBar = new() { Width = 280, Margin = new(1, 0, 0, 0) };
 
-        this.AddDock(mRightSideBar, Dock.Right);
+        var panel = new DockPanel() { Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0, 0, 0) };
+        {
+            var hoverBack = Colors.White.Opacity(0.05);
+            var settingsButton = new GUI.Components.Button() { Width = 48, Height = 48 }
+            .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 4.0 / 3.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
+            settingsButton.Clicked += () => new SettingsWindow().Show(this.Window());
+            panel.AddDock(settingsButton, Dock.Bottom);
+            panel.AddDock(mRightSideTabBar);
+        }
+        this.AddDock(panel, Dock.Right);
+        this.AddDock(mRightSideBar, Dock.Right); mRightSideBar.IsVisible = false;
         this.AddDock(mTrackWindow, Dock.Top);
         this.AddDock(mFunctionBar, Dock.Top);
         this.AddDock(mPianoWindow);
@@ -105,6 +115,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); });
         mPianoWindow.PartProvider.ObjectChanged.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
+        mRightSideTabBar.SelectedTab.Modified.Subscribe(() => 
+        {
+            mRightSideBar.IsVisible = true;
+            switch (mRightSideTabBar.SelectedTab.Value)
+            {
+                case SideBarTab.Properties:
+                    mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
+                    break;
+                default:
+                    mRightSideBar.IsVisible = false;
+                    break;
+            }
+        });
         mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
 
         AddHandler(DragDrop.DropEvent, OnDrop);

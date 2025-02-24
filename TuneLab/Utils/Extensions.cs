@@ -329,6 +329,15 @@ internal static class Extensions
         return result;
     }
 
+    public static void SetupToolTip(this Control control, string text, PlacementMode placementMode = PlacementMode.Top, double verticalOffset = 0, double horizontalOffset = 0, int showDelay = 0)
+    {
+        ToolTip.SetPlacement(control, placementMode);
+        ToolTip.SetVerticalOffset(control, verticalOffset);
+        ToolTip.SetHorizontalOffset(control, horizontalOffset);
+        ToolTip.SetShowDelay(control, showDelay);
+        ToolTip.SetTip(control, text);
+    }
+
     public static Color Lerp(this Color c1, Color c2, double ratio)
     {
         return new Color(
