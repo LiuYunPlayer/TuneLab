@@ -17,6 +17,10 @@ using TuneLab.UI;
 using TuneLab.Utils;
 using TuneLab.I18N;
 using System.Linq;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
+using System.Threading;
+using System.IO.Pipes;
 
 namespace TuneLab;
 
@@ -60,16 +64,41 @@ public partial class App : Application
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
                 ExtensionManager.LoadExtensions();
-                var mainWindow = new MainWindow();
-                desktop.MainWindow = mainWindow;
+                mMainWindow = new MainWindow();
+                desktop.MainWindow = mMainWindow;
 
                 // 检测启动参数
                 var args = Environment.GetCommandLineArgs();
-                if (args.Length > 1)
+                Log.Info($"Command line args:");
+                for (int i = 1; i < args.Length; i++)
                 {
-                    var filePath = args[1];
-                    mainWindow.Editor.OpenProjectByPath(filePath);
+                    Log.Info(args[i]);
+                    HandleArg(args[i]);
                 }
+
+                // 获取主线程SynchronizationContext
+                var context = SynchronizationContext.Current ?? throw new InvalidOperationException("SynchronizationContext.Current is null");
+
+                // 监听其他实例的启动参数
+                Task.Run(() =>
+                {
+                    while (true)
+                    {
+                        var pipeServer = new NamedPipeServerStream("TuneLab", PipeDirection.In);
+                        pipeServer.WaitForConnection();
+
+                        using var reader = new StreamReader(pipeServer);
+                        while (pipeServer.IsConnected)
+                        {
+                            var arg = reader.ReadLine();
+                            if (arg == null)
+                                continue;
+
+                            Log.Info($"Received from another instance: {arg}");
+                            context.Post(_ => HandleArg(arg), null);
+                        }
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -100,4 +129,11 @@ public partial class App : Application
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    public void HandleArg(string arg)
+    {
+        mMainWindow?.Editor.OpenProjectByPath(arg);
+    }
+
+    MainWindow? mMainWindow = null;
 }

@@ -26,22 +26,16 @@ internal class SideBar : DockPanel
     {
         Focusable = true;
         IsTabStop = false;
-        var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+        var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
         {
-            var border = new Border() { Height = 1, Background = Style.BACK.ToBrush() };
-            title.Children.Add(border);
-            DockPanel.SetDock(border, Dock.Bottom);
-            mIcon = new Image() { Width = 16, Height = 16, Margin = new(24, 16, 16, 16) };
-            title.Children.Add(mIcon);
-            DockPanel.SetDock(mIcon, Dock.Left);
+            mIcon = new Image() { Width = 24, Height = 24, Margin = new(24, 12, 16, 12) };
+            title.AddDock(mIcon, Dock.Left);
             mName = new Label() { FontSize = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush() };
-            title.Children.Add(mName);
+            title.AddDock(mName);
         }
-        Children.Add(title);
-        DockPanel.SetDock(title, Dock.Top);
-
-        mListView.Content.Margin = new Thickness(1, 0);
-        Children.Add(mListView);
+        this.AddDock(title, Dock.Top);
+        this.AddDock(new Border() { Height = 1, Background = Style.BACK.ToBrush() }, Dock.Top);
+        this.AddDock(mListView);
     }
 
     public void SetContent(SideBarContent content)

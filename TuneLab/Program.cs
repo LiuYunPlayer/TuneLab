@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.ReactiveUI;
@@ -28,7 +32,24 @@ class Program
         var lockFile = LockFile.Create(PathManager.LockFilePath);
         if (lockFile == null)
         {
-            // TODO: 传递启动参数给当前运行的app
+            try
+            {
+                using var pipeClient = new NamedPipeClientStream(".", "TuneLab", PipeDirection.Out);
+                pipeClient.Connect(1000);
+
+                using var writer = new StreamWriter(pipeClient);
+                foreach (var arg in args)
+                {
+                    writer.WriteLine(arg);
+                    Log.Info($"Sent arguments to running instance: {arg}");
+                }
+                writer.Flush();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to send arguments to running instance: {ex}");
+            }
+            Log.Info("Another instance is running, exiting.");
             Process.GetCurrentProcess().Kill();
             Process.GetCurrentProcess().WaitForExit();
             return;
