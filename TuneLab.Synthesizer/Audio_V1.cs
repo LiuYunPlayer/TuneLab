@@ -6,15 +6,15 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Synthesizer;
 
-public struct Audio
+public struct Audio_V1
 {
     public double StartTime;
     public int SampleRate;
     public float[] Samples;
 
-    public Audio Clone()
+    public Audio_V1 Clone()
     {
-        Audio clone = this;
+        Audio_V1 clone = this;
         clone.Samples = (float[])Samples.Clone();
         return clone;
     }

@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Synthesizer;
+using TuneLab.SDK.Base;
 
-namespace TuneLab.Extensions.Effect;
+namespace TuneLab.SDK.Effect;
 
-public interface IEffectSynthesisOutput : ISynthesisOutput
+public interface IEffectSynthesisOutput_V1 : ISynthesisOutput_V1
 {
     
 }

@@ -10,7 +10,8 @@ using System.Threading.Tasks;
 using TuneLab.Base.Properties;
 using TuneLab.Base.Structures;
 using TuneLab.Base.Utils;
-using TuneLab.Synthesizer;
+using TuneLab.Extensions.Synthesizer;
+using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 
@@ -51,22 +52,22 @@ internal static class EffectManager
     {
         foreach (Type type in types)
         {
-            var attribute = type.GetCustomAttribute<EffectEngineAttribute>();
+            var attribute = type.GetCustomAttribute<EffectEngineAttribute_V1>();
             if (attribute != null)
             {
-                if (typeof(IEffectEngine).IsAssignableFrom(type))
+                if (typeof(IEffectEngine_V1).IsAssignableFrom(type))
                 {
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
-                        mEffectEngineStates.Add(attribute.Type, new EffectEngineState((IEffectEngine)constructor.Invoke(null)));
+                        mEffectEngineStates.Add(attribute.Type, new EffectEngineState((IEffectEngine_V1)constructor.Invoke(null)));
                 }
             }
         }
     }
 
-    class EffectEngineState(IEffectEngine engine)
+    class EffectEngineState(IEffectEngine_V1 engine)
     {
-        public IEffectEngine Engine { get; private set; } = engine;
+        public IEffectEngine_V1 Engine { get; private set; } = engine;
         public bool IsInited { get; private set; } = false;
         public void Init()
         {
@@ -113,9 +114,9 @@ internal static class EffectManager
             public event Action<double>? Progress;
             public event Action<SynthesisException?>? Finished;
 
-            public void SetDirty(string context, string key)
+            public void OnDirtyEvent(EffectDirtyEvent dirtyEvent)
             {
-                throw new NotImplementedException();
+                
             }
 
             public void Start()

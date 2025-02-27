@@ -7,8 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TuneLab.Base\TuneLab.Base.csproj" />
-    <ProjectReference Include="..\TuneLab.Synthesizer\TuneLab.SDK.Synthesizer.csproj" />
+    <ProjectReference Include="..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" />
   </ItemGroup>
 
 </Project>

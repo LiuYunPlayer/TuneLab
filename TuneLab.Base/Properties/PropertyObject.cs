@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TuneLab.Base.Structures;
 using TuneLab.Base.Science;
 using TuneLab.Base.Utils;
+using TuneLab.SDK.Base;
 
 namespace TuneLab.Base.Properties;
 
@@ -62,5 +63,16 @@ public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map)
     public T GetEnum<T>(string key, T defaultValue = default) where T : struct, Enum
     {
         return GetValue(key, string.Empty).ToEnum(defaultValue);
+    }
+
+    // V1 Adapter
+    public static implicit operator PropertyObject_V1(PropertyObject propertyObject)
+    {
+        PropertyObject_V1 propertyObject_V1 = [];
+        foreach (var property in propertyObject.Map)
+        {
+            propertyObject_V1.Add(property.Key, property.Value);
+        }
+        return propertyObject_V1;
     }
 }

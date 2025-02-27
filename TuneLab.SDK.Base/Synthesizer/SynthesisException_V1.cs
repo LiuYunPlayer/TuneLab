@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.Synthesizer;
+namespace TuneLab.SDK.Base;
 
-public interface IAutomationValueGetter
+public class SynthesisException_V1 : Exception
 {
-    double[] GetValue(IReadOnlyList<double> times);
+
 }

@@ -13,9 +13,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TuneLab.Extensions.Voices",
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExtensionInstaller", "ExtensionInstaller\ExtensionInstaller.csproj", "{DBAA9C1E-C084-4788-9AF7-9E5A349CC412}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TuneLab.SDK.Effect", "TuneLab.Extensions.Effect\TuneLab.SDK.Effect.csproj", "{5D3C9494-544A-411E-BDEC-EC84D0A27F69}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TuneLab.SDK.Synthesizer", "TuneLab.Synthesizer\TuneLab.SDK.Synthesizer.csproj", "{FA881409-C065-4356-88BE-3DA7CBCA576B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TuneLab.SDK.Effect", "TuneLab.SDK.Effect\TuneLab.SDK.Effect.csproj", "{5D3C9494-544A-411E-BDEC-EC84D0A27F69}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TuneLab.SDK.Format", "TuneLab.SDK.Format\TuneLab.SDK.Format.csproj", "{13DC28DF-CF76-471C-8F3A-200C06C7574A}"
 EndProject
@@ -53,10 +51,6 @@ Global
 		{5D3C9494-544A-411E-BDEC-EC84D0A27F69}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5D3C9494-544A-411E-BDEC-EC84D0A27F69}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5D3C9494-544A-411E-BDEC-EC84D0A27F69}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FA881409-C065-4356-88BE-3DA7CBCA576B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FA881409-C065-4356-88BE-3DA7CBCA576B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FA881409-C065-4356-88BE-3DA7CBCA576B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FA881409-C065-4356-88BE-3DA7CBCA576B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{13DC28DF-CF76-471C-8F3A-200C06C7574A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{13DC28DF-CF76-471C-8F3A-200C06C7574A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{13DC28DF-CF76-471C-8F3A-200C06C7574A}.Release|Any CPU.ActiveCfg = Release|Any CPU

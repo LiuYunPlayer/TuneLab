@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" />
+  </ItemGroup>
+
 </Project>

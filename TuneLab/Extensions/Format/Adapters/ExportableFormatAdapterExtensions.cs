@@ -17,40 +17,12 @@ internal static class ExportableFormatAdapterExtensions
 
     public static PropertyObject_V1 ConvertToV1(this PropertyObject propertyObject)
     {
-        PropertyObject_V1 propertyObject_V1 = [];
-        foreach (var property in propertyObject.Map)
-        {
-            propertyObject_V1.Add(property.Key, property.Value.ConvertToV1());
-        }
-        return propertyObject_V1;
+        return propertyObject;
     }
 
     public static PropertyValue_V1 ConvertToV1(this PropertyValue propertyValue)
     {
-        if (propertyValue.IsInvalid())
-        {
-            return default;
-        }
-        else if (propertyValue.ToBool(out var boolValue))
-        {
-            return boolValue;
-        }
-        else if (propertyValue.ToDouble(out var doubleValue))
-        {
-            return doubleValue;
-        }
-        else if (propertyValue.ToString(out var stringValue))
-        {
-            return stringValue;
-        }
-        else if (propertyValue.ToObject(out var objectValue))
-        {
-            return objectValue.ConvertToV1();
-        }
-        else
-        {
-            return default;
-        }
+        return propertyValue;
     }
 
     public static TempoInfo_V1 ConvertToV1(this TempoInfo tempoInfo)

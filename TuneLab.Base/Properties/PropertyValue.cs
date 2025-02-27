@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TuneLab.SDK.Base;
 
 namespace TuneLab.Base.Properties;
 
@@ -149,4 +150,33 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
 
     readonly object mValue;
     readonly Type mType;
+
+    // V1 Adapter
+    public static implicit operator PropertyValue_V1(PropertyValue propertyValue)
+    {
+        if (propertyValue.IsInvalid())
+        {
+            return default;
+        }
+        else if (propertyValue.ToBool(out var boolValue))
+        {
+            return boolValue;
+        }
+        else if (propertyValue.ToDouble(out var doubleValue))
+        {
+            return doubleValue;
+        }
+        else if (propertyValue.ToString(out var stringValue))
+        {
+            return stringValue;
+        }
+        else if (propertyValue.ToObject(out var objectValue))
+        {
+            return (PropertyObject_V1)objectValue;
+        }
+        else
+        {
+            return default;
+        }
+    }
 }
