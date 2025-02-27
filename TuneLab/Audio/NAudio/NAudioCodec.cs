@@ -30,7 +30,7 @@ internal class NAudioCodec : IAudioCodec
         return new AudioInfo() { duration = reader.TotalTime.TotalSeconds };
     }
 
-    static byte[] To16BitsBytes(float[] data)
+    public static byte[] To16BitsBytes(float[] data)
     {
         byte[] results = new byte[data.Length * 2];
         for (int i = 0; i < data.Length; i++)
