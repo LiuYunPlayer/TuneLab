@@ -285,10 +285,7 @@ internal partial class TrackScrollView
                                 }
                             }
 
-                            if (menu.ItemCount != 0)
-                            {
-                                menu.Open(this);
-                            }
+                            this.OpenContextMenu(menu);
                         }
                         break;
                     default:

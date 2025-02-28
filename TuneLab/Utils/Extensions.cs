@@ -338,6 +338,20 @@ internal static class Extensions
         ToolTip.SetTip(control, text);
     }
 
+    static ContextMenu? mCurrentContextMenu = null;
+    public static void OpenContextMenu(this Control control, ContextMenu menu)
+    {
+        if (mCurrentContextMenu != null)
+            mCurrentContextMenu.Close();
+
+        if (menu.ItemCount == 0)
+            return;
+
+        mCurrentContextMenu = menu;
+        menu.Closed += (_, _) => mCurrentContextMenu = null;
+        menu.Open(control);
+    }
+
     public static Color Lerp(this Color c1, Color c2, double ratio)
     {
         return new Color(
