@@ -348,23 +348,30 @@ internal partial class PianoScrollView
                                     if (Part == null)
                                         break;
 
-                                    if (item is AnchorItem anchorItem)
+                                    if (mPreviewPitchItem != null && mPreviewPitchItem.OnDown != null)
                                     {
-                                        mAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.AnchorPoint);
+                                        mPreviewPitchItem.OnDown.Invoke(e, ctrl);
                                     }
                                     else
                                     {
-                                        if (e.IsDoubleClick || mPreviewPitch != null)
+                                        if (item is AnchorItem anchorItem)
                                         {
-                                            var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
-                                            Part.Pitch.InsertPoint(anchor);
-                                            Part.Pitch.DeselectAllAnchors();
-                                            anchor.Select();
-                                            mAnchorMoveOperation.Down(e.Position, ctrl, anchor);
+                                            mAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.AnchorPoint);
                                         }
                                         else
                                         {
-                                            mAnchorSelectOperation.Down(e.Position, ctrl);
+                                            if (e.IsDoubleClick)
+                                            {
+                                                var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
+                                                Part.Pitch.InsertPoint(anchor);
+                                                Part.Pitch.DeselectAllAnchors();
+                                                anchor.Select();
+                                                mAnchorMoveOperation.Down(e.Position, ctrl, anchor);
+                                            }
+                                            else
+                                            {
+                                                mAnchorSelectOperation.Down(e.Position, ctrl);
+                                            }
                                         }
                                     }
                                 }
@@ -893,7 +900,7 @@ internal partial class PianoScrollView
 
     protected override void UpdateItems(IItemCollection items)
     {
-        mPreviewPitch = null;
+        mPreviewPitchItem = null;
         if (Part == null)
             return;
 
@@ -972,29 +979,88 @@ internal partial class PianoScrollView
                 if (!IsHover)
                     break;
 
-                if (HoverItem() != null)
+                var hoverItem = HoverItem();
+                var hoverAnchor = (hoverItem as AnchorItem)?.AnchorPoint;
+
+                IAnchorGroup? hoverAnchorOnFirstGroup = null;
+                IAnchorGroup? hoverAnchorOnLastGroup = null;
+                int hoverAnchorGroupIndex = -1;
+                for (int i = 0; i < Part.Pitch.AnchorGroups.Count; i++)
+                {
+                    var anchorGroup = Part.Pitch.AnchorGroups[i];
+                    if (anchorGroup.IsEmpty())
+                        continue;
+
+                    if (anchorGroup.ConstFirst() == hoverAnchor)
+                    {
+                        hoverAnchorOnFirstGroup = anchorGroup;
+                        hoverAnchorGroupIndex = i;
+                    }
+                    if (anchorGroup.ConstLast() == hoverAnchor)
+                    {
+                        hoverAnchorOnLastGroup = anchorGroup;
+                        hoverAnchorGroupIndex = i;
+                    }
+
+                    if (hoverAnchorGroupIndex != -1)
+                        break;
+                }
+
+                // 悬浮到非首尾锚点上，忽略预览
+                if (hoverAnchor != null && hoverAnchorOnFirstGroup == null && hoverAnchorOnLastGroup == null)
                     break;
 
                 var pos = TickAxis.X2Tick(MousePosition.X) - Part.Pos.Value;
                 var areaID = Part.Pitch.GetAreaID(pos);
-                int[] previewIndex = areaID.IsInGroup ? [areaID.Index] : [areaID.LeftIndex, areaID.RightIndex];
+                int[] previewIndex = hoverAnchor == null ?
+                    areaID.IsInGroup ? [areaID.Index] : [areaID.LeftIndex, areaID.RightIndex] :
+                    [.. (hoverAnchorOnFirstGroup == null ? Array.Empty<int>() : [hoverAnchorGroupIndex - 1]), hoverAnchorGroupIndex, .. (hoverAnchorOnLastGroup == null ? Array.Empty<int>() : [hoverAnchorGroupIndex + 1])];
                 var previewInfo = previewIndex
                     .Where(index => (uint)index < Part.Pitch.AnchorGroups.Count)
                     .Select(index => Part.Pitch.AnchorGroups[index])
-                    .Where(anchorGroup => anchorGroup.HasSelectedItem())
+                    .Where(anchorGroup => anchorGroup.HasSelectedItem() || anchorGroup == hoverAnchorOnFirstGroup || anchorGroup == hoverAnchorOnLastGroup)
                     .Select(anchorGroup => anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList()).ToList();
 
                 if (previewInfo.Count == 0)
                     break;
 
-                mPreviewPitch = new PiecewiseCurve();
-                mPreviewPitch.Set(previewInfo);
-                foreach (var anchorGroup in mPreviewPitch.AnchorGroups)
+                mPreviewPitchItem = new PreviewAnchorGroupItem(this) { PiecewiseCurve = new PiecewiseCurve() };
+                mPreviewPitchItem.PiecewiseCurve.Set(previewInfo);
+                if (hoverAnchor == null)
                 {
-                    anchorGroup[0].Select();
+                    foreach (var anchorGroup in mPreviewPitchItem.PiecewiseCurve.AnchorGroups)
+                    {
+                        anchorGroup[0].Select();
+                    }
+                    mPreviewPitchItem.PiecewiseCurve.InsertPoint(hoverAnchor ?? new AnchorPoint(pos, PitchAxis.Y2Pitch(MousePosition.Y) - 0.5));
+                    mPreviewPitchItem.OnDown += (e, ctrl) =>
+                    {
+                        var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
+                        Part.Pitch.InsertPoint(anchor);
+                        Part.Pitch.DeselectAllAnchors();
+                        anchor.Select();
+                        mAnchorMoveOperation.Down(e.Position, ctrl, anchor);
+                    };
                 }
-                mPreviewPitch.InsertPoint(new AnchorPoint(pos, PitchAxis.Y2Pitch(MousePosition.Y) - 0.5));
-                items.Add(new PreviewAnchorGroupItem(this) { PiecewiseCurve = mPreviewPitch });
+                else
+                {
+                    // 先处理向后连接的，顺序不能乱！
+                    if (hoverAnchorOnLastGroup != null)
+                    {
+                        mPreviewPitchItem.PiecewiseCurve.ConnectAnchorGroup(0);
+                        if (hoverAnchorGroupIndex + 1 < Part.Pitch.AnchorGroups.Count && Part.Pitch.AnchorGroups[hoverAnchorGroupIndex + 1].HasSelectedItem())
+                            mPreviewPitchItem.OnDown += (_, _) => Part.Pitch.ConnectAnchorGroup(hoverAnchorGroupIndex);
+                    }
+                    if (hoverAnchorOnFirstGroup != null)
+                    {
+                        mPreviewPitchItem.PiecewiseCurve.ConnectAnchorGroup(0);
+                        if (hoverAnchorGroupIndex - 1 >= 0 && Part.Pitch.AnchorGroups[hoverAnchorGroupIndex - 1].HasSelectedItem())
+                            mPreviewPitchItem.OnDown += (_, _) => Part.Pitch.ConnectAnchorGroup(hoverAnchorGroupIndex - 1);
+                    }
+                    if (mPreviewPitchItem.OnDown != null)
+                        mPreviewPitchItem.OnDown += (e, ctrl) => mAnchorMoveOperation.Down(e.Position, ctrl, hoverAnchor);
+                }
+                items.Add(mPreviewPitchItem);
 
                 break;
             default:
@@ -2781,7 +2847,7 @@ internal partial class PianoScrollView
 
     readonly SelectionOperation mSelectionOperation;
 
-    IPiecewiseCurve? mPreviewPitch = null;
+    PreviewAnchorGroupItem? mPreviewPitchItem = null;
 
     public enum State
     {
