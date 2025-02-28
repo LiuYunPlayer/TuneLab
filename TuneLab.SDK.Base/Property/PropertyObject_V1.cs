@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-public class PropertyObject_V1 : IContainerValue_V1, IDictionary<string, PropertyValue_V1>
+public class PropertyObject_V1(IDictionary<string, PropertyValue_V1>? properties = null) : IContainerValue_V1, IDictionary<string, PropertyValue_V1>
 {
     public PropertyValue_V1 this[string key] { get => GetValue(key); set => SetValue(key, value); }
     public ICollection<string> Keys => mProperties == null ? [] : ((IDictionary<string, PropertyValue_V1>)mProperties).Keys;
@@ -18,7 +18,7 @@ public class PropertyObject_V1 : IContainerValue_V1, IDictionary<string, Propert
 
     public void Add(string key, PropertyValue_V1 value)
     {
-        mProperties ??= [];
+        mProperties ??= new Dictionary<string, PropertyValue_V1>();
         ((IDictionary<string, PropertyValue_V1>)mProperties).Add(key, value);
     }
 
@@ -45,7 +45,7 @@ public class PropertyObject_V1 : IContainerValue_V1, IDictionary<string, Propert
 
     public void Add(KeyValuePair<string, PropertyValue_V1> item)
     {
-        mProperties ??= [];
+        mProperties ??= new Dictionary<string, PropertyValue_V1>();
         ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).Add(item);
     }
 
@@ -84,7 +84,7 @@ public class PropertyObject_V1 : IContainerValue_V1, IDictionary<string, Propert
 
     public void SetValue(string key, PropertyValue_V1 value)
     {
-        mProperties ??= [];
+        mProperties ??= new Dictionary<string, PropertyValue_V1>();
         if (mProperties.ContainsKey(key))
             mProperties["key"] = value;
         else
@@ -111,5 +111,5 @@ public class PropertyObject_V1 : IContainerValue_V1, IDictionary<string, Propert
         return mProperties.SequenceEqual(property.mProperties);
     }
 
-    Dictionary<string, PropertyValue_V1>? mProperties = null;
+    IDictionary<string, PropertyValue_V1>? mProperties = properties;
 }

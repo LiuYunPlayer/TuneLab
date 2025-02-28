@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 
 namespace TuneLab.SDK.Base;
 
-public class PropertyArray_V1 : IContainerValue_V1, IList<PropertyValue_V1>
+public class PropertyArray_V1(IList<PropertyValue_V1>? list = null) : IContainerValue_V1, IList<PropertyValue_V1>
 {
     public PropertyValue_V1 this[int index] { get => ((IList<PropertyValue_V1>)mList!)[index]; set => ((IList<PropertyValue_V1>)mList!)[index] = value; }
-    public int Count => mList == null ? 0: ((ICollection<PropertyValue_V1>)mList).Count;
-    public bool IsReadOnly => mList == null ? true: ((ICollection<PropertyValue_V1>)mList).IsReadOnly;
+    public int Count => mList == null ? 0 : ((ICollection<PropertyValue_V1>)mList).Count;
+    public bool IsReadOnly => mList == null ? false : ((ICollection<PropertyValue_V1>)mList).IsReadOnly;
 
     public void Add(PropertyValue_V1 item)
     {
@@ -79,5 +79,5 @@ public class PropertyArray_V1 : IContainerValue_V1, IList<PropertyValue_V1>
         return mList.SequenceEqual(property.mList);
     }
 
-    List<PropertyValue_V1>? mList;
+    IList<PropertyValue_V1>? mList = list;
 }
