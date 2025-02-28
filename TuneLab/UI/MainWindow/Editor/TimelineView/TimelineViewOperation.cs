@@ -94,7 +94,7 @@ internal partial class TimelineView
                                     });
                                     menu.Items.Add(menuItem);
                                 }
-                                menu.Open(this);
+                                this.OpenContextMenu(menu);
                             }
                             else if (item is TimeSignatureItem timeSignatureItem)
                             {
@@ -115,7 +115,7 @@ internal partial class TimelineView
                                     });
                                     menu.Items.Add(menuItem);
                                 }
-                                menu.Open(this);
+                                this.OpenContextMenu(menu);
                             }
                             else
                             {
@@ -141,7 +141,7 @@ internal partial class TimelineView
                                     });
                                     menu.Items.Add(menuItem);
                                 }
-                                menu.Open(this);
+                                this.OpenContextMenu(menu);
                             }
                         }
                         break;

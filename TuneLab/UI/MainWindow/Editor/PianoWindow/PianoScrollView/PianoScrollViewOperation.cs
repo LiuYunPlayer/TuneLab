@@ -138,7 +138,7 @@ internal partial class PianoScrollView
                                                 });
                                                 menu.Items.Add(menuItem);
                                             }
-                                            menu.Open(this);
+                                            this.OpenContextMenu(menu);
                                         }
                                     }
                                     else
@@ -315,10 +315,7 @@ internal partial class PianoScrollView
                                         }
                                     }
 
-                                    if (menu.ItemCount != 0)
-                                    {
-                                        menu.Open(this);
-                                    }
+                                    this.OpenContextMenu(menu);
                                 }
                                 break;
                             default:
@@ -503,10 +500,7 @@ internal partial class PianoScrollView
                                         }
                                     }
 
-                                    if (menu.ItemCount != 0)
-                                    {
-                                        menu.Open(this);
-                                    }
+                                    this.OpenContextMenu(menu);
                                 }
                                 break;
                             default:
