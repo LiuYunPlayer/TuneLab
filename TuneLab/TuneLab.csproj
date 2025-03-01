@@ -45,10 +45,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\ExtensionInstaller\ExtensionInstaller.csproj" />
-	  <ProjectReference Include="..\TuneLab.Base\TuneLab.Base.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Effect\TuneLab.SDK.Effect.csproj" />
-	  <ProjectReference Include="..\TuneLab.Extensions.Formats\TuneLab.Extensions.Formats.csproj" />
-	  <ProjectReference Include="..\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" />
 	  <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" />

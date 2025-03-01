@@ -1,22 +1,18 @@
 ﻿using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Audio;
-using TuneLab.Base.Event;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Data;
-using TuneLab.Base.Utils;
 using TuneLab.Utils;
-using TuneLab.Base.Science;
 using TuneLab.Base.Properties;
-using Avalonia.Controls.Primitives;
-using Slider = TuneLab.GUI.Components.Slider;
 using TuneLab.I18N;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.UI;
 

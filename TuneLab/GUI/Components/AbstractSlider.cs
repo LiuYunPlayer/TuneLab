@@ -1,13 +1,12 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
 using System;
-using TuneLab.Base.Event;
 using TuneLab.GUI.Input;
-using TuneLab.Base.Science;
 using TuneLab.Utils;
-using TuneLab.Base.Utils;
 using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.GUI.Components;
 

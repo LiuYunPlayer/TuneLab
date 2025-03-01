@@ -2,13 +2,11 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
 using TuneLab.Extensions.Formats.DataInfo;
-using Point = TuneLab.Base.Structures.Point;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Extensions.Formats.VPR
 {

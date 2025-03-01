@@ -5,20 +5,18 @@ using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using ReactiveUI;
-using TuneLab.Base.Data;
-using TuneLab.Base.Structures;
 using TuneLab.GUI.Input;
 using Rect = Avalonia.Rect;
 using RoundedRect = Avalonia.RoundedRect;
 using TuneLab.GUI;
-using TuneLab.Base.Science;
-using TuneLab.Base.Utils;
 using System.Threading.Tasks;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.I18N;
 using Avalonia.Platform.Storage;
-using System.Linq;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.Utils;
 

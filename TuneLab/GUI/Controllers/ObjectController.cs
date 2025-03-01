@@ -1,17 +1,11 @@
-﻿using Avalonia.Layout;
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Event;
-using TuneLab.Base.Data;
 using TuneLab.Utils;
-using TuneLab.Base.Utils;
 using TuneLab.GUI.Components;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.GUI.Controllers;
 

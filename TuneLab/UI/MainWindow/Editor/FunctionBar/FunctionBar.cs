@@ -1,20 +1,17 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Media;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Base.Event;
 using TuneLab.Base.Properties;
 using TuneLab.Data;
+using TuneLab.Foundation.Event;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.Utils;
-using static TuneLab.Base.Science.MusicTheory;
+using static TuneLab.Foundation.Science.MusicTheory;
 
 namespace TuneLab.UI;
 

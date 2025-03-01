@@ -25,4 +25,12 @@ public static class IReadOnlyMapExtension
         value = map.GetValue(key, out var success);
         return success;
     }
+
+    public static TValue? GetValueOrDefault<TKey, TValue>(this IReadOnlyMap<TKey, TValue> map, TKey key) where TKey : notnull =>
+            map.GetValueOrDefault(key, default);
+
+    public static TValue GetValueOrDefault<TKey, TValue>(this IReadOnlyMap<TKey, TValue> map, TKey key, TValue defaultValue) where TKey : notnull
+    {
+        return map.TryGetValue(key, out TValue? value) ? value : defaultValue;
+    }
 }

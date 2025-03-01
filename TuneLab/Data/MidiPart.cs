@@ -1,22 +1,19 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Base.Data;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Event;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using TuneLab.Base.Properties;
 using System.Reactive.Linq;
-using TuneLab.Base.Utils;
-using TuneLab.Base.Science;
-using TuneLab.Utils;
 using System.Threading;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
+using TuneLab.Base.Properties;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.Data;
 

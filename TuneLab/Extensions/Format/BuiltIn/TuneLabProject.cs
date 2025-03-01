@@ -6,9 +6,9 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Format.BuiltIn;
 

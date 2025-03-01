@@ -1,12 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Animation;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.GUI;
 

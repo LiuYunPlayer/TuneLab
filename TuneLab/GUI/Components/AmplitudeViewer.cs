@@ -1,17 +1,10 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Media;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Science;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
-using TuneLab.GUI.Input;
+using TuneLab.Foundation.Science;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components

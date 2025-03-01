@@ -1,28 +1,20 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.Intrinsics.Arm;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Base.Data;
-using TuneLab.Base.Science;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using Part = TuneLab.Data.Part;
 using Rect = Avalonia.Rect;
 using TuneLab.I18N;
-using Splat;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Document;
 
 namespace TuneLab.UI;
 

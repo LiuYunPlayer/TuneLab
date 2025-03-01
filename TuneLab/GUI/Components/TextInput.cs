@@ -5,7 +5,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using System;
 using System.Linq;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Event;
 using TuneLab.Base.Properties;
 using TuneLab.Utils;
 

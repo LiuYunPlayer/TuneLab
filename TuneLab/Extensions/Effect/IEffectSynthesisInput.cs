@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.CodeAnalysis;
 using TuneLab.Base.Properties;
 using TuneLab.Extensions.Synthesizer;
 using TuneLab.SDK.Base;

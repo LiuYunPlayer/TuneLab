@@ -1,16 +1,11 @@
-﻿using Avalonia.Media.TextFormatting;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
 using TuneLab.Extensions.Synthesizer;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;

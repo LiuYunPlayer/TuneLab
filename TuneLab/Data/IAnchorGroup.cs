@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Data;
-using TuneLab.Base.Structures;
+﻿using System.Collections.Generic;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Data;
 

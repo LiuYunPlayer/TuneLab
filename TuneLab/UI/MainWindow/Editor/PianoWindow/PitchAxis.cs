@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.GUI;
-using TuneLab.Base.Science;
 using TuneLab.Animation;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.UI;
 

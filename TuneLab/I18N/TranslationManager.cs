@@ -2,10 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Event;
 
 namespace TuneLab.I18N;
 

@@ -1,18 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.ReactiveUI;
-using TuneLab.Base.Utils;
 using TuneLab.Configs;
 using TuneLab.I18N;
 using TuneLab.Utils;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab;
 

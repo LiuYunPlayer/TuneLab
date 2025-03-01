@@ -1,12 +1,6 @@
 ﻿using Avalonia.Controls;
-using Avalonia.Layout;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Event;
 using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
 using Slider = TuneLab.GUI.Components.Slider;

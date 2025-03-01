@@ -73,7 +73,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         return mMap.GetInfo();
     }
 
-    IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator()
+    public IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> GetEnumerator()
     {
         return ((IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>)mMap).GetEnumerator();
     }

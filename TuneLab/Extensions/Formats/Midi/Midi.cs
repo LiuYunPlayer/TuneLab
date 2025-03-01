@@ -3,12 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using NAudio.Midi;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.Extensions.Formats.Midi;
 

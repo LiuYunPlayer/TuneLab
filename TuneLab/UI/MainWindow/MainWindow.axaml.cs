@@ -7,8 +7,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
-using TuneLab.Base.Data;
-using TuneLab.Base.Utils;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats;
 using TuneLab.GUI;
@@ -18,6 +16,8 @@ using TuneLab.Utils;
 using static TuneLab.GUI.Dialog;
 using Button = TuneLab.GUI.Components.Button;
 using Style = TuneLab.GUI.Style;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Document;
 
 namespace TuneLab.UI;
 

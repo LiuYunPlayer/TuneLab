@@ -1,16 +1,14 @@
 ﻿using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Media;
 using System;
 using TuneLab.Audio;
-using TuneLab.Base.Event;
-using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Animation;
 using TuneLab.Data;
-using TuneLab.Base.Science;
 using TuneLab.Utils;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.UI;
 

@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Data;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Event;
 using TuneLab.I18N;
 
 namespace TuneLab.Data;

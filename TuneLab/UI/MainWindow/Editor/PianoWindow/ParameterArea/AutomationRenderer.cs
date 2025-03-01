@@ -1,23 +1,15 @@
-﻿using Avalonia.Input;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Animation;
 using TuneLab.Data;
 using TuneLab.GUI;
-using TuneLab.Extensions.Voices;
 using Avalonia.Media;
-using TuneLab.GUI.Input;
 using TuneLab.GUI.Components;
 using Avalonia;
-using TuneLab.Base.Event;
-using TuneLab.Base.Science;
-using TuneLab.Base.Utils;
 using TuneLab.Utils;
-using Avalonia.Controls;
 using TuneLab.I18N;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.UI;
 

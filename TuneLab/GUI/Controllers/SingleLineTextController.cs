@@ -1,20 +1,5 @@
-﻿using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Markup.Xaml.Templates;
-using Avalonia.Media;
-using Avalonia.Styling;
-using DynamicData;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+﻿using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;

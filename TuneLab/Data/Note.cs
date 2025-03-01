@@ -1,13 +1,13 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Data;
-using TuneLab.Base.Event;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
 using TuneLab.Utils;
 
 namespace TuneLab.Data;

@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Base.Data;
-using TuneLab.Base.Science;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.Data;
 

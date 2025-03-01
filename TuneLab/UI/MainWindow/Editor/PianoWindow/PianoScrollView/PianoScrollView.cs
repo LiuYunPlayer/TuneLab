@@ -1,17 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
-using DynamicData;
 using TuneLab.Audio;
-using TuneLab.Base.Event;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
@@ -19,12 +12,13 @@ using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
 using TuneLab.Utils;
-using TuneLab.Base.Science;
-using TuneLab.Base.Utils;
 using TuneLab.I18N;
 using Avalonia.Media.Imaging;
 using TuneLab.Configs;
 using System.IO;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.UI;
 

@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Reflection.PortableExecutable;
 using System.Text;
 using NAudio.Wave;
 using NAudio.Flac;
 using NLayer.NAudioSupport;
-using TuneLab.Base.Science;
 using NAudio.Dsp;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.Audio.NAudio;
 

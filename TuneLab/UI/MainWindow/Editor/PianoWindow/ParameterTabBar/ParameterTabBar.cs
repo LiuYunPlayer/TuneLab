@@ -3,16 +3,12 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Layout;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Structures;
 using TuneLab.GUI;
 using TuneLab.Data;
-using TuneLab.Base.Utils;
-using TuneLab.Base.Event;
 using TuneLab.Utils;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.UI;
 

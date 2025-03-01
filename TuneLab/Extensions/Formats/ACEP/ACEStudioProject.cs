@@ -1,18 +1,15 @@
-﻿using Avalonia.Controls.Shapes;
-using DynamicData;
+﻿using DynamicData;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Foundation.DataStructures;
 using ZstdSharp;
-using ZstdSharp.Unsafe;
-using Point = TuneLab.Base.Structures.Point;
 
 namespace TuneLab.Extensions.Formats.ACEP;
 

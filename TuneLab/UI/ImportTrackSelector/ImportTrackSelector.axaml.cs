@@ -1,10 +1,6 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Data;
 using Avalonia.Layout;
-using Avalonia.Markup.Xaml.Templates;
 using Avalonia.Media;
-using System;
 using TuneLab.GUI;
 using TuneLab.I18N;
 using TuneLab.Utils;

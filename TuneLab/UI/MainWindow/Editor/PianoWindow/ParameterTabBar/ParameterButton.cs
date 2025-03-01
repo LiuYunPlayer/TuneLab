@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Media;
 using Avalonia.Controls;
@@ -10,11 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using TuneLab.GUI.Input;
 using Avalonia;
-using Avalonia.Media.Imaging;
-using SkiaSharp;
 using Avalonia.Svg.Skia;
-using Svg.Skia;
-using System.IO;
 using TuneLab.Utils;
 using TuneLab.Animation;
 

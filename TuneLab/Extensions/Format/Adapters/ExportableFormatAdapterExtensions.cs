@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.SDK.Base;
 using TuneLab.SDK.Format.DataInfo;
 

@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.ObjectiveC;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;
 using Tomlyn;
 using Tomlyn.Model;
-using Tomlyn.Syntax;
 
 namespace TuneLab.I18N;
 

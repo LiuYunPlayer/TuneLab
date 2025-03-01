@@ -1,14 +1,8 @@
-﻿using Avalonia.Media;
-using Avalonia;
+﻿using Avalonia;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Science;
 using TuneLab.GUI.Input;
-using TuneLab.Utils;
 using TuneLab.Audio;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.UI;
 

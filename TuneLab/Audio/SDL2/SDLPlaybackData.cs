@@ -3,7 +3,6 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using SDL2;
-using NAudio.Wave;
 
 namespace TuneLab.Audio.SDL2;
 

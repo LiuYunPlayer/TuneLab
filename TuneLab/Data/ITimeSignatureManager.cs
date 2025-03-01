@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Base.Data;
-using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
 

@@ -3,16 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using Avalonia.Controls.Shapes;
 using DynamicData;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Utils;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Formats.TLP;
 
