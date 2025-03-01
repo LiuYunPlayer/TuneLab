@@ -51,7 +51,7 @@ internal partial class TrackScrollView
         }
     }
 
-    class PartNameItem (TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView), IPartItem
+    class PartNameItem(TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView), IPartItem
     {
         public IPart Part { get; set; }
         public int TrackIndex { get; set; }

@@ -2,18 +2,18 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Text;
+using System.Threading;
 using TuneLab.Audio;
+using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using System.Reactive.Linq;
-using System.Threading;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Document;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Foundation.Utils;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
 
@@ -745,7 +745,7 @@ internal class MidiPart : Part, IMidiPart
                 mNotes[i].LastInSegment = mNotes[i - 1];
             }
             mIsPrepared = part.AutoPrepare;
-            
+
             part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
             foreach (var note in Notes)
             {

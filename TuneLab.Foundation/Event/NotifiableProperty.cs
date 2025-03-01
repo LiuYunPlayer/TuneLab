@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.Foundation.Event;
+﻿namespace TuneLab.Foundation.Event;
 
 public class NotifiableProperty<T>(T defaultValue) : INotifiableProperty<T> where T : notnull
 {

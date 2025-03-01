@@ -21,7 +21,7 @@ internal static class Settings
     public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
     public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
     public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
-    
+
     public static void Init(string path)
     {
         SettingsFile? settingsFile = null;

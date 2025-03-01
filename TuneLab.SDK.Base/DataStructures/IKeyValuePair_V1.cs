@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base;
 
 public interface IKeyValuePair_V1<TKey, TValue> : IReadOnlyKeyValuePair_V1<TKey, TValue>
 {

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.SDK.Effect;
+﻿namespace TuneLab.SDK.Effect;
 
 public interface IEffectDirtyEvent_V1
 {

@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections;
 
 namespace TuneLab.Foundation.DataStructures;
 
@@ -74,7 +67,7 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
     readonly Map<TKey, TValue> mMap = [];
     readonly List<TKey> mKeys = [];
 
-    public struct Enumerator(OrderedMap<TKey , TValue> map) : IEnumerator<KeyWithValue<TKey, TValue>>, IEnumerator<TValue>
+    public struct Enumerator(OrderedMap<TKey, TValue> map) : IEnumerator<KeyWithValue<TKey, TValue>>, IEnumerator<TValue>
     {
         public readonly KeyWithValue<TKey, TValue> Current => map.At(mCurrentIndex);
 

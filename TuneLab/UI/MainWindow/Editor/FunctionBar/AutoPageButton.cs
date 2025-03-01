@@ -23,8 +23,8 @@ internal class AutoPageButton : Toggle
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
-        switch (e.MouseButtonType) 
-        { 
+        switch (e.MouseButtonType)
+        {
             case MouseButtonType.PrimaryButton:
                 PlayScrollTarget.Value = PlayScrollTarget.Value == UI.PlayScrollTarget.View ? UI.PlayScrollTarget.None : UI.PlayScrollTarget.View;
                 mIconItem.Icon = Assets.AutoPage;

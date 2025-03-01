@@ -1,7 +1,7 @@
 ﻿using TuneLab.Audio;
+using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
-using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;
 

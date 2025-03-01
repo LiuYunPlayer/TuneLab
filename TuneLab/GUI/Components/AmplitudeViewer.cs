@@ -21,7 +21,8 @@ namespace TuneLab.GUI.Components
 
         double mAmpValue;
         double mDelayAmpValue;
-        public AmplitudeViewer() {
+        public AmplitudeViewer()
+        {
             Width = 4;
             Reset();
         }
@@ -83,7 +84,7 @@ namespace TuneLab.GUI.Components
         }
     }
 
-    internal class StereoAmplitudeViewer:DockPanel
+    internal class StereoAmplitudeViewer : DockPanel
     {
         AmplitudeViewer leftViewer = new AmplitudeViewer();
         AmplitudeViewer rightViewer = new AmplitudeViewer();
@@ -95,7 +96,7 @@ namespace TuneLab.GUI.Components
             this.AddDock(leftViewer, Dock.Left);
             this.AddDock(rightViewer, Dock.Left);
         }
-        public void SetRange(double min,double max)
+        public void SetRange(double min, double max)
         {
             leftViewer.SetRange(min, max);
             rightViewer.SetRange(min, max);
@@ -106,7 +107,7 @@ namespace TuneLab.GUI.Components
             rightViewer.Reset();
         }
 
-        public void SetValue(Tuple<double,double> Amplitude)
+        public void SetValue(Tuple<double, double> Amplitude)
         {
             leftViewer.SetAmplitude(Amplitude.Item1);
             rightViewer.SetAmplitude(Amplitude.Item2);

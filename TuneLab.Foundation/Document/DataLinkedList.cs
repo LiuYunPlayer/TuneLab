@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using TuneLab.Foundation.Event;
+﻿using System.Collections;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Event;
 
 namespace TuneLab.Foundation.Document;
 

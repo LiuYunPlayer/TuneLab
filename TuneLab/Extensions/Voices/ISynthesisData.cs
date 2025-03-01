@@ -9,7 +9,7 @@ public interface ISynthesisData
 {
     IEnumerable<ISynthesisNote> Notes { get; }
     PropertyObject PartProperties { get; }
-    bool GetAutomation(string automationID, [MaybeNullWhen(false)] [NotNullWhen(true)] out IAutomationValueGetter? automation);
+    bool GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation);
     IAutomationValueGetter Pitch { get; }
 }
 

@@ -252,7 +252,7 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
 
     public void DeletePoints(IReadOnlyList<AnchorPoint> points)
     {
-        if (points.IsEmpty()) 
+        if (points.IsEmpty())
             return;
 
         int flag = points.Count - 1;

@@ -14,7 +14,7 @@ internal class Phoneme : DataObject, IPhoneme
     IDataProperty<string> IPhoneme.Symbol => Symbol;
 
     public Phoneme()
-    { 
+    {
         StartTime.Attach(this);
         EndTime.Attach(this);
         Symbol.Attach(this);

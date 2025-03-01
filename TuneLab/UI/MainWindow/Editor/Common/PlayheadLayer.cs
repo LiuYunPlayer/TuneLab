@@ -1,7 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Media;
-using TuneLab.GUI.Components;
 using TuneLab.Data;
+using TuneLab.GUI.Components;
 
 namespace TuneLab.UI;
 

@@ -6,15 +6,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using TuneLab.Audio;
-using TuneLab.GUI.Input;
 using TuneLab.Data;
-using TuneLab.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using Rect = Avalonia.Rect;
-using TuneLab.I18N;
-using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Utils;
+using TuneLab.GUI.Input;
+using TuneLab.I18N;
+using TuneLab.Utils;
+using Rect = Avalonia.Rect;
 
 namespace TuneLab.UI;
 
@@ -56,7 +56,7 @@ internal partial class TrackScrollView
                             if (item is PartItem partItem)
                             {
                                 var part = partItem.Part;
-                                
+
                                 if (e.IsDoubleClick)
                                 {
                                     if (part is IAudioPart audioPart && audioPart.Status.Value == AudioPartStatus.Unlinked)
@@ -150,7 +150,7 @@ internal partial class TrackScrollView
                                         var menuItem = new MenuItem().SetName("Rename".Tr(TC.Menu)).SetAction(() => { EnterInputPartName(partItem.Part, partItem.TrackIndex); });
                                         menu.Items.Add(menuItem);
                                     }
-                                    
+
                                     if (part is IMidiPart midiPart)
                                     {
                                         {
@@ -177,21 +177,21 @@ internal partial class TrackScrollView
                                             var trackIndex = TrackVerticalAxis.GetPosition(e.Position.Y).TrackIndex;
                                             var track = Project.Tracks[trackIndex];
                                             if (part.IsSelected && track.Parts.Count(p => p.IsSelected) > 1)
-                                            {   
+                                            {
                                                 var partArray = track.Parts.OrderBy(p => p.StartTime).ToArray();
                                                 int partIndex = Array.FindIndex(partArray, p => p == part);
                                                 int prevIndex = partIndex;
                                                 int nextIndex = partIndex;
-                                                while (prevIndex > 0) { if (!partArray[prevIndex - 1].IsSelected || partArray[prevIndex - 1] is not MidiPart) break;prevIndex--; }
-                                                while (nextIndex < partArray.Length-1) { if (!partArray[nextIndex + 1].IsSelected || partArray[nextIndex+1] is not MidiPart) break; nextIndex++; }
+                                                while (prevIndex > 0) { if (!partArray[prevIndex - 1].IsSelected || partArray[prevIndex - 1] is not MidiPart) break; prevIndex--; }
+                                                while (nextIndex < partArray.Length - 1) { if (!partArray[nextIndex + 1].IsSelected || partArray[nextIndex + 1] is not MidiPart) break; nextIndex++; }
                                                 if (nextIndex > prevIndex)
                                                 {
                                                     var menuItem = new MenuItem().SetName("Merge".Tr(TC.Menu)).SetAction(() =>
                                                     {
                                                         var oldParts = partArray.Skip(prevIndex).Take(nextIndex - prevIndex + 1);
-                                                        var oldPartInfos = oldParts.Select(p=>(MidiPartInfo)p.GetInfo()).ToArray();
+                                                        var oldPartInfos = oldParts.Select(p => (MidiPartInfo)p.GetInfo()).ToArray();
                                                         var newPartInfo = IMidiPartExtension.MergePartInfos(oldPartInfos);
-                                                        foreach(var oldPart in oldParts) track.RemovePart(oldPart);
+                                                        foreach (var oldPart in oldParts) track.RemovePart(oldPart);
                                                         track.InsertPart(track.CreatePart(newPartInfo));
                                                         track.Commit();
                                                     });

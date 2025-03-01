@@ -1,13 +1,13 @@
 ﻿using Avalonia.Controls;
 using System.Linq;
-using TuneLab.Data;
-using TuneLab.GUI;
-using TuneLab.GUI.Controllers;
-using TuneLab.Utils;
 using TuneLab.Base.Properties;
-using TuneLab.I18N;
+using TuneLab.Data;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Controllers;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

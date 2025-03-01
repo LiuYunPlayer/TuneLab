@@ -35,7 +35,7 @@ internal static class ExtensionManager
         {
             try
             {
-                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath)); 
+                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath));
             }
             catch (Exception ex)
             {
@@ -77,6 +77,6 @@ internal static class ExtensionManager
                 VoicesManager.Load(path, extensionInfo);
                 EffectManager.Load(path, extensionInfo);
             }
-        }       
+        }
     }
 }

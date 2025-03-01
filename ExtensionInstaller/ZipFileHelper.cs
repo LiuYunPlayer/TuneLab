@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO.Compression;
 
 namespace ExtensionInstaller
 {
@@ -15,13 +9,14 @@ namespace ExtensionInstaller
             bool overflow = true;
             using (var zip = ZipFile.Open(sourceArchiveFileName, ZipArchiveMode.Read))
             {
-                foreach(var entry in zip.Entries) {
-                    string fullName=entry.FullName;
+                foreach (var entry in zip.Entries)
+                {
+                    string fullName = entry.FullName;
                     string name = entry.Name;
                     if (fullName.EndsWith("/") || fullName.EndsWith("\\"))
                     {
-                        string splitChar = fullName.Last() + ""; 
-                        string[] splitNames = fullName.Split(splitChar).Where(d=>d.Length>0).ToArray(); 
+                        string splitChar = fullName.Last() + "";
+                        string[] splitNames = fullName.Split(splitChar).Where(d => d.Length > 0).ToArray();
                         string targetDir = Path.Combine(destinationDirectoryName, Path.Combine(splitNames));
                         if (!Directory.Exists(targetDir)) { Directory.CreateDirectory(targetDir); }
                     }
@@ -30,7 +25,7 @@ namespace ExtensionInstaller
                         string targetFile = Path.Combine(destinationDirectoryName, fullName);
                         string targetDir = Path.GetDirectoryName(targetFile);
                         if (!Directory.Exists(targetDir)) { Directory.CreateDirectory(targetDir); }
-                        entry.ExtractToFile(targetFile,overflow);
+                        entry.ExtractToFile(targetFile, overflow);
                     }
                     else if (fullName.Length > name.Length)
                     {
@@ -38,7 +33,7 @@ namespace ExtensionInstaller
                         string[] splitNames = fullName.Split(splitChar).Where(d => d.Length > 0).ToArray();
                         string targetFile = Path.Combine(destinationDirectoryName, Path.Combine(splitNames));
                         string targetDir = Path.GetDirectoryName(targetFile);
-                        if(!Directory.Exists(targetDir)) { Directory.CreateDirectory(targetDir); }
+                        if (!Directory.Exists(targetDir)) { Directory.CreateDirectory(targetDir); }
                         entry.ExtractToFile(targetFile, overflow);
                     }
                 };

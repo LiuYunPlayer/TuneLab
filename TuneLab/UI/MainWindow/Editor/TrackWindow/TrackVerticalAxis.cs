@@ -1,8 +1,8 @@
 ﻿using System;
-using TuneLab.GUI;
 using TuneLab.Data;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
 
 namespace TuneLab.UI;
 

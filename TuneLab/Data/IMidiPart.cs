@@ -374,9 +374,9 @@ internal static class IMidiPartExtension
             var curPart = SortedPartInfos[i];
             var curPartPos = PosAxisTrans(curPart, 0);
             var nextPartPos = i + 1 < SortedPartInfos.Length ? PosAxisTrans(SortedPartInfos[i + 1], 0) : double.MaxValue;
-            foreach(var item in curPart.Notes)
+            foreach (var item in curPart.Notes)
             {
-                item.Pos=PosAxisTrans(curPart,item.Pos);
+                item.Pos = PosAxisTrans(curPart, item.Pos);
                 if (item.Pos < curPartPos) continue;
                 if (item.Pos >= nextPartPos) break;
                 ret.Notes.Add(item);
@@ -390,7 +390,7 @@ internal static class IMidiPartExtension
             }
             foreach (var item in curPart.Pitch)
             {
-                List<Point> line= new List<Point>();
+                List<Point> line = new List<Point>();
                 foreach (var point in item)
                 {
                     var X = PosAxisTrans(curPart, point.X);

@@ -1,24 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using TuneLab.Audio;
-using TuneLab.GUI;
-using TuneLab.GUI.Components;
-using TuneLab.GUI.Input;
+using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using TuneLab.Utils;
-using TuneLab.I18N;
-using Avalonia.Media.Imaging;
-using TuneLab.Configs;
-using System.IO;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.GUI.Input;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -37,11 +37,11 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IActionEvent WaveformBottomChanged { get; }
     }
 
-    public bool CanPaste => mDependency.PianoTool.Value switch 
-    { 
-        PianoTool.Note => !mNoteClipboard.IsEmpty(), 
+    public bool CanPaste => mDependency.PianoTool.Value switch
+    {
+        PianoTool.Note => !mNoteClipboard.IsEmpty(),
         PianoTool.Vibrato => !mVibratoClipboard.IsEmpty(),
-        _ => false 
+        _ => false
     };
     public State OperationState => mState;
 
@@ -54,7 +54,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mPitchDrawOperation = new(this);
         mPitchClearOperation = new(this);
         mPitchLockOperation = new(this);
-        mNoteMoveOperation = new(this); 
+        mNoteMoveOperation = new(this);
         mNoteStartResizeOperation = new(this);
         mNoteEndResizeOperation = new(this);
         mVibratoSelectOperation = new(this);
@@ -78,7 +78,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartProvider.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
         mDependency.PartProvider.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Vibratos.Any(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
+        mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.TempoManager.Modified).Subscribe(InvalidateVisual, s);
@@ -248,7 +248,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 }
             }
         }
-        
+
         // draw background
         if (mBackgroundImage != null)
         {
@@ -271,7 +271,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                     if (part.EndPos() < minVisibleTick) continue;
                     if (part.StartPos() > maxVisibleTick) continue;
                     if (!(part is MidiPart midiPart)) continue;
-                    foreach(var note in midiPart.Notes)
+                    foreach (var note in midiPart.Notes)
                     {
                         if (note.GlobalEndPos() < minVisibleTick)
                             continue;
@@ -284,7 +284,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                     }
                 }
             }
-        
+
         // draw note
         double round = 4;
         IBrush noteBrush = Style.ITEM.ToBrush();
@@ -578,10 +578,10 @@ internal partial class PianoScrollView : View, IPianoScrollView
             var attackPosition = hoverVibratoItem.AttackPosition();
             if (!double.IsNaN(attackPosition.Y))
             {
-                context.DrawGeometry(arBrush, null, new PolylineGeometry([ 
-                    attackPosition + new Point(-4, 0), 
-                    attackPosition + new Point(0, -12), 
-                    attackPosition + new Point(0, 12), 
+                context.DrawGeometry(arBrush, null, new PolylineGeometry([
+                    attackPosition + new Point(-4, 0),
+                    attackPosition + new Point(0, -12),
+                    attackPosition + new Point(0, 12),
                 ], true));
             }
 

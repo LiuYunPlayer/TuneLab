@@ -1,14 +1,14 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
 using Avalonia.Layout;
+using Avalonia.Media;
 using System;
-using TuneLab.GUI;
 using TuneLab.Data;
-using TuneLab.Utils;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;
-using TuneLab.Foundation.DataStructures;
+using TuneLab.GUI;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -36,7 +36,7 @@ internal class ParameterTabBar : Panel
         mPitchButton.State = ParameterButton.ButtonState.Visible;
         mPitchButton.StateChangeAsked += (state) => { mPitchButton.State = state; };
 
-        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(0, 9) };;
+        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(0, 9) }; ;
         Children.Add(mAutomationLayout);
 
         mDependency.PartProvider.ObjectChanged.Subscribe(OnPartChanged, s);

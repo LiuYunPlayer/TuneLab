@@ -1,35 +1,35 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using TuneLab.GUI;
-using TuneLab.Data;
-using TuneLab.Audio;
-using TuneLab.Extensions.Voices;
-using Timer = System.Timers.Timer;
-using Avalonia.Controls;
-using System.Threading;
-using Avalonia.Media;
-using Avalonia.Threading;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
-using System.Diagnostics.CodeAnalysis;
-using TuneLab.Extensions.Formats.DataInfo;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using TuneLab.Extensions.Formats;
-using TuneLab.GUI.Input;
-using static TuneLab.GUI.Dialog;
-using TuneLab.Utils;
-using TuneLab.Extensions;
 using System.IO.Compression;
-using System.Text.Json;
-using TuneLab.I18N;
-using TuneLab.Configs;
+using System.Linq;
 using System.Runtime.InteropServices;
-using TuneLab.Foundation.Utils;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using TuneLab.Audio;
+using TuneLab.Configs;
+using TuneLab.Data;
+using TuneLab.Extensions;
+using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Input;
+using TuneLab.I18N;
+using TuneLab.Utils;
+using static TuneLab.GUI.Dialog;
+using Timer = System.Timers.Timer;
 
 namespace TuneLab.UI;
 
@@ -82,7 +82,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var startTime = 0;
             AudioEngine.Seek(startTime);
-            if (Project == null) 
+            if (Project == null)
                 return;
 
             var startTick = Project.TempoManager.GetTick(startTime);
@@ -93,7 +93,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var endTime = AudioEngine.EndTime;
             AudioEngine.Seek(endTime);
-            if (Project == null) 
+            if (Project == null)
                 return;
 
             var endTick = Project.TempoManager.GetTick(endTime);
@@ -108,7 +108,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); });
         mPianoWindow.PartProvider.ObjectChanged.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
-        mRightSideTabBar.SelectedTab.Modified.Subscribe(() => 
+        mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
         {
             mRightSideBar.IsVisible = true;
             switch (mRightSideTabBar.SelectedTab.Value)

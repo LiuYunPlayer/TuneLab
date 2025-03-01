@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.Base.Utils;
+﻿namespace TuneLab.Base.Utils;
 
 public class MergeHandler(Action action)
 {
@@ -20,7 +14,7 @@ public class MergeHandler(Action action)
         mMergingFlag++;
     }
 
-    public void End() 
+    public void End()
     {
         if (!IsMerging)
             throw new Exception("End Merge without Begin!");

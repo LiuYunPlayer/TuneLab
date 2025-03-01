@@ -1,12 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Utils;
-
-namespace TuneLab.Base.Event;
+﻿namespace TuneLab.Base.Event;
 
 public class ActionEvent : IActionEvent
 {

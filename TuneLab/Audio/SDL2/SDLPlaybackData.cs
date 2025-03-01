@@ -1,8 +1,8 @@
-﻿using System;
+﻿using SDL2;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
-using SDL2;
 
 namespace TuneLab.Audio.SDL2;
 
@@ -293,57 +293,57 @@ internal class SDLPlaybackData
                 {
                     // 缓存用完
                     case (int)SDLGlobal.UserEvent.SDL_EVENT_BUFFER_END:
-                    {
-                        // 上锁
-                        mutex.WaitOne();
-
-                        // 从文件中读取数据，剩下的就交给音频设备去完成了
-                        // 它播放完一段数据后会执行回调函数，获取等多的数据
-                        int samples = onBufferEnd(pcm_buffer, 0, spec.samples * spec.channels);
-                        if (samples <= 0)
                         {
-                            // 播放完毕
-                            over = true;
-                        }
-                        else
-                        {
-                            // 重置缓冲区
-                            scb.audio_chunk = Marshal.UnsafeAddrOfPinnedArrayElement(pcm_buffer, 0);
-                            scb.audio_len = samples * sizeof(float); // 长度为读出数据长度，在read_audio_data中做减法
-                            scb.audio_pos = 0; // 设置当前位置为缓冲区头部
-                        }
+                            // 上锁
+                            mutex.WaitOne();
 
-                        // 放锁
-                        mutex.ReleaseMutex();
-                        break;
-                    }
+                            // 从文件中读取数据，剩下的就交给音频设备去完成了
+                            // 它播放完一段数据后会执行回调函数，获取等多的数据
+                            int samples = onBufferEnd(pcm_buffer, 0, spec.samples * spec.channels);
+                            if (samples <= 0)
+                            {
+                                // 播放完毕
+                                over = true;
+                            }
+                            else
+                            {
+                                // 重置缓冲区
+                                scb.audio_chunk = Marshal.UnsafeAddrOfPinnedArrayElement(pcm_buffer, 0);
+                                scb.audio_len = samples * sizeof(float); // 长度为读出数据长度，在read_audio_data中做减法
+                                scb.audio_pos = 0; // 设置当前位置为缓冲区头部
+                            }
+
+                            // 放锁
+                            mutex.ReleaseMutex();
+                            break;
+                        }
 
                     // 停止命令
                     case (int)SDLGlobal.UserEvent.SDL_EVENT_MANUAL_STOP:
-                    {
-                        over = true;
-                        break;
-                    }
+                        {
+                            over = true;
+                            break;
+                        }
 
                     // 音频设备插入
                     case (int)SDL.SDL_EventType.SDL_AUDIODEVICEADDED:
-                    {
-                        devicesChanged = true;
-                        break;
-                    }
+                        {
+                            devicesChanged = true;
+                            break;
+                        }
 
                     // 音频设备移除
                     case (int)SDL.SDL_EventType.SDL_AUDIODEVICEREMOVED:
-                    {
-                        var dev = e.adevice.which;
-                        if (dev == devId)
                         {
-                            SetDevice(SDLGlobal.PLAYBACK_EMPTY_DEVICE);
-                            over = true;
+                            var dev = e.adevice.which;
+                            if (dev == devId)
+                            {
+                                SetDevice(SDLGlobal.PLAYBACK_EMPTY_DEVICE);
+                                over = true;
+                            }
+                            devicesChanged = true;
+                            break;
                         }
-                        devicesChanged = true;
-                        break;
-                    }
                 }
             }
 

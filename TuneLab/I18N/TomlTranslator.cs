@@ -9,31 +9,32 @@ namespace TuneLab.I18N;
 internal class TomlTranslator : ITranslator
 {
     public TomlTranslator(string dictPath, Dictionary<string, string>? subDict = null) => LoadDict(dictPath, subDict);
-    public void LoadDict(string dictPath,Dictionary<string,string>? subDict=null)
+    public void LoadDict(string dictPath, Dictionary<string, string>? subDict = null)
     {
         if (!File.Exists(dictPath))
             return;
 
         string dictData = File.ReadAllText(dictPath);
-        if (!Toml.TryToModel(dictData, out model, out var message)) 
+        if (!Toml.TryToModel(dictData, out model, out var message))
             return;
         if (subDict != null) foreach (var item in subDict) AppendDict(item.Key, item.Value);
     }
 
-    public void AppendDict(string context,string dictPath)
+    public void AppendDict(string context, string dictPath)
     {
-        object CombineTable(object model,object subModel)
+        object CombineTable(object model, object subModel)
         {
             if (!(model is TomlTable srcModel)) return subModel;
-            foreach(var item in (TomlTable)subModel)
+            foreach (var item in (TomlTable)subModel)
             {
                 if (!srcModel.ContainsKey(item.Key)) srcModel.Add(item.Key, item.Value);
                 else
                 {
-                    if(srcModel[item.Key] is TomlTable)
+                    if (srcModel[item.Key] is TomlTable)
                     {
                         srcModel[item.Key] = CombineTable(srcModel[item.Key], ((TomlTable)subModel)[item.Key]);
-                    }else
+                    }
+                    else
                     {
                         srcModel[item.Key] = ((TomlTable)subModel)[item.Key];
                     }
@@ -42,7 +43,7 @@ internal class TomlTranslator : ITranslator
             return srcModel;
         }
 
-        if(!File.Exists(dictPath))
+        if (!File.Exists(dictPath))
             return;
 
         string dictData = File.ReadAllText(dictPath);

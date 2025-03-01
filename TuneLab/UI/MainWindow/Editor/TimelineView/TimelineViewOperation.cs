@@ -1,10 +1,10 @@
-﻿using TuneLab.Audio;
+﻿using Avalonia.Controls;
+using TuneLab.Audio;
 using TuneLab.Data;
-using TuneLab.GUI.Input;
-using Avalonia.Controls;
-using TuneLab.Utils;
-using TuneLab.I18N;
 using TuneLab.Foundation.Document;
+using TuneLab.GUI.Input;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

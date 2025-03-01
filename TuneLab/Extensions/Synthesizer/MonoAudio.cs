@@ -18,7 +18,7 @@ internal struct MonoAudio
     public static implicit operator MonoAudio_V1(MonoAudio v1)
     {
         return new MonoAudio_V1()
-        { 
+        {
             StartTime = v1.StartTime,
             SampleRate = v1.SampleRate,
             Samples = v1.Samples,

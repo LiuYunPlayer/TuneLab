@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Generic;
 using TuneLab.Base.Properties;
-using TuneLab.GUI.Components;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
 

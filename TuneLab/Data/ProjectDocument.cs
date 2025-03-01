@@ -14,7 +14,7 @@ internal class ProjectDocument : DataDocument
     public string Name => mName;
     public bool IsSaved => mLastSavedHead == Head;
     public string Path => mPath;
-    public ProjectDocument() 
+    public ProjectDocument()
     {
         mLastSavedHead = Head;
         mProject.ObjectWillChange.Subscribe(() =>

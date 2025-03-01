@@ -1,11 +1,11 @@
 ﻿using Avalonia.Controls;
 using System;
 using TuneLab.Base.Properties;
-using TuneLab.Utils;
-using TuneLab.GUI.Components;
-using TuneLab.Foundation.Event;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI.Components;
+using TuneLab.Utils;
 
 namespace TuneLab.GUI.Controllers;
 

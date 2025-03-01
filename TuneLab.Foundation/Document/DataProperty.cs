@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.Foundation.Document;
+﻿namespace TuneLab.Foundation.Document;
 
 public interface IReadOnlyDataProperty<out T> : IReadOnlyDataObject<T> where T : notnull
 {

@@ -1,22 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using Avalonia.Media;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using ReactiveUI;
-using TuneLab.GUI.Input;
-using Rect = Avalonia.Rect;
-using RoundedRect = Avalonia.RoundedRect;
-using TuneLab.GUI;
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.I18N;
-using Avalonia.Platform.Storage;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Input;
+using TuneLab.I18N;
+using Rect = Avalonia.Rect;
+using RoundedRect = Avalonia.RoundedRect;
 
 namespace TuneLab.Utils;
 
@@ -363,7 +363,7 @@ internal static class Extensions
     public static Color Brighter(this Color color, double ratio = 0.25)
     {
         var hsv = color.ToHsv();
-        hsv = new HsvColor(hsv.A, hsv.H, hsv.S, hsv.V * (1 + ratio)); 
+        hsv = new HsvColor(hsv.A, hsv.H, hsv.S, hsv.V * (1 + ratio));
         return hsv.ToRgb();
     }
 

@@ -5,8 +5,8 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using System;
 using System.Linq;
-using TuneLab.Foundation.Event;
 using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;

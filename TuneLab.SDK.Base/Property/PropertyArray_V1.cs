@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections;
 
 namespace TuneLab.SDK.Base;
 
@@ -41,7 +36,7 @@ public class PropertyArray_V1(IList<PropertyValue_V1>? list = null) : IContainer
 
     public int IndexOf(PropertyValue_V1 item)
     {
-        return mList == null ? -1: ((IList<PropertyValue_V1>)mList).IndexOf(item);
+        return mList == null ? -1 : ((IList<PropertyValue_V1>)mList).IndexOf(item);
     }
 
     public void Insert(int index, PropertyValue_V1 item)

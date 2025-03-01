@@ -31,14 +31,15 @@ internal partial class ImportTrackSelector : Window
         closeButton.Clicked += () => Close();
 
         WindowControl.Children.Add(closeButton);
-        
+
         var titleBar = this.FindControl<Grid>("TitleBar") ?? throw new System.InvalidOperationException("TitleBar not found");
         bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
-	    if(UseSystemTitle){
-		    titleBar.Height = 0;
-		    Height -= 40;
-	    }
-     
+        if (UseSystemTitle)
+        {
+            titleBar.Height = 0;
+            Height -= 40;
+        }
+
         Content.Background = Style.INTERFACE.ToBrush();
 
         mTrackList.Background = Style.BACK.ToBrush();
@@ -64,11 +65,11 @@ internal partial class ImportTrackSelector : Window
         ActionsPanel.Children.Add(OkButtonPanel);
         Grid.SetColumn(OkButton, 1);
 
-        OkButton.Clicked += () => { isOK = true;this.Close(); };
+        OkButton.Clicked += () => { isOK = true; this.Close(); };
     }
 
     CheckBox mKeepTempoCheckBox;
     public ListBox TrackList { get => mTrackList; }
     public bool isOK { get; set; } = false;
-    public bool isKeepTempo { get => mKeepTempoCheckBox.IsChecked==null?false:(bool)mKeepTempoCheckBox.IsChecked; }
+    public bool isKeepTempo { get => mKeepTempoCheckBox.IsChecked == null ? false : (bool)mKeepTempoCheckBox.IsChecked; }
 }

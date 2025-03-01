@@ -1,8 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-
-namespace TuneLab.Base.Properties;
+﻿namespace TuneLab.Base.Properties;
 
 public readonly struct PropertyPath
 {

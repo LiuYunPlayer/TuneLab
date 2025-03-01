@@ -1,8 +1,8 @@
-﻿using System;
+﻿using SDL2;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
-using SDL2;
 
 namespace TuneLab.Audio.SDL2;
 

@@ -22,7 +22,7 @@ internal static class AudioUtils
         catch
         {
             audioInfo = new();
-            return false; 
+            return false;
         }
     }
 

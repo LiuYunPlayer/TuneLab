@@ -1,7 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using System;
 using System.IO;
@@ -9,6 +9,8 @@ using System.Linq;
 using System.Reactive.Linq;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Utils;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
@@ -16,8 +18,6 @@ using TuneLab.Utils;
 using static TuneLab.GUI.Dialog;
 using Button = TuneLab.GUI.Components.Button;
 using Style = TuneLab.GUI.Style;
-using TuneLab.Foundation.Utils;
-using TuneLab.Foundation.Document;
 
 namespace TuneLab.UI;
 
@@ -49,9 +49,9 @@ public partial class MainWindow : Window
         Background = Style.BACK.ToBrush();
         Content.Margin = new(1, 0);
 
-	    TitleLabel = new() { Text="", FontSize=12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush()};
-	    TitleLabel.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding{Path="Title",Source=this});
- 
+        TitleLabel = new() { Text = "", FontSize = 12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush() };
+        TitleLabel.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding { Path = "Title", Source = this });
+
         var binimizeButton = new Button() { Width = 48, Height = 40 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
@@ -68,13 +68,14 @@ public partial class MainWindow : Window
         closeButton.Clicked += () => Close();
 
         bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux); //Is Only Linux have double title case X11?
-	    if(!UseSystemTitle){
-        	WindowControl.Children.Add(binimizeButton);
-        	WindowControl.Children.Add(maximizeButton);
-        	WindowControl.Children.Add(closeButton);
-		    TitleBar.Children.Add(TitleLabel);
-	    }
- 
+        if (!UseSystemTitle)
+        {
+            WindowControl.Children.Add(binimizeButton);
+            WindowControl.Children.Add(maximizeButton);
+            WindowControl.Children.Add(closeButton);
+            TitleBar.Children.Add(TitleLabel);
+        }
+
         this.AttachWindowStateHandler();
 
         mEditor = new Editor();
@@ -242,12 +243,13 @@ public partial class MainWindow : Window
             }
         }
     }
-    
-    void OnMenuFullScreen(object sender, RoutedEventArgs args) {
-            this.WindowState = this.WindowState == WindowState.FullScreen
-                ? WindowState.Normal
-                : WindowState.FullScreen;
+
+    void OnMenuFullScreen(object sender, RoutedEventArgs args)
+    {
+        this.WindowState = this.WindowState == WindowState.FullScreen
+            ? WindowState.Normal
+            : WindowState.FullScreen;
     }
-    
+
     readonly Editor mEditor;
 }

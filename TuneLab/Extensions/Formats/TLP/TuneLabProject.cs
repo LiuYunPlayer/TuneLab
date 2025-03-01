@@ -1,11 +1,10 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using DynamicData;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
@@ -292,7 +291,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     part.Add("properties", ToJson(midiPartInfo.Properties));
 
                     var notes = new JArray();
-                    foreach (var noteInfo in  midiPartInfo.Notes)
+                    foreach (var noteInfo in midiPartInfo.Notes)
                     {
                         var note = new JObject();
                         note.Add("pos", noteInfo.Pos);

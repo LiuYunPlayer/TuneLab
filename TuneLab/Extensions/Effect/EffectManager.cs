@@ -96,12 +96,12 @@ internal static class EffectManager
 
         public void Destroy()
         {
-            
+
         }
 
         public void Initialize(PropertyObject args)
         {
-            
+
         }
 
         class FallbackEffectSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
@@ -111,7 +111,7 @@ internal static class EffectManager
 
             public void OnDirtyEvent(EffectDirtyEvent dirtyEvent)
             {
-                
+
             }
 
             public void Start()
@@ -122,7 +122,7 @@ internal static class EffectManager
 
             public void Stop()
             {
-                
+
             }
         }
     }

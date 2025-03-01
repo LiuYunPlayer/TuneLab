@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Data;
+﻿using TuneLab.Base.Data;
 using TuneLab.Base.Event;
 using TuneLab.Base.Utils;
-using static TuneLab.Base.Properties.IValueControllerExtension;
 
 namespace TuneLab.Base.Properties;
 
@@ -57,7 +51,7 @@ public static class IDataValueControllerExtension
                 if (Property == null)
                     return;
 
-               var value = mController.Value;
+                var value = mController.Value;
                 Property.DiscardTo(mHead);
                 Property.Set(value);
             }, s);
@@ -74,12 +68,12 @@ public static class IDataValueControllerExtension
                 Property.Commit();
             }, s);
 
-            mPropertyProvider.When(p => p.Modified).Subscribe(() => 
+            mPropertyProvider.When(p => p.Modified).Subscribe(() =>
             {
                 if (Property == null)
-                    return; 
-                
-                mController.Display(Property.Value); 
+                    return;
+
+                mController.Display(Property.Value);
             }, s);
 
             mPropertyProvider.ObjectChanged.Subscribe(() =>

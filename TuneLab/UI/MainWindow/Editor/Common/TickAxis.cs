@@ -1,7 +1,7 @@
 ﻿using System;
-using TuneLab.GUI;
 using TuneLab.Animation;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
 
 namespace TuneLab.UI;
 

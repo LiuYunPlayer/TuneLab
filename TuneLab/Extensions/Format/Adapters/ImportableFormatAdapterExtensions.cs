@@ -212,5 +212,5 @@ internal static class ImportableFormatAdapterExtensions
             TimeSignatures = projectInfo_V1.TimeSignatures.ConvertAll(Convert),
             Tracks = projectInfo_V1.Tracks.ConvertAll(Convert),
         };
-    } 
+    }
 }

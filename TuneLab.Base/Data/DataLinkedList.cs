@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using TuneLab.Base.Event;
 using TuneLab.Base.Structures;
 
@@ -69,7 +67,7 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
 
     public List<T> GetInfo()
     {
-        return [..mList];
+        return [.. mList];
     }
 
     void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)

@@ -1,14 +1,14 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
-using Avalonia.Media;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
-using TuneLab.GUI.Input;
-using Avalonia;
+using Avalonia.Media;
 using Avalonia.Svg.Skia;
-using TuneLab.Utils;
+using System;
+using System.Diagnostics.CodeAnalysis;
 using TuneLab.Animation;
+using TuneLab.GUI.Input;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.CodeAnalysis;
 using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
 
 namespace TuneLab.Extensions.Voices;
 
@@ -13,7 +7,7 @@ public interface ISynthesisData
 {
     IEnumerable<ISynthesisNote> Notes { get; }
     PropertyObject PartProperties { get; }
-    bool GetAutomation(string automationID, [MaybeNullWhen(false)] [NotNullWhen(true)] out IAutomationValueGetter? automation);
+    bool GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation);
     IAutomationValueGetter Pitch { get; }
 }
 

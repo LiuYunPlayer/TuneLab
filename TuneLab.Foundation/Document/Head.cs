@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.Foundation.Document;
+﻿namespace TuneLab.Foundation.Document;
 
 public readonly struct Head(int head) : IEquatable<Head>
 {

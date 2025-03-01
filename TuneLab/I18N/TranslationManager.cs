@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using TuneLab.Foundation.Event;
@@ -44,7 +43,7 @@ internal static class TranslationManager
     public static ITranslator GetTranslator(string language)
     {
         if (mTranslators.TryGetValue(language, out var translator))
-            return translator; 
+            return translator;
 
         return DefaultTranslator;
     }

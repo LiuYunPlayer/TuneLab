@@ -1,11 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Properties;
+﻿using TuneLab.Base.Properties;
 using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
 
 namespace TuneLab.Extensions.Voices;
 

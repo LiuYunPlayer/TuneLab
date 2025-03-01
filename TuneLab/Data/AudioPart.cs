@@ -29,9 +29,9 @@ internal class AudioPart : Part, IAudioPart
         Dur.Modified.Subscribe(mDurationChanged);
         Path.Modified.Subscribe(Reload);
         BaseDirectory.Modified.Subscribe(() =>
-        { 
-            if (Path.Value.StartsWith("..")) 
-                Reload(); 
+        {
+            if (Path.Value.StartsWith(".."))
+                Reload();
         });
         IDataObject<AudioPartInfo>.SetInfo(this, info);
     }
@@ -94,7 +94,7 @@ internal class AudioPart : Part, IAudioPart
             mLoadCancelTokenSource.Cancel();
             mLoadCancelTokenSource = null;
         }
-        
+
         var cancellationTokenSource = new CancellationTokenSource();
         mAudioData = null;
         mWaveforms = [];

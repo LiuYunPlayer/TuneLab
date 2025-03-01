@@ -1,8 +1,8 @@
 ﻿using Avalonia;
 using System;
-using TuneLab.GUI.Input;
 using TuneLab.Audio;
 using TuneLab.Foundation.Science;
+using TuneLab.GUI.Input;
 
 namespace TuneLab.UI;
 
@@ -124,10 +124,10 @@ internal partial class PianoRoll
             if (MusicTheory.IsBlack(i))
             {
                 double top = PitchAxis.Pitch2Y(i + 1);
-                items.Add(new BlackKeyItem(this) { Rect = new Rect(0, top, 32, keyHeight) , KeyNumber = i });
+                items.Add(new BlackKeyItem(this) { Rect = new Rect(0, top, 32, keyHeight), KeyNumber = i });
             }
         }
-    
+
         int minText = (int)Math.Floor(c0hide / groupHeight);
         int maxText = (int)Math.Ceiling((c0hide + Bounds.Height) / groupHeight);
         for (int i = minText; i < maxText; i++)

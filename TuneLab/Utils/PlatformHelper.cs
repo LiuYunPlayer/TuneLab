@@ -20,7 +20,7 @@ namespace TuneLab.Utils
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 return "linux";
 
-            return  "unknown";
+            return "unknown";
         }
 
         public static string GetArchitecture()

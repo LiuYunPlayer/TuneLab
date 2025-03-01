@@ -4,18 +4,18 @@ using Avalonia.Markup.Xaml;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipes;
+using System.Threading;
+using System.Threading.Tasks;
 using TuneLab.Animation;
 using TuneLab.Audio;
 using TuneLab.Audio.NAudio;
+using TuneLab.Configs;
 using TuneLab.Extensions;
 using TuneLab.Extensions.Voices;
-using TuneLab.GUI;
-using TuneLab.Configs;
-using TuneLab.UI;
-using System.Threading.Tasks;
-using System.Threading;
-using System.IO.Pipes;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.UI;
 
 namespace TuneLab;
 

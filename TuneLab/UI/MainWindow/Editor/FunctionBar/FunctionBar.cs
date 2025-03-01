@@ -43,7 +43,7 @@ internal class FunctionBar : LayerPanel
         {
             var hoverBack = Colors.White.Opacity(0.05);
 
-            void SetupToolTip(Control toggleButton,string ToolTipText)
+            void SetupToolTip(Control toggleButton, string ToolTipText)
             {
                 toggleButton.SetupToolTip(ToolTipText, PlacementMode.Top, verticalOffset: -8);
             }
@@ -54,10 +54,10 @@ internal class FunctionBar : LayerPanel
                 var playButton = new Toggle() { Width = 36, Height = 36 }
                     .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, CheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack }, UncheckedColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                     .AddContent(new() { Item = playButtonIconItem, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
-                
+
                 SetupToolTip(playButton, "Play".Tr(this));
                 playButton.Switched.Subscribe(() => { if (playButton.IsChecked) AudioEngine.Play(); else AudioEngine.Pause(); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this)); });
-                AudioEngine.PlayStateChanged += () => { playButtonIconItem.Icon = AudioEngine.IsPlaying ? Assets.Pause : Assets.Play; playButton.Display(AudioEngine.IsPlaying); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this));};
+                AudioEngine.PlayStateChanged += () => { playButtonIconItem.Icon = AudioEngine.IsPlaying ? Assets.Pause : Assets.Play; playButton.Display(AudioEngine.IsPlaying); SetupToolTip(playButton, AudioEngine.IsPlaying ? "Pause".Tr(this) : "Play".Tr(this)); };
                 audioControlPanel.Children.Add(playButton);
 
                 var autoPageButton = new AutoPageButton(mDependency.PlayScrollTarget) { Width = 36, Height = 36 };
@@ -86,7 +86,7 @@ internal class FunctionBar : LayerPanel
                 var quantizationLabel = new TextBlock() { Text = "Quantization".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 quantizationPanel.Children.Add(quantizationLabel);
                 var quantizationComboBox = new ComboBoxController() { Width = 96 };
-                (string option, QuantizationBase quantizationBase, QuantizationDivision quantizationDivision)[] options = 
+                (string option, QuantizationBase quantizationBase, QuantizationDivision quantizationDivision)[] options =
                 [
                     ("1/1", QuantizationBase.Base_1, QuantizationDivision.Division_1),
                     ("1/2", QuantizationBase.Base_1, QuantizationDivision.Division_2),

@@ -1,14 +1,14 @@
 ﻿using Avalonia;
 using Avalonia.Media;
 using System;
-using TuneLab.Audio;
-using TuneLab.GUI.Components;
 using TuneLab.Animation;
+using TuneLab.Audio;
 using TuneLab.Data;
-using TuneLab.Utils;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI.Components;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -97,7 +97,7 @@ internal partial class TimelineView : View
                 else
                 {
                     TickAxis.MoveTickToX(Playhead.Pos, mFixedPlayheadX);
-                }           
+                }
             }
             else
             {

@@ -1,20 +1,20 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Data;
-using TuneLab.GUI;
-using TuneLab.GUI.Controllers;
 using TuneLab.Base.Properties;
-using Avalonia.Media;
-using TuneLab.GUI.Components;
-using TuneLab.Utils;
-using TuneLab.I18N;
+using TuneLab.Data;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.GUI.Controllers;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -241,7 +241,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     Head mAutomationHead;
     void OnAutomationValueWillChange(PropertyPath path)
     {
-        if (mPart == null) 
+        if (mPart == null)
             return;
 
         mPart.BeginMergeDirty();

@@ -1,15 +1,15 @@
-﻿using System;
+﻿using Avalonia;
+using Avalonia.Media;
+using System;
 using System.Collections.Generic;
 using TuneLab.Data;
-using TuneLab.GUI;
-using Avalonia.Media;
-using TuneLab.GUI.Components;
-using Avalonia;
-using TuneLab.Utils;
-using TuneLab.I18N;
 using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

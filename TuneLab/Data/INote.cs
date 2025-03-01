@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
-using TuneLab.Foundation.Document;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Science;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
 
@@ -40,36 +40,36 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     double ISynthesisNote.EndTime => Part.TempoManager.GetTime(this.GlobalEndPos());
     private double PhonemeStartTime => Phonemes.IsEmpty() ? 0 : Phonemes.ConstFirst().StartTime.Value;
     private double PhonemeEndTime => Phonemes.IsEmpty() ? 0 : Phonemes.ConstLast().EndTime.Value;
-    public double StartPhonemeRatio 
-    { 
-        get 
-        { 
-            if (LastInSegment == null) 
+    public double StartPhonemeRatio
+    {
+        get
+        {
+            if (LastInSegment == null)
                 return 1;
 
-            double all = -PhonemeStartTime; 
-            if (all <= 0) 
-                return 1; 
+            double all = -PhonemeStartTime;
+            if (all <= 0)
+                return 1;
 
-            return Math.Min(1, (StartTime - LastInSegment.StartTime) / all); 
-        } 
+            return Math.Min(1, (StartTime - LastInSegment.StartTime) / all);
+        }
     }
-    public double EndPhonemeRatio 
-    { 
-        get 
-        { 
-            double all = PhonemeEndTime; 
-            if (all <= 0) 
+    public double EndPhonemeRatio
+    {
+        get
+        {
+            double all = PhonemeEndTime;
+            if (all <= 0)
                 return 1;
 
-            double end = EndTime; 
+            double end = EndTime;
             if (NextInSegment != null)
-                end = (NextInSegment.Phonemes.IsEmpty() ? 
-                    (NextInSegment.SynthesizedPhonemes == null || NextInSegment.SynthesizedPhonemes.IsEmpty() ? NextInSegment.StartTime : NextInSegment.SynthesizedPhonemes.ConstFirst().StartTime) : 
+                end = (NextInSegment.Phonemes.IsEmpty() ?
+                    (NextInSegment.SynthesizedPhonemes == null || NextInSegment.SynthesizedPhonemes.IsEmpty() ? NextInSegment.StartTime : NextInSegment.SynthesizedPhonemes.ConstFirst().StartTime) :
                     NextInSegment.PhonemeStartTime + NextInSegment.StartTime).Limit(StartTime, EndTime);
 
             return (end - StartTime) / all;
-        } 
+        }
     }
 
     private SynthesizedPhoneme GetPhoneme(IPhoneme phoneme)

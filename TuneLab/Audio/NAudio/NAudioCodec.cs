@@ -1,11 +1,11 @@
-﻿using System;
+﻿using NAudio.Dsp;
+using NAudio.Flac;
+using NAudio.Wave;
+using NLayer.NAudioSupport;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using NAudio.Wave;
-using NAudio.Flac;
-using NLayer.NAudioSupport;
-using NAudio.Dsp;
 using TuneLab.Foundation.Science;
 
 namespace TuneLab.Audio.NAudio;
@@ -140,7 +140,7 @@ internal class NAudioCodec : IAudioCodec
         }
 
         readonly MediaFoundationResampler mMediaFoundationResampler;
-        readonly ISampleProvider mSampleProvider; 
+        readonly ISampleProvider mSampleProvider;
     }
 
     class WdlResamplerStream : IAudioStream
@@ -181,7 +181,7 @@ internal class NAudioCodec : IAudioCodec
 
         public void Dispose()
         {
-            
+
         }
 
         float[]? outBuffer = null;

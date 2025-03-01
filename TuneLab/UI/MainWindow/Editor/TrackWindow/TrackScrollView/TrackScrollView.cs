@@ -1,23 +1,23 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using TuneLab.GUI.Components;
-using TuneLab.Data;
-using TuneLab.GUI;
-using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Audio;
-using Avalonia.Input;
-using Avalonia.Controls;
-using Avalonia.Platform.Storage;
 using System.IO;
-using TuneLab.Utils;
+using System.Linq;
+using TuneLab.Audio;
+using TuneLab.Data;
 using TuneLab.Extensions.Formats;
-using TuneLab.I18N;
+using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -227,7 +227,7 @@ internal partial class TrackScrollView : View
 
                 var partRect = new Rect(left, top, right - left, bottom - top);
                 context.DrawRectangle(trackColor.Opacity(0.25).ToBrush(), null, partRect, 4, 4);
-                
+
                 var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
                 context.DrawRectangle(frameColor.ToBrush(), null, partRect.WithHeight(16).ToRoundedRect(new(4, 4, 0, 0)));
                 var contentRect = partRect.Adjusted(0, 20, 0, -4);
@@ -235,7 +235,7 @@ internal partial class TrackScrollView : View
                 {
                     using (context.PushClip(titleRect))
                     {
-                        context.DrawString($"{midiPart.Name}[{midiPart.Voice.Name}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface : new Typeface(FontFamily.Default, weight : isEditingPart ? FontWeight.Bold : FontWeight.Normal));
+                        context.DrawString($"{midiPart.Name}[{midiPart.Voice.Name}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface: new Typeface(FontFamily.Default, weight: isEditingPart ? FontWeight.Bold : FontWeight.Normal));
                     }
 
                     if (!midiPart.Notes.IsEmpty())
@@ -261,7 +261,7 @@ internal partial class TrackScrollView : View
                                 context.FillRectangle(brush, new(noteLeft, contentRect.Y + (maxPitch - note.Pitch.Value) * pitchHeight, noteRight - noteLeft, pitchHeight));
                             }
                         }
-                    } 
+                    }
                 }
                 else if (part is AudioPart audioPart)
                 {
@@ -633,7 +633,7 @@ internal partial class TrackScrollView : View
             return;
         }
         //SelectOne
-       // 
+        // 
         ImportTrackSelector trackSelector = new ImportTrackSelector();
         for (int i = 0; i < srcProjectInfo.Tracks.Count; i++)
         {
@@ -654,11 +654,11 @@ internal partial class TrackScrollView : View
             List<PartInfo> parts = new List<PartInfo>();
             foreach (var partInfo in srcTrackInfo.Parts)
             {
-                bool isMidiPart =(partInfo.GetType() == typeof(MidiPartInfo));
+                bool isMidiPart = (partInfo.GetType() == typeof(MidiPartInfo));
                 if (!keepTempo)
                 {
                     //Only declare SyncFunction in Useful
-                    var srcTempoManager = (new Project(new ProjectInfo { Tempos=srcProjectInfo.Tempos })).TempoManager;
+                    var srcTempoManager = (new Project(new ProjectInfo { Tempos = srcProjectInfo.Tempos })).TempoManager;
                     double SyncTick(double src)
                     {
                         return dstProject.TempoManager.GetTick(srcTempoManager.GetTime(src));
@@ -705,7 +705,7 @@ internal partial class TrackScrollView : View
                 }
                 parts.Add(partInfo);
             }
-            srcTrackInfo.Parts=parts;
+            srcTrackInfo.Parts = parts;
             dstProject.AddTrack(srcTrackInfo);
         }
         dstProject.Commit();

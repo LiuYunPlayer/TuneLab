@@ -10,17 +10,17 @@ namespace TuneLab.UI;
 internal static class TrackColorManager
 {
     public static double HueChangeRate
-    { 
-        get => mHueChangeRate; 
+    {
+        get => mHueChangeRate;
         set
         {
-            if (mHueChangeRate == value) 
-                return; 
+            if (mHueChangeRate == value)
+                return;
 
             mHueChangeRate = value;
-            if (mHueChangeRate == 0) 
-                timer.Stop(); 
-            else 
+            if (mHueChangeRate == 0)
+                timer.Stop();
+            else
                 timer.Start();
         }
     }
@@ -53,10 +53,10 @@ internal static class TrackColorManager
     static TrackColorManager()
     {
         timer.Elapsed += (s, e) =>
-        { 
-            offset += HueChangeRate / 1000 * timer.Interval; 
+        {
+            offset += HueChangeRate / 1000 * timer.Interval;
             offset %= 360;
-            if (offset < 0) 
+            if (offset < 0)
                 offset += 360;
         };
         HueChangeRate = Settings.TrackHueChangeRate;

@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Utils;
+﻿using TuneLab.Base.Utils;
 
 namespace TuneLab.Base.Data;
 
@@ -11,7 +6,7 @@ public class DataDocument : DataObject
 {
     public event Action? StatusChanged;
     public override Head Head => new(mCommitedCommands.Count + mUncommitedCommands.Count);
-    
+
     public DataDocument() { }
 
     public void Clear()

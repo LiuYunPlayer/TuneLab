@@ -1,12 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Utils;
-
-namespace TuneLab.Base.Data;
+﻿namespace TuneLab.Base.Data;
 
 public interface IReadOnlyDataProperty<out T> : IReadOnlyDataObject<T> where T : notnull
 {
@@ -37,7 +29,7 @@ public class DataStruct<T>(DataObject? parent = null) : DataProperty<T>(parent) 
     public static implicit operator DataStruct<T>(T value)
     {
         return new DataStruct<T>() { mValue = value };
-    } 
+    }
 
     public override T GetInfo()
     {

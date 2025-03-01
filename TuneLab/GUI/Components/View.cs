@@ -2,9 +2,9 @@
 using Avalonia.Media;
 using Avalonia.Threading;
 using System.Collections.Generic;
+using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
-using TuneLab.Foundation.Utils;
 
 namespace TuneLab.GUI.Components;
 
@@ -83,7 +83,7 @@ internal class View : Container
             if (item.Raycast(point))
                 return item;
         }
-        
+
         return null;
     }
 

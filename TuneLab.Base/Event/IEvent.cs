@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Utils;
+﻿using TuneLab.Base.Utils;
 
 namespace TuneLab.Base.Event;
 
@@ -25,7 +20,7 @@ public static class IEventExtensions
         e.Subscribe(invokable);
         if (context == null)
             return;
-        
+
         context.Add(new Subscription<TEvent>(e, invokable));
     }
 

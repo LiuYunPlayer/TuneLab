@@ -4,15 +4,15 @@ using Avalonia.Platform.Storage;
 using System;
 using System.Linq;
 using TuneLab.Audio;
-using TuneLab.GUI;
-using TuneLab.GUI.Components;
-using TuneLab.Data;
-using TuneLab.Utils;
 using TuneLab.Base.Properties;
-using TuneLab.I18N;
-using TuneLab.Foundation.Utils;
+using TuneLab.Data;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -243,7 +243,7 @@ internal class TrackHead : DockPanel
         Background = Brushes.Transparent;
 
         this.RegisterOnTrackColorUpdated();
-        
+
     }
 
     ~TrackHead()
@@ -266,7 +266,7 @@ internal class TrackHead : DockPanel
         }
     }
 
-    public void SetTrack(ITrack? track, int index=0)
+    public void SetTrack(ITrack? track, int index = 0)
     {
         mTrackIndex = index;
 
@@ -314,7 +314,7 @@ internal class TrackHead : DockPanel
     int mTrackIndex = -1;
 
     readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 0, 0, 1) };
-    readonly EditableLabel mIndexLabel = new() { MinWidth = 16, Foreground = Brushes.Black, CornerRadius = new(0), Padding = new(0), FontSize = 12, VerticalAlignment =Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+    readonly EditableLabel mIndexLabel = new() { MinWidth = 16, Foreground = Brushes.Black, CornerRadius = new(0), Padding = new(0), FontSize = 12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
     readonly EditableLabel mName = new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };
     readonly GainSlider mGainSlider = new() { Height = 12 };
     readonly PanSlider mPanSlider = new() { Width = 40, Height = 12, Margin = new(8, 0, 0, 0) };

@@ -5,7 +5,7 @@ namespace TuneLab.Audio;
 
 internal class AudioGraph()
 {
-    public int SampleRate 
+    public int SampleRate
     {
         get => mSampleRate;
         set

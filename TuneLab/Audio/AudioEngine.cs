@@ -32,7 +32,7 @@ internal static class AudioEngine
         SetDriverToPlaybackHandler();
         SetDeviceToPlaybackHandler();
         mAudioPlaybackHandler.ProgressChanged += () => { if (IsPlaying) ProgressChanged?.Invoke(); };
-        mAudioPlaybackHandler.CurrentDeviceChanged += () => 
+        mAudioPlaybackHandler.CurrentDeviceChanged += () =>
         {
             CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
             mAudioPlaybackHandler.Start();
@@ -118,7 +118,7 @@ internal static class AudioEngine
         AudioUtils.EncodeToWav(filePath, buffer, SampleRate.Value, 16, isStereo ? 2 : 1);
     }
 
-    public static void InvokeRealtimeAmplitude(IAudioTrack track,out Tuple<double,double>? amplitude)
+    public static void InvokeRealtimeAmplitude(IAudioTrack track, out Tuple<double, double>? amplitude)
     {
         amplitude = null;
 
@@ -233,7 +233,7 @@ internal static class AudioEngine
 
     static void OnCurrentDriverModified()
     {
-        SetDriverToPlaybackHandler(); 
+        SetDriverToPlaybackHandler();
         SetDeviceToPlaybackHandler();
         mAudioPlaybackHandler?.Start();
     }
@@ -275,7 +275,7 @@ internal static class AudioEngine
         public AudioGraph AudioGraph => mAudioGraph;
         public AudioPlayer AudioPlayer => mAudioPlayer;
         public int SampleRate { get => mAudioGraph.SampleRate; set => mAudioGraph.SampleRate = value; }
-        public bool IsPlaying {  get; set; }
+        public bool IsPlaying { get; set; }
         public double CurrentTime => (double)mGraphPosition / SampleRate;
 
         public void Read(float[] buffer, int offset, int count)

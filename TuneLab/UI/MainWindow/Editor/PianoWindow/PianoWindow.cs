@@ -3,12 +3,12 @@ using Avalonia.Input;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
-using TuneLab.GUI.Input;
 using TuneLab.Data;
-using TuneLab.Utils;
-using TuneLab.GUI.Components;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
+using TuneLab.GUI.Components;
+using TuneLab.GUI.Input;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

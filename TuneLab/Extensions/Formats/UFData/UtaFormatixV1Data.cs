@@ -127,7 +127,8 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
                                     midiPartInfo.Pitch.Add(pitchBend);
                                     pitchBend = [new Point((double)pitchTicks[i], (double)pitchValues[i])];
                                 }
-                                else {
+                                else
+                                {
                                     pitchBend.Add(new Point((double)pitchTicks[i], (double)pitchValues[i]));
                                 }
 
@@ -164,82 +165,82 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
                 { "formatVersion", 1 }
             };
 
-                var tracks = new JArray();
-                var tempos = new JArray();
-                var timeSignatures = new JArray();
+            var tracks = new JArray();
+            var tempos = new JArray();
+            var timeSignatures = new JArray();
 
-                foreach (var trackInfo in projectInfo.Tracks)
+            foreach (var trackInfo in projectInfo.Tracks)
+            {
+                var trackObj = new JObject
                 {
-                    var trackObj = new JObject
-                    {
-                        ["name"] = trackInfo.Name
-                    };
+                    ["name"] = trackInfo.Name
+                };
 
-                    foreach (var partInfo in trackInfo.Parts)
+                foreach (var partInfo in trackInfo.Parts)
+                {
+                    if (partInfo is MidiPartInfo midiPartInfo)
                     {
-                        if (partInfo is MidiPartInfo midiPartInfo)
+                        var notes = new JArray();
+                        foreach (var noteInfo in midiPartInfo.Notes)
                         {
-                            var notes = new JArray();
-                            foreach (var noteInfo in midiPartInfo.Notes)
+                            var note = new JObject();
+                            note.Add("tickOn", (int)noteInfo.Pos);
+                            note.Add("tickOff", (int)(noteInfo.Dur + noteInfo.Pos));
+                            note.Add("key", noteInfo.Pitch);
+                            note.Add("lyric", noteInfo.Lyric);
+                            note.Add("phoneme", ToJson(noteInfo.Properties)["Phoneme"] ?? "a");
+
+                            notes.Add(note);
+                        }
+                        trackObj.Add("notes", notes);
+
+                        var pitch = new JObject();
+                        var ticks = new JArray();
+                        var values = new JArray();
+                        foreach (var pointList in midiPartInfo.Pitch)
+                        {
+                            foreach (var point in pointList)
                             {
-                                var note = new JObject();
-                                note.Add("tickOn", (int)noteInfo.Pos);
-                                note.Add("tickOff", (int)(noteInfo.Dur + noteInfo.Pos));
-                                note.Add("key", noteInfo.Pitch);
-                                note.Add("lyric", noteInfo.Lyric);
-                                note.Add("phoneme", ToJson(noteInfo.Properties)["Phoneme"] ?? "a");
-
-                                notes.Add(note);
+                                ticks.Add((int)point.X);
+                                values.Add(point.Y);
                             }
-                            trackObj.Add("notes", notes);
-
-                            var pitch = new JObject();
-                            var ticks = new JArray();
-                            var values = new JArray();
-                            foreach (var pointList in midiPartInfo.Pitch)
-                            {
-                                foreach (var point in pointList)
-                                {
-                                    ticks.Add((int)point.X);
-                                    values.Add(point.Y);
-                                }
-                            }
-
-                            pitch.Add("ticks", ticks);
-                            pitch.Add("values", values);
-                            pitch.Add("isAbsolute", true);
-
-                            trackObj.Add("pitch", pitch);
                         }
 
-                        tracks.Add(trackObj);
-                    }
-                }
+                        pitch.Add("ticks", ticks);
+                        pitch.Add("values", values);
+                        pitch.Add("isAbsolute", true);
 
-                foreach (var tempoInfo in projectInfo.Tempos)
-                {
-                    var tempo = new JObject()
+                        trackObj.Add("pitch", pitch);
+                    }
+
+                    tracks.Add(trackObj);
+                }
+            }
+
+            foreach (var tempoInfo in projectInfo.Tempos)
+            {
+                var tempo = new JObject()
                         {
                             { "tickPosition", (int)tempoInfo.Pos },
                             { "bpm", (int)tempoInfo.Bpm }
                         };
 
-                    tempos.Add(tempo);
-                }
+                tempos.Add(tempo);
+            }
 
-                foreach (var timeSignatureInfo in projectInfo.TimeSignatures)
-                {
-                    var timeSignature = new JObject()
+            foreach (var timeSignatureInfo in projectInfo.TimeSignatures)
+            {
+                var timeSignature = new JObject()
                         {
                             { "measurePosition", timeSignatureInfo.BarIndex },
                             { "numerator", timeSignatureInfo.Numerator },
                             { "denominator", timeSignatureInfo.Denominator }
                         };
 
-                    timeSignatures.Add(timeSignature);
-                }
+                timeSignatures.Add(timeSignature);
+            }
 
-                var ufProject = new JObject
+            var ufProject = new JObject
                 {
                     { "name", "Project" },
                     { "tracks", tracks },
@@ -248,66 +249,66 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
                     { "measurePrefix", 4 }
                 };
 
-                project.Add("project", ufProject);
+            project.Add("project", ufProject);
 
-                return new MemoryStream(Encoding.UTF8.GetBytes(project.ToString(Formatting.None)));
+            return new MemoryStream(Encoding.UTF8.GetBytes(project.ToString(Formatting.None)));
+        }
+    }
+
+    static PropertyObject FromJson(JToken jToken)
+    {
+        var map = new Map<string, PropertyValue>();
+
+        foreach (JProperty property in jToken.Children())
+        {
+            var key = property.Name;
+            var value = property.Value;
+            switch (value.Type)
+            {
+                case JTokenType.Boolean:
+                    map.Add(key, (bool)value);
+                    break;
+                case JTokenType.Integer:
+                    map.Add(key, (int)value);
+                    break;
+                case JTokenType.Float:
+                    map.Add(key, (double)value);
+                    break;
+                case JTokenType.String:
+                    map.Add(key, (string)value);
+                    break;
+                case JTokenType.Object:
+                    map.Add(key, FromJson(value));
+                    break;
             }
         }
+        return new(map);
+    }
 
-            static PropertyObject FromJson(JToken jToken)
+    static JObject ToJson(PropertyObject properties)
+    {
+        var json = new JObject();
+        foreach (var property in properties.Map)
+        {
+            var key = property.Key;
+            var value = property.Value;
+            if (value.ToObject(out var propertyObject))
             {
-                var map = new Map<string, PropertyValue>();
-
-                foreach (JProperty property in jToken.Children())
-                {
-                    var key = property.Name;
-                    var value = property.Value;
-                    switch (value.Type)
-                    {
-                        case JTokenType.Boolean:
-                            map.Add(key, (bool)value);
-                            break;
-                        case JTokenType.Integer:
-                            map.Add(key, (int)value);
-                            break;
-                        case JTokenType.Float:
-                            map.Add(key, (double)value);
-                            break;
-                        case JTokenType.String:
-                            map.Add(key, (string)value);
-                            break;
-                        case JTokenType.Object:
-                            map.Add(key, FromJson(value));
-                            break;
-                    }
-                }
-                return new(map);
+                json.Add(key, ToJson(propertyObject));
             }
-
-            static JObject ToJson(PropertyObject properties)
+            else if (value.ToBool(out var boolValue))
             {
-                var json = new JObject();
-                foreach (var property in properties.Map)
-                {
-                    var key = property.Key;
-                    var value = property.Value;
-                    if (value.ToObject(out var propertyObject))
-                    {
-                        json.Add(key, ToJson(propertyObject));
-                    }
-                    else if (value.ToBool(out var boolValue))
-                    {
-                        json.Add(key, boolValue);
-                }
-                    else if (value.ToDouble(out var doubleValue))
-                    {
-                        json.Add(key, doubleValue);
-                    }
-                    else if (value.ToString(out var strinValue))
-                    {
-                        json.Add(key, strinValue);
-                    }
-                }
-                return json;
+                json.Add(key, boolValue);
             }
+            else if (value.ToDouble(out var doubleValue))
+            {
+                json.Add(key, doubleValue);
+            }
+            else if (value.ToString(out var strinValue))
+            {
+                json.Add(key, strinValue);
+            }
+        }
+        return json;
+    }
 }

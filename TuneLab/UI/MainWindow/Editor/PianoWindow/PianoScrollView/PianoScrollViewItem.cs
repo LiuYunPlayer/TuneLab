@@ -1,12 +1,12 @@
 ﻿using Avalonia;
+using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using TuneLab.Data;
-using TuneLab.Utils;
 using TuneLab.Extensions.Voices;
-using Avalonia.Media;
-using TuneLab.GUI.Input;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI.Input;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

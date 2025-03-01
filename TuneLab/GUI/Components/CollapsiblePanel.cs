@@ -26,6 +26,6 @@ internal class CollapsiblePanel : StackPanel
         mTitlePanel.PointerPressed += (s, e) => { mContentPanel.IsVisible = !mContentPanel.IsVisible; };
     }
 
-    LayerPanel mTitlePanel = new() { Background = Brushes.Transparent } ;
+    LayerPanel mTitlePanel = new() { Background = Brushes.Transparent };
     LayerPanel mContentPanel = new();
 }

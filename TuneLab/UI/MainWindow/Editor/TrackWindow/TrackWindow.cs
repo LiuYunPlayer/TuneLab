@@ -1,14 +1,14 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Input;
 using System.Linq;
-using TuneLab.GUI.Components;
-using TuneLab.GUI.Input;
 using TuneLab.Data;
-using TuneLab.GUI;
-using TuneLab.Utils;
-using TuneLab.I18N;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.GUI.Input;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
@@ -125,7 +125,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
                     e.Handled = false;
                 }
                 break;
-        } 
+        }
     }
 
     readonly Quantization mQuantization;

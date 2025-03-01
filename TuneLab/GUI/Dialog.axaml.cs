@@ -35,14 +35,16 @@ internal partial class Dialog : Window
         titleBar = this.FindControl<Grid>("TitleBar") ?? throw new InvalidOperationException("TitleBar not found");
         titleLabel = this.FindControl<Label>("TitleLabel") ?? throw new InvalidOperationException("TitleLabel not found");
         messageTextBlock = this.FindControl<SelectableTextBlock>("MessageTextBlock") ?? throw new InvalidOperationException("MessageTextBlock not found");
-	
+
         bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
-	    if(UseSystemTitle){
-		    titleBar.Height = 0;
-		    Height -= 40;
-	    }
-     
-        messageTextBlock.SizeChanged += (s, e) => {
+        if (UseSystemTitle)
+        {
+            titleBar.Height = 0;
+            Height -= 40;
+        }
+
+        messageTextBlock.SizeChanged += (s, e) =>
+        {
             if (e.NewSize.Height > 108)
             {
                 Height = Height - 108 + e.NewSize.Height + 32;

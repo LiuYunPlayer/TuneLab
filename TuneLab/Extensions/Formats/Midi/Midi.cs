@@ -1,9 +1,9 @@
-﻿using System;
+﻿using NAudio.Midi;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using NAudio.Midi;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.Science;
 

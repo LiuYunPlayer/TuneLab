@@ -1,12 +1,11 @@
-﻿using Avalonia.Media;
-using Avalonia;
-using System;
-using TuneLab.GUI.Components;
-using TuneLab.GUI;
-using TuneLab.Utils;
+﻿using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Threading;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.Utils;
 
 namespace TuneLab.UI;
 

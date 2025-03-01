@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections;
 using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Foundation;
@@ -53,7 +47,7 @@ public class PropertyObject(IMap<string, PropertyValue> properties) : IContainer
     {
         return mProperties == null ? Enumerable.Empty<KeyWithValue<string, PropertyValue>>().GetEnumerator() : mProperties.GetEnumerator();
     }
-    
+
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();

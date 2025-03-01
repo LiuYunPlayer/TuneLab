@@ -1,13 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Data;
-using TuneLab.Base.Event;
-using TuneLab.Base.Utils;
-
-namespace TuneLab.Base.Event;
+﻿namespace TuneLab.Base.Event;
 
 public class Owner<T> : IProvider<T> where T : class
 {

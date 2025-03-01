@@ -1,15 +1,15 @@
-﻿using System;
+﻿using Avalonia;
+using Avalonia.Media;
+using Avalonia.ReactiveUI;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
-using Avalonia;
-using Avalonia.Media;
-using Avalonia.ReactiveUI;
 using TuneLab.Configs;
+using TuneLab.Foundation.Utils;
 using TuneLab.I18N;
 using TuneLab.Utils;
-using TuneLab.Foundation.Utils;
 
 namespace TuneLab;
 

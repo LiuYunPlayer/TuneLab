@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.Base.Utils;
+﻿namespace TuneLab.Base.Utils;
 
 public interface ILogger
 {
@@ -45,7 +39,7 @@ public static class Log
             mLogger?.WriteLine(string.Format("[{0}][{1}][TID:{2}] {3}", type, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), Environment.CurrentManagedThreadId, value));
         }
     }
-    
+
     static readonly object mLock = new();
 
     static ILogger? mLogger;

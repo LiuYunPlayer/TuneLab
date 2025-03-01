@@ -17,10 +17,10 @@ internal class Toggle : Button, IDataValueController<bool>
 {
     public event Func<bool>? AllowSwitch;
     public IActionEvent Switched => mValueChanged;
-    public bool IsChecked 
-    { 
-        get => mIsChecked; 
-        set 
+    public bool IsChecked
+    {
+        get => mIsChecked;
+        set
         {
             if (AllowSwitch != null && !AllowSwitch())
                 return;
@@ -37,7 +37,7 @@ internal class Toggle : Button, IDataValueController<bool>
                 kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
             }
             CorrectColor();
-        } 
+        }
     }
 
     public IActionEvent ValueWillChange => mValueWillChange;

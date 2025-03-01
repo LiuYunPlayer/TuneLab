@@ -1,18 +1,18 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using System;
 using System.Linq;
+using TuneLab.Audio;
+using TuneLab.Base.Properties;
 using TuneLab.Configs;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
+using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.Utils;
-using TuneLab.Base.Properties;
-using TuneLab.GUI.Controllers;
-using Avalonia.Platform.Storage;
-using TuneLab.Audio;
-using TuneLab.Foundation.Utils;
-using TuneLab.Foundation.Event;
 
 namespace TuneLab.UI;
 
@@ -43,12 +43,13 @@ internal partial class SettingsWindow : Window
         };
 
         WindowControl.Children.Add(closeButton);
-	
+
         var titleBar = this.FindControl<Grid>("TitleBar") ?? throw new System.InvalidOperationException("TitleBar not found");
         bool UseSystemTitle = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
-	    if(UseSystemTitle){
-		    titleBar.Height = 0;
-	    }
+        if (UseSystemTitle)
+        {
+            titleBar.Height = 0;
+        }
 
         Content.Background = Style.INTERFACE.ToBrush();
 
@@ -61,7 +62,7 @@ internal partial class SettingsWindow : Window
                 var comboBox = new ComboBoxController() { Width = 180 };
                 comboBox.SetConfig(new(TranslationManager.Languages));
                 comboBox.Bind(Settings.Language, false, s);
-                
+
                 panel.AddDock(comboBox, Dock.Right);
             }
             {
@@ -108,7 +109,7 @@ internal partial class SettingsWindow : Window
                 comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
                 comboBox.Bind(Settings.AudioDevice, false, s);
                 comboBox.Display(AudioEngine.CurrentDevice.Value);
-                
+
                 panel.AddDock(comboBox, Dock.Right);
             }
             {

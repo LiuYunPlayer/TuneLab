@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TuneLab.Base.Structures;
+﻿using TuneLab.Base.Structures;
 using TuneLab.Base.Utils;
 
 namespace TuneLab.Base.Science;
@@ -48,7 +43,7 @@ public static class MathUtility
 
     public static double CubicInterpolation(double r)
     {
-        return (3  - 2 * r) * r * r;
+        return (3 - 2 * r) * r * r;
     }
 
     public static double[] LinearInterpolation(this IReadOnlyList<Point> points, IReadOnlyList<double> xs)

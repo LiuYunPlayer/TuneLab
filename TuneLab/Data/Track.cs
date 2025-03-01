@@ -3,8 +3,8 @@ using System.Linq;
 using System.Text;
 using TuneLab.Audio;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Foundation.Document;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
