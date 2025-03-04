@@ -22,7 +22,7 @@ class Program
     public static void Main(string[] args)
     {
         // init logger
-        Log.SetupLogger(new FileLogger(Path.Combine(PathManager.LogsFolder, "TuneLab_" + DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss") + ".log")));
+        Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
         Log.Info("Version: " + AppInfo.Version);
 
         // check if other instance is running
