@@ -1,4 +1,6 @@
-﻿namespace TuneLab.SDK.Format.DataInfo;
+﻿using TuneLab.SDK.Base;
+
+namespace TuneLab.SDK.Format.DataInfo;
 
 public class VibratoInfo_V1
 {
@@ -9,5 +11,5 @@ public class VibratoInfo_V1
     public double Amplitude { get; set; }
     public double Attack { get; set; }
     public double Release { get; set; }
-    public Dictionary<string, double> AffectedAutomations { get; set; } = [];
+    public Map_V1<string, double> AffectedAutomations { get; set; } = [];
 }

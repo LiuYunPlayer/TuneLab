@@ -2,7 +2,7 @@
 
 public class ObjectConfig_V1 : IControllerConfig_V1
 {
-    public IOrderedMap_V1<string, IControllerConfig_V1> Configs { get; set; } = Factory_V1.CreateOrderedMap_V1<string, IControllerConfig_V1>();
+    public OrderedMap_V1<string, IControllerConfig_V1> Configs { get; set; } = [];
     PropertyValue_V1 IControllerConfig_V1.DefaultValue
     {
         get

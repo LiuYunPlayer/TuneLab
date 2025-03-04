@@ -1,4 +1,5 @@
-﻿using TuneLab.SDK.Base;
+﻿using System.Reflection;
+using TuneLab.SDK.Base;
 
 namespace TuneLab.Foundation.DataStructures;
 
@@ -16,6 +17,16 @@ public class Map<TKey, TValue> : Dictionary<TKey, TValue>, IMap<TKey, TValue>, I
 
     IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator() => GetEnumerator().Convert(KeyValuePairExtensions.ToKeyWithValue);
     IEnumerator<IReadOnlyKeyValuePair_V1<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair_V1<TKey, TValue>>.GetEnumerator() => GetEnumerator().Convert(KeyValuePairExtensions.ToKeyWithValue);
+
+    public static implicit operator Map<TKey, TValue>(Map_V1<TKey, TValue> map)
+    {
+        return typeof(Map_V1<TKey, TValue>).GetField("impl").GetValue(null) as Map<TKey, TValue>;
+    }
+
+    public static implicit operator Map_V1<TKey, TValue>(Map<TKey, TValue> map)
+    {
+        return typeof(Map_V1<TKey, TValue>).GetConstructor([typeof(IMap_V1<TKey, TValue>)]).Invoke([map]) as Map_V1<TKey, TValue>;
+    }
 }
 
 public static class MapExtensions

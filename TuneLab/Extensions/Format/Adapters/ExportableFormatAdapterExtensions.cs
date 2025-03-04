@@ -10,9 +10,9 @@ namespace TuneLab.Extensions.Format.Adapters;
 
 internal static class ExportableFormatAdapterExtensions
 {
-    public static Dictionary<TKey, TResult> ConvertToDictionary<TKey, TSource, TResult>(this IReadOnlyDictionary<TKey, TSource> dictionary, Func<TSource, TResult> converter) where TKey : notnull
+    public static Map_V1<TKey, TResult> ConvertToV1<TKey, TSource, TResult>(this IReadOnlyDictionary<TKey, TSource> dictionary, Func<TSource, TResult> converter) where TKey : notnull
     {
-        return dictionary.Convert<Dictionary<TKey, TResult>, TKey, TSource, TResult>(converter);
+        return dictionary.Convert<Map<TKey, TResult>, TKey, TSource, TResult>(converter);
     }
 
     public static PropertyObject_V1 ConvertToV1(this PropertyObject propertyObject)
@@ -73,7 +73,7 @@ internal static class ExportableFormatAdapterExtensions
         {
             Type = effectInfo.Type,
             IsEnabled = effectInfo.IsEnabled,
-            Automations = effectInfo.Automations.ConvertToDictionary(ConvertToV1),
+            Automations = effectInfo.Automations.ConvertToV1(ConvertToV1),
             Properties = effectInfo.Properties.ConvertToV1(),
         };
     }
@@ -102,7 +102,7 @@ internal static class ExportableFormatAdapterExtensions
             Amplitude = vibratoInfo.Amplitude,
             Attack = vibratoInfo.Attack,
             Release = vibratoInfo.Release,
-            AffectedAutomations = vibratoInfo.AffectedAutomations.ToMap(),
+            AffectedAutomations = vibratoInfo.AffectedAutomations,
         };
     }
 
@@ -117,7 +117,7 @@ internal static class ExportableFormatAdapterExtensions
             Voice = midiPartInfo_V1.Voice.ConvertToV1(),
             Effects = midiPartInfo_V1.Effects.ConvertAll(ConvertToV1),
             Notes = midiPartInfo_V1.Notes.ConvertAll(ConvertToV1),
-            Automations = midiPartInfo_V1.Automations.ConvertToDictionary(ConvertToV1),
+            Automations = midiPartInfo_V1.Automations.ConvertToV1(ConvertToV1),
             Pitch = midiPartInfo_V1.Pitch.ConvertAll(list => list.ConvertAll(ConvertToV1)),
             Vibratos = midiPartInfo_V1.Vibratos.ConvertAll(ConvertToV1),
             Properties = midiPartInfo_V1.Properties.ConvertToV1(),

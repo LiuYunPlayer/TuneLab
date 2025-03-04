@@ -111,7 +111,7 @@ internal static class ImportableFormatAdapterExtensions
         {
             Type = effectInfo_V1.Type,
             IsEnabled = effectInfo_V1.IsEnabled,
-            Automations = effectInfo_V1.Automations.ConvertToMap(Convert),
+            Automations = ((Map<string, AutomationInfo_V1>)effectInfo_V1.Automations).ConvertToMap(Convert),
             Properties = effectInfo_V1.Properties.Convert(),
         };
     }
@@ -140,7 +140,7 @@ internal static class ImportableFormatAdapterExtensions
             Amplitude = vibratoInfo_V1.Amplitude,
             Attack = vibratoInfo_V1.Attack,
             Release = vibratoInfo_V1.Release,
-            AffectedAutomations = vibratoInfo_V1.AffectedAutomations.ToMap(),
+            AffectedAutomations = vibratoInfo_V1.AffectedAutomations,
         };
     }
 
@@ -155,7 +155,7 @@ internal static class ImportableFormatAdapterExtensions
             Voice = midiPartInfo_V1.Voice.Convert(),
             Effects = midiPartInfo_V1.Effects.ConvertAll(Convert),
             Notes = midiPartInfo_V1.Notes.ConvertAll(Convert),
-            Automations = midiPartInfo_V1.Automations.ConvertToMap(Convert),
+            Automations = ((Map<string, AutomationInfo_V1>)midiPartInfo_V1.Automations).ConvertToMap(Convert),
             Pitch = midiPartInfo_V1.Pitch.ConvertAll(list => list.ConvertAll(Convert)),
             Vibratos = midiPartInfo_V1.Vibratos.ConvertAll(Convert),
             Properties = midiPartInfo_V1.Properties.Convert(),
