@@ -1,9 +1,10 @@
 ﻿using System.Collections;
 
-namespace TuneLab.Foundation;
+namespace TuneLab.Foundation.Property;
 
 public class PropertyArray : IContainerValue, IList<PropertyValue>
 {
+    public PropertyType Type => PropertyType.Array;
     public PropertyValue this[int index] { get => ((IList<PropertyValue>)mList!)[index]; set => ((IList<PropertyValue>)mList!)[index] = value; }
     public int Count => mList == null ? 0 : ((ICollection<PropertyValue>)mList).Count;
     public bool IsReadOnly => mList == null ? false : ((ICollection<PropertyValue>)mList).IsReadOnly;
@@ -60,7 +61,7 @@ public class PropertyArray : IContainerValue, IList<PropertyValue>
         return GetEnumerator();
     }
 
-    bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other)
+    /*bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other)
     {
         if (other is not PropertyArray property)
             return false;
@@ -72,7 +73,7 @@ public class PropertyArray : IContainerValue, IList<PropertyValue>
             return false;
 
         return mList.SequenceEqual(property.mList);
-    }
+    }*/
 
     List<PropertyValue>? mList;
 }

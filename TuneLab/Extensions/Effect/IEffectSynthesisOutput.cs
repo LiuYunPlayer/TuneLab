@@ -1,8 +1,7 @@
-﻿using TuneLab.SDK.Effect;
-
+﻿using TuneLab.Extensions.Synthesizer;
 namespace TuneLab.Extensions.Effect;
 
-internal interface IEffectSynthesisOutput : IEffectSynthesisOutput_V1
+internal interface IEffectSynthesisOutput : ISynthesisOutput
 {
 
 }

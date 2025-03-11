@@ -187,9 +187,9 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return dataPropertyValue == null ? PropertyValue.Invalid : dataPropertyValue.Value;
     }
 
-    public IEnumerator<IReadOnlyKeyWithValue<string, PropertyValue>> GetEnumerator()
+    public IEnumerator<IReadOnlyKeyValuePair<string, PropertyValue>> GetEnumerator()
     {
-        return mMap.GetEnumerator().Convert(kvp => new KeyWithValue<string, PropertyValue>(kvp.Key, kvp.Value.Value));
+        return mMap.GetEnumerator().Convert(kvp => new ReadOnlyKeyValuePair<string, PropertyValue>(kvp.Key, kvp.Value.Value));
     }
 
     IEnumerator IEnumerable.GetEnumerator()

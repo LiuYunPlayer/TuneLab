@@ -1,4 +1,4 @@
-﻿namespace TuneLab.Foundation;
+﻿namespace TuneLab.Foundation.Property;
 
 public readonly struct PrimitiveValue
 {

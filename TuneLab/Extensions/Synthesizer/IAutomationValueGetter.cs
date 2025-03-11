@@ -1,12 +1,9 @@
 ﻿using System.Collections.Generic;
-using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.Synthesizer;
 
 namespace TuneLab.Extensions.Synthesizer;
 
-internal interface IAutomationValueGetter : IAutomationValueGetter_V1
+internal interface IAutomationValueGetter
 {
     double[] GetValue(IReadOnlyList<double> times);
-
-    // V1 Adapter
-    double[] IAutomationValueGetter_V1.GetValue(IReadOnlyList<double> times) => GetValue(times);
 }

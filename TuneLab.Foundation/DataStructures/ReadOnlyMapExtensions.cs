@@ -16,7 +16,7 @@ public static class ReadOnlyMapExtensions
         public IReadOnlyCollection<T> Values => map.Values.Convert(convert);
         public int Count => map.Count;
         public bool ContainsKey(TKey key) => map.ContainsKey(key);
-        public IEnumerator<IReadOnlyKeyWithValue<TKey, T>> GetEnumerator() => map.GetEnumerator().Convert(kvp => new KeyWithValue<TKey, T>(kvp.Key, convert(kvp.Value)));
+        public IEnumerator<IReadOnlyKeyValuePair<TKey, T>> GetEnumerator() => map.GetEnumerator().Convert(kvp => new ReadOnlyKeyValuePair<TKey, T>(kvp.Key, convert(kvp.Value)));
 
         public T? GetValue(TKey key, out bool success)
         {
@@ -39,7 +39,7 @@ public static class ReadOnlyMapExtensions
         public IReadOnlyCollection<T> Values => map.Convert(kvp => convert(kvp.Key, kvp.Value));
         public int Count => map.Count;
         public bool ContainsKey(TKey key) => map.ContainsKey(key);
-        public IEnumerator<IReadOnlyKeyWithValue<TKey, T>> GetEnumerator() => map.GetEnumerator().Convert(kvp => new KeyWithValue<TKey, T>(kvp.Key, convert(kvp.Key, kvp.Value)));
+        public IEnumerator<IReadOnlyKeyValuePair<TKey, T>> GetEnumerator() => map.GetEnumerator().Convert(kvp => new ReadOnlyKeyValuePair<TKey, T>(kvp.Key, convert(kvp.Key, kvp.Value)));
 
         public T? GetValue(TKey key, out bool success)
         {

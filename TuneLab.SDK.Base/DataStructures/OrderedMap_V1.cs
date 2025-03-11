@@ -5,61 +5,116 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.DataStructures;
 
-public class OrderedMap_V1<TKey, TValue> : IOrderedMap_V1<TKey, TValue> where TKey : notnull
+
+public class OrderedMap_V1<TKey, TValue> : IOrderedMap_V1<TKey, TValue>, IReadOnlyOrderedMap_V1<TKey, TValue> where TKey : notnull
 {
-    public TValue this[TKey key] { get => ((IMap_V1<TKey, TValue>)impl)[key]; set => ((IMap_V1<TKey, TValue>)impl)[key] = value; }
-
-    public IReadOnlyKeyValuePair_V1<TKey, TValue> this[int index] => ((IReadOnlyList<IReadOnlyKeyValuePair_V1<TKey, TValue>>)impl)[index];
-
-    TValue IReadOnlyMap_V1<TKey, TValue>.this[TKey key] => ((IReadOnlyMap_V1<TKey, TValue>)impl)[key];
-
-    public IReadOnlyList<TKey> Keys => impl.Keys;
-
-    public IReadOnlyList<TValue> Values => impl.Values;
-
-    public int Count => impl.Count;
+    public int Count => mKeys.Count;
+    public TValue this[TKey key] { get => mMap[key]; set { if (mMap.ContainsKey(key)) mMap[key] = value; else { mMap.Add(key, value); mKeys.Add(key); } } }
+    public IReadOnlyList<TKey> Keys => mKeys;
+    public IReadOnlyList<TValue> Values => new ValueCollection(this);
+    public OrderedMap_V1() { }
 
     public void Add(TKey key, TValue value)
     {
-        impl.Add(key, value);
-    }
+        if (mMap.ContainsKey(key))
+            throw new ArgumentException("Key already exists in map");
 
-    public void Clear()
-    {
-        impl.Clear();
-    }
-
-    public bool ContainsKey(TKey key)
-    {
-        return impl.ContainsKey(key);
-    }
-
-    public IEnumerator<IReadOnlyKeyValuePair_V1<TKey, TValue>> GetEnumerator()
-    {
-        return impl.GetEnumerator();
-    }
-
-    public TValue? GetValue(TKey key, out bool success)
-    {
-        return impl.GetValue(key, out success);
+        mMap.Add(key, value);
+        mKeys.Add(key);
     }
 
     public void Insert(int index, TKey key, TValue value)
     {
-        impl.Insert(index, key, value);
+        if (mMap.ContainsKey(key))
+            throw new ArgumentException("Key already exists in map");
+
+        mMap.Add(key, value);
+        mKeys.Insert(index, key);
     }
 
     public bool Remove(TKey key)
     {
-        return impl.Remove(key);
+        return mMap.Remove(key) && mKeys.Remove(key);
     }
 
-    IEnumerator IEnumerable.GetEnumerator()
+    public void Clear()
     {
-        return ((IEnumerable)impl).GetEnumerator();
+        mKeys.Clear();
+        mMap.Clear();
     }
 
-    readonly IOrderedMap_V1<TKey, TValue> impl = Factory_V1.Create<IOrderedMap_V1<TKey, TValue>>();
+    public bool ContainsKey(TKey key)
+    {
+        return mMap.ContainsKey(key);
+    }
+
+    public Enumerator GetEnumerator() => new(this);
+
+    TKey KeyAt(int index) => mKeys[index];
+    TValue ValueAt(int index) => mMap[KeyAt(index)];
+    ReadOnlyKeyValuePair_V1<TKey, TValue> At(int index) => new(KeyAt(index), ValueAt(index));
+
+    IEnumerator<IReadOnlyKeyValuePair_V1<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair_V1<TKey, TValue>>.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public TValue? GetValue(TKey key, out bool success)
+    {
+        return mMap.GetValue(key, out success);
+    }
+
+    IReadOnlyKeyValuePair_V1<TKey, TValue> IReadOnlyList<IReadOnlyKeyValuePair_V1<TKey, TValue>>.this[int index] => At(index);
+
+    readonly Map_V1<TKey, TValue> mMap = [];
+    readonly List<TKey> mKeys = [];
+
+    public struct Enumerator(OrderedMap_V1<TKey, TValue> map) : IEnumerator<ReadOnlyKeyValuePair_V1<TKey, TValue>>, IEnumerator<TValue>
+    {
+        public readonly ReadOnlyKeyValuePair_V1<TKey, TValue> Current => map.At(mCurrentIndex);
+
+        public bool MoveNext()
+        {
+            mCurrentIndex++;
+            if (mCurrentIndex >= map.Count)
+                return false;
+
+            return true;
+        }
+
+        public void Reset()
+        {
+            mCurrentIndex = -1;
+        }
+
+        public readonly void Dispose() { }
+
+        readonly TValue IEnumerator<TValue>.Current => map.ValueAt(mCurrentIndex);
+
+        readonly object IEnumerator.Current => Current;
+
+        int mCurrentIndex = -1;
+    }
+
+    class ValueCollection(OrderedMap_V1<TKey, TValue> map) : IReadOnlyList<TValue>
+    {
+        public int Count => map.Count;
+        TValue IReadOnlyList<TValue>.this[int index] => map.ValueAt(index);
+        public IEnumerator<TValue> GetEnumerator() => map.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+}
+
+public static class OrderedMap_V1Builder
+{
+    public static OrderedMap_V1<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair_V1<TKey, TValue>> values) where TKey : notnull
+    {
+        var map = new OrderedMap_V1<TKey, TValue>();
+        foreach (var kvp in values)
+        {
+            map.Add(kvp.Key, kvp.Value);
+        }
+        return map;
+    }
 }

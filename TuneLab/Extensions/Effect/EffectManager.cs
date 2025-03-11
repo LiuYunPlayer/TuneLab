@@ -2,10 +2,13 @@
 using System.IO;
 using System.Reflection;
 using System.Text;
-using TuneLab.Base.Properties;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Synthesizer;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
+using TuneLab.SDK.Base.DataStructures;
+using TuneLab.SDK.Base.Property;
 using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
@@ -69,10 +72,10 @@ internal static class EffectManager
             if (IsInited)
                 return;
 
-            PropertyObject args = PropertyObject.Empty;
+            IReadOnlyMap_V1<string, IReadOnlyPropertyValue_V1> args = [];
             try
             {
-                Engine.Initialize(args);
+                Engine.Init(args);
                 IsInited = true;
             }
             catch (Exception ex)
@@ -86,8 +89,8 @@ internal static class EffectManager
 
     class FallbackEffectEngine() : IEffectEngine
     {
-        public string PropertyConfig => string.Empty;
-        public string AutomationConfig => string.Empty;
+        public ObjectConfig PropertyConfig => new();
+        public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfig => [];
 
         public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output)
         {
@@ -99,7 +102,7 @@ internal static class EffectManager
 
         }
 
-        public void Initialize(PropertyObject args)
+        public void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> args)
         {
 
         }
@@ -107,7 +110,7 @@ internal static class EffectManager
         class FallbackEffectSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
         {
             public event Action<double>? Progress;
-            public event Action<SynthesisException?>? Finished;
+            public event Action<SynthesisError?>? Finished;
 
             public void OnDirtyEvent(EffectDirtyEvent dirtyEvent)
             {

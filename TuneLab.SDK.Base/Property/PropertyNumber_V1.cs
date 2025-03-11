@@ -1,4 +1,4 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.Property;
 
 public class PropertyNumber_V1 : IPrimitiveValue_V1
 {
@@ -34,7 +34,7 @@ public class PropertyNumber_V1 : IPrimitiveValue_V1
 
     public override string ToString() => mValue.ToString();
 
-    bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other) => other is PropertyNumber_V1 property && property.mValue == mValue;
+    //bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other) => other is PropertyNumber_V1 property && property.mValue == mValue;
 
     readonly double mValue;
 }

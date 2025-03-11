@@ -1,4 +1,4 @@
-﻿using TuneLab.SDK.Base;
+﻿using TuneLab.SDK.Base.DataStructures;
 
 namespace TuneLab.SDK.Format.DataInfo;
 

@@ -1,4 +1,4 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.DataStructures;
 
 public interface IOrderedMap_V1<TKey, TValue> : IMap_V1<TKey, TValue>, IReadOnlyOrderedMap_V1<TKey, TValue> where TKey : notnull
 {

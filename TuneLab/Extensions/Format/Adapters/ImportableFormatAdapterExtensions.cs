@@ -1,21 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.Property;
 using TuneLab.SDK.Format.DataInfo;
+using TuneLab.Extensions.Adapters.DataStructures;
 
 namespace TuneLab.Extensions.Format.Adapters;
 
 internal static class ImportableFormatAdapterExtensions
 {
-    public static Map<TKey, TResult> ConvertToMap<TKey, TSource, TResult>(this IReadOnlyDictionary<TKey, TSource> dictionary, Func<TSource, TResult> converter) where TKey : notnull
-    {
-        return dictionary.Convert<Map<TKey, TResult>, TKey, TSource, TResult>(converter);
-    }
-
-    public static Map<TKey, TValue> ToMap<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary) where TKey : notnull
+    public static Map<TKey, TValue> ToMap<TKey, TValue>(this IReadOnlyMap<TKey, TValue> dictionary) where TKey : notnull
     {
         Map<TKey, TValue> map = [];
         foreach (var item in dictionary)
@@ -111,7 +108,7 @@ internal static class ImportableFormatAdapterExtensions
         {
             Type = effectInfo_V1.Type,
             IsEnabled = effectInfo_V1.IsEnabled,
-            Automations = ((Map<string, AutomationInfo_V1>)effectInfo_V1.Automations).ConvertToMap(Convert),
+            Automations = effectInfo_V1.Automations.ToDomain().Convert(Convert).ToMap(),
             Properties = effectInfo_V1.Properties.Convert(),
         };
     }
@@ -140,7 +137,7 @@ internal static class ImportableFormatAdapterExtensions
             Amplitude = vibratoInfo_V1.Amplitude,
             Attack = vibratoInfo_V1.Attack,
             Release = vibratoInfo_V1.Release,
-            AffectedAutomations = vibratoInfo_V1.AffectedAutomations,
+            AffectedAutomations = vibratoInfo_V1.AffectedAutomations.ToDomain().ToMap(),
         };
     }
 
@@ -155,7 +152,7 @@ internal static class ImportableFormatAdapterExtensions
             Voice = midiPartInfo_V1.Voice.Convert(),
             Effects = midiPartInfo_V1.Effects.ConvertAll(Convert),
             Notes = midiPartInfo_V1.Notes.ConvertAll(Convert),
-            Automations = ((Map<string, AutomationInfo_V1>)midiPartInfo_V1.Automations).ConvertToMap(Convert),
+            Automations = midiPartInfo_V1.Automations.ToDomain().Convert(Convert).ToMap(),
             Pitch = midiPartInfo_V1.Pitch.ConvertAll(list => list.ConvertAll(Convert)),
             Vibratos = midiPartInfo_V1.Vibratos.ConvertAll(Convert),
             Properties = midiPartInfo_V1.Properties.Convert(),

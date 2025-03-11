@@ -1,11 +1,11 @@
-﻿using TuneLab.SDK.Base;
+﻿using TuneLab.SDK.Base.Synthesizer;
 
 namespace TuneLab.SDK.Effect;
 
 public interface IEffectSynthesisTask_V1
 {
     event Action<double>? Progress;
-    event Action<SynthesisException_V1?>? Finished;
+    event Action<SynthesisError_V1?>? Finished;
 
     void Start();
     void Stop();

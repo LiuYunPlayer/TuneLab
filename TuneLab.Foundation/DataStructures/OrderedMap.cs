@@ -2,10 +2,10 @@
 
 namespace TuneLab.Foundation.DataStructures;
 
-public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where TKey : notnull
+public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue>, IReadOnlyOrderedMap<TKey, TValue> where TKey : notnull
 {
     public int Count => mKeys.Count;
-    public TValue this[TKey key] => mMap[key];
+    public TValue this[TKey key] { get => mMap[key]; set { if (mMap.ContainsKey(key)) mMap[key] = value; else { mMap.Add(key, value); mKeys.Add(key); } } }
     public IReadOnlyList<TKey> Keys => mKeys;
     public IReadOnlyList<TValue> Values => new ValueCollection(this);
     public OrderedMap() { }
@@ -13,7 +13,7 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
     public void Add(TKey key, TValue value)
     {
         if (mMap.ContainsKey(key))
-            Remove(key);
+            throw new ArgumentException("Key already exists in map");
 
         mMap.Add(key, value);
         mKeys.Add(key);
@@ -22,16 +22,15 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
     public void Insert(int index, TKey key, TValue value)
     {
         if (mMap.ContainsKey(key))
-            Remove(key);
+            throw new ArgumentException("Key already exists in map");
 
         mMap.Add(key, value);
         mKeys.Insert(index, key);
     }
 
-    public void Remove(TKey key)
+    public bool Remove(TKey key)
     {
-        mMap.Remove(key);
-        mKeys.Remove(key);
+        return  mMap.Remove(key) && mKeys.Remove(key);
     }
 
     public void Clear()
@@ -49,12 +48,9 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
 
     TKey KeyAt(int index) => mKeys[index];
     TValue ValueAt(int index) => mMap[KeyAt(index)];
-    KeyWithValue<TKey, TValue> At(int index) => new(KeyAt(index), ValueAt(index));
+    ReadOnlyKeyValuePair<TKey, TValue> At(int index) => new(KeyAt(index), ValueAt(index));
 
-    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => Keys;
-    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => Values;
-
-    IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator() => GetEnumerator();
+    IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>.GetEnumerator() => GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public TValue? GetValue(TKey key, out bool success)
@@ -62,14 +58,14 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
         return mMap.GetValue(key, out success);
     }
 
-    IReadOnlyKeyWithValue<TKey, TValue> IReadOnlyList<IReadOnlyKeyWithValue<TKey, TValue>>.this[int index] => At(index);
+    IReadOnlyKeyValuePair<TKey, TValue> IReadOnlyList<IReadOnlyKeyValuePair<TKey, TValue>>.this[int index] => At(index);
 
     readonly Map<TKey, TValue> mMap = [];
     readonly List<TKey> mKeys = [];
 
-    public struct Enumerator(OrderedMap<TKey, TValue> map) : IEnumerator<KeyWithValue<TKey, TValue>>, IEnumerator<TValue>
+    public struct Enumerator(OrderedMap<TKey, TValue> map) : IEnumerator<ReadOnlyKeyValuePair<TKey, TValue>>, IEnumerator<TValue>
     {
-        public readonly KeyWithValue<TKey, TValue> Current => map.At(mCurrentIndex);
+        public readonly ReadOnlyKeyValuePair<TKey, TValue> Current => map.At(mCurrentIndex);
 
         public bool MoveNext()
         {
@@ -101,5 +97,18 @@ public class OrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where 
         public IEnumerator<TValue> GetEnumerator() => map.GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+}
+
+public static class OrderedMapBuilder
+{
+    public static OrderedMap<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair<TKey, TValue>> values) where TKey : notnull
+    {
+        var map = new OrderedMap<TKey, TValue>();
+        foreach (var kvp in values)
+        {
+            map.Add(kvp.Key, kvp.Value);
+        }
+        return map;
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.Synthesizer;
 
 public interface IAutomationValueGetter_V1
 {

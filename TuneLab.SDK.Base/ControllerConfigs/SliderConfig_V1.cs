@@ -1,11 +1,9 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.ControllerConfigs;
 
 public sealed class SliderConfig_V1 : IControllerConfig_V1
 {
-    public required PropertyNumber_V1 DefaultValue { get; set; }
-    public required PropertyNumber_V1 MinValue { get; set; }
-    public required PropertyNumber_V1 MaxValue { get; set; }
+    public required double DefaultValue { get; set; }
+    public required double MinValue { get; set; }
+    public required double MaxValue { get; set; }
     public bool IsInteger { get; set; } = false;
-
-    PropertyValue_V1 IControllerConfig_V1.DefaultValue => DefaultValue;
 }

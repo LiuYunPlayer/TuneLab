@@ -1,4 +1,4 @@
-﻿namespace TuneLab.Foundation;
+﻿namespace TuneLab.Foundation.Property;
 
 internal interface IContainerValue : IPropertyValue
 {

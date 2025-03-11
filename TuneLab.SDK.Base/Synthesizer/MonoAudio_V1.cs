@@ -1,4 +1,4 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.Synthesizer;
 
 public struct MonoAudio_V1
 {

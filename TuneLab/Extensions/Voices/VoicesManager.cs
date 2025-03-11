@@ -9,7 +9,7 @@ using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Voices;
 
-internal static class VoicesManager
+internal static class VoiceManager
 {
     public static void LoadBuiltIn()
     {

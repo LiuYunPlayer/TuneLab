@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
-using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.Property;
 
 namespace TuneLab.Base.Properties;
 

@@ -1,4 +1,4 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.Property;
 
 public readonly struct PrimitiveValue_V1
 {

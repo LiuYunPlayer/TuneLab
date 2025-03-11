@@ -1,21 +1,29 @@
-﻿using TuneLab.Base.Properties;
-using TuneLab.SDK.Base;
+﻿using TuneLab.Extensions.Adapters.ControllerConfigs;
+using TuneLab.Extensions.Adapters.DataStructures;
+using TuneLab.Extensions.Adapters.Effect;
+using TuneLab.Extensions.Adapters.Property;
+using TuneLab.Extensions.ControllerConfigs;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 
-internal interface IEffectEngine : IEffectEngine_V1
+internal interface IEffectEngine
 {
-    string PropertyConfig { get; }
-    string AutomationConfig { get; }
-    void Initialize(PropertyObject args);
+    ObjectConfig PropertyConfig { get; }
+    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfig { get; }
+    void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> args);
     void Destroy();
     IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output);
+}
 
-    // V1 Adapter
-    string IEffectEngine_V1.PropertyConfig => PropertyConfig;
-    string IEffectEngine_V1.AutomationConfig => AutomationConfig;
-    void IEffectEngine_V1.Initialize(PropertyObject_V1 args) => Initialize(args);
-    void IEffectEngine_V1.Destroy() => Destroy();
-    IEffectSynthesisTask_V1 IEffectEngine_V1.CreateSynthesisTask(IEffectSynthesisInput_V1 input, IEffectSynthesisOutput_V1 output) => CreateSynthesisTask(input, output);
+internal class EffectEngine_V1(IEffectEngine_V1 impl) : IEffectEngine
+{
+    public ObjectConfig PropertyConfig => impl.PropertyConfig.ToDomain();
+    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfig => impl.AutomationConfig.ToDomain().Convert(AutomationConfigAdapter.ToDomain);
+
+    public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) => impl.CreateSynthesisTask(input.ToV1(), output.ToV1()).ToDomain();
+    public void Destroy() => impl.Destroy();
+    public void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> args) => impl.Init(args.Convert(IReadOnlyPropertyValueAdapter.ToV1).ToV1());
 }

@@ -1,47 +1,41 @@
 ﻿using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using TuneLab.SDK.Base.DataStructures;
 
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.Property;
 
-public class PropertyObject_V1(IDictionary<string, PropertyValue_V1>? properties = null) : IContainerValue_V1, IDictionary<string, PropertyValue_V1>
+public class PropertyObject_V1(IMap_V1<string, PropertyValue_V1>? properties = null) : IContainerValue_V1, IMap_V1<string, PropertyValue_V1>
 {
     public PropertyValue_V1 this[string key] { get => GetValue(key); set => SetValue(key, value); }
-    public ICollection<string> Keys => mProperties == null ? [] : ((IDictionary<string, PropertyValue_V1>)mProperties).Keys;
-    public ICollection<PropertyValue_V1> Values => mProperties == null ? Array.Empty<PropertyValue_V1>() : ((IDictionary<string, PropertyValue_V1>)mProperties).Values;
-    public int Count => mProperties == null ? 0 : ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).Count;
-    public bool IsReadOnly => mProperties == null ? true : ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).IsReadOnly;
+    public IReadOnlyCollection<string> Keys => mProperties == null ? [] : mProperties.Keys;
+    public IReadOnlyCollection<PropertyValue_V1> Values => mProperties == null ? [] : mProperties.Values;
+    public int Count => mProperties == null ? 0 : mProperties.Count;
 
     public void Add(string key, PropertyValue_V1 value)
     {
-        mProperties ??= new Dictionary<string, PropertyValue_V1>();
-        ((IDictionary<string, PropertyValue_V1>)mProperties).Add(key, value);
+        mProperties ??= new Map_V1<string, PropertyValue_V1>();
+        mProperties.Add(key, value);
     }
 
     public bool ContainsKey(string key)
     {
-        return mProperties != null && ((IDictionary<string, PropertyValue_V1>)mProperties).ContainsKey(key);
+        return mProperties != null && mProperties.ContainsKey(key);
     }
 
     public bool Remove(string key)
     {
-        return mProperties != null && ((IDictionary<string, PropertyValue_V1>)mProperties).Remove(key);
+        return mProperties != null && mProperties.Remove(key);
     }
 
-    public bool TryGetValue(string key, [MaybeNullWhen(false)] out PropertyValue_V1 value)
+    public PropertyValue_V1 GetValue(string key, [MaybeNullWhen(false)] out bool success)
     {
         if (mProperties == null)
         {
-            value = default;
-            return false;
+            success = false;
+            return default;
         }
 
-        return ((IDictionary<string, PropertyValue_V1>)mProperties).TryGetValue(key, out value);
-    }
-
-    public void Add(KeyValuePair<string, PropertyValue_V1> item)
-    {
-        mProperties ??= new Dictionary<string, PropertyValue_V1>();
-        ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).Add(item);
+        return mProperties.GetValue(key, out success);
     }
 
     public void Clear()
@@ -49,27 +43,9 @@ public class PropertyObject_V1(IDictionary<string, PropertyValue_V1>? properties
         mProperties?.Clear();
     }
 
-    public bool Contains(KeyValuePair<string, PropertyValue_V1> item)
+    public IEnumerator<IReadOnlyKeyValuePair_V1<string, PropertyValue_V1>> GetEnumerator()
     {
-        return mProperties != null && ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).Contains(item);
-    }
-
-    public void CopyTo(KeyValuePair<string, PropertyValue_V1>[] array, int arrayIndex)
-    {
-        if (mProperties == null)
-            return;
-
-        ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).CopyTo(array, arrayIndex);
-    }
-
-    public bool Remove(KeyValuePair<string, PropertyValue_V1> item)
-    {
-        return mProperties != null && ((ICollection<KeyValuePair<string, PropertyValue_V1>>)mProperties).Remove(item);
-    }
-
-    public IEnumerator<KeyValuePair<string, PropertyValue_V1>> GetEnumerator()
-    {
-        return mProperties == null ? Enumerable.Empty<KeyValuePair<string, PropertyValue_V1>>().GetEnumerator() : ((IEnumerable<KeyValuePair<string, PropertyValue_V1>>)mProperties).GetEnumerator();
+        return mProperties == null ? Enumerable.Empty<IReadOnlyKeyValuePair_V1<string, PropertyValue_V1>>().GetEnumerator() : mProperties.GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -79,19 +55,19 @@ public class PropertyObject_V1(IDictionary<string, PropertyValue_V1>? properties
 
     public void SetValue(string key, PropertyValue_V1 value)
     {
-        mProperties ??= new Dictionary<string, PropertyValue_V1>();
+        mProperties ??= new Map_V1<string, PropertyValue_V1>();
         if (mProperties.ContainsKey(key))
-            mProperties["key"] = value;
+            mProperties[key] = value;
         else
             mProperties.Add(key, value);
     }
-    public PropertyValue_V1 GetValue(string key, PropertyValue_V1 defaultValue = default) => TryGetValue(key, out var value) ? value : defaultValue;
-    public PropertyBoolean_V1 GetBoolean(string key, PropertyBoolean_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsBoolean(defaultValue) : defaultValue;
-    public PropertyNumber_V1 GetNumber(string key, PropertyNumber_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsNumber(defaultValue) : defaultValue;
-    public PropertyString_V1 GetString(string key, PropertyString_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsString(defaultValue) : defaultValue;
-    public PropertyArray_V1 GetArray(string key, PropertyArray_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsArray(defaultValue) : defaultValue;
-    public PropertyObject_V1 GetObject(string key, PropertyObject_V1 defaultValue) => TryGetValue(key, out var value) ? value.AsObject(defaultValue) : defaultValue;
-
+    public PropertyValue_V1 GetValue(string key, PropertyValue_V1 defaultValue = default) => this.TryGetValue(key, out var value) ? value : defaultValue;
+    public PropertyBoolean_V1 GetBoolean(string key, PropertyBoolean_V1 defaultValue) => this.TryGetValue(key, out var value) ? value.AsBoolean(defaultValue) : defaultValue;
+    public PropertyNumber_V1 GetNumber(string key, PropertyNumber_V1 defaultValue) => this.TryGetValue(key, out var value) ? value.AsNumber(defaultValue) : defaultValue;
+    public PropertyString_V1 GetString(string key, PropertyString_V1 defaultValue) => this.TryGetValue(key, out var value) ? value.AsString(defaultValue) : defaultValue;
+    public PropertyArray_V1 GetArray(string key, PropertyArray_V1 defaultValue) => this.TryGetValue(key, out var value) ? value.AsArray(defaultValue) : defaultValue;
+    public PropertyObject_V1 GetObject(string key, PropertyObject_V1 defaultValue) => this.TryGetValue(key, out var value) ? value.AsObject(defaultValue) : defaultValue;
+    /*
     bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other)
     {
         if (other is not PropertyObject_V1 property)
@@ -104,7 +80,7 @@ public class PropertyObject_V1(IDictionary<string, PropertyValue_V1>? properties
             return false;
 
         return mProperties.SequenceEqual(property.mProperties);
-    }
+    }*/
 
-    IDictionary<string, PropertyValue_V1>? mProperties = properties;
+    IMap_V1<string, PropertyValue_V1>? mProperties = properties;
 }

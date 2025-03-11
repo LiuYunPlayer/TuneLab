@@ -1,6 +1,6 @@
-﻿namespace TuneLab.Foundation;
+﻿namespace TuneLab.Foundation.Property;
 
-internal interface IPropertyValue : IEquatable<IPropertyValue>
+internal interface IPropertyValue : IReadOnlyPropertyValue//, IEquatable<IPropertyValue>
 {
 
 }

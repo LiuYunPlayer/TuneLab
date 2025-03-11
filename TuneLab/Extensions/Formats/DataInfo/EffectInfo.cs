@@ -7,6 +7,6 @@ public class EffectInfo
 {
     public string Type { get; set; } = string.Empty;
     public bool IsEnabled { get; set; } = true;
-    public Map<string, AutomationInfo> Automations { get; set; } = new();
+    public Map<string, AutomationInfo> Automations { get; set; } = [];
     public PropertyObject Properties { get; set; } = PropertyObject.Empty;
 }

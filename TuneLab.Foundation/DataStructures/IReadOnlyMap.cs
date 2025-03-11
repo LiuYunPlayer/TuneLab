@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace TuneLab.Foundation.DataStructures;
 
-public interface IReadOnlyMap<TKey, out TValue> : IReadOnlyCollection<IReadOnlyKeyWithValue<TKey, TValue>> where TKey : notnull
+[CollectionBuilder(typeof(MapBuilder), nameof(MapBuilder.Create))]
+public interface IReadOnlyMap<TKey, out TValue> : IReadOnlyCollection<IReadOnlyKeyValuePair<TKey, TValue>> where TKey : notnull
 {
     TValue this[TKey key] { get; }
     IReadOnlyCollection<TKey> Keys { get; }

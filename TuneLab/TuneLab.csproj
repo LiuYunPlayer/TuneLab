@@ -49,6 +49,7 @@
 	  <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" />
+	  <ProjectReference Include="..\TuneLab.SDK.Voice\TuneLab.SDK.Voice.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -1,39 +1,62 @@
-﻿using System.Reflection;
-using TuneLab.SDK.Base;
+﻿using System.Collections;
+using System.Runtime.CompilerServices;
 
 namespace TuneLab.Foundation.DataStructures;
 
-public class Map<TKey, TValue> : Dictionary<TKey, TValue>, IMap<TKey, TValue>, IMap_V1<TKey, TValue> where TKey : notnull
+[CollectionBuilder(typeof(MapBuilder), nameof(MapBuilder.Create))]
+public class Map<TKey, TValue> : IMap<TKey, TValue> where TKey : notnull
 {
     public readonly static IReadOnlyMap<TKey, TValue> Empty = new Map<TKey, TValue>();
-    public new IReadOnlyCollection<TKey> Keys => Keys;
-    public new IReadOnlyCollection<TValue> Values => base.Values;
+
+    public TValue this[TKey key] { get => mDictionary[key]; set => mDictionary[key] = value; }
+    public IReadOnlyCollection<TKey> Keys => mDictionary.Keys;
+    public IReadOnlyCollection<TValue> Values => mDictionary.Values;
+    public int Count => mDictionary.Count;
 
     public TValue? GetValue(TKey key, out bool success)
     {
-        success = TryGetValue(key, out var value);
+        success = mDictionary.TryGetValue(key, out var value);
         return value;
     }
 
-    IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator() => GetEnumerator().Convert(KeyValuePairExtensions.ToKeyWithValue);
-    IEnumerator<IReadOnlyKeyValuePair_V1<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair_V1<TKey, TValue>>.GetEnumerator() => GetEnumerator().Convert(KeyValuePairExtensions.ToKeyWithValue);
-
-    public static implicit operator Map<TKey, TValue>(Map_V1<TKey, TValue> map)
+    public void Add(TKey key, TValue value)
     {
-        return typeof(Map_V1<TKey, TValue>).GetField("impl").GetValue(null) as Map<TKey, TValue>;
+        mDictionary.Add(key, value);
     }
 
-    public static implicit operator Map_V1<TKey, TValue>(Map<TKey, TValue> map)
+    public bool Remove(TKey key)
     {
-        return typeof(Map_V1<TKey, TValue>).GetConstructor([typeof(IMap_V1<TKey, TValue>)]).Invoke([map]) as Map_V1<TKey, TValue>;
+        return mDictionary.Remove(key);
     }
+
+    public void Clear()
+    {
+        mDictionary.Clear();
+    }
+
+    public bool ContainsKey(TKey key)
+    {
+        return mDictionary.ContainsKey(key);
+    }
+
+    public IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> GetEnumerator()
+    {
+        return mDictionary.GetEnumerator().Convert(ReadOnlyKeyValuePair<TKey, TValue>.FromSystem);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    readonly Dictionary<TKey, TValue> mDictionary = [];
 }
 
 public static class MapExtensions
 {
-    public static Map<TKey, TValue> ToMap<TKey, TValue>(this IReadOnlyCollection<IReadOnlyKeyWithValue<TKey, TValue>> kvps) where TKey : notnull
+    public static Map<TKey, TValue> ToMap<TKey, TValue>(this IReadOnlyCollection<IReadOnlyKeyValuePair<TKey, TValue>> kvps) where TKey : notnull
     {
-        Map<TKey, TValue> map = new();
+        Map<TKey, TValue> map = [];
         foreach (var kvp in kvps)
         {
             map.Add(kvp.Key, kvp.Value);
@@ -43,6 +66,19 @@ public static class MapExtensions
 
     public static Map<TKey, TValue> ToMap<TKey, TValue>(this IReadOnlyMap<TKey, TValue> map) where TKey : notnull
     {
-        return ((IReadOnlyCollection<IReadOnlyKeyWithValue<TKey, TValue>>)map).ToMap();
+        return ((IReadOnlyCollection<IReadOnlyKeyValuePair<TKey, TValue>>)map).ToMap();
+    }
+}
+
+public static class MapBuilder
+{
+    public static Map<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair<TKey, TValue>> values) where TKey : notnull
+    {
+        var map = new Map<TKey, TValue>();
+        foreach (var kvp in values)
+        {
+            map.Add(kvp.Key, kvp.Value);
+        }
+        return map;
     }
 }

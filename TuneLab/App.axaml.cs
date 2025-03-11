@@ -105,11 +105,11 @@ public partial class App : Application
             }
 
             // 暂时改为提前初始化，使Set Voice右键菜单能更快弹出
-            foreach (var engine in VoicesManager.GetAllVoiceEngines())
+            foreach (var engine in VoiceManager.GetAllVoiceEngines())
             {
                 try
                 {
-                    VoicesManager.InitEngine(engine);
+                    VoiceManager.InitEngine(engine);
                 }
                 catch (Exception ex)
                 {

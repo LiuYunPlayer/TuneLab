@@ -1,4 +1,6 @@
-﻿namespace TuneLab.SDK.Base;
+﻿using TuneLab.SDK.Base.Property;
+
+namespace TuneLab.SDK.Base.ControllerConfigs;
 
 public struct ComboBoxItemConfig_V1
 {
@@ -32,6 +34,4 @@ public class ComboBoxConfig_V1 : IControllerConfig_V1
 {
     public PrimitiveValue_V1 DefaultValue { get; set; }
     public required IReadOnlyList<ComboBoxItemConfig_V1> Items { get; set; }
-
-    PropertyValue_V1 IControllerConfig_V1.DefaultValue => DefaultValue;
 }

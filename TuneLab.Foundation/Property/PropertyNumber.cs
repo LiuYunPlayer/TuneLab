@@ -1,7 +1,9 @@
-﻿namespace TuneLab.Foundation;
+﻿namespace TuneLab.Foundation.Property;
 
 public class PropertyNumber : IPrimitiveValue
 {
+    public PropertyType Type => PropertyType.Number;
+
     public static implicit operator sbyte(PropertyNumber property) => (sbyte)property.mValue;
     public static implicit operator byte(PropertyNumber property) => (byte)property.mValue;
     public static implicit operator short(PropertyNumber property) => (short)property.mValue;
@@ -34,7 +36,7 @@ public class PropertyNumber : IPrimitiveValue
 
     public override string ToString() => mValue.ToString();
 
-    bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyNumber property && property.mValue == mValue;
+    //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyNumber property && property.mValue == mValue;
 
     readonly double mValue;
 }

@@ -1,6 +1,6 @@
 ﻿using System.Collections;
 
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.Property;
 
 public class PropertyArray_V1(IList<PropertyValue_V1>? list = null) : IContainerValue_V1, IList<PropertyValue_V1>
 {
@@ -59,7 +59,7 @@ public class PropertyArray_V1(IList<PropertyValue_V1>? list = null) : IContainer
     {
         return GetEnumerator();
     }
-
+    /*
     bool IEquatable<IPropertyValue_V1>.Equals(IPropertyValue_V1? other)
     {
         if (other is not PropertyArray_V1 property)
@@ -72,7 +72,7 @@ public class PropertyArray_V1(IList<PropertyValue_V1>? list = null) : IContainer
             return false;
 
         return mList.SequenceEqual(property.mList);
-    }
+    }*/
 
     IList<PropertyValue_V1>? mList = list;
 }

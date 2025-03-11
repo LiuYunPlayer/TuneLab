@@ -11,5 +11,5 @@ public class VibratoInfo
     public double Amplitude { get; set; }
     public double Attack { get; set; }
     public double Release { get; set; }
-    public Map<string, double> AffectedAutomations { get; set; } = new();
+    public Map<string, double> AffectedAutomations { get; set; } = [];
 }

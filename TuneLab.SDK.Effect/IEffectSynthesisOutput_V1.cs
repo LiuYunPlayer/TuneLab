@@ -1,4 +1,4 @@
-﻿using TuneLab.SDK.Base;
+﻿using TuneLab.SDK.Base.Synthesizer;
 
 namespace TuneLab.SDK.Effect;
 

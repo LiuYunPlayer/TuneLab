@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace TuneLab.Foundation;
+namespace TuneLab.Foundation.Property;
 
 public readonly struct PropertyValue
 {
@@ -28,8 +28,8 @@ public readonly struct PropertyValue
 
     public static implicit operator PropertyValue(string value) => new((PropertyString)value);
 
-    public static bool operator ==(PropertyValue left, PropertyValue right) => Equals(left.mValue, right.mValue);
-    public static bool operator !=(PropertyValue left, PropertyValue right) => !Equals(left.mValue, right.mValue);
+    //public static bool operator ==(PropertyValue left, PropertyValue right) => Equals(left.mValue, right.mValue);
+    //public static bool operator !=(PropertyValue left, PropertyValue right) => !Equals(left.mValue, right.mValue);
 
     public PropertyValue(PropertyBoolean value) : this((IPropertyValue)value) { }
     public PropertyValue(PropertyNumber value) : this((IPropertyValue)value) { }
@@ -64,23 +64,25 @@ public readonly struct PropertyValue
     public bool ToArray([NotNullWhen(true)][MaybeNullWhen(false)] out PropertyArray? value) { value = mValue as PropertyArray; return value != null; }
     public bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out PropertyObject? value) { value = mValue as PropertyObject; return value != null; }
 
-    readonly IPropertyValue? mValue;
+    public IReadOnlyPropertyValue AsReadOnly() => mValue ?? ReadOnlyPropertyValue.Null;
 
+    readonly IPropertyValue? mValue;
+    /*
     public override bool Equals(object? obj)
     {
         return obj is PropertyValue other && this == other;
-    }
-
+    }*/
+    /*
     public override int GetHashCode()
     {
         return mValue?.GetHashCode() ?? 0;
-    }
+    }*/
 
     public override string ToString()
     {
         return mValue?.ToString() ?? "null";
     }
-
+    /*
     static bool Equals(IPropertyValue? valueA, IPropertyValue? valueB)
     {
         if (valueA == valueB)
@@ -90,7 +92,7 @@ public readonly struct PropertyValue
             return false;
 
         return valueA.Equals(valueB);
-    }
+    }*/
 }
 
 public static class PropertyValue_V1Extensions

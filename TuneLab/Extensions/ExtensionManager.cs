@@ -18,12 +18,12 @@ internal static class ExtensionManager
         {
             Load(dir);
         }
-        VoicesManager.LoadBuiltIn();
+        VoiceManager.LoadBuiltIn();
     }
 
     public static void Destroy()
     {
-        VoicesManager.Destroy();
+        VoiceManager.Destroy();
     }
 
     public static void Load(string path)
@@ -65,7 +65,7 @@ internal static class ExtensionManager
             }
             else if (extensionInfo.type == "voice")
             {
-                VoicesManager.Load(path, extensionInfo);
+                VoiceManager.Load(path, extensionInfo);
             }
             else if (extensionInfo.type == "effect")
             {
@@ -74,7 +74,7 @@ internal static class ExtensionManager
             else
             {
                 FormatsManager.Load(path, extensionInfo);
-                VoicesManager.Load(path, extensionInfo);
+                VoiceManager.Load(path, extensionInfo);
                 EffectManager.Load(path, extensionInfo);
             }
         }

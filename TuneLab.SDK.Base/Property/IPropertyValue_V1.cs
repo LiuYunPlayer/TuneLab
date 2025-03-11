@@ -1,6 +1,6 @@
-﻿namespace TuneLab.SDK.Base;
+﻿namespace TuneLab.SDK.Base.Property;
 
-internal interface IPropertyValue_V1 : IEquatable<IPropertyValue_V1>
+internal interface IPropertyValue_V1
 {
 
 }

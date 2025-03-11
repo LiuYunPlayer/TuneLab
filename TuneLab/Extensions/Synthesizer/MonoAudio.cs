@@ -1,6 +1,4 @@
-﻿using TuneLab.SDK.Base;
-
-namespace TuneLab.Extensions.Synthesizer;
+﻿namespace TuneLab.Extensions.Synthesizer;
 
 internal struct MonoAudio
 {
@@ -13,15 +11,5 @@ internal struct MonoAudio
         MonoAudio clone = this;
         clone.Samples = (float[])Samples.Clone();
         return clone;
-    }
-
-    public static implicit operator MonoAudio_V1(MonoAudio v1)
-    {
-        return new MonoAudio_V1()
-        {
-            StartTime = v1.StartTime,
-            SampleRate = v1.SampleRate,
-            Samples = v1.Samples,
-        };
     }
 }
