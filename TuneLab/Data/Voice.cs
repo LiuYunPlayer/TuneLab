@@ -38,7 +38,7 @@ internal class Voice : DataObject, IVoice
     {
         mType = info.Type;
         mID = info.ID;
-        mVoiceSource = VoiceManager.Create(info.Type, info.ID);
+        mVoiceSource = VoicesManager.Create(info.Type, info.ID);
         mAutomationConfigs.Clear();
         foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs.Concat(mVoiceSource.AutomationConfigs).Concat(ConstantDefine.PostCommonAutomationConfigs))
         {

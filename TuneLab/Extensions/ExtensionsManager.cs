@@ -3,27 +3,31 @@ using System.IO;
 using System.Text.Json;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Voice;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions;
 
-internal static class ExtensionManager
+internal static class ExtensionsManager
 {
     public static void LoadExtensions()
     {
-        PathManager.MakeSureExist(PathManager.ExtensionsFolder);
         FormatsManager.LoadBuiltIn();
+        VoicesManager.LoadBuiltIn();
+
+        if (!Directory.Exists(PathManager.ExtensionsFolder))
+            return;
+
         foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
         {
             Load(dir);
         }
-        VoiceManager.LoadBuiltIn();
     }
 
     public static void Destroy()
     {
-        VoiceManager.Destroy();
+        VoicesManager.Destroy();
     }
 
     public static void Load(string path)
@@ -74,7 +78,7 @@ internal static class ExtensionManager
             else
             {
                 FormatsManager.Load(path, extensionInfo);
-                VoiceManager.Load(path, extensionInfo);
+                VoicesManager.Load(path, extensionInfo);
                 EffectManager.Load(path, extensionInfo);
             }
         }

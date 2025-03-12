@@ -4,13 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Voice;
 
 internal interface IVoiceEngine
 {
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; }
-    bool Init(string enginePath, out string? error);
+    void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> properties);
     void Destroy();
-    IVoiceSource CreateVoiceSource(string id);
+    IVoiceSource CreateVoiceSource(string id, IReadOnlyMap<string, IReadOnlyPropertyValue> properties);
 }

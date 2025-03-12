@@ -201,11 +201,11 @@ internal partial class TrackScrollView
                                         }
                                         {
                                             var menuItem = new MenuItem() { Header = "Set Voice".Tr(TC.Menu) };
-                                            var allEngines = VoiceManager.GetAllVoiceEngines();
+                                            var allEngines = VoicesManager.GetAllVoiceEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
                                                 var type = allEngines[i];
-                                                var infos = VoiceManager.GetAllVoiceInfos(type);
+                                                var infos = VoicesManager.GetAllVoiceInfos(type);
                                                 if (infos == null)
                                                     continue;
 

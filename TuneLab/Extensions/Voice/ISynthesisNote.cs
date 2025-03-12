@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using TuneLab.Foundation;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Voice;
 
@@ -11,7 +13,7 @@ public interface ISynthesisNote
     double EndTime { get; }
     int Pitch { get; }
     string Lyric { get; }
-    PropertyObject Properties { get; }
+    IReadOnlyMap<string, IReadOnlyPropertyValue> Properties { get; }
     IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
 }
 

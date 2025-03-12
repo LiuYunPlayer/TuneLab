@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Adapters.Voice;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
+using TuneLab.SDK.Voice;
 
 namespace TuneLab.Extensions.Voice;
 
@@ -15,7 +18,7 @@ internal static class VoiceManager
     public static void LoadBuiltIn()
     {
         var types = Assembly.GetExecutingAssembly().GetTypes();
-        LoadFromTypes(types, AppDomain.CurrentDomain.BaseDirectory);
+        LoadFromTypes(types);
     }
 
     public static void Load(string path, ExtensionInfo? description = null)
@@ -26,7 +29,7 @@ internal static class VoiceManager
             try
             {
                 var types = Assembly.LoadFrom(file).GetTypes();
-                LoadFromTypes(types, path);
+                LoadFromTypes(types);
             }
             catch { }
         }
@@ -43,20 +46,32 @@ internal static class VoiceManager
         mVoiceEngineStates.Clear();
     }
 
-    static void LoadFromTypes(Type[] types, string path)
+    static void LoadFromTypes(Type[] types)
     {
         foreach (Type type in types)
         {
-            var attribute = type.GetCustomAttribute<VoiceEngineAttribute>();
-            if (attribute != null)
-            {
-                if (typeof(IVoiceEngine).IsAssignableFrom(type))
-                {
-                    var constructor = type.GetConstructor(Type.EmptyTypes);
-                    if (constructor != null)
-                        mVoiceEngineStates.Add(attribute.Type, new VoiceEngineState((IVoiceEngine)constructor.Invoke(null), path));
-                }
-            }
+            LoadV1(type);
+        }
+    }
+
+    static void LoadV1(Type type)
+    {
+        var attribute = type.GetCustomAttribute<VoiceExtensionService_V1Attribute>();
+        if (attribute == null)
+            return;
+
+        if (!typeof(IVoiceExtensionService_V1).IsAssignableFrom(type))
+            return;
+
+        var constructor = type.GetConstructor(Type.EmptyTypes);
+        if (constructor == null)
+            return;
+
+        var service = (IVoiceExtensionService_V1)constructor.Invoke(null);
+        service.Load();
+        foreach (var kvp in service.VoiceEngines)
+        {
+            mVoiceEngineStates.Add(kvp.Key, new VoiceEngineState(kvp.Value.ToDomain()));
         }
     }
 
@@ -74,18 +89,18 @@ internal static class VoiceManager
         return engine.VoiceInfos;
     }
 
-    public static IVoiceSource Create(string type, string id)
+    public static IVoiceSource Create(string type, string id, IReadOnlyMap<string, IReadOnlyPropertyValue> properties)
     {
         var engine = GetInitedEngine(type);
         if (engine == null)
         {
-            return mDefaultEngine.CreateVoiceSource(id);
+            return mDefaultEngine.CreateVoiceSource(id, properties);
         }
 
         if (engine.VoiceInfos.ContainsKey(id))
-            return engine.CreateVoiceSource(id);
+            return engine.CreateVoiceSource(id, properties);
         else
-            return Create(string.Empty, string.Empty);
+            return Create(string.Empty, string.Empty, properties);
     }
 
     public static void InitEngine(string type)
@@ -129,24 +144,32 @@ internal static class VoiceManager
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public VoiceEngineState(IVoiceEngine engine, string enginePath)
+        public VoiceEngineState(IVoiceEngine engine)
         {
             mVoiceEngine = engine;
-            mEnginePath = enginePath;
         }
 
         public bool Init(out string? error)
         {
-            mIsInited = mVoiceEngine.Init(mEnginePath, out error);
+            error = null;
+            try
+            {
+                mVoiceEngine.Init([]);
+                mIsInited = true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                mIsInited = false;
+            }
             return mIsInited;
         }
 
         IVoiceEngine mVoiceEngine;
-        string mEnginePath;
         bool mIsInited = false;
     }
 
-    static OrderedMap<string, VoiceEngineState> mVoiceEngineStates = new();
+    static OrderedMap<string, VoiceEngineState> mVoiceEngineStates = [];
 #nullable disable
     static IVoiceEngine mDefaultEngine => mVoiceEngineStates[string.Empty].Engine;
 #nullable enable

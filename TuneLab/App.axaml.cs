@@ -38,7 +38,7 @@ public partial class App : Application
                 };
                 desktop.Exit += (s, e) =>
                 {
-                    ExtensionManager.Destroy();
+                    ExtensionsManager.Destroy();
                     AudioEngine.Destroy();
                 };
 
@@ -58,7 +58,7 @@ public partial class App : Application
                 Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
-                ExtensionManager.LoadExtensions();
+                ExtensionsManager.LoadExtensions();
                 mMainWindow = new MainWindow();
                 desktop.MainWindow = mMainWindow;
 
@@ -105,11 +105,11 @@ public partial class App : Application
             }
 
             // 暂时改为提前初始化，使Set Voice右键菜单能更快弹出
-            foreach (var engine in VoiceManager.GetAllVoiceEngines())
+            foreach (var engine in VoicesManager.GetAllVoiceEngines())
             {
                 try
                 {
-                    VoiceManager.InitEngine(engine);
+                    VoicesManager.InitEngine(engine);
                 }
                 catch (Exception ex)
                 {

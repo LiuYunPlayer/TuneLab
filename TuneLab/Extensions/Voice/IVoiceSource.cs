@@ -11,21 +11,20 @@ internal interface IVoiceSource
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
     ObjectConfig PartProperties { get; }
-    ObjectConfig NoteProperties { get; }
-    IReadOnlyList<SynthesisSegment> Segment<T>(SynthesisSegment segment) where T : ISynthesisNote;
-    IVoiceSynthesisTask CreateSynthesisTask(IVoiceSynthesisInput input, IVoiceSynthesisOutput output);
+    IReadOnlyList<IReadOnlyList<ISynthesisNote>> Segment<T>(IReadOnlyList<ISynthesisNote> segment) where T : ISynthesisNote;
+    IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output);
 }
 
 internal static class IVoiceSourceExtension
 {
-    internal static IReadOnlyList<SynthesisSegment> SimpleSegment(this IVoiceSource voiceSource, SynthesisSegment segment, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
+    internal static IReadOnlyList<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IReadOnlyList<ISynthesisNote> segment, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
     {
-        List<SynthesisSegment> segments = new();
-        using var it = segment.Notes.GetEnumerator();
+        List<IReadOnlyList<ISynthesisNote>> segments = [];
+        using var it = segment.GetEnumerator();
         if (!it.MoveNext())
             return segments;
 
-        List<ISynthesisNote> currentSegment = new() { it.Current };
+        List<ISynthesisNote> currentSegment = [it.Current];
 
         while (it.MoveNext())
         {
@@ -41,11 +40,11 @@ internal static class IVoiceSourceExtension
                 continue;
             }
 
-            segments.Add(new SynthesisSegment() { Notes = currentSegment });
+            segments.Add(currentSegment);
             currentSegment = [currentNote];
         }
 
-        segments.Add(new SynthesisSegment() { Notes = currentSegment });
+        segments.Add(currentSegment);
 
         return segments;
     }

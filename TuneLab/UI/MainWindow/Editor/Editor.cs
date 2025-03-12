@@ -697,7 +697,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             try
             {
                 ZipFileHelper.ExtractToDirectory(file, dir);
-                ExtensionManager.Load(dir);
+                ExtensionsManager.Load(dir);
                 await this.ShowMessage("Tips".Tr(TC.Dialog), name + " has been successfully installed!".Tr(TC.Dialog));
             }
             catch (Exception ex)
