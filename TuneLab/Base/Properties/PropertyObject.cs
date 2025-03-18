@@ -2,7 +2,6 @@
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
-using TuneLab.SDK.Base;
 using TuneLab.SDK.Base.Property;
 
 namespace TuneLab.Base.Properties;

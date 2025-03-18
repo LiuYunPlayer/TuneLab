@@ -1,8 +1,5 @@
 ﻿using System;
-using TuneLab.Extensions.Adapters.Synthesizer;
 using TuneLab.Extensions.Synthesizer;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 

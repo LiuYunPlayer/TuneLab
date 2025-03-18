@@ -1,6 +1,4 @@
-﻿using TuneLab.Foundation;
-
-namespace TuneLab.Extensions.ControllerConfigs;
+﻿namespace TuneLab.Extensions.ControllerConfigs;
 
 public sealed class SliderConfig : IControllerConfig
 {

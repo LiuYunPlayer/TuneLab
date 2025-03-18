@@ -1,10 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Synthesizer;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Property;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 

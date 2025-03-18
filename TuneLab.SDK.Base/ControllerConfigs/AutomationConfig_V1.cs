@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace TuneLab.SDK.Base.ControllerConfigs;
+﻿namespace TuneLab.SDK.Base.ControllerConfigs;
 
 public class AutomationConfig_V1 : IControllerConfig_V1
 {

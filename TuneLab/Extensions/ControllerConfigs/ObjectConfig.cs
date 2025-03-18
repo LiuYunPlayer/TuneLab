@@ -1,5 +1,4 @@
-﻿using TuneLab.Foundation;
-using TuneLab.Foundation.DataStructures;
+﻿using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Extensions.ControllerConfigs;
 

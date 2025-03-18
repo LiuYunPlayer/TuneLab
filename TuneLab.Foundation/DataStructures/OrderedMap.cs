@@ -30,7 +30,7 @@ public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue>, IReadOnlyOrde
 
     public bool Remove(TKey key)
     {
-        return  mMap.Remove(key) && mKeys.Remove(key);
+        return mMap.Remove(key) && mKeys.Remove(key);
     }
 
     public void Clear()

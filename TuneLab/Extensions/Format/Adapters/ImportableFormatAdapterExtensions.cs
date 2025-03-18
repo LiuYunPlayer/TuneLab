@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using TuneLab.Base.Properties;
+using TuneLab.Extensions.Adapters.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.SDK.Base.Property;
 using TuneLab.SDK.Format.DataInfo;
-using TuneLab.Extensions.Adapters.DataStructures;
 
 namespace TuneLab.Extensions.Format.Adapters;
 
