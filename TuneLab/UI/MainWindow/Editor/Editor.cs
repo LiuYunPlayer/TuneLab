@@ -80,7 +80,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var startTime = 0;
             AudioEngine.Seek(startTime);
-            if (Project == null) 
+            if (Project == null)
                 return;
 
             var startTick = Project.TempoManager.GetTick(startTime);
@@ -91,7 +91,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var endTime = AudioEngine.EndTime;
             AudioEngine.Seek(endTime);
-            if (Project == null) 
+            if (Project == null)
                 return;
 
             var endTick = Project.TempoManager.GetTick(endTime);
@@ -728,7 +728,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         try
         {
             var mUpdateCheck = await AppUpdateManager.CheckForUpdate(IsAutoCheck);
-            if (mUpdateCheck != null)
+            if (mUpdateCheck != null && mUpdateCheck.url != null)
             {
                 Log.Info($"Update available: {mUpdateCheck.version}");
                 await Dispatcher.UIThread.InvokeAsync(() =>

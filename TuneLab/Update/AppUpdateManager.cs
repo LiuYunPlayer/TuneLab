@@ -45,7 +45,7 @@ internal static class AppUpdateManager
                 { "platform", PlatformHelper.GetPlatform() }
             };
 
-        var response = await new Base.Utils.HttpClient("https://api.tunelab.app").GetAsync("/api/app/get-update", queryParams);
+        var response = await new Base.Utils.HttpClient("https://api.tunelab.app").GetAsync("/api/app/v2/get-update", queryParams);
 
         if (!response.IsSuccessful)
         {
