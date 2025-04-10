@@ -55,15 +55,13 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         {
             var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
             {
-                var border = new Border() { Height = 1, Background = Style.BACK.ToBrush() };
-                title.AddDock(border, Dock.Bottom);
                 var icon = new Image() { Source = Assets.Track.GetImage(Style.LIGHT_WHITE), Width = 24, Height = 24, Margin = new(16, 12, 12, 12) };
                 title.AddDock(icon, Dock.Left);
                 var name = new Label() { Content = "Track".Tr(TC.Dialog), FontSize = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.TEXT_LIGHT.ToBrush() };
                 title.AddDock(name);
             }
             headArea.AddDock(title, Dock.Top);
-
+            headArea.AddDock(new Border() { Height = 1, Background = Style.BACK.ToBrush() }, Dock.Top);
             headArea.AddDock(mTrackHeadList);
         }
         this.AddDock(headArea, Dock.Right);
@@ -74,6 +72,8 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
             {
                 mTimelineView = new(this) { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
                 layer.AddDock(mTimelineView, Dock.Top);
+
+                layer.AddDock(new Border() { Height = 1, Background = Style.BACK.ToBrush() }, Dock.Top);
 
                 mTrackScrollView = new(this);
                 layer.AddDock(mTrackScrollView);

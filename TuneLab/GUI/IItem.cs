@@ -46,6 +46,7 @@ internal class IconItem : IItem
     public int PivotAlignment { get; set; } = GUI.Alignment.Center;
     public int Alignment { get; set; } = GUI.Alignment.Center;
     public Point Offset { get; set; } = new Point();
+    public double Scale { get; set; } = 1;
 
     public void Paint(DrawingContext context, Rect rect, Color color)
     {
@@ -54,6 +55,7 @@ internal class IconItem : IItem
 
         var image = Icon.GetImage(color);
         var size = image.Size;
+        size *= Scale;
         var anchor = Alignment.Offset(rect.Width, rect.Height);
         var pivot = Alignment.Offset(size.Width, size.Height);
         context.DrawImage(Icon.GetImage(color), new Rect(Offset.X - anchor.Item1 + pivot.Item1, Offset.Y - anchor.Item2 + pivot.Item2, size.Width, size.Height));
