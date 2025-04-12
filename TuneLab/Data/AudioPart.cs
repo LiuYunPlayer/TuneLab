@@ -3,16 +3,19 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Base.Data;
 using TuneLab.Base.Event;
+using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;
 
 internal class AudioPart : Part, IAudioPart
 {
+    public INotifiableProperty<AudioPartStatus> Status { get; } = new NotifiableProperty<AudioPartStatus>(AudioPartStatus.Unlinked);
     public IActionEvent AudioChanged => mAudioChanged;
     public INotifiableProperty<string> BaseDirectory { get; } = new NotifiableProperty<string>(string.Empty);
     public override DataString Name { get; }
@@ -65,12 +68,17 @@ internal class AudioPart : Part, IAudioPart
         IDataObject<AudioPartInfo>.SetInfo(Path, info.Path);
     }
 
-    protected override IAudioData GetAudioData(int offset, int count)
+    public override IAudioData GetAudioData(int offset, int count)
     {
         if (mAudioData == null)
             return new EmptyAudioData();
 
         return mAudioData.GetAudioData(offset, count);
+    }
+
+    public override void OnSampleRateChanged()
+    {
+        Reload();
     }
 
     public Waveform GetWaveform(int channelIndex)
@@ -83,13 +91,22 @@ internal class AudioPart : Part, IAudioPart
         return mAudioData == null ? 0 : Math.Min(base.SampleCount(), mAudioData.Count);
     }
 
-    async void Reload()
+    public async void Reload()
     {
+        if (mLoadCancelTokenSource != null)
+        {
+            mLoadCancelTokenSource.Cancel();
+            mLoadCancelTokenSource = null;
+        }
+        
+        var cancellationTokenSource = new CancellationTokenSource();
         mAudioData = null;
         mWaveforms = [];
         mAudioChanged.Invoke();
+        Status.Value = AudioPartStatus.Loading;
         IAudioData? audioData = null;
         Waveform[]? waveforms = null;
+        mLoadCancelTokenSource = cancellationTokenSource;
         await Task.Run(() =>
         {
             try
@@ -99,7 +116,7 @@ internal class AudioPart : Part, IAudioPart
                 {
                     path = System.IO.Path.Combine(BaseDirectory.Value, path[3..]);
                 }
-                int samplingRate = AudioEngine.SamplingRate;
+                int samplingRate = AudioEngine.SampleRate.Value;
                 var data = AudioUtils.Decode(path, ref samplingRate);
                 switch (data.Length)
                 {
@@ -117,18 +134,34 @@ internal class AudioPart : Part, IAudioPart
             {
                 audioData = null;
                 waveforms = null;
+                Log.Error("Failed to load audio: " + ex);
             }
-        });
 
-        if (audioData == null || waveforms == null)
+            if (cancellationTokenSource.IsCancellationRequested)
+            {
+                audioData = null;
+                waveforms = null;
+            }
+        }, cancellationTokenSource.Token);
+
+        if (cancellationTokenSource.IsCancellationRequested)
             return;
+
+        mLoadCancelTokenSource = null;
+        if (audioData == null || waveforms == null)
+        {
+            Status.Value = AudioPartStatus.Unlinked;
+            return;
+        }
 
         mAudioData = audioData;
         mWaveforms = waveforms;
         mAudioChanged.Invoke();
+        Status.Value = AudioPartStatus.Linked;
     }
+    CancellationTokenSource? mLoadCancelTokenSource = null;
 
-    protected override int SamplingRate => AudioEngine.SamplingRate;
+    protected override int SampleRate => AudioEngine.SampleRate.Value;
     public int ChannelCount => mWaveforms.Length;
 
     Waveform[] mWaveforms = [];

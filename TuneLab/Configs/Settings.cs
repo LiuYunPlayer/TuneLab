@@ -21,6 +21,10 @@ internal static class Settings
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
     public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
+    public static NotifiableProperty<int> BufferSize { get; } = DefaultSettings.BufferSize;
+    public static NotifiableProperty<int> SampleRate { get; } = DefaultSettings.SampleRate;
+    public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
+    public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
     public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
     
     public static void Init(string path)
@@ -43,9 +47,14 @@ internal static class Settings
         Language.Value = settingsFile.Language;
         MasterGain.Value = settingsFile.MasterGain;
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
+        BackgroundImageOpacity.Value = settingsFile.BackgroundImageOpacity;
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
+        BufferSize.Value = settingsFile.BufferSize;
+        SampleRate.Value = settingsFile.SampleRate;
+        AudioDriver.Value = settingsFile.AudioDriver;
+        AudioDevice.Value = settingsFile.AudioDevice;
         TrackHueChangeRate.Value = settingsFile.TrackHueChangeRate;
     }
 
@@ -58,9 +67,14 @@ internal static class Settings
                 Language = Language,
                 MasterGain = MasterGain,
                 BackgroundImagePath = BackgroundImagePath,
+                BackgroundImageOpacity = BackgroundImageOpacity,
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
                 PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
+                BufferSize = BufferSize,
+                SampleRate = SampleRate,
+                AudioDriver = AudioDriver,
+                AudioDevice = AudioDevice,
                 TrackHueChangeRate = TrackHueChangeRate
             }, JsonSerializerOptions);
 

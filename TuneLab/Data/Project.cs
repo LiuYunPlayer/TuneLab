@@ -22,6 +22,7 @@ internal class Project : DataObject, IProject
     public Project() : this(new ProjectInfo()) { }
     public Project(ProjectInfo info)
     {
+        mTimeSignatureManager = new(this);
         mTempoManager = new(this);
         mTracks = new(this);
 
@@ -53,12 +54,10 @@ internal class Project : DataObject, IProject
         return info;
     }
 
-    [MemberNotNull(nameof(mTimeSignatureManager))]
     void IDataObject<ProjectInfo>.SetInfo(ProjectInfo info)
     {
-        // TODO: 两个manager都改成dataobject
         IDataObject<ProjectInfo>.SetInfo(mTempoManager, info.Tempos);
-        mTimeSignatureManager = new TimeSignatureManager(info.TimeSignatures);
+        IDataObject<ProjectInfo>.SetInfo(mTimeSignatureManager, info.TimeSignatures);
         IDataObject<ProjectInfo>.SetInfo(mTracks, info.Tracks.Convert(CreateTrack).ToArray());
     }
 

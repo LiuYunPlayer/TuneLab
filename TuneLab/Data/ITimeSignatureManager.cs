@@ -1,19 +1,33 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using TuneLab.Base.Data;
+using TuneLab.Base.Utils;
+using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;
 
-internal interface ITimeSignatureManager
+internal interface ITimeSignatureManager : IDataObject<List<TimeSignatureInfo>>
 {
+    IProject Project { get; } // TODO: Remove this
     IReadOnlyList<ITimeSignature> TimeSignatures { get; }
 
-    void AddTimeSignature(int barIndex, int numerator, int denominator);
+    int AddTimeSignature(int barIndex, int numerator, int denominator);
     void RemoveTimeSignatureAt(int index);
-    void SetNumeratorAndDenominator(int index, int numerator, int denominator);
+    void SetMeter(int index, int numerator, int denominator);
 }
 
 internal static class ITimeSignatureManagerExtension
 {
+    public static void RemoveTimeSignature(this ITimeSignatureManager manager, ITimeSignature timeSignature)
+    {
+        manager.RemoveTimeSignatureAt(manager.TimeSignatures.IndexOf(timeSignature));
+    }
+
+    public static void SetMeter(this ITimeSignatureManager manager, ITimeSignature timeSignature, int numerator, int denominator)
+    {
+        manager.SetMeter(manager.TimeSignatures.IndexOf(timeSignature), numerator, denominator);
+    }
+
     public static MeterStatus[] GetMeterStatus(this ITimeSignatureManager manager, IReadOnlyList<double> ticks)
     {
         MeterStatus[] meters = new MeterStatus[ticks.Count];

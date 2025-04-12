@@ -6,9 +6,26 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Audio;
 
-internal class AudioGraph(int samplingRate = 44100)
+internal class AudioGraph()
 {
-    public int SamplingRate => samplingRate;
+    public int SampleRate 
+    {
+        get => mSampleRate;
+        set
+        {
+            mSampleRate = value;
+            lock (mTrackLockObject)
+            {
+                foreach (var track in mTracks)
+                {
+                    foreach (var audioSource in track.AudioSources)
+                    {
+                        audioSource.OnSampleRateChanged();
+                    }
+                }
+            }
+        }
+    }
 
     public IReadOnlyCollection<IAudioTrack> Tracks => mTracks;
 
@@ -36,7 +53,7 @@ internal class AudioGraph(int samplingRate = 44100)
         float rightVolume = (float)(volume * (1 + pan));
         foreach (var audioSource in track.AudioSources)
         {
-            int audioSourceStart = (int)(audioSource.StartTime * SamplingRate);
+            int audioSourceStart = (int)(audioSource.StartTime * SampleRate);
             int audioSourceEnd = audioSourceStart + audioSource.SampleCount;
             if (audioSourceEnd < position)
                 continue;
@@ -106,7 +123,7 @@ internal class AudioGraph(int samplingRate = 44100)
         }
     }
 
-
+    int mSampleRate = 44100;
     List<IAudioTrack> mTracks = [];
 
     readonly object mTrackLockObject = new();

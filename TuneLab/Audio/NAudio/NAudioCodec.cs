@@ -16,9 +16,9 @@ internal class NAudioCodec : IAudioCodec
 {
     public IEnumerable<string> AllDecodableFormats { get; } = ["wav", "mp3", "flac", "aiff", "aif", "aifc"];
 
-    public void EncodeToWav(string path, float[] buffer, int samplingRate, int bitPerSample, int channelCount)
+    public void EncodeToWav(string path, float[] buffer, int sampleRate, int bitPerSample, int channelCount)
     {
-        WaveFormat waveFormat = new WaveFormat(samplingRate, 16, channelCount);
+        WaveFormat waveFormat = new WaveFormat(sampleRate, 16, channelCount);
         using WaveFileWriter writer = new WaveFileWriter(path, waveFormat);
         var bytes = To16BitsBytes(buffer);
         writer.Write(bytes, 0, bytes.Length);
@@ -48,14 +48,14 @@ internal class NAudioCodec : IAudioCodec
         return new NAudioFileReader(path);
     }
 
-    public IAudioStream Resample(IAudioProvider input, int outputSamplingRate)
+    public IAudioStream Resample(IAudioProvider input, int outputSampleRate)
     {
-        return new WdlResamplerStream(input, outputSamplingRate);
+        return new WdlResamplerStream(input, outputSampleRate);
     }
 
     class NAudioFileReader : IAudioStream
     {
-        public int SamplingRate { get; }
+        public int SampleRate { get; }
         public int ChannelCount { get; }
         public int SamplesPerChannel { get; }
         public TimeSpan TotalTime { get; }
@@ -64,10 +64,10 @@ internal class NAudioCodec : IAudioCodec
         {
             mWaveStream = Create(path);
             mSampleProvider = mWaveStream.ToSampleProvider();
-            SamplingRate = mWaveStream.WaveFormat.SampleRate;
+            SampleRate = mWaveStream.WaveFormat.SampleRate;
             ChannelCount = mWaveStream.WaveFormat.Channels;
             TotalTime = mWaveStream.TotalTime;
-            var count = TotalTime.TotalSeconds * SamplingRate;
+            var count = TotalTime.TotalSeconds * SampleRate;
             SamplesPerChannel = count.Round();
         }
 
@@ -117,18 +117,18 @@ internal class NAudioCodec : IAudioCodec
 
     class NAudioResamplerStream : IAudioStream
     {
-        public int SamplingRate { get; }
+        public int SampleRate { get; }
         public int ChannelCount { get; }
         public int SamplesPerChannel { get; }
 
-        public NAudioResamplerStream(IAudioProvider input, int outputSamplingRate)
+        public NAudioResamplerStream(IAudioProvider input, int outputSampleRate)
         {
-            mMediaFoundationResampler = new(new NAudioWaveProvider(input), WaveFormat.CreateIeeeFloatWaveFormat(outputSamplingRate, input.ChannelCount));
+            mMediaFoundationResampler = new(new NAudioWaveProvider(input), WaveFormat.CreateIeeeFloatWaveFormat(outputSampleRate, input.ChannelCount));
             mMediaFoundationResampler.ResamplerQuality = 60;
             mSampleProvider = mMediaFoundationResampler.ToSampleProvider();
-            SamplingRate = outputSamplingRate;
+            SampleRate = outputSampleRate;
             ChannelCount = input.ChannelCount;
-            SamplesPerChannel = (int)((long)input.SamplesPerChannel * outputSamplingRate / input.SamplingRate);
+            SamplesPerChannel = (int)((long)input.SamplesPerChannel * outputSampleRate / input.SampleRate);
         }
 
         public void Dispose()
@@ -147,20 +147,20 @@ internal class NAudioCodec : IAudioCodec
 
     class WdlResamplerStream : IAudioStream
     {
-        public int SamplingRate { get; }
+        public int SampleRate { get; }
         public int ChannelCount { get; }
         public int SamplesPerChannel { get; }
 
-        public WdlResamplerStream(IAudioProvider input, int outputSamplingRate)
+        public WdlResamplerStream(IAudioProvider input, int outputSampleRate)
         {
             mInput = input;
 
-            SamplingRate = outputSamplingRate;
+            SampleRate = outputSampleRate;
             ChannelCount = input.ChannelCount;
-            SamplesPerChannel = ((double)input.SamplesPerChannel * outputSamplingRate / input.SamplingRate).Ceil();
+            SamplesPerChannel = ((double)input.SamplesPerChannel * outputSampleRate / input.SampleRate).Ceil();
 
             mWdlResampler = new WdlResampler();
-            mWdlResampler.SetRates(input.SamplingRate, outputSamplingRate);
+            mWdlResampler.SetRates(input.SampleRate, outputSampleRate);
             prepareCount = mWdlResampler.ResamplePrepare(SamplesPerChannel, ChannelCount, out inBuffer, out inBufferOffset);
         }
 
@@ -199,7 +199,7 @@ internal class NAudioCodec : IAudioCodec
 
     class NAudioWaveProvider(IAudioProvider provider) : IWaveProvider
     {
-        public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(provider.SamplingRate, provider.ChannelCount);
+        public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(provider.SampleRate, provider.ChannelCount);
 
         public int Read(byte[] buffer, int offset, int count)
         {

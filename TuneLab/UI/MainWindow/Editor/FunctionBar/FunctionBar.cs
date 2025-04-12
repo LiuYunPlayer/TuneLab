@@ -65,10 +65,7 @@ internal class FunctionBar : LayerPanel
 
             void SetupToolTip(Control toggleButton, string ToolTipText)
             {
-                ToolTip.SetPlacement(toggleButton, PlacementMode.Top);
-                ToolTip.SetVerticalOffset(toggleButton, -8);
-                ToolTip.SetShowDelay(toggleButton, 0);
-                ToolTip.SetTip(toggleButton, ToolTipText);
+                toggleButton.SetupToolTip(ToolTipText, PlacementMode.Top, verticalOffset: -8);
             }
 
             var audioControlPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(0, 0) };

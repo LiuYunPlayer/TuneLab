@@ -22,6 +22,7 @@ using TuneLab.Extensions.Voices;
 using Part = TuneLab.Data.Part;
 using Rect = Avalonia.Rect;
 using TuneLab.I18N;
+using Splat;
 
 namespace TuneLab.UI;
 
@@ -45,7 +46,7 @@ internal partial class TrackScrollView
         }
     }
 
-    protected override void OnMouseDown(MouseDownEventArgs e)
+    protected override async void OnMouseDown(MouseDownEventArgs e)
     {
         switch (mState)
         {
@@ -66,7 +67,24 @@ internal partial class TrackScrollView
                                 
                                 if (e.IsDoubleClick)
                                 {
-                                    mDependency.SwitchEditingPart(part);
+                                    if (part is IAudioPart audioPart && audioPart.Status.Value == AudioPartStatus.Unlinked)
+                                    {
+                                        var path = await this.OpenFile(new FilePickerOpenOptions
+                                        {
+                                            Title = "Open File",
+                                            AllowMultiple = false,
+                                            FileTypeFilter = [new("Audio Formats") { Patterns = AudioUtils.AllDecodableFormats.Select(format => "*." + format).ToList() }]
+                                        });
+                                        if (File.Exists(path))
+                                        {
+                                            audioPart.Path.Set(path);
+                                            audioPart.Commit();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        mDependency.SwitchEditingPart(part);
+                                    }
                                 }
                                 else
                                 {
@@ -267,10 +285,7 @@ internal partial class TrackScrollView
                                 }
                             }
 
-                            if (menu.ItemCount != 0)
-                            {
-                                menu.Open(this);
-                            }
+                            this.OpenContextMenu(menu);
                         }
                         break;
                     default:

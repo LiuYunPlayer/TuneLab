@@ -3,34 +3,35 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TuneLab.Base.Data;
+using TuneLab.Base.Structures;
 using TuneLab.Base.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;
 
-internal class TimeSignatureManager : ITimeSignatureManager
+internal class TimeSignatureManager : DataObject, ITimeSignatureManager
 {
+    public IProject Project => mProject;
     public IReadOnlyList<ITimeSignature> TimeSignatures => mTimeSignatures;
 
     public const int DefaultNumerator = 4;
     public const int DefaultDenominator = 4;
-    public TimeSignatureManager() : this(DefaultNumerator, DefaultDenominator) { }
-    public TimeSignatureManager(int numerator, int denominator) : this(new TimeSignatureInfo[] { new TimeSignatureInfo { BarIndex = 0, Numerator = numerator, Denominator = denominator } }) { }
+    public TimeSignatureManager(IProject project) : this(project, DefaultNumerator, DefaultDenominator) { }
+    public TimeSignatureManager(IProject project, int numerator, int denominator) : this(project, [new TimeSignatureInfo { BarIndex = 0, Numerator = numerator, Denominator = denominator }]) { }
 
-    public TimeSignatureManager(IReadOnlyList<TimeSignatureInfo> timeSignatures)
+    public TimeSignatureManager(IProject project, List<TimeSignatureInfo> timeSignatures) : base(project)
     {
-        if (timeSignatures == null || timeSignatures.Count == 0)
-            timeSignatures = new TimeSignatureInfo[] { new TimeSignatureInfo { BarIndex = 0, Numerator = DefaultNumerator, Denominator = DefaultDenominator } };
-
-        foreach (var timeSignature in timeSignatures)
-        {
-            mTimeSignatures.Add(new TimeSignature(timeSignature.BarIndex, timeSignature.Numerator, timeSignature.Denominator));
-        }
-        CorrectStatusFrom(0);
+        mTimeSignatures = new(this);
+        mProject = project;
+        IDataObject<List<TimeSignatureInfo>>.SetInfo(this, timeSignatures);
     }
 
-    public void AddTimeSignature(int barIndex, int numerator, int denominator)
+    public int AddTimeSignature(int barIndex, int numerator, int denominator)
     {
+        barIndex = Math.Max(barIndex, TimeSignatures[0].BarIndex);
+
+        BeginMergeNotify();
         int i = mTimeSignatures.Count - 1;
         for (; i >= 0; --i)
         {
@@ -38,12 +39,23 @@ internal class TimeSignatureManager : ITimeSignatureManager
                 break;
         }
 
+        int result;
         if (mTimeSignatures[i].BarIndex == barIndex)
-            mTimeSignatures[i] = new TimeSignature(barIndex, numerator, denominator) { GlobalBeatIndex = mTimeSignatures[i].GlobalBeatIndex, Pos = mTimeSignatures[i].Pos };
+        {
+            var timeSignature = mTimeSignatures[i];
+            timeSignature.Numerator.Set(numerator);
+            timeSignature.Denominator.Set(denominator);
+            result = i;
+        }
         else
-            mTimeSignatures.Insert(i + 1, new TimeSignature(barIndex, numerator, denominator));
+        {
+            mTimeSignatures.Insert(i + 1, new TimeSignature(new() { BarIndex = barIndex, Numerator = numerator, Denominator = denominator }));
+            result = i + 1;
+        }
 
         CorrectStatusFrom(i + 1);
+        EndMergeNotify();
+        return result;
     }
 
     public void RemoveTimeSignatureAt(int index)
@@ -51,18 +63,22 @@ internal class TimeSignatureManager : ITimeSignatureManager
         if (index < 0 || index >= mTimeSignatures.Count)
             return;
 
+        BeginMergeNotify();
         mTimeSignatures.RemoveAt(index);
         CorrectStatusFrom(index);
+        EndMergeNotify();
     }
 
-    public void SetNumeratorAndDenominator(int index, int numerator, int denominator)
+    public void SetMeter(int index, int numerator, int denominator)
     {
         if (index < 0 || index >= TimeSignatures.Count)
             return;
 
-        mTimeSignatures[index].Numerator = numerator;
-        mTimeSignatures[index].Denominator = denominator;
+        BeginMergeNotify();
+        mTimeSignatures[index].Numerator.Set(numerator);
+        mTimeSignatures[index].Denominator.Set(denominator);
         CorrectStatusFrom(index + 1);
+        EndMergeNotify();
     }
 
     void CorrectStatusFrom(int index)
@@ -87,25 +103,52 @@ internal class TimeSignatureManager : ITimeSignatureManager
         }
     }
 
-    readonly List<TimeSignature> mTimeSignatures = new();
-    class TimeSignature : ITimeSignature
+    public List<TimeSignatureInfo> GetInfo()
     {
-        public int BarIndex { get => mBarIndex; set => mBarIndex = value; }
-        public int Numerator { get => mNumerator; set => mNumerator = value; }
-        public int Denominator { get => mDenominator; set => mDenominator = value; }
+        return mTimeSignatures.GetInfo().ToInfo();
+    }
+
+    void IDataObject<List<TimeSignatureInfo>>.SetInfo(List<TimeSignatureInfo> info)
+    {
+        if (info.Count == 0)
+            info = [new() { BarIndex = 0, Numerator = DefaultNumerator, Denominator = DefaultDenominator }];
+
+        IDataObject<List<TimeSignatureInfo>>.SetInfo(mTimeSignatures, info.Convert(t => new TimeSignature(t)).ToArray());
+        CorrectStatusFrom(0);
+    }
+
+    readonly DataObjectList<TimeSignature> mTimeSignatures;
+    readonly IProject mProject;
+
+    class TimeSignature : DataObject, ITimeSignature
+    {
+        public DataStruct<int> BarIndex { get; }
+        public DataStruct<int> Numerator { get; }
+        public DataStruct<int> Denominator { get; }
         public int GlobalBeatIndex { get => mBeatIndex; set => mBeatIndex = value; }
         public double Pos { get => mPos; set => mPos = value; }
 
-        public TimeSignature(int barIndex, int numerator, int denominator)
+        int ITimeSignature.BarIndex => BarIndex;
+        int IMeter.Numerator => Numerator;
+        int IMeter.Denominator => Denominator;
+
+        public TimeSignature(TimeSignatureInfo info)
         {
-            mBarIndex = barIndex;
-            mNumerator = numerator;
-            mDenominator = denominator;
+            BarIndex = new(this);
+            Numerator = new(this);
+            Denominator = new(this);
+            IDataObject<TimeSignatureInfo>.SetInfo(this, info);
         }
 
-        int mBarIndex;
-        int mNumerator;
-        int mDenominator;
+        public TimeSignatureInfo GetInfo() => new() { BarIndex = BarIndex.Value, Numerator = Numerator.Value, Denominator = Denominator.Value };
+
+        void IDataObject<TimeSignatureInfo>.SetInfo(TimeSignatureInfo info)
+        {
+            IDataObject<TimeSignatureInfo>.SetInfo(BarIndex, info.BarIndex);
+            IDataObject<TimeSignatureInfo>.SetInfo(Numerator, info.Numerator);
+            IDataObject<TimeSignatureInfo>.SetInfo(Denominator, info.Denominator);
+        }
+
         int mBeatIndex;
         double mPos;
     }

@@ -3,6 +3,10 @@
 "Please restart to apply settings." = "请重启以应用设置"
 "Language" = "语言"
 "Master Gain (dB)" = "总增益（分贝）"
+"Audio Driver" = "音频驱动"
+"Audio Device" = "音频设备"
+"Sample Rate" = "采样率"
+"Buffer Size" = "缓冲区大小"
 "Custom Background Image" = "自定义背景图"
 "Opacity" = "不透明度"
 "Piano Key Samples" = "钢琴音采样"
@@ -23,6 +27,10 @@
 "Selection Tool" = "选区工具"
 "Show Properties" = "显示属性面板"
 "Hide Properties" = "隐藏属性面板"
+
+[TrackScrollView]
+"Loading..." = "加载中..."
+"Failed to load audio. Double click to relink." = "音频加载失败，双击以重新链接。"
 
 [PianoScrollView]
 "Please draw pitch first in the area" = "请先在此区域绘制音高"
@@ -124,6 +132,10 @@
 "Delete Tempo" = "删除节奏"
 "Edit Tempo" = "编辑节奏"
 
+"Add Time Signature" = "添加节拍"
+"Delete Time Signature" = "删除节拍"
+"Edit Time Signature" = "编辑节拍"
+
 "Export Audio" = "导出音频"
 
 "Split by Phonemes" = "按音素拆分"
@@ -146,6 +158,8 @@
 
 "TuneLab Forum" = "TuneLab 社区"
 "TuneLab GitHub" = "TuneLab 项目仓库"
+"Open TuneLab Folder" = "打开 TuneLab 文件夹"
+"Open Log" = "打开日志"
 
 "Empty" = "空"
 "Check for Updates..." = "检查更新..."

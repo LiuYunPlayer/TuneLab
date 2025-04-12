@@ -32,6 +32,7 @@ internal partial class TimelineView : View
         mMiddleDragOperation = new(this);
         mSeekOperation = new(this);
         mTempoMovingOperation = new(this);
+        mTimeSignatureMovingOperation = new(this);
         mBpmInput = new TextInput()
         {
             Padding = new Thickness(8, 4),
@@ -46,6 +47,21 @@ internal partial class TimelineView : View
         };
         mBpmInput.EndInput.Subscribe(OnBpmInputComplete);
         Children.Add(mBpmInput);
+
+        mMeterInput = new TextInput()
+        {
+            Padding = new Thickness(8, 4),
+            Background = Brushes.White,
+            Foreground = Brushes.Black,
+            BorderThickness = new(0),
+            FontSize = 12,
+            CaretBrush = Brushes.Black,
+            MinWidth = 24,
+            CornerRadius = new CornerRadius(0),
+            IsVisible = false
+        };
+        mMeterInput.EndInput.Subscribe(OnMeterInputComplete);
+        Children.Add(mMeterInput);
 
         Height = 48;
         ClipToBounds = true;
@@ -108,7 +124,7 @@ internal partial class TimelineView : View
         TickAxis.AxisChanged += Update;
         Quantization.QuantizationChanged += InvalidateVisual;
         mDependency.TimelineProvider.When(timeline => timeline.TempoManager.Modified).Subscribe(InvalidateVisual, s);
-        // TODO: Subscribe TimeSignatureManger like TempoManager.
+        mDependency.TimelineProvider.When(timeline => timeline.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
     }
 
     ~TimelineView()
@@ -157,7 +173,9 @@ internal partial class TimelineView : View
             {
                 double xBarIndex = TickAxis.Tick2X(timeSignatures[timeSignatureIndex].GetTickByBarIndex(barIndex));
                 context.FillRectangle(barLineBrush, new Rect(xBarIndex, 0, 1, 12));
-                context.DrawText(new FormattedText((barIndex + 1).ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, textBrush), new Point(xBarIndex + 8, 8));
+                if (barIndex != thisTimeSignatureBarIndex)
+                    context.DrawText(new FormattedText((barIndex + 1).ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, textBrush), new Point(xBarIndex + 8, 8));
+
                 // draw beat
                 if (beatOpacity == 0)
                     continue;
@@ -167,21 +185,6 @@ internal partial class TimelineView : View
                     double xBeatIndex = TickAxis.Tick2X(timeSignatures[timeSignatureIndex].GetTickByBarAndBeat(barIndex, beatIndex));
                     context.FillRectangle(beatLineBrush, new Rect(xBeatIndex, 0, 1, 8));
                 }
-            }
-        }
-
-        // draw tempos
-        foreach (var item in Items)
-        {
-            if (item is TempoItem tempoItem)
-            {
-                var tempo = tempoItem.Tempo;
-                if (mState == State.TempoMoving && tempo == mTempoMovingOperation.Tempo)
-                {
-                    context.FillRectangle(Style.BACK.ToBrush(), tempoItem.Rect());
-                }
-
-                context.DrawString(BpmString(tempo), tempoItem.Rect(), textBrush, 12, Alignment.Center, Alignment.Center);
             }
         }
     }
@@ -194,6 +197,16 @@ internal partial class TimelineView : View
     public double TempoWidth(ITempo tempo)
     {
         return new FormattedText(BpmString(tempo), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
+    }
+
+    public string MeterString(ITimeSignature timeSignature)
+    {
+        return $"{timeSignature.Numerator}/{timeSignature.Denominator}";
+    }
+
+    public double TimeSignatureWidth(ITimeSignature timeSignature)
+    {
+        return new FormattedText(MeterString(timeSignature), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
     }
 
     double QuantizedCellTicks()
@@ -214,6 +227,9 @@ internal partial class TimelineView : View
         if (mBpmInput.IsVisible)
             mBpmInput.Arrange(BpmInputRect());
 
+        if (mMeterInput.IsVisible)
+            mMeterInput.Arrange(MeterInputRect());
+
         return finalSize;
     }
 
@@ -227,6 +243,18 @@ internal partial class TimelineView : View
         mBpmInput.IsVisible = true;
         mBpmInput.Focus();
         mBpmInput.SelectAll();
+    }
+
+    public void EnterInputMeter(ITimeSignature timeSignature)
+    {
+        if (mInputMeterTimeSignature != null)
+            return;
+
+        mInputMeterTimeSignature = timeSignature;
+        mMeterInput.Display(MeterString(timeSignature));
+        mMeterInput.IsVisible = true;
+        mMeterInput.Focus();
+        mMeterInput.SelectAll();
     }
 
     void OnBpmInputComplete()
@@ -252,6 +280,32 @@ internal partial class TimelineView : View
         mInputBpmTempo = null;
     }
 
+    void OnMeterInputComplete()
+    {
+        if (mInputMeterTimeSignature == null)
+            return;
+
+        if (Timeline == null)
+            return;
+
+        var numbers = mMeterInput.Text.Split('/');
+        if (numbers.Length != 2 || !int.TryParse(numbers[0], out var numerator) || !int.TryParse(numbers[1], out var denominator))
+        {
+            numerator = mInputMeterTimeSignature.Numerator;
+            denominator = mInputMeterTimeSignature.Denominator;
+        }
+        numerator = numerator.Limit(1, 16);
+        denominator = denominator >= 16 ? 16 : denominator >= 8 ? 8 : denominator >= 4 ? 4 : denominator >= 2 ? 2 : 1;
+        if (numerator != mInputMeterTimeSignature.Numerator || denominator != mInputMeterTimeSignature.Denominator)
+        {
+            Timeline.TimeSignatureManager.SetMeter(mInputMeterTimeSignature, numerator, denominator);
+            mInputMeterTimeSignature.Commit();
+        }
+
+        mMeterInput.IsVisible = false;
+        mInputMeterTimeSignature = null;
+    }
+
     Rect BpmInputRect()
     {
         if (mInputBpmTempo == null)
@@ -260,10 +314,20 @@ internal partial class TimelineView : View
         return new Rect(mDependency.TickAxis.Tick2X(mInputBpmTempo.Pos), 24, 54, 24);
     }
 
+    Rect MeterInputRect()
+    {
+        if (mInputMeterTimeSignature == null)
+            return new Rect();
+
+        return new Rect(mDependency.TickAxis.Tick2X(mInputMeterTimeSignature.Pos), 0, 54, 24);
+    }
+
     ITempo? mInputBpmTempo;
+    ITimeSignature? mInputMeterTimeSignature;
     ITimeline? Timeline => mDependency.TimelineProvider.Object;
 
     readonly TextInput mBpmInput;
+    readonly TextInput mMeterInput;
 
     class PageCurve : IAnimationCurve
     {

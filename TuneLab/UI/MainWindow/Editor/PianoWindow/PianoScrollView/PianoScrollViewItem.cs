@@ -11,6 +11,7 @@ using TuneLab.Utils;
 using TuneLab.Extensions.Voices;
 using TuneLab.Base.Utils;
 using Avalonia.Media;
+using TuneLab.GUI.Input;
 
 namespace TuneLab.UI;
 
@@ -298,6 +299,7 @@ internal partial class PianoScrollView
     class PreviewAnchorGroupItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required IPiecewiseCurve PiecewiseCurve { get; set; }
+        public Action<MouseDownEventArgs, bool>? OnDown { get; set; } = null;
 
         public override void Render(DrawingContext context)
         {
