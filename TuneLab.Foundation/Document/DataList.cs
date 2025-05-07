@@ -9,6 +9,7 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
     public IActionEvent<T> ItemAdded => mItemAdded;
     public IActionEvent<T> ItemRemoved => mItemRemoved;
     public IActionEvent<T, T> ItemReplaced => mItemReplaced;
+    public IEnumerable<T> Items => mList;
     public int Count => mList.Count;
 
     public T this[int index]

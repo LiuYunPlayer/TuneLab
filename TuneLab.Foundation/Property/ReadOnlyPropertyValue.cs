@@ -25,37 +25,39 @@ public readonly struct ReadOnlyPropertyValue
 
     public static implicit operator ReadOnlyPropertyValue(string value) => new((PropertyString)value);
 
-    public static bool operator ==(ReadOnlyPropertyValue left, ReadOnlyPropertyValue right) => IReadOnlyPropertyValue.Equals(left.mValue, right.mValue);
-    public static bool operator !=(ReadOnlyPropertyValue left, ReadOnlyPropertyValue right) => !IReadOnlyPropertyValue.Equals(left.mValue, right.mValue);
+    //public static bool operator ==(ReadOnlyPropertyValue left, ReadOnlyPropertyValue right) => IReadOnlyPropertyValue.Equals(left.mValue, right.mValue);
+    //public static bool operator !=(ReadOnlyPropertyValue left, ReadOnlyPropertyValue right) => !IReadOnlyPropertyValue.Equals(left.mValue, right.mValue);
 
-    public ReadOnlyPropertyValue(IReadOnlyPropertyValue value) { mValue = value; }
+    public ReadOnlyPropertyValue(IReadOnlyPropertyValue? value = null) { mValue = value; }
 
-    public bool IsNull => mValue.IsNull();
-    public bool IsBoolean => mValue.IsBoolean();
-    public bool IsNumber => mValue.IsNumber();
-    public bool IsString => mValue.IsString();
-    public bool IsArray => mValue.IsArray();
-    public bool IsObject => mValue.IsObject();
+    public IReadOnlyPropertyValue UnBoxing() => mValue ?? Null;
 
-    public bool AsBoolean() => mValue.AsBoolean();
-    public double AsNumber() => mValue.AsNumber();
-    public string AsString() => mValue.AsString();
-    public IReadOnlyList<IReadOnlyPropertyValue> AsArray() => mValue.AsArray();
-    public IReadOnlyMap<string, IReadOnlyPropertyValue> AsObject() => mValue.AsObject();
+    public bool IsNull => mValue == null || mValue.IsNull();
+    public bool IsBoolean => mValue != null && mValue.IsBoolean();
+    public bool IsNumber => mValue != null && mValue.IsNumber();
+    public bool IsString => mValue != null && mValue.IsString();
+    public bool IsArray => mValue != null && mValue.IsArray();
+    public bool IsObject => mValue != null && mValue.IsObject();
 
-    public bool AsBoolean(bool defaultValue) => mValue.AsBoolean(defaultValue);
-    public double AsNumber(double defaultValue) => mValue.AsNumber(defaultValue);
-    public string AsString(string defaultValue) => mValue.AsString(defaultValue);
-    public IReadOnlyList<IReadOnlyPropertyValue> AsArray(IReadOnlyList<IReadOnlyPropertyValue> defaultValue) => mValue.AsArray(defaultValue);
-    public IReadOnlyMap<string, IReadOnlyPropertyValue> AsObject(IReadOnlyMap<string, IReadOnlyPropertyValue> defaultValue) => mValue.AsObject(defaultValue);
+    public bool AsBoolean() => mValue == null ? false : mValue.AsBoolean();
+    public double AsNumber() => mValue == null ? 0 : mValue.AsNumber();
+    public string AsString() => mValue == null ? string.Empty : mValue.AsString();
+    public IReadOnlyList<IReadOnlyPropertyValue> AsArray() => mValue == null ? [] : mValue.AsArray();
+    public IReadOnlyMap<string, IReadOnlyPropertyValue> AsObject() => mValue == null ? [] : mValue.AsObject();
 
-    public bool ToBoolean([NotNullWhen(true)][MaybeNullWhen(false)] out bool value) => mValue.ToBoolean(out value);
-    public bool ToNumber([NotNullWhen(true)][MaybeNullWhen(false)] out double value) => mValue.ToNumber(out value);
-    public bool ToString([NotNullWhen(true)][MaybeNullWhen(false)] out string value) => mValue.ToString(out value);
-    public bool ToArray([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyList<IReadOnlyPropertyValue> value) => mValue.ToArray(out value);
-    public bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyMap<string, IReadOnlyPropertyValue> value) => mValue.ToObject(out value);
+    public bool AsBoolean(bool defaultValue) => mValue == null ? defaultValue : mValue.AsBoolean(defaultValue);
+    public double AsNumber(double defaultValue) => mValue == null ? defaultValue : mValue.AsNumber(defaultValue);
+    public string AsString(string defaultValue) => mValue == null ? defaultValue : mValue.AsString(defaultValue);
+    public IReadOnlyList<IReadOnlyPropertyValue> AsArray(IReadOnlyList<IReadOnlyPropertyValue> defaultValue) => mValue == null ? defaultValue : mValue.AsArray(defaultValue);
+    public IReadOnlyMap<string, IReadOnlyPropertyValue> AsObject(IReadOnlyMap<string, IReadOnlyPropertyValue> defaultValue) => mValue == null ? defaultValue : mValue.AsObject(defaultValue);
 
-    readonly IReadOnlyPropertyValue mValue;
+    public bool ToBoolean([NotNullWhen(true)][MaybeNullWhen(false)] out bool value) { if (mValue == null) { value = false; return false; } return mValue.ToBoolean(out value); }
+    public bool ToNumber([NotNullWhen(true)][MaybeNullWhen(false)] out double value) { if (mValue == null) { value = 0; return false; } return mValue.ToNumber(out value); }
+    public bool ToString([NotNullWhen(true)][MaybeNullWhen(false)] out string value) { if (mValue == null) { value = string.Empty; return false; } return mValue.ToString(out value); }
+    public bool ToArray([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyList<IReadOnlyPropertyValue> value) { if (mValue == null) { value = []; return false; } return mValue.ToArray(out value); }
+    public bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyMap<string, IReadOnlyPropertyValue> value) { if (mValue == null) { value = []; return false; } return mValue.ToObject(out value); }
+
+    readonly IReadOnlyPropertyValue? mValue;
 
     public override string ToString()
     {
@@ -65,5 +67,10 @@ public readonly struct ReadOnlyPropertyValue
     class NullPropertyValue : IReadOnlyPropertyValue
     {
         public PropertyType Type => PropertyType.Null;
+
+        public override string ToString()
+        {
+            return "null";
+        }
     }
 }

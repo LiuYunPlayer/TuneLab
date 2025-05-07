@@ -11,6 +11,7 @@ using TuneLab.Audio;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
@@ -481,7 +482,7 @@ internal partial class TrackScrollView : View
         for (int trackIndex = 0; trackIndex < Project.Tracks.Count; trackIndex++)
         {
             var selectedParts = Project.Tracks[trackIndex].Parts.AllSelectedItems();
-            if (selectedParts.IsEmpty())
+            if (!selectedParts.Any())
                 continue;
 
             clipboard.pos = Math.Min(clipboard.pos, selectedParts.First().Pos.Value);

@@ -36,6 +36,8 @@ public class PropertyNumber : IPrimitiveValue
 
     public override string ToString() => mValue.ToString();
 
+    bool IEquatable<IReadOnlyPrimitiveValue>.Equals(IReadOnlyPrimitiveValue? other) => other != null && other.ToNumber(out var value) && value == mValue;
+
     //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyNumber property && property.mValue == mValue;
 
     readonly double mValue;

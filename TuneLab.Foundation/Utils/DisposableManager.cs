@@ -26,13 +26,12 @@ public class DisposableManager
 
     public void DisposeAll()
     {
-        foreach (var disposable in mDisposables)
+        for (int i = mDisposables.Count - 1; i >= 0; i--)
         {
-            disposable.Dispose();
-
+            mDisposables[i].Dispose();
+            mDisposables.RemoveAt(i);
         }
-        mDisposables.Clear();
     }
-
-    readonly HashSet<IDisposable> mDisposables = new();
+    
+    readonly List<IDisposable> mDisposables = [];
 }

@@ -1,5 +1,5 @@
 ﻿using Avalonia.Media;
-using TuneLab.Base.Properties;
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 

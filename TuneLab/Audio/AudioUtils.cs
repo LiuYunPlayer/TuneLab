@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Audio;
 
@@ -38,6 +39,9 @@ internal static class AudioUtils
 
     public static float[] Resample(float[] buffer, int channelCount, int inputSampleRate, int outputSampleRate)
     {
+        if (buffer.Length == 0)
+            return [];
+
         return mAudioCodec!.Resample(new AudioProvider(buffer, inputSampleRate, channelCount), outputSampleRate).ToSamples();
     }
 

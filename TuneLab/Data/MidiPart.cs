@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NAudio.CoreAudioApi;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -6,12 +7,14 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
 using TuneLab.Audio;
-using TuneLab.Base.Properties;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Synthesizer;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
 
@@ -24,7 +27,7 @@ internal class MidiPart : Part, IMidiPart
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> Dur { get; }
     public DataStruct<double> Gain { get; }
-    public DataPropertyObject Properties { get; }
+    public IDataPropertyObject Properties { get; }
     public INoteList Notes => mNotes;
     public IVoice Voice => mVoice;
     IDataProperty<double> IMidiPart.Gain => Gain;
@@ -42,7 +45,7 @@ internal class MidiPart : Part, IMidiPart
         Pos = new(this);
         Dur = new(this);
         Gain = new(this);
-        Properties = new(this);
+        Properties = new DataPropertyObject(this);
         mVoice = new(this, new VoiceInfo());
         mNotes = new();
         mNotes.Attach(this);
@@ -97,7 +100,7 @@ internal class MidiPart : Part, IMidiPart
     {
         double startTime = TempoManager.GetTime(Pos + start);
         double endTime = TempoManager.GetTime(Pos + end);
-        foreach (var pitchLine in mSynthesisPieces.Where(piece => piece.SynthesisResult != null).SelectMany(piece => piece.SynthesisResult!.SynthesizedPitch))
+        foreach (var pitchLine in mSynthesisPieces.SelectMany(piece => piece.Output.SynthesizedPitch))
         {
             if (pitchLine.Count < 2)
                 continue;
@@ -327,14 +330,14 @@ internal class MidiPart : Part, IMidiPart
 
     void ReSegmentImpl()
     {
-        var newSegments = mVoice.Segment(new SynthesisSegment<INote>() { Notes = mNotes, PartProperties = new(Properties) });
+        var newSegments = mVoice.Segment(mNotes);
         List<SynthesisPiece> newPieces = new();
         foreach (var segment in newSegments)
         {
             bool exist = false;
             foreach (var piece in mSynthesisPieces)
             {
-                if (piece.Segment.EqualsWith(segment))
+                if (piece.Notes.SequenceEqual(segment))
                 {
                     exist = true;
                     newPieces.Add(piece);
@@ -469,7 +472,7 @@ internal class MidiPart : Part, IMidiPart
             Pitch = mPitchLine.GetInfo(),
             Vibratos = mVibratos.GetInfo().ToInfo(),
             Voice = mVoice.GetInfo(),
-            Properties = Properties.GetInfo(),
+            Properties = new(Properties.GetInfo()),
         };
     }
 
@@ -495,7 +498,7 @@ internal class MidiPart : Part, IMidiPart
         Activate();
     }
 
-    string GetNotePropertyDirtyType(PropertyPath path)
+    string GetNotePropertyDirtyType()
     {
         return "duration"; //TODO: 改成正确的实现
     }
@@ -699,6 +702,48 @@ internal class MidiPart : Part, IMidiPart
         readonly MergableEvent mSelectionChanged = new();
     }
 
+    class VoiceSynthesisInput(MidiPart midiPart, IReadOnlyList<ISynthesisNote> notes) : IVoiceSynthesisInput
+    {
+        public IReadOnlyList<ISynthesisNote> Notes => notes;
+
+        public IReadOnlyMap<string, IReadOnlyPropertyValue> Properties => midiPart.Properties;
+
+        public IAutomationValueGetter Pitch => new PitchValueGetter(midiPart);
+
+        public bool GetAutomation(string automationID, [MaybeNullWhen(false), NotNullWhen(true)] out IAutomationValueGetter? automation)
+        {
+            if (!midiPart.IsEffectiveAutomation(automationID))
+            {
+                automation = null;
+                return false;
+            }
+
+            automation = new AutomationValueGetter(midiPart, automationID);
+            return true;
+        }
+    }
+
+    class VoiceSynthesisOutput : IVoiceSynthesisOutput
+    {
+        public MonoAudio Audio { get; set; } = new MonoAudio() { StartTime = 0, Samples = [], SampleRate = 0 };
+
+        public IMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedAutomations { get; set; } = [];
+        public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; set; } = [];
+        public IReadOnlyMap<ISynthesisNote, SynthesizedPhoneme[]> SynthesizedPhonemes { get; set; } = [];
+
+        public float[] Read(int offset, int count)
+        {
+            float[] data = new float[count];
+            int start = Math.Max(offset, 0);
+            int end = Math.Min(offset + count, Audio.Samples.Length);
+            for (int i = start; i < end; i++)
+            {
+                data[i - offset] = Audio.Samples[i];
+            }
+            return data;
+        }
+    }
+
     class SynthesisPiece : ISynthesisPiece, IDisposable
     {
         public event Action? Finished;
@@ -706,7 +751,6 @@ internal class MidiPart : Part, IMidiPart
         public event Action? SynthesisStatusChanged;
         public double SynthesisProgress => mSynthesisProgress;
         public string? LastError => mLastError;
-        public SynthesisResult? SynthesisResult => mSynthesisResult;
         public Waveform? Waveform => mWaveform;
         public bool IsSynthesisEnabled => mIsPrepared;
         public SynthesisStatus SynthesisStatus
@@ -721,26 +765,31 @@ internal class MidiPart : Part, IMidiPart
                 SynthesisStatusChanged?.Invoke();
             }
         }
-        public SynthesisSegment<INote> Segment => new SynthesisSegment<INote>() { Notes = mNotes };
-        public IEnumerable<INote> Notes => mNotes;
-        public double AudioStartTime => mSynthesisResult == null ? this.StartTime() : mSynthesisResult.StartTime;
-        public int SampleRate => mSynthesisResult == null ? 0 : mSynthesisResult.SamplingRate;
-        public int SampleCount => mSynthesisResult == null ? 0 : mSynthesisResult.AudioData.Length;
+        public double AudioStartTime => mOutput.Audio.StartTime;
+        public int SampleRate => mOutput.Audio.SampleRate;
+        public int SampleCount => mOutput.Audio.Samples.Length;
 
-        PropertyObject ISynthesisData.PartProperties => new(mPart.Properties);
         public IAutomationValueGetter Pitch => new PitchValueGetter(mPart);
 
-        public SynthesisPiece(MidiPart part, SynthesisSegment<INote> segment)
+        public IReadOnlyList<INote> Notes => mNotes;
+
+        public IVoiceSynthesisInput Input => mInput;
+
+        public IVoiceSynthesisOutput Output => mOutput;
+
+        public SynthesisPiece(MidiPart part, IReadOnlyList<INote> notes)
         {
             mPart = part;
-            mNotes = [.. segment.Notes];
+            mNotes = notes;
+            mInput = new VoiceSynthesisInput(part, notes);
+            mOutput = new VoiceSynthesisOutput();
             mNotes.ConstFirst().LastInSegment = null;
             mNotes.ConstLast().NextInSegment = null;
-            for (int i = 0; i < mNotes.Length - 1; i++)
+            for (int i = 0; i < mNotes.Count - 1; i++)
             {
                 mNotes[i].NextInSegment = mNotes[i + 1];
             }
-            for (int i = mNotes.Length - 1; i > 0; i--)
+            for (int i = mNotes.Count - 1; i > 0; i--)
             {
                 mNotes[i].LastInSegment = mNotes[i - 1];
             }
@@ -754,7 +803,7 @@ internal class MidiPart : Part, IMidiPart
                 note.Pitch.Modified.Subscribe(SetDirtyAndResegment, s);
                 note.Lyric.Modified.Subscribe(SetDirtyAndResegment, s);
                 note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Properties.PropertyModified.Subscribe(OnNotePropertyModified, s);
+                note.Properties.Modified.Subscribe(OnNotePropertyModified, s);
                 note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
             }
         }
@@ -773,15 +822,15 @@ internal class MidiPart : Part, IMidiPart
             if (mTask == null)
                 CreateSynthesisTask();
 
-            mTask.Start();
+            mTask.StartSynthesis();
         }
 
         public void SetDirty(string dirtyType)
         {
             mIsPrepared = mPart.AutoPrepare;
             if (SynthesisStatus == SynthesisStatus.Synthesizing)
-                mTask?.Stop();
-            mTask?.SetDirty(dirtyType);
+                mTask?.StopSynthesis();
+            mTask?.OnDirtyEvent(null); // TODO: 传递dirtyEvent
             SynthesisStatus = SynthesisStatus.NotSynthesized;
         }
 
@@ -790,7 +839,7 @@ internal class MidiPart : Part, IMidiPart
             s.DisposeAll();
 
             if (SynthesisStatus == SynthesisStatus.Synthesizing)
-                mTask?.Stop();
+                mTask?.StopSynthesis();
         }
 
         public IAudioData GetAudioData(int offset, int count)
@@ -800,7 +849,7 @@ internal class MidiPart : Part, IMidiPart
 
         public float[] GetAudioFloatArray(int offset, int count)
         {
-            return mSynthesisResult == null ? new float[count] : mSynthesisResult.Read(offset, count);
+            return mOutput.Read(offset, count);
         }
 
         public void OnSampleRateChanged()
@@ -811,22 +860,32 @@ internal class MidiPart : Part, IMidiPart
         [MemberNotNull(nameof(mTask))]
         void CreateSynthesisTask()
         {
-            mTask = mPart.Voice.CreateSynthesisTask(this);
-            mTask.Complete += (result) =>
+            mTask = mPart.Voice.CreateSegment(mInput, mOutput); // TODO: 传递参数
+            mTask.Finished += (result) =>
             {
-                if (result.SamplingRate != AudioEngine.SampleRate.Value)
+                if (result != null)
                 {
-                    var data = AudioUtils.Resample(result.AudioData, 1, result.SamplingRate, AudioEngine.SampleRate.Value);
-                    result = new SynthesisResult(result.StartTime, AudioEngine.SampleRate.Value, data, result.SynthesizedPitch, result.SynthesizedPhonemes);
+                    context.Post(_ =>
+                    {
+                        mLastError = result.ToString();
+                        SynthesisStatus = SynthesisStatus.SynthesisFailed;
+                        Finished?.Invoke();
+                    }, null);
+                    return;
+                }
+
+                if (mOutput.Audio.SampleRate != AudioEngine.SampleRate.Value)
+                {
+                    var data = AudioUtils.Resample(mOutput.Audio.Samples, 1, mOutput.Audio.SampleRate, AudioEngine.SampleRate.Value);
+                    mOutput.Audio = new MonoAudio() { StartTime = mOutput.Audio.StartTime, Samples = data, SampleRate = AudioEngine.SampleRate.Value };
                 }
 
                 context.Post(_ =>
                 {
-                    mSynthesisResult = result;
-                    mWaveform = new(mSynthesisResult.AudioData);
+                    mWaveform = new(mOutput.Audio.Samples);
                     foreach (var note in Notes)
                     {
-                        if (mSynthesisResult.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
+                        if (mOutput.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
                         {
                             note.SynthesizedPhonemes = phonemes;
                         }
@@ -836,15 +895,6 @@ internal class MidiPart : Part, IMidiPart
                         }
                     }
                     SynthesisStatus = SynthesisStatus.SynthesisSucceeded;
-                    Finished?.Invoke();
-                }, null);
-            };
-            mTask.Error += (error) =>
-            {
-                context.Post(_ =>
-                {
-                    mLastError = error;
-                    SynthesisStatus = SynthesisStatus.SynthesisFailed;
                     Finished?.Invoke();
                 }, null);
             };
@@ -865,21 +915,14 @@ internal class MidiPart : Part, IMidiPart
             mPart.ReSegment();
         }
 
-        void OnNotePropertyModified(PropertyPath path)
+        void OnNotePropertyModified()
         {
-            SetDirty(mPart.GetNotePropertyDirtyType(path));
+            SetDirty("TODO");
         }
 
         void OnPhonemeChanged()
         {
             SetDirty("duration"); // TODO: 改成正确实现
-        }
-
-        bool ISynthesisData.GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation)
-        {
-            bool result = mPart.IsEffectiveAutomation(automationID);
-            automation = result ? new AutomationValueGetter(mPart, automationID) : null;
-            return result;
         }
 
         static SynthesisPiece()
@@ -890,11 +933,12 @@ internal class MidiPart : Part, IMidiPart
         static SynchronizationContext context;
 
         MidiPart mPart;
-        INote[] mNotes;
+        IReadOnlyList<INote> mNotes;
         SynthesisStatus mSynthesisStatus = SynthesisStatus.NotSynthesized;
         bool mIsPrepared;
-        ISynthesisTask? mTask;
-        SynthesisResult? mSynthesisResult = null;
+        VoiceSynthesisInput mInput;
+        VoiceSynthesisOutput mOutput;
+        IVoiceSynthesisSegment mTask;
         Waveform? mWaveform = null;
         double mSynthesisProgress = 0;
         string? mLastError = null;

@@ -7,7 +7,7 @@ public interface IReadOnlyDataProperty<out T> : IReadOnlyDataObject<T> where T :
 
 public interface IDataProperty<T> : IDataObject<T>, IReadOnlyDataProperty<T> where T : notnull
 {
-    internal new class Wrapper(IDataProperty<T> dataProperty) : IDataObject<T>.Wrapper(dataProperty), IDataProperty<T>
+    public new class Wrapper(IDataProperty<T> dataProperty) : IDataObject<T>.Wrapper(dataProperty), IDataProperty<T>
     {
         public T Value => dataProperty.Value;
     }

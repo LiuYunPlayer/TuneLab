@@ -3,9 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
@@ -18,7 +17,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IActionEvent<ISynthesisPiece> SynthesisStatusChanged { get; }
     INoteList Notes { get; }
     IReadOnlyDataObjectList<Vibrato> Vibratos { get; }
-    DataPropertyObject Properties { get; }
+    IDataPropertyObject Properties { get; }
     IVoice Voice { get; }
     IReadOnlyDataObjectList<IEffect> Effects { get; }
     IEffect CreateEffect(EffectInfo info);
@@ -174,7 +173,7 @@ internal static class IMidiPartExtension
     {
         var clipboard = new NoteClipboard();
         var selectedNotes = part.Notes.AllSelectedItems();
-        if (selectedNotes.IsEmpty())
+        if (!selectedNotes.Any())
             return clipboard;
 
         var pos = selectedNotes.First().Pos.Value;
@@ -203,7 +202,7 @@ internal static class IMidiPartExtension
     {
         var clipboard = new VibratoClipboard();
         var selectedVibratos = part.Vibratos.AllSelectedItems();
-        if (selectedVibratos.IsEmpty())
+        if (!selectedVibratos.Any())
             return clipboard;
 
         var pos = selectedVibratos.First().Pos.Value;

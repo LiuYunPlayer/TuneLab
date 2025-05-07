@@ -7,13 +7,17 @@ public interface IReadOnlyPropertyValue// : IEquatable<IReadOnlyPropertyValue>
 {
     PropertyType Type { get; }
 
+    [MemberNotNullWhen(true, nameof(Object))]
+    bool IsObject => Type == PropertyType.Object;
+    IReadOnlyMap<string, IReadOnlyPropertyValue>? Object => default;
+
     bool ToBoolean([NotNullWhen(true)][MaybeNullWhen(false)] out bool value) { value = default; return false; }
     bool ToNumber([NotNullWhen(true)][MaybeNullWhen(false)] out double value) { value = default; return false; }
     bool ToString([NotNullWhen(true)][MaybeNullWhen(false)] out string value) { value = default; return false; }
     bool ToArray([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyList<IReadOnlyPropertyValue> value) { value = default; return false; }
     bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyMap<string, IReadOnlyPropertyValue> value) { value = default; return false; }
-
-    static bool Equals(IReadOnlyPropertyValue valueA, IReadOnlyPropertyValue valueB)
+    /*
+    static bool Equals(IReadOnlyPropertyValue? valueA, IReadOnlyPropertyValue? valueB)
     {
         if (valueA == valueB)
             return true;
@@ -38,7 +42,7 @@ public interface IReadOnlyPropertyValue// : IEquatable<IReadOnlyPropertyValue>
             default:
                 throw new InvalidOperationException();
         }
-    }
+    }*/
 }
 
 public static class IReadOnlyPropertyValueExtensions

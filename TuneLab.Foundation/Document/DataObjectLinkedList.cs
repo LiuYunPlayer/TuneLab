@@ -9,7 +9,7 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
     public IMergableEvent ListModified => mDataLinkedList.Modified;
     public IActionEvent<T> ItemAdded => mDataLinkedList.ItemAdded;
     public IActionEvent<T> ItemRemoved => mDataLinkedList.ItemRemoved;
-
+    public IEnumerable<T> Items => mDataLinkedList.Items;
     public T? Begin => mDataLinkedList.Begin;
     public T? End => mDataLinkedList.End;
     public int Count => mDataLinkedList.Count;
@@ -77,11 +77,6 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
         IDataObject<IEnumerable<T>>.SetInfo(mDataLinkedList, info);
     }
 
-    public IEvent<TEvent> Any<TEvent>(ISubscriber<T, TEvent> subscriber)
-    {
-        return new AnyEvent<TEvent>(this, subscriber);
-    }
-
     protected virtual bool IsInOrder(T prev, T next)
     {
         return true;
@@ -97,58 +92,6 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
         item.Detach();
     }
 
-    class AnyEvent<TEvent> : IEvent<TEvent>
-    {
-        public AnyEvent(DataObjectLinkedList<T> dataObjectLinkedList, ISubscriber<T, TEvent> subscriber)
-        {
-            mDataObjectLinkedList = dataObjectLinkedList;
-            mSubscriber = subscriber;
-
-            mDataObjectLinkedList.ItemAdded.Subscribe(OnAdd);
-            mDataObjectLinkedList.ItemRemoved.Subscribe(OnRemove);
-        }
-
-        public void Subscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectLinkedList)
-            {
-                mSubscriber.Subscribe(dataObject, invokable);
-            }
-
-            mEvents.Add(invokable);
-        }
-
-        public void Unsubscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectLinkedList)
-            {
-                mSubscriber.Unsubscribe(dataObject, invokable);
-            }
-
-            mEvents.Remove(invokable);
-        }
-
-        void OnAdd(T item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        void OnRemove(T item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        readonly DataObjectLinkedList<T> mDataObjectLinkedList;
-        readonly ISubscriber<T, TEvent> mSubscriber;
-        readonly List<TEvent> mEvents = new();
-    }
-
     class DataLinkedList(DataObjectLinkedList<T> dataObjectLinkedList) : DataLinkedList<T>
     {
         protected override bool IsInOrder(T prev, T next)
@@ -158,6 +101,4 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
     }
 
     readonly DataLinkedList mDataLinkedList;
-
-    readonly ActionEvent mListModified = new();
 }

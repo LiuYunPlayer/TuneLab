@@ -9,6 +9,7 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
     public IActionEvent<T> ItemAdded => ((IReadOnlyDataList<T>)mDataList).ItemAdded;
     public IActionEvent<T> ItemRemoved => ((IReadOnlyDataList<T>)mDataList).ItemRemoved;
     public IActionEvent<T, T> ItemReplaced => ((IReadOnlyDataList<T>)mDataList).ItemReplaced;
+    public IEnumerable<T> Items => mDataList.Items;
 
     public int Count => ((ICollection<T>)mDataList).Count;
     public bool IsReadOnly => ((ICollection<T>)mDataList).IsReadOnly;
@@ -23,12 +24,6 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
         mDataList.ItemRemoved.Subscribe(OnRemove);
         mDataList.ItemReplaced.Subscribe(OnReplace);
     }
-
-    public IEvent<TEvent> Any<TEvent>(ISubscriber<T, TEvent> subscriber)
-    {
-        return new AnyEvent<TEvent>(this, subscriber);
-    }
-
     public List<T> GetInfo()
     {
         return mDataList.GetInfo();
@@ -103,58 +98,6 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
     {
         OnRemove(before);
         OnAdd(after);
-    }
-
-    class AnyEvent<TEvent> : IEvent<TEvent>
-    {
-        public AnyEvent(DataObjectList<T> dataObjectList, ISubscriber<T, TEvent> subscriber)
-        {
-            mDataObjectList = dataObjectList;
-            mSubscriber = subscriber;
-
-            mDataObjectList.ItemAdded.Subscribe(OnAdd);
-            mDataObjectList.ItemRemoved.Subscribe(OnRemove);
-        }
-
-        public void Subscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectList)
-            {
-                mSubscriber.Subscribe(dataObject, invokable);
-            }
-
-            mEvents.Add(invokable);
-        }
-
-        public void Unsubscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectList)
-            {
-                mSubscriber.Unsubscribe(dataObject, invokable);
-            }
-
-            mEvents.Remove(invokable);
-        }
-
-        void OnAdd(T item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        void OnRemove(T item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        readonly DataObjectList<T> mDataObjectList;
-        readonly ISubscriber<T, TEvent> mSubscriber;
-        readonly List<TEvent> mEvents = new();
     }
 
     readonly ActionEvent mListModified = new();

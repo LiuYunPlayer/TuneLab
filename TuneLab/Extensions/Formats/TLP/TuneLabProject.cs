@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Formats.TLP;
@@ -396,7 +396,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
 
     PropertyObject FromJson(JToken jToken)
     {
-        var map = new Map<string, PropertyValue>();
+        var map = new PropertyObject();
 
         foreach (JProperty property in jToken.Children())
         {
@@ -424,10 +424,10 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         return new(map);
     }
 
-    JObject ToJson(PropertyObject properties)
+    JObject ToJson(IReadOnlyMap<string, IReadOnlyPropertyValue> properties)
     {
         var json = new JObject();
-        foreach (var property in properties.Map)
+        foreach (var property in properties)
         {
             var key = property.Key;
             var value = property.Value;
@@ -435,11 +435,11 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             {
                 json.Add(key, ToJson(propertyObject));
             }
-            else if (value.ToBool(out var boolValue))
+            else if (value.ToBoolean(out var boolValue))
             {
                 json.Add(key, boolValue);
             }
-            else if (value.ToDouble(out var doubleValue))
+            else if (value.ToNumber(out var doubleValue))
             {
                 json.Add(key, doubleValue);
             }

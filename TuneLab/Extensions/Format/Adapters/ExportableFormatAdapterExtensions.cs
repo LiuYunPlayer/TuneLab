@@ -1,8 +1,8 @@
 ﻿using System;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Adapters.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using TuneLab.SDK.Base.DataStructures;
 using TuneLab.SDK.Base.Property;
 using TuneLab.SDK.Format.DataInfo;
@@ -13,12 +13,12 @@ internal static class ExportableFormatAdapterExtensions
 {
     public static PropertyObject_V1 ConvertToV1(this PropertyObject propertyObject)
     {
-        return propertyObject;
+        return null;
     }
 
     public static PropertyValue_V1 ConvertToV1(this PropertyValue propertyValue)
     {
-        return propertyValue;
+        return new();
     }
 
     public static TempoInfo_V1 ConvertToV1(this TempoInfo tempoInfo)

@@ -1,22 +1,34 @@
 ﻿using Avalonia.Controls;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using TuneLab.Base.Properties;
+using System.Linq;
+using TuneLab.Extensions.ControllerConfigs;
+using TuneLab.Extensions.Voice;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class ComboBoxController : DropDown, IDataValueController<string>, IDataValueController<int>
+internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimitiveValue>
+    , IDataValueController<string>
+    , IDataValueController<double>
+    , IDataValueController<int>
+    , IDataValueController<bool>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
     public IActionEvent ValueCommited => mValueCommited;
-    public string Value { get => mValue; set { SetValue((uint)Options.IndexOf(value) < Options.Count ? value : mConfig.DefaultValue); Display(Value); } }
-    public int Index { get => Options.IndexOf(Value); }
-    int IValueController<int>.Value => Index;
-    public IReadOnlyList<string> Options => mConfig.Options;
+    public ReadOnlyPrimitiveValue Value { get => mValue; set { SetValue(value); } }
+
+    string IValueController<string>.Value => Value.AsString();
+    double IValueController<double>.Value => Value.AsNumber();
+    int IValueController<int>.Value => Value.AsNumber().Round();
+    bool IValueController<bool>.Value => Value.AsBoolean();
 
     public ComboBoxController()
     {
@@ -24,42 +36,43 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
         SelectionChanged += OnDropDownSelectionChanged;
     }
 
-    public void SetConfig(EnumConfig config)
+    public void SetConfig(ComboBoxConfig config)
     {
         mConfig = config;
         Items.Clear();
         foreach (var option in config.Options)
         {
-            Items.Add(option);
+            Items.Add(option.ShowText());
         }
-        Display(config.DefaultValue);
+        Display(config.DefaultValue.Value);
     }
 
-    public void Display(int value)
+    public void DisplayIndex(int index)
     {
-        if ((uint)value >= Options.Count)
+        if ((uint)index >= mConfig.Options.Count)
         {
-            value = -1;
+            index = -1;
             PlaceholderText = "-";
         }
 
+        mValue = mConfig.Options[index].Value;
         acceptSelectionChanged = false;
-        SelectedIndex = value;
+        SelectedIndex = index;
         acceptSelectionChanged = true;
     }
 
-    public void Display(string value)
+    public void Display(ReadOnlyPrimitiveValue value)
     {
         mValue = value;
         acceptSelectionChanged = false;
-        int index = Options.IndexOf(mValue);
-        if ((uint)index < Options.Count)
+        int index = mConfig.Options.Convert(option => option.Value).IndexOf(mValue);
+        if ((uint)index < mConfig.Options.Count)
         {
             SelectedIndex = index;
         }
         else
         {
-            PlaceholderText = mValue;
+            PlaceholderText = value == mConfig.DefaultValue.Value ? mConfig.DefaultValue.ShowText() : value.ToString();
             SelectedIndex = -1;
         }
         acceptSelectionChanged = true;
@@ -89,24 +102,36 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
         if (!acceptSelectionChanged)
             return;
 
-        SetValue((uint)SelectedIndex < Options.Count ? Options[SelectedIndex] : mConfig.DefaultValue);
+        SetValue((uint)SelectedIndex < mConfig.Options.Count ? mConfig.Options[SelectedIndex].Value : mConfig.DefaultValue.Value);
     }
 
-    void SetValue(string value)
+    void SetValue(ReadOnlyPrimitiveValue value)
     {
         if (value == mValue)
             return;
 
         mValueWillChange.Invoke();
-        mValue = value;
+        Display(mValue);
         mValueChanged.Invoke();
         mValueCommited.Invoke();
     }
+
+    public void Display(string value) => Display((ReadOnlyPrimitiveValue)value);
+    public void Display(double value) => Display((ReadOnlyPrimitiveValue)value);
+    public void Display(int value) => Display((ReadOnlyPrimitiveValue)value);
+    public void Display(bool value) => Display((ReadOnlyPrimitiveValue)value);
 
     ActionEvent mValueWillChange = new();
     ActionEvent mValueChanged = new();
     ActionEvent mValueCommited = new();
 
-    EnumConfig mConfig = new([]);
-    string mValue = string.Empty;
+    ComboBoxConfig mConfig = DefaultConfig;
+    ReadOnlyPrimitiveValue mValue;
+
+    static readonly ComboBoxConfig DefaultConfig = new() { Options = [] };
+}
+
+public static class ComboBoxOptionExtensions
+{
+    public static string ShowText(this ComboBoxOption option) => option.DisplayText ?? option.Value.ToString();
 }

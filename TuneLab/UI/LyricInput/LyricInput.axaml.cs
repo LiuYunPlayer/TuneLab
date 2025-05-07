@@ -78,7 +78,7 @@ internal partial class LyricInput : Window
         OkButton.Clicked += OnLyricInputConfirm;
     }
 
-    public static void EnterInput(IReadOnlyCollection<INote> notes, Window owner)
+    public static void EnterInput(IEnumerable<INote> notes, Window owner)
     {
         var lyricInput = new LyricInput();
         lyricInput.mNotes = notes;
@@ -91,7 +91,7 @@ internal partial class LyricInput : Window
         if (mNotes == null)
             return;
 
-        if (mNotes.Count == 0)
+        if (!mNotes.Any())
             return;
 
         var lyricResults = LyricUtils.Split(mLyricInputBox.Text);
@@ -114,7 +114,7 @@ internal partial class LyricInput : Window
         Close();
     }
 
-    IReadOnlyCollection<INote>? mNotes = null;
+    IEnumerable<INote>? mNotes = null;
 
     readonly TextInput mLyricInputBox;
     readonly CheckBox mSkipTenutoCheckBox;

@@ -4,9 +4,9 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
 using System.Linq;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Formats.VPR
 {
@@ -122,7 +122,6 @@ namespace TuneLab.Extensions.Formats.VPR
 
                     var midiPartInfo = new MidiPartInfo();
 
-                    midiPartInfo.Properties = PropertyObject.Empty;
                     // midiPartInfo.Voice.Type = "VOCALOID" + ((string?)vprSequence["version"]?["major"] ?? "5");
                     midiPartInfo.Voice.Type = "VOCALOID5";
                     midiPartInfo.Voice.ID = ((string?)part["voice"]?["compID"] ?? "");
@@ -378,7 +377,7 @@ namespace TuneLab.Extensions.Formats.VPR
 
         static PropertyObject FromJson(JToken jToken)
         {
-            var map = new Map<string, PropertyValue>();
+            var map = new PropertyObject();
 
             foreach (JProperty property in jToken.Children())
             {
@@ -403,7 +402,7 @@ namespace TuneLab.Extensions.Formats.VPR
                         break;
                 }
             }
-            return new(map);
+            return map;
         }
     }
 }

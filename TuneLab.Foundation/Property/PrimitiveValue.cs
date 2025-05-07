@@ -1,5 +1,5 @@
 ﻿namespace TuneLab.Foundation.Property;
-
+/*
 public readonly struct PrimitiveValue
 {
     public static implicit operator PrimitiveValue(PropertyBoolean value) => new(value);
@@ -30,3 +30,4 @@ public readonly struct PrimitiveValue
 
     readonly IPrimitiveValue? mValue;
 }
+*/

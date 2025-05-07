@@ -1,5 +1,5 @@
 ﻿namespace TuneLab.Foundation.Property;
 
-internal interface IContainerValue : IPropertyValue
+internal interface IContainerValue : IPropertyValue, IReadOnlyContainerValue
 {
 }

@@ -2,19 +2,19 @@
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Property;
 
-namespace TuneLab.Foundation;
+namespace TuneLab.Foundation.Property;
 
-public class PropertyObject(IMap<string, PropertyValue>? properties = null) : IContainerValue, IMap<string, PropertyValue>
+public class PropertyObject(IMap<string, IPropertyValue>? properties = null) : IContainerValue, IMap<string, IPropertyValue>
 {
     public PropertyType Type => PropertyType.Object;
-    public PropertyValue this[string key] { get => GetValue(key); set => SetValue(key, value); }
+    public IPropertyValue this[string key] { get => GetValue(key); set => SetValue(key, value); }
     public IReadOnlyCollection<string> Keys => mProperties == null ? [] : mProperties.Keys;
-    public IReadOnlyCollection<PropertyValue> Values => mProperties == null ? [] : mProperties.Values;
+    public IReadOnlyCollection<IPropertyValue> Values => mProperties == null ? [] : mProperties.Values;
     public int Count => mProperties == null ? 0 : mProperties.Count;
 
-    public void Add(string key, PropertyValue value)
+    public void Add(string key, IPropertyValue value)
     {
-        mProperties ??= new Map<string, PropertyValue>();
+        mProperties ??= new Map<string, IPropertyValue>();
         mProperties.Add(key, value);
     }
 
@@ -28,7 +28,7 @@ public class PropertyObject(IMap<string, PropertyValue>? properties = null) : IC
         return mProperties != null && mProperties.Remove(key);
     }
 
-    public PropertyValue GetValue(string key, out bool success)
+    public IPropertyValue GetValue(string key, out bool success)
     {
         if (mProperties == null)
         {
@@ -44,9 +44,9 @@ public class PropertyObject(IMap<string, PropertyValue>? properties = null) : IC
         mProperties?.Clear();
     }
 
-    public IEnumerator<IReadOnlyKeyValuePair<string, PropertyValue>> GetEnumerator()
+    public IEnumerator<IReadOnlyKeyValuePair<string, IPropertyValue>> GetEnumerator()
     {
-        return mProperties == null ? Enumerable.Empty<ReadOnlyKeyValuePair<string, PropertyValue>>().GetEnumerator() : mProperties.GetEnumerator();
+        return mProperties == null ? Enumerable.Empty<ReadOnlyKeyValuePair<string, IPropertyValue>>().GetEnumerator() : mProperties.GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -54,20 +54,22 @@ public class PropertyObject(IMap<string, PropertyValue>? properties = null) : IC
         return GetEnumerator();
     }
 
-    public void SetValue(string key, PropertyValue value)
+    public void SetValue(string key, IPropertyValue value)
     {
-        mProperties ??= new Map<string, PropertyValue>();
+        mProperties ??= new Map<string, IPropertyValue>();
         if (mProperties.ContainsKey(key))
             mProperties[key] = value;
         else
             mProperties.Add(key, value);
     }
-    public PropertyValue GetValue(string key, PropertyValue defaultValue = default) => this.TryGetValue(key, out var value) ? value : defaultValue;
+    
+    public IPropertyValue GetValue(string key, IPropertyValue? defaultValue = null) => this.TryGetValue(key, out var value) ? value : defaultValue ?? PropertyValue.Null;
+    /*
     public PropertyBoolean GetBoolean(string key, PropertyBoolean defaultValue) => this.TryGetValue(key, out var value) ? value.AsBoolean(defaultValue) : defaultValue;
     public PropertyNumber GetNumber(string key, PropertyNumber defaultValue) => this.TryGetValue(key, out var value) ? value.AsNumber(defaultValue) : defaultValue;
     public PropertyString GetString(string key, PropertyString defaultValue) => this.TryGetValue(key, out var value) ? value.AsString(defaultValue) : defaultValue;
     public PropertyArray GetArray(string key, PropertyArray defaultValue) => this.TryGetValue(key, out var value) ? value.AsArray(defaultValue) : defaultValue;
-    public PropertyObject GetObject(string key, PropertyObject defaultValue) => this.TryGetValue(key, out var value) ? value.AsObject(defaultValue) : defaultValue;
+    public PropertyObject GetObject(string key, PropertyObject defaultValue) => this.TryGetValue(key, out var value) ? value.AsObject(defaultValue) : defaultValue;*/
     /*
     bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other)
     {
@@ -83,5 +85,13 @@ public class PropertyObject(IMap<string, PropertyValue>? properties = null) : IC
         return mProperties.SequenceEqual(property.mProperties);
     }*/
 
-    internal IMap<string, PropertyValue>? mProperties = properties;
+    internal IMap<string, IPropertyValue>? mProperties = properties;
+}
+
+public static class PropertyObjectExtensions
+{
+    public static void Add(this PropertyObject propertyObject, string key, PropertyValue value)
+    {
+        propertyObject.Add(key, value.UnBox());
+    }
 }

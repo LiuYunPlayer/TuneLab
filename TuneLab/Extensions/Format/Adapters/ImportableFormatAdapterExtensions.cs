@@ -1,8 +1,8 @@
 ﻿using System;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Adapters.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using TuneLab.SDK.Base.Property;
 using TuneLab.SDK.Format.DataInfo;
 
@@ -22,16 +22,16 @@ internal static class ImportableFormatAdapterExtensions
 
     public static PropertyObject Convert(this PropertyObject_V1 propertyObject_V1)
     {
-        Map<string, PropertyValue> map = [];
+        Map<string, IPropertyValue> map = [];
         foreach (var property in propertyObject_V1)
         {
-            map.Add(property.Key, property.Value.Convert());
+            // map.Add(property.Key, property.Value.Convert());
         }
         return new PropertyObject(map);
     }
 
     public static PropertyValue Convert(this PropertyValue_V1 propertyValue_V1)
-    {
+    {/*
         if (propertyValue_V1.IsNull)
         {
             return PropertyValue.Invalid;
@@ -55,7 +55,8 @@ internal static class ImportableFormatAdapterExtensions
         else
         {
             return PropertyValue.Invalid;
-        }
+        }*/
+        return new();
     }
 
     public static TempoInfo Convert(this TempoInfo_V1 tempoInfo_V1)

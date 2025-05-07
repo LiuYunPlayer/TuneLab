@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using TuneLab.Foundation.Event;
 
 namespace TuneLab.Data;
@@ -31,15 +32,9 @@ internal static class ISelectableExtension
         selectable.IsSelected = !selectable.IsSelected;
     }
 
-    public static IReadOnlyCollection<T> AllSelectedItems<T>(this IEnumerable<T> selectableCollection) where T : ISelectable
+    public static IEnumerable<T> AllSelectedItems<T>(this IEnumerable<T> selectableCollection) where T : ISelectable
     {
-        List<T> results = new();
-        foreach (var selectable in selectableCollection)
-        {
-            if (selectable.IsSelected)
-                results.Add(selectable);
-        }
-        return results;
+        return selectableCollection.Where(x => x.IsSelected).ToList();
     }
 
     public static void SelectAllItems<T>(this IEnumerable<T> selectableCollection) where T : ISelectable

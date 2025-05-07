@@ -2,17 +2,17 @@
 
 namespace TuneLab.Foundation.Property;
 
-public class PropertyArray : IContainerValue, IList<PropertyValue>
+public class PropertyArray : IContainerValue, IList<IPropertyValue>
 {
     public PropertyType Type => PropertyType.Array;
-    public PropertyValue this[int index] { get => ((IList<PropertyValue>)mList!)[index]; set => ((IList<PropertyValue>)mList!)[index] = value; }
-    public int Count => mList == null ? 0 : ((ICollection<PropertyValue>)mList).Count;
-    public bool IsReadOnly => mList == null ? false : ((ICollection<PropertyValue>)mList).IsReadOnly;
+    public IPropertyValue this[int index] { get => ((IList<IPropertyValue>)mList!)[index]; set => ((IList<IPropertyValue>)mList!)[index] = value; }
+    public int Count => mList == null ? 0 : ((ICollection<IPropertyValue>)mList).Count;
+    public bool IsReadOnly => mList == null ? false : ((ICollection<IPropertyValue>)mList).IsReadOnly;
 
-    public void Add(PropertyValue item)
+    public void Add(IPropertyValue item)
     {
         mList ??= [];
-        ((ICollection<PropertyValue>)mList).Add(item);
+        ((ICollection<IPropertyValue>)mList).Add(item);
     }
 
     public void Clear()
@@ -20,35 +20,35 @@ public class PropertyArray : IContainerValue, IList<PropertyValue>
         mList?.Clear();
     }
 
-    public bool Contains(PropertyValue item)
+    public bool Contains(IPropertyValue item)
     {
-        return mList != null && ((ICollection<PropertyValue>)mList).Contains(item);
+        return mList != null && ((ICollection<IPropertyValue>)mList).Contains(item);
     }
 
-    public void CopyTo(PropertyValue[] array, int arrayIndex)
+    public void CopyTo(IPropertyValue[] array, int arrayIndex)
     {
         mList?.CopyTo(array, arrayIndex);
     }
 
-    public IEnumerator<PropertyValue> GetEnumerator()
+    public IEnumerator<IPropertyValue> GetEnumerator()
     {
-        return mList == null ? Enumerable.Empty<PropertyValue>().GetEnumerator() : ((IEnumerable<PropertyValue>)mList).GetEnumerator();
+        return mList == null ? Enumerable.Empty<IPropertyValue>().GetEnumerator() : ((IEnumerable<IPropertyValue>)mList).GetEnumerator();
     }
 
-    public int IndexOf(PropertyValue item)
+    public int IndexOf(IPropertyValue item)
     {
-        return mList == null ? -1 : ((IList<PropertyValue>)mList).IndexOf(item);
+        return mList == null ? -1 : ((IList<IPropertyValue>)mList).IndexOf(item);
     }
 
-    public void Insert(int index, PropertyValue item)
+    public void Insert(int index, IPropertyValue item)
     {
         mList ??= [];
-        ((IList<PropertyValue>)mList).Insert(index, item);
+        ((IList<IPropertyValue>)mList).Insert(index, item);
     }
 
-    public bool Remove(PropertyValue item)
+    public bool Remove(IPropertyValue item)
     {
-        return mList != null && ((ICollection<PropertyValue>)mList).Remove(item);
+        return mList != null && ((ICollection<IPropertyValue>)mList).Remove(item);
     }
 
     public void RemoveAt(int index)
@@ -75,5 +75,5 @@ public class PropertyArray : IContainerValue, IList<PropertyValue>
         return mList.SequenceEqual(property.mList);
     }*/
 
-    List<PropertyValue>? mList;
+    List<IPropertyValue>? mList;
 }

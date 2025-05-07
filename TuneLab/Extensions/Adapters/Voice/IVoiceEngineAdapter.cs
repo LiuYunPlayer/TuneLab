@@ -17,7 +17,7 @@ internal static class IVoiceEngineAdapter
     {
         public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => throw new NotImplementedException();
 
-        public IVoiceSource CreateVoiceSource(string id, IReadOnlyMap<string, IReadOnlyPropertyValue> properties)
+        public IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context)
         {
             throw new NotImplementedException();
         }

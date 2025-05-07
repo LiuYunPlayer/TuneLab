@@ -11,9 +11,11 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     public IActionEvent<TKey, TValue> ItemAdded => mMap.ItemAdded;
     public IActionEvent<TKey, TValue> ItemRemoved => mMap.ItemRemoved;
     public IActionEvent<TKey, TValue, TValue> ItemReplaced => mMap.ItemReplaced;
+    public IEnumerable<TValue> Items => mMap.Values;
     public IReadOnlyCollection<TKey> Keys => mMap.Keys;
     public IReadOnlyCollection<TValue> Values => mMap.Values;
     public int Count => mMap.Count;
+
     public TValue this[TKey key] { get => mMap[key]; set => mMap[key] = value; }
 
     public DataObjectMap(IDataObject? parent = null) : base(parent)
@@ -22,11 +24,6 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         mMap.ItemAdded.Subscribe(OnAdd);
         mMap.ItemRemoved.Subscribe(OnRemove);
         mMap.ItemReplaced.Subscribe(OnReplace);
-    }
-
-    public IEvent<TEvent> Any<TEvent>(ISubscriber<TValue, TEvent> subscriber)
-    {
-        return new AnyEvent<TEvent>(this, subscriber);
     }
 
     public void Add(TKey key, TValue value)
@@ -87,11 +84,13 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     void OnAdd(TKey key, TValue item)
     {
         item.Attach(this);
+        mItemAdded.Invoke(item);
     }
 
     void OnRemove(TKey key, TValue item)
     {
         item.Detach();
+        mItemRemoved.Invoke(item);
     }
 
     void OnReplace(TKey key, TValue before, TValue after)
@@ -99,6 +98,9 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         OnRemove(key, before);
         OnAdd(key, after);
     }
+
+    IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemAdded => mItemAdded;
+    IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemRemoved => mItemRemoved;
 
     class AnyEvent<TEvent> : IEvent<TEvent>
     {
@@ -154,4 +156,6 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
 
     readonly DataMap<TKey, TValue> mMap;
     readonly ActionEvent mMapModified = new();
+    readonly ActionEvent<TValue> mItemAdded = new();
+    readonly ActionEvent<TValue> mItemRemoved = new();
 }

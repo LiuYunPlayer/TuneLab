@@ -6,7 +6,7 @@ using System.Linq;
 using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Science;
@@ -191,7 +191,7 @@ internal partial class PianoScrollView
                                             var menuItem = new MenuItem().SetName("Split by Phonemes".Tr(TC.Menu)).SetAction(() =>
                                             {
                                                 var selectedNotes = Part.Notes.AllSelectedItems();
-                                                if (selectedNotes.IsEmpty())
+                                                if (!selectedNotes.Any())
                                                     return;
 
                                                 var tempoManager = Part.TempoManager;
@@ -1256,7 +1256,7 @@ internal partial class PianoScrollView
         protected virtual void BeginSelect() { }
         protected virtual void EndSelect() { }
 
-        IReadOnlyCollection<T>? mSelectedItems = null;
+        IEnumerable<T>? mSelectedItems = null;
         double mDownTick;
         double mDownPitch;
         double mTick;
@@ -2022,7 +2022,7 @@ internal partial class PianoScrollView
                 return;
 
             var vibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
-            if (vibratos.IsEmpty())
+            if (!vibratos.Any())
                 return;
 
             State = State.VibratoAmplitudeAdjusting;
@@ -2070,7 +2070,7 @@ internal partial class PianoScrollView
             PianoScrollView.mOperatingVibratoItem = null;
         }
 
-        IReadOnlyCollection<Vibrato>? mVibratos;
+        IEnumerable<Vibrato>? mVibratos;
         double mPitch;
         Head mHead;
     }
@@ -2087,7 +2087,7 @@ internal partial class PianoScrollView
                 return;
 
             var vibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
-            if (vibratos.IsEmpty())
+            if (!vibratos.Any())
                 return;
 
             State = State.VibratoFrequencyAdjusting;
@@ -2135,7 +2135,7 @@ internal partial class PianoScrollView
             PianoScrollView.mOperatingVibratoItem = null;
         }
 
-        IReadOnlyCollection<Vibrato>? mVibratos;
+        IEnumerable<Vibrato>? mVibratos;
         double mPos;
         Head mHead;
     }
@@ -2152,7 +2152,7 @@ internal partial class PianoScrollView
                 return;
 
             var vibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
-            if (vibratos.IsEmpty())
+            if (!vibratos.Any())
                 return;
 
             State = State.VibratoPhaseAdjusting;
@@ -2200,7 +2200,7 @@ internal partial class PianoScrollView
             PianoScrollView.mOperatingVibratoItem = null;
         }
 
-        IReadOnlyCollection<Vibrato>? mVibratos;
+        IEnumerable<Vibrato>? mVibratos;
         double mPos;
         Head mHead;
     }
@@ -2213,7 +2213,7 @@ internal partial class PianoScrollView
         {
             mPart = vibratoItem.Vibrato.Part;
             var vibratos = mPart.Vibratos.AllSelectedItems();
-            if (vibratos.IsEmpty())
+            if (!vibratos.Any())
                 return;
 
             State = State.VibratoAttackAdjusting;
@@ -2263,7 +2263,7 @@ internal partial class PianoScrollView
         }
 
         IMidiPart? mPart;
-        IReadOnlyCollection<Vibrato>? mVibratos;
+        IEnumerable<Vibrato>? mVibratos;
         double mTime;
         Head mHead;
     }
@@ -2276,7 +2276,7 @@ internal partial class PianoScrollView
         {
             mPart = vibratoItem.Vibrato.Part;
             var vibratos = mPart.Vibratos.AllSelectedItems();
-            if (vibratos.IsEmpty())
+            if (!vibratos.Any())
                 return;
 
             State = State.VibratoReleaseAdjusting;
@@ -2326,7 +2326,7 @@ internal partial class PianoScrollView
         }
 
         IMidiPart? mPart;
-        IReadOnlyCollection<Vibrato>? mVibratos;
+        IEnumerable<Vibrato>? mVibratos;
         double mTime;
         Head mHead;
     }
@@ -2349,7 +2349,7 @@ internal partial class PianoScrollView
             vibrato.Select();
 
             mMoveVibratos = PianoScrollView.Part.Vibratos.AllSelectedItems();
-            if (mMoveVibratos.IsEmpty())
+            if (!mMoveVibratos.Any())
                 return;
 
             State = State.VibratoMoving;
@@ -2431,7 +2431,7 @@ internal partial class PianoScrollView
         }
 
         Vibrato? mVibrato;
-        IReadOnlyCollection<Vibrato>? mMoveVibratos = null;
+        IEnumerable<Vibrato>? mMoveVibratos = null;
 
         bool mCtrl;
         bool mIsSelected;

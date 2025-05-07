@@ -3,7 +3,7 @@ using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using TuneLab.Data;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;

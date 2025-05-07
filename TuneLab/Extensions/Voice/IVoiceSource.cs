@@ -2,25 +2,26 @@
 using System.Linq;
 using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Voice;
 
 internal interface IVoiceSource
 {
-    string Name { get; }
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    ObjectConfig PartProperties { get; }
-    IReadOnlyList<IReadOnlyList<ISynthesisNote>> Segment<T>(IReadOnlyList<ISynthesisNote> segment) where T : ISynthesisNote;
+    ObjectConfig PropertyConfig { get; }
+    ObjectConfig GetNotePropertyConfig(IEnumerable<ISynthesisNote> notes);
+    IReadOnlyList<IReadOnlyList<ISynthesisNote>> Segment(IEnumerable<ISynthesisNote> notes);
     IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output);
 }
 
 internal static class IVoiceSourceExtension
 {
-    internal static IReadOnlyList<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IReadOnlyList<ISynthesisNote> segment, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
+    internal static IReadOnlyList<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IEnumerable<ISynthesisNote> notes, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
     {
         List<IReadOnlyList<ISynthesisNote>> segments = [];
-        using var it = segment.GetEnumerator();
+        using var it = notes.GetEnumerator();
         if (!it.MoveNext())
             return segments;
 

@@ -9,6 +9,7 @@ internal static class AutomationConfigAdapter
     {
         return new AutomationConfig()
         {
+            Name = v1.Name,
             DefaultValue = v1.DefaultValue,
             MaxValue = v1.MaxValue,
             MinValue = v1.MinValue,

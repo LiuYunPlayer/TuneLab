@@ -12,6 +12,8 @@ public class PropertyString : IPrimitiveValue
 
     public override string ToString() => mValue ?? string.Empty;
 
+    bool IEquatable<IReadOnlyPrimitiveValue>.Equals(IReadOnlyPrimitiveValue? other) => other != null && other.ToString(out var value) && value == mValue;
+
     //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyString property && property.mValue == mValue;
 
     readonly string? mValue;

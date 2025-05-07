@@ -1,4 +1,6 @@
-﻿namespace TuneLab.Audio;
+﻿using TuneLab.Foundation.Utils;
+
+namespace TuneLab.Audio;
 
 internal interface IAudioProvider
 {

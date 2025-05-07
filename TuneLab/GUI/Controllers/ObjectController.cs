@@ -8,7 +8,7 @@ using TuneLab.GUI.Components;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Controllers;
-
+/*
 internal class ObjectController : StackPanel
 {
     public IActionEvent<PropertyPath> ValueWillChange => mValueWillChange;
@@ -152,7 +152,6 @@ internal class ObjectController : StackPanel
             mKey = key;
 
             var label = ObjectPoolManager.Get<Label>();
-            label = ObjectPoolManager.Get<Label>();
             label.Height = 26;
             label.FontSize = 12;
             label.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom;
@@ -506,3 +505,4 @@ internal class ObjectController : StackPanel
     readonly ActionEvent<PropertyPath, PropertyValue> mValueCommited = new();
     DisposableManager mDisposableManager = new();
 }
+*/

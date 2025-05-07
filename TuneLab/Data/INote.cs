@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
 
@@ -22,17 +23,19 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     new IDataProperty<int> Pitch { get; }
     new IDataProperty<string> Lyric { get; }
     IDataProperty<string> Pronunciation { get; }
-    new DataPropertyObject Properties { get; }
+    new IDataPropertyObject Properties { get; }
     new IDataObjectList<IPhoneme> Phonemes { get; }
     SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
     IReadOnlyCollection<string> Pronunciations { get; }
+
+    INotifiableProperty<bool> IsSelectedProperty { get; }
 
     INote? NextInSegment { get; set; }
     INote? LastInSegment { get; set; }
 
     int ISynthesisNote.Pitch => Pitch.Value;
     string ISynthesisNote.Lyric => this.FinalPronunciation() ?? Lyric.Value;
-    PropertyObject ISynthesisNote.Properties => new(Properties);
+    IReadOnlyMap<string, IReadOnlyPropertyValue> ISynthesisNote.Properties => Properties;
     IReadOnlyList<SynthesizedPhoneme> ISynthesisNote.Phonemes => Phonemes.Convert(GetPhoneme);
     ISynthesisNote? ISynthesisNote.Next => NextInSegment;
     ISynthesisNote? ISynthesisNote.Last => LastInSegment;

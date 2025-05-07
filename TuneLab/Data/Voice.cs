@@ -1,24 +1,28 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using TuneLab.Base.Properties;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Data;
 
-internal class Voice : DataObject, IVoice
+internal class Voice : DataObject, IVoice, IVoiceSynthesisContext
 {
-    public string Name => mVoiceSource.Name;
+    public string VoiceID => mID;
+    public IReadOnlyMap<string, IReadOnlyPropertyValue> Properties => mPart.Properties;
+
+    public string Name => VoiceManager.GetAllVoiceInfos(mType)?.TryGetValue(mID, out var info) ?? false ? info.Name : mID;
     public string DefaultLyric => mVoiceSource.DefaultLyric;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public ObjectConfig PartProperties => new(mVoiceSource.PartProperties);
-    public ObjectConfig NoteProperties => new(mVoiceSource.NoteProperties);
+    public ObjectConfig PropertyConfig => mVoiceSource.PropertyConfig;
 
-    public Voice(DataObject parent, VoiceInfo info) : base(parent)
+    public Voice(IMidiPart parent, VoiceInfo info) : base(parent)
     {
+        mPart = parent;
         IDataObject<VoiceInfo>.SetInfo(this, info);
     }
 
@@ -33,12 +37,14 @@ internal class Voice : DataObject, IVoice
 
     [MemberNotNull(nameof(mType))]
     [MemberNotNull(nameof(mID))]
+    [MemberNotNull(nameof(mName))]
     [MemberNotNull(nameof(mVoiceSource))]
     void IDataObject<VoiceInfo>.SetInfo(VoiceInfo info)
     {
         mType = info.Type;
         mID = info.ID;
-        mVoiceSource = VoicesManager.Create(info.Type, info.ID);
+
+        mVoiceSource = VoiceManager.Create(info.Type, this);
         mAutomationConfigs.Clear();
         foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs.Concat(mVoiceSource.AutomationConfigs).Concat(ConstantDefine.PostCommonAutomationConfigs))
         {
@@ -46,19 +52,26 @@ internal class Voice : DataObject, IVoice
         }
     }
 
-    public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
+    public ObjectConfig GetNotePropertyConfig(IEnumerable<ISynthesisNote> notes)
     {
-        return mVoiceSource.Segment(segment);
+        return mVoiceSource.GetNotePropertyConfig(notes);
     }
 
-    public ISynthesisTask CreateSynthesisTask(ISynthesisData data)
+    public IReadOnlyList<IReadOnlyList<INote>> Segment(IEnumerable<INote> segment)
     {
-        return mVoiceSource.CreateSynthesisTask(data);
+        return mVoiceSource.Segment(segment).Convert(list => list.Convert(note => (INote)note));
+    }
+
+    public IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output)
+    {
+        return mVoiceSource.CreateSegment(input, output);
     }
 
     string mType;
     string mID;
+    string mName;
 
+    readonly IMidiPart mPart;
     IVoiceSource mVoiceSource;
     OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
 }

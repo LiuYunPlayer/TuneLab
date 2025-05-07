@@ -423,7 +423,7 @@ internal partial class AutomationRenderer
             }
 
             var vibratos = AutomationRenderer.Part.Vibratos.AllSelectedItems();
-            if (vibratos.IsEmpty())
+            if (!vibratos.Any())
                 return;
 
             var automationID = AutomationRenderer.mDependency.ActiveAutomation;
@@ -490,7 +490,7 @@ internal partial class AutomationRenderer
             return mMax - (y / AutomationRenderer.Bounds.Height) * (mMax - mMin);
         }
 
-        IReadOnlyCollection<Vibrato>? mVibratos;
+        IEnumerable<Vibrato>? mVibratos;
         string mAutomationID;
         double mValue;
         double mMax;

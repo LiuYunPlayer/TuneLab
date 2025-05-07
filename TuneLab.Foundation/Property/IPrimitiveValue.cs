@@ -1,5 +1,5 @@
 ﻿namespace TuneLab.Foundation.Property;
 
-internal interface IPrimitiveValue : IPropertyValue
+internal interface IPrimitiveValue : IPropertyValue, IReadOnlyPrimitiveValue
 {
 }

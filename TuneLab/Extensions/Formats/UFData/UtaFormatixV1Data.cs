@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Formats.UFData;
 
@@ -76,7 +76,6 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
                         Solo = false
                     };
                     var midiPartInfo = new MidiPartInfo();
-                    midiPartInfo.Properties = PropertyObject.Empty;
                     midiPartInfo.Voice.Type = "";
                     midiPartInfo.Voice.ID = "";
 
@@ -257,7 +256,7 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
 
     static PropertyObject FromJson(JToken jToken)
     {
-        var map = new Map<string, PropertyValue>();
+        var map = new Map<string, IPropertyValue>();
 
         foreach (JProperty property in jToken.Children())
         {
@@ -266,16 +265,16 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
             switch (value.Type)
             {
                 case JTokenType.Boolean:
-                    map.Add(key, (bool)value);
+                    map.Add(key, new PropertyBoolean((bool)value));
                     break;
                 case JTokenType.Integer:
-                    map.Add(key, (int)value);
+                    map.Add(key, new PropertyNumber((int)value));
                     break;
                 case JTokenType.Float:
-                    map.Add(key, (double)value);
+                    map.Add(key, new PropertyNumber((double)value));
                     break;
                 case JTokenType.String:
-                    map.Add(key, (string)value);
+                    map.Add(key, new PropertyString((string)value!));
                     break;
                 case JTokenType.Object:
                     map.Add(key, FromJson(value));
@@ -285,10 +284,10 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
         return new(map);
     }
 
-    static JObject ToJson(PropertyObject properties)
+    static JObject ToJson(IMap<string, IPropertyValue> properties)
     {
         var json = new JObject();
-        foreach (var property in properties.Map)
+        foreach (var property in properties)
         {
             var key = property.Key;
             var value = property.Value;
@@ -296,11 +295,11 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
             {
                 json.Add(key, ToJson(propertyObject));
             }
-            else if (value.ToBool(out var boolValue))
+            else if (value.ToBoolean(out var boolValue))
             {
                 json.Add(key, boolValue);
             }
-            else if (value.ToDouble(out var doubleValue))
+            else if (value.ToNumber(out var doubleValue))
             {
                 json.Add(key, doubleValue);
             }

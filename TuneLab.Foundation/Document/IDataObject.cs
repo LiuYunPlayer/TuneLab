@@ -212,7 +212,7 @@ public interface IDataObject
         void IDataObject.Push(ICommand command) => Push(command);
     }
 
-    internal class Wrapper(IDataObject dataObject) : IDataObject
+    public class Wrapper(IDataObject dataObject) : IDataObject
     {
         public IMergableEvent Modified => dataObject.Modified;
         public Head Head => dataObject.Head;
@@ -288,7 +288,7 @@ public interface IDataObject<T> : IReadOnlyDataObject<T>
         }
     }
 
-    internal new class Wrapper(IDataObject<T> dataObject) : IDataObject.Wrapper(dataObject), IDataObject<T>
+    public new class Wrapper(IDataObject<T> dataObject) : IDataObject.Wrapper(dataObject), IDataObject<T>
     {
         protected virtual T FromGet(T info) => info;
         protected virtual T ToSet(T info) => info;

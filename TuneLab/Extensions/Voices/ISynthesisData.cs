@@ -2,13 +2,15 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using TuneLab.Base.Properties;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Voices;
 
 public interface ISynthesisData
 {
     IEnumerable<ISynthesisNote> Notes { get; }
-    PropertyObject PartProperties { get; }
+    IReadOnlyMap<string, IReadOnlyPropertyValue> PartProperties { get; }
     bool GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation);
     IAutomationValueGetter Pitch { get; }
 }

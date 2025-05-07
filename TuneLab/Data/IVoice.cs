@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using TuneLab.Base.Properties;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 
@@ -12,8 +12,8 @@ internal interface IVoice : IDataObject<VoiceInfo>
     string Name { get; }
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    ObjectConfig PartProperties { get; }
-    ObjectConfig NoteProperties { get; }
-    IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote;
-    ISynthesisTask CreateSynthesisTask(ISynthesisData data);
+    ObjectConfig PropertyConfig { get; }
+    ObjectConfig GetNotePropertyConfig(IEnumerable<ISynthesisNote> notes);
+    IReadOnlyList<IReadOnlyList<INote>> Segment(IEnumerable<INote> notes);
+    IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output);
 }

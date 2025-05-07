@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace TuneLab.Foundation.DataStructures;
 
-[CollectionBuilder(typeof(MapBuilder), nameof(MapBuilder.Create))]
+[CollectionBuilder(typeof(IReadOnlyMapBuilder), nameof(IReadOnlyMapBuilder.Create))]
 public interface IReadOnlyMap<TKey, out TValue> : IReadOnlyCollection<IReadOnlyKeyValuePair<TKey, TValue>> where TKey : notnull
 {
     TValue this[TKey key] { get; }
@@ -27,5 +27,26 @@ public static class IReadOnlyMapExtension
     public static TValue GetValueOrDefault<TKey, TValue>(this IReadOnlyMap<TKey, TValue> map, TKey key, TValue defaultValue) where TKey : notnull
     {
         return map.TryGetValue(key, out TValue? value) ? value : defaultValue;
+    }
+}
+
+public static class IReadOnlyMapBuilder
+{
+    public static IReadOnlyMap<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair<TKey, TValue>> values) where TKey : notnull
+    {
+        if (values.IsEmpty)
+            return EmptyMap<TKey, TValue>.Value;
+
+        var map = new Map<TKey, TValue>();
+        foreach (var kvp in values)
+        {
+            map.Add(kvp.Key, kvp.Value);
+        }
+        return map;
+    }
+
+    class EmptyMap<TKey, TValue> where TKey : notnull
+    {
+        public static readonly IReadOnlyMap<TKey, TValue> Value = new Map<TKey, TValue>();
     }
 }

@@ -1,7 +1,6 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
-using TuneLab.Base.Properties;
 using TuneLab.Foundation.Event;
 using TuneLab.Utils;
 

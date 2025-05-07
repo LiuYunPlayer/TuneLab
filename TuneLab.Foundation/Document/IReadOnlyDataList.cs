@@ -2,9 +2,7 @@
 
 namespace TuneLab.Foundation.Document;
 
-public interface IReadOnlyDataList<out T> : IReadOnlyDataObject<IEnumerable<T>>, IReadOnlyList<T>
+public interface IReadOnlyDataList<out T> : IReadOnlyDataObject<IEnumerable<T>>, IReadOnlyDataCollection<T>, IReadOnlyList<T>
 {
-    IActionEvent<T> ItemAdded { get; }
-    IActionEvent<T> ItemRemoved { get; }
     IActionEvent<T, T> ItemReplaced { get; }
 }

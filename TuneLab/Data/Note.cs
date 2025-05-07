@@ -1,9 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
@@ -14,7 +13,8 @@ namespace TuneLab.Data;
 
 internal class Note : DataObject, INote
 {
-    public IActionEvent SelectionChanged => mSelectionChanged;
+    public IActionEvent SelectionChanged => mIsSelected.Modified;
+    public INotifiableProperty<bool> IsSelectedProperty => mIsSelected;
     public IMidiPart Part => mPart;
     public INote? Next => ((ILinkedNode<INote>)this).Next;
     public INote? Last => ((ILinkedNode<INote>)this).Last;
@@ -23,9 +23,9 @@ internal class Note : DataObject, INote
     public DataStruct<int> Pitch { get; }
     DataLyric Lyric { get; }
     DataPronunciation Pronunciation { get; }
-    public DataPropertyObject Properties { get; }
+    public IDataPropertyObject Properties { get; }
     public DataObjectList<IPhoneme> Phonemes { get; } = new();
-    public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
+    public bool IsSelected { get => mIsSelected; set => mIsSelected.Value = value; }
 
     public double StartPos => Pos.Value;
     public double EndPos => Pos.Value + Dur.Value;
@@ -53,7 +53,7 @@ internal class Note : DataObject, INote
         Pitch = new(this);
         Lyric = new(this);
         Pronunciation = new(this);
-        Properties = new(this);
+        Properties = new DataPropertyObject(this);
         Phonemes.Attach(this);
         mPart = part;
         IDataObject<NoteInfo>.SetInfo(this, info);
@@ -68,7 +68,7 @@ internal class Note : DataObject, INote
             Pitch = Pitch,
             Lyric = Lyric,
             Pronunciation = Pronunciation,
-            Properties = Properties.GetInfo(),
+            Properties = new(Properties.GetInfo()),
             Phonemes = Phonemes.GetInfo().ToInfo(),
         };
 
@@ -119,7 +119,6 @@ internal class Note : DataObject, INote
     }
 
     readonly IMidiPart mPart;
-    readonly ActionEvent mSelectionChanged = new();
 
-    bool mIsSelected = false;
+    readonly NotifiableProperty<bool> mIsSelected = false;
 }

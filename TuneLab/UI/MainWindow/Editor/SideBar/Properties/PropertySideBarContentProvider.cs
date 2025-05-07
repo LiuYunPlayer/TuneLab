@@ -4,8 +4,9 @@ using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Base.Properties;
+using System.Reactive.Linq;
 using TuneLab.Data;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
@@ -44,66 +45,29 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mNoteContentPanel.Children.Add(mNoteContent);
         mNoteContentPanel.Children.Add(mNoteContentMask);
         mNotePanel.Content = mNoteContentPanel;
+
+        mPart.When(part => part.Voice.Modified).Subscribe(() => 
+        {
+            RefreshPartPropertiesController();
+            RefreshNotePropertiesController();
+            RefreshAutomationController();
+        }, s);
+
+        mPart.When(part => part.Automations.Any(automation => automation.DefaultValue.Modified)).Subscribe(RefreshAutomationController, s);
+        mPart.When(part => part.Properties.Modified).Subscribe(RefreshPartPropertiesController, s);
+        mPart.When(part => part.Notes.SelectionChanged).Subscribe(RefreshNotePropertiesController, s);
+        mPart.When(part => part.Notes.Any(note => note.Properties.Modified)).Subscribe(RefreshNotePropertiesController, s);
+        mPart.ObjectChanged.Subscribe(() => mPartFixedController.Part = mPart.Object, s);
+    }
+
+    ~PropertySideBarContentProvider()
+    {
+        s.DisposeAll();
     }
 
     public void SetPart(IMidiPart? part)
     {
-        if (mPart != null)
-        {
-            s.DisposeAll();
-
-            Terminate();
-        }
-
-        mPart = part;
-
-        if (mPart != null)
-        {
-            mPart.Voice.Modified.Subscribe(OnConfigChnaged, s);
-
-            mPart.Automations.Any(automation => automation.DefaultValue.Modified).Subscribe(OnAutomationDefaultValueModified, s);
-            mAutomationController.ValueWillChange.Subscribe(OnAutomationValueWillChange, s);
-            mAutomationController.ValueChanged.Subscribe(OnAutomationValueChanged, s);
-            mAutomationController.ValueCommited.Subscribe(OnAutomationValueCommited, s);
-
-            mPart.Properties.PropertyModified.Subscribe(OnPartPropertyModified, s);
-            mPartPropertiesController.ValueCommited.Subscribe(OnPartValueCommited, s);
-
-            mPart.Notes.SelectionChanged.Subscribe(OnNoteSelectionChanged, s);
-            mPart.Notes.Any(note => note.Properties.PropertyModified).Subscribe(OnNotePropertyModified, s);
-            mNotePropertiesController.ValueCommited.Subscribe(OnNoteValueCommited, s);
-
-            Setup(mPart);
-        }
-    }
-
-    void Setup(IMidiPart part)
-    {
-        mAutomationController.SetConfig(new(part.Voice.AutomationConfigs));
-        mPartFixedController.Part = part;
-        mPartPropertiesController.SetConfig(part.Voice.PartProperties);
-        mNotePropertiesController.SetConfig(part.Voice.NoteProperties);
-
-        RefreshAutomationController();
-        RefreshPartPropertiesController();
-        RefreshNotePropertiesController();
-    }
-
-    void Terminate()
-    {
-        mAutomationController.ResetConfig();
-        mPartFixedController.Part = null;
-        mPartPropertiesController.ResetConfig();
-        mNotePropertiesController.ResetConfig();
-    }
-
-    void OnConfigChnaged()
-    {
-        Terminate();
-        if (mPart == null)
-            return;
-
-        Setup(mPart);
+        mPart.Set(part);
     }
 
     void OnNoteSelectionChanged()
@@ -111,173 +75,37 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         RefreshNotePropertiesController();
     }
 
-    void OnNotePropertyModified(PropertyPath path)
-    {
-        RefreshNotePropertiesController();
-    }
-
     void RefreshAutomationController()
     {
-        if (mPart == null)
+        if (Part == null)
             return;
 
-        foreach (var kvp in mPart.Voice.AutomationConfigs)
-        {
-            var key = kvp.Key;
-            if (mPart.Automations.TryGetValue(key, out var automation))
-            {
-                mAutomationController.Display(new PropertyPath(key).GetKey(), automation.DefaultValue.Value);
-            }
-            else
-            {
-                mAutomationController.Display(new PropertyPath(key).GetKey(), kvp.Value.DefaultValue);
-            }
-        }
+        var config = new ObjectConfig(Part.Voice.AutomationConfigs);
+        // mAutomationController.SetConfig(config, Part.Automations); TODO: Fix this
     }
 
     void RefreshPartPropertiesController()
     {
-        if (mPart == null)
+        if (Part == null)
             return;
 
-        DisplayPartProperties(mPart.Voice.PartProperties, new());
-    }
-
-    void DisplayPartProperties(ObjectConfig config, PropertyPath path)
-    {
-        if (mPart == null)
-            return;
-
-        foreach (var kvp in config.Properties)
-        {
-            var propertyPath = path.Combine(kvp.Key);
-            if (kvp.Value is ObjectConfig objectConfig)
-            {
-                DisplayPartProperties(objectConfig, propertyPath);
-            }
-            else if (kvp.Value is IValueConfig valueConfig)
-            {
-                var key = propertyPath.GetKey();
-                var value = mPart.Properties.GetValue(key, valueConfig.DefaultValue);
-                mPartPropertiesController.Display(key, value);
-            }
-        }
+        var config = Part.Voice.PropertyConfig;
+        mPartPropertiesController.SetConfig(config, Part.Properties);
     }
 
     void RefreshNotePropertiesController()
     {
         mNoteContentMask.IsVisible = true;
-        if (mPart == null)
+        if (Part == null)
             return;
 
-        var selectedNotes = mPart.Notes.AllSelectedItems();
-        DisplaySelectedNotesProperties(selectedNotes, mPart.Voice.NoteProperties, new());
-        mNoteContentMask.IsVisible = selectedNotes.IsEmpty();
+        var selectedNotes = Part.Notes.AllSelectedItems();
+        var config = Part.Voice.GetNotePropertyConfig(selectedNotes);
+        mNotePropertiesController.SetConfig(config, new MultipleDataPropertyObject(Part.Notes, selectedNotes.Select(note => note.Properties)));
+        mNoteContentMask.IsVisible = !selectedNotes.Any();
     }
 
-    void DisplaySelectedNotesProperties(IReadOnlyCollection<INote> notes, ObjectConfig config, PropertyPath path)
-    {
-        foreach (var kvp in config.Properties)
-        {
-            var propertyPath = path.Combine(kvp.Key);
-            if (kvp.Value is ObjectConfig objectConfig)
-            {
-                DisplaySelectedNotesProperties(notes, objectConfig, propertyPath);
-            }
-            else if (kvp.Value is IValueConfig valueConfig)
-            {
-                var key = propertyPath.GetKey();
-                if (notes.IsEmpty())
-                {
-                    mNotePropertiesController.DisplayNull(key);
-                }
-                else
-                {
-                    var first = notes.First();
-                    PropertyValue firstValue = first.Properties.GetValue(key, valueConfig.DefaultValue);
-                    foreach (var note in notes)
-                    {
-                        var value = note.Properties.GetValue(key, valueConfig.DefaultValue);
-                        if (!firstValue.Equals(value))
-                        {
-                            firstValue = PropertyValue.Invalid;
-                            break;
-                        }
-                    }
-                    mNotePropertiesController.Display(key, firstValue);
-                }
-            }
-        }
-    }
-
-    void OnPartPropertyModified(PropertyPath path)
-    {
-        RefreshPartPropertiesController();
-    }
-
-    void OnPartValueCommited(PropertyPath path, PropertyValue value)
-    {
-        mPart?.Properties.SetValue(path.GetKey(), value).Commit();
-    }
-
-    void OnNoteValueCommited(PropertyPath path, PropertyValue value)
-    {
-        if (mPart == null)
-            return;
-
-        foreach (var note in mPart.Notes.AllSelectedItems())
-        {
-            note.Properties.SetValue(path.GetKey(), value);
-        }
-
-        mPart.Notes.Commit();
-    }
-
-    void OnAutomationDefaultValueModified()
-    {
-        RefreshAutomationController();
-    }
-
-    Head mAutomationHead;
-    void OnAutomationValueWillChange(PropertyPath path)
-    {
-        if (mPart == null)
-            return;
-
-        mPart.BeginMergeDirty();
-        mAutomationHead = mPart.Head;
-    }
-
-    void OnAutomationValueChanged(PropertyPath path, PropertyValue value)
-    {
-        if (mPart == null)
-            return;
-
-        if (!value.ToDouble(out var number))
-            return;
-
-        mPart.DiscardTo(mAutomationHead);
-        string key = path.GetKey();
-        if (!mPart.Automations.TryGetValue(key, out var automation))
-        {
-            automation = mPart.AddAutomation(key);
-        }
-
-        if (automation == null)
-            return;
-
-        automation.DefaultValue.Set(number);
-    }
-
-    void OnAutomationValueCommited(PropertyPath path, PropertyValue value)
-    {
-        if (mPart == null)
-            return;
-
-        OnAutomationValueChanged(path, value);
-        mPart.EndMergeDirty();
-        mPart.Commit();
-    }
+    IMidiPart? Part => mPart.Object;
 
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
@@ -287,13 +115,13 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
     readonly LayerPanel mNoteContentPanel = new();
 
-    readonly ObjectController mAutomationController = new();
+    readonly PropertyObjectController mAutomationController = new();
     readonly MidiPartFixedController mPartFixedController = new();
-    readonly ObjectController mPartPropertiesController = new();
-    readonly ObjectController mNotePropertiesController = new();
+    readonly PropertyObjectController mPartPropertiesController = new();
+    readonly PropertyObjectController mNotePropertiesController = new();
 
     readonly Border mNoteContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
 
-    IMidiPart? mPart = null;
+    Owner<IMidiPart> mPart = new();
     readonly DisposableManager s = new();
 }

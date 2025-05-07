@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.Document;
 

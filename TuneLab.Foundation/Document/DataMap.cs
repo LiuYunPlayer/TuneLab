@@ -83,7 +83,7 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         }
     }
 
-    IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>.GetEnumerator()
+    public IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> GetEnumerator()
     {
         return ((IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>)mMap).GetEnumerator();
     }

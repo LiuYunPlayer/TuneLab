@@ -2,7 +2,7 @@
 
 namespace TuneLab.Foundation.Document;
 
-public interface IReadOnlyDataObjectList<out T> : IReadOnlyDataList<T>, IReadOnlyDataObjectCollection<T> where T : IDataObject
+public interface IReadOnlyDataObjectList<out T> : IReadOnlyDataList<T> where T : IDataObject
 {
     IActionEvent ListModified { get; }
 }

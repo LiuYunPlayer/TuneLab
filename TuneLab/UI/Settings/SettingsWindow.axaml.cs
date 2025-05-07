@@ -6,7 +6,10 @@ using System.Linq;
 using TuneLab.Audio;
 using TuneLab.Base.Properties;
 using TuneLab.Configs;
+using TuneLab.Extensions.ControllerConfigs;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -60,8 +63,8 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new(TranslationManager.Languages));
-                comboBox.Bind(Settings.Language, false, s);
+                comboBox.SetConfig(new(TranslationManager.Languages, new ComboBoxOption { Value = default, DisplayText = "(Default)".Tr(this) }));
+                s += comboBox.BindProperty(Settings.Language, false);
 
                 panel.AddDock(comboBox, Dock.Right);
             }
@@ -77,7 +80,7 @@ internal partial class SettingsWindow : Window
                 var slider = new SliderController() { Width = 180, IsInterger = false };
                 slider.SetRange(-24, 24);
                 slider.SetDefaultValue(Settings.DefaultSettings.MasterGain);
-                slider.Bind(Settings.MasterGain, true, s);
+                s += slider.BindProperty(Settings.MasterGain, true);
                 panel.AddDock(slider, Dock.Right);
             }
             {
@@ -91,7 +94,7 @@ internal partial class SettingsWindow : Window
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
                 comboBox.SetConfig(new(AudioEngine.GetAllDrivers()));
-                comboBox.Bind(Settings.AudioDriver, false, s);
+                s += comboBox.BindProperty(Settings.AudioDriver, false);
                 comboBox.Display(AudioEngine.CurrentDriver.Value);
 
                 panel.AddDock(comboBox, Dock.Right);
@@ -107,7 +110,7 @@ internal partial class SettingsWindow : Window
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
                 comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
-                comboBox.Bind(Settings.AudioDevice, false, s);
+                s += comboBox.BindProperty(Settings.AudioDevice, false);
                 comboBox.Display(AudioEngine.CurrentDevice.Value);
 
                 panel.AddDock(comboBox, Dock.Right);
@@ -122,8 +125,8 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new(["32000", "44100", "48000", "96000", "192000"]));
-                comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.SampleRate, false, s);
+                comboBox.SetConfig(new([32000, 44100, 48000, 96000, 192000], 44100));
+                s += comboBox.BindProperty(Settings.SampleRate, false);
                 comboBox.Display(AudioEngine.SampleRate.Value.ToString());
 
                 panel.AddDock(comboBox, Dock.Right);
@@ -138,8 +141,8 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new(["64", "128", "256", "512", "1024", "2048", "4096", "8192"]));
-                comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.BufferSize, false, s);
+                comboBox.SetConfig(new([64, 128, 256, 512, 1024, 2048, 4096, 8192], 1024));
+                s += comboBox.BindProperty(Settings.BufferSize, false);
                 comboBox.Display(AudioEngine.BufferSize.Value.ToString());
 
                 panel.AddDock(comboBox, Dock.Right);
@@ -156,7 +159,7 @@ internal partial class SettingsWindow : Window
                 var slider = new SliderController() { Width = 180, IsInterger = false };
                 slider.SetRange(0, 1);
                 slider.SetDefaultValue(Settings.DefaultSettings.BackgroundImageOpacity);
-                slider.Bind(Settings.BackgroundImageOpacity, true, s);
+                s += slider.BindProperty(Settings.BackgroundImageOpacity, true);
                 panel.AddDock(slider, Dock.Right);
             }
             {
@@ -171,7 +174,7 @@ internal partial class SettingsWindow : Window
         }
         {
             var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [FilePickerFileTypes.ImageAll] } };
-            controller.Bind(Settings.BackgroundImagePath, false, s);
+            s += controller.BindProperty(Settings.BackgroundImagePath, false);
             listView.Content.Children.Add(controller);
         }
         {
@@ -180,7 +183,7 @@ internal partial class SettingsWindow : Window
         }
         {
             var controller = new PathInput() { Margin = new(24, 12), Options = new FolderPickerOpenOptions() };
-            controller.Bind(Settings.PianoKeySamplesPath, false, s);
+            s += controller.BindProperty(Settings.PianoKeySamplesPath, false);
             listView.Content.Children.Add(controller);
         }
         {
@@ -189,7 +192,7 @@ internal partial class SettingsWindow : Window
                 var slider = new SliderController() { Width = 180, IsInterger = true };
                 slider.SetRange(10, 60);
                 slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveInterval);
-                slider.Bind(Settings.AutoSaveInterval, false, s);
+                s += slider.BindProperty(Settings.AutoSaveInterval, false);
                 panel.AddDock(slider, Dock.Right);
             }
             {
@@ -204,7 +207,7 @@ internal partial class SettingsWindow : Window
                 var slider = new SliderController() { Width = 180, IsInterger = true };
                 slider.SetRange(1, 60);
                 slider.SetDefaultValue(Settings.DefaultSettings.ParameterBoundaryExtension);
-                slider.Bind(Settings.ParameterBoundaryExtension, false, s);
+                s += slider.BindProperty(Settings.ParameterBoundaryExtension, false);
                 panel.AddDock(slider, Dock.Right);
             }
             {
@@ -219,7 +222,7 @@ internal partial class SettingsWindow : Window
                 var slider = new SliderController() { Width = 180, IsInterger = true };
                 slider.SetRange(-720, 720);
                 slider.SetDefaultValue(Settings.DefaultSettings.TrackHueChangeRate);
-                slider.Bind(Settings.TrackHueChangeRate, true, s);
+                s += slider.BindProperty(Settings.TrackHueChangeRate, true);
                 panel.AddDock(slider, Dock.Right);
             }
             {

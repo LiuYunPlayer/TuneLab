@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Property;
 using ZstdSharp;
 
 namespace TuneLab.Extensions.Formats.ACEP;
@@ -100,7 +100,6 @@ internal class ACEStudioProject : IImportFormat, IExportFormat
                             {
                                 PartInfo? partInfo = null;
                                 var midiPartInfo = new MidiPartInfo();
-                                midiPartInfo.Properties = PropertyObject.Empty;
                                 midiPartInfo.Voice.Type = "";
                                 midiPartInfo.Voice.ID = "";
 
@@ -115,7 +114,6 @@ internal class ACEStudioProject : IImportFormat, IExportFormat
                                         Dur = ((int?)note["dur"] ?? 0),
                                         Pitch = ((int?)note["pitch"] ?? 0),
                                         Lyric = ((string?)note["lyric"] ?? "a"),
-                                        Properties = PropertyObject.Empty,
                                     };
 
                                     midiPartInfo.Notes.Add(noteInfo);

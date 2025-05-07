@@ -2,7 +2,9 @@
 
 public class AutomationConfig : IControllerConfig
 {
+    public required string Name { get; set; }
     public required double DefaultValue { get; set; }
     public required double MinValue { get; set; }
     public required double MaxValue { get; set; }
+    public string Color { get; set; } = "#FFFFFF";
 }

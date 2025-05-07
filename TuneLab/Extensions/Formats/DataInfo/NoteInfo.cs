@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Formats.DataInfo;
 
@@ -10,7 +10,7 @@ public class NoteInfo
     public required int Pitch { get; set; }
     public string Lyric { get; set; } = string.Empty;
     public string Pronunciation { get; set; } = string.Empty;
-    public PropertyObject Properties { get; set; } = PropertyObject.Empty;
+    public PropertyObject Properties { get; set; } = [];
     public List<PhonemeInfo> Phonemes { get; set; } = new();
 }
 

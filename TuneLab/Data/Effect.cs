@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using TuneLab.Base.Properties;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.DataStructures;
@@ -27,7 +26,7 @@ internal class Effect : DataObject, IEffect
         Type = info.Type;
         IsEnabled = info.IsEnabled;
         Properties.Set(info.Properties);
-        ((IDataObject<IReadOnlyMap<string, IAutomation>>)mAutomations).Set(info.Automations.Convert(CreateAutomation).ToMap());
+        mAutomations.Set(info.Automations.Convert(CreateAutomation).ToMap());
         IsEnabled.Attach(this);
         Properties.Attach(this);
         mAutomations.Attach(this);

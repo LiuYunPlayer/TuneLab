@@ -1,5 +1,4 @@
 ﻿using Avalonia.Controls;
-using TuneLab.Base.Properties;
 using TuneLab.Foundation.Event;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;

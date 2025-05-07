@@ -1,4 +1,4 @@
-﻿using TuneLab.Extensions.Voices;
+﻿using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab;
@@ -12,10 +12,10 @@ internal static class ConstantDefine
     public static readonly string VibratoEnvelopeID = "VibratoEnvelope";
     public static readonly IReadOnlyOrderedMap<string, AutomationConfig> PreCommonAutomationConfigs = new OrderedMap<string, AutomationConfig>()
     {
-        { VolumeID, new AutomationConfig("Volume", 0, -12, +12, "#737CE5") }
+        { VolumeID, new AutomationConfig() { Name = "Volume", DefaultValue = 0, MinValue = -12, MaxValue = +12, Color = "#737CE5" } }
     };
     public static readonly IReadOnlyOrderedMap<string, AutomationConfig> PostCommonAutomationConfigs = new OrderedMap<string, AutomationConfig>()
     {
-        { VibratoEnvelopeID, new AutomationConfig("VibratoEnvelope", 1, 0, 2, "#73DBE5") }
+        { VibratoEnvelopeID, new AutomationConfig() { Name = "VibratoEnvelope", DefaultValue = 0, MinValue = 0, MaxValue = 2, Color = "#73DBE5" } }
     };
 }

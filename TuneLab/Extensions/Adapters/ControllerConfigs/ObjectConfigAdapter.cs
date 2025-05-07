@@ -10,6 +10,6 @@ internal static class ObjectConfigAdapter
 {
     public static ObjectConfig ToDomain(this ObjectConfig_V1 v1)
     {
-        return new ObjectConfig() { Configs = v1.Configs.ToDomain().Convert(IControllerConfigAdapter.ToDomain) };
+        return new ObjectConfig() { PropertyConfigs = v1.Configs.ToDomain().Convert(IControllerConfigAdapter.ToDomain) };
     }
 }

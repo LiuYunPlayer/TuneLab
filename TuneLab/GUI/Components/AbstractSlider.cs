@@ -50,7 +50,6 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
                 return;
             }
 
-
             base.OnMouseUp(e);
         }
 

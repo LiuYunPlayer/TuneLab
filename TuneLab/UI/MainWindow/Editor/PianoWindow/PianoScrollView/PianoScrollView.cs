@@ -6,11 +6,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using TuneLab.Audio;
 using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
+using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
@@ -433,7 +435,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         foreach (var piece in Part.SynthesisPieces)
         {
-            var result = piece.SynthesisResult;
+            var result = piece.Output;
             if (result == null)
                 continue;
 
@@ -622,7 +624,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             if (waveform == null)
                 continue;
 
-            var result = piece.SynthesisResult;
+            var result = piece.Output;
             if (result == null)
                 continue;
 
@@ -639,7 +641,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 xp += gap;
                 xs.Add(xp);
                 double time = tempoManager.GetTime(TickAxis.X2Tick(xp));
-                positions.Add((time - result.StartTime) * result.SamplingRate);
+                positions.Add((time - result.Audio.StartTime) * result.Audio.SampleRate);
             }
             while (xp < maxX);
 
@@ -962,7 +964,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             return;
 
         var selectedNotes = Part.Notes.AllSelectedItems();
-        if (selectedNotes.IsEmpty())
+        if (!selectedNotes.Any())
             return;
 
         Part.BeginMergeDirty();

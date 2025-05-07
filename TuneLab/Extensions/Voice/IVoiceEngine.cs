@@ -8,5 +8,5 @@ internal interface IVoiceEngine
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; }
     void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> properties);
     void Destroy();
-    IVoiceSource CreateVoiceSource(string id, IReadOnlyMap<string, IReadOnlyPropertyValue> properties);
+    IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context);
 }

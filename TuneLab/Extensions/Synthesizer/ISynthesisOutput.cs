@@ -6,5 +6,6 @@ namespace TuneLab.Extensions.Synthesizer;
 internal interface ISynthesisOutput
 {
     MonoAudio Audio { get; set; }
+    IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; set; }
     IMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedAutomations { get; }
 }

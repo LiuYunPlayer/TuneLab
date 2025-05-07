@@ -12,6 +12,8 @@ public class PropertyBoolean : IPrimitiveValue
 
     public override string ToString() => mValue.ToString();
 
+    bool IEquatable<IReadOnlyPrimitiveValue>.Equals(IReadOnlyPrimitiveValue? other) => other != null && other.ToBoolean(out var value) && value == mValue;
+
     //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyBoolean property && property.mValue == mValue;
 
     readonly bool mValue;

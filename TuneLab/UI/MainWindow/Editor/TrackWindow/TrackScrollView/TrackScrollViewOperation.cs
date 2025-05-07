@@ -629,7 +629,7 @@ internal partial class TrackScrollView
             return new Rect(left, top, right - left, bottom - top);
         }
 
-        IReadOnlyCollection<IPart>? mSelectedParts = null;
+        IEnumerable<IPart>? mSelectedParts = null;
         double mDownTick;
         TrackVerticalAxis.Position mDownPosition;
         double mTick;
@@ -656,7 +656,7 @@ internal partial class TrackScrollView
             for (int trackIndex = 0; trackIndex < TrackScrollView.Project.Tracks.Count; trackIndex++)
             {
                 var selectedParts = TrackScrollView.Project.Tracks[trackIndex].Parts.AllSelectedItems();
-                if (selectedParts.IsEmpty())
+                if (!selectedParts.Any())
                     continue;
 
                 mMoveParts.Add(new(trackIndex, selectedParts));
@@ -721,7 +721,7 @@ internal partial class TrackScrollView
             foreach (var partsWithTrackIndex in mMoveParts)
             {
                 var parts = partsWithTrackIndex.parts;
-                if (parts.IsEmpty())
+                if (!parts.Any())
                     continue;
 
                 int dstTrackIndex = partsWithTrackIndex.trackIndex + trackIndexOffset;
@@ -777,10 +777,10 @@ internal partial class TrackScrollView
             mLastTrackIndexOffset = 0;
         }
 
-        struct PartsWithTrackIndex(int trackIndex, IReadOnlyCollection<IPart> parts)
+        struct PartsWithTrackIndex(int trackIndex, IEnumerable<IPart> parts)
         {
             public int trackIndex = trackIndex;
-            public IReadOnlyCollection<IPart> parts = parts;
+            public IEnumerable<IPart> parts = parts;
         }
 
         IPart? mPart;
