@@ -3,7 +3,6 @@ using Avalonia.Media;
 using System;
 using System.Linq;
 using TuneLab.Audio;
-using TuneLab.Base.Properties;
 using TuneLab.Data;
 using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;

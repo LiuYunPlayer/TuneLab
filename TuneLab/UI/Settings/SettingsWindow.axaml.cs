@@ -4,7 +4,6 @@ using Avalonia.Platform.Storage;
 using System;
 using System.Linq;
 using TuneLab.Audio;
-using TuneLab.Base.Properties;
 using TuneLab.Configs;
 using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;

@@ -1,8 +1,8 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using TuneLab.Base.Properties;
 using TuneLab.Foundation.Event;
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 

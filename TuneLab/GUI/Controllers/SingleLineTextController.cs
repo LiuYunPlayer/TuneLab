@@ -1,5 +1,4 @@
-﻿using TuneLab.Base.Properties;
-using TuneLab.Foundation.Event;
+﻿using TuneLab.Foundation.Event;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;

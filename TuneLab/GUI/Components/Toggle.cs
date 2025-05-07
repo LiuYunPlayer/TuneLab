@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using TuneLab.Base.Properties;
 using TuneLab.Foundation.Event;
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 

@@ -8,7 +8,7 @@ using System.Linq;
 using TuneLab.Audio;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Input;
@@ -201,11 +201,11 @@ internal partial class TrackScrollView
                                         }
                                         {
                                             var menuItem = new MenuItem() { Header = "Set Voice".Tr(TC.Menu) };
-                                            var allEngines = VoicesManager.GetAllVoiceEngines();
+                                            var allEngines = VoiceManager.GetAllVoiceEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
                                                 var type = allEngines[i];
-                                                var infos = VoicesManager.GetAllVoiceInfos(type);
+                                                var infos = VoiceManager.GetAllVoiceInfos(type);
                                                 if (infos == null)
                                                     continue;
 

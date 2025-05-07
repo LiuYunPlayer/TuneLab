@@ -4,13 +4,13 @@ using Avalonia.Platform.Storage;
 using System;
 using System.Linq;
 using TuneLab.Audio;
-using TuneLab.Base.Properties;
 using TuneLab.Data;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
+using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.Utils;
 
@@ -20,19 +20,19 @@ internal class TrackHead : DockPanel
 {
     public TrackHead()
     {
-        mName.Bind(mTrackProvider.Select(track => track.Name), s);
+        mName.BindDataProperty(mTrackProvider.Select(track => track.Name), s);
         mGainSlider.SetRange(-24, 6);
-        mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).Bind(mTrackProvider.Select(track => track.Gain), s);
+        mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).BindDataProperty(mTrackProvider.Select(track => track.Gain), s);
         mPanSlider.SetRange(-1, 1);
-        mPanSlider.Bind(mTrackProvider.Select(track => track.Pan), s);
+        mPanSlider.BindDataProperty(mTrackProvider.Select(track => track.Pan), s);
         mMuteToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 0, 186, 173) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.M }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mMuteToggle.Bind(mTrackProvider.Select(track => track.IsMute), s);
+        mMuteToggle.BindDataProperty(mTrackProvider.Select(track => track.IsMute), s);
         mSoloToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 135, 84, 255) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mSoloToggle.Bind(mTrackProvider.Select(track => track.IsSolo), s);
+        mSoloToggle.BindDataProperty(mTrackProvider.Select(track => track.IsSolo), s);
         mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
         var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {

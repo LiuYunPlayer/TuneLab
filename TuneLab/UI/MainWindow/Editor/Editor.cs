@@ -19,7 +19,6 @@ using TuneLab.Data;
 using TuneLab.Extensions;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;

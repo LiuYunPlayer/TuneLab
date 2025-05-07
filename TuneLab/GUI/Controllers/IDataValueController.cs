@@ -81,6 +81,11 @@ public static class IDataValueControllerExtension
         return new DataPropertyProviderBinding<T>(controller, propertyProvider);
     }
 
+    public static void BindDataProperty<T>(this IDataValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider, DisposableManager disposableManager) where T : notnull
+    {
+        disposableManager.Add(new DataPropertyProviderBinding<T>(controller, propertyProvider));
+    }
+
     class DataPropertyProviderBinding<T> : IDisposable where T : notnull
     {
         public DataPropertyProviderBinding(IDataValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider)

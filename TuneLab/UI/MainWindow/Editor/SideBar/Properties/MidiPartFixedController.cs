@@ -1,6 +1,5 @@
 ﻿using Avalonia.Controls;
 using System.Linq;
-using TuneLab.Base.Properties;
 using TuneLab.Data;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;

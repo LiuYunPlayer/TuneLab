@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Utils;
@@ -93,7 +94,7 @@ internal class Effect : DataObject, IEffect
 
     public AutomationConfig GetEffectiveAutomationConfig(string id)
     {
-        return new AutomationConfig(id, 0, -1, 1, "#888888"); //FIXME: 通过config返回正确结果
+        return new AutomationConfig() { Name = id, DefaultValue = 0, MinValue = -1, MaxValue = 1, Color = "#888888" }; //FIXME: 通过config返回正确结果
         /*
         if (Voice.AutomationConfigs.ContainsKey(id))
             return Voice.AutomationConfigs[id];

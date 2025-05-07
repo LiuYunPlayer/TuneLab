@@ -1,10 +1,10 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using System;
-using TuneLab.Base.Properties;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
+using TuneLab.GUI.Controllers;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
 
