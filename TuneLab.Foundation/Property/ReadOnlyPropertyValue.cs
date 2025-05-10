@@ -5,8 +5,6 @@ namespace TuneLab.Foundation.Property;
 
 public readonly struct ReadOnlyPropertyValue
 {
-    public static readonly IReadOnlyPropertyValue Null = new NullPropertyValue();
-
     public static implicit operator ReadOnlyPropertyValue(bool value) => new((PropertyBoolean)value);
 
     public static implicit operator ReadOnlyPropertyValue(sbyte value) => new((PropertyNumber)value);
@@ -30,7 +28,7 @@ public readonly struct ReadOnlyPropertyValue
 
     public ReadOnlyPropertyValue(IReadOnlyPropertyValue? value = null) { mValue = value; }
 
-    public IReadOnlyPropertyValue UnBoxing() => mValue ?? Null;
+    public IReadOnlyPropertyValue UnBoxing() => mValue ?? PropertyNull.Shared;
 
     public bool IsNull => mValue == null || mValue.IsNull();
     public bool IsBoolean => mValue != null && mValue.IsBoolean();
@@ -62,15 +60,5 @@ public readonly struct ReadOnlyPropertyValue
     public override string ToString()
     {
         return mValue?.ToString() ?? "null";
-    }
-
-    class NullPropertyValue : IReadOnlyPropertyValue
-    {
-        public PropertyType Type => PropertyType.Null;
-
-        public override string ToString()
-        {
-            return "null";
-        }
     }
 }

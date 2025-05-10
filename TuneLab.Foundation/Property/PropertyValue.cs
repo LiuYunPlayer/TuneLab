@@ -4,8 +4,6 @@ namespace TuneLab.Foundation.Property;
 
 public readonly struct PropertyValue
 {
-    public static readonly IPropertyValue Null = new NullPropertyValue();
-
     public static implicit operator PropertyValue(PropertyBoolean value) => new(value);
     public static implicit operator PropertyValue(PropertyNumber value) => new(value);
     public static implicit operator PropertyValue(PropertyString value) => new(value);
@@ -41,7 +39,7 @@ public readonly struct PropertyValue
 
     internal PropertyValue(IPropertyValue? value = null) { mValue = value; }
 
-    public IPropertyValue UnBox() => mValue ?? Null;
+    public IPropertyValue UnBox() => mValue ?? PropertyNull.Shared;
 
     public bool IsNull => mValue is null;
     public bool IsBoolean => mValue is PropertyBoolean;
@@ -68,7 +66,7 @@ public readonly struct PropertyValue
     public bool ToArray([NotNullWhen(true)][MaybeNullWhen(false)] out PropertyArray? value) { value = mValue as PropertyArray; return value != null; }
     public bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out PropertyObject? value) { value = mValue as PropertyObject; return value != null; }
 
-    public IReadOnlyPropertyValue AsReadOnly() => mValue ?? ReadOnlyPropertyValue.Null;
+    public IReadOnlyPropertyValue AsReadOnly() => mValue ?? PropertyNull.Shared;
 
     readonly IPropertyValue? mValue;
     /*
@@ -97,11 +95,6 @@ public readonly struct PropertyValue
 
         return valueA.Equals(valueB);
     }*/
-
-    class NullPropertyValue : IPropertyValue
-    {
-        public PropertyType Type => PropertyType.Null;
-    }
 }
 
 public static class PropertyValue_V1Extensions

@@ -14,7 +14,7 @@ public class DataPropertyObject(IDataObject? parent = null) : DataMap<string, IP
 {
     public IDataPropertyObjectField GetField(string key)
     {
-        throw new NotImplementedException();
+        return new DataPropertyObjectField(this, key);
     }
 
     void IDataObject<PropertyObject>.SetInfo(PropertyObject info)

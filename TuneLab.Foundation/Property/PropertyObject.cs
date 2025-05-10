@@ -62,7 +62,7 @@ public class PropertyObject(IMap<string, IPropertyValue>? properties = null) : I
             mProperties.Add(key, value);
     }
     
-    public IPropertyValue GetValue(string key, IPropertyValue? defaultValue = null) => this.TryGetValue(key, out var value) ? value : defaultValue ?? PropertyValue.Null;
+    public IPropertyValue GetValue(string key, IPropertyValue? defaultValue = null) => this.TryGetValue(key, out var value) ? value : defaultValue ?? PropertyNull.Shared;
     /*
     public PropertyBoolean GetBoolean(string key, PropertyBoolean defaultValue) => this.TryGetValue(key, out var value) ? value.AsBoolean(defaultValue) : defaultValue;
     public PropertyNumber GetNumber(string key, PropertyNumber defaultValue) => this.TryGetValue(key, out var value) ? value.AsNumber(defaultValue) : defaultValue;
