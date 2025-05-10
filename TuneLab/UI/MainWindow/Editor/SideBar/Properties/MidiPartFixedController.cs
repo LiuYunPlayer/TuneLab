@@ -21,8 +21,7 @@ internal class MidiPartFixedController : StackPanel
         AddController(mGainController, "Gain".Tr(TC.Property));
         mGainController.SetRange(-24, +24);
         mGainController.SetDefaultValue(0);
-        s += mGainController.BindDataProperty(mPart.Select(part => part.Gain));
-
+        mGainController.BindDataProperty(mPart.Select(part => part.Gain), s);
     }
 
     void AddController(Control control, string name)

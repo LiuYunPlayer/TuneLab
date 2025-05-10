@@ -19,13 +19,31 @@ public class DataPropertyObject(IDataObject? parent = null) : DataMap<string, IP
 
     void IDataObject<PropertyObject>.SetInfo(PropertyObject info)
     {
-        // TODO: Implement
+        ((IDataObject<IReadOnlyMap<string, IPropertyValue>>)this).SetInfo(info);
     }
 
-    public PropertyObject GetInfo()
+    public new PropertyObject GetInfo()
     {
         return new PropertyObject(base.GetInfo());
     }
 
-    readonly DataMap<string, IDataProperty<IReadOnlyPropertyValue>> mMap = [];
+    class DataPropertyObjectField(DataPropertyObject parent, string key) : DataObject(parent), IDataPropertyObjectField
+    {
+        public IPropertyValue GetValue(IPropertyValue defaultValue)
+        {
+            if (parent.ContainsKey(key))
+            {
+                return parent[key];
+            }
+            else
+            {
+                return defaultValue;
+            }
+        }
+
+        public void SetValue(IPropertyValue value)
+        {
+            parent[key] = value;
+        }
+    }
 }

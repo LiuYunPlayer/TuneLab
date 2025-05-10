@@ -6,7 +6,7 @@ using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.ControllerConfigs;
 
-public struct ComboBoxOption(ReadOnlyPrimitiveValue value, string? displayText = null)
+public struct ComboBoxOption(PrimitiveValue value, string? displayText = null)
 {
     public static implicit operator ComboBoxOption(PropertyBoolean value) => new() { Value = value };
     public static implicit operator ComboBoxOption(PropertyNumber value) => new() { Value = value };
@@ -30,15 +30,15 @@ public struct ComboBoxOption(ReadOnlyPrimitiveValue value, string? displayText =
 
     public static implicit operator ComboBoxOption(string value) => new() { Value = value };
 
-    public static implicit operator ComboBoxOption(ReadOnlyPrimitiveValue value) => new() { Value = value };
+    public static implicit operator ComboBoxOption(PrimitiveValue value) => new() { Value = value };
 
-    public ReadOnlyPrimitiveValue Value { get; set; } = value;
+    public PrimitiveValue Value { get; set; } = value;
     public string? DisplayText { get; set; } = displayText;
 }
 
 public class ComboBoxConfig(IReadOnlyList<ComboBoxOption> options, ComboBoxOption defaultValue) : IControllerConfig
 {
-    public ComboBoxOption DefaultValue { get; set; } = defaultValue;
+    public ComboBoxOption DefaultOption { get; set; } = defaultValue;
     public IReadOnlyList<ComboBoxOption> Options { get; set; } = options;
 
     public ComboBoxConfig() : this(Array.Empty<ComboBoxOption>(), default) { }

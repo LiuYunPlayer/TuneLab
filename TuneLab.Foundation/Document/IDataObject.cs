@@ -261,7 +261,7 @@ public interface IDataObject<T> : IReadOnlyDataObject<T>
         dataObject.Push(new ModifyCommand(dataObject, before, info));
     }
 
-    protected abstract void SetInfo(T info);
+    void SetInfo(T info);
 
     protected static void SetInfo<TInfo>(IDataObject<TInfo> dataObject, TInfo info)
     {

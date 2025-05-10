@@ -4,9 +4,8 @@ using TuneLab.Foundation.Property;
 
 namespace TuneLab.Foundation.Property;
 
-public class PropertyObject(IMap<string, IPropertyValue>? properties = null) : IContainerValue, IMap<string, IPropertyValue>
+public class PropertyObject(IMap<string, IPropertyValue>? properties = null) : IPropertyObject, IMap<string, IPropertyValue>
 {
-    public PropertyType Type => PropertyType.Object;
     public IPropertyValue this[string key] { get => GetValue(key); set => SetValue(key, value); }
     public IReadOnlyCollection<string> Keys => mProperties == null ? [] : mProperties.Keys;
     public IReadOnlyCollection<IPropertyValue> Values => mProperties == null ? [] : mProperties.Values;

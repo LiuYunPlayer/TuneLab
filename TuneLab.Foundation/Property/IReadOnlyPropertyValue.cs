@@ -5,17 +5,8 @@ namespace TuneLab.Foundation.Property;
 
 public interface IReadOnlyPropertyValue// : IEquatable<IReadOnlyPropertyValue>
 {
-    PropertyType Type { get; }
+    internal PropertyType Type { get; }
 
-    [MemberNotNullWhen(true, nameof(Object))]
-    bool IsObject => Type == PropertyType.Object;
-    IReadOnlyMap<string, IReadOnlyPropertyValue>? Object => default;
-
-    bool ToBoolean([NotNullWhen(true)][MaybeNullWhen(false)] out bool value) { value = default; return false; }
-    bool ToNumber([NotNullWhen(true)][MaybeNullWhen(false)] out double value) { value = default; return false; }
-    bool ToString([NotNullWhen(true)][MaybeNullWhen(false)] out string value) { value = default; return false; }
-    bool ToArray([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyList<IReadOnlyPropertyValue> value) { value = default; return false; }
-    bool ToObject([NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyMap<string, IReadOnlyPropertyValue> value) { value = default; return false; }
     /*
     static bool Equals(IReadOnlyPropertyValue? valueA, IReadOnlyPropertyValue? valueB)
     {
@@ -53,6 +44,45 @@ public static class IReadOnlyPropertyValueExtensions
     public static bool IsString(this IReadOnlyPropertyValue value) => value.Type == PropertyType.String;
     public static bool IsArray(this IReadOnlyPropertyValue value) => value.Type == PropertyType.Array;
     public static bool IsObject(this IReadOnlyPropertyValue value) => value.Type == PropertyType.Object;
+
+    public static bool ToBoolean(this IReadOnlyPropertyValue readOnlyPropertyValue, [NotNullWhen(true)][MaybeNullWhen(false)] out bool value) 
+    { 
+        var propertyBoolean = readOnlyPropertyValue as IPropertyBoolean; 
+        if (propertyBoolean == null)
+        {
+            value = default;
+            return false;
+        }
+
+        value = propertyBoolean.Value;
+        return true;
+    }
+    public static bool ToNumber(this IReadOnlyPropertyValue readOnlyPropertyValue, [NotNullWhen(true)][MaybeNullWhen(false)] out double value)
+    {
+        var propertyNumber = readOnlyPropertyValue as IPropertyNumber;
+        if (propertyNumber == null)
+        {
+            value = default;
+            return false;
+        }
+
+        value = propertyNumber.Value;
+        return true;
+    }
+    public static bool ToString(this IReadOnlyPropertyValue readOnlyPropertyValue, [NotNullWhen(true)][MaybeNullWhen(false)] out string value)
+    {
+        var propertyString = readOnlyPropertyValue as IPropertyString;
+        if (propertyString == null)
+        {
+            value = default;
+            return false;
+        }
+
+        value = propertyString.Value;
+        return true;
+    }
+    public static bool ToArray(this IReadOnlyPropertyValue readOnlyPropertyValue, [NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyList<IReadOnlyPropertyValue> value) { value = default; return false; }
+    public static bool ToObject(this IReadOnlyPropertyValue readOnlyPropertyValue, [NotNullWhen(true)][MaybeNullWhen(false)] out IReadOnlyMap<string, IReadOnlyPropertyValue> value) { value = default; return false; }
 
     public static bool AsBoolean(this IReadOnlyPropertyValue propertyValue, bool defaultValue) => propertyValue.ToBoolean(out var value) ? value : defaultValue;
     public static double AsNumber(this IReadOnlyPropertyValue propertyValue, double defaultValue) => propertyValue.ToNumber(out var value) ? value : defaultValue;

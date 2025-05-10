@@ -1,8 +1,8 @@
 ﻿namespace TuneLab.Foundation.Property;
 
-public class PropertyNumber : IPrimitiveValue
+public class PropertyNumber : IPropertyNumber
 {
-    public PropertyType Type => PropertyType.Number;
+    public double Value => mValue;
 
     public static implicit operator sbyte(PropertyNumber property) => (sbyte)property.mValue;
     public static implicit operator byte(PropertyNumber property) => (byte)property.mValue;
@@ -36,9 +36,7 @@ public class PropertyNumber : IPrimitiveValue
 
     public override string ToString() => mValue.ToString();
 
-    bool IEquatable<IReadOnlyPrimitiveValue>.Equals(IReadOnlyPrimitiveValue? other) => other != null && other.ToNumber(out var value) && value == mValue;
-
-    //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyNumber property && property.mValue == mValue;
+    bool IEquatable<IPrimitiveValue>.Equals(IPrimitiveValue? other) => other != null && other.ToNumber(out var value) && value == mValue;
 
     readonly double mValue;
 }

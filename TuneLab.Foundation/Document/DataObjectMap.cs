@@ -102,58 +102,6 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemAdded => mItemAdded;
     IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemRemoved => mItemRemoved;
 
-    class AnyEvent<TEvent> : IEvent<TEvent>
-    {
-        public AnyEvent(DataObjectMap<TKey, TValue> dataObjectMap, ISubscriber<TValue, TEvent> subscriber)
-        {
-            mDataObjectMap = dataObjectMap;
-            mSubscriber = subscriber;
-
-            mDataObjectMap.ItemAdded.Subscribe(OnAdd);
-            mDataObjectMap.ItemRemoved.Subscribe(OnRemove);
-        }
-
-        public void Subscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectMap.Values)
-            {
-                mSubscriber.Subscribe(dataObject, invokable);
-            }
-
-            mEvents.Add(invokable);
-        }
-
-        public void Unsubscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectMap.Values)
-            {
-                mSubscriber.Unsubscribe(dataObject, invokable);
-            }
-
-            mEvents.Remove(invokable);
-        }
-
-        void OnAdd(TKey key, TValue item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        void OnRemove(TKey key, TValue item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        readonly DataObjectMap<TKey, TValue> mDataObjectMap;
-        readonly ISubscriber<TValue, TEvent> mSubscriber;
-        readonly List<TEvent> mEvents = new();
-    }
-
     readonly DataMap<TKey, TValue> mMap;
     readonly ActionEvent mMapModified = new();
     readonly ActionEvent<TValue> mItemAdded = new();

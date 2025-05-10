@@ -129,7 +129,7 @@ internal class PropertyObjectController : StackPanel
             mController.Display(config.DefaultValue);
             Parent.Children.Add(mController);
 
-            mBinding = mController.BindDataProperty(field.ToNumber());
+            mBinding = mController.BindDataProperty(field.ToNumber(config.DefaultValue));
         }
 
         public override void Dispose()
@@ -160,7 +160,7 @@ internal class PropertyObjectController : StackPanel
             mController.Display(config.DefaultValue);
             Parent.Children.Add(mController);
 
-            mBinding = mController.BindDataProperty(field.ToString());
+            mBinding = mController.BindDataProperty(field.ToString(config.DefaultValue));
         }
 
         public override void Dispose()
@@ -191,7 +191,7 @@ internal class PropertyObjectController : StackPanel
             mController.SetConfig(config);
             Parent.Children.Add(mController);
 
-            mBinding = mController.BindDataProperty(field.ToPrimitive());
+            mBinding = mController.BindDataProperty(field.ToPrimitive(config.DefaultOption.Value));
         }
 
         public override void Dispose()
@@ -227,7 +227,7 @@ internal class PropertyObjectController : StackPanel
 
             Parent.Children.Add(mDockPanel);
 
-            mBinding = mController.BindDataProperty(field.ToBoolean());
+            mBinding = mController.BindDataProperty(field.ToBoolean(config.DefaultValue));
         }
 
         public override void Dispose()

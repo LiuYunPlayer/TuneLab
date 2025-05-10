@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation.Property;
 
-public interface IReadOnlyPrimitiveValue : IReadOnlyPropertyValue, IEquatable<IReadOnlyPrimitiveValue>
+internal interface IPropertyArray
 {
-    string ToString();
 }

@@ -108,7 +108,7 @@ internal class FunctionBar : LayerPanel
                     ("1/80", QuantizationBase.Base_5, QuantizationDivision.Division_16),
                     ("1/160", QuantizationBase.Base_5, QuantizationDivision.Division_32),
                 ];
-                quantizationComboBox.SetConfig(new() { Options = options.Convert(option => new ComboBoxOption(option.option)), DefaultValue = "1/8" });
+                quantizationComboBox.SetConfig(new() { Options = options.Convert(option => new ComboBoxOption(option.option)), DefaultOption = "1/8" });
                 quantizationComboBox.ValueCommited.Subscribe(() => { var index = quantizationComboBox.SelectedIndex; if ((uint)index >= options.Length) return; mQuantizationChanged.Invoke(options[index].quantizationBase, options[index].quantizationDivision); });
                 quantizationPanel.Children.Add(quantizationComboBox);
             }

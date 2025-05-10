@@ -17,7 +17,7 @@ public class MultipleDataPropertyObject(IDataObject parent, IEnumerable<IDataPro
 
     public IReadOnlyCollection<IPropertyValue> Values => throw new NotImplementedException();
 
-    public int Count => throw new NotImplementedException();
+    public int Count => 0;
 
     public bool ContainsKey(string key)
     {

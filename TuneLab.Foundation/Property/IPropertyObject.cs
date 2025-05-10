@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation.Property;
 
-internal interface IReadOnlyContainerValue : IReadOnlyPropertyValue
+public interface IPropertyObject : IPropertyValue, IReadOnlyPropertyObject
 {
+
 }

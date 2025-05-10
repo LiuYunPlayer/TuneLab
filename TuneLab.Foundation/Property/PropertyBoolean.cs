@@ -1,8 +1,8 @@
 ﻿namespace TuneLab.Foundation.Property;
 
-public class PropertyBoolean : IPrimitiveValue
+public class PropertyBoolean : IPropertyBoolean
 {
-    public PropertyType Type => PropertyType.Boolean;
+    public bool Value => mValue;
 
     public static implicit operator bool(PropertyBoolean property) => property.mValue;
 
@@ -12,9 +12,7 @@ public class PropertyBoolean : IPrimitiveValue
 
     public override string ToString() => mValue.ToString();
 
-    bool IEquatable<IReadOnlyPrimitiveValue>.Equals(IReadOnlyPrimitiveValue? other) => other != null && other.ToBoolean(out var value) && value == mValue;
-
-    //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyBoolean property && property.mValue == mValue;
+    bool IEquatable<IPrimitiveValue>.Equals(IPrimitiveValue? other) => other != null && other.ToBoolean(out var value) && value == mValue;
 
     readonly bool mValue;
 }

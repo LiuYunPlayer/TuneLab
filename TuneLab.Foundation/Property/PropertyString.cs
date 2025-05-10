@@ -1,10 +1,11 @@
 ﻿namespace TuneLab.Foundation.Property;
 
-public class PropertyString : IPrimitiveValue
+public class PropertyString : IPropertyString
 {
+    public string Value => mValue ?? string.Empty;
     public PropertyType Type => PropertyType.String;
 
-    public static implicit operator string(PropertyString property) => property.mValue ?? string.Empty;
+    public static implicit operator string(PropertyString property) => property.Value;
 
     public static implicit operator PropertyString(string value) => new(value);
 
@@ -12,9 +13,7 @@ public class PropertyString : IPrimitiveValue
 
     public override string ToString() => mValue ?? string.Empty;
 
-    bool IEquatable<IReadOnlyPrimitiveValue>.Equals(IReadOnlyPrimitiveValue? other) => other != null && other.ToString(out var value) && value == mValue;
-
-    //bool IEquatable<IPropertyValue>.Equals(IPropertyValue? other) => other is PropertyString property && property.mValue == mValue;
+    bool IEquatable<IPrimitiveValue>.Equals(IPrimitiveValue? other) => other != null && other.ToString(out var value) && value == mValue;
 
     readonly string? mValue;
 }

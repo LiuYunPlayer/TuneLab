@@ -18,7 +18,7 @@ internal static class IReadOnlyPropertyValueAdapter
 
     class IReadOnlyPropertyValue_V1Adapter(IReadOnlyPropertyValue domain) : IReadOnlyPropertyValue_V1
     {
-        public PropertyType_V1 Type => domain.Type.ToV1();
+        public PropertyType_V1 Type => PropertyType_V1.Null;//domain.Type.ToV1(); FIXME: Implement Type property
 
         public bool ToBoolean([NotNullWhen(true)][MaybeNullWhen(false)] out bool value) => domain.ToBoolean(out value);
         public bool ToNumber([NotNullWhen(true)][MaybeNullWhen(false)] out double value) => domain.ToNumber(out value);

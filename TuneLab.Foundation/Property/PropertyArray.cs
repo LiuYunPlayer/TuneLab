@@ -2,7 +2,7 @@
 
 namespace TuneLab.Foundation.Property;
 
-public class PropertyArray : IContainerValue, IList<IPropertyValue>
+public class PropertyArray : IList<IPropertyValue>
 {
     public PropertyType Type => PropertyType.Array;
     public IPropertyValue this[int index] { get => ((IList<IPropertyValue>)mList!)[index]; set => ((IList<IPropertyValue>)mList!)[index] = value; }

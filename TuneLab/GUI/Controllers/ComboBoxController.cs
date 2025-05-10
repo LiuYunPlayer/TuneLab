@@ -14,7 +14,7 @@ using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimitiveValue>
+internal class ComboBoxController : DropDown, IDataValueController<IPrimitiveValue>
     , IDataValueController<string>
     , IDataValueController<double>
     , IDataValueController<int>
@@ -23,7 +23,7 @@ internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimi
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
     public IActionEvent ValueCommited => mValueCommited;
-    public ReadOnlyPrimitiveValue Value { get => mValue; set { SetValue(value); } }
+    public IPrimitiveValue Value { get => mValue.UnBoxing(); set { SetValue(new(value)); } }
 
     string IValueController<string>.Value => Value.AsString();
     double IValueController<double>.Value => Value.AsNumber();
@@ -44,7 +44,7 @@ internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimi
         {
             Items.Add(option.ShowText());
         }
-        Display(config.DefaultValue.Value);
+        Display(config.DefaultOption.Value);
     }
 
     public void DisplayIndex(int index)
@@ -61,7 +61,12 @@ internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimi
         acceptSelectionChanged = true;
     }
 
-    public void Display(ReadOnlyPrimitiveValue value)
+    public void Display(IPrimitiveValue value)
+    {
+        Display(new PrimitiveValue(value));
+    }
+
+    public void Display(PrimitiveValue value)
     {
         mValue = value;
         acceptSelectionChanged = false;
@@ -72,7 +77,7 @@ internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimi
         }
         else
         {
-            PlaceholderText = value == mConfig.DefaultValue.Value ? mConfig.DefaultValue.ShowText() : value.ToString();
+            PlaceholderText = value == mConfig.DefaultOption.Value ? mConfig.DefaultOption.ShowText() : value.ToString();
             SelectedIndex = -1;
         }
         acceptSelectionChanged = true;
@@ -102,10 +107,10 @@ internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimi
         if (!acceptSelectionChanged)
             return;
 
-        SetValue((uint)SelectedIndex < mConfig.Options.Count ? mConfig.Options[SelectedIndex].Value : mConfig.DefaultValue.Value);
+        SetValue((uint)SelectedIndex < mConfig.Options.Count ? mConfig.Options[SelectedIndex].Value : mConfig.DefaultOption.Value);
     }
 
-    void SetValue(ReadOnlyPrimitiveValue value)
+    void SetValue(PrimitiveValue value)
     {
         if (value == mValue)
             return;
@@ -116,17 +121,17 @@ internal class ComboBoxController : DropDown, IDataValueController<ReadOnlyPrimi
         mValueCommited.Invoke();
     }
 
-    public void Display(string value) => Display((ReadOnlyPrimitiveValue)value);
-    public void Display(double value) => Display((ReadOnlyPrimitiveValue)value);
-    public void Display(int value) => Display((ReadOnlyPrimitiveValue)value);
-    public void Display(bool value) => Display((ReadOnlyPrimitiveValue)value);
+    public void Display(string value) => Display((PrimitiveValue)value);
+    public void Display(double value) => Display((PrimitiveValue)value);
+    public void Display(int value) => Display((PrimitiveValue)value);
+    public void Display(bool value) => Display((PrimitiveValue)value);
 
     ActionEvent mValueWillChange = new();
     ActionEvent mValueChanged = new();
     ActionEvent mValueCommited = new();
 
     ComboBoxConfig mConfig = DefaultConfig;
-    ReadOnlyPrimitiveValue mValue;
+    PrimitiveValue mValue;
 
     static readonly ComboBoxConfig DefaultConfig = new() { Options = [] };
 }
