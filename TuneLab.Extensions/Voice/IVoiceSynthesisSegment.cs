@@ -3,7 +3,7 @@ using TuneLab.Extensions.Synthesizer;
 
 namespace TuneLab.Extensions.Voice;
 
-internal interface IVoiceSynthesisSegment
+public interface IVoiceSynthesisSegment
 {
     event Action<double>? Progress;
     event Action<SynthesisError?>? Finished;

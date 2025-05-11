@@ -9,7 +9,7 @@ using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 
-internal interface IEffectEngine
+public interface IEffectEngine
 {
     ObjectConfig PropertyConfig { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfig { get; }

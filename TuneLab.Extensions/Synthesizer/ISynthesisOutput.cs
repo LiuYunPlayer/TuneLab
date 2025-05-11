@@ -3,7 +3,7 @@ using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Extensions.Synthesizer;
 
-internal interface ISynthesisOutput
+public interface ISynthesisOutput
 {
     MonoAudio Audio { get; set; }
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; set; }

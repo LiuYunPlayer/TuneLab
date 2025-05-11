@@ -2,7 +2,7 @@
 
 namespace TuneLab.Extensions.Synthesizer;
 
-internal interface IAutomationValueGetter
+public interface IAutomationValueGetter
 {
     double[] GetValue(IReadOnlyList<double> times);
 }

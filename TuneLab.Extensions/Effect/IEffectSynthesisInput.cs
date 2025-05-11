@@ -5,7 +5,7 @@ using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Effect;
 
-internal interface IEffectSynthesisInput
+public interface IEffectSynthesisInput
 {
     MonoAudio Audio { get; }
     IReadOnlyMap<string, IReadOnlyPropertyValue> Properties { get; }

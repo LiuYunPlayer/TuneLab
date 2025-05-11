@@ -3,7 +3,7 @@ using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 
-internal abstract class EffectDirtyEvent : DirtyEvent, IEffectDirtyEvent_V1
+public abstract class EffectDirtyEvent : DirtyEvent, IEffectDirtyEvent_V1
 {
     protected abstract EffectDirtyType_V1 DirtyType_V1 { get; }
 

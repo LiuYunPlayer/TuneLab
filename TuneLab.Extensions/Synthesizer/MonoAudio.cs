@@ -1,6 +1,6 @@
 ﻿namespace TuneLab.Extensions.Synthesizer;
 
-internal struct MonoAudio
+public struct MonoAudio
 {
     public double StartTime;
     public int SampleRate;

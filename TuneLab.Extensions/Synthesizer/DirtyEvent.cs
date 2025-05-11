@@ -1,6 +1,6 @@
 ﻿namespace TuneLab.Extensions.Synthesizer;
 
-internal class DirtyEvent
+public class DirtyEvent
 {
     public bool Handled { get; set; }
 

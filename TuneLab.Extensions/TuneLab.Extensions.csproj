@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
+    <ProjectReference Include="..\TuneLab.SDK.Effect\TuneLab.SDK.Effect.csproj" />
+    <ProjectReference Include="..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" />
+    <ProjectReference Include="..\TuneLab.SDK.Voice\TuneLab.SDK.Voice.csproj" />
+  </ItemGroup>
+
+</Project>

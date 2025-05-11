@@ -3,7 +3,7 @@ using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Extensions.Voice;
 
-internal interface IVoiceSynthesisOutput : ISynthesisOutput
+public interface IVoiceSynthesisOutput : ISynthesisOutput
 {
     IReadOnlyMap<ISynthesisNote, SynthesizedPhoneme[]> SynthesizedPhonemes { get; set; }
 }

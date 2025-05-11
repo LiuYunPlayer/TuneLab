@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Foundation", "TuneL
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.SDK.Voice", "TuneLab.SDK.Voice\TuneLab.SDK.Voice.csproj", "{F2387321-B4FD-4371-8630-11062CC5565E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions", "TuneLab.Extensions\TuneLab.Extensions.csproj", "{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +53,10 @@ Global
 		{F2387321-B4FD-4371-8630-11062CC5565E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F2387321-B4FD-4371-8630-11062CC5565E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F2387321-B4FD-4371-8630-11062CC5565E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

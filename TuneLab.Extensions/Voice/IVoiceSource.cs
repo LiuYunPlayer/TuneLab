@@ -6,7 +6,7 @@ using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Voice;
 
-internal interface IVoiceSource
+public interface IVoiceSource
 {
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
@@ -16,9 +16,9 @@ internal interface IVoiceSource
     IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output);
 }
 
-internal static class IVoiceSourceExtension
+public static class IVoiceSourceExtension
 {
-    internal static IReadOnlyList<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IEnumerable<ISynthesisNote> notes, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
+    public static IReadOnlyList<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IEnumerable<ISynthesisNote> notes, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
     {
         List<IReadOnlyList<ISynthesisNote>> segments = [];
         using var it = notes.GetEnumerator();

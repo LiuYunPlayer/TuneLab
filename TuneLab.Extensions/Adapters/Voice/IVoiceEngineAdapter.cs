@@ -6,7 +6,7 @@ using TuneLab.SDK.Voice;
 
 namespace TuneLab.Extensions.Adapters.Voice;
 
-internal static class IVoiceEngineAdapter
+public static class IVoiceEngineAdapter
 {
     public static IVoiceEngine ToDomain(this IVoiceEngine_V1 v1)
     {

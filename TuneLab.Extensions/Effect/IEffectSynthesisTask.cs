@@ -3,7 +3,7 @@ using TuneLab.Extensions.Synthesizer;
 
 namespace TuneLab.Extensions.Effect;
 
-internal interface IEffectSynthesisTask
+public interface IEffectSynthesisTask
 {
     event Action<double>? Progress;
     event Action<SynthesisError?>? Finished;

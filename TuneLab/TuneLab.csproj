@@ -45,6 +45,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\ExtensionInstaller\ExtensionInstaller.csproj" />
+	  <ProjectReference Include="..\TuneLab.Extensions\TuneLab.Extensions.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Effect\TuneLab.SDK.Effect.csproj" />
 	  <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" />

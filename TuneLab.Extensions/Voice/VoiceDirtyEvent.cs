@@ -2,7 +2,7 @@
 
 namespace TuneLab.Extensions.Voice;
 
-internal class VoiceDirtyEvent : DirtyEvent
+public class VoiceDirtyEvent : DirtyEvent
 {
 
 }

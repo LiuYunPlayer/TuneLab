@@ -6,7 +6,7 @@ using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Voice;
 
-internal interface IVoiceSynthesisInput
+public interface IVoiceSynthesisInput
 {
     IReadOnlyList<ISynthesisNote> Notes { get; }
     IReadOnlyMap<string, IReadOnlyPropertyValue> Properties { get; }
