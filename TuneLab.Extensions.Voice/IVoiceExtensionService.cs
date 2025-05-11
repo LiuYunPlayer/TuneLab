@@ -1,9 +1,10 @@
 ﻿using System.Collections.Generic;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Extensions.Voice;
 
-internal interface IVoiceExtensionService
+public interface IVoiceExtensionService
 {
-    IReadOnlyList<IVoiceEngine> VoiceEngines { get; }
+    IReadOnlyOrderedMap<string, IVoiceEngine> VoiceEngines { get; }
     void Load();
 }

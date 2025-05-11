@@ -7,9 +7,6 @@ using TuneLab.Extensions.Synthesizer;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
-using TuneLab.SDK.Base.DataStructures;
-using TuneLab.SDK.Base.Property;
-using TuneLab.SDK.Effect;
 
 namespace TuneLab.Extensions.Effect;
 
@@ -50,29 +47,29 @@ internal static class EffectManager
     {
         foreach (Type type in types)
         {
-            var attribute = type.GetCustomAttribute<EffectEngineAttribute_V1>();
+            var attribute = type.GetCustomAttribute<EffectEngineAttribute>();
             if (attribute != null)
             {
-                if (typeof(IEffectEngine_V1).IsAssignableFrom(type))
+                if (typeof(IEffectEngine).IsAssignableFrom(type))
                 {
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
-                        mEffectEngineStates.Add(attribute.Type, new EffectEngineState((IEffectEngine_V1)constructor.Invoke(null)));
+                        mEffectEngineStates.Add(attribute.Type, new EffectEngineState((IEffectEngine)constructor.Invoke(null)));
                 }
             }
         }
     }
 
-    class EffectEngineState(IEffectEngine_V1 engine)
+    class EffectEngineState(IEffectEngine engine)
     {
-        public IEffectEngine_V1 Engine { get; private set; } = engine;
+        public IEffectEngine Engine { get; private set; } = engine;
         public bool IsInited { get; private set; } = false;
         public void Init()
         {
             if (IsInited)
                 return;
 
-            IReadOnlyMap_V1<string, IReadOnlyPropertyValue_V1> args = [];
+            IReadOnlyMap<string, IReadOnlyPropertyValue> args = [];
             try
             {
                 Engine.Init(args);
