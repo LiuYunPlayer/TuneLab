@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using TuneLab.Data;
-using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Format;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI;
@@ -109,7 +109,7 @@ public partial class MainWindow : Window
             modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal);
             modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
             {
-                if (!FormatsManager.Deserialize(path, out var info, out var error))
+                if (!FormatManager.Deserialize(path, out var info, out var error))
                 {
                     Log.Error("Open file error: " + error);
                     return;

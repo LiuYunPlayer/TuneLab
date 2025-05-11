@@ -8,7 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TuneLab.Data;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Core.DataInfo;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;

@@ -19,6 +19,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.SDK.Voice", "TuneLa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions", "TuneLab.Extensions\TuneLab.Extensions.csproj", "{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Core", "TuneLab.Core\TuneLab.Core.csproj", "{516E0D1A-6A2E-4E08-A283-17CB38DDAEBD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions.Format", "TuneLab.Extensions.Format\TuneLab.Extensions.Format.csproj", "{562075DA-53F2-400F-A56C-7E1D78219866}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions.Voice", "TuneLab.Extensions.Voice\TuneLab.Extensions.Voice.csproj", "{1792C642-D82B-4DEB-A411-661882F84501}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +63,18 @@ Global
 		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{32F7B14C-C350-4A35-A43E-5EFB69DC65BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{516E0D1A-6A2E-4E08-A283-17CB38DDAEBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{516E0D1A-6A2E-4E08-A283-17CB38DDAEBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{516E0D1A-6A2E-4E08-A283-17CB38DDAEBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{516E0D1A-6A2E-4E08-A283-17CB38DDAEBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{562075DA-53F2-400F-A56C-7E1D78219866}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{562075DA-53F2-400F-A56C-7E1D78219866}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{562075DA-53F2-400F-A56C-7E1D78219866}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{562075DA-53F2-400F-A56C-7E1D78219866}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1792C642-D82B-4DEB-A411-661882F84501}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1792C642-D82B-4DEB-A411-661882F84501}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1792C642-D82B-4DEB-A411-661882F84501}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1792C642-D82B-4DEB-A411-661882F84501}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

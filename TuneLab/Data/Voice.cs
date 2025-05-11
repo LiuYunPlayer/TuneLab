@@ -2,7 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using TuneLab.Extensions.ControllerConfigs;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Core.DataInfo;
 using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Core.DataInfo;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 

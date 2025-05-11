@@ -9,8 +9,8 @@ using System.IO;
 using System.Linq;
 using TuneLab.Audio;
 using TuneLab.Data;
-using TuneLab.Extensions.Formats;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Extensions.Format;
+using TuneLab.Core.DataInfo;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
@@ -604,7 +604,7 @@ internal partial class TrackScrollView : View
         if (dstProject == null)
             return;
 
-        var formats = FormatsManager.GetAllImportFormats();
+        var formats = FormatManager.GetAllImportFormats();
         var patterns = new List<string>();
         foreach (var format in formats)
         {
@@ -628,7 +628,7 @@ internal partial class TrackScrollView : View
         if (!File.Exists(path))
             return;
 
-        if (!FormatsManager.Deserialize(path, out var srcProjectInfo, out var error))
+        if (!FormatManager.Deserialize(path, out var srcProjectInfo, out var error))
         {
             Log.Error("Open file error: " + error);
             return;

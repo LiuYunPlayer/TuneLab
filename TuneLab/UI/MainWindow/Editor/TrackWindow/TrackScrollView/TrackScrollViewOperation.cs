@@ -7,7 +7,7 @@ using System.IO;
 using System.Linq;
 using TuneLab.Audio;
 using TuneLab.Data;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Core.DataInfo;
 using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Utils;

@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Core.DataInfo;
 
 namespace TuneLab.Data;
 

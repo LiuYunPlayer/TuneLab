@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TuneLab.Core\TuneLab.Core.csproj" />
+    <ProjectReference Include="..\TuneLab.Extensions.Format\TuneLab.Extensions.Format.csproj" />
+    <ProjectReference Include="..\TuneLab.Extensions.Voice\TuneLab.Extensions.Voice.csproj" />
     <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
     <ProjectReference Include="..\TuneLab.SDK.Effect\TuneLab.SDK.Effect.csproj" />
     <ProjectReference Include="..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" />

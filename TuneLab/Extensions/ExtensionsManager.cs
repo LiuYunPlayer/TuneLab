@@ -2,7 +2,7 @@
 using System.IO;
 using System.Text.Json;
 using TuneLab.Extensions.Effect;
-using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Format;
 using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.Utils;
 
@@ -12,7 +12,7 @@ internal static class ExtensionsManager
 {
     public static void LoadExtensions()
     {
-        FormatsManager.LoadBuiltIn();
+        FormatManager.LoadBuiltIn();
         VoiceManager.LoadBuiltIn();
         EffectManager.LoadBuiltIn();
 
@@ -66,7 +66,7 @@ internal static class ExtensionsManager
 
             if (extensionInfo.type == "format")
             {
-                FormatsManager.Load(path, extensionInfo);
+                FormatManager.Load(path, extensionInfo);
             }
             else if (extensionInfo.type == "voice")
             {
@@ -78,7 +78,7 @@ internal static class ExtensionsManager
             }
             else
             {
-                FormatsManager.Load(path, extensionInfo);
+                FormatManager.Load(path, extensionInfo);
                 VoiceManager.Load(path, extensionInfo);
                 EffectManager.Load(path, extensionInfo);
             }

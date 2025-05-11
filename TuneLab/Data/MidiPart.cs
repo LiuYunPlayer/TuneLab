@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using TuneLab.Audio;
 using TuneLab.Extensions.ControllerConfigs;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Core.DataInfo;
 using TuneLab.Extensions.Synthesizer;
 using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;

@@ -17,8 +17,8 @@ using TuneLab.Audio;
 using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions;
-using TuneLab.Extensions.Formats;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Extensions.Format;
+using TuneLab.Core.DataInfo;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
@@ -237,7 +237,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     }
                 }
             }
-            else if (FormatsManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
+            else if (FormatManager.GetAllImportFormats().Contains(extension.TrimStart('.')))
             {
                 projectFile = file;
             }
@@ -365,7 +365,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
             await Task.Run(() =>
             {
-                if (!FormatsManager.Serialize(projectInfo, "tlp", out var stream, out var error))
+                if (!FormatManager.Serialize(projectInfo, "tlp", out var stream, out var error))
                 {
                     Log.Error("Save file error: " + error);
                     return;
@@ -434,7 +434,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     void LoadProject(string path)
     {
-        if (!FormatsManager.Deserialize(path, out var info, out var error))
+        if (!FormatManager.Deserialize(path, out var info, out var error))
         {
             Log.Error("Deserialize file error: " + error);
             return;
@@ -461,7 +461,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         SwitchProjectSafely(async () =>
         {
-            var formats = FormatsManager.GetAllImportFormats();
+            var formats = FormatManager.GetAllImportFormats();
             var patterns = new List<string>();
             foreach (var format in formats)
             {
@@ -557,7 +557,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (path == null)
             return;
 
-        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), extension, out var stream, out var error))
+        if (!FormatManager.Serialize(mDocument.Project.GetInfo(), extension, out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
             return;
@@ -575,7 +575,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (mDocument.Project == null)
             return;
 
-        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), "tlp", out var stream, out var error))
+        if (!FormatManager.Serialize(mDocument.Project.GetInfo(), "tlp", out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
             return;
@@ -822,7 +822,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
             {
                 var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Export As (test)");
-                foreach (var format in FormatsManager.GetAllExportFormats())
+                foreach (var format in FormatManager.GetAllExportFormats())
                 {
                     var menuItem2 = new MenuItem().SetName(format).SetAction(() => ExportAs(format));
                     menuItem.Items.Add(menuItem2);
