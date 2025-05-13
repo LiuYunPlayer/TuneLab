@@ -52,6 +52,18 @@
 	  <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
 	</ItemGroup>
 
+	<Target Name="BuildExtensionCompatibilityLayer" BeforeTargets="BeforeBuild">
+		<Exec Command='dotnet build "..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer.sln" -c $(Configuration)' />
+		<ItemGroup>
+			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\*.dll" />
+		</ItemGroup>
+
+		<Copy
+		  SourceFiles="@(ExtensionCompatibilityLayerOutputFiles)"
+		  DestinationFolder="$(OutputPath)ExtensionCompatibilityLayer\"
+		  SkipUnchangedFiles="true" />
+	</Target>
+
 	<ItemGroup>
 	  <None Update="Resources\**\*.*">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
