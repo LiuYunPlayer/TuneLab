@@ -12,6 +12,7 @@ using TuneLab.Foundation.Utils;
 
 namespace ExtensionCompatibilityLayer.Voice;
 
+[VoiceExtensionService]
 internal class VoiceExtensionService : IVoiceExtensionService
 {
     public IReadOnlyOrderedMap<string, IVoiceEngine> VoiceEngines => mVoiceEngines;

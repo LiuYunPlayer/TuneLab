@@ -16,6 +16,8 @@ internal static class FormatManager
     {
         var types = Assembly.GetExecutingAssembly().GetTypes();
         LoadFromTypes(types);
+
+        Load(PathManager.ExtensionCompatibilityLayerFolder);
     }
 
     public static void Load(string path, ExtensionInfo? description = null)

@@ -55,7 +55,11 @@
 	<Target Name="BuildExtensionCompatibilityLayer" BeforeTargets="BeforeBuild">
 		<Exec Command='dotnet build "..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer.sln" -c $(Configuration)' />
 		<ItemGroup>
-			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\*.dll" />
+			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\ExtensionCompatibilityLayer.dll" />
+			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\TuneLab.Base.dll" />
+			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\TuneLab.Extensions.Voices.dll" />
+			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\TuneLab.Extensions.Formats.dll" />
+			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\description.json" />
 		</ItemGroup>
 
 		<Copy

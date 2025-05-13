@@ -1,0 +1,15 @@
+{
+    "name": "ExtensionCompatibilityLayer",
+    "author": "TuneLab",
+    "version": "1.0.0",
+    "extensions": [
+        {
+            "type": "format",
+            "assemblies": ["ExtensionCompatibilityLayer.dll"]
+        },
+        {
+            "type": "voice",
+            "assemblies": ["ExtensionCompatibilityLayer.dll"]
+        }
+    ]
+}

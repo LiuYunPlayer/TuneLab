@@ -4,17 +4,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Extensions.Voice;
-using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Property;
 
 namespace ExtensionCompatibilityLayer.Voice;
 
-internal class VoiceEngine(TuneLab.Extensions.Voices.IVoiceEngine voiceEngine, string enginePath) : TuneLab.Extensions.Voice.IVoiceEngine
+internal class VoiceEngine(TuneLab.Extensions.Voices.IVoiceEngine voiceEngine, string enginePath) : IVoiceEngine
 {
-    public IReadOnlyOrderedMap<string, TuneLab.Extensions.Voice.VoiceSourceInfo> VoiceInfos => throw new NotImplementedException();
+    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => mVoiceInfos;
 
-    public TuneLab.Extensions.Voice.IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context)
+    public IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context)
     {
         throw new NotImplementedException();
     }
@@ -26,8 +25,16 @@ internal class VoiceEngine(TuneLab.Extensions.Voices.IVoiceEngine voiceEngine, s
 
     public void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> properties)
     {
-        voiceEngine.Init(enginePath, out var error);
-        if (error != null)
-            throw new Exception($"Failed to initialize voice engine: {error}");
+        if (!voiceEngine.Init(enginePath, out var error))
+            throw new Exception(error);
+
+        var voiceInfos = voiceEngine.VoiceInfos;
+        foreach (var kvp in voiceInfos)
+        {
+            var voiceInfo = kvp.Value;
+            mVoiceInfos.Add(kvp.Key, new VoiceSourceInfo() { Name = voiceInfo.Name, Description = voiceInfo.Description });
+        }
     }
+
+    readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = [];
 }

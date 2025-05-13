@@ -17,6 +17,7 @@ internal static class PathManager
     public static string ExcutableFolder => AppDomain.CurrentDomain.BaseDirectory;
     public static string ResourcesFolder => Path.Combine(ExcutableFolder, "Resources");
     public static string TranslationsFolder => Path.Combine(ResourcesFolder, "Translations");
+    public static string ExtensionCompatibilityLayerFolder => Path.Combine(ExcutableFolder, "ExtensionCompatibilityLayer");
 
     public static void MakeSureExist(string folder)
     {

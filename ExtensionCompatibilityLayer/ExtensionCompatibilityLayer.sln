@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35931.197 d17.13
+VisualStudioVersion = 17.13.35931.197
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExtensionCompatibilityLayer", "ExtensionCompatibilityLayer\ExtensionCompatibilityLayer.csproj", "{834FCB39-5B68-47F9-BA5A-3906DFB18D03}"
 EndProject
@@ -10,10 +10,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions.Formats", "TuneLab.Extensions.Formats\TuneLab.Extensions.Formats.csproj", "{7473D51D-7676-D2D0-D798-FFADB5011AA0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions.Voices", "TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj", "{31F8AC62-737A-999D-35C6-AC557EC1A5D8}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions.Format", "..\TuneLab.Extensions.Format\TuneLab.Extensions.Format.csproj", "{DD992874-64BC-1D91-C255-6A42BAEC695C}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Extensions.Voice", "..\TuneLab.Extensions.Voice\TuneLab.Extensions.Voice.csproj", "{6474D338-75E3-ED85-A13A-4072FA57EC64}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -37,14 +33,6 @@ Global
 		{31F8AC62-737A-999D-35C6-AC557EC1A5D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{31F8AC62-737A-999D-35C6-AC557EC1A5D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{31F8AC62-737A-999D-35C6-AC557EC1A5D8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DD992874-64BC-1D91-C255-6A42BAEC695C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DD992874-64BC-1D91-C255-6A42BAEC695C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DD992874-64BC-1D91-C255-6A42BAEC695C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DD992874-64BC-1D91-C255-6A42BAEC695C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6474D338-75E3-ED85-A13A-4072FA57EC64}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6474D338-75E3-ED85-A13A-4072FA57EC64}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6474D338-75E3-ED85-A13A-4072FA57EC64}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6474D338-75E3-ED85-A13A-4072FA57EC64}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
