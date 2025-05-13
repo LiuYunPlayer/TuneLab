@@ -73,6 +73,12 @@ internal static class VoiceManager
         service.Load();
         foreach (var kvp in service.VoiceEngines)
         {
+            if (mVoiceEngineStates.ContainsKey(kvp.Key))
+            {
+                Log.Info($"Voice engine {kvp.Key} already exists.");
+                continue;
+            }
+
             mVoiceEngineStates.Add(kvp.Key, new VoiceEngineState(kvp.Value));
         }
     }

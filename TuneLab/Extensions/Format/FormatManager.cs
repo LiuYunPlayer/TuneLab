@@ -59,7 +59,7 @@ internal static class FormatManager
         {
             if (mImportableFormats.ContainsKey(kvp.Key))
             {
-                Log.Info($"Importable format {kvp.Key} is already registered, skipping.");
+                Log.Info($"Importable format {kvp.Key} already exists.");
                 continue;
             }
 
@@ -69,7 +69,7 @@ internal static class FormatManager
         {
             if (mExportableFormats.ContainsKey(kvp.Key))
             {
-                Log.Info($"Exportable format {kvp.Key} is already registered, skipping.");
+                Log.Info($"Exportable format {kvp.Key} already exists.");
                 continue;
             }
 

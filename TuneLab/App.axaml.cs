@@ -11,6 +11,7 @@ using TuneLab.Animation;
 using TuneLab.Audio;
 using TuneLab.Audio.NAudio;
 using TuneLab.Configs;
+using TuneLab.Core.Environment;
 using TuneLab.Extensions;
 using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.Utils;
@@ -58,6 +59,10 @@ public partial class App : Application
                 Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
+                // init environment
+                TuneLabContext.Global = new TuneLabContextGlobal();
+
+                // init extensions
                 ExtensionsManager.LoadExtensions();
                 mMainWindow = new MainWindow();
                 desktop.MainWindow = mMainWindow;
