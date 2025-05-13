@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace TuneLab.Extensions.Format;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-public class ImportableFormatAttribute : Attribute
+public class ExportableFormatAttribute(string fileExtension) : Attribute
 {
-
+    public string FileExtension { get; private set; } = fileExtension;
 }

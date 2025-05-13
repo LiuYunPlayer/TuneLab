@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using TuneLab.Extensions.ControllerConfigs;
 using TuneLab.Extensions.Synthesizer;
+using TuneLab.Extensions.Voice.BuiltIn;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
@@ -16,7 +17,7 @@ internal static class VoiceManager
 {
     public static void LoadBuiltIn()
     {
-        mVoiceEngineStates.Add(string.Empty, new VoiceEngineState(new BuiltInVoiceEngine()));
+        mVoiceEngineStates.Add(string.Empty, new VoiceEngineState(new EmptyVoiceEngine()));
 
         var types = Assembly.GetExecutingAssembly().GetTypes();
         LoadFromTypes(types);
@@ -137,75 +138,6 @@ internal static class VoiceManager
         }
 
         return engine.IsInited ? engine.Engine : null;
-    }
-
-    class BuiltInVoiceEngine : IVoiceEngine
-    {
-        public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; } = new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, new VoiceSourceInfo() { Name = "Empty Voice" } } };
-
-        public IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context)
-        {
-            return new EmptyVoiceSource();
-        }
-
-        public void Destroy()
-        {
-            
-        }
-
-        public void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> properties)
-        {
-            
-        }
-
-        class EmptyVoiceSource : IVoiceSource
-        {
-            public string DefaultLyric { get; } = "a";
-            public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; } = [];
-            public ObjectConfig PropertyConfig { get; } = new();
-
-            public IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output)
-            {
-                return new EmptyVoiceSynthesisSegment(input, output);
-            }
-
-            public ObjectConfig GetNotePropertyConfig(IEnumerable<ISynthesisNote> notes)
-            {
-                return PropertyConfig;
-            }
-
-            public IReadOnlyList<IReadOnlyList<ISynthesisNote>> Segment(IEnumerable<ISynthesisNote> notes)
-            {
-                return this.SimpleSegment(notes);
-            }
-
-            class EmptyVoiceSynthesisSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output) : IVoiceSynthesisSegment
-            {
-                public event Action<double>? Progress;
-                public event Action<SynthesisError?>? Finished;
-
-                public void OnDirtyEvent(VoiceDirtyEvent dirtyEvent)
-                {
-                    
-                }
-
-                public void StartSynthesis()
-                {
-                    Finished?.Invoke(null);
-                }
-
-                public void StopSynthesis()
-                {
-                    
-                }
-            }
-        }
-    }
-
-    class EmptyVoiceContext : IVoiceSynthesisContext
-    {
-        public string VoiceID => string.Empty;
-        public IReadOnlyMap<string, IReadOnlyPropertyValue> Properties => [];
     }
 
     class VoiceEngineState

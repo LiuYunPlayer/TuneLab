@@ -12,12 +12,10 @@ using ZstdSharp;
 
 namespace TuneLab.Extensions.Format.BuiltIn;
 
-[ImportableFormat]
-[ExportableFormat]
+[ImportableFormat("acep")]
+[ExportableFormat("acep")]
 internal class ACEStudioProject : IImportableFormat, IExportableFormat
 {
-    public string FileExtension => "acep";
-
     public ProjectInfo Deserialize(Stream stream)
     {
         return ACEPUtility.Deserialize(stream);

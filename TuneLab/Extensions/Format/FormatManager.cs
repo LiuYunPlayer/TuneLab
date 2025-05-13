@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using TuneLab.Core.DataInfo;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Utils;
 
@@ -35,65 +36,44 @@ internal static class FormatManager
     {
         foreach (Type type in types)
         {
-            var importAttribute = type.GetCustomAttribute<ImportableFormatAttribute>();
-            if (importAttribute != null)
+            LoadType(type);
+        }
+    }
+
+    static void LoadType(Type type)
+    {
+        var attribute = type.GetCustomAttribute<FormatExtensionServiceAttribute>();
+        if (attribute == null)
+            return;
+
+        if (!typeof(IFormatExtensionService).IsAssignableFrom(type))
+            return;
+
+        var constructor = type.GetConstructor(Type.EmptyTypes);
+        if (constructor == null)
+            return;
+
+        var service = (IFormatExtensionService)constructor.Invoke(null);
+        service.Load();
+        foreach (var kvp in service.ImportableFormats)
+        {
+            if (mImportableFormats.ContainsKey(kvp.Key))
             {
-                if (typeof(IImportableFormat).IsAssignableFrom(type))
-                {
-                    var constructor = type.GetConstructor(Type.EmptyTypes);
-                    if (constructor == null)
-                    {
-                        Log.Error($"Type {type.Name} does not have a parameterless constructor!");
-                        continue;
-                    }
-
-                    try
-                    {
-                        if (constructor.Invoke(null) is not IImportableFormat importableFormat)
-                        {
-                            Log.Error($"Type {type.Name} does not implement IImportableFormat!");
-                            continue;
-                        }
-
-                        mImportableFormats.Add(importableFormat.FileExtension, importableFormat);
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Error($"Failed to load type {type.Name}: {e.Message}");
-                        continue;
-                    }
-                }
+                Log.Info($"Importable format {kvp.Key} is already registered, skipping.");
+                continue;
             }
 
-            var exportAttribute = type.GetCustomAttribute<ExportableFormatAttribute>();
-            if (exportAttribute != null)
+            mImportableFormats.Add(kvp.Key, kvp.Value);
+        }
+        foreach (var kvp in service.ExportableFormats)
+        {
+            if (mExportableFormats.ContainsKey(kvp.Key))
             {
-                if (typeof(IExportableFormat).IsAssignableFrom(type))
-                {
-                    var constructor = type.GetConstructor(Type.EmptyTypes);
-                    if (constructor == null)
-                    {
-                        Log.Error($"Type {type.Name} does not have a parameterless constructor!");
-                        continue;
-                    }
-
-                    try
-                    {
-                        if (constructor.Invoke(null) is not IExportableFormat exportableFormat)
-                        {
-                            Log.Error($"Type {type.Name} does not implement IExportableFormat!");
-                            continue;
-                        }
-
-                        mExportableFormats.Add(exportableFormat.FileExtension, exportableFormat);
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Error($"Failed to load type {type.Name}: {e.Message}");
-                        continue;
-                    }
-                }
+                Log.Info($"Exportable format {kvp.Key} is already registered, skipping.");
+                continue;
             }
+
+            mExportableFormats.Add(kvp.Key, kvp.Value);
         }
     }
 

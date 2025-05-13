@@ -11,11 +11,10 @@ using TuneLab.Foundation.Property;
 
 namespace TuneLab.Extensions.Format.BuiltIn;
 
-[ImportableFormat]
-[ExportableFormat]
+[ImportableFormat("ufdata")]
+[ExportableFormat("ufdata")]
 internal class UtaFormatixV1Data : IImportableFormat, IExportableFormat
 {
-    public string FileExtension => "ufdata";
     public ProjectInfo Deserialize(Stream stream)
     {
         return (ProjectInfo)UfDataUtility.Deserialize(stream);

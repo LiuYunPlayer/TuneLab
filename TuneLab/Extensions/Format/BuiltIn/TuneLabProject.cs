@@ -12,10 +12,11 @@ using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Format.BuiltIn;
 
+[ImportableFormat("tlp")]
+[ExportableFormat("tlp")]
 public class TuneLabProject : IImportableFormat, IExportableFormat
 {
     const int CURRENT_VERSION = 0;
-    public string FileExtension => "tlp";
 
     public ProjectInfo Deserialize(Stream streamToRead)
     {

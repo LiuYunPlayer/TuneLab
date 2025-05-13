@@ -5,6 +5,5 @@ namespace TuneLab.Extensions.Format;
 
 public interface IImportableFormat
 {
-    string FileExtension { get; }
     ProjectInfo Deserialize(Stream stream);
 }

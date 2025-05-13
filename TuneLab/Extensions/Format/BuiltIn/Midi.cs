@@ -9,20 +9,18 @@ using TuneLab.Foundation.Science;
 
 namespace TuneLab.Extensions.Format.BuiltIn;
 
-[ImportableFormat]
+[ImportableFormat("mid")]
 internal class MidiWithExtension_mid : IImportableFormat
 {
-    public string FileExtension => "mid";
     public ProjectInfo Deserialize(Stream stream)
     {
         return MidiUtility.Deserialize(stream);
     }
 }
 
-[ImportableFormat]
+[ImportableFormat("midi")]
 internal class MidiWithExtension_midi : IImportableFormat
 {
-    public string FileExtension => "midi";
     public ProjectInfo Deserialize(Stream stream)
     {
         return MidiUtility.Deserialize(stream);

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace TuneLab.Extensions.Format;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-public class ExportableFormatAttribute : Attribute
+public class FormatExtensionServiceAttribute : Attribute
 {
-    
+
 }
