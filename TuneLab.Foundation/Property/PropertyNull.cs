@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation.Property;
 
-internal class PropertyNull : IPrimitiveValue
+public class PropertyNull : IPrimitiveValue
 {
     public static readonly PropertyNull Shared = new();
     public PropertyType Type => PropertyType.Null;

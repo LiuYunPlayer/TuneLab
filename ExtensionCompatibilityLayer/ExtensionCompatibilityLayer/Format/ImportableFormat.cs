@@ -13,6 +13,6 @@ internal class ImportableFormat(IImportFormat importFormat) : IImportableFormat
 {
     public ProjectInfo Deserialize(Stream stream)
     {
-        throw new NotImplementedException();
+        return importFormat.Deserialize(stream).ToCoreFormat();
     }
 }
