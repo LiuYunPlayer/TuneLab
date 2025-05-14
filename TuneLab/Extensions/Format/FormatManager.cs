@@ -27,10 +27,14 @@ internal static class FormatManager
         {
             try
             {
+                using var _ = AssemblyHelper.RegisterAssemblyResolve(path);
                 var types = Assembly.LoadFrom(file).GetTypes();
                 LoadFromTypes(types);
             }
-            catch { }
+            catch (Exception e)
+            {
+                Log.Error($"Failed to load assembly {file} of extension {path}: {e}");
+            }
         }
     }
 

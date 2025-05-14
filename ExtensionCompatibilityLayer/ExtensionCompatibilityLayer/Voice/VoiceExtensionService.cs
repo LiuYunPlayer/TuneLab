@@ -53,10 +53,14 @@ internal class VoiceExtensionService : IVoiceExtensionService
         {
             try
             {
+                using var _ = AssemblyHelper.RegisterAssemblyResolve(dir);
                 var types = Assembly.LoadFrom(file).GetTypes();
                 LoadFromTypes(types, dir);
             }
-            catch { }
+            catch (Exception e)
+            {
+                Log.Error($"Failed to load assembly {file} of extension {extensionName}: {e}");
+            }
         }
     }
 

@@ -56,10 +56,14 @@ internal class FormatExtensionService : IFormatExtensionService
         {
             try
             {
+                using var _ = AssemblyHelper.RegisterAssemblyResolve(dir);
                 var types = Assembly.LoadFrom(file).GetTypes();
                 LoadFromTypes(types);
             }
-            catch { }
+            catch (Exception e)
+            {
+                Log.Error($"Failed to load assembly {file} of extension {extensionName}: {e}");
+            }
         }
     }
 
