@@ -36,6 +36,14 @@ check_requirements() {
         print_warning "未找到 create-dmg，将跳过 DMG 创建步骤"
         print_info "可以通过 brew install create-dmg 安装"
     fi
+
+    if ! command -v brew &> /dev/null; then
+        print_warning "未找到 Homebrew，某些依赖可能无法正确安装"
+    fi
+
+    if ! pkg-config --exists sdl2; then
+        print_warning "未找到 SDL2，音频功能可能受限"
+    fi
 }
 
 # 清理旧的构建文件
@@ -116,6 +124,10 @@ create_app_bundle() {
     # 复制其他运行时文件到 MacOS 目录（排除已移动的可执行文件和 .toml 文件）
     find "${build_dir}" -type f -not -name "TuneLab" -not -name "*.toml" -exec cp {} "${app_path}/Contents/MacOS/" \;
     
+    # 复制运行时配置文件
+    cp "${build_dir}"/*.deps.json "${app_path}/Contents/MacOS/" 2>/dev/null || true
+    cp "${build_dir}"/*.runtimeconfig.json "${app_path}/Contents/MacOS/" 2>/dev/null || true
+    
     # 创建 Info.plist
     create_info_plist "${app_path}"
     
@@ -159,6 +171,19 @@ build_app() {
         -r osx-${arch} \
         --self-contained true \
         -p:PublishSingleFile=true \
+        -p:IncludeNativeLibrariesForSelfExtract=true \
+        -p:IncludeAllContentForSelfExtract=true \
+        -p:EnableCompressionInSingleFile=true \
+        -o "${build_dir}"
+
+    # 构建ExtensionInstaller
+    dotnet publish ExtensionInstaller/ExtensionInstaller.csproj \
+        -c Release \
+        -r osx-${arch} \
+        --self-contained true \
+        -p:PublishSingleFile=true \
+        -p:IncludeAllContentForSelfExtract=true \
+        -p:EnableCompressionInSingleFile=true \
         -p:IncludeNativeLibrariesForSelfExtract=true \
         -o "${build_dir}"
     
