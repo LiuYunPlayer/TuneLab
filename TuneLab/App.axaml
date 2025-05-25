@@ -1,7 +1,8 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="TuneLab.App"
-             RequestedThemeVariant="Dark">
+             RequestedThemeVariant="Dark"
+             Name="TuneLab">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.Styles>
@@ -11,4 +12,10 @@
 	<Application.Resources>
 		<FontFamily x:Key="NotoMono">avares://TuneLab/Assets/Fonts#NotoMono</FontFamily>
 	</Application.Resources>
+
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <!-- <NativeMenuItem Header="About" /> -->
+        </NativeMenu>
+    </NativeMenu.Menu>
 </Application>
