@@ -171,8 +171,6 @@ build_app() {
         -r osx-${arch} \
         --self-contained true \
         -p:PublishSingleFile=true \
-        -p:IncludeNativeLibrariesForSelfExtract=true \
-        -p:IncludeAllContentForSelfExtract=true \
         -p:EnableCompressionInSingleFile=true \
         -o "${build_dir}"
 
@@ -182,8 +180,6 @@ build_app() {
         -r osx-${arch} \
         --self-contained true \
         -p:PublishSingleFile=true \
-        -p:IncludeAllContentForSelfExtract=true \
-        -p:EnableCompressionInSingleFile=true \
         -p:IncludeNativeLibrariesForSelfExtract=true \
         -o "${build_dir}"
     
