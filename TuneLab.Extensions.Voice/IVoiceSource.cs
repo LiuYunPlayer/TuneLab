@@ -9,16 +9,14 @@ namespace TuneLab.Extensions.Voice;
 public interface IVoiceSource
 {
     string DefaultLyric { get; }
-    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    ObjectConfig PropertyConfig { get; }
     ObjectConfig GetNotePropertyConfig(IEnumerable<ISynthesisNote> notes);
-    IReadOnlyList<IReadOnlyList<ISynthesisNote>> Segment(IEnumerable<ISynthesisNote> notes);
+    IEnumerable<IReadOnlyList<ISynthesisNote>> Segment(IEnumerable<ISynthesisNote> notes);
     IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output);
 }
 
 public static class IVoiceSourceExtension
 {
-    public static IReadOnlyList<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IEnumerable<ISynthesisNote> notes, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
+    public static IEnumerable<IReadOnlyList<ISynthesisNote>> SimpleSegment(this IVoiceSource voiceSource, IEnumerable<ISynthesisNote> notes, double minNoteSpacing = 0, double maxPieceDuration = double.MaxValue)
     {
         List<IReadOnlyList<ISynthesisNote>> segments = [];
         using var it = notes.GetEnumerator();

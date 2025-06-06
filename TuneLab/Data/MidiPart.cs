@@ -385,10 +385,9 @@ internal class MidiPart : Part, IMidiPart
         if (mAutomations.TryGetValue(automationID, out var value))
             return value;
 
-        if (!IsEffectiveAutomation(automationID))
+        if (!Voice.TryGetAutomationConfig(automationID, out var config))
             return null;
 
-        var config = GetEffectiveAutomationConfig(automationID);
         var automation = CreateAutomation(automationID, new() { DefaultValue = config.DefaultValue });
         mAutomations.Add(automationID, automation);
         return automation;
@@ -409,15 +408,10 @@ internal class MidiPart : Part, IMidiPart
         mEffects.RemoveAt(index);
     }
 
-    public bool IsEffectiveAutomation(string id)
-    {
-        return Voice.AutomationConfigs.ContainsKey(id);
-    }
-
     public AutomationConfig GetEffectiveAutomationConfig(string id)
     {
-        if (Voice.AutomationConfigs.ContainsKey(id))
-            return Voice.AutomationConfigs[id];
+        if (Voice.TryGetAutomationConfig(id, out var config))
+            return config;
 
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
     }
@@ -712,7 +706,7 @@ internal class MidiPart : Part, IMidiPart
 
         public bool GetAutomation(string automationID, [MaybeNullWhen(false), NotNullWhen(true)] out IAutomationValueGetter? automation)
         {
-            if (!midiPart.IsEffectiveAutomation(automationID))
+            if (!midiPart.Voice.IsEffectiveAutomation(automationID))
             {
                 automation = null;
                 return false;
@@ -898,11 +892,11 @@ internal class MidiPart : Part, IMidiPart
                     Finished?.Invoke();
                 }, null);
             };
-            mTask.Progress += (progress) =>
+            mTask.ProgressUpdated += () =>
             {
                 context.Post(_ =>
                 {
-                    mSynthesisProgress = progress;
+                    mSynthesisProgress = mTask.Progress;
                     Progress?.Invoke();
                 }, null);
             };

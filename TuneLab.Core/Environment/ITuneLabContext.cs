@@ -9,5 +9,6 @@ namespace TuneLab.Core.Environment;
 public interface ITuneLabContext
 {
     IEnumerable<string> ExtensionDirectories { get; }
+    string Language { get; }
     int SampleRate { get; }
 }

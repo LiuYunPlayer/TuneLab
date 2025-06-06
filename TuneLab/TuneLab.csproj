@@ -10,6 +10,7 @@
 		<LangVersion>latest</LangVersion>
 		<Version>1.5.10</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<ExtensionCompatible>false</ExtensionCompatible> <!--This is needed to enable extension compatibility layer.-->
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -52,7 +53,7 @@
 	  <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
 	</ItemGroup>
 
-	<Target Name="BuildExtensionCompatibilityLayer" BeforeTargets="BeforeBuild">
+	<Target Condition="ExtensionCompatible == 'true'" Name="BuildExtensionCompatibilityLayer" BeforeTargets="BeforeBuild">
 		<Exec Command='dotnet build "..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer.sln" -c $(Configuration)' />
 		<ItemGroup>
 			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\ExtensionCompatibilityLayer.dll" />

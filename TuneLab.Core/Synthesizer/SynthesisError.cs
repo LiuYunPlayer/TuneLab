@@ -2,5 +2,5 @@
 
 public class SynthesisError
 {
-
+    public string Message { get; set; } = "Unkown Error";
 }

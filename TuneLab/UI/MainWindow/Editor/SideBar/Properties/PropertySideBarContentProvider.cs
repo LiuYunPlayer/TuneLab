@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reactive.Linq;
 using TuneLab.Data;
 using TuneLab.Extensions.ControllerConfigs;
+using TuneLab.Extensions.Voice;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
@@ -80,7 +81,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (Part == null)
             return;
 
-        var config = new ObjectConfig(Part.Voice.AutomationConfigs);
+        var config = new ObjectConfig(Part.Voice.GetAutomationConfigs());
         // mAutomationController.SetConfig(config, Part.Automations); TODO: Fix this
     }
 
@@ -89,7 +90,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (Part == null)
             return;
 
-        var config = Part.Voice.PropertyConfig;
+        var config = VoiceManager.GetContextPropertyConfig(Part.Voice.Type, [Part.Voice]);
         mPartPropertiesController.SetConfig(config, Part.Properties);
     }
 

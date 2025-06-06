@@ -9,6 +9,8 @@ using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Utils;
+using TuneLab.Extensions.Voice;
+using System.Diagnostics.CodeAnalysis;
 
 namespace TuneLab.Data;
 
@@ -48,19 +50,6 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
 
 internal static class IMidiPartExtension
 {
-    public static bool IsEffectiveAutomation(this IMidiPart part, string id)
-    {
-        return part.Voice.AutomationConfigs.ContainsKey(id);
-    }
-
-    public static AutomationConfig GetEffectiveAutomationConfig(this IMidiPart part, string id)
-    {
-        if (part.Voice.AutomationConfigs.ContainsKey(id))
-            return part.Voice.AutomationConfigs[id];
-
-        throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
-    }
-
     public static ISynthesisPiece? FindNextNotCompletePiece(this IMidiPart part, double time)
     {
         ISynthesisPiece? result = null;

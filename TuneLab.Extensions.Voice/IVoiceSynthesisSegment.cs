@@ -5,8 +5,11 @@ namespace TuneLab.Extensions.Voice;
 
 public interface IVoiceSynthesisSegment
 {
-    event Action<double>? Progress;
+    event Action? ProgressUpdated;
     event Action<SynthesisError?>? Finished;
+
+    double Progress { get; }
+    string Status { get; }
 
     void StartSynthesis();
     void StopSynthesis();

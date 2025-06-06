@@ -5,6 +5,6 @@ namespace TuneLab.Extensions.Voice;
 
 public interface IVoiceExtensionService
 {
-    IReadOnlyOrderedMap<string, IVoiceEngine> VoiceEngines { get; }
+    IEnumerable<VoiceExtensionEntry> VoiceExtensions { get; }
     void Load();
 }

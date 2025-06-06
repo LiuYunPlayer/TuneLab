@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using TuneLab.Extensions.ControllerConfigs;
@@ -17,7 +18,7 @@ internal static class VoiceManager
 {
     public static void LoadBuiltIn()
     {
-        mVoiceEngineStates.Add(string.Empty, new VoiceEngineState(new EmptyVoiceEngine()));
+        mVoiceEngineStates.Add(string.Empty, [new VoiceEngineState(new EmptyVoiceEngine())]);
 
         var types = Assembly.GetExecutingAssembly().GetTypes();
         LoadFromTypes(types);
@@ -45,10 +46,11 @@ internal static class VoiceManager
 
     public static void Destroy()
     {
-        foreach (var engine in mVoiceEngineStates.Values)
+        foreach (var states in mVoiceEngineStates.Values)
         {
-            if (engine.IsInited)
-                engine.Engine.Destroy();
+            foreach (var state in states)
+                if (state.IsInited)
+                    state.Engine.Destroy();
         }
 
         mVoiceEngineStates.Clear();
@@ -77,15 +79,16 @@ internal static class VoiceManager
 
         var service = (IVoiceExtensionService)constructor.Invoke(null);
         service.Load();
-        foreach (var kvp in service.VoiceEngines)
+        foreach (var extension in service.VoiceExtensions)
         {
-            if (mVoiceEngineStates.ContainsKey(kvp.Key))
+            var state = new VoiceEngineState(extension.VoiceEngine);
+            if (mVoiceEngineStates.TryGetValue(extension.Type, out var states))
             {
-                Log.Info($"Voice engine {kvp.Key} already exists.");
+                states.Add(state);
                 continue;
             }
 
-            mVoiceEngineStates.Add(kvp.Key, new VoiceEngineState(kvp.Value));
+            mVoiceEngineStates.Add(extension.Type, [state]);
         }
     }
 
@@ -94,13 +97,9 @@ internal static class VoiceManager
         return mVoiceEngineStates.Keys;
     }
 
-    public static IReadOnlyOrderedMap<string, VoiceSourceInfo>? GetAllVoiceInfos(string type)
+    public static IReadOnlyOrderedMap<string, VoiceSourceInfo> GetAllVoiceInfos(string type)
     {
-        var engine = GetInitedEngine(type);
-        if (engine == null)
-            return null;
-
-        return engine.VoiceInfos;
+        return GetInitedEngine(type)?.VoiceInfos ?? [];
     }
 
     public static IVoiceSource Create(string type, IVoiceSynthesisContext context)
@@ -117,26 +116,43 @@ internal static class VoiceManager
             return Create(string.Empty, new EmptyVoiceContext());
     }
 
+    public static ObjectConfig GetContextPropertyConfig(string type, IEnumerable<IVoiceSynthesisContext> contexts)
+    {
+        var engine = GetInitedEngine(type);
+        if (engine == null)
+            return new ObjectConfig();
+
+        return engine.GetContextPropertyConfig(contexts);
+    }
+
+    public static IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfig(string type, IEnumerable<IVoiceSynthesisContext> contexts)
+    {
+        var engine = GetInitedEngine(type);
+        if (engine == null)
+            return [];
+
+        return engine.GetAutomationConfigs(contexts);
+    }
+
     public static void InitEngine(string type)
     {
-        var state = mVoiceEngineStates[type];
+        var state = mVoiceEngineStates[type][0];
         if (state.IsInited)
             return;
 
-        if (!state.Init(out var error))
-            throw new Exception(error);
+        state.Init();
     }
 
     static IVoiceEngine? GetInitedEngine(string type)
     {
-        if (!mVoiceEngineStates.ContainsKey(type))
+        if (!mVoiceEngineStates.TryGetValue(type, out var states))
             return null;
 
-        var engine = mVoiceEngineStates[type];
-        if (engine.IsInited)
-            return engine.Engine;
+        var state = states[0];
+        if (state.IsInited)
+            return state.Engine;
 
-        if (!engine.IsInited)
+        if (!state.IsInited)
         {
             try
             {
@@ -149,7 +165,7 @@ internal static class VoiceManager
             }
         }
 
-        return engine.IsInited ? engine.Engine : null;
+        return state.IsInited ? state.Engine : null;
     }
 
     class VoiceEngineState
@@ -163,28 +179,18 @@ internal static class VoiceManager
             mVoiceEngine = engine;
         }
 
-        public bool Init(out string? error)
+        public void Init()
         {
-            error = null;
-            try
-            {
-                mVoiceEngine.Init([]);
-                mIsInited = true;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                mIsInited = false;
-            }
-            return mIsInited;
+            mVoiceEngine.Init();
+            mIsInited = true;
         }
 
         IVoiceEngine mVoiceEngine;
         bool mIsInited = false;
     }
 
-    static OrderedMap<string, VoiceEngineState> mVoiceEngineStates = [];
+    static OrderedMap<string, List<VoiceEngineState>> mVoiceEngineStates = [];
 #nullable disable
-    static IVoiceEngine mDefaultEngine => mVoiceEngineStates[string.Empty].Engine;
+    static IVoiceEngine mDefaultEngine => mVoiceEngineStates[string.Empty][0].Engine;
 #nullable enable
 }

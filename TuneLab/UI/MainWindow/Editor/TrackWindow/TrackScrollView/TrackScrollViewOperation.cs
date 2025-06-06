@@ -206,7 +206,7 @@ internal partial class TrackScrollView
                                             {
                                                 var type = allEngines[i];
                                                 var infos = VoiceManager.GetAllVoiceInfos(type);
-                                                if (infos == null)
+                                                if (infos.IsEmpty())
                                                     continue;
 
                                                 var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In".Tr(TC.Menu) : type };

@@ -80,7 +80,7 @@ internal class ParameterTabBar : Panel
         if (Part == null)
             return;
 
-        foreach (var kvp in Part.Voice.AutomationConfigs)
+        foreach (var kvp in Part.Voice.GetAutomationConfigs())
         {
             var config = kvp.Value;
             if (!mCacheParameterButtons.TryGetValue(kvp.Key, out var button))
@@ -111,7 +111,7 @@ internal class ParameterTabBar : Panel
             return;
 
         var activeAutomation = mDependency.ActiveAutomation;
-        foreach (var kvp in Part.Voice.AutomationConfigs)
+        foreach (var kvp in Part.Voice.GetAutomationConfigs())
         {
             var automationID = kvp.Key;
             if (activeAutomation == automationID)

@@ -10,15 +10,15 @@ using TuneLab.Foundation.Property;
 
 namespace TuneLab.Data;
 
-internal class Voice : DataObject, IVoice, IVoiceSynthesisContext
+internal class Voice : DataObject, IVoice
 {
+    public string Type => mType;
     public string VoiceID => mID;
+    public string Name => mName;
     public IReadOnlyMap<string, IReadOnlyPropertyValue> Properties => mPart.Properties;
 
-    public string Name => VoiceManager.GetAllVoiceInfos(mType)?.TryGetValue(mID, out var info) ?? false ? info.Name : mID;
     public string DefaultLyric => mVoiceSource.DefaultLyric;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public ObjectConfig PropertyConfig => mVoiceSource.PropertyConfig;
 
     public Voice(IMidiPart parent, VoiceInfo info) : base(parent)
     {
@@ -43,10 +43,11 @@ internal class Voice : DataObject, IVoice, IVoiceSynthesisContext
     {
         mType = info.Type;
         mID = info.ID;
-
+        mName = VoiceManager.GetAllVoiceInfos(mType)?.TryGetValue(mID, out var voiceSourceInfo) ?? false ? voiceSourceInfo.Name : mID;
+        
         mVoiceSource = VoiceManager.Create(info.Type, this);
         mAutomationConfigs.Clear();
-        foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs.Concat(mVoiceSource.AutomationConfigs).Concat(ConstantDefine.PostCommonAutomationConfigs))
+        foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs.Concat(this.GetAutomationConfigs()).Concat(ConstantDefine.PostCommonAutomationConfigs))
         {
             mAutomationConfigs.Add(kvp.Key, kvp.Value);
         }
@@ -57,7 +58,7 @@ internal class Voice : DataObject, IVoice, IVoiceSynthesisContext
         return mVoiceSource.GetNotePropertyConfig(notes);
     }
 
-    public IReadOnlyList<IReadOnlyList<INote>> Segment(IEnumerable<INote> segment)
+    public IEnumerable<IReadOnlyList<INote>> Segment(IEnumerable<INote> segment)
     {
         return mVoiceSource.Segment(segment).Convert(list => list.Convert(note => (INote)note));
     }
@@ -65,6 +66,11 @@ internal class Voice : DataObject, IVoice, IVoiceSynthesisContext
     public IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output)
     {
         return mVoiceSource.CreateSegment(input, output);
+    }
+
+    public ObjectConfig GetNotePropertyConfig(IEnumerable<INote> notes)
+    {
+        return mVoiceSource.GetNotePropertyConfig(notes);
     }
 
     string mType;

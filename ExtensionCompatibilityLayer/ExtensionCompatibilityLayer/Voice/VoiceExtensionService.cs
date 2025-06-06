@@ -15,7 +15,7 @@ namespace ExtensionCompatibilityLayer.Voice;
 [VoiceExtensionService]
 internal class VoiceExtensionService : IVoiceExtensionService
 {
-    public IReadOnlyOrderedMap<string, IVoiceEngine> VoiceEngines => mVoiceEngines;
+    public IEnumerable<VoiceExtensionEntry> VoiceExtensions => mVoiceExtensions;
 
     public void Load()
     {
@@ -83,15 +83,9 @@ internal class VoiceExtensionService : IVoiceExtensionService
             if (instance == null)
                 continue;
 
-            if (mVoiceEngines.ContainsKey(attribute.Type))
-            {
-                Log.Info($"Voice engine {attribute.Type} already exists.");
-                continue;
-            }
-
-            mVoiceEngines.Add(attribute.Type, new VoiceEngine(instance, path));
+            mVoiceExtensions.Add(new VoiceExtensionEntry() { Type = attribute.Type, VoiceEngine = new VoiceEngine(instance, path) });
         }
     }
 
-    readonly OrderedMap<string, IVoiceEngine> mVoiceEngines = [];
+    readonly List<VoiceExtensionEntry> mVoiceExtensions = [];
 }

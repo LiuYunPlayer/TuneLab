@@ -58,6 +58,12 @@ internal class FormatExtensionService : IFormatExtensionService
                 return;
             }
 
+            if (mImportableFormats.ContainsKey(importAttribute.FileExtension))
+            {
+                Log.Warning($"Importable format for extension {importAttribute.FileExtension} already exists!");
+                return;
+            }
+
             mImportableFormats.Add(importAttribute.FileExtension, importableFormat);
         }
         catch (Exception e)
@@ -92,6 +98,12 @@ internal class FormatExtensionService : IFormatExtensionService
             {
                 Log.Error($"Type {type.Name} does not implement IExportableFormat!");
                 return;
+            }
+
+            if (mExportableFormats.ContainsKey(exportAttribute.FileExtension))
+            {
+                Log.Warning($"Exportable format for extension {exportAttribute.FileExtension} already exists!");
+                return; 
             }
 
             mExportableFormats.Add(exportAttribute.FileExtension, exportableFormat);

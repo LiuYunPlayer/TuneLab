@@ -85,10 +85,9 @@ internal partial class AutomationRenderer : View
 
         void Draw(string automationID)
         {
-            if (!Part.IsEffectiveAutomation(automationID))
+            if (!Part.Voice.TryGetAutomationConfig(automationID, out var config))
                 return;
 
-            var config = Part.GetEffectiveAutomationConfig(automationID);
             double min = config.MinValue;
             double max = config.MaxValue;
             double range = max - min;
@@ -127,12 +126,11 @@ internal partial class AutomationRenderer : View
         if (activeAutomation == null)
             return;
 
-        if (!Part.IsEffectiveAutomation(activeAutomation))
+        if (!Part.Voice.TryGetAutomationConfig(activeAutomation, out var config))
             return;
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        var config = Part.GetEffectiveAutomationConfig(activeAutomation);
         double min = config.MinValue;
         double max = config.MaxValue;
         foreach (var vibrato in Part.Vibratos)

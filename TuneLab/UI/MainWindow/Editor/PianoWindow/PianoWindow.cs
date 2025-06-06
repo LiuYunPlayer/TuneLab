@@ -141,7 +141,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         if (Part == null)
             return false;
 
-        if (!Part.IsEffectiveAutomation(automationID))
+        if (!Part.Voice.IsEffectiveAutomation(automationID))
             return false;
 
         return mVisibleAutomations.Contains(automationID);

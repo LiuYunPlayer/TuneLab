@@ -14,9 +14,9 @@ class EmptyVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; } = new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, new VoiceSourceInfo() { Name = "Empty Voice" } } };
 
-    public IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context)
+    public void Init()
     {
-        return new EmptyVoiceSource();
+
     }
 
     public void Destroy()
@@ -24,16 +24,27 @@ class EmptyVoiceEngine : IVoiceEngine
 
     }
 
-    public void Init(IReadOnlyMap<string, IReadOnlyPropertyValue> properties)
+    public IVoiceSource CreateVoiceSource(IVoiceSynthesisContext context)
     {
-
+        return new EmptyVoiceSource();
     }
+
+    public ObjectConfig GetContextPropertyConfig(IEnumerable<IVoiceSynthesisContext> contexts)
+    {
+        return PropertyConfig;
+    }
+
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEnumerable<IVoiceSynthesisContext> contexts)
+    {
+        return [];
+    }
+
+    readonly static ObjectConfig PropertyConfig = new();
 
     class EmptyVoiceSource : IVoiceSource
     {
         public string DefaultLyric { get; } = "a";
         public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; } = [];
-        public ObjectConfig PropertyConfig { get; } = new();
 
         public IVoiceSynthesisSegment CreateSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output)
         {
@@ -45,15 +56,23 @@ class EmptyVoiceEngine : IVoiceEngine
             return PropertyConfig;
         }
 
-        public IReadOnlyList<IReadOnlyList<ISynthesisNote>> Segment(IEnumerable<ISynthesisNote> notes)
+        public IEnumerable<IReadOnlyList<ISynthesisNote>> Segment(IEnumerable<ISynthesisNote> notes)
         {
             return this.SimpleSegment(notes);
         }
 
+        IEnumerable<IReadOnlyList<ISynthesisNote>> IVoiceSource.Segment(IEnumerable<ISynthesisNote> notes)
+        {
+            return Segment(notes);
+        }
+
         class EmptyVoiceSynthesisSegment(IVoiceSynthesisInput input, IVoiceSynthesisOutput output) : IVoiceSynthesisSegment
         {
-            public event Action<double>? Progress;
+            public event Action? ProgressUpdated;
             public event Action<SynthesisError?>? Finished;
+
+            public double Progress => 1;
+            public string Status => "Done.";
 
             public void OnDirtyEvent(VoiceDirtyEvent dirtyEvent)
             {

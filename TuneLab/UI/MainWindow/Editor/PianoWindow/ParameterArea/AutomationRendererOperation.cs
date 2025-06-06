@@ -254,10 +254,13 @@ internal partial class AutomationRenderer
             if (mAutomation == null)
                 return;
 
+            if (!AutomationRenderer.Part.Voice.TryGetAutomationConfig(automationID, out var config))
+                return;
+
             State = State.Drawing;
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = mAutomation.Head;
-            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationID);
+
             mMin = config.MinValue;
             mMax = config.MaxValue;
 
@@ -430,7 +433,7 @@ internal partial class AutomationRenderer
             if (automationID == null)
                 return;
 
-            if (!AutomationRenderer.Part.IsEffectiveAutomation(automationID))
+            if (!AutomationRenderer.Part.Voice.TryGetAutomationConfig(automationID, out var config))
                 return;
 
             State = State.VibratoAmplitudeAdjusting;
@@ -443,7 +446,6 @@ internal partial class AutomationRenderer
                     vibrato.AffectedAutomations.Add(automationID, 0);
             }
             mHead = AutomationRenderer.Part.Head;
-            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationID);
             mMin = config.MinValue;
             mMax = config.MaxValue;
             mValue = ValueAt(y);
