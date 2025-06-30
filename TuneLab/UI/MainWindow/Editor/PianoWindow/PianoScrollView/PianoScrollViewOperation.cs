@@ -27,10 +27,24 @@ internal partial class PianoScrollView
         switch (e.KeyModifiers)
         {
             case ModifierKeys.None:
-                PitchAxis.AnimateMove(70 * e.Delta.Y);
+                if (Math.Abs(e.Delta.Y) > Math.Abs(e.Delta.X))
+                {
+                    PitchAxis.AnimateMove(120 * e.Delta.Y);
+                }
+                else
+                {
+                    TickAxis.AnimateMove(400 * e.Delta.X);
+                }
                 break;
             case ModifierKeys.Shift:
-                TickAxis.AnimateMove(240 * e.Delta.Y);
+                if (Math.Abs(e.Delta.Y) > Math.Abs(e.Delta.X))
+                {
+                    TickAxis.AnimateMove(400 * e.Delta.Y);
+                }
+                else
+                {
+                    PitchAxis.AnimateMove(120 * e.Delta.X);
+                }
                 break;
             case ModifierKeys.Ctrl:
                 TickAxis.AnimateScale(TickAxis.Coor2Pos(e.Position.X), e.Delta.Y);
@@ -101,7 +115,7 @@ internal partial class PianoScrollView
                                     if (Part == null)
                                         break;
 
-                                    if (DetectWaveformPrimaryButton()) {}
+                                    if (DetectWaveformPrimaryButton()) { }
                                     else if (item is NoteItem noteItem)
                                     {
                                         var note = noteItem.Note;
@@ -1250,7 +1264,7 @@ internal partial class PianoScrollView
             return new Rect(left, top, right - left, bottom - top);
         }
 
-        protected abstract State SelectState { get; } 
+        protected abstract State SelectState { get; }
         protected abstract IEnumerable<T>? Collection { get; }
         protected abstract void Select(IEnumerable<T> items, double minTick, double maxTick, double minPitch, double maxPitch);
         protected virtual void BeginSelect() { }
@@ -2664,9 +2678,9 @@ internal partial class PianoScrollView
                 {
                     PianoScrollView.Part.RemoveNote(mLeft);
                 }
-                else 
-                { 
-                    mLeft.Dur.Set(pos - mLeft.Pos.Value); 
+                else
+                {
+                    mLeft.Dur.Set(pos - mLeft.Pos.Value);
                 }
 
             }
