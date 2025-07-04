@@ -3,7 +3,7 @@
 		<OutputType>WinExe</OutputType>
 		<!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
     One for Windows with net8.0-windows TFM, one for MacOS with net8.0-macos and one with net8.0 TFM for Linux.-->
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
@@ -54,7 +54,7 @@
 	</ItemGroup>
 
 	<Target Condition="ExtensionCompatible == 'true'" Name="BuildExtensionCompatibilityLayer" BeforeTargets="BeforeBuild">
-		<Exec Command='dotnet build "..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer.sln" -c $(Configuration)' />
+		<Exec Command="dotnet build &quot;..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer.sln&quot; -c $(Configuration)" />
 		<ItemGroup>
 			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\ExtensionCompatibilityLayer.dll" />
 			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\bin\$(Configuration)\net8.0\TuneLab.Base.dll" />
@@ -63,10 +63,7 @@
 			<ExtensionCompatibilityLayerOutputFiles Include="..\ExtensionCompatibilityLayer\ExtensionCompatibilityLayer\description.json" />
 		</ItemGroup>
 
-		<Copy
-		  SourceFiles="@(ExtensionCompatibilityLayerOutputFiles)"
-		  DestinationFolder="$(OutputPath)ExtensionCompatibilityLayer\"
-		  SkipUnchangedFiles="true" />
+		<Copy SourceFiles="@(ExtensionCompatibilityLayerOutputFiles)" DestinationFolder="$(OutputPath)ExtensionCompatibilityLayer\" SkipUnchangedFiles="true" />
 	</Target>
 
 	<ItemGroup>

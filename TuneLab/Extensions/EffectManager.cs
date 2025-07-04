@@ -20,6 +20,9 @@ internal static class EffectManager
 
     public static void Load(string path, ExtensionInfo? description = null)
     {
+        if (!Directory.Exists(path))
+            return;
+
         var assemblies = description == null ? Directory.GetFiles(path, "*.dll") : description.assemblies.Convert(s => Path.Combine(path, s));
         foreach (var file in assemblies)
         {
