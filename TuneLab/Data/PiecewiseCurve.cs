@@ -598,6 +598,9 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
 
     public double[] GetValues(IReadOnlyList<double> ticks)
     {
+        if (ticks.IsEmpty())
+            return [];
+        
         double[] values = new double[ticks.Count];
         values.Fill(double.NaN);
         double start = ticks.First();
