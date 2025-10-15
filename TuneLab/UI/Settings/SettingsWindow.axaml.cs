@@ -224,7 +224,7 @@ internal partial class SettingsWindow : Window
                 panel.AddDock(checkBox, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Pitch Sync Mode: ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Pitch Sync Mode".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);

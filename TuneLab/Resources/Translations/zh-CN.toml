@@ -12,6 +12,7 @@
 "Piano Key Samples" = "钢琴音采样"
 "Auto Save Interval (second)" = "自动保存间隔（秒）"
 "Parameter Boundary Extension (tick)" = "参数边界扩展（tick）"
+"Pitch Sync Mode" = "音高同步模式"
 "Track Hue Change Rate (degree/second)" = "轨道色相变化速率（度/秒）"
 
 [FunctionBar]
