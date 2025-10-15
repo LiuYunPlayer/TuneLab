@@ -875,13 +875,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 break;
             case PianoTool.Pitch:
             case PianoTool.Lock:
-                Part.PasteAt(mParameterClipboard, pos, 5);
+                Part.PasteAt(mParameterClipboard, pos, Settings.ParameterBoundaryExtension);
                 Part.Commit();
                 break;
             case PianoTool.Select:
                 Part.PasteAt(mNoteClipboard, pos);
                 Part.PasteAt(mVibratoClipboard, pos);
-                Part.PasteAt(mParameterClipboard, pos, 5);
+                Part.PasteAt(mParameterClipboard, pos, Settings.ParameterBoundaryExtension);
                 Part.Commit();
                 break;
         }

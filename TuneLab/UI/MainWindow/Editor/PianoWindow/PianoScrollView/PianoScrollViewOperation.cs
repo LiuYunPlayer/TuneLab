@@ -1576,16 +1576,50 @@ internal partial class PianoScrollView
             part.DiscardTo(mHead);
             part.BeginMergeReSegment();
             part.Notes.ListModified.BeginMerge();
+            List<List<List<Point>>> pitchInfos = new();
+            if (Settings.PitchSyncMode)
+            {
+                foreach (var note in mMoveNotes)
+                {
+                    var pitchInfo = part.Pitch.RangeInfo(note.StartPos(), note.EndPos());
+                    foreach (var line in pitchInfo)
+                    {
+                        for (int i = 0; i < line.Count; i++)
+                        {
+                            line[i] = new(line[i].X + note.StartPos() + posOffset, line[i].Y + pitchOffset);
+                        }
+                    }
+                    pitchInfos.Add(pitchInfo);
+                }
+            }
+
             foreach (var note in mMoveNotes)
             {
                 note.Pos.Set(note.Pos.Value + posOffset);
                 note.Pitch.Set(note.Pitch.Value + pitchOffset);
                 part.RemoveNote(note);
             }
+            if (Settings.PitchSyncMode)
+            {
+                foreach (var note in mMoveNotes)
+                {
+                    part.Pitch.Clear(note.StartPos(), note.EndPos());
+                }
+            }
 
             foreach (var note in mMoveNotes)
             {
                 part.InsertNote(note);
+            }
+            if (Settings.PitchSyncMode)
+            {
+                foreach (var info in pitchInfos)
+                {
+                    foreach (var line in info)
+                    {
+                        part.Pitch.AddLine(line, Settings.ParameterBoundaryExtension);
+                    }
+                }
             }
             part.Notes.ListModified.EndMerge();
             part.EndMergeReSegment();

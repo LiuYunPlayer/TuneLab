@@ -19,6 +19,7 @@ internal static class Settings
     public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
     public static NotifiableProperty<double> BackgroundImageOpacity { get; } = DefaultSettings.BackgroundImageOpacity;
     public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
+    public static NotifiableProperty<bool> PitchSyncMode { get; } = new(DefaultSettings.PitchSyncMode);
     public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
     public static NotifiableProperty<int> BufferSize { get; } = DefaultSettings.BufferSize;
@@ -49,6 +50,7 @@ internal static class Settings
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
         BackgroundImageOpacity.Value = settingsFile.BackgroundImageOpacity;
         ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
+        PitchSyncMode.Value = settingsFile.PitchSyncMode;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
         BufferSize.Value = settingsFile.BufferSize;
@@ -69,6 +71,7 @@ internal static class Settings
                 BackgroundImagePath = BackgroundImagePath,
                 BackgroundImageOpacity = BackgroundImageOpacity,
                 ParameterBoundaryExtension = ParameterBoundaryExtension,
+                PitchSyncMode = PitchSyncMode.Value,
                 PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
                 BufferSize = BufferSize,

@@ -219,6 +219,19 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
+                var checkBox = new GUI.Components.CheckBox();
+                checkBox.Bind(Settings.PitchSyncMode, false, s);
+                panel.AddDock(checkBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Pitch Sync Mode: ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
                 var slider = new SliderController() { Width = 180, IsInterger = true };
                 slider.SetRange(-720, 720);
                 slider.SetDefaultValue(Settings.DefaultSettings.TrackHueChangeRate);
