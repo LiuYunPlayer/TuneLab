@@ -1577,7 +1577,8 @@ internal partial class PianoScrollView
             part.BeginMergeReSegment();
             part.Notes.ListModified.BeginMerge();
             List<List<List<Point>>> pitchInfos = new();
-            if (Settings.PitchSyncMode)
+            Dictionary<string, List<List<Point>>> automationInfos = new();
+            if (Settings.ParameterSyncMode)
             {
                 foreach (var note in mMoveNotes)
                 {
@@ -1590,6 +1591,21 @@ internal partial class PianoScrollView
                         }
                     }
                     pitchInfos.Add(pitchInfo);
+
+                    foreach (var kvp in part.Automations)
+                    {
+                        var autoInfo = kvp.Value.RangeInfo(note.StartPos(), note.EndPos());
+                        for (int i = 0; i < autoInfo.Count; i++)
+                        {
+                            autoInfo[i] = new(autoInfo[i].X + note.StartPos() + posOffset, autoInfo[i].Y);
+                        }
+                        if (!automationInfos.TryGetValue(kvp.Key, out var list))
+                        {
+                            list = new List<List<Point>>();
+                            automationInfos[kvp.Key] = list;
+                        }
+                        list.Add(autoInfo);
+                    }
                 }
             }
 
@@ -1599,11 +1615,15 @@ internal partial class PianoScrollView
                 note.Pitch.Set(note.Pitch.Value + pitchOffset);
                 part.RemoveNote(note);
             }
-            if (Settings.PitchSyncMode)
+            if (Settings.ParameterSyncMode)
             {
                 foreach (var note in mMoveNotes)
                 {
                     part.Pitch.Clear(note.StartPos(), note.EndPos());
+                    foreach (var kvp in part.Automations)
+                    {
+                        kvp.Value.Clear(note.StartPos(), note.EndPos(), Settings.ParameterBoundaryExtension);
+                    }
                 }
             }
 
@@ -1611,13 +1631,25 @@ internal partial class PianoScrollView
             {
                 part.InsertNote(note);
             }
-            if (Settings.PitchSyncMode)
+            if (Settings.ParameterSyncMode)
             {
                 foreach (var info in pitchInfos)
                 {
                     foreach (var line in info)
                     {
                         part.Pitch.AddLine(line, Settings.ParameterBoundaryExtension);
+                    }
+                }
+
+                foreach (var kvp in automationInfos)
+                {
+                    if (!part.Automations.TryGetValue(kvp.Key, out var automation))
+                        continue;
+
+                    var defaultValue = automation.DefaultValue.Value;
+                    foreach (var line in kvp.Value)
+                    {
+                        automation.AddLine(line.Convert(p => new Point(p.X, p.Y + defaultValue)), Settings.ParameterBoundaryExtension);
                     }
                 }
             }

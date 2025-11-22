@@ -220,11 +220,11 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var checkBox = new GUI.Components.CheckBox();
-                checkBox.Bind(Settings.PitchSyncMode, false, s);
+                checkBox.Bind(Settings.ParameterSyncMode, false, s);
                 panel.AddDock(checkBox, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Pitch Sync Mode".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Parameter Sync Mode".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);
