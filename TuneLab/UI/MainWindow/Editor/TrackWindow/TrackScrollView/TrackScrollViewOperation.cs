@@ -33,10 +33,24 @@ internal partial class TrackScrollView
         switch (e.KeyModifiers)
         {
             case ModifierKeys.None:
-                TrackVerticalAxis.AnimateMove(70 * e.Delta.Y);
+                if (Math.Abs(e.Delta.Y) > Math.Abs(e.Delta.X))
+                {
+                    TrackVerticalAxis.AnimateMove(70 * e.Delta.Y);
+                }
+                else
+                {
+                    TickAxis.AnimateMove(240 * e.Delta.X);
+                }
                 break;
             case ModifierKeys.Shift:
-                TickAxis.AnimateMove(240 * e.Delta.Y);
+                if (Math.Abs(e.Delta.Y) > Math.Abs(e.Delta.X))
+                {
+                    TickAxis.AnimateMove(240 * e.Delta.Y);
+                }
+                else
+                {
+                    TrackVerticalAxis.AnimateMove(70 * e.Delta.X);
+                }
                 break;
             case ModifierKeys.Ctrl:
                 TickAxis.AnimateScale(TickAxis.Coor2Pos(e.Position.X), e.Delta.Y);
@@ -64,7 +78,7 @@ internal partial class TrackScrollView
                             if (item is PartItem partItem)
                             {
                                 var part = partItem.Part;
-                                
+
                                 if (e.IsDoubleClick)
                                 {
                                     if (part is IAudioPart audioPart && audioPart.Status.Value == AudioPartStatus.Unlinked)
@@ -158,7 +172,7 @@ internal partial class TrackScrollView
                                         var menuItem = new MenuItem().SetName("Rename".Tr(TC.Menu)).SetAction(() => { EnterInputPartName(partItem.Part, partItem.TrackIndex); });
                                         menu.Items.Add(menuItem);
                                     }
-                                    
+
                                     if (part is IMidiPart midiPart)
                                     {
                                         {
@@ -185,21 +199,21 @@ internal partial class TrackScrollView
                                             var trackIndex = TrackVerticalAxis.GetPosition(e.Position.Y).TrackIndex;
                                             var track = Project.Tracks[trackIndex];
                                             if (part.IsSelected && track.Parts.Count(p => p.IsSelected) > 1)
-                                            {   
+                                            {
                                                 var partArray = track.Parts.OrderBy(p => p.StartTime).ToArray();
                                                 int partIndex = Array.FindIndex(partArray, p => p == part);
                                                 int prevIndex = partIndex;
                                                 int nextIndex = partIndex;
-                                                while (prevIndex > 0) { if (!partArray[prevIndex - 1].IsSelected || partArray[prevIndex - 1] is not MidiPart) break;prevIndex--; }
-                                                while (nextIndex < partArray.Length-1) { if (!partArray[nextIndex + 1].IsSelected || partArray[nextIndex+1] is not MidiPart) break; nextIndex++; }
+                                                while (prevIndex > 0) { if (!partArray[prevIndex - 1].IsSelected || partArray[prevIndex - 1] is not MidiPart) break; prevIndex--; }
+                                                while (nextIndex < partArray.Length - 1) { if (!partArray[nextIndex + 1].IsSelected || partArray[nextIndex + 1] is not MidiPart) break; nextIndex++; }
                                                 if (nextIndex > prevIndex)
                                                 {
                                                     var menuItem = new MenuItem().SetName("Merge".Tr(TC.Menu)).SetAction(() =>
                                                     {
                                                         var oldParts = partArray.Skip(prevIndex).Take(nextIndex - prevIndex + 1);
-                                                        var oldPartInfos = oldParts.Select(p=>(MidiPartInfo)p.GetInfo()).ToArray();
+                                                        var oldPartInfos = oldParts.Select(p => (MidiPartInfo)p.GetInfo()).ToArray();
                                                         var newPartInfo = IMidiPartExtension.MergePartInfos(oldPartInfos);
-                                                        foreach(var oldPart in oldParts) track.RemovePart(oldPart);
+                                                        foreach (var oldPart in oldParts) track.RemovePart(oldPart);
                                                         track.InsertPart(track.CreatePart(newPartInfo));
                                                         track.Commit();
                                                     });
