@@ -24,10 +24,16 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // init logger
-        Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
-        Log.Info("Version: " + AppInfo.Version);
+        // init setting
+        Settings.Init(PathManager.SettingsFilePath);
 
+        // init logger
+        if (Settings.LogFile.Value)
+        {
+            Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
+            Log.Info("Version: " + AppInfo.Version);
+        }
+        
         // check if other instance is running
         var lockFile = LockFile.Create(PathManager.LockFilePath);
         if (lockFile == null)
@@ -54,9 +60,6 @@ class Program
             Process.GetCurrentProcess().WaitForExit();
             return;
         }
-
-        // init setting
-        Settings.Init(PathManager.SettingsFilePath);
 
         // init translation
         TranslationManager.Init(PathManager.TranslationsFolder);
