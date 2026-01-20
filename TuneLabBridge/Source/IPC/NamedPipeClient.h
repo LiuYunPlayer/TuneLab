@@ -94,6 +94,7 @@ public:
 private:
     void readLoop();
     void processMessage(const juce::String& json);
+    void cleanupConnection();
     
     std::atomic<bool> m_connected{false};
     std::atomic<bool> m_shouldStop{false};

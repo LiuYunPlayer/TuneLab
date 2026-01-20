@@ -29,6 +29,61 @@ internal static class AudioEngine
     public static INotifiableProperty<string> CurrentDevice { get; } = new NotifiableProperty<string>(string.Empty);
     public static IReadOnlyList<string> GetAllDrivers() => mAudioPlaybackHandler!.GetAllDrivers();
     public static IReadOnlyList<string> GetAllDevices() => mAudioPlaybackHandler!.GetAllDevices();
+    
+    /// <summary>
+    /// Gets all tracks in the audio graph. Used by BridgeService for DAW integration.
+    /// </summary>
+    public static IEnumerable<IAudioTrack> Tracks => AudioGraph.Tracks;
+    
+    /// <summary>
+    /// Gets mixed audio data for bridge output. Provides stereo interleaved float samples.
+    /// </summary>
+    /// <param name="trackId">Track ID to get data from, or null for master mix</param>
+    /// <param name="position">Start position in samples</param>
+    /// <param name="sampleCount">Number of samples to read (stereo frames)</param>
+    /// <param name="isStereo">Whether to output stereo data</param>
+    /// <returns>Float array with audio data (interleaved L/R for stereo)</returns>
+    public static float[] GetAudioDataForBridge(string? trackId, int position, int sampleCount, bool isStereo)
+    {
+        int bufferSize = isStereo ? sampleCount * 2 : sampleCount;
+        float[] buffer = new float[bufferSize];
+        
+        if (string.IsNullOrEmpty(trackId))
+        {
+            // Master mix
+            AudioGraph.MixData(position, position + sampleCount, isStereo, buffer, 0);
+        }
+        else
+        {
+            // Find specific track
+            var track = AudioGraph.Tracks.FirstOrDefault(t => GetTrackId(t) == trackId);
+            if (track != null)
+            {
+                AudioGraph.AddData(track, position, position + sampleCount, isStereo, buffer, 0);
+            }
+        }
+        
+        // Apply master gain
+        if (MasterGain != 0)
+        {
+            float masterVolume = (float)MusicTheory.dB2Level(MasterGain);
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                buffer[i] *= masterVolume;
+            }
+        }
+        
+        return buffer;
+    }
+    
+    /// <summary>
+    /// Gets a unique ID for a track. Used for track identification in bridge.
+    /// </summary>
+    public static string GetTrackId(IAudioTrack track)
+    {
+        // Use object hash code as ID since tracks don't have persistent IDs
+        return track.GetHashCode().ToString("X8");
+    }
 
     public static void Init()
     {

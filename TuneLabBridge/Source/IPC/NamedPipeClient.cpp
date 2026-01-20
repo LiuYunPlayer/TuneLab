@@ -1,11 +1,13 @@
 #include "NamedPipeClient.h"
 #include "../Model/BridgeProtocol.h"
+#include "../Utils/Logger.h"
 
 namespace TuneLabBridge
 {
 
 NamedPipeClient::NamedPipeClient()
 {
+    LOG_INFO("NamedPipeClient created");
 }
 
 NamedPipeClient::~NamedPipeClient()
@@ -15,23 +17,36 @@ NamedPipeClient::~NamedPipeClient()
 
 bool NamedPipeClient::connect()
 {
+    LOG_INFO("NamedPipeClient::connect() called");
+    
     if (m_connected.load())
+    {
+        LOG_INFO("Already connected, returning true");
         return true;
+    }
+    
+    // Clean up any previous connection first (in case disconnect wasn't called)
+    cleanupConnection();
     
     m_pipe = std::make_unique<juce::NamedPipe>();
     
-    // Try to connect to the TuneLab bridge service
+    // JUCE NamedPipe expects just the pipe name on Windows
+    // It internally converts to \\.\pipe\<name>
     if (!m_pipe->openExisting(Protocol::PipeName))
     {
+        LOG_ERROR("Failed to open existing pipe: " + std::string(Protocol::PipeName));
         m_pipe.reset();
         return false;
     }
     
-    m_connected.store(true);
+    LOG_INFO("Pipe opened successfully");
+    
     m_shouldStop.store(false);
+    m_connected.store(true);
     
     // Start read thread
     m_readThread = std::make_unique<std::thread>(&NamedPipeClient::readLoop, this);
+    LOG_INFO("Read thread started");
     
     // Notify connection callback
     {
@@ -40,34 +55,42 @@ bool NamedPipeClient::connect()
             m_connectionCallback(true);
     }
     
+    LOG_INFO("NamedPipeClient::connect() returning true");
     return true;
 }
 
 void NamedPipeClient::disconnect()
 {
-    if (!m_connected.load())
-        return;
+    bool wasConnected = m_connected.exchange(false);
     
-    m_shouldStop.store(true);
-    m_connected.store(false);
+    cleanupConnection();
     
-    // Close pipe to unblock read
-    if (m_pipe)
-        m_pipe->close();
-    
-    // Wait for read thread
-    if (m_readThread && m_readThread->joinable())
-        m_readThread->join();
-    
-    m_readThread.reset();
-    m_pipe.reset();
-    
-    // Notify connection callback
+    // Notify connection callback only if we were actually connected before
+    if (wasConnected)
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
         if (m_connectionCallback)
             m_connectionCallback(false);
     }
+}
+
+void NamedPipeClient::cleanupConnection()
+{
+    m_shouldStop.store(true);
+    
+    // Close pipe to unblock read
+    if (m_pipe)
+        m_pipe->close();
+    
+    // Wait for read thread to finish
+    if (m_readThread)
+    {
+        if (m_readThread->joinable())
+            m_readThread->join();
+        m_readThread.reset();
+    }
+    
+    m_pipe.reset();
 }
 
 bool NamedPipeClient::sendMessage(const juce::String& json)
@@ -98,30 +121,41 @@ void NamedPipeClient::setConnectionCallback(std::function<void(bool)> callback)
 
 void NamedPipeClient::readLoop()
 {
+    LOG_INFO("readLoop() started");
     juce::String lineBuffer;
     char buffer[4096];
     
     while (!m_shouldStop.load() && m_pipe)
     {
-        int bytesRead = m_pipe->read(buffer, sizeof(buffer) - 1, 100);
+        // Check if pipe is still open before reading
+        if (!m_pipe->isOpen())
+        {
+            LOG_INFO("Pipe is closed, exiting readLoop");
+            break;
+        }
+        
+        int bytesRead = m_pipe->read(buffer, sizeof(buffer) - 1, 500);
         
         if (bytesRead < 0)
         {
-            // Pipe error or closed
-            if (!m_shouldStop.load())
+            // On Windows, JUCE's NamedPipe::read() may return -1 for both timeout and error
+            // Only treat as error if the pipe is actually closed
+            if (!m_pipe->isOpen())
             {
-                m_connected.store(false);
-                std::lock_guard<std::mutex> lock(m_callbackMutex);
-                if (m_connectionCallback)
-                    m_connectionCallback(false);
+                LOG_INFO("Pipe read returned -1 and pipe is closed, disconnecting");
+                break;
             }
-            break;
+            
+            // Pipe is still open, this is likely just a timeout - continue waiting
+            // (JUCE Windows behavior: sometimes returns -1 instead of 0 for timeout)
+            continue;
         }
         
         if (bytesRead > 0)
         {
             buffer[bytesRead] = '\0';
             lineBuffer += juce::String::fromUTF8(buffer, bytesRead);
+            LOG_DEBUG("Received " + std::to_string(bytesRead) + " bytes");
             
             // Process complete lines
             int newlinePos;
@@ -131,9 +165,23 @@ void NamedPipeClient::readLoop()
                 lineBuffer = lineBuffer.substring(newlinePos + 1);
                 
                 if (line.isNotEmpty())
+                {
+                    LOG_DEBUG("Processing message: " + line.substring(0, 200).toStdString());
                     processMessage(line);
+                }
             }
         }
+    }
+    
+    LOG_INFO("readLoop() exiting, m_shouldStop=" + std::to_string(m_shouldStop.load()));
+    
+    // Notify disconnection only if we weren't asked to stop
+    if (!m_shouldStop.load())
+    {
+        m_connected.store(false);
+        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        if (m_connectionCallback)
+            m_connectionCallback(false);
     }
 }
 

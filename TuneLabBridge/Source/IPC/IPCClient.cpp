@@ -1,4 +1,5 @@
 #include "IPCClient.h"
+#include "../Utils/Logger.h"
 
 namespace TuneLabBridge
 {
@@ -6,18 +7,22 @@ namespace TuneLabBridge
 IPCClient::IPCClient()
     : m_clientId(juce::Uuid().toString())
 {
+    LOG_INFO("IPCClient constructor, clientId=" + m_clientId.toStdString());
     m_pipeClient = std::make_unique<NamedPipeClient>();
     m_shmClient = std::make_unique<SharedMemoryClient>();
     
     // Set up pipe message callback
     m_pipeClient->setMessageCallback([this](const juce::String& json) {
+        LOG_DEBUG("IPCClient received message: " + json.substring(0, 200).toStdString());
         handleMessage(json);
     });
     
     // Set up connection callback
     m_pipeClient->setConnectionCallback([this](bool connected) {
+        LOG_INFO("IPCClient connection callback: connected=" + std::to_string(connected) + ", m_connected=" + std::to_string(m_connected));
         if (!connected && m_connected)
         {
+            LOG_INFO("IPCClient: pipe disconnected, cleaning up");
             m_connected = false;
             m_shmClient->close();
             if (onDisconnected)
@@ -33,44 +38,66 @@ IPCClient::~IPCClient()
 
 bool IPCClient::connect(int sampleRate, int bufferSize)
 {
+    LOG_INFO("IPCClient::connect() called, sampleRate=" + std::to_string(sampleRate) + ", bufferSize=" + std::to_string(bufferSize));
+    
     if (m_connected)
+    {
+        LOG_INFO("Already connected, returning true");
         return true;
+    }
     
     m_sampleRate = sampleRate;
     m_bufferSize = bufferSize;
     
     // Connect via named pipe
+    LOG_INFO("Connecting to named pipe...");
     if (!m_pipeClient->connect())
+    {
+        LOG_ERROR("Failed to connect to named pipe");
         return false;
+    }
+    
+    LOG_INFO("Named pipe connected, sending connect message");
     
     // Send connect command
     auto connectMsg = NamedPipeClient::createConnectMessage(m_clientId, sampleRate, bufferSize);
+    LOG_DEBUG("Connect message: " + connectMsg.toStdString());
     if (!m_pipeClient->sendMessage(connectMsg))
     {
+        LOG_ERROR("Failed to send connect message");
         m_pipeClient->disconnect();
         return false;
     }
+    
+    LOG_INFO("Connect message sent, waiting for shared memory setup...");
     
     // Wait briefly for response and shared memory setup
     // In a real implementation, you might want to use async callbacks
     juce::Thread::sleep(100);
     
     // Open shared memory
+    LOG_INFO("Opening shared memory with clientId: " + m_clientId.toStdString());
     if (!m_shmClient->open(m_clientId.toStdString()))
     {
+        LOG_ERROR("Failed to open shared memory");
         m_pipeClient->disconnect();
         return false;
     }
     
+    LOG_INFO("Shared memory opened successfully");
+    
     m_connected = true;
     m_readPosition = 0;
     
+    LOG_INFO("Calling onConnected callback");
     if (onConnected)
         onConnected();
     
     // Request initial track list
+    LOG_INFO("Requesting initial track list");
     refreshTrackList();
     
+    LOG_INFO("IPCClient::connect() completed successfully");
     return true;
 }
 

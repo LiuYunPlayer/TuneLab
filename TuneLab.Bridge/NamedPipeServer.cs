@@ -85,11 +85,12 @@ public class NamedPipeServer : IDisposable
         {
             try
             {
+                // Use Byte transmission mode for compatibility with JUCE NamedPipe
                 var pipeServer = new NamedPipeServerStream(
                     BridgeProtocol.PipeName,
                     PipeDirection.InOut,
                     BridgeProtocol.MaxClients,
-                    PipeTransmissionMode.Message,
+                    PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
                 
                 await pipeServer.WaitForConnectionAsync(ct);
@@ -230,38 +231,46 @@ internal class PipeConnection : IDisposable
     
     private async Task ReadLoopAsync(CancellationToken ct)
     {
+        Log.Debug($"PipeConnection[{ClientId}]: ReadLoop started, IsConnected={_pipe.IsConnected}");
         try
         {
             while (!ct.IsCancellationRequested && _pipe.IsConnected)
             {
+                Log.Debug($"PipeConnection[{ClientId}]: Waiting for data... IsConnected={_pipe.IsConnected}");
                 var line = await _reader!.ReadLineAsync();
                 if (line == null)
                 {
                     // Client disconnected
+                    Log.Info($"PipeConnection[{ClientId}]: ReadLineAsync returned null (client disconnected)");
                     break;
                 }
                 
+                Log.Debug($"PipeConnection[{ClientId}]: Received: {(line.Length > 100 ? line.Substring(0, 100) + "..." : line)}");
                 var message = BridgeMessage.Deserialize(line);
                 if (message != null)
                 {
                     MessageReceived?.Invoke(this, message);
                 }
             }
+            Log.Info($"PipeConnection[{ClientId}]: ReadLoop exited normally. IsCancelled={ct.IsCancellationRequested}, IsConnected={_pipe.IsConnected}");
         }
-        catch (IOException)
+        catch (IOException ex)
         {
             // Pipe broken - client disconnected
+            Log.Info($"PipeConnection[{ClientId}]: IOException in ReadLoop: {ex.Message}");
         }
         catch (OperationCanceledException)
         {
             // Shutdown requested
+            Log.Info($"PipeConnection[{ClientId}]: ReadLoop cancelled");
         }
         catch (Exception ex)
         {
-            Log.Error($"PipeConnection: Read error: {ex.Message}");
+            Log.Error($"PipeConnection[{ClientId}]: Read error: {ex.Message}");
         }
         finally
         {
+            Log.Info($"PipeConnection[{ClientId}]: ReadLoop finally block, invoking Disconnected");
             Disconnected?.Invoke(this);
         }
     }

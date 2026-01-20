@@ -50,8 +50,9 @@ bool SharedMemoryClient::open(const std::string& clientId)
     
 #ifdef _WIN32
     // Windows: Open existing memory mapped file
+    // Need FILE_MAP_ALL_ACCESS because we update the read position
     m_hMapFile = OpenFileMappingA(
-        FILE_MAP_READ,
+        FILE_MAP_ALL_ACCESS,
         FALSE,
         m_name.c_str()
     );

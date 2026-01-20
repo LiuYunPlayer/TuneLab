@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 #include "UI/TrackListComponent.h"
 #include "UI/StatusBar.h"
+#include <memory>
 
 namespace TuneLabBridge
 {
@@ -34,6 +35,9 @@ private:
     void updateTrackList();
 
     TuneLabBridgeProcessor& processor;
+    
+    // Safety flag for async callbacks - shared_ptr so it survives after editor destruction
+    std::shared_ptr<bool> m_safetyFlag;
     
     // UI Components
     juce::Label titleLabel;

@@ -67,10 +67,47 @@ public partial class App : Application
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
                 // Initialize Bridge Service for DAW integration
-                // Note: The BridgeService will be connected to the audio engine
-                // when tracks are loaded in the editor. See BridgeService callbacks.
                 BridgeService.Instance.Start();
-                Log.Info("BridgeService started for DAW integration");
+                
+                // Connect Bridge Service to AudioEngine
+                BridgeService.Instance.SetTrackListCallback(() =>
+                {
+                    var tracks = new List<TrackInfo>();
+                    foreach (var track in AudioEngine.Tracks)
+                    {
+                        // Try to get track name if track is a Data.Track
+                        string trackName = "Track " + AudioEngine.GetTrackId(track);
+                        if (track is Data.Track dataTrack)
+                        {
+                            trackName = dataTrack.Name.Value;
+                        }
+                        
+                        tracks.Add(new TrackInfo
+                        {
+                            Id = AudioEngine.GetTrackId(track),
+                            Name = trackName,
+                            Type = "audio"  // All tracks in TuneLab are audio tracks
+                        });
+                    }
+                    return tracks;
+                });
+                
+                BridgeService.Instance.SetAudioDataCallback((trackId, position, sampleCount, isStereo) =>
+                {
+                    return AudioEngine.GetAudioDataForBridge(trackId, position, sampleCount, isStereo);
+                });
+                
+                BridgeService.Instance.SetTransportControlCallback((isPlaying, position) =>
+                {
+                    // Sync transport from DAW to TuneLab
+                    AudioEngine.Seek(position);
+                    if (isPlaying)
+                        AudioEngine.Play();
+                    else
+                        AudioEngine.Pause();
+                });
+                
+                Log.Info("BridgeService started and connected to AudioEngine");
 
                 ExtensionManager.LoadExtensions();
                 mMainWindow = new MainWindow();

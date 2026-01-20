@@ -6,6 +6,7 @@ namespace TuneLabBridge
 TuneLabBridgeEditor::TuneLabBridgeEditor(TuneLabBridgeProcessor& p)
     : AudioProcessorEditor(&p)
     , processor(p)
+    , m_safetyFlag(std::make_shared<bool>(true))
 {
     // Set up title
     titleLabel.setText("TuneLab Bridge", juce::dontSendNotification);
@@ -51,16 +52,29 @@ TuneLabBridgeEditor::TuneLabBridgeEditor(TuneLabBridgeProcessor& p)
     refreshButton.setColour(juce::TextButton::textColourOffId, textColour);
     addAndMakeVisible(refreshButton);
     
-    // Set up callbacks from processor
-    processor.onConnectionChanged = [this](bool) {
-        juce::MessageManager::callAsync([this]() {
-            updateConnectionStatus();
+    // Set up callbacks from processor with safety check
+    // Capture a weak copy of the safety flag to detect if editor was destroyed
+    auto safetyFlagWeak = std::weak_ptr<bool>(m_safetyFlag);
+    
+    processor.onConnectionChanged = [this, safetyFlagWeak](bool) {
+        juce::MessageManager::callAsync([this, safetyFlagWeak]() {
+            // Check if editor still exists
+            if (auto flag = safetyFlagWeak.lock())
+            {
+                if (*flag)
+                    updateConnectionStatus();
+            }
         });
     };
     
-    processor.onTrackListChanged = [this]() {
-        juce::MessageManager::callAsync([this]() {
-            updateTrackList();
+    processor.onTrackListChanged = [this, safetyFlagWeak]() {
+        juce::MessageManager::callAsync([this, safetyFlagWeak]() {
+            // Check if editor still exists
+            if (auto flag = safetyFlagWeak.lock())
+            {
+                if (*flag)
+                    updateTrackList();
+            }
         });
     };
     
@@ -74,6 +88,9 @@ TuneLabBridgeEditor::TuneLabBridgeEditor(TuneLabBridgeProcessor& p)
 
 TuneLabBridgeEditor::~TuneLabBridgeEditor()
 {
+    // Mark as destroyed so pending async callbacks don't access invalid memory
+    *m_safetyFlag = false;
+    
     processor.onConnectionChanged = nullptr;
     processor.onTrackListChanged = nullptr;
 }
