@@ -9,6 +9,7 @@ using TuneLab.Audio;
 using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
 using TuneLab.Base.Utils;
+using TuneLab.Bridge;
 using TuneLab.Extensions;
 using TuneLab.Extensions.Voices;
 using TuneLab.GUI;
@@ -21,6 +22,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using System.Threading;
 using System.IO.Pipes;
+using System.Collections.Generic;
 
 namespace TuneLab;
 
@@ -43,6 +45,7 @@ public partial class App : Application
                 };
                 desktop.Exit += (s, e) =>
                 {
+                    BridgeService.Instance.Stop();
                     ExtensionManager.Destroy();
                     AudioEngine.Destroy();
                 };
@@ -62,6 +65,12 @@ public partial class App : Application
                 Settings.SampleRate.Modified.Subscribe(() => { AudioEngine.SampleRate.Value = Settings.SampleRate; });
                 Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
+
+                // Initialize Bridge Service for DAW integration
+                // Note: The BridgeService will be connected to the audio engine
+                // when tracks are loaded in the editor. See BridgeService callbacks.
+                BridgeService.Instance.Start();
+                Log.Info("BridgeService started for DAW integration");
 
                 ExtensionManager.LoadExtensions();
                 mMainWindow = new MainWindow();
