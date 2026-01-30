@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>C# bindings for the PluginHost native library (VST/VST3/AU plugin hosting)</Description>
+    <Authors>TuneLab</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Native library should be copied to output directory -->
+    <None Include="..\..\build\bin\PluginHost.dll" Condition="Exists('..\..\build\bin\PluginHost.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>PluginHost.dll</Link>
+    </None>
+    <None Include="..\..\build\bin\libPluginHost.so" Condition="Exists('..\..\build\bin\libPluginHost.so')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>libPluginHost.so</Link>
+    </None>
+    <None Include="..\..\build\bin\libPluginHost.dylib" Condition="Exists('..\..\build\bin\libPluginHost.dylib')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>libPluginHost.dylib</Link>
+    </None>
+  </ItemGroup>
+
+</Project>
