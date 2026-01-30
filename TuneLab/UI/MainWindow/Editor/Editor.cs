@@ -369,11 +369,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         try
         {
-            var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_") + Path.GetFileNameWithoutExtension(mDocument.Name) + ".tlp");
+            var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_") + Path.GetFileNameWithoutExtension(mDocument.Name) + "." + ConstantDefine.DefaultProjectExtension);
 
             await Task.Run(() =>
             {
-                if (!FormatsManager.Serialize(projectInfo, "tlp", out var stream, out var error))
+                if (!FormatsManager.Serialize(projectInfo, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
                 {
                     Log.Error("Save file error: " + error);
                     return;
@@ -513,7 +513,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     public async Task SaveProject()
     {
-        if (!File.Exists(mDocument.Path) || Path.GetExtension(mDocument.Path) != ".tlp")
+        if (!File.Exists(mDocument.Path) || Path.GetExtension(mDocument.Path) != "." + ConstantDefine.DefaultProjectExtension)
         {
             await SaveProjectAs();
             return;
@@ -531,10 +531,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save File".Tr(TC.Dialog),
-            DefaultExtension = ".tlp",
+            DefaultExtension = "." + ConstantDefine.DefaultProjectExtension,
             SuggestedFileName = Path.GetFileNameWithoutExtension(mDocument.Name),
             ShowOverwritePrompt = true,
-            FileTypeChoices = [new("TuneLab Project".Tr(TC.Dialog)) { Patterns = ["*.tlp"] }]
+            FileTypeChoices = [new("TuneLab Project".Tr(TC.Dialog)) { Patterns = ["*." + ConstantDefine.DefaultProjectExtension] }]
         });
         var path = file?.TryGetLocalPath();
         if (path == null)
@@ -583,7 +583,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (mDocument.Project == null)
             return;
 
-        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), "tlp", out var stream, out var error))
+        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), ConstantDefine.DefaultProjectExtension, out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
             return;

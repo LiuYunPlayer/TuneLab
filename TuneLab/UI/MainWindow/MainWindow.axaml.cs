@@ -98,10 +98,10 @@ public partial class MainWindow : Window
     protected override async void OnOpened(EventArgs e)
     {
         // 崩溃检测
-        using var files = Directory.GetFiles(PathManager.AutoSaveFolder).Where(file => Path.GetExtension(file) == ".tlp").GetEnumerator();
-        if (files.MoveNext())
+        var path = Directory.GetFiles(PathManager.AutoSaveFolder)
+            .FirstOrDefault(file => Path.GetExtension(file) == ".tlp" || Path.GetExtension(file) == "." + ConstantDefine.DefaultProjectExtension);
+        if (path != null)
         {
-            var path = files.Current;
             var modal = new Dialog();
             modal.SetTitle("Tips".Tr(TC.Dialog));
             modal.SetMessage("Program crashed last time. Open auto-backup file?".Tr(TC.Dialog));

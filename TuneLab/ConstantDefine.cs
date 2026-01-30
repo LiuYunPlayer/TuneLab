@@ -10,6 +10,8 @@ namespace TuneLab;
 
 internal static class ConstantDefine
 {
+    public const string DefaultProjectExtension = "tlpx";
+
     public static readonly string PitchID = "Pitch";
     public static readonly string PitchName = "Pitch";
     public static readonly string PitchColor = "#FFCF40";
