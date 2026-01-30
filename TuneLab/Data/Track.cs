@@ -28,6 +28,7 @@ internal class Track : DataObject, ITrack
     public DataProperty<double> Pan { get; }
     public DataProperty<string> Color { get; }
     public IReadOnlyDataObjectLinkedList<IPart> Parts => mParts;
+    public IReadOnlyDataObjectList<ITrackPlugin> Plugins => mPlugins;
 
     IDataProperty<string> ITrack.Name => Name;
 
@@ -53,9 +54,15 @@ internal class Track : DataObject, ITrack
         Color = new DataString(this);
         mParts = new();
         mParts.Attach(this);
+        mPlugins = new();
+        mPlugins.Attach(this);
 
         mParts.ItemAdded.Subscribe(part => { part.Track = this; part.Activate(); });
         mParts.ItemRemoved.Subscribe(part => { part.Deactivate(); });
+        
+        // Subscribe to plugin list changes to handle plugin activation
+        mPlugins.ItemAdded.Subscribe(plugin => { OnPluginAdded(plugin); });
+        mPlugins.ItemRemoved.Subscribe(plugin => { OnPluginRemoved(plugin); });
 
         IDataObject<TrackInfo>.SetInfo(this, info);
     }
@@ -89,6 +96,39 @@ internal class Track : DataObject, ITrack
 
         throw new ArgumentException();
     }
+    
+    public ITrackPlugin AddPlugin(TrackPluginInfo info)
+    {
+        var plugin = new TrackPlugin(this, info);
+        mPlugins.Add(plugin);
+        return plugin;
+    }
+    
+    public bool RemovePlugin(ITrackPlugin plugin)
+    {
+        return mPlugins.Remove(plugin);
+    }
+    
+    private TrackPlugin CreatePlugin(TrackPluginInfo info)
+    {
+        return new TrackPlugin(this, info);
+    }
+    
+    private void OnPluginAdded(ITrackPlugin plugin)
+    {
+        // Try to load the plugin when added
+        if (!string.IsNullOrEmpty(plugin.PluginUid.Value) || !string.IsNullOrEmpty(plugin.PluginPath.Value))
+        {
+            plugin.LoadPlugin();
+        }
+    }
+    
+    private void OnPluginRemoved(ITrackPlugin plugin)
+    {
+        // Unload and dispose the plugin when removed
+        plugin.UnloadPlugin();
+        plugin.Dispose();
+    }
 
     public void Activate()
     {
@@ -96,6 +136,12 @@ internal class Track : DataObject, ITrack
         foreach (var part in mParts)
         {
             part.Activate();
+        }
+        
+        // Load plugins
+        foreach (var plugin in mPlugins)
+        {
+            plugin.LoadPlugin();
         }
     }
 
@@ -105,6 +151,12 @@ internal class Track : DataObject, ITrack
         foreach (var part in mParts)
         {
             part.Deactivate();
+        }
+        
+        // Unload plugins
+        foreach (var plugin in mPlugins)
+        {
+            plugin.UnloadPlugin();
         }
     }
 
@@ -119,7 +171,8 @@ internal class Track : DataObject, ITrack
             Pan = Pan,
             Color = Color,
             AsRefer = AsRefer,
-            Parts = mParts.GetInfo().ToInfo()
+            Parts = mParts.GetInfo().ToInfo(),
+            Plugins = mPlugins.Select(p => p.GetInfo()).ToList()
         };
     }
 
@@ -133,6 +186,7 @@ internal class Track : DataObject, ITrack
         IDataObject<TrackInfo>.SetInfo(Color, info.Color);
         IDataObject<TrackInfo>.SetInfo(AsRefer, info.AsRefer);
         IDataObject<TrackInfo>.SetInfo(mParts, info.Parts.Convert(CreatePart).ToArray());
+        IDataObject<TrackInfo>.SetInfo(mPlugins, info.Plugins.Select(CreatePlugin).ToArray());
     }
 
     class PartList : DataObjectLinkedList<IPart>
@@ -154,7 +208,12 @@ internal class Track : DataObject, ITrack
             return true;
         }
     }
+    
+    class PluginList : DataObjectList<ITrackPlugin>
+    {
+    }
 
     readonly IProject mProject;
     readonly PartList mParts;
+    readonly PluginList mPlugins;
 }

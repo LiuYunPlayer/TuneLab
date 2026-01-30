@@ -204,9 +204,6 @@ private:
     ScanProgressCallback scanProgressCallback;
     ScanCompleteCallback scanCompleteCallback;
     
-    // Scan thread
-    std::unique_ptr<std::thread> scanThread;
-    
     // Loaded instances
     mutable std::mutex instancesMutex;
     std::vector<std::shared_ptr<PluginInstance>> loadedInstances;

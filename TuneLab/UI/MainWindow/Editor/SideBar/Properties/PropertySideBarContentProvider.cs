@@ -23,10 +23,16 @@ namespace TuneLab.UI;
 
 internal class PropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPartPanel, mAutomationPanel, mNotePanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mTrackPanel, mPartPanel, mAutomationPanel, mNotePanel] };
 
     public PropertySideBarContentProvider()
     {
+        var trackName = new Label() { Content = "Track".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        mTrackPanel.Title = trackName;
+        mTrackContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mTrackContent.Children.Add(mTrackPluginController);
+        mTrackPanel.Content = mTrackContent;
+
         var partName = new Label() { Content = "Part".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mPartPanel.Title = partName;
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
@@ -59,6 +65,9 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         }
 
         mPart = part;
+        
+        // Update track plugin controller with the current track
+        mTrackPluginController.Track = part?.Track;
 
         if (mPart != null)
         {
@@ -282,14 +291,17 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPart.Commit();
     }
 
+    readonly StackPanel mTrackContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mTrackPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
     readonly LayerPanel mNoteContentPanel = new();
 
+    readonly TrackPluginController mTrackPluginController = new();
     readonly ObjectController mAutomationController = new();
     readonly MidiPartFixedController mPartFixedController = new();
     readonly ObjectController mPartPropertiesController = new();

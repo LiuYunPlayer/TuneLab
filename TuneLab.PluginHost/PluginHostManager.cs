@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -46,7 +47,7 @@ public sealed class PluginHostManager : IDisposable
     private bool _disposed;
     private readonly List<PluginInstance> _loadedInstances = new();
 
-    // Keep delegates alive to prevent GC
+    // Keep delegates alive to prevent GC during native call
     private PluginScanProgressCallback? _progressCallback;
     private PluginScanCompleteCallback? _completeCallback;
 
@@ -181,15 +182,34 @@ public sealed class PluginHostManager : IDisposable
 
         var tcs = new TaskCompletionSource<bool>();
 
+        // Create callbacks with try-catch to prevent crashes from propagating
         _progressCallback = (path, found, total, userData) =>
         {
-            ScanProgress?.Invoke(this, new ScanProgressEventArgs(path, found, total));
+            try
+            {
+                ScanProgress?.Invoke(this, new ScanProgressEventArgs(path ?? "", found, total));
+            }
+            catch
+            {
+                // Ignore exceptions in progress callback
+            }
         };
 
         _completeCallback = (totalFound, userData) =>
         {
-            ScanComplete?.Invoke(this, new ScanCompleteEventArgs(totalFound));
-            tcs.TrySetResult(true);
+            try
+            {
+                ScanComplete?.Invoke(this, new ScanCompleteEventArgs(totalFound));
+            }
+            catch
+            {
+                // Ignore exceptions in complete callback
+            }
+            finally
+            {
+                tcs.TrySetResult(true);
+                // Note: Don't free handles here as native code might still reference them
+            }
         };
 
         var result = NativeMethods.PluginHost_StartScan(_progressCallback, _completeCallback, IntPtr.Zero);

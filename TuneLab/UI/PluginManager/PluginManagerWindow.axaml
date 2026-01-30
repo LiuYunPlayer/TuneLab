@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TuneLab.UI.PluginManagerWindow"
+        Title="Plugin Manager - TuneLab"
+        Width="700" Height="500"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="500" MinHeight="350">
+    
+    <DockPanel>
+        <!-- Title Bar -->
+        <Grid DockPanel.Dock="Top" Name="TitleBar" Height="40">
+            <TextBlock Text="Plugin Manager" 
+                       FontSize="14" 
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" 
+                       HorizontalAlignment="Center"/>
+        </Grid>
+        
+        <!-- Bottom Button Bar -->
+        <StackPanel DockPanel.Dock="Bottom" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right" 
+                    Margin="12">
+            <Button Name="CloseButton" Content="Close" Width="80" Height="32" Margin="8,0"/>
+        </StackPanel>
+        
+        <!-- Main Content -->
+        <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="200"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- Plugin List -->
+            <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                <TextBlock DockPanel.Dock="Top" Text="Discovered Plugins" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <Border BorderThickness="1" CornerRadius="4">
+                    <ScrollViewer>
+                        <StackPanel Name="PluginListPanel" Margin="4"/>
+                    </ScrollViewer>
+                </Border>
+            </DockPanel>
+            
+            <!-- Right Panel - Scan Paths & Actions -->
+            <DockPanel Grid.Column="1">
+                <!-- Actions -->
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                    <TextBlock Text="Actions" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Button Name="RescanButton" Content="Rescan Plugins" Height="32" Margin="0,0,0,4"/>
+                    <Button Name="AddPathButton" Content="Add Scan Path..." Height="32" Margin="0,0,0,4"/>
+                </StackPanel>
+                
+                <!-- Scan Paths -->
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Scan Paths" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <Border BorderThickness="1" CornerRadius="4">
+                        <ScrollViewer>
+                            <StackPanel Name="ScanPathsPanel" Margin="4"/>
+                        </ScrollViewer>
+                    </Border>
+                </DockPanel>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

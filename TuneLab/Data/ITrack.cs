@@ -23,12 +23,27 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     new IDataProperty<double> Pan { get; }
     IDataProperty<string> Color { get; }
     IReadOnlyDataObjectLinkedList<IPart> Parts { get; }
+    
+    /// <summary>
+    /// Plugin effect chain for this track
+    /// </summary>
+    IReadOnlyDataObjectList<ITrackPlugin> Plugins { get; }
 
     void InsertPart(IPart part);
     bool RemovePart(IPart part);
     MidiPart CreatePart(MidiPartInfo info);
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);
+    
+    /// <summary>
+    /// Add a plugin to this track
+    /// </summary>
+    ITrackPlugin AddPlugin(TrackPluginInfo info);
+    
+    /// <summary>
+    /// Remove a plugin from this track
+    /// </summary>
+    bool RemovePlugin(ITrackPlugin plugin);
 
     void Activate();
     void Deactivate();

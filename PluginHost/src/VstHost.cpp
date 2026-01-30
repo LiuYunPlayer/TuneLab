@@ -33,8 +33,13 @@ bool VstHost::initialize()
         return false;
     }
     
-    // Initialize JUCE message manager if needed
-    juce::MessageManager::getInstance();
+    // Initialize JUCE message manager with setCurrentThreadAsMessageThread
+    // This is required for plugin scanning and loading
+    auto* mm = juce::MessageManager::getInstance();
+    if (mm != nullptr && !mm->isThisTheMessageThread())
+    {
+        mm->setCurrentThreadAsMessageThread();
+    }
     
     // Add default plugin formats
     formatManager.addDefaultFormats();
@@ -157,8 +162,19 @@ bool VstHost::startScan(ScanProgressCallback progressCallback,
     shouldStopScan = false;
     scanning = true;
     
-    // Start scan in a separate thread
-    scanThread = std::make_unique<std::thread>(&VstHost::performScan, this);
+    // IMPORTANT: VST3 scanning requires the message thread
+    // Ensure we're on the message thread, or set it if not
+    auto* mm = juce::MessageManager::getInstance();
+    if (mm != nullptr && !mm->isThisTheMessageThread())
+    {
+        // Set the current thread as the message thread for scanning
+        // This is necessary because VST3 format requires message thread access
+        mm->setCurrentThreadAsMessageThread();
+    }
+    
+    // Perform scan synchronously on the current (message) thread
+    // The C# wrapper handles async progress updates via callbacks
+    performScan();
     
     return true;
 }
@@ -168,13 +184,7 @@ void VstHost::stopScan()
     if (scanning.load())
     {
         shouldStopScan = true;
-        
-        if (scanThread && scanThread->joinable())
-        {
-            scanThread->join();
-        }
-        
-        scanThread.reset();
+        // Scan is now synchronous, no thread to join
         scanning = false;
     }
 }
@@ -246,40 +256,71 @@ void VstHost::performScan()
                 if (!isPlugin)
                     continue;
                 
-                // Try to scan this file
-                juce::OwnedArray<juce::PluginDescription> descriptions;
-                format->findAllTypesForFile(descriptions, file.getFullPathName());
-                
-                if (scanProgressCallback)
+                // Try to scan this file with exception handling
+                try
                 {
-                    scanProgressCallback(file.getFullPathName().toStdString(), 
-                                        totalFound, 
-                                        ++totalScanned);
-                }
-                
-                for (auto* desc : descriptions)
-                {
-                    if (shouldStopScan.load())
-                        break;
+                    juce::OwnedArray<juce::PluginDescription> descriptions;
+                    format->findAllTypesForFile(descriptions, file.getFullPathName());
                     
-                    // Convert and store the plugin description
-                    PluginDescription pluginDesc = convertDescription(*desc);
+                    ++totalScanned;
                     
+                    if (scanProgressCallback)
                     {
-                        std::lock_guard<std::mutex> lock(pluginsMutex);
-                        
-                        // Check for duplicates
-                        if (uidToIndex.find(pluginDesc.uid) != uidToIndex.end())
-                            continue;
-                        
-                        int index = static_cast<int>(discoveredPlugins.size());
-                        uidToIndex[pluginDesc.uid] = index;
-                        discoveredPlugins.push_back(pluginDesc);
-                        totalFound++;
+                        try
+                        {
+                            scanProgressCallback(file.getFullPathName().toStdString(),
+                                                totalFound,
+                                                totalScanned);
+                        }
+                        catch (...) { /* Ignore callback errors */ }
                     }
                     
-                    // Also add to JUCE known plugin list
-                    knownPluginList.addType(*desc);
+                    for (auto* desc : descriptions)
+                    {
+                        if (shouldStopScan.load())
+                            break;
+                        
+                        try
+                        {
+                            // Convert and store the plugin description
+                            PluginDescription pluginDesc = convertDescription(*desc);
+                            
+                            {
+                                std::lock_guard<std::mutex> lock(pluginsMutex);
+                                
+                                // Check for duplicates
+                                if (uidToIndex.find(pluginDesc.uid) != uidToIndex.end())
+                                    continue;
+                                
+                                int index = static_cast<int>(discoveredPlugins.size());
+                                uidToIndex[pluginDesc.uid] = index;
+                                discoveredPlugins.push_back(pluginDesc);
+                                totalFound++;
+                            }
+                            
+                            // Also add to JUCE known plugin list
+                            knownPluginList.addType(*desc);
+                        }
+                        catch (const std::exception& e)
+                        {
+                            // Log and continue with next plugin
+                            juce::Logger::writeToLog("Error processing plugin: " + juce::String(e.what()));
+                        }
+                        catch (...)
+                        {
+                            // Unknown exception, continue
+                        }
+                    }
+                }
+                catch (const std::exception& e)
+                {
+                    // Log and continue with next file
+                    juce::Logger::writeToLog("Error scanning file " + file.getFullPathName() + ": " + juce::String(e.what()));
+                }
+                catch (...)
+                {
+                    // Unknown exception during scan, continue with next file
+                    juce::Logger::writeToLog("Unknown error scanning file: " + file.getFullPathName());
                 }
             }
         }

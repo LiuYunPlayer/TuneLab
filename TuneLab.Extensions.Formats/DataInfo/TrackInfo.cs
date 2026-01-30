@@ -17,4 +17,9 @@ public class TrackInfo
     public bool AsRefer { get; set; } = true;
     public string Color { get; set; } = string.Empty;
     public List<PartInfo> Parts { get; set; } = new();
+    
+    /// <summary>
+    /// List of plugins for this track (effects chain)
+    /// </summary>
+    public List<TrackPluginInfo> Plugins { get; set; } = new();
 }

@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using TuneLab.Animation;
 using TuneLab.Audio;
 using TuneLab.Audio.NAudio;
@@ -16,6 +17,7 @@ using TuneLab.Configs;
 using TuneLab.UI;
 using TuneLab.Utils;
 using TuneLab.I18N;
+using TuneLab.PluginHost;
 using System.Linq;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
@@ -43,6 +45,16 @@ public partial class App : Application
                 };
                 desktop.Exit += (s, e) =>
                 {
+                    // Shutdown plugin host first (before audio engine)
+                    try
+                    {
+                        PluginHostManager.Instance.Shutdown();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Failed to shutdown PluginHost: {ex}");
+                    }
+                    
                     ExtensionManager.Destroy();
                     AudioEngine.Destroy();
                 };
@@ -62,6 +74,25 @@ public partial class App : Application
                 Settings.SampleRate.Modified.Subscribe(() => { AudioEngine.SampleRate.Value = Settings.SampleRate; });
                 Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
+
+                // Init plugin host
+                try
+                {
+                    PluginHostManager.Instance.Initialize();
+                    Log.Info("PluginHost initialized successfully");
+                    
+                    // Add default VST scan paths
+                    AddDefaultPluginScanPaths();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Failed to initialize PluginHost: {ex}");
+                    var dialog = new Dialog();
+                    dialog.SetTitle("Warning");
+                    dialog.SetMessage($"Plugin host failed to initialize:\n{ex.Message}\nVST plugins will not be available.");
+                    dialog.AddButton("OK", Dialog.ButtonType.Primary);
+                    dialog.Show();
+                }
 
                 ExtensionManager.LoadExtensions();
                 mMainWindow = new MainWindow();
@@ -133,6 +164,100 @@ public partial class App : Application
     public void HandleArg(string arg)
     {
         mMainWindow?.Editor.OpenProjectByPath(arg);
+    }
+
+    private static void AddDefaultPluginScanPaths()
+    {
+        var manager = PluginHostManager.Instance;
+        
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // Common VST3 paths on Windows
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var commonProgramFiles = Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles);
+            var commonProgramFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFilesX86);
+            
+            // VST3 standard paths
+            var vst3Paths = new[]
+            {
+                Path.Combine(commonProgramFiles, "VST3"),
+                Path.Combine(commonProgramFilesX86, "VST3"),
+                Path.Combine(programFiles, "Common Files", "VST3"),
+                Path.Combine(programFilesX86, "Common Files", "VST3"),
+            };
+            
+            foreach (var path in vst3Paths)
+            {
+                if (Directory.Exists(path))
+                {
+                    try
+                    {
+                        manager.AddScanPath(path);
+                        Log.Info($"Added plugin scan path: {path}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to add scan path {path}: {ex.Message}");
+                    }
+                }
+            }
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            // Common VST3/AU paths on macOS
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var macPaths = new[]
+            {
+                "/Library/Audio/Plug-Ins/VST3",
+                "/Library/Audio/Plug-Ins/Components",
+                Path.Combine(home, "Library/Audio/Plug-Ins/VST3"),
+                Path.Combine(home, "Library/Audio/Plug-Ins/Components"),
+            };
+            
+            foreach (var path in macPaths)
+            {
+                if (Directory.Exists(path))
+                {
+                    try
+                    {
+                        manager.AddScanPath(path);
+                        Log.Info($"Added plugin scan path: {path}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to add scan path {path}: {ex.Message}");
+                    }
+                }
+            }
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            // Common VST3 paths on Linux
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var linuxPaths = new[]
+            {
+                "/usr/lib/vst3",
+                "/usr/local/lib/vst3",
+                Path.Combine(home, ".vst3"),
+            };
+            
+            foreach (var path in linuxPaths)
+            {
+                if (Directory.Exists(path))
+                {
+                    try
+                    {
+                        manager.AddScanPath(path);
+                        Log.Info($"Added plugin scan path: {path}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning($"Failed to add scan path {path}: {ex.Message}");
+                    }
+                }
+            }
+        }
     }
 
     MainWindow? mMainWindow = null;
