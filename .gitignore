@@ -455,3 +455,6 @@ $RECYCLE.BIN/
 
 # Extensions Projects
 /[Ee]xtensions/
+
+# PluginHost CMake build directory
+PluginHost/build/

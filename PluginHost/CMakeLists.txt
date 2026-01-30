@@ -50,7 +50,7 @@ target_link_libraries(PluginHost
 target_compile_definitions(PluginHost
     PUBLIC
         JUCE_PLUGINHOST_VST3=1
-        JUCE_PLUGINHOST_VST=1
+        JUCE_PLUGINHOST_VST=0
         JUCE_PLUGINHOST_AU=1
         JUCE_PLUGINHOST_LADSPA=1
         JUCE_WEB_BROWSER=0

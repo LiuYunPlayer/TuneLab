@@ -1015,7 +1015,7 @@ PLUGIN_HOST_API PluginHostError PluginHost_GetEditorSize(
 
 PLUGIN_HOST_API PluginHostError PluginHost_SetEditorResizeCallback(
     PluginInstanceHandle handle,
-    EditorResizeCallback callback,
+    ::EditorResizeCallback callback,
     void* userData)
 {
     auto instance = getInstance(handle);

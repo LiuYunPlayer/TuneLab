@@ -1,0 +1,101 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>VST/VST3/AU plugin hosting for TuneLab</Description>
+    <Authors>TuneLab</Authors>
+    <RootNamespace>TuneLab.PluginHost</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Native project paths -->
+  <PropertyGroup>
+    <PluginHostRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\PluginHost'))</PluginHostRoot>
+    <PluginHostBuildDir>$(PluginHostRoot)\build</PluginHostBuildDir>
+    <NativeOutputDir Condition="'$(OS)' == 'Windows_NT'">$(PluginHostBuildDir)\bin\$(Configuration)</NativeOutputDir>
+    <NativeOutputDir Condition="'$(OS)' != 'Windows_NT'">$(PluginHostBuildDir)/bin</NativeOutputDir>
+    <NativeLibName Condition="'$(OS)' == 'Windows_NT'">PluginHost.dll</NativeLibName>
+    <NativeLibName Condition="$([MSBuild]::IsOSPlatform('Linux'))">libPluginHost.so</NativeLibName>
+    <NativeLibName Condition="$([MSBuild]::IsOSPlatform('OSX'))">libPluginHost.dylib</NativeLibName>
+  </PropertyGroup>
+
+  <!-- Build native library before managed build -->
+  <Target Name="BuildNativeLibrary" BeforeTargets="BeforeBuild" Condition="!Exists('$(NativeOutputDir)\$(NativeLibName)')">
+    <Message Importance="high" Text="Building PluginHost native library..." />
+
+    <!-- Create build directory -->
+    <MakeDir Directories="$(PluginHostBuildDir)" />
+
+    <!-- Configure with CMake (Windows) -->
+    <Exec Condition="'$(OS)' == 'Windows_NT'"
+          Command="cmake -G &quot;Visual Studio 18 2026&quot; -A x64 $(PluginHostRoot)"
+          WorkingDirectory="$(PluginHostBuildDir)"
+          ConsoleToMSBuild="true" />
+
+    <!-- Configure with CMake (Linux/macOS) -->
+    <Exec Condition="'$(OS)' != 'Windows_NT'"
+          Command="cmake -DCMAKE_BUILD_TYPE=$(Configuration) $(PluginHostRoot)"
+          WorkingDirectory="$(PluginHostBuildDir)"
+          ConsoleToMSBuild="true" />
+
+    <!-- Build -->
+    <Exec Command="cmake --build . --config $(Configuration)"
+          WorkingDirectory="$(PluginHostBuildDir)"
+          ConsoleToMSBuild="true" />
+
+    <Message Importance="high" Text="PluginHost native library built successfully." />
+  </Target>
+
+  <!-- Rebuild native library when clean -->
+  <Target Name="CleanNativeLibrary" AfterTargets="Clean">
+    <RemoveDir Directories="$(PluginHostBuildDir)" />
+  </Target>
+
+  <ItemGroup>
+    <!-- Native library - Windows -->
+    <None Include="$(PluginHostBuildDir)\bin\Release\PluginHost.dll" 
+          Condition="'$(OS)' == 'Windows_NT' And Exists('$(PluginHostBuildDir)\bin\Release\PluginHost.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>PluginHost.dll</Link>
+    </None>
+    <None Include="$(PluginHostBuildDir)\bin\Debug\PluginHost.dll" 
+          Condition="'$(OS)' == 'Windows_NT' And Exists('$(PluginHostBuildDir)\bin\Debug\PluginHost.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>PluginHost.dll</Link>
+    </None>
+    
+    <!-- Native library - Linux -->
+    <None Include="$(PluginHostBuildDir)/bin/libPluginHost.so" 
+          Condition="$([MSBuild]::IsOSPlatform('Linux')) And Exists('$(PluginHostBuildDir)/bin/libPluginHost.so')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>libPluginHost.so</Link>
+    </None>
+    
+    <!-- Native library - macOS -->
+    <None Include="$(PluginHostBuildDir)/bin/libPluginHost.dylib" 
+          Condition="$([MSBuild]::IsOSPlatform('OSX')) And Exists('$(PluginHostBuildDir)/bin/libPluginHost.dylib')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>libPluginHost.dylib</Link>
+    </None>
+  </ItemGroup>
+
+  <!-- Copy native library after build (in case it was just built) -->
+  <Target Name="CopyNativeLibrary" AfterTargets="Build">
+    <Copy Condition="'$(OS)' == 'Windows_NT' And Exists('$(PluginHostBuildDir)\bin\$(Configuration)\PluginHost.dll')"
+          SourceFiles="$(PluginHostBuildDir)\bin\$(Configuration)\PluginHost.dll"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+    <Copy Condition="$([MSBuild]::IsOSPlatform('Linux')) And Exists('$(PluginHostBuildDir)/bin/libPluginHost.so')"
+          SourceFiles="$(PluginHostBuildDir)/bin/libPluginHost.so"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+    <Copy Condition="$([MSBuild]::IsOSPlatform('OSX')) And Exists('$(PluginHostBuildDir)/bin/libPluginHost.dylib')"
+          SourceFiles="$(PluginHostBuildDir)/bin/libPluginHost.dylib"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

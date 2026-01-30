@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace PluginHost.Interop;
+namespace TuneLab.PluginHost;
 
 /// <summary>
 /// Error codes returned by native functions
@@ -168,7 +168,7 @@ public delegate void EditorResizeCallback(
 /// <summary>
 /// Native P/Invoke methods for the PluginHost library
 /// </summary>
-public static class NativeMethods
+internal static class NativeMethods
 {
     private const string LibraryName = "PluginHost";
 

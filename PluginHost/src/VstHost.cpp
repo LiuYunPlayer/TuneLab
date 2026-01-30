@@ -221,10 +221,7 @@ void VstHost::performScan()
             if (format == nullptr)
                 continue;
             
-            juce::StringArray foundPlugins;
-            format->findAllTypesForFile(foundPlugins, path);
-            
-            // Also search subdirectories recursively
+            // Search subdirectories recursively
             juce::Array<juce::File> files;
             directory.findChildFiles(files, juce::File::findFilesAndDirectories, true);
             

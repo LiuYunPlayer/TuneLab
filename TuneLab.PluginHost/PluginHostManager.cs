@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PluginHost.Interop;
+namespace TuneLab.PluginHost;
 
 /// <summary>
 /// Event arguments for plugin scan progress

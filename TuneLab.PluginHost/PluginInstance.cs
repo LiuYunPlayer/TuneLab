@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace PluginHost.Interop;
+namespace TuneLab.PluginHost;
 
 /// <summary>
 /// Event arguments for parameter changes
@@ -234,7 +234,7 @@ public sealed class PluginInstance : IDisposable
     /// <summary>
     /// Process audio with interleaved buffers
     /// </summary>
-    public unsafe void ProcessAudioInterleaved(float[] inputBuffer, float[] outputBuffer,
+    public unsafe void ProcessAudioInterleaved(float[]? inputBuffer, float[] outputBuffer,
         int numInputChannels, int numOutputChannels, int numSamples)
     {
         ThrowIfDisposed();
