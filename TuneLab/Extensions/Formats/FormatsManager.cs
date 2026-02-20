@@ -127,13 +127,13 @@ internal static class FormatsManager
         
         try
         {
-            if (!mImportFormats.ContainsKey(format))
+            if (!mExportFormats.ContainsKey(format))
             {
                 throw new Exception(string.Format("Format {0} is not support!", format));
             }
 
-            IExportFormat importFormat = (IExportFormat)mExportFormats[format].Invoke(null);
-            stream = importFormat.Serialize(info);
+            IExportFormat exportFormat = (IExportFormat)mExportFormats[format].Invoke(null);
+            stream = exportFormat.Serialize(info);
             return true;
         }
         catch (Exception e)
