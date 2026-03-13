@@ -566,9 +566,21 @@ void* PluginInstance::openEditor(void* parentWindow)
     // Attach to parent window
     if (parentWindow)
     {
-        // Use juce::ComponentPeer::StyleFlags::windowIgnoresMouseClicks to 0
-        // to create a regular child window
+        // Create a regular child window within the parent
         editor->addToDesktop(0, parentWindow);
+        
+        // Apply DPI scaling using JUCE's cross-platform API.
+        // After addToDesktop(), the editor has a ComponentPeer that knows
+        // the native display's scale factor. We use setScaleFactor() to tell
+        // the plugin to render at the correct DPI-scaled resolution.
+        if (auto* peer = editor->getPeer())
+        {
+            double platformScale = peer->getPlatformScaleFactor();
+            if (platformScale > 0.0 && platformScale != 1.0)
+            {
+                editor->setScaleFactor(static_cast<float>(platformScale));
+            }
+        }
         
         // Position the editor at the top-left corner of the parent
         editor->setTopLeftPosition(0, 0);
