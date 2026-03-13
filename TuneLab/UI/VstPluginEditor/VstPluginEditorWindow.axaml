@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TuneLab.UI.VstPluginEditorWindow"
+        Title="VST Plugin Editor"
+        Width="800" Height="600"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="200" MinHeight="150">
+    
+    <DockPanel>
+        <!-- Title Bar -->
+        <Grid DockPanel.Dock="Top" Name="TitleBar" Height="32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Name="TitleText" 
+                       Text="VST Plugin Editor" 
+                       FontSize="12" 
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" 
+                       HorizontalAlignment="Left"
+                       Margin="12,0,0,0"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Name="BypassButton" Content="Bypass" Width="60" Height="24" Margin="4,0"/>
+            </StackPanel>
+        </Grid>
+        
+        <!-- Plugin Editor Host Area - NativeControlHost will be added programmatically -->
+        <Border Name="PluginEditorHost" Background="#FF1E1E1E"/>
+    </DockPanel>
+</Window>

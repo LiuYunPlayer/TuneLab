@@ -2,6 +2,7 @@ using System;
 using TuneLab.Base.Data;
 using TuneLab.Base.Event;
 using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.PluginHost;
 
 namespace TuneLab.Data;
 
@@ -49,6 +50,11 @@ internal interface ITrackPlugin : IDataObject<TrackPluginInfo>, IDisposable
     /// Whether the plugin editor is currently open
     /// </summary>
     bool IsEditorOpen { get; }
+    
+    /// <summary>
+    /// The loaded plugin instance (may be null if not loaded)
+    /// </summary>
+    PluginInstance? Plugin { get; }
     
     /// <summary>
     /// Load the plugin based on stored UID/Path

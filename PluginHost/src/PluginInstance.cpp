@@ -566,7 +566,12 @@ void* PluginInstance::openEditor(void* parentWindow)
     // Attach to parent window
     if (parentWindow)
     {
+        // Use juce::ComponentPeer::StyleFlags::windowIgnoresMouseClicks to 0
+        // to create a regular child window
         editor->addToDesktop(0, parentWindow);
+        
+        // Position the editor at the top-left corner of the parent
+        editor->setTopLeftPosition(0, 0);
     }
     
     editor->setVisible(true);

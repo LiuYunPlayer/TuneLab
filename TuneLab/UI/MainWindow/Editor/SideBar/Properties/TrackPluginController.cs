@@ -434,13 +434,10 @@ internal class TrackPluginItem : DockPanel
             {
                 plugin.LoadPlugin();
             }
-            if (plugin.IsLoaded)
+            if (plugin.IsLoaded && plugin.Plugin != null)
             {
                 var window = this.Window();
-                if (window != null)
-                {
-                    plugin.OpenEditor(window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
-                }
+                plugin.Plugin.ShowEditorWindow(window);
             }
         };
         this.AddDock(editorBtn, Dock.Right);
@@ -453,13 +450,10 @@ internal class TrackPluginItem : DockPanel
                 new MenuItem { Header = "Open Editor".Tr(TC.Property) }.SetAction(() =>
                 {
                     if (!plugin.IsLoaded) plugin.LoadPlugin();
-                    if (plugin.IsLoaded)
+                    if (plugin.IsLoaded && plugin.Plugin != null)
                     {
                         var window = this.Window();
-                        if (window != null)
-                        {
-                            plugin.OpenEditor(window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
-                        }
+                        plugin.Plugin.ShowEditorWindow(window);
                     }
                 }),
                 new MenuItem { Header = "Bypass".Tr(TC.Property) }.SetAction(() =>
