@@ -12,10 +12,15 @@ namespace TuneLab.UI;
 /// A NativeControlHost-based control that properly embeds a VST plugin editor
 /// into an Avalonia window. This avoids the "airspace" problem where Avalonia's
 /// composited rendering surface would otherwise cover the native plugin window.
+/// 
+/// The NativeControlHost manages the airspace by creating a hole in the composited
+/// surface. The child window fills the entire parent area provided by NativeControlHost,
+/// and the plugin editor renders into that child window at the correct physical pixel size.
 /// </summary>
 public class VstPluginNativeHost : NativeControlHost
 {
     private readonly PluginInstance _pluginInstance;
+    private IntPtr _hostWindowHandle = IntPtr.Zero;
     private IntPtr _pluginEditorHandle = IntPtr.Zero;
     private bool _isDestroyed;
 
@@ -30,8 +35,14 @@ public class VstPluginNativeHost : NativeControlHost
     public IntPtr PluginEditorHandle => _pluginEditorHandle;
 
     /// <summary>
+    /// The native host window handle
+    /// </summary>
+    public IntPtr HostWindowHandle => _hostWindowHandle;
+
+    /// <summary>
     /// Creates the native control that will host the VST plugin editor.
     /// Called by Avalonia when the NativeControlHost is attached to the visual tree.
+    /// The parent HWND is sized by Avalonia's layout system (already DPI-scaled to physical pixels).
     /// </summary>
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {
@@ -49,50 +60,58 @@ public class VstPluginNativeHost : NativeControlHost
 
         try
         {
-            // Get editor size
-            int editorWidth = 800;
-            int editorHeight = 600;
-            try
-            {
-                var (w, h) = _pluginInstance.GetEditorSize();
-                if (w > 0 && h > 0)
-                {
-                    editorWidth = w;
-                    editorHeight = h;
-                }
-            }
-            catch
-            {
-                // Use default size
-            }
-
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                // Create our host child window within the NativeControlHost-provided parent
-                var hostHandle = CreateWindowsHostWindow(parentHandle, editorWidth, editorHeight);
-                if (hostHandle == IntPtr.Zero)
+                // Get the actual physical pixel size of the parent window provided by NativeControlHost.
+                // This is already correctly DPI-scaled by Avalonia's layout engine.
+                int hostWidth, hostHeight;
+                if (Win32Native.GetClientRect(parentHandle, out var parentRect))
+                {
+                    hostWidth = Math.Max(parentRect.Width, 1);
+                    hostHeight = Math.Max(parentRect.Height, 1);
+                }
+                else
+                {
+                    // Fallback: use plugin's reported size as physical pixels
+                    try
+                    {
+                        var (w, h) = _pluginInstance.GetEditorSize();
+                        hostWidth = Math.Max(w, 1);
+                        hostHeight = Math.Max(h, 1);
+                    }
+                    catch
+                    {
+                        hostWidth = 800;
+                        hostHeight = 600;
+                    }
+                }
+
+                // Create a child window that fills the entire parent area.
+                // This child window serves as the direct parent for the VST plugin editor.
+                _hostWindowHandle = CreateWindowsHostWindow(parentHandle, hostWidth, hostHeight);
+                if (_hostWindowHandle == IntPtr.Zero)
                 {
                     System.Diagnostics.Debug.WriteLine("VstPluginNativeHost: Failed to create host window");
                     return base.CreateNativeControlCore(parent);
                 }
 
                 // Open the plugin editor with our host window as parent
-                _pluginEditorHandle = _pluginInstance.OpenEditor(hostHandle);
+                _pluginEditorHandle = _pluginInstance.OpenEditor(_hostWindowHandle);
 
                 if (_pluginEditorHandle != IntPtr.Zero)
                 {
-                    System.Diagnostics.Debug.WriteLine($"VstPluginNativeHost: Plugin editor opened successfully: {_pluginEditorHandle}");
+                    System.Diagnostics.Debug.WriteLine($"VstPluginNativeHost: Plugin editor opened: {_pluginEditorHandle}");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("VstPluginNativeHost: OpenEditor returned zero, plugin may render into host directly");
+                    // Some plugins render directly into the parent - this is OK
+                    System.Diagnostics.Debug.WriteLine("VstPluginNativeHost: OpenEditor returned zero (plugin may render into host directly)");
                 }
 
-                return new PlatformHandle(hostHandle, "HWND");
+                return new PlatformHandle(_hostWindowHandle, "HWND");
             }
             else
             {
-                // For macOS/Linux, fall back to base implementation for now
                 return base.CreateNativeControlCore(parent);
             }
         }
@@ -123,12 +142,30 @@ public class VstPluginNativeHost : NativeControlHost
         _pluginEditorHandle = IntPtr.Zero;
 
         // Destroy the host window
-        if (control.Handle != IntPtr.Zero && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        if (_hostWindowHandle != IntPtr.Zero && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            Win32Native.DestroyWindow(control.Handle);
+            Win32Native.DestroyWindow(_hostWindowHandle);
+            _hostWindowHandle = IntPtr.Zero;
         }
 
         base.DestroyNativeControlCore(control);
+    }
+
+    /// <summary>
+    /// Resizes the host window to match the NativeControlHost's current physical pixel size.
+    /// Called when the plugin reports a size change.
+    /// </summary>
+    public void ResizeHostWindow(int physicalWidth, int physicalHeight)
+    {
+        if (_hostWindowHandle == IntPtr.Zero)
+            return;
+
+        Win32Native.SetWindowPos(
+            _hostWindowHandle,
+            IntPtr.Zero,
+            0, 0, physicalWidth, physicalHeight,
+            Win32Native.SWP_NOMOVE | Win32Native.SWP_NOZORDER | Win32Native.SWP_NOACTIVATE
+        );
     }
 
     #region Windows Host Window Creation

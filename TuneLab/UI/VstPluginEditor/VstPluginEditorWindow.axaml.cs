@@ -15,9 +15,16 @@ namespace TuneLab.UI;
 /// Window for hosting VST plugin editors.
 /// Uses NativeControlHost (via VstPluginNativeHost) to properly embed the VST plugin's
 /// native editor into the Avalonia window, avoiding the airspace rendering problem.
+/// 
+/// DPI Handling:
+/// VST plugins report their editor size in physical pixels.
+/// Avalonia layout uses logical (DPI-independent) pixels.
+/// This class converts between the two coordinate systems using the window's DPI scaling factor.
 /// </summary>
 public partial class VstPluginEditorWindow : Window
 {
+    private const double TitleBarHeight = 32.0; // Logical pixels
+
     private readonly PluginInstance _pluginInstance;
     private VstPluginNativeHost? _nativeHost;
     private Border _pluginEditorHost = null!;
@@ -66,23 +73,6 @@ public partial class VstPluginEditorWindow : Window
         // Setup bypass button
         SetupButtons();
         
-        // Set initial size based on plugin editor size
-        try
-        {
-            var (width, height) = _pluginInstance.GetEditorSize();
-            if (width > 0 && height > 0)
-            {
-                Width = width;
-                Height = height + 32; // Add title bar height
-                MinWidth = Math.Max(200, width / 2);
-                MinHeight = Math.Max(150, height / 2 + 32);
-            }
-        }
-        catch
-        {
-            // Use default size if we can't get editor size
-        }
-        
         // Subscribe to editor resize events
         _pluginInstance.EditorResized += OnPluginEditorResized;
         
@@ -90,11 +80,42 @@ public partial class VstPluginEditorWindow : Window
         Closing += OnWindowClosing;
     }
 
+    /// <summary>
+    /// Gets the DPI scaling factor for this window.
+    /// Returns the ratio of physical pixels to logical pixels.
+    /// e.g., 1.5 for 150% scaling, 2.0 for 200% scaling.
+    /// </summary>
+    private double GetDpiScale()
+    {
+        var screen = Screens.ScreenFromWindow(this);
+        if (screen != null)
+        {
+            return screen.Scaling;
+        }
+        // Fallback: try VisualRoot rendering scaling
+        if (VisualRoot is Visual visual)
+        {
+            var transform = visual.RenderTransform;
+            // Default fallback
+        }
+        return 1.0;
+    }
+
+    /// <summary>
+    /// Converts physical pixels to Avalonia logical pixels using the current DPI scale
+    /// </summary>
+    private double PhysicalToLogical(int physicalPixels)
+    {
+        var scale = GetDpiScale();
+        return physicalPixels / scale;
+    }
+
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
         
         // Initialize the NativeControlHost after the Avalonia window is fully opened
+        // (at this point we can get the correct DPI scaling)
         Dispatcher.UIThread.Post(() => InitializePluginEditor(), DispatcherPriority.Loaded);
     }
 
@@ -114,8 +135,11 @@ public partial class VstPluginEditorWindow : Window
 
     /// <summary>
     /// Initializes the plugin editor by creating a VstPluginNativeHost (NativeControlHost)
-    /// and adding it to the visual tree. The NativeControlHost handles the airspace problem
-    /// by creating a proper hole in Avalonia's composited rendering surface.
+    /// and adding it to the visual tree. 
+    /// 
+    /// Key: The NativeControlHost size is set in Avalonia logical pixels.
+    /// Avalonia then creates the native surface at the correct physical pixel size
+    /// (logical * DPI scale), so the plugin editor fits perfectly.
     /// </summary>
     private void InitializePluginEditor()
     {
@@ -124,16 +148,16 @@ public partial class VstPluginEditorWindow : Window
         
         try
         {
-            // Get editor size for sizing the NativeControlHost
-            int editorWidth = 800;
-            int editorHeight = 600;
+            // Get plugin editor size (in physical pixels)
+            int editorPhysicalWidth = 800;
+            int editorPhysicalHeight = 600;
             try
             {
                 var (w, h) = _pluginInstance.GetEditorSize();
                 if (w > 0 && h > 0)
                 {
-                    editorWidth = w;
-                    editorHeight = h;
+                    editorPhysicalWidth = w;
+                    editorPhysicalHeight = h;
                 }
             }
             catch
@@ -141,19 +165,33 @@ public partial class VstPluginEditorWindow : Window
                 // Use default size
             }
 
-            // Create the NativeControlHost-based control
+            // Convert physical pixels to logical pixels for Avalonia layout
+            double logicalWidth = PhysicalToLogical(editorPhysicalWidth);
+            double logicalHeight = PhysicalToLogical(editorPhysicalHeight);
+
+            System.Diagnostics.Debug.WriteLine(
+                $"Plugin editor size: {editorPhysicalWidth}x{editorPhysicalHeight} physical, " +
+                $"{logicalWidth:F1}x{logicalHeight:F1} logical (DPI scale: {GetDpiScale()})");
+
+            // Create the NativeControlHost-based control with exact logical size
             _nativeHost = new VstPluginNativeHost(_pluginInstance)
             {
-                Width = editorWidth,
-                Height = editorHeight,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
+                Width = logicalWidth,
+                Height = logicalHeight,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top
             };
 
-            // Add the NativeControlHost as the child of the Border in XAML
+            // Add the NativeControlHost as the child of the Border
             _pluginEditorHost.Child = _nativeHost;
 
-            System.Diagnostics.Debug.WriteLine($"VstPluginNativeHost added to visual tree ({editorWidth}x{editorHeight})");
+            // Resize the window to exactly fit the plugin editor + title bar
+            // SizeToContent is set in XAML, but we also set explicit sizes as fallback
+            Width = logicalWidth;
+            Height = logicalHeight + TitleBarHeight;
+
+            System.Diagnostics.Debug.WriteLine(
+                $"Window size set to: {Width:F1}x{Height:F1} logical pixels");
         }
         catch (Exception ex)
         {
@@ -162,7 +200,9 @@ public partial class VstPluginEditorWindow : Window
     }
 
     /// <summary>
-    /// Handles plugin editor resize events
+    /// Handles plugin editor resize events.
+    /// Some plugins can resize their editor (e.g., resizable plugin UIs).
+    /// The size reported by the plugin is in physical pixels.
     /// </summary>
     private void OnPluginEditorResized(object? sender, EditorResizedEventArgs e)
     {
@@ -170,17 +210,24 @@ public partial class VstPluginEditorWindow : Window
         {
             if (_isDisposed)
                 return;
-            
-            // Update NativeControlHost size
+
+            // Convert physical pixels to logical pixels
+            double logicalWidth = PhysicalToLogical(e.Width);
+            double logicalHeight = PhysicalToLogical(e.Height);
+
+            // Update NativeControlHost size (logical pixels)
             if (_nativeHost != null)
             {
-                _nativeHost.Width = e.Width;
-                _nativeHost.Height = e.Height;
+                _nativeHost.Width = logicalWidth;
+                _nativeHost.Height = logicalHeight;
+
+                // Also resize the internal host window to match (physical pixels)
+                _nativeHost.ResizeHostWindow(e.Width, e.Height);
             }
             
-            // Update Avalonia window size
-            Width = e.Width;
-            Height = e.Height + 32; // Add title bar height
+            // Update Avalonia window size (logical pixels)
+            Width = logicalWidth;
+            Height = logicalHeight + TitleBarHeight;
         });
     }
 

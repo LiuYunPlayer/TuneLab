@@ -2,10 +2,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="TuneLab.UI.VstPluginEditorWindow"
         Title="VST Plugin Editor"
-        Width="800" Height="600"
+        Width="800" Height="632"
         WindowStartupLocation="CenterOwner"
-        CanResize="True"
-        MinWidth="200" MinHeight="150">
+        CanResize="False"
+        MinWidth="200" MinHeight="150"
+        SizeToContent="WidthAndHeight">
     
     <DockPanel>
         <!-- Title Bar -->
@@ -26,7 +27,7 @@
             </StackPanel>
         </Grid>
         
-        <!-- Plugin Editor Host Area - NativeControlHost will be added programmatically -->
+        <!-- Plugin Editor Host Area - NativeControlHost is added programmatically as child -->
         <Border Name="PluginEditorHost" Background="#FF1E1E1E"/>
     </DockPanel>
 </Window>
