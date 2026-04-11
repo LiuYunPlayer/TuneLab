@@ -2,16 +2,25 @@
 "Settings" = "設定"
 "Please restart to apply settings." = "設定を適用するには再起動が必要です。"
 "Language" = "言語"
+"Master Gain (dB)" = "マスターゲイン（dB）"
+"Audio Driver" = "オーディオドライバー"
+"Audio Device" = "オーディオデバイス"
+"Sample Rate" = "サンプルレート"
+"Buffer Size" = "バッファサイズ"
 "Custom Background Image" = "カスタム壁紙"
 "Opacity" = "不透明度"
 "Piano Key Samples" = "ピアノ音のサンプル"
 "Auto Save Interval (second)" = "自動保存の間隔（秒）"
 "Parameter Boundary Extension (tick)" = "パラメータ境界の拡張（Tick）"
+"Parameter Sync Mode" = "パラメータ同期モード"
+"Track Hue Change Rate (degree/second)" = "トラック色相の変化率（度/秒）"
 
 [FunctionBar]
 "Play" = "再生"
 "Pause" = "一時停止"
 "Auto Scroll" = "自動スクロール"
+"Go to Start" = "先頭へ移動"
+"Go to End" = "末尾へ移動"
 "Quantization" = "クオンタイズ"
 "Note Tool" = "ノートツール"
 "Pitch Pen" = "ピッチツール"
@@ -19,6 +28,12 @@
 "Pitch Locking Brush" = "ピッチ固定ツール"
 "Vibrato Tool" = "ビブラートツール"
 "Selection Tool" = "選択ツール"
+"Show Properties" = "プロパティを表示"
+"Hide Properties" = "プロパティを非表示"
+
+[TrackScrollView]
+"Loading..." = "読み込み中..."
+"Failed to load audio. Double click to relink." = "オーディオの読み込みに失敗しました。ダブルクリックして再リンクしてください。"
 
 [PianoScrollView]
 "Please draw pitch first in the area" = "エリア内にピッチが描かれていません"
@@ -49,6 +64,8 @@
 "TuneLab Project" = "TuneLabプロジェクト"
 "WAVE File" = "WAVファイル"
 "Export As" = "エクスポート"
+" has been successfully installed!" = " のインストールが完了しました！"
+" failed: \n" = " のインストールに失敗しました：\n"
 "{0} has been successfully installed!" = "{0} が正常にインストールされました！"
 "Installating {0} failed: \n{1}" = "{0} のインストールに失敗しました：\n{1}"
 "Detected an installed extension. \nDo you want to restart and perform a reinstall?" = "この拡張機能はインストール済です。\n再起動して再インストールしますか？"
@@ -76,6 +93,11 @@
 "VibratoEnvelope" = "ビブラート"
 "Pitch" = "ピッチ"
 
+[SideTabBar]
+"Extensions" = "拡張機能"
+"Properties" = "プロパティ"
+"Export" = "エクスポート"
+
 [Document]
 "Untitled Project" = "無題プロジェクト"
 "Part" = "パート"
@@ -94,6 +116,8 @@
 "Undo" = "元に戻す"
 "Redo" = "やり直す"
 "Settings" = "設定"
+"Extensions" = "拡張機能"
+"Install/Update" = "インストール/更新"
 
 "Project" = "プロジェクト"
 "Add Track" = "トラックを追加"
@@ -109,6 +133,7 @@
 "Paste" = "貼り付け"
 "Rename" = "名前を変更"
 "Split" = "分割"
+"Merge" = "結合"
 "Set Voice" = "ボイスを設定"
 "Built-In" = "ビルトイン"
 "Delete" = "削除"
@@ -116,6 +141,9 @@
 "Add Tempo" = "BPMを追加"
 "Delete Tempo" = "BPMを削除"
 "Edit Tempo" = "BPMを編集"
+"Add Time Signature" = "拍子を追加"
+"Delete Time Signature" = "拍子を削除"
+"Edit Time Signature" = "拍子を編集"
 
 "Export Audio" = "オーディオをエクスポート"
 
@@ -139,6 +167,8 @@
 
 "TuneLab Forum" = "TuneLabフォーラム"
 "TuneLab GitHub" = "TuneLab GitHub"
+"Open TuneLab Folder" = "TuneLabフォルダーを開く"
+"Open Log" = "ログを開く"
 
 "Empty" = "空"
 "Check for Updates..." = "アップデートを確認する"
