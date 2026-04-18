@@ -12,6 +12,7 @@ using TuneLab.Base.Utils;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats;
 using TuneLab.GUI;
+using TuneLab.Configs;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
 using TuneLab.Utils;
@@ -25,8 +26,10 @@ public partial class MainWindow : Window
 {
     internal Editor Editor => mEditor;
 
+    const int UnsetWindowPosition = int.MinValue;
     private PlatformID platform;
     private bool isCloseConfirm;
+    private bool mApplyingSavedWindowPlacement;
     private TextBlock TitleLabel;
     private Button maximizeButton;
     private ButtonContent maximizeIconContent = new() { Item = new IconItem() { Icon = Assets.WindowRestore }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.6) } };
@@ -35,7 +38,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         platform = Environment.OSVersion.Platform;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        ApplySavedWindowPlacement();
+        Width = Settings.MainWindowWidth;
+        Height = Settings.MainWindowHeight;
 
         this.KeyDown += OnKeyDown;
 
@@ -92,6 +97,7 @@ public partial class MainWindow : Window
 
         UpdateTitle();
 
+        PositionChanged += (_, _) => SaveCurrentWindowBounds();
         this.Closing += MainWindow_Closing;
     }
 
@@ -145,6 +151,11 @@ public partial class MainWindow : Window
     {
         this.GetObservable(Window.WindowStateProperty).Subscribe(state =>
         {
+            if (!mApplyingSavedWindowPlacement)
+            {
+                Settings.MainWindowMaximized.Value = state == WindowState.Maximized;
+            }
+
             switch (state)
             {
                 case WindowState.Normal:
@@ -169,10 +180,13 @@ public partial class MainWindow : Window
                 TitleLabel.Margin = new(0, 0, CustomTitleBar.ColumnDefinitions[0].ActualWidth - CustomTitleBar.ColumnDefinitions[2].ActualWidth, 0);
             }
         });
+        this.GetObservable(TopLevel.ClientSizeProperty).Subscribe(_ => SaveCurrentWindowBounds());
     }
 
     private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        SaveCurrentWindowBounds();
+
         if (CustomTitleBar.ColumnDefinitions[0] != null && CustomTitleBar.ColumnDefinitions[2] != null)
         {
             TitleLabel.Margin = new(0, 0, CustomTitleBar.ColumnDefinitions[0].ActualWidth - CustomTitleBar.ColumnDefinitions[2].ActualWidth, 0);
@@ -221,7 +235,59 @@ public partial class MainWindow : Window
         }
 
         // 正常退出
+        Settings.MainWindowMaximized.Value = WindowState == WindowState.Maximized;
+        SaveCurrentWindowBounds();
+        Settings.Save(PathManager.SettingsFilePath);
         mEditor.ClearAutoSaveFile();
+    }
+
+    void ApplySavedWindowPlacement()
+    {
+        mApplyingSavedWindowPlacement = true;
+        try
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
+            if (Settings.MainWindowWidth.Value >= MinWidth)
+            {
+                Width = Settings.MainWindowWidth;
+            }
+            if (Settings.MainWindowHeight.Value >= MinHeight)
+            {
+                Height = Settings.MainWindowHeight;
+            }
+
+            if (Settings.MainWindowX.Value != UnsetWindowPosition && Settings.MainWindowY.Value != UnsetWindowPosition)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Position = new PixelPoint(Settings.MainWindowX, Settings.MainWindowY);
+            }
+
+            WindowState = Settings.MainWindowMaximized ? WindowState.Maximized : WindowState.Normal;
+        }
+        finally
+        {
+            mApplyingSavedWindowPlacement = false;
+        }
+    }
+
+    void SaveCurrentWindowBounds()
+    {
+        if (mApplyingSavedWindowPlacement || WindowState != WindowState.Normal)
+            return;
+
+        Settings.MainWindowX.Value = Position.X;
+        Settings.MainWindowY.Value = Position.Y;
+
+        if (ClientSize.Width >= MinWidth)
+        {
+            Settings.MainWindowWidth.Value = ClientSize.Width;
+        }
+
+        if (ClientSize.Height >= MinHeight)
+        {
+            Settings.MainWindowHeight.Value = ClientSize.Height;
+        }
     }
 
     void UpdateTitle()

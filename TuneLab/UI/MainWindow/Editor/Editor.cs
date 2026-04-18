@@ -57,8 +57,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         Background = Style.BACK.ToBrush();
         Focusable = true;
         IsTabStop = false;
+        mTrackWindowHeight = Settings.TrackWindowHeight;
 
         mPlayhead = new(this);
+        if (Enum.TryParse<PlayScrollTarget>(Settings.AutoScrollTarget.Value, out var autoScrollTarget))
+        {
+            PlayScrollTarget.Value = autoScrollTarget;
+        }
 
         mFunctionBar = new(this);
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
@@ -83,7 +88,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         MinHeight = mFunctionBar.Height;
 
-        mFunctionBar.Moved += y => TrackWindowHeight = y;
+        mFunctionBar.Moved += y =>
+        {
+            TrackWindowHeight = y;
+            Settings.TrackWindowHeight.Value = mTrackWindowHeight;
+        };
         mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
         mFunctionBar.GotoStartAsked += () =>
         {
@@ -140,6 +149,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mDocument.StatusChanged += () => { mUndoMenuItem.IsEnabled = mDocument.Undoable(); mRedoMenuItem.IsEnabled = mDocument.Redoable(); };
         mAutoSaveTimer.Tick += (s, e) => { AutoSave(); };
         Settings.AutoSaveInterval.Modified.Subscribe(() => mAutoSaveTimer.Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval), s);
+        PlayScrollTarget.Modified.Subscribe(() => Settings.AutoScrollTarget.Value = PlayScrollTarget.Value.ToString(), s);
         PathManager.MakeSureExist(PathManager.AutoSaveFolder);
         RecentFilesManager.Init();
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
@@ -170,6 +180,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         mTrackWindow.Height = TrackWindowHeight;
+        Settings.TrackWindowHeight.Value = mTrackWindowHeight;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
