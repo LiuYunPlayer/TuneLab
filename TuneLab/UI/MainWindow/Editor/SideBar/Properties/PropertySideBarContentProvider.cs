@@ -18,15 +18,36 @@ using TuneLab.Base.Data;
 using TuneLab.Utils;
 using TuneLab.Base.Utils;
 using TuneLab.I18N;
+using TuneLab.Configs;
+using TuneLab.Extensions.Formats.DataInfo;
+using static TuneLab.GUI.Dialog;
 
 namespace TuneLab.UI;
 
 internal class PropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPartPanel, mAutomationPanel, mNotePanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPresetPanel, mPartPanel, mAutomationPanel, mNotePanel] };
 
     public PropertySideBarContentProvider()
     {
+        var presetName = new Label() { Content = "Preset".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        mPresetPanel.Title = presetName;
+        mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mPresetContent.Children.Add(mPresetComboBox);
+        mSavePresetButton = CreatePresetButton("Save".Tr(TC.Property));
+        mApplyPresetButton = CreatePresetButton("Apply".Tr(TC.Property));
+        mDeletePresetButton = CreatePresetButton("Delete".Tr(TC.Property));
+        mSavePresetButton.Clicked += async () => await OnSavePresetClicked();
+        mApplyPresetButton.Clicked += OnApplyPresetClicked;
+        mDeletePresetButton.Clicked += async () => await OnDeletePresetClicked();
+        mPresetButtons.Children.Add(mSavePresetButton);
+        mPresetButtons.Children.Add(mApplyPresetButton);
+        mPresetButtons.Children.Add(mDeletePresetButton);
+        mPresetContent.Children.Add(mPresetButtons);
+        mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
+        mPresetContentContainer.Child = mPresetContent;
+        mPresetPanel.Content = mPresetContentContainer;
+
         var partName = new Label() { Content = "Part".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mPartPanel.Title = partName;
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
@@ -47,6 +68,15 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mNoteContentPanel.Children.Add(mNoteContent);
         mNoteContentPanel.Children.Add(mNoteContentMask);
         mNotePanel.Content = mNoteContentPanel;
+
+        LoadPresets();
+    }
+
+    TuneLab.GUI.Components.Button CreatePresetButton(string text)
+    {
+        return new TuneLab.GUI.Components.Button() { Width = 72, Height = 28 }
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
+            .AddContent(new() { Item = new TextItem() { Text = text }, ColorSet = new() { Color = Colors.White } });
     }
 
     public void SetPart(IMidiPart? part)
@@ -282,14 +312,271 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPart.Commit();
     }
 
+    async Task OnSavePresetClicked()
+    {
+        if (mPart == null)
+            return;
+
+        var selectedPresetName = SelectedPresetName();
+        if (selectedPresetName == null)
+        {
+            var dialog = new PresetNameDialog();
+            var presetName = await dialog.ShowDialog<string?>(mPresetPanel.Window());
+            presetName = presetName?.Trim();
+            if (string.IsNullOrWhiteSpace(presetName))
+                return;
+
+            if (presetName.Equals(NonePresetOption, StringComparison.OrdinalIgnoreCase))
+            {
+                await mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "\"None\" is reserved.");
+                return;
+            }
+
+            var existingPreset = mPresets.FirstOrDefault(preset => preset.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+            if (existingPreset != null)
+            {
+                var shouldOverwrite = await ConfirmOverwriteAsync(existingPreset.Name);
+                if (!shouldOverwrite)
+                    return;
+
+                presetName = existingPreset.Name;
+            }
+
+            SavePreset(presetName);
+            return;
+        }
+
+        if (!await ConfirmOverwriteAsync(selectedPresetName))
+            return;
+
+        SavePreset(selectedPresetName);
+    }
+
+    void OnApplyPresetClicked()
+    {
+        if (mPart == null)
+            return;
+
+        var selectedPresetName = SelectedPresetName();
+        if (selectedPresetName == null)
+        {
+            ApplyDefaultPreset();
+            return;
+        }
+
+        var preset = mPresets.FirstOrDefault(item => item.Name.Equals(selectedPresetName, StringComparison.OrdinalIgnoreCase));
+        if (preset == null)
+            return;
+
+        ApplyPreset(preset);
+    }
+
+    void ApplyDefaultPreset()
+    {
+        if (mPart == null)
+            return;
+
+        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, new PropertyPath());
+        ResetAutomationDefaults();
+        mPart.Commit();
+    }
+
+    void ApplyPreset(PartPreset preset)
+    {
+        if (mPart == null)
+            return;
+
+        mPart.Voice.Set(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
+        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, new PropertyPath());
+        ApplyPresetProperties(preset.Properties, new PropertyPath());
+        ApplyAutomationDefaults(preset);
+        mPart.Commit();
+    }
+
+    void ResetPartPropertiesToDefaults(ObjectConfig config, PropertyPath path)
+    {
+        if (mPart == null)
+            return;
+
+        foreach (var kvp in config.Properties)
+        {
+            var propertyPath = path.Combine(kvp.Key);
+            if (kvp.Value is ObjectConfig objectConfig)
+            {
+                ResetPartPropertiesToDefaults(objectConfig, propertyPath);
+            }
+            else if (kvp.Value is IValueConfig valueConfig)
+            {
+                mPart.Properties.SetValue(propertyPath.GetKey(), valueConfig.DefaultValue);
+            }
+        }
+    }
+
+    void ApplyPresetProperties(PropertyObject properties, PropertyPath path)
+    {
+        if (mPart == null)
+            return;
+
+        foreach (var property in properties.Map)
+        {
+            var propertyPath = path.Combine(property.Key);
+            if (property.Value.ToObject(out var propertyObject))
+            {
+                ApplyPresetProperties(propertyObject, propertyPath);
+            }
+            else
+            {
+                mPart.Properties.SetValue(propertyPath.GetKey(), property.Value);
+            }
+        }
+    }
+
+    void ResetAutomationDefaults()
+    {
+        if (mPart == null)
+            return;
+
+        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        {
+            if (mPart.Automations.TryGetValue(kvp.Key, out var automation))
+                automation.DefaultValue.Set(kvp.Value.DefaultValue);
+        }
+    }
+
+    void ApplyAutomationDefaults(PartPreset preset)
+    {
+        if (mPart == null)
+            return;
+
+        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        {
+            double value = preset.Automations.GetValueOrDefault(kvp.Key, kvp.Value.DefaultValue);
+            if (mPart.Automations.TryGetValue(kvp.Key, out var automation))
+            {
+                automation.DefaultValue.Set(value);
+            }
+            else if (value != kvp.Value.DefaultValue)
+            {
+                mPart.AddAutomation(kvp.Key)?.DefaultValue.Set(value);
+            }
+        }
+    }
+
+    async Task OnDeletePresetClicked()
+    {
+        var selectedPresetName = SelectedPresetName();
+        if (selectedPresetName == null)
+            return;
+
+        if (!await ConfirmDeleteAsync(selectedPresetName))
+            return;
+
+        try
+        {
+            PresetConfigManager.DeletePreset(selectedPresetName);
+            LoadPresets();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to delete preset: " + ex);
+            _ = mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "Failed to delete preset: \n" + ex.Message);
+        }
+    }
+
+    async Task<bool> ConfirmOverwriteAsync(string presetName)
+    {
+        return await ConfirmAsync(string.Format("Overwrite preset \"{0}\"?".Tr(TC.Property), presetName), "Save".Tr(TC.Property));
+    }
+
+    async Task<bool> ConfirmDeleteAsync(string presetName)
+    {
+        return await ConfirmAsync(string.Format("Delete preset \"{0}\"?".Tr(TC.Property), presetName), "Delete".Tr(TC.Property));
+    }
+
+    async Task<bool> ConfirmAsync(string message, string confirmText)
+    {
+        var dialog = new Dialog();
+        dialog.SetTitle("Tips".Tr(TC.Dialog));
+        dialog.SetMessage(message);
+
+        bool confirmed = false;
+        dialog.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
+        var confirmButton = dialog.AddButton(confirmText, ButtonType.Primary);
+        confirmButton.Pressed += () => confirmed = true;
+        dialog.Topmost = true;
+        await dialog.ShowDialog(mPresetPanel.Window());
+        return confirmed;
+    }
+
+    void SavePreset(string presetName)
+    {
+        try
+        {
+            PresetConfigManager.SavePreset(BuildPreset(presetName));
+            LoadPresets(presetName);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to save preset: " + ex);
+            _ = mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "Failed to save preset: \n" + ex.Message);
+        }
+    }
+
+    PartPreset BuildPreset(string presetName)
+    {
+        if (mPart == null)
+            throw new InvalidOperationException("Part is null.");
+
+        var preset = new PartPreset()
+        {
+            Name = presetName,
+            Voice = mPart.Voice.GetInfo(),
+            Properties = mPart.Properties.GetInfo(),
+        };
+
+        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        {
+            var key = kvp.Key;
+            if (mPart.Automations.TryGetValue(key, out var automation))
+                preset.Automations[key] = automation.DefaultValue.Value;
+            else
+                preset.Automations[key] = kvp.Value.DefaultValue;
+        }
+
+        return preset;
+    }
+
+    void LoadPresets(string? selectedPresetName = null)
+    {
+        mPresets = PresetConfigManager.LoadPresets();
+        var options = new List<string>() { NonePresetOption };
+        options.AddRange(mPresets.Select(preset => preset.Name));
+        mPresetComboBox.SetConfig(new EnumConfig(options, 0));
+        mPresetComboBox.Display(selectedPresetName ?? NonePresetOption);
+    }
+
+    string? SelectedPresetName()
+    {
+        var value = mPresetComboBox.Value;
+        return value.Equals(NonePresetOption, StringComparison.OrdinalIgnoreCase) ? null : value;
+    }
+
+    readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
+    readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
+    readonly StackPanel mPresetButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mPresetPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
     readonly LayerPanel mNoteContentPanel = new();
 
+    readonly ComboBoxController mPresetComboBox = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+    readonly TuneLab.GUI.Components.Button mSavePresetButton;
+    readonly TuneLab.GUI.Components.Button mApplyPresetButton;
+    readonly TuneLab.GUI.Components.Button mDeletePresetButton;
     readonly ObjectController mAutomationController = new();
     readonly MidiPartFixedController mPartFixedController = new();
     readonly ObjectController mPartPropertiesController = new();
@@ -297,6 +584,8 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     readonly Border mNoteContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
 
+    const string NonePresetOption = "None";
     IMidiPart? mPart = null;
+    List<PartPreset> mPresets = [];
     readonly DisposableManager s = new();
 }

@@ -89,6 +89,14 @@
 "VibratoEnvelope" = "颤音包络"
 "Pitch" = "音高"
 
+"Preset" = "预设"
+"Preset Name" = "预设名称"
+"Save" = "保存"
+"Apply" = "应用"
+"Delete" = "删除"
+"Overwrite preset \"{0}\"?" = "覆盖预设“{0}”？"
+"Delete preset \"{0}\"?" = "删除预设“{0}”？"
+
 [Document]
 "Untitled Project" = "未命名工程"
 "Part" = "片段"
