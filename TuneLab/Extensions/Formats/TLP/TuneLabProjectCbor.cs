@@ -51,6 +51,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     if (version > CURRENT_VERSION)
                         throw new Exception("Unsupported Version");
                     break;
+                case "playheadPos":
+                    projectInfo.PlayheadPos = reader.ReadDouble();
+                    break;
                 case "tempos":
                     ReadTempos(reader, projectInfo.Tempos);
                     break;
@@ -574,6 +577,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 
         writer.WriteTextString("version");
         writer.WriteInt32(CURRENT_VERSION);
+
+        writer.WriteTextString("playheadPos");
+        writer.WriteDouble(projectInfo.PlayheadPos);
 
         writer.WriteTextString("tempos");
         WriteTempos(writer, projectInfo.Tempos);

@@ -376,7 +376,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (mDocument.Project == null || mDocument.IsSaved || mAutoSaveHead == mDocument.Head)
             return;
 
-        var projectInfo = mDocument.Project.GetInfo();
+        var projectInfo = GetProjectInfoForSave();
 
         try
         {
@@ -460,6 +460,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         mDocument.SetProject(CreateProject(info), path);
+        RestorePlayhead(info);
         RecentFilesManager.AddFile(path);
     }
 
@@ -594,7 +595,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (mDocument.Project == null)
             return;
 
-        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), ConstantDefine.DefaultProjectExtension, out var stream, out var error))
+        if (!FormatsManager.Serialize(GetProjectInfoForSave(), ConstantDefine.DefaultProjectExtension, out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
             return;
@@ -615,6 +616,22 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             Log.Debug("Write file error: " + ex);
         }
+    }
+
+    ProjectInfo GetProjectInfoForSave()
+    {
+        var project = mDocument.Project;
+        if (project == null)
+            return new();
+
+        var projectInfo = project.GetInfo();
+        projectInfo.PlayheadPos = Playhead.Pos;
+        return projectInfo;
+    }
+
+    void RestorePlayhead(ProjectInfo info)
+    {
+        Playhead.Pos = Math.Max(0, info.PlayheadPos);
     }
 
     public async void ExportMix()
