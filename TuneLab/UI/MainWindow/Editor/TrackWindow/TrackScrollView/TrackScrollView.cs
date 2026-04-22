@@ -637,7 +637,11 @@ internal partial class TrackScrollView : View
         }
         //SelectOne
        // 
-        ImportTrackSelector trackSelector = new ImportTrackSelector();
+        ImportTrackSelector trackSelector = new ImportTrackSelector(
+            dstProject.TempoManager.Tempos[0].Bpm,
+            dstProject.TimeSignatureManager.TimeSignatures[0].Numerator,
+            dstProject.TimeSignatureManager.TimeSignatures[0].Denominator
+        );
         for (int i = 0; i < srcProjectInfo.Tracks.Count; i++)
         {
             var trackItem = new ListBoxItem()
@@ -650,7 +654,63 @@ internal partial class TrackScrollView : View
         }
         await trackSelector.ShowDialog(this.Window());
         if (!trackSelector.isOK) return;
-        bool keepTempo = trackSelector.isKeepTempo;
+        bool keepTempo = trackSelector.IsKeepTempo;
+        bool importTempo = trackSelector.IsImportTempo;
+        bool importTimeSignature = trackSelector.IsImportTimeSignature;
+        if (importTempo)
+        {
+            ReplaceTempos(dstProject.TempoManager, srcProjectInfo.Tempos);
+        }
+        if (importTimeSignature)
+        {
+            ReplaceTimeSignatures(dstProject.TimeSignatureManager, srcProjectInfo.TimeSignatures);
+        }
+        ITempoManager? srcTempoManager = null;
+        if (!importTempo)
+        {
+            srcTempoManager = new Project(new ProjectInfo() { Tempos = srcProjectInfo.Tempos }).TempoManager;
+        }
+
+        static void ReplaceTempos(ITempoManager manager, List<TempoInfo> tempos)
+        {
+            for (int i = manager.Tempos.Count - 1; i > 0; i--)
+            {
+                manager.RemoveTempoAt(i);
+            }
+
+            if (tempos.Count == 0)
+            {
+                manager.SetBpm(0, TempoManager.DefaultBpm);
+                return;
+            }
+
+            manager.SetBpm(0, tempos[0].Bpm);
+            for (int i = 1; i < tempos.Count; i++)
+            {
+                manager.AddTempo(tempos[i].Pos, tempos[i].Bpm);
+            }
+        }
+
+        static void ReplaceTimeSignatures(ITimeSignatureManager manager, List<TimeSignatureInfo> timeSignatures)
+        {
+            for (int i = manager.TimeSignatures.Count - 1; i > 0; i--)
+            {
+                manager.RemoveTimeSignatureAt(i);
+            }
+
+            if (timeSignatures.Count == 0)
+            {
+                manager.SetMeter(0, TimeSignatureManager.DefaultNumerator, TimeSignatureManager.DefaultDenominator);
+                return;
+            }
+
+            manager.SetMeter(0, timeSignatures[0].Numerator, timeSignatures[0].Denominator);
+            for (int i = 1; i < timeSignatures.Count; i++)
+            {
+                manager.AddTimeSignature(timeSignatures[i].BarIndex, timeSignatures[i].Numerator, timeSignatures[i].Denominator);
+            }
+        }
+
         foreach (var selectedTrack in trackSelector.TrackList.SelectedItems)
         {
             TrackInfo srcTrackInfo = (TrackInfo)((ListBoxItem)selectedTrack).Tag;
@@ -658,13 +718,11 @@ internal partial class TrackScrollView : View
             foreach (var partInfo in srcTrackInfo.Parts)
             {
                 bool isMidiPart =(partInfo.GetType() == typeof(MidiPartInfo));
-                if (!keepTempo)
+                if (!importTempo && !keepTempo)
                 {
-                    //Only declare SyncFunction in Useful
-                    var srcTempoManager = (new Project(new ProjectInfo { Tempos=srcProjectInfo.Tempos })).TempoManager;
                     double SyncTick(double src)
                     {
-                        return dstProject.TempoManager.GetTick(srcTempoManager.GetTime(src));
+                        return dstProject.TempoManager.GetTick(srcTempoManager!.GetTime(src));
                     }
                     //SyncPartTick
                     partInfo.Dur = SyncTick(partInfo.Pos + partInfo.Dur);
