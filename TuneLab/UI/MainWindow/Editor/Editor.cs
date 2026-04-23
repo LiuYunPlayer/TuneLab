@@ -687,7 +687,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         progressDialog.SetTextAlignment(TextAlignment.Center);
 
         var project = Project;
-        var totalTracks = options.SelectedTrackIndices.Count;
+        var totalTracks = options.SelectedTracks.Count;
         string? errorMessage = null;
 
         // Show dialog non-blocking, run export in background
@@ -700,7 +700,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
                 for (int i = 0; i < totalTracks; i++)
                 {
-                    var trackIndex = options.SelectedTrackIndices[i];
+                    var exportTrack = options.SelectedTracks[i];
+                    var trackIndex = exportTrack.TrackIndex;
+                    bool isStereo = exportTrack.Channels >= 2;
                     string trackName = trackIndex == -1 ? "Master" : $"Track {trackIndex + 1}";
                     if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
                     {
@@ -721,12 +723,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
                     if (trackIndex == -1)
                     {
-                        AudioEngine.ExportMaster(filePath, true, options.SampleRate, options.BitDepth);
+                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, options.BitDepth);
                     }
                     else if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
                     {
                         var track = project.Tracks[trackIndex];
-                        AudioEngine.ExportTrack(filePath, track, true, options.SampleRate, options.BitDepth);
+                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, options.BitDepth);
                     }
                 }
             }

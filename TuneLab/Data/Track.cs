@@ -27,6 +27,8 @@ internal class Track : DataObject, ITrack
     public DataProperty<double> Gain { get; }
     public DataProperty<double> Pan { get; }
     public DataProperty<string> Color { get; }
+    public bool ExportEnabled { get; set; } = false;
+    public int ExportChannels { get; set; } = 1;
     public IReadOnlyDataObjectLinkedList<IPart> Parts => mParts;
 
     IDataProperty<string> ITrack.Name => Name;
@@ -119,6 +121,8 @@ internal class Track : DataObject, ITrack
             Pan = Pan,
             Color = Color,
             AsRefer = AsRefer,
+            ExportEnabled = ExportEnabled,
+            ExportChannels = ExportChannels,
             Parts = mParts.GetInfo().ToInfo()
         };
     }
@@ -132,6 +136,8 @@ internal class Track : DataObject, ITrack
         IDataObject<TrackInfo>.SetInfo(Pan, info.Pan);
         IDataObject<TrackInfo>.SetInfo(Color, info.Color);
         IDataObject<TrackInfo>.SetInfo(AsRefer, info.AsRefer);
+        ExportEnabled = info.ExportEnabled;
+        ExportChannels = info.ExportChannels;
         IDataObject<TrackInfo>.SetInfo(mParts, info.Parts.Convert(CreatePart).ToArray());
     }
 

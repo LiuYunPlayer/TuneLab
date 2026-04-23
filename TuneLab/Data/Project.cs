@@ -18,6 +18,12 @@ internal class Project : DataObject, IProject
     public ITempoManager TempoManager => mTempoManager;
     public ITimeSignatureManager TimeSignatureManager => mTimeSignatureManager;
     public IReadOnlyDataObjectList<ITrack> Tracks => mTracks;
+    public string ExportPath { get; set; } = string.Empty;
+    public string ExportFileName { get; set; } = string.Empty;
+    public int ExportSampleRate { get; set; } = 44100;
+    public int ExportBitDepth { get; set; } = 16;
+    public bool MasterExportEnabled { get; set; } = true;
+    public int MasterExportChannels { get; set; } = 2;
 
     public Project() : this(new ProjectInfo()) { }
     public Project(ProjectInfo info)
@@ -50,6 +56,15 @@ internal class Project : DataObject, IProject
         }
 
         info.Tracks = mTracks.GetInfo().ToInfo();
+        info.ExportConfig = new ExportConfigInfo
+        {
+            ExportPath = ExportPath,
+            FileName = ExportFileName,
+            SampleRate = ExportSampleRate,
+            BitDepth = ExportBitDepth,
+            MasterExportEnabled = MasterExportEnabled,
+            MasterExportChannels = MasterExportChannels,
+        };
 
         return info;
     }
@@ -59,6 +74,15 @@ internal class Project : DataObject, IProject
         IDataObject<ProjectInfo>.SetInfo(mTempoManager, info.Tempos);
         IDataObject<ProjectInfo>.SetInfo(mTimeSignatureManager, info.TimeSignatures);
         IDataObject<ProjectInfo>.SetInfo(mTracks, info.Tracks.Convert(CreateTrack).ToArray());
+        if (info.ExportConfig != null)
+        {
+            ExportPath = info.ExportConfig.ExportPath;
+            ExportFileName = info.ExportConfig.FileName;
+            ExportSampleRate = info.ExportConfig.SampleRate;
+            ExportBitDepth = info.ExportConfig.BitDepth;
+            MasterExportEnabled = info.ExportConfig.MasterExportEnabled;
+            MasterExportChannels = info.ExportConfig.MasterExportChannels;
+        }
     }
 
     public void AddTrack(TrackInfo info)

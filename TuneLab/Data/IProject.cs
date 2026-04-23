@@ -11,6 +11,12 @@ namespace TuneLab.Data;
 internal interface IProject : IDataObject<ProjectInfo>, ITimeline, IDisposable
 {
     IReadOnlyDataObjectList<ITrack> Tracks { get; }
+    string ExportPath { get; set; }
+    string ExportFileName { get; set; }
+    int ExportSampleRate { get; set; }
+    int ExportBitDepth { get; set; }
+    bool MasterExportEnabled { get; set; }
+    int MasterExportChannels { get; set; }
     void AddTrack(TrackInfo info);
     void RemoveTrack(ITrack track);
     void RemoveTrackAt(int index);
