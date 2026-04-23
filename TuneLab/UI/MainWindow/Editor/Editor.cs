@@ -728,6 +728,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
         }
 
+        // Auto-refresh the extension list in the sidebar
+        mExtensionSideBarContentProvider.RefreshExtensions();
+        if (mRightSideTabBar.SelectedTab.Value == SideBarTab.Extensions)
+            mRightSideBar.SetContent(mExtensionSideBarContentProvider.Content);
+
         if (installedExtension.IsEmpty())
             return;
 
