@@ -120,8 +120,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
         ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });
         ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemAdded)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(mEditingPart); });
-        ProjectProvider.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(null); });
-        ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); });
+        ProjectProvider.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(null); mExportSideBarContentProvider.RefreshTrackList(); });
+        ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); mExportSideBarContentProvider.RefreshTrackList(); });
+        ProjectProvider.When(project => project.Tracks.Any(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
         mPianoWindow.PartProvider.ObjectChanged.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
         mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
@@ -135,6 +136,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 case SideBarTab.Extensions:
                     mExtensionSideBarContentProvider.RefreshExtensions();
                     mRightSideBar.SetContent(mExtensionSideBarContentProvider.Content);
+                    break;
+                case SideBarTab.Export:
+                    mExportSideBarContentProvider.SetProject(Project);
+                    mRightSideBar.SetContent(mExportSideBarContentProvider.Content);
                     break;
                 default:
                     mRightSideBar.IsVisible = false;
@@ -158,6 +163,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
             if (fileList != null) InstallExtensions(fileList);
         };
+
+        mExportSideBarContentProvider.ExportRequested += OnExportRequested;
 
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -312,6 +319,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         if (Project == null)
             return;
+
+        mExportSideBarContentProvider.SetProject(Project);
+        mExportSideBarContentProvider.SetProjectName(mDocument.Name);
 
         StartAutoSynthesis();
         mAutoSaveTimer.Start();
@@ -662,6 +672,84 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         catch (Exception ex)
         {
             await this.ShowMessage("Error".Tr(TC.Dialog), "Export failed: \n" + ex.Message);
+        }
+    }
+
+    async void OnExportRequested(ExportOptions options)
+    {
+        if (Project == null)
+            return;
+
+        // Create progress dialog
+        var progressDialog = new Dialog();
+        progressDialog.SetTitle("Export".Tr(TC.Dialog));
+        progressDialog.SetMessage("Preparing export...".Tr(TC.Dialog));
+        progressDialog.SetTextAlignment(TextAlignment.Center);
+
+        var project = Project;
+        var totalTracks = options.SelectedTrackIndices.Count;
+        string? errorMessage = null;
+
+        // Show dialog non-blocking, run export in background
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!Directory.Exists(options.ExportPath))
+                    Directory.CreateDirectory(options.ExportPath);
+
+                for (int i = 0; i < totalTracks; i++)
+                {
+                    var trackIndex = options.SelectedTrackIndices[i];
+                    string trackName = trackIndex == -1 ? "Master" : $"Track {trackIndex + 1}";
+                    if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
+                    {
+                        var name = project.Tracks[trackIndex].Name.Value;
+                        if (!string.IsNullOrEmpty(name))
+                            trackName = name;
+                    }
+
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        progressDialog.SetMessage($"Exporting ({i + 1}/{totalTracks}): {trackName}...");
+                    });
+
+                    string suffix = totalTracks > 1
+                        ? (trackIndex == -1 ? "_master" : $"_track{trackIndex + 1}")
+                        : string.Empty;
+                    string filePath = Path.Combine(options.ExportPath, options.FileName + suffix + ".wav");
+
+                    if (trackIndex == -1)
+                    {
+                        AudioEngine.ExportMaster(filePath, true, options.SampleRate, options.BitDepth);
+                    }
+                    else if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
+                    {
+                        var track = project.Tracks[trackIndex];
+                        AudioEngine.ExportTrack(filePath, track, true, options.SampleRate, options.BitDepth);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+            }
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                progressDialog.Close();
+            });
+        });
+
+        await progressDialog.ShowDialog(this.Window());
+
+        if (errorMessage != null)
+        {
+            await this.ShowMessage("Error".Tr(TC.Dialog), "Export failed: \n".Tr(TC.Dialog) + errorMessage);
+        }
+        else
+        {
+            await this.ShowMessage("Export".Tr(TC.Dialog), "Export completed successfully.".Tr(TC.Dialog));
         }
     }
 
@@ -1075,6 +1163,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     readonly PropertySideBarContentProvider mPropertySideBarContentProvider = new();
     readonly ExtensionSideBarContentProvider mExtensionSideBarContentProvider = new();
+    readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
 
     readonly PlayheadForProject mPlayhead;
 

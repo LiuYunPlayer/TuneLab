@@ -106,22 +106,38 @@ internal static class AudioEngine
 
     public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo)
     {
+        ExportTrack(filePath, track, isStereo, SampleRate.Value, 16);
+    }
+
+    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, int bitDepth)
+    {
         double endTime = track.EndTime;
         endTime = Math.Max(endTime, 0);
         endTime += 1;
         int endPosition = (endTime * SampleRate.Value).Ceil();
-        float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
+        int channelCount = isStereo ? 2 : 1;
+        float[] buffer = new float[endPosition * channelCount];
         AudioGraph.AddData(track, 0, endPosition, isStereo, buffer, 0);
-        AudioUtils.EncodeToWav(filePath, buffer, SampleRate.Value, 16, isStereo ? 2 : 1);
+        if (outputSampleRate != SampleRate.Value)
+            buffer = AudioUtils.Resample(buffer, channelCount, SampleRate.Value, outputSampleRate);
+        AudioUtils.EncodeToWav(filePath, buffer, outputSampleRate, bitDepth, channelCount);
     }
 
     public static void ExportMaster(string filePath, bool isStereo)
     {
+        ExportMaster(filePath, isStereo, SampleRate.Value, 16);
+    }
+
+    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, int bitDepth)
+    {
         var endTime = AudioGraph.EndTime;
         int endPosition = (endTime * SampleRate.Value).Ceil();
-        float[] buffer = new float[isStereo ? endPosition * 2 : endPosition];
+        int channelCount = isStereo ? 2 : 1;
+        float[] buffer = new float[endPosition * channelCount];
         AudioGraph.MixData(0, endPosition, isStereo, buffer, 0);
-        AudioUtils.EncodeToWav(filePath, buffer, SampleRate.Value, 16, isStereo ? 2 : 1);
+        if (outputSampleRate != SampleRate.Value)
+            buffer = AudioUtils.Resample(buffer, channelCount, SampleRate.Value, outputSampleRate);
+        AudioUtils.EncodeToWav(filePath, buffer, outputSampleRate, bitDepth, channelCount);
     }
 
     public static void InvokeRealtimeAmplitude(IAudioTrack track,out Tuple<double,double>? amplitude)
