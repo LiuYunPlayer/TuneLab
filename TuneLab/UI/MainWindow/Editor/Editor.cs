@@ -164,6 +164,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             if (fileList != null) InstallExtensions(fileList);
         };
 
+        mExportSideBarContentProvider.SetDocument(mDocument);
         mExportSideBarContentProvider.ExportRequested += OnExportRequested;
 
         AddHandler(DragDrop.DropEvent, OnDrop);
@@ -321,7 +322,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return;
 
         mExportSideBarContentProvider.SetProject(Project);
-        mExportSideBarContentProvider.SetProjectName(mDocument.Name);
 
         StartAutoSynthesis();
         mAutoSaveTimer.Start();

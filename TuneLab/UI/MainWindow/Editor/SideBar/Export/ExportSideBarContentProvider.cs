@@ -169,15 +169,21 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         RefreshTrackList();
     }
 
-    public void SetProjectName(string name)
+    public void SetDocument(ProjectDocument document)
     {
-        var fileName = Path.GetFileNameWithoutExtension(name);
-        if (mProject != null && string.IsNullOrWhiteSpace(mProject.ExportFileName))
+        mDocument = document;
+        mDocument.ProjectNameChanged.Subscribe(RefreshFileName);
+    }
+
+    public void RefreshFileName()
+    {
+        if (mProject == null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(mProject.ExportFileName))
         {
-            if (!string.IsNullOrWhiteSpace(fileName))
-            {
-                mFileNameInput.Display(fileName);
-            }
+            var fallbackName = Path.GetFileNameWithoutExtension(mDocument?.Name ?? "");
+            mFileNameInput.Display(!string.IsNullOrWhiteSpace(fallbackName) ? fallbackName : "Export");
         }
     }
 
@@ -231,9 +237,12 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             mPathInput.Display(!string.IsNullOrWhiteSpace(mProject.ExportPath)
                 ? mProject.ExportPath
                 : Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+            var fallbackName = Path.GetFileNameWithoutExtension(mDocument?.Name ?? "");
             mFileNameInput.Display(!string.IsNullOrWhiteSpace(mProject.ExportFileName)
                 ? mProject.ExportFileName
-                : "export");
+                : !string.IsNullOrWhiteSpace(fallbackName)
+                    ? fallbackName
+                    : "export");
 
             var srIndex = Array.IndexOf(SampleRates, mProject.ExportSampleRate);
             mSampleRateDropDown.SelectedIndex = srIndex >= 0 ? srIndex : Array.IndexOf(SampleRates, 44100);
@@ -515,6 +524,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     readonly StackPanel mTrackListPanel;
     readonly List<TrackItem> mTrackItems = new();
 
+    ProjectDocument? mDocument;
     IProject? mProject;
     bool mIsLoading;
 
