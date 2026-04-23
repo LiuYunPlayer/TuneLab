@@ -159,7 +159,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 
         NewProject();
-        CheckUpdate();
+        if (Settings.CheckUpdate.Value)
+        {
+            CheckUpdate();
+        }
     }
 
     ~Editor()

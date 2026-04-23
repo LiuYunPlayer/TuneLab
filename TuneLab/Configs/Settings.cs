@@ -37,6 +37,8 @@ internal static class Settings
     public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
     public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
     public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
+    public static NotifiableProperty<bool> LogFile { get; } = DefaultSettings.LogFile;
+    public static NotifiableProperty<bool> CheckUpdate { get; } = DefaultSettings.CheckUpdate;
     
     public static void Init(string path)
     {
@@ -85,6 +87,8 @@ internal static class Settings
         AudioDriver.Value = settingsFile.AudioDriver;
         AudioDevice.Value = settingsFile.AudioDevice;
         TrackHueChangeRate.Value = settingsFile.TrackHueChangeRate;
+        LogFile.Value = settingsFile.LogFile;
+        CheckUpdate.Value = settingsFile.CheckUpdate;
     }
 
     public static void Save(string path)
@@ -115,7 +119,9 @@ internal static class Settings
                 SampleRate = SampleRate,
                 AudioDriver = AudioDriver,
                 AudioDevice = AudioDevice,
-                TrackHueChangeRate = TrackHueChangeRate
+                TrackHueChangeRate = TrackHueChangeRate,
+                LogFile = LogFile,
+                CheckUpdate = CheckUpdate,
             }, JsonSerializerOptions);
 
             var folder = Path.GetDirectoryName(path);
