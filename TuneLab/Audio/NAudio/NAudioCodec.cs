@@ -18,10 +18,33 @@ internal class NAudioCodec : IAudioCodec
 
     public void EncodeToWav(string path, float[] buffer, int sampleRate, int bitPerSample, int channelCount)
     {
-        WaveFormat waveFormat = new WaveFormat(sampleRate, 16, channelCount);
-        using WaveFileWriter writer = new WaveFileWriter(path, waveFormat);
-        var bytes = To16BitsBytes(buffer);
-        writer.Write(bytes, 0, bytes.Length);
+        switch (bitPerSample)
+        {
+            case 32:
+            {
+                var waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(sampleRate, channelCount);
+                using var writer = new WaveFileWriter(path, waveFormat);
+                var bytes = To32BitsBytes(buffer);
+                writer.Write(bytes, 0, bytes.Length);
+                break;
+            }
+            case 24:
+            {
+                var waveFormat = new WaveFormat(sampleRate, 24, channelCount);
+                using var writer = new WaveFileWriter(path, waveFormat);
+                var bytes = To24BitsBytes(buffer);
+                writer.Write(bytes, 0, bytes.Length);
+                break;
+            }
+            default: // 16-bit
+            {
+                var waveFormat = new WaveFormat(sampleRate, 16, channelCount);
+                using var writer = new WaveFileWriter(path, waveFormat);
+                var bytes = To16BitsBytes(buffer);
+                writer.Write(bytes, 0, bytes.Length);
+                break;
+            }
+        }
     }
 
     public AudioInfo GetAudioInfo(string path)
@@ -40,6 +63,27 @@ internal class NAudioCodec : IAudioCodec
             results[i * 2] = shortBytes[0];
             results[i * 2 + 1] = shortBytes[1];
         }
+        return results;
+    }
+
+    static byte[] To24BitsBytes(float[] data)
+    {
+        byte[] results = new byte[data.Length * 3];
+        for (int i = 0; i < data.Length; i++)
+        {
+            int intValue = (int)(data[i] * 8388608); // 2^23
+            intValue = Math.Clamp(intValue, -8388608, 8388607);
+            results[i * 3] = (byte)(intValue & 0xFF);
+            results[i * 3 + 1] = (byte)((intValue >> 8) & 0xFF);
+            results[i * 3 + 2] = (byte)((intValue >> 16) & 0xFF);
+        }
+        return results;
+    }
+
+    static byte[] To32BitsBytes(float[] data)
+    {
+        byte[] results = new byte[data.Length * 4];
+        Buffer.BlockCopy(data, 0, results, 0, results.Length);
         return results;
     }
 
