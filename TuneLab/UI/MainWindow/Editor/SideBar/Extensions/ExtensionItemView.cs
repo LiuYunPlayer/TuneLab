@@ -34,6 +34,8 @@ internal class ExtensionItemView : Border
         BorderBrush = Style.BACK.ToBrush();
         BorderThickness = new Thickness(0, 0, 0, 1);
         HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        ClipToBounds = true;
+        MaxWidth = 280;
 
         var mainPanel = new DockPanel();
 
@@ -63,27 +65,28 @@ internal class ExtensionItemView : Border
         // Right side: info + action area
         var rightPanel = new DockPanel
         {
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
         };
 
-        // Bottom row: Type tag + Uninstall button
+        // Bottom row: Type tag + Uninstall button - aligned to icon bottom edge
         var bottomRow = new DockPanel
         {
-            Margin = new Thickness(0, 6, 0, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
         };
         {
-            // Uninstall button on the right
+            // Uninstall button on the right - aligned with type badge
             var uninstallBtn = new Border
             {
                 Background = Style.BUTTON_NORMAL.ToBrush(),
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(14, 4),
+                Padding = new Thickness(8, 2),
                 Cursor = new Cursor(StandardCursorType.Hand),
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Child = new TextBlock
                 {
                     Text = "Uninstall".Tr(TC.Dialog),
-                    FontSize = 12,
+                    FontSize = 11,
                     Foreground = Style.LIGHT_WHITE.ToBrush(),
                 }
             };
@@ -121,9 +124,26 @@ internal class ExtensionItemView : Border
             Orientation = Orientation.Vertical,
         };
 
-        // Row 1: Name + Version badge
-        var nameRow = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+        // Row 1: Name + Version badge (Grid for proper text truncation)
+        var nameRow = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        nameRow.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+        nameRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         {
+            // Extension name
+            var nameBlock = new TextBlock
+            {
+                Text = name,
+                FontSize = 15,
+                FontWeight = FontWeight.Bold,
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                Margin = new Thickness(0, 0, 8, 0),
+            };
+            Grid.SetColumn(nameBlock, 0);
+            nameRow.Children.Add(nameBlock);
+
             // Version badge on the right
             var versionBadge = new Border
             {
@@ -138,20 +158,8 @@ internal class ExtensionItemView : Border
                     Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush(),
                 }
             };
-            nameRow.AddDock(versionBadge, Dock.Right);
-
-            // Extension name
-            var nameBlock = new TextBlock
-            {
-                Text = name,
-                FontSize = 15,
-                FontWeight = FontWeight.Bold,
-                Foreground = Style.TEXT_LIGHT.ToBrush(),
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 0, 8, 0),
-            };
-            nameRow.AddDock(nameBlock);
+            Grid.SetColumn(versionBadge, 1);
+            nameRow.Children.Add(versionBadge);
         }
         topPanel.Children.Add(nameRow);
 

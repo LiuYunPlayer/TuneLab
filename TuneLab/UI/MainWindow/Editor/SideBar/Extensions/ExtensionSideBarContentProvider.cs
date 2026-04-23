@@ -22,6 +22,8 @@ namespace TuneLab.UI;
 
 internal class ExtensionSideBarContentProvider : ISideBarContentProvider
 {
+    public event Action? InstallRequested;
+
     public SideBar.SideBarContent Content => new()
     {
         Icon = Assets.Extensions.GetImage(Style.LIGHT_WHITE),
@@ -32,6 +34,8 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     public ExtensionSideBarContentProvider()
     {
         mContentPanel.Orientation = Orientation.Vertical;
+        mContentPanel.MaxWidth = 280;
+        mContentPanel.ClipToBounds = true;
 
         // Search bar area
         var searchPanel = new Border
@@ -73,13 +77,13 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             Margin = new Thickness(12, 8),
         };
 
-        var refreshBtn = CreateBottomButton("Refresh".Tr(TC.Dialog));
-        refreshBtn.PointerPressed += (s, e) =>
+        var installBtn = CreateBottomButton("Install Extension".Tr(TC.Dialog));
+        installBtn.PointerPressed += (s, e) =>
         {
             e.Handled = true;
-            RefreshExtensions();
+            InstallRequested?.Invoke();
         };
-        bottomPanel.Children.Add(refreshBtn);
+        bottomPanel.Children.Add(installBtn);
 
         var openFolderBtn = CreateBottomButton("Open Extensions Folder".Tr(TC.Dialog));
         openFolderBtn.PointerPressed += (s, e) =>

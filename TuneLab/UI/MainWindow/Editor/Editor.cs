@@ -143,6 +143,22 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         });
         mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
 
+        mExtensionSideBarContentProvider.InstallRequested += async () =>
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null)
+                return;
+            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Open Tlx File",
+                AllowMultiple = false,
+                FileTypeFilter = [new("TuneLab Extension") { Patterns = ["*.tlx"] }]
+            });
+            if (files.IsEmpty()) return;
+            var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
+            if (fileList != null) InstallExtensions(fileList);
+        };
+
         AddHandler(DragDrop.DropEvent, OnDrop);
 
         Menu = CreateMenu();
