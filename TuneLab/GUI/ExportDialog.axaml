@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="432" d:DesignHeight="196"
+        x:Class="TuneLab.GUI.ExportDialog"
+        Title="TuneLab"
+  Width="432"
+  Height="196"
+		ExtendClientAreaChromeHints="NoChrome"
+		ExtendClientAreaTitleBarHeightHint="40"
+		ExtendClientAreaToDecorationsHint="True">
+	<Window.Styles>
+		<Style Selector="TitleBar">
+			<Setter Property="Background" Value="DarkGray"/>
+			<Setter Property="Foreground" Value="White"/>
+		</Style>
+		<Style Selector="Window">
+			<Setter Property="CornerRadius" Value="12"/>
+		</Style>
+	</Window.Styles>
+
+	<DockPanel Margin="0">
+		<Grid DockPanel.Dock="Top" x:Name="TitleBar" Height="40">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*" />
+			</Grid.ColumnDefinitions>
+
+			<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
+				<Label x:Name="TitleLabel" Content="Export" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+			</StackPanel>
+		</Grid>
+
+		<ContentControl x:Name="Content">
+			<Grid Margin="0" x:Name="ContentGrid">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto" />
+					<RowDefinition Height="Auto" />
+					<RowDefinition Height="*" />
+				</Grid.RowDefinitions>
+
+				<TextBlock Grid.Row="0" x:Name="MessageTextBlock" Text="Exporting..." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" HorizontalAlignment="Center" Margin="36,24,36,0" />
+
+				<Grid Grid.Row="1" Margin="36,16,36,0" Height="28" x:Name="ProgressBarContainer">
+					<Border Background="#1B1B24" CornerRadius="4" />
+					<Border x:Name="ProgressBarFill" Background="#6060C0" CornerRadius="4" HorizontalAlignment="Left" Width="0" />
+				</Grid>
+
+				<TextBlock Grid.Row="2" x:Name="StatusTextBlock" Text="" Foreground="#99FFFFFF" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="36,12,36,0" TextTrimming="CharacterEllipsis" />
+			</Grid>
+		</ContentControl>
+	</DockPanel>
+</Window>

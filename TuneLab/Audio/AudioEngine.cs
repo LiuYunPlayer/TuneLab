@@ -109,7 +109,7 @@ internal static class AudioEngine
         ExportTrack(filePath, track, isStereo, SampleRate.Value, 16);
     }
 
-    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, int bitDepth)
+    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         double endTime = track.EndTime;
         endTime = Math.Max(endTime, 0);
@@ -117,10 +117,28 @@ internal static class AudioEngine
         int endPosition = (endTime * SampleRate.Value).Ceil();
         int channelCount = isStereo ? 2 : 1;
         float[] buffer = new float[endPosition * channelCount];
-        AudioGraph.AddData(track, 0, endPosition, isStereo, buffer, 0);
+
+        // Process in chunks for progress reporting
+        int chunkSize = BufferSize.Value;
+        for (int chunkStart = 0; chunkStart < endPosition; chunkStart += chunkSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int chunkEnd = Math.Min(chunkStart + chunkSize, endPosition);
+            AudioGraph.AddData(track, chunkStart, chunkEnd, isStereo, buffer, chunkStart * channelCount);
+            progress?.Report((double)chunkEnd / endPosition * 0.8);
+        }
+
+        progress?.Report(0.8);
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (outputSampleRate != SampleRate.Value)
             buffer = AudioUtils.Resample(buffer, channelCount, SampleRate.Value, outputSampleRate);
+
+        progress?.Report(0.9);
+        cancellationToken.ThrowIfCancellationRequested();
+
         AudioUtils.EncodeToWav(filePath, buffer, outputSampleRate, bitDepth, channelCount);
+        progress?.Report(1.0);
     }
 
     public static void ExportMaster(string filePath, bool isStereo)
@@ -128,16 +146,34 @@ internal static class AudioEngine
         ExportMaster(filePath, isStereo, SampleRate.Value, 16);
     }
 
-    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, int bitDepth)
+    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         var endTime = AudioGraph.EndTime;
         int endPosition = (endTime * SampleRate.Value).Ceil();
         int channelCount = isStereo ? 2 : 1;
         float[] buffer = new float[endPosition * channelCount];
-        AudioGraph.MixData(0, endPosition, isStereo, buffer, 0);
+
+        // Process in chunks for progress reporting
+        int chunkSize = BufferSize.Value;
+        for (int chunkStart = 0; chunkStart < endPosition; chunkStart += chunkSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int chunkEnd = Math.Min(chunkStart + chunkSize, endPosition);
+            AudioGraph.MixData(chunkStart, chunkEnd, isStereo, buffer, chunkStart * channelCount);
+            progress?.Report((double)chunkEnd / endPosition * 0.8);
+        }
+
+        progress?.Report(0.8);
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (outputSampleRate != SampleRate.Value)
             buffer = AudioUtils.Resample(buffer, channelCount, SampleRate.Value, outputSampleRate);
+
+        progress?.Report(0.9);
+        cancellationToken.ThrowIfCancellationRequested();
+
         AudioUtils.EncodeToWav(filePath, buffer, outputSampleRate, bitDepth, channelCount);
+        progress?.Report(1.0);
     }
 
     public static void InvokeRealtimeAmplitude(IAudioTrack track,out Tuple<double,double>? amplitude)

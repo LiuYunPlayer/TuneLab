@@ -680,11 +680,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (Project == null)
             return;
 
-        // Create progress dialog
-        var progressDialog = new Dialog();
-        progressDialog.SetTitle("Export".Tr(TC.Dialog));
-        progressDialog.SetMessage("Preparing export...".Tr(TC.Dialog));
-        progressDialog.SetTextAlignment(TextAlignment.Center);
+        // Create export progress dialog with progress bar
+        var exportDialog = new ExportDialog();
+        exportDialog.SetTitle("Export".Tr(TC.Dialog));
+        exportDialog.SetMessage("Exporting...".Tr(TC.Dialog));
+        exportDialog.SetProgress(0);
 
         var project = Project;
         var totalTracks = options.SelectedTracks.Count;
@@ -711,9 +711,21 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                             trackName = name;
                     }
 
+                    int trackIdx = i;
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        progressDialog.SetMessage($"Exporting ({i + 1}/{totalTracks}): {trackName}...");
+                        exportDialog.SetMessage("Exporting...".Tr(TC.Dialog));
+                        exportDialog.SetStatus($"({trackIdx + 1}/{totalTracks}): {trackName}");
+                    });
+
+                    // Progress callback: maps per-track progress [0,1] to overall progress
+                    var trackProgress = new Progress<double>(p =>
+                    {
+                        double overallProgress = (trackIdx + p) / totalTracks;
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            exportDialog.SetProgress(overallProgress);
+                        });
                     });
 
                     string suffix = totalTracks > 1
@@ -723,12 +735,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
                     if (trackIndex == -1)
                     {
-                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, options.BitDepth);
+                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, options.BitDepth, trackProgress);
                     }
                     else if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
                     {
                         var track = project.Tracks[trackIndex];
-                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, options.BitDepth);
+                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, options.BitDepth, trackProgress);
                     }
                 }
             }
@@ -739,11 +751,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                progressDialog.Close();
+                exportDialog.Close();
             });
         });
 
-        await progressDialog.ShowDialog(this.Window());
+        await exportDialog.ShowDialog(this.Window());
 
         if (errorMessage != null)
         {
