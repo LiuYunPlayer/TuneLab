@@ -21,6 +21,7 @@ internal class ExtensionItemView : Border
     public string ExtensionVersion { get; }
     public string ExtensionType { get; }
     public string ExtensionPath { get; }
+    public bool IsPendingUninstall { get; private set; }
 
     public ExtensionItemView(string name, string version, string type, string extensionPath)
     {
@@ -75,7 +76,13 @@ internal class ExtensionItemView : Border
         };
         {
             // Uninstall button on the right - aligned with type badge
-            var uninstallBtn = new Border
+            mUninstallBtnText = new TextBlock
+            {
+                Text = "Uninstall".Tr(TC.Dialog),
+                FontSize = 11,
+                Foreground = Style.LIGHT_WHITE.ToBrush(),
+            };
+            mUninstallBtn = new Border
             {
                 Background = Style.BUTTON_NORMAL.ToBrush(),
                 CornerRadius = new CornerRadius(4),
@@ -83,21 +90,17 @@ internal class ExtensionItemView : Border
                 Cursor = new Cursor(StandardCursorType.Hand),
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                Child = new TextBlock
-                {
-                    Text = "Uninstall".Tr(TC.Dialog),
-                    FontSize = 11,
-                    Foreground = Style.LIGHT_WHITE.ToBrush(),
-                }
+                Child = mUninstallBtnText,
             };
-            uninstallBtn.PointerEntered += (s, e) => uninstallBtn.Background = Style.BUTTON_NORMAL_HOVER.ToBrush();
-            uninstallBtn.PointerExited += (s, e) => uninstallBtn.Background = Style.BUTTON_NORMAL.ToBrush();
-            uninstallBtn.PointerPressed += (s, e) =>
+            mUninstallBtn.PointerEntered += (s, e) => { if (!IsPendingUninstall) mUninstallBtn.Background = Style.BUTTON_NORMAL_HOVER.ToBrush(); };
+            mUninstallBtn.PointerExited += (s, e) => { if (!IsPendingUninstall) mUninstallBtn.Background = Style.BUTTON_NORMAL.ToBrush(); };
+            mUninstallBtn.PointerPressed += (s, e) =>
             {
                 e.Handled = true;
-                UninstallRequested?.Invoke();
+                if (!IsPendingUninstall)
+                    UninstallRequested?.Invoke();
             };
-            bottomRow.AddDock(uninstallBtn, Dock.Right);
+            bottomRow.AddDock(mUninstallBtn, Dock.Right);
 
             // Type tag on the left - rounded rectangle badge
             var typeBadge = new Border
@@ -199,4 +202,19 @@ internal class ExtensionItemView : Border
         if (text.Length <= 4) return 15;
         return 13;
     }
+
+    public void MarkPendingUninstall()
+    {
+        if (IsPendingUninstall)
+            return;
+
+        IsPendingUninstall = true;
+        mUninstallBtn.Background = Style.BACK.ToBrush();
+        mUninstallBtn.Cursor = Cursor.Default;
+        mUninstallBtnText.Text = "Pending Uninstall".Tr(TC.Dialog);
+        mUninstallBtnText.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
+    }
+
+    readonly Border mUninstallBtn;
+    readonly TextBlock mUninstallBtnText;
 }

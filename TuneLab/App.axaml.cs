@@ -43,6 +43,7 @@ public partial class App : Application
                 };
                 desktop.Exit += (s, e) =>
                 {
+                    ExtensionManager.LaunchPendingUninstalls();
                     ExtensionManager.Destroy();
                     AudioEngine.Destroy();
                 };

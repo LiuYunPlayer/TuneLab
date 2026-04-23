@@ -155,7 +155,9 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             }
 
             var itemView = new ExtensionItemView(name, version, type, dir);
-            itemView.UninstallRequested += () => OnUninstallExtension(name, dir);
+            itemView.UninstallRequested += () => OnUninstallExtension(itemView);
+            if (ExtensionManager.PendingUninstalls.Contains(dir))
+                itemView.MarkPendingUninstall();
             mAllExtensions.Add(itemView);
         }
     }
@@ -207,32 +209,37 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             mCountLabel.Text = string.Format("{0} of {1} extension(s)", shown, total);
     }
 
-    private async void OnUninstallExtension(string name, string dirPath)
+    private async void OnUninstallExtension(ExtensionItemView itemView)
     {
-        // Show a restart prompt since extensions are loaded at startup
+        // We delegate the actual deletion to ExtensionInstaller, which waits
+        // for TuneLab to exit (lock file released) before deleting the folder.
         try
         {
             var topLevel = TopLevel.GetTopLevel(mContentPanel);
             if (topLevel is Avalonia.Controls.Window window)
             {
+                var name = itemView.ExtensionName;
+                var dirPath = itemView.ExtensionPath;
+
                 var dialog = new TuneLab.GUI.Dialog();
                 dialog.SetTitle("Uninstall Extension".Tr(TC.Dialog));
-                dialog.SetMessage(string.Format("Are you sure you want to uninstall \"{0}\"?\nThe application needs to restart to complete the uninstall.", name));
+                dialog.SetMessage(string.Format("The extension \"{0}\" will be uninstalled after the editor is closed.\nWould you like to restart now?", name));
                 dialog.AddButton("Cancel".Tr(TC.Dialog), TuneLab.GUI.Dialog.ButtonType.Normal);
-                dialog.AddButton("Uninstall & Restart".Tr(TC.Dialog), TuneLab.GUI.Dialog.ButtonType.Primary).Clicked += () =>
+                dialog.AddButton("Later".Tr(TC.Dialog), TuneLab.GUI.Dialog.ButtonType.Normal).Clicked += () =>
                 {
-                    try
-                    {
-                        Directory.Delete(dirPath, true);
-                    }
-                    catch { }
+                    // Record the extension for uninstall when TuneLab exits naturally.
+                    ExtensionManager.AddPendingUninstall(dirPath);
+                    itemView.MarkPendingUninstall();
+                };
+                dialog.AddButton("Restart".Tr(TC.Dialog), TuneLab.GUI.Dialog.ButtonType.Primary).Clicked += () =>
+                {
+                    // Mark for uninstall + set restart flag; the actual
+                    // ExtensionInstaller launch happens in desktop.Exit.
+                    ExtensionManager.AddPendingUninstall(dirPath);
+                    ExtensionManager.RestartAfterUninstall = true;
+                    itemView.MarkPendingUninstall();
 
-                    // Restart the application
-                    var exePath = Environment.ProcessPath;
-                    if (exePath != null)
-                    {
-                        Process.Start(exePath);
-                    }
+                    // Close the app so the exit handler fires
                     window.Close();
                 };
                 await dialog.ShowDialog(window);
