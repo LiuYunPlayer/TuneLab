@@ -60,6 +60,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 case "tracks":
                     ReadTracks(reader, projectInfo.Tracks);
                     break;
+                case "exportConfig":
+                    ReadExportConfig(reader, projectInfo.ExportConfig);
+                    break;
                 default:
                     reader.SkipValue();
                     break;
@@ -164,6 +167,12 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     case "asRefer":
                         trackInfo.AsRefer = reader.ReadBoolean();
                         break;
+                    case "exportEnabled":
+                        trackInfo.ExportEnabled = reader.ReadBoolean();
+                        break;
+                    case "exportChannels":
+                        trackInfo.ExportChannels = reader.ReadInt32();
+                        break;
                     case "parts":
                         ReadParts(reader, trackInfo.Parts);
                         break;
@@ -176,6 +185,40 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             tracks.Add(trackInfo);
         }
         reader.ReadEndArray();
+    }
+
+    private void ReadExportConfig(CborReader reader, ExportConfigInfo config)
+    {
+        reader.ReadStartMap();
+        while (reader.PeekState() != CborReaderState.EndMap)
+        {
+            var key = reader.ReadTextString();
+            switch (key)
+            {
+                case "exportPath":
+                    config.ExportPath = reader.ReadTextString();
+                    break;
+                case "fileName":
+                    config.FileName = reader.ReadTextString();
+                    break;
+                case "sampleRate":
+                    config.SampleRate = reader.ReadInt32();
+                    break;
+                case "bitDepth":
+                    config.BitDepth = reader.ReadInt32();
+                    break;
+                case "masterExportEnabled":
+                    config.MasterExportEnabled = reader.ReadBoolean();
+                    break;
+                case "masterExportChannels":
+                    config.MasterExportChannels = reader.ReadInt32();
+                    break;
+                default:
+                    reader.SkipValue();
+                    break;
+            }
+        }
+        reader.ReadEndMap();
     }
 
     private void ReadParts(CborReader reader, List<PartInfo> parts)
@@ -584,6 +627,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("tracks");
         WriteTracks(writer, projectInfo.Tracks);
 
+        writer.WriteTextString("exportConfig");
+        WriteExportConfig(writer, projectInfo.ExportConfig);
+
         writer.WriteEndMap();
     }
 
@@ -647,12 +693,43 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             writer.WriteTextString("asRefer");
             writer.WriteBoolean(track.AsRefer);
 
+            writer.WriteTextString("exportEnabled");
+            writer.WriteBoolean(track.ExportEnabled);
+
+            writer.WriteTextString("exportChannels");
+            writer.WriteInt32(track.ExportChannels);
+
             writer.WriteTextString("parts");
             WriteParts(writer, track.Parts);
 
             writer.WriteEndMap();
         }
         writer.WriteEndArray();
+    }
+
+    private void WriteExportConfig(CborWriter writer, ExportConfigInfo config)
+    {
+        writer.WriteStartMap(null);
+
+        writer.WriteTextString("exportPath");
+        writer.WriteTextString(config.ExportPath);
+
+        writer.WriteTextString("fileName");
+        writer.WriteTextString(config.FileName);
+
+        writer.WriteTextString("sampleRate");
+        writer.WriteInt32(config.SampleRate);
+
+        writer.WriteTextString("bitDepth");
+        writer.WriteInt32(config.BitDepth);
+
+        writer.WriteTextString("masterExportEnabled");
+        writer.WriteBoolean(config.MasterExportEnabled);
+
+        writer.WriteTextString("masterExportChannels");
+        writer.WriteInt32(config.MasterExportChannels);
+
+        writer.WriteEndMap();
     }
 
     private void WriteParts(CborWriter writer, List<PartInfo> parts)

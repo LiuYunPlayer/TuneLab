@@ -217,24 +217,40 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
     void LoadExportConfigFromProject()
     {
-        if (mProject == null)
-            return;
+        mIsLoading = true;
+        try
+        {
+            if (mProject == null)
+            {
+                mPathInput.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+                mFileNameInput.Display("export");
+                mSampleRateDropDown.SelectedIndex = Array.IndexOf(SampleRates, 44100);
+                mBitDepthDropDown.SelectedIndex = Array.IndexOf(BitDepths, 16);
+                return;
+            }
 
-        if (!string.IsNullOrWhiteSpace(mProject.ExportPath))
-            mPathInput.Display(mProject.ExportPath);
-        if (!string.IsNullOrWhiteSpace(mProject.ExportFileName))
-            mFileNameInput.Display(mProject.ExportFileName);
+            mPathInput.Display(!string.IsNullOrWhiteSpace(mProject.ExportPath)
+                ? mProject.ExportPath
+                : Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+            mFileNameInput.Display(!string.IsNullOrWhiteSpace(mProject.ExportFileName)
+                ? mProject.ExportFileName
+                : "export");
 
-        var srIndex = Array.IndexOf(SampleRates, mProject.ExportSampleRate);
-        if (srIndex >= 0) mSampleRateDropDown.SelectedIndex = srIndex;
+            var srIndex = Array.IndexOf(SampleRates, mProject.ExportSampleRate);
+            mSampleRateDropDown.SelectedIndex = srIndex >= 0 ? srIndex : Array.IndexOf(SampleRates, 44100);
 
-        var bdIndex = Array.IndexOf(BitDepths, mProject.ExportBitDepth);
-        if (bdIndex >= 0) mBitDepthDropDown.SelectedIndex = bdIndex;
+            var bdIndex = Array.IndexOf(BitDepths, mProject.ExportBitDepth);
+            mBitDepthDropDown.SelectedIndex = bdIndex >= 0 ? bdIndex : Array.IndexOf(BitDepths, 16);
+        }
+        finally
+        {
+            mIsLoading = false;
+        }
     }
 
     void SaveExportConfigToProject()
     {
-        if (mProject == null)
+        if (mIsLoading || mProject == null)
             return;
 
         mProject.ExportPath = mPathInput.Value;
@@ -501,6 +517,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     readonly List<TrackItem> mTrackItems = new();
 
     IProject? mProject;
+    bool mIsLoading;
 
     static readonly int[] SampleRates = [32000, 44100, 48000, 88200, 96000];
     static readonly int[] BitDepths = [16, 24, 32];

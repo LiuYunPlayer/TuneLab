@@ -79,6 +79,12 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                 if (track.TryGetValue("asRefer", out var asRefer))
                     trackInfo.AsRefer = (bool)asRefer;
 
+                if (track.TryGetValue("exportEnabled", out var exportEnabled))
+                    trackInfo.ExportEnabled = (bool)exportEnabled;
+
+                if (track.TryGetValue("exportChannels", out var exportChannels))
+                    trackInfo.ExportChannels = (int)exportChannels;
+
                 var parts = track["parts"].ToArray();
                 foreach (JObject part in parts)
                 {
@@ -231,6 +237,22 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                 projectInfo.Tracks.Add(trackInfo);
             }
 
+            if (project.TryGetValue("exportConfig", out var exportConfig) && exportConfig is JObject exportConfigObj)
+            {
+                if (exportConfigObj.TryGetValue("exportPath", out var exportPath))
+                    projectInfo.ExportConfig.ExportPath = (string)exportPath;
+                if (exportConfigObj.TryGetValue("fileName", out var fileName))
+                    projectInfo.ExportConfig.FileName = (string)fileName;
+                if (exportConfigObj.TryGetValue("sampleRate", out var sampleRate))
+                    projectInfo.ExportConfig.SampleRate = (int)sampleRate;
+                if (exportConfigObj.TryGetValue("bitDepth", out var bitDepth))
+                    projectInfo.ExportConfig.BitDepth = (int)bitDepth;
+                if (exportConfigObj.TryGetValue("masterExportEnabled", out var masterExportEnabled))
+                    projectInfo.ExportConfig.MasterExportEnabled = (bool)masterExportEnabled;
+                if (exportConfigObj.TryGetValue("masterExportChannels", out var masterExportChannels))
+                    projectInfo.ExportConfig.MasterExportChannels = (int)masterExportChannels;
+            }
+
             return projectInfo;
         }
     }
@@ -274,6 +296,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             track.Add("solo", trackInfo.Solo);
             track.Add("color", trackInfo.Color);
             track.Add("asRefer", trackInfo.AsRefer);
+            track.Add("exportEnabled", trackInfo.ExportEnabled);
+            track.Add("exportChannels", trackInfo.ExportChannels);
 
             var parts = new JArray();
             foreach (var partInfo in trackInfo.Parts)
@@ -394,6 +418,15 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             tracks.Add(track);
         }
         project.Add("tracks", tracks);
+
+        var exportConfig = new JObject();
+        exportConfig.Add("exportPath", projectInfo.ExportConfig.ExportPath);
+        exportConfig.Add("fileName", projectInfo.ExportConfig.FileName);
+        exportConfig.Add("sampleRate", projectInfo.ExportConfig.SampleRate);
+        exportConfig.Add("bitDepth", projectInfo.ExportConfig.BitDepth);
+        exportConfig.Add("masterExportEnabled", projectInfo.ExportConfig.MasterExportEnabled);
+        exportConfig.Add("masterExportChannels", projectInfo.ExportConfig.MasterExportChannels);
+        project.Add("exportConfig", exportConfig);
 
         return new MemoryStream(Encoding.UTF8.GetBytes(project.ToString(Formatting.None)));
     }
