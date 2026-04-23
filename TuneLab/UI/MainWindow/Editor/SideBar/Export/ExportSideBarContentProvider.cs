@@ -177,7 +177,6 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             if (!string.IsNullOrWhiteSpace(fileName))
             {
                 mFileNameInput.Display(fileName);
-                mProject.ExportFileName = fileName;
             }
         }
     }
@@ -369,8 +368,8 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         monoToggle.AddContent(new ToggleContent
         {
             Item = new CornerBorderItem() { CornerRadius = new CornerRadius(3, 0, 0, 3) },
-            CheckedColorSet = new() { Color = Style.HIGH_LIGHT },
-            UncheckedColorSet = new() { Color = Style.BUTTON_NORMAL },
+            CheckedColorSet = new() { Color = Style.ITEM },
+            UncheckedColorSet = new() { Color = Style.BACK },
         });
         monoToggle.AddContent(new ToggleContent
         {
@@ -384,8 +383,8 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         stereoToggle.AddContent(new ToggleContent
         {
             Item = new CornerBorderItem() { CornerRadius = new CornerRadius(0, 3, 3, 0) },
-            CheckedColorSet = new() { Color = Style.HIGH_LIGHT },
-            UncheckedColorSet = new() { Color = Style.BUTTON_NORMAL },
+            CheckedColorSet = new() { Color = Style.ITEM },
+            UncheckedColorSet = new() { Color = Style.BACK },
         });
         stereoToggle.AddContent(new ToggleContent
         {
