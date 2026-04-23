@@ -1,0 +1,194 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using TuneLab.GUI;
+using TuneLab.GUI.Components;
+using TuneLab.I18N;
+using TuneLab.Utils;
+
+namespace TuneLab.UI;
+
+internal class ExtensionItemView : Border
+{
+    public event Action? UninstallRequested;
+    public string ExtensionName { get; }
+    public string ExtensionVersion { get; }
+    public string ExtensionType { get; }
+    public string ExtensionPath { get; }
+
+    public ExtensionItemView(string name, string version, string type, string extensionPath)
+    {
+        ExtensionName = name;
+        ExtensionVersion = version;
+        ExtensionType = type;
+        ExtensionPath = extensionPath;
+
+        Background = Style.INTERFACE.ToBrush();
+        Padding = new Thickness(12, 10);
+        BorderBrush = Style.BACK.ToBrush();
+        BorderThickness = new Thickness(0, 0, 0, 1);
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+
+        var mainPanel = new DockPanel();
+
+        // Left: Large icon area - dark rounded rectangle with abbreviation text
+        var iconSize = 64.0;
+        var iconBorder = new Border
+        {
+            Width = iconSize,
+            Height = iconSize,
+            CornerRadius = new CornerRadius(8),
+            Background = Style.DARK.ToBrush(),
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Child = new TextBlock
+            {
+                Text = GetIconText(name),
+                FontSize = GetIconFontSize(name),
+                FontWeight = FontWeight.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+            }
+        };
+        mainPanel.AddDock(iconBorder, Dock.Left);
+
+        // Right side: info + action area
+        var rightPanel = new DockPanel
+        {
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+        };
+
+        // Bottom row: Type tag + Uninstall button
+        var bottomRow = new DockPanel
+        {
+            Margin = new Thickness(0, 6, 0, 0),
+        };
+        {
+            // Uninstall button on the right
+            var uninstallBtn = new Border
+            {
+                Background = Style.BUTTON_NORMAL.ToBrush(),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(14, 4),
+                Cursor = new Cursor(StandardCursorType.Hand),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                Child = new TextBlock
+                {
+                    Text = "Uninstall".Tr(TC.Dialog),
+                    FontSize = 12,
+                    Foreground = Style.LIGHT_WHITE.ToBrush(),
+                }
+            };
+            uninstallBtn.PointerEntered += (s, e) => uninstallBtn.Background = Style.BUTTON_NORMAL_HOVER.ToBrush();
+            uninstallBtn.PointerExited += (s, e) => uninstallBtn.Background = Style.BUTTON_NORMAL.ToBrush();
+            uninstallBtn.PointerPressed += (s, e) =>
+            {
+                e.Handled = true;
+                UninstallRequested?.Invoke();
+            };
+            bottomRow.AddDock(uninstallBtn, Dock.Right);
+
+            // Type tag on the left - rounded rectangle badge
+            var typeBadge = new Border
+            {
+                Background = Style.BACK.ToBrush(),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 2),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Child = new TextBlock
+                {
+                    Text = type,
+                    FontSize = 11,
+                    Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
+                }
+            };
+            bottomRow.AddDock(typeBadge);
+        }
+        rightPanel.AddDock(bottomRow, Dock.Bottom);
+
+        // Top area: Name + Version + empty description
+        var topPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+        };
+
+        // Row 1: Name + Version badge
+        var nameRow = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+        {
+            // Version badge on the right
+            var versionBadge = new Border
+            {
+                Background = Style.BACK.ToBrush(),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(8, 2),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = "v" + version,
+                    FontSize = 11,
+                    Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush(),
+                }
+            };
+            nameRow.AddDock(versionBadge, Dock.Right);
+
+            // Extension name
+            var nameBlock = new TextBlock
+            {
+                Text = name,
+                FontSize = 15,
+                FontWeight = FontWeight.Bold,
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 0, 8, 0),
+            };
+            nameRow.AddDock(nameBlock);
+        }
+        topPanel.Children.Add(nameRow);
+
+        // Row 2: Description (empty for now)
+        var descBlock = new TextBlock
+        {
+            Text = "",
+            FontSize = 12,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        topPanel.Children.Add(descBlock);
+
+        rightPanel.AddDock(topPanel);
+        mainPanel.AddDock(rightPanel);
+        Child = mainPanel;
+    }
+
+    private static string GetIconText(string name)
+    {
+        if (name.Length <= 5)
+            return name;
+
+        var words = name.Split(new[] { ' ', '_', '-' }, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length >= 2)
+            return (words[0][..1] + words[1][..1]).ToUpperInvariant();
+
+        return name[..1].ToUpperInvariant();
+    }
+
+    private static double GetIconFontSize(string name)
+    {
+        var text = GetIconText(name);
+        if (text.Length <= 1) return 28;
+        if (text.Length <= 2) return 22;
+        if (text.Length <= 3) return 18;
+        if (text.Length <= 4) return 15;
+        return 13;
+    }
+}

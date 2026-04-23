@@ -124,13 +124,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); });
         mPianoWindow.PartProvider.ObjectChanged.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
-        mRightSideTabBar.SelectedTab.Modified.Subscribe(() => 
+        mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
         {
             mRightSideBar.IsVisible = true;
             switch (mRightSideTabBar.SelectedTab.Value)
             {
                 case SideBarTab.Properties:
                     mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
+                    break;
+                case SideBarTab.Extensions:
+                    mExtensionSideBarContentProvider.RefreshExtensions();
+                    mRightSideBar.SetContent(mExtensionSideBarContentProvider.Content);
                     break;
                 default:
                     mRightSideBar.IsVisible = false;
@@ -1049,6 +1053,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly SideTabBar mRightSideTabBar;
 
     readonly PropertySideBarContentProvider mPropertySideBarContentProvider = new();
+    readonly ExtensionSideBarContentProvider mExtensionSideBarContentProvider = new();
 
     readonly PlayheadForProject mPlayhead;
 
