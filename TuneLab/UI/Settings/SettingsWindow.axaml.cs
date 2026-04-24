@@ -1,4 +1,5 @@
 ﻿using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
@@ -245,6 +246,20 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(panel);
         }
         Content.AddDock(listView);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Settings.Save(PathManager.SettingsFilePath);
+            s.DisposeAll();
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
     }
 
     readonly DisposableManager s = new();
