@@ -378,6 +378,8 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         {
             OffIcon = Assets.Mono,
             OnIcon = Assets.Stereo,
+            Width = 52,
+            Height = 16,
         };
         channelSwitch.Display(isStereo);
         channelSwitch.Switched.Subscribe(() =>
