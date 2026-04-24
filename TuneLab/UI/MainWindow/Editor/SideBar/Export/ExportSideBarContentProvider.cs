@@ -378,6 +378,9 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         {
             OffIcon = Assets.Mono,
             OnIcon = Assets.Stereo,
+            OffToolTip = "Mono".Tr(TC.Dialog),
+            OnToolTip = "Stereo".Tr(TC.Dialog),
+            HighlightColor = Style.ITEM,
             Width = 52,
             Height = 16,
         };

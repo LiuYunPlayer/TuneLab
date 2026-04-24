@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using TuneLab.Animation;
 using TuneLab.Base.Properties;
 using TuneLab.GUI;
+using TuneLab.GUI.Input;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;
@@ -36,6 +38,11 @@ internal class Switch : Toggle, IDataValueController<bool>
     public Color InactiveIconColor { get => mInactiveIconColor; set { mInactiveIconColor = value; SnapIconColors(); } }
     /// <summary>Padding between the background capsule and the highlight pill.</summary>
     public double InnerPadding { get; set; } = 2.0;
+
+    /// <summary>Tooltip shown while the mouse is over the left (OffIcon) half. No tooltip if null or empty.</summary>
+    public string? OffToolTip { get => mOffToolTip; set { mOffToolTip = value; RefreshToolTip(); } }
+    /// <summary>Tooltip shown while the mouse is over the right (OnIcon) half. No tooltip if null or empty.</summary>
+    public string? OnToolTip { get => mOnToolTip; set { mOnToolTip = value; RefreshToolTip(); } }
 
     public Switch()
     {
@@ -115,6 +122,49 @@ internal class Switch : Toggle, IDataValueController<bool>
     Color TargetOnColor() => IsChecked ? mActiveIconColor : mInactiveIconColor;
     Color TargetOffColor() => IsChecked ? mInactiveIconColor : mActiveIconColor;
 
+    // --- Per-half tooltip logic --------------------------------------------------
+    // When either OffToolTip or OnToolTip is set, we swap the tooltip text on the
+    // fly based on which half the pointer is over so the user gets a different
+    // label for each side of the switch.
+
+    protected override void OnMouseEnter(MouseEnterEventArgs e)
+    {
+        base.OnMouseEnter(e);
+        RefreshToolTip(e.Position.X);
+    }
+
+    protected override void OnMouseMove(MouseMoveEventArgs e)
+    {
+        base.OnMouseMove(e);
+        RefreshToolTip(e.Position.X);
+    }
+
+    protected override void OnMouseLeave(MouseLeaveEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        // Clear the tooltip so it doesn't linger with stale side-specific text.
+        ToolTip.SetTip(this, null);
+    }
+
+    void RefreshToolTip()
+    {
+        if (!IsHover)
+            return;
+
+        RefreshToolTip(MousePosition.X);
+    }
+
+    void RefreshToolTip(double mouseX)
+    {
+        var width = Bounds.Width;
+        if (width <= 0)
+            return;
+
+        bool leftHalf = mouseX < width / 2.0;
+        var text = leftHalf ? mOffToolTip : mOnToolTip;
+        ToolTip.SetTip(this, string.IsNullOrEmpty(text) ? null : text);
+    }
+
     static void PaintIcon(DrawingContext context, SvgIcon? icon, Rect rect, Color color)
     {
         if (icon == null)
@@ -129,6 +179,8 @@ internal class Switch : Toggle, IDataValueController<bool>
 
     SvgIcon? mOnIcon;
     SvgIcon? mOffIcon;
+    string? mOnToolTip;
+    string? mOffToolTip;
     Color mBackColor = Style.BACK;
     Color mHighlightColor = Style.HIGH_LIGHT;
     Color mActiveIconColor = Style.WHITE;
