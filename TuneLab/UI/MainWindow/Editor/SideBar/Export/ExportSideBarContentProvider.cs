@@ -369,79 +369,32 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         DockPanel.SetDock(checkBoxContainer, Avalonia.Controls.Dock.Right);
         panel.Children.Add(checkBoxContainer);
 
-        // M/S segmented toggle buttons on the right (before checkbox)
-        int currentChannels = initialChannels;
-        bool isStereo = currentChannels >= 2;
+        // Mono / Stereo switch on the right (before the checkbox).
+        // IsChecked == true  => Stereo (OnIcon, right side highlighted)
+        // IsChecked == false => Mono   (OffIcon, left  side highlighted)
+        bool isStereo = initialChannels >= 2;
 
-        var monoToggle = new Toggle() { Width = 28, Height = 16 };
-        monoToggle.AddContent(new ToggleContent
+        var channelSwitch = new Switch
         {
-            Item = new CornerBorderItem() { CornerRadius = new CornerRadius(3, 0, 0, 3) },
-            CheckedColorSet = new() { Color = Style.ITEM },
-            UncheckedColorSet = new() { Color = Style.BACK },
-        });
-        monoToggle.AddContent(new ToggleContent
+            OffIcon = Assets.Mono,
+            OnIcon = Assets.Stereo,
+        };
+        channelSwitch.Display(isStereo);
+        channelSwitch.Switched.Subscribe(() =>
         {
-            Item = new IconItem { Icon = Assets.Mono },
-            CheckedColorSet = new() { Color = Colors.White },
-            UncheckedColorSet = new() { Color = Style.LIGHT_WHITE },
-        });
-        monoToggle.Display(!isStereo);
-
-        var stereoToggle = new Toggle() { Width = 28, Height = 16 };
-        stereoToggle.AddContent(new ToggleContent
-        {
-            Item = new CornerBorderItem() { CornerRadius = new CornerRadius(0, 3, 3, 0) },
-            CheckedColorSet = new() { Color = Style.ITEM },
-            UncheckedColorSet = new() { Color = Style.BACK },
-        });
-        stereoToggle.AddContent(new ToggleContent
-        {
-            Item = new IconItem { Icon = Assets.Stereo },
-            CheckedColorSet = new() { Color = Colors.White },
-            UncheckedColorSet = new() { Color = Style.LIGHT_WHITE },
-        });
-        stereoToggle.Display(isStereo);
-
-        // Use a simple int ref to track state via closures
-        int[] channelState = [currentChannels];
-
-        // Prevent toggling off the already-active toggle (radio behavior)
-        monoToggle.AllowSwitch += () => !monoToggle.IsChecked;
-        stereoToggle.AllowSwitch += () => !stereoToggle.IsChecked;
-
-        monoToggle.Switched.Subscribe(() =>
-        {
-            if (monoToggle.IsChecked)
-            {
-                channelState[0] = 1;
-                stereoToggle.Display(false);
-                if (isMaster && mProject != null) mProject.MasterExportChannels = 1;
-                else if (track != null) track.ExportChannels = 1;
-            }
-        });
-        stereoToggle.Switched.Subscribe(() =>
-        {
-            if (stereoToggle.IsChecked)
-            {
-                channelState[0] = 2;
-                monoToggle.Display(false);
-                if (isMaster && mProject != null) mProject.MasterExportChannels = 2;
-                else if (track != null) track.ExportChannels = 2;
-            }
+            int channels = channelSwitch.IsChecked ? 2 : 1;
+            if (isMaster && mProject != null) mProject.MasterExportChannels = channels;
+            else if (track != null) track.ExportChannels = channels;
         });
 
-        var segmentPanel = new StackPanel
+        var switchContainer = new Border
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 0,
             VerticalAlignment = AvaloniaVerticalAlignment.Center,
             Margin = new Thickness(4, 0, 0, 0),
+            Child = channelSwitch,
         };
-        segmentPanel.Children.Add(monoToggle);
-        segmentPanel.Children.Add(stereoToggle);
-        DockPanel.SetDock(segmentPanel, Avalonia.Controls.Dock.Right);
-        panel.Children.Add(segmentPanel);
+        DockPanel.SetDock(switchContainer, Avalonia.Controls.Dock.Right);
+        panel.Children.Add(switchContainer);
 
         // Color bar on the left
         var colorBar = new Border
@@ -472,7 +425,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         {
             Panel = panel,
             CheckBox = checkBox,
-            ChannelState = channelState,
+            ChannelSwitch = channelSwitch,
             IsMaster = isMaster,
             TrackIndex = trackIndex,
             Track = track,
@@ -505,14 +458,14 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     {
         public required DockPanel Panel { get; init; }
         public required CheckBox CheckBox { get; init; }
-        public required int[] ChannelState { get; init; } // [0] = 1 or 2
+        public required Switch ChannelSwitch { get; init; } // IsChecked => stereo (2), else mono (1)
         public required bool IsMaster { get; init; }
         public required int TrackIndex { get; init; } // -1 for master
         public required ITrack? Track { get; init; }
 
         public int GetChannels()
         {
-            return ChannelState[0];
+            return ChannelSwitch.IsChecked ? 2 : 1;
         }
     }
 
