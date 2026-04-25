@@ -13,7 +13,7 @@ namespace TuneLab.Configs;
 
 internal static class PresetConfigManager
 {
-    static string StorageFilePath => Path.Combine(PathManager.ConfigsFolder, "Presets.txt");
+    static string StorageFilePath => Path.Combine(PathManager.ConfigsFolder, "Presets.json");
 
     public static List<PartPreset> LoadPresets()
     {
@@ -56,6 +56,36 @@ internal static class PresetConfigManager
 
         var presets = LoadPresets(throwOnError: true);
         presets.RemoveAll(item => item.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+
+        var json = new JArray(presets.Select(ToJson));
+        File.WriteAllText(StorageFilePath, json.ToString(Formatting.Indented));
+    }
+
+    public static void RenamePreset(string oldPresetName, string newPresetName)
+    {
+        if (string.IsNullOrWhiteSpace(oldPresetName) || string.IsNullOrWhiteSpace(newPresetName))
+            return;
+
+        if (oldPresetName.Equals(newPresetName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (!File.Exists(StorageFilePath))
+            return;
+
+        var presets = LoadPresets(throwOnError: true);
+        var sourceIndex = presets.FindIndex(item => item.Name.Equals(oldPresetName, StringComparison.OrdinalIgnoreCase));
+        if (sourceIndex < 0)
+            return;
+
+        var targetIndex = presets.FindIndex(item => item.Name.Equals(newPresetName, StringComparison.OrdinalIgnoreCase));
+        if (targetIndex >= 0)
+        {
+            presets.RemoveAt(targetIndex);
+            if (targetIndex < sourceIndex)
+                sourceIndex--;
+        }
+
+        presets[sourceIndex].Name = newPresetName;
 
         var json = new JArray(presets.Select(ToJson));
         File.WriteAllText(StorageFilePath, json.ToString(Formatting.Indented));

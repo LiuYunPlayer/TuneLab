@@ -34,15 +34,24 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPresetPanel.Title = presetName;
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mPresetContent.Children.Add(mPresetComboBox);
+        mSaveAsPresetButton = CreatePresetButton("Save As".Tr(TC.Menu));
         mSavePresetButton = CreatePresetButton("Save".Tr(TC.Property));
-        mApplyPresetButton = CreatePresetButton("Apply".Tr(TC.Property));
+        mRenamePresetButton = CreatePresetButton("Rename".Tr(TC.Menu));
+        mApplyPresetButton = CreatePresetButton("Apply".Tr(TC.Property), 200);
         mDeletePresetButton = CreatePresetButton("Delete".Tr(TC.Property));
+        mSaveAsPresetButton.Clicked += async () => await OnSaveAsPresetClicked();
         mSavePresetButton.Clicked += async () => await OnSavePresetClicked();
+        mRenamePresetButton.Clicked += async () => await OnRenamePresetClicked();
         mApplyPresetButton.Clicked += OnApplyPresetClicked;
         mDeletePresetButton.Clicked += async () => await OnDeletePresetClicked();
-        mPresetButtons.Children.Add(mSavePresetButton);
-        mPresetButtons.Children.Add(mApplyPresetButton);
-        mPresetButtons.Children.Add(mDeletePresetButton);
+        mPresetPrimaryButtons.Children.Add(mSaveAsPresetButton);
+        mPresetPrimaryButtons.Children.Add(mSavePresetButton);
+        mPresetSecondaryButtons.Children.Add(mRenamePresetButton);
+        mPresetSecondaryButtons.Children.Add(mDeletePresetButton);
+        mPresetTertiaryButtons.Children.Add(mApplyPresetButton);
+        mPresetButtons.Children.Add(mPresetPrimaryButtons);
+        mPresetButtons.Children.Add(mPresetSecondaryButtons);
+        mPresetButtons.Children.Add(mPresetTertiaryButtons);
         mPresetContent.Children.Add(mPresetButtons);
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
         mPresetContentContainer.Child = mPresetContent;
@@ -72,9 +81,9 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         LoadPresets();
     }
 
-    TuneLab.GUI.Components.Button CreatePresetButton(string text)
+    TuneLab.GUI.Components.Button CreatePresetButton(string text, double width = 96)
     {
-        return new TuneLab.GUI.Components.Button() { Width = 72, Height = 28 }
+        return new TuneLab.GUI.Components.Button() { Width = width, Height = 28 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
             .AddContent(new() { Item = new TextItem() { Text = text }, ColorSet = new() { Color = Colors.White } });
     }
@@ -312,6 +321,51 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPart.Commit();
     }
 
+    async Task OnSaveAsPresetClicked()
+    {
+        if (mPart == null)
+            return;
+
+        var presetName = await RequestPresetNameAsync();
+        if (presetName == null)
+            return;
+
+        var existingPreset = mPresets.FirstOrDefault(preset => preset.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+        if (existingPreset != null)
+        {
+            var shouldOverwrite = await ConfirmOverwriteAsync(existingPreset.Name);
+            if (!shouldOverwrite)
+                return;
+
+            presetName = existingPreset.Name;
+        }
+
+        SavePreset(presetName);
+    }
+
+    async Task OnRenamePresetClicked()
+    {
+        var selectedPresetName = SelectedPresetName();
+        if (selectedPresetName == null)
+            return;
+
+        var presetName = await RequestPresetNameAsync(selectedPresetName);
+        if (presetName == null || presetName.Equals(selectedPresetName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var existingPreset = mPresets.FirstOrDefault(preset => preset.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+        if (existingPreset != null)
+        {
+            var shouldOverwrite = await ConfirmOverwriteAsync(existingPreset.Name);
+            if (!shouldOverwrite)
+                return;
+
+            presetName = existingPreset.Name;
+        }
+
+        RenamePreset(selectedPresetName, presetName);
+    }
+
     async Task OnSavePresetClicked()
     {
         if (mPart == null)
@@ -319,32 +373,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         var selectedPresetName = SelectedPresetName();
         if (selectedPresetName == null)
-        {
-            var dialog = new PresetNameDialog();
-            var presetName = await dialog.ShowDialog<string?>(mPresetPanel.Window());
-            presetName = presetName?.Trim();
-            if (string.IsNullOrWhiteSpace(presetName))
-                return;
-
-            if (presetName.Equals(NonePresetOption, StringComparison.OrdinalIgnoreCase))
-            {
-                await mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "\"None\" is reserved.");
-                return;
-            }
-
-            var existingPreset = mPresets.FirstOrDefault(preset => preset.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
-            if (existingPreset != null)
-            {
-                var shouldOverwrite = await ConfirmOverwriteAsync(existingPreset.Name);
-                if (!shouldOverwrite)
-                    return;
-
-                presetName = existingPreset.Name;
-            }
-
-            SavePreset(presetName);
             return;
-        }
 
         if (!await ConfirmOverwriteAsync(selectedPresetName))
             return;
@@ -508,6 +537,23 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         return confirmed;
     }
 
+    async Task<string?> RequestPresetNameAsync(string initialName = "")
+    {
+        var dialog = new PresetNameDialog(initialName);
+        var presetName = await dialog.ShowDialog<string?>(mPresetPanel.Window());
+        presetName = presetName?.Trim();
+        if (string.IsNullOrWhiteSpace(presetName))
+            return null;
+
+        if (presetName.Equals(NonePresetOption, StringComparison.OrdinalIgnoreCase))
+        {
+            await mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "\"None\" is reserved.");
+            return null;
+        }
+
+        return presetName;
+    }
+
     void SavePreset(string presetName)
     {
         try
@@ -519,6 +565,20 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         {
             Log.Error("Failed to save preset: " + ex);
             _ = mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "Failed to save preset: \n" + ex.Message);
+        }
+    }
+
+    void RenamePreset(string oldPresetName, string newPresetName)
+    {
+        try
+        {
+            PresetConfigManager.RenamePreset(oldPresetName, newPresetName);
+            LoadPresets(newPresetName);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to rename preset: " + ex);
+            _ = mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), "Failed to rename preset: \n" + ex.Message);
         }
     }
 
@@ -563,7 +623,10 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
-    readonly StackPanel mPresetButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    readonly StackPanel mPresetButtons = new() { Orientation = Orientation.Vertical, Spacing = 8 };
+    readonly StackPanel mPresetPrimaryButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    readonly StackPanel mPresetSecondaryButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+    readonly StackPanel mPresetTertiaryButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
@@ -574,7 +637,9 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly LayerPanel mNoteContentPanel = new();
 
     readonly ComboBoxController mPresetComboBox = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+    readonly TuneLab.GUI.Components.Button mSaveAsPresetButton;
     readonly TuneLab.GUI.Components.Button mSavePresetButton;
+    readonly TuneLab.GUI.Components.Button mRenamePresetButton;
     readonly TuneLab.GUI.Components.Button mApplyPresetButton;
     readonly TuneLab.GUI.Components.Button mDeletePresetButton;
     readonly ObjectController mAutomationController = new();
