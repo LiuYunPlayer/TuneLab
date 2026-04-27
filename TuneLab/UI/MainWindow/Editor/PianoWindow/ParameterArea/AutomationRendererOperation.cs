@@ -4,6 +4,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Media;
 using TuneLab.Animation;
 using TuneLab.Base.Data;
 using TuneLab.Base.Structures;
@@ -39,7 +41,49 @@ internal partial class AutomationRenderer
         switch (mState)
         {
             case State.None:
+                bool ctrl = (e.KeyModifiers & ModifierKeys.Ctrl) != 0;
                 var item = ItemAt(e.Position);
+                if (mDependency.PianoTool.Value == PianoTool.Anchor)
+                {
+                    Part?.Pitch.DeselectAllAnchors();
+                    mDependency.PianoScrollView.InvalidateVisual();
+                    switch (e.MouseButtonType)
+                    {
+                        case MouseButtonType.PrimaryButton:
+                            if (item is AutomationAnchorItem anchorItem)
+                            {
+                                mAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.Automation, anchorItem.AnchorPoint, anchorItem.MinValue, anchorItem.MaxValue);
+                            }
+                            else if (e.IsDoubleClick)
+                            {
+                                if (!TryGetActiveAutomation(out var automation, out var config, true))
+                                    break;
+
+                                var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - automation.Part.Pos.Value, YToValue(e.Position.Y, config.MinValue, config.MaxValue)) { IsSelected = true };
+                                automation.InsertPoint(anchor);
+                                automation.Points.DeselectAllItems();
+                                anchor.Select();
+                                mAnchorMoveOperation.Down(e.Position, ctrl, automation, anchor, config.MinValue, config.MaxValue, true);
+                            }
+                            else
+                            {
+                                mAnchorSelectOperation.Down(e.Position, ctrl);
+                            }
+                            break;
+                        case MouseButtonType.SecondaryButton:
+                            if (item is AutomationAnchorItem deleteAnchorItem)
+                            {
+                                deleteAnchorItem.Automation.Points.DeselectAllItems();
+                                deleteAnchorItem.Automation.DeletePoints([deleteAnchorItem.AnchorPoint]);
+                            }
+                            mAnchorDeleteOperation.Down(e.Position.X);
+                            break;
+                        default:
+                            break;
+                    }
+                    break;
+                }
+
                 if (item is VibratoItem vibratoItem)
                 {
                     switch (e.MouseButtonType)
@@ -108,6 +152,15 @@ internal partial class AutomationRenderer
             case State.Clearing:
                 mClearOperation.Move(e.Position.X);
                 break;
+            case State.AnchorSelecting:
+                mAnchorSelectOperation.Move(e.Position);
+                break;
+            case State.AnchorDeleting:
+                mAnchorDeleteOperation.Move(e.Position.X);
+                break;
+            case State.AnchorMoving:
+                mAnchorMoveOperation.Move(e.Position);
+                break;
             case State.VibratoAmplitudeAdjusting:
                 mVibratoAmplitudeOperation.Move(e.Position.Y);
                 break;
@@ -116,6 +169,10 @@ internal partial class AutomationRenderer
                 if (item is VibratoItem)
                 {
                     Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeNorthSouth);
+                }
+                else if (item is AutomationAnchorItem)
+                {
+                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeAll);
                 }
                 else
                 {
@@ -138,6 +195,18 @@ internal partial class AutomationRenderer
             case State.Clearing:
                 if (e.MouseButtonType == MouseButtonType.SecondaryButton)
                     mClearOperation.Up();
+                break;
+            case State.AnchorSelecting:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mAnchorSelectOperation.Up();
+                break;
+            case State.AnchorDeleting:
+                if (e.MouseButtonType == MouseButtonType.SecondaryButton)
+                    mAnchorDeleteOperation.Up();
+                break;
+            case State.AnchorMoving:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mAnchorMoveOperation.Up();
                 break;
             case State.VibratoAmplitudeAdjusting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
@@ -187,9 +256,58 @@ internal partial class AutomationRenderer
                     items.Add(new VibratoItem(this) { Vibrato = vibrato });
                 }
                 break;
+            case PianoTool.Anchor:
+                var activeAutomation = mDependency.ActiveAutomation;
+                if (activeAutomation == null)
+                    break;
+
+                if (!Part.Automations.TryGetValue(activeAutomation, out var automation))
+                    break;
+
+                var config = Part.GetEffectiveAutomationConfig(activeAutomation);
+                var color = Color.Parse(config.Color);
+                foreach (var point in automation.Points)
+                {
+                    double tick = Part.Pos.Value + point.Pos;
+                    if (tick < startPos)
+                        continue;
+
+                    if (tick > endPos)
+                        break;
+
+                    items.Add(new AutomationAnchorItem(this)
+                    {
+                        Automation = automation,
+                        AnchorPoint = point,
+                        MinValue = config.MinValue,
+                        MaxValue = config.MaxValue,
+                        Color = color,
+                    });
+                }
+                break;
             default:
                 break;
         }
+    }
+
+    bool TryGetActiveAutomation([NotNullWhen(true)] out IAutomation? automation, [NotNullWhen(true)] out AutomationConfig? config, bool createIfMissing)
+    {
+        automation = null;
+        config = null;
+        if (Part == null)
+            return false;
+
+        var automationID = mDependency.ActiveAutomation;
+        if (automationID == null || !Part.IsEffectiveAutomation(automationID))
+            return false;
+
+        config = Part.GetEffectiveAutomationConfig(automationID);
+        if (!Part.Automations.TryGetValue(automationID, out automation) && createIfMissing)
+        {
+            automation = Part.AddAutomation(automationID);
+        }
+
+        return automation != null;
     }
 
     class Operation(AutomationRenderer automationRenderer)
@@ -330,7 +448,7 @@ internal partial class AutomationRenderer
             State = State.None;
         }
 
-        Point ToTickAndValue(Avalonia.Point mousePosition)
+        TuneLab.Base.Structures.Point ToTickAndValue(Avalonia.Point mousePosition)
         {
             return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - mAutomation!.Part.Pos.Value,
                 mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin));
@@ -341,7 +459,7 @@ internal partial class AutomationRenderer
         double mMin;
         bool mDirection;
         Head mHead;
-        readonly List<List<Point>> mPointLines = new();
+        readonly List<List<TuneLab.Base.Structures.Point>> mPointLines = new();
     }
 
     readonly DrawOperation mDrawOperation;
@@ -413,6 +531,264 @@ internal partial class AutomationRenderer
     }
 
     readonly ClearOperation mClearOperation;
+
+    class AnchorSelectOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        public bool IsOperating => State == State.AnchorSelecting;
+
+        public void Down(Avalonia.Point point, bool ctrl)
+        {
+            if (State != State.None)
+                return;
+
+            if (!AutomationRenderer.TryGetActiveAutomation(out mAutomation, out var config, false))
+                return;
+
+            State = State.AnchorSelecting;
+            mMinValue = config.MinValue;
+            mMaxValue = config.MaxValue;
+            mDefaultValue = mAutomation.DefaultValue.Value;
+            mDownTick = AutomationRenderer.TickAxis.X2Tick(point.X) - mAutomation.Part.Pos.Value;
+            mDownValue = AutomationRenderer.YToValue(point.Y, mMinValue, mMaxValue);
+            if (ctrl)
+            {
+                mSelectedItems = mAutomation.Points.AllSelectedItems();
+            }
+            Move(point);
+        }
+
+        public void Move(Avalonia.Point point)
+        {
+            if (!IsOperating || mAutomation == null)
+                return;
+
+            mTick = AutomationRenderer.TickAxis.X2Tick(point.X) - mAutomation.Part.Pos.Value;
+            mValue = AutomationRenderer.YToValue(point.Y, mMinValue, mMaxValue);
+            mAutomation.Points.DeselectAllItems();
+            if (mSelectedItems != null)
+            {
+                foreach (var item in mSelectedItems)
+                    item.Select();
+            }
+
+            double minTick = Math.Min(mTick, mDownTick);
+            double maxTick = Math.Max(mTick, mDownTick);
+            double minValue = Math.Min(mValue, mDownValue);
+            double maxValue = Math.Max(mValue, mDownValue);
+            foreach (var pointItem in mAutomation.Points)
+            {
+                double value = pointItem.Value + mDefaultValue;
+                if (pointItem.Pos >= minTick && pointItem.Pos <= maxTick && value >= minValue && value <= maxValue)
+                    pointItem.Select();
+            }
+
+            AutomationRenderer.UpdateAnchorValueInput();
+            AutomationRenderer.InvalidateVisual();
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            State = State.None;
+            mSelectedItems = null;
+            mAutomation = null;
+            AutomationRenderer.UpdateAnchorValueInput();
+            AutomationRenderer.InvalidateVisual();
+        }
+
+        public Rect SelectionRect()
+        {
+            if (mAutomation == null)
+                return new Rect();
+
+            double minTick = Math.Min(mTick, mDownTick);
+            double maxTick = Math.Max(mTick, mDownTick);
+            double minValue = Math.Min(mValue, mDownValue);
+            double maxValue = Math.Max(mValue, mDownValue);
+            double left = AutomationRenderer.TickAxis.Tick2X(mAutomation.Part.Pos.Value + minTick);
+            double right = AutomationRenderer.TickAxis.Tick2X(mAutomation.Part.Pos.Value + maxTick);
+            double top = AutomationRenderer.ValueToY(maxValue, mMinValue, mMaxValue);
+            double bottom = AutomationRenderer.ValueToY(minValue, mMinValue, mMaxValue);
+            return new Rect(left, top, right - left, bottom - top);
+        }
+
+        IAutomation? mAutomation;
+        IReadOnlyCollection<AnchorPoint>? mSelectedItems;
+        double mMinValue;
+        double mMaxValue;
+        double mDefaultValue;
+        double mDownTick;
+        double mDownValue;
+        double mTick;
+        double mValue;
+    }
+
+    readonly AnchorSelectOperation mAnchorSelectOperation;
+
+    class AnchorDeleteOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        [MemberNotNullWhen(true, nameof(mAutomation))]
+        public bool IsOperating => mAutomation != null && State == State.AnchorDeleting;
+
+        public void Down(double x)
+        {
+            if (IsOperating)
+                return;
+
+            if (!AutomationRenderer.TryGetActiveAutomation(out mAutomation, out _, false))
+                return;
+
+            State = State.AnchorDeleting;
+            AutomationRenderer.Part!.BeginMergeDirty();
+            mHead = AutomationRenderer.Part.Head;
+            double tick = AutomationRenderer.TickAxis.X2Tick(x) - mAutomation.Part.Pos.Value;
+            mStart = tick;
+            mEnd = tick;
+            mAutomation.DeletePoints(mStart, mEnd);
+            AutomationRenderer.UpdateAnchorValueInput();
+        }
+
+        public void Move(double x)
+        {
+            if (!IsOperating)
+                return;
+
+            mAutomation.DiscardTo(mHead);
+            double tick = AutomationRenderer.TickAxis.X2Tick(x) - mAutomation.Part.Pos.Value;
+            mStart = Math.Min(mStart, tick);
+            mEnd = Math.Max(mEnd, tick);
+            mAutomation.DeletePoints(mStart, mEnd);
+            AutomationRenderer.UpdateAnchorValueInput();
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            if (AutomationRenderer.Part == null)
+                return;
+
+            mAutomation.DiscardTo(mHead);
+            mAutomation.DeletePoints(mStart, mEnd);
+            AutomationRenderer.Part.EndMergeDirty();
+            mAutomation.Commit();
+            mAutomation = null;
+            State = State.None;
+            AutomationRenderer.UpdateAnchorValueInput();
+            AutomationRenderer.InvalidateVisual();
+        }
+
+        IAutomation? mAutomation = null;
+        double mStart;
+        double mEnd;
+        Head mHead;
+    }
+
+    readonly AnchorDeleteOperation mAnchorDeleteOperation;
+
+    class AnchorMoveOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        public void Down(Avalonia.Point point, bool ctrl, IAutomation automation, AnchorPoint anchor, double minValue, double maxValue, bool keepChangeWithoutMove = false)
+        {
+            if (AutomationRenderer.Part == null)
+                return;
+
+            mAutomation = automation;
+            mAnchor = anchor;
+            mCtrl = ctrl;
+            mIsSelected = anchor.IsSelected;
+            mKeepChangeWithoutMove = keepChangeWithoutMove;
+            mMin = minValue;
+            mMax = maxValue;
+            if (!mCtrl && !mIsSelected)
+            {
+                mAutomation.Points.DeselectAllItems();
+            }
+            anchor.Select();
+
+            State = State.AnchorMoving;
+            AutomationRenderer.Part.DisableAutoPrepare();
+            mHead = AutomationRenderer.Part.Head;
+            mXOffset = point.X - AutomationRenderer.TickAxis.Tick2X(AutomationRenderer.Part.Pos.Value + anchor.Pos);
+            mYOffset = point.Y - AutomationRenderer.ValueToY(anchor.Value + automation.DefaultValue.Value, mMin, mMax);
+            AutomationRenderer.UpdateAnchorValueInput();
+            AutomationRenderer.InvalidateVisual();
+        }
+
+        public void Move(Avalonia.Point point)
+        {
+            var part = AutomationRenderer.Part;
+            if (part == null || mAutomation == null || mAnchor == null)
+                return;
+
+            double pos = AutomationRenderer.TickAxis.X2Tick(point.X - mXOffset) - part.Pos.Value;
+            double posOffset = pos - mAnchor.Pos;
+            double value = AutomationRenderer.YToValue(point.Y - mYOffset, mMin, mMax);
+            double valueOffset = value - (mAnchor.Value + mAutomation.DefaultValue.Value);
+
+            mMoved = true;
+            part.DiscardTo(mHead);
+            mAutomation.MoveSelectedPoints(posOffset, valueOffset);
+            AutomationRenderer.UpdateAnchorValueInput();
+        }
+
+        public void Up()
+        {
+            State = State.None;
+
+            if (mAnchor == null || mAutomation == null)
+                return;
+
+            if (AutomationRenderer.Part == null)
+                return;
+
+            AutomationRenderer.Part.EnableAutoPrepare();
+            if (mMoved || mKeepChangeWithoutMove)
+            {
+                AutomationRenderer.Part.Commit();
+            }
+            else
+            {
+                AutomationRenderer.Part.Discard();
+                if (mCtrl)
+                {
+                    if (mIsSelected)
+                    {
+                        mAnchor.Inselect();
+                    }
+                }
+                else
+                {
+                    mAutomation.Points.DeselectAllItems();
+                    mAnchor.Select();
+                }
+            }
+
+            mMoved = false;
+            mKeepChangeWithoutMove = false;
+            mAutomation = null;
+            mAnchor = null;
+            AutomationRenderer.UpdateAnchorValueInput();
+            AutomationRenderer.InvalidateVisual();
+        }
+
+        IAutomation? mAutomation;
+        AnchorPoint? mAnchor;
+        bool mCtrl;
+        bool mIsSelected;
+        bool mMoved = false;
+        bool mKeepChangeWithoutMove = false;
+        double mXOffset;
+        double mYOffset;
+        double mMin;
+        double mMax;
+        Head mHead;
+    }
+
+    readonly AnchorMoveOperation mAnchorMoveOperation;
 
     class VibratoAmplitudeOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
@@ -510,6 +886,9 @@ internal partial class AutomationRenderer
         None,
         Drawing,
         Clearing,
+        AnchorSelecting,
+        AnchorDeleting,
+        AnchorMoving,
         VibratoAmplitudeAdjusting,
     }
 

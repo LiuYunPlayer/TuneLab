@@ -35,6 +35,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
     public ParameterButton PitchButton => mParameterTabBar.PitchButton;
     public PianoScrollView PianoScrollView => mPianoScrollView;
+    public AutomationRenderer AutomationRenderer => mParameterContainer.AutomationRenderer;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
     public INotifiableProperty<PianoTool> PianoTool => mDependency.PianoTool;
@@ -53,6 +54,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
         set
         {
+            Part?.DeselectAllAutomationPoints();
             mActiveAutomation = value;
             if (mActiveAutomation != null)
             {
@@ -175,13 +177,22 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         if (e.IsHandledByTextBox())
             return;
 
+        var automationRenderer = mParameterContainer.AutomationRenderer;
+        if (automationRenderer.IsOperating)
+            return;
+
+        bool preferAutomationAnchorActions = PianoTool.Value == UI.PianoTool.Anchor && automationRenderer.IsHover;
+
         switch (PianoScrollView.OperationState)
         {
             case PianoScrollView.State.None:
                 e.Handled = true;
                 if (e.Match(Key.Delete))
                 {
-                    PianoScrollView.Delete();
+                    if (preferAutomationAnchorActions)
+                        automationRenderer.DeleteSelectedAnchors();
+                    else
+                        PianoScrollView.Delete();
                 }
                 else if (e.Match(Key.C, ModifierKeys.Ctrl))
                 {
@@ -204,6 +215,16 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                             break;
                         case UI.PianoTool.Vibrato:
                             Part?.Vibratos.SelectAllItems();
+                            break;
+                        case UI.PianoTool.Anchor:
+                            if (automationRenderer.IsHover)
+                                automationRenderer.SelectAllAnchors();
+                            else
+                            {
+                                Part?.DeselectAllAutomationPoints();
+                                automationRenderer.InvalidateVisual();
+                                Part?.Pitch.SelectAllAnchors();
+                            }
                             break;
                         default:
                             break;

@@ -348,6 +348,15 @@ internal static class IMidiPartExtension
             automation.Clear(start, end, 5);
         }
     }
+
+    public static void DeselectAllAutomationPoints(this IMidiPart part)
+    {
+        foreach (var automation in part.Automations.Values)
+        {
+            automation.Points.DeselectAllItems();
+        }
+    }
+
     internal static MidiPartInfo MergePartInfos(MidiPartInfo[] SortedPartInfos)
     {
         double PosAxisTrans(PartInfo curPart, double pos)
