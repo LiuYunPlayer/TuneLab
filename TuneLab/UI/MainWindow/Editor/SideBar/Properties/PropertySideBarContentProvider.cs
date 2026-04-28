@@ -33,26 +33,21 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         var presetName = new Label() { Content = "Preset".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mPresetPanel.Title = presetName;
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
-        mPresetContent.Children.Add(mPresetComboBox);
-        mSaveAsPresetButton = CreatePresetButton("Save As".Tr(TC.Menu));
-        mSavePresetButton = CreatePresetButton("Save".Tr(TC.Property));
-        mRenamePresetButton = CreatePresetButton("Rename".Tr(TC.Menu));
-        mApplyPresetButton = CreatePresetButton("Apply".Tr(TC.Property), 200);
-        mDeletePresetButton = CreatePresetButton("Delete".Tr(TC.Property));
-        mSaveAsPresetButton.Clicked += async () => await OnSaveAsPresetClicked();
-        mSavePresetButton.Clicked += async () => await OnSavePresetClicked();
-        mRenamePresetButton.Clicked += async () => await OnRenamePresetClicked();
-        mApplyPresetButton.Clicked += OnApplyPresetClicked;
-        mDeletePresetButton.Clicked += async () => await OnDeletePresetClicked();
-        mPresetPrimaryButtons.Children.Add(mSaveAsPresetButton);
-        mPresetPrimaryButtons.Children.Add(mSavePresetButton);
-        mPresetSecondaryButtons.Children.Add(mRenamePresetButton);
-        mPresetSecondaryButtons.Children.Add(mDeletePresetButton);
-        mPresetTertiaryButtons.Children.Add(mApplyPresetButton);
-        mPresetButtons.Children.Add(mPresetPrimaryButtons);
-        mPresetButtons.Children.Add(mPresetSecondaryButtons);
-        mPresetButtons.Children.Add(mPresetTertiaryButtons);
-        mPresetContent.Children.Add(mPresetButtons);
+
+        mPresetMoreButton = new TuneLab.GUI.Components.Button() { Width = 28, Height = 28 }
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
+            .AddContent(new() { Item = new TextItem() { Text = "\u22EF", FontSize = 16 }, ColorSet = new() { Color = Colors.White } });
+        mPresetMoreButton.Clicked += OnPresetMoreButtonClicked;
+
+        var presetRow = new DockPanel() { LastChildFill = true };
+        DockPanel.SetDock(mPresetMoreButton, Dock.Right);
+        presetRow.Children.Add(mPresetMoreButton);
+        mPresetComboBox.Margin = new(0, 0, 8, 0);
+        presetRow.Children.Add(mPresetComboBox);
+        mPresetContent.Children.Add(presetRow);
+
+        mPresetComboBox.ValueCommited.Subscribe(OnPresetComboBoxValueCommited);
+
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
         mPresetContentContainer.Child = mPresetContent;
         mPresetPanel.Content = mPresetContentContainer;
@@ -81,11 +76,39 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         LoadPresets();
     }
 
-    TuneLab.GUI.Components.Button CreatePresetButton(string text, double width = 96)
+    void OnPresetComboBoxValueCommited()
     {
-        return new TuneLab.GUI.Components.Button() { Width = width, Height = 28 }
-            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
-            .AddContent(new() { Item = new TextItem() { Text = text }, ColorSet = new() { Color = Colors.White } });
+        OnApplyPresetClicked();
+    }
+
+    void OnPresetMoreButtonClicked()
+    {
+        var menu = new ContextMenu();
+        var hasSelection = SelectedPresetName() != null;
+        var hasPart = mPart != null;
+
+        {
+            var menuItem = new MenuItem().SetName("Save As".Tr(TC.Menu)).SetAction(async () => await OnSaveAsPresetClicked());
+            menuItem.IsEnabled = hasPart;
+            menu.Items.Add(menuItem);
+        }
+        {
+            var menuItem = new MenuItem().SetName("Save".Tr(TC.Property)).SetAction(async () => await OnSavePresetClicked());
+            menuItem.IsEnabled = hasPart && hasSelection;
+            menu.Items.Add(menuItem);
+        }
+        {
+            var menuItem = new MenuItem().SetName("Rename".Tr(TC.Menu)).SetAction(async () => await OnRenamePresetClicked());
+            menuItem.IsEnabled = hasSelection;
+            menu.Items.Add(menuItem);
+        }
+        {
+            var menuItem = new MenuItem().SetName("Delete".Tr(TC.Property)).SetAction(async () => await OnDeletePresetClicked());
+            menuItem.IsEnabled = hasSelection;
+            menu.Items.Add(menuItem);
+        }
+
+        mPresetMoreButton.OpenContextMenu(menu);
     }
 
     public void SetPart(IMidiPart? part)
@@ -623,10 +646,6 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
-    readonly StackPanel mPresetButtons = new() { Orientation = Orientation.Vertical, Spacing = 8 };
-    readonly StackPanel mPresetPrimaryButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
-    readonly StackPanel mPresetSecondaryButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
-    readonly StackPanel mPresetTertiaryButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
@@ -637,11 +656,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly LayerPanel mNoteContentPanel = new();
 
     readonly ComboBoxController mPresetComboBox = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
-    readonly TuneLab.GUI.Components.Button mSaveAsPresetButton;
-    readonly TuneLab.GUI.Components.Button mSavePresetButton;
-    readonly TuneLab.GUI.Components.Button mRenamePresetButton;
-    readonly TuneLab.GUI.Components.Button mApplyPresetButton;
-    readonly TuneLab.GUI.Components.Button mDeletePresetButton;
+    readonly TuneLab.GUI.Components.Button mPresetMoreButton;
     readonly ObjectController mAutomationController = new();
     readonly MidiPartFixedController mPartFixedController = new();
     readonly ObjectController mPartPropertiesController = new();
