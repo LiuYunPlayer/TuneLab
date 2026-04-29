@@ -224,8 +224,9 @@ internal class Automation : DataObject, IAutomation
         void NotifyRangeModified() => mRangeModified.Invoke(start, end);
         Push(new UndoOnlyCommand(NotifyRangeModified));
 
+        double defaultValue = DefaultValue;
         mPoints.Remove(selectedPoints);
-        AddPoints(selectedPoints.Select(point => new AnchorPoint(point.Pos + offsetPos, point.Value + offsetValue) { IsSelected = true }).ToList());
+        AddPoints(selectedPoints.Select(point => new AnchorPoint(point.Pos + offsetPos, point.Value + offsetValue + defaultValue) { IsSelected = true }).ToList());
 
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));

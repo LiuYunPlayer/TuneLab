@@ -350,6 +350,7 @@ internal partial class PianoScrollView
 
                                     Part.DeselectAllAutomationPoints();
                                     mDependency.AutomationRenderer.InvalidateVisual();
+                                    mDependency.AutomationRenderer.RefreshAnchorValueInput();
 
                                     if (mPreviewPitchItem != null && mPreviewPitchItem.OnDown != null)
                                     {
@@ -386,6 +387,7 @@ internal partial class PianoScrollView
 
                                     Part.DeselectAllAutomationPoints();
                                     mDependency.AutomationRenderer.InvalidateVisual();
+                                    mDependency.AutomationRenderer.RefreshAnchorValueInput();
                                     Part.Pitch.DeselectAllAnchors();
                                     if (item is AnchorItem anchorItem)
                                     {

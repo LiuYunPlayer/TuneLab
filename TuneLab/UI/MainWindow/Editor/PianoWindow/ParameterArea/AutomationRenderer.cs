@@ -321,6 +321,11 @@ internal partial class AutomationRenderer : View
         UpdateAnchorValueInput();
     }
 
+    public void RefreshAnchorValueInput()
+    {
+        UpdateAnchorValueInput();
+    }
+
     void UpdateAnchorValueInput()
     {
         UpdateAnchorValueInput(true);

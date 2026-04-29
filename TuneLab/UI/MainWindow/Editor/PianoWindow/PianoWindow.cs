@@ -223,6 +223,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                             {
                                 Part?.DeselectAllAutomationPoints();
                                 automationRenderer.InvalidateVisual();
+                                automationRenderer.RefreshAnchorValueInput();
                                 Part?.Pitch.SelectAllAnchors();
                             }
                             break;
