@@ -61,9 +61,13 @@ internal partial class AutomationRenderer
 
                                 var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - automation.Part.Pos.Value, YToValue(e.Position.Y, config.MinValue, config.MaxValue)) { IsSelected = true };
                                 automation.InsertPoint(anchor);
+                                var insertedAnchor = automation.Points.FirstOrDefault(point => point.Pos == anchor.Pos);
+                                if (insertedAnchor == null)
+                                    break;
+
                                 automation.Points.DeselectAllItems();
-                                anchor.Select();
-                                mAnchorMoveOperation.Down(e.Position, ctrl, automation, anchor, config.MinValue, config.MaxValue, true);
+                                insertedAnchor.Select();
+                                mAnchorMoveOperation.Down(e.Position, ctrl, automation, insertedAnchor, config.MinValue, config.MaxValue, true);
                             }
                             else
                             {
