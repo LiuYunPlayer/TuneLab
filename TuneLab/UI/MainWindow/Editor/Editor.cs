@@ -655,13 +655,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return new();
 
         var projectInfo = project.GetInfo();
-        projectInfo.PlayheadPos = Playhead.Pos;
+        projectInfo.EditorInfo.PlayheadPos = Playhead.Pos;
         return projectInfo;
     }
 
     void RestorePlayhead(ProjectInfo info)
     {
-        Playhead.Pos = Math.Max(0, info.PlayheadPos);
+        Playhead.Pos = Math.Max(0, info.EditorInfo.PlayheadPos);
     }
 
     public async void ExportMix()
