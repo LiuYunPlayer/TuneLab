@@ -51,6 +51,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     if (version > CURRENT_VERSION)
                         throw new Exception("Unsupported Version");
                     break;
+                case "editorInfo":
+                    ReadEditorInfo(reader, projectInfo.EditorInfo);
+                    break;
                 case "tempos":
                     ReadTempos(reader, projectInfo.Tempos);
                     break;
@@ -71,6 +74,25 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         reader.ReadEndMap();
 
         return projectInfo;
+    }
+
+    private void ReadEditorInfo(CborReader reader, EditorInfo editorInfo)
+    {
+        reader.ReadStartMap();
+        while (reader.PeekState() != CborReaderState.EndMap)
+        {
+            var key = reader.ReadTextString();
+            switch (key)
+            {
+                case "playheadPos":
+                    editorInfo.PlayheadPos = reader.ReadDouble();
+                    break;
+                default:
+                    reader.SkipValue();
+                    break;
+            }
+        }
+        reader.ReadEndMap();
     }
 
     private void ReadTempos(CborReader reader, List<TempoInfo> tempos)
@@ -618,6 +640,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("version");
         writer.WriteInt32(CURRENT_VERSION);
 
+        writer.WriteTextString("editorInfo");
+        WriteEditorInfo(writer, projectInfo.EditorInfo);
+
         writer.WriteTextString("tempos");
         WriteTempos(writer, projectInfo.Tempos);
 
@@ -630,6 +655,14 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("exportConfig");
         WriteExportConfig(writer, projectInfo.ExportConfig);
 
+        writer.WriteEndMap();
+    }
+
+    private void WriteEditorInfo(CborWriter writer, EditorInfo editorInfo)
+    {
+        writer.WriteStartMap(null);
+        writer.WriteTextString("playheadPos");
+        writer.WriteDouble(editorInfo.PlayheadPos);
         writer.WriteEndMap();
     }
 
