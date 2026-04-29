@@ -39,6 +39,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IQuantization Quantization { get; }
         IProvider<IMidiPart> PartProvider { get; }
         ParameterButton PitchButton { get; }
+        AutomationRenderer AutomationRenderer { get; }
         double WaveformBottom { get; }
         IActionEvent WaveformBottomChanged { get; }
     }
