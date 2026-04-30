@@ -55,6 +55,7 @@ public partial class App : Application
                         Log.Error($"Failed to shutdown PluginHost: {ex}");
                     }
                     
+                    ExtensionManager.LaunchPendingUninstalls();
                     ExtensionManager.Destroy();
                     AudioEngine.Destroy();
                 };

@@ -20,7 +20,10 @@ internal interface IAutomation : IDataObject<AutomationInfo>
     void AddLine(IReadOnlyList<AnchorPoint> points, double extend);
     void Clear(double start, double end, double extend);
     void AddPoints(IReadOnlyList<AnchorPoint> points);
+    void InsertPoint(AnchorPoint point);
+    void DeletePoints(double start, double end);
     void DeletePoints(IReadOnlyList<AnchorPoint> points);
+    void MoveSelectedPoints(double offsetPos, double offsetValue);
 }
 
 internal static class IAutomationExtension

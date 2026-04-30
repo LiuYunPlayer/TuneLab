@@ -24,6 +24,9 @@ internal class AutoPageButton : Toggle
 
         AddContent(backContent);
         AddContent(iconContent);
+
+        PlayScrollTarget.Modified.Subscribe(UpdateDisplay);
+        UpdateDisplay();
     }
 
     protected override void OnMouseDown(MouseDownEventArgs e)
@@ -32,27 +35,16 @@ internal class AutoPageButton : Toggle
         { 
             case MouseButtonType.PrimaryButton:
                 PlayScrollTarget.Value = PlayScrollTarget.Value == UI.PlayScrollTarget.View ? UI.PlayScrollTarget.None : UI.PlayScrollTarget.View;
-                mIconItem.Icon = Assets.AutoPage;
                 break;
             case MouseButtonType.SecondaryButton:
                 PlayScrollTarget.Value = PlayScrollTarget.Value == UI.PlayScrollTarget.Playhead ? UI.PlayScrollTarget.None : UI.PlayScrollTarget.Playhead;
-                mIconItem.Icon = Assets.AutoScroll;
                 break;
         }
+    }
 
-        switch (PlayScrollTarget.Value)
-        {
-            case UI.PlayScrollTarget.None:
-
-                break;
-            case UI.PlayScrollTarget.View:
-
-                break;
-            case UI.PlayScrollTarget.Playhead:
-
-                break;
-        }
-
+    void UpdateDisplay()
+    {
+        mIconItem.Icon = PlayScrollTarget.Value == UI.PlayScrollTarget.Playhead ? Assets.AutoScroll : Assets.AutoPage;
         IsChecked = PlayScrollTarget.Value != UI.PlayScrollTarget.None;
         InvalidateVisual();
     }

@@ -110,7 +110,7 @@ internal class Automation : DataObject, IAutomation
             var ps = new AnchorPoint[points.Count];
             for (int i = 0; i < points.Count; i++)
             {
-                ps[i] = new(points[i].Pos, points[i].Value - defaultValue);
+                ps[i] = new(points[i].Pos, points[i].Value - defaultValue) { IsSelected = points[i].IsSelected };
             }
             points = ps;
         }
@@ -134,9 +134,102 @@ internal class Automation : DataObject, IAutomation
         }
     }
 
+    public void InsertPoint(AnchorPoint point)
+    {
+        double start = point.Pos;
+        double end = point.Pos;
+        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        Push(new UndoOnlyCommand(NotifyRangeModified));
+
+        int insertIndex = mPoints.Count;
+        for (int i = 0; i < mPoints.Count; i++)
+        {
+            if (mPoints[i].Pos >= point.Pos)
+            {
+                insertIndex = i;
+                break;
+            }
+        }
+
+        if (insertIndex > 0)
+            start = mPoints[insertIndex - 1].Pos;
+        if (insertIndex < mPoints.Count)
+            end = mPoints[insertIndex].Pos;
+
+        AddPoints([point]);
+        NotifyRangeModified();
+        Push(new RedoOnlyCommand(NotifyRangeModified));
+    }
+
+    public void DeletePoints(double start, double end)
+    {
+        if (start > end)
+            return;
+
+        double rangeStart = end;
+        double rangeEnd = start;
+        bool hasDeletedPoint = false;
+        void NotifyRangeModified() => mRangeModified.Invoke(rangeStart, rangeEnd);
+        for (int i = mPoints.Count - 1; i >= 0; i--)
+        {
+            if (mPoints[i].Pos > end)
+                continue;
+
+            if (mPoints[i].Pos < start)
+                break;
+
+            if (!hasDeletedPoint)
+            {
+                Push(new UndoOnlyCommand(NotifyRangeModified));
+                hasDeletedPoint = true;
+            }
+
+            rangeStart = Math.Min(rangeStart, i > 0 ? mPoints[i - 1].Pos : mPoints[i].Pos);
+            rangeEnd = Math.Max(rangeEnd, i + 1 < mPoints.Count ? mPoints[i + 1].Pos : mPoints[i].Pos);
+            mPoints.RemoveAt(i);
+        }
+
+        if (hasDeletedPoint)
+        {
+            NotifyRangeModified();
+            Push(new RedoOnlyCommand(NotifyRangeModified));
+        }
+    }
+
     public void DeletePoints(IReadOnlyList<AnchorPoint> points)
     {
+        if (points.IsEmpty())
+            return;
+
+        double start = points.Min(point => point.Pos);
+        double end = points.Max(point => point.Pos);
+        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        Push(new UndoOnlyCommand(NotifyRangeModified));
         mPoints.Remove(points);
+        NotifyRangeModified();
+        Push(new RedoOnlyCommand(NotifyRangeModified));
+    }
+
+    public void MoveSelectedPoints(double offsetPos, double offsetValue)
+    {
+        if (offsetPos == 0 && offsetValue == 0)
+            return;
+
+        var selectedPoints = mPoints.AllSelectedItems().OrderBy(point => point.Pos).ToList();
+        if (selectedPoints.IsEmpty())
+            return;
+
+        double start = Math.Min(selectedPoints.First().Pos, selectedPoints.First().Pos + offsetPos);
+        double end = Math.Max(selectedPoints.Last().Pos, selectedPoints.Last().Pos + offsetPos);
+        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        Push(new UndoOnlyCommand(NotifyRangeModified));
+
+        double defaultValue = DefaultValue;
+        mPoints.Remove(selectedPoints);
+        AddPoints(selectedPoints.Select(point => new AnchorPoint(point.Pos + offsetPos, point.Value + offsetValue + defaultValue) { IsSelected = true }).ToList());
+
+        NotifyRangeModified();
+        Push(new RedoOnlyCommand(NotifyRangeModified));
     }
 
     readonly DataList<AnchorPoint> mPoints;

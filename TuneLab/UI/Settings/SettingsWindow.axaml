@@ -2,10 +2,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="284"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="720"
         x:Class="TuneLab.UI.SettingsWindow"
         Title="Settings - TuneLab"
-		Width="600"
+		Width="800"
 		Height="720"
 		ExtendClientAreaChromeHints="NoChrome"
 		ExtendClientAreaTitleBarHeightHint="40"
@@ -26,8 +26,21 @@
 			<StackPanel Grid.Column="2" x:Name="WindowControl" HorizontalAlignment="Right" VerticalAlignment="Center" />
 		</Grid>
 
-		<DockPanel x:Name="Content">
-
-		</DockPanel>
+		<Grid x:Name="MainGrid">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="220"/>
+				<ColumnDefinition Width="*"/>
+			</Grid.ColumnDefinitions>
+			
+			<!-- Left Sidebar -->
+			<Border Grid.Column="0" x:Name="SidebarBorder">
+				<StackPanel x:Name="SidebarPanel" Orientation="Vertical" Margin="0,8,0,0"/>
+			</Border>
+			
+			<!-- Right Content Area -->
+			<Border Grid.Column="1" x:Name="ContentBorder">
+				<DockPanel x:Name="ContentPanel"/>
+			</Border>
+		</Grid>
 	</DockPanel>
 </Window>

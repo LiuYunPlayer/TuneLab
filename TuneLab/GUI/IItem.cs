@@ -26,6 +26,47 @@ internal class BorderItem : IItem
     }
 }
 
+internal class CornerBorderItem : IItem
+{
+    public CornerRadius CornerRadius { get; set; } = new CornerRadius(4);
+
+    public void Paint(DrawingContext context, Rect rect, Color color)
+    {
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            double tl = CornerRadius.TopLeft;
+            double tr = CornerRadius.TopRight;
+            double br = CornerRadius.BottomRight;
+            double bl = CornerRadius.BottomLeft;
+
+            ctx.BeginFigure(new Point(rect.Left + tl, rect.Top), true);
+            ctx.LineTo(new Point(rect.Right - tr, rect.Top));
+            if (tr > 0)
+                ctx.ArcTo(new Point(rect.Right, rect.Top + tr), new Size(tr, tr), 0, false, SweepDirection.Clockwise);
+            else
+                ctx.LineTo(new Point(rect.Right, rect.Top));
+            ctx.LineTo(new Point(rect.Right, rect.Bottom - br));
+            if (br > 0)
+                ctx.ArcTo(new Point(rect.Right - br, rect.Bottom), new Size(br, br), 0, false, SweepDirection.Clockwise);
+            else
+                ctx.LineTo(new Point(rect.Right, rect.Bottom));
+            ctx.LineTo(new Point(rect.Left + bl, rect.Bottom));
+            if (bl > 0)
+                ctx.ArcTo(new Point(rect.Left, rect.Bottom - bl), new Size(bl, bl), 0, false, SweepDirection.Clockwise);
+            else
+                ctx.LineTo(new Point(rect.Left, rect.Bottom));
+            ctx.LineTo(new Point(rect.Left, rect.Top + tl));
+            if (tl > 0)
+                ctx.ArcTo(new Point(rect.Left + tl, rect.Top), new Size(tl, tl), 0, false, SweepDirection.Clockwise);
+            else
+                ctx.LineTo(new Point(rect.Left, rect.Top));
+            ctx.EndFigure(true);
+        }
+        context.DrawGeometry(color.ToBrush(), null, geometry);
+    }
+}
+
 internal class TextItem : IItem
 {
     public double FontSize { get; set; } = 12;

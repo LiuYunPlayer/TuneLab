@@ -22,6 +22,8 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
     IDataProperty<double> Gain { get; }
     new IDataProperty<double> Pan { get; }
     IDataProperty<string> Color { get; }
+    bool ExportEnabled { get; set; }
+    int ExportChannels { get; set; }
     IReadOnlyDataObjectLinkedList<IPart> Parts { get; }
     
     /// <summary>

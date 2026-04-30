@@ -14,6 +14,8 @@ using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Extensions.Voices;
 using TuneLab.GUI.Components;
 using TuneLab.Base.Utils;
+using TuneLab.Configs;
+using Avalonia.Threading;
 
 namespace TuneLab.UI;
 
@@ -33,6 +35,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
     public ParameterButton PitchButton => mParameterTabBar.PitchButton;
     public PianoScrollView PianoScrollView => mPianoScrollView;
+    public AutomationRenderer AutomationRenderer => mParameterContainer.AutomationRenderer;
     public IQuantization Quantization => mQuantization;
     public IPlayhead Playhead => mDependency.Playhead;
     public INotifiableProperty<PianoTool> PianoTool => mDependency.PianoTool;
@@ -51,6 +54,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
         set
         {
+            Part?.DeselectAllAutomationPoints();
             mActiveAutomation = value;
             if (mActiveAutomation != null)
             {
@@ -72,6 +76,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public PianoWindow(IDependency dependency)
     {
         mDependency = dependency;
+        mParameterHeight = GetStoredParameterHeight();
 
         mTickAxis = new TickAxis();
         mPitchAxis = new PitchAxis();
@@ -128,8 +133,13 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         this.AddDock(layerPanel);
 
         mParameterTabBar.StateChangeAsked += OnParameterTabBarStateChangeAsked;
-        mParameterTitleBar.Moved += top => { mParameterHeight = mParameterLayer.Bounds.Height - top - mParameterTitleBar.Bounds.Height; CorrectParameterHeight(); };
-        mParameterLayer.SizeChanged += (s, e) => { CorrectParameterHeight(); };
+        mParameterTitleBar.Moved += top =>
+        {
+            mParameterHeight = mParameterLayer.Bounds.Height - top - mParameterTitleBar.Bounds.Height;
+            CorrectParameterHeight(true);
+        };
+        mParameterLayer.SizeChanged += (s, e) => { CorrectParameterHeight(false); };
+        AttachedToVisualTree += (s, e) => BindWindowState();
 
         ClipToBounds = true;
 
@@ -138,7 +148,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     ~PianoWindow()
     {
-
+        s.DisposeAll();
     }
 
     public bool IsAutomationVisible(string automationID)
@@ -167,13 +177,22 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         if (e.IsHandledByTextBox())
             return;
 
+        var automationRenderer = mParameterContainer.AutomationRenderer;
+        if (automationRenderer.IsOperating)
+            return;
+
+        bool preferAutomationAnchorActions = PianoTool.Value == UI.PianoTool.Anchor && automationRenderer.IsHover;
+
         switch (PianoScrollView.OperationState)
         {
             case PianoScrollView.State.None:
                 e.Handled = true;
                 if (e.Match(Key.Delete))
                 {
-                    PianoScrollView.Delete();
+                    if (preferAutomationAnchorActions)
+                        automationRenderer.DeleteSelectedAnchors();
+                    else
+                        PianoScrollView.Delete();
                 }
                 else if (e.Match(Key.C, ModifierKeys.Ctrl))
                 {
@@ -196,6 +215,17 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                             break;
                         case UI.PianoTool.Vibrato:
                             Part?.Vibratos.SelectAllItems();
+                            break;
+                        case UI.PianoTool.Anchor:
+                            if (automationRenderer.IsHover)
+                                automationRenderer.SelectAllAnchors();
+                            else
+                            {
+                                Part?.DeselectAllAutomationPoints();
+                                automationRenderer.InvalidateVisual();
+                                automationRenderer.RefreshAnchorValueInput();
+                                Part?.Pitch.SelectAllAnchors();
+                            }
                             break;
                         default:
                             break;
@@ -227,10 +257,52 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
 
 
-    void CorrectParameterHeight()
+    void CorrectParameterHeight(bool saveHeight = false)
     {
-        mParameterContainer.Height = mParameterHeight.Limit(0, mParameterLayer.Bounds.Height - mParameterTitleBar.Bounds.Height);
+        var displayHeight = mParameterHeight.Limit(0, mParameterLayer.Bounds.Height - mParameterTitleBar.Bounds.Height);
+        mParameterContainer.Height = displayHeight;
+        if (saveHeight)
+        {
+            mParameterHeight = displayHeight;
+            StoreParameterHeight(mParameterHeight);
+        }
         mWaveformBottomChanged.Invoke();
+    }
+
+    void BindWindowState()
+    {
+        if (mWindowStateBound)
+            return;
+
+        mWindow = this.Window();
+        mWindowStateBound = true;
+        s.Add(mWindow.GetObservable(Window.WindowStateProperty).Subscribe(state =>
+        {
+            var height = state == WindowState.Maximized ? Settings.ParameterPanelHeightMaximized.Value : Settings.ParameterPanelHeightNormal.Value;
+            if (Math.Abs(mParameterHeight - height) < 0.1)
+                return;
+
+            mParameterHeight = height;
+            Dispatcher.UIThread.Post(() => CorrectParameterHeight(false), DispatcherPriority.Background);
+        }));
+    }
+
+    double GetStoredParameterHeight()
+    {
+        return Settings.MainWindowMaximized ? Settings.ParameterPanelHeightMaximized : Settings.ParameterPanelHeightNormal;
+    }
+
+    void StoreParameterHeight(double height)
+    {
+        Settings.ParameterPanelHeight.Value = height;
+        if (mWindow != null && mWindow.WindowState == WindowState.Maximized)
+        {
+            Settings.ParameterPanelHeightMaximized.Value = height;
+        }
+        else
+        {
+            Settings.ParameterPanelHeightNormal.Value = height;
+        }
     }
 
     void OnParameterTabBarStateChangeAsked(string automationID, ParameterButton.ButtonState state)
@@ -251,6 +323,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly List<string> mVisibleAutomations = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
+    readonly DisposableManager s = new();
 
     readonly Quantization mQuantization;
     readonly TickAxis mTickAxis;
@@ -268,4 +341,6 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly Owner<IMidiPart> mPartProvider = new();
 
     readonly IDependency mDependency;
+    bool mWindowStateBound = false;
+    Window? mWindow;
 }

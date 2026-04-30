@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.Templates;
 using Avalonia.Media;
 using System;
+using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.I18N;
 using TuneLab.Utils;
@@ -14,7 +15,7 @@ using CheckBox = TuneLab.GUI.Components.CheckBox;
 namespace TuneLab.UI;
 internal partial class ImportTrackSelector : Window
 {
-    public ImportTrackSelector()
+    public ImportTrackSelector(double currentBpm, int currentNumerator, int currentDenominator)
     {
         InitializeComponent();
         Focusable = true;
@@ -48,15 +49,28 @@ internal partial class ImportTrackSelector : Window
         mTrackList.Background = Style.BACK.ToBrush();
         mTrackList.SelectionMode = SelectionMode.Multiple | SelectionMode.Toggle;
 
-
-        var KeepTempoPanel = new StackPanel();
-        mKeepTempoCheckBox = new CheckBox();
-        KeepTempoPanel.Orientation = Orientation.Horizontal;
-        KeepTempoPanel.Height = 24;
-        KeepTempoPanel.Children.Add(mKeepTempoCheckBox);
-        KeepTempoPanel.Children.Add(new Label() { Content = "Keep Tempo".Tr(TC.Dialog), FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
-        ActionsPanel.Children.Add(KeepTempoPanel);
-        Grid.SetColumn(KeepTempoPanel, 0);
+        var ImportOptionsPanel = new StackPanel()
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8,
+        };
+        ImportOptionsPanel.Children.Add(CreateOptionPanel(
+            "Align Tempo to Project".Tr(TC.Dialog),
+            false,
+            out mKeepTempoCheckBox
+        ));
+        ImportOptionsPanel.Children.Add(CreateOptionPanel(
+            "Import Tempo".Tr(TC.Dialog),
+            currentBpm != TempoManager.DefaultBpm,
+            out mImportTempoCheckBox
+        ));
+        ImportOptionsPanel.Children.Add(CreateOptionPanel(
+            "Import Time Signature".Tr(TC.Dialog),
+            currentNumerator != TimeSignatureManager.DefaultNumerator || currentDenominator != TimeSignatureManager.DefaultDenominator,
+            out mImportTimeSignatureCheckBox
+        ));
+        ActionsPanel.Children.Add(ImportOptionsPanel);
+        Grid.SetColumn(ImportOptionsPanel, 0);
 
         var OkButtonPanel = new StackPanel();
         OkButtonPanel.Orientation = Orientation.Horizontal;
@@ -66,13 +80,30 @@ internal partial class ImportTrackSelector : Window
         OkButton.AddContent(new() { Item = new TextItem() { Text = "OK".Tr(TC.Dialog) }, ColorSet = new() { Color = Colors.White } });
         OkButtonPanel.Children.Add(OkButton);
         ActionsPanel.Children.Add(OkButtonPanel);
-        Grid.SetColumn(OkButton, 1);
+        Grid.SetColumn(OkButtonPanel, 1);
 
         OkButton.Clicked += () => { isOK = true;this.Close(); };
     }
 
+    StackPanel CreateOptionPanel(string label, bool isChecked, out CheckBox checkBox)
+    {
+        checkBox = new CheckBox() { IsChecked = isChecked };
+        var panel = new StackPanel()
+        {
+            Orientation = Orientation.Horizontal,
+            Height = 24,
+        };
+        panel.Children.Add(checkBox);
+        panel.Children.Add(new Label() { Content = label, FontSize = 12, Foreground = Style.TEXT_LIGHT.ToBrush(), Margin = new(14, 1) });
+        return panel;
+    }
+
     CheckBox mKeepTempoCheckBox;
+    CheckBox mImportTempoCheckBox;
+    CheckBox mImportTimeSignatureCheckBox;
     public ListBox TrackList { get => mTrackList; }
     public bool isOK { get; set; } = false;
-    public bool isKeepTempo { get => mKeepTempoCheckBox.IsChecked==null?false:(bool)mKeepTempoCheckBox.IsChecked; }
+    public bool IsKeepTempo => mKeepTempoCheckBox.IsChecked == true;
+    public bool IsImportTempo => mImportTempoCheckBox.IsChecked == true;
+    public bool IsImportTimeSignature => mImportTimeSignatureCheckBox.IsChecked == true;
 }

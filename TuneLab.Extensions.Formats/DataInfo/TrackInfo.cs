@@ -16,6 +16,8 @@ public class TrackInfo
     public bool Solo { get; set; } = false;
     public bool AsRefer { get; set; } = true;
     public string Color { get; set; } = string.Empty;
+    public bool ExportEnabled { get; set; } = false;
+    public int ExportChannels { get; set; } = 1; // 1 = mono, 2 = stereo
     public List<PartInfo> Parts { get; set; } = new();
     
     /// <summary>
