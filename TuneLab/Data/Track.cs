@@ -173,11 +173,10 @@ internal class Track : DataObject, ITrack
             Pan = Pan,
             Color = Color,
             AsRefer = AsRefer,
-            Parts = mParts.GetInfo().ToInfo(),
-            Plugins = mPlugins.Select(p => p.GetInfo()).ToList(),
             ExportEnabled = ExportEnabled,
             ExportChannels = ExportChannels,
-            Parts = mParts.GetInfo().ToInfo()
+            Parts = mParts.GetInfo().ToInfo(),
+            Plugins = mPlugins.Select(p => p.GetInfo()).ToList()
         };
     }
 
