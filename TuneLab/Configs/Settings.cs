@@ -32,6 +32,7 @@ internal static class Settings
     public static NotifiableProperty<bool> ParameterSyncMode { get; } = new(DefaultSettings.ParameterSyncMode);
     public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
     public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
+    public static NotifiableProperty<int> AutoSaveMaxCount { get; } = DefaultSettings.AutoSaveMaxCount;
     public static NotifiableProperty<int> BufferSize { get; } = DefaultSettings.BufferSize;
     public static NotifiableProperty<int> SampleRate { get; } = DefaultSettings.SampleRate;
     public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
@@ -80,6 +81,7 @@ internal static class Settings
         ParameterSyncMode.Value = settingsFile.ParameterSyncMode;
         PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
         AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
+        AutoSaveMaxCount.Value = settingsFile.AutoSaveMaxCount;
         BufferSize.Value = settingsFile.BufferSize;
         SampleRate.Value = settingsFile.SampleRate;
         AudioDriver.Value = settingsFile.AudioDriver;
@@ -111,6 +113,7 @@ internal static class Settings
                 ParameterSyncMode = ParameterSyncMode.Value,
                 PianoKeySamplesPath = PianoKeySamplesPath,
                 AutoSaveInterval = AutoSaveInterval,
+                AutoSaveMaxCount = AutoSaveMaxCount,
                 BufferSize = BufferSize,
                 SampleRate = SampleRate,
                 AudioDriver = AudioDriver,

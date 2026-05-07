@@ -240,6 +240,23 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(panel);
         }
 
+        // Auto Save Max Count
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInterger = true };
+                slider.SetRange(1, 20);
+                slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveMaxCount);
+                slider.Bind(Settings.AutoSaveMaxCount, false, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Auto Save Max Count".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+
         return listView;
     }
 

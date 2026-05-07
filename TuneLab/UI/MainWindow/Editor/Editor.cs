@@ -179,6 +179,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         Settings.AutoSaveInterval.Modified.Subscribe(() => mAutoSaveTimer.Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval), s);
         PlayScrollTarget.Modified.Subscribe(() => Settings.AutoScrollTarget.Value = PlayScrollTarget.Value.ToString(), s);
         PathManager.MakeSureExist(PathManager.AutoSaveFolder);
+        PathManager.MakeSureExist(PathManager.AutoSaveHistoryFolder);
         RecentFilesManager.Init();
         RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 
@@ -395,6 +396,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public void ClearAutoSaveFile()
     {
         mAutoSaveHead = default;
+        // Only clear the crash-detection files in AutoSaveFolder (not subdirectories)
         foreach (var file in Directory.GetFiles(PathManager.AutoSaveFolder))
         {
             File.Delete(file);
@@ -410,7 +412,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         try
         {
-            var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss_") + Path.GetFileNameWithoutExtension(mDocument.Name) + "." + ConstantDefine.DefaultProjectExtension);
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss_");
+            var fileName = timestamp + Path.GetFileNameWithoutExtension(mDocument.Name) + "." + ConstantDefine.DefaultProjectExtension;
+            var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, fileName);
 
             await Task.Run(() =>
             {
@@ -420,15 +424,45 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     return;
                 }
 
+                // Write the auto-save file for crash detection
                 using (FileStream fileStream = new FileStream(autoSavePath, FileMode.Create))
                 {
                     stream.CopyTo(fileStream);
                 }
 
+                // Delete previous crash-detection files (keep only the latest)
                 foreach (var file in Directory.GetFiles(PathManager.AutoSaveFolder))
                 {
                     if (file != autoSavePath)
                         File.Delete(file);
+                }
+
+                // Copy to history folder for multi-version backup
+                try
+                {
+                    PathManager.MakeSureExist(PathManager.AutoSaveHistoryFolder);
+                    var historyPath = Path.Combine(PathManager.AutoSaveHistoryFolder, fileName);
+                    File.Copy(autoSavePath, historyPath, true);
+
+                    // Rotate history files: delete oldest if exceeding max count
+                    var maxCount = Settings.AutoSaveMaxCount.Value;
+                    var historyFiles = Directory.GetFiles(PathManager.AutoSaveHistoryFolder)
+                        .Select(f => new FileInfo(f))
+                        .OrderByDescending(f => f.CreationTime)
+                        .ToList();
+
+                    if (historyFiles.Count > maxCount)
+                    {
+                        foreach (var oldFile in historyFiles.Skip(maxCount))
+                        {
+                            oldFile.Delete();
+                            Log.Debug("Deleted old auto-save history file: " + oldFile.FullName);
+                        }
+                    }
+                }
+                catch (Exception historyEx)
+                {
+                    Log.Error("Failed to manage auto-save history: " + historyEx);
                 }
             });
 
