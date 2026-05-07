@@ -26,6 +26,7 @@ internal class SettingsFile
     public bool ParameterSyncMode { get; set; } = false;
     public string PianoKeySamplesPath { get; set; } = string.Empty;
     public int AutoSaveInterval { get; set; } = 10;
+    public int AutoSaveMaxCount { get; set; } = 5;
     public int BufferSize { get; set; } = 1024;
     public int SampleRate { get; set; } = 44100;
     public string AudioDriver { get; set; } = string.Empty;
