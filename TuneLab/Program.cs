@@ -57,6 +57,7 @@ class Program
 
         // init setting
         Settings.Init(PathManager.SettingsFilePath);
+        EditorState.Init(PathManager.EditorStateFilePath);
 
         // init translation
         TranslationManager.Init(PathManager.TranslationsFolder);

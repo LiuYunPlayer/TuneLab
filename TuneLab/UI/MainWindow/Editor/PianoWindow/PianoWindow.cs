@@ -278,7 +278,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         mWindowStateBound = true;
         s.Add(mWindow.GetObservable(Window.WindowStateProperty).Subscribe(state =>
         {
-            var height = state == WindowState.Maximized ? Settings.ParameterPanelHeightMaximized.Value : Settings.ParameterPanelHeightNormal.Value;
+            var height = state == WindowState.Maximized ? EditorState.ParameterPanelHeightMaximized.Value : EditorState.ParameterPanelHeightNormal.Value;
             if (Math.Abs(mParameterHeight - height) < 0.1)
                 return;
 
@@ -289,19 +289,19 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     double GetStoredParameterHeight()
     {
-        return Settings.MainWindowMaximized ? Settings.ParameterPanelHeightMaximized : Settings.ParameterPanelHeightNormal;
+        return EditorState.MainWindowMaximized ? EditorState.ParameterPanelHeightMaximized : EditorState.ParameterPanelHeightNormal;
     }
 
     void StoreParameterHeight(double height)
     {
-        Settings.ParameterPanelHeight.Value = height;
+        EditorState.ParameterPanelHeight.Value = height;
         if (mWindow != null && mWindow.WindowState == WindowState.Maximized)
         {
-            Settings.ParameterPanelHeightMaximized.Value = height;
+            EditorState.ParameterPanelHeightMaximized.Value = height;
         }
         else
         {
-            Settings.ParameterPanelHeightNormal.Value = height;
+            EditorState.ParameterPanelHeightNormal.Value = height;
         }
     }
 

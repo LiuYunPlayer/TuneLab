@@ -39,8 +39,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         platform = Environment.OSVersion.Platform;
         ApplySavedWindowPlacement();
-        Width = Settings.MainWindowWidth;
-        Height = Settings.MainWindowHeight;
 
         this.KeyDown += OnKeyDown;
 
@@ -153,7 +151,7 @@ public partial class MainWindow : Window
         {
             if (!mApplyingSavedWindowPlacement)
             {
-                Settings.MainWindowMaximized.Value = state == WindowState.Maximized;
+                EditorState.MainWindowMaximized.Value = state == WindowState.Maximized;
             }
 
             switch (state)
@@ -235,9 +233,10 @@ public partial class MainWindow : Window
         }
 
         // 正常退出
-        Settings.MainWindowMaximized.Value = WindowState == WindowState.Maximized;
+        EditorState.MainWindowMaximized.Value = WindowState == WindowState.Maximized;
         SaveCurrentWindowBounds();
         Settings.Save(PathManager.SettingsFilePath);
+        EditorState.Save(PathManager.EditorStateFilePath);
         mEditor.ClearAutoSaveFile();
     }
 
@@ -248,22 +247,22 @@ public partial class MainWindow : Window
         {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
-            if (Settings.MainWindowWidth.Value >= MinWidth)
+            if (EditorState.MainWindowWidth.Value > 0 && EditorState.MainWindowWidth.Value >= MinWidth)
             {
-                Width = Settings.MainWindowWidth;
+                Width = EditorState.MainWindowWidth;
             }
-            if (Settings.MainWindowHeight.Value >= MinHeight)
+            if (EditorState.MainWindowHeight.Value > 0 && EditorState.MainWindowHeight.Value >= MinHeight)
             {
-                Height = Settings.MainWindowHeight;
+                Height = EditorState.MainWindowHeight;
             }
 
-            if (Settings.MainWindowX.Value != UnsetWindowPosition && Settings.MainWindowY.Value != UnsetWindowPosition)
+            if (EditorState.MainWindowX.Value != UnsetWindowPosition && EditorState.MainWindowY.Value != UnsetWindowPosition)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual;
-                Position = new PixelPoint(Settings.MainWindowX, Settings.MainWindowY);
+                Position = new PixelPoint(EditorState.MainWindowX, EditorState.MainWindowY);
             }
 
-            WindowState = Settings.MainWindowMaximized ? WindowState.Maximized : WindowState.Normal;
+            WindowState = EditorState.MainWindowMaximized ? WindowState.Maximized : WindowState.Normal;
         }
         finally
         {
@@ -276,17 +275,17 @@ public partial class MainWindow : Window
         if (mApplyingSavedWindowPlacement || WindowState != WindowState.Normal)
             return;
 
-        Settings.MainWindowX.Value = Position.X;
-        Settings.MainWindowY.Value = Position.Y;
+        EditorState.MainWindowX.Value = Position.X;
+        EditorState.MainWindowY.Value = Position.Y;
 
         if (ClientSize.Width >= MinWidth)
         {
-            Settings.MainWindowWidth.Value = ClientSize.Width;
+            EditorState.MainWindowWidth.Value = ClientSize.Width;
         }
 
         if (ClientSize.Height >= MinHeight)
         {
-            Settings.MainWindowHeight.Value = ClientSize.Height;
+            EditorState.MainWindowHeight.Value = ClientSize.Height;
         }
     }
 
