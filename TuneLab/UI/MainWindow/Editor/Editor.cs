@@ -57,7 +57,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         Background = Style.BACK.ToBrush();
         Focusable = true;
         IsTabStop = false;
-        mTrackWindowHeight = Settings.TrackWindowHeight;
+        mTrackWindowHeight = EditorState.TrackWindowHeight;
 
         mPlayhead = new(this);
         if (Enum.TryParse<PlayScrollTarget>(Settings.AutoScrollTarget.Value, out var autoScrollTarget))
@@ -91,7 +91,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mFunctionBar.Moved += y =>
         {
             TrackWindowHeight = y;
-            Settings.TrackWindowHeight.Value = mTrackWindowHeight;
+            EditorState.TrackWindowHeight.Value = mTrackWindowHeight;
         };
         mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
         mFunctionBar.GotoStartAsked += () =>
@@ -209,7 +209,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         mTrackWindow.Height = TrackWindowHeight;
-        Settings.TrackWindowHeight.Value = mTrackWindowHeight;
+        EditorState.TrackWindowHeight.Value = mTrackWindowHeight;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

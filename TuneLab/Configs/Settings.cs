@@ -16,15 +16,6 @@ internal static class Settings
     public static readonly SettingsFile DefaultSettings = new();
     public static NotifiableProperty<string> Language { get; } = DefaultSettings.Language;
     public static NotifiableProperty<string> AutoScrollTarget { get; } = DefaultSettings.AutoScrollTarget;
-    public static NotifiableProperty<int> MainWindowX { get; } = DefaultSettings.MainWindowX;
-    public static NotifiableProperty<int> MainWindowY { get; } = DefaultSettings.MainWindowY;
-    public static NotifiableProperty<double> MainWindowWidth { get; } = DefaultSettings.MainWindowWidth;
-    public static NotifiableProperty<double> MainWindowHeight { get; } = DefaultSettings.MainWindowHeight;
-    public static NotifiableProperty<bool> MainWindowMaximized { get; } = new(DefaultSettings.MainWindowMaximized);
-    public static NotifiableProperty<double> TrackWindowHeight { get; } = DefaultSettings.TrackWindowHeight;
-    public static NotifiableProperty<double> ParameterPanelHeight { get; } = DefaultSettings.ParameterPanelHeight;
-    public static NotifiableProperty<double> ParameterPanelHeightNormal { get; } = DefaultSettings.ParameterPanelHeightNormal;
-    public static NotifiableProperty<double> ParameterPanelHeightMaximized { get; } = DefaultSettings.ParameterPanelHeightMaximized;
     public static NotifiableProperty<double> MasterGain { get; } = DefaultSettings.MasterGain;
     public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
     public static NotifiableProperty<double> BackgroundImageOpacity { get; } = DefaultSettings.BackgroundImageOpacity;
@@ -58,22 +49,6 @@ internal static class Settings
 
         Language.Value = settingsFile.Language;
         AutoScrollTarget.Value = settingsFile.AutoScrollTarget;
-        MainWindowX.Value = settingsFile.MainWindowX;
-        MainWindowY.Value = settingsFile.MainWindowY;
-        MainWindowWidth.Value = settingsFile.MainWindowWidth;
-        MainWindowHeight.Value = settingsFile.MainWindowHeight;
-        MainWindowMaximized.Value = settingsFile.MainWindowMaximized;
-        TrackWindowHeight.Value = settingsFile.TrackWindowHeight;
-        ParameterPanelHeight.Value = settingsFile.ParameterPanelHeight;
-        ParameterPanelHeightNormal.Value = settingsFile.ParameterPanelHeightNormal;
-        ParameterPanelHeightMaximized.Value = settingsFile.ParameterPanelHeightMaximized;
-        if (settingsFile.ParameterPanelHeight != DefaultSettings.ParameterPanelHeight &&
-            settingsFile.ParameterPanelHeightNormal == DefaultSettings.ParameterPanelHeightNormal &&
-            settingsFile.ParameterPanelHeightMaximized == DefaultSettings.ParameterPanelHeightMaximized)
-        {
-            ParameterPanelHeightNormal.Value = settingsFile.ParameterPanelHeight;
-            ParameterPanelHeightMaximized.Value = settingsFile.ParameterPanelHeight;
-        }
         MasterGain.Value = settingsFile.MasterGain;
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
         BackgroundImageOpacity.Value = settingsFile.BackgroundImageOpacity;
@@ -97,15 +72,6 @@ internal static class Settings
             {
                 Language = Language,
                 AutoScrollTarget = AutoScrollTarget,
-                MainWindowX = MainWindowX,
-                MainWindowY = MainWindowY,
-                MainWindowWidth = MainWindowWidth,
-                MainWindowHeight = MainWindowHeight,
-                MainWindowMaximized = MainWindowMaximized.Value,
-                TrackWindowHeight = TrackWindowHeight,
-                ParameterPanelHeight = ParameterPanelHeight,
-                ParameterPanelHeightNormal = ParameterPanelHeightNormal,
-                ParameterPanelHeightMaximized = ParameterPanelHeightMaximized,
                 MasterGain = MasterGain,
                 BackgroundImagePath = BackgroundImagePath,
                 BackgroundImageOpacity = BackgroundImageOpacity,
