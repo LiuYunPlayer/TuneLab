@@ -85,12 +85,24 @@ class Program
             .UseReactiveUI()
             .With(new FontManagerOptions()
             {
+                DefaultFamilyName = Settings.Language.Value == "ja-JP" ? JapaneseUIFontFamilyName() : null,
                 FontFallbacks =
                 [
                     (Settings.Language.Value == "ja-JP") ?
-                        new FontFallback() { FontFamily = "Yu Gothic UI" } :
+                        OperatingSystem.IsWindows() ?
+                            new FontFallback() { FontFamily = "Yu Gothic UI" } :
+                        OperatingSystem.IsMacOS() ?
+                            new FontFallback() { FontFamily = JapaneseUIFontFamilyName() } :
+                            new FontFallback() { FontFamily = "Noto Sans CJK JP" } :
                         new FontFallback() { FontFamily = "Microsoft YaHei" },
                 ]
             });
+    }
+
+    static string JapaneseUIFontFamilyName()
+    {
+        return OperatingSystem.IsWindows() ? "Yu Gothic UI" :
+            OperatingSystem.IsMacOS() ? "Hiragino Sans" :
+            "Noto Sans CJK JP";
     }
 }

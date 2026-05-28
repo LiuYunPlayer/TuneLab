@@ -124,7 +124,10 @@ internal class Program
                 Console.WriteLine(name + " has been successfully installed!\n");
             }
 
-            if (restart) Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TuneLab.exe"));
+            if (restart) {
+                var tunelabExeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "TuneLab.exe" : "TuneLab";
+                Process.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, tunelabExeName));
+            }
         }
         catch (Exception ex)
         {
