@@ -122,6 +122,8 @@ class EffectEngineAdapter : IEffectEngine       // 当前版
 - 编译器强制类型转换（`IEffectEngine` 和 `IEffectEngine_V1` 是不同类型）
 - 主程序**不引用老 SDK 程序集**，避免类型混用
 
+**Compat 程序集划分粒度**：按**版本**分（`Hosting.Compat.V1`、未来 `Hosting.Compat.V2`），**不**按域（Format / Voice / Effect）分。理由：`MonoAudio` 等基础桥接类型在多域适配间共享，按域分必然挤出 `Compat.V1.Common` 第三方项目或重复代码；compat 层的真实生命周期是"整代下线"，按域独立 deprecation 没有实际需要。
+
 ### 3. 老 SDK 只保留 dll 归档，不留源码
 
 ```
@@ -155,6 +157,46 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 2. 双向回传集合 wrapper 的开销
 
 接口设计上已避免最致命的 per-sample 虚调用模式（automation 是批量 API）。
+
+### 7. 最终程序集蓝图
+
+迁移完成后的目标布局。**各程序集由对应话题引入并填内容**，不在 #1 提前建空壳。
+
+| 程序集 | TFM | 引入话题 | 角色 |
+|---|---|---|---|
+| `TuneLab` | host TFM | 已存在 | 主程序 WinExe |
+| `TuneLab.Foundation` | host TFM | #2 | 纯通用基础（替代 `TuneLab.Base`） |
+| `TuneLab.Core` | host TFM | #3 | 业务核心契约 |
+| `TuneLab.SDK.Base` | **ABI 地板** | #7 | 插件基础类型 |
+| `TuneLab.SDK.Format` | **ABI 地板** | #7 | format 插件 SDK |
+| `TuneLab.SDK.Voice` | **ABI 地板** | #7 | voice 插件 SDK |
+| `TuneLab.SDK.Effect` | **ABI 地板** | #7 | effect 插件 SDK |
+| `TuneLab.Extensions.Format` | host TFM | #7 | 内建 format 实现 |
+| `TuneLab.Extensions.Voice` | host TFM | #7 | 内建 voice 实现 |
+| `TuneLab.Extensions.Effect` | host TFM | #7 | 内建 effect 实现 |
+| `TuneLab.Hosting.Compat.V1` | host TFM | #8 | 老插件适配（单程序集，见 §三.2） |
+| `ExtensionInstaller` | net8 | 已存在 | 独立小工具 |
+
+**TFM 策略**：
+
+- **host TFM** = 主程序运行时；目前 net8，未来独立 PR 升级。结构重构与 TFM 升级**永远分开**。
+- **ABI 地板** = SDK.\* 系列锁在 host TFM 之下的一个 LTS（首次引入时锁 net8）。插件按此地板编译，host 升级到新 TFM 不破坏老插件加载。
+
+**命名约定**：
+
+- 公开类型**不带** `_V1` 版本后缀（见 §三.1）
+- `Extensions.*` 和 `SDK.*` 都用**单数**（`Format` / `Voice` / `Effect`），与 `Microsoft.Extensions.*` 主流惯例一致
+- 老 `Extensions.Formats` / `Extensions.Voices` 复数程序集**作为归档 dll** 保留在 `legacy/sdk/v1/`，供 compat 层 `extern alias` 引用
+- 新老插件区分由 `SDK.` 前缀 + 程序集版本 + `extern alias` 三层承担，**不**依赖单复数命名
+
+### 8. 项目配置约定
+
+- **csproj 的所有有意义设置就地内联**（`Nullable` / `ImplicitUsings` / `LangVersion` / `TargetFramework` 等），不依赖 `Directory.Build.props` 继承。原因：
+  - SDK.\* / Foundation / Extensions.\* 系列 csproj 是**公共契约的一部分**——会被第三方插件开发者 reference、阅读、甚至作为新插件 csproj 的模板。设置内联保证它们在脱离仓库目录树后仍然自描述。
+  - 这也是 VS / `dotnet new` 模板的默认选择：模板必须假设 "csproj 可能在任何地方被独立打开"，所以选择 **locality > DRY**。这个约束在我们仓库同样成立。
+  - "DRY 节省的那几行" 远不抵 "外部读者搞不清这个 csproj 用了什么编译规则" 的代价。
+- `Directory.Build.props` 只保留**兜底默认**：当前是 `<Nullable>enable</Nullable>`，作用是"哪天新建 csproj 忘了写也不会沉默地关掉 nullable"。**不**承担集中配置职责。
+- TFM 永远不进 props：host TFM 与 SDK ABI 地板分两档，必须各 csproj 显式声明。
 
 ---
 
@@ -339,6 +381,6 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 
 ## 六、话题进度
 
-> 每完成一个话题，在下面追加一条结论摘要。
+> 每完成一个话题，在下面追加 **2–4 行** changelog。详细论证、备选方案、拒绝理由写在 commit message / PR 描述里，不进本文档。设计共识写进 §三 并就地更新，不堆历史。
 
-_暂无_
+- ✅ **#1 项目结构 & .NET 版本**（2026-05-28）— host TFM 暂留 net8；`Directory.Build.props` 仅删死变量 `AvaloniaVersion`，csproj 设置维持就地内联（理由见 §三.8）；项目结构重整推迟到对应话题（#2/#3/#7/#8）。蓝图见 §三.7，compat 单程序集理由见 §三.2。
