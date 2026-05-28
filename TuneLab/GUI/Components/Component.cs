@@ -21,10 +21,10 @@ internal class Component : Control
     public ModifierKeys Modifiers => mLastKeyModifiers;
     public Avalonia.Point MousePosition => mLastMousePosition;
     public bool IsHover => mHoverComponent == this;
-    public bool IsPrimaryButtonPressed => IsHover && mIsPrimaryButtonPressed;
-    public bool IsMiddleButtonPressed => IsHover && mIsMiddleButtonPressed;
-    public bool IsSecondaryButtonPressed => IsHover && mIsSecondaryButtonPressed;
-    public bool IsPressed => IsHover && (mIsPrimaryButtonPressed || mIsMiddleButtonPressed || mIsSecondaryButtonPressed);
+    public bool IsPrimaryButtonPressed => mIsPrimaryButtonPressed;
+    public bool IsMiddleButtonPressed => mIsMiddleButtonPressed;
+    public bool IsSecondaryButtonPressed => mIsSecondaryButtonPressed;
+    public bool IsPressed => mIsPrimaryButtonPressed || mIsMiddleButtonPressed || mIsSecondaryButtonPressed;
     public long DoubleClickInterval { get; set; } = 300;
 
     public Component()
@@ -230,9 +230,9 @@ internal class Component : Control
     }
 
     static Component? mHoverComponent = null;
-    static bool mIsPrimaryButtonPressed = false;
-    static bool mIsMiddleButtonPressed = false;
-    static bool mIsSecondaryButtonPressed = false;
+    bool mIsPrimaryButtonPressed = false;
+    bool mIsMiddleButtonPressed = false;
+    bool mIsSecondaryButtonPressed = false;
     static Stopwatch mStopwatch = new();
     static long mLastClickTime = 0;
     static Avalonia.Point mLastClickPosition;
