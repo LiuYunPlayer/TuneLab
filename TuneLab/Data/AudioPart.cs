@@ -93,31 +93,46 @@ internal class AudioPart : Part, IAudioPart
 
     public async void Reload()
     {
-        if (mLoadCancelTokenSource != null)
-        {
-            mLoadCancelTokenSource.Cancel();
-            mLoadCancelTokenSource = null;
-        }
-        
-        var cancellationTokenSource = new CancellationTokenSource();
+        // Cancel any in-progress load (Reload is only called on the main thread,
+        // so access to mLoadCancelTokenSource is safe without locking)
+        mLoadCancelTokenSource?.Cancel();
+
+        var cts = new CancellationTokenSource();
+        mLoadCancelTokenSource = cts;
+
+        // Reset state immediately on main thread
         mAudioData = null;
         mWaveforms = [];
         mAudioChanged.Invoke();
         Status.Value = AudioPartStatus.Loading;
+
+        // Capture values on main thread for thread safety
+        // (Path and BaseDirectory are DataString/NotifiableProperty and should
+        // not be accessed from background threads)
+        string path = Path;
+        if (path.StartsWith(".."))
+        {
+            path = System.IO.Path.Combine(BaseDirectory.Value, path[3..]);
+        }
+        int samplingRate = AudioEngine.SampleRate.Value;
+
         IAudioData? audioData = null;
         Waveform[]? waveforms = null;
-        mLoadCancelTokenSource = cancellationTokenSource;
-        await Task.Run(() =>
+
+        try
         {
-            try
+            await Task.Run(() =>
             {
-                string path = Path;
-                if (path.StartsWith(".."))
-                {
-                    path = System.IO.Path.Combine(BaseDirectory.Value, path[3..]);
-                }
-                int samplingRate = AudioEngine.SampleRate.Value;
+                // Early exit if already canceled before starting expensive work
+                if (cts.IsCancellationRequested)
+                    return;
+
                 var data = AudioUtils.Decode(path, ref samplingRate);
+
+                // Check again after expensive decode completes
+                if (cts.IsCancellationRequested)
+                    return;
+
                 switch (data.Length)
                 {
                     case 1:
@@ -129,25 +144,25 @@ internal class AudioPart : Part, IAudioPart
                         waveforms = [new(data[0]), new(data[1])];
                         break;
                 }
-            }
-            catch (Exception ex)
-            {
-                audioData = null;
-                waveforms = null;
-                Log.Error("Failed to load audio: " + ex);
-            }
+            }, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Task was canceled before it started (token was already signaled
+            // when Task.Run tried to schedule the delegate). Safe to return.
+            return;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to load audio: " + ex);
+        }
 
-            if (cancellationTokenSource.IsCancellationRequested)
-            {
-                audioData = null;
-                waveforms = null;
-            }
-        }, cancellationTokenSource.Token);
-
-        if (cancellationTokenSource.IsCancellationRequested)
+        // Back on main thread after await
+        if (cts.IsCancellationRequested)
             return;
 
         mLoadCancelTokenSource = null;
+
         if (audioData == null || waveforms == null)
         {
             Status.Value = AudioPartStatus.Unlinked;
