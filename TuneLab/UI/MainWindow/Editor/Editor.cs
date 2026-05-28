@@ -779,10 +779,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                         });
                     });
 
-                    string suffix = totalTracks > 1
-                        ? (trackIndex == -1 ? "_master" : $"_track{trackIndex + 1}")
-                        : string.Empty;
-                    string filePath = Path.Combine(options.ExportPath, options.FileName + suffix + ".wav");
+                    string filePath = Path.Combine(options.ExportPath, options.FileName + "_" + trackName.ToValidFileName() + ".wav");
 
                     if (trackIndex == -1)
                     {

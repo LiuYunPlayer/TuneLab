@@ -19,11 +19,22 @@ using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.I18N;
 using Avalonia.Platform.Storage;
 using System.Linq;
+using System.IO;
+using System.Text;
 
 namespace TuneLab.Utils;
 
 internal static class Extensions
 {
+    public static string ToValidFileName(this string name, char replacement = '_')
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sb = new StringBuilder(name.Length);
+        foreach (var c in name)
+            sb.Append(invalid.Contains(c) ? replacement : c);
+        return sb.ToString();
+    }
+
     public static Rect Adjusted(this Rect rect, double left, double top, double right, double bottom)
     {
         return new Rect(rect.Left + left, rect.Top + top, rect.Width + right - left, rect.Height + bottom - top);
