@@ -23,6 +23,32 @@
 
 ## 二、工作方式（已达成共识）
 
+### Effect 分支访问方式：使用 git worktree
+
+effect 分支已通过 `git worktree` 检出到本仓库**同级目录**的 `../TuneLab-effect`（相对于本仓库根目录）。
+
+```
+<parent>/
+  TuneLab/             ← 当前仓库（master 或 feat/effect-migration）
+  TuneLab-effect/      ← effect 分支的独立 checkout（共享 .git）
+```
+
+在本仓库内引用时一律使用相对路径 `../TuneLab-effect/...`。
+
+新 session 进来后**直接用 Read / Glob / Grep 访问 `../TuneLab-effect/` 下的文件**即可，不需要 `git show origin/effect:<path>`。
+
+如果本地没有这个 worktree（例如初次 clone），执行：
+
+```powershell
+git worktree add ../TuneLab-effect origin/effect
+```
+
+迁移全部完成、不再需要参考 effect 分支时：
+
+```powershell
+git worktree remove ../TuneLab-effect
+```
+
 ### 不在 effect 分支上继续改
 
 原因：
