@@ -165,10 +165,10 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 | 程序集 | TFM | 引入话题 | 角色 |
 |---|---|---|---|
 | `TuneLab` | host TFM | 已存在 | 主程序 WinExe |
-| `TuneLab.Foundation` | host TFM | #2 | 纯通用基础（替代 `TuneLab.Base`） |
-| `TuneLab.Core` | host TFM | #3 | 业务核心契约 |
-| `TuneLab.SDK.Base` | **ABI 地板** | #7 | 插件基础类型 |
-| `TuneLab.SDK.Format` | **ABI 地板** | #7 | format 插件 SDK |
+| `TuneLab.Foundation` | host TFM | #2 | 纯通用富基础（引用 `Primitives`；替代 `TuneLab.Base`） |
+| `TuneLab.Primitives` | **ABI 地板** | #7 | 中性冻结内核：跨边界值类型（`Point`/`MonoAudio`/Property 值模型/ControllerConfigs）；`Foundation` 与 `SDK.*` 都引用（见 §三.10） |
+| `TuneLab.SDK.Base` | **ABI 地板** | #7 | 插件服务接口（`ILog`/`ITuneLabContext`…）+ 引用 `Primitives` |
+| `TuneLab.SDK.Format` | **ABI 地板** | #7 | format 插件 SDK（含工程序列化模型 `DataInfo`） |
 | `TuneLab.SDK.Voice` | **ABI 地板** | #7 | voice 插件 SDK |
 | `TuneLab.SDK.Effect` | **ABI 地板** | #7 | effect 插件 SDK |
 | `TuneLab.Extensions.Format` | host TFM | #7 | 内建 format 实现 |
@@ -177,10 +177,12 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 | `TuneLab.Hosting.Compat.V1` | host TFM | #8 | 老插件适配（单程序集，见 §三.2） |
 | `ExtensionInstaller` | net8 | 已存在 | 独立小工具 |
 
+> 原蓝图曾列 `TuneLab.Core`（host-TFM 业务核心契约）；#3 决定**暂不建**（理由见 §三.10），表中已移除。host 业务契约待 #4 活文档模型 / command-undo 出现时再评估。
+
 **TFM 策略**：
 
 - **host TFM** = 主程序运行时；目前 net8，未来独立 PR 升级。结构重构与 TFM 升级**永远分开**。
-- **ABI 地板** = SDK.\* 系列锁在 host TFM 之下的一个 LTS（首次引入时锁 net8）。插件按此地板编译，host 升级到新 TFM 不破坏老插件加载。
+- **ABI 地板** = `Primitives` + SDK.\* 系列锁在 host TFM 之下的一个 LTS（首次引入时锁 net8）。插件按此地板编译，host 升级到新 TFM 不破坏老插件加载。
 
 **命名约定**：
 
@@ -200,7 +202,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 ### 9. Foundation 边界与命名（#2 确立）
 
-**准入判据**：不 reference 任何 TuneLab 业务模型类型（Note / Track / Tempo-as-data / Project…），不依赖 UI/Avalonia，不依赖插件宿主。对原始类型运算的"音乐数学"（`MusicTheory`、pitch↔freq、tempo↔time 换算）算通用工具，留 Foundation；承载业务语义的数据类归 Core。`Science` 整体留 Foundation，**不**拆独立程序集。
+**准入判据**：不 reference 任何 TuneLab 业务模型类型（Note / Track / Tempo-as-data / Project…），不依赖 UI/Avalonia，不依赖插件宿主。对原始类型运算的"音乐数学"（`MusicTheory`、pitch↔freq、tempo↔time 换算）算通用工具，留 Foundation；承载业务语义的数据类归业务层（`DataInfo`→`SDK.Format`、活文档模型→host；详见 §三.10——原计划的 `Core` 不建）。`Science` 整体留 Foundation，**不**拆独立程序集。
 
 **Base→Foundation 兼容形态**：`TuneLab.Foundation` 是**新建程序集**（fork 自 Base 内容），`TuneLab.Base` 源码**冻结**。主程序与内建扩展全部改引 Foundation；旧第三方插件继续引用冻结的 `TuneLab.Base.dll`，compat 层（#8）另起 csproj 引用 Base。Base / Foundation 是不同程序集名，靠 assembly identity 天然共存，**这一对不需要 extern alias**（extern alias 只用于同名不同版的 `SDK.*`）。Base 最终处置（live csproj vs 归档 dll）留 #8。
 
@@ -210,6 +212,34 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - `Science` / `Document` / `Head` 命名保留（`DataDocument` 仿 git 设计，`Head` 沿用 git 隐喻）。
 
 **边界归位**：值编辑的 UI 绑定 `IValueController`/`IDataValueController` 属 UI，移至 `TuneLab/GUI/Controllers`，不在 Foundation。Config 类型（`NumberConfig` 等）暂留 `Property/`（它是插件 SDK 编译契约）；值模型 / Config / Controller 的**终态拆分**归 #5。
+
+### 10. Core 取舍、Primitives 冻结内核、插件服务注入（#3 确立）
+
+**不建 `TuneLab.Core`**：effect 分支的 `TuneLab.Core` 是命名空间都不统一的 grab-bag（DataInfo / Synthesizer / ControllerConfigs / Environment），按性质各归各位（见下）后，host-TFM 的"业务核心契约层"此刻无实质内容，按 §三.7"不提前建空壳"**暂不建立**；待 #4 活文档模型 / command-undo 等真正的 host 业务契约出现再评估。
+
+**数据 / 服务分家**（SDK 设计总纲）：
+- **数据**（值/DTO：`Point`、`MonoAudio`、Property 值模型、ControllerConfigs、`DataInfo`）→ **具体类型**，插件直接 `new`，不接口化、不走反射 Factory。
+- **服务**（`IEffectEngine`/`IFormat`/`ILog`/`ITuneLabContext`）→ **接口**，host 注入实现；演进靠默认接口方法（DIM）+ 版本治理。
+- 关键认知：接口式只给**服务**带来演进自由；对**数据**是幻觉——改数据类型在任何方案下都得走版本化，故数据用共享具体类型即可，别为幻觉牺牲 `new` 的 DX。
+
+**`TuneLab.Primitives`：中性冻结内核**：
+- 跨边界值类型只定义**一份**，放中性程序集 `TuneLab.Primitives`（ABI 地板/net8 LTS、零依赖、冻结）。`Foundation` 与 `SDK.Base` **都引用它**；插件只引用 `SDK.* + Primitives`，**永不引用 Foundation/Core**。
+- **为何独立成程序集而非 Foundation 内 `public`**：Primitives 与 Foundation **生命周期不同**（冻结 ABI / net8 地板 vs 自由演进 / host TFM），且需可独立版本化供 Compat、需作小而稳的 ALC 共享契约。一个程序集只能有一个 TFM、一个版本号，`internal` + `[InternalsVisibleTo]` **解决不了 TFM / 版本 / 冻结纪律**这几根轴——它只用于**程序集内部**收敛 host 私货（host-only 辅助标 internal + IVT 给主程序），不替代拆分。物理边界本身就是"要暴露就得显式搬进来"的纪律执行机制。
+- **边界类型归属**：`Point` / `MonoAudio` / Property 值模型 / ControllerConfigs → `Primitives`；`DataInfo` → `SDK.Format`；服务接口 → `SDK.Base`。
+
+**命名与人体工学**：
+- Primitives 类型用**诚实命名空间** `TuneLab.Primitives.*`（**不做命名空间伪装**——伪装会把冻结边界藏回去）；host 侧用 `global using Point = TuneLab.Primitives...Point;` 消除打字摩擦，go-to-definition 仍暴露边界。
+- 把 Foundation 类型挪进 Primitives 是**纯 host 内部、编译期**改动（插件不引用 Foundation → 零插件影响）；use-site churn 由 global using 别名吸收；真实成本在**依赖卫生**——冻结类型必须先切断对 Foundation 的依赖（Primitives 不能反向引用 Foundation）。
+
+**插件读宿主状态 & Log**：
+- `ILog` / `ITuneLabContext` 接口进 `SDK.Base`，host 加载插件时**注入每插件作用域**的实例（`context.Logger` 自动打插件 id 前缀、转发进 host 现有 `ILogger` sink）。
+- **弃用 `static TuneLabContext.Global`**：服务定位器反模式，且 **ALC 隔离下静态是每-ALC 一份，全局静态根本共享不了**（恰在多版本场景失效）。host 自留 Foundation 里便捷的静态 `Log.*`（host 单 ALC 无虞），与插件 `ILog` 共用同一底层 sink。
+
+**内核增长纪律**：每纳入一个类型 = 永久 ABI 承诺。内核只在具体插件 API 真需要时**克制、刻意**地增长；优先在 SDK.Base 暴露**冻结接口**、富实现留 Foundation，而非把富类型整个下沉。
+
+**冻结类型的演进（安全路径，落地留 #7/#8）**：
+- 非破坏改动（class 加成员、struct 加方法、服务接口用 DIM 加方法）**就地免费**，不升版本。
+- 破坏性改动走**整代版本化**：ABI 地板（`Primitives` + `SDK.*`）按"代"统一升版本，旧代编译产物**归档为 dll**（§三.3，不留源码），`Hosting.Compat.V1` 用 `extern alias` 桥接整代（§三.2，单程序集按版本分）。同版本内零转换；跨版本仅在边界转换，热载荷（`Point[]`、audio `float[]`）可 `MemoryMarshal.Cast` 零拷贝或共享数组引用。主程序绝不引用旧代（§三.4）。
 
 ---
 
@@ -398,3 +428,4 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 
 - ✅ **#1 项目结构 & .NET 版本**（2026-05-28）— host TFM 暂留 net8；`Directory.Build.props` 仅删死变量 `AvaloniaVersion`，csproj 设置维持就地内联（理由见 §三.8）；项目结构重整推迟到对应话题（#2/#3/#7/#8）。蓝图见 §三.7，compat 单程序集理由见 §三.2。
 - ✅ **#2 Foundation 抽离**（2026-05-29）— `TuneLab.Base` 冻结，新建 `TuneLab.Foundation`（fork + 改名 + 文件夹重组 `Data`/`Structures`/`Properties`→`Document`/`DataStructures`/`Property`，namespace 跟随）；主程序 + 内建扩展改引 Foundation，旧 Base.dll 留给 #8/compat；`IValueController`/`IDataValueController` 移至 `TuneLab/GUI/Controllers`；顺手修 `NotifiableProperty` 装箱（`EqualityComparer<T>.Default`）与 `ValueCommited`→`ValueCommitted` 拼写。DataStructures/Property/Expression 的**内部接口重写**与值-Config-Controller 终态拆分留 #4/#5/#6。边界与命名宪章见 §三.9，TFM 仍 net8，构建 0 错误。
+- ✅ **#3 TuneLab.Core 程序集**（2026-05-29）— 结论 **不建 Core**（effect 的 Core 是 grab-bag，内容各归位）；确立 **数据/服务分家**（数据=具体类型直接 `new`，服务=接口 host 注入）；新增中性冻结内核 **`TuneLab.Primitives`**（`Foundation` 与 `SDK.*` 共同引用，因生命周期不同而独立于 Foundation，`internal`/IVT 不能替代）。边界类型 `Point`/`MonoAudio`/Property值模型/ControllerConfigs→`Primitives`、`DataInfo`→`SDK.Format`、服务接口→`SDK.Base`；`ILog`/`ITuneLabContext` 进 `SDK.Base` 注入式（弃 `static Global`，因 ALC 下每-ALC 一份）；命名用诚实 namespace + `global using` 别名；冻结类型经"整代版本化 + 归档 dll + `extern alias` compat"安全演进。详见 §三.10，蓝图 §三.7 已更新（去 Core、加 Primitives）。落地留 #7/#8，本话题不改代码。
