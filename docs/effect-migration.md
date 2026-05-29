@@ -198,6 +198,19 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - `Directory.Build.props` 只保留**兜底默认**：当前是 `<Nullable>enable</Nullable>`，作用是"哪天新建 csproj 忘了写也不会沉默地关掉 nullable"。**不**承担集中配置职责。
 - TFM 永远不进 props：host TFM 与 SDK ABI 地板分两档，必须各 csproj 显式声明。
 
+### 9. Foundation 边界与命名（#2 确立）
+
+**准入判据**：不 reference 任何 TuneLab 业务模型类型（Note / Track / Tempo-as-data / Project…），不依赖 UI/Avalonia，不依赖插件宿主。对原始类型运算的"音乐数学"（`MusicTheory`、pitch↔freq、tempo↔time 换算）算通用工具，留 Foundation；承载业务语义的数据类归 Core。`Science` 整体留 Foundation，**不**拆独立程序集。
+
+**Base→Foundation 兼容形态**：`TuneLab.Foundation` 是**新建程序集**（fork 自 Base 内容），`TuneLab.Base` 源码**冻结**。主程序与内建扩展全部改引 Foundation；旧第三方插件继续引用冻结的 `TuneLab.Base.dll`，compat 层（#8）另起 csproj 引用 Base。Base / Foundation 是不同程序集名，靠 assembly identity 天然共存，**这一对不需要 extern alias**（extern alias 只用于同名不同版的 `SDK.*`）。Base 最终处置（live csproj vs 归档 dll）留 #8。
+
+**命名约定补充**：
+- 文件夹/命名空间跟随：`Data`→`Document`、`Structures`→`DataStructures`、`Properties`→`Property`（单数）；namespace 与目录一致。
+- **数据层 / UI 层信号用不同动词，刻意区分**：数据层用 `Modify`（`WillModify`/`Modified`），UI 层用 `Change`（`ValueWillChange`/`ValueChanged`/`ValueCommitted`）——看到动词即知所在层。`WillModify`/`Modified` 是刻意的"将来/过去"时态对（`Will` 为对齐 `Modified` 的过去时；英语无屈折将来时，时态轴上无法做到单词级对称——已论证，**勿再"优化"**）。
+- `Science` / `Document` / `Head` 命名保留（`DataDocument` 仿 git 设计，`Head` 沿用 git 隐喻）。
+
+**边界归位**：值编辑的 UI 绑定 `IValueController`/`IDataValueController` 属 UI，移至 `TuneLab/GUI/Controllers`，不在 Foundation。Config 类型（`NumberConfig` 等）暂留 `Property/`（它是插件 SDK 编译契约）；值模型 / Config / Controller 的**终态拆分**归 #5。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）
@@ -384,3 +397,4 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 > 每完成一个话题，在下面追加 **2–4 行** changelog。详细论证、备选方案、拒绝理由写在 commit message / PR 描述里，不进本文档。设计共识写进 §三 并就地更新，不堆历史。
 
 - ✅ **#1 项目结构 & .NET 版本**（2026-05-28）— host TFM 暂留 net8；`Directory.Build.props` 仅删死变量 `AvaloniaVersion`，csproj 设置维持就地内联（理由见 §三.8）；项目结构重整推迟到对应话题（#2/#3/#7/#8）。蓝图见 §三.7，compat 单程序集理由见 §三.2。
+- ✅ **#2 Foundation 抽离**（2026-05-29）— `TuneLab.Base` 冻结，新建 `TuneLab.Foundation`（fork + 改名 + 文件夹重组 `Data`/`Structures`/`Properties`→`Document`/`DataStructures`/`Property`，namespace 跟随）；主程序 + 内建扩展改引 Foundation，旧 Base.dll 留给 #8/compat；`IValueController`/`IDataValueController` 移至 `TuneLab/GUI/Controllers`；顺手修 `NotifiableProperty` 装箱（`EqualityComparer<T>.Default`）与 `ValueCommited`→`ValueCommitted` 拼写。DataStructures/Property/Expression 的**内部接口重写**与值-Config-Controller 终态拆分留 #4/#5/#6。边界与命名宪章见 §三.9，TFM 仍 net8，构建 0 错误。

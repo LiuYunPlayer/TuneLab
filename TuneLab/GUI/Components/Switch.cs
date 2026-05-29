@@ -7,10 +7,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Animation;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Property;
 using TuneLab.GUI;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
+
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 

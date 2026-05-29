@@ -4,10 +4,10 @@ using System.Formats.Cbor;
 using System.IO;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Formats.TLP;
 

@@ -5,10 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
-using Point = TuneLab.Base.Structures.Point;
+using Point = TuneLab.Foundation.DataStructures.Point;
 
 namespace TuneLab.Extensions.Formats.VPR
 {

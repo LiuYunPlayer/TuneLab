@@ -6,10 +6,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Components;
+
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 
@@ -30,7 +32,7 @@ internal class EditableLabel : LayerPanel, IDataValueController<string>
 
     public IActionEvent ValueWillChange => mTextInput.ValueWillChange;
     public IActionEvent ValueChanged => mTextInput.ValueChanged;
-    public IActionEvent ValueCommited => mEndInput;
+    public IActionEvent ValueCommitted => mEndInput;
     public string Value => mTextInput.IsVisible ? mTextInput.Value : Text;
 
     public EditableLabel()

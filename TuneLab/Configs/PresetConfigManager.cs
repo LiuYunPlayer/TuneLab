@@ -4,10 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
+
 
 namespace TuneLab.Configs;
 

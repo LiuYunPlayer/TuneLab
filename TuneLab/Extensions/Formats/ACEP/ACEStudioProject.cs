@@ -8,11 +8,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Property;
 using TuneLab.Extensions.Formats.DataInfo;
 using ZstdSharp;
 using ZstdSharp.Unsafe;
-using Point = TuneLab.Base.Structures.Point;
+using Point = TuneLab.Foundation.DataStructures.Point;
 
 namespace TuneLab.Extensions.Formats.ACEP;
 

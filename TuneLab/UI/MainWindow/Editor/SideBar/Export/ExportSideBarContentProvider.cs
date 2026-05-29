@@ -47,7 +47,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             Margin = new Thickness(12, 0, 12, 8),
         };
         mPathInput.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
-        mPathInput.ValueCommited.Subscribe(SaveExportConfigToProject);
+        mPathInput.ValueCommitted.Subscribe(SaveExportConfigToProject);
         mContentPanel.Children.Add(mPathInput);
 
         AddSeparator();
@@ -60,7 +60,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             Margin = new Thickness(12, 0, 12, 8),
         };
         mFileNameInput.Display("export");
-        mFileNameInput.ValueCommited.Subscribe(SaveExportConfigToProject);
+        mFileNameInput.ValueCommitted.Subscribe(SaveExportConfigToProject);
         mContentPanel.Children.Add(mFileNameInput);
 
         AddSeparator();

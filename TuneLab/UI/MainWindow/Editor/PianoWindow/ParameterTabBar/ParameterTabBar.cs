@@ -7,11 +7,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.GUI;
 using TuneLab.Data;
-using TuneLab.Base.Utils;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Event;
 using TuneLab.Utils;
 
 namespace TuneLab.UI;

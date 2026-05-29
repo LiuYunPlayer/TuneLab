@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.GUI.Input;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;

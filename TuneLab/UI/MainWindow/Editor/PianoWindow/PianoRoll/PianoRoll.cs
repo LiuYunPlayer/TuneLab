@@ -11,7 +11,7 @@ using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 
 namespace TuneLab.UI;
 

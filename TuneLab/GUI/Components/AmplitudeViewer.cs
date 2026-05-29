@@ -8,9 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Science;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Science;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Utils;
 

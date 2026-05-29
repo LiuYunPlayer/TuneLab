@@ -5,11 +5,11 @@ using System.Linq;
 using System.Net.Security;
 using System.Reflection;
 using System.Text;
-using TuneLab.Base.Data;
-using TuneLab.Base.Event;
-using TuneLab.Base.Science;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Science;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
 

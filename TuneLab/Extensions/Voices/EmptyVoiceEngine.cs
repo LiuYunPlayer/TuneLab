@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Extensions.Voices;

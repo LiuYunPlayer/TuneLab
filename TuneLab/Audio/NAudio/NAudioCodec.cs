@@ -7,7 +7,7 @@ using System.Text;
 using NAudio.Wave;
 using NAudio.Flac;
 using NLayer.NAudioSupport;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 using NAudio.Dsp;
 
 namespace TuneLab.Audio.NAudio;

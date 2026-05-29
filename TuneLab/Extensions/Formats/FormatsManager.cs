@@ -6,9 +6,9 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Formats;
 

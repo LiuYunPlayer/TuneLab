@@ -12,8 +12,8 @@ internal interface IScrollAxis
 
 internal static class IScrollAxisExtension
 {
-    public static Base.Structures.RangeF ViewRange(this IScrollAxis axis)
+    public static Foundation.DataStructures.RangeF ViewRange(this IScrollAxis axis)
     {
-        return new Base.Structures.RangeF(axis.ViewOffset, Math.Min(axis.ViewOffset + axis.ViewLength, axis.ContentLength));
+        return new Foundation.DataStructures.RangeF(axis.ViewOffset, Math.Min(axis.ViewOffset + axis.ViewLength, axis.ContentLength));
     }
 }

@@ -6,15 +6,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.Utils;
-using static TuneLab.Base.Science.MusicTheory;
+using static TuneLab.Foundation.Science.MusicTheory;
 
 namespace TuneLab.UI;
 
@@ -111,7 +111,7 @@ internal class FunctionBar : LayerPanel
                     ("1/160", QuantizationBase.Base_5, QuantizationDivision.Division_32),
                 ];
                 quantizationComboBox.SetConfig(new(options.Select(option => option.option).ToList(), 3));
-                quantizationComboBox.ValueCommited.Subscribe(() => { var index = quantizationComboBox.Index; if ((uint)index >= options.Length) return; mQuantizationChanged.Invoke(options[index].quantizationBase, options[index].quantizationDivision); });
+                quantizationComboBox.ValueCommitted.Subscribe(() => { var index = quantizationComboBox.Index; if ((uint)index >= options.Length) return; mQuantizationChanged.Invoke(options[index].quantizationBase, options[index].quantizationDivision); });
                 quantizationPanel.Children.Add(quantizationComboBox);
             }
             dockPanel.AddDock(quantizationPanel, Dock.Right);

@@ -1,10 +1,10 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Base.Data;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Science;
 using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using System;
 
 namespace TuneLab.Data;

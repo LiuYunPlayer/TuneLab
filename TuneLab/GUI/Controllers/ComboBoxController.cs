@@ -5,10 +5,10 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.GUI.Components;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using System.Threading;
 
 namespace TuneLab.GUI.Controllers;
@@ -17,7 +17,7 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
-    public IActionEvent ValueCommited => mValueCommited;
+    public IActionEvent ValueCommitted => mValueCommitted;
     public string Value { get => mValue; set { SetValue((uint)Options.IndexOf(value) < Options.Count ? value : mConfig.DefaultValue); Display(Value); } }
     public int Index { get => Options.IndexOf(Value); }
     int IValueController<int>.Value => Index;
@@ -105,12 +105,12 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
         mValueWillChange.Invoke();
         mValue = value;
         mValueChanged.Invoke();
-        mValueCommited.Invoke();
+        mValueCommitted.Invoke();
     }
 
     ActionEvent mValueWillChange = new();
     ActionEvent mValueChanged = new();
-    ActionEvent mValueCommited = new();
+    ActionEvent mValueCommitted = new();
 
     EnumConfig mConfig = new([]);
     string mValue = string.Empty;

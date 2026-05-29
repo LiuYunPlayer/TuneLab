@@ -9,7 +9,7 @@ using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.Utils;
 using TuneLab.Extensions.Voices;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using Avalonia.Media;
 using TuneLab.GUI.Input;
 

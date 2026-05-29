@@ -6,9 +6,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Base.Data;
-using TuneLab.Base.Event;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
 using TuneLab.Extensions.Formats.DataInfo;
 
 namespace TuneLab.Data;

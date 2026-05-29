@@ -5,9 +5,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Property;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
+
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 

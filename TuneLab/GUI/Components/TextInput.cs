@@ -5,9 +5,11 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using System;
 using System.Linq;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Utils;
+
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 
@@ -22,7 +24,7 @@ internal class TextInput : TextBox, IDataValueController<string>
 
     public IActionEvent ValueWillChange => EnterInput;
     public IActionEvent ValueChanged => TextChanged;
-    public IActionEvent ValueCommited => EndInput;
+    public IActionEvent ValueCommitted => EndInput;
     public string Value => Text;
 
     public TextInput()

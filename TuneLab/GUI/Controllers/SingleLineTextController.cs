@@ -13,8 +13,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
@@ -23,7 +23,7 @@ internal class SingleLineTextController : LayerPanel, IDataValueController<strin
 {
     public IActionEvent ValueWillChange => mTextInput.EnterInput;
     public IActionEvent ValueChanged => mTextInput.TextChanged;
-    public IActionEvent ValueCommited => mTextInput.EndInput;
+    public IActionEvent ValueCommitted => mTextInput.EndInput;
     public string Value { get => mTextInput.Text; set => mTextInput.Text = value; }
 
     public SingleLineTextController()

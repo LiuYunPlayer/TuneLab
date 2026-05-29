@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
+
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 
@@ -34,7 +36,7 @@ internal class Toggle : Button, IDataValueController<bool>
             mValueWillChange.Invoke();
             mIsChecked = value;
             mValueChanged.Invoke();
-            mValueCommited.Invoke();
+            mValueCommitted.Invoke();
             foreach (var kvp in mContentMap)
             {
                 kvp.Value.ColorSet = IsChecked ? kvp.Key.CheckedColorSet : kvp.Key.UncheckedColorSet;
@@ -45,7 +47,7 @@ internal class Toggle : Button, IDataValueController<bool>
 
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
-    public IActionEvent ValueCommited => mValueCommited;
+    public IActionEvent ValueCommitted => mValueCommitted;
     public bool Value => IsChecked;
 
     public Toggle()
@@ -74,6 +76,6 @@ internal class Toggle : Button, IDataValueController<bool>
     bool mIsChecked = false;
     readonly ActionEvent mValueWillChange = new();
     readonly ActionEvent mValueChanged = new();
-    readonly ActionEvent mValueCommited = new();
+    readonly ActionEvent mValueCommitted = new();
     readonly Dictionary<ToggleContent, ButtonContent> mContentMap = [];
 }

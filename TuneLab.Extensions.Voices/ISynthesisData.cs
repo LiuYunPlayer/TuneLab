@@ -4,8 +4,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Extensions.Voices;
 

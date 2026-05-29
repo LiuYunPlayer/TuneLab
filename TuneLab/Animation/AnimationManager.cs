@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.Utils;
 using Timer = System.Timers.Timer;
 

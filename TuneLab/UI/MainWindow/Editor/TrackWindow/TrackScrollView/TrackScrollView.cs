@@ -5,11 +5,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Event;
 using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.GUI;
-using TuneLab.Base.Data;
+using TuneLab.Foundation.Document;
 using TuneLab.Extensions.Formats.DataInfo;
 using TuneLab.Audio;
 using Avalonia.Input;
@@ -17,8 +17,8 @@ using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using System.IO;
 using TuneLab.Utils;
-using TuneLab.Base.Science;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Science;
+using TuneLab.Foundation.Utils;
 using TuneLab.Extensions.Formats;
 using TuneLab.I18N;
 
@@ -736,7 +736,7 @@ internal partial class TrackScrollView : View
                         {
                             for (var j = 0; j < midiPartInfo.Pitch[i].Count; j++)
                             {
-                                midiPartInfo.Pitch[i][j] = new Base.Structures.Point() { X = SyncTick(midiPartInfo.Pitch[i][j].X), Y = midiPartInfo.Pitch[i][j].Y };
+                                midiPartInfo.Pitch[i][j] = new Foundation.DataStructures.Point() { X = SyncTick(midiPartInfo.Pitch[i][j].X), Y = midiPartInfo.Pitch[i][j].Y };
                             }
                         }
                         //SyncNoteTick
@@ -759,7 +759,7 @@ internal partial class TrackScrollView : View
                         {
                             for (var j = 0; j < midiPartInfo.Automations[automationKeys[i]].Points.Count; j++)
                             {
-                                midiPartInfo.Automations[automationKeys[i]].Points[j] = new Base.Structures.Point() { X = SyncTick(midiPartInfo.Automations[automationKeys[i]].Points[j].X), Y = midiPartInfo.Automations[automationKeys[i]].Points[j].Y };
+                                midiPartInfo.Automations[automationKeys[i]].Points[j] = new Foundation.DataStructures.Point() { X = SyncTick(midiPartInfo.Automations[automationKeys[i]].Points[j].X), Y = midiPartInfo.Automations[automationKeys[i]].Points[j].Y };
                             }
                         }
                     }

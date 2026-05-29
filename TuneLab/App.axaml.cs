@@ -8,7 +8,7 @@ using TuneLab.Animation;
 using TuneLab.Audio;
 using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.Extensions;
 using TuneLab.Extensions.Voices;
 using TuneLab.GUI;

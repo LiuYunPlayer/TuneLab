@@ -6,8 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Utils;
 
 namespace TuneLab.GUI.Controllers;
@@ -18,7 +18,7 @@ internal class PathInput : DockPanel, IDataValueController<string>
 
     public IActionEvent ValueWillChange => ((IDataValueController<string>)mTextInput).ValueWillChange;
     public IActionEvent ValueChanged => ((IValueController<string>)mTextInput).ValueChanged;
-    public IActionEvent ValueCommited => ((IValueController<string>)mTextInput).ValueCommited;
+    public IActionEvent ValueCommitted => ((IValueController<string>)mTextInput).ValueCommitted;
 
     public string Value => ((IValueController<string>)mTextInput).Value;
 

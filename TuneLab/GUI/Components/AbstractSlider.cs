@@ -2,12 +2,14 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using System;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Event;
 using TuneLab.GUI.Input;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 using TuneLab.Utils;
-using TuneLab.Base.Utils;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Utils;
+using TuneLab.Foundation.Property;
+
+using TuneLab.GUI.Controllers;
 
 namespace TuneLab.GUI.Components;
 
@@ -15,9 +17,9 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
-    public IActionEvent ValueCommited => mValueCommited;
+    public IActionEvent ValueCommitted => mValueCommitted;
     public IActionEvent ValueDisplayed => mValueDisplayed;
-    public double Value { get => mValue; set { if (value == Value) return; mValueWillChange.Invoke(); ChangeValue(value); mValueCommited.Invoke(); } }
+    public double Value { get => mValue; set { if (value == Value) return; mValueWillChange.Invoke(); ChangeValue(value); mValueCommitted.Invoke(); } }
     public double MinValue => mMinValue;
     public double MaxValue => mMaxValue;
     public double DefaultValue { get => mDefaultValue; set => mDefaultValue = value; }
@@ -141,7 +143,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
             return;
         }
 
-        mValueCommited.Invoke();
+        mValueCommitted.Invoke();
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -165,7 +167,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
 
     void OnThumbMoveEnd()
     {
-        mValueCommited.Invoke();
+        mValueCommitted.Invoke();
     }
 
     void OnThumbMoved(Avalonia.Point point)
@@ -227,7 +229,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
 
     readonly ActionEvent mValueWillChange = new();
     readonly ActionEvent mValueChanged = new();
-    readonly ActionEvent mValueCommited = new();
+    readonly ActionEvent mValueCommitted = new();
     readonly ActionEvent mValueDisplayed = new();
     readonly DisposableManager s = new();
 }

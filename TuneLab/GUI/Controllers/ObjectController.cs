@@ -5,12 +5,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Event;
-using TuneLab.Base.Data;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Document;
 using TuneLab.Utils;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;
@@ -19,7 +19,7 @@ internal class ObjectController : StackPanel
 {
     public IActionEvent<PropertyPath> ValueWillChange => mValueWillChange;
     public IActionEvent<PropertyPath, PropertyValue> ValueChanged => mValueChanged;
-    public IActionEvent<PropertyPath, PropertyValue> ValueCommited => mValueCommited;
+    public IActionEvent<PropertyPath, PropertyValue> ValueCommitted => mValueCommitted;
 
     public ObjectController()
     {
@@ -176,7 +176,7 @@ internal class ObjectController : StackPanel
             objectController.SetConfig(config);
             objectController.ValueWillChange.Subscribe(mController.mValueWillChange);
             objectController.ValueChanged.Subscribe(OnValueChanged);
-            objectController.ValueCommited.Subscribe(OnValueCommited);
+            objectController.ValueCommitted.Subscribe(OnValueCommitted);
 
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
             mDockPanel.Margin = new(0, 0, 0, 0);
@@ -207,7 +207,7 @@ internal class ObjectController : StackPanel
 
             objectController.ValueWillChange.Unsubscribe(mController.mValueWillChange);
             objectController.ValueChanged.Unsubscribe(OnValueChanged);
-            objectController.ValueCommited.Unsubscribe(OnValueCommited);
+            objectController.ValueCommitted.Unsubscribe(OnValueCommitted);
             objectController.ResetConfig();
             ObjectPoolManager.Return(objectController);
 
@@ -229,9 +229,9 @@ internal class ObjectController : StackPanel
             mController.mValueChanged.Invoke(new PropertyPath(mKey).Combine(path), value);
         }
 
-        void OnValueCommited(PropertyPath path, PropertyValue value)
+        void OnValueCommitted(PropertyPath path, PropertyValue value)
         {
-            mController.mValueCommited.Invoke(new PropertyPath(mKey).Combine(path), value);
+            mController.mValueCommitted.Invoke(new PropertyPath(mKey).Combine(path), value);
         }
 
         readonly string mKey;
@@ -259,7 +259,7 @@ internal class ObjectController : StackPanel
             mSliderController.Display(config.DefaultValue);
             mSliderController.ValueWillChange.Subscribe(OnValueWillChange);
             mSliderController.ValueChanged.Subscribe(OnValueChanged);
-            mSliderController.ValueCommited.Subscribe(OnValueCommited);
+            mSliderController.ValueCommitted.Subscribe(OnValueCommitted);
             mController.Children.Add(mSliderController);
             mController.mControllers.Add(mKey, this);
         }
@@ -271,7 +271,7 @@ internal class ObjectController : StackPanel
             mController.Children.Remove(mSliderController);
             mSliderController.ValueWillChange.Unsubscribe(OnValueWillChange);
             mSliderController.ValueChanged.Unsubscribe(OnValueChanged);
-            mSliderController.ValueCommited.Unsubscribe(OnValueCommited);
+            mSliderController.ValueCommitted.Unsubscribe(OnValueCommitted);
             ObjectPoolManager.Return(mSliderController);
         }
 
@@ -298,9 +298,9 @@ internal class ObjectController : StackPanel
             mController.mValueChanged.Invoke(new PropertyPath(mKey), mSliderController.Value);
         }
 
-        void OnValueCommited()
+        void OnValueCommitted()
         {
-            mController.mValueCommited.Invoke(new PropertyPath(mKey), mSliderController.Value);
+            mController.mValueCommitted.Invoke(new PropertyPath(mKey), mSliderController.Value);
         }
 
         readonly string mKey;
@@ -322,7 +322,7 @@ internal class ObjectController : StackPanel
             mSingleLineTextController.Display(config.DefaultValue);
             mSingleLineTextController.ValueWillChange.Subscribe(OnValueWillChange);
             mSingleLineTextController.ValueChanged.Subscribe(OnValueChanged);
-            mSingleLineTextController.ValueCommited.Subscribe(OnValueCommited);
+            mSingleLineTextController.ValueCommitted.Subscribe(OnValueCommitted);
             mController.Children.Add(mSingleLineTextController);
             mController.mControllers.Add(mKey, this);
         }
@@ -334,7 +334,7 @@ internal class ObjectController : StackPanel
             mController.Children.Remove(mSingleLineTextController);
             mSingleLineTextController.ValueWillChange.Unsubscribe(OnValueWillChange);
             mSingleLineTextController.ValueChanged.Unsubscribe(OnValueChanged);
-            mSingleLineTextController.ValueCommited.Unsubscribe(OnValueCommited);
+            mSingleLineTextController.ValueCommitted.Unsubscribe(OnValueCommitted);
             ObjectPoolManager.Return(mSingleLineTextController);
         }
 
@@ -361,9 +361,9 @@ internal class ObjectController : StackPanel
             mController.mValueChanged.Invoke(new PropertyPath(mKey), mSingleLineTextController.Value);
         }
 
-        void OnValueCommited()
+        void OnValueCommitted()
         {
-            mController.mValueCommited.Invoke(new PropertyPath(mKey), mSingleLineTextController.Value);
+            mController.mValueCommitted.Invoke(new PropertyPath(mKey), mSingleLineTextController.Value);
         }
 
         readonly string mKey;
@@ -387,7 +387,7 @@ internal class ObjectController : StackPanel
             mComboBoxController.Display(config.DefaultValue);
             mComboBoxController.ValueWillChange.Subscribe(OnValueWillChange);
             mComboBoxController.ValueChanged.Subscribe(OnValueChanged);
-            mComboBoxController.ValueCommited.Subscribe(OnValueCommited);
+            mComboBoxController.ValueCommitted.Subscribe(OnValueCommitted);
             mController.Children.Add(mComboBoxController);
             mController.mControllers.Add(mKey, this);
         }
@@ -399,7 +399,7 @@ internal class ObjectController : StackPanel
             mController.Children.Remove(mComboBoxController);
             mComboBoxController.ValueWillChange.Unsubscribe(OnValueWillChange);
             mComboBoxController.ValueChanged.Unsubscribe(OnValueChanged);
-            mComboBoxController.ValueCommited.Unsubscribe(OnValueCommited);
+            mComboBoxController.ValueCommitted.Unsubscribe(OnValueCommitted);
             ObjectPoolManager.Return(mComboBoxController);
         }
 
@@ -426,9 +426,9 @@ internal class ObjectController : StackPanel
             mController.mValueChanged.Invoke(new PropertyPath(mKey), mComboBoxController.Value);
         }
 
-        void OnValueCommited()
+        void OnValueCommitted()
         {
-            mController.mValueCommited.Invoke(new PropertyPath(mKey), mComboBoxController.Value);
+            mController.mValueCommitted.Invoke(new PropertyPath(mKey), mComboBoxController.Value);
         }
 
         readonly string mKey;
@@ -449,7 +449,7 @@ internal class ObjectController : StackPanel
             mCheckBoxController.Display(config.DefaultValue);
             mCheckBoxController.ValueWillChange.Subscribe(OnValueWillChange);
             mCheckBoxController.ValueChanged.Subscribe(OnValueChanged);
-            mCheckBoxController.ValueCommited.Subscribe(OnValueCommited);
+            mCheckBoxController.ValueCommitted.Subscribe(OnValueCommitted);
             mDockPanel.Children.Add(mCheckBoxController);
             DockPanel.SetDock(mCheckBoxController, Dock.Right);
             mLabelCreator = new LabelCreator(mDockPanel, key);
@@ -466,7 +466,7 @@ internal class ObjectController : StackPanel
             mDockPanel.Children.Clear();
             mCheckBoxController.ValueWillChange.Unsubscribe(OnValueWillChange);
             mCheckBoxController.ValueChanged.Unsubscribe(OnValueChanged);
-            mCheckBoxController.ValueCommited.Unsubscribe(OnValueCommited);
+            mCheckBoxController.ValueCommitted.Unsubscribe(OnValueCommitted);
             ObjectPoolManager.Return(mCheckBoxController);
             ObjectPoolManager.Return(mDockPanel);
         }
@@ -494,9 +494,9 @@ internal class ObjectController : StackPanel
             mController.mValueChanged.Invoke(new PropertyPath(mKey), mCheckBoxController.Value);
         }
 
-        void OnValueCommited()
+        void OnValueCommitted()
         {
-            mController.mValueCommited.Invoke(new PropertyPath(mKey), mCheckBoxController.Value);
+            mController.mValueCommitted.Invoke(new PropertyPath(mKey), mCheckBoxController.Value);
         }
 
         readonly string mKey;
@@ -509,6 +509,6 @@ internal class ObjectController : StackPanel
     Map<string, IController> mControllers = new();
     readonly ActionEvent<PropertyPath> mValueWillChange = new();
     readonly ActionEvent<PropertyPath, PropertyValue> mValueChanged = new();
-    readonly ActionEvent<PropertyPath, PropertyValue> mValueCommited = new();
+    readonly ActionEvent<PropertyPath, PropertyValue> mValueCommitted = new();
     DisposableManager mDisposableManager = new();
 }

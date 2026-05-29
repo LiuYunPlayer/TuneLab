@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions.Voices;
 

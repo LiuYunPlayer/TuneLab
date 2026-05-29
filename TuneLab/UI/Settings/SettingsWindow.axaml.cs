@@ -7,18 +7,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.Configs;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
 using TuneLab.Utils;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Property;
 using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Event;
 using TuneLab.Audio;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.UI;
 

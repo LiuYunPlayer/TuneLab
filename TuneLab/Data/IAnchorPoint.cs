@@ -4,8 +4,8 @@ using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Data;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Data;
 

@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media;
 using TuneLab.Animation;
-using TuneLab.Base.Data;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Document;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 using TuneLab.Utils;
 using TuneLab.Extensions.Voices;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.Configs;
 
 namespace TuneLab.UI;
@@ -452,7 +452,7 @@ internal partial class AutomationRenderer
             State = State.None;
         }
 
-        TuneLab.Base.Structures.Point ToTickAndValue(Avalonia.Point mousePosition)
+        TuneLab.Foundation.DataStructures.Point ToTickAndValue(Avalonia.Point mousePosition)
         {
             return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - mAutomation!.Part.Pos.Value,
                 mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin));
@@ -463,7 +463,7 @@ internal partial class AutomationRenderer
         double mMin;
         bool mDirection;
         Head mHead;
-        readonly List<List<TuneLab.Base.Structures.Point>> mPointLines = new();
+        readonly List<List<TuneLab.Foundation.DataStructures.Point>> mPointLines = new();
     }
 
     readonly DrawOperation mDrawOperation;

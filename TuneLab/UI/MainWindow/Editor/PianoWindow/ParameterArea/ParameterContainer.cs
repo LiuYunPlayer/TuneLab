@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.DataStructures;
 using TuneLab.GUI;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.UI;
 

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.GUI;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 using TuneLab.Animation;
 
 namespace TuneLab.UI;

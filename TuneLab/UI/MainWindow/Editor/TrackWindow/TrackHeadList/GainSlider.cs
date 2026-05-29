@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 using TuneLab.GUI.Components;
 using TuneLab.GUI;
 using TuneLab.Utils;
-using TuneLab.Base.Science;
+using TuneLab.Foundation.Science;
 using Avalonia.Controls;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using Avalonia.Threading;
 
 namespace TuneLab.UI;

@@ -2,8 +2,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using System;
-using TuneLab.Base.Event;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Utils;
 
 namespace TuneLab.GUI.Components;
 

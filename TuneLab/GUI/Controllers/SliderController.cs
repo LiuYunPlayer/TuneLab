@@ -5,8 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
-using TuneLab.Base.Properties;
+using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
 using Slider = TuneLab.GUI.Components.Slider;
@@ -17,7 +17,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
 {
     public IActionEvent ValueWillChange => mSlider.ValueWillChange;
     public IActionEvent ValueChanged => mSlider.ValueChanged;
-    public IActionEvent ValueCommited => mSlider.ValueCommited;
+    public IActionEvent ValueCommitted => mSlider.ValueCommitted;
     public double Value => mSlider.Value;
     public bool IsInterger { get => mSlider.IsInterger; set => mSlider.IsInterger = value; }
     int IValueController<int>.Value => mSlider.IntergerValue;

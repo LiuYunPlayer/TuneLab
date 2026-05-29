@@ -5,18 +5,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Base.Event;
+using TuneLab.Foundation.Event;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Controllers;
-using TuneLab.Base.Properties;
-using TuneLab.Base.Structures;
+using TuneLab.Foundation.Property;
+using TuneLab.Foundation.DataStructures;
 using DynamicData;
 using Avalonia.Media;
 using TuneLab.GUI.Components;
-using TuneLab.Base.Data;
+using TuneLab.Foundation.Document;
 using TuneLab.Utils;
-using TuneLab.Base.Utils;
+using TuneLab.Foundation.Utils;
 using TuneLab.I18N;
 using TuneLab.Configs;
 using TuneLab.Extensions.Formats.DataInfo;
@@ -46,7 +46,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         presetRow.Children.Add(mPresetComboBox);
         mPresetContent.Children.Add(presetRow);
 
-        mPresetComboBox.ValueCommited.Subscribe(OnPresetComboBoxValueCommited);
+        mPresetComboBox.ValueCommitted.Subscribe(OnPresetComboBoxValueCommitted);
 
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
         mPresetContentContainer.Child = mPresetContent;
@@ -76,7 +76,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         LoadPresets();
     }
 
-    void OnPresetComboBoxValueCommited()
+    void OnPresetComboBoxValueCommitted()
     {
         OnApplyPresetClicked();
     }
@@ -129,14 +129,14 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mPart.Automations.Any(automation => automation.DefaultValue.Modified).Subscribe(OnAutomationDefaultValueModified, s);
             mAutomationController.ValueWillChange.Subscribe(OnAutomationValueWillChange, s);
             mAutomationController.ValueChanged.Subscribe(OnAutomationValueChanged, s);
-            mAutomationController.ValueCommited.Subscribe(OnAutomationValueCommited, s);
+            mAutomationController.ValueCommitted.Subscribe(OnAutomationValueCommitted, s);
 
             mPart.Properties.PropertyModified.Subscribe(OnPartPropertyModified, s);
-            mPartPropertiesController.ValueCommited.Subscribe(OnPartValueCommited, s);
+            mPartPropertiesController.ValueCommitted.Subscribe(OnPartValueCommitted, s);
 
             mPart.Notes.SelectionChanged.Subscribe(OnNoteSelectionChanged, s);
             mPart.Notes.Any(note => note.Properties.PropertyModified).Subscribe(OnNotePropertyModified, s);
-            mNotePropertiesController.ValueCommited.Subscribe(OnNoteValueCommited, s);
+            mNotePropertiesController.ValueCommitted.Subscribe(OnNoteValueCommitted, s);
 
             Setup(mPart);
         }
@@ -280,12 +280,12 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         RefreshPartPropertiesController();
     }
 
-    void OnPartValueCommited(PropertyPath path, PropertyValue value)
+    void OnPartValueCommitted(PropertyPath path, PropertyValue value)
     {
         mPart?.Properties.SetValue(path.GetKey(), value).Commit();
     }
 
-    void OnNoteValueCommited(PropertyPath path, PropertyValue value)
+    void OnNoteValueCommitted(PropertyPath path, PropertyValue value)
     {
         if (mPart == null)
             return;
@@ -334,7 +334,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         automation.DefaultValue.Set(number);
     }
 
-    void OnAutomationValueCommited(PropertyPath path, PropertyValue value)
+    void OnAutomationValueCommitted(PropertyPath path, PropertyValue value)
     {
         if (mPart == null)
             return;
