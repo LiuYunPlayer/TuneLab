@@ -166,7 +166,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 |---|---|---|---|
 | `TuneLab` | host TFM | 已存在 | 主程序 WinExe |
 | `TuneLab.Foundation` | host TFM | #2 | 纯通用富基础（引用 `Primitives`；替代 `TuneLab.Base`） |
-| `TuneLab.Primitives` | **ABI 地板** | #7 | 中性冻结内核：跨边界值类型（`Point`/`MonoAudio`/Property 值模型/ControllerConfigs）；`Foundation` 与 `SDK.*` 都引用（见 §三.10） |
+| `TuneLab.Primitives` | **ABI 地板** | #7 | 中性冻结内核：跨边界值类型（`Point`/`MonoAudio`/Property 值模型/ControllerConfigs）+ DataStructures map 接口族（见 §三.11）；`Foundation` 与 `SDK.*` 都引用（见 §三.10） |
 | `TuneLab.SDK.Base` | **ABI 地板** | #7 | 插件服务接口（`ILog`/`ITuneLabContext`…）+ 引用 `Primitives` |
 | `TuneLab.SDK.Format` | **ABI 地板** | #7 | format 插件 SDK（含工程序列化模型 `DataInfo`） |
 | `TuneLab.SDK.Voice` | **ABI 地板** | #7 | voice 插件 SDK |
@@ -225,7 +225,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **`TuneLab.Primitives`：中性冻结内核**：
 - 跨边界值类型只定义**一份**，放中性程序集 `TuneLab.Primitives`（ABI 地板/net8 LTS、零依赖、冻结）。`Foundation` 与 `SDK.Base` **都引用它**；插件只引用 `SDK.* + Primitives`，**永不引用 Foundation/Core**。
 - **为何独立成程序集而非 Foundation 内 `public`**：Primitives 与 Foundation **生命周期不同**（冻结 ABI / net8 地板 vs 自由演进 / host TFM），且需可独立版本化供 Compat、需作小而稳的 ALC 共享契约。一个程序集只能有一个 TFM、一个版本号，`internal` + `[InternalsVisibleTo]` **解决不了 TFM / 版本 / 冻结纪律**这几根轴——它只用于**程序集内部**收敛 host 私货（host-only 辅助标 internal + IVT 给主程序），不替代拆分。物理边界本身就是"要暴露就得显式搬进来"的纪律执行机制。
-- **边界类型归属**：`Point` / `MonoAudio` / Property 值模型 / ControllerConfigs → `Primitives`；`DataInfo` → `SDK.Format`；服务接口 → `SDK.Base`。
+- **边界类型归属**：`Point` / `MonoAudio` / Property 值模型 / ControllerConfigs / DataStructures map 接口族（见 §三.11）→ `Primitives`；`DataInfo` → `SDK.Format`；服务接口 → `SDK.Base`。
 
 **命名与人体工学**：
 - Primitives 类型用**诚实命名空间** `TuneLab.Primitives.*`（**不做命名空间伪装**——伪装会把冻结边界藏回去）；host 侧用 `global using Point = TuneLab.Primitives...Point;` 消除打字摩擦，go-to-definition 仍暴露边界。
@@ -240,6 +240,24 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **冻结类型的演进（安全路径，落地留 #7/#8）**：
 - 非破坏改动（class 加成员、struct 加方法、服务接口用 DIM 加方法）**就地免费**，不升版本。
 - 破坏性改动走**整代版本化**：ABI 地板（`Primitives` + `SDK.*`）按"代"统一升版本，旧代编译产物**归档为 dll**（§三.3，不留源码），`Hosting.Compat.V1` 用 `extern alias` 桥接整代（§三.2，单程序集按版本分）。同版本内零转换；跨版本仅在边界转换，热载荷（`Point[]`、audio `float[]`）可 `MemoryMarshal.Cast` 零拷贝或共享数组引用。主程序绝不引用旧代（§三.4）。
+
+### 11. DataStructures 接口族：冻结内核 vs Foundation 富实现（#4 确立）
+
+**集合接口按 ABI 边界二分**（判据：是否出现在 SDK.\* / ControllerConfigs / PropertyValue / `ISynthesisOutput` 等**插件契约签名**里）：
+
+- **进 `Primitives`（冻结 ABI）**：**map 家族整体**——`IReadOnlyKeyValuePair`、`IReadOnlyMap`、`IMap`、`IReadOnlyOrderedMap`、`IOrderedMap` + 具体 `Map`/`OrderedMap`。证据：`IReadOnlyMap`/`IReadOnlyOrderedMap` 出现在 `Properties`/`ObjectConfig`/`AutomationConfig`/`VoiceInfos`/Format 注册表；`IMap`（可变）出现在 `ISynthesisOutput.SynthesizedAutomations`（插件**填**它）。数据=具体类型插件直接 `new`（§三.10），故具体 `Map`/`OrderedMap` 也进 Primitives，并把它实现的接口一并拽入。**最小内核纪律在此省不下**——契约 + 构造需求把整族拽进来。
+- **留 `Foundation`（host 富实现，自由演进，永不跨边界）**：`ILinkedList`/`IReadOnlyLinkedList`/`ILinkedNode`/`LinkedList`（唯一用途=`INote`/`IPart` 侵入式相邻链，钢琴卷帘 O(1) 插删 + 前后导航）、`IMutableList`（Document 内部 `IList`+`IReadOnlyList` 的 DIM 调和糖）、`CacheList`/`SafeReadOnlyList`、各 `Wrapper`/`Convert` 扩展。
+
+**对原 §四.4 三问的结论**：
+- **三层（IReadOnly/可变/具体）只在边界值得**：读写方向是契约语义（服务回**协变只读** map、插件**填可变** map）。非边界的 `IMutableList` 式 DIM 调和不进冻结内核。
+- **`OrderedMap` 存在理由**：声明顺序注册表（property/automation/voice/format 按作者声明序在面板展示）是真实需求 → `IReadOnlyOrderedMap` 是合格的冻结边界类型。
+- **`DataList` vs `DataObjectList` 分裂必要且保留**：`DataList<T>`=值快照列表（整列即 info，`ItemReplaced`）；`DataObjectList<T> where T:IDataObject`=子文档树（元素 Attach/Detach、独立参与 undo、`ListModified`）。但整套是 Foundation 内部 live-doc，终态形状与 `DataPropertyObject` 一起在 #5 定。
+
+**规范化形状**（effect 已验证、待 #7 物理落地 Primitives 时采用）：`IReadOnlyKeyWithValue`→`IReadOnlyKeyValuePair`（对齐 BCL）；`Keys`/`Values` 收紧为 `IReadOnlyCollection<>`/有序版 `IReadOnlyList<>`；删 `IReadOnlyOrderedMapExtension.At` 自递归死代码 bug；补 `[CollectionBuilder]` + Empty 单例支持 `= []` 集合表达式。**否决** effect 在 `SDK.Base` 重拷一份 `IReadOnlyMap_V1`/`IMap_V1`/…（违 §三.1/§三.10——map 家族只在 Primitives 定义一份，插件经 `SDK.* + Primitives` 引用）。
+
+**Document/ 泛型框架归 `Foundation`，终态留 #5**：`IDataObject`/`IDataList`/`IDataObjectList`/`DataMap`/`Command`/`Head`/`DataDocument` 不 reference 任何业务类型 → 过 §三.9 准入判据 → Foundation（host-only 基础设施，从不触碰冻结 ABI，可自由演进）。具体活文档模型（`NoteData`…）composite 其上 → host（§三.9 "活文档模型→host" 指此具体层，非泛型机制）。
+
+**物理落地（搬入 Primitives、改名、规范化）留 #7**，本话题不改代码。
 
 ---
 
@@ -428,4 +446,5 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 
 - ✅ **#1 项目结构 & .NET 版本**（2026-05-28）— host TFM 暂留 net8；`Directory.Build.props` 仅删死变量 `AvaloniaVersion`，csproj 设置维持就地内联（理由见 §三.8）；项目结构重整推迟到对应话题（#2/#3/#7/#8）。蓝图见 §三.7，compat 单程序集理由见 §三.2。
 - ✅ **#2 Foundation 抽离**（2026-05-29）— `TuneLab.Base` 冻结，新建 `TuneLab.Foundation`（fork + 改名 + 文件夹重组 `Data`/`Structures`/`Properties`→`Document`/`DataStructures`/`Property`，namespace 跟随）；主程序 + 内建扩展改引 Foundation，旧 Base.dll 留给 #8/compat；`IValueController`/`IDataValueController` 移至 `TuneLab/GUI/Controllers`；顺手修 `NotifiableProperty` 装箱（`EqualityComparer<T>.Default`）与 `ValueCommited`→`ValueCommitted` 拼写。DataStructures/Property/Expression 的**内部接口重写**与值-Config-Controller 终态拆分留 #4/#5/#6。边界与命名宪章见 §三.9，TFM 仍 net8，构建 0 错误。
+- ✅ **#4 DataStructures 接口规范化**（2026-06-01）— 纯决策，不改代码。集合接口按 **ABI 边界二分**：**map 家族整体**（`IReadOnlyKeyValuePair`/`IReadOnlyMap`/`IMap`/`IReadOnlyOrderedMap`/`IOrderedMap` + 具体 `Map`/`OrderedMap`）→ **Primitives 冻结**（出现在 `Properties`/`ObjectConfig`/`AutomationConfig`/`VoiceInfos`/`SynthesizedAutomations` 等插件契约，且数据须可 `new`，整族被契约+构造拽入）；**LinkedList 族**（`INote`/`IPart` 侵入链）+ `IMutableList` + wrapper 扩展 + **整个 Document 框架** → **Foundation 富实现**（永不跨边界、自由演进）。三层只在边界值得；`DataList`/`DataObjectList` 分裂必要但属 Foundation 内部。否决 effect 在 `SDK.Base` 重拷 `*_V1`。规范化形状（KeyValuePair 改名、删 `At` 递归 bug、`[CollectionBuilder]`）与物理落地 Primitives 留 **#7**；Document 终态留 **#5**。详见 §三.11。
 - ✅ **#3 TuneLab.Core 程序集**（2026-05-29）— 结论 **不建 Core**（effect 的 Core 是 grab-bag，内容各归位）；确立 **数据/服务分家**（数据=具体类型直接 `new`，服务=接口 host 注入）；新增中性冻结内核 **`TuneLab.Primitives`**（`Foundation` 与 `SDK.*` 共同引用，因生命周期不同而独立于 Foundation，`internal`/IVT 不能替代）。边界类型 `Point`/`MonoAudio`/Property值模型/ControllerConfigs→`Primitives`、`DataInfo`→`SDK.Format`、服务接口→`SDK.Base`；`ILog`/`ITuneLabContext` 进 `SDK.Base` 注入式（弃 `static Global`，因 ALC 下每-ALC 一份）；命名用诚实 namespace + `global using` 别名；冻结类型经"整代版本化 + 归档 dll + `extern alias` compat"安全演进。详见 §三.10，蓝图 §三.7 已更新（去 Core、加 Primitives）。落地留 #7/#8，本话题不改代码。
