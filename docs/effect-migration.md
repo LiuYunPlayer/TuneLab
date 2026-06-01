@@ -166,8 +166,8 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 |---|---|---|---|
 | `TuneLab` | host TFM | 已存在 | 主程序 WinExe |
 | `TuneLab.Foundation` | host TFM | #2 | 纯通用富基础（引用 `Primitives`；替代 `TuneLab.Base`） |
-| `TuneLab.Primitives` | **ABI 地板** | #7 | 中性冻结内核：跨边界值类型（`Point`/`MonoAudio`/Property 值模型/ControllerConfigs）+ DataStructures map 接口族（见 §三.11）；`Foundation` 与 `SDK.*` 都引用（见 §三.10） |
-| `TuneLab.SDK.Base` | **ABI 地板** | #7 | 插件服务接口（`ILog`/`ITuneLabContext`…）+ 引用 `Primitives` |
+| `TuneLab.Primitives` | **ABI 地板** | #7 | 中性冻结内核：跨边界值类型（`Point`/`MonoAudio`/Property 值模型）+ DataStructures map 接口族（见 §三.11）；`Foundation` 与 `SDK.*` 都引用（见 §三.10） |
+| `TuneLab.SDK.Base` | **ABI 地板** | #7 | 插件服务接口（`ILog`/`ITuneLabContext`…）+ 通用控件 Config 家族（`IControllerConfig` + Slider/CheckBox/ComboBox/TextBox/Object，见 §三.12）+ 引用 `Primitives` |
 | `TuneLab.SDK.Format` | **ABI 地板** | #7 | format 插件 SDK（含工程序列化模型 `DataInfo`） |
 | `TuneLab.SDK.Voice` | **ABI 地板** | #7 | voice 插件 SDK |
 | `TuneLab.SDK.Effect` | **ABI 地板** | #7 | effect 插件 SDK |
@@ -225,7 +225,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **`TuneLab.Primitives`：中性冻结内核**：
 - 跨边界值类型只定义**一份**，放中性程序集 `TuneLab.Primitives`（ABI 地板/net8 LTS、零依赖、冻结）。`Foundation` 与 `SDK.Base` **都引用它**；插件只引用 `SDK.* + Primitives`，**永不引用 Foundation/Core**。
 - **为何独立成程序集而非 Foundation 内 `public`**：Primitives 与 Foundation **生命周期不同**（冻结 ABI / net8 地板 vs 自由演进 / host TFM），且需可独立版本化供 Compat、需作小而稳的 ALC 共享契约。一个程序集只能有一个 TFM、一个版本号，`internal` + `[InternalsVisibleTo]` **解决不了 TFM / 版本 / 冻结纪律**这几根轴——它只用于**程序集内部**收敛 host 私货（host-only 辅助标 internal + IVT 给主程序），不替代拆分。物理边界本身就是"要暴露就得显式搬进来"的纪律执行机制。
-- **边界类型归属**：`Point` / `MonoAudio` / Property 值模型 / ControllerConfigs / DataStructures map 接口族（见 §三.11）→ `Primitives`；`DataInfo` → `SDK.Format`；服务接口 → `SDK.Base`。
+- **边界类型归属**：`Point` / `MonoAudio` / Property 值模型 / DataStructures map 接口族（见 §三.11）→ `Primitives`；`DataInfo` → `SDK.Format`；服务接口 + 通用控件 Config 家族 → `SDK.Base`（Config 归属理由见 §三.12——Foundation 不引用它，不过 Primitives 双方准入）；域专属 Config（`AutomationConfig`）→ 对应 `SDK.*`。
 
 **命名与人体工学**：
 - Primitives 类型用**诚实命名空间** `TuneLab.Primitives.*`（**不做命名空间伪装**——伪装会把冻结边界藏回去）；host 侧用 `global using Point = TuneLab.Primitives...Point;` 消除打字摩擦，go-to-definition 仍暴露边界。
@@ -258,6 +258,30 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **Document/ 泛型框架归 `Foundation`，终态留 #5**：`IDataObject`/`IDataList`/`IDataObjectList`/`DataMap`/`Command`/`Head`/`DataDocument` 不 reference 任何业务类型 → 过 §三.9 准入判据 → Foundation（host-only 基础设施，从不触碰冻结 ABI，可自由演进）。具体活文档模型（`NoteData`…）composite 其上 → host（§三.9 "活文档模型→host" 指此具体层，非泛型机制）。
 
 **物理落地（搬入 Primitives、改名、规范化）留 #7**，本话题不改代码。
+
+### 12. Property 体系：值模型 / Config / live-doc 的三段归位（#5 确立）
+
+承 §三.9 留的尾（值模型 / Config / Controller 终态拆分）与 §三.11 留的尾（live-doc 终态形状）。纯决策，不改代码；物理落地随 #7。
+
+**三段按 ABI 边界归位**：
+
+| 段 | 内容 | 去处 | 判据 |
+|---|---|---|---|
+| 值模型 | `PropertyValue` 树（Null/Bool/Number/String/Array/Object）+ `IPrimitiveValue` 标记接口 + `PropertyType` | **Primitives**（冻结） | Foundation(live-doc 存值) + SDK(`ISynthesisNote.Properties`) + 序列化(`DataInfo`) 都用 → 过 §三.10 "双方共用" 准入 |
+| 通用控件 Config | `IControllerConfig` + `Slider`/`CheckBox`/`ComboBox`/`TextBox`/`Object`Config | **SDK.Base**（冻结） | 仅 SDK 声明 + host/UI 消费，Foundation **不引用** → 不过 Primitives 准入；且为表现层增长面，隔离在 SDK.Base 受 DIM 治理 |
+| 域专属 Config | `AutomationConfig`（name/min/max/color） | 对应 `SDK.*`（voice） | master 本就在 voice SDK；voice 概念，非中性 |
+| live-doc | `DataPropertyObject`/`DataPropertyValue`/`DataPropertyArray` 等 | **Foundation** | host-only undo/attach 基础设施；插件只见 `PropertyObject` 快照，永不拿 live 树 |
+| controllers | `IValueController`/`IDataValueController` | **UI**（#2 已搬） | 值编辑 UI 绑定 |
+
+**Config 命名按 UI 控件，不按值类型**：同一值类型可对应多种控件（int 可用 TextBox 也可用 Slider），不同控件的可配参数不同（TextBox 有 `IsSingleLine`、ComboBox 有 display-text、Slider 有 min/max）。控件命名诚实承载"用哪个控件 + 配什么"的作者意图，是 TuneLab 一贯暴露给作者的模型。采纳 effect 的 `SliderConfig`/`CheckBoxConfig`/`ComboBoxConfig`/`TextBoxConfig`，**否决** Base 的值类型命名（`NumberConfig`…）。对现存第三方插件是破坏性改名，由整代版本化 + compat 层（§三.2）吸收。
+
+**值模型用单一 box，不做标量/树双 box**：effect 曾分裂 `PrimitiveValue`（标量）vs `PropertyValue`（树）各带 readonly 变体——分裂的收益面窄（仅 combo 选项 / config 默认值的编译期"只收标量"保证），成本面宽（冻结表面翻倍 + 标量在两 box 间永久 up-cast 噪音，违 §三.10 内核增长纪律）。**折中**：只保留单一 `PropertyValue` box + 轻量 `IPrimitiveValue` 标记接口（标记 `PropertyBoolean/Number/String`）；combo/config 入口用**具体类型重载**（`ComboBoxOption(bool/double/string)`）拿编译期保证，无需第二个 box。读写方向仍按 §三.11 边界二分保留 `IPropertyValue`/`IReadOnlyPropertyValue`（服务回只读、插件填可变）。
+
+**值模型形状**（采纳 effect 结构，但 effect 代码是半成品，#7 落地时补齐）：JSON 树 + `PropertyType` 枚举 + `PropertyNull.Shared` 哨兵（替代旧 `Invalid`）。**必须补齐** effect 漏掉/注释掉的：① 值相等性（`property增加相等性判定` 意图——undo 去重 `IDataObject<T>.Set` 的 `Equals(before,info)` 依赖它，类型 + 深比较）；② `ToString`；③ 数组走 §三.11 冻结集合接口而非裸 `IList<>`；④ 命名清理（统一 `UnBox`，删 `PrimitiveValue`/`UnBoxing` 不一致与残留 `PropertyValue_V1Extensions`）。
+
+**live-doc 内部形状按未来需求定，本话题只锁分区不锁内部**：`DataPropertyObject` 族归 Foundation 已锁；但 effect 里 `IDataPropertyObjectField`（类型化可绑定字段，UI 双向绑定的桥）、`MultipleDataPropertyObject`（多选编辑）、`PropertyPath`（嵌套寻址 vs `GetField` 导航）三项 effect **全是 `NotImplementedException`**，其去留与终态随 #11(effect 参数)/#12(属性面板) 的具体需求落地时定。**对 §三.11 #4 尾的呼应**：property 数组用 `DataList`（值快照、整列替换）还是 `DataObjectList`（逐元素 attach/undo）同属此 live-doc 内部形状，一并随需求定。
+
+**物理落地（值模型搬 Primitives、Config 搬 SDK.Base、改名、补齐、规范化）随 #7**。
 
 ---
 
@@ -447,4 +471,5 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 - ✅ **#1 项目结构 & .NET 版本**（2026-05-28）— host TFM 暂留 net8；`Directory.Build.props` 仅删死变量 `AvaloniaVersion`，csproj 设置维持就地内联（理由见 §三.8）；项目结构重整推迟到对应话题（#2/#3/#7/#8）。蓝图见 §三.7，compat 单程序集理由见 §三.2。
 - ✅ **#2 Foundation 抽离**（2026-05-29）— `TuneLab.Base` 冻结，新建 `TuneLab.Foundation`（fork + 改名 + 文件夹重组 `Data`/`Structures`/`Properties`→`Document`/`DataStructures`/`Property`，namespace 跟随）；主程序 + 内建扩展改引 Foundation，旧 Base.dll 留给 #8/compat；`IValueController`/`IDataValueController` 移至 `TuneLab/GUI/Controllers`；顺手修 `NotifiableProperty` 装箱（`EqualityComparer<T>.Default`）与 `ValueCommited`→`ValueCommitted` 拼写。DataStructures/Property/Expression 的**内部接口重写**与值-Config-Controller 终态拆分留 #4/#5/#6。边界与命名宪章见 §三.9，TFM 仍 net8，构建 0 错误。
 - ✅ **#4 DataStructures 接口规范化**（2026-06-01）— 纯决策，不改代码。集合接口按 **ABI 边界二分**：**map 家族整体**（`IReadOnlyKeyValuePair`/`IReadOnlyMap`/`IMap`/`IReadOnlyOrderedMap`/`IOrderedMap` + 具体 `Map`/`OrderedMap`）→ **Primitives 冻结**（出现在 `Properties`/`ObjectConfig`/`AutomationConfig`/`VoiceInfos`/`SynthesizedAutomations` 等插件契约，且数据须可 `new`，整族被契约+构造拽入）；**LinkedList 族**（`INote`/`IPart` 侵入链）+ `IMutableList` + wrapper 扩展 + **整个 Document 框架** → **Foundation 富实现**（永不跨边界、自由演进）。三层只在边界值得；`DataList`/`DataObjectList` 分裂必要但属 Foundation 内部。否决 effect 在 `SDK.Base` 重拷 `*_V1`。规范化形状（KeyValuePair 改名、删 `At` 递归 bug、`[CollectionBuilder]`）与物理落地 Primitives 留 **#7**；Document 终态留 **#5**。详见 §三.11。
+- ✅ **#5 Property 体系升级**（2026-06-01）— 纯决策，不改代码（落地随 #7）。Property 三段按 ABI 边界归位：**值模型**（`PropertyValue` JSON 树 + `IPrimitiveValue` 标记接口）→ **Primitives**（Foundation+SDK+序列化共用，过双方准入）；**通用控件 Config 家族**（`IControllerConfig`+Slider/CheckBox/ComboBox/TextBox/Object）→ **SDK.Base**（Foundation 不引用、不过 Primitives 准入，且为表现增长面，**修订 §三.7/§三.10**——原 ControllerConfigs→Primitives 改为 →SDK.Base）；域专属 `AutomationConfig`→`SDK.Voice`；**live-doc**（`DataPropertyObject` 族）→ Foundation。Config **按 UI 控件命名**（采纳 effect，否决 Base 值类型命名）；值模型用**单一 `PropertyValue` box + `IPrimitiveValue` 标记**（否决 effect 标量/树双 box，combo/config 用具体类型重载拿编译期保证）。值模型须补齐 effect 漏掉的相等性/ToString/数组走冻结集合/命名清理。live-doc 内部形状（`IDataPropertyObjectField`/`MultipleDataPropertyObject`/`PropertyPath`、property 数组 DataList vs DataObjectList）**按需求随 #11/#12 定**。详见 §三.12。
 - ✅ **#3 TuneLab.Core 程序集**（2026-05-29）— 结论 **不建 Core**（effect 的 Core 是 grab-bag，内容各归位）；确立 **数据/服务分家**（数据=具体类型直接 `new`，服务=接口 host 注入）；新增中性冻结内核 **`TuneLab.Primitives`**（`Foundation` 与 `SDK.*` 共同引用，因生命周期不同而独立于 Foundation，`internal`/IVT 不能替代）。边界类型 `Point`/`MonoAudio`/Property值模型/ControllerConfigs→`Primitives`、`DataInfo`→`SDK.Format`、服务接口→`SDK.Base`；`ILog`/`ITuneLabContext` 进 `SDK.Base` 注入式（弃 `static Global`，因 ALC 下每-ALC 一份）；命名用诚实 namespace + `global using` 别名；冻结类型经"整代版本化 + 归档 dll + `extern alias` compat"安全演进。详见 §三.10，蓝图 §三.7 已更新（去 Core、加 Primitives）。落地留 #7/#8，本话题不改代码。
