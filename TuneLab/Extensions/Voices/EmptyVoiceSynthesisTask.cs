@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 
+using TuneLab.SDK.Voice;
 namespace TuneLab.Extensions.Voices;
 
 internal class EmptyVoiceSynthesisTask : ISynthesisTask

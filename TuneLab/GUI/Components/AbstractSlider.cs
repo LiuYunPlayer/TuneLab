@@ -8,6 +8,8 @@ using TuneLab.Foundation.Science;
 using TuneLab.Utils;
 using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 
 using TuneLab.GUI.Controllers;
 

@@ -7,9 +7,12 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
 
+using TuneLab.SDK.Format;
+using TuneLab.Extensions.Formats;
 namespace TuneLab.Extensions.Formats;
 
 internal static class FormatsManager

@@ -5,10 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
 
+using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.TLP;
 
 [ImportFormat("tlpx")]

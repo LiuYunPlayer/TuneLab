@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.SDK.Format.DataInfo;
 
 namespace TuneLab.Data;
 

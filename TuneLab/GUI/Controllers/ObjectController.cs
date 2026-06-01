@@ -6,7 +6,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Document;
 using TuneLab.Utils;
@@ -36,19 +39,19 @@ internal class ObjectController : StackPanel
             {
                 mDisposableManager += new ObjectCreator(this, key, objectConfig);
             }
-            else if (value is NumberConfig numberConfig)
+            else if (value is SliderConfig numberConfig)
             {
                 mDisposableManager += new SliderCreator(this, key, numberConfig);
             }
-            else if (value is StringConfig stringConfig)
+            else if (value is TextBoxConfig stringConfig)
             {
                 mDisposableManager += new SingleLineTextCreator(this, key, stringConfig);
             }
-            else if (value is EnumConfig enumConfig)
+            else if (value is ComboBoxConfig enumConfig)
             {
                 mDisposableManager += new ComboBoxCreator(this, key, enumConfig);
             }
-            else if (value is BooleanConfig booleanConfig)
+            else if (value is CheckBoxConfig booleanConfig)
             {
                 mDisposableManager += new CheckBoxCreator(this, key, booleanConfig);
             }
@@ -245,7 +248,7 @@ internal class ObjectController : StackPanel
 
     class SliderCreator : IDisposable, IValueController
     {
-        public SliderCreator(ObjectController controller, string key, NumberConfig config)
+        public SliderCreator(ObjectController controller, string key, SliderConfig config)
         {
             mController = controller;
             mKey = key;
@@ -311,7 +314,7 @@ internal class ObjectController : StackPanel
 
     class SingleLineTextCreator : IDisposable, IValueController
     {
-        public SingleLineTextCreator(ObjectController controller, string key, StringConfig config)
+        public SingleLineTextCreator(ObjectController controller, string key, TextBoxConfig config)
         {
             mController = controller;
             mKey = key;
@@ -374,7 +377,7 @@ internal class ObjectController : StackPanel
 
     class ComboBoxCreator : IDisposable, IValueController
     {
-        public ComboBoxCreator(ObjectController controller, string key, EnumConfig config)
+        public ComboBoxCreator(ObjectController controller, string key, ComboBoxConfig config)
         {
             mController = controller;
             mKey = key;
@@ -439,7 +442,7 @@ internal class ObjectController : StackPanel
 
     class CheckBoxCreator : IDisposable, IValueController
     {
-        public CheckBoxCreator(ObjectController controller, string key, BooleanConfig config)
+        public CheckBoxCreator(ObjectController controller, string key, CheckBoxConfig config)
         {
             mController = controller;
             mKey = key;

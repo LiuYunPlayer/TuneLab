@@ -4,6 +4,7 @@ using TuneLab.Foundation.Document;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Science;
 
+using TuneLab.Primitives.DataStructures;
 namespace TuneLab.Foundation.Utils;
 
 public static class Extensions

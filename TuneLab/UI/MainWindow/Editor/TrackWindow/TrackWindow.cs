@@ -15,7 +15,7 @@ using TuneLab.Data;
 using TuneLab.Foundation.Science;
 using TuneLab.GUI;
 using TuneLab.Utils;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.I18N;
 
 namespace TuneLab.UI;

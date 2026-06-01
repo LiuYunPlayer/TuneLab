@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Data;
 

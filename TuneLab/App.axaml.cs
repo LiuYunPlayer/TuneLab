@@ -10,7 +10,7 @@ using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
 using TuneLab.Foundation.Utils;
 using TuneLab.Extensions;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Voice;
 using TuneLab.GUI;
 using TuneLab.Configs;
 using TuneLab.UI;
@@ -22,6 +22,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.IO.Pipes;
 
+using TuneLab.Extensions.Voices;
 namespace TuneLab;
 
 public partial class App : Application

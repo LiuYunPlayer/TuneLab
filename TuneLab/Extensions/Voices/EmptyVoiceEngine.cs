@@ -1,8 +1,12 @@
 ﻿using System.Collections.Generic;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Format.DataInfo;
 
+using TuneLab.SDK.Voice;
 namespace TuneLab.Extensions.Voices;
 
 [VoiceEngine("")]
@@ -31,8 +35,8 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public string Name => string.IsNullOrEmpty(mID) ? mVoiceSourceInfo.Name : mID;
 
         public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-        public IReadOnlyOrderedMap<string, IPropertyConfig> PartProperties => mPartProperties;
-        public IReadOnlyOrderedMap<string, IPropertyConfig> NoteProperties => mNoteProperties;
+        public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
+        public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
         public string DefaultLyric { get; } = "a";
 
@@ -55,7 +59,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
     }
 
     static OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    static OrderedMap<string, IPropertyConfig> mPartProperties = new();
-    static OrderedMap<string, IPropertyConfig> mNoteProperties = new();
+    static OrderedMap<string, IControllerConfig> mPartProperties = new();
+    static OrderedMap<string, IControllerConfig> mNoteProperties = new();
     static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };
 }

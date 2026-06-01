@@ -6,10 +6,14 @@ using System.Text;
 using System.Threading.Tasks;
 using NAudio.Midi;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Property;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Science;
 
+using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.Midi;
 
 [ImportFormat("mid")]

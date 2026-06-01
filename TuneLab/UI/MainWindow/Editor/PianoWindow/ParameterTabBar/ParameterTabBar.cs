@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.GUI;
 using TuneLab.Data;
 using TuneLab.Foundation.Utils;

@@ -13,8 +13,11 @@ using TuneLab.GUI.Controllers;
 using TuneLab.Utils;
 using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Property;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.I18N;
 
 namespace TuneLab.UI;

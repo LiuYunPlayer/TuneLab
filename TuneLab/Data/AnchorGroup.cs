@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Science;
 
 namespace TuneLab.Data;

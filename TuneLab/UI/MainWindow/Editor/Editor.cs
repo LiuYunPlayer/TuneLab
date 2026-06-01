@@ -7,7 +7,7 @@ using TuneLab.Foundation.Document;
 using TuneLab.GUI;
 using TuneLab.Data;
 using TuneLab.Audio;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Voice;
 using Timer = System.Timers.Timer;
 using Avalonia.Controls;
 using System.Threading;
@@ -18,10 +18,10 @@ using TuneLab.Foundation.Event;
 using Avalonia.Threading;
 using Avalonia.Input;
 using System.Diagnostics.CodeAnalysis;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.SDK.Format.DataInfo;
 using Avalonia.Platform.Storage;
 using System.IO;
-using TuneLab.Extensions.Formats;
+using TuneLab.SDK.Format;
 using TuneLab.GUI.Input;
 using System.Diagnostics;
 using static TuneLab.GUI.Dialog;
@@ -38,6 +38,7 @@ using Splat;
 using System.Reactive.Joins;
 using System.Runtime.InteropServices;
 
+using TuneLab.Extensions.Formats;
 namespace TuneLab.UI;
 
 internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency, FunctionBar.IDependency

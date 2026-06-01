@@ -14,6 +14,8 @@ using TuneLab.Foundation.Utils;
 using TuneLab.Utils;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using Avalonia.Controls.Primitives;
 using Slider = TuneLab.GUI.Components.Slider;
 using TuneLab.I18N;

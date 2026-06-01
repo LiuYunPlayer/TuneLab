@@ -10,7 +10,10 @@ using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Controllers;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using DynamicData;
 using Avalonia.Media;
 using TuneLab.GUI.Components;
@@ -19,7 +22,7 @@ using TuneLab.Utils;
 using TuneLab.Foundation.Utils;
 using TuneLab.I18N;
 using TuneLab.Configs;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.SDK.Format.DataInfo;
 using static TuneLab.GUI.Dialog;
 
 namespace TuneLab.UI;
@@ -634,7 +637,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPresets = PresetConfigManager.LoadPresets();
         var options = new List<string>() { NonePresetOption };
         options.AddRange(mPresets.Select(preset => preset.Name));
-        mPresetComboBox.SetConfig(new EnumConfig(options, 0));
+        mPresetComboBox.SetConfig(new ComboBoxConfig(options, 0));
         mPresetComboBox.Display(selectedPresetName ?? NonePresetOption);
     }
 

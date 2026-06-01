@@ -7,10 +7,12 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Extensions.Formats;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Format;
+using TuneLab.SDK.Voice;
 using TuneLab.Utils;
 
+using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Voices;
 namespace TuneLab.Extensions;
 
 internal static class ExtensionManager

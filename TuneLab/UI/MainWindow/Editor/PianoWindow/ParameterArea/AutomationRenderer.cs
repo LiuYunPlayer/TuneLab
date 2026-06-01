@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using TuneLab.Animation;
 using TuneLab.Data;
 using TuneLab.GUI;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Voice;
 using Avalonia.Media;
 using TuneLab.GUI.Input;
 using TuneLab.GUI.Components;

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
 
+using TuneLab.Primitives.DataStructures;
 namespace TuneLab.Foundation.Science;
 
 internal interface IHermiteSlopeCalculator

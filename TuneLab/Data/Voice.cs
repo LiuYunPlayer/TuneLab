@@ -6,10 +6,14 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK.Voice;
 
+using TuneLab.Extensions.Voices;
 namespace TuneLab.Data;
 
 internal class Voice : DataObject, IVoice

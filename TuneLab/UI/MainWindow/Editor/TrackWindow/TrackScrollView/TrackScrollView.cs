@@ -10,7 +10,7 @@ using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.Foundation.Document;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Audio;
 using Avalonia.Input;
 using Avalonia.Controls;
@@ -19,9 +19,10 @@ using System.IO;
 using TuneLab.Utils;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
-using TuneLab.Extensions.Formats;
+using TuneLab.SDK.Format;
 using TuneLab.I18N;
 
+using TuneLab.Extensions.Formats;
 namespace TuneLab.UI;
 
 internal partial class TrackScrollView : View
@@ -736,7 +737,7 @@ internal partial class TrackScrollView : View
                         {
                             for (var j = 0; j < midiPartInfo.Pitch[i].Count; j++)
                             {
-                                midiPartInfo.Pitch[i][j] = new Foundation.DataStructures.Point() { X = SyncTick(midiPartInfo.Pitch[i][j].X), Y = midiPartInfo.Pitch[i][j].Y };
+                                midiPartInfo.Pitch[i][j] = new TuneLab.Primitives.DataStructures.Point() { X = SyncTick(midiPartInfo.Pitch[i][j].X), Y = midiPartInfo.Pitch[i][j].Y };
                             }
                         }
                         //SyncNoteTick
@@ -759,7 +760,7 @@ internal partial class TrackScrollView : View
                         {
                             for (var j = 0; j < midiPartInfo.Automations[automationKeys[i]].Points.Count; j++)
                             {
-                                midiPartInfo.Automations[automationKeys[i]].Points[j] = new Foundation.DataStructures.Point() { X = SyncTick(midiPartInfo.Automations[automationKeys[i]].Points[j].X), Y = midiPartInfo.Automations[automationKeys[i]].Points[j].Y };
+                                midiPartInfo.Automations[automationKeys[i]].Points[j] = new TuneLab.Primitives.DataStructures.Point() { X = SyncTick(midiPartInfo.Automations[automationKeys[i]].Points[j].X), Y = midiPartInfo.Automations[automationKeys[i]].Points[j].Y };
                             }
                         }
                     }

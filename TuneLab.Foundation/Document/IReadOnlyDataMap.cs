@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.DataStructures;
 
+using TuneLab.Primitives.DataStructures;
 namespace TuneLab.Foundation.Document;
 
 public interface IReadOnlyDataMap<TKey, out TValue> : IReadOnlyDataObject<IReadOnlyMap<TKey, TValue>>, IReadOnlyMap<TKey, TValue> where TKey : notnull

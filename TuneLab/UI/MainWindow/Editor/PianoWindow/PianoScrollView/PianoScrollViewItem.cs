@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.Utils;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Voice;
 using TuneLab.Foundation.Utils;
 using Avalonia.Media;
 using TuneLab.GUI.Input;

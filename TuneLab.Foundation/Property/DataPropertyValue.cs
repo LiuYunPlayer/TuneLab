@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 
+using TuneLab.Primitives.DataStructures;
+using TuneLab.Primitives.Property;
 namespace TuneLab.Foundation.Property;
 
 public class DataPropertyValue : DataStruct<PropertyValue>

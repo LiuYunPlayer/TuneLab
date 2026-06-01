@@ -10,6 +10,7 @@ using TuneLab.Foundation.Event;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Utils;
 
+using TuneLab.Primitives.DataStructures;
 namespace TuneLab.Foundation.Document;
 
 public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(parent), IDataMap<TKey, TValue> where TKey : notnull
@@ -102,8 +103,8 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
     bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => ((ICollection<KeyValuePair<TKey, TValue>>)mMap).IsReadOnly;
     IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => ((IReadOnlyDictionary<TKey, TValue>)mMap).Keys;
     IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => ((IReadOnlyDictionary<TKey, TValue>)mMap).Values;
-    IEnumerable<TKey> IReadOnlyMap<TKey, TValue>.Keys => ((IReadOnlyMap<TKey, TValue>)mMap).Keys;
-    IEnumerable<TValue> IReadOnlyMap<TKey, TValue>.Values => ((IReadOnlyMap<TKey, TValue>)mMap).Values;
+    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => ((IReadOnlyMap<TKey, TValue>)mMap).Keys;
+    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => ((IReadOnlyMap<TKey, TValue>)mMap).Values;
 
     public Map<TKey, TValue> GetInfo()
     {
@@ -126,9 +127,9 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         }
     }
 
-    IEnumerator<IReadOnlyKeyWithValue<TKey, TValue>> IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>.GetEnumerator()
+    IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>.GetEnumerator()
     {
-        return ((IEnumerable<IReadOnlyKeyWithValue<TKey, TValue>>)mMap).GetEnumerator();
+        return ((IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>)mMap).GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator()

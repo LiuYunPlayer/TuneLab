@@ -5,16 +5,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using TuneLab.Primitives.DataStructures;
 namespace TuneLab.Foundation.DataStructures;
 
 internal class ReadOnlyMapWrapper<TKey, T, U>(IReadOnlyMap<TKey, U> map, Func<TKey, U, T> convert) : IReadOnlyMap<TKey, T> where TKey : notnull
 {
     public T this[TKey key] => convert(key, map[key]);
-    public IEnumerable<TKey> Keys => map.Keys;
-    public IEnumerable<T> Values => new EnumerableWrapper<T, IReadOnlyKeyWithValue<TKey, U>>(map, kvp => convert(kvp.Key, kvp.Value));
+    public IReadOnlyCollection<TKey> Keys => map.Keys;
+    public IReadOnlyCollection<T> Values => new ReadOnlyCollectionWrapper<T, IReadOnlyKeyValuePair<TKey, U>>(map, kvp => convert(kvp.Key, kvp.Value));
     public int Count => map.Count;
     public bool ContainsKey(TKey key) => map.ContainsKey(key);
-    public IEnumerator<IReadOnlyKeyWithValue<TKey, T>> GetEnumerator() => new EnumeratorWrapper<IReadOnlyKeyWithValue<TKey, T>, IReadOnlyKeyWithValue<TKey, U>>(map.GetEnumerator(), kvp => new KeyWithValue<TKey, T>(kvp.Key, convert(kvp.Key, kvp.Value)));
+    public IEnumerator<IReadOnlyKeyValuePair<TKey, T>> GetEnumerator() => new EnumeratorWrapper<IReadOnlyKeyValuePair<TKey, T>, IReadOnlyKeyValuePair<TKey, U>>(map.GetEnumerator(), kvp => new ReadOnlyKeyValuePair<TKey, T>(kvp.Key, convert(kvp.Key, kvp.Value)));
 
     public T? GetValue(TKey key, out bool success)
     {

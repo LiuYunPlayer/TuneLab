@@ -7,11 +7,14 @@ using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Utils;
 using TuneLab.Utils;
-using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK.Voice;
 
 
 namespace TuneLab.Data;
@@ -396,26 +399,26 @@ internal static class IMidiPartExtension
             }
             foreach (var item in curPart.Pitch)
             {
-                List<Foundation.DataStructures.Point> line= new List<Foundation.DataStructures.Point>();
+                List<TuneLab.Primitives.DataStructures.Point> line= new List<TuneLab.Primitives.DataStructures.Point>();
                 foreach (var point in item)
                 {
                     var X = PosAxisTrans(curPart, point.X);
                     if (X < curPartPos) continue;
                     if (X >= nextPartPos) break;
-                    line.Add(new Foundation.DataStructures.Point(X, point.Y));
+                    line.Add(new TuneLab.Primitives.DataStructures.Point(X, point.Y));
                 }
                 ret.Pitch.Add(line);
             }
             foreach (var kvp in curPart.Automations)
             {
-                if (!ret.Automations.ContainsKey(kvp.Key)) { ret.Automations.Add(kvp.Key, new AutomationInfo() { DefaultValue = kvp.Value.DefaultValue, Points = new List<Foundation.DataStructures.Point>() }); }
+                if (!ret.Automations.ContainsKey(kvp.Key)) { ret.Automations.Add(kvp.Key, new AutomationInfo() { DefaultValue = kvp.Value.DefaultValue, Points = new List<TuneLab.Primitives.DataStructures.Point>() }); }
 
                 foreach (var point in kvp.Value.Points)
                 {
                     var X = PosAxisTrans(curPart, point.X);
                     if (X < curPartPos) continue;
                     if (X >= nextPartPos) break;
-                    ret.Automations[kvp.Key].Points.Add(new Foundation.DataStructures.Point(X, point.Y));
+                    ret.Automations[kvp.Key].Points.Add(new TuneLab.Primitives.DataStructures.Point(X, point.Y));
                 }
             }
         }

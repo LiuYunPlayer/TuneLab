@@ -301,6 +301,28 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - **B. 声明式数据 + host 求值**（**倾向**）：字段带 `visibleWhen: Func<…,bool>` 或 `{选项→config}` 表，ABI 只多一个 `Func`/map，host 拥有实时值、求值时机可控，无响应式引擎。
 - **折中**：走 B 的内核（小 ABI、host 求值），在 SDK.Base 上包一层薄 `If().ElseIf().Else()` 糖拿回 A 的可读性。**最小单份**、无 `_V1`、与 Config 家族同处 SDK.Base，**永不进 Primitives**。
 
+### 14. SDK 分层 + 命名物理落地（#7 确立，已改代码）
+
+承 §三.7 蓝图 + §三.10/§三.11/§三.12 归属，本话题首次**落地代码**：建 5 个程序集、按归属搬类型、改全仓引用，`dotnet build TuneLab.sln` Debug/Release 均 **0 错误**。范围裁剪（用户定）：**仅契约层**（内建实现留主程序，不建 singular `Extensions.*`）；**SDK.Effect 最小骨架**（接口形状留 #11）；plural `Extensions.Formats`/`Voices` **从 .sln 移除**（契约源码已搬入 SDK.\*，目录留盘供 #8 归档）；churn 用**逐文件 `using` 改写**吸收（split 命名空间处**加性**追加，不删旧 using）。
+
+**已建程序集**（均 net8 ABI 地板、设置内联）：`TuneLab.Primitives`（零项目依赖，卫生卡口已验证）、`SDK.Base`→Primitives、`SDK.{Format,Voice,Effect}`→SDK.Base+Primitives；`Foundation` **新增 →Primitives 边**（§三.10 批准），主程序引 Primitives+4×SDK。
+
+**已落地的归属/改名**：
+- **Primitives.DataStructures**（冻结 map 家族，已规范到对称完整、避免二次改）：`Map`/`OrderedMap` + 只读/可变接口 + `Point`。改名 `IReadOnlyKeyWithValue`→`IReadOnlyKeyValuePair`、`KeyWithValue`→`ReadOnlyKeyValuePair`（并改为**不可变**以匹配 ReadOnly 语义）；**删** `IReadOnlyOrderedMapExtension.At` 自递归 bug；**补**可变 `IMap`/`IOrderedMap` 补全读/写对称，`IOrderedMap` 补 `RemoveAt(int)` 与 `Insert(int,…)` 对称；**Keys/Values 收紧**——`IReadOnlyMap`→`IReadOnlyCollection<>`、`IReadOnlyOrderedMap`→有序 `IReadOnlyList<>`（6 处实现同批改：`Map`/`OrderedMap`/`DataMap`/`DataObjectMap`/`DataPropertyObject`/`ReadOnlyMapWrapper`，Foundation 补对称 `ReadOnlyCollectionWrapper` 供惰性投影保 Count）；`Map` 枚举器改私有 `yield` 摆脱 Foundation `EnumeratorWrapper`（保 Primitives 零依赖）；`Map.Empty` 单例保留。**纪律**：凡进冻结 ABI 的同类 datastructure 一次规范到对称完整，杜绝冻结后二次修改（升代）。
+- **Primitives.Property**：`PropertyValue`+`PropertyObject` 搬入并加性补齐——`PropertyType` 枚举、`PropertyNull.Shared` 哨兵、深相等性 + `GetHashCode` + `==`/`!=`（喂 undo 去重）、`ToString` 容 null；`.Round()`/`.ToEnum()` 内联以断 Foundation 依赖。
+- **Primitives.Audio**：`MonoAudio`（最小冻结 struct）。
+- **SDK.Base**：Config 家族按 UI 控件改名（`NumberConfig`→`SliderConfig`、`BooleanConfig`→`CheckBoxConfig`、`StringConfig`→`TextBoxConfig`、`EnumConfig`→`ComboBoxConfig`、`ObjectConfig` 留）+ 族根 `IPropertyConfig`→`IControllerConfig`（`IValueConfig`/`<T>` 留，删未用的 `IntegerConfig`/`ListConfig`）；服务接口 `ILog`（提炼自 Foundation `ILogger`，静态 `Log` 留 Foundation）+ `ITuneLabContext`（注入式，仅 `Log`）。
+- **SDK.Format** = `DataInfo/*` + `IImportFormat`/`IExportFormat` + attrs；**SDK.Voice** = voice 契约 + `AutomationConfig`（基类改 `SliderConfig`）；**SDK.Effect** = 占位注释文件。
+- Foundation 留 `DataPropertyObject`/`DataPropertyValue`/`PropertyPath` + Document/LinkedList/wrapper/`RangeF`（永不跨边界）。
+
+**本话题刻意推迟项**（记录在案，均安全后补）：
+- **PropertyValue 全树重构**（`PropertyBoolean/Number/String` 包装类型 + `IPrimitiveValue` 标记 + `PropertyArray`，§三.12 形状）**推迟到 #12**：当前**零消费者**（无数组、无代码读 `IPrimitiveValue`），按 §三.7 不提前建空壳；本话题已落地搬迁 + `PropertyType` + 空哨兵 + 深相等性 + `ToString`。
+- `[CollectionBuilder]` 未给键值 map 加（无 `= []` 站点、无元素字面量语义），保留 `Empty` 单例。
+- `PropertyValue.Invalid`/`IsInvalid()` 保留为指向 `PropertyNull.Shared` 的转发 shim（build-fix 安全网，后续清理）。
+- `MonoAudio`/`ILog`/`ITuneLabContext` 为 directive 显式要求引入但**当前无消费者**（奠基 ABI 词汇，真实接通在 #8/#11）。
+
+蓝图 §三.7 表中各程序集 TFM/角色不变，本节只记物理落地与裁剪/推迟决策。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）
@@ -492,3 +514,4 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 - ✅ **#5 Property 体系升级**（2026-06-01）— 纯决策，不改代码（落地随 #7）。Property 三段按 ABI 边界归位：**值模型**（`PropertyValue` JSON 树 + `IPrimitiveValue` 标记接口）→ **Primitives**（Foundation+SDK+序列化共用，过双方准入）；**通用控件 Config 家族**（`IControllerConfig`+Slider/CheckBox/ComboBox/TextBox/Object）→ **SDK.Base**（Foundation 不引用、不过 Primitives 准入，且为表现增长面，**修订 §三.7/§三.10**——原 ControllerConfigs→Primitives 改为 →SDK.Base）；域专属 `AutomationConfig`→`SDK.Voice`；**live-doc**（`DataPropertyObject` 族）→ Foundation。Config **按 UI 控件命名**（采纳 effect，否决 Base 值类型命名）；值模型用**单一 `PropertyValue` box + `IPrimitiveValue` 标记**（否决 effect 标量/树双 box，combo/config 用具体类型重载拿编译期保证）。值模型须补齐 effect 漏掉的相等性/ToString/数组走冻结集合/命名清理。live-doc 内部形状（`IDataPropertyObjectField`/`MultipleDataPropertyObject`/`PropertyPath`、property 数组 DataList vs DataObjectList）**按需求随 #11/#12 定**。详见 §三.12。
 - ✅ **#6 条件表达式系统**（2026-06-01）— 纯决策，不改代码。**功能保留**："选不同值→面板展示不同控件/字段"确认要做；#6 只否决 effect 那份半成品响应式 DSL 现在锁进冻结 ABI。`IExpression<T>`（响应式计算单元 + If-ElseIf-Else 组合子）意图用例是条件属性面板（`ConditionConfig`/`IControllerConfig.When`）。三问：不需也不可跨进程/跨语言序列化（持活委托+事件订阅）；可用 host 侧 `Func<…,bool>` 谓词替代；effect 里**零调用点、半成品**（host 消费未接通、引擎有 bug、用例未提交）。**决策：丢弃 effect 实现，当前不进任何层；功能随 #12 连同 Config 家族设计落地**（条件 config 叠在 SDK.Base Config 家族之上，书写形状依赖面板设计；现在冻结违不提前建空壳+内核增长纪律；非数据值→非 Primitives；`_V1` 即已否决的重拷）。落地倾向 B 内核（host 求值、小 ABI）+ 薄 `If/ElseIf/Else` 糖，永不进 Primitives。详见 §三.13。
 - ✅ **#3 TuneLab.Core 程序集**（2026-05-29）— 结论 **不建 Core**（effect 的 Core 是 grab-bag，内容各归位）；确立 **数据/服务分家**（数据=具体类型直接 `new`，服务=接口 host 注入）；新增中性冻结内核 **`TuneLab.Primitives`**（`Foundation` 与 `SDK.*` 共同引用，因生命周期不同而独立于 Foundation，`internal`/IVT 不能替代）。边界类型 `Point`/`MonoAudio`/Property值模型/ControllerConfigs→`Primitives`、`DataInfo`→`SDK.Format`、服务接口→`SDK.Base`；`ILog`/`ITuneLabContext` 进 `SDK.Base` 注入式（弃 `static Global`，因 ALC 下每-ALC 一份）；命名用诚实 namespace + `global using` 别名；冻结类型经"整代版本化 + 归档 dll + `extern alias` compat"安全演进。详见 §三.10，蓝图 §三.7 已更新（去 Core、加 Primitives）。落地留 #7/#8，本话题不改代码。
+- ✅ **#7 SDK 分层 + 命名落实**（2026-06-01）— **首个改代码的落地话题**，全解 Debug/Release **0 编译错误**。新建 `TuneLab.Primitives`（零依赖卫生卡口已验证）+ `SDK.{Base,Format,Voice,Effect}`（均 net8 ABI 地板、设置内联）；按 §三.10/§三.11/§三.12 搬类型：map 家族+`Point`+`MonoAudio`+`PropertyValue`/`PropertyObject` 值模型→Primitives，Config 家族（按 UI 控件改名 `Slider/CheckBox/TextBox/ComboBox/Object` + 族根 `IControllerConfig`）+ `ILog`/`ITuneLabContext`→SDK.Base，`DataInfo`+format 契约→SDK.Format，voice 契约+`AutomationConfig`→SDK.Voice，SDK.Effect 占位留 #11。map 家族**冻结前一次规范到对称完整**：改名 `IReadOnlyKeyValuePair`/`ReadOnlyKeyValuePair`（后者改不可变）、删 `At` 自递归 bug、补可变 `IMap`/`IOrderedMap`、`IOrderedMap` 补 `RemoveAt`(对称 `Insert`)、Keys/Values 收紧为 `IReadOnlyCollection`/有序 `IReadOnlyList`（Foundation 补对称 `ReadOnlyCollectionWrapper`）；值模型加 `PropertyType`+`PropertyNull.Shared`+深相等性。`Foundation` 加 →Primitives 边，主程序改引 Primitives+4×SDK，plural `Extensions.Formats`/`Voices` 移出 .sln，churn 逐文件 `using` 改写。**裁剪/推迟**（§三.14 在案）：仅契约层（内建实现留主程序）、PropertyValue 全树重构（包装类型+`IPrimitiveValue`+数组）推迟 #12、`Invalid` 留转发 shim、`MonoAudio`/服务接口暂无消费者。详见 §三.14。

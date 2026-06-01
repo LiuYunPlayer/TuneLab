@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.GUI.Components;
 using TuneLab.Foundation.Utils;
 using System.Threading;
@@ -29,7 +31,7 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
         SelectionChanged += OnDropDownSelectionChanged;
     }
 
-    public void SetConfig(EnumConfig config)
+    public void SetConfig(ComboBoxConfig config)
     {
         mConfig = config;
         Items.Clear();
@@ -112,6 +114,6 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
     ActionEvent mValueChanged = new();
     ActionEvent mValueCommitted = new();
 
-    EnumConfig mConfig = new([]);
+    ComboBoxConfig mConfig = new([]);
     string mValue = string.Empty;
 }

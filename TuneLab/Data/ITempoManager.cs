@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Science;
 using TuneLab.Utils;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;

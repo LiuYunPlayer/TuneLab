@@ -8,6 +8,8 @@ using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.DataStructures;
 
+using TuneLab.Primitives.DataStructures;
+using TuneLab.Primitives.Property;
 namespace TuneLab.Foundation.Property;
 
 public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>
@@ -17,9 +19,9 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     //public IActionEvent<PropertyPath, IPropertyValue, IPropertyValue> PropertyReplaced => mPropertyReplaced;
     public IActionEvent<PropertyPath> PropertyModified => mPropertyModified;
 
-    public IEnumerable<string> Keys => mMap.Keys;
+    public IReadOnlyCollection<string> Keys => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Keys;
 
-    public IEnumerable<PropertyValue> Values => mMap.Values.Convert(v => v.Value);
+    public IReadOnlyCollection<PropertyValue> Values => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Values.Convert(v => v.Value);
 
     public int Count => mMap.Count;
 
@@ -189,9 +191,9 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return dataPropertyValue == null ? PropertyValue.Invalid : dataPropertyValue.Value;
     }
 
-    public IEnumerator<IReadOnlyKeyWithValue<string, PropertyValue>> GetEnumerator()
+    public IEnumerator<IReadOnlyKeyValuePair<string, PropertyValue>> GetEnumerator()
     {
-        return mMap.GetEnumerator().Convert(kvp => new KeyWithValue<string, PropertyValue>(kvp.Key, kvp.Value.Value));
+        return mMap.GetEnumerator().Convert(kvp => new ReadOnlyKeyValuePair<string, PropertyValue>(kvp.Key, kvp.Value.Value));
     }
 
     IEnumerator IEnumerable.GetEnumerator()

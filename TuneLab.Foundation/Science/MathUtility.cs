@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Utils;
 
+using TuneLab.Primitives.DataStructures;
 namespace TuneLab.Foundation.Science;
 
 public static class MathUtility

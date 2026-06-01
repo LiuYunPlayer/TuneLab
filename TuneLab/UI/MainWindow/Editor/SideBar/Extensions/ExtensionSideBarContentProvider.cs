@@ -11,13 +11,15 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TuneLab.Extensions;
-using TuneLab.Extensions.Formats;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Format;
+using TuneLab.SDK.Voice;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
 using TuneLab.Utils;
 
+using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Voices;
 namespace TuneLab.UI;
 
 internal class ExtensionSideBarContentProvider : ISideBarContentProvider

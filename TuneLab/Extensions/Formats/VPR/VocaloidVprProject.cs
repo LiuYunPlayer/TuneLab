@@ -6,10 +6,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Extensions.Formats.DataInfo;
-using Point = TuneLab.Foundation.DataStructures.Point;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Format.DataInfo;
+using Point = TuneLab.Primitives.DataStructures.Point;
 
+using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.VPR
 {
     [ImportFormat("vpr")]

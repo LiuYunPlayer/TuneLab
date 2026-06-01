@@ -9,11 +9,15 @@ using DynamicData;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TuneLab.Foundation.Property;
+using TuneLab.Primitives.Property;
+using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Extensions.Formats.DataInfo;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Utils;
 using TuneLab.Foundation.Utils;
 
+using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.TLP;
 
 [ImportFormat("tlp")]

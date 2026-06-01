@@ -13,17 +13,19 @@ using TuneLab.Audio;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.DataStructures;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.Utils;
-using TuneLab.Extensions.Formats.DataInfo;
-using TuneLab.Extensions.Voices;
+using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK.Voice;
 using Part = TuneLab.Data.Part;
 using Rect = Avalonia.Rect;
 using TuneLab.I18N;
 using Splat;
 
+using TuneLab.Extensions.Voices;
 namespace TuneLab.UI;
 
 internal partial class TrackScrollView
