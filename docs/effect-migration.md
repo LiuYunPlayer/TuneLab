@@ -283,16 +283,23 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **物理落地（值模型搬 Primitives、Config 搬 SDK.Base、改名、补齐、规范化）随 #7**。
 
-### 13. 条件表达式系统：丢弃，推迟到 #12（#6 确立）
+### 13. 条件表达式系统：功能保留，丢弃 effect 实现，落地随 #12（#6 确立）
 
-**它是什么**：`IExpression<out T>` = 响应式计算单元（`T Result` + `event ResultChanged`）+ 组合子（`And`/`Or`/`Not`/`Excute`/常量 `ToExpression`）+ 流式 `Expression.If(c).Return(x).ElseIf(c2).Return(y).Else(z)` 构建器。**真实用例**（引入 commit `b4c9b79` 同时加的 `ConditionConfig` + `IControllerConfig.When(...)` 揭示）：属性面板控件槽的**子 config 随其他控件实时值反应式切换**——作者声明式写"当 mode==Custom 显示 Slider，否则隐藏"，host 在 value-changed 时驱动重算更新 UI。
+**功能保留（明确在案）**："用户在某控件选/输入不同值 → 属性面板展示不同控件及对应字段"是**确认要做的功能**，不是被砍。#6 否决的只是 **effect 那份半成品响应式 DSL 现在就锁进冻结 ABI**，不是否决特性本身。
+
+**它是什么**：`IExpression<out T>` = 响应式计算单元（`T Result` + `event ResultChanged`）+ 组合子（`And`/`Or`/`Not`/`Excute`/常量 `ToExpression`）+ 流式 `Expression.If(c).Return(x).ElseIf(c2).Return(y).Else(z)` 构建器。**意图用例**（引入 commit `b4c9b79` 同时加的 `ConditionConfig` + `IControllerConfig.When(...)` 揭示）：属性面板控件槽的子 config 随其他控件实时值反应式切换；作者声明式写条件，host 在 value-changed 时重算换控件。设计目标是"更易读易写的声明式 API"。
 
 **三问结论**：
 - **跨进程/跨语言序列化？** 否。持有活 `Func<>` 委托 + 事件订阅，纯进程内、不可序列化，无字符串/JSON DSL、无解释器，与跨语言无关。
-- **能否 C# lambda 替代？** 能。手写响应式图谱脆弱（`ElseIf` 状态机、`+= ResultChanged` 把事件字段当 handler 都有 bug），且与 Foundation 现成 `INotifiableProperty<T>` / `IProvider.Select`/`When` 概念重叠。host 本就监听控件值变化，一个普通 `Func<…,bool>` 可见性谓词按 value-changed 重算即达成同样 UX，面更小。
-- **必要性？** 当前**零消费者**（effect 全树仅 4 个定义文件互引，`ConditionConfig` 也无人用），它服务的"条件属性面板"功能本身未设计。纯投机基础设施。
+- **能否 C# lambda 替代？** 能。host 本就监听控件值变化，一个普通 `Func<…,bool>` 可见性谓词按 value-changed 重算即达成同样 UX，ABI 面更小。
+- **effect 实现状态？** **零消费者、半成品**：effect 全树 `When`/`Expression.If`/`ConditionConfig` 调用点为 0；较新的 `Core/IControllerConfig` 已退化成空接口（条件能力只剩在更早 `_V1` 版）；host 侧消费（面板读 `ConditionConfig.Config` + `InvokeValueChanged`）未接通；引擎本身有 bug（`ElseIf` 状态机、`+= ResultChanged` 把事件字段当 handler）。作者用例未提交进 effect。
 
-**决策：从迁移中丢弃，当前不进任何层**。理由：非数据值类型（→不进 Primitives，§三.10）、非 host 注入服务、与 Foundation Event 基建重叠、功能未设计（违 §三.7 不提前建空壳 + §三.10 内核增长纪律）。SDK.Base 里那份 `IExpression_V1` 正是 §三.1/§三.11 已否决的"重拷 `_V1`"。**推迟到 #12**（属性面板）真正设计条件可见性时再定，默认优先级：(a) host 侧普通谓词 `Func<…,bool>` 按值变化重算；(b) 复用 Foundation `INotifiableProperty`/`IProvider` 组合子；(c) 仅当确实需要作者面向的声明式响应式 config，才引入**最小单份** `IExpression` 面（无 `_V1`，与 Config 家族同处）进 **SDK.Base**——**永不进 Primitives**。
+**决策：丢弃 effect 的这份实现，当前不进任何层；功能随 #12（属性面板）连同 Config 家族一起设计落地**。理由：条件 config 叠在 Config 家族之上（§三.12 归 SDK.Base，随 #7/#12 落地），作者书写形状取决于面板/config 模型，必须和 #12 一起定；现在锁进冻结 ABI 违 §三.7 不提前建空壳 + §三.10 内核增长纪律；非数据值→不进 Primitives；effect 那份 `IExpression_V1` 正是 §三.1/§三.11 已否决的"重拷 `_V1`"。
+
+**#12 落地时的取舍（倾向 B 内核 + A 糖）**：
+- **A. 声明式响应式**（effect 路线）：config 树含 `ConditionConfig`/`IExpression` 节点，作者写 `If().ElseIf().Else()` 最顺，但要把整套组合子搬进 SDK.Base 冻结、且插件持事件订阅图易踩泄漏/重算 bug。
+- **B. 声明式数据 + host 求值**（**倾向**）：字段带 `visibleWhen: Func<…,bool>` 或 `{选项→config}` 表，ABI 只多一个 `Func`/map，host 拥有实时值、求值时机可控，无响应式引擎。
+- **折中**：走 B 的内核（小 ABI、host 求值），在 SDK.Base 上包一层薄 `If().ElseIf().Else()` 糖拿回 A 的可读性。**最小单份**、无 `_V1`、与 Config 家族同处 SDK.Base，**永不进 Primitives**。
 
 ---
 
@@ -483,5 +490,5 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 - ✅ **#2 Foundation 抽离**（2026-05-29）— `TuneLab.Base` 冻结，新建 `TuneLab.Foundation`（fork + 改名 + 文件夹重组 `Data`/`Structures`/`Properties`→`Document`/`DataStructures`/`Property`，namespace 跟随）；主程序 + 内建扩展改引 Foundation，旧 Base.dll 留给 #8/compat；`IValueController`/`IDataValueController` 移至 `TuneLab/GUI/Controllers`；顺手修 `NotifiableProperty` 装箱（`EqualityComparer<T>.Default`）与 `ValueCommited`→`ValueCommitted` 拼写。DataStructures/Property/Expression 的**内部接口重写**与值-Config-Controller 终态拆分留 #4/#5/#6。边界与命名宪章见 §三.9，TFM 仍 net8，构建 0 错误。
 - ✅ **#4 DataStructures 接口规范化**（2026-06-01）— 纯决策，不改代码。集合接口按 **ABI 边界二分**：**map 家族整体**（`IReadOnlyKeyValuePair`/`IReadOnlyMap`/`IMap`/`IReadOnlyOrderedMap`/`IOrderedMap` + 具体 `Map`/`OrderedMap`）→ **Primitives 冻结**（出现在 `Properties`/`ObjectConfig`/`AutomationConfig`/`VoiceInfos`/`SynthesizedAutomations` 等插件契约，且数据须可 `new`，整族被契约+构造拽入）；**LinkedList 族**（`INote`/`IPart` 侵入链）+ `IMutableList` + wrapper 扩展 + **整个 Document 框架** → **Foundation 富实现**（永不跨边界、自由演进）。三层只在边界值得；`DataList`/`DataObjectList` 分裂必要但属 Foundation 内部。否决 effect 在 `SDK.Base` 重拷 `*_V1`。规范化形状（KeyValuePair 改名、删 `At` 递归 bug、`[CollectionBuilder]`）与物理落地 Primitives 留 **#7**；Document 终态留 **#5**。详见 §三.11。
 - ✅ **#5 Property 体系升级**（2026-06-01）— 纯决策，不改代码（落地随 #7）。Property 三段按 ABI 边界归位：**值模型**（`PropertyValue` JSON 树 + `IPrimitiveValue` 标记接口）→ **Primitives**（Foundation+SDK+序列化共用，过双方准入）；**通用控件 Config 家族**（`IControllerConfig`+Slider/CheckBox/ComboBox/TextBox/Object）→ **SDK.Base**（Foundation 不引用、不过 Primitives 准入，且为表现增长面，**修订 §三.7/§三.10**——原 ControllerConfigs→Primitives 改为 →SDK.Base）；域专属 `AutomationConfig`→`SDK.Voice`；**live-doc**（`DataPropertyObject` 族）→ Foundation。Config **按 UI 控件命名**（采纳 effect，否决 Base 值类型命名）；值模型用**单一 `PropertyValue` box + `IPrimitiveValue` 标记**（否决 effect 标量/树双 box，combo/config 用具体类型重载拿编译期保证）。值模型须补齐 effect 漏掉的相等性/ToString/数组走冻结集合/命名清理。live-doc 内部形状（`IDataPropertyObjectField`/`MultipleDataPropertyObject`/`PropertyPath`、property 数组 DataList vs DataObjectList）**按需求随 #11/#12 定**。详见 §三.12。
-- ✅ **#6 条件表达式系统**（2026-06-01）— 纯决策，不改代码。`IExpression<T>`（响应式计算单元 + And/Or/Not/Excute/If-ElseIf-Else 组合子）的真实用例是**条件属性面板**（控件槽子 config 随其他控件实时值反应式切换，引入 commit 同时加的 `ConditionConfig`/`IControllerConfig.When` 揭示）。三问：不需也不可跨进程/跨语言序列化（持活委托+事件订阅）；可用 host 侧 `Func<…,bool>` 谓词替代（手写图谱脆弱有 bug，且与 Foundation `INotifiableProperty`/`IProvider` 重叠）；**零消费者**、功能未设计。**决策：丢弃，当前不进任何层**（非数据值→非 Primitives，非服务，违不提前建空壳+内核增长纪律；SDK.Base 那份 `_V1` 即已否决的重拷）。**推迟到 #12**，届时优先 host 谓词 / 复用 Foundation Event 基建，必要才引最小单份 `IExpression` 进 SDK.Base，永不进 Primitives。详见 §三.13。
+- ✅ **#6 条件表达式系统**（2026-06-01）— 纯决策，不改代码。**功能保留**："选不同值→面板展示不同控件/字段"确认要做；#6 只否决 effect 那份半成品响应式 DSL 现在锁进冻结 ABI。`IExpression<T>`（响应式计算单元 + If-ElseIf-Else 组合子）意图用例是条件属性面板（`ConditionConfig`/`IControllerConfig.When`）。三问：不需也不可跨进程/跨语言序列化（持活委托+事件订阅）；可用 host 侧 `Func<…,bool>` 谓词替代；effect 里**零调用点、半成品**（host 消费未接通、引擎有 bug、用例未提交）。**决策：丢弃 effect 实现，当前不进任何层；功能随 #12 连同 Config 家族设计落地**（条件 config 叠在 SDK.Base Config 家族之上，书写形状依赖面板设计；现在冻结违不提前建空壳+内核增长纪律；非数据值→非 Primitives；`_V1` 即已否决的重拷）。落地倾向 B 内核（host 求值、小 ABI）+ 薄 `If/ElseIf/Else` 糖，永不进 Primitives。详见 §三.13。
 - ✅ **#3 TuneLab.Core 程序集**（2026-05-29）— 结论 **不建 Core**（effect 的 Core 是 grab-bag，内容各归位）；确立 **数据/服务分家**（数据=具体类型直接 `new`，服务=接口 host 注入）；新增中性冻结内核 **`TuneLab.Primitives`**（`Foundation` 与 `SDK.*` 共同引用，因生命周期不同而独立于 Foundation，`internal`/IVT 不能替代）。边界类型 `Point`/`MonoAudio`/Property值模型/ControllerConfigs→`Primitives`、`DataInfo`→`SDK.Format`、服务接口→`SDK.Base`；`ILog`/`ITuneLabContext` 进 `SDK.Base` 注入式（弃 `static Global`，因 ALC 下每-ALC 一份）；命名用诚实 namespace + `global using` 别名；冻结类型经"整代版本化 + 归档 dll + `extern alias` compat"安全演进。详见 §三.10，蓝图 §三.7 已更新（去 Core、加 Primitives）。落地留 #7/#8，本话题不改代码。
