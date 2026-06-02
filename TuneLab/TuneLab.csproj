@@ -64,4 +64,24 @@
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </None>
 	</ItemGroup>
+
+	<!-- Legacy 兼容层（话题#9，引用策略 C）：主程序对 Compat.Legacy 与冻结 legacy SDK 零编译依赖
+	     （无 ProjectReference，运行时经反射加载，见 LegacyCompatLoader）。这里仅在构建期一同产出：
+	     先构建 Compat.Legacy（自带冻结 legacy 三件 dll），再把其产物拷进主程序输出目录，供反射加载与
+	     Default ALC 解析野外插件的绑定。Compat 不在 TuneLab.sln，故全仓 rename/analyzer fix-all 不波及。 -->
+	<PropertyGroup>
+		<LegacyCompatProject>$(MSBuildThisFileDirectory)..\legacy\compat\TuneLab.Hosting.Compat.Legacy\TuneLab.Hosting.Compat.Legacy.csproj</LegacyCompatProject>
+		<LegacyCompatOutputDir>$(MSBuildThisFileDirectory)..\legacy\compat\TuneLab.Hosting.Compat.Legacy\bin\$(Configuration)\net8.0\</LegacyCompatOutputDir>
+	</PropertyGroup>
+
+	<Target Name="BuildLegacyCompat" BeforeTargets="Build">
+		<MSBuild Projects="$(LegacyCompatProject)" Targets="Build" Properties="Configuration=$(Configuration)" />
+	</Target>
+
+	<Target Name="CopyLegacyCompat" AfterTargets="Build" DependsOnTargets="BuildLegacyCompat">
+		<ItemGroup>
+			<LegacyCompatBinary Include="$(LegacyCompatOutputDir)*.dll;$(LegacyCompatOutputDir)*.pdb" />
+		</ItemGroup>
+		<Copy SourceFiles="@(LegacyCompatBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+	</Target>
 </Project>

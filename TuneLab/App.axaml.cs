@@ -65,6 +65,7 @@ public partial class App : Application
                 Settings.AudioDriver.Modified.Subscribe(() => { AudioEngine.CurrentDriver.Value = Settings.AudioDriver; });
                 Settings.AudioDevice.Modified.Subscribe(() => { AudioEngine.CurrentDevice.Value = Settings.AudioDevice; });
 
+                LegacyCompatLoader.Wire();
                 ExtensionManager.LoadExtensions();
                 mMainWindow = new MainWindow();
                 desktop.MainWindow = mMainWindow;

@@ -36,7 +36,7 @@ internal static class FormatsManager
                 {
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
-                        mImportFormats.Add(importAttribute.FileExtension, constructor);
+                        mImportFormats.Add(importAttribute.FileExtension, () => (IImportFormat)constructor.Invoke(null));
                 }
             }
 
@@ -47,10 +47,25 @@ internal static class FormatsManager
                 {
                     var constructor = type.GetConstructor(Type.EmptyTypes);
                     if (constructor != null)
-                        mExportFormats.Add(exportAttribute.FileExtension, constructor);
+                        mExportFormats.Add(exportAttribute.FileExtension, () => (IExportFormat)constructor.Invoke(null));
                 }
             }
         }
+    }
+
+    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的适配器实例（话题#9）。
+    // 老插件链接老 attribute/接口，扫不出 V1 attribute，故走实例/工厂注册而非 RegisterFromTypes 的反射实例化。
+    // 内建/V1 优先：扩展名已存在则跳过（不让 Legacy 覆盖内建格式）。
+    public static void RegisterImporter(string fileExtension, Func<IImportFormat> factory)
+    {
+        if (!mImportFormats.ContainsKey(fileExtension))
+            mImportFormats.Add(fileExtension, factory);
+    }
+
+    public static void RegisterExporter(string fileExtension, Func<IExportFormat> factory)
+    {
+        if (!mExportFormats.ContainsKey(fileExtension))
+            mExportFormats.Add(fileExtension, factory);
     }
 
     public static IReadOnlyList<string> GetAllImportFormats()
@@ -79,7 +94,7 @@ internal static class FormatsManager
             }
 
             var stream = File.OpenRead(filePath);
-            IImportFormat importFormat = (IImportFormat)mImportFormats[format].Invoke(null);
+            IImportFormat importFormat = mImportFormats[format].Invoke();
             projectInfo = importFormat.Deserialize(stream);
             return true;
         }
@@ -102,7 +117,7 @@ internal static class FormatsManager
                 throw new Exception(string.Format("Format {0} is not support!", format));
             }
 
-            IExportFormat exportFormat = (IExportFormat)mExportFormats[format].Invoke(null);
+            IExportFormat exportFormat = mExportFormats[format].Invoke();
             stream = exportFormat.Serialize(info);
             return true;
         }
@@ -113,6 +128,6 @@ internal static class FormatsManager
         }
     }
 
-    static OrderedMap<string, ConstructorInfo> mImportFormats = new();
-    static OrderedMap<string, ConstructorInfo> mExportFormats = new();
+    static OrderedMap<string, Func<IImportFormat>> mImportFormats = new();
+    static OrderedMap<string, Func<IExportFormat>> mExportFormats = new();
 }

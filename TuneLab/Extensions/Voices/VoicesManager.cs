@@ -51,6 +51,15 @@ internal static class VoicesManager
         }
     }
 
+    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的引擎适配器实例（话题#9）。
+    // 老引擎链接老 [VoiceEngine]/IVoiceEngine，扫不出 V1 attribute，故走实例注册而非 RegisterFromTypes 的反射实例化。
+    // enginePath = 包目录，Init 时传给老引擎定位声库/模型。内建/V1 优先：type 已存在则跳过。
+    public static void RegisterEngine(string type, IVoiceEngine engine, string enginePath)
+    {
+        if (!mVoiceEngines.ContainsKey(type))
+            mVoiceEngines.Add(type, new VoiceEngineStatus(engine, enginePath));
+    }
+
     public static IReadOnlyList<string> GetAllVoiceEngines()
     {
         return mVoiceEngines.Keys;

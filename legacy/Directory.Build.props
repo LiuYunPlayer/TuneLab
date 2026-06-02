@@ -1,0 +1,5 @@
+<!-- 冻结隔离边界（§三.3 护栏#2）：本文件存在即截断 MSBuild 向上查找 Directory.Build.props 的链，
+     使 legacy/ 下的冻结 SDK 与 Compat.Legacy 不继承主仓根 Directory.Build.props（不跟随主仓 analyzer/props）。
+     刻意留空：所有有意义设置就地内联在各 csproj（§三.8 / 公共契约自描述纪律），不在此集中。 -->
+<Project>
+</Project>

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       冻结 · 禁改   Legacy SDK 源码快照（§三.3 / §三.16，话题#8/#9）
+       改版前发布的老 SDK，野外已发布插件（DiffSinger 类 voice、社区 format）链接它。
+       · 绑定身份命门：AssemblyVersion 钉死 1.0.0.0（= 野外绑定身份，未签名，不可动）。
+       · ABI 地板：TargetFramework 锁 net8，host 升级 .NET 不重编、靠 roll-forward 跑。
+       · 不进 TuneLab.sln（见 legacy/Legacy.sln），不跟随主仓 analyzer/props。
+       · 取自 master 的纯净 Legacy（using TuneLab.Base.*），非被 #2 Foundation 改名污染的副本。
+       禁止任何改变公共面 / 绑定身份的修改；破坏性演进走整代版本化 + Compat.Legacy 桥接。
+       ════════════════════════════════════════════════════════════════════════ -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- 绑定身份钉死（§三.16）：AssemblyVersion 是程序集绑定键，必须 = 野外身份 1.0.0.0。 -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <!-- FileVersion / InformationalVersion 另标 frozen-legacy 便于诊断（不参与绑定）。 -->
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0.0-frozen-legacy</InformationalVersion>
+    <Version>1.0.0.0</Version>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+</Project>

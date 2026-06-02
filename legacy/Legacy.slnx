@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/compat/">
+    <Project Path="compat/TuneLab.Hosting.Compat.Legacy/TuneLab.Hosting.Compat.Legacy.csproj" />
+  </Folder>
+  <Folder Name="/sdk/" />
+  <Folder Name="/sdk/src/">
+    <Project Path="sdk/src/TuneLab.Base/TuneLab.Base.csproj" />
+    <Project Path="sdk/src/TuneLab.Extensions.Formats/TuneLab.Extensions.Formats.csproj" />
+    <Project Path="sdk/src/TuneLab.Extensions.Voices/TuneLab.Extensions.Voices.csproj" />
+  </Folder>
+  <Project Path="../TuneLab.Primitives/TuneLab.Primitives.csproj" />
+  <Project Path="../TuneLab.SDK.Base/TuneLab.SDK.Base.csproj" />
+  <Project Path="../TuneLab.SDK.Format/TuneLab.SDK.Format.csproj" />
+  <Project Path="../TuneLab.SDK.Voice/TuneLab.SDK.Voice.csproj" />
+</Solution>
