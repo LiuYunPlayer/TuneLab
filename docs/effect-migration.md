@@ -388,6 +388,8 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - effect 是新概念、**无老插件**，compat 不含 effect 路径。
 - 用户定 **format 与 voice 并行**推进。**依赖张力（如实记录，不掩盖）**：Format 路径可**立即完整落地**（effect 参考 `FormatConverter` 224 行已全实现，目标接口 `SDK.Format` 在 #7 已冻结）；**Voice 适配器的目标面依赖 #11** 定下的新 `IVoiceEngine`/`ISynthesis*` 形状（effect 参考 voice 路径多为 `NotImplementedException` 正因此）。故"并行"的可落地含义 = Legacy 侧源码冻结 + 适配器骨架与 Format **同步起步**，但 Voice 适配器**填实**被 #11 接口冻结**门控**；#11 一旦定面即补齐，按 §三.15 加性不变量不返工。
 
+> **#10 修订（松绑 #11 门控）**：上述"Voice 适配器被 #11 门控"的前提**不成立**——它误用了 effect 分支那套半成品 voice SDK（满是 `NotImplementedException`），而 **#7 取的是 master 的完整 voice 接口**并作为 ABI 地板冻结。经核验，现有 `SDK.Voice`（`IVoiceEngine`/`IVoiceSource`/`ISynthesisData`/`ISynthesisNote`/`ISynthesisTask`/`SynthesisResult`）**完整无占位**，且 voice 与 effect 是独立域（#11 做 effect 链/dirty/渲染管线接入，不改 voice 插件契约签名）。故**敲定：Voice 适配器以现有 `SDK.Voice` 为稳定适配目标，与 Format 真正并行落地，不再门控于 #11**；即便将来 voice 接口加成员，§三.15 加性不变量保证适配器不返工。
+
 **collectible / 热卸载触发条件（呼应 §三.15 留给 #9 的判定）**：
 - 野外 voice 引擎**确实捆绑冲突第三方依赖**（各自 ONNX/原生运行时版本）→ 坐实 **per-plugin ALC 是必要而非可选优化**。但依赖冲突由**非 collectible 的 per-plugin ALC 已根除**，**不构成 collectible 触发**。
 - collectible 唯一新增能力 = 热卸载（免重启卸载/更新）+ 释放 dll 文件锁。**触发条件 = 产品要"免重启卸载/更新"的 UX**，非依赖冲突。当前 master 卸载走 `ExtensionManager.LaunchPendingUninstalls` → 独立进程 `ExtensionInstaller.exe`（**重启式**），是可接受 fallback → collectible **非紧急，维持留 #10**。§三.15 升级不变量（事件适配器 `IDisposable`、插件实例单点持有）从 compat 落地起即遵守，使 #10 切 collectible 为**加性补全**。
