@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 一包多插件之 format 入口。SDK Private=false；共享基建 Common Private=true（拷进包）。
+       description.json（含 extensions[]）也由本工程带进 packages/v1-suite/。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-suite\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TuneLab.Primitives\TuneLab.Primitives.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" Private="false" />
+    <ProjectReference Include="..\V1.Suite.Common\V1.Suite.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

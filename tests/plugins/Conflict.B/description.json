@@ -1,0 +1,9 @@
+{
+  "id": "com.tunelab.test.conflict.b",
+  "name": "ALC Conflict B (Helper v2)",
+  "version": "1.0.0",
+  "description": "捆绑 ConflictHelper v2.0.0.0；与 Conflict A 同名不同版，验证 per-plugin ALC 隔离不冲突。",
+  "sdk-version": "1.0",
+  "type": "format",
+  "assemblies": ["Conflict.B.dll"]
+}

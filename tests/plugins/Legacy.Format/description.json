@@ -1,0 +1,5 @@
+{
+  "name": "Legacy Test Format",
+  "version": "1.0.0",
+  "assemblies": ["Legacy.Format.dll"]
+}

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ALC 冲突测试包 B：捆绑 ConflictHelper v2（Private=true，进包）。SDK Private=false。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-conflict-b\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TuneLab.Primitives\TuneLab.Primitives.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" Private="false" />
+    <ProjectReference Include="..\Conflict.Helper.V2\Conflict.Helper.V2.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/plugins/">
+    <Project Path="plugins/Conflict.A/Conflict.A.csproj" />
+    <Project Path="plugins/Conflict.B/Conflict.B.csproj" />
+    <Project Path="plugins/Conflict.Helper.V1/Conflict.Helper.V1.csproj" />
+    <Project Path="plugins/Conflict.Helper.V2/Conflict.Helper.V2.csproj" />
+    <Project Path="plugins/Legacy.Format/Legacy.Format.csproj" />
+    <Project Path="plugins/Legacy.Multi/Legacy.Multi.csproj" />
+    <Project Path="plugins/Legacy.Voice/Legacy.Voice.csproj" />
+    <Project Path="plugins/V1.Format/V1.Format.csproj" />
+    <Project Path="plugins/V1.NoAssemblies/V1.NoAssemblies.csproj" />
+    <Project Path="plugins/V1.Suite.Common/V1.Suite.Common.csproj" />
+    <Project Path="plugins/V1.Suite.Format/V1.Suite.Format.csproj" />
+    <Project Path="plugins/V1.Suite.Voice/V1.Suite.Voice.csproj" />
+    <Project Path="plugins/V1.Voice/V1.Voice.csproj" />
+  </Folder>
+  <Project Path="../legacy/sdk/src/TuneLab.Base/TuneLab.Base.csproj" />
+  <Project Path="../legacy/sdk/src/TuneLab.Extensions.Formats/TuneLab.Extensions.Formats.csproj" />
+  <Project Path="../legacy/sdk/src/TuneLab.Extensions.Voices/TuneLab.Extensions.Voices.csproj" />
+  <Project Path="../TuneLab.Primitives/TuneLab.Primitives.csproj" />
+  <Project Path="../TuneLab.SDK.Base/TuneLab.SDK.Base.csproj" />
+  <Project Path="../TuneLab.SDK.Format/TuneLab.SDK.Format.csproj" />
+  <Project Path="../TuneLab.SDK.Voice/TuneLab.SDK.Voice.csproj" />
+</Solution>

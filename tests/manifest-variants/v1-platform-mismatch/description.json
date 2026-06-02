@@ -1,0 +1,10 @@
+{
+  "id": "com.tunelab.test.platformmismatch",
+  "name": "V1 Platform Mismatch",
+  "version": "1.0.0",
+  "description": "platforms 不含当前平台 → 预期该插件被跳过(Skipped)。",
+  "sdk-version": "1.0",
+  "type": "format",
+  "assemblies": ["never-loaded.dll"],
+  "platforms": ["definitely-not-a-real-platform"]
+}

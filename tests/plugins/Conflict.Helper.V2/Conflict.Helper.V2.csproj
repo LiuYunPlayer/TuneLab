@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ALC 隔离测试用的"第三方库" v2：与 V1 同程序集名 ConflictHelper、不同版本。由 Conflict.B 捆绑。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ConflictHelper</AssemblyName>
+    <RootNamespace>ConflictHelper</RootNamespace>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <Version>2.0.0</Version>
+  </PropertyGroup>
+
+</Project>

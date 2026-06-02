@@ -1,0 +1,8 @@
+{
+  "id": "com.tunelab.test.noassemblies",
+  "name": "V1 No-Assemblies (scan all)",
+  "version": "1.0.0",
+  "description": "刻意省略 assemblies → 加载器扫文件夹全部 dll 找 format 入口。",
+  "sdk-version": "1.0",
+  "type": "format"
+}

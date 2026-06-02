@@ -1,0 +1,9 @@
+{
+  "id": "com.tunelab.test.sdkverhigh",
+  "name": "V1 SDK-Version Too High",
+  "version": "1.0.0",
+  "description": "sdk-version 高于宿主(1.0) → 预期被跳过(Skipped)，不加载程序集。",
+  "sdk-version": "99.0",
+  "type": "format",
+  "assemblies": ["never-loaded.dll"]
+}

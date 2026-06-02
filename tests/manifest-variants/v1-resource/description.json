@@ -1,0 +1,7 @@
+{
+  "id": "com.tunelab.test.resource",
+  "name": "V1 Resource Pack",
+  "version": "1.0.0",
+  "description": "无代码资源包(type=voicebank，无 assemblies) → 预期被登记(Loaded)但不加载任何程序集。",
+  "type": "voicebank"
+}

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Legacy 一包多插件：一个 dll 内含多个老 attribute（2 个 format + 1 个 voice）。老插件无 extensions[] schema，
+       靠 Compat 扫描 dll 全部 attribute 注册。刻意不带 description.json → 纯扫描发现。输出落 packages/legacy-multi/。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\legacy-multi\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\legacy\sdk\src\TuneLab.Base\TuneLab.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\legacy\sdk\src\TuneLab.Extensions.Formats\TuneLab.Extensions.Formats.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\legacy\sdk\src\TuneLab.Extensions.Voices\TuneLab.Extensions.Voices.csproj" Private="false" />
+  </ItemGroup>
+
+</Project>

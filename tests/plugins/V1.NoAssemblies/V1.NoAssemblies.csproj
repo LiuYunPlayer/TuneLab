@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 验证 description.json 省略 assemblies 时，加载器扫文件夹全部 dll 找入口。输出落 packages/v1-no-assemblies/。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-no-assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TuneLab.Primitives\TuneLab.Primitives.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

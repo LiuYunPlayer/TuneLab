@@ -1,0 +1,10 @@
+{
+  "id": "com.tunelab.test.v1format",
+  "name": "V1 Test Format",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "V1 format 测试插件：导入/导出 .tltest，验证新接口 + DataInfo 往返。",
+  "sdk-version": "1.0",
+  "type": "format",
+  "assemblies": ["V1.Format.dll"]
+}

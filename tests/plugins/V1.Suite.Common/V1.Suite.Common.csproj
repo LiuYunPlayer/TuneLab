@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 一包多插件的【共享基建】dll：被同包的 format 与 voice 插件共同引用，只分发一份、同 ALC 只加载一份。
+       正常输出（由引用它的插件以 Private=true 拷进 packages/v1-suite/）。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

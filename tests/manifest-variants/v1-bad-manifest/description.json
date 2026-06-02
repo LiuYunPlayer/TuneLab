@@ -1,0 +1,5 @@
+{
+  "id": "com.tunelab.test.badmanifest",
+  "name": "V1 Bad Manifest",
+  "type": "format",
+  "assemblies": ["x.dll",]   // 故意写坏的 JSON（多余逗号 + 注释） → 预期解析失败、Failed、不崩主程序

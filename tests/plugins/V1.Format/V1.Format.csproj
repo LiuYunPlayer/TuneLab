@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 测试插件（V1 / format）。引用当前 V1 SDK，Private=false 不打进包（宿主提供，见 plugin-development.md §3）。
+       输出直接落 tests/packages/v1-format/（dll + description.json），供拖进 App 或拷进扩展目录测试。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-format\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TuneLab.Primitives\TuneLab.Primitives.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
