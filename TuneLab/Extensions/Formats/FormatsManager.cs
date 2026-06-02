@@ -20,45 +20,12 @@ internal static class FormatsManager
     public static void LoadBuiltIn()
     {
         var types = Assembly.GetExecutingAssembly().GetTypes();
-        LoadFromTypes(types);
+        RegisterFromTypes(types);
     }
 
-    public static void Load(string path)
-    {
-        string descriptionPath = Path.Combine(path, "description.json");
-        var extensionName = Path.GetFileName(path);
-        ExtensionDescription? description = null;
-        if (File.Exists(descriptionPath))
-        {
-            try
-            {
-                description = JsonSerializer.Deserialize<ExtensionDescription>(File.OpenRead(descriptionPath));
-                if (description != null && !description.IsPlatformAvailable())
-                {
-                    Log.Warning(string.Format("Failed to load extension {0}: Platform not supported.", extensionName));
-                    return;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(string.Format("Failed to parse description of {0}: {1}", extensionName, ex));
-                return;
-            }
-        }
-
-        var assemblies = description == null ? Directory.GetFiles(path, "*.dll") : description.assemblies.Convert(s => Path.Combine(path, s));
-        foreach (var file in assemblies)
-        {
-            try
-            {
-                var types = Assembly.LoadFrom(file).GetTypes();
-                LoadFromTypes(types);
-            }
-            catch { }
-        }
-    }
-
-    static void LoadFromTypes(Type[] types)
+    // 由 ExtensionManager 在加载（V1 走 per-folder ALC、Legacy 走 fallback）后传入已加载类型，
+    // 扫 [ImportFormat]/[ExportFormat] 注册。manager 不再自行解析 description.json（话题#10）。
+    public static void RegisterFromTypes(Type[] types)
     {
         foreach (Type type in types)
         {

@@ -111,79 +111,28 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
 
     private void ScanExtensions()
     {
-        var extensionsFolder = PathManager.ExtensionsFolder;
-        if (!Directory.Exists(extensionsFolder))
-            return;
-
-        var voiceEngineTypes = VoicesManager.GetAllVoiceEngines().ToHashSet();
-        var importFormats = FormatsManager.GetAllImportFormats().ToHashSet();
-        var exportFormats = FormatsManager.GetAllExportFormats().ToHashSet();
-
-        foreach (var dir in Directory.GetDirectories(extensionsFolder))
+        // 直接消费 ExtensionManager 的结构化加载结果（话题#10），不再重复解析 description.json
+        // 或靠字符串匹配猜类型——类型/名称/版本/代际都来自真实加载结果。
+        foreach (var result in ExtensionManager.LoadResults)
         {
-            var folderName = Path.GetFileName(dir);
-            var name = folderName;
-            var version = "1.0.0";
-            var type = "Extension";
-
-            // Try to read description.json
-            var descPath = Path.Combine(dir, "description.json");
-            if (File.Exists(descPath))
-            {
-                try
-                {
-                    var json = File.ReadAllText(descPath);
-                    var desc = JsonSerializer.Deserialize<ExtensionDescription>(json);
-                    if (desc != null)
-                    {
-                        if (!string.IsNullOrEmpty(desc.name))
-                            name = desc.name;
-                        if (!string.IsNullOrEmpty(desc.version))
-                            version = desc.version;
-                    }
-                }
-                catch { }
-            }
-
-            // Determine type based on loaded engines/formats
-            if (voiceEngineTypes.Contains(name) || voiceEngineTypes.Contains(folderName))
-            {
-                type = "Voice Engine";
-            }
-            else
-            {
-                // Check if any format assemblies were loaded from this folder
-                type = DetectExtensionType(dir);
-            }
-
-            var itemView = new ExtensionItemView(name, version, type, dir);
+            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayType(result), result.DirectoryPath);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
-            if (ExtensionManager.PendingUninstalls.Contains(dir))
+            if (ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath))
                 itemView.MarkPendingUninstall();
             mAllExtensions.Add(itemView);
         }
     }
 
-    private string DetectExtensionType(string extensionDir)
+    private static string DisplayType(ExtensionLoadResult result)
     {
-        // Check for DLLs that might indicate voice or format extension
-        var descPath = Path.Combine(extensionDir, "description.json");
-        if (File.Exists(descPath))
-        {
-            try
-            {
-                var json = File.ReadAllText(descPath);
-                var lower = json.ToLowerInvariant();
-                if (lower.Contains("voice") || lower.Contains("engine") || lower.Contains("synth"))
-                    return "Voice Engine";
-                if (lower.Contains("format") || lower.Contains("import") || lower.Contains("export"))
-                    return "Format";
-            }
-            catch { }
-        }
+        if (result.Types.Count > 0)
+            return string.Join(", ", result.Types.Select(Capitalize));
 
-        return "Extension";
+        return result.Generation == ExtensionGeneration.Legacy ? "Legacy" : "Extension";
     }
+
+    private static string Capitalize(string s)
+        => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     private void FilterExtensions(string searchText)
     {
