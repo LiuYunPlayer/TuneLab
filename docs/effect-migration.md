@@ -370,6 +370,36 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 ---
 
+### 16. 老插件兼容范围：全 1.x 尽力而为 + 钉 1.0.0.0 + format/voice 并行 + 长期维护（#9 确立）
+
+纯决策，不改代码。承 §三.15 留给 #9 的三个接口（兼容范围 / `AssemblyVersion` 钉值 / collectible 触发条件），逐一收口。
+
+**野外插件清单与版本范围**：
+- Legacy 三程序集（`TuneLab.Base` + `Extensions.Formats` + `Extensions.Voices`）**从未设过 `<Version>`/`AssemblyVersion`**（全仓仅一个 `Directory.Build.props` 且只含 `Nullable`）→ 野外插件链接的绑定身份一律 `Version=1.0.0.0, Culture=neutral, PublicKeyToken=null`（**未签名**）。发布跨度 **v1.0.0 → v1.6.0**（18 个 tag），AssemblyVersion 全程 1.0.0.0。
+- 跨版本公共面变动是**纯加性 DTO 增长**（`ProjectInfo`+`EditorInfo`/`ExportConfig`、`TrackInfo`+`AsRefer`/`Color`/`ExportEnabled`/`ExportChannels`、`NoteInfo`+`Pronunciation`、`SynthesisSegment<T>`+`PartProperties`；唯一反向是 `NoteInfo.Lyric` 由 `required` 放宽为可选，二进制层无破坏）→ **冻结 master/v1.6.0 这一个最新超集**即满足全部 1.x 期间编译的插件（老插件只读写自己认识的字段，新字段取默认）。
+- 内置格式（ACEP/Midi/TLP/UFData/VPR）是**主程序内建、走新 SDK、不经 compat**；compat 只服务外部 `.tlx` 包——**voice 引擎**（DiffSinger 类，捆绑 ONNX 等原生依赖）+ 社区 **format** 插件。
+- **兼容目标 = 全 1.x 社区插件尽力而为**（用户定）：不锁权威目标集，加载器对任何链接 1.0.0.0 的插件都尝试，失败**优雅降级（不崩主程序）**。权威清单留 #10 加载流程落地时按真机实测补全。
+
+**`AssemblyVersion` 钉值（钉进 `Compat.Legacy` 引用的冻结源）**：
+- 三程序集**全钉 `AssemblyVersion=1.0.0.0`**（= 野外绑定身份，绑定键不可动；`FileVersion`/`InformationalVersion` 可另标 `frozen-legacy` 便于诊断）。
+- **冻结源取自 `master`**（`using TuneLab.Base.Structures`），**不是** `feat/effect-migration` 磁盘上的同名副本——后者已被 #2 Foundation 改名污染（`using TuneLab.Foundation.*`），**非纯净 Legacy**。落地：把 master 的 `Base`/`Extensions.Formats`/`Extensions.Voices` 源码搬入 `legacy/sdk/src/`（§三.3 隔离冻结），csproj 钉死 `AssemblyVersion 1.0.0.0` + `net8.0` + 禁改标注。
+
+**format / voice / effect 优先级：format 与 voice 并行（effect 无老插件）**：
+- effect 是新概念、**无老插件**，compat 不含 effect 路径。
+- 用户定 **format 与 voice 并行**推进。**依赖张力（如实记录，不掩盖）**：Format 路径可**立即完整落地**（effect 参考 `FormatConverter` 224 行已全实现，目标接口 `SDK.Format` 在 #7 已冻结）；**Voice 适配器的目标面依赖 #11** 定下的新 `IVoiceEngine`/`ISynthesis*` 形状（effect 参考 voice 路径多为 `NotImplementedException` 正因此）。故"并行"的可落地含义 = Legacy 侧源码冻结 + 适配器骨架与 Format **同步起步**，但 Voice 适配器**填实**被 #11 接口冻结**门控**；#11 一旦定面即补齐，按 §三.15 加性不变量不返工。
+
+**collectible / 热卸载触发条件（呼应 §三.15 留给 #9 的判定）**：
+- 野外 voice 引擎**确实捆绑冲突第三方依赖**（各自 ONNX/原生运行时版本）→ 坐实 **per-plugin ALC 是必要而非可选优化**。但依赖冲突由**非 collectible 的 per-plugin ALC 已根除**，**不构成 collectible 触发**。
+- collectible 唯一新增能力 = 热卸载（免重启卸载/更新）+ 释放 dll 文件锁。**触发条件 = 产品要"免重启卸载/更新"的 UX**，非依赖冲突。当前 master 卸载走 `ExtensionManager.LaunchPendingUninstalls` → 独立进程 `ExtensionInstaller.exe`（**重启式**），是可接受 fallback → collectible **非紧急，维持留 #10**。§三.15 升级不变量（事件适配器 `IDisposable`、插件实例单点持有）从 compat 落地起即遵守，使 #10 切 collectible 为**加性补全**。
+
+**长期维护成本 vs deprecation：不设时间表，长期维护（用户定）**：
+- 成本结构低：Legacy 源码**隔离冻结**（独立 sln、钉版本/TFM、禁改）→ 不随主程序演进、零持续改动；compat 适配器仅在边界深拷贝，代码量由契约形状差驱动（§三.15 性能表证明落冷路径可忽略）。
+- **不设 deprecation 时间表**，Legacy compat 长期保留，野外插件作者**无强制迁移压力**。未来 V1→V2 跨代（首次需 `extern alias`，§三.2）时若需重评 Legacy sunset 再议，当前不锁。
+
+**本话题范围**：纯决策，写 §三.16；实际代码留实现话题——Legacy 源码冻结搬迁（取自 master）+ Format 适配器可随即起，Voice 适配器随 #11。收口 §三.15 留给 #9 的三个接口（范围 / 版本 / collectible 触发）。
+
+---
+
 ## 四、讨论话题清单（按依赖顺序）
 
 每个话题独立成 session。session 开始时：
@@ -560,4 +590,5 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 - ✅ **#6 条件表达式系统**（2026-06-01）— 纯决策，不改代码。**功能保留**："选不同值→面板展示不同控件/字段"确认要做；#6 只否决 effect 那份半成品响应式 DSL 现在锁进冻结 ABI。`IExpression<T>`（响应式计算单元 + If-ElseIf-Else 组合子）意图用例是条件属性面板（`ConditionConfig`/`IControllerConfig.When`）。三问：不需也不可跨进程/跨语言序列化（持活委托+事件订阅）；可用 host 侧 `Func<…,bool>` 谓词替代；effect 里**零调用点、半成品**（host 消费未接通、引擎有 bug、用例未提交）。**决策：丢弃 effect 实现，当前不进任何层；功能随 #12 连同 Config 家族设计落地**（条件 config 叠在 SDK.Base Config 家族之上，书写形状依赖面板设计；现在冻结违不提前建空壳+内核增长纪律；非数据值→非 Primitives；`_V1` 即已否决的重拷）。落地倾向 B 内核（host 求值、小 ABI）+ 薄 `If/ElseIf/Else` 糖，永不进 Primitives。详见 §三.13。
 - ✅ **#3 TuneLab.Core 程序集**（2026-05-29）— 结论 **不建 Core**（effect 的 Core 是 grab-bag，内容各归位）；确立 **数据/服务分家**（数据=具体类型直接 `new`，服务=接口 host 注入）；新增中性冻结内核 **`TuneLab.Primitives`**（`Foundation` 与 `SDK.*` 共同引用，因生命周期不同而独立于 Foundation，`internal`/IVT 不能替代）。边界类型 `Point`/`MonoAudio`/Property值模型/ControllerConfigs→`Primitives`、`DataInfo`→`SDK.Format`、服务接口→`SDK.Base`；`ILog`/`ITuneLabContext` 进 `SDK.Base` 注入式（弃 `static Global`，因 ALC 下每-ALC 一份）；命名用诚实 namespace + `global using` 别名；冻结类型经"整代版本化 + 归档 dll + `extern alias` compat"安全演进。详见 §三.10，蓝图 §三.7 已更新（去 Core、加 Primitives）。落地留 #7/#8，本话题不改代码。
 - ✅ **#7 SDK 分层 + 命名落实**（2026-06-01）— **首个改代码的落地话题**，全解 Debug/Release **0 编译错误**。新建 `TuneLab.Primitives`（零依赖卫生卡口已验证）+ `SDK.{Base,Format,Voice,Effect}`（均 net8 ABI 地板、设置内联）；按 §三.10/§三.11/§三.12 搬类型：map 家族+`Point`+`MonoAudio`+`PropertyValue`/`PropertyObject` 值模型→Primitives，Config 家族（按 UI 控件改名 `Slider/CheckBox/TextBox/ComboBox/Object` + 族根 `IControllerConfig`）+ `ILog`/`ITuneLabContext`→SDK.Base，`DataInfo`+format 契约→SDK.Format，voice 契约+`AutomationConfig`→SDK.Voice，SDK.Effect 占位留 #11。map 家族**冻结前一次规范到对称完整**：改名 `IReadOnlyKeyValuePair`/`ReadOnlyKeyValuePair`（后者改不可变）、删 `At` 自递归 bug、补可变 `IMap`/`IOrderedMap`、`IOrderedMap` 补 `RemoveAt`(对称 `Insert`)、Keys/Values 收紧为 `IReadOnlyCollection`/有序 `IReadOnlyList`（Foundation 补对称 `ReadOnlyCollectionWrapper`）；值模型加 `PropertyType`+`PropertyNull.Shared`+深相等性。`Foundation` 加 →Primitives 边，主程序改引 Primitives+4×SDK，plural `Extensions.Formats`/`Voices` 移出 .sln，churn 逐文件 `using` 改写。**裁剪/推迟**（§三.14 在案）：仅契约层（内建实现留主程序）、PropertyValue 全树重构（包装类型+`IPrimitiveValue`+数组）推迟 #12、`Invalid` 留转发 shim、`MonoAudio`/服务接口暂无消费者。详见 §三.14。
+- ✅ **#9 老插件兼容范围**（2026-06-02）— 纯决策，不改代码。**版本**：Legacy 三程序集从未设 `<Version>` → 野外绑定身份一律 `1.0.0.0`（未签名）；v1.0.0→v1.6.0 公共面是**纯加性 DTO 增长**（唯一反向 `NoteInfo.Lyric` required→可选无二进制破坏）→ `Compat.Legacy` 冻结 **master/v1.6.0 超集一份**、三程序集全钉 `AssemblyVersion=1.0.0.0`。**冻结源取自 master**（`using TuneLab.Base.Structures`），**非** effect-migration 磁盘副本（已被 #2 Foundation 改名污染）。**范围**：全 1.x 社区插件**尽力而为**+ 加载失败优雅降级，权威清单留 #10 实测补；内置格式（ACEP/Midi/TLP/UFData/VPR）走新 SDK 不经 compat。**优先级**：effect 无老插件；format/voice **并行**——Format 可立即完整落地（effect 参考 `FormatConverter` 224 行已全实现），**Voice 适配器填实被 #11 接口冻结门控**（如实记录依赖张力）。**collectible 触发**：voice 引擎确捆绑冲突原生依赖（ONNX）→ 坐实 per-plugin ALC 必要，但冲突由非 collectible ALC 已根除、**不触发 collectible**；触发条件 = 要免重启卸载 UX（当前重启式 `ExtensionInstaller.exe` 是 fallback）→ collectible 维持留 #10。**维护**：Legacy 源码隔离冻结成本低，**不设 deprecation 时间表、长期维护**。详见 §三.16。
 - ✅ **#8 Adapter 模式 + ALC 隔离评估**（2026-06-02）— 纯决策，不改代码（Compat 代码留 #9/#10/#11）。**命名分代**：Legacy（现 master 老 SDK，野外插件链接）/ V1（#7 新 SDK）/ V2；兼容层 `Compat.<被桥接代>`（当下 `Hosting.Compat.Legacy`）。**extern alias** 仅消歧同名不同版 → Legacy→V1 名字不同**无需 alias**，首次用在 V1→V2。**跨 .NET 升级**靠 TFM ABI 地板 + roll-forward（host 升级不重编 SDK、插件不重编），非 ALC。**ALC 加载模型**：永远 per-plugin ALC + **共享契约**（Primitives+SDK.* 走 Default 共享、插件私有依赖进各自 ALC）+ **非 collectible 起步**（隔离好处全得、无泄漏/性能税）；collectible 热卸载留 #10（触发=卸载即时生效），靠"事件 IDisposable 退订 + 插件实例单点持有"不变量保证升级为**加性**。ALC **不**减 adapter 代码、**不**提供崩溃隔离（纠正 §三.5）。**老 SDK 留源码隔离冻结**（修订 §三.3：独立 sln + 钉死版本/TFM + 禁改标注）。**Capability** 与 compat 正交（compat 为 Legacy 合成能力面）。**双向穿越**：DTO eager 深拷贝、热缓冲零拷贝共享、note 包装身份保持缓存、live doc 永不跨界、事件适配器 IDisposable。**性能实测**：wrapper/装箱全落冷设置路径可忽略，`Properties[key]` eager 转换零分配（37ns/0B）；规则=边界 eager 转换不给 lazy wrapper。详见 §三.15。
