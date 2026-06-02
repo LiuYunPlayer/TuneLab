@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Foundation.Property;
-using TuneLab.Foundation.DataStructures;
+using TuneLab.Base.Properties;
+using TuneLab.Base.Structures;
 
 namespace TuneLab.Extensions.Formats.DataInfo;
 
