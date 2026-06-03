@@ -866,16 +866,27 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public async void InstallExtensions(IEnumerable<string> files)
     {
         List<string> installedExtension = [];
+        List<string> succeeded = [];
+        List<string> failed = [];
         foreach (var file in files)
         {
             var name = Path.GetFileNameWithoutExtension(file);
-            var entry = ZipFile.OpenRead(file).GetEntry("description.json");
-            if (entry != null)
+
+            // 读包名（容错）：description.json 缺失/损坏不阻断安装——解压后由 ExtensionManager.Load
+            // 优雅记录加载状态。绝不让一个坏包的解析异常冒泡（本方法是 async void，未捕获即崩进程）。
+            try
             {
-                var description = JsonSerializer.Deserialize<Description>(entry.Open());
-                if (!string.IsNullOrEmpty(description.name))
-                    name = description.name;
+                using var archive = ZipFile.OpenRead(file);
+                using var stream = archive.GetEntry("description.json")?.Open();
+                if (stream != null)
+                {
+                    var description = JsonSerializer.Deserialize<Description>(stream);
+                    if (!string.IsNullOrEmpty(description.name))
+                        name = description.name;
+                }
             }
+            catch { /* 用文件名兜底 */ }
+
             var dir = Path.Combine(PathManager.ExtensionsFolder, name);
             if (Directory.Exists(dir))
             {
@@ -887,11 +898,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             {
                 ZipFileHelper.ExtractToDirectory(file, dir);
                 ExtensionManager.Load(dir);
-                await this.ShowMessage("Tips".Tr(TC.Dialog), name + " has been successfully installed!".Tr(TC.Dialog));
+                succeeded.Add(name);
             }
             catch (Exception ex)
             {
-                await this.ShowMessage("Error".Tr(TC.Dialog), "Installating " + name + " failed: \n".Tr(TC.Dialog) + ex.Message);
+                failed.Add(name + ": " + ex.Message);
             }
         }
 
@@ -899,6 +910,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mExtensionSideBarContentProvider.RefreshExtensions();
         if (mRightSideTabBar.SelectedTab.Value == SideBarTab.Extensions)
             mRightSideBar.SetContent(mExtensionSideBarContentProvider.Content);
+
+        // 批量安装一次性汇总（不再每个包弹一次窗）。各包的实际加载状态见扩展侧边栏。
+        if (succeeded.Count > 0 || failed.Count > 0)
+        {
+            var summary = new List<string>();
+            if (succeeded.Count > 0)
+                summary.Add("Installed: ".Tr(TC.Dialog) + string.Join(", ", succeeded));
+            if (failed.Count > 0)
+                summary.Add("Failed: ".Tr(TC.Dialog) + string.Join("; ", failed));
+            await this.ShowMessage("Tips".Tr(TC.Dialog), string.Join("\n", summary));
+        }
 
         if (installedExtension.IsEmpty())
             return;
