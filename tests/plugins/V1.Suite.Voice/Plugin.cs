@@ -40,9 +40,10 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
 
     public ISynthesisTask CreateSynthesisTask(ISynthesisData data) => new SuiteSynthesisTask(data);
 
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    // 与其它测试 voice 一致地声明属性（避免"空面板像 bug"的误解）。自定义自动化名避开宿主保留名。
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig("Power", 0, 0, 100, "#73E5A5") } };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
+    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new() { { "tension", new SliderConfig(0, -1, 1, false) } };
 }
 
 public sealed class SuiteSynthesisTask(ISynthesisData data) : ISynthesisTask

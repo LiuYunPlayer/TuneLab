@@ -42,7 +42,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 ### 5. v1-suite（一包多插件 + 共享基建）
 - 装 `v1-suite.tlx` → **Loaded**；**一个包**同时注册 format **`.tlsuite`** 和声库引擎 **TLSuiteVoice**。
 - 导入 `sample-files/sample.tlsuite` → 轨名含 **`[v1-suite]`**（证明用到共享 Common.dll）。
-- 声库列表出现 **`[v1-suite] Voice`**。
+- 声库列表出现 **`[v1-suite] Voice`**；选它、选中 note → 属性面板有 **tension**，参数面板有自定义自动化 **Power**。
 
 ### 6. v1-no-assemblies（manifest 省略 assemblies → 扫全部 dll）
 - 装 `v1-no-assemblies.tlx` → **Loaded**；`.tlnoasm` 可用。
