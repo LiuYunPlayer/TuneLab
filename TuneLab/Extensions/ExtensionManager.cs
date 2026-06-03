@@ -23,8 +23,9 @@ internal static class ExtensionManager
     public static IReadOnlyList<ExtensionLoadResult> LoadResults => mLoadResults;
 
     // Compat.Legacy 接入点：设置后接管 Legacy 包加载，返回 true 表示已处理。
-    // 形状刻意保持最小（一个委托，易随 Compat.Legacy 实装调整），不提前锁死接口。
-    public static Func<string, ExtensionDescription?, bool>? LegacyLoadHook { get; set; }
+    // 第三参 typeSink 由 hook 在注册成功时回填真实类别（"format"/"voice"），供 sidebar
+    // 展示精确类型而非笼统 "Legacy"——hook 在 Compat 内部才知道老插件实际实现了哪些接口。
+    public static Func<string, ExtensionDescription?, ICollection<string>, bool>? LegacyLoadHook { get; set; }
 
     public static IReadOnlyList<string> PendingUninstalls => mPendingUninstalls;
     public static bool RestartAfterUninstall { get; set; }
@@ -91,6 +92,9 @@ internal static class ExtensionManager
             Id = description.id,
             Name = description.name,
             Version = description.version,
+            Author = description.author,
+            Description = description.description,
+            IconPath = ResolveIconPath(path, description.icon),
             Generation = ExtensionGeneration.V1,
         };
         mLoadResults.Add(result);
@@ -202,6 +206,9 @@ internal static class ExtensionManager
             DirectoryPath = path,
             Name = description?.name ?? folderName,
             Version = description?.version ?? "1.0.0",
+            Author = description?.author ?? string.Empty,
+            Description = description?.description ?? string.Empty,
+            IconPath = ResolveIconPath(path, description?.icon),
             Generation = ExtensionGeneration.Legacy,
         };
         mLoadResults.Add(result);
@@ -220,7 +227,8 @@ internal static class ExtensionManager
         {
             try
             {
-                if (LegacyLoadHook(path, description))
+                // hook 把发现的真实类别（format/voice）回填进 result.Types，sidebar 据此展示精确类型。
+                if (LegacyLoadHook(path, description, result.Types))
                 {
                     result.Status = ExtensionLoadStatus.Loaded;
                     return;
@@ -259,6 +267,16 @@ internal static class ExtensionManager
             result.Error = LegacyLoadHook != null
                 ? "Legacy compatibility layer ran but found no compatible plugin in this package (see log)."
                 : "Legacy compatibility layer not available.";
+    }
+
+    // 把 manifest 里的包内相对图标路径解析成绝对路径；为空或文件不存在则返回 null（sidebar 退回首字母占位）。
+    static string? ResolveIconPath(string packagePath, string? icon)
+    {
+        if (string.IsNullOrWhiteSpace(icon))
+            return null;
+
+        var full = Path.Combine(packagePath, icon);
+        return File.Exists(full) ? full : null;
     }
 
     static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect";

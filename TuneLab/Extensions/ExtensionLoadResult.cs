@@ -24,6 +24,9 @@ internal sealed class ExtensionLoadResult
     public required string Name { get; init; }
     public string? Id { get; init; }
     public string Version { get; init; } = "1.0.0";
+    public string Author { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public string? IconPath { get; init; }   // 解析后的绝对路径（包目录 + manifest 的 icon），文件不存在则为 null
     public ExtensionGeneration Generation { get; init; }
     public ExtensionLoadStatus Status { get; set; }
     public List<string> Types { get; } = [];   // 声明/发现的类别：format / voice / effect / 资源类

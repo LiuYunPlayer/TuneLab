@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using TuneLab.Foundation.Utils;
@@ -39,14 +40,16 @@ internal static class LegacyCompatLoader
                 return;
             }
 
-            // 注册委托：把 Compat 推来的 V1 适配器实例转发进内建 manager（工厂复用同一实例，适配器无状态）。
-            Action<string, IImportFormat> addImporter = (ext, format) => FormatsManager.RegisterImporter(ext, () => format);
-            Action<string, IExportFormat> addExporter = (ext, format) => FormatsManager.RegisterExporter(ext, () => format);
-            Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => VoicesManager.RegisterEngine(type, engine, enginePath);
             Action<string> compatLog = message => Log.Info("[Compat.Legacy] " + message);
 
-            ExtensionManager.LegacyLoadHook = (path, description) =>
+            ExtensionManager.LegacyLoadHook = (path, description, typeSink) =>
             {
+                // 注册委托按包重建：把 Compat 推来的 V1 适配器转发进内建 manager（工厂复用同一实例，适配器无状态），
+                // 同时把真实类别回填进本包的 typeSink，供 sidebar 展示精确类型而非笼统 "Legacy"。
+                Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(ext, () => format); AddType(typeSink, "format"); };
+                Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(ext, () => format); AddType(typeSink, "format"); };
+                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(type, engine, enginePath); AddType(typeSink, "voice"); };
+
                 var assemblies = description?.assemblies ?? Array.Empty<string>();
                 var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine, compatLog]);
                 return result is true;
@@ -58,5 +61,11 @@ internal static class LegacyCompatLoader
         {
             Log.Error(string.Format("Failed to initialize legacy compatibility layer: {0}", ex));
         }
+    }
+
+    static void AddType(ICollection<string> sink, string kind)
+    {
+        if (!sink.Contains(kind))
+            sink.Add(kind);
     }
 }

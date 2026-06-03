@@ -23,7 +23,8 @@
 - `id` (string, **必填**) — 唯一标识，反向域名。**有 id ⇒ V1**。
 - `name` (string, **必填**) — 展示名。
 - `version` (string) — semver，默认 `"1.0.0"`。
-- `author` (string)、`description` (string)。
+- `author` (string)、`description` (string) — 展示在扩展侧边栏：`author` 显示在卡片上，`description` 在卡片悬浮 tooltip 里。
+- `icon` (string, 选填) — 包内相对路径的图标，位图（`.png`/`.jpg` 等）或矢量（`.svg`）均可，在侧边栏卡片**原样展示**（宿主不加背景/不裁圆角，圆角与透明由图标自定）；建议方形（≥64×64）。省略则用名称首字母占位。
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素）：

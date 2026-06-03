@@ -115,7 +115,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         // 或靠字符串匹配猜类型——类型/名称/版本/代际都来自真实加载结果。
         foreach (var result in ExtensionManager.LoadResults)
         {
-            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayType(result), result.DirectoryPath, result.Status, result.Error);
+            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.Error);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
             itemView.CancelUninstallRequested += () => OnCancelUninstall(itemView);
             if (ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath))
@@ -124,12 +124,13 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         }
     }
 
-    private static string DisplayType(ExtensionLoadResult result)
+    // 展示用的类别列表（每项渲染成一枚徽标）。无真实类别时退回单项占位。
+    private static IReadOnlyList<string> DisplayTypes(ExtensionLoadResult result)
     {
         if (result.Types.Count > 0)
-            return string.Join(", ", result.Types.Select(Capitalize));
+            return result.Types.Select(Capitalize).ToList();
 
-        return result.Generation == ExtensionGeneration.Legacy ? "Legacy" : "Extension";
+        return [result.Generation == ExtensionGeneration.Legacy ? "Legacy" : "Extension"];
     }
 
     private static string Capitalize(string s)

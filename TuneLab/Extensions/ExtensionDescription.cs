@@ -20,6 +20,9 @@ internal class ExtensionDescription : ExtensionInfo
     public string author { get; set; } = string.Empty;
     public string description { get; set; } = string.Empty;
 
+    // 包内相对路径的图标（位图 .png/.jpg… 或矢量 .svg）。空 → sidebar 用名称首字母占位。
+    public string? icon { get; set; }
+
     // 代码插件必填——插件编译时绑定的 SDK ABI 地板，host 据此做兼容门校验；资源包省略。
     [JsonPropertyName("sdk-version")]
     public string? sdkVersion { get; set; }

@@ -458,6 +458,17 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **Voice 保留名教训**：插件自动化参数名须避开宿主内置保留名（`Volume`/`VibratoEnvelope`），否则被内置项占用而不显示——已写入 voice 开发文档。
 
+#### 扩展侧边栏信息增强（接 §三.18 收尾）
+
+承上文"侧边栏状态可见"，给卡片补图标/作者/类别等信息。**卡片布局**（与左侧 64px 图标等高，不被简介行撑高）：第 1 行名称（左，过长省略号）+ 版本徽标（右）；第 2 行作者（中部，带人像图标）；第 3 行类别 +（非 Loaded 时）状态徽标（左）+ 卸载按钮（右）。**简介不上卡片**——鼠标悬在整张卡片上由 tooltip 给出完整信息（全名 + 版本 + 作者 + 简介），既保证信息完整又控制卡片高度。
+- **图标**：`description.json` 新增 `icon`（包内相对路径），位图（`.png`/`.jpg`…）与矢量（`.svg`）都支持——位图走 `Bitmap` 解码、`.svg` 走 `Avalonia.Svg.Skia` 的 `SvgImage`，按扩展名分流，`Stretch=Uniform` 完整显示。**带图标的包不画任何打底背景/圆角、原样摆放图标**（VSCode 同款——圆角/透明交给作者，宿主不叠加遮罩，否则与容器圆角双重叠加不协调）；**无图标**才退回深色圆角方块 + 名称首字母占位。解码失败也退回占位。
+- **作者 / 简介**：`author` 在卡片中部展示（过长省略号）；`description` 不占卡片行、进整卡 hover tooltip。**否决**卡片内简介行（四行撑高、难看）与点开式详情面板（tooltip 已够、不值新组件）。
+- **Legacy 真实类型**：Legacy 包此前笼统显示 "Legacy"，现由兼容层回填真实类别——`LegacyLoadHook` 加第三参 `ICollection<string>` 类型 sink，注册委托按包重建并在 `addImporter`/`addExporter`/`addVoiceEngine` 成功时写入 `format`/`voice`，sidebar 据 `ExtensionLoadResult.Types` 展示精确类型。
+- **状态优先**：底行左侧徽标——`Loaded` 显示类别（**每种 type 各一枚徽标**，不拼成一枚逗号串）；`Skipped`/`Failed` 不渲染类别（加载失败的包无"生效类别"可言）、只留彩色状态徽标 + 原因 tooltip；`PartiallyLoaded` 则类别 + Partial 并排。
+- **作者贴近底行**：作者行与底行徽标编为一组锚在卡片底部，留白落在大字名称与小字之间，让作者（小字）视觉上靠近第三行徽标（小字）而非名称（大字）。
+
+数据经 `ExtensionLoadResult`（新增 `Author`/`Description`/`IconPath`）从加载管线一路流到 sidebar，sidebar 不二次解析 manifest。`icon` 字段已写入插件开发文档。验证用例独立成 [tests/SIDEBAR-INFO-TEST-CASES.md](../tests/SIDEBAR-INFO-TEST-CASES.md)（只测本次改动影响的展示范围，不重跑既有 format/voice 功能用例）。
+
 > 注：迁移期临时术语（话题#N、§章节号、内部代号）不得出现在永久代码/文档（注释、`plugin-development*.md`、测试用例文档），已全仓清理；本迁移文档为临时档案、不受此限。
 
 ---

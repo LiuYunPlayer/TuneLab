@@ -1,0 +1,9 @@
+{
+  "id": "com.tunelab.test.sidebarinfo",
+  "name": "Sidebar Info Showcase — 一个故意写得很长的插件名称，用于测试名称行的省略号截断与悬浮 tooltip",
+  "version": "2.3.1",
+  "author": "TuneLab Tests · 同样故意拉长的作者名，用于测试作者行截断",
+  "description": "验证侧边栏卡片信息：矢量图标 + 作者行 + 一句话简介。这段简介刻意写得很长，用来触发省略号截断，并在悬浮时由 tooltip 显示完整内容。",
+  "icon": "icon.svg",
+  "type": "voicebank"
+}
