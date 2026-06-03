@@ -31,31 +31,36 @@ public static class LegacyCompatEntry
         string[] assemblies,
         Action<string, VFmt.IImportFormat> addImporter,
         Action<string, VFmt.IExportFormat> addExporter,
-        Action<string, VVoice.IVoiceEngine, string> addVoiceEngine)
+        Action<string, VVoice.IVoiceEngine, string> addVoiceEngine,
+        Action<string> log)
     {
         // per-plugin ALC：隔离野外 voice 引擎各自捆绑的冲突原生依赖（ONNX 等）。
-        var alc = new LegacyPluginLoadContext(packagePath);
+        // 传首个声明程序集做 AssemblyDependencyResolver 锚点（有 deps.json 时辅助解析私有依赖）。
+        var fileList = (assemblies != null && assemblies.Length > 0)
+            ? assemblies.Select(a => Path.Combine(packagePath, a)).Where(File.Exists).ToList()
+            : Directory.GetFiles(packagePath, "*.dll").ToList();
 
-        IEnumerable<string> files = (assemblies != null && assemblies.Length > 0)
-            ? assemblies.Select(a => Path.Combine(packagePath, a)).Where(File.Exists)
-            : Directory.GetFiles(packagePath, "*.dll");
+        var alc = new LegacyPluginLoadContext(packagePath, fileList.Count > 0 ? fileList[0] : null);
 
         bool any = false;
         var seenImport = new HashSet<string>();
         var seenExport = new HashSet<string>();
         var seenVoice = new HashSet<string>();
 
-        foreach (var file in files)
+        log(string.Format("扫描 {0} 个程序集: {1}", fileList.Count, string.Join(", ", fileList.Select(Path.GetFileName))));
+
+        foreach (var file in fileList)
         {
             Type[] types;
             try
             {
                 var asm = alc.LoadFromAssemblyPath(Path.GetFullPath(file));
-                types = SafeGetTypes(asm);
+                types = SafeGetTypes(asm, log);
             }
-            catch
+            catch (Exception ex)
             {
-                continue; // 非托管/损坏 dll 等：跳过，优雅降级。
+                log(string.Format("加载程序集失败 {0}: {1}", Path.GetFileName(file), ex.Message));
+                continue;
             }
 
             foreach (var type in types)
@@ -65,16 +70,18 @@ public static class LegacyCompatEntry
 
                 try
                 {
-                    any |= TryFormat(type, addImporter, addExporter, seenImport, seenExport);
-                    any |= TryVoice(type, packagePath, addVoiceEngine, seenVoice);
+                    any |= TryFormat(type, addImporter, addExporter, seenImport, seenExport, log);
+                    any |= TryVoice(type, packagePath, addVoiceEngine, seenVoice, log);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 单类型实例化/注册失败不影响其余。
+                    log(string.Format("实例化/注册类型失败 {0}: {1}", type.FullName, ex.Message));
                 }
             }
         }
 
+        if (!any)
+            log(string.Format("未发现可用的 Legacy format/voice 插件（包: {0}）", packagePath));
         return any;
     }
 
@@ -83,30 +90,37 @@ public static class LegacyCompatEntry
         Action<string, VFmt.IImportFormat> addImporter,
         Action<string, VFmt.IExportFormat> addExporter,
         HashSet<string> seenImport,
-        HashSet<string> seenExport)
+        HashSet<string> seenExport,
+        Action<string> log)
     {
         bool any = false;
 
         var import = type.GetCustomAttribute<LFmt.ImportFormatAttribute>();
-        if (import != null && typeof(LFmt.IImportFormat).IsAssignableFrom(type))
+        if (import != null)
         {
-            var ctor = type.GetConstructor(Type.EmptyTypes);
-            if (ctor != null && seenImport.Add(import.FileExtension))
+            if (!typeof(LFmt.IImportFormat).IsAssignableFrom(type))
+                log(string.Format("{0} 带 [ImportFormat] 但未实现 IImportFormat（类型身份不匹配？）", type.FullName));
+            else if (type.GetConstructor(Type.EmptyTypes) is not { } ctor)
+                log(string.Format("import format {0} 缺少 public 无参构造函数", type.FullName));
+            else if (seenImport.Add(import.FileExtension))
             {
-                var legacy = (LFmt.IImportFormat)ctor.Invoke(null);
-                addImporter(import.FileExtension, new ImportFormatAdapter(legacy));
+                addImporter(import.FileExtension, new ImportFormatAdapter((LFmt.IImportFormat)ctor.Invoke(null)));
+                log(string.Format("已注册 Legacy import format: .{0} ({1})", import.FileExtension, type.FullName));
                 any = true;
             }
         }
 
         var export = type.GetCustomAttribute<LFmt.ExportFormatAttribute>();
-        if (export != null && typeof(LFmt.IExportFormat).IsAssignableFrom(type))
+        if (export != null)
         {
-            var ctor = type.GetConstructor(Type.EmptyTypes);
-            if (ctor != null && seenExport.Add(export.FileExtension))
+            if (!typeof(LFmt.IExportFormat).IsAssignableFrom(type))
+                log(string.Format("{0} 带 [ExportFormat] 但未实现 IExportFormat（类型身份不匹配？）", type.FullName));
+            else if (type.GetConstructor(Type.EmptyTypes) is not { } ctor)
+                log(string.Format("export format {0} 缺少 public 无参构造函数", type.FullName));
+            else if (seenExport.Add(export.FileExtension))
             {
-                var legacy = (LFmt.IExportFormat)ctor.Invoke(null);
-                addExporter(export.FileExtension, new ExportFormatAdapter(legacy));
+                addExporter(export.FileExtension, new ExportFormatAdapter((LFmt.IExportFormat)ctor.Invoke(null)));
+                log(string.Format("已注册 Legacy export format: .{0} ({1})", export.FileExtension, type.FullName));
                 any = true;
             }
         }
@@ -118,22 +132,32 @@ public static class LegacyCompatEntry
         Type type,
         string packagePath,
         Action<string, VVoice.IVoiceEngine, string> addVoiceEngine,
-        HashSet<string> seenVoice)
+        HashSet<string> seenVoice,
+        Action<string> log)
     {
         var attribute = type.GetCustomAttribute<LVoice.VoiceEngineAttribute>();
-        if (attribute == null || !typeof(LVoice.IVoiceEngine).IsAssignableFrom(type))
+        if (attribute == null)
             return false;
 
-        var ctor = type.GetConstructor(Type.EmptyTypes);
-        if (ctor == null || !seenVoice.Add(attribute.Type))
+        if (!typeof(LVoice.IVoiceEngine).IsAssignableFrom(type))
+        {
+            log(string.Format("{0} 带 [VoiceEngine] 但未实现 IVoiceEngine（类型身份不匹配？）", type.FullName));
+            return false;
+        }
+        if (type.GetConstructor(Type.EmptyTypes) is not { } ctor)
+        {
+            log(string.Format("voice 引擎 {0} 缺少 public 无参构造函数", type.FullName));
+            return false;
+        }
+        if (!seenVoice.Add(attribute.Type))
             return false;
 
-        var legacy = (LVoice.IVoiceEngine)ctor.Invoke(null);
-        addVoiceEngine(attribute.Type, new VoiceEngineAdapter(legacy), packagePath);
+        addVoiceEngine(attribute.Type, new VoiceEngineAdapter((LVoice.IVoiceEngine)ctor.Invoke(null)), packagePath);
+        log(string.Format("已注册 Legacy voice 引擎: {0} ({1})", attribute.Type, type.FullName));
         return true;
     }
 
-    static Type[] SafeGetTypes(Assembly assembly)
+    static Type[] SafeGetTypes(Assembly assembly, Action<string> log)
     {
         try
         {
@@ -141,6 +165,8 @@ public static class LegacyCompatEntry
         }
         catch (ReflectionTypeLoadException ex)
         {
+            foreach (var le in ex.LoaderExceptions.Where(e => e != null).Select(e => e!.Message).Distinct())
+                log(string.Format("类型加载异常 in {0}: {1}", assembly.GetName().Name, le));
             return ex.Types.Where(t => t != null).ToArray()!;
         }
     }

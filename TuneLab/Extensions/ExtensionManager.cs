@@ -256,7 +256,9 @@ internal static class ExtensionManager
 
         result.Status = any ? ExtensionLoadStatus.Loaded : ExtensionLoadStatus.Skipped;
         if (!any)
-            result.Error = "No compatible extensions found (legacy compatibility layer not available).";
+            result.Error = LegacyLoadHook != null
+                ? "Legacy compatibility layer ran but found no compatible plugin in this package (see log)."
+                : "Legacy compatibility layer not available.";
     }
 
     static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect";

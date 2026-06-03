@@ -43,11 +43,12 @@ internal static class LegacyCompatLoader
             Action<string, IImportFormat> addImporter = (ext, format) => FormatsManager.RegisterImporter(ext, () => format);
             Action<string, IExportFormat> addExporter = (ext, format) => FormatsManager.RegisterExporter(ext, () => format);
             Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => VoicesManager.RegisterEngine(type, engine, enginePath);
+            Action<string> compatLog = message => Log.Info("[Compat.Legacy] " + message);
 
             ExtensionManager.LegacyLoadHook = (path, description) =>
             {
                 var assemblies = description?.assemblies ?? Array.Empty<string>();
-                var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine]);
+                var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine, compatLog]);
                 return result is true;
             };
 
