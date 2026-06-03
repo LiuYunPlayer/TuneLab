@@ -34,6 +34,11 @@ public static class LegacyCompatEntry
         Action<string, VVoice.IVoiceEngine, string> addVoiceEngine,
         Action<string> log)
     {
+        // 预热冻结契约程序集：主程序对它们无 ProjectReference（不在 Default ALC 的 TPA），
+        // 故 Default 只能解析"已加载"的它们。若不预热，第一个被处理的插件在 Compat 尚未触碰
+        // 这些类型前做 GetTypes 会解析失败（加载顺序竞态）。这里先把它们载入共享上下文。
+        WarmUpContract();
+
         // per-plugin ALC：隔离野外 voice 引擎各自捆绑的冲突原生依赖（ONNX 等）。
         // 传首个声明程序集做 AssemblyDependencyResolver 锚点（有 deps.json 时辅助解析私有依赖）。
         var fileList = (assemblies != null && assemblies.Length > 0)
@@ -155,6 +160,18 @@ public static class LegacyCompatEntry
         addVoiceEngine(attribute.Type, new VoiceEngineAdapter((LVoice.IVoiceEngine)ctor.Invoke(null)), packagePath);
         log(string.Format("已注册 Legacy voice 引擎: {0} ({1})", attribute.Type, type.FullName));
         return true;
+    }
+
+    static bool sWarmedUp;
+    static void WarmUpContract()
+    {
+        if (sWarmedUp)
+            return;
+        sWarmedUp = true;
+        // 触碰各冻结契约程序集的一个类型，确保它们先于任何插件 GetTypes 载入共享上下文。
+        _ = typeof(LFmt.ImportFormatAttribute).Assembly;     // TuneLab.Extensions.Formats
+        _ = typeof(LVoice.VoiceEngineAttribute).Assembly;    // TuneLab.Extensions.Voices
+        _ = typeof(TuneLab.Base.Structures.Point).Assembly;  // TuneLab.Base
     }
 
     static Type[] SafeGetTypes(Assembly assembly, Action<string> log)
