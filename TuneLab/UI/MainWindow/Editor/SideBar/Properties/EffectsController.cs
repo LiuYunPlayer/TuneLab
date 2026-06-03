@@ -21,7 +21,7 @@ using IEffect = TuneLab.Data.IEffect;
 
 namespace TuneLab.UI;
 
-// 效果链管理面板：列出当前 MidiPart 的效果器链，支持增/删/重排/bypass，并复用 ObjectController 渲染每个 effect 的参数。
+// 效果链管理面板：列出当前 MidiPart 的效果器链，支持增/删/重排/bypass，并复用 PropertyObjectController 渲染每个 effect 的参数。
 // 时间轴自动化编辑（per-effect 自动化曲线）本版未做，参数以 Properties 面板为准。
 internal class EffectsController : StackPanel
 {
@@ -38,18 +38,11 @@ internal class EffectsController : StackPanel
 
         if (mPart != null)
         {
+            // 链结构变化（增删/重排）整链重建；每个 effect 的参数/启用经逐字段绑定自动刷新与提交。
             mPart.Effects.ListModified.Subscribe(Rebuild, s);
-            mPart.Effects.Any(effect => effect.Modified).Subscribe(OnEffectModified, s);
         }
 
         Rebuild();
-    }
-
-    void OnEffectModified()
-    {
-        // effect 参数/启用经外部（如 undo/redo）改动：刷新展示值。
-        foreach (var view in mEffectViews)
-            view.Refresh();
     }
 
     void Rebuild()
@@ -133,24 +126,6 @@ internal class EffectsController : StackPanel
         mPart.Commit();
     }
 
-    void SetBypass(IEffect effect, bool isEnabled)
-    {
-        if (mPart == null)
-            return;
-
-        effect.IsEnabled.Set(isEnabled);
-        mPart.Commit();
-    }
-
-    void CommitProperty(IEffect effect, PropertyPath path, PropertyValue value)
-    {
-        if (mPart == null)
-            return;
-
-        effect.Properties.SetValue(path.GetKey(), value);
-        mPart.Commit();
-    }
-
     static Button MakeTextButton(string text, double width)
     {
         var button = new Button();
@@ -161,20 +136,15 @@ internal class EffectsController : StackPanel
         return button;
     }
 
-    // 单个 effect 的视图：标题行（bypass/类型/上移/下移/删除）+ 参数 ObjectController。
+    // 单个 effect 的视图：标题行（bypass/类型/上移/下移/删除）+ 参数 PropertyObjectController。
     class EffectView
     {
         public Control Root => mRoot;
 
         public EffectView(EffectsController owner, IEffect effect, int index)
         {
-            mOwner = owner;
-            mEffect = effect;
-
             var bypass = new CheckBox() { Margin = new(24, 0, 8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-            bypass.Display(effect.IsEnabled.Value);
-            bypass.ValueCommitted.Subscribe(() => owner.SetBypass(effect, bypass.Value));
-            mBypass = bypass;
+            bypass.BindDataProperty(effect.IsEnabled, s);
 
             var typeLabel = new Label()
             {
@@ -200,10 +170,9 @@ internal class EffectsController : StackPanel
             header.Children.Add(buttons);
             header.Children.Add(typeLabel);
 
-            mController = new ObjectController();
-            mController.SetConfig(effect.PropertyConfig);
-            mController.ValueCommitted.Subscribe(OnValueCommitted);
-            DisplayValues();
+            // 参数面板：逐字段绑定到 effect.Properties，值的下发/写回/撤销刷新全自动。
+            mController = new PropertyObjectController();
+            mController.SetConfig(effect.PropertyConfig, effect.Properties);
 
             mRoot = new StackPanel() { Orientation = Orientation.Vertical };
             mRoot.Children.Add(header);
@@ -211,52 +180,15 @@ internal class EffectsController : StackPanel
             mRoot.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         }
 
-        public void Refresh()
-        {
-            mBypass.Display(mEffect.IsEnabled.Value);
-            DisplayValues();
-        }
-
-        void DisplayValues()
-        {
-            DisplayValues(mEffect.PropertyConfig, new PropertyPath());
-        }
-
-        void DisplayValues(ObjectConfig config, PropertyPath path)
-        {
-            var properties = mEffect.Properties.GetInfo();
-            foreach (var kvp in config.Properties)
-            {
-                var propertyPath = path.Combine(kvp.Key);
-                if (kvp.Value is ObjectConfig objectConfig)
-                {
-                    DisplayValues(objectConfig, propertyPath);
-                }
-                else if (kvp.Value is IValueConfig valueConfig)
-                {
-                    var key = propertyPath.GetKey();
-                    var value = properties.GetValue(key, valueConfig.DefaultValue);
-                    mController.Display(key, value);
-                }
-            }
-        }
-
-        void OnValueCommitted(PropertyPath path, PropertyValue value)
-        {
-            mOwner.CommitProperty(mEffect, path, value);
-        }
-
         public void Dispose()
         {
-            mController.ValueCommitted.Unsubscribe(OnValueCommitted);
+            s.DisposeAll();
             mController.ResetConfig();
         }
 
-        readonly EffectsController mOwner;
-        readonly IEffect mEffect;
-        readonly CheckBox mBypass;
-        readonly ObjectController mController;
+        readonly PropertyObjectController mController;
         readonly StackPanel mRoot;
+        readonly DisposableManager s = new();
     }
 
     IMidiPart? mPart = null;

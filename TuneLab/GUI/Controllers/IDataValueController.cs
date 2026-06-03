@@ -38,6 +38,21 @@ public static class IDataValueControllerExtension
         context?.Add(binding);
     }
 
+    // 把一个固定的 IDataProperty<T> 直接绑定到控件（属性面板逐字段绑定用）。
+    // 字段对象由面板在 SetConfig 时一次性创建，对象切换时整面板重建，故用常量 provider（事件永不触发）即可。
+    public static void BindDataProperty<T>(this IDataValueController<T> controller, IDataProperty<T> property, DisposableManager? context = null) where T : notnull
+    {
+        controller.Bind(new ConstantProvider<IDataProperty<T>>(property), context);
+    }
+
+    class ConstantProvider<T>(T value) : IProvider<T>
+    {
+        public IActionEvent ObjectWillChange => mNever;
+        public IActionEvent ObjectChanged => mNever;
+        public T? Object => value;
+        readonly ActionEvent mNever = new();
+    }
+
     class DataPropertyProviderBinding<T> : IDisposable where T : notnull
     {
         public DataPropertyProviderBinding(IDataValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider)

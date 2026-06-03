@@ -12,8 +12,12 @@ using TuneLab.Primitives.DataStructures;
 using TuneLab.Primitives.Property;
 namespace TuneLab.Foundation.Property;
 
-public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>
+public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>, IDataPropertyObject
 {
+    // 单对象作为属性面板数据源：撤销根即自身（已挂在文档树上）。
+    IDataObject IDataPropertyObject.DataRoot => this;
+    void IDataPropertyObject.SetValue(PropertyPath.Key key, PropertyValue value) => SetValue(key, value);
+
     //public IActionEvent<PropertyPath, IPropertyValue> PropertyAdded => mPropertyAdded;
     //public IActionEvent<PropertyPath, IPropertyValue> PropertyRemoved => mPropertyRemoved;
     //public IActionEvent<PropertyPath, IPropertyValue, IPropertyValue> PropertyReplaced => mPropertyReplaced;
