@@ -1,0 +1,16 @@
+{
+  "Tempos": [ { "Pos": 0, "Bpm": 128 } ],
+  "Tracks": [
+    {
+      "Name": "tltest sample (parsed)",
+      "Dur": 2400,
+      "Notes": [
+        { "Pos": 0,    "Dur": 480, "Pitch": 60, "Lyric": "do" },
+        { "Pos": 480,  "Dur": 480, "Pitch": 62, "Lyric": "re" },
+        { "Pos": 960,  "Dur": 480, "Pitch": 64, "Lyric": "mi" },
+        { "Pos": 1440, "Dur": 480, "Pitch": 65, "Lyric": "fa" },
+        { "Pos": 1920, "Dur": 480, "Pitch": 67, "Lyric": "so" }
+      ]
+    }
+  ]
+}

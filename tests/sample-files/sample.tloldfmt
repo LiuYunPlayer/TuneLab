@@ -1,0 +1,14 @@
+{
+  "Tempos": [ { "Pos": 0, "Bpm": 90 } ],
+  "Tracks": [
+    {
+      "Name": "tloldfmt sample (parsed)",
+      "Dur": 1440,
+      "Notes": [
+        { "Pos": 0,   "Dur": 480, "Pitch": 67, "Lyric": "sol" },
+        { "Pos": 480, "Dur": 480, "Pitch": 69, "Lyric": "la" },
+        { "Pos": 960, "Dur": 480, "Pitch": 71, "Lyric": "ti" }
+      ]
+    }
+  ]
+}

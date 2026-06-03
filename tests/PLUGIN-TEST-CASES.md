@@ -24,6 +24,8 @@ pwsh tests/pack-tlx.ps1            # 产物 tests/tlx/*.tlx
 
 加载状态在**扩展侧边栏**查看（Loaded / PartiallyLoaded / Skipped / Failed + 原因）。format 扩展名出现在导入/导出菜单；voice 引擎出现在音轨的引擎/声库选择。
 
+**导入用的样例文件**在 [tests/sample-files/](sample-files/)（已提交进仓库，按扩展名路由到对应 format 插件）。`sample.tltest` / `sample.tloldfmt` 是真 JSON、用于验证解析与往返；其余扩展名的导入器忽略内容、产出固定样例。voice 测试无需文件。详见 [sample-files/README.md](sample-files/README.md)。
+
 > 提示：`v1-bad-manifest` 用方式 B 测最直接（方式 A 安装时若 `.tlx` 内 description.json 解析报错可能在安装阶段就报错，亦是有效的优雅降级表现）。
 
 ---
