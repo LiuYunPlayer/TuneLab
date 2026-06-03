@@ -277,6 +277,12 @@ internal static class ExtensionManager
             mPendingUninstalls.Add(extensionDirPath);
     }
 
+    // 撤销待卸载（用户在"稍后"标记后反悔）。
+    public static void RemovePendingUninstall(string extensionDirPath)
+    {
+        mPendingUninstalls.Remove(extensionDirPath);
+    }
+
     public static void LaunchPendingUninstalls()
     {
         if (mPendingUninstalls.Count == 0)

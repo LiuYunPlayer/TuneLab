@@ -866,6 +866,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public async void InstallExtensions(IEnumerable<string> files)
     {
         List<string> installedExtension = [];
+        List<string> installedNames = [];
         List<string> succeeded = [];
         List<string> failed = [];
         foreach (var file in files)
@@ -891,6 +892,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             if (Directory.Exists(dir))
             {
                 installedExtension.Add(file);
+                installedNames.Add(name);
                 continue;
             }
 
@@ -927,7 +929,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         var dialog = new Dialog();
         dialog.SetTitle("Tips".Tr(TC.Dialog));
-        dialog.SetMessage("Detected an installed extension. \nDo you want to restart and perform a reinstall?".Tr(TC.Dialog));
+        dialog.SetMessage(string.Format("Detected {0} already-installed extension(s): {1}.\nDo you want to restart and reinstall them?".Tr(TC.Dialog), installedNames.Count, string.Join(", ", installedNames)));
         dialog.AddButton("Yes".Tr(TC.Dialog), ButtonType.Normal).Clicked += () =>
         {
             List<string> args = ["-restart"];

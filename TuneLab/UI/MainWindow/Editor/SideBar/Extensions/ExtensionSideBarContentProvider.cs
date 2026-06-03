@@ -117,6 +117,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         {
             var itemView = new ExtensionItemView(result.Name, result.Version, DisplayType(result), result.DirectoryPath);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
+            itemView.CancelUninstallRequested += () => OnCancelUninstall(itemView);
             if (ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath))
                 itemView.MarkPendingUninstall();
             mAllExtensions.Add(itemView);
@@ -158,6 +159,12 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             mCountLabel.Text = string.Format("{0} extension(s) installed", total);
         else
             mCountLabel.Text = string.Format("{0} of {1} extension(s)", shown, total);
+    }
+
+    private void OnCancelUninstall(ExtensionItemView itemView)
+    {
+        ExtensionManager.RemovePendingUninstall(itemView.ExtensionPath);
+        itemView.UnmarkPendingUninstall();
     }
 
     private async void OnUninstallExtension(ExtensionItemView itemView)

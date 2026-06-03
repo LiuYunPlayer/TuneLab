@@ -17,6 +17,7 @@ namespace TuneLab.UI;
 internal class ExtensionItemView : Border
 {
     public event Action? UninstallRequested;
+    public event Action? CancelUninstallRequested;
     public string ExtensionName { get; }
     public string ExtensionVersion { get; }
     public string ExtensionType { get; }
@@ -97,8 +98,17 @@ internal class ExtensionItemView : Border
             mUninstallBtn.PointerPressed += (s, e) =>
             {
                 e.Handled = true;
-                if (!IsPendingUninstall)
+                if (IsPendingUninstall)
+                {
+                    // 已标记待卸载：点击弹菜单给"取消卸载"反悔入口（防误点）。
+                    var menu = new ContextMenu();
+                    menu.Items.Add(new MenuItem().SetName("Cancel Uninstall".Tr(TC.Dialog)).SetAction(() => CancelUninstallRequested?.Invoke()));
+                    mUninstallBtn.OpenContextMenu(menu);
+                }
+                else
+                {
                     UninstallRequested?.Invoke();
+                }
             };
             bottomRow.AddDock(mUninstallBtn, Dock.Right);
 
@@ -210,9 +220,22 @@ internal class ExtensionItemView : Border
 
         IsPendingUninstall = true;
         mUninstallBtn.Background = Style.BACK.ToBrush();
-        mUninstallBtn.Cursor = Cursor.Default;
+        mUninstallBtn.Cursor = new Cursor(StandardCursorType.Hand);
         mUninstallBtnText.Text = "Pending Uninstall".Tr(TC.Dialog);
         mUninstallBtnText.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
+    }
+
+    // 撤销待卸载，恢复成可卸载状态。
+    public void UnmarkPendingUninstall()
+    {
+        if (!IsPendingUninstall)
+            return;
+
+        IsPendingUninstall = false;
+        mUninstallBtn.Background = Style.BUTTON_NORMAL.ToBrush();
+        mUninstallBtn.Cursor = new Cursor(StandardCursorType.Hand);
+        mUninstallBtnText.Text = "Uninstall".Tr(TC.Dialog);
+        mUninstallBtnText.Foreground = Style.LIGHT_WHITE.ToBrush();
     }
 
     readonly Border mUninstallBtn;
