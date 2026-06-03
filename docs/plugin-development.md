@@ -7,10 +7,10 @@
 
 ## 1. 核心概念
 
-- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §6）。
+- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §7）。
 - **`description.json` 是包的身份标识**，必须放在包文件夹的**最外层**。新版（V1）插件**必须**带它；TuneLab 先读这个文件，再据其内容**有选择地**加载包内程序集——不会盲目扫描整个文件夹。
 - **一个包可以含多个插件**。若你有一套共用的基建程序集，可以把基于它开发的多个插件打进同一个包，基建只分发一份、运行时也只加载一份（它们共享同一个加载上下文）。
-- **插件类别（type）**：当前支持 `format`（工程文件导入/导出）与 `voice`（歌声合成引擎）。`effect`（效果器）即将到来。包还可以是纯**资源包**（无代码，如音色资源）。
+- **插件类别（type）**：当前支持 `format`（工程文件导入/导出）、`voice`（歌声合成引擎）与 `effect`（效果器，对合成音频做整段离线变换，如换声）。包还可以是纯**资源包**（无代码，如音色资源）。
 
 每个插件包在加载时被放进一个**独立的 AssemblyLoadContext（ALC）**：
 
@@ -113,6 +113,7 @@
     <Reference Include="TuneLab.SDK.Base" />
     <Reference Include="TuneLab.SDK.Format" /> <!-- format 插件 -->
     <Reference Include="TuneLab.SDK.Voice" /> <!-- voice 插件 -->
+    <Reference Include="TuneLab.SDK.Effect" /> <!-- effect 插件 -->
   </ItemGroup>
 </Project>
 ```
@@ -199,7 +200,85 @@ public class MyVoiceEngine : IVoiceEngine
 
 ---
 
-## 6. 打包、安装、卸载
+## 6. 编写 Effect 插件
+
+效果器（effect）对**已合成的整段音频**做变换。它面向**耗时较长的离线模型**（如 SVC 换声、神经音色转换），不是实时的 VST 式效果器。
+
+实现 `IEffectEngine`，用 `[EffectEngine("type")]` 声明类型标识。需要**无参构造函数**。
+
+```csharp
+using TuneLab.Primitives.Audio;
+using TuneLab.Primitives.DataStructures;
+using TuneLab.SDK.Base;
+using TuneLab.SDK.Effect;
+
+[EffectEngine("MyEffect")]            // 效果器类型标识（唯一）
+public class MyEffectEngine : IEffectEngine
+{
+    // 参数面板：声明暴露给用户的可编辑参数（渲染为属性面板）。
+    public ObjectConfig PropertyConfig => mPropertyConfig;
+    // 可随时间变化的自动化参数（可空）。
+    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+
+    // enginePath = 你的包文件夹路径，用来定位随包分发的模型/资源。
+    public bool Init(string enginePath, out string? error)
+    {
+        error = null;
+        // ... 加载模型 ...
+        return true;
+    }
+
+    public void Destroy() { /* 释放资源 */ }
+
+    public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output)
+        => new MyEffectTask(input, output);
+
+    readonly ObjectConfig mPropertyConfig = new(new OrderedMap<string, IControllerConfig>());
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+}
+```
+
+合成任务一次性处理整段音频：`Start()` 后异步处理，把结果写入 `output.Audio`，完成时触发 `Complete`。
+
+```csharp
+class MyEffectTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
+{
+    public event Action? Complete;
+    public event Action<double>? Progress;
+    public event Action<string>? Error;
+
+    public void Start()
+    {
+        try
+        {
+            var src = input.Audio;                       // 整段上游音频（voice 或上一个 effect 的输出）
+            double amount = input.Properties.GetDouble("amount", 1.0);
+            // 自动化（可选）：按采样时间点取值
+            // if (input.TryGetAutomation("intensity", out var getter)) { var times = ...; var values = getter.GetValue(times); }
+            var processed = Process(src.Samples, amount);
+            output.Audio = new MonoAudio(src.StartTime, src.SampleRate, processed);
+            Complete?.Invoke();
+        }
+        catch (Exception ex) { Error?.Invoke(ex.Message); }
+    }
+
+    public void Stop() { /* 取消处理 */ }
+}
+```
+
+要点：
+
+- **输入/输出都是整段 `MonoAudio`**（`Primitives.Audio`）：`StartTime` / `SampleRate` / `Samples`（`float[]` 单声道）。原样整进整出，不要求逐缓冲流式处理。
+- **参数读取**：`input.Properties`（`PropertyObject`）按 `PropertyConfig` 声明的键取值（`GetDouble`/`GetString`/`GetBool`/`GetEnum`…）。
+- **效果链**：一条音轨的 MidiPart 上可挂多个 effect，按声明顺序**串行**——上一个的输出是下一个的输入。链顺序、启用（bypass）、增删由用户在属性面板里管理。
+- **分段处理**：合成以「片段」为单位（由歌声引擎的分片决定），每个片段独立过你的链——片段之间的连续性由分片负责，你只需处理拿到的这一段。
+- **失败优雅降级**：`Error` 或抛异常时，宿主把该级当作直通（passthrough），不中断整段播放。
+
+相关接口都在 `TuneLab.SDK.Effect`：`IEffectEngine` / `IEffectSynthesisInput` / `IEffectSynthesisOutput` / `IEffectSynthesisTask`。
+
+---
+
+## 7. 打包、安装、卸载
 
 - **包格式**：把包文件夹打成 zip，扩展名改为 **`.tlx`**，要求 `description.json` 在 zip 的**根目录**。
 - **安装**：在 TuneLab 里把 `.tlx` 拖进窗口，或用扩展侧边栏的「Install Extension」。安装即解压到扩展目录并**立即加载**（无需重启）。
@@ -208,7 +287,7 @@ public class MyVoiceEngine : IVoiceEngine
 
 ---
 
-## 7. 加载与校验行为
+## 8. 加载与校验行为
 
 TuneLab 加载每个包时：**发现** → 读 `description.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？程序集存在？）→ 为包建一个 **per-folder ALC** → 按 `assemblies`（或全扫）**选择性加载** → 扫 attribute **实例化注册**。
 

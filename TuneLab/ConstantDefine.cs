@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Voice;
+using TuneLab.SDK.Base;
 
 namespace TuneLab;
 

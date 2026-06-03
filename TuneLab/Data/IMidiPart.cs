@@ -28,6 +28,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IVoice Voice { get; }
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
+    IReadOnlyDataObjectList<IEffect> Effects { get; }
     IPiecewiseCurve Pitch { get; }
     IReadOnlyList<ISynthesisPiece> SynthesisPieces { get; }
     IAutomation? AddAutomation(string automationID);
@@ -38,6 +39,9 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     INote CreateNote(NoteInfo info);
     void InsertNote(INote note);
     bool RemoveNote(INote note);
+    IEffect CreateEffect(EffectInfo info);
+    void InsertEffect(int index, IEffect effect);
+    bool RemoveEffect(IEffect effect);
     Vibrato CreateVibrato(VibratoInfo info);
     void InsertVibrato(Vibrato note);
     bool RemoveVibrato(Vibrato note);

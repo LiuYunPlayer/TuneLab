@@ -2,7 +2,6 @@ using LProp = TuneLab.Base.Properties;
 using LStruct = TuneLab.Base.Structures;
 using LVoice = TuneLab.Extensions.Voices;
 using VBase = TuneLab.SDK.Base;
-using VVoice = TuneLab.SDK.Voice;
 using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
@@ -35,7 +34,7 @@ internal static class ControllerConfigConvert
         }
     }
 
-    public static VVoice.AutomationConfig ToV1(this LVoice.AutomationConfig a)
+    public static VBase.AutomationConfig ToV1(this LVoice.AutomationConfig a)
         => new(a.Name, a.DefaultValue, a.MinValue, a.MaxValue, a.Color);
 
     public static PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig> ToV1ConfigMap(
@@ -47,10 +46,10 @@ internal static class ControllerConfigConvert
         return map;
     }
 
-    public static PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> ToV1AutomationMap(
+    public static PStruct.IReadOnlyOrderedMap<string, VBase.AutomationConfig> ToV1AutomationMap(
         this LStruct.IReadOnlyOrderedMap<string, LVoice.AutomationConfig> old)
     {
-        var map = new PStruct.OrderedMap<string, VVoice.AutomationConfig>();
+        var map = new PStruct.OrderedMap<string, VBase.AutomationConfig>();
         foreach (var kv in old)
             map.Add(kv.Key, kv.Value.ToV1());
         return map;

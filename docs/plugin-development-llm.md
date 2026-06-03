@@ -7,7 +7,7 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `description.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Primitives` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。format 插件用 `[ImportFormat("ext")]`/`[ExportFormat("ext")]` 实现 `IImportFormat`/`IExportFormat`；voice 插件用 `[VoiceEngine("type")]` 实现 `IVoiceEngine`；所有插件类需有**无参构造函数**。`description.json` 里 `type` 必填、`assemblies` 选填（写了只扫这几个程序集）、含代码时 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `description.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Primitives` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。format 插件用 `[ImportFormat("ext")]`/`[ExportFormat("ext")]` 实现 `IImportFormat`/`IExportFormat`；voice 插件用 `[VoiceEngine("type")]` 实现 `IVoiceEngine`；effect 插件用 `[EffectEngine("type")]` 实现 `IEffectEngine`（对整段音频做离线变换）；所有插件类需有**无参构造函数**。`description.json` 里 `type` 必填、`assemblies` 选填（写了只扫这几个程序集）、含代码时 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
@@ -28,7 +28,7 @@
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素）：
-- `type` (string, **必填**) — `"format"` | `"voice"` | `"effect"`（尚未支持）| 资源类（如 `"voicebank"`）。
+- `type` (string, **必填**) — `"format"` | `"voice"` | `"effect"` | 资源类（如 `"voicebank"`）。
 - `assemblies` (string[], 选填) — 相对包根的程序集路径。**写了**=只加载+扫描这些；**没写**(代码插件)=扫全部 `*.dll`；资源包不写。
 - `platforms` (string[], 选填) — 如 `["win","osx","linux"]` 或 `["win-x64"]`；空=全平台。
 
@@ -39,7 +39,7 @@
 
 ### 工程配置
 - `<TargetFramework>net8.0</TargetFramework>`（固定）。
-- 引用：`TuneLab.Primitives`、`TuneLab.SDK.Base`，按需 `TuneLab.SDK.Format` / `TuneLab.SDK.Voice`。
+- 引用：`TuneLab.Primitives`、`TuneLab.SDK.Base`，按需 `TuneLab.SDK.Format` / `TuneLab.SDK.Voice` / `TuneLab.SDK.Effect`。
 - **禁止**引用 `TuneLab.Foundation`、`TuneLab`（主程序）、或任何 `TuneLab.Extensions.*`（那是 Legacy）。
 - SDK 引用 `Private=false`（不复制输出、不随包分发）。
 
@@ -64,7 +64,32 @@ public interface IVoiceEngine {
 [AttributeUsage(AttributeTargets.Class)] public class VoiceEngineAttribute : Attribute { public VoiceEngineAttribute(string type); }
 ```
 - `type` 唯一。实现类需无参构造函数。
-- 相关类型：`IVoiceSource`、`ISynthesisData`、`ISynthesisTask`、`SynthesisResult`、`SynthesizedPhoneme`、`VoiceSourceInfo`、`AutomationConfig`。
+- 相关类型：`IVoiceSource`、`ISynthesisData`、`ISynthesisTask`、`SynthesisResult`、`SynthesizedPhoneme`、`VoiceSourceInfo`；`AutomationConfig` 与 `IAutomationValueGetter` 在 `TuneLab.SDK.Base`。
+
+### Effect 接口（命名空间 `TuneLab.SDK.Effect`）
+```csharp
+public interface IEffectEngine {
+    ObjectConfig PropertyConfig { get; }                                   // TuneLab.SDK.Base，参数面板
+    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; } // TuneLab.SDK.Base
+    bool Init(string enginePath, out string? error);                       // enginePath = 包文件夹
+    void Destroy();
+    IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output);
+}
+public interface IEffectSynthesisInput {
+    MonoAudio Audio { get; }                                               // TuneLab.Primitives.Audio，整段上游音频
+    PropertyObject Properties { get; }                                     // TuneLab.Primitives.Property，参数快照
+    bool TryGetAutomation(string automationId, out IAutomationValueGetter? automation);
+}
+public interface IEffectSynthesisOutput { MonoAudio Audio { get; set; } }  // 把处理结果写这里
+public interface IEffectSynthesisTask {
+    event Action? Complete; event Action<double>? Progress; event Action<string>? Error;
+    void Start(); void Stop();
+}
+[AttributeUsage(AttributeTargets.Class)] public class EffectEngineAttribute : Attribute { public EffectEngineAttribute(string type); }
+```
+- effect = 对**整段已合成音频**的离线变换（如 SVC 换声），非实时 VST。`type` 唯一，实现类需无参构造函数。
+- `MonoAudio`：`double StartTime`、`int SampleRate`、`float[] Samples`（单声道）。任务 `Start()` 异步处理后写 `output.Audio` 并触发 `Complete`；出错触发 `Error`（宿主按 passthrough 降级）。
+- 一个 MidiPart 上多个 effect 按声明顺序串行，上一个输出是下一个输入；启用/顺序由用户管理。
 
 ### 常见错误（避免）
 - ❌ 漏 `id` → 被当成 Legacy。

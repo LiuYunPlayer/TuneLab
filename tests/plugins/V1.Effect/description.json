@@ -1,0 +1,10 @@
+{
+  "id": "com.tunelab.test.v1effect",
+  "name": "V1 Test Effect",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "V1 effect 测试：同包两个引擎 Gain(参数增益) + Reverse(倒放)，验证 effect 链/bypass/重排/参数面板。",
+  "sdk-version": "1.0",
+  "type": "effect",
+  "assemblies": ["V1.Effect.dll"]
+}

@@ -4,6 +4,7 @@ using System.Linq;
 using LProp = TuneLab.Base.Properties;
 using LVoice = TuneLab.Extensions.Voices;
 using VVoice = TuneLab.SDK.Voice;
+using VBase = TuneLab.SDK.Base;
 using TuneLab.Hosting.Compat.Legacy.Conversion;
 
 namespace TuneLab.Hosting.Compat.Legacy.Voice;
@@ -34,7 +35,7 @@ internal sealed class SynthesisDataAdapter(VVoice.ISynthesisData data) : LVoice.
 }
 
 // 自动化取值器：双向签名一致（double[] GetValue(IReadOnlyList<double>)），直接转发。
-internal sealed class AutomationValueGetterAdapter(VVoice.IAutomationValueGetter v1) : LVoice.IAutomationValueGetter
+internal sealed class AutomationValueGetterAdapter(VBase.IAutomationValueGetter v1) : LVoice.IAutomationValueGetter
 {
     public double[] GetValue(IReadOnlyList<double> times) => v1.GetValue(times);
 }

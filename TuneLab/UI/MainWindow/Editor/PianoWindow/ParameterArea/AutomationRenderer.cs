@@ -8,6 +8,7 @@ using TuneLab.Animation;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.SDK.Voice;
+using TuneLab.SDK.Base;
 using Avalonia.Media;
 using TuneLab.GUI.Input;
 using TuneLab.GUI.Components;

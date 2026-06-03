@@ -29,7 +29,7 @@ namespace TuneLab.UI;
 
 internal class PropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPresetPanel, mPartPanel, mAutomationPanel, mNotePanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPresetPanel, mPartPanel, mEffectsPanel, mAutomationPanel, mNotePanel] };
 
     public PropertySideBarContentProvider()
     {
@@ -61,6 +61,12 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPartContent.Children.Add(mPartFixedController);
         mPartContent.Children.Add(mPartPropertiesController);
         mPartPanel.Content = mPartContent;
+
+        var effectsName = new Label() { Content = "Effects".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        mEffectsPanel.Title = effectsName;
+        mEffectsContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mEffectsContent.Children.Add(mEffectsController);
+        mEffectsPanel.Content = mEffectsContent;
 
         var automationName = new Label() { Content = "Automation".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mAutomationPanel.Title = automationName;
@@ -151,6 +157,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPartFixedController.Part = part;
         mPartPropertiesController.SetConfig(part.Voice.PartProperties);
         mNotePropertiesController.SetConfig(part.Voice.NoteProperties);
+        mEffectsController.SetPart(part);
 
         RefreshAutomationController();
         RefreshPartPropertiesController();
@@ -163,6 +170,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPartFixedController.Part = null;
         mPartPropertiesController.ResetConfig();
         mNotePropertiesController.ResetConfig();
+        mEffectsController.SetPart(null);
     }
 
     void OnConfigChnaged()
@@ -650,10 +658,12 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
+    readonly StackPanel mEffectsContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPresetPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mEffectsPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
     readonly LayerPanel mNoteContentPanel = new();
@@ -661,6 +671,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly ComboBoxController mPresetComboBox = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
     readonly TuneLab.GUI.Components.Button mPresetMoreButton;
     readonly ObjectController mAutomationController = new();
+    readonly EffectsController mEffectsController = new();
     readonly MidiPartFixedController mPartFixedController = new();
     readonly ObjectController mPartPropertiesController = new();
     readonly ObjectController mNotePropertiesController = new();

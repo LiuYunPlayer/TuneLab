@@ -10,6 +10,7 @@ using TuneLab.Utils;
 
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Effect;
 namespace TuneLab.Extensions;
 
 // 扩展统一加载管线：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
@@ -35,6 +36,7 @@ internal static class ExtensionManager
         PathManager.MakeSureExist(PathManager.ExtensionsFolder);
         FormatsManager.LoadBuiltIn();
         VoicesManager.LoadBuiltIn();
+        EffectManager.LoadBuiltIn();
         foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
         {
             Load(dir);
@@ -44,6 +46,7 @@ internal static class ExtensionManager
     public static void Destroy()
     {
         VoicesManager.Destroy();
+        EffectManager.Destroy();
     }
 
     // 加载单个插件包目录；结果累积进 LoadResults（供 sidebar 实时刷新）。失败不崩主程序。
@@ -140,15 +143,6 @@ internal static class ExtensionManager
             if (!IsCodeKind(kind))
             {
                 loaded++;
-                continue;
-            }
-
-            // effect：SDK.Effect 接口形状未定，暂不支持，优雅降级。
-            if (kind == "effect")
-            {
-                skipped++;
-                skipReasons.Add("effect extensions are not supported in this build yet");
-                Log.Warning(string.Format("Extension {0}: effect extensions are not supported in this build yet.", description.name));
                 continue;
             }
 
@@ -296,6 +290,7 @@ internal static class ExtensionManager
         {
             case "format": FormatsManager.RegisterFromTypes(types); break;
             case "voice": VoicesManager.RegisterFromTypes(types, path); break;
+            case "effect": EffectManager.RegisterFromTypes(types, path); break;
         }
     }
 

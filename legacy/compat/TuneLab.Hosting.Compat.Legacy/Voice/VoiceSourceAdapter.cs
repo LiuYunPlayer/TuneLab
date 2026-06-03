@@ -14,7 +14,7 @@ internal sealed class VoiceSourceAdapter(LVoice.IVoiceSource legacy) : VVoice.IV
     public string Name => legacy.Name;
     public string DefaultLyric => legacy.DefaultLyric;
 
-    public PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> AutomationConfigs
+    public PStruct.IReadOnlyOrderedMap<string, VBase.AutomationConfig> AutomationConfigs
         => mAutomationConfigs ??= legacy.AutomationConfigs.ToV1AutomationMap();
 
     public PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig> PartProperties
@@ -66,7 +66,7 @@ internal sealed class VoiceSourceAdapter(LVoice.IVoiceSource legacy) : VVoice.IV
         return new SynthesisTaskAdapter(task);
     }
 
-    PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig>? mAutomationConfigs;
+    PStruct.IReadOnlyOrderedMap<string, VBase.AutomationConfig>? mAutomationConfigs;
     PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig>? mPartProperties;
     PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig>? mNoteProperties;
 }

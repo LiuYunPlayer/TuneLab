@@ -270,7 +270,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 |---|---|---|---|
 | 值模型 | `PropertyValue` 树（Null/Bool/Number/String/Array/Object）+ `IPrimitiveValue` 标记接口 + `PropertyType` | **Primitives**（冻结） | Foundation(live-doc 存值) + SDK(`ISynthesisNote.Properties`) + 序列化(`DataInfo`) 都用 → 过 §三.10 "双方共用" 准入 |
 | 通用控件 Config | `IControllerConfig` + `Slider`/`CheckBox`/`ComboBox`/`TextBox`/`Object`Config | **SDK.Base**（冻结） | 仅 SDK 声明 + host/UI 消费，Foundation **不引用** → 不过 Primitives 准入；且为表现层增长面，隔离在 SDK.Base 受 DIM 治理 |
-| 域专属 Config | `AutomationConfig`（name/min/max/color） | 对应 `SDK.*`（voice） | master 本就在 voice SDK；voice 概念，非中性 |
+| 域专属 Config | `AutomationConfig`（name/min/max/color） | **SDK.Base**（#11 修订） | 原定 SDK.Voice（"voice 概念"）；#11 发现 effect 也声明 AutomationConfig → 实为"自动化轨通用配置"，连同 `IAutomationValueGetter` 一并搬 SDK.Base 单份共用（见 §三.19） |
 | live-doc | `DataPropertyObject`/`DataPropertyValue`/`DataPropertyArray` 等 | **Foundation** | host-only undo/attach 基础设施；插件只见 `PropertyObject` 快照，永不拿 live 树 |
 | controllers | `IValueController`/`IDataValueController` | **UI**（#2 已搬） | 值编辑 UI 绑定 |
 
@@ -473,6 +473,28 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 ---
 
+### 19. Effect 新功能：离线整段音频变换 + per-piece 串行链（#11 确立，已改代码）
+
+承 §三.7 蓝图（SDK.Effect 占位）+ §三.10/§三.12（SDK 分层）+ §三.15（双向穿越）。本话题把 effect 从占位落成完整功能，`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）均 **0 错误**；零 effect 的既有工程行为不变（FinalizeChain 直接取 voice 输出）。
+
+**定位（先讨论达成共识）**：effect 面向**耗时长的离线模型**（如 SVC 换声），**不是实时 VST**（reverb/EQ 等留后续）。决定了任务式异步 + 整段 `MonoAudio` 进出的形状。
+
+**SDK.Effect 形状（最小冻结面）**：`IEffectEngine`（`PropertyConfig: ObjectConfig` + `AutomationConfigs` + `Init(enginePath, out error)` + `Destroy` + `CreateSynthesisTask(input, output)`）；`IEffectSynthesisInput`（`MonoAudio Audio` + `PropertyObject Properties` + `TryGetAutomation`）；`IEffectSynthesisOutput`（`MonoAudio Audio` sink，**塌缩**——不再 `: ISynthesisOutput`）；`IEffectSynthesisTask`（`Complete`/`Progress`/`Error` + `Start`/`Stop`，一次性处理器）；`[EffectEngine("type")]`。**dirty/缓存全归宿主编排器，SDK 不含 DirtyEvent**（比 effect 分支更小）；输出仅音频（pitch/automation 回写推迟）。
+
+**共享词汇抽到 SDK.Base（修订 §三.12）**：`IAutomationValueGetter` + `AutomationConfig` 从 SDK.Voice 搬到 **SDK.Base**（voice/effect 共用，合"定义一份"纪律；V1 无野外插件、ABI 零破坏，纯内部 churn——含 host UI + Compat.Legacy 命名空间改写）。`ISynthesisNote`/`SynthesizedPhoneme` 仍留 SDK.Voice。
+
+**数据模型（纯加性）**：`EffectInfo`（Type/IsEnabled/Automations/Properties）→ SDK.Format.DataInfo；`MidiPartInfo.Effects: List<EffectInfo>`（master 本无此字段）；host `IEffect`/`Effect`（挂 MidiPart，`Type` 不可变、`IsEnabled`=bypass、`Properties`=DataPropertyObject、`Automations` 复用现有 `Automation` 类）；`mEffects: DataObjectList<IEffect>` 有序链 + Insert/Remove/IndexOf。config 取自 `EffectManager.GetInitedEngine(Type)`，引擎缺失→空配置 + passthrough。
+
+**EffectManager**（镜像 VoicesManager）：`[EffectEngine]` attribute 发现、惰性 Init、`RegisterFromTypes`；接入 `ExtensionManager`（删除"effect 暂不支持"跳过，加 LoadBuiltIn/Destroy/RegisterByKind 的 effect 分支）。
+
+**合成接入（SynthesisPiece 内编排，不动 voice/AudioGraph）**：voice `Complete` 后把 `float[]` 包成 `MonoAudio`，**按 piece（voice 分片）独立**串行过链——每级 `CreateSynthesisTask` 异步处理，链尾输出 = piece 最终音频。**per-piece 是有意的 context 缩减**（片间连续性由 voice 分片函数负责，非 effect 跨段拼接）。**每级输出缓存 + 仅下游失效**：effect[i] 参数/启用/自动化变化→从 i 级重跑（上游缓存复用，避免重跑昂贵 SVC）；链结构变化→从 0；voice 脏→整链。bypass / 引擎缺失 / 出错 = 该级 passthrough，优雅降级。generation 计数 + 同步上下文 post 防异步竞态。
+
+**UI（最小）**：属性侧栏新增 Effects 面板（`EffectsController`）——链列表 + 增/删/上下移/bypass + 「Add Effect」菜单列引擎类型；参数面板**复用现有 `ObjectController`**（按 effect 的 `PropertyConfig` 渲染、`Properties` 双向）。**per-effect 时间轴自动化编辑 UI 推迟**（数据模型/接口已支持，曲线编辑后补）；preset 与属性面板重设计随后续。
+
+配套：[plugin-development.md](plugin-development.md) 加 §6 Effect 章节 + [plugin-development-llm.md](plugin-development-llm.md) 加 Effect 接口清单。
+
+---
+
 ## 四、讨论话题清单（按依赖顺序）
 
 每个话题独立成 session。session 开始时：
@@ -667,3 +689,4 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 - ✅ **#10 description.json & 扩展加载机制**（2026-06-02）— **改代码话题**，Debug/Release **0 错误**。落地新版加载器：**代际判定看 `id` 有无**（V1 必带 id；讨论中由 `sdk-version` 改定，因资源包无 sdk-version——id 通用于代码+资源包）；**物理键仍是文件夹**、id 为 V1 逻辑标识、Legacy 不造假 id、注册键来自 attribute。**插件单位 = 文件夹（包）= ALC = 卸载原子单位**，一包可多插件（`extensions[]` 保留每插件元数据）共享同 ALC/基建，单插件简写经 `EffectiveExtensions` 归一化。新增 `ExtensionInfo`/`ExtensionDescription`（加 `id`/`sdk-version`/`extensions`）、`PluginLoadContext`（per-folder ALC + 契约共享 + `isCollectible` 预留）、`ExtensionLoadResult`；`ExtensionManager` 重写为统一管线（发现→判代际→校验→V1 选择性 ALC 加载/Legacy `LegacyLoadHook`+盲扫 fallback）优雅降级；Format/Voice manager 改 `RegisterFromTypes`；sidebar 接真实 `LoadResults`、删 `DetectExtensionType`。**推迟**：collectible 热卸载（已 ready，维持重启式）、effect（识别但待 #11）、Compat.Legacy 实装（`LegacyLoadHook` 是接入点，留 #9 尾）、context 注入（待 #11）。产出开发者指南 + AI 参考两份文档。详见 §三.17。
 - ✅ **#8 Adapter 模式 + ALC 隔离评估**（2026-06-02）— 纯决策，不改代码（Compat 代码留 #9/#10/#11）。**命名分代**：Legacy（现 master 老 SDK，野外插件链接）/ V1（#7 新 SDK）/ V2；兼容层 `Compat.<被桥接代>`（当下 `Hosting.Compat.Legacy`）。**extern alias** 仅消歧同名不同版 → Legacy→V1 名字不同**无需 alias**，首次用在 V1→V2。**跨 .NET 升级**靠 TFM ABI 地板 + roll-forward（host 升级不重编 SDK、插件不重编），非 ALC。**ALC 加载模型**：永远 per-plugin ALC + **共享契约**（Primitives+SDK.* 走 Default 共享、插件私有依赖进各自 ALC）+ **非 collectible 起步**（隔离好处全得、无泄漏/性能税）；collectible 热卸载留 #10（触发=卸载即时生效），靠"事件 IDisposable 退订 + 插件实例单点持有"不变量保证升级为**加性**。ALC **不**减 adapter 代码、**不**提供崩溃隔离（纠正 §三.5）。**老 SDK 留源码隔离冻结**（修订 §三.3：独立 sln + 钉死版本/TFM + 禁改标注）。**Capability** 与 compat 正交（compat 为 Legacy 合成能力面）。**双向穿越**：DTO eager 深拷贝、热缓冲零拷贝共享、note 包装身份保持缓存、live doc 永不跨界、事件适配器 IDisposable。**性能实测**：wrapper/装箱全落冷设置路径可忽略，`Properties[key]` eager 转换零分配（37ns/0B）；规则=边界 eager 转换不给 lazy wrapper。详见 §三.15。
 - ✅ **#9 尾 Compat.Legacy 实装**（2026-06-02）— **改代码话题**，`TuneLab.sln` + `legacy/Legacy.slnx`（均 Debug/Release）**0 错误**，编译期隔离经探针验证（主程序 `using TuneLab.Base` 报 CS0234）。**Legacy 冻结**：三程序集 `git mv` 进 `legacy/sdk/src/`，内联钉 `AssemblyVersion=1.0.0.0` + 冻结禁改头 + 空 `Directory.Build.props` 截断主仓继承；从 `TuneLab.sln` 移除、自成 `legacy/Legacy.slnx`。**引用策略=反射加载零编译依赖（用户定，强于原设想）**：主程序无任何 ProjectReference，`LegacyCompatLoader.Wire()` 反射 `LoadFrom` Compat.dll 取 `LegacyCompatEntry.TryLoad`、注入注册委托（参数全是共享契约类型，跨 Default ALC 同一 Type）装上 `LegacyLoadHook`；注册反转（host 实现委托转发 `FormatsManager.RegisterImporter`/`Exporter`、`VoicesManager.RegisterEngine`）；MSBuild target 构建 Compat + 拷产物 dll 进输出。**Format + Voice 真正并行全实装**（采纳 §三.16 #10 修订，Voice 不门控 #11）：`LegacyPluginLoadContext`（per-plugin ALC + 共享三冻结+SDK 契约）；`FormatConverter` 全字段双向深拷贝；Voice 全套适配器 + **note 身份缓存**（phonemes 键映射回宿主）+ **`SynthesisTaskAdapter : IDisposable`** 事件桥退订（宿主 `SynthesisPiece.Dispose` 触发，落实 §三.15 不变量）+ audio `float[]` 零拷贝；`Segment<T>` 泛型保留、适配器用下标回查**零强制转换**（SDK 重设计另案）；Property/Config/Point 边界转换 1:1。全程优雅降级。**前瞻**：多版本 compat 定为**直桥当前代不链式**（Voice 活 wrapper 链式有 per-access 成本），加载器统一参数化、仅适配器按代写，宿主单发现管线 + 代→Compat 注册表（今 `LegacyLoadHook` 为退化特例）。**测试与硬化（2026-06-03）**：产出 `tests/` 测试插件套件（13 包 + 用例 + .tlx 脚本 + 样例文件），**全部用例通过**，真实野外插件（ChoristaUtau 等）端到端验证；真机暴露并修复 7 处（加载顺序竞态[关键]、批量安装坏包崩溃、Compat 诊断日志、侧边栏状态徽标、Skipped 原因、待卸载可撤销、重装对话框列名）。详见 §三.18。
+- ✅ **#11 Effect 新功能**（2026-06-03）— **改代码话题**（effect 分支的核心需求），`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx` 均 **0 错误**；零 effect 既有工程行为不变。先做设计讨论达成共识：effect = **耗时长的离线整段音频变换**（如 SVC 换声），**非实时 VST**（后者留后续）→ 任务式异步 + 整段 `MonoAudio` 进出。**SDK.Effect**（最小冻结面）：`IEffectEngine`/`IEffectSynthesisInput`(`MonoAudio`+`PropertyObject`+`TryGetAutomation`)/`IEffectSynthesisOutput`(音频 sink，塌缩、不再 `: ISynthesisOutput`)/`IEffectSynthesisTask`(一次性 Complete/Progress/Error)+`[EffectEngine]`；**dirty/缓存全归宿主、SDK 不含 DirtyEvent**，输出仅音频（pitch/automation 回写推迟）。**`IAutomationValueGetter`+`AutomationConfig` 从 SDK.Voice 搬 SDK.Base**（voice/effect 共用，修订 §三.12；V1 无野外插件 ABI 零破坏）。**数据模型**纯加性：`EffectInfo`→SDK.Format、`MidiPartInfo.Effects`、host `IEffect`/`Effect`（挂 MidiPart、`IsEnabled`=bypass、复用 `Automation`）、`mEffects: DataObjectList<IEffect>` 有序链。**EffectManager** 镜像 VoicesManager（attribute 发现 + 惰性 Init），接入 `ExtensionManager`（删"effect 暂不支持"）。**合成接入** SynthesisPiece：voice 完成后按 **piece 独立**串行过链（context 缩减、连续性归 voice 分片），**每级缓存 + 仅下游失效**（避免重跑昂贵 SVC），bypass/缺失/出错=passthrough，generation 防竞态；不动 voice SDK/AudioGraph。**最小 UI**：属性侧栏 Effects 面板（`EffectsController`，增删/上下移/bypass + Add 菜单）+ 参数面板复用 `ObjectController`。**推迟**：per-effect 时间轴自动化编辑 UI（模型已支持）、preset、面板重设计。开发文档 [plugin-development.md](plugin-development.md) §6 + AI 参考 effect 接口清单已补。详见 §三.19。
