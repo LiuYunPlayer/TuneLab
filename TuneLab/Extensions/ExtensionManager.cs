@@ -117,12 +117,14 @@ internal static class ExtensionManager
         // ── 加载：per-folder ALC，遍历归一化后的各 extension ──
         PluginLoadContext? alc = null;
         int loaded = 0, failed = 0, skipped = 0;
+        var skipReasons = new List<string>();
 
         foreach (var ext in description.EffectiveExtensions)
         {
             if (!ext.IsPlatformAvailable())
             {
                 skipped++;
+                skipReasons.Add(string.Format("{0}: platform not available", string.IsNullOrEmpty(ext.type) ? "extension" : ext.type));
                 continue;
             }
 
@@ -141,6 +143,7 @@ internal static class ExtensionManager
             if (kind == "effect")
             {
                 skipped++;
+                skipReasons.Add("effect extensions are not supported in this build yet");
                 Log.Warning(string.Format("Extension {0}: effect extensions are not supported in this build yet.", description.name));
                 continue;
             }
@@ -185,6 +188,11 @@ internal static class ExtensionManager
             result.Status = (failed == 0 && skipped == 0) ? ExtensionLoadStatus.Loaded : ExtensionLoadStatus.PartiallyLoaded;
         else
             result.Status = failed > 0 ? ExtensionLoadStatus.Failed : ExtensionLoadStatus.Skipped;
+
+        // 跳过原因填入 Error（供侧边栏 tooltip 展示）；sdk-version 等已提前设置过的不覆盖。
+        if ((result.Status == ExtensionLoadStatus.Skipped || result.Status == ExtensionLoadStatus.PartiallyLoaded)
+            && string.IsNullOrEmpty(result.Error) && skipReasons.Count > 0)
+            result.Error = string.Join("; ", skipReasons);
     }
 
     static void LoadLegacy(string path, ExtensionDescription? description, string folderName)
