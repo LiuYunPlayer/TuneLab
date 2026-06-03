@@ -9,14 +9,22 @@
 dotnet build tests/TestPlugins.slnx -c Debug
 ```
 
-构建产物落 `tests/packages/<包名>/`（每个 = 一个插件包文件夹：`description.json` + dll）。验证方式二选一：
+构建产物落 `tests/packages/<包名>/`（每个 = 一个插件包文件夹：`description.json` + dll）。**manifest-only 变体**（无需构建的纯 `description.json` 包）在 `tests/manifest-variants/<包名>/`。
 
-- **拖入**：把某个包文件夹拖进 TuneLab 窗口；或扩展侧边栏「Install Extension」。
-- **拷贝**：把包文件夹拷进扩展目录 `%AppData%/TuneLab/Extensions/<包名>/`（Windows），重启或即时加载。
+> ⚠️ **注意：拖「文件夹」进窗口不会安装**。App 的安装单位是 `.tlx`（= zip，根目录含 `description.json`）——`Editor.OnDrop` 只认 `.tlx` 文件。部署二选一：
 
-> `tests/packages/` 是构建产物（已 gitignore）。**manifest-only 变体**（无需构建的纯 `description.json` 包）在 `tests/manifest-variants/<包名>/`，直接拖/拷该文件夹即可。
+**方式 A：打成 .tlx 安装（真实用户路径，即时加载，并顺带覆盖 install 流程测试）**
+```powershell
+pwsh tests/pack-tlx.ps1            # 产物 tests/tlx/*.tlx
+```
+逐个把 `tests/tlx/<包>.tlx` **文件**拖进 TuneLab 窗口，或扩展侧边栏「Install Extension」选择。安装后即时加载、无需重启。
+
+**方式 B：拷文件夹进扩展目录 + 重启（dev 简便，不经 install 流程）**
+把包文件夹拷进 `%AppData%/TuneLab/Extensions/<包名>/`（Windows），重启 App → 启动扫描 `LoadExtensions()` 逐文件夹加载。
 
 加载状态在**扩展侧边栏**查看（Loaded / PartiallyLoaded / Skipped / Failed + 原因）。format 扩展名出现在导入/导出菜单；voice 引擎出现在音轨的引擎/声库选择。
+
+> 提示：`v1-bad-manifest` 用方式 B 测最直接（方式 A 安装时若 `.tlx` 内 description.json 解析报错可能在安装阶段就报错，亦是有效的优雅降级表现）。
 
 ---
 

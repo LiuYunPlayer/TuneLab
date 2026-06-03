@@ -1,3 +1,4 @@
 # 测试插件的构建产物目录（由 tests/plugins/* 工程构建产出，供拖入 App 测试）。
 # 不提交构建产物；用 dotnet build tests/TestPlugins.slnx 重新产出。
 packages/
+tlx/
