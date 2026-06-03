@@ -14,12 +14,13 @@ using TuneLab.Utils;
 
 namespace TuneLab.UI;
 
-// 属性侧栏的自动化「默认值」编辑：每条自动化一行 slider。
+// 属性侧栏的自动化「默认值」编辑：每条自动化一行 slider。voice 与各 effect 的自动化统一在此，
+// voice 一组、每个 effect 一组（分隔符 + effect 名表头），与底部参数栏的分组一致。
 // 专用而非走通用属性面板，是为保留两条定制语义：① 拖动时合并脏标记（BeginMergeDirty/EndMergeDirty）避免每帧重合成；
-// ② 编辑某条尚不存在的自动化时按需 AddAutomation。
+// ② 编辑某条尚不存在的自动化时按需 AddAutomation（voice 走 part、effect 走对应 effect，经 AutomationKey 路由）。
 internal class AutomationDefaultsController : StackPanel
 {
-    public IMidiPart? Part { get => mPart; set => SetPart(value); }
+    public IMidiPart? Part { get => mPart; set { mPart = value; Rebuild(); } }
 
     public AutomationDefaultsController()
     {
@@ -27,7 +28,7 @@ internal class AutomationDefaultsController : StackPanel
         Background = Style.INTERFACE.ToBrush();
     }
 
-    void SetPart(IMidiPart? part)
+    void Rebuild()
     {
         s.DisposeAll();
         foreach (var row in mRows)
@@ -35,15 +36,44 @@ internal class AutomationDefaultsController : StackPanel
         mRows.Clear();
         Children.Clear();
 
-        mPart = part;
         if (mPart == null)
             return;
 
-        foreach (var kvp in mPart.Voice.AutomationConfigs)
-            mRows.Add(new Row(this, kvp.Key, kvp.Value));
+        AddGroup(null, mPart.Voice.AutomationConfigs, -1);
+        for (int i = 0; i < mPart.Effects.Count; i++)
+            AddGroup(mPart.Effects[i].Type, mPart.Effects[i].AutomationConfigs, i);
 
-        // 外部（undo/redo/preset）改默认值 → 刷新所有行显示。合并脏期间被抑制，提交后一次性刷新。
+        // 默认值外部（undo/redo/preset）改动 → 刷新所有行；自动化轨增减 / effect 链变化 → 重建。
         mPart.Automations.Any(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
+        foreach (var effect in mPart.Effects)
+            effect.Automations.Any(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
+        mPart.Effects.ListModified.Subscribe(Rebuild, s);
+    }
+
+    void AddGroup(string? header, IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex)
+    {
+        if (configs.Count == 0)
+            return;
+
+        if (header != null)
+        {
+            Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+            Children.Add(new Label()
+            {
+                Height = 26,
+                FontSize = 12,
+                VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
+                Content = string.IsNullOrEmpty(header) ? "(effect)" : header,
+                Padding = new(24, 0),
+            });
+        }
+
+        foreach (var kvp in configs)
+        {
+            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
+            mRows.Add(new Row(this, key, kvp.Value));
+        }
     }
 
     void Refresh()
@@ -52,11 +82,9 @@ internal class AutomationDefaultsController : StackPanel
             row.Refresh();
     }
 
-    double CurrentValue(string key, double defaultValue)
+    double CurrentValue(AutomationKey key, double defaultValue)
     {
-        if (mPart != null && mPart.Automations.TryGetValue(key, out var automation))
-            return automation.DefaultValue.Value;
-        return defaultValue;
+        return mPart?.GetEffectiveAutomation(key)?.DefaultValue.Value ?? defaultValue;
     }
 
     void BeginEdit()
@@ -68,19 +96,17 @@ internal class AutomationDefaultsController : StackPanel
         mHead = mPart.Head;
     }
 
-    void ChangeValue(string key, double value)
+    void ChangeValue(AutomationKey key, double value)
     {
         if (mPart == null)
             return;
 
         mPart.DiscardTo(mHead);
-        if (!mPart.Automations.TryGetValue(key, out var automation))
-            automation = mPart.AddAutomation(key);
-
+        var automation = mPart.GetEffectiveAutomation(key) ?? mPart.AddEffectiveAutomation(key);
         automation?.DefaultValue.Set(value);
     }
 
-    void CommitValue(string key, double value)
+    void CommitValue(AutomationKey key, double value)
     {
         if (mPart == null)
             return;
@@ -92,7 +118,7 @@ internal class AutomationDefaultsController : StackPanel
 
     class Row : IDisposable
     {
-        public Row(AutomationDefaultsController owner, string key, AutomationConfig config)
+        public Row(AutomationDefaultsController owner, AutomationKey key, AutomationConfig config)
         {
             mOwner = owner;
             mKey = key;
@@ -140,7 +166,7 @@ internal class AutomationDefaultsController : StackPanel
         }
 
         readonly AutomationDefaultsController mOwner;
-        readonly string mKey;
+        readonly AutomationKey mKey;
         readonly AutomationConfig mConfig;
         readonly Label mTitle;
         readonly SliderController mSlider;

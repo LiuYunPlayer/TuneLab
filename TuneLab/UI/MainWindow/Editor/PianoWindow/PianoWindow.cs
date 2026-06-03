@@ -41,31 +41,31 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public IPlayhead Playhead => mDependency.Playhead;
     public INotifiableProperty<PianoTool> PianoTool => mDependency.PianoTool;
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
-    public string? ActiveAutomation
+    public AutomationKey? ActiveAutomation
     {
         get
         {
             if (Part == null)
                 return null;
 
-            if (mActiveAutomation != null && IsAutomationVisible(mActiveAutomation))
-                return mActiveAutomation;
+            if (mActiveAutomation.HasValue && IsAutomationVisible(mActiveAutomation.Value))
+                return mActiveAutomation.Value;
 
-            return ConstantDefine.PreCommonAutomationConfigs[0].Key;
+            return AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key);
         }
         set
         {
             Part?.DeselectAllAutomationPoints();
             mActiveAutomation = value;
-            if (mActiveAutomation != null)
+            if (mActiveAutomation.HasValue)
             {
-                SetAutomationVisible(mActiveAutomation, true);
+                SetAutomationVisible(mActiveAutomation.Value, true);
             }
 
             ActiveAutomationChanged?.Invoke();
         }
     }
-    public IReadOnlyList<string> VisibleAutomations => mVisibleAutomations;
+    public IReadOnlyList<AutomationKey> VisibleAutomations => mVisibleAutomations;
     public double WaveformBottom => mPianoScrollView.Bounds.Height - mParameterTitleBar.Bounds.Height - mParameterContainer.Bounds.Height;
     public interface IDependency
     {
@@ -144,7 +144,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
         ClipToBounds = true;
 
-        ActiveAutomation = ConstantDefine.PreCommonAutomationConfigs[0].Key;
+        ActiveAutomation = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key);
     }
 
     ~PianoWindow()
@@ -152,23 +152,23 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         s.DisposeAll();
     }
 
-    public bool IsAutomationVisible(string automationID)
+    public bool IsAutomationVisible(AutomationKey automation)
     {
         if (Part == null)
             return false;
 
-        if (!Part.IsEffectiveAutomation(automationID))
+        if (!Part.IsEffectiveAutomation(automation))
             return false;
 
-        return mVisibleAutomations.Contains(automationID);
+        return mVisibleAutomations.Contains(automation);
     }
 
-    public void SetAutomationVisible(string automationID, bool isVisible)
+    public void SetAutomationVisible(AutomationKey automation, bool isVisible)
     {
-        mVisibleAutomations.Remove(automationID);
+        mVisibleAutomations.Remove(automation);
 
         if (isVisible)
-            mVisibleAutomations.Add(automationID);
+            mVisibleAutomations.Add(automation);
 
         VisibleAutomationChanged?.Invoke();
     }
@@ -306,12 +306,12 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
     }
 
-    void OnParameterTabBarStateChangeAsked(string automationID, ParameterButton.ButtonState state)
+    void OnParameterTabBarStateChangeAsked(AutomationKey automation, ParameterButton.ButtonState state)
     {
         if (state == ParameterButton.ButtonState.Edit)
-            ActiveAutomation = automationID;
+            ActiveAutomation = automation;
         else
-            SetAutomationVisible(automationID, state == ParameterButton.ButtonState.Visible);
+            SetAutomationVisible(automation, state == ParameterButton.ButtonState.Visible);
     }
 
     const double TIME_AXIS_HEIGHT = 48;
@@ -320,8 +320,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     double mParameterHeight = 200;
 
-    string? mActiveAutomation;
-    readonly List<string> mVisibleAutomations = new();
+    AutomationKey? mActiveAutomation;
+    readonly List<AutomationKey> mVisibleAutomations = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
     readonly DisposableManager s = new();

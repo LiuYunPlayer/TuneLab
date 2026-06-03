@@ -7,9 +7,11 @@ using TuneLab.SDK.Effect;
 namespace TuneLab.TestPlugins.V1Effect;
 
 // 两个 effect 引擎打在同一个包/程序集里，验证：引擎按 [EffectEngine] 注册、一包多 effect、
-// 参数面板（Gain 有 gain 滑块）、链串行（Gain 与 Reverse 串联）、bypass、增删/重排。
+// 参数面板（Gain 有 gain 滑块）、per-effect 时间轴自动化（Gain 有 gain_env 自动化轨）、
+// 链串行（Gain 与 Reverse 串联）、bypass、增删/重排。
 
-// 增益效果器：output = input * gain（gain 为参数）。gain=0 → 静音；gain=1 → 原样。
+// 增益效果器：output = input * gain * gainEnv(t)。gain 为静态参数滑块；gain_env 为一条可编辑的时间轴自动化轨
+// （验证 per-effect 自动化：声明 AutomationConfig + 合成时按采样点时间取值并应用）。gain=0 → 静音；env=1 → 不改变。
 [EffectEngine("TLTestGain")]
 public sealed class GainEffectEngine : IEffectEngine
 {
@@ -27,8 +29,15 @@ public sealed class GainEffectEngine : IEffectEngine
         return new ObjectConfig(map);
     }
 
+    static OrderedMap<string, AutomationConfig> BuildAutomations()
+    {
+        var map = new OrderedMap<string, AutomationConfig>();
+        map.Add("gain_env", new AutomationConfig("Gain Env", 1.0, 0.0, 2.0, "#FF8800"));
+        return map;
+    }
+
     static readonly ObjectConfig mConfig = BuildConfig();
-    static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
+    static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
 
     sealed class GainTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
     {
@@ -41,11 +50,26 @@ public sealed class GainEffectEngine : IEffectEngine
             try
             {
                 double gain = input.Properties.GetDouble("gain", 1.0);
-                var src = input.Audio.Samples ?? Array.Empty<float>();
+                var audio = input.Audio;
+                var src = audio.Samples ?? Array.Empty<float>();
                 var dst = new float[src.Length];
+
+                // gain_env 自动化轨：存在则按每个采样点的时间取值，乘到增益上。
+                double[]? env = null;
+                if (input.TryGetAutomation("gain_env", out var automation) && src.Length > 0)
+                {
+                    var times = new double[src.Length];
+                    for (int i = 0; i < src.Length; i++)
+                        times[i] = audio.StartTime + (double)i / audio.SampleRate;
+                    env = automation.GetValue(times);
+                }
+
                 for (int i = 0; i < src.Length; i++)
-                    dst[i] = (float)(src[i] * gain);
-                output.Audio = new MonoAudio(input.Audio.StartTime, input.Audio.SampleRate, dst);
+                {
+                    double m = gain * (env != null ? env[i] : 1.0);
+                    dst[i] = (float)(src[i] * m);
+                }
+                output.Audio = new MonoAudio(audio.StartTime, audio.SampleRate, dst);
                 Progress?.Invoke(1);
                 Complete?.Invoke();
             }

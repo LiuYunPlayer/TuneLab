@@ -36,9 +36,9 @@ internal partial class AutomationRenderer : View
         IProvider<IMidiPart> PartProvider { get; }
         PianoScrollView PianoScrollView { get; }
         TickAxis TickAxis { get; }
-        string? ActiveAutomation { get; }
-        bool IsAutomationVisible(string automationID);
-        IReadOnlyList<string> VisibleAutomations { get; }
+        AutomationKey? ActiveAutomation { get; }
+        bool IsAutomationVisible(AutomationKey automation);
+        IReadOnlyList<AutomationKey> VisibleAutomations { get; }
         INotifiableProperty<PianoTool> PianoTool { get; }
     }
 
@@ -76,10 +76,13 @@ internal partial class AutomationRenderer : View
 
         mDependency.PartProvider.ObjectChanged.Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Automations.Modified).Subscribe(InvalidateVisual, s);
+        // effect 自动化数据在各 effect.Automations 里，编辑它不会触发 part.Automations.Modified，需单独订阅（否则拖动不重绘）。
+        mDependency.PartProvider.When(p => p.Effects.Any(effect => effect.Automations.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.When(p => p.Pos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartProvider.ObjectChanged.Subscribe(UpdateAnchorValueInput, s);
         mDependency.PartProvider.When(p => p.Automations.Modified).Subscribe(UpdateAnchorValueInput, s);
+        mDependency.PartProvider.When(p => p.Effects.Any(effect => effect.Automations.Modified)).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PartProvider.When(p => p.Pos.Modified).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PianoTool.Modified.Subscribe(Update, s);
         mDependency.PianoTool.Modified.Subscribe(UpdateAnchorValueInput, s);
@@ -140,7 +143,7 @@ internal partial class AutomationRenderer : View
 
         double lineWidth = 1;
 
-        void Draw(string automationID)
+        void Draw(AutomationKey automationID)
         {
             if (!Part.IsEffectiveAutomation(automationID))
                 return;
@@ -184,67 +187,73 @@ internal partial class AutomationRenderer : View
         if (activeAutomation == null)
             return;
 
-        if (!Part.IsEffectiveAutomation(activeAutomation))
+        var active = activeAutomation.Value;
+        if (!Part.IsEffectiveAutomation(active))
             return;
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        var config = Part.GetEffectiveAutomationConfig(activeAutomation);
+        var config = Part.GetEffectiveAutomationConfig(active);
         double min = config.MinValue;
         double max = config.MaxValue;
-        foreach (var vibrato in Part.Vibratos)
+
+        // effect 自动化无 vibrato 概念：vibrato 叠加层与"拖拽关联颤音"提示仅对 voice 轨绘制。
+        if (!active.IsEffect)
         {
-            if (vibrato.GlobalEndPos() <= minVisibleTick)
-                continue;
-
-            if (vibrato.GlobalStartPos() >= maxVisibleTick)
-                break;
-
-            double startX = TickAxis.Tick2X(vibrato.GlobalStartPos());
-            double endX = TickAxis.Tick2X(vibrato.GlobalEndPos());
-            double[] vxs = new double[(int)(endX - startX) + 1];
-            for (int i = 0; i < vxs.Length; i++)
+            foreach (var vibrato in Part.Vibratos)
             {
-                vxs[i] = startX + i;
+                if (vibrato.GlobalEndPos() <= minVisibleTick)
+                    continue;
+
+                if (vibrato.GlobalStartPos() >= maxVisibleTick)
+                    break;
+
+                double startX = TickAxis.Tick2X(vibrato.GlobalStartPos());
+                double endX = TickAxis.Tick2X(vibrato.GlobalEndPos());
+                double[] vxs = new double[(int)(endX - startX) + 1];
+                for (int i = 0; i < vxs.Length; i++)
+                {
+                    vxs[i] = startX + i;
+                }
+
+                var vticks = new double[vxs.Length];
+                for (int i = 0; i < vxs.Length; i++)
+                {
+                    vticks[i] = TickAxis.X2Tick(vxs[i]) - pos;
+                }
+
+                double range = max - min;
+                double r = Bounds.Height / range;
+
+                double[] values = Part.GetAutomationValues(vticks, active.Id);
+
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i] = (max - values[i].Limit(min, max)) * r;
+                }
+
+                var points = new Point[vxs.Length];
+                for (int i = 0; i < vxs.Length; i++)
+                {
+                    points[i] = new(vxs[i], values[i]);
+                }
+
+                context.DrawCurve(points, Color.Parse(config.Color).Opacity(0.5), lineWidth);
             }
 
-            var vticks = new double[vxs.Length];
-            for (int i = 0; i < vxs.Length; i++)
+            if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
             {
-                vticks[i] = TickAxis.X2Tick(vxs[i]) - pos;
-            }
-
-            double range = max - min;
-            double r = Bounds.Height / range;
-
-            double[] values = Part.GetAutomationValues(vticks, activeAutomation);
-
-            for (int i = 0; i < values.Length; i++)
-            {
-                values[i] = (max - values[i].Limit(min, max)) * r;
-            }
-
-            var points = new Point[vxs.Length];
-            for (int i = 0; i < vxs.Length; i++)
-            {
-                points[i] = new(vxs[i], values[i]);
-            }
-
-            context.DrawCurve(points, Color.Parse(config.Color).Opacity(0.5), lineWidth);
-        }
-
-        if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
-        {
-            if (!vibratoItem.Vibrato.AffectedAutomations.ContainsKey(activeAutomation))
-            {
-                var vibrato = vibratoItem.Vibrato;
-                double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
-                context.DrawString("Drag to associate the vibrato".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+                if (!vibratoItem.Vibrato.AffectedAutomations.ContainsKey(active.Id))
+                {
+                    var vibrato = vibratoItem.Vibrato;
+                    double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
+                    context.DrawString("Drag to associate the vibrato".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+                }
             }
         }
 
         lineWidth = 2;
-        Draw(activeAutomation);
+        Draw(active);
 
         if (mAnchorSelectOperation.IsOperating)
         {

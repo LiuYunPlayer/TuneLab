@@ -20,7 +20,7 @@ namespace TuneLab.UI;
 
 internal class ParameterTabBar : Panel
 {
-    public event Action<string, ParameterButton.ButtonState>? StateChangeAsked;
+    public event Action<AutomationKey, ParameterButton.ButtonState>? StateChangeAsked;
     public ParameterButton PitchButton => mPitchButton;
 
     public interface IDependency
@@ -28,8 +28,8 @@ internal class ParameterTabBar : Panel
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
         IProvider<IMidiPart> PartProvider { get; }
-        string? ActiveAutomation { get; }
-        bool IsAutomationVisible(string automationID);
+        AutomationKey? ActiveAutomation { get; }
+        bool IsAutomationVisible(AutomationKey automation);
     }
 
     public ParameterTabBar(IDependency dependency)
@@ -47,6 +47,7 @@ internal class ParameterTabBar : Panel
 
         mDependency.PartProvider.ObjectChanged.Subscribe(OnPartChanged, s);
         mDependency.PartProvider.When(p => p.Voice.Modified).Subscribe(OnAutomationConfigsChanged, s);
+        mDependency.PartProvider.When(p => p.Effects.ListModified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.ActiveAutomationChanged += SyncAutomationButtonsState;
         mDependency.VisibleAutomationChanged += SyncAutomationButtonsState;
 
@@ -60,10 +61,10 @@ internal class ParameterTabBar : Panel
         mDependency.VisibleAutomationChanged -= SyncAutomationButtonsState;
     }
 
-    public void SetState(string automationID, ParameterButton.ButtonState state)
+    public void SetState(AutomationKey automation, ParameterButton.ButtonState state)
     {
-        if (mAutomationButtons.ContainsKey(automationID))
-            mAutomationButtons[automationID].State = state;
+        if (mAutomationButtons.ContainsKey(automation))
+            mAutomationButtons[automation].State = state;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -78,6 +79,8 @@ internal class ParameterTabBar : Panel
         return finalSize;
     }
 
+    // voice 与各 effect 的自动化轨统一汇入这一栏。voice 一组，每个 effect 一组，组间插竖向分隔符让用户看出分组。
+    // 轨用 AutomationKey 标识（来源 + plain id），避免与真实 id 撞名。
     void ResetAutomationButtons()
     {
         mAutomationButtons.Clear();
@@ -86,29 +89,47 @@ internal class ParameterTabBar : Panel
         if (Part == null)
             return;
 
-        foreach (var kvp in Part.Voice.AutomationConfigs)
+        bool firstGroup = true;
+        AddAutomationGroup(Part.Voice.AutomationConfigs, -1, ref firstGroup);
+        for (int i = 0; i < Part.Effects.Count; i++)
+            AddAutomationGroup(Part.Effects[i].AutomationConfigs, i, ref firstGroup);
+    }
+
+    void AddAutomationGroup(IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex, ref bool firstGroup)
+    {
+        if (configs.Count == 0)
+            return;
+
+        if (!firstGroup)
+            mAutomationLayout.Children.Add(CreateSeparator());
+        firstGroup = false;
+
+        foreach (var kvp in configs)
         {
             var config = kvp.Value;
-            if (!mCacheParameterButtons.TryGetValue(kvp.Key, out var button))
+            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
+            if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(Color.Parse(config.Color), config.Name);
-                /*if(config.Name== Part.Voice.AutomationConfigs[0].Value.Name) button.Margin = new Thickness(0,0,12,0);*/
-                button.Margin = new(6, 0);
-                mCacheParameterButtons.Add(kvp.Key, button);
+                button = new ParameterButton(Color.Parse(config.Color), config.Name) { Margin = new(6, 0) };
+                var captured = key;
+                button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
+                mCacheParameterButtons.Add(key, button);
             }
-            mAutomationButtons.Add(kvp.Key, button);
-        }
-
-        foreach (var kvp in mAutomationButtons)
-        {
-            var automationID = kvp.Key;
-            var button = kvp.Value;
-            button.StateChangeAsked += (state) =>
-            {
-                StateChangeAsked?.Invoke(automationID, state);
-            };
+            mAutomationButtons.Add(key, button);
             mAutomationLayout.Children.Add(button);
         }
+    }
+
+    static Control CreateSeparator()
+    {
+        return new Border()
+        {
+            Width = 1,
+            Height = 16,
+            Margin = new Thickness(8, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Background = Style.LIGHT_WHITE.Opacity(0.25).ToBrush(),
+        };
     }
 
     void SyncAutomationButtonsState()
@@ -117,14 +138,22 @@ internal class ParameterTabBar : Panel
             return;
 
         var activeAutomation = mDependency.ActiveAutomation;
-        foreach (var kvp in Part.Voice.AutomationConfigs)
+
+        void Sync(IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex)
         {
-            var automationID = kvp.Key;
-            if (activeAutomation == automationID)
-                SetState(automationID, ParameterButton.ButtonState.Edit);
-            else
-                SetState(automationID, mDependency.IsAutomationVisible(automationID) ? ParameterButton.ButtonState.Visible : ParameterButton.ButtonState.Off);
+            foreach (var kvp in configs)
+            {
+                var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
+                if (activeAutomation == key)
+                    SetState(key, ParameterButton.ButtonState.Edit);
+                else
+                    SetState(key, mDependency.IsAutomationVisible(key) ? ParameterButton.ButtonState.Visible : ParameterButton.ButtonState.Off);
+            }
         }
+
+        Sync(Part.Voice.AutomationConfigs, -1);
+        for (int i = 0; i < Part.Effects.Count; i++)
+            Sync(Part.Effects[i].AutomationConfigs, i);
     }
 
     void OnPartChanged()
@@ -145,8 +174,8 @@ internal class ParameterTabBar : Panel
 
     readonly WrapPanel mAutomationLayout;
     readonly ParameterButton mPitchButton;
-    readonly OrderedMap<string, ParameterButton> mAutomationButtons = new();
-    readonly Map<string, ParameterButton> mCacheParameterButtons = new();
+    readonly OrderedMap<AutomationKey, ParameterButton> mAutomationButtons = new();
+    readonly Map<AutomationKey, ParameterButton> mCacheParameterButtons = new();
 
     readonly IDependency mDependency;
     readonly DisposableManager s = new();

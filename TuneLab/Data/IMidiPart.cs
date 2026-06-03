@@ -66,6 +66,68 @@ internal static class IMidiPartExtension
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
     }
 
+    // ── 按 AutomationKey 路由（voice/part 级，或某个 effect）。数据层仍按 plain id 存，这里只做来源分派。 ──
+
+    public static bool IsEffectiveAutomation(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+            return key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].AutomationConfigs.ContainsKey(key.Id);
+
+        return part.Voice.AutomationConfigs.ContainsKey(key.Id);
+    }
+
+    public static AutomationConfig GetEffectiveAutomationConfig(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].AutomationConfigs.TryGetValue(key.Id, out var effectConfig))
+                return effectConfig;
+        }
+        else if (part.Voice.AutomationConfigs.TryGetValue(key.Id, out var voiceConfig))
+        {
+            return voiceConfig;
+        }
+
+        throw new ArgumentException(string.Format("Automation {0} is not effective!", key.Id));
+    }
+
+    // 取已存在的自动化数据对象（voice 或对应 effect），不存在返回 null。
+    public static IAutomation? GetEffectiveAutomation(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].Automations.TryGetValue(key.Id, out var effectAutomation))
+                return effectAutomation;
+            return null;
+        }
+
+        return part.Automations.TryGetValue(key.Id, out var voiceAutomation) ? voiceAutomation : null;
+    }
+
+    // 取或创建自动化数据对象（按需在对应来源里 Add）。
+    public static IAutomation? AddEffectiveAutomation(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+            return key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].AddAutomation(key.Id) : null;
+
+        return part.AddAutomation(key.Id);
+    }
+
+    // 最终曲线取值：voice 走含 vibrato 的最终值；effect 走其自身曲线（无 vibrato）。
+    public static double[] GetFinalAutomationValues(this IMidiPart part, IReadOnlyList<double> ticks, AutomationKey key)
+    {
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex < part.Effects.Count)
+                return part.Effects[key.EffectIndex].GetAutomationValues(ticks, key.Id);
+
+            var values = new double[ticks.Count];
+            return values;
+        }
+
+        return part.GetFinalAutomationValues(ticks, key.Id);
+    }
+
     public static ISynthesisPiece? FindNextNotCompletePiece(this IMidiPart part, double time)
     {
         ISynthesisPiece? result = null;

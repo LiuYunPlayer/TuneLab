@@ -100,13 +100,13 @@ internal partial class AutomationRenderer
                                 if (Part == null)
                                     break;
 
-                                var automationID = mDependency.ActiveAutomation;
-                                if (automationID == null)
+                                var automationKey = mDependency.ActiveAutomation;
+                                if (automationKey == null || automationKey.Value.IsEffect)
                                     break;
 
                                 foreach (var vibrato in Part.Vibratos.AllSelectedItems())
                                 {
-                                    vibrato.AffectedAutomations.Remove(automationID);
+                                    vibrato.AffectedAutomations.Remove(automationKey.Value.Id);
                                 }
                                 Part.Commit();
                             }
@@ -247,8 +247,8 @@ internal partial class AutomationRenderer
         switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Vibrato:
-                var automationID = mDependency.ActiveAutomation;
-                if (automationID == ConstantDefine.VibratoEnvelopeID)
+                var vibratoActive = mDependency.ActiveAutomation;
+                if (vibratoActive == AutomationKey.Voice(ConstantDefine.VibratoEnvelopeID))
                     break;
 
                 foreach (var vibrato in Part.Vibratos)
@@ -267,10 +267,11 @@ internal partial class AutomationRenderer
                 if (activeAutomation == null)
                     break;
 
-                if (!Part.Automations.TryGetValue(activeAutomation, out var automation))
+                var automation = Part.GetEffectiveAutomation(activeAutomation.Value);
+                if (automation == null)
                     break;
 
-                var config = Part.GetEffectiveAutomationConfig(activeAutomation);
+                var config = Part.GetEffectiveAutomationConfig(activeAutomation.Value);
                 var color = Color.Parse(config.Color);
                 foreach (var point in automation.Points)
                 {
@@ -303,14 +304,15 @@ internal partial class AutomationRenderer
         if (Part == null)
             return false;
 
-        var automationID = mDependency.ActiveAutomation;
-        if (automationID == null || !Part.IsEffectiveAutomation(automationID))
+        var automationKey = mDependency.ActiveAutomation;
+        if (automationKey == null || !Part.IsEffectiveAutomation(automationKey.Value))
             return false;
 
-        config = Part.GetEffectiveAutomationConfig(automationID);
-        if (!Part.Automations.TryGetValue(automationID, out automation) && createIfMissing)
+        config = Part.GetEffectiveAutomationConfig(automationKey.Value);
+        automation = Part.GetEffectiveAutomation(automationKey.Value);
+        if (automation == null && createIfMissing)
         {
-            automation = Part.AddAutomation(automationID);
+            automation = Part.AddEffectiveAutomation(automationKey.Value);
         }
 
         return automation != null;
@@ -371,14 +373,12 @@ internal partial class AutomationRenderer
             if (AutomationRenderer.Part == null)
                 return;
 
-            var automationID = AutomationRenderer.mDependency.ActiveAutomation;
-            if (automationID == null)
+            var automationKey = AutomationRenderer.mDependency.ActiveAutomation;
+            if (automationKey == null)
                 return;
 
-            if (!AutomationRenderer.Part.Automations.TryGetValue(automationID, out mAutomation))
-            {
-                mAutomation = AutomationRenderer.Part.AddAutomation(automationID);
-            }
+            mAutomation = AutomationRenderer.Part.GetEffectiveAutomation(automationKey.Value)
+                ?? AutomationRenderer.Part.AddEffectiveAutomation(automationKey.Value);
 
             if (mAutomation == null)
                 return;
@@ -386,7 +386,7 @@ internal partial class AutomationRenderer
             State = State.Drawing;
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = mAutomation.Head;
-            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationID);
+            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationKey.Value);
             mMin = config.MinValue;
             mMax = config.MaxValue;
 
@@ -483,13 +483,11 @@ internal partial class AutomationRenderer
             if (AutomationRenderer.Part == null)
                 return;
 
-            var automationID = AutomationRenderer.mDependency.ActiveAutomation;
-            if (automationID == null)
+            var automationKey = AutomationRenderer.mDependency.ActiveAutomation;
+            if (automationKey == null)
                 return;
 
-            if (!AutomationRenderer.Part.Automations.TryGetValue(automationID, out mAutomation))
-                return;
-
+            mAutomation = AutomationRenderer.Part.GetEffectiveAutomation(automationKey.Value);
             if (mAutomation == null)
                 return;
 
@@ -813,13 +811,15 @@ internal partial class AutomationRenderer
             if (vibratos.IsEmpty())
                 return;
 
-            var automationID = AutomationRenderer.mDependency.ActiveAutomation;
-            if (automationID == null)
+            var automationKey = AutomationRenderer.mDependency.ActiveAutomation;
+            // vibrato 振幅调节只作用于 voice 自动化（effect 不参与颤音）。
+            if (automationKey == null || automationKey.Value.IsEffect)
                 return;
 
-            if (!AutomationRenderer.Part.IsEffectiveAutomation(automationID))
+            if (!AutomationRenderer.Part.IsEffectiveAutomation(automationKey.Value))
                 return;
 
+            var automationID = automationKey.Value.Id;
             State = State.VibratoAmplitudeAdjusting;
             AutomationRenderer.Part.DisableAutoPrepare();
             mVibratos = vibratos;
@@ -830,7 +830,7 @@ internal partial class AutomationRenderer
                     vibrato.AffectedAutomations.Add(automationID, 0);
             }
             mHead = AutomationRenderer.Part.Head;
-            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationID);
+            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationKey.Value);
             mMin = config.MinValue;
             mMax = config.MaxValue;
             mValue = ValueAt(y);
