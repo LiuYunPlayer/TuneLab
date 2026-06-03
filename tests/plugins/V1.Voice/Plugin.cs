@@ -37,6 +37,8 @@ public sealed class TestVoiceSource : IVoiceSource
     {
         mId = id;
         mNoteProperties.Add("tension", new SliderConfig(0, -1, 1, false));
+        // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
+        mAutomationConfigs.Add("Growl", new AutomationConfig("Growl", 0, 0, 100, "#E5A573"));
     }
 
     public string Name => mId;

@@ -37,7 +37,8 @@ public sealed class LegacyTestVoiceSource : IVoiceSource
     {
         mId = id;
         mNoteProperties.Add("tension", new NumberConfig(0, -1, 1, false));
-        mAutomationConfigs.Add("Volume", new AutomationConfig("Volume", 0, -60, 12, "#88AAFF"));
+        // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）——否则会被内置项占用、显示不出。
+        mAutomationConfigs.Add("Breathiness", new AutomationConfig("Breathiness", 0, -60, 12, "#88AAFF"));
     }
 
     public string Name => mId;

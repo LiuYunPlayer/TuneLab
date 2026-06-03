@@ -194,6 +194,8 @@ public class MyVoiceEngine : IVoiceEngine
 
 `Init` 的 `enginePath` 即包文件夹，捆绑的模型文件、原生运行时等放在包里、从这里定位。相关接口：`IVoiceSource` / `ISynthesisData` / `ISynthesisTask` / `SynthesisResult` 等（`TuneLab.SDK.Voice`）。
 
+> ⚠️ **自动化参数名避开宿主保留名**：`IVoiceSource.AutomationConfigs` 的键会和宿主内置自动化合并展示，若与内置项**重名会被内置项占用、你的参数显示不出**。已知保留名：**`Volume`**、**`VibratoEnvelope`**。请用自己的独特名（如 `Breathiness` / `Growl` / 加前缀）。
+
 ---
 
 ## 6. 打包、安装、卸载
