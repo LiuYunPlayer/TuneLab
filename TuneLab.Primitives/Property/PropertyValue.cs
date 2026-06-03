@@ -50,7 +50,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return new(value);
     }
 
-    // 值的类型标签（§三.12）。
+    // 值的类型标签。
     public PropertyType Type
     {
         get
@@ -79,7 +79,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mType == other.mType;
     }
 
-    // 旧 API：保留为 PropertyNull 哨兵的转发判定（待 #12 全树模型落地后清理）。
+    // 旧 API：保留为 PropertyNull 哨兵的转发判定（全树模型落地后清理）。
     public bool IsNull()
     {
         return mValue is null || mValue is PropertyNull;
@@ -162,7 +162,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mValue.ToString();
     }
 
-    // 深相等性（§三.12）：类型 + 值比较，PropertyObject 走 map 深比较，喂 undo 去重。
+    // 深相等性：类型 + 值比较，PropertyObject 走 map 深比较，喂 undo 去重。
     public bool Equals(PropertyValue other)
     {
         if (mType != other.mType)
@@ -187,7 +187,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     public static bool operator ==(PropertyValue left, PropertyValue right) => left.Equals(right);
     public static bool operator !=(PropertyValue left, PropertyValue right) => !left.Equals(right);
 
-    // 空哨兵（§三.12，替代旧 Invalid 静态）。Invalid 保留为转发别名作 build-fix 安全网。
+    // 空哨兵（替代旧 Invalid 静态）。Invalid 保留为转发别名作 build-fix 安全网。
     public readonly static PropertyValue Null = new(PropertyNull.Shared);
     public readonly static PropertyValue Invalid = Null;
 

@@ -6,15 +6,15 @@ using System.Runtime.Loader;
 
 namespace TuneLab.Hosting.Compat.Legacy;
 
-// per-plugin ALC（§三.15）：每个 Legacy 包一个隔离加载上下文，根除野外 voice 引擎各自捆绑的冲突原生依赖
-//   （ONNX/原生运行时不同版本）——§三.16 坐实此为必要而非可选。
+// per-plugin ALC：每个 Legacy 包一个隔离加载上下文，根除野外 voice 引擎各自捆绑的冲突原生依赖
+//   （ONNX/原生运行时不同版本）——这是必要而非可选。
 //
 // 共享契约硬约束：Legacy 冻结三程序集（Base/Extensions.Formats/Extensions.Voices）+ V1 SDK 由 Default ALC
 //   加载一份、所有插件 ALC 共享（Load 对契约返回 null 落 Default）——Compat 适配器已在 Default 加载这些，
 //   故插件返回的 Legacy 类型与适配器看到的是同一 Type 标识，无需 marshaling。
 //   插件私有依赖（ONNX 托管/原生库）才进各自 ALC（AssemblyDependencyResolver + 目录探测）。
 //
-// 非 collectible 起步（§三.15/§三.16）：isCollectible 默认 false，吃下隔离全部好处而无泄漏/JIT 税；
+// 非 collectible 起步：isCollectible 默认 false，吃下隔离全部好处而无泄漏/JIT 税；
 //   切热卸载（免重启卸载 UX）时只需传 isCollectible:true，加载/契约结构零改动。
 internal sealed class LegacyPluginLoadContext : AssemblyLoadContext
 {

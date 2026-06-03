@@ -2,7 +2,7 @@ using TuneLab.Primitives.Property;
 
 namespace TuneLab.SDK.Base;
 
-// Config 家族族根（§三.12，原 IPropertyConfig 改名）。
+// Config 家族族根（原 IPropertyConfig，按 UI 控件命名体系改名）。
 public interface IControllerConfig
 {
 

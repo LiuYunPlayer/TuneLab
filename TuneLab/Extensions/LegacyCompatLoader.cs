@@ -9,7 +9,7 @@ using TuneLab.Extensions.Voices;
 
 namespace TuneLab.Extensions;
 
-// Compat.Legacy 接线（话题#9，引用策略 C —— 主程序对 Compat.Legacy 零编译依赖）：
+// Compat.Legacy 接线（主程序对 Compat.Legacy 零编译依赖，运行时反射加载）：
 //   启动时反射加载 TuneLab.Hosting.Compat.Legacy.dll，取 LegacyCompatEntry.TryLoad，
 //   用 SDK 类型构造注册委托（转发给内建 Format/Voice manager），装到 ExtensionManager.LegacyLoadHook。
 //   委托参数全是共享契约类型（IImportFormat/IExportFormat/IVoiceEngine），跨 Default ALC 同一 Type，

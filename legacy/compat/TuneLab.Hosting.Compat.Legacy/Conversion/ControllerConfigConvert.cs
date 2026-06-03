@@ -7,7 +7,7 @@ using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
 
-// Config 家族跨代转换（§三.12 改名 1:1）：Legacy IPropertyConfig 族 → V1 IControllerConfig 族。
+// Config 家族跨代转换（改名 1:1）：Legacy IPropertyConfig 族 → V1 IControllerConfig 族。
 //   NumberConfig→SliderConfig、BooleanConfig→CheckBoxConfig、StringConfig→TextBoxConfig、
 //   EnumConfig→ComboBoxConfig、ObjectConfig→ObjectConfig、AutomationConfig→AutomationConfig。
 internal static class ControllerConfigConvert

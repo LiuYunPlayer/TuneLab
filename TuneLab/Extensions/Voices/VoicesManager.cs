@@ -33,7 +33,7 @@ internal static class VoicesManager
     }
 
     // 由 ExtensionManager 在加载后传入已加载类型 + 来源目录（供引擎 Init 定位资源），
-    // 扫 [VoiceEngine] 注册。manager 不再自行解析 description.json（话题#10）。
+    // 扫 [VoiceEngine] 注册。manager 不再自行解析 description.json。
     public static void RegisterFromTypes(Type[] types, string path)
     {
         foreach (Type type in types)
@@ -51,7 +51,7 @@ internal static class VoicesManager
         }
     }
 
-    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的引擎适配器实例（话题#9）。
+    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的引擎适配器实例。
     // 老引擎链接老 [VoiceEngine]/IVoiceEngine，扫不出 V1 attribute，故走实例注册而非 RegisterFromTypes 的反射实例化。
     // enginePath = 包目录，Init 时传给老引擎定位声库/模型。内建/V1 优先：type 已存在则跳过。
     public static void RegisterEngine(string type, IVoiceEngine engine, string enginePath)

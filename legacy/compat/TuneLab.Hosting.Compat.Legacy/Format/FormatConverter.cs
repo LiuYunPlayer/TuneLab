@@ -9,9 +9,9 @@ using TuneLab.Hosting.Compat.Legacy.Conversion;
 
 namespace TuneLab.Hosting.Compat.Legacy.Format;
 
-// 工程模型 DataInfo 跨代深拷贝（§三.15：DTO eager 深拷贝、转移所有权、无别名；冷路径）。
+// 工程模型 DataInfo 跨代深拷贝（DTO eager 深拷贝、转移所有权、无别名；冷路径）。
 // Legacy（TuneLab.Extensions.Formats.DataInfo）↔ V1（TuneLab.SDK.Format.DataInfo）。字段两代逐一对应；
-// V1 无 Effects（effect 留 #11），故 MidiPart 不涉及 Effects——比 effect 分支参考实现更简单。
+// V1 无 Effects，故 MidiPart 不涉及 Effects。
 internal static class FormatConverter
 {
     // ── ProjectInfo ──

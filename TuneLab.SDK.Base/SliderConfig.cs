@@ -2,7 +2,7 @@ using TuneLab.Primitives.Property;
 
 namespace TuneLab.SDK.Base;
 
-// 原 NumberConfig（§三.12 按 UI 控件改名）。
+// 原 NumberConfig（按 UI 控件命名）。
 public class SliderConfig(double defaultValue = 0, double minValue = double.NegativeInfinity, double maxValue = double.PositiveInfinity, bool isInterger = false) : IValueConfig<double>
 {
     public double DefaultValue { get; set; } = defaultValue;

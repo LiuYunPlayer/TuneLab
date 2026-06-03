@@ -12,7 +12,7 @@ using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
 namespace TuneLab.Extensions;
 
-// 扩展统一加载管线（话题#10）：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
+// 扩展统一加载管线：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
 // 取代原先 Format/Voice 各自重复解析 description.json、各自 Assembly.LoadFrom 的分散结构。
 internal static class ExtensionManager
 {
@@ -22,8 +22,8 @@ internal static class ExtensionManager
     // 结构化加载结果，供 sidebar 直接消费（取代字符串猜测）。
     public static IReadOnlyList<ExtensionLoadResult> LoadResults => mLoadResults;
 
-    // Compat.Legacy 接入点（话题#9 尾 / 独立落地）：设置后接管 Legacy 包加载，返回 true 表示已处理。
-    // 形状刻意保持最小（一个委托，易随 Compat.Legacy 实装调整），不提前锁死接口（§三.7）。
+    // Compat.Legacy 接入点：设置后接管 Legacy 包加载，返回 true 表示已处理。
+    // 形状刻意保持最小（一个委托，易随 Compat.Legacy 实装调整），不提前锁死接口。
     public static Func<string, ExtensionDescription?, bool>? LegacyLoadHook { get; set; }
 
     public static IReadOnlyList<string> PendingUninstalls => mPendingUninstalls;
@@ -137,7 +137,7 @@ internal static class ExtensionManager
                 continue;
             }
 
-            // effect：SDK.Effect 接口形状待 #11，本话题暂不支持，优雅降级。
+            // effect：SDK.Effect 接口形状未定，暂不支持，优雅降级。
             if (kind == "effect")
             {
                 skipped++;

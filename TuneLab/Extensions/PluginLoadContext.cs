@@ -5,7 +5,7 @@ using System.Runtime.Loader;
 
 namespace TuneLab.Extensions;
 
-// per-folder ALC（§三.15）：每个插件文件夹一个加载上下文 = 隔离 + 依赖共享边界。
+// per-folder ALC：每个插件文件夹一个加载上下文 = 隔离 + 依赖共享边界。
 //   一包多插件 → 多个入口程序集装进同一个 ALC，共享基建程序集天然只加载一份、类型标识一致。
 //
 // 共享契约硬约束：契约程序集（TuneLab.Primitives + TuneLab.SDK.* + BCL）由 Default ALC 加载一份、
@@ -13,8 +13,8 @@ namespace TuneLab.Extensions;
 //   否则同名 Type 跨 ALC 不相等，连同版本插件都要 marshaling（footgun）。
 //   插件私有依赖（如 ONNX 托管/原生库）才走 AssemblyDependencyResolver + 目录探测，进各自 ALC。
 //
-// 非 collectible 起步（话题#8）：isCollectible 默认 false，吃下隔离全部好处而无泄漏/JIT 税。
-//   切热卸载（免重启卸载/更新 UX）时只需传 isCollectible:true，加载/契约结构零改动（话题#10）。
+// 非 collectible 起步：isCollectible 默认 false，吃下隔离全部好处而无泄漏/JIT 税。
+//   切热卸载（免重启卸载/更新 UX）时只需传 isCollectible:true，加载/契约结构零改动。
 internal sealed class PluginLoadContext : AssemblyLoadContext
 {
     public PluginLoadContext(string pluginDirectory, string? mainAssemblyPath = null, bool isCollectible = false)
@@ -55,7 +55,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         return path != null ? LoadUnmanagedDllFromPath(path) : IntPtr.Zero;
     }
 
-    // 契约程序集前缀（§三.15）：Primitives + SDK.*。其余走插件私有解析。
+    // 契约程序集前缀：Primitives + SDK.*。其余走插件私有解析。
     static bool IsSharedContract(string assemblyName)
     {
         return assemblyName == "TuneLab.Primitives"

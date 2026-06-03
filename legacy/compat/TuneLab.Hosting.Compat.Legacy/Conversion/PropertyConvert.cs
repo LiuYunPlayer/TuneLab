@@ -5,7 +5,7 @@ using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
 
-// PropertyObject / PropertyValue 跨代转换（§三.15 DTO eager 深拷贝、转移所有权、无别名）。
+// PropertyObject / PropertyValue 跨代转换（DTO eager 深拷贝、转移所有权、无别名）。
 // Legacy（TuneLab.Base.Properties，多 box）↔ V1（TuneLab.Primitives.Property，单 box + PropertyType）。
 internal static class PropertyConvert
 {

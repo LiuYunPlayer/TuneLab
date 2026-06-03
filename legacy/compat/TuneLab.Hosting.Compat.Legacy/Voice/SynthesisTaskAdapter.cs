@@ -5,8 +5,8 @@ using VVoice = TuneLab.SDK.Voice;
 namespace TuneLab.Hosting.Compat.Legacy.Voice;
 
 // 把老 ISynthesisTask 适配成 V1 ISynthesisTask。
-// 事件桥接适配器 IDisposable、dispose 退订（§三.15 升级不变量——effect 分支漏此点致泄漏，
-//   且正是 collectible 卸载的钉子）。宿主在 SynthesisPiece.Dispose 经 (task as IDisposable)?.Dispose() 触发退订。
+// 事件桥接适配器 IDisposable、dispose 退订（避免跨边界订阅泄漏，也是将来 collectible 卸载的前提）。
+//   宿主在 SynthesisPiece.Dispose 经 (task as IDisposable)?.Dispose() 触发退订。
 //   任务可复用（SetDirty→Stop→重 Start，Complete 多次触发），故仅在 Dispose 退订，不在 Complete/Stop 退订。
 internal sealed class SynthesisTaskAdapter : VVoice.ISynthesisTask, IDisposable
 {

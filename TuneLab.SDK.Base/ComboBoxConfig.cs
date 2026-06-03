@@ -3,7 +3,7 @@ using TuneLab.Primitives.Property;
 
 namespace TuneLab.SDK.Base;
 
-// 原 EnumConfig（§三.12 按 UI 控件改名）。
+// 原 EnumConfig（按 UI 控件命名）。
 public class ComboBoxConfig(IReadOnlyList<string> options, int defaultIndex = 0) : IValueConfig<string>
 {
     public int DefaultIndex { get; set; } = defaultIndex;

@@ -772,7 +772,7 @@ internal class MidiPart : Part, IMidiPart
             if (SynthesisStatus == SynthesisStatus.Synthesizing)
                 mTask?.Stop();
 
-            // 事件桥接适配器退订（§三.15 升级不变量）：Compat.Legacy 的 SynthesisTaskAdapter 实现 IDisposable，
+            // 事件桥接适配器退订：Compat.Legacy 的 SynthesisTaskAdapter 实现 IDisposable，
             // 在此退订老引擎 task 的 Complete/Progress/Error，断开跨边界订阅（内建 task 非 IDisposable 时无操作）。
             (mTask as IDisposable)?.Dispose();
         }

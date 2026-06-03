@@ -3,7 +3,7 @@ using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Extensions;
 
-// 包级（部署/安装/卸载/dedup 单位）元数据 = description.json 最外层（话题#10 共识）。
+// 包级（部署/安装/卸载/dedup 单位）元数据 = description.json 最外层。
 //
 // 代际判定：含 id ⇒ V1；无 id（老 schema：只有 name/version/assemblies/platforms，或根本无文件）⇒ Legacy。
 //   id 是通用于一切 V1 包（代码 + 资源）、Legacy 从未有过的字段，故用它作判别符

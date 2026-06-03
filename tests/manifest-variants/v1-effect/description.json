@@ -2,7 +2,7 @@
   "id": "com.tunelab.test.effect",
   "name": "V1 Effect (unsupported yet)",
   "version": "1.0.0",
-  "description": "type=effect → 当前识别但暂不支持(待 #11) → 预期被跳过(Skipped) + 日志，不崩主程序。",
+  "description": "type=effect → 当前识别但暂不支持 → 预期被跳过(Skipped) + 日志，不崩主程序。",
   "sdk-version": "1.0",
   "type": "effect",
   "assemblies": ["never-loaded.dll"]

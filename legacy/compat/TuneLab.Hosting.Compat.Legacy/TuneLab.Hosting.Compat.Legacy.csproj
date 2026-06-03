@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ════════════════════════════════════════════════════════════════════════
-       TuneLab.Hosting.Compat.Legacy —— Legacy 老插件兼容层（§三.2 / §三.15 / §三.16，话题#9）
+       TuneLab.Hosting.Compat.Legacy —— Legacy 老插件兼容层
        把链接冻结 Legacy SDK（TuneLab.Base / Extensions.Formats / Extensions.Voices）的野外插件，
        适配成当前 V1 SDK（TuneLab.Primitives / SDK.*）契约，注册进宿主。
-       · 单程序集、按"代"分（§三.2），不按域分；Legacy→V1 名字不同 → 无需 extern alias（§三.15）。
+       · 单程序集、按"代"分，不按域分；Legacy→V1 名字不同 → 无需 extern alias。
        · host TFM（当前 net8）；不进 TuneLab.sln（见 ../../Legacy.sln），主程序经反射加载本 dll（零编译依赖）。
        · 公开面只暴露 V1 SDK 类型 + 委托入口（LegacyCompatEntry），adapter 全 internal。
        ════════════════════════════════════════════════════════════════════════ -->

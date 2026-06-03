@@ -12,12 +12,12 @@ using TuneLab.Hosting.Compat.Legacy.Voice;
 
 namespace TuneLab.Hosting.Compat.Legacy;
 
-// 反射加载入口（话题#9，引用策略 C —— 主程序对本程序集零编译依赖）：
+// 反射加载入口（主程序对本程序集零编译依赖）：
 //   宿主经 Assembly.LoadFrom 加载本 dll → 反射取 LegacyCompatEntry.TryLoad → 注入注册委托。
 //   委托签名只用共享契约类型（SDK.Format / SDK.Voice），它们由 Default ALC 加载一份、跨边界同一 Type，
 //   故反射 Invoke 的实参类型与宿主侧构造的委托精确匹配。adapter 全 internal，公开面仅本类 + V1 SDK 类型。
 //
-// 公开面刻意只此一个静态方法 + 全 BCL/SDK 类型参数（§三.4 "暴露的工厂接口"）。
+// 公开面刻意只此一个静态方法 + 全 BCL/SDK 类型参数（暴露的工厂接口）。
 public static class LegacyCompatEntry
 {
     // 加载一个 Legacy 包目录，把发现的老 format/voice 插件包成 V1 适配器、经委托注册进宿主。
@@ -33,7 +33,7 @@ public static class LegacyCompatEntry
         Action<string, VFmt.IExportFormat> addExporter,
         Action<string, VVoice.IVoiceEngine, string> addVoiceEngine)
     {
-        // per-plugin ALC（§三.15/§三.16）：隔离野外 voice 引擎各自捆绑的冲突原生依赖（ONNX 等）。
+        // per-plugin ALC：隔离野外 voice 引擎各自捆绑的冲突原生依赖（ONNX 等）。
         var alc = new LegacyPluginLoadContext(packagePath);
 
         IEnumerable<string> files = (assemblies != null && assemblies.Length > 0)

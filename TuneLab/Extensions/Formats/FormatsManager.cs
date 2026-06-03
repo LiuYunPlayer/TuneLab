@@ -24,7 +24,7 @@ internal static class FormatsManager
     }
 
     // 由 ExtensionManager 在加载（V1 走 per-folder ALC、Legacy 走 fallback）后传入已加载类型，
-    // 扫 [ImportFormat]/[ExportFormat] 注册。manager 不再自行解析 description.json（话题#10）。
+    // 扫 [ImportFormat]/[ExportFormat] 注册。manager 不再自行解析 description.json。
     public static void RegisterFromTypes(Type[] types)
     {
         foreach (Type type in types)
@@ -53,7 +53,7 @@ internal static class FormatsManager
         }
     }
 
-    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的适配器实例（话题#9）。
+    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的适配器实例。
     // 老插件链接老 attribute/接口，扫不出 V1 attribute，故走实例/工厂注册而非 RegisterFromTypes 的反射实例化。
     // 内建/V1 优先：扩展名已存在则跳过（不让 Legacy 覆盖内建格式）。
     public static void RegisterImporter(string fileExtension, Func<IImportFormat> factory)

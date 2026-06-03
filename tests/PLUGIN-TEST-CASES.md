@@ -1,7 +1,7 @@
 # 插件系统测试用例与预期表现
 
-> 针对话题 #7（SDK 分层）/ #9（Compat.Legacy）/ #10（扩展加载机制）落地的功能，提供**可手动加载验证**的测试插件包 + 预期表现清单。
-> effect 真实实现待 #11，故只覆盖"识别即跳过"；详见文末「待落地」。
+> 针对插件系统已落地的功能（SDK 分层 / Compat.Legacy 老插件兼容 / 扩展加载机制），提供**可手动加载验证**的测试插件包 + 预期表现清单。
+> effect 真实实现尚未落地，故只覆盖"识别即跳过"；详见文末「待落地」。
 
 ## 如何构建与部署
 
@@ -86,7 +86,7 @@ pwsh tests/pack-tlx.ps1            # 产物 tests/tlx/*.tlx
 | `v1-conflict-a` | 捆绑 `ConflictHelper` **v1.0.0.0** | **Loaded**；导入 `.tlconfa` → 轨名 `ConflictHelper v1.0.0.0 (pkg A)` |
 | `v1-conflict-b` | 捆绑 `ConflictHelper` **v2.0.0.0**（同名不同版） | **Loaded**；导入 `.tlconfb` → 轨名 `ConflictHelper v2.0.0.0 (pkg B)` |
 
-- **关键预期**：A、B **同时加载成功、互不冲突**，各自看到自己捆绑的 `ConflictHelper` 版本（v1 / v2）。这验证 per-plugin ALC 把同名不同版的第三方依赖隔离开（§三.15/§三.16 的核心动机）。
+- **关键预期**：A、B **同时加载成功、互不冲突**，各自看到自己捆绑的 `ConflictHelper` 版本（v1 / v2）。这验证 per-plugin ALC 把同名不同版的第三方依赖隔离开（per-plugin ALC 隔离的核心动机）。
 - **失败信号**（若 ALC 隔离没生效）：第二个包加载失败、或两包都报出同一个版本、或类型加载异常。
 
 ---
@@ -99,12 +99,12 @@ pwsh tests/pack-tlx.ps1            # 产物 tests/tlx/*.tlx
 
 ## 四、待落地（插件系统尚未完备，记录在此，后面补测试）
 
-以下测试用例当前**无法编写/验证**，待对应话题落地后补：
+以下测试用例当前**无法编写/验证**，待对应功能落地后补：
 
-1. **真实 effect 插件**（import/process/参数）—— 待 **#11** 定义 `SDK.Effect` 接口形状。当前仅能测「`type=effect` 被识别即跳过」（`v1-effect`）。
-2. **`ILog` / `ITuneLabContext` 注入**测试（插件读宿主状态、打 tag 日志）—— 待 **#11** 接通注入（当前 managers 仍无参构造，未注入 context）。
+1. **真实 effect 插件**（import/process/参数）—— 待 `SDK.Effect` 接口形状定义。当前仅能测「`type=effect` 被识别即跳过」（`v1-effect`）。
+2. **`ILog` / `ITuneLabContext` 注入**测试（插件读宿主状态、打 tag 日志）—— 待注入接通（当前 managers 仍无参构造，未注入 context）。
 3. **collectible 热卸载**测试（免重启卸载/更新、释放 dll 文件锁、ALC 真正卸载）—— 待 collectible 触发条件落地（当前非 collectible，卸载走重启式 `ExtensionInstaller.exe`）。对应可加的断言：卸载后弱引用被回收、文件锁释放。
-4. **多版本共存（V1↔V2）compat**测试 —— 待出现 V2 / `Compat.V1`（§三.18 前瞻）。
+4. **多版本共存（V1↔V2）compat**测试 —— 待出现 V2 / `Compat.V1`。
 5. **原生依赖（ONNX 等）真实 voice 引擎**端到端 —— 需要真实捆绑原生运行时的样例；当前 voice 测试用纯托管正弦合成覆盖接口与边界穿越，未覆盖 `LoadUnmanagedDll` 原生解析路径的真机行为。
 
 ---

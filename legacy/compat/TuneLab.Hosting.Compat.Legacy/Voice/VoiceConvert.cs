@@ -19,9 +19,9 @@ internal static class VoiceConvert
         => new() { Name = i.Name, Description = i.Description };
 
     // 老 SynthesisResult → V1：
-    //   · audio float[] 同类型 → 直接共享引用（零拷贝，handoff 后视为不可变，§三.15 热缓冲）。
+    //   · audio float[] 同类型 → 直接共享引用（零拷贝，handoff 后视为不可变）。
     //   · pitch 逐点拷贝（冷，每结果一次）。
-    //   · phonemes 以 note 为键 → 经 LegacyNoteAdapter.Origin 映射回宿主 V1 note（身份保持，§三.15）。
+    //   · phonemes 以 note 为键 → 经 LegacyNoteAdapter.Origin 映射回宿主 V1 note（身份保持）。
     public static VVoice.SynthesisResult ToV1(this LVoice.SynthesisResult old)
     {
         var pitch = old.SynthesizedPitch

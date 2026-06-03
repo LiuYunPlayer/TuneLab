@@ -5,7 +5,7 @@ using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
 
-// Point 跨代转换。Legacy/V1 Point 布局相同（两个连续 double），故热缓冲可零拷贝重解释（§三.15）；
+// Point 跨代转换。Legacy/V1 Point 布局相同（两个连续 double），故热缓冲可零拷贝重解释；
 // 但跨类型重新暴露为 IReadOnlyList<Point> 无法零分配（数组元素类型不可原地改），故曲线点逐点拷贝——
 // 它落在冷设置路径（每 part/合成结果一次），可忽略。真正热路径 audio float[] 同类型直接共享引用、零拷贝。
 internal static class PointConvert

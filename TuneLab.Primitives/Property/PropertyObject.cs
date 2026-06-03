@@ -59,7 +59,7 @@ public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map) : IE
         return Enum.TryParse<T>(name, out var result) ? result : defaultValue;
     }
 
-    // 深相等性（§三.12）：同键集 + 每个 PropertyValue 深比较，支撑 undo 去重。
+    // 深相等性：同键集 + 每个 PropertyValue 深比较，支撑 undo 去重。
     public bool Equals(PropertyObject? other)
     {
         if (other is null)

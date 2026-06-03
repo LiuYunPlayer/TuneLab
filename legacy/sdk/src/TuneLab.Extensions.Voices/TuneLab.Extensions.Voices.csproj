@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- ════════════════════════════════════════════════════════════════════════
-       冻结 · 禁改   Legacy SDK 源码快照（§三.3 / §三.16，话题#8/#9）
+       冻结 · 禁改   Legacy SDK 源码快照
        老 voice 插件契约（IVoiceEngine / IVoiceSource / ISynthesis*），野外 DiffSinger 类引擎链接它。
        · AssemblyVersion 钉死 1.0.0.0（野外绑定身份，不可动）；TFM 锁 net8（ABI 地板）。
        · 不进 TuneLab.sln，不跟随主仓 analyzer/props；取自 master 纯净 Legacy。
