@@ -115,7 +115,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         // 或靠字符串匹配猜类型——类型/名称/版本/代际都来自真实加载结果。
         foreach (var result in ExtensionManager.LoadResults)
         {
-            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayType(result), result.DirectoryPath);
+            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayType(result), result.DirectoryPath, result.Status, result.Error);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
             itemView.CancelUninstallRequested += () => OnCancelUninstall(itemView);
             if (ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath))

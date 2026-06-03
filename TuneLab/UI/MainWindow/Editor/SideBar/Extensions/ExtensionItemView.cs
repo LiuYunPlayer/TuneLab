@@ -7,6 +7,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using TuneLab.Extensions;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
@@ -24,7 +25,7 @@ internal class ExtensionItemView : Border
     public string ExtensionPath { get; }
     public bool IsPendingUninstall { get; private set; }
 
-    public ExtensionItemView(string name, string version, string type, string extensionPath)
+    public ExtensionItemView(string name, string version, string type, string extensionPath, ExtensionLoadStatus status, string? error)
     {
         ExtensionName = name;
         ExtensionVersion = version;
@@ -127,7 +128,32 @@ internal class ExtensionItemView : Border
                     Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
                 }
             };
-            bottomRow.AddDock(typeBadge);
+            // 类别徽标 + （非 Loaded 时）状态徽标，并排在左侧。
+            var tagPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            };
+            tagPanel.Children.Add(typeBadge);
+
+            if (status != ExtensionLoadStatus.Loaded)
+            {
+                var (statusText, statusColor) = StatusBadge(status);
+                var statusBadge = new Border
+                {
+                    Background = new SolidColorBrush(statusColor, 0.18),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 2),
+                    Margin = new Thickness(6, 0, 0, 0),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Child = new TextBlock { Text = statusText, FontSize = 11, Foreground = new SolidColorBrush(statusColor) },
+                };
+                if (!string.IsNullOrEmpty(error))
+                    ToolTip.SetTip(statusBadge, error);
+                tagPanel.Children.Add(statusBadge);
+            }
+            bottomRow.AddDock(tagPanel);
         }
         rightPanel.AddDock(bottomRow, Dock.Bottom);
 
@@ -212,6 +238,14 @@ internal class ExtensionItemView : Border
         if (text.Length <= 4) return 15;
         return 13;
     }
+
+    private static (string, Color) StatusBadge(ExtensionLoadStatus status) => status switch
+    {
+        ExtensionLoadStatus.Failed => ("Failed".Tr(TC.Dialog), Color.Parse("#E5737C")),
+        ExtensionLoadStatus.Skipped => ("Skipped".Tr(TC.Dialog), Color.Parse("#E5C573")),
+        ExtensionLoadStatus.PartiallyLoaded => ("Partial".Tr(TC.Dialog), Color.Parse("#E5A573")),
+        _ => (string.Empty, Colors.Transparent),
+    };
 
     public void MarkPendingUninstall()
     {

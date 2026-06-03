@@ -900,7 +900,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             {
                 ZipFileHelper.ExtractToDirectory(file, dir);
                 ExtensionManager.Load(dir);
-                succeeded.Add(name);
+                // 解压成功 ≠ 加载成功：坏 manifest 等会被 Load 优雅记成 Failed 而不抛，这里据加载结果归类。
+                var result = ExtensionManager.LoadResults.LastOrDefault(r => r.DirectoryPath == dir);
+                if (result != null && result.Status == ExtensionLoadStatus.Failed)
+                    failed.Add(name + ": " + (result.Error ?? "load failed"));
+                else
+                    succeeded.Add(name);
             }
             catch (Exception ex)
             {
