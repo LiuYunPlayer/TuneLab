@@ -26,7 +26,7 @@ internal class Voice : DataObject, IVoice
 
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {
-        IDataObject<VoiceInfo>.SetInfo(this, info);
+        WriteInfo(info);
     }
 
     public VoiceInfo GetInfo()
@@ -38,10 +38,20 @@ internal class Voice : DataObject, IVoice
         };
     }
 
+    // 原子复合：状态是普通字段（无子数据对象可扇出），故保留复合 ModifyCommand + 私有 raw SetInfo（写自身字段，无跨实例访问墙）。
+    public void SetInfo(VoiceInfo info)
+    {
+        var before = GetInfo();
+        if (Equals(before, info))
+            return;
+
+        PushAndDo(new ModifyCommand(this, before, info));
+    }
+
     [MemberNotNull(nameof(mType))]
     [MemberNotNull(nameof(mID))]
     [MemberNotNull(nameof(mVoiceSource))]
-    void IDataObject<VoiceInfo>.SetInfo(VoiceInfo info)
+    void WriteInfo(VoiceInfo info)
     {
         mType = info.Type;
         mID = info.ID;
@@ -51,6 +61,12 @@ internal class Voice : DataObject, IVoice
         {
             mAutomationConfigs.Add(kvp.Key, kvp.Value);
         }
+    }
+
+    class ModifyCommand(Voice voice, VoiceInfo before, VoiceInfo after) : ICommand
+    {
+        public void Redo() { voice.WriteInfo(after); voice.Notify(); }
+        public void Undo() { voice.WriteInfo(before); voice.Notify(); }
     }
 
     public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote

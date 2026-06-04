@@ -98,7 +98,7 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
             }
         }
         var newLine = new T();
-        newLine.Set(startPoints.Concat(points).Concat(endPoints));
+        newLine.SetInfo(startPoints.Concat(points).Concat(endPoints));
         for (int i = 0; i < removeCount; i++)
         {
             mAnchorGroups.RemoveAt(insertIndex);
@@ -143,7 +143,7 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
                 }
 
                 var endLine = new T();
-                endLine.Set(endPoints);
+                endLine.SetInfo(endPoints);
                 mAnchorGroups.Insert(gi + 1, endLine);
             }
 
@@ -386,7 +386,7 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
             start = points.ConstFirst().Pos;
             start = points.ConstLast().Pos;
             Push(new UndoOnlyCommand(NotifyRangeModified));
-            anchorGroup.Set(points);
+            anchorGroup.SetInfo(points);
             NotifyRangeModified();
             Push(new RedoOnlyCommand(NotifyRangeModified));
             return;
@@ -641,9 +641,10 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
         return values;
     }
 
-    void IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(IEnumerable<IReadOnlyCollection<Point>> info)
+    public void SetInfo(IEnumerable<IReadOnlyCollection<Point>> info)
     {
-        IDataObject<IEnumerable<IReadOnlyCollection<Point>>>.SetInfo(mAnchorGroups, info.Where(points => points.Count > 0).Convert(points => { var t = new T(); t.Set(points.Select(point => new AnchorPoint(point))); return t; }).ToArray());
+        using var _ = MergeNotify();
+        mAnchorGroups.SetInfo(info.Where(points => points.Count > 0).Convert(points => { var t = new T(); t.SetInfo(points.Select(point => new AnchorPoint(point))); return t; }).ToArray());
     }
 
     readonly DataObjectList<T> mAnchorGroups = new();

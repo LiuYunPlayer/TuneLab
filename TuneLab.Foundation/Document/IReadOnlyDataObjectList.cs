@@ -9,5 +9,6 @@ namespace TuneLab.Foundation.Document;
 
 public interface IReadOnlyDataObjectList<out T> : IReadOnlyDataList<T>, IReadOnlyDataObjectCollection<T> where T : IDataObject
 {
-    IActionEvent ListModified { get; }
+    // 仅列表结构变更（成员增删/替换）；元素内容的深层变更走继承自 IDataObject 的 Modified。
+    IModifiedEvent ListModified { get; }
 }

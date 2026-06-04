@@ -19,9 +19,10 @@ internal abstract class Tempo(DataObject parent) : DataObject(parent), IDataObje
         Bpm = Bpm
     };
 
-    void IDataObject<TempoInfo>.SetInfo(TempoInfo info)
+    public void SetInfo(TempoInfo info)
     {
-        IDataObject<TempoInfo>.SetInfo(Pos, info.Pos);
-        IDataObject<TempoInfo>.SetInfo(Bpm, info.Bpm);
+        using var _ = MergeNotify();
+        Pos.SetInfo(info.Pos);
+        Bpm.SetInfo(info.Bpm);
     }
 }

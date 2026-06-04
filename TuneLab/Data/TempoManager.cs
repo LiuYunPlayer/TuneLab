@@ -23,7 +23,7 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
     {
         mTempos = new(this);
         mProject = project;
-        IDataObject<List<TempoInfo>>.SetInfo(this, tempos);
+        SetInfo(tempos);
     }
 
     public int AddTempo(double pos, double bpm)
@@ -121,12 +121,13 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         return mTempos.GetInfo().ToInfo();
     }
 
-    void IDataObject<List<TempoInfo>>.SetInfo(List<TempoInfo> info)
+    public void SetInfo(List<TempoInfo> info)
     {
         if (info.Count == 0)
             info = [new() { Pos = 0, Bpm = DefaultBpm }];
 
-        IDataObject<List<TempoInfo>>.SetInfo(mTempos, info.Convert(t => new TempoForTempoManager(t)).ToArray());
+        using var _ = MergeNotify();
+        mTempos.SetInfo(info.Convert(t => new TempoForTempoManager(t)).ToArray());
         CorrectStatusFrom(0);
     }
 
@@ -153,25 +154,26 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         {
             Pos.Attach(this);
             Bpm.Attach(this);
-            IDataObject<TempoInfo>.SetInfo(this, info);
+            SetInfo(info);
         }
 
         public TempoInfo GetInfo() => new() { Pos = Pos, Bpm = Bpm };
 
-        void IDataObject<TempoInfo>.SetInfo(TempoInfo info)
+        public void SetInfo(TempoInfo info)
         {
-            IDataObject<TempoInfo>.SetInfo(Pos, info.Pos);
-            IDataObject<TempoInfo>.SetInfo(Bpm, info.Bpm);
+            using var _ = MergeNotify();
+            Pos.SetInfo(info.Pos);
+            Bpm.SetInfo(info.Bpm);
         }
 
         class BPM : DataStruct<double>
         {
             public double Coe { get; private set; }
 
-            protected override void SetInfo(double info)
+            protected override void SetValue(double value)
             {
-                base.SetInfo(info);
-                Coe = info / 60 * MusicTheory.RESOLUTION;
+                base.SetValue(value);
+                Coe = value / 60 * MusicTheory.RESOLUTION;
             }
         }
     }

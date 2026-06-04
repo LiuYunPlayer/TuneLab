@@ -175,13 +175,13 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
             if (value.ToObject(out var objectValue))
             {
                 var dataPropertyObject = new DataPropertyObject();
-                IDataObject<IReadOnlyMap<string, PropertyValue>>.SetInfo(dataPropertyObject, objectValue);
+                dataPropertyObject.SetInfo(objectValue);
                 value = PropertyValue.Create(new PropertyObject(dataPropertyObject));
             }
-            IDataObject<IReadOnlyMap<string, PropertyValue>>.SetInfo(dataPropertyValue, value);
+            dataPropertyValue.SetInfo(value);
             map.Add(key, dataPropertyValue);
         }
-        IDataObject<IReadOnlyMap<string, PropertyValue>>.SetInfo(mMap, map);
+        mMap.SetInfo(map);
     }
 
     public bool ContainsKey(string key)

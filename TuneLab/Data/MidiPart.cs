@@ -70,7 +70,7 @@ internal class MidiPart : Part, IMidiPart
         mVibratos.Any(vibrato => vibrato.RangeModified).Subscribe(OnPitchRangeModified);
         TempoManager.Modified.Subscribe(ReGeneratePieces); // TODO: 改为tempoManager改变发出重分片信号
         Pos.Modified.Subscribe(ReGeneratePieces); // TODO: 改为tempoManager改变发出重分片信号
-        IDataObject<MidiPartInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     public void InsertNote(INote note)
@@ -429,7 +429,7 @@ internal class MidiPart : Part, IMidiPart
     public Vibrato CreateVibrato(VibratoInfo info)
     {
         var vibrato = new Vibrato(this);
-        IDataObject<VibratoInfo>.SetInfo(vibrato, info);
+        vibrato.SetInfo(info);
         return vibrato;
     }
 
@@ -514,20 +514,20 @@ internal class MidiPart : Part, IMidiPart
         };
     }
 
-    void IDataObject<MidiPartInfo>.SetInfo(MidiPartInfo info)
+    public void SetInfo(MidiPartInfo info)
     {
-        IDataObject<MidiPartInfo>.SetInfo(Name, info.Name);
-        IDataObject<MidiPartInfo>.SetInfo(Name, info.Name);
-        IDataObject<MidiPartInfo>.SetInfo(Pos, info.Pos);
-        IDataObject<MidiPartInfo>.SetInfo(Dur, info.Dur);
-        IDataObject<MidiPartInfo>.SetInfo(Gain, info.Gain);
-        IDataObject<MidiPartInfo>.SetInfo(mNotes, info.Notes.Convert(CreateNote).ToArray());
-        IDataObject<MidiPartInfo>.SetInfo(mEffects, info.Effects.Convert(CreateEffect).ToArray());
-        IDataObject<MidiPartInfo>.SetInfo(mVibratos, info.Vibratos.Convert(CreateVibrato).ToArray());
-        IDataObject<MidiPartInfo>.SetInfo(mAutomations, info.Automations.Convert(CreateAutomation).ToMap());
-        IDataObject<MidiPartInfo>.SetInfo(mPitchLine, info.Pitch);
-        IDataObject<MidiPartInfo>.SetInfo(mVoice, info.Voice);
-        IDataObject<MidiPartInfo>.SetInfo(Properties, info.Properties);
+        using var _ = MergeNotify();
+        Name.SetInfo(info.Name);
+        Pos.SetInfo(info.Pos);
+        Dur.SetInfo(info.Dur);
+        Gain.SetInfo(info.Gain);
+        mNotes.SetInfo(info.Notes.Convert(CreateNote).ToArray());
+        mEffects.SetInfo(info.Effects.Convert(CreateEffect).ToArray());
+        mVibratos.SetInfo(info.Vibratos.Convert(CreateVibrato).ToArray());
+        mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
+        mPitchLine.SetInfo(info.Pitch);
+        mVoice.SetInfo(info.Voice);
+        Properties.SetInfo(info.Properties);
     }
 
     void ReGeneratePieces()

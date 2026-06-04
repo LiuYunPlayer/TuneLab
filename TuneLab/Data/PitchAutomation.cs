@@ -27,7 +27,7 @@ internal class PitchAutomation : DataObject, IDataObject<IReadOnlyList<Automatio
         throw new NotImplementedException();
     }
 
-    void IDataObject<IReadOnlyList<AutomationInfo>>.SetInfo(IReadOnlyList<AutomationInfo> info)
+    public void SetInfo(IReadOnlyList<AutomationInfo> info)
     {
         throw new NotImplementedException();
     }

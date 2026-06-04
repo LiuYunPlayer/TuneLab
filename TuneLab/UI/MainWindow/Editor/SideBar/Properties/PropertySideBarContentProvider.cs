@@ -288,7 +288,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        mPart.Voice.Set(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
+        mPart.Voice.SetInfo(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
         ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, new PropertyPath());
         ApplyPresetProperties(preset.Properties, new PropertyPath());
         ApplyAutomationDefaults(preset);

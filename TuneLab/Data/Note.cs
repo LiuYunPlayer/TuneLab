@@ -59,7 +59,7 @@ internal class Note : DataObject, INote
         Properties = new(this);
         Phonemes.Attach(this);
         mPart = part;
-        IDataObject<NoteInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     public NoteInfo GetInfo()
@@ -78,15 +78,16 @@ internal class Note : DataObject, INote
         return info;
     }
 
-    void IDataObject<NoteInfo>.SetInfo(NoteInfo info)
+    public void SetInfo(NoteInfo info)
     {
-        IDataObject<NoteInfo>.SetInfo(Pos, info.Pos);
-        IDataObject<NoteInfo>.SetInfo(Dur, info.Dur);
-        IDataObject<NoteInfo>.SetInfo(Pitch, info.Pitch);
-        IDataObject<NoteInfo>.SetInfo(Lyric, info.Lyric);
-        IDataObject<NoteInfo>.SetInfo(Pronunciation, info.Pronunciation);
-        IDataObject<NoteInfo>.SetInfo(Properties, info.Properties);
-        IDataObject<NoteInfo>.SetInfo(Phonemes, info.Phonemes.Convert(Phoneme.Create).ToArray());
+        using var _ = MergeNotify();
+        Pos.SetInfo(info.Pos);
+        Dur.SetInfo(info.Dur);
+        Pitch.SetInfo(info.Pitch);
+        Lyric.SetInfo(info.Lyric);
+        Pronunciation.SetInfo(info.Pronunciation);
+        Properties.SetInfo(info.Properties);
+        Phonemes.SetInfo(info.Phonemes.Convert(Phoneme.Create).ToArray());
     }
 
     class DataLyric : DataString
@@ -102,7 +103,7 @@ internal class Note : DataObject, INote
             });
         }
 
-        protected override void Set(string value)
+        public override void Set(string value)
         {
             base.Set(value);
             mNote.Phonemes.Clear();
@@ -114,7 +115,7 @@ internal class Note : DataObject, INote
 
     class DataPronunciation(Note note) : DataString(note)
     {
-        protected override void Set(string value)
+        public override void Set(string value)
         {
             base.Set(value);
             note.Phonemes.Clear();

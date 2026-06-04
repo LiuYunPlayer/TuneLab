@@ -25,7 +25,7 @@ internal class TimeSignatureManager : DataObject, ITimeSignatureManager
     {
         mTimeSignatures = new(this);
         mProject = project;
-        IDataObject<List<TimeSignatureInfo>>.SetInfo(this, timeSignatures);
+        SetInfo(timeSignatures);
     }
 
     public int AddTimeSignature(int barIndex, int numerator, int denominator)
@@ -109,12 +109,13 @@ internal class TimeSignatureManager : DataObject, ITimeSignatureManager
         return mTimeSignatures.GetInfo().ToInfo();
     }
 
-    void IDataObject<List<TimeSignatureInfo>>.SetInfo(List<TimeSignatureInfo> info)
+    public void SetInfo(List<TimeSignatureInfo> info)
     {
         if (info.Count == 0)
             info = [new() { BarIndex = 0, Numerator = DefaultNumerator, Denominator = DefaultDenominator }];
 
-        IDataObject<List<TimeSignatureInfo>>.SetInfo(mTimeSignatures, info.Convert(t => new TimeSignature(t)).ToArray());
+        using var _ = MergeNotify();
+        mTimeSignatures.SetInfo(info.Convert(t => new TimeSignature(t)).ToArray());
         CorrectStatusFrom(0);
     }
 
@@ -138,16 +139,17 @@ internal class TimeSignatureManager : DataObject, ITimeSignatureManager
             BarIndex = new(this);
             Numerator = new(this);
             Denominator = new(this);
-            IDataObject<TimeSignatureInfo>.SetInfo(this, info);
+            SetInfo(info);
         }
 
         public TimeSignatureInfo GetInfo() => new() { BarIndex = BarIndex.Value, Numerator = Numerator.Value, Denominator = Denominator.Value };
 
-        void IDataObject<TimeSignatureInfo>.SetInfo(TimeSignatureInfo info)
+        public void SetInfo(TimeSignatureInfo info)
         {
-            IDataObject<TimeSignatureInfo>.SetInfo(BarIndex, info.BarIndex);
-            IDataObject<TimeSignatureInfo>.SetInfo(Numerator, info.Numerator);
-            IDataObject<TimeSignatureInfo>.SetInfo(Denominator, info.Denominator);
+            using var _ = MergeNotify();
+            BarIndex.SetInfo(info.BarIndex);
+            Numerator.SetInfo(info.Numerator);
+            Denominator.SetInfo(info.Denominator);
         }
 
         int mBeatIndex;

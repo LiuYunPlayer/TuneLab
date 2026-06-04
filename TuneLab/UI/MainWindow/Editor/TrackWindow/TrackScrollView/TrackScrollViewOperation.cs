@@ -231,7 +231,7 @@ internal partial class TrackScrollView
                                                                 {
                                                                     if (part is MidiPart midiPart)
                                                                     {
-                                                                        midiPart.Voice.Set(new VoiceInfo() { Type = type, ID = info.Key });
+                                                                        midiPart.Voice.SetInfo(new VoiceInfo() { Type = type, ID = info.Key });
                                                                     }
                                                                 }
                                                                 Project.Commit();

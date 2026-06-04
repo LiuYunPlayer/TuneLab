@@ -11,7 +11,7 @@ namespace TuneLab.Foundation.Document;
 
 public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> where T : class, IDataObject, ILinkedNode<T>
 {
-    public IMergableEvent ListModified => mDataLinkedList.Modified;
+    public IModifiedEvent ListModified => mDataLinkedList.Modified;
     public IActionEvent<T> ItemAdded => mDataLinkedList.ItemAdded;
     public IActionEvent<T> ItemRemoved => mDataLinkedList.ItemRemoved;
 
@@ -79,7 +79,7 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
 
     void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
     {
-        IDataObject<IEnumerable<T>>.SetInfo(mDataLinkedList, info);
+        mDataLinkedList.SetInfo(info);
     }
 
     public IEvent<TEvent> Any<TEvent>(ISubscriber<T, TEvent> subscriber)
@@ -145,7 +145,7 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
         {
             foreach (var invokable in mEvents)
             {
-                mSubscriber.Subscribe(item, invokable);
+                mSubscriber.Unsubscribe(item, invokable);
             }
         }
 
@@ -163,6 +163,4 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
     }
 
     readonly DataLinkedList mDataLinkedList;
-
-    readonly ActionEvent mListModified = new();
 }

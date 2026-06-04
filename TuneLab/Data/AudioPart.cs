@@ -37,7 +37,7 @@ internal class AudioPart : Part, IAudioPart
             if (Path.Value.StartsWith("..")) 
                 Reload(); 
         });
-        IDataObject<AudioPartInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     public override AudioPartInfo GetInfo()
@@ -60,12 +60,13 @@ internal class AudioPart : Part, IAudioPart
         };
     }
 
-    void IDataObject<AudioPartInfo>.SetInfo(AudioPartInfo info)
+    public void SetInfo(AudioPartInfo info)
     {
-        IDataObject<AudioPartInfo>.SetInfo(Name, info.Name);
-        IDataObject<AudioPartInfo>.SetInfo(Pos, info.Pos);
-        IDataObject<AudioPartInfo>.SetInfo(Dur, info.Dur);
-        IDataObject<AudioPartInfo>.SetInfo(Path, info.Path);
+        using var _ = MergeNotify();
+        Name.SetInfo(info.Name);
+        Pos.SetInfo(info.Pos);
+        Dur.SetInfo(info.Dur);
+        Path.SetInfo(info.Path);
     }
 
     public override IAudioData GetAudioData(int offset, int count)

@@ -129,7 +129,7 @@ public partial class MainWindow : Window
                 if (mEditor.Project == null)
                     return;
 
-                mEditor.Project.Set(info);
+                mEditor.Project.SetInfo(info);
                 mEditor.Project.Commit();
                 foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
                 {

@@ -36,7 +36,7 @@ internal class Project : DataObject, IProject
         mTracks.ItemAdded.Subscribe(OnTrackAdded);
         mTracks.ItemRemoved.Subscribe(OnTrackRemoved);
 
-        IDataObject<ProjectInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     public ProjectInfo GetInfo()
@@ -70,11 +70,12 @@ internal class Project : DataObject, IProject
         return info;
     }
 
-    void IDataObject<ProjectInfo>.SetInfo(ProjectInfo info)
+    public void SetInfo(ProjectInfo info)
     {
-        IDataObject<ProjectInfo>.SetInfo(mTempoManager, info.Tempos);
-        IDataObject<ProjectInfo>.SetInfo(mTimeSignatureManager, info.TimeSignatures);
-        IDataObject<ProjectInfo>.SetInfo(mTracks, info.Tracks.Convert(CreateTrack).ToArray());
+        using var _ = MergeNotify();
+        mTempoManager.SetInfo(info.Tempos);
+        mTimeSignatureManager.SetInfo(info.TimeSignatures);
+        mTracks.SetInfo(info.Tracks.Convert(CreateTrack).ToArray());
         if (info.ExportConfig != null)
         {
             ExportPath = info.ExportConfig.ExportPath;

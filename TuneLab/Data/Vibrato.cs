@@ -73,16 +73,17 @@ internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable
         };
     }
 
-    void IDataObject<VibratoInfo>.SetInfo(VibratoInfo info)
+    public void SetInfo(VibratoInfo info)
     {
-        IDataObject<VibratoInfo>.SetInfo(Pos, info.Pos);
-        IDataObject<VibratoInfo>.SetInfo(Dur, info.Dur);
-        IDataObject<VibratoInfo>.SetInfo(Frequency, info.Frequency);
-        IDataObject<VibratoInfo>.SetInfo(Amplitude, info.Amplitude);
-        IDataObject<VibratoInfo>.SetInfo(Phase, info.Phase);
-        IDataObject<VibratoInfo>.SetInfo(Attack, info.Attack);
-        IDataObject<VibratoInfo>.SetInfo(Release, info.Release);
-        IDataObject<VibratoInfo>.SetInfo(AffectedAutomations, info.AffectedAutomations);
+        using var _ = MergeNotify();
+        Pos.SetInfo(info.Pos);
+        Dur.SetInfo(info.Dur);
+        Frequency.SetInfo(info.Frequency);
+        Amplitude.SetInfo(info.Amplitude);
+        Phase.SetInfo(info.Phase);
+        Attack.SetInfo(info.Attack);
+        Release.SetInfo(info.Release);
+        AffectedAutomations.SetInfo(info.AffectedAutomations);
     }
 
     void NotifyRangeModified()

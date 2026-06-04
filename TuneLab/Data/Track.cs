@@ -60,7 +60,7 @@ internal class Track : DataObject, ITrack
         mParts.ItemAdded.Subscribe(part => { part.Track = this; part.Activate(); });
         mParts.ItemRemoved.Subscribe(part => { part.Deactivate(); });
 
-        IDataObject<TrackInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     public void InsertPart(IPart part)
@@ -128,18 +128,19 @@ internal class Track : DataObject, ITrack
         };
     }
 
-    void IDataObject<TrackInfo>.SetInfo(TrackInfo info)
+    public void SetInfo(TrackInfo info)
     {
-        IDataObject<TrackInfo>.SetInfo(Name, info.Name);
-        IDataObject<TrackInfo>.SetInfo(IsMute, info.Mute);
-        IDataObject<TrackInfo>.SetInfo(IsSolo, info.Solo);
-        IDataObject<TrackInfo>.SetInfo(Gain, info.Gain);
-        IDataObject<TrackInfo>.SetInfo(Pan, info.Pan);
-        IDataObject<TrackInfo>.SetInfo(Color, info.Color);
-        IDataObject<TrackInfo>.SetInfo(AsRefer, info.AsRefer);
+        using var _ = MergeNotify();
+        Name.SetInfo(info.Name);
+        IsMute.SetInfo(info.Mute);
+        IsSolo.SetInfo(info.Solo);
+        Gain.SetInfo(info.Gain);
+        Pan.SetInfo(info.Pan);
+        Color.SetInfo(info.Color);
+        AsRefer.SetInfo(info.AsRefer);
         ExportEnabled = info.ExportEnabled;
         ExportChannels = info.ExportChannels;
-        IDataObject<TrackInfo>.SetInfo(mParts, info.Parts.Convert(CreatePart).ToArray());
+        mParts.SetInfo(info.Parts.Convert(CreatePart).ToArray());
     }
 
     class PartList : DataObjectLinkedList<IPart>

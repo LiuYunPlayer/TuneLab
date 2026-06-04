@@ -1,3 +1,4 @@
+using System;
 using TuneLab.Foundation.Document;
 using TuneLab.Primitives.Property;
 
@@ -19,43 +20,31 @@ public static class IDataPropertyObjectExtension
 {
     public static IDataProperty<double> NumberField(this IDataPropertyObject dataObject, PropertyPath.Key key, double defaultValue)
     {
-        return new NumberProperty(dataObject, key, defaultValue);
+        return new PropertyField<double>(dataObject, key, PropertyValue.Create(defaultValue),
+            v => v.ToDouble(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
     public static IDataProperty<string> StringField(this IDataPropertyObject dataObject, PropertyPath.Key key, string defaultValue)
     {
-        return new StringProperty(dataObject, key, defaultValue);
+        return new PropertyField<string>(dataObject, key, PropertyValue.Create(defaultValue),
+            v => v.ToString(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
     public static IDataProperty<bool> BoolField(this IDataPropertyObject dataObject, PropertyPath.Key key, bool defaultValue)
     {
-        return new BoolProperty(dataObject, key, defaultValue);
+        return new PropertyField<bool>(dataObject, key, PropertyValue.Create(defaultValue),
+            v => v.ToBool(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
     // 字段适配器：包裹数据源的撤销根（Head/Commit/DiscardTo/Modified 全经 Wrapper 转发到文档），
     // 仅把读写转成具体类型并直接走 GetValue/SetValue（写入由底层 DataPropertyValue 自带的撤销命令承担，
-    // 故覆写 Set 绕过基类会重复入栈的命令机制——避免一次编辑产生两条撤销记录）。
-    class NumberProperty(IDataPropertyObject dataObject, PropertyPath.Key key, double defaultValue) : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<double>
+    // 故 Set 直达 SetValue、不经基类命令机制——避免一次编辑产生两条撤销记录）。
+    class PropertyField<T>(IDataPropertyObject dataObject, PropertyPath.Key key, PropertyValue defaultValue, Func<PropertyValue, T> read, Func<T, PropertyValue> write)
+        : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<T> where T : notnull
     {
-        public double Value => dataObject.GetValue(key, PropertyValue.Create(defaultValue)).ToDouble(out var value) ? value : defaultValue;
-        public double GetInfo() => Value;
-        void IDataObject<double>.Set(double value) => dataObject.SetValue(key, PropertyValue.Create(value));
-        void IDataObject<double>.SetInfo(double info) => dataObject.SetValue(key, PropertyValue.Create(info));
-    }
-
-    class StringProperty(IDataPropertyObject dataObject, PropertyPath.Key key, string defaultValue) : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<string>
-    {
-        public string Value => dataObject.GetValue(key, PropertyValue.Create(defaultValue)).ToString(out var value) ? value : defaultValue;
-        public string GetInfo() => Value;
-        void IDataObject<string>.Set(string value) => dataObject.SetValue(key, PropertyValue.Create(value));
-        void IDataObject<string>.SetInfo(string info) => dataObject.SetValue(key, PropertyValue.Create(info));
-    }
-
-    class BoolProperty(IDataPropertyObject dataObject, PropertyPath.Key key, bool defaultValue) : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<bool>
-    {
-        public bool Value => dataObject.GetValue(key, PropertyValue.Create(defaultValue)).ToBool(out var value) ? value : defaultValue;
-        public bool GetInfo() => Value;
-        void IDataObject<bool>.Set(bool value) => dataObject.SetValue(key, PropertyValue.Create(value));
-        void IDataObject<bool>.SetInfo(bool info) => dataObject.SetValue(key, PropertyValue.Create(info));
+        public T Value => read(dataObject.GetValue(key, defaultValue));
+        public T GetInfo() => Value;
+        void IDataObject<T>.SetInfo(T value) => dataObject.SetValue(key, write(value));
+        void IDataProperty<T>.Set(T value) => dataObject.SetValue(key, write(value));
     }
 }

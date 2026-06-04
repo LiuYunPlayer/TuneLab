@@ -74,26 +74,16 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
 
     void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
     {
-        foreach (var item in mList)
+        using var _ = MergeNotify();
+        Clear();
+        T? last = null;
+        foreach (var item in info)
         {
-            mList.Remove(item);
-            mItemRemoved.Invoke(item);
-        }
-
-        using var it = info.GetEnumerator();
-        if (!it.MoveNext())
-            return;
-
-        var current = it.Current;
-        mList.Insert(current);
-        mItemAdded.Invoke(current);
-        var last = current;
-        while (it.MoveNext())
-        {
-            current = it.Current;
-            mList.InsertAfter(last, current);
-            mItemAdded.Invoke(current);
-            last = current;
+            if (last == null)
+                Insert(item);
+            else
+                InsertAfter(last, item);
+            last = item;
         }
     }
 

@@ -12,7 +12,7 @@ namespace TuneLab.Foundation.Document;
 
 public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TValue> where TKey : notnull where TValue : IDataObject
 {
-    public IActionEvent MapModified => mMapModified;
+    public IModifiedEvent MapModified => mMap.Modified;
     public IActionEvent<TKey, TValue> ItemAdded => mMap.ItemAdded;
     public IActionEvent<TKey, TValue> ItemRemoved => mMap.ItemRemoved;
     public IActionEvent<TKey, TValue, TValue> ItemReplaced => mMap.ItemReplaced;
@@ -112,7 +112,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
 
     void IDataObject<IReadOnlyMap<TKey, TValue>>.SetInfo(IReadOnlyMap<TKey, TValue> info)
     {
-        IDataObject<IReadOnlyMap<TKey, TValue>>.SetInfo(mMap, info);
+        mMap.SetInfo(info);
     }
 
     void OnAdd(TKey key, TValue item)
@@ -174,7 +174,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         {
             foreach (var invokable in mEvents)
             {
-                mSubscriber.Subscribe(item, invokable);
+                mSubscriber.Unsubscribe(item, invokable);
             }
         }
 
@@ -184,5 +184,4 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     }
 
     readonly DataMap<TKey, TValue> mMap;
-    readonly ActionEvent mMapModified = new();
 }

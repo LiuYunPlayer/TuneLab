@@ -312,7 +312,7 @@ internal static class IMidiPartExtension
 
         part.Notes.DeselectAllItems();
         part.BeginMergeDirty();
-        part.Notes.ListModified.BeginMerge();
+        part.Notes.BeginMergeNotify();
         foreach (var noteInfo in clipboard)
         {
             var note = part.CreateNote(noteInfo);
@@ -320,7 +320,7 @@ internal static class IMidiPartExtension
             note.Pos.Set(note.Pos.Value + pos);
             part.InsertNote(note);
         }
-        part.Notes.ListModified.EndMerge();
+        part.Notes.EndMergeNotify();
         part.EndMergeDirty();
     }
 
@@ -369,12 +369,12 @@ internal static class IMidiPartExtension
     public static void DeleteAllSelectedNotes(this IMidiPart part)
     {
         part.BeginMergeDirty();
-        part.Notes.ListModified.BeginMerge();
+        part.Notes.BeginMergeNotify();
         foreach (var note in part.Notes.AllSelectedItems())
         {
             part.RemoveNote(note);
         }
-        part.Notes.ListModified.EndMerge();
+        part.Notes.EndMergeNotify();
         part.EndMergeDirty();
     }
 
@@ -391,12 +391,12 @@ internal static class IMidiPartExtension
     public static void DeleteAllNotesInSelection(this IMidiPart part, double start, double end)
     {
         part.BeginMergeDirty();
-        part.Notes.ListModified.BeginMerge();
+        part.Notes.BeginMergeNotify();
         foreach (var note in part.AllNotesInSelection(start, end))
         {
             part.RemoveNote(note);
         }
-        part.Notes.ListModified.EndMerge();
+        part.Notes.EndMergeNotify();
         part.EndMergeDirty();
     }
 

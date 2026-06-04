@@ -113,18 +113,11 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
 
     void IDataObject<IReadOnlyMap<TKey, TValue>>.SetInfo(IReadOnlyMap<TKey, TValue> info)
     {
-        foreach (var kvp in mMap)
-        {
-            mItemRemoved.Invoke(kvp.Key, kvp.Value);
-        }
-
-        mMap.Clear();
-
-        foreach (var kvp in info)
-        {
-            mMap.Add(kvp.Key, kvp.Value);
-            mItemAdded.Invoke(kvp.Key, kvp.Value);
-        }
+        var entries = info.ToArray();
+        using var _ = MergeNotify();
+        Clear();
+        foreach (var kvp in entries)
+            Add(kvp.Key, kvp.Value);
     }
 
     IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>.GetEnumerator()

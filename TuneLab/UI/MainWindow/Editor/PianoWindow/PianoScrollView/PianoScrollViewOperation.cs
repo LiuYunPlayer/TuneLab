@@ -1033,7 +1033,7 @@ internal partial class PianoScrollView
                     break;
 
                 mPreviewPitchItem = new PreviewAnchorGroupItem(this) { PiecewiseCurve = new PiecewiseCurve() };
-                mPreviewPitchItem.PiecewiseCurve.Set(previewInfo);
+                mPreviewPitchItem.PiecewiseCurve.SetInfo(previewInfo);
                 if (hoverAnchor == null)
                 {
                     foreach (var anchorGroup in mPreviewPitchItem.PiecewiseCurve.AnchorGroups)
@@ -1583,7 +1583,7 @@ internal partial class PianoScrollView
             mMoved = true;
             part.DiscardTo(mHead);
             part.BeginMergeReSegment();
-            part.Notes.ListModified.BeginMerge();
+            part.Notes.BeginMergeNotify();
             List<List<List<Point>>> pitchInfos = new();
             Dictionary<string, List<List<Point>>> automationInfos = new();
             if (Settings.ParameterSyncMode)
@@ -1661,7 +1661,7 @@ internal partial class PianoScrollView
                     }
                 }
             }
-            part.Notes.ListModified.EndMerge();
+            part.Notes.EndMergeNotify();
             part.EndMergeReSegment();
         }
 

@@ -10,7 +10,7 @@ namespace TuneLab.Foundation.Document;
 
 public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class, IDataObject
 {
-    public IActionEvent ListModified => mListModified;
+    public IModifiedEvent ListModified => mDataList.Modified;
     public IActionEvent<T> ItemAdded => ((IReadOnlyDataList<T>)mDataList).ItemAdded;
     public IActionEvent<T> ItemRemoved => ((IReadOnlyDataList<T>)mDataList).ItemRemoved;
     public IActionEvent<T, T> ItemReplaced => ((IReadOnlyDataList<T>)mDataList).ItemReplaced;
@@ -23,7 +23,6 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
     public DataObjectList(IDataObject? parent = null) : base(parent)
     {
         mDataList = new(this);
-        mDataList.Modified.Subscribe(mListModified);
         mDataList.ItemAdded.Subscribe(OnAdd);
         mDataList.ItemRemoved.Subscribe(OnRemove);
         mDataList.ItemReplaced.Subscribe(OnReplace);
@@ -91,7 +90,7 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
 
     void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
     {
-        IDataObject<IEnumerable<T>>.SetInfo(mDataList, info);
+        mDataList.SetInfo(info);
     }
 
     void OnAdd(T item)
@@ -153,7 +152,7 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
         {
             foreach (var invokable in mEvents)
             {
-                mSubscriber.Subscribe(item, invokable);
+                mSubscriber.Unsubscribe(item, invokable);
             }
         }
 
@@ -162,6 +161,5 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
         readonly List<TEvent> mEvents = new();
     }
 
-    readonly ActionEvent mListModified = new();
     readonly DataList<T> mDataList;
 }

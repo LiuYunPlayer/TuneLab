@@ -27,7 +27,7 @@ internal class Automation : DataObject, IAutomation
         mPart = part;
         DefaultValue = new(this); //TODO: DefaultValue改动触发RangeModified
         mPoints = new(this);
-        IDataObject<AutomationInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     public double[] GetValues(IReadOnlyList<double> ticks)
@@ -55,10 +55,11 @@ internal class Automation : DataObject, IAutomation
         };
     }
 
-    void IDataObject<AutomationInfo>.SetInfo(AutomationInfo info)
+    public void SetInfo(AutomationInfo info)
     {
-        IDataObject<AutomationInfo>.SetInfo(DefaultValue, info.DefaultValue);
-        IDataObject<AutomationInfo>.SetInfo(mPoints, info.Points.Select(p => new AnchorPoint(p)));
+        using var _ = MergeNotify();
+        DefaultValue.SetInfo(info.DefaultValue);
+        mPoints.SetInfo(info.Points.Select(p => new AnchorPoint(p)));
     }
 
     public void AddLine(IReadOnlyList<AnchorPoint> points, double extend)

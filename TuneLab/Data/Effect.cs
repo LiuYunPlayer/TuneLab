@@ -33,7 +33,7 @@ internal class Effect : DataObject, IEffect
         IsEnabled = new DataStruct<bool>(this);
         Properties = new DataPropertyObject(this);
         mAutomations = new DataObjectMap<string, IAutomation>(this);
-        IDataObject<EffectInfo>.SetInfo(this, info);
+        SetInfo(info);
     }
 
     Automation CreateAutomation(string automationID, AutomationInfo info)
@@ -77,11 +77,12 @@ internal class Effect : DataObject, IEffect
         };
     }
 
-    void IDataObject<EffectInfo>.SetInfo(EffectInfo info)
+    public void SetInfo(EffectInfo info)
     {
-        IDataObject<EffectInfo>.SetInfo(IsEnabled, info.IsEnabled);
-        IDataObject<EffectInfo>.SetInfo(Properties, info.Properties);
-        IDataObject<EffectInfo>.SetInfo(mAutomations, info.Automations.Convert(CreateAutomation).ToMap());
+        using var _ = MergeNotify();
+        IsEnabled.SetInfo(info.IsEnabled);
+        Properties.SetInfo(info.Properties);
+        mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
     }
 
     IEffectEngine? Engine => EffectManager.GetInitedEngine(Type);

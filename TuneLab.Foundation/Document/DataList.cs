@@ -97,17 +97,10 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
 
     void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
     {
-        var array = mList.ToArray();
-        mList.Clear();
-        foreach (var item in array)
-        {
-            mItemRemoved.Invoke(item);
-        }
-        mList.AddRange(info);
-        foreach (var item in info)
-        {
-            mItemAdded.Invoke(item);
-        }
+        var items = info as IReadOnlyCollection<T> ?? info.ToArray();
+        using var _ = MergeNotify();
+        Clear();
+        AddRange(items);
     }
 
     class InsertCommand(DataList<T> dataList, int index, T item) : ICommand

@@ -43,7 +43,8 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     }
 
     // 任一对象的 Modified 都转发给同一订阅者：扇出/撤销逐对象触发刷新，最后一次刷新时全部已写完 → 显示最终值。
-    class MergedModifiedEvent(IReadOnlyList<DataPropertyObject> dataObjects) : IMergableEvent
+    // 两种订阅形状（无参=结果态、带 bool=全量）都转发到各对象的 Modified。
+    class MergedModifiedEvent(IReadOnlyList<DataPropertyObject> dataObjects) : IModifiedEvent
     {
         public void Subscribe(Action invokable)
         {
@@ -57,8 +58,17 @@ public class MultipleDataPropertyObject : IDataPropertyObject
                 dataObject.Modified.Unsubscribe(invokable);
         }
 
-        public void BeginMerge() { }
-        public void EndMerge() { }
+        public void Subscribe(Action<bool> invokable)
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.Modified.Subscribe(invokable);
+        }
+
+        public void Unsubscribe(Action<bool> invokable)
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.Modified.Unsubscribe(invokable);
+        }
     }
 
     // 撤销根：撤销机制（Head/Commit/DiscardTo/Undo/Redo）委托首对象（文档级共享），Modified 取合并事件。
@@ -71,10 +81,11 @@ public class MultipleDataPropertyObject : IDataPropertyObject
             mModified = new MergedModifiedEvent(dataObjects);
         }
 
-        public IMergableEvent Modified => mModified;
+        public IModifiedEvent Modified => mModified;
         public Head Head => mRoot.Head;
         public void Attach(IDataObject parent) { }
         public void Detach() { }
+        public IDisposable MergeNotify() => mRoot.MergeNotify();
         public void BeginMergeNotify() => mRoot.BeginMergeNotify();
         public void EndMergeNotify() => mRoot.EndMergeNotify();
         public bool Commit() => mRoot.Commit();
@@ -82,13 +93,6 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         public bool DiscardTo(Head head) => mRoot.DiscardTo(head);
         public bool Undo() => mRoot.Undo();
         public bool Redo() => mRoot.Redo();
-
-        IDataObject? IDataObject.Parent { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        IList<IDataObject> IDataObject.Children => throw new NotSupportedException();
-        int IDataObject.NotifyFlag { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        bool IDataObject.NeedNotifyInMerge { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        IDataObject.MergableModifiedEvent IDataObject.ModifiedEvent => throw new NotSupportedException();
-        void IDataObject.Push(ICommand command) => throw new NotSupportedException();
 
         readonly DataPropertyObject mRoot;
         readonly MergedModifiedEvent mModified;

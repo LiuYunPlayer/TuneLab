@@ -38,14 +38,15 @@ internal class Phoneme : DataObject, IPhoneme
     public static Phoneme Create(PhonemeInfo info)
     {
         var phoneme = new Phoneme();
-        IDataObject<PhonemeInfo>.SetInfo(phoneme, info);
+        phoneme.SetInfo(info);
         return phoneme;
     }
 
-    void IDataObject<PhonemeInfo>.SetInfo(PhonemeInfo info)
+    public void SetInfo(PhonemeInfo info)
     {
-        IDataObject<PhonemeInfo>.SetInfo(StartTime, info.StartTime);
-        IDataObject<PhonemeInfo>.SetInfo(EndTime, info.EndTime);
-        IDataObject<PhonemeInfo>.SetInfo(Symbol, info.Symbol);
+        using var _ = MergeNotify();
+        StartTime.SetInfo(info.StartTime);
+        EndTime.SetInfo(info.EndTime);
+        Symbol.SetInfo(info.Symbol);
     }
 }

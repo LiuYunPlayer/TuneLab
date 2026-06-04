@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,40 +13,37 @@ public class DataPropertyValue : DataStruct<PropertyValue>
 {
     public DataPropertyValue()
     {
-        SetInfo(PropertyValue.Invalid);
+        SetValue(PropertyValue.Invalid);
     }
 
     public DataPropertyValue(bool value)
     {
-        SetInfo(PropertyValue.Create(value));
+        SetValue(PropertyValue.Create(value));
     }
 
     public DataPropertyValue(double value)
     {
-        SetInfo(PropertyValue.Create(value));
+        SetValue(PropertyValue.Create(value));
     }
 
     public DataPropertyValue(string value)
     {
-        SetInfo(PropertyValue.Create(value));
+        SetValue(PropertyValue.Create(value));
     }
 
-    protected override void SetInfo(PropertyValue info)
+    // 裸写时维护嵌套对象的 attach/detach：先脱离旧值里的文档对象，落值后再挂上新值里的。
+    protected override void SetValue(PropertyValue value)
     {
+        if (Value.ToObject(out var oldObject))
         {
-            if (Value.ToObject(out var propertyObject))
-            {
-                if (propertyObject.Map is IDataObject dataObject)
-                    dataObject.Detach();
-            }
+            if (oldObject.Map is IDataObject dataObject)
+                dataObject.Detach();
         }
-        base.SetInfo(info);
+        base.SetValue(value);
+        if (value.ToObject(out var newObject))
         {
-            if (info.ToObject(out var propertyObject))
-            {
-                if (propertyObject.Map is IDataObject dataObject)
-                    dataObject.Attach(this);
-            }
+            if (newObject.Map is IDataObject dataObject)
+                dataObject.Attach(this);
         }
     }
 }
