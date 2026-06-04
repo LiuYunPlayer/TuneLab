@@ -32,9 +32,9 @@ public static class IDataValueControllerExtension
         return new SelectController<T, T>(valueController, to, x => x);
     }
 
-    public static void Bind<T>(this IDataValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider, DisposableManager? context = null) where T : notnull
+    public static void Bind<T>(this IDataValueController<T> controller, IHolder<IDataProperty<T>> propertyHolder, DisposableManager? context = null) where T : notnull
     {
-        var binding = new DataPropertyProviderBinding<T>(controller, propertyProvider);
+        var binding = new DataPropertyHolderBinding<T>(controller, propertyHolder);
         context?.Add(binding);
     }
 
@@ -42,23 +42,23 @@ public static class IDataValueControllerExtension
     // 字段对象由面板在 SetConfig 时一次性创建，对象切换时整面板重建，故用常量 provider（事件永不触发）即可。
     public static void BindDataProperty<T>(this IDataValueController<T> controller, IDataProperty<T> property, DisposableManager? context = null) where T : notnull
     {
-        controller.Bind(new ConstantProvider<IDataProperty<T>>(property), context);
+        controller.Bind(new ConstantHolder<IDataProperty<T>>(property), context);
     }
 
-    class ConstantProvider<T>(T value) : IProvider<T>
+    class ConstantHolder<T>(T value) : IHolder<T>
     {
-        public IActionEvent ObjectWillChange => mNever;
-        public IActionEvent ObjectChanged => mNever;
-        public T? Object => value;
+        public IActionEvent WillModify => mNever;
+        public IActionEvent Modified => mNever;
+        public T? Value => value;
         readonly ActionEvent mNever = new();
     }
 
-    class DataPropertyProviderBinding<T> : IDisposable where T : notnull
+    class DataPropertyHolderBinding<T> : IDisposable where T : notnull
     {
-        public DataPropertyProviderBinding(IDataValueController<T> controller, IProvider<IDataProperty<T>> propertyProvider)
+        public DataPropertyHolderBinding(IDataValueController<T> controller, IHolder<IDataProperty<T>> propertyHolder)
         {
             mController = controller;
-            mPropertyProvider = propertyProvider;
+            mPropertyHolder = propertyHolder;
             mController.ValueWillChange.Subscribe(() =>
             {
                 if (Property == null)
@@ -89,7 +89,7 @@ public static class IDataValueControllerExtension
                 Property.Commit();
             }, s);
 
-            mPropertyProvider.When(p => p.Modified).Subscribe(() => 
+            mPropertyHolder.When(p => p.Modified).Subscribe(() => 
             {
                 if (Property == null)
                     return; 
@@ -97,7 +97,7 @@ public static class IDataValueControllerExtension
                 mController.Display(Property.Value); 
             }, s);
 
-            mPropertyProvider.ObjectChanged.Subscribe(() =>
+            mPropertyHolder.Modified.Subscribe(() =>
             {
                 if (Property == null)
                 {
@@ -118,12 +118,12 @@ public static class IDataValueControllerExtension
             s.DisposeAll();
         }
 
-        IDataProperty<T>? Property => mPropertyProvider.Object;
+        IDataProperty<T>? Property => mPropertyHolder.Value;
 
         Head mHead;
         readonly DisposableManager s = new();
 
         readonly IDataValueController<T> mController;
-        readonly IProvider<IDataProperty<T>> mPropertyProvider;
+        readonly IHolder<IDataProperty<T>> mPropertyHolder;
     }
 }

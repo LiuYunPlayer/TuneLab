@@ -22,22 +22,22 @@ namespace TuneLab.UI;
 
 internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
 {
-    public IProvider<IProject> ProjectProvider => mDependency.ProjectProvider;
-    public IProvider<ITimeline> TimelineProvider => mDependency.ProjectProvider;
+    public IHolder<IProject> ProjectHolder => mDependency.ProjectHolder;
+    public IHolder<ITimeline> TimelineHolder => mDependency.ProjectHolder;
     public IQuantization Quantization => mQuantization;
     public TickAxis TickAxis => mTickAxis;
     public TrackVerticalAxis TrackVerticalAxis => mTrackVerticalAxis;
     public IPlayhead Playhead => mDependency.Playhead;
-    public IProvider<IPart> EditingPart => mDependency.EditingPart;
-    public IProject? Project => ProjectProvider.Object;
+    public IHolder<IPart> EditingPart => mDependency.EditingPart;
+    public IProject? Project => ProjectHolder.Value;
     public TrackScrollView TrackScrollView => mTrackScrollView;
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
 
     public interface IDependency
     {
-        IProvider<IProject> ProjectProvider { get; }
+        IHolder<IProject> ProjectHolder { get; }
         IPlayhead Playhead { get; }
-        IProvider<IPart> EditingPart { get; }
+        IHolder<IPart> EditingPart { get; }
         void SwitchEditingPart(IPart? part);
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }

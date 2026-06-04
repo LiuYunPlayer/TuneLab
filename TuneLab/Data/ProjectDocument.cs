@@ -13,7 +13,7 @@ namespace TuneLab.Data;
 internal class ProjectDocument : DataDocument
 {
     public IActionEvent ProjectNameChanged => mProjectNameChanged;
-    public IProvider<Project> ProjectProvider => mProject;
+    public IHolder<Project> ProjectHolder => mProject;
     public Project? Project => mProject;
     public string Name => mName;
     public bool IsSaved => mLastSavedHead == Head;
@@ -21,13 +21,13 @@ internal class ProjectDocument : DataDocument
     public ProjectDocument() 
     {
         mLastSavedHead = Head;
-        mProject.ObjectWillChange.Subscribe(() =>
+        mProject.WillModify.Subscribe(() =>
         {
             Project?.Detach();
             Project?.Dispose();
         });
 
-        mProject.ObjectChanged.Subscribe(() =>
+        mProject.Modified.Subscribe(() =>
         {
             Project?.Attach(this);
         });
@@ -44,7 +44,7 @@ internal class ProjectDocument : DataDocument
             }
         });
 
-        mProject.When(project => project.Tracks.Any(track => track.Parts.ItemAdded)).Subscribe(part =>
+        mProject.When(project => project.Tracks.WhenAny(track => track.Parts.ItemAdded)).Subscribe(part =>
         {
             if (part is not IAudioPart audioPart)
                 return;
@@ -99,6 +99,6 @@ internal class ProjectDocument : DataDocument
     string mPath = string.Empty;
     string mName = string.Empty;
     Head mLastSavedHead;
-    readonly Owner<Project> mProject = new();
+    readonly Holder<Project> mProject = new();
     readonly ActionEvent mProjectNameChanged = new();
 }

@@ -22,7 +22,7 @@ internal class TrackHeadList : LayerPanel
 {
     public interface IDependency
     {
-        IProvider<IProject> ProjectProvider { get; }
+        IHolder<IProject> ProjectHolder { get; }
         TrackVerticalAxis TrackVerticalAxis { get; }
     }
 
@@ -47,8 +47,8 @@ internal class TrackHeadList : LayerPanel
         };
 
         mDependency.TrackVerticalAxis.AxisChanged += mTrackHeadLayer.InvalidateArrange;
-        mDependency.ProjectProvider.ObjectChanged.Subscribe(mDirtyHandler.SetDirty, s);
-        mDependency.ProjectProvider.When(project => project.Tracks.ListModified).Subscribe(mDirtyHandler.SetDirty, s);
+        mDependency.ProjectHolder.Modified.Subscribe(mDirtyHandler.SetDirty, s);
+        mDependency.ProjectHolder.When(project => project.Tracks.ListModified).Subscribe(mDirtyHandler.SetDirty, s);
     }
 
     ~TrackHeadList()
@@ -103,7 +103,7 @@ internal class TrackHeadList : LayerPanel
                 }
             }
 
-            var project = mTrackHeadList.mDependency.ProjectProvider.Object;
+            var project = mTrackHeadList.mDependency.ProjectHolder.Value;
             if (project == null)
                 return;
 
@@ -141,7 +141,7 @@ internal class TrackHeadList : LayerPanel
                 if (e.MouseButtonType != MouseButtonType.PrimaryButton)
                     return;
 
-                var project = trackHeadList.mDependency.ProjectProvider.Object;
+                var project = trackHeadList.mDependency.ProjectHolder.Value;
                 if (project == null)
                     return;
 
@@ -175,7 +175,7 @@ internal class TrackHeadList : LayerPanel
         public override void Render(DrawingContext context)
         {
             context.FillRectangle(Style.INTERFACE.ToBrush(), this.Rect());
-            var project = mTrackHeadList.mDependency.ProjectProvider.Object;
+            var project = mTrackHeadList.mDependency.ProjectHolder.Value;
             if (project == null)
                 return;
 

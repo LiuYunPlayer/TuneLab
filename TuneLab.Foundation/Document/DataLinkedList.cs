@@ -10,6 +10,7 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
 {
     public IActionEvent<T> ItemAdded => mItemAdded;
     public IActionEvent<T> ItemRemoved => mItemRemoved;
+    public IEnumerable<T> Items => this;
 
     public DataLinkedList()
     {

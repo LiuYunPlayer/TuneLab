@@ -18,6 +18,11 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     public IActionEvent<TKey, TValue, TValue> ItemReplaced => mMap.ItemReplaced;
     public ICollection<TKey> Keys => mMap.Keys;
     public ICollection<TValue> Values => mMap.Values;
+
+    // 收敛集合接口要一元（仅值）的增删事件；映射公开的是二元（键+值），故另持一元投影，在 OnAdd/OnRemove 里同步触发。
+    IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemAdded => mValueAdded;
+    IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemRemoved => mValueRemoved;
+    public IEnumerable<TValue> Items => mMap.Values;
     public int Count => mMap.Count;
     public TValue this[TKey key] { get => mMap[key]; set => mMap[key] = value; }
 
@@ -27,11 +32,6 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         mMap.ItemAdded.Subscribe(OnAdd);
         mMap.ItemRemoved.Subscribe(OnRemove);
         mMap.ItemReplaced.Subscribe(OnReplace);
-    }
-
-    public IEvent<TEvent> Any<TEvent>(ISubscriber<TValue, TEvent> subscriber)
-    {
-        return new AnyEvent<TEvent>(this, subscriber);
     }
 
     public void Add(TKey key, TValue value)
@@ -118,11 +118,13 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     void OnAdd(TKey key, TValue item)
     {
         item.Attach(this);
+        mValueAdded.Invoke(item);
     }
 
     void OnRemove(TKey key, TValue item)
     {
         item.Detach();
+        mValueRemoved.Invoke(item);
     }
 
     void OnReplace(TKey key, TValue before, TValue after)
@@ -131,57 +133,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         OnAdd(key, after);
     }
 
-    class AnyEvent<TEvent> : IEvent<TEvent>
-    {
-        public AnyEvent(DataObjectMap<TKey, TValue> dataObjectMap, ISubscriber<TValue, TEvent> subscriber)
-        {
-            mDataObjectMap = dataObjectMap;
-            mSubscriber = subscriber;
-
-            mDataObjectMap.ItemAdded.Subscribe(OnAdd);
-            mDataObjectMap.ItemRemoved.Subscribe(OnRemove);
-        }
-
-        public void Subscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectMap.Values)
-            {
-                mSubscriber.Subscribe(dataObject, invokable);
-            }
-
-            mEvents.Add(invokable);
-        }
-
-        public void Unsubscribe(TEvent invokable)
-        {
-            foreach (var dataObject in mDataObjectMap.Values)
-            {
-                mSubscriber.Unsubscribe(dataObject, invokable);
-            }
-
-            mEvents.Remove(invokable);
-        }
-
-        void OnAdd(TKey key, TValue item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Subscribe(item, invokable);
-            }
-        }
-
-        void OnRemove(TKey key, TValue item)
-        {
-            foreach (var invokable in mEvents)
-            {
-                mSubscriber.Unsubscribe(item, invokable);
-            }
-        }
-
-        readonly DataObjectMap<TKey, TValue> mDataObjectMap;
-        readonly ISubscriber<TValue, TEvent> mSubscriber;
-        readonly List<TEvent> mEvents = new();
-    }
-
+    readonly ActionEvent<TValue> mValueAdded = new();
+    readonly ActionEvent<TValue> mValueRemoved = new();
     readonly DataMap<TKey, TValue> mMap;
 }

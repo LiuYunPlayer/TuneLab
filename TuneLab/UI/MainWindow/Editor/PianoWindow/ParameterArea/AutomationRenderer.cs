@@ -13,6 +13,7 @@ using Avalonia.Media;
 using TuneLab.GUI.Input;
 using TuneLab.GUI.Components;
 using Avalonia;
+using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Science;
 using TuneLab.Foundation.Utils;
@@ -26,14 +27,14 @@ namespace TuneLab.UI;
 internal partial class AutomationRenderer : View
 {
     public TickAxis TickAxis => mDependency.TickAxis;
-    public IMidiPart? Part => mDependency.PartProvider.Object;
+    public IMidiPart? Part => mDependency.PartHolder.Value;
     public bool IsOperating => mState != State.None;
 
     public interface IDependency
     {
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
-        IProvider<IMidiPart> PartProvider { get; }
+        IHolder<IMidiPart> PartHolder { get; }
         PianoScrollView PianoScrollView { get; }
         TickAxis TickAxis { get; }
         AutomationKey? ActiveAutomation { get; }
@@ -74,16 +75,16 @@ internal partial class AutomationRenderer : View
         mAnchorValueInput.PointerPressed += OnAnchorValueInputPointerPressed;
         Children.Add(mAnchorValueInput);
 
-        mDependency.PartProvider.ObjectChanged.Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Automations.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.Modified.Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Automations.Modified).Subscribe(InvalidateVisual, s);
         // effect 自动化数据在各 effect.Automations 里，编辑它不会触发 part.Automations.Modified，需单独订阅（否则拖动不重绘）。
-        mDependency.PartProvider.When(p => p.Effects.Any(effect => effect.Automations.Modified)).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Pos.Modified).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.ObjectChanged.Subscribe(UpdateAnchorValueInput, s);
-        mDependency.PartProvider.When(p => p.Automations.Modified).Subscribe(UpdateAnchorValueInput, s);
-        mDependency.PartProvider.When(p => p.Effects.Any(effect => effect.Automations.Modified)).Subscribe(UpdateAnchorValueInput, s);
-        mDependency.PartProvider.When(p => p.Pos.Modified).Subscribe(UpdateAnchorValueInput, s);
+        mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Pos.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.Modified.Subscribe(UpdateAnchorValueInput, s);
+        mDependency.PartHolder.When(p => p.Automations.Modified).Subscribe(UpdateAnchorValueInput, s);
+        mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified)).Subscribe(UpdateAnchorValueInput, s);
+        mDependency.PartHolder.When(p => p.Pos.Modified).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PianoTool.Modified.Subscribe(Update, s);
         mDependency.PianoTool.Modified.Subscribe(UpdateAnchorValueInput, s);
         mDependency.ActiveAutomationChanged += InvalidateVisual;

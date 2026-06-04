@@ -35,7 +35,7 @@ internal class TrackVerticalAxis : AnimationScalableScrollAxis
 
     public interface IDependency
     {
-        IProvider<IProject> ProjectProvider { get; }
+        IHolder<IProject> ProjectHolder { get; }
     }
 
     public TrackVerticalAxis(IDependency dependency)
@@ -44,8 +44,8 @@ internal class TrackVerticalAxis : AnimationScalableScrollAxis
 
         TrackHeight = 64;
 
-        mDependency.ProjectProvider.When(p => p.Tracks.Modified).Subscribe(OnTracksChanged, s);
-        mDependency.ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
+        mDependency.ProjectHolder.When(p => p.Tracks.Modified).Subscribe(OnTracksChanged, s);
+        mDependency.ProjectHolder.Modified.Subscribe(OnProjectChanged, s);
 
         OnProjectChanged();
     }
@@ -93,7 +93,7 @@ internal class TrackVerticalAxis : AnimationScalableScrollAxis
         if (!mIsAutoContentSize)
             return;
 
-        var project = mDependency.ProjectProvider.Object;
+        var project = mDependency.ProjectHolder.Value;
         if (project == null)
             return;
 

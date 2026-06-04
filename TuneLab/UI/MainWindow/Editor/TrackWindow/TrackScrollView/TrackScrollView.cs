@@ -32,8 +32,8 @@ internal partial class TrackScrollView : View
         TickAxis TickAxis { get; }
         TrackVerticalAxis TrackVerticalAxis { get; }
         IQuantization Quantization { get; }
-        IProvider<IProject> ProjectProvider { get; }
-        IProvider<IPart> EditingPart { get; }
+        IHolder<IProject> ProjectHolder { get; }
+        IHolder<IPart> EditingPart { get; }
         void SwitchEditingPart(IPart part);
     }
 
@@ -68,12 +68,12 @@ internal partial class TrackScrollView : View
         TickAxis.AxisChanged += InvalidateArrange;
         TrackVerticalAxis.AxisChanged += InvalidateArrange;
 
-        mDependency.ProjectProvider.ObjectChanged.Subscribe(Update, s);
-        mDependency.ProjectProvider.When(project => project.Modified).Subscribe(Update, s);
-        mDependency.EditingPart.ObjectChanged.Subscribe(InvalidateVisual, s);
-        mDependency.ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.Any(part => part.SelectionChanged))).Subscribe(InvalidateVisual, s);
-        mDependency.ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.Any(part => part is AudioPart audioPart ? audioPart.AudioChanged : new ActionEvent()))).Subscribe(InvalidateVisual, s); // TODO: 支持一下可空类型的event
-        mDependency.ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.Any(part => part is AudioPart audioPart ? audioPart.Status.Modified : new ActionEvent()))).Subscribe(InvalidateVisual, s);
+        mDependency.ProjectHolder.Modified.Subscribe(Update, s);
+        mDependency.ProjectHolder.When(project => project.Modified).Subscribe(Update, s);
+        mDependency.EditingPart.Modified.Subscribe(InvalidateVisual, s);
+        mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part.SelectionChanged))).Subscribe(InvalidateVisual, s);
+        mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is AudioPart audioPart ? audioPart.AudioChanged : new ActionEvent()))).Subscribe(InvalidateVisual, s); // TODO: 支持一下可空类型的event
+        mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is AudioPart audioPart ? audioPart.Status.Modified : new ActionEvent()))).Subscribe(InvalidateVisual, s);
         Quantization.QuantizationChanged += InvalidateVisual;
         TickAxis.AxisChanged += Update;
         TrackVerticalAxis.AxisChanged += Update;
@@ -222,7 +222,7 @@ internal partial class TrackScrollView : View
                 if (part.StartPos() >= endPos)
                     break;
 
-                bool isEditingPart = part == mDependency.EditingPart.Object;
+                bool isEditingPart = part == mDependency.EditingPart.Value;
                 double left = Math.Max(TickAxis.Tick2X(part.StartPos()), -8);
                 double right = Math.Min(TickAxis.Tick2X(part.EndPos()), Bounds.Width + 8);
 
@@ -835,7 +835,7 @@ internal partial class TrackScrollView : View
     TickAxis TickAxis => mDependency.TickAxis;
     TrackVerticalAxis TrackVerticalAxis => mDependency.TrackVerticalAxis;
     IQuantization Quantization => mDependency.Quantization;
-    IProject? Project => mDependency.ProjectProvider.Object;
+    IProject? Project => mDependency.ProjectHolder.Value;
 
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;

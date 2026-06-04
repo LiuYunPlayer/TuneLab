@@ -8,8 +8,7 @@ using TuneLab.Foundation.DataStructures;
 
 namespace TuneLab.Foundation.Document;
 
-public interface IReadOnlyDataLinkedList<out T> : IReadOnlyDataObject<IEnumerable<T>>, IReadOnlyLinkedList<T>
+public interface IReadOnlyDataLinkedList<out T> : IReadOnlyDataObject<IEnumerable<T>>, IReadOnlyDataCollection<T>, IReadOnlyLinkedList<T>
 {
-    IActionEvent<T> ItemAdded { get; }
-    IActionEvent<T> ItemRemoved { get; }
+    // 成员增删事件（ItemAdded / ItemRemoved）+ 当前成员（Items）继承自 IReadOnlyDataCollection。
 }

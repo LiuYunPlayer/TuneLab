@@ -28,19 +28,19 @@ internal class TrackHead : DockPanel
 {
     public TrackHead()
     {
-        mName.Bind(mTrackProvider.Select(track => track.Name), s);
+        mName.Bind(mTrackHolder.Select(track => track.Name), s);
         mGainSlider.SetRange(-24, 6);
-        mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).Bind(mTrackProvider.Select(track => track.Gain), s);
+        mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).Bind(mTrackHolder.Select(track => track.Gain), s);
         mPanSlider.SetRange(-1, 1);
-        mPanSlider.Bind(mTrackProvider.Select(track => track.Pan), s);
+        mPanSlider.Bind(mTrackHolder.Select(track => track.Pan), s);
         mMuteToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 0, 186, 173) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.M }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mMuteToggle.Bind(mTrackProvider.Select(track => track.IsMute), s);
+        mMuteToggle.Bind(mTrackHolder.Select(track => track.IsMute), s);
         mSoloToggle
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 3 }, CheckedColorSet = new() { Color = new(255, 135, 84, 255) }, UncheckedColorSet = new() { Color = Style.BACK } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
-        mSoloToggle.Bind(mTrackProvider.Select(track => track.IsSolo), s);
+        mSoloToggle.Bind(mTrackHolder.Select(track => track.IsSolo), s);
         mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
         var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {
@@ -67,9 +67,9 @@ internal class TrackHead : DockPanel
         }
         this.AddDock(bottomArea);
 
-        mTrackProvider.When(track => track.Color.Modified).Subscribe(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); }, s);
+        mTrackHolder.When(track => track.Color.Modified).Subscribe(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); }, s);
         mIndexPanel.RegisterOnTrackColorUpdated(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); });
-        mTrackProvider.ObjectWillChange.Subscribe(() =>
+        mTrackHolder.WillModify.Subscribe(() =>
         {
             if (Track == null)
                 return;
@@ -77,7 +77,7 @@ internal class TrackHead : DockPanel
             AudioEngine.ProgressChanged -= AudioEngine_ProgressChanged;
             AudioEngine.PlayStateChanged -= AudioEngine_PlayStateChanged;
         }, s);
-        mTrackProvider.ObjectChanged.Subscribe(() =>
+        mTrackHolder.Modified.Subscribe(() =>
         {
             if (Track == null)
                 return;
@@ -279,7 +279,7 @@ internal class TrackHead : DockPanel
         mTrackIndex = index;
 
         mIndexLabel.Text = mTrackIndex.ToString();
-        mTrackProvider.Set(track);
+        mTrackHolder.Set(track);
         if (Track != null)
         {
             mName.Text = Track.Name.Value;
@@ -317,8 +317,8 @@ internal class TrackHead : DockPanel
         catch {; }
     }
 
-    Owner<ITrack> mTrackProvider = new();
-    ITrack? Track => mTrackProvider.Object;
+    Holder<ITrack> mTrackHolder = new();
+    ITrack? Track => mTrackHolder.Value;
     int mTrackIndex = -1;
 
     readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 0, 0, 1) };

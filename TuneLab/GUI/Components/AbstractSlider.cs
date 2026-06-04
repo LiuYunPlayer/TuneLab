@@ -27,7 +27,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     public double DefaultValue { get => mDefaultValue; set => mDefaultValue = value; }
     public bool IsInterger { get => mIsInterger; set { mIsInterger = value; RefreshUI(); } }
     public int IntergerValue => mValue.Round();
-    public AbstractThumb? Thumb { get => mThumb.Object; set => mThumb.Set(value); }
+    public AbstractThumb? Thumb { get => mThumb.Value; set => mThumb.Set(value); }
 
     int IValueController<int>.Value => IntergerValue;
 
@@ -67,8 +67,8 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         mThumb.When(thumb => thumb.MoveStart).Subscribe(OnThumbMoveStart, s);
         mThumb.When(thumb => thumb.MoveEnd).Subscribe(OnThumbMoveEnd, s);
         mThumb.When(thumb => thumb.Moved).Subscribe(OnThumbMoved, s);
-        mThumb.ObjectWillChange.Subscribe(() => { if (mThumb.Object == null) return; Children.Remove(mThumb.Object); }, s);
-        mThumb.ObjectChanged.Subscribe(() => { if (mThumb.Object == null) return; Children.Add(mThumb.Object); }, s);
+        mThumb.WillModify.Subscribe(() => { if (mThumb.Value == null) return; Children.Remove(mThumb.Value); }, s);
+        mThumb.Modified.Subscribe(() => { if (mThumb.Value == null) return; Children.Add(mThumb.Value); }, s);
         ValueChanged.Subscribe(RefreshUI);
     }
 
@@ -213,8 +213,8 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
 
     void RefreshUI()
     {
-        if (mThumb.Object != null)
-            mThumb.Object.IsVisible = !double.IsNaN(mValue);
+        if (mThumb.Value != null)
+            mThumb.Value.IsVisible = !double.IsNaN(mValue);
 
         InvalidateArrange();
         InvalidateVisual();
@@ -227,7 +227,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     bool mIsInterger = false;
     double mValue = 0;
 
-    readonly Owner<AbstractThumb> mThumb = new();
+    readonly Holder<AbstractThumb> mThumb = new();
 
     readonly ActionEvent mValueWillChange = new();
     readonly ActionEvent mValueChanged = new();

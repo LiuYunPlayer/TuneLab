@@ -27,7 +27,7 @@ internal class ParameterTabBar : Panel
     {
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
-        IProvider<IMidiPart> PartProvider { get; }
+        IHolder<IMidiPart> PartHolder { get; }
         AutomationKey? ActiveAutomation { get; }
         bool IsAutomationVisible(AutomationKey automation);
     }
@@ -45,9 +45,9 @@ internal class ParameterTabBar : Panel
         mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(0, 9) };;
         Children.Add(mAutomationLayout);
 
-        mDependency.PartProvider.ObjectChanged.Subscribe(OnPartChanged, s);
-        mDependency.PartProvider.When(p => p.Voice.Modified).Subscribe(OnAutomationConfigsChanged, s);
-        mDependency.PartProvider.When(p => p.Effects.ListModified).Subscribe(OnAutomationConfigsChanged, s);
+        mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
+        mDependency.PartHolder.When(p => p.Voice.Modified).Subscribe(OnAutomationConfigsChanged, s);
+        mDependency.PartHolder.When(p => p.Effects.ListModified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.ActiveAutomationChanged += SyncAutomationButtonsState;
         mDependency.VisibleAutomationChanged += SyncAutomationButtonsState;
 
@@ -168,7 +168,7 @@ internal class ParameterTabBar : Panel
     }
 
     public double AutoHeight => mAutomationLayout.DesiredSize.Height;
-    IMidiPart? Part => mDependency.PartProvider.Object;
+    IMidiPart? Part => mDependency.PartHolder.Value;
 
     Color Back => Style.INTERFACE;
 

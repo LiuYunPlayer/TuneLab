@@ -44,9 +44,9 @@ internal class AutomationDefaultsController : StackPanel
             AddGroup(mPart.Effects[i].Type, mPart.Effects[i].AutomationConfigs, i);
 
         // 默认值外部（undo/redo/preset）改动 → 刷新所有行；自动化轨增减 / effect 链变化 → 重建。
-        mPart.Automations.Any(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
+        mPart.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
         foreach (var effect in mPart.Effects)
-            effect.Automations.Any(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
+            effect.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
         mPart.Effects.ListModified.Subscribe(Rebuild, s);
     }
 

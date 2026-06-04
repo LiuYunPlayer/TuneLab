@@ -12,6 +12,7 @@ using Avalonia.Media;
 using DynamicData;
 using TuneLab.Audio;
 using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Document;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
@@ -37,7 +38,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         TickAxis TickAxis { get; }
         PitchAxis PitchAxis { get; }
         IQuantization Quantization { get; }
-        IProvider<IMidiPart> PartProvider { get; }
+        IHolder<IMidiPart> PartHolder { get; }
         ParameterButton PitchButton { get; }
         AutomationRenderer AutomationRenderer { get; }
         double WaveformBottom { get; }
@@ -80,16 +81,16 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mAnchorDeleteOperation = new(this);
         mAnchorMoveOperation = new(this);
 
-        mDependency.PartProvider.ObjectChanged.Subscribe(Update, s);
-        mDependency.PartProvider.When(p => p.Modified).Subscribe(Update, s);
-        mDependency.PartProvider.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
-        mDependency.PartProvider.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Vibratos.Any(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
-        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.Track.Project.Tracks.Any(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.TempoManager.Modified).Subscribe(InvalidateVisual, s);
-        mDependency.PartProvider.When(p => p.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.Modified.Subscribe(Update, s);
+        mDependency.PartHolder.When(p => p.Modified).Subscribe(Update, s);
+        mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
+        mDependency.PartHolder.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Vibratos.WhenAny(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
+        mDependency.PartHolder.When(p => p.Track.Project.Tracks.WhenAny(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Track.Project.Tracks.WhenAny(track => track.Color.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.TempoManager.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
         mDependency.PianoTool.Modified.Subscribe(InvalidateVisual, s);
         TickAxis.AxisChanged += Update;
@@ -1092,6 +1093,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
     public TickAxis TickAxis => mDependency.TickAxis;
     public PitchAxis PitchAxis => mDependency.PitchAxis;
     IQuantization Quantization => mDependency.Quantization;
-    IMidiPart? Part => mDependency.PartProvider.Object;
+    IMidiPart? Part => mDependency.PartHolder.Value;
     ParameterButton PitchButton => mDependency.PitchButton;
 }

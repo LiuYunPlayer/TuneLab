@@ -24,7 +24,7 @@ namespace TuneLab.UI;
 
 internal class MidiPartFixedController : StackPanel
 {
-    public IMidiPart? Part { get => mPart.Object; set => mPart.Set(value); }
+    public IMidiPart? Part { get => mPart.Value; set => mPart.Set(value); }
     public MidiPartFixedController()
     {
         Background = Style.INTERFACE.ToBrush();
@@ -52,7 +52,7 @@ internal class MidiPartFixedController : StackPanel
         Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
     }
 
-    readonly Owner<IMidiPart> mPart = new();
+    readonly Holder<IMidiPart> mPart = new();
 
     readonly SliderController mGainController = new() { Margin = new(24, 12) };
     readonly DisposableManager s = new();

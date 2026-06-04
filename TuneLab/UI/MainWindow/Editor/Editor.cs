@@ -49,8 +49,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public ProjectDocument Document => mDocument;
     public Project? Project => mDocument.Project;
     public IPlayhead Playhead => mPlayhead;
-    public IProvider<IProject> ProjectProvider => mDocument.ProjectProvider;
-    public IProvider<IPart> EditingPart => mPianoWindow.PartProvider;
+    public IHolder<IProject> ProjectHolder => mDocument.ProjectHolder;
+    public IHolder<IPart> EditingPart => mPianoWindow.PartHolder;
     public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(UI.PianoTool.Note);
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; } = new NotifiableProperty<PlayScrollTarget>(UI.PlayScrollTarget.None);
     public Editor()
@@ -117,14 +117,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             mTrackWindow.TickAxis.AnimateMoveTickToX(endTick, mTrackWindow.TickAxis.ViewLength);
             mPianoWindow.TickAxis.AnimateMoveTickToX(endTick, mPianoWindow.TickAxis.ViewLength);
         };
-        ProjectProvider.ObjectWillChange.Subscribe(OnProjectWillChange, s);
-        ProjectProvider.ObjectChanged.Subscribe(OnProjectChanged, s);
-        ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });
-        ProjectProvider.When(project => project.Tracks.Any(track => track.Parts.ItemAdded)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(mEditingPart); });
-        ProjectProvider.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(null); mExportSideBarContentProvider.RefreshTrackList(); });
-        ProjectProvider.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); mExportSideBarContentProvider.RefreshTrackList(); });
-        ProjectProvider.When(project => project.Tracks.Any(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
-        mPianoWindow.PartProvider.ObjectChanged.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
+        ProjectHolder.WillModify.Subscribe(OnProjectWillChange, s);
+        ProjectHolder.Modified.Subscribe(OnProjectChanged, s);
+        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });
+        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.ItemAdded)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(mEditingPart); });
+        ProjectHolder.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(null); mExportSideBarContentProvider.RefreshTrackList(); });
+        ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); mExportSideBarContentProvider.RefreshTrackList(); });
+        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
+        mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
         mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
         {

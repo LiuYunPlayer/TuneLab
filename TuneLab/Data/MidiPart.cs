@@ -67,7 +67,7 @@ internal class MidiPart : Part, IMidiPart
         mVoice.Modified.Subscribe(ReGeneratePieces);
         mPitchLine.RangeModified.Subscribe(OnPitchRangeModified);
         mNotes.ListModified.Subscribe(ReSegment);
-        mVibratos.Any(vibrato => vibrato.RangeModified).Subscribe(OnPitchRangeModified);
+        mVibratos.WhenAny(vibrato => vibrato.RangeModified).Subscribe(OnPitchRangeModified);
         TempoManager.Modified.Subscribe(ReGeneratePieces); // TODO: 改为tempoManager改变发出重分片信号
         Pos.Modified.Subscribe(ReGeneratePieces); // TODO: 改为tempoManager改变发出重分片信号
         SetInfo(info);
@@ -732,7 +732,7 @@ internal class MidiPart : Part, IMidiPart
         public NoteList()
         {
             ListModified.Subscribe(mSelectionChanged);
-            this.Any(note => note.SelectionChanged).Subscribe(mSelectionChanged);
+            this.WhenAny(note => note.SelectionChanged).Subscribe(mSelectionChanged);
         }
 
         protected override bool IsInOrder(INote prev, INote next)

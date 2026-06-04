@@ -20,7 +20,7 @@ internal partial class TimelineView : View
     {
         TickAxis TickAxis { get; }
         IQuantization Quantization { get; }
-        IProvider<ITimeline> TimelineProvider { get; }
+        IHolder<ITimeline> TimelineHolder { get; }
         IPlayhead Playhead { get; }
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
@@ -69,7 +69,7 @@ internal partial class TimelineView : View
         TickAxis.AxisChanged += InvalidateArrange;
 
         mDependency.PlayScrollTarget.Modified.Subscribe(() => mFixedPlayheadX = TickAxis.Tick2X(Playhead.Pos));
-        mDependency.TimelineProvider.ObjectChanged.Subscribe(OnTickAxisChanged, s);
+        mDependency.TimelineHolder.Modified.Subscribe(OnTickAxisChanged, s);
         mDependency.Playhead.PosChanged.Subscribe(() =>
         {
             if (AudioEngine.IsPlaying)
@@ -123,8 +123,8 @@ internal partial class TimelineView : View
         }, s);
         TickAxis.AxisChanged += Update;
         Quantization.QuantizationChanged += InvalidateVisual;
-        mDependency.TimelineProvider.When(timeline => timeline.TempoManager.Modified).Subscribe(InvalidateVisual, s);
-        mDependency.TimelineProvider.When(timeline => timeline.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.TimelineHolder.When(timeline => timeline.TempoManager.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.TimelineHolder.When(timeline => timeline.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
     }
 
     ~TimelineView()
@@ -324,7 +324,7 @@ internal partial class TimelineView : View
 
     ITempo? mInputBpmTempo;
     ITimeSignature? mInputMeterTimeSignature;
-    ITimeline? Timeline => mDependency.TimelineProvider.Object;
+    ITimeline? Timeline => mDependency.TimelineHolder.Value;
 
     readonly TextInput mBpmInput;
     readonly TextInput mMeterInput;

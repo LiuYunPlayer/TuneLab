@@ -40,8 +40,8 @@ internal class ScrollView : Panel
             (c, e) => { c.SizeChanged -= e; }).Subscribe(
             OnContentSizeChanged,
             s);
-        mContent.ObjectWillChange.Subscribe(OnContentWillChange, s);
-        mContent.ObjectChanged.Subscribe(OnContentChanged, s);
+        mContent.WillModify.Subscribe(OnContentWillChange, s);
+        mContent.Modified.Subscribe(OnContentChanged, s);
     }
 
     ~ScrollView()
@@ -63,14 +63,14 @@ internal class ScrollView : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var content = mContent.Object;
+        var content = mContent.Value;
         if (content == null)
             return finalSize;
 
         var contentSize = content.DesiredSize;
         var contentWidth = mIsFitWidth ? finalSize.Width : contentSize.Width;
         var contentHeight = mIsFitHeight ? finalSize.Height : contentSize.Height;
-        mContent.Object?.Arrange(new(-mHorizontalAxis.ViewOffset, -mVerticalAxis.ViewOffset, contentWidth, contentHeight));
+        mContent.Value?.Arrange(new(-mHorizontalAxis.ViewOffset, -mVerticalAxis.ViewOffset, contentWidth, contentHeight));
         return finalSize;
     }
 
@@ -91,7 +91,7 @@ internal class ScrollView : Panel
 
     void OnContentWillChange()
     {
-        var content = mContent.Object;
+        var content = mContent.Value;
         if (content == null)
             return;
 
@@ -100,7 +100,7 @@ internal class ScrollView : Panel
 
     void OnContentChanged()
     {
-        var content = mContent.Object;
+        var content = mContent.Value;
         if (content == null)
             return;
 
@@ -122,7 +122,7 @@ internal class ScrollView : Panel
     bool mIsFitWidth = false;
     bool mIsFitHeight = false;
 
-    readonly Owner<Control> mContent = new();
+    readonly Holder<Control> mContent = new();
 
     readonly AnimationScalableScrollAxis mHorizontalAxis = new();
     readonly AnimationScalableScrollAxis mVerticalAxis = new();
