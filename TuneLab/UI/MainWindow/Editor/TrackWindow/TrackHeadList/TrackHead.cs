@@ -298,7 +298,7 @@ internal class TrackHead : DockPanel
         {
             if (!AudioEngine.IsPlaying)
             {
-                mAmplitudeViewer.Reset();
+                mAmplitudeViewer.Release();
             }
         }
         catch {; }
@@ -311,7 +311,7 @@ internal class TrackHead : DockPanel
             if (Track != null && AudioEngine.IsPlaying)
             {
                 AudioEngine.InvokeRealtimeAmplitude(Track, out var amp);
-                if (amp == null) mAmplitudeViewer.Reset(); else mAmplitudeViewer.SetValue(amp);
+                if (amp == null) mAmplitudeViewer.Release(); else mAmplitudeViewer.SetValue(amp);
             }
         }
         catch {; }
