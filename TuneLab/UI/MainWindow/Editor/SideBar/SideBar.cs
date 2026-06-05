@@ -36,6 +36,14 @@ internal class SideBar : DockPanel
         this.AddDock(title, Dock.Top);
         this.AddDock(new Border() { Height = 1, Background = Style.BACK.ToBrush() }, Dock.Top);
         this.AddDock(mListView);
+
+        // 底部占位：高度跟随视口（ListView）高，把内容的滚动范围撑大一整屏，使折叠面板展开/收起时
+        // 不撞底、不猛弹，任意面板都能滚到视口顶。ListView 填满 dock 区，其 Bounds.Height 即视口高。
+        mListView.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty)
+                mBottomSpacer.Height = mListView.Bounds.Height;
+        };
     }
 
     public void SetContent(SideBarContent content)
@@ -47,9 +55,12 @@ internal class SideBar : DockPanel
         {
             mListView.Content.Children.Add(child);
         }
+        mListView.Content.Children.Add(mBottomSpacer);
     }
 
     readonly Image mIcon;
     readonly Label mName;
     readonly ListView mListView = new();
+    // 透明背景而非 null：否则空控件不参与命中测试，鼠标在其上时滚轮事件无目标、滚不动。
+    readonly Border mBottomSpacer = new() { Background = Brushes.Transparent };
 }

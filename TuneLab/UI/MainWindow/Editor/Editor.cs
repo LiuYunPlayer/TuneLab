@@ -157,7 +157,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "Open Tlx File",
-                AllowMultiple = false,
+                AllowMultiple = true,
                 FileTypeFilter = [new("TuneLab Extension") { Patterns = ["*.tlx"] }]
             });
             if (files.IsEmpty()) return;
@@ -1126,7 +1126,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                     {
                         Title = "Open Tlx File",
-                        AllowMultiple = false,
+                        AllowMultiple = true,
                         FileTypeFilter = [new("TuneLab Extension") { Patterns = ["*.tlx"] }]
                     });
                     if (files.IsEmpty()) return;

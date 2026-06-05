@@ -99,8 +99,19 @@ public sealed class LegacyTestSynthesisTask : ISynthesisTask
                     double freq = 440.0 * Math.Pow(2, (note.Pitch - 69) / 12.0);
                     int from = Math.Clamp((int)((note.StartTime - startTime) * SampleRate), 0, sampleCount);
                     int to = Math.Clamp((int)((note.EndTime - startTime) * SampleRate), 0, sampleCount);
+                    // attack/release 线性包络：note 边界处波形从 0 渐入/渐出，消除截断造成的爆音（"啪"声）。
+                    // 渐入/渐出各取设定时长与半个 note 长度的较小者，短音符也不会重叠（attack==0 时不进渐变分支，无除零）。
+                    int length = to - from;
+                    int attack = Math.Min(AttackSamples, length / 2);
+                    int release = Math.Min(ReleaseSamples, length / 2);
                     for (int i = from; i < to; i++)
-                        audio[i] = (float)(0.2 * Math.Sin(2 * Math.PI * freq * (i - from) / SampleRate));
+                    {
+                        int pos = i - from;
+                        double envelope = pos < attack ? (double)pos / attack
+                            : pos >= length - release ? (double)(length - pos) / release
+                            : 1.0;
+                        audio[i] = (float)(0.2 * envelope * Math.Sin(2 * Math.PI * freq * pos / SampleRate));
+                    }
 
                     phonemes[note] = new[]
                     {
@@ -132,6 +143,8 @@ public sealed class LegacyTestSynthesisTask : ISynthesisTask
     public void SetDirty(string dirtyType) { }
 
     const int SampleRate = 44100;
+    const int AttackSamples = (int)(0.008 * SampleRate);   // 8ms 渐入
+    const int ReleaseSamples = (int)(0.012 * SampleRate);  // 12ms 渐出
     readonly ISynthesisData mData;
     volatile bool mCancelled;
 }
