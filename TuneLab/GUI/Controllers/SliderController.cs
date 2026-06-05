@@ -58,24 +58,37 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
 
     public void Display(double value)
     {
+        mState = State.Value;
         mSlider.Display(value);
         RefreshLabel();
     }
 
     public void DisplayNull()
     {
-        Display(double.NaN);
+        mState = State.Invalid;
+        mSlider.Display(double.NaN);
+        RefreshLabel();
     }
 
     public void DisplayMultiple()
     {
-        Display(double.NaN);
+        mState = State.Multiple;
+        mSlider.Display(double.NaN);
+        RefreshLabel();
     }
 
+    // 两态均空轨（thumb 随 NaN 隐藏），仅靠标签区分：Multiple 显 "-"、Invalid 留空。
+    // 拖动中 slider 取到真实值（非 NaN）即照常显数，不受残留状态标志干扰。
     protected string GetValueString()
     {
-        return double.IsNaN(mSlider.Value) ? "-" : mSlider.IsInterger ? ((int)mSlider.Value).ToString() : mSlider.Value.ToString("F2");
+        if (!double.IsNaN(mSlider.Value))
+            return mSlider.IsInterger ? ((int)mSlider.Value).ToString() : mSlider.Value.ToString("F2");
+
+        return mState == State.Multiple ? "-" : "";
     }
+
+    enum State { Value, Multiple, Invalid }
+    State mState = State.Value;
 
     void RefreshLabel()
     {
@@ -84,6 +97,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
 
     public void Display(int value)
     {
+        mState = State.Value;
         mSlider.Display(value);
         RefreshLabel();
     }

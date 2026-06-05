@@ -33,7 +33,10 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
 
     public abstract class AbstractThumb(AbstractSlider slider) : MovableComponent
     {
-        public virtual Avalonia.Point Piovt => new(Bounds.Width / 2, Bounds.Height / 2);
+        // 用 DesiredSize 而非 Bounds：首次 arrange 时 thumb 自身 Bounds 仍为 0（尚未定尺寸），
+        // 用 Bounds 算出的中心偏移为 0 → thumb 左上角贴 pivot（偏右下半身位），下一帧才居中 → 可见跳动。
+        // DesiredSize 在 arrange 前的 measure 阶段已确定（thumb 有固定 Width/Height），两帧一致。
+        public virtual Avalonia.Point Piovt => new(DesiredSize.Width / 2, DesiredSize.Height / 2);
 
         protected override void OnMouseDown(MouseDownEventArgs e)
         {
@@ -105,8 +108,14 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         Display(double.NaN);
     }
 
-    protected abstract Avalonia.Point StartPoint { get; }
-    protected abstract Avalonia.Point EndPoint { get; }
+    // 由具体 slider 按给定尺寸算两端点。布局期(ArrangeOverride)必须用传入的 finalSize 而非 Bounds——
+    // Bounds 在 arrange 完成前仍是上一帧值，首帧据此定位会错位、下一帧才跳到正确处。
+    protected abstract Avalonia.Point GetStartPoint(Size size);
+    protected abstract Avalonia.Point GetEndPoint(Size size);
+
+    // 非布局期（鼠标命中映射等）Bounds 已是最新，照常用之。
+    protected Avalonia.Point StartPoint => GetStartPoint(Bounds.Size);
+    protected Avalonia.Point EndPoint => GetEndPoint(Bounds.Size);
 
     bool mLastDownIsDoubleClick = false;
 
@@ -153,7 +162,9 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         if (double.IsNaN(mValue))
             return finalSize;
 
-        Thumb?.Arrange(new(ThumbPivotPosition() - Thumb.Piovt, Thumb.DesiredSize));
+        // 用传入的 finalSize 算端点（首帧 Bounds 尚未更新、为 0），thumb 偏移用 DesiredSize（见 Piovt）——
+        // 二者合起来保证首次 arrange 即定位正确，消除 thumb 从偏位跳到正确处的现象。
+        Thumb?.Arrange(new(ThumbPivotPosition(finalSize) - Thumb.Piovt, Thumb.DesiredSize));
         return finalSize;
     }
 
@@ -204,10 +215,14 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         mValueChanged.Invoke();
     }
 
-    public Avalonia.Point ThumbPivotPosition()
+    public Avalonia.Point ThumbPivotPosition() => ThumbPivotPosition(Bounds.Size);
+
+    Avalonia.Point ThumbPivotPosition(Size size)
     {
-        double x = MathUtility.LineValue(MinValue, StartPoint.X, MaxValue, EndPoint.X, Value.Limit(mMinValue, mMaxValue));
-        double y = MathUtility.LineValue(MinValue, StartPoint.Y, MaxValue, EndPoint.Y, Value.Limit(mMinValue, mMaxValue));
+        var start = GetStartPoint(size);
+        var end = GetEndPoint(size);
+        double x = MathUtility.LineValue(MinValue, start.X, MaxValue, end.X, Value.Limit(mMinValue, mMaxValue));
+        double y = MathUtility.LineValue(MinValue, start.Y, MaxValue, end.Y, Value.Limit(mMinValue, mMaxValue));
         return new Avalonia.Point(x, y);
     }
 

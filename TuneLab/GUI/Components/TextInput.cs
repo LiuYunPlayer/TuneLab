@@ -56,19 +56,31 @@ internal class TextInput : TextBox, IDataValueController<string>
 
     protected override Type StyleKeyOverride => typeof(TextBox);
 
+    // 编辑中（聚焦）不被外部刷新覆盖：多选扇出会逐对象触发刷新，中途重写文本框会清空/重置光标。
+    // 用户输入在编辑期内即权威值，失焦后再由正常刷新归位。
     public void Display(string text)
     {
+        if (IsFocused)
+            return;
+        Watermark = string.Empty;
         base.Text = text;
     }
 
     public void DisplayNull()
     {
+        if (IsFocused)
+            return;
+        Watermark = string.Empty;
         base.Text = string.Empty;
     }
 
+    // 多值：用 watermark 占位而非真实文本——聚焦输入即从空白起编，不会编辑到 "(Multiple)" 字面量。
     public void DisplayMultiple()
     {
-        base.Text = "(Multiple)";
+        if (IsFocused)
+            return;
+        base.Text = string.Empty;
+        Watermark = "(Multiple)";
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

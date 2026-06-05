@@ -76,7 +76,7 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
     {
         mValue = string.Empty;
         acceptSelectionChanged = false;
-        PlaceholderText = "(Null)";
+        PlaceholderText = string.Empty;
         SelectedIndex = -1;
         acceptSelectionChanged = true;
     }

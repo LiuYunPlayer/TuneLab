@@ -43,7 +43,21 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
     // 与其它测试 voice 一致地声明属性（避免"空面板像 bug"的误解）。自定义自动化名避开宿主保留名。
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig("Power", 0, 0, 100, "#73E5A5") } };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new() { { "tension", new SliderConfig(0, -1, 1, false) } };
+
+    // 四类控件各一项 + 一个嵌套 ObjectConfig（含叶子控件），供属性面板「多值 / 无效」三态呈现的多选测试
+    // （含嵌套对象内叶子的三态递归，见 tests/PROPERTY-TRISTATE-TEST-CASES.md）。
+    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new()
+    {
+        { "tension", new SliderConfig(0, -1, 1, false) },
+        { "accent", new CheckBoxConfig(false) },
+        { "label", new TextBoxConfig("") },
+        { "style", new ComboBoxConfig(["Soft", "Normal", "Strong"], 1) },
+        { "vibrato", new ObjectConfig(new OrderedMap<string, IControllerConfig>
+        {
+            { "depth", new SliderConfig(0, 0, 1, false) },
+            { "on", new CheckBoxConfig(false) },
+        }) },
+    };
 }
 
 public sealed class SuiteSynthesisTask(ISynthesisData data) : ISynthesisTask

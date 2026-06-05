@@ -39,8 +39,8 @@ internal class GainSlider : AbstractSlider
         ToolTip.SetTip(this, Value.ToString("+0.00dB;-0.00dB"));
     }
 
-    protected override Point StartPoint => new(2, Bounds.Height / 2);
-    protected override Point EndPoint => new(Bounds.Width - 2, Bounds.Height / 2);
+    protected override Point GetStartPoint(Size size) => new(2, size.Height / 2);
+    protected override Point GetEndPoint(Size size) => new(size.Width - 2, size.Height / 2);
 
     public override void Render(DrawingContext context)
     {

@@ -120,9 +120,11 @@ internal class PropertyObjectController : StackPanel
             mController.SetRange(config.MinValue, config.MaxValue);
             mController.SetDefaultValue(config.DefaultValue);
             mController.IsInterger = config.IsInterger;
-            Parent.Children.Add(mController);
 
+            // 先绑定（初次刷新即把真实值写入），再加入可视树——否则池复用的控件会以残留旧值/旧量程
+            // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
             mController.BindDataProperty(parent.DataObject.NumberField(path.GetKey(), config.DefaultValue), s);
+            Parent.Children.Add(mController);
         }
 
         public override void Dispose()

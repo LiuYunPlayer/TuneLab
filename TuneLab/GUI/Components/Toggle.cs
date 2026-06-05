@@ -65,7 +65,7 @@ internal class Toggle : Button, IDataValueController<bool>
         return this;
     }
 
-    public void Display(bool value)
+    public virtual void Display(bool value)
     {
         mIsChecked = value;
         foreach (var kvp in mContentMap)

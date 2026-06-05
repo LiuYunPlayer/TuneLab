@@ -183,15 +183,11 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             return;
         }
 
-        var selectedNotes = mPart.Notes.AllSelectedItems();
-        if (selectedNotes.IsEmpty())
-        {
-            mNoteContentMask.IsVisible = true;
-            return;
-        }
-
-        mNotePropertiesController.SetConfig(mPart.Voice.NoteProperties, new MultipleDataPropertyObject(selectedNotes.Select(note => note.Properties).ToList()));
-        mNoteContentMask.IsVisible = false;
+        // 无选中也绑空数据源（0 对象），让控件在遮罩下呈 Invalid 态而非被清空；
+        // 遮罩仅压暗 + 挡交互、提示去选音符。
+        var dataObjects = mPart.Notes.AllSelectedItems().Select(note => note.Properties).ToList();
+        mNotePropertiesController.SetConfig(mPart.Voice.NoteProperties, new MultipleDataPropertyObject(dataObjects));
+        mNoteContentMask.IsVisible = dataObjects.Count == 0;
     }
 
     async Task OnSaveAsPresetClicked()

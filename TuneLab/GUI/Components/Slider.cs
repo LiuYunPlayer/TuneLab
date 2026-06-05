@@ -52,21 +52,21 @@ internal class Slider : AbstractSlider
             context.FillRectangle(Style.BACK.ToBrush(), new((Bounds.Width - 4) / 2, 0, 4, Bounds.Height), 2);
     }
 
-    protected override Avalonia.Point StartPoint => Direction switch
+    protected override Avalonia.Point GetStartPoint(Avalonia.Size size) => Direction switch
     {
-        SliderDirection.LeftToRight => new(ThumbRadius, Bounds.Height / 2),
-        SliderDirection.BottomToTop => new(Bounds.Width / 2, Bounds.Height - ThumbRadius),
-        SliderDirection.RightToLeft => new(Bounds.Width - ThumbRadius, Bounds.Height / 2),
-        SliderDirection.TopToBottom => new(Bounds.Width / 2, ThumbRadius),
+        SliderDirection.LeftToRight => new(ThumbRadius, size.Height / 2),
+        SliderDirection.BottomToTop => new(size.Width / 2, size.Height - ThumbRadius),
+        SliderDirection.RightToLeft => new(size.Width - ThumbRadius, size.Height / 2),
+        SliderDirection.TopToBottom => new(size.Width / 2, ThumbRadius),
         _ => new()
     };
 
-    protected override Avalonia.Point EndPoint => Direction switch
+    protected override Avalonia.Point GetEndPoint(Avalonia.Size size) => Direction switch
     {
-        SliderDirection.LeftToRight => new(Bounds.Width - ThumbRadius, Bounds.Height / 2),
-        SliderDirection.BottomToTop => new(Bounds.Width / 2, ThumbRadius),
-        SliderDirection.RightToLeft => new(ThumbRadius, Bounds.Height / 2),
-        SliderDirection.TopToBottom => new(Bounds.Width / 2, Bounds.Height - ThumbRadius),
+        SliderDirection.LeftToRight => new(size.Width - ThumbRadius, size.Height / 2),
+        SliderDirection.BottomToTop => new(size.Width / 2, ThumbRadius),
+        SliderDirection.RightToLeft => new(ThumbRadius, size.Height / 2),
+        SliderDirection.TopToBottom => new(size.Width / 2, size.Height - ThumbRadius),
         _ => new()
     };
 

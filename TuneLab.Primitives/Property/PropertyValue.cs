@@ -57,6 +57,8 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         {
             if (mValue is null || mValue is PropertyNull)
                 return PropertyType.Null;
+            if (mValue is PropertyMultiple)
+                return PropertyType.Multiple;
             if (mValue is bool)
                 return PropertyType.Boolean;
             if (mValue is double)
@@ -88,6 +90,12 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     public bool IsInvalid()
     {
         return IsNull();
+    }
+
+    // 多值哨兵判别（多选不一致的聚合态）。与 IsNull/IsInvalid 互斥：多值不是空值。
+    public bool IsMultiple()
+    {
+        return mValue is PropertyMultiple;
     }
 
     public bool IsBool()
@@ -159,6 +167,8 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     {
         if (mValue is null || mValue is PropertyNull)
             return "null";
+        if (mValue is PropertyMultiple)
+            return "multiple";
         return mValue.ToString();
     }
 
@@ -187,9 +197,12 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     public static bool operator ==(PropertyValue left, PropertyValue right) => left.Equals(right);
     public static bool operator !=(PropertyValue left, PropertyValue right) => !left.Equals(right);
 
-    // 空哨兵（替代旧 Invalid 静态）。Invalid 保留为转发别名作 build-fix 安全网。
+    // 空哨兵：无值 / 无选中。Invalid 与 Null 同义（指向 PropertyNull.Shared）。
     public readonly static PropertyValue Null = new(PropertyNull.Shared);
     public readonly static PropertyValue Invalid = Null;
+
+    // 多值哨兵：多选不一致的聚合态。与 Null 并列、彼此可区分（IsMultiple vs IsNull）。
+    public readonly static PropertyValue Multiple = new(PropertyMultiple.Shared);
 
     readonly object mValue;
     readonly Type mType;

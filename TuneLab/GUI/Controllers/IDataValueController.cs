@@ -5,7 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Event;
+using TuneLab.Foundation.Property;
 using TuneLab.Foundation.Utils;
+using TuneLab.Primitives.Property;
 using static TuneLab.GUI.Controllers.IValueControllerExtension;
 
 namespace TuneLab.GUI.Controllers;
@@ -89,33 +91,45 @@ public static class IDataValueControllerExtension
                 Property.Commit();
             }, s);
 
-            mPropertyHolder.When(p => p.Modified).Subscribe(() => 
-            {
-                if (Property == null)
-                    return; 
-                
-                mController.Display(Property.Value); 
-            }, s);
+            mPropertyHolder.When(p => p.Modified).Subscribe(Refresh, s);
 
-            mPropertyHolder.Modified.Subscribe(() =>
-            {
-                if (Property == null)
-                {
-                    mController.DisplayNull();
-                }
-                else
-                {
-                    mController.Display(Property.Value);
-                }
-            });
+            mPropertyHolder.Modified.Subscribe(Refresh);
 
-            if (Property != null)
-                mController.Display(Property.Value);
+            Refresh();
         }
 
         public void Dispose()
         {
             s.DisposeAll();
+        }
+
+        // 按三态分派：原始值为 Multiple→DisplayMultiple、Invalid→DisplayNull，否则 coerce 成 T 走 Display。
+        // 字段（PropertyField）经 IRawValueProperty 暴露未 coerce 的原始值；非该来源的退化为只看有无 Property。
+        void Refresh()
+        {
+            var property = Property;
+            if (property == null)
+            {
+                mController.DisplayNull();
+                return;
+            }
+
+            if (property is IRawValueProperty raw)
+            {
+                var value = raw.RawValue;
+                if (value.IsMultiple())
+                {
+                    mController.DisplayMultiple();
+                    return;
+                }
+                if (value.IsInvalid())
+                {
+                    mController.DisplayNull();
+                    return;
+                }
+            }
+
+            mController.Display(property.Value);
         }
 
         IDataProperty<T>? Property => mPropertyHolder.Value;

@@ -16,6 +16,13 @@ public interface IDataPropertyObject
     void SetValue(PropertyPath.Key key, PropertyValue value);
 }
 
+// 字段向 UI 绑定暴露未 coerce 的原始值，使绑定能区分 具体值 / Multiple（多值）/ Invalid（无值）三态。
+// 绑定按原始值的 IsMultiple()/IsInvalid() 分派到控件的 DisplayMultiple/DisplayNull，否则才 coerce 成 T 走 Display。
+public interface IRawValueProperty
+{
+    PropertyValue RawValue { get; }
+}
+
 public static class IDataPropertyObjectExtension
 {
     public static IDataProperty<double> NumberField(this IDataPropertyObject dataObject, PropertyPath.Key key, double defaultValue)
@@ -40,9 +47,10 @@ public static class IDataPropertyObjectExtension
     // 仅把读写转成具体类型并直接走 GetValue/SetValue（写入由底层 DataPropertyValue 自带的撤销命令承担，
     // 故 Set 直达 SetValue、不经基类命令机制——避免一次编辑产生两条撤销记录）。
     class PropertyField<T>(IDataPropertyObject dataObject, PropertyPath.Key key, PropertyValue defaultValue, Func<PropertyValue, T> read, Func<T, PropertyValue> write)
-        : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<T> where T : notnull
+        : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<T>, IRawValueProperty where T : notnull
     {
-        public T Value => read(dataObject.GetValue(key, defaultValue));
+        public PropertyValue RawValue => dataObject.GetValue(key, defaultValue);
+        public T Value => read(RawValue);
         public T GetInfo() => Value;
         void IDataObject<T>.SetInfo(T value) => dataObject.SetValue(key, write(value));
         void IDataProperty<T>.Set(T value) => dataObject.SetValue(key, write(value));

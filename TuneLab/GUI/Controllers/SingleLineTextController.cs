@@ -46,12 +46,12 @@ internal class SingleLineTextController : LayerPanel, IDataValueController<strin
 
     public void DisplayNull()
     {
-        mTextInput.Display("-");
+        mTextInput.DisplayNull();
     }
 
     public void DisplayMultiple()
     {
-        mTextInput.Display("(Multiple)");
+        mTextInput.DisplayMultiple();
     }
 
     readonly TextInput mTextInput;
