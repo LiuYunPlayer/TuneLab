@@ -536,7 +536,7 @@ internal class MidiPart : Part, IMidiPart
         Activate();
     }
 
-    string GetNotePropertyDirtyType(PropertyPath path)
+    string GetNotePropertyDirtyType()
     {
         return "duration"; //TODO: 改成正确的实现
     }
@@ -811,7 +811,7 @@ internal class MidiPart : Part, IMidiPart
                 note.Pitch.Modified.Subscribe(SetDirtyAndResegment, s);
                 note.Lyric.Modified.Subscribe(SetDirtyAndResegment, s);
                 note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Properties.PropertyModified.Subscribe(OnNotePropertyModified, s);
+                note.Properties.Modified.Subscribe(OnNotePropertyModified, s);
                 note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
             }
         }
@@ -1104,9 +1104,9 @@ internal class MidiPart : Part, IMidiPart
             mPart.ReSegment();
         }
 
-        void OnNotePropertyModified(PropertyPath path)
+        void OnNotePropertyModified()
         {
-            SetDirty(mPart.GetNotePropertyDirtyType(path));
+            SetDirty(mPart.GetNotePropertyDirtyType());
         }
 
         void OnPhonemeChanged()

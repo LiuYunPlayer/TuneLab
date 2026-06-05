@@ -44,8 +44,10 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig("Power", 0, 0, 100, "#73E5A5") } };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
 
-    // 四类控件各一项 + 一个嵌套 ObjectConfig（含叶子控件），供属性面板「多值 / 无效」三态呈现的多选测试
+    // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板「多值 / 无效」三态呈现的多选测试
     // （含嵌套对象内叶子的三态递归，见 tests/PROPERTY-TRISTATE-TEST-CASES.md）。
+    // vibrato → lfo → range 共 3 层对象，验证导航模型在深层嵌套下的逐层导航 / 多选复合递归 / 懒建路径
+    // （见 tests/PROPERTY-NAVIGATION-TEST-CASES.md）。
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new()
     {
         { "tension", new SliderConfig(0, -1, 1, false) },
@@ -56,6 +58,16 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
         {
             { "depth", new SliderConfig(0, 0, 1, false) },
             { "on", new CheckBoxConfig(false) },
+            { "lfo", new ObjectConfig(new OrderedMap<string, IControllerConfig>
+            {
+                { "rate", new SliderConfig(5, 0, 20, false) },
+                { "wave", new ComboBoxConfig(["Sine", "Triangle", "Square"], 0) },
+                { "range", new ObjectConfig(new OrderedMap<string, IControllerConfig>
+                {
+                    { "min", new SliderConfig(0, -1, 1, false) },
+                    { "max", new SliderConfig(1, -1, 1, false) },
+                }) },
+            }) },
         }) },
     };
 }

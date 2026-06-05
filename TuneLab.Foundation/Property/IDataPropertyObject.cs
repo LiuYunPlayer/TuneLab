@@ -4,16 +4,16 @@ using TuneLab.Primitives.Property;
 
 namespace TuneLab.Foundation.Property;
 
-// 属性面板的可绑定数据外观：把一个属性源（单个 DataPropertyObject，或多选时的多个对象合一）
-// 暴露成"按 PropertyPath.Key 取/写值 + 提供一个文档连接对象作为撤销根"的统一面。
-// 控件由此逐字段拿到 IDataProperty<T> 直接绑定，复用既有单属性撤销/刷新机制。
-public interface IDataPropertyObject
+// 属性面板的导航式数据外观：路径上每个节点都是 IDataPropertyObject（对象节点）或 IDataProperty<T>（叶子），
+// 拿到就当普通数据对象用——绑定/观察/撤销一视同仁。节点本身即撤销根（故继承 IDataObject）。
+// 嵌套对象经 Object(key) 逐层导航（lazy：读不存在返回 default、写时按需建路径），不再用扁平深路径寻址。
+public interface IDataPropertyObject : IDataObject
 {
-    // 字段绑定所依附的文档连接对象：其 Head/Commit/DiscardTo/Modified 用于撤销分组与刷新。
-    // 单对象即自身；多选时取其中之一（同一文档共享一个 Head，提交即归一个撤销单元）。
-    IDataObject DataRoot { get; }
-    PropertyValue GetValue(PropertyPath.Key key, PropertyValue defaultValue);
-    void SetValue(PropertyPath.Key key, PropertyValue value);
+    // 导航到嵌套对象节点：返回可继续导航的子对象外观。
+    IDataPropertyObject Object(string key);
+    // 本层叶子读/写（裸 PropertyValue 进出；typed 视图由下方字段扩展提供）。
+    PropertyValue GetValue(string key, PropertyValue defaultValue);
+    void SetValue(string key, PropertyValue value);
 }
 
 // 字段向 UI 绑定暴露未 coerce 的原始值，使绑定能区分 具体值 / Multiple（多值）/ Invalid（无值）三态。
@@ -25,29 +25,29 @@ public interface IRawValueProperty
 
 public static class IDataPropertyObjectExtension
 {
-    public static IDataProperty<double> NumberField(this IDataPropertyObject dataObject, PropertyPath.Key key, double defaultValue)
+    public static IDataProperty<double> NumberField(this IDataPropertyObject dataObject, string key, double defaultValue)
     {
         return new PropertyField<double>(dataObject, key, PropertyValue.Create(defaultValue),
             v => v.ToDouble(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
-    public static IDataProperty<string> StringField(this IDataPropertyObject dataObject, PropertyPath.Key key, string defaultValue)
+    public static IDataProperty<string> StringField(this IDataPropertyObject dataObject, string key, string defaultValue)
     {
         return new PropertyField<string>(dataObject, key, PropertyValue.Create(defaultValue),
             v => v.ToString(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
-    public static IDataProperty<bool> BoolField(this IDataPropertyObject dataObject, PropertyPath.Key key, bool defaultValue)
+    public static IDataProperty<bool> BoolField(this IDataPropertyObject dataObject, string key, bool defaultValue)
     {
         return new PropertyField<bool>(dataObject, key, PropertyValue.Create(defaultValue),
             v => v.ToBool(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
-    // 字段适配器：包裹数据源的撤销根（Head/Commit/DiscardTo/Modified 全经 Wrapper 转发到文档），
-    // 仅把读写转成具体类型并直接走 GetValue/SetValue（写入由底层 DataPropertyValue 自带的撤销命令承担，
+    // 字段适配器：借壳节点本身（Head/Commit/DiscardTo/Modified 经 Wrapper 转发到文档撤销根），
+    // 仅把读写转成具体类型并直接走节点的 GetValue/SetValue（写入由底层 DataPropertyValue 自带的撤销命令承担，
     // 故 Set 直达 SetValue、不经基类命令机制——避免一次编辑产生两条撤销记录）。
-    class PropertyField<T>(IDataPropertyObject dataObject, PropertyPath.Key key, PropertyValue defaultValue, Func<PropertyValue, T> read, Func<T, PropertyValue> write)
-        : IDataObject.Wrapper(dataObject.DataRoot), IDataProperty<T>, IRawValueProperty where T : notnull
+    class PropertyField<T>(IDataPropertyObject dataObject, string key, PropertyValue defaultValue, Func<PropertyValue, T> read, Func<T, PropertyValue> write)
+        : IDataObject.Wrapper(dataObject), IDataProperty<T>, IRawValueProperty where T : notnull
     {
         public PropertyValue RawValue => dataObject.GetValue(key, defaultValue);
         public T Value => read(RawValue);

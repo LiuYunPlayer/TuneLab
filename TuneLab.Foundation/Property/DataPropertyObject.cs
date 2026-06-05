@@ -1,28 +1,15 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
 using TuneLab.Foundation.DataStructures;
 
 using TuneLab.Primitives.DataStructures;
 using TuneLab.Primitives.Property;
 namespace TuneLab.Foundation.Property;
 
-public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>, IDataPropertyObject
+public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>, IDataPropertyObject, DataPropertyObject.ILazyObjectNode
 {
-    // 单对象作为属性面板数据源：撤销根即自身（已挂在文档树上）。
-    IDataObject IDataPropertyObject.DataRoot => this;
-    void IDataPropertyObject.SetValue(PropertyPath.Key key, PropertyValue value) => SetValue(key, value);
-
-    //public IActionEvent<PropertyPath, IPropertyValue> PropertyAdded => mPropertyAdded;
-    //public IActionEvent<PropertyPath, IPropertyValue> PropertyRemoved => mPropertyRemoved;
-    //public IActionEvent<PropertyPath, IPropertyValue, IPropertyValue> PropertyReplaced => mPropertyReplaced;
-    public IActionEvent<PropertyPath> PropertyModified => mPropertyModified;
-
     public IReadOnlyCollection<string> Keys => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Keys;
 
     public IReadOnlyCollection<PropertyValue> Values => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Values.Convert(v => v.Value);
@@ -36,64 +23,30 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     public DataPropertyObject(IDataObject? parent = null) : base(parent)
     {
         mMap.Attach(this);
-
-        mMap.ItemAdded.Subscribe(OnAdd);
-        mMap.ItemRemoved.Subscribe(OnRemove);
-        mMap.ItemReplaced.Subscribe(OnReplace);
     }
 
-    public PropertyValue GetValue(PropertyPath.Key key, PropertyValue defaultValue)
+    // 本层叶子读：缺键或存值类型与 default 不符（如配置改过类型）一律退回 default。嵌套对象由 Object(key) 导航，不在此下钻。
+    public PropertyValue GetValue(string key, PropertyValue defaultValue)
     {
         if (!mMap.TryGetValue(key, out var dataPropertyValue))
             return defaultValue;
 
         var propertyValue = dataPropertyValue.Value;
-        if (propertyValue.TypeEquals(defaultValue))
-            return propertyValue;
-
-        if (propertyValue.ToObject(out var propertyObject) && key.IsObject)
-            return ((DataPropertyObject)propertyObject.Map).GetValue(key.Next, defaultValue);
-
-        return defaultValue;
+        return propertyValue.TypeEquals(defaultValue) ? propertyValue : defaultValue;
     }
 
-    public PropertyValue GetValue(PropertyPath.Key key)
+    // 本层叶子写：缺键则建叶子。撤销由 DataPropertyValue 自带命令承担。
+    public DataPropertyValue SetValue(string key, PropertyValue value)
     {
-        if (!mMap.TryGetValue(key, out var dataPropertyValue))
-            return PropertyValue.Invalid;
-
-        var propertyValue = dataPropertyValue.Value;
-        if (!key.IsObject)
-            return propertyValue;
-
-        if (propertyValue.ToObject(out var propertyObject))
-            return ((DataPropertyObject)propertyObject.Map).GetValue(key.Next);
-
-        return PropertyValue.Invalid;
-    }
-
-    public DataPropertyValue SetValue(PropertyPath.Key key, PropertyValue value)
-    {
-        var dataPropertyValue = FindValue(key); 
-        if (key.IsObject)
-        {
-            var propertyValue = dataPropertyValue.Value;
-            if (!propertyValue.ToObject(out var propertyObject))
-            {
-                propertyObject = new(new DataPropertyObject());
-                dataPropertyValue.Set(propertyObject);
-            }
-
-            var dataPropertyObject = (DataPropertyObject)propertyObject.Map;
-            dataPropertyObject.SetValue(key.Next, value);
-
-        }
-        else
-        {
-            dataPropertyValue.Set(value);
-        }
+        var dataPropertyValue = FindValue(key);
+        dataPropertyValue.Set(value);
         return dataPropertyValue;
     }
+
+    void IDataPropertyObject.SetValue(string key, PropertyValue value) => SetValue(key, value);
+
+    // 导航到嵌套对象：返回懒视图，读经 FindObject（不创建）、写经 GetOrCreateObject（按需建路径）。
+    public IDataPropertyObject Object(string key) => new ObjectView(this, this, key);
 
     DataPropertyValue FindValue(string key)
     {
@@ -104,47 +57,6 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         }
 
         return dataPropertyValue;
-    }
-
-    void OnAdd(string key, DataPropertyValue value)
-    {
-        if (value.Value.ToObject(out var objectValue))
-        {
-            var dataPropertyObject = (DataPropertyObject)objectValue.Map;
-            //dataPropertyObject.PropertyAdded.Subscribe((path, value) => { mPropertyAdded.Invoke(new PropertyPath(key).Combine(path), value); });
-            //dataPropertyObject.PropertyRemoved.Subscribe((path, value) => { mPropertyRemoved.Invoke(new PropertyPath(key).Combine(path), value); });
-            //dataPropertyObject.PropertyReplaced.Subscribe((path, before, after) => { mPropertyReplaced.Invoke(new PropertyPath(key).Combine(path), before, after); });
-            Action<PropertyPath> modified = (path) => { mPropertyModified.Invoke(new PropertyPath(key).Combine(path)); };
-            dataPropertyObject.PropertyModified.Subscribe(modified);
-            mPropertyModifiedActions.Add(key, modified);
-        }
-        else
-        {
-            Action modified = () => { mPropertyModified.Invoke(new PropertyPath(key)); };
-            value.Modified.Subscribe(modified);
-            mModifiedActions.Add(key, modified);
-        }
-    }
-
-    void OnRemove(string key, DataPropertyValue value)
-    {
-        if (value.Value.ToObject(out var objectValue))
-        {
-            var dataPropertyObject = (DataPropertyObject)objectValue.Map;
-            dataPropertyObject.PropertyModified.Unsubscribe(mPropertyModifiedActions[key]);
-            mPropertyModifiedActions.Remove(key);
-        }
-        else
-        {
-            value.Modified.Unsubscribe(mModifiedActions[key]);
-            mModifiedActions.Remove(key);
-        }
-    }
-
-    void OnReplace(string key, DataPropertyValue before, DataPropertyValue after)
-    {
-        OnRemove(key, before);
-        OnAdd(key, after);
     }
 
     public PropertyObject GetInfo()
@@ -205,13 +117,50 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return GetEnumerator();
     }
 
-    readonly Map<string, Action<PropertyPath>> mPropertyModifiedActions = new();
-    readonly Map<string, Action> mModifiedActions = new();
+    // 单选侧懒导航的内部契约：解析真实子对象（不创建）/ find-or-create 子对象。不进公开接口（仅 ObjectView 与本类互链）。
+    internal interface ILazyObjectNode
+    {
+        DataPropertyObject? FindObject(string key);
+        DataPropertyObject GetOrCreateObject(string key);
+    }
+
+    DataPropertyObject? ILazyObjectNode.FindObject(string key)
+    {
+        if (mMap.TryGetValue(key, out var dataPropertyValue) && dataPropertyValue.Value.ToObject(out var objectValue))
+            return (DataPropertyObject)objectValue.Map;
+
+        return null;
+    }
+
+    DataPropertyObject ILazyObjectNode.GetOrCreateObject(string key)
+    {
+        var dataPropertyValue = FindValue(key);
+        if (!dataPropertyValue.Value.ToObject(out var objectValue))
+        {
+            objectValue = new(new DataPropertyObject());
+            dataPropertyValue.Set(objectValue);
+        }
+
+        return (DataPropertyObject)objectValue.Map;
+    }
+
+    // 嵌套对象节点的懒视图：表示 owner 下 key 处的对象。读经 owner.FindObject 返回 default（不创建），
+    // 写经 owner.GetOrCreateObject 按需建路径；借壳 root 转发整套文档身份（撤销/Modified 根锚最外层对象）。
+    // 解析出的子对象本身是 ILazyObjectNode（concrete DataPropertyObject），故继续向下导航直接 cast 链。
+    sealed class ObjectView(IDataObject root, ILazyObjectNode owner, string key)
+        : IDataObject.Wrapper(root), IDataPropertyObject, ILazyObjectNode
+    {
+        public IDataPropertyObject Object(string subKey) => new ObjectView(root, this, subKey);
+
+        public PropertyValue GetValue(string subKey, PropertyValue defaultValue)
+            => owner.FindObject(key)?.GetValue(subKey, defaultValue) ?? defaultValue;
+
+        public void SetValue(string subKey, PropertyValue value)
+            => owner.GetOrCreateObject(key).SetValue(subKey, value);
+
+        DataPropertyObject? ILazyObjectNode.FindObject(string subKey) => ((ILazyObjectNode?)owner.FindObject(key))?.FindObject(subKey);
+        DataPropertyObject ILazyObjectNode.GetOrCreateObject(string subKey) => ((ILazyObjectNode)owner.GetOrCreateObject(key)).GetOrCreateObject(subKey);
+    }
 
     readonly DataObjectMap<string, DataPropertyValue> mMap = new();
-
-    //ActionEvent<PropertyPath, IPropertyValue> mPropertyAdded = new();
-    //ActionEvent<PropertyPath, IPropertyValue> mPropertyRemoved = new();
-    //ActionEvent<PropertyPath, IPropertyValue, IPropertyValue> mPropertyReplaced = new();
-    readonly ActionEvent<PropertyPath> mPropertyModified = new();
 }

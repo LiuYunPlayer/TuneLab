@@ -55,7 +55,7 @@
 
 ## E · 嵌套对象内叶子的三态（递归）
 
-> 验证 `IDataPropertyObject` 的 field 仍可继续是 object：嵌套 `ObjectConfig` 不合成独立数据源，靠 `PropertyPath` 深 Key 寻址，叶子三态沿递归组合。
+> 验证嵌套对象的三态递归：嵌套 `ObjectConfig` 经 `Object(key)` 逐层导航到子节点，多选时复合各成员的子节点（缺该嵌套的成员读出默认值仍正确参与比较），叶子三态沿递归组合。
 
 操作：展开 `vibrato` 折叠面板，里面是 `depth`（Slider）+ `on`（CheckBox）。让多个音符的 `vibrato.depth` / `vibrato.on` **不同**（如音符1 depth=0.5/on=勾、音符2 depth=0.2/on=不勾），多选。
 

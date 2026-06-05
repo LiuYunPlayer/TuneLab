@@ -274,7 +274,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, new PropertyPath());
+        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, mPart.Properties);
         ResetAutomationDefaults();
         mPart.Commit();
     }
@@ -285,46 +285,39 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             return;
 
         mPart.Voice.SetInfo(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
-        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, new PropertyPath());
-        ApplyPresetProperties(preset.Properties, new PropertyPath());
+        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, mPart.Properties);
+        ApplyPresetProperties(preset.Properties, mPart.Properties);
         ApplyAutomationDefaults(preset);
         mPart.Commit();
     }
 
-    void ResetPartPropertiesToDefaults(ObjectConfig config, PropertyPath path)
+    // 沿 ObjectConfig 结构与数据节点并行导航：嵌套 config 走 node.Object(key) 下降，叶子 config 写 node.SetValue。
+    static void ResetPartPropertiesToDefaults(ObjectConfig config, IDataPropertyObject node)
     {
-        if (mPart == null)
-            return;
-
         foreach (var kvp in config.Properties)
         {
-            var propertyPath = path.Combine(kvp.Key);
             if (kvp.Value is ObjectConfig objectConfig)
             {
-                ResetPartPropertiesToDefaults(objectConfig, propertyPath);
+                ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key));
             }
             else if (kvp.Value is IValueConfig valueConfig)
             {
-                mPart.Properties.SetValue(propertyPath.GetKey(), valueConfig.DefaultValue);
+                node.SetValue(kvp.Key, valueConfig.DefaultValue);
             }
         }
     }
 
-    void ApplyPresetProperties(PropertyObject properties, PropertyPath path)
+    static void ApplyPresetProperties(PropertyObject properties, IDataPropertyObject node)
     {
-        if (mPart == null)
-            return;
-
         foreach (var property in properties.Map)
         {
-            var propertyPath = path.Combine(property.Key);
             if (property.Value.ToObject(out var propertyObject))
             {
-                ApplyPresetProperties(propertyObject, propertyPath);
+                ApplyPresetProperties(propertyObject, node.Object(property.Key));
             }
             else
             {
-                mPart.Properties.SetValue(propertyPath.GetKey(), property.Value);
+                node.SetValue(property.Key, property.Value);
             }
         }
     }

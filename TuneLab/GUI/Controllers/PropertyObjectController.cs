@@ -12,7 +12,7 @@ namespace TuneLab.GUI.Controllers;
 
 // 配置驱动的属性面板：按 ObjectConfig 渲染控件，逐字段直接绑定到 IDataPropertyObject 的可绑定字段，
 // 复用单属性的撤销/刷新/提交机制（不再走 PropertyPath 下发值 + 事件上抛 + 外部手工写回那套）。
-// 控件类型经注册表分发，加新控件只需注册一项。嵌套对象用 PropertyPath 寻址，绑定仍打到同一数据源。
+// 控件类型经注册表分发，加新控件只需注册一项。嵌套对象经 Object(key) 逐层导航到子节点，绑定打到该子节点。
 internal class PropertyObjectController : StackPanel
 {
     public PropertyObjectController()
@@ -22,18 +22,12 @@ internal class PropertyObjectController : StackPanel
 
     public void SetConfig(ObjectConfig config, IDataPropertyObject dataObject)
     {
-        SetConfig(config, dataObject, new PropertyPath());
-    }
-
-    void SetConfig(ObjectConfig config, IDataPropertyObject dataObject, PropertyPath basePath)
-    {
         mDataObject = dataObject;
         foreach (var kvp in config.Properties)
         {
-            var propertyPath = basePath.Combine(kvp.Key);
             if (mCreators.TryGetValue(kvp.Value.GetType(), out var creator))
             {
-                mDisposableManager.Add(creator(this, kvp.Key, propertyPath, kvp.Value));
+                mDisposableManager.Add(creator(this, kvp.Key, kvp.Value));
             }
             else
             {
@@ -61,7 +55,7 @@ internal class PropertyObjectController : StackPanel
 
     class ObjectCreator : Creator
     {
-        public ObjectCreator(PropertyObjectController parent, string key, PropertyPath path, ObjectConfig config) : base(parent)
+        public ObjectCreator(PropertyObjectController parent, string key, ObjectConfig config) : base(parent)
         {
             mTitle = CreateTitle(key, 26);
 
@@ -71,7 +65,7 @@ internal class PropertyObjectController : StackPanel
             mBorder.Background = Style.BACK.ToBrush();
 
             mController = ObjectPoolManager.Get<PropertyObjectController>();
-            mController.SetConfig(config, parent.DataObject, path);
+            mController.SetConfig(config, parent.DataObject.Object(key));
 
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
             mDockPanel.Margin = new(0, 0, 0, 0);
@@ -110,7 +104,7 @@ internal class PropertyObjectController : StackPanel
 
     class SliderCreator : Creator
     {
-        public SliderCreator(PropertyObjectController parent, string key, PropertyPath path, SliderConfig config) : base(parent)
+        public SliderCreator(PropertyObjectController parent, string key, SliderConfig config) : base(parent)
         {
             mTitle = CreateTitle(key, 30);
             Parent.Children.Add(mTitle);
@@ -123,7 +117,7 @@ internal class PropertyObjectController : StackPanel
 
             // 先绑定（初次刷新即把真实值写入），再加入可视树——否则池复用的控件会以残留旧值/旧量程
             // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
-            mController.BindDataProperty(parent.DataObject.NumberField(path.GetKey(), config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.NumberField(key, config.DefaultValue), s);
             Parent.Children.Add(mController);
         }
 
@@ -142,7 +136,7 @@ internal class PropertyObjectController : StackPanel
 
     class SingleLineTextCreator : Creator
     {
-        public SingleLineTextCreator(PropertyObjectController parent, string key, PropertyPath path, TextBoxConfig config) : base(parent)
+        public SingleLineTextCreator(PropertyObjectController parent, string key, TextBoxConfig config) : base(parent)
         {
             mTitle = CreateTitle(key, 30);
             Parent.Children.Add(mTitle);
@@ -151,7 +145,7 @@ internal class PropertyObjectController : StackPanel
             mController.Margin = new(24, 12);
             Parent.Children.Add(mController);
 
-            mController.BindDataProperty(parent.DataObject.StringField(path.GetKey(), config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.StringField(key, config.DefaultValue), s);
         }
 
         public override void Dispose()
@@ -169,7 +163,7 @@ internal class PropertyObjectController : StackPanel
 
     class ComboBoxCreator : Creator
     {
-        public ComboBoxCreator(PropertyObjectController parent, string key, PropertyPath path, ComboBoxConfig config) : base(parent)
+        public ComboBoxCreator(PropertyObjectController parent, string key, ComboBoxConfig config) : base(parent)
         {
             mTitle = CreateTitle(key, 30);
             Parent.Children.Add(mTitle);
@@ -180,7 +174,7 @@ internal class PropertyObjectController : StackPanel
             mController.SetConfig(config);
             Parent.Children.Add(mController);
 
-            mController.BindDataProperty(parent.DataObject.StringField(path.GetKey(), config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.StringField(key, config.DefaultValue), s);
         }
 
         public override void Dispose()
@@ -198,7 +192,7 @@ internal class PropertyObjectController : StackPanel
 
     class CheckBoxCreator : Creator
     {
-        public CheckBoxCreator(PropertyObjectController parent, string key, PropertyPath path, CheckBoxConfig config) : base(parent)
+        public CheckBoxCreator(PropertyObjectController parent, string key, CheckBoxConfig config) : base(parent)
         {
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
 
@@ -213,7 +207,7 @@ internal class PropertyObjectController : StackPanel
 
             Parent.Children.Add(mDockPanel);
 
-            mController.BindDataProperty(parent.DataObject.BoolField(path.GetKey(), config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.BoolField(key, config.DefaultValue), s);
         }
 
         public override void Dispose()
@@ -264,13 +258,13 @@ internal class PropertyObjectController : StackPanel
         return label;
     }
 
-    static readonly Map<Type, Func<PropertyObjectController, string, PropertyPath, IControllerConfig, IDisposable>> mCreators = new()
+    static readonly Map<Type, Func<PropertyObjectController, string, IControllerConfig, IDisposable>> mCreators = new()
     {
-        { typeof(ObjectConfig), (parent, key, path, config) => new ObjectCreator(parent, key, path, (ObjectConfig)config) },
-        { typeof(SliderConfig), (parent, key, path, config) => new SliderCreator(parent, key, path, (SliderConfig)config) },
-        { typeof(TextBoxConfig), (parent, key, path, config) => new SingleLineTextCreator(parent, key, path, (TextBoxConfig)config) },
-        { typeof(ComboBoxConfig), (parent, key, path, config) => new ComboBoxCreator(parent, key, path, (ComboBoxConfig)config) },
-        { typeof(CheckBoxConfig), (parent, key, path, config) => new CheckBoxCreator(parent, key, path, (CheckBoxConfig)config) },
+        { typeof(ObjectConfig), (parent, key, config) => new ObjectCreator(parent, key, (ObjectConfig)config) },
+        { typeof(SliderConfig), (parent, key, config) => new SliderCreator(parent, key, (SliderConfig)config) },
+        { typeof(TextBoxConfig), (parent, key, config) => new SingleLineTextCreator(parent, key, (TextBoxConfig)config) },
+        { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
+        { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
     };
 
     IDataPropertyObject? mDataObject;

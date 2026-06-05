@@ -7,24 +7,33 @@ using TuneLab.Primitives.Property;
 
 namespace TuneLab.Foundation.Property;
 
-// 多选编辑的数据源：把多个属性对象合成一个 IDataPropertyObject 外观。
+// 多选编辑的复合数据源：把多个属性对象合成一个 IDataPropertyObject 外观。
 // 读：三态——0 对象（无选中）返 Invalid；各对象同 key 不完全相等返 Multiple；全等返该值。
-// 控件据此分别呈 Invalid（无值）/ Multiple（多值）/ 具体值。
-// 写：扇出到所有对象。撤销根 DataRoot 的 Head/Commit/DiscardTo 委托给首个对象——同一文档共享一个 Head，
-// 一次提交即把所有对象的改动归为一个撤销单元；但 Modified 合并所有对象的修改事件，使扇出/撤销过程中
-// "最后一次刷新"看到的是全部已写完的最终值（否则只听首对象会在它先被写、其余未写时算出 Multiple 并卡住）。
-// 允许 0 对象（无选中）：撤销机制成 no-op，仅供面板在遮罩下把控件绑出 Invalid 态。
+// 写：扇出到所有对象。导航 Object(key)：复合各对象的 Object(key) 而成，自然递归——
+//     缺该嵌套的成员经其懒视图读出 default，仍正确参与三态比较（与有该嵌套的成员不等即 Multiple）。
+// 撤销根（IDataObject）：Head/Commit/DiscardTo 委托首对象——同一文档共享一个 Head，一次提交即把所有对象的改动
+//     归为一个撤销单元；但 Modified 合并所有对象的修改事件，使扇出/撤销过程中"最后一次刷新"看到的是全部已写完的
+//     最终值（否则只听首对象会在它先被写、其余未写时算出 Multiple 并卡住）。各成员的撤销根都根锚在最外层对象，
+//     其 Modified 冒泡覆盖全部嵌套写。允许 0 对象（无选中）：撤销机制成 no-op，仅供面板在遮罩下把控件绑出 Invalid 态。
+// 本对象只是面板侧瞬态外观、从不挂进文档树，故文档机制内部成员（Attach/Detach 等）不会被实际用到。
 public class MultipleDataPropertyObject : IDataPropertyObject
 {
-    public MultipleDataPropertyObject(IReadOnlyCollection<DataPropertyObject> dataObjects)
+    public MultipleDataPropertyObject(IReadOnlyCollection<IDataPropertyObject> dataObjects)
     {
-        mDataObjects = dataObjects as IReadOnlyList<DataPropertyObject> ?? dataObjects.ToList();
-        mDataRoot = new MultiDataRoot(mDataObjects);
+        mDataObjects = dataObjects as IReadOnlyList<IDataPropertyObject> ?? dataObjects.ToList();
+        mModified = new MergedModifiedEvent(mDataObjects);
+        mRoot = mDataObjects.Count > 0 ? mDataObjects[0] : null;
     }
 
-    public IDataObject DataRoot => mDataRoot;
+    public IDataPropertyObject Object(string key)
+    {
+        var members = new List<IDataPropertyObject>(mDataObjects.Count);
+        foreach (var dataObject in mDataObjects)
+            members.Add(dataObject.Object(key));
+        return new MultipleDataPropertyObject(members);
+    }
 
-    public PropertyValue GetValue(PropertyPath.Key key, PropertyValue defaultValue)
+    public PropertyValue GetValue(string key, PropertyValue defaultValue)
     {
         if (mDataObjects.Count == 0)
             return PropertyValue.Invalid;
@@ -42,7 +51,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     // 这样写到一半时各对象只发 canIgnore 中间通知（结果态订阅者不触发），全部写完退 merge 才发结果态，
     // 此刻每次刷新看到的都是"所有对象已写完"的最终值——消除"部分写完→瞬时 Multiple"的中间态闪烁
     // （否则会反复清空正在编辑的文本框/令 checkbox 闪回 dash）。三段分开循环是关键：必须所有 set 完成后才退首个 merge。
-    public void SetValue(PropertyPath.Key key, PropertyValue value)
+    public void SetValue(string key, PropertyValue value)
     {
         foreach (var dataObject in mDataObjects)
             dataObject.BeginMergeNotify();
@@ -52,9 +61,23 @@ public class MultipleDataPropertyObject : IDataPropertyObject
             dataObject.EndMergeNotify();
     }
 
+    // ---- IDataObject：撤销机制委托首对象（文档级共享），Modified 取合并事件，无选中时全 no-op ----
+    public IModifiedEvent Modified => mModified;
+    public Head Head => mRoot?.Head ?? default;
+    public void Attach(IDataObject parent) { }
+    public void Detach() { }
+    public IDisposable MergeNotify() => mRoot?.MergeNotify() ?? EmptyDisposable.Shared;
+    public void BeginMergeNotify() => mRoot?.BeginMergeNotify();
+    public void EndMergeNotify() => mRoot?.EndMergeNotify();
+    public bool Commit() => mRoot?.Commit() ?? false;
+    public bool Discard() => mRoot?.Discard() ?? false;
+    public bool DiscardTo(Head head) => mRoot?.DiscardTo(head) ?? false;
+    public bool Undo() => mRoot?.Undo() ?? false;
+    public bool Redo() => mRoot?.Redo() ?? false;
+
     // 任一对象的 Modified 都转发给同一订阅者：扇出/撤销逐对象触发刷新，最后一次刷新时全部已写完 → 显示最终值。
     // 两种订阅形状（无参=结果态、带 bool=全量）都转发到各对象的 Modified。
-    class MergedModifiedEvent(IReadOnlyList<DataPropertyObject> dataObjects) : IModifiedEvent
+    class MergedModifiedEvent(IReadOnlyList<IDataPropertyObject> dataObjects) : IModifiedEvent
     {
         public void Subscribe(Action invokable)
         {
@@ -81,40 +104,13 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         }
     }
 
-    // 撤销根：撤销机制（Head/Commit/DiscardTo/Undo/Redo）委托首对象（文档级共享），Modified 取合并事件。
-    // 本对象只是面板侧瞬态外观、从不挂进文档树，故文档机制内部成员（Parent/Children/Push 等）不会被调用。
-    class MultiDataRoot : IDataObject
-    {
-        public MultiDataRoot(IReadOnlyList<DataPropertyObject> dataObjects)
-        {
-            mRoot = dataObjects.Count > 0 ? dataObjects[0] : null;
-            mModified = new MergedModifiedEvent(dataObjects);
-        }
-
-        public IModifiedEvent Modified => mModified;
-        public Head Head => mRoot?.Head ?? default;
-        public void Attach(IDataObject parent) { }
-        public void Detach() { }
-        public IDisposable MergeNotify() => mRoot?.MergeNotify() ?? EmptyDisposable.Shared;
-        public void BeginMergeNotify() => mRoot?.BeginMergeNotify();
-        public void EndMergeNotify() => mRoot?.EndMergeNotify();
-        public bool Commit() => mRoot?.Commit() ?? false;
-        public bool Discard() => mRoot?.Discard() ?? false;
-        public bool DiscardTo(Head head) => mRoot?.DiscardTo(head) ?? false;
-        public bool Undo() => mRoot?.Undo() ?? false;
-        public bool Redo() => mRoot?.Redo() ?? false;
-
-        // 无选中（0 对象）时撤销机制委托对象为空，全部 no-op。
-        readonly DataPropertyObject? mRoot;
-        readonly MergedModifiedEvent mModified;
-    }
-
     sealed class EmptyDisposable : IDisposable
     {
         public static readonly EmptyDisposable Shared = new();
         public void Dispose() { }
     }
 
-    readonly IReadOnlyList<DataPropertyObject> mDataObjects;
-    readonly MultiDataRoot mDataRoot;
+    readonly IReadOnlyList<IDataPropertyObject> mDataObjects;
+    readonly MergedModifiedEvent mModified;
+    readonly IDataPropertyObject? mRoot;
 }
