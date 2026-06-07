@@ -582,13 +582,13 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPresets = PresetConfigManager.LoadPresets();
         var options = new List<string>() { NonePresetOption };
         options.AddRange(mPresets.Select(preset => preset.Name));
-        mPresetComboBox.SetConfig(new ComboBoxConfig(options, 0));
+        mPresetComboBox.SetConfig(new ComboBoxConfig(options.Select(o => (ComboBoxOption)o).ToList()));
         mPresetComboBox.Display(selectedPresetName ?? NonePresetOption);
     }
 
     string? SelectedPresetName()
     {
-        var value = mPresetComboBox.Value;
+        var value = mPresetComboBox.Value.ToString() ?? NonePresetOption;
         return value.Equals(NonePresetOption, StringComparison.OrdinalIgnoreCase) ? null : value;
     }
 

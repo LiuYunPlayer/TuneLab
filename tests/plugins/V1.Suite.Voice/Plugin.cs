@@ -56,7 +56,9 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
         { "tension", new SliderConfig(0, -1, 1, false) },
         { "accent", new CheckBoxConfig(false) },
         { "label", new TextBoxConfig("") },
-        { "style", new ComboBoxConfig(["Soft", "Normal", "Strong"], 1) },
+        { "style", new ComboBoxConfig(["Soft", "Normal", "Strong"], "Normal") },
+        // 值/显示分离 + 任意基础类型：界面显示 Low/Mid/High，底层存的是 int 值 0/1/2（默认 Mid=1）。
+        { "quality", new ComboBoxConfig(new ComboBoxOption[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }, new ComboBoxOption(1, "Mid")) },
         { "vibrato", new ObjectConfig(new OrderedMap<string, IControllerConfig>
         {
             { "depth", new SliderConfig(0, 0, 1, false) },
@@ -64,7 +66,7 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
             { "lfo", new ObjectConfig(new OrderedMap<string, IControllerConfig>
             {
                 { "rate", new SliderConfig(5, 0, 20, false) },
-                { "wave", new ComboBoxConfig(["Sine", "Triangle", "Square"], 0) },
+                { "wave", new ComboBoxConfig(["Sine", "Triangle", "Square"]) },
                 { "range", new ObjectConfig(new OrderedMap<string, IControllerConfig>
                 {
                     { "min", new SliderConfig(0, -1, 1, false) },
@@ -93,14 +95,15 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
         var note = context.NoteProperties;
         var map = new OrderedMap<string, IControllerConfig>
         {
-            { "mode", new ComboBoxConfig(["Simple", "Advanced"], 0) },
+            { "mode", new ComboBoxConfig(["Simple", "Advanced"]) },
             { "letters", new TextBoxConfig("") },
         };
 
         // ② pick 选项随 letters 变（内容 + 数量）
         var letters = note.GetString("letters", "");
         var options = letters.Length > 0 ? letters.Select(c => c.ToString()).ToList() : ["(empty)"];
-        map.Add("pick", new ComboBoxConfig(options, 0));
+        // options 是已建好的 typed List<string>，逐元素转成 ComboBoxOption（集合表达式才会自动隐式转）。
+        map.Add("pick", new ComboBoxConfig(options.Select(o => (ComboBoxOption)o).ToList()));
 
         // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
         if (context.PartProperties.GetBool("fromPart", false))
@@ -138,7 +141,7 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
     };
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new()
     {
-        { "mode", new ComboBoxConfig(["Simple", "Advanced"], 0) },
+        { "mode", new ComboBoxConfig(["Simple", "Advanced"]) },
         { "letters", new TextBoxConfig("") },
     };
 }

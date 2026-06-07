@@ -25,7 +25,15 @@ internal static class ControllerConfigConvert
             case LProp.StringConfig s:
                 return new VBase.TextBoxConfig(s.DefaultValue);
             case LProp.EnumConfig e:
-                return new VBase.ComboBoxConfig(e.Options, e.DefaultIndex);
+            {
+                // legacy EnumConfig 是 string 选项 + 索引默认值；V1 ComboBoxConfig 是 ComboBoxOption 选项 + 值默认值。
+                var options = new VBase.ComboBoxOption[e.Options.Count];
+                for (int i = 0; i < e.Options.Count; i++)
+                    options[i] = e.Options[i];
+                var defaultValue = (uint)e.DefaultIndex < (uint)options.Length ? options[e.DefaultIndex]
+                    : options.Length > 0 ? options[0] : default;
+                return new VBase.ComboBoxConfig(options, defaultValue);
+            }
             case LProp.ObjectConfig o:
                 return new VBase.ObjectConfig(o.Properties.ToV1ConfigMap());
             default:

@@ -670,6 +670,23 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **测试**：测试声库 `[v1-suite] Conditional`（同包新增 `ConditionalVoiceSource`，不动基线 `SuiteVoiceSource`）演示显隐/换控件、选项随值变、动态数量控件（key 唯一边界）、part→note 沿链、多选降级；独立文档 `tests/PROPERTY-CONDITIONAL-TEST-CASES.md`（不污染三态/导航基线）。
 
+### 26. ComboBox 升级：option 任意基础类型 + DisplayText（值/显示分离）（#12 后查漏补缺，已改代码）
+
+承 §三.12「combo/config 入口用具体类型重载拿编译期保证、不引入第二个 box」、§三.14「单一 `PropertyValue` box」。原 `ComboBoxConfig` 选项是纯 `string`、存进数据的就是选项字符串本身、控件硬绑 `StringField`——插件无法用 int/double/bool 当值，也无法「界面显示文本 ≠ 底层存储值」。
+
+**契约（SDK.Base）**：
+- `ComboBoxOption`（struct）：`PropertyValue Value` + `string? DisplayText`（`ShowText()` = DisplayText 缺省回退 `Value.ToString()`）；实现 `IEquatable`（供 reconcile 的 `Options.SequenceEqual` 免反射）。对 `bool`/`string`/全部整数与浮点类型提供隐式转换（数字一律 `PropertyValue.Create((double)v)`，与 JSON number 一致）——插件可直接写裸值。
+- `ComboBoxConfig(IReadOnlyList<ComboBoxOption> options, ComboBoxOption defaultValue)`：默认值是「值」而非「索引」；`IValueConfig.DefaultValue => DefaultOption.Value`。
+
+**关键取舍：不设 `IReadOnlyList<基础类型>` 的便捷构造器。** 否则集合表达式字面量（如 `["a","b"]`）会在「string-list ctor」与「ComboBoxOption-list ctor（元素经隐式转换）」间产生重载二义——C# 12 的择优规则判不出更优、直接报 CS0121（C# 13 才补此规则）。只留唯一的 ComboBoxOption-list ctor 后：字面量 `["a","b"]` / `[1,2,3]` / 混合 `[1,"x",true]` 都逐元素隐式转成 ComboBoxOption、匹配该唯一 ctor，**C# 12 也不二义**；已建好的 typed 变量（如 `List<string>`，不会逐元素隐式转）由调用方就地 `.Select(o => (ComboBoxOption)o).ToList()`。
+
+**host**：
+- `ComboBoxController` 值模型 `string`→`PropertyValue`（`Display` 按值在 options 里反查下标高亮——`PropertyValue` 是 struct，手写 `.Equals` 循环，不能用 `where T:class` 的 `IndexOf`）；保留 `int Index`（FunctionBar 按选中位置联动）+ 显式 `IValueController<string>` 外观（Settings 的语言/驱动下拉、`Select(int.Parse)` 桥到 int 设置）。
+- 新增 `IDataPropertyObject.ValueField(key, default)`：裸 `PropertyValue` 字段（identity read/write），供值类型不定的控件按原始值绑定；三态经 `IRawValueProperty.RawValue` 仍由绑定层分派。`ComboBoxCreator` 改绑 `ValueField`（存的是 option 值本身、非显示文本）。
+- 调用点 index→值语义迁移：preset 下拉、FunctionBar 量化、Settings×3、conditional `pick`、legacy 兼容层 `EnumConfig→ComboBoxConfig`（typed list 一并转 ComboBoxOption）。
+
+**测试**：基线 `SuiteVoiceSource` 加 `quality` 项（int 值 0/1/2 + DisplayText 显示 Low/Mid/High，演示值/显示分离 + 任意类型）；独立文档 `tests/COMBOBOX-TYPED-OPTIONS-TEST-CASES.md`（不污染条件面板基线）。`TuneLab.sln` + `V1.Suite.Voice`（net8 默认 C# 12）均 **0 错误**。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）

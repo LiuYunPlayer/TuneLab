@@ -112,7 +112,7 @@ internal class FunctionBar : LayerPanel
                     ("1/80", QuantizationBase.Base_5, QuantizationDivision.Division_16),
                     ("1/160", QuantizationBase.Base_5, QuantizationDivision.Division_32),
                 ];
-                quantizationComboBox.SetConfig(new(options.Select(option => option.option).ToList(), 3));
+                quantizationComboBox.SetConfig(new(options.Select(option => (ComboBoxOption)option.option).ToList(), options[3].option));
                 quantizationComboBox.ValueCommitted.Subscribe(() => { var index = quantizationComboBox.Index; if ((uint)index >= options.Length) return; mQuantizationChanged.Invoke(options[index].quantizationBase, options[index].quantizationDivision); });
                 quantizationPanel.Children.Add(quantizationComboBox);
             }

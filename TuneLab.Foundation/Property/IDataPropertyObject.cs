@@ -43,6 +43,13 @@ public static class IDataPropertyObjectExtension
             v => v.ToBool(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
+    // 裸值字段：读写都是未 coerce 的 PropertyValue（identity 适配器），供值类型不定的控件（如 option 可为任意基础类型的
+    // ComboBox）按原始值绑定。三态（Multiple/Invalid）经 IRawValueProperty.RawValue 由绑定层分派，Display 只收具体值。
+    public static IDataProperty<PropertyValue> ValueField(this IDataPropertyObject dataObject, string key, PropertyValue defaultValue)
+    {
+        return new PropertyField<PropertyValue>(dataObject, key, defaultValue, v => v, value => value);
+    }
+
     // 字段适配器：借壳节点本身（Head/Commit/DiscardTo/Modified 经 Wrapper 转发到文档撤销根），
     // 仅把读写转成具体类型并直接走节点的 GetValue/SetValue（写入由底层 DataPropertyValue 自带的撤销命令承担，
     // 故 Set 直达 SetValue、不经基类命令机制——避免一次编辑产生两条撤销记录）。

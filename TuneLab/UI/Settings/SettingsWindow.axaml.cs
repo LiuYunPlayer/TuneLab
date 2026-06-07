@@ -215,7 +215,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new(TranslationManager.Languages));
+                comboBox.SetConfig(new(TranslationManager.Languages.Select(o => (ComboBoxOption)o).ToList()));
                 comboBox.Bind(Settings.Language, false, s);
                 panel.AddDock(comboBox, Dock.Right);
             }
@@ -289,7 +289,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(new(AudioEngine.GetAllDrivers()));
+                comboBox.SetConfig(new(AudioEngine.GetAllDrivers().Select(o => (ComboBoxOption)o).ToList()));
                 comboBox.Bind(Settings.AudioDriver, false, s);
                 comboBox.Display(AudioEngine.CurrentDriver.Value);
                 panel.AddDock(comboBox, Dock.Right);
@@ -306,7 +306,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(new(AudioEngine.GetAllDevices()));
+                comboBox.SetConfig(new(AudioEngine.GetAllDevices().Select(o => (ComboBoxOption)o).ToList()));
                 comboBox.Bind(Settings.AudioDevice, false, s);
                 comboBox.Display(AudioEngine.CurrentDevice.Value);
                 panel.AddDock(comboBox, Dock.Right);

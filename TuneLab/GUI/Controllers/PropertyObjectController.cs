@@ -303,7 +303,8 @@ internal class PropertyObjectController : StackPanel
         void BindWith(ComboBoxConfig config)
         {
             mController.SetConfig(config);
-            mController.BindDataProperty(Parent.DataObject.StringField(mKey, config.DefaultValue), s);
+            // 绑裸 PropertyValue 字段：option 值可为任意基础类型，存进数据的就是该值本身（非显示文本）。
+            mController.BindDataProperty(Parent.DataObject.ValueField(mKey, config.DefaultOption.Value), s);
         }
 
         public override Type ConfigType => typeof(ComboBoxConfig);

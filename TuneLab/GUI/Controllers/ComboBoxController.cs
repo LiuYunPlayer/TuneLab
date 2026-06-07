@@ -1,29 +1,28 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Property;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
 using TuneLab.GUI.Components;
-using TuneLab.Foundation.Utils;
-using System.Threading;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class ComboBoxController : DropDown, IDataValueController<string>, IDataValueController<int>
+// 值模型为单一 PropertyValue box：option 值可为任意基础类型，显示用 option.ShowText()（DisplayText 缺省回退值字面量）。
+// 数据驱动的 Display(value) 按值在 options 里反查下标以高亮对应项；用户选择则反向把该项的值发为数据改动。
+internal class ComboBoxController : DropDown, IDataValueController<PropertyValue>, IValueController<string>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
     public IActionEvent ValueChanged => mValueChanged;
     public IActionEvent ValueCommitted => mValueCommitted;
-    public string Value { get => mValue; set { SetValue((uint)Options.IndexOf(value) < Options.Count ? value : mConfig.DefaultValue); Display(Value); } }
-    public int Index { get => Options.IndexOf(Value); }
-    int IValueController<int>.Value => Index;
-    public IReadOnlyList<string> Options => mConfig.Options;
+    public PropertyValue Value => mValue;
+    // 当前选中位置（非数据绑定用：如 FunctionBar 量化下拉按 Index 联动业务值）。
+    public int Index => SelectedIndex;
+
+    // string 外观：供按字符串绑定的场景（Settings 的语言/驱动下拉、Select(int.Parse) 桥到 int 设置）。
+    // 读取把当前值字面量化，显示把字符串包成 PropertyValue 走统一 Display。
+    string IValueController<string>.Value => mValue.ToString() ?? string.Empty;
+    void IValueController<string>.Display(string value) => Display(PropertyValue.Create(value));
 
     public ComboBoxController()
     {
@@ -40,37 +39,25 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
         Items.Clear();
         foreach (var option in config.Options)
         {
-            Items.Add(option);
+            Items.Add(option.ShowText());
         }
         acceptSelectionChanged = true;
-        Display(config.DefaultValue);
+        Display(config.DefaultOption.Value);
     }
 
-    public void Display(int value)
-    {
-        if ((uint)value >= Options.Count)
-        {
-            value = -1;
-            PlaceholderText = "-";
-        }
-
-        acceptSelectionChanged = false;
-        SelectedIndex = value;
-        acceptSelectionChanged = true;
-    }
-
-    public void Display(string value)
+    public void Display(PropertyValue value)
     {
         mValue = value;
         acceptSelectionChanged = false;
-        int index = Options.IndexOf(mValue);
-        if ((uint)index < Options.Count)
+        int index = IndexOfValue(value);
+        if ((uint)index < (uint)mConfig.Options.Count)
         {
             SelectedIndex = index;
         }
         else
         {
-            PlaceholderText = mValue;
+            // 值不在选项内：显默认项文本（命中默认值时）或值字面量作占位，不真正选中任何项。
+            PlaceholderText = value.Equals(mConfig.DefaultOption.Value) ? mConfig.DefaultOption.ShowText() : (value.ToString() ?? string.Empty);
             SelectedIndex = -1;
         }
         acceptSelectionChanged = true;
@@ -78,7 +65,7 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
 
     public void DisplayNull()
     {
-        mValue = string.Empty;
+        mValue = PropertyValue.Invalid;
         acceptSelectionChanged = false;
         PlaceholderText = string.Empty;
         SelectedIndex = -1;
@@ -87,11 +74,22 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
 
     public void DisplayMultiple()
     {
-        mValue = string.Empty;
+        mValue = PropertyValue.Invalid;
         acceptSelectionChanged = false;
         PlaceholderText = "(Multiple)";
         SelectedIndex = -1;
         acceptSelectionChanged = true;
+    }
+
+    // 按值在 options 里反查下标（PropertyValue 是 struct，不能用 where T:class 约束的 IndexOf 扩展，故手写）。
+    int IndexOfValue(PropertyValue value)
+    {
+        for (int i = 0; i < mConfig.Options.Count; i++)
+        {
+            if (mConfig.Options[i].Value.Equals(value))
+                return i;
+        }
+        return -1;
     }
 
     bool acceptSelectionChanged = true;
@@ -100,12 +98,12 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
         if (!acceptSelectionChanged)
             return;
 
-        SetValue((uint)SelectedIndex < Options.Count ? Options[SelectedIndex] : mConfig.DefaultValue);
+        SetValue((uint)SelectedIndex < (uint)mConfig.Options.Count ? mConfig.Options[SelectedIndex].Value : mConfig.DefaultOption.Value);
     }
 
-    void SetValue(string value)
+    void SetValue(PropertyValue value)
     {
-        if (value == mValue)
+        if (value.Equals(mValue))
             return;
 
         mValueWillChange.Invoke();
@@ -118,6 +116,6 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
     ActionEvent mValueChanged = new();
     ActionEvent mValueCommitted = new();
 
-    ComboBoxConfig mConfig = new([]);
-    string mValue = string.Empty;
+    ComboBoxConfig mConfig = new();
+    PropertyValue mValue = PropertyValue.Invalid;
 }
