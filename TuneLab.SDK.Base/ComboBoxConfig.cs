@@ -43,13 +43,17 @@ public struct ComboBoxOption(PropertyValue value, string? displayText = null) : 
 }
 
 // 原 EnumConfig（按 UI 控件命名）。选项与默认值都用 ComboBoxOption（值/显示分离），默认值是「值」而非「索引」。
-public class ComboBoxConfig(IReadOnlyList<ComboBoxOption> options, ComboBoxOption defaultValue) : IValueConfig
+public class ComboBoxConfig : IValueConfig
 {
-    public ComboBoxOption DefaultOption { get; set; } = defaultValue;
-    public IReadOnlyList<ComboBoxOption> Options { get; set; } = options;
-    PropertyValue IValueConfig.DefaultValue => DefaultOption.Value;
+    public required IReadOnlyList<ComboBoxOption> Options { get; init; }
 
-    public ComboBoxConfig() : this(Array.Empty<ComboBoxOption>(), default) { }
-    // 默认值缺省取首项（空列表给 default）。
-    public ComboBoxConfig(IReadOnlyList<ComboBoxOption> options) : this(options, options.Count == 0 ? default : options[0]) { }
+    // 默认值缺省取首项（空列表给 default）——未显式设 DefaultOption 时由 getter 懒回退到 Options[0]。
+    ComboBoxOption? mDefaultOption;
+    public ComboBoxOption DefaultOption
+    {
+        get => mDefaultOption ?? (Options.Count == 0 ? default : Options[0]);
+        init => mDefaultOption = value;
+    }
+
+    PropertyValue IValueConfig.DefaultValue => DefaultOption.Value;
 }

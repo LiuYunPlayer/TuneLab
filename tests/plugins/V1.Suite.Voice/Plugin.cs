@@ -44,7 +44,7 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
     public ISynthesisTask CreateSynthesisTask(ISynthesisData data) => new SuiteSynthesisTask(data);
 
     // 与其它测试 voice 一致地声明属性（避免"空面板像 bug"的误解）。自定义自动化名避开宿主保留名。
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig("Power", 0, 0, 100, "#73E5A5") } };
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig { Name = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
 
     // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板「多值 / 无效」三态呈现的多选测试
@@ -53,27 +53,27 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
     // （见 tests/PROPERTY-NAVIGATION-TEST-CASES.md）。
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new()
     {
-        { "tension", new SliderConfig(0, -1, 1, false) },
-        { "accent", new CheckBoxConfig(false) },
-        { "label", new TextBoxConfig("") },
-        { "style", new ComboBoxConfig(["Soft", "Normal", "Strong"], "Normal") },
+        { "tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
+        { "accent", new CheckBoxConfig() },
+        { "label", new TextBoxConfig() },
+        { "style", new ComboBoxConfig { Options = ["Soft", "Normal", "Strong"], DefaultOption = "Normal" } },
         // 值/显示分离 + 任意基础类型：界面显示 Low/Mid/High，底层存的是 int 值 0/1/2（默认 Mid=1）。
-        { "quality", new ComboBoxConfig(new ComboBoxOption[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }, new ComboBoxOption(1, "Mid")) },
-        { "vibrato", new ObjectConfig(new OrderedMap<string, IControllerConfig>
+        { "quality", new ComboBoxConfig { Options = new ComboBoxOption[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }, DefaultOption = new ComboBoxOption(1, "Mid") } },
+        { "vibrato", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
         {
-            { "depth", new SliderConfig(0, 0, 1, false) },
-            { "on", new CheckBoxConfig(false) },
-            { "lfo", new ObjectConfig(new OrderedMap<string, IControllerConfig>
+            { "depth", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 } },
+            { "on", new CheckBoxConfig() },
+            { "lfo", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
             {
-                { "rate", new SliderConfig(5, 0, 20, false) },
-                { "wave", new ComboBoxConfig(["Sine", "Triangle", "Square"]) },
-                { "range", new ObjectConfig(new OrderedMap<string, IControllerConfig>
+                { "rate", new SliderConfig { DefaultValue = 5, MinValue = 0, MaxValue = 20 } },
+                { "wave", new ComboBoxConfig { Options = ["Sine", "Triangle", "Square"] } },
+                { "range", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
                 {
-                    { "min", new SliderConfig(0, -1, 1, false) },
-                    { "max", new SliderConfig(1, -1, 1, false) },
-                }) },
-            }) },
-        }) },
+                    { "min", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
+                    { "max", new SliderConfig { DefaultValue = 1, MinValue = -1, MaxValue = 1 } },
+                } } },
+            } } },
+        } } },
     };
 }
 
@@ -95,25 +95,25 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
         var note = context.NoteProperties;
         var map = new OrderedMap<string, IControllerConfig>
         {
-            { "mode", new ComboBoxConfig(["Simple", "Advanced"]) },
-            { "letters", new TextBoxConfig("") },
+            { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
+            { "letters", new TextBoxConfig() },
         };
 
         // ② pick 选项随 letters 变（内容 + 数量）
         var letters = note.GetString("letters", "");
         var options = letters.Length > 0 ? letters.Select(c => c.ToString()).ToList() : ["(empty)"];
         // options 是已建好的 typed List<string>，逐元素转成 ComboBoxOption（集合表达式才会自动隐式转）。
-        map.Add("pick", new ComboBoxConfig(options.Select(o => (ComboBoxOption)o).ToList()));
+        map.Add("pick", new ComboBoxConfig { Options = options.Select(o => (ComboBoxOption)o).ToList() });
 
         // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
         if (context.PartProperties.GetBool("fromPart", false))
-            map.Add("partGain", new SliderConfig(0, 0, 100, false));
+            map.Add("partGain", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100 });
 
         // ① mode=Advanced → 多出字段（显隐 / 换控件）
         if (note.GetString("mode", "Simple") == "Advanced")
         {
-            map.Add("gain", new SliderConfig(0, -12, 12, false));
-            map.Add("detail", new TextBoxConfig(""));
+            map.Add("gain", new SliderConfig { DefaultValue = 0, MinValue = -12, MaxValue = 12 });
+            map.Add("detail", new TextBoxConfig());
         }
 
         // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过，须靠 array 才能表达可重复列表）
@@ -122,10 +122,10 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
         {
             var key = ch.ToString();
             if (seen.Add(key))
-                map.Add(key, new SliderConfig(0.5, 0, 1, false));
+                map.Add(key, new SliderConfig { DefaultValue = 0.5, MinValue = 0, MaxValue = 1 });
         }
 
-        return new ObjectConfig(map);
+        return new ObjectConfig { Properties = map };
     }
 
     public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
@@ -137,12 +137,12 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
     // part 级勾选项，note config 据它沿链多出字段（演示 part→note 传播）。
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new()
     {
-        { "fromPart", new CheckBoxConfig(false) },
+        { "fromPart", new CheckBoxConfig() },
     };
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new()
     {
-        { "mode", new ComboBoxConfig(["Simple", "Advanced"]) },
-        { "letters", new TextBoxConfig("") },
+        { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
+        { "letters", new TextBoxConfig() },
     };
 }
 

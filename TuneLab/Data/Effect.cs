@@ -87,7 +87,7 @@ internal class Effect : DataObject, IEffect
 
     IEffectEngine? Engine => EffectManager.GetInitedEngine(Type);
 
-    static readonly ObjectConfig EmptyPropertyConfig = new(new OrderedMap<string, IControllerConfig>());
+    static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly IReadOnlyOrderedMap<string, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<string, AutomationConfig>();
 
     readonly MidiPart mPart;

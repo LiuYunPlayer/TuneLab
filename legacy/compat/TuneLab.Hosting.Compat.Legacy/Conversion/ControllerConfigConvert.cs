@@ -19,11 +19,11 @@ internal static class ControllerConfigConvert
             case LVoice.AutomationConfig a:
                 return a.ToV1();
             case LProp.NumberConfig n:
-                return new VBase.SliderConfig(n.DefaultValue, n.MinValue, n.MaxValue, n.IsInterger);
+                return new VBase.SliderConfig { DefaultValue = n.DefaultValue, MinValue = n.MinValue, MaxValue = n.MaxValue, IsInterger = n.IsInterger };
             case LProp.BooleanConfig b:
-                return new VBase.CheckBoxConfig(b.DefaultValue);
+                return new VBase.CheckBoxConfig { DefaultValue = b.DefaultValue };
             case LProp.StringConfig s:
-                return new VBase.TextBoxConfig(s.DefaultValue);
+                return new VBase.TextBoxConfig { DefaultValue = s.DefaultValue };
             case LProp.EnumConfig e:
             {
                 // legacy EnumConfig 是 string 选项 + 索引默认值；V1 ComboBoxConfig 是 ComboBoxOption 选项 + 值默认值。
@@ -32,18 +32,18 @@ internal static class ControllerConfigConvert
                     options[i] = e.Options[i];
                 var defaultValue = (uint)e.DefaultIndex < (uint)options.Length ? options[e.DefaultIndex]
                     : options.Length > 0 ? options[0] : default;
-                return new VBase.ComboBoxConfig(options, defaultValue);
+                return new VBase.ComboBoxConfig { Options = options, DefaultOption = defaultValue };
             }
             case LProp.ObjectConfig o:
-                return new VBase.ObjectConfig(o.Properties.ToV1ConfigMap());
+                return new VBase.ObjectConfig { Properties = o.Properties.ToV1ConfigMap() };
             default:
                 // 未知 config（含内部 IntegerConfig/ListConfig，正常不会从插件公共面出现）：优雅降级为空对象。
-                return new VBase.ObjectConfig(new PStruct.OrderedMap<string, VBase.IControllerConfig>());
+                return new VBase.ObjectConfig { Properties = new PStruct.OrderedMap<string, VBase.IControllerConfig>() };
         }
     }
 
     public static VBase.AutomationConfig ToV1(this LVoice.AutomationConfig a)
-        => new(a.Name, a.DefaultValue, a.MinValue, a.MaxValue, a.Color);
+        => new() { Name = a.Name, DefaultValue = a.DefaultValue, MinValue = a.MinValue, MaxValue = a.MaxValue, Color = a.Color };
 
     public static PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig> ToV1ConfigMap(
         this LStruct.IReadOnlyOrderedMap<string, LProp.IPropertyConfig> old)

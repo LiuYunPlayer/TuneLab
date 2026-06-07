@@ -25,14 +25,14 @@ public sealed class GainEffectEngine : IEffectEngine
     static ObjectConfig BuildConfig()
     {
         var map = new OrderedMap<string, IControllerConfig>();
-        map.Add("gain", new SliderConfig(1.0, 0.0, 2.0, false));
-        return new ObjectConfig(map);
+        map.Add("gain", new SliderConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0 });
+        return new ObjectConfig { Properties = map };
     }
 
     static OrderedMap<string, AutomationConfig> BuildAutomations()
     {
         var map = new OrderedMap<string, AutomationConfig>();
-        map.Add("gain_env", new AutomationConfig("Gain Env", 1.0, 0.0, 2.0, "#FF8800"));
+        map.Add("gain_env", new AutomationConfig { Name = "Gain Env", DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0, Color = "#FF8800" });
         return map;
     }
 
@@ -91,7 +91,7 @@ public sealed class ReverseEffectEngine : IEffectEngine
     public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output)
         => new ReverseTask(input, output);
 
-    static readonly ObjectConfig mConfig = new(new OrderedMap<string, IControllerConfig>());
+    static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
 
     sealed class ReverseTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask

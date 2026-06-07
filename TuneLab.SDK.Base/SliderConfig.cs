@@ -3,11 +3,11 @@ using TuneLab.Primitives.Property;
 namespace TuneLab.SDK.Base;
 
 // 原 NumberConfig（按 UI 控件命名）。
-public class SliderConfig(double defaultValue = 0, double minValue = double.NegativeInfinity, double maxValue = double.PositiveInfinity, bool isInterger = false) : IValueConfig<double>
+public class SliderConfig : IValueConfig<double>
 {
-    public double DefaultValue { get; set; } = defaultValue;
-    public double MinValue { get; set; } = minValue;
-    public double MaxValue { get; set; } = maxValue;
-    public bool IsInterger { get; set; } = isInterger;
+    public double DefaultValue { get; init; } = 0;
+    public double MinValue { get; init; } = double.NegativeInfinity;
+    public double MaxValue { get; init; } = double.PositiveInfinity;
+    public bool IsInterger { get; init; } = false;
     PropertyValue IValueConfig.DefaultValue => PropertyValue.Create(DefaultValue);
 }

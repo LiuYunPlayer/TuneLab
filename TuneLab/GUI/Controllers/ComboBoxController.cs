@@ -116,6 +116,6 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
     ActionEvent mValueChanged = new();
     ActionEvent mValueCommitted = new();
 
-    ComboBoxConfig mConfig = new();
+    ComboBoxConfig mConfig = new() { Options = [] };
     PropertyValue mValue = PropertyValue.Null;
 }
