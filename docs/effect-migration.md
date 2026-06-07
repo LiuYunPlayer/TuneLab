@@ -687,6 +687,14 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **测试**：基线 `SuiteVoiceSource` 加 `quality` 项（int 值 0/1/2 + DisplayText 显示 Low/Mid/High，演示值/显示分离 + 任意类型）；独立文档 `tests/COMBOBOX-TYPED-OPTIONS-TEST-CASES.md`（不污染条件面板基线）。`TuneLab.sln` + `V1.Suite.Voice`（net8 默认 C# 12）均 **0 错误**。
 
+### 27. PropertyValue 内部装箱优化（#12 后查漏补缺，已改代码）
+
+`PropertyValue`（`readonly struct`）原以 `object mValue + System.Type mType` 存储——每次 `Create(double)`/`Create(bool)` 都把标量装箱进 `object`，高频构造（属性值、撤销去重、合成数据）累积可观 GC 压力。
+
+**改为「类型标签 + 字段联合」**：`PropertyType mType`（标签）+ `double mNumber`（number 值；bool 编码为 0/1）+ `object? mReference`（string/PropertyObject——本就是引用、零额外装箱）。null/multiple 哨兵仅由标签表达、不占引用槽。`ToDouble`/`ToBool` 直读 `mNumber`、零拆箱；`ToString`/`ToObject` 取 `mReference`。
+
+**行为与公开 ABI 完全保持**：`Type`/`TypeIs<T>`/`TypeEquals`/`Is*`/`To*`/`To<T>`/`Equals`/`==`/`ToString()`/`Create`/隐式转换签名与语义不变（`Equals` 仍按标签分派，number/boolean 用 `double.Equals` 令 NaN 相等，string/object 走引用 `Equals`/深比较）。`default(PropertyValue)` 仍为 `Null`（`PropertyType.Null == 0`）。`PropertyNull`/`PropertyMultiple` 哨兵类保留（不再被存储，删除属独立的 ABI 清理）。泛型 `To<T>` 的 number/boolean 分支仍装箱（罕用路径），具体类型走 `To*` 零拆箱。`TuneLab.sln`(Debug/Release) + `legacy/Legacy.slnx`(Release) 均 **0 错误**；纯内部重构、行为保持（真机验证序列化往返 / 面板三态待用户）。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）
