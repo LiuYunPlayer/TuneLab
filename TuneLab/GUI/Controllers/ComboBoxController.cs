@@ -65,7 +65,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
 
     public void DisplayNull()
     {
-        mValue = PropertyValue.Invalid;
+        mValue = PropertyValue.Null;
         acceptSelectionChanged = false;
         PlaceholderText = string.Empty;
         SelectedIndex = -1;
@@ -74,7 +74,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
 
     public void DisplayMultiple()
     {
-        mValue = PropertyValue.Invalid;
+        mValue = PropertyValue.Null;
         acceptSelectionChanged = false;
         PlaceholderText = "(Multiple)";
         SelectedIndex = -1;
@@ -117,5 +117,5 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
     ActionEvent mValueCommitted = new();
 
     ComboBoxConfig mConfig = new();
-    PropertyValue mValue = PropertyValue.Invalid;
+    PropertyValue mValue = PropertyValue.Null;
 }

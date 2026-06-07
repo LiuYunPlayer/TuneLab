@@ -17,7 +17,7 @@ public interface IDataPropertyObject : IDataObject
 }
 
 // 字段向 UI 绑定暴露未 coerce 的原始值，使绑定能区分 具体值 / Multiple（多值）/ Invalid（无值）三态。
-// 绑定按原始值的 IsMultiple()/IsInvalid() 分派到控件的 DisplayMultiple/DisplayNull，否则才 coerce 成 T 走 Display。
+// 绑定按原始值的 IsMultiple()/IsNull() 分派到控件的 DisplayMultiple/DisplayNull，否则才 coerce 成 T 走 Display。
 public interface IRawValueProperty
 {
     PropertyValue RawValue { get; }

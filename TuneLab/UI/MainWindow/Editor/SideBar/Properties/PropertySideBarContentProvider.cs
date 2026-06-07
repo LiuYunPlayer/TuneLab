@@ -241,13 +241,13 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         var merged = new Map<string, PropertyValue>();
         foreach (var key in keys)
         {
-            var value = PropertyValue.Invalid;
+            var value = PropertyValue.Null;
             bool first = true;
             bool multiple = false;
             foreach (var snapshot in snapshots)
             {
                 // 缺该 key 视作 Invalid 占位参与比较：部分 note 设过、部分没设即算多值。
-                var current = snapshot.Map.TryGetValue(key, out var v) ? v : PropertyValue.Invalid;
+                var current = snapshot.Map.TryGetValue(key, out var v) ? v : PropertyValue.Null;
                 if (first) { value = current; first = false; }
                 else if (!value.Equals(current)) { multiple = true; break; }
             }

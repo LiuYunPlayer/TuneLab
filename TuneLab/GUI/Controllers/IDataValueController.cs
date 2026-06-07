@@ -147,7 +147,7 @@ public static class IDataValueControllerExtension
                     mController.DisplayMultiple();
                     return;
                 }
-                if (value.IsInvalid())
+                if (value.IsNull())
                 {
                     mController.DisplayNull();
                     return;

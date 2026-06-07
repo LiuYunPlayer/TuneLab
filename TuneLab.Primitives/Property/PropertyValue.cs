@@ -71,18 +71,13 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mType == other.mType;
     }
 
-    // 空值哨兵判别（无值 / 无选中）。Invalid 与 Null 同义。
+    // 空值哨兵判别。null 是合法值（JSON null；未来 array 未改元素的占位）；当前模型不区分"显式 null"与"无值/无选中/缺 key"，都归此态。
     public bool IsNull()
     {
         return mType == PropertyType.Null;
     }
 
-    public bool IsInvalid()
-    {
-        return IsNull();
-    }
-
-    // 多值哨兵判别（多选不一致的聚合态）。与 IsNull/IsInvalid 互斥：多值不是空值。
+    // 多值哨兵判别（多选不一致的聚合态）。与 IsNull 互斥：多值不是空值。
     public bool IsMultiple()
     {
         return mType == PropertyType.Multiple;
@@ -272,9 +267,8 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     public static bool operator ==(PropertyValue left, PropertyValue right) => left.Equals(right);
     public static bool operator !=(PropertyValue left, PropertyValue right) => !left.Equals(right);
 
-    // 空哨兵：无值 / 无选中。Invalid 与 Null 同义。
+    // 空哨兵：null 值 / 无值 / 无选中（当前模型不区分）。
     public readonly static PropertyValue Null = new(PropertyType.Null);
-    public readonly static PropertyValue Invalid = Null;
 
     // 多值哨兵：多选不一致的聚合态。与 Null 并列、彼此可区分（IsMultiple vs IsNull）。
     public readonly static PropertyValue Multiple = new(PropertyType.Multiple);

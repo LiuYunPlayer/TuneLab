@@ -36,7 +36,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     public PropertyValue GetValue(string key, PropertyValue defaultValue)
     {
         if (mDataObjects.Count == 0)
-            return PropertyValue.Invalid;
+            return PropertyValue.Null;
 
         var first = mDataObjects[0].GetValue(key, defaultValue);
         for (int i = 1; i < mDataObjects.Count; i++)

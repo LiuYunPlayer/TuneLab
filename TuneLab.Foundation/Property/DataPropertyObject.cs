@@ -104,7 +104,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     public PropertyValue GetValue(string key, out bool success)
     {
         var dataPropertyValue = mMap.GetValue(key, out success);
-        return dataPropertyValue == null ? PropertyValue.Invalid : dataPropertyValue.Value;
+        return dataPropertyValue == null ? PropertyValue.Null : dataPropertyValue.Value;
     }
 
     public IEnumerator<IReadOnlyKeyValuePair<string, PropertyValue>> GetEnumerator()

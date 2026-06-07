@@ -13,7 +13,7 @@ public class DataPropertyValue : DataStruct<PropertyValue>
 {
     public DataPropertyValue()
     {
-        SetValue(PropertyValue.Invalid);
+        SetValue(PropertyValue.Null);
     }
 
     public DataPropertyValue(bool value)
