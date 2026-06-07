@@ -1,0 +1,16 @@
+{
+  "id": "com.tunelab.test.v1i18n",
+  "name": "V1 i18n Demo",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "i18n demo: plugin-side localized property / option / automation / voice strings; manifest localized via localizations.",
+  "localizations": {
+    "zh-CN": {
+      "name": "V1 多语言演示",
+      "description": "多语言演示：属性/选项/自动化/声库名由插件按当前语言自译；manifest 经 localizations 本地化。"
+    }
+  },
+  "sdk-version": "1.0",
+  "type": "voice",
+  "assemblies": ["V1.I18N.dll"]
+}

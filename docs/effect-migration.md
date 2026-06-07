@@ -233,8 +233,8 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - 把 Foundation 类型挪进 Primitives 是**纯 host 内部、编译期**改动（插件不引用 Foundation → 零插件影响）；use-site churn 由 global using 别名吸收；真实成本在**依赖卫生**——冻结类型必须先切断对 Foundation 的依赖（Primitives 不能反向引用 Foundation）。
 
 **插件读宿主状态 & Log**：
-- `ILog` / `ITuneLabContext` 接口进 `SDK.Base`，host 加载插件时**注入每插件作用域**的实例（`context.Logger` 自动打插件 id 前缀、转发进 host 现有 `ILogger` sink）。
-- **弃用 `static TuneLabContext.Global`**：服务定位器反模式，且 **ALC 隔离下静态是每-ALC 一份，全局静态根本共享不了**（恰在多版本场景失效）。host 自留 Foundation 里便捷的静态 `Log.*`（host 单 ALC 无虞），与插件 `ILog` 共用同一底层 sink。
+- `ILog` 进 `SDK.Base`；`ITuneLabContext` + 静态点进 `SDK.Base.Environment`。**采静态全局访问点 `TuneLabContext.Global`**：host 启动时（插件加载前）注入唯一实现 `TuneLabContextGlobal`，插件经它读 `Language`、取 `GetLogger()`——日志器前缀由 host 按**调用者所属 ALC 名（= 插件包目录，`PluginLoadContext` 设定、插件改不了）**自动判定、转发进现有 sink，无需插件自报。
+- **反转此前"弃用 static 全局"的决定**：当时理由之一"ALC 隔离下静态每-ALC 一份"对**共享契约程序集不成立**——`PluginLoadContext` 对 `TuneLab.Primitives` / `TuneLab.SDK.*` 返回 null 落 Default ALC（全程一份、跨边界类型标识相等），故 SDK.Base 里的静态对 host 与全部插件就是同一实例。剩下的只是 service-locator 取舍，为"对 effect/voice/format 三类统一、免每插件注入工程"而有意识采用。host 仍自留 Foundation 静态 `Log.*`，与插件 `ILog` 共用同一 sink。
 
 **内核增长纪律**：每纳入一个类型 = 永久 ABI 承诺。内核只在具体插件 API 真需要时**克制、刻意**地增长；优先在 SDK.Base 暴露**冻结接口**、富实现留 Foundation，而非把富类型整个下沉。
 
