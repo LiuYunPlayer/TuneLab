@@ -28,6 +28,10 @@ class Program
         Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
         Log.Info("Version: " + AppInfo.Version);
 
+        // 异步缓冲日志需在退出 / 崩溃时刷盘，否则丢失未落盘日志。崩溃时顺带记下异常。
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => Log.Shutdown();
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => { Log.Error("Unhandled exception: " + e.ExceptionObject); Log.Shutdown(); };
+
         // check if other instance is running
         var lockFile = LockFile.Create(PathManager.LockFilePath);
         if (lockFile == null)
@@ -50,6 +54,7 @@ class Program
                 Log.Error($"Failed to send arguments to running instance: {ex}");
             }
             Log.Info("Another instance is running, exiting.");
+            Log.Shutdown();   // 硬杀前刷盘：Kill 不触发 ProcessExit，否则上面这些日志会丢。
             Process.GetCurrentProcess().Kill();
             Process.GetCurrentProcess().WaitForExit();
             return;
@@ -70,6 +75,7 @@ class Program
 
         // exit
         lockFile.Dispose();
+        Log.Shutdown();
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

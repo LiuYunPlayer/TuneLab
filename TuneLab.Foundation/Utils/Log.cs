@@ -18,6 +18,13 @@ public static class Log
         mLogger = logger;
     }
 
+    // 关停日志后端（刷盘 + 停后台线程）。异步缓冲后端需在进程退出 / 崩溃时调用，避免丢失未落盘日志。幂等。
+    public static void Shutdown()
+    {
+        lock (mLock)
+            (mLogger as IDisposable)?.Dispose();
+    }
+
     public static void Debug(object? value)
     {
         Write("Debug", value);
