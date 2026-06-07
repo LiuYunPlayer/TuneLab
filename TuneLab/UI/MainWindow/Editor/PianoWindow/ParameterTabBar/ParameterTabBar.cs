@@ -110,7 +110,7 @@ internal class ParameterTabBar : Panel
             var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(Color.Parse(config.Color), config.Name) { Margin = new(6, 0) };
+                button = new ParameterButton(Color.Parse(config.Color), config.DisplayText ?? kvp.Key) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
                 mCacheParameterButtons.Add(key, button);

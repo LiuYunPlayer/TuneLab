@@ -32,7 +32,7 @@ public sealed class GainEffectEngine : IEffectEngine
     static OrderedMap<string, AutomationConfig> BuildAutomations()
     {
         var map = new OrderedMap<string, AutomationConfig>();
-        map.Add("gain_env", new AutomationConfig { Name = "Gain Env", DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0, Color = "#FF8800" });
+        map.Add("gain_env", new AutomationConfig { DisplayText = "Gain Env", DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0, Color = "#FF8800" });
         return map;
     }
 

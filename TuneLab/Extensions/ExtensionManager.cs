@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TuneLab.Foundation.Utils;
+using TuneLab.I18N;
 using TuneLab.Utils;
 
 using TuneLab.Extensions.Formats;
@@ -89,14 +90,15 @@ internal static class ExtensionManager
 
     static void LoadV1(string path, ExtensionDescription description)
     {
+        var lang = TranslationManager.CurrentLanguage.Value;
         var result = new ExtensionLoadResult
         {
             DirectoryPath = path,
             Id = description.id,
-            Name = description.name,
+            Name = description.LocalizedName(lang),
             Version = description.version,
             Author = description.author,
-            Description = description.description,
+            Description = description.LocalizedDescription(lang),
             IconPath = ResolveIconPath(path, description.icon),
             Generation = ExtensionGeneration.V1,
         };
@@ -195,13 +197,14 @@ internal static class ExtensionManager
 
     static void LoadLegacy(string path, ExtensionDescription? description, string folderName)
     {
+        var lang = TranslationManager.CurrentLanguage.Value;
         var result = new ExtensionLoadResult
         {
             DirectoryPath = path,
-            Name = description?.name ?? folderName,
+            Name = description?.LocalizedName(lang) ?? folderName,
             Version = description?.version ?? "1.0.0",
             Author = description?.author ?? string.Empty,
-            Description = description?.description ?? string.Empty,
+            Description = description?.LocalizedDescription(lang) ?? string.Empty,
             IconPath = ResolveIconPath(path, description?.icon),
             Generation = ExtensionGeneration.Legacy,
         };

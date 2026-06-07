@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using TuneLab.Foundation.Utils;
 
@@ -20,6 +21,16 @@ internal class ExtensionDescription : ExtensionInfo
     public string author { get; set; } = string.Empty;
     public string description { get; set; } = string.Empty;
 
+    // 包元数据本地化：manifest 是宿主直接读、早于任何插件代码，无法靠插件自译，故内置按语言的覆盖。
+    // 形如 { "zh-CN": { "name": "...", "description": "..." } }；缺当前语言或缺字段则回退基础 name/description。
+    public Dictionary<string, ExtensionLocalization>? localizations { get; set; }
+
+    public string LocalizedName(string language)
+        => localizations != null && localizations.TryGetValue(language, out var loc) && !string.IsNullOrEmpty(loc.name) ? loc.name! : name;
+
+    public string LocalizedDescription(string language)
+        => localizations != null && localizations.TryGetValue(language, out var loc) && !string.IsNullOrEmpty(loc.description) ? loc.description! : description;
+
     // 包内相对路径的图标（位图 .png/.jpg… 或矢量 .svg）。空 → sidebar 用名称首字母占位。
     public string? icon { get; set; }
 
@@ -31,6 +42,13 @@ internal class ExtensionDescription : ExtensionInfo
 
     [JsonIgnore]
     public bool IsV1 => !string.IsNullOrEmpty(id);
+
+    // 单条语言的本地化覆盖（name/description 各可省，省则回退基础值）。
+    public class ExtensionLocalization
+    {
+        public string? name { get; set; }
+        public string? description { get; set; }
+    }
 
     // 归一化：有 extensions[] 以它为准（顶层 type/assemblies 忽略）；否则顶层字段定义那唯一的单插件。
     [JsonIgnore]

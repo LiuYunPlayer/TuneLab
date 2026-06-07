@@ -72,7 +72,7 @@ internal class AutomationDefaultsController : StackPanel
         foreach (var kvp in configs)
         {
             var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
-            mRows.Add(new Row(this, key, kvp.Value));
+            mRows.Add(new Row(this, key, kvp.Key, kvp.Value));
         }
     }
 
@@ -118,7 +118,7 @@ internal class AutomationDefaultsController : StackPanel
 
     class Row : IDisposable
     {
-        public Row(AutomationDefaultsController owner, AutomationKey key, AutomationConfig config)
+        public Row(AutomationDefaultsController owner, AutomationKey key, string keyName, AutomationConfig config)
         {
             mOwner = owner;
             mKey = key;
@@ -130,7 +130,7 @@ internal class AutomationDefaultsController : StackPanel
                 FontSize = 12,
                 VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
                 Foreground = Style.LIGHT_WHITE.ToBrush(),
-                Content = config.Name,
+                Content = config.DisplayText ?? keyName,
                 Padding = new(24, 0),
             };
             owner.Children.Add(mTitle);

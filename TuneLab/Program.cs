@@ -11,7 +11,9 @@ using Avalonia.Media;
 using Avalonia.ReactiveUI;
 using TuneLab.Foundation.Utils;
 using TuneLab.Configs;
+using TuneLab.Extensions;
 using TuneLab.I18N;
+using TuneLab.SDK.Base.Environment;
 using TuneLab.Utils;
 
 namespace TuneLab;
@@ -68,6 +70,9 @@ class Program
         TranslationManager.Init(PathManager.TranslationsFolder);
         TranslationManager.CurrentLanguage.Value = TranslationManager.Languages.Contains(Settings.Language.Value) ? Settings.Language : TranslationManager.GetCurrentOSLanguage();
         Settings.Language.Modified.Subscribe(() => TranslationManager.CurrentLanguage.Value = Settings.Language);
+
+        // 注入插件可读的全局 host context（语言 + 按 ALC 自动前缀的日志器）。须在加载插件之前。
+        TuneLabContext.Global = new TuneLabContextGlobal();
 
         // event loop
         BuildAvaloniaApp()

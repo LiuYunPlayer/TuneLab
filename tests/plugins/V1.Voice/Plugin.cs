@@ -38,7 +38,7 @@ public sealed class TestVoiceSource : IVoiceSource
         mId = id;
         mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
-        mAutomationConfigs.Add("Growl", new AutomationConfig { Name = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
+        mAutomationConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
     }
 
     public string Name => mId;

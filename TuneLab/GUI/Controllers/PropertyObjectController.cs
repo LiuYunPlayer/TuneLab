@@ -174,7 +174,7 @@ internal class PropertyObjectController : StackPanel
     {
         public ObjectCreator(PropertyObjectController parent, string key, ObjectConfig config) : base(parent)
         {
-            mTitle = CreateTitle(key, 26);
+            mTitle = CreateTitle(config.DisplayText ?? key, 26);
 
             mBorder = ObjectPoolManager.Get<Border>();
             mBorder.Margin = new(23, 12, 0, 0);
@@ -224,7 +224,7 @@ internal class PropertyObjectController : StackPanel
     {
         public SliderCreator(PropertyObjectController parent, string key, SliderConfig config) : base(parent)
         {
-            mTitle = CreateTitle(key, 30);
+            mTitle = CreateTitle(config.DisplayText ?? key, 30);
 
             mController = ObjectPoolManager.Get<SliderController>();
             mController.Margin = new(24, 12);
@@ -261,7 +261,7 @@ internal class PropertyObjectController : StackPanel
     {
         public SingleLineTextCreator(PropertyObjectController parent, string key, TextBoxConfig config) : base(parent)
         {
-            mTitle = CreateTitle(key, 30);
+            mTitle = CreateTitle(config.DisplayText ?? key, 30);
 
             mController = ObjectPoolManager.Get<SingleLineTextController>();
             mController.Margin = new(24, 12);
@@ -290,7 +290,7 @@ internal class PropertyObjectController : StackPanel
         {
             mKey = key;
             mConfig = config;
-            mTitle = CreateTitle(key, 30);
+            mTitle = CreateTitle(config.DisplayText ?? key, 30);
 
             mController = ObjectPoolManager.Get<ComboBoxController>();
             mController.Margin = new(24, 12);
@@ -346,7 +346,7 @@ internal class PropertyObjectController : StackPanel
             mDockPanel.Children.Add(mController);
             DockPanel.SetDock(mController, Dock.Right);
 
-            mTitle = CreateTitle(key, 30);
+            mTitle = CreateTitle(config.DisplayText ?? key, 30);
             mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
             mDockPanel.Children.Add(mTitle);
 

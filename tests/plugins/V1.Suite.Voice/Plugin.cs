@@ -44,7 +44,7 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
     public ISynthesisTask CreateSynthesisTask(ISynthesisData data) => new SuiteSynthesisTask(data);
 
     // 与其它测试 voice 一致地声明属性（避免"空面板像 bug"的误解）。自定义自动化名避开宿主保留名。
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig { Name = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig { DisplayText = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
 
     // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板「多值 / 无效」三态呈现的多选测试

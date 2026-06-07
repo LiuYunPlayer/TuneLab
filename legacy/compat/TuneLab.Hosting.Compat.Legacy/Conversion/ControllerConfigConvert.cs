@@ -43,7 +43,7 @@ internal static class ControllerConfigConvert
     }
 
     public static VBase.AutomationConfig ToV1(this LVoice.AutomationConfig a)
-        => new() { Name = a.Name, DefaultValue = a.DefaultValue, MinValue = a.MinValue, MaxValue = a.MaxValue, Color = a.Color };
+        => new() { DisplayText = a.Name, DefaultValue = a.DefaultValue, MinValue = a.MinValue, MaxValue = a.MaxValue, Color = a.Color };
 
     public static PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig> ToV1ConfigMap(
         this LStruct.IReadOnlyOrderedMap<string, LProp.IPropertyConfig> old)

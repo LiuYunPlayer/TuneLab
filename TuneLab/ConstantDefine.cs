@@ -7,6 +7,7 @@ using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Voice;
 using TuneLab.SDK.Base;
+using TuneLab.I18N;
 
 namespace TuneLab;
 
@@ -21,10 +22,10 @@ internal static class ConstantDefine
     public static readonly string VibratoEnvelopeID = "VibratoEnvelope";
     public static readonly IReadOnlyOrderedMap<string, AutomationConfig> PreCommonAutomationConfigs = new OrderedMap<string, AutomationConfig>()
     {
-        { VolumeID, new AutomationConfig { Name = "Volume", DefaultValue = 0, MinValue = -12, MaxValue = +12, Color = "#737CE5" } }
+        { VolumeID, new AutomationConfig { DisplayText = "Volume".Tr(TC.Property), DefaultValue = 0, MinValue = -12, MaxValue = +12, Color = "#737CE5" } }
     };
     public static readonly IReadOnlyOrderedMap<string, AutomationConfig> PostCommonAutomationConfigs = new OrderedMap<string, AutomationConfig>()
     {
-        { VibratoEnvelopeID, new AutomationConfig { Name = "VibratoEnvelope", DefaultValue = 1, MinValue = 0, MaxValue = 2, Color = "#73DBE5" } }
+        { VibratoEnvelopeID, new AutomationConfig { DisplayText = "VibratoEnvelope".Tr(TC.Property), DefaultValue = 1, MinValue = 0, MaxValue = 2, Color = "#73DBE5" } }
     };
 }
