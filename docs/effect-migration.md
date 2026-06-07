@@ -302,6 +302,8 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - **B. 声明式数据 + host 求值**（**倾向**）：字段带 `visibleWhen: Func<…,bool>` 或 `{选项→config}` 表，ABI 只多一个 `Func`/map，host 拥有实时值、求值时机可控，无响应式引擎。
 - **折中**：走 B 的内核（小 ABI、host 求值），在 SDK.Base 上包一层薄 `If().ElseIf().Else()` 糖拿回 A 的可读性。**最小单份**、无 `_V1`、与 Config 家族同处 SDK.Base，**永不进 Primitives**。
 
+**（#12 后方案演进 → §三.25）**：上述"B 内核 + 逐字段可见性谓词 + 薄糖"的设想，已被更统一的 **`ObjectConfig = f(context)` 整树重算**模型取代——动态性不是埋在 config 树里的节点，而是整棵 config 成为数据的纯函数。详见 §三.25。
+
 ### 14. SDK 分层 + 命名物理落地（#7 确立，已改代码）
 
 承 §三.7 蓝图 + §三.10/§三.11/§三.12 归属，本话题首次**落地代码**：建 5 个程序集、按归属搬类型、改全仓引用，`dotnet build TuneLab.sln` Debug/Release 均 **0 错误**。范围裁剪（用户定）：**仅契约层**（内建实现留主程序，不建 singular `Extensions.*`）；**SDK.Effect 最小骨架**（接口形状留 #11）；plural `Extensions.Formats`/`Voices` **从 .sln 移除**（契约源码已搬入 SDK.\*，目录留盘供 #8 归档）；churn 用**逐文件 `using` 改写**吸收（split 命名空间处**加性**追加，不删旧 using）。
@@ -626,6 +628,48 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **测试**：`V1.Suite.Voice` 的 `vibrato` 加深到 3 层对象 `vibrato → lfo → range`，独立测试文档 `tests/PROPERTY-NAVIGATION-TEST-CASES.md`（深层懒建 / 多选深层三态 / 部分成员缺嵌套 / 深层撤销 / preset 往返，不污染三态基线）。
 
+### 25. 条件属性面板：`ObjectConfig = f(context)` 整树重算 + commit 触发（#12 后查漏补缺，已改代码）
+
+承 §三.13（功能保留、落地随 #12）。本节把该功能**落地**——`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）+ 测试插件 sln 均 **0 错误**；真机验证待用户。讨论中推翻了 §三.13 早期"逐字段可见性谓词（B 内核）"的设想，收敛到更统一的模型。
+
+**模型：config 是数据的纯函数。** 插件不再交一棵静态 `ObjectConfig`，而是交一个纯函数 `f(context) → ObjectConfig`；host 在相关值变化时重算整棵 config、diff 到控件树。"显隐 / 换控件 / 选项内容变 / 控件数量变"全是 `f` 在不同输入下返回不同结果的**涌现**，不再是一等概念（弃掉讨论中途发明的 `ConditionalConfig`/`DynamicKeyed`/`VisibleWhen` 等节点类型）。
+
+**不违背 push/pull 原则。** `f` 是纯函数，值变化（push 通知）→ 重跑一遍（pull）→ diff；无持续 computed-value 订阅图。这是 §三.22 立的"push 通知 / pull 值"原则的应用，与 §三.13 否决"响应式 DSL 锁进冻结 ABI"不冲突。
+
+**context = 注入式只读对象**（范本 = effect 分支 `IVoiceSynthesisContext { VoiceID; Properties }`）。挂当前求值所需的值，冻结接口**纯加性扩展**（以后加只读属性不破坏旧插件）。
+
+**依赖链 = 两层单向。**
+- `part config = f_part(part 自身稀疏值)` —— 输入是 part 自己，即**面板内部联动**（某控件影响同面板另一控件）。
+- `note config = f_note(part 稀疏值 + note 合并稀疏值)`。
+
+上游 commit 沿链触发下游重算（part 提交 → 重算 part + note），下游不影响上游 → 无环、方向确定，host 自上而下跑一遍。**project/track 不参与**：`IProject`/`ITrack` 只有 host 内置字段（导出/混音/tempo/轨道），**无插件属性 schema**，不是同构的第三层 `f`；将来若要让 tempo/采样率等影响下游，以"context 里的只读 host 量"注入（形状像 `ITuneLabContext { SampleRate }`），纯加性。
+
+**触发 = commit（主防线）。** 只在值提交（最终态）时重算，拖动/输入的中间值不触发。一招同时：① 把 `f` 执行频率压到"人手提交"级（非每帧）；② 消除交互中途结构突变（拖动中控件被 dispose/重建致手势断、焦点丢）；③ 充当**自依赖边界的安全网**——接口允许作者写"`x` 的 config 读 `x` 自己的值"这种本不该写的式子，commit 触发让它拖动中稳定、松手才变，手势已结束。离散控件（checkbox/combobox 点即 commit）的"选了就更新依赖项"与连续控件（slider/textbox 结束才 commit）在此规则下都正确。
+
+**性能：不做 host 记忆化。** commit 语义决定"每次触发必然伴随至少一个值变化"→ 记忆化命中前提（触发但输入没变）几乎不成立；唯一可能命中的"沿链传播但下游不依赖该字段"需**依赖追踪**才能精确判断，而那个已被否决（保持 `f` 黑盒纯函数），粗粒度整 context 深比较救不了。故记忆化是净负担（每次白做一次 `PropertyObject` 深比较），砍掉。性能防线就是 commit 触发的低频 + `f` 契约。
+
+**多选 = 合并喂一次（方案 A）。** note 多选合并成**一个**三态 `PropertyObject` 喂一次 `f`（非逐 note 算——后者 O(选中数)，大选区平方级）。`f` 依赖的字段若多选不一致，读到 `Multiple` 哨兵（§三.23），作者按默认 fallback，复用三态、不需新机制。
+
+**默认值 = "字段不存在"。** `f` 的输入是**稀疏实际值**（`GetInfo` 只含写过的字段，§三.24 懒建不存默认），所以 `f` 不需"先有 config 才有输入"→ 破"算 config 要先有值、要默认值又要先有 config"的环。推论：① **恢复默认 = 清空数据节点字段**（回到"不存在"），现靠静态遍历 `config.Properties` 写 `DefaultValue` 的重置（`ResetPartPropertiesToDefaults`）简化为"清空"，不再依赖 config 可遍历；preset 保存仍 `GetInfo` 出稀疏字段。② **显示 fallback 不阻塞**：渲染叶子时数据有值用实际值、无则用 `f` 当前输出 config 的 `DefaultValue`（此时已拿到 config）。③ `f` 内读 ctx 缺失 key = `Invalid` 哨兵，作者自行 fallback。
+
+**重建 = keyed-diff reconcile。** `f` 每次返回全新 `ObjectConfig`，host 不可拆了重建（编辑中光标/焦点丢、控件闪），须按 key diff：同 key 同类型 → 复用控件仅更参数；key 消失 → dispose；新 key → 建；同 key 换了 config 类型 → 换控件。复用编辑中控件，接 §三.22 落地的 `IReadOnlyDataCollection`/集合增删事件。
+
+**边界：array 正交。** `ObjectConfig` 是 map（key 唯一），所以"动态数量控件"只要 **key 唯一**（如文本框 "abcd" → 按字母 key 出 4 个滑条，数据走现有键值模型 + §三.24 导航懒建）就落在本方案内、**不需 array**。真正"有序 + 可重复"（重复音素 "i i an"、可中插删的列表）是**独立话题**（`DataList`/`DataObjectList` 落地，§三.24 押后项），与"config 是不是值的函数"正交，不在本方案。
+
+**实现落点**：
+- **SDK.Voice**：新增 `IPropertyContext { PartProperties; NoteProperties }`（注入式只读，承载稀疏值快照）；`IVoiceSource` 加 **DIM** `GetPartConfig`/`GetNoteConfig(IPropertyContext)`，默认回退到静态 `PartProperties`/`NoteProperties`——旧插件 / Legacy 适配器不覆写即得"静态 config"行为，零改动。
+- **host**：`IVoice`/`Voice` 把静态 `PartProperties`/`NoteProperties` 改为 `GetPartConfig`/`GetNoteConfig(context)` 转发 `IVoiceSource`。
+- **`PropertyObjectController`**：重构为 keyed-diff reconcile——`Reconcile(ObjectConfig)` 幂等对齐控件树（同 key 同类型复用控件 + `Update` 改参数、增删建/弃、纯参数变化不 `Relayout`、仅结构变才重排）；`SetConfig`（数据对象切换）先 `ResetConfig` 再全建（复用 creator 仍绑旧对象字段，故 data 变必须重建）。effect 参数面板 / 嵌套 ObjectConfig 走静态 `SetConfig`（reconcile 一次、不订阅）。
+- **`PropertySideBarContentProvider`**：在数据对象 `Modified` 的**结果态**通道订阅（§三.21：commit 才触发、中间拖动态 `canIgnore` 不触发）——part 值 commit → 重算 part 面板 + 沿链重算 note 面板；note 值 commit → 重算 note 面板。context 由 `mPart.Properties.GetInfo()`（稀疏）+ 选中 note 三态合并快照（`MergeNoteSnapshots`：同 key 全等给值、不等给 `Multiple`、全缺不出现）构造。数据对象切换（选中 / voice 变）走 `SetConfig` 重建。
+
+**实际取舍**：
+- 同 key 换控件类型 = dispose + 新建；数据 key 同名但旧值类型不符时由 `DataPropertyObject.GetValue` 的 `TypeEquals` 退默认（未做值迁移）。
+- reconcile 在 `Modified` 多播链里**同步**执行——横向依赖（B 依赖 A）下被 commit 的控件 A 同 key 同类型必被复用、不会在自身事件回调中被 dispose，安全；"自依赖"（A 改 A 自身结构）这一 §三.13 明示"本不该写"的边界，commit 触发已把它从"拖动中崩"降级到"提交后重建"，若真机暴露同步 dispose 问题再改 defer。
+- **记忆化未做**：commit 语义下每次触发必伴随值变化、几乎永不命中，深比较是净开销，砍掉。
+- **context 统一推迟**（用户定）：现用专用 `IPropertyContext`；将来做 voice API 整体改造（合成 API context 化）时，把 `GetNoteConfig`/`GetPartConfig` 参数换成统一 context（合成与 config 求值共用），`IPropertyContext` 退役——内测期 + DIM 默认，签名演进加性平滑。
+
+**测试**：测试声库 `[v1-suite] Conditional`（同包新增 `ConditionalVoiceSource`，不动基线 `SuiteVoiceSource`）演示显隐/换控件、选项随值变、动态数量控件（key 唯一边界）、part→note 沿链、多选降级；独立文档 `tests/PROPERTY-CONDITIONAL-TEST-CASES.md`（不污染三态/导航基线）。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）
@@ -828,3 +872,4 @@ master 在 effect 分叉后新增的功能，迁移设计时不能丢：
 - ✅ **查漏补缺：IEvent 事件框架**（2026-06-04，#12 后）— **改代码**，`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）均 **0 错误**；纯结构重构、行为保持（真机验证待用户）。先讨论达成共识（§三.22）再落地。**形状决策**：保留委托形状 `IEvent<Action<…>>`、**不上 Rx 值形状**，立"push 通知 / pull 值"原则（与 §三.13 否决反应式值图同源）；理由=只用 When/WhenAny/Where 三个领域重接器、委托形状多元+热路径零分配、上 Rx 会破 §三.21 的 `IModifiedEvent` 零迁移。**WhenAny 单一原语**：原 `Any` 三份拷贝（List/Map/LinkedList 各嵌"活订阅矩阵"）收敛为单一基接口 `IReadOnlyDataCollection<out T>`（`ItemAdded`/`ItemRemoved`/`Items`）+ 唯一 `AnyEvent` 扩展，List/LinkedList 直接继承基（单一来源无钻石）、Map 另持一元投影喂 `IReadOnlyDataCollection<TValue>`；`Any`→`WhenAny`（消 LINQ 歧义）；**修 `OnRemove` 误用 Subscribe 的退订泄漏**。**Where（响应式过滤）一并迁**（与 §三.13 SDK Config 条件系统不同层），**修谓词订阅泄漏**（留存 handler 真正退订）。**Holder 命名**：`IProvider`/`Owner`→`IHolder`/`Holder`、事件 `ObjectWillChange`/`ObjectChanged`→`WillModify`/`Modified`、`Object`→`Value`；`When` 挂 `IHolder`、与 `WhenAny`（基座不同）**不强并**。`INotifiableProperty` 保留仅统一词汇。**推迟**（无消费者+加性可补）：`ISource`/`IChangeNotify` 统一根、`IDataObject` 补 `WillModify`（C++ 有对称 `aboutToModify`）、dataobject 并入根（撞属性不变性疣）——使能消费者预计是 live-bind 出现瞬态字段。详见 §三.22。
 - ✅ **查漏补缺：属性面板 multiple/invalid 三态呈现**（2026-06-05，#12 后）— **改代码**，`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）均 **0 错误**；真机已验证。先讨论达成共识（§三.23）再落地。**问题**：live-bind 后 `PropertyField<T>` 把空哨兵 coerce 成默认值，多选"多值"呈现断了（`DisplayMultiple` 沦为死代码），且 `Null`/`Multiple` 共用一哨兵不可分。**三态**（叶子值层、沿 JSON 树递归）：Concrete/Multiple（多选不全等）/Invalid（无选中），**前端+插件两轴都区分**（插件诉求来自条件谓词需知宿主真实态；不开放 JSON null 作合法值——与 Invalid 撞车）。**机制**：Primitives 增 `PropertyMultiple` 哨兵 + `PropertyValue.Multiple`/`IsMultiple()` + `PropertyType.Multiple`（**反转 §三.14"清理 Invalid"为"正式化 Invalid + 增补 Multiple"**；哨兵瞬态永不序列化，非 PropertyValue 全树重构仍推迟）；`MultipleDataPropertyObject.GetValue` 三态返回 + 容空列表，字段经新增 `IRawValueProperty` 暴露未 coerce 原始值、绑定 `Refresh()` 据此分派 `Display`/`DisplayMultiple`/`DisplayNull`（不往单/多共用契约塞"多选"方法）。**控件呈现**：CheckBox 高亮底+dash/空框；TextBox watermark `(Multiple)`/空；ComboBox placeholder `(Multiple)`/空；Slider 空轨+标签 `-`/空；无选中绑空源在遮罩下呈 Invalid。**真机暴露并修复相邻缺陷**：① 扇出逐对象刷新致中间态闪烁/文本框光标跳 → `SetValue` 包 merge + `TextInput` 聚焦中不被刷新覆盖；② CheckBox 共享图标残留 + 颜色淡出动画把 √ 画出 → 仅进入勾选态设 √、取消勾选不动图标；③ Slider thumb 初次选中跳动 = 首帧 Bounds 滞后三侧面（bind 先于 add / `finalSize` 算端点 / `Piovt` 用 `DesiredSize`）。测试 voice 增四控件+嵌套 ObjectConfig，独立文档 `tests/PROPERTY-TRISTATE-TEST-CASES.md`。详见 §三.23。
 - ✅ **查漏补缺：干掉 PropertyPath，改导航式数据模型**（2026-06-05，#12 后）— **改代码**，`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）均 **0 错误**；真机已验证。先讨论达成共识（§三.24）再落地，落地 effect 原始意图：路径上每个节点都是 `IDataPropertyObject`（对象）或 `IDataProperty<T>`（叶子），一视同仁。**接口**：`IDataPropertyObject : IDataObject`（节点即撤销根，折进 `DataRoot`，方案 A）+ `Object(string)` 导航 + 单层 `string` 版 `GetValue/SetValue`；删 `PropertyPath` 类型；叶子保留 typed 三件套（否决泛型 `Field<T>`——type 固定、泛型把传错类型降级成运行期）。**单选**：`Object(key)` 返回懒视图 `ObjectView`（读经 internal `FindObject` 返默认不创建、写经 `GetOrCreateObject` 按需建路径，保住浏览不污染序列化/bind 不记假撤销），internal `ILazyObjectNode` 互链不进公开接口。**多选**（effect 没写完处）：`MultipleDataPropertyObject` 改持 `IReadOnlyList<IDataPropertyObject>`，`Object(key)` 复合各成员 `Object(key)` 递归——**缺该嵌套的成员经懒视图读默认值仍正确参与三态比较**（不误判全等）；`MultiDataRoot` 折进本体。**连带**：删 `PropertyModified`（`IActionEvent<PropertyPath>`）及 `OnAdd/OnRemove` 路径簿记，note dirty 改订 `Properties.Modified`（本就冒泡）；三态机器（`IRawValueProperty`+`Refresh()`）模型无关、一行未改。**array 押后**（零消费者+形态未定，倾向 `DataObjectList`，接口前向兼容加性补）。测试 `V1.Suite.Voice` 加深到 3 层 `vibrato→lfo→range`，独立文档 `tests/PROPERTY-NAVIGATION-TEST-CASES.md`。一并修复（非本话题、相邻）：tlx 安装弹窗支持多选、测试正弦合成器加 attack/release 消爆音、侧栏底部加跟随视口高的透明 spacer（折叠面板展开/收起不撞底/不猛弹）。详见 §三.24。
+- ✅ **查漏补缺：条件属性面板（config = f(context)）**（2026-06-07，#12 后）— **改代码**，`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）+ 测试插件 sln 均 **0 错误**，真机验证待用户。voice 插件交纯函数 `GetNoteConfig`/`GetPartConfig(IPropertyContext)` 取代静态 `NoteProperties`/`PartProperties`（**DIM 默认回退静态 → 旧插件 / Legacy 零改动**）；宿主在属性 **commit**（结果态通道，中间拖动态 `canIgnore` 不触发）按当前值重算整棵 `ObjectConfig`、**keyed-diff** 到控件树（同 key 同类型复用控件仅更参数、纯参数变不重排、仅结构变才重排）；part→note **单向沿链**重算；多选喂**三态合并快照**（`Multiple` 哨兵插件侧安全降级）；**默认 = 字段不存在**。**砍记忆化**（commit 语义下必 miss、净开销）；**context 统一推迟**（待 voice API 整体改造时并入合成 context）。`PropertyObjectController` 重构为 reconcile（保留静态 `SetConfig` 兼容 effect/嵌套）。测试声库 `[v1-suite] Conditional`（同包新增、不动基线）+ 独立文档 `tests/PROPERTY-CONDITIONAL-TEST-CASES.md`。详见 §三.25。

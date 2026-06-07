@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using TuneLab.Foundation.Property;
 using TuneLab.SDK.Base;
 using TuneLab.Primitives.DataStructures;
@@ -10,9 +12,12 @@ using TuneLab.Utils;
 
 namespace TuneLab.GUI.Controllers;
 
-// 配置驱动的属性面板：按 ObjectConfig 渲染控件，逐字段直接绑定到 IDataPropertyObject 的可绑定字段，
-// 复用单属性的撤销/刷新/提交机制（不再走 PropertyPath 下发值 + 事件上抛 + 外部手工写回那套）。
-// 控件类型经注册表分发，加新控件只需注册一项。嵌套对象经 Object(key) 逐层导航到子节点，绑定打到该子节点。
+// 配置驱动的属性面板：按 ObjectConfig 渲染控件，逐字段绑定到 IDataPropertyObject 的可绑定字段，
+// 复用单属性的撤销/刷新/提交机制。控件类型经注册表分发，加新控件只需注册一项；嵌套对象经 Object(key) 逐层导航。
+//
+// 支持 keyed-diff reconcile（条件属性面板）：config 可随数据值变化，调用方在值 commit 后重算整棵 config 再调
+// Reconcile，本控件按 key diff——同 key 同类型复用控件仅更参数（不闪、不丢焦点）、key 消失则 dispose、新 key 建、
+// 同 key 换类型则换控件。纯参数变化不重排布局；仅结构（增删/换类型/顺序）变化时重排。订阅/重算时机由调用方管理。
 internal class PropertyObjectController : StackPanel
 {
     public PropertyObjectController()
@@ -20,37 +25,149 @@ internal class PropertyObjectController : StackPanel
         Background = Style.INTERFACE.ToBrush();
     }
 
+    // 绑定到（新的）数据对象并对齐到 config。数据对象切换时必须重建全部控件——复用的 creator 仍绑在旧对象的字段上，
+    // 故先 ResetConfig 清空再全新建。静态用法（effect/嵌套）= 仅调一次；动态用法（条件面板）在数据对象不变时改调 Reconcile。
     public void SetConfig(ObjectConfig config, IDataPropertyObject dataObject)
     {
+        ResetConfig();
         mDataObject = dataObject;
+        Reconcile(config);
+    }
+
+    // 数据对象不变，把控件树 keyed-diff 到新 config。
+    public void Reconcile(ObjectConfig config)
+    {
+        if (mDataObject == null)
+            return;
+
+        var nextOrder = new List<string>();
+        var nextByKey = new Dictionary<string, Creator>();
+        bool structureChanged = false;
+
         foreach (var kvp in config.Properties)
         {
-            if (mCreators.TryGetValue(kvp.Value.GetType(), out var creator))
+            var key = kvp.Key;
+            var cfg = kvp.Value;
+            if (nextByKey.ContainsKey(key))
+                continue; // ObjectConfig 是 map，key 本应唯一；防御重复
+
+            if (mCreatorsByKey.TryGetValue(key, out var existing) && existing.ConfigType == cfg.GetType())
             {
-                mDisposableManager.Add(creator(this, kvp.Key, kvp.Value));
+                existing.Update(cfg);
+                mCreatorsByKey.Remove(key);
+                nextByKey.Add(key, existing);
             }
             else
             {
-                Log.Error($"No controller found for config type: {kvp.Value.GetType()}");
-                continue;
+                if (!mFactories.TryGetValue(cfg.GetType(), out var factory))
+                {
+                    Log.Error($"No controller found for config type: {cfg.GetType()}");
+                    continue;
+                }
+                nextByKey.Add(key, factory(this, key, cfg));
+                structureChanged = true; // 新建（含同 key 换类型）
             }
-            mDisposableManager.Add(new SeperatorCreator(this));
+            nextOrder.Add(key);
+        }
+
+        if (mCreatorsByKey.Count > 0)
+            structureChanged = true; // 有 key 被删
+        if (!mOrder.SequenceEqual(nextOrder))
+            structureChanged = true; // 顺序变
+
+        if (structureChanged)
+        {
+            // 先把被删 creator 的视图移出可视树，再 dispose（归还控件 / 分隔符到池）。
+            foreach (var kvp in mCreatorsByKey)
+            {
+                foreach (var view in kvp.Value.LayoutViews)
+                    Children.Remove(view);
+                kvp.Value.Dispose();
+            }
+            mCreatorsByKey = nextByKey;
+            mOrder = nextOrder;
+            AlignChildren();
+        }
+        else
+        {
+            // 纯参数更新：控件原位不动（复用项已 Update），仅刷新内部簿记引用。
+            mCreatorsByKey = nextByKey;
+            mOrder = nextOrder;
         }
     }
 
     public void ResetConfig()
     {
-        mDisposableManager.DisposeAll();
+        Children.Clear();
+        foreach (var kvp in mCreatorsByKey)
+            kvp.Value.Dispose();
+        mCreatorsByKey = new();
+        mOrder = new();
         mDataObject = null;
+    }
+
+    // 增量对齐 Children 到目标顺序（mOrder 各 creator 的 LayoutViews 拼接）：已在正确位置的复用控件**不动**
+    //（留在可视树、保持焦点 / 编辑态），仅移动错位的、插入新建的；尾部多余兜底移除。
+    void AlignChildren()
+    {
+        int index = 0;
+        foreach (var key in mOrder)
+        {
+            foreach (var view in mCreatorsByKey[key].LayoutViews)
+            {
+                int current = Children.IndexOf(view);
+                if (current == index)
+                {
+                    index++;
+                    continue;
+                }
+                if (current >= 0)
+                    Children.RemoveAt(current);
+                Children.Insert(index, view);
+                index++;
+            }
+        }
+        while (Children.Count > index)
+            Children.RemoveAt(Children.Count - 1);
     }
 
     IDataPropertyObject DataObject => mDataObject ?? throw new InvalidOperationException("PropertyObjectController has no data object.");
 
-    abstract class Creator(PropertyObjectController parent) : IDisposable
+    // creator 不自行加入 Parent.Children；创建控件、绑定数据、暴露 Views，布局由 AlignChildren 增量管理。
+    // 每个 creator 自带一个尾随分隔符（生命周期内实例稳定），使增量对齐能把复用控件留在可视树原位、不失焦
+    //（否则 reconcile 重排时正在编辑的 TextBox 被移出可视树即丢焦点，无法连续输入）。
+    abstract class Creator : IDisposable
     {
-        protected PropertyObjectController Parent { get; } = parent;
+        protected Creator(PropertyObjectController parent)
+        {
+            Parent = parent;
+            mSeparator = ObjectPoolManager.Get<Border>();
+            mSeparator.Height = 1;
+            mSeparator.Background = Style.BACK.ToBrush();
+        }
+
+        protected PropertyObjectController Parent { get; }
         protected readonly DisposableManager s = new();
-        public virtual void Dispose() => s.DisposeAll();
+        public abstract Type ConfigType { get; }
+        public abstract IEnumerable<Control> Views { get; }
+        // 布局序列 = 内容控件 + 尾随分隔符。
+        public IEnumerable<Control> LayoutViews
+        {
+            get
+            {
+                foreach (var view in Views)
+                    yield return view;
+                yield return mSeparator;
+            }
+        }
+        public abstract void Update(IControllerConfig config);
+        public virtual void Dispose()
+        {
+            s.DisposeAll();
+            ObjectPoolManager.Return(mSeparator);
+        }
+
+        readonly Border mSeparator;
     }
 
     class ObjectCreator : Creator
@@ -76,14 +193,15 @@ internal class PropertyObjectController : StackPanel
             mCollapsiblePanel.Margin = new(0, 0, 0, 12);
             mCollapsiblePanel.Title = mTitle;
             mCollapsiblePanel.Content = mDockPanel;
-
-            Parent.Children.Add(mCollapsiblePanel);
         }
+
+        public override Type ConfigType => typeof(ObjectConfig);
+        public override IEnumerable<Control> Views => [mCollapsiblePanel];
+        public override void Update(IControllerConfig config) => mController.Reconcile((ObjectConfig)config);
 
         public override void Dispose()
         {
             base.Dispose();
-            Parent.Children.Remove(mCollapsiblePanel);
             mCollapsiblePanel.Title = null;
             mCollapsiblePanel.Content = null;
             ObjectPoolManager.Return(mCollapsiblePanel);
@@ -107,26 +225,31 @@ internal class PropertyObjectController : StackPanel
         public SliderCreator(PropertyObjectController parent, string key, SliderConfig config) : base(parent)
         {
             mTitle = CreateTitle(key, 30);
-            Parent.Children.Add(mTitle);
 
             mController = ObjectPoolManager.Get<SliderController>();
             mController.Margin = new(24, 12);
+            Apply(config);
+
+            // 先绑定（初次刷新即把真实值写入），Relayout 才加入可视树——否则池复用的控件会以残留旧值/旧量程
+            // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
+            mController.BindDataProperty(parent.DataObject.NumberField(key, config.DefaultValue), s);
+        }
+
+        void Apply(SliderConfig config)
+        {
             mController.SetRange(config.MinValue, config.MaxValue);
             mController.SetDefaultValue(config.DefaultValue);
             mController.IsInterger = config.IsInterger;
-
-            // 先绑定（初次刷新即把真实值写入），再加入可视树——否则池复用的控件会以残留旧值/旧量程
-            // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
-            mController.BindDataProperty(parent.DataObject.NumberField(key, config.DefaultValue), s);
-            Parent.Children.Add(mController);
         }
+
+        public override Type ConfigType => typeof(SliderConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) => Apply((SliderConfig)config);
 
         public override void Dispose()
         {
             base.Dispose();
-            Parent.Children.Remove(mController);
             ObjectPoolManager.Return(mController);
-            Parent.Children.Remove(mTitle);
             ObjectPoolManager.Return(mTitle);
         }
 
@@ -139,21 +262,21 @@ internal class PropertyObjectController : StackPanel
         public SingleLineTextCreator(PropertyObjectController parent, string key, TextBoxConfig config) : base(parent)
         {
             mTitle = CreateTitle(key, 30);
-            Parent.Children.Add(mTitle);
 
             mController = ObjectPoolManager.Get<SingleLineTextController>();
             mController.Margin = new(24, 12);
-            Parent.Children.Add(mController);
 
             mController.BindDataProperty(parent.DataObject.StringField(key, config.DefaultValue), s);
         }
 
+        public override Type ConfigType => typeof(TextBoxConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) { }
+
         public override void Dispose()
         {
             base.Dispose();
-            Parent.Children.Remove(mController);
             ObjectPoolManager.Return(mController);
-            Parent.Children.Remove(mTitle);
             ObjectPoolManager.Return(mTitle);
         }
 
@@ -165,29 +288,50 @@ internal class PropertyObjectController : StackPanel
     {
         public ComboBoxCreator(PropertyObjectController parent, string key, ComboBoxConfig config) : base(parent)
         {
+            mKey = key;
+            mConfig = config;
             mTitle = CreateTitle(key, 30);
-            Parent.Children.Add(mTitle);
 
             mController = ObjectPoolManager.Get<ComboBoxController>();
             mController.Margin = new(24, 12);
             mController.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
-            mController.SetConfig(config);
-            Parent.Children.Add(mController);
+            BindWith(config);
+        }
 
-            mController.BindDataProperty(parent.DataObject.StringField(key, config.DefaultValue), s);
+        // SetConfig（自洽显示 default）后紧接 bind（bind 内 Refresh 把当前数据值按三态显示出来）——复刻"SetConfig→bind"
+        // 成对范式；reconcile 改选项时也走它，否则显示会停在 SetConfig 给的 default 而非数据值。
+        void BindWith(ComboBoxConfig config)
+        {
+            mController.SetConfig(config);
+            mController.BindDataProperty(Parent.DataObject.StringField(mKey, config.DefaultValue), s);
+        }
+
+        public override Type ConfigType => typeof(ComboBoxConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+
+        // 选项未变则跳过：SetConfig 会 Clear + 重填 Items 打断当前选中，无谓重建。选项变则解旧绑定 → BindWith
+        //（SetConfig + 重新 bind），让控件显示回当前数据值。
+        public override void Update(IControllerConfig config)
+        {
+            var combo = (ComboBoxConfig)config;
+            if (combo.Options.SequenceEqual(mConfig.Options))
+                return;
+            mConfig = combo;
+            s.DisposeAll();
+            BindWith(combo);
         }
 
         public override void Dispose()
         {
             base.Dispose();
-            Parent.Children.Remove(mController);
             ObjectPoolManager.Return(mController);
-            Parent.Children.Remove(mTitle);
             ObjectPoolManager.Return(mTitle);
         }
 
+        readonly string mKey;
         readonly Label mTitle;
         readonly ComboBoxController mController;
+        ComboBoxConfig mConfig;
     }
 
     class CheckBoxCreator : Creator
@@ -205,15 +349,16 @@ internal class PropertyObjectController : StackPanel
             mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
             mDockPanel.Children.Add(mTitle);
 
-            Parent.Children.Add(mDockPanel);
-
             mController.BindDataProperty(parent.DataObject.BoolField(key, config.DefaultValue), s);
         }
+
+        public override Type ConfigType => typeof(CheckBoxConfig);
+        public override IEnumerable<Control> Views => [mDockPanel];
+        public override void Update(IControllerConfig config) { }
 
         public override void Dispose()
         {
             base.Dispose();
-            Parent.Children.Remove(mDockPanel);
             mDockPanel.Children.Clear();
             ObjectPoolManager.Return(mTitle);
             ObjectPoolManager.Return(mController);
@@ -223,27 +368,6 @@ internal class PropertyObjectController : StackPanel
         readonly Label mTitle;
         readonly DockPanel mDockPanel;
         readonly Components.CheckBox mController;
-    }
-
-    class SeperatorCreator : IDisposable
-    {
-        public SeperatorCreator(PropertyObjectController parent)
-        {
-            mParent = parent;
-            mBorder = ObjectPoolManager.Get<Border>();
-            mBorder.Height = 1;
-            mBorder.Background = Style.BACK.ToBrush();
-            mParent.Children.Add(mBorder);
-        }
-
-        public void Dispose()
-        {
-            mParent.Children.Remove(mBorder);
-            ObjectPoolManager.Return(mBorder);
-        }
-
-        readonly PropertyObjectController mParent;
-        readonly Border mBorder;
     }
 
     static Label CreateTitle(string title, double height)
@@ -258,7 +382,7 @@ internal class PropertyObjectController : StackPanel
         return label;
     }
 
-    static readonly Map<Type, Func<PropertyObjectController, string, IControllerConfig, IDisposable>> mCreators = new()
+    static readonly Map<Type, Func<PropertyObjectController, string, IControllerConfig, Creator>> mFactories = new()
     {
         { typeof(ObjectConfig), (parent, key, config) => new ObjectCreator(parent, key, (ObjectConfig)config) },
         { typeof(SliderConfig), (parent, key, config) => new SliderCreator(parent, key, (SliderConfig)config) },
@@ -268,5 +392,6 @@ internal class PropertyObjectController : StackPanel
     };
 
     IDataPropertyObject? mDataObject;
-    readonly DisposableManager mDisposableManager = new();
+    Dictionary<string, Creator> mCreatorsByKey = new();
+    List<string> mOrder = new();
 }

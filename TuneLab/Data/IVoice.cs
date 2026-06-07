@@ -19,8 +19,8 @@ internal interface IVoice : IDataObject<VoiceInfo>
     string Name { get; }
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    ObjectConfig PartProperties { get; }
-    ObjectConfig NoteProperties { get; }
+    ObjectConfig GetPartConfig(IPropertyContext context);
+    ObjectConfig GetNoteConfig(IPropertyContext context);
     IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote;
     ISynthesisTask CreateSynthesisTask(ISynthesisData data);
 }

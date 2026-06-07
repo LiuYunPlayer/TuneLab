@@ -18,11 +18,14 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     {
         error = null;
         mVoiceInfos.Add("suite-voice", new VoiceSourceInfo { Name = SuiteCommon.Label("Voice"), Description = "Suite shared-infra voice" });
+        // 条件属性面板演示声库（note config 随当前值动态变化，见 tests/PROPERTY-CONDITIONAL-TEST-CASES.md）。
+        mVoiceInfos.Add("suite-conditional", new VoiceSourceInfo { Name = SuiteCommon.Label("Conditional"), Description = "Conditional property panel demo" });
         return true;
     }
 
     public void Destroy() { }
-    public IVoiceSource CreateVoiceSource(string id) => new SuiteVoiceSource(id);
+    public IVoiceSource CreateVoiceSource(string id)
+        => id == "suite-conditional" ? new ConditionalVoiceSource(id) : new SuiteVoiceSource(id);
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
 }
@@ -69,6 +72,74 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
                 }) },
             }) },
         }) },
+    };
+}
+
+// 条件属性面板演示：note config = f(context)，随当前值动态变化。覆写 GetNoteConfig 演示三类能力——
+// ① 显隐/换控件：mode=Advanced 时多出 gain/detail 字段；
+// ② 控件参数随值变：pick 下拉的选项 = letters 逐字符（内容 + 数量都随 letters 变）；
+// ③ 动态数量控件：letters 每个唯一字符派生一个滑条（key=字符，重复字符只出一个——有序可重复列表属 array 独立话题）。
+// 静态 NoteProperties 仍声明 mode/letters 作为兜底（旧宿主 / 未覆写路径）。
+public sealed class ConditionalVoiceSource(string id) : IVoiceSource
+{
+    public string Name => id;
+    public string DefaultLyric => "la";
+    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
+    public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+
+    public ObjectConfig GetNoteConfig(IPropertyContext context)
+    {
+        var note = context.NoteProperties;
+        var map = new OrderedMap<string, IControllerConfig>
+        {
+            { "mode", new ComboBoxConfig(["Simple", "Advanced"], 0) },
+            { "letters", new TextBoxConfig("") },
+        };
+
+        // ② pick 选项随 letters 变（内容 + 数量）
+        var letters = note.GetString("letters", "");
+        var options = letters.Length > 0 ? letters.Select(c => c.ToString()).ToList() : ["(empty)"];
+        map.Add("pick", new ComboBoxConfig(options, 0));
+
+        // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
+        if (context.PartProperties.GetBool("fromPart", false))
+            map.Add("partGain", new SliderConfig(0, 0, 100, false));
+
+        // ① mode=Advanced → 多出字段（显隐 / 换控件）
+        if (note.GetString("mode", "Simple") == "Advanced")
+        {
+            map.Add("gain", new SliderConfig(0, -12, 12, false));
+            map.Add("detail", new TextBoxConfig(""));
+        }
+
+        // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过，须靠 array 才能表达可重复列表）
+        var seen = new HashSet<string>();
+        foreach (var ch in letters)
+        {
+            var key = ch.ToString();
+            if (seen.Add(key))
+                map.Add(key, new SliderConfig(0.5, 0, 1, false));
+        }
+
+        return new ObjectConfig(map);
+    }
+
+    public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
+        => this.SimpleSegment(segment);
+
+    public ISynthesisTask CreateSynthesisTask(ISynthesisData data) => new SuiteSynthesisTask(data);
+
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    // part 级勾选项，note config 据它沿链多出字段（演示 part→note 传播）。
+    readonly OrderedMap<string, IControllerConfig> mPartProperties = new()
+    {
+        { "fromPart", new CheckBoxConfig(false) },
+    };
+    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new()
+    {
+        { "mode", new ComboBoxConfig(["Simple", "Advanced"], 0) },
+        { "letters", new TextBoxConfig("") },
     };
 }
 

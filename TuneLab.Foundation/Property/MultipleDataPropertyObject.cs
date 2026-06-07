@@ -66,9 +66,18 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     public Head Head => mRoot?.Head ?? default;
     public void Attach(IDataObject parent) { }
     public void Detach() { }
-    public IDisposable MergeNotify() => mRoot?.MergeNotify() ?? EmptyDisposable.Shared;
-    public void BeginMergeNotify() => mRoot?.BeginMergeNotify();
-    public void EndMergeNotify() => mRoot?.EndMergeNotify();
+    // merge 通知作用于**所有**成员（不只首成员）：binding 在编辑全程套一层 merge 时，需把所有被扇出写入的成员
+    // 都纳入同一 merge 作用域，中间态才不会逐成员发结果态——否则非首成员每次写仍发结果态、触发面板重算。
+    public IDisposable MergeNotify()
+    {
+        if (mDataObjects.Count == 0)
+            return EmptyDisposable.Shared;
+        foreach (var dataObject in mDataObjects)
+            dataObject.BeginMergeNotify();
+        return new MultiMergeScope(mDataObjects);
+    }
+    public void BeginMergeNotify() { foreach (var dataObject in mDataObjects) dataObject.BeginMergeNotify(); }
+    public void EndMergeNotify() { foreach (var dataObject in mDataObjects) dataObject.EndMergeNotify(); }
     public bool Commit() => mRoot?.Commit() ?? false;
     public bool Discard() => mRoot?.Discard() ?? false;
     public bool DiscardTo(Head head) => mRoot?.DiscardTo(head) ?? false;
@@ -108,6 +117,16 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     {
         public static readonly EmptyDisposable Shared = new();
         public void Dispose() { }
+    }
+
+    // 退出 merge 作用域时对所有成员 EndMergeNotify（与 MergeNotify 进入时的全成员 BeginMergeNotify 对称）。
+    sealed class MultiMergeScope(IReadOnlyList<IDataPropertyObject> dataObjects) : IDisposable
+    {
+        public void Dispose()
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.EndMergeNotify();
+        }
     }
 
     readonly IReadOnlyList<IDataPropertyObject> mDataObjects;

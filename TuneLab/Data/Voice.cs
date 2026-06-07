@@ -21,8 +21,8 @@ internal class Voice : DataObject, IVoice
     public string Name => mVoiceSource.Name;
     public string DefaultLyric => mVoiceSource.DefaultLyric;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public ObjectConfig PartProperties => new(mVoiceSource.PartProperties);
-    public ObjectConfig NoteProperties => new(mVoiceSource.NoteProperties);
+    public ObjectConfig GetPartConfig(IPropertyContext context) => mVoiceSource.GetPartConfig(context);
+    public ObjectConfig GetNoteConfig(IPropertyContext context) => mVoiceSource.GetNoteConfig(context);
 
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {

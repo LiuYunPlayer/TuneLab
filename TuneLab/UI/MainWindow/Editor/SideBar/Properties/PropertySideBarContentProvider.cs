@@ -1,5 +1,6 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +24,7 @@ using TuneLab.Foundation.Utils;
 using TuneLab.I18N;
 using TuneLab.Configs;
 using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK.Voice;
 using static TuneLab.GUI.Dialog;
 
 namespace TuneLab.UI;
@@ -135,6 +137,8 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         {
             mPart.Voice.Modified.Subscribe(OnConfigChnaged, s);
             mPart.Notes.SelectionChanged.Subscribe(OnNoteSelectionChanged, s);
+            // part 属性 commit（结果态）→ 重算 part 面板（自身联动）并沿链重算 note 面板（note config 依赖 part 值）。
+            mPart.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
 
             Setup(mPart);
         }
@@ -144,7 +148,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     {
         mAutomationController.Part = part;
         mPartFixedController.Part = part;
-        mPartPropertiesController.SetConfig(part.Voice.PartProperties, part.Properties);
+        RefreshPartController();
         mEffectsController.SetPart(part);
         RefreshNoteController();
     }
@@ -156,6 +160,106 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mPartPropertiesController.ResetConfig();
         mNotePropertiesController.ResetConfig();
         mEffectsController.SetPart(null);
+        mNoteSub.DisposeAll();
+        mNoteData = null;
+    }
+
+    // part 值 commit：part 面板按当前值重算（数据对象不变，走 Reconcile），并沿链触发 note 面板重算。
+    void OnPartPropertiesModified()
+    {
+        if (mPart == null)
+            return;
+
+        ReconcilePartController();
+        ReconcileNoteController();
+    }
+
+    // ---- 条件属性面板：config = f(context)，按当前值重算并 keyed-diff 到控件树 ----
+    // part config 仅依赖 part 自身值；note config 依赖 part 值 + 当前选中 note 的三态合并值。
+
+    void RefreshPartController()
+    {
+        if (mPart == null)
+            return;
+
+        mPartPropertiesController.SetConfig(mPart.Voice.GetPartConfig(BuildPartContext()), mPart.Properties);
+    }
+
+    // 重算 defer 到下一 UI 调度：属性 commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
+    // 同步重算会重入修改控件集合——Avalonia 的 ComboBox 在其 SelectionChanged 处理中 Clear/重填 Items 会抛 IndexOutOfRange。
+    // 推迟到当前事件链完全返回后再 reconcile；pending 标志合并一拍内的多次触发。
+    void ReconcilePartController()
+    {
+        if (mPartReconcilePending)
+            return;
+        mPartReconcilePending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            mPartReconcilePending = false;
+            if (mPart == null)
+                return;
+            mPartPropertiesController.Reconcile(mPart.Voice.GetPartConfig(BuildPartContext()));
+        });
+    }
+
+    void ReconcileNoteController()
+    {
+        if (mNoteReconcilePending)
+            return;
+        mNoteReconcilePending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            mNoteReconcilePending = false;
+            if (mPart == null || mNoteData == null)
+                return;
+            mNotePropertiesController.Reconcile(mPart.Voice.GetNoteConfig(BuildNoteContext()));
+        });
+    }
+
+    IPropertyContext BuildPartContext()
+        => new PropertyContext(mPart!.Properties.GetInfo(), PropertyObject.Empty);
+
+    IPropertyContext BuildNoteContext()
+        => new PropertyContext(mPart!.Properties.GetInfo(), MergeNoteSnapshots());
+
+    // 当前选中 note 的三态合并快照：同 key 各 note 全等给该值、不等给 Multiple、全缺则不出现（稀疏）。
+    PropertyObject MergeNoteSnapshots()
+    {
+        var snapshots = mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList();
+        if (snapshots.Count == 0)
+            return PropertyObject.Empty;
+        if (snapshots.Count == 1)
+            return snapshots[0];
+
+        var keys = new List<string>();
+        var seen = new HashSet<string>();
+        foreach (var snapshot in snapshots)
+            foreach (var kvp in snapshot.Map)
+                if (seen.Add(kvp.Key))
+                    keys.Add(kvp.Key);
+
+        var merged = new Map<string, PropertyValue>();
+        foreach (var key in keys)
+        {
+            var value = PropertyValue.Invalid;
+            bool first = true;
+            bool multiple = false;
+            foreach (var snapshot in snapshots)
+            {
+                // 缺该 key 视作 Invalid 占位参与比较：部分 note 设过、部分没设即算多值。
+                var current = snapshot.Map.TryGetValue(key, out var v) ? v : PropertyValue.Invalid;
+                if (first) { value = current; first = false; }
+                else if (!value.Equals(current)) { multiple = true; break; }
+            }
+            merged.Add(key, multiple ? PropertyValue.Multiple : value);
+        }
+        return new PropertyObject(merged);
+    }
+
+    sealed class PropertyContext(PropertyObject partProperties, PropertyObject noteProperties) : IPropertyContext
+    {
+        public PropertyObject PartProperties => partProperties;
+        public PropertyObject NoteProperties => noteProperties;
     }
 
     void OnConfigChnaged()
@@ -173,12 +277,15 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     }
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
-    // 值的下发/写回/撤销刷新由逐字段绑定承担，选中变化时整体重绑。
+    // 值的下发/写回/撤销刷新由逐字段绑定承担，选中变化时整体重绑（数据对象变 → SetConfig 重建）。
+    // 选中不变期间 note 值 commit 触发 ReconcileNoteController（数据对象不变 → keyed-diff 复用控件）。
     void RefreshNoteController()
     {
-        mNotePropertiesController.ResetConfig();
+        mNoteSub.DisposeAll();
         if (mPart == null)
         {
+            mNotePropertiesController.ResetConfig();
+            mNoteData = null;
             mNoteContentMask.IsVisible = true;
             return;
         }
@@ -186,8 +293,10 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         // 无选中也绑空数据源（0 对象），让控件在遮罩下呈 Invalid 态而非被清空；
         // 遮罩仅压暗 + 挡交互、提示去选音符。
         var dataObjects = mPart.Notes.AllSelectedItems().Select(note => note.Properties).ToList();
-        mNotePropertiesController.SetConfig(mPart.Voice.NoteProperties, new MultipleDataPropertyObject(dataObjects));
+        mNoteData = new MultipleDataPropertyObject(dataObjects);
+        mNotePropertiesController.SetConfig(mPart.Voice.GetNoteConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
+        mNoteData.Modified.Subscribe(ReconcileNoteController, mNoteSub);
     }
 
     async Task OnSaveAsPresetClicked()
@@ -274,7 +383,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.Voice.GetPartConfig(BuildPartContext()), mPart.Properties);
         ResetAutomationDefaults();
         mPart.Commit();
     }
@@ -285,7 +394,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             return;
 
         mPart.Voice.SetInfo(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
-        ResetPartPropertiesToDefaults(mPart.Voice.PartProperties, mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.Voice.GetPartConfig(BuildPartContext()), mPart.Properties);
         ApplyPresetProperties(preset.Properties, mPart.Properties);
         ApplyAutomationDefaults(preset);
         mPart.Commit();
@@ -509,5 +618,9 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     const string NonePresetOption = "None";
     IMidiPart? mPart = null;
     List<PartPreset> mPresets = [];
+    MultipleDataPropertyObject? mNoteData = null;
+    bool mPartReconcilePending = false;
+    bool mNoteReconcilePending = false;
     readonly DisposableManager s = new();
+    readonly DisposableManager mNoteSub = new();
 }

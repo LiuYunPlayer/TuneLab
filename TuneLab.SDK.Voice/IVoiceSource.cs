@@ -16,6 +16,13 @@ public interface IVoiceSource
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
     IReadOnlyOrderedMap<string, IControllerConfig> PartProperties { get; }
     IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
+
+    // 条件属性面板：宿主在属性 commit 时按当前值重算面板。默认回退到上面的静态声明（忽略 context）——
+    // 想做"随其他字段值动态改变控件/字段"的插件覆写这两个方法，返回当前 context 下应呈现的 ObjectConfig。
+    // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。
+    ObjectConfig GetPartConfig(IPropertyContext context) => new(PartProperties);
+    ObjectConfig GetNoteConfig(IPropertyContext context) => new(NoteProperties);
+
     IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote;
     ISynthesisTask CreateSynthesisTask(ISynthesisData data);
 }

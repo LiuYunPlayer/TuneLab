@@ -34,11 +34,15 @@ internal class ComboBoxController : DropDown, IDataValueController<string>, IDat
     public void SetConfig(ComboBoxConfig config)
     {
         mConfig = config;
+        // 改 Items 是内部状态同步，必须屏蔽由此引发的 SelectionChanged——否则它会走 OnDropDownSelectionChanged
+        // → SetValue 这条「用户改动」路径，把数据值改掉（reconcile 高频 SetConfig 时尤为明显）。
+        acceptSelectionChanged = false;
         Items.Clear();
         foreach (var option in config.Options)
         {
             Items.Add(option);
         }
+        acceptSelectionChanged = true;
         Display(config.DefaultValue);
     }
 
