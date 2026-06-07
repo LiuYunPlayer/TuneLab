@@ -71,7 +71,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mType == other.mType;
     }
 
-    // 旧 API：保留为 PropertyNull 哨兵的转发判定（全树模型落地后清理）。
+    // 空值哨兵判别（无值 / 无选中）。Invalid 与 Null 同义。
     public bool IsNull()
     {
         return mType == PropertyType.Null;
