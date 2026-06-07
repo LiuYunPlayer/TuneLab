@@ -132,22 +132,22 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             switch (mRightSideTabBar.SelectedTab.Value)
             {
                 case SideBarTab.Properties:
-                    mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
+                    mRightSideBar.SetContent(SideBarTab.Properties, mPropertySideBarContentProvider.Content);
                     break;
                 case SideBarTab.Extensions:
                     mExtensionSideBarContentProvider.RefreshExtensions();
-                    mRightSideBar.SetContent(mExtensionSideBarContentProvider.Content);
+                    mRightSideBar.SetContent(SideBarTab.Extensions, mExtensionSideBarContentProvider.Content);
                     break;
                 case SideBarTab.Export:
                     mExportSideBarContentProvider.SetProject(Project);
-                    mRightSideBar.SetContent(mExportSideBarContentProvider.Content);
+                    mRightSideBar.SetContent(SideBarTab.Export, mExportSideBarContentProvider.Content);
                     break;
                 default:
                     mRightSideBar.IsVisible = false;
                     break;
             }
         });
-        mRightSideBar.SetContent(mPropertySideBarContentProvider.Content);
+        mRightSideBar.SetContent(SideBarTab.Properties, mPropertySideBarContentProvider.Content);
 
         mExtensionSideBarContentProvider.InstallRequested += async () =>
         {
@@ -916,7 +916,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // Auto-refresh the extension list in the sidebar
         mExtensionSideBarContentProvider.RefreshExtensions();
         if (mRightSideTabBar.SelectedTab.Value == SideBarTab.Extensions)
-            mRightSideBar.SetContent(mExtensionSideBarContentProvider.Content);
+            mRightSideBar.SetContent(SideBarTab.Extensions, mExtensionSideBarContentProvider.Content);
 
         // 批量安装一次性汇总（不再每个包弹一次窗）。各包的实际加载状态见扩展侧边栏。
         if (succeeded.Count > 0 || failed.Count > 0)

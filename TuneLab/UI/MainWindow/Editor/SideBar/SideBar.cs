@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -35,32 +35,51 @@ internal class SideBar : DockPanel
         }
         this.AddDock(title, Dock.Top);
         this.AddDock(new Border() { Height = 1, Background = Style.BACK.ToBrush() }, Dock.Top);
-        this.AddDock(mListView);
-
-        // 底部占位：高度跟随视口（ListView）高，把内容的滚动范围撑大一整屏，使折叠面板展开/收起时
-        // 不撞底、不猛弹，任意面板都能滚到视口顶。ListView 填满 dock 区，其 Bounds.Height 即视口高。
-        mListView.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == BoundsProperty)
-                mBottomSpacer.Height = mListView.Bounds.Height;
-        };
+        this.AddDock(mPageHost);
     }
 
-    public void SetContent(SideBarContent content)
+    // 每页（key 区分）一个独立 ListView，各自持有自己的 ScrollView / 滚动轴；切页只切可见性。
+    // 故各页滚动位置天然各记各的、互不共享，无需存取偏移、也无切页布局时序问题。
+    // 内容控件是 provider 的稳定成员（只重挂载、不重建），故每页只在首次填充一次。
+    public void SetContent(SideBarTab key, SideBarContent content)
     {
         mIcon.Source = content.Icon;
         mName.Content = content.Name;
-        mListView.Content.Children.Clear();
-        foreach (var child in content.Items)
+
+        if (!mPages.TryGetValue(key, out var page))
         {
-            mListView.Content.Children.Add(child);
+            page = new ListView() { IsVisible = false };
+
+            // 底部占位：高度跟随该页视口高，把滚动范围撑大一整屏，使折叠面板展开/收起不撞底、任意面板能滚到顶。
+            // 透明背景而非 null：否则空控件不参与命中测试，滚轮事件无目标。每页各一个。
+            var spacer = new Border() { Background = Brushes.Transparent };
+            page.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == BoundsProperty)
+                    spacer.Height = page.Bounds.Height;
+            };
+
+            foreach (var child in content.Items)
+                page.Content.Children.Add(child);
+            page.Content.Children.Add(spacer);
+
+            mPageHost.Children.Add(page);
+            mPages.Add(key, page);
         }
-        mListView.Content.Children.Add(mBottomSpacer);
+
+        if (!ReferenceEquals(mCurrent, page))
+        {
+            if (mCurrent != null)
+                mCurrent.IsVisible = false;
+            page.IsVisible = true;
+            mCurrent = page;
+        }
     }
 
     readonly Image mIcon;
     readonly Label mName;
-    readonly ListView mListView = new();
-    // 透明背景而非 null：否则空控件不参与命中测试，鼠标在其上时滚轮事件无目标、滚不动。
-    readonly Border mBottomSpacer = new() { Background = Brushes.Transparent };
+    // 填充区承载所有页（Panel 叠放），仅当前页可见；隐藏页保留各自滚动状态。
+    readonly Panel mPageHost = new();
+    readonly Dictionary<SideBarTab, ListView> mPages = new();
+    ListView? mCurrent;
 }
