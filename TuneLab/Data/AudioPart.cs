@@ -113,6 +113,17 @@ internal class AudioPart : Part, IAudioPart
         string path = Path;
         if (path.StartsWith(".."))
         {
+            // Relative path is stored relative to the project's directory (BaseDirectory).
+            // During project loading the part is constructed (and Path set, triggering this
+            // Reload) before BaseDirectory is assigned. Resolving now would combine against an
+            // empty base and probe the wrong location, throwing FileNotFoundException. Defer:
+            // assigning BaseDirectory re-triggers Reload for relative paths.
+            if (string.IsNullOrEmpty(BaseDirectory.Value))
+            {
+                Status.Value = AudioPartStatus.Unlinked;
+                return;
+            }
+
             path = System.IO.Path.Combine(BaseDirectory.Value, path[3..]);
         }
         int samplingRate = AudioEngine.SampleRate.Value;
