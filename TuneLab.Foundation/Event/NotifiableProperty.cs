@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,7 +13,7 @@ public class NotifiableProperty<T>(T defaultValue) : INotifiableProperty<T>, IRe
     public IActionEvent Modified => mModified;
 
     // SDK 最小订阅面（IReadOnlyNotifiable）适配到富事件。
-    event Action? IReadOnlyNotifiable.WillModified
+    event Action? IReadOnlyNotifiable.WillModify
     {
         add { if (value != null) mWillModify.Subscribe(value); }
         remove { if (value != null) mWillModify.Unsubscribe(value); }

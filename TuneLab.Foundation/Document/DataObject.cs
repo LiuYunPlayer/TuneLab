@@ -13,7 +13,7 @@ public abstract class DataObject : IDataObject
     // 改前事件：在值落地前触发，handler 内读值得旧值。merge 语义与 Modified 对偶（参照 ACE 的
     // aboutToModify）：作用域内首次 canIgnore=false 必达（订阅者在此抓旧值/作废旧区域），其余
     // canIgnore=true 可忽略——Modified 折叠掉的中间态，其"改前旧值"同样无需作废；收口时重置。
-    public IModifiedEvent WillModified => mWillModifiedEvent;
+    public IModifiedEvent WillModify => mWillModifyEvent;
     public virtual Head Head => mParent!.Head;
 
     public DataObject(IDataObject? parent = null)
@@ -59,9 +59,9 @@ public abstract class DataObject : IDataObject
 
     protected void NotifyWill(bool notifyParent = true)
     {
-        mWillModifiedEvent.Invoke(mWillNotifiedInMerge);
+        mWillModifyEvent.Invoke(mWillNotifyInMerge);
         if (mNotifyFlag > 0)
-            mWillNotifiedInMerge = true;
+            mWillNotifyInMerge = true;
 
         // 显式沿父链上爬（而非依赖事件冒泡）：每级各自按自己的 merge 计数判定 canIgnore。
         if (notifyParent)
@@ -80,7 +80,7 @@ public abstract class DataObject : IDataObject
         if (mNotifyFlag != 0)
             return;
 
-        mWillNotifiedInMerge = false;
+        mWillNotifyInMerge = false;
         if (mNeedNotifyInMerge)
         {
             mNeedNotifyInMerge = false;
@@ -140,7 +140,7 @@ public abstract class DataObject : IDataObject
     readonly List<DataObject> mChildren = new();
     int mNotifyFlag = 0;
     bool mNeedNotifyInMerge = false;
-    bool mWillNotifiedInMerge = false;
+    bool mWillNotifyInMerge = false;
     readonly ModifiedEvent mModifiedEvent = new();
-    readonly ModifiedEvent mWillModifiedEvent = new();
+    readonly ModifiedEvent mWillModifyEvent = new();
 }

@@ -83,7 +83,7 @@ public interface ISynthesisAutomation : IAutomationValueGetter
 }
 ```
 
-**变更定位的四种最小事实**：字段变了（note 可订阅属性，配合 `WillModified`/`Modified` 拿新旧值）、区间变了（曲线 `RangeModified` 带 tick 范围）、集合变了（`Notes` 增删）、时基变了（`TimingModified`）。失效依赖图（这些事实映射到哪些段、重合成到管线哪一级）归插件——机制粒度足够支撑最精细策略，也允许懒插件"任何通知 → 全部标脏"。
+**变更定位的四种最小事实**：字段变了（note 可订阅属性，配合 `WillModify`/`Modified` 拿新旧值）、区间变了（曲线 `RangeModified` 带 tick 范围）、集合变了（`Notes` 增删）、时基变了（`TimingModified`）。失效依赖图（这些事实映射到哪些段、重合成到管线哪一级）归插件——机制粒度足够支撑最精细策略，也允许懒插件"任何通知 → 全部标脏"。
 
 **命名约定（线程纪律编码进名字）**：`Synthesis*` 前缀 = 会话活视图家族（可订阅，仅数据线程）；`*Snapshot` 后缀 = 不可变冻结物家族（纯值无事件，可跨线程）；`IAutomationValueGetter`/`ITiming` = 横跨两域的取值能力接口。活视图上的事件恒在数据线程触发与处理；快照上**没有**事件（类型上拿不到，"把回调留到合成线程"写不出来）。出方向（插件→宿主）的 `StatusChanged` 允许任意线程触发、宿主负责 marshal（v2 跨进程时它本就是 IPC 消息）；进度用 `IProgress<double>`（`Progress<T>` 自带 SynchronizationContext marshal）。
 
@@ -99,7 +99,7 @@ public interface ISynthesisAutomation : IAutomationValueGetter
 public interface IReadOnlyNotifiableProperty<out T>
 {
     T Value { get; }
-    event Action? WillModified;   // 改前触发：handler 内读 Value 得旧值（用于作废"被腾空的旧区域"）
+    event Action? WillModify;   // 改前触发：handler 内读 Value 得旧值（用于作废"被腾空的旧区域"）
     event Action? Modified;       // 改后触发
 }
 ```
@@ -152,7 +152,7 @@ tempo 变化是 context 上的一条变更（位置随之 re-derive）。
 
 - **`canIgnore` 过滤**：宿主转发数据层通知时，只转发 `canIgnore == false`（已提交的真实变更），丢弃中间态（如拖拽过程）。中间态合并由业务层 merge 负责。中间层因此只是**薄过滤器**，不持缓冲。
 - **批量括号 `BatchBegin` / `BatchEnd`**：用于让插件**延迟昂贵的状态修正**。每个逻辑编辑（一个 command，含单条编辑）都包在括号里：插件在每条变更通知里**廉价记录**，在 `BatchEnd` 一次性做重活（如重分片）。括号不是宿主缓冲，是让*插件*决定延迟的作用域信号。批量编辑（如移调 500 个 note）因此只重分片一次。
-- **`WillModified` 改前事件**：作废"被腾空的旧区域"必需。note 从 A 移到 B，`Modified` 只给 B（当前值），`WillModified` 给 A（旧值），插件据此把 A、B 两段都作废。**merge 语义与 `Modified` 对偶**：作用域内首次 canIgnore=false 必达（订阅者在此抓旧值），其余 canIgnore=true 可忽略——`Modified` 折叠掉的中间态，其"改前旧值"同样无需作废（订阅者眼中状态从作用域前直达收口后）；收口时重置。最小订阅面（`event Action?`）只收必达的首次，与只收结果态的 `Modified` 恰好成对。
+- **`WillModify` 改前事件**：作废"被腾空的旧区域"必需。note 从 A 移到 B，`Modified` 只给 B（当前值），`WillModify` 给 A（旧值），插件据此把 A、B 两段都作废。**merge 语义与 `Modified` 对偶**：作用域内首次 canIgnore=false 必达（订阅者在此抓旧值），其余 canIgnore=true 可忽略——`Modified` 折叠掉的中间态，其"改前旧值"同样无需作废（订阅者眼中状态从作用域前直达收口后）；收口时重置。最小订阅面（`event Action?`）只收必达的首次，与只收结果态的 `Modified` 恰好成对。
 - **集合级增/删**：不是独立机制——`WhenAny(Notes, …)` 本身覆盖集合成员变化（新 note 自动纳入订阅），纯增删触发 WhenAny；插件在 `BatchEnd` 重读 `Notes` 重分片即可。
 
 ### 3.5 隔离模型与合成快照（线程，及未来进程）
@@ -444,7 +444,7 @@ public class PiecewiseAutomationConfig : IControllerConfig
 - `IControllerConfig` 家族扁平化审计（§8）。
 - `ISynthesisData.GetAutomation` → `TryGetAutomation` 等命名对齐。
 - `SynthesizedPhoneme.ToString` 格式 bug。
-- DataObject 补 `WillModified` 事件（NotifiableProperty 统一的一环）。
+- DataObject 补 `WillModify` 事件（NotifiableProperty 统一的一环）。
 
 **缓后/独立**
 - 宿主全局 `Pos → Tick` 重命名（独立 refactor，注意 Format 序列化 ABI）。

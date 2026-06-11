@@ -7,18 +7,18 @@ using Xunit;
 namespace TuneLab.Tests;
 
 // SDK 最小订阅面（IReadOnlyNotifiableProperty / IReadOnlyNotifiableList + WhenAny）的语义钉死：
-// WillModified 改前读旧值 / Modified 改后读新值；merge 中间态不外漏到最小面；
+// WillModify 改前读旧值 / Modified 改后读新值；merge 中间态不外漏到最小面；
 // WhenAny 对现有/新增/移除成员的订阅生命周期管理。
 public class NotifiableSubscriptionTests
 {
     [Fact]
-    public void DataStruct_WillModifiedSeesOldValue_ModifiedSeesNewValue()
+    public void DataStruct_WillModifySeesOldValue_ModifiedSeesNewValue()
     {
         var property = new DataStruct<double>();
         IReadOnlyNotifiableProperty<double> readOnly = property;
 
         double oldSeen = double.NaN, newSeen = double.NaN;
-        readOnly.WillModified += () => oldSeen = readOnly.Value;
+        readOnly.WillModify += () => oldSeen = readOnly.Value;
         readOnly.Modified += () => newSeen = readOnly.Value;
 
         property.Set(5);
@@ -38,7 +38,7 @@ public class NotifiableSubscriptionTests
         property.Set(5);
 
         int fired = 0;
-        readOnly.WillModified += () => fired++;
+        readOnly.WillModify += () => fired++;
         readOnly.Modified += () => fired++;
 
         property.Set(5);
@@ -53,9 +53,9 @@ public class NotifiableSubscriptionTests
 
         int willCount = 0, modifiedCount = 0, willAllCount = 0;
         double firstWillSaw = double.NaN;
-        readOnly.WillModified += () => { willCount++; firstWillSaw = readOnly.Value; };
+        readOnly.WillModify += () => { willCount++; firstWillSaw = readOnly.Value; };
         readOnly.Modified += () => modifiedCount++;
-        property.WillModified.Subscribe((bool _) => willAllCount++);   // 全量形状收到每次改前
+        property.WillModify.Subscribe((bool _) => willAllCount++);   // 全量形状收到每次改前
 
         property.BeginMergeNotify();
         property.Set(1);
@@ -83,7 +83,7 @@ public class NotifiableSubscriptionTests
         IReadOnlyNotifiableProperty<double> readOnly = property;
 
         double oldSeen = double.NaN, newSeen = double.NaN;
-        readOnly.WillModified += () => oldSeen = readOnly.Value;
+        readOnly.WillModify += () => oldSeen = readOnly.Value;
         readOnly.Modified += () => newSeen = readOnly.Value;
 
         property.Value = 7;

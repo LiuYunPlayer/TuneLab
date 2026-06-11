@@ -11,15 +11,15 @@ public interface IDataObject : IReadOnlyNotifiable
     // 一切数据对象因此天生可被 SDK 最小面订阅，实现类零样板。
     new IModifiedEvent Modified { get; }
     // 改前事件，merge 语义与 Modified 对偶：作用域内首次 canIgnore=false 必达、其余可忽略，收口重置。
-    new IModifiedEvent WillModified { get; }
+    new IModifiedEvent WillModify { get; }
     Head Head { get; }
 
     // 最小面适配：Modified 经 ActionEvent 的 Action 重载订阅，天然只收结果态（canIgnore=false），
-    // merge 中间态不外漏；WillModified 改前事件不参与 merge 合并（旧值须在每次变更前可读）。
-    event Action? IReadOnlyNotifiable.WillModified
+    // merge 中间态不外漏；WillModify 改前事件不参与 merge 合并（旧值须在每次变更前可读）。
+    event Action? IReadOnlyNotifiable.WillModify
     {
-        add { if (value != null) WillModified.Subscribe(value); }
-        remove { if (value != null) WillModified.Unsubscribe(value); }
+        add { if (value != null) WillModify.Subscribe(value); }
+        remove { if (value != null) WillModify.Unsubscribe(value); }
     }
     event Action? IReadOnlyNotifiable.Modified
     {
@@ -45,7 +45,7 @@ public interface IDataObject : IReadOnlyNotifiable
     internal class Wrapper(IDataObject dataObject) : IDataObject
     {
         public IModifiedEvent Modified => dataObject.Modified;
-        public IModifiedEvent WillModified => dataObject.WillModified;
+        public IModifiedEvent WillModify => dataObject.WillModify;
         public Head Head => dataObject.Head;
         public void Attach(IDataObject parent) => dataObject.Attach(parent);
         public void Detach() => dataObject.Detach();
