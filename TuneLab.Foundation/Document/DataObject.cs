@@ -10,6 +10,9 @@ namespace TuneLab.Foundation.Document;
 public abstract class DataObject : IDataObject
 {
     public IModifiedEvent Modified => mModifiedEvent;
+    // 改前事件：在值落地前触发，handler 内读值得旧值。与 Modified 不同，不参与 merge 合并——
+    // "改前"语义不可延迟（merge 只折叠结果态通知，旧值必须在每次变更前都可读到）。
+    public IActionEvent WillModified => mWillModifiedEvent;
     public virtual Head Head => mParent!.Head;
 
     public DataObject(IDataObject? parent = null)
@@ -51,6 +54,13 @@ public abstract class DataObject : IDataObject
         InvokeModified();
         if (notifyParent)
             mParent?.Notify();
+    }
+
+    protected void NotifyWill(bool notifyParent = true)
+    {
+        mWillModifiedEvent.Invoke();
+        if (notifyParent)
+            mParent?.NotifyWill();
     }
 
     void ChangeNotifyFlag(int delta)
@@ -124,4 +134,5 @@ public abstract class DataObject : IDataObject
     int mNotifyFlag = 0;
     bool mNeedNotifyInMerge = false;
     readonly ModifiedEvent mModifiedEvent = new();
+    readonly ActionEvent mWillModifiedEvent = new();
 }
