@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
@@ -10,6 +10,7 @@ using TuneLab.Foundation.Event;
 using TuneLab.Foundation.Property;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;

@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using System;
@@ -13,6 +13,7 @@ using TuneLab.GUI.Controllers;
 using TuneLab.Foundation.Property;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using DynamicData;

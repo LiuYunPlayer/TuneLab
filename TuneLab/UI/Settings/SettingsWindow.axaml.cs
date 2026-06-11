@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -16,6 +16,7 @@ using TuneLab.Utils;
 using TuneLab.Foundation.Property;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
 using TuneLab.Foundation.Event;

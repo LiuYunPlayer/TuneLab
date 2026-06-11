@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.SDK.Voice;
 
 namespace TuneLab.TestPlugins.V1Voice;

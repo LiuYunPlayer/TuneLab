@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using LVoice = TuneLab.Extensions.Voices;
-using VBase = TuneLab.SDK.Base;
+using VConfig = TuneLab.SDK.Base.ControllerConfigs;
 using VVoice = TuneLab.SDK.Voice;
 using PStruct = TuneLab.Primitives.DataStructures;
 using TuneLab.Hosting.Compat.Legacy.Conversion;
@@ -14,13 +14,13 @@ internal sealed class VoiceSourceAdapter(LVoice.IVoiceSource legacy) : VVoice.IV
     public string Name => legacy.Name;
     public string DefaultLyric => legacy.DefaultLyric;
 
-    public PStruct.IReadOnlyOrderedMap<string, VBase.AutomationConfig> AutomationConfigs
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> AutomationConfigs
         => mAutomationConfigs ??= legacy.AutomationConfigs.ToV1AutomationMap();
 
-    public PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig> PartProperties
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> PartProperties
         => mPartProperties ??= legacy.PartProperties.ToV1ConfigMap();
 
-    public PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig> NoteProperties
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> NoteProperties
         => mNoteProperties ??= legacy.NoteProperties.ToV1ConfigMap();
 
     // 分组：宿主传真实 note 类型 T，包装成老 note 喂老引擎；引擎按时序分组后，用包装上的输入下标取回真实 T。
@@ -66,7 +66,7 @@ internal sealed class VoiceSourceAdapter(LVoice.IVoiceSource legacy) : VVoice.IV
         return new SynthesisTaskAdapter(task);
     }
 
-    PStruct.IReadOnlyOrderedMap<string, VBase.AutomationConfig>? mAutomationConfigs;
-    PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig>? mPartProperties;
-    PStruct.IReadOnlyOrderedMap<string, VBase.IControllerConfig>? mNoteProperties;
+    PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig>? mAutomationConfigs;
+    PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig>? mPartProperties;
+    PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig>? mNoteProperties;
 }

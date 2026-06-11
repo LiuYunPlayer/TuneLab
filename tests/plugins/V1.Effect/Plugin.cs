@@ -2,6 +2,7 @@ using System;
 using TuneLab.Primitives.Audio;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.SDK.Effect;
 
 namespace TuneLab.TestPlugins.V1Effect;

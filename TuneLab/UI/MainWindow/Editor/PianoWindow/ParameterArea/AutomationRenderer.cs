@@ -1,4 +1,4 @@
-﻿using Avalonia.Input;
+using Avalonia.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +9,7 @@ using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.SDK.Voice;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using Avalonia.Media;
 using TuneLab.GUI.Input;
 using TuneLab.GUI.Components;

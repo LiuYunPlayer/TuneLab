@@ -1,4 +1,4 @@
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.Environment;
 
 // 插件作用域日志：host 加载插件时注入每插件实例，自动打插件 id 前缀、
 // 转发进 host 现有 sink。弃用 static TuneLabContext.Global 式服务定位器

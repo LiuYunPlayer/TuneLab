@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using TuneLab.Primitives.Property;
 
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.ControllerConfigs;
 
 // 下拉选项：存储值与显示文本分离。Value 是落进数据的真实值（任意基础类型，统一装进单一 PropertyValue box），
 // DisplayText 是界面呈现文本（为 null 时退化为 Value 的字面量）。这样可「界面显示中文 / 底层存枚举值」。

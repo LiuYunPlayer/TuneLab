@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.SDK.Voice;

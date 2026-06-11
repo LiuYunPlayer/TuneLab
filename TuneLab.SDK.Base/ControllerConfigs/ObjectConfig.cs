@@ -1,6 +1,6 @@
 using TuneLab.Primitives.DataStructures;
 
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.ControllerConfigs;
 
 public class ObjectConfig : IControllerConfig
 {

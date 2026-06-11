@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -16,6 +16,7 @@ using TuneLab.Foundation.Property;
 using TuneLab.Primitives.Property;
 using TuneLab.Primitives.Audio;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.SDK.Effect;
 using TuneLab.Extensions.Effect;
 using System.Reactive.Linq;

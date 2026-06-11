@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.SDK.Voice;
 using TuneLab.TestPlugins.Suite.Common;
 

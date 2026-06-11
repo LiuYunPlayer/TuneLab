@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -8,6 +8,7 @@ using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Property;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Format.DataInfo;

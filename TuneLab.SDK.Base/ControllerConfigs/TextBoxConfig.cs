@@ -1,6 +1,6 @@
 using TuneLab.Primitives.Property;
 
-namespace TuneLab.SDK.Base;
+namespace TuneLab.SDK.Base.ControllerConfigs;
 
 // 原 StringConfig（按 UI 控件命名）。
 public class TextBoxConfig : IValueConfig<string>

@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Layout;
@@ -15,6 +15,7 @@ using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Event;
 using TuneLab.Utils;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 
 namespace TuneLab.UI;
 

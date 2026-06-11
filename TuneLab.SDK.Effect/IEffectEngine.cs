@@ -1,5 +1,6 @@
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Base;
+using TuneLab.SDK.Base.ControllerConfigs;
 
 namespace TuneLab.SDK.Effect;
 
