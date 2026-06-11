@@ -14,11 +14,10 @@ public struct SynthesizedPhoneme
     public ISynthesisNote? Note;
 
     // 伸缩权重：宿主拖伸 note 时用共享公式 new_dᵢ = dᵢ + Δ×(wᵢ/Σwⱼ)（再非负 clamp）
-    // 就地算 preview、零引擎调用——辅音 w=0、元音 w=1 则长度变化全进元音；w = dᵢ 退化为均匀缩放。
-    // preview 纯显示、绝不反馈给引擎当约束；权威时长由下次全量合成重新定时并覆盖。
+    // 分配长度变化——辅音 w=0、元音 w=1 则长度变化全进元音；w = dᵢ 退化为均匀缩放。
+    // 用户锁定音素时，权重随时长一并从产物固定为用户数据（进工程），此后宿主缩放
+    // pinned 音素始终有正确分布可用。
     // 消费端防御语义：Σw ≤ 0（含插件未设、struct 默认全零）时宿主退化为均匀缩放，无除零。
-    // 权重不持久化进工程（可再生缓存非用户意图）：宿主压缩时从当前合成产物读取，
-    // 重开工程靠自动重合成再生；产物未就位的极短窗口退化均匀、下轮合成自愈。
     public double StretchWeight;
 
     public override string ToString()

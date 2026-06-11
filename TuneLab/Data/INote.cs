@@ -132,10 +132,17 @@ internal static class INoteExtension
         if (note.SynthesizedPhonemes.IsEmpty())
             return;
 
+        // 锁定 = 把合成产物（时长 + 伸缩权重）整体固定为用户数据。
         var startTime = note.StartTime;
         foreach (var phoneme in note.SynthesizedPhonemes)
         {
-            note.Phonemes.Add(Phoneme.Create(new PhonemeInfo() { StartTime = phoneme.StartTime - startTime, EndTime = phoneme.EndTime - startTime, Symbol = phoneme.Symbol }));
+            note.Phonemes.Add(Phoneme.Create(new PhonemeInfo()
+            {
+                StartTime = phoneme.StartTime - startTime,
+                EndTime = phoneme.EndTime - startTime,
+                Symbol = phoneme.Symbol,
+                Weight = phoneme.StretchWeight,
+            }));
         }
     }
 

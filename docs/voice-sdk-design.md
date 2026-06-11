@@ -64,7 +64,9 @@ context 由**宿主实现、会话级**（每次 `CreateSession` 新建、随会
 ```csharp
 public interface ISynthesisContext
 {
-    IReadOnlyNotifiableList<ISynthesisNote> Notes { get; }   // 支持 WhenAny
+    // 链表形态（无索引承诺——宿主数据层即双向链表，可索引是插件不需要的承诺）：
+    // 顺序消费用枚举、邻居导航走 note.Next/Last；支持 WhenAny。
+    IReadOnlyNotifiableCollection<ISynthesisNote> Notes { get; }
     PropertyObject PartProperties { get; }                    // 可订阅
     bool TryGetAutomation(string key, out ISynthesisAutomation automation);
     ISynthesisAutomation Pitch { get; }            // 绝对约束：有值=用户钉死，NaN=插件自由
@@ -375,7 +377,7 @@ public struct SynthesizedPhoneme
   new_dᵢ = dᵢ + Δ × (wᵢ / Σwⱼ)        // 再做非负 clamp
   ```
   辅音 w=0、元音 w=1 → 长度变化全进元音、辅音不动；w 默认 = dᵢ 即退化为均匀缩放（兼容旧行为）。宿主套公式但不需懂音韵学——知识被编码进一个数字。
-- **权重的来源与生命周期（不持久化）**：权重是可再生缓存而非用户意图，**不进工程文件**（工程只存用户调整过的值；pinned 时长进工程成立是因为"锁定+可编辑"使所有权转移给用户，weight 两条都不满足）。宿主压缩 pinned 音素时从**当前合成产物**（`note` 回填的 `SynthesizedPhoneme`，与 pinned 列表一一对应——引擎遵守约束故对齐成立）读权重；重开工程靠"part 激活必然重合成"的既有机制再生。产物未就位的极短窗口（加载后合成完成前）与 **Σw ≤ 0**（插件未设权重）共用一条防御路径：退化均匀缩放，下轮合成自愈。
+- **权重随锁定持久化进工程**：用户锁定音素的那一刻，固定下来的不只是时长，是"时长 + 伸缩性质"这个整体——权重随锁定动作完成所有权转移，本质上属于用户意图固定下来的数据（与 pinned 时长同一逻辑地位），故随 pinned 音素一并进工程（`PhonemeInfo.Weight`，数据层 `IPhoneme.Weight`）。这根除时序错位：若权重只存在于合成产物（缓存），"工程加载后、首轮合成前拖伸 note"的压缩只能退化均匀且**错误会固化进 pinned 数据**（引擎忠实遵守错误约束，无自愈通道）；入库后压缩任何时刻都有正确分布可用。旧工程缺省 Weight=0 → 与 **Σw ≤ 0**（插件未设权重）共用一条防御路径：退化均匀缩放。SDK 输入面（`SDK.Voice.PhonemeInfo`）不带权重——引擎只消费钉死时长，权重是宿主编辑侧知识载体。
 - 移动 note → 相对偏移不变、跟随平移，不重算。
 - **preview 纯显示、绝不反馈给引擎当约束**；权威时长由**全量合成**重新定时并返回（带新权重），覆盖 preview（接受短暂"跳变"，因合成本就按播放线就近增量调度、纠正及时）。
 - 宿主公式**封顶在"权重 + 非负 clamp"**——真实下限/协同发音等硬情况交给引擎全量合成，不靠养大宿主公式覆盖。

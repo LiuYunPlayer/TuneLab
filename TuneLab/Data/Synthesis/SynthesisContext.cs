@@ -25,7 +25,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 {
     public MidiPart Part => mPart;
 
-    public IReadOnlyNotifiableList<ISynthesisNote> Notes => mNotes;
+    public IReadOnlyNotifiableCollection<ISynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
     public ISynthesisAutomation PitchDeviation => mPitchDeviation;
@@ -307,8 +307,9 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         }
     }
 
-    // —— note 代理列表：镜像 part.Notes（顺序即链表序），增删自动建/毁代理并转发列表事件。 ——
-    sealed class NoteProxyList : IReadOnlyNotifiableList<ISynthesisNote>, IDisposable
+    // —— note 代理集合：镜像 part.Notes（顺序即链表序，无索引承诺——SDK 面即链表形态），
+    //    增删自动建/毁代理并转发结构事件。 ——
+    sealed class NoteProxyList : IReadOnlyNotifiableCollection<ISynthesisNote>, IDisposable
     {
         public event Action<ISynthesisNote>? ItemAdded;
         public event Action<ISynthesisNote>? ItemRemoved;
@@ -329,22 +330,10 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         public int Count => mNotes.Count;
 
-        // 宿主数据层是双向链表（无随机访问）：这里维护惰性数组镜像（结构变更失效、按需重建，
-        // 摊销 O(n)），让 IReadOnlyList 的索引访问符合 O(1) 直觉——否则插件随机访问循环
-        // 会静默退化 O(n²)。
-        public ISynthesisNote this[int index]
-        {
-            get
-            {
-                mContext.AssertDataThread();
-                return ProxyOf(Mirror[index]);
-            }
-        }
-
         public IEnumerator<ISynthesisNote> GetEnumerator()
         {
             mContext.AssertDataThread();
-            foreach (var note in Mirror)
+            foreach (var note in mNotes)
             {
                 yield return ProxyOf(note);
             }
@@ -375,7 +364,6 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         void OnItemAdded(INote note)
         {
-            mMirror = null;
             var proxy = new SynthesisNoteProxy(mContext, note);
             mProxies[note] = proxy;
             mContext.ForwardChange(() => ItemAdded?.Invoke(proxy));
@@ -383,7 +371,6 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         void OnItemRemoved(INote note)
         {
-            mMirror = null;
             if (!mProxies.Remove(note, out var proxy))
                 return;
 
@@ -393,17 +380,13 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         void OnListModified()
         {
-            mMirror = null;   // 结构变更（含重排）一律失效，按需重建
             mContext.ForwardChange(() => Modified?.Invoke());
         }
-
-        List<INote> Mirror => mMirror ??= [.. mNotes];
 
         readonly SynthesisContext mContext;
         readonly INoteList mNotes;
         readonly Dictionary<INote, SynthesisNoteProxy> mProxies = new();
         readonly DisposableManager s = new();
-        List<INote>? mMirror;
     }
 
     // —— 派生只读属性：借壳一个或多个数据层源（最小订阅面）的改前/改后事件，
