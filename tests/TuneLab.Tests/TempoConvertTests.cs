@@ -56,17 +56,45 @@ public class TempoConvertTests
     }
 
     [Fact]
-    public void Snapshot_CopiesMarkValues()
+    public void Snapshot_CopiesMinimalMarks()
     {
         var manager = MakeManager((0, 120), (1920, 60));
         var snapshot = manager.CreateSnapshot();
 
+        // 快照只暴露最小真值 (Tick, Bpm)；秒/换算系数是构造内推导的私有派生值，经换算结果验证。
         Assert.Equal(2, snapshot.Tempos.Count);
         Assert.Equal(0.0, snapshot.Tempos[0].Tick);
         Assert.Equal(120.0, snapshot.Tempos[0].Bpm);
-        Assert.Equal(960.0, snapshot.Tempos[0].TicksPerSecond);
         Assert.Equal(1920.0, snapshot.Tempos[1].Tick);
-        Assert.Equal(2.0, snapshot.Tempos[1].Seconds);
+        Assert.Equal(60.0, snapshot.Tempos[1].Bpm);
+        Assert.Equal(2.0, snapshot.ToSeconds(1920));
+    }
+
+    [Fact]
+    public void Snapshot_ConstructibleFromMinimalMarks()
+    {
+        // SDK 侧自包含构造路径（即将来插件进程从序列化 marks 重建快照的形态）。
+        var snapshot = new TempoSnapshot([new TempoMark(0, 120), new TempoMark(1920, 60)], 480);
+        Assert.Equal(2.0, snapshot.ToSeconds(1920));
+        Assert.Equal(2400.0, snapshot.ToTick(3.0));
+    }
+
+    [Fact]
+    public void Edit_RefreshesConversion()
+    {
+        // live 换算是惰性缓存的快照，任何编辑（经 Modified 通知）都须失效重建。
+        var manager = MakeManager((0, 120));
+        Assert.Equal(0.5, manager.GetTime(480));
+
+        manager.SetBpm(0, 60);
+        Assert.Equal(1.0, manager.GetTime(480));
+
+        manager.AddTempo(960, 120);
+        Assert.Equal(2.0, manager.GetTime(960));    // 60 BPM 段：960 tick = 2s
+        Assert.Equal(2.5, manager.GetTime(1440));   // 其后 120 BPM：480 tick = 0.5s
+
+        var snapshot = manager.CreateSnapshot();
+        Assert.Equal(manager.GetTime(1234.5), snapshot.ToSeconds(1234.5));
     }
 
     [Fact]
