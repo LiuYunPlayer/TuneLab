@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -14,13 +14,13 @@ using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
 
-internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, IAnchorGroup, new()
+internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T : class, IAnchorGroup, new()
 {
     public IActionEvent<double, double> RangeModified => mRangeModified;
 
     public IReadOnlyList<IAnchorGroup> AnchorGroups => mAnchorGroups;
 
-    public PiecewiseCurve()
+    public PiecewiseAutomation()
     {
         mAnchorGroups.Attach(this);
     }
@@ -651,4 +651,4 @@ internal class PiecewiseCurve<T> : DataObject, IPiecewiseCurve where T : class, 
     readonly ActionEvent<double, double> mRangeModified = new();
 }
 
-internal class PiecewiseCurve : PiecewiseCurve<AnchorGroup> { }
+internal class PiecewiseAutomation : PiecewiseAutomation<AnchorGroup> { }

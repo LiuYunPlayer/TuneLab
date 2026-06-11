@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,7 +11,7 @@ using TuneLab.Foundation.Utils;
 
 namespace TuneLab.Data;
 
-internal interface IPiecewiseCurve : IDataObject<IEnumerable<IReadOnlyCollection<Point>>>
+internal interface IPiecewiseAutomation : IDataObject<IEnumerable<IReadOnlyCollection<Point>>>
 {
     IActionEvent<double, double> RangeModified { get; }
     IReadOnlyList<IAnchorGroup> AnchorGroups { get; }
@@ -31,7 +31,7 @@ internal interface IPiecewiseCurve : IDataObject<IEnumerable<IReadOnlyCollection
     IEnumerable<IReadOnlyCollection<Point>> IReadOnlyDataObject<IEnumerable<IReadOnlyCollection<Point>>>.GetInfo() => GetInfo();
 }
 
-internal static class IPiecewiseCurveExtension
+internal static class IPiecewiseAutomationExtension
 {
     public struct AreaID(int index)
     {
@@ -46,15 +46,15 @@ internal static class IPiecewiseCurveExtension
         public bool IsInGroup => index >= 0;
     }
 
-    public static double GetValue(this IPiecewiseCurve piecewiseCurve, double x)
+    public static double GetValue(this IPiecewiseAutomation piecewiseAutomation, double x)
     {
-        return piecewiseCurve.GetValues([x])[0];
+        return piecewiseAutomation.GetValues([x])[0];
     }
 
-    public static List<List<Point>> RangeInfo(this IPiecewiseCurve piecewiseCurve, double start, double end)
+    public static List<List<Point>> RangeInfo(this IPiecewiseAutomation piecewiseAutomation, double start, double end)
     {
         var result = new List<List<Point>>();
-        foreach (var anchorGroup in piecewiseCurve.AnchorGroups)
+        foreach (var anchorGroup in piecewiseAutomation.AnchorGroups)
         {
             if (anchorGroup.End <= start)
                 continue;
@@ -67,17 +67,17 @@ internal static class IPiecewiseCurveExtension
         return result;
     }
 
-    public static void AddLine(this IPiecewiseCurve piecewiseCurve, IReadOnlyList<Point> points, double extend)
+    public static void AddLine(this IPiecewiseAutomation piecewiseAutomation, IReadOnlyList<Point> points, double extend)
     {
-        piecewiseCurve.AddLine(points.Convert(p => new AnchorPoint(p)), extend);
+        piecewiseAutomation.AddLine(points.Convert(p => new AnchorPoint(p)), extend);
     }
 
-    public static AreaID GetAreaID(this IPiecewiseCurve piecewiseCurve, double pos)
+    public static AreaID GetAreaID(this IPiecewiseAutomation piecewiseAutomation, double pos)
     {
         int i = 0;
-        for (; i < piecewiseCurve.AnchorGroups.Count; i++)
+        for (; i < piecewiseAutomation.AnchorGroups.Count; i++)
         {
-            var anchorGroup = piecewiseCurve.AnchorGroups[i];
+            var anchorGroup = piecewiseAutomation.AnchorGroups[i];
             if (pos < anchorGroup.Start)
                 return -1 - i;
 
@@ -88,12 +88,12 @@ internal static class IPiecewiseCurveExtension
         return -1 - i;
     }
 
-    public static List<(List<Point>, IAnchorGroup)> TakeAllSelectedAnchors(this IPiecewiseCurve piecewiseCurve)
+    public static List<(List<Point>, IAnchorGroup)> TakeAllSelectedAnchors(this IPiecewiseAutomation piecewiseAutomation)
     {
         var result = new List<(List<Point>, IAnchorGroup)>();
-        for (int gi = piecewiseCurve.AnchorGroups.Count - 1; gi >= 0; gi--)
+        for (int gi = piecewiseAutomation.AnchorGroups.Count - 1; gi >= 0; gi--)
         {
-            var anchorGroup = piecewiseCurve.AnchorGroups[gi];
+            var anchorGroup = piecewiseAutomation.AnchorGroups[gi];
             for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
             {
                 if (anchorGroup[pi].IsSelected)
@@ -101,22 +101,22 @@ internal static class IPiecewiseCurveExtension
             }
 
             if (anchorGroup.IsEmpty())
-                piecewiseCurve.DeleteAnchorGroupAt(gi);
+                piecewiseAutomation.DeleteAnchorGroupAt(gi);
         }
         return result;
     }
 
-    public static void SelectAllAnchors(this IPiecewiseCurve piecewiseCurve)
+    public static void SelectAllAnchors(this IPiecewiseAutomation piecewiseAutomation)
     {
-        foreach (var anchorGroup in piecewiseCurve.AnchorGroups)
+        foreach (var anchorGroup in piecewiseAutomation.AnchorGroups)
         {
             anchorGroup.SelectAllItems();
         }
     }
 
-    public static void DeselectAllAnchors(this IPiecewiseCurve piecewiseCurve)
+    public static void DeselectAllAnchors(this IPiecewiseAutomation piecewiseAutomation)
     {
-        foreach (var anchorGroup in piecewiseCurve.AnchorGroups)
+        foreach (var anchorGroup in piecewiseAutomation.AnchorGroups)
         {
             anchorGroup.DeselectAllItems();
         }

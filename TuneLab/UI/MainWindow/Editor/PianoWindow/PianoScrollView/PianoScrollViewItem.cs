@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using DynamicData;
 using System;
 using System.Collections.Generic;
@@ -298,7 +298,7 @@ internal partial class PianoScrollView
 
     class PreviewAnchorGroupItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
-        public required IPiecewiseCurve PiecewiseCurve { get; set; }
+        public required IPiecewiseAutomation PiecewiseAutomation { get; set; }
         public Action<MouseDownEventArgs, bool>? OnDown { get; set; } = null;
 
         public override void Render(DrawingContext context)
@@ -306,7 +306,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            PianoScrollView.DrawPitch(context, 0, PianoScrollView.Bounds.Width, PiecewiseCurve.GetValues, Colors.White, 1);
+            PianoScrollView.DrawPitch(context, 0, PianoScrollView.Bounds.Width, PiecewiseAutomation.GetValues, Colors.White, 1);
         }
     }
 

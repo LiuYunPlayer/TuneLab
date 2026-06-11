@@ -4,13 +4,13 @@ using Xunit;
 
 namespace TuneLab.Tests;
 
-// 分段型自动化快照 vs 活 PiecewiseCurve：窗口内逐点全等，含段间 NaN（xunit 的 double 全等
+// 分段型自动化快照 vs 活 PiecewiseAutomation：窗口内逐点全等，含段间 NaN（xunit 的 double 全等
 // 比较按 Equals 语义，NaN == NaN 通过）。覆盖窗口切组、压组边界锚点、纯空隙窗几种情形。
 public class PiecewiseAutomationSnapshotTests
 {
-    static PiecewiseCurve MakeCurve()
+    static PiecewiseAutomation MakeCurve()
     {
-        var curve = new PiecewiseCurve();
+        var curve = new PiecewiseAutomation();
         curve.SetInfo(
         [
             new List<Point> { new(0, 1), new(100, 2), new(150, 1.5), new(200, 1), new(300, 2.5) },

@@ -1,4 +1,4 @@
-﻿using DynamicData;
+using DynamicData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -1032,15 +1032,15 @@ internal partial class PianoScrollView
                 if (previewInfo.Count == 0)
                     break;
 
-                mPreviewPitchItem = new PreviewAnchorGroupItem(this) { PiecewiseCurve = new PiecewiseCurve() };
-                mPreviewPitchItem.PiecewiseCurve.SetInfo(previewInfo);
+                mPreviewPitchItem = new PreviewAnchorGroupItem(this) { PiecewiseAutomation = new PiecewiseAutomation() };
+                mPreviewPitchItem.PiecewiseAutomation.SetInfo(previewInfo);
                 if (hoverAnchor == null)
                 {
-                    foreach (var anchorGroup in mPreviewPitchItem.PiecewiseCurve.AnchorGroups)
+                    foreach (var anchorGroup in mPreviewPitchItem.PiecewiseAutomation.AnchorGroups)
                     {
                         anchorGroup[0].Select();
                     }
-                    mPreviewPitchItem.PiecewiseCurve.InsertPoint(hoverAnchor ?? new AnchorPoint(pos, PitchAxis.Y2Pitch(MousePosition.Y) - 0.5));
+                    mPreviewPitchItem.PiecewiseAutomation.InsertPoint(hoverAnchor ?? new AnchorPoint(pos, PitchAxis.Y2Pitch(MousePosition.Y) - 0.5));
                     mPreviewPitchItem.OnDown += (e, ctrl) =>
                     {
                         var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, PitchAxis.Y2Pitch(e.Position.Y) - 0.5) { IsSelected = true };
@@ -1055,13 +1055,13 @@ internal partial class PianoScrollView
                     // 先处理向后连接的，顺序不能乱！
                     if (hoverAnchorOnLastGroup != null)
                     {
-                        mPreviewPitchItem.PiecewiseCurve.ConnectAnchorGroup(0);
+                        mPreviewPitchItem.PiecewiseAutomation.ConnectAnchorGroup(0);
                         if (hoverAnchorGroupIndex + 1 < Part.Pitch.AnchorGroups.Count && Part.Pitch.AnchorGroups[hoverAnchorGroupIndex + 1].HasSelectedItem())
                             mPreviewPitchItem.OnDown += (_, _) => Part.Pitch.ConnectAnchorGroup(hoverAnchorGroupIndex);
                     }
                     if (hoverAnchorOnFirstGroup != null)
                     {
-                        mPreviewPitchItem.PiecewiseCurve.ConnectAnchorGroup(0);
+                        mPreviewPitchItem.PiecewiseAutomation.ConnectAnchorGroup(0);
                         if (hoverAnchorGroupIndex - 1 >= 0 && Part.Pitch.AnchorGroups[hoverAnchorGroupIndex - 1].HasSelectedItem())
                             mPreviewPitchItem.OnDown += (_, _) => Part.Pitch.ConnectAnchorGroup(hoverAnchorGroupIndex - 1);
                     }

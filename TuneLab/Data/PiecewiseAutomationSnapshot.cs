@@ -6,7 +6,7 @@ using TuneLab.SDK.Base;
 
 namespace TuneLab.Data;
 
-// 分段型自动化（IPiecewiseCurve，如 pitch）的不可变窗口快照：逐组值拷窗口内原始锚点（含无变形外扩点）。
+// 分段型自动化（IPiecewiseAutomation，如 pitch）的不可变窗口快照：逐组值拷窗口内原始锚点（含无变形外扩点）。
 // 段内与活对象共用同一插值纯函数，段间返回 NaN（IEEE"非数"表空，与活曲线一致）；
 // 声明区间内取值与活曲线逐点一致。构造后只读、不引用任何活数据对象。
 internal sealed class PiecewiseAutomationSnapshot : IAutomationValueGetter
@@ -16,7 +16,7 @@ internal sealed class PiecewiseAutomationSnapshot : IAutomationValueGetter
     public double End { get; }
 
     // 须在数据线程调用：从活对象按窗口物化快照。
-    public static PiecewiseAutomationSnapshot Capture(IPiecewiseCurve curve, double start, double end)
+    public static PiecewiseAutomationSnapshot Capture(IPiecewiseAutomation curve, double start, double end)
     {
         var groups = new List<Point[]>();
         foreach (var anchorGroup in curve.AnchorGroups)

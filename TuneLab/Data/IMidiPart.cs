@@ -30,7 +30,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IReadOnlyDataObjectList<IEffect> Effects { get; }
-    IPiecewiseCurve Pitch { get; }
+    IPiecewiseAutomation Pitch { get; }
     IReadOnlyList<ISynthesisPiece> SynthesisPieces { get; }
     IAutomation? AddAutomation(string automationID);
     double[] GetFinalPitch(IReadOnlyList<double> ticks);

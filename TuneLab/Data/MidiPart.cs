@@ -40,7 +40,7 @@ internal class MidiPart : Part, IMidiPart
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
-    public IPiecewiseCurve Pitch => mPitchLine;
+    public IPiecewiseAutomation Pitch => mPitchLine;
     public IReadOnlyList<ISynthesisPiece> SynthesisPieces => mSynthesisPieces;
     public IReadOnlyDataObjectList<Vibrato> Vibratos => mVibratos;
 
@@ -666,7 +666,7 @@ internal class MidiPart : Part, IMidiPart
     readonly DataObjectMap<string, IAutomation> mAutomations;
     readonly DataObjectList<IEffect> mEffects;
     readonly Dictionary<IEffect, Action> mEffectModifiedHandlers = new();
-    readonly PiecewiseCurve mPitchLine;
+    readonly PiecewiseAutomation mPitchLine;
     readonly Voice mVoice;
 
     class AutomationValueGetter(MidiPart part, string automationID) : IAutomationValueGetter
@@ -712,7 +712,7 @@ internal class MidiPart : Part, IMidiPart
         }
     }
 
-    class piecewiseCurveValueGetter(MidiPart part, IPiecewiseCurve piecewiseCurve) : IAutomationValueGetter
+    class piecewiseAutomationValueGetter(MidiPart part, IPiecewiseAutomation piecewiseAutomation) : IAutomationValueGetter
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
@@ -722,7 +722,7 @@ internal class MidiPart : Part, IMidiPart
             {
                 ticks[i] -= pos;
             }
-            return piecewiseCurve.GetValues(ticks);
+            return piecewiseAutomation.GetValues(ticks);
         }
     }
 
