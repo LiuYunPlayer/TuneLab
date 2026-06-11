@@ -139,7 +139,6 @@ internal class AutomationDefaultsController : StackPanel
             mSlider = new SliderController() { Margin = new(24, 12) };
             mSlider.SetRange(config.MinValue, config.MaxValue);
             mSlider.SetDefaultValue(config.DefaultValue);
-            mSlider.IsInterger = config.IsInterger;
             owner.Children.Add(mSlider);
 
             mBorder = new Border() { Height = 1, Background = Style.BACK.ToBrush() };
