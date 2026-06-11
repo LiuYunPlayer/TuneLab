@@ -6,11 +6,12 @@ using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Science;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
+using TuneLab.SDK.Base.Timing;
 using System;
 
 namespace TuneLab.Data;
 
-internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
+internal class TempoManager : DataObject, ITempoManager
 {
     public IProject Project => mProject;
     public IReadOnlyList<ITempo> Tempos => mTempos;
@@ -98,22 +99,27 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
 
     public double[] GetTimes(IReadOnlyList<double> ticks)
     {
-        return ITempoCalculatorHelperExtension.GetTimes(this, ticks);
+        return TempoConvert.ToSeconds(mTempos, ticks);
     }
 
     public double[] GetTicks(IReadOnlyList<double> times)
     {
-        return ITempoCalculatorHelperExtension.GetTicks(this, times);
+        return TempoConvert.ToTicks(mTempos, times);
     }
 
     public double GetTick(double time)
     {
-        return ITempoCalculatorHelperExtension.GetTick(this, time);
+        return TempoConvert.ToTick(mTempos, time);
     }
 
     public double GetTime(double tick)
     {
-        return ITempoCalculatorHelperExtension.GetTime(this, tick);
+        return TempoConvert.ToSeconds(mTempos, tick);
+    }
+
+    public TempoSnapshot CreateSnapshot()
+    {
+        return new TempoSnapshot(mTempos);
     }
 
     public List<TempoInfo> GetInfo()
@@ -131,20 +137,20 @@ internal class TempoManager : DataObject, ITempoManager, ITempoCalculatorHelper
         CorrectStatusFrom(0);
     }
 
-    IReadOnlyList<ITempoHelper> ITempoCalculatorHelper.Tempos => mTempos;
-
     readonly DataObjectList<TempoForTempoManager> mTempos;
     readonly IProject mProject;
 
-    class TempoForTempoManager : DataObject, ITempo, ITempoHelper
+    class TempoForTempoManager : DataObject, ITempo, ITempoMark
     {
         public DataStruct<double> Pos { get; } = new();
         public DataStruct<double> Bpm => mBpm;
         public double Time { get; set; }
         public double Coe => mBpm.Coe;
 
-        double ITempoHelper.Pos => Pos;
-        double ITempoHelper.Bpm => Bpm;
+        double ITempoMark.Tick => Pos;
+        double ITempoMark.Seconds => Time;
+        double ITempoMark.Bpm => Bpm;
+        double ITempoMark.TicksPerSecond => Coe;
 
         double ITempo.Pos => Pos;
         double ITempo.Bpm => Bpm;
