@@ -1,4 +1,4 @@
-namespace TuneLab.SDK.Base.Environment;
+﻿namespace TuneLab.SDK.Base.Environment;
 
 // ITuneLabContext 的全局访问点。宿主启动时（插件加载之前）注入真实实现；赋值前 / 测试中为 NullContext。
 public static class TuneLabContext
@@ -11,12 +11,12 @@ sealed class NullContext : ITuneLabContext
 {
     public static readonly NullContext Instance = new();
     public string Language => string.Empty;
-    public ILog GetLogger() => NullLog.Instance;
-    public ILog GetLogger(string subName) => NullLog.Instance;
+    public ILogger GetLogger() => NullLogger.Instance;
+    public ILogger GetLogger(string subName) => NullLogger.Instance;
 
-    sealed class NullLog : ILog
+    sealed class NullLogger : ILogger
     {
-        public static readonly NullLog Instance = new();
+        public static readonly NullLogger Instance = new();
         public void Debug(object? value) { }
         public void Info(object? value) { }
         public void Warning(object? value) { }

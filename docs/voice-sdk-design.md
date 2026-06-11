@@ -67,8 +67,14 @@ public interface ISynthesisContext
     IReadOnlyNotifiableList<ISynthesisNote> Notes { get; }   // 支持 WhenAny
     PropertyObject PartProperties { get; }                    // 可订阅
     bool TryGetAutomation(string key, out ISynthesisAutomation automation);
-    ISynthesisAutomation Pitch { get; }
+    ISynthesisAutomation Pitch { get; }            // 绝对约束：有值=用户钉死，NaN=插件自由
+    ISynthesisAutomation PitchDeviation { get; }   // 加性偏差：处处有值、默认 0、永不 NaN
     ITiming Timing { get; }                                   // tick↔秒 换算，见 §3.3
+
+    // 物化合成快照（插件主动拉取，见 §3.5/§4）：notes = 本次合成所需 note（含协同发音邻居，
+    // 插件自由圈定，返回 snapshot.Notes 与之索引对齐）；[startTick, endTick] = 曲线开窗区间。
+    // 仅数据线程、仅 SynthesizeNext 同步前缀调用；一次合成可按需拉多份。
+    ISynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick);
 
     event Action? TimingModified;   // tempo 变了（影响全部秒域派生，引擎通常全量重排）
     event Action? BatchBegin;       // 批量变更括号，见 §3.4
@@ -77,15 +83,21 @@ public interface ISynthesisContext
 
 // automation 的会话级活视图：取值 + 区间变更订阅（镜像宿主数据层 RangeModified 语义）。
 // 插件由此做最细粒度失效："某轨 [start,end) 变了 → 只标脏覆盖该区间的段"。
+// 注：IAutomationValueGetter（纯取值，SDK.Base、effect 共用）与本接口的分离是
+// "活视图可订阅 / 冻结面无事件"双视图的类型化体现；effect 会话化重构完成后再议合并（见 §9）。
 public interface ISynthesisAutomation : IAutomationValueGetter
 {
     event Action<double, double>? RangeModified;   // (startTick, endTick)
 }
 ```
 
+**音高双通道（绝对约束 + 相对偏差）**：`Pitch` 是用户钉死的绝对音高曲线（分段型：有值=钉死、NaN=插件自由发挥）；`PitchDeviation` 是加性偏差（连续型：处处有值、默认 0、永不 NaN），宿主侧偏差源（vibrato，将来 humanize 等）全部汇于此。合成契约：**`finalPitch(t) = resolve(Pitch(t)) + PitchDeviation(t)`**——插件先解析绝对面（钉死区用用户值、自由区自己生成），再叠加偏差。由此偏差也作用于未绘制 pitch 的自由区域（旧管线把 vibrato 叠在绘制曲线上，自由区无载体、偏差丢失——结构性修复）。失效通道随之分流：pitch 曲线变更 → `Pitch.RangeModified`；vibrato 几何/包络变更 → `PitchDeviation.RangeModified`。
+
 **变更定位的四种最小事实**：字段变了（note 可订阅属性，配合 `WillModify`/`Modified` 拿新旧值）、区间变了（曲线 `RangeModified` 带 tick 范围）、集合变了（`Notes` 增删）、时基变了（`TimingModified`）。失效依赖图（这些事实映射到哪些段、重合成到管线哪一级）归插件——机制粒度足够支撑最精细策略，也允许懒插件"任何通知 → 全部标脏"。
 
 **命名约定（线程纪律编码进名字）**：`Synthesis*` 前缀 = 会话活视图家族（可订阅，仅数据线程）；`*Snapshot` 后缀 = 不可变冻结物家族（纯值无事件，可跨线程）；`IAutomationValueGetter`/`ITiming` = 横跨两域的取值能力接口。活视图上的事件恒在数据线程触发与处理；快照上**没有**事件（类型上拿不到，"把回调留到合成线程"写不出来）。出方向（插件→宿主）的 `StatusChanged` 允许任意线程触发、宿主负责 marshal（v2 跨进程时它本就是 IPC 消息）；进度用 `IProgress<double>`（`Progress<T>` 自带 SynchronizationContext marshal）。
+
+**纪律的强制层级**：插件持有 context 引用、技术上可以在 worker 线程访问活视图——进程内无法类型强制（C# 无线程所有权类型系统），"仅数据线程"是纪律性约束。三道防线：① 命名纪律（本节）；② 宿主 context 实现的各取值/枚举入口带**数据线程断言**（DEBUG 编译），违例插件在开发期第一次跨线程访问即抛异常，而非静默数据竞争；③ v2 进程隔离后物理强制（context 留在宿主进程，worker 进程摸不到引用）。
 
 **为何用订阅式而非把 `SynthesisChange` 结构体推给插件**：结构体 + switch 太难用，远不如回调。订阅式既给了插件熟悉的手感，又能精确到字段、天然有序。
 
@@ -166,18 +178,21 @@ tempo 变化是 context 上的一条变更（位置随之 re-derive）。
 - **活视图**（context，UI 线程，可订阅）：仅用于"有变化 → 重排"。插件订阅回调、`GetNextSegment`、重分片都在这条数据线程上跑，可 live 全量访问宿主数据。
 - **合成快照**（worker 线程 / worker 进程，不可变）：派发时捕获、对快照合成（含沿邻居链导航）。
 
-#### 捕获时机与线程
+#### 捕获时机与线程（快照由插件主动拉取）
 
-- **`GetNextSegment`**：数据线程上的**廉价 peek**，live 全量访问——插件基于完整 part 做分片决策，并把"这段合成需要哪些 note + 协同发音的邻居边距 + 哪段 tick 区间"**记进它那个不透明 segment**（只记范围/引用，**不深拷**：peek 常被多会话 speculative 地叫、多数不中选）。
-- **`SynthesizeNext` 同步前缀**：仍在数据线程，按 segment **声明的范围** eager 物化出不可变快照，**之后**才 offload 到 worker（进程内）/ 序列化送进程（v2）。捕获恰好一次、只为真正中选的那段。
+- **`GetNextSegment`**：数据线程上的**廉价 peek**，live 全量访问——插件基于完整 part 做分片决策，只报出纯值秒边界（`SynthesisSegment` struct）；peek 常被多会话 speculative 地叫、多数不中选，不做任何捕获。
+- **`SynthesizeNext` 同步前缀**：仍在数据线程，插件**重算分块**（确定性分片 + peek→commit 同调度 tick 无编辑 ⇒ 与 peek 同结果），随后经 **`context.GetSnapshot(notes, startTick, endTick)` 主动拉取**所需快照——notes 与开窗区间由插件按本次合成需要自由圈定，一次合成可按需拉多份（如音素级小窗 + 音频级大窗）；**之后**才 offload 到 worker（进程内）/ 序列化送进程（v2）。
+- 拉取式替代早期"segment 携带捕获声明、宿主代为物化递入"的形态：声明本就是插件需求的间接表达，直接调用消除一层间接；物化/版本缓存/记账仍收在宿主的 GetSnapshot 实现内，`GetSnapshot` 入口带数据线程断言（§3.2 防线 ②）兜住"offload 后才拉"的违例。
 
 #### 快照构成（非对称：小而必须的送、大而要算法的留宿主侧）
 
 | 数据 | 形态 | 进程内 | 跨进程（v2） |
 |---|---|---|---|
-| **note** | eager 物化的不可变值 record（已解析 `Position{Tick,秒}`、`Pitch`、`Lyric`、`PhonemeInfo[]`、`Properties` 值拷、段内 `Next/Last`） | worker 直读 | 序列化进消息体送过去 |
+| **note** | eager 物化的不可变值快照（已解析 `Position{Tick,秒}`、`Pitch`、`Lyric`、`PhonemeInfo[]`、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
 | **automation** | **host 侧不可变原始点快照**；插件经 `IAutomationValueGetter.GetValue(times)` 拉采样值 | worker 直接调 getter、宿主插值算法就地对冻结点插值 | 插件送 `times[]` → 宿主插值 → 序列化 `double[]` 回（批量 RPC）；**原始点不过线、插值算法恒在宿主侧** |
 | **timing** | tempo 快照 + SDK 内**共享 tick↔秒换算函数** | 随快照带 tempo 列表 | 同（tempo 数据极小，直接送） |
+
+**冻结形态 = 原始锚点 + 按需插值（而非"冻结时传点算好返回值"）**：查询点常是合成的中间产物（音素定时后才知道在哪采参数），快照时刻预知不了，预算值形态会逼插件超采或放弃精确采样；且锚点形态**严格包含**预算值用法——想"冻结时算好"的插件在同步前缀调 getter 把值采成 `double[]` 自存即可（**推荐模式**：前缀预采则 v2 下 worker 零 RPC，worker 内调用仅留给依赖中间产物的动态点）。锚点也比密集采样小 1–2 个量级。快照上 automation 以可枚举 `Automations` Map 平铺（纯数据体，非查询方法）。
 
 automation **开窗**只取该段区间的原始锚点，不是整条曲线整 part 拷。**无变形开窗规则**：取闭区间 `[start, end]` 内的锚点 + 每侧**开区间之外**最近的至多两个锚点（边界恰为锚点时其自身计入）。两个是单调 Hermite 的斜率影响半径——查询所落段两端锚点的斜率各依赖再向外一个锚点，外扩两个恰好补齐，窗口内取值与全曲线**逐点全等**；查询恰落在锚点上时不依赖斜率，故压边界一侧只需外扩一个。注意不能用"边界处采样烘焙端点值"的取段方式（如编辑用的 `RangeInfo`），那会改变边缘段的插值形状。
 
@@ -207,7 +222,8 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 |---|---|---|
 | note 快照 | worker 读的不可变值树 | 直接当序列化消息体 |
 | automation | worker 直读冻结点 + 宿主插值 | 插件 `GetValue(times)` 批量 RPC，原始点不过线 |
-| 不透明 `ISynthesisSegment` | 插件对象，宿主只读 `StartTime/EndTime` | 宿主持 id/代理，插件侧查；宿主只碰边界故两端通用 |
+| `SynthesisSegment`（纯值 struct） | 两个 double | 两个 double 直接过线 |
+| `GetSnapshot` | 数据线程同步物化 | 插件进程发起的一次批量 RPC（快照即返回体，一次过线） |
 | context 订阅 | C# event，宿主在 UI 线程 emit | 宿主 emit 转 marshaled 消息（中间层本就宿主控 emit） |
 | 音频产物 `ReadAudio` | pull 拷贝 | pull 自共享内存 |
 | **崩溃** | （线程崩拖垮宿主） | IPC 失败 → 段标 `Failed` → 重排；宿主只持副本/答查询，**数据无损** |
@@ -227,12 +243,12 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 public interface ISynthesisSession
 {
     // —— 调度 ——
-    // peek：窗内"下一块待合成"，无副作用；返回插件自定义实现（带捕获声明的 token）
-    ISynthesisSegment? GetNextSegment(double startLocal, double endLocal);
+    // peek：窗内"下一块待合成"的纯值边界，无副作用
+    SynthesisSegment? GetNextSegment(double startTime, double endTime);
 
-    // commit：合成宿主选定的这一段。宿主按 segment 的声明物化 snapshot 后递入；
-    // await 返回 = 槽位释放、宿主重排
-    Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+    // commit：合成 peek 报出的这一块。插件在同步前缀重算分块、经 context.GetSnapshot
+    // 拉取所需快照后 offload；await 返回 = 槽位释放、宿主重排
+    Task SynthesizeNext(SynthesisSegment segment,
                         IProgress<double>? progress = null,
                         CancellationToken cancellation = default);
 
@@ -240,33 +256,31 @@ public interface ISynthesisSession
     void Dispose();
 }
 
-// 半透明 token：宿主调度只看秒边界；物化时读捕获声明；插件 commit 时 downcast 取私有载荷
-public interface ISynthesisSegment
+// 调度块的纯值边界（readonly struct）：宿主只用它排播放线就近优先级。
+// 不携带捕获声明、不是插件对象——快照获取归插件主动（context.GetSnapshot）；
+// 插件 peek 时如需为 commit 留信息（分块缓存等）在会话自己的字段里存即可。
+public readonly struct SynthesisSegment(double startTime, double endTime)
 {
-    double StartTime { get; }   // 调度边界（秒，与产物同一时间系）
-    double EndTime { get; }
-
-    // —— 捕获声明（宿主按此物化快照）——
-    IReadOnlyList<ISynthesisNote> Notes { get; }   // 段内 note + 协同发音邻居，插件自由圈定
-    double StartTick { get; }                      // automation/pitch 开窗区间（曲线数据在 tick 轴）
-    double EndTick { get; }
+    public double StartTime { get; }   // 秒，与产物同一时间系
+    public double EndTime { get; }
 }
 
-// 宿主物化的不可变快照，随 SynthesizeNext 递入 worker；形状与 context 活视图镜像对称。
-// 物化/版本缓存/限速/并发记账全留宿主一处；v2 跨进程时它就是序列化消息体（一次过线，非 N 次 RPC）。
+// 宿主物化的不可变快照（context.GetSnapshot 的返回体）：纯数据体，形状与活视图镜像对称。
+// 物化/版本缓存/限速/并发记账全留宿主一处；v2 跨进程时它就是 GetSnapshot 一次批量 RPC 的返回体。
 public interface ISynthesisSnapshot
 {
-    IReadOnlyList<SynthesisNoteSnapshot> Notes { get; }   // 不可变值 record，段内 Next/Last 成链
+    IReadOnlyList<SynthesisNoteSnapshot> Notes { get; }    // 不可变值快照，与递入 notes 索引对齐（邻居按索引导航）
     ITiming Timing { get; }                                // TempoSnapshot
-    IAutomationValueGetter Pitch { get; }                  // 冻结 getter，开窗 = 声明区间
-    bool TryGetAutomation(string key, out IAutomationValueGetter automation);
+    IAutomationValueGetter Pitch { get; }                  // 冻结 getter，开窗 = 拉取区间；双通道语义同活视图
+    IAutomationValueGetter PitchDeviation { get; }
+    IReadOnlyMap<string, IAutomationValueGetter> Automations { get; }   // 全部已声明轨（纯数据体：可枚举 Map）
     PropertyObject PartProperties { get; }                 // 值拷
 }
 ```
 
-**peek→commit 原子性**：两者在同一调度 tick 内、同在数据线程同步执行，期间无编辑可插入——segment 持 live note 引用安全；token 不跨 tick 缓存（既有约定）。automation 默认把全部已声明轨按区间开窗物化（bulk 拷亚毫秒级）；将来有压力再加可选 keys 白名单，不动接口面。
+**快照 note 不带邻居链**（接口最小化）：`Notes` 有序列表与 `GetSnapshot` 递入的 notes 索引对齐已含全部邻接信息，协同发音按索引取邻居即可。活视图 `ISynthesisNote` 的 `Next/Last` 保留——事件 handler 内只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是分片决策的真实便利。
 
-**`ISynthesisSegment` 为半透明句柄**：宿主调度只用秒边界排优先级，物化时读捕获声明（Notes/tick 区间）；插件其余私有信息（管线级缓存键等）放进自己的实现类里，commit 时 downcast 取出。跨 ALC 安全：宿主只经 SDK 接口（共享类型标识）持有，插件在自己 ALC 内 downcast。token 短命，仅当前调度 tick 内有效、不跨 tick 缓存。原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
+**peek→commit 原子性**：两者在同一调度 tick 内、同在数据线程同步衔接，期间无编辑可插入——commit 时插件重算分块（确定性分片）必得 peek 报出的同一块；`GetSnapshot` 默认把全部已声明轨按区间开窗物化（bulk 拷亚毫秒级），将来有压力再加可选 keys 白名单，不动接口面。原"半透明 token + downcast 取私货 + 不跨 tick 缓存"一组约定随 segment 纯值化整体消失；原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
 
 **`SynthesizeNext` 语义**：
 - 返回纯 `Task`、无 outcome 枚举——状态全托管插件，宿主不关心"为何完成"（真完成/被取消/失败都一样），完成即重排、靠 `GetStatus` 看错误、靠 `GetNextSegment` 看是否还有待合成。done/pending/errored 三种处置在插件内部。
@@ -283,10 +297,12 @@ public interface ISynthesisSnapshot
 public interface ISynthesisSession   // 续
 {
     // —— 音频（插件 native 采样率域）——
+    // 时间对齐协议：全局 0 时刻 = 采样点 0，offset 即全局时间轴上的采样位置
+    // （long：接口面不被当前音频引擎的 int 域锁死，支持 long 的引擎插件零改动）。
+    // 覆盖区域的权威信息是 GetStatus 状态段（不再单设 StartTime/SampleCount 第二套定位）；
+    // 未合成区域读出 0。
     int SampleRate { get; }
-    double StartTime { get; }
-    int SampleCount { get; }
-    void ReadAudio(int offset, int count, float[] dst);   // 宿主 pull-copy
+    void ReadAudio(long offset, int count, float[] dst);   // 宿主 pull-copy
 
     // —— 曲线类产物 ——
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }                       // 分段
@@ -306,7 +322,7 @@ public struct SynthesisStatusSegment
     public double EndTime;
     public SynthesisSegmentStatus Status;
     public string? Message;     // 状态文案：Failed=错误信息；Synthesizing=可选管线阶段（如"正在合成音高"），宿主原样展示
-    public double? Progress;    // 合成中可选：该段进度
+    public double Progress;     // 合成中该段进度 [0,1]；不报进度的插件保持 0（将来需区分"无进度"加 bool HasProgress，纯加性）
 }
 ```
 
@@ -409,18 +425,20 @@ public class PiecewiseAutomationConfig : IControllerConfig
   ```
   `Portrait` 是格式无关的资源引用；静态 trivial，动态（GIF/APNG）是宿主渲染能力可增量加，Live2D/Spine 等富动态为独立特性。
 
-- **会话直接暴露声明**（不再包一个 `VoiceSourceInfo` 字段，元数据由 `VoiceInfos` 提供、不重复）：
+- **会话直接暴露声明**（不再包一个 `VoiceSourceInfo` 字段，元数据由 `VoiceInfos` 提供、不重复）。
+  **接口面只保留函数式获取**：静态声明是插件实现内部的事（返回缓存 map 即一行），接口不为它单设属性面——
+  否则"固定属性 + 动态方法回退"两套并存显得多余。宿主在会话创建/重建后调用并缓存；
+  运行中动态变化（轨集合变更通知 + 既有轨数据归宿）挂账缓后（见 §9）：
 
   ```csharp
   public interface ISynthesisSession   // 续
   {
       string DefaultLyric { get; }
-      IReadOnlyOrderedMap<string, AutomationConfig>          AutomationConfigs { get; }
-      IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; }
-      IReadOnlyOrderedMap<string, IControllerConfig>         PartProperties { get; }
-      IReadOnlyOrderedMap<string, IControllerConfig>         NoteProperties { get; }
+      IReadOnlyOrderedMap<string, AutomationConfig>          GetAutomationConfigs();
+      IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs();
 
-      // 条件面板（吃宿主现造的 property context，纯函数，commit 时重算 + keyed-diff）
+      // 条件面板（吃宿主现造的 property context，纯函数，commit 时重算 + keyed-diff）；
+      // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
       ObjectConfig GetPartConfig(IPropertyContext context);
       ObjectConfig GetNoteConfig(IPropertyContext context);
   }
@@ -435,10 +453,10 @@ public class PiecewiseAutomationConfig : IControllerConfig
 **隔离/快照实现清单**（§3.5 已定调：数据层不加锁、不做 COW，靠不可变快照隔离）
 - 不可变**原始点快照容器** + 在其上的不可变 `IAutomationValueGetter` 实现（`GetValue(times)` 对冻结点插值）。
 - 抽一份**共享纯采样函数**：live `IAutomation`/`IPiecewiseCurve` 与上面的冻结 getter 共用同一套"锚点 → 取值"算法（逻辑一份，杜绝两套实现漂移）。
-- **note 快照值 record**（已解析 Position、Pitch、Lyric、`PhonemeInfo[]`、Properties 值拷、段内 Next/Last）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
+- **note 快照值**（已解析 Position、Pitch、Lyric、`PhonemeInfo[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
 - **tempo 快照** + SDK 内共享 tick↔秒换算函数（`ITiming` 的冻结实现）。
 - 可选：automation 切片**版本缓存**（按"曲线版本 + 区间"缓存不可变副本，`RangeModified` 命中才作废/重拷）。
-- 契约钉死：`GetNextSegment` = 数据线程上廉价 peek（live 全量、定分片 + 声明范围）；`SynthesizeNext` 同步前缀在数据线程按声明范围 eager 物化快照，再 offload。
+- 契约钉死：`GetNextSegment` = 数据线程上廉价 peek（live 全量、定分片，报纯值边界）；`SynthesizeNext` 同步前缀在数据线程重算分块、经 `context.GetSnapshot` 拉取快照，再 offload。
 - 前向兼容进程拆分：快照构造为自包含可序列化值树、曲线点用 blittable `Point`；不做真正的 IPC/共享内存（v2）。
 
 **实现阶段的清理项**
@@ -452,5 +470,9 @@ public class PiecewiseAutomationConfig : IControllerConfig
 - **定点 tick**（`Tick` 结构体：int64 存 1/2ⁿ tick 定点数）：全局 tick 域 double→Tick 的横切 refactor（数据层 + Format 序列化，可与 `Pos → Tick` 重命名同做）。收益是加减/比较**零误差**与跨进程确定性（`==` 恢复语义、结果与量级无关），**非音质**——double 在现实工程规模下误差比可感知量小 9 个数量级以上。关键约束：**n ≤ 16**，否则与 double 互转重新引入舍入（double 仅能精确表示 ≤2⁵³ 的整数，须 `pos < 2^(53−n)` tick）；秒域保持 double（其精度参照物是采样点，由采样率换算而来，不归 tick 管）。**决策时限：对外发布冻结 SDK 前定案**——若 `Tick` 进 SDK 冻结面则影响接口签名；若仅做宿主内部存储、SDK 边界转 double（n 取小则无损），则与 SDK 解耦、随时可做。
 - **RESOLUTION 维持常量 480**（= 2⁵·3·5，二/三/五连音至 128 分音符整数落格；与 MIDI PPQ 同概念——SMF 按文件头可变、DAW 内部固定常量，导入按 `480/filePPQ` 缩放）：不做可调（每个 tick 数值失去自释含义、跨工程粘贴要换算、进 Format ABI，全是横切成本而收益约等于零）。若需更细网格，将来定点化时顺路一次性升高常量（如 960），那次本就要动数据层与 Format。
 - **简易合成框架**（双 SDK）：把宿主式分片/调度做成插件侧库，简单插件复用、自定义插件走原生托管。本设计先做核心协议，框架降优先级；它同时可收编 legacy 引擎的薄模型适配。
-- effect 是否也收敛到本会话模型（当前 effect 为 task 模型，有意暂不同）。
+- **effect 收敛到本会话模型**（当前 effect 为 task 模型）。重构时一并处理：
+  - `IAutomationValueGetter` 与 `ISynthesisAutomation` 的合并/归属再审（中途两者并存；合并时仍受"冻结面无事件"约束）。
+  - `SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型（与 PiecewiseAutomation 概念对齐），两 SDK 同步换形。
+  - `IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）。
+- **动态声明面**：轨集合/属性声明运行中变化的通知机制 + 既有轨用户数据的归宿（轨从声明消失后曲线数据怎么办）——函数式获取已留好形态，事件与数据策略缓后。
 - 动态立绘 / 动态全局背景图（宿主渲染能力，独立特性）。

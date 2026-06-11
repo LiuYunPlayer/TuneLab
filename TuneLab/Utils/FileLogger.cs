@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
@@ -9,7 +9,7 @@ namespace TuneLab.Utils;
 // 异步缓冲日志：调用线程仅把消息入队、绝不碰磁盘 / 控制台 I/O；单后台线程顺序写文件 + 控制台，
 // 队列排空（空闲）或累积到阈值时才 Flush——突发日志合并为少量刷盘、空闲时即时落盘、长突发也有上界。
 // 关停（Dispose）时排空队列 + 末次刷盘，避免丢日志；进程退出 / 崩溃 / 硬杀早退由 Program 调 Log.Shutdown() 兜底。
-internal class FileLogger : ILogger, IDisposable
+internal class FileLogger : ILogSink, IDisposable
 {
     public FileLogger(string path)
     {

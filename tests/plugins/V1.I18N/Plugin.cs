@@ -89,23 +89,34 @@ public sealed class I18NSession : ISynthesisSession
     }
 
     public string DefaultLyric => "la";
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; } = new OrderedMap<string, PiecewiseAutomationConfig>();
-    public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-    public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+    public ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = mNoteProperties };
 
-    public ISynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
     {
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
-        var segment = new Segment(mContext.Notes.ToList());
-        return segment.EndTime < startTime || segment.StartTime > endTime ? null : segment;
+        double blockStart = mContext.Notes[0].StartPosition.Value.Seconds;
+        double blockEnd = mContext.Notes[mContext.Notes.Count - 1].EndPosition.Value.Seconds;
+        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
     }
 
-    public async Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+    public async Task SynthesizeNext(SynthesisSegment segment,
         IProgress<double>? progress = null, CancellationToken cancellation = default)
     {
+        if (mContext.Notes.Count == 0)
+            return;
+
+        // 同步前缀拉取快照（单块 = 整 part note 全集）。
+        var origins = mContext.Notes.ToList();
+        var snapshot = mContext.GetSnapshot(
+            origins,
+            origins[0].StartPosition.Value.Tick,
+            origins[^1].EndPosition.Value.Tick);
+
         mDirty = false;
         mSynthesizing = true;
         StatusChanged?.Invoke();
@@ -126,7 +137,7 @@ public sealed class I18NSession : ISynthesisSession
                 Symbol = note.Lyric,
                 StartTime = note.StartPosition.Seconds,
                 EndTime = note.EndPosition.Seconds,
-                Note = segment.Notes[i],
+                Note = origins[i],
                 StretchWeight = note.EndPosition.Seconds - note.StartPosition.Seconds,
             });
         }
@@ -138,20 +149,20 @@ public sealed class I18NSession : ISynthesisSession
         await Task.CompletedTask;
     }
 
+    // 音频协议：全局 0 时刻 = 采样点 0。
     public int SampleRate => kSampleRate;
-    public double StartTime => mAudioStart;
-    public int SampleCount => mAudio?.Length ?? 0;
 
-    public void ReadAudio(int offset, int count, float[] dst)
+    public void ReadAudio(long offset, int count, float[] dst)
     {
         if (mAudio is not { } audio)
             return;
 
-        int from = Math.Max(offset, 0);
-        int to = Math.Min(offset + count, audio.Length);
-        for (int i = from; i < to; i++)
+        long audioOffset = (long)(mAudioStart * kSampleRate);
+        long from = Math.Max(offset, audioOffset);
+        long to = Math.Min(offset + count, audioOffset + audio.Length);
+        for (long i = from; i < to; i++)
         {
-            dst[i - offset] += audio[i];
+            dst[i - offset] += audio[i - audioOffset];
         }
     }
 
@@ -208,20 +219,12 @@ public sealed class I18NSession : ISynthesisSession
         StatusChanged?.Invoke();
     }
 
-    sealed class Segment(IReadOnlyList<ISynthesisNote> notes) : ISynthesisSegment
-    {
-        public double StartTime => notes[0].StartPosition.Value.Seconds;
-        public double EndTime => notes[^1].EndPosition.Value.Seconds;
-        public IReadOnlyList<ISynthesisNote> Notes => notes;
-        public double StartTick => notes[0].StartPosition.Value.Tick;
-        public double EndTick => notes[^1].EndPosition.Value.Tick;
-    }
-
     const int kSampleRate = 44100;
 
     readonly ISynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mDirty;

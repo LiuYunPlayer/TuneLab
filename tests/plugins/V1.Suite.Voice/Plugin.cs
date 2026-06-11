@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -44,31 +44,44 @@ public abstract class SingleBlockSession : ISynthesisSession
         context.PartProperties.Modified += MarkDirty;
         context.TimingModified += MarkDirty;
         context.Pitch.RangeModified += OnRangeModified;
+        context.PitchDeviation.RangeModified += OnRangeModified;
         mDirty = true;
     }
 
     public abstract string DefaultLyric { get; }
-    public abstract IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; } = new OrderedMap<string, PiecewiseAutomationConfig>();
-    public abstract IReadOnlyOrderedMap<string, IControllerConfig> PartProperties { get; }
-    public abstract IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
+    protected abstract IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
+    protected abstract IReadOnlyOrderedMap<string, IControllerConfig> PartProperties { get; }
+    protected abstract IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
 
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => AutomationConfigs;
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
     public virtual ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = PartProperties };
     public virtual ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = NoteProperties };
+    static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
 
-    public ISynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
     {
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
-        var notes = mContext.Notes.ToList();
-        var segment = new Segment(notes);
-        return segment.EndTime < startTime || segment.StartTime > endTime ? null : segment;
+        double blockStart = mContext.Notes[0].StartPosition.Value.Seconds;
+        double blockEnd = mContext.Notes[mContext.Notes.Count - 1].EndPosition.Value.Seconds;
+        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
     }
 
-    public async Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+    public async Task SynthesizeNext(SynthesisSegment segment,
         IProgress<double>? progress = null, CancellationToken cancellation = default)
     {
+        if (mContext.Notes.Count == 0)
+            return;
+
+        // 同步前缀拉取快照（单块 = 整 part note 全集）。
+        var origins = mContext.Notes.ToList();
+        var snapshot = mContext.GetSnapshot(
+            origins,
+            origins[0].StartPosition.Value.Tick,
+            origins[^1].EndPosition.Value.Tick);
+
         mDirty = false;
         mSynthesizing = true;
         StatusChanged?.Invoke();
@@ -89,7 +102,7 @@ public abstract class SingleBlockSession : ISynthesisSession
                     Symbol = note.Lyric,
                     StartTime = note.StartPosition.Seconds,
                     EndTime = note.EndPosition.Seconds,
-                    Note = segment.Notes[i],   // 索引对齐：产物归属回活 note
+                    Note = origins[i],   // 索引对齐：产物归属回活 note
                     StretchWeight = note.EndPosition.Seconds - note.StartPosition.Seconds,
                 });
             }
@@ -107,20 +120,20 @@ public abstract class SingleBlockSession : ISynthesisSession
         await Task.CompletedTask;
     }
 
+    // 音频协议：全局 0 时刻 = 采样点 0。
     public int SampleRate => kSampleRate;
-    public double StartTime => mAudioStart;
-    public int SampleCount => mAudio?.Length ?? 0;
 
-    public void ReadAudio(int offset, int count, float[] dst)
+    public void ReadAudio(long offset, int count, float[] dst)
     {
         if (mAudio is not { } audio)
             return;
 
-        int from = Math.Max(offset, 0);
-        int to = Math.Min(offset + count, audio.Length);
-        for (int i = from; i < to; i++)
+        long audioOffset = (long)(mAudioStart * kSampleRate);
+        long from = Math.Max(offset, audioOffset);
+        long to = Math.Min(offset + count, audioOffset + audio.Length);
+        for (long i = from; i < to; i++)
         {
-            dst[i - offset] += audio[i];
+            dst[i - offset] += audio[i - audioOffset];
         }
     }
 
@@ -153,6 +166,7 @@ public abstract class SingleBlockSession : ISynthesisSession
         mContext.PartProperties.Modified -= MarkDirty;
         mContext.TimingModified -= MarkDirty;
         mContext.Pitch.RangeModified -= OnRangeModified;
+        mContext.PitchDeviation.RangeModified -= OnRangeModified;
     }
 
     void SubscribeNote(ISynthesisNote note)
@@ -183,15 +197,6 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     void OnRangeModified(double startTick, double endTick) => MarkDirty();
 
-    sealed class Segment(IReadOnlyList<ISynthesisNote> notes) : ISynthesisSegment
-    {
-        public double StartTime => notes[0].StartPosition.Value.Seconds;
-        public double EndTime => notes[^1].EndPosition.Value.Seconds;
-        public IReadOnlyList<ISynthesisNote> Notes => notes;
-        public double StartTick => notes[0].StartPosition.Value.Tick;
-        public double EndTick => notes[^1].EndPosition.Value.Tick;
-    }
-
     const int kSampleRate = 44100;
 
     readonly ISynthesisContext mContext;
@@ -208,9 +213,9 @@ public abstract class SingleBlockSession : ISynthesisSession
 public sealed class SuiteVoiceSession(ISynthesisContext context) : SingleBlockSession(context)
 {
     public override string DefaultLyric => "la";
-    public override IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-    public override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+    protected override IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    protected override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
+    protected override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
     // 与其它测试 voice 一致地声明属性（避免"空面板像 bug"的误解）。自定义自动化名避开宿主保留名。
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig { DisplayText = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
@@ -254,9 +259,9 @@ public sealed class SuiteVoiceSession(ISynthesisContext context) : SingleBlockSe
 public sealed class ConditionalSession(ISynthesisContext context) : SingleBlockSession(context)
 {
     public override string DefaultLyric => "la";
-    public override IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-    public override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+    protected override IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    protected override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
+    protected override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
     public override ObjectConfig GetNoteConfig(IPropertyContext context)
     {

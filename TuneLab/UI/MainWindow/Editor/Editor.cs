@@ -403,21 +403,21 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         while (busy < limit && idle.Count > 0)
         {
             VoiceSynthesisPipeline? best = null;
-            ISynthesisSegment? bestSegment = null;
+            SynthesisSegment bestSegment = default;
             bool bestIsAhead = false;
             foreach (var pipeline in idle)
             {
-                var segment = pipeline.PeekNext(currentTime, double.MaxValue);
-                bool isAhead = segment != null;
-                segment ??= pipeline.PeekNext(double.MinValue, currentTime);
-                if (segment == null)
+                var peeked = pipeline.PeekNext(currentTime, double.MaxValue);
+                bool isAhead = peeked != null;
+                peeked ??= pipeline.PeekNext(double.MinValue, currentTime);
+                if (peeked is not { } segment)
                     continue;
 
                 bool better = best == null
                     || (isAhead && !bestIsAhead)
                     || (isAhead == bestIsAhead && (isAhead
-                        ? segment.StartTime < bestSegment!.StartTime
-                        : segment.StartTime > bestSegment!.StartTime));
+                        ? segment.StartTime < bestSegment.StartTime
+                        : segment.StartTime > bestSegment.StartTime));
                 if (better)
                 {
                     best = pipeline;
@@ -426,7 +426,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 }
             }
 
-            if (best == null || bestSegment == null)
+            if (best == null)
                 break;
 
             best.Dispatch(bestSegment);

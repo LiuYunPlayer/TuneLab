@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Hosting.Compat.Legacy.Conversion;
+using TuneLab.Primitives.DataStructures;
 using TuneLab.Primitives.Event;
 using LProp = TuneLab.Base.Properties;
 using LVoice = TuneLab.Extensions.Voices;
@@ -43,6 +44,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mContext.TimingModified += OnTimingModified;
         mContext.BatchEnd += OnBatchEnd;
         mContext.Pitch.RangeModified += OnRangeModified;
+        mContext.PitchDeviation.RangeModified += OnRangeModified;   // 老 Pitch 含偏差，偏差变化同样标脏
         foreach (var key in mAutomationConfigs.Keys)
         {
             if (mContext.TryGetAutomation(key, out var automation))
@@ -55,15 +57,23 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mNeedReSegment = true;
     }
 
-    // —— 声明 ——
+    // —— 声明（老声源声明是静态的：缓存转换、函数式返回）——
     public string DefaultLyric => mSource.DefaultLyric;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> PiecewiseAutomationConfigs => mPiecewiseAutomationConfigs;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> PartProperties => mPartProperties;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> NoteProperties => mNoteProperties;
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+    public VConfig.ObjectConfig GetPartConfig(VVoice.IPropertyContext context) => new() { Properties = mPartProperties };
+    public VConfig.ObjectConfig GetNoteConfig(VVoice.IPropertyContext context) => new() { Properties = mNoteProperties };
 
     // —— 调度 ——
-    public VVoice.ISynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public VVoice.SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    {
+        return FindNextDirtyPiece(startTime, endTime) is { } piece
+            ? new VVoice.SynthesisSegment(piece.StartTime, piece.EndTime)
+            : null;
+    }
+
+    // peek 与 commit 共用同一查找（确定性 + 同调度 tick 无编辑 ⇒ commit 重算得到 peek 报出的同一块）。
+    Piece? FindNextDirtyPiece(double startTime, double endTime)
     {
         EnsureSegmented();
         foreach (var piece in mPieces)
@@ -74,18 +84,23 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             if (piece.EndTime < startTime || piece.StartTime > endTime)
                 continue;
 
-            return new LegacySegment(piece);
+            return piece;
         }
         return null;
     }
 
-    public async Task SynthesizeNext(VVoice.ISynthesisSegment segment, VVoice.ISynthesisSnapshot snapshot,
+    public async Task SynthesizeNext(VVoice.SynthesisSegment segment,
         IProgress<double>? progress = null, CancellationToken cancellation = default)
     {
-        if (segment is not LegacySegment legacySegment || !mPieces.Contains(legacySegment.Piece))
+        if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
             return;
 
-        var piece = legacySegment.Piece;
+        // 同步前缀拉取快照：automation 开窗按 note 范围外扩 4 拍余量（老引擎常对块边界外略作采样）。
+        const double windowMarginTicks = 4 * 480;
+        var snapshot = mContext.GetSnapshot(
+            piece.Notes,
+            piece.Notes.First().StartPosition.Value.Tick - windowMarginTicks,
+            piece.Notes.Last().EndPosition.Value.Tick + windowMarginTicks);
         var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes);
         var data = new SnapshotSynthesisData(snapshot, views);
 
@@ -155,57 +170,24 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         NotifyStatusChanged();
     }
 
-    // —— 音频产物（多块拼接为单一时间线，全部已对齐到统一采样率）——
+    // —— 音频产物（多块按全局时间轴对齐相加；协议：全局 0 时刻 = 采样点 0）——
     public int SampleRate => mSessionRate ?? 44100;
 
-    public double StartTime
-    {
-        get
-        {
-            double start = double.MaxValue;
-            foreach (var piece in mPieces)
-            {
-                if (piece.Result != null)
-                    start = Math.Min(start, piece.Result.StartTime);
-            }
-            return start == double.MaxValue ? 0 : start;
-        }
-    }
-
-    public int SampleCount
-    {
-        get
-        {
-            if (mSessionRate is not { } rate)
-                return 0;
-
-            double start = StartTime;
-            double end = start;
-            foreach (var piece in mPieces)
-            {
-                if (piece.Result is { } result)
-                    end = Math.Max(end, result.StartTime + (double)result.AudioData.Length / result.SamplingRate);
-            }
-            return (int)((end - start) * rate);
-        }
-    }
-
-    public void ReadAudio(int offset, int count, float[] dst)
+    public void ReadAudio(long offset, int count, float[] dst)
     {
         if (mSessionRate is not { } rate)
             return;
 
-        double sessionStart = StartTime;
         foreach (var piece in mPieces)
         {
             if (piece.Result is not { } result)
                 continue;
 
-            int resultOffset = (int)((result.StartTime - sessionStart) * rate);
+            long resultOffset = (long)(result.StartTime * rate);
             var samples = result.AudioData;
-            int from = Math.Max(offset, resultOffset);
-            int to = Math.Min(offset + count, resultOffset + samples.Length);
-            for (int i = from; i < to; i++)
+            long from = Math.Max(offset, resultOffset);
+            long to = Math.Min(offset + count, resultOffset + samples.Length);
+            for (long i = from; i < to; i++)
             {
                 dst[i - offset] += samples[i - resultOffset];
             }
@@ -257,7 +239,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
                 EndTime = piece.EndTime,
                 Status = status,
                 Message = piece.Failed ? piece.Error : null,
-                Progress = piece.Synthesizing ? piece.Progress : null,
+                Progress = piece.Synthesizing ? piece.Progress : 0,
             });
         }
         return result;
@@ -278,6 +260,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mContext.TimingModified -= OnTimingModified;
         mContext.BatchEnd -= OnBatchEnd;
         mContext.Pitch.RangeModified -= OnRangeModified;
+        mContext.PitchDeviation.RangeModified -= OnRangeModified;
         foreach (var automation in mSubscribedAutomations)
         {
             automation.RangeModified -= OnRangeModified;
@@ -551,32 +534,19 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public IReadOnlyList<VVoice.SynthesizedPhoneme> Phonemes = [];
     }
 
-    // 半透明调度 token：宿主只读秒边界与捕获声明；commit 时 downcast 取回块。
-    sealed class LegacySegment(Piece piece) : VVoice.ISynthesisSegment
-    {
-        public Piece Piece => piece;
-
-        public double StartTime => piece.StartTime;
-        public double EndTime => piece.EndTime;
-        public IReadOnlyList<VVoice.ISynthesisNote> Notes => piece.Notes;
-        // automation 开窗：note 范围外扩 4 拍余量（老引擎常对块边界外略作采样，保守覆盖）。
-        public double StartTick => piece.Notes.First().StartPosition.Value.Tick - WindowMarginTicks;
-        public double EndTick => piece.Notes.Last().EndPosition.Value.Tick + WindowMarginTicks;
-
-        const double WindowMarginTicks = 4 * 480;
-    }
-
     // 老 ISynthesisData：全部读冻结快照（worker 线程安全）。
     // 老接口的取值轴是秒：经快照 Timing 换算到全局 tick 再查冻结 getter。
+    // 老 Pitch 语义 = 最终音高（含 vibrato）：新双通道在此合成 Pitch + PitchDeviation（NaN=自由区保持 NaN，
+    // 与老引擎"无绘制即自由"的预期一致；老模型本就收不到自由区的偏差，行为不回退）。
     sealed class SnapshotSynthesisData(VVoice.ISynthesisSnapshot snapshot, IReadOnlyList<SnapshotNoteView> views) : LVoice.ISynthesisData
     {
         public IEnumerable<LVoice.ISynthesisNote> Notes => views;
         public LProp.PropertyObject PartProperties => mPartProperties ??= snapshot.PartProperties.ToLegacy();
-        public LVoice.IAutomationValueGetter Pitch => mPitch ??= new SecondsGetterAdapter(snapshot.Pitch, snapshot.Timing);
+        public LVoice.IAutomationValueGetter Pitch => mPitch ??= new ComposedFinalPitchGetter(snapshot);
 
         public bool GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out LVoice.IAutomationValueGetter? automation)
         {
-            if (snapshot.TryGetAutomation(automationID, out var getter))
+            if (snapshot.Automations.TryGetValue(automationID, out var getter))
             {
                 automation = new SecondsGetterAdapter(getter, snapshot.Timing);
                 return true;
@@ -594,6 +564,22 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public double[] GetValue(IReadOnlyList<double> times)
         {
             return getter.GetValue(timing.ToTick(times));
+        }
+    }
+
+    sealed class ComposedFinalPitchGetter(VVoice.ISynthesisSnapshot snapshot) : LVoice.IAutomationValueGetter
+    {
+        public double[] GetValue(IReadOnlyList<double> times)
+        {
+            var ticks = snapshot.Timing.ToTick(times);
+            var values = snapshot.Pitch.GetValue(ticks);
+            var deviation = snapshot.PitchDeviation.GetValue(ticks);
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (!double.IsNaN(values[i]))
+                    values[i] += deviation[i];
+            }
+            return values;
         }
     }
 

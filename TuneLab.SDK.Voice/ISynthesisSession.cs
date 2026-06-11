@@ -14,44 +14,45 @@ namespace TuneLab.SDK.Voice;
 public interface ISynthesisSession : IDisposable
 {
     // —— 声明（该声源暴露什么；Name/Description 等元数据由 IVoiceEngine.VoiceInfos 提供，不重复）——
+    // 接口面只保留函数式获取（静态声明是插件实现内部的事：返回缓存 map 即一行）；
+    // 宿主在会话创建/重建后调用并缓存。运行中动态变化（轨集合变更通知 + 既有轨数据归宿）挂账缓后。
     string DefaultLyric { get; }
-    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; }
-    IReadOnlyOrderedMap<string, IControllerConfig> PartProperties { get; }
-    IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
+    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs();
+    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs();
 
-    // 条件属性面板：宿主在属性 commit 时按当前值重算面板。默认回退到上面的静态声明（忽略 context）——
-    // 想做"随其他字段值动态改变控件/字段"的插件覆写这两个方法，返回当前 context 下应呈现的 ObjectConfig。
+    // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
     // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。
-    ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = PartProperties };
-    ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = NoteProperties };
+    // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
+    ObjectConfig GetPartConfig(IPropertyContext context);
+    ObjectConfig GetNoteConfig(IPropertyContext context);
 
     // —— 调度（宿主驱动逐步合成：插件只在被调用时干活，干完即停等下一次）——
     // 一个会话同时只合成一块；并行发生在不同 part 的不同会话之间，并发上限由宿主账本式管控。
 
-    // peek：窗内"下一块待合成"，无副作用；只在会话空闲时被问，数据线程上廉价执行
-    // （live 全量访问、基于完整 part 做分片决策，只记范围/引用不深拷）。null = 窗内无待合成。
+    // peek：窗内"下一块待合成"的纯值边界，无副作用；只在会话空闲时被问，数据线程上廉价执行
+    // （live 全量访问、基于完整 part 做分片决策）。null = 窗内无待合成。
     // 窗口与返回边界同为秒（与产物同一时间系）。
-    ISynthesisSegment? GetNextSegment(double startTime, double endTime);
+    SynthesisSegment? GetNextSegment(double startTime, double endTime);
 
-    // commit：合成宿主选定的这一段。宿主已按 segment 的捕获声明物化 snapshot，与 peek 在
-    // 同一调度 tick 内同步完成；插件在 worker 上对快照合成（含沿快照链的邻居导航）。
+    // commit：合成 peek 报出的这一块。与 peek 在同一调度 tick 内同步衔接（期间无编辑可插入），
+    // 插件在同步前缀重算分块（确定性分片 + 数据未变 ⇒ 与 peek 同结果）、经
+    // ISynthesisContext.GetSnapshot 拉取本次合成所需快照，之后才 offload——worker 只读快照。
     // await 返回 = 槽位释放、宿主重排。返回纯 Task、无 outcome——真完成/被取消/失败都一样返回
     // （取消不抛 OperationCanceledException：取消是正常调度结局），错误经 GetStatus 看、
     // 是否还有待合成经 GetNextSegment 看。取消是尽力请求：不可中止的插件把这块跑完才返回，
     // 槽位在 await 真正返回时才释放、不在请求取消时——资源始终封顶在并发上限内。
     // progress 用 IProgress（Progress<T> 自带 SynchronizationContext marshal）。
-    Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+    Task SynthesizeNext(SynthesisSegment segment,
                         IProgress<double>? progress = null,
                         CancellationToken cancellation = default);
 
     // —— 音频产物（插件 native 采样率域）——
     // 工程采样率是唯一真值（TuneLabContext.Global）；插件优先按此率产音频并在此暴露实际输出率，
     // 宿主比对：相等直读、不等时套一层流式重采样——重采样集中宿主一处，会话与工程率变化解耦。
+    // 时间对齐协议：全局 0 时刻 = 采样点 0，offset 即全局时间轴上的采样位置（long：接口面不被
+    // 当前音频引擎的 int 域锁死）。覆盖区域的权威信息是 GetStatus 状态段；未合成区域读出 0。
     int SampleRate { get; }
-    double StartTime { get; }
-    int SampleCount { get; }
-    void ReadAudio(int offset, int count, float[] dst);   // 宿主 pull-copy
+    void ReadAudio(long offset, int count, float[] dst);   // 宿主 pull-copy
 
     // —— 曲线类产物 ——
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }   // 分段

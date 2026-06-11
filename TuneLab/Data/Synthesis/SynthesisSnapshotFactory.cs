@@ -10,29 +10,29 @@ using TuneLab.SDK.Voice;
 
 namespace TuneLab.Data.Synthesis;
 
-// 合成快照的物化器：SynthesizeNext 的同步前缀在数据线程按 segment 的捕获声明 eager 物化，
-// 之后才 offload——worker 永不碰活对象，只读这里产出的不可变值树。
+// 合成快照的物化器：插件在 SynthesizeNext 的同步前缀经 context.GetSnapshot 主动拉取，
+// 这里在数据线程按递入的 notes/开窗区间 eager 物化，之后插件才 offload——worker 永不碰活对象。
 // 接现成基础件：AnchorWindow 无变形开窗（Automation/PiecewiseAutomationSnapshot）、
-// TempoManager.CreateSnapshot（不可变换算表）、SynthesisNoteSnapshot.CreateChain（段内链）。
-// 替换，而非同步：数据变了走活视图通知 → 插件标脏 → 下次派发捕获一份全新快照。
+// TempoManager.CreateSnapshot（不可变换算表）。
+// 替换，而非同步：数据变了走活视图通知 → 插件标脏 → 下次合成拉一份全新快照。
 internal static class SynthesisSnapshotFactory
 {
-    // 须在数据线程调用。segment.Notes 须为本 part 当前 context 的 note 代理（peek→commit 同
-    // 调度 tick 的既有约定保证其有效）；快照 Notes 与 segment.Notes 索引对齐。
-    public static ISynthesisSnapshot Capture(MidiPart part, ISynthesisSegment segment)
+    // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；
+    // 快照 Notes 与递入 notes 索引对齐（产物归属契约）。[startTick, endTick] 为全局 tick 开窗区间。
+    public static ISynthesisSnapshot Capture(MidiPart part, IReadOnlyList<ISynthesisNote> sourceNotes, double startTick, double endTick)
     {
         double partPos = part.Pos.Value;
-        double relStart = segment.StartTick - partPos;
-        double relEnd = segment.EndTick - partPos;
+        double relStart = startTick - partPos;
+        double relEnd = endTick - partPos;
 
-        // —— note 值树（经代理接口读值，全部触底到值类型）——
-        var noteData = new List<SynthesisNoteSnapshot.Data>(segment.Notes.Count);
-        foreach (var note in segment.Notes)
+        // —— note 值树（经代理接口读值，全部触底到值类型；列表顺序即递入声明顺序）——
+        var notes = new List<SynthesisNoteSnapshot>(sourceNotes.Count);
+        foreach (var note in sourceNotes)
         {
             if (note is not SynthesisContext.SynthesisNoteProxy proxy)
                 throw new ArgumentException("Segment notes must come from this part's synthesis context.");
 
-            noteData.Add(new SynthesisNoteSnapshot.Data(
+            notes.Add(new SynthesisNoteSnapshot(
                 note.StartPosition.Value,
                 note.EndPosition.Value,
                 note.Pitch.Value,
@@ -40,7 +40,6 @@ internal static class SynthesisSnapshotFactory
                 note.Phonemes.Value,                      // 派生 getter 每次新建列表，无活引用
                 proxy.Source.Properties.GetInfo()));      // 值拷 PropertyObject
         }
-        var notes = SynthesisNoteSnapshot.CreateChain(noteData);
 
         // —— tempo 快照（不可变，零拷贝共享）——
         var timing = part.TempoManager.CreateSnapshot();
@@ -73,15 +72,18 @@ internal static class SynthesisSnapshotFactory
             envelopeSampler = envelopeSnapshot.GetValue;
         }
 
-        // —— pitch：开窗快照 + vibrato 偏移合成（与 live GetFinalPitch 同一套共享算法）——
-        var pitchSnapshot = PiecewiseAutomationSnapshot.Capture(part.Pitch, relStart, relEnd);
+        // —— 音高双通道：Pitch = 纯用户绘制曲线开窗快照（NaN=自由）；
+        //    PitchDeviation = vibrato 偏移冻结合成（基线 0，与 live GetVibratoDeviation 同一套共享算法）。 ——
         var pitch = new FrozenFinalGetter(
-            pitchSnapshot,
+            PiecewiseAutomationSnapshot.Capture(part.Pitch, relStart, relEnd),
+            [], envelopeSampler, partPos, tickToTime, skipNaN: true);
+        var pitchDeviation = new FrozenFinalGetter(
+            new ConstantValueGetter(0),
             SelectVibratos(vibratoCaptures, string.Empty),
-            envelopeSampler, partPos, tickToTime, skipNaN: true);
+            envelopeSampler, partPos, tickToTime, skipNaN: false);
 
         // —— automation：全部已声明轨按区间开窗物化（无数据对象的轨冻结为默认值常量）——
-        var automations = new Dictionary<string, IAutomationValueGetter>();
+        var automations = new Map<string, IAutomationValueGetter>();
         foreach (var kvp in part.Voice.AutomationConfigs)
         {
             string key = kvp.Key;
@@ -94,7 +96,7 @@ internal static class SynthesisSnapshotFactory
                 envelopeSampler, partPos, tickToTime, skipNaN: false));
         }
 
-        return new Snapshot(notes, timing, pitch, automations, part.Properties.GetInfo());
+        return new Snapshot(notes, timing, pitch, pitchDeviation, automations, part.Properties.GetInfo());
     }
 
     // 按目标轨解析 vibrato 振幅（音高轨用自身振幅，其余查影响表），过滤无影响者。
@@ -125,18 +127,16 @@ internal static class SynthesisSnapshotFactory
         IReadOnlyList<SynthesisNoteSnapshot> notes,
         ITiming timing,
         IAutomationValueGetter pitch,
-        IReadOnlyDictionary<string, IAutomationValueGetter> automations,
+        IAutomationValueGetter pitchDeviation,
+        IReadOnlyMap<string, IAutomationValueGetter> automations,
         PropertyObject partProperties) : ISynthesisSnapshot
     {
         public IReadOnlyList<SynthesisNoteSnapshot> Notes => notes;
         public ITiming Timing => timing;
         public IAutomationValueGetter Pitch => pitch;
+        public IAutomationValueGetter PitchDeviation => pitchDeviation;
+        public IReadOnlyMap<string, IAutomationValueGetter> Automations => automations;
         public PropertyObject PartProperties => partProperties;
-
-        public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out IAutomationValueGetter automation)
-        {
-            return automations.TryGetValue(key, out automation);
-        }
     }
 
     // 最终取值的冻结合成：开窗基础快照 + vibrato 偏移（共享纯函数），查询轴为全局 tick、

@@ -52,6 +52,7 @@ public sealed class TestSession : ISynthesisSession
         context.TimingModified += MarkAllDirtyAndResegment;
         context.BatchEnd += OnBatchEnd;
         context.Pitch.RangeModified += OnRangeModified;
+        context.PitchDeviation.RangeModified += OnRangeModified;
         if (context.TryGetAutomation("Growl", out var growl))
             growl.RangeModified += OnRangeModified;
 
@@ -59,13 +60,21 @@ public sealed class TestSession : ISynthesisSession
     }
 
     public string DefaultLyric => "la";
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; } = new OrderedMap<string, PiecewiseAutomationConfig>();
-    public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-    public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+    public ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = mNoteProperties };
 
-    // —— 调度：窗内第一个脏块（peek 廉价，token 只记引用不深拷）——
-    public ISynthesisSegment? GetNextSegment(double startTime, double endTime)
+    // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
+    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    {
+        return FindNextDirtyPiece(startTime, endTime) is { } piece
+            ? new SynthesisSegment(piece.StartTime, piece.EndTime)
+            : null;
+    }
+
+    // peek 与 commit 共用同一查找（确定性 + 同调度 tick 无编辑 ⇒ commit 重算得到 peek 报出的同一块）。
+    Piece? FindNextDirtyPiece(double startTime, double endTime)
     {
         if (mNeedResegment)
             Resegment();
@@ -78,18 +87,23 @@ public sealed class TestSession : ISynthesisSession
             if (piece.EndTime < startTime || piece.StartTime > endTime)
                 continue;
 
-            return new Segment(piece);
+            return piece;
         }
         return null;
     }
 
-    public async Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+    public async Task SynthesizeNext(SynthesisSegment segment,
         IProgress<double>? progress = null, CancellationToken cancellation = default)
     {
-        if (segment is not Segment token || !mPieces.Contains(token.Piece))
+        if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
             return;
 
-        var piece = token.Piece;
+        // 同步前缀（数据线程）拉取快照：notes 即本块全集，曲线开窗按 note 范围。
+        var snapshot = mContext.GetSnapshot(
+            piece.Notes,
+            piece.Notes[0].StartPosition.Value.Tick,
+            piece.Notes[^1].EndPosition.Value.Tick);
+
         piece.Dirty = false; // 合成期间到达的新变更会重新标脏，完成后自然重排
         piece.Synthesizing = true;
         piece.Progress = 0;
@@ -105,7 +119,7 @@ public sealed class TestSession : ISynthesisSession
 
         try
         {
-            var rendered = await Task.Run(() => Render(snapshot, segment.Notes, report, cancellation), CancellationToken.None);
+            var rendered = await Task.Run(() => Render(snapshot, piece.Notes, report, cancellation), CancellationToken.None);
             if (rendered != null && mPieces.Contains(piece))
             {
                 piece.Audio = rendered.Audio;
@@ -125,50 +139,20 @@ public sealed class TestSession : ISynthesisSession
         }
     }
 
-    // —— 音频产物：分块音频拼成单一时间线 ——
+    // —— 音频产物（多块按全局时间轴对齐相加；协议：全局 0 时刻 = 采样点 0）——
     public int SampleRate => kSampleRate;
 
-    public double StartTime
+    public void ReadAudio(long offset, int count, float[] dst)
     {
-        get
-        {
-            double start = double.MaxValue;
-            foreach (var piece in mPieces)
-            {
-                if (piece.Audio != null)
-                    start = Math.Min(start, piece.AudioStart);
-            }
-            return start == double.MaxValue ? 0 : start;
-        }
-    }
-
-    public int SampleCount
-    {
-        get
-        {
-            double start = StartTime;
-            double end = start;
-            foreach (var piece in mPieces)
-            {
-                if (piece.Audio is { } audio)
-                    end = Math.Max(end, piece.AudioStart + (double)audio.Length / kSampleRate);
-            }
-            return (int)((end - start) * kSampleRate);
-        }
-    }
-
-    public void ReadAudio(int offset, int count, float[] dst)
-    {
-        double sessionStart = StartTime;
         foreach (var piece in mPieces)
         {
             if (piece.Audio is not { } audio)
                 continue;
 
-            int audioOffset = (int)((piece.AudioStart - sessionStart) * kSampleRate);
-            int from = Math.Max(offset, audioOffset);
-            int to = Math.Min(offset + count, audioOffset + audio.Length);
-            for (int i = from; i < to; i++)
+            long audioOffset = (long)(piece.AudioStart * kSampleRate);
+            long from = Math.Max(offset, audioOffset);
+            long to = Math.Min(offset + count, audioOffset + audio.Length);
+            for (long i = from; i < to; i++)
             {
                 dst[i - offset] += audio[i - audioOffset];
             }
@@ -206,7 +190,7 @@ public sealed class TestSession : ISynthesisSession
                 EndTime = piece.EndTime,
                 Status = status,
                 Message = piece.Failed ? piece.Error : piece.Synthesizing ? "rendering" : null,
-                Progress = piece.Synthesizing ? piece.Progress : null,
+                Progress = piece.Synthesizing ? piece.Progress : 0,
             });
         }
         return result;
@@ -223,6 +207,7 @@ public sealed class TestSession : ISynthesisSession
         mContext.TimingModified -= MarkAllDirtyAndResegment;
         mContext.BatchEnd -= OnBatchEnd;
         mContext.Pitch.RangeModified -= OnRangeModified;
+        mContext.PitchDeviation.RangeModified -= OnRangeModified;
         mPieces.Clear();
     }
 
@@ -253,21 +238,44 @@ public sealed class TestSession : ISynthesisSession
             var note = notes[n];
             double noteStart = note.StartPosition.Seconds;
             double noteEnd = note.EndPosition.Seconds;
-            double freq = 440.0 * Math.Pow(2, (note.Pitch - 69) / 12.0);
             int from = Math.Clamp((int)((noteStart - startTime) * kSampleRate), 0, sampleCount);
             int to = Math.Clamp((int)((noteEnd - startTime) * kSampleRate), 0, sampleCount);
+
+            // 双通道音高消费（参照实现）：finalPitch = resolve(Pitch) + PitchDeviation——
+            // Pitch 钉死区用用户曲线、NaN 自由区回退 note 音高，再叠加偏差（vibrato 由此在
+            // 未绘制区域同样生效）。控制率 100Hz 采样后逐 sample 线性插值、相位积分调频。
+            int controlCount = Math.Max(2, (int)((noteEnd - noteStart) * kControlRate) + 1);
+            var controlTimes = new double[controlCount];
+            for (int c = 0; c < controlCount; c++)
+            {
+                controlTimes[c] = noteStart + (noteEnd - noteStart) * c / (controlCount - 1);
+            }
+            var controlTicks = snapshot.Timing.ToTick(controlTimes);
+            var pitchValues = snapshot.Pitch.GetValue(controlTicks);
+            var deviation = snapshot.PitchDeviation.GetValue(controlTicks);
+            for (int c = 0; c < controlCount; c++)
+            {
+                pitchValues[c] = (double.IsNaN(pitchValues[c]) ? note.Pitch : pitchValues[c]) + deviation[c];
+            }
+
             // attack/release 线性包络：note 边界处波形从 0 渐入/渐出，消除截断造成的爆音（"啪"声）。
             // 渐入/渐出各取设定时长与半个 note 长度的较小者，短音符也不会重叠（attack==0 时不进渐变分支，无除零）。
             int length = to - from;
             int attack = Math.Min(kAttackSamples, length / 2);
             int release = Math.Min(kReleaseSamples, length / 2);
+            double phase = 0;
             for (int i = from; i < to; i++)
             {
                 int pos = i - from;
                 double envelope = pos < attack ? (double)pos / attack
                     : pos >= length - release ? (double)(length - pos) / release
                     : 1.0;
-                audio[i] = (float)(0.2 * envelope * Math.Sin(2 * Math.PI * freq * pos / kSampleRate));
+                double t = (double)pos / Math.Max(1, length - 1) * (controlCount - 1);
+                int c0 = Math.Min((int)t, controlCount - 2);
+                double pitch = pitchValues[c0] + (pitchValues[c0 + 1] - pitchValues[c0]) * (t - c0);
+                double freq = 440.0 * Math.Pow(2, (pitch - 69) / 12.0);
+                phase += 2 * Math.PI * freq / kSampleRate;
+                audio[i] = (float)(0.2 * envelope * Math.Sin(phase));
             }
 
             phonemes.Add(new SynthesizedPhoneme
@@ -415,17 +423,8 @@ public sealed class TestSession : ISynthesisSession
         public IReadOnlyList<SynthesizedPhoneme> Phonemes = [];
     }
 
-    sealed class Segment(Piece piece) : ISynthesisSegment
-    {
-        public Piece Piece => piece;
-        public double StartTime => piece.StartTime;
-        public double EndTime => piece.EndTime;
-        public IReadOnlyList<ISynthesisNote> Notes => piece.Notes;
-        public double StartTick => piece.Notes[0].StartPosition.Value.Tick;
-        public double EndTick => piece.Notes[^1].EndPosition.Value.Tick;
-    }
-
     const int kSampleRate = 44100;
+    const int kControlRate = 100;                            // 音高控制率（Hz）
     const int kAttackSamples = (int)(0.008 * kSampleRate);   // 8ms 渐入
     const int kReleaseSamples = (int)(0.012 * kSampleRate);  // 12ms 渐出
 
@@ -434,6 +433,7 @@ public sealed class TestSession : ISynthesisSession
     readonly Dictionary<ISynthesisNote, Action> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mNeedResegment;

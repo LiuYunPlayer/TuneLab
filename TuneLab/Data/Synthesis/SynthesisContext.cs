@@ -28,6 +28,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     public IReadOnlyNotifiableList<ISynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
+    public ISynthesisAutomation PitchDeviation => mPitchDeviation;
     public ITiming Timing => mTiming;
 
     public event Action? TimingModified;
@@ -37,8 +38,12 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     public SynthesisContext(MidiPart part)
     {
         mPart = part;
-        mTiming = new LiveTiming(part.TempoManager);
-        mPitch = new AutomationProxy(this, string.Empty);
+        mDataThreadId = System.Environment.CurrentManagedThreadId;
+        mTiming = new LiveTiming(this, part.TempoManager);
+        // 音高双通道：Pitch = 纯用户绘制曲线（NaN=自由）；PitchDeviation = 宿主侧偏差源汇总
+        // （当前即 vibrato 偏移，处处有值默认 0）。插件 finalPitch = resolve(Pitch) + PitchDeviation。
+        mPitch = new AutomationProxy(this, ticks => part.Pitch.GetValues(ticks));
+        mPitchDeviation = new AutomationProxy(this, ticks => part.GetVibratoDeviation(ticks));
         mNotes = new NoteProxyList(this);
         mPartProperties = new PropertyObjectGuard(this, part.Properties);
 
@@ -51,7 +56,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         part.TempoManager.Modified.Subscribe(NotifyTimingModified, s);
         part.Pos.Modified.Subscribe(NotifyTimingModified, s);
 
-        // pitch 区间失效：pitch 曲线本身 + vibrato（最终音高含 vibrato 偏移）。
+        // 区间失效分通道：pitch 曲线 → Pitch；vibrato 几何 → PitchDeviation。
         part.Pitch.RangeModified.Subscribe(NotifyPitchRangeModified, s);
         foreach (var vibrato in part.Vibratos)
         {
@@ -70,6 +75,13 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         automationMap.ItemRemoved.Subscribe(UnwireAutomation, s);
     }
 
+    // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
+    public ISynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick)
+    {
+        AssertDataThread();
+        return SynthesisSnapshotFactory.Capture(mPart, notes, startTick, endTick);
+    }
+
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
     {
         if (!mPart.IsEffectiveAutomation(key))
@@ -80,11 +92,20 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         if (!mAutomationProxies.TryGetValue(key, out var proxy))
         {
-            proxy = new AutomationProxy(this, key);
+            proxy = new AutomationProxy(this, ticks => mPart.GetFinalAutomationValues(ticks, key));
             mAutomationProxies.Add(key, proxy);
         }
         automation = proxy;
         return true;
+    }
+
+    // 数据线程纪律断言（DEBUG）：活视图仅数据线程可用是纪律性约束，类型上无法强制——
+    // 这里让违例插件在开发期第一次跨线程访问就炸响，而非静默数据竞争。v2 进程隔离后物理强制。
+    [System.Diagnostics.Conditional("DEBUG")]
+    internal void AssertDataThread()
+    {
+        if (System.Environment.CurrentManagedThreadId != mDataThreadId)
+            throw new InvalidOperationException("Synthesis live view (ISynthesisContext and its proxies) must only be accessed on the data thread; synthesize against the immutable ISynthesisSnapshot instead.");
     }
 
     public void Dispose()
@@ -173,13 +194,19 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         mPitch.NotifyRangeModified(pos + start, pos + end);
     }
 
+    void NotifyDeviationRangeModified(double start, double end)
+    {
+        double pos = mPart.Pos.Value;
+        mPitchDeviation.NotifyRangeModified(pos + start, pos + end);
+    }
+
     void WireVibrato(Vibrato vibrato)
     {
         if (mVibratoSubscriptions.ContainsKey(vibrato))
             return;
 
         var subscriptions = new DisposableManager();
-        vibrato.RangeModified.Subscribe(NotifyPitchRangeModified, subscriptions);
+        vibrato.RangeModified.Subscribe(NotifyDeviationRangeModified, subscriptions);
         mVibratoSubscriptions.Add(vibrato, subscriptions);
     }
 
@@ -225,19 +252,21 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     void NotifyAutomationRangeModified(string key, double startTick, double endTick)
     {
-        // 包络轨影响 vibrato 偏移：最终音高（及受 vibrato 影响的轨）随之失效。
-        // v1 按主要影响面转发到 pitch；受影响 automation 轨的精确失效缓后。
+        // 包络轨影响 vibrato 偏移：偏差通道（及受 vibrato 影响的轨）随之失效。
+        // v1 按主要影响面转发到 PitchDeviation；受影响 automation 轨的精确失效缓后。
         if (key == ConstantDefine.VibratoEnvelopeID)
-            mPitch.NotifyRangeModified(startTick, endTick);
+            mPitchDeviation.NotifyRangeModified(startTick, endTick);
 
         if (mAutomationProxies.TryGetValue(key, out var proxy))
             proxy.NotifyRangeModified(startTick, endTick);
     }
 
     readonly MidiPart mPart;
+    readonly int mDataThreadId;
     readonly BatchSignal mBatchSignal;
     readonly LiveTiming mTiming;
     readonly AutomationProxy mPitch;
+    readonly AutomationProxy mPitchDeviation;
     readonly NoteProxyList mNotes;
     readonly PropertyObjectGuard mPartProperties;
     readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();
@@ -246,30 +275,30 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     bool mDisposed;
 
     // —— ITiming 活实现：直接转发 TempoManager（仅数据线程使用；快照侧用 TempoSnapshot）——
-    sealed class LiveTiming(ITempoManager tempoManager) : ITiming
+    sealed class LiveTiming(SynthesisContext context, ITempoManager tempoManager) : ITiming
     {
-        public double ToSeconds(double tick) => tempoManager.GetTime(tick);
-        public double ToTick(double seconds) => tempoManager.GetTick(seconds);
-        public double[] ToSeconds(IReadOnlyList<double> ticks) => tempoManager.GetTimes(ticks);
-        public double[] ToTick(IReadOnlyList<double> seconds) => tempoManager.GetTicks(seconds);
+        public double ToSeconds(double tick) { context.AssertDataThread(); return tempoManager.GetTime(tick); }
+        public double ToTick(double seconds) { context.AssertDataThread(); return tempoManager.GetTick(seconds); }
+        public double[] ToSeconds(IReadOnlyList<double> ticks) { context.AssertDataThread(); return tempoManager.GetTimes(ticks); }
+        public double[] ToTick(IReadOnlyList<double> seconds) { context.AssertDataThread(); return tempoManager.GetTicks(seconds); }
     }
 
-    // —— automation/pitch 的会话级活视图：取值走宿主最终值（含 vibrato/默认值），
-    //    区间事件由 context 集中换算成全局 tick 后注入。automationID 为空 = 音高轨。 ——
-    internal sealed class AutomationProxy(SynthesisContext context, string automationID) : ISynthesisAutomation
+    // —— 曲线类的会话级活视图：取值经 sampler 委托（part 相对 tick 轴）回宿主数据层，
+    //    区间事件由 context 集中换算成全局 tick 后注入。 ——
+    internal sealed class AutomationProxy(SynthesisContext context, Func<IReadOnlyList<double>, double[]> sampler) : ISynthesisAutomation
     {
         public event Action<double, double>? RangeModified;
 
         public double[] GetValue(IReadOnlyList<double> times)
         {
-            var part = context.mPart;
-            double pos = part.Pos.Value;
+            context.AssertDataThread();
+            double pos = context.mPart.Pos.Value;
             double[] ticks = new double[times.Count];
             for (int i = 0; i < times.Count; i++)
             {
                 ticks[i] = times[i] - pos;
             }
-            return string.IsNullOrEmpty(automationID) ? part.GetFinalPitch(ticks) : part.GetFinalAutomationValues(ticks, automationID);
+            return sampler(ticks);
         }
 
         internal void NotifyRangeModified(double startTick, double endTick)
@@ -303,6 +332,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         {
             get
             {
+                mContext.AssertDataThread();
                 // 链表无随机访问：按序步进（插件按索引随机访问的场景少，常规消费是枚举/订阅）。
                 int i = 0;
                 foreach (var note in mNotes)
@@ -316,6 +346,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         public IEnumerator<ISynthesisNote> GetEnumerator()
         {
+            mContext.AssertDataThread();
             foreach (var note in mNotes)
             {
                 yield return ProxyOf(note);
@@ -378,7 +409,14 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     {
         public event Action? WillModify;
         public event Action? Modified;
-        public T Value => mGetter();
+        public T Value
+        {
+            get
+            {
+                mContext.AssertDataThread();
+                return mGetter();
+            }
+        }
 
         public DerivedProperty(SynthesisContext context, Func<T> getter, params IReadOnlyNotifiable[] sources)
         {
@@ -437,7 +475,11 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             return child;
         }
 
-        public PropertyValue GetValue(string key, PropertyValue defaultValue) => mSource.GetValue(key, defaultValue);
+        public PropertyValue GetValue(string key, PropertyValue defaultValue)
+        {
+            mContext.AssertDataThread();
+            return mSource.GetValue(key, defaultValue);
+        }
 
         public void Dispose()
         {

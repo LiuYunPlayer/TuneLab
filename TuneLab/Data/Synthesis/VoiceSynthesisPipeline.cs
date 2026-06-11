@@ -55,7 +55,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     // —— 调度面（Editor 驱动）——
 
     // 窗内"下一块待合成"的廉价 peek；仅会话空闲时有意义。窗口与返回边界为全局秒。
-    public ISynthesisSegment? PeekNext(double startTime, double endTime)
+    public SynthesisSegment? PeekNext(double startTime, double endTime)
     {
         if (mIsBusy || mDisposed)
             return null;
@@ -71,28 +71,18 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         }
     }
 
-    // commit：与 peek 在同一调度 tick 内同步物化快照后派发。await 返回 = 槽位释放。
-    public async void Dispatch(ISynthesisSegment segment)
+    // commit：与 peek 在同一调度 tick 内同步衔接；快照由插件在 SynthesizeNext 的同步前缀
+    // 经 context.GetSnapshot 自行拉取。await 返回 = 槽位释放。
+    public async void Dispatch(SynthesisSegment segment)
     {
         if (mIsBusy || mDisposed)
             return;
-
-        ISynthesisSnapshot snapshot;
-        try
-        {
-            snapshot = SynthesisSnapshotFactory.Capture(mPart, segment);
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Synthesis snapshot capture failed: " + ex);
-            return;
-        }
 
         mIsBusy = true;
         var progress = new Progress<double>(_ => { if (!mDisposed) StatusChanged?.Invoke(); });
         try
         {
-            await mSession.SynthesizeNext(segment, snapshot, progress, mCancellation.Token);
+            await mSession.SynthesizeNext(segment, progress, mCancellation.Token);
         }
         catch (Exception ex)
         {
@@ -166,16 +156,31 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     }
 
     // —— 产物拉取（数据线程）——
+    // 音频时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是状态段——
+    // 取已合成段的并集范围一次拉取（未合成空洞插件读出 0）。
     void PullProducts()
     {
         try
         {
-            int sampleCount = mSession.SampleCount;
-            if (sampleCount > 0)
+            double start = double.MaxValue;
+            double end = double.MinValue;
+            foreach (var statusSegment in mSession.GetStatus())
             {
+                if (statusSegment.Status != SynthesisSegmentStatus.Synthesized)
+                    continue;
+
+                start = Math.Min(start, statusSegment.StartTime);
+                end = Math.Max(end, statusSegment.EndTime);
+            }
+
+            if (end > start)
+            {
+                int sampleRate = mSession.SampleRate;
+                long offset = (long)(start * sampleRate);
+                int sampleCount = (int)(end * sampleRate - offset);
                 var samples = new float[sampleCount];
-                mSession.ReadAudio(0, sampleCount, samples);
-                mNativeAudio = new MonoAudio(mSession.StartTime, mSession.SampleRate, samples);
+                mSession.ReadAudio(offset, sampleCount, samples);
+                mNativeAudio = new MonoAudio((double)offset / sampleRate, sampleRate, samples);
                 mVoiceAudio = ResampleToEngineRate(mNativeAudio.Value);
             }
 

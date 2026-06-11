@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using TuneLab.I18N;
@@ -17,13 +17,13 @@ internal sealed class TuneLabContextGlobal : ITuneLabContext
     public string Language => TranslationManager.CurrentLanguage.Value;
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public ILog GetLogger() => new PrefixedLog(ResolveCallerScope(Assembly.GetCallingAssembly()));
+    public ILogger GetLogger() => new PrefixedLogger(ResolveCallerScope(Assembly.GetCallingAssembly()));
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public ILog GetLogger(string subName)
+    public ILogger GetLogger(string subName)
     {
         var scope = ResolveCallerScope(Assembly.GetCallingAssembly());
-        return new PrefixedLog(string.IsNullOrEmpty(subName) ? scope : scope + "/" + subName);
+        return new PrefixedLogger(string.IsNullOrEmpty(subName) ? scope : scope + "/" + subName);
     }
 
     static string ResolveCallerScope(Assembly caller)
@@ -32,7 +32,7 @@ internal sealed class TuneLabContextGlobal : ITuneLabContext
         return string.IsNullOrEmpty(name) ? "host" : name;
     }
 
-    sealed class PrefixedLog(string scope) : ILog
+    sealed class PrefixedLogger(string scope) : ILogger
     {
         public void Debug(object? value) => HostLog.Debug(Format(value));
         public void Info(object? value) => HostLog.Info(Format(value));

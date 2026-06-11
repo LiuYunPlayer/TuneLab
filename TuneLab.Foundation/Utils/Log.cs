@@ -6,14 +6,16 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation.Utils;
 
-public interface ILogger
+// 日志输出后端（sink）：Log 静态门面把格式化后的行写到这里。
+// 与 SDK.Base.Environment.ILogger（插件作用域日志器）区分：sink 是宿主内部的落盘抽象。
+public interface ILogSink
 {
     void WriteLine(string message);
 }
 
 public static class Log
 {
-    public static void SetupLogger(ILogger logger)
+    public static void SetupLogger(ILogSink logger)
     {
         mLogger = logger;
     }
@@ -55,5 +57,5 @@ public static class Log
     
     static readonly object mLock = new();
 
-    static ILogger? mLogger;
+    static ILogSink? mLogger;
 }

@@ -336,7 +336,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             double right = TickAxis.Tick2X(tempoManager.GetTick(statusSegment.EndTime));
             if (statusSegment.Status == SynthesisSegmentStatus.Synthesizing)
             {
-                double center = MathUtility.LineValue(0, left, 1, right, statusSegment.Progress ?? 0);
+                double center = MathUtility.LineValue(0, left, 1, right, statusSegment.Progress);
                 context.DrawRectangle(Colors.Green.Opacity(0.5).ToBrush(), null, new RoundedRect(new(left, 12, center - left, 8), 2, 0, 0, 2));
                 context.DrawRectangle(Colors.Orange.Opacity(0.5).ToBrush(), null, new RoundedRect(new(center, 12, right - center, 8), 0, 2, 2, 0));
                 if (!string.IsNullOrEmpty(statusSegment.Message))

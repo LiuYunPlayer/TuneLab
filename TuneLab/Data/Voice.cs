@@ -60,7 +60,7 @@ internal class Voice : DataObject, IVoice
         }
         if (session != null)
         {
-            foreach (var kvp in session.AutomationConfigs)
+            foreach (var kvp in session.GetAutomationConfigs())
             {
                 if (!mAutomationConfigs.ContainsKey(kvp.Key))
                     mAutomationConfigs.Add(kvp.Key, kvp.Value);

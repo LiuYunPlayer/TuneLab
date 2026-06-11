@@ -16,8 +16,9 @@ public interface ISynthesisNote
     IReadOnlyNotifiableProperty<IReadOnlyList<PhonemeInfo>> Phonemes { get; }
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
-    // 邻居链（协同发音用）。活视图上仅供数据线程的分片决策 live 导航；
-    // 合成须在快照（SynthesisNoteSnapshot 的段内链）上导航，不回活对象。
+    // 邻居链（协同发音用）。活视图上仅供数据线程的分片决策 live 导航——事件 handler 内
+    // 只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是真实便利；
+    // 合成须在快照（snapshot.Notes 有序列表按索引）上导航，不回活对象。
     ISynthesisNote? Next { get; }
     ISynthesisNote? Last { get; }
 }

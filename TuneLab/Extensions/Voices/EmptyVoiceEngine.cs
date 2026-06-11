@@ -27,23 +27,21 @@ internal class EmptyVoiceEngine : IVoiceEngine
     class EmptySession : ISynthesisSession
     {
         public string DefaultLyric => "a";
-        public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-        public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs => mPiecewiseAutomationConfigs;
-        public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-        public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+        public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
+        public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+        public ObjectConfig GetPartConfig(IPropertyContext context) => mEmptyConfig;
+        public ObjectConfig GetNoteConfig(IPropertyContext context) => mEmptyConfig;
 
-        public ISynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
+        public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
 
-        public Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+        public Task SynthesizeNext(SynthesisSegment segment,
             IProgress<double>? progress = null, CancellationToken cancellation = default)
         {
             return Task.CompletedTask;
         }
 
         public int SampleRate => 44100;
-        public double StartTime => 0;
-        public int SampleCount => 0;
-        public void ReadAudio(int offset, int count, float[] dst) { }
+        public void ReadAudio(long offset, int count, float[] dst) { }
 
         public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
         public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSynthesizedParameters;
@@ -56,8 +54,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
 
         static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
         static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
-        static readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-        static readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
+        static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
         static readonly Map<string, IReadOnlyList<IReadOnlyList<Point>>> mSynthesizedParameters = new();
     }
 

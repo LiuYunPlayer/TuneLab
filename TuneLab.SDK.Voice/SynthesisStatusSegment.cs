@@ -21,5 +21,7 @@ public struct SynthesisStatusSegment
     // 状态文案：Failed 时为错误信息；Synthesizing 时可选报管线阶段（如"正在合成音高""正在计算音素时长"），
     // 宿主原样展示、不解析语义。
     public string? Message;
-    public double? Progress;               // Synthesizing 时可选：该段进度 [0,1]
+    // Synthesizing 时该段进度 [0,1]，不报进度的插件保持 0。
+    // （将来若需区分"无进度"与"0%"，加 bool HasProgress 字段即可，纯加性不破本面。）
+    public double Progress;
 }
