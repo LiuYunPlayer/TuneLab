@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -214,7 +214,7 @@ public sealed class TestSession : ISynthesisSession
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
     sealed record RenderResult(float[] Audio, double StartTime, List<SynthesizedPhoneme> Phonemes);
 
-    static RenderResult? Render(ISynthesisSnapshot snapshot, IReadOnlyList<ISynthesisNote> origins,
+    static RenderResult? Render(SynthesisSnapshot snapshot, IReadOnlyList<ISynthesisNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
     {
         var notes = snapshot.Notes;

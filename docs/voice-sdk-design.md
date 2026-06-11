@@ -265,16 +265,17 @@ public readonly struct SynthesisSegment(double startTime, double endTime)
     public double EndTime { get; }
 }
 
-// 宿主物化的不可变快照（context.GetSnapshot 的返回体）：纯数据体，形状与活视图镜像对称。
+// 宿主物化的不可变快照（context.GetSnapshot 的返回体）：纯数据体故为具体类型（§0 原则 5），
+// 无参构造 + required init（初始化后不可变，加字段纯加性）。形状与活视图镜像对称。
 // 物化/版本缓存/限速/并发记账全留宿主一处；v2 跨进程时它就是 GetSnapshot 一次批量 RPC 的返回体。
-public interface ISynthesisSnapshot
+public sealed class SynthesisSnapshot
 {
-    IReadOnlyList<SynthesisNoteSnapshot> Notes { get; }    // 不可变值快照，与递入 notes 索引对齐（邻居按索引导航）
-    ITiming Timing { get; }                                // TempoSnapshot
-    IAutomationValueGetter Pitch { get; }                  // 冻结 getter，开窗 = 拉取区间；双通道语义同活视图
-    IAutomationValueGetter PitchDeviation { get; }
-    IReadOnlyMap<string, IAutomationValueGetter> Automations { get; }   // 全部已声明轨（纯数据体：可枚举 Map）
-    PropertyObject PartProperties { get; }                 // 值拷
+    public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }   // 与递入 notes 索引对齐（邻居按索引导航）
+    public required TempoSnapshot Timing { get; init; }    // 明牌具体类型：引擎可直接读 Tempos 标记
+    public required IAutomationValueGetter Pitch { get; init; }                 // 冻结 getter，开窗 = 拉取区间；双通道语义同活视图
+    public required IAutomationValueGetter PitchDeviation { get; init; }
+    public required IReadOnlyMap<string, IAutomationValueGetter> Automations { get; init; }   // 全部已声明轨（可枚举 Map）
+    public required PropertyObject PartProperties { get; init; }                // 值拷
 }
 ```
 

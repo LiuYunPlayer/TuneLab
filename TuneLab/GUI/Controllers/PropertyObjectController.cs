@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Layout;
 using System;
 using System.Collections.Generic;
@@ -240,7 +240,7 @@ internal class PropertyObjectController : StackPanel
         {
             mController.SetRange(config.MinValue, config.MaxValue);
             mController.SetDefaultValue(config.DefaultValue);
-            mController.IsInterger = config.IsInterger;
+            mController.IsInteger = config.IsInteger;
         }
 
         public override Type ConfigType => typeof(SliderConfig);

@@ -12,7 +12,6 @@ sealed class NullContext : ITuneLabContext
     public static readonly NullContext Instance = new();
     public string Language => string.Empty;
     public ILogger GetLogger() => NullLogger.Instance;
-    public ILogger GetLogger(string subName) => NullLogger.Instance;
 
     sealed class NullLogger : ILogger
     {

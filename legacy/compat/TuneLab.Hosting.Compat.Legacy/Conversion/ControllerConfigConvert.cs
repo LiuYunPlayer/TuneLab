@@ -1,4 +1,4 @@
-using LProp = TuneLab.Base.Properties;
+﻿using LProp = TuneLab.Base.Properties;
 using LStruct = TuneLab.Base.Structures;
 using LVoice = TuneLab.Extensions.Voices;
 using VConfig = TuneLab.SDK.Base.ControllerConfigs;
@@ -19,7 +19,7 @@ internal static class ControllerConfigConvert
             case LVoice.AutomationConfig a:
                 return a.ToV1();
             case LProp.NumberConfig n:
-                return new VConfig.SliderConfig { DefaultValue = n.DefaultValue, MinValue = n.MinValue, MaxValue = n.MaxValue, IsInterger = n.IsInterger };
+                return new VConfig.SliderConfig { DefaultValue = n.DefaultValue, MinValue = n.MinValue, MaxValue = n.MaxValue, IsInteger = n.IsInterger };
             case LProp.BooleanConfig b:
                 return new VConfig.CheckBoxConfig { DefaultValue = b.DefaultValue };
             case LProp.StringConfig s:

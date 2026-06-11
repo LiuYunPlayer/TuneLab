@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -76,7 +76,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     }
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
-    public ISynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick)
+    public SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick)
     {
         AssertDataThread();
         return SynthesisSnapshotFactory.Capture(mPart, notes, startTick, endTick);
@@ -105,7 +105,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     internal void AssertDataThread()
     {
         if (System.Environment.CurrentManagedThreadId != mDataThreadId)
-            throw new InvalidOperationException("Synthesis live view (ISynthesisContext and its proxies) must only be accessed on the data thread; synthesize against the immutable ISynthesisSnapshot instead.");
+            throw new InvalidOperationException("Synthesis live view (ISynthesisContext and its proxies) must only be accessed on the data thread; synthesize against the immutable SynthesisSnapshot instead.");
     }
 
     public void Dispose()
@@ -328,26 +328,23 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         }
 
         public int Count => mNotes.Count;
+
+        // 宿主数据层是双向链表（无随机访问）：这里维护惰性数组镜像（结构变更失效、按需重建，
+        // 摊销 O(n)），让 IReadOnlyList 的索引访问符合 O(1) 直觉——否则插件随机访问循环
+        // 会静默退化 O(n²)。
         public ISynthesisNote this[int index]
         {
             get
             {
                 mContext.AssertDataThread();
-                // 链表无随机访问：按序步进（插件按索引随机访问的场景少，常规消费是枚举/订阅）。
-                int i = 0;
-                foreach (var note in mNotes)
-                {
-                    if (i++ == index)
-                        return ProxyOf(note);
-                }
-                throw new ArgumentOutOfRangeException(nameof(index));
+                return ProxyOf(Mirror[index]);
             }
         }
 
         public IEnumerator<ISynthesisNote> GetEnumerator()
         {
             mContext.AssertDataThread();
-            foreach (var note in mNotes)
+            foreach (var note in Mirror)
             {
                 yield return ProxyOf(note);
             }
@@ -378,6 +375,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         void OnItemAdded(INote note)
         {
+            mMirror = null;
             var proxy = new SynthesisNoteProxy(mContext, note);
             mProxies[note] = proxy;
             mContext.ForwardChange(() => ItemAdded?.Invoke(proxy));
@@ -385,6 +383,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         void OnItemRemoved(INote note)
         {
+            mMirror = null;
             if (!mProxies.Remove(note, out var proxy))
                 return;
 
@@ -394,13 +393,17 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         void OnListModified()
         {
+            mMirror = null;   // 结构变更（含重排）一律失效，按需重建
             mContext.ForwardChange(() => Modified?.Invoke());
         }
+
+        List<INote> Mirror => mMirror ??= [.. mNotes];
 
         readonly SynthesisContext mContext;
         readonly INoteList mNotes;
         readonly Dictionary<INote, SynthesisNoteProxy> mProxies = new();
         readonly DisposableManager s = new();
+        List<INote>? mMirror;
     }
 
     // —— 派生只读属性：借壳一个或多个数据层源（最小订阅面）的改前/改后事件，

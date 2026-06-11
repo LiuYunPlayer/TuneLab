@@ -19,13 +19,6 @@ internal sealed class TuneLabContextGlobal : ITuneLabContext
     [MethodImpl(MethodImplOptions.NoInlining)]
     public ILogger GetLogger() => new PrefixedLogger(ResolveCallerScope(Assembly.GetCallingAssembly()));
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public ILogger GetLogger(string subName)
-    {
-        var scope = ResolveCallerScope(Assembly.GetCallingAssembly());
-        return new PrefixedLogger(string.IsNullOrEmpty(subName) ? scope : scope + "/" + subName);
-    }
-
     static string ResolveCallerScope(Assembly caller)
     {
         var name = AssemblyLoadContext.GetLoadContext(caller)?.Name;

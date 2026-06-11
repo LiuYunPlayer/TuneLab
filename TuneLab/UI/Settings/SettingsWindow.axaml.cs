@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -231,7 +231,7 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
-                var slider = new SliderController() { Width = 180, IsInterger = true };
+                var slider = new SliderController() { Width = 180, IsInteger = true };
                 slider.SetRange(10, 60);
                 slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveInterval);
                 slider.Bind(Settings.AutoSaveInterval, false, s);
@@ -248,7 +248,7 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
-                var slider = new SliderController() { Width = 180, IsInterger = true };
+                var slider = new SliderController() { Width = 180, IsInteger = true };
                 slider.SetRange(1, 20);
                 slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveMaxCount);
                 slider.Bind(Settings.AutoSaveMaxCount, false, s);
@@ -272,7 +272,7 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
-                var slider = new SliderController() { Width = 180, IsInterger = false };
+                var slider = new SliderController() { Width = 180, IsInteger = false };
                 slider.SetRange(-24, 24);
                 slider.SetDefaultValue(Settings.DefaultSettings.MasterGain);
                 slider.Bind(Settings.MasterGain, true, s);
@@ -375,7 +375,7 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
-                var slider = new SliderController() { Width = 180, IsInterger = false };
+                var slider = new SliderController() { Width = 180, IsInteger = false };
                 slider.SetRange(0, 1);
                 slider.SetDefaultValue(Settings.DefaultSettings.BackgroundImageOpacity);
                 slider.Bind(Settings.BackgroundImageOpacity, true, s);
@@ -401,7 +401,7 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
-                var slider = new SliderController() { Width = 180, IsInterger = true };
+                var slider = new SliderController() { Width = 180, IsInteger = true };
                 slider.SetRange(-720, 720);
                 slider.SetDefaultValue(Settings.DefaultSettings.TrackHueChangeRate);
                 slider.Bind(Settings.TrackHueChangeRate, true, s);
@@ -425,7 +425,7 @@ internal partial class SettingsWindow : Window
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
-                var slider = new SliderController() { Width = 180, IsInterger = true };
+                var slider = new SliderController() { Width = 180, IsInteger = true };
                 slider.SetRange(1, 60);
                 slider.SetDefaultValue(Settings.DefaultSettings.ParameterBoundaryExtension);
                 slider.Bind(Settings.ParameterBoundaryExtension, false, s);

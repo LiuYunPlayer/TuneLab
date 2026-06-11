@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -538,7 +538,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     // 老接口的取值轴是秒：经快照 Timing 换算到全局 tick 再查冻结 getter。
     // 老 Pitch 语义 = 最终音高（含 vibrato）：新双通道在此合成 Pitch + PitchDeviation（NaN=自由区保持 NaN，
     // 与老引擎"无绘制即自由"的预期一致；老模型本就收不到自由区的偏差，行为不回退）。
-    sealed class SnapshotSynthesisData(VVoice.ISynthesisSnapshot snapshot, IReadOnlyList<SnapshotNoteView> views) : LVoice.ISynthesisData
+    sealed class SnapshotSynthesisData(VVoice.SynthesisSnapshot snapshot, IReadOnlyList<SnapshotNoteView> views) : LVoice.ISynthesisData
     {
         public IEnumerable<LVoice.ISynthesisNote> Notes => views;
         public LProp.PropertyObject PartProperties => mPartProperties ??= snapshot.PartProperties.ToLegacy();
@@ -567,7 +567,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         }
     }
 
-    sealed class ComposedFinalPitchGetter(VVoice.ISynthesisSnapshot snapshot) : LVoice.IAutomationValueGetter
+    sealed class ComposedFinalPitchGetter(VVoice.SynthesisSnapshot snapshot) : LVoice.IAutomationValueGetter
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {

@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using TuneLab.Primitives.Event;
 using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
@@ -11,7 +11,7 @@ namespace TuneLab.SDK.Voice;
 // 且宿主始终握着线程/时机/故障隔离/批量四个旋钮（在 command 提交后、数据线程、try-catch 包裹下 emit）。
 //
 // 线程纪律：事件恒在数据线程触发与处理，handler 只做廉价记录/标脏；合成永不碰活视图，
-// 只读派发时物化的 ISynthesisSnapshot。
+// 只读派发时物化的 SynthesisSnapshot。
 //
 // 通知语义：只转发已提交的真实变更（拖拽等中间态被业务层 merge 折叠掉，订阅者眼中状态
 // 从编辑前直达收口后）。变更定位的四种最小事实——字段变了（note 可订阅属性，配合
@@ -38,7 +38,7 @@ public interface ISynthesisContext
     // 插件自由圈定，返回的 snapshot.Notes 与之索引对齐）；[startTick, endTick] = 曲线开窗区间。
     // 仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用；一次合成可按需拉多份
     // （如音素级小窗 + 音频级大窗）。物化/版本缓存/记账留在宿主实现内。
-    ISynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick);
+    SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick);
 
     // tempo 变了：全部秒域派生随之失效（Position 由宿主 re-derive），引擎通常全量重排。
     event Action? TimingModified;

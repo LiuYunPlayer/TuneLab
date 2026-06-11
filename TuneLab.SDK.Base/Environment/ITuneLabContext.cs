@@ -8,8 +8,6 @@ public interface ITuneLabContext
     string Language { get; }
 
     // 取日志器：前缀由宿主按调用者所属 ALC（= 插件包）自动判定，插件无法伪造。
+    // 模块级子标签是消息格式问题（插件自己在消息里拼即可），不进协议。
     ILogger GetLogger();
-
-    // 在自动判定的插件前缀后再加一段子标签。
-    ILogger GetLogger(string subName);
 }

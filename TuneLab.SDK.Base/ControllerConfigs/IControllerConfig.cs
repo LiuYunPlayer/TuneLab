@@ -2,14 +2,14 @@ using TuneLab.Primitives.Property;
 
 namespace TuneLab.SDK.Base.ControllerConfigs;
 
-// Config 家族族根（原 IPropertyConfig，按 UI 控件命名体系改名）。
+// Config 家族族根（marker）：keyed-diff 渲染按具体类型分派，接口本身不强制任何成员——
+// 显示标题等字段各具体 config 自带（强制进协议会卡住未来不需要该字段的 config）。
 public interface IControllerConfig
 {
-    // 可本地化的显示标题。null 时调用方回退到该条目的稳定 key（数据键）。
-    // 插件侧自译：此处放已按当前语言（TuneLabContext.Global.Language）本地化的串；宿主原样显示、不再查表。
-    string? DisplayText { get; }
 }
 
+// 有默认值的 config（preset 重置、按默认值统一处理等通用逻辑按此消费）。
+// 是否实现本接口同时在类型上区分"有无默认基线"（如连续型 AutomationConfig 实现、分段型不实现）。
 public interface IValueConfig : IControllerConfig
 {
     PropertyValue DefaultValue { get; }

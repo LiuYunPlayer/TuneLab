@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation.Utils;
@@ -19,7 +19,7 @@ internal static class SynthesisSnapshotFactory
 {
     // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；
     // 快照 Notes 与递入 notes 索引对齐（产物归属契约）。[startTick, endTick] 为全局 tick 开窗区间。
-    public static ISynthesisSnapshot Capture(MidiPart part, IReadOnlyList<ISynthesisNote> sourceNotes, double startTick, double endTick)
+    public static SynthesisSnapshot Capture(MidiPart part, IReadOnlyList<ISynthesisNote> sourceNotes, double startTick, double endTick)
     {
         double partPos = part.Pos.Value;
         double relStart = startTick - partPos;
@@ -98,7 +98,15 @@ internal static class SynthesisSnapshotFactory
                 envelopeSampler, partPos, tickToTime, skipNaN: false));
         }
 
-        return new Snapshot(notes, timing, pitch, pitchDeviation, automations, part.Properties.GetInfo());
+        return new SynthesisSnapshot
+        {
+            Notes = notes,
+            Timing = timing,
+            Pitch = pitch,
+            PitchDeviation = pitchDeviation,
+            Automations = automations,
+            PartProperties = part.Properties.GetInfo(),
+        };
     }
 
     // 按目标轨解析 vibrato 振幅（音高轨用自身振幅，其余查影响表），过滤无影响者。
@@ -124,22 +132,6 @@ internal static class SynthesisSnapshotFactory
         double Pos, double Dur, double Frequency, double Amplitude,
         double Phase, double Attack, double Release,
         IReadOnlyDictionary<string, double> AffectedAutomations);
-
-    sealed class Snapshot(
-        IReadOnlyList<SynthesisNoteSnapshot> notes,
-        ITiming timing,
-        IAutomationValueGetter pitch,
-        IAutomationValueGetter pitchDeviation,
-        IReadOnlyMap<string, IAutomationValueGetter> automations,
-        PropertyObject partProperties) : ISynthesisSnapshot
-    {
-        public IReadOnlyList<SynthesisNoteSnapshot> Notes => notes;
-        public ITiming Timing => timing;
-        public IAutomationValueGetter Pitch => pitch;
-        public IAutomationValueGetter PitchDeviation => pitchDeviation;
-        public IReadOnlyMap<string, IAutomationValueGetter> Automations => automations;
-        public PropertyObject PartProperties => partProperties;
-    }
 
     // 最终取值的冻结合成：开窗基础快照 + vibrato 偏移（共享纯函数），查询轴为全局 tick、
     // 此处换算到 part 相对后取值。skipNaN：pitch 段间空值不叠加偏移（与 live 行为一致）。

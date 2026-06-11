@@ -25,7 +25,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     public double MinValue => mMinValue;
     public double MaxValue => mMaxValue;
     public double DefaultValue { get => mDefaultValue; set => mDefaultValue = value; }
-    public bool IsInterger { get => mIsInterger; set { mIsInterger = value; RefreshUI(); } }
+    public bool IsInteger { get => mIsInteger; set { mIsInteger = value; RefreshUI(); } }
     public int IntergerValue => mValue.Round();
     public AbstractThumb? Thumb { get => mThumb.Value; set => mThumb.Set(value); }
 
@@ -205,7 +205,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     void ChangeValue(double value)
     {
         value = value.Limit(MinValue, MaxValue);
-        if (IsInterger)
+        if (IsInteger)
             value = value.Round();
 
         if (value == Value)
@@ -239,7 +239,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     double mMinValue = 0;
     double mMaxValue = 1;
     double mDefaultValue = 0;
-    bool mIsInterger = false;
+    bool mIsInteger = false;
     double mValue = 0;
 
     readonly Holder<AbstractThumb> mThumb = new();

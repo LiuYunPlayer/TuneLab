@@ -8,5 +8,6 @@ public readonly struct Position(double tick, double seconds)
     public double Tick { get; } = tick;
     public double Seconds { get; } = seconds;
 
-    public override string ToString() => $"(tick: {Tick}, s: {Seconds})";
+    // 仅诊断用途：格式不构成契约，但显式写全避免被误解析（"s"易歧义）。
+    public override string ToString() => $"(tick: {Tick}, seconds: {Seconds})";
 }

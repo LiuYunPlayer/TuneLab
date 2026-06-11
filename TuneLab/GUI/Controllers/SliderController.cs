@@ -21,7 +21,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
     public IActionEvent ValueChanged => mSlider.ValueChanged;
     public IActionEvent ValueCommitted => mSlider.ValueCommitted;
     public double Value => mSlider.Value;
-    public bool IsInterger { get => mSlider.IsInterger; set => mSlider.IsInterger = value; }
+    public bool IsInteger { get => mSlider.IsInteger; set => mSlider.IsInteger = value; }
     int IValueController<int>.Value => mSlider.IntergerValue;
 
     public SliderController()
@@ -82,7 +82,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
     protected string GetValueString()
     {
         if (!double.IsNaN(mSlider.Value))
-            return mSlider.IsInterger ? ((int)mSlider.Value).ToString() : mSlider.Value.ToString("F2");
+            return mSlider.IsInteger ? ((int)mSlider.Value).ToString() : mSlider.Value.ToString("F2");
 
         return mState == State.Multiple ? "-" : "";
     }
