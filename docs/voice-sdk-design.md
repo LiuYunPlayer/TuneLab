@@ -66,14 +66,26 @@ public interface ISynthesisContext
 {
     IReadOnlyNotifiableList<ISynthesisNote> Notes { get; }   // 支持 WhenAny
     PropertyObject PartProperties { get; }                    // 可订阅
-    bool TryGetAutomation(string key, out IAutomationValueGetter automation);
-    IAutomationValueGetter Pitch { get; }
+    bool TryGetAutomation(string key, out ISynthesisAutomation automation);
+    ISynthesisAutomation Pitch { get; }
     ITiming Timing { get; }                                   // tick↔秒 换算，见 §3.3
 
-    event Action? BatchBegin;   // 批量变更括号，见 §3.4
+    event Action? TimingModified;   // tempo 变了（影响全部秒域派生，引擎通常全量重排）
+    event Action? BatchBegin;       // 批量变更括号，见 §3.4
     event Action? BatchEnd;
 }
+
+// automation 的会话级活视图：取值 + 区间变更订阅（镜像宿主数据层 RangeModified 语义）。
+// 插件由此做最细粒度失效："某轨 [start,end) 变了 → 只标脏覆盖该区间的段"。
+public interface ISynthesisAutomation : IAutomationValueGetter
+{
+    event Action<double, double>? RangeModified;   // (startTick, endTick)
+}
 ```
+
+**变更定位的四种最小事实**：字段变了（note 可订阅属性，配合 `WillModified`/`Modified` 拿新旧值）、区间变了（曲线 `RangeModified` 带 tick 范围）、集合变了（`Notes` 增删）、时基变了（`TimingModified`）。失效依赖图（这些事实映射到哪些段、重合成到管线哪一级）归插件——机制粒度足够支撑最精细策略，也允许懒插件"任何通知 → 全部标脏"。
+
+**命名约定（线程纪律编码进名字）**：`Synthesis*` 前缀 = 会话活视图家族（可订阅，仅数据线程）；`*Snapshot` 后缀 = 不可变冻结物家族（纯值无事件，可跨线程）；`IAutomationValueGetter`/`ITiming` = 横跨两域的取值能力接口。活视图上的事件恒在数据线程触发与处理；快照上**没有**事件（类型上拿不到，"把回调留到合成线程"写不出来）。出方向（插件→宿主）的 `StatusChanged` 允许任意线程触发、宿主负责 marshal（v2 跨进程时它本就是 IPC 消息）；进度用 `IProgress<double>`（`Progress<T>` 自带 SynchronizationContext marshal）。
 
 **为何用订阅式而非把 `SynthesisChange` 结构体推给插件**：结构体 + switch 太难用，远不如回调。订阅式既给了插件熟悉的手感，又能精确到字段、天然有序。
 
@@ -215,11 +227,12 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 public interface ISynthesisSession
 {
     // —— 调度 ——
-    // peek：窗内"下一块待合成"，无副作用；返回插件自定义实现（不透明 token）
+    // peek：窗内"下一块待合成"，无副作用；返回插件自定义实现（带捕获声明的 token）
     ISynthesisSegment? GetNextSegment(double startLocal, double endLocal);
 
-    // commit：合成宿主选定的这一段；await 返回 = 槽位释放、宿主重排
-    Task SynthesizeNext(ISynthesisSegment segment,
+    // commit：合成宿主选定的这一段。宿主按 segment 的声明物化 snapshot 后递入；
+    // await 返回 = 槽位释放、宿主重排
+    Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
                         IProgress<double>? progress = null,
                         CancellationToken cancellation = default);
 
@@ -227,15 +240,33 @@ public interface ISynthesisSession
     void Dispose();
 }
 
-// 不透明 token：宿主面只看时间边界排优先级；插件返回自定义实现、commit 时 downcast 取私有载荷
+// 半透明 token：宿主调度只看秒边界；物化时读捕获声明；插件 commit 时 downcast 取私有载荷
 public interface ISynthesisSegment
 {
-    double StartTime { get; }
+    double StartTime { get; }   // 调度边界（秒，与产物同一时间系）
     double EndTime { get; }
+
+    // —— 捕获声明（宿主按此物化快照）——
+    IReadOnlyList<ISynthesisNote> Notes { get; }   // 段内 note + 协同发音邻居，插件自由圈定
+    double StartTick { get; }                      // automation/pitch 开窗区间（曲线数据在 tick 轴）
+    double EndTick { get; }
+}
+
+// 宿主物化的不可变快照，随 SynthesizeNext 递入 worker；形状与 context 活视图镜像对称。
+// 物化/版本缓存/限速/并发记账全留宿主一处；v2 跨进程时它就是序列化消息体（一次过线，非 N 次 RPC）。
+public interface ISynthesisSnapshot
+{
+    IReadOnlyList<SynthesisNoteSnapshot> Notes { get; }   // 不可变值 record，段内 Next/Last 成链
+    ITiming Timing { get; }                                // TempoSnapshot
+    IAutomationValueGetter Pitch { get; }                  // 冻结 getter，开窗 = 声明区间
+    bool TryGetAutomation(string key, out IAutomationValueGetter automation);
+    PropertyObject PartProperties { get; }                 // 值拷
 }
 ```
 
-**`ISynthesisSegment` 为不透明句柄**：宿主只需时间边界排优先级；插件真正关心的是"从哪个 note 到哪个 note"等私有信息，放进它自己的实现类里，commit 时 downcast 取出。跨 ALC 安全：宿主只经 SDK 接口（共享类型标识）持有，插件在自己 ALC 内 downcast。token 短命，仅当前调度 tick 内有效、不跨 tick 缓存。原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
+**peek→commit 原子性**：两者在同一调度 tick 内、同在数据线程同步执行，期间无编辑可插入——segment 持 live note 引用安全；token 不跨 tick 缓存（既有约定）。automation 默认把全部已声明轨按区间开窗物化（bulk 拷亚毫秒级）；将来有压力再加可选 keys 白名单，不动接口面。
+
+**`ISynthesisSegment` 为半透明句柄**：宿主调度只用秒边界排优先级，物化时读捕获声明（Notes/tick 区间）；插件其余私有信息（管线级缓存键等）放进自己的实现类里，commit 时 downcast 取出。跨 ALC 安全：宿主只经 SDK 接口（共享类型标识）持有，插件在自己 ALC 内 downcast。token 短命，仅当前调度 tick 内有效、不跨 tick 缓存。原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
 
 **`SynthesizeNext` 语义**：
 - 返回纯 `Task`、无 outcome 枚举——状态全托管插件，宿主不关心"为何完成"（真完成/被取消/失败都一样），完成即重排、靠 `GetStatus` 看错误、靠 `GetNextSegment` 看是否还有待合成。done/pending/errored 三种处置在插件内部。
