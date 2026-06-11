@@ -80,6 +80,24 @@ public class TempoConvertTests
     }
 
     [Fact]
+    public void FirstMarkNotAtZero_ExtrapolatesWithFirstBpm()
+    {
+        // 首条 mark 不必落在 tick 0：tick 0 锚定 0 秒，首条之前（含负位置）按首条速度外推。
+        var snapshot = new TempoSnapshot([new TempoMark(960, 120), new TempoMark(1920, 60)], 480);
+
+        Assert.Equal(0.0, snapshot.ToSeconds(0));
+        Assert.Equal(0.5, snapshot.ToSeconds(480));     // 外推区：960 tick/s
+        Assert.Equal(-0.5, snapshot.ToSeconds(-480));
+        Assert.Equal(1.0, snapshot.ToSeconds(960));
+        Assert.Equal(2.0, snapshot.ToSeconds(1920));    // 960→1920 @120BPM：+1s
+        Assert.Equal(3.0, snapshot.ToSeconds(2400));    // 其后 60BPM：480 tick = 1s
+
+        Assert.Equal(0.0, snapshot.ToTick(0.0));
+        Assert.Equal(-480.0, snapshot.ToTick(-0.5));
+        Assert.Equal(2400.0, snapshot.ToTick(3.0));
+    }
+
+    [Fact]
     public void Edit_RefreshesConversion()
     {
         // live 换算是惰性缓存的快照，任何编辑（经 Modified 通知）都须失效重建。

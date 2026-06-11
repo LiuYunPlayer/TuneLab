@@ -7,7 +7,8 @@ public sealed class TempoSnapshot : ITiming
     // 最小真值视图；某条 tempo 的实时位置用 ToSeconds(Tempos[i].Tick) 取。
     public IReadOnlyList<TempoMark> Tempos => mTempos;
 
-    // tempos 须升序且首条 Tick = 0（负位置按首条速度线性外推）；ticksPerQuarter = 每四分音符 tick 数。
+    // tempos 须升序（首条不必落在 0：tick 0 锚定 0 秒，首条之前含负位置按首条速度线性外推）；
+    // ticksPerQuarter = 每四分音符 tick 数。
     public TempoSnapshot(IReadOnlyList<TempoMark> tempos, double ticksPerQuarter)
     {
         if (tempos.Count == 0)
