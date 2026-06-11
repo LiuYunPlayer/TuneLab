@@ -102,8 +102,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 
 internal static class LegacyNoteConvert
 {
-    // V1 pinned 音素（note 相对秒约束，null=引擎自由）→ 老接口的绝对秒列表。
-    // 老接口没有"部分自由"概念：未钉死的项过滤掉（整列表为空即老语义的"全自由"）。
+    // V1 钉死音素（note 相对秒，列表非空=整 note 钉死）→ 老接口的绝对秒列表（语义一致直转）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
         IReadOnlyList<VVoice.PhonemeInfo> phonemes, double noteStartTime)
     {
@@ -113,14 +112,11 @@ internal static class LegacyNoteConvert
         var result = new List<LVoice.SynthesizedPhoneme>(phonemes.Count);
         foreach (var phoneme in phonemes)
         {
-            if (phoneme.PinnedStart is not { } start || phoneme.PinnedEnd is not { } end)
-                continue;
-
             result.Add(new LVoice.SynthesizedPhoneme
             {
                 Symbol = phoneme.Symbol,
-                StartTime = noteStartTime + start,
-                EndTime = noteStartTime + end,
+                StartTime = noteStartTime + phoneme.StartTime,
+                EndTime = noteStartTime + phoneme.EndTime,
             });
         }
         return result;

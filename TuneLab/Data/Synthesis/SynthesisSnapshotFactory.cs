@@ -32,13 +32,15 @@ internal static class SynthesisSnapshotFactory
             if (note is not SynthesisContext.SynthesisNoteProxy proxy)
                 throw new ArgumentException("Segment notes must come from this part's synthesis context.");
 
-            notes.Add(new SynthesisNoteSnapshot(
-                note.StartPosition.Value,
-                note.EndPosition.Value,
-                note.Pitch.Value,
-                note.Lyric.Value,
-                note.Phonemes.Value,                      // 派生 getter 每次新建列表，无活引用
-                proxy.Source.Properties.GetInfo()));      // 值拷 PropertyObject
+            notes.Add(new SynthesisNoteSnapshot
+            {
+                StartPosition = note.StartPosition.Value,
+                EndPosition = note.EndPosition.Value,
+                Pitch = note.Pitch.Value,
+                Lyric = note.Lyric.Value,
+                Phonemes = note.Phonemes.Value,                 // 派生 getter 每次新建列表，无活引用
+                Properties = proxy.Source.Properties.GetInfo(), // 值拷 PropertyObject
+            });
         }
 
         // —— tempo 快照（不可变，零拷贝共享）——

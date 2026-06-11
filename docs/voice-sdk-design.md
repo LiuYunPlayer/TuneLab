@@ -340,13 +340,14 @@ public struct SynthesisStatusSegment
 public class PhonemeInfo
 {
     public string Symbol = string.Empty;
-    public double? PinnedStart;   // note-相对秒；null = 引擎自由智能定时，有值 = 用户钉死的约束
-    public double? PinnedEnd;
+    public double StartTime;   // note-相对秒，恒有值
+    public double EndTime;
 }
 ```
 
 - 挂在 `ISynthesisNote.Phonemes`。**相对 note 起点的秒偏移**：可编辑、随 note 移动自动跟随（偏移不变）、负值表示越界到 note 之前的辅音引导。秒（而非 tick）是因为音素时长是声学量，应随 note 平移而保持、跨 tempo 不变形。
-- 只有**用户 pin** 作为时长输入喂给引擎（约束，引擎遵守）；没 pin 的引擎自由定时；空列表 → 引擎从 `Lyric` 做 G2P + 全自由定时。
+- **钉死粒度为整 note**：列表非空 = 全部音素用户钉死（约束，引擎遵守）；空列表 = 引擎从 `Lyric` 做 G2P + 全自由定时。不支持单音素级"部分钉死"（半约束的组合空间对插件是真实负担，且宿主侧本就只产全钉死列表，没有生产者）。
+- **不引入最小音素时长声明**：宿主压缩（拖短 note）封顶在非负 clamp、可以压到 0——这只是编辑态约束值，合成正确性不受影响：引擎收到不合理约束按自己的音韵学知识兜底，输出的 `SynthesizedPhoneme` 才是权威（preview 本会被全量合成覆盖，见下节"宿主公式封顶"共识）。将来若要精细编辑 UX，在声明面纯加性补元数据即可。
 
 ### 输出（engine→host，合成时返回）
 

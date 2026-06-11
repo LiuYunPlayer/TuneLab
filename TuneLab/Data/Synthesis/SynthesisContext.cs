@@ -537,12 +537,12 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
                 var phonemes = new List<SDK.Voice.PhonemeInfo>(note.Phonemes.Count);
                 foreach (var phoneme in note.Phonemes)
                 {
-                    // 宿主数据层的音素时长均为用户钉死值（note 相对秒），转为 pinned 约束。
+                    // 宿主数据层的音素时长均为用户钉死值（note 相对秒）；列表非空即整 note 钉死。
                     phonemes.Add(new SDK.Voice.PhonemeInfo
                     {
                         Symbol = phoneme.Symbol.Value,
-                        PinnedStart = phoneme.StartTime.Value,
-                        PinnedEnd = phoneme.EndTime.Value,
+                        StartTime = phoneme.StartTime.Value,
+                        EndTime = phoneme.EndTime.Value,
                     });
                 }
                 return phonemes;
