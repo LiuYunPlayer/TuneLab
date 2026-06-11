@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Base;
 using TuneLab.SDK.Base.ControllerConfigs;
@@ -9,40 +11,206 @@ using TuneLab.TestPlugins.Suite.Common;
 
 namespace TuneLab.TestPlugins.Suite.Voice;
 
-// 一包多插件之 voice：1 个声库（名取自共享 Common）。合成产出静音 + phoneme（合成保真已由 V1.Voice 覆盖，此处从简）。
+// 一包多插件之 voice：2 个声库（名取自共享 Common）。会话取单块最简模式——整 part 一块、
+// 任何变更全量标脏（设计许可的最懒失效策略），合成产出静音 + phoneme（合成保真已由 V1.Voice 覆盖）。
 [VoiceEngine("TLSuiteVoice")]
 public sealed class SuiteVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => mVoiceInfos;
 
-    public bool Init(string enginePath, out string? error)
+    public void Init()
     {
-        error = null;
         mVoiceInfos.Add("suite-voice", new VoiceSourceInfo { Name = SuiteCommon.Label("Voice"), Description = "Suite shared-infra voice" });
         // 条件属性面板演示声库（note config 随当前值动态变化，见 tests/PROPERTY-CONDITIONAL-TEST-CASES.md）。
         mVoiceInfos.Add("suite-conditional", new VoiceSourceInfo { Name = SuiteCommon.Label("Conditional"), Description = "Conditional property panel demo" });
-        return true;
     }
 
     public void Destroy() { }
-    public IVoiceSource CreateVoiceSource(string id)
-        => id == "suite-conditional" ? new ConditionalVoiceSource(id) : new SuiteVoiceSource(id);
+
+    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context)
+        => voiceId == "suite-conditional" ? new ConditionalSession(context) : new SuiteVoiceSession(context);
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
 }
 
-public sealed class SuiteVoiceSource(string id) : IVoiceSource
+// 单块最简会话基类：整 part 一块；订阅 context 全部变更通知 → 全量标脏（懒插件合法策略）。
+public abstract class SingleBlockSession : ISynthesisSession
 {
-    public string Name => id;
-    public string DefaultLyric => "la";
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-    public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+    protected SingleBlockSession(ISynthesisContext context)
+    {
+        mContext = context;
+        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtension.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
+        context.Notes.Modified += MarkDirty;
+        context.PartProperties.Modified += MarkDirty;
+        context.TimingModified += MarkDirty;
+        context.Pitch.RangeModified += OnRangeModified;
+        mDirty = true;
+    }
 
-    public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
-        => this.SimpleSegment(segment);
+    public abstract string DefaultLyric { get; }
+    public abstract IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; } = new OrderedMap<string, PiecewiseAutomationConfig>();
+    public abstract IReadOnlyOrderedMap<string, IControllerConfig> PartProperties { get; }
+    public abstract IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
 
-    public ISynthesisTask CreateSynthesisTask(ISynthesisData data) => new SuiteSynthesisTask(data);
+    public virtual ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = PartProperties };
+    public virtual ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = NoteProperties };
+
+    public ISynthesisSegment? GetNextSegment(double startTime, double endTime)
+    {
+        if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
+            return null;
+
+        var notes = mContext.Notes.ToList();
+        var segment = new Segment(notes);
+        return segment.EndTime < startTime || segment.StartTime > endTime ? null : segment;
+    }
+
+    public async Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+        IProgress<double>? progress = null, CancellationToken cancellation = default)
+    {
+        mDirty = false;
+        mSynthesizing = true;
+        StatusChanged?.Invoke();
+
+        try
+        {
+            var notes = snapshot.Notes;
+            double startTime = notes.Count > 0 ? notes[0].StartPosition.Seconds : 0;
+            double endTime = notes.Count > 0 ? notes[^1].EndPosition.Seconds : 0;
+            mAudio = new float[Math.Max(1, (int)((endTime - startTime) * kSampleRate))];
+            mAudioStart = startTime;
+            var phonemes = new List<SynthesizedPhoneme>(notes.Count);
+            for (int i = 0; i < notes.Count; i++)
+            {
+                var note = notes[i];
+                phonemes.Add(new SynthesizedPhoneme
+                {
+                    Symbol = note.Lyric,
+                    StartTime = note.StartPosition.Seconds,
+                    EndTime = note.EndPosition.Seconds,
+                    Note = segment.Notes[i],   // 索引对齐：产物归属回活 note
+                    StretchWeight = note.EndPosition.Seconds - note.StartPosition.Seconds,
+                });
+            }
+            mPhonemes = phonemes;
+            mBlockStart = startTime;
+            mBlockEnd = endTime;
+            progress?.Report(1);
+        }
+        finally
+        {
+            mSynthesizing = false;
+            StatusChanged?.Invoke();
+        }
+
+        await Task.CompletedTask;
+    }
+
+    public int SampleRate => kSampleRate;
+    public double StartTime => mAudioStart;
+    public int SampleCount => mAudio?.Length ?? 0;
+
+    public void ReadAudio(int offset, int count, float[] dst)
+    {
+        if (mAudio is not { } audio)
+            return;
+
+        int from = Math.Max(offset, 0);
+        int to = Math.Min(offset + count, audio.Length);
+        for (int i = from; i < to; i++)
+        {
+            dst[i - offset] += audio[i];
+        }
+    }
+
+    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
+    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
+    public IReadOnlyList<SynthesizedPhoneme> Phonemes => mPhonemes;
+
+    public IReadOnlyList<SynthesisStatusSegment> GetStatus()
+    {
+        if (mAudio == null && !mSynthesizing && !mDirty)
+            return [];
+
+        if (mContext.Notes.Count == 0)
+            return [];
+
+        double start = mSynthesizing || mAudio == null ? mContext.Notes[0].StartPosition.Value.Seconds : mBlockStart;
+        double end = mSynthesizing || mAudio == null ? mContext.Notes[mContext.Notes.Count - 1].EndPosition.Value.Seconds : mBlockEnd;
+        var status = mSynthesizing ? SynthesisSegmentStatus.Synthesizing
+            : mDirty || mAudio == null ? SynthesisSegmentStatus.Pending
+            : SynthesisSegmentStatus.Synthesized;
+        return [new SynthesisStatusSegment { StartTime = start, EndTime = end, Status = status }];
+    }
+
+    public event Action? StatusChanged;
+
+    public void Dispose()
+    {
+        mNotesSubscription.Dispose();
+        mContext.Notes.Modified -= MarkDirty;
+        mContext.PartProperties.Modified -= MarkDirty;
+        mContext.TimingModified -= MarkDirty;
+        mContext.Pitch.RangeModified -= OnRangeModified;
+    }
+
+    void SubscribeNote(ISynthesisNote note)
+    {
+        note.StartPosition.Modified += MarkDirty;
+        note.EndPosition.Modified += MarkDirty;
+        note.Pitch.Modified += MarkDirty;
+        note.Lyric.Modified += MarkDirty;
+        note.Phonemes.Modified += MarkDirty;
+        note.Properties.Modified += MarkDirty;
+    }
+
+    void UnsubscribeNote(ISynthesisNote note)
+    {
+        note.StartPosition.Modified -= MarkDirty;
+        note.EndPosition.Modified -= MarkDirty;
+        note.Pitch.Modified -= MarkDirty;
+        note.Lyric.Modified -= MarkDirty;
+        note.Phonemes.Modified -= MarkDirty;
+        note.Properties.Modified -= MarkDirty;
+    }
+
+    void MarkDirty()
+    {
+        mDirty = true;
+        StatusChanged?.Invoke();
+    }
+
+    void OnRangeModified(double startTick, double endTick) => MarkDirty();
+
+    sealed class Segment(IReadOnlyList<ISynthesisNote> notes) : ISynthesisSegment
+    {
+        public double StartTime => notes[0].StartPosition.Value.Seconds;
+        public double EndTime => notes[^1].EndPosition.Value.Seconds;
+        public IReadOnlyList<ISynthesisNote> Notes => notes;
+        public double StartTick => notes[0].StartPosition.Value.Tick;
+        public double EndTick => notes[^1].EndPosition.Value.Tick;
+    }
+
+    const int kSampleRate = 44100;
+
+    readonly ISynthesisContext mContext;
+    readonly IDisposable mNotesSubscription;
+    bool mDirty;
+    bool mSynthesizing;
+    float[]? mAudio;
+    double mAudioStart;
+    double mBlockStart;
+    double mBlockEnd;
+    IReadOnlyList<SynthesizedPhoneme> mPhonemes = [];
+}
+
+public sealed class SuiteVoiceSession(ISynthesisContext context) : SingleBlockSession(context)
+{
+    public override string DefaultLyric => "la";
+    public override IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    public override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
+    public override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
     // 与其它测试 voice 一致地声明属性（避免"空面板像 bug"的误解）。自定义自动化名避开宿主保留名。
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new() { { "Power", new AutomationConfig { DisplayText = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
@@ -82,16 +250,15 @@ public sealed class SuiteVoiceSource(string id) : IVoiceSource
 // ① 显隐/换控件：mode=Advanced 时多出 gain/detail 字段；
 // ② 控件参数随值变：pick 下拉的选项 = letters 逐字符（内容 + 数量都随 letters 变）；
 // ③ 动态数量控件：letters 每个唯一字符派生一个滑条（key=字符，重复字符只出一个——有序可重复列表属 array 独立话题）。
-// 静态 NoteProperties 仍声明 mode/letters 作为兜底（旧宿主 / 未覆写路径）。
-public sealed class ConditionalVoiceSource(string id) : IVoiceSource
+// 静态 NoteProperties 仍声明 mode/letters 作为兜底（未覆写路径）。
+public sealed class ConditionalSession(ISynthesisContext context) : SingleBlockSession(context)
 {
-    public string Name => id;
-    public string DefaultLyric => "la";
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
-    public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
+    public override string DefaultLyric => "la";
+    public override IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    public override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
+    public override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
-    public ObjectConfig GetNoteConfig(IPropertyContext context)
+    public override ObjectConfig GetNoteConfig(IPropertyContext context)
     {
         var note = context.NoteProperties;
         var map = new OrderedMap<string, IControllerConfig>
@@ -129,11 +296,6 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
         return new ObjectConfig { Properties = map };
     }
 
-    public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
-        => this.SimpleSegment(segment);
-
-    public ISynthesisTask CreateSynthesisTask(ISynthesisData data) => new SuiteSynthesisTask(data);
-
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
     // part 级勾选项，note config 据它沿链多出字段（演示 part→note 传播）。
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new()
@@ -145,32 +307,4 @@ public sealed class ConditionalVoiceSource(string id) : IVoiceSource
         { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
         { "letters", new TextBoxConfig() },
     };
-}
-
-public sealed class SuiteSynthesisTask(ISynthesisData data) : ISynthesisTask
-{
-    public event Action<SynthesisResult>? Complete;
-    public event Action<double>? Progress;
-    public event Action<string>? Error;
-
-    public void Start()
-    {
-        var notes = data.Notes.ToList();
-        double startTime = notes.Count > 0 ? notes[0].StartTime : 0;
-        double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
-        int sampleCount = Math.Max(1, (int)((endTime - startTime) * SampleRate));
-        var phonemes = new Dictionary<ISynthesisNote, SynthesizedPhoneme[]>();
-        foreach (var note in notes)
-            phonemes[note] = [new SynthesizedPhoneme { Symbol = note.Lyric, StartTime = note.StartTime, EndTime = note.EndTime }];
-
-        Progress?.Invoke(1);
-        Complete?.Invoke(new SynthesisResult(startTime, SampleRate, new float[sampleCount], null, phonemes));
-    }
-
-    public void Suspend() { }
-    public void Resume() { }
-    public void Stop() { }
-    public void SetDirty(string dirtyType) { }
-
-    const int SampleRate = 44100;
 }
