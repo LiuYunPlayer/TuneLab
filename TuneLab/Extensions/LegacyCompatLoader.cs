@@ -48,7 +48,8 @@ internal static class LegacyCompatLoader
                 // 同时把真实类别回填进本包的 typeSink，供 sidebar 展示精确类型而非笼统 "Legacy"。
                 Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(ext, () => format); AddType(typeSink, "format"); };
                 Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(ext, () => format); AddType(typeSink, "format"); };
-                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(type, engine, enginePath); AddType(typeSink, "voice"); };
+                // enginePath 由 compat 侧的引擎适配器自持（老引擎 Init 需要包路径，新引擎面 Init 无参）。
+                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(type, engine); AddType(typeSink, "voice"); };
 
                 var assemblies = description?.assemblies ?? Array.Empty<string>();
                 var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine, compatLog]);

@@ -46,8 +46,6 @@ internal class Note : DataObject, INote
     INote? ILinkedNode<INote>.Next { get; set; } = null;
     INote? ILinkedNode<INote>.Last { get; set; } = null;
     ILinkedList<INote>? ILinkedNode<INote>.LinkedList { get; set; }
-    public INote? NextInSegment { get; set; } = null;
-    public INote? LastInSegment { get; set; } = null;
 
     public Note(IMidiPart part, NoteInfo info)
     {

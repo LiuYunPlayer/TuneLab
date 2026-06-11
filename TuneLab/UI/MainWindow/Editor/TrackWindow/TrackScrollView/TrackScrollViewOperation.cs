@@ -678,7 +678,7 @@ internal partial class TrackScrollView
             foreach (var movePart in mMoveParts.SelectMany(p => p.parts))
             {
                 if (movePart is MidiPart midiPart)
-                    midiPart.DisableAutoPrepare();
+                    midiPart.BeginMergeDirty();
             }
             mHead = part.Head;
             mPart = part;
@@ -757,7 +757,7 @@ internal partial class TrackScrollView
             foreach (var movePart in mMoveParts.SelectMany(p => p.parts))
             {
                 if (movePart is MidiPart midiPart)
-                    midiPart.EnableAutoPrepare();
+                    midiPart.EndMergeDirty();
             }
             if (mMoved)
             {

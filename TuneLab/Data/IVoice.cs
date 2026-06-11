@@ -1,27 +1,22 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
 using TuneLab.SDK.Base.ControllerConfigs;
-using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK.Voice;
 
 namespace TuneLab.Data;
 
+// part 声源的宿主门面：持久化身份（Type/ID，undo 面）+ 声明视图。
+// 声明（默认歌词/自动化轨/属性面板）挂在合成会话上（厚插件原则），这里转发 part 当前会话；
+// 会话未建（part 未激活/引擎不可用）时回退默认声明。
 internal interface IVoice : IDataObject<VoiceInfo>
 {
+    string Type { get; }
+    string ID { get; }
     string Name { get; }
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
     ObjectConfig GetPartConfig(IPropertyContext context);
     ObjectConfig GetNoteConfig(IPropertyContext context);
-    IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote;
-    ISynthesisTask CreateSynthesisTask(ISynthesisData data);
 }

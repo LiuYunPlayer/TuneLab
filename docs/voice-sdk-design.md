@@ -302,14 +302,15 @@ public enum SynthesisSegmentStatus { Pending, Synthesizing, Synthesized, Failed 
 
 public struct SynthesisStatusSegment
 {
-    public TimeRange Range;
+    public double StartTime;    // 秒，与音频产物同一时间系
+    public double EndTime;
     public SynthesisSegmentStatus Status;
-    public string? Message;     // 失败时错误信息
+    public string? Message;     // 状态文案：Failed=错误信息；Synthesizing=可选管线阶段（如"正在合成音高"），宿主原样展示
     public double? Progress;    // 合成中可选：该段进度
 }
 ```
 
-`SynthesisStatusSegment` 把"已完成 / 合成中 / 失败 / 待合成"统一成一条时间线，宿主据 `Range + Status` 着色、显示进度、在失败段显示错误，并知道哪段已合成可去拉音频。
+`SynthesisStatusSegment` 把"已完成 / 合成中 / 失败 / 待合成"统一成一条时间线，宿主据 `范围 + Status` 着色、显示进度、在失败段显示错误，并知道哪段已合成可去拉音频。范围**平铺为两个 double、不引入冻结的区间类型**（裸名 `Range` 与 `System.Range` 歧义，且区间运算是宿主侧能力）：宿主将来需要区间合并/相交等运算时在宿主内部封装（如对照 ACE `Base/Utils/Math/RangeF` 的泛化区间），不进 SDK 冻结面、随时可改名。
 
 ---
 

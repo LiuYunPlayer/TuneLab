@@ -356,7 +356,7 @@ internal partial class TimelineView
             mTempoIndexAfterMove = tempoItem.TempoIndex;
             mOffset = x - tempoItem.Left;
 
-            mTempoItem.TempoManager.Project.DisableAutoPrepare();
+            mTempoItem.TempoManager.Project.BeginMergeDirty();
             mHead = tempoItem.TempoManager.Head;
 
             TimelineView.InvalidateVisual();
@@ -370,10 +370,10 @@ internal partial class TimelineView
             if (!alt) pos = TimelineView.GetQuantizedTick(pos);
             double bpm = mTempoItem.Tempo.Bpm;
 
-            mTempoItem.TempoManager.Project.BeginMergeReSegment();
+            mTempoItem.TempoManager.Project.BeginMergeDirty();
             mTempoItem.TempoManager.RemoveTempoAt(mTempoItem.TempoIndex);
             mTempoIndexAfterMove = mTempoItem.TempoManager.AddTempo(pos, bpm);
-            mTempoItem.TempoManager.Project.EndMergeReSegment();
+            mTempoItem.TempoManager.Project.EndMergeDirty();
         }
 
         public void Up()
@@ -382,7 +382,7 @@ internal partial class TimelineView
 
             var head = mTempoItem.TempoManager.Head;
 
-            mTempoItem.TempoManager.Project.EnableAutoPrepare();
+            mTempoItem.TempoManager.Project.EndMergeDirty();
             if (head == mHead)
             {
                 mTempoItem.TempoManager.Discard();
@@ -417,7 +417,7 @@ internal partial class TimelineView
             mTimeSignatureIndexAfterMove = timeSignatureItem.TimeSignatureIndex;
             mOffset = x - timeSignatureItem.Left;
 
-            mTimeSignatureItem.TimeSignatureManager.Project.DisableAutoPrepare();
+            mTimeSignatureItem.TimeSignatureManager.Project.BeginMergeDirty();
             mHead = timeSignatureItem.TimeSignatureManager.Head;
 
             TimelineView.InvalidateVisual();
@@ -431,11 +431,11 @@ internal partial class TimelineView
             int numerator = mTimeSignatureItem.TimeSignature.Numerator;
             int denominator = mTimeSignatureItem.TimeSignature.Denominator;
 
-            mTimeSignatureItem.TimeSignatureManager.Project.BeginMergeReSegment();
+            mTimeSignatureItem.TimeSignatureManager.Project.BeginMergeDirty();
             mTimeSignatureItem.TimeSignatureManager.RemoveTimeSignatureAt(mTimeSignatureItem.TimeSignatureIndex);
             var barIndex = mTimeSignatureItem.TimeSignatureManager.GetMeterStatus(pos).BarIndex;
             mTimeSignatureIndexAfterMove = mTimeSignatureItem.TimeSignatureManager.AddTimeSignature((int)barIndex, numerator, denominator);
-            mTimeSignatureItem.TimeSignatureManager.Project.EndMergeReSegment();
+            mTimeSignatureItem.TimeSignatureManager.Project.EndMergeDirty();
         }
 
         public void Up()
@@ -444,7 +444,7 @@ internal partial class TimelineView
 
             var head = mTimeSignatureItem.TimeSignatureManager.Head;
 
-            mTimeSignatureItem.TimeSignatureManager.Project.EnableAutoPrepare();
+            mTimeSignatureItem.TimeSignatureManager.Project.EndMergeDirty();
             if (head == mHead)
             {
                 mTimeSignatureItem.TimeSignatureManager.Discard();

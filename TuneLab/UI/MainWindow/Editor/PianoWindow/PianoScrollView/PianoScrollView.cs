@@ -130,15 +130,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
         PitchButton.StateChanged -= InvalidateVisual;
     }
 
-    void OnSynthesisStatusChanged(ISynthesisPiece piece)
+    void OnSynthesisStatusChanged()
     {
         if (Part == null)
-            return;
-
-        var tempoManager = Part.TempoManager;
-        double startTime = tempoManager.GetTime(TickAxis.MinVisibleTick);
-        double endTime = tempoManager.GetTime(TickAxis.MaxVisibleTick);
-        if (piece.StartTime() > endTime || piece.EndTime() < startTime)
             return;
 
         InvalidateVisual();
@@ -327,29 +321,36 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         var tempoManager = Part.TempoManager;
 
-        foreach (var piece in Part.SynthesisPieces)
+        // 合成状态带：插件托管的统一状态时间线（按段着色 + 进度 + 失败信息）。
+        foreach (var statusSegment in Part.GetSynthesisStatus())
         {
-            IBrush brush = piece.SynthesisStatus switch
+            IBrush brush = statusSegment.Status switch
             {
-                SynthesisStatus.NotSynthesized => Colors.Gray.Opacity(0.5).ToBrush(),
-                SynthesisStatus.SynthesisFailed => Colors.Red.Opacity(0.5).ToBrush(),
-                SynthesisStatus.SynthesisSucceeded => Colors.Green.Opacity(0.5).ToBrush(),
-                SynthesisStatus.Synthesizing => Colors.Orange.Opacity(0.5).ToBrush(),
+                SynthesisSegmentStatus.Pending => Colors.Gray.Opacity(0.5).ToBrush(),
+                SynthesisSegmentStatus.Failed => Colors.Red.Opacity(0.5).ToBrush(),
+                SynthesisSegmentStatus.Synthesized => Colors.Green.Opacity(0.5).ToBrush(),
+                SynthesisSegmentStatus.Synthesizing => Colors.Orange.Opacity(0.5).ToBrush(),
                 _ => throw new UnreachableException(),
             };
-            double left = TickAxis.Tick2X(tempoManager.GetTick(piece.StartTime()));
-            double right = TickAxis.Tick2X(tempoManager.GetTick(piece.EndTime()));
-            if (piece.SynthesisStatus == SynthesisStatus.Synthesizing)
+            double left = TickAxis.Tick2X(tempoManager.GetTick(statusSegment.StartTime));
+            double right = TickAxis.Tick2X(tempoManager.GetTick(statusSegment.EndTime));
+            if (statusSegment.Status == SynthesisSegmentStatus.Synthesizing)
             {
-                double center = MathUtility.LineValue(0, left, 1, right, piece.SynthesisProgress);
+                double center = MathUtility.LineValue(0, left, 1, right, statusSegment.Progress ?? 0);
                 context.DrawRectangle(Colors.Green.Opacity(0.5).ToBrush(), null, new RoundedRect(new(left, 12, center - left, 8), 2, 0, 0, 2));
                 context.DrawRectangle(Colors.Orange.Opacity(0.5).ToBrush(), null, new RoundedRect(new(center, 12, right - center, 8), 0, 2, 2, 0));
+                if (!string.IsNullOrEmpty(statusSegment.Message))
+                {
+                    var rect = new Rect(left, 8, right - left, 16);
+                    using var clip = context.PushClip(rect);
+                    context.DrawString(statusSegment.Message, rect, Colors.White.ToBrush(), 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                }
             }
-            else if (piece.SynthesisStatus == SynthesisStatus.SynthesisFailed && !string.IsNullOrEmpty(piece.LastError))
+            else if (statusSegment.Status == SynthesisSegmentStatus.Failed && !string.IsNullOrEmpty(statusSegment.Message))
             {
                 var rect = new Rect(left, 8, right - left, 16);
                 using var clip = context.PushClip(rect);
-                context.DrawString(piece.LastError, rect, Colors.Red.ToBrush(), 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                context.DrawString(statusSegment.Message, rect, Colors.Red.ToBrush(), 12, Alignment.LeftCenter, Alignment.LeftCenter);
             }
             else
             {
@@ -439,13 +440,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         var tempoManager = Part.TempoManager;
 
-        foreach (var piece in Part.SynthesisPieces)
         {
-            var result = piece.SynthesisResult;
-            if (result == null)
-                continue;
-
-            foreach (var pitch in result.SynthesizedPitch)
+            foreach (var pitch in Part.SynthesizedPitch)
             {
                 if (pitch.IsEmpty())
                     continue;
@@ -616,23 +612,17 @@ internal partial class PianoScrollView : View, IPianoScrollView
         var viewStartTime = tempoManager.GetTime(TickAxis.X2Tick(0));
         var viewEndTime = tempoManager.GetTime(TickAxis.X2Tick(Bounds.Width));
 
-        foreach (var piece in Part.SynthesisPieces)
+        // 单一最终音频（链尾输出）：与可视区间相交则绘制波形。
+        DrawAudioWaveform();
+        void DrawAudioWaveform()
         {
-            double startTime = piece.AudioStartTime();
-            double endTime = piece.AudioEndTime();
-            if (endTime < viewStartTime)
-                continue;
+            if (Part.SynthesizedAudio is not { Samples: not null } audio || Part.Waveform is not { } waveform)
+                return;
 
-            if (startTime > viewEndTime)
-                break;
-
-            var waveform = piece.Waveform;
-            if (waveform == null)
-                continue;
-
-            var result = piece.SynthesisResult;
-            if (result == null)
-                continue;
+            double startTime = audio.StartTime;
+            double endTime = audio.StartTime + (audio.Samples.Length == 0 ? 0 : (double)audio.Samples.Length / audio.SampleRate);
+            if (startTime > viewEndTime || endTime < viewStartTime)
+                return;
 
             double minTime = Math.Max(viewStartTime, startTime);
             double maxTime = Math.Min(viewEndTime, endTime);
@@ -647,12 +637,12 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 xp += gap;
                 xs.Add(xp);
                 double time = tempoManager.GetTime(TickAxis.X2Tick(xp));
-                positions.Add((time - result.StartTime) * result.SamplingRate);
+                positions.Add((time - audio.StartTime) * audio.SampleRate);
             }
             while (xp < maxX);
 
             if (positions.Count < 2)
-                continue;
+                return;
 
             float level = (float)MusicTheory.dB2Level(Part.Gain.Value);
             float r = (float)height / 2;
@@ -724,7 +714,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         foreach (var note in Part.Notes)
         {
-            IReadOnlyList<SynthesizedPhoneme>? phonemes = ((ISynthesisNote)note).Phonemes;
+            IReadOnlyList<SynthesizedPhoneme>? phonemes = note.PinnedPhonemes;
             if (phonemes.IsEmpty())
                 phonemes = note.SynthesizedPhonemes;
 

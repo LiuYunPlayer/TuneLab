@@ -1,66 +1,65 @@
+using System;
 using System.Collections.Generic;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Base.ControllerConfigs;
-using TuneLab.Foundation.DataStructures;
+using System.Threading;
+using System.Threading.Tasks;
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK.Base.ControllerConfigs;
 
 using TuneLab.SDK.Voice;
 namespace TuneLab.Extensions.Voices;
 
+// 空声源引擎（type = ""）：无声源 part 的回退实现。会话永远报告"窗内无待合成"，
+// 产物全空——part 不参与合成调度、UI 无状态带，行为等价于静音。
 [VoiceEngine("")]
 internal class EmptyVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, mVoiceSourceInfo } };
 
-    public IVoiceSource CreateVoiceSource(string id)
+    public void Init() { }
+
+    public void Destroy() { }
+
+    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context)
     {
-        return new EmptyVoiceSource(id);
+        return new EmptySession();
     }
 
-    public void Destroy()
+    class EmptySession : ISynthesisSession
     {
-        mAutomationConfigs.Clear();
-    }
-
-    public bool Init(string enginePath, out string? error)
-    {
-        error = null;
-        return true;
-    }
-
-    class EmptyVoiceSource : IVoiceSource
-    {
-        public string Name => string.IsNullOrEmpty(mID) ? mVoiceSourceInfo.Name : mID;
-
+        public string DefaultLyric => "a";
         public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+        public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs => mPiecewiseAutomationConfigs;
         public IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
         public IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
-        public string DefaultLyric { get; } = "a";
+        public ISynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
 
-        public EmptyVoiceSource(string id)
+        public Task SynthesizeNext(ISynthesisSegment segment, ISynthesisSnapshot snapshot,
+            IProgress<double>? progress = null, CancellationToken cancellation = default)
         {
-            mID = id;
+            return Task.CompletedTask;
         }
 
-        public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
-        {
-            return this.SimpleSegment(segment);
-        }
+        public int SampleRate => 44100;
+        public double StartTime => 0;
+        public int SampleCount => 0;
+        public void ReadAudio(int offset, int count, float[] dst) { }
 
-        public ISynthesisTask CreateSynthesisTask(ISynthesisData data)
-        {
-            return new EmptyVoiceSynthesisTask(data);
-        }
+        public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
+        public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSynthesizedParameters;
+        public IReadOnlyList<SynthesizedPhoneme> Phonemes => [];
 
-        string mID;
+        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
+        public event Action? StatusChanged { add { } remove { } }
+
+        public void Dispose() { }
+
+        static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+        static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
+        static readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
+        static readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
+        static readonly Map<string, IReadOnlyList<IReadOnlyList<Point>>> mSynthesizedParameters = new();
     }
 
-    static OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    static OrderedMap<string, IControllerConfig> mPartProperties = new();
-    static OrderedMap<string, IControllerConfig> mNoteProperties = new();
     static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };
 }

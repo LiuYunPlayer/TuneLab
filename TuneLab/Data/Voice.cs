@@ -1,15 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
 using TuneLab.SDK.Base;
 using TuneLab.SDK.Base.ControllerConfigs;
-using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK.Voice;
@@ -19,15 +12,18 @@ namespace TuneLab.Data;
 
 internal class Voice : DataObject, IVoice
 {
-    public string Name => mVoiceSource.Name;
-    public string DefaultLyric => mVoiceSource.DefaultLyric;
+    public string Type => mType;
+    public string ID => mID;
+    public string Name => mName;
+    public string DefaultLyric => mSession?.DefaultLyric ?? "a";
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public ObjectConfig GetPartConfig(IPropertyContext context) => mVoiceSource.GetPartConfig(context);
-    public ObjectConfig GetNoteConfig(IPropertyContext context) => mVoiceSource.GetNoteConfig(context);
+    public ObjectConfig GetPartConfig(IPropertyContext context) => mSession?.GetPartConfig(context) ?? EmptyConfig;
+    public ObjectConfig GetNoteConfig(IPropertyContext context) => mSession?.GetNoteConfig(context) ?? EmptyConfig;
 
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {
         WriteInfo(info);
+        RefreshDeclarations(null);
     }
 
     public VoiceInfo GetInfo()
@@ -49,19 +45,40 @@ internal class Voice : DataObject, IVoice
         PushAndDo(new ModifyCommand(this, before, info));
     }
 
+    // 会话重建后由 part 注入声明来源（不触发 Notify：本方法在 Voice.Modified 的 part 侧
+    // handler 内被调，part 在构造期最早订阅、先于 UI 刷新执行，UI 读到的即新声明）。
+    public void RefreshDeclarations(ISynthesisSession? session)
+    {
+        mSession = session;
+        mName = VoicesManager.TryGetVoiceInfo(mType, mID, out var info)
+            ? info.Name
+            : (string.IsNullOrEmpty(mID) ? "Empty Voice" : mID);
+        mAutomationConfigs.Clear();
+        foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs)
+        {
+            mAutomationConfigs.Add(kvp.Key, kvp.Value);
+        }
+        if (session != null)
+        {
+            foreach (var kvp in session.AutomationConfigs)
+            {
+                if (!mAutomationConfigs.ContainsKey(kvp.Key))
+                    mAutomationConfigs.Add(kvp.Key, kvp.Value);
+            }
+        }
+        foreach (var kvp in ConstantDefine.PostCommonAutomationConfigs)
+        {
+            if (!mAutomationConfigs.ContainsKey(kvp.Key))
+                mAutomationConfigs.Add(kvp.Key, kvp.Value);
+        }
+    }
+
     [MemberNotNull(nameof(mType))]
     [MemberNotNull(nameof(mID))]
-    [MemberNotNull(nameof(mVoiceSource))]
     void WriteInfo(VoiceInfo info)
     {
         mType = info.Type;
         mID = info.ID;
-        mVoiceSource = VoicesManager.Create(info.Type, info.ID);
-        mAutomationConfigs.Clear();
-        foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs.Concat(mVoiceSource.AutomationConfigs).Concat(ConstantDefine.PostCommonAutomationConfigs))
-        {
-            mAutomationConfigs.Add(kvp.Key, kvp.Value);
-        }
     }
 
     class ModifyCommand(Voice voice, VoiceInfo before, VoiceInfo after) : ICommand
@@ -70,19 +87,12 @@ internal class Voice : DataObject, IVoice
         public void Undo() { voice.WriteInfo(before); voice.Notify(); }
     }
 
-    public IReadOnlyList<SynthesisSegment<T>> Segment<T>(SynthesisSegment<T> segment) where T : ISynthesisNote
-    {
-        return mVoiceSource.Segment(segment);
-    }
-
-    public ISynthesisTask CreateSynthesisTask(ISynthesisData data)
-    {
-        return mVoiceSource.CreateSynthesisTask(data);
-    }
+    static readonly ObjectConfig EmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
 
     string mType;
     string mID;
+    string mName = string.Empty;
 
-    IVoiceSource mVoiceSource;
-    OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    ISynthesisSession? mSession;
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
 }

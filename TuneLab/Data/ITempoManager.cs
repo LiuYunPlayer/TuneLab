@@ -9,6 +9,7 @@ using TuneLab.Foundation.Science;
 using TuneLab.Utils;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
+using TuneLab.SDK.Base.Timing;
 
 namespace TuneLab.Data;
 
@@ -23,6 +24,8 @@ internal interface ITempoManager : IDataObject<List<TempoInfo>>
     double[] GetTicks(IReadOnlyList<double> times);
     double GetTick(double time);
     double GetTime(double tick);
+    // 不可变换算快照（合成快照物化用；live 侧缓存直接共享，零拷贝）。
+    TempoSnapshot CreateSnapshot();
 }
 
 internal static class ITempoManagerExtension

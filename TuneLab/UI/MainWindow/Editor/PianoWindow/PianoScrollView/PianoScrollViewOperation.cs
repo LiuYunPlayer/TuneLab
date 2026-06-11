@@ -1,4 +1,4 @@
-using DynamicData;
+﻿using DynamicData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -1080,7 +1080,7 @@ internal partial class PianoScrollView
         WaveformNoteResizeItem? lastItem = null;
         foreach (var note in Part.Notes)
         {
-            IReadOnlyList<SynthesizedPhoneme>? phonemes = ((ISynthesisNote)note).Phonemes;
+            IReadOnlyList<SynthesizedPhoneme>? phonemes = note.PinnedPhonemes;
             if (phonemes.IsEmpty())
                 phonemes = note.SynthesizedPhonemes;
 
@@ -1547,7 +1547,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.NoteMoving;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mNote = note;
             mDownPartPos = mNote.GlobalStartPos();
@@ -1582,7 +1582,7 @@ internal partial class PianoScrollView
             mLastPitchOffset = pitchOffset;
             mMoved = true;
             part.DiscardTo(mHead);
-            part.BeginMergeReSegment();
+            part.BeginMergeDirty();
             part.Notes.BeginMergeNotify();
             List<List<List<Point>>> pitchInfos = new();
             Dictionary<string, List<List<Point>>> automationInfos = new();
@@ -1662,7 +1662,7 @@ internal partial class PianoScrollView
                 }
             }
             part.Notes.EndMergeNotify();
-            part.EndMergeReSegment();
+            part.EndMergeDirty();
         }
 
         public void Up()
@@ -1675,7 +1675,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (mMoved)
             {
                 PianoScrollView.Part.Commit();
@@ -1730,7 +1730,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.NoteStartResizing;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mNote = note;
             double start = PianoScrollView.TickAxis.Tick2X(mNote.GlobalStartPos());
@@ -1757,7 +1757,7 @@ internal partial class PianoScrollView
             }
 
             List<INote> modifiedNotes = new();
-            PianoScrollView.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeDirty();
             double offsetTick = startTick - mNote.StartPos();
             mNote.Pos.Set(mNote.Pos.Value + offsetTick);
             mNote.Dur.Set(mNote.Dur.Value - offsetTick);
@@ -1788,7 +1788,7 @@ internal partial class PianoScrollView
             {
                 PianoScrollView.Part.InsertNote(note);
             }
-            PianoScrollView.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeDirty();
         }
 
         public void Up()
@@ -1802,7 +1802,7 @@ internal partial class PianoScrollView
                 return;
 
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -1829,7 +1829,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.NoteEndResizing;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mNote = note;
             double end = PianoScrollView.TickAxis.Tick2X(mNote.GlobalEndPos());
@@ -1857,7 +1857,7 @@ internal partial class PianoScrollView
 
             List<INote> modifiedNotes = new();
             int index = PianoScrollView.Part.Notes.IndexOf(mNote);
-            PianoScrollView.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeDirty();
             mNote.Dur.Set(endTick - mNote.Pos.Value);
             modifiedNotes.Add(mNote);
             {
@@ -1888,7 +1888,7 @@ internal partial class PianoScrollView
             {
                 PianoScrollView.Part.InsertNote(note);
             }
-            PianoScrollView.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeDirty();
         }
 
         public void Up()
@@ -1902,7 +1902,7 @@ internal partial class PianoScrollView
                 return;
 
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -1952,7 +1952,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoStartResizing;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
             double start = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalStartPos());
@@ -1979,12 +1979,12 @@ internal partial class PianoScrollView
             }
 
             double offsetTick = startTick - mVibrato.StartPos();
-            PianoScrollView.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeDirty();
             mVibrato.Pos.Set(mVibrato.Pos + offsetTick);
             mVibrato.Dur.Set(mVibrato.Dur - offsetTick);
             PianoScrollView.Part.RemoveVibrato(mVibrato);
             PianoScrollView.Part.InsertVibrato(mVibrato);
-            PianoScrollView.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeDirty();
         }
 
         public void Up()
@@ -1998,7 +1998,7 @@ internal partial class PianoScrollView
                 return;
 
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -2025,7 +2025,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoEndResizing;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
             double end = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalEndPos());
@@ -2051,11 +2051,11 @@ internal partial class PianoScrollView
                 return;
             }
 
-            PianoScrollView.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeDirty();
             mVibrato.Dur.Set(endTick - mVibrato.Pos);
             PianoScrollView.Part.RemoveVibrato(mVibrato);
             PianoScrollView.Part.InsertVibrato(mVibrato);
-            PianoScrollView.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeDirty();
         }
 
         public void Up()
@@ -2069,7 +2069,7 @@ internal partial class PianoScrollView
                 return;
 
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -2100,7 +2100,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoAmplitudeAdjusting;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mVibratos = vibratos;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
@@ -2131,7 +2131,7 @@ internal partial class PianoScrollView
 
             State = State.None;
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -2165,7 +2165,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoFrequencyAdjusting;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mVibratos = vibratos;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
@@ -2196,7 +2196,7 @@ internal partial class PianoScrollView
 
             State = State.None;
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -2230,7 +2230,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoPhaseAdjusting;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
@@ -2261,7 +2261,7 @@ internal partial class PianoScrollView
 
             State = State.None;
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -2291,7 +2291,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoAttackAdjusting;
-            mPart.DisableAutoPrepare();
+            mPart.BeginMergeDirty();
             mHead = mPart.Head;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
@@ -2322,7 +2322,7 @@ internal partial class PianoScrollView
 
             State = State.None;
             var head = mPart.Head;
-            mPart.EnableAutoPrepare();
+            mPart.EndMergeDirty();
             if (head == mHead)
             {
                 mPart.Discard();
@@ -2354,7 +2354,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoReleaseAdjusting;
-            mPart.DisableAutoPrepare();
+            mPart.BeginMergeDirty();
             mHead = mPart.Head;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
@@ -2385,7 +2385,7 @@ internal partial class PianoScrollView
 
             State = State.None;
             var head = mPart.Head;
-            mPart.EnableAutoPrepare();
+            mPart.EndMergeDirty();
             if (head == mHead)
             {
                 mPart.Discard();
@@ -2427,7 +2427,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.VibratoMoving;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
             mDownPos = mVibrato.GlobalStartPos();
@@ -2477,7 +2477,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (mMoved)
             {
                 PianoScrollView.Part.Commit();
@@ -2596,7 +2596,7 @@ internal partial class PianoScrollView
             anchor.Select();
 
             State = State.AnchorMoving;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mAnchor = anchor;
             mXOffset = point.X - PianoScrollView.TickAxis.Tick2X(PianoScrollView.Part.Pos.Value + anchor.Pos);
@@ -2632,7 +2632,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (mMoved)
             {
                 PianoScrollView.Part.Commit();
@@ -2706,7 +2706,7 @@ internal partial class PianoScrollView
                 return;
 
             State = State.WaveformNoteResizing;
-            PianoScrollView.Part.DisableAutoPrepare();
+            PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mLeft = left;
             mRight = right;
@@ -2731,7 +2731,7 @@ internal partial class PianoScrollView
             var next = mRight == null ? mLeft?.Next : mRight;
             if (next != null) pos = Math.Min(pos, next.EndPos());
 
-            PianoScrollView.Part.BeginMergeReSegment();
+            PianoScrollView.Part.BeginMergeDirty();
             if (mLeft != null)
             {
                 if (pos == mLeft.StartPos())
@@ -2756,7 +2756,7 @@ internal partial class PianoScrollView
                     mRight.Pos.Set(pos);
                 }
             }
-            PianoScrollView.Part.EndMergeReSegment();
+            PianoScrollView.Part.EndMergeDirty();
         }
 
         public void Up()
@@ -2770,7 +2770,7 @@ internal partial class PianoScrollView
                 return;
 
             var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EnableAutoPrepare();
+            PianoScrollView.Part.EndMergeDirty();
             if (head == mHead)
             {
                 PianoScrollView.Part.Discard();
@@ -2803,25 +2803,25 @@ internal partial class PianoScrollView
                 return;
             }
 
-            var last = note.LastInSegment;
+            var last = note.Last;
             while (last != null)
             {
                 last.LockPhonemes();
-                last = last.LastInSegment;
+                last = last.Last;
             }
-            var next = note.NextInSegment;
+            var next = note.Next;
             while (next != null)
             {
                 next.LockPhonemes();
-                next = next.NextInSegment;
+                next = next.Next;
             }
 
             State = State.WaveformPhonemeResizing;
-            note.Part.DisableAutoPrepare();
+            note.Part.BeginMergeDirty();
             mHead = note.Part.Head;
             mNote = note;
             mIndex = index;
-            var phonemes = ((ISynthesisNote)note).Phonemes;
+            var phonemes = note.PinnedPhonemes;
             mOffset = x - PianoScrollView.TickAxis.Tick2X(note.Part.TempoManager.GetTick(index == phonemes.Count ? phonemes.ConstLast().EndTime : phonemes[index].StartTime));
         }
 
@@ -2859,7 +2859,7 @@ internal partial class PianoScrollView
                 return;
 
             var head = mNote.Part.Head;
-            mNote.Part.EnableAutoPrepare();
+            mNote.Part.EndMergeDirty();
             if (head == mHead)
             {
                 mNote.Part.Discard();

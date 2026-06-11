@@ -40,38 +40,6 @@ internal static class IProjectExtension
         return project.AllParts().OfType<IAudioPart>();
     }
 
-    public static void DisableAutoPrepare(this IProject project)
-    {
-        foreach (var part in project.AllMidiParts())
-        {
-            part.DisableAutoPrepare();
-        }
-    }
-
-    public static void EnableAutoPrepare(this IProject project)
-    {
-        foreach (var part in project.AllMidiParts())
-        {
-            part.EnableAutoPrepare();
-        }
-    }
-
-    public static void BeginMergeReSegment(this IProject project)
-    {
-        foreach (var part in project.AllMidiParts())
-        {
-            part.BeginMergeReSegment();
-        }
-    }
-
-    public static void EndMergeReSegment(this IProject project)
-    {
-        foreach (var part in project.AllMidiParts())
-        {
-            part.EndMergeReSegment();
-        }
-    }
-
     public static void BeginMergeDirty(this IProject project)
     {
         foreach (var part in project.AllMidiParts())

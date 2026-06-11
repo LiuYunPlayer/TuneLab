@@ -253,7 +253,7 @@ internal static class ExtensionManager
             {
                 var types = Assembly.LoadFrom(file).GetTypes();
                 FormatsManager.RegisterFromTypes(types);
-                VoicesManager.RegisterFromTypes(types, path);
+                VoicesManager.RegisterFromTypes(types);
                 any = true;
             }
             catch { }
@@ -292,7 +292,7 @@ internal static class ExtensionManager
         switch (kind)
         {
             case "format": FormatsManager.RegisterFromTypes(types); break;
-            case "voice": VoicesManager.RegisterFromTypes(types, path); break;
+            case "voice": VoicesManager.RegisterFromTypes(types); break;
             case "effect": EffectManager.RegisterFromTypes(types, path); break;
         }
     }

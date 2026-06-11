@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -20,6 +20,7 @@ using TuneLab.SDK.Base.ControllerConfigs;
 using TuneLab.SDK.Effect;
 using TuneLab.Extensions.Effect;
 using System.Reactive.Linq;
+using TuneLab.Data.Synthesis;
 using TuneLab.Foundation.Utils;
 using TuneLab.Foundation.Science;
 using TuneLab.Utils;
@@ -29,7 +30,7 @@ namespace TuneLab.Data;
 
 internal class MidiPart : Part, IMidiPart
 {
-    public IActionEvent<ISynthesisPiece> SynthesisStatusChanged => mSynthesisStatusChanged;
+    public IActionEvent SynthesisStatusChanged => mSynthesisStatusChanged;
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> Dur { get; }
@@ -41,13 +42,19 @@ internal class MidiPart : Part, IMidiPart
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
     public IPiecewiseAutomation Pitch => mPitchLine;
-    public IReadOnlyList<ISynthesisPiece> SynthesisPieces => mSynthesisPieces;
     public IReadOnlyDataObjectList<Vibrato> Vibratos => mVibratos;
+
+    // —— 合成消费面（session 模型）：状态/产物全由插件托管，宿主经管线包装拉取展示 ——
+    public VoiceSynthesisPipeline? SynthesisPipeline => mPipeline;
+    public bool IsSynthesisBatching => mSynthesisBatch.IsBatching;
+    internal BatchSignal SynthesisBatch => mSynthesisBatch;
+    public IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus() => mPipeline?.GetStatus() ?? [];
+    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mPipeline?.SynthesizedPitch ?? [];
+    public MonoAudio? SynthesizedAudio => mPipeline?.SynthesizedAudio;
+    public Waveform? Waveform => mPipeline?.Waveform;
 
     public MidiPart(ITrack track, MidiPartInfo info) : base(track)
     {
-        mReSegmentMergeHandler = new(ReSegmentImpl);
-        mPrepareMergeHandler = new(() => { foreach (var piece in mSynthesisPieces) piece.Prepare(); });
         Name = new(this, string.Empty);
         Pos = new(this);
         Dur = new(this);
@@ -65,12 +72,11 @@ internal class MidiPart : Part, IMidiPart
         mPitchLine = new();
         mPitchLine.Attach(this);
         Dur.Modified.Subscribe(mDurationChanged);
-        mVoice.Modified.Subscribe(ReGeneratePieces);
-        mPitchLine.RangeModified.Subscribe(OnPitchRangeModified);
-        mNotes.ListModified.Subscribe(ReSegment);
-        mVibratos.WhenAny(vibrato => vibrato.RangeModified).Subscribe(OnPitchRangeModified);
-        TempoManager.Modified.Subscribe(ReGeneratePieces); // TODO: 改为tempoManager改变发出重分片信号
-        Pos.Modified.Subscribe(ReGeneratePieces); // TODO: 改为tempoManager改变发出重分片信号
+        // 换声源：丢弃旧会话、重建新会话（context 随会话重建）。
+        // 注：本订阅在一切 UI 订阅之前注册，UI 收到 Voice.Modified 时声明已刷新。
+        mVoice.Modified.Subscribe(OnVoiceModified);
+        // 其余数据变更（note/pitch/automation/tempo/平移）不再由 part 驱动重分片——
+        // 失效判定归插件，变更流经 SynthesisContext 转发。
         SetInfo(info);
     }
 
@@ -129,8 +135,7 @@ internal class MidiPart : Part, IMidiPart
 
     void SetEffectChainDirtyFrom(int effectIndex)
     {
-        foreach (var piece in mSynthesisPieces)
-            piece.SetEffectChainDirty(effectIndex);
+        mPipeline?.SetEffectChainDirty(effectIndex);
     }
 
     public void InsertVibrato(Vibrato vibrato)
@@ -159,7 +164,7 @@ internal class MidiPart : Part, IMidiPart
     {
         double startTime = TempoManager.GetTime(Pos + start);
         double endTime = TempoManager.GetTime(Pos + end);
-        foreach (var pitchLine in mSynthesisPieces.Where(piece => piece.SynthesisResult != null).SelectMany(piece => piece.SynthesisResult!.SynthesizedPitch))
+        foreach (var pitchLine in SynthesizedPitch)
         {
             if (pitchLine.Count < 2)
                 continue;
@@ -191,108 +196,23 @@ internal class MidiPart : Part, IMidiPart
 
     public double[] GetVibratoDeviation(IReadOnlyList<double> ticks, string automationID = "")
     {
-        double[] values = new double[ticks.Count];
-        values.Fill(0);
-        double start = ticks.First();
-        double end = ticks.Last();
-        int tickIndex = 0;
+        // live 侧投影到共享纯函数（与冻结快照同一套算法）：振幅按目标轨现场解析。
+        var vibratos = new List<VibratoMath.VibratoData>();
         foreach (var vibrato in mVibratos)
         {
-            if (vibrato.EndPos() < start)
-                continue;
-
-            if (vibrato.StartPos() > end)
-                break;
-
             double amplitude = string.IsNullOrEmpty(automationID) ? vibrato.Amplitude : vibrato.AffectedAutomations.GetValueOrDefault(automationID, 0);
             if (amplitude == 0)
                 continue;
 
-            while (tickIndex > 0 && ticks[tickIndex] > vibrato.StartPos())
-            {
-                tickIndex--;
-            }
-
-            while (tickIndex < ticks.Count && ticks[tickIndex] < vibrato.StartPos())
-            {
-                tickIndex++;
-            }
-
-            int offset = tickIndex;
-            while (tickIndex < ticks.Count && ticks[tickIndex] <= vibrato.EndPos())
-            {
-                tickIndex++;
-            }
-
-            double[] ts = new double[tickIndex - offset];
-            for (int i = 0; i < ts.Length; i++)
-            {
-                ts[i] = ticks[i + offset];
-            }
-            double[] amplitudes;
-            if (Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var vibratoEnvelope))
-            {
-                amplitudes = vibratoEnvelope.GetValues(ts);
-                for (int i = 0; i < amplitudes.Length; i++)
-                {
-                    amplitudes[i] = Math.Max(0, amplitudes[i]) * amplitude;
-                }
-            }
-            else
-            {
-                amplitudes = new double[ts.Length];
-                amplitudes.Fill(amplitude);
-            }
-
-            double startTime = TempoManager.GetTime(vibrato.GlobalStartPos());
-            double endTime = TempoManager.GetTime(vibrato.GlobalEndPos());
-            double durTime = endTime - startTime;
-            double pos = this.Pos.Value;
-
-            double[] times = new double[ts.Length];
-            for (int i = 0; i < times.Length; i++)
-            {
-                times[i] = TempoManager.GetTime(pos + ts[i]) - startTime;
-            }
-
-            double attack = vibrato.Attack;
-            for (int i = 0; i < times.Length; i++)
-            {
-                double r = times[i] / attack;
-                if (r >= 1)
-                    break;
-
-                amplitudes[i] *= MathUtility.CubicInterpolation(r);
-            }
-
-            double release = vibrato.Release;
-            for (int i = times.Length - 1; i >= 0; i--)
-            {
-                double r = (durTime - times[i]) / release;
-                if (r >= 1)
-                    break;
-
-                amplitudes[i] *= MathUtility.CubicInterpolation(r);
-            }
-
-            double frequency = vibrato.Frequency;
-            double phase = -vibrato.Phase * Math.PI;
-            double w = 2 * Math.PI * frequency;
-            for (int i = 0; i < times.Length; i++)
-            {
-                amplitudes[i] *= Math.Sin(w * times[i] + phase);
-            }
-
-            for (int i = 0; i < amplitudes.Length; i++)
-            {
-                values[i + offset] += amplitudes[i];
-            }
-
-            if (tickIndex == ticks.Count)
-                break;
+            vibratos.Add(new VibratoMath.VibratoData(
+                vibrato.Pos, vibrato.Dur, vibrato.Frequency, amplitude,
+                vibrato.Phase, vibrato.Attack, vibrato.Release));
         }
 
-        return values;
+        Func<double[], double[]>? envelopeSampler = Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var vibratoEnvelope)
+            ? vibratoEnvelope.GetValues
+            : null;
+        return VibratoMath.GetDeviation(vibratos, ticks, envelopeSampler, Pos.Value, TempoManager.GetTime);
     }
 
     public double[] GetFinalPitch(IReadOnlyList<double> ticks)
@@ -346,80 +266,60 @@ internal class MidiPart : Part, IMidiPart
         return pitch;
     }
 
-    public void BeginMergeReSegment()
+    // 批量变更括号（undo/redo 重放时同样成对触发）：让插件把重活（如重分片）延迟到 BatchEnd。
+    public void BeginMergeDirty()
     {
-        PushAndDo(new Command(mReSegmentMergeHandler.Begin, mReSegmentMergeHandler.End));
+        PushAndDo(new Command(mSynthesisBatch.Begin, mSynthesisBatch.End));
     }
 
-    public void EndMergeReSegment()
+    public void EndMergeDirty()
     {
-        PushAndDo(new Command(mReSegmentMergeHandler.End, mReSegmentMergeHandler.Begin));
-    }
-
-    public void DisableAutoPrepare()
-    {
-        PushAndDo(new Command(mPrepareMergeHandler.Begin, mPrepareMergeHandler.End));
-        PushAndDo(new RedoOnlyCommand(mPrepareMergeHandler.Trigger));
-    }
-
-    public void EnableAutoPrepare()
-    {
-        PushAndDo(new UndoOnlyCommand(mPrepareMergeHandler.Trigger));
-        PushAndDo(new Command(mPrepareMergeHandler.End, mPrepareMergeHandler.Begin));
-    }
-
-    void ReSegment()
-    {
-        mReSegmentMergeHandler.Trigger();
+        PushAndDo(new Command(mSynthesisBatch.End, mSynthesisBatch.Begin));
     }
 
     public override void Activate()
     {
-        ReSegment();
+        RebuildSynthesisPipeline();
     }
 
     public override void Deactivate()
     {
-        foreach (var piece in mSynthesisPieces)
-        {
-            piece.Dispose();
-        }
-        mSynthesisPieces.Clear();
+        DisposeSynthesisPipeline();
     }
 
-    void ReSegmentImpl()
+    void OnVoiceModified()
     {
-        var newSegments = mVoice.Segment(new SynthesisSegment<INote>() { Notes = mNotes, PartProperties = new(Properties) });
-        List<SynthesisPiece> newPieces = new();
-        foreach (var segment in newSegments)
-        {
-            bool exist = false;
-            foreach (var piece in mSynthesisPieces)
-            {
-                if (piece.Segment.EqualsWith(segment))
-                {
-                    exist = true;
-                    newPieces.Add(piece);
-                    mSynthesisPieces.Remove(piece);
-                    break;
-                }
-            }
-            if (!exist)
-            {
-                var newPiece = new SynthesisPiece(this, segment);
-                newPiece.SynthesisStatusChanged += () => { mSynthesisStatusChanged.Invoke(newPiece); };
-                newPiece.Finished += () => { if (string.IsNullOrEmpty(newPiece.LastError)) return; Log.Debug(string.Format("Synthesis error: {0} {1}", Voice.Name, newPiece.LastError)); };
-                newPieces.Add(newPiece);
-            }
-        }
+        if (mPipeline != null)
+            RebuildSynthesisPipeline();
+    }
 
-        foreach (var piece in mSynthesisPieces)
-        {
-            piece.Dispose();
-        }
-        mSynthesisPieces.Clear();
+    void RebuildSynthesisPipeline()
+    {
+        DisposeSynthesisPipeline();
+        mPipeline = new VoiceSynthesisPipeline(this, mVoice.Type, mVoice.ID);
+        mPipeline.StatusChanged += OnPipelineStatusChanged;
+        mVoice.RefreshDeclarations(mPipeline.Session);
+        mSynthesisStatusChanged.Invoke();
+    }
 
-        mSynthesisPieces = newPieces;
+    void DisposeSynthesisPipeline()
+    {
+        if (mPipeline == null)
+            return;
+
+        mPipeline.StatusChanged -= OnPipelineStatusChanged;
+        mPipeline.Dispose();
+        mPipeline = null;
+        mVoice.RefreshDeclarations(null);
+        foreach (var note in mNotes)
+        {
+            note.SynthesizedPhonemes = null;
+        }
+    }
+
+    void OnPipelineStatusChanged()
+    {
+        mSynthesisStatusChanged.Invoke();
     }
 
     public INote CreateNote(NoteInfo info)
@@ -461,42 +361,6 @@ internal class MidiPart : Part, IMidiPart
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
     }
 
-    public ISynthesisPiece? FindNextNotCompletePiece(double time)
-    {
-        ISynthesisPiece? result = null;
-
-        foreach (var piece in SynthesisPieces)
-        {
-            if (!piece.IsSynthesisEnabled || piece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded || piece.SynthesisStatus == SynthesisStatus.SynthesisFailed)
-                continue;
-
-            if (result == null)
-            {
-                result = piece;
-                continue;
-            }
-
-            if (result.EndTime() < time)
-            {
-                if (piece.EndTime() < time && piece.StartTime() > result.StartTime())
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                if (piece.EndTime() < time || piece.StartTime() > result.StartTime())
-                {
-                    continue;
-                }
-            }
-
-            result = piece;
-        }
-
-        return result;
-    }
-
     public override MidiPartInfo GetInfo()
     {
         return new()
@@ -531,58 +395,11 @@ internal class MidiPart : Part, IMidiPart
         Properties.SetInfo(info.Properties);
     }
 
-    void ReGeneratePieces()
-    {
-        Deactivate();
-        Activate();
-    }
-
-    string GetNotePropertyDirtyType()
-    {
-        return "duration"; //TODO: 改成正确的实现
-    }
-
+    // 合成失效不再由 part 驱动：automation 的 RangeModified/DefaultValue 变更经
+    // SynthesisContext 转发给插件，由插件按自己的失效依赖图标脏。
     Automation CreateAutomation(string automationID, AutomationInfo info)
     {
-        var automation = new Automation(this, info);
-        if (automationID != ConstantDefine.VolumeID)
-        {
-            automation.RangeModified.Subscribe(OnAutomationRangeModified);
-            automation.DefaultValue.Modified.Subscribe(() => { this.SetAllPieceDirty(""); }); // TODO: 传递id
-        }
-        return automation;
-    }
-
-    void OnPitchRangeModified(double start, double end)
-    {
-        double startTime = TempoManager.GetTime(Pos + start);
-        double endTime = TempoManager.GetTime(Pos + end);
-        foreach (var piece in mSynthesisPieces)
-        {
-            if (piece.AudioEndTime() < startTime)
-                continue;
-
-            if (piece.AudioStartTime() > endTime)
-                break;
-
-            piece.SetDirty("TODO");
-        }
-    }
-
-    void OnAutomationRangeModified(double start, double end)
-    {
-        double startTime = TempoManager.GetTime(Pos + start);
-        double endTime = TempoManager.GetTime(Pos + end);
-        foreach (var piece in mSynthesisPieces)
-        {
-            if (piece.AudioEndTime() < startTime)
-                continue;
-
-            if (piece.AudioStartTime() > endTime)
-                break;
-
-            piece.SetDirty("TODO");
-        }
+        return new Automation(this, info);
     }
 
     public override IAudioData GetAudioData(int offset, int count)
@@ -591,20 +408,16 @@ internal class MidiPart : Part, IMidiPart
         int sampleRate = ((IAudioSource)this).SampleRate;
         double startTime = ((IAudioSource)this).StartTime;
         int partOffset = (int)(sampleRate * startTime);
-        foreach (var piece in mSynthesisPieces)
+        if (SynthesizedAudio is { Samples: not null } audio)
         {
-            int pieceOffset = (int)(piece.AudioStartTime() * piece.SampleRate);
-            int startIndex = partOffset + offset - pieceOffset;
-            if (startIndex >= piece.SampleCount)
-                continue;
-
-            int endIndex = startIndex + count;
-            if (endIndex <= 0)
-                break;
-
-            var pieceData = piece.GetAudioFloatArray(startIndex, endIndex - startIndex);
-            for (int i = 0; i < count; i++)
-                data[i] += pieceData[i];
+            // 链尾最终音频已适配为工程采样率，按绝对时间对齐到 part 缓冲。
+            int audioOffset = (int)(audio.StartTime * audio.SampleRate);
+            int startIndex = partOffset + offset - audioOffset;
+            var samples = audio.Samples;
+            int from = Math.Max(startIndex, 0);
+            int to = Math.Min(startIndex + count, samples.Length);
+            for (int i = from; i < to; i++)
+                data[i - startIndex] += samples[i];
         }
         double pos = Pos;
         var ticks = new double[count];
@@ -630,7 +443,7 @@ internal class MidiPart : Part, IMidiPart
 
     public override void OnSampleRateChanged()
     {
-        this.SetAllPieceDirty("");
+        mPipeline?.OnSampleRateChanged();
     }
 
     static MidiPart()
@@ -654,12 +467,10 @@ internal class MidiPart : Part, IMidiPart
     static readonly double k;
 
     protected override int SampleRate => AudioEngine.SampleRate.Value;
-    bool AutoPrepare => !mPrepareMergeHandler.IsMerging;
 
-    readonly MergeHandler mReSegmentMergeHandler;
-    readonly MergeHandler mPrepareMergeHandler;
-
-    readonly ActionEvent<ISynthesisPiece> mSynthesisStatusChanged = new();
+    readonly ActionEvent mSynthesisStatusChanged = new();
+    readonly BatchSignal mSynthesisBatch = new();
+    VoiceSynthesisPipeline? mPipeline;
 
     readonly NoteList mNotes;
     readonly DataObjectList<Vibrato> mVibratos;
@@ -668,63 +479,6 @@ internal class MidiPart : Part, IMidiPart
     readonly Dictionary<IEffect, Action> mEffectModifiedHandlers = new();
     readonly PiecewiseAutomation mPitchLine;
     readonly Voice mVoice;
-
-    class AutomationValueGetter(MidiPart part, string automationID) : IAutomationValueGetter
-    {
-        public double[] GetValue(IReadOnlyList<double> times)
-        {
-            double pos = part.Pos;
-            var ticks = part.TempoManager.GetTicks(times);
-            for (int i = 0; i < ticks.Length; i++)
-            {
-                ticks[i] -= pos;
-            }
-            return part.GetFinalAutomationValues(ticks, automationID);
-        }
-    }
-
-    class PitchValueGetter(MidiPart part) : IAutomationValueGetter
-    {
-        public double[] GetValue(IReadOnlyList<double> times)
-        {
-            double pos = part.Pos;
-            var ticks = part.TempoManager.GetTicks(times);
-            for (int i = 0; i < ticks.Length; i++)
-            {
-                ticks[i] -= pos;
-            }
-            return part.GetFinalPitch(ticks);
-        }
-    }
-
-    // 某个 effect 的某条自动化轨按时间取值（time→tick→effect 自动化值）。
-    class EffectAutomationValueGetter(MidiPart part, IEffect effect, string automationID) : IAutomationValueGetter
-    {
-        public double[] GetValue(IReadOnlyList<double> times)
-        {
-            double pos = part.Pos;
-            var ticks = part.TempoManager.GetTicks(times);
-            for (int i = 0; i < ticks.Length; i++)
-            {
-                ticks[i] -= pos;
-            }
-            return effect.GetAutomationValues(ticks, automationID);
-        }
-    }
-
-    class piecewiseAutomationValueGetter(MidiPart part, IPiecewiseAutomation piecewiseAutomation) : IAutomationValueGetter
-    {
-        public double[] GetValue(IReadOnlyList<double> times)
-        {
-            double pos = part.Pos;
-            var ticks = part.TempoManager.GetTicks(times);
-            for (int i = 0; i < ticks.Length; i++)
-            {
-                ticks[i] -= pos;
-            }
-            return piecewiseAutomation.GetValues(ticks);
-        }
-    }
 
     class NoteList : DataObjectLinkedList<INote>, INoteList
     {
@@ -755,402 +509,4 @@ internal class MidiPart : Part, IMidiPart
 
         readonly MergableEvent mSelectionChanged = new();
     }
-
-    class SynthesisPiece : ISynthesisPiece, IDisposable
-    {
-        public event Action? Finished;
-        public event Action? Progress;
-        public event Action? SynthesisStatusChanged;
-        public double SynthesisProgress => mSynthesisProgress;
-        public string? LastError => mLastError;
-        public SynthesisResult? SynthesisResult => mSynthesisResult;
-        public Waveform? Waveform => mWaveform;
-        public bool IsSynthesisEnabled => mIsPrepared;
-        public SynthesisStatus SynthesisStatus
-        {
-            get => mSynthesisStatus;
-            private set
-            {
-                if (mSynthesisStatus == value)
-                    return;
-
-                mSynthesisStatus = value;
-                SynthesisStatusChanged?.Invoke();
-            }
-        }
-        public SynthesisSegment<INote> Segment => new SynthesisSegment<INote>() { Notes = mNotes };
-        public IEnumerable<INote> Notes => mNotes;
-        // 最终音频 = 效果链尾输出（无 effect 时即 voice 输出）。时长/采样率随之取自链尾。
-        public double AudioStartTime => mFinalAudio?.StartTime ?? (mSynthesisResult?.StartTime ?? this.StartTime());
-        public int SampleRate => mFinalAudio?.SampleRate ?? 0;
-        public int SampleCount => mFinalAudio?.Samples.Length ?? 0;
-
-        PropertyObject ISynthesisData.PartProperties => new(mPart.Properties);
-        public IAutomationValueGetter Pitch => new PitchValueGetter(mPart);
-
-        public SynthesisPiece(MidiPart part, SynthesisSegment<INote> segment)
-        {
-            mPart = part;
-            mNotes = [.. segment.Notes];
-            mNotes.ConstFirst().LastInSegment = null;
-            mNotes.ConstLast().NextInSegment = null;
-            for (int i = 0; i < mNotes.Length - 1; i++)
-            {
-                mNotes[i].NextInSegment = mNotes[i + 1];
-            }
-            for (int i = mNotes.Length - 1; i > 0; i--)
-            {
-                mNotes[i].LastInSegment = mNotes[i - 1];
-            }
-            mIsPrepared = part.AutoPrepare;
-            
-            part.Properties.Modified.Subscribe(SetDirtyAndResegment, s);
-            foreach (var note in Notes)
-            {
-                note.Pos.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Dur.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Pitch.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Lyric.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Pronunciation.Modified.Subscribe(SetDirtyAndResegment, s);
-                note.Properties.Modified.Subscribe(OnNotePropertyModified, s);
-                note.Phonemes.Modified.Subscribe(OnPhonemeChanged, s);
-            }
-        }
-
-        public void Prepare()
-        {
-            mIsPrepared = true;
-        }
-
-        public void StartSynthesis()
-        {
-            if (SynthesisStatus != SynthesisStatus.NotSynthesized)
-                return;
-
-            SynthesisStatus = SynthesisStatus.Synthesizing;
-            if (!mVoiceReady)
-            {
-                // voice 未就绪：跑 voice 合成；完成后由 OnVoiceComplete 整链重跑。
-                if (mTask == null)
-                    CreateSynthesisTask();
-                mTask.Start();
-            }
-            else
-            {
-                // voice 输出已缓存：只重跑效果链（从被标脏的级起，上游各级输出复用）。
-                int from = mChainDirtyFrom == int.MaxValue ? 0 : mChainDirtyFrom;
-                RunEffectChain(from);
-            }
-        }
-
-        // voice 脏（音符/音高/分片等变化）：作废 voice 输出与整条链，重跑 voice。
-        public void SetDirty(string dirtyType)
-        {
-            mIsPrepared = mPart.AutoPrepare;
-            if (SynthesisStatus == SynthesisStatus.Synthesizing)
-                mTask?.Stop();
-            StopEffectTask();
-            mTask?.SetDirty(dirtyType);
-            mVoiceReady = false;
-            mStageOutputs.Clear();
-            mChainDirtyFrom = int.MaxValue;
-            SynthesisStatus = SynthesisStatus.NotSynthesized;
-        }
-
-        // 效果链脏（某 effect 参数/启用/自动化变化，或链结构变化）：从 effectIndex 级起重跑，
-        // voice 输出与上游各级输出复用、不重算（关键：避免重跑昂贵的上游 effect / voice）。
-        public void SetEffectChainDirty(int effectIndex)
-        {
-            if (!mVoiceReady)
-                return; // voice 未就绪：完成后整链重跑，无需单独处理
-
-            mChainDirtyFrom = Math.Min(mChainDirtyFrom, Math.Max(0, effectIndex));
-            StopEffectTask();
-            mIsPrepared = mPart.AutoPrepare;
-            SynthesisStatus = SynthesisStatus.NotSynthesized;
-        }
-
-        public void Dispose()
-        {
-            s.DisposeAll();
-
-            if (SynthesisStatus == SynthesisStatus.Synthesizing)
-                mTask?.Stop();
-
-            StopEffectTask();
-
-            // 事件桥接适配器退订：Compat.Legacy 的 SynthesisTaskAdapter 实现 IDisposable，
-            // 在此退订老引擎 task 的 Complete/Progress/Error，断开跨边界订阅（内建 task 非 IDisposable 时无操作）。
-            (mTask as IDisposable)?.Dispose();
-        }
-
-        public IAudioData GetAudioData(int offset, int count)
-        {
-            return new MonoAudioData(GetAudioFloatArray(offset, count));
-        }
-
-        public float[] GetAudioFloatArray(int offset, int count)
-        {
-            if (mFinalAudio is not { } audio)
-                return new float[count];
-
-            var samples = audio.Samples;
-            float[] data = new float[count];
-            int start = Math.Max(offset, 0);
-            int end = Math.Min(offset + count, samples.Length);
-            for (int i = start; i < end; i++)
-                data[i - offset] = samples[i];
-            return data;
-        }
-
-        public void OnSampleRateChanged()
-        {
-            SetDirty("");
-        }
-
-        [MemberNotNull(nameof(mTask))]
-        void CreateSynthesisTask()
-        {
-            mTask = mPart.Voice.CreateSynthesisTask(this);
-            mTask.Complete += (result) =>
-            {
-                if (result.SamplingRate != AudioEngine.SampleRate.Value)
-                {
-                    var data = AudioUtils.Resample(result.AudioData, 1, result.SamplingRate, AudioEngine.SampleRate.Value);
-                    result = new SynthesisResult(result.StartTime, AudioEngine.SampleRate.Value, data, result.SynthesizedPitch, result.SynthesizedPhonemes);
-                }
-
-                context.Post(_ => OnVoiceComplete(result), null);
-            };
-            mTask.Error += (error) =>
-            {
-                context.Post(_ =>
-                {
-                    mLastError = error;
-                    SynthesisStatus = SynthesisStatus.SynthesisFailed;
-                    Finished?.Invoke();
-                }, null);
-            };
-            mTask.Progress += (progress) =>
-            {
-                context.Post(_ =>
-                {
-                    mSynthesisProgress = progress;
-                    Progress?.Invoke();
-                }, null);
-            };
-        }
-
-        // voice 合成完成：缓存 voice 输出（音频 + pitch + phonemes），随即整链重跑。
-        void OnVoiceComplete(SynthesisResult result)
-        {
-            mSynthesisResult = result;
-            mVoiceAudio = new MonoAudio(result.StartTime, result.SamplingRate, result.AudioData);
-            foreach (var note in Notes)
-            {
-                if (result.SynthesizedPhonemes.TryGetValue(note, out var phonemes))
-                    note.SynthesizedPhonemes = phonemes;
-                else
-                    note.SynthesizedPhonemes = null;
-            }
-            mVoiceReady = true;
-            RunEffectChain(0);
-        }
-
-        // 从 fromStage 级起重跑效果链：保留 [0, fromStage) 各级缓存输出，重算其后各级。
-        void RunEffectChain(int fromStage)
-        {
-            mChainGeneration++;
-            mChainDirtyFrom = int.MaxValue;
-            StopEffectTask();
-
-            fromStage = Math.Clamp(fromStage, 0, mStageOutputs.Count);
-            if (mStageOutputs.Count > fromStage)
-                mStageOutputs.RemoveRange(fromStage, mStageOutputs.Count - fromStage);
-
-            mRunStage = fromStage;
-            ProcessNextStage(mChainGeneration);
-        }
-
-        // 依次处理链上各级；effect 任务异步完成后推进到下一级。bypass / 引擎缺失 = passthrough。
-        void ProcessNextStage(int generation)
-        {
-            if (generation != mChainGeneration)
-                return;
-
-            var effects = mPart.Effects;
-            if (mRunStage >= effects.Count)
-            {
-                FinalizeChain();
-                return;
-            }
-
-            var effect = effects[mRunStage];
-            var input = mRunStage == 0 ? mVoiceAudio : mStageOutputs[mRunStage - 1];
-
-            var engine = effect.IsEnabled.Value ? EffectManager.GetInitedEngine(effect.Type) : null;
-            if (engine == null)
-            {
-                // bypass 或引擎不可用：原样透传到下一级。
-                mStageOutputs.Add(input);
-                mRunStage++;
-                ProcessNextStage(generation);
-                return;
-            }
-
-            IEffectSynthesisTask task;
-            try
-            {
-                var inputObj = new EffectChainInput(input, mPart, effect);
-                var output = new EffectChainOutput();
-                task = engine.CreateSynthesisTask(inputObj, output);
-                int stage = mRunStage;
-                task.Complete += () => context.Post(_ => OnStageComplete(generation, stage, output), null);
-                task.Error += (err) => context.Post(_ => OnStageError(generation, stage, err, input), null);
-                task.Progress += (p) => context.Post(_ => { mSynthesisProgress = p; Progress?.Invoke(); }, null);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(string.Format("Effect {0} create task failed: {1}", effect.Type, ex));
-                mStageOutputs.Add(input);
-                mRunStage++;
-                ProcessNextStage(generation);
-                return;
-            }
-
-            mEffectTask = task;
-            task.Start();
-        }
-
-        void OnStageComplete(int generation, int stage, EffectChainOutput output)
-        {
-            if (generation != mChainGeneration || stage != mRunStage)
-                return; // 已被新一轮 dirty 取代，丢弃过期结果
-
-            StopEffectTask();
-
-            var audio = output.Audio;
-            if (audio.Samples != null && audio.Samples.Length > 0 && audio.SampleRate != AudioEngine.SampleRate.Value)
-            {
-                var data = AudioUtils.Resample(audio.Samples, 1, audio.SampleRate, AudioEngine.SampleRate.Value);
-                audio = new MonoAudio(audio.StartTime, AudioEngine.SampleRate.Value, data);
-            }
-            audio.Samples ??= [];
-
-            mStageOutputs.Add(audio);
-            mRunStage++;
-            ProcessNextStage(generation);
-        }
-
-        // effect 出错：记录并 passthrough 该级（不中断整段音频播放，优雅降级）。
-        void OnStageError(int generation, int stage, string error, MonoAudio input)
-        {
-            if (generation != mChainGeneration || stage != mRunStage)
-                return;
-
-            StopEffectTask();
-            mLastError = error;
-            Log.Error(string.Format("Effect stage {0} error: {1}", stage, error));
-            mStageOutputs.Add(input);
-            mRunStage++;
-            ProcessNextStage(generation);
-        }
-
-        void FinalizeChain()
-        {
-            int count = mPart.Effects.Count;
-            mFinalAudio = count == 0 ? mVoiceAudio : mStageOutputs[count - 1];
-            mWaveform = new(mFinalAudio.Value.Samples);
-            SynthesisStatus = SynthesisStatus.SynthesisSucceeded;
-            Finished?.Invoke();
-        }
-
-        void StopEffectTask()
-        {
-            if (mEffectTask == null)
-                return;
-
-            mEffectTask.Stop();
-            (mEffectTask as IDisposable)?.Dispose();
-            mEffectTask = null;
-        }
-
-        // 效果链输入：整段上游音频 + 该 effect 参数快照 + 自动化取值入口。
-        class EffectChainInput(MonoAudio audio, MidiPart part, IEffect effect) : IEffectSynthesisInput
-        {
-            public MonoAudio Audio => audio;
-            public PropertyObject Properties => effect.Properties.GetInfo();
-
-            public bool TryGetAutomation(string automationId, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation)
-            {
-                if (!effect.AutomationConfigs.ContainsKey(automationId))
-                {
-                    automation = null;
-                    return false;
-                }
-                automation = new EffectAutomationValueGetter(part, effect, automationId);
-                return true;
-            }
-        }
-
-        class EffectChainOutput : IEffectSynthesisOutput
-        {
-            public MonoAudio Audio { get; set; }
-        }
-
-        void SetDirtyAndResegment()
-        {
-            Dispose();
-            mPart.mSynthesisPieces.Remove(this);
-            mPart.ReSegment();
-        }
-
-        void OnNotePropertyModified()
-        {
-            SetDirty(mPart.GetNotePropertyDirtyType());
-        }
-
-        void OnPhonemeChanged()
-        {
-            SetDirty("duration"); // TODO: 改成正确实现
-        }
-
-        bool ISynthesisData.GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation)
-        {
-            bool result = mPart.IsEffectiveAutomation(automationID);
-            automation = result ? new AutomationValueGetter(mPart, automationID) : null;
-            return result;
-        }
-
-        static SynthesisPiece()
-        {
-            context = SynchronizationContext.Current!;
-        }
-
-        static SynchronizationContext context;
-
-        MidiPart mPart;
-        INote[] mNotes;
-        SynthesisStatus mSynthesisStatus = SynthesisStatus.NotSynthesized;
-        bool mIsPrepared;
-        ISynthesisTask? mTask;
-        SynthesisResult? mSynthesisResult = null;
-
-        // 效果链运行状态：voice 输出缓存 + 各级输出缓存 + 链尾最终音频。
-        MonoAudio mVoiceAudio;
-        bool mVoiceReady = false;
-        MonoAudio? mFinalAudio = null;
-        readonly List<MonoAudio> mStageOutputs = new();
-        int mRunStage = 0;
-        int mChainGeneration = 0;
-        int mChainDirtyFrom = int.MaxValue;
-        IEffectSynthesisTask? mEffectTask = null;
-        Waveform? mWaveform = null;
-        double mSynthesisProgress = 0;
-        string? mLastError = null;
-
-        DisposableManager s = new();
-    }
-
-    List<SynthesisPiece> mSynthesisPieces = new();
 }

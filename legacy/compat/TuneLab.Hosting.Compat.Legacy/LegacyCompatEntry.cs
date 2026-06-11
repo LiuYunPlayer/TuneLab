@@ -157,7 +157,7 @@ public static class LegacyCompatEntry
         if (!seenVoice.Add(attribute.Type))
             return false;
 
-        addVoiceEngine(attribute.Type, new VoiceEngineAdapter((LVoice.IVoiceEngine)ctor.Invoke(null)), packagePath);
+        addVoiceEngine(attribute.Type, new VoiceEngineAdapter((LVoice.IVoiceEngine)ctor.Invoke(null), packagePath), packagePath);
         log(string.Format("已注册 Legacy voice 引擎: {0} ({1})", attribute.Type, type.FullName));
         return true;
     }

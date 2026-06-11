@@ -1,80 +1,75 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
-using TuneLab.SDK.Base;
 using TuneLab.Foundation.DataStructures;
-using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Science;
 using TuneLab.Utils;
-using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK.Voice;
 using TuneLab.Foundation.Utils;
+using PhonemeInfo = TuneLab.SDK.Format.DataInfo.PhonemeInfo;
+using NoteInfo = TuneLab.SDK.Format.DataInfo.NoteInfo;
 
 namespace TuneLab.Data;
 
-internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote>, ISynthesisNote
+// 宿主业务层 note。不直接实现 SDK 的 ISynthesisNote——插件经会话级 context 的 note 代理
+// 订阅（中间层隔离）；本接口只服务宿主自身（编辑/UI/序列化）。
+internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote>
 {
     new INote? Next { get; }
     new INote? Last { get; }
     IMidiPart Part { get; }
     IDataProperty<double> Pos { get; }
     IDataProperty<double> Dur { get; }
-    new IDataProperty<int> Pitch { get; }
-    new IDataProperty<string> Lyric { get; }
+    IDataProperty<int> Pitch { get; }
+    IDataProperty<string> Lyric { get; }
     IDataProperty<string> Pronunciation { get; }
-    new DataPropertyObject Properties { get; }
-    new IDataObjectList<IPhoneme> Phonemes { get; }
+    DataPropertyObject Properties { get; }
+    IDataObjectList<IPhoneme> Phonemes { get; }
     SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
     IReadOnlyCollection<string> Pronunciations { get; }
 
-    INote? NextInSegment { get; set; }
-    INote? LastInSegment { get; set; }
+    double StartTime => Part.TempoManager.GetTime(this.GlobalStartPos());
+    double EndTime => Part.TempoManager.GetTime(this.GlobalEndPos());
 
-    int ISynthesisNote.Pitch => Pitch.Value;
-    string ISynthesisNote.Lyric => this.FinalPronunciation() ?? Lyric.Value;
-    PropertyObject ISynthesisNote.Properties => new(Properties);
-    IReadOnlyList<SynthesizedPhoneme> ISynthesisNote.Phonemes => Phonemes.Convert(GetPhoneme);
-    ISynthesisNote? ISynthesisNote.Next => NextInSegment;
-    ISynthesisNote? ISynthesisNote.Last => LastInSegment;
-    double ISynthesisNote.StartTime => Part.TempoManager.GetTime(this.GlobalStartPos());
-    double ISynthesisNote.EndTime => Part.TempoManager.GetTime(this.GlobalEndPos());
+    // 用户钉死音素的显示形（绝对秒时间线，与合成产物同一时间系），供钢琴窗音素带显示/编辑。
+    IReadOnlyList<SynthesizedPhoneme> PinnedPhonemes => Phonemes.Convert(GetPhoneme);
+
     private double PhonemeStartTime => Phonemes.IsEmpty() ? 0 : Phonemes.ConstFirst().StartTime.Value;
     private double PhonemeEndTime => Phonemes.IsEmpty() ? 0 : Phonemes.ConstLast().EndTime.Value;
-    public double StartPhonemeRatio 
-    { 
-        get 
-        { 
-            if (LastInSegment == null) 
+    // 越界音素的显示压缩比：负向引导音素被前一个 note 占用的空间挤压时按比例缩进。
+    // 邻居取 part 内相邻 note（足够远时比例自然退化为 1，行为与旧"段内邻居"基本等价）。
+    public double StartPhonemeRatio
+    {
+        get
+        {
+            if (Last == null)
                 return 1;
 
-            double all = -PhonemeStartTime; 
-            if (all <= 0) 
-                return 1; 
+            double all = -PhonemeStartTime;
+            if (all <= 0)
+                return 1;
 
-            return Math.Min(1, (StartTime - LastInSegment.StartTime) / all); 
-        } 
+            return Math.Min(1, (StartTime - Last.StartTime) / all);
+        }
     }
-    public double EndPhonemeRatio 
-    { 
-        get 
-        { 
-            double all = PhonemeEndTime; 
-            if (all <= 0) 
+    public double EndPhonemeRatio
+    {
+        get
+        {
+            double all = PhonemeEndTime;
+            if (all <= 0)
                 return 1;
 
-            double end = EndTime; 
-            if (NextInSegment != null)
-                end = (NextInSegment.Phonemes.IsEmpty() ? 
-                    (NextInSegment.SynthesizedPhonemes == null || NextInSegment.SynthesizedPhonemes.IsEmpty() ? NextInSegment.StartTime : NextInSegment.SynthesizedPhonemes.ConstFirst().StartTime) : 
-                    NextInSegment.PhonemeStartTime + NextInSegment.StartTime).Limit(StartTime, EndTime);
+            double end = EndTime;
+            if (Next != null)
+                end = (Next.Phonemes.IsEmpty() ?
+                    (Next.SynthesizedPhonemes == null || Next.SynthesizedPhonemes.IsEmpty() ? Next.StartTime : Next.SynthesizedPhonemes.ConstFirst().StartTime) :
+                    Next.PhonemeStartTime + Next.StartTime).Limit(StartTime, EndTime);
 
             return (end - StartTime) / all;
-        } 
+        }
     }
 
     private SynthesizedPhoneme GetPhoneme(IPhoneme phoneme)

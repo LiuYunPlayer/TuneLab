@@ -342,7 +342,7 @@ internal partial class PianoScrollView
 
         public override bool Raycast(Point point)
         {
-            IReadOnlyList<SynthesizedPhoneme>? phonemes = ((ISynthesisNote)Note).Phonemes;
+            IReadOnlyList<SynthesizedPhoneme>? phonemes = Note.PinnedPhonemes;
             if (phonemes.IsEmpty())
                 phonemes = Note.SynthesizedPhonemes;
 

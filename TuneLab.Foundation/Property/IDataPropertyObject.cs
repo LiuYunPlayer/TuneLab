@@ -7,13 +7,18 @@ namespace TuneLab.Foundation.Property;
 // 属性面板的导航式数据外观：路径上每个节点都是 IDataPropertyObject（对象节点）或 IDataProperty<T>（叶子），
 // 拿到就当普通数据对象用——绑定/观察/撤销一视同仁。节点本身即撤销根（故继承 IDataObject）。
 // 嵌套对象经 Object(key) 逐层导航（lazy：读不存在返回 default、写时按需建路径），不再用扁平深路径寻址。
-public interface IDataPropertyObject : IDataObject
+// 同时继承 SDK 最小订阅面（只读属性树外观）：富导航与只读导航同名共存，
+// cast 到 IReadOnlyNotifiablePropertyObject 得只读面——适配由下方 DIM 一次完成，实现类零样板。
+public interface IDataPropertyObject : IDataObject, IReadOnlyNotifiablePropertyObject
 {
     // 导航到嵌套对象节点：返回可继续导航的子对象外观。
-    IDataPropertyObject Object(string key);
+    new IDataPropertyObject Object(string key);
     // 本层叶子读/写（裸 PropertyValue 进出；typed 视图由下方字段扩展提供）。
-    PropertyValue GetValue(string key, PropertyValue defaultValue);
+    new PropertyValue GetValue(string key, PropertyValue defaultValue);
     void SetValue(string key, PropertyValue value);
+
+    IReadOnlyNotifiablePropertyObject IReadOnlyNotifiablePropertyObject.Object(string key) => Object(key);
+    PropertyValue IReadOnlyNotifiablePropertyObject.GetValue(string key, PropertyValue defaultValue) => GetValue(key, defaultValue);
 }
 
 // 字段向 UI 绑定暴露未 coerce 的原始值，使绑定能区分 具体值 / Multiple（多值）/ Invalid（无值）三态。

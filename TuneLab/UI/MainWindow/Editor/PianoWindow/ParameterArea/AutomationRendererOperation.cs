@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -715,7 +715,7 @@ internal partial class AutomationRenderer
             anchor.Select();
 
             State = State.AnchorMoving;
-            AutomationRenderer.Part.DisableAutoPrepare();
+            AutomationRenderer.Part.BeginMergeDirty();
             mHead = AutomationRenderer.Part.Head;
             mXOffset = point.X - AutomationRenderer.TickAxis.Tick2X(AutomationRenderer.Part.Pos.Value + anchor.Pos);
             mYOffset = point.Y - AutomationRenderer.ValueToY(anchor.Value + automation.DefaultValue.Value, mMin, mMax);
@@ -750,7 +750,7 @@ internal partial class AutomationRenderer
             if (AutomationRenderer.Part == null)
                 return;
 
-            AutomationRenderer.Part.EnableAutoPrepare();
+            AutomationRenderer.Part.EndMergeDirty();
             if (mMoved || mKeepChangeWithoutMove)
             {
                 AutomationRenderer.Part.Commit();
@@ -822,7 +822,7 @@ internal partial class AutomationRenderer
 
             var automationID = automationKey.Value.Id;
             State = State.VibratoAmplitudeAdjusting;
-            AutomationRenderer.Part.DisableAutoPrepare();
+            AutomationRenderer.Part.BeginMergeDirty();
             mVibratos = vibratos;
             mAutomationID = automationID;
             foreach (var vibrato in mVibratos)
@@ -861,7 +861,7 @@ internal partial class AutomationRenderer
 
             State = State.None;
             var head = AutomationRenderer.Part.Head;
-            AutomationRenderer.Part.EnableAutoPrepare();
+            AutomationRenderer.Part.EndMergeDirty();
             if (head == mHead)
             {
                 AutomationRenderer.Part.Discard();

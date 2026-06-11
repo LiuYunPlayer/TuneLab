@@ -16,13 +16,16 @@ using TuneLab.Foundation.Utils;
 using TuneLab.Utils;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK.Voice;
+using TuneLab.Audio;
+using TuneLab.Primitives.Audio;
 
 
 namespace TuneLab.Data;
 
 internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
 {
-    IActionEvent<ISynthesisPiece> SynthesisStatusChanged { get; }
+    // 合成状态/产物有更新（含会话重建），UI 收到直接刷新；区域信息看 GetSynthesisStatus()。
+    IActionEvent SynthesisStatusChanged { get; }
     INoteList Notes { get; }
     IReadOnlyDataObjectList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
@@ -31,7 +34,15 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IReadOnlyDataObjectList<IEffect> Effects { get; }
     IPiecewiseAutomation Pitch { get; }
-    IReadOnlyList<ISynthesisPiece> SynthesisPieces { get; }
+
+    // —— 合成消费面（session 模型，插件托管状态与产物，宿主拉取展示）——
+    Synthesis.VoiceSynthesisPipeline? SynthesisPipeline { get; }
+    bool IsSynthesisBatching { get; }
+    IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus();
+    IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
+    MonoAudio? SynthesizedAudio { get; }
+    Waveform? Waveform { get; }
+
     IAutomation? AddAutomation(string automationID);
     double[] GetFinalPitch(IReadOnlyList<double> ticks);
     void LockPitch(double start, double end, double extension);
@@ -46,10 +57,9 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     Vibrato CreateVibrato(VibratoInfo info);
     void InsertVibrato(Vibrato note);
     bool RemoveVibrato(Vibrato note);
-    void BeginMergeReSegment();
-    void EndMergeReSegment();
-    void DisableAutoPrepare();
-    void EnableAutoPrepare();
+    // 批量变更括号（含 undo/redo 重放）：插件把重活延迟到括号收口。
+    void BeginMergeDirty();
+    void EndMergeDirty();
 }
 
 internal static class IMidiPartExtension
@@ -129,42 +139,6 @@ internal static class IMidiPartExtension
         return part.GetFinalAutomationValues(ticks, key.Id);
     }
 
-    public static ISynthesisPiece? FindNextNotCompletePiece(this IMidiPart part, double time)
-    {
-        ISynthesisPiece? result = null;
-
-        foreach (var piece in part.SynthesisPieces)
-        {
-            if (piece.SynthesisStatus == SynthesisStatus.SynthesisSucceeded || piece.SynthesisStatus == SynthesisStatus.SynthesisFailed)
-                continue;
-
-            if (result == null)
-            {
-                result = piece;
-                continue;
-            }
-
-            if (result.EndTime() < time)
-            {
-                if (piece.EndTime() < time && piece.StartTime() > result.StartTime())
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                if (piece.EndTime() < time || piece.StartTime() > result.StartTime())
-                {
-                    continue;
-                }
-            }
-
-            result = piece;
-        }
-
-        return result;
-    }
-
     public static (int, int) PitchRange(this IMidiPart part)
     {
         var note = part.Notes.Begin;
@@ -185,24 +159,6 @@ internal static class IMidiPartExtension
         }
 
         return (min, max);
-    }
-
-    public static void BeginMergeDirty(this IMidiPart part)
-    {
-        part.BeginMergeReSegment();
-        part.DisableAutoPrepare();
-    }
-
-    public static void EndMergeDirty(this IMidiPart part)
-    {
-        part.EnableAutoPrepare();
-        part.EndMergeReSegment();
-    }
-
-    public static void SetAllPieceDirty(this IMidiPart part, string dirtyType)
-    {
-        foreach (var piece in part.SynthesisPieces)
-            piece.SetDirty(dirtyType);
     }
 
     public static List<INote> AllNotesInSelection(this IMidiPart part, double start, double end)

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation.Document;
 using TuneLab.GUI;
 using TuneLab.Data;
+using TuneLab.Data.Synthesis;
 using TuneLab.Audio;
 using TuneLab.SDK.Voice;
 using Timer = System.Timers.Timer;
@@ -362,12 +363,18 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mTimer = null;
     }
 
+    // 宿主驱动逐步合成（仿 ACE findNextNeedSynthesisContext）：每个调度 tick 在并发上限内
+    // 填满空槽。候选 = 各空闲会话的廉价 peek；全局按"播放线就近"排优先——先取播放线之后
+    // 最早开始的段，线后全空再取线前最晚开始（离播放线最近）的段。
+    // peek→commit 在本同步调用栈内完成（同一调度 tick，无编辑可插入，segment token 安全）。
     void SynthesisNext()
     {
         if (Project == null)
             return;
 
-        List<ISynthesisPiece> pieces = new();
+        int limit = Math.Max(1, Environment.ProcessorCount);
+        int busy = 0;
+        var idle = new List<VoiceSynthesisPipeline>();
         foreach (var track in Project.Tracks)
         {
             foreach (var part in track.Parts)
@@ -375,22 +382,56 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 if (part is not MidiPart midiPart)
                     continue;
 
-                var piece = midiPart.FindNextNotCompletePiece(AudioEngine.CurrentTime);
-                if (piece != null && piece.SynthesisStatus == SynthesisStatus.NotSynthesized)
+                var pipeline = midiPart.SynthesisPipeline;
+                if (pipeline == null)
+                    continue;
+
+                if (pipeline.IsBusy)
                 {
-                    pieces.Add(piece);
+                    busy++;
+                    continue;
                 }
+
+                if (midiPart.IsSynthesisBatching)
+                    continue; // 批量编辑收口前不派活，避免对中间态做无用功
+
+                idle.Add(pipeline);
             }
         }
 
-        var min = pieces.MinBy(piece => piece.StartTime());
-        if (min == null)
-            return;
-
-        min.StartSynthesis();
-        if (min.SynthesisStatus == SynthesisStatus.SynthesisSucceeded)
+        double currentTime = AudioEngine.CurrentTime;
+        while (busy < limit && idle.Count > 0)
         {
-            SynthesisNext();
+            VoiceSynthesisPipeline? best = null;
+            ISynthesisSegment? bestSegment = null;
+            bool bestIsAhead = false;
+            foreach (var pipeline in idle)
+            {
+                var segment = pipeline.PeekNext(currentTime, double.MaxValue);
+                bool isAhead = segment != null;
+                segment ??= pipeline.PeekNext(double.MinValue, currentTime);
+                if (segment == null)
+                    continue;
+
+                bool better = best == null
+                    || (isAhead && !bestIsAhead)
+                    || (isAhead == bestIsAhead && (isAhead
+                        ? segment.StartTime < bestSegment!.StartTime
+                        : segment.StartTime > bestSegment!.StartTime));
+                if (better)
+                {
+                    best = pipeline;
+                    bestSegment = segment;
+                    bestIsAhead = isAhead;
+                }
+            }
+
+            if (best == null || bestSegment == null)
+                break;
+
+            best.Dispatch(bestSegment);
+            idle.Remove(best);
+            busy++;
         }
     }
 
