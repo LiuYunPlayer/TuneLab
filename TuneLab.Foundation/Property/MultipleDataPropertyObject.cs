@@ -22,6 +22,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     {
         mDataObjects = dataObjects as IReadOnlyList<IDataPropertyObject> ?? dataObjects.ToList();
         mModified = new MergedModifiedEvent(mDataObjects);
+        mWillModified = new MergedWillModifiedEvent(mDataObjects);
         mRoot = mDataObjects.Count > 0 ? mDataObjects[0] : null;
     }
 
@@ -61,8 +62,9 @@ public class MultipleDataPropertyObject : IDataPropertyObject
             dataObject.EndMergeNotify();
     }
 
-    // ---- IDataObject：撤销机制委托首对象（文档级共享），Modified 取合并事件，无选中时全 no-op ----
+    // ---- IDataObject：撤销机制委托首对象（文档级共享），Modified/WillModified 取合并事件，无选中时全 no-op ----
     public IModifiedEvent Modified => mModified;
+    public IActionEvent WillModified => mWillModified;
     public Head Head => mRoot?.Head ?? default;
     public void Attach(IDataObject parent) { }
     public void Detach() { }
@@ -129,7 +131,24 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         }
     }
 
+    // 任一对象的 WillModified 都转发给同一订阅者（与 MergedModifiedEvent 同理，改前事件无 bool 形状）。
+    class MergedWillModifiedEvent(IReadOnlyList<IDataPropertyObject> dataObjects) : IActionEvent
+    {
+        public void Subscribe(Action invokable)
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.WillModified.Subscribe(invokable);
+        }
+
+        public void Unsubscribe(Action invokable)
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.WillModified.Unsubscribe(invokable);
+        }
+    }
+
     readonly IReadOnlyList<IDataPropertyObject> mDataObjects;
     readonly MergedModifiedEvent mModified;
+    readonly MergedWillModifiedEvent mWillModified;
     readonly IDataPropertyObject? mRoot;
 }

@@ -12,13 +12,13 @@ public class NotifiableProperty<T>(T defaultValue) : INotifiableProperty<T>, IRe
     public IActionEvent WillModify => mWillModify;
     public IActionEvent Modified => mModified;
 
-    // SDK 最小订阅面（IReadOnlyNotifiableProperty）适配到富事件。
-    event Action? IReadOnlyNotifiableProperty<T>.WillModified
+    // SDK 最小订阅面（IReadOnlyNotifiable）适配到富事件。
+    event Action? IReadOnlyNotifiable.WillModified
     {
         add { if (value != null) mWillModify.Subscribe(value); }
         remove { if (value != null) mWillModify.Unsubscribe(value); }
     }
-    event Action? IReadOnlyNotifiableProperty<T>.Modified
+    event Action? IReadOnlyNotifiable.Modified
     {
         add { if (value != null) mModified.Subscribe(value); }
         remove { if (value != null) mModified.Unsubscribe(value); }

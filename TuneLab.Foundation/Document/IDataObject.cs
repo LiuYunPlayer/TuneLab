@@ -1,12 +1,30 @@
 using System;
 using TuneLab.Foundation.Event;
+using TuneLab.Primitives.Event;
 
 namespace TuneLab.Foundation.Document;
 
-public interface IDataObject
+public interface IDataObject : IReadOnlyNotifiable
 {
-    IModifiedEvent Modified { get; }
+    // 富事件面（IActionEvent/IModifiedEvent，宿主内部用）与 SDK 最小事件面（event Action?）同名共存：
+    // 直接成员访问解析到富属性，cast 到 IReadOnlyNotifiable 得最小事件——适配由下方 DIM 一次完成，
+    // 一切数据对象因此天生可被 SDK 最小面订阅，实现类零样板。
+    new IModifiedEvent Modified { get; }
+    new IActionEvent WillModified { get; }
     Head Head { get; }
+
+    // 最小面适配：Modified 经 ActionEvent 的 Action 重载订阅，天然只收结果态（canIgnore=false），
+    // merge 中间态不外漏；WillModified 改前事件不参与 merge 合并（旧值须在每次变更前可读）。
+    event Action? IReadOnlyNotifiable.WillModified
+    {
+        add { if (value != null) WillModified.Subscribe(value); }
+        remove { if (value != null) WillModified.Unsubscribe(value); }
+    }
+    event Action? IReadOnlyNotifiable.Modified
+    {
+        add { if (value != null) Modified.Subscribe(value); }
+        remove { if (value != null) Modified.Unsubscribe(value); }
+    }
     void Attach(IDataObject parent);
     void Detach();
     // 合并通知作用域：进=BeginMergeNotify、出（Dispose）=EndMergeNotify，异常也平衡。
@@ -26,6 +44,7 @@ public interface IDataObject
     internal class Wrapper(IDataObject dataObject) : IDataObject
     {
         public IModifiedEvent Modified => dataObject.Modified;
+        public IActionEvent WillModified => dataObject.WillModified;
         public Head Head => dataObject.Head;
         public void Attach(IDataObject parent) => dataObject.Attach(parent);
         public void Detach() => dataObject.Detach();

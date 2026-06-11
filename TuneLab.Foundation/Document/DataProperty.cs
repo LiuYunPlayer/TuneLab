@@ -3,9 +3,10 @@ using TuneLab.Primitives.Event;
 
 namespace TuneLab.Foundation.Document;
 
-public interface IReadOnlyDataProperty<out T> : IReadOnlyDataObject<T> where T : notnull
+// 叶子属性面：读值 O(1)，故继承到 IReadOnlyNotifiableProperty<T>（Value 由其声明）；
+// 复合对象停在 IDataObject : IReadOnlyNotifiable（只可订阅，不伪装 O(n) GetInfo 为属性值）。
+public interface IReadOnlyDataProperty<out T> : IReadOnlyDataObject<T>, IReadOnlyNotifiableProperty<T> where T : notnull
 {
-    T Value { get; }
 }
 
 public interface IDataProperty<T> : IDataObject<T>, IReadOnlyDataProperty<T> where T : notnull
@@ -17,21 +18,8 @@ public interface IDataProperty<T> : IDataObject<T>, IReadOnlyDataProperty<T> whe
 
 // 叶子数据对象：读/写原语是方法 GetInfo / SetValue（虚/抽象，子类按需定制），Value 是非虚只读 getter 指向 GetInfo。
 // 拥有自己的 ModifyCommand（SetValue 是裸写：仅落值、不去重/不记命令/不判副作用，只被命令与装载用）。
-public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(parent), IDataProperty<T>, IReadOnlyNotifiableProperty<T> where T : notnull
+public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(parent), IDataProperty<T> where T : notnull
 {
-    // SDK 最小订阅面适配：WillModified 接改前事件；Modified 经 ActionEvent 的 Action 重载订阅，
-    // 天然只收结果态（canIgnore=false）——merge 中间态不外漏，与会话 context 的过滤语义一致。
-    event Action? IReadOnlyNotifiableProperty<T>.WillModified
-    {
-        add { if (value != null) WillModified.Subscribe(value); }
-        remove { if (value != null) WillModified.Unsubscribe(value); }
-    }
-    event Action? IReadOnlyNotifiableProperty<T>.Modified
-    {
-        add { if (value != null) Modified.Subscribe(value); }
-        remove { if (value != null) Modified.Unsubscribe(value); }
-    }
-
     public static implicit operator T(DataProperty<T> dataProperty) => dataProperty.Value;
 
     public T Value => GetInfo();
