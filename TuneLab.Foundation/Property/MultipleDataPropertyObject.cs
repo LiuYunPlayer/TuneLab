@@ -64,7 +64,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
 
     // ---- IDataObject：撤销机制委托首对象（文档级共享），Modified/WillModified 取合并事件，无选中时全 no-op ----
     public IModifiedEvent Modified => mModified;
-    public IActionEvent WillModified => mWillModified;
+    public IModifiedEvent WillModified => mWillModified;
     public Head Head => mRoot?.Head ?? default;
     public void Attach(IDataObject parent) { }
     public void Detach() { }
@@ -131,8 +131,8 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         }
     }
 
-    // 任一对象的 WillModified 都转发给同一订阅者（与 MergedModifiedEvent 同理，改前事件无 bool 形状）。
-    class MergedWillModifiedEvent(IReadOnlyList<IDataPropertyObject> dataObjects) : IActionEvent
+    // 任一对象的 WillModified 都转发给同一订阅者（与 MergedModifiedEvent 同理，两种订阅形状）。
+    class MergedWillModifiedEvent(IReadOnlyList<IDataPropertyObject> dataObjects) : IModifiedEvent
     {
         public void Subscribe(Action invokable)
         {
@@ -141,6 +141,18 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         }
 
         public void Unsubscribe(Action invokable)
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.WillModified.Unsubscribe(invokable);
+        }
+
+        public void Subscribe(Action<bool> invokable)
+        {
+            foreach (var dataObject in dataObjects)
+                dataObject.WillModified.Subscribe(invokable);
+        }
+
+        public void Unsubscribe(Action<bool> invokable)
         {
             foreach (var dataObject in dataObjects)
                 dataObject.WillModified.Unsubscribe(invokable);

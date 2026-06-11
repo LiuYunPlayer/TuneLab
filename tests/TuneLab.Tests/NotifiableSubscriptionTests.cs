@@ -46,24 +46,34 @@ public class NotifiableSubscriptionTests
     }
 
     [Fact]
-    public void MergeNotify_IntermediateStatesNotLeakedToMinimalSurface()
+    public void MergeNotify_WillAndModified_AreDualUnderMerge()
     {
         var property = new DataStruct<double>();
         IReadOnlyNotifiableProperty<double> readOnly = property;
 
-        int willCount = 0, modifiedCount = 0;
-        readOnly.WillModified += () => willCount++;
+        int willCount = 0, modifiedCount = 0, willAllCount = 0;
+        double firstWillSaw = double.NaN;
+        readOnly.WillModified += () => { willCount++; firstWillSaw = readOnly.Value; };
         readOnly.Modified += () => modifiedCount++;
+        property.WillModified.Subscribe((bool _) => willAllCount++);   // 全量形状收到每次改前
 
         property.BeginMergeNotify();
         property.Set(1);
         property.Set(2);
-        Assert.Equal(2, willCount);        // 改前事件不可合并：每次变更前都触发（旧值须可读）
+        // 改前事件的 merge 对偶语义：作用域内首次 canIgnore=false 必达（此时抓旧值 0），
+        // 其余 canIgnore=true 不进最小面——Modified 折叠掉的中间态，其旧值同样无需作废。
+        Assert.Equal(1, willCount);
+        Assert.Equal(0.0, firstWillSaw);
+        Assert.Equal(2, willAllCount);
         Assert.Equal(0, modifiedCount);    // 中间态（canIgnore=true）不进最小订阅面
 
         property.EndMergeNotify();
         Assert.Equal(1, modifiedCount);    // merge 收口：一次结果态
         Assert.Equal(2.0, readOnly.Value);
+
+        property.Set(3);                   // 收口已重置：新变更的改前通知再次必达
+        Assert.Equal(2, willCount);
+        Assert.Equal(2, modifiedCount);
     }
 
     [Fact]

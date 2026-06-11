@@ -10,9 +10,10 @@ namespace TuneLab.Foundation.Document;
 public abstract class DataObject : IDataObject
 {
     public IModifiedEvent Modified => mModifiedEvent;
-    // 改前事件：在值落地前触发，handler 内读值得旧值。与 Modified 不同，不参与 merge 合并——
-    // "改前"语义不可延迟（merge 只折叠结果态通知，旧值必须在每次变更前都可读到）。
-    public IActionEvent WillModified => mWillModifiedEvent;
+    // 改前事件：在值落地前触发，handler 内读值得旧值。merge 语义与 Modified 对偶（参照 ACE 的
+    // aboutToModify）：作用域内首次 canIgnore=false 必达（订阅者在此抓旧值/作废旧区域），其余
+    // canIgnore=true 可忽略——Modified 折叠掉的中间态，其"改前旧值"同样无需作废；收口时重置。
+    public IModifiedEvent WillModified => mWillModifiedEvent;
     public virtual Head Head => mParent!.Head;
 
     public DataObject(IDataObject? parent = null)
@@ -58,7 +59,11 @@ public abstract class DataObject : IDataObject
 
     protected void NotifyWill(bool notifyParent = true)
     {
-        mWillModifiedEvent.Invoke();
+        mWillModifiedEvent.Invoke(mWillNotifiedInMerge);
+        if (mNotifyFlag > 0)
+            mWillNotifiedInMerge = true;
+
+        // 显式沿父链上爬（而非依赖事件冒泡）：每级各自按自己的 merge 计数判定 canIgnore。
         if (notifyParent)
             mParent?.NotifyWill();
     }
@@ -66,7 +71,8 @@ public abstract class DataObject : IDataObject
     void ChangeNotifyFlag(int delta)
     {
         mNotifyFlag += delta;
-        foreach (var child in mChildren)
+        // 快照子表再迭代：下方收口补发 Modified 时订阅者可能就地改挂载（reparent），会改动 mChildren。
+        foreach (var child in mChildren.ToArray())
         {
             child.ChangeNotifyFlag(delta);
         }
@@ -74,6 +80,7 @@ public abstract class DataObject : IDataObject
         if (mNotifyFlag != 0)
             return;
 
+        mWillNotifiedInMerge = false;
         if (mNeedNotifyInMerge)
         {
             mNeedNotifyInMerge = false;
@@ -133,6 +140,7 @@ public abstract class DataObject : IDataObject
     readonly List<DataObject> mChildren = new();
     int mNotifyFlag = 0;
     bool mNeedNotifyInMerge = false;
+    bool mWillNotifiedInMerge = false;
     readonly ModifiedEvent mModifiedEvent = new();
-    readonly ActionEvent mWillModifiedEvent = new();
+    readonly ModifiedEvent mWillModifiedEvent = new();
 }

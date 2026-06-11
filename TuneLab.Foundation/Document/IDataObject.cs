@@ -10,7 +10,8 @@ public interface IDataObject : IReadOnlyNotifiable
     // 直接成员访问解析到富属性，cast 到 IReadOnlyNotifiable 得最小事件——适配由下方 DIM 一次完成，
     // 一切数据对象因此天生可被 SDK 最小面订阅，实现类零样板。
     new IModifiedEvent Modified { get; }
-    new IActionEvent WillModified { get; }
+    // 改前事件，merge 语义与 Modified 对偶：作用域内首次 canIgnore=false 必达、其余可忽略，收口重置。
+    new IModifiedEvent WillModified { get; }
     Head Head { get; }
 
     // 最小面适配：Modified 经 ActionEvent 的 Action 重载订阅，天然只收结果态（canIgnore=false），
@@ -44,7 +45,7 @@ public interface IDataObject : IReadOnlyNotifiable
     internal class Wrapper(IDataObject dataObject) : IDataObject
     {
         public IModifiedEvent Modified => dataObject.Modified;
-        public IActionEvent WillModified => dataObject.WillModified;
+        public IModifiedEvent WillModified => dataObject.WillModified;
         public Head Head => dataObject.Head;
         public void Attach(IDataObject parent) => dataObject.Attach(parent);
         public void Detach() => dataObject.Detach();
