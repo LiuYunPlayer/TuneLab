@@ -2,8 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using TuneLab.I18N;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Base.Environment;
+using TuneLab.SDK;
 using HostLog = TuneLab.Foundation.Utils.Log;
 
 namespace TuneLab.Extensions;

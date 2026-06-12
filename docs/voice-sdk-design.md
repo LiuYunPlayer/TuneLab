@@ -85,7 +85,7 @@ public interface ISynthesisContext
 
 // automation 的会话级活视图：求值 + 区间变更订阅（镜像宿主数据层 RangeModified 语义）。
 // 插件由此做最细粒度失效："某轨 [start,end) 变了 → 只标脏覆盖该区间的段"。
-// 注：IAutomationEvaluator（纯求值，SDK.Base、voice/effect 共用；接口本身不定义查询轴，
+// 注：IAutomationEvaluator（纯求值，TuneLab.SDK、voice/effect 共用；接口本身不定义查询轴，
 // 轴由暴露面规定——voice 面 = 全局 tick，effect 面 = 全局秒）与本接口的分离是
 // "活视图可订阅 / 冻结面无事件"双视图的类型化体现；继承关系维持（is-a 成立：同一份采样
 // 例程可同型吃活视图与冻结求值器）。
@@ -109,7 +109,7 @@ public interface ISynthesisAutomation : IAutomationEvaluator
 
 解法：**context 是会话级的中间层**，由宿主驱动 emit。插件订阅的是 context（短命，随会话一起死 → 泄漏*结构性*不可能，无需弱事件、无需契约）；context 内部订阅长寿数据层、由宿主转发，宿主因此始终握着*线程 / 时机 / 故障隔离 / 批量*四个旋钮（可在 command 提交后、选定线程、try-catch 包裹下 emit）。这正是"中间层"方案的落地——而 `OnChanged` 式推送本质就是它，订阅只是更好用的外壳。
 
-代价：需在 `SDK.Base` 冻结一个**最小订阅侧接口**：
+代价：需在 `TuneLab.SDK` 冻结一个**最小订阅侧接口**：
 
 ```csharp
 public interface IReadOnlyNotifiableProperty<out T>
@@ -120,7 +120,7 @@ public interface IReadOnlyNotifiableProperty<out T>
 }
 ```
 
-`WhenAny` 作为该接口（及其集合）的**扩展方法定义在 SDK.Base，逻辑一份**；宿主 Foundation 的富 NotifiableProperty 实现此接口，host 与插件共用同一份 `WhenAny`，不存在两份实现漂移。
+`WhenAny` 作为该接口（及其集合）的**扩展方法定义在 TuneLab.SDK，逻辑一份**；宿主 Foundation 的富 NotifiableProperty 实现此接口，host 与插件共用同一份 `WhenAny`，不存在两份实现漂移。
 
 ### 3.3 `ISynthesisNote` / 时间真值域 / `ITiming`
 
@@ -378,7 +378,7 @@ public struct SynthesizedPhoneme
   new_dᵢ = dᵢ + Δ × (wᵢ / Σwⱼ)        // 再做非负 clamp
   ```
   辅音 w=0、元音 w=1 → 长度变化全进元音、辅音不动；w 默认 = dᵢ 即退化为均匀缩放（兼容旧行为）。宿主套公式但不需懂音韵学——知识被编码进一个数字。
-- **权重随锁定持久化进工程**：用户锁定音素的那一刻，固定下来的不只是时长，是"时长 + 伸缩性质"这个整体——权重随锁定动作完成所有权转移，本质上属于用户意图固定下来的数据（与 pinned 时长同一逻辑地位），故随 pinned 音素一并进工程（Format `PhonemeInfo.Weight`，数据层 `IPhoneme.Weight`）。这根除时序错位：若权重只存在于合成产物（缓存），"工程加载后、首轮合成前拖伸 note"的压缩只能退化均匀且**错误会固化进 pinned 数据**（引擎忠实遵守错误约束，无自愈通道）；入库后压缩任何时刻都有正确分布可用。旧工程缺省 Weight=0 → 与 **Σw ≤ 0**（插件未设权重）共用一条防御路径：退化均匀缩放。SDK 输入面（`SDK.Voice.PinnedPhoneme`）不带权重——引擎只消费钉死时长，权重是宿主编辑侧知识载体。
+- **权重随锁定持久化进工程**：用户锁定音素的那一刻，固定下来的不只是时长，是"时长 + 伸缩性质"这个整体——权重随锁定动作完成所有权转移，本质上属于用户意图固定下来的数据（与 pinned 时长同一逻辑地位），故随 pinned 音素一并进工程（Format `PhonemeInfo.Weight`，数据层 `IPhoneme.Weight`）。这根除时序错位：若权重只存在于合成产物（缓存），"工程加载后、首轮合成前拖伸 note"的压缩只能退化均匀且**错误会固化进 pinned 数据**（引擎忠实遵守错误约束，无自愈通道）；入库后压缩任何时刻都有正确分布可用。旧工程缺省 Weight=0 → 与 **Σw ≤ 0**（插件未设权重）共用一条防御路径：退化均匀缩放。SDK 输入面（`TuneLab.SDK.PinnedPhoneme`）不带权重——引擎只消费钉死时长，权重是宿主编辑侧知识载体。
 - 移动 note → 相对偏移不变、跟随平移，不重算。
 - **preview 纯显示、绝不反馈给引擎当约束**；权威时长由**全量合成**重新定时并返回（带新权重），覆盖 preview（接受短暂"跳变"，因合成本就按播放线就近增量调度、纠正及时）。
 - 宿主公式**封顶在"权重 + 非负 clamp"**——真实下限/协同发音等硬情况交给引擎全量合成，不靠养大宿主公式覆盖。
@@ -479,6 +479,6 @@ public class PiecewiseAutomationConfig : IControllerConfig
 - **effect 收敛到本会话模型**（当前 effect 为 task 模型）。重构时一并处理：
   - ~~`IAutomationEvaluator` 与 `ISynthesisAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
   - `SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型（与 PiecewiseAutomation 概念对齐），两 SDK 同步换形。
-  - `IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）。
+  - ~~`IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）~~（已随 SDK 程序集合并消解：voice/effect 同居 `TuneLab.SDK` 顶层命名空间，effect 可直接复用）。
 - **动态声明面**：轨集合/属性声明运行中变化的通知机制 + 既有轨用户数据的归宿（轨从声明消失后曲线数据怎么办）——函数式获取已留好形态，事件与数据策略缓后。
 - 动态立绘 / 动态全局背景图（宿主渲染能力，独立特性）。

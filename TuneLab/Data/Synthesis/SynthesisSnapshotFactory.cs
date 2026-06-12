@@ -4,9 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation.Utils;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.Primitives.Property;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Base.Timing;
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 
 namespace TuneLab.Data.Synthesis;
 

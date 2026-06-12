@@ -27,9 +27,8 @@
   <!-- 当前 V1 SDK：共享契约，host 已提供一份；Private=false 不拷进本包输出，避免与 host 重复。 -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\TuneLab.Primitives\TuneLab.Primitives.csproj" Private="false" />
-    <ProjectReference Include="..\..\..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK\TuneLab.SDK.csproj" Private="false" />
     <ProjectReference Include="..\..\..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" Private="false" />
-    <ProjectReference Include="..\..\..\TuneLab.SDK.Voice\TuneLab.SDK.Voice.csproj" Private="false" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 using System;
 using LVoice = TuneLab.Extensions.Voices;
-using VVoice = TuneLab.SDK.Voice;
+using VVoice = TuneLab.SDK;
 using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Voice;

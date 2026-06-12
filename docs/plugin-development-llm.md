@@ -39,7 +39,7 @@
 
 ### 工程配置
 - `<TargetFramework>net8.0</TargetFramework>`（固定）。
-- 引用：`TuneLab.Primitives`、`TuneLab.SDK.Base`，按需 `TuneLab.SDK.Format` / `TuneLab.SDK.Voice` / `TuneLab.SDK.Effect`。
+- 引用：`TuneLab.Primitives`、`TuneLab.SDK`，format 插件另加 `TuneLab.SDK.Format`。
 - **禁止**引用 `TuneLab.Foundation`、`TuneLab`（主程序）、或任何 `TuneLab.Extensions.*`（那是 Legacy）。
 - SDK 引用 `Private=false`（不复制输出、不随包分发）。
 
@@ -53,7 +53,7 @@ public interface IExportFormat { Stream Serialize(ProjectInfo info); }
 - `fileExtension` 不带点。工程模型在 `TuneLab.SDK.Format.DataInfo`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。
 - 实现类需无参构造函数。
 
-### Voice 接口（命名空间 `TuneLab.SDK.Voice`）
+### Voice 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IVoiceEngine {
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; }   // TuneLab.Primitives.DataStructures
@@ -64,13 +64,13 @@ public interface IVoiceEngine {
 [AttributeUsage(AttributeTargets.Class)] public class VoiceEngineAttribute : Attribute { public VoiceEngineAttribute(string type); }
 ```
 - `type` 唯一。实现类需无参构造函数。
-- 相关类型：`IVoiceSource`、`ISynthesisData`、`ISynthesisTask`、`SynthesisResult`、`SynthesizedPhoneme`、`VoiceSourceInfo`；`AutomationConfig` 与 `IAutomationEvaluator` 在 `TuneLab.SDK.Base`。
+- 相关类型：`IVoiceSource`、`ISynthesisData`、`ISynthesisTask`、`SynthesisResult`、`SynthesizedPhoneme`、`VoiceSourceInfo`、`AutomationConfig`、`IAutomationEvaluator`。
 
-### Effect 接口（命名空间 `TuneLab.SDK.Effect`）
+### Effect 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IEffectEngine {
-    ObjectConfig PropertyConfig { get; }                                   // TuneLab.SDK.Base，参数面板
-    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; } // TuneLab.SDK.Base
+    ObjectConfig PropertyConfig { get; }                                   // 参数面板
+    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
     bool Init(string enginePath, out string? error);                       // enginePath = 包文件夹
     void Destroy();
     IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output);
@@ -124,7 +124,7 @@ public interface IEffectSynthesisTask {
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="TuneLab.Primitives" Private="false" />
-    <Reference Include="TuneLab.SDK.Base" Private="false" />
+    <Reference Include="TuneLab.SDK" Private="false" />
     <Reference Include="TuneLab.SDK.Format" Private="false" />
   </ItemGroup>
 </Project>

@@ -1,7 +1,7 @@
 ﻿using LProp = TuneLab.Base.Properties;
 using LStruct = TuneLab.Base.Structures;
 using LVoice = TuneLab.Extensions.Voices;
-using VConfig = TuneLab.SDK.Base.ControllerConfigs;
+using VConfig = TuneLab.SDK;
 using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;

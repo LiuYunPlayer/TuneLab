@@ -1,9 +1,7 @@
 using System;
 using TuneLab.Primitives.Audio;
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Base.ControllerConfigs;
-using TuneLab.SDK.Effect;
+using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Effect;
 
@@ -62,7 +60,7 @@ public sealed class GainEffectEngine : IEffectEngine
                     var times = new double[src.Length];
                     for (int i = 0; i < src.Length; i++)
                         times[i] = audio.StartTime + (double)i / audio.SampleRate;
-                    env = automation.GetValue(times);
+                    env = automation.Evaluate(times);
                 }
 
                 for (int i = 0; i < src.Length; i++)

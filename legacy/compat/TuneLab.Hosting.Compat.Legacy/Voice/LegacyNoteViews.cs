@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using TuneLab.SDK.Base.Timing;
+using TuneLab.SDK;
 using LProp = TuneLab.Base.Properties;
 using LVoice = TuneLab.Extensions.Voices;
-using VVoice = TuneLab.SDK.Voice;
+using VVoice = TuneLab.SDK;
 
 namespace TuneLab.Hosting.Compat.Legacy.Voice;
 

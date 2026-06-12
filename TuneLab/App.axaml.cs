@@ -10,7 +10,7 @@ using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
 using TuneLab.Foundation.Utils;
 using TuneLab.Extensions;
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 using TuneLab.GUI;
 using TuneLab.Configs;
 using TuneLab.UI;

@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Utils;
-using TuneLab.SDK.Effect;
+using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Effect;
 

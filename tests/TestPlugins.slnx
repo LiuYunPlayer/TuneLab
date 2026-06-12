@@ -20,7 +20,6 @@
   <Project Path="../legacy/sdk/src/TuneLab.Extensions.Formats/TuneLab.Extensions.Formats.csproj" />
   <Project Path="../legacy/sdk/src/TuneLab.Extensions.Voices/TuneLab.Extensions.Voices.csproj" />
   <Project Path="../TuneLab.Primitives/TuneLab.Primitives.csproj" />
-  <Project Path="../TuneLab.SDK.Base/TuneLab.SDK.Base.csproj" />
+  <Project Path="../TuneLab.SDK/TuneLab.SDK.csproj" />
   <Project Path="../TuneLab.SDK.Format/TuneLab.SDK.Format.csproj" />
-  <Project Path="../TuneLab.SDK.Voice/TuneLab.SDK.Voice.csproj" />
 </Solution>

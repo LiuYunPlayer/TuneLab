@@ -6,7 +6,7 @@ using TuneLab.Foundation.Property;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Science;
 using TuneLab.Utils;
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 using TuneLab.Foundation.Utils;
 using PhonemeInfo = TuneLab.SDK.Format.DataInfo.PhonemeInfo;
 using NoteInfo = TuneLab.SDK.Format.DataInfo.NoteInfo;

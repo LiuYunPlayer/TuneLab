@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Base.ControllerConfigs;
+using TuneLab.SDK;
 
-using TuneLab.SDK.Voice;
 namespace TuneLab.Extensions.Voices;
 
 // 空声源引擎（type = ""）：无声源 part 的回退实现。会话永远报告"窗内无待合成"，

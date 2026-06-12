@@ -3,8 +3,7 @@ using System;
 using System.Collections.Generic;
 using TuneLab.Foundation.Event;
 using TuneLab.Primitives.Property;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Base.ControllerConfigs;
+using TuneLab.SDK;
 using TuneLab.GUI.Components;
 
 namespace TuneLab.GUI.Controllers;

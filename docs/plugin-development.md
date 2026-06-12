@@ -110,10 +110,8 @@
   <ItemGroup>
     <!-- 引用你需要的 SDK 程序集；这些由 TuneLab 提供，打包时不要带上 -->
     <Reference Include="TuneLab.Primitives" />
-    <Reference Include="TuneLab.SDK.Base" />
-    <Reference Include="TuneLab.SDK.Format" /> <!-- format 插件 -->
-    <Reference Include="TuneLab.SDK.Voice" /> <!-- voice 插件 -->
-    <Reference Include="TuneLab.SDK.Effect" /> <!-- effect 插件 -->
+    <Reference Include="TuneLab.SDK" />
+    <Reference Include="TuneLab.SDK.Format" /> <!-- 仅 format 插件需要 -->
   </ItemGroup>
 </Project>
 ```
@@ -171,7 +169,7 @@ public class MyFormatExporter : IExportFormat
 
 ```csharp
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 
 [VoiceEngine("MyEngine")]            // 引擎类型标识（唯一）
 public class MyVoiceEngine : IVoiceEngine
@@ -194,7 +192,7 @@ public class MyVoiceEngine : IVoiceEngine
 }
 ```
 
-`Init` 的 `enginePath` 即包文件夹，捆绑的模型文件、原生运行时等放在包里、从这里定位。相关接口：`IVoiceSource` / `ISynthesisData` / `ISynthesisTask` / `SynthesisResult` 等（`TuneLab.SDK.Voice`）。
+`Init` 的 `enginePath` 即包文件夹，捆绑的模型文件、原生运行时等放在包里、从这里定位。相关接口：`IVoiceSource` / `ISynthesisData` / `ISynthesisTask` / `SynthesisResult` 等（`TuneLab.SDK`）。
 
 > ⚠️ **自动化参数名避开宿主保留名**：`IVoiceSource.AutomationConfigs` 的键会和宿主内置自动化合并展示，若与内置项**重名会被内置项占用、你的参数显示不出**。已知保留名：**`Volume`**、**`VibratoEnvelope`**。请用自己的独特名（如 `Breathiness` / `Growl` / 加前缀）。
 
@@ -209,8 +207,7 @@ public class MyVoiceEngine : IVoiceEngine
 ```csharp
 using TuneLab.Primitives.Audio;
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Effect;
+using TuneLab.SDK;
 
 [EffectEngine("MyEffect")]            // 效果器类型标识（唯一）
 public class MyEffectEngine : IEffectEngine
@@ -274,7 +271,7 @@ class MyEffectTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) :
 - **分段处理**：合成以「片段」为单位（由歌声引擎的分片决定），每个片段独立过你的链——片段之间的连续性由分片负责，你只需处理拿到的这一段。
 - **失败优雅降级**：`Error` 或抛异常时，宿主把该级当作直通（passthrough），不中断整段播放。
 
-相关接口都在 `TuneLab.SDK.Effect`：`IEffectEngine` / `IEffectSynthesisInput` / `IEffectSynthesisOutput` / `IEffectSynthesisTask`。
+相关接口都在 `TuneLab.SDK`：`IEffectEngine` / `IEffectSynthesisInput` / `IEffectSynthesisOutput` / `IEffectSynthesisTask`。
 
 ---
 

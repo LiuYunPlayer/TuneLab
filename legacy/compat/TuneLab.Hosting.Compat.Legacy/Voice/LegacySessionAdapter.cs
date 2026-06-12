@@ -9,9 +9,9 @@ using TuneLab.Primitives.DataStructures;
 using TuneLab.Primitives.Event;
 using LProp = TuneLab.Base.Properties;
 using LVoice = TuneLab.Extensions.Voices;
-using VBase = TuneLab.SDK.Base;
-using VConfig = TuneLab.SDK.Base.ControllerConfigs;
-using VVoice = TuneLab.SDK.Voice;
+using VBase = TuneLab.SDK;
+using VConfig = TuneLab.SDK;
+using VVoice = TuneLab.SDK;
 using PStruct = TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Hosting.Compat.Legacy.Voice;
@@ -560,7 +560,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     }
 
     // 老接口取值轴是秒、V1 求值器轴是全局 tick：经快照 Timing 换算后转调。
-    sealed class SecondsGetterAdapter(VBase.IAutomationEvaluator evaluator, TuneLab.SDK.Base.Timing.ITiming timing) : LVoice.IAutomationValueGetter
+    sealed class SecondsGetterAdapter(VBase.IAutomationEvaluator evaluator, TuneLab.SDK.ITiming timing) : LVoice.IAutomationValueGetter
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {

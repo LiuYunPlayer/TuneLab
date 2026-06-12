@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TuneLab.Primitives\TuneLab.Primitives.csproj" />
-    <ProjectReference Include="..\TuneLab.SDK.Base\TuneLab.SDK.Base.csproj" />
+    <ProjectReference Include="..\TuneLab.SDK\TuneLab.SDK.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,7 +6,7 @@ using System.Reflection;
 using LFmt = TuneLab.Extensions.Formats;
 using LVoice = TuneLab.Extensions.Voices;
 using VFmt = TuneLab.SDK.Format;
-using VVoice = TuneLab.SDK.Voice;
+using VVoice = TuneLab.SDK;
 using TuneLab.Hosting.Compat.Legacy.Format;
 using TuneLab.Hosting.Compat.Legacy.Voice;
 
@@ -14,7 +14,7 @@ namespace TuneLab.Hosting.Compat.Legacy;
 
 // 反射加载入口（主程序对本程序集零编译依赖）：
 //   宿主经 Assembly.LoadFrom 加载本 dll → 反射取 LegacyCompatEntry.TryLoad → 注入注册委托。
-//   委托签名只用共享契约类型（SDK.Format / SDK.Voice），它们由 Default ALC 加载一份、跨边界同一 Type，
+//   委托签名只用共享契约类型（SDK.Format / TuneLab.SDK），它们由 Default ALC 加载一份、跨边界同一 Type，
 //   故反射 Invoke 的实参类型与宿主侧构造的委托精确匹配。adapter 全 internal，公开面仅本类 + V1 SDK 类型。
 //
 // 公开面刻意只此一个静态方法 + 全 BCL/SDK 类型参数（暴露的工厂接口）。

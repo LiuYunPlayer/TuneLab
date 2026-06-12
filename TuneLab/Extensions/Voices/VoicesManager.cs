@@ -6,7 +6,7 @@ using TuneLab.Foundation.DataStructures;
 using TuneLab.Primitives.DataStructures;
 using TuneLab.Foundation.Utils;
 
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 namespace TuneLab.Extensions.Voices;
 
 internal static class VoicesManager

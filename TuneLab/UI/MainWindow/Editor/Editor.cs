@@ -8,7 +8,7 @@ using TuneLab.GUI;
 using TuneLab.Data;
 using TuneLab.Data.Synthesis;
 using TuneLab.Audio;
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 using Timer = System.Timers.Timer;
 using Avalonia.Controls;
 using System.Threading;

@@ -8,9 +8,7 @@ using TuneLab.Extensions.Voices;
 using TuneLab.Foundation.Utils;
 using TuneLab.Primitives.Audio;
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Effect;
-using TuneLab.SDK.Voice;
+using TuneLab.SDK;
 using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;

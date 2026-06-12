@@ -55,10 +55,11 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         return path != null ? LoadUnmanagedDllFromPath(path) : IntPtr.Zero;
     }
 
-    // 契约程序集前缀：Primitives + SDK.*。其余走插件私有解析。
+    // 契约程序集：Primitives + TuneLab.SDK（及 TuneLab.SDK.* 同族，如 SDK.Format）。其余走插件私有解析。
     static bool IsSharedContract(string assemblyName)
     {
         return assemblyName == "TuneLab.Primitives"
+            || assemblyName == "TuneLab.SDK"
             || assemblyName.StartsWith("TuneLab.SDK.", StringComparison.Ordinal);
     }
 

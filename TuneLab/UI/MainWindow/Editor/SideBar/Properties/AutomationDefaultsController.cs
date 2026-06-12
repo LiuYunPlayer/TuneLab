@@ -9,8 +9,7 @@ using TuneLab.Foundation.Utils;
 using TuneLab.GUI;
 using TuneLab.GUI.Controllers;
 using TuneLab.Primitives.DataStructures;
-using TuneLab.SDK.Base;
-using TuneLab.SDK.Base.ControllerConfigs;
+using TuneLab.SDK;
 using TuneLab.Utils;
 
 namespace TuneLab.UI;
