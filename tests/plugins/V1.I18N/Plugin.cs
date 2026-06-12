@@ -81,7 +81,7 @@ public sealed class I18NSession : ISynthesisSession
         // 自动化轨名本地化。
         mAutomationConfigs.Add("breath", new AutomationConfig { DisplayText = L.Tr("Breath"), DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#A573E5" });
 
-        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtension.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
+        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.Modified += MarkDirty;
         context.PartProperties.Modified += MarkDirty;
         context.TimingModified += MarkDirty;

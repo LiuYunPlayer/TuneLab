@@ -39,7 +39,7 @@ public abstract class SingleBlockSession : ISynthesisSession
     protected SingleBlockSession(ISynthesisContext context)
     {
         mContext = context;
-        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtension.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
+        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.Modified += MarkDirty;
         context.PartProperties.Modified += MarkDirty;
         context.TimingModified += MarkDirty;

@@ -1,6 +1,6 @@
 namespace TuneLab.Primitives.Event;
 
-public static class NotifiableExtension
+public static class NotifiableExtensions
 {
     // 订阅"集合任一现有/未来成员"：当下成员逐个 subscribe，此后增删自动接线/退订；
     // 返回的 IDisposable 一次性整体退订（集合结构事件 + 全部成员订阅）。
