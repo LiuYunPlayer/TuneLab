@@ -126,6 +126,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                         StartTime = (double)phoneme["startTime"],
                                         EndTime = (double)phoneme["endTime"],
                                         Symbol = (string)phoneme["symbol"],
+                                        Weight = (double?)phoneme["weight"] ?? 0,
                                     };
 
                                     noteInfo.Phonemes.Add(phonemeInfo);
@@ -341,6 +342,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 phoneme.Add("startTime", phonemeInfo.StartTime);
                                 phoneme.Add("endTime", phonemeInfo.EndTime);
                                 phoneme.Add("symbol", phonemeInfo.Symbol);
+                                phoneme.Add("weight", phonemeInfo.Weight);
 
                                 phonemes.Add(phoneme);
                             }
