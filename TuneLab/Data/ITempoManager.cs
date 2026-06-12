@@ -9,7 +9,7 @@ using TuneLab.Foundation.Science;
 using TuneLab.Utils;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
-using TuneLab.SDK.Base.Timing;
+using TuneLab.Data.Timing;
 
 namespace TuneLab.Data;
 

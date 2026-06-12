@@ -1,11 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Foundation.Document;
 using TuneLab.Foundation.DataStructures;
 using TuneLab.Foundation.Science;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Foundation.Utils;
-using TuneLab.SDK.Base.Timing;
+using TuneLab.Data.Timing;
 using System;
 
 namespace TuneLab.Data;
@@ -23,7 +23,7 @@ internal class TempoManager : DataObject, ITempoManager
     {
         mTempos = new(this);
         mProject = project;
-        // 任何变更（含 undo/redo 与拖动中间态）都让换算快照失效，下次取用时惰性重建。
+        // 浠讳綍鍙樻洿锛堝惈 undo/redo 涓庢嫋鍔ㄤ腑闂存€侊級閮借鎹㈢畻蹇収澶辨晥锛屼笅娆″彇鐢ㄦ椂鎯版€ч噸寤恒€?
         Modified.Subscribe((bool _) => mSnapshot = null);
         SetInfo(tempos);
     }
@@ -77,7 +77,7 @@ internal class TempoManager : DataObject, ITempoManager
     public double GetTick(double time) => Snapshot.ToTick(time);
     public double GetTime(double tick) => Snapshot.ToSecond(tick);
 
-    // 快照即换算实现：live 侧用的就是惰性重建的缓存，捕获时直接共享（不可变，零拷贝）。
+    // 蹇収鍗虫崲绠楀疄鐜帮細live 渚х敤鐨勫氨鏄儼鎬ч噸寤虹殑缂撳瓨锛屾崟鑾锋椂鐩存帴鍏变韩锛堜笉鍙彉锛岄浂鎷疯礉锛夈€?
     public TempoSnapshot CreateSnapshot() => Snapshot;
 
     public List<TempoInfo> GetInfo()

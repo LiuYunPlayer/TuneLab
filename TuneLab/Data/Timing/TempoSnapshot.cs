@@ -1,7 +1,13 @@
-namespace TuneLab.SDK.Base.Timing;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using TuneLab.SDK.Base.Timing;
 
-// ITiming 的不可变实现：构造时由最小真值 (Tick, Bpm) 一次推导出换算表，此后只读，
-// 可安全跨线程（将来跨进程）使用。数据变更不同步进来——宿主在下次派发合成时构建一份全新快照（替换，而非同步）。
+namespace TuneLab.Data.Timing;
+
+// ITiming 的不可变实现（宿主侧；SDK 契约面只声明 ITiming 接口，实现不进 SDK）：
+// 构造时由最小真值 (Tick, Bpm) 一次推导出换算表，此后只读，可安全跨线程使用。
+// 数据变更不同步进来——宿主在下次派发合成时构建一份全新快照（替换，而非同步）。
 public sealed class TempoSnapshot : ITiming
 {
     // 最小真值视图；某条 tempo 的实时位置用 ToSecond(Tempos[i].Tick) 取。

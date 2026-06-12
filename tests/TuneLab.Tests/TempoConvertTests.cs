@@ -1,12 +1,12 @@
-using TuneLab.Data;
-using TuneLab.SDK.Base.Timing;
+﻿using TuneLab.Data;
+using TuneLab.Data.Timing;
 using TuneLab.SDK.Format.DataInfo;
 using Xunit;
 
 namespace TuneLab.Tests;
 
-// tick↔秒换算：live TempoManager 与冻结 TempoSnapshot 共用 TempoConvert 唯一份纯函数，
-// 此处断言两者对同一 tempo 表逐点全等（防两套实现漂移的回归锚）+ 换算语义本身的已知值。
+// tick鈫旂鎹㈢畻锛歭ive TempoManager 涓庡喕缁?TempoSnapshot 鍏辩敤 TempoConvert 鍞竴浠界函鍑芥暟锛?
+// 姝ゅ鏂█涓よ€呭鍚屼竴 tempo 琛ㄩ€愮偣鍏ㄧ瓑锛堥槻涓ゅ瀹炵幇婕傜Щ鐨勫洖褰掗敋锛? 鎹㈢畻璇箟鏈韩鐨勫凡鐭ュ€笺€?
 public class TempoConvertTests
 {
     static TempoManager MakeManager(params (double pos, double bpm)[] tempos)
@@ -18,18 +18,18 @@ public class TempoConvertTests
     [Fact]
     public void KnownValues_SingleTempo120()
     {
-        // 120 BPM：每秒 2 拍 = 960 tick/s；480 tick（一拍）= 0.5s。
+        // 120 BPM锛氭瘡绉?2 鎷?= 960 tick/s锛?80 tick锛堜竴鎷嶏級= 0.5s銆?
         var manager = MakeManager((0, 120));
         Assert.Equal(0.0, manager.GetTime(0));
         Assert.Equal(0.5, manager.GetTime(480));
-        Assert.Equal(-0.5, manager.GetTime(-480));   // 负位置按首条速度线性外推
+        Assert.Equal(-0.5, manager.GetTime(-480));   // 璐熶綅缃寜棣栨潯閫熷害绾挎€у鎺?
         Assert.Equal(480.0, manager.GetTick(0.5));
     }
 
     [Fact]
     public void KnownValues_MultiTempo()
     {
-        // 0~1920 tick 走 120 BPM（960 tick/s，耗时 2s），其后 60 BPM（480 tick/s）。
+        // 0~1920 tick 璧?120 BPM锛?60 tick/s锛岃€楁椂 2s锛夛紝鍏跺悗 60 BPM锛?80 tick/s锛夈€?
         var manager = MakeManager((0, 120), (1920, 60));
         Assert.Equal(2.0, manager.GetTime(1920));
         Assert.Equal(3.0, manager.GetTime(2400));
@@ -46,7 +46,7 @@ public class TempoConvertTests
         var live = manager.GetTimes(ticks);
         var frozen = snapshot.ToSeconds(ticks);
         for (int i = 0; i < ticks.Length; i++)
-            Assert.Equal(live[i], frozen[i]);   // 全等，不带容差
+            Assert.Equal(live[i], frozen[i]);   // 鍏ㄧ瓑锛屼笉甯﹀宸?
 
         double[] seconds = [-2, 0, 0.1, 1.999, 2, 7.3, 100];
         var liveTicks = manager.GetTicks(seconds);
@@ -61,7 +61,7 @@ public class TempoConvertTests
         var manager = MakeManager((0, 120), (1920, 60));
         var snapshot = manager.CreateSnapshot();
 
-        // 快照只暴露最小真值 (Tick, Bpm)；秒/换算系数是构造内推导的私有派生值，经换算结果验证。
+        // 蹇収鍙毚闇叉渶灏忕湡鍊?(Tick, Bpm)锛涚/鎹㈢畻绯绘暟鏄瀯閫犲唴鎺ㄥ鐨勭鏈夋淳鐢熷€硷紝缁忔崲绠楃粨鏋滈獙璇併€?
         Assert.Equal(2, snapshot.Tempos.Count);
         Assert.Equal(0.0, snapshot.Tempos[0].Tick);
         Assert.Equal(120.0, snapshot.Tempos[0].Bpm);
@@ -73,7 +73,7 @@ public class TempoConvertTests
     [Fact]
     public void Snapshot_ConstructibleFromMinimalMarks()
     {
-        // SDK 侧自包含构造路径（即将来插件进程从序列化 marks 重建快照的形态）。
+        // SDK 渚ц嚜鍖呭惈鏋勯€犺矾寰勶紙鍗冲皢鏉ユ彃浠惰繘绋嬩粠搴忓垪鍖?marks 閲嶅缓蹇収鐨勫舰鎬侊級銆?
         var snapshot = new TempoSnapshot([new TempoMark(0, 120), new TempoMark(1920, 60)], 480);
         Assert.Equal(2.0, snapshot.ToSecond(1920));
         Assert.Equal(2400.0, snapshot.ToTick(3.0));
@@ -82,15 +82,15 @@ public class TempoConvertTests
     [Fact]
     public void FirstMarkNotAtZero_ExtrapolatesWithFirstBpm()
     {
-        // 首条 mark 不必落在 tick 0：tick 0 锚定 0 秒，首条之前（含负位置）按首条速度外推。
+        // 棣栨潯 mark 涓嶅繀钀藉湪 tick 0锛歵ick 0 閿氬畾 0 绉掞紝棣栨潯涔嬪墠锛堝惈璐熶綅缃級鎸夐鏉￠€熷害澶栨帹銆?
         var snapshot = new TempoSnapshot([new TempoMark(960, 120), new TempoMark(1920, 60)], 480);
 
         Assert.Equal(0.0, snapshot.ToSecond(0));
-        Assert.Equal(0.5, snapshot.ToSecond(480));     // 外推区：960 tick/s
+        Assert.Equal(0.5, snapshot.ToSecond(480));     // 澶栨帹鍖猴細960 tick/s
         Assert.Equal(-0.5, snapshot.ToSecond(-480));
         Assert.Equal(1.0, snapshot.ToSecond(960));
-        Assert.Equal(2.0, snapshot.ToSecond(1920));    // 960→1920 @120BPM：+1s
-        Assert.Equal(3.0, snapshot.ToSecond(2400));    // 其后 60BPM：480 tick = 1s
+        Assert.Equal(2.0, snapshot.ToSecond(1920));    // 960鈫?920 @120BPM锛?1s
+        Assert.Equal(3.0, snapshot.ToSecond(2400));    // 鍏跺悗 60BPM锛?80 tick = 1s
 
         Assert.Equal(0.0, snapshot.ToTick(0.0));
         Assert.Equal(-480.0, snapshot.ToTick(-0.5));
@@ -100,7 +100,7 @@ public class TempoConvertTests
     [Fact]
     public void Edit_RefreshesConversion()
     {
-        // live 换算是惰性缓存的快照，任何编辑（经 Modified 通知）都须失效重建。
+        // live 鎹㈢畻鏄儼鎬х紦瀛樼殑蹇収锛屼换浣曠紪杈戯紙缁?Modified 閫氱煡锛夐兘椤诲け鏁堥噸寤恒€?
         var manager = MakeManager((0, 120));
         Assert.Equal(0.5, manager.GetTime(480));
 
@@ -108,8 +108,8 @@ public class TempoConvertTests
         Assert.Equal(1.0, manager.GetTime(480));
 
         manager.AddTempo(960, 120);
-        Assert.Equal(2.0, manager.GetTime(960));    // 60 BPM 段：960 tick = 2s
-        Assert.Equal(2.5, manager.GetTime(1440));   // 其后 120 BPM：480 tick = 0.5s
+        Assert.Equal(2.0, manager.GetTime(960));    // 60 BPM 娈碉細960 tick = 2s
+        Assert.Equal(2.5, manager.GetTime(1440));   // 鍏跺悗 120 BPM锛?80 tick = 0.5s
 
         var snapshot = manager.CreateSnapshot();
         Assert.Equal(manager.GetTime(1234.5), snapshot.ToSecond(1234.5));

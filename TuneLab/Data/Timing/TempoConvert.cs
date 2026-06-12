@@ -1,4 +1,6 @@
-namespace TuneLab.SDK.Base.Timing;
+using System.Collections.Generic;
+
+namespace TuneLab.Data.Timing;
 
 // 推导后的换算表条目。internal：只能经 TempoConvert.Resolve 产出，
 // Second/TicksPerSecond 与 (Tick, Bpm) 的一致性由构造路径保证，外部无法注入不一致的派生值。

@@ -1,4 +1,4 @@
-namespace TuneLab.SDK.Base.Timing;
+namespace TuneLab.Data.Timing;
 
 // tempo 表条目的最小真值：自该乐理位置起生效的速度。
 // 实时位置（秒）与换算系数都是它的派生值，由 TempoSnapshot 构造时一次推导，不进公共契约——

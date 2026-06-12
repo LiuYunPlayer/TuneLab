@@ -24,9 +24,9 @@ public sealed class SynthesisSnapshot
     // 不可变值快照，有序列表；与 GetSnapshot 递入的 notes 索引对齐（产物归属契约），邻居按索引导航。
     public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }
 
-    // tempo 快照（明牌具体类型）：tick↔秒换算与活视图同一套共享算法，可安全跨线程；
-    // 引擎需要 tempo 标记本身时直接读 Tempos。
-    public required TempoSnapshot Timing { get; init; }
+    // tick↔秒换算服务（接口接缝，实现在宿主侧、与活视图同一套共享算法）：冻结实现可安全跨线程。
+    // v2 跨进程时随快照序列化物化（细节缓后）。tempo 标记明牌数据有需求时纯加性补回（如 Tempos 字段）。
+    public required ITiming Timing { get; init; }
 
     // 冻结取值器：对按开窗区间捕获的原始锚点就地插值，窗口内取值与全曲线逐点全等。
     // Pitch/PitchDeviation 双通道语义与活视图镜像（绝对约束 NaN=自由 / 加性偏差永不 NaN）：
