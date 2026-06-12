@@ -66,16 +66,8 @@ public interface IReadOnlyDataObject<out T> : IDataObject
 }
 
 // 契约设值：从完整 info 应用值，与 GetInfo() 对称。纯应用、无交互副作用——复合节点向子扇出 / 装载走它。
+// 各实现一律 public 隐式实现（业务复合对象与基础件同一形态），concrete/接口类型上都可直接点调。
 public interface IDataObject<T> : IReadOnlyDataObject<T>
 {
     void SetInfo(T info);
-}
-
-public static class IDataObjectExtension
-{
-    // 便于在 concrete 类型上调用（SetInfo 各实现为显式接口方法）；接口类型上直接调即可。
-    public static void SetInfo<T>(this IDataObject<T> dataObject, T info)
-    {
-        dataObject.SetInfo(info);
-    }
 }

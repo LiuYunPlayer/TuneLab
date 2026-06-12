@@ -110,7 +110,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
         return GetEnumerator();
     }
 
-    void IDataObject<IReadOnlyMap<TKey, TValue>>.SetInfo(IReadOnlyMap<TKey, TValue> info)
+    public void SetInfo(IReadOnlyMap<TKey, TValue> info)
     {
         mMap.SetInfo(info);
     }

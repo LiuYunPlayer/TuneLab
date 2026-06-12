@@ -78,7 +78,7 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
         return GetEnumerator();
     }
 
-    void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
+    public void SetInfo(IEnumerable<T> info)
     {
         mDataLinkedList.SetInfo(info);
     }

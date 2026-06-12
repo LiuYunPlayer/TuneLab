@@ -111,7 +111,7 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         return mMap.ToMap();
     }
 
-    void IDataObject<IReadOnlyMap<TKey, TValue>>.SetInfo(IReadOnlyMap<TKey, TValue> info)
+    public void SetInfo(IReadOnlyMap<TKey, TValue> info)
     {
         var entries = info.ToArray();
         using var _ = MergeNotify();

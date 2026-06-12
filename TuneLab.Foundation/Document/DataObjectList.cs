@@ -84,7 +84,7 @@ public class DataObjectList<T> : DataObject, IDataObjectList<T> where T : class,
         return ((IEnumerable)mDataList).GetEnumerator();
     }
 
-    void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
+    public void SetInfo(IEnumerable<T> info)
     {
         mDataList.SetInfo(info);
     }

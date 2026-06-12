@@ -76,7 +76,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return new PropertyObject(info);
     }
 
-    void IDataObject<PropertyObject>.SetInfo(PropertyObject info)
+    public void SetInfo(PropertyObject info)
     {
         var map = new Map<string, DataPropertyValue>();
         foreach (var kvp in info.Map)

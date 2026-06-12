@@ -73,7 +73,7 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
         return [..mList];
     }
 
-    void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
+    public void SetInfo(IEnumerable<T> info)
     {
         using var _ = MergeNotify();
         Clear();

@@ -96,7 +96,7 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
         return [.. mList];
     }
 
-    void IDataObject<IEnumerable<T>>.SetInfo(IEnumerable<T> info)
+    public void SetInfo(IEnumerable<T> info)
     {
         var items = info as IReadOnlyCollection<T> ?? info.ToArray();
         using var _ = MergeNotify();

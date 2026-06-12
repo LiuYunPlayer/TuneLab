@@ -64,7 +64,7 @@ public static class IDataPropertyObjectExtension
         public PropertyValue RawValue => dataObject.GetValue(key, defaultValue);
         public T Value => read(RawValue);
         public T GetInfo() => Value;
-        void IDataObject<T>.SetInfo(T value) => dataObject.SetValue(key, write(value));
-        void IDataProperty<T>.Set(T value) => dataObject.SetValue(key, write(value));
+        public void SetInfo(T value) => dataObject.SetValue(key, write(value));
+        public void Set(T value) => dataObject.SetValue(key, write(value));
     }
 }

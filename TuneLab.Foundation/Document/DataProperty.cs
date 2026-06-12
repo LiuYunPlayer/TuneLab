@@ -29,7 +29,7 @@ public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(pa
     protected abstract void SetValue(T value);
 
     // 纯契约设值：去重 + 记命令，无交互副作用。构造期未接到 document 时命令被丢弃（仅应用）。
-    void IDataObject<T>.SetInfo(T value)
+    public void SetInfo(T value)
     {
         var before = GetInfo();
         if (Equals(before, value))
@@ -39,7 +39,7 @@ public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(pa
     }
 
     // 交互式设值：默认等同 SetInfo；带副作用的叶子覆写此处叠加逻辑（叠加后调 base.Set 落值）。
-    public virtual void Set(T value) => ((IDataObject<T>)this).SetInfo(value);
+    public virtual void Set(T value) => SetInfo(value);
 
     public override string? ToString() => Value.ToString();
 
