@@ -110,7 +110,7 @@ internal static class LegacyNoteConvert
 {
     // V1 钉死音素（note 相对秒，列表非空=整 note 钉死）→ 老接口的绝对秒列表（语义一致直转）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
-        IReadOnlyList<VVoice.PhonemeInfo> phonemes, double noteStartTime)
+        IReadOnlyList<VVoice.PinnedPhoneme> phonemes, double noteStartTime)
     {
         if (phonemes.Count == 0)
             return [];

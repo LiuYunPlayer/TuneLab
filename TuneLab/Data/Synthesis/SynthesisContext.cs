@@ -515,7 +515,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         public IReadOnlyNotifiableProperty<double> EndTick { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
-        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.Voice.PhonemeInfo>> Phonemes { get; }
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.Voice.PinnedPhoneme>> Phonemes { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public ISynthesisNote? Next => mContext.ProxyOf(mNote.Next);
@@ -532,13 +532,13 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
                 part.Pos.Value + note.Pos.Value + note.Dur.Value, note.Pos, note.Dur));
             Pitch = Track(new DerivedProperty<int>(context, () => note.Pitch.Value, note.Pitch));
             Lyric = Track(new DerivedProperty<string>(context, () => note.FinalPronunciation() ?? note.Lyric.Value, note.Lyric, note.Pronunciation));
-            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.Voice.PhonemeInfo>>(context, () =>
+            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.Voice.PinnedPhoneme>>(context, () =>
             {
-                var phonemes = new List<SDK.Voice.PhonemeInfo>(note.Phonemes.Count);
+                var phonemes = new List<SDK.Voice.PinnedPhoneme>(note.Phonemes.Count);
                 foreach (var phoneme in note.Phonemes)
                 {
                     // 宿主数据层的音素时长均为用户钉死值（note 相对秒）；列表非空即整 note 钉死。
-                    phonemes.Add(new SDK.Voice.PhonemeInfo
+                    phonemes.Add(new SDK.Voice.PinnedPhoneme
                     {
                         Symbol = phoneme.Symbol.Value,
                         StartTime = phoneme.StartTime.Value,

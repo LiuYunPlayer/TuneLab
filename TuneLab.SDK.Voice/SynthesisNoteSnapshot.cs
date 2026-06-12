@@ -15,6 +15,6 @@ public sealed class SynthesisNoteSnapshot
     public required double EndTick { get; init; }
     public required int Pitch { get; init; }
     public required string Lyric { get; init; }
-    public required IReadOnlyList<PhonemeInfo> Phonemes { get; init; }
+    public required IReadOnlyList<PinnedPhoneme> Phonemes { get; init; }
     public required PropertyObject Properties { get; init; }
 }
