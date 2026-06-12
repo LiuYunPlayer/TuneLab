@@ -42,7 +42,7 @@ public interface ISynthesisContext
     // （如音素级小窗 + 音频级大窗）。物化/版本缓存/记账留在宿主实现内。
     SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick);
 
-    // tempo 变了：全部秒域派生随之失效（Position 由宿主 re-derive），引擎通常全量重排。
+    // tempo 变了：tick 真值不动，全部秒域派生作废（插件经 Timing 重新换算），引擎通常全量重排。
     event Action? TimingModified;
 
     // 批量变更括号：每个逻辑编辑（一个 command，含单条编辑）都包在括号里。

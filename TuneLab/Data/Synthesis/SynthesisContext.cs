@@ -505,14 +505,14 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         readonly Dictionary<string, PropertyObjectGuard> mChildren = new();
     }
 
-    // —— note 代理：固定字段全部以派生属性借壳数据层；Position 双域即时解析；
-    //    Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
+    // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局 tick（真值域，
+    //    秒经 context.Timing 换算）；Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
     internal sealed class SynthesisNoteProxy : ISynthesisNote, IDisposable
     {
         public INote Source => mNote;
 
-        public IReadOnlyNotifiableProperty<Position> StartPosition { get; }
-        public IReadOnlyNotifiableProperty<Position> EndPosition { get; }
+        public IReadOnlyNotifiableProperty<double> StartTick { get; }
+        public IReadOnlyNotifiableProperty<double> EndTick { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
         public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.Voice.PhonemeInfo>> Phonemes { get; }
@@ -526,16 +526,10 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             mContext = context;
             mNote = note;
             var part = context.mPart;
-            StartPosition = Track(new DerivedProperty<Position>(context, () =>
-            {
-                double tick = part.Pos.Value + note.Pos.Value;
-                return new Position(tick, part.TempoManager.GetTime(tick));
-            }, note.Pos));
-            EndPosition = Track(new DerivedProperty<Position>(context, () =>
-            {
-                double tick = part.Pos.Value + note.Pos.Value + note.Dur.Value;
-                return new Position(tick, part.TempoManager.GetTime(tick));
-            }, note.Pos, note.Dur));
+            StartTick = Track(new DerivedProperty<double>(context, () =>
+                part.Pos.Value + note.Pos.Value, note.Pos));
+            EndTick = Track(new DerivedProperty<double>(context, () =>
+                part.Pos.Value + note.Pos.Value + note.Dur.Value, note.Pos, note.Dur));
             Pitch = Track(new DerivedProperty<int>(context, () => note.Pitch.Value, note.Pitch));
             Lyric = Track(new DerivedProperty<string>(context, () => note.FinalPronunciation() ?? note.Lyric.Value, note.Lyric, note.Pronunciation));
             Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.Voice.PhonemeInfo>>(context, () =>

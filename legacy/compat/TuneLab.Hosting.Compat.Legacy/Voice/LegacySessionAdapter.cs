@@ -29,7 +29,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mSource = source;
         mContext = context;
         mSync = SynchronizationContext.Current ?? throw new InvalidOperationException("LegacySessionAdapter must be created on the data thread.");
-        mNoteViewCache = new LiveNoteViewCache(ReadNoteProperties);
+        mNoteViewCache = new LiveNoteViewCache(context.Timing, ReadNoteProperties);
 
         mAutomationConfigs = source.AutomationConfigs.ToV1AutomationMap();
         mPartProperties = source.PartProperties.ToV1ConfigMap();
@@ -99,9 +99,9 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         const double windowMarginTicks = 4 * 480;
         var snapshot = mContext.GetSnapshot(
             piece.Notes,
-            piece.Notes.First().StartPosition.Value.Tick - windowMarginTicks,
-            piece.Notes.Last().EndPosition.Value.Tick + windowMarginTicks);
-        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes);
+            piece.Notes.First().StartTick.Value - windowMarginTicks,
+            piece.Notes.Last().EndTick.Value + windowMarginTicks);
+        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes, snapshot.Timing);
         var data = new SnapshotSynthesisData(snapshot, views);
 
         LVoice.ISynthesisTask task;
@@ -284,8 +284,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             mNeedReSegment = true;
         }
         mNoteHandlers[note] = handler;
-        note.StartPosition.Modified += handler;
-        note.EndPosition.Modified += handler;
+        note.StartTick.Modified += handler;
+        note.EndTick.Modified += handler;
         note.Pitch.Modified += handler;
         note.Lyric.Modified += handler;
         note.Phonemes.Modified += handler;
@@ -300,8 +300,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     void DetachNoteHandler(VVoice.ISynthesisNote note, Action handler)
     {
-        note.StartPosition.Modified -= handler;
-        note.EndPosition.Modified -= handler;
+        note.StartTick.Modified -= handler;
+        note.EndTick.Modified -= handler;
         note.Pitch.Modified -= handler;
         note.Lyric.Modified -= handler;
         note.Phonemes.Modified -= handler;

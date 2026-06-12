@@ -34,8 +34,8 @@ internal static class SynthesisSnapshotFactory
 
             notes.Add(new SynthesisNoteSnapshot
             {
-                StartPosition = note.StartPosition.Value,
-                EndPosition = note.EndPosition.Value,
+                StartTick = note.StartTick.Value,
+                EndTick = note.EndTick.Value,
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
                 Phonemes = note.Phonemes.Value,                 // 派生 getter 每次新建列表，无活引用

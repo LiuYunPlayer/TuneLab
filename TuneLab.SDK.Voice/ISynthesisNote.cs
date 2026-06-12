@@ -1,16 +1,19 @@
 using TuneLab.Primitives.Event;
 using TuneLab.Primitives.Property;
-using TuneLab.SDK.Base.Timing;
 
 namespace TuneLab.SDK.Voice;
 
 // 会话活视图中的 note（可订阅，仅数据线程）。固定字段保持最小（通用乐理属性）；
 // voice 专属 per-note 参数一律走 Properties（keyed）——加新参数 = 加会话声明 NoteProperties
 // 的 key，不动本接口固定面。
+//
+// 时间量只给真值域：note 边界是乐谱量，真值即全局 tick；秒是 tempo 表的派生值，
+// 需要时经 context.Timing（活视图）/ snapshot.Timing（冻结面）显式换算——同一个量
+// 不双域成对出现（tick 不随 tempo 漂，tempo 变化的信号是 TimingModified）。
 public interface ISynthesisNote
 {
-    IReadOnlyNotifiableProperty<Position> StartPosition { get; }
-    IReadOnlyNotifiableProperty<Position> EndPosition { get; }
+    IReadOnlyNotifiableProperty<double> StartTick { get; }
+    IReadOnlyNotifiableProperty<double> EndTick { get; }
     IReadOnlyNotifiableProperty<int> Pitch { get; }
     IReadOnlyNotifiableProperty<string> Lyric { get; }
     IReadOnlyNotifiableProperty<IReadOnlyList<PhonemeInfo>> Phonemes { get; }

@@ -64,8 +64,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
-        double blockStart = mContext.Notes.First!.StartPosition.Value.Second;
-        double blockEnd = mContext.Notes.Last!.EndPosition.Value.Second;
+        double blockStart = mContext.Timing.ToSecond(mContext.Notes.First!.StartTick.Value);
+        double blockEnd = mContext.Timing.ToSecond(mContext.Notes.Last!.EndTick.Value);
         return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
     }
 
@@ -79,8 +79,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         var origins = mContext.Notes.ToList();
         var snapshot = mContext.GetSnapshot(
             origins,
-            origins[0].StartPosition.Value.Tick,
-            origins[^1].EndPosition.Value.Tick);
+            origins[0].StartTick.Value,
+            origins[^1].EndTick.Value);
 
         mDirty = false;
         mSynthesizing = true;
@@ -89,21 +89,23 @@ public abstract class SingleBlockSession : ISynthesisSession
         try
         {
             var notes = snapshot.Notes;
-            double startTime = notes.Count > 0 ? notes[0].StartPosition.Second : 0;
-            double endTime = notes.Count > 0 ? notes[^1].EndPosition.Second : 0;
+            double startTime = notes.Count > 0 ? snapshot.Timing.ToSecond(notes[0].StartTick) : 0;
+            double endTime = notes.Count > 0 ? snapshot.Timing.ToSecond(notes[^1].EndTick) : 0;
             mAudio = new float[Math.Max(1, (int)((endTime - startTime) * kSampleRate))];
             mAudioStart = startTime;
             var phonemes = new List<SynthesizedPhoneme>(notes.Count);
             for (int i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
+                double noteStart = snapshot.Timing.ToSecond(note.StartTick);
+                double noteEnd = snapshot.Timing.ToSecond(note.EndTick);
                 phonemes.Add(new SynthesizedPhoneme
                 {
                     Symbol = note.Lyric,
-                    StartTime = note.StartPosition.Second,
-                    EndTime = note.EndPosition.Second,
+                    StartTime = noteStart,
+                    EndTime = noteEnd,
                     Note = origins[i],   // 索引对齐：产物归属回活 note
-                    StretchWeight = note.EndPosition.Second - note.StartPosition.Second,
+                    StretchWeight = noteEnd - noteStart,
                 });
             }
             mPhonemes = phonemes;
@@ -149,8 +151,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         if (mContext.Notes.Count == 0)
             return [];
 
-        double start = mSynthesizing || mAudio == null ? mContext.Notes.First!.StartPosition.Value.Second : mBlockStart;
-        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last!.EndPosition.Value.Second : mBlockEnd;
+        double start = mSynthesizing || mAudio == null ? mContext.Timing.ToSecond(mContext.Notes.First!.StartTick.Value) : mBlockStart;
+        double end = mSynthesizing || mAudio == null ? mContext.Timing.ToSecond(mContext.Notes.Last!.EndTick.Value) : mBlockEnd;
         var status = mSynthesizing ? SynthesisSegmentStatus.Synthesizing
             : mDirty || mAudio == null ? SynthesisSegmentStatus.Pending
             : SynthesisSegmentStatus.Synthesized;
@@ -171,8 +173,8 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     void SubscribeNote(ISynthesisNote note)
     {
-        note.StartPosition.Modified += MarkDirty;
-        note.EndPosition.Modified += MarkDirty;
+        note.StartTick.Modified += MarkDirty;
+        note.EndTick.Modified += MarkDirty;
         note.Pitch.Modified += MarkDirty;
         note.Lyric.Modified += MarkDirty;
         note.Phonemes.Modified += MarkDirty;
@@ -181,8 +183,8 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     void UnsubscribeNote(ISynthesisNote note)
     {
-        note.StartPosition.Modified -= MarkDirty;
-        note.EndPosition.Modified -= MarkDirty;
+        note.StartTick.Modified -= MarkDirty;
+        note.EndTick.Modified -= MarkDirty;
         note.Pitch.Modified -= MarkDirty;
         note.Lyric.Modified -= MarkDirty;
         note.Phonemes.Modified -= MarkDirty;
