@@ -55,9 +55,16 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     // —— 调度面（Editor 驱动）——
 
     // 窗内"下一块待合成"的廉价 peek；仅会话空闲时有意义。窗口与返回边界为全局秒。
+    // 调度窗先与 part 界求交再问插件：part 被裁短后留在界外的 note 不该被合成
+    //（呈现端本就按 part 界裁剪音频）；纯宿主侧裁窗，零接口变化。跨界 block 仍整块合成。
     public SynthesisSegment? PeekNext(double startTime, double endTime)
     {
         if (mIsBusy || mDisposed)
+            return null;
+
+        startTime = Math.Max(startTime, mPart.TempoManager.GetTime(mPart.StartPos));
+        endTime = Math.Min(endTime, mPart.TempoManager.GetTime(mPart.EndPos));
+        if (endTime <= startTime)
             return null;
 
         try
