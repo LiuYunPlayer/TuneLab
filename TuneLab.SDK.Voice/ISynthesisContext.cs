@@ -20,9 +20,9 @@ namespace TuneLab.SDK.Voice;
 // 管线哪一级（失效依赖图）归插件；机制粒度支撑最精细策略，也允许"任何通知 → 全部标脏"的懒实现。
 public interface ISynthesisContext
 {
-    // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、邻居导航走
-    // note.Next/Last；支持 WhenAny（成员增删自动接线）。
-    IReadOnlyNotifiableCollection<ISynthesisNote> Notes { get; }
+    // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
+    // First/Last、邻居导航走 note.Next/Last；支持 WhenAny（成员增删自动接线）。
+    IReadOnlyNotifiableLinkedList<ISynthesisNote> Notes { get; }
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
     bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation);
 

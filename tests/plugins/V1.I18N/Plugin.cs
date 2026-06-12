@@ -99,8 +99,8 @@ public sealed class I18NSession : ISynthesisSession
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
-        double blockStart = mContext.Notes.First().StartPosition.Value.Seconds;
-        double blockEnd = mContext.Notes.Last().EndPosition.Value.Seconds;
+        double blockStart = mContext.Notes.First!.StartPosition.Value.Seconds;
+        double blockEnd = mContext.Notes.Last!.EndPosition.Value.Seconds;
         return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
     }
 
@@ -175,8 +175,8 @@ public sealed class I18NSession : ISynthesisSession
         if (mContext.Notes.Count == 0)
             return [];
 
-        double start = mSynthesizing || mAudio == null ? mContext.Notes.First().StartPosition.Value.Seconds : mBlockStart;
-        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last().EndPosition.Value.Seconds : mBlockEnd;
+        double start = mSynthesizing || mAudio == null ? mContext.Notes.First!.StartPosition.Value.Seconds : mBlockStart;
+        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last!.EndPosition.Value.Seconds : mBlockEnd;
         var status = mSynthesizing ? SynthesisSegmentStatus.Synthesizing
             : mDirty || mAudio == null ? SynthesisSegmentStatus.Pending
             : SynthesisSegmentStatus.Synthesized;

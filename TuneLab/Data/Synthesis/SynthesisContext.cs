@@ -25,7 +25,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 {
     public MidiPart Part => mPart;
 
-    public IReadOnlyNotifiableCollection<ISynthesisNote> Notes => mNotes;
+    public IReadOnlyNotifiableLinkedList<ISynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
     public ISynthesisAutomation PitchDeviation => mPitchDeviation;
@@ -309,11 +309,31 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     // —— note 代理集合：镜像 part.Notes（顺序即链表序，无索引承诺——SDK 面即链表形态），
     //    增删自动建/毁代理并转发结构事件。 ——
-    sealed class NoteProxyList : IReadOnlyNotifiableCollection<ISynthesisNote>, IDisposable
+    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<ISynthesisNote>, IDisposable
     {
         public event Action<ISynthesisNote>? ItemAdded;
         public event Action<ISynthesisNote>? ItemRemoved;
         public event Action? Modified;
+
+        public ISynthesisNote? First
+        {
+            get
+            {
+                mContext.AssertDataThread();
+                var begin = mNotes.Begin;
+                return begin == null ? null : ProxyOf(begin);
+            }
+        }
+
+        public ISynthesisNote? Last
+        {
+            get
+            {
+                mContext.AssertDataThread();
+                var end = mNotes.End;
+                return end == null ? null : ProxyOf(end);
+            }
+        }
 
         public NoteProxyList(SynthesisContext context)
         {

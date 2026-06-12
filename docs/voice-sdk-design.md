@@ -65,8 +65,8 @@ context 由**宿主实现、会话级**（每次 `CreateSession` 新建、随会
 public interface ISynthesisContext
 {
     // 链表形态（无索引承诺——宿主数据层即双向链表，可索引是插件不需要的承诺）：
-    // 顺序消费用枚举、邻居导航走 note.Next/Last；支持 WhenAny。
-    IReadOnlyNotifiableCollection<ISynthesisNote> Notes { get; }
+    // 顺序消费用枚举、头尾 O(1) 走 First/Last、邻居导航走 note.Next/Last；支持 WhenAny。
+    IReadOnlyNotifiableLinkedList<ISynthesisNote> Notes { get; }
     PropertyObject PartProperties { get; }                    // 可订阅
     bool TryGetAutomation(string key, out ISynthesisAutomation automation);
     ISynthesisAutomation Pitch { get; }            // 绝对约束：有值=用户钉死，NaN=插件自由

@@ -16,3 +16,11 @@ public interface IReadOnlyNotifiableCollection<T> : IReadOnlyCollection<T>
 public interface IReadOnlyNotifiableList<T> : IReadOnlyNotifiableCollection<T>, IReadOnlyList<T>
 {
 }
+
+// 链表特化：头尾 O(1) 可达（空集合为 null），中间导航走成员自身的链（如 Next/Last 邻居引用），
+// 依旧无索引承诺。
+public interface IReadOnlyNotifiableLinkedList<T> : IReadOnlyNotifiableCollection<T>
+{
+    T? First { get; }
+    T? Last { get; }
+}
