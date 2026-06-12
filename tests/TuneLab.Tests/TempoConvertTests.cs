@@ -50,7 +50,7 @@ public class TempoConvertTests
 
         double[] seconds = [-2, 0, 0.1, 1.999, 2, 7.3, 100];
         var liveTicks = manager.GetTicks(seconds);
-        var frozenTicks = snapshot.ToTick(seconds);
+        var frozenTicks = snapshot.ToTicks(seconds);
         for (int i = 0; i < seconds.Length; i++)
             Assert.Equal(liveTicks[i], frozenTicks[i]);
     }
@@ -67,7 +67,7 @@ public class TempoConvertTests
         Assert.Equal(120.0, snapshot.Tempos[0].Bpm);
         Assert.Equal(1920.0, snapshot.Tempos[1].Tick);
         Assert.Equal(60.0, snapshot.Tempos[1].Bpm);
-        Assert.Equal(2.0, snapshot.ToSeconds(1920));
+        Assert.Equal(2.0, snapshot.ToSecond(1920));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class TempoConvertTests
     {
         // SDK 侧自包含构造路径（即将来插件进程从序列化 marks 重建快照的形态）。
         var snapshot = new TempoSnapshot([new TempoMark(0, 120), new TempoMark(1920, 60)], 480);
-        Assert.Equal(2.0, snapshot.ToSeconds(1920));
+        Assert.Equal(2.0, snapshot.ToSecond(1920));
         Assert.Equal(2400.0, snapshot.ToTick(3.0));
     }
 
@@ -85,12 +85,12 @@ public class TempoConvertTests
         // 首条 mark 不必落在 tick 0：tick 0 锚定 0 秒，首条之前（含负位置）按首条速度外推。
         var snapshot = new TempoSnapshot([new TempoMark(960, 120), new TempoMark(1920, 60)], 480);
 
-        Assert.Equal(0.0, snapshot.ToSeconds(0));
-        Assert.Equal(0.5, snapshot.ToSeconds(480));     // 外推区：960 tick/s
-        Assert.Equal(-0.5, snapshot.ToSeconds(-480));
-        Assert.Equal(1.0, snapshot.ToSeconds(960));
-        Assert.Equal(2.0, snapshot.ToSeconds(1920));    // 960→1920 @120BPM：+1s
-        Assert.Equal(3.0, snapshot.ToSeconds(2400));    // 其后 60BPM：480 tick = 1s
+        Assert.Equal(0.0, snapshot.ToSecond(0));
+        Assert.Equal(0.5, snapshot.ToSecond(480));     // 外推区：960 tick/s
+        Assert.Equal(-0.5, snapshot.ToSecond(-480));
+        Assert.Equal(1.0, snapshot.ToSecond(960));
+        Assert.Equal(2.0, snapshot.ToSecond(1920));    // 960→1920 @120BPM：+1s
+        Assert.Equal(3.0, snapshot.ToSecond(2400));    // 其后 60BPM：480 tick = 1s
 
         Assert.Equal(0.0, snapshot.ToTick(0.0));
         Assert.Equal(-480.0, snapshot.ToTick(-0.5));
@@ -112,7 +112,7 @@ public class TempoConvertTests
         Assert.Equal(2.5, manager.GetTime(1440));   // 其后 120 BPM：480 tick = 0.5s
 
         var snapshot = manager.CreateSnapshot();
-        Assert.Equal(manager.GetTime(1234.5), snapshot.ToSeconds(1234.5));
+        Assert.Equal(manager.GetTime(1234.5), snapshot.ToSecond(1234.5));
     }
 
     [Fact]
@@ -124,15 +124,15 @@ public class TempoConvertTests
         double[] ticks = [-5, 0, 100.5, 1920, 4000];
         var batch = snapshot.ToSeconds(ticks);
         for (int i = 0; i < ticks.Length; i++)
-            Assert.Equal(batch[i], snapshot.ToSeconds(ticks[i]));
+            Assert.Equal(batch[i], snapshot.ToSecond(ticks[i]));
     }
 
     [Fact]
-    public void RoundTrip_TickToSecondsToTick()
+    public void RoundTrip_TickToSecondToTick()
     {
         var snapshot = MakeManager((0, 120), (960, 89.7), (1920, 60)).CreateSnapshot();
         double[] ticks = [-100, 0, 1, 480, 960, 1500, 1920, 100000];
         foreach (var tick in ticks)
-            Assert.Equal(tick, snapshot.ToTick(snapshot.ToSeconds(tick)), 6);
+            Assert.Equal(tick, snapshot.ToTick(snapshot.ToSecond(tick)), 6);
     }
 }

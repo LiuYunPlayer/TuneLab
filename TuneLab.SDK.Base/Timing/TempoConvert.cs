@@ -1,8 +1,8 @@
 namespace TuneLab.SDK.Base.Timing;
 
 // 推导后的换算表条目。internal：只能经 TempoConvert.Resolve 产出，
-// Seconds/TicksPerSecond 与 (Tick, Bpm) 的一致性由构造路径保证，外部无法注入不一致的派生值。
-internal readonly record struct ResolvedTempoMark(double Tick, double Seconds, double TicksPerSecond);
+// Second/TicksPerSecond 与 (Tick, Bpm) 的一致性由构造路径保证，外部无法注入不一致的派生值。
+internal readonly record struct ResolvedTempoMark(double Tick, double Second, double TicksPerSecond);
 
 // tempo 推导与 tick↔秒换算的唯一一份纯函数实现（live 缓存与冻结快照共用，杜绝实现漂移）。
 // 语义：tick 0 锚定 0 秒；首条 mark 之前（含负位置）按首条速度线性外推，首条不必落在 0。
@@ -17,11 +17,11 @@ internal static class TempoConvert
         {
             var tempo = tempos[i];
             double ticksPerSecond = tempo.Bpm / 60 * ticksPerQuarter;
-            double seconds = i == 0
+            double second = i == 0
                 ? tempo.Tick / ticksPerSecond
-                : resolved[i - 1].Seconds + (tempo.Tick - resolved[i - 1].Tick) / resolved[i - 1].TicksPerSecond;
+                : resolved[i - 1].Second + (tempo.Tick - resolved[i - 1].Tick) / resolved[i - 1].TicksPerSecond;
 
-            resolved[i] = new(tempo.Tick, seconds, ticksPerSecond);
+            resolved[i] = new(tempo.Tick, second, ticksPerSecond);
         }
         return resolved;
     }
@@ -42,7 +42,7 @@ internal static class TempoConvert
 
             // 扫描止于 0 时若 tick 仍在首条之前，通式即按首条速度向前外推。
             var mark = tempos[tempoIndex];
-            seconds[i] = mark.Seconds + (tick - mark.Tick) / mark.TicksPerSecond;
+            seconds[i] = mark.Second + (tick - mark.Tick) / mark.TicksPerSecond;
         }
 
         return seconds;
@@ -58,24 +58,24 @@ internal static class TempoConvert
             double second = seconds[i];
             for (; tempoIndex > 0; tempoIndex--)
             {
-                if (tempos[tempoIndex].Seconds <= second)
+                if (tempos[tempoIndex].Second <= second)
                     break;
             }
 
             var mark = tempos[tempoIndex];
-            ticks[i] = mark.Tick + (second - mark.Seconds) * mark.TicksPerSecond;
+            ticks[i] = mark.Tick + (second - mark.Second) * mark.TicksPerSecond;
         }
 
         return ticks;
     }
 
-    public static double ToSeconds(ResolvedTempoMark[] tempos, double tick)
+    public static double ToSecond(ResolvedTempoMark[] tempos, double tick)
     {
         return ToSeconds(tempos, [tick])[0];
     }
 
-    public static double ToTick(ResolvedTempoMark[] tempos, double seconds)
+    public static double ToTick(ResolvedTempoMark[] tempos, double second)
     {
-        return ToTicks(tempos, [seconds])[0];
+        return ToTicks(tempos, [second])[0];
     }
 }

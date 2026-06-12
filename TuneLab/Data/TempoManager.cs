@@ -73,9 +73,9 @@ internal class TempoManager : DataObject, ITempoManager
     }
 
     public double[] GetTimes(IReadOnlyList<double> ticks) => Snapshot.ToSeconds(ticks);
-    public double[] GetTicks(IReadOnlyList<double> times) => Snapshot.ToTick(times);
+    public double[] GetTicks(IReadOnlyList<double> times) => Snapshot.ToTicks(times);
     public double GetTick(double time) => Snapshot.ToTick(time);
-    public double GetTime(double tick) => Snapshot.ToSeconds(tick);
+    public double GetTime(double tick) => Snapshot.ToSecond(tick);
 
     // 快照即换算实现：live 侧用的就是惰性重建的缓存，捕获时直接共享（不可变，零拷贝）。
     public TempoSnapshot CreateSnapshot() => Snapshot;

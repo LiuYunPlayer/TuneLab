@@ -277,10 +277,10 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     // —— ITiming 活实现：直接转发 TempoManager（仅数据线程使用；快照侧用 TempoSnapshot）——
     sealed class LiveTiming(SynthesisContext context, ITempoManager tempoManager) : ITiming
     {
-        public double ToSeconds(double tick) { context.AssertDataThread(); return tempoManager.GetTime(tick); }
-        public double ToTick(double seconds) { context.AssertDataThread(); return tempoManager.GetTick(seconds); }
+        public double ToSecond(double tick) { context.AssertDataThread(); return tempoManager.GetTime(tick); }
+        public double ToTick(double second) { context.AssertDataThread(); return tempoManager.GetTick(second); }
         public double[] ToSeconds(IReadOnlyList<double> ticks) { context.AssertDataThread(); return tempoManager.GetTimes(ticks); }
-        public double[] ToTick(IReadOnlyList<double> seconds) { context.AssertDataThread(); return tempoManager.GetTicks(seconds); }
+        public double[] ToTicks(IReadOnlyList<double> seconds) { context.AssertDataThread(); return tempoManager.GetTicks(seconds); }
     }
 
     // —— 曲线类的会话级活视图：取值经 sampler 委托（part 相对 tick 轴）回宿主数据层，

@@ -64,8 +64,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
-        double blockStart = mContext.Notes.First!.StartPosition.Value.Seconds;
-        double blockEnd = mContext.Notes.Last!.EndPosition.Value.Seconds;
+        double blockStart = mContext.Notes.First!.StartPosition.Value.Second;
+        double blockEnd = mContext.Notes.Last!.EndPosition.Value.Second;
         return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
     }
 
@@ -89,8 +89,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         try
         {
             var notes = snapshot.Notes;
-            double startTime = notes.Count > 0 ? notes[0].StartPosition.Seconds : 0;
-            double endTime = notes.Count > 0 ? notes[^1].EndPosition.Seconds : 0;
+            double startTime = notes.Count > 0 ? notes[0].StartPosition.Second : 0;
+            double endTime = notes.Count > 0 ? notes[^1].EndPosition.Second : 0;
             mAudio = new float[Math.Max(1, (int)((endTime - startTime) * kSampleRate))];
             mAudioStart = startTime;
             var phonemes = new List<SynthesizedPhoneme>(notes.Count);
@@ -100,10 +100,10 @@ public abstract class SingleBlockSession : ISynthesisSession
                 phonemes.Add(new SynthesizedPhoneme
                 {
                     Symbol = note.Lyric,
-                    StartTime = note.StartPosition.Seconds,
-                    EndTime = note.EndPosition.Seconds,
+                    StartTime = note.StartPosition.Second,
+                    EndTime = note.EndPosition.Second,
                     Note = origins[i],   // 索引对齐：产物归属回活 note
-                    StretchWeight = note.EndPosition.Seconds - note.StartPosition.Seconds,
+                    StretchWeight = note.EndPosition.Second - note.StartPosition.Second,
                 });
             }
             mPhonemes = phonemes;
@@ -149,8 +149,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         if (mContext.Notes.Count == 0)
             return [];
 
-        double start = mSynthesizing || mAudio == null ? mContext.Notes.First!.StartPosition.Value.Seconds : mBlockStart;
-        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last!.EndPosition.Value.Seconds : mBlockEnd;
+        double start = mSynthesizing || mAudio == null ? mContext.Notes.First!.StartPosition.Value.Second : mBlockStart;
+        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last!.EndPosition.Value.Second : mBlockEnd;
         var status = mSynthesizing ? SynthesisSegmentStatus.Synthesizing
             : mDirty || mAudio == null ? SynthesisSegmentStatus.Pending
             : SynthesisSegmentStatus.Synthesized;

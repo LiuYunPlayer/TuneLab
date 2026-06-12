@@ -224,8 +224,8 @@ public sealed class TestSession : ISynthesisSession
             return new RenderResult([], 0, []);
         }
 
-        double startTime = notes[0].StartPosition.Seconds;
-        double endTime = notes[^1].EndPosition.Seconds;
+        double startTime = notes[0].StartPosition.Second;
+        double endTime = notes[^1].EndPosition.Second;
         int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
         var audio = new float[sampleCount];
         var phonemes = new List<SynthesizedPhoneme>(notes.Count);
@@ -236,8 +236,8 @@ public sealed class TestSession : ISynthesisSession
                 return null; // 取消是正常调度结局：不抛异常，产物保持上一版
 
             var note = notes[n];
-            double noteStart = note.StartPosition.Seconds;
-            double noteEnd = note.EndPosition.Seconds;
+            double noteStart = note.StartPosition.Second;
+            double noteEnd = note.EndPosition.Second;
             int from = Math.Clamp((int)((noteStart - startTime) * kSampleRate), 0, sampleCount);
             int to = Math.Clamp((int)((noteEnd - startTime) * kSampleRate), 0, sampleCount);
 
@@ -250,7 +250,7 @@ public sealed class TestSession : ISynthesisSession
             {
                 controlTimes[c] = noteStart + (noteEnd - noteStart) * c / (controlCount - 1);
             }
-            var controlTicks = snapshot.Timing.ToTick(controlTimes);
+            var controlTicks = snapshot.Timing.ToTicks(controlTimes);
             var pitchValues = snapshot.Pitch.GetValue(controlTicks);
             var deviation = snapshot.PitchDeviation.GetValue(controlTicks);
             for (int c = 0; c < controlCount; c++)
@@ -302,7 +302,7 @@ public sealed class TestSession : ISynthesisSession
         ISynthesisNote? previous = null;
         foreach (var note in mContext.Notes)
         {
-            if (current == null || previous == null || note.StartPosition.Value.Seconds > previous.EndPosition.Value.Seconds)
+            if (current == null || previous == null || note.StartPosition.Value.Second > previous.EndPosition.Value.Second)
             {
                 current = new List<ISynthesisNote>();
                 groups.Add(current);
@@ -318,8 +318,8 @@ public sealed class TestSession : ISynthesisSession
             if (existing != null)
             {
                 mPieces.Remove(existing);
-                existing.StartTime = notes[0].StartPosition.Value.Seconds;
-                existing.EndTime = notes[^1].EndPosition.Value.Seconds;
+                existing.StartTime = notes[0].StartPosition.Value.Second;
+                existing.EndTime = notes[^1].EndPosition.Value.Second;
                 newPieces.Add(existing);
             }
             else
@@ -327,8 +327,8 @@ public sealed class TestSession : ISynthesisSession
                 newPieces.Add(new Piece
                 {
                     Notes = notes,
-                    StartTime = notes[0].StartPosition.Value.Seconds,
-                    EndTime = notes[^1].EndPosition.Value.Seconds,
+                    StartTime = notes[0].StartPosition.Value.Second,
+                    EndTime = notes[^1].EndPosition.Value.Second,
                     Dirty = true,
                 });
             }
@@ -395,8 +395,8 @@ public sealed class TestSession : ISynthesisSession
 
     void OnRangeModified(double startTick, double endTick)
     {
-        double startTime = mContext.Timing.ToSeconds(startTick);
-        double endTime = mContext.Timing.ToSeconds(endTick);
+        double startTime = mContext.Timing.ToSecond(startTick);
+        double endTime = mContext.Timing.ToSecond(endTick);
         foreach (var piece in mPieces)
         {
             if (piece.EndTime < startTime || piece.StartTime > endTime)

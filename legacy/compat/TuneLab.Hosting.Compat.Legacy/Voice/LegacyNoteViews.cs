@@ -50,8 +50,8 @@ internal sealed class LiveNoteView(
 
     public LVoice.ISynthesisNote? Next => origin.Next is { } next ? cache.Wrap(next) : null;
     public LVoice.ISynthesisNote? Last => origin.Last is { } last ? cache.Wrap(last) : null;
-    public double StartTime => origin.StartPosition.Value.Seconds;
-    public double EndTime => origin.EndPosition.Value.Seconds;
+    public double StartTime => origin.StartPosition.Value.Second;
+    public double EndTime => origin.EndPosition.Value.Second;
     public int Pitch => origin.Pitch.Value;
     public string Lyric => origin.Lyric.Value;
     // 按老声源的 NoteProperties 声明键现取（V1 订阅树外观不可枚举，键集来自声明）。
@@ -66,8 +66,8 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 
     public LVoice.ISynthesisNote? Next { get; private set; }
     public LVoice.ISynthesisNote? Last { get; private set; }
-    public double StartTime => mNote.StartPosition.Seconds;
-    public double EndTime => mNote.EndPosition.Seconds;
+    public double StartTime => mNote.StartPosition.Second;
+    public double EndTime => mNote.EndPosition.Second;
     public int Pitch => mNote.Pitch;
     public string Lyric => mNote.Lyric;
     public LProp.PropertyObject Properties { get; }
@@ -94,7 +94,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         mNote = note;
         Origin = origin;
         Properties = Conversion.PropertyConvert.ToLegacy(note.Properties);
-        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, note.StartPosition.Seconds);
+        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, note.StartPosition.Second);
     }
 
     readonly VVoice.SynthesisNoteSnapshot mNote;

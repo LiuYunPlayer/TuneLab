@@ -4,7 +4,7 @@ namespace TuneLab.SDK.Base.Timing;
 // 可安全跨线程（将来跨进程）使用。数据变更不同步进来——宿主在下次派发合成时构建一份全新快照（替换，而非同步）。
 public sealed class TempoSnapshot : ITiming
 {
-    // 最小真值视图；某条 tempo 的实时位置用 ToSeconds(Tempos[i].Tick) 取。
+    // 最小真值视图；某条 tempo 的实时位置用 ToSecond(Tempos[i].Tick) 取。
     public IReadOnlyList<TempoMark> Tempos => mTempos;
 
     // tempos 须升序（首条不必落在 0：tick 0 锚定 0 秒，首条之前含负位置按首条速度线性外推）；
@@ -18,10 +18,10 @@ public sealed class TempoSnapshot : ITiming
         mResolved = TempoConvert.Resolve(mTempos, ticksPerQuarter);
     }
 
-    public double ToSeconds(double tick) => TempoConvert.ToSeconds(mResolved, tick);
-    public double ToTick(double seconds) => TempoConvert.ToTick(mResolved, seconds);
+    public double ToSecond(double tick) => TempoConvert.ToSecond(mResolved, tick);
+    public double ToTick(double second) => TempoConvert.ToTick(mResolved, second);
     public double[] ToSeconds(IReadOnlyList<double> ticks) => TempoConvert.ToSeconds(mResolved, ticks);
-    public double[] ToTick(IReadOnlyList<double> seconds) => TempoConvert.ToTicks(mResolved, seconds);
+    public double[] ToTicks(IReadOnlyList<double> seconds) => TempoConvert.ToTicks(mResolved, seconds);
 
     readonly TempoMark[] mTempos;
     readonly ResolvedTempoMark[] mResolved;

@@ -45,7 +45,7 @@ internal static class SynthesisSnapshotFactory
 
         // —— tempo 快照（不可变，零拷贝共享）——
         var timing = part.TempoManager.CreateSnapshot();
-        Func<double, double> tickToTime = timing.ToSeconds;
+        Func<double, double> tickToTime = timing.ToSecond;
 
         // —— vibrato 参数值拷（窗口相交者）+ 包络轨开窗快照 ——
         var vibratoCaptures = new List<VibratoCapture>();

@@ -336,8 +336,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     void OnRangeModified(double startTick, double endTick)
     {
-        double startTime = mContext.Timing.ToSeconds(startTick);
-        double endTime = mContext.Timing.ToSeconds(endTick);
+        double startTime = mContext.Timing.ToSecond(startTick);
+        double endTime = mContext.Timing.ToSecond(endTick);
         bool any = false;
         foreach (var piece in mPieces)
         {
@@ -563,7 +563,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
-            return getter.GetValue(timing.ToTick(times));
+            return getter.GetValue(timing.ToTicks(times));
         }
     }
 
@@ -571,7 +571,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
-            var ticks = snapshot.Timing.ToTick(times);
+            var ticks = snapshot.Timing.ToTicks(times);
             var values = snapshot.Pitch.GetValue(ticks);
             var deviation = snapshot.PitchDeviation.GetValue(ticks);
             for (int i = 0; i < values.Length; i++)
