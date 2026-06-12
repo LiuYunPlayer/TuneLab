@@ -64,7 +64,7 @@ public interface IVoiceEngine {
 [AttributeUsage(AttributeTargets.Class)] public class VoiceEngineAttribute : Attribute { public VoiceEngineAttribute(string type); }
 ```
 - `type` 唯一。实现类需无参构造函数。
-- 相关类型：`IVoiceSource`、`ISynthesisData`、`ISynthesisTask`、`SynthesisResult`、`SynthesizedPhoneme`、`VoiceSourceInfo`；`AutomationConfig` 与 `IAutomationValueGetter` 在 `TuneLab.SDK.Base`。
+- 相关类型：`IVoiceSource`、`ISynthesisData`、`ISynthesisTask`、`SynthesisResult`、`SynthesizedPhoneme`、`VoiceSourceInfo`；`AutomationConfig` 与 `IAutomationEvaluator` 在 `TuneLab.SDK.Base`。
 
 ### Effect 接口（命名空间 `TuneLab.SDK.Effect`）
 ```csharp
@@ -78,7 +78,7 @@ public interface IEffectEngine {
 public interface IEffectSynthesisInput {
     MonoAudio Audio { get; }                                               // TuneLab.Primitives.Audio，整段上游音频
     PropertyObject Properties { get; }                                     // TuneLab.Primitives.Property，参数快照
-    bool TryGetAutomation(string automationId, out IAutomationValueGetter? automation);
+    bool TryGetAutomation(string automationId, out IAutomationEvaluator? automation);   // 查询轴 = 全局秒
 }
 public interface IEffectSynthesisOutput { MonoAudio Audio { get; set; } }  // 把处理结果写这里
 public interface IEffectSynthesisTask {

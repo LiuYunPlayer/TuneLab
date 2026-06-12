@@ -546,9 +546,9 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
         public bool GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out LVoice.IAutomationValueGetter? automation)
         {
-            if (snapshot.Automations.TryGetValue(automationID, out var getter))
+            if (snapshot.Automations.TryGetValue(automationID, out var evaluator))
             {
-                automation = new SecondsGetterAdapter(getter, snapshot.Timing);
+                automation = new SecondsGetterAdapter(evaluator, snapshot.Timing);
                 return true;
             }
             automation = null;
@@ -559,11 +559,12 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         LVoice.IAutomationValueGetter? mPitch;
     }
 
-    sealed class SecondsGetterAdapter(VBase.IAutomationValueGetter getter, TuneLab.SDK.Base.Timing.ITiming timing) : LVoice.IAutomationValueGetter
+    // 老接口取值轴是秒、V1 求值器轴是全局 tick：经快照 Timing 换算后转调。
+    sealed class SecondsGetterAdapter(VBase.IAutomationEvaluator evaluator, TuneLab.SDK.Base.Timing.ITiming timing) : LVoice.IAutomationValueGetter
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
-            return getter.GetValue(timing.ToTicks(times));
+            return evaluator.Evaluate(timing.ToTicks(times));
         }
     }
 
@@ -572,8 +573,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public double[] GetValue(IReadOnlyList<double> times)
         {
             var ticks = snapshot.Timing.ToTicks(times);
-            var values = snapshot.Pitch.GetValue(ticks);
-            var deviation = snapshot.PitchDeviation.GetValue(ticks);
+            var values = snapshot.Pitch.Evaluate(ticks);
+            var deviation = snapshot.PitchDeviation.Evaluate(ticks);
             for (int i = 0; i < values.Length; i++)
             {
                 if (!double.IsNaN(values[i]))

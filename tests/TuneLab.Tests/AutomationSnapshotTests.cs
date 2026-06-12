@@ -74,7 +74,7 @@ public class AutomationSnapshotTests
         var snapshot = new AutomationSnapshot(AnchorWindow.Slice(Anchors, start, end), 0, start, end);
         var ts = QueryGrid(start, end);
         var expected = Truth(Anchors, 0, ts);
-        var actual = snapshot.GetValue(ts);
+        var actual = snapshot.Evaluate(ts);
         for (int i = 0; i < ts.Length; i++)
             Assert.Equal(expected[i], actual[i]);   // 全等，不带容差
     }
@@ -86,7 +86,7 @@ public class AutomationSnapshotTests
         var snapshot = new AutomationSnapshot(AnchorWindow.Slice(Anchors, 250, 650), defaultValue, 250, 650);
         var ts = QueryGrid(250, 650);
         var expected = Truth(Anchors, defaultValue, ts);
-        var actual = snapshot.GetValue(ts);
+        var actual = snapshot.Evaluate(ts);
         for (int i = 0; i < ts.Length; i++)
             Assert.Equal(expected[i], actual[i]);
     }
@@ -100,7 +100,7 @@ public class AutomationSnapshotTests
             var snapshot = new AutomationSnapshot(AnchorWindow.Slice(anchors, 0, 200), 0, 0, 200);
             var ts = QueryGrid(0, 200);
             var expected = Truth(anchors, 0, ts);
-            var actual = snapshot.GetValue(ts);
+            var actual = snapshot.Evaluate(ts);
             for (int i = 0; i < ts.Length; i++)
                 Assert.Equal(expected[i], actual[i]);
         }
@@ -121,7 +121,7 @@ public class AutomationSnapshotTests
 
         var ts = QueryGrid(250, 650);
         var expected = Truth(ascending, 0, ts);
-        var actual = snapshot.GetValue(ts);
+        var actual = snapshot.Evaluate(ts);
         bool anyDiff = false;
         for (int i = 0; i < ts.Length; i++)
             anyDiff |= expected[i] != actual[i];

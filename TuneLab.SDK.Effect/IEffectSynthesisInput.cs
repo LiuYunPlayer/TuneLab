@@ -14,6 +14,6 @@ public interface IEffectSynthesisInput
     // 该 effect 的参数快照（对应 PropertyConfig 声明的字段）。
     PropertyObject Properties { get; }
 
-    // 按自动化标识取一条自动化轨的按时间取值器；不存在该轨时返回 false。
-    bool TryGetAutomation(string automationId, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation);
+    // 按自动化标识取一条自动化轨的求值器（查询轴 = 全局秒，与音频同一时间系）；不存在该轨时返回 false。
+    bool TryGetAutomation(string automationId, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationEvaluator? automation);
 }

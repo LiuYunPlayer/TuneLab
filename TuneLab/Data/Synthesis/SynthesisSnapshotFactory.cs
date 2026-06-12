@@ -71,29 +71,29 @@ internal static class SynthesisSnapshotFactory
         if (part.Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var envelope))
         {
             var envelopeSnapshot = AutomationSnapshot.Capture(envelope, relStart, relEnd);
-            envelopeSampler = envelopeSnapshot.GetValue;
+            envelopeSampler = envelopeSnapshot.Evaluate;
         }
 
         // —— 音高双通道：Pitch = 纯用户绘制曲线开窗快照（NaN=自由）；
         //    PitchDeviation = vibrato 偏移冻结合成（基线 0，与 live GetVibratoDeviation 同一套共享算法）。 ——
-        var pitch = new FrozenFinalGetter(
+        var pitch = new FrozenFinalEvaluator(
             PiecewiseAutomationSnapshot.Capture(part.Pitch, relStart, relEnd),
             [], envelopeSampler, partPos, tickToTime, skipNaN: true);
-        var pitchDeviation = new FrozenFinalGetter(
-            new ConstantValueGetter(0),
+        var pitchDeviation = new FrozenFinalEvaluator(
+            new ConstantEvaluator(0),
             SelectVibratos(vibratoCaptures, string.Empty),
             envelopeSampler, partPos, tickToTime, skipNaN: false);
 
         // —— automation：全部已声明轨按区间开窗物化（无数据对象的轨冻结为默认值常量）——
-        var automations = new Map<string, IAutomationValueGetter>();
+        var automations = new Map<string, IAutomationEvaluator>();
         foreach (var kvp in part.Voice.AutomationConfigs)
         {
             string key = kvp.Key;
-            IAutomationValueGetter baseGetter = part.Automations.TryGetValue(key, out var automation)
+            IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
                 ? AutomationSnapshot.Capture(automation, relStart, relEnd)
-                : new ConstantValueGetter(kvp.Value.DefaultValue);
-            automations.Add(key, new FrozenFinalGetter(
-                baseGetter,
+                : new ConstantEvaluator(kvp.Value.DefaultValue);
+            automations.Add(key, new FrozenFinalEvaluator(
+                baseEvaluator,
                 SelectVibratos(vibratoCaptures, key),
                 envelopeSampler, partPos, tickToTime, skipNaN: false));
         }
@@ -133,25 +133,25 @@ internal static class SynthesisSnapshotFactory
         double Phase, double Attack, double Release,
         IReadOnlyDictionary<string, double> AffectedAutomations);
 
-    // 最终取值的冻结合成：开窗基础快照 + vibrato 偏移（共享纯函数），查询轴为全局 tick、
-    // 此处换算到 part 相对后取值。skipNaN：pitch 段间空值不叠加偏移（与 live 行为一致）。
-    sealed class FrozenFinalGetter(
-        IAutomationValueGetter baseGetter,
+    // 最终求值的冻结合成：开窗基础快照 + vibrato 偏移（共享纯函数），查询轴为全局 tick、
+    // 此处换算到 part 相对后求值。skipNaN：pitch 段间空值不叠加偏移（与 live 行为一致）。
+    sealed class FrozenFinalEvaluator(
+        IAutomationEvaluator baseEvaluator,
         IReadOnlyList<VibratoMath.VibratoData> vibratos,
         Func<double[], double[]>? envelopeSampler,
         double partPos,
         Func<double, double> tickToTime,
-        bool skipNaN) : IAutomationValueGetter
+        bool skipNaN) : IAutomationEvaluator
     {
-        public double[] GetValue(IReadOnlyList<double> times)
+        public double[] Evaluate(IReadOnlyList<double> points)
         {
-            double[] ticks = new double[times.Count];
-            for (int i = 0; i < times.Count; i++)
+            double[] ticks = new double[points.Count];
+            for (int i = 0; i < points.Count; i++)
             {
-                ticks[i] = times[i] - partPos;
+                ticks[i] = points[i] - partPos;
             }
 
-            var values = baseGetter.GetValue(ticks);
+            var values = baseEvaluator.Evaluate(ticks);
             if (vibratos.Count == 0)
                 return values;
 
@@ -167,11 +167,11 @@ internal static class SynthesisSnapshotFactory
         }
     }
 
-    sealed class ConstantValueGetter(double value) : IAutomationValueGetter
+    sealed class ConstantEvaluator(double value) : IAutomationEvaluator
     {
-        public double[] GetValue(IReadOnlyList<double> times)
+        public double[] Evaluate(IReadOnlyList<double> points)
         {
-            double[] values = new double[times.Count];
+            double[] values = new double[points.Count];
             values.Fill(value);
             return values;
         }

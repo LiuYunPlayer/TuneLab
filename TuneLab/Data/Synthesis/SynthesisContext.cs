@@ -289,14 +289,15 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     {
         public event Action<double, double>? RangeModified;
 
-        public double[] GetValue(IReadOnlyList<double> times)
+        // 查询轴 = 全局 tick，此处减 part 偏移后喂数据层 sampler。
+        public double[] Evaluate(IReadOnlyList<double> points)
         {
             context.AssertDataThread();
             double pos = context.mPart.Pos.Value;
-            double[] ticks = new double[times.Count];
-            for (int i = 0; i < times.Count; i++)
+            double[] ticks = new double[points.Count];
+            for (int i = 0; i < points.Count; i++)
             {
-                ticks[i] = times[i] - pos;
+                ticks[i] = points[i] - pos;
             }
             return sampler(ticks);
         }

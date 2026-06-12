@@ -41,7 +41,7 @@ public class PiecewiseAutomationSnapshotTests
 
         var ts = QueryGrid(start, end);
         var expected = curve.GetValues(ts);
-        var actual = snapshot.GetValue(ts);
+        var actual = snapshot.Evaluate(ts);
         for (int i = 0; i < ts.Length; i++)
             Assert.Equal(expected[i], actual[i]);   // 全等；NaN 位置须同为 NaN
     }
@@ -52,7 +52,7 @@ public class PiecewiseAutomationSnapshotTests
         var curve = MakeCurve();
         var snapshot = PiecewiseAutomationSnapshot.Capture(curve, 250, 550);
 
-        var values = snapshot.GetValue([300, 400, 500]);
+        var values = snapshot.Evaluate([300, 400, 500]);
         Assert.Equal(2.5, values[0]);            // 组 1 末锚点
         Assert.True(double.IsNaN(values[1]));    // 段间空隙
         Assert.Equal(0.0, values[2]);            // 组 2 首锚点

@@ -18,6 +18,9 @@ namespace TuneLab.SDK.Voice;
 // WillModify/Modified 拿旧/新值）、区间变了（ISynthesisAutomation.RangeModified 带 tick 范围）、
 // 集合变了（Notes 增删）、时基变了（TimingModified）。这些事实映射到哪些段、重合成到
 // 管线哪一级（失效依赖图）归插件；机制粒度支撑最精细策略，也允许"任何通知 → 全部标脏"的懒实现。
+//
+// 坐标系约定（SDK 面）：tick/秒一律为全局工程轴（与音频产物、状态段同一时间系）；
+// 宿主数据层的 part 相对量在宿主中间层完成偏移换算，插件永远看不到 part 相对值。
 public interface ISynthesisContext
 {
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
@@ -52,9 +55,9 @@ public interface ISynthesisContext
     event Action? BatchEnd;
 }
 
-// automation 轨的会话级活视图：取值 + 区间变更订阅。
+// automation 轨的会话级活视图：求值 + 区间变更订阅。查询轴与区间事件均为全局 tick。
 // 插件由此做最细粒度失效："某轨 [startTick, endTick) 变了 → 只标脏覆盖该区间的段"。
-public interface ISynthesisAutomation : IAutomationValueGetter
+public interface ISynthesisAutomation : IAutomationEvaluator
 {
-    event Action<double, double>? RangeModified;   // (startTick, endTick)
+    event Action<double, double>? RangeModified;   // (startTick, endTick)，全局 tick
 }

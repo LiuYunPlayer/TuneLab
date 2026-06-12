@@ -349,14 +349,14 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         public MonoAudio Audio => audio;
         public Primitives.Property.PropertyObject Properties => effect.Properties.GetInfo();
 
-        public bool TryGetAutomation(string automationId, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationValueGetter? automation)
+        public bool TryGetAutomation(string automationId, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationEvaluator? automation)
         {
             if (!effect.AutomationConfigs.ContainsKey(automationId))
             {
                 automation = null;
                 return false;
             }
-            automation = new EffectAutomationValueGetter(part, effect, automationId);
+            automation = new EffectAutomationEvaluator(part, effect, automationId);
             return true;
         }
     }
@@ -366,13 +366,13 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         public MonoAudio Audio { get; set; }
     }
 
-    // 某个 effect 的某条自动化轨按时间取值（秒 → tick → effect 自动化值；effect SDK 面历史轴为秒）。
-    class EffectAutomationValueGetter(MidiPart part, IEffect effect, string automationID) : IAutomationValueGetter
+    // 某个 effect 的某条自动化轨按时间求值（effect SDK 面查询轴 = 全局秒；此处秒 → tick → effect 自动化值）。
+    class EffectAutomationEvaluator(MidiPart part, IEffect effect, string automationID) : IAutomationEvaluator
     {
-        public double[] GetValue(IReadOnlyList<double> times)
+        public double[] Evaluate(IReadOnlyList<double> points)
         {
             double pos = part.Pos.Value;
-            var ticks = part.TempoManager.GetTicks(times);
+            var ticks = part.TempoManager.GetTicks(points);
             for (int i = 0; i < ticks.Length; i++)
             {
                 ticks[i] -= pos;

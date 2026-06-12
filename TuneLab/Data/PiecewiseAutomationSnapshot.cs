@@ -9,7 +9,7 @@ namespace TuneLab.Data;
 // 分段型自动化（IPiecewiseAutomation，如 pitch）的不可变窗口快照：逐组值拷窗口内原始锚点（含无变形外扩点）。
 // 段内与活对象共用同一插值纯函数，段间返回 NaN（IEEE"非数"表空，与活曲线一致）；
 // 声明区间内取值与活曲线逐点一致。构造后只读、不引用任何活数据对象。
-internal sealed class PiecewiseAutomationSnapshot : IAutomationValueGetter
+internal sealed class PiecewiseAutomationSnapshot : IAutomationEvaluator
 {
     // 声明区间：仅此区间内的取值有一致性保证。
     public double Start { get; }
@@ -41,10 +41,10 @@ internal sealed class PiecewiseAutomationSnapshot : IAutomationValueGetter
         End = end;
     }
 
-    // 查询点须升序。组覆盖范围按切片首末锚点判定——在声明区间内与活曲线的组边界判定等价。
-    public double[] GetValue(IReadOnlyList<double> times)
+    // 查询点须升序（查询轴 = 锚点所在的 part 相对 tick 轴）。组覆盖范围按切片首末锚点判定——在声明区间内与活曲线的组边界判定等价。
+    public double[] Evaluate(IReadOnlyList<double> points)
     {
-        double[] values = new double[times.Count];
+        double[] values = new double[points.Count];
         values.Fill(double.NaN);
 
         int tickIndex = 0;
@@ -53,13 +53,13 @@ internal sealed class PiecewiseAutomationSnapshot : IAutomationValueGetter
             double groupStart = group[0].X;
             double groupEnd = group[group.Length - 1].X;
 
-            while (tickIndex < times.Count && times[tickIndex] < groupStart)
+            while (tickIndex < points.Count && points[tickIndex] < groupStart)
             {
                 tickIndex++;
             }
 
             int offset = tickIndex;
-            while (tickIndex < times.Count && times[tickIndex] <= groupEnd)
+            while (tickIndex < points.Count && points[tickIndex] <= groupEnd)
             {
                 tickIndex++;
             }
@@ -70,11 +70,11 @@ internal sealed class PiecewiseAutomationSnapshot : IAutomationValueGetter
             double[] ts = new double[tickIndex - offset];
             for (int j = 0; j < ts.Length; j++)
             {
-                ts[j] = times[j + offset];
+                ts[j] = points[j + offset];
             }
             group.MonotonicHermiteInterpolation(ts).CopyTo(values, offset);
 
-            if (tickIndex == times.Count)
+            if (tickIndex == points.Count)
                 break;
         }
 

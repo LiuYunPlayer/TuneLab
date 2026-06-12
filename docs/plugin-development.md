@@ -254,7 +254,7 @@ class MyEffectTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) :
             var src = input.Audio;                       // 整段上游音频（voice 或上一个 effect 的输出）
             double amount = input.Properties.GetDouble("amount", 1.0);
             // 自动化（可选）：按采样时间点取值
-            // if (input.TryGetAutomation("intensity", out var getter)) { var times = ...; var values = getter.GetValue(times); }
+            // if (input.TryGetAutomation("intensity", out var evaluator)) { var times = ...; var values = evaluator.Evaluate(times); }  // 查询轴 = 全局秒
             var processed = Process(src.Samples, amount);
             output.Audio = new MonoAudio(src.StartTime, src.SampleRate, processed);
             Complete?.Invoke();
