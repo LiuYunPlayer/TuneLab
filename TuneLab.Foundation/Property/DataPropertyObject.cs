@@ -12,7 +12,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
 {
     public IReadOnlyCollection<string> Keys => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Keys;
 
-    public IReadOnlyCollection<PropertyValue> Values => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Values.Convert(v => v.Value);
+    public IReadOnlyCollection<PropertyValue> Values => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Values.Convert(v => v.Value.ToPropertyValue());
 
     public int Count => mMap.Count;
 
@@ -31,7 +31,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         if (!mMap.TryGetValue(key, out var dataPropertyValue))
             return defaultValue;
 
-        var propertyValue = dataPropertyValue.Value;
+        var propertyValue = dataPropertyValue.Value.ToPropertyValue();
         return propertyValue.TypeEquals(defaultValue) ? propertyValue : defaultValue;
     }
 
@@ -39,8 +39,19 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     public DataPropertyValue SetValue(string key, PropertyValue value)
     {
         var dataPropertyValue = FindValue(key);
-        dataPropertyValue.Set(value);
+        dataPropertyValue.Set(ToSlot(value));
         return dataPropertyValue;
+    }
+
+    // 写入口 canonicalize：object 型值一律建成活子对象槽（标量槽永不含 object 值的不变量在此保证）。
+    static PropertySlot ToSlot(PropertyValue value)
+    {
+        if (!value.ToObject(out var objectValue))
+            return new PropertySlot(value);
+
+        var child = new DataPropertyObject();
+        child.SetInfo(objectValue);
+        return new PropertySlot(child);
     }
 
     void IDataPropertyObject.SetValue(string key, PropertyValue value) => SetValue(key, value);
@@ -64,14 +75,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         var info = new Map<string, PropertyValue>();
         foreach (var kvp in mMap)
         {
-            var key = kvp.Key;
-            var value = kvp.Value.GetInfo();
-            if (value.ToObject(out var objectValue))
-            {
-                var dataPropertyObject = (DataPropertyObject)objectValue.Map;
-                value = PropertyValue.Create(dataPropertyObject.GetInfo());
-            }
-            info.Add(key, value);
+            info.Add(kvp.Key, kvp.Value.Value.ToPropertyValue());   // 对象槽经子树值快照递归触底
         }
         return new PropertyObject(info);
     }
@@ -81,17 +85,9 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         var map = new Map<string, DataPropertyValue>();
         foreach (var kvp in info.Map)
         {
-            var key = kvp.Key;
-            var value = kvp.Value;
             DataPropertyValue dataPropertyValue = new();
-            if (value.ToObject(out var objectValue))
-            {
-                var dataPropertyObject = new DataPropertyObject();
-                dataPropertyObject.SetInfo(objectValue);
-                value = PropertyValue.Create(new PropertyObject(dataPropertyObject));
-            }
-            dataPropertyValue.SetInfo(value);
-            map.Add(key, dataPropertyValue);
+            dataPropertyValue.SetInfo(ToSlot(kvp.Value));
+            map.Add(kvp.Key, dataPropertyValue);
         }
         mMap.SetInfo(map);
     }
@@ -104,12 +100,12 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     public PropertyValue GetValue(string key, out bool success)
     {
         var dataPropertyValue = mMap.GetValue(key, out success);
-        return dataPropertyValue == null ? PropertyValue.Null : dataPropertyValue.Value;
+        return dataPropertyValue == null ? PropertyValue.Null : dataPropertyValue.Value.ToPropertyValue();
     }
 
     public IEnumerator<IReadOnlyKeyValuePair<string, PropertyValue>> GetEnumerator()
     {
-        return mMap.GetEnumerator().Convert(kvp => new ReadOnlyKeyValuePair<string, PropertyValue>(kvp.Key, kvp.Value.Value));
+        return mMap.GetEnumerator().Convert(kvp => new ReadOnlyKeyValuePair<string, PropertyValue>(kvp.Key, kvp.Value.Value.ToPropertyValue()));
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -126,22 +122,18 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
 
     DataPropertyObject? ILazyObjectNode.FindObject(string key)
     {
-        if (mMap.TryGetValue(key, out var dataPropertyValue) && dataPropertyValue.Value.ToObject(out var objectValue))
-            return (DataPropertyObject)objectValue.Map;
-
-        return null;
+        return mMap.TryGetValue(key, out var dataPropertyValue) ? dataPropertyValue.Value.Object : null;
     }
 
     DataPropertyObject ILazyObjectNode.GetOrCreateObject(string key)
     {
         var dataPropertyValue = FindValue(key);
-        if (!dataPropertyValue.Value.ToObject(out var objectValue))
-        {
-            objectValue = new(new DataPropertyObject());
-            dataPropertyValue.Set(objectValue);
-        }
+        if (dataPropertyValue.Value.Object is { } existing)
+            return existing;
 
-        return (DataPropertyObject)objectValue.Map;
+        var child = new DataPropertyObject();
+        dataPropertyValue.Set(new PropertySlot(child));
+        return child;
     }
 
     // 嵌套对象节点的懒视图：表示 owner 下 key 处的对象。读经 owner.FindObject 返回 default（不创建），

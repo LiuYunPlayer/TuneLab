@@ -3,18 +3,28 @@ using TuneLab.Primitives.DataStructures;
 
 namespace TuneLab.Primitives.Property;
 
-public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map) : IEquatable<PropertyObject>
+// 纯值对象（深相等 + 哈希支撑 undo 去重）：构造时拷入自持第一层键值对，此后与传入 map 的
+// 任何变化无关——值语义由构造保证而非调用方纪律。嵌套的 PropertyObject 元素在其自身构造时
+// 已拷过自己的第一层（标量值本就不可变），逐层各拷一层即归纳封死整树，无需深拷。
+public sealed class PropertyObject : IEquatable<PropertyObject>
 {
     public readonly static PropertyObject Empty = new(Map<string, PropertyValue>.Empty);
 
-    public IReadOnlyMap<string, PropertyValue> Map => map;
+    public PropertyObject(IReadOnlyMap<string, PropertyValue> map)
+    {
+        var copy = new Map<string, PropertyValue>();
+        foreach (var kvp in map)
+        {
+            copy.Add(kvp.Key, kvp.Value);
+        }
+        mMap = copy;
+    }
+
+    public IReadOnlyMap<string, PropertyValue> Map => mMap;
 
     public T GetValue<T>(string key, T defaultValue) where T : notnull
     {
-        if (map == null)
-            return defaultValue;
-
-        if (!map.TryGetValue(key, out var value))
+        if (!mMap.TryGetValue(key, out var value))
             return defaultValue;
 
         if (!value.To<T>(out var result))
@@ -66,12 +76,12 @@ public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map) : IE
             return false;
         if (ReferenceEquals(this, other))
             return true;
-        if (map.Count != other.Map.Count)
+        if (mMap.Count != other.mMap.Count)
             return false;
 
-        foreach (var kvp in map)
+        foreach (var kvp in mMap)
         {
-            if (!other.Map.TryGetValue(kvp.Key, out var otherValue))
+            if (!other.mMap.TryGetValue(kvp.Key, out var otherValue))
                 return false;
             if (!kvp.Value.Equals(otherValue))
                 return false;
@@ -88,7 +98,7 @@ public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map) : IE
     public override int GetHashCode()
     {
         int hash = 17;
-        foreach (var kvp in map)
+        foreach (var kvp in mMap)
         {
             unchecked
             {
@@ -97,4 +107,6 @@ public sealed class PropertyObject(IReadOnlyMap<string, PropertyValue> map) : IE
         }
         return hash;
     }
+
+    readonly Map<string, PropertyValue> mMap;
 }
