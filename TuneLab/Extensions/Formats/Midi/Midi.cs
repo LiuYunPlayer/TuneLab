@@ -7,9 +7,7 @@ using System.Threading.Tasks;
 using NAudio.Midi;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 
-using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.Midi;
 
 [ImportFormat("mid")]

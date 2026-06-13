@@ -1,6 +1,6 @@
 ﻿using TuneLab.Data;
 using TuneLab.Data.Timing;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 using Xunit;
 
 namespace TuneLab.Tests;

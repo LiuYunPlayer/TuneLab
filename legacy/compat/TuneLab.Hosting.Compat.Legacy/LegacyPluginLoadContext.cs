@@ -83,7 +83,7 @@ internal sealed class LegacyPluginLoadContext : AssemblyLoadContext
             yield return Path.Combine(mPluginDirectory, prefix + bare + ext);
     }
 
-    // 契约前缀：Legacy 冻结三件 + Foundation + SDK.*。其余走插件私有解析。
+    // 契约：Legacy 冻结三件 + Foundation + TuneLab.SDK（前缀匹配兼容将来可能再拆的 SDK.* 同族）。其余走插件私有解析。
     static bool IsSharedContract(string name)
         => name == "TuneLab.Base"
         || name == "TuneLab.Extensions.Formats"

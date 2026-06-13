@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using TuneLab.Foundation;
-using TuneLab.SDK.Format;
 using TuneLab.SDK;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;

@@ -7,10 +7,8 @@ using System.IO;
 using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 using Point = TuneLab.Foundation.Point;
 
-using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.VPR
 {
     [ImportFormat("vpr")]

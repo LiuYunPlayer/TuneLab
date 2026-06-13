@@ -1,7 +1,6 @@
 using System.IO;
 using System.Text;
-using TuneLab.SDK.Format;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 using TuneLab.TestPlugins.Suite.Common;
 
 namespace TuneLab.TestPlugins.Suite.Format;

@@ -4,8 +4,8 @@ using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.Utils;
 using TuneLab.SDK;
-using PhonemeInfo = TuneLab.SDK.Format.DataInfo.PhonemeInfo;
-using NoteInfo = TuneLab.SDK.Format.DataInfo.NoteInfo;
+using PhonemeInfo = TuneLab.SDK.PhonemeInfo;
+using NoteInfo = TuneLab.SDK.NoteInfo;
 
 namespace TuneLab.Data;
 

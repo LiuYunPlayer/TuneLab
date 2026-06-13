@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Old = TuneLab.Extensions.Formats.DataInfo;
-using New = TuneLab.SDK.Format.DataInfo;
+using New = TuneLab.SDK;
 using LStruct = TuneLab.Base.Structures;
 using PStruct = TuneLab.Foundation;
 using TuneLab.Hosting.Compat.Legacy.Conversion;
@@ -10,7 +10,7 @@ using TuneLab.Hosting.Compat.Legacy.Conversion;
 namespace TuneLab.Hosting.Compat.Legacy.Format;
 
 // 工程模型 DataInfo 跨代深拷贝（DTO eager 深拷贝、转移所有权、无别名；冷路径）。
-// Legacy（TuneLab.Extensions.Formats.DataInfo）↔ V1（TuneLab.SDK.Format.DataInfo）。字段两代逐一对应；
+// Legacy（TuneLab.Extensions.Formats.DataInfo）↔ V1（TuneLab.SDK）。字段两代逐一对应；
 // V1 无 Effects，故 MidiPart 不涉及 Effects。
 internal static class FormatConverter
 {

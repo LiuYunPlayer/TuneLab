@@ -14,7 +14,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\TuneLab.Foundation\TuneLab.Foundation.csproj" Private="false" />
     <ProjectReference Include="..\..\..\TuneLab.SDK\TuneLab.SDK.csproj" Private="false" />
-    <ProjectReference Include="..\..\..\TuneLab.SDK.Format\TuneLab.SDK.Format.csproj" Private="false" />
     <ProjectReference Include="..\V1.Suite.Common\V1.Suite.Common.csproj" />
   </ItemGroup>
 

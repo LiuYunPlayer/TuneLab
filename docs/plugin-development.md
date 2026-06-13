@@ -110,8 +110,7 @@
   <ItemGroup>
     <!-- 引用你需要的 SDK 程序集；这些由 TuneLab 提供，打包时不要带上 -->
     <Reference Include="TuneLab.Foundation" />
-    <Reference Include="TuneLab.SDK" />
-    <Reference Include="TuneLab.SDK.Format" /> <!-- 仅 format 插件需要 -->
+    <Reference Include="TuneLab.SDK" /> <!-- format/voice/effect 全部插件类型同一程序集 -->
   </ItemGroup>
 </Project>
 ```
@@ -119,7 +118,7 @@
 规则：
 
 - **目标框架锁 `net8.0`**（SDK 的 ABI 地板）。宿主未来升级 .NET 时，按此地板编译的插件无需重编即可运行。
-- **只引用 `TuneLab.Foundation` 和 `TuneLab.SDK.*`**。**不要**引用 `TuneLab.Hosting.Foundation` 或主程序——它们不是插件契约。
+- **只引用 `TuneLab.Foundation` 和 `TuneLab.SDK`**。**不要**引用 `TuneLab.Hosting.Foundation` 或主程序——它们不是插件契约。
 - SDK 程序集设为「不复制到输出」（`Private=false` / Copy Local = No），打包时**别把它们放进包**，宿主会共享自己的那一份。
 - 你的**私有第三方依赖**正常引用、随包分发即可。
 
@@ -131,8 +130,7 @@
 
 ```csharp
 using System.IO;
-using TuneLab.SDK.Format;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 
 [ImportFormat("myfmt")]              // 文件扩展名（不带点）
 public class MyFormatImporter : IImportFormat
@@ -159,7 +157,7 @@ public class MyFormatExporter : IExportFormat
 }
 ```
 
-工程模型（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）定义在 `TuneLab.SDK.Format.DataInfo`。
+工程模型（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）定义在 `TuneLab.SDK`。
 
 ---
 

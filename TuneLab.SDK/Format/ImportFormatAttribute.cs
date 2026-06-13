@@ -4,14 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.SDK.Format;
+namespace TuneLab.SDK;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
-public class ExportFormatAttribute : Attribute
+public class ImportFormatAttribute : Attribute
 {
     public string FileExtension { get; private set; }
 
-    public ExportFormatAttribute(string fileExtension)
+    public ImportFormatAttribute(string fileExtension)
     {
         FileExtension = fileExtension;
     }

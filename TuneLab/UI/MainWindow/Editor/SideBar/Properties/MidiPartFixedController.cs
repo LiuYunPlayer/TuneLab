@@ -11,7 +11,6 @@ using TuneLab.GUI;
 using TuneLab.GUI.Controllers;
 using TuneLab.Utils;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 using TuneLab.I18N;
 
 namespace TuneLab.UI;

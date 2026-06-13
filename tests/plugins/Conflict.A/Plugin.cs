@@ -1,6 +1,5 @@
 using System.IO;
-using TuneLab.SDK.Format;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.ConflictA;
 

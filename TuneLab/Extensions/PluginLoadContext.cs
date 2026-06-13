@@ -55,7 +55,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         return path != null ? LoadUnmanagedDllFromPath(path) : IntPtr.Zero;
     }
 
-    // 契约程序集：Foundation + TuneLab.SDK（及 TuneLab.SDK.* 同族，如 SDK.Format）。其余走插件私有解析。
+    // 契约程序集：Foundation + TuneLab.SDK（前缀匹配兼容将来可能再拆的 TuneLab.SDK.* 同族）。其余走插件私有解析。
     static bool IsSharedContract(string assemblyName)
     {
         return assemblyName == "TuneLab.Foundation"

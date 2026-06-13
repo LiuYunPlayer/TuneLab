@@ -12,7 +12,7 @@ using RoundedRect = Avalonia.RoundedRect;
 using TuneLab.GUI;
 using System.Threading.Tasks;
 using TuneLab.Data;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 using TuneLab.I18N;
 using Avalonia.Platform.Storage;
 using System.Linq;

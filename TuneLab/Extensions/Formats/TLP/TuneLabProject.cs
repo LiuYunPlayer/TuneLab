@@ -10,10 +10,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Utils;
 
-using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.TLP;
 
 [ImportFormat("tlp")]

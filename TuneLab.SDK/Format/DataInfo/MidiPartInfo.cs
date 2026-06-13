@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
 
-namespace TuneLab.SDK.Format.DataInfo;
+namespace TuneLab.SDK;
 
 public class MidiPartInfo : PartInfo
 {

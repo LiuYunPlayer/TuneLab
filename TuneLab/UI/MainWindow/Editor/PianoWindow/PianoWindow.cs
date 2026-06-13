@@ -9,7 +9,6 @@ using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.Utils;
-using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
 using TuneLab.Configs;

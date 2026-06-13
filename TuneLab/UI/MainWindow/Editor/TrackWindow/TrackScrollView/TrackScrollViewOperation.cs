@@ -14,7 +14,6 @@ using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.Utils;
-using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK;
 using Part = TuneLab.Data.Part;
 using Rect = Avalonia.Rect;

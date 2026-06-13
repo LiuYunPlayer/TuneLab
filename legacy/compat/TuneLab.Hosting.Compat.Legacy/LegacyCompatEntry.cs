@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using LFmt = TuneLab.Extensions.Formats;
 using LVoice = TuneLab.Extensions.Voices;
-using VFmt = TuneLab.SDK.Format;
+using VFmt = TuneLab.SDK;
 using VVoice = TuneLab.SDK;
 using TuneLab.Hosting.Compat.Legacy.Format;
 using TuneLab.Hosting.Compat.Legacy.Voice;

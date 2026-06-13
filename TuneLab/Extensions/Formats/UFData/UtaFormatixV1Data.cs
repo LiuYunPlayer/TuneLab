@@ -8,10 +8,8 @@ using System.Linq;
 using System.Text;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 using Point = TuneLab.Foundation.Point;
 
-using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.UFData;
 
 [ImportFormat("ufdata")]

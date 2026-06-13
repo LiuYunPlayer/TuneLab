@@ -1,7 +1,7 @@
 using System.IO;
 using LFmt = TuneLab.Extensions.Formats;
-using VFmt = TuneLab.SDK.Format;
-using VFmtData = TuneLab.SDK.Format.DataInfo;
+using VFmt = TuneLab.SDK;
+using VFmtData = TuneLab.SDK;
 
 namespace TuneLab.Hosting.Compat.Legacy.Format;
 

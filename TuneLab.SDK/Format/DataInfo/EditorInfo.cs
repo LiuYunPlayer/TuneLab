@@ -1,4 +1,4 @@
-namespace TuneLab.SDK.Format.DataInfo;
+namespace TuneLab.SDK;
 
 public class EditorInfo
 {

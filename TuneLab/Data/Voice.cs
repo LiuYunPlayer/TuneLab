@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 
 using TuneLab.Extensions.Voices;
 namespace TuneLab.Data;

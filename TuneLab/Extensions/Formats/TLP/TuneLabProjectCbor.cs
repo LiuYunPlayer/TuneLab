@@ -6,9 +6,7 @@ using System.Linq;
 using System.Text;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 
-using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.TLP;
 
 [ImportFormat("tlpx")]

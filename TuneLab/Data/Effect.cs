@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Extensions.Effect;
 
 namespace TuneLab.Data;

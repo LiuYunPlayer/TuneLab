@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TuneLab.SDK.Format.DataInfo;
+namespace TuneLab.SDK;
 
 public class ProjectInfo
 {

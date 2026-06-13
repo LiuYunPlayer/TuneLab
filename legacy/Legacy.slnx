@@ -10,5 +10,4 @@
   </Folder>
   <Project Path="../TuneLab.Foundation/TuneLab.Foundation.csproj" />
   <Project Path="../TuneLab.SDK/TuneLab.SDK.csproj" />
-  <Project Path="../TuneLab.SDK.Format/TuneLab.SDK.Format.csproj" />
 </Solution>

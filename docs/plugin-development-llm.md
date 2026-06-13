@@ -39,18 +39,18 @@
 
 ### 工程配置
 - `<TargetFramework>net8.0</TargetFramework>`（固定）。
-- 引用：`TuneLab.Foundation`、`TuneLab.SDK`，format 插件另加 `TuneLab.SDK.Format`。
+- 引用：`TuneLab.Foundation`、`TuneLab.SDK`（单一程序集覆盖 format/voice/effect 全部插件类型）。
 - **禁止**引用 `TuneLab.Hosting.Foundation`、`TuneLab`（主程序）、或任何 `TuneLab.Extensions.*`（那是 Legacy）。
 - SDK 引用 `Private=false`（不复制输出、不随包分发）。
 
-### Format 接口（命名空间 `TuneLab.SDK.Format`）
+### Format 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IImportFormat { ProjectInfo Deserialize(Stream stream); }
 public interface IExportFormat { Stream Serialize(ProjectInfo info); }
 [AttributeUsage(AttributeTargets.Class)] public class ImportFormatAttribute : Attribute { public ImportFormatAttribute(string fileExtension); }
 [AttributeUsage(AttributeTargets.Class)] public class ExportFormatAttribute : Attribute { public ExportFormatAttribute(string fileExtension); }
 ```
-- `fileExtension` 不带点。工程模型在 `TuneLab.SDK.Format.DataInfo`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。
+- `fileExtension` 不带点。工程模型在 `TuneLab.SDK`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。
 - 实现类需无参构造函数。
 
 ### Voice 接口（命名空间 `TuneLab.SDK`）
@@ -125,7 +125,6 @@ public interface IEffectSynthesisTask {
   <ItemGroup>
     <Reference Include="TuneLab.Foundation" Private="false" />
     <Reference Include="TuneLab.SDK" Private="false" />
-    <Reference Include="TuneLab.SDK.Format" Private="false" />
   </ItemGroup>
 </Project>
 ```
@@ -133,8 +132,7 @@ public interface IEffectSynthesisTask {
 `MyFormat.cs`：
 ```csharp
 using System.IO;
-using TuneLab.SDK.Format;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 
 [ImportFormat("myfmt")]
 public class MyFormatImporter : IImportFormat

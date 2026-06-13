@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
-using TuneLab.SDK.Format.DataInfo;
+using TuneLab.SDK;
 using TuneLab.Audio;
 
 namespace TuneLab.Data
