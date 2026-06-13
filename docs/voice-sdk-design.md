@@ -259,7 +259,7 @@ public sealed class SynthesisSnapshot
 {
     public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }   // 与递入 notes 索引对齐（邻居按索引导航）
     public required ITiming Timing { get; init; }    // 接口接缝：实现在宿主侧（与 live 共享算法），SDK 不带实现
-    public required IAutomationEvaluator Pitch { get; init; }                 // 冻结求值器（全局秒轴），开窗 = 拉取区间；双通道语义同活视图
+    public required SynthesisAutomationSnapshot Pitch { get; init; }          // 可扩展容器（裹全局秒轴求值器 Evaluator），开窗 = 拉取区间；双通道语义同活视图
     public required IAutomationEvaluator PitchDeviation { get; init; }
     public required IReadOnlyMap<string, IAutomationEvaluator> Automations { get; init; }   // 全部已声明轨（可枚举 Map）
     public required PropertyObject PartProperties { get; init; }                // 值拷

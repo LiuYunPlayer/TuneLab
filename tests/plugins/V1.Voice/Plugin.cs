@@ -246,8 +246,8 @@ public sealed class TestSession : ISynthesisSession
             {
                 controlTimes[c] = noteStart + (noteEnd - noteStart) * c / (controlCount - 1);
             }
-            var pitchValues = snapshot.Pitch.Evaluate(controlTimes);
-            var deviation = snapshot.PitchDeviation.Evaluate(controlTimes);
+            var pitchValues = snapshot.Pitch.Evaluator.Evaluate(controlTimes);
+            var deviation = snapshot.PitchDeviation.Evaluator.Evaluate(controlTimes);
             for (int c = 0; c < controlCount; c++)
             {
                 pitchValues[c] = (double.IsNaN(pitchValues[c]) ? note.Pitch : pitchValues[c]) + deviation[c];

@@ -76,26 +76,26 @@ internal static class SynthesisSnapshotFactory
 
         // —— 音高双通道：Pitch = 纯用户绘制曲线开窗快照（NaN=自由）；
         //    PitchDeviation = vibrato 偏移冻结合成（基线 0，与 live GetVibratoDeviation 同一套共享算法）。 ——
-        var pitch = new FrozenFinalEvaluator(
+        var pitch = new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalEvaluator(
             PiecewiseAutomationSnapshot.Capture(part.Pitch, relStart, relEnd),
-            [], envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: true);
-        var pitchDeviation = new FrozenFinalEvaluator(
+            [], envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: true) };
+        var pitchDeviation = new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalEvaluator(
             new ConstantEvaluator(0),
             SelectVibratos(vibratoCaptures, string.Empty),
-            envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false);
+            envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) };
 
         // —— automation：全部已声明轨按区间开窗物化（无数据对象的轨冻结为默认值常量）——
-        var automations = new Map<string, IAutomationEvaluator>();
+        var automations = new Map<string, SynthesisAutomationSnapshot>();
         foreach (var kvp in part.Voice.AutomationConfigs)
         {
             string key = kvp.Key;
             IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
                 ? AutomationSnapshot.Capture(automation, relStart, relEnd)
                 : new ConstantEvaluator(kvp.Value.DefaultValue);
-            automations.Add(key, new FrozenFinalEvaluator(
+            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalEvaluator(
                 baseEvaluator,
                 SelectVibratos(vibratoCaptures, key),
-                envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false));
+                envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) });
         }
 
         return new SynthesisSnapshot

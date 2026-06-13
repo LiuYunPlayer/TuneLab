@@ -535,9 +535,9 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
         public bool GetAutomation(string automationID, [MaybeNullWhen(false)][NotNullWhen(true)] out LVoice.IAutomationValueGetter? automation)
         {
-            if (snapshot.TryGetAutomation(automationID, out var evaluator))
+            if (snapshot.TryGetAutomation(automationID, out var automationSnapshot))
             {
-                automation = new EvaluatorGetterAdapter(evaluator);
+                automation = new EvaluatorGetterAdapter(automationSnapshot.Evaluator);
                 return true;
             }
             automation = null;
@@ -558,8 +558,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
-            var values = snapshot.Pitch.Evaluate(times);
-            var deviation = snapshot.PitchDeviation.Evaluate(times);
+            var values = snapshot.Pitch.Evaluator.Evaluate(times);
+            var deviation = snapshot.PitchDeviation.Evaluator.Evaluate(times);
             for (int i = 0; i < values.Length; i++)
             {
                 if (!double.IsNaN(values[i]))
