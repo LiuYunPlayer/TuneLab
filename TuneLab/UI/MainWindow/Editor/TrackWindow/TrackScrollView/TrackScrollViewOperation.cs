@@ -238,6 +238,20 @@ internal partial class TrackScrollView
                                             }
                                             menu.Items.Add(menuItem);
                                         }
+                                        {
+                                            var menuItem = new MenuItem().SetName("Remove Overlaps".Tr(TC.Menu)).SetAction(() =>
+                                            {
+                                                bool changed = false;
+                                                foreach (var selectedPart in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
+                                                {
+                                                    if (selectedPart is MidiPart selectedMidiPart)
+                                                        changed |= selectedMidiPart.RemoveOverlaps(selectedMidiPart.Notes);
+                                                }
+                                                if (changed)
+                                                    Project.Commit();
+                                            });
+                                            menu.Items.Add(menuItem);
+                                        }
                                     }
                                     {
                                         var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);

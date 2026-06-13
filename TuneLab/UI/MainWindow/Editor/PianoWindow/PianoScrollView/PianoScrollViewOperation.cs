@@ -288,6 +288,14 @@ internal partial class PianoScrollView
                                             var menuItem = new MenuItem().SetName("Input Lyrics".Tr(TC.Menu)).SetAction(() => { LyricInput.EnterInput(Part.Notes.AllSelectedItems(), this.Window()); });
                                             menu.Items.Add(menuItem);
                                         }
+                                        {
+                                            var menuItem = new MenuItem().SetName("Remove Overlaps".Tr(TC.Menu)).SetAction(() =>
+                                            {
+                                                if (Part.RemoveOverlaps(Part.Notes.AllSelectedItems()))
+                                                    Part.Commit();
+                                            });
+                                            menu.Items.Add(menuItem);
+                                        }
 
                                         menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
@@ -1757,24 +1765,7 @@ internal partial class PianoScrollView
             mNote.Pos.Set(mNote.Pos.Value + offsetTick);
             mNote.Dur.Set(mNote.Dur.Value - offsetTick);
             modifiedNotes.Add(mNote);
-            {
-                var note = mNote;
-                while (note.Last != null)
-                {
-                    note = note.Last;
-                    if (note.StartPos() >= startTick)
-                    {
-                        PianoScrollView.Part.RemoveNote(note);
-                        continue;
-                    }
-
-                    if (note.EndPos() > startTick)
-                    {
-                        note.Dur.Set(startTick - note.Pos.Value);
-                        modifiedNotes.Add(note);
-                    }
-                }
-            }
+            // 自由重叠：拉伸不再截断被盖到的邻居（去重叠责任在插件，用户可用"去除重叠"命令整理）。
             foreach (var note in modifiedNotes)
             {
                 PianoScrollView.Part.RemoveNote(note);
@@ -1851,30 +1842,10 @@ internal partial class PianoScrollView
             }
 
             List<INote> modifiedNotes = new();
-            int index = PianoScrollView.Part.Notes.IndexOf(mNote);
             PianoScrollView.Part.BeginMergeDirty();
             mNote.Dur.Set(endTick - mNote.Pos.Value);
             modifiedNotes.Add(mNote);
-            {
-                var note = mNote;
-                while (note.Next != null)
-                {
-                    note = note.Next;
-                    if (note.EndPos() <= endTick)
-                    {
-                        PianoScrollView.Part.RemoveNote(note);
-                        index--;
-                        continue;
-                    }
-
-                    if (note.StartPos() < endTick)
-                    {
-                        note.Dur.Set(note.EndPos() - endTick);
-                        note.Pos.Set(endTick);
-                        modifiedNotes.Add(note);
-                    }
-                }
-            }
+            // 自由重叠：拉伸不再截断被盖到的邻居（去重叠责任在插件，用户可用"去除重叠"命令整理）。
             foreach (var note in modifiedNotes)
             {
                 PianoScrollView.Part.RemoveNote(note);

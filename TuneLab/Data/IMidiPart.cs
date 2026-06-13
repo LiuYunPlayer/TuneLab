@@ -325,6 +325,51 @@ internal static class IMidiPartExtension
         part.EndMergeDirty();
     }
 
+    // 把给定 note 集合整理为单声部（去重叠），镜像合成侧"后盖前"钳位：按数据序
+    // （StartPos 升 → EndPos 降）逐个把尾巴钳到下一 note 起点；钳后时长归零/为负者
+    // ——被完全覆盖的前者、同起点的较长和弦兄弟——直接删除。起点从不移动、只缩尾，
+    // 故可对原始位置一遍算定再施加。下一 note 取 scope 内排序相邻者：对子集整理时只在
+    // 子集内消重叠，不触动 scope 外的 note。不自行提交，返回是否有改动供调用方决定 Commit。
+    public static bool RemoveOverlaps(this IMidiPart part, IEnumerable<INote> scope)
+    {
+        var ordered = scope.OrderBy(note => note.StartPos()).ThenByDescending(note => note.EndPos()).ToList();
+        if (ordered.Count < 2)
+            return false;
+
+        var shrink = new List<(INote note, double dur)>();
+        var remove = new List<INote>();
+        for (int i = 0; i < ordered.Count - 1; i++)
+        {
+            var note = ordered[i];
+            double maxEnd = ordered[i + 1].StartPos();
+            if (note.EndPos() <= maxEnd)
+                continue;
+
+            double newDur = maxEnd - note.StartPos();
+            if (newDur <= 0)
+                remove.Add(note);
+            else
+                shrink.Add((note, newDur));
+        }
+
+        if (shrink.Count == 0 && remove.Count == 0)
+            return false;
+
+        part.BeginMergeDirty();
+        part.Notes.BeginMergeNotify();
+        foreach (var (note, dur) in shrink)
+        {
+            note.Dur.Set(dur);
+        }
+        foreach (var note in remove)
+        {
+            part.RemoveNote(note);
+        }
+        part.Notes.EndMergeNotify();
+        part.EndMergeDirty();
+        return true;
+    }
+
     public static void DeleteAllSelectedVibratos(this IMidiPart part)
     {
         part.BeginMergeDirty();

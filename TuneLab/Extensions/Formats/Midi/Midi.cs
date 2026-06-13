@@ -79,11 +79,12 @@ internal static class MidiUtility
                     lastTimeSignatureBarIndex = barIndex;
                 }
             }
-            for (int j = notes.Count - 1; j > 0; j--)
+            // 忠实保留同时发声（和弦/重叠）：不再把每个 note 的尾巴钳到下一 note 起点。
+            // 仅剔除无效的零/负时长 note（MIDI NoteLength 可能为 0）。去重叠下放编辑器/合成侧决定。
+            for (int j = notes.Count - 1; j >= 0; j--)
             {
-                notes[j - 1].Dur = Math.Min(notes[j - 1].Dur, notes[j].Pos - notes[j - 1].Pos);
-                if (notes[j - 1].Dur <= 0)
-                    notes.RemoveAt(j - 1);
+                if (notes[j].Dur <= 0)
+                    notes.RemoveAt(j);
             }
             if (notes.Count != 0)
             {
