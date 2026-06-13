@@ -12,7 +12,14 @@ namespace TuneLab.Hosting.Compat.Legacy.Voice;
 //   LiveNoteView    —— Segment() 分片输入（数据线程，读活代理当前值）；
 //   SnapshotNoteView —— CreateSynthesisTask 的数据输入（worker 线程，只读冻结快照）。
 //
-// 老接口与 V1 面的 note 边界同为全局秒（V1 全秒轴改造后），直透即可，无需 tick↔秒换算。
+// 老接口与 V1 面的 note 边界同为全局秒（V1 全秒轴改造后），无需 tick↔秒换算。
+//
+// 后盖前单声部兜底：V1 数据层/SDK 面直传可重叠 note（和弦），但老引擎硬假定单声部、
+// note 首尾相接不重叠。故这两个视图的 EndTime 一律钳到下一 note 的 StartTime
+// （EndTime = Min(自身End, Next.StartTime)）——后起的 note 截断前一个的尾巴。
+// 同 StartTime 的重叠（真和弦）按数据层序逐个退化：序为 EndPos 降（长者在前），
+// 长者的 Next 即同起点的短者，钳后归零，最终只剩排在最后、EndTime 最靠前的那个存活。
+// 这是 chord 支持引入前老 Note.EndTime 的原样行为，仅复刻进 compat、不外泄到新 SDK 面。
 
 // 活视图包装：身份按 V1 note 代理缓存（同一代理恒得同一包装，分片 EqualsWith 依赖引用相等）。
 internal sealed class LiveNoteViewCache(Func<VVoice.ISynthesisNote, LProp.PropertyObject> propertiesReader)
@@ -54,7 +61,8 @@ internal sealed class LiveNoteView(
     public LVoice.ISynthesisNote? Next => origin.Next is { } next ? cache.Wrap(next) : null;
     public LVoice.ISynthesisNote? Last => origin.Last is { } last ? cache.Wrap(last) : null;
     public double StartTime => origin.StartTime.Value;
-    public double EndTime => origin.EndTime.Value;
+    // 后盖前钳位：尾巴不越过下一 note 起点（无下一 note 即整段保留）。
+    public double EndTime => Math.Min(origin.EndTime.Value, origin.Next is { } next ? next.StartTime.Value : double.PositiveInfinity);
     public int Pitch => origin.Pitch.Value;
     public string Lyric => origin.Lyric.Value;
     // 按老声源的 NoteProperties 声明键现取（V1 订阅树外观不可枚举，键集来自声明）。
@@ -97,7 +105,9 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         mNote = note;
         Origin = origin;
         StartTime = note.StartTime;
-        EndTime = note.EndTime;
+        // 后盖前钳位（与 LiveNoteView 同口径）：构造在数据线程同步前缀，读活代理 origin.Next
+        // 取全局下一 note 起点冻结成边界——用全局 Next 而非 piece 内链尾，跨 piece 重叠也一致。
+        EndTime = Math.Min(note.EndTime, origin.Next is { } next ? next.StartTime.Value : double.PositiveInfinity);
         Properties = Conversion.PropertyConvert.ToLegacy(note.Properties);
         Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime);
     }

@@ -220,8 +220,10 @@ public sealed class TestSession : ISynthesisSession
             return new RenderResult([], 0, []);
         }
 
+        // note 可重叠（和弦）：起点恒为首 note（已按 StartTime 升序），但结束须取全体最大——
+        // 同起点和弦的数据层序是 EndPos 降，notes[^1] 反而结束最早，不能当块尾。
         double startTime = notes[0].StartTime;
-        double endTime = notes[^1].EndTime;
+        double endTime = notes.Max(n => n.EndTime);
         int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
         var audio = new float[sampleCount];
         var phonemes = new List<SynthesizedPhoneme>(notes.Count);
@@ -270,7 +272,7 @@ public sealed class TestSession : ISynthesisSession
                 double pitch = pitchValues[c0] + (pitchValues[c0 + 1] - pitchValues[c0]) * (t - c0);
                 double freq = 440.0 * Math.Pow(2, (pitch - 69) / 12.0);
                 phase += 2 * Math.PI * freq / kSampleRate;
-                audio[i] = (float)(0.2 * envelope * Math.Sin(phase));
+                audio[i] += (float)(0.2 * envelope * Math.Sin(phase)); // 混音叠加：重叠 note（和弦）各自发声而非互相覆盖
             }
 
             phonemes.Add(new SynthesizedPhoneme
@@ -292,29 +294,36 @@ public sealed class TestSession : ISynthesisSession
     {
         mNeedResegment = false;
 
+        // 按 note 间隙分块；note 可重叠（和弦），故以"组内最大结束"判间隙，而非上一 note 的结束
+        //（同起点和弦里上一 note 可能结束更早，用它会把仍在响的长音错误地切出去）。
         var groups = new List<List<ISynthesisNote>>();
         List<ISynthesisNote>? current = null;
-        ISynthesisNote? previous = null;
+        double groupMaxEnd = 0;
         foreach (var note in mContext.Notes)
         {
-            if (current == null || previous == null || note.StartTime.Value > previous.EndTime.Value)
+            if (current == null || note.StartTime.Value > groupMaxEnd)
             {
                 current = new List<ISynthesisNote>();
                 groups.Add(current);
+                groupMaxEnd = note.EndTime.Value;
+            }
+            else
+            {
+                groupMaxEnd = Math.Max(groupMaxEnd, note.EndTime.Value);
             }
             current.Add(note);
-            previous = note;
         }
 
         var newPieces = new List<Piece>(groups.Count);
         foreach (var notes in groups)
         {
+            double pieceEnd = notes.Max(n => n.EndTime.Value); // 块尾 = 组内最大结束（重叠安全）
             var existing = mPieces.FirstOrDefault(piece => piece.Notes.SequenceEqual(notes));
             if (existing != null)
             {
                 mPieces.Remove(existing);
                 existing.StartTime = notes[0].StartTime.Value;
-                existing.EndTime = notes[^1].EndTime.Value;
+                existing.EndTime = pieceEnd;
                 newPieces.Add(existing);
             }
             else
@@ -323,7 +332,7 @@ public sealed class TestSession : ISynthesisSession
                 {
                     Notes = notes,
                     StartTime = notes[0].StartTime.Value,
-                    EndTime = notes[^1].EndTime.Value,
+                    EndTime = pieceEnd,
                     Dirty = true,
                 });
             }

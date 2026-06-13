@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/compat/">
     <Project Path="compat/TuneLab.Hosting.Compat.Legacy/TuneLab.Hosting.Compat.Legacy.csproj" />
+    <Project Path="compat/TuneLab.Hosting.Compat.Legacy.Tests/TuneLab.Hosting.Compat.Legacy.Tests.csproj" />
   </Folder>
   <Folder Name="/sdk/" />
   <Folder Name="/sdk/src/">

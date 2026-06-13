@@ -1,0 +1,45 @@
+{
+  "version": 0,
+  "tempos": [{ "pos": 0, "bpm": 120 }],
+  "timeSignatures": [{ "barIndex": 0, "numerator": 4, "denominator": 4 }],
+  "tracks": [
+    {
+      "name": "Legacy (de-overlap expected)",
+      "gain": 0, "pan": 0, "mute": false, "solo": false,
+      "parts": [
+        {
+          "type": "midi", "name": "overlap+chord", "pos": 0, "dur": 3840, "gain": 0,
+          "properties": {},
+          "voice": { "type": "TLTestVoiceLegacy", "id": "legacy-carol" },
+          "notes": [
+            { "pos": 0,    "dur": 720, "pitch": 60, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 480,  "dur": 720, "pitch": 64, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 1920, "dur": 720, "pitch": 60, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 1920, "dur": 480, "pitch": 64, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 1920, "dur": 240, "pitch": 67, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 2880, "dur": 480, "pitch": 62, "lyric": "a", "pronunciation": "", "properties": {} }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "V1 (raw overlap / chord expected)",
+      "gain": 0, "pan": 0, "mute": false, "solo": false,
+      "parts": [
+        {
+          "type": "midi", "name": "overlap+chord", "pos": 0, "dur": 3840, "gain": 0,
+          "properties": {},
+          "voice": { "type": "TLTestVoiceV1", "id": "v1-alice" },
+          "notes": [
+            { "pos": 0,    "dur": 720, "pitch": 60, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 480,  "dur": 720, "pitch": 64, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 1920, "dur": 720, "pitch": 60, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 1920, "dur": 480, "pitch": 64, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 1920, "dur": 240, "pitch": 67, "lyric": "a", "pronunciation": "", "properties": {} },
+            { "pos": 2880, "dur": 480, "pitch": 62, "lyric": "a", "pronunciation": "", "properties": {} }
+          ]
+        }
+      ]
+    }
+  ]
+}

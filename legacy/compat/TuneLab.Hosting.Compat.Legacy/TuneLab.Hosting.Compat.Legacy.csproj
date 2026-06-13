@@ -30,4 +30,11 @@
     <ProjectReference Include="..\..\..\TuneLab.SDK\TuneLab.SDK.csproj" Private="false" />
   </ItemGroup>
 
+  <!-- adapter 全 internal；compat 单测（同在 Legacy.slnx，不进 TuneLab.sln）经此可见。 -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>TuneLab.Hosting.Compat.Legacy.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>
