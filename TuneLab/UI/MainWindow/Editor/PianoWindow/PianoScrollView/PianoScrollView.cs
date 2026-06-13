@@ -11,8 +11,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using DynamicData;
 using TuneLab.Audio;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Document;
+using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
@@ -20,12 +19,12 @@ using TuneLab.Data;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK;
 using TuneLab.Utils;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.Utils;
 using TuneLab.I18N;
 using Avalonia.Media.Imaging;
 using TuneLab.Configs;
 using System.IO;
+
+using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
 
@@ -467,7 +466,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
                 var ys = pitch.LinearInterpolation(times);
 
-                var points = new LinkedList<Point>();
+                var points = new System.Collections.Generic.LinkedList<Point>();
                 for (int i = 0; i < n; i++)
                 {
                     points.AddLast(new Point(i + startX, PitchAxis.Pitch2Y(ys[i] + 0.5)));

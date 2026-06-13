@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Voice;
@@ -43,7 +43,7 @@ public sealed class TestSession : ISynthesisSession
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 BatchEnd 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；
         // 曲线区间变化 → 标脏相交块；时基/part 属性 → 全部标脏。
-        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
+        mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.ItemAdded += OnNotesStructureChanged;
         context.Notes.ItemRemoved += OnNotesStructureChanged;
         context.PartProperties.Modified += MarkAllDirtyAndResegment;

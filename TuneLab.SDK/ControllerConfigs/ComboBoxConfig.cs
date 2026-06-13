@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 

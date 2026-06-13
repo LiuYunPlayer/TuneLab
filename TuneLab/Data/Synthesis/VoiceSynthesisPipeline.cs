@@ -5,9 +5,7 @@ using System.Threading;
 using TuneLab.Audio;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Voices;
-using TuneLab.Foundation.Utils;
-using TuneLab.Primitives.Audio;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Utils;
 
@@ -352,7 +350,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     class EffectChainInput(MonoAudio audio, MidiPart part, IEffect effect) : IEffectSynthesisInput
     {
         public MonoAudio Audio => audio;
-        public Primitives.Property.PropertyObject Properties => effect.Properties.GetInfo();
+        public Foundation.PropertyObject Properties => effect.Properties.GetInfo();
 
         public bool TryGetAutomation(string automationId, [MaybeNullWhen(false)][NotNullWhen(true)] out IAutomationEvaluator? automation)
         {

@@ -1,8 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
-using TuneLab.Foundation.Document;
+using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK.Format.DataInfo;
 
 using TuneLab.Extensions.Voices;

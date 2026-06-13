@@ -1,5 +1,5 @@
-﻿using TuneLab.Primitives.DataStructures;
-using TuneLab.Primitives.Property;
+﻿using TuneLab.Foundation;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.SDK;

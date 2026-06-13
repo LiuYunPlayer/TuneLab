@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.TestPlugins.Suite.Common;
 
@@ -37,7 +37,7 @@ public abstract class SingleBlockSession : ISynthesisSession
     protected SingleBlockSession(ISynthesisContext context)
     {
         mContext = context;
-        mNotesSubscription = TuneLab.Primitives.Event.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
+        mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.Modified += MarkDirty;
         context.PartProperties.Modified += MarkDirty;
         context.TimingModified += MarkDirty;

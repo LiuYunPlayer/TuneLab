@@ -2,13 +2,9 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using System;
-using TuneLab.Foundation.Event;
+using TuneLab.Foundation;
 using TuneLab.GUI.Input;
-using TuneLab.Foundation.Science;
 using TuneLab.Utils;
-using TuneLab.Foundation.Utils;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
 using TuneLab.SDK;
 
 using TuneLab.GUI.Controllers;

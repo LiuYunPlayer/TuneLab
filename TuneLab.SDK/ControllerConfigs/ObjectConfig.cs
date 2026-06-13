@@ -1,4 +1,4 @@
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 

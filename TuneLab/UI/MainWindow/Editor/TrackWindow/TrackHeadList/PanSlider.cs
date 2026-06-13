@@ -7,11 +7,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
+
+using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
 

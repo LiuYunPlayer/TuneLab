@@ -14,7 +14,7 @@
 
 每个插件包在加载时被放进一个**独立的 AssemblyLoadContext（ALC）**：
 
-- TuneLab 的 SDK 契约程序集（`TuneLab.Primitives` + `TuneLab.SDK.*`）和 .NET 运行时由**主程序统一提供、所有插件共享**——你引用它们即可，**不要**把它们打进包里。
+- TuneLab 的 SDK 契约程序集（`TuneLab.Foundation` + `TuneLab.SDK.*`）和 .NET 运行时由**主程序统一提供、所有插件共享**——你引用它们即可，**不要**把它们打进包里。
 - 你的**私有依赖**（第三方库、原生 dll 等）放进包文件夹，会被加载进你这个包专属的 ALC，**与其他插件隔离**，因此不同插件捆绑不同版本的同一个库**不会冲突**。
 
 ---
@@ -109,7 +109,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- 引用你需要的 SDK 程序集；这些由 TuneLab 提供，打包时不要带上 -->
-    <Reference Include="TuneLab.Primitives" />
+    <Reference Include="TuneLab.Foundation" />
     <Reference Include="TuneLab.SDK" />
     <Reference Include="TuneLab.SDK.Format" /> <!-- 仅 format 插件需要 -->
   </ItemGroup>
@@ -119,7 +119,7 @@
 规则：
 
 - **目标框架锁 `net8.0`**（SDK 的 ABI 地板）。宿主未来升级 .NET 时，按此地板编译的插件无需重编即可运行。
-- **只引用 `TuneLab.Primitives` 和 `TuneLab.SDK.*`**。**不要**引用 `TuneLab.Foundation` 或主程序——它们不是插件契约。
+- **只引用 `TuneLab.Foundation` 和 `TuneLab.SDK.*`**。**不要**引用 `TuneLab.Hosting.Foundation` 或主程序——它们不是插件契约。
 - SDK 程序集设为「不复制到输出」（`Private=false` / Copy Local = No），打包时**别把它们放进包**，宿主会共享自己的那一份。
 - 你的**私有第三方依赖**正常引用、随包分发即可。
 
@@ -168,7 +168,7 @@ public class MyFormatExporter : IExportFormat
 实现 `IVoiceEngine`，用 `[VoiceEngine("type")]` 声明引擎类型标识。需要**无参构造函数**。
 
 ```csharp
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 [VoiceEngine("MyEngine")]            // 引擎类型标识（唯一）
@@ -205,8 +205,7 @@ public class MyVoiceEngine : IVoiceEngine
 实现 `IEffectEngine`，用 `[EffectEngine("type")]` 声明类型标识。需要**无参构造函数**。
 
 ```csharp
-using TuneLab.Primitives.Audio;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 [EffectEngine("MyEffect")]            // 效果器类型标识（唯一）
@@ -265,7 +264,7 @@ class MyEffectTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) :
 
 要点：
 
-- **输入/输出都是整段 `MonoAudio`**（`Primitives.Audio`）：`StartTime` / `SampleRate` / `Samples`（`float[]` 单声道）。原样整进整出，不要求逐缓冲流式处理。
+- **输入/输出都是整段 `MonoAudio`**（`TuneLab.Foundation`）：`StartTime` / `SampleRate` / `Samples`（`float[]` 单声道）。原样整进整出，不要求逐缓冲流式处理。
 - **参数读取**：`input.Properties`（`PropertyObject`）按 `PropertyConfig` 声明的键取值（`GetDouble`/`GetString`/`GetBool`/`GetEnum`…）。
 - **效果链**：一条音轨的 MidiPart 上可挂多个 effect，按声明顺序**串行**——上一个的输出是下一个的输入。链顺序、启用（bypass）、增删由用户在属性面板里管理。
 - **分段处理**：合成以「片段」为单位（由歌声引擎的分片决定），每个片段独立过你的链——片段之间的连续性由分片负责，你只需处理拿到的这一段。

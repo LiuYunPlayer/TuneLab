@@ -8,7 +8,7 @@ namespace TuneLab.Extensions;
 // per-folder ALC：每个插件文件夹一个加载上下文 = 隔离 + 依赖共享边界。
 //   一包多插件 → 多个入口程序集装进同一个 ALC，共享基建程序集天然只加载一份、类型标识一致。
 //
-// 共享契约硬约束：契约程序集（TuneLab.Primitives + TuneLab.SDK.* + BCL）由 Default ALC 加载一份、
+// 共享契约硬约束：契约程序集（TuneLab.Foundation + TuneLab.SDK.* + BCL）由 Default ALC 加载一份、
 //   所有插件 ALC 共享 —— Load 对契约程序集返回 null 落 Default，保证跨边界同名 Type 相等；
 //   否则同名 Type 跨 ALC 不相等，连同版本插件都要 marshaling（footgun）。
 //   插件私有依赖（如 ONNX 托管/原生库）才走 AssemblyDependencyResolver + 目录探测，进各自 ALC。
@@ -55,10 +55,10 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         return path != null ? LoadUnmanagedDllFromPath(path) : IntPtr.Zero;
     }
 
-    // 契约程序集：Primitives + TuneLab.SDK（及 TuneLab.SDK.* 同族，如 SDK.Format）。其余走插件私有解析。
+    // 契约程序集：Foundation + TuneLab.SDK（及 TuneLab.SDK.* 同族，如 SDK.Format）。其余走插件私有解析。
     static bool IsSharedContract(string assemblyName)
     {
-        return assemblyName == "TuneLab.Primitives"
+        return assemblyName == "TuneLab.Foundation"
             || assemblyName == "TuneLab.SDK"
             || assemblyName.StartsWith("TuneLab.SDK.", StringComparison.Ordinal);
     }

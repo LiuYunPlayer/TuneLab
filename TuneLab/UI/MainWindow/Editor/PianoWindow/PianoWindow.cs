@@ -5,15 +5,13 @@ using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Foundation.Event;
+using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
-using TuneLab.Foundation.Science;
 using TuneLab.Utils;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
-using TuneLab.Foundation.Utils;
 using TuneLab.Configs;
 using Avalonia.Threading;
 

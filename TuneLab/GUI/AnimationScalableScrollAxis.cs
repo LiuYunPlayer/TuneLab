@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Animation;
-using TuneLab.Foundation.Science;
+using TuneLab.Foundation;
 
 namespace TuneLab.GUI;
 

@@ -8,13 +8,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.SDK.Format.DataInfo;
 using ZstdSharp;
 using ZstdSharp.Unsafe;
-using Point = TuneLab.Primitives.DataStructures.Point;
+using Point = TuneLab.Foundation.Point;
 
 using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.ACEP;

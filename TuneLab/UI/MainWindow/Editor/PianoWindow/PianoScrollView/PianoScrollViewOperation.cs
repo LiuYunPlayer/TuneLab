@@ -2,9 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.DataStructures;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.SDK.Format.DataInfo;
@@ -14,8 +12,6 @@ using MenuItem = Avalonia.Controls.MenuItem;
 using Avalonia.Input;
 using TuneLab.SDK;
 using TuneLab.Utils;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.Utils;
 using TuneLab.I18N;
 using TuneLab.Configs;
 

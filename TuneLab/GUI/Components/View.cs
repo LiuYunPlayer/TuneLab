@@ -9,8 +9,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.GUI.Input;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using TuneLab.Utils;
+
+using Point = Avalonia.Point;
 
 namespace TuneLab.GUI.Components;
 

@@ -8,9 +8,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using TuneLab.Audio.SDL2;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using TuneLab.Utils;
 
 namespace TuneLab.Audio;

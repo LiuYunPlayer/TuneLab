@@ -1,5 +1,4 @@
-using TuneLab.Primitives.Event;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Voices;

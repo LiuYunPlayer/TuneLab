@@ -1,8 +1,7 @@
 using Avalonia.Controls;
 using System;
 using System.Collections.Generic;
-using TuneLab.Foundation.Event;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
 

@@ -9,7 +9,7 @@ using TuneLab.Utils;
 using TuneLab.GUI;
 using System.Reflection;
 using Tomlyn;
-using TuneLab.Foundation.Event;
+using TuneLab.Foundation;
 using Avalonia.Controls;
 using TuneLab.I18N;
 

@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Data;
 
+using Point = Avalonia.Point;
+
 namespace TuneLab.UI;
 
 internal partial class AutomationRenderer

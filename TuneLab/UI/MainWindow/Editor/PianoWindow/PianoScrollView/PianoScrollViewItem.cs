@@ -9,9 +9,11 @@ using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.Utils;
 using TuneLab.SDK;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using Avalonia.Media;
 using TuneLab.GUI.Input;
+
+using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
 

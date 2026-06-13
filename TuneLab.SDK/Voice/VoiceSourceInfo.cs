@@ -1,4 +1,4 @@
-using TuneLab.Primitives.Resources;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 

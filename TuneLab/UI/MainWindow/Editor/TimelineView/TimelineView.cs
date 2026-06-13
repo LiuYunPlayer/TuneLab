@@ -3,14 +3,14 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using System;
 using TuneLab.Audio;
-using TuneLab.Foundation.Event;
+using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Animation;
 using TuneLab.Data;
-using TuneLab.Foundation.Science;
 using TuneLab.Utils;
-using TuneLab.Foundation.Utils;
+
+using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
 

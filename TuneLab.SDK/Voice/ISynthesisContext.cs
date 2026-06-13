@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using TuneLab.Primitives.Event;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.SDK;

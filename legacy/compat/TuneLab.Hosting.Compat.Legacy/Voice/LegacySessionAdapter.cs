@@ -5,14 +5,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Hosting.Compat.Legacy.Conversion;
-using TuneLab.Primitives.DataStructures;
-using TuneLab.Primitives.Event;
+using TuneLab.Foundation;
 using LProp = TuneLab.Base.Properties;
 using LVoice = TuneLab.Extensions.Voices;
 using VBase = TuneLab.SDK;
 using VConfig = TuneLab.SDK;
 using VVoice = TuneLab.SDK;
-using PStruct = TuneLab.Primitives.DataStructures;
+using PStruct = TuneLab.Foundation;
 
 namespace TuneLab.Hosting.Compat.Legacy.Voice;
 
@@ -505,12 +504,12 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         return ReadProperties(mSource.NoteProperties.Keys, note.Properties);
     }
 
-    static LProp.PropertyObject ReadProperties(IEnumerable<string> keys, TuneLab.Primitives.Property.IReadOnlyNotifiablePropertyObject source)
+    static LProp.PropertyObject ReadProperties(IEnumerable<string> keys, TuneLab.Foundation.IReadOnlyNotifiablePropertyObject source)
     {
         var map = new TuneLab.Base.Structures.Map<string, LProp.PropertyValue>();
         foreach (var key in keys)
         {
-            var value = source.GetValue(key, TuneLab.Primitives.Property.PropertyValue.Null);
+            var value = source.GetValue(key, TuneLab.Foundation.PropertyValue.Null);
             if (!value.IsNull())
                 map[key] = value.ToLegacy();
         }

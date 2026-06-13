@@ -1,7 +1,5 @@
 using System.Collections;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
-using TuneLab.Primitives.Event;
+using TuneLab.Foundation;
 using Xunit;
 
 namespace TuneLab.Tests;

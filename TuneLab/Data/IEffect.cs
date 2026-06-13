@@ -1,7 +1,5 @@
 using System.Collections.Generic;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.SDK.Format.DataInfo;
 

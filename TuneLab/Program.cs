@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.ReactiveUI;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using TuneLab.Configs;
 using TuneLab.Extensions;
 using TuneLab.I18N;

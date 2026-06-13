@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 
 namespace TuneLab.Data.Synthesis;
 

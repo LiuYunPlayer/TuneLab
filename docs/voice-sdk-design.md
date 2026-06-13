@@ -109,7 +109,7 @@ public interface ISynthesisAutomation : IAutomationEvaluator
 
 解法：**context 是会话级的中间层**，由宿主驱动 emit。插件订阅的是 context（短命，随会话一起死 → 泄漏*结构性*不可能，无需弱事件、无需契约）；context 内部订阅长寿数据层、由宿主转发，宿主因此始终握着*线程 / 时机 / 故障隔离 / 批量*四个旋钮（可在 command 提交后、选定线程、try-catch 包裹下 emit）。这正是"中间层"方案的落地——而 `OnChanged` 式推送本质就是它，订阅只是更好用的外壳。
 
-代价：需在 `TuneLab.SDK` 冻结一个**最小订阅侧接口**：
+代价：需在 `TuneLab.Foundation`（契约层）冻结一个**最小订阅侧接口**：
 
 ```csharp
 public interface IReadOnlyNotifiableProperty<out T>
@@ -120,7 +120,7 @@ public interface IReadOnlyNotifiableProperty<out T>
 }
 ```
 
-`WhenAny` 作为该接口（及其集合）的**扩展方法定义在 TuneLab.SDK，逻辑一份**；宿主 Foundation 的富 NotifiableProperty 实现此接口，host 与插件共用同一份 `WhenAny`，不存在两份实现漂移。
+`WhenAny` 作为该接口（及其集合）的**扩展方法定义在 TuneLab.Foundation（契约层），逻辑一份**；宿主 Hosting.Foundation 的富 NotifiableProperty 实现此接口，host 与插件共用同一份 `WhenAny`，不存在两份实现漂移。
 
 ### 3.3 `ISynthesisNote` / 时间真值域 / `ITiming`
 

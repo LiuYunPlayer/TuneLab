@@ -1,14 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.Foundation.DataStructures;
-using TuneLab.Primitives.DataStructures;
-using TuneLab.Foundation.Utils;
 using TuneLab.SDK.Format.DataInfo;
 using TuneLab.Utils;
 

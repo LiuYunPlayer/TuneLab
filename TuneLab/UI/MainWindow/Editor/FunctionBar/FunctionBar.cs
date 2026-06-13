@@ -6,9 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Data;
 using TuneLab.GUI;
@@ -16,7 +14,7 @@ using TuneLab.GUI.Components;
 using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.Utils;
-using static TuneLab.Foundation.Science.MusicTheory;
+using static TuneLab.Foundation.MusicTheory;
 
 namespace TuneLab.UI;
 

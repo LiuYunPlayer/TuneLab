@@ -7,7 +7,7 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `description.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Primitives` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。format 插件用 `[ImportFormat("ext")]`/`[ExportFormat("ext")]` 实现 `IImportFormat`/`IExportFormat`；voice 插件用 `[VoiceEngine("type")]` 实现 `IVoiceEngine`；effect 插件用 `[EffectEngine("type")]` 实现 `IEffectEngine`（对整段音频做离线变换）；所有插件类需有**无参构造函数**。`description.json` 里 `type` 必填、`assemblies` 选填（写了只扫这几个程序集）、含代码时 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `description.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。format 插件用 `[ImportFormat("ext")]`/`[ExportFormat("ext")]` 实现 `IImportFormat`/`IExportFormat`；voice 插件用 `[VoiceEngine("type")]` 实现 `IVoiceEngine`；effect 插件用 `[EffectEngine("type")]` 实现 `IEffectEngine`（对整段音频做离线变换）；所有插件类需有**无参构造函数**。`description.json` 里 `type` 必填、`assemblies` 选填（写了只扫这几个程序集）、含代码时 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
@@ -39,8 +39,8 @@
 
 ### 工程配置
 - `<TargetFramework>net8.0</TargetFramework>`（固定）。
-- 引用：`TuneLab.Primitives`、`TuneLab.SDK`，format 插件另加 `TuneLab.SDK.Format`。
-- **禁止**引用 `TuneLab.Foundation`、`TuneLab`（主程序）、或任何 `TuneLab.Extensions.*`（那是 Legacy）。
+- 引用：`TuneLab.Foundation`、`TuneLab.SDK`，format 插件另加 `TuneLab.SDK.Format`。
+- **禁止**引用 `TuneLab.Hosting.Foundation`、`TuneLab`（主程序）、或任何 `TuneLab.Extensions.*`（那是 Legacy）。
 - SDK 引用 `Private=false`（不复制输出、不随包分发）。
 
 ### Format 接口（命名空间 `TuneLab.SDK.Format`）
@@ -56,7 +56,7 @@ public interface IExportFormat { Stream Serialize(ProjectInfo info); }
 ### Voice 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IVoiceEngine {
-    IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; }   // TuneLab.Primitives.DataStructures
+    IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; }   // TuneLab.Foundation
     bool Init(string enginePath, out string? error);                  // enginePath = 包文件夹
     void Destroy();
     IVoiceSource CreateVoiceSource(string id);
@@ -76,8 +76,8 @@ public interface IEffectEngine {
     IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output);
 }
 public interface IEffectSynthesisInput {
-    MonoAudio Audio { get; }                                               // TuneLab.Primitives.Audio，整段上游音频
-    PropertyObject Properties { get; }                                     // TuneLab.Primitives.Property，参数快照
+    MonoAudio Audio { get; }                                               // TuneLab.Foundation，整段上游音频
+    PropertyObject Properties { get; }                                     // TuneLab.Foundation，参数快照
     bool TryGetAutomation(string automationId, out IAutomationEvaluator? automation);   // 查询轴 = 全局秒
 }
 public interface IEffectSynthesisOutput { MonoAudio Audio { get; set; } }  // 把处理结果写这里
@@ -93,7 +93,7 @@ public interface IEffectSynthesisTask {
 
 ### 常见错误（避免）
 - ❌ 漏 `id` → 被当成 Legacy。
-- ❌ 引用 `TuneLab.Foundation` 或主程序 → 不是插件契约，加载会出错。
+- ❌ 引用 `TuneLab.Hosting.Foundation` 或主程序 → 不是插件契约，加载会出错。
 - ❌ 把 SDK 程序集打进包 → 与宿主共享版本冲突，应共享宿主的。
 - ❌ 目标框架非 net8.0。
 - ❌ 插件类缺无参构造函数 → 无法实例化。
@@ -123,7 +123,7 @@ public interface IEffectSynthesisTask {
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="TuneLab.Primitives" Private="false" />
+    <Reference Include="TuneLab.Foundation" Private="false" />
     <Reference Include="TuneLab.SDK" Private="false" />
     <Reference Include="TuneLab.SDK.Format" Private="false" />
   </ItemGroup>

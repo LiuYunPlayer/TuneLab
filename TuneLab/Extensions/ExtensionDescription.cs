@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 
 namespace TuneLab.Extensions;
 

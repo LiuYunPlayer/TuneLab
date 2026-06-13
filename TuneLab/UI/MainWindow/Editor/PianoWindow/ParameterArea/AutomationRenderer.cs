@@ -12,14 +12,13 @@ using Avalonia.Media;
 using TuneLab.GUI.Input;
 using TuneLab.GUI.Components;
 using Avalonia;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using TuneLab.Utils;
 using Avalonia.Controls;
 using TuneLab.I18N;
 using Avalonia.Threading;
+
+using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
 

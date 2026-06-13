@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace TuneLab.Foundation.Utils;
+namespace TuneLab.Foundation;
 
 public class ApiResponse<T>
 {

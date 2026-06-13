@@ -1,0 +1,12 @@
+using System.Collections.Generic;
+
+namespace TuneLab.Foundation;
+
+public interface IReadOnlyOrderedMap<TKey, out TValue> : IReadOnlyMap<TKey, TValue>, IReadOnlyList<IReadOnlyKeyValuePair<TKey, TValue>> where TKey : notnull
+{
+    // 有序版收紧：顺序注册表的 Keys/Values 是有索引的 IReadOnlyList。
+    new IReadOnlyList<TKey> Keys { get; }
+    new IReadOnlyList<TValue> Values { get; }
+    TKey KeyAt(int index);
+    TValue ValueAt(int index);
+}

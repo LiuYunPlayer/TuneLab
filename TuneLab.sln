@@ -7,9 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TuneLab", "TuneLab\TuneLab.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExtensionInstaller", "ExtensionInstaller\ExtensionInstaller.csproj", "{DBAA9C1E-C084-4788-9AF7-9E5A349CC412}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Foundation", "TuneLab.Foundation\TuneLab.Foundation.csproj", "{DF70C221-4180-4D8A-9680-E067B58C4C8D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Hosting.Foundation", "TuneLab.Hosting.Foundation\TuneLab.Hosting.Foundation.csproj", "{DF70C221-4180-4D8A-9680-E067B58C4C8D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Primitives", "TuneLab.Primitives\TuneLab.Primitives.csproj", "{D3E8AD78-C7B5-4403-8CF0-9310326D7FED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Foundation", "TuneLab.Foundation\TuneLab.Foundation.csproj", "{D3E8AD78-C7B5-4403-8CF0-9310326D7FED}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.SDK", "TuneLab.SDK\TuneLab.SDK.csproj", "{46EFC3D2-BD32-42F3-B7CE-0FACD7FE1069}"
 EndProject

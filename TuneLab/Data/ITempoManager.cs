@@ -4,11 +4,9 @@ using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Science;
+using TuneLab.Foundation;
 using TuneLab.Utils;
 using TuneLab.SDK.Format.DataInfo;
-using TuneLab.Foundation.Utils;
 using TuneLab.Data.Timing;
 
 namespace TuneLab.Data;

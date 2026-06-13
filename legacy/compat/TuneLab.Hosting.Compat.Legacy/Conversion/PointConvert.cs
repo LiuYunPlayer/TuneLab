@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using LStruct = TuneLab.Base.Structures;
-using PStruct = TuneLab.Primitives.DataStructures;
+using PStruct = TuneLab.Foundation;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
 

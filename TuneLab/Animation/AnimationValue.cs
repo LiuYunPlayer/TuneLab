@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Foundation.Science;
+using TuneLab.Foundation;
 
 namespace TuneLab.Animation;
 

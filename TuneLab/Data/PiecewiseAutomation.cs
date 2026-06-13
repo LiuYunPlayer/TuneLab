@@ -5,12 +5,7 @@ using System.Linq;
 using System.Net.Security;
 using System.Reflection;
 using System.Text;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Science;
-using TuneLab.Foundation.DataStructures;
-using TuneLab.Primitives.DataStructures;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 
 namespace TuneLab.Data;
 

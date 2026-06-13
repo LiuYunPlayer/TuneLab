@@ -1,6 +1,5 @@
 using System;
-using TuneLab.Primitives.Audio;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Effect;

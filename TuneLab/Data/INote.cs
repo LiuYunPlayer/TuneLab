@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Property;
-using TuneLab.Foundation.DataStructures;
-using TuneLab.Foundation.Science;
+using TuneLab.Foundation;
 using TuneLab.Utils;
 using TuneLab.SDK;
-using TuneLab.Foundation.Utils;
 using PhonemeInfo = TuneLab.SDK.Format.DataInfo.PhonemeInfo;
 using NoteInfo = TuneLab.SDK.Format.DataInfo.NoteInfo;
 

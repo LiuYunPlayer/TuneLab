@@ -1,12 +1,12 @@
 using LProp = TuneLab.Base.Properties;
 using LStruct = TuneLab.Base.Structures;
-using PProp = TuneLab.Primitives.Property;
-using PStruct = TuneLab.Primitives.DataStructures;
+using PProp = TuneLab.Foundation;
+using PStruct = TuneLab.Foundation;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
 
 // PropertyObject / PropertyValue 跨代转换（DTO eager 深拷贝、转移所有权、无别名）。
-// Legacy（TuneLab.Base.Properties，多 box）↔ V1（TuneLab.Primitives.Property，单 box + PropertyType）。
+// Legacy（TuneLab.Base.Properties，多 box）↔ V1（TuneLab.Foundation，单 box + PropertyType）。
 internal static class PropertyConvert
 {
     public static PProp.PropertyObject ToV1(this LProp.PropertyObject old)

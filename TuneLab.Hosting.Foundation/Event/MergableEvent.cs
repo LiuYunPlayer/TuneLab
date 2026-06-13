@@ -1,0 +1,43 @@
+using System;
+using TuneLab.Foundation;
+
+namespace TuneLab.Foundation;
+
+public class MergableEvent : IMergableEvent
+{
+    public static implicit operator Action(MergableEvent e) => e.Invoke;
+
+    public MergableEvent()
+    {
+        mMergeHandler = new(() => { Action?.Invoke(); });
+    }
+
+    public void Subscribe(Action action)
+    {
+        Action += action;
+    }
+
+    public void Unsubscribe(Action action)
+    {
+        Action -= action;
+    }
+
+    public void BeginMerge()
+    {
+        mMergeHandler.Begin();
+    }
+
+    public void EndMerge()
+    {
+        mMergeHandler.End();
+    }
+
+    public void Invoke()
+    {
+        mMergeHandler.Trigger();
+    }
+
+    event Action? Action;
+
+    readonly MergeHandler mMergeHandler;
+}

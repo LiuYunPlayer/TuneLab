@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using TuneLab.GUI;
 using TuneLab.Utils;
 
+using Point = Avalonia.Point;
+
 namespace TuneLab.UI;
 
 internal partial class PianoRoll

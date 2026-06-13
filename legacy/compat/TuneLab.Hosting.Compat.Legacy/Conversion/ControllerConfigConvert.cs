@@ -2,7 +2,7 @@
 using LStruct = TuneLab.Base.Structures;
 using LVoice = TuneLab.Extensions.Voices;
 using VConfig = TuneLab.SDK;
-using PStruct = TuneLab.Primitives.DataStructures;
+using PStruct = TuneLab.Foundation;
 
 namespace TuneLab.Hosting.Compat.Legacy.Conversion;
 

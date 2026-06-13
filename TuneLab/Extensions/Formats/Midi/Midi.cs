@@ -5,13 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using NAudio.Midi;
-using TuneLab.Foundation.DataStructures;
-using TuneLab.Primitives.DataStructures;
-using TuneLab.Foundation.Property;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.SDK.Format.DataInfo;
-using TuneLab.Foundation.Science;
 
 using TuneLab.SDK.Format;
 namespace TuneLab.Extensions.Formats.Midi;

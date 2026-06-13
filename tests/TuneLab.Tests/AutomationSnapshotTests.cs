@@ -1,6 +1,5 @@
 using TuneLab.Data;
-using TuneLab.Foundation.Science;
-using TuneLab.Primitives.DataStructures;
+using TuneLab.Foundation;
 using Xunit;
 
 namespace TuneLab.Tests;

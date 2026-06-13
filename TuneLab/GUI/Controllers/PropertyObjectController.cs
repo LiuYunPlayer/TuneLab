@@ -3,10 +3,8 @@ using Avalonia.Layout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using TuneLab.Foundation.Property;
+using TuneLab.Foundation;
 using TuneLab.SDK;
-using TuneLab.Primitives.DataStructures;
-using TuneLab.Foundation.Utils;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
 

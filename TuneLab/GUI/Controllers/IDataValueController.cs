@@ -3,11 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Property;
-using TuneLab.Foundation.Utils;
-using TuneLab.Primitives.Property;
+using TuneLab.Foundation;
 using static TuneLab.GUI.Controllers.IValueControllerExtension;
 
 namespace TuneLab.GUI.Controllers;

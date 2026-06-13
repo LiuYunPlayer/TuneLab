@@ -4,7 +4,7 @@ using System.Linq;
 using Old = TuneLab.Extensions.Formats.DataInfo;
 using New = TuneLab.SDK.Format.DataInfo;
 using LStruct = TuneLab.Base.Structures;
-using PStruct = TuneLab.Primitives.DataStructures;
+using PStruct = TuneLab.Foundation;
 using TuneLab.Hosting.Compat.Legacy.Conversion;
 
 namespace TuneLab.Hosting.Compat.Legacy.Format;

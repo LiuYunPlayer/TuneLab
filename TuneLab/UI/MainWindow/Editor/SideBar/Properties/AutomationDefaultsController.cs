@@ -3,12 +3,9 @@ using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using TuneLab.Data;
-using TuneLab.Foundation.Document;
-using TuneLab.Foundation.Event;
-using TuneLab.Foundation.Utils;
+using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Controllers;
-using TuneLab.Primitives.DataStructures;
 using TuneLab.SDK;
 using TuneLab.Utils;
 
