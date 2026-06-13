@@ -1,41 +1,42 @@
-﻿using TuneLab.Foundation;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
-using TuneLab.SDK;
 
 namespace TuneLab.SDK;
 
 // 宿主物化的不可变合成快照（context.GetSnapshot 的返回体）：插件在 SynthesizeNext 的
 // 同步前缀（数据线程）主动拉取，之后才 offload——worker 永不碰活对象，只读它。
-// 形状与 ISynthesisContext 活视图镜像对称，但为纯数据体（数据=具体类型）：无事件
-// （"把回调留到合成线程"在类型上写不出来）、无活引用；构造形态 = 无参 + required init
-// （初始化后不可变，加字段纯加性）。
+// 形状与 ISynthesisContext 活视图镜像对称，但为纯数据体：无事件（"把回调留到合成线程"在
+// 类型上写不出来）、无活引用；构造形态 = 无参 + required init（初始化后不可变，加字段纯加性）。
 //
 // 替换，而非同步：快照只写一次（构造，数据线程），构造 happens-before worker 启动，此后只读；
 // 数据变了走活视图通知 → 插件标脏 → 下次合成拉一份全新快照。无共享可变状态，无需锁。
 // 跨进程演进时它就是 GetSnapshot 的一次批量返回体。
 //
-// automation 冻结形态 = 原始锚点 + 冻结求值器（按需插值）：查询点常是合成的中间产物
-// （音素定时后才知道在哪采），快照时刻预知不了；想"冻结时算好"的插件在同步前缀调求值器
-// 把值采成 double[] 自存即可（推荐模式：前缀预采，worker 内调用仅留给依赖中间产物的动态点）。
-// 原始锚点不暴露、插值算法恒在宿主侧（杜绝两套插值漂移；v2 跨进程在快照序列化时物化为离散点）。
+// 全秒轴：所有时间量（note 边界、求值查询点）均为全局秒，快照不携带 tick↔秒换算服务
+// （插件不碰 tick）。automation 冻结形态 = 原始锚点 + 冻结求值器（按需插值，秒轴）：查询点
+// 常是合成的中间产物（音素定时后才知道在哪采），快照时刻预知不了；想"冻结时算好"的插件在
+// 同步前缀调求值器把值采成 double[] 自存即可。原始锚点不暴露、插值算法恒在宿主侧（杜绝两套
+// 插值漂移；v2 跨进程在快照序列化时物化为离散点）。
 public sealed class SynthesisSnapshot
 {
     // 不可变值快照，有序列表；与 GetSnapshot 递入的 notes 索引对齐（产物归属契约），邻居按索引导航。
     public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }
 
-    // tick↔秒换算服务（接口接缝，实现在宿主侧、与活视图同一套共享算法）：冻结实现可安全跨线程。
-    // v2 跨进程时随快照序列化物化（细节缓后）。tempo 标记明牌数据有需求时纯加性补回（如 Tempos 字段）。
-    public required ITiming Timing { get; init; }
-
-    // 冻结求值器（查询轴 = 全局 tick）：对按开窗区间捕获的原始锚点就地插值，窗口内取值与全曲线逐点全等。
+    // 冻结求值器（查询轴 = 全局秒）：对按开窗区间捕获的原始锚点就地插值，窗口内取值与全曲线逐点全等。
     // Pitch/PitchDeviation 双通道语义与活视图镜像（绝对约束 NaN=自由 / 加性偏差永不 NaN）：
     // finalPitch(t) = resolve(Pitch(t)) + PitchDeviation(t)。
-    public required IAutomationEvaluator Pitch { get; init; }
-    public required IAutomationEvaluator PitchDeviation { get; init; }
-
-    // 全部已声明轨按开窗区间物化（纯数据体：可枚举 Map，而非查询方法）。
-    public required IReadOnlyMap<string, IAutomationEvaluator> Automations { get; init; }
+    public required SynthesisAutomationSnapshot Pitch { get; init; }
+    public required SynthesisAutomationSnapshot PitchDeviation { get; init; }
 
     // 值拷（不可变 PropertyObject）。
     public required PropertyObject PartProperties { get; init; }
+
+    // keyed automation 轨按开窗区间物化，函数式点取（与活视图 TryGetAutomation 同构）：插件按
+    // 自己声明的 key 取，无需枚举宿主提供了什么。内部 Map 不外露枚举面——若将来出现"打包全部
+    // 参数"需求，再加轻量 AutomationKeys，取值仍走此函数式入口。
+    public required IReadOnlyMap<string, SynthesisAutomationSnapshot> AutomationMap { private get; init; }
+
+    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out SynthesisAutomationSnapshot automation)
+        => AutomationMap.TryGetValue(key, out automation);
 }

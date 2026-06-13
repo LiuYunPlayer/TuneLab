@@ -23,9 +23,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
     public ISynthesisAutomation PitchDeviation => mPitchDeviation;
-    public ITiming Timing => mTiming;
 
-    public event Action? TimingModified;
     public event Action? BatchBegin;
     public event Action? BatchEnd;
 
@@ -46,9 +44,11 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         mBatchSignal.BatchBegin += OnBatchBegin;
         mBatchSignal.BatchEnd += OnBatchEnd;
 
-        // 时基变了：tempo 表变更，以及 part 平移（全部 Position 派生随之失效），引擎通常全量重排。
-        part.TempoManager.Modified.Subscribe(NotifyTimingModified, s);
-        part.Pos.Modified.Subscribe(NotifyTimingModified, s);
+        // 时基变了（tempo 表变更 / part 平移）：全部秒域派生失效。无独立的 TimingModified——
+        // note 边界秒值由各 note proxy 的 DerivedProperty source（含 part.Pos / TempoManager）自动触发；
+        // 此处只补 automation 全区间失效（automation proxy 非可订阅属性，需显式广播）。
+        part.TempoManager.Modified.Subscribe(OnTimebaseChanged, s);
+        part.Pos.Modified.Subscribe(OnTimebaseChanged, s);
 
         // 区间失效分通道：pitch 曲线 → Pitch；vibrato 几何 → PitchDeviation。
         part.Pitch.RangeModified.Subscribe(NotifyPitchRangeModified, s);
@@ -70,10 +70,11 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     }
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
-    public SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTick, double endTick)
+    // [startTime, endTime] 为全局秒开窗区间，物化器内部经 tempo 快照换算到 tick 找锚点。
+    public SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
-        return SynthesisSnapshotFactory.Capture(mPart, notes, startTick, endTick);
+        return SynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
     }
 
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
@@ -177,21 +178,32 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     void OnBatchBegin() => Guarded(() => BatchBegin?.Invoke());
     void OnBatchEnd() => Guarded(() => BatchEnd?.Invoke());
 
-    void NotifyTimingModified()
+    // tempo / part 平移变化：note 边界秒由 note proxy sources 自动触发；automation 全区间在此显式广播。
+    // 通常在编辑 command 的批量括号内（IsBatching），多条 RangeModified 共享外层括号、插件一次重排。
+    void OnTimebaseChanged()
     {
-        ForwardChange(() => TimingModified?.Invoke());
+        mPitch.NotifyRangeModified(double.NegativeInfinity, double.PositiveInfinity);
+        mPitchDeviation.NotifyRangeModified(double.NegativeInfinity, double.PositiveInfinity);
+        foreach (var proxy in mAutomationProxies.Values)
+            proxy.NotifyRangeModified(double.NegativeInfinity, double.PositiveInfinity);
+    }
+
+    // part 相对 tick 区间 → 全局秒区间（±∞ 直通，表整轨失效）。
+    double ToGlobalSecond(double relTick)
+    {
+        if (double.IsInfinity(relTick))
+            return relTick;
+        return mTiming.ToSecond(mPart.Pos.Value + relTick);
     }
 
     void NotifyPitchRangeModified(double start, double end)
     {
-        double pos = mPart.Pos.Value;
-        mPitch.NotifyRangeModified(pos + start, pos + end);
+        mPitch.NotifyRangeModified(ToGlobalSecond(start), ToGlobalSecond(end));
     }
 
     void NotifyDeviationRangeModified(double start, double end)
     {
-        double pos = mPart.Pos.Value;
-        mPitchDeviation.NotifyRangeModified(pos + start, pos + end);
+        mPitchDeviation.NotifyRangeModified(ToGlobalSecond(start), ToGlobalSecond(end));
     }
 
     void WireVibrato(Vibrato vibrato)
@@ -225,8 +237,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         automation.RangeModified.Subscribe((start, end) =>
         {
-            double pos = mPart.Pos.Value;
-            NotifyAutomationRangeModified(key, pos + start, pos + end);
+            NotifyAutomationRangeModified(key, start, end);   // part 相对 tick，转发处换算全局秒
         }, subscriptions);
         // 默认值变更 = 整轨取值平移，全范围失效。
         automation.DefaultValue.Modified.Subscribe(() =>
@@ -244,15 +255,18 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     readonly Dictionary<Vibrato, DisposableManager> mVibratoSubscriptions = new();
 
-    void NotifyAutomationRangeModified(string key, double startTick, double endTick)
+    void NotifyAutomationRangeModified(string key, double relStart, double relEnd)
     {
+        double startSecond = ToGlobalSecond(relStart);
+        double endSecond = ToGlobalSecond(relEnd);
+
         // 包络轨影响 vibrato 偏移：偏差通道（及受 vibrato 影响的轨）随之失效。
         // v1 按主要影响面转发到 PitchDeviation；受影响 automation 轨的精确失效缓后。
         if (key == ConstantDefine.VibratoEnvelopeID)
-            mPitchDeviation.NotifyRangeModified(startTick, endTick);
+            mPitchDeviation.NotifyRangeModified(startSecond, endSecond);
 
         if (mAutomationProxies.TryGetValue(key, out var proxy))
-            proxy.NotifyRangeModified(startTick, endTick);
+            proxy.NotifyRangeModified(startSecond, endSecond);
     }
 
     readonly MidiPart mPart;
@@ -278,27 +292,28 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     }
 
     // —— 曲线类的会话级活视图：取值经 sampler 委托（part 相对 tick 轴）回宿主数据层，
-    //    区间事件由 context 集中换算成全局 tick 后注入。 ——
+    //    秒↔tick 换算与 part 偏移由本代理在边界完成；区间事件由 context 换算成全局秒后注入。 ——
     internal sealed class AutomationProxy(SynthesisContext context, Func<IReadOnlyList<double>, double[]> sampler) : ISynthesisAutomation
     {
         public event Action<double, double>? RangeModified;
 
-        // 查询轴 = 全局 tick，此处减 part 偏移后喂数据层 sampler。
-        public double[] Evaluate(IReadOnlyList<double> points)
+        // 查询轴 = 全局秒：全局秒 → 全局 tick → part 相对 tick → 喂数据层 sampler。
+        public double[] Evaluate(IReadOnlyList<double> times)
         {
             context.AssertDataThread();
             double pos = context.mPart.Pos.Value;
-            double[] ticks = new double[points.Count];
-            for (int i = 0; i < points.Count; i++)
+            double[] globalTicks = context.mTiming.ToTicks(times);
+            double[] relTicks = new double[globalTicks.Length];
+            for (int i = 0; i < globalTicks.Length; i++)
             {
-                ticks[i] = points[i] - pos;
+                relTicks[i] = globalTicks[i] - pos;
             }
-            return sampler(ticks);
+            return sampler(relTicks);
         }
 
-        internal void NotifyRangeModified(double startTick, double endTick)
+        internal void NotifyRangeModified(double startSecond, double endSecond)
         {
-            context.ForwardChange(() => RangeModified?.Invoke(startTick, endTick));
+            context.ForwardChange(() => RangeModified?.Invoke(startSecond, endSecond));
         }
     }
 
@@ -500,14 +515,15 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         readonly Dictionary<string, PropertyObjectGuard> mChildren = new();
     }
 
-    // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局 tick（真值域，
-    //    秒经 context.Timing 换算）；Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
+    // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局秒（ToSecond(partPos+notePos)，
+    //    DerivedProperty source 含 part.Pos / TempoManager，故 tempo 变 / part 平移自动触发边界 Modified）；
+    //    Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
     internal sealed class SynthesisNoteProxy : ISynthesisNote, IDisposable
     {
         public INote Source => mNote;
 
-        public IReadOnlyNotifiableProperty<double> StartTick { get; }
-        public IReadOnlyNotifiableProperty<double> EndTick { get; }
+        public IReadOnlyNotifiableProperty<double> StartTime { get; }
+        public IReadOnlyNotifiableProperty<double> EndTime { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
         public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.PinnedPhoneme>> Phonemes { get; }
@@ -521,10 +537,12 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             mContext = context;
             mNote = note;
             var part = context.mPart;
-            StartTick = Track(new DerivedProperty<double>(context, () =>
-                part.Pos.Value + note.Pos.Value, note.Pos));
-            EndTick = Track(new DerivedProperty<double>(context, () =>
-                part.Pos.Value + note.Pos.Value + note.Dur.Value, note.Pos, note.Dur));
+            StartTime = Track(new DerivedProperty<double>(context, () =>
+                context.mTiming.ToSecond(part.Pos.Value + note.Pos.Value),
+                note.Pos, part.Pos, part.TempoManager));
+            EndTime = Track(new DerivedProperty<double>(context, () =>
+                context.mTiming.ToSecond(part.Pos.Value + note.Pos.Value + note.Dur.Value),
+                note.Pos, note.Dur, part.Pos, part.TempoManager));
             Pitch = Track(new DerivedProperty<int>(context, () => note.Pitch.Value, note.Pitch));
             Lyric = Track(new DerivedProperty<string>(context, () => note.FinalPronunciation() ?? note.Lyric.Value, note.Lyric, note.Pronunciation));
             Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.PinnedPhoneme>>(context, () =>

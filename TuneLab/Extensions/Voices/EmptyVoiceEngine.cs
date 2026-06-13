@@ -12,7 +12,7 @@ namespace TuneLab.Extensions.Voices;
 [VoiceEngine("")]
 internal class EmptyVoiceEngine : IVoiceEngine
 {
-    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, mVoiceSourceInfo } };
+    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, mVoiceSourceInfo } };
 
     public void Init() { }
 

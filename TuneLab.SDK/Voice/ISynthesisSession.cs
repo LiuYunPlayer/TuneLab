@@ -12,7 +12,7 @@ namespace TuneLab.SDK;
 // 重建新会话（context 随会话重建）。会话是轻量句柄，重模型加载是懒的。
 public interface ISynthesisSession : IDisposable
 {
-    // —— 声明（该声源暴露什么；Name/Description 等元数据由 IVoiceEngine.VoiceInfos 提供，不重复）——
+    // —— 声明（该声源暴露什么；Name/Description 等元数据由 IVoiceEngine.VoiceSourceInfos 提供，不重复）——
     // 接口面只保留函数式获取（静态声明是插件实现内部的事：返回缓存 map 即一行）；
     // 宿主在会话创建/重建后调用并缓存。运行中动态变化（轨集合变更通知 + 既有轨数据归宿）挂账缓后。
     string DefaultLyric { get; }

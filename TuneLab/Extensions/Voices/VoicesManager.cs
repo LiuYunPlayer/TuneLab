@@ -63,14 +63,14 @@ internal static class VoicesManager
         if (engine == null)
             return null;
 
-        return engine.VoiceInfos;
+        return engine.VoiceSourceInfos;
     }
 
     // 声库目录元数据（无需创建会话）；引擎不可用或 id 未知返回 false。
     public static bool TryGetVoiceInfo(string type, string id, out VoiceSourceInfo info)
     {
         var engine = GetInitedEngine(type);
-        if (engine != null && engine.VoiceInfos.TryGetValue(id, out info))
+        if (engine != null && engine.VoiceSourceInfos.TryGetValue(id, out info))
             return true;
 
         info = default;
@@ -81,7 +81,7 @@ internal static class VoicesManager
     public static ISynthesisSession CreateSession(string type, string id, ISynthesisContext context)
     {
         var engine = GetInitedEngine(type);
-        if (engine != null && engine.VoiceInfos.ContainsKey(id))
+        if (engine != null && engine.VoiceSourceInfos.ContainsKey(id))
         {
             try
             {

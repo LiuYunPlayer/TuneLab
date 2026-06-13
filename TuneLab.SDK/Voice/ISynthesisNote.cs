@@ -6,13 +6,13 @@ namespace TuneLab.SDK;
 // voice 专属 per-note 参数一律走 Properties（keyed）——加新参数 = 加会话声明 NoteProperties
 // 的 key，不动本接口固定面。
 //
-// 时间量只给真值域：note 边界是乐谱量，真值即全局 tick；秒是 tempo 表的派生值，
-// 需要时经 context.Timing（活视图）/ snapshot.Timing（冻结面）显式换算——同一个量
-// 不双域成对出现（tick 不随 tempo 漂，tempo 变化的信号是 TimingModified）。
+// 时间量为全局秒（插件侧统一秒轴，与音频产物同系）：note 边界是 tempo 表派生的秒值，tempo
+// 变化时边界值随之改变，其 StartTime/EndTime.Modified 即触发——这正是"tempo 变了"对插件的
+// 具体体现，无需独立的时基信号。tick 是宿主乐谱内部表示、不外露。
 public interface ISynthesisNote
 {
-    IReadOnlyNotifiableProperty<double> StartTick { get; }
-    IReadOnlyNotifiableProperty<double> EndTick { get; }
+    IReadOnlyNotifiableProperty<double> StartTime { get; }
+    IReadOnlyNotifiableProperty<double> EndTime { get; }
     IReadOnlyNotifiableProperty<int> Pitch { get; }
     IReadOnlyNotifiableProperty<string> Lyric { get; }
     IReadOnlyNotifiableProperty<IReadOnlyList<PinnedPhoneme>> Phonemes { get; }

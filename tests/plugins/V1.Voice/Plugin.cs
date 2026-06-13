@@ -16,7 +16,7 @@ namespace TuneLab.TestPlugins.V1Voice;
 [VoiceEngine("TLTestVoiceV1")]
 public sealed class TestVoiceEngine : IVoiceEngine
 {
-    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => mVoiceInfos;
+    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
     public void Init()
     {
@@ -47,7 +47,6 @@ public sealed class TestSession : ISynthesisSession
         context.Notes.ItemAdded += OnNotesStructureChanged;
         context.Notes.ItemRemoved += OnNotesStructureChanged;
         context.PartProperties.Modified += MarkAllDirtyAndResegment;
-        context.TimingModified += MarkAllDirtyAndResegment;
         context.BatchEnd += OnBatchEnd;
         context.Pitch.RangeModified += OnRangeModified;
         context.PitchDeviation.RangeModified += OnRangeModified;
@@ -99,8 +98,8 @@ public sealed class TestSession : ISynthesisSession
         // 同步前缀（数据线程）拉取快照：notes 即本块全集，曲线开窗按 note 范围。
         var snapshot = mContext.GetSnapshot(
             piece.Notes,
-            piece.Notes[0].StartTick.Value,
-            piece.Notes[^1].EndTick.Value);
+            piece.Notes[0].StartTime.Value,
+            piece.Notes[^1].EndTime.Value);
 
         piece.Dirty = false; // 合成期间到达的新变更会重新标脏，完成后自然重排
         piece.Synthesizing = true;
@@ -202,7 +201,6 @@ public sealed class TestSession : ISynthesisSession
         mContext.Notes.ItemAdded -= OnNotesStructureChanged;
         mContext.Notes.ItemRemoved -= OnNotesStructureChanged;
         mContext.PartProperties.Modified -= MarkAllDirtyAndResegment;
-        mContext.TimingModified -= MarkAllDirtyAndResegment;
         mContext.BatchEnd -= OnBatchEnd;
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
@@ -222,8 +220,8 @@ public sealed class TestSession : ISynthesisSession
             return new RenderResult([], 0, []);
         }
 
-        double startTime = snapshot.Timing.ToSecond(notes[0].StartTick);
-        double endTime = snapshot.Timing.ToSecond(notes[^1].EndTick);
+        double startTime = notes[0].StartTime;
+        double endTime = notes[^1].EndTime;
         int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
         var audio = new float[sampleCount];
         var phonemes = new List<SynthesizedPhoneme>(notes.Count);
@@ -234,8 +232,8 @@ public sealed class TestSession : ISynthesisSession
                 return null; // 取消是正常调度结局：不抛异常，产物保持上一版
 
             var note = notes[n];
-            double noteStart = snapshot.Timing.ToSecond(note.StartTick);
-            double noteEnd = snapshot.Timing.ToSecond(note.EndTick);
+            double noteStart = note.StartTime;
+            double noteEnd = note.EndTime;
             int from = Math.Clamp((int)((noteStart - startTime) * kSampleRate), 0, sampleCount);
             int to = Math.Clamp((int)((noteEnd - startTime) * kSampleRate), 0, sampleCount);
 
@@ -248,9 +246,8 @@ public sealed class TestSession : ISynthesisSession
             {
                 controlTimes[c] = noteStart + (noteEnd - noteStart) * c / (controlCount - 1);
             }
-            var controlTicks = snapshot.Timing.ToTicks(controlTimes);
-            var pitchValues = snapshot.Pitch.Evaluate(controlTicks);
-            var deviation = snapshot.PitchDeviation.Evaluate(controlTicks);
+            var pitchValues = snapshot.Pitch.Evaluate(controlTimes);
+            var deviation = snapshot.PitchDeviation.Evaluate(controlTimes);
             for (int c = 0; c < controlCount; c++)
             {
                 pitchValues[c] = (double.IsNaN(pitchValues[c]) ? note.Pitch : pitchValues[c]) + deviation[c];
@@ -300,7 +297,7 @@ public sealed class TestSession : ISynthesisSession
         ISynthesisNote? previous = null;
         foreach (var note in mContext.Notes)
         {
-            if (current == null || previous == null || note.StartTick.Value > previous.EndTick.Value)
+            if (current == null || previous == null || note.StartTime.Value > previous.EndTime.Value)
             {
                 current = new List<ISynthesisNote>();
                 groups.Add(current);
@@ -316,8 +313,8 @@ public sealed class TestSession : ISynthesisSession
             if (existing != null)
             {
                 mPieces.Remove(existing);
-                existing.StartTime = mContext.Timing.ToSecond(notes[0].StartTick.Value);
-                existing.EndTime = mContext.Timing.ToSecond(notes[^1].EndTick.Value);
+                existing.StartTime = notes[0].StartTime.Value;
+                existing.EndTime = notes[^1].EndTime.Value;
                 newPieces.Add(existing);
             }
             else
@@ -325,8 +322,8 @@ public sealed class TestSession : ISynthesisSession
                 newPieces.Add(new Piece
                 {
                     Notes = notes,
-                    StartTime = mContext.Timing.ToSecond(notes[0].StartTick.Value),
-                    EndTime = mContext.Timing.ToSecond(notes[^1].EndTick.Value),
+                    StartTime = notes[0].StartTime.Value,
+                    EndTime = notes[^1].EndTime.Value,
                     Dirty = true,
                 });
             }
@@ -352,8 +349,8 @@ public sealed class TestSession : ISynthesisSession
             mNeedResegment = true;
         }
         mNoteHandlers[note] = handler;
-        note.StartTick.Modified += handler;
-        note.EndTick.Modified += handler;
+        note.StartTime.Modified += handler;
+        note.EndTime.Modified += handler;
         note.Pitch.Modified += handler;
         note.Lyric.Modified += handler;
         note.Phonemes.Modified += handler;
@@ -365,8 +362,8 @@ public sealed class TestSession : ISynthesisSession
         if (!mNoteHandlers.Remove(note, out var handler))
             return;
 
-        note.StartTick.Modified -= handler;
-        note.EndTick.Modified -= handler;
+        note.StartTime.Modified -= handler;
+        note.EndTime.Modified -= handler;
         note.Pitch.Modified -= handler;
         note.Lyric.Modified -= handler;
         note.Phonemes.Modified -= handler;
@@ -391,10 +388,8 @@ public sealed class TestSession : ISynthesisSession
             Resegment();
     }
 
-    void OnRangeModified(double startTick, double endTick)
+    void OnRangeModified(double startTime, double endTime)
     {
-        double startTime = mContext.Timing.ToSecond(startTick);
-        double endTime = mContext.Timing.ToSecond(endTick);
         foreach (var piece in mPieces)
         {
             if (piece.EndTime < startTime || piece.StartTime > endTime)

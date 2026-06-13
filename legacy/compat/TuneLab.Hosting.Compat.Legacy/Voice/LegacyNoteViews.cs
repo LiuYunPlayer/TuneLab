@@ -11,16 +11,17 @@ namespace TuneLab.Hosting.Compat.Legacy.Voice;
 // 两形态对应老接口的两个消费场景：
 //   LiveNoteView    —— Segment() 分片输入（数据线程，读活代理当前值）；
 //   SnapshotNoteView —— CreateSynthesisTask 的数据输入（worker 线程，只读冻结快照）。
+//
+// 老接口与 V1 面的 note 边界同为全局秒（V1 全秒轴改造后），直透即可，无需 tick↔秒换算。
 
 // 活视图包装：身份按 V1 note 代理缓存（同一代理恒得同一包装，分片 EqualsWith 依赖引用相等）。
-// timing = context.Timing：老接口的 note 边界是秒，V1 面只给 tick 真值，此处现换算。
-internal sealed class LiveNoteViewCache(ITiming timing, Func<VVoice.ISynthesisNote, LProp.PropertyObject> propertiesReader)
+internal sealed class LiveNoteViewCache(Func<VVoice.ISynthesisNote, LProp.PropertyObject> propertiesReader)
 {
     public LiveNoteView Wrap(VVoice.ISynthesisNote origin)
     {
         if (!mViews.TryGetValue(origin, out var view))
         {
-            view = new LiveNoteView(origin, this, timing, propertiesReader);
+            view = new LiveNoteView(origin, this, propertiesReader);
             mViews.Add(origin, view);
         }
         return view;
@@ -46,15 +47,14 @@ internal sealed class LiveNoteViewCache(ITiming timing, Func<VVoice.ISynthesisNo
 internal sealed class LiveNoteView(
     VVoice.ISynthesisNote origin,
     LiveNoteViewCache cache,
-    ITiming timing,
     Func<VVoice.ISynthesisNote, LProp.PropertyObject> propertiesReader) : LVoice.ISynthesisNote
 {
     public VVoice.ISynthesisNote Origin => origin;
 
     public LVoice.ISynthesisNote? Next => origin.Next is { } next ? cache.Wrap(next) : null;
     public LVoice.ISynthesisNote? Last => origin.Last is { } last ? cache.Wrap(last) : null;
-    public double StartTime => timing.ToSecond(origin.StartTick.Value);
-    public double EndTime => timing.ToSecond(origin.EndTick.Value);
+    public double StartTime => origin.StartTime.Value;
+    public double EndTime => origin.EndTime.Value;
     public int Pitch => origin.Pitch.Value;
     public string Lyric => origin.Lyric.Value;
     // 按老声源的 NoteProperties 声明键现取（V1 订阅树外观不可枚举，键集来自声明）。
@@ -77,12 +77,12 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; }
 
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
-        IReadOnlyList<VVoice.SynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.ISynthesisNote> origins, ITiming timing)
+        IReadOnlyList<VVoice.SynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.ISynthesisNote> origins)
     {
         var views = new SnapshotNoteView[notes.Count];
         for (int i = 0; i < notes.Count; i++)
         {
-            views[i] = new SnapshotNoteView(notes[i], origins[i], timing);
+            views[i] = new SnapshotNoteView(notes[i], origins[i]);
         }
         for (int i = 0; i + 1 < views.Length; i++)
         {
@@ -92,13 +92,12 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         return views;
     }
 
-    // timing = snapshot.Timing（不可变），边界秒在构造时一次换算冻结。
-    SnapshotNoteView(VVoice.SynthesisNoteSnapshot note, VVoice.ISynthesisNote origin, ITiming timing)
+    SnapshotNoteView(VVoice.SynthesisNoteSnapshot note, VVoice.ISynthesisNote origin)
     {
         mNote = note;
         Origin = origin;
-        StartTime = timing.ToSecond(note.StartTick);
-        EndTime = timing.ToSecond(note.EndTick);
+        StartTime = note.StartTime;
+        EndTime = note.EndTime;
         Properties = Conversion.PropertyConvert.ToLegacy(note.Properties);
         Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime);
     }

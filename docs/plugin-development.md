@@ -172,7 +172,7 @@ using TuneLab.SDK;
 [VoiceEngine("MyEngine")]            // 引擎类型标识（唯一）
 public class MyVoiceEngine : IVoiceEngine
 {
-    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => mVoiceInfos;
+    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
     // enginePath = 你的包文件夹路径，用来定位随包分发的模型/资源。
     public bool Init(string enginePath, out string? error)

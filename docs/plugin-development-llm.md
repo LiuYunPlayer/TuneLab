@@ -56,7 +56,7 @@ public interface IExportFormat { Stream Serialize(ProjectInfo info); }
 ### Voice 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IVoiceEngine {
-    IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos { get; }   // TuneLab.Foundation
+    IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos { get; }   // TuneLab.Foundation
     bool Init(string enginePath, out string? error);                  // enginePath = 包文件夹
     void Destroy();
     IVoiceSource CreateVoiceSource(string id);

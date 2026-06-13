@@ -43,7 +43,7 @@ static class L
 [VoiceEngine("TLI18NVoice")]
 public sealed class I18NVoiceEngine : IVoiceEngine
 {
-    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceInfos => mVoiceInfos;
+    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
     public void Init()
     {
@@ -81,7 +81,6 @@ public sealed class I18NSession : ISynthesisSession
         mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.Modified += MarkDirty;
         context.PartProperties.Modified += MarkDirty;
-        context.TimingModified += MarkDirty;
         mDirty = true;
     }
 
@@ -96,8 +95,8 @@ public sealed class I18NSession : ISynthesisSession
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
-        double blockStart = mContext.Timing.ToSecond(mContext.Notes.First!.StartTick.Value);
-        double blockEnd = mContext.Timing.ToSecond(mContext.Notes.Last!.EndTick.Value);
+        double blockStart = mContext.Notes.First!.StartTime.Value;
+        double blockEnd = mContext.Notes.Last!.EndTime.Value;
         return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
     }
 
@@ -111,16 +110,16 @@ public sealed class I18NSession : ISynthesisSession
         var origins = mContext.Notes.ToList();
         var snapshot = mContext.GetSnapshot(
             origins,
-            origins[0].StartTick.Value,
-            origins[^1].EndTick.Value);
+            origins[0].StartTime.Value,
+            origins[^1].EndTime.Value);
 
         mDirty = false;
         mSynthesizing = true;
         StatusChanged?.Invoke();
 
         var notes = snapshot.Notes;
-        double startTime = notes.Count > 0 ? snapshot.Timing.ToSecond(notes[0].StartTick) : 0;
-        double endTime = notes.Count > 0 ? snapshot.Timing.ToSecond(notes[^1].EndTick) : 0;
+        double startTime = notes.Count > 0 ? notes[0].StartTime : 0;
+        double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
         mAudio = new float[Math.Max(1, (int)((endTime - startTime) * kSampleRate))];
         mAudioStart = startTime;
         mBlockStart = startTime;
@@ -129,8 +128,8 @@ public sealed class I18NSession : ISynthesisSession
         for (int i = 0; i < notes.Count; i++)
         {
             var note = notes[i];
-            double noteStart = snapshot.Timing.ToSecond(note.StartTick);
-            double noteEnd = snapshot.Timing.ToSecond(note.EndTick);
+            double noteStart = note.StartTime;
+            double noteEnd = note.EndTime;
             phonemes.Add(new SynthesizedPhoneme
             {
                 Symbol = note.Lyric,
@@ -174,8 +173,8 @@ public sealed class I18NSession : ISynthesisSession
         if (mContext.Notes.Count == 0)
             return [];
 
-        double start = mSynthesizing || mAudio == null ? mContext.Timing.ToSecond(mContext.Notes.First!.StartTick.Value) : mBlockStart;
-        double end = mSynthesizing || mAudio == null ? mContext.Timing.ToSecond(mContext.Notes.Last!.EndTick.Value) : mBlockEnd;
+        double start = mSynthesizing || mAudio == null ? mContext.Notes.First!.StartTime.Value : mBlockStart;
+        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last!.EndTime.Value : mBlockEnd;
         var status = mSynthesizing ? SynthesisSegmentStatus.Synthesizing
             : mDirty || mAudio == null ? SynthesisSegmentStatus.Pending
             : SynthesisSegmentStatus.Synthesized;
@@ -189,13 +188,12 @@ public sealed class I18NSession : ISynthesisSession
         mNotesSubscription.Dispose();
         mContext.Notes.Modified -= MarkDirty;
         mContext.PartProperties.Modified -= MarkDirty;
-        mContext.TimingModified -= MarkDirty;
     }
 
     void SubscribeNote(ISynthesisNote note)
     {
-        note.StartTick.Modified += MarkDirty;
-        note.EndTick.Modified += MarkDirty;
+        note.StartTime.Modified += MarkDirty;
+        note.EndTime.Modified += MarkDirty;
         note.Pitch.Modified += MarkDirty;
         note.Lyric.Modified += MarkDirty;
         note.Phonemes.Modified += MarkDirty;
@@ -204,8 +202,8 @@ public sealed class I18NSession : ISynthesisSession
 
     void UnsubscribeNote(ISynthesisNote note)
     {
-        note.StartTick.Modified -= MarkDirty;
-        note.EndTick.Modified -= MarkDirty;
+        note.StartTime.Modified -= MarkDirty;
+        note.EndTime.Modified -= MarkDirty;
         note.Pitch.Modified -= MarkDirty;
         note.Lyric.Modified -= MarkDirty;
         note.Phonemes.Modified -= MarkDirty;
