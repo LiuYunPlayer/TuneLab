@@ -44,11 +44,9 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         mBatchSignal.BatchBegin += OnBatchBegin;
         mBatchSignal.BatchEnd += OnBatchEnd;
 
-        // 时基变了（tempo 表变更 / part 平移）：全部秒域派生失效。无独立的 TimingModified——
-        // note 边界秒值由各 note proxy 的 DerivedProperty source（含 part.Pos / TempoManager）自动触发；
-        // 此处只补 automation 全区间失效（automation proxy 非可订阅属性，需显式广播）。
-        part.TempoManager.Modified.Subscribe(OnTimebaseChanged, s);
-        part.Pos.Modified.Subscribe(OnTimebaseChanged, s);
+        // 时基变了（tempo 表变更 / part 平移）：宿主整体重建 session（含 context），不在此做
+        // 增量通知——平移跨 bpm 段会改各 note 秒时长，非纯偏移，第一版无脑重建最简单正确。
+        // 故 note 边界 DerivedProperty 不订阅 part.Pos / TempoManager（其变化由 session 重建覆盖）。
 
         // 区间失效分通道：pitch 曲线 → Pitch；vibrato 几何 → PitchDeviation。
         part.Pitch.RangeModified.Subscribe(NotifyPitchRangeModified, s);
@@ -177,16 +175,6 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     void OnBatchBegin() => Guarded(() => BatchBegin?.Invoke());
     void OnBatchEnd() => Guarded(() => BatchEnd?.Invoke());
-
-    // tempo / part 平移变化：note 边界秒由 note proxy sources 自动触发；automation 全区间在此显式广播。
-    // 通常在编辑 command 的批量括号内（IsBatching），多条 RangeModified 共享外层括号、插件一次重排。
-    void OnTimebaseChanged()
-    {
-        mPitch.NotifyRangeModified(double.NegativeInfinity, double.PositiveInfinity);
-        mPitchDeviation.NotifyRangeModified(double.NegativeInfinity, double.PositiveInfinity);
-        foreach (var proxy in mAutomationProxies.Values)
-            proxy.NotifyRangeModified(double.NegativeInfinity, double.PositiveInfinity);
-    }
 
     // part 相对 tick 区间 → 全局秒区间（±∞ 直通，表整轨失效）。
     double ToGlobalSecond(double relTick)
@@ -537,12 +525,14 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             mContext = context;
             mNote = note;
             var part = context.mPart;
+            // source 只含 note 自身字段（note 在 part 内编辑）；part.Pos/tempo 变化走 session 重建，
+            // getter 读 part.Pos.Value 当前值即可（session 生命周期内稳定）。
             StartTime = Track(new DerivedProperty<double>(context, () =>
                 context.mTiming.ToSecond(part.Pos.Value + note.Pos.Value),
-                note.Pos, part.Pos, part.TempoManager));
+                note.Pos));
             EndTime = Track(new DerivedProperty<double>(context, () =>
                 context.mTiming.ToSecond(part.Pos.Value + note.Pos.Value + note.Dur.Value),
-                note.Pos, note.Dur, part.Pos, part.TempoManager));
+                note.Pos, note.Dur));
             Pitch = Track(new DerivedProperty<int>(context, () => note.Pitch.Value, note.Pitch));
             Lyric = Track(new DerivedProperty<string>(context, () => note.FinalPronunciation() ?? note.Lyric.Value, note.Lyric, note.Pronunciation));
             Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.PinnedPhoneme>>(context, () =>

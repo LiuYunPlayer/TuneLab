@@ -24,10 +24,12 @@ public sealed class SynthesisSnapshot
     public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }
 
     // 冻结求值器（查询轴 = 全局秒）：对按开窗区间捕获的原始锚点就地插值，窗口内取值与全曲线逐点全等。
+    // automation 冻结快照的本质能力就是求值，故直接用 IAutomationEvaluator（无额外数据字段时不套
+    // 具名壳；将来真要带数据字段再引入有实质内容的具名类型）。
     // Pitch/PitchDeviation 双通道语义与活视图镜像（绝对约束 NaN=自由 / 加性偏差永不 NaN）：
     // finalPitch(t) = resolve(Pitch(t)) + PitchDeviation(t)。
-    public required SynthesisAutomationSnapshot Pitch { get; init; }
-    public required SynthesisAutomationSnapshot PitchDeviation { get; init; }
+    public required IAutomationEvaluator Pitch { get; init; }
+    public required IAutomationEvaluator PitchDeviation { get; init; }
 
     // 值拷（不可变 PropertyObject）。
     public required PropertyObject PartProperties { get; init; }
@@ -35,8 +37,8 @@ public sealed class SynthesisSnapshot
     // keyed automation 轨按开窗区间物化，函数式点取（与活视图 TryGetAutomation 同构）：插件按
     // 自己声明的 key 取，无需枚举宿主提供了什么。内部 Map 不外露枚举面——若将来出现"打包全部
     // 参数"需求，再加轻量 AutomationKeys，取值仍走此函数式入口。
-    public required IReadOnlyMap<string, SynthesisAutomationSnapshot> AutomationMap { private get; init; }
+    public required IReadOnlyMap<string, IAutomationEvaluator> AutomationMap { private get; init; }
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out SynthesisAutomationSnapshot automation)
+    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out IAutomationEvaluator automation)
         => AutomationMap.TryGetValue(key, out automation);
 }
