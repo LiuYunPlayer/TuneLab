@@ -75,6 +75,22 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         return SynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
     }
 
+    // 音频段工厂（插件调入）：一次性分配固定长度缓冲、登记握柄。插件就地写子区间、Commit 标完成，
+    // 重分片时 Dispose 释放（从登记表摘除）。管线（VoiceSynthesisPipeline）经 AudioSegments 读取拼装。
+    public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount)
+    {
+        AssertDataThread();
+        var segment = new AudioSegment(this, sampleOffset, sampleCount);
+        if (!mDisposed)
+            mAudioSegments.Add(segment);
+        return segment;
+    }
+
+    // 宿主侧读取面（同 TuneLab 程序集内的管线消费）：已交付音频的段拼成链头输入。
+    internal IReadOnlyList<AudioSegment> AudioSegments => mAudioSegments;
+
+    void RemoveAudioSegment(AudioSegment segment) => mAudioSegments.Remove(segment);
+
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
     {
         if (!mPart.IsEffectiveAutomation(key))
@@ -122,6 +138,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         mVibratoSubscriptions.Clear();
         mNotes.Dispose();
         mPartProperties.Dispose();
+        mAudioSegments.Clear();
     }
 
     // —— 转发旋钮（线程/时机/故障隔离/批量都收在这里）——
@@ -268,7 +285,47 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();
     readonly Dictionary<string, DisposableManager> mAutomationSubscriptions = new();
     readonly DisposableManager s = new();
+    readonly List<AudioSegment> mAudioSegments = new();
     bool mDisposed;
+
+    // —— 音频段握柄的宿主实现：创建时一次性分配固定缓冲（采样域，全局采样位置 SampleOffset）；
+    //    插件就地写子区间、Commit 标固定；管线读 SampleOffset/Samples 拼装、驱动 effect。
+    //    Dispose = 从登记表摘除（重分片 / 改长度位置时重建）。 ——
+    internal sealed class AudioSegment : IAudioSegment
+    {
+        public AudioSegment(SynthesisContext owner, long sampleOffset, int sampleCount)
+        {
+            mOwner = owner;
+            SampleOffset = sampleOffset;
+            mSamples = new float[Math.Max(0, sampleCount)];
+        }
+
+        public long SampleOffset { get; }
+        public float[] Samples => mSamples;
+        public bool IsCommitted { get; private set; }
+
+        public void Write(int offset, ReadOnlySpan<float> samples)
+        {
+            mOwner.AssertDataThread();
+            samples.CopyTo(mSamples.AsSpan(offset));   // 越界即抛（契约：超出 sampleCount 非法）
+            IsCommitted = false;
+        }
+
+        public void Commit()
+        {
+            mOwner.AssertDataThread();
+            IsCommitted = true;
+        }
+
+        public void Dispose()
+        {
+            mOwner.AssertDataThread();
+            mOwner.RemoveAudioSegment(this);
+        }
+
+        readonly SynthesisContext mOwner;
+        readonly float[] mSamples;
+    }
 
     // —— ITiming 活实现：直接转发 TempoManager（仅数据线程使用；快照侧用 TempoSnapshot）——
     sealed class LiveTiming(SynthesisContext context, ITempoManager tempoManager) : ITiming

@@ -88,8 +88,10 @@ public abstract class SingleBlockSession : ISynthesisSession
             var notes = snapshot.Notes;
             double startTime = notes.Count > 0 ? notes[0].StartTime : 0;
             double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
-            mAudio = new float[Math.Max(1, (int)((endTime - startTime) * kSampleRate))];
-            mAudioStart = startTime;
+            int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
+            mSegment?.Dispose();
+            mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount);
+            mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
             var phonemes = new List<SynthesizedPhoneme>(notes.Count);
             for (int i = 0; i < notes.Count; i++)
             {
@@ -119,22 +121,8 @@ public abstract class SingleBlockSession : ISynthesisSession
         await Task.CompletedTask;
     }
 
-    // 音频协议：全局 0 时刻 = 采样点 0。
+    // 音频协议：全局 0 时刻 = 采样点 0；音频本体经 IAudioSegment 握柄交付（见 SynthesizeNext）。
     public int SampleRate => kSampleRate;
-
-    public void ReadAudio(long offset, int count, float[] dst)
-    {
-        if (mAudio is not { } audio)
-            return;
-
-        long audioOffset = (long)(mAudioStart * kSampleRate);
-        long from = Math.Max(offset, audioOffset);
-        long to = Math.Min(offset + count, audioOffset + audio.Length);
-        for (long i = from; i < to; i++)
-        {
-            dst[i - offset] += audio[i - audioOffset];
-        }
-    }
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
     public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
@@ -142,16 +130,16 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()
     {
-        if (mAudio == null && !mSynthesizing && !mDirty)
+        if (mSegment == null && !mSynthesizing && !mDirty)
             return [];
 
         if (mContext.Notes.Count == 0)
             return [];
 
-        double start = mSynthesizing || mAudio == null ? mContext.Notes.First!.StartTime.Value : mBlockStart;
-        double end = mSynthesizing || mAudio == null ? mContext.Notes.Last!.EndTime.Value : mBlockEnd;
+        double start = mSynthesizing || mSegment == null ? mContext.Notes.First!.StartTime.Value : mBlockStart;
+        double end = mSynthesizing || mSegment == null ? mContext.Notes.Last!.EndTime.Value : mBlockEnd;
         var status = mSynthesizing ? SynthesisSegmentStatus.Synthesizing
-            : mDirty || mAudio == null ? SynthesisSegmentStatus.Pending
+            : mDirty || mSegment == null ? SynthesisSegmentStatus.Pending
             : SynthesisSegmentStatus.Synthesized;
         return [new SynthesisStatusSegment { StartTime = start, EndTime = end, Status = status }];
     }
@@ -165,6 +153,7 @@ public abstract class SingleBlockSession : ISynthesisSession
         mContext.PartProperties.Modified -= MarkDirty;
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
+        mSegment?.Dispose();
     }
 
     void SubscribeNote(ISynthesisNote note)
@@ -201,8 +190,7 @@ public abstract class SingleBlockSession : ISynthesisSession
     readonly IDisposable mNotesSubscription;
     bool mDirty;
     bool mSynthesizing;
-    float[]? mAudio;
-    double mAudioStart;
+    IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
     IReadOnlyList<SynthesizedPhoneme> mPhonemes = [];

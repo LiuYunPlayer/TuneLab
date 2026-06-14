@@ -168,29 +168,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         NotifyStatusChanged();
     }
 
-    // —— 音频产物（多块按全局时间轴对齐相加；协议：全局 0 时刻 = 采样点 0）——
+    // —— 音频产物（每块经 IAudioSegment 握柄交付；协议：全局 0 时刻 = 采样点 0）——
     public int SampleRate => mSessionRate ?? 44100;
-
-    public void ReadAudio(long offset, int count, float[] dst)
-    {
-        if (mSessionRate is not { } rate)
-            return;
-
-        foreach (var piece in mPieces)
-        {
-            if (piece.Result is not { } result)
-                continue;
-
-            long resultOffset = (long)(result.StartTime * rate);
-            var samples = result.AudioData;
-            long from = Math.Max(offset, resultOffset);
-            long to = Math.Min(offset + count, resultOffset + samples.Length);
-            for (long i = from; i < to; i++)
-            {
-                dst[i - offset] += samples[i - resultOffset];
-            }
-        }
-    }
 
     // —— 曲线类产物 ——
     public IReadOnlyList<IReadOnlyList<PStruct.Point>> SynthesizedPitch
@@ -268,6 +247,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             DetachNoteHandler(kv.Key, kv.Value);
         }
         mNoteHandlers.Clear();
+        foreach (var piece in mPieces)
+            piece.Segment?.Dispose();
         mPieces.Clear();
     }
 
@@ -420,6 +401,9 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             }
         }
 
+        // 未被复用的旧块（note 集已不存在）：释放段握柄，宿主丢对应 effect 缓存。
+        foreach (var piece in mPieces)
+            piece.Segment?.Dispose();
         mPieces.Clear();
         mPieces.AddRange(newPieces);
     }
@@ -440,6 +424,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
                 if (other != piece && other.Result != null)
                 {
                     other.Result = null;
+                    other.Segment?.Dispose();
+                    other.Segment = null;
                     MarkDirty(other);
                 }
             }
@@ -447,6 +433,11 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mSessionRate = result.SamplingRate;
 
         piece.Result = result;
+        // 段握柄：丢旧建新（一握柄 = 一次渲染）；写入整段后 Commit 把整段音频交宿主驱动 effect。
+        piece.Segment?.Dispose();
+        piece.Segment = mContext.CreateAudioSegment((long)(result.StartTime * result.SamplingRate), result.AudioData.Length);
+        piece.Segment.Write(0, result.AudioData);
+        piece.Segment.Commit();
         piece.PitchLines = result.SynthesizedPitch
             .Select(line => (IReadOnlyList<PStruct.Point>)line.Select(p => p.ToV1()).ToList())
             .ToList();
@@ -519,6 +510,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public string? Error;
         public double Progress;
         public LVoice.SynthesisResult? Result;
+        public VVoice.IAudioSegment? Segment;
         public IReadOnlyList<IReadOnlyList<PStruct.Point>> PitchLines = [];
         public IReadOnlyList<VVoice.SynthesizedPhoneme> Phonemes = [];
     }

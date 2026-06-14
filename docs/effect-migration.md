@@ -697,6 +697,43 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 ---
 
+### 28. voice 部分更新后 effect 链按段增量重渲染（确立，待落地）
+
+承 §三.19（effect = 离线整段音频变换 + 每级缓存仅下游失效）。§三.19 落地时 effect 链跑在整 part 链尾音频上：voice 产物一变就从 stage 0 整链重跑（昂贵 SVC 整段重过），voice 的分片粒度没传导到 effect。本话题确立**按段增量**——voice 改了哪段，只有那段重新过 effect 链。
+
+**根因**：现管线（`VoiceSynthesisPipeline`）在 `PullProducts` 把所有已合成状态段求并集拉成单条 buffer，effect 链跑这一条；每片 voice 完成都 `RunEffectChain(0)`（靠 generation + `StopEffectTask` 反复取消重启，实际只在 voice 停止出货后完成一次）。effect-self 脏已是按级增量（`SetEffectChainDirty(i)` 从 i 级重跑），但 voice 侧变化无段粒度——这是 §四 #11 当年挂账的"按状态段增量过链"后续。
+
+**机制：音频段握柄（voice SDK 加性扩展）**。把 voice 本就内部持有的分片，提升成宿主持有的一等握柄 `IAudioSegment`（详见 voice 设计文档「产物与状态」节）：
+- `context.CreateAudioSegment(long sampleOffset, int sampleCount)` → 宿主据声明的**固定起始（全局采样位置）+ 固定长度**一次性分配缓冲并登记；插件经 `Write(int offset, ReadOnlySpan<float>)` **就地写子区间**（`ReadOnlySpan` 借用语义、宿主拷入自有缓冲，插件可复用 scratch；渐进合成因就地写不累积重拷、O(n)），`Commit()` 标完成，`Dispose()` 释放。**位置/长度需变 → 删旧段建新段**。
+- **采样点级寻址**：起始用 `long`（全局轴位置，沿用旧 `ReadAudio` 协议、不给全局轴封 int），段内 `Write` offset 用 `int`（索引 `float[]`/`Span`，CLR 本就 int 域）。秒→采样的换算归插件（它持 native 率、知帧对齐），避免宿主侧 `(long)(秒×率)` 舍入。
+- **不在创建时钉死长度的理由**：模型按帧产出（frames×hop）、含 look-ahead/对齐/可选时长伸缩，合成开始未必知精确采样数。一次性渲染的插件**渲染完再 create**（长度已知）；真流式插件按估算 create、估偏（罕见）即重建。
+- **与状态段解耦**：音频段是音频承载 + effect 失效单元；`SynthesisStatusSegment` 仍是 UI 状态带（着色/进度/错误）。两套分区可不同，插件内部是否用一个对象同时背两套是插件自由，宿主不假设对齐。
+- **Commit 是送 effect 的唯一闸门**：合成中间态（Commit 前的写入）只走状态段让用户看波形/进度，冻结数据（Commit）才进 effect——合成爆发期不拖着 effect 频繁重合成，闸门在协议层而非宿主防抖。
+
+**effect 重渲染：二维失效（段 × 级）**。缓存升为 `cache[segment][stage]`：
+- voice 某段 Commit → 丢 `cache[seg][*]`，该段从 stage 0 重过；
+- effect[i] 参数/启用/自动化变化 → 丢 `cache[*][i..]`，各段从 i 级重过；
+- 链结构变化 → 从 0；
+- 链尾 = 各段末级输出按时间拼接。
+
+现有"单 buffer + `SetEffectChainDirty(i)`"是"只有一个段"的退化情形。effect SDK 形状不变（仍 `CreateSynthesisTask(input, output)`，input 是整段 `MonoAudio`）——effect 整段进整段出，只是输入从"整 part"换成"一个段"，effect 引擎无感。
+
+**段间拼接 / 接缝**：段边界由 voice 自己挑（理想落在停顿处），跨段连续性归 voice 分片（承 §三.19 本意，只是从宿主自持 piece 换成插件报出的段）；宿主直接拼、默认不交叉淡化。
+
+**波形**：宿主按段对外暴露、视图逐段绘制（回到 legacy 分 piece 的形态），不再合成单条链尾 buffer 喂波形。
+
+**兼容**：legacy 插件出整条 buffer → compat adapter 建一个覆盖整 part 的段，effect 看到单段 = 今日整段行为，零行为变化。
+
+**分阶段**：
+- 阶段一（本话题主体）：段握柄 + 二维缓存 + 段级失效 + effect 整段进出 + 逐段波形；迁移测试插件（已有内部分片，是 surface 出来而非重写）+ compat 单段。
+- 阶段二（缓后，纯加性）：宿主累积 `Write` 的子区间、随 `Commit` 把脏区间交 effect + effect 自决段内局部重合成 + 段内拼接/淡化（含跨级脏传播形态再定）。写 API 已为此铺好（`Write(offset, samples)` 本就带区间），无需再加接口。
+
+**实现细节（落地时定）**：per-segment 链并发（V1 倾向段间串行，SVC 本慢、避免资源爆）；`VoiceSynthesisPipeline` 的单链运行器（单 `mEffectTask` / `mRunStage`）改为按段多链。
+
+**消费者爆炸半径（已核）**：voice SDK `ISynthesisContext` / `ISynthesisSession`（去 `ReadAudio`、context 加 `CreateAudioSegment`、加 `IAudioSegment`）；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（单段）；宿主 `VoiceSynthesisPipeline`（`PullProducts` + 链运行）；波形消费者 `PianoScrollView`（单 `Waveform` → 逐段）。两 SDK 预发布、无野外插件，churn 是内部的（沿用 §三.19「V1 ABI 零破坏」理由）。
+
+---
+
 ## 四、讨论话题清单（按依赖顺序）
 
 每个话题独立成 session。session 开始时：

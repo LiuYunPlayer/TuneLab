@@ -46,12 +46,11 @@ public interface ISynthesisSession : IDisposable
                         CancellationToken cancellation = default);
 
     // —— 音频产物（插件 native 采样率域）——
-    // 工程采样率是唯一真值（TuneLabContext.Global）；插件优先按此率产音频并在此暴露实际输出率，
-    // 宿主比对：相等直读、不等时套一层流式重采样——重采样集中宿主一处，会话与工程率变化解耦。
-    // 时间对齐协议：全局 0 时刻 = 采样点 0，offset 即全局时间轴上的采样位置（long：接口面不被
-    // 当前音频引擎的 int 域锁死）。覆盖区域的权威信息是 GetStatus 状态段；未合成区域读出 0。
+    // 音频本体经 IAudioSegment 握柄交付（插件向 ISynthesisContext.CreateAudioSegment 申请段、写入、
+    // Complete）；此处仅暴露插件实际输出率。工程采样率是唯一真值（TuneLabContext.Global），宿主比对：
+    // 相等直读、不等时套一层流式重采样——重采样集中宿主一处，会话与工程率变化解耦。
+    // 时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是各音频段（未交付区域即静音）。
     int SampleRate { get; }
-    void ReadAudio(long offset, int count, float[] dst);   // 宿主 pull-copy
 
     // —— 曲线类产物 ——
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }   // 分段

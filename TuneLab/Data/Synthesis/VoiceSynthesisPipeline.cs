@@ -159,31 +159,45 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     }
 
     // —— 产物拉取（数据线程）——
-    // 音频时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是状态段——
-    // 取已合成段的并集范围一次拉取（未合成空洞插件读出 0）。
+    // 音频时间对齐协议：全局 0 时刻 = 采样点 0；从插件经 context.CreateAudioSegment 交付的各已 Commit
+    // 音频段取并集采样范围拼成单条 buffer（整数采样运算无舍入、重叠段混音叠加、空洞留 0）。
+    // 提交①保持整 part 一条链：拼好整段后整链跑。
     void PullProducts()
     {
         try
         {
-            double start = double.MaxValue;
-            double end = double.MinValue;
-            foreach (var statusSegment in mSession.GetStatus())
+            var segments = mContext.AudioSegments;
+
+            long start = long.MaxValue;
+            long end = long.MinValue;
+            foreach (var segment in segments)
             {
-                if (statusSegment.Status != SynthesisSegmentStatus.Synthesized)
+                if (!segment.IsCommitted || segment.Samples.Length == 0)
                     continue;
 
-                start = Math.Min(start, statusSegment.StartTime);
-                end = Math.Max(end, statusSegment.EndTime);
+                start = Math.Min(start, segment.SampleOffset);
+                end = Math.Max(end, segment.SampleOffset + segment.Samples.Length);
             }
 
             if (end > start)
             {
                 int sampleRate = mSession.SampleRate;
-                long offset = (long)(start * sampleRate);
-                int sampleCount = (int)(end * sampleRate - offset);
-                var samples = new float[sampleCount];
-                mSession.ReadAudio(offset, sampleCount, samples);
-                mNativeAudio = new MonoAudio((double)offset / sampleRate, sampleRate, samples);
+                long offset = start;
+                int sampleCount = (int)(end - offset);
+                var buffer = new float[sampleCount];
+                foreach (var segment in segments)
+                {
+                    if (!segment.IsCommitted || segment.Samples.Length == 0)
+                        continue;
+
+                    var samples = segment.Samples;
+                    long segOffset = segment.SampleOffset;
+                    long from = Math.Max(offset, segOffset);
+                    long to = Math.Min(offset + sampleCount, segOffset + samples.Length);
+                    for (long i = from; i < to; i++)
+                        buffer[i - offset] += samples[i - segOffset];
+                }
+                mNativeAudio = new MonoAudio((double)offset / sampleRate, sampleRate, buffer);
                 mVoiceAudio = ResampleToEngineRate(mNativeAudio.Value);
             }
 

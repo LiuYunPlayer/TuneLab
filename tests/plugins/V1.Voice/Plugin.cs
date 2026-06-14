@@ -119,8 +119,11 @@ public sealed class TestSession : ISynthesisSession
             var rendered = await Task.Run(() => Render(snapshot, piece.Notes, report, cancellation), CancellationToken.None);
             if (rendered != null && mPieces.Contains(piece))
             {
-                piece.Audio = rendered.Audio;
-                piece.AudioStart = rendered.StartTime;
+                // 段握柄：每次完成丢旧建新（一握柄 = 一次渲染）；写入整段后 Commit 把冻结音频交宿主驱动 effect。
+                piece.Segment?.Dispose();
+                piece.Segment = mContext.CreateAudioSegment((long)(rendered.StartTime * kSampleRate), rendered.Audio.Length);
+                piece.Segment.Write(0, rendered.Audio);
+                piece.Segment.Commit();
                 piece.Phonemes = rendered.Phonemes;
             }
         }
@@ -136,25 +139,8 @@ public sealed class TestSession : ISynthesisSession
         }
     }
 
-    // —— 音频产物（多块按全局时间轴对齐相加；协议：全局 0 时刻 = 采样点 0）——
+    // —— 音频采样率（音频本体经 IAudioSegment 握柄交付，见 SynthesizeNext）——
     public int SampleRate => kSampleRate;
-
-    public void ReadAudio(long offset, int count, float[] dst)
-    {
-        foreach (var piece in mPieces)
-        {
-            if (piece.Audio is not { } audio)
-                continue;
-
-            long audioOffset = (long)(piece.AudioStart * kSampleRate);
-            long from = Math.Max(offset, audioOffset);
-            long to = Math.Min(offset + count, audioOffset + audio.Length);
-            for (long i = from; i < to; i++)
-            {
-                dst[i - offset] += audio[i - audioOffset];
-            }
-        }
-    }
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
     public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
@@ -179,7 +165,7 @@ public sealed class TestSession : ISynthesisSession
         {
             var status = piece.Failed ? SynthesisSegmentStatus.Failed
                 : piece.Synthesizing ? SynthesisSegmentStatus.Synthesizing
-                : piece.Dirty || piece.Audio == null ? SynthesisSegmentStatus.Pending
+                : piece.Dirty || piece.Segment == null ? SynthesisSegmentStatus.Pending
                 : SynthesisSegmentStatus.Synthesized;
             result.Add(new SynthesisStatusSegment
             {
@@ -204,6 +190,8 @@ public sealed class TestSession : ISynthesisSession
         mContext.BatchEnd -= OnBatchEnd;
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
+        foreach (var piece in mPieces)
+            piece.Segment?.Dispose();
         mPieces.Clear();
     }
 
@@ -338,6 +326,9 @@ public sealed class TestSession : ISynthesisSession
             }
         }
 
+        // 未被复用的旧块（其 note 集已不存在）：释放段握柄，宿主丢对应 effect 缓存。
+        foreach (var piece in mPieces)
+            piece.Segment?.Dispose();
         mPieces.Clear();
         mPieces.AddRange(newPieces);
         StatusChanged?.Invoke();
@@ -420,8 +411,7 @@ public sealed class TestSession : ISynthesisSession
         public bool Synthesizing;
         public string? Error;
         public double Progress;
-        public float[]? Audio;
-        public double AudioStart;
+        public IAudioSegment? Segment;
         public IReadOnlyList<SynthesizedPhoneme> Phonemes = [];
     }
 

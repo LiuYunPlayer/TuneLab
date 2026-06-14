@@ -40,7 +40,6 @@ internal class EmptyVoiceEngine : IVoiceEngine
         }
 
         public int SampleRate => 44100;
-        public void ReadAudio(long offset, int count, float[] dst) { }
 
         public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
         public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSynthesizedParameters;

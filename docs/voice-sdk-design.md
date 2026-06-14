@@ -77,6 +77,11 @@ public interface ISynthesisContext
     // 仅数据线程、仅 SynthesizeNext 同步前缀调用；一次合成可按需拉多份。
     SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTime, double endTime);
 
+    // 音频产物的宿主分配工厂（见 §5）：插件合成产出音频时申请一个段握柄，写入、Commit() 标完成，
+    // 重分片（或改长度/位置）时 Dispose() 释放重建。宿主据此持有段登记表、驱动下游 effect 链按段重渲染。
+    // 仅数据线程调用；sampleOffset = 全局起始采样位置（native 率），sampleCount = 段长（采样数）。
+    IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount);
+
     event Action? BatchBegin;       // 批量变更括号，见 §3.4
     event Action? BatchEnd;
 }
@@ -279,27 +284,43 @@ public sealed class SynthesisSnapshot
 
 ## 5. 产物与状态
 
-产物 pull 读取；更新靠**单一信号** `StatusChanged`，宿主收到直接刷新。状态段同时充当"哪段更新了"的区域信息——不再每产物一个事件、也不需单独的 `AudioUpdated(范围)`。
+更新靠**单一信号** `StatusChanged`，宿主收到直接刷新；状态段（`GetStatus`）充当 UI 状态带，曲线类产物 pull 读取。**音频产物走另一条通道**——插件向宿主申请的**音频段握柄** `IAudioSegment`。
+
+为何音频单独走段握柄而非 `ReadAudio` 扁平 pull：下游 effect 链（离线整段模型，如 SVC 换声，整段重过很贵）要能**按段增量重渲染**——voice 改了哪段，只有那段重新过 effect 链，而不是 voice 产物一变就整 part 重跑。把 voice 本就内部持有的分片，提升成宿主持有的一等握柄，段即 effect 的失效/重渲染单元。
 
 ```csharp
 public interface ISynthesisSession   // 续
 {
-    // —— 音频（插件 native 采样率域）——
-    // 时间对齐协议：全局 0 时刻 = 采样点 0，offset 即全局时间轴上的采样位置
-    // （long：接口面不被当前音频引擎的 int 域锁死，支持 long 的引擎插件零改动）。
-    // 覆盖区域的权威信息是 GetStatus 状态段（不再单设 StartTime/SampleCount 第二套定位）；
-    // 未合成区域读出 0。
+    // —— 音频采样率（插件 native 率；音频本体经 IAudioSegment 握柄交付，不再 ReadAudio pull）——
+    // 工程率是唯一真值，宿主比对：相等直读、不等套一层流式重采样（集中宿主一处，会话与工程率变化解耦）。
     int SampleRate { get; }
-    void ReadAudio(long offset, int count, float[] dst);   // 宿主 pull-copy
 
     // —— 曲线类产物 ——
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }                       // 分段
     IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; }  // 同 effect 形状
     IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }                                 // 见 §6
 
-    // —— 状态 / 按段报错（统一）——
+    // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
     event Action? StatusChanged;   // 单一刷新信号
+}
+
+// 音频段握柄：宿主实现、经 context.CreateAudioSegment(offset, count) 分配，插件持有并写入。
+// 它是音频产物的承载单元，也是下游 effect 链的失效/重渲染单元——一个段 Commit 即作为整体送 effect
+// 重过（effect 缓存按握柄身份键：段重 Commit → 该段链重跑；段销毁 → 丢该段缓存）。
+// 起始与长度创建时固定（宿主一次性分配缓冲，插件就地写故渐进合成不累积重拷）；位置/长度需变 → 删旧建新。
+// 时间对齐协议：全局 0 时刻 = 采样点 0；缓冲按 native 采样率从段起始铺。
+// 线程：写入 / 提交 / 释放全在数据线程（worker 渲染完，在 marshal 回数据线程的续延里写）。
+public interface IAudioSegment : IDisposable   // Dispose() = 删除该段（重分片 / 改长度或位置时重建）
+{
+    // 段内 [offset, offset+samples.Length) 就地写入（offset = 段内相对采样位置）；宿主拷进自有缓冲——
+    // span 借用语义，返回后插件可随意复用 / 池化。越界非法；可多次写 / 覆盖重写 / Commit 后再写。
+    // 写入区间即"该子区间已更新"信号（将来段内局部 effect 重渲据此；当前整段失效暂不消费区间）。
+    void Write(int offset, ReadOnlySpan<float> samples);
+
+    // 标该段音频已固定——送 effect 的唯一闸门。Commit 前的写入只供进度/波形，冻结数据才进 effect，
+    // 故合成爆发期不会拖着昂贵 effect 频繁重合成（闸门在协议层，非宿主防抖）。
+    void Commit();
 }
 
 public enum SynthesisSegmentStatus { Pending, Synthesizing, Synthesized, Failed }
@@ -314,7 +335,9 @@ public struct SynthesisStatusSegment
 }
 ```
 
-`SynthesisStatusSegment` 把"已完成 / 合成中 / 失败 / 待合成"统一成一条时间线，宿主据 `范围 + Status` 着色、显示进度、在失败段显示错误，并知道哪段已合成可去拉音频。范围**平铺为两个 double、不引入冻结的区间类型**（裸名 `Range` 与 `System.Range` 歧义，且区间运算是宿主侧能力）：宿主将来需要区间合并/相交等运算时在宿主内部封装（如对照 ACE `Base/Utils/Math/RangeF` 的泛化区间），不进 SDK 冻结面、随时可改名。
+**音频段与状态段解耦**：`IAudioSegment` 是音频承载 + effect 失效单元，`SynthesisStatusSegment` 是 UI 状态带（着色 / 进度 / 失败提示）。两套分区可以不同——插件内部是否用一个对象同时背两套，是插件的自由，宿主**不假设对齐、不干涉**。状态带把"已完成 / 合成中 / 失败 / 待合成"统一成一条时间线，宿主据 `范围 + Status` 着色、显示进度、在失败段显示错误。范围**平铺为两个 double、不引入冻结的区间类型**（裸名 `Range` 与 `System.Range` 歧义，且区间运算是宿主侧能力）：宿主将来需要区间合并 / 相交等运算时在宿主内部封装（如对照 ACE `Base/Utils/Math/RangeF` 的泛化区间），不进 SDK 冻结面、随时可改名。
+
+**effect 按段重渲染（宿主侧）**：宿主二维失效 `cache[segment][stage]`——voice 段 Commit → 丢该段全部级缓存、从 stage 0 重过；effect[i] 变化 → 各段从 i 级重过；链尾 = 各段末级输出按时间拼接。段边界由 voice 自己挑（理想落在停顿处），跨段连续性归 voice 分片，宿主直接拼。波形按段逐段绘制。legacy 插件经 compat adapter 建单段（覆盖整 part），= 整段行为、零变化。
 
 ---
 
@@ -461,6 +484,7 @@ public class PiecewiseAutomationConfig : IControllerConfig
 - **定点 tick**（`Tick` 结构体：int64 存 1/2ⁿ tick 定点数）：全局 tick 域 double→Tick 的横切 refactor（数据层 + Format 序列化，可与 `Pos → Tick` 重命名同做）。收益是加减/比较**零误差**与跨进程确定性（`==` 恢复语义、结果与量级无关），**非音质**——double 在现实工程规模下误差比可感知量小 9 个数量级以上。关键约束：**n ≤ 16**，否则与 double 互转重新引入舍入（double 仅能精确表示 ≤2⁵³ 的整数，须 `pos < 2^(53−n)` tick）；秒域保持 double（其精度参照物是采样点，由采样率换算而来，不归 tick 管）。**决策时限：对外发布冻结 SDK 前定案**——若 `Tick` 进 SDK 冻结面则影响接口签名；若仅做宿主内部存储、SDK 边界转 double（n 取小则无损），则与 SDK 解耦、随时可做。
 - **RESOLUTION 维持常量 480**（= 2⁵·3·5，二/三/五连音至 128 分音符整数落格；与 MIDI PPQ 同概念——SMF 按文件头可变、DAW 内部固定常量，导入按 `480/filePPQ` 缩放）：不做可调（每个 tick 数值失去自释含义、跨工程粘贴要换算、进 Format ABI，全是横切成本而收益约等于零）。若需更细网格，将来定点化时顺路一次性升高常量（如 960），那次本就要动数据层与 Format。
 - **简易合成框架**（双 SDK）：把宿主式分片/调度做成插件侧库，简单插件复用、自定义插件走原生托管。本设计先做核心协议，框架降优先级；它同时可收编 legacy 引擎的薄模型适配。
+- **音频段内子区间增量**（`IAudioSegment` 段内增量）：`Write(offset, samples)` 本就带"段内哪段变了"的区间（中间态仅驱动进度/波形、不进 effect），宿主累积这些区间随 `Commit` 交 effect，effect 自行决定段内局部重合成 + 拼接（含上下文余量 / 淡化、跨级脏传播）。V1 按整段失效（段 Commit 即整段送 effect、不消费写区间），子区间增量是纯加性优化、缓后。
 - **effect 收敛到本会话模型**（当前 effect 为 task 模型）。重构时一并处理：
   - ~~`IAutomationEvaluator` 与 `ISynthesisAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
   - `SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型（与 PiecewiseAutomation 概念对齐），两 SDK 同步换形。
