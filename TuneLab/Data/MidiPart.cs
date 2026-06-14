@@ -38,8 +38,7 @@ internal class MidiPart : Part, IMidiPart
     internal BatchSignal SynthesisBatch => mSynthesisBatch;
     public IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus() => mPipeline?.GetStatus() ?? [];
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mPipeline?.SynthesizedPitch ?? [];
-    public MonoAudio? SynthesizedAudio => mPipeline?.SynthesizedAudio;
-    public Waveform? Waveform => mPipeline?.Waveform;
+    public IReadOnlyList<Synthesis.SynthesizedSegment> SynthesizedSegments => mPipeline?.SynthesizedSegments ?? [];
 
     public MidiPart(ITrack track, MidiPartInfo info) : base(track)
     {
@@ -396,12 +395,15 @@ internal class MidiPart : Part, IMidiPart
         int sampleRate = ((IAudioSource)this).SampleRate;
         double startTime = ((IAudioSource)this).StartTime;
         int partOffset = (int)(sampleRate * startTime);
-        if (SynthesizedAudio is { Samples: not null } audio)
+        // 各段末级音频（已适配工程率）按绝对时间对齐混入 part 缓冲（段不重叠；若重叠则 += 叠加）。
+        foreach (var segment in SynthesizedSegments)
         {
-            // 链尾最终音频已适配为工程采样率，按绝对时间对齐到 part 缓冲。
+            var audio = segment.Audio;
+            if (audio.Samples is not { } samples)
+                continue;
+
             int audioOffset = (int)(audio.StartTime * audio.SampleRate);
             int startIndex = partOffset + offset - audioOffset;
-            var samples = audio.Samples;
             int from = Math.Max(startIndex, 0);
             int to = Math.Min(startIndex + count, samples.Length);
             for (int i = from; i < to; i++)

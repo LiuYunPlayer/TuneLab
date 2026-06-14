@@ -30,8 +30,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     bool IsSynthesisBatching { get; }
     IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus();
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
-    MonoAudio? SynthesizedAudio { get; }
-    Waveform? Waveform { get; }
+    IReadOnlyList<Synthesis.SynthesizedSegment> SynthesizedSegments { get; }
 
     IAutomation? AddAutomation(string automationID);
     double[] GetFinalPitch(IReadOnlyList<double> ticks);

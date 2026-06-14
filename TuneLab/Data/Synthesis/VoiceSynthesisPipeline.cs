@@ -29,9 +29,8 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     public ISynthesisSession Session => mSession;
     public bool IsBusy => mIsBusy;
 
-    // 链尾最终音频（工程采样率；无 effect 时即 voice 输出）。null = 尚无任何已合成音频。
-    public MonoAudio? SynthesizedAudio => mFinalAudio;
-    public Waveform? Waveform => mWaveform;
+    // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。
+    public IReadOnlyList<SynthesizedSegment> SynthesizedSegments => mSynthesizedSegments;
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mSession.SynthesizedPitch;
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mSession.GetStatus();
 
@@ -375,55 +374,21 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         ProcessActiveStage(generation);
     }
 
-    // 各段链处理完：各段末级输出（无 effect 时即段输入）按时间拼成单条最终音频（工程率，空洞留 0、重叠混音）。
+    // 各段链处理完：收集各段末级输出（无 effect 时即段输入）+ 其波形为段列表（每段波形按 Samples 引用相等
+    // 缓存、只重算重跑过的段）。原子换数组引用 → 播放/UI 跨线程读到的恒是完整一份。
     void FinalizeChain()
     {
         int effectCount = mPart.Effects.Count;
-        int engineRate = AudioEngine.SampleRate.Value;
-
-        long start = long.MaxValue;
-        long end = long.MinValue;
+        var list = new List<SynthesizedSegment>(mChains.Count);
         foreach (var chain in mChains.Values)
         {
-            var final = FinalOf(chain, effectCount);
-            if (final.Samples is not { Length: > 0 } samples)
-                continue;
-            long offset = (long)(final.StartTime * engineRate);
-            start = Math.Min(start, offset);
-            end = Math.Max(end, offset + samples.Length);
+            var seg = chain.Finalize(effectCount);
+            if (seg.Audio.Samples is { Length: > 0 })
+                list.Add(seg);
         }
-
-        if (end > start)
-        {
-            long baseOffset = start;
-            int sampleCount = (int)(end - baseOffset);
-            var buffer = new float[sampleCount];
-            foreach (var chain in mChains.Values)
-            {
-                var final = FinalOf(chain, effectCount);
-                if (final.Samples is not { Length: > 0 } samples)
-                    continue;
-                long offset = (long)(final.StartTime * engineRate);
-                long from = Math.Max(baseOffset, offset);
-                long to = Math.Min(baseOffset + sampleCount, offset + samples.Length);
-                for (long i = from; i < to; i++)
-                    buffer[i - baseOffset] += samples[i - offset];
-            }
-            mFinalAudio = new MonoAudio((double)baseOffset / engineRate, engineRate, buffer);
-            mWaveform = new(buffer);
-        }
-        else
-        {
-            mFinalAudio = null;
-            mWaveform = null;
-        }
-
+        mSynthesizedSegments = list.ToArray();
         StatusChanged?.Invoke();
     }
-
-    // 段的链尾输出：无 effect 时即段输入；否则末级缓存（PumpNext 仅在所有段处理完才收尾，故缓存已齐）。
-    static MonoAudio FinalOf(SegmentChain chain, int effectCount)
-        => effectCount == 0 ? chain.Input : chain.StageOutputs[effectCount - 1];
 
     void StopEffectTask()
     {
@@ -482,6 +447,23 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         public int ProcessedVersion => processedVersion;
         public readonly List<MonoAudio> StageOutputs = new();
         public int RunStage;
+
+        // 链尾段输出 + 波形：按 final 的 Samples 引用相等缓存——重跑产生新数组才重算波形，未变则复用。
+        public SynthesizedSegment Finalize(int effectCount)
+        {
+            var final = effectCount == 0 ? input : StageOutputs[effectCount - 1];
+            if (!ReferenceEquals(final.Samples, mFinalSamples) || mWaveform == null)
+            {
+                mFinalSamples = final.Samples;
+                mFinal = final;
+                mWaveform = new Waveform(final.Samples ?? []);
+            }
+            return new SynthesizedSegment(mFinal, mWaveform);
+        }
+
+        float[]? mFinalSamples;
+        MonoAudio mFinal;
+        Waveform? mWaveform;
     }
 
     readonly MidiPart mPart;
@@ -495,9 +477,8 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     bool mIsBusy;
     bool mDisposed;
 
-    // 链尾最终音频（各段末级输出按时间拼接，工程率）。
-    MonoAudio? mFinalAudio;
-    Waveform? mWaveform;
+    // 各已完成音频段（工程率）：链尾输出 + 波形；播放/波形按段消费。原子换引用、跨线程读安全。
+    SynthesizedSegment[] mSynthesizedSegments = [];
 
     // 按段效果链：每段一条独立链缓存（cache[segment][stage]），段间串行（一次一个 effect 任务）。
     readonly Dictionary<SynthesisContext.AudioSegment, SegmentChain> mChains = new();

@@ -610,11 +610,12 @@ internal partial class PianoScrollView : View, IPianoScrollView
         var viewStartTime = tempoManager.GetTime(TickAxis.X2Tick(0));
         var viewEndTime = tempoManager.GetTime(TickAxis.X2Tick(Bounds.Width));
 
-        // 单一最终音频（链尾输出）：与可视区间相交则绘制波形。
-        DrawAudioWaveform();
-        void DrawAudioWaveform()
+        // 各已完成音频段：逐段与可视区间求交、各自绘制波形（段间空洞留白、不画静音线）。
+        foreach (var segment in Part.SynthesizedSegments)
+            DrawAudioWaveform(segment.Audio, segment.Waveform);
+        void DrawAudioWaveform(MonoAudio audio, Waveform waveform)
         {
-            if (Part.SynthesizedAudio is not { Samples: not null } audio || Part.Waveform is not { } waveform)
+            if (audio.Samples is null)
                 return;
 
             double startTime = audio.StartTime;
