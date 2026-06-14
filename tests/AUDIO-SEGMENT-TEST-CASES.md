@@ -18,7 +18,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 逐个拖进 TuneLab 窗口安装（或扩展侧边栏 → Install Extension）：
 - `v1-voice.tlx` —— 声库 **Alice (V1 Test)** / **Bob (V1 Test)**：按 note 间隙**分块**合成正弦（多段握柄主力夹具）。
 - `v1-suite.tlx` —— 声库 **Suite Voice (V1 Test)**：整 part **单块**、静音输出（单段握柄）。
-- `v1-effect-real.tlx` —— 真 effect 包，含 **TLTestGain**（参数 `gain` 0~2、默认 1）与 **TLTestReverse**（倒放）：验证段拼接后 effect 链仍生效。（注意：`v1-effect.tlx` 是「预期被跳过加载」的 skip 变体，不是真包，别装错。）
+- `v1-effect.tlx` —— 真 effect 包，含 **TLTestGain**（参数 `gain` 0~2、默认 1）与 **TLTestReverse**（倒放）：验证段拼接后 effect 链仍生效。
 - `legacy-voice.tlx` —— 1.x 自包含声库，经 compat 层加载（compat 单段路径）。
 
 > 选声库 / 加 effect 的入口都用菜单/面板里的**显示名**（上面加粗的），不是插件 Type id。

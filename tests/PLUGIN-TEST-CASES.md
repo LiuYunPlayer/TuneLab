@@ -67,7 +67,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 | `v1-sdkver-high.tlx` | **Skipped** | 要求的 SDK 版本高于宿主 |
 | `v1-platform-mismatch.tlx` | **Skipped** | 平台不匹配 |
 | `v1-resource.tlx` | **Loaded** | 无代码资源包，只登记不加载程序集 |
-| `v1-effect.tlx` | **Skipped** | effect 暂不支持 |
+| `v1-effect-unsupported.tlx` | **Failed** | type=effect 但声明的程序集 never-loaded.dll 缺失（no assemblies found）；**主程序不崩** |
 | `v1-bad-manifest.tlx` | **Failed**（或安装时报错） | description.json 损坏；**主程序不崩** |
 
 > 通则：任何包加载失败都只跳过该包、在侧边栏/日志反映，绝不崩主程序。可把坏包和正常包一起装，确认正常包照常 Loaded。
@@ -76,7 +76,6 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 
 ## 三、暂不可测（功能尚未落地）
 
-- 真实 effect 插件（接口形状未定，当前仅能测 `v1-effect` 被跳过）
 - 插件读宿主状态 / 日志注入（ILog / Context 尚未接通）
 - 免重启热卸载（collectible，当前走重启式卸载）
 - 多版本共存 compat（V1↔V2，尚无 V2）

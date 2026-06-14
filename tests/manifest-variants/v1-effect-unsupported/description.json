@@ -1,0 +1,9 @@
+{
+  "id": "com.tunelab.test.effect",
+  "name": "V1 Effect (missing assembly)",
+  "version": "1.0.0",
+  "description": "type=effect、但声明的程序集 never-loaded.dll 不存在 → 加载 Failed(no assemblies found) + 日志，不崩主程序（坏包优雅降级）。effect 自 #11 起已支持，故不再是“类型不支持→Skipped”。",
+  "sdk-version": "1.0",
+  "type": "effect",
+  "assemblies": ["never-loaded.dll"]
+}

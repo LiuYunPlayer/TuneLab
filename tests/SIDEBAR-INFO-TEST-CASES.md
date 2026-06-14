@@ -45,8 +45,8 @@
 - [ ] 三者都**不**再显示笼统的 "Legacy" 作为类别。
 
 ## Skipped / Failed：不显示类别、只显示状态徽标
-- [ ] `v1-sdkver-high.tlx` / `v1-platform-mismatch.tlx` / `v1-effect.tlx` → 底行**只有** `Skipped`（黄），**没有**类别徽标。
-- [ ] `v1-bad-manifest.tlx` → 底行 `Failed`（红），无类别徽标。
+- [ ] `v1-sdkver-high.tlx` / `v1-platform-mismatch.tlx` → 底行**只有** `Skipped`（黄），**没有**类别徽标。
+- [ ] `v1-bad-manifest.tlx` / `v1-effect-unsupported.tlx` → 底行 `Failed`（红），无类别徽标。
 - [ ] 把鼠标悬在状态徽标上 → tooltip 显示跳过/失败原因。
 
 ## PartiallyLoaded（部分加载）
