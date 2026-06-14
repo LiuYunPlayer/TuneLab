@@ -86,10 +86,23 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         return segment;
     }
 
-    // 宿主侧读取面（同 TuneLab 程序集内的管线消费）：已交付音频的段拼成链头输入。
+    // 宿主侧读取面（同 TuneLab 程序集内的管线消费）：已交付音频的段供 effect 链按段过。
     internal IReadOnlyList<AudioSegment> AudioSegments => mAudioSegments;
 
-    void RemoveAudioSegment(AudioSegment segment) => mAudioSegments.Remove(segment);
+    // 段集 / 段内容变化（Commit 或 Dispose）→ 通知管线 reconcile（变了哪段据 AudioSegments + CommitVersion 算）。
+    internal event Action? AudioSegmentsChanged;
+
+    void RemoveAudioSegment(AudioSegment segment)
+    {
+        mAudioSegments.Remove(segment);
+        NotifyAudioSegmentsChanged();
+    }
+
+    void NotifyAudioSegmentsChanged()
+    {
+        if (!mDisposed)
+            AudioSegmentsChanged?.Invoke();
+    }
 
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
     {
@@ -303,6 +316,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         public long SampleOffset { get; }
         public float[] Samples => mSamples;
         public bool IsCommitted { get; private set; }
+        public int CommitVersion { get; private set; }   // 每次 Commit 自增：管线据此识别"同握柄重提交"重建该段链
 
         public void Write(int offset, ReadOnlySpan<float> samples)
         {
@@ -315,6 +329,8 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         {
             mOwner.AssertDataThread();
             IsCommitted = true;
+            CommitVersion++;
+            mOwner.NotifyAudioSegmentsChanged();
         }
 
         public void Dispose()

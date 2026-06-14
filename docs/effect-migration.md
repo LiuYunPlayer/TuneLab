@@ -697,7 +697,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 ---
 
-### 28. voice 部分更新后 effect 链按段增量重渲染（确立，待落地）
+### 28. voice 部分更新后 effect 链按段增量重渲染（确立，已改代码：提交①②）
 
 承 §三.19（effect = 离线整段音频变换 + 每级缓存仅下游失效）。§三.19 落地时 effect 链跑在整 part 链尾音频上：voice 产物一变就从 stage 0 整链重跑（昂贵 SVC 整段重过），voice 的分片粒度没传导到 effect。本话题确立**按段增量**——voice 改了哪段，只有那段重新过 effect 链。
 
@@ -720,17 +720,16 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **段间拼接 / 接缝**：段边界由 voice 自己挑（理想落在停顿处），跨段连续性归 voice 分片（承 §三.19 本意，只是从宿主自持 piece 换成插件报出的段）；宿主直接拼、默认不交叉淡化。
 
-**波形**：宿主按段对外暴露、视图逐段绘制（回到 legacy 分 piece 的形态），不再合成单条链尾 buffer 喂波形。
+**段间拼接 / 波形**：各段末级输出按时间（采样位置）拼成单条最终音频喂播放/波形（空洞留 0、重叠混音）；段边界归 voice 分片、宿主直接拼、默认不交叉淡化。波形**逐段独立绘制**（回到 legacy 分 piece 形态、间隙不画）是 UI 侧加性优化，**推迟**——提交② 暂仍喂单条拼接 buffer，逐段 effect 结果已正确呈现在该 buffer 上。
 
 **兼容**：legacy 插件出整条 buffer → compat adapter 建一个覆盖整 part 的段，effect 看到单段 = 今日整段行为，零行为变化。
 
-**分阶段**：
-- 阶段一（本话题主体）：段握柄 + 二维缓存 + 段级失效 + effect 整段进出 + 逐段波形；迁移测试插件（已有内部分片，是 surface 出来而非重写）+ compat 单段。
-- 阶段二（缓后，纯加性）：宿主累积 `Write` 的子区间、随 `Commit` 把脏区间交 effect + effect 自决段内局部重合成 + 段内拼接/淡化（含跨级脏传播形态再定）。写 API 已为此铺好（`Write(offset, samples)` 本就带区间），无需再加接口。
+**落地分阶段（均已改代码、三 sln 0 错 + host 33/compat 5 绿）**：
+- **提交①**（行为保持的重构）：voice 音频改经 `IAudioSegment` 段握柄交付（去 `ReadAudio`），宿主把各段拼成单条 buffer 喂**现有整 part 一条链**——听感/effect/状态带与改动前一致。
+- **提交②**（按段增量，本话题核心收益）：`cache[segment][stage]` 二维缓存 + 段级失效（段 `Commit` 经 `context.AudioSegmentsChanged` 通知管线、握柄身份/CommitVersion 识别变更段）+ `VoiceSynthesisPipeline` 单链运行器（单 `mEffectTask`/`mRunStage`）改为**按段多链、段间串行**（SVC 慢、避免资源爆）+ 链尾各段拼接。改一段只重过该段链、其余段缓存复用。
+- **后续（缓后，纯加性）**：宿主累积 `Write` 的子区间、随 `Commit` 把脏区间交 effect + effect 自决段内局部重合成 + 段内拼接/淡化（含跨级脏传播形态再定）；写 API 已为此铺好（`Write(offset, samples)` 本就带区间），无需再加接口。波形逐段绘制亦在此列。
 
-**实现细节（落地时定）**：per-segment 链并发（V1 倾向段间串行，SVC 本慢、避免资源爆）；`VoiceSynthesisPipeline` 的单链运行器（单 `mEffectTask` / `mRunStage`）改为按段多链。
-
-**消费者爆炸半径（已核）**：voice SDK `ISynthesisContext` / `ISynthesisSession`（去 `ReadAudio`、context 加 `CreateAudioSegment`、加 `IAudioSegment`）；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（单段）；宿主 `VoiceSynthesisPipeline`（`PullProducts` + 链运行）；波形消费者 `PianoScrollView`（单 `Waveform` → 逐段）。两 SDK 预发布、无野外插件，churn 是内部的（沿用 §三.19「V1 ABI 零破坏」理由）。
+**消费者爆炸半径（已核/已改）**：voice SDK `ISynthesisContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `ISynthesisSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行）。波形消费者 `PianoScrollView` 仍读单条 `SynthesizedAudio`/`Waveform`（逐段绘制推迟，故未改）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
 
 ---
 

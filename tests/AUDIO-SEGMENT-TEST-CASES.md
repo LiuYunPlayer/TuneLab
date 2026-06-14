@@ -1,10 +1,11 @@
-# 音频段握柄测试用例（voice→effect 段化 · 提交①）
+# 音频段握柄测试用例（voice→effect 段化 + 按段增量重渲染）
 
-> 本文只覆盖**音频产物从 `ReadAudio` 扁平拉取改为 `IAudioSegment` 段握柄交付**的受影响范围。
-> 提交① 是**行为保持的重构**：voice 经握柄交付音频，宿主把各段拼成单条 buffer 喂**现有整 part effect 链**——
-> 听感 / effect 效果 / 状态带应与改动前**完全一致**。按段增量重渲染（per-segment effect）是提交②，不在此测。
+> 本文覆盖**音频产物经 `IAudioSegment` 段握柄交付**、以及 **effect 链按段独立过链 / 按段增量重渲染**的受影响范围。
+> 模型：voice 经 `context.CreateAudioSegment` 交付的每个音频段各自过 effect 链（cache[segment][stage]）——
+> 某段重合成只重过该段的链、其余段缓存复用；effect 参数/启用/自动化变化则各段从该级重跑。
+> **逐段的粒度 = voice 分块粒度**（段边界归 voice 分片：note 间有间隙才分成多块/多段）。
 > voice 会话调度 / 状态带 / 失效重排的完整用例见 [VOICE-SESSION-TEST-CASES.md](VOICE-SESSION-TEST-CASES.md)，
-> effect 链/参数/自动化用例见 [EFFECT-TEST-CASES.md](EFFECT-TEST-CASES.md)，本文不重复，只做段化后的回归冒烟。
+> effect 链/参数/自动化用例见 [EFFECT-TEST-CASES.md](EFFECT-TEST-CASES.md)，本文不重复。
 > 每个用例：**做什么 → 预期看到什么**。
 
 ## 准备
@@ -25,7 +26,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 
 ---
 
-## 一、voice 音频经段握柄交付（行为保持）
+## 一、voice 音频经段握柄交付
 
 ### 1. 多块声库出声
 - 用 **Alice (V1 Test)** 写两簇隔开的 note（中间留明显间隙）→ 状态带分两段、依次变绿。
@@ -59,25 +60,31 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 
 ---
 
-## 三、effect 链经拼接后仍生效
+## 三、effect 链按段独立过链 / 按段增量
 
 > 加 effect 入口：选中 MIDI part → 右侧 **Properties** 侧栏 **Effects** 面板 → Add。先确保 Alice 已能出声作基线。
 
-### 7. Gain 改变响度
-- 给一个 Alice part 加 **TLTestGain**，`gain` 调到 2 → 重过链后音量明显变大；调到 0 → 静音。
-- 期望：voice 各段拼成的整段进 effect、整段输出，gain 效果与段化前一致。
+### 7. Gain 各段独立过链
+- Alice 写两簇隔开的 note（两段），加 **TLTestGain**，`gain` 调到 2 → 两簇都明显变响；调到 0 → 静音。
+- 期望：每段各自过 gain、按时间拼接（gain 逐样本，结果与整段过等价）。
 
-### 8. Reverse 整段倒放
-- 加 **TLTestReverse** → 整段音频倒放（注意是整 part 一条链倒放，不是逐段倒放）。
-- 期望：拼接边界无异常断点；与段化前行为一致。
+### 8. Reverse 逐段倒放（粒度 = voice 分块）
+- 写**三个隔开**的 note（间有间隙 → voice 分三块 → 三段），加 **TLTestReverse** → **每个音符各自倒放**（段内倒放），不是三个作为整体倒放。
+- 把三个 note **首尾相连**（无间隙 → voice 归一块 → 一段）→ reverse 是这三个**作为一段一起倒**。
+- 期望：逐段粒度由 voice 分块决定——隔开则逐段倒、相连则整段倒；段边界归 voice 分片。
 
-### 9. voice 改动触发整链重跑
-- 在 7 的基础上改一个 note 音高 → voice 该段重合成完，**整条 effect 链重跑**（提交① 仍整 part 过链）、gain 仍生效。
-- 期望：与段化前一致（per-segment 只重过改动段是提交②的目标，此处仍整链）。
+### 9. 改一个音符只重过那一段（提交② 核心收益）
+- 三段隔开的 note 挂 **TLTestReverse**，全部合成完。改**中间**那个 note 的音高 → 只有中间段 voice 重合成 + **只有中间段重过 reverse**，另两段的 effect 输出**缓存复用、不重跑**。
+- 期望：编辑期 effect 不再整 part 重过；改一个音符的等待 ≈ 一段而非整条 part（SVC 类慢模型差异显著）。
+
+### 10. effect 参数变化：各段从该级重跑（与 voice 段脏正交）
+- 链上加两级 **TLTestGain → TLTestReverse**，三段都合成完。改 `gain` 值 → 各段从 gain 级重跑（reverse 级随后重算），**voice 不重合成**。
+- 期望：effect 参数脏 = 各段 stage 级增量（每段 cache 从该级起失效），与"改 note → 某段重合成"两个维度互不干扰。
 
 ---
 
 ## 四、回归底线
 
-### 10. 切声库 / 删 part / 关工程
+### 11. 切声库 / 删 part / 关工程
 - Alice↔Bob 来回切、删 part、关闭并重开工程 → 无崩溃、无音频泄漏（旧段握柄随会话销毁）、无 `AssertDataThread` 异常弹出（DEBUG 构建）。
+- 删光一个 part 的所有 note → 该 part 不再出声、波形清空（段全销毁、最终音频归空）。
