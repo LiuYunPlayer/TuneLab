@@ -119,6 +119,9 @@ internal class MidiPart : Part, IMidiPart
             return;
         mPipeline?.SetEffectDirty(index);
         // 该 effect 的参数变可能改其条件自动化轨集合（仅活跃 part 才有 UI 在看，且引擎已 Init）。
+        // 显式标脏：本回调（Effect.Modified）早于 effect 内部 Properties.Modified 的标脏订阅，
+        // 不强制重算则下面读到的是上一拍缓存（轨显隐滞后一拍）。值在 Notify 前已写入，此刻重算即取当前值。
+        effect.InvalidateAutomationConfigs();
         if (mPipeline != null && RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
     }

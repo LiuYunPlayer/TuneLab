@@ -45,6 +45,9 @@ internal class Effect : DataObject, IEffect
         Properties.Modified.Subscribe(() => mAutomationConfigsDirty = true);
     }
 
+    // 标记缓存待重算（下次读 AutomationConfigs 时按当前参数值重算）。
+    public void InvalidateAutomationConfigs() => mAutomationConfigsDirty = true;
+
     // 按当前参数稀疏快照重算自动化轨集合，写入缓存、清脏。引擎缺失/未 Init 成功时退化为空集（优雅降级）。
     void RecomputeAutomationConfigs()
     {
