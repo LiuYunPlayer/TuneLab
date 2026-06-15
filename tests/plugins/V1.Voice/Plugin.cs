@@ -40,14 +40,14 @@ public sealed class TestSession : ISynthesisSession
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
         mAutomationConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
 
-        // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 BatchEnd 重分块）：
+        // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；
         // 曲线区间变化 → 标脏相交块；时基/part 属性 → 全部标脏。
         mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.ItemAdded += OnNotesStructureChanged;
         context.Notes.ItemRemoved += OnNotesStructureChanged;
         context.PartProperties.Modified += MarkAllDirtyAndResegment;
-        context.BatchEnd += OnBatchEnd;
+        context.Committed += OnCommitted;
         context.Pitch.RangeModified += OnRangeModified;
         context.PitchDeviation.RangeModified += OnRangeModified;
         if (context.TryGetAutomation("Growl", out var growl))
@@ -59,8 +59,8 @@ public sealed class TestSession : ISynthesisSession
     public string DefaultLyric => "la";
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
     public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = mNoteProperties };
+    public ObjectConfig GetPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
     public SynthesisSegment? GetNextSegment(double startTime, double endTime)
@@ -121,7 +121,7 @@ public sealed class TestSession : ISynthesisSession
             {
                 // 段握柄：每次完成丢旧建新（一握柄 = 一次渲染）；写入整段后 Commit 把冻结音频交宿主驱动 effect。
                 piece.Segment?.Dispose();
-                piece.Segment = mContext.CreateAudioSegment((long)(rendered.StartTime * kSampleRate), rendered.Audio.Length);
+                piece.Segment = mContext.CreateAudioSegment((long)(rendered.StartTime * kSampleRate), rendered.Audio.Length, kSampleRate);
                 piece.Segment.Write(0, rendered.Audio);
                 piece.Segment.Commit();
                 piece.Phonemes = rendered.Phonemes;
@@ -138,9 +138,6 @@ public sealed class TestSession : ISynthesisSession
             StatusChanged?.Invoke();
         }
     }
-
-    // —— 音频采样率（音频本体经 IAudioSegment 握柄交付，见 SynthesizeNext）——
-    public int SampleRate => kSampleRate;
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
     public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
@@ -187,7 +184,7 @@ public sealed class TestSession : ISynthesisSession
         mContext.Notes.ItemAdded -= OnNotesStructureChanged;
         mContext.Notes.ItemRemoved -= OnNotesStructureChanged;
         mContext.PartProperties.Modified -= MarkAllDirtyAndResegment;
-        mContext.BatchEnd -= OnBatchEnd;
+        mContext.Committed -= OnCommitted;
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
         foreach (var piece in mPieces)
@@ -382,7 +379,7 @@ public sealed class TestSession : ISynthesisSession
         mNeedResegment = true;
     }
 
-    void OnBatchEnd()
+    void OnCommitted()
     {
         if (mNeedResegment)
             Resegment();

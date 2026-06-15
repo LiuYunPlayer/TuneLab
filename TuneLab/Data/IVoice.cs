@@ -13,6 +13,6 @@ internal interface IVoice : IDataObject<VoiceInfo>
     string Name { get; }
     string DefaultLyric { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    ObjectConfig GetPartConfig(IPropertyContext context);
-    ObjectConfig GetNoteConfig(IPropertyContext context);
+    ObjectConfig GetPropertyConfig(IPartPropertyContext context);
+    ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 }

@@ -49,12 +49,13 @@ public interface ISynthesisContext
     // 音频产物的宿主分配工厂：插件合成产出音频时申请一个段握柄，写入、Commit() 标完成，
     // 重分片（或改长度/位置）时 Dispose() 释放重建。宿主据此持有段登记表、驱动下游 effect 链按段
     // 重渲染（段是音频承载 + effect 失效单元，与 ISynthesisSession.GetStatus 的 UI 状态段解耦，两套分区可不同）。
-    // 仅数据线程调用；sampleOffset = 全局起始采样位置（native 率，全局 0 时刻 = 采样点 0），sampleCount = 段长（采样数）。
-    IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount);
+    // 仅数据线程调用；sampleOffset = 全局起始采样位置（native 率，全局 0 时刻 = 采样点 0），sampleCount = 段长（采样数），
+    // sampleRate = 该段 native 采样率（插件传入，宿主据此解释/重采样；可逐段不同）。
+    IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate);
 
-    // 批量变更括号：每个逻辑编辑（一个 command，含单条编辑）都包在括号里。
-    // 它不是宿主缓冲，而是让插件延迟昂贵状态修正的作用域信号——每条变更通知里廉价记录、
-    // BatchEnd 一次性做重活（如重分片），批量编辑（移调几百个 note）因此只重分片一次。
-    event Action? BatchBegin;
-    event Action? BatchEnd;
+    // 逻辑编辑收口信号：每个逻辑编辑（一个 command，含单条编辑）的全部变更通知发完后触发一次
+    //（单条编辑也补发——故插件无需区分"在不在批量中"）。它不是宿主缓冲，而是让插件延迟昂贵状态修正的
+    // 收口点——每条变更通知里廉价记录/标脏，Committed 一次性做重活（如重分片）；批量编辑（移调几百个 note）
+    // 因此只重分片一次。出方向事件，宿主在数据线程触发。
+    event Action? Committed;
 }

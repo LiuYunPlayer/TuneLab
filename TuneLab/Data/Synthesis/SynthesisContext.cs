@@ -24,8 +24,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     public ISynthesisAutomation Pitch => mPitch;
     public ISynthesisAutomation PitchDeviation => mPitchDeviation;
 
-    public event Action? BatchBegin;
-    public event Action? BatchEnd;
+    public event Action? Committed;
 
     public SynthesisContext(MidiPart part)
     {
@@ -41,7 +40,6 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         // 批量括号：显式作用域来自 part 的 BatchSignal（含 undo/redo 重放）。
         mBatchSignal = part.SynthesisBatch;
-        mBatchSignal.BatchBegin += OnBatchBegin;
         mBatchSignal.BatchEnd += OnBatchEnd;
 
         // 时基变了（tempo 表变更 / part 平移）：宿主整体重建 session（含 context），不在此做
@@ -77,10 +75,10 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     // 音频段工厂（插件调入）：一次性分配固定长度缓冲、登记握柄。插件就地写子区间、Commit 标完成，
     // 重分片时 Dispose 释放（从登记表摘除）。管线（VoiceSynthesisPipeline）经 AudioSegments 读取拼装。
-    public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount)
+    public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)
     {
         AssertDataThread();
-        var segment = new AudioSegment(this, sampleOffset, sampleCount);
+        var segment = new AudioSegment(this, sampleOffset, sampleCount, sampleRate);
         if (!mDisposed)
             mAudioSegments.Add(segment);
         return segment;
@@ -137,7 +135,6 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         mDisposed = true;
 
         s.DisposeAll();
-        mBatchSignal.BatchBegin -= OnBatchBegin;
         mBatchSignal.BatchEnd -= OnBatchEnd;
         foreach (var kvp in mAutomationSubscriptions)
         {
@@ -156,8 +153,8 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     // —— 转发旋钮（线程/时机/故障隔离/批量都收在这里）——
 
-    // 改后类通知的统一转发口：不在显式批量作用域时给单条变更自动补一对退化括号
-    // （契约"每个逻辑编辑都包在括号里"的单条情形），并 try-catch 隔离插件 handler 故障。
+    // 改后类通知的统一转发口：变更通知发完后补一个 Committed 收口（不在显式批量中时给单条编辑也补，
+    // 契约"每个逻辑编辑都收口一次"的单条情形；批量中则由 OnBatchEnd 在批量结束统一收口）。try-catch 隔离插件故障。
     internal void ForwardChange(Action raise)
     {
         if (mDisposed)
@@ -169,14 +166,13 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             return;
         }
 
-        Guarded(() => BatchBegin?.Invoke());
         try
         {
             Guarded(raise);
         }
         finally
         {
-            Guarded(() => BatchEnd?.Invoke());
+            Guarded(() => Committed?.Invoke());
         }
     }
 
@@ -203,8 +199,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         }
     }
 
-    void OnBatchBegin() => Guarded(() => BatchBegin?.Invoke());
-    void OnBatchEnd() => Guarded(() => BatchEnd?.Invoke());
+    void OnBatchEnd() => Guarded(() => Committed?.Invoke());
 
     // part 相对 tick 区间 → 全局秒区间（±∞ 直通，表整轨失效）。
     double ToGlobalSecond(double relTick)
@@ -306,14 +301,16 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     //    Dispose = 从登记表摘除（重分片 / 改长度位置时重建）。 ——
     internal sealed class AudioSegment : IAudioSegment
     {
-        public AudioSegment(SynthesisContext owner, long sampleOffset, int sampleCount)
+        public AudioSegment(SynthesisContext owner, long sampleOffset, int sampleCount, int sampleRate)
         {
             mOwner = owner;
             SampleOffset = sampleOffset;
+            SampleRate = sampleRate;
             mSamples = new float[Math.Max(0, sampleCount)];
         }
 
         public long SampleOffset { get; }
+        public int SampleRate { get; }   // 该段 native 采样率（插件创建时传入；宿主侧读取，不经 IAudioSegment 暴露给插件）
         public float[] Samples => mSamples;
         public bool IsCommitted { get; private set; }
         public int CommitVersion { get; private set; }   // 每次 Commit 自增：管线据此识别"同握柄重提交"重建该段链

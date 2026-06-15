@@ -28,8 +28,8 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public string DefaultLyric => "a";
         public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
         public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-        public ObjectConfig GetPartConfig(IPropertyContext context) => mEmptyConfig;
-        public ObjectConfig GetNoteConfig(IPropertyContext context) => mEmptyConfig;
+        public ObjectConfig GetPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
+        public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
 
         public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
 
@@ -38,8 +38,6 @@ internal class EmptyVoiceEngine : IVoiceEngine
         {
             return Task.CompletedTask;
         }
-
-        public int SampleRate => 44100;
 
         public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
         public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSynthesizedParameters;

@@ -266,7 +266,6 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         if (mDisposed)
             return;
 
-        int nativeRate = mSession.SampleRate;
         int count = mPart.Effects.Count;
         bool invalidateActive = false;
         var present = new HashSet<SynthesisContext.AudioSegment>();
@@ -282,14 +281,14 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
                     continue;
 
                 // 同握柄重 Commit：换输入 + 标 stage0 音频变。
-                var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / nativeRate, nativeRate, segment.Samples));
+                var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / segment.SampleRate, segment.SampleRate, segment.Samples));
                 chain.UpdateInput(input, segment.CommitVersion, count);
                 if (ReferenceEquals(mActiveChain, chain))
                     invalidateActive = true;
             }
             else
             {
-                var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / nativeRate, nativeRate, segment.Samples));
+                var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / segment.SampleRate, segment.SampleRate, segment.Samples));
                 mChains[segment] = new SegmentChain(segment, input, segment.CommitVersion, count);
             }
         }

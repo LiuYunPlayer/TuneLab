@@ -87,8 +87,8 @@ public sealed class I18NSession : ISynthesisSession
     public string DefaultLyric => "la";
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
     public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = mNoteProperties };
+    public ObjectConfig GetPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     public SynthesisSegment? GetNextSegment(double startTime, double endTime)
     {
@@ -122,7 +122,7 @@ public sealed class I18NSession : ISynthesisSession
         double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
         int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
         mSegment?.Dispose();
-        mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount);
+        mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount, kSampleRate);
         mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
         mBlockStart = startTime;
         mBlockEnd = endTime;
@@ -149,8 +149,6 @@ public sealed class I18NSession : ISynthesisSession
         await Task.CompletedTask;
     }
 
-    // 音频协议：全局 0 时刻 = 采样点 0；音频本体经 IAudioSegment 握柄交付（见 SynthesizeNext）。
-    public int SampleRate => kSampleRate;
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
     public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();

@@ -40,7 +40,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mContext.Notes.ItemAdded += OnNotesStructureChanged;
         mContext.Notes.ItemRemoved += OnNotesStructureChanged;
         mContext.PartProperties.Modified += OnPartPropertiesModified;
-        mContext.BatchEnd += OnBatchEnd;
+        mContext.Committed += OnCommitted;
         mContext.Pitch.RangeModified += OnRangeModified;
         mContext.PitchDeviation.RangeModified += OnRangeModified;   // 老 Pitch 含偏差，偏差变化同样标脏
         foreach (var key in mAutomationConfigs.Keys)
@@ -59,8 +59,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     public string DefaultLyric => mSource.DefaultLyric;
     public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
     public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public VConfig.ObjectConfig GetPartConfig(VVoice.IPropertyContext context) => new() { Properties = mPartProperties };
-    public VConfig.ObjectConfig GetNoteConfig(VVoice.IPropertyContext context) => new() { Properties = mNoteProperties };
+    public VConfig.ObjectConfig GetPropertyConfig(VVoice.IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public VConfig.ObjectConfig GetNotePropertyConfig(VVoice.INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     // —— 调度 ——
     public VVoice.SynthesisSegment? GetNextSegment(double startTime, double endTime)
@@ -168,8 +168,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         NotifyStatusChanged();
     }
 
-    // —— 音频产物（每块经 IAudioSegment 握柄交付；协议：全局 0 时刻 = 采样点 0）——
-    public int SampleRate => mSessionRate ?? 44100;
+    // —— 音频产物（每块经 IAudioSegment 握柄交付；采样率随段在 CreateAudioSegment 传入；协议：全局 0 时刻 = 采样点 0）——
 
     // —— 曲线类产物 ——
     public IReadOnlyList<IReadOnlyList<PStruct.Point>> SynthesizedPitch
@@ -234,7 +233,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mContext.Notes.ItemAdded -= OnNotesStructureChanged;
         mContext.Notes.ItemRemoved -= OnNotesStructureChanged;
         mContext.PartProperties.Modified -= OnPartPropertiesModified;
-        mContext.BatchEnd -= OnBatchEnd;
+        mContext.Committed -= OnCommitted;
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
         foreach (var automation in mSubscribedAutomations)
@@ -297,7 +296,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mNeedReSegment = true;
     }
 
-    void OnBatchEnd()
+    void OnCommitted()
     {
         if (mNeedReSegment)
         {
@@ -435,7 +434,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         piece.Result = result;
         // 段握柄：丢旧建新（一握柄 = 一次渲染）；写入整段后 Commit 把整段音频交宿主驱动 effect。
         piece.Segment?.Dispose();
-        piece.Segment = mContext.CreateAudioSegment((long)(result.StartTime * result.SamplingRate), result.AudioData.Length);
+        piece.Segment = mContext.CreateAudioSegment((long)(result.StartTime * result.SamplingRate), result.AudioData.Length, result.SamplingRate);
         piece.Segment.Write(0, result.AudioData);
         piece.Segment.Commit();
         piece.PitchLines = result.SynthesizedPitch

@@ -52,8 +52,8 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => AutomationConfigs;
     public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public virtual ObjectConfig GetPartConfig(IPropertyContext context) => new() { Properties = PartProperties };
-    public virtual ObjectConfig GetNoteConfig(IPropertyContext context) => new() { Properties = NoteProperties };
+    public virtual ObjectConfig GetPropertyConfig(IPartPropertyContext context) => new() { Properties = PartProperties };
+    public virtual ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = NoteProperties };
     static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
 
     public SynthesisSegment? GetNextSegment(double startTime, double endTime)
@@ -90,7 +90,7 @@ public abstract class SingleBlockSession : ISynthesisSession
             double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
             int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
             mSegment?.Dispose();
-            mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount);
+            mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
             var phonemes = new List<SynthesizedPhoneme>(notes.Count);
             for (int i = 0; i < notes.Count; i++)
@@ -120,9 +120,6 @@ public abstract class SingleBlockSession : ISynthesisSession
 
         await Task.CompletedTask;
     }
-
-    // 音频协议：全局 0 时刻 = 采样点 0；音频本体经 IAudioSegment 握柄交付（见 SynthesizeNext）。
-    public int SampleRate => kSampleRate;
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
     public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
@@ -237,7 +234,7 @@ public sealed class SuiteVoiceSession(ISynthesisContext context) : SingleBlockSe
     };
 }
 
-// 条件属性面板演示：note config = f(context)，随当前值动态变化。覆写 GetNoteConfig 演示三类能力——
+// 条件属性面板演示：note config = f(context)，随当前值动态变化。覆写 GetNotePropertyConfig 演示三类能力——
 // ① 显隐/换控件：mode=Advanced 时多出 gain/detail 字段；
 // ② 控件参数随值变：pick 下拉的选项 = letters 逐字符（内容 + 数量都随 letters 变）；
 // ③ 动态数量控件：letters 每个唯一字符派生一个滑条（key=字符，重复字符只出一个——有序可重复列表属 array 独立话题）。
@@ -249,7 +246,7 @@ public sealed class ConditionalSession(ISynthesisContext context) : SingleBlockS
     protected override IReadOnlyOrderedMap<string, IControllerConfig> PartProperties => mPartProperties;
     protected override IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties => mNoteProperties;
 
-    public override ObjectConfig GetNoteConfig(IPropertyContext context)
+    public override ObjectConfig GetNotePropertyConfig(INotePropertyContext context)
     {
         var note = context.NoteProperties;
         var map = new OrderedMap<string, IControllerConfig>

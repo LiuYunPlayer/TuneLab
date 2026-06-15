@@ -22,8 +22,9 @@ public interface ISynthesisSession : IDisposable
     // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
     // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。
     // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
-    ObjectConfig GetPartConfig(IPropertyContext context);
-    ObjectConfig GetNoteConfig(IPropertyContext context);
+    // GetPropertyConfig = part（会话主体）级，只依赖 part 自身值；GetNotePropertyConfig = note 级，依赖 part + note。
+    ObjectConfig GetPropertyConfig(IPartPropertyContext context);
+    ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 
     // —— 调度（宿主驱动逐步合成：插件只在被调用时干活，干完即停等下一次）——
     // 一个会话同时只合成一块；并行发生在不同 part 的不同会话之间，并发上限由宿主账本式管控。
@@ -46,11 +47,10 @@ public interface ISynthesisSession : IDisposable
                         CancellationToken cancellation = default);
 
     // —— 音频产物（插件 native 采样率域）——
-    // 音频本体经 IAudioSegment 握柄交付（插件向 ISynthesisContext.CreateAudioSegment 申请段、写入、
-    // Complete）；此处仅暴露插件实际输出率。工程采样率是唯一真值（TuneLabContext.Global），宿主比对：
-    // 相等直读、不等时套一层流式重采样——重采样集中宿主一处，会话与工程率变化解耦。
+    // 音频本体经 IAudioSegment 握柄交付：插件向 ISynthesisContext.CreateAudioSegment 申请段时传入该段的
+    // native 采样率（宿主据此解释、与工程率比对：相等直读、不等套一层流式重采样，集中宿主一处）。采样率随段走、
+    // 不在会话级声明——插件完全可按用户选择逐段用不同率（如提供合成采样率下拉）。
     // 时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是各音频段（未交付区域即静音）。
-    int SampleRate { get; }
 
     // —— 曲线类产物 ——
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }   // 分段

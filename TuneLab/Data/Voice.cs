@@ -13,8 +13,8 @@ internal class Voice : DataObject, IVoice
     public string Name => mName;
     public string DefaultLyric => mSession?.DefaultLyric ?? "a";
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
-    public ObjectConfig GetPartConfig(IPropertyContext context) => mSession?.GetPartConfig(context) ?? EmptyConfig;
-    public ObjectConfig GetNoteConfig(IPropertyContext context) => mSession?.GetNoteConfig(context) ?? EmptyConfig;
+    public ObjectConfig GetPropertyConfig(IPartPropertyContext context) => mSession?.GetPropertyConfig(context) ?? EmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mSession?.GetNotePropertyConfig(context) ?? EmptyConfig;
 
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {

@@ -174,7 +174,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        mPartPropertiesController.SetConfig(mPart.Voice.GetPartConfig(BuildPartContext()), mPart.Properties);
+        mPartPropertiesController.SetConfig(mPart.Voice.GetPropertyConfig(BuildPartContext()), mPart.Properties);
     }
 
     // 重算 defer 到下一 UI 调度：属性 commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
@@ -190,7 +190,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mPartReconcilePending = false;
             if (mPart == null)
                 return;
-            mPartPropertiesController.Reconcile(mPart.Voice.GetPartConfig(BuildPartContext()));
+            mPartPropertiesController.Reconcile(mPart.Voice.GetPropertyConfig(BuildPartContext()));
         });
     }
 
@@ -204,15 +204,15 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mNoteReconcilePending = false;
             if (mPart == null || mNoteData == null)
                 return;
-            mNotePropertiesController.Reconcile(mPart.Voice.GetNoteConfig(BuildNoteContext()));
+            mNotePropertiesController.Reconcile(mPart.Voice.GetNotePropertyConfig(BuildNoteContext()));
         });
     }
 
-    IPropertyContext BuildPartContext()
-        => new PropertyContext(mPart!.Properties.GetInfo(), PropertyObject.Empty);
+    IPartPropertyContext BuildPartContext()
+        => new PartPropertyContext(mPart!.Properties.GetInfo());
 
-    IPropertyContext BuildNoteContext()
-        => new PropertyContext(mPart!.Properties.GetInfo(), MergeNoteSnapshots());
+    INotePropertyContext BuildNoteContext()
+        => new NotePropertyContext(mPart!.Properties.GetInfo(), MergeNoteSnapshots());
 
     // 当前选中 note 的三态合并快照：同 key 各 note 全等给该值、不等给 Multiple、全缺则不出现（稀疏）。
     PropertyObject MergeNoteSnapshots()
@@ -248,7 +248,12 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         return new PropertyObject(merged);
     }
 
-    sealed class PropertyContext(PropertyObject partProperties, PropertyObject noteProperties) : IPropertyContext
+    sealed class PartPropertyContext(PropertyObject partProperties) : IPartPropertyContext
+    {
+        public PropertyObject PartProperties => partProperties;
+    }
+
+    sealed class NotePropertyContext(PropertyObject partProperties, PropertyObject noteProperties) : INotePropertyContext
     {
         public PropertyObject PartProperties => partProperties;
         public PropertyObject NoteProperties => noteProperties;
@@ -286,7 +291,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         // 遮罩仅压暗 + 挡交互、提示去选音符。
         var dataObjects = mPart.Notes.AllSelectedItems().Select(note => note.Properties).ToList();
         mNoteData = new MultipleDataPropertyObject(dataObjects);
-        mNotePropertiesController.SetConfig(mPart.Voice.GetNoteConfig(BuildNoteContext()), mNoteData);
+        mNotePropertiesController.SetConfig(mPart.Voice.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
         mNoteData.Modified.Subscribe(ReconcileNoteController, mNoteSub);
     }
@@ -375,7 +380,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        ResetPartPropertiesToDefaults(mPart.Voice.GetPartConfig(BuildPartContext()), mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.Voice.GetPropertyConfig(BuildPartContext()), mPart.Properties);
         ResetAutomationDefaults();
         mPart.Commit();
     }
@@ -386,7 +391,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             return;
 
         mPart.Voice.SetInfo(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
-        ResetPartPropertiesToDefaults(mPart.Voice.GetPartConfig(BuildPartContext()), mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.Voice.GetPropertyConfig(BuildPartContext()), mPart.Properties);
         ApplyPresetProperties(preset.Properties, mPart.Properties);
         ApplyAutomationDefaults(preset);
         mPart.Commit();
