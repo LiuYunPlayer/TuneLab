@@ -14,9 +14,6 @@ internal interface IEffect : IDataObject<EffectInfo>
     // 来自引擎的参数面板配置；引擎缺失/未 Init 成功时为空配置（优雅降级）。
     ObjectConfig PropertyConfig { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    // 标记轨集合缓存待重算：宿主在该 effect 参数 commit 后、读 AutomationConfigs 前调用，
-    // 强制下次读取按当前参数值重算（不依赖内部 Properties.Modified 订阅与本次读取的相对时序）。
-    void InvalidateAutomationConfigs();
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IAutomation? AddAutomation(string automationID);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);

@@ -20,18 +20,11 @@ internal class Effect : DataObject, IEffect
     // 显隐/换控件/选项随值变都是该函数的涌现。
     public ObjectConfig PropertyConfig => Engine?.GetPropertyConfig(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPropertyConfig;
 
-    // 自动化轨集合随当前参数值涌现（轨集合 = f(当前值)）。惰性 dirty 缓存：参数 commit 仅置脏（不强制引擎 Init，
-    // 避免装载期对全部 effect 的重型引擎触发 Init），下次读取时按当前值重算。缓存还避免合成期 TryGetAutomation
-    // 反复 GetInfo + 引擎重算的开销。轨从集合消失不裁剪 mAutomations 的曲线数据——保留隐藏、轨复现即原样恢复。
+    // 自动化轨集合随当前参数值涌现（轨集合 = f(当前值)）：live 求值，每次按当前参数算——宿主在参数 commit 后读取即得新集合，
+    // 无缓存/无失效时序问题。配置很小、读取不在热路径，开销可忽略。
+    // 轨从集合消失不裁剪 mAutomations 的曲线数据——保留隐藏、轨复现即原样恢复。
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs
-    {
-        get
-        {
-            if (mAutomationConfigsDirty)
-                RecomputeAutomationConfigs();
-            return mAutomationConfigs;
-        }
-    }
+        => Engine?.GetAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
 
     public Effect(MidiPart part, EffectInfo info)
     {
@@ -41,24 +34,6 @@ internal class Effect : DataObject, IEffect
         Properties = new DataPropertyObject(this);
         mAutomations = new DataObjectMap<string, IAutomation>(this);
         SetInfo(info);
-        // 参数 commit 置脏（子先于父触发，故 part 侧 OnEffectModified 读 AutomationConfigs 时已是新值）。
-        Properties.Modified.Subscribe(() => mAutomationConfigsDirty = true);
-    }
-
-    // 标记缓存待重算（下次读 AutomationConfigs 时按当前参数值重算）。
-    public void InvalidateAutomationConfigs() => mAutomationConfigsDirty = true;
-
-    // 按当前参数稀疏快照重算自动化轨集合，写入缓存、清脏。引擎缺失/未 Init 成功时退化为空集（优雅降级）。
-    void RecomputeAutomationConfigs()
-    {
-        mAutomationConfigs.Clear();
-        var configs = Engine?.GetAutomationConfigs(new EffectPropertyContext(Properties.GetInfo()));
-        if (configs != null)
-        {
-            foreach (var kvp in configs)
-                mAutomationConfigs.Add(kvp.Key, kvp.Value);
-        }
-        mAutomationConfigsDirty = false;
     }
 
     Automation CreateAutomation(string automationID, AutomationInfo info)
@@ -119,9 +94,8 @@ internal class Effect : DataObject, IEffect
     }
 
     static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
+    static readonly IReadOnlyOrderedMap<string, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<string, AutomationConfig>();
 
     readonly MidiPart mPart;
     readonly DataObjectMap<string, IAutomation> mAutomations;
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    bool mAutomationConfigsDirty = true;
 }
