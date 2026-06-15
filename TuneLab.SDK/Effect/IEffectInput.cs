@@ -6,7 +6,7 @@ namespace TuneLab.SDK;
 
 // 一次效果器处理的输入：整段上游音频 + 该 effect 的参数快照 + 自动化取值入口。
 // 线程纪律：仅可在 IEffectProcessor.Process 的同步前缀（数据线程）读取；offload 后 worker 只读物化值。
-public interface IEffectSynthesisInput
+public interface IEffectInput
 {
     // 上游音频（voice 输出或链上前一个 effect 的输出），整段提供。
     MonoAudio Audio { get; }

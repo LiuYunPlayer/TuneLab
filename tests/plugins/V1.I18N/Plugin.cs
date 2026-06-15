@@ -87,7 +87,7 @@ public sealed class I18NSession : ISynthesisSession
     public string DefaultLyric => "la";
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
     public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public ObjectConfig GetPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     public SynthesisSegment? GetNextSegment(double startTime, double endTime)

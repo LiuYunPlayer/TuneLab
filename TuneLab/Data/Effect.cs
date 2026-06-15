@@ -17,7 +17,7 @@ internal class Effect : DataObject, IEffect
     IDataProperty<bool> IEffect.IsEnabled => IsEnabled;
 
     // 用当前参数稀疏快照求 config（提交① 静态消费：调用点取一次即渲染）。条件面板 commit 重算为后续。
-    public ObjectConfig PropertyConfig => Engine?.GetPropertyConfig(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPropertyConfig;
+    public ObjectConfig PropertyConfig => Engine?.GetPartPropertyConfig(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPropertyConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => Engine?.AutomationConfigs ?? EmptyAutomationConfigs;
 
     public Effect(MidiPart part, EffectInfo info)

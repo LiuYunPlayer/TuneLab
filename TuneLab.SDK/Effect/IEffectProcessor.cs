@@ -17,6 +17,6 @@ public interface IEffectProcessor : IDisposable
     // 返回纯 Task（无 outcome）：取消是正常调度结局——经 cancellation 请求、不抛 OperationCanceledException、
     // 正常返回（不可中止的引擎把这段跑完才返回）；错误抛异常，宿主在调用边界 catch → 该级 passthrough 降级。
     // progress 用 IProgress（Progress<T> 自带 SynchronizationContext marshal）。
-    Task Process(IEffectSynthesisInput input, IEffectSynthesisOutput output, IEffectChange change,
+    Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
                  IProgress<double>? progress = null, CancellationToken cancellation = default);
 }

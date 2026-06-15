@@ -9,7 +9,7 @@ public interface IEffectEngine
     // 参数面板配置：声明该效果器暴露给用户的可编辑参数（渲染为属性面板）。config 是当前参数值的纯函数——
     // 宿主在参数 commit 时按当前值重算整棵 config 并 diff 到控件树（显隐/换控件/选项随值变都是 f 的涌现）。
     // 须为纯函数（同输入同输出、无副作用、轻量）；静态面板的引擎忽略 context 返回固定 ObjectConfig 即可。
-    ObjectConfig GetPropertyConfig(IEffectPropertyContext context);
+    ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context);
 
     // 自动化轨配置：声明该效果器支持的、可随时间变化的自动化参数。
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }

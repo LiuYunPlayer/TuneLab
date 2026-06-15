@@ -52,7 +52,7 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => AutomationConfigs;
     public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public virtual ObjectConfig GetPropertyConfig(IPartPropertyContext context) => new() { Properties = PartProperties };
+    public virtual ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = PartProperties };
     public virtual ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = NoteProperties };
     static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
 

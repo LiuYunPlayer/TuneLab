@@ -20,7 +20,7 @@ namespace TuneLab.TestPlugins.V1Effect;
 public sealed class GainEffectEngine : IEffectEngine
 {
     // 静态面板：忽略 context 返回固定 config。
-    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
+    public ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomations;
     public void Init() { }
     public void Destroy() { }
@@ -46,7 +46,7 @@ public sealed class GainEffectEngine : IEffectEngine
     // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出，按 change 差分复用。
     sealed class GainProcessor : IEffectProcessor
     {
-        public Task Process(IEffectSynthesisInput input, IEffectSynthesisOutput output, IEffectChange change,
+        public Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
                             IProgress<double>? progress = null, CancellationToken cancellation = default)
         {
             var audio = input.Audio;
@@ -123,7 +123,7 @@ public sealed class GainEffectEngine : IEffectEngine
 [EffectEngine("TLTestReverse")]
 public sealed class ReverseEffectEngine : IEffectEngine
 {
-    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
+    public ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomations;
     public void Init() { }
     public void Destroy() { }
@@ -134,7 +134,7 @@ public sealed class ReverseEffectEngine : IEffectEngine
 
     sealed class ReverseProcessor : IEffectProcessor
     {
-        public Task Process(IEffectSynthesisInput input, IEffectSynthesisOutput output, IEffectChange change,
+        public Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
                             IProgress<double>? progress = null, CancellationToken cancellation = default)
         {
             var audio = input.Audio;

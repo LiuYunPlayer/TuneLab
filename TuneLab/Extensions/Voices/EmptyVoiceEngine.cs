@@ -28,7 +28,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public string DefaultLyric => "a";
         public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
         public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-        public ObjectConfig GetPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
+        public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
         public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
 
         public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;

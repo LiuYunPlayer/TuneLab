@@ -22,8 +22,8 @@ public interface ISynthesisSession : IDisposable
     // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
     // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。
     // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
-    // GetPropertyConfig = part（会话主体）级，只依赖 part 自身值；GetNotePropertyConfig = note 级，依赖 part + note。
-    ObjectConfig GetPropertyConfig(IPartPropertyContext context);
+    // GetPartPropertyConfig = part（会话主体）级，只依赖 part 自身值；GetNotePropertyConfig = note 级，依赖 part + note。
+    ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 
     // —— 调度（宿主驱动逐步合成：插件只在被调用时干活，干完即停等下一次）——

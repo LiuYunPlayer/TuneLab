@@ -59,7 +59,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     public string DefaultLyric => mSource.DefaultLyric;
     public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
     public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
-    public VConfig.ObjectConfig GetPropertyConfig(VVoice.IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public VConfig.ObjectConfig GetPartPropertyConfig(VVoice.IPartPropertyContext context) => new() { Properties = mPartProperties };
     public VConfig.ObjectConfig GetNotePropertyConfig(VVoice.INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     // —— 调度 ——

@@ -174,7 +174,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        mPartPropertiesController.SetConfig(mPart.Voice.GetPropertyConfig(BuildPartContext()), mPart.Properties);
+        mPartPropertiesController.SetConfig(mPart.Voice.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
     }
 
     // 重算 defer 到下一 UI 调度：属性 commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
@@ -190,7 +190,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mPartReconcilePending = false;
             if (mPart == null)
                 return;
-            mPartPropertiesController.Reconcile(mPart.Voice.GetPropertyConfig(BuildPartContext()));
+            mPartPropertiesController.Reconcile(mPart.Voice.GetPartPropertyConfig(BuildPartContext()));
         });
     }
 
@@ -380,7 +380,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        ResetPartPropertiesToDefaults(mPart.Voice.GetPropertyConfig(BuildPartContext()), mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.Voice.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
         ResetAutomationDefaults();
         mPart.Commit();
     }
@@ -391,7 +391,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             return;
 
         mPart.Voice.SetInfo(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
-        ResetPartPropertiesToDefaults(mPart.Voice.GetPropertyConfig(BuildPartContext()), mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.Voice.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
         ApplyPresetProperties(preset.Properties, mPart.Properties);
         ApplyAutomationDefaults(preset);
         mPart.Commit();

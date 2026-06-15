@@ -619,7 +619,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     }
 
     // 效果链输入：整段上游音频 + 该 effect 参数快照 + 自动化取值入口。
-    class EffectChainInput(MonoAudio audio, MidiPart part, IEffect effect) : IEffectSynthesisInput
+    class EffectChainInput(MonoAudio audio, MidiPart part, IEffect effect) : IEffectInput
     {
         public MonoAudio Audio => audio;
         public Foundation.PropertyObject Properties => effect.Properties.GetInfo();
@@ -636,7 +636,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         }
     }
 
-    class EffectChainOutput : IEffectSynthesisOutput
+    class EffectChainOutput : IEffectOutput
     {
         public MonoAudio Audio { get; set; }
     }
