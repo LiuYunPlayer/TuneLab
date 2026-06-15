@@ -524,6 +524,10 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
                 kv.Value.RangeModified.Subscribe(
                     (relStart, relEnd) => OnEffectAutomationRangeModified(index, automationId, relStart, relEnd),
                     mEffectSubscriptions);
+                // 默认值平移 = 整轨全区间失效（与 voice 的 SynthesisContext 对称；RangeModified 仅表锚点几何变更）。
+                kv.Value.DefaultValue.Modified.Subscribe(
+                    () => OnEffectAutomationRangeModified(index, automationId, double.NegativeInfinity, double.PositiveInfinity),
+                    mEffectSubscriptions);
             }
         }
     }
