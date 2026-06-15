@@ -54,6 +54,7 @@ public interface IExportFormat { Stream Serialize(ProjectInfo info); }
 - 实现类需无参构造函数。
 
 ### Voice 接口（命名空间 `TuneLab.SDK`）
+> ⚠️ **已过时、待重写**：现行 voice 是会话托管模型（`Init()` 无参 + `CreateSession(voiceId, context) → ISynthesisSession`，会话承担声明/逐步合成/产物，取消 `IVoiceSource`/`ISynthesisTask`）。下方签名**已不存在**，勿照抄（现行设计见 `docs/voice-sdk-design.md`）。
 ```csharp
 public interface IVoiceEngine {
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos { get; }   // TuneLab.Foundation
@@ -69,27 +70,42 @@ public interface IVoiceEngine {
 ### Effect 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IEffectEngine {
-    ObjectConfig PropertyConfig { get; }                                   // 参数面板
-    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    bool Init(string enginePath, out string? error);                       // enginePath = 包文件夹
+    // 条件声明：均为当前参数值（context.Properties）的纯函数，宿主在参数 commit 时按当前值重算并 diff 到 UI，
+    // 故面板控件 / 自动化轨可随参数显隐。静态的忽略 context 返回固定值。
+    ObjectConfig GetPropertyConfig(IEffectPropertyContext context);                                      // 参数面板
+    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context);  // 自动化轨
+    void Init();                                          // 无参；包目录经 Assembly.Location 自定位；失败抛异常
     void Destroy();
-    IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output);
+    IEffectProcessor CreateProcessor();                   // 宿主为每条「effect 实例 × 音频段」建一个持久处理器
 }
-public interface IEffectSynthesisInput {
-    MonoAudio Audio { get; }                                               // TuneLab.Foundation，整段上游音频
-    PropertyObject Properties { get; }                                     // TuneLab.Foundation，参数快照
+public interface IEffectProcessor : IDisposable {
+    // (重)处理该段：整段进整段出，结果写 output.Audio（可比输入长，含尾巴）。change = 自上次以来的变化事实
+    // （首次 IsInitial=true），据此决定内部哪些级重算（无增量可做就整段重处理）。返回纯 Task：取消正常返回
+    // 不抛 OperationCanceledException；错误抛异常（宿主 catch → 该级 passthrough 降级）。
+    Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
+                 IProgress<double>? progress = null, CancellationToken cancellation = default);
+}
+public interface IEffectInput {
+    MonoAudio Audio { get; }                              // TuneLab.Foundation，整段上游音频（voice 或前一 effect 输出）
+    PropertyObject Properties { get; }                    // TuneLab.Foundation，参数快照
     bool TryGetAutomation(string automationId, out IAutomationEvaluator? automation);   // 查询轴 = 全局秒
 }
-public interface IEffectSynthesisOutput { MonoAudio Audio { get; set; } }  // 把处理结果写这里
-public interface IEffectSynthesisTask {
-    event Action? Complete; event Action<double>? Progress; event Action<string>? Error;
-    void Start(); void Stop();
+public interface IEffectOutput { MonoAudio Audio { get; set; } }   // 把处理结果写这里
+public interface IEffectChange {                          // 自上次 Process 以来的变化事实（全局秒区间）
+    bool IsInitial { get; }                                                  // 首次调用：全量处理
+    bool TryGetAudioChange(out double startTime, out double endTime);        // 上游音频变更区间
+    IReadOnlyCollection<string> ChangedProperties { get; }                   // 变更的参数 key
+    IReadOnlyCollection<string> ChangedAutomations { get; }                  // 变更的自动化轨 id
+    bool TryGetAutomationChange(string automationId, out double startTime, out double endTime);
 }
+public interface IEffectPropertyContext { PropertyObject Properties { get; } }   // GetPropertyConfig/GetAutomationConfigs 求值上下文
 [AttributeUsage(AttributeTargets.Class)] public class EffectEngineAttribute : Attribute { public EffectEngineAttribute(string type); }
 ```
 - effect = 对**整段已合成音频**的离线变换（如 SVC 换声），非实时 VST。`type` 唯一，实现类需无参构造函数。
-- `MonoAudio`：`double StartTime`、`int SampleRate`、`float[] Samples`（单声道）。任务 `Start()` 异步处理后写 `output.Audio` 并触发 `Complete`；出错触发 `Error`（宿主按 passthrough 降级）。
+- `MonoAudio`：`double StartTime`、`int SampleRate`、`float[] Samples`（单声道）。
+- 生命周期：`Init()` 无参（失败抛异常 → 宿主 passthrough 降级）；宿主为每条「effect 实例 × 音频段」建一个持久 `IEffectProcessor`，按变化重复调 `Process`（处理器据此跨调用复用内部中间结果）；段销毁/删 effect/重分段/换采样率时 `Dispose`。
 - 一个 MidiPart 上多个 effect 按声明顺序串行，上一个输出是下一个输入；启用/顺序由用户管理。
+- 线程纪律：`input`/`change` 仅可在 `Process` 同步前缀（数据线程）读；offload 到 worker 后只读已物化的不可变值。
 
 ### 常见错误（避免）
 - ❌ 漏 `id` → 被当成 Legacy。

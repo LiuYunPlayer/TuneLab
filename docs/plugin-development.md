@@ -163,6 +163,8 @@ public class MyFormatExporter : IExportFormat
 
 ## 5. 编写 Voice 插件
 
+> ⚠️ **本节为旧模型、已过时，待重写**：现行 voice SDK 是会话托管模型（`IVoiceEngine.Init()` 无参、`CreateSession(voiceId, context) → ISynthesisSession`，由会话承担声明 + 逐步合成 + 产物，取消了 `IVoiceSource`/`ISynthesisTask`）。下方 `CreateVoiceSource`/`Init(enginePath)`/`ISynthesisTask` 等签名**已不存在**，请勿照抄。以现行接口为准（设计见 `docs/voice-sdk-design.md`），本节将在 voice 专属开发文档中重写。
+
 实现 `IVoiceEngine`，用 `[VoiceEngine("type")]` 声明引擎类型标识。需要**无参构造函数**。
 
 ```csharp
@@ -200,7 +202,7 @@ public class MyVoiceEngine : IVoiceEngine
 
 效果器（effect）对**已合成的整段音频**做变换。它面向**耗时较长的离线模型**（如 SVC 换声、神经音色转换），不是实时的 VST 式效果器。
 
-实现 `IEffectEngine`，用 `[EffectEngine("type")]` 声明类型标识。需要**无参构造函数**。
+实现 `IEffectEngine`，用 `[EffectEngine("type")]` 声明类型标识。需要**无参构造函数**。引擎是每种效果器类型一个；宿主为工程里每条「effect 实例 × 音频段」创建一个**持久处理器** `IEffectProcessor` 驱动它。
 
 ```csharp
 using TuneLab.Foundation;
@@ -209,66 +211,72 @@ using TuneLab.SDK;
 [EffectEngine("MyEffect")]            // 效果器类型标识（唯一）
 public class MyEffectEngine : IEffectEngine
 {
-    // 参数面板：声明暴露给用户的可编辑参数（渲染为属性面板）。
-    public ObjectConfig PropertyConfig => mPropertyConfig;
-    // 可随时间变化的自动化参数（可空）。
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    // 参数面板 / 自动化轨：均为当前参数值（context.Properties）的纯函数——宿主在参数 commit 时按当前值重算并 diff
+    // 到 UI，故控件/轨可随参数显隐（条件声明）。静态的忽略 context 返回固定值即可（如下例）。
+    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mPropertyConfig;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomationConfigs;
 
-    // enginePath = 你的包文件夹路径，用来定位随包分发的模型/资源。
-    public bool Init(string enginePath, out string? error)
-    {
-        error = null;
-        // ... 加载模型 ...
-        return true;
-    }
-
+    // 无参：包目录经 Assembly.Location 自定位（无需宿主递路径）。失败直接抛异常，宿主在调用边界 catch → passthrough 降级。
+    public void Init() { /* ... 加载模型 ... */ }
     public void Destroy() { /* 释放资源 */ }
 
-    public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output)
-        => new MyEffectTask(input, output);
+    // 每条「effect 实例 × 音频段」一个持久处理器。
+    public IEffectProcessor CreateProcessor() => new MyEffectProcessor();
 
-    readonly ObjectConfig mPropertyConfig = new(new OrderedMap<string, IControllerConfig>());
+    readonly ObjectConfig mPropertyConfig = new()
+    {
+        Properties = new OrderedMap<string, IControllerConfig>
+        {
+            { "amount", new SliderConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0 } },
+        },
+    };
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
 }
 ```
 
-合成任务一次性处理整段音频：`Start()` 后异步处理，把结果写入 `output.Audio`，完成时触发 `Complete`。
+处理器整段进整段出，把结果写入 `output.Audio`。`change` 描述自上次 `Process` 以来变了什么（首次 `IsInitial=true`），引擎据此决定内部哪些级需重算并跨调用复用中间结果；**没有内部增量可做的引擎，每次整段重处理即可**（忽略 `change` 即退化为整段进整段出）。
 
 ```csharp
-class MyEffectTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
+class MyEffectProcessor : IEffectProcessor
 {
-    public event Action? Complete;
-    public event Action<double>? Progress;
-    public event Action<string>? Error;
-
-    public void Start()
+    public Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
+                        IProgress<double>? progress = null, CancellationToken cancellation = default)
     {
-        try
+        var src = input.Audio;                          // 整段上游音频（voice 或上一个 effect 的输出）
+        double amount = input.Properties.GetDouble("amount", 1.0);
+
+        // 自动化（可选）：按采样时间点取值，查询轴 = 全局秒（与音频同一时间系）。
+        double[]? env = null;
+        if (input.TryGetAutomation("intensity", out var evaluator) && src.Samples is { } s)
         {
-            var src = input.Audio;                       // 整段上游音频（voice 或上一个 effect 的输出）
-            double amount = input.Properties.GetDouble("amount", 1.0);
-            // 自动化（可选）：按采样时间点取值
-            // if (input.TryGetAutomation("intensity", out var evaluator)) { var times = ...; var values = evaluator.Evaluate(times); }  // 查询轴 = 全局秒
-            var processed = Process(src.Samples, amount);
-            output.Audio = new MonoAudio(src.StartTime, src.SampleRate, processed);
-            Complete?.Invoke();
+            var times = new double[s.Length];
+            for (int i = 0; i < s.Length; i++) times[i] = src.StartTime + (double)i / src.SampleRate;
+            env = evaluator.Evaluate(times);
         }
-        catch (Exception ex) { Error?.Invoke(ex.Message); }
+
+        var processed = DoProcess(src.Samples, amount, env);
+        output.Audio = new MonoAudio(src.StartTime, src.SampleRate, processed);  // 可比输入长（含尾巴）
+        progress?.Report(1);
+        return Task.CompletedTask;                       // 错误抛异常（宿主 catch → passthrough），此处不吞
     }
 
-    public void Stop() { /* 取消处理 */ }
+    public void Dispose() { /* 释放该段的常驻状态 */ }
 }
 ```
 
 要点：
 
-- **输入/输出都是整段 `MonoAudio`**（`TuneLab.Foundation`）：`StartTime` / `SampleRate` / `Samples`（`float[]` 单声道）。原样整进整出，不要求逐缓冲流式处理。
-- **参数读取**：`input.Properties`（`PropertyObject`）按 `PropertyConfig` 声明的键取值（`GetDouble`/`GetString`/`GetBool`/`GetEnum`…）。
-- **效果链**：一条音轨的 MidiPart 上可挂多个 effect，按声明顺序**串行**——上一个的输出是下一个的输入。链顺序、启用（bypass）、增删由用户在属性面板里管理。
-- **分段处理**：合成以「片段」为单位（由歌声引擎的分片决定），每个片段独立过你的链——片段之间的连续性由分片负责，你只需处理拿到的这一段。
-- **失败优雅降级**：`Error` 或抛异常时，宿主把该级当作直通（passthrough），不中断整段播放。
+- **输入/输出都是整段 `MonoAudio`**（`TuneLab.Foundation`）：`StartTime` / `SampleRate` / `Samples`（`float[]` 单声道）。整进整出，不要求逐缓冲流式处理。
+- **持久处理器**：`CreateProcessor` 为「该 effect × 该段」建一个长生命周期实例，宿主按变化重复调 `Process`、跨调用复用其内部缓存；段销毁 / 删 effect / 重分段 / 换采样率时 `Dispose`。**不要**把状态做成每次 `Process` 重建。
+- **增量（可选优化）**：读 `change` 精确决定重算范围——`IsInitial`（首次全量）、`TryGetAudioChange`（上游音频变更区间）、`ChangedProperties`（变了哪些参数 key）、`ChangedAutomations` / `TryGetAutomationChange`（哪条轨、哪段秒区间变）。与本段无关的变化可原样返回上次输出（同数组引用），宿主据此跳过本段下游。
+- **条件声明**：`GetPropertyConfig` / `GetAutomationConfigs` 是当前参数值的纯函数，参数 commit 时重算——可据此让控件/自动化轨随参数显隐（如某开关勾选才暴露某条轨）。轨从声明消失后宿主**保留其已画曲线**（隐藏不删），参数回退轨复现即原样恢复。须为纯函数（同输入同输出、无副作用、轻量）。
+- **参数读取**：`input.Properties`（`PropertyObject`）按 config 声明的键取值（`GetDouble`/`GetString`/`GetBool`…）。
+- **效果链**：一条 MidiPart 上可挂多个 effect，按声明顺序**串行**——上一个输出是下一个输入。链顺序、bypass、增删由用户在属性面板管理。
+- **分段处理**：合成以「片段」为单位（由歌声引擎分片决定），每个片段独立过链；片段间连续性由分片负责，你只处理拿到的这一段。
+- **失败优雅降级 / 取消**：抛异常时宿主把该级当直通（passthrough），不中断播放；取消经 `cancellation` 请求、正常返回（**不要**抛 `OperationCanceledException`）。
+- **线程纪律**：`input` / `change` 仅可在 `Process` 同步前缀（数据线程）读取；若 offload 到后台线程，只读已物化的不可变值。
 
-相关接口都在 `TuneLab.SDK`：`IEffectEngine` / `IEffectSynthesisInput` / `IEffectSynthesisOutput` / `IEffectSynthesisTask`。
+相关接口都在 `TuneLab.SDK`：`IEffectEngine` / `IEffectProcessor` / `IEffectInput` / `IEffectOutput` / `IEffectChange` / `IEffectPropertyContext`。
 
 ---
 
