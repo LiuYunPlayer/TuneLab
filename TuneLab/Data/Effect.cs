@@ -16,7 +16,8 @@ internal class Effect : DataObject, IEffect
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     IDataProperty<bool> IEffect.IsEnabled => IsEnabled;
 
-    public ObjectConfig PropertyConfig => Engine?.PropertyConfig ?? EmptyPropertyConfig;
+    // 用当前参数稀疏快照求 config（提交① 静态消费：调用点取一次即渲染）。条件面板 commit 重算为后续。
+    public ObjectConfig PropertyConfig => Engine?.GetPropertyConfig(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPropertyConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => Engine?.AutomationConfigs ?? EmptyAutomationConfigs;
 
     public Effect(MidiPart part, EffectInfo info)
@@ -79,6 +80,12 @@ internal class Effect : DataObject, IEffect
     }
 
     IEffectEngine? Engine => EffectManager.GetInitedEngine(Type);
+
+    // 条件面板求值上下文：承载该 effect 自身稀疏参数值。
+    sealed class EffectPropertyContext(PropertyObject properties) : IEffectPropertyContext
+    {
+        public PropertyObject Properties => properties;
+    }
 
     static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly IReadOnlyOrderedMap<string, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<string, AutomationConfig>();

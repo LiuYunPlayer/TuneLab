@@ -293,7 +293,7 @@ internal static class ExtensionManager
         {
             case "format": FormatsManager.RegisterFromTypes(types); break;
             case "voice": VoicesManager.RegisterFromTypes(types); break;
-            case "effect": EffectManager.RegisterFromTypes(types, path); break;
+            case "effect": EffectManager.RegisterFromTypes(types); break;
         }
     }
 

@@ -14,7 +14,7 @@ internal static class EffectManager
     public static void LoadBuiltIn()
     {
         var types = Assembly.GetExecutingAssembly().GetTypes();
-        RegisterFromTypes(types, AppDomain.CurrentDomain.BaseDirectory);
+        RegisterFromTypes(types);
     }
 
     public static void Destroy()
@@ -26,8 +26,9 @@ internal static class EffectManager
         }
     }
 
-    // 由 ExtensionManager 在 per-folder ALC 加载后传入已加载类型 + 来源目录（供引擎 Init 定位模型资源）。
-    public static void RegisterFromTypes(Type[] types, string path)
+    // 由 ExtensionManager 在 per-folder ALC 加载后传入已加载类型，扫 [EffectEngine] 注册。
+    // 引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
+    public static void RegisterFromTypes(Type[] types)
     {
         foreach (Type type in types)
         {
@@ -40,7 +41,7 @@ internal static class EffectManager
 
             var constructor = type.GetConstructor(Type.EmptyTypes);
             if (constructor != null && !mEngines.ContainsKey(attribute.Type))
-                mEngines.Add(attribute.Type, new EffectEngineStatus((IEffectEngine)constructor.Invoke(null), path));
+                mEngines.Add(attribute.Type, new EffectEngineStatus((IEffectEngine)constructor.Invoke(null)));
         }
     }
 
@@ -57,17 +58,9 @@ internal static class EffectManager
         if (engine.IsInited)
             return engine.Engine;
 
-        try
+        if (!engine.Init(out var error))
         {
-            if (!engine.Init(out var error))
-            {
-                Log.Error(string.Format("Effect engine {0} init failed: {1}", type, error));
-                return null;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(string.Format("Effect engine {0} init failed: {1}", type, ex));
+            Log.Error(string.Format("Effect engine {0} init failed: {1}", type, error));
             return null;
         }
 
@@ -80,20 +73,29 @@ internal static class EffectManager
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public EffectEngineStatus(IEffectEngine engine, string enginePath)
+        public EffectEngineStatus(IEffectEngine engine)
         {
             mEngine = engine;
-            mEnginePath = enginePath;
         }
 
+        // Init 无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。
         public bool Init(out string? error)
         {
-            mIsInited = mEngine.Init(mEnginePath, out error);
+            try
+            {
+                mEngine.Init();
+                mIsInited = true;
+                error = null;
+            }
+            catch (Exception ex)
+            {
+                mIsInited = false;
+                error = ex.ToString();
+            }
             return mIsInited;
         }
 
         readonly IEffectEngine mEngine;
-        readonly string mEnginePath;
         bool mIsInited = false;
     }
 

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -7,18 +10,19 @@ namespace TuneLab.TestPlugins.V1Effect;
 // 两个 effect 引擎打在同一个包/程序集里，验证：引擎按 [EffectEngine] 注册、一包多 effect、
 // 参数面板（Gain 有 gain 滑块）、per-effect 时间轴自动化（Gain 有 gain_env 自动化轨）、
 // 链串行（Gain 与 Reverse 串联）、bypass、增删/重排。
+// 处理器为持久句柄：本测试每次整段重处理、忽略 change 的增量提示（演示「整段进整段出」的退化情形）。
 
 // 增益效果器：output = input * gain * gainEnv(t)。gain 为静态参数滑块；gain_env 为一条可编辑的时间轴自动化轨
-// （验证 per-effect 自动化：声明 AutomationConfig + 合成时按采样点时间取值并应用）。gain=0 → 静音；env=1 → 不改变。
+// （验证 per-effect 自动化：声明 AutomationConfig + 处理时按采样点时间取值并应用）。gain=0 → 静音；env=1 → 不改变。
 [EffectEngine("TLTestGain")]
 public sealed class GainEffectEngine : IEffectEngine
 {
-    public ObjectConfig PropertyConfig => mConfig;
+    // 静态面板：忽略 context 返回固定 config。
+    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomations;
-    public bool Init(string enginePath, out string? error) { error = null; return true; }
+    public void Init() { }
     public void Destroy() { }
-    public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output)
-        => new GainTask(input, output);
+    public IEffectProcessor CreateProcessor() => new GainProcessor();
 
     static ObjectConfig BuildConfig()
     {
@@ -37,44 +41,37 @@ public sealed class GainEffectEngine : IEffectEngine
     static readonly ObjectConfig mConfig = BuildConfig();
     static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
 
-    sealed class GainTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
+    sealed class GainProcessor : IEffectProcessor
     {
-        public event Action? Complete;
-        public event Action<double>? Progress;
-        public event Action<string>? Error;
-
-        public void Start()
+        public Task Process(IEffectSynthesisInput input, IEffectSynthesisOutput output, IEffectChange change,
+                            IProgress<double>? progress = null, CancellationToken cancellation = default)
         {
-            try
+            double gain = input.Properties.GetDouble("gain", 1.0);
+            var audio = input.Audio;
+            var src = audio.Samples ?? Array.Empty<float>();
+            var dst = new float[src.Length];
+
+            // gain_env 自动化轨：存在则按每个采样点的时间取值，乘到增益上。
+            double[]? env = null;
+            if (input.TryGetAutomation("gain_env", out var automation) && src.Length > 0)
             {
-                double gain = input.Properties.GetDouble("gain", 1.0);
-                var audio = input.Audio;
-                var src = audio.Samples ?? Array.Empty<float>();
-                var dst = new float[src.Length];
-
-                // gain_env 自动化轨：存在则按每个采样点的时间取值，乘到增益上。
-                double[]? env = null;
-                if (input.TryGetAutomation("gain_env", out var automation) && src.Length > 0)
-                {
-                    var times = new double[src.Length];
-                    for (int i = 0; i < src.Length; i++)
-                        times[i] = audio.StartTime + (double)i / audio.SampleRate;
-                    env = automation.Evaluate(times);
-                }
-
+                var times = new double[src.Length];
                 for (int i = 0; i < src.Length; i++)
-                {
-                    double m = gain * (env != null ? env[i] : 1.0);
-                    dst[i] = (float)(src[i] * m);
-                }
-                output.Audio = new MonoAudio(audio.StartTime, audio.SampleRate, dst);
-                Progress?.Invoke(1);
-                Complete?.Invoke();
+                    times[i] = audio.StartTime + (double)i / audio.SampleRate;
+                env = automation.Evaluate(times);
             }
-            catch (Exception ex) { Error?.Invoke(ex.Message); }
+
+            for (int i = 0; i < src.Length; i++)
+            {
+                double m = gain * (env != null ? env[i] : 1.0);
+                dst[i] = (float)(src[i] * m);
+            }
+            output.Audio = new MonoAudio(audio.StartTime, audio.SampleRate, dst);
+            progress?.Report(1);
+            return Task.CompletedTask;   // 错误经抛异常报告（宿主 catch → passthrough），此处不吞异常。
         }
 
-        public void Stop() { }
+        public void Dispose() { }
     }
 }
 
@@ -82,37 +79,30 @@ public sealed class GainEffectEngine : IEffectEngine
 [EffectEngine("TLTestReverse")]
 public sealed class ReverseEffectEngine : IEffectEngine
 {
-    public ObjectConfig PropertyConfig => mConfig;
+    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomations;
-    public bool Init(string enginePath, out string? error) { error = null; return true; }
+    public void Init() { }
     public void Destroy() { }
-    public IEffectSynthesisTask CreateSynthesisTask(IEffectSynthesisInput input, IEffectSynthesisOutput output)
-        => new ReverseTask(input, output);
+    public IEffectProcessor CreateProcessor() => new ReverseProcessor();
 
     static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
 
-    sealed class ReverseTask(IEffectSynthesisInput input, IEffectSynthesisOutput output) : IEffectSynthesisTask
+    sealed class ReverseProcessor : IEffectProcessor
     {
-        public event Action? Complete;
-        public event Action<double>? Progress;
-        public event Action<string>? Error;
-
-        public void Start()
+        public Task Process(IEffectSynthesisInput input, IEffectSynthesisOutput output, IEffectChange change,
+                            IProgress<double>? progress = null, CancellationToken cancellation = default)
         {
-            try
-            {
-                var src = input.Audio.Samples ?? Array.Empty<float>();
-                var dst = new float[src.Length];
-                for (int i = 0; i < src.Length; i++)
-                    dst[i] = src[src.Length - 1 - i];
-                output.Audio = new MonoAudio(input.Audio.StartTime, input.Audio.SampleRate, dst);
-                Progress?.Invoke(1);
-                Complete?.Invoke();
-            }
-            catch (Exception ex) { Error?.Invoke(ex.Message); }
+            var audio = input.Audio;
+            var src = audio.Samples ?? Array.Empty<float>();
+            var dst = new float[src.Length];
+            for (int i = 0; i < src.Length; i++)
+                dst[i] = src[src.Length - 1 - i];
+            output.Audio = new MonoAudio(audio.StartTime, audio.SampleRate, dst);
+            progress?.Report(1);
+            return Task.CompletedTask;
         }
 
-        public void Stop() { }
+        public void Dispose() { }
     }
 }
