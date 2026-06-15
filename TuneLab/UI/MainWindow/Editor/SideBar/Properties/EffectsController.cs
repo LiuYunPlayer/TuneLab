@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TuneLab.Data;
 using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
@@ -140,6 +141,8 @@ internal class EffectsController : StackPanel
 
         public EffectView(EffectsController owner, IEffect effect, int index)
         {
+            mEffect = effect;
+
             var bypass = new CheckBox() { Margin = new(24, 0, 8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             bypass.BindDataProperty(effect.IsEnabled, s);
 
@@ -168,13 +171,31 @@ internal class EffectsController : StackPanel
             header.Children.Add(typeLabel);
 
             // 参数面板：逐字段绑定到 effect.Properties，值的下发/写回/撤销刷新全自动。
+            // 条件面板：参数 commit 后按当前值重算整棵 config 并 keyed-diff 到控件树（显隐/换控件/选项随值变都是 config 的涌现）。
             mController = new PropertyObjectController();
             mController.SetConfig(effect.PropertyConfig, effect.Properties);
+            effect.Properties.Modified.Subscribe(ReconcileController, s);
 
             mRoot = new StackPanel() { Orientation = Orientation.Vertical };
             mRoot.Children.Add(header);
             mRoot.Children.Add(mController);
             mRoot.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        }
+
+        // 参数值 commit：数据对象不变，按当前值重算 config 并 keyed-diff 复用控件。
+        // 重算 defer 到下一 UI 调度：commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
+        // 同步重算会重入修改控件集合（Avalonia ComboBox 在其 SelectionChanged 中 Clear/重填 Items 会抛异常）。
+        // pending 标志合并一拍内的多次触发；dispose 后 pending 的回调命中 Reconcile 的空数据对象保护，安全空转。
+        void ReconcileController()
+        {
+            if (mReconcilePending)
+                return;
+            mReconcilePending = true;
+            Dispatcher.UIThread.Post(() =>
+            {
+                mReconcilePending = false;
+                mController.Reconcile(mEffect.PropertyConfig);
+            });
         }
 
         public void Dispose()
@@ -183,8 +204,10 @@ internal class EffectsController : StackPanel
             mController.ResetConfig();
         }
 
+        readonly IEffect mEffect;
         readonly PropertyObjectController mController;
         readonly StackPanel mRoot;
+        bool mReconcilePending = false;
         readonly DisposableManager s = new();
     }
 
