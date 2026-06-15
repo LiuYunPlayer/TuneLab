@@ -45,6 +45,8 @@ internal class ParameterTabBar : Panel
         mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
         mDependency.PartHolder.When(p => p.Voice.Modified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.PartHolder.When(p => p.Effects.ListModified).Subscribe(OnAutomationConfigsChanged, s);
+        // 条件自动化轨随参数 commit 显隐 → 重建轨按钮（仅轨集合实变时触发）。
+        mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.ActiveAutomationChanged += SyncAutomationButtonsState;
         mDependency.VisibleAutomationChanged += SyncAutomationButtonsState;
 

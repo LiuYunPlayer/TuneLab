@@ -11,8 +11,12 @@ public interface IEffectEngine
     // 须为纯函数（同输入同输出、无副作用、轻量）；静态面板的引擎忽略 context 返回固定 ObjectConfig 即可。
     ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context);
 
-    // 自动化轨配置：声明该效果器支持的、可随时间变化的自动化参数。
-    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
+    // 自动化轨配置：声明该效果器暴露的、可随时间变化的自动化参数（渲染为参数栏的轨）。
+    // 与 GetPartPropertyConfig 同为当前参数值的纯函数——宿主在参数 commit 时按当前值重算轨集合并 diff 到 UI，
+    // 故轨集合可随参数显隐（如某模式开关才暴露的轨）。须为纯函数（同输入同输出、无副作用、轻量）；
+    // 静态轨集合的引擎忽略 context 返回固定 map 即可。
+    // 孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
+    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context);
 
     // 初始化引擎（加载模型等）。无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。
     // 不传安装路径——插件 DLL 经 Assembly.Location 即可自定位包目录。

@@ -45,6 +45,8 @@ internal class AutomationDefaultsController : StackPanel
         foreach (var effect in mPart.Effects)
             effect.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
         mPart.Effects.ListModified.Subscribe(Rebuild, s);
+        // 条件自动化轨随参数 commit 显隐 → 重建（仅轨集合实变时触发）。
+        mPart.AutomationConfigsModified.Subscribe(Rebuild, s);
     }
 
     void AddGroup(string? header, IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex)

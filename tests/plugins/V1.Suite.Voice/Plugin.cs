@@ -50,8 +50,8 @@ public abstract class SingleBlockSession : ISynthesisSession
     protected abstract IReadOnlyOrderedMap<string, IControllerConfig> PartProperties { get; }
     protected abstract IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
 
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => AutomationConfigs;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => AutomationConfigs;
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context) => mPiecewiseAutomationConfigs;
     public virtual ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = PartProperties };
     public virtual ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = NoteProperties };
     static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();

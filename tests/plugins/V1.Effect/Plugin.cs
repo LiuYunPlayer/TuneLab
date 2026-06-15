@@ -19,9 +19,12 @@ namespace TuneLab.TestPlugins.V1Effect;
 [EffectEngine("TLTestGain")]
 public sealed class GainEffectEngine : IEffectEngine
 {
-    // 静态面板：忽略 context 返回固定 config。
     public ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context) => mConfig;
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomations;
+
+    // 条件轨集合：env_enabled 勾选才暴露 gain_env（轨集合 = f(当前参数值)）。取消勾选时已画 gain_env
+    // 曲线由宿主保留隐藏、重新勾选即原样恢复。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context)
+        => context.Properties.GetBool("env_enabled", true) ? mAutomations : mEmptyAutomations;
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor() => new GainProcessor();
@@ -30,6 +33,7 @@ public sealed class GainEffectEngine : IEffectEngine
     {
         var map = new OrderedMap<string, IControllerConfig>();
         map.Add("gain", new SliderConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0 });
+        map.Add("env_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Show Gain Env" });
         return new ObjectConfig { Properties = map };
     }
 
@@ -42,6 +46,7 @@ public sealed class GainEffectEngine : IEffectEngine
 
     static readonly ObjectConfig mConfig = BuildConfig();
     static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
+    static readonly OrderedMap<string, AutomationConfig> mEmptyAutomations = new();
 
     // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出，按 change 差分复用。
     sealed class GainProcessor : IEffectProcessor
@@ -57,9 +62,10 @@ public sealed class GainEffectEngine : IEffectEngine
             bool audioChanged = change.IsInitial || !ReferenceEquals(src, mLastInput) || change.TryGetAudioChange(out _, out _);
             bool gainChanged = change.IsInitial || change.ChangedProperties.Contains("gain");
 
-            // env 仅在：首次 / 音频变（逐采样时间轴随之变）/ gain_env 变更区间与本段相交 时重取曲线。
+            // env 仅在：首次 / 音频变（逐采样时间轴随之变）/ env_enabled 显隐切换 / gain_env 变更区间与本段相交
+            // 时重取曲线。env_enabled 切换会改 gain_env 轨的有无，须重取（关掉后 TryGetAutomation 失败 → env 清空）。
             bool envChanged;
-            if (change.IsInitial || audioChanged)
+            if (change.IsInitial || audioChanged || change.ChangedProperties.Contains("env_enabled"))
                 envChanged = true;
             else if (change.TryGetAutomationChange("gain_env", out double autoStart, out double autoEnd))
                 envChanged = autoEnd >= segStart && autoStart <= segEnd;
@@ -124,7 +130,7 @@ public sealed class GainEffectEngine : IEffectEngine
 public sealed class ReverseEffectEngine : IEffectEngine
 {
     public ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context) => mConfig;
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomations;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor() => new ReverseProcessor();

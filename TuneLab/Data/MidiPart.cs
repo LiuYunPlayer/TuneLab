@@ -19,6 +19,9 @@ namespace TuneLab.Data;
 internal class MidiPart : Part, IMidiPart
 {
     public IActionEvent SynthesisStatusChanged => mSynthesisStatusChanged;
+    // 自动化轨集合因参数 commit 而变（voice 依赖 part 参数、各 effect 依赖自身参数）：UI 收到重建参数栏/默认值面板。
+    // 仅在轨集合实际变化时触发（签名比对去抖）；换源/链增删走各自既有 UI 触发，不重复经此事件。
+    public IActionEvent AutomationConfigsModified => mAutomationConfigsModified;
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> Dur { get; }
@@ -62,6 +65,8 @@ internal class MidiPart : Part, IMidiPart
         // 换声源：丢弃旧会话、重建新会话（context 随会话重建）。
         // 注：本订阅在一切 UI 订阅之前注册，UI 收到 Voice.Modified 时声明已刷新。
         mVoice.Modified.Subscribe(OnVoiceModified);
+        // part 参数 commit：voice 的条件自动化轨集合可能随之变；重算并按需通知 UI。
+        Properties.Modified.Subscribe(OnPartPropertiesModified);
         // 其余数据变更（note/pitch/automation/tempo/平移）不再由 part 驱动重分片——
         // 失效判定归插件，变更流经 SynthesisContext 转发。
         SetInfo(info);
@@ -113,12 +118,61 @@ internal class MidiPart : Part, IMidiPart
         if (index < 0)
             return;
         mPipeline?.SetEffectDirty(index);
+        // 该 effect 的参数变可能改其条件自动化轨集合（仅活跃 part 才有 UI 在看，且引擎已 Init）。
+        if (mPipeline != null && RefreshAutomationConfigsSignatureChanged())
+            mAutomationConfigsModified.Invoke();
+    }
+
+    // part 参数 commit：voice 条件自动化轨集合可能随之变；重算 voice 轨集合，仅当聚合签名变时通知 UI。
+    void OnPartPropertiesModified()
+    {
+        if (mPipeline == null)
+            return;
+        mVoice.RebuildAutomationConfigs(BuildPartPropertyContext());
+        if (RefreshAutomationConfigsSignatureChanged())
+            mAutomationConfigsModified.Invoke();
     }
 
     // 链结构变化（增删/重排）：各段弃处理器、从头重建效果链（voice 输出已缓存，不重跑 voice）。
     void OnEffectChainStructureModified()
     {
         mPipeline?.OnEffectChainStructureChanged();
+        // 链变更经 Effects.ListModified 已驱动 UI 重建；此处只对齐签名基线，避免后续参数 commit 误判。
+        mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
+    }
+
+    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(Properties.GetInfo());
+
+    // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
+    string ComputeAutomationConfigsSignature()
+    {
+        var sb = new StringBuilder();
+        AppendAutomationConfigs(sb, "v", mVoice.AutomationConfigs);
+        for (int i = 0; i < mEffects.Count; i++)
+            AppendAutomationConfigs(sb, "e" + i, mEffects[i].AutomationConfigs);
+        return sb.ToString();
+    }
+
+    static void AppendAutomationConfigs(StringBuilder sb, string source, IReadOnlyOrderedMap<string, AutomationConfig> configs)
+    {
+        sb.Append(source).Append('{');
+        foreach (var kvp in configs)
+        {
+            var c = kvp.Value;
+            sb.Append(kvp.Key).Append('|').Append(c.DisplayText).Append('|')
+              .Append(c.DefaultValue).Append('|').Append(c.MinValue).Append('|')
+              .Append(c.MaxValue).Append('|').Append(c.Color).Append(';');
+        }
+        sb.Append('}');
+    }
+
+    bool RefreshAutomationConfigsSignatureChanged()
+    {
+        var next = ComputeAutomationConfigsSignature();
+        if (next == mAutomationConfigsSignature)
+            return false;
+        mAutomationConfigsSignature = next;
+        return true;
     }
 
     public void InsertVibrato(Vibrato vibrato)
@@ -281,7 +335,10 @@ internal class MidiPart : Part, IMidiPart
         DisposeSynthesisPipeline();
         mPipeline = new VoiceSynthesisPipeline(this, mVoice.Type, mVoice.ID);
         mPipeline.StatusChanged += OnPipelineStatusChanged;
-        mVoice.RefreshDeclarations(mPipeline.Session);
+        mVoice.RefreshDeclarations(mPipeline.Session, BuildPartPropertyContext());
+        // 重置签名基线（激活 / 换源时 UI 经各自既有触发整体重建，此处不发 AutomationConfigsModified，
+        // 只对齐基线供后续参数 commit 的增量比对）。
+        mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
         mSynthesisStatusChanged.Invoke();
     }
 
@@ -293,7 +350,7 @@ internal class MidiPart : Part, IMidiPart
         mPipeline.StatusChanged -= OnPipelineStatusChanged;
         mPipeline.Dispose();
         mPipeline = null;
-        mVoice.RefreshDeclarations(null);
+        mVoice.RefreshDeclarations(null, BuildPartPropertyContext());
         foreach (var note in mNotes)
         {
             note.SynthesizedPhonemes = null;
@@ -455,6 +512,8 @@ internal class MidiPart : Part, IMidiPart
     protected override int SampleRate => AudioEngine.SampleRate.Value;
 
     readonly ActionEvent mSynthesisStatusChanged = new();
+    readonly ActionEvent mAutomationConfigsModified = new();
+    string mAutomationConfigsSignature = string.Empty;
     readonly BatchSignal mSynthesisBatch = new();
     VoiceSynthesisPipeline? mPipeline;
 

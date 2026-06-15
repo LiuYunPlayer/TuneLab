@@ -440,21 +440,25 @@ public class PiecewiseAutomationConfig : IControllerConfig
   `Portrait` 是格式无关的资源引用：封闭层次（构造器 private protected，变体仅 SDK 内新增），变体按数据形态分型（v1 仅 `FileImageResource` 路径变体——可指向图像文件或序列帧目录）、保持可序列化数据形态；动图（GIF/APNG）是宿主解码能力不进类型，Live2D/Spine 等富动态为独立特性。运行时会变的图像走目录变更信号（将来 `IVoiceEngine` 加性事件），资源对象本身恒为不可变值。
 
 - **会话直接暴露声明**（不再包一个 `VoiceSourceInfo` 字段，元数据由 `VoiceSourceInfos` 提供、不重复）。
-  **接口面只保留函数式获取**：静态声明是插件实现内部的事（返回缓存 map 即一行），接口不为它单设属性面——
-  否则"固定属性 + 动态方法回退"两套并存显得多余。宿主在会话创建/重建后调用并缓存；
-  运行中动态变化（轨集合变更通知 + 既有轨数据归宿）挂账缓后（见 §9）：
+  **接口面只保留函数式获取**：接口不为它单设属性面——否则"固定属性 + 动态方法回退"两套并存显得多余。
+  **声明全部 context 驱动、纯函数**：轨集合（连续/分段）与属性面板均 = f(当前 part/note 参数值)，
+  宿主在参数 commit 时按当前值重算并 diff 到 UI——轨集合可随参数显隐（条件轨），属性面板可随值换控件/显隐。
+  静态声明的插件忽略 context 返回固定 map/config 即可。**孤儿数据**：轨从声明消失后宿主保留其已画曲线
+  （隐藏不删、不参与合成），参数回退使轨复现即原样恢复（数据层不裁剪）。
 
   ```csharp
   public interface ISynthesisSession   // 续
   {
       string DefaultLyric { get; }
-      IReadOnlyOrderedMap<string, AutomationConfig>          GetAutomationConfigs();
-      IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs();
+
+      // 自动化轨声明（part 级，context 驱动）；commit 时重算 + diff 轨集合。
+      IReadOnlyOrderedMap<string, AutomationConfig>          GetAutomationConfigs(IPartPropertyContext context);
+      IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context);
 
       // 条件面板（吃宿主现造的 property context，纯函数，commit 时重算 + keyed-diff）；
       // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
-      ObjectConfig GetPartConfig(IPropertyContext context);
-      ObjectConfig GetNoteConfig(IPropertyContext context);
+      ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
+      ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
   }
   ```
 
@@ -489,5 +493,10 @@ public class PiecewiseAutomationConfig : IControllerConfig
   - ~~`IAutomationEvaluator` 与 `ISynthesisAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
   - `SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型（与 PiecewiseAutomation 概念对齐），两 SDK 同步换形。
   - ~~`IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）~~（已随 SDK 程序集合并消解：voice/effect 同居 `TuneLab.SDK` 顶层命名空间，effect 可直接复用）。
-- **动态声明面**：轨集合/属性声明运行中变化的通知机制 + 既有轨用户数据的归宿（轨从声明消失后曲线数据怎么办）——函数式获取已留好形态，事件与数据策略缓后。
+- ~~**动态声明面**：轨集合/属性声明运行中变化 + 既有轨用户数据的归宿~~（**已实现**：声明全部 context 驱动、纯函数，
+  宿主在参数 commit 时按当前值重算并 diff——轨集合随参数显隐（`GetAutomationConfigs`/`GetPiecewiseAutomationConfigs`
+  收 `IPartPropertyContext`），属性面板同 `GetPartPropertyConfig`/`GetNotePropertyConfig`；effect 侧 `IEffectEngine.GetAutomationConfigs(IEffectPropertyContext)` 同构。
+  voice 走材料化缓存（part 参数驱动重算），effect 走惰性 dirty 缓存（自身参数驱动），宿主聚合签名去抖、仅轨集合实变才刷新 UI。
+  孤儿数据归宿定为**保留隐藏、轨复现即原样恢复**：数据层不因声明收缩而裁剪曲线，隐藏轨不参与合成。
+  引擎自发的运行中变化（如异步模型加载后改轨集合，非参数驱动）若将来需要，再加声明级变更事件——当前 context 驱动已覆盖参数驱动的全部场景。）
 - 动态立绘 / 动态全局背景图（宿主渲染能力，独立特性）。

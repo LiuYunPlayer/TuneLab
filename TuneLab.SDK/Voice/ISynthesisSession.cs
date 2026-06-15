@@ -13,11 +13,16 @@ namespace TuneLab.SDK;
 public interface ISynthesisSession : IDisposable
 {
     // —— 声明（该声源暴露什么；Name/Description 等元数据由 IVoiceEngine.VoiceSourceInfos 提供，不重复）——
-    // 接口面只保留函数式获取（静态声明是插件实现内部的事：返回缓存 map 即一行）；
-    // 宿主在会话创建/重建后调用并缓存。运行中动态变化（轨集合变更通知 + 既有轨数据归宿）挂账缓后。
+    // 接口面只保留函数式获取（静态声明是插件实现内部的事：返回缓存 map 即一行）。
     string DefaultLyric { get; }
-    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs();
-    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs();
+
+    // 自动化轨配置（连续 / 分段）：与 GetPartPropertyConfig 同为当前 part 参数值的纯函数——宿主在 part 参数
+    // commit 时按当前值重算轨集合并 diff 到 UI，故轨集合可随参数显隐（如某模式开关才暴露的轨）。
+    // 须为纯函数（同输入同输出、无副作用、轻量）；静态轨集合的插件忽略 context 返回固定 map 即可。
+    // 轨是 part 级（与 GetPartPropertyConfig 同用 part context，非 note 级）。
+    // 孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
+    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
+    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context);
 
     // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
     // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。

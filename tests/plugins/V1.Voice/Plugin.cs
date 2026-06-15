@@ -37,6 +37,9 @@ public sealed class TestSession : ISynthesisSession
     {
         mContext = context;
         mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
+        // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
+        // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
+        mPartProperties.Add("growl_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Enable Growl" });
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
         mAutomationConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
 
@@ -57,8 +60,10 @@ public sealed class TestSession : ISynthesisSession
     }
 
     public string DefaultLyric => "la";
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+    // 条件轨集合：growl_enabled 勾选才暴露 Growl（轨集合 = f(part 参数值)）。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
+        => context.PartProperties.GetBool("growl_enabled", true) ? mAutomationConfigs : mEmptyAutomationConfigs;
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context) => mPiecewiseAutomationConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
@@ -422,6 +427,7 @@ public sealed class TestSession : ISynthesisSession
     readonly Dictionary<ISynthesisNote, Action> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    static readonly OrderedMap<string, AutomationConfig> mEmptyAutomationConfigs = new();
     readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();

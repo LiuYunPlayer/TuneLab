@@ -19,7 +19,7 @@ internal class Voice : DataObject, IVoice
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {
         WriteInfo(info);
-        RefreshDeclarations(null);
+        RefreshDeclarations(null, PartPropertyContext.Empty);
     }
 
     public VoiceInfo GetInfo()
@@ -43,20 +43,27 @@ internal class Voice : DataObject, IVoice
 
     // 会话重建后由 part 注入声明来源（不触发 Notify：本方法在 Voice.Modified 的 part 侧
     // handler 内被调，part 在构造期最早订阅、先于 UI 刷新执行，UI 读到的即新声明）。
-    public void RefreshDeclarations(ISynthesisSession? session)
+    public void RefreshDeclarations(ISynthesisSession? session, IPartPropertyContext context)
     {
         mSession = session;
         mName = VoicesManager.TryGetVoiceInfo(mType, mID, out var info)
             ? info.Name
             : (string.IsNullOrEmpty(mID) ? "Empty Voice" : mID);
+        RebuildAutomationConfigs(context);
+    }
+
+    // 按当前 part 参数值重算自动化轨集合（轨集合 = f(当前值)）：会话固定、part 参数 commit 时由 part 调用。
+    // 仅重算材料化缓存（PreCommon + 会话条件声明 + PostCommon），不动 mSession/mName。变更检测由 part 侧承担。
+    public void RebuildAutomationConfigs(IPartPropertyContext context)
+    {
         mAutomationConfigs.Clear();
         foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs)
         {
             mAutomationConfigs.Add(kvp.Key, kvp.Value);
         }
-        if (session != null)
+        if (mSession != null)
         {
-            foreach (var kvp in session.GetAutomationConfigs())
+            foreach (var kvp in mSession.GetAutomationConfigs(context))
             {
                 if (!mAutomationConfigs.ContainsKey(kvp.Key))
                     mAutomationConfigs.Add(kvp.Key, kvp.Value);

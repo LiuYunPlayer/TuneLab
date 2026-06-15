@@ -55,10 +55,10 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mNeedReSegment = true;
     }
 
-    // —— 声明（老声源声明是静态的：缓存转换、函数式返回）——
+    // —— 声明（老声源声明是静态的：缓存转换、函数式返回；老模型无条件轨集合，忽略 context）——
     public string DefaultLyric => mSource.DefaultLyric;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs(VVoice.IPartPropertyContext context) => mAutomationConfigs;
+    public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(VVoice.IPartPropertyContext context) => mPiecewiseAutomationConfigs;
     public VConfig.ObjectConfig GetPartPropertyConfig(VVoice.IPartPropertyContext context) => new() { Properties = mPartProperties };
     public VConfig.ObjectConfig GetNotePropertyConfig(VVoice.INotePropertyContext context) => new() { Properties = mNoteProperties };
 

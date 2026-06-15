@@ -26,8 +26,8 @@ internal class EmptyVoiceEngine : IVoiceEngine
     class EmptySession : ISynthesisSession
     {
         public string DefaultLyric => "a";
-        public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs() => mAutomationConfigs;
-        public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs() => mPiecewiseAutomationConfigs;
+        public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
+        public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context) => mPiecewiseAutomationConfigs;
         public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
         public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
 

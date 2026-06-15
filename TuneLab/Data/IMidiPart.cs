@@ -16,6 +16,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
 {
     // 合成状态/产物有更新（含会话重建），UI 收到直接刷新；区域信息看 GetSynthesisStatus()。
     IActionEvent SynthesisStatusChanged { get; }
+    // 自动化轨集合因参数 commit 而变（条件轨随值显隐）：UI 收到重建参数栏/默认值面板。仅实际变化时触发。
+    IActionEvent AutomationConfigsModified { get; }
     INoteList Notes { get; }
     IReadOnlyDataObjectList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
