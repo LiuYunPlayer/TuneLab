@@ -17,10 +17,14 @@ namespace TuneLab.Data.Synthesis;
 // 线程纪律：除标注外全部成员仅数据线程访问；session.StatusChanged 允许任意线程触发，
 // 这里负责 marshal 回数据线程再对外转发。
 //
-// 效果链（按段增量）：voice 经 context.CreateAudioSegment 交付的每个音频段各自独立过链
-// （cache[segment][stage]）——段重 Commit（或被新握柄替换）只重跑该段的链、其余段缓存复用；
-// effect 参数/启用/自动化变化则各段从该级重跑、链结构变化各段从 0。段间串行（一次一个 effect 任务，
-// SVC 慢、避免资源爆）。链尾各段末级输出按时间拼成最终音频。段失效由 context.AudioSegmentsChanged 驱动。
+// 效果链（按段增量，二维失效 段 × 级）：voice 经 context.CreateAudioSegment 交付的每个音频段各自独立过链。
+// 每段每级持有一个持久 IEffectProcessor（cache[segment][stage]）：宿主把「自上次以来变了什么」（上游音频 /
+// 哪些参数 / 哪条自动化的哪段秒区间）经 IEffectChange 告知处理器，引擎据此做内部级差分复用，宿主无从复制
+// 引擎私有失效图。级联靠输出身份：某级重处理后若输出数组引用变了才把下游标脏，没变则下游整段复用、不重跑。
+//   · voice 某段重 Commit → 该段 stage0 标「音频变」（保留处理器、引擎复用非音频态）；新段 → 建链全级 Initial。
+//   · effect[i] 参数/启用变 → 该级标对应 key/启用脏；自动化变 → 该级标该轨秒区间脏。
+//   · 链结构变（增删/重排）→ 各段弃处理器、从 0 重建。
+// 段间串行（一次只跑一个 effect 处理，SVC 慢、避免资源爆）。链尾各段末级输出按时间拼成最终音频。
 internal sealed class VoiceSynthesisPipeline : IDisposable
 {
     // 状态/产物有更新（已 marshal 到数据线程），宿主 UI 收到直接刷新；区域信息看 GetStatus()。
@@ -48,6 +52,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         mSession.StatusChanged += mOnSessionStatusChanged;
         mOnAudioSegmentsChanged = ReconcileAndPump;
         mContext.AudioSegmentsChanged += mOnAudioSegmentsChanged;
+        RebuildEffectSubscriptions();
     }
 
     // —— 调度面（Editor 驱动）——
@@ -101,7 +106,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
 
         if (mDisposed)
         {
-            FinishDispose();
+            TryFinishDispose();
             return;
         }
 
@@ -110,27 +115,50 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         StatusChanged?.Invoke();
     }
 
-    // —— effect 链脏（某 effect 参数/启用/自动化变化，或链结构变化）：各段从该级起重跑，
-    //    每段上游各级缓存复用、voice 段音频不重拉。 ——
-    public void SetEffectChainDirty(int effectIndex)
+    // —— effect 失效入口（数据线程；由 MidiPart 转发）——
+
+    // 某 effect 的参数/启用变化：在该 effect 链位标对应脏（参数按 key 细粒度 diff、启用整级重评）。
+    // 自动化变化不走这里（经各轨 RangeModified 订阅按秒区间标脏）——此处对纯自动化变化为 no-op。
+    public void SetEffectDirty(int index)
+    {
+        if (mDisposed || index < 0 || index >= mPart.Effects.Count)
+            return;
+
+        var effect = mPart.Effects[index];
+        var current = effect.Properties.GetInfo();
+        var changedKeys = DiffKeys(mLastProperties.GetValueOrDefault(effect), current);
+        mLastProperties[effect] = current;
+
+        bool enableChanged = !mLastEnabled.TryGetValue(effect, out var enabled) || enabled != effect.IsEnabled.Value;
+        mLastEnabled[effect] = effect.IsEnabled.Value;
+
+        if (changedKeys.Count == 0 && !enableChanged)
+            return;
+
+        foreach (var chain in mChains.Values)
+        {
+            if (index >= chain.Stages.Count)
+                continue;
+            var stage = chain.Stages[index];
+            foreach (var key in changedKeys)
+                stage.MarkProperty(key);
+            if (enableChanged)
+                stage.Dirty = true;
+        }
+        InvalidateAndPump();
+    }
+
+    // 链结构变化（增删/重排）：各段弃所有级处理器、按新链长从 0 重建（voice 输出已缓存、不重跑 voice）。
+    public void OnEffectChainStructureChanged()
     {
         if (mDisposed)
             return;
 
-        int from = Math.Max(0, effectIndex);
+        int count = mPart.Effects.Count;
         foreach (var chain in mChains.Values)
-        {
-            if (chain.StageOutputs.Count > from)
-                chain.StageOutputs.RemoveRange(from, chain.StageOutputs.Count - from);
-            if (chain.RunStage > from)
-                chain.RunStage = from;
-        }
-
-        // 活动段也受影响（所有段从 from 重跑）：请求中止在飞 Process、从头排。
-        mChainGeneration++;
-        CancelEffectProcessing();
-        mActiveChain = null;
-        PumpNext();
+            chain.ResetStages(count);
+        RebuildEffectSubscriptions();
+        InvalidateAndPump();
     }
 
     // 工程采样率变了：各段 native 音频按新率重做适配 + 全部从头重跑（清空链缓存后 reconcile 重建）。
@@ -142,6 +170,8 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         mChainGeneration++;
         CancelEffectProcessing();
         mActiveChain = null;
+        foreach (var chain in mChains.Values)
+            chain.DisposeAll();
         mChains.Clear();
         ReconcileAndPump();
     }
@@ -154,12 +184,24 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
 
         mCancellation.Cancel();
         mContext.AudioSegmentsChanged -= mOnAudioSegmentsChanged;
+        mEffectSubscriptions?.DisposeAll();
         CancelEffectProcessing();
         mContext.Dispose();
 
-        // 槽位在 await 真正返回时才释放：合成中则延迟到 Dispatch 的收尾再销毁会话。
-        if (!mIsBusy)
-            FinishDispose();
+        // 槽位在 await 真正返回时才释放：voice/effect 仍在飞则延迟到其收尾再销毁。
+        TryFinishDispose();
+    }
+
+    // voice 与 effect 在飞都归后才销毁会话 + 各段处理器（不在飞时立即）。
+    void TryFinishDispose()
+    {
+        if (!mDisposed || mIsBusy || mEffectBusy)
+            return;
+
+        foreach (var chain in mChains.Values)
+            chain.DisposeAll();
+        mChains.Clear();
+        FinishDispose();
     }
 
     void FinishDispose()
@@ -217,14 +259,16 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
 
     // —— 按段效果链（cache[segment][stage]，段间串行）——
 
-    // 段集 / 段内容变化（context.AudioSegmentsChanged 驱动）→ 同步各段链：新增/重建脏段（重 Commit
-    // 版本变 = 重建），移除已销毁/已变未提交的段；再驱动串行运行器。命中正在处理的活动段则中止其任务。
+    // 段集 / 段内容变化（context.AudioSegmentsChanged 驱动）→ 同步各段链：新段建链（全级 Initial）、
+    // 同握柄重 Commit 换输入 + 标 stage0 音频变（保留处理器）、移除已消失的段（弃其处理器）。命中活动段则中止其在飞处理。
     void ReconcileAndPump()
     {
         if (mDisposed)
             return;
 
         int nativeRate = mSession.SampleRate;
+        int count = mPart.Effects.Count;
+        bool invalidateActive = false;
         var present = new HashSet<SynthesisContext.AudioSegment>();
         foreach (var segment in mContext.AudioSegments)
         {
@@ -232,18 +276,22 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
                 continue;
 
             present.Add(segment);
-            if (mChains.TryGetValue(segment, out var existing) && existing.ProcessedVersion == segment.CommitVersion)
-                continue;
-
-            // 新段或同握柄重 Commit：重建该段链（native → 工程率重采样，缓存清零、从 stage 0 起）。
-            if (mActiveChain != null && mActiveChain.Segment == segment)
+            if (mChains.TryGetValue(segment, out var chain))
             {
-                mChainGeneration++;
-                CancelEffectProcessing();
-                mActiveChain = null;
+                if (chain.ProcessedVersion == segment.CommitVersion)
+                    continue;
+
+                // 同握柄重 Commit：换输入 + 标 stage0 音频变。
+                var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / nativeRate, nativeRate, segment.Samples));
+                chain.UpdateInput(input, segment.CommitVersion, count);
+                if (ReferenceEquals(mActiveChain, chain))
+                    invalidateActive = true;
             }
-            var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / nativeRate, nativeRate, segment.Samples));
-            mChains[segment] = new SegmentChain(segment, input, segment.CommitVersion);
+            else
+            {
+                var input = ResampleToEngineRate(new MonoAudio((double)segment.SampleOffset / nativeRate, nativeRate, segment.Samples));
+                mChains[segment] = new SegmentChain(segment, input, segment.CommitVersion, count);
+            }
         }
 
         if (mChains.Count > present.Count)
@@ -256,18 +304,20 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
             }
             foreach (var key in stale)
             {
-                if (mActiveChain != null && mActiveChain.Segment == key)
-                {
-                    mChainGeneration++;
-                    CancelEffectProcessing();
-                    mActiveChain = null;
-                }
+                if (ReferenceEquals(mActiveChain, mChains[key]))
+                    invalidateActive = true;
+                mChains[key].DisposeAll();
                 mChains.Remove(key);
             }
         }
 
-        if (mActiveChain == null)
-            PumpNext();
+        if (invalidateActive)
+        {
+            mChainGeneration++;
+            CancelEffectProcessing();
+            mActiveChain = null;
+        }
+        PumpNext();
     }
 
     // 选下一个需要处理的段链（段间串行：一次只跑一个）。无则收尾拼装最终音频。
@@ -278,12 +328,12 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         if (mDisposed || mEffectBusy)
             return;
 
-        int effectCount = mPart.Effects.Count;
         foreach (var chain in mChains.Values)
         {
-            if (chain.RunStage < effectCount)
+            if (chain.NeedsWork())
             {
                 mActiveChain = chain;
+                chain.RunStage = 0;
                 mChainGeneration++;
                 ProcessActiveStage(mChainGeneration);
                 return;
@@ -294,92 +344,128 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         FinalizeChain();
     }
 
-    // 处理活动段当前级；engine 阶段 await Process 完成后推进下一级，段处理完则换下一段。
-    // bypass / 引擎缺失 = passthrough。同步前缀（passthrough 推进）无 await、不可被编辑插入；
-    // 唯一让出点是 Process 的 await——其间的失效经 generation + mEffectBusy 处理。
+    // 处理活动段：从 stage0 推进游标，干净级（输入未变、有缓存输出）复用、脏级才过引擎。
+    // 唯一让出点是引擎级的 Process await——其间的失效经 generation + mEffectBusy 处理。某级重处理后
+    // 输出引用变了才把下一级标「音频变」（级联），没变则下游复用、不重跑。
     async void ProcessActiveStage(int generation)
     {
         if (generation != mChainGeneration || mDisposed || mActiveChain is not { } chain)
             return;
 
         var effects = mPart.Effects;
-        if (chain.RunStage >= effects.Count)
-        {
-            mActiveChain = null;
-            PumpNext();
-            return;
-        }
+        int count = effects.Count;
 
-        var effect = effects[chain.RunStage];
-        var input = chain.RunStage == 0 ? chain.Input : chain.StageOutputs[chain.RunStage - 1];
-
-        var engine = effect.IsEnabled.Value ? EffectManager.GetInitedEngine(effect.Type) : null;
-        if (engine == null)
+        while (chain.RunStage < count && chain.RunStage < chain.Stages.Count)
         {
-            // bypass / 引擎缺失 = passthrough（同步推进，无 await）。
-            chain.StageOutputs.Add(input);
+            int i = chain.RunStage;
+            var stage = chain.Stages[i];
+            var input = i == 0 ? chain.Input : chain.Stages[i - 1].Output;
+
+            // 干净级：输入未变、输出有效 → 复用，同步推进。
+            if (!stage.Dirty && stage.HasOutput)
+            {
+                chain.RunStage++;
+                continue;
+            }
+
+            var effect = effects[i];
+            var engine = effect.IsEnabled.Value ? EffectManager.GetInitedEngine(effect.Type) : null;
+            if (engine == null)
+            {
+                // bypass / 引擎缺失 = passthrough（同步推进，无 await）。弃处理器、置 Initial（再启用从头）。
+                stage.DisposeProcessor();
+                stage.Initial = true;
+                bool changedPt = CommitStageOutput(stage, input, input.Samples);
+                stage.ClearPending();
+                if (changedPt && i + 1 < count && i + 1 < chain.Stages.Count)
+                    chain.Stages[i + 1].MarkAudio(SegStart(chain), SegEnd(chain));
+                chain.RunStage++;
+                continue;
+            }
+
+            // 脏的引擎级：异步 Process（让出点）。change 携带自上次以来的变化事实。
+            var change = new StageChange(stage);
+            var output = new EffectChainOutput();
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(mCancellation.Token);
+            bool errored = false;
+            try
+            {
+                mEffectBusy = true;
+                mEffectCancellation = cancellation;
+                stage.Processor ??= engine.CreateProcessor();
+                var inputObj = new EffectChainInput(input, mPart, effect);
+                var progress = new Progress<double>(_ => { if (!mDisposed) StatusChanged?.Invoke(); });
+                await stage.Processor.Process(inputObj, output, change, progress, cancellation.Token);
+            }
+            catch (Exception ex)
+            {
+                // 错误抛异常即在此 catch → 该级 passthrough；处理器可能已坏，弃之（下次重建 Initial）。
+                Log.Error(string.Format("Effect {0} process failed: {1}", effect.Type, ex));
+                errored = true;
+                stage.DisposeProcessor();
+                stage.Initial = true;
+            }
+            finally
+            {
+                mEffectBusy = false;
+                if (ReferenceEquals(mEffectCancellation, cancellation))
+                    mEffectCancellation = null;
+                cancellation.Dispose();
+            }
+
+            // await 期间被取代 / 销毁：丢弃过期结果（不提交、不清 pending，待重排重算），转去 pump 新活。
+            if (generation != mChainGeneration || mDisposed || mActiveChain is not { } current || !ReferenceEquals(current, chain))
+            {
+                if (mDisposed)
+                    TryFinishDispose();
+                else
+                    PumpNext();
+                return;
+            }
+
+            bool changed = errored
+                ? CommitStageOutput(stage, input, input.Samples)
+                : CommitStageOutput(stage, output.Audio, output.Audio.Samples);
+            stage.ClearPending();
+            if (!errored)
+                stage.Initial = false;   // 处理器已成功跑过；下次报增量（出错弃处理器、保持 Initial）
+            if (changed && i + 1 < count && i + 1 < chain.Stages.Count)
+                chain.Stages[i + 1].MarkAudio(SegStart(chain), SegEnd(chain));
             chain.RunStage++;
-            ProcessActiveStage(generation);
-            return;
         }
 
-        var output = new EffectChainOutput();
-        IEffectProcessor? processor = null;
-        bool errored = false;
-        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(mCancellation.Token);
-        try
+        // 本链处理完，换下一段（或收尾）。
+        mActiveChain = null;
+        PumpNext();
+    }
+
+    // 提交某级输出，返回输出是否相对上次变化（按重采样前的引擎输出数组引用为身份键）：
+    // 引擎在「无关变化」时返回与上次相同的数组引用 → 不变 → 下游整段复用、不重跑；返回新数组 → 变 → 级联下游。
+    bool CommitStageOutput(StageState stage, MonoAudio audio, float[]? rawSamples)
+    {
+        bool changed = !stage.HasOutput || !ReferenceEquals(rawSamples, stage.RawSamples);
+        if (changed)
         {
-            mEffectBusy = true;
-            mEffectCancellation = cancellation;
-            processor = engine.CreateProcessor();
-            var inputObj = new EffectChainInput(input, mPart, effect);
-            var progress = new Progress<double>(_ => { if (!mDisposed) StatusChanged?.Invoke(); });
-            // 提交①：change 恒全量（处理器瞬态、无内部复用），等价今日整段重过；细粒度增量为提交②。
-            await processor.Process(inputObj, output, InitialEffectChange.Instance, progress, cancellation.Token);
-        }
-        catch (Exception ex)
-        {
-            // 错误抛异常即在此 catch → 该级 passthrough（不中断该段播放，优雅降级）。
-            Log.Error(string.Format("Effect {0} process failed: {1}", effect.Type, ex));
-            errored = true;
-        }
-        finally
-        {
-            mEffectBusy = false;
-            if (ReferenceEquals(mEffectCancellation, cancellation))
-                mEffectCancellation = null;
-            cancellation.Dispose();
-            if (processor != null)
+            var outAudio = audio;
+            if (outAudio.Samples != null && outAudio.Samples.Length > 0 && outAudio.SampleRate != AudioEngine.SampleRate.Value)
             {
-                try { processor.Dispose(); }
-                catch (Exception ex) { Log.Error("Effect processor dispose failed: " + ex); }
+                var data = AudioUtils.Resample(outAudio.Samples, 1, outAudio.SampleRate, AudioEngine.SampleRate.Value);
+                outAudio = new MonoAudio(outAudio.StartTime, AudioEngine.SampleRate.Value, data);
             }
+            outAudio.Samples ??= [];
+            stage.RawSamples = rawSamples;
+            stage.Output = outAudio;
         }
+        stage.HasOutput = true;
+        return changed;
+    }
 
-        // await 期间被新一轮重跑取代 / 已销毁：丢弃过期结果，转去 pump 新排的活。
-        if (generation != mChainGeneration || mDisposed || mActiveChain is not { } current)
-        {
-            PumpNext();
-            return;
-        }
+    static double SegStart(SegmentChain chain) => chain.Input.StartTime;
 
-        if (!errored)
-        {
-            var audio = output.Audio;
-            if (audio.Samples != null && audio.Samples.Length > 0 && audio.SampleRate != AudioEngine.SampleRate.Value)
-            {
-                var data = AudioUtils.Resample(audio.Samples, 1, audio.SampleRate, AudioEngine.SampleRate.Value);
-                audio = new MonoAudio(audio.StartTime, AudioEngine.SampleRate.Value, data);
-            }
-            audio.Samples ??= [];
-            current.StageOutputs.Add(audio);
-        }
-        else
-        {
-            current.StageOutputs.Add(input);
-        }
-        current.RunStage++;
-        ProcessActiveStage(generation);
+    static double SegEnd(SegmentChain chain)
+    {
+        var s = chain.Input.Samples;
+        return chain.Input.StartTime + (s == null ? 0 : (double)s.Length / chain.Input.SampleRate);
     }
 
     // 各段链处理完：收集各段末级输出（无 effect 时即段输入）+ 其波形为段列表（每段波形按 Samples 引用相等
@@ -398,22 +484,139 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         StatusChanged?.Invoke();
     }
 
-    // 请求中止在飞 Process（协作式取消）。不在此 Dispose 处理器——拥有它的 ProcessActiveStage 续延
-    // 在 await 返回后于 finally 中销毁，避免双重释放/竞态。无在飞时为 no-op。
+    // 标脏后保守重排：在飞 Process（任意段）可能命中其链或其下游，统一作废 + 重 pump。
+    void InvalidateAndPump()
+    {
+        mChainGeneration++;
+        CancelEffectProcessing();
+        mActiveChain = null;
+        PumpNext();
+    }
+
+    // 请求中止在飞 Process（协作式取消）。不在此 Dispose 处理器——处理器随段/级生命周期持久持有，
+    // 由结构重建 / 段移除 / 采样率变 / 管线销毁统一释放，避免双重释放/竞态。无在飞时为 no-op。
     void CancelEffectProcessing()
     {
         mEffectCancellation?.Cancel();
     }
 
-    // 提交①：全量变化提示——处理器瞬态、无内部复用，等价今日整段重过。细粒度 IEffectChange 为提交②。
-    sealed class InitialEffectChange : IEffectChange
+    // 重建 effect 自动化范围订阅（构造 / 结构变 / 自动化轨增删时）：effect 与轨皆少量，整建整拆最省心。
+    // 同时重新播种各 effect 的参数/启用基线快照（供后续 SetEffectDirty 的 key 级 diff）。
+    void RebuildEffectSubscriptions()
     {
-        public static readonly InitialEffectChange Instance = new();
-        public bool IsInitial => true;
-        public bool TryGetAudioChange(out double startTime, out double endTime) { startTime = endTime = 0; return false; }
-        public IReadOnlyCollection<string> ChangedProperties => Array.Empty<string>();
-        public IReadOnlyCollection<string> ChangedAutomations => Array.Empty<string>();
-        public bool TryGetAutomationChange(string automationId, out double startTime, out double endTime) { startTime = endTime = 0; return false; }
+        mEffectSubscriptions?.DisposeAll();
+        mEffectSubscriptions = new DisposableManager();
+        mLastProperties.Clear();
+        mLastEnabled.Clear();
+
+        var effects = mPart.Effects;
+        for (int i = 0; i < effects.Count; i++)
+        {
+            int index = i;
+            var effect = effects[i];
+            mLastProperties[effect] = effect.Properties.GetInfo();
+            mLastEnabled[effect] = effect.IsEnabled.Value;
+
+            // 自动化轨懒加：轨集合变 → 重建订阅。
+            effect.Automations.MapModified.Subscribe(RebuildEffectSubscriptions, mEffectSubscriptions);
+            foreach (var kv in effect.Automations)
+            {
+                string automationId = kv.Key;
+                kv.Value.RangeModified.Subscribe(
+                    (relStart, relEnd) => OnEffectAutomationRangeModified(index, automationId, relStart, relEnd),
+                    mEffectSubscriptions);
+            }
+        }
+    }
+
+    // 某 effect 某条自动化轨在某区间被改（part 相对 tick）→ 换算全局秒，标该 effect 链位的该轨脏。
+    void OnEffectAutomationRangeModified(int index, string automationId, double relStartTick, double relEndTick)
+    {
+        if (mDisposed || index < 0 || index >= mPart.Effects.Count)
+            return;
+
+        double startSecond = RelTickToGlobalSecond(relStartTick);
+        double endSecond = RelTickToGlobalSecond(relEndTick);
+        foreach (var chain in mChains.Values)
+        {
+            if (index >= chain.Stages.Count)
+                continue;
+            chain.Stages[index].MarkAutomation(automationId, startSecond, endSecond);
+        }
+        InvalidateAndPump();
+    }
+
+    // part 相对 tick → 全局秒（与 effect SDK 面查询轴一致）；±∞（如默认值平移=全区间）原样透传。
+    double RelTickToGlobalSecond(double relTick)
+    {
+        if (double.IsNegativeInfinity(relTick))
+            return double.NegativeInfinity;
+        if (double.IsPositiveInfinity(relTick))
+            return double.PositiveInfinity;
+        return mPart.TempoManager.GetTime(relTick + mPart.Pos.Value);
+    }
+
+    // 两份参数快照的按 key 差集（含改值 / 新增 / 删除的 key）；map 小、廉价。
+    static List<string> DiffKeys(PropertyObject? last, PropertyObject current)
+    {
+        var result = new List<string>();
+        var cur = current.Map;
+        if (last == null)
+        {
+            foreach (var kv in cur)
+                result.Add(kv.Key);
+            return result;
+        }
+
+        var prev = last.Map;
+        foreach (var kv in cur)
+        {
+            if (!prev.TryGetValue(kv.Key, out var pv) || !pv.Equals(kv.Value))
+                result.Add(kv.Key);
+        }
+        foreach (var kv in prev)
+        {
+            if (!cur.ContainsKey(kv.Key))
+                result.Add(kv.Key);
+        }
+        return result;
+    }
+
+    // 一次重处理相对上次的变化事实集（从 StageState 的累积脏构造，按值拷贝以与后续清空解耦）。
+    sealed class StageChange : IEffectChange
+    {
+        public StageChange(StageState stage)
+        {
+            IsInitial = stage.Initial;
+            mAudioChanged = stage.AudioChanged;
+            mAudioStart = stage.AudioStart;
+            mAudioEnd = stage.AudioEnd;
+            mProperties = stage.ChangedProperties.Count == 0 ? Array.Empty<string>() : new List<string>(stage.ChangedProperties);
+            mAutomations = stage.ChangedAutomations.Count == 0 ? sEmptyAutomations : new Dictionary<string, (double, double)>(stage.ChangedAutomations);
+        }
+
+        public bool IsInitial { get; }
+        public bool TryGetAudioChange(out double startTime, out double endTime) { startTime = mAudioStart; endTime = mAudioEnd; return mAudioChanged; }
+        public IReadOnlyCollection<string> ChangedProperties => mProperties;
+        public IReadOnlyCollection<string> ChangedAutomations => mAutomations.Keys;
+        public bool TryGetAutomationChange(string automationId, out double startTime, out double endTime)
+        {
+            if (mAutomations.TryGetValue(automationId, out var range))
+            {
+                startTime = range.Item1;
+                endTime = range.Item2;
+                return true;
+            }
+            startTime = endTime = 0;
+            return false;
+        }
+
+        static readonly Dictionary<string, (double, double)> sEmptyAutomations = new();
+        readonly bool mAudioChanged;
+        readonly double mAudioStart;
+        readonly double mAudioEnd;
+        readonly IReadOnlyCollection<string> mProperties;
+        readonly Dictionary<string, (double, double)> mAutomations;
     }
 
     // 效果链输入：整段上游音频 + 该 effect 参数快照 + 自动化取值入口。
@@ -454,20 +657,134 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         }
     }
 
-    // 单段的效果链状态：该段工程率输入 + 各级缓存输出 + 下一待处理级 + 建链时的 Commit 版本。
-    // 不变量：StageOutputs.Count == RunStage（每级算完即追加，从 fromStage 重跑前截断到 fromStage）。
-    sealed class SegmentChain(SynthesisContext.AudioSegment segment, MonoAudio input, int processedVersion)
+    // 单级的持久处理状态：持久处理器 + 最近输出（+ 重采样前身份键）+ 自上次成功处理以来累积的变化事实。
+    sealed class StageState
     {
-        public SynthesisContext.AudioSegment Segment => segment;
-        public MonoAudio Input => input;
-        public int ProcessedVersion => processedVersion;
-        public readonly List<MonoAudio> StageOutputs = new();
+        public IEffectProcessor? Processor;
+        public MonoAudio Output;
+        public float[]? RawSamples;   // 重采样前的引擎输出数组（passthrough 时 = 输入数组）；身份键
+        public bool HasOutput;
+        public bool Initial = true;   // 处理器尚未被调用过（下次 Process 报 IsInitial）
+
+        public bool Dirty;
+        public bool AudioChanged;
+        public double AudioStart;
+        public double AudioEnd;
+        public readonly HashSet<string> ChangedProperties = new();
+        public readonly Dictionary<string, (double Start, double End)> ChangedAutomations = new();
+
+        public void MarkAudio(double start, double end)
+        {
+            if (!AudioChanged) { AudioStart = start; AudioEnd = end; AudioChanged = true; }
+            else { AudioStart = Math.Min(AudioStart, start); AudioEnd = Math.Max(AudioEnd, end); }
+            Dirty = true;
+        }
+
+        public void MarkProperty(string key)
+        {
+            ChangedProperties.Add(key);
+            Dirty = true;
+        }
+
+        public void MarkAutomation(string id, double start, double end)
+        {
+            if (ChangedAutomations.TryGetValue(id, out var range))
+                ChangedAutomations[id] = (Math.Min(range.Start, start), Math.Max(range.End, end));
+            else
+                ChangedAutomations[id] = (start, end);
+            Dirty = true;
+        }
+
+        // 清累积的变化事实（Initial 不在此管理——由处理器创建/弃置/成功处理的落点维护）。
+        public void ClearPending()
+        {
+            Dirty = false;
+            AudioChanged = false;
+            ChangedProperties.Clear();
+            ChangedAutomations.Clear();
+        }
+
+        public void DisposeProcessor()
+        {
+            if (Processor == null)
+                return;
+            try { Processor.Dispose(); }
+            catch (Exception ex) { Log.Error("Effect processor dispose failed: " + ex); }
+            Processor = null;
+        }
+    }
+
+    // 单段的效果链：该段工程率输入 + 各级持久状态（cache[segment][stage]）+ 处理游标 + 建链时的 Commit 版本。
+    sealed class SegmentChain
+    {
+        public SynthesisContext.AudioSegment Segment { get; }
+        public MonoAudio Input { get; private set; }
+        public int ProcessedVersion { get; private set; }
+        public readonly List<StageState> Stages = new();
         public int RunStage;
+
+        public SegmentChain(SynthesisContext.AudioSegment segment, MonoAudio input, int processedVersion, int effectCount)
+        {
+            Segment = segment;
+            Input = input;
+            ProcessedVersion = processedVersion;
+            ResetStages(effectCount);
+        }
+
+        // 结构变 / 新建：弃旧级处理器，按链长建全 Initial 脏级。
+        public void ResetStages(int effectCount)
+        {
+            foreach (var stage in Stages)
+                stage.DisposeProcessor();
+            Stages.Clear();
+            for (int i = 0; i < effectCount; i++)
+                Stages.Add(new StageState { Dirty = true, Initial = true });
+            RunStage = 0;
+        }
+
+        // voice 同握柄重 Commit：换输入 + 标 stage0 音频变（保留处理器，引擎复用非音频态）。
+        public void UpdateInput(MonoAudio input, int processedVersion, int effectCount)
+        {
+            Input = input;
+            ProcessedVersion = processedVersion;
+            if (Stages.Count != effectCount)
+            {
+                ResetStages(effectCount);
+                return;
+            }
+            if (Stages.Count > 0)
+            {
+                double start = Input.StartTime;
+                double end = start + (Input.Samples == null ? 0 : (double)Input.Samples.Length / Input.SampleRate);
+                Stages[0].MarkAudio(start, end);
+            }
+        }
+
+        public void DisposeAll()
+        {
+            foreach (var stage in Stages)
+                stage.DisposeProcessor();
+        }
+
+        public bool NeedsWork()
+        {
+            foreach (var stage in Stages)
+            {
+                if (stage.Dirty)
+                    return true;
+            }
+            return false;
+        }
 
         // 链尾段输出 + 波形：按 final 的 Samples 引用相等缓存——重跑产生新数组才重算波形，未变则复用。
         public SynthesizedSegment Finalize(int effectCount)
         {
-            var final = effectCount == 0 ? input : StageOutputs[effectCount - 1];
+            MonoAudio final;
+            if (effectCount > 0 && Stages.Count >= effectCount && Stages[effectCount - 1].HasOutput)
+                final = Stages[effectCount - 1].Output;
+            else
+                final = Input;
+
             if (!ReferenceEquals(final.Samples, mFinalSamples) || mWaveform == null)
             {
                 mFinalSamples = final.Samples;
@@ -500,6 +817,11 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     readonly Dictionary<SynthesisContext.AudioSegment, SegmentChain> mChains = new();
     SegmentChain? mActiveChain;
     int mChainGeneration = 0;
-    bool mEffectBusy;                            // 在飞 Process 未归（await 未返回）
-    CancellationTokenSource? mEffectCancellation; // 在飞 Process 的取消源（拥有方续延负责 Dispose）
+    bool mEffectBusy;                             // 在飞 Process 未归（await 未返回）
+    CancellationTokenSource? mEffectCancellation; // 在飞 Process 的取消源
+
+    // effect 自动化范围订阅（结构变重建）+ 各 effect 参数/启用基线（供 key 级 diff）。
+    DisposableManager? mEffectSubscriptions;
+    readonly Dictionary<IEffect, PropertyObject> mLastProperties = new();
+    readonly Dictionary<IEffect, bool> mLastEnabled = new();
 }

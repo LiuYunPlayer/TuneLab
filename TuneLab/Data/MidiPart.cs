@@ -105,24 +105,20 @@ internal class MidiPart : Part, IMidiPart
             effect.Modified.Unsubscribe(handler);
     }
 
-    // 某个 effect 的参数/启用/自动化变化：从它在链中的位置起重跑（上游各级输出已缓存、不重算）。
+    // 某个 effect 的参数/启用/自动化变化：管线在该 effect 链位按细粒度（参数 key / 启用 / 自动化轨秒区间）标脏，
+    // 各段从受影响级起按需重处理、上游缓存复用。自动化的秒区间由管线经各轨 RangeModified 订阅获取。
     void OnEffectModified(IEffect effect)
     {
         int index = mEffects.IndexOf(effect);
         if (index < 0)
             return;
-        SetEffectChainDirtyFrom(index);
+        mPipeline?.SetEffectDirty(index);
     }
 
-    // 链结构变化（增删/重排）：保守从头重跑效果链（voice 输出已缓存，不重跑 voice）。
+    // 链结构变化（增删/重排）：各段弃处理器、从头重建效果链（voice 输出已缓存，不重跑 voice）。
     void OnEffectChainStructureModified()
     {
-        SetEffectChainDirtyFrom(0);
-    }
-
-    void SetEffectChainDirtyFrom(int effectIndex)
-    {
-        mPipeline?.SetEffectChainDirty(effectIndex);
+        mPipeline?.OnEffectChainStructureChanged();
     }
 
     public void InsertVibrato(Vibrato vibrato)
