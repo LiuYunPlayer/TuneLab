@@ -18,7 +18,7 @@ internal class Effect : DataObject, IEffect
 
     // 用当前参数稀疏快照求 config（纯函数）：宿主初次渲染取一次，并在参数 commit 时按当前值重算再 keyed-diff 到控件树，
     // 显隐/换控件/选项随值变都是该函数的涌现。
-    public ObjectConfig PropertyConfig => Engine?.GetPartPropertyConfig(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPropertyConfig;
+    public ObjectConfig PropertyConfig => Engine?.GetPropertyConfig(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPropertyConfig;
 
     // 自动化轨集合随当前参数值涌现（轨集合 = f(当前值)）。惰性 dirty 缓存：参数 commit 仅置脏（不强制引擎 Init，
     // 避免装载期对全部 effect 的重型引擎触发 Init），下次读取时按当前值重算。缓存还避免合成期 TryGetAutomation

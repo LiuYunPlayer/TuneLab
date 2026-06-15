@@ -495,7 +495,7 @@ public class PiecewiseAutomationConfig : IControllerConfig
   - ~~`IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）~~（已随 SDK 程序集合并消解：voice/effect 同居 `TuneLab.SDK` 顶层命名空间，effect 可直接复用）。
 - ~~**动态声明面**：轨集合/属性声明运行中变化 + 既有轨用户数据的归宿~~（**已实现**：声明全部 context 驱动、纯函数，
   宿主在参数 commit 时按当前值重算并 diff——轨集合随参数显隐（`GetAutomationConfigs`/`GetPiecewiseAutomationConfigs`
-  收 `IPartPropertyContext`），属性面板同 `GetPartPropertyConfig`/`GetNotePropertyConfig`；effect 侧 `IEffectEngine.GetAutomationConfigs(IEffectPropertyContext)` 同构。
+  收 `IPartPropertyContext`），属性面板同 `GetPartPropertyConfig`/`GetNotePropertyConfig`；effect 侧 `IEffectEngine.GetPropertyConfig`/`GetAutomationConfigs` 同构（各收 effect 专属 `IEffectPropertyContext`——voice/effect context 分开以备 effect 将来追加 part 级官方字段而发散；effect 单层故用不带 Part 的 `GetPropertyConfig`）。
   voice 走材料化缓存（part 参数驱动重算），effect 走惰性 dirty 缓存（自身参数驱动），宿主聚合签名去抖、仅轨集合实变才刷新 UI。
   孤儿数据归宿定为**保留隐藏、轨复现即原样恢复**：数据层不因声明收缩而裁剪曲线，隐藏轨不参与合成。
   引擎自发的运行中变化（如异步模型加载后改轨集合，非参数驱动）若将来需要，再加声明级变更事件——当前 context 驱动已覆盖参数驱动的全部场景。）

@@ -19,7 +19,7 @@ namespace TuneLab.TestPlugins.V1Effect;
 [EffectEngine("TLTestGain")]
 public sealed class GainEffectEngine : IEffectEngine
 {
-    public ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context) => mConfig;
+    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
 
     // 条件轨集合：env_enabled 勾选才暴露 gain_env（轨集合 = f(当前参数值)）。取消勾选时已画 gain_env
     // 曲线由宿主保留隐藏、重新勾选即原样恢复。
@@ -129,7 +129,7 @@ public sealed class GainEffectEngine : IEffectEngine
 [EffectEngine("TLTestReverse")]
 public sealed class ReverseEffectEngine : IEffectEngine
 {
-    public ObjectConfig GetPartPropertyConfig(IEffectPropertyContext context) => mConfig;
+    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
     public void Init() { }
     public void Destroy() { }
