@@ -83,6 +83,10 @@ internal partial class AutomationRenderer : View
         mDependency.PartHolder.When(p => p.Automations.Modified).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified)).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PartHolder.When(p => p.Pos.Modified).Subscribe(UpdateAnchorValueInput, s);
+        // 条件自动化轨集合随参数 commit 变（轨随值显隐）→ 重绘曲线 + 刷新锚点输入框；
+        // 否则轨集合变了但本视图无失效源，要等下次鼠标事件才触发重绘（曲线滞留/慢一拍）。
+        mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(UpdateAnchorValueInput, s);
         mDependency.PianoTool.Modified.Subscribe(Update, s);
         mDependency.PianoTool.Modified.Subscribe(UpdateAnchorValueInput, s);
         mDependency.ActiveAutomationChanged += InvalidateVisual;
