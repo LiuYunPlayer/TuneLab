@@ -130,6 +130,12 @@ internal sealed class AgentSideBarContentProvider
         mSendButton.Clicked += () => _ = OnSend();
         DockPanel.SetDock(mSendButton, Dock.Right);
         inputRow.Children.Add(mSendButton);
+        // 停止键：与发送键同位、仅响应期可见，点击取消正在进行的请求。
+        mStopButton = IconButton(Assets.Stop, Style.LIGHT_WHITE.Opacity(0.85), Colors.White);
+        mStopButton.IsVisible = false;
+        mStopButton.Clicked += () => mCts?.Cancel();
+        DockPanel.SetDock(mStopButton, Dock.Right);
+        inputRow.Children.Add(mStopButton);
         // 多行自增长：随内容长高、自动换行，到上限内部滚动；Enter 发送，Shift+Enter 换行。
         mInput.AcceptsReturn = true;
         mInput.TextWrapping = TextWrapping.Wrap;
@@ -242,16 +248,22 @@ internal sealed class AgentSideBarContentProvider
 
         mInput.Text = string.Empty;
         AppendMessage("you", text);
-        var bubble = AddAssistantBubble(); // 响应期占位气泡（「…」）
+        var bubble = AddAssistantBubble(); // 响应期占位气泡（动态等待指示）
+        mCts = new CancellationTokenSource();
         SetBusy(true);
 
         try
         {
             mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt);
-            var reply = await mRunner.SendAsync(text, CancellationToken.None);
+            var reply = await mRunner.SendAsync(text, mCts.Token);
             bubble.Child = string.IsNullOrEmpty(reply.Text)
                 ? BubbleText("(no text reply)", Colors.White.ToBrush())
                 : AssistantContent(reply.Text, reply.Usage);
+        }
+        catch (OperationCanceledException)
+        {
+            // 用户主动停止：温和提示，不当错误（红字）。
+            bubble.Child = BubbleText("Stopped.".Tr(this), Style.LIGHT_WHITE.Opacity(0.6).ToBrush());
         }
         catch (Exception ex)
         {
@@ -259,6 +271,8 @@ internal sealed class AgentSideBarContentProvider
         }
         finally
         {
+            mCts.Dispose();
+            mCts = null;
             SetBusy(false);
             ScrollToEnd();
         }
@@ -282,13 +296,30 @@ internal sealed class AgentSideBarContentProvider
         ScrollToEnd();
     }
 
-    // agent 侧占位气泡，返回 Border 以便回复回来后替换其内容（占位「…」→ Markdown 渲染 / 错误文本）。
+    // agent 侧占位气泡，返回 Border 以便回复回来后替换其内容（动态等待指示 → Markdown 渲染 / 错误文本）。
     Border AddAssistantBubble()
     {
-        var bubble = Bubble(BubbleText("…", Colors.White.ToBrush()), mine: false);
+        var bubble = Bubble(ThinkingDots(), mine: false);
         mMessagesList.Content.Children.Add(bubble);
         ScrollToEnd();
         return bubble;
+    }
+
+    // 等待期动态指示：循环 • / • • / • • • 三帧。计时器随控件挂载启动、脱离视觉树（回复回来替换内容）即停，自清理。
+    static Control ThinkingDots()
+    {
+        string[] frames = { "•", "• •", "• • •" };
+        var tb = new TextBlock { Text = frames[0], FontSize = 14, Foreground = Colors.White.ToBrush() };
+        DispatcherTimer? timer = null;
+        int i = 0;
+        tb.AttachedToVisualTree += (_, _) =>
+        {
+            timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+            timer.Tick += (_, _) => { i = (i + 1) % frames.Length; tb.Text = frames[i]; };
+            timer.Start();
+        };
+        tb.DetachedFromVisualTree += (_, _) => { timer?.Stop(); timer = null; };
+        return tb;
     }
 
     // 气泡容器：用户靠右、agent 靠左；内容可为可选中文本或 Markdown 控件。MaxWidth 随对话区宽度自适应。
@@ -349,11 +380,12 @@ internal sealed class AgentSideBarContentProvider
     // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。
     void ScrollToEnd() => Dispatcher.UIThread.Post(() => mMessagesList.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);
 
-    // 响应期间：输入框保持可用，仅禁用发送按钮（并由 mBusy 拦回车重复发送）。
+    // 响应期间：输入框保持可用；发送键换成停止键（同位、可见性切换），由 mBusy 拦回车重复发送。
     void SetBusy(bool busy)
     {
         mBusy = busy;
-        mSendButton.IsEnabled = !busy;
+        mSendButton.IsVisible = !busy;
+        mStopButton.IsVisible = busy;
     }
 
     // ───────────────── 设置视图 ─────────────────
@@ -532,6 +564,7 @@ internal sealed class AgentSideBarContentProvider
     readonly PropertyObjectController mPropertiesController = new();
     readonly Label mStatusLabel = new() { FontSize = 11, Margin = new(24, 0, 24, 12), Foreground = Colors.IndianRed.ToBrush() };
     TuneLab.GUI.Components.Button mSendButton = null!;
+    TuneLab.GUI.Components.Button mStopButton = null!;
     TuneLab.GUI.Components.Button mSubmitButton = null!;
     TuneLab.GUI.Components.Button? mMenuButton;
     MenuFlyout mMenuFlyout = null!;
@@ -545,4 +578,5 @@ internal sealed class AgentSideBarContentProvider
     IReadOnlyList<IAgentTool> mTools = [];
     IAgentModelSession? mSession;
     AgentRunner? mRunner;
+    CancellationTokenSource? mCts; // 当前进行中请求的取消源（停止键触发）
 }
