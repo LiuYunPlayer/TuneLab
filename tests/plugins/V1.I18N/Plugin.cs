@@ -86,7 +86,6 @@ public sealed class I18NSession : ISynthesisSession
 
     public string DefaultLyric => "la";
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context) => mPiecewiseAutomationConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
@@ -208,7 +207,6 @@ public sealed class I18NSession : ISynthesisSession
     readonly ISynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mDirty;

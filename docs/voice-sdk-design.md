@@ -395,31 +395,23 @@ public struct SynthesizedPhoneme
 
 ## 7. 自动化形态
 
-两种形态，**两个独立扁平 config 类、零具体类继承**（只实现最小接口）：
+两种形态，**一个扁平 config 类**——由 `DefaultValue` 是否 NaN 区分连续/分段（**已合并**；早期为两个独立类 `AutomationConfig` + `PiecewiseAutomationConfig`，见本节末"合并记"）：
 
 ```csharp
-// 连续型：处处有值 + 默认基线（IAutomation）
+// 连续型：DefaultValue 为实数（处处有值 + 默认基线）；分段型：DefaultValue 为 NaN（段间空、无基线）。
 public class AutomationConfig : IValueConfig<double>
 {
     public string? DisplayText { get; init; }
-    public required double Min { get; init; }
-    public required double Max { get; init; }
-    public required double DefaultValue { get; init; }
+    public required double DefaultValue { get; init; }   // NaN ⇒ 分段（无基线）
+    public required double MinValue { get; init; }
+    public required double MaxValue { get; init; }
     public required string Color { get; init; }
-}
-
-// 分段型：分段 + 段间空 + 无默认（IPiecewiseAutomation）
-public class PiecewiseAutomationConfig : IControllerConfig
-{
-    public string? DisplayText { get; init; }
-    public required double Min { get; init; }
-    public required double Max { get; init; }
-    public required string Color { get; init; }
-    // 无 DefaultValue
+    public bool IsPiecewise => double.IsNaN(DefaultValue);
 }
 ```
 
-- **不再 `AutomationConfig : SliderConfig`**：具体类继承在冻结 ABI 上是陷阱（SliderConfig 一迭代，AutomationConfig 被迫跟随；且"automation 是一种 slider"是 category error）。UI 复用 slider 控件是宿主侧渲染选择，读各自的 `Min/Max(/Default)` 即可，不需类型继承。原则：**冻结面上解耦 > DRY**。最小接口（`IControllerConfig`/`IValueConfig<T>`）是契约面，保留；是否实现 `IValueConfig<double>` 恰好表达"有无默认值"。
+- **合并记**：连续/分段本是同一伞概念下的两形态，分段 = "无默认基线的 automation"。把"无基线"用 `DefaultValue = NaN` 表达（与本 SDK 既有 **NaN 表空**求值约定同源），二者收成一个类 + 一个 `GetAutomationConfigs` 方法（删去 `PiecewiseAutomationConfig` 与两处 `GetPiecewiseAutomationConfigs`）。收益：作者在**一张有序 map 里自由穿插**两种轨、声明序即呈现序；`GetAutomation*` 不分家。**宿主侧仍保留两种数据类型**（`IAutomation` / `IPiecewiseAutomation`）+ 两序列化槽，按 `IsPiecewise` 物化到对应 map、kind 在路由处现解析。`IValueConfig.DefaultValue` 的多态消费只在属性控件家族（与 automation 无关），故 automation 这边唯一需特判 NaN 的消费方是默认值侧栏 `AutomationDefaultsController`（分段轨不显默认基线行）。
+- **不再 `AutomationConfig : SliderConfig`**：具体类继承在冻结 ABI 上是陷阱（SliderConfig 一迭代，AutomationConfig 被迫跟随；且"automation 是一种 slider"是 category error）。UI 复用 slider 控件是宿主侧渲染选择，读各自的 `MinValue/MaxValue(/DefaultValue)` 即可，不需类型继承。原则：**冻结面上解耦 > DRY**。
 - **统一命名根 `Automation`**（不用业务词 `Expression`，也不用纯结构词 `Curve`）：求值器 `IAutomationEvaluator` 已把"Automation"锚定为"按时间求值"的伞概念，且 `IAutomation` 本就把曲线几何操作收在该名下。故 host 数据层 `IPiecewiseCurve / PiecewiseCurve` 改名为 `IPiecewiseAutomation / PiecewiseAutomation`，pitch 直接 typed 为 `IPiecewiseAutomation`，删 `PitchAutomation.cs` 空壳。（求值器原名 `IAutomationValueGetter.GetValue`，后正名 `IAutomationEvaluator.Evaluate`——"ValueGetter/Getter"非 .NET 惯用后缀，且 "sample" 一词在本 SDK 已被 PCM 音频占用。）
 - **求值器统一、NaN 表空**：连续型与分段型共用 `IAutomationEvaluator.Evaluate(times) → double[]`（查询轴 = 全局秒）；连续型永不返回 NaN，分段型段间返回 NaN（IEEE 标准"非数"，DSP 惯用，且现有 pitch 求值与 ACE 都这么做）。
 
@@ -504,18 +496,20 @@ public class PiecewiseAutomationConfig : IControllerConfig
 - ~~**合成参数回显 + 可编辑分段轨**~~（**已实现**）：
   - 合成参数回显：`ISynthesisSession.SynthesizedParameters`（按轨 id 键、与音频/音高同一秒时间系、分段）端到端透传
     （pipeline→MidiPart），在参数栏按 id join 到同名 voice 轨上**只读叠加**（白色半透明、NaN 段断开），镜像合成音高回显。effect 无参数回显（输出仅音频）。
-  - 可编辑分段轨：除 Pitch 外，声源/效果器可声明分段轨（voice `GetPiecewiseAutomationConfigs` / effect 新增 `IEffectEngine.GetPiecewiseAutomationConfigs`），
+  - 可编辑分段轨：除 Pitch 外，声源/效果器在 `GetAutomationConfigs` 里声明分段轨（`AutomationConfig.DefaultValue=NaN` ⇒ `IsPiecewise`；见 §7 合并记），
     宿主按轨 id 存 `DataObjectMap<string, IPiecewiseAutomation>`（MidiPart + Effect 各一份；Pitch 仍是专属常驻通道、不入此 map），
     MidiPartInfo/EffectInfo 各加 `PiecewiseAutomations` 序列化槽（同 Pitch 形、孤儿数据整存）；参数栏列出、按 kind 渲染（段间 NaN 断开）、
     编辑交互镜像 pitch（绘制/擦除/锚点选移删插）。AutomationKey 保持纯路由，kind 由查 config map 现解析。
     引擎对分段轨的 DSP 消费（effect 分段轨回写、voice 分段轨参与合成）为后续需求，当前仅"可编辑 + 存盘 + 显示"。
 
-- **统一 automation config（连续/分段合一）**（待办，A+B 完成后的下一步；SDK 冻结前定案）：
-  现连续 `AutomationConfig`（有默认基线）与分段 `PiecewiseAutomationConfig`（无默认）为两个类 + 两个 `GetXxxConfigs` 方法。
-  拟合并为**一个 `AutomationConfig` + 一个 `GetAutomationConfigs`**：以 `DefaultValue` 为 **NaN** 表"无基线"⇒ 分段轨
-  （与本 SDK 既有"NaN 表空"求值约定同源）。收益：SDK 面收一半、插件作者在一张有序 map 里**自由穿插**连续/分段（现两 map 被迫"连续在前分段在后"）、`GetAutomation*` 不分家。
-  **宿主侧仍保留两种数据类型**（IAutomation / IPiecewiseAutomation）+ 两序列化槽，按 `IsNaN(DefaultValue)` 物化到对应 map。
-  缓解 NaN 哨兵可读性：`AutomationConfig` 加 `bool IsPiecewise => double.IsNaN(DefaultValue)` 计算属性 + 注释。
-  调研结论（降风险）：`IValueConfig.DefaultValue` 的多态消费仅 1 处（`PropertySideBarContentProvider.ResetPartPropertiesToDefaults`，服务**属性控件**家族，与 automation 无关）；
-  `AutomationConfig` 实现 `IValueConfig` 无任何消费方依赖、保留无害/去掉零影响；统一后唯一需特判 NaN 的 automation 消费方是 `AutomationDefaultsController`（默认值侧栏：分段轨不显示默认基线行）。
-  顺带删去 `PiecewiseAutomationConfig` + 两处 `GetPiecewiseAutomationConfigs`，并同步 plugin-development 文档的 effect/voice 段（届时 API 定形再写，避免文档抖动）。
+- ~~**统一 automation config（连续/分段合一）**~~（**已实现**，见 §7）：合并为一个 `AutomationConfig` + 一个 `GetAutomationConfigs`，
+  `DefaultValue` 为 NaN ⇒ 分段轨（`IsPiecewise`）。删去 `PiecewiseAutomationConfig` 与两处 `GetPiecewiseAutomationConfigs`。
+  宿主保留两数据类型 + 两序列化槽，路由处按 `IsPiecewise` 现解析；唯一特判 NaN 的 automation 消费方是 `AutomationDefaultsController`（分段轨不显默认基线行）。
+
+- **合成参数回显升级为只读回显轨**（待办，下一步）：现 `SynthesizedParameters` 是"按 id 叠加到同名编辑轨、借其 config 画白线"。
+  拟改为**一等只读回显轨**：`ISynthesisSession` 加 `GetSynthesizedParameterConfigs(IPartPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>`
+  （回显是分段形、`DefaultValue=NaN`；context 驱动、可预声明 ⇒ 合成前就存在、显隐不抖），`SynthesizedParameters` 退回只承载曲线数据。
+  宿主把这些 key 作**可显隐的只读轨**（独立 key 如 `energy`、自带 Min/Max/Color/DisplayText、用各自 config 色画、不可编辑），去掉"叠加到同名编辑轨"逻辑；
+  显隐开关考虑放参数区**标题栏**（回显是 voice 级扁平集合，不入分源的底部 tabbar，避免臃肿）。线程契约（数据线程发布、发布即不可变、StatusChanged 单一刷新）补进三个曲线产物成员的注释。
+
+- **phoneme 输出模型小复盘**（待议，独立）：现扁平 `SynthesizedPhoneme[]` + 出身 note 回指。重新审视：越界由 StartTime/EndTime 表达（非结构决定，legacy note→list 同样能表达），故扁平相对 note→list 的**唯一实质差异是无主音素**（Note=null 的自由换气，view-only/不可钉，但正确性上"不参与任何 note 伸缩"）。待定：是否砍掉无主、输出是否改回 per-note。与回显/统一无关，不阻塞。

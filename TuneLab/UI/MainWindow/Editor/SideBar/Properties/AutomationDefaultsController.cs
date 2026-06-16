@@ -51,7 +51,13 @@ internal class AutomationDefaultsController : StackPanel
 
     void AddGroup(string? header, IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex)
     {
-        if (configs.Count == 0)
+        // 默认值面板只列连续轨（分段轨无默认基线）；整组无连续轨则连表头都不加。
+        bool hasContinuous = false;
+        foreach (var kvp in configs)
+        {
+            if (!kvp.Value.IsPiecewise) { hasContinuous = true; break; }
+        }
+        if (!hasContinuous)
             return;
 
         if (header != null)
@@ -70,6 +76,10 @@ internal class AutomationDefaultsController : StackPanel
 
         foreach (var kvp in configs)
         {
+            // 分段轨无默认基线（DefaultValue 为 NaN），默认值面板不为其建行。
+            if (kvp.Value.IsPiecewise)
+                continue;
+
             var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
             mRows.Add(new Row(this, key, kvp.Key, kvp.Value));
         }

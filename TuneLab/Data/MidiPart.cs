@@ -31,7 +31,7 @@ internal class MidiPart : Part, IMidiPart
     public IVoice Voice => mVoice;
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
-    // 声明分段轨（除 Pitch 外、由声源 GetPiecewiseAutomationConfigs 暴露的可编辑分段曲线），按轨 id 存。
+    // 声明分段轨（除 Pitch 外、声源声明的可编辑分段曲线，即 AutomationConfig.IsPiecewise 的轨），按轨 id 存。
     // Pitch 是 part 专属常驻通道、在音符区编辑，不入此 map。
     public IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations => mPiecewiseAutomations;
     public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
@@ -396,13 +396,13 @@ internal class MidiPart : Part, IMidiPart
 
     public bool IsEffectiveAutomation(string id)
     {
-        return Voice.AutomationConfigs.ContainsKey(id);
+        return Voice.AutomationConfigs.TryGetValue(id, out var config) && !config.IsPiecewise;
     }
 
     public AutomationConfig GetEffectiveAutomationConfig(string id)
     {
-        if (Voice.AutomationConfigs.ContainsKey(id))
-            return Voice.AutomationConfigs[id];
+        if (Voice.AutomationConfigs.TryGetValue(id, out var config) && !config.IsPiecewise)
+            return config;
 
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
     }
@@ -423,13 +423,13 @@ internal class MidiPart : Part, IMidiPart
 
     public bool IsEffectivePiecewiseAutomation(string id)
     {
-        return Voice.PiecewiseAutomationConfigs.ContainsKey(id);
+        return Voice.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise;
     }
 
-    public PiecewiseAutomationConfig GetEffectivePiecewiseAutomationConfig(string id)
+    public AutomationConfig GetEffectivePiecewiseAutomationConfig(string id)
     {
-        if (Voice.PiecewiseAutomationConfigs.ContainsKey(id))
-            return Voice.PiecewiseAutomationConfigs[id];
+        if (Voice.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise)
+            return config;
 
         throw new ArgumentException(string.Format("Piecewise automation {0} is not effective!", id));
     }

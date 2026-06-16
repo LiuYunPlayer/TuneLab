@@ -21,8 +21,8 @@ public interface ISynthesisSession : IDisposable
     // 须为纯函数（同输入同输出、无副作用、轻量）；静态轨集合的插件忽略 context 返回固定 map 即可。
     // 轨是 part 级（与 GetPartPropertyConfig 同用 part context，非 note 级）。
     // 孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
+    // 连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），按声明序呈现。
     IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
-    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context);
 
     // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
     // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。

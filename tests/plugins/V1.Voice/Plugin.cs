@@ -42,8 +42,6 @@ public sealed class TestSession : ISynthesisSession
         mPartProperties.Add("growl_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Enable Growl" });
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
         mAutomationConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
-        // 分段轨（分段 + 段间空、无默认）：验证声明/数据/路由/渲染/编辑/存盘链路。本参照实现的合成暂不消费它。
-        mPiecewiseAutomationConfigs.Add("Bend", new PiecewiseAutomationConfig { DisplayText = "Bend", MinValue = -100, MaxValue = 100, Color = "#73C2E5" });
 
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；
@@ -64,8 +62,17 @@ public sealed class TestSession : ISynthesisSession
     public string DefaultLyric => "la";
     // 条件轨集合：growl_enabled 勾选才暴露 Growl（轨集合 = f(part 参数值)）。
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
-        => context.PartProperties.GetBool("growl_enabled", true) ? mAutomationConfigs : mEmptyAutomationConfigs;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context) => mPiecewiseAutomationConfigs;
+    {
+        // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
+        var map = new OrderedMap<string, AutomationConfig>();
+        if (context.PartProperties.GetBool("growl_enabled", true))
+        {
+            foreach (var kvp in mAutomationConfigs)
+                map.Add(kvp.Key, kvp.Value);
+        }
+        map.Add("Bend", mBendConfig);
+        return map;
+    }
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
@@ -462,8 +469,8 @@ public sealed class TestSession : ISynthesisSession
     readonly Dictionary<ISynthesisNote, Action> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    static readonly OrderedMap<string, AutomationConfig> mEmptyAutomationConfigs = new();
-    readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
+    // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
+    static readonly AutomationConfig mBendConfig = new() { DisplayText = "Bend", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mNeedResegment;

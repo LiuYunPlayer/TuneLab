@@ -24,10 +24,18 @@ public sealed class GainEffectEngine : IEffectEngine
     // 条件轨集合：env_enabled 勾选才暴露 gain_env（轨集合 = f(当前参数值)）。取消勾选时已画 gain_env
     // 曲线由宿主保留隐藏、重新勾选即原样恢复。
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context)
-        => context.Properties.GetBool("env_enabled", true) ? mAutomations : mEmptyAutomations;
-    // 分段轨声明（formant）：可编辑、随工程序列化；本参照实现的 DSP 暂不消费它（effect 分段轨回写为未来需求），
-    // 用于验证 effect 侧分段轨的声明/路由/渲染/编辑/存盘链路。
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IEffectPropertyContext context) => mPiecewiseAutomations;
+    {
+        // 连续轨 gain_env（env_enabled 勾选才暴露）+ 分段轨 formant（恒在、DefaultValue=NaN）同在一张有序 map。
+        // formant 可编辑、随工程序列化；本参照实现的 DSP 暂不消费它（effect 分段轨回写为未来需求）。
+        var map = new OrderedMap<string, AutomationConfig>();
+        if (context.Properties.GetBool("env_enabled", true))
+        {
+            foreach (var kvp in mAutomations)
+                map.Add(kvp.Key, kvp.Value);
+        }
+        map.Add("formant", mFormantConfig);
+        return map;
+    }
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor() => new GainProcessor();
@@ -47,17 +55,9 @@ public sealed class GainEffectEngine : IEffectEngine
         return map;
     }
 
-    static OrderedMap<string, PiecewiseAutomationConfig> BuildPiecewise()
-    {
-        var map = new OrderedMap<string, PiecewiseAutomationConfig>();
-        map.Add("formant", new PiecewiseAutomationConfig { DisplayText = "Formant", MinValue = -100, MaxValue = 100, Color = "#00C2A8" });
-        return map;
-    }
-
     static readonly ObjectConfig mConfig = BuildConfig();
     static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
-    static readonly OrderedMap<string, AutomationConfig> mEmptyAutomations = new();
-    static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomations = BuildPiecewise();
+    static readonly AutomationConfig mFormantConfig = new() { DisplayText = "Formant", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#00C2A8" };
 
     // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出，按 change 差分复用。
     sealed class GainProcessor : IEffectProcessor
@@ -142,14 +142,12 @@ public sealed class ReverseEffectEngine : IEffectEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IEffectPropertyContext context) => mPiecewiseAutomations;
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor() => new ReverseProcessor();
 
     static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
-    static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomations = new();
 
     sealed class ReverseProcessor : IEffectProcessor
     {

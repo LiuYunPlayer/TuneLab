@@ -27,7 +27,6 @@ internal class EmptyVoiceEngine : IVoiceEngine
     {
         public string DefaultLyric => "a";
         public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-        public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context) => mPiecewiseAutomationConfigs;
         public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
         public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
 
@@ -49,7 +48,6 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public void Dispose() { }
 
         static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-        static readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
         static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
         static readonly Map<string, IReadOnlyList<IReadOnlyList<Point>>> mSynthesizedParameters = new();
     }

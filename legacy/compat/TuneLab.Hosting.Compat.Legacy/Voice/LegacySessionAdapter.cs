@@ -58,7 +58,6 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     // —— 声明（老声源声明是静态的：缓存转换、函数式返回；老模型无条件轨集合，忽略 context）——
     public string DefaultLyric => mSource.DefaultLyric;
     public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs(VVoice.IPartPropertyContext context) => mAutomationConfigs;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(VVoice.IPartPropertyContext context) => mPiecewiseAutomationConfigs;
     public VConfig.ObjectConfig GetPartPropertyConfig(VVoice.IPartPropertyContext context) => new() { Properties = mPartProperties };
     public VConfig.ObjectConfig GetNotePropertyConfig(VVoice.INotePropertyContext context) => new() { Properties = mNoteProperties };
 
@@ -568,7 +567,6 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     readonly PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> mAutomationConfigs;
     readonly PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> mPartProperties;
     readonly PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> mNoteProperties;
-    static readonly PStruct.OrderedMap<string, VConfig.PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
     static readonly PStruct.Map<string, IReadOnlyList<IReadOnlyList<PStruct.Point>>> mSynthesizedParameters = new();
 
     readonly IDisposable mNotesSubscription;

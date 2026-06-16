@@ -12,8 +12,8 @@ internal interface IVoice : IDataObject<VoiceInfo>
     string ID { get; }
     string Name { get; }
     string DefaultLyric { get; }
+    // 连续轨与分段轨同在此 map（kind 由 AutomationConfig.IsPiecewise 现解析）。
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
-    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; }
     ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 }

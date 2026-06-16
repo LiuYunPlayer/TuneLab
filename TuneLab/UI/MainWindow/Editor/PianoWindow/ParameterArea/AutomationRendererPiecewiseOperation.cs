@@ -18,7 +18,7 @@ namespace TuneLab.UI;
 // 分段轨无默认基线：锚点 Value 即绝对值（区别于连续轨存"值减默认"）。复用现有 State 值，Move/Up 按 IsOperating 分派。
 internal partial class AutomationRenderer
 {
-    bool TryGetActivePiecewise([NotNullWhen(true)] out IPiecewiseAutomation? automation, [NotNullWhen(true)] out PiecewiseAutomationConfig? config, bool createIfMissing)
+    bool TryGetActivePiecewise([NotNullWhen(true)] out IPiecewiseAutomation? automation, [NotNullWhen(true)] out AutomationConfig? config, bool createIfMissing)
     {
         automation = null;
         config = null;

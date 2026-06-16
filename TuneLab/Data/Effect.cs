@@ -24,12 +24,9 @@ internal class Effect : DataObject, IEffect
     // 自动化轨集合随当前参数值涌现（轨集合 = f(当前值)）：live 求值，每次按当前参数算——宿主在参数 commit 后读取即得新集合，
     // 无缓存/无失效时序问题。配置很小、读取不在热路径，开销可忽略。
     // 轨从集合消失不裁剪 mAutomations 的曲线数据——保留隐藏、轨复现即原样恢复。
+    // 连续轨与分段轨同在此 map（kind 由 AutomationConfig.IsPiecewise 现解析）；live 求值、随当前参数涌现，孤儿数据保留隐藏。
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs
         => Engine?.GetAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
-
-    // 分段轨配置（与 AutomationConfigs 对偶）：同样 live 求值、随当前参数涌现，孤儿数据保留隐藏。
-    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs
-        => Engine?.GetPiecewiseAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPiecewiseAutomationConfigs;
 
     public Effect(MidiPart part, EffectInfo info)
     {
@@ -52,10 +49,9 @@ internal class Effect : DataObject, IEffect
         if (mAutomations.TryGetValue(automationID, out var value))
             return value;
 
-        if (!AutomationConfigs.ContainsKey(automationID))
+        if (!AutomationConfigs.TryGetValue(automationID, out var config) || config.IsPiecewise)
             return null;
 
-        var config = AutomationConfigs[automationID];
         var automation = CreateAutomation(automationID, new() { DefaultValue = config.DefaultValue });
         mAutomations.Add(automationID, automation);
         return automation;
@@ -67,7 +63,7 @@ internal class Effect : DataObject, IEffect
         if (mPiecewiseAutomations.TryGetValue(automationID, out var value))
             return value;
 
-        if (!PiecewiseAutomationConfigs.ContainsKey(automationID))
+        if (!AutomationConfigs.TryGetValue(automationID, out var config) || !config.IsPiecewise)
             return null;
 
         var automation = new PiecewiseAutomation();
@@ -117,7 +113,6 @@ internal class Effect : DataObject, IEffect
 
     static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly IReadOnlyOrderedMap<string, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<string, AutomationConfig>();
-    static readonly IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> EmptyPiecewiseAutomationConfigs = new OrderedMap<string, PiecewiseAutomationConfig>();
 
     readonly MidiPart mPart;
     readonly DataObjectMap<string, IAutomation> mAutomations;

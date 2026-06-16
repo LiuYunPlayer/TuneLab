@@ -74,26 +74,31 @@ internal static class IMidiPartExtension
     }
 
     // ── 按 AutomationKey 路由（voice/part 级，或某个 effect）。数据层仍按 plain id 存，这里只做来源分派。 ──
+    // 连续/分段由同一张 config map 承载，kind 由 AutomationConfig.IsPiecewise 现解析（AutomationKey 本身不带 kind）。
+
+    // 从对应来源（voice / 某 effect）取该 key 的 config（不分 kind），不存在返回 false。
+    static bool TryGetSourceConfig(IMidiPart part, AutomationKey key, out AutomationConfig config)
+    {
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex < part.Effects.Count)
+                return part.Effects[key.EffectIndex].AutomationConfigs.TryGetValue(key.Id, out config!);
+            config = null!;
+            return false;
+        }
+
+        return part.Voice.AutomationConfigs.TryGetValue(key.Id, out config!);
+    }
 
     public static bool IsEffectiveAutomation(this IMidiPart part, AutomationKey key)
     {
-        if (key.IsEffect)
-            return key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].AutomationConfigs.ContainsKey(key.Id);
-
-        return part.Voice.AutomationConfigs.ContainsKey(key.Id);
+        return TryGetSourceConfig(part, key, out var config) && !config.IsPiecewise;
     }
 
     public static AutomationConfig GetEffectiveAutomationConfig(this IMidiPart part, AutomationKey key)
     {
-        if (key.IsEffect)
-        {
-            if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].AutomationConfigs.TryGetValue(key.Id, out var effectConfig))
-                return effectConfig;
-        }
-        else if (part.Voice.AutomationConfigs.TryGetValue(key.Id, out var voiceConfig))
-        {
-            return voiceConfig;
-        }
+        if (TryGetSourceConfig(part, key, out var config) && !config.IsPiecewise)
+            return config;
 
         throw new ArgumentException(string.Format("Automation {0} is not effective!", key.Id));
     }
@@ -120,27 +125,17 @@ internal static class IMidiPartExtension
         return part.AddAutomation(key.Id);
     }
 
-    // ── 分段轨按 AutomationKey 路由（与连续轨对偶；kind 由查 config map 现解析，AutomationKey 本身不带 kind）。 ──
+    // ── 分段轨按 AutomationKey 路由（与连续轨对偶；同一张 config map，kind 由 IsPiecewise 现解析）。 ──
 
     public static bool IsEffectivePiecewiseAutomation(this IMidiPart part, AutomationKey key)
     {
-        if (key.IsEffect)
-            return key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].PiecewiseAutomationConfigs.ContainsKey(key.Id);
-
-        return part.Voice.PiecewiseAutomationConfigs.ContainsKey(key.Id);
+        return TryGetSourceConfig(part, key, out var config) && config.IsPiecewise;
     }
 
-    public static PiecewiseAutomationConfig GetEffectivePiecewiseAutomationConfig(this IMidiPart part, AutomationKey key)
+    public static AutomationConfig GetEffectivePiecewiseAutomationConfig(this IMidiPart part, AutomationKey key)
     {
-        if (key.IsEffect)
-        {
-            if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].PiecewiseAutomationConfigs.TryGetValue(key.Id, out var effectConfig))
-                return effectConfig;
-        }
-        else if (part.Voice.PiecewiseAutomationConfigs.TryGetValue(key.Id, out var voiceConfig))
-        {
-            return voiceConfig;
-        }
+        if (TryGetSourceConfig(part, key, out var config) && config.IsPiecewise)
+            return config;
 
         throw new ArgumentException(string.Format("Piecewise automation {0} is not effective!", key.Id));
     }

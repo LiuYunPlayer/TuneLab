@@ -17,12 +17,8 @@ public interface IEffectEngine
     // 故轨集合可随参数显隐（如某模式开关才暴露的轨）。须为纯函数（同输入同输出、无副作用、轻量）；
     // 静态轨集合的引擎忽略 context 返回固定 map 即可。
     // 孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
+    // 连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），按声明序呈现。
     IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context);
-
-    // 分段型自动化轨配置（分段 + 段间空、无默认基线，与 pitch 同形）：与 GetAutomationConfigs 对偶、
-    // 同为当前参数值的纯函数——宿主在参数 commit 时按当前值重算轨集合并 diff 到 UI。须为纯函数；
-    // 静态/无分段轨的引擎忽略 context 返回空 map 即可。孤儿数据同连续轨：轨消失保留隐藏、复现原样恢复。
-    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IEffectPropertyContext context);
 
     // 初始化引擎（加载模型等）。无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。
     // 不传安装路径——插件 DLL 经 Assembly.Location 即可自定位包目录。
