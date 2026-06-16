@@ -26,6 +26,9 @@ internal class SingleLineTextController : LayerPanel, IDataValueController<strin
     public IActionEvent ValueCommitted => mTextInput.EndInput;
     public string Value { get => mTextInput.Text; set => mTextInput.Text = value; }
 
+    // 掩码开关：'\0' 为 TextBox 默认（不掩码），非零字符即逐字符掩码显示。
+    public bool IsPassword { set => mTextInput.PasswordChar = value ? '●' : '\0'; }
+
     public SingleLineTextController()
     {
         mTextInput = new TextInput()

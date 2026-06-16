@@ -263,13 +263,14 @@ internal class PropertyObjectController : StackPanel
 
             mController = ObjectPoolManager.Get<SingleLineTextController>();
             mController.Margin = new(24, 12);
+            mController.IsPassword = config.IsPassword;
 
             mController.BindDataProperty(parent.DataObject.StringField(key, config.DefaultValue), s);
         }
 
         public override Type ConfigType => typeof(TextBoxConfig);
         public override IEnumerable<Control> Views => [mTitle, mController];
-        public override void Update(IControllerConfig config) { }
+        public override void Update(IControllerConfig config) { mController.IsPassword = ((TextBoxConfig)config).IsPassword; }
 
         public override void Dispose()
         {

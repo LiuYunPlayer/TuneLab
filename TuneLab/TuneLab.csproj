@@ -49,6 +49,7 @@
 		<PackageReference Include="ppy.SDL2-CS" Version="1.0.741-alpha" />
 		<PackageReference Include="Svg.Skia" Version="3.0.2" />
 		<PackageReference Include="System.Net.Http" Version="4.3.4" />
+		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
 		<PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
 		<PackageReference Include="Tomlyn" Version="0.18.0" />
 		<PackageReference Include="ZstdSharp.Port" Version="0.8.5" />

@@ -43,5 +43,6 @@ internal class SideTabBar : ListView
         AddTab(SideBarTab.Extensions, "Extensions".Tr(this), Assets.Extensions);
         AddTab(SideBarTab.Properties, "Properties".Tr(this), Assets.Properties);
         AddTab(SideBarTab.Export, "Export".Tr(this), Assets.Export);
+        AddTab(SideBarTab.Agent, "Agent".Tr(this), Assets.Agent);
     }
 }
