@@ -178,6 +178,15 @@ internal sealed class AgentSideBarContentProvider
         // 中间丝滑滚动对话区（自带动画轴）。透明背景让整块区域（含消息下方空白）都可命中滚轮。
         mMessagesList.Orientation = Orientation.Vertical;
         mMessagesList.Background = Brushes.Transparent;
+        // 气泡 MaxWidth 随对话区宽度自适应：留出对侧 ~40px 空白（避免占满整宽损可读性）；侧栏拖宽即时更新所有现有气泡。
+        mMessagesList.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Avalonia.Visual.BoundsProperty)
+                return;
+            mBubbleMaxWidth = Math.Max(140, mMessagesList.Bounds.Width - 40);
+            foreach (var c in mMessagesList.Content.Children)
+                c.MaxWidth = mBubbleMaxWidth;
+        };
 
         DockPanel.SetDock(header, Dock.Top);
         mChatView.Children.Add(header);
@@ -260,7 +269,7 @@ internal sealed class AgentSideBarContentProvider
             : new SelectableTextBlock()
             {
                 Text = text,
-                MaxWidth = 250,
+                MaxWidth = mBubbleMaxWidth,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = (role == "error" ? Colors.IndianRed : Style.LIGHT_WHITE.Opacity(0.6)).ToBrush(),
                 FontSize = 11,
@@ -280,10 +289,10 @@ internal sealed class AgentSideBarContentProvider
         return bubble;
     }
 
-    // 气泡容器：用户靠右、agent 靠左；内容可为可选中文本或 Markdown 控件。
-    static Border Bubble(Control content, bool mine) => new()
+    // 气泡容器：用户靠右、agent 靠左；内容可为可选中文本或 Markdown 控件。MaxWidth 随对话区宽度自适应。
+    Border Bubble(Control content, bool mine) => new()
     {
-        MaxWidth = 230,
+        MaxWidth = mBubbleMaxWidth,
         CornerRadius = new(8),
         Padding = new(10, 6),
         Margin = new(8, 4),
@@ -485,6 +494,7 @@ internal sealed class AgentSideBarContentProvider
     MenuFlyout mMenuFlyout = null!;
     bool mMenuJustClosed;
     bool mBusy;
+    double mBubbleMaxWidth = 230; // 气泡最大宽度，随对话区宽度自适应（见 BuildChatView 的 Bounds 订阅）
 
     readonly DataDocument mSettingsDocument = new();
     readonly DataPropertyObject mSettings;

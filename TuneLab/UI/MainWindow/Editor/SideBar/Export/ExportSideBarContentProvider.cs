@@ -34,7 +34,6 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     public ExportSideBarContentProvider()
     {
         mContentPanel.Orientation = Orientation.Vertical;
-        mContentPanel.MaxWidth = 280;
         mContentPanel.ClipToBounds = true;
         mContentPanel.Background = Style.INTERFACE.ToBrush();
 
