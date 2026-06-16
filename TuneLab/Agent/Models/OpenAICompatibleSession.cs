@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -7,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.Agent.Models;
@@ -34,6 +36,135 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
         if (!response.IsSuccessStatusCode)
             throw new Exception(string.Format("Model request failed ({0}): {1}", (int)response.StatusCode, text));
         return ParseReply(text);
+    }
+
+    // 流式：stream:true + stream_options.include_usage（拿最后一帧 usage）。逐帧解析 delta，文本增量经 onContentDelta 回调，
+    // 工具调用分片按 index 累积，结束后拼成完整一轮回复返回（语义与非流式一致，便于 Runner 复用循环）。
+    public async Task<AgentModelReply> SendAsync(AgentModelRequest request, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
+    {
+        var bodyObj = BuildRequestBody(request);
+        bodyObj["stream"] = true;
+        bodyObj["stream_options"] = new JsonObject { ["include_usage"] = true };
+        var body = bodyObj.ToJsonString();
+
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        using var req = new HttpRequestMessage(HttpMethod.Post, mEndpoint) { Content = content };
+        using var response = await mHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw new Exception(string.Format("Model request failed ({0}): {1}", (int)response.StatusCode, err));
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream);
+        return await ParseStream(reader, onContentDelta, cancellationToken).ConfigureAwait(false);
+    }
+
+    // SSE：每行 "data: {json}"，"data: [DONE]" 收尾。累积 content/tool_calls/usage。
+    static async Task<AgentModelReply> ParseStream(StreamReader reader, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
+    {
+        var contentSb = new StringBuilder();
+        var toolAcc = new SortedDictionary<int, ToolCallAcc>();
+        AgentTokenUsage? usage = null;
+        string? finishReason = null;
+
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            if (line.Length == 0 || !line.StartsWith("data:", StringComparison.Ordinal))
+                continue;
+            var data = line.AsSpan(5).Trim().ToString();
+            if (data == "[DONE]")
+                break;
+
+            using var doc = JsonDocument.Parse(data);
+            var root = doc.RootElement;
+
+            // 流中途的错误帧（限流/超长/服务端异常等）：不抛会被当成空内容静默吞掉，须显式暴露。
+            if (root.TryGetProperty("error", out var errEl) && errEl.ValueKind == JsonValueKind.Object)
+            {
+                var msg = errEl.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : errEl.ToString();
+                throw new Exception("Model stream error: " + msg);
+            }
+
+            if (root.TryGetProperty("usage", out var u) && u.ValueKind == JsonValueKind.Object)
+                usage = ParseUsageObject(u);
+
+            if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() == 0)
+                continue;
+            if (choices[0].TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String)
+                finishReason = fr.GetString();
+            if (!choices[0].TryGetProperty("delta", out var delta) || delta.ValueKind != JsonValueKind.Object)
+                continue;
+
+            if (delta.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String)
+            {
+                var piece = c.GetString();
+                if (!string.IsNullOrEmpty(piece))
+                {
+                    contentSb.Append(piece);
+                    onContentDelta?.Report(piece);
+                }
+            }
+
+            if (delta.TryGetProperty("tool_calls", out var tcs) && tcs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var tc in tcs.EnumerateArray())
+                {
+                    int idx = tc.TryGetProperty("index", out var ie) && ie.ValueKind == JsonValueKind.Number ? ie.GetInt32() : 0;
+                    if (!toolAcc.TryGetValue(idx, out var acc))
+                        toolAcc[idx] = acc = new ToolCallAcc();
+                    if (tc.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
+                        acc.Id = id.GetString();
+                    if (tc.TryGetProperty("function", out var fn) && fn.ValueKind == JsonValueKind.Object)
+                    {
+                        if (fn.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                            acc.Name = n.GetString();
+                        if (fn.TryGetProperty("arguments", out var a) && a.ValueKind == JsonValueKind.String)
+                            acc.Arguments.Append(a.GetString());
+                    }
+                }
+            }
+        }
+
+        var toolCalls = new List<AgentToolCall>();
+        foreach (var acc in toolAcc.Values)
+        {
+            if (string.IsNullOrEmpty(acc.Name))
+                continue;
+            toolCalls.Add(new AgentToolCall
+            {
+                Id = acc.Id ?? string.Empty,
+                Name = acc.Name,
+                ArgumentsJson = acc.Arguments.Length > 0 ? acc.Arguments.ToString() : "{}",
+            });
+        }
+
+        // 空内容且无工具调用：把真正原因暴露出来，而不是让 UI 显示笼统的 "(no text reply)"。
+        // finish_reason=length → 输出被 max_tokens 截断（常见于 Max Tokens 设太小）；content_filter → 被内容审查拦截。
+        if (contentSb.Length == 0 && toolCalls.Count == 0)
+        {
+            Log.Warning(string.Format("Agent stream produced no content. finish_reason={0}, hasUsage={1}", finishReason ?? "(none)", usage != null));
+            if (finishReason == "length")
+                throw new Exception("Model returned no content (finish_reason: length). Output was cut by Max Tokens — raise the Max Tokens setting (0 = no limit).");
+            if (finishReason == "content_filter")
+                throw new Exception("Model returned no content (finish_reason: content_filter). The request was blocked by the provider's content filter.");
+        }
+
+        return new AgentModelReply
+        {
+            Content = contentSb.Length > 0 ? contentSb.ToString() : null,
+            ToolCalls = toolCalls,
+            Usage = usage,
+        };
+    }
+
+    // 流式工具调用分片累积器：分片携带 index + 渐进的 id/name/arguments 片段。
+    sealed class ToolCallAcc
+    {
+        public string? Id;
+        public string? Name;
+        public readonly StringBuilder Arguments = new();
     }
 
     JsonObject BuildRequestBody(AgentModelRequest request)
@@ -148,19 +279,18 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
 
     // OpenAI 协议 usage：{ prompt_tokens, completion_tokens, total_tokens }。缺失则返回 null（不是所有端点都返回）。
     static AgentTokenUsage? ParseUsage(JsonElement root)
-    {
-        if (!root.TryGetProperty("usage", out var usage) || usage.ValueKind != JsonValueKind.Object)
-            return null;
-        return new AgentTokenUsage
+        => root.TryGetProperty("usage", out var usage) && usage.ValueKind == JsonValueKind.Object ? ParseUsageObject(usage) : null;
+
+    static AgentTokenUsage ParseUsageObject(JsonElement usage)
+        => new()
         {
             PromptTokens = GetInt(usage, "prompt_tokens"),
             CompletionTokens = GetInt(usage, "completion_tokens"),
             TotalTokens = GetInt(usage, "total_tokens"),
         };
 
-        static int GetInt(JsonElement obj, string name)
-            => obj.TryGetProperty(name, out var e) && e.ValueKind == JsonValueKind.Number ? e.GetInt32() : 0;
-    }
+    static int GetInt(JsonElement obj, string name)
+        => obj.TryGetProperty(name, out var e) && e.ValueKind == JsonValueKind.Number ? e.GetInt32() : 0;
 
     public void Dispose() => mHttp.Dispose();
 

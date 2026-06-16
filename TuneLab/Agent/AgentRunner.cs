@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -27,7 +28,8 @@ internal sealed class AgentRunner
 
     // 处理一条用户消息，返回模型的最终文本回复 + 本轮 token 用量。对话历史在多次调用间累积（保持上下文）。
     // 一次用户输入内可能有多次模型调用（工具往返），用量为这些调用的合计；任一调用返回了 usage 即非 null。
-    public async Task<AgentTurnResult> SendAsync(string userInput, CancellationToken cancellationToken)
+    // onContentDelta：流式文本增量回调（可空），透传给会话；不支持流式的会话默认等整段返回、不产增量。
+    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
     {
         mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = userInput });
 
@@ -41,6 +43,7 @@ internal sealed class AgentRunner
         {
             var reply = await mSession.SendAsync(
                 new AgentModelRequest { Messages = mMessages, Tools = mToolSchemas },
+                onContentDelta,
                 cancellationToken);
 
             if (reply.Usage is { } u)

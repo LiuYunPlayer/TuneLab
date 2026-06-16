@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Agent;
@@ -252,18 +253,37 @@ internal sealed class AgentSideBarContentProvider
         mCts = new CancellationTokenSource();
         SetBusy(true);
 
+        // 流式回显：首个增量到达前保持动态点；之后换成纯文本实时追加（不逐 token 重渲 Markdown），结束再渲成 Markdown。
+        var streamText = new StringBuilder();
+        SelectableTextBlock? streamView = null;
+        void OnDelta(string delta)
+        {
+            if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => OnDelta(delta)); return; }
+            streamText.Append(delta);
+            if (streamView == null)
+            {
+                streamView = BubbleText(streamText.ToString(), Colors.White.ToBrush());
+                bubble.Child = streamView;
+            }
+            else
+            {
+                streamView.Text = streamText.ToString();
+            }
+            ScrollToEnd();
+        }
+
         try
         {
             mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt);
-            var reply = await mRunner.SendAsync(text, mCts.Token);
+            var reply = await mRunner.SendAsync(text, new Progress<string>(OnDelta), mCts.Token);
             bubble.Child = string.IsNullOrEmpty(reply.Text)
                 ? BubbleText("(no text reply)", Colors.White.ToBrush())
                 : AssistantContent(reply.Text, reply.Usage);
         }
         catch (OperationCanceledException)
         {
-            // 用户主动停止：温和提示，不当错误（红字）。
-            bubble.Child = BubbleText("Stopped.".Tr(this), Style.LIGHT_WHITE.Opacity(0.6).ToBrush());
+            // 用户主动停止：保留已流式输出的内容（渲成 Markdown）+ 末尾标注 Stopped，不当错误（红字）。
+            bubble.Child = StoppedContent(streamText.ToString());
         }
         catch (Exception ex)
         {
@@ -375,6 +395,23 @@ internal sealed class AgentSideBarContentProvider
             footer.Children.Add(tokens);
         }
         return new StackPanel { Orientation = Orientation.Vertical, Children = { md, footer } };
+    }
+
+    // 停止后的气泡内容：已流式输出的部分渲成 Markdown + 末尾一行斜体灰字 Stopped（停在首 token 前则只有 Stopped）。
+    Control StoppedContent(string partial)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
+        if (!string.IsNullOrEmpty(partial))
+            panel.Children.Add(ChatMarkdownRenderer.Render(partial));
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Stopped".Tr(this),
+            FontSize = 11,
+            FontStyle = FontStyle.Italic,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+            Margin = new(0, 4, 0, 0),
+        });
+        return panel;
     }
 
     // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。
