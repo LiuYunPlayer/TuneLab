@@ -171,6 +171,8 @@ internal partial class AutomationRenderer : View
             }
 
             context.DrawCurve(points, Color.Parse(config.Color), lineWidth);
+
+            DrawSynthesizedParameter(context, automationID, min, max);
         }
 
         var activeAutomation = mDependency.ActiveAutomation;
@@ -267,6 +269,56 @@ internal partial class AutomationRenderer : View
 
         context.DrawString(max.ToString("+0.00;-0.00"), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
         context.DrawString(min.ToString("+0.00;-0.00"), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+    }
+
+    // 合成参数回显：voice 引擎产物（按轨 id 键、与音频同一秒时间系，分段），只读叠加在同名 voice 轨上。
+    // effect 轨无参数回显（effect 输出仅音频）。沿用 pitch 回显的白色半透明约定，区别于 config 色的可编辑曲线；
+    // 段间空（NaN）= 各段独立断开（已按段交付，跨段不连线）。
+    void DrawSynthesizedParameter(DrawingContext context, AutomationKey automation, double min, double max)
+    {
+        if (Part == null || automation.IsEffect)
+            return;
+
+        if (!Part.SynthesizedParameters.TryGetValue(automation.Id, out var segments))
+            return;
+
+        var tempoManager = Part.TempoManager;
+        double minVisibleTick = TickAxis.MinVisibleTick;
+        double maxVisibleTick = TickAxis.MaxVisibleTick;
+        var color = Colors.White.Opacity(0.5);
+
+        foreach (var segment in segments)
+        {
+            if (segment.Count == 0)
+                continue;
+
+            double startTime = segment[0].X;
+            double endTime = segment[segment.Count - 1].X;
+            double startTick = tempoManager.GetTick(startTime);
+            double endTick = tempoManager.GetTick(endTime);
+            if (endTick < minVisibleTick)
+                continue;
+
+            if (startTick > maxVisibleTick)
+                break;
+
+            int startX = (int)Math.Floor(TickAxis.Tick2X(Math.Max(startTick, minVisibleTick)));
+            int endX = (int)Math.Ceiling(TickAxis.Tick2X(Math.Min(endTick, maxVisibleTick)));
+            int count = endX - startX + 1;
+            if (count <= 0)
+                continue;
+
+            var times = new double[count];
+            for (int i = 0; i < count; i++)
+                times[i] = tempoManager.GetTime(TickAxis.X2Tick(i + startX));
+
+            var ys = segment.LinearInterpolation(times);
+            var points = new Point[count];
+            for (int i = 0; i < count; i++)
+                points[i] = new(i + startX, ValueToY(ys[i], min, max));
+
+            context.DrawCurve(points, color, 1);
+        }
     }
 
     public Point TickAndValueToPoint(double tick, double value, double min, double max)

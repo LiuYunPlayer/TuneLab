@@ -41,6 +41,7 @@ internal class MidiPart : Part, IMidiPart
     internal BatchSignal SynthesisBatch => mSynthesisBatch;
     public IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus() => mPipeline?.GetStatus() ?? [];
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mPipeline?.SynthesizedPitch ?? [];
+    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mPipeline?.SynthesizedParameters ?? EmptySynthesizedParameters;
     public IReadOnlyList<Synthesis.SynthesizedSegment> SynthesizedSegments => mPipeline?.SynthesizedSegments ?? [];
 
     public MidiPart(ITrack track, MidiPartInfo info) : base(track)
@@ -525,6 +526,8 @@ internal class MidiPart : Part, IMidiPart
     readonly Dictionary<IEffect, Action> mEffectModifiedHandlers = new();
     readonly PiecewiseAutomation mPitchLine;
     readonly Voice mVoice;
+
+    static readonly Map<string, IReadOnlyList<IReadOnlyList<Point>>> EmptySynthesizedParameters = new();
 
     class NoteList : DataObjectLinkedList<INote>, INoteList
     {

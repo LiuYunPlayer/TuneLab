@@ -36,6 +36,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。
     public IReadOnlyList<SynthesizedSegment> SynthesizedSegments => mSynthesizedSegments;
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mSession.SynthesizedPitch;
+    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSession.SynthesizedParameters;
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mSession.GetStatus();
 
     public VoiceSynthesisPipeline(MidiPart part, string voiceType, string voiceId)

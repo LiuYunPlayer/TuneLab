@@ -130,6 +130,7 @@ public sealed class TestSession : ISynthesisSession
                 piece.Segment.Write(0, rendered.Audio);
                 piece.Segment.Commit();
                 piece.Phonemes = rendered.Phonemes;
+                piece.GrowlReadback = rendered.GrowlReadback;
             }
         }
         catch (Exception ex)
@@ -145,7 +146,26 @@ public sealed class TestSession : ISynthesisSession
     }
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
-    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
+
+    // 参数回显：各已合成块的 Growl 回显段聚成 map（轨 id → 分段曲线）。Growl 轨随 growl_enabled 显隐，
+    // 隐藏时宿主不绘制（仅遍历可见轨），数据仍在此处返回——无害。
+    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters
+    {
+        get
+        {
+            var segments = new List<IReadOnlyList<Point>>();
+            foreach (var piece in mPieces)
+            {
+                if (piece.GrowlReadback.Count > 0)
+                    segments.Add(piece.GrowlReadback);
+            }
+
+            var map = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
+            if (segments.Count > 0)
+                map.Add("Growl", segments);
+            return map;
+        }
+    }
 
     public IReadOnlyList<SynthesizedPhoneme> Phonemes
     {
@@ -198,7 +218,7 @@ public sealed class TestSession : ISynthesisSession
     }
 
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
-    sealed record RenderResult(float[] Audio, double StartTime, List<SynthesizedPhoneme> Phonemes);
+    sealed record RenderResult(float[] Audio, double StartTime, List<SynthesizedPhoneme> Phonemes, List<Point> GrowlReadback);
 
     static RenderResult? Render(SynthesisSnapshot snapshot, IReadOnlyList<ISynthesisNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
@@ -207,7 +227,7 @@ public sealed class TestSession : ISynthesisSession
         if (notes.Count == 0)
         {
             progress?.Report(1);
-            return new RenderResult([], 0, []);
+            return new RenderResult([], 0, [], []);
         }
 
         // note 可重叠（和弦）：起点恒为首 note（已按 StartTime 升序），但结束须取全体最大——
@@ -276,7 +296,19 @@ public sealed class TestSession : ISynthesisSession
             progress?.Report((double)(n + 1) / notes.Count);
         }
 
-        return new RenderResult(audio, startTime, phonemes);
+        // 参数回显（Growl）：本参照实现产出一条「引擎实际施加的 Growl」分段曲线，与音频/音高同一秒时间系，
+        // 供宿主只读叠加在 Growl 轨上。此处用一条确定性正弦波形（10..90，落在 Growl 的 0..100 域内）驱动回显路径。
+        var growl = new List<Point>();
+        double duration = Math.Max(1e-6, endTime - startTime);
+        int growlCount = Math.Max(2, (int)(duration * 20)); // 20Hz 采样
+        for (int g = 0; g < growlCount; g++)
+        {
+            double t = startTime + duration * g / (growlCount - 1);
+            double v = 50 + 40 * Math.Sin(2 * Math.PI * (t - startTime) / duration);
+            growl.Add(new Point(t, v));
+        }
+
+        return new RenderResult(audio, startTime, phonemes, growl);
     }
 
     // —— 分块（数据线程；按 note 间隙分块，note 集等价的块保留缓存与状态）——
@@ -415,6 +447,7 @@ public sealed class TestSession : ISynthesisSession
         public double Progress;
         public IAudioSegment? Segment;
         public IReadOnlyList<SynthesizedPhoneme> Phonemes = [];
+        public IReadOnlyList<Point> GrowlReadback = [];
     }
 
     const int kSampleRate = 44100;
