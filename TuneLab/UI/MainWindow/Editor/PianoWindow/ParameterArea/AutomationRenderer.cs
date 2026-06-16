@@ -86,6 +86,9 @@ internal partial class AutomationRenderer : View
         mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.PiecewiseAutomations.Modified)).Subscribe(InvalidateVisual, s);
         // effect 自动化数据在各 effect.Automations 里，编辑它不会触发 part.Automations.Modified，需单独订阅（否则拖动不重绘）。
         mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified)).Subscribe(InvalidateVisual, s);
+        // 合成状态/产物更新（插件在合成过程中逐步填入回显曲线，经 StatusChanged 通知）→ 重绘，
+        // 否则参数区的合成参数回显要等下次鼠标事件等其它失效源才刷新（滞后）。
+        mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Pos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.Modified.Subscribe(UpdateAnchorValueInput, s);
