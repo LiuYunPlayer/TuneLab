@@ -44,6 +44,11 @@ internal partial class AutomationRenderer
                 {
                     Part?.Pitch.DeselectAllAnchors();
                     mDependency.PianoScrollView.InvalidateVisual();
+                    if (ActiveIsPiecewise())
+                    {
+                        OnPiecewiseAnchorMouseDown(e, ctrl, item);
+                        break;
+                    }
                     switch (e.MouseButtonType)
                     {
                         case MouseButtonType.PrimaryButton:
@@ -119,15 +124,21 @@ internal partial class AutomationRenderer
                     switch (e.MouseButtonType)
                     {
                         case MouseButtonType.PrimaryButton:
-                            mDrawOperation.Down(e.Position);
+                            if (ActiveIsPiecewise())
+                                mPiecewiseDrawOperation.Down(e.Position);
+                            else
+                                mDrawOperation.Down(e.Position);
                             break;
                         case MouseButtonType.SecondaryButton:
-                            mClearOperation.Down(e.Position.X);
+                            if (ActiveIsPiecewise())
+                                mPiecewiseClearOperation.Down(e.Position.X);
+                            else
+                                mClearOperation.Down(e.Position.X);
                             break;
                         default:
                             break;
                     }
-                }             
+                }
                 break;
             default:
                 break;
@@ -148,19 +159,24 @@ internal partial class AutomationRenderer
         switch (mState)
         {
             case State.Drawing:
-                mDrawOperation.Move(e.Position);
+                if (mDrawOperation.IsOperating) mDrawOperation.Move(e.Position);
+                else mPiecewiseDrawOperation.Move(e.Position);
                 break;
             case State.Clearing:
-                mClearOperation.Move(e.Position.X);
+                if (mClearOperation.IsOperating) mClearOperation.Move(e.Position.X);
+                else mPiecewiseClearOperation.Move(e.Position.X);
                 break;
             case State.AnchorSelecting:
-                mAnchorSelectOperation.Move(e.Position);
+                if (mAnchorSelectOperation.IsOperating) mAnchorSelectOperation.Move(e.Position);
+                else mPiecewiseAnchorSelectOperation.Move(e.Position);
                 break;
             case State.AnchorDeleting:
-                mAnchorDeleteOperation.Move(e.Position.X);
+                if (mAnchorDeleteOperation.IsOperating) mAnchorDeleteOperation.Move(e.Position.X);
+                else mPiecewiseAnchorDeleteOperation.Move(e.Position.X);
                 break;
             case State.AnchorMoving:
-                mAnchorMoveOperation.Move(e.Position);
+                if (mPiecewiseAnchorMoveOperation.IsOperating) mPiecewiseAnchorMoveOperation.Move(e.Position);
+                else mAnchorMoveOperation.Move(e.Position);
                 break;
             case State.VibratoAmplitudeAdjusting:
                 mVibratoAmplitudeOperation.Move(e.Position.Y);
@@ -171,7 +187,7 @@ internal partial class AutomationRenderer
                 {
                     Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeNorthSouth);
                 }
-                else if (item is AutomationAnchorItem)
+                else if (item is AutomationAnchorItem or PiecewiseAnchorItem)
                 {
                     Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeAll);
                 }
@@ -191,23 +207,38 @@ internal partial class AutomationRenderer
         {
             case State.Drawing:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
-                    mDrawOperation.Up();
+                {
+                    if (mDrawOperation.IsOperating) mDrawOperation.Up();
+                    else mPiecewiseDrawOperation.Up();
+                }
                 break;
             case State.Clearing:
                 if (e.MouseButtonType == MouseButtonType.SecondaryButton)
-                    mClearOperation.Up();
+                {
+                    if (mClearOperation.IsOperating) mClearOperation.Up();
+                    else mPiecewiseClearOperation.Up();
+                }
                 break;
             case State.AnchorSelecting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
-                    mAnchorSelectOperation.Up();
+                {
+                    if (mAnchorSelectOperation.IsOperating) mAnchorSelectOperation.Up();
+                    else mPiecewiseAnchorSelectOperation.Up();
+                }
                 break;
             case State.AnchorDeleting:
                 if (e.MouseButtonType == MouseButtonType.SecondaryButton)
-                    mAnchorDeleteOperation.Up();
+                {
+                    if (mAnchorDeleteOperation.IsOperating) mAnchorDeleteOperation.Up();
+                    else mPiecewiseAnchorDeleteOperation.Up();
+                }
                 break;
             case State.AnchorMoving:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
-                    mAnchorMoveOperation.Up();
+                {
+                    if (mPiecewiseAnchorMoveOperation.IsOperating) mPiecewiseAnchorMoveOperation.Up();
+                    else mAnchorMoveOperation.Up();
+                }
                 break;
             case State.VibratoAmplitudeAdjusting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
@@ -261,6 +292,35 @@ internal partial class AutomationRenderer
                 var activeAutomation = mDependency.ActiveAutomation;
                 if (activeAutomation == null)
                     break;
+
+                if (ActiveIsPiecewise())
+                {
+                    var piecewise = Part.GetEffectivePiecewiseAutomation(activeAutomation.Value);
+                    if (piecewise == null)
+                        break;
+
+                    var pconfig = Part.GetEffectivePiecewiseAutomationConfig(activeAutomation.Value);
+                    var pcolor = Color.Parse(pconfig.Color);
+                    foreach (var group in piecewise.AnchorGroups)
+                    {
+                        foreach (var point in group)
+                        {
+                            double t = Part.Pos.Value + point.Pos;
+                            if (t < startPos || t > endPos)
+                                continue;
+
+                            items.Add(new PiecewiseAnchorItem(this)
+                            {
+                                Automation = piecewise,
+                                AnchorPoint = point,
+                                MinValue = pconfig.MinValue,
+                                MaxValue = pconfig.MaxValue,
+                                Color = pcolor,
+                            });
+                        }
+                    }
+                    break;
+                }
 
                 var automation = Part.GetEffectiveAutomation(activeAutomation.Value);
                 if (automation == null)
@@ -533,7 +593,8 @@ internal partial class AutomationRenderer
 
     class AnchorSelectOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
-        public bool IsOperating => State == State.AnchorSelecting;
+        // 须同时判 mAutomation：分段轨选区操作也用 State.AnchorSelecting，靠 mAutomation 区分是否本（连续）操作在跑。
+        public bool IsOperating => State == State.AnchorSelecting && mAutomation != null;
 
         public void Down(Avalonia.Point point, bool ctrl)
         {

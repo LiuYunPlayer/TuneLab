@@ -53,6 +53,12 @@ internal partial class AutomationRenderer : View
         mAnchorMoveOperation = new(this);
         mVibratoAmplitudeOperation = new(this);
 
+        mPiecewiseDrawOperation = new(this);
+        mPiecewiseClearOperation = new(this);
+        mPiecewiseAnchorDeleteOperation = new(this);
+        mPiecewiseAnchorMoveOperation = new(this);
+        mPiecewiseAnchorSelectOperation = new(this);
+
         mAnchorValueInput = new()
         {
             IsVisible = false,
@@ -324,9 +330,9 @@ internal partial class AutomationRenderer : View
         lineWidth = 2;
         Draw(active);
 
-        if (mAnchorSelectOperation.IsOperating)
+        if (mAnchorSelectOperation.IsOperating || mPiecewiseAnchorSelectOperation.IsOperating)
         {
-            var rect = mAnchorSelectOperation.SelectionRect();
+            var rect = mAnchorSelectOperation.IsOperating ? mAnchorSelectOperation.SelectionRect() : mPiecewiseAnchorSelectOperation.SelectionRect();
             var selectionColor = GUI.Style.HIGH_LIGHT;
             context.DrawRectangle(selectionColor.Opacity(0.25).ToBrush(), new Pen(selectionColor.ToUInt32()), rect);
         }
@@ -411,10 +417,13 @@ internal partial class AutomationRenderer : View
 
     public bool HasSelectedAnchors()
     {
-        if (!TryGetActiveAutomation(out var automation, out _, false))
-            return false;
+        if (TryGetActiveAutomation(out var automation, out _, false))
+            return automation.Points.HasSelectedItem();
 
-        return automation.Points.HasSelectedItem();
+        if (TryGetActivePiecewise(out var piecewise, out _, false))
+            return piecewise.AnchorGroups.Any(group => group.HasSelectedItem());
+
+        return false;
     }
 
     public void SelectAllAnchors()
@@ -424,10 +433,11 @@ internal partial class AutomationRenderer : View
 
         Part.Pitch.DeselectAllAnchors();
         mDependency.PianoScrollView.InvalidateVisual();
-        if (!TryGetActiveAutomation(out var automation, out _, false))
-            return;
+        if (TryGetActiveAutomation(out var automation, out _, false))
+            automation.Points.SelectAllItems();
+        else if (TryGetActivePiecewise(out var piecewise, out _, false))
+            piecewise.SelectAllAnchors();
 
-        automation.Points.SelectAllItems();
         InvalidateVisual();
         UpdateAnchorValueInput();
     }
@@ -437,14 +447,26 @@ internal partial class AutomationRenderer : View
         if (Part == null)
             return;
 
-        if (!TryGetActiveAutomation(out var automation, out _, false))
-            return;
+        if (TryGetActiveAutomation(out var automation, out _, false))
+        {
+            var selectedPoints = automation.Points.AllSelectedItems().ToList();
+            if (selectedPoints.IsEmpty())
+                return;
 
-        var selectedPoints = automation.Points.AllSelectedItems().ToList();
-        if (selectedPoints.IsEmpty())
-            return;
+            automation.DeletePoints(selectedPoints);
+        }
+        else if (TryGetActivePiecewise(out var piecewise, out _, false))
+        {
+            if (!piecewise.AnchorGroups.Any(group => group.HasSelectedItem()))
+                return;
 
-        automation.DeletePoints(selectedPoints);
+            piecewise.DeleteAllSelectedAnchors();
+        }
+        else
+        {
+            return;
+        }
+
         Part.Commit();
         InvalidateVisual();
         UpdateAnchorValueInput();
