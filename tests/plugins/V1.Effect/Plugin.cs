@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
@@ -12,10 +10,11 @@ namespace TuneLab.TestPlugins.V1Effect;
 // 参数面板（Gain 有 gain 滑块）、per-effect 时间轴自动化（Gain 有 gain_env 自动化轨）、
 // 链串行（Gain 与 Reverse 串联）、bypass、增删/重排。
 //
-// 处理器为持久句柄，演示按段细粒度增量（IEffectChange）：
-//   · 跨调用缓存内部中间结果（env 取值、gain 标量、输出 buffer）；
-//   · 按 change 只重算受影响的内部内容——只改 gain 不重取 env 曲线，只改 gain_env 不重读 gain；
-//   · gain_env 的变更秒区间若不与本段相交 → 本段输出不变，返回同一输出数组引用，宿主据此跳过本段下游。
+// 厚处理器：每个「effect 实例 × 一个上游段」一个 processor，构造拿 IEffectContext 自订阅、自管失效：
+//   · 订阅 context.Input.Committed / Properties.Modified / 自动化 RangeModified 标脏，于 context.Committed 触发 ProcessingRequested；
+//   · 跨 Process 调用缓存内部中间结果（env 取值、gain 标量、输出段句柄）、按脏只重算受影响内容；
+//   · gain_env 的变更秒区间若不与本段相交 → 不标脏、不触发处理 → 本段输出不变、下游被跳过；
+//   · 输出经 context.CreateAudioSegment 持久持有句柄，重处理时就地重写并重 Commit（无关变化时不重 Commit）。
 [EffectEngine("TLTestGain")]
 public sealed class GainEffectEngine : IEffectEngine
 {
@@ -38,7 +37,7 @@ public sealed class GainEffectEngine : IEffectEngine
     }
     public void Init() { }
     public void Destroy() { }
-    public IEffectProcessor CreateProcessor() => new GainProcessor();
+    public IEffectProcessor CreateProcessor(IEffectContext context) => new GainProcessor(context);
 
     static ObjectConfig BuildConfig()
     {
@@ -59,49 +58,55 @@ public sealed class GainEffectEngine : IEffectEngine
     static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
     static readonly AutomationConfig mFormantConfig = new() { DisplayText = "Formant", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#00C2A8" };
 
-    // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出，按 change 差分复用。
+    // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出段，按脏差分复用。
     sealed class GainProcessor : IEffectProcessor
     {
-        public Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
-                            IProgress<double>? progress = null, CancellationToken cancellation = default)
+        public GainProcessor(IEffectContext context)
         {
-            var audio = input.Audio;
-            var src = audio.Samples ?? Array.Empty<float>();
-            double segStart = audio.StartTime;
-            double segEnd = audio.StartTime + (src.Length == 0 ? 0 : (double)src.Length / audio.SampleRate);
+            mContext = context;
+            mContext.Input.Committed += OnInputCommitted;
+            mContext.Properties.Modified += OnPropertiesModified;
+            mContext.Committed += OnCommitted;
+            WireEnvAutomation();
+        }
 
-            bool audioChanged = change.IsInitial || !ReferenceEquals(src, mLastInput) || change.TryGetAudioChange(out _, out _);
-            bool gainChanged = change.IsInitial || change.ChangedProperties.Contains("gain");
+        public event Action? ProcessingRequested;
 
-            // env 仅在：首次 / 音频变（逐采样时间轴随之变）/ env_enabled 显隐切换 / gain_env 变更区间与本段相交
-            // 时重取曲线。env_enabled 切换会改 gain_env 轨的有无，须重取（关掉后 TryGetAutomation 失败 → env 清空）。
-            bool envChanged;
-            if (change.IsInitial || audioChanged || change.ChangedProperties.Contains("env_enabled"))
-                envChanged = true;
-            else if (change.TryGetAutomationChange("gain_env", out double autoStart, out double autoEnd))
-                envChanged = autoEnd >= segStart && autoStart <= segEnd;
-            else
-                envChanged = false;
+        public Task Process(CancellationToken cancellation = default)
+        {
+            // 同步前缀（数据线程）：抓输入 PCM 引用 + 预采参数/自动化值。
+            var input = mContext.Input;
+            var src = input.Samples;
+            int rate = input.SampleRate;
+            long offset = input.SampleOffset;
+            int count = src.Length;
+            double segStart = rate > 0 ? (double)offset / rate : 0;
 
-            // 与本段无关的变化（如 gain_env 改在别的段时间区间）：输出不变，返回缓存（同数组引用）→ 宿主跳过下游。
+            bool initial = mOutput == null;
+            bool audioChanged = initial || mAudioDirty || input.CommitVersion != mLastInputVersion;
+            bool gainChanged = initial || mPropertiesDirty;
+            bool envChanged = initial || audioChanged || mEnvDirty;
+
+            mAudioDirty = false;
+            mPropertiesDirty = false;
+            mEnvDirty = false;
+            mLastInputVersion = input.CommitVersion;
+
+            // 与本段无关的变化（如 gain_env 改在别的段时间区间）：输出不变 → 不重 Commit，下游据版本不变跳过。
             if (!audioChanged && !gainChanged && !envChanged && mOutput != null)
-            {
-                output.Audio = new MonoAudio(mOutStartTime, mOutSampleRate, mOutput);
-                progress?.Report(1);
                 return Task.CompletedTask;
-            }
 
             if (gainChanged)
-                mGain = input.Properties.GetDouble("gain", 1.0);
+                mGain = mContext.Properties.GetValue("gain", PropertyValue.Create(1.0)).ToDouble(out var g) ? g : 1.0;
 
             if (envChanged)
             {
-                if (input.TryGetAutomation("gain_env", out var automation) && src.Length > 0)
+                if (mEnvAutomation != null && count > 0)
                 {
-                    var times = new double[src.Length];
-                    for (int i = 0; i < src.Length; i++)
-                        times[i] = audio.StartTime + (double)i / audio.SampleRate;
-                    mEnv = automation.Evaluate(times);
+                    var times = new double[count];
+                    for (int i = 0; i < count; i++)
+                        times[i] = segStart + (double)i / rate;
+                    mEnv = mEnvAutomation.Evaluate(times);
                 }
                 else
                 {
@@ -109,34 +114,109 @@ public sealed class GainEffectEngine : IEffectEngine
                 }
             }
 
-            var dst = new float[src.Length];
-            for (int i = 0; i < src.Length; i++)
+            var srcSpan = src.Span;
+            var dst = new float[count];
+            for (int i = 0; i < count; i++)
             {
                 double m = mGain * (mEnv != null && i < mEnv.Length ? mEnv[i] : 1.0);
-                dst[i] = (float)(src[i] * m);
+                dst[i] = (float)(srcSpan[i] * m);
             }
-            mLastInput = src;
+
+            CommitOutput(offset, count, rate, dst);
             mOutput = dst;
-            mOutStartTime = audio.StartTime;
-            mOutSampleRate = audio.SampleRate;
-            output.Audio = new MonoAudio(audio.StartTime, audio.SampleRate, dst);
-            progress?.Report(1);
             return Task.CompletedTask;   // 错误经抛异常报告（宿主 catch → passthrough），此处不吞异常。
         }
 
-        public void Dispose() { }
+        void OnInputCommitted() => mAudioDirty = true;
 
-        float[]? mLastInput;     // 上次输入样本引用（判音频是否换）
+        void OnPropertiesModified()
+        {
+            // 参数变（含 env_enabled 切换显隐 gain_env 轨）→ 标参数 + env 脏，并重接 env 订阅。
+            mPropertiesDirty = true;
+            mEnvDirty = true;
+            WireEnvAutomation();
+        }
+
+        void OnEnvRangeModified(double startTime, double endTime)
+        {
+            // 仅当变更秒区间与本段相交才标脏（否则本段无关、不触发处理 → 下游被跳过）。
+            if (IntersectsSegment(startTime, endTime))
+                mEnvDirty = true;
+        }
+
+        void OnCommitted()
+        {
+            if (mAudioDirty || mPropertiesDirty || mEnvDirty)
+                ProcessingRequested?.Invoke();
+        }
+
+        void WireEnvAutomation()
+        {
+            if (mEnvAutomation != null)
+                mEnvAutomation.RangeModified -= OnEnvRangeModified;
+            mEnvAutomation = mContext.TryGetAutomation("gain_env", out var automation) ? automation : null;
+            if (mEnvAutomation != null)
+                mEnvAutomation.RangeModified += OnEnvRangeModified;
+        }
+
+        bool IntersectsSegment(double startTime, double endTime)
+        {
+            var input = mContext.Input;
+            if (input.SampleRate <= 0 || input.SampleCount == 0)
+                return true;
+            double segStart = (double)input.SampleOffset / input.SampleRate;
+            double segEnd = segStart + (double)input.SampleCount / input.SampleRate;
+            return endTime >= segStart && startTime <= segEnd;
+        }
+
+        void CommitOutput(long offset, int count, int rate, float[] samples)
+        {
+            // 重用同位同长同率的输出段句柄（就地重写重 Commit）；几何变了则换段。
+            if (mOutput != null && mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
+            {
+                mOutSegment.Write(0, samples);
+                mOutSegment.Commit();
+                return;
+            }
+            mOutSegment?.Dispose();
+            mOutSegment = mContext.CreateAudioSegment(offset, count, rate);
+            mOutOffset = offset;
+            mOutCount = count;
+            mOutRate = rate;
+            mOutSegment.Write(0, samples);
+            mOutSegment.Commit();
+        }
+
+        public void Dispose()
+        {
+            mContext.Input.Committed -= OnInputCommitted;
+            mContext.Properties.Modified -= OnPropertiesModified;
+            mContext.Committed -= OnCommitted;
+            if (mEnvAutomation != null)
+                mEnvAutomation.RangeModified -= OnEnvRangeModified;
+            mOutSegment?.Dispose();
+        }
+
+        readonly IEffectContext mContext;
+        ILiveAutomation? mEnvAutomation;
+        IAudioSegment? mOutSegment;
+        long mOutOffset;
+        int mOutCount;
+        int mOutRate;
+
+        bool mAudioDirty;
+        bool mPropertiesDirty;
+        bool mEnvDirty;
+        int mLastInputVersion;
+
         double[]? mEnv;          // 缓存的逐采样 gain_env 取值
         double mGain = 1.0;      // 缓存的 gain 标量
-        float[]? mOutput;        // 缓存的输出 buffer（无关变化时原样返回，供宿主跳过下游）
-        double mOutStartTime;
-        int mOutSampleRate;
+        float[]? mOutput;        // 缓存的输出 buffer（无关变化时不重 Commit）
     }
 }
 
 // 倒放效果器：无参数，反转样本顺序。与 Gain 同包，链中可观察顺序/增删效果。
-// 仅被上游音频变化触发（无参数/自动化）；音频未变时返回缓存输出（同引用）。
+// 仅被上游音频变化触发（无参数/自动化）；音频未变时不重 Commit（下游被跳过）。
 [EffectEngine("TLTestReverse")]
 public sealed class ReverseEffectEngine : IEffectEngine
 {
@@ -144,44 +224,88 @@ public sealed class ReverseEffectEngine : IEffectEngine
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
     public void Init() { }
     public void Destroy() { }
-    public IEffectProcessor CreateProcessor() => new ReverseProcessor();
+    public IEffectProcessor CreateProcessor(IEffectContext context) => new ReverseProcessor(context);
 
     static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
 
     sealed class ReverseProcessor : IEffectProcessor
     {
-        public Task Process(IEffectInput input, IEffectOutput output, IEffectChange change,
-                            IProgress<double>? progress = null, CancellationToken cancellation = default)
+        public ReverseProcessor(IEffectContext context)
         {
-            var audio = input.Audio;
-            var src = audio.Samples ?? Array.Empty<float>();
+            mContext = context;
+            mContext.Input.Committed += OnInputCommitted;
+            mContext.Committed += OnCommitted;
+        }
 
-            bool audioChanged = change.IsInitial || !ReferenceEquals(src, mLastInput) || change.TryGetAudioChange(out _, out _);
+        public event Action? ProcessingRequested;
+
+        public Task Process(CancellationToken cancellation = default)
+        {
+            var input = mContext.Input;
+            var src = input.Samples;
+            int rate = input.SampleRate;
+            long offset = input.SampleOffset;
+            int count = src.Length;
+
+            bool initial = mOutput == null;
+            bool audioChanged = initial || mAudioDirty || input.CommitVersion != mLastInputVersion;
+            mAudioDirty = false;
+            mLastInputVersion = input.CommitVersion;
+
             if (!audioChanged && mOutput != null)
-            {
-                output.Audio = new MonoAudio(mOutStartTime, mOutSampleRate, mOutput);
-                progress?.Report(1);
                 return Task.CompletedTask;
-            }
 
-            var dst = new float[src.Length];
-            for (int i = 0; i < src.Length; i++)
-                dst[i] = src[src.Length - 1 - i];
-            mLastInput = src;
+            var srcSpan = src.Span;
+            var dst = new float[count];
+            for (int i = 0; i < count; i++)
+                dst[i] = srcSpan[count - 1 - i];
+
+            CommitOutput(offset, count, rate, dst);
             mOutput = dst;
-            mOutStartTime = audio.StartTime;
-            mOutSampleRate = audio.SampleRate;
-            output.Audio = new MonoAudio(audio.StartTime, audio.SampleRate, dst);
-            progress?.Report(1);
             return Task.CompletedTask;
         }
 
-        public void Dispose() { }
+        void OnInputCommitted() => mAudioDirty = true;
 
-        float[]? mLastInput;
+        void OnCommitted()
+        {
+            if (mAudioDirty)
+                ProcessingRequested?.Invoke();
+        }
+
+        void CommitOutput(long offset, int count, int rate, float[] samples)
+        {
+            if (mOutput != null && mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
+            {
+                mOutSegment.Write(0, samples);
+                mOutSegment.Commit();
+                return;
+            }
+            mOutSegment?.Dispose();
+            mOutSegment = mContext.CreateAudioSegment(offset, count, rate);
+            mOutOffset = offset;
+            mOutCount = count;
+            mOutRate = rate;
+            mOutSegment.Write(0, samples);
+            mOutSegment.Commit();
+        }
+
+        public void Dispose()
+        {
+            mContext.Input.Committed -= OnInputCommitted;
+            mContext.Committed -= OnCommitted;
+            mOutSegment?.Dispose();
+        }
+
+        readonly IEffectContext mContext;
+        IAudioSegment? mOutSegment;
+        long mOutOffset;
+        int mOutCount;
+        int mOutRate;
+
+        bool mAudioDirty;
+        int mLastInputVersion;
         float[]? mOutput;
-        double mOutStartTime;
-        int mOutSampleRate;
     }
 }

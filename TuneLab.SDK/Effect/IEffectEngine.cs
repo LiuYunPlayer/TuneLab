@@ -27,8 +27,8 @@ public interface IEffectEngine
     // 释放引擎资源。
     void Destroy();
 
-    // 创建一个持久处理器，绑定一条「effect 实例 × 音频段」的处理通道。宿主在该段/该 effect 存活期间
-    // 持有它、按变化重复调用 Process（处理器据此跨调用复用内部中间结果）；段销毁 / effect 删除 /
-    // 重分段 / 采样率变时 Dispose。
-    IEffectProcessor CreateProcessor();
+    // 创建一个持久厚处理器，绑定一条「effect 实例 × 一个上游音频段」的处理通道（context 由宿主实现、
+    // 暴露本段输入 + 该 effect 参数/自动化 + 产出口 + 收口事件）。处理器持有 context、订阅它自管失效与重处理；
+    // 段销毁 / effect 删除 / 重分段 / 采样率变时宿主 Dispose 处理器。
+    IEffectProcessor CreateProcessor(IEffectContext context);
 }

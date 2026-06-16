@@ -367,7 +367,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (Project == null)
             return;
 
-        int limit = Math.Max(1, Environment.ProcessorCount);
+        int limit = EffectTaskGate.Limit;   // voice 与 effect 并行度同受 Settings.MaxParallelSynthesisTasks 统辖
         int busy = 0;
         var idle = new List<VoiceSynthesisPipeline>();
         foreach (var track in Project.Tracks)

@@ -255,6 +255,23 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(panel);
         }
 
+        // Max Parallel Synthesis Tasks（合成/效果器并行任务数上限；0 = 按 CPU 核数自动）
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInteger = true };
+                slider.SetRange(0, 32);
+                slider.SetDefaultValue(Settings.DefaultSettings.MaxParallelSynthesisTasks);
+                slider.Bind(Settings.MaxParallelSynthesisTasks, false, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Max Parallel Synthesis Tasks (0 = auto)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+
         return listView;
     }
 

@@ -115,14 +115,13 @@ internal class MidiPart : Part, IMidiPart
             effect.Modified.Unsubscribe(handler);
     }
 
-    // 某个 effect 的参数/启用/自动化变化：管线在该 effect 链位按细粒度（参数 key / 启用 / 自动化轨秒区间）标脏，
-    // 各段从受影响级起按需重处理、上游缓存复用。自动化的秒区间由管线经各轨 RangeModified 订阅获取。
+    // 某个 effect 的参数/启用/自动化变化：失效与重处理由效果图各 processor 订阅自管（processor 经
+    // IEffectContext 自算 dirty），宿主此处只处理条件自动化轨集合的 UI 增量刷新。
     void OnEffectModified(IEffect effect)
     {
         int index = mEffects.IndexOf(effect);
         if (index < 0)
             return;
-        mPipeline?.SetEffectDirty(index);
         // 该 effect 的参数变可能改其条件自动化轨集合（仅活跃 part 才有 UI 在看，且引擎已 Init）。
         // AutomationConfigs 为 live 求值，此刻读即取当前参数值（参数值在 Notify 前已写入），无缓存时序问题。
         if (mPipeline != null && RefreshAutomationConfigsSignatureChanged())
