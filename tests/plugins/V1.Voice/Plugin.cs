@@ -73,6 +73,10 @@ public sealed class TestSession : ISynthesisSession
         map.Add("Bend", mBendConfig);
         return map;
     }
+
+    // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
+    // 曲线数据经 SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制（填充积分面积、标题栏显隐）。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mReadbackConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
@@ -139,7 +143,7 @@ public sealed class TestSession : ISynthesisSession
                 piece.Segment.Write(0, rendered.Audio);
                 piece.Segment.Commit();
                 piece.Phonemes = rendered.Phonemes;
-                piece.GrowlReadback = rendered.GrowlReadback;
+                piece.EnergyReadback = rendered.EnergyReadback;
             }
         }
         catch (Exception ex)
@@ -156,8 +160,8 @@ public sealed class TestSession : ISynthesisSession
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
 
-    // 参数回显：各已合成块的 Growl 回显段聚成 map（轨 id → 分段曲线）。Growl 轨随 growl_enabled 显隐，
-    // 隐藏时宿主不绘制（仅遍历可见轨），数据仍在此处返回——无害。
+    // 参数回显：各已合成块的 energy 回显段聚成 map（轨 id → 分段曲线），key 与 GetSynthesizedParameterConfigs 对齐。
+    // 回显轨显隐由宿主标题栏管控；此处恒返回数据，隐藏时宿主不绘制——无害。
     public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters
     {
         get
@@ -165,13 +169,13 @@ public sealed class TestSession : ISynthesisSession
             var segments = new List<IReadOnlyList<Point>>();
             foreach (var piece in mPieces)
             {
-                if (piece.GrowlReadback.Count > 0)
-                    segments.Add(piece.GrowlReadback);
+                if (piece.EnergyReadback.Count > 0)
+                    segments.Add(piece.EnergyReadback);
             }
 
             var map = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
             if (segments.Count > 0)
-                map.Add("Growl", segments);
+                map.Add("energy", segments);
             return map;
         }
     }
@@ -227,7 +231,7 @@ public sealed class TestSession : ISynthesisSession
     }
 
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
-    sealed record RenderResult(float[] Audio, double StartTime, List<SynthesizedPhoneme> Phonemes, List<Point> GrowlReadback);
+    sealed record RenderResult(float[] Audio, double StartTime, List<SynthesizedPhoneme> Phonemes, List<Point> EnergyReadback);
 
     static RenderResult? Render(SynthesisSnapshot snapshot, IReadOnlyList<ISynthesisNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
@@ -305,19 +309,19 @@ public sealed class TestSession : ISynthesisSession
             progress?.Report((double)(n + 1) / notes.Count);
         }
 
-        // 参数回显（Growl）：本参照实现产出一条「引擎实际施加的 Growl」分段曲线，与音频/音高同一秒时间系，
-        // 供宿主只读叠加在 Growl 轨上。此处用一条确定性正弦波形（10..90，落在 Growl 的 0..100 域内）驱动回显路径。
-        var growl = new List<Point>();
+        // 参数回显（energy）：本参照实现产出一条「引擎实际施加的 energy」分段曲线，与音频/音高同一秒时间系，
+        // 供宿主作只读回显轨绘制。此处用一条确定性正弦波形（10..90，落在 energy 的 0..100 域内）驱动回显路径。
+        var energy = new List<Point>();
         double duration = Math.Max(1e-6, endTime - startTime);
-        int growlCount = Math.Max(2, (int)(duration * 20)); // 20Hz 采样
-        for (int g = 0; g < growlCount; g++)
+        int energyCount = Math.Max(2, (int)(duration * 20)); // 20Hz 采样
+        for (int g = 0; g < energyCount; g++)
         {
-            double t = startTime + duration * g / (growlCount - 1);
+            double t = startTime + duration * g / (energyCount - 1);
             double v = 50 + 40 * Math.Sin(2 * Math.PI * (t - startTime) / duration);
-            growl.Add(new Point(t, v));
+            energy.Add(new Point(t, v));
         }
 
-        return new RenderResult(audio, startTime, phonemes, growl);
+        return new RenderResult(audio, startTime, phonemes, energy);
     }
 
     // —— 分块（数据线程；按 note 间隙分块，note 集等价的块保留缓存与状态）——
@@ -456,7 +460,7 @@ public sealed class TestSession : ISynthesisSession
         public double Progress;
         public IAudioSegment? Segment;
         public IReadOnlyList<SynthesizedPhoneme> Phonemes = [];
-        public IReadOnlyList<Point> GrowlReadback = [];
+        public IReadOnlyList<Point> EnergyReadback = [];
     }
 
     const int kSampleRate = 44100;
@@ -471,6 +475,11 @@ public sealed class TestSession : ISynthesisSession
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
     static readonly AutomationConfig mBendConfig = new() { DisplayText = "Bend", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
+    // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
+    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new()
+    {
+        { "energy", new AutomationConfig { DisplayText = "Energy", DefaultValue = double.NaN, MinValue = 0, MaxValue = 100, Color = "#E573B0" } },
+    };
     readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mNeedResegment;

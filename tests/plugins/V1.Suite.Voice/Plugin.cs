@@ -51,6 +51,7 @@ public abstract class SingleBlockSession : ISynthesisSession
     protected abstract IReadOnlyOrderedMap<string, IControllerConfig> NoteProperties { get; }
 
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => AutomationConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
     public virtual ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = PartProperties };
     public virtual ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = NoteProperties };
 
@@ -181,6 +182,7 @@ public abstract class SingleBlockSession : ISynthesisSession
 
     const int kSampleRate = 44100;
 
+    static readonly OrderedMap<string, AutomationConfig> sEmptyConfigs = new();
     readonly ISynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
     bool mDirty;

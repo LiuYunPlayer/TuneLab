@@ -481,7 +481,7 @@ public class AutomationConfig : IValueConfig<double>
 - **RESOLUTION 维持常量 480**（= 2⁵·3·5，二/三/五连音至 128 分音符整数落格；与 MIDI PPQ 同概念——SMF 按文件头可变、DAW 内部固定常量，导入按 `480/filePPQ` 缩放）：不做可调（每个 tick 数值失去自释含义、跨工程粘贴要换算、进 Format ABI，全是横切成本而收益约等于零）。若需更细网格，将来定点化时顺路一次性升高常量（如 960），那次本就要动数据层与 Format。
 - **简易合成框架**（双 SDK）：把宿主式分片/调度做成插件侧库，简单插件复用、自定义插件走原生托管。本设计先做核心协议，框架降优先级；它同时可收编 legacy 引擎的薄模型适配。
 - **音频段内子区间增量**（`IAudioSegment` 段内增量）：`Write(offset, samples)` 本就带"段内哪段变了"的区间（中间态仅驱动进度/波形、不进 effect），宿主累积这些区间随 `Commit` 交 effect，effect 自行决定段内局部重合成 + 拼接（含上下文余量 / 淡化、跨级脏传播）。V1 按整段失效（段 Commit 即整段送 effect、不消费写区间），子区间增量是纯加性优化、缓后。
-- **effect 收敛到本会话模型**（当前 effect 为 task 模型）。重构时一并处理：
+- **effect 收敛到本会话模型**（当前 effect 为「宿主厚 / 插件薄」的逐段处理器模型：状态/调度/`cache[segment][stage]` 失效图全在宿主）。已锁的收敛决策（待开专题落地）：① 平行接口 `IEffectSession`（不与 `ISynthesisSession` 合并基类）；② `IEffectContext` 对偶 `ISynthesisContext`（暴露上游音频段活视图 + 自身参数/自动化 + GetSnapshot + 产出段，宿主接线、effect 对链结构无感）；③ 调度统一、链为单位（一个段区间自上而下跑完一遍 = 一个调度单位，按播放线就近挑；effect-only 改动退化为从脏的那一级往下）——voice 非音频产物（pitch/phoneme）不依赖 effect、eager 暴露不被串行；此为宿主调度策略、不进冻结面；④ `IEffectChange` 退役，effect 订阅 context 自算 dirty（失效图搬进插件）；⑤ `SynthesizedParameters` 借此换富类型（见下）。重构时一并处理：
   - ~~`IAutomationEvaluator` 与 `ISynthesisAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
   - `SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型（与 PiecewiseAutomation 概念对齐），两 SDK 同步换形。
   - ~~`IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）~~（已随 SDK 程序集合并消解：voice/effect 同居 `TuneLab.SDK` 顶层命名空间，effect 可直接复用）。
@@ -506,10 +506,14 @@ public class AutomationConfig : IValueConfig<double>
   `DefaultValue` 为 NaN ⇒ 分段轨（`IsPiecewise`）。删去 `PiecewiseAutomationConfig` 与两处 `GetPiecewiseAutomationConfigs`。
   宿主保留两数据类型 + 两序列化槽，路由处按 `IsPiecewise` 现解析；唯一特判 NaN 的 automation 消费方是 `AutomationDefaultsController`（分段轨不显默认基线行）。
 
-- **合成参数回显升级为只读回显轨**（待办，下一步）：现 `SynthesizedParameters` 是"按 id 叠加到同名编辑轨、借其 config 画白线"。
-  拟改为**一等只读回显轨**：`ISynthesisSession` 加 `GetSynthesizedParameterConfigs(IPartPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>`
-  （回显是分段形、`DefaultValue=NaN`；context 驱动、可预声明 ⇒ 合成前就存在、显隐不抖），`SynthesizedParameters` 退回只承载曲线数据。
-  宿主把这些 key 作**可显隐的只读轨**（独立 key 如 `energy`、自带 Min/Max/Color/DisplayText、用各自 config 色画、不可编辑），去掉"叠加到同名编辑轨"逻辑；
-  显隐开关考虑放参数区**标题栏**（回显是 voice 级扁平集合，不入分源的底部 tabbar，避免臃肿）。线程契约（数据线程发布、发布即不可变、StatusChanged 单一刷新）补进三个曲线产物成员的注释。
+- ~~**合成参数回显升级为只读回显轨**~~（**已实现**）：旧版 `SynthesizedParameters` 是"按 id 叠加到同名编辑轨、借其 config 画白线"，已废弃。
+  改为**一等只读回显轨**：`ISynthesisSession` 加 `GetSynthesizedParameterConfigs(IPartPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>`
+  （回显是分段形、`DefaultValue=NaN`；context 驱动、可预声明 ⇒ 合成前 key 即存在、显隐不抖），`SynthesizedParameters` 退回只承载曲线数据（按同一批 key）。
+  宿主把这些 key 作**可显隐的只读轨**（独立 key 如 `energy`、自带 Min/Max/Color/DisplayText）：在 `Voice.SynthesizedParameterConfigs` 并行材料化（镜像 `RebuildAutomationConfigs`，
+  随 part 参数 commit 重算、纳入聚合签名）；UI 侧独立于可编辑轨的 `AutomationKey`/`VisibleAutomations`/tabbar 机制——
+  `PianoWindow` 持 `mVisibleReadbacks` + `SetReadbackVisible/IsReadbackVisible/ReadbackVisibilityChanged`，显隐 chip 放参数区**标题栏**
+  （`ParameterTitleBar` 由哑色条升级成细工具条：chip 命中切显隐、空白区仍拖拽改高），`AutomationRenderer` 在可编辑轨之上、活动轨之下把回显轨绘成
+  **曲线与底部基线围成的半透明积分面积**（用各自 config 色，分段 NaN 断开），只读、不可激活、不可编辑。去掉了"叠加到同名编辑轨"逻辑。
+  线程契约（数据线程发布、发布即不可变、StatusChanged 单一刷新）已补进三个曲线产物成员注释。
 
 - **phoneme 输出模型小复盘**（待议，独立）：现扁平 `SynthesizedPhoneme[]` + 出身 note 回指。重新审视：越界由 StartTime/EndTime 表达（非结构决定，legacy note→list 同样能表达），故扁平相对 note→list 的**唯一实质差异是无主音素**（Note=null 的自由换气，view-only/不可钉，但正确性上"不参与任何 note 伸缩"）。待定：是否砍掉无主、输出是否改回 per-note。与回显/统一无关，不阻塞。

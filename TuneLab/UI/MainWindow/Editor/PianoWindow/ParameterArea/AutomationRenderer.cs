@@ -32,12 +32,17 @@ internal partial class AutomationRenderer : View
     {
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
+        // 合成参数回显轨显隐变化（只读轨集合，独立于可编辑轨的 Visible/Active 机制）。
+        event Action? ReadbackVisibilityChanged;
         IHolder<IMidiPart> PartHolder { get; }
         PianoScrollView PianoScrollView { get; }
         TickAxis TickAxis { get; }
         AutomationKey? ActiveAutomation { get; }
         bool IsAutomationVisible(AutomationKey automation);
         IReadOnlyList<AutomationKey> VisibleAutomations { get; }
+        // 回显轨声明（voice 级、只读）：曲线数据经 Part.SynthesizedParameters 按同一批 key 承载。
+        IReadOnlyOrderedMap<string, AutomationConfig> ReadbackConfigs { get; }
+        bool IsReadbackVisible(string id);
         INotifiableProperty<PianoTool> PianoTool { get; }
     }
 
@@ -104,6 +109,7 @@ internal partial class AutomationRenderer : View
         mDependency.ActiveAutomationChanged += InvalidateVisual;
         mDependency.ActiveAutomationChanged += UpdateAnchorValueInput;
         mDependency.VisibleAutomationChanged += InvalidateVisual;
+        mDependency.ReadbackVisibilityChanged += InvalidateVisual;
         mDependency.TickAxis.AxisChanged += Update;
         mDependency.TickAxis.AxisChanged += UpdateAnchorValueInput;
     }
@@ -114,6 +120,7 @@ internal partial class AutomationRenderer : View
         mDependency.ActiveAutomationChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= UpdateAnchorValueInput;
         mDependency.VisibleAutomationChanged -= InvalidateVisual;
+        mDependency.ReadbackVisibilityChanged -= InvalidateVisual;
         mDependency.TickAxis.AxisChanged -= Update;
         mDependency.TickAxis.AxisChanged -= UpdateAnchorValueInput;
         mAnchorValueInput.GotFocus -= OnAnchorValueInputGotFocus;
@@ -189,8 +196,6 @@ internal partial class AutomationRenderer : View
             }
 
             context.DrawCurve(points, Color.Parse(config.Color), lineWidth);
-
-            DrawSynthesizedParameter(context, automationID, min, max);
         }
 
         void DrawPiecewise(AutomationKey automationID)
@@ -209,8 +214,6 @@ internal partial class AutomationRenderer : View
                     ys[i] = double.IsNaN(values[i]) ? double.NaN : ValueToY(values[i], min, max);
                 DrawBrokenCurve(ys, Color.Parse(config.Color), lineWidth);
             }
-
-            DrawSynthesizedParameter(context, automationID, min, max);
         }
 
         // 在 NaN 处断开的折线：把连续非 NaN 段各自成段绘制（分段轨段间空、跨段不连线）。
@@ -246,6 +249,9 @@ internal partial class AutomationRenderer : View
         }
 
         context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
+
+        // 合成参数回显轨（只读）：在可编辑轨之上、活动轨之下绘制为半透明积分面积。可独立显隐（标题栏管控）。
+        DrawReadbackParameters(context);
 
         if (activeAutomation == null)
             return;
@@ -344,21 +350,36 @@ internal partial class AutomationRenderer : View
         context.DrawString(min.ToString("+0.00;-0.00"), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
     }
 
-    // 合成参数回显：voice 引擎产物（按轨 id 键、与音频同一秒时间系，分段），只读叠加在同名 voice 轨上。
-    // effect 轨无参数回显（effect 输出仅音频）。沿用 pitch 回显的白色半透明约定，区别于 config 色的可编辑曲线；
-    // 段间空（NaN）= 各段独立断开（已按段交付，跨段不连线）。
-    void DrawSynthesizedParameter(DrawingContext context, AutomationKey automation, double min, double max)
+    // 合成参数回显轨（只读，voice 级一等轨）：遍历声明的回显轨，对每条可见轨用 Part.SynthesizedParameters
+    // 的同名曲线绘制为半透明积分面积（曲线与底部基线围成的填充区），用各自 config 色——区别于可编辑轨的细线。
+    // 显隐由宿主标题栏管控（不入分源 tabbar）；回显恒只读、不可编辑。effect 无参数回显（输出仅音频）。
+    void DrawReadbackParameters(DrawingContext context)
     {
-        if (Part == null || automation.IsEffect)
+        if (Part == null)
             return;
 
-        if (!Part.SynthesizedParameters.TryGetValue(automation.Id, out var segments))
-            return;
+        foreach (var kvp in mDependency.ReadbackConfigs)
+        {
+            string id = kvp.Key;
+            if (!mDependency.IsReadbackVisible(id))
+                continue;
 
-        var tempoManager = Part.TempoManager;
+            if (!Part.SynthesizedParameters.TryGetValue(id, out var segments))
+                continue;
+
+            var config = kvp.Value;
+            DrawReadbackArea(context, segments, config.MinValue, config.MaxValue, Color.Parse(config.Color));
+        }
+    }
+
+    // 一条回显轨：各分段（按段交付，段间空、跨段不连线）各自绘制为独立填充面积（仅面积、无描边）。
+    void DrawReadbackArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, double min, double max, Color color)
+    {
+        var tempoManager = Part!.TempoManager;
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        var color = Colors.White.Opacity(0.5);
+        var fillBrush = color.Opacity(0.25).ToBrush();
+        double baselineY = Bounds.Height;
 
         foreach (var segment in segments)
         {
@@ -390,7 +411,7 @@ internal partial class AutomationRenderer : View
             for (int i = 0; i < count; i++)
                 points[i] = new(i + startX, ValueToY(ys[i], min, max));
 
-            context.DrawCurve(points, color, 1);
+            context.FillCurveArea(points, baselineY, fillBrush);
         }
     }
 

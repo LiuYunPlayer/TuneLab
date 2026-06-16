@@ -16,10 +16,11 @@ using Avalonia.Threading;
 
 namespace TuneLab.UI;
 
-internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency
+internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.IDependency, TimelineView.IDependency, ParameterTabBar.IDependency, ParameterTitleBar.IDependency, AutomationRenderer.IDependency, PlayheadLayer.IDependency
 {
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
+    public event Action? ReadbackVisibilityChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
@@ -109,7 +110,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                         mParameterContainer = new ParameterContainer(this) { Height = mParameterHeight };
                         mParameterLayer.AddDock(mParameterContainer, Dock.Bottom);
 
-                        mParameterTitleBar = new ParameterTitleBar() { Height = PARAMETER_TITLE_BAR_HEIGHT };
+                        mParameterTitleBar = new ParameterTitleBar(this) { Height = PARAMETER_TITLE_BAR_HEIGHT };
                         mParameterLayer.AddDock(mParameterTitleBar, Dock.Bottom);
                     }
                     pianoScrollViewPanel.Children.Add(mParameterLayer);
@@ -167,6 +168,18 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             mVisibleAutomations.Add(automation);
 
         VisibleAutomationChanged?.Invoke();
+    }
+
+    // —— 合成参数回显轨显隐（voice 级只读轨集合，独立于可编辑轨的 Visible/Active 机制；显隐由参数区标题栏管控）——
+    public IReadOnlyOrderedMap<string, AutomationConfig> ReadbackConfigs => Part?.Voice.SynthesizedParameterConfigs ?? sEmptyReadbackConfigs;
+
+    public bool IsReadbackVisible(string id) => mVisibleReadbacks.Contains(id);
+
+    public void SetReadbackVisible(string id, bool isVisible)
+    {
+        bool changed = isVisible ? mVisibleReadbacks.Add(id) : mVisibleReadbacks.Remove(id);
+        if (changed)
+            ReadbackVisibilityChanged?.Invoke();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -312,12 +325,16 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     const double TIME_AXIS_HEIGHT = 48;
     const double ROLL_WIDTH = 64;
-    const double PARAMETER_TITLE_BAR_HEIGHT = 20;
+    // 抬高以容纳回显轨显隐 chip（色块 + 文本）；空白区仍可拖拽改高。
+    const double PARAMETER_TITLE_BAR_HEIGHT = 24;
 
     double mParameterHeight = 200;
 
     AutomationKey? mActiveAutomation;
     readonly List<AutomationKey> mVisibleAutomations = new();
+    // 回显轨显隐集合（按轨 id；默认隐藏，用户经标题栏 chip 点亮）。
+    readonly HashSet<string> mVisibleReadbacks = new();
+    static readonly OrderedMap<string, AutomationConfig> sEmptyReadbackConfigs = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
     readonly DisposableManager s = new();

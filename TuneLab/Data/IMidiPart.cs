@@ -34,7 +34,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     bool IsSynthesisBatching { get; }
     IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus();
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
-    // 引擎合成出的参数曲线（按轨 id 键、与音频/音高同一秒时间系，分段）：宿主只读回显叠加在同名自动化轨上。
+    // 引擎合成出的参数曲线（按轨 id 键、与音频/音高同一秒时间系，分段）：key 与 Voice.SynthesizedParameterConfigs
+    // 对齐，宿主把它们作一等只读回显轨绘制（参数区填充面积、可独立显隐），非叠加到同名编辑轨。
     IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; }
     IReadOnlyList<Synthesis.SynthesizedSegment> SynthesizedSegments { get; }
 

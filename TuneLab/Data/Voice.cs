@@ -13,6 +13,8 @@ internal class Voice : DataObject, IVoice
     public string Name => mName;
     public string DefaultLyric => mSession?.DefaultLyric ?? "a";
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    // 合成参数回显轨声明（独立扁平集合，不掺 Pre/PostCommon）：会话产出的只读回显轨自带 config，宿主据此显隐/绘制。
+    public IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mSession?.GetPartPropertyConfig(context) ?? EmptyConfig;
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mSession?.GetNotePropertyConfig(context) ?? EmptyConfig;
 
@@ -53,7 +55,7 @@ internal class Voice : DataObject, IVoice
     }
 
     // 按当前 part 参数值重算自动化轨集合（轨集合 = f(当前值)）：会话固定、part 参数 commit 时由 part 调用。
-    // 仅重算材料化缓存（PreCommon + 会话条件声明 + PostCommon），不动 mSession/mName。变更检测由 part 侧承担。
+    // 仅重算材料化缓存（PreCommon + 会话条件声明 + PostCommon，及回显轨集合），不动 mSession/mName。变更检测由 part 侧承担。
     public void RebuildAutomationConfigs(IPartPropertyContext context)
     {
         mAutomationConfigs.Clear();
@@ -73,6 +75,17 @@ internal class Voice : DataObject, IVoice
         {
             if (!mAutomationConfigs.ContainsKey(kvp.Key))
                 mAutomationConfigs.Add(kvp.Key, kvp.Value);
+        }
+
+        // 回显轨集合（独立、扁平；与可编辑轨集合各管各的，不去重不掺通用轨）。
+        mSynthesizedParameterConfigs.Clear();
+        if (mSession != null)
+        {
+            foreach (var kvp in mSession.GetSynthesizedParameterConfigs(context))
+            {
+                if (!mSynthesizedParameterConfigs.ContainsKey(kvp.Key))
+                    mSynthesizedParameterConfigs.Add(kvp.Key, kvp.Value);
+            }
         }
     }
 
@@ -98,4 +111,5 @@ internal class Voice : DataObject, IVoice
 
     ISynthesisSession? mSession;
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<string, AutomationConfig> mSynthesizedParameterConfigs = new();
 }

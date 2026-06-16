@@ -14,6 +14,8 @@ internal interface IVoice : IDataObject<VoiceInfo>
     string DefaultLyric { get; }
     // 连续轨与分段轨同在此 map（kind 由 AutomationConfig.IsPiecewise 现解析）。
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
+    // 合成参数回显轨声明（只读、独立于可编辑轨集合）：曲线数据经 IMidiPart.SynthesizedParameters 按同一批 key 承载。
+    IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs { get; }
     ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 }

@@ -218,6 +218,26 @@ internal static class Extensions
         context.DrawGeometry(null, new Pen(color.ToBrush(), thickness, null, PenLineCap.Round, PenLineJoin.Round), points.ToPath(isClosed));
     }
 
+    // 填充曲线与基线（baselineY）围成的面积（顶边沿 topPoints 折线、底边为 baselineY 的封闭多边形）。
+    // 用于合成参数回显轨的"积分面积"绘制（半透明填充，区别于可编辑轨的细线）。
+    public static void FillCurveArea(this DrawingContext context, IReadOnlyList<Avalonia.Point> topPoints, double baselineY, IBrush brush)
+    {
+        if (topPoints.Count < 2)
+            return;
+
+        var geometry = new PathGeometry();
+        using (var pathContext = geometry.Open())
+        {
+            pathContext.BeginFigure(topPoints[0], true);
+            for (int i = 1; i < topPoints.Count; i++)
+                pathContext.LineTo(topPoints[i]);
+            pathContext.LineTo(new Avalonia.Point(topPoints[topPoints.Count - 1].X, baselineY));
+            pathContext.LineTo(new Avalonia.Point(topPoints[0].X, baselineY));
+            pathContext.EndFigure(true);
+        }
+        context.DrawGeometry(brush, null, geometry);
+    }
+
     public static void DrawCurveLines(this DrawingContext context, IEnumerable<Avalonia.Point> points, Color color, double thickness = 1, bool isClosed = false)
     {
         using var it = points.GetEnumerator();

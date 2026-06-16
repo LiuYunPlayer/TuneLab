@@ -24,6 +24,12 @@ public interface ISynthesisSession : IDisposable
     // 连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），按声明序呈现。
     IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
 
+    // 合成参数回显轨声明（part 级，context 驱动、纯函数，与 GetAutomationConfigs 同语义）：
+    // 引擎产出的只读回显曲线（如 energy）暴露为一等只读轨，自带 DisplayText/Min/Max/Color——宿主据此
+    // 显隐、用各自色绘制，不可编辑。回显是分段形（DefaultValue 置 NaN，无基线、段间断开）。
+    // context 驱动 ⇒ 合成前 key 即存在，轨可预声明、显隐不抖。曲线数据另经 SynthesizedParameters 按同一批 key 承载。
+    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
+
     // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
     // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。
     // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
@@ -58,7 +64,11 @@ public interface ISynthesisSession : IDisposable
     // 时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是各音频段（未交付区域即静音）。
 
     // —— 曲线类产物 ——
+    // 线程契约（三者同）：由插件在数据线程发布（合成完在 marshal 回数据线程的续延里换引用）；发布的集合即不可变，
+    // 宿主可跨线程只读；每次更新经 StatusChanged 单一信号通知，宿主收到即重读重绘。接口不强制不可变性，插件自保。
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }   // 分段
+    // 回显曲线数据（按轨 id 键、与音频/音高同一秒时间系，分段）：key 与 GetSynthesizedParameterConfigs 对齐，
+    // 仅承载曲线数据本身（轨形态/色由 config 给）。
     IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; }
     IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
 

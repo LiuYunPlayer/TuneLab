@@ -154,6 +154,8 @@ internal class MidiPart : Part, IMidiPart
     {
         var sb = new StringBuilder();
         AppendAutomationConfigs(sb, "v", mVoice.AutomationConfigs);
+        // 回显轨集合（context 驱动、可随参数显隐）纳入签名：其增删要驱动标题栏工具条重建。
+        AppendAutomationConfigs(sb, "r", mVoice.SynthesizedParameterConfigs);
         for (int i = 0; i < mEffects.Count; i++)
             AppendAutomationConfigs(sb, "e" + i, mEffects[i].AutomationConfigs);
         return sb.ToString();
