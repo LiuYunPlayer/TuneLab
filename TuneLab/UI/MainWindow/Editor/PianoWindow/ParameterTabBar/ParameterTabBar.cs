@@ -89,27 +89,28 @@ internal class ParameterTabBar : Panel
             return;
 
         bool firstGroup = true;
-        AddAutomationGroup(Part.Voice.AutomationConfigs, -1, ref firstGroup);
+        AddAutomationGroup(Part.Voice.AutomationConfigs, Part.Voice.PiecewiseAutomationConfigs, -1, ref firstGroup);
         for (int i = 0; i < Part.Effects.Count; i++)
-            AddAutomationGroup(Part.Effects[i].AutomationConfigs, i, ref firstGroup);
+            AddAutomationGroup(Part.Effects[i].AutomationConfigs, Part.Effects[i].PiecewiseAutomationConfigs, i, ref firstGroup);
     }
 
-    void AddAutomationGroup(IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex, ref bool firstGroup)
+    // 同一来源（voice / 某 effect）的连续轨与分段轨合在一组（组内连续在前、分段在后），组间插分隔符。
+    // 同源内 id 须跨两 map 唯一（连续/分段不复用同名），否则 AutomationKey 撞键。
+    void AddAutomationGroup(IReadOnlyOrderedMap<string, AutomationConfig> configs, IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> piecewiseConfigs, int effectIndex, ref bool firstGroup)
     {
-        if (configs.Count == 0)
+        if (configs.Count == 0 && piecewiseConfigs.Count == 0)
             return;
 
         if (!firstGroup)
             mAutomationLayout.Children.Add(CreateSeparator());
         firstGroup = false;
 
-        foreach (var kvp in configs)
+        AutomationKey MakeKey(string id) => effectIndex < 0 ? AutomationKey.Voice(id) : AutomationKey.Effect(effectIndex, id);
+        void AddButton(AutomationKey key, string colorStr, string display)
         {
-            var config = kvp.Value;
-            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(Color.Parse(config.Color), config.DisplayText ?? kvp.Key) { Margin = new(6, 0) };
+                button = new ParameterButton(Color.Parse(colorStr), display) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
                 mCacheParameterButtons.Add(key, button);
@@ -117,6 +118,11 @@ internal class ParameterTabBar : Panel
             mAutomationButtons.Add(key, button);
             mAutomationLayout.Children.Add(button);
         }
+
+        foreach (var kvp in configs)
+            AddButton(MakeKey(kvp.Key), kvp.Value.Color, kvp.Value.DisplayText ?? kvp.Key);
+        foreach (var kvp in piecewiseConfigs)
+            AddButton(MakeKey(kvp.Key), kvp.Value.Color, kvp.Value.DisplayText ?? kvp.Key);
     }
 
     static Control CreateSeparator()
@@ -138,21 +144,26 @@ internal class ParameterTabBar : Panel
 
         var activeAutomation = mDependency.ActiveAutomation;
 
-        void Sync(IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex)
+        void SyncKey(AutomationKey key)
         {
-            foreach (var kvp in configs)
-            {
-                var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
-                if (activeAutomation == key)
-                    SetState(key, ParameterButton.ButtonState.Edit);
-                else
-                    SetState(key, mDependency.IsAutomationVisible(key) ? ParameterButton.ButtonState.Visible : ParameterButton.ButtonState.Off);
-            }
+            if (activeAutomation == key)
+                SetState(key, ParameterButton.ButtonState.Edit);
+            else
+                SetState(key, mDependency.IsAutomationVisible(key) ? ParameterButton.ButtonState.Visible : ParameterButton.ButtonState.Off);
         }
 
-        Sync(Part.Voice.AutomationConfigs, -1);
+        void Sync(IReadOnlyOrderedMap<string, AutomationConfig> configs, IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> piecewiseConfigs, int effectIndex)
+        {
+            AutomationKey MakeKey(string id) => effectIndex < 0 ? AutomationKey.Voice(id) : AutomationKey.Effect(effectIndex, id);
+            foreach (var kvp in configs)
+                SyncKey(MakeKey(kvp.Key));
+            foreach (var kvp in piecewiseConfigs)
+                SyncKey(MakeKey(kvp.Key));
+        }
+
+        Sync(Part.Voice.AutomationConfigs, Part.Voice.PiecewiseAutomationConfigs, -1);
         for (int i = 0; i < Part.Effects.Count; i++)
-            Sync(Part.Effects[i].AutomationConfigs, i);
+            Sync(Part.Effects[i].AutomationConfigs, Part.Effects[i].PiecewiseAutomationConfigs, i);
     }
 
     void OnPartChanged()

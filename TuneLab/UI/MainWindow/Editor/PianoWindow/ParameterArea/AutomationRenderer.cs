@@ -75,6 +75,9 @@ internal partial class AutomationRenderer : View
 
         mDependency.PartHolder.Modified.Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Automations.Modified).Subscribe(InvalidateVisual, s);
+        // 分段轨数据（voice 级在 part.PiecewiseAutomations、effect 级在各 effect.PiecewiseAutomations）编辑后重绘。
+        mDependency.PartHolder.When(p => p.PiecewiseAutomations.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.PiecewiseAutomations.Modified)).Subscribe(InvalidateVisual, s);
         // effect 自动化数据在各 effect.Automations 里，编辑它不会触发 part.Automations.Modified，需单独订阅（否则拖动不重绘）。
         mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
@@ -146,11 +149,17 @@ internal partial class AutomationRenderer : View
 
         double lineWidth = 1;
 
+        // 按 kind 分派：连续轨画含 vibrato 的最终值（处处有值）；分段轨画分段曲线（段间 NaN，断开不连线）。
         void Draw(AutomationKey automationID)
         {
-            if (!Part.IsEffectiveAutomation(automationID))
-                return;
+            if (Part.IsEffectiveAutomation(automationID))
+                DrawContinuous(automationID);
+            else if (Part.IsEffectivePiecewiseAutomation(automationID))
+                DrawPiecewise(automationID);
+        }
 
+        void DrawContinuous(AutomationKey automationID)
+        {
             var config = Part.GetEffectiveAutomationConfig(automationID);
             double min = config.MinValue;
             double max = config.MaxValue;
@@ -175,6 +184,46 @@ internal partial class AutomationRenderer : View
             DrawSynthesizedParameter(context, automationID, min, max);
         }
 
+        void DrawPiecewise(AutomationKey automationID)
+        {
+            var config = Part.GetEffectivePiecewiseAutomationConfig(automationID);
+            double min = config.MinValue;
+            double max = config.MaxValue;
+
+            // 已画的可编辑曲线（数据对象按需创建——未编辑过则无数据、只画回显）。段间取值 NaN → 断开。
+            var data = Part.GetEffectivePiecewiseAutomation(automationID);
+            if (data != null)
+            {
+                double[] values = data.GetValues(ticks);
+                var ys = new double[n];
+                for (int i = 0; i < n; i++)
+                    ys[i] = double.IsNaN(values[i]) ? double.NaN : ValueToY(values[i], min, max);
+                DrawBrokenCurve(ys, Color.Parse(config.Color), lineWidth);
+            }
+
+            DrawSynthesizedParameter(context, automationID, min, max);
+        }
+
+        // 在 NaN 处断开的折线：把连续非 NaN 段各自成段绘制（分段轨段间空、跨段不连线）。
+        void DrawBrokenCurve(double[] ys, Color color, double width)
+        {
+            var run = new List<Point>();
+            void Flush()
+            {
+                if (run.Count >= 2)
+                    context.DrawCurve(run.ToArray(), color, width);
+                run.Clear();
+            }
+            for (int i = 0; i < n; i++)
+            {
+                if (double.IsNaN(ys[i]))
+                    Flush();
+                else
+                    run.Add(new Point(xs[i], ys[i]));
+            }
+            Flush();
+        }
+
         var activeAutomation = mDependency.ActiveAutomation;
         foreach (var automation in mDependency.VisibleAutomations)
         {
@@ -193,17 +242,32 @@ internal partial class AutomationRenderer : View
             return;
 
         var active = activeAutomation.Value;
-        if (!Part.IsEffectiveAutomation(active))
+        bool activeContinuous = Part.IsEffectiveAutomation(active);
+        bool activePiecewise = !activeContinuous && Part.IsEffectivePiecewiseAutomation(active);
+        if (!activeContinuous && !activePiecewise)
             return;
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        var config = Part.GetEffectiveAutomationConfig(active);
-        double min = config.MinValue;
-        double max = config.MaxValue;
+        double min, max;
+        string colorStr;
+        if (activeContinuous)
+        {
+            var config = Part.GetEffectiveAutomationConfig(active);
+            min = config.MinValue;
+            max = config.MaxValue;
+            colorStr = config.Color;
+        }
+        else
+        {
+            var config = Part.GetEffectivePiecewiseAutomationConfig(active);
+            min = config.MinValue;
+            max = config.MaxValue;
+            colorStr = config.Color;
+        }
 
-        // effect 自动化无 vibrato 概念：vibrato 叠加层与"拖拽关联颤音"提示仅对 voice 轨绘制。
-        if (!active.IsEffect)
+        // vibrato 叠加层与"拖拽关联颤音"提示仅对 voice 连续轨绘制（effect 与分段轨皆无 automation-vibrato 概念）。
+        if (activeContinuous && !active.IsEffect)
         {
             foreach (var vibrato in Part.Vibratos)
             {
@@ -243,7 +307,7 @@ internal partial class AutomationRenderer : View
                     points[i] = new(vxs[i], values[i]);
                 }
 
-                context.DrawCurve(points, Color.Parse(config.Color).Opacity(0.5), lineWidth);
+                context.DrawCurve(points, Color.Parse(colorStr).Opacity(0.5), lineWidth);
             }
 
             if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
