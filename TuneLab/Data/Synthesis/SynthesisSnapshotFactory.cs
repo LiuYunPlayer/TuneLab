@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
@@ -18,7 +18,7 @@ internal static class SynthesisSnapshotFactory
 {
     // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；
     // 快照 Notes 与递入 notes 索引对齐（产物归属契约）。[startTime, endTime] 为全局秒开窗区间。
-    public static SynthesisSnapshot Capture(MidiPart part, IReadOnlyList<ISynthesisNote> sourceNotes, double startTime, double endTime)
+    public static SynthesisSnapshot Capture(MidiPart part, IReadOnlyList<ILiveNote> sourceNotes, double startTime, double endTime)
     {
         double partPos = part.Pos.Value;
 

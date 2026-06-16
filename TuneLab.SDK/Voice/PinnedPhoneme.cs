@@ -1,6 +1,6 @@
-namespace TuneLab.SDK;
+﻿namespace TuneLab.SDK;
 
-// 用户钉死的音素时长约束（host→engine 输入声明，挂在 ISynthesisNote.Phonemes，per note）。
+// 用户钉死的音素时长约束（host→engine 输入声明，挂在 ILiveNote.Phonemes，per note）。
 // 命名与输出侧对仗：Pinned 进（用户约束）、Synthesized 出（引擎产物 SynthesizedPhoneme）。
 // 时间为相对 note 起点的秒偏移：可编辑、随 note 平移自动跟随（偏移不变）、
 // 负值表示越界到 note 之前的辅音引导。用秒（而非 tick）：音素时长是声学量，

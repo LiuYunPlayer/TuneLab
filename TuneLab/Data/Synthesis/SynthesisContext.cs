@@ -19,10 +19,10 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 {
     public MidiPart Part => mPart;
 
-    public IReadOnlyNotifiableLinkedList<ISynthesisNote> Notes => mNotes;
+    public IReadOnlyNotifiableLinkedList<ILiveNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
-    public ISynthesisAutomation Pitch => mPitch;
-    public ISynthesisAutomation PitchDeviation => mPitchDeviation;
+    public ILiveAutomation Pitch => mPitch;
+    public ILiveAutomation PitchDeviation => mPitchDeviation;
 
     public event Action? Committed;
 
@@ -67,7 +67,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
     // [startTime, endTime] 为全局秒开窗区间，物化器内部经 tempo 快照换算到 tick 找锚点。
-    public SynthesisSnapshot GetSnapshot(IReadOnlyList<ISynthesisNote> notes, double startTime, double endTime)
+    public SynthesisSnapshot GetSnapshot(IReadOnlyList<ILiveNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
         return SynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
@@ -102,7 +102,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             AudioSegmentsChanged?.Invoke();
     }
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
+    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ILiveAutomation automation)
     {
         if (!mPart.IsEffectiveAutomation(key))
         {
@@ -351,7 +351,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     // —— 曲线类的会话级活视图：取值经 sampler 委托（part 相对 tick 轴）回宿主数据层，
     //    秒↔tick 换算与 part 偏移由本代理在边界完成；区间事件由 context 换算成全局秒后注入。 ——
-    internal sealed class AutomationProxy(SynthesisContext context, Func<IReadOnlyList<double>, double[]> sampler) : ISynthesisAutomation
+    internal sealed class AutomationProxy(SynthesisContext context, Func<IReadOnlyList<double>, double[]> sampler) : ILiveAutomation
     {
         public event Action<double, double>? RangeModified;
 
@@ -377,13 +377,13 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
     // —— note 代理集合：镜像 part.Notes（顺序即链表序，无索引承诺——SDK 面即链表形态），
     //    增删自动建/毁代理并转发结构事件。 ——
-    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<ISynthesisNote>, IDisposable
+    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<ILiveNote>, IDisposable
     {
-        public event Action<ISynthesisNote>? ItemAdded;
-        public event Action<ISynthesisNote>? ItemRemoved;
+        public event Action<ILiveNote>? ItemAdded;
+        public event Action<ILiveNote>? ItemRemoved;
         public event Action? Modified;
 
-        public ISynthesisNote? First
+        public ILiveNote? First
         {
             get
             {
@@ -393,7 +393,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             }
         }
 
-        public ISynthesisNote? Last
+        public ILiveNote? Last
         {
             get
             {
@@ -418,7 +418,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
 
         public int Count => mNotes.Count;
 
-        public IEnumerator<ISynthesisNote> GetEnumerator()
+        public IEnumerator<ILiveNote> GetEnumerator()
         {
             mContext.AssertDataThread();
             foreach (var note in mNotes)
@@ -576,7 +576,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局秒（ToSecond(partPos+notePos)，
     //    DerivedProperty source 含 part.Pos / TempoManager，故 tempo 变 / part 平移自动触发边界 Modified）；
     //    Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
-    internal sealed class SynthesisNoteProxy : ISynthesisNote, IDisposable
+    internal sealed class SynthesisNoteProxy : ILiveNote, IDisposable
     {
         public INote Source => mNote;
 
@@ -587,8 +587,8 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.PinnedPhoneme>> Phonemes { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
-        public ISynthesisNote? Next => mContext.ProxyOf(mNote.Next);
-        public ISynthesisNote? Last => mContext.ProxyOf(mNote.Last);
+        public ILiveNote? Next => mContext.ProxyOf(mNote.Next);
+        public ILiveNote? Last => mContext.ProxyOf(mNote.Last);
 
         public SynthesisNoteProxy(SynthesisContext context, INote note)
         {

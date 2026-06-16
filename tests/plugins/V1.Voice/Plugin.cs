@@ -233,7 +233,7 @@ public sealed class TestSession : ISynthesisSession
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
     sealed record RenderResult(float[] Audio, double StartTime, List<SynthesizedPhoneme> Phonemes, List<Point> EnergyReadback);
 
-    static RenderResult? Render(SynthesisSnapshot snapshot, IReadOnlyList<ISynthesisNote> origins,
+    static RenderResult? Render(SynthesisSnapshot snapshot, IReadOnlyList<ILiveNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
     {
         var notes = snapshot.Notes;
@@ -331,14 +331,14 @@ public sealed class TestSession : ISynthesisSession
 
         // 按 note 间隙分块；note 可重叠（和弦），故以"组内最大结束"判间隙，而非上一 note 的结束
         //（同起点和弦里上一 note 可能结束更早，用它会把仍在响的长音错误地切出去）。
-        var groups = new List<List<ISynthesisNote>>();
-        List<ISynthesisNote>? current = null;
+        var groups = new List<List<ILiveNote>>();
+        List<ILiveNote>? current = null;
         double groupMaxEnd = 0;
         foreach (var note in mContext.Notes)
         {
             if (current == null || note.StartTime.Value > groupMaxEnd)
             {
-                current = new List<ISynthesisNote>();
+                current = new List<ILiveNote>();
                 groups.Add(current);
                 groupMaxEnd = note.EndTime.Value;
             }
@@ -381,7 +381,7 @@ public sealed class TestSession : ISynthesisSession
         StatusChanged?.Invoke();
     }
 
-    void SubscribeNote(ISynthesisNote note)
+    void SubscribeNote(ILiveNote note)
     {
         void handler()
         {
@@ -404,7 +404,7 @@ public sealed class TestSession : ISynthesisSession
         note.Properties.Modified += handler;
     }
 
-    void UnsubscribeNote(ISynthesisNote note)
+    void UnsubscribeNote(ILiveNote note)
     {
         if (!mNoteHandlers.Remove(note, out var handler))
             return;
@@ -417,7 +417,7 @@ public sealed class TestSession : ISynthesisSession
         note.Properties.Modified -= handler;
     }
 
-    void OnNotesStructureChanged(ISynthesisNote note) => mNeedResegment = true;
+    void OnNotesStructureChanged(ILiveNote note) => mNeedResegment = true;
 
     void MarkAllDirtyAndResegment()
     {
@@ -450,7 +450,7 @@ public sealed class TestSession : ISynthesisSession
 
     sealed class Piece
     {
-        public required IReadOnlyList<ISynthesisNote> Notes;
+        public required IReadOnlyList<ILiveNote> Notes;
         public double StartTime;
         public double EndTime;
         public bool Dirty;
@@ -470,7 +470,7 @@ public sealed class TestSession : ISynthesisSession
 
     readonly ISynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
-    readonly Dictionary<ISynthesisNote, Action> mNoteHandlers = new();
+    readonly Dictionary<ILiveNote, Action> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。

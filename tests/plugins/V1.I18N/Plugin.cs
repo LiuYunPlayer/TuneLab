@@ -177,7 +177,7 @@ public sealed class I18NSession : ISynthesisSession
         mSegment?.Dispose();
     }
 
-    void SubscribeNote(ISynthesisNote note)
+    void SubscribeNote(ILiveNote note)
     {
         note.StartTime.Modified += MarkDirty;
         note.EndTime.Modified += MarkDirty;
@@ -187,7 +187,7 @@ public sealed class I18NSession : ISynthesisSession
         note.Properties.Modified += MarkDirty;
     }
 
-    void UnsubscribeNote(ISynthesisNote note)
+    void UnsubscribeNote(ILiveNote note)
     {
         note.StartTime.Modified -= MarkDirty;
         note.EndTime.Modified -= MarkDirty;

@@ -152,7 +152,7 @@ public abstract class SingleBlockSession : ISynthesisSession
         mSegment?.Dispose();
     }
 
-    void SubscribeNote(ISynthesisNote note)
+    void SubscribeNote(ILiveNote note)
     {
         note.StartTime.Modified += MarkDirty;
         note.EndTime.Modified += MarkDirty;
@@ -162,7 +162,7 @@ public abstract class SingleBlockSession : ISynthesisSession
         note.Properties.Modified += MarkDirty;
     }
 
-    void UnsubscribeNote(ISynthesisNote note)
+    void UnsubscribeNote(ILiveNote note)
     {
         note.StartTime.Modified -= MarkDirty;
         note.EndTime.Modified -= MarkDirty;

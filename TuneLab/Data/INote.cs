@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Foundation;
@@ -9,7 +9,7 @@ using NoteInfo = TuneLab.SDK.NoteInfo;
 
 namespace TuneLab.Data;
 
-// 宿主业务层 note。不直接实现 SDK 的 ISynthesisNote——插件经会话级 context 的 note 代理
+// 宿主业务层 note。不直接实现 SDK 的 ILiveNote——插件经会话级 context 的 note 代理
 // 订阅（中间层隔离）；本接口只服务宿主自身（编辑/UI/序列化）。
 internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote>
 {

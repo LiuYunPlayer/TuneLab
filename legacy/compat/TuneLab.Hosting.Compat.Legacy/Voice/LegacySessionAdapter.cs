@@ -254,7 +254,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     // —— 变更接线（数据线程）——
 
-    void SubscribeNote(VVoice.ISynthesisNote note)
+    void SubscribeNote(VVoice.ILiveNote note)
     {
         void handler()
         {
@@ -270,13 +270,13 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         note.Properties.Modified += handler;
     }
 
-    void UnsubscribeNote(VVoice.ISynthesisNote note)
+    void UnsubscribeNote(VVoice.ILiveNote note)
     {
         if (mNoteHandlers.Remove(note, out var handler))
             DetachNoteHandler(note, handler);
     }
 
-    void DetachNoteHandler(VVoice.ISynthesisNote note, Action handler)
+    void DetachNoteHandler(VVoice.ILiveNote note, Action handler)
     {
         note.StartTime.Modified -= handler;
         note.EndTime.Modified -= handler;
@@ -286,7 +286,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         note.Properties.Modified -= handler;
     }
 
-    void OnNotesStructureChanged(VVoice.ISynthesisNote note)
+    void OnNotesStructureChanged(VVoice.ILiveNote note)
     {
         mNeedReSegment = true;
     }
@@ -321,7 +321,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             NotifyStatusChanged();
     }
 
-    void MarkNoteDirty(VVoice.ISynthesisNote note)
+    void MarkNoteDirty(VVoice.ILiveNote note)
     {
         foreach (var piece in mPieces)
         {
@@ -359,7 +359,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     {
         mNeedReSegment = false;
 
-        var origins = new List<VVoice.ISynthesisNote>(mContext.Notes);
+        var origins = new List<VVoice.ILiveNote>(mContext.Notes);
         var liveViews = new List<LiveNoteView>(origins.Count);
         foreach (var origin in origins)
         {
@@ -480,7 +480,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         return ReadProperties(mSource.PartProperties.Keys, mContext.PartProperties);
     }
 
-    LProp.PropertyObject ReadNoteProperties(VVoice.ISynthesisNote note)
+    LProp.PropertyObject ReadNoteProperties(VVoice.ILiveNote note)
     {
         return ReadProperties(mSource.NoteProperties.Keys, note.Properties);
     }
@@ -501,7 +501,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     sealed class Piece
     {
-        public required IReadOnlyList<VVoice.ISynthesisNote> Notes;
+        public required IReadOnlyList<VVoice.ILiveNote> Notes;
         public double StartTime;
         public double EndTime;
         public bool Dirty;
@@ -573,8 +573,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     static readonly PStruct.OrderedMap<string, VConfig.AutomationConfig> sEmptyConfigs = new();
 
     readonly IDisposable mNotesSubscription;
-    readonly Dictionary<VVoice.ISynthesisNote, Action> mNoteHandlers = new(ReferenceEqualityComparer.Instance);
-    readonly List<VVoice.ISynthesisAutomation> mSubscribedAutomations = new();
+    readonly Dictionary<VVoice.ILiveNote, Action> mNoteHandlers = new(ReferenceEqualityComparer.Instance);
+    readonly List<VVoice.ILiveAutomation> mSubscribedAutomations = new();
 
     readonly List<Piece> mPieces = new();
     bool mNeedReSegment;
