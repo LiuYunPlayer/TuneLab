@@ -500,3 +500,22 @@ public class PiecewiseAutomationConfig : IControllerConfig
   孤儿数据归宿定为**保留隐藏、轨复现即原样恢复**：数据层不因声明收缩而裁剪曲线，隐藏轨不参与合成。
   引擎自发的运行中变化（如异步模型加载后改轨集合，非参数驱动）若将来需要，再加声明级变更事件——当前 context 驱动已覆盖参数驱动的全部场景。）
 - 动态立绘 / 动态全局背景图（宿主渲染能力，独立特性）。
+
+- ~~**合成参数回显 + 可编辑分段轨**~~（**已实现**）：
+  - 合成参数回显：`ISynthesisSession.SynthesizedParameters`（按轨 id 键、与音频/音高同一秒时间系、分段）端到端透传
+    （pipeline→MidiPart），在参数栏按 id join 到同名 voice 轨上**只读叠加**（白色半透明、NaN 段断开），镜像合成音高回显。effect 无参数回显（输出仅音频）。
+  - 可编辑分段轨：除 Pitch 外，声源/效果器可声明分段轨（voice `GetPiecewiseAutomationConfigs` / effect 新增 `IEffectEngine.GetPiecewiseAutomationConfigs`），
+    宿主按轨 id 存 `DataObjectMap<string, IPiecewiseAutomation>`（MidiPart + Effect 各一份；Pitch 仍是专属常驻通道、不入此 map），
+    MidiPartInfo/EffectInfo 各加 `PiecewiseAutomations` 序列化槽（同 Pitch 形、孤儿数据整存）；参数栏列出、按 kind 渲染（段间 NaN 断开）、
+    编辑交互镜像 pitch（绘制/擦除/锚点选移删插）。AutomationKey 保持纯路由，kind 由查 config map 现解析。
+    引擎对分段轨的 DSP 消费（effect 分段轨回写、voice 分段轨参与合成）为后续需求，当前仅"可编辑 + 存盘 + 显示"。
+
+- **统一 automation config（连续/分段合一）**（待办，A+B 完成后的下一步；SDK 冻结前定案）：
+  现连续 `AutomationConfig`（有默认基线）与分段 `PiecewiseAutomationConfig`（无默认）为两个类 + 两个 `GetXxxConfigs` 方法。
+  拟合并为**一个 `AutomationConfig` + 一个 `GetAutomationConfigs`**：以 `DefaultValue` 为 **NaN** 表"无基线"⇒ 分段轨
+  （与本 SDK 既有"NaN 表空"求值约定同源）。收益：SDK 面收一半、插件作者在一张有序 map 里**自由穿插**连续/分段（现两 map 被迫"连续在前分段在后"）、`GetAutomation*` 不分家。
+  **宿主侧仍保留两种数据类型**（IAutomation / IPiecewiseAutomation）+ 两序列化槽，按 `IsNaN(DefaultValue)` 物化到对应 map。
+  缓解 NaN 哨兵可读性：`AutomationConfig` 加 `bool IsPiecewise => double.IsNaN(DefaultValue)` 计算属性 + 注释。
+  调研结论（降风险）：`IValueConfig.DefaultValue` 的多态消费仅 1 处（`PropertySideBarContentProvider.ResetPartPropertiesToDefaults`，服务**属性控件**家族，与 automation 无关）；
+  `AutomationConfig` 实现 `IValueConfig` 无任何消费方依赖、保留无害/去掉零影响；统一后唯一需特判 NaN 的 automation 消费方是 `AutomationDefaultsController`（默认值侧栏：分段轨不显示默认基线行）。
+  顺带删去 `PiecewiseAutomationConfig` + 两处 `GetPiecewiseAutomationConfigs`，并同步 plugin-development 文档的 effect/voice 段（届时 API 定形再写，避免文档抖动）。
