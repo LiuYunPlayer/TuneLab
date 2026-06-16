@@ -24,4 +24,13 @@
 		<Setter Property="Padding" Value="4" />
 		<Setter Property="BorderBrush" Value="#45454D" />
 	</Style>
+
+	<!-- Agent 会话菜单：自定义 Flyout 调成与原生菜单一致的底色/圆角/暗色描边（作用域 class，不影响其它 flyout）。 -->
+	<Style Selector="FlyoutPresenter.agent-menu">
+		<Setter Property="Background" Value="#272736" />
+		<Setter Property="BorderBrush" Value="#1B1B24" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="4" />
+	</Style>
 </Styles>

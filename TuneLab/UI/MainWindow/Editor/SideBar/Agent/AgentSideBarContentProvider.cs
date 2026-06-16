@@ -97,7 +97,9 @@ internal sealed class AgentSideBarContentProvider
         header.Children.Add(menuToggle);
 
         // 会话菜单：锚定按钮正下方、左对齐；再次点击关闭（toggle）。每次打开时按本地已存会话动态填充（见 PopulateMenu）。
-        mMenuFlyout = new MenuFlyout() { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        // presenter 挂 agent-menu class（见 GlobalStyle.axaml）调成与原生菜单一致的底色/圆角/描边。
+        mMenuFlyout = new Flyout() { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        mMenuFlyout.FlyoutPresenterClasses.Add("agent-menu");
         // 开合状态 → ☰ 图标颜色：展开变亮、收起变灰。
         mMenuFlyout.Opened += (_, _) => menuToggle.Display(true);
         // light-dismiss 会在再次按按钮时先关闭，置标志让随后的 Click 不重开，从而实现 toggle。
@@ -211,60 +213,82 @@ internal sealed class AgentSideBarContentProvider
         }
     }
 
-    // 每次打开时重建：New Chat + 已存会话列表（最近在前，点击加载、右侧 ✕ 删除）。
+    // 每次打开时重建内容：New Chat + 已存会话列表（最近在前，点击加载、右侧 ✕ 删除）。
+    // 用自定义 Flyout 而非 MenuFlyout：MenuItem 模板保留子菜单箭头/快捷键列，✕ 无法真正贴右；
+    // StackPanel 装 DockPanel 行可完全控制布局——所有行同宽、✕ 对齐最右，并支持 hover 高亮与全名 tooltip。
     void PopulateMenu()
     {
-        mMenuFlyout.Items.Clear();
-        var newChatItem = new MenuItem() { Header = "New Chat".Tr(this) };
-        newChatItem.Click += (_, _) => NewChat();
-        mMenuFlyout.Items.Add(newChatItem);
+        var stack = new StackPanel() { Orientation = Orientation.Vertical, MinWidth = 220 };
+        stack.Children.Add(BuildMenuRow("New Chat".Tr(this), null, NewChat, null));
 
         var sessions = AgentSessionStore.List();
-        if (sessions.Count == 0)
-            return;
-        mMenuFlyout.Items.Add(new Separator());
-        foreach (var session in sessions)
-            mMenuFlyout.Items.Add(BuildSessionMenuItem(session));
+        if (sessions.Count > 0)
+        {
+            stack.Children.Add(new Border() { Height = 1, Margin = new(8, 4), Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush() });
+            foreach (var session in sessions)
+            {
+                var titleText = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title;
+                var captured = session;
+                stack.Children.Add(BuildMenuRow(titleText, titleText, () => LoadSession(captured), () =>
+                {
+                    AgentSessionStore.Delete(captured.Id);
+                    if (mCurrentSession?.Id == captured.Id)
+                        NewChat();
+                    mMenuFlyout.Hide();
+                }));
+            }
+        }
+
+        mMenuFlyout.Content = stack;
     }
 
-    MenuItem BuildSessionMenuItem(ChatSession session)
+    // 单行：标题填充（过长省略号 + 全名 tooltip）、可选右侧 ✕ 删除。整行 hover 高亮，点击触发 onClick 并关闭菜单。
+    Control BuildMenuRow(string text, string? tooltip, Action onClick, Action? onDelete)
     {
         var title = new TextBlock()
         {
-            Text = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title,
+            Text = text,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 200,
+            MaxWidth = 220,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Foreground = Colors.White.ToBrush(),
         };
-        // ✕ 删除：PointerPressed 置 Handled，拦掉 MenuItem 的点击（避免删完又触发加载）。
-        var del = new TextBlock()
+        var dock = new DockPanel();
+
+        if (onDelete != null)
         {
-            Text = "✕",
-            FontSize = 11,
-            Margin = new(12, 0, 0, 0),
-            Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
+            var del = new TextBlock()
+            {
+                Text = "✕",
+                FontSize = 11,
+                Margin = new(12, 0, 0, 0),
+                Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+            del.PointerEntered += (_, _) => del.Foreground = Colors.IndianRed.ToBrush();
+            del.PointerExited += (_, _) => del.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
+            del.PointerPressed += (_, e) => { e.Handled = true; onDelete(); }; // Handled 拦掉整行点击，避免删完又加载
+            DockPanel.SetDock(del, Dock.Right);
+            dock.Children.Add(del);
+        }
+        dock.Children.Add(title); // 填充剩余宽
+
+        var row = new Border()
+        {
+            Padding = new(10, 6),
+            CornerRadius = new(4),
+            Background = Brushes.Transparent,
             Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Child = dock,
         };
-        del.PointerEntered += (_, _) => del.Foreground = Colors.IndianRed.ToBrush();
-        del.PointerExited += (_, _) => del.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
-        del.PointerPressed += (_, e) =>
-        {
-            e.Handled = true;
-            AgentSessionStore.Delete(session.Id);
-            if (mCurrentSession?.Id == session.Id)
-                NewChat();
-            mMenuFlyout.Hide();
-        };
-
-        var row = new DockPanel() { MinWidth = 200 };
-        DockPanel.SetDock(del, Dock.Right);
-        row.Children.Add(del);
-        row.Children.Add(title);
-
-        var item = new MenuItem() { Header = row };
-        item.Click += (_, _) => LoadSession(session);
-        return item;
+        if (!string.IsNullOrEmpty(tooltip))
+            ToolTip.SetTip(row, tooltip);
+        row.PointerEntered += (_, _) => row.Background = Style.LIGHT_WHITE.Opacity(0.08).ToBrush();
+        row.PointerExited += (_, _) => row.Background = Brushes.Transparent;
+        // ✕ 已置 Handled 时此处不触发（默认不收已处理事件）。
+        row.PointerPressed += (_, e) => { if (e.Handled) return; onClick(); mMenuFlyout.Hide(); };
+        return row;
     }
 
     void NewChat()
@@ -775,7 +799,7 @@ internal sealed class AgentSideBarContentProvider
     TuneLab.GUI.Components.Button mStopButton = null!;
     TuneLab.GUI.Components.Button mSubmitButton = null!;
     TuneLab.GUI.Components.Button? mMenuButton;
-    MenuFlyout mMenuFlyout = null!;
+    Flyout mMenuFlyout = null!;
     bool mMenuJustClosed;
     bool mBusy;
     double mBubbleMaxWidth = 230; // 气泡最大宽度，随对话区宽度自适应（见 BuildChatView 的 Bounds 订阅）
