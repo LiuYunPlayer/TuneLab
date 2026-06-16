@@ -143,7 +143,23 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             }
         }
 
-        return new AgentModelReply { Content = content, ToolCalls = toolCalls };
+        return new AgentModelReply { Content = content, ToolCalls = toolCalls, Usage = ParseUsage(doc.RootElement) };
+    }
+
+    // OpenAI 协议 usage：{ prompt_tokens, completion_tokens, total_tokens }。缺失则返回 null（不是所有端点都返回）。
+    static AgentTokenUsage? ParseUsage(JsonElement root)
+    {
+        if (!root.TryGetProperty("usage", out var usage) || usage.ValueKind != JsonValueKind.Object)
+            return null;
+        return new AgentTokenUsage
+        {
+            PromptTokens = GetInt(usage, "prompt_tokens"),
+            CompletionTokens = GetInt(usage, "completion_tokens"),
+            TotalTokens = GetInt(usage, "total_tokens"),
+        };
+
+        static int GetInt(JsonElement obj, string name)
+            => obj.TryGetProperty(name, out var e) && e.ValueKind == JsonValueKind.Number ? e.GetInt32() : 0;
     }
 
     public void Dispose() => mHttp.Dispose();

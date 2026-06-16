@@ -46,9 +46,18 @@ public sealed class AgentModelRequest
     public IReadOnlyList<AgentToolSchema> Tools { get; init; } = [];
 }
 
-// 模型一轮回复：自然语言文本（可空）+ 它要求调用的工具（可能为空集，空集表示本轮结束）。
+// 一次模型调用的 token 用量。适配器从各家响应的 usage 字段填充；端点未返回时整体为 null。
+public sealed class AgentTokenUsage
+{
+    public int PromptTokens { get; init; }      // 输入（含历史+工具声明）
+    public int CompletionTokens { get; init; }  // 输出
+    public int TotalTokens { get; init; }        // 合计（一般 = 上两者之和，以端点返回为准）
+}
+
+// 模型一轮回复：自然语言文本（可空）+ 它要求调用的工具（可能为空集，空集表示本轮结束）+ 本次调用的 token 用量（可空）。
 public sealed class AgentModelReply
 {
     public string? Content { get; init; }
     public IReadOnlyList<AgentToolCall> ToolCalls { get; init; } = [];
+    public AgentTokenUsage? Usage { get; init; }
 }

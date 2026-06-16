@@ -249,9 +249,9 @@ internal sealed class AgentSideBarContentProvider
         {
             mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt);
             var reply = await mRunner.SendAsync(text, CancellationToken.None);
-            bubble.Child = string.IsNullOrEmpty(reply)
+            bubble.Child = string.IsNullOrEmpty(reply.Text)
                 ? BubbleText("(no text reply)", Colors.White.ToBrush())
-                : AssistantContent(reply);
+                : AssistantContent(reply.Text, reply.Usage);
         }
         catch (Exception ex)
         {
@@ -307,8 +307,8 @@ internal sealed class AgentSideBarContentProvider
     static SelectableTextBlock BubbleText(string text, IBrush foreground)
         => new() { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = foreground, FontSize = 12 };
 
-    // 助手消息：Markdig 解析 + 自渲染（ChatMarkdownRenderer，零依赖、文本可选中）+ 复制原文按钮。
-    Control AssistantContent(string markdown)
+    // 助手消息：Markdig 解析 + 自渲染（ChatMarkdownRenderer，零依赖、文本可选中）+ 脚注（复制原文 + 本轮 token 用量）。
+    Control AssistantContent(string markdown, AgentTokenUsage? usage)
     {
         var md = ChatMarkdownRenderer.Render(markdown);
         var copy = new TextBlock
@@ -316,7 +316,6 @@ internal sealed class AgentSideBarContentProvider
             Text = "Copy".Tr(this),
             FontSize = 11,
             Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush(),
-            Margin = new(0, 4, 0, 0),
             Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
         };
         copy.PointerEntered += (_, _) => copy.Foreground = Colors.White.ToBrush();
@@ -326,7 +325,25 @@ internal sealed class AgentSideBarContentProvider
             e.Handled = true;
             _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(markdown);
         };
-        return new StackPanel { Orientation = Orientation.Vertical, Children = { md, copy } };
+
+        // 脚注一行：token 总量靠左（带单位，hover 看输入/输出明细）、Copy 靠右（端点未返回 usage 则只有 Copy）。
+        var footer = new DockPanel { LastChildFill = false, Margin = new(0, 4, 0, 0) };
+        DockPanel.SetDock(copy, Dock.Right);
+        footer.Children.Add(copy);
+        if (usage != null)
+        {
+            var tokens = new TextBlock
+            {
+                Text = string.Format("{0:N0} tokens", usage.TotalTokens),
+                FontSize = 11,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+            ToolTip.SetTip(tokens, string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
+            DockPanel.SetDock(tokens, Dock.Left);
+            footer.Children.Add(tokens);
+        }
+        return new StackPanel { Orientation = Orientation.Vertical, Children = { md, footer } };
     }
 
     // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。
