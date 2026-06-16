@@ -249,7 +249,9 @@ internal sealed class AgentSideBarContentProvider
         {
             mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt);
             var reply = await mRunner.SendAsync(text, CancellationToken.None);
-            bubble.Child = BubbleText(string.IsNullOrEmpty(reply) ? "(no text reply)" : reply, Colors.White.ToBrush());
+            bubble.Child = string.IsNullOrEmpty(reply)
+                ? BubbleText("(no text reply)", Colors.White.ToBrush())
+                : AssistantContent(reply);
         }
         catch (Exception ex)
         {
@@ -301,9 +303,31 @@ internal sealed class AgentSideBarContentProvider
         Child = content,
     };
 
-    // 可选中复制的纯文本（assistant 与 user 均用它；MD 富渲染因版本不兼容暂缓，见提交说明）。
+    // 纯文本气泡内容（用户消息、占位「…」、错误文本用它）。
     static SelectableTextBlock BubbleText(string text, IBrush foreground)
         => new() { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = foreground, FontSize = 12 };
+
+    // 助手消息：Markdig 解析 + 自渲染（ChatMarkdownRenderer，零依赖、文本可选中）+ 复制原文按钮。
+    Control AssistantContent(string markdown)
+    {
+        var md = ChatMarkdownRenderer.Render(markdown);
+        var copy = new TextBlock
+        {
+            Text = "Copy".Tr(this),
+            FontSize = 11,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush(),
+            Margin = new(0, 4, 0, 0),
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+        };
+        copy.PointerEntered += (_, _) => copy.Foreground = Colors.White.ToBrush();
+        copy.PointerExited += (_, _) => copy.Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush();
+        copy.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(markdown);
+        };
+        return new StackPanel { Orientation = Orientation.Vertical, Children = { md, copy } };
+    }
 
     // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。
     void ScrollToEnd() => Dispatcher.UIThread.Post(() => mMessagesList.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);

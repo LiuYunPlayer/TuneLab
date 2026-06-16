@@ -41,6 +41,7 @@
 		<PackageReference Include="csharp-pinyin" Version="1.0.1" />
 		<PackageReference Include="Flurl.Http" Version="4.0.2" />
 		<PackageReference Include="Markdown.Avalonia" Version="11.0.3-a1" />
+		<PackageReference Include="Markdig" Version="0.43.0" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.13" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
