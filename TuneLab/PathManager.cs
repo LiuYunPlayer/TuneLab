@@ -18,6 +18,7 @@ internal static class PathManager
     public static string SettingsFilePath => Path.Combine(ConfigsFolder, "Settings.json");
     public static string EditorStateFilePath => Path.Combine(ConfigsFolder, "EditorState.json");
     public static string ExtensionsFolder => Path.Combine(TuneLabFolder, "Extensions");
+    public static string AgentSessionsFolder => Path.Combine(TuneLabFolder, "AgentSessions");
     public static string LockFilePath => Path.Combine(TuneLabFolder, "TuneLab.lock");
     public static string LogFilePath { get { mLogFilePath ??= Path.Combine(LogsFolder, "TuneLab_" + DateTime.Now.ToString("yyyy-MM-dd_hh-mm-ss") + ".log"); return mLogFilePath; } }
     public static string ExcutableFolder => AppDomain.CurrentDomain.BaseDirectory;

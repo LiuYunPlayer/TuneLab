@@ -17,13 +17,16 @@ internal sealed class AgentRunner
     // 单轮用户输入内允许的工具调用回合上限，防止模型陷入工具循环。
     const int MaxToolRounds = 25;
 
-    public AgentRunner(IAgentModelSession session, IReadOnlyList<IAgentTool> tools, string? systemPrompt = null)
+    // history：加载已存会话时回填的先前对话（用户/助手文本），追加在 system prompt 之后，让续聊带上下文。
+    public AgentRunner(IAgentModelSession session, IReadOnlyList<IAgentTool> tools, string? systemPrompt = null, IEnumerable<AgentMessage>? history = null)
     {
         mSession = session;
         mTools = tools.ToDictionary(t => t.Name);
         mToolSchemas = tools.Select(t => t.ToSchema()).ToList();
         if (!string.IsNullOrEmpty(systemPrompt))
             mMessages.Add(new AgentMessage { Role = AgentRole.System, Content = systemPrompt });
+        if (history != null)
+            mMessages.AddRange(history);
     }
 
     // 处理一条用户消息，返回模型的最终文本回复 + 本轮 token 用量。对话历史在多次调用间累积（保持上下文）。

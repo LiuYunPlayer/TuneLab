@@ -96,13 +96,8 @@ internal sealed class AgentSideBarContentProvider
         DockPanel.SetDock(menuToggle, Dock.Left);
         header.Children.Add(menuToggle);
 
-        // 会话菜单：锚定按钮正下方、左对齐；再次点击关闭（toggle）。会话列表尚未实装，先给「新对话」+ 占位项。
+        // 会话菜单：锚定按钮正下方、左对齐；再次点击关闭（toggle）。每次打开时按本地已存会话动态填充（见 PopulateMenu）。
         mMenuFlyout = new MenuFlyout() { Placement = PlacementMode.BottomEdgeAlignedLeft };
-        var newChatItem = new MenuItem() { Header = "New Chat".Tr(this) };
-        newChatItem.Click += (_, _) => NewChat();
-        var soonItem = new MenuItem() { Header = "Saved sessions (coming soon)".Tr(this), IsEnabled = false };
-        mMenuFlyout.Items.Add(newChatItem);
-        mMenuFlyout.Items.Add(soonItem);
         // 开合状态 → ☰ 图标颜色：展开变亮、收起变灰。
         mMenuFlyout.Opened += (_, _) => menuToggle.Display(true);
         // light-dismiss 会在再次按按钮时先关闭，置标志让随后的 Click 不重开，从而实现 toggle。
@@ -210,14 +205,189 @@ internal sealed class AgentSideBarContentProvider
         if (mMenuJustClosed)
             return; // 再次点击：刚被 light-dismiss 关闭，不重开 → toggle 关闭
         if (mMenuButton != null)
+        {
+            PopulateMenu();
             mMenuFlyout.ShowAt(mMenuButton);
+        }
+    }
+
+    // 每次打开时重建：New Chat + 已存会话列表（最近在前，点击加载、右侧 ✕ 删除）。
+    void PopulateMenu()
+    {
+        mMenuFlyout.Items.Clear();
+        var newChatItem = new MenuItem() { Header = "New Chat".Tr(this) };
+        newChatItem.Click += (_, _) => NewChat();
+        mMenuFlyout.Items.Add(newChatItem);
+
+        var sessions = AgentSessionStore.List();
+        if (sessions.Count == 0)
+            return;
+        mMenuFlyout.Items.Add(new Separator());
+        foreach (var session in sessions)
+            mMenuFlyout.Items.Add(BuildSessionMenuItem(session));
+    }
+
+    MenuItem BuildSessionMenuItem(ChatSession session)
+    {
+        var title = new TextBlock()
+        {
+            Text = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 200,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+        // ✕ 删除：PointerPressed 置 Handled，拦掉 MenuItem 的点击（避免删完又触发加载）。
+        var del = new TextBlock()
+        {
+            Text = "✕",
+            FontSize = 11,
+            Margin = new(12, 0, 0, 0),
+            Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+        del.PointerEntered += (_, _) => del.Foreground = Colors.IndianRed.ToBrush();
+        del.PointerExited += (_, _) => del.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
+        del.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            AgentSessionStore.Delete(session.Id);
+            if (mCurrentSession?.Id == session.Id)
+                NewChat();
+            mMenuFlyout.Hide();
+        };
+
+        var row = new DockPanel() { MinWidth = 200 };
+        DockPanel.SetDock(del, Dock.Right);
+        row.Children.Add(del);
+        row.Children.Add(title);
+
+        var item = new MenuItem() { Header = row };
+        item.Click += (_, _) => LoadSession(session);
+        return item;
     }
 
     void NewChat()
     {
         mMessagesList.Content.Children.Clear();
-        mRunner = null; // 重置对话历史，保留已连接的 session
+        mCurrentSession = null; // 下一条消息会新建会话
+        mSeedHistory = null;
+        mRunner = null;         // 重置对话历史，保留已连接的 session
         SetTitle("New Chat".Tr(this));
+    }
+
+    // 加载已存会话：还原气泡 + 备好 runner 续聊历史（仅对话文本；项目事实续聊时由模型重新调工具读取）。
+    void LoadSession(ChatSession session)
+    {
+        mMessagesList.Content.Children.Clear();
+        var history = new List<AgentMessage>();
+        foreach (var m in session.Messages)
+        {
+            if (m.Role == "assistant")
+            {
+                var usage = m.TotalTokens.HasValue
+                    ? new AgentTokenUsage { PromptTokens = m.PromptTokens ?? 0, CompletionTokens = m.CompletionTokens ?? 0, TotalTokens = m.TotalTokens.Value }
+                    : null;
+                var content = string.IsNullOrEmpty(m.Text)
+                    ? BubbleText("(no text reply)", Colors.White.ToBrush())
+                    : AssistantContent(m.Text, usage);
+                mMessagesList.Content.Children.Add(Bubble(content, mine: false));
+                history.Add(new AgentMessage { Role = AgentRole.Assistant, Content = m.Text });
+            }
+            else
+            {
+                mMessagesList.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
+                history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text });
+            }
+        }
+
+        mCurrentSession = session;
+        mSeedHistory = history;
+        mRunner = null; // 下次发送时用 mSeedHistory 重建带历史的 runner
+        SetTitle(string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title);
+        ScrollToEnd();
+    }
+
+    // 一轮成功回复后记入当前会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
+    void RecordTurn(string userText, string assistantText, AgentTokenUsage? usage)
+    {
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        bool isNew = mCurrentSession == null;
+        mCurrentSession ??= new ChatSession { CreatedAtUnix = now };
+        var session = mCurrentSession;
+        session.Messages.Add(new ChatTurnMessage { Role = "user", Text = userText });
+        session.Messages.Add(new ChatTurnMessage
+        {
+            Role = "assistant",
+            Text = assistantText,
+            PromptTokens = usage?.PromptTokens,
+            CompletionTokens = usage?.CompletionTokens,
+            TotalTokens = usage?.TotalTokens,
+        });
+        session.UpdatedAtUnix = now;
+
+        if (isNew)
+        {
+            session.Title = Truncate(userText, 30); // 先用首条截断占位，确保列表立刻有可读名
+            AgentSessionStore.Save(session);
+            _ = GenerateTitleAsync(session, userText, assistantText); // 随后用 LLM 总结覆盖
+        }
+        else
+        {
+            AgentSessionStore.Save(session);
+        }
+    }
+
+    // 自动标题：用模型把首轮总结成几字标题，覆盖占位的首条截断。失败/未连接则保留占位（已是首条截断）。
+    async Task GenerateTitleAsync(ChatSession session, string userText, string assistantText)
+    {
+        var session_model = mSession;
+        if (session_model == null)
+            return;
+        try
+        {
+            var request = new AgentModelRequest
+            {
+                Messages = new List<AgentMessage>
+                {
+                    new() { Role = AgentRole.System, Content = "Generate a concise title (max 6 words) for this conversation. Reply with only the title text — no quotes, no trailing punctuation." },
+                    new() { Role = AgentRole.User, Content = "User: " + userText + "\n\nAssistant: " + Truncate(assistantText, 500) },
+                },
+            };
+            var reply = await session_model.SendAsync(request, CancellationToken.None);
+            var title = SanitizeTitle(reply.Content);
+            if (string.IsNullOrEmpty(title))
+                return;
+            session.Title = title;
+            AgentSessionStore.Save(session);
+            void Apply() { if (mCurrentSession?.Id == session.Id) SetTitle(title); }
+            if (Dispatcher.UIThread.CheckAccess()) Apply();
+            else Dispatcher.UIThread.Post(Apply);
+        }
+        catch (Exception ex)
+        {
+            Log.Info("Agent title generation failed, keeping fallback title: " + ex.Message);
+        }
+    }
+
+    // 取首行、限长，用于会话标题占位与喂给标题模型的助手文本截断。
+    static string Truncate(string text, int max)
+    {
+        text = (text ?? string.Empty).Trim();
+        int nl = text.IndexOfAny(new[] { '\n', '\r' });
+        if (nl >= 0)
+            text = text[..nl].TrimEnd();
+        return text.Length <= max ? text : text[..max].TrimEnd() + "…";
+    }
+
+    // 清洗模型给的标题：去引号/换行/末尾标点，限长。
+    static string SanitizeTitle(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
+        var t = raw.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        t = t.Trim('"', '\'', '“', '”', '「', '」', '.', '。', ' ');
+        return t.Length <= 40 ? t : t[..40].TrimEnd() + "…";
     }
 
     public void SetTitle(string title)
@@ -274,11 +444,12 @@ internal sealed class AgentSideBarContentProvider
 
         try
         {
-            mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt);
+            mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt, mSeedHistory);
             var reply = await mRunner.SendAsync(text, new Progress<string>(OnDelta), mCts.Token);
             bubble.Child = string.IsNullOrEmpty(reply.Text)
                 ? BubbleText("(no text reply)", Colors.White.ToBrush())
                 : AssistantContent(reply.Text, reply.Usage);
+            RecordTurn(text, reply.Text, reply.Usage);
         }
         catch (OperationCanceledException)
         {
@@ -616,4 +787,6 @@ internal sealed class AgentSideBarContentProvider
     IAgentModelSession? mSession;
     AgentRunner? mRunner;
     CancellationTokenSource? mCts; // 当前进行中请求的取消源（停止键触发）
+    ChatSession? mCurrentSession;  // 当前会话（null=空白新对话，首条消息后落盘）
+    List<AgentMessage>? mSeedHistory; // 加载会话后用于重建 runner 的历史（仅对话文本）
 }
