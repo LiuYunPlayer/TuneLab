@@ -31,6 +31,9 @@ internal class MidiPart : Part, IMidiPart
     public IVoice Voice => mVoice;
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
+    // 声明分段轨（除 Pitch 外、由声源 GetPiecewiseAutomationConfigs 暴露的可编辑分段曲线），按轨 id 存。
+    // Pitch 是 part 专属常驻通道、在音符区编辑，不入此 map。
+    public IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations => mPiecewiseAutomations;
     public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
     public IPiecewiseAutomation Pitch => mPitchLine;
     public IReadOnlyDataObjectList<Vibrato> Vibratos => mVibratos;
@@ -56,6 +59,7 @@ internal class MidiPart : Part, IMidiPart
         mNotes.Attach(this);
         mVibratos = new(this);
         mAutomations = new(this);
+        mPiecewiseAutomations = new(this);
         mEffects = new(this);
         mEffects.ItemAdded.Subscribe(OnEffectAdded);
         mEffects.ItemRemoved.Subscribe(OnEffectRemoved);
@@ -403,6 +407,33 @@ internal class MidiPart : Part, IMidiPart
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
     }
 
+    // 分段轨按需创建（无默认基线，建空轨）；轨须在当前声明里才创建。孤儿轨（声明已消失但数据仍在）不重建、保留隐藏。
+    public IPiecewiseAutomation? AddPiecewiseAutomation(string id)
+    {
+        if (mPiecewiseAutomations.TryGetValue(id, out var value))
+            return value;
+
+        if (!IsEffectivePiecewiseAutomation(id))
+            return null;
+
+        var automation = new PiecewiseAutomation();
+        mPiecewiseAutomations.Add(id, automation);
+        return automation;
+    }
+
+    public bool IsEffectivePiecewiseAutomation(string id)
+    {
+        return Voice.PiecewiseAutomationConfigs.ContainsKey(id);
+    }
+
+    public PiecewiseAutomationConfig GetEffectivePiecewiseAutomationConfig(string id)
+    {
+        if (Voice.PiecewiseAutomationConfigs.ContainsKey(id))
+            return Voice.PiecewiseAutomationConfigs[id];
+
+        throw new ArgumentException(string.Format("Piecewise automation {0} is not effective!", id));
+    }
+
     public override MidiPartInfo GetInfo()
     {
         return new()
@@ -414,6 +445,7 @@ internal class MidiPart : Part, IMidiPart
             Notes = mNotes.GetInfo().ToInfo(),
             Effects = mEffects.GetInfo().ToInfo(),
             Automations = mAutomations.GetInfo().ToInfo(),
+            PiecewiseAutomations = mPiecewiseAutomations.PiecewiseAutomationsToInfo(),
             Pitch = mPitchLine.GetInfo(),
             Vibratos = mVibratos.GetInfo().ToInfo(),
             Voice = mVoice.GetInfo(),
@@ -432,6 +464,7 @@ internal class MidiPart : Part, IMidiPart
         mEffects.SetInfo(info.Effects.Convert(CreateEffect).ToArray());
         mVibratos.SetInfo(info.Vibratos.Convert(CreateVibrato).ToArray());
         mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
+        mPiecewiseAutomations.SetInfo(info.PiecewiseAutomations.ToPiecewiseAutomations());
         mPitchLine.SetInfo(info.Pitch);
         mVoice.SetInfo(info.Voice);
         Properties.SetInfo(info.Properties);
@@ -522,6 +555,7 @@ internal class MidiPart : Part, IMidiPart
     readonly NoteList mNotes;
     readonly DataObjectList<Vibrato> mVibratos;
     readonly DataObjectMap<string, IAutomation> mAutomations;
+    readonly DataObjectMap<string, IPiecewiseAutomation> mPiecewiseAutomations;
     readonly DataObjectList<IEffect> mEffects;
     readonly Dictionary<IEffect, Action> mEffectModifiedHandlers = new();
     readonly PiecewiseAutomation mPitchLine;

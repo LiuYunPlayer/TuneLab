@@ -42,6 +42,8 @@ public sealed class TestSession : ISynthesisSession
         mPartProperties.Add("growl_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Enable Growl" });
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
         mAutomationConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
+        // 分段轨（分段 + 段间空、无默认）：验证声明/数据/路由/渲染/编辑/存盘链路。本参照实现的合成暂不消费它。
+        mPiecewiseAutomationConfigs.Add("Bend", new PiecewiseAutomationConfig { DisplayText = "Bend", MinValue = -100, MaxValue = 100, Color = "#73C2E5" });
 
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；

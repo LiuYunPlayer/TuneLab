@@ -24,6 +24,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IVoice Voice { get; }
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
+    // 声明分段轨（除 Pitch 外的可编辑分段曲线），按轨 id 存；Pitch 是专属常驻通道、不入此 map。
+    IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations { get; }
     IReadOnlyDataObjectList<IEffect> Effects { get; }
     IPiecewiseAutomation Pitch { get; }
 
@@ -37,6 +39,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IReadOnlyList<Synthesis.SynthesizedSegment> SynthesizedSegments { get; }
 
     IAutomation? AddAutomation(string automationID);
+    IPiecewiseAutomation? AddPiecewiseAutomation(string automationID);
     double[] GetFinalPitch(IReadOnlyList<double> ticks);
     void LockPitch(double start, double end, double extension);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);
@@ -115,6 +118,53 @@ internal static class IMidiPartExtension
             return key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].AddAutomation(key.Id) : null;
 
         return part.AddAutomation(key.Id);
+    }
+
+    // ── 分段轨按 AutomationKey 路由（与连续轨对偶；kind 由查 config map 现解析，AutomationKey 本身不带 kind）。 ──
+
+    public static bool IsEffectivePiecewiseAutomation(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+            return key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].PiecewiseAutomationConfigs.ContainsKey(key.Id);
+
+        return part.Voice.PiecewiseAutomationConfigs.ContainsKey(key.Id);
+    }
+
+    public static PiecewiseAutomationConfig GetEffectivePiecewiseAutomationConfig(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].PiecewiseAutomationConfigs.TryGetValue(key.Id, out var effectConfig))
+                return effectConfig;
+        }
+        else if (part.Voice.PiecewiseAutomationConfigs.TryGetValue(key.Id, out var voiceConfig))
+        {
+            return voiceConfig;
+        }
+
+        throw new ArgumentException(string.Format("Piecewise automation {0} is not effective!", key.Id));
+    }
+
+    // 取已存在的分段轨数据对象（voice 或对应 effect），不存在返回 null。
+    public static IPiecewiseAutomation? GetEffectivePiecewiseAutomation(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].PiecewiseAutomations.TryGetValue(key.Id, out var effectAutomation))
+                return effectAutomation;
+            return null;
+        }
+
+        return part.PiecewiseAutomations.TryGetValue(key.Id, out var voiceAutomation) ? voiceAutomation : null;
+    }
+
+    // 取或创建分段轨数据对象（按需在对应来源里 Add）。
+    public static IPiecewiseAutomation? AddEffectivePiecewiseAutomation(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsEffect)
+            return key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].AddPiecewiseAutomation(key.Id) : null;
+
+        return part.AddPiecewiseAutomation(key.Id);
     }
 
     // 最终曲线取值：voice 走含 vibrato 的最终值；effect 走其自身曲线（无 vibrato）。

@@ -14,6 +14,7 @@ internal class Effect : DataObject, IEffect
     public DataStruct<bool> IsEnabled { get; }
     public DataPropertyObject Properties { get; }
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
+    public IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations => mPiecewiseAutomations;
     IDataProperty<bool> IEffect.IsEnabled => IsEnabled;
 
     // 用当前参数稀疏快照求 config（纯函数）：宿主初次渲染取一次，并在参数 commit 时按当前值重算再 keyed-diff 到控件树，
@@ -26,6 +27,10 @@ internal class Effect : DataObject, IEffect
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs
         => Engine?.GetAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
 
+    // 分段轨配置（与 AutomationConfigs 对偶）：同样 live 求值、随当前参数涌现，孤儿数据保留隐藏。
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs
+        => Engine?.GetPiecewiseAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyPiecewiseAutomationConfigs;
+
     public Effect(MidiPart part, EffectInfo info)
     {
         mPart = part;
@@ -33,6 +38,7 @@ internal class Effect : DataObject, IEffect
         IsEnabled = new DataStruct<bool>(this);
         Properties = new DataPropertyObject(this);
         mAutomations = new DataObjectMap<string, IAutomation>(this);
+        mPiecewiseAutomations = new DataObjectMap<string, IPiecewiseAutomation>(this);
         SetInfo(info);
     }
 
@@ -55,6 +61,20 @@ internal class Effect : DataObject, IEffect
         return automation;
     }
 
+    // 分段轨按需创建（无默认基线，直接建空轨）；轨须在当前声明里才创建（孤儿轨不新建、但已存在的保留）。
+    public IPiecewiseAutomation? AddPiecewiseAutomation(string automationID)
+    {
+        if (mPiecewiseAutomations.TryGetValue(automationID, out var value))
+            return value;
+
+        if (!PiecewiseAutomationConfigs.ContainsKey(automationID))
+            return null;
+
+        var automation = new PiecewiseAutomation();
+        mPiecewiseAutomations.Add(automationID, automation);
+        return automation;
+    }
+
     public double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID)
     {
         if (mAutomations.TryGetValue(automationID, out var automation))
@@ -73,6 +93,7 @@ internal class Effect : DataObject, IEffect
             Type = Type,
             IsEnabled = IsEnabled.Value,
             Automations = mAutomations.GetInfo().ToInfo(),
+            PiecewiseAutomations = mPiecewiseAutomations.PiecewiseAutomationsToInfo(),
             Properties = Properties.GetInfo(),
         };
     }
@@ -83,6 +104,7 @@ internal class Effect : DataObject, IEffect
         IsEnabled.SetInfo(info.IsEnabled);
         Properties.SetInfo(info.Properties);
         mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
+        mPiecewiseAutomations.SetInfo(info.PiecewiseAutomations.ToPiecewiseAutomations());
     }
 
     IEffectEngine? Engine => EffectManager.GetInitedEngine(Type);
@@ -95,7 +117,9 @@ internal class Effect : DataObject, IEffect
 
     static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly IReadOnlyOrderedMap<string, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<string, AutomationConfig>();
+    static readonly IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> EmptyPiecewiseAutomationConfigs = new OrderedMap<string, PiecewiseAutomationConfig>();
 
     readonly MidiPart mPart;
     readonly DataObjectMap<string, IAutomation> mAutomations;
+    readonly DataObjectMap<string, IPiecewiseAutomation> mPiecewiseAutomations;
 }

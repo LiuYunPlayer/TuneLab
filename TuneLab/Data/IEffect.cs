@@ -14,7 +14,10 @@ internal interface IEffect : IDataObject<EffectInfo>
     // 来自引擎的参数面板配置；引擎缺失/未 Init 成功时为空配置（优雅降级）。
     ObjectConfig PropertyConfig { get; }
     IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
+    IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
+    IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations { get; }
     IAutomation? AddAutomation(string automationID);
+    IPiecewiseAutomation? AddPiecewiseAutomation(string automationID);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);
 }

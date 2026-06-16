@@ -13,6 +13,7 @@ internal class Voice : DataObject, IVoice
     public string Name => mName;
     public string DefaultLyric => mSession?.DefaultLyric ?? "a";
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    public IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> PiecewiseAutomationConfigs => mPiecewiseAutomationConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mSession?.GetPartPropertyConfig(context) ?? EmptyConfig;
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mSession?.GetNotePropertyConfig(context) ?? EmptyConfig;
 
@@ -74,6 +75,17 @@ internal class Voice : DataObject, IVoice
             if (!mAutomationConfigs.ContainsKey(kvp.Key))
                 mAutomationConfigs.Add(kvp.Key, kvp.Value);
         }
+
+        // 分段轨声明（无 Pre/Post 公共项——内置分段轨 Pitch 是 part 专属常驻通道，不经此 map）。
+        mPiecewiseAutomationConfigs.Clear();
+        if (mSession != null)
+        {
+            foreach (var kvp in mSession.GetPiecewiseAutomationConfigs(context))
+            {
+                if (!mPiecewiseAutomationConfigs.ContainsKey(kvp.Key))
+                    mPiecewiseAutomationConfigs.Add(kvp.Key, kvp.Value);
+            }
+        }
     }
 
     [MemberNotNull(nameof(mType))]
@@ -98,4 +110,5 @@ internal class Voice : DataObject, IVoice
 
     ISynthesisSession? mSession;
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<string, PiecewiseAutomationConfig> mPiecewiseAutomationConfigs = new();
 }
