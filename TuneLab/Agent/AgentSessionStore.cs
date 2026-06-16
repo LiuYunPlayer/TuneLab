@@ -68,7 +68,7 @@ internal static class AgentSessionStore
         try
         {
             PathManager.MakeSureExist(PathManager.AgentSessionsFolder);
-            File.WriteAllText(PathOf(session.Id), JsonSerializer.Serialize(session, Options));
+            SaveFile.WriteAllText(PathOf(session.Id), JsonSerializer.Serialize(session, Options));
         }
         catch (Exception ex)
         {

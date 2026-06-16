@@ -98,7 +98,7 @@ internal static class AgentSettingsStore
             }
 
             PathManager.MakeSureExist(PathManager.ConfigsFolder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(store, new JsonSerializerOptions { WriteIndented = true }));
+            SaveFile.WriteAllText(FilePath, JsonSerializer.Serialize(store, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
         {
