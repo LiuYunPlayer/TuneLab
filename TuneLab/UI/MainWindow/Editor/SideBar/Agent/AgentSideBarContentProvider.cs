@@ -516,8 +516,10 @@ internal sealed class AgentSideBarContentProvider
 
     const string SystemPrompt =
         "You are an assistant embedded in TuneLab, a singing voice synthesis editor. " +
-        "Help the user inspect and edit the current project by calling the provided tools. " +
-        "Prefer calling a tool to answer questions about the project rather than guessing. " +
+        "You can inspect and edit the current project by calling the provided tools. " +
+        "Only call a tool when the user explicitly asks you to inspect or modify the project. " +
+        "For greetings, small talk, or statements that are not requests, reply briefly in natural language and do not call any tool. " +
+        "When a request does need project facts, call a tool rather than guessing. " +
         "Track indices are zero-based.";
 
     readonly Panel mRoot = new();
