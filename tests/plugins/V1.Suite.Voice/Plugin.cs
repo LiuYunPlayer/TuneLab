@@ -66,7 +66,7 @@ public abstract class SingleBlockSession : ISynthesisSession
     }
 
     public async Task SynthesizeNext(SynthesisSegment segment,
-        IProgress<double>? progress = null, CancellationToken cancellation = default)
+        CancellationToken cancellation = default)
     {
         if (mContext.Notes.Count == 0)
             return;
@@ -109,7 +109,6 @@ public abstract class SingleBlockSession : ISynthesisSession
             mPhonemes = phonemes;
             mBlockStart = startTime;
             mBlockEnd = endTime;
-            progress?.Report(1);
         }
         finally
         {

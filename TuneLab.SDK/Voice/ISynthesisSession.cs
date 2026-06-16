@@ -52,9 +52,9 @@ public interface ISynthesisSession : IDisposable
     // （取消不抛 OperationCanceledException：取消是正常调度结局），错误经 GetStatus 看、
     // 是否还有待合成经 GetNextSegment 看。取消是尽力请求：不可中止的插件把这块跑完才返回，
     // 槽位在 await 真正返回时才释放、不在请求取消时——资源始终封顶在并发上限内。
-    // progress 用 IProgress（Progress<T> 自带 SynchronizationContext marshal）。
+    // 进度不在此传入——经 GetStatus 状态带（SynthesisStatusSegment.Progress）+ StatusChanged 上报；
+    // 将来如需独立推送通道再加性补成员。
     Task SynthesizeNext(SynthesisSegment segment,
-                        IProgress<double>? progress = null,
                         CancellationToken cancellation = default);
 
     // —— 音频产物（插件 native 采样率域）——

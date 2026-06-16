@@ -89,7 +89,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     }
 
     public async Task SynthesizeNext(VVoice.SynthesisSegment segment,
-        IProgress<double>? progress = null, CancellationToken cancellation = default)
+        CancellationToken cancellation = default)
     {
         if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
             return;
@@ -141,7 +141,6 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         task.Progress += p => mSync.Post(_ =>
         {
             piece.Progress = p;
-            progress?.Report(p);
             NotifyStatusChanged();
         }, null);
 

@@ -108,7 +108,7 @@ public sealed class TestSession : ISynthesisSession
     }
 
     public async Task SynthesizeNext(SynthesisSegment segment,
-        IProgress<double>? progress = null, CancellationToken cancellation = default)
+        CancellationToken cancellation = default)
     {
         if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
             return;
@@ -128,7 +128,6 @@ public sealed class TestSession : ISynthesisSession
         var report = new Progress<double>(p =>
         {
             piece.Progress = p;
-            progress?.Report(p);
             StatusChanged?.Invoke();
         });
 

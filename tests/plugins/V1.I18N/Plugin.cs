@@ -101,7 +101,7 @@ public sealed class I18NSession : ISynthesisSession
     }
 
     public async Task SynthesizeNext(SynthesisSegment segment,
-        IProgress<double>? progress = null, CancellationToken cancellation = default)
+        CancellationToken cancellation = default)
     {
         if (mContext.Notes.Count == 0)
             return;
@@ -142,7 +142,6 @@ public sealed class I18NSession : ISynthesisSession
             });
         }
         mPhonemes = phonemes;
-        progress?.Report(1);
 
         mSynthesizing = false;
         StatusChanged?.Invoke();

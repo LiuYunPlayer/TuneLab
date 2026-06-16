@@ -34,7 +34,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
 
         public Task SynthesizeNext(SynthesisSegment segment,
-            IProgress<double>? progress = null, CancellationToken cancellation = default)
+            CancellationToken cancellation = default)
         {
             return Task.CompletedTask;
         }

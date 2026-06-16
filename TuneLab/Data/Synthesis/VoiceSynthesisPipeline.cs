@@ -90,10 +90,9 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
             return;
 
         mIsBusy = true;
-        var progress = new Progress<double>(_ => { if (!mDisposed) StatusChanged?.Invoke(); });
         try
         {
-            await mSession.SynthesizeNext(segment, progress, mCancellation.Token);
+            await mSession.SynthesizeNext(segment, mCancellation.Token);
         }
         catch (Exception ex)
         {
