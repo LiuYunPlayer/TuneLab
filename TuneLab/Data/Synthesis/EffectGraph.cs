@@ -656,17 +656,15 @@ internal sealed class EffectGraph : IDisposable
             mPart = part;
             mEffect = effect;
             Input = input;
-            mBatchSignal = part.SynthesisBatch;
 
-            // 收口脉冲与颗粒脏同源、经 part 合成批量收口（与 voice 的 SynthesisContext 对称，避免用 effect.Modified
-            // 聚合事件——其在滑条拖拽 merge 中乱发、又不在 merge 收口补发，导致触发与终值错位、滞后一拍）：
-            //   · 参数：effect.Properties.Modified（settled，滑条拖拽经 DataObject merge 收到松手才发）——
-            //     mProperties 在 re-raise Modified（processor 据此标参数脏）后回调 ForwardCommitted，顺序确定；
-            //   · 自动化：各轨 RangeModified（每步同步发，但绘制操作处于合成批量内 → 收口到 BatchEnd 一次）。
-            // 批量中只标 pending、BatchEnd 一次性收口；不在批量则即时收口。
-            mProperties = new LivePropertyObject(effect.Properties, ForwardCommitted);
-            mOnBatchEnd = OnBatchEnd;
-            mBatchSignal.BatchEnd += mOnBatchEnd;
+            // 逻辑编辑收口直接订 effect.Modified（settled）：数据层 merge 收口沿父链补发（NotifySettledUp），
+            // effect 子树任一处编辑（参数 / 自动化曲线 / 默认值 / 轨集合）收口时 effect.Modified 恰发一次、拖拽中间态不发
+            //（Modified.Subscribe(Action) 仅收结果态）。颗粒脏先于收口置好：参数走 mProperties.Modified
+            //（effect.Properties 子结点 settled 经 NotifySettledUp 自下而上、先于父 effect.Modified）、自动化走各轨
+            // RangeModified（编辑期每步同步发、收口前已累积）；effect.Modified 到达即一次性收口，处理器据脏触发 ProcessingRequested。
+            // 输入音频变更的收口走另一通道（宿主在 reconcile 显式 RaiseCommitted），不经 effect.Modified。
+            mProperties = new LivePropertyObject(effect.Properties);
+            effect.Modified.Subscribe(RaiseCommitted, mEditSubscriptions);
             WireAutomations();
         }
 
@@ -695,26 +693,6 @@ internal sealed class EffectGraph : IDisposable
             var segment = new OutputSegment(this, sampleOffset, sampleCount, sampleRate);
             mOutputs.Add(segment);
             return segment;
-        }
-
-        // 收口：批量中（如 automation 绘制的 BeginMergeDirty 作用域）只标 pending，BatchEnd 一次性发；
-        // 非批量（如滑条松手时的 Properties.Modified）即时发。
-        void ForwardCommitted()
-        {
-            if (mBatchSignal.IsBatching)
-            {
-                mPendingCommitted = true;
-                return;
-            }
-            RaiseCommitted();
-        }
-
-        void OnBatchEnd()
-        {
-            if (!mPendingCommitted)
-                return;
-            mPendingCommitted = false;
-            RaiseCommitted();
         }
 
         internal void RaiseCommitted()
@@ -772,17 +750,16 @@ internal sealed class EffectGraph : IDisposable
 
         void OnAutomationMapModified()
         {
+            // 轨集合变（条件轨显隐）也是 effect 子树变更 → effect.Modified 已驱动收口，此处只重接订阅。
             WireAutomations();
-            ForwardCommitted();
         }
 
-        // part 相对 tick 区间 → 全局秒，注入对应轨代理的 RangeModified（颗粒脏：processor 据此标 env 脏），
-        // 随后收口（绘制操作处于合成批量内 → BatchEnd 一次性触发处理）。
+        // part 相对 tick 区间 → 全局秒，注入对应轨代理的 RangeModified（颗粒脏：processor 据此标 env 脏）。
         void NotifyAutomationRange(string id, double relStartTick, double relEndTick)
         {
+            // 仅置颗粒脏（处理器据此标 env 脏）；收口由 effect.Modified（曲线 Modified 上行补发）统一触发，不在此收口。
             if (mAutomationProxies.TryGetValue(id, out var proxy))
                 proxy.NotifyRangeModified(RelTickToGlobalSecond(relStartTick), RelTickToGlobalSecond(relEndTick));
-            ForwardCommitted();
         }
 
         double RelTickToGlobalSecond(double relTick)
@@ -794,7 +771,7 @@ internal sealed class EffectGraph : IDisposable
 
         public void Dispose()
         {
-            mBatchSignal.BatchEnd -= mOnBatchEnd;
+            mEditSubscriptions.DisposeAll();
             mAutomationSubscriptions?.DisposeAll();
             mProperties.Dispose();
             mOutputs.Clear();
@@ -803,10 +780,8 @@ internal sealed class EffectGraph : IDisposable
 
         readonly MidiPart mPart;
         readonly IEffect mEffect;
-        readonly BatchSignal mBatchSignal;
         readonly LivePropertyObject mProperties;
-        readonly Action mOnBatchEnd;
-        bool mPendingCommitted;
+        readonly DisposableManager mEditSubscriptions = new();
         readonly List<OutputSegment> mOutputs = new();
         readonly Dictionary<OutputSegment, UpstreamSegment> mOutputUpstreams = new();
         readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();
@@ -840,17 +815,11 @@ internal sealed class EffectGraph : IDisposable
         public event Action? WillModify;
         public event Action? Modified;
 
-        // onModified（可选）在 re-raise Modified 之后回调——供 owner 在颗粒脏（订阅 Modified 者）已置后再收口，
-        // 顺序确定（不依赖跨接口的订阅注册次序）。仅根节点传入，子节点（Object(key)）不带。
-        public LivePropertyObject(IReadOnlyNotifiablePropertyObject source, Action? onModified = null)
+        public LivePropertyObject(IReadOnlyNotifiablePropertyObject source)
         {
             mSource = source;
             mOnWillModify = () => WillModify?.Invoke();
-            mOnModified = () =>
-            {
-                Modified?.Invoke();
-                onModified?.Invoke();
-            };
+            mOnModified = () => Modified?.Invoke();
             mSource.WillModify += mOnWillModify;
             mSource.Modified += mOnModified;
         }
