@@ -635,7 +635,8 @@ internal sealed class AgentSideBarContentProvider
         var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
         if (!string.IsNullOrEmpty(partial))
             panel.Children.Add(ChatMarkdownRenderer.Render(partial));
-        panel.Children.Add(new TextBlock
+        // 用 SelectableTextBlock：报错文案常需复制排查，普通 TextBlock 选不中、复制不了。
+        panel.Children.Add(new SelectableTextBlock
         {
             Text = notice,
             FontSize = 11,
