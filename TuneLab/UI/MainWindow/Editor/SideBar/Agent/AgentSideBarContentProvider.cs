@@ -590,6 +590,7 @@ internal sealed class AgentSideBarContentProvider
                 FontSize = 11,
                 Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new(0, 0, 16, 0), // 与右侧 Copy 留间距：短回复气泡窄时两者会贴到一起
             };
             ToolTip.SetTip(tokens, string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
             DockPanel.SetDock(tokens, Dock.Left);
