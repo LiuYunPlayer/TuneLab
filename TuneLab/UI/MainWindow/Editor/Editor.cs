@@ -65,6 +65,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mFunctionBar = new(this);
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
+        // agent 经此实时读取"当前编辑 part"（用户说"当前/这个 part"时解析序号）与当前量化（吸附网格）。
+        mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
+        mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 280, Margin = new(1, 0, 0, 0) };

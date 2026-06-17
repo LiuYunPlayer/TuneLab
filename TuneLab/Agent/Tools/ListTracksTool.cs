@@ -3,11 +3,11 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Agent;
 
-// 代表性只读工具：返回工程结构摘要。用来验证"模型主动调用工具读取上下文"这条链路。
+// 只读总览工具：返回工程结构摘要（PPQ、tempo、拍号、各轨 1-based 编号/名/状态/part 数/音符数）。
 internal sealed class ListTracksTool(IAgentProjectEditor editor) : IAgentTool
 {
-    public string Name => "list_tracks";
-    public string Description => "List all tracks in the current project with their name, part count and note count.";
+    public string Name => "get_project_overview";
+    public string Description => "Get an overview of the current project: PPQ (ticks per quarter note), tempo, time signature, and every track with its 1-based number, name, mute/solo, gain/pan, part count and note count. Track/part/note numbers used everywhere are 1-based (track 1 is the first track).";
 
     // 无参数：空对象 schema。
     public string ParametersJsonSchema => """

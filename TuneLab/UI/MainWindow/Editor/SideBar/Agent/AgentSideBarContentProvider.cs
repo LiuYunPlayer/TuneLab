@@ -73,12 +73,37 @@ internal sealed class AgentSideBarContentProvider
     // 工程切换时由 Editor 调用：重建 Facade 与工具（runner 下次发送时按新工具重建，历史重置）。
     public void SetProject(IProject? project)
     {
-        mProjectEditor = project != null ? new ProjectAgentEditor(project) : null;
+        mProjectEditor = project != null ? new ProjectAgentEditor(project, mCurrentPartProvider, mQuantizationProvider) : null;
         mTools = mProjectEditor != null
-            ? new List<IAgentTool> { new ListTracksTool(mProjectEditor), new ShiftPitchTool(mProjectEditor) }
+            ? new List<IAgentTool>
+            {
+                // Layer 1 只读
+                new ListTracksTool(mProjectEditor),
+                new GetCurrentPartTool(mProjectEditor),
+                new GetPlayheadTool(mProjectEditor),
+                new SnapTickTool(mProjectEditor),
+                new GetTrackDetailTool(mProjectEditor),
+                new GetPartNotesTool(mProjectEditor),
+                new GetPartParametersTool(mProjectEditor),
+                new GetParameterTool(mProjectEditor),
+                // Layer 2 业务级写（各一个可撤销单位）
+                new TransposeNotesTool(mProjectEditor),
+                new ShiftPitchTool(mProjectEditor),
+                new SetTrackPropertiesTool(mProjectEditor),
+                new AddTrackTool(mProjectEditor),
+                new RemoveTrackTool(mProjectEditor),
+                new SetTempoTool(mProjectEditor),
+                new SetTimeSignatureTool(mProjectEditor),
+                // Layer 3 批量 DSL（整批一个可撤销单位）
+                new ApplyEditsTool(mProjectEditor),
+            }
             : [];
         mRunner = null;
     }
+
+    // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。
+    public void SetCurrentPartProvider(Func<IMidiPart?> provider) => mCurrentPartProvider = provider;
+    public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantizationProvider = provider;
 
     // ───────────────── 聊天视图 ─────────────────
 
@@ -834,7 +859,15 @@ internal sealed class AgentSideBarContentProvider
         "Only call a tool when the user explicitly asks you to inspect or modify the project. " +
         "For greetings, small talk, or statements that are not requests, reply briefly in natural language and do not call any tool. " +
         "When a request does need project facts, call a tool rather than guessing. " +
-        "Track indices are zero-based.";
+        "Addressing is 1-based everywhere: track 1 is the first track, and part/note numbers are 1-based too. " +
+        "Positions and durations are in ticks; call get_project_overview to learn the PPQ (ticks per quarter note) and the tempo/time signature. " +
+        "For multi-step or fine-grained edits (writing a melody, editing many notes, drawing pitch/parameter curves), prefer the apply_edits tool so the whole batch is a single undoable change. " +
+        "Before editing notes by number, read them with get_part_notes to get current NoteNumbers. " +
+        "When the user refers to \"the current part\"/\"this part\" without numbers, call get_current_part to resolve its track/part numbers; when they refer to \"the playhead\"/\"here\"/\"the current position\", call get_playhead to get the tick. " +
+        "CRITICAL: every tool argument must be a concrete literal value (a number or string). Never put placeholders, template expressions, code, or references to other tools inside arguments — for example do NOT write \"${get_current_part().trackNumber}\", \"get_part_notes(...)\", or any ${...} expression. There is no inline evaluation. Instead, first call the read tool, read the actual values from its result text, then call the next tool with those literal numbers. " +
+        "To transpose notes (e.g. up an octave = +12 semitones) use transpose_notes (a part) or shift_track_pitch (a whole track) — do NOT use set_pitch_line, which only draws a pitch curve and does not move note pitches. " +
+        "All tick positions in every tool are ABSOLUTE (global) ticks — the same coordinate space as the playhead, get_project_overview and bar numbers. You never convert between coordinate systems and never subtract a part start. " +
+        "The playhead is not grid-aligned; when writing a melody or placing notes on the beat, snap your target ticks with snap_tick first.";
 
     readonly Panel mRoot = new();
     readonly DockPanel mChatView = new() { LastChildFill = true };
@@ -862,6 +895,8 @@ internal sealed class AgentSideBarContentProvider
     IReadOnlyList<ComboBoxOption> mEngineOptions = [];
     const string EngineKey = "provider";
     IAgentProjectEditor? mProjectEditor;
+    Func<IMidiPart?>? mCurrentPartProvider;
+    Func<IQuantization?>? mQuantizationProvider;
     IReadOnlyList<IAgentTool> mTools = [];
     IAgentModelSession? mSession;
     AgentRunner? mRunner;
