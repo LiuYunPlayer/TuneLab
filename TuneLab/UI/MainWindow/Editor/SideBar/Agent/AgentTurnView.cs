@@ -50,16 +50,29 @@ internal sealed class AgentTurnView
         switch (e)
         {
             case AgentTextDelta d:
+                SealReasoning(); // 正文开始 → 封口上方思考块，正文成段铺在其下
                 AppendTextDelta(d.Delta);
                 break;
+            case AgentReasoningDelta r:
+                SealText(); // 思考增量插入前先封口当前正文段，保持先后顺序
+                AppendReasoningDelta(r.Delta);
+                break;
             case AgentToolStarted s:
-                SealText(); // 文本段被工具调用打断 → 封口转 Markdown
+                SealText();      // 文本段被工具调用打断 → 封口转 Markdown
+                SealReasoning();
                 AddToolStep(s.Id, s.Name, s.ArgumentsJson);
                 break;
             case AgentToolFinished f:
                 FinishToolStep(f.Id, f.Result, f.IsError);
                 break;
         }
+    }
+
+    // 封口所有进行中的流式段（正文 + 思考）。轮结束/停止/出错前由宿主调用。
+    public void Seal()
+    {
+        SealText();
+        SealReasoning();
     }
 
     // 封口当前流式文本段：停掉节流定时器、做一次最终 Markdown 渲染定稿（轮结束/停止/出错前调用）。
@@ -73,6 +86,29 @@ internal sealed class AgentTurnView
         mLiveControl = null;
         mDirty = false;
         mRawText.Clear();
+    }
+
+    // 封口当前思考段：定稿其文本、结束「思考中」状态。思考块本身保留在内容区（可折叠回看）。
+    void SealReasoning()
+    {
+        if (mLiveReasoning == null)
+            return;
+        mLiveReasoning.SetText(mRawReasoning.ToString());
+        mLiveReasoning.Seal();
+        mLiveReasoning = null;
+        mRawReasoning.Clear();
+    }
+
+    // 思考增量：累加到当前思考块（无则新建并铺入内容区），原地更新预览/正文（纯文本、无 Markdown 重渲，开销小）。
+    void AppendReasoningDelta(string delta)
+    {
+        mRawReasoning.Append(delta);
+        if (mLiveReasoning == null)
+        {
+            mLiveReasoning = new ReasoningBlock(this);
+            mContent.Children.Add(mLiveReasoning.Root);
+        }
+        mLiveReasoning.SetText(mRawReasoning.ToString());
     }
 
     // 停止/出错时把仍在「运行中」的工具步骤标记为已中止（否则会永远停在运行态的圆点上）。
@@ -359,4 +395,135 @@ internal sealed class AgentTurnView
     Control? mLiveControl;        // 当前文本段已渲染控件（未封口，节流时原地替换）
     bool mDirty;                  // 自上次渲染后有新增量待重渲
     DispatcherTimer? mRenderTimer; // 节流定时器（~100ms 合并多次增量）
+    readonly StringBuilder mRawReasoning = new(); // 当前思考段原文
+    ReasoningBlock? mLiveReasoning;               // 当前未封口的思考块（接续到达的增量）
+
+    // 一段「思考」（推理模型的 reasoning_content）：可折叠块，默认收起，头部=💭 + 状态label + 单行尾部预览 + 箭头；
+    // 展开看完整思考全文（灰色斜体、可选中）。不混入正文，正文仍只取 content。
+    sealed class ReasoningBlock
+    {
+        public Control Root => mBorder;
+
+        public ReasoningBlock(AgentTurnView owner)
+        {
+            // 头部 label：非斜体、稍亮、半粗——作为"标题"与下方斜体更灰的思考正文拉开层次。
+            mLabel = new TextBlock
+            {
+                Text = "💭 " + "Thinking…".Tr(owner),
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush(),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            mChevron = new TextBlock
+            {
+                Text = "▸",
+                FontSize = 10,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new(6, 0, 0, 0),
+            };
+            // 单行尾部预览：仅收起时显示（展开后隐藏，避免与下方思考正文重复）。
+            mPreview = new TextBlock
+            {
+                FontSize = 11,
+                FontStyle = FontStyle.Italic,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.38).ToBrush(),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new(8, 0, 0, 0),
+            };
+
+            var header = new DockPanel { LastChildFill = true, Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand) };
+            DockPanel.SetDock(mLabel, Dock.Left);
+            DockPanel.SetDock(mChevron, Dock.Right);
+            header.Children.Add(mLabel);
+            header.Children.Add(mChevron);
+            header.Children.Add(mPreview); // 填充
+            header.PointerPressed += (_, _) => SetExpanded(!mExpanded);
+
+            // 思考正文：斜体、更灰；包在"引用式"左竖线 + 缩进容器里，明确是头部之下的从属内容、与正文回复区分。
+            mBody = new SelectableTextBlock
+            {
+                FontSize = 11,
+                FontStyle = FontStyle.Italic,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+                TextWrapping = TextWrapping.Wrap,
+            };
+            var quote = new Border
+            {
+                BorderThickness = new(2, 0, 0, 0),
+                BorderBrush = Style.LIGHT_WHITE.Opacity(0.18).ToBrush(),
+                Padding = new(10, 0, 0, 0),
+                Child = mBody,
+            };
+            mBodyScroll = new ScrollViewer
+            {
+                MaxHeight = 240,
+                Margin = new(0, 6, 0, 0),
+                IsVisible = false,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = quote,
+            };
+
+            var panel = new StackPanel { Orientation = Orientation.Vertical, Children = { header, mBodyScroll } };
+            mBorder = new Border
+            {
+                Background = Brushes.Transparent, // 比工具块更轻：无底色，仅灰字，弱化为辅助信息
+                Padding = new(0, 4), // 左对齐到正文（不再左缩进，修掉"思考行偏右/图标左留白"）
+                Margin = new(0, 2),
+                Child = panel,
+            };
+        }
+
+        // 更新思考全文：正文区整段替换、头部预览取开头单行（开头文字 + 末尾省略号，像摘要）。
+        public void SetText(string full)
+        {
+            mBody.Text = full;
+            mPreview.Text = Head(full);
+        }
+
+        // 封口：思考结束，label 由「思考中…」转「已思考」。
+        public void Seal() => mLabel.Text = "💭 " + "Thought".Tr(this);
+
+        void SetExpanded(bool expanded)
+        {
+            mExpanded = expanded;
+            mBodyScroll.IsVisible = expanded;
+            mPreview.IsVisible = !expanded; // 展开后隐藏头部预览，避免与下方思考正文重复
+            mChevron.Text = expanded ? "▾" : "▸";
+        }
+
+        // 取开头单行预览（合并空白、限长）——收起时瞥见思考开头，长则末尾省略号。
+        static string Head(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+            var sb = new StringBuilder(text.Length);
+            bool prevSpace = false;
+            foreach (var ch in text)
+            {
+                if (ch == '\n' || ch == '\r' || ch == '\t' || ch == ' ')
+                {
+                    if (prevSpace) continue;
+                    sb.Append(' ');
+                    prevSpace = true;
+                    continue;
+                }
+                sb.Append(ch);
+                prevSpace = false;
+            }
+            var s = sb.ToString().Trim();
+            return s.Length <= 80 ? s : s[..80].TrimEnd() + "…";
+        }
+
+        readonly Border mBorder;
+        readonly TextBlock mLabel;
+        readonly TextBlock mChevron;
+        readonly TextBlock mPreview;
+        readonly SelectableTextBlock mBody;
+        readonly ScrollViewer mBodyScroll;
+        bool mExpanded;
+    }
 }

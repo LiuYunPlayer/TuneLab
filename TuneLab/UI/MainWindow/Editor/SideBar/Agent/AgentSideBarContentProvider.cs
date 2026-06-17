@@ -41,6 +41,7 @@ internal sealed class AgentSideBarContentProvider
         BuildChatView();
         BuildSettingsView();
         ShowChat();
+        SwitchTo(NewContext()); // 立即建立首个空白会话作为当前可见会话
 
         // 载入上次保存的设置（含解密后的密钥），并选中上次的引擎。
         var (savedEngine, savedValues) = AgentSettingsStore.Load();
@@ -66,7 +67,7 @@ internal sealed class AgentSideBarContentProvider
 
         // 有持久化设置时（说明之前 Submit 过）打开即静默自动接入，直接可聊天；失败则首次发送再引导去设置。
         if (savedEngine != null && engines.Contains(savedEngine) && TryConnect(savedEngine, out _))
-            AppendMessage("system", ConnectedNotice()); // 启动即提示连到哪个模型
+            AppendMessage(mActive, "system", ConnectedNotice()); // 启动即提示连到哪个模型
 
     }
 
@@ -99,7 +100,9 @@ internal sealed class AgentSideBarContentProvider
                 new ApplyEditsTool(mProjectEditor),
             }
             : [];
-        mRunner = null;
+        // 工具随新工程重建：各会话下次发送时按新工具重建 runner（对话历史经 SeedHistory / 会话消息保留）。
+        foreach (var c in mContexts)
+            c.Runner = null;
     }
 
     // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。
@@ -149,11 +152,10 @@ internal sealed class AgentSideBarContentProvider
         header.Children.Add(settingsButton);
 
         mTitleLabel.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
-        mTitleLabel.Margin = new(8, 0);
-        mTitleLabel.FontSize = 12;
-        mTitleLabel.TextTrimming = TextTrimming.CharacterEllipsis;
-        mTitleLabel.Foreground = Style.LIGHT_WHITE.ToBrush();
-        header.Children.Add(mTitleLabel);
+        mTitleLabel.Margin = new(4, 0);
+        // 改名提交（Enter / 失焦）：写入当前会话标题并标记为手动标题（不再被自动标题覆盖），已落盘则同步保存。
+        mTitleLabel.EndInput.Subscribe(OnTitleEdited);
+        header.Children.Add(mTitleLabel); // 填充中间列
 
         // 底部圆角输入区（描边 + 背景，和上方滚动区分隔）。
         var inputRow = new DockPanel() { LastChildFill = true };
@@ -164,7 +166,7 @@ internal sealed class AgentSideBarContentProvider
         // 停止键：与发送键同位、仅响应期可见，点击取消正在进行的请求。
         mStopButton = IconButton(Assets.Stop, Style.LIGHT_WHITE.Opacity(0.85), Colors.White);
         mStopButton.IsVisible = false;
-        mStopButton.Clicked += () => mCts?.Cancel();
+        mStopButton.Clicked += () => mActive?.Cts?.Cancel(); // 停止键只取消当前可见会话的在飞请求
         DockPanel.SetDock(mStopButton, Dock.Right);
         inputRow.Children.Add(mStopButton);
         // 多行自增长：随内容长高、自动换行，到上限内部滚动；Enter 发送，Shift+Enter 换行。
@@ -212,19 +214,17 @@ internal sealed class AgentSideBarContentProvider
             Child = inputRow,
         };
 
-        // 中间丝滑滚动对话区（自带动画轴）。透明背景让整块区域（含消息下方空白）都可命中滚轮。
-        mMessagesList.Orientation = Orientation.Vertical;
-        mMessagesList.Background = Brushes.Transparent;
-        // 气泡 MaxWidth 随对话区宽度自适应：留出对侧 ~40px 空白（避免占满整宽损可读性）；侧栏拖宽即时更新所有现有气泡。
-        mMessagesList.PropertyChanged += (_, e) =>
+        // 中间丝滑滚动对话区的挂载点（透明背景让整块区域含消息下方空白都可命中滚轮）。各会话各持一个 ListView，
+        // 切换只换 host 的 Child；宽度（=host 宽）对所有会话一致，故宽度订阅挂在 host 上、只更新当前可见会话的气泡。
+        mMessagesHost.Background = Brushes.Transparent;
+        // 气泡 MaxWidth 随对话区宽度自适应：留出对侧 ~40px 空白（避免占满整宽损可读性）；侧栏拖宽即时更新当前会话现有气泡。
+        mMessagesHost.PropertyChanged += (_, e) =>
         {
             if (e.Property != Avalonia.Visual.BoundsProperty)
                 return;
-            mBubbleMaxWidth = Math.Max(140, mMessagesList.Bounds.Width - 40);
-            mContentMaxWidth = Math.Max(140, mMessagesList.Bounds.Width - 24);
-            // ListView 用无限宽测量子项，子项必须靠 MaxWidth 才会换行。助手容器（去气泡）用近整宽、用户气泡/系统提示留对侧空白。
-            foreach (var c in mMessagesList.Content.Children)
-                c.MaxWidth = (c.Tag as string) == "assistant" ? mContentMaxWidth : mBubbleMaxWidth;
+            mBubbleMaxWidth = Math.Max(140, mMessagesHost.Bounds.Width - 40);
+            mContentMaxWidth = Math.Max(140, mMessagesHost.Bounds.Width - 24);
+            ApplyBubbleWidths(mActive.View);
         };
 
         DockPanel.SetDock(header, Dock.Top);
@@ -234,7 +234,23 @@ internal sealed class AgentSideBarContentProvider
         mChatView.Children.Add(sep);
         DockPanel.SetDock(inputBorder, Dock.Bottom);
         mChatView.Children.Add(inputBorder);
-        mChatView.Children.Add(mMessagesList); // 最后一个 → 填充中间
+        mChatView.Children.Add(mMessagesHost); // 最后一个 → 填充中间
+    }
+
+    // 新建一个会话的消息滚动区（自带动画轴；靠子项 MaxWidth 在无限宽测量下换行——见 ApplyBubbleWidths）。
+    static ListView CreateMessagesList()
+    {
+        var list = new ListView();
+        list.Orientation = Orientation.Vertical;
+        list.Background = Brushes.Transparent;
+        return list;
+    }
+
+    // ListView 用无限宽测量子项，子项必须靠 MaxWidth 才会换行。助手容器（去气泡）用近整宽、用户气泡/系统提示留对侧空白。
+    void ApplyBubbleWidths(ListView list)
+    {
+        foreach (var c in list.Content.Children)
+            c.MaxWidth = (c.Tag as string) == "assistant" ? mContentMaxWidth : mBubbleMaxWidth;
     }
 
     void OnMenuButtonClicked()
@@ -248,7 +264,10 @@ internal sealed class AgentSideBarContentProvider
         }
     }
 
-    // 每次打开时重建内容：New Chat + 已存会话列表（最近在前，点击加载、右侧 ✕ 删除）。
+    // 每次打开时重建内容：New Chat + 会话列表（点击切换/加载、右侧 ✕ 删除、运行中行首亮点）。
+    // 列表 = 打开中的会话（含未落盘/正在后台跑的，点击直接切到其活视图）+ 仅存在磁盘上、未打开的会话（点击从盘加载）。
+    //   · 关键：未落盘的运行中新会话也必须列出——否则切走后后台虽在跑却永远唤不回（用户实测 bug）。
+    //   · 顺序：统一按"会话建立时刻"降序——位置稳定（切换/使用都不打乱），最新建立的在最上，用户可记忆某会话在第几个。
     // 用自定义 Flyout 而非 MenuFlyout：MenuItem 模板保留子菜单箭头/快捷键列，✕ 无法真正贴右；
     // StackPanel 装 DockPanel 行可完全控制布局——所有行同宽、✕ 对齐最右，并支持 hover 高亮与全名 tooltip。
     void PopulateMenu()
@@ -256,29 +275,56 @@ internal sealed class AgentSideBarContentProvider
         var stack = new StackPanel() { Orientation = Orientation.Vertical, MinWidth = 220 };
         stack.Children.Add(BuildMenuRow("New Chat".Tr(this), null, NewChat, null));
 
-        var sessions = AgentSessionStore.List();
-        if (sessions.Count > 0)
+        var entries = new List<MenuEntry>();
+
+        // 打开中的会话里"值得列出"的：正在跑的 或 已落盘的。纯空白未用的新会话不列（无可切换内容）。点击直接切到其活视图。
+        foreach (var ctx in mContexts)
         {
-            stack.Children.Add(new Border() { Height = 1, Margin = new(8, 4), Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush() });
-            foreach (var session in sessions)
-            {
-                var titleText = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title;
-                var captured = session;
-                stack.Children.Add(BuildMenuRow(titleText, titleText, () => LoadSession(captured), () =>
-                {
-                    AgentSessionStore.Delete(captured.Id);
-                    if (mCurrentSession?.Id == captured.Id)
-                        NewChat();
-                    mMenuFlyout.Hide();
-                }));
-            }
+            if (!ctx.Busy && ctx.Session == null)
+                continue;
+            var captured = ctx;
+            entries.Add(new MenuEntry(ctx.CreatedAtUnix, ctx.Title, ctx.Busy,
+                () => SwitchTo(captured),
+                () => { DeleteContext(captured); mMenuFlyout.Hide(); }));
         }
+
+        // 仅存在磁盘、当前未打开的会话（已打开的以活 context 为准、不重复列）。点击从盘加载。
+        var openIds = new HashSet<string>(mContexts.Where(c => c.Session != null).Select(c => c.Session!.Id));
+        foreach (var session in AgentSessionStore.List())
+        {
+            if (openIds.Contains(session.Id))
+                continue;
+            var captured = session;
+            var titleText = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title;
+            entries.Add(new MenuEntry(session.CreatedAtUnix, titleText, false,
+                () => LoadSession(captured),
+                () => { AgentSessionStore.Delete(captured.Id); mMenuFlyout.Hide(); }));
+        }
+
+        if (entries.Count > 0)
+            stack.Children.Add(new Border() { Height = 1, Margin = new(8, 4), Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush() });
+        foreach (var e in entries.OrderByDescending(x => x.CreatedAtUnix))
+            stack.Children.Add(BuildMenuRow(e.Title, e.Title, e.OnClick, e.OnDelete, e.Running));
 
         mMenuFlyout.Content = stack;
     }
 
-    // 单行：标题填充（过长省略号 + 全名 tooltip）、可选右侧 ✕ 删除。整行 hover 高亮，点击触发 onClick 并关闭菜单。
-    Control BuildMenuRow(string text, string? tooltip, Action onClick, Action? onDelete)
+    // 菜单一条会话项（打开中的或仅磁盘上的）：携带建立时刻供统一排序、标题、是否运行中、点击与删除动作。
+    readonly record struct MenuEntry(long CreatedAtUnix, string Title, bool Running, Action OnClick, Action OnDelete);
+
+    // 关闭一个打开中的会话：停掉其在飞请求、移除上下文、删掉磁盘文件（若已落盘）；删的是当前会话则切到新空白会话。
+    void DeleteContext(SessionContext ctx)
+    {
+        ctx.Cts?.Cancel();
+        mContexts.Remove(ctx);
+        if (ctx.Session != null)
+            AgentSessionStore.Delete(ctx.Session.Id);
+        if (ctx == mActive)
+            NewChat();
+    }
+
+    // 单行：标题填充（过长省略号 + 全名 tooltip）、可选右侧 ✕ 删除、可选行首运行指示点。整行 hover 高亮，点击触发 onClick 并关闭菜单。
+    Control BuildMenuRow(string text, string? tooltip, Action onClick, Action? onDelete, bool running = false)
     {
         var title = new TextBlock()
         {
@@ -289,6 +335,20 @@ internal sealed class AgentSideBarContentProvider
             Foreground = Colors.White.ToBrush(),
         };
         var dock = new DockPanel();
+
+        if (running)
+        {
+            var dot = new TextBlock()
+            {
+                Text = "●",
+                FontSize = 9,
+                Margin = new(0, 0, 6, 0),
+                Foreground = Style.BUTTON_PRIMARY.ToBrush(), // 后台请求进行中
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+            DockPanel.SetDock(dot, Dock.Left);
+            dock.Children.Add(dot);
+        }
 
         if (onDelete != null)
         {
@@ -326,21 +386,59 @@ internal sealed class AgentSideBarContentProvider
         return row;
     }
 
+    // 新建空白会话并切到它——其他会话的后台管线不受影响（不取消、不清空）。
     void NewChat()
     {
-        mMessagesList.Content.Children.Clear();
-        mCurrentSession = null; // 下一条消息会新建会话
-        mSeedHistory = null;
-        mRunner = null;         // 重置对话历史，保留已连接的 session
-        SetTitle("New Chat".Tr(this));
+        var ctx = NewContext();
+        SwitchTo(ctx);
         if (mSession != null) // 空白新对话顶端提示当前连到哪个模型
-            AppendMessage("system", ConnectedNotice());
+            AppendMessage(ctx, "system", ConnectedNotice());
     }
 
-    // 加载已存会话：还原气泡 + 备好 runner 续聊历史（仅对话文本；项目事实续聊时由模型重新调工具读取）。
+    // 创建一个新会话上下文（独立视图 + 独立管线），登记到 mContexts；不切换、不填充内容。
+    SessionContext NewContext()
+    {
+        var ctx = new SessionContext(CreateMessagesList())
+        {
+            Title = "New Chat".Tr(this),
+            CreatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        };
+        mContexts.Add(ctx);
+        return ctx;
+    }
+
+    // 切到某会话：仅换可见视图 + 头部标题 + 发送/停止键状态——不取消、不清空任何会话的在飞管线。
+    void SwitchTo(SessionContext ctx)
+    {
+        mActive = ctx;
+        mMessagesHost.Children.Clear();
+        mMessagesHost.Children.Add(ctx.View);
+        ApplyBubbleWidths(ctx.View); // 离屏期间侧栏可能被拖宽，切回时按当前宽度重排该会话气泡
+        SetTitle(ctx.Title);
+        RefreshSendControls();
+        ScrollToEnd(ctx);
+    }
+
+    // 发送/停止键反映当前会话忙碌态：忙→停止键，闲→发送键。切换会话、忙碌态变化时刷新。
+    void RefreshSendControls()
+    {
+        mSendButton.IsVisible = !mActive.Busy;
+        mStopButton.IsVisible = mActive.Busy;
+    }
+
+    // 加载已存会话：已打开（可能正在后台跑）则直接激活其活管线，否则新建上下文还原气泡 + 备好 runner 续聊历史
+    //（仅对话文本；项目事实续聊时由模型重新调工具读取）。
     void LoadSession(ChatSession session)
     {
-        mMessagesList.Content.Children.Clear();
+        // 已打开 → 直接激活其活视图，绝不重建：避免同一会话双开、丢失正在跑的进度。
+        var existing = mContexts.FirstOrDefault(c => c.Session?.Id == session.Id);
+        if (existing != null)
+        {
+            SwitchTo(existing);
+            return;
+        }
+
+        var ctx = NewContext();
         foreach (var m in session.Messages)
         {
             if (m.Role == "assistant")
@@ -351,19 +449,20 @@ internal sealed class AgentSideBarContentProvider
                 var content = string.IsNullOrEmpty(m.Text)
                     ? BubbleText("(no text reply)", Colors.White.ToBrush())
                     : AssistantContent(m.Text, usage);
-                mMessagesList.Content.Children.Add(AssistantContainer(content));
+                ctx.View.Content.Children.Add(AssistantContainer(content));
             }
             else
             {
-                mMessagesList.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
+                ctx.View.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
             }
         }
 
-        mCurrentSession = session;
-        mSeedHistory = ReconstructHistory(session);
-        mRunner = null; // 下次发送时用 mSeedHistory 重建带历史的 runner
-        SetTitle(string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title);
-        ScrollToEnd();
+        ctx.Session = session;
+        ctx.SeedHistory = ReconstructHistory(session);
+        ctx.Runner = null; // 下次发送时用 SeedHistory 重建带历史的 runner
+        ctx.Title = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title;
+        ctx.CreatedAtUnix = session.CreatedAtUnix; // 按原始创建时刻排序，加载不改变其在列表中的位置
+        SwitchTo(ctx);
     }
 
     // 从会话消息重建 runner 续聊历史（仅对话文本；项目事实续聊时由模型重新调工具读取）。
@@ -380,13 +479,14 @@ internal sealed class AgentSideBarContentProvider
         return history;
     }
 
-    // 一轮成功回复后记入当前会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
-    void RecordTurn(string userText, string assistantText, AgentTokenUsage? usage)
+    // 一轮成功回复后记入该会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
+    // ctx 是发起本轮时捕获的会话——即便用户中途已切到别的会话，也只写它、不串会话。
+    void RecordTurn(SessionContext ctx, string userText, string assistantText, AgentTokenUsage? usage)
     {
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        bool isNew = mCurrentSession == null;
-        mCurrentSession ??= new ChatSession { CreatedAtUnix = now };
-        var session = mCurrentSession;
+        bool isNew = ctx.Session == null;
+        ctx.Session ??= new ChatSession { CreatedAtUnix = ctx.CreatedAtUnix }; // 沿用上下文建立时刻，落盘前后排序位置一致
+        var session = ctx.Session;
         session.Messages.Add(new ChatTurnMessage { Role = "user", Text = userText });
         session.Messages.Add(new ChatTurnMessage
         {
@@ -398,11 +498,20 @@ internal sealed class AgentSideBarContentProvider
         });
         session.UpdatedAtUnix = now;
 
-        if (isNew)
+        if (isNew && ctx.TitleManual && !string.IsNullOrWhiteSpace(ctx.Title))
+        {
+            // 用户已手动命名 → 直接用它，不占位截断、不触发自动标题。
+            session.Title = ctx.Title;
+            AgentSessionStore.Save(session);
+        }
+        else if (isNew)
         {
             session.Title = Truncate(userText, 30); // 先用首条截断占位，确保列表立刻有可读名
+            ctx.Title = session.Title;
+            if (ctx == mActive)
+                SetTitle(session.Title);
             AgentSessionStore.Save(session);
-            _ = GenerateTitleAsync(session, userText, assistantText); // 随后用 LLM 总结覆盖
+            _ = GenerateTitleAsync(ctx, userText, assistantText); // 随后用 LLM 总结覆盖
         }
         else
         {
@@ -411,10 +520,11 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 自动标题：用模型把首轮总结成几字标题，覆盖占位的首条截断。失败/未连接则保留占位（已是首条截断）。
-    async Task GenerateTitleAsync(ChatSession session, string userText, string assistantText)
+    async Task GenerateTitleAsync(SessionContext ctx, string userText, string assistantText)
     {
+        var session = ctx.Session;
         var session_model = mSession;
-        if (session_model == null)
+        if (session == null || session_model == null)
             return;
         try
         {
@@ -435,9 +545,12 @@ internal sealed class AgentSideBarContentProvider
             var title = SanitizeTitle(raw);
             if (string.IsNullOrEmpty(title))
                 return;
+            if (ctx.TitleManual) // 生成期间用户已手动改名 → 不覆盖
+                return;
             session.Title = title;
+            ctx.Title = title;
             AgentSessionStore.Save(session);
-            void Apply() { if (mCurrentSession?.Id == session.Id) SetTitle(title); }
+            void Apply() { if (mActive == ctx) SetTitle(title); }
             if (Dispatcher.UIThread.CheckAccess()) Apply();
             else Dispatcher.UIThread.Post(Apply);
         }
@@ -473,6 +586,28 @@ internal sealed class AgentSideBarContentProvider
         ToolTip.SetTip(mTitleLabel, title);
     }
 
+    // 标题改名提交（EditableLabel 在 Enter / 失焦时触发）：非空且有变化才采用——写入当前会话标题、
+    // 标记为手动标题（不再被自动标题覆盖），已落盘则同步保存；为空则还原为当前标题。
+    void OnTitleEdited()
+    {
+        var title = mTitleLabel.Text.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            SetTitle(mActive.Title); // 不允许清空，还原
+            return;
+        }
+        if (title == mActive.Title)
+            return;
+        mActive.Title = title;
+        mActive.TitleManual = true;
+        SetTitle(title); // 规范化显示文本 + 更新 tooltip
+        if (mActive.Session != null)
+        {
+            mActive.Session.Title = title;
+            AgentSessionStore.Save(mActive.Session);
+        }
+    }
+
     // 已连接提示文案：用户更关心模型而非供应商——优先模型名，缺省（适配器未用 model 字段）才回退到供应商 type。
     string ConnectedNotice()
     {
@@ -484,7 +619,9 @@ internal sealed class AgentSideBarContentProvider
 
     async Task OnSend()
     {
-        if (mBusy)
+        // 发起前捕获当前会话——之后所有渲染/落盘都只认这个引用，即便用户中途切到别的会话也不串、不写错会话。
+        var ctx = mActive;
+        if (ctx.Busy)
             return;
 
         var text = mInput.Text.Trim();
@@ -493,45 +630,47 @@ internal sealed class AgentSideBarContentProvider
 
         if (mSession == null)
         {
-            AppendMessage("system", "Not connected. Open settings (gear) to choose a model and submit.".Tr(this));
+            AppendMessage(ctx, "system", "Not connected. Open settings (gear) to choose a model and submit.".Tr(this));
             ShowSettings();
             return;
         }
         if (mProjectEditor == null)
         {
-            AppendMessage("system", "No project is open.".Tr(this));
+            AppendMessage(ctx, "system", "No project is open.".Tr(this));
             return;
         }
 
         mInput.Text = string.Empty;
-        AppendMessage("you", text);
-        var bubble = AddAssistantBubble(); // 响应期占位气泡（动态等待指示）
-        mCts = new CancellationTokenSource();
-        SetBusy(true);
+        AppendMessage(ctx, "you", text);
+        var bubble = AddAssistantBubble(ctx); // 响应期占位气泡（动态等待指示）
+        var cts = new CancellationTokenSource();
+        ctx.Cts = cts;
+        SetBusy(ctx, true);
 
         // 分步渲染：把 runner 的进度事件（流式文本增量 / 工具开始·完成）按序铺进气泡，全程可见模型在说什么、调了哪个工具、结果如何。
         // 首个事件到达前保持等待动画（ThinkingDots），到达即把气泡内容换成分步视图。各轮叙述各自成段保留——不再被最终文本整体替换。
+        // 气泡属于 ctx.View，即便用户切走（视图离屏）流式仍写进它，切回即见进度；滚动只在该会话可见时执行。
         var turn = new AgentTurnView();
         bool swapped = false;
         void EnsureSwapped() { if (!swapped) { bubble.Child = turn.Root; swapped = true; } }
         // Progress<T> 在创建处（UI 线程）的同步上下文上派发，事件按 runner 发出顺序 FIFO 到达——文本与工具步骤的先后关系正确。
-        void Handle(AgentEvent e) { EnsureSwapped(); turn.Apply(e); ScrollToEnd(); }
+        void Handle(AgentEvent e) { EnsureSwapped(); turn.Apply(e); ScrollToEnd(ctx); }
 
         try
         {
-            mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt, mSeedHistory);
-            var reply = await mRunner.SendAsync(text, new Progress<AgentEvent>(Handle), mCts.Token);
-            turn.SealText();
+            ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
+            var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token);
+            turn.Seal();
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
                 turn.Append(BuildFooter(reply.Text, reply.Usage));
-            RecordTurn(text, reply.Text, reply.Usage);
+            RecordTurn(ctx, text, reply.Text, reply.Usage);
         }
         catch (OperationCanceledException)
         {
             // 用户主动停止：保留已渲染的分步内容 + 末尾灰字 Stopped，并把仍在运行的工具块标记中止，不当错误（红字）。
-            turn.SealText();
+            turn.Seal();
             turn.MarkPendingAborted();
             EnsureSwapped();
             turn.Append(NoticeLine("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
@@ -539,7 +678,7 @@ internal sealed class AgentSideBarContentProvider
         catch (Exception ex)
         {
             // 中途报错同样保留已渲染的分步内容，错误作末尾红字，不丢已输出有效内容。
-            turn.SealText();
+            turn.Seal();
             turn.MarkPendingAborted();
             EnsureSwapped();
             turn.Append(NoticeLine("Error: " + ex.Message, Colors.IndianRed.ToBrush()));
@@ -547,14 +686,15 @@ internal sealed class AgentSideBarContentProvider
         finally
         {
             turn.EndThinking(); // 生成结束（成功/停止/出错）：移除底部"生成中"三点动画
-            mCts.Dispose();
-            mCts = null;
-            SetBusy(false);
-            ScrollToEnd();
+            cts.Dispose();
+            if (ctx.Cts == cts) // 仅清掉本轮自己的取消源（该会话期间不会有并发的第二轮）
+                ctx.Cts = null;
+            SetBusy(ctx, false);
+            ScrollToEnd(ctx);
         }
     }
 
-    void AppendMessage(string role, string text)
+    void AppendMessage(SessionContext ctx, string role, string text)
     {
         Control item = role == "you"
             ? Bubble(BubbleText(text, Colors.White.ToBrush()), mine: true)
@@ -568,16 +708,16 @@ internal sealed class AgentSideBarContentProvider
                 Margin = new(12, 4),
                 TextAlignment = TextAlignment.Center,
             };
-        mMessagesList.Content.Children.Add(item);
-        ScrollToEnd();
+        ctx.View.Content.Children.Add(item);
+        ScrollToEnd(ctx);
     }
 
     // agent 侧消息容器（无气泡），返回 Border 以便回复回来后替换其内容（动态等待指示 → 分步视图 / 错误文本）。
-    Border AddAssistantBubble()
+    Border AddAssistantBubble(SessionContext ctx)
     {
         var bubble = AssistantContainer(AgentTurnView.ThinkingDots());
-        mMessagesList.Content.Children.Add(bubble);
-        ScrollToEnd();
+        ctx.View.Content.Children.Add(bubble);
+        ScrollToEnd(ctx);
         return bubble;
     }
 
@@ -664,15 +804,20 @@ internal sealed class AgentSideBarContentProvider
         Margin = new(0, 4, 0, 0),
     };
 
-    // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。
-    void ScrollToEnd() => Dispatcher.UIThread.Post(() => mMessagesList.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);
-
-    // 响应期间：输入框保持可用；发送键换成停止键（同位、可见性切换），由 mBusy 拦回车重复发送。
-    void SetBusy(bool busy)
+    // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。仅当该会话可见时滚动——离屏会话滚动无意义。
+    void ScrollToEnd(SessionContext ctx)
     {
-        mBusy = busy;
-        mSendButton.IsVisible = !busy;
-        mStopButton.IsVisible = busy;
+        if (ctx != mActive)
+            return;
+        Dispatcher.UIThread.Post(() => ctx.View.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);
+    }
+
+    // 标记某会话的忙碌态（输入框始终可用，由 ctx.Busy 拦该会话内回车重复发送）。若它是当前可见会话，同步发送/停止键。
+    void SetBusy(SessionContext ctx, bool busy)
+    {
+        ctx.Busy = busy;
+        if (ctx == mActive)
+            RefreshSendControls();
     }
 
     // ───────────────── 设置视图 ─────────────────
@@ -753,7 +898,7 @@ internal sealed class AgentSideBarContentProvider
         {
             SaveSettings(type);
             ShowChat();
-            AppendMessage("system", ConnectedNotice());
+            AppendMessage(mActive, "system", ConnectedNotice());
         }
         else
         {
@@ -776,10 +921,13 @@ internal sealed class AgentSideBarContentProvider
         {
             mSession?.Dispose();
             mSession = engine.CreateSession(mSettings.GetInfo());
-            // 聊天中途换模型不丢上下文：从当前对话（RecordTurn 实时维护）重建续聊历史，下次发送时新 runner 带它重建。
-            if (mCurrentSession != null)
-                mSeedHistory = ReconstructHistory(mCurrentSession);
-            mRunner = null;
+            // 聊天中途换模型不丢上下文：每个会话据其已记录对话（RecordTurn 实时维护）重建续聊历史，下次发送时新 runner 带它重建。
+            foreach (var c in mContexts)
+            {
+                if (c.Session != null)
+                    c.SeedHistory = ReconstructHistory(c.Session);
+                c.Runner = null;
+            }
             return true;
         }
         catch (Exception ex)
@@ -865,9 +1013,22 @@ internal sealed class AgentSideBarContentProvider
     readonly Panel mRoot = new();
     readonly DockPanel mChatView = new() { LastChildFill = true };
     readonly DockPanel mSettingsView = new() { LastChildFill = true };
-    readonly ListView mMessagesList = new();
+    // 可见会话的消息滚动区挂载点：切换会话只换其 Child 为目标会话各自的 ListView（离屏会话的视图被其 SessionContext 持有、不销毁）。
+    readonly Panel mMessagesHost = new();
     readonly TextInput mInput = new();
-    readonly TextBlock mTitleLabel = new() { Text = "New Chat" };
+    // 标题：复用轨道名同款 EditableLabel（双击就地改名、Enter/失焦提交），与全局改名交互一致。
+    readonly EditableLabel mTitleLabel = new()
+    {
+        Text = "New Chat",
+        FontSize = 12,
+        CornerRadius = new(4),
+        VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, // 占满中间列，长标题才会省略号化
+        Foreground = Style.LIGHT_WHITE.ToBrush(),
+        Background = Brushes.Transparent,
+        InputBackground = Style.BACK.ToBrush(),
+        TextTrimming = TextTrimming.CharacterEllipsis,
+    };
     readonly PropertyObjectController mProviderController = new(); // provider 选择（单项 combo），复用属性面板样式
     readonly PropertyObjectController mPropertiesController = new();
     readonly Label mStatusLabel = new() { FontSize = 11, Margin = new(24, 0, 24, 12), Foreground = Colors.IndianRed.ToBrush() };
@@ -877,7 +1038,6 @@ internal sealed class AgentSideBarContentProvider
     TuneLab.GUI.Components.Button? mMenuButton;
     Flyout mMenuFlyout = null!;
     bool mMenuJustClosed;
-    bool mBusy;
     double mBubbleMaxWidth = 230; // 用户气泡/系统提示最大宽度，随对话区宽度自适应（见 BuildChatView 的 Bounds 订阅）
     double mContentMaxWidth = 246; // 助手去气泡容器的近整宽，随对话区宽度自适应
 
@@ -893,8 +1053,25 @@ internal sealed class AgentSideBarContentProvider
     Func<IQuantization?>? mQuantizationProvider;
     IReadOnlyList<IAgentTool> mTools = [];
     IAgentModelSession? mSession;
-    AgentRunner? mRunner;
-    CancellationTokenSource? mCts; // 当前进行中请求的取消源（停止键触发）
-    ChatSession? mCurrentSession;  // 当前会话（null=空白新对话，首条消息后落盘）
-    List<AgentMessage>? mSeedHistory; // 加载会话后用于重建 runner 的历史（仅对话文本）
+
+    // ───────────────── 多会话并行 ─────────────────
+
+    // 每会话各自的管线 + 视图状态。切换会话不取消、不清空——只换 mMessagesHost 显示的视图；
+    // 离屏会话的 runner/请求继续在后台跑，流式事件仍写进其（脱离视觉树但被本对象持有的）ListView，切回即见进度。
+    sealed class SessionContext
+    {
+        public readonly ListView View;          // 该会话独立的消息滚动区（离屏时仍保留，承载进行中的占位/分步气泡）
+        public ChatSession? Session;             // 落盘模型（null=尚未落盘的新对话，首轮成功后建立）
+        public AgentRunner? Runner;              // 该会话的对话主循环（持有累积的对话历史）
+        public CancellationTokenSource? Cts;     // 该会话当前在飞请求的取消源（停止键 / 删除该会话时触发）
+        public List<AgentMessage>? SeedHistory;  // 加载已存会话 / 中途换模型后用于重建 runner 的历史（仅对话文本）
+        public bool Busy;                        // 该会话是否有在飞请求（决定切到它时显示发送键还是停止键）
+        public string Title = "New Chat";        // 该会话标题（切到它时写入头部标签）
+        public bool TitleManual;                 // 标题是否被用户手动改过：true 则不再被自动标题覆盖
+        public long CreatedAtUnix;               // 会话建立时刻（本地新建=当时；加载已存=其原始创建时刻）。菜单按它降序排，位置稳定、新会话在顶
+        public SessionContext(ListView view) => View = view;
+    }
+
+    readonly List<SessionContext> mContexts = new(); // 所有打开中的会话（含后台在跑的、未落盘的新对话）
+    SessionContext mActive = null!;                  // 当前可见会话（构造期立即建立首个空白会话）
 }
