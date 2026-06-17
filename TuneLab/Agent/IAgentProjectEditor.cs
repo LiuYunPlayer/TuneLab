@@ -38,6 +38,7 @@ internal interface IAgentProjectEditor
     // ── 业务级写：各自一个可撤销单位 ──
     int ShiftTrackPitch(int trackNumber, int semitones);
     int TransposeNotes(int trackNumber, int partNumber, int semitones, double? startTick, double? endTick);
+    string AddVibrato(int trackNumber, int partNumber, double startTick, double endTick, double? frequencyHz, double? amplitudeSemitone);
     string SetTrackProperties(int trackNumber, string? name, bool? mute, bool? solo, double? gainDb, double? pan);
     int AddTrack(string? name);                 // 返回新轨的 1-based 编号
     void RemoveTrack(int trackNumber);
@@ -222,10 +223,13 @@ internal sealed class ProjectAgentEditor(
         foreach (var kvp in part.Voice.AutomationConfigs)
         {
             var c = kvp.Value;
+            // VibratoEnvelope 只缩放已有颤音深度，单独写它不产生颤音——明确标注，免得被当成"加颤音"。
+            string note = string.Equals(kvp.Key, "VibratoEnvelope", StringComparison.Ordinal)
+                ? " (scales depth of existing vibrato only; to add vibrato use add_vibrato)" : "";
             sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
-                "  {0} — \"{1}\", range [{2:0.###}..{3:0.###}], default {4:0.###}{5}",
+                "  {0} — \"{1}\", range [{2:0.###}..{3:0.###}], default {4:0.###}{5}{6}",
                 kvp.Key, c.DisplayText ?? kvp.Key, c.MinValue, c.MaxValue, c.DefaultValue,
-                part.Automations.ContainsKey(kvp.Key) ? ", has curve" : ""));
+                part.Automations.ContainsKey(kvp.Key) ? ", has curve" : "", note));
         }
         // effect 级参数轨当前不可经 agent 工具编辑（已知限制），仅列出告知存在。
         for (int i = 0; i < part.Effects.Count; i++)
@@ -330,6 +334,32 @@ internal sealed class ProjectAgentEditor(
         if (changed > 0)
             project.Commit();
         return changed;
+    }
+
+    public string AddVibrato(int trackNumber, int partNumber, double startTick, double endTick, double? frequencyHz, double? amplitudeSemitone)
+    {
+        var part = ResolveMidiPart(trackNumber, partNumber);
+        if (endTick <= startTick)
+            throw new ArgumentException("endTick must be greater than startTick.");
+        double partPos = part.Pos.Value;
+        double freq = frequencyHz ?? 6;            // Hz
+        double amp = amplitudeSemitone ?? 1;       // 半音（音高抖动深度）
+        part.BeginMergeDirty();
+        var vibrato = part.CreateVibrato(new VibratoInfo
+        {
+            Pos = startTick - partPos,             // 绝对 → part 相对
+            Dur = endTick - startTick,
+            Frequency = freq,
+            Amplitude = amp,
+            Phase = 0,
+            Attack = 0.2,
+            Release = 0.2,
+        });
+        part.InsertVibrato(vibrato);
+        part.EndMergeDirty();
+        project.Commit();
+        return string.Format(CultureInfo.InvariantCulture,
+            "added vibrato over ticks [{0:0}..{1:0}], frequency={2:0.##}Hz, amplitude={3:0.##} semitone.", startTick, endTick, freq, amp);
     }
 
     public string SetTrackProperties(int trackNumber, string? name, bool? mute, bool? solo, double? gainDb, double? pan)

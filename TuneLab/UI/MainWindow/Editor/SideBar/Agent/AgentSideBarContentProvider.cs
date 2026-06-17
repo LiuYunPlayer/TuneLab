@@ -88,6 +88,7 @@ internal sealed class AgentSideBarContentProvider
                 new GetParameterTool(mProjectEditor),
                 // Layer 2 业务级写（各一个可撤销单位）
                 new TransposeNotesTool(mProjectEditor),
+                new AddVibratoTool(mProjectEditor),
                 new ShiftPitchTool(mProjectEditor),
                 new SetTrackPropertiesTool(mProjectEditor),
                 new AddTrackTool(mProjectEditor),
@@ -866,6 +867,7 @@ internal sealed class AgentSideBarContentProvider
         "When the user refers to \"the current part\"/\"this part\" without numbers, call get_current_part to resolve its track/part numbers; when they refer to \"the playhead\"/\"here\"/\"the current position\", call get_playhead to get the tick. " +
         "CRITICAL: every tool argument must be a concrete literal value (a number or string). Never put placeholders, template expressions, code, or references to other tools inside arguments — for example do NOT write \"${get_current_part().trackNumber}\", \"get_part_notes(...)\", or any ${...} expression. There is no inline evaluation. Instead, first call the read tool, read the actual values from its result text, then call the next tool with those literal numbers. " +
         "To transpose notes (e.g. up an octave = +12 semitones) use transpose_notes (a part) or shift_track_pitch (a whole track) — do NOT use set_pitch_line, which only draws a pitch curve and does not move note pitches. " +
+        "To add vibrato (颤音) use add_vibrato — do NOT set the VibratoEnvelope automation for this; VibratoEnvelope only scales the depth of an existing vibrato and produces nothing on its own. " +
         "All tick positions in every tool are ABSOLUTE (global) ticks — the same coordinate space as the playhead, get_project_overview and bar numbers. You never convert between coordinate systems and never subtract a part start. " +
         "The playhead is not grid-aligned; when writing a melody or placing notes on the beat, snap your target ticks with snap_tick first.";
 

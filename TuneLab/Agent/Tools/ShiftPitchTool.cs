@@ -42,6 +42,44 @@ internal sealed class TransposeNotesTool(IAgentProjectEditor editor) : IAgentToo
     }
 }
 
+// 业务级写工具：在某 part 的一段 tick 区间上添加一个颤音（Vibrato 对象，让音高真正抖动）。
+// 区别于 VibratoEnvelope 自动化——那只缩放已有颤音的深度，单独写它不产生任何颤音。
+internal sealed class AddVibratoTool(IAgentProjectEditor editor) : IAgentTool
+{
+    public string Name => "add_vibrato";
+    public string Description => "Add a vibrato (pitch oscillation) over a tick range of a part — this creates the real Vibrato that wiggles the pitch. Use this when the user asks to add vibrato/颤音. Do NOT use the VibratoEnvelope automation for this; that only scales the depth of an existing vibrato and adds nothing on its own.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "trackNumber": { "type": ["integer", "string"], "description": "1-based track number." },
+            "partNumber": { "type": ["integer", "string"], "description": "1-based part number within the track." },
+            "startTick": { "type": ["number", "string"], "description": "Absolute start tick of the vibrato." },
+            "endTick": { "type": ["number", "string"], "description": "Absolute end tick (must be > startTick)." },
+            "frequency": { "type": ["number", "string", "null"], "description": "Vibrato rate in Hz (default 6)." },
+            "amplitude": { "type": ["number", "string", "null"], "description": "Vibrato depth in semitones (default 1)." }
+          },
+          "required": ["trackNumber", "partNumber", "startTick", "endTick"],
+          "additionalProperties": false
+        }
+        """;
+
+    public Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(argumentsJson);
+            var root = doc.RootElement;
+            return Task.FromResult("OK: " + editor.AddVibrato(
+                root.GetInt("trackNumber"), root.GetInt("partNumber"),
+                root.GetDouble("startTick"), root.GetDouble("endTick"),
+                root.GetDoubleOrNull("frequency"), root.GetDoubleOrNull("amplitude")));
+        }
+        catch (Exception ex) { return Task.FromResult("Error: " + ex.Message); }
+    }
+}
+
 // 业务级写工具：把某轨所有音符整体升降若干半音，作为一个可撤销单位。
 internal sealed class ShiftPitchTool(IAgentProjectEditor editor) : IAgentTool
 {
