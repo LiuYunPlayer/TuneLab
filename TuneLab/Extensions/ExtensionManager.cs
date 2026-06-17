@@ -44,6 +44,9 @@ internal static class ExtensionManager
         {
             Load(dir);
         }
+
+        // 全部能力注册完毕后，把已落盘的扩展设置回喂给声明了 IExtensionSettings 的 extension（早于任何 Init/会话）。
+        ExtensionSettingsManager.ApplyPersisted();
     }
 
     public static void Destroy()

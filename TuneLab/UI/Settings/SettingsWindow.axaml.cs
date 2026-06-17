@@ -17,6 +17,7 @@ using TuneLab.SDK;
 using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
 using TuneLab.Audio;
+using TuneLab.Extensions;
 
 namespace TuneLab.UI;
 
@@ -41,6 +42,7 @@ internal partial class SettingsWindow : Window
                 .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowClose }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
         closeButton.Clicked += () =>
         {
+            SaveExtensionSettings();
             Settings.Save(PathManager.SettingsFilePath);
             s.DisposeAll();
             Close();
@@ -74,6 +76,7 @@ internal partial class SettingsWindow : Window
             new("Audio", Assets.Audio, CreateAudioPage),
             new("Appearance", Assets.Appearance, CreateAppearancePage),
             new("Editing", Assets.Editing, CreateEditorPage),
+            new("Extensions", Assets.Extensions, CreateExtensionsPage),
         };
 
         // Build sidebar tab buttons
@@ -171,6 +174,10 @@ internal partial class SettingsWindow : Window
     {
         if (index < 0 || index >= mTabPages.Count)
             return;
+
+        // 切走前把"扩展"页的编辑统一落盘——内容在每次切 tab 时整体重建，不先存会丢失未存改动
+        //（与关窗/Esc 的统一落盘一致）。非扩展页时 mExtensionPages 为空、无副作用。
+        SaveExtensionSettings();
 
         // Update visual state for all tabs
         for (int i = 0; i < mTabPages.Count; i++)
@@ -467,10 +474,84 @@ internal partial class SettingsWindow : Window
         return listView;
     }
 
+    // 「扩展」页：枚举声明了 IExtensionSettings 的 extension（effect/voice…；agent 自有侧边栏设置不在此），
+    // 每个 extension 一段「显示名标题 + 配置驱动属性面板」。编辑写进各自独立的 DataPropertyObject，统一在切走/关窗时落盘。
+    private Control CreateExtensionsPage()
+    {
+        var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
+
+        var entries = ExtensionSettingsManager.GetEntries();
+        if (entries.Count == 0)
+        {
+            listView.Content.Children.Add(new TextBlock
+            {
+                Text = "No extensions with settings.".Tr(this),
+                Margin = new Thickness(24, 16),
+                Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+            });
+            return listView;
+        }
+
+        foreach (var entry in entries)
+        {
+            listView.Content.Children.Add(new TextBlock
+            {
+                Text = entry.DisplayName,
+                FontSize = 14,
+                Margin = new Thickness(24, 16, 24, 0),
+                Foreground = Style.TEXT_LIGHT.ToBrush(),
+            });
+
+            // 设置数据须挂在文档根上（属性面板字段绑定会读 DataObject.Head），每 extension 一份独立 DataDocument。
+            var data = new DataPropertyObject(new DataDocument());
+            foreach (var kv in ExtensionSettingsManager.Load(entry)) // 已解密密钥
+                data.SetValue(kv.Key, kv.Value);
+            data.Commit();
+
+            var ctx = new SettingsContext(data);
+            var controller = new PropertyObjectController();
+            controller.SetConfig(entry.Settings.GetSettingsConfig(ctx), data);
+            listView.Content.Children.Add(controller);
+
+            // 动态设置项：值变更后按当前值重算 config 并 diff 到控件树（条件显隐）。reconcile 复用同一数据对象、不丢焦点。
+            var captured = entry;
+            Action refresh = () => controller.Reconcile(captured.Settings.GetSettingsConfig(ctx));
+            data.Modified.Subscribe(refresh);
+
+            mExtensionPages.Add(new ExtensionPage(entry, data, controller, ctx, refresh));
+        }
+        return listView;
+    }
+
+    // 把当前「扩展」页的全部编辑统一落盘并回喂（密钥按 IsPassword 标出交由存储层加密）。
+    // 由切走 tab / 关窗 / Esc 调用；落盘后清空，非扩展页时本就为空、无副作用。
+    private void SaveExtensionSettings()
+    {
+        foreach (var page in mExtensionPages)
+        {
+            // 密钥集按【当前值算出的】config 取（动态面板下密钥字段可能随值显隐），避免漏标/误标。
+            var secrets = ExtensionSettingsManager.PasswordKeys(page.Entry.Settings.GetSettingsConfig(page.Context));
+            ExtensionSettingsStore.Save(page.Entry.Key, page.Data.GetInfo(), secrets);
+            ExtensionSettingsManager.ApplyOne(page.Entry); // 立即回喂（重载已落盘值、解密密钥）
+            page.Data.Modified.Unsubscribe(page.Refresh);  // 解订阅，再解绑控件 + 归还池化控件（页面随后整体重建）
+            page.Controller.ResetConfig();
+        }
+        mExtensionPages.Clear();
+    }
+
+    private sealed record ExtensionPage(ExtensionSettingsManager.Entry Entry, DataPropertyObject Data, PropertyObjectController Controller, SettingsContext Context, Action Refresh);
+
+    // IExtensionSettings.GetSettingsConfig 的求值上下文：返回设置数据对象的当前值快照（动态面板据此重算）。
+    private sealed class SettingsContext(DataPropertyObject data) : IExtensionSettingsContext
+    {
+        public PropertyObject Settings => data.GetInfo();
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
+            SaveExtensionSettings();
             Settings.Save(PathManager.SettingsFilePath);
             s.DisposeAll();
             Close();
@@ -505,4 +586,6 @@ internal partial class SettingsWindow : Window
     private readonly List<TabPageInfo> mTabPages = new();
     private int mSelectedIndex = -1;
     private readonly DisposableManager s = new();
+    // 当前「扩展」页各 extension 的实时编辑（切走/关窗时统一落盘后清空）。
+    private readonly List<ExtensionPage> mExtensionPages = new();
 }

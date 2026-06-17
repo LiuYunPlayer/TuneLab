@@ -41,6 +41,10 @@ internal static class EffectManager
 
     public static bool Exists(string type) => mEngines.ContainsKey(type);
 
+    // 取该 effect 的扩展设置接口（未实现 IExtensionSettings 则 null）；不触发 Init——设置须在 Init 前可编辑。
+    public static IExtensionSettings? GetExtensionSettings(string type)
+        => mEngines.TryGetValue(type, out var status) ? status.Engine as IExtensionSettings : null;
+
     // 取已 Init 的引擎；未注册 / Init 失败返回 null（调用方按 passthrough 优雅降级，不崩主程序）。
     public static IEffectEngine? GetInitedEngine(string type)
     {

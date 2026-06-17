@@ -41,6 +41,11 @@ internal static class VoicesManager
     public static string GetDisplayName(string type)
         => mVoiceEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
 
+    // 取该 voice 的扩展设置接口（未实现 IExtensionSettings 则 null）；不触发 Init——设置须在 Init 前可编辑。
+    // 走 RawEngine（非 Engine：后者在 Init 前返回 null），因 schema/设置须先于 Init 可达。
+    public static IExtensionSettings? GetExtensionSettings(string type)
+        => mVoiceEngines.TryGetValue(type, out var status) ? status.RawEngine as IExtensionSettings : null;
+
     public static IReadOnlyOrderedMap<string, VoiceSourceInfo>? GetAllVoiceInfos(string type)
     {
         var engine = GetInitedEngine(type);
@@ -119,6 +124,8 @@ internal static class VoicesManager
     class VoiceEngineStatus
     {
         public IVoiceEngine? Engine => IsInited ? mVoiceEngine : null;
+        // 未经 Init 的引擎实例（仅供读扩展设置 schema/回喂——这些须先于 Init 可达）。
+        public IVoiceEngine RawEngine => mVoiceEngine;
         public string DisplayName { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;

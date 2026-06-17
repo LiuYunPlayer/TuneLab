@@ -151,6 +151,23 @@ public interface IEffectPropertyContext { PropertyObject Properties { get; } }  
 - 回显（可选）：`GetSynthesizedParameterConfigs` 声明 + `IEffectProcessor.SynthesizedParameters` 承载本段数据（宿主把同一 effect 各段按 key 拼接呈现），与 voice 回显同构、只读。
 - 线程纪律：`context`（`Input`/`Properties`/automation）仅可在 `Process` **同步前缀**（数据线程）读；offload 后只读已物化的不可变值；`SynthesizedParameters` 与输出段在数据线程发布。
 
+### 扩展设置（IExtensionSettings，命名空间 `TuneLab.SDK`）
+> per-extension（per 能力实现者，如每个 voice/effect 引擎一份；安装包 ExtensionPackage 可含多个 extension）、随宿主持久化、跨工程共享的设置（API key / 模型路径 / 设备等）。**opt-in**：能力实现类**额外实现** `IExtensionSettings` 即接入；宿主 `x is IExtensionSettings` 探测，在「设置 > 扩展」分页渲染、按 extension 落盘、运行时回喂。
+> 与属性面板（voice `GetPartPropertyConfig`/`GetNotePropertyConfig`、effect `GetPropertyConfig`）**不同**：那些是随工程序列化的实例/段级属性；本接口是扩展自身配置、单独落盘、与工程无关。两者复用同一控件配置词汇 `ObjectConfig`。
+```csharp
+public interface IExtensionSettings {
+    ObjectConfig GetSettingsConfig(IExtensionSettingsContext context); // 声明 schema；是 context.Settings 当前值的纯函数（可条件显隐）、【Init 前可调】；密钥字段用 TextBoxConfig{IsPassword=true}
+    void ApplySettings(PropertyObject settings);                       // 宿主回喂持久值：加载后一次（早于 Init）+ 用户保存后一次。实现者自存自用于 Init/CreateSession/CreateProcessor
+}
+public interface IExtensionSettingsContext { PropertyObject Settings { get; } } // 当前已填设置值（条件显隐据此）
+```
+- 任意能力（voice/effect…）可在其接口外**再实现** `IExtensionSettings`，如 `class MyVoiceEngine : IVoiceEngine, IExtensionSettings`。agent 模型引擎有独立侧边栏设置、不走此路。
+- **动态项**：`GetSettingsConfig(context)` 据 `context.Settings`（当前值）返回 config，用户改值后宿主重算并 diff 到控件——可据已填值显隐字段。静态面板忽略 context 返回固定 config。
+- 密钥：`TextBoxConfig { IsPassword = true }` → 宿主掩码显示 + 安全落盘（Win=DPAPI 密文就地 / macOS=钥匙串；无安全存储则**不保存该字段、绝不明文**+告警；官方支持 Win/macOS）。值类型仍是普通 string。
+- 读值：`settings.GetString(key, default)` / `GetDouble` / `GetInt` / `GetBool(key, default)`。读不到按默认 fallback。
+- `DisplayText` 由插件自译（按 `TuneLabContext.Global.Language`）；manifest **不**声明设置（纯代码）。
+- 控件配置类型：`TextBoxConfig`（`DefaultValue`/`IsPassword`）、`CheckBoxConfig`（`DefaultValue`）、`ComboBoxConfig`、`SliderConfig`；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
+
 ### 常见错误（避免）
 - ❌ 漏 `id` → 被当成 Legacy。
 - ❌ 引用 `TuneLab.Hosting.Foundation` 或主程序 → 不是插件契约，加载会出错。

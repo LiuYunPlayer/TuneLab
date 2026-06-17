@@ -7,7 +7,7 @@
 
 ## 1. 核心概念
 
-- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §7）。
+- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §8）。
 - **`description.json` 是包的身份标识**，必须放在包文件夹的**最外层**。新版（V1）插件**必须**带它；TuneLab 先读这个文件，再据其内容**有选择地**加载包内程序集——不会盲目扫描整个文件夹。
 - **一个包可以含多个插件**。若你有一套共用的基建程序集，可以把基于它开发的多个插件打进同一个包，基建只分发一份、运行时也只加载一份（它们共享同一个加载上下文）。
 - **插件类别（type）**：当前支持 `format`（工程文件导入/导出）、`voice`（歌声合成引擎）与 `effect`（效果器，对合成音频做整段离线变换，如换声）。包还可以是纯**资源包**（无代码，如音色资源）。
@@ -417,7 +417,70 @@ class MyEffectProcessor : IEffectProcessor
 
 ---
 
-## 7. 打包、安装、卸载
+## 7. 扩展设置（IExtensionSettings）
+
+让你的扩展（extension，即一个 voice/effect 等能力实现）声明一组**随宿主持久化、跨工程共享**的设置——典型如 **API key、模型路径、设备选择**。宿主在「设置」窗口渲染面板、按 extension 落盘、运行时回喂。
+
+> **与属性面板的区别**：voice 的 `GetPartPropertyConfig`/`GetNotePropertyConfig`、effect 的 `GetPropertyConfig` 声明的是**随工程序列化的实例/段级**属性（每个 part/note/effect 实例各一份，存进 `.tlp`）。本节的设置则是**扩展自身**的配置，与具体工程无关、跨工程共用、单独落盘。两者用同一套控件配置词汇（`ObjectConfig`），但生命周期与存储位置完全不同。
+>
+> 粒度是 **per extension**（一个 voice/effect 能力一份），不是 per 安装包（ExtensionPackage 可含多个 extension，各自独立设置）。
+
+### 7.1 接入方式
+
+设置是 **opt-in** 的：让你的能力实现类**额外实现** `IExtensionSettings` 即可，无设置的扩展不必理会。宿主对每个已注册能力做 `x is IExtensionSettings` 探测，实现了才显示其设置面板。
+
+```csharp
+public sealed class MyVoiceEngine : IVoiceEngine, IExtensionSettings
+{
+    // —— 声明 schema（复用属性面板同款控件配置）——
+    // 是 context 当前值的纯函数（宿主在值变更后重算并 diff 到控件）；且【必须在 Init 之前可调】
+    //（"先填模型路径，Init 才加载得了模型"——schema 不能依赖 Init 后的状态）。
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+    {
+        var props = new OrderedMap<string, IControllerConfig>();
+        props.Add("model_path", new TextBoxConfig { DisplayText = "模型路径", DefaultValue = "" });
+        props.Add("api_key", new TextBoxConfig { DisplayText = "API Key", IsPassword = true }); // 密钥：掩码显示 + 加密落盘
+        props.Add("use_gpu", new CheckBoxConfig { DisplayText = "使用 GPU", DefaultValue = false });
+        // 动态/条件项：据已填值决定显隐（如勾了 GPU 才暴露设备字段）。
+        if (context.Settings.GetBool("use_gpu", false))
+            props.Add("gpu_device", new TextBoxConfig { DisplayText = "GPU 设备", DefaultValue = "" });
+        return new ObjectConfig { Properties = props };
+    }
+
+    // —— 接收持久化的值 ——
+    // 宿主在【加载完成后】灌一次（早于任何 Init / 会话），用户在设置窗口【保存后】再灌一次。自存自用。
+    public void ApplySettings(PropertyObject settings)
+    {
+        mModelPath = settings.GetString("model_path", "");
+        mApiKey    = settings.GetString("api_key", "");
+        mUseGpu    = settings.GetBool("use_gpu", false);
+        // 之后在 Init / CreateSession / CreateProcessor 里用这些值。
+    }
+
+    // IVoiceEngine 的其余成员……
+}
+```
+
+### 7.2 要点
+
+- **密钥字段**：用 `TextBoxConfig { IsPassword = true }` 标出。宿主据此掩码显示，并按平台安全落盘：Windows 用 DPAPI 把密文就地存进配置文件（仅原用户原机可解）；macOS 存进钥匙串（Keychain）、配置文件只留空串。**无安全存储可用时不保存该密钥字段（绝不明文）并告警**。官方支持 Windows / macOS。
+- **schema 须 Init 前可达**：`GetSettingsConfig` 不得依赖 `Init` 后才有的状态——用户得先在设置面板填好（如模型路径）你才 `Init`。把它当纯函数写（同输入同输出、无副作用、轻量）。
+- **动态/条件项**：`GetSettingsConfig(context)` 是 `context.Settings`（当前已填值）的纯函数；用户改值后宿主按当前值重算并 diff 到控件树，故可据已填值显隐字段（如某开关打开才出现的字段）。
+- **回喂时机**：宿主在启动加载完所有扩展后回喂一次（此时尚未 `Init`），用户保存设置后再回喂一次。设置变更对**已在运行**的会话/处理器的影响（是否需要重建）由你自己决定与处理。
+- **本地化**：设置项 `DisplayText` 由你自译（与属性面板同范式，按 `TuneLabContext.Global.Language` 出文案），宿主不参与查表。
+- **manifest 无需声明**：设置 schema 纯走代码（`GetSettingsConfig`），`description.json` 不掺和。
+
+### 7.3 用户在哪里改
+
+「设置」窗口（顶部菜单进入）→「扩展」分页：每个声明了设置的扩展一段「显示名 + 设置面板」。编辑在**关闭窗口 / 切走分页**时统一落盘并回喂。
+
+> agent 模型引擎有自己的侧边栏设置入口，不在「扩展」分页里。
+
+相关接口在 `TuneLab.SDK`：`IExtensionSettings` / `IExtensionSettingsContext`（+ 控件配置 `ObjectConfig` / `TextBoxConfig` / `CheckBoxConfig` / `ComboBoxConfig` / `SliderConfig`）。
+
+---
+
+## 8. 打包、安装、卸载
 
 - **包格式**：把包文件夹打成 zip，扩展名改为 **`.tlx`**，要求 `description.json` 在 zip 的**根目录**。
 - **安装**：在 TuneLab 里把 `.tlx` 拖进窗口，或用扩展侧边栏的「Install Extension」。安装即解压到扩展目录并**立即加载**（无需重启）。
@@ -426,7 +489,7 @@ class MyEffectProcessor : IEffectProcessor
 
 ---
 
-## 8. 加载与校验行为
+## 9. 加载与校验行为
 
 TuneLab 加载每个包时：**发现** → 读 `description.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、按 `class`/`import`/`export` **精确取类型实例化注册**（不再反射扫 attribute）。
 
