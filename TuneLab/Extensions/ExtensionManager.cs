@@ -12,6 +12,7 @@ using TuneLab.Utils;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Effect;
+using TuneLab.Extensions.Agent;
 namespace TuneLab.Extensions;
 
 // 扩展统一加载管线：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
@@ -38,6 +39,7 @@ internal static class ExtensionManager
         FormatsManager.LoadBuiltIn();
         VoicesManager.LoadBuiltIn();
         EffectManager.LoadBuiltIn();
+        AgentModelManager.LoadBuiltIn();
         foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
         {
             Load(dir);
@@ -48,6 +50,7 @@ internal static class ExtensionManager
     {
         VoicesManager.Destroy();
         EffectManager.Destroy();
+        AgentModelManager.Destroy();
     }
 
     // 加载单个插件包目录；结果累积进 LoadResults（供 sidebar 实时刷新）。失败不崩主程序。
@@ -276,7 +279,7 @@ internal static class ExtensionManager
         return File.Exists(full) ? full : null;
     }
 
-    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect";
+    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect" or "agent-model";
 
     static List<string> ResolveAssemblyFiles(string path, ExtensionInfo ext)
     {
@@ -294,6 +297,7 @@ internal static class ExtensionManager
             case "format": FormatsManager.RegisterFromTypes(types); break;
             case "voice": VoicesManager.RegisterFromTypes(types); break;
             case "effect": EffectManager.RegisterFromTypes(types); break;
+            case "agent-model": AgentModelManager.RegisterFromTypes(types); break;
         }
     }
 

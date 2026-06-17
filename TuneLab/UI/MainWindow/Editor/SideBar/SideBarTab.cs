@@ -12,4 +12,5 @@ internal enum SideBarTab
     Extensions,
     Properties,
     Export,
+    Agent,
 }

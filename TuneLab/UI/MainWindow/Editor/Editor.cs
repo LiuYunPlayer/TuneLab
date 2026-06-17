@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
 using TuneLab.GUI;
+using TuneLab.Animation;
 using TuneLab.Data;
 using TuneLab.Data.Synthesis;
 using TuneLab.Audio;
@@ -64,6 +65,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mFunctionBar = new(this);
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
+        // agent 经此实时读取"当前编辑 part"（用户说"当前/这个 part"时解析序号）与当前量化（吸附网格）。
+        mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
+        mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 280, Margin = new(1, 0, 0, 0) };
@@ -78,7 +82,69 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             panel.AddDock(mRightSideTabBar);
         }
         this.AddDock(panel, Dock.Right);
-        this.AddDock(mRightSideBar, Dock.Right); mRightSideBar.IsVisible = false;
+
+        // 侧栏 + 拖拽手柄同层，该层 ZIndex 抬到 track/piano(默认0) 之上：手柄既满高覆盖侧栏左缘（含与 TrackView 交界段），
+        // 又能向左探出、压在内容区之上（缝两侧都可抓）；侧栏列本与内容不重叠，抬 ZIndex 仅让手柄探出那条压住内容。
+        // 侧栏隐藏时手柄随之隐藏（可见性绑定）。
+        mRightSideBar.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+        mRightSideBar.IsVisible = false;
+        var sideBarLayer = new Panel() { ZIndex = 1 };
+        sideBarLayer.Children.Add(mRightSideBar);
+
+        var sideBarResizer = new Border()
+        {
+            Width = 8,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            Margin = new(-4, 0, 0, 0), // 左探 4px 到内容区、右留 4px 在侧栏 → 跨缝 ±4px（靠该层 ZIndex 压在内容之上才命中）
+            Background = Avalonia.Media.Brushes.Transparent,
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeWestEast),
+        };
+        // 悬浮高亮：居中一条 2px 细线压在接缝上（命中区 8px、可见高亮仅 2px），悬浮约 300ms 后显色（仿 VSCode sash），
+        // 移开/松手即隐、拖动中保持显色。
+        var resizerLine = new Border() { Width = 4, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+        sideBarResizer.Child = resizerLine;
+        // 高亮用 highlight color；用封装的 AnimationColor 做淡入淡出（仅动 alpha、保持色相干净），仿 VSCode sash 过渡。
+        var resizerHi = Style.HIGH_LIGHT;
+        var resizerHiClear = new Avalonia.Media.Color(0, resizerHi.R, resizerHi.G, resizerHi.B);
+        var resizerLineBrush = new SolidColorBrush(resizerHiClear);
+        resizerLine.Background = resizerLineBrush;
+        var resizerLineColor = new AnimationColor() { Value = resizerHiClear };
+        resizerLineColor.ValueChanged += () => resizerLineBrush.Color = resizerLineColor.Value;
+        void ShowResizerLine() => resizerLineColor.SetTo(resizerHi, 130, AnimationCurve.QuadOut);
+        void HideResizerLine() => resizerLineColor.SetTo(resizerHiClear, 130, AnimationCurve.QuadOut);
+        var resizerHoverTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        resizerHoverTimer.Tick += (_, _) => { resizerHoverTimer.Stop(); ShowResizerLine(); };
+        bool resizing = false;
+        double resizeStartX = 0, resizeStartWidth = 0;
+        sideBarResizer.PointerEntered += (_, _) => resizerHoverTimer.Start();
+        sideBarResizer.PointerExited += (_, _) => { resizerHoverTimer.Stop(); if (!resizing) HideResizerLine(); };
+        sideBarResizer.PointerPressed += (_, e) =>
+        {
+            resizing = true;
+            resizeStartX = e.GetPosition(this).X;
+            resizeStartWidth = mRightSideBar.Width;
+            resizerHoverTimer.Stop();
+            ShowResizerLine(); // 拖动即显色
+            e.Pointer.Capture(sideBarResizer);
+        };
+        sideBarResizer.PointerMoved += (_, e) =>
+        {
+            if (!resizing)
+                return;
+            var dx = e.GetPosition(this).X - resizeStartX;
+            mRightSideBar.Width = Math.Clamp(resizeStartWidth - dx, 240, 640);
+        };
+        sideBarResizer.PointerReleased += (_, e) =>
+        {
+            resizing = false;
+            e.Pointer.Capture(null);
+            if (!sideBarResizer.IsPointerOver) HideResizerLine();
+        };
+        sideBarResizer.Bind(Avalonia.Visual.IsVisibleProperty, mRightSideBar.GetObservable(Avalonia.Visual.IsVisibleProperty));
+        sideBarLayer.Children.Add(sideBarResizer); // 后加 → 在侧栏之上
+
+        this.AddDock(sideBarLayer, Dock.Right);
+
         this.AddDock(mTrackWindow, Dock.Top);
         this.AddDock(mFunctionBar, Dock.Top);
         this.AddDock(mPianoWindow);
@@ -137,6 +203,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 case SideBarTab.Export:
                     mExportSideBarContentProvider.SetProject(Project);
                     mRightSideBar.SetContent(SideBarTab.Export, mExportSideBarContentProvider.Content);
+                    break;
+                case SideBarTab.Agent:
+                    mAgentSideBarContentProvider.SetProject(Project);
+                    mRightSideBar.SetFullContent(SideBarTab.Agent, mAgentSideBarContentProvider.Icon, mAgentSideBarContentProvider.Name, mAgentSideBarContentProvider.Root);
                     break;
                 default:
                     mRightSideBar.IsVisible = false;
@@ -320,6 +390,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return;
 
         mExportSideBarContentProvider.SetProject(Project);
+        mAgentSideBarContentProvider.SetProject(Project);
 
         StartAutoSynthesis();
         mAutoSaveTimer.Start();
@@ -1292,6 +1363,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly PropertySideBarContentProvider mPropertySideBarContentProvider = new();
     readonly ExtensionSideBarContentProvider mExtensionSideBarContentProvider = new();
     readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
+    readonly AgentSideBarContentProvider mAgentSideBarContentProvider = new();
 
     readonly PlayheadForProject mPlayhead;
 

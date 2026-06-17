@@ -35,8 +35,19 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     public ExtensionSideBarContentProvider()
     {
         mContentPanel.Orientation = Orientation.Vertical;
-        mContentPanel.MaxWidth = 280;
         mContentPanel.ClipToBounds = true;
+
+        // 列表宽度优先于 item：ScrollView 用无限宽测量，item 会按内容自然全宽算 desired 而撑宽列表。
+        // 以内容面板实测宽（= 侧栏宽，由 ListView FitWidth 排布保证）作为每个 item 的 MaxWidth，在 measure 期就钉死宽度，
+        // 名称等随之省略、不再撑宽列表；侧栏拖宽即时更新。
+        mContentPanel.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Avalonia.Visual.BoundsProperty)
+                return;
+            mItemMaxWidth = mContentPanel.Bounds.Width;
+            foreach (var c in mExtensionListPanel.Children)
+                c.MaxWidth = mItemMaxWidth;
+        };
 
         // Search bar area
         var searchPanel = new Border
@@ -147,6 +158,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
 
         foreach (var ext in filtered)
         {
+            ext.MaxWidth = mItemMaxWidth; // 钉死 ≤ 列表宽，避免内容撑宽列表
             mExtensionListPanel.Children.Add(ext);
         }
 
@@ -243,6 +255,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         catch { }
     }
 
+    private double mItemMaxWidth = double.PositiveInfinity; // item 宽度上限 = 列表实测宽，随侧栏宽更新
     private readonly StackPanel mContentPanel = new();
     private readonly StackPanel mExtensionListPanel = new();
     private readonly TextBlock mCountLabel;

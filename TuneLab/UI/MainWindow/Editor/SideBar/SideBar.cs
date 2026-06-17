@@ -67,13 +67,35 @@ internal class SideBar : DockPanel
             mPages.Add(key, page);
         }
 
-        if (!ReferenceEquals(mCurrent, page))
+        ShowPage(page);
+    }
+
+    // 全高承载：把一个控件直接铺满内容区（不套滚动页）。用于需要"固定头 / 中间滚动 / 固定底"自管布局、
+    // 且不能被无限宽测量的页（如 Agent 对话面板）。控件自身负责内部滚动与换行。
+    public void SetFullContent(SideBarTab key, IImage icon, string name, Control content)
+    {
+        mIcon.Source = icon;
+        mName.Content = name;
+
+        if (!mFullPages.TryGetValue(key, out var page))
         {
-            if (mCurrent != null)
-                mCurrent.IsVisible = false;
-            page.IsVisible = true;
-            mCurrent = page;
+            page = content;
+            mPageHost.Children.Add(page);
+            mFullPages.Add(key, page);
         }
+
+        ShowPage(page);
+    }
+
+    void ShowPage(Control page)
+    {
+        if (ReferenceEquals(mCurrent, page))
+            return;
+
+        if (mCurrent != null)
+            mCurrent.IsVisible = false;
+        page.IsVisible = true;
+        mCurrent = page;
     }
 
     readonly Image mIcon;
@@ -81,5 +103,6 @@ internal class SideBar : DockPanel
     // 填充区承载所有页（Panel 叠放），仅当前页可见；隐藏页保留各自滚动状态。
     readonly Panel mPageHost = new();
     readonly Dictionary<SideBarTab, ListView> mPages = new();
-    ListView? mCurrent;
+    readonly Dictionary<SideBarTab, Control> mFullPages = new();
+    Control? mCurrent;
 }

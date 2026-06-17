@@ -44,7 +44,6 @@ internal class ExtensionItemView : Border
         BorderThickness = new Thickness(0, 0, 0, 1);
         HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
         ClipToBounds = true;
-        MaxWidth = 280;
 
         var mainPanel = new DockPanel();
 
