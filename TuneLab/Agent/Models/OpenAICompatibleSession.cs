@@ -84,6 +84,10 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             if (root.TryGetProperty("error", out var errEl) && errEl.ValueKind == JsonValueKind.Object)
             {
                 var msg = errEl.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : errEl.ToString();
+                // 工具调用失败时部分 provider（如 Groq）把模型实际生成的（不合法）调用放在 failed_generation，
+                // 是定位"调用为何被拒"的关键，一并暴露。
+                if (errEl.TryGetProperty("failed_generation", out var fg) && fg.ValueKind == JsonValueKind.String)
+                    msg += "\n[failed_generation] " + fg.GetString();
                 throw new Exception("Model stream error: " + msg);
             }
 
@@ -114,11 +118,14 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
                     int idx = tc.TryGetProperty("index", out var ie) && ie.ValueKind == JsonValueKind.Number ? ie.GetInt32() : 0;
                     if (!toolAcc.TryGetValue(idx, out var acc))
                         toolAcc[idx] = acc = new ToolCallAcc();
-                    if (tc.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
+                    // id/name 只在非空时写入：标准 OpenAI 流仅首帧带 id/name、后续帧只追加 arguments，
+                    // 但有的 provider（如 deepseek-v4-flash）会在后续帧重复发空串 id/name —— 若无条件覆盖会把
+                    // 首帧的真实 name 清成空，导致整条调用在末尾因 Name 为空被丢弃（表现为"模型调了工具却无反应"）。
+                    if (tc.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(id.GetString()))
                         acc.Id = id.GetString();
                     if (tc.TryGetProperty("function", out var fn) && fn.ValueKind == JsonValueKind.Object)
                     {
-                        if (fn.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                        if (fn.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(n.GetString()))
                             acc.Name = n.GetString();
                         if (fn.TryGetProperty("arguments", out var a) && a.ValueKind == JsonValueKind.String)
                             acc.Arguments.Append(a.GetString());
@@ -149,6 +156,8 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
                 throw new Exception("Model returned no content (finish_reason: length). Output was cut by Max Tokens — raise the Max Tokens setting (0 = no limit).");
             if (finishReason == "content_filter")
                 throw new Exception("Model returned no content (finish_reason: content_filter). The request was blocked by the provider's content filter.");
+            if (finishReason == "tool_calls")
+                throw new Exception("Model requested a tool call but none could be parsed from the stream (provider tool-call format mismatch).");
         }
 
         return new AgentModelReply
