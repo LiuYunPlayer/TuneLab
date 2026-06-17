@@ -47,7 +47,7 @@ internal sealed class TransposeNotesTool(IAgentProjectEditor editor) : IAgentToo
 internal sealed class AddVibratoTool(IAgentProjectEditor editor) : IAgentTool
 {
     public string Name => "add_vibrato";
-    public string Description => "Add a vibrato (pitch oscillation) over a tick range of a part — this creates the real Vibrato that wiggles the pitch. Use this when the user asks to add vibrato/颤音. Do NOT use the VibratoEnvelope automation for this; that only scales the depth of an existing vibrato and adds nothing on its own.";
+    public string Description => "Add a vibrato (pitch oscillation) over a tick range of a part — this creates the real Vibrato that wiggles the pitch. Use this when the user asks to add vibrato/颤音. Do NOT use the VibratoEnvelope automation for this; that only scales the depth of an existing vibrato and adds nothing on its own. Vibrato is overlaid ADDITIVELY on top of the pitch line and is fully independent of it — it does not replace or conflict with the pitch line. If the user wants both a pitch line and vibrato over the same span, draw ONE continuous pitch line over the whole span AND add vibrato on top; never break, gap, or split the pitch line to make room for the vibrato.";
 
     public string ParametersJsonSchema => """
         {

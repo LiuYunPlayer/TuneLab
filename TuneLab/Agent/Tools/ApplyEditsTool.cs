@@ -24,7 +24,7 @@ internal sealed class ApplyEditsTool(IAgentProjectEditor editor) : IAgentTool
         "  set_note: {trackNumber, partNumber, noteNumber, pitch?, pos?, dur?, lyric?}\n" +
         "  delete_note: {trackNumber, partNumber, noteNumber}\n" +
         "  delete_notes_in_range: {trackNumber, partNumber, start, end}\n" +
-        "  set_pitch_line: {trackNumber, partNumber, start, end, points} — clears [start,end) then draws a line; points=[{tick,value}], value=MIDI pitch (e.g. 60=C4, fractional allowed)\n" +
+        "  set_pitch_line: {trackNumber, partNumber, start, end, points} — clears [start,end) then draws a line; points=[{tick,value}], value=MIDI pitch (e.g. 60=C4, fractional allowed). The pitch line is independent of vibrato: vibrato (add_vibrato) is overlaid additively on top, so draw the pitch line CONTINUOUSLY over the whole span and never break or gap it where vibrato will be\n" +
         "  clear_pitch: {trackNumber, partNumber, start, end}\n" +
         "  set_automation_line: {trackNumber, partNumber, automationId, start, end, points, defaultValue?} — points=[{tick,value}], value=absolute parameter value; call get_part_parameters to discover automation ids (e.g. Volume, VibratoEnvelope)\n" +
         "  clear_automation: {trackNumber, partNumber, automationId, start, end}";
