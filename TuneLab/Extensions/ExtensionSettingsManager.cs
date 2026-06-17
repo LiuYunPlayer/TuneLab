@@ -8,7 +8,7 @@ using TuneLab.SDK;
 namespace TuneLab.Extensions;
 
 // 跨能力类别聚合「声明了扩展级设置（IExtensionSettings）的 extension」，供设置窗口枚举渲染，并把持久值回喂。
-// agent 自有侧边栏设置与 AgentSettingsStore，不在此列。
+// agent 模型 provider 不在此列：它复用存储层 ExtensionSettingsStore，但有自己的侧边栏 UI、不进设置窗口扩展页。
 internal static class ExtensionSettingsManager
 {
     // 一个可配置 extension：kind 用于持久化键与展示分组；extensionId 是不可变身份（engine 类即其 engine id）；
@@ -51,7 +51,7 @@ internal static class ExtensionSettingsManager
     {
         try
         {
-            entry.Settings.ApplySettings(ToPropertyObject(Load(entry)));
+            entry.Settings.ApplySettings(ExtensionSettingsStore.ToPropertyObject(Load(entry)));
         }
         catch (Exception ex)
         {
@@ -59,36 +59,11 @@ internal static class ExtensionSettingsManager
         }
     }
 
-    // 读某 extension 已落盘的设置（密钥已解密）。两遍：先原生读出值供 schema 求值得 IsPassword 集（密钥是否为字段
-    // 不依赖其自身值），再据此读取并解密密钥——这样存储层不必存"是否密钥"标记，纯净原生 JSON。
+    // 读某 extension 已落盘的设置（密钥已解密）。两遍读由存储层按 schema(IsPassword) 处理。
     public static Dictionary<string, PropertyValue> Load(Entry entry)
-    {
-        var raw = ExtensionSettingsStore.Load(entry.Key, sNoSecrets);
-        var secrets = PasswordKeys(entry.Settings.GetSettingsConfig(new Context(ToPropertyObject(raw))));
-        return secrets.Count == 0 ? raw : ExtensionSettingsStore.Load(entry.Key, secrets);
-    }
+        => ExtensionSettingsStore.Load(entry.Key, s => entry.Settings.GetSettingsConfig(new Context(s)));
 
-    // schema 里标了 IsPassword 的字段键（=须加密/解密的密钥字段）。
-    public static HashSet<string> PasswordKeys(ObjectConfig config)
-    {
-        var set = new HashSet<string>();
-        foreach (var kv in config.Properties)
-            if (kv.Value is TextBoxConfig tb && tb.IsPassword)
-                set.Add(kv.Key);
-        return set;
-    }
-
-    static readonly IReadOnlySet<string> sNoSecrets = new HashSet<string>();
-
-    static PropertyObject ToPropertyObject(Dictionary<string, PropertyValue> values)
-    {
-        var map = new Map<string, PropertyValue>();
-        foreach (var kv in values)
-            map.Add(kv.Key, kv.Value);
-        return new PropertyObject(map);
-    }
-
-    // IExtensionSettings.GetSettingsConfig 求值上下文（仅用于本管理器内部据当前值算 IsPassword 集）。
+    // IExtensionSettings.GetSettingsConfig 求值上下文（据当前值算 config / IsPassword 集）。
     sealed class Context(PropertyObject settings) : IExtensionSettingsContext
     {
         public PropertyObject Settings => settings;

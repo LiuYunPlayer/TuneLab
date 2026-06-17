@@ -9,7 +9,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Agent;
+using TuneLab.Configs;
 using TuneLab.Data;
+using TuneLab.Extensions;
 using TuneLab.Extensions.Agent;
 using TuneLab.Foundation;
 using TuneLab.GUI;
@@ -43,20 +45,18 @@ internal sealed class AgentSideBarContentProvider
         ShowChat();
         SwitchTo(NewContext()); // 立即建立首个空白会话作为当前可见会话
 
-        // 载入上次保存的设置（含解密后的密钥），并选中上次的引擎。
-        var (savedEngine, savedValues) = AgentSettingsStore.Load();
-        foreach (var kv in savedValues)
-            mSettings.SetValue(kv.Key, kv.Value);
-        mSettings.Commit();
-
         var engines = AgentModelManager.GetAllAgentModelEngines().ToList();
         // 选项值存不可变引擎 id（用于保存/连接/比较），显示文本用本地化显示名。
         mEngineOptions = engines.Select(e => new ComboBoxOption(PropertyValue.Create(e), AgentModelManager.GetDisplayName(e))).ToList();
-        string? initial = savedEngine != null && engines.Contains(savedEngine) ? savedEngine : (engines.Count > 0 ? engines[0] : null);
+        // 上次选中的 provider 存 app Settings；各 provider 的配置值各存 ExtensionSettings.json 的 "agent-model:<id>" 桶。
+        var savedEngine = Settings.AgentModelProvider.Value;
+        bool hadSaved = !string.IsNullOrEmpty(savedEngine) && engines.Contains(savedEngine);
+        string? initial = hadSaved ? savedEngine : (engines.Count > 0 ? engines[0] : null);
         if (initial != null)
         {
             mProviderData.SetValue(EngineKey, PropertyValue.Create(initial));
             mProviderData.Commit();
+            LoadProviderSettings(initial); // 载入该 provider 已存设置（含解密密钥）
         }
         // provider 选择走单项 PropertyObjectController（复用属性面板的 INTERFACE 块 + label + margin 样式）。
         mProviderController.SetConfig(BuildProviderConfig(), mProviderData);
@@ -65,10 +65,22 @@ internal sealed class AgentSideBarContentProvider
         // 选择变更经数据对象 Modified 驱动（用户改 combo → 写入 mProviderData → 通知）。
         mProviderData.Modified.Subscribe(OnEngineSelectionChanged);
 
-        // 有持久化设置时（说明之前 Submit 过）打开即静默自动接入，直接可聊天；失败则首次发送再引导去设置。
-        if (savedEngine != null && engines.Contains(savedEngine) && TryConnect(savedEngine, out _))
+        // 之前 Submit 过（app Settings 记了 provider）才打开即静默自动接入，直接可聊天；否则首次发送再引导去设置。
+        if (hadSaved && TryConnect(savedEngine, out _))
             AppendMessage(mActive, "system", ConnectedNotice()); // 启动即提示连到哪个模型
 
+    }
+
+    // 载入某 provider 已落盘的设置（含解密密钥）进 mSettings。各 provider 各记一份（key="agent-model:<id>"）。
+    void LoadProviderSettings(string type)
+    {
+        var engine = AgentModelManager.GetInitedEngine(type);
+        if (engine == null)
+            return;
+        var values = ExtensionSettingsStore.Load("agent-model:" + type, s => engine.GetPropertyConfig(new PropertyContext(s)));
+        foreach (var kv in values)
+            mSettings.SetValue(kv.Key, kv.Value);
+        mSettings.Commit();
     }
 
     // 工程切换时由 Editor 调用：重建 Facade 与工具（runner 下次发送时按新工具重建，历史重置）。
@@ -1507,8 +1519,10 @@ internal sealed class AgentSideBarContentProvider
     void OnEngineSelectionChanged()
     {
         var type = CurrentEngineType();
-        if (!string.IsNullOrEmpty(type))
-            RefreshEnginePropertyPanel(type);
+        if (string.IsNullOrEmpty(type))
+            return;
+        LoadProviderSettings(type); // 切到某 provider：先载入它各自已存的设置，再刷新面板
+        RefreshEnginePropertyPanel(type);
     }
 
     void RefreshEnginePropertyPanel(string type)
@@ -1574,7 +1588,8 @@ internal sealed class AgentSideBarContentProvider
         }
     }
 
-    // 持久化当前引擎与其填好的值；按 IsPassword 标出敏感字段交由存储层加密。
+    // 持久化当前 provider 的设置（按 IsPassword 标出密钥交存储层加密），并把选中的 provider 记进 app Settings。
+    // 走通用 ExtensionSettingsStore，key="agent-model:<id>"，每 provider 各一份。
     void SaveSettings(string type)
     {
         var engine = AgentModelManager.GetInitedEngine(type);
@@ -1582,12 +1597,22 @@ internal sealed class AgentSideBarContentProvider
             return;
 
         var config = engine.GetPropertyConfig(new PropertyContext(mSettings.GetInfo()));
-        var secrets = new HashSet<string>();
-        foreach (var kv in config.Properties)
-            if (kv.Value is TextBoxConfig tb && tb.IsPassword)
-                secrets.Add(kv.Key);
+        var secrets = ExtensionSettingsStore.PasswordKeys(config);
+        // 只存当前 provider schema 里的字段，避免把切换前其他 provider 残留在 mSettings 的键写进本 provider 桶。
+        ExtensionSettingsStore.Save("agent-model:" + type, FilterToConfig(mSettings.GetInfo(), config), secrets);
 
-        AgentSettingsStore.Save(type, mSettings.GetInfo(), secrets);
+        Settings.AgentModelProvider.Value = type;
+        Settings.Save(PathManager.SettingsFilePath);
+    }
+
+    // all 中属于 config 声明字段的子集（按当前 provider schema 过滤）。
+    static PropertyObject FilterToConfig(PropertyObject all, ObjectConfig config)
+    {
+        var map = new Map<string, PropertyValue>();
+        foreach (var kv in config.Properties)
+            if (all.Map.TryGetValue(kv.Key, out var v))
+                map.Add(kv.Key, v);
+        return new PropertyObject(map);
     }
 
     sealed class PropertyContext(PropertyObject properties) : IAgentModelPropertyContext

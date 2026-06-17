@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using TuneLab.Agent;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 using TuneLab.Utils;
 
 namespace TuneLab.Extensions;
@@ -17,7 +18,7 @@ namespace TuneLab.Extensions;
 //   无安全存储可用时（如官方未支持的 Linux / headless）：【不保存该密钥字段】+ 告警——绝不明文落盘。
 // 官方支持 Windows / macOS。文件【不存】"是否密钥/加密方式"标记——该信息来自 schema(IsPassword) + 当前平台，
 // 故文件保持纯净原生。读时调用方传入 secretKeys（哪些字段需解密/从凭据库取回）。
-// agent 自有侧边栏设置与 AgentSettingsStore，不走这里。
+// agent 模型 provider 的设置也走这里（key="agent-model:<id>"），但其 UI 在 agent 侧边栏、不在设置窗口扩展页。
 internal static class ExtensionSettingsStore
 {
     static string FilePath => Path.Combine(PathManager.ConfigsFolder, "ExtensionSettings.json");
@@ -46,6 +47,35 @@ internal static class ExtensionSettingsStore
         }
         return result;
     }
+
+    // 两遍读：先原生读出值供 schema 求值得 IsPassword 集（密钥是否为字段不依赖其自身值），再据此读取并解密密钥。
+    // schemaOf 给定当前值返回该 extension 的 config——这样存储层不必存"是否密钥"标记，文件保持纯净原生。
+    public static Dictionary<string, PropertyValue> Load(string extensionKey, Func<PropertyObject, ObjectConfig> schemaOf)
+    {
+        var raw = Load(extensionKey, sNoSecrets);
+        var secrets = PasswordKeys(schemaOf(ToPropertyObject(raw)));
+        return secrets.Count == 0 ? raw : Load(extensionKey, secrets);
+    }
+
+    // schema 里标了 IsPassword 的字段键（= 须加密/解密的密钥字段）。
+    public static HashSet<string> PasswordKeys(ObjectConfig config)
+    {
+        var set = new HashSet<string>();
+        foreach (var kv in config.Properties)
+            if (kv.Value is TextBoxConfig tb && tb.IsPassword)
+                set.Add(kv.Key);
+        return set;
+    }
+
+    public static PropertyObject ToPropertyObject(IReadOnlyDictionary<string, PropertyValue> values)
+    {
+        var map = new Map<string, PropertyValue>();
+        foreach (var kv in values)
+            map.Add(kv.Key, kv.Value);
+        return new PropertyObject(map);
+    }
+
+    static readonly IReadOnlySet<string> sNoSecrets = new HashSet<string>();
 
     static string LoadSecret(string extensionKey, string key, JsonNode? node)
     {
