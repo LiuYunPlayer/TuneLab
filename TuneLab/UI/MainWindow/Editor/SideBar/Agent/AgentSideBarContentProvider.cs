@@ -6,7 +6,6 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Agent;
@@ -221,8 +220,10 @@ internal sealed class AgentSideBarContentProvider
             if (e.Property != Avalonia.Visual.BoundsProperty)
                 return;
             mBubbleMaxWidth = Math.Max(140, mMessagesList.Bounds.Width - 40);
+            mContentMaxWidth = Math.Max(140, mMessagesList.Bounds.Width - 24);
+            // ListView 用无限宽测量子项，子项必须靠 MaxWidth 才会换行。助手容器（去气泡）用近整宽、用户气泡/系统提示留对侧空白。
             foreach (var c in mMessagesList.Content.Children)
-                c.MaxWidth = mBubbleMaxWidth;
+                c.MaxWidth = (c.Tag as string) == "assistant" ? mContentMaxWidth : mBubbleMaxWidth;
         };
 
         DockPanel.SetDock(header, Dock.Top);
@@ -349,7 +350,7 @@ internal sealed class AgentSideBarContentProvider
                 var content = string.IsNullOrEmpty(m.Text)
                     ? BubbleText("(no text reply)", Colors.White.ToBrush())
                     : AssistantContent(m.Text, usage);
-                mMessagesList.Content.Children.Add(Bubble(content, mine: false));
+                mMessagesList.Content.Children.Add(AssistantContainer(content));
             }
             else
             {
@@ -507,46 +508,44 @@ internal sealed class AgentSideBarContentProvider
         mCts = new CancellationTokenSource();
         SetBusy(true);
 
-        // 流式回显：首个增量到达前保持动态点；之后换成纯文本实时追加（不逐 token 重渲 Markdown），结束再渲成 Markdown。
-        var streamText = new StringBuilder();
-        SelectableTextBlock? streamView = null;
-        void OnDelta(string delta)
-        {
-            if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(() => OnDelta(delta)); return; }
-            streamText.Append(delta);
-            if (streamView == null)
-            {
-                streamView = BubbleText(streamText.ToString(), Colors.White.ToBrush());
-                bubble.Child = streamView;
-            }
-            else
-            {
-                streamView.Text = streamText.ToString();
-            }
-            ScrollToEnd();
-        }
+        // 分步渲染：把 runner 的进度事件（流式文本增量 / 工具开始·完成）按序铺进气泡，全程可见模型在说什么、调了哪个工具、结果如何。
+        // 首个事件到达前保持等待动画（ThinkingDots），到达即把气泡内容换成分步视图。各轮叙述各自成段保留——不再被最终文本整体替换。
+        var turn = new AgentTurnView();
+        bool swapped = false;
+        void EnsureSwapped() { if (!swapped) { bubble.Child = turn.Root; swapped = true; } }
+        // Progress<T> 在创建处（UI 线程）的同步上下文上派发，事件按 runner 发出顺序 FIFO 到达——文本与工具步骤的先后关系正确。
+        void Handle(AgentEvent e) { EnsureSwapped(); turn.Apply(e); ScrollToEnd(); }
 
         try
         {
             mRunner ??= new AgentRunner(mSession, mTools, SystemPrompt, mSeedHistory);
-            var reply = await mRunner.SendAsync(text, new Progress<string>(OnDelta), mCts.Token);
-            bubble.Child = string.IsNullOrEmpty(reply.Text)
-                ? BubbleText("(no text reply)", Colors.White.ToBrush())
-                : AssistantContent(reply.Text, reply.Usage);
+            var reply = await mRunner.SendAsync(text, new Progress<AgentEvent>(Handle), mCts.Token);
+            turn.SealText();
+            if (turn.IsEmpty)
+                bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
+            else
+                turn.Append(BuildFooter(reply.Text, reply.Usage));
             RecordTurn(text, reply.Text, reply.Usage);
         }
         catch (OperationCanceledException)
         {
-            // 用户主动停止：保留已流式输出的内容（渲成 Markdown）+ 末尾标注 Stopped，不当错误（红字）。
-            bubble.Child = PartialThenNotice(streamText.ToString(), "Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
+            // 用户主动停止：保留已渲染的分步内容 + 末尾灰字 Stopped，并把仍在运行的工具块标记中止，不当错误（红字）。
+            turn.SealText();
+            turn.MarkPendingAborted();
+            EnsureSwapped();
+            turn.Append(NoticeLine("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
         }
         catch (Exception ex)
         {
-            // 中途报错同样保留已流式输出的内容，错误作末尾红字，不丢已输出有效内容。
-            bubble.Child = PartialThenNotice(streamText.ToString(), "Error: " + ex.Message, Colors.IndianRed.ToBrush());
+            // 中途报错同样保留已渲染的分步内容，错误作末尾红字，不丢已输出有效内容。
+            turn.SealText();
+            turn.MarkPendingAborted();
+            EnsureSwapped();
+            turn.Append(NoticeLine("Error: " + ex.Message, Colors.IndianRed.ToBrush()));
         }
         finally
         {
+            turn.EndThinking(); // 生成结束（成功/停止/出错）：移除底部"生成中"三点动画
             mCts.Dispose();
             mCts = null;
             SetBusy(false);
@@ -572,33 +571,29 @@ internal sealed class AgentSideBarContentProvider
         ScrollToEnd();
     }
 
-    // agent 侧占位气泡，返回 Border 以便回复回来后替换其内容（动态等待指示 → Markdown 渲染 / 错误文本）。
+    // agent 侧消息容器（无气泡），返回 Border 以便回复回来后替换其内容（动态等待指示 → 分步视图 / 错误文本）。
     Border AddAssistantBubble()
     {
-        var bubble = Bubble(ThinkingDots(), mine: false);
+        var bubble = AssistantContainer(AgentTurnView.ThinkingDots());
         mMessagesList.Content.Children.Add(bubble);
         ScrollToEnd();
         return bubble;
     }
 
-    // 等待期动态指示：循环 • / • • / • • • 三帧。计时器随控件挂载启动、脱离视觉树（回复回来替换内容）即停，自清理。
-    static Control ThinkingDots()
+    // 助手消息容器：取消气泡（无底色、满宽左对齐）——窄侧栏里把横向空间全留给回复内容，对标 ChatGPT/Claude 弱化回复气泡。
+    // Tag="assistant" 让宽度自适应订阅跳过它（不给它套 MaxWidth），区别于用户气泡。
+    Border AssistantContainer(Control content) => new()
     {
-        string[] frames = { "•", "• •", "• • •" };
-        var tb = new TextBlock { Text = frames[0], FontSize = 14, Foreground = Colors.White.ToBrush() };
-        DispatcherTimer? timer = null;
-        int i = 0;
-        tb.AttachedToVisualTree += (_, _) =>
-        {
-            timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
-            timer.Tick += (_, _) => { i = (i + 1) % frames.Length; tb.Text = frames[i]; };
-            timer.Start();
-        };
-        tb.DetachedFromVisualTree += (_, _) => { timer?.Stop(); timer = null; };
-        return tb;
-    }
+        Tag = "assistant",
+        Background = Brushes.Transparent,
+        Margin = new(12, 4),
+        // ListView 无限宽测量：靠 MaxWidth 约束才会换行（Stretch 在无限宽下不起作用）。创建即设近整宽，首个 Bounds 事件前也能换行。
+        MaxWidth = mContentMaxWidth,
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+        Child = content,
+    };
 
-    // 气泡容器：用户靠右、agent 靠左；内容可为可选中文本或 Markdown 控件。MaxWidth 随对话区宽度自适应。
+    // 用户气泡：靠右、主色底；agent 用 AssistantContainer 不再走这里。MaxWidth 随对话区宽度自适应。
     Border Bubble(Control content, bool mine) => new()
     {
         MaxWidth = mBubbleMaxWidth,
@@ -615,9 +610,13 @@ internal sealed class AgentSideBarContentProvider
         => new() { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = foreground, FontSize = 12 };
 
     // 助手消息：Markdig 解析 + 自渲染（ChatMarkdownRenderer，零依赖、文本可选中）+ 脚注（复制原文 + 本轮 token 用量）。
+    // 供加载已存会话时渲染整条助手文本；新消息走 AgentTurnView 分步渲染、末尾单独追加 BuildFooter。
     Control AssistantContent(string markdown, AgentTokenUsage? usage)
+        => new StackPanel { Orientation = Orientation.Vertical, Children = { ChatMarkdownRenderer.Render(markdown), BuildFooter(markdown, usage) } };
+
+    // 脚注一行：token 总量靠左（带单位，hover 看输入/输出明细）、Copy 靠右（复制 markdownToCopy 原文；端点未返回 usage 则只有 Copy）。
+    Control BuildFooter(string markdownToCopy, AgentTokenUsage? usage)
     {
-        var md = ChatMarkdownRenderer.Render(markdown);
         var copy = new TextBlock
         {
             Text = "Copy".Tr(this),
@@ -630,10 +629,9 @@ internal sealed class AgentSideBarContentProvider
         copy.PointerPressed += (_, e) =>
         {
             e.Handled = true;
-            _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(markdown);
+            _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(markdownToCopy);
         };
 
-        // 脚注一行：token 总量靠左（带单位，hover 看输入/输出明细）、Copy 靠右（端点未返回 usage 则只有 Copy）。
         var footer = new DockPanel { LastChildFill = false, Margin = new(0, 4, 0, 0) };
         DockPanel.SetDock(copy, Dock.Right);
         footer.Children.Add(copy);
@@ -651,28 +649,19 @@ internal sealed class AgentSideBarContentProvider
             DockPanel.SetDock(tokens, Dock.Left);
             footer.Children.Add(tokens);
         }
-        return new StackPanel { Orientation = Orientation.Vertical, Children = { md, footer } };
+        return footer;
     }
 
-    // 流式中途结束（用户停止 / 出错）的气泡内容：已流式输出的部分渲成 Markdown + 末尾一行斜体提示
-    //（停止=灰字 Stopped、出错=红字 Error），不丢已输出内容。partial 为空（首 token 前就结束）则只显提示。
-    Control PartialThenNotice(string partial, string notice, IBrush noticeColor)
+    // 一行斜体提示（停止=灰、出错=红），追加在分步内容末尾。用 SelectableTextBlock：报错文案常需复制排查。
+    SelectableTextBlock NoticeLine(string text, IBrush color) => new()
     {
-        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
-        if (!string.IsNullOrEmpty(partial))
-            panel.Children.Add(ChatMarkdownRenderer.Render(partial));
-        // 用 SelectableTextBlock：报错文案常需复制排查，普通 TextBlock 选不中、复制不了。
-        panel.Children.Add(new SelectableTextBlock
-        {
-            Text = notice,
-            FontSize = 11,
-            FontStyle = FontStyle.Italic,
-            Foreground = noticeColor,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new(0, 4, 0, 0),
-        });
-        return panel;
-    }
+        Text = text,
+        FontSize = 11,
+        FontStyle = FontStyle.Italic,
+        Foreground = color,
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new(0, 4, 0, 0),
+    };
 
     // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。
     void ScrollToEnd() => Dispatcher.UIThread.Post(() => mMessagesList.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);
@@ -868,6 +857,7 @@ internal sealed class AgentSideBarContentProvider
         "CRITICAL: every tool argument must be a concrete literal value (a number or string). Never put placeholders, template expressions, code, or references to other tools inside arguments — for example do NOT write \"${get_current_part().trackNumber}\", \"get_part_notes(...)\", or any ${...} expression. There is no inline evaluation. Instead, first call the read tool, read the actual values from its result text, then call the next tool with those literal numbers. " +
         "To transpose notes (e.g. up an octave = +12 semitones) use transpose_notes (a part) or shift_track_pitch (a whole track) — do NOT use set_pitch_line, which only draws a pitch curve and does not move note pitches. " +
         "To add vibrato (颤音) use add_vibrato — do NOT set the VibratoEnvelope automation for this; VibratoEnvelope only scales the depth of an existing vibrato and produces nothing on its own. " +
+        "Vibrato is overlaid additively on the pitch line and is independent of it: when drawing a pitch line and adding vibrato over the same span, draw ONE continuous pitch line over the whole span and add vibrato on top — never break or split the pitch line where the vibrato is. " +
         "All tick positions in every tool are ABSOLUTE (global) ticks — the same coordinate space as the playhead, get_project_overview and bar numbers. You never convert between coordinate systems and never subtract a part start. " +
         "The playhead is not grid-aligned; when writing a melody or placing notes on the beat, snap your target ticks with snap_tick first.";
 
@@ -887,7 +877,8 @@ internal sealed class AgentSideBarContentProvider
     Flyout mMenuFlyout = null!;
     bool mMenuJustClosed;
     bool mBusy;
-    double mBubbleMaxWidth = 230; // 气泡最大宽度，随对话区宽度自适应（见 BuildChatView 的 Bounds 订阅）
+    double mBubbleMaxWidth = 230; // 用户气泡/系统提示最大宽度，随对话区宽度自适应（见 BuildChatView 的 Bounds 订阅）
+    double mContentMaxWidth = 246; // 助手去气泡容器的近整宽，随对话区宽度自适应
 
     readonly DataDocument mSettingsDocument = new();
     readonly DataPropertyObject mSettings;

@@ -31,8 +31,9 @@ internal sealed class AgentRunner
 
     // 处理一条用户消息，返回模型的最终文本回复 + 本轮 token 用量。对话历史在多次调用间累积（保持上下文）。
     // 一次用户输入内可能有多次模型调用（工具往返），用量为这些调用的合计；任一调用返回了 usage 即非 null。
-    // onContentDelta：流式文本增量回调（可空），透传给会话；不支持流式的会话默认等整段返回、不产增量。
-    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
+    // progress：进度事件回调（可空）——文本增量(AgentTextDelta)透传自会话流式，工具开始/完成(AgentToolStarted/Finished)
+    // 由本循环发出，供 UI 按序渲染分步指示。返回的 Text 是各轮助手自然语言的合并（不是仅最后一轮），用于持久化与复制。
+    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<AgentEvent>? progress, CancellationToken cancellationToken)
     {
         mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = userInput });
 
@@ -51,11 +52,16 @@ internal sealed class AgentRunner
             total += x.TotalTokens;
         }
 
+        // 把会话的字符串文本增量同步包装成 AgentTextDelta 事件转发——与下面的工具事件走同一通道，保证到达 UI 的先后顺序。
+        IProgress<string>? deltaSink = progress == null ? null : new SyncProgress<string>(d => progress.Report(new AgentTextDelta(d)));
+        // 各轮助手自然语言，合并为本轮最终文本：根治「多轮叙述只剩最后一轮」——首轮先说后调工具的叙述不再被丢弃。
+        var narration = new List<string>();
+
         for (int round = 0; round < MaxToolRounds; round++)
         {
             var reply = await mSession.SendAsync(
                 new AgentModelRequest { Messages = mMessages, Tools = mToolSchemas },
-                onContentDelta,
+                deltaSink,
                 cancellationToken);
 
             Accumulate(reply.Usage);
@@ -67,23 +73,30 @@ internal sealed class AgentRunner
                 ToolCalls = reply.ToolCalls.Count > 0 ? reply.ToolCalls : null,
             });
 
+            if (!string.IsNullOrEmpty(reply.Content))
+                narration.Add(reply.Content);
+
             if (reply.ToolCalls.Count == 0)
-                return new AgentTurnResult(reply.Content ?? string.Empty, TurnUsage());
+                return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage());
 
             foreach (var call in reply.ToolCalls)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                progress?.Report(new AgentToolStarted(call.Id, call.Name, call.ArgumentsJson));
                 string result;
+                bool isError;
                 if (mTools.TryGetValue(call.Name, out var tool))
                 {
-                    try { result = await tool.ExecuteAsync(call.ArgumentsJson, cancellationToken); }
-                    catch (System.Exception ex) { result = "Error: " + ex.Message; }
+                    try { result = await tool.ExecuteAsync(call.ArgumentsJson, cancellationToken); isError = false; }
+                    catch (System.Exception ex) { result = "Error: " + ex.Message; isError = true; }
                 }
                 else
                 {
                     result = string.Format("Error: unknown tool '{0}'.", call.Name);
+                    isError = true;
                 }
 
+                progress?.Report(new AgentToolFinished(call.Id, call.Name, result, isError));
                 mMessages.Add(new AgentMessage
                 {
                     Role = AgentRole.Tool,
@@ -96,15 +109,23 @@ internal sealed class AgentRunner
         // 撞上限：再请求一次但不给工具，逼模型用已有进展给出收尾文本——好过整轮作废、空手而归。
         var wrapUp = await mSession.SendAsync(
             new AgentModelRequest { Messages = mMessages, Tools = [] },
-            onContentDelta,
+            deltaSink,
             cancellationToken);
         Accumulate(wrapUp.Usage);
         mMessages.Add(new AgentMessage { Role = AgentRole.Assistant, Content = wrapUp.Content });
+        if (!string.IsNullOrEmpty(wrapUp.Content))
+            narration.Add(wrapUp.Content);
         return new AgentTurnResult(
-            string.IsNullOrEmpty(wrapUp.Content)
-                ? string.Format("Stopped after {0} tool-call rounds.", MaxToolRounds)
-                : wrapUp.Content,
+            narration.Count > 0
+                ? string.Join("\n\n", narration)
+                : string.Format("Stopped after {0} tool-call rounds.", MaxToolRounds),
             TurnUsage());
+    }
+
+    // 同步转发的 IProgress：不经 SynchronizationContext 异步 Post，调用线程直转——保证文本增量与工具事件按发出顺序到达 UI sink。
+    sealed class SyncProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 
     readonly IAgentModelSession mSession;
