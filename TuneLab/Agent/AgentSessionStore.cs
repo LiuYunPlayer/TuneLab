@@ -15,9 +15,7 @@ namespace TuneLab.Agent;
 // 附件单独落 blob、清单只存引用 —— 避免图片 base64 内联进 JSON 后每轮全量重写爆炸。
 // 陈旧性（历史工具结果是当时项目状态的快照、可能过期）由系统提示兜底，不靠丢历史解决。
 //
-// 向后兼容：旧版「每会话一个扁平 AgentSessions/<id>.json」仍能列出/加载；新存盘一律走文件夹形式，
-// 首次保存旧会话时把扁平文件迁成文件夹（删旧扁平文件）。Schema 演进走 System.Text.Json 加法式、零迁移：
-// 旧文件无新字段即取默认值；SchemaVersion 缺失/0=旧版纯文本（降级为纯文本气泡），1=全量轨迹（重建分步视图）。
+// Schema 演进走 System.Text.Json 加法式、零迁移：旧文件无新字段即取默认值；SchemaVersion 标记清单格式版本（当前=1：全量轨迹）。
 internal sealed class ChatToolCall
 {
     public string Id { get; set; } = string.Empty;
@@ -52,7 +50,7 @@ internal sealed class ChatTurnMessage
 
 internal sealed class ChatSession
 {
-    public int SchemaVersion { get; set; }   // 缺失/0=旧版纯文本；1=全量轨迹（含工具/思考/附件）
+    public int SchemaVersion { get; set; } = 1;   // 清单格式版本（当前=1：全量轨迹，含工具/思考/附件）
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = string.Empty;
     public long CreatedAtUnix { get; set; }
@@ -74,18 +72,16 @@ internal static class AgentSessionStore
     static string FolderOf(string id) => Path.Combine(Root, id);
     static string SessionJsonPath(string id) => Path.Combine(FolderOf(id), "session.json");
     static string BlobsDir(string id) => Path.Combine(FolderOf(id), "blobs");
-    static string LegacyPath(string id) => Path.Combine(Root, id + ".json");
 
-    // 列出全部会话，按最近更新倒序。新版=各 <id>/session.json，旧版=扁平 <id>.json（文件夹形式优先、不重复）。损坏项跳过。
+    // 列出全部会话（各 <id>/session.json），按最近更新倒序。损坏项跳过。
     public static List<ChatSession> List()
     {
-        var byId = new Dictionary<string, ChatSession>();
+        var list = new List<ChatSession>();
         try
         {
             if (!Directory.Exists(Root))
-                return new();
+                return list;
 
-            // 新版文件夹形式
             foreach (var dir in Directory.EnumerateDirectories(Root))
             {
                 var json = Path.Combine(dir, "session.json");
@@ -93,22 +89,14 @@ internal static class AgentSessionStore
                     continue;
                 var s = TryLoad(json);
                 if (s != null && !string.IsNullOrEmpty(s.Id))
-                    byId[s.Id] = s;
-            }
-
-            // 旧版扁平文件（仅当该 id 尚无文件夹形式时采用）
-            foreach (var file in Directory.EnumerateFiles(Root, "*.json"))
-            {
-                var s = TryLoad(file);
-                if (s != null && !string.IsNullOrEmpty(s.Id) && !byId.ContainsKey(s.Id))
-                    byId[s.Id] = s;
+                    list.Add(s);
             }
         }
         catch (Exception ex)
         {
             Log.Error("Failed to list agent sessions: " + ex);
         }
-        return byId.Values.OrderByDescending(s => s.UpdatedAtUnix).ToList();
+        return list.OrderByDescending(s => s.UpdatedAtUnix).ToList();
     }
 
     static ChatSession? TryLoad(string path)
@@ -138,10 +126,6 @@ internal static class AgentSessionStore
                     WriteBlobIfMissing(session.Id, a);
             }
             SaveFile.WriteAllText(SessionJsonPath(session.Id), JsonSerializer.Serialize(session, Options));
-            // 迁移：旧扁平文件存在则删掉，避免与文件夹形式重复列出。
-            var legacy = LegacyPath(session.Id);
-            if (File.Exists(legacy))
-                File.Delete(legacy);
         }
         catch (Exception ex)
         {
@@ -156,9 +140,6 @@ internal static class AgentSessionStore
             var folder = FolderOf(id);
             if (Directory.Exists(folder))
                 Directory.Delete(folder, recursive: true);
-            var legacy = LegacyPath(id);
-            if (File.Exists(legacy))
-                File.Delete(legacy);
         }
         catch (Exception ex)
         {

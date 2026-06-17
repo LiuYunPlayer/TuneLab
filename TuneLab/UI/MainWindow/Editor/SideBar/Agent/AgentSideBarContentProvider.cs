@@ -538,35 +538,12 @@ internal sealed class AgentSideBarContentProvider
         SwitchTo(ctx);
     }
 
-    // 重建已存会话的对话视图。v1（全量轨迹）：按轮分组、用户气泡 + 重放事件重建分步视图（文本/思考/工具块按序交错），
-    // 与实时完全一致；v0（旧版纯文本）：逐条渲染（助手整段 Markdown，无工具/思考），降级兼容。
+    // 重建已存会话的对话视图（全量轨迹）：按轮分组、用户气泡 + 重放事件重建分步视图（文本/思考/工具块按序交错），与实时完全一致。
     void RebuildHistoryView(SessionContext ctx, ChatSession session)
     {
         var msgs = session.Messages;
 
-        if (session.SchemaVersion < 1)
-        {
-            foreach (var m in msgs)
-            {
-                if (m.Role == "assistant")
-                {
-                    var usage = m.TotalTokens.HasValue
-                        ? new AgentTokenUsage { PromptTokens = m.PromptTokens ?? 0, CompletionTokens = m.CompletionTokens ?? 0, TotalTokens = m.TotalTokens.Value }
-                        : null;
-                    var content = string.IsNullOrEmpty(m.Text)
-                        ? BubbleText("(no text reply)", Colors.White.ToBrush())
-                        : AssistantContent(m.Text, usage);
-                    ctx.View.Content.Children.Add(AssistantContainer(content));
-                }
-                else
-                {
-                    ctx.View.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
-                }
-            }
-            return;
-        }
-
-        // v1：按轮分组——一轮 = 一条 user 消息 + 其后直到下条 user 之前的全部 assistant/tool 消息。
+        // 按轮分组——一轮 = 一条 user 消息 + 其后直到下条 user 之前的全部 assistant/tool 消息。
         int i = 0;
         while (i < msgs.Count)
         {
