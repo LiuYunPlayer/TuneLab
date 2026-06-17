@@ -438,23 +438,7 @@ internal sealed class AgentSideBarContentProvider
         }
 
         var ctx = NewContext();
-        foreach (var m in session.Messages)
-        {
-            if (m.Role == "assistant")
-            {
-                var usage = m.TotalTokens.HasValue
-                    ? new AgentTokenUsage { PromptTokens = m.PromptTokens ?? 0, CompletionTokens = m.CompletionTokens ?? 0, TotalTokens = m.TotalTokens.Value }
-                    : null;
-                var content = string.IsNullOrEmpty(m.Text)
-                    ? BubbleText("(no text reply)", Colors.White.ToBrush())
-                    : AssistantContent(m.Text, usage);
-                ctx.View.Content.Children.Add(AssistantContainer(content));
-            }
-            else
-            {
-                ctx.View.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
-            }
-        }
+        RebuildHistoryView(ctx, session);
 
         ctx.Session = session;
         ctx.SeedHistory = ReconstructHistory(session);
@@ -464,37 +448,142 @@ internal sealed class AgentSideBarContentProvider
         SwitchTo(ctx);
     }
 
-    // 从会话消息重建 runner 续聊历史（仅对话文本；项目事实续聊时由模型重新调工具读取）。
+    // 重建已存会话的对话视图。v1（全量轨迹）：按轮分组、用户气泡 + 重放事件重建分步视图（文本/思考/工具块按序交错），
+    // 与实时完全一致；v0（旧版纯文本）：逐条渲染（助手整段 Markdown，无工具/思考），降级兼容。
+    void RebuildHistoryView(SessionContext ctx, ChatSession session)
+    {
+        var msgs = session.Messages;
+
+        if (session.SchemaVersion < 1)
+        {
+            foreach (var m in msgs)
+            {
+                if (m.Role == "assistant")
+                {
+                    var usage = m.TotalTokens.HasValue
+                        ? new AgentTokenUsage { PromptTokens = m.PromptTokens ?? 0, CompletionTokens = m.CompletionTokens ?? 0, TotalTokens = m.TotalTokens.Value }
+                        : null;
+                    var content = string.IsNullOrEmpty(m.Text)
+                        ? BubbleText("(no text reply)", Colors.White.ToBrush())
+                        : AssistantContent(m.Text, usage);
+                    ctx.View.Content.Children.Add(AssistantContainer(content));
+                }
+                else
+                {
+                    ctx.View.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
+                }
+            }
+            return;
+        }
+
+        // v1：按轮分组——一轮 = 一条 user 消息 + 其后直到下条 user 之前的全部 assistant/tool 消息。
+        int i = 0;
+        while (i < msgs.Count)
+        {
+            if (msgs[i].Role == "user")
+            {
+                ctx.View.Content.Children.Add(Bubble(BubbleText(msgs[i].Text, Colors.White.ToBrush()), mine: true));
+                i++;
+            }
+            // 收集到下条 user 之前的助手/工具消息，重放成一条分步视图。容错：轨迹首条若非 user（异常文件），落单消息也独立成组。
+            int start = i;
+            while (i < msgs.Count && msgs[i].Role != "user")
+                i++;
+            if (i > start)
+                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i));
+        }
+    }
+
+    // 把 [start, end) 区间的助手/工具记录重放进一个 AgentTurnView，重建分步视图（与实时同路径），包进助手容器返回。
+    // 重放顺序即存储顺序：每条 assistant 先思考、再正文、再它的工具调用(started)；随后的 tool 记录给出对应结果(finished)。
+    Control BuildReplayedTurn(List<ChatTurnMessage> msgs, int start, int end)
+    {
+        var turn = new AgentTurnView();
+        var narration = new List<string>();
+        int prompt = 0, completion = 0, total = 0;
+        bool hasUsage = false;
+        for (int k = start; k < end; k++)
+        {
+            var m = msgs[k];
+            if (m.Role == "tool")
+            {
+                turn.Apply(new AgentToolFinished(m.ToolCallId ?? string.Empty, string.Empty, m.Text, m.IsError));
+                continue;
+            }
+            // assistant
+            if (!string.IsNullOrEmpty(m.Reasoning))
+                turn.Apply(new AgentReasoningDelta(m.Reasoning));
+            if (!string.IsNullOrEmpty(m.Text))
+            {
+                turn.Apply(new AgentTextDelta(m.Text));
+                narration.Add(m.Text);
+            }
+            if (m.ToolCalls != null)
+                foreach (var call in m.ToolCalls)
+                    turn.Apply(new AgentToolStarted(call.Id, call.Name, call.ArgumentsJson));
+            if (m.TotalTokens.HasValue)
+            {
+                hasUsage = true;
+                prompt += m.PromptTokens ?? 0;
+                completion += m.CompletionTokens ?? 0;
+                total += m.TotalTokens.Value;
+            }
+        }
+        turn.Seal();
+        turn.EndThinking(); // 重载即已完成，移除"生成中"指示
+        if (turn.IsEmpty)
+            return AssistantContainer(BubbleText("(no text reply)", Colors.White.ToBrush()));
+        var usage = hasUsage ? new AgentTokenUsage { PromptTokens = prompt, CompletionTokens = completion, TotalTokens = total } : null;
+        turn.Append(BuildFooter(string.Join("\n\n", narration), usage));
+        return AssistantContainer(turn.Root);
+    }
+
+    // 从会话消息重建 runner 续聊历史，带回完整工具往返（assistant 的工具调用 + tool 结果消息），使「重载 == 实时」
+    // ——模型续聊时带上之前调了哪些工具、得到什么结果的上下文，不再失忆。思考(reasoning)不回发（它是输出而非输入）。
+    // 旧版纯文本文件无 tool 记录、assistant 也无 ToolCalls，本映射自然降级为纯 user/assistant 文本。
     // 供加载会话、以及聊天中途换模型重连时复用——后者据此让新模型带上完整当前上下文。
     static List<AgentMessage> ReconstructHistory(ChatSession session)
     {
         var history = new List<AgentMessage>();
         foreach (var m in session.Messages)
-            history.Add(new AgentMessage
+        {
+            switch (m.Role)
             {
-                Role = m.Role == "assistant" ? AgentRole.Assistant : AgentRole.User,
-                Content = m.Text,
-            });
+                case "assistant":
+                    history.Add(new AgentMessage
+                    {
+                        Role = AgentRole.Assistant,
+                        Content = string.IsNullOrEmpty(m.Text) ? null : m.Text,
+                        ToolCalls = m.ToolCalls is { Count: > 0 }
+                            ? m.ToolCalls.Select(c => new AgentToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList()
+                            : null,
+                    });
+                    break;
+                case "tool":
+                    history.Add(new AgentMessage { Role = AgentRole.Tool, ToolCallId = m.ToolCallId, Content = m.Text });
+                    break;
+                default:
+                    history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text });
+                    break;
+            }
+        }
         return history;
     }
 
     // 一轮成功回复后记入该会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
     // ctx 是发起本轮时捕获的会话——即便用户中途已切到别的会话，也只写它、不串会话。
-    void RecordTurn(SessionContext ctx, string userText, string assistantText, AgentTokenUsage? usage)
+    // 存全量：用户输入 + runner 返回的有序轨迹（助手回复含思考/工具调用/用量、工具结果含错误标记）原样落盘——
+    // 重载即可完整重建分步视图、并把含工具往返的上下文回灌续聊。assistantText 是合并叙述，仅用于自动标题。
+    void RecordTurn(SessionContext ctx, string userText, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory)
     {
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         bool isNew = ctx.Session == null;
         ctx.Session ??= new ChatSession { CreatedAtUnix = ctx.CreatedAtUnix }; // 沿用上下文建立时刻，落盘前后排序位置一致
         var session = ctx.Session;
+        session.SchemaVersion = 1; // 本轮起以全量轨迹格式落盘
         session.Messages.Add(new ChatTurnMessage { Role = "user", Text = userText });
-        session.Messages.Add(new ChatTurnMessage
-        {
-            Role = "assistant",
-            Text = assistantText,
-            PromptTokens = usage?.PromptTokens,
-            CompletionTokens = usage?.CompletionTokens,
-            TotalTokens = usage?.TotalTokens,
-        });
+        foreach (var m in trajectory)
+            session.Messages.Add(ToStored(m));
         session.UpdatedAtUnix = now;
 
         if (isNew && ctx.TitleManual && !string.IsNullOrWhiteSpace(ctx.Title))
@@ -516,6 +605,29 @@ internal sealed class AgentSideBarContentProvider
         {
             AgentSessionStore.Save(session);
         }
+    }
+
+    // 把 runner 的一条轨迹消息转成落盘记录（助手带思考/工具调用/用量，工具带结果/错误标记）。
+    static ChatTurnMessage ToStored(AgentTurnMessage m)
+    {
+        if (m.Role == AgentRole.Tool)
+            return new ChatTurnMessage
+            {
+                Role = "tool",
+                Text = m.Content ?? string.Empty,
+                ToolCallId = m.ToolCallId,
+                IsError = m.IsError,
+            };
+        return new ChatTurnMessage
+        {
+            Role = "assistant",
+            Text = m.Content ?? string.Empty,
+            Reasoning = m.Reasoning,
+            ToolCalls = m.ToolCalls?.Select(c => new ChatToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList(),
+            PromptTokens = m.Usage?.PromptTokens,
+            CompletionTokens = m.Usage?.CompletionTokens,
+            TotalTokens = m.Usage?.TotalTokens,
+        };
     }
 
     // 自动标题：用模型把首轮总结成几字标题，覆盖占位的首条截断。失败/未连接则保留占位（已是首条截断）。
@@ -664,7 +776,7 @@ internal sealed class AgentSideBarContentProvider
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
                 turn.Append(BuildFooter(reply.Text, reply.Usage));
-            RecordTurn(ctx, text, reply.Text, reply.Usage);
+            RecordTurn(ctx, text, reply.Text, reply.Trajectory);
         }
         catch (OperationCanceledException)
         {
@@ -997,6 +1109,7 @@ internal sealed class AgentSideBarContentProvider
         "Only call a tool when the user explicitly asks you to inspect or modify the project. " +
         "For greetings, small talk, or statements that are not requests, reply briefly in natural language and do not call any tool. " +
         "When a request does need project facts, call a tool rather than guessing. " +
+        "Tool results that appear earlier in this conversation are snapshots of the project as it was at that moment and may now be stale — the user (or your own later edits) may have changed tracks, parts, notes, tempo or counts since. Before any operation that depends on current counts, indices or values (e.g. editing a note by its number, referring to \"track N\", or assuming how many parts exist), re-read the relevant state with the appropriate get tool first rather than trusting an older result. " +
         "Addressing is 1-based everywhere: track 1 is the first track, and part/note numbers are 1-based too. " +
         "Positions and durations are in ticks; call get_project_overview to learn the PPQ (ticks per quarter note) and the tempo/time signature. " +
         "For multi-step or fine-grained edits (writing a melody, editing many notes, drawing pitch/parameter curves), prefer the apply_edits tool so the whole batch is a single undoable change. " +

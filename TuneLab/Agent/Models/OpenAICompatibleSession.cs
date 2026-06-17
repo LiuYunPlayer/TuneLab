@@ -68,10 +68,10 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
     static async Task<AgentModelReply> ParseStream(StreamReader reader, IProgress<string>? onContentDelta, IProgress<string>? onReasoningDelta, CancellationToken cancellationToken)
     {
         var contentSb = new StringBuilder();
+        var reasoningSb = new StringBuilder(); // 推理「思考」全文（落盘/重现用；同时其长度判断"是否有产出"）
         var toolAcc = new SortedDictionary<int, ToolCallAcc>();
         AgentTokenUsage? usage = null;
         string? finishReason = null;
-        int reasoningLen = 0; // 推理增量总长（用于：reasoning 也算"有产出"，避免空 content 时误报"无内容"）
 
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
@@ -121,7 +121,7 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
                 var rpiece = rc.GetString();
                 if (!string.IsNullOrEmpty(rpiece))
                 {
-                    reasoningLen += rpiece.Length;
+                    reasoningSb.Append(rpiece);
                     onReasoningDelta?.Report(rpiece);
                 }
             }
@@ -167,7 +167,7 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
         if (contentSb.Length == 0 && toolCalls.Count == 0)
         {
             // reasoning_content 非空（推理模型把输出放在思考里、正文为空）属正常——不误报"无内容"，思考块自有呈现。
-            if (reasoningLen == 0)
+            if (reasoningSb.Length == 0)
                 Log.Warning(string.Format("Agent stream produced no content. finish_reason={0}, hasUsage={1}", finishReason ?? "(none)", usage != null));
             if (finishReason == "length")
                 throw new Exception("Model returned no content (finish_reason: length). Output was cut by Max Tokens — raise the Max Tokens setting (0 = no limit).");
@@ -180,6 +180,7 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
         return new AgentModelReply
         {
             Content = contentSb.Length > 0 ? contentSb.ToString() : null,
+            Reasoning = reasoningSb.Length > 0 ? reasoningSb.ToString() : null,
             ToolCalls = toolCalls,
             Usage = usage,
         };
@@ -284,6 +285,10 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             ? contentElement.GetString()
             : null;
 
+        string? reasoning = message.TryGetProperty("reasoning_content", out var reasoningElement) && reasoningElement.ValueKind == JsonValueKind.String
+            ? reasoningElement.GetString()
+            : null;
+
         var toolCalls = new List<AgentToolCall>();
         if (message.TryGetProperty("tool_calls", out var toolCallsElement) && toolCallsElement.ValueKind == JsonValueKind.Array)
         {
@@ -300,7 +305,7 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             }
         }
 
-        return new AgentModelReply { Content = content, ToolCalls = toolCalls, Usage = ParseUsage(doc.RootElement) };
+        return new AgentModelReply { Content = content, Reasoning = reasoning, ToolCalls = toolCalls, Usage = ParseUsage(doc.RootElement) };
     }
 
     // OpenAI 协议 usage：{ prompt_tokens, completion_tokens, total_tokens }。缺失则返回 null（不是所有端点都返回）。

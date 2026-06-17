@@ -7,8 +7,25 @@ using TuneLab.SDK;
 
 namespace TuneLab.Agent;
 
-// 一次用户输入处理的结果：最终文本回复 + 本轮（含工具往返多次模型调用合计）的 token 用量（端点未返回则为 null）。
-internal readonly record struct AgentTurnResult(string Text, AgentTokenUsage? Usage);
+// 一次用户输入处理的结果：
+//  · Text  ——各轮助手自然语言合并的最终文本（用于复制/标题/脚注展示）。
+//  · Usage ——本轮（含工具往返多次模型调用）的 token 用量合计（端点未返回则为 null）。
+//  · Trajectory ——本轮新增的有序全量消息镜像（assistant 含思考/工具调用/本次用量，tool 含结果/错误标记），
+//    供宿主原样落盘并据此重建分步视图、回灌续聊上下文，使「重载 == 实时」。
+internal readonly record struct AgentTurnResult(string Text, AgentTokenUsage? Usage, IReadOnlyList<AgentTurnMessage> Trajectory);
+
+// 本轮新增的一条轨迹消息（assistant 或 tool）：镜像 SDK 的 AgentMessage，并附宿主侧的思考全文 / 本次用量 / 错误标记。
+// 这些扩展字段不在 AgentMessage 上（思考是输出不回发、用量是按调用计、错误标记是 UI 用），故另立宿主类型承载。
+internal sealed class AgentTurnMessage
+{
+    public required AgentRole Role { get; init; }               // Assistant | Tool
+    public string? Content { get; init; }
+    public string? Reasoning { get; init; }                     // 仅 Assistant：思考通道全文（可空）
+    public IReadOnlyList<AgentToolCall>? ToolCalls { get; init; } // 仅 Assistant：本次请求的工具调用
+    public string? ToolCallId { get; init; }                     // 仅 Tool：回指对应 AgentToolCall.Id
+    public bool IsError { get; init; }                           // 仅 Tool：结果是否为错误（UI 状态色）
+    public AgentTokenUsage? Usage { get; init; }                 // 仅 Assistant：本次模型调用的 token 用量
+}
 
 // agent 主循环：把对话历史 + 工具声明发给模型会话，循环执行模型请求的工具并把结果回灌，
 // 直到模型不再请求工具，返回最终自然语言回复。provider 无关——只依赖 IAgentModelSession 抽象。
@@ -58,6 +75,8 @@ internal sealed class AgentRunner
         IProgress<string>? reasoningSink = progress == null ? null : new SyncProgress<string>(d => progress.Report(new AgentReasoningDelta(d)));
         // 各轮助手自然语言，合并为本轮最终文本：根治「多轮叙述只剩最后一轮」——首轮先说后调工具的叙述不再被丢弃。
         var narration = new List<string>();
+        // 本轮新增的有序全量轨迹（assistant + tool），供宿主落盘 + 重建分步视图。
+        var trajectory = new List<AgentTurnMessage>();
 
         for (int round = 0; round < MaxToolRounds; round++)
         {
@@ -69,18 +88,27 @@ internal sealed class AgentRunner
 
             Accumulate(reply.Usage);
 
+            var toolCalls = reply.ToolCalls.Count > 0 ? reply.ToolCalls : null;
             mMessages.Add(new AgentMessage
             {
                 Role = AgentRole.Assistant,
                 Content = reply.Content,
-                ToolCalls = reply.ToolCalls.Count > 0 ? reply.ToolCalls : null,
+                ToolCalls = toolCalls,
+            });
+            trajectory.Add(new AgentTurnMessage
+            {
+                Role = AgentRole.Assistant,
+                Content = reply.Content,
+                Reasoning = reply.Reasoning,
+                ToolCalls = toolCalls,
+                Usage = reply.Usage,
             });
 
             if (!string.IsNullOrEmpty(reply.Content))
                 narration.Add(reply.Content);
 
             if (reply.ToolCalls.Count == 0)
-                return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage());
+                return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage(), trajectory);
 
             foreach (var call in reply.ToolCalls)
             {
@@ -106,6 +134,13 @@ internal sealed class AgentRunner
                     ToolCallId = call.Id,
                     Content = result,
                 });
+                trajectory.Add(new AgentTurnMessage
+                {
+                    Role = AgentRole.Tool,
+                    ToolCallId = call.Id,
+                    Content = result,
+                    IsError = isError,
+                });
             }
         }
 
@@ -117,13 +152,21 @@ internal sealed class AgentRunner
             cancellationToken);
         Accumulate(wrapUp.Usage);
         mMessages.Add(new AgentMessage { Role = AgentRole.Assistant, Content = wrapUp.Content });
+        trajectory.Add(new AgentTurnMessage
+        {
+            Role = AgentRole.Assistant,
+            Content = wrapUp.Content,
+            Reasoning = wrapUp.Reasoning,
+            Usage = wrapUp.Usage,
+        });
         if (!string.IsNullOrEmpty(wrapUp.Content))
             narration.Add(wrapUp.Content);
         return new AgentTurnResult(
             narration.Count > 0
                 ? string.Join("\n\n", narration)
                 : string.Format("Stopped after {0} tool-call rounds.", MaxToolRounds),
-            TurnUsage());
+            TurnUsage(),
+            trajectory);
     }
 
     // 同步转发的 IProgress：不经 SynchronizationContext 异步 Post，调用线程直转——保证文本增量与工具事件按发出顺序到达 UI sink。

@@ -55,9 +55,11 @@ public sealed class AgentTokenUsage
 }
 
 // 模型一轮回复：自然语言文本（可空）+ 它要求调用的工具（可能为空集，空集表示本轮结束）+ 本次调用的 token 用量（可空）。
+// Reasoning 是推理模型的「思考」全文（OpenAI 协议 reasoning_content，可空）——仅供宿主展示/持久化，不回发给模型（推理内容是输出而非输入）。
 public sealed class AgentModelReply
 {
     public string? Content { get; init; }
+    public string? Reasoning { get; init; }
     public IReadOnlyList<AgentToolCall> ToolCalls { get; init; } = [];
     public AgentTokenUsage? Usage { get; init; }
 }
