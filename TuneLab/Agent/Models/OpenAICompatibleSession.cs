@@ -40,7 +40,10 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
 
     // 流式：stream:true + stream_options.include_usage（拿最后一帧 usage）。逐帧解析 delta，文本增量经 onContentDelta 回调，
     // 工具调用分片按 index 累积，结束后拼成完整一轮回复返回（语义与非流式一致，便于 Runner 复用循环）。
-    public async Task<AgentModelReply> SendAsync(AgentModelRequest request, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
+    public Task<AgentModelReply> SendAsync(AgentModelRequest request, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
+        => SendAsync(request, onContentDelta, null, cancellationToken);
+
+    public async Task<AgentModelReply> SendAsync(AgentModelRequest request, IProgress<string>? onContentDelta, IProgress<string>? onReasoningDelta, CancellationToken cancellationToken)
     {
         var bodyObj = BuildRequestBody(request);
         bodyObj["stream"] = true;
@@ -58,16 +61,17 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream);
-        return await ParseStream(reader, onContentDelta, cancellationToken).ConfigureAwait(false);
+        return await ParseStream(reader, onContentDelta, onReasoningDelta, cancellationToken).ConfigureAwait(false);
     }
 
-    // SSE：每行 "data: {json}"，"data: [DONE]" 收尾。累积 content/tool_calls/usage。
-    static async Task<AgentModelReply> ParseStream(StreamReader reader, IProgress<string>? onContentDelta, CancellationToken cancellationToken)
+    // SSE：每行 "data: {json}"，"data: [DONE]" 收尾。累积 content/reasoning_content/tool_calls/usage。
+    static async Task<AgentModelReply> ParseStream(StreamReader reader, IProgress<string>? onContentDelta, IProgress<string>? onReasoningDelta, CancellationToken cancellationToken)
     {
         var contentSb = new StringBuilder();
         var toolAcc = new SortedDictionary<int, ToolCallAcc>();
         AgentTokenUsage? usage = null;
         string? finishReason = null;
+        int reasoningLen = 0; // 推理增量总长（用于：reasoning 也算"有产出"，避免空 content 时误报"无内容"）
 
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
@@ -111,6 +115,17 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
                 }
             }
 
+            // 推理模型的「思考」增量（reasoning_content）：转推理通道单独渲染，不并入正文。
+            if (delta.TryGetProperty("reasoning_content", out var rc) && rc.ValueKind == JsonValueKind.String)
+            {
+                var rpiece = rc.GetString();
+                if (!string.IsNullOrEmpty(rpiece))
+                {
+                    reasoningLen += rpiece.Length;
+                    onReasoningDelta?.Report(rpiece);
+                }
+            }
+
             if (delta.TryGetProperty("tool_calls", out var tcs) && tcs.ValueKind == JsonValueKind.Array)
             {
                 foreach (var tc in tcs.EnumerateArray())
@@ -151,7 +166,9 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
         // finish_reason=length → 输出被 max_tokens 截断（常见于 Max Tokens 设太小）；content_filter → 被内容审查拦截。
         if (contentSb.Length == 0 && toolCalls.Count == 0)
         {
-            Log.Warning(string.Format("Agent stream produced no content. finish_reason={0}, hasUsage={1}", finishReason ?? "(none)", usage != null));
+            // reasoning_content 非空（推理模型把输出放在思考里、正文为空）属正常——不误报"无内容"，思考块自有呈现。
+            if (reasoningLen == 0)
+                Log.Warning(string.Format("Agent stream produced no content. finish_reason={0}, hasUsage={1}", finishReason ?? "(none)", usage != null));
             if (finishReason == "length")
                 throw new Exception("Model returned no content (finish_reason: length). Output was cut by Max Tokens — raise the Max Tokens setting (0 = no limit).");
             if (finishReason == "content_filter")

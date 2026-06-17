@@ -659,7 +659,7 @@ internal sealed class AgentSideBarContentProvider
         {
             ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
             var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token);
-            turn.SealText();
+            turn.Seal();
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
@@ -669,7 +669,7 @@ internal sealed class AgentSideBarContentProvider
         catch (OperationCanceledException)
         {
             // 用户主动停止：保留已渲染的分步内容 + 末尾灰字 Stopped，并把仍在运行的工具块标记中止，不当错误（红字）。
-            turn.SealText();
+            turn.Seal();
             turn.MarkPendingAborted();
             EnsureSwapped();
             turn.Append(NoticeLine("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
@@ -677,7 +677,7 @@ internal sealed class AgentSideBarContentProvider
         catch (Exception ex)
         {
             // 中途报错同样保留已渲染的分步内容，错误作末尾红字，不丢已输出有效内容。
-            turn.SealText();
+            turn.Seal();
             turn.MarkPendingAborted();
             EnsureSwapped();
             turn.Append(NoticeLine("Error: " + ex.Message, Colors.IndianRed.ToBrush()));

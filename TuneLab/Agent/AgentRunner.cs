@@ -54,6 +54,8 @@ internal sealed class AgentRunner
 
         // 把会话的字符串文本增量同步包装成 AgentTextDelta 事件转发——与下面的工具事件走同一通道，保证到达 UI 的先后顺序。
         IProgress<string>? deltaSink = progress == null ? null : new SyncProgress<string>(d => progress.Report(new AgentTextDelta(d)));
+        // 推理模型的「思考」增量走独立的 AgentReasoningDelta 通道（与正文分流，仍经同一 progress 保持 FIFO 顺序）。
+        IProgress<string>? reasoningSink = progress == null ? null : new SyncProgress<string>(d => progress.Report(new AgentReasoningDelta(d)));
         // 各轮助手自然语言，合并为本轮最终文本：根治「多轮叙述只剩最后一轮」——首轮先说后调工具的叙述不再被丢弃。
         var narration = new List<string>();
 
@@ -62,6 +64,7 @@ internal sealed class AgentRunner
             var reply = await mSession.SendAsync(
                 new AgentModelRequest { Messages = mMessages, Tools = mToolSchemas },
                 deltaSink,
+                reasoningSink,
                 cancellationToken);
 
             Accumulate(reply.Usage);
@@ -110,6 +113,7 @@ internal sealed class AgentRunner
         var wrapUp = await mSession.SendAsync(
             new AgentModelRequest { Messages = mMessages, Tools = [] },
             deltaSink,
+            reasoningSink,
             cancellationToken);
         Accumulate(wrapUp.Usage);
         mMessages.Add(new AgentMessage { Role = AgentRole.Assistant, Content = wrapUp.Content });
