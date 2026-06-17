@@ -37,6 +37,7 @@ internal sealed class AgentSideBarContentProvider
     {
         // 设置数据须挂在文档根上（属性面板字段绑定会读 DataObject.Head），用独立 DataDocument，与工程 undo 隔离。
         mSettings = new DataPropertyObject(mSettingsDocument);
+        mProviderData = new DataPropertyObject(mProviderDocument);
 
         BuildChatView();
         BuildSettingsView();
@@ -49,14 +50,19 @@ internal sealed class AgentSideBarContentProvider
         mSettings.Commit();
 
         var engines = AgentModelManager.GetAllAgentModelEngines().ToList();
-        mEngineComboBox.SetConfig(new ComboBoxConfig { Options = engines.Select(e => (ComboBoxOption)e).ToList() });
+        mEngineOptions = engines.Select(e => (ComboBoxOption)e).ToList();
         string? initial = savedEngine != null && engines.Contains(savedEngine) ? savedEngine : (engines.Count > 0 ? engines[0] : null);
         if (initial != null)
         {
-            mEngineComboBox.Display(PropertyValue.Create(initial));
-            RefreshEnginePropertyPanel(initial);
+            mProviderData.SetValue(EngineKey, PropertyValue.Create(initial));
+            mProviderData.Commit();
         }
-        mEngineComboBox.ValueCommitted.Subscribe(OnEngineSelectionChanged);
+        // provider 选择走单项 PropertyObjectController（复用属性面板的 INTERFACE 块 + label + margin 样式）。
+        mProviderController.SetConfig(BuildProviderConfig(), mProviderData);
+        if (initial != null)
+            RefreshEnginePropertyPanel(initial);
+        // 选择变更经数据对象 Modified 驱动（用户改 combo → 写入 mProviderData → 通知）。
+        mProviderData.Modified.Subscribe(OnEngineSelectionChanged);
 
         // 有持久化设置时（说明之前 Submit 过）打开即静默自动接入，直接可聊天；失败则首次发送再引导去设置。
         if (savedEngine != null && engines.Contains(savedEngine))
@@ -633,10 +639,8 @@ internal sealed class AgentSideBarContentProvider
         header.Children.Add(new Label() { Content = "Model Settings".Tr(this), FontSize = 12, Margin = new(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush() });
 
         var content = new StackPanel() { Orientation = Orientation.Vertical };
-        content.Children.Add(new Label() { Content = "Model Plugin".Tr(this), FontSize = 12, Margin = new(24, 12, 24, 0), Foreground = Style.LIGHT_WHITE.ToBrush() });
-        mEngineComboBox.Margin = new(24, 4, 24, 0);
-        mEngineComboBox.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
-        content.Children.Add(mEngineComboBox);
+        // Model Provider 选择 + 引擎属性面板都用 PropertyObjectController（同 INTERFACE 块、同 label/margin 样式），连成统一面板。
+        content.Children.Add(mProviderController);
         content.Children.Add(mPropertiesController);
         mSubmitButton = SmallTextButton("Submit".Tr(this), 0, 32, Style.BUTTON_PRIMARY, Style.BUTTON_PRIMARY_HOVER);
         mSubmitButton.Margin = new(24, 16, 24, 8);
@@ -660,9 +664,19 @@ internal sealed class AgentSideBarContentProvider
         mSettingsView.Children.Add(scroll);
     }
 
+    // provider 选择的单项 config：复用 ComboBoxConfig（label 走 DisplayText，由属性面板渲成统一样式）。
+    ObjectConfig BuildProviderConfig()
+    {
+        var props = new OrderedMap<string, IControllerConfig>();
+        props.Add(EngineKey, new ComboBoxConfig { DisplayText = "Model Provider".Tr(this), Options = mEngineOptions });
+        return new ObjectConfig { Properties = props };
+    }
+
+    string CurrentEngineType() => mProviderData.GetValue(EngineKey, PropertyValue.Create(string.Empty)).ToString() ?? string.Empty;
+
     void OnEngineSelectionChanged()
     {
-        var type = mEngineComboBox.Value.ToString();
+        var type = CurrentEngineType();
         if (!string.IsNullOrEmpty(type))
             RefreshEnginePropertyPanel(type);
     }
@@ -682,7 +696,7 @@ internal sealed class AgentSideBarContentProvider
 
     void OnSubmit()
     {
-        var type = mEngineComboBox.Value.ToString();
+        var type = CurrentEngineType();
         if (string.IsNullOrEmpty(type))
             return;
 
@@ -792,7 +806,7 @@ internal sealed class AgentSideBarContentProvider
     readonly ListView mMessagesList = new();
     readonly TextInput mInput = new();
     readonly TextBlock mTitleLabel = new() { Text = "New Chat" };
-    readonly ComboBoxController mEngineComboBox = new();
+    readonly PropertyObjectController mProviderController = new(); // provider 选择（单项 combo），复用属性面板样式
     readonly PropertyObjectController mPropertiesController = new();
     readonly Label mStatusLabel = new() { FontSize = 11, Margin = new(24, 0, 24, 12), Foreground = Colors.IndianRed.ToBrush() };
     TuneLab.GUI.Components.Button mSendButton = null!;
@@ -806,6 +820,11 @@ internal sealed class AgentSideBarContentProvider
 
     readonly DataDocument mSettingsDocument = new();
     readonly DataPropertyObject mSettings;
+    // provider 选择单独挂一个数据对象（不污染 mSettings 的持久化）；engine 值存于 EngineKey 字段。
+    readonly DataDocument mProviderDocument = new();
+    readonly DataPropertyObject mProviderData;
+    IReadOnlyList<ComboBoxOption> mEngineOptions = [];
+    const string EngineKey = "provider";
     IAgentProjectEditor? mProjectEditor;
     IReadOnlyList<IAgentTool> mTools = [];
     IAgentModelSession? mSession;
