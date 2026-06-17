@@ -24,6 +24,7 @@ internal class EditableLabel : LayerPanel, IDataValueController<string>
     public Avalonia.Layout.HorizontalAlignment HorizontalContentAlignment { get => mTextBlock.HorizontalAlignment; set { mTextBlock.HorizontalAlignment = value; mTextInput.HorizontalContentAlignment = value; } }
     public Avalonia.Layout.VerticalAlignment VerticalContentAlignment { get => mTextBlock.VerticalAlignment; set { mTextBlock.VerticalAlignment = value; mTextInput.VerticalContentAlignment = value; } }
     public IBrush? Foreground { get => mTextBlock.Foreground; set { mTextBlock.Foreground = value; } }
+    public TextTrimming TextTrimming { get => mTextBlock.TextTrimming; set { mTextBlock.TextTrimming = value; } }
     public new IBrush? Background { get => mTextBlock.Background; set { mBorder.Background = value; } }
     public IBrush? InputForeground { get => mTextInput.Foreground; set => mTextInput.Foreground = value; }
     public IBrush? InputBackground { get => mTextInput.Background; set => mTextInput.Background = value; }
