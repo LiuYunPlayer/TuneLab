@@ -70,7 +70,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
-        mRightSideBar = new() { Width = 280, Margin = new(1, 0, 0, 0) };
+        mRightSideBar = new() { Width = 320, Margin = new(1, 0, 0, 0) };
 
         var panel = new DockPanel() { Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0, 0, 0) };
         {
