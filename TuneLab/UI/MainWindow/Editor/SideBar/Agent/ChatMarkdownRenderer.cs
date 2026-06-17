@@ -211,7 +211,8 @@ internal static class ChatMarkdownRenderer
         return border;
     }
 
-    // 表格 → Avalonia Grid：每列等宽（*）随气泡宽自适应，单元格内文本换行；表头加粗 + 浅底；细网格线。
+    // 表格 → Avalonia Grid：列宽按内容自适应——短列用 Auto（贴合内容、不浪费空间、不提前换行），含长文本的列用 Star
+    // （吸收剩余宽度、需要时才换行）。修掉「等宽星列把短列留白、却逼长列过早换行」。表头加粗 + 浅底；细网格线。
     static Control RenderTable(Table table)
     {
         int cols = table.ColumnDefinitions.Count;
@@ -221,10 +222,31 @@ internal static class ChatMarkdownRenderer
         if (cols == 0)
             return new SelectableTextBlock { Text = string.Empty };
 
-        var line = Style.LIGHT_WHITE.Opacity(0.2).ToBrush();
-        var grid = new Grid { Margin = new(0, 2) };
+        // 逐列算内容最大「显示长度」（CJK/全角计 2）：超过阈值的列含长文本 → Star 吸收剩余宽并按需换行；其余 → Auto 贴合内容。
+        var colMaxLen = new int[cols];
+        foreach (var rowObj in table)
+        {
+            if (rowObj is not TableRow row)
+                continue;
+            for (int c = 0; c < row.Count && c < cols; c++)
+                if (row[c] is TableCell cell)
+                    colMaxLen[c] = System.Math.Max(colMaxLen[c], DisplayLength(CellText(cell)));
+        }
+        const int NarrowThreshold = 16;
+        bool anyFlex = false;
         for (int c = 0; c < cols; c++)
-            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            anyFlex |= colMaxLen[c] > NarrowThreshold;
+
+        var line = Style.LIGHT_WHITE.Opacity(0.2).ToBrush();
+        // 全是窄列时左对齐（小表格按内容宽、不强行拉满侧栏）；有长列时默认 Stretch，Star 列把表格撑满可用宽。
+        var grid = new Grid { Margin = new(0, 2) };
+        if (!anyFlex)
+            grid.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+        for (int c = 0; c < cols; c++)
+        {
+            bool flex = anyFlex && colMaxLen[c] > NarrowThreshold;
+            grid.ColumnDefinitions.Add(new ColumnDefinition(flex ? GridLength.Star : GridLength.Auto));
+        }
 
         int rowIndex = 0;
         foreach (var rowObj in table)
@@ -279,6 +301,34 @@ internal static class ChatMarkdownRenderer
         }
         return sp;
     }
+
+    // 单元格纯文本（拼接其内段落的内联文本），用于估列宽。
+    static string CellText(TableCell cell)
+    {
+        var sb = new StringBuilder();
+        foreach (var sub in cell)
+            if (sub is LeafBlock lb && lb.Inline != null)
+                sb.Append(GetInlineText(lb.Inline));
+        return sb.ToString();
+    }
+
+    // 文本「显示长度」：CJK/全角字符计 2、其余计 1——比字符数更接近实际占宽，使中英文混排的列宽估计更准。
+    static int DisplayLength(string s)
+    {
+        int n = 0;
+        foreach (var rune in s.EnumerateRunes())
+            n += IsWideChar(rune.Value) ? 2 : 1;
+        return n;
+    }
+
+    static bool IsWideChar(int v)
+        => (v >= 0x1100 && v <= 0x115F)    // Hangul Jamo
+        || (v >= 0x2E80 && v <= 0xA4CF)    // CJK 部首…注音…康熙…汉字…彝文
+        || (v >= 0xAC00 && v <= 0xD7A3)    // Hangul 音节
+        || (v >= 0xF900 && v <= 0xFAFF)    // CJK 兼容汉字
+        || (v >= 0xFF00 && v <= 0xFF60)    // 全角 ASCII
+        || (v >= 0xFFE0 && v <= 0xFFE6)    // 全角符号
+        || (v >= 0x20000 && v <= 0x3FFFD); // CJK 扩展 B+
 
     static string GetCodeText(CodeBlock code)
     {
