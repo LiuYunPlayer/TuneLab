@@ -168,6 +168,13 @@ internal sealed class AgentSideBarContentProvider
         mStopButton.Clicked += () => mActive?.Cts?.Cancel(); // 停止键只取消当前可见会话的在飞请求
         DockPanel.SetDock(mStopButton, Dock.Right);
         inputRow.Children.Add(mStopButton);
+        // 图片附件按钮：左侧，仅当前连接的会话声明支持图片输入时可见（见 RefreshAttachAvailability）。
+        mAttachButton = IconButton(Assets.Image, Style.LIGHT_WHITE.Opacity(0.6), Colors.White);
+        mAttachButton.IsVisible = false;
+        ToolTip.SetTip(mAttachButton, "Attach image".Tr(this));
+        mAttachButton.Clicked += () => _ = OnAttachClicked();
+        DockPanel.SetDock(mAttachButton, Dock.Left);
+        inputRow.Children.Add(mAttachButton);
         // 多行自增长：随内容长高、自动换行，到上限内部滚动；Enter 发送，Shift+Enter 换行。
         mInput.AcceptsReturn = true;
         mInput.TextWrapping = TextWrapping.Wrap;
@@ -199,8 +206,20 @@ internal sealed class AgentSideBarContentProvider
                 e.Handled = true;
                 _ = OnSend();
             }
+            else if (e.Key == Key.V && (e.KeyModifiers & KeyModifiers.Control) != 0)
+            {
+                // 不设 Handled：剪贴板有图就入待发，同时让 TextBox 的文本粘贴照常进行（图文都在则两者都生效）。
+                _ = TryPasteImageAsync();
+            }
         }), Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         inputRow.Children.Add(mInput);
+
+        // 待发附件缩略图条（输入行正上方、框内）：每个缩略图右上角带 ✕ 移除；空时整条隐藏。
+        mAttachmentStrip.Orientation = Orientation.Horizontal;
+        mAttachmentStrip.Spacing = 6;
+        mAttachmentStrip.Margin = new(2, 4, 2, 2);
+        mAttachmentStrip.IsVisible = false;
+        var inputColumn = new StackPanel { Orientation = Orientation.Vertical, Children = { mAttachmentStrip, inputRow } };
 
         var inputBorder = new Border()
         {
@@ -210,7 +229,7 @@ internal sealed class AgentSideBarContentProvider
             Background = Style.BACK.ToBrush(),
             Margin = new(8),
             Padding = new(6, 2),
-            Child = inputRow,
+            Child = inputColumn,
         };
 
         // 中间丝滑滚动对话区的挂载点（透明背景让整块区域含消息下方空白都可命中滚轮）。各会话各持一个 ListView，
@@ -242,6 +261,11 @@ internal sealed class AgentSideBarContentProvider
         DockPanel.SetDock(mTokenStatus, Dock.Bottom);
         mChatView.Children.Add(mTokenStatus);
         mChatView.Children.Add(mMessagesHost); // 最后一个 → 填充中间
+
+        // 拖拽图片到对话区任意处即入待发（DragOver 仅在支持图片时显示「复制」效果）。
+        DragDrop.SetAllowDrop(mChatView, true);
+        mChatView.AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        mChatView.AddHandler(DragDrop.DropEvent, OnDrop);
     }
 
     // 刷新 token 状态行为当前会话的口径：会话累计（每轮 total 之和，含工具往返重复前缀）+ 当前上下文占用（最后一次模型调用的输入 token）。
@@ -548,7 +572,7 @@ internal sealed class AgentSideBarContentProvider
         {
             if (msgs[i].Role == "user")
             {
-                ctx.View.Content.Children.Add(Bubble(BubbleText(msgs[i].Text, Colors.White.ToBrush()), mine: true));
+                AppendUserMessage(ctx, msgs[i].Text, LoadAttachmentBytes(session.Id, msgs[i]));
                 i++;
             }
             // 收集到下条 user 之前的助手/工具消息，重放成一条分步视图。容错：轨迹首条若非 user（异常文件），落单消息也独立成组。
@@ -629,25 +653,58 @@ internal sealed class AgentSideBarContentProvider
                     history.Add(new AgentMessage { Role = AgentRole.Tool, ToolCallId = m.ToolCallId, Content = m.Text });
                     break;
                 default:
-                    history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text });
+                    history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text, Parts = BuildHistoryParts(session.Id, m) });
                     break;
             }
         }
         return history;
     }
 
+    // 把存储的用户消息附件还原成多模态分片（读 blob 字节），让续聊上下文带上图片。无附件返回 null（退化为纯文本 Content）。
+    static IReadOnlyList<AgentContentPart>? BuildHistoryParts(string sessionId, ChatTurnMessage m)
+    {
+        if (m.Attachments is not { Count: > 0 })
+            return null;
+        var parts = new List<AgentContentPart>();
+        if (!string.IsNullOrEmpty(m.Text))
+            parts.Add(AgentContentPart.OfText(m.Text));
+        foreach (var a in m.Attachments)
+        {
+            var bytes = a.Data ?? AgentSessionStore.ReadBlob(sessionId, a.Hash, a.MediaType);
+            if (bytes is { Length: > 0 })
+                parts.Add(AgentContentPart.OfImage(bytes, a.MediaType));
+        }
+        return parts.Count > 0 ? parts : null;
+    }
+
+    // 读取用户消息各附件的字节（重载渲染缩略图用）：内存里 Data 优先，否则从 blob 读。无则空列表。
+    static List<byte[]> LoadAttachmentBytes(string sessionId, ChatTurnMessage m)
+    {
+        var result = new List<byte[]>();
+        if (m.Attachments == null)
+            return result;
+        foreach (var a in m.Attachments)
+        {
+            var bytes = a.Data ?? AgentSessionStore.ReadBlob(sessionId, a.Hash, a.MediaType);
+            if (bytes is { Length: > 0 })
+                result.Add(bytes);
+        }
+        return result;
+    }
+
     // 一轮成功回复后记入该会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
     // ctx 是发起本轮时捕获的会话——即便用户中途已切到别的会话，也只写它、不串会话。
     // 存全量：用户输入 + runner 返回的有序轨迹（助手回复含思考/工具调用/用量、工具结果含错误标记）原样落盘——
     // 重载即可完整重建分步视图、并把含工具往返的上下文回灌续聊。assistantText 是合并叙述，仅用于自动标题。
-    void RecordTurn(SessionContext ctx, string userText, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory)
+    void RecordTurn(SessionContext ctx, string userText, IReadOnlyList<ChatAttachment>? userAttachments, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory)
     {
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         bool isNew = ctx.Session == null;
         ctx.Session ??= new ChatSession { CreatedAtUnix = ctx.CreatedAtUnix }; // 沿用上下文建立时刻，落盘前后排序位置一致
         var session = ctx.Session;
         session.SchemaVersion = 1; // 本轮起以全量轨迹格式落盘
-        session.Messages.Add(new ChatTurnMessage { Role = "user", Text = userText });
+        // 用户消息（带附件则附 ChatAttachment，含原始字节 → Save 落 blob、清单只引用）。
+        session.Messages.Add(new ChatTurnMessage { Role = "user", Text = userText, Attachments = userAttachments is { Count: > 0 } ? userAttachments.ToList() : null });
         foreach (var m in trajectory)
             session.Messages.Add(ToStored(m));
         session.UpdatedAtUnix = now;
@@ -802,7 +859,8 @@ internal sealed class AgentSideBarContentProvider
             return;
 
         var text = mInput.Text.Trim();
-        if (string.IsNullOrEmpty(text))
+        var images = mPendingImages.ToList(); // 本轮附件快照（发送即清空待发条，避免下一轮重复带上）
+        if (string.IsNullOrEmpty(text) && images.Count == 0)
             return;
 
         if (mSession == null)
@@ -818,7 +876,9 @@ internal sealed class AgentSideBarContentProvider
         }
 
         mInput.Text = string.Empty;
-        AppendMessage(ctx, "you", text);
+        mPendingImages.Clear();
+        RebuildAttachmentStrip();
+        AppendUserMessage(ctx, text, images.Select(i => i.Data).ToList());
         var bubble = AddAssistantBubble(ctx); // 响应期占位气泡（动态等待指示）
         var cts = new CancellationTokenSource();
         ctx.Cts = cts;
@@ -836,13 +896,17 @@ internal sealed class AgentSideBarContentProvider
         try
         {
             ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
-            var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token);
+            var parts = images.Count > 0 ? images.Select(i => AgentContentPart.OfImage(i.Data, i.MediaType)).ToList() : null;
+            var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token, parts);
             turn.Seal();
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
                 turn.Append(BuildFooter(reply.Text, reply.Usage));
-            RecordTurn(ctx, text, reply.Text, reply.Trajectory);
+            var attachments = images.Count > 0
+                ? images.Select(i => new ChatAttachment { Hash = AgentSessionStore.ComputeHash(i.Data), MediaType = i.MediaType, Data = i.Data }).ToList()
+                : null;
+            RecordTurn(ctx, text, attachments, reply.Text, reply.Trajectory);
             AccumulateTurnTokens(ctx, reply);
         }
         catch (OperationCanceledException)
@@ -889,6 +953,322 @@ internal sealed class AgentSideBarContentProvider
         ctx.View.Content.Children.Add(item);
         ScrollToEnd(ctx);
     }
+
+    // 用户消息气泡：纯文本走 BubbleText；带图片则图文竖排（图片在上、文本在下）。供实时发送与重载复用。
+    void AppendUserMessage(SessionContext ctx, string text, IReadOnlyList<byte[]> images)
+    {
+        var content = images.Count > 0 ? BuildUserContent(text, images) : (Control)BubbleText(text, Colors.White.ToBrush());
+        ctx.View.Content.Children.Add(Bubble(content, mine: true));
+        ScrollToEnd(ctx);
+    }
+
+    // 用户气泡内容：每张图片一个受限尺寸的 Image（圆角），其下接文本（若有）。
+    Control BuildUserContent(string text, IReadOnlyList<byte[]> images)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+        foreach (var data in images)
+        {
+            var bmp = BitmapFromBytes(data);
+            if (bmp == null)
+                continue;
+            var thumb = new Border
+            {
+                CornerRadius = new(6),
+                ClipToBounds = true,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                Child = new Avalonia.Controls.Image { Source = bmp, Stretch = Stretch.Uniform, MaxWidth = 220, MaxHeight = 220 },
+            };
+            var captured = bmp;
+            thumb.PointerPressed += (_, e) => { e.Handled = true; ShowImagePreview(captured); }; // 点击放大预览
+            sp.Children.Add(thumb);
+        }
+        if (!string.IsNullOrEmpty(text))
+            sp.Children.Add(BubbleText(text, Colors.White.ToBrush()));
+        return sp;
+    }
+
+    // 点击会话中的图片 → 全窗口暗底浮层显示大图（适配窗口、不放大超原始尺寸），点击任意处关闭。挂在 OverlayLayer 上以覆盖整窗（非仅侧栏）。
+    void ShowImagePreview(Avalonia.Media.Imaging.Bitmap bmp)
+    {
+        var layer = Avalonia.Controls.Primitives.OverlayLayer.GetOverlayLayer(mRoot);
+        if (layer == null)
+            return;
+        var backdrop = new Border
+        {
+            Background = new SolidColorBrush(Colors.Black, 0.85),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+            Child = new Avalonia.Controls.Image
+            {
+                Source = bmp,
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly, // 小图保持原尺寸、大图缩放适配，不放大失真
+                Margin = new(32),
+            },
+        };
+        backdrop.PointerPressed += (_, _) => layer.Children.Remove(backdrop);
+        layer.Children.Add(backdrop);
+    }
+
+    // ───────────────── 图片附件 ─────────────────
+
+    // 当前连接是否支持图片输入 → 启停📎按钮。在连接建立/切换（TryConnect 成功）与启动时刷新。
+    void RefreshAttachAvailability()
+    {
+        mAttachButton.IsVisible = mSession != null && mSession.SupportedInput.HasFlag(AgentModality.Image);
+    }
+
+    // 点📎：多选图片文件 → 读字节 → 限尺寸预处理 → 入待发条。
+    async Task OnAttachClicked()
+    {
+        var top = TopLevel.GetTopLevel(mRoot);
+        if (top == null)
+            return;
+        IReadOnlyList<Avalonia.Platform.Storage.IStorageFile> files;
+        try
+        {
+            files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Attach image".Tr(this),
+                AllowMultiple = true,
+                FileTypeFilter = new[] { new Avalonia.Platform.Storage.FilePickerFileType("Images") { Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif", "*.bmp" } } },
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("Agent image picker failed: " + ex.Message);
+            return;
+        }
+
+        foreach (var f in files)
+            await IngestStorageFileAsync(f);
+        RebuildAttachmentStrip();
+    }
+
+    // 三条图片入口（点选 / 粘贴 / 拖拽）的共同收口：限尺寸/转码后入待发列表。调用方负责随后 RebuildAttachmentStrip。
+    void IngestImage(byte[] raw, string mediaType)
+    {
+        var (data, mime) = PrepareImage(raw, mediaType);
+        if (data.Length > 0)
+            mPendingImages.Add(new PendingImage(data, mime));
+    }
+
+    // 读一个 StorageFile（点选/拖拽来的文件）为图片附件；非图片扩展名跳过。
+    async Task IngestStorageFileAsync(Avalonia.Platform.Storage.IStorageFile f)
+    {
+        var mime = MimeFromName(f.Name);
+        try
+        {
+            await using var stream = await f.OpenReadAsync();
+            using var mem = new System.IO.MemoryStream();
+            await stream.CopyToAsync(mem);
+            IngestImage(mem.ToArray(), mime);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("Agent failed to read image '" + f.Name + "': " + ex.Message);
+        }
+    }
+
+    // 粘贴（Ctrl+V）：剪贴板有图片则取出入待发；仅当前会话支持图片时才尝试，否则放行普通文本粘贴。
+    async Task TryPasteImageAsync()
+    {
+        if (mSession == null || !mSession.SupportedInput.HasFlag(AgentModality.Image))
+            return;
+        var clipboard = TopLevel.GetTopLevel(mRoot)?.Clipboard;
+        if (clipboard == null)
+            return;
+        var img = await TryReadClipboardImageAsync(clipboard);
+        if (img is { } x)
+        {
+            IngestImage(x.Data, x.Mime);
+            RebuildAttachmentStrip();
+        }
+    }
+
+    // 从剪贴板读图片：优先直出格式（PNG）；否则 Windows 的 DIB（无文件头的位图）补上 BMP 文件头还原；都没有则 null。
+    // 没命中时记录可用格式，便于在不同来源/平台上排查。
+    static async Task<(byte[] Data, string Mime)?> TryReadClipboardImageAsync(Avalonia.Input.Platform.IClipboard clipboard)
+    {
+        string[] formats;
+        try { formats = await clipboard.GetFormatsAsync(); }
+        catch { return null; }
+
+        async Task<byte[]?> GetBytes(string fmt)
+        {
+            if (!formats.Contains(fmt))
+                return null;
+            try { return await clipboard.GetDataAsync(fmt) as byte[]; }
+            catch { return null; }
+        }
+
+        foreach (var fmt in new[] { "PNG", "image/png", "public.png" })
+            if (await GetBytes(fmt) is { Length: > 8 } png)
+                return (png, "image/png");
+        foreach (var fmt in new[] { "DeviceIndependentBitmap", "CF_DIB", "DIB" })
+            if (await GetBytes(fmt) is { Length: > 40 } dib && DibToBmp(dib) is { } bmp)
+                return (bmp, "image/bmp");
+        foreach (var fmt in new[] { "image/bmp", "Bitmap" })
+            if (await GetBytes(fmt) is { Length: > 14 } bb)
+                return (bb, "image/bmp");
+
+        Log.Info("[AgentPaste] no image on clipboard. formats: " + string.Join(", ", formats));
+        return null;
+    }
+
+    // 给无文件头的 DIB（Windows CF_DIB）补 14 字节 BMP 文件头，拼成可被解码器识别的完整 BMP。
+    static byte[]? DibToBmp(byte[] dib)
+    {
+        try
+        {
+            int headerSize = BitConverter.ToInt32(dib, 0);          // biSize（BITMAPINFOHEADER=40）
+            short bitCount = BitConverter.ToInt16(dib, 14);
+            int compression = BitConverter.ToInt32(dib, 16);
+            int clrUsed = BitConverter.ToInt32(dib, 32);
+            int paletteEntries = clrUsed != 0 ? clrUsed : (bitCount <= 8 ? (1 << bitCount) : 0);
+            int masks = compression == 3 ? 12 : 0;                  // BI_BITFIELDS：像素前有 3 个 DWORD 掩码
+            int pixelOffset = 14 + headerSize + masks + paletteEntries * 4;
+            int fileSize = 14 + dib.Length;
+            var bmp = new byte[fileSize];
+            bmp[0] = (byte)'B';
+            bmp[1] = (byte)'M';
+            BitConverter.GetBytes(fileSize).CopyTo(bmp, 2);
+            BitConverter.GetBytes(pixelOffset).CopyTo(bmp, 10);
+            dib.CopyTo(bmp, 14);
+            return bmp;
+        }
+        catch { return null; }
+    }
+
+    // 拖拽：含文件时显示「复制」效果（仅当前会话支持图片）。
+    void OnDragOver(object? sender, Avalonia.Input.DragEventArgs e)
+    {
+        bool ok = (mSession?.SupportedInput.HasFlag(AgentModality.Image) ?? false) && e.Data.Contains(Avalonia.Input.DataFormats.Files);
+        e.DragEffects = ok ? Avalonia.Input.DragDropEffects.Copy : Avalonia.Input.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    // 拖放：把拖进来的图片文件入待发。
+    async void OnDrop(object? sender, Avalonia.Input.DragEventArgs e)
+    {
+        e.Handled = true;
+        if (mSession == null || !mSession.SupportedInput.HasFlag(AgentModality.Image))
+            return;
+        var files = e.Data.GetFiles();
+        if (files == null)
+            return;
+        bool any = false;
+        foreach (var item in files)
+        {
+            if (item is Avalonia.Platform.Storage.IStorageFile f && IsImageName(f.Name))
+            {
+                await IngestStorageFileAsync(f);
+                any = true;
+            }
+        }
+        if (any)
+            RebuildAttachmentStrip();
+    }
+
+    static bool IsImageName(string name)
+        => System.IO.Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp";
+
+    // 重建待发缩略图条：每格=44×44 缩略图 + 右上角 ✕ 移除；空则隐藏整条。
+    void RebuildAttachmentStrip()
+    {
+        mAttachmentStrip.Children.Clear();
+        foreach (var pending in mPendingImages)
+        {
+            var captured = pending;
+            var bmp = BitmapFromBytes(pending.Data);
+            var thumb = new Border
+            {
+                Width = 44,
+                Height = 44,
+                CornerRadius = new(4),
+                ClipToBounds = true,
+                Background = Style.INTERFACE.ToBrush(),
+                Cursor = bmp == null ? null : new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                Child = bmp == null ? null : new Avalonia.Controls.Image { Source = bmp, Stretch = Stretch.UniformToFill },
+            };
+            if (bmp != null)
+                thumb.PointerPressed += (_, e) => { e.Handled = true; ShowImagePreview(bmp); }; // 点缩略图放大预览（✕ 已 Handled，不冲突）
+            var remove = new TextBlock
+            {
+                Text = "✕",
+                FontSize = 10,
+                Padding = new(2, 0),
+                Foreground = Colors.White.ToBrush(),
+                Background = Style.BACK.Opacity(0.75).ToBrush(),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+            };
+            remove.PointerPressed += (_, e) => { e.Handled = true; mPendingImages.Remove(captured); RebuildAttachmentStrip(); };
+            mAttachmentStrip.Children.Add(new Panel { Children = { thumb, remove } });
+        }
+        mAttachmentStrip.IsVisible = mPendingImages.Count > 0;
+    }
+
+    // 限尺寸 + 转码：长边超过 ImageMaxEdge 则等比缩放；非 OpenAI 友好格式（如剪贴板 BMP）一律重编码 PNG。
+    // 友好且够小则原样保留（不丢 JPEG 压缩）。解码失败则原样回退（最坏由端点决定接不接受）。
+    static (byte[] Data, string MediaType) PrepareImage(byte[] raw, string mediaType)
+    {
+        const int ImageMaxEdge = 1568;
+        bool friendly = mediaType is "image/png" or "image/jpeg" or "image/webp" or "image/gif";
+        try
+        {
+            using var inMem = new System.IO.MemoryStream(raw);
+            var bmp = new Avalonia.Media.Imaging.Bitmap(inMem);
+            int w = bmp.PixelSize.Width, h = bmp.PixelSize.Height;
+            int longest = Math.Max(w, h);
+            if (friendly && (longest <= ImageMaxEdge || longest == 0))
+                return (raw, mediaType); // 友好格式、尺寸够小 → 原样
+            using var outMem = new System.IO.MemoryStream();
+            if (longest > ImageMaxEdge && longest > 0)
+            {
+                double scale = (double)ImageMaxEdge / longest;
+                using var scaled = bmp.CreateScaledBitmap(new Avalonia.PixelSize(Math.Max(1, (int)(w * scale)), Math.Max(1, (int)(h * scale))));
+                scaled.Save(outMem); // Avalonia Bitmap.Save 输出 PNG
+            }
+            else
+            {
+                bmp.Save(outMem); // 仅转码（如 BMP→PNG），不缩放
+            }
+            return (outMem.ToArray(), "image/png");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("Agent image preprocess failed, sending original: " + ex.Message);
+            return (raw, mediaType);
+        }
+    }
+
+    static Avalonia.Media.Imaging.Bitmap? BitmapFromBytes(byte[]? data)
+    {
+        if (data is not { Length: > 0 })
+            return null;
+        try { return new Avalonia.Media.Imaging.Bitmap(new System.IO.MemoryStream(data)); }
+        catch { return null; }
+    }
+
+    static string MimeFromName(string name)
+    {
+        var ext = System.IO.Path.GetExtension(name).ToLowerInvariant();
+        return ext switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            _ => "image/png",
+        };
+    }
+
+    readonly record struct PendingImage(byte[] Data, string MediaType);
 
     // agent 侧消息容器（无气泡），返回 Border 以便回复回来后替换其内容（动态等待指示 → 分步视图 / 错误文本）。
     Border AddAssistantBubble(SessionContext ctx)
@@ -1106,6 +1486,7 @@ internal sealed class AgentSideBarContentProvider
                     c.SeedHistory = ReconstructHistory(c.Session);
                 c.Runner = null;
             }
+            RefreshAttachAvailability(); // 新连接的会话可能支持/不支持图片 → 启停📎
             return true;
         }
         catch (Exception ex)
@@ -1197,6 +1578,10 @@ internal sealed class AgentSideBarContentProvider
     readonly TextInput mInput = new();
     // token 用量状态行（输入框上方）：显示当前会话的累计 + 上下文占用，随会话切换/每轮刷新（见 RefreshTokenStatus）。
     readonly TextBlock mTokenStatus = new();
+    // 图片附件：待发缩略图条 + 待发图片列表（属"当前撰写"状态、与输入框共享、跨会话切换保留）+ 📎按钮。
+    readonly StackPanel mAttachmentStrip = new();
+    readonly List<PendingImage> mPendingImages = new();
+    TuneLab.GUI.Components.Button mAttachButton = null!;
     // 标题：复用轨道名同款 EditableLabel（双击就地改名、Enter/失焦提交），与全局改名交互一致。
     readonly EditableLabel mTitleLabel = new()
     {
