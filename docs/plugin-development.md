@@ -163,9 +163,7 @@ public class MyFormatExporter : IExportFormat
 
 ## 5. 编写 Voice 插件
 
-> ⚠️ **本节为旧模型、已过时，待重写**：现行 voice SDK 是会话托管模型（`IVoiceEngine.Init()` 无参、`CreateSession(voiceId, context) → ISynthesisSession`，由会话承担声明 + 逐步合成 + 产物，取消了 `IVoiceSource`/`ISynthesisTask`）。下方 `CreateVoiceSource`/`Init(enginePath)`/`ISynthesisTask` 等签名**已不存在**，请勿照抄。以现行接口为准（设计见 `docs/voice-sdk-design.md`），本节将在 voice 专属开发文档中重写。
-
-实现 `IVoiceEngine`，用 `[VoiceEngine("type")]` 声明引擎类型标识。需要**无参构造函数**。
+voice 是**歌声合成引擎**（如 SVS 模型）。它是**会话托管厚模型**：实现 `IVoiceEngine`（每种引擎类型一个，`[VoiceEngine("type")]` 声明、需无参构造函数），宿主为工程里**每条 MidiPart** 调 `CreateSession` 建一个 `ISynthesisSession`——会话承担声明（默认歌词 / 自动化轨 / 回显轨 / 属性面板）、宿主驱动的逐步合成、以及产物（音高 / 回显 / 音素 / 音频 / 状态）。会话订阅宿主递入的 `ISynthesisContext`（该 part 的输入活视图）自管失效。插件侧时间量一律**全局秒**（tick 是宿主乐谱内部表示、不外露）。
 
 ```csharp
 using TuneLab.Foundation;
@@ -174,27 +172,93 @@ using TuneLab.SDK;
 [VoiceEngine("MyEngine")]            // 引擎类型标识（唯一）
 public class MyVoiceEngine : IVoiceEngine
 {
+    // 声库目录（菜单/选择器用）：必须立即返回不阻塞——应在 Init 期扫描缓存，get 仅返回缓存引用。
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
-    // enginePath = 你的包文件夹路径，用来定位随包分发的模型/资源。
-    public bool Init(string enginePath, out string? error)
-    {
-        error = null;
-        // ... 扫描 enginePath 下的声库、加载模型 ...
-        return true;
-    }
-
-    public IVoiceSource CreateVoiceSource(string id) => new MyVoiceSource(id);
-
+    // 无参：包目录经 Assembly.Location 自定位（无需宿主递路径）。失败直接抛异常，宿主在调用边界 catch。
+    public void Init() { /* ... 扫描声库、加载模型 ... */ }
     public void Destroy() { /* 释放资源 */ }
+
+    // 每条 part 一个会话：voiceId 选定声库（VoiceSourceInfos 的 key），context 为该 part 输入活视图、随会话同生死。
+    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new MySession(voiceId, context);
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
 }
 ```
 
-`Init` 的 `enginePath` 即包文件夹，捆绑的模型文件、原生运行时等放在包里、从这里定位。相关接口：`IVoiceSource` / `ISynthesisData` / `ISynthesisTask` / `SynthesisResult` 等（`TuneLab.SDK`）。
+会话是合成的主体。宿主**驱动逐步合成**：先用 `GetNextSegment(startTime, endTime)` peek 窗内"下一块待合成"的纯值边界（无副作用、`null` = 窗内无待合成），再调 `SynthesizeNext` 合成那一块。`SynthesizeNext` 的**同步前缀**（数据线程）经 `context.GetSnapshot(...)` 拉取本次所需的不可变快照，之后才 offload 到后台线程算——worker 只读快照、永不回碰活视图。产物经 `context.CreateAudioSegment` 写出音频，曲线/音素经会话属性发布，状态变化经 `StatusChanged` 通知宿主重读。
 
-> ⚠️ **自动化参数名避开宿主保留名**：`IVoiceSource.AutomationConfigs` 的键会和宿主内置自动化合并展示，若与内置项**重名会被内置项占用、你的参数显示不出**。已知保留名：**`Volume`**、**`VibratoEnvelope`**。请用自己的独特名（如 `Breathiness` / `Growl` / 加前缀）。
+```csharp
+class MySession : ISynthesisSession
+{
+    public MySession(string voiceId, ISynthesisContext context)
+    {
+        mVoiceId = voiceId;
+        mContext = context;
+        // 订阅 context（Notes 增删 / 属性 / automation.RangeModified）标脏，在 context.Committed 一次性收口、做重活（如重分块）。
+        mContext.Committed += OnCommitted;
+    }
+
+    public string DefaultLyric => "a";
+
+    // 声明均为当前 part 参数值的纯函数（context 驱动）：宿主在参数 commit 时重算并 diff 到 UI（轨/控件可随参数显隐）。
+    // 连续轨与分段轨同在一张 map（AutomationConfig.DefaultValue 为 NaN ⇒ 分段轨）。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    // 只读回显轨声明（引擎产出的只读曲线，如 energy；分段形 DefaultValue=NaN，自带 DisplayText/Min/Max/Color）。无回显返回空 map。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mReadbackConfigs;
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mPartConfig;
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mNoteConfig;
+
+    // peek：窗内下一待合成块的秒边界（确定性分片，数据线程上廉价执行）。
+    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    {
+        // ... 基于 mContext.Notes 做分片决策，返回下一块的 [start,end]，或 null ...
+        return null;
+    }
+
+    // 合成 peek 报出的这一块：同步前缀拉快照，之后 offload。返回纯 Task（取消正常返回、不抛 OperationCanceledException；错误抛异常）。
+    public async Task SynthesizeNext(SynthesisSegment segment, CancellationToken cancellation = default)
+    {
+        // —— 同步前缀（数据线程）：圈定本块所需 note（段内 + 协同发音邻居），拉不可变快照 ——
+        var notes = /* 从 mContext.Notes 圈定 */ new List<ILiveNote>();
+        var snapshot = mContext.GetSnapshot(notes, segment.StartTime, segment.EndTime);
+        int rate = 44100;
+        var output = mContext.CreateAudioSegment(/*sampleOffset*/ (long)(segment.StartTime * rate), /*sampleCount*/ rate, rate);
+
+        // —— offload：worker 只读 snapshot 算 PCM ——
+        var pcm = await Task.Run(() => Render(snapshot), cancellation);
+
+        // —— marshal 回数据线程发布产物（换引用即不可变）——
+        output.Write(0, pcm);
+        output.Commit();                 // 送下游 effect 的唯一闸门
+        mStatusChanged?.Invoke();
+    }
+
+    // 产物（数据线程发布、发布即不可变；StatusChanged 单一刷新信号）。
+    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mPitch;                          // 分段折线（秒, 半音）
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;          // 回显曲线，key 对齐 GetSynthesizedParameterConfigs
+    public IReadOnlyList<SynthesizedPhoneme> Phonemes => mPhonemes;
+    public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mStatus;                            // 按段状态/进度/报错
+    public event Action? StatusChanged { add => mStatusChanged += value; remove => mStatusChanged -= value; }
+
+    void OnCommitted() { /* 廉价标脏后在此一次性重分块；StatusChanged 通知宿主 */ }
+
+    public void Dispose() { mContext.Committed -= OnCommitted; /* 释放模型句柄等 */ }
+
+    // ... 字段：mAutomationConfigs / mReadbackConfigs / mPartConfig / mNoteConfig / 产物缓存 / Render(...) ...
+}
+```
+
+要点：
+
+- **会话生命周期**：绑定一条 part，活到 part 删除（`Dispose`）；换声源时宿主丢弃旧会话、用新 `voiceId` 重建（context 随会话重建）。重模型加载应是懒的。
+- **逐步合成**：一个会话同时只合成一块；并行发生在不同 part 的不同会话之间，并发上限由宿主管控。取消是正常调度结局（`await` 真正返回才释放槽位），**不要**抛 `OperationCanceledException`；进度经 `SynthesisStatusSegment.Progress` + `StatusChanged` 上报。
+- **输入活视图 `ISynthesisContext`**：`Notes`（可重叠、和弦——去重叠是插件责任）、`PartProperties`、`TryGetAutomation`、`Pitch`（绝对约束、NaN=自由）+ `PitchDeviation`（加性偏差，`finalPitch = resolve(Pitch) + PitchDeviation`）。仅可在 `SynthesizeNext` 同步前缀（数据线程）读，并在那里 `GetSnapshot` 物化；offload 后只读快照。
+- **音频产物**：`context.CreateAudioSegment(offset, count, rate)` 申请段，`Write` + `Commit`（Commit 是送下游 effect 的唯一闸门，Commit 前的写只供进度/波形）；采样率随段走，可逐段不同。
+- **回显轨（可选）**：`GetSynthesizedParameterConfigs` 声明 + `SynthesizedParameters` 承载曲线数据，宿主作一等只读轨绘制（参数区填充面积、可独立显隐），与 effect 回显同构。
+- **命名纪律**：`ILive*` = 活视图（仅数据线程）、`*Snapshot` = 冻结物（可跨线程、无事件）。
+
+> ⚠️ **自动化参数名避开宿主保留名**：`GetAutomationConfigs` 的键会和宿主内置自动化合并展示，若与内置项**重名会被内置项占用、你的参数显示不出**。已知保留名：**`Volume`**、**`VibratoEnvelope`**。请用自己的独特名（如 `Breathiness` / `Growl` / 加前缀）。
 
 ---
 
