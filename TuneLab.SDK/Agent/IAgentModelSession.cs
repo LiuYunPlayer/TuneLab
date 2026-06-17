@@ -8,6 +8,10 @@ namespace TuneLab.SDK;
 // 与 effect 的 IEffectProcessor 同位——由引擎用"用户确定后的 properties"创建，宿主在会话存活期间复用。
 public interface IAgentModelSession : IDisposable
 {
+    // 本会话支持的输入模态。宿主据此启停附件入口（如仅 Text 则不显示图片附件按钮）。
+    // 默认仅 Text——不支持多模态的适配器无需改动；支持图片者覆盖为 Text|Image。
+    AgentModality SupportedInput => AgentModality.Text;
+
     // 把对话历史 + 可用工具发给模型，返回模型一轮回复（文本 + 可能的工具调用）。
     // 失败抛异常，宿主在调用边界处理。
     Task<AgentModelReply> SendAsync(AgentModelRequest request, CancellationToken cancellationToken);
