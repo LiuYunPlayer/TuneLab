@@ -41,6 +41,15 @@ internal sealed class AgentRunner
         AgentTokenUsage? TurnUsage() => hasUsage
             ? new AgentTokenUsage { PromptTokens = prompt, CompletionTokens = completion, TotalTokens = total }
             : null;
+        void Accumulate(AgentTokenUsage? u)
+        {
+            if (u is not { } x)
+                return;
+            hasUsage = true;
+            prompt += x.PromptTokens;
+            completion += x.CompletionTokens;
+            total += x.TotalTokens;
+        }
 
         for (int round = 0; round < MaxToolRounds; round++)
         {
@@ -49,13 +58,7 @@ internal sealed class AgentRunner
                 onContentDelta,
                 cancellationToken);
 
-            if (reply.Usage is { } u)
-            {
-                hasUsage = true;
-                prompt += u.PromptTokens;
-                completion += u.CompletionTokens;
-                total += u.TotalTokens;
-            }
+            Accumulate(reply.Usage);
 
             mMessages.Add(new AgentMessage
             {
@@ -90,8 +93,17 @@ internal sealed class AgentRunner
             }
         }
 
+        // 撞上限：再请求一次但不给工具，逼模型用已有进展给出收尾文本——好过整轮作废、空手而归。
+        var wrapUp = await mSession.SendAsync(
+            new AgentModelRequest { Messages = mMessages, Tools = [] },
+            onContentDelta,
+            cancellationToken);
+        Accumulate(wrapUp.Usage);
+        mMessages.Add(new AgentMessage { Role = AgentRole.Assistant, Content = wrapUp.Content });
         return new AgentTurnResult(
-            string.Format("Stopped: exceeded {0} tool-call rounds without a final answer.", MaxToolRounds),
+            string.IsNullOrEmpty(wrapUp.Content)
+                ? string.Format("Stopped after {0} tool-call rounds.", MaxToolRounds)
+                : wrapUp.Content,
             TurnUsage());
     }
 
