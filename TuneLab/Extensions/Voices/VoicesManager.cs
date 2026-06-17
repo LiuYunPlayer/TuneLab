@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
-using System.Reflection;
 using TuneLab.Foundation;
 
 using TuneLab.SDK;
@@ -9,10 +8,10 @@ namespace TuneLab.Extensions.Voices;
 
 internal static class VoicesManager
 {
+    // 内建声源引擎显式注册（编进宿主、无 description.json）。空引擎(type="")是无声源 part 的回退。
     public static void LoadBuiltIn()
     {
-        var types = Assembly.GetExecutingAssembly().GetTypes();
-        RegisterFromTypes(types);
+        RegisterEngine(string.Empty, string.Empty, new EmptyVoiceEngine());
     }
 
     public static void Destroy()
@@ -24,38 +23,28 @@ internal static class VoicesManager
         }
     }
 
-    // 由 ExtensionManager 在加载后传入已加载类型，扫 [VoiceEngine] 注册。
-    // 引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
-    public static void RegisterFromTypes(Type[] types)
-    {
-        foreach (Type type in types)
-        {
-            var attribute = type.GetCustomAttribute<VoiceEngineAttribute>();
-            if (attribute != null)
-            {
-                if (typeof(IVoiceEngine).IsAssignableFrom(type))
-                {
-                    var constructor = type.GetConstructor(Type.EmptyTypes);
-                    if (constructor != null)
-                        mVoiceEngines.Add(attribute.Type, new VoiceEngineStatus((IVoiceEngine)constructor.Invoke(null)));
-                }
-            }
-        }
-    }
-
-    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的引擎适配器实例。
-    // 老引擎链接老 [VoiceEngine]/IVoiceEngine，扫不出 V1 attribute，故走实例注册而非 RegisterFromTypes 的反射实例化。
-    // 内建/V1 优先：type 已存在则跳过。
-    public static void RegisterEngine(string type, IVoiceEngine engine)
+    // 由 ExtensionManager（V1 manifest 驱动）实例化后、或 Compat.Legacy（经 LegacyLoadHook → LegacyCompatLoader）
+    // 包装好适配器后注册引擎实例。引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
+    // type 是不可变身份 id（工程序列化引用）；displayName 仅供 UI 展示、可本地化。内建/先到优先：type 已存在则跳过。
+    public static void RegisterEngine(string type, string displayName, IVoiceEngine engine)
     {
         if (!mVoiceEngines.ContainsKey(type))
-            mVoiceEngines.Add(type, new VoiceEngineStatus(engine));
+            mVoiceEngines.Add(type, new VoiceEngineStatus(engine, displayName));
     }
 
     public static IReadOnlyList<string> GetAllVoiceEngines()
     {
         return mVoiceEngines.Keys;
     }
+
+    // UI 展示名（本地化，注册时按当前语言定）；未注册回退到 id 本身。
+    public static string GetDisplayName(string type)
+        => mVoiceEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
+
+    // 取该 voice 的扩展设置接口（未实现 IExtensionSettings 则 null）；不触发 Init——设置须在 Init 前可编辑。
+    // 走 RawEngine（非 Engine：后者在 Init 前返回 null），因 schema/设置须先于 Init 可达。
+    public static IExtensionSettings? GetExtensionSettings(string type)
+        => mVoiceEngines.TryGetValue(type, out var status) ? status.RawEngine as IExtensionSettings : null;
 
     public static IReadOnlyOrderedMap<string, VoiceSourceInfo>? GetAllVoiceInfos(string type)
     {
@@ -135,12 +124,16 @@ internal static class VoicesManager
     class VoiceEngineStatus
     {
         public IVoiceEngine? Engine => IsInited ? mVoiceEngine : null;
+        // 未经 Init 的引擎实例（仅供读扩展设置 schema/回喂——这些须先于 Init 可达）。
+        public IVoiceEngine RawEngine => mVoiceEngine;
+        public string DisplayName { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public VoiceEngineStatus(IVoiceEngine engine)
+        public VoiceEngineStatus(IVoiceEngine engine, string displayName)
         {
             mVoiceEngine = engine;
+            DisplayName = displayName;
         }
 
         // Init 无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。

@@ -86,7 +86,7 @@ internal class EffectsController : StackPanel
             foreach (var type in engines)
             {
                 var captured = type;
-                menu.Items.Add(new MenuItem().SetName(captured).SetAction(() => AddEffect(captured)));
+                menu.Items.Add(new MenuItem().SetName(EffectManager.GetDisplayName(captured)).SetAction(() => AddEffect(captured)));
             }
         }
 
@@ -154,7 +154,7 @@ internal class EffectsController : StackPanel
 
             var typeLabel = new Label()
             {
-                Content = string.IsNullOrEmpty(effect.Type) ? "(unknown)" : effect.Type,
+                Content = string.IsNullOrEmpty(effect.Type) ? "(unknown)" : EffectManager.GetDisplayName(effect.Type),
                 FontSize = 12,
                 Foreground = Style.LIGHT_WHITE.ToBrush(),
                 VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,

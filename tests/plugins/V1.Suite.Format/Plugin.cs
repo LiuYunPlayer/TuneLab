@@ -6,7 +6,6 @@ using TuneLab.TestPlugins.Suite.Common;
 namespace TuneLab.TestPlugins.Suite.Format;
 
 // 一包多插件之 format：import 产出固定样例（track 名取自共享 Common，证明基建被引用）。扩展名 .tlsuite。
-[ImportFormat("tlsuite")]
 public sealed class SuiteImportFormat : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
@@ -23,7 +22,6 @@ public sealed class SuiteImportFormat : IImportFormat
     }
 }
 
-[ExportFormat("tlsuite")]
 public sealed class SuiteExportFormat : IExportFormat
 {
     public Stream Serialize(ProjectInfo info)

@@ -10,7 +10,6 @@ using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Formats.Midi;
 
-[ImportFormat("mid")]
 internal class MidiWithExtension_mid : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
@@ -19,7 +18,6 @@ internal class MidiWithExtension_mid : IImportFormat
     }
 }
 
-[ImportFormat("midi")]
 internal class MidiWithExtension_midi : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)

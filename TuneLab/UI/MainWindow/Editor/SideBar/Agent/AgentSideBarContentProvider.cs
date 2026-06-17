@@ -50,7 +50,8 @@ internal sealed class AgentSideBarContentProvider
         mSettings.Commit();
 
         var engines = AgentModelManager.GetAllAgentModelEngines().ToList();
-        mEngineOptions = engines.Select(e => (ComboBoxOption)e).ToList();
+        // 选项值存不可变引擎 id（用于保存/连接/比较），显示文本用本地化显示名。
+        mEngineOptions = engines.Select(e => new ComboBoxOption(PropertyValue.Create(e), AgentModelManager.GetDisplayName(e))).ToList();
         string? initial = savedEngine != null && engines.Contains(savedEngine) ? savedEngine : (engines.Count > 0 ? engines[0] : null);
         if (initial != null)
         {

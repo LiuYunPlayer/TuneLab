@@ -5,6 +5,8 @@
   "author": "TuneLab Tests",
   "description": "V1 effect 测试：同包两个引擎 Gain(参数增益) + Reverse(倒放)，验证 effect 链/bypass/重排/参数面板。",
   "sdk-version": "1.0",
-  "type": "effect",
-  "assemblies": ["V1.Effect.dll"]
+  "extensions": [
+    { "type": "effect", "engine": "TLTestGain",    "name": "Gain",    "class": "TuneLab.TestPlugins.V1Effect.GainEffectEngine",    "assembly": "V1.Effect.dll" },
+    { "type": "effect", "engine": "TLTestReverse", "name": "Reverse", "class": "TuneLab.TestPlugins.V1Effect.ReverseEffectEngine", "assembly": "V1.Effect.dll" }
+  ]
 }

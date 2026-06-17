@@ -5,5 +5,7 @@
   "description": "sdk-version 高于宿主(1.0) → 预期被跳过(Skipped)，不加载程序集。",
   "sdk-version": "99.0",
   "type": "format",
-  "assemblies": ["never-loaded.dll"]
+  "extension": "tlsdkhigh",
+  "import": "TuneLab.TestPlugins.Missing.MissingImport",
+  "assembly": "never-loaded.dll"
 }

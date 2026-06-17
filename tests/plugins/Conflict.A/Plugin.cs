@@ -4,7 +4,6 @@ using TuneLab.SDK;
 namespace TuneLab.TestPlugins.ConflictA;
 
 // 导入即产出一条以所见 ConflictHelper 版本命名的轨/note。A 包应看到 v1.0.0.0。扩展名 .tlconfa。
-[ImportFormat("tlconfa")]
 public sealed class ConflictAImport : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)

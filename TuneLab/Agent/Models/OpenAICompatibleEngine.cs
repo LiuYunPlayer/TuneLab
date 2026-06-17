@@ -6,7 +6,6 @@ namespace TuneLab.Agent.Models;
 // 内置的参考模型适配器：对接任何 OpenAI 兼容的 /chat/completions 端点（OpenAI 官方、各云厂商、
 // 本地 Ollama / LM Studio / vLLM 等）。本身不含模型——端点/密钥/模型名由用户在设置界面填入。
 // 作为内置引擎随宿主开箱即用，同时是第三方写其它 agent-model 插件的参照实现。
-[AgentModelEngine("openai-compatible")]
 internal sealed class OpenAICompatibleEngine : IAgentModelEngine
 {
     public ObjectConfig GetPropertyConfig(IAgentModelPropertyContext context)

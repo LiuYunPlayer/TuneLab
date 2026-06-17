@@ -4,7 +4,6 @@ using TuneLab.SDK;
 namespace TuneLab.TestPlugins.ConflictB;
 
 // B 包应看到 ConflictHelper v2.0.0.0。扩展名 .tlconfb。
-[ImportFormat("tlconfb")]
 public sealed class ConflictBImport : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)

@@ -6,5 +6,7 @@
   "description": "V1 voice 测试引擎：2 个声库，合成正弦音 + 按 note 键的 phonemes。",
   "sdk-version": "1.0",
   "type": "voice",
-  "assemblies": ["V1.Voice.dll"]
+  "engine": "TLTestVoiceV1",
+  "class": "TuneLab.TestPlugins.V1Voice.TestVoiceEngine",
+  "assembly": "V1.Voice.dll"
 }

@@ -5,6 +5,8 @@
   "description": "platforms 不含当前平台 → 预期该插件被跳过(Skipped)。",
   "sdk-version": "1.0",
   "type": "format",
-  "assemblies": ["never-loaded.dll"],
+  "extension": "tlplatmismatch",
+  "import": "TuneLab.TestPlugins.Missing.MissingImport",
+  "assembly": "never-loaded.dll",
   "platforms": ["definitely-not-a-real-platform"]
 }

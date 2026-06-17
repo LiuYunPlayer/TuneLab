@@ -3,8 +3,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.NoAssemblies;
 
-// description 无 assemblies → 被扫描发现。扩展名 .tlnoasm。
-[ImportFormat("tlnoasm")]
+// 负向用例：manifest 故意漏 assembly，加载器应优雅 Failed（本类不会被注册）。扩展名 .tlnoasm。
 public sealed class NoAssembliesImport : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)

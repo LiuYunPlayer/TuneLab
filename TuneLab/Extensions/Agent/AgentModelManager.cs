@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -11,9 +10,10 @@ namespace TuneLab.Extensions.Agent;
 // 引擎在首次被使用时惰性 Init。未注册 / Init 失败的类型由调用方按"该模型不可用"优雅降级。
 internal static class AgentModelManager
 {
+    // 内建 agent 模型引擎显式注册（编进宿主、无 description.json）。openai-compatible 为开箱即用的参考适配器。
     public static void LoadBuiltIn()
     {
-        RegisterFromTypes(Assembly.GetExecutingAssembly().GetTypes());
+        RegisterEngine("openai-compatible", "OpenAI Compatible", new TuneLab.Agent.Models.OpenAICompatibleEngine());
     }
 
     public static void Destroy()
@@ -25,25 +25,19 @@ internal static class AgentModelManager
         }
     }
 
-    // 由 ExtensionManager 在 per-folder ALC 加载后传入已加载类型，扫 [AgentModelEngine] 注册。
-    public static void RegisterFromTypes(Type[] types)
+    // 由 ExtensionManager（V1 manifest 驱动）实例化后注册引擎。type 已存在则跳过（内建/先到优先）。
+    // type 是不可变身份 id；displayName 仅供 UI 展示、可本地化。
+    public static void RegisterEngine(string type, string displayName, IAgentModelEngine engine)
     {
-        foreach (Type type in types)
-        {
-            var attribute = type.GetCustomAttribute<AgentModelEngineAttribute>();
-            if (attribute == null)
-                continue;
-
-            if (!typeof(IAgentModelEngine).IsAssignableFrom(type))
-                continue;
-
-            var constructor = type.GetConstructor(Type.EmptyTypes);
-            if (constructor != null && !mEngines.ContainsKey(attribute.Type))
-                mEngines.Add(attribute.Type, new AgentModelEngineStatus((IAgentModelEngine)constructor.Invoke(null)));
-        }
+        if (!mEngines.ContainsKey(type))
+            mEngines.Add(type, new AgentModelEngineStatus(engine, displayName));
     }
 
     public static IReadOnlyList<string> GetAllAgentModelEngines() => mEngines.Keys;
+
+    // UI 展示名（本地化，注册时按当前语言定）；未注册回退到 id 本身。
+    public static string GetDisplayName(string type)
+        => mEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
 
     public static bool Exists(string type) => mEngines.ContainsKey(type);
 
@@ -68,12 +62,14 @@ internal static class AgentModelManager
     class AgentModelEngineStatus
     {
         public IAgentModelEngine Engine => mEngine;
+        public string DisplayName { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public AgentModelEngineStatus(IAgentModelEngine engine)
+        public AgentModelEngineStatus(IAgentModelEngine engine, string displayName)
         {
             mEngine = engine;
+            DisplayName = displayName;
         }
 
         public bool Init(out string? error)

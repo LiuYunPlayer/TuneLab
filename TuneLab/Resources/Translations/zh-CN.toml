@@ -18,6 +18,8 @@
 "Audio" = "音频"
 "Appearance" = "外观"
 "Editing" = "编辑"
+"Extensions" = "扩展"
+"No extensions with settings." = "没有可配置的扩展。"
 
 [FunctionBar]
 "Play" = "播放"

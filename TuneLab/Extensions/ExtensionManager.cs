@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TuneLab.Foundation;
 using TuneLab.I18N;
+using TuneLab.SDK;
 using TuneLab.Utils;
 
 using TuneLab.Extensions.Formats;
@@ -44,6 +44,9 @@ internal static class ExtensionManager
         {
             Load(dir);
         }
+
+        // 全部能力注册完毕后，把已落盘的扩展设置回喂给声明了 IExtensionSettings 的 extension（早于任何 Init/会话）。
+        ExtensionSettingsManager.ApplyPersisted();
     }
 
     public static void Destroy()
@@ -129,14 +132,14 @@ internal static class ExtensionManager
         // ── 加载：per-folder ALC，遍历归一化后的各 extension ──
         PluginLoadContext? alc = null;
         int loaded = 0, failed = 0, skipped = 0;
-        var skipReasons = new List<string>();
+        var reasons = new List<string>();
 
         foreach (var ext in description.EffectiveExtensions)
         {
             if (!ext.IsPlatformAvailable())
             {
                 skipped++;
-                skipReasons.Add(string.Format("{0}: platform not available", string.IsNullOrEmpty(ext.type) ? "extension" : ext.type));
+                reasons.Add(string.Format("{0}: platform not available", string.IsNullOrEmpty(ext.type) ? "extension" : ext.type));
                 continue;
             }
 
@@ -153,37 +156,37 @@ internal static class ExtensionManager
 
             try
             {
-                // 解析要扫描的程序集（写了 assemblies 用写的；没写则扫目录全部 dll — 性能 fallback）。
-                var assemblyFiles = ResolveAssemblyFiles(path, ext);
-                if (assemblyFiles.Count == 0)
+                // manifest 内联身份：直接定位条目声明的单个程序集（不再盲扫目录）。
+                var assemblyFile = ResolveAssemblyFile(path, ext);
+                if (assemblyFile == null)
                 {
                     failed++;
-                    Log.Warning(string.Format("Extension {0}: no assemblies found for {1} extension.", description.name, kind));
+                    var reason = string.Format("{0}: assembly '{1}' not found", IdentityLabel(ext, kind), ext.assembly ?? "(unspecified)");
+                    reasons.Add(reason);
+                    Log.Warning(string.Format("Extension {0}: {1}", description.name, reason));
                     continue;
                 }
 
-                alc ??= new PluginLoadContext(path, assemblyFiles[0]);
+                alc ??= new PluginLoadContext(path, assemblyFile);
+                var assembly = alc.LoadFromAssemblyPath(assemblyFile);
 
-                var types = new List<Type>();
-                foreach (var file in assemblyFiles)
+                // 按 manifest 声明的 class（命名空间.类名）精确取类型并实例化注册（不再反射扫 attribute）。
+                if (RegisterEntry(kind, ext, assembly, lang, out var error))
                 {
-                    try
-                    {
-                        types.AddRange(alc.LoadFromAssemblyPath(file).GetTypes());
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning(string.Format("Extension {0}: failed to load assembly {1}: {2}", description.name, Path.GetFileName(file), ex.Message));
-                    }
+                    loaded++;
                 }
-
-                RegisterByKind(kind, types.ToArray(), path);
-                loaded++;
+                else
+                {
+                    failed++;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), error));
+                    Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), error));
+                }
             }
             catch (Exception ex)
             {
                 failed++;
-                Log.Error(string.Format("Extension {0}: failed to load {1} extension: {2}", description.name, kind, ex));
+                reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), ex.Message));
+                Log.Error(string.Format("Extension {0}: failed to load {1}: {2}", description.name, IdentityLabel(ext, kind), ex));
             }
         }
 
@@ -192,10 +195,10 @@ internal static class ExtensionManager
         else
             result.Status = failed > 0 ? ExtensionLoadStatus.Failed : ExtensionLoadStatus.Skipped;
 
-        // 跳过原因填入 Error（供侧边栏 tooltip 展示）；sdk-version 等已提前设置过的不覆盖。
-        if ((result.Status == ExtensionLoadStatus.Skipped || result.Status == ExtensionLoadStatus.PartiallyLoaded)
-            && string.IsNullOrEmpty(result.Error) && skipReasons.Count > 0)
-            result.Error = string.Join("; ", skipReasons);
+        // 失败/跳过原因填入 Error（供侧边栏 tooltip 展示）；sdk-version 等已提前设置过的不覆盖。
+        if (result.Status != ExtensionLoadStatus.Loaded
+            && string.IsNullOrEmpty(result.Error) && reasons.Count > 0)
+            result.Error = string.Join("; ", reasons);
     }
 
     static void LoadLegacy(string path, ExtensionDescription? description, string folderName)
@@ -243,30 +246,12 @@ internal static class ExtensionManager
             }
         }
 
-        // 无 compat hook：保留既有"盲扫尽力而为"行为（不回归）。真实 Legacy 插件链接旧程序集，
-        // 找不到新 SDK attribute 会优雅失败；待 Compat.Legacy 接入 LegacyLoadHook 后接管。
-        var assemblyFiles = (description != null && !description.assemblies.IsEmpty())
-            ? description.assemblies.Select(a => Path.Combine(path, a)).Where(File.Exists)
-            : Directory.GetFiles(path, "*.dll");
-
-        bool any = false;
-        foreach (var file in assemblyFiles)
-        {
-            try
-            {
-                var types = Assembly.LoadFrom(file).GetTypes();
-                FormatsManager.RegisterFromTypes(types);
-                VoicesManager.RegisterFromTypes(types);
-                any = true;
-            }
-            catch { }
-        }
-
-        result.Status = any ? ExtensionLoadStatus.Loaded : ExtensionLoadStatus.Skipped;
-        if (!any)
-            result.Error = LegacyLoadHook != null
-                ? "Legacy compatibility layer ran but found no compatible plugin in this package (see log)."
-                : "Legacy compatibility layer not available.";
+        // 无 compat hook（或 hook 未接管）：宿主自身无法加载链接旧 SDK 的 Legacy 插件——
+        // 真实 Legacy 须由 Compat.Legacy 经 LegacyLoadHook 合成面向当前 SDK 的适配器后接管。
+        result.Status = ExtensionLoadStatus.Skipped;
+        result.Error = LegacyLoadHook != null
+            ? "Legacy compatibility layer ran but found no compatible plugin in this package (see log)."
+            : "Legacy compatibility layer not available.";
     }
 
     // 把 manifest 里的包内相对图标路径解析成绝对路径；为空或文件不存在则返回 null（sidebar 退回首字母占位）。
@@ -281,24 +266,87 @@ internal static class ExtensionManager
 
     static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect" or "agent-model";
 
-    static List<string> ResolveAssemblyFiles(string path, ExtensionInfo ext)
-    {
-        if (!ext.assemblies.IsEmpty())
-            return ext.assemblies.Select(a => Path.Combine(path, a)).Where(File.Exists).ToList();
+    // 条目身份标签（用于日志/错误前缀）：format 以扩展名、引擎类以 engine id 标识。
+    static string IdentityLabel(ExtensionInfo ext, string kind)
+        => kind == "format"
+            ? string.Format("format '{0}'", ext.extension ?? "?")
+            : string.Format("{0} '{1}'", kind, ext.engine ?? "?");
 
-        // 没写 assemblies：扫目录全部 dll（性能 fallback；逐文件容错由调用方处理）。
-        return Directory.GetFiles(path, "*.dll").ToList();
+    // 条目声明的单个程序集（相对包目录）；未声明或文件不存在返回 null（调用方按失败处理）。
+    static string? ResolveAssemblyFile(string path, ExtensionInfo ext)
+    {
+        if (string.IsNullOrEmpty(ext.assembly))
+            return null;
+        var file = Path.Combine(path, ext.assembly);
+        return File.Exists(file) ? file : null;
     }
 
-    static void RegisterByKind(string kind, Type[] types, string path)
+    // 按类别把 manifest 条目实例化并注册到对应 manager。失败回 false + error（不抛，调用方计 failed）。
+    // displayName 按当前语言从 manifest 取（与 id 分离、仅供 UI 展示）；缺省回退到身份 id。
+    static bool RegisterEntry(string kind, ExtensionInfo ext, Assembly assembly, string lang, out string? error)
     {
+        var displayName = ext.LocalizedName(lang);
         switch (kind)
         {
-            case "format": FormatsManager.RegisterFromTypes(types); break;
-            case "voice": VoicesManager.RegisterFromTypes(types); break;
-            case "effect": EffectManager.RegisterFromTypes(types); break;
-            case "agent-model": AgentModelManager.RegisterFromTypes(types); break;
+            case "voice":
+                if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
+                if (!TryGetCtor<IVoiceEngine>(assembly, ext.className, out var vctor, out error)) return false;
+                VoicesManager.RegisterEngine(ext.engine, displayName, (IVoiceEngine)vctor!.Invoke(null));
+                return true;
+
+            case "effect":
+                if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
+                if (!TryGetCtor<IEffectEngine>(assembly, ext.className, out var ector, out error)) return false;
+                EffectManager.RegisterEngine(ext.engine, displayName, (IEffectEngine)ector!.Invoke(null));
+                return true;
+
+            case "agent-model":
+                if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
+                if (!TryGetCtor<IAgentModelEngine>(assembly, ext.className, out var actor, out error)) return false;
+                AgentModelManager.RegisterEngine(ext.engine, displayName, (IAgentModelEngine)actor!.Invoke(null));
+                return true;
+
+            case "format":
+                return RegisterFormatEntry(ext, assembly, displayName, out error);
         }
+        error = "unknown extension type";
+        return false;
+    }
+
+    // format 条目：按 extension 注册 import/export（各可缺其一）。工厂延迟实例化（与旧行为一致），但类型/构造在加载期即校验。
+    static bool RegisterFormatEntry(ExtensionInfo ext, Assembly assembly, string displayName, out string? error)
+    {
+        if (string.IsNullOrEmpty(ext.extension)) { error = "missing 'extension'"; return false; }
+        if (string.IsNullOrEmpty(ext.import) && string.IsNullOrEmpty(ext.export)) { error = "needs 'import' and/or 'export' class"; return false; }
+
+        if (!string.IsNullOrEmpty(ext.import))
+        {
+            if (!TryGetCtor<IImportFormat>(assembly, ext.import, out var ctor, out error)) return false;
+            FormatsManager.RegisterImporter(ext.extension, displayName, () => (IImportFormat)ctor!.Invoke(null));
+        }
+        if (!string.IsNullOrEmpty(ext.export))
+        {
+            if (!TryGetCtor<IExportFormat>(assembly, ext.export, out var ctor, out error)) return false;
+            FormatsManager.RegisterExporter(ext.extension, displayName, () => (IExportFormat)ctor!.Invoke(null));
+        }
+        error = null;
+        return true;
+    }
+
+    // 从程序集取 className 对应类型，校验实现 T 且有无参构造，返回其构造器。任一不满足回 false + 可读 error。
+    static bool TryGetCtor<T>(Assembly assembly, string? className, out ConstructorInfo? ctor, out string? error)
+    {
+        ctor = null;
+        error = null;
+        if (string.IsNullOrEmpty(className)) { error = "missing 'class'"; return false; }
+
+        var type = assembly.GetType(className);
+        if (type == null) { error = string.Format("class '{0}' not found in {1}", className, assembly.GetName().Name); return false; }
+        if (!typeof(T).IsAssignableFrom(type)) { error = string.Format("class '{0}' does not implement {1}", className, typeof(T).Name); return false; }
+
+        ctor = type.GetConstructor(Type.EmptyTypes);
+        if (ctor == null) { error = string.Format("class '{0}' has no parameterless constructor", className); return false; }
+        return true;
     }
 
     public static void AddPendingUninstall(string extensionDirPath)

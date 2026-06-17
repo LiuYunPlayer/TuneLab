@@ -1,0 +1,18 @@
+{
+  "id": "com.tunelab.test.v1settings",
+  "name": "V1 Engine Settings Demo",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "Engine-level settings demo: declares IEngineSettings with a plain field, a password (secret) field and a toggle; host renders them in Settings > Plugins, persists per engine, re-feeds via ApplySettings.",
+  "localizations": {
+    "zh-CN": {
+      "name": "V1 引擎设置演示",
+      "description": "引擎级设置演示：声明 IEngineSettings（普通字段 + 密钥字段 + 开关），宿主在 设置 > 插件 渲染、按引擎落盘、经 ApplySettings 回喂。"
+    }
+  },
+  "sdk-version": "1.0",
+  "type": "voice",
+  "engine": "TLSettingsDemo",
+  "class": "TuneLab.TestPlugins.V1Settings.SettingsVoiceEngine",
+  "assembly": "V1.Settings.dll"
+}

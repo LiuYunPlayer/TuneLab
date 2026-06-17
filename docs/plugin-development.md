@@ -7,7 +7,7 @@
 
 ## 1. 核心概念
 
-- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §7）。
+- **插件包 = 一个文件夹**。它是部署、安装、卸载的原子单位，被放进 TuneLab 的扩展目录（见 §8）。
 - **`description.json` 是包的身份标识**，必须放在包文件夹的**最外层**。新版（V1）插件**必须**带它；TuneLab 先读这个文件，再据其内容**有选择地**加载包内程序集——不会盲目扫描整个文件夹。
 - **一个包可以含多个插件**。若你有一套共用的基建程序集，可以把基于它开发的多个插件打进同一个包，基建只分发一份、运行时也只加载一份（它们共享同一个加载上下文）。
 - **插件类别（type）**：当前支持 `format`（工程文件导入/导出）、`voice`（歌声合成引擎）与 `effect`（效果器，对合成音频做整段离线变换，如换声）。包还可以是纯**资源包**（无代码，如音色资源）。
@@ -35,13 +35,26 @@
 | `icon` | | 包内相对路径的图标，位图（`.png`/`.jpg` 等）或矢量（`.svg`）均可。**原样展示**——侧边栏不给它加背景、不裁圆角，所以圆角/透明/留白都由你自定（想要圆角就自己画进图标）。建议提供**方形**图标（如 64×64 及以上）。省略则侧边栏用名称首字母 + 深色圆角方块占位。 |
 | `sdk-version` | 含代码插件时✅ | 你编译时使用的 SDK 版本（如 `"1.0"`）。TuneLab 据此做兼容校验：插件要求的版本高于宿主提供的版本则被跳过。资源包可省略。 |
 
-插件级（描述「这个包提供什么」）：
+插件级（描述「这个包提供什么」）。**身份内联进 manifest**：一个条目 = 一个具体可注册能力，自带身份（引擎 id / 文件扩展名）+ 实现类全名。宿主读完 manifest 即知插件提供什么、无需加载程序集反射。
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `type` | ✅ | 类别：`format` / `voice` / `effect` / 资源类 |
-| `assemblies` | | 要加载并扫描的程序集（相对包文件夹的路径）。**写了**→只加载并扫描这几个（更快、更明确）；**没写**（代码插件）→扫描包内全部 `*.dll` 找入口；资源包不填。 |
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `type` | ✅ | 类别：`format` / `voice` / `effect` / `agent-model` / 资源类 |
+| `engine` | voice/effect/agent-model ✅ | 引擎类型 **id**（唯一身份，如 `"MyEngine"`）。**不可变**——它会写进工程文件，改了旧工程会失配。绝不本地化。 |
+| `extension` | format ✅ | 文件扩展名 **id**（不带点，如 `"myfmt"`）。同属不可变身份。 |
+| `name` | | **显示名**（UI 展示用），可与身份 id 不同、可翻译。省略则 UI 退回显示身份 id。 |
+| `localizations` | | 按语言翻译 `name`，如 `{ "zh-CN": { "name": "增益" } }`。缺当前语言则回退基础 `name`。 |
+| `class` | voice/effect/agent-model ✅ | 引擎实现类的全名（`命名空间.类名`，如 `"My.Ns.MyVoiceEngine"`）。 |
+| `import` | | format 导入实现类（`IImportFormat`）的全名；只导出的格式可省。 |
+| `export` | | format 导出实现类（`IExportFormat`）的全名；只导入的格式可省。 |
+| `assembly` | 含代码时✅ | 含上述实现类的程序集（相对包文件夹的路径，单个）。资源包省略。 |
 | `platforms` | | 平台过滤，如 `["win", "osx", "linux"]` 或带架构 `["win-x64"]`。留空 = 全平台。 |
+
+> **身份 id 与显示名分离**：`engine`/`extension` 是不可变身份（注册键 + 工程序列化引用）；`name`/`localizations` 仅供 UI 展示、可随意改名翻译。
+>
+> 一个程序集里有多个引擎/格式时，在 `extensions[]` 里逐条列出（同 `assembly`、不同 `engine`/`class`）。format 的 `import`/`export` 至少要有其一。
 
 ### 2.2 单插件（最常见）
 
@@ -56,9 +69,14 @@
   "description": "Import/export .myfmt files",
   "sdk-version": "1.0",
   "type": "format",
-  "assemblies": ["MyFormat.dll"]
+  "extension": "myfmt",
+  "import": "My.Ns.MyFormatImporter",
+  "export": "My.Ns.MyFormatExporter",
+  "assembly": "MyFormat.dll"
 }
 ```
+
+> 简写形态下顶层只有一个 `name`：它**同时**是包名与这唯一引擎/格式的显示名（`localizations` 同理共用）。若要让包名与引擎显示名各不相同，改用下面的 `extensions[]` 形态、给条目单独写 `name`。
 
 ### 2.3 一包多插件
 
@@ -71,19 +89,19 @@
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format", "assemblies": ["Example.Format.dll"] },
-    { "type": "voice",  "assemblies": ["Example.Voice.dll"], "platforms": ["win"] }
+    { "type": "format", "extension": "exfmt", "import": "Example.Format.Importer", "export": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
+    { "type": "voice",  "engine": "ExEngine", "class": "Example.Voice.ExVoiceEngine", "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
 ```
 
 > `Example.Format.dll`、`Example.Voice.dll` 可以共同引用同一个 `Example.Common.dll`（放进包里），它只需分发一份。
 >
-> 规则：有 `extensions[]` 时以它为准，顶层的 `type`/`assemblies` 被忽略。
+> 规则：有 `extensions[]` 时以它为准，顶层的身份字段（`type`/`engine`/`class`/…）被忽略。
 
 ### 2.4 资源包（无代码）
 
-省略 `assemblies`，用 `type` 声明用途。TuneLab 只登记它、不加载代码，由对应引擎在运行时去发现包内资源：
+省略 `assembly`/`class` 等代码字段，只用 `type` 声明用途。TuneLab 只登记它、不加载代码，由对应引擎在运行时去发现包内资源：
 
 ```json
 {
@@ -126,14 +144,13 @@
 
 ## 4. 编写 Format 插件
 
-实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出），用 attribute 声明文件扩展名。需要**无参构造函数**。
+实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出）。需要**无参构造函数**。文件扩展名与实现类的对应关系写在 `description.json`（`extension` + `import`/`export` + `assembly`），代码里**不再用 attribute 声明**。
 
 ```csharp
 using System.IO;
 using TuneLab.SDK;
 
-[ImportFormat("myfmt")]              // 文件扩展名（不带点）
-public class MyFormatImporter : IImportFormat
+public class MyFormatImporter : IImportFormat   // → description.json 的 "import"
 {
     public ProjectInfo Deserialize(Stream stream)
     {
@@ -144,8 +161,7 @@ public class MyFormatImporter : IImportFormat
     }
 }
 
-[ExportFormat("myfmt")]
-public class MyFormatExporter : IExportFormat
+public class MyFormatExporter : IExportFormat   // → description.json 的 "export"
 {
     public Stream Serialize(ProjectInfo info)
     {
@@ -157,20 +173,31 @@ public class MyFormatExporter : IExportFormat
 }
 ```
 
+对应的 manifest 条目：
+
+```json
+{ "type": "format", "extension": "myfmt", "name": "My Format",
+  "import": "My.Ns.MyFormatImporter", "export": "My.Ns.MyFormatExporter",
+  "assembly": "MyFormat.dll" }
+```
+
+> `extension` 是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。
+
 工程模型（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）定义在 `TuneLab.SDK`。
 
 ---
 
 ## 5. 编写 Voice 插件
 
-voice 是**歌声合成引擎**（如 SVS 模型）。它是**会话托管厚模型**：实现 `IVoiceEngine`（每种引擎类型一个，`[VoiceEngine("type")]` 声明、需无参构造函数），宿主为工程里**每条 MidiPart** 调 `CreateSession` 建一个 `ISynthesisSession`——会话承担声明（默认歌词 / 自动化轨 / 回显轨 / 属性面板）、宿主驱动的逐步合成、以及产物（音高 / 回显 / 音素 / 音频 / 状态）。会话订阅宿主递入的 `ISynthesisContext`（该 part 的输入活视图）自管失效。插件侧时间量一律**全局秒**（tick 是宿主乐谱内部表示、不外露）。
+voice 是**歌声合成引擎**（如 SVS 模型）。它是**会话托管厚模型**：实现 `IVoiceEngine`（每种引擎类型一个，需无参构造函数；引擎 id 与实现类写在 `description.json` 的 `engine` + `class`），宿主为工程里**每条 MidiPart** 调 `CreateSession` 建一个 `ISynthesisSession`——会话承担声明（默认歌词 / 自动化轨 / 回显轨 / 属性面板）、宿主驱动的逐步合成、以及产物（音高 / 回显 / 音素 / 音频 / 状态）。会话订阅宿主递入的 `ISynthesisContext`（该 part 的输入活视图）自管失效。插件侧时间量一律**全局秒**（tick 是宿主乐谱内部表示、不外露）。
+
+manifest 条目：`{ "type": "voice", "engine": "MyEngine", "name": "My Engine", "class": "My.Ns.MyVoiceEngine", "assembly": "MyVoice.dll" }`（`engine` 是不可变身份；`name` 可选显示名、可加 `localizations` 翻译）。
 
 ```csharp
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
-[VoiceEngine("MyEngine")]            // 引擎类型标识（唯一）
-public class MyVoiceEngine : IVoiceEngine
+public class MyVoiceEngine : IVoiceEngine    // engine id 在 manifest 的 "engine" 声明
 {
     // 声库目录（菜单/选择器用）：必须立即返回不阻塞——应在 Init 期扫描缓存，get 仅返回缓存引用。
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
@@ -266,14 +293,15 @@ class MySession : ISynthesisSession
 
 效果器（effect）对**已合成的整段音频**做变换。它面向**耗时较长的离线模型**（如 SVC 换声、神经音色转换），不是实时的 VST 式效果器。
 
-实现 `IEffectEngine`，用 `[EffectEngine("type")]` 声明类型标识。需要**无参构造函数**。引擎是每种效果器类型一个；宿主为工程里每条「effect 实例 × 上游音频段」创建一个**持久厚处理器** `IEffectProcessor` 驱动它。处理器持有自己那一段的上下文 `IEffectContext`、**自订阅、自管失效与重处理**——引擎私有的失效图（哪条参数/哪段自动化标脏触发哪些内部重算）落在处理器内部，宿主无从复制，故为厚模型。
+实现 `IEffectEngine`。需要**无参构造函数**。效果器 id 与实现类写在 `description.json` 的 `engine` + `class`（不再用 attribute）。引擎是每种效果器类型一个；宿主为工程里每条「effect 实例 × 上游音频段」创建一个**持久厚处理器** `IEffectProcessor` 驱动它。处理器持有自己那一段的上下文 `IEffectContext`、**自订阅、自管失效与重处理**——引擎私有的失效图（哪条参数/哪段自动化标脏触发哪些内部重算）落在处理器内部，宿主无从复制，故为厚模型。
+
+manifest 条目：`{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "class": "My.Ns.MyEffectEngine", "assembly": "MyEffect.dll" }`（`engine` 是不可变身份；`name` 可选显示名、可加 `localizations` 翻译）。
 
 ```csharp
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
-[EffectEngine("MyEffect")]            // 效果器类型标识（唯一）
-public class MyEffectEngine : IEffectEngine
+public class MyEffectEngine : IEffectEngine   // engine id 在 manifest 的 "engine" 声明
 {
     // 参数面板 / 自动化轨 / 回显轨：均为当前参数值（context.Properties）的纯函数——宿主在参数 commit 时按当前值重算
     // 并 diff 到 UI，故控件/轨可随参数显隐（条件声明）。静态的忽略 context 返回固定值即可（如下例）。
@@ -389,7 +417,70 @@ class MyEffectProcessor : IEffectProcessor
 
 ---
 
-## 7. 打包、安装、卸载
+## 7. 扩展设置（IExtensionSettings）
+
+让你的扩展（extension，即一个 voice/effect 等能力实现）声明一组**随宿主持久化、跨工程共享**的设置——典型如 **API key、模型路径、设备选择**。宿主在「设置」窗口渲染面板、按 extension 落盘、运行时回喂。
+
+> **与属性面板的区别**：voice 的 `GetPartPropertyConfig`/`GetNotePropertyConfig`、effect 的 `GetPropertyConfig` 声明的是**随工程序列化的实例/段级**属性（每个 part/note/effect 实例各一份，存进 `.tlp`）。本节的设置则是**扩展自身**的配置，与具体工程无关、跨工程共用、单独落盘。两者用同一套控件配置词汇（`ObjectConfig`），但生命周期与存储位置完全不同。
+>
+> 粒度是 **per extension**（一个 voice/effect 能力一份），不是 per 安装包（ExtensionPackage 可含多个 extension，各自独立设置）。
+
+### 7.1 接入方式
+
+设置是 **opt-in** 的：让你的能力实现类**额外实现** `IExtensionSettings` 即可，无设置的扩展不必理会。宿主对每个已注册能力做 `x is IExtensionSettings` 探测，实现了才显示其设置面板。
+
+```csharp
+public sealed class MyVoiceEngine : IVoiceEngine, IExtensionSettings
+{
+    // —— 声明 schema（复用属性面板同款控件配置）——
+    // 是 context 当前值的纯函数（宿主在值变更后重算并 diff 到控件）；且【必须在 Init 之前可调】
+    //（"先填模型路径，Init 才加载得了模型"——schema 不能依赖 Init 后的状态）。
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+    {
+        var props = new OrderedMap<string, IControllerConfig>();
+        props.Add("model_path", new TextBoxConfig { DisplayText = "模型路径", DefaultValue = "" });
+        props.Add("api_key", new TextBoxConfig { DisplayText = "API Key", IsPassword = true }); // 密钥：掩码显示 + 加密落盘
+        props.Add("use_gpu", new CheckBoxConfig { DisplayText = "使用 GPU", DefaultValue = false });
+        // 动态/条件项：据已填值决定显隐（如勾了 GPU 才暴露设备字段）。
+        if (context.Settings.GetBool("use_gpu", false))
+            props.Add("gpu_device", new TextBoxConfig { DisplayText = "GPU 设备", DefaultValue = "" });
+        return new ObjectConfig { Properties = props };
+    }
+
+    // —— 接收持久化的值 ——
+    // 宿主在【加载完成后】灌一次（早于任何 Init / 会话），用户在设置窗口【保存后】再灌一次。自存自用。
+    public void ApplySettings(PropertyObject settings)
+    {
+        mModelPath = settings.GetString("model_path", "");
+        mApiKey    = settings.GetString("api_key", "");
+        mUseGpu    = settings.GetBool("use_gpu", false);
+        // 之后在 Init / CreateSession / CreateProcessor 里用这些值。
+    }
+
+    // IVoiceEngine 的其余成员……
+}
+```
+
+### 7.2 要点
+
+- **密钥字段**：用 `TextBoxConfig { IsPassword = true }` 标出。宿主据此掩码显示，并按平台安全落盘：Windows 用 DPAPI 把密文就地存进配置文件（仅原用户原机可解）；macOS 存进钥匙串（Keychain）、配置文件只留空串。**无安全存储可用时不保存该密钥字段（绝不明文）并告警**。官方支持 Windows / macOS。
+- **schema 须 Init 前可达**：`GetSettingsConfig` 不得依赖 `Init` 后才有的状态——用户得先在设置面板填好（如模型路径）你才 `Init`。把它当纯函数写（同输入同输出、无副作用、轻量）。
+- **动态/条件项**：`GetSettingsConfig(context)` 是 `context.Settings`（当前已填值）的纯函数；用户改值后宿主按当前值重算并 diff 到控件树，故可据已填值显隐字段（如某开关打开才出现的字段）。
+- **回喂时机**：宿主在启动加载完所有扩展后回喂一次（此时尚未 `Init`），用户保存设置后再回喂一次。设置变更对**已在运行**的会话/处理器的影响（是否需要重建）由你自己决定与处理。
+- **本地化**：设置项 `DisplayText` 由你自译（与属性面板同范式，按 `TuneLabContext.Global.Language` 出文案），宿主不参与查表。
+- **manifest 无需声明**：设置 schema 纯走代码（`GetSettingsConfig`），`description.json` 不掺和。
+
+### 7.3 用户在哪里改
+
+「设置」窗口（顶部菜单进入）→「扩展」分页：每个声明了设置的扩展一段「显示名 + 设置面板」。编辑在**关闭窗口 / 切走分页**时统一落盘并回喂。
+
+> agent 模型引擎有自己的侧边栏设置入口，不在「扩展」分页里。
+
+相关接口在 `TuneLab.SDK`：`IExtensionSettings` / `IExtensionSettingsContext`（+ 控件配置 `ObjectConfig` / `TextBoxConfig` / `CheckBoxConfig` / `ComboBoxConfig` / `SliderConfig`）。
+
+---
+
+## 8. 打包、安装、卸载
 
 - **包格式**：把包文件夹打成 zip，扩展名改为 **`.tlx`**，要求 `description.json` 在 zip 的**根目录**。
 - **安装**：在 TuneLab 里把 `.tlx` 拖进窗口，或用扩展侧边栏的「Install Extension」。安装即解压到扩展目录并**立即加载**（无需重启）。
@@ -398,13 +489,14 @@ class MyEffectProcessor : IEffectProcessor
 
 ---
 
-## 8. 加载与校验行为
+## 9. 加载与校验行为
 
-TuneLab 加载每个包时：**发现** → 读 `description.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？程序集存在？）→ 为包建一个 **per-folder ALC** → 按 `assemblies`（或全扫）**选择性加载** → 扫 attribute **实例化注册**。
+TuneLab 加载每个包时：**发现** → 读 `description.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、按 `class`/`import`/`export` **精确取类型实例化注册**（不再反射扫 attribute）。
 
-- 任何一步失败都**优雅降级**：只跳过出问题的插件/包，**不会让主程序崩溃**，并在扩展侧边栏与日志里反映加载状态。
+- 任何一步失败都**优雅降级**：只跳过出问题的插件/条目，**不会让主程序崩溃**，并在扩展侧边栏与日志里反映加载状态。
 - `sdk-version` 高于宿主 → 该包被跳过并提示。
 - `platforms` 不含当前平台 → 该插件被跳过。
+- 条目级校验失败（`assembly` 找不到、`class` 不存在、未实现对应接口、缺无参构造）→ **只这一条目失败**，原因写进侧边栏 tooltip；同包其余条目照常加载（部分加载）。
 
 ---
 

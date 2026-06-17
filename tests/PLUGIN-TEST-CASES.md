@@ -44,15 +44,11 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 - 导入 `sample-files/sample.tlsuite` → 轨名含 **`[v1-suite]`**（证明用到共享 Common.dll）。
 - 声库列表出现 **`[v1-suite] Voice`**；选它、选中 note → 属性面板有 **tension**，参数面板有自定义自动化 **Power**。
 
-### 6. v1-no-assemblies（manifest 省略 assemblies → 扫全部 dll）
-- 装 `v1-no-assemblies.tlx` → **Loaded**；`.tlnoasm` 可用。
-- 导入 `sample-files/sample.tlnoasm` → 轨名含 **scanned (no assemblies declared)**。
-
-### 7. legacy-multi（老包内多个 attribute）
+### 6. legacy-multi（老包内多个 attribute）
 - 装 `legacy-multi.tlx` → **Loaded**（Legacy）；**`.tlm1` + `.tlm2` 两个 format** 和声库引擎 **TLLegacyMultiVoice** 全部注册。
 - 导入 `sample.tlm1` → 轨名 **legacy-multi #1**；导入 `sample.tlm2` → 轨名 **legacy-multi #2**。
 
-### 8. ALC 私有依赖版本隔离（v1-conflict-a + v1-conflict-b）
+### 7. ALC 私有依赖版本隔离（v1-conflict-a + v1-conflict-b）
 - 两个 `.tlx` 都装 → **两个都 Loaded**。
 - 导入 `sample.tlconfa` → 轨名 **ConflictHelper v1.0.0.0 (pkg A)**。
 - 导入 `sample.tlconfb` → 轨名 **ConflictHelper v2.0.0.0 (pkg B)**。
@@ -67,7 +63,8 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 | `v1-sdkver-high.tlx` | **Skipped** | 要求的 SDK 版本高于宿主 |
 | `v1-platform-mismatch.tlx` | **Skipped** | 平台不匹配 |
 | `v1-resource.tlx` | **Loaded** | 无代码资源包，只登记不加载程序集 |
-| `v1-effect-unsupported.tlx` | **Failed** | type=effect 但声明的程序集 never-loaded.dll 缺失（no assemblies found）；**主程序不崩** |
+| `v1-no-assemblies.tlx` | **Failed** | format 条目声明了 extension/import 但漏 `assembly` → assembly not found；**主程序不崩** |
+| `v1-effect-unsupported.tlx` | **Failed** | type=effect 但声明的程序集 never-loaded.dll 缺失（assembly not found）；**主程序不崩** |
 | `v1-bad-manifest.tlx` | **Failed**（或安装时报错） | description.json 损坏；**主程序不崩** |
 
 > 通则：任何包加载失败都只跳过该包、在侧边栏/日志反映，绝不崩主程序。可把坏包和正常包一起装，确认正常包照常 Loaded。

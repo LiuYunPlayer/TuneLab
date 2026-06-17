@@ -45,10 +45,11 @@ internal static class LegacyCompatLoader
             {
                 // 注册委托按包重建：把 Compat 推来的 V1 适配器转发进内建 manager（工厂复用同一实例，适配器无状态），
                 // 同时把真实类别回填进本包的 typeSink，供 sidebar 展示精确类型而非笼统 "Legacy"。
-                Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(ext, () => format); AddType(typeSink, "format"); };
-                Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(ext, () => format); AddType(typeSink, "format"); };
+                // Legacy 老插件无独立显示名，显示名沿用身份 id（扩展名 / 引擎 type）。
+                Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(ext, ext, () => format); AddType(typeSink, "format"); };
+                Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(ext, ext, () => format); AddType(typeSink, "format"); };
                 // enginePath 由 compat 侧的引擎适配器自持（老引擎 Init 需要包路径，新引擎面 Init 无参）。
-                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(type, engine); AddType(typeSink, "voice"); };
+                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(type, type, engine); AddType(typeSink, "voice"); };
 
                 var assemblies = description?.assemblies ?? Array.Empty<string>();
                 var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine, compatLog]);
