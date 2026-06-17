@@ -50,9 +50,22 @@ internal sealed class AgentRunner
     // 一次用户输入内可能有多次模型调用（工具往返），用量为这些调用的合计；任一调用返回了 usage 即非 null。
     // progress：进度事件回调（可空）——文本增量(AgentTextDelta)透传自会话流式，工具开始/完成(AgentToolStarted/Finished)
     // 由本循环发出，供 UI 按序渲染分步指示。返回的 Text 是各轮助手自然语言的合并（不是仅最后一轮），用于持久化与复制。
-    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<AgentEvent>? progress, CancellationToken cancellationToken)
+    // attachments：本轮用户附带的多模态分片（如图片）。有则构造 Parts（文本 + 图片混排），Content 仍存文本拍平值
+    // 供不支持多模态的适配器退化；无则纯文本 Content。
+    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<AgentEvent>? progress, CancellationToken cancellationToken, IReadOnlyList<AgentContentPart>? attachments = null)
     {
-        mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = userInput });
+        if (attachments is { Count: > 0 })
+        {
+            var parts = new List<AgentContentPart>();
+            if (!string.IsNullOrEmpty(userInput))
+                parts.Add(AgentContentPart.OfText(userInput));
+            parts.AddRange(attachments);
+            mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = userInput, Parts = parts });
+        }
+        else
+        {
+            mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = userInput });
+        }
 
         int prompt = 0, completion = 0, total = 0;
         bool hasUsage = false;

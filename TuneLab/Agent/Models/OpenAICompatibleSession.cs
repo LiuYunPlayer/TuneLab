@@ -27,6 +27,9 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             mHttp.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
     }
 
+    // OpenAI 视觉模型支持图片输入（具体某个 model 是否真支持由用户选型负责）；文本恒支持。
+    public AgentModality SupportedInput => AgentModality.Text | AgentModality.Image;
+
     public async Task<AgentModelReply> SendAsync(AgentModelRequest request, CancellationToken cancellationToken)
     {
         var body = BuildRequestBody(request).ToJsonString();
@@ -243,12 +246,31 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             _ => "user",
         };
 
-        var obj = new JsonObject
+        var obj = new JsonObject { ["role"] = role };
+        // 多模态：Parts 有值（用户图文混排）→ 发 OpenAI 的 content 数组（text + image_url 内联 data URI）；否则发字符串 content（可为 null）。
+        if (message.Parts is { Count: > 0 } parts)
         {
-            ["role"] = role,
+            var array = new JsonArray();
+            foreach (var part in parts)
+            {
+                if (part.Kind == AgentContentKind.Image && part.Data is { Length: > 0 })
+                {
+                    var mime = string.IsNullOrEmpty(part.MediaType) ? "image/png" : part.MediaType;
+                    var dataUri = "data:" + mime + ";base64," + Convert.ToBase64String(part.Data);
+                    array.Add(new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = dataUri } });
+                }
+                else if (!string.IsNullOrEmpty(part.Text))
+                {
+                    array.Add(new JsonObject { ["type"] = "text", ["text"] = part.Text });
+                }
+            }
+            obj["content"] = array;
+        }
+        else
+        {
             // content 可为 null（assistant 仅有工具调用时）；OpenAI 协议接受 content:null。
-            ["content"] = message.Content,
-        };
+            obj["content"] = message.Content;
+        }
 
         if (message.Role == AgentRole.Tool && message.ToolCallId != null)
             obj["tool_call_id"] = message.ToolCallId;
