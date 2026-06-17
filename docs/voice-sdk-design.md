@@ -146,7 +146,7 @@ public interface ILiveNote
 
 **插件侧全秒轴原则：插件面对的所有时间量统一为全局秒，tick 只是宿主乐谱内部表示、不外露。**合成是声学域作业（音频按秒/采样点），插件需要的永远是"第 X 秒"；note 边界、曲线查询点、开窗区间、`RangeModified` 区间一律秒。秒由 tempo 表换算而来——精度上 double 秒在工程规模下远超采样点（比 48kHz 采样间隔精确约 7 个数量级），对合成无损；tick 的整数精确性价值在编辑域（网格对齐、定点比较），合成域用不到。插件因此**不碰任何 tick↔秒换算**：宿主在 note 边界派生、求值器边界、快照物化处完成换算，`ISynthesisContext` 与 `SynthesisSnapshot` 都**不暴露** `ITiming`。
 
-tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `TempoSnapshot` 冻结实现）承担，但它退为宿主内部契约，不进插件可见的 context/snapshot 面。
+tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `TempoSnapshot` 冻结实现）承担——`ITiming` 接口与其实现家族同居宿主 `TuneLab.Data.Timing`，**不在插件 SDK 面**（既不进 context/snapshot，类型本身也已从 `TuneLab.SDK` 移除）。
 
 **tempo 变化无独立信号**（删去了曾经的 `TimingModified`）：tempo 变 → 所有 note 的秒边界变 → `StartTime/EndTime.Modified` 自动触发（宿主把 `TempoManager` 接入 note 边界派生属性的源）；automation 的秒映射移位 → 宿主在批量括号内对受影响轨触发全区间 `RangeModified`。插件用既有订阅机制即收到具体变更，无需"时基变了"这种元信号——这是全秒轴的优雅副产品。
 
@@ -182,7 +182,7 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 |---|---|---|---|
 | **note** | eager 物化的不可变值快照（`StartTime/EndTime` 全局秒、`Pitch`、`Lyric`、`PinnedPhoneme[]`、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
 | **automation** | **host 侧不可变原始点快照**；插件经 `IAutomationEvaluator.Evaluate(points)` 拉采样值 | worker 直接调求值器、宿主插值算法就地对冻结点插值 | 快照序列化时物化为离散点（提前采样，跨进程牺牲项；细节缓后）；**插值算法恒在宿主侧** |
-| **timing** | `ITiming` 接口接缝（实现在宿主侧 `TempoSnapshot`，与 live 同一套共享算法）；SDK 契约面只声明接口 | worker 直接调冻结实现 | 快照序列化时物化为离散数据（细节缓后） |
+| **timing** | `ITiming` 接口接缝（接口与实现 `TempoSnapshot` 同居宿主 `TuneLab.Data.Timing`，与 live 同一套共享算法；不在插件 SDK 面） | worker 直接调冻结实现 | 快照序列化时物化为离散数据（细节缓后） |
 
 **冻结形态 = 原始锚点 + 按需插值（而非"冻结时传点算好返回值"）**：查询点常是合成的中间产物（音素定时后才知道在哪采参数），快照时刻预知不了，预算值形态会逼插件超采或放弃精确采样；且锚点形态**严格包含**预算值用法——想"冻结时算好"的插件在同步前缀调 getter 把值采成 `double[]` 自存即可（**推荐模式**：前缀预采则 v2 下 worker 零 RPC，worker 内调用仅留给依赖中间产物的动态点）。锚点也比密集采样小 1–2 个量级。快照上 automation 以可枚举 `Automations` Map 平铺（纯数据体，非查询方法）。
 
@@ -463,7 +463,7 @@ public class AutomationConfig : IValueConfig<double>
 - 不可变**原始点快照容器** + 在其上的不可变 `IAutomationEvaluator` 实现（`Evaluate(times)` 对冻结点插值，查询轴秒）。
 - 抽一份**共享纯采样函数**：live `IAutomation`/`IPiecewiseCurve` 与上面的冻结求值器共用同一套"锚点 → 取值"算法（逻辑一份，杜绝两套实现漂移）。
 - **note 快照值**（StartTime/EndTime、Pitch、Lyric、`PinnedPhoneme[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
-- **tempo 快照**（`ITiming` 的冻结实现；实现家族居宿主 `TuneLab.Data.Timing`，SDK 只声明接口）。
+- **tempo 快照**（`ITiming` 的冻结实现；`ITiming` 接口与实现家族同居宿主 `TuneLab.Data.Timing`，不在插件 SDK 面）。
 - 可选：automation 切片**版本缓存**（按"曲线版本 + 区间"缓存不可变副本，`RangeModified` 命中才作废/重拷）。
 - 契约钉死：`GetNextSegment` = 数据线程上廉价 peek（live 全量、定分片，报纯值边界）；`SynthesizeNext` 同步前缀在数据线程重算分块、经 `context.GetSnapshot` 拉取快照，再 offload。
 - 前向兼容进程拆分：快照构造为自包含可序列化值树、曲线点用 blittable `Point`；不做真正的 IPC/共享内存（v2）。

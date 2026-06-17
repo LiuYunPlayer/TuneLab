@@ -5,7 +5,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.Data.Timing;
 
-// ITiming 的不可变实现（宿主侧；SDK 契约面只声明 ITiming 接口，实现不进 SDK）：
+// ITiming 的不可变实现（ITiming 与实现家族同居宿主 TuneLab.Data.Timing，不进插件 SDK 面——插件侧全秒、tick 不外露）：
 // 构造时由最小真值 (Tick, Bpm) 一次推导出换算表，此后只读，可安全跨线程使用。
 // 数据变更不同步进来——宿主在下次派发合成时构建一份全新快照（替换，而非同步）。
 public sealed class TempoSnapshot : ITiming

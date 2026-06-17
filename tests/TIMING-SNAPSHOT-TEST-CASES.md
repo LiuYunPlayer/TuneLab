@@ -2,7 +2,7 @@
 
 > 独立需求独立文档。本文只覆盖三项改动的影响范围：
 > ① SDK.Base 文件分域整理（config 家族迁入 `TuneLab.SDK.Base.ControllerConfigs`、ILog 迁入 `…Environment`，纯 namespace 移动）；
-> ② tick↔秒换算唯一份纯函数收敛为 `TempoConvert`，`TempoManager` 改调、新增 `ITiming`/`TempoSnapshot`（后续冻结面收口：实现家族 `TempoConvert`/`TempoSnapshot`/`TempoMark` 现居宿主 `TuneLab.Data.Timing`，SDK 契约面只留 `ITiming` 接口）；
+> ② tick↔秒换算唯一份纯函数收敛为 `TempoConvert`，`TempoManager` 改调、新增 `ITiming`/`TempoSnapshot`（后续冻结面收口：`ITiming` 接口与实现家族 `TempoConvert`/`TempoSnapshot`/`TempoMark` 同居宿主 `TuneLab.Data.Timing`，均不在插件 SDK 面）；
 > ③ 宿主侧自动化不可变窗口快照（`AutomationSnapshot`/`PiecewiseAutomationSnapshot` + `AnchorWindow` 开窗）。
 > **不涉及** 任何既有 UI/合成行为变化（①② 是等价重构，③ 是尚无调用方的新增件）——既有功能基线无需重跑。
 

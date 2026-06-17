@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
+using TuneLab.Data.Timing;
 using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;
