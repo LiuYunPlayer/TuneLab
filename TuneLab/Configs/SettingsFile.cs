@@ -24,4 +24,5 @@ internal class SettingsFile
     public string AudioDriver { get; set; } = string.Empty;
     public string AudioDevice { get; set; } = string.Empty;
     public double TrackHueChangeRate { get; set; } = 0;
+    public string AgentModelProvider { get; set; } = string.Empty;   // agent 选中的模型 provider（引擎 id）；各 provider 的配置另存 ExtensionSettings.json
 }
