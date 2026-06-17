@@ -14,8 +14,6 @@ using TuneLab.Utils;
 
 namespace TuneLab.Extensions.Formats.TLP;
 
-[ImportFormat("tlp")]
-[ExportFormat("tlp")]
 internal class TuneLabProject : IImportFormat, IExportFormat
 {
     const int CURRENT_VERSION = 0;

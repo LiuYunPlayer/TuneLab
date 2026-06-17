@@ -9,8 +9,6 @@ using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Formats.TLP;
 
-[ImportFormat("tlpx")]
-[ExportFormat("tlpx")]
 internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 {
     const int CURRENT_VERSION = 0;

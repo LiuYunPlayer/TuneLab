@@ -11,7 +11,6 @@ using Point = TuneLab.Foundation.Point;
 
 namespace TuneLab.Extensions.Formats.VPR
 {
-    [ImportFormat("vpr")]
     internal class VprWithExtension : IImportFormat
     {
         public ProjectInfo Deserialize(Stream stream)

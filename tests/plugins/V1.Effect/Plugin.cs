@@ -15,7 +15,6 @@ namespace TuneLab.TestPlugins.V1Effect;
 //   · 跨 Process 调用缓存内部中间结果（env 取值、gain 标量、输出段句柄）、按脏只重算受影响内容；
 //   · gain_env 的变更秒区间若不与本段相交 → 不标脏、不触发处理 → 本段输出不变、下游被跳过；
 //   · 输出经 context.CreateAudioSegment 持久持有句柄，重处理时就地重写并重 Commit（无关变化时不重 Commit）。
-[EffectEngine("TLTestGain")]
 public sealed class GainEffectEngine : IEffectEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
@@ -261,7 +260,6 @@ public sealed class GainEffectEngine : IEffectEngine
 
 // 倒放效果器：无参数，反转样本顺序。与 Gain 同包，链中可观察顺序/增删效果。
 // 仅被上游音频变化触发（无参数/自动化）；音频未变时不重 Commit（下游被跳过）。
-[EffectEngine("TLTestReverse")]
 public sealed class ReverseEffectEngine : IEffectEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;

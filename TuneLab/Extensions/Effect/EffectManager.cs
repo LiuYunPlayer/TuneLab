@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -11,10 +10,9 @@ namespace TuneLab.Extensions.Effect;
 // 引擎在首次被使用时惰性 Init。未注册/Init 失败的类型由调用方按 passthrough 优雅降级。
 internal static class EffectManager
 {
+    // 内建无 effect 引擎；effect 全部由外置插件经 manifest 提供。保留方法以对齐各 manager 加载入口。
     public static void LoadBuiltIn()
     {
-        var types = Assembly.GetExecutingAssembly().GetTypes();
-        RegisterFromTypes(types);
     }
 
     public static void Destroy()
@@ -26,26 +24,20 @@ internal static class EffectManager
         }
     }
 
-    // 由 ExtensionManager 在 per-folder ALC 加载后传入已加载类型，扫 [EffectEngine] 注册。
+    // 由 ExtensionManager（V1 manifest 驱动）实例化后注册引擎。type 已存在则跳过（内建/先到优先）。
+    // type 是不可变身份 id（工程序列化引用）；displayName 仅供 UI 展示、可本地化。
     // 引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
-    public static void RegisterFromTypes(Type[] types)
+    public static void RegisterEngine(string type, string displayName, IEffectEngine engine)
     {
-        foreach (Type type in types)
-        {
-            var attribute = type.GetCustomAttribute<EffectEngineAttribute>();
-            if (attribute == null)
-                continue;
-
-            if (!typeof(IEffectEngine).IsAssignableFrom(type))
-                continue;
-
-            var constructor = type.GetConstructor(Type.EmptyTypes);
-            if (constructor != null && !mEngines.ContainsKey(attribute.Type))
-                mEngines.Add(attribute.Type, new EffectEngineStatus((IEffectEngine)constructor.Invoke(null)));
-        }
+        if (!mEngines.ContainsKey(type))
+            mEngines.Add(type, new EffectEngineStatus(engine, displayName));
     }
 
     public static IReadOnlyList<string> GetAllEffectEngines() => mEngines.Keys;
+
+    // UI 展示名（本地化，注册时按当前语言定）；未注册回退到 id 本身。
+    public static string GetDisplayName(string type)
+        => mEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
 
     public static bool Exists(string type) => mEngines.ContainsKey(type);
 
@@ -70,12 +62,14 @@ internal static class EffectManager
     class EffectEngineStatus
     {
         public IEffectEngine Engine => mEngine;
+        public string DisplayName { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public EffectEngineStatus(IEffectEngine engine)
+        public EffectEngineStatus(IEffectEngine engine, string displayName)
         {
             mEngine = engine;
+            DisplayName = displayName;
         }
 
         // Init 无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。

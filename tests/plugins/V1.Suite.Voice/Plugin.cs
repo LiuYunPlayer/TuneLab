@@ -11,7 +11,6 @@ namespace TuneLab.TestPlugins.Suite.Voice;
 
 // 一包多插件之 voice：2 个声库（名取自共享 Common）。会话取单块最简模式——整 part 一块、
 // 任何变更全量标脏（设计许可的最懒失效策略），合成产出静音 + phoneme（合成保真已由 V1.Voice 覆盖）。
-[VoiceEngine("TLSuiteVoice")]
 public sealed class SuiteVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;

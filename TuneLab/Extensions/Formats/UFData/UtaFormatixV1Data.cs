@@ -12,8 +12,6 @@ using Point = TuneLab.Foundation.Point;
 
 namespace TuneLab.Extensions.Formats.UFData;
 
-[ImportFormat("ufdata")]
-[ExportFormat("ufdata")]
 internal class UtaFormatixV1Data : IImportFormat, IExportFormat
 {
     public ProjectInfo Deserialize(Stream stream)

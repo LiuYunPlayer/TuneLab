@@ -6,5 +6,8 @@
   "description": "V1 format 测试插件：导入/导出 .tltest，验证新接口 + DataInfo 往返。",
   "sdk-version": "1.0",
   "type": "format",
-  "assemblies": ["V1.Format.dll"]
+  "extension": "tltest",
+  "import": "TuneLab.TestPlugins.V1Format.TestImportFormat",
+  "export": "TuneLab.TestPlugins.V1Format.TestExportFormat",
+  "assembly": "V1.Format.dll"
 }

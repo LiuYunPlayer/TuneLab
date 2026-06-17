@@ -13,7 +13,6 @@ namespace TuneLab.TestPlugins.V1Voice;
 // 用于验证：引擎注册、声库列表、CreateSession、分块状态带（多段着色/进度）、变更标脏增量重合成、
 // snapshot.Notes 与 segment.Notes 的索引对齐契约（产物归属回活 note）。
 
-[VoiceEngine("TLTestVoiceV1")]
 public sealed class TestVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;

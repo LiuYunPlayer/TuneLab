@@ -16,8 +16,6 @@ using Point = TuneLab.Foundation.Point;
 
 namespace TuneLab.Extensions.Formats.ACEP;
 
-[ImportFormat("acep")]
-[ExportFormat("acep")]
 internal class ACEStudioProject : IImportFormat, IExportFormat
 {
     public ProjectInfo Deserialize(Stream stream)

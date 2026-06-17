@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
@@ -14,56 +13,50 @@ namespace TuneLab.Extensions.Formats;
 
 internal static class FormatsManager
 {
+    // 内建格式显式注册（编进宿主、无 description.json，故不走 manifest，直接登记）。
     public static void LoadBuiltIn()
     {
-        var types = Assembly.GetExecutingAssembly().GetTypes();
-        RegisterFromTypes(types);
+        RegisterImporter("tlp", "TuneLab Project", () => new TLP.TuneLabProject());
+        RegisterExporter("tlp", "TuneLab Project", () => new TLP.TuneLabProject());
+        RegisterImporter("tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
+        RegisterExporter("tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
+        RegisterImporter("acep", "ACE Studio Project", () => new ACEP.ACEStudioProject());
+        RegisterExporter("acep", "ACE Studio Project", () => new ACEP.ACEStudioProject());
+        RegisterImporter("ufdata", "UtaFormatix Data", () => new UFData.UtaFormatixV1Data());
+        RegisterExporter("ufdata", "UtaFormatix Data", () => new UFData.UtaFormatixV1Data());
+        RegisterImporter("mid", "MIDI", () => new Midi.MidiWithExtension_mid());
+        RegisterImporter("midi", "MIDI", () => new Midi.MidiWithExtension_midi());
+        RegisterImporter("vpr", "VOCALOID Project", () => new VPR.VprWithExtension());
     }
 
-    // 由 ExtensionManager 在加载（V1 走 per-folder ALC、Legacy 走 fallback）后传入已加载类型，
-    // 扫 [ImportFormat]/[ExportFormat] 注册。manager 不再自行解析 description.json。
-    public static void RegisterFromTypes(Type[] types)
-    {
-        foreach (Type type in types)
-        {
-            var importAttribute = type.GetCustomAttribute<ImportFormatAttribute>();
-            if (importAttribute != null)
-            {
-                if (typeof(IImportFormat).IsAssignableFrom(type))
-                {
-                    var constructor = type.GetConstructor(Type.EmptyTypes);
-                    if (constructor != null)
-                        mImportFormats.Add(importAttribute.FileExtension, () => (IImportFormat)constructor.Invoke(null));
-                }
-            }
-
-            var exportAttribute = type.GetCustomAttribute<ExportFormatAttribute>();
-            if (exportAttribute != null)
-            {
-                if (typeof(IExportFormat).IsAssignableFrom(type))
-                {
-                    var constructor = type.GetConstructor(Type.EmptyTypes);
-                    if (constructor != null)
-                        mExportFormats.Add(exportAttribute.FileExtension, () => (IExportFormat)constructor.Invoke(null));
-                }
-            }
-        }
-    }
-
-    // 由 Compat.Legacy（经 ExtensionManager.LegacyLoadHook → LegacyCompatLoader）注册已包装好的适配器实例。
-    // 老插件链接老 attribute/接口，扫不出 V1 attribute，故走实例/工厂注册而非 RegisterFromTypes 的反射实例化。
-    // 内建/V1 优先：扩展名已存在则跳过（不让 Legacy 覆盖内建格式）。
-    public static void RegisterImporter(string fileExtension, Func<IImportFormat> factory)
+    // 工厂注册导入器：内建（LoadBuiltIn）、V1（ExtensionManager 按 manifest class 实例化）、
+    // Compat.Legacy（经 LegacyLoadHook → LegacyCompatLoader 包装老插件）三条路径共用。
+    // fileExtension 是不可变身份 id（路由 + 工程序列化引用）；displayName 仅供 UI 展示、可本地化。
+    // 内建/先到优先：扩展名已存在则跳过（不让 Legacy 覆盖内建格式）。
+    public static void RegisterImporter(string fileExtension, string displayName, Func<IImportFormat> factory)
     {
         if (!mImportFormats.ContainsKey(fileExtension))
             mImportFormats.Add(fileExtension, factory);
+        RecordDisplayName(fileExtension, displayName);
     }
 
-    public static void RegisterExporter(string fileExtension, Func<IExportFormat> factory)
+    public static void RegisterExporter(string fileExtension, string displayName, Func<IExportFormat> factory)
     {
         if (!mExportFormats.ContainsKey(fileExtension))
             mExportFormats.Add(fileExtension, factory);
+        RecordDisplayName(fileExtension, displayName);
     }
+
+    // 显示名按扩展名记录（import/export 同扩展名共一个名）；先到优先、空名不覆盖已有。
+    static void RecordDisplayName(string fileExtension, string displayName)
+    {
+        if (!string.IsNullOrEmpty(displayName) && !mFormatNames.ContainsKey(fileExtension))
+            mFormatNames[fileExtension] = displayName;
+    }
+
+    // UI 展示名（本地化，注册时按当前语言定）；未登记回退到扩展名本身。
+    public static string GetDisplayName(string fileExtension)
+        => mFormatNames.TryGetValue(fileExtension, out var name) ? name : fileExtension;
 
     public static IReadOnlyList<string> GetAllImportFormats()
     {
@@ -127,4 +120,5 @@ internal static class FormatsManager
 
     static OrderedMap<string, Func<IImportFormat>> mImportFormats = new();
     static OrderedMap<string, Func<IExportFormat>> mExportFormats = new();
+    static readonly Dictionary<string, string> mFormatNames = new();
 }

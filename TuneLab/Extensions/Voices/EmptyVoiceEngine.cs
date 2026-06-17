@@ -9,7 +9,6 @@ namespace TuneLab.Extensions.Voices;
 
 // 空声源引擎（type = ""）：无声源 part 的回退实现。会话永远报告"窗内无待合成"，
 // 产物全空——part 不参与合成调度、UI 无状态带，行为等价于静音。
-[VoiceEngine("")]
 internal class EmptyVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, mVoiceSourceInfo } };

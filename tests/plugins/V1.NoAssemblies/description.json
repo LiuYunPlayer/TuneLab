@@ -1,8 +1,10 @@
 {
   "id": "com.tunelab.test.noassemblies",
-  "name": "V1 No-Assemblies (scan all)",
+  "name": "V1 Missing-Assembly (negative)",
   "version": "1.0.0",
-  "description": "刻意省略 assemblies → 加载器扫文件夹全部 dll 找 format 入口。",
+  "description": "负向用例：format 条目声明了 extension/import 但故意漏 assembly → 加载器应优雅 Failed（不再有扫全文件夹兜底）。",
   "sdk-version": "1.0",
-  "type": "format"
+  "type": "format",
+  "extension": "tlnoasm",
+  "import": "TuneLab.TestPlugins.NoAssemblies.NoAssembliesImport"
 }

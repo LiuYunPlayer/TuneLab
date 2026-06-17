@@ -8,7 +8,6 @@ namespace TuneLab.TestPlugins.V1Format;
 // V1 format 测试插件：.tltest 自定义 JSON 格式，import/export 往返。
 // 空/损坏输入 → 返回固定样例工程，保证手动测试一定能看到 note。
 
-[ImportFormat("tltest")]
 public sealed class TestImportFormat : IImportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
@@ -44,7 +43,6 @@ public sealed class TestImportFormat : IImportFormat
     }
 }
 
-[ExportFormat("tltest")]
 public sealed class TestExportFormat : IExportFormat
 {
     public Stream Serialize(ProjectInfo info)

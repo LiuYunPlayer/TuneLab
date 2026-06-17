@@ -12,5 +12,7 @@
   },
   "sdk-version": "1.0",
   "type": "voice",
-  "assemblies": ["V1.I18N.dll"]
+  "engine": "TLI18NVoice",
+  "class": "TuneLab.TestPlugins.V1I18N.I18NVoiceEngine",
+  "assembly": "V1.I18N.dll"
 }

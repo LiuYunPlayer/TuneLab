@@ -40,7 +40,6 @@ static class L
     }
 }
 
-[VoiceEngine("TLI18NVoice")]
 public sealed class I18NVoiceEngine : IVoiceEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
