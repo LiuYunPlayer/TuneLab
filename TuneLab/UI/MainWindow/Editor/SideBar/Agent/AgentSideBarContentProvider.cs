@@ -233,7 +233,71 @@ internal sealed class AgentSideBarContentProvider
         mChatView.Children.Add(sep);
         DockPanel.SetDock(inputBorder, Dock.Bottom);
         mChatView.Children.Add(inputBorder);
+        // token 用量状态行（输入框正上方、细灰）：会话累计 + 当前上下文占用；空会话隐藏。dock 在 inputBorder 之后 → 位于其上、消息区之下。
+        mTokenStatus.FontSize = 11;
+        mTokenStatus.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
+        mTokenStatus.Margin = new(14, 0, 14, 2);
+        mTokenStatus.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+        mTokenStatus.IsVisible = false;
+        DockPanel.SetDock(mTokenStatus, Dock.Bottom);
+        mChatView.Children.Add(mTokenStatus);
         mChatView.Children.Add(mMessagesHost); // 最后一个 → 填充中间
+    }
+
+    // 刷新 token 状态行为当前会话的口径：会话累计（每轮 total 之和，含工具往返重复前缀）+ 当前上下文占用（最后一次模型调用的输入 token）。
+    // 无累计（空会话/端点没返回 usage）则隐藏整行。
+    void RefreshTokenStatus()
+    {
+        var ctx = mActive;
+        if (ctx.CumulativeTokens <= 0)
+        {
+            mTokenStatus.IsVisible = false;
+            return;
+        }
+        mTokenStatus.IsVisible = true;
+        mTokenStatus.Text = string.Format("Context {0} · Session {1}".Tr(this), FormatTokens(ctx.ContextTokens), FormatTokens(ctx.CumulativeTokens));
+        ToolTip.SetTip(mTokenStatus, string.Format("Current context ~{0:N0} tokens · Session total {1:N0} tokens".Tr(this), ctx.ContextTokens, ctx.CumulativeTokens));
+    }
+
+    // 紧凑显示：≥1000 显示为 k（一位小数、去尾零），否则原值。
+    static string FormatTokens(long n)
+        => n >= 1000 ? (n / 1000.0).ToString("0.#") + "k" : n.ToString();
+
+    // 一轮成功回复后累加该会话的 token 口径：累计 += 本轮 total；上下文 = 本轮最后一次模型调用的输入（≈当前上下文大小，
+    // 不用聚合 prompt——那是各轮求和、远大于实际上下文）。仅当前可见会话才刷新状态行。
+    void AccumulateTurnTokens(SessionContext ctx, AgentTurnResult reply)
+    {
+        if (reply.Usage != null)
+            ctx.CumulativeTokens += reply.Usage.TotalTokens;
+        for (int i = reply.Trajectory.Count - 1; i >= 0; i--)
+        {
+            var m = reply.Trajectory[i];
+            if (m.Role == AgentRole.Assistant && m.Usage != null)
+            {
+                ctx.ContextTokens = m.Usage.PromptTokens + m.Usage.CompletionTokens;
+                break;
+            }
+        }
+        if (ctx == mActive)
+            RefreshTokenStatus();
+    }
+
+    // 重载会话时从存储重算 token 口径：累计 = 所有 assistant 消息 total 之和；上下文 = 最后一条 assistant 的输入+输出（≈当前上下文）。
+    static void RestoreTokenStats(SessionContext ctx, ChatSession session)
+    {
+        long cumulative = 0;
+        int context = 0;
+        foreach (var m in session.Messages)
+        {
+            if (m.Role != "assistant")
+                continue;
+            if (m.TotalTokens.HasValue)
+                cumulative += m.TotalTokens.Value;
+            if (m.PromptTokens.HasValue) // 最后一条带用量的 assistant 胜出 → 末轮的上下文占用
+                context = (m.PromptTokens ?? 0) + (m.CompletionTokens ?? 0);
+        }
+        ctx.CumulativeTokens = cumulative;
+        ctx.ContextTokens = context;
     }
 
     // 新建一个会话的消息滚动区（自带动画轴；靠子项 MaxWidth 在无限宽测量下换行——见 ApplyBubbleWidths）。
@@ -415,6 +479,7 @@ internal sealed class AgentSideBarContentProvider
         ApplyBubbleWidths(ctx.View); // 离屏期间侧栏可能被拖宽，切回时按当前宽度重排该会话气泡
         SetTitle(ctx.Title);
         RefreshSendControls();
+        RefreshTokenStatus();
         ScrollToEnd(ctx);
     }
 
@@ -443,6 +508,7 @@ internal sealed class AgentSideBarContentProvider
         ctx.Session = session;
         ctx.SeedHistory = ReconstructHistory(session);
         ctx.Runner = null; // 下次发送时用 SeedHistory 重建带历史的 runner
+        RestoreTokenStats(ctx, session); // 从存储重算累计/上下文 token，使状态行重载即正确
         ctx.Title = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title;
         ctx.CreatedAtUnix = session.CreatedAtUnix; // 按原始创建时刻排序，加载不改变其在列表中的位置
         SwitchTo(ctx);
@@ -777,6 +843,7 @@ internal sealed class AgentSideBarContentProvider
             else
                 turn.Append(BuildFooter(reply.Text, reply.Usage));
             RecordTurn(ctx, text, reply.Text, reply.Trajectory);
+            AccumulateTurnTokens(ctx, reply);
         }
         catch (OperationCanceledException)
         {
@@ -1128,6 +1195,8 @@ internal sealed class AgentSideBarContentProvider
     // 可见会话的消息滚动区挂载点：切换会话只换其 Child 为目标会话各自的 ListView（离屏会话的视图被其 SessionContext 持有、不销毁）。
     readonly Panel mMessagesHost = new();
     readonly TextInput mInput = new();
+    // token 用量状态行（输入框上方）：显示当前会话的累计 + 上下文占用，随会话切换/每轮刷新（见 RefreshTokenStatus）。
+    readonly TextBlock mTokenStatus = new();
     // 标题：复用轨道名同款 EditableLabel（双击就地改名、Enter/失焦提交），与全局改名交互一致。
     readonly EditableLabel mTitleLabel = new()
     {
@@ -1178,6 +1247,8 @@ internal sealed class AgentSideBarContentProvider
         public CancellationTokenSource? Cts;     // 该会话当前在飞请求的取消源（停止键 / 删除该会话时触发）
         public List<AgentMessage>? SeedHistory;  // 加载已存会话 / 中途换模型后用于重建 runner 的历史（仅对话文本）
         public bool Busy;                        // 该会话是否有在飞请求（决定切到它时显示发送键还是停止键）
+        public long CumulativeTokens;            // 会话累计 token（每轮 total 之和，含工具往返重复前缀；状态行用）
+        public int ContextTokens;                // 当前上下文占用（最后一次模型调用的输入+输出 ≈ 当前上下文大小；状态行用）
         public string Title = "New Chat";        // 该会话标题（切到它时写入头部标签）
         public bool TitleManual;                 // 标题是否被用户手动改过：true 则不再被自动标题覆盖
         public long CreatedAtUnix;               // 会话建立时刻（本地新建=当时；加载已存=其原始创建时刻）。菜单按它降序排，位置稳定、新会话在顶
