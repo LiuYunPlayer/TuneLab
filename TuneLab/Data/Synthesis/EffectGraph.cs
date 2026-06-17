@@ -43,6 +43,11 @@ internal sealed class EffectGraph : IDisposable
     // 链尾各段（工程率 + 波形）；播放/波形按段消费、按绝对时间混音。原子换引用、跨线程读安全。
     public IReadOnlyList<SynthesizedSegment> SynthesizedSegments => mSynthesizedSegments;
 
+    // 某个 effect 的回显曲线（聚合其所有「effect × 段」节点 processor 的 SynthesizedParameters、按 key 拼接 Segments）。
+    // 无该 effect 或无回显时返回空 map。原子换引用、跨线程读安全。
+    public IReadOnlyMap<string, SynthesizedParameter> GetSynthesizedParameters(IEffect effect)
+        => mEffectReadbacks.TryGetValue(effect, out var map) ? map : EmptyReadback;
+
     // 仍有在飞 Process（用于管线延迟销毁：voice/effect 都归后才销毁会话与图）。
     public bool IsBusy => mRunningCount > 0;
 
@@ -179,6 +184,7 @@ internal sealed class EffectGraph : IDisposable
         }
 
         BuildSynthesizedSegments(stageInputs);
+        BuildEffectReadbacks();
     }
 
     // 在并发上限内派发 Pending 就绪节点（按播放线就近）；满则登记待空槽重 pump。
@@ -391,6 +397,60 @@ internal sealed class EffectGraph : IDisposable
         mSynthesizedSegments = list.ToArray();
     }
 
+    // 各 effect 回显聚合：遍历有 processor 的存活节点，按其 Effect 归组、按 key 把各段 Segments 拼起来，
+    // 段按起始秒升序（满足 SynthesizedParameter「按时间升序」契约——节点字典无序，拼接后须排）。
+    void BuildEffectReadbacks()
+    {
+        Dictionary<IEffect, Dictionary<string, List<IReadOnlyList<Point>>>>? acc = null;
+        foreach (var node in mNodes.Values)
+        {
+            if (node.Removed || node.Processor == null)
+                continue;
+            var readback = node.Processor.SynthesizedParameters;
+            if (readback.Count == 0)
+                continue;
+
+            acc ??= new();
+            if (!acc.TryGetValue(node.Effect, out var perEffect))
+            {
+                perEffect = new();
+                acc.Add(node.Effect, perEffect);
+            }
+            foreach (var kv in readback)
+            {
+                if (kv.Value.Segments.Count == 0)
+                    continue;
+                if (!perEffect.TryGetValue(kv.Key, out var segments))
+                {
+                    segments = new();
+                    perEffect.Add(kv.Key, segments);
+                }
+                segments.AddRange(kv.Value.Segments);
+            }
+        }
+
+        if (acc == null)
+        {
+            mEffectReadbacks = EmptyEffectReadbacks;
+            return;
+        }
+
+        var result = new Map<IEffect, IReadOnlyMap<string, SynthesizedParameter>>();
+        foreach (var (effect, perEffect) in acc)
+        {
+            var map = new Map<string, SynthesizedParameter>();
+            foreach (var (key, segments) in perEffect)
+            {
+                segments.Sort((a, b) => FirstX(a).CompareTo(FirstX(b)));
+                map.Add(key, new SynthesizedParameter { Segments = segments });
+            }
+            result.Add(effect, map);
+        }
+        mEffectReadbacks = result;
+    }
+
+    static double FirstX(IReadOnlyList<Point> segment) => segment.Count > 0 ? segment[0].X : double.PositiveInfinity;
+
     void SortByPlaybackProximity(List<EffectNode> nodes)
     {
         double currentTime = AudioEngine.CurrentTime;
@@ -427,6 +487,9 @@ internal sealed class EffectGraph : IDisposable
     DisposableManager? mStructureSubscriptions;
 
     SynthesizedSegment[] mSynthesizedSegments = [];
+    IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> mEffectReadbacks = EmptyEffectReadbacks;
+    static readonly IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> EmptyEffectReadbacks = new Map<IEffect, IReadOnlyMap<string, SynthesizedParameter>>();
+    static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
     int mRunningCount;
     bool mInSchedule;
     bool mDirty;

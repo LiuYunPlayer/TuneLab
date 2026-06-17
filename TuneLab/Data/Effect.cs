@@ -28,6 +28,11 @@ internal class Effect : DataObject, IEffect
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs
         => Engine?.GetAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
 
+    // 回显轨声明随当前参数值涌现（live、纯函数 of 当前值），镜像 AutomationConfigs；引擎缺失时为空集合。
+    // 曲线数据不在数据层，由合成管线聚合各段 processor 的回显按同一批 key 承载。
+    public IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs
+        => Engine?.GetSynthesizedParameterConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
+
     public Effect(MidiPart part, EffectInfo info)
     {
         mPart = part;

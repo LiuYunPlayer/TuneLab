@@ -40,9 +40,9 @@ internal partial class AutomationRenderer : View
         AutomationKey? ActiveAutomation { get; }
         bool IsAutomationVisible(AutomationKey automation);
         IReadOnlyList<AutomationKey> VisibleAutomations { get; }
-        // 回显轨声明（voice 级、只读）：曲线数据经 Part.SynthesizedParameters 按同一批 key 承载。
-        IReadOnlyOrderedMap<string, AutomationConfig> ReadbackConfigs { get; }
-        bool IsReadbackVisible(string id);
+        // 回显轨声明（按 AutomationKey 分源：voice / 各 effect，只读）：曲线数据经 Part 按同一批 key 承载。
+        IReadOnlyOrderedMap<AutomationKey, AutomationConfig> ReadbackConfigs { get; }
+        bool IsReadbackVisible(AutomationKey key);
         INotifiableProperty<PianoTool> PianoTool { get; }
     }
 
@@ -360,15 +360,19 @@ internal partial class AutomationRenderer : View
 
         foreach (var kvp in mDependency.ReadbackConfigs)
         {
-            string id = kvp.Key;
-            if (!mDependency.IsReadbackVisible(id))
+            AutomationKey key = kvp.Key;
+            if (!mDependency.IsReadbackVisible(key))
                 continue;
 
-            if (!Part.SynthesizedParameters.TryGetValue(id, out var segments))
+            // 按源取曲线数据：effect 走该 effect 的聚合回显，voice 走 part 自身回显。
+            var data = key.IsEffect
+                ? (key.EffectIndex < Part.Effects.Count ? Part.GetEffectSynthesizedParameters(Part.Effects[key.EffectIndex]) : null)
+                : Part.SynthesizedParameters;
+            if (data == null || !data.TryGetValue(key.Id, out var parameter))
                 continue;
 
             var config = kvp.Value;
-            DrawReadbackArea(context, segments, config.MinValue, config.MaxValue, Color.Parse(config.Color));
+            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, Color.Parse(config.Color));
         }
     }
 

@@ -20,6 +20,13 @@ public interface IEffectEngine
     // 连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），按声明序呈现。
     IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context);
 
+    // 合成参数回显轨配置（只读、独立于可编辑自动化轨）：与 GetAutomationConfigs 同为当前参数值的纯函数。
+    // 引擎处理产出的只读回显曲线（如 loudness）暴露为一等只读轨，自带 DisplayText/Min/Max/Color——宿主据此
+    // 显隐、用各自色绘制，不可编辑。回显是分段形（DefaultValue 置 NaN，无基线、段间断开）。
+    // 须为纯函数（同输入同输出、无副作用、轻量）；无回显的引擎返回空 map 即可。
+    // 曲线数据另经 IEffectProcessor.SynthesizedParameters 按同一批 key 承载。
+    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context);
+
     // 初始化引擎（加载模型等）。无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。
     // 不传安装路径——插件 DLL 经 Assembly.Location 即可自定位包目录。
     void Init();

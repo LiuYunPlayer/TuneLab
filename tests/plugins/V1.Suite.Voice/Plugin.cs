@@ -120,7 +120,7 @@ public abstract class SingleBlockSession : ISynthesisSession
     }
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
-    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; } = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
     public IReadOnlyList<SynthesizedPhoneme> Phonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()

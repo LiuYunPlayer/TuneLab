@@ -482,7 +482,7 @@ public class AutomationConfig : IValueConfig<double>
 - **音频段内子区间增量**（`IAudioSegment` 段内增量）：`Write(offset, samples)` 本就带"段内哪段变了"的区间（中间态仅驱动进度/波形、不进 effect），宿主累积这些区间随 `Commit` 交 effect，effect 自行决定段内局部重合成 + 拼接（含上下文余量 / 淡化、跨级脏传播）。V1 按整段失效（段 Commit 即整段送 effect、不消费写区间），子区间增量是纯加性优化、缓后。
 - **effect 收敛到本会话模型**（当前 effect 为「宿主厚 / 插件薄」的逐段处理器模型：状态/调度/`cache[segment][stage]` 失效图全在宿主）。**设计已铺细 → §10**；落地分阶段见 §10.8。已锁的收敛决策（5 条，§10 逐条展开）：① 平行接口 `IEffectSession`（不与 `ISynthesisSession` 合并基类）；② `IEffectContext` 对偶 `ISynthesisContext`（暴露上游音频段活视图 + 自身参数/自动化 + GetSnapshot + 产出段，宿主接线、effect 对链结构无感）；③ 调度统一、链为单位（一个段区间自上而下跑完一遍 = 一个调度单位，按播放线就近挑；effect-only 改动退化为从脏的那一级往下）——voice 非音频产物（pitch/phoneme）不依赖 effect、eager 暴露不被串行；此为宿主调度策略、不进冻结面；④ `IEffectChange` 退役，effect 订阅 context 自算 dirty（失效图搬进插件）；⑤ `SynthesizedParameters` 借此换富类型（见下）。重构时一并处理：
   - ~~`IAutomationEvaluator` 与 `ILiveAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
-  - `SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型（与 PiecewiseAutomation 概念对齐），两 SDK 同步换形。
+  - ~~`SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型~~（**已实现**，见 §10.6：换形为 `SynthesizedParameter`，voice/effect 两侧同形）。
   - ~~`IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）~~（已随 SDK 程序集合并消解：voice/effect 同居 `TuneLab.SDK` 顶层命名空间，effect 可直接复用）。
 - ~~**动态声明面**：轨集合/属性声明运行中变化 + 既有轨用户数据的归宿~~（**已实现**：声明全部 context 驱动、纯函数，
   宿主在参数 commit 时按当前值重算并 diff——轨集合随参数显隐（`GetAutomationConfigs`/`GetPiecewiseAutomationConfigs`
@@ -494,7 +494,7 @@ public class AutomationConfig : IValueConfig<double>
 
 - ~~**合成参数回显 + 可编辑分段轨**~~（**已实现**）：
   - 合成参数回显：`ISynthesisSession.SynthesizedParameters`（按轨 id 键、与音频/音高同一秒时间系、分段）端到端透传
-    （pipeline→MidiPart），在参数栏按 id join 到同名 voice 轨上**只读叠加**（白色半透明、NaN 段断开），镜像合成音高回显。effect 无参数回显（输出仅音频）。
+    （pipeline→MidiPart），在参数栏按 id join 到同名 voice 轨上**只读叠加**（白色半透明、NaN 段断开），镜像合成音高回显。（effect 回显后于阶段三补齐，见 §10.7。）
   - 可编辑分段轨：除 Pitch 外，声源/效果器在 `GetAutomationConfigs` 里声明分段轨（`AutomationConfig.DefaultValue=NaN` ⇒ `IsPiecewise`；见 §7 合并记），
     宿主按轨 id 存 `DataObjectMap<string, IPiecewiseAutomation>`（MidiPart + Effect 各一份；Pitch 仍是专属常驻通道、不入此 map），
     MidiPartInfo/EffectInfo 各加 `PiecewiseAutomations` 序列化槽（同 Pitch 形、孤儿数据整存）；参数栏列出、按 kind 渲染（段间 NaN 断开）、
@@ -601,9 +601,9 @@ public interface IEffectProcessor : IDisposable
 - 链尾各 processor 输出**按时间混音**汇成最终音频（分别处理后再混音，正确处理 effect 尾巴重叠；非硬拼接）。
 - 这是宿主调度策略、可自由演进、不进冻结 ABI。冻结面只有 `Process` / `ProcessingRequested` / `CreateAudioSegment` / `Committed` 这组原语。
 
-### 10.6 `SynthesizedParameter` 富类型（决策 ⑤）
+### 10.6 `SynthesizedParameter` 富类型（决策 ⑤）（**已实现**）
 
-现 `SynthesizedParameters` 是 `IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>>`——双重裸嵌套。给参数回显曲线一个**具名冻结值类型**（命名按 §3.2：产物用 `Synthesized*`，避开已被宿主数据层占用的 `PiecewiseCurve`）：
+`SynthesizedParameters` 原是 `IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>>`——双重裸嵌套。已给参数回显曲线一个**具名冻结值类型**（命名按 §3.2：产物用 `Synthesized*`，避开已被宿主数据层占用的 `PiecewiseCurve`），成员换形为 `IReadOnlyMap<string, SynthesizedParameter>`（voice/effect 两侧同形）：
 
 ```csharp
 public sealed class SynthesizedParameter
@@ -616,12 +616,16 @@ public sealed class SynthesizedParameter
 
 形态用 nested-segments（产物本由合成器预分段，渲染端要段折线、不想逐点扫 NaN）。**`SynthesizedPitch` 不换形**（保持裸嵌套）——有意解耦：pitch 是固定专属通道（宿主全知其色/量程），parameter 是动态 keyed 集合（引擎声明、可带元数据）；给参数富类型恰配其更富生态，套到 pitch 上是 category error（同 §7「automation 不是一种 slider」、§0.3「解耦 > DRY」）。
 
-### 10.7 回显（阶段三，与 voice 同构、近乎免费）
+### 10.7 effect 回显（与 voice 同构）（**已实现**）
 
-effect V1 输出仅音频、无参数回显——前向预留 + UI 形态记录（已先共识）：标识复用 `AutomationKey`（voice 与 effect+index 区分源）；`PianoWindow.mVisibleReadbacks` 升 `HashSet<AutomationKey>`；`ReadbackConfigs` 合并 voice + 各 effect；标题栏 chip 按源分组。复用已实现的只读回显轨绘制（`AutomationRenderer.DrawReadbackArea`）。
+effect 引擎与 voice 一样能暴露**一等只读回显轨**，端到端打通：
+- **SDK producer 面**（冻结面加性扩展）：`IEffectEngine.GetSynthesizedParameterConfigs(IEffectPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>` 声明回显轨（live 纯函数 of 当前参数，镜像 `GetAutomationConfigs`）；`IEffectProcessor.SynthesizedParameters → IReadOnlyMap<string, SynthesizedParameter>` 承载**本段**曲线数据（线程契约同音频产物：数据线程发布、宿主只读，无新事件——宿主在 `Process` 收尾随 `SynthesizedSegments` 一并重读）。
+- **宿主聚合**：`EffectGraph` 把同一 `IEffect` 的各段 processor 回显按 key 拼接（段按起始秒升序），经 `MidiPart.GetEffectSynthesizedParameters(effect)` 暴露。
+- **UI 按源统一**：标识复用 `AutomationKey`（voice 与 effect+index 区分源）；`PianoWindow.mVisibleReadbacks` 升 `HashSet<AutomationKey>`、`ReadbackConfigs` 合并 voice + 各 effect（`AutomationKey` 键）；`ParameterTitleBar` chip 按源分组（每组前置 `Voice`/effect Type 源标签）；复用 `AutomationRenderer.DrawReadbackArea`。
+- 夹具 `V1.Effect` 的 `TLTestGain` 真产一条 `loudness` 回显（输出按窗 RMS），`TLTestReverse` 无回显。
 
 ### 10.8 分阶段落地
 
 - **阶段一（设计 + voice 落地，已完成）**：本节设计定稿；voice 侧 `SynthesizeNext` 去 `IProgress` 落地（进度改经状态带 + StatusChanged）。
 - **阶段二（effect 实现，一体 chunk，已完成）**：新 `IEffectProcessor`（厚）/ `IEffectContext`（每段）/ `IUpstreamAudioSegment` + 退役 `IEffectInput`/`Output`/`Change` + `IEffectEngine.CreateProcessor` 改签名 + 宿主 effect 半部重写为「effect × 段」反应式 processor 图（`EffectGraph`：voice 段 / 各级输出段为图中输入，每节点一厚 processor 自管失效；reconcile + pump、跨段并行受 `Settings.MaxParallelSynthesisTasks` 全局闸门封顶；链尾各输出段经消费端按绝对时间混音）+ 夹具 `V1.Effect` 重写。compat 无 effect 适配（无需同步）。这些改 `IEffectProcessor`/`IEffectEngine` 签名、必须一起落才编译绿，故为一体 chunk（不可像 voice 侧那样纯 additive）。
-- **阶段三**：回显端到端 + `V1.Effect` 加回显轨 + 文档/测试；`SynthesizedParameter` 成员换形（`SynthesizedParameters` → `IReadOnlyMap<string, SynthesizedParameter>`，连带 producer/consumer）随之。
+- **阶段三（已完成）**：`SynthesizedParameter` 富类型换形（`SynthesizedParameters` → `IReadOnlyMap<string, SynthesizedParameter>`，连带 voice producer/consumer）；effect 回显端到端（SDK producer 面 + 宿主聚合 + UI 按源统一到 `AutomationKey`，见 §10.6/§10.7）+ `V1.Effect` 真产回显轨 + 文档/测试（`tests/EFFECT-READBACK-TEST-CASES.md`）。

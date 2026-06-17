@@ -34,9 +34,12 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     bool IsSynthesisBatching { get; }
     IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus();
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
-    // 引擎合成出的参数曲线（按轨 id 键、与音频/音高同一秒时间系，分段）：key 与 Voice.SynthesizedParameterConfigs
+    // 引擎合成出的参数曲线（按轨 id 键、与音频/音高同一秒时间系）：key 与 Voice.SynthesizedParameterConfigs
     // 对齐，宿主把它们作一等只读回显轨绘制（参数区填充面积、可独立显隐），非叠加到同名编辑轨。
-    IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; }
+    IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
+    // 某个 effect 合成出的参数回显曲线（聚合其各段 processor 的回显）：key 与 effect.SynthesizedParameterConfigs
+    // 对齐，宿主作一等只读回显轨绘制（与 voice 回显同构、按 AutomationKey 分源）。非本 part 的 effect 返回空 map。
+    IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect);
     IReadOnlyList<Synthesis.SynthesizedSegment> SynthesizedSegments { get; }
 
     IAutomation? AddAutomation(string automationID);

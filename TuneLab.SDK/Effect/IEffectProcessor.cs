@@ -1,3 +1,5 @@
+using TuneLab.Foundation;
+
 namespace TuneLab.SDK;
 
 // 一条「effect 实例 × 一个上游音频段」的持久厚处理器：持有自己那一段的上下文（IEffectContext），
@@ -17,6 +19,13 @@ public interface IEffectProcessor : IDisposable
     // 不抛 OperationCanceledException、正常返回（不可中止的引擎把这段跑完才返回）；await 真正返回 = 槽位释放；
     // 错误抛异常，宿主在调用边界 catch → 该段 passthrough 降级。
     Task Process(CancellationToken cancellation = default);
+
+    // 本段的参数回显曲线（按轨 id 键、与音频产物同一秒时间系）：key 与 IEffectEngine.GetSynthesizedParameterConfigs
+    // 对齐，仅承载曲线数据本身（轨形态/色由 config 给）；每条为分段折线富类型 SynthesizedParameter。
+    // 处理器是「effect × 单段」粒度，故本属性只覆盖本段；宿主把同一 effect 各段的回显按 key 拼接呈现。
+    // 线程契约同音频产物：由处理器在数据线程发布（Process 续延里换引用），发布的集合即不可变、宿主跨线程只读；
+    // 宿主在 Process 收尾随产物一并重读。无回显的引擎返回空 map 即可。
+    IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
 
     // 处理器自标脏后触发（恒在数据线程）；宿主据此调度 Process。
     event Action? ProcessingRequested;

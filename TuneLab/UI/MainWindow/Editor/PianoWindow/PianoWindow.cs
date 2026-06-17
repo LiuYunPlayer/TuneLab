@@ -170,14 +170,34 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         VisibleAutomationChanged?.Invoke();
     }
 
-    // —— 合成参数回显轨显隐（voice 级只读轨集合，独立于可编辑轨的 Visible/Active 机制；显隐由参数区标题栏管控）——
-    public IReadOnlyOrderedMap<string, AutomationConfig> ReadbackConfigs => Part?.Voice.SynthesizedParameterConfigs ?? sEmptyReadbackConfigs;
-
-    public bool IsReadbackVisible(string id) => mVisibleReadbacks.Contains(id);
-
-    public void SetReadbackVisible(string id, bool isVisible)
+    // —— 合成参数回显轨显隐（只读轨集合，按 AutomationKey 分源合并 voice + 各 effect；独立于可编辑轨的
+    //    Visible/Active 机制；显隐由参数区标题栏管控）——
+    // 每次按源现合并（轨集合随参数 commit 涌现、规模小、不在热路径）：voice 声明 → AutomationKey.Voice，
+    // 各 effect 声明 → AutomationKey.Effect(index)。
+    public IReadOnlyOrderedMap<AutomationKey, AutomationConfig> ReadbackConfigs
     {
-        bool changed = isVisible ? mVisibleReadbacks.Add(id) : mVisibleReadbacks.Remove(id);
+        get
+        {
+            if (Part == null)
+                return sEmptyReadbackConfigs;
+
+            var result = new OrderedMap<AutomationKey, AutomationConfig>();
+            foreach (var kvp in Part.Voice.SynthesizedParameterConfigs)
+                result.Add(AutomationKey.Voice(kvp.Key), kvp.Value);
+            for (int i = 0; i < Part.Effects.Count; i++)
+            {
+                foreach (var kvp in Part.Effects[i].SynthesizedParameterConfigs)
+                    result.Add(AutomationKey.Effect(i, kvp.Key), kvp.Value);
+            }
+            return result;
+        }
+    }
+
+    public bool IsReadbackVisible(AutomationKey key) => mVisibleReadbacks.Contains(key);
+
+    public void SetReadbackVisible(AutomationKey key, bool isVisible)
+    {
+        bool changed = isVisible ? mVisibleReadbacks.Add(key) : mVisibleReadbacks.Remove(key);
         if (changed)
             ReadbackVisibilityChanged?.Invoke();
     }
@@ -333,8 +353,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     AutomationKey? mActiveAutomation;
     readonly List<AutomationKey> mVisibleAutomations = new();
     // 回显轨显隐集合（按轨 id；默认隐藏，用户经标题栏 chip 点亮）。
-    readonly HashSet<string> mVisibleReadbacks = new();
-    static readonly OrderedMap<string, AutomationConfig> sEmptyReadbackConfigs = new();
+    readonly HashSet<AutomationKey> mVisibleReadbacks = new();
+    static readonly OrderedMap<AutomationKey, AutomationConfig> sEmptyReadbackConfigs = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
     readonly DisposableManager s = new();

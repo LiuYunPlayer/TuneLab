@@ -25,7 +25,9 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。
     public IReadOnlyList<SynthesizedSegment> SynthesizedSegments => mEffectGraph.SynthesizedSegments;
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mSession.SynthesizedPitch;
-    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSession.SynthesizedParameters;
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSession.SynthesizedParameters;
+    // 某个 effect 的回显曲线（聚合其各段 processor 的回显）；非本管线的 effect 返回空 map。
+    public IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect) => mEffectGraph.GetSynthesizedParameters(effect);
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mSession.GetStatus();
 
     public VoiceSynthesisPipeline(MidiPart part, string voiceType, string voiceId)

@@ -40,7 +40,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
         }
 
         public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
-        public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters => mSynthesizedParameters;
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
         public IReadOnlyList<SynthesizedPhoneme> Phonemes => [];
 
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
@@ -50,7 +50,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
 
         static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
         static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
-        static readonly Map<string, IReadOnlyList<IReadOnlyList<Point>>> mSynthesizedParameters = new();
+        static readonly Map<string, SynthesizedParameter> mSynthesizedParameters = new();
     }
 
     static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };

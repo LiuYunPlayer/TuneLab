@@ -26,10 +26,13 @@ internal class ParameterTitleBar : MovableComponent
     {
         event Action? ReadbackVisibilityChanged;
         IHolder<IMidiPart> PartHolder { get; }
-        IReadOnlyOrderedMap<string, AutomationConfig> ReadbackConfigs { get; }
-        bool IsReadbackVisible(string id);
-        void SetReadbackVisible(string id, bool isVisible);
+        // 回显轨声明按 AutomationKey 分源（voice / 各 effect），按源序排列（voice 在前、各 effect 按 index）。
+        IReadOnlyOrderedMap<AutomationKey, AutomationConfig> ReadbackConfigs { get; }
+        bool IsReadbackVisible(AutomationKey key);
+        void SetReadbackVisible(AutomationKey key, bool isVisible);
     }
+
+    IMidiPart? Part => mDependency.PartHolder.Value;
 
     public ParameterTitleBar(IDependency dependency)
     {
@@ -42,6 +45,9 @@ internal class ParameterTitleBar : MovableComponent
         mDependency.PartHolder.When(p => p.Voice.Modified).Subscribe(InvalidateVisual, s);
         // 回显轨集合随参数 commit 显隐（context 驱动）→ 重绘按钮组。
         mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(InvalidateVisual, s);
+        // effect 增删/重排 + 各 effect 参数变（条件回显轨显隐、分组与显示名）→ 回显分组随之变，重绘。
+        mDependency.PartHolder.When(p => p.Effects.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Effects.WhenAny(e => e.Modified)).Subscribe(InvalidateVisual, s);
     }
 
     ~ParameterTitleBar()
@@ -54,9 +60,15 @@ internal class ParameterTitleBar : MovableComponent
     {
         context.FillRectangle(new Color(255, 51, 51, 64).ToBrush(), this.Rect());
 
-        foreach (var chip in LayoutChips())
+        var (labels, chips) = Layout();
+
+        // 源标签 / 分隔符（淡色、不可点）：源标签略亮（灰底上要看清），分隔符更淡（对齐底部 tabbar 分隔线）。
+        foreach (var label in labels)
+            context.DrawString(label.Text, new Point(label.Rect.X, label.Rect.Y + label.Rect.Height / 2), label.Brush, FontSize, Alignment.LeftCenter);
+
+        foreach (var chip in chips)
         {
-            bool visible = mDependency.IsReadbackVisible(chip.Id);
+            bool visible = mDependency.IsReadbackVisible(chip.Key);
 
             // 小眼睛：可见时 config 色、隐藏时灰白（沿用参数栏按钮的眼睛语义）。
             var eyeColor = visible ? chip.Color : EyeOffColor;
@@ -64,18 +76,19 @@ internal class ParameterTitleBar : MovableComponent
             double eyeTop = chip.Rect.Y + (chip.Rect.Height - EyeHeight) / 2;
             eye.Draw(context, new Rect(eye.Size), new Rect(chip.Rect.X, eyeTop, EyeWidth, EyeHeight));
 
-            var textColor = (visible ? Style.LIGHT_WHITE : Style.LIGHT_WHITE.Opacity(0.5)).ToBrush();
+            // 文字恒亮（开/关状态仅由小眼睛染色区分；隐藏时不再压暗文字）。
+            var textColor = Style.LIGHT_WHITE.ToBrush();
             context.DrawString(chip.Text, new Point(chip.Rect.X + EyeWidth + EyeTextGap, chip.Rect.Y + chip.Rect.Height / 2), textColor, FontSize, Alignment.LeftCenter);
         }
     }
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
-        if (e.MouseButtonType == MouseButtonType.PrimaryButton && TryHitChip(e.Position, out var id))
+        if (e.MouseButtonType == MouseButtonType.PrimaryButton && TryHitChip(e.Position, out var key))
         {
             // 按钮命中：切换显隐、吞掉本次按下（不进入拖拽）。
             mPressOnChip = true;
-            mDependency.SetReadbackVisible(id, !mDependency.IsReadbackVisible(id));
+            mDependency.SetReadbackVisible(key, !mDependency.IsReadbackVisible(key));
             return;
         }
 
@@ -102,49 +115,85 @@ internal class ParameterTitleBar : MovableComponent
         base.OnMouseUp(e);
     }
 
-    bool TryHitChip(Point position, out string id)
+    bool TryHitChip(Point position, out AutomationKey key)
     {
-        foreach (var chip in LayoutChips())
+        var (_, chips) = Layout();
+        foreach (var chip in chips)
         {
             if (chip.HitRect.Contains(position))
             {
-                id = chip.Id;
+                key = chip.Key;
                 return true;
             }
         }
-        id = string.Empty;
+        key = default;
         return false;
     }
 
-    // 计算按钮组布局（右对齐，按声明序左→右排）：眼睛 + 文本，命中区含文本宽度。布局廉价、按需即算。
-    List<Chip> LayoutChips()
+    // 计算布局（右对齐，按源分组、按声明序左→右排）：每组前置一个源标签（"Voice" / effect 的 Type），
+    // 组内为各回显轨 chip（眼睛 + 文本，命中区含文本宽度）。组间留更大间距、标签到首 chip 留小间距。
+    // 布局廉价、按需即算（回显轨集合规模小、不在热路径）。
+    (List<LabelItem> Labels, List<Chip> Chips) Layout()
     {
-        var result = new List<Chip>();
+        var labels = new List<LabelItem>();
+        var chips = new List<Chip>();
 
-        var measured = new List<(string Id, string Text, Color Color, double Width)>();
-        double total = 0;
-        foreach (var kvp in mDependency.ReadbackConfigs)
+        var configs = mDependency.ReadbackConfigs;
+        if (configs.Count == 0)
+            return (labels, chips);
+
+        var part = Part;
+
+        // 先按源分组铺出元素序列（chip... | label chip... | label chip...）连同各自宽度，再按总宽右对齐定位。
+        // 组间用 "|" 分隔（类似底部 tabbar）；voice 恒在最前且唯一 → 无源标签，各 effect 组前置 Type 名标签。
+        var elems = new List<Elem>();
+        int? curSource = null;
+        foreach (var kvp in configs)
         {
+            var key = kvp.Key;
+            if (curSource != key.EffectIndex)
+            {
+                curSource = key.EffectIndex;
+                if (elems.Count > 0)
+                    elems.Add(Elem.Divider(MeasureTextWidth(DividerText)));
+                if (key.IsEffect)
+                {
+                    string labelText = part != null && key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].Type : "Effect";
+                    elems.Add(Elem.Label(labelText, MeasureTextWidth(labelText)));
+                }
+            }
             var config = kvp.Value;
-            string text = config.DisplayText ?? kvp.Key;
+            string text = config.DisplayText ?? key.Id;
             double width = EyeWidth + EyeTextGap + MeasureTextWidth(text);
-            measured.Add((kvp.Key, text, Color.Parse(config.Color), width));
-            total += width;
+            elems.Add(Elem.Chip(key, text, Color.Parse(config.Color), width));
         }
-        if (measured.Count == 0)
-            return result;
 
-        total += ChipGap * (measured.Count - 1);
+        // 各元素前距：分隔符及其相邻元素留 DividerGap；标签后首 chip 留 LabelGap；chip 间 ChipGap；首元素无前距。
+        double total = 0;
+        for (int i = 0; i < elems.Count; i++)
+        {
+            double gap = i == 0 ? 0
+                : elems[i].IsDivider || elems[i - 1].IsDivider ? DividerGap
+                : elems[i - 1].IsLabel ? LabelGap
+                : ChipGap;
+            elems[i].GapBefore = gap;
+            total += gap + elems[i].Width;
+        }
 
         double height = Bounds.Height;
         double x = Bounds.Width - RightMargin - total;
-        foreach (var m in measured)
+        foreach (var e in elems)
         {
-            var rect = new Rect(x, 0, m.Width, height);
-            result.Add(new Chip(m.Id, m.Text, m.Color, rect, rect.Inflate(new Thickness(ChipHitPadding, 0))));
-            x += m.Width + ChipGap;
+            x += e.GapBefore;
+            var rect = new Rect(x, 0, e.Width, height);
+            // 源标签与分隔符同为淡色不可点文本，进 labels（各带自己的色）；chip 进 chips（带命中区）。
+            if (e.IsLabel || e.IsDivider)
+                labels.Add(new LabelItem(e.Text, rect, e.IsDivider ? DividerColor : LabelColor));
+            else
+                chips.Add(new Chip(e.Key, e.Text, e.Color, rect, rect.Inflate(new Thickness(ChipHitPadding, 0))));
+            x += e.Width;
         }
-        return result;
+        return (labels, chips);
     }
 
     IImage GetEyeImage(Color color)
@@ -167,17 +216,41 @@ internal class ParameterTitleBar : MovableComponent
         return formattedText.Width;
     }
 
-    readonly record struct Chip(string Id, string Text, Color Color, Rect Rect, Rect HitRect);
+    readonly record struct Chip(AutomationKey Key, string Text, Color Color, Rect Rect, Rect HitRect);
+    readonly record struct LabelItem(string Text, Rect Rect, IBrush Brush);
+
+    // 布局元素（源标签 / 分隔符 / 回显轨 chip）：先铺序列、计前距，再右对齐定位。
+    sealed class Elem
+    {
+        public bool IsLabel;     // 源标签（effect Type 名），淡色不可点
+        public bool IsDivider;   // 组间 "|" 分隔，淡色不可点
+        public AutomationKey Key;
+        public string Text = string.Empty;
+        public Color Color;
+        public double Width;
+        public double GapBefore;
+
+        public static Elem Label(string text, double width) => new() { IsLabel = true, Text = text, Width = width };
+        public static Elem Divider(double width) => new() { IsDivider = true, Text = DividerText, Width = width };
+        public static Elem Chip(AutomationKey key, string text, Color color, double width)
+            => new() { Key = key, Text = text, Color = color, Width = width };
+    }
 
     const double FontSize = 12;
     const double EyeWidth = 12;
     const double EyeHeight = 10;
     const double EyeTextGap = 5;
     const double ChipGap = 16;
+    const double LabelGap = 8;
+    const double DividerGap = 10;
     const double RightMargin = 10;
     const double ChipHitPadding = 6;
+    const string DividerText = "|";
 
     static readonly Color EyeOffColor = new(102, 255, 255, 255);
+    // 源标签略亮（灰底上要看清）；分隔符更淡，对齐底部 tabbar 的分隔线（LIGHT_WHITE @ 0.25）。
+    static readonly IBrush LabelColor = Style.LIGHT_WHITE.Opacity(0.55).ToBrush();
+    static readonly IBrush DividerColor = Style.LIGHT_WHITE.Opacity(0.25).ToBrush();
 
     bool mPressOnChip;
     readonly Dictionary<uint, IImage> mEyeCache = new();

@@ -55,7 +55,7 @@ internal class EffectsController : StackPanel
 
         for (int i = 0; i < mPart.Effects.Count; i++)
         {
-            var view = new EffectView(this, mPart.Effects[i], i);
+            var view = new EffectView(this, mPart, mPart.Effects[i], i);
             mEffectViews.Add(view);
             Children.Add(view.Root);
         }
@@ -65,6 +65,9 @@ internal class EffectsController : StackPanel
         mAddButton.Margin = new(24, 8);
         mAddButton.Clicked += OnAddButtonClicked;
         Children.Add(mAddButton);
+
+        // Add Effect 按钮下方收尾分隔线（与各 effect 块、面板其他区块的分界一致）。
+        Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
     }
 
     void OnAddButtonClicked()
@@ -134,14 +137,17 @@ internal class EffectsController : StackPanel
         return button;
     }
 
-    // 单个 effect 的视图：标题行（bypass/类型/上移/下移/删除）+ 参数 PropertyObjectController。
+    // 单个 effect 的视图：标题行（bypass/类型/上移/下移/删除）+ 参数 PropertyObjectController +
+    // 该 effect 连续自动化轨的默认值行（直接混在参数后，不另立标题——effect 块本身已有类型表头）。
     class EffectView
     {
         public Control Root => mRoot;
 
-        public EffectView(EffectsController owner, IEffect effect, int index)
+        public EffectView(EffectsController owner, IMidiPart part, IEffect effect, int index)
         {
+            mPart = part;
             mEffect = effect;
+            mIndex = index;
 
             var bypass = new CheckBox() { Margin = new(24, 0, 8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             bypass.BindDataProperty(effect.IsEnabled, s);
@@ -163,7 +169,8 @@ internal class EffectsController : StackPanel
             buttons.Children.Add(down);
             buttons.Children.Add(remove);
 
-            var header = new DockPanel() { Height = 38, Background = Style.BACK.ToBrush(), LastChildFill = true };
+            // 标题行底色用 INTERFACE，与侧栏其他控件块一致（不再用更深的 BACK）。
+            var header = new DockPanel() { Height = 38, Background = Style.INTERFACE.ToBrush(), LastChildFill = true };
             DockPanel.SetDock(bypass, Dock.Left);
             DockPanel.SetDock(buttons, Dock.Right);
             header.Children.Add(bypass);
@@ -176,13 +183,20 @@ internal class EffectsController : StackPanel
             mController.SetConfig(effect.PropertyConfig, effect.Properties);
             effect.Properties.Modified.Subscribe(ReconcileController, s);
 
+            // 自动化默认值外部（undo/redo/preset）改动 → 刷新所有行（结构不变，无需重建）。
+            effect.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(RefreshAutomationRows, s);
+
             mRoot = new StackPanel() { Orientation = Orientation.Vertical };
             mRoot.Children.Add(header);
-            mRoot.Children.Add(mController);
+            // 分界线放在标题行【下方】（标题行与参数之间）：既给出标题↔参数的分界，又避免它叠到上一块底部 / 面板分隔线上造成双线。
             mRoot.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+            mRoot.Children.Add(mController);
+            mRoot.Children.Add(mAutomationContainer);
+
+            RebuildAutomationRows();
         }
 
-        // 参数值 commit：数据对象不变，按当前值重算 config 并 keyed-diff 复用控件。
+        // 参数值 commit：数据对象不变，按当前值重算 config 并 keyed-diff 复用控件；自动化轨集合也随当前值涌现（条件轨显隐），故一并重建默认值行。
         // 重算 defer 到下一 UI 调度：commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
         // 同步重算会重入修改控件集合（Avalonia ComboBox 在其 SelectionChanged 中 Clear/重填 Items 会抛异常）。
         // pending 标志合并一拍内的多次触发；dispose 后 pending 的回调命中 Reconcile 的空数据对象保护，安全空转。
@@ -195,17 +209,50 @@ internal class EffectsController : StackPanel
             {
                 mReconcilePending = false;
                 mController.Reconcile(mEffect.PropertyConfig);
+                RebuildAutomationRows();
             });
+        }
+
+        // 该 effect 的连续自动化轨默认值行（分段轨无默认基线、跳过）；混在参数控件后，按 AutomationKey.Effect 路由。
+        void RebuildAutomationRows()
+        {
+            foreach (var row in mAutomationRows)
+                row.Dispose();
+            mAutomationRows.Clear();
+            mAutomationContainer.Children.Clear();
+
+            foreach (var kvp in mEffect.AutomationConfigs)
+            {
+                if (kvp.Value.IsPiecewise)
+                    continue;
+
+                var row = new AutomationDefaultRow(mPart, AutomationKey.Effect(mIndex, kvp.Key), kvp.Key, kvp.Value);
+                mAutomationRows.Add(row);
+                mAutomationContainer.Children.Add(row);
+            }
+        }
+
+        void RefreshAutomationRows()
+        {
+            foreach (var row in mAutomationRows)
+                row.Refresh();
         }
 
         public void Dispose()
         {
             s.DisposeAll();
+            foreach (var row in mAutomationRows)
+                row.Dispose();
+            mAutomationRows.Clear();
             mController.ResetConfig();
         }
 
+        readonly IMidiPart mPart;
         readonly IEffect mEffect;
+        readonly int mIndex;
         readonly PropertyObjectController mController;
+        readonly StackPanel mAutomationContainer = new() { Orientation = Orientation.Vertical };
+        readonly List<AutomationDefaultRow> mAutomationRows = new();
         readonly StackPanel mRoot;
         bool mReconcilePending = false;
         readonly DisposableManager s = new();

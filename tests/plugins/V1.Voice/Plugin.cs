@@ -161,7 +161,7 @@ public sealed class TestSession : ISynthesisSession
 
     // 参数回显：各已合成块的 energy 回显段聚成 map（轨 id → 分段曲线），key 与 GetSynthesizedParameterConfigs 对齐。
     // 回显轨显隐由宿主标题栏管控；此处恒返回数据，隐藏时宿主不绘制——无害。
-    public IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters
     {
         get
         {
@@ -172,9 +172,9 @@ public sealed class TestSession : ISynthesisSession
                     segments.Add(piece.EnergyReadback);
             }
 
-            var map = new Map<string, IReadOnlyList<IReadOnlyList<Point>>>();
+            var map = new Map<string, SynthesizedParameter>();
             if (segments.Count > 0)
-                map.Add("energy", segments);
+                map.Add("energy", new SynthesizedParameter { Segments = segments });
             return map;
         }
     }

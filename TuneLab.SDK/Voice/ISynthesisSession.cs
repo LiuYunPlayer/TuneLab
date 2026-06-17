@@ -67,9 +67,9 @@ public interface ISynthesisSession : IDisposable
     // 线程契约（三者同）：由插件在数据线程发布（合成完在 marshal 回数据线程的续延里换引用）；发布的集合即不可变，
     // 宿主可跨线程只读；每次更新经 StatusChanged 单一信号通知，宿主收到即重读重绘。接口不强制不可变性，插件自保。
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }   // 分段
-    // 回显曲线数据（按轨 id 键、与音频/音高同一秒时间系，分段）：key 与 GetSynthesizedParameterConfigs 对齐，
-    // 仅承载曲线数据本身（轨形态/色由 config 给）。
-    IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; }
+    // 回显曲线数据（按轨 id 键、与音频/音高同一秒时间系）：key 与 GetSynthesizedParameterConfigs 对齐，
+    // 仅承载曲线数据本身（轨形态/色由 config 给）；每条为具名富类型 SynthesizedParameter（分段折线）。
+    IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
     IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
 
     // —— 状态 / 按段报错（统一时间线）——

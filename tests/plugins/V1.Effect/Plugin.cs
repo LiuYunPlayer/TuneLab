@@ -35,6 +35,11 @@ public sealed class GainEffectEngine : IEffectEngine
         map.Add("formant", mFormantConfig);
         return map;
     }
+
+    // 回显轨声明（只读、分段形 DefaultValue=NaN）：处理产出的 loudness 包络回显，曲线数据经
+    // GainProcessor.SynthesizedParameters 的 "loudness" key 承载。验证 effect 回显端到端与 voice 同构。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
+
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor(IEffectContext context) => new GainProcessor(context);
@@ -54,8 +59,16 @@ public sealed class GainEffectEngine : IEffectEngine
         return map;
     }
 
+    static OrderedMap<string, AutomationConfig> BuildReadbackConfigs()
+    {
+        var map = new OrderedMap<string, AutomationConfig>();
+        map.Add("loudness", new AutomationConfig { DisplayText = "Loudness", DefaultValue = double.NaN, MinValue = 0.0, MaxValue = 2.0, Color = "#00B0FF" });
+        return map;
+    }
+
     static readonly ObjectConfig mConfig = BuildConfig();
     static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
+    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
     static readonly AutomationConfig mFormantConfig = new() { DisplayText = "Formant", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#00C2A8" };
 
     // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出段，按脏差分复用。
@@ -71,6 +84,9 @@ public sealed class GainEffectEngine : IEffectEngine
         }
 
         public event Action? ProcessingRequested;
+
+        // 本段 loudness 回显（与输出同步重算）；输出无变化时沿用上轮。线程同输出：Process 在数据线程同步发布。
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
 
         public Task Process(CancellationToken cancellation = default)
         {
@@ -124,7 +140,32 @@ public sealed class GainEffectEngine : IEffectEngine
 
             CommitOutput(offset, count, rate, dst);
             mOutput = dst;
+            mReadback = BuildReadback(dst, rate, segStart);
             return Task.CompletedTask;   // 错误经抛异常报告（宿主 catch → passthrough），此处不吞异常。
+        }
+
+        // loudness 回显：对输出按 ~20ms 窗算 RMS，得一条 (全局秒, 值) 折线（单段）。空段 → 空 map。
+        static IReadOnlyMap<string, SynthesizedParameter> BuildReadback(float[] samples, int rate, double segStart)
+        {
+            if (samples.Length == 0 || rate <= 0)
+                return EmptyReadback;
+
+            int window = Math.Max(1, rate / 50);
+            var points = new List<Point>();
+            for (int start = 0; start < samples.Length; start += window)
+            {
+                int end = Math.Min(start + window, samples.Length);
+                double sum = 0;
+                for (int i = start; i < end; i++)
+                    sum += (double)samples[i] * samples[i];
+                double rms = Math.Sqrt(sum / (end - start));
+                double time = segStart + (start + (end - start) / 2.0) / rate;
+                points.Add(new Point(time, rms));
+            }
+
+            var map = new Map<string, SynthesizedParameter>();
+            map.Add("loudness", new SynthesizedParameter { Segments = new IReadOnlyList<Point>[] { points } });
+            return map;
         }
 
         void OnInputCommitted() => mAudioDirty = true;
@@ -212,6 +253,9 @@ public sealed class GainEffectEngine : IEffectEngine
         double[]? mEnv;          // 缓存的逐采样 gain_env 取值
         double mGain = 1.0;      // 缓存的 gain 标量
         float[]? mOutput;        // 缓存的输出 buffer（无关变化时不重 Commit）
+        IReadOnlyMap<string, SynthesizedParameter> mReadback = EmptyReadback;
+
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
     }
 }
 
@@ -222,12 +266,15 @@ public sealed class ReverseEffectEngine : IEffectEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
+    // 无回显（仅倒放音频）：返回空声明。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor(IEffectContext context) => new ReverseProcessor(context);
 
     static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
+    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new();
 
     sealed class ReverseProcessor : IEffectProcessor
     {
@@ -239,6 +286,9 @@ public sealed class ReverseEffectEngine : IEffectEngine
         }
 
         public event Action? ProcessingRequested;
+
+        // 无回显：恒空 map。
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
 
         public Task Process(CancellationToken cancellation = default)
         {
@@ -307,5 +357,7 @@ public sealed class ReverseEffectEngine : IEffectEngine
         bool mAudioDirty;
         int mLastInputVersion;
         float[]? mOutput;
+
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
     }
 }

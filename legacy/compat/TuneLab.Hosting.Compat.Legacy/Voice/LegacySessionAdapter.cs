@@ -184,7 +184,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         }
     }
 
-    public PStruct.IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<PStruct.Point>>> SynthesizedParameters => mSynthesizedParameters;
+    public PStruct.IReadOnlyMap<string, VVoice.SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
     public IReadOnlyList<VVoice.SynthesizedPhoneme> Phonemes
     {
@@ -568,7 +568,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     readonly PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> mAutomationConfigs;
     readonly PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> mPartProperties;
     readonly PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> mNoteProperties;
-    static readonly PStruct.Map<string, IReadOnlyList<IReadOnlyList<PStruct.Point>>> mSynthesizedParameters = new();
+    static readonly PStruct.Map<string, VVoice.SynthesizedParameter> mSynthesizedParameters = new();
     static readonly PStruct.OrderedMap<string, VConfig.AutomationConfig> sEmptyConfigs = new();
 
     readonly IDisposable mNotesSubscription;
