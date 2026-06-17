@@ -34,13 +34,15 @@
 			<ContentControl x:Name="Content">
 				<Grid Margin="0" x:Name="ContentGrid">
 					<Grid.RowDefinitions>
-						<RowDefinition MinHeight="108" Height="Auto" />
+						<RowDefinition MinHeight="108" Height="*" />
 						<RowDefinition Height="56" />
 					</Grid.RowDefinitions>
 
-					<StackPanel Grid.Row="0" Orientation="Vertical" Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="MessageStackPanel">
-						<SelectableTextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
-					</StackPanel>
+					<ScrollViewer Grid.Row="0" x:Name="MessageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+						<StackPanel Orientation="Vertical" Margin="12,0" HorizontalAlignment="Center" VerticalAlignment="Center" x:Name="MessageStackPanel">
+							<SelectableTextBlock x:Name="MessageTextBlock" Text="This is a modal window." Foreground="White" TextWrapping="Wrap" TextAlignment="Center" FontSize="14" Padding="0" Margin="0" />
+						</StackPanel>
+					</ScrollViewer>
 
 					<Grid Grid.Row="1" x:Name="ButtonsPanel" Margin="0, 0, 0, 16"/>
 				</Grid>

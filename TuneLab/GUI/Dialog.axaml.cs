@@ -19,6 +19,9 @@ internal partial class Dialog : Window
     private Label titleLabel;
     private SelectableTextBlock messageTextBlock;
 
+    double mBaseHeight;
+    double mMessageHeight;
+
     public Dialog()
     {
         InitializeComponent();
@@ -41,14 +44,33 @@ internal partial class Dialog : Window
 		    titleBar.Height = 0;
 		    Height -= 40;
 	    }
-     
+
+        // 默认窗高（消息区 108 基线）作为下限——消息短时不缩小。
+        mBaseHeight = Height;
+
         messageTextBlock.SizeChanged += (s, e) => {
+            mMessageHeight = e.NewSize.Height;
             if (e.NewSize.Height > 108)
-            {
-                Height = Height - 108 + e.NewSize.Height + 32;
                 MessageStackPanel.Margin = new Thickness(12, 16);
-            }
+            AdjustHeight();
         };
+        // 首次 SizeChanged 多发生在 Show 之前（此时拿不到所在屏幕），故 Opened 后按真实屏幕再封顶一次。
+        Opened += (s, e) => AdjustHeight();
+    }
+
+    // 按消息高度撑高窗口，但**封顶到所在屏幕可用高的 85%**；超出部分由消息区 ScrollViewer 滚动，
+    // 保证底部按钮行（固定 56 行）永远在屏幕内、不被挤出。
+    void AdjustHeight()
+    {
+        double chrome = titleBar.Height + 56 /* 按钮行 */ + 32 /* 上下留白 */;
+        double desired = mMessageHeight + chrome;
+
+        double maxHeight = 600;
+        var screen = Screens?.ScreenFromVisual(this);
+        if (screen != null)
+            maxHeight = screen.WorkingArea.Height / screen.Scaling * 0.85;
+
+        Height = Math.Min(Math.Max(desired, mBaseHeight), Math.Max(mBaseHeight, maxHeight));
     }
 
     public void SetTitle(string title)
