@@ -65,8 +65,9 @@ internal sealed class AgentSideBarContentProvider
         mProviderData.Modified.Subscribe(OnEngineSelectionChanged);
 
         // 有持久化设置时（说明之前 Submit 过）打开即静默自动接入，直接可聊天；失败则首次发送再引导去设置。
-        if (savedEngine != null && engines.Contains(savedEngine))
-            TryConnect(savedEngine, out _);
+        if (savedEngine != null && engines.Contains(savedEngine) && TryConnect(savedEngine, out _))
+            AppendMessage("system", ConnectedNotice()); // 启动即提示连到哪个模型
+
     }
 
     // 工程切换时由 Editor 调用：重建 Facade 与工具（runner 下次发送时按新工具重建，历史重置）。
@@ -304,13 +305,14 @@ internal sealed class AgentSideBarContentProvider
         mSeedHistory = null;
         mRunner = null;         // 重置对话历史，保留已连接的 session
         SetTitle("New Chat".Tr(this));
+        if (mSession != null) // 空白新对话顶端提示当前连到哪个模型
+            AppendMessage("system", ConnectedNotice());
     }
 
     // 加载已存会话：还原气泡 + 备好 runner 续聊历史（仅对话文本；项目事实续聊时由模型重新调工具读取）。
     void LoadSession(ChatSession session)
     {
         mMessagesList.Content.Children.Clear();
-        var history = new List<AgentMessage>();
         foreach (var m in session.Messages)
         {
             if (m.Role == "assistant")
@@ -322,20 +324,32 @@ internal sealed class AgentSideBarContentProvider
                     ? BubbleText("(no text reply)", Colors.White.ToBrush())
                     : AssistantContent(m.Text, usage);
                 mMessagesList.Content.Children.Add(Bubble(content, mine: false));
-                history.Add(new AgentMessage { Role = AgentRole.Assistant, Content = m.Text });
             }
             else
             {
                 mMessagesList.Content.Children.Add(Bubble(BubbleText(m.Text, Colors.White.ToBrush()), mine: true));
-                history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text });
             }
         }
 
         mCurrentSession = session;
-        mSeedHistory = history;
+        mSeedHistory = ReconstructHistory(session);
         mRunner = null; // 下次发送时用 mSeedHistory 重建带历史的 runner
         SetTitle(string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title);
         ScrollToEnd();
+    }
+
+    // 从会话消息重建 runner 续聊历史（仅对话文本；项目事实续聊时由模型重新调工具读取）。
+    // 供加载会话、以及聊天中途换模型重连时复用——后者据此让新模型带上完整当前上下文。
+    static List<AgentMessage> ReconstructHistory(ChatSession session)
+    {
+        var history = new List<AgentMessage>();
+        foreach (var m in session.Messages)
+            history.Add(new AgentMessage
+            {
+                Role = m.Role == "assistant" ? AgentRole.Assistant : AgentRole.User,
+                Content = m.Text,
+            });
+        return history;
     }
 
     // 一轮成功回复后记入当前会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
@@ -380,12 +394,17 @@ internal sealed class AgentSideBarContentProvider
             {
                 Messages = new List<AgentMessage>
                 {
-                    new() { Role = AgentRole.System, Content = "Generate a concise title (max 6 words) for this conversation. Reply with only the title text — no quotes, no trailing punctuation." },
+                    new() { Role = AgentRole.System, Content = "Generate a concise title (max 6 words) for this conversation. Reply with only the title text — no quotes, no trailing punctuation, no explanation or any other text." },
                     new() { Role = AgentRole.User, Content = "User: " + userText + "\n\nAssistant: " + Truncate(assistantText, 500) },
                 },
             };
             var reply = await session_model.SendAsync(request, CancellationToken.None);
-            var title = SanitizeTitle(reply.Content);
+            // 防线：模型没遵守"只回简短标题"——回了一大段、或把工具结果/数据当回复 dump（曾致标题=一长串内容或 {"音轨名称":...} JSON）→
+            // 丢弃，保留占位（首条用户消息截断，已是可读标题）。真·6 词标题远短于 60 字、也不会以 { [ 开头。
+            var raw = (reply.Content ?? string.Empty).Trim();
+            if (raw.Length == 0 || raw.Length > 60 || raw[0] == '{' || raw[0] == '[')
+                return;
+            var title = SanitizeTitle(raw);
             if (string.IsNullOrEmpty(title))
                 return;
             session.Title = title;
@@ -424,6 +443,15 @@ internal sealed class AgentSideBarContentProvider
     {
         mTitleLabel.Text = title;
         ToolTip.SetTip(mTitleLabel, title);
+    }
+
+    // 已连接提示文案：用户更关心模型而非供应商——优先模型名，缺省（适配器未用 model 字段）才回退到供应商 type。
+    string ConnectedNotice()
+    {
+        var model = mSettings.GetValue("model", PropertyValue.Create(string.Empty)).ToString();
+        return string.IsNullOrEmpty(model)
+            ? string.Format("Connected via '{0}'.".Tr(this), CurrentEngineType())
+            : string.Format("Connected to '{0}'.".Tr(this), model);
     }
 
     async Task OnSend()
@@ -484,11 +512,12 @@ internal sealed class AgentSideBarContentProvider
         catch (OperationCanceledException)
         {
             // 用户主动停止：保留已流式输出的内容（渲成 Markdown）+ 末尾标注 Stopped，不当错误（红字）。
-            bubble.Child = StoppedContent(streamText.ToString());
+            bubble.Child = PartialThenNotice(streamText.ToString(), "Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
         }
         catch (Exception ex)
         {
-            bubble.Child = BubbleText("Error: " + ex.Message, Colors.IndianRed.ToBrush());
+            // 中途报错同样保留已流式输出的内容，错误作末尾红字，不丢已输出有效内容。
+            bubble.Child = PartialThenNotice(streamText.ToString(), "Error: " + ex.Message, Colors.IndianRed.ToBrush());
         }
         finally
         {
@@ -599,18 +628,20 @@ internal sealed class AgentSideBarContentProvider
         return new StackPanel { Orientation = Orientation.Vertical, Children = { md, footer } };
     }
 
-    // 停止后的气泡内容：已流式输出的部分渲成 Markdown + 末尾一行斜体灰字 Stopped（停在首 token 前则只有 Stopped）。
-    Control StoppedContent(string partial)
+    // 流式中途结束（用户停止 / 出错）的气泡内容：已流式输出的部分渲成 Markdown + 末尾一行斜体提示
+    //（停止=灰字 Stopped、出错=红字 Error），不丢已输出内容。partial 为空（首 token 前就结束）则只显提示。
+    Control PartialThenNotice(string partial, string notice, IBrush noticeColor)
     {
         var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
         if (!string.IsNullOrEmpty(partial))
             panel.Children.Add(ChatMarkdownRenderer.Render(partial));
         panel.Children.Add(new TextBlock
         {
-            Text = "Stopped".Tr(this),
+            Text = notice,
             FontSize = 11,
             FontStyle = FontStyle.Italic,
-            Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+            Foreground = noticeColor,
+            TextWrapping = TextWrapping.Wrap,
             Margin = new(0, 4, 0, 0),
         });
         return panel;
@@ -705,7 +736,7 @@ internal sealed class AgentSideBarContentProvider
         {
             SaveSettings(type);
             ShowChat();
-            AppendMessage("system", string.Format("Connected via '{0}'.".Tr(this), type));
+            AppendMessage("system", ConnectedNotice());
         }
         else
         {
@@ -728,6 +759,9 @@ internal sealed class AgentSideBarContentProvider
         {
             mSession?.Dispose();
             mSession = engine.CreateSession(mSettings.GetInfo());
+            // 聊天中途换模型不丢上下文：从当前对话（RecordTurn 实时维护）重建续聊历史，下次发送时新 runner 带它重建。
+            if (mCurrentSession != null)
+                mSeedHistory = ReconstructHistory(mCurrentSession);
             mRunner = null;
             return true;
         }
