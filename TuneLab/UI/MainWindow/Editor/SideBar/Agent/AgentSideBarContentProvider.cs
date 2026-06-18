@@ -78,7 +78,7 @@ internal sealed class AgentSideBarContentProvider
         var engine = AgentModelManager.GetInitedEngine(type);
         if (engine == null)
             return;
-        var values = ExtensionSettingsStore.Load(AgentModelManager.GetPackageId(type), "agent-model:" + type, s => engine.GetPropertyConfig(new PropertyContext(s)));
+        var values = ExtensionSettingsStore.Load(AgentModelManager.GetActivePackageId(type), "agent-model:" + type, s => engine.GetPropertyConfig(new PropertyContext(s)));
         foreach (var kv in values)
             mSettings.SetValue(kv.Key, kv.Value);
         mSettings.Commit();
@@ -1747,7 +1747,7 @@ internal sealed class AgentSideBarContentProvider
         var config = engine.GetPropertyConfig(new PropertyContext(mSettings.GetInfo()));
         var secrets = ExtensionSettingsStore.PasswordKeys(config);
         // 只存当前 provider schema 里的字段，避免把切换前其他 provider 残留在 mSettings 的键写进本 provider 桶。
-        ExtensionSettingsStore.Save(AgentModelManager.GetPackageId(type), "agent-model:" + type, FilterToConfig(mSettings.GetInfo(), config), secrets);
+        ExtensionSettingsStore.Save(AgentModelManager.GetActivePackageId(type), "agent-model:" + type, FilterToConfig(mSettings.GetInfo(), config), secrets);
 
         Settings.AgentModelProvider.Value = type;
         Settings.Save(PathManager.SettingsFilePath);

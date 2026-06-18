@@ -20,22 +20,28 @@ internal static class ExtensionSettingsManager
     }
 
     // 枚举所有声明了设置的 extension。顺序：effect 在前、voice 在后，各按注册序。
+    // 【按包枚举】同一身份 id 跨包可有多个实现（冲突消解后均加载），各包实现各有独立设置桶——逐 (packageId, id) 对收集，
+    // 而非只取活实现：设置页要让用户为每个已装实现配置（即便它当前不是该身份的活实现）。
     public static IReadOnlyList<Entry> GetEntries()
     {
         var entries = new List<Entry>();
-        Collect(entries, "effect", EffectManager.GetAllEffectEngines(), EffectManager.GetExtensionSettings, EffectManager.GetDisplayName, EffectManager.GetPackageId);
-        Collect(entries, "voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetExtensionSettings, VoicesManager.GetDisplayName, VoicesManager.GetPackageId);
+        Collect(entries, "effect", EffectManager.GetAllEffectEngines(), EffectManager.GetProviders, EffectManager.GetExtensionSettings);
+        Collect(entries, "voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetProviders, VoicesManager.GetExtensionSettings);
         return entries;
     }
 
     static void Collect(List<Entry> entries, string kind, IReadOnlyList<string> ids,
-        Func<string, IExtensionSettings?> getSettings, Func<string, string> getDisplayName, Func<string, string> getPackageId)
+        Func<string, IReadOnlyList<(string PackageId, string DisplayName)>> getProviders,
+        Func<string, string, IExtensionSettings?> getSettings)
     {
         foreach (var id in ids)
         {
-            var settings = getSettings(id);
-            if (settings != null)
-                entries.Add(new Entry(getPackageId(id), kind, id, getDisplayName(id), settings));
+            foreach (var (packageId, displayName) in getProviders(id))
+            {
+                var settings = getSettings(packageId, id);
+                if (settings != null)
+                    entries.Add(new Entry(packageId, kind, id, displayName, settings));
+            }
         }
     }
 

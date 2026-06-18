@@ -77,6 +77,7 @@ internal partial class SettingsWindow : Window
             new("Appearance", Assets.Appearance, CreateAppearancePage),
             new("Editing", Assets.Editing, CreateEditorPage),
             new("Extensions", Assets.Extensions, CreateExtensionsPage),
+            new("Extension Routing", Assets.ExtensionRouting, CreateRoutingPage),
         };
 
         // Build sidebar tab buttons
@@ -522,6 +523,121 @@ internal partial class SettingsWindow : Window
         }
         return listView;
     }
+
+    // 「Extension Routing」页：当同一身份（voice/effect/agent 引擎 id、format 扩展名）被多个扩展包提供时，
+    // 列出冲突行让用户选用哪个包的实现。行=身份、右侧下拉=各候选包；只列有冲突(>1 提供者)的身份。
+    // 选择即写 ExtensionRouting（即时落盘进 app Settings.json，不走「扩展」页的批量落盘）；重启后生效（与切语言一致）。
+    private Control CreateRoutingPage()
+    {
+        var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
+
+        var rows = ExtensionRouting.GetConflicts();
+        if (rows.Count == 0)
+        {
+            listView.Content.Children.Add(new TextBlock
+            {
+                Text = "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)".Tr(this),
+                Margin = new Thickness(24, 16),
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+            });
+            return listView;
+        }
+
+        listView.Content.Children.Add(new TextBlock
+        {
+            Text = "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart.".Tr(this),
+            Margin = new Thickness(24, 16, 24, 4),
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
+        });
+
+        // 行按插件类型分组（GetConflicts 已按 kind 顺序产出，format-import/export 相邻同归 Format 组）：
+        // kind 变到新组时插一条组标题，行缩进列在组下。
+        string? currentGroup = null;
+        foreach (var row in rows)
+        {
+            var group = RouteGroupLabel(row.Kind);
+            if (group != currentGroup)
+            {
+                currentGroup = group;
+                listView.Content.Children.Add(new TextBlock
+                {
+                    Text = group,
+                    FontSize = 13,
+                    FontWeight = FontWeight.SemiBold,
+                    Margin = new Thickness(24, 18, 24, 2),
+                    Foreground = Style.LIGHT_WHITE.Opacity(0.85).ToBrush(),
+                });
+            }
+
+            var panel = new DockPanel() { Margin = new(36, 8, 24, 8) };
+            {
+                var comboBox = new ComboBoxController() { Width = 280 };
+                comboBox.SetConfig(new ComboBoxConfig
+                {
+                    Options = row.Options.Select(o => new ComboBoxOption(PropertyValue.Create(o.PackageId), OptionLabel(o))).ToList<ComboBoxOption>(),
+                });
+                comboBox.Display(PropertyValue.Create(row.ActivePackageId));
+                var routeKey = row.RouteKey;
+                comboBox.ValueCommitted.Subscribe(() =>
+                {
+                    ExtensionRouting.SetSelected(routeKey, comboBox.Value.ToString());
+                }, s);
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var labelPanel = new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                labelPanel.Children.Add(new TextBlock
+                {
+                    Text = row.Identity,
+                    FontSize = 14,
+                    Foreground = Style.TEXT_LIGHT.ToBrush(),
+                });
+                // format 行标 import/export 方向（同一扩展名两行靠这区分）；引擎类无方向、不加副标签。
+                var direction = RouteDirectionLabel(row.Kind);
+                if (!string.IsNullOrEmpty(direction))
+                {
+                    labelPanel.Children.Add(new TextBlock
+                    {
+                        Text = direction,
+                        FontSize = 11,
+                        Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+                    });
+                }
+                panel.AddDock(labelPanel);
+            }
+            listView.Content.Children.Add(panel);
+        }
+        return listView;
+    }
+
+    // 下拉项文本：候选【包名】（来自 manifest），附包 id 消歧（同名/本地化时）。内建显示 "Built-In"。
+    private static string OptionLabel(ExtensionRouting.RouteOption option)
+    {
+        var packageName = ExtensionManager.GetPackageName(option.PackageId);
+        return string.IsNullOrEmpty(option.PackageId) || packageName == option.PackageId
+            ? packageName
+            : string.Format("{0} ({1})", packageName, option.PackageId);
+    }
+
+    // 分组标题（插件类型）：format 的 import/export 同归「Format」一组。
+    private string RouteGroupLabel(string kind) => kind switch
+    {
+        "voice" => "Voice".Tr(this),
+        "effect" => "Effect".Tr(this),
+        "agent-model" => "Agent Model".Tr(this),
+        "format-import" or "format-export" => "Format".Tr(this),
+        _ => kind,
+    };
+
+    // 行内方向副标签：仅 format 有 import/export 之分；引擎类返回空（无副标签）。
+    private string RouteDirectionLabel(string kind) => kind switch
+    {
+        "format-import" => "Import".Tr(this),
+        "format-export" => "Export".Tr(this),
+        _ => string.Empty,
+    };
 
     // 把当前「扩展」页的全部编辑统一落盘并回喂（密钥按 IsPassword 标出交由存储层加密）。
     // 由切走 tab / 关窗 / Esc 调用；落盘后清空，非扩展页时本就为空、无副作用。

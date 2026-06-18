@@ -1,0 +1,12 @@
+{
+  "id": "com.tunelab.test.voiceconflict.b",
+  "name": "Voice Conflict B",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "冲突消解夹具 B（voice）：与包 A 同声明引擎 id TLConflictVoice。声源名标注「Package B」——活实现是哪个包，Set Voice 菜单即见分晓。",
+  "sdk-version": "1.0",
+  "type": "voice",
+  "engine": "TLConflictVoice",
+  "classes": ["TuneLab.TestPlugins.VoiceConflictB.ConflictVoiceEngine"],
+  "assembly": "V1.VoiceConflict.B.dll"
+}

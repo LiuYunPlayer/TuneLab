@@ -24,11 +24,24 @@ internal static class ExtensionManager
 
     // 编进宿主的官方内置能力（无安装包）的包 id——用于扩展设置按包分桶。
     // 选含括号的保留标识：反向域名包 id 不可能长这样，撞键风险为零，且配置文件里一眼可辨「宿主内置」。
-    // 三态：BuiltInPackageId = 编进宿主的内置；"" = 无 V1 id 的 legacy 老包；真实反向域名 id = V1 安装包。
+    // 包 id 取值：BuiltInPackageId = 编进宿主的内置；legacy 老包 = 其目录名（无 V1 manifest id，见 LegacyPackageId）；
+    // V1 安装包 = 其反向域名 id。三者互不相撞，且都能反查到显示名。
     public const string BuiltInPackageId = "(built-in)";
 
     // 结构化加载结果，供 sidebar 直接消费（取代字符串猜测）。
     public static IReadOnlyList<ExtensionLoadResult> LoadResults => mLoadResults;
+
+    // 包 id → 人类可读包名（供「Extension Routing」矩阵列出各候选包）。
+    // 内建无 LoadResult、给固定标签；V1 包按 id 反查 manifest 名；查不到/legacy 空 id 回退到 id 本身（或 "Legacy"）。
+    public static string GetPackageName(string packageId)
+    {
+        if (packageId == BuiltInPackageId)
+            return "Built-In";
+        foreach (var r in mLoadResults)
+            if (r.Id == packageId)
+                return string.IsNullOrEmpty(r.Name) ? packageId : r.Name;
+        return string.IsNullOrEmpty(packageId) ? "Legacy" : packageId;
+    }
 
     // Compat.Legacy 接入点：设置后接管 Legacy 包加载，返回 true 表示已处理。
     // 第三参 typeSink 由 hook 在注册成功时回填真实类别（"format"/"voice"），供 sidebar
@@ -212,6 +225,8 @@ internal static class ExtensionManager
         var result = new ExtensionLoadResult
         {
             DirectoryPath = path,
+            // legacy 无 V1 manifest id，用目录名当包 id（每安装唯一、稳定）：供冲突路由区分各 legacy 包 + 反查真实包名。
+            Id = LegacyPackageId(path),
             Name = description?.LocalizedName(lang) ?? folderName,
             Version = description?.version ?? "1.0.0",
             Author = description?.author ?? string.Empty,
@@ -271,6 +286,10 @@ internal static class ExtensionManager
 
     static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect" or "agent-model";
 
+    // legacy 包的稳定包 id（无 V1 manifest id 时）：用目录名——每个安装唯一、跨会话稳定，
+    // 供冲突消解区分多个 legacy 包并反查显示名。LegacyCompatLoader 注册与 LoadResult.Id 须用同一值。
+    public static string LegacyPackageId(string packageDir) => Path.GetFileName(packageDir);
+
     // 条目身份标签（用于日志/错误前缀）：format 以扩展名、引擎类以 engine id 标识。
     static string IdentityLabel(ExtensionInfo ext, string kind)
         => kind == "format"
@@ -314,7 +333,7 @@ internal static class ExtensionManager
                 return true;
 
             case "format":
-                return RegisterFormatEntry(ext, assembly, candidates, displayName, out error);
+                return RegisterFormatEntry(packageId, ext, assembly, candidates, displayName, out error);
         }
         error = "unknown extension type";
         return false;
@@ -322,7 +341,7 @@ internal static class ExtensionManager
 
     // format 条目：扫候选类认领 IImportFormat / IExportFormat（各可缺其一，至少一个）。工厂延迟实例化（与旧行为一致），
     // 但类型/构造在加载期即扫描校验。同一个类可同时实现两接口（则导入导出都注册它）。
-    static bool RegisterFormatEntry(ExtensionInfo ext, Assembly assembly, string[] candidates, string displayName, out string? error)
+    static bool RegisterFormatEntry(string packageId, ExtensionInfo ext, Assembly assembly, string[] candidates, string displayName, out string? error)
     {
         if (string.IsNullOrEmpty(ext.extension)) { error = "missing 'extension'"; return false; }
         if (candidates.Length == 0) { error = "no entry 'classes' declared"; return false; }
@@ -330,12 +349,12 @@ internal static class ExtensionManager
         bool any = false;
         if (TryScanCtor<IImportFormat>(assembly, candidates, out var ictor, out _))
         {
-            FormatsManager.RegisterImporter(ext.extension, displayName, () => (IImportFormat)ictor!.Invoke(null));
+            FormatsManager.RegisterImporter(packageId, ext.extension, displayName, () => (IImportFormat)ictor!.Invoke(null));
             any = true;
         }
         if (TryScanCtor<IExportFormat>(assembly, candidates, out var ector, out _))
         {
-            FormatsManager.RegisterExporter(ext.extension, displayName, () => (IExportFormat)ector!.Invoke(null));
+            FormatsManager.RegisterExporter(packageId, ext.extension, displayName, () => (IExportFormat)ector!.Invoke(null));
             any = true;
         }
         if (!any)
