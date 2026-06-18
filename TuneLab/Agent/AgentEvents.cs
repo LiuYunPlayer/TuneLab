@@ -18,6 +18,10 @@ internal sealed record AgentToolStarted(string Id, string Name, string Arguments
 // 一个工具执行完成：Result 是回灌给模型的文本（成功=结构化结果，失败=错误说明），IsError 标错（界面用不同状态色）。
 internal sealed record AgentToolFinished(string Id, string Name, string Result, bool IsError) : AgentEvent;
 
+// 一次模型调用（一轮）的 token 用量：runner 在该调用返回、执行其请求的工具之前发出，供 UI 在该轮工具块前实时插一行
+// per-call 用量（让用户在多次工具往返过程中就看到每次调用的消耗，而非等整轮结束）。仅在该轮请求了工具时发（末轮收尾由脚注合计承载）。
+internal sealed record AgentRoundUsage(int PromptTokens, int CompletionTokens, int TotalTokens) : AgentEvent;
+
 // 用户在生成过程中插话：runner 在轮边界（tool 结果已全配对、或模型刚给出无工具的答复）把 pending 文本作为一条 user 消息
 // 注入续跑，并发此事件——UI 据此在当前 turn 视图里按时间顺序行内渲染一个用户小气泡（区别于落在 ctx.View 顶部的常规用户气泡）。
 internal sealed record AgentUserInterjection(string Text) : AgentEvent;

@@ -338,19 +338,26 @@ internal sealed class AgentSideBarContentProvider
 
     // 一轮成功回复后累加该会话的 token 口径：累计 += 本轮 total；上下文 = 本轮最后一次模型调用的输入（≈当前上下文大小，
     // 不用聚合 prompt——那是各轮求和、远大于实际上下文）。仅当前可见会话才刷新状态行。
-    void AccumulateTurnTokens(SessionContext ctx, AgentTurnResult reply)
+    // 从本轮轨迹算出（模型调用次数、末次调用上下文≈输入+输出）：脚注据此消歧（多次调用标注 "· N calls"），
+    // 末次上下文与状态行 Context 同口径，用于 tooltip 桥接。
+    static (int calls, int lastContext) TurnBreakdown(IReadOnlyList<AgentTurnMessage> trajectory)
     {
-        if (reply.Usage != null)
-            ctx.CumulativeTokens += reply.Usage.TotalTokens;
-        for (int i = reply.Trajectory.Count - 1; i >= 0; i--)
-        {
-            var m = reply.Trajectory[i];
+        int calls = 0, lastContext = 0;
+        foreach (var m in trajectory)
             if (m.Role == AgentRole.Assistant && m.Usage != null)
             {
-                ctx.ContextTokens = m.Usage.PromptTokens + m.Usage.CompletionTokens;
-                break;
+                calls++;
+                lastContext = m.Usage.PromptTokens + m.Usage.CompletionTokens;
             }
-        }
+        return (calls, lastContext);
+    }
+
+    // 生成过程中每次模型调用返回即累加该会话 token 口径并实时刷新状态行（不必等整轮结束）：
+    // 累计 Session += 本次 total；当前上下文 Context = 本次输入+输出（末次调用即当前上下文大小）。
+    void AccumulateRoundTokens(SessionContext ctx, AgentRoundUsage g)
+    {
+        ctx.CumulativeTokens += g.TotalTokens;
+        ctx.ContextTokens = g.PromptTokens + g.CompletionTokens;
         if (ctx == mActive)
             RefreshTokenStatus();
     }
@@ -622,6 +629,7 @@ internal sealed class AgentSideBarContentProvider
         var narration = new List<string>();
         int prompt = 0, completion = 0, total = 0;
         bool hasUsage = false;
+        int calls = 0, lastContext = 0;   // 脚注消歧：模型调用次数 + 末次上下文（与状态行 Context 同口径）
         for (int k = start; k < end; k++)
         {
             var m = msgs[k];
@@ -652,6 +660,8 @@ internal sealed class AgentSideBarContentProvider
                 prompt += m.PromptTokens ?? 0;
                 completion += m.CompletionTokens ?? 0;
                 total += m.TotalTokens.Value;
+                calls++;
+                lastContext = (m.PromptTokens ?? 0) + (m.CompletionTokens ?? 0);
             }
         }
         turn.Seal();
@@ -659,7 +669,7 @@ internal sealed class AgentSideBarContentProvider
         if (turn.IsEmpty)
             return AssistantContainer(BubbleText("(no text reply)", Colors.White.ToBrush()));
         var usage = hasUsage ? new AgentTokenUsage { PromptTokens = prompt, CompletionTokens = completion, TotalTokens = total } : null;
-        turn.Append(BuildFooter(string.Join("\n\n", narration), usage));
+        turn.Append(BuildFooter(string.Join("\n\n", narration), usage, calls, lastContext));
         return AssistantContainer(turn.Root);
     }
 
@@ -939,7 +949,15 @@ internal sealed class AgentSideBarContentProvider
         bool swapped = false;
         void EnsureSwapped() { if (!swapped) { bubble.Child = turn.Root; swapped = true; } }
         // Progress<T> 在创建处（UI 线程）的同步上下文上派发，事件按 runner 发出顺序 FIFO 到达——文本与工具步骤的先后关系正确。
-        void Handle(AgentEvent e) { EnsureSwapped(); turn.Apply(e); ScrollToEnd(ctx); }
+        // 每次模型调用返回的用量事件顺带实时刷新右下角 Context/Session 状态行（不必等整轮结束）。
+        void Handle(AgentEvent e)
+        {
+            if (e is AgentRoundUsage g)
+                AccumulateRoundTokens(ctx, g);
+            EnsureSwapped();
+            turn.Apply(e);
+            ScrollToEnd(ctx);
+        }
 
         try
         {
@@ -961,12 +979,15 @@ internal sealed class AgentSideBarContentProvider
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
-                turn.Append(BuildFooter(reply.Text, reply.Usage));
+            {
+                var (calls, lastCtx) = TurnBreakdown(reply.Trajectory);
+                turn.Append(BuildFooter(reply.Text, reply.Usage, calls, lastCtx));
+            }
             var attachments = images.Count > 0
                 ? images.Select(i => new ChatAttachment { Hash = AgentSessionStore.ComputeHash(i.Data), MediaType = i.MediaType, Data = i.Data }).ToList()
                 : null;
             RecordTurn(ctx, text, attachments, reply.Text, reply.Trajectory);
-            AccumulateTurnTokens(ctx, reply);
+            // token 口径已在生成过程中由 AgentRoundUsage 逐次累加（见 AccumulateRoundTokens），此处不再整轮累加，避免重复计。
         }
         catch (OperationCanceledException)
         {
@@ -1481,8 +1502,11 @@ internal sealed class AgentSideBarContentProvider
     Control AssistantContent(string markdown, AgentTokenUsage? usage)
         => new StackPanel { Orientation = Orientation.Vertical, Children = { ChatMarkdownRenderer.Render(markdown), BuildFooter(markdown, usage) } };
 
-    // 脚注一行：token 总量靠左（带单位，hover 看输入/输出明细）、Copy 靠右（复制 markdownToCopy 原文；端点未返回 usage 则只有 Copy）。
-    Control BuildFooter(string markdownToCopy, AgentTokenUsage? usage)
+    // 脚注一行：token 用量靠左（带单位，hover 看明细）、Copy 靠右（复制 markdownToCopy 原文；端点未返回 usage 则只有 Copy）。
+    // usage = 本轮各次模型调用的合计（工具往返会重复前缀，故多次调用时远大于单轮上下文）。modelCalls=本轮模型调用次数、
+    // lastContextTokens=末次调用的输入+输出（≈状态行 Context）。多次调用时脚注标注 "· N calls" 并在 tooltip 里和 Context 桥接，
+    // 消解"脚注合计 vs 状态行 Context 对不上"的疑惑。
+    Control BuildFooter(string markdownToCopy, AgentTokenUsage? usage, int modelCalls = 1, int lastContextTokens = 0)
     {
         var copy = new TextBlock
         {
@@ -1504,15 +1528,22 @@ internal sealed class AgentSideBarContentProvider
         footer.Children.Add(copy);
         if (usage != null)
         {
+            bool multi = modelCalls > 1;
             var tokens = new TextBlock
             {
-                Text = string.Format("{0:N0} tokens", usage.TotalTokens),
+                // 多次调用：标注 "· N calls"，明示该数是 N 次往返的合计（非单轮上下文）。
+                Text = multi
+                    ? string.Format("{0:N0} tokens · {1} calls", usage.TotalTokens, modelCalls)
+                    : string.Format("{0:N0} tokens", usage.TotalTokens),
                 FontSize = 11,
                 Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Margin = new(0, 0, 16, 0), // 与右侧 Copy 留间距：短回复气泡窄时两者会贴到一起
             };
-            ToolTip.SetTip(tokens, string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
+            ToolTip.SetTip(tokens, multi
+                ? string.Format("Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens".Tr(this),
+                    modelCalls, usage.PromptTokens, usage.CompletionTokens, lastContextTokens)
+                : string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
             DockPanel.SetDock(tokens, Dock.Left);
             footer.Children.Add(tokens);
         }

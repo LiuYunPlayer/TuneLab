@@ -142,6 +142,10 @@ internal sealed class AgentRunner
             if (!string.IsNullOrEmpty(reply.Content))
                 narration.Add(reply.Content);
 
+            // 每次模型调用（每轮，含单轮/末轮）返回即上报其用量——UI 据此实时刷新左下角运行 token + 右下角 Context/Session 状态行。
+            if (reply.Usage is { } ru)
+                progress?.Report(new AgentRoundUsage(ru.PromptTokens, ru.CompletionTokens, ru.TotalTokens));
+
             if (reply.ToolCalls.Count == 0)
             {
                 // 模型已给出无工具的答复（本是收尾点）：若用户此刻有插话，吃掉它、重置回合预算、续跑把插话也答掉；否则真正结束。
