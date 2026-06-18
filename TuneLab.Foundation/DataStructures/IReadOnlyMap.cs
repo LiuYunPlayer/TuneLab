@@ -1,8 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace TuneLab.Foundation;
 
+[CollectionBuilder(typeof(IReadOnlyMapBuilder), nameof(IReadOnlyMapBuilder.Create))]
 public interface IReadOnlyMap<TKey, out TValue> : IReadOnlyCollection<IReadOnlyKeyValuePair<TKey, TValue>> where TKey : notnull
 {
     TValue this[TKey key] { get; }
@@ -28,5 +31,19 @@ public static class IReadOnlyMapExtension
             newMap.Add(kvp.Key, kvp.Value);
         }
         return newMap;
+    }
+}
+
+public static class IReadOnlyMapBuilder
+{
+    public static IReadOnlyMap<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair<TKey, TValue>> values) where TKey : notnull
+    {
+        if (values.IsEmpty)
+            return Map<TKey, TValue>.Empty;
+
+        var map = new Map<TKey, TValue>();
+        foreach (var kvp in values)
+            map.Add(kvp.Key, kvp.Value);
+        return map;
     }
 }

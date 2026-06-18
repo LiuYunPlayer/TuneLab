@@ -534,7 +534,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         reader.ReadEndArray();
     }
 
-    private void ReadAffectedAutomations(CborReader reader, Dictionary<string, double> affectedAutomations)
+    private void ReadAffectedAutomations(CborReader reader, Map<string, double> affectedAutomations)
     {
         reader.ReadStartMap();
         while (reader.PeekState() != CborReaderState.EndMap)
@@ -546,7 +546,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         reader.ReadEndMap();
     }
 
-    private void ReadAutomations(CborReader reader, Dictionary<string, AutomationInfo> automations)
+    private void ReadAutomations(CborReader reader, Map<string, AutomationInfo> automations)
     {
         reader.ReadStartMap();
         while (reader.PeekState() != CborReaderState.EndMap)
@@ -963,7 +963,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteEndArray();
     }
 
-    private void WriteAutomations(CborWriter writer, Dictionary<string, AutomationInfo> automations)
+    private void WriteAutomations(CborWriter writer, IReadOnlyMap<string, AutomationInfo> automations)
     {
         writer.WriteStartMap(null);
         foreach (var kvp in automations)

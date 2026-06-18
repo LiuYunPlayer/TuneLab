@@ -100,12 +100,15 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
     bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => ((ICollection<KeyValuePair<TKey, TValue>>)mMap).IsReadOnly;
     IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => ((IReadOnlyDictionary<TKey, TValue>)mMap).Keys;
     IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => ((IReadOnlyDictionary<TKey, TValue>)mMap).Values;
-    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => ((IReadOnlyMap<TKey, TValue>)mMap).Keys;
-    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => ((IReadOnlyMap<TKey, TValue>)mMap).Values;
+    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => mMap.Keys;
+    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => mMap.Values;
 
     public Map<TKey, TValue> GetInfo()
     {
-        return mMap.ToMap();
+        var map = new Map<TKey, TValue>();
+        foreach (var kvp in mMap)
+            map.Add(kvp.Key, kvp.Value);
+        return map;
     }
 
     public void SetInfo(IReadOnlyMap<TKey, TValue> info)
@@ -119,7 +122,8 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
 
     IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>.GetEnumerator()
     {
-        return ((IEnumerable<IReadOnlyKeyValuePair<TKey, TValue>>)mMap).GetEnumerator();
+        foreach (var kvp in mMap)
+            yield return new ReadOnlyKeyValuePair<TKey, TValue>(kvp.Key, kvp.Value);
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -129,7 +133,8 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
 
     public TValue? GetValue(TKey key, out bool success)
     {
-        return ((IReadOnlyMap<TKey, TValue>)mMap).GetValue(key, out success);
+        success = mMap.TryGetValue(key, out var value);
+        return value;
     }
 
     class AddCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue value) : ICommand
@@ -183,7 +188,7 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         }
     }
 
-    readonly Map<TKey, TValue> mMap = new();
+    readonly Dictionary<TKey, TValue> mMap = new();
     ActionEvent<TKey, TValue> mItemAdded = new();
     ActionEvent<TKey, TValue> mItemRemoved = new();
     ActionEvent<TKey, TValue, TValue> mItemReplaced = new();
