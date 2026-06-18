@@ -65,7 +65,34 @@ internal sealed class AgentTurnView
             case AgentToolFinished f:
                 FinishToolStep(f.Id, f.Result, f.IsError);
                 break;
+            case AgentUserInterjection u:
+                SealText();      // 插话出现在此刻 → 先封口当前正文/思考段，保持时间顺序
+                SealReasoning();
+                AddUserInterjection(u.Text);
+                break;
         }
+    }
+
+    // 生成过程中用户的轮边界插话：在分步流里就地插入一个用户小气泡（右对齐、带强调底色），区别于落在 ctx.View 顶部的常规用户气泡。
+    void AddUserInterjection(string text)
+    {
+        var bubble = new Border
+        {
+            Background = Style.BUTTON_PRIMARY.ToBrush(), // 与常规用户气泡同色，读作"用户在此刻说的话"
+            CornerRadius = new(8),
+            Padding = new(10, 6),
+            Margin = new(0, 4),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            MaxWidth = 240,
+            Child = new SelectableTextBlock
+            {
+                Text = text,
+                FontSize = 12,
+                Foreground = Colors.White.ToBrush(),
+                TextWrapping = TextWrapping.Wrap,
+            },
+        };
+        mContent.Children.Add(bubble);
     }
 
     // 封口所有进行中的流式段（正文 + 思考）。轮结束/停止/出错前由宿主调用。

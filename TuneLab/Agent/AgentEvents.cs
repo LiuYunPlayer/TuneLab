@@ -17,3 +17,7 @@ internal sealed record AgentToolStarted(string Id, string Name, string Arguments
 
 // 一个工具执行完成：Result 是回灌给模型的文本（成功=结构化结果，失败=错误说明），IsError 标错（界面用不同状态色）。
 internal sealed record AgentToolFinished(string Id, string Name, string Result, bool IsError) : AgentEvent;
+
+// 用户在生成过程中插话：runner 在轮边界（tool 结果已全配对、或模型刚给出无工具的答复）把 pending 文本作为一条 user 消息
+// 注入续跑，并发此事件——UI 据此在当前 turn 视图里按时间顺序行内渲染一个用户小气泡（区别于落在 ctx.View 顶部的常规用户气泡）。
+internal sealed record AgentUserInterjection(string Text) : AgentEvent;

@@ -42,6 +42,7 @@ internal sealed class ChatTurnMessage
     public List<ChatToolCall>? ToolCalls { get; set; }  // 仅 assistant：本次请求的工具调用（v1+）
     public string? ToolCallId { get; set; }             // 仅 tool：回指 ToolCalls[].Id（v1+）
     public bool IsError { get; set; }                   // 仅 tool：结果是否为错误（v1+）
+    public bool Interjected { get; set; }               // 仅 user：是否为生成过程中的轮边界插话（v1+，重载时行内重放而非另起一轮）
     // 助手轮的 token 用量（端点返回才有；用户/工具轮恒空）。
     public int? PromptTokens { get; set; }
     public int? CompletionTokens { get; set; }
