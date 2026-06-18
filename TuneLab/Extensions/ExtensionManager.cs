@@ -171,7 +171,7 @@ internal static class ExtensionManager
                 var assembly = alc.LoadFromAssemblyPath(assemblyFile);
 
                 // 按 manifest 声明的 class（命名空间.类名）精确取类型并实例化注册（不再反射扫 attribute）。
-                if (RegisterEntry(kind, ext, assembly, lang, out var error))
+                if (RegisterEntry(description.id ?? string.Empty, kind, ext, assembly, lang, out var error))
                 {
                     loaded++;
                 }
@@ -283,70 +283,89 @@ internal static class ExtensionManager
 
     // 按类别把 manifest 条目实例化并注册到对应 manager。失败回 false + error（不抛，调用方计 failed）。
     // displayName 按当前语言从 manifest 取（与 id 分离、仅供 UI 展示）；缺省回退到身份 id。
-    static bool RegisterEntry(string kind, ExtensionInfo ext, Assembly assembly, string lang, out string? error)
+    // packageId 是包 manifest 的反向域名 id，下传给 manager 供扩展设置按包分桶（避免不同包同 engine id 设置串味）。
+    static bool RegisterEntry(string packageId, string kind, ExtensionInfo ext, Assembly assembly, string lang, out string? error)
     {
         var displayName = ext.LocalizedName(lang);
+        var candidates = ext.CandidateClasses;   // 候选入口类（新版 classes + 旧版 class/import/export 折叠）
         switch (kind)
         {
             case "voice":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryGetCtor<IVoiceEngine>(assembly, ext.className, out var vctor, out error)) return false;
-                VoicesManager.RegisterEngine(ext.engine, displayName, (IVoiceEngine)vctor!.Invoke(null));
+                if (!TryScanCtor<IVoiceEngine>(assembly, candidates, out var vctor, out error)) return false;
+                VoicesManager.RegisterEngine(packageId, ext.engine, displayName, (IVoiceEngine)vctor!.Invoke(null));
                 return true;
 
             case "effect":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryGetCtor<IEffectEngine>(assembly, ext.className, out var ector, out error)) return false;
-                EffectManager.RegisterEngine(ext.engine, displayName, (IEffectEngine)ector!.Invoke(null));
+                if (!TryScanCtor<IEffectEngine>(assembly, candidates, out var ector, out error)) return false;
+                EffectManager.RegisterEngine(packageId, ext.engine, displayName, (IEffectEngine)ector!.Invoke(null));
                 return true;
 
             case "agent-model":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryGetCtor<IAgentModelEngine>(assembly, ext.className, out var actor, out error)) return false;
-                AgentModelManager.RegisterEngine(ext.engine, displayName, (IAgentModelEngine)actor!.Invoke(null));
+                if (!TryScanCtor<IAgentModelEngine>(assembly, candidates, out var actor, out error)) return false;
+                AgentModelManager.RegisterEngine(packageId, ext.engine, displayName, (IAgentModelEngine)actor!.Invoke(null));
                 return true;
 
             case "format":
-                return RegisterFormatEntry(ext, assembly, displayName, out error);
+                return RegisterFormatEntry(ext, assembly, candidates, displayName, out error);
         }
         error = "unknown extension type";
         return false;
     }
 
-    // format 条目：按 extension 注册 import/export（各可缺其一）。工厂延迟实例化（与旧行为一致），但类型/构造在加载期即校验。
-    static bool RegisterFormatEntry(ExtensionInfo ext, Assembly assembly, string displayName, out string? error)
+    // format 条目：扫候选类认领 IImportFormat / IExportFormat（各可缺其一，至少一个）。工厂延迟实例化（与旧行为一致），
+    // 但类型/构造在加载期即扫描校验。同一个类可同时实现两接口（则导入导出都注册它）。
+    static bool RegisterFormatEntry(ExtensionInfo ext, Assembly assembly, string[] candidates, string displayName, out string? error)
     {
         if (string.IsNullOrEmpty(ext.extension)) { error = "missing 'extension'"; return false; }
-        if (string.IsNullOrEmpty(ext.import) && string.IsNullOrEmpty(ext.export)) { error = "needs 'import' and/or 'export' class"; return false; }
+        if (candidates.Length == 0) { error = "no entry 'classes' declared"; return false; }
 
-        if (!string.IsNullOrEmpty(ext.import))
+        bool any = false;
+        if (TryScanCtor<IImportFormat>(assembly, candidates, out var ictor, out _))
         {
-            if (!TryGetCtor<IImportFormat>(assembly, ext.import, out var ctor, out error)) return false;
-            FormatsManager.RegisterImporter(ext.extension, displayName, () => (IImportFormat)ctor!.Invoke(null));
+            FormatsManager.RegisterImporter(ext.extension, displayName, () => (IImportFormat)ictor!.Invoke(null));
+            any = true;
         }
-        if (!string.IsNullOrEmpty(ext.export))
+        if (TryScanCtor<IExportFormat>(assembly, candidates, out var ector, out _))
         {
-            if (!TryGetCtor<IExportFormat>(assembly, ext.export, out var ctor, out error)) return false;
-            FormatsManager.RegisterExporter(ext.extension, displayName, () => (IExportFormat)ctor!.Invoke(null));
+            FormatsManager.RegisterExporter(ext.extension, displayName, () => (IExportFormat)ector!.Invoke(null));
+            any = true;
+        }
+        if (!any)
+        {
+            error = string.Format("no class implementing IImportFormat or IExportFormat among [{0}]", string.Join(", ", candidates));
+            return false;
         }
         error = null;
         return true;
     }
 
-    // 从程序集取 className 对应类型，校验实现 T 且有无参构造，返回其构造器。任一不满足回 false + 可读 error。
-    static bool TryGetCtor<T>(Assembly assembly, string? className, out ConstructorInfo? ctor, out string? error)
+    // 扫候选类清单，取首个实现 T 且有无参构造的类的构造器。无候选 / 无命中 / 命中但缺无参构造回 false + 可读 error。
+    // 不实现 T 的候选不算错误（同一清单服务多个接口，逐个认领）——只在最终无命中时汇总原因。
+    static bool TryScanCtor<T>(Assembly assembly, string[] candidates, out ConstructorInfo? ctor, out string? error)
     {
         ctor = null;
         error = null;
-        if (string.IsNullOrEmpty(className)) { error = "missing 'class'"; return false; }
+        if (candidates.Length == 0) { error = "no entry 'classes' declared"; return false; }
 
-        var type = assembly.GetType(className);
-        if (type == null) { error = string.Format("class '{0}' not found in {1}", className, assembly.GetName().Name); return false; }
-        if (!typeof(T).IsAssignableFrom(type)) { error = string.Format("class '{0}' does not implement {1}", className, typeof(T).Name); return false; }
+        var notes = new List<string>();
+        foreach (var className in candidates)
+        {
+            var type = assembly.GetType(className);
+            if (type == null) { notes.Add(string.Format("'{0}' not found", className)); continue; }
+            if (!typeof(T).IsAssignableFrom(type)) continue;   // 不实现该接口：正常，扫下一个候选
 
-        ctor = type.GetConstructor(Type.EmptyTypes);
-        if (ctor == null) { error = string.Format("class '{0}' has no parameterless constructor", className); return false; }
-        return true;
+            var c = type.GetConstructor(Type.EmptyTypes);
+            if (c == null) { notes.Add(string.Format("'{0}' implements {1} but has no parameterless constructor", className, typeof(T).Name)); continue; }
+            ctor = c;
+            return true;
+        }
+        error = notes.Count > 0
+            ? string.Join("; ", notes)
+            : string.Format("no class implementing {0} among [{1}]", typeof(T).Name, string.Join(", ", candidates));
+        return false;
     }
 
     public static void AddPendingUninstall(string extensionDirPath)

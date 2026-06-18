@@ -7,6 +7,6 @@
   "sdk-version": "1.0",
   "type": "voice",
   "engine": "TLTestVoiceV1",
-  "class": "TuneLab.TestPlugins.V1Voice.TestVoiceEngine",
+  "classes": ["TuneLab.TestPlugins.V1Voice.TestVoiceEngine"],
   "assembly": "V1.Voice.dll"
 }

@@ -19,10 +19,11 @@ namespace TuneLab.Extensions;
 //   type       —— 必填，类别（决定派给哪个 manager）：format / voice / effect / agent-model / 资源类。
 //   engine     —— voice/effect/agent-model 的引擎类型 id。
 //   extension  —— format 的文件扩展名（不带点）。
-//   class      —— voice/effect/agent-model 实现类的全名（命名空间.类名）。
-//   import     —— format 导入实现类（IImportFormat）的全名；可缺（只导出的格式）。
-//   export     —— format 导出实现类（IExportFormat）的全名；可缺（只导入的格式）。
-//   assembly   —— 含上述实现类的程序集（相对包文件夹的路径）；资源类省略。
+//   classes    —— **入口候选类清单**（全名数组）：宿主把数组里的类都扫一遍，按本 type 所需接口逐个匹配、命中即注册
+//                （voice→IVoiceEngine / effect→IEffectEngine / agent-model→IAgentModelEngine / format→IImportFormat+IExportFormat）。
+//                 因 manifest 只是"方便宿主加载的描述"，无需精确指明哪个类干哪件事——把候选都列上、宿主按接口认领。
+//                 一种类型可需多个入口类（如 format 的导入类 + 导出类），数组天然承载。
+//   assembly   —— 含上述实现类的程序集（相对包文件夹的路径）；资源类省略。所有候选类同居此程序集。
 //   assemblies —— 仅 Legacy 老 schema 顶层使用（盲扫候选 dll）；V1 条目改用单数 assembly。
 //   platforms  —— 平台过滤（同一包内不同插件可各自声明）。
 internal class ExtensionInfo
@@ -33,12 +34,26 @@ internal class ExtensionInfo
     public string? engine { get; set; }
     public string? extension { get; set; }
 
-    [JsonPropertyName("class")]
-    public string? className { get; set; }
+    // 入口候选类清单；宿主按 type 所需接口扫描认领。
+    public string[]? classes { get; set; }
 
-    public string? import { get; set; }
-    public string? export { get; set; }
     public string? assembly { get; set; }
+
+    // 入口候选类（去重、保序、剔空）。宿主对每个所需接口扫此清单取首个命中类；空清单 = 未声明任何入口类。
+    [JsonIgnore]
+    public string[] CandidateClasses
+    {
+        get
+        {
+            if (classes == null)
+                return [];
+            var list = new List<string>();
+            foreach (var c in classes)
+                if (!string.IsNullOrEmpty(c) && !list.Contains(c))
+                    list.Add(c);
+            return list.ToArray();
+        }
+    }
 
     // —— 显示名（可翻译，独立于身份 id）——
     public string? name { get; set; }

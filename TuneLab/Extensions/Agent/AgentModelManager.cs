@@ -13,7 +13,7 @@ internal static class AgentModelManager
     // 内建 agent 模型引擎显式注册（编进宿主、无 description.json）。openai-compatible 为开箱即用的参考适配器。
     public static void LoadBuiltIn()
     {
-        RegisterEngine("openai-compatible", "OpenAI Compatible", new TuneLab.Agent.Models.OpenAICompatibleEngine());
+        RegisterEngine(string.Empty, "openai-compatible", "OpenAI Compatible", new TuneLab.Agent.Models.OpenAICompatibleEngine());
     }
 
     public static void Destroy()
@@ -27,10 +27,11 @@ internal static class AgentModelManager
 
     // 由 ExtensionManager（V1 manifest 驱动）实例化后注册引擎。type 已存在则跳过（内建/先到优先）。
     // type 是不可变身份 id；displayName 仅供 UI 展示、可本地化。
-    public static void RegisterEngine(string type, string displayName, IAgentModelEngine engine)
+    // packageId 是来源插件包的反向域名 id（内建为空）——供 provider 设置按包分桶持久化，避免不同包同 id 引擎设置串味。
+    public static void RegisterEngine(string packageId, string type, string displayName, IAgentModelEngine engine)
     {
         if (!mEngines.ContainsKey(type))
-            mEngines.Add(type, new AgentModelEngineStatus(engine, displayName));
+            mEngines.Add(type, new AgentModelEngineStatus(engine, displayName, packageId));
     }
 
     public static IReadOnlyList<string> GetAllAgentModelEngines() => mEngines.Keys;
@@ -38,6 +39,10 @@ internal static class AgentModelManager
     // UI 展示名（本地化，注册时按当前语言定）；未注册回退到 id 本身。
     public static string GetDisplayName(string type)
         => mEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
+
+    // 来源插件包 id（provider 设置按包分桶用）；内建 / 未注册为空。
+    public static string GetPackageId(string type)
+        => mEngines.TryGetValue(type, out var status) ? status.PackageId : string.Empty;
 
     public static bool Exists(string type) => mEngines.ContainsKey(type);
 
@@ -63,13 +68,15 @@ internal static class AgentModelManager
     {
         public IAgentModelEngine Engine => mEngine;
         public string DisplayName { get; }
+        public string PackageId { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public AgentModelEngineStatus(IAgentModelEngine engine, string displayName)
+        public AgentModelEngineStatus(IAgentModelEngine engine, string displayName, string packageId)
         {
             mEngine = engine;
             DisplayName = displayName;
+            PackageId = packageId;
         }
 
         public bool Init(out string? error)
