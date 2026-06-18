@@ -13,7 +13,7 @@ internal static class AgentModelManager
     // 内建 agent 模型引擎显式注册（编进宿主、无 description.json）。openai-compatible 为开箱即用的参考适配器。
     public static void LoadBuiltIn()
     {
-        RegisterEngine(string.Empty, "openai-compatible", "OpenAI Compatible", new TuneLab.Agent.Models.OpenAICompatibleEngine());
+        RegisterEngine(ExtensionManager.BuiltInPackageId, "openai-compatible", "OpenAI Compatible", new TuneLab.Agent.Models.OpenAICompatibleEngine());
     }
 
     public static void Destroy()

@@ -16,7 +16,8 @@ namespace TuneLab.Extensions;
 // 【两级分桶】顶层按 packageId（插件包反向域名 id）分桶，桶内再按 extensionKey(="kind:extensionId")。
 //   理由：不同插件包可能实现相同类型且 id 相同（如两个包都做 format "svp" / voice 同名引擎），仅按 extensionKey
 //   分桶会令其设置互相覆盖、串味。加一层 packageId 使各包设置物理隔离。用包 id 作【JSON key】而非文件名——
-//   避开包 id 含非法文件名字符 / 保留名 / 大小写 / 超长等文件系统坑。内建能力（无包）用空 packageId。
+//   避开包 id 含非法文件名字符 / 保留名 / 大小写 / 超长等文件系统坑。
+//   packageId 三态：ExtensionManager.BuiltInPackageId（"(built-in)"）= 编进宿主的内置能力；"" = 无 V1 id 的 legacy 老包；真实反向域名 id = V1 安装包。
 // 密钥字段（调用方按 schema 的 TextBoxConfig.IsPassword 标出）经 SecretStore 保护：
 //   Windows = DPAPI 密文就地存为字符串（仅原用户原机可解）；macOS = 进钥匙串(Keychain)、文件只留空串。
 //   无安全存储可用时（如官方未支持的 Linux / headless）：【不保存该密钥字段】+ 告警——绝不明文落盘。
