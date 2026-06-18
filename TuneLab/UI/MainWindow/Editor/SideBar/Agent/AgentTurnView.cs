@@ -29,9 +29,14 @@ internal sealed class AgentTurnView
 {
     public AgentTurnView()
     {
-        // 两层：内容区在上、底部"生成中"三点动画常驻——让用户知道这条消息还没结束（生成结束时移除）。
+        // 两层：内容区在上、底部一行=[运行中 token 合计(左) · 生成中三点动画(右)]——生成期间左下角实时显示本轮累计 token、
+        // 三点动画靠其右侧；生成结束（成功/停止/出错）整行移除，最终脚注由宿主 Append 进内容区。
+        var bottom = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new(0, 2, 0, 0) };
+        bottom.Children.Add(mLiveTokens);
+        bottom.Children.Add(mThinking);
+        mBottomRow = bottom;
         mRoot.Children.Add(mContent);
-        mRoot.Children.Add(mThinking);
+        mRoot.Children.Add(mBottomRow);
     }
 
     public Control Root => mRoot;
@@ -42,8 +47,8 @@ internal sealed class AgentTurnView
     // 末尾追加任意控件（脚注、停止/出错提示行）——加在内容区，位于底部"生成中"指示之上。
     public void Append(Control control) => mContent.Children.Add(control);
 
-    // 生成结束：移除底部"生成中"动画（移出视觉树即自动停表）。成功/停止/出错路径都应调用。
-    public void EndThinking() => mRoot.Children.Remove(mThinking);
+    // 生成结束：移除底部行（运行 token + 三点动画；移出视觉树即自动停表）。成功/停止/出错路径都应调用。
+    public void EndThinking() => mRoot.Children.Remove(mBottomRow);
 
     public void Apply(AgentEvent e)
     {
@@ -65,7 +70,48 @@ internal sealed class AgentTurnView
             case AgentToolFinished f:
                 FinishToolStep(f.Id, f.Result, f.IsError);
                 break;
+            case AgentUserInterjection u:
+                SealText();      // 插话出现在此刻 → 先封口当前正文/思考段，保持时间顺序
+                SealReasoning();
+                AddUserInterjection(u.Text);
+                break;
+            case AgentRoundUsage g:
+                AccumulateRunningUsage(g.PromptTokens, g.CompletionTokens, g.TotalTokens);
+                break;
         }
+    }
+
+    // 累加本轮已完成各次模型调用的 token，实时刷新左下角运行脚注（生成结束时整行移除、由最终脚注取代）。
+    void AccumulateRunningUsage(int prompt, int completion, int total)
+    {
+        mRunningPrompt += prompt;
+        mRunningCompletion += completion;
+        mRunningTotal += total;
+        mLiveTokens.Text = string.Format("{0:N0} tokens", mRunningTotal);
+        ToolTip.SetTip(mLiveTokens, string.Format("Input {0:N0} · Output {1:N0}", mRunningPrompt, mRunningCompletion));
+        mLiveTokens.IsVisible = true;
+    }
+
+    // 生成过程中用户的轮边界插话：在分步流里就地插入一个用户小气泡（右对齐、带强调底色），区别于落在 ctx.View 顶部的常规用户气泡。
+    void AddUserInterjection(string text)
+    {
+        var bubble = new Border
+        {
+            Background = Style.BUTTON_PRIMARY.ToBrush(), // 与常规用户气泡同色，读作"用户在此刻说的话"
+            CornerRadius = new(8),
+            Padding = new(10, 6),
+            Margin = new(0, 4),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            MaxWidth = 240,
+            Child = new SelectableTextBlock
+            {
+                Text = text,
+                FontSize = 12,
+                Foreground = Colors.White.ToBrush(),
+                TextWrapping = TextWrapping.Wrap,
+            },
+        };
+        mContent.Children.Add(bubble);
     }
 
     // 封口所有进行中的流式段（正文 + 思考）。轮结束/停止/出错前由宿主调用。
@@ -389,7 +435,18 @@ internal sealed class AgentTurnView
 
     readonly StackPanel mRoot = new() { Orientation = Orientation.Vertical, Spacing = 2 };
     readonly StackPanel mContent = new() { Orientation = Orientation.Vertical, Spacing = 2 }; // 文本段 + 工具块 + 脚注
-    readonly Control mThinking = ThinkingDots(); // 底部常驻"生成中"指示（EndThinking 时移除）
+    readonly Control mThinking = ThinkingDots(); // 底部"生成中"指示（EndThinking 时随整行移除）
+    readonly Panel mBottomRow;                   // 底部行：运行 token 合计(左) + 三点动画(右)；构造时组装
+    // 生成期间左下角实时运行 token 合计（本轮已完成各次模型调用之和）；隐藏到首次有用量为止。
+    readonly TextBlock mLiveTokens = new()
+    {
+        FontSize = 11,
+        Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
+        VerticalAlignment = VerticalAlignment.Center,
+        IsVisible = false,
+    };
+    long mRunningTotal;
+    int mRunningPrompt, mRunningCompletion;
     readonly Dictionary<string, ToolStep> mSteps = [];
     readonly StringBuilder mRawText = new(); // 当前文本段原文（节流重渲 Markdown 的源）
     Control? mLiveControl;        // 当前文本段已渲染控件（未封口，节流时原地替换）

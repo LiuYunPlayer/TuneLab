@@ -107,6 +107,9 @@ internal sealed class AgentSideBarContentProvider
                 new SetTrackPropertiesTool(mProjectEditor),
                 new AddTrackTool(mProjectEditor),
                 new RemoveTrackTool(mProjectEditor),
+                new AddPartTool(mProjectEditor),
+                new RemovePartTool(mProjectEditor),
+                new SetPartPropertiesTool(mProjectEditor),
                 new SetTempoTool(mProjectEditor),
                 new SetTimeSignatureTool(mProjectEditor),
                 // Layer 3 批量 DSL（整批一个可撤销单位）
@@ -233,7 +236,40 @@ internal sealed class AgentSideBarContentProvider
         mAttachmentStrip.Spacing = 6;
         mAttachmentStrip.Margin = new(2, 4, 2, 2);
         mAttachmentStrip.IsVisible = false;
-        var inputColumn = new StackPanel { Orientation = Orientation.Vertical, Children = { mAttachmentStrip, inputRow } };
+
+        // 轮边界插话「待发缓冲」chip（钉在输入框上方、不随消息滚动）：生成中按发送即入此缓冲，runner 到边界吃掉。
+        // 左侧 ↪ 标记 + 文本预览（最多两行省略号）；右侧 ✎ 召回到输入框编辑、✕ 丢弃。仅当本会话有 pending 时可见。
+        var pendingMark = new TextBlock { Text = "↪", FontSize = 12, Foreground = Style.BUTTON_PRIMARY.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new(0, 0, 6, 0) };
+        mPendingPreview.FontSize = 11;
+        mPendingPreview.Foreground = Style.LIGHT_WHITE.Opacity(0.8).ToBrush();
+        mPendingPreview.TextWrapping = TextWrapping.Wrap;
+        mPendingPreview.MaxLines = 2;
+        mPendingPreview.TextTrimming = TextTrimming.CharacterEllipsis;
+        mPendingPreview.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+        var pendingEdit = new TextBlock { Text = "✎", FontSize = 13, Cursor = new Cursor(StandardCursorType.Hand), Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new(8, 0, 0, 0) };
+        ToolTip.SetTip(pendingEdit, "Edit".Tr(this));
+        pendingEdit.PointerPressed += (_, e) => { e.Handled = true; RecallPending(); };
+        var pendingDiscard = new TextBlock { Text = "✕", FontSize = 12, Cursor = new Cursor(StandardCursorType.Hand), Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new(8, 0, 2, 0) };
+        ToolTip.SetTip(pendingDiscard, "Discard".Tr(this));
+        pendingDiscard.PointerPressed += (_, e) => { e.Handled = true; DiscardPending(); };
+        var pendingInner = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(pendingMark, Dock.Left);
+        DockPanel.SetDock(pendingDiscard, Dock.Right);
+        DockPanel.SetDock(pendingEdit, Dock.Right);
+        pendingInner.Children.Add(pendingMark);
+        pendingInner.Children.Add(pendingDiscard);
+        pendingInner.Children.Add(pendingEdit);
+        pendingInner.Children.Add(mPendingPreview); // 填充
+        mPendingChip.IsVisible = false;
+        mPendingChip.Background = Style.INTERFACE.ToBrush();
+        mPendingChip.BorderBrush = Style.BUTTON_PRIMARY.Opacity(0.6).ToBrush();
+        mPendingChip.BorderThickness = new(1);
+        mPendingChip.CornerRadius = new(6);
+        mPendingChip.Padding = new(8, 5);
+        mPendingChip.Margin = new(2, 4, 2, 2);
+        mPendingChip.Child = pendingInner;
+
+        var inputColumn = new StackPanel { Orientation = Orientation.Vertical, Children = { mPendingChip, mAttachmentStrip, inputRow } };
 
         var inputBorder = new Border()
         {
@@ -303,19 +339,26 @@ internal sealed class AgentSideBarContentProvider
 
     // 一轮成功回复后累加该会话的 token 口径：累计 += 本轮 total；上下文 = 本轮最后一次模型调用的输入（≈当前上下文大小，
     // 不用聚合 prompt——那是各轮求和、远大于实际上下文）。仅当前可见会话才刷新状态行。
-    void AccumulateTurnTokens(SessionContext ctx, AgentTurnResult reply)
+    // 从本轮轨迹算出（模型调用次数、末次调用上下文≈输入+输出）：脚注据此消歧（多次调用标注 "· N calls"），
+    // 末次上下文与状态行 Context 同口径，用于 tooltip 桥接。
+    static (int calls, int lastContext) TurnBreakdown(IReadOnlyList<AgentTurnMessage> trajectory)
     {
-        if (reply.Usage != null)
-            ctx.CumulativeTokens += reply.Usage.TotalTokens;
-        for (int i = reply.Trajectory.Count - 1; i >= 0; i--)
-        {
-            var m = reply.Trajectory[i];
+        int calls = 0, lastContext = 0;
+        foreach (var m in trajectory)
             if (m.Role == AgentRole.Assistant && m.Usage != null)
             {
-                ctx.ContextTokens = m.Usage.PromptTokens + m.Usage.CompletionTokens;
-                break;
+                calls++;
+                lastContext = m.Usage.PromptTokens + m.Usage.CompletionTokens;
             }
-        }
+        return (calls, lastContext);
+    }
+
+    // 生成过程中每次模型调用返回即累加该会话 token 口径并实时刷新状态行（不必等整轮结束）：
+    // 累计 Session += 本次 total；当前上下文 Context = 本次输入+输出（末次调用即当前上下文大小）。
+    void AccumulateRoundTokens(SessionContext ctx, AgentRoundUsage g)
+    {
+        ctx.CumulativeTokens += g.TotalTokens;
+        ctx.ContextTokens = g.PromptTokens + g.CompletionTokens;
         if (ctx == mActive)
             RefreshTokenStatus();
     }
@@ -517,6 +560,7 @@ internal sealed class AgentSideBarContentProvider
         ApplyBubbleWidths(ctx.View); // 离屏期间侧栏可能被拖宽，切回时按当前宽度重排该会话气泡
         SetTitle(ctx.Title);
         RefreshSendControls();
+        RefreshPendingChip(); // chip 跟随可见会话切换（pending 是 per-session 的）
         RefreshTokenStatus();
         ScrollToEnd(ctx);
     }
@@ -558,17 +602,20 @@ internal sealed class AgentSideBarContentProvider
         var msgs = session.Messages;
 
         // 按轮分组——一轮 = 一条 user 消息 + 其后直到下条 user 之前的全部 assistant/tool 消息。
+        // 一轮的分界只认"常规"用户消息（role==user 且非插话）；插话用户(Interjected)留在当前轮组内、由 BuildReplayedTurn 行内重放。
+        static bool IsTurnStart(ChatTurnMessage m) => m.Role == "user" && !m.Interjected;
+
         int i = 0;
         while (i < msgs.Count)
         {
-            if (msgs[i].Role == "user")
+            if (IsTurnStart(msgs[i]))
             {
                 AppendUserMessage(ctx, msgs[i].Text, LoadAttachmentBytes(session.Id, msgs[i]));
                 i++;
             }
-            // 收集到下条 user 之前的助手/工具消息，重放成一条分步视图。容错：轨迹首条若非 user（异常文件），落单消息也独立成组。
+            // 收集到下条"常规"user 之前的助手/工具/插话消息，重放成一条分步视图。容错：轨迹首条若非 user（异常文件），落单消息也独立成组。
             int start = i;
-            while (i < msgs.Count && msgs[i].Role != "user")
+            while (i < msgs.Count && !IsTurnStart(msgs[i]))
                 i++;
             if (i > start)
                 ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i));
@@ -583,12 +630,18 @@ internal sealed class AgentSideBarContentProvider
         var narration = new List<string>();
         int prompt = 0, completion = 0, total = 0;
         bool hasUsage = false;
+        int calls = 0, lastContext = 0;   // 脚注消歧：模型调用次数 + 末次上下文（与状态行 Context 同口径）
         for (int k = start; k < end; k++)
         {
             var m = msgs[k];
             if (m.Role == "tool")
             {
                 turn.Apply(new AgentToolFinished(m.ToolCallId ?? string.Empty, string.Empty, m.Text, m.IsError));
+                continue;
+            }
+            if (m.Role == "user") // 组内 user = 轮边界插话：行内重放成用户小气泡（与实时同路径）
+            {
+                turn.Apply(new AgentUserInterjection(m.Text));
                 continue;
             }
             // assistant
@@ -608,6 +661,8 @@ internal sealed class AgentSideBarContentProvider
                 prompt += m.PromptTokens ?? 0;
                 completion += m.CompletionTokens ?? 0;
                 total += m.TotalTokens.Value;
+                calls++;
+                lastContext = (m.PromptTokens ?? 0) + (m.CompletionTokens ?? 0);
             }
         }
         turn.Seal();
@@ -615,7 +670,7 @@ internal sealed class AgentSideBarContentProvider
         if (turn.IsEmpty)
             return AssistantContainer(BubbleText("(no text reply)", Colors.White.ToBrush()));
         var usage = hasUsage ? new AgentTokenUsage { PromptTokens = prompt, CompletionTokens = completion, TotalTokens = total } : null;
-        turn.Append(BuildFooter(string.Join("\n\n", narration), usage));
+        turn.Append(BuildFooter(string.Join("\n\n", narration), usage, calls, lastContext));
         return AssistantContainer(turn.Root);
     }
 
@@ -732,6 +787,9 @@ internal sealed class AgentSideBarContentProvider
                 ToolCallId = m.ToolCallId,
                 IsError = m.IsError,
             };
+        // 轨迹里的 user = 轮边界插话（常规首条用户消息由 RecordTurn 另行写入、不经轨迹）。标记 Interjected 以便重载时行内重放。
+        if (m.Role == AgentRole.User)
+            return new ChatTurnMessage { Role = "user", Text = m.Content ?? string.Empty, Interjected = true };
         return new ChatTurnMessage
         {
             Role = "assistant",
@@ -846,10 +904,20 @@ internal sealed class AgentSideBarContentProvider
     {
         // 发起前捕获当前会话——之后所有渲染/落盘都只认这个引用，即便用户中途切到别的会话也不串、不写错会话。
         var ctx = mActive;
-        if (ctx.Busy)
-            return;
+        var text = mInput.Text?.Trim() ?? string.Empty;
 
-        var text = mInput.Text.Trim();
+        // 生成中：把输入并入"轮边界插话"待发缓冲，不另起新 run（runner 到边界吃掉、行内渲染）。仅处理文本；
+        // 图片附件留在撰写条等本轮结束（插话 v1 只支持文本）。已有 pending 则换行合并。
+        if (ctx.Busy)
+        {
+            if (string.IsNullOrEmpty(text))
+                return;
+            ctx.PendingText = string.IsNullOrEmpty(ctx.PendingText) ? text : ctx.PendingText + "\n" + text;
+            mInput.Text = string.Empty;
+            RefreshPendingChip();
+            return;
+        }
+
         var images = mPendingImages.ToList(); // 本轮附件快照（发送即清空待发条，避免下一轮重复带上）
         if (string.IsNullOrEmpty(text) && images.Count == 0)
             return;
@@ -882,23 +950,45 @@ internal sealed class AgentSideBarContentProvider
         bool swapped = false;
         void EnsureSwapped() { if (!swapped) { bubble.Child = turn.Root; swapped = true; } }
         // Progress<T> 在创建处（UI 线程）的同步上下文上派发，事件按 runner 发出顺序 FIFO 到达——文本与工具步骤的先后关系正确。
-        void Handle(AgentEvent e) { EnsureSwapped(); turn.Apply(e); ScrollToEnd(ctx); }
+        // 每次模型调用返回的用量事件顺带实时刷新右下角 Context/Session 状态行（不必等整轮结束）。
+        void Handle(AgentEvent e)
+        {
+            if (e is AgentRoundUsage g)
+                AccumulateRoundTokens(ctx, g);
+            EnsureSwapped();
+            turn.Apply(e);
+            ScrollToEnd(ctx);
+        }
 
         try
         {
             ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
             var parts = images.Count > 0 ? images.Select(i => AgentContentPart.OfImage(i.Data, i.MediaType)).ToList() : null;
-            var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token, parts);
+            // 轮边界软插话钩子：runner 到安全边界取本会话累积的 pending 文本注入续跑（在 UI 线程同步执行，消费即清 chip）。
+            string? TakePending()
+            {
+                var p = ctx.PendingText;
+                if (string.IsNullOrEmpty(p))
+                    return null;
+                ctx.PendingText = null;
+                if (ctx == mActive)
+                    RefreshPendingChip();
+                return p;
+            }
+            var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token, parts, TakePending);
             turn.Seal();
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
-                turn.Append(BuildFooter(reply.Text, reply.Usage));
+            {
+                var (calls, lastCtx) = TurnBreakdown(reply.Trajectory);
+                turn.Append(BuildFooter(reply.Text, reply.Usage, calls, lastCtx));
+            }
             var attachments = images.Count > 0
                 ? images.Select(i => new ChatAttachment { Hash = AgentSessionStore.ComputeHash(i.Data), MediaType = i.MediaType, Data = i.Data }).ToList()
                 : null;
             RecordTurn(ctx, text, attachments, reply.Text, reply.Trajectory);
-            AccumulateTurnTokens(ctx, reply);
+            // token 口径已在生成过程中由 AgentRoundUsage 逐次累加（见 AccumulateRoundTokens），此处不再整轮累加，避免重复计。
         }
         catch (OperationCanceledException)
         {
@@ -923,6 +1013,15 @@ internal sealed class AgentSideBarContentProvider
             if (ctx.Cts == cts) // 仅清掉本轮自己的取消源（该会话期间不会有并发的第二轮）
                 ctx.Cts = null;
             SetBusy(ctx, false);
+            // 运行已结束仍有未消费插话（仅取消/出错路径可能：用户在被取消的那次模型调用期间打了字）：不丢失——
+            // 可见会话则召回到输入框，否则直接清掉（其目标运行已终止）。
+            if (!string.IsNullOrEmpty(ctx.PendingText))
+            {
+                if (ctx == mActive)
+                    RecallPending();
+                else
+                    ctx.PendingText = null;
+            }
             ScrollToEnd(ctx);
         }
     }
@@ -1404,8 +1503,11 @@ internal sealed class AgentSideBarContentProvider
     Control AssistantContent(string markdown, AgentTokenUsage? usage)
         => new StackPanel { Orientation = Orientation.Vertical, Children = { ChatMarkdownRenderer.Render(markdown), BuildFooter(markdown, usage) } };
 
-    // 脚注一行：token 总量靠左（带单位，hover 看输入/输出明细）、Copy 靠右（复制 markdownToCopy 原文；端点未返回 usage 则只有 Copy）。
-    Control BuildFooter(string markdownToCopy, AgentTokenUsage? usage)
+    // 脚注一行：token 用量靠左（带单位，hover 看明细）、Copy 靠右（复制 markdownToCopy 原文；端点未返回 usage 则只有 Copy）。
+    // usage = 本轮各次模型调用的合计（工具往返会重复前缀，故多次调用时远大于单轮上下文）。modelCalls=本轮模型调用次数、
+    // lastContextTokens=末次调用的输入+输出（≈状态行 Context）。多次调用时脚注标注 "· N calls" 并在 tooltip 里和 Context 桥接，
+    // 消解"脚注合计 vs 状态行 Context 对不上"的疑惑。
+    Control BuildFooter(string markdownToCopy, AgentTokenUsage? usage, int modelCalls = 1, int lastContextTokens = 0)
     {
         var copy = new TextBlock
         {
@@ -1427,15 +1529,22 @@ internal sealed class AgentSideBarContentProvider
         footer.Children.Add(copy);
         if (usage != null)
         {
+            bool multi = modelCalls > 1;
             var tokens = new TextBlock
             {
-                Text = string.Format("{0:N0} tokens", usage.TotalTokens),
+                // 多次调用：标注 "· N calls"，明示该数是 N 次往返的合计（非单轮上下文）。
+                Text = multi
+                    ? string.Format("{0:N0} tokens · {1} calls", usage.TotalTokens, modelCalls)
+                    : string.Format("{0:N0} tokens", usage.TotalTokens),
                 FontSize = 11,
                 Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush(),
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Margin = new(0, 0, 16, 0), // 与右侧 Copy 留间距：短回复气泡窄时两者会贴到一起
             };
-            ToolTip.SetTip(tokens, string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
+            ToolTip.SetTip(tokens, multi
+                ? string.Format("Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens".Tr(this),
+                    modelCalls, usage.PromptTokens, usage.CompletionTokens, lastContextTokens)
+                : string.Format("Input {0:N0} · Output {1:N0}".Tr(this), usage.PromptTokens, usage.CompletionTokens));
             DockPanel.SetDock(tokens, Dock.Left);
             footer.Children.Add(tokens);
         }
@@ -1467,6 +1576,40 @@ internal sealed class AgentSideBarContentProvider
         ctx.Busy = busy;
         if (ctx == mActive)
             RefreshSendControls();
+    }
+
+    // 按当前可见会话的 PendingText 刷新 chip（显示/隐藏 + 预览文本）。切会话、入队、消费、召回、丢弃后都调用。
+    void RefreshPendingChip()
+    {
+        var p = mActive.PendingText;
+        if (string.IsNullOrEmpty(p))
+        {
+            mPendingChip.IsVisible = false;
+            mPendingPreview.Text = string.Empty;
+            return;
+        }
+        mPendingPreview.Text = p;
+        mPendingChip.IsVisible = true;
+    }
+
+    // ✎：把 pending 召回到输入框编辑（与输入框已有未发文字合并，pending 在前，不丢失），清空缓冲。
+    void RecallPending()
+    {
+        var p = mActive.PendingText;
+        if (string.IsNullOrEmpty(p))
+            return;
+        var cur = mInput.Text?.Trim() ?? string.Empty;
+        mInput.Text = string.IsNullOrEmpty(cur) ? p : p + "\n" + cur;
+        mActive.PendingText = null;
+        RefreshPendingChip();
+        mInput.Focus();
+    }
+
+    // ✕：丢弃 pending（不发出）。
+    void DiscardPending()
+    {
+        mActive.PendingText = null;
+        RefreshPendingChip();
     }
 
     // ───────────────── 设置视图 ─────────────────
@@ -1666,6 +1809,7 @@ internal sealed class AgentSideBarContentProvider
         "Positions and durations are in ticks; call get_project_overview to learn the PPQ (ticks per quarter note) and the tempo/time signature. " +
         "For multi-step or fine-grained edits (writing a melody, editing many notes, drawing pitch/parameter curves), prefer the apply_edits tool so the whole batch is a single undoable change. " +
         "Before editing notes by number, read them with get_part_notes to get current NoteNumbers. " +
+        "Notes live inside a part; apply_edits writes into an existing part. If the target track has no part to hold the notes (e.g. writing a melody from scratch), first call add_part to create one, then write notes into the part number it returns. " +
         "When the user refers to \"the current part\"/\"this part\" without numbers, call get_current_part to resolve its track/part numbers; when they refer to \"the playhead\"/\"here\"/\"the current position\", call get_playhead to get the tick. " +
         "CRITICAL: every tool argument must be a concrete literal value (a number or string). Never put placeholders, template expressions, code, or references to other tools inside arguments — for example do NOT write \"${get_current_part().trackNumber}\", \"get_part_notes(...)\", or any ${...} expression. There is no inline evaluation. Instead, first call the read tool, read the actual values from its result text, then call the next tool with those literal numbers. " +
         "To transpose notes (e.g. up an octave = +12 semitones) use transpose_notes (a part) or shift_track_pitch (a whole track) — do NOT use set_pitch_line, which only draws a pitch curve and does not move note pitches. " +
@@ -1685,6 +1829,9 @@ internal sealed class AgentSideBarContentProvider
     // 图片附件：待发缩略图条 + 待发图片列表（属"当前撰写"状态、与输入框共享、跨会话切换保留）+ 📎按钮。
     readonly StackPanel mAttachmentStrip = new();
     readonly List<PendingImage> mPendingImages = new();
+    // 轮边界插话 chip（钉在输入框上方）：mPendingChip=容器、mPendingPreview=文本预览。内容来自 mActive.PendingText（见 RefreshPendingChip）。
+    readonly Border mPendingChip = new();
+    readonly TextBlock mPendingPreview = new();
     Control? mImagePreview; // 当前打开的图片 lightbox 浮层（单实例守卫：再点图片先关旧的）
     TuneLab.GUI.Components.Button mAttachButton = null!;
     // 标题：复用轨道名同款 EditableLabel（双击就地改名、Enter/失焦提交），与全局改名交互一致。
@@ -1737,6 +1884,7 @@ internal sealed class AgentSideBarContentProvider
         public CancellationTokenSource? Cts;     // 该会话当前在飞请求的取消源（停止键 / 删除该会话时触发）
         public List<AgentMessage>? SeedHistory;  // 加载已存会话 / 中途换模型后用于重建 runner 的历史（仅对话文本）
         public bool Busy;                        // 该会话是否有在飞请求（决定切到它时显示发送键还是停止键）
+        public string? PendingText;              // 生成期间用户累积的"轮边界插话"待发缓冲（runner 到边界吃掉）；仅忙碌态非空，绑定本会话那次运行
         public long CumulativeTokens;            // 会话累计 token（每轮 total 之和，含工具往返重复前缀；状态行用）
         public int ContextTokens;                // 当前上下文占用（最后一次模型调用的输入+输出 ≈ 当前上下文大小；状态行用）
         public string Title = "New Chat";        // 该会话标题（切到它时写入头部标签）

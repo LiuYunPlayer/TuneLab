@@ -52,7 +52,10 @@ internal sealed class AgentRunner
     // 由本循环发出，供 UI 按序渲染分步指示。返回的 Text 是各轮助手自然语言的合并（不是仅最后一轮），用于持久化与复制。
     // attachments：本轮用户附带的多模态分片（如图片）。有则构造 Parts（文本 + 图片混排），Content 仍存文本拍平值
     // 供不支持多模态的适配器退化；无则纯文本 Content。
-    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<AgentEvent>? progress, CancellationToken cancellationToken, IReadOnlyList<AgentContentPart>? attachments = null)
+    // takePending：轮边界软插话钩子（可空）。runner 在每个安全边界（本轮 tool 结果已全配对回灌、或模型刚给出无工具的答复）
+    // 调用它取用户在生成期间累积的插话文本——非 null 即作为一条 user 消息注入续跑。入队（输入框）与出队（本钩子）都在 UI 线程、
+    // 全程无 ConfigureAwait(false)，故无需加锁。注入会重置工具回合预算（用户在主动引导，不应被 MaxToolRounds 砍断）。
+    public async Task<AgentTurnResult> SendAsync(string userInput, IProgress<AgentEvent>? progress, CancellationToken cancellationToken, IReadOnlyList<AgentContentPart>? attachments = null, Func<string?>? takePending = null)
     {
         if (attachments is { Count: > 0 })
         {
@@ -91,8 +94,27 @@ internal sealed class AgentRunner
         // 本轮新增的有序全量轨迹（assistant + tool），供宿主落盘 + 重建分步视图。
         var trajectory = new List<AgentTurnMessage>();
 
-        for (int round = 0; round < MaxToolRounds; round++)
+        // 轮边界软插话：取尽 pending 文本，逐条作为 user 消息注入 mMessages + trajectory，并发事件供 UI 行内渲染。
+        // 仅在安全边界调用（无未配对 tool_call），返回是否注入了至少一条（用于重置回合预算）。
+        bool DrainPending()
         {
+            if (takePending == null)
+                return false;
+            bool any = false;
+            while (takePending() is { } pending && !string.IsNullOrEmpty(pending))
+            {
+                mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = pending });
+                trajectory.Add(new AgentTurnMessage { Role = AgentRole.User, Content = pending });
+                progress?.Report(new AgentUserInterjection(pending));
+                any = true;
+            }
+            return any;
+        }
+
+        int rounds = 0;
+        while (rounds < MaxToolRounds)
+        {
+            rounds++;
             var reply = await mSession.SendAsync(
                 new AgentModelRequest { Messages = mMessages, Tools = mToolSchemas },
                 deltaSink,
@@ -120,8 +142,16 @@ internal sealed class AgentRunner
             if (!string.IsNullOrEmpty(reply.Content))
                 narration.Add(reply.Content);
 
+            // 每次模型调用（每轮，含单轮/末轮）返回即上报其用量——UI 据此实时刷新左下角运行 token + 右下角 Context/Session 状态行。
+            if (reply.Usage is { } ru)
+                progress?.Report(new AgentRoundUsage(ru.PromptTokens, ru.CompletionTokens, ru.TotalTokens));
+
             if (reply.ToolCalls.Count == 0)
+            {
+                // 模型已给出无工具的答复（本是收尾点）：若用户此刻有插话，吃掉它、重置回合预算、续跑把插话也答掉；否则真正结束。
+                if (DrainPending()) { rounds = 0; continue; }
                 return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage(), trajectory);
+            }
 
             foreach (var call in reply.ToolCalls)
             {
@@ -155,6 +185,10 @@ internal sealed class AgentRunner
                     IsError = isError,
                 });
             }
+
+            // 本轮所有 tool 结果均已配对回灌——安全边界：吃掉用户插话注入续跑（有则重置回合预算）。
+            if (DrainPending())
+                rounds = 0;
         }
 
         // 撞上限：再请求一次但不给工具，逼模型用已有进展给出收尾文本——好过整轮作废、空手而归。

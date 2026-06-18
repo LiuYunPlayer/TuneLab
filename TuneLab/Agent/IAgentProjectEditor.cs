@@ -42,6 +42,11 @@ internal interface IAgentProjectEditor
     string SetTrackProperties(int trackNumber, string? name, bool? mute, bool? solo, double? gainDb, double? pan);
     int AddTrack(string? name);                 // 返回新轨的 1-based 编号
     void RemoveTrack(int trackNumber);
+    // part 列表按起点排序，故新 part 的 1-based 编号取决于其 pos——返回插入后的实际编号供后续 op 寻址。
+    int AddPart(int trackNumber, double pos, double dur, string? name);
+    void RemovePart(int trackNumber, int partNumber);
+    // 改 part 名/起点(移动)/时长(缩放)。改 pos/dur 可能改变排序，返回变更后的 1-based 编号。
+    string SetPartProperties(int trackNumber, int partNumber, string? name, double? pos, double? dur);
     string SetTempo(double bpm, double? atTick);
     string SetTimeSignature(int numerator, int denominator, int? atBarNumber);
 
@@ -392,6 +397,49 @@ internal sealed class ProjectAgentEditor(
         project.Commit();
     }
 
+    public int AddPart(int trackNumber, double pos, double dur, string? name)
+    {
+        var track = ResolveTrack(trackNumber);
+        if (pos < 0) throw new ArgumentException("pos must be >= 0.");
+        if (dur <= 0) throw new ArgumentException("dur must be positive.");
+        var part = track.CreatePart(new MidiPartInfo { Name = name ?? "Part", Pos = pos, Dur = dur });
+        track.InsertPart(part);     // part 列表按起点自动排序
+        project.Commit();
+        return PartNumberOf(track, part);
+    }
+
+    public void RemovePart(int trackNumber, int partNumber)
+    {
+        var track = ResolveTrack(trackNumber);
+        var part = ResolvePart(track, partNumber);
+        track.RemovePart(part);
+        project.Commit();
+    }
+
+    public string SetPartProperties(int trackNumber, int partNumber, string? name, double? pos, double? dur)
+    {
+        var track = ResolveTrack(trackNumber);
+        var part = ResolvePart(track, partNumber);
+        if (pos is { } vp && vp < 0) throw new ArgumentException("pos must be >= 0.");
+        if (dur is { } vd && vd <= 0) throw new ArgumentException("dur must be positive.");
+
+        var applied = new List<string>();
+        if (name != null && part.Name.Value != name) { part.Name.Set(name); applied.Add("name=\"" + name + "\""); }
+        // 改 pos/dur 影响 part 列表排序：摘除-重插维持有序（与拖动移动 part 的数据层做法一致）。
+        bool reorder = (pos is { } np && np != part.Pos.Value) || (dur is { } nd && nd != part.Dur.Value);
+        if (reorder) track.RemovePart(part);
+        if (pos is { } p2 && p2 != part.Pos.Value) { part.Pos.Set(p2); applied.Add(string.Format(CultureInfo.InvariantCulture, "pos={0:0}", p2)); }
+        if (dur is { } d2 && d2 != part.Dur.Value) { part.Dur.Set(d2); applied.Add(string.Format(CultureInfo.InvariantCulture, "dur={0:0}", d2)); }
+        if (reorder) track.InsertPart(part);
+
+        if (applied.Count == 0)
+            return string.Format("Track {0} Part {1}: nothing changed.", trackNumber, partNumber);
+        project.Commit();
+        int newNumber = PartNumberOf(track, part);
+        return string.Format("Track {0} Part {1}: set {2}. Part is now number {3} on this track (parts are ordered by start tick).",
+            trackNumber, partNumber, string.Join(", ", applied), newNumber);
+    }
+
     public string SetTempo(double bpm, double? atTick)
     {
         if (bpm <= 0) throw new ArgumentException("bpm must be positive.");
@@ -585,13 +633,29 @@ internal sealed class ProjectAgentEditor(
     IMidiPart ResolveMidiPart(int trackNumber, int partNumber)
     {
         var track = ResolveTrack(trackNumber);
+        if (ResolvePart(track, partNumber) is not IMidiPart midi)
+            throw new ArgumentException(string.Format("part {0} on track {1} is not a midi part.", partNumber, trackNumber));
+        return midi;
+    }
+
+    // 解析某轨内 1-based part 编号（midi 或 audio 均可）；越界用 1-based 措辞报错。
+    static IPart ResolvePart(ITrack track, int partNumber)
+    {
         var parts = track.Parts.ToList();
         if (partNumber < 1 || partNumber > parts.Count)
             throw new ArgumentOutOfRangeException(nameof(partNumber),
-                string.Format("part number {0} out of range [1,{1}] on track {2}.", partNumber, parts.Count, trackNumber));
-        if (parts[partNumber - 1] is not IMidiPart midi)
-            throw new ArgumentException(string.Format("part {0} on track {1} is not a midi part.", partNumber, trackNumber));
-        return midi;
+                string.Format("part number {0} out of range [1,{1}] on this track.", partNumber, parts.Count));
+        return parts[partNumber - 1];
+    }
+
+    // 按对象引用定位 part 在其轨内的 1-based 编号（part 列表按起点排序，编号会随移动而变）。
+    static int PartNumberOf(ITrack track, IPart target)
+    {
+        var parts = track.Parts.ToList();
+        for (int i = 0; i < parts.Count; i++)
+            if (ReferenceEquals(parts[i], target))
+                return i + 1;
+        return parts.Count;   // 兜底：理论上不会发生（刚插入/查得的 part 必在列表中）
     }
 
     static INote ResolveNote(List<INote> snapshot, int noteNumber)

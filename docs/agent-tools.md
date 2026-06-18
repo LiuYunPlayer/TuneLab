@@ -48,8 +48,13 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。本文档说
 | `shift_track_pitch` | 整轨音符升降若干半音 |
 | `set_track_properties` | 改轨名/静音/独奏/增益(dB)/声像（只改所给字段） |
 | `add_track` / `remove_track` | 增删轨 |
+| `add_part` | 在某轨新建空 midi part（pos/dur 绝对 tick），返回插入后 1-based 编号 |
+| `remove_part` | 删某轨某 part（midi/audio 均可） |
+| `set_part_properties` | 改 part 名/起点(移动)/时长(缩放)；改 pos/dur 会重排，回灌变更后编号 |
 | `set_tempo` | 设速度（无 atTick 改 tick 0 基础速度，有则设/加标记） |
 | `set_time_signature` | 设拍号（atBarNumber 为 1-based 小节号） |
+
+**part 寻址（关键）：** part 在轨内按起点 tick 排序，`partNumber` 即其排序后位置（1-based）——与 `add_track` 总在末尾追加不同，新建/移动 part 的编号取决于其 pos。故 `add_part` 与 `set_part_properties` 都回灌"变更后的实际编号"，模型应以该编号做后续 `apply_edits` 寻址；不要假设新 part 一定是 `count+1`。写音符前若目标轨无 part（如从零写旋律），先 `add_part` 建容器、再用其返回编号往里写。
 
 ### Layer 3 · 批量 DSL
 `apply_edits`：把一串逐字段编辑（op-DSL）作为**一个**可撤销单位施加。适合写旋律、批量改音符、画参数曲线——比逐个业务工具往返省 token，且整批一起撤销。
