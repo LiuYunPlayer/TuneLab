@@ -12,6 +12,12 @@ internal class Voice : DataObject, IVoice
     public string ID => mID;
     public string Name => mName;
     public string DefaultLyric => mSession?.DefaultLyric ?? "a";
+    // 物化缓存（非 live）：返回的是 RebuildAutomationConfigs 上次填好的 mAutomationConfigs，不是每次现算。
+    // 之所以缓存而非像 effect 的 Effect.AutomationConfigs 那样每次现从引擎算：voice 要合并 Pre/PostCommon 通用轨、
+    // 且 part 侧靠它的签名 diff 驱动 UI 增量刷新，现算会反复重做合并。
+    // 缓存的代价 = 一个填充时序不变量：必须在「建会话之前」填好（见 MidiPart.RebuildSynthesisPipeline 的顺序），
+    // 否则会话构造期经 TryGetAutomation 订阅自己声明的轨会读到空集合、订阅落空、参数绘制不触发重渲。
+    // 将来若出现不可避免的缓存失效需求（如轨集合依赖缓存外的状态），就改成 live 计算（对齐 effect）并删掉本缓存。
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
     // 合成参数回显轨声明（独立扁平集合，不掺 Pre/PostCommon）：会话产出的只读回显轨自带 config，宿主据此显隐/绘制。
     public IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
@@ -109,6 +115,7 @@ internal class Voice : DataObject, IVoice
     string mName = string.Empty;
 
     ISynthesisSession? mSession;
+    // 物化缓存（非 live）：由 RebuildAutomationConfigs 填，须在建会话前填好——详见 AutomationConfigs 属性处的说明。
     readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
     readonly OrderedMap<string, AutomationConfig> mSynthesizedParameterConfigs = new();
 }

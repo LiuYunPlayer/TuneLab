@@ -341,7 +341,8 @@ internal class MidiPart : Part, IMidiPart
     void RebuildSynthesisPipeline()
     {
         DisposeSynthesisPipeline();
-        // 先填声明（经引擎层、不依赖会话）：会话构造期 AutomationConfigs 即就绪，插件构造函数里就能订阅自己声明的轨。
+        // 【顺序不变量，勿调换】先填声明、后建会话：mVoice.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
+        // 必须在建会话之前填好——否则会话构造期经 TryGetAutomation 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
         mVoice.RefreshDeclarations(BuildPartPropertyContext());
         mPipeline = new VoiceSynthesisPipeline(this, mVoice.Type, mVoice.ID);
         mPipeline.StatusChanged += OnPipelineStatusChanged;
