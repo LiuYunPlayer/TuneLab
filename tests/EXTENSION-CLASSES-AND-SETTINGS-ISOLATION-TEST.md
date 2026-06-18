@@ -58,7 +58,7 @@
     即**顶层是包 id**、其下才是 `voice:TLSettingsDemo`。
 - **B2 回喂**：重开应用 → 设置页该扩展的值回显正确（密钥字段解密回显）。
 - **B3 密钥安全**：Win 下文件里密钥是 DPAPI 密文非明文；清空密钥再保存 → 文件不写该字段。
-- **B4 agent provider**：agent 侧栏设置里配置 OpenAI Compatible（内建，包 id 空）→ 落盘在 `""`（空包 id）桶下的 `agent-model:openai-compatible`；功能照常。
+- **B4 agent provider**：agent 侧栏设置里配置 OpenAI Compatible（编进宿主的内置）→ 落盘在 `(built-in)` 桶下的 `agent-model:openai-compatible`；功能照常。
 
 ---
 

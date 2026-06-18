@@ -22,6 +22,11 @@ internal static class ExtensionManager
     // host 提供的 SDK ABI 地板版本（V1）。插件 sdk-version 须 <= 此值方可加载。
     public static readonly Version SdkVersion = new(1, 0);
 
+    // 编进宿主的官方内置能力（无安装包）的包 id——用于扩展设置按包分桶。
+    // 选含括号的保留标识：反向域名包 id 不可能长这样，撞键风险为零，且配置文件里一眼可辨「宿主内置」。
+    // 三态：BuiltInPackageId = 编进宿主的内置；"" = 无 V1 id 的 legacy 老包；真实反向域名 id = V1 安装包。
+    public const string BuiltInPackageId = "(built-in)";
+
     // 结构化加载结果，供 sidebar 直接消费（取代字符串猜测）。
     public static IReadOnlyList<ExtensionLoadResult> LoadResults => mLoadResults;
 

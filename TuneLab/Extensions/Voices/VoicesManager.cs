@@ -11,7 +11,7 @@ internal static class VoicesManager
     // 内建声源引擎显式注册（编进宿主、无 description.json）。空引擎(type="")是无声源 part 的回退。
     public static void LoadBuiltIn()
     {
-        RegisterEngine(string.Empty, string.Empty, string.Empty, new EmptyVoiceEngine());
+        RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyVoiceEngine());
     }
 
     public static void Destroy()
