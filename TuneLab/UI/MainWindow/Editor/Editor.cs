@@ -68,6 +68,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // agent 经此实时读取"当前编辑 part"（用户说"当前/这个 part"时解析序号）与当前量化（吸附网格）。
         mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
+        mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
+        mScriptSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 320, Margin = new(1, 0, 0, 0) };
@@ -207,6 +209,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 case SideBarTab.Agent:
                     mAgentSideBarContentProvider.SetProject(Project);
                     mRightSideBar.SetFullContent(SideBarTab.Agent, mAgentSideBarContentProvider.Icon, mAgentSideBarContentProvider.Name, mAgentSideBarContentProvider.Root);
+                    break;
+                case SideBarTab.Script:
+                    mScriptSideBarContentProvider.SetProject(Project);
+                    mRightSideBar.SetFullContent(SideBarTab.Script, mScriptSideBarContentProvider.Icon, mScriptSideBarContentProvider.Name, mScriptSideBarContentProvider.Root);
                     break;
                 default:
                     mRightSideBar.IsVisible = false;
@@ -391,6 +397,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mExportSideBarContentProvider.SetProject(Project);
         mAgentSideBarContentProvider.SetProject(Project);
+        mScriptSideBarContentProvider.SetProject(Project);
 
         StartAutoSynthesis();
         mAutoSaveTimer.Start();
@@ -1364,6 +1371,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly ExtensionSideBarContentProvider mExtensionSideBarContentProvider = new();
     readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
     readonly AgentSideBarContentProvider mAgentSideBarContentProvider = new();
+    readonly ScriptSideBarContentProvider mScriptSideBarContentProvider = new();
 
     readonly PlayheadForProject mPlayhead;
 

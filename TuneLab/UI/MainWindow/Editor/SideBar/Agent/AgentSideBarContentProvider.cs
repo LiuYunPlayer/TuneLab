@@ -114,6 +114,10 @@ internal sealed class AgentSideBarContentProvider
                 new SetTimeSignatureTool(mProjectEditor),
                 // Layer 3 批量 DSL（整批一个可撤销单位）
                 new ApplyEditsTool(mProjectEditor),
+                // Layer 4 脚本逃生口（独立脚本模块，整段一个可撤销单位）：复杂/批量/带循环条件的编辑。
+                // get_script_api 是其「按需文档」（渐进式披露）：完整 API 不常驻 prompt，模型写脚本前调一次取回。
+                new RunScriptTool(project!, mCurrentPartProvider, mQuantizationProvider),
+                new GetScriptApiTool(),
             }
             : [];
         // 工具随新工程重建：各会话下次发送时按新工具重建 runner（对话历史经 SeedHistory / 会话消息保留）。
@@ -1808,6 +1812,7 @@ internal sealed class AgentSideBarContentProvider
         "Addressing is 1-based everywhere: track 1 is the first track, and part/note numbers are 1-based too. " +
         "Positions and durations are in ticks; call get_project_overview to learn the PPQ (ticks per quarter note) and the tempo/time signature. " +
         "For multi-step or fine-grained edits (writing a melody, editing many notes, drawing pitch/parameter curves), prefer the apply_edits tool so the whole batch is a single undoable change. " +
+        "For edits that need loops, conditions, computation, or bulk transforms over many notes, prefer run_script (a JavaScript program that runs as one undoable change and saves many tool round-trips); call get_script_api once to load its full API before writing your first script. " +
         "Before editing notes by number, read them with get_part_notes to get current NoteNumbers. " +
         "Notes live inside a part; apply_edits writes into an existing part. If the target track has no part to hold the notes (e.g. writing a melody from scratch), first call add_part to create one, then write notes into the part number it returns. " +
         "When the user refers to \"the current part\"/\"this part\" without numbers, call get_current_part to resolve its track/part numbers; when they refer to \"the playhead\"/\"here\"/\"the current position\", call get_playhead to get the tick. " +

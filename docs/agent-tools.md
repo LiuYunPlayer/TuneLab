@@ -80,6 +80,36 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。本文档说
 
 `apply_edits` 逐 op 施加并各自 try/catch，单个 op 的解析/解析失败只记错跳过、不拖垮整批；成功的部分作为一个 Commit 落地，回灌每条 op 的 OK/ERROR 明细。
 
+### Layer 4 · 脚本逃生口
+`run_script`：让模型写一段 **JavaScript** 表达复杂/批量/带循环条件的编辑——"5-8 小节每音符升八度再加三度和声" = 一个循环，一轮搞定，省下几十次 tool 往返。整段脚本运行 = **一个**可撤销单位。这是混合式工具链的"逃生口"：高层意图工具（Layer 1-3）覆盖常见动作，`run_script` 兜住任意复杂/新颖的编排。
+
+**脚本引擎是独立模块**（`TuneLab/Scripting/`，命名空间 `TuneLab.Scripting`），只依赖数据层（`TuneLab.Data`/`Foundation`）、**不依赖 agent**——`run_script` 工具只是它的一个消费者（将来 MCP server / 用户手写脚本宏都能复用同一动作面）。
+
+```
+RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + ScriptProjectApi (动作面 `tl`)
+                                     │                     │
+                              沙箱/超时/收口          数据层 (IProject/...)
+```
+
+- **引擎 = Jint**（纯 C# 托管 ECMAScript 解释器，零原生依赖，随 app 打包、跨平台/.tlx 分发零成本）。沙箱：不暴露 CLR（无文件/网络/反射），限递归(64)/语句数(5M)/超时(5s)/内存(64MB)。
+- **句柄寻址（与 Layer 1-3 的 1-based 编号不同）：** 读方法（`tl.notes(part)` 等）一律返回**普通 JS 数组**（for-of 或下标遍历、有 `.length`），元素是**临时句柄**——轨/part/note 的不透明引用（带数据字段、无 id），改方法传句柄。⚠️ 喂模型的描述里**绝不要说"链表"**（实测会诱导模型用 `.first/.next` 遍历返回的数组→读到 0）；句柄仅**当次运行**有效（数据层对象无持久 id，重启即失效）：**脚本源码不得内嵌句柄字面量**，只能在脚本里 get 后即用；句柄被删除后再用会被拦下报错。
+- **坐标/单位铁律照旧：** 位置/时长一律绝对（全局）tick（`tl.ppq` 取 PPQ），音高 MIDI。脚本永不做坐标换算（`ScriptProjectApi` 落数据时减 part 起点、读句柄属性时加回）。
+- **危险包裹对脚本语言面不可见：** `Commit` / part 的 `BeginMergeDirty·EndMergeDirty`（合并通知 + 把合成重活延迟到括号收口，即 autoprepare 抑制）/ `Notes.BeginMergeNotify·EndMergeNotify` 全由宿主收口——`ScriptProjectApi` **惰性按 part 开** merge 括号，`ScriptRunner` 在最外层 `finally` 里统一收口 + 一次 `Commit()`（**含脚本抛错路径**：出错前已发生的改动也作为一个可撤销单位落地，与 `apply_edits` 的"部分成功也落地"一致）。脚本作者（含模型）只写纯语义动作。
+- **错误回灌：** 脚本抛错把错误信息（JS 语法/类型错误通常带行号；API 用法错误带清晰说明）回给模型自纠；可用 `print(...)` / `console.log(...)` 自查（输出捕获回灌）。
+
+动作面 `tl`（完整 API 见 `RunScriptTool.Description`，那是喂给模型的一份速查表）：
+
+| 类别 | 方法 |
+|---|---|
+| 读 | `tl.ppq`、`tl.tracks()`、`tl.parts(track)`、`tl.notes(part)`、`tl.notesInRange(part,startTick,endTick)`、`tl.currentPart()`、`tl.playhead()`、`tl.snap(tick)`、`tl.tempos()`、`tl.timeSignatures()`、`tl.parameterIds(part)`、`tl.sampleParameter(part,id,startTick,endTick,samples)` |
+| 轨 | `tl.addTrack(name?)`、`tl.removeTrack(track)`、`tl.setTrack(track,{name?,mute?,solo?,gainDb?,pan?})` |
+| part | `tl.addPart(track,{pos,dur,name?})`、`tl.removePart(part)`、`tl.setPart(part,{name?,pos?,dur?})` |
+| 音符 | `tl.addNote(part,{pos,dur,pitch,lyric?})`、`tl.setNote(note,{pitch?,pos?,dur?,lyric?})`、`tl.removeNote(note)` |
+| 曲线 | `tl.setPitchLine(part,startTick,endTick,points)`、`tl.clearPitch(part,startTick,endTick)`、`tl.setAutomation(part,id,startTick,endTick,points,defaultValue?)`、`tl.clearAutomation(part,id,startTick,endTick)`、`tl.addVibrato(part,{start,end,frequency?,amplitude?})` |
+| 速度/拍号 | `tl.setTempo(bpm,atTick?)`、`tl.setTimeSignature(numerator,denominator,atBar?)` |
+
+句柄字段：`track.name/mute/solo/gainDb/pan/partCount`；`part.name/pos/dur/isMidi/type/voice/noteCount`；`note.pos/dur/pitch/pitchName/lyric`（实时读底层、改完即见新值）。`points` 形如 `[{tick,value}]`。JS 的 camelCase 经 Jint 大小写不敏感解析映射到 C# 的 PascalCase 成员。
+
 ## 新增一个工具
 
 1. 若需新的数据能力，在 `IAgentProjectEditor` 加方法 + 在 `ProjectAgentEditor` 实现（沿用 1-based 解析助手、tick 单位；写方法末尾按需 `project.Commit()`）。
@@ -88,3 +118,5 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。本文档说
 4. 工具描述里务必声明 1-based 与 tick 约定，与既有工具措辞一致。
 
 若要扩 `apply_edits` 的 op：在 `EditOp.cs` 加 record、在 `ApplyEditsTool.ParseOp` 加分支、在 `ProjectAgentEditor.ApplyOne` 加施加逻辑、在工具描述里补该 op 行。
+
+若要扩脚本动作面 `tl`（Layer 4）：在 `ScriptProjectApi`（`TuneLab/Scripting/`）加一个 public 方法即可——读方法返回句柄（`ScriptNote`/`ScriptPart`/`ScriptTrack`，经 `WrapXxx` 缓存以保持句柄身份）或基本值/数组；写方法**不要自行 Commit**（统一由 `ScriptRunner.Finish` 收口），凡触碰某 midi part 的音符/曲线前先 `EnsureBracket(midi)`、末尾 `mChanges++`。位置仍走绝对 tick（落数据时减 `part.Pos`）。新方法用 PascalCase（Jint 大小写不敏感，脚本里写 camelCase）。最后在 `RunScriptTool.Description` 的速查表补一行（那份 API 文本是模型唯一的可发现性来源）。
