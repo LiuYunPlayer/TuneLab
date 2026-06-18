@@ -15,13 +15,14 @@ internal class Voice : DataObject, IVoice
     public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
     // 合成参数回显轨声明（独立扁平集合，不掺 Pre/PostCommon）：会话产出的只读回显轨自带 config，宿主据此显隐/绘制。
     public IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mSession?.GetPartPropertyConfig(context) ?? EmptyConfig;
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mSession?.GetNotePropertyConfig(context) ?? EmptyConfig;
+    // 声明类 config 求值移到引擎层（不依赖会话实例）：经 VoicesManager 按 type 解析活引擎，context 携带 voiceId。
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => VoicesManager.GetPartPropertyConfig(mType, context);
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => VoicesManager.GetNotePropertyConfig(mType, context);
 
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {
         WriteInfo(info);
-        RefreshDeclarations(null, PartPropertyContext.Empty);
+        RefreshDeclarations(new PartPropertyContext(mID, PropertyObject.Empty));
     }
 
     public VoiceInfo GetInfo()
@@ -43,15 +44,21 @@ internal class Voice : DataObject, IVoice
         PushAndDo(new ModifyCommand(this, before, info));
     }
 
-    // 会话重建后由 part 注入声明来源（不触发 Notify：本方法在 Voice.Modified 的 part 侧
-    // handler 内被调，part 在构造期最早订阅、先于 UI 刷新执行，UI 读到的即新声明）。
-    public void RefreshDeclarations(ISynthesisSession? session, IPartPropertyContext context)
+    // 声明刷新（不依赖会话）：重算名字 + 轨/回显集合。声明类 config 全是引擎层纯函数，故宿主可在
+    // 「建会话之前」调用，使会话构造期声明（AutomationConfigs）即已就绪——插件构造函数里就能订阅自己声明的轨。
+    // 不触发 Notify：本方法在 Voice.Modified 的 part 侧 handler 内被调，part 构造期最早订阅、先于 UI 刷新执行。
+    public void RefreshDeclarations(IPartPropertyContext context)
     {
-        mSession = session;
         mName = VoicesManager.TryGetVoiceInfo(mType, mID, out var info)
             ? info.Name
             : (string.IsNullOrEmpty(mID) ? "Empty Voice" : mID);
         RebuildAutomationConfigs(context);
+    }
+
+    // 注入合成会话（建会话之后）：仅供 DefaultLyric 等会话级运行时取值；声明不经此（已走引擎层）。
+    public void SetSession(ISynthesisSession? session)
+    {
+        mSession = session;
     }
 
     // 按当前 part 参数值重算自动化轨集合（轨集合 = f(当前值)）：会话固定、part 参数 commit 时由 part 调用。
@@ -63,13 +70,10 @@ internal class Voice : DataObject, IVoice
         {
             mAutomationConfigs.Add(kvp.Key, kvp.Value);
         }
-        if (mSession != null)
+        foreach (var kvp in VoicesManager.GetAutomationConfigs(mType, context))
         {
-            foreach (var kvp in mSession.GetAutomationConfigs(context))
-            {
-                if (!mAutomationConfigs.ContainsKey(kvp.Key))
-                    mAutomationConfigs.Add(kvp.Key, kvp.Value);
-            }
+            if (!mAutomationConfigs.ContainsKey(kvp.Key))
+                mAutomationConfigs.Add(kvp.Key, kvp.Value);
         }
         foreach (var kvp in ConstantDefine.PostCommonAutomationConfigs)
         {
@@ -79,13 +83,10 @@ internal class Voice : DataObject, IVoice
 
         // 回显轨集合（独立、扁平；与可编辑轨集合各管各的，不去重不掺通用轨）。
         mSynthesizedParameterConfigs.Clear();
-        if (mSession != null)
+        foreach (var kvp in VoicesManager.GetSynthesizedParameterConfigs(mType, context))
         {
-            foreach (var kvp in mSession.GetSynthesizedParameterConfigs(context))
-            {
-                if (!mSynthesizedParameterConfigs.ContainsKey(kvp.Key))
-                    mSynthesizedParameterConfigs.Add(kvp.Key, kvp.Value);
-            }
+            if (!mSynthesizedParameterConfigs.ContainsKey(kvp.Key))
+                mSynthesizedParameterConfigs.Add(kvp.Key, kvp.Value);
         }
     }
 
@@ -102,8 +103,6 @@ internal class Voice : DataObject, IVoice
         public void Redo() { voice.WriteInfo(after); voice.Notify(); }
         public void Undo() { voice.WriteInfo(before); voice.Notify(); }
     }
-
-    static readonly ObjectConfig EmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
 
     string mType;
     string mID;

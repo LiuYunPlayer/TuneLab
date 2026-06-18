@@ -22,13 +22,15 @@ internal class EmptyVoiceEngine : IVoiceEngine
         return new EmptySession();
     }
 
+    // 声明（引擎层、全空）：无声源 part 无轨/无面板。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
+
     class EmptySession : ISynthesisSession
     {
         public string DefaultLyric => "a";
-        public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-        public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mAutomationConfigs;
-        public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
-        public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
 
         public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
 
@@ -47,10 +49,10 @@ internal class EmptyVoiceEngine : IVoiceEngine
 
         public void Dispose() { }
 
-        static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-        static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
         static readonly Map<string, SynthesizedParameter> mSynthesizedParameters = new();
     }
 
+    static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
     static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };
 }

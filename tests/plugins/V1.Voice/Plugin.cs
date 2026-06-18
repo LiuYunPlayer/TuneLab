@@ -21,13 +21,49 @@ public sealed class TestVoiceEngine : IVoiceEngine
     {
         mVoiceInfos.Add("v1-alice", new VoiceSourceInfo { Name = "Alice (V1 Test)", Description = "Test voice Alice" });
         mVoiceInfos.Add("v1-bob", new VoiceSourceInfo { Name = "Bob (V1 Test)", Description = "Test voice Bob" });
+        mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
+        // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
+        // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
+        mPartProperties.Add("growl_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Enable Growl" });
+        // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
+        mGrowlConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
     }
 
     public void Destroy() { }
 
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new TestSession(context);
 
+    // 声明（引擎层、纯函数）：条件轨集合 = f(part 参数值)。声明先于会话求值，故会话构造期 Growl 轨已就绪、可订阅。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
+    {
+        // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
+        var map = new OrderedMap<string, AutomationConfig>();
+        if (context.PartProperties.GetBool("growl_enabled", true))
+        {
+            foreach (var kvp in mGrowlConfigs)
+                map.Add(kvp.Key, kvp.Value);
+        }
+        map.Add("Bend", mBendConfig);
+        return map;
+    }
+
+    // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
+    // 曲线数据经 ISynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mReadbackConfigs;
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
+
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
+    readonly OrderedMap<string, AutomationConfig> mGrowlConfigs = new();
+    readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
+    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
+    // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
+    static readonly AutomationConfig mBendConfig = new() { DisplayText = "Bend", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
+    // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
+    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new()
+    {
+        { "energy", new AutomationConfig { DisplayText = "Energy", DefaultValue = double.NaN, MinValue = 0, MaxValue = 100, Color = "#E573B0" } },
+    };
 }
 
 public sealed class TestSession : ISynthesisSession
@@ -35,12 +71,6 @@ public sealed class TestSession : ISynthesisSession
     public TestSession(ISynthesisContext context)
     {
         mContext = context;
-        mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
-        // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
-        // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
-        mPartProperties.Add("growl_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Enable Growl" });
-        // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
-        mAutomationConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
 
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；
@@ -52,6 +82,8 @@ public sealed class TestSession : ISynthesisSession
         context.Committed += OnCommitted;
         context.Pitch.RangeModified += OnRangeModified;
         context.PitchDeviation.RangeModified += OnRangeModified;
+        // 构造期即订阅自己声明的 Growl 轨：宿主在建会话之前已按引擎声明填好 AutomationConfigs，
+        // 故此处 TryGetAutomation 必成（声明已就绪）——参数绘制后的区间失效经此回调送达、触发重渲。
         if (context.TryGetAutomation("Growl", out var growl))
             growl.RangeModified += OnRangeModified;
 
@@ -59,25 +91,6 @@ public sealed class TestSession : ISynthesisSession
     }
 
     public string DefaultLyric => "la";
-    // 条件轨集合：growl_enabled 勾选才暴露 Growl（轨集合 = f(part 参数值)）。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
-    {
-        // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
-        var map = new OrderedMap<string, AutomationConfig>();
-        if (context.PartProperties.GetBool("growl_enabled", true))
-        {
-            foreach (var kvp in mAutomationConfigs)
-                map.Add(kvp.Key, kvp.Value);
-        }
-        map.Add("Bend", mBendConfig);
-        return map;
-    }
-
-    // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
-    // 曲线数据经 SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制（填充积分面积、标题栏显隐）。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mReadbackConfigs;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
     public SynthesisSegment? GetNextSegment(double startTime, double endTime)
@@ -470,15 +483,5 @@ public sealed class TestSession : ISynthesisSession
     readonly IDisposable mNotesSubscription;
     readonly Dictionary<ILiveNote, Action> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
-    static readonly AutomationConfig mBendConfig = new() { DisplayText = "Bend", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
-    // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
-    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new()
-    {
-        { "energy", new AutomationConfig { DisplayText = "Energy", DefaultValue = double.NaN, MinValue = 0, MaxValue = 100, Color = "#E573B0" } },
-    };
-    readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mNeedResegment;
 }

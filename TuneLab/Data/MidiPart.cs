@@ -147,7 +147,7 @@ internal class MidiPart : Part, IMidiPart
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
-    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(Properties.GetInfo());
+    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mVoice.ID, Properties.GetInfo());
 
     // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
     string ComputeAutomationConfigsSignature()
@@ -341,9 +341,11 @@ internal class MidiPart : Part, IMidiPart
     void RebuildSynthesisPipeline()
     {
         DisposeSynthesisPipeline();
+        // 先填声明（经引擎层、不依赖会话）：会话构造期 AutomationConfigs 即就绪，插件构造函数里就能订阅自己声明的轨。
+        mVoice.RefreshDeclarations(BuildPartPropertyContext());
         mPipeline = new VoiceSynthesisPipeline(this, mVoice.Type, mVoice.ID);
         mPipeline.StatusChanged += OnPipelineStatusChanged;
-        mVoice.RefreshDeclarations(mPipeline.Session, BuildPartPropertyContext());
+        mVoice.SetSession(mPipeline.Session);   // 注入会话供 DefaultLyric 等运行时取值（建会话之后）
         // 重置签名基线（激活 / 换源时 UI 经各自既有触发整体重建，此处不发 AutomationConfigsModified，
         // 只对齐基线供后续参数 commit 的增量比对）。
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
@@ -358,7 +360,8 @@ internal class MidiPart : Part, IMidiPart
         mPipeline.StatusChanged -= OnPipelineStatusChanged;
         mPipeline.Dispose();
         mPipeline = null;
-        mVoice.RefreshDeclarations(null, BuildPartPropertyContext());
+        mVoice.SetSession(null);
+        mVoice.RefreshDeclarations(BuildPartPropertyContext());
         foreach (var note in mNotes)
         {
             note.SynthesizedPhonemes = null;
