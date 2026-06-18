@@ -1,0 +1,12 @@
+{
+  "id": "com.tunelab.test.routeconflict.b",
+  "name": "Route Conflict B",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "冲突消解夹具 B：与包 A 同声明扩展名 .tlroute（import+export）。导入产出轨名标注「Package B」，导出写 exportedBy=B。",
+  "sdk-version": "1.0",
+  "type": "format",
+  "extension": "tlroute",
+  "classes": ["TuneLab.TestPlugins.RouteConflictB.RouteImport", "TuneLab.TestPlugins.RouteConflictB.RouteExport"],
+  "assembly": "V1.RouteConflict.B.dll"
+}

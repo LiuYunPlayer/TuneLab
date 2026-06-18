@@ -1,0 +1,1 @@
+conflict-resolution test file; the .tlroute importer ignores content and produces a fixed sample project whose track name reveals which package's importer is active.

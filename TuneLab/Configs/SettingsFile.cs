@@ -25,4 +25,7 @@ internal class SettingsFile
     public string AudioDevice { get; set; } = string.Empty;
     public double TrackHueChangeRate { get; set; } = 0;
     public string AgentModelProvider { get; set; } = string.Empty;   // agent 选中的模型 provider（引擎 id）；各 provider 的配置另存 ExtensionSettings.json
+    // 扩展冲突消解的用户选择（routeKey="kind:identity" → 选中的 packageId）：同一身份 id/扩展名被多包提供时用户选用哪个包。
+    // 扁平小映射、无密钥，与 AgentModelProvider 同属「用户选择」类，故直接随 app 设置存盘，不另开配置文件。
+    public Dictionary<string, string> ExtensionRouting { get; set; } = new();
 }

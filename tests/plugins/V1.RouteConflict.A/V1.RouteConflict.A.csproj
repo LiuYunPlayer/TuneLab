@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 冲突消解测试夹具 A：与 V1.RouteConflict.B 声明【同一扩展名 tlroute】（不同包 id），验证多包同身份并存 +
+       Extension Routing 矩阵选择。输出落 tests/packages/v1-routeconflict-a/。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-routeconflict-a\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TuneLab.Foundation\TuneLab.Foundation.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK\TuneLab.SDK.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -46,11 +46,13 @@ internal static class LegacyCompatLoader
                 // 注册委托按包重建：把 Compat 推来的 V1 适配器转发进内建 manager（工厂复用同一实例，适配器无状态），
                 // 同时把真实类别回填进本包的 typeSink，供 sidebar 展示精确类型而非笼统 "Legacy"。
                 // Legacy 老插件无独立显示名，显示名沿用身份 id（扩展名 / 引擎 type）。
-                Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(ext, ext, () => format); AddType(typeSink, "format"); };
-                Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(ext, ext, () => format); AddType(typeSink, "format"); };
+                // Legacy 包无 V1 反向域名 id（有 id 即走 V1 路径），故用目录名当包 id（与 LoadLegacy 的 LoadResult.Id 同源）——
+                // 供冲突消解区分多个 legacy 包、并反查真实包名；其适配器不实现 IExtensionSettings、无设置桶受影响。
+                var legacyPackageId = ExtensionManager.LegacyPackageId(path);
+                Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(legacyPackageId, ext, ext, () => format); AddType(typeSink, "format"); };
+                Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(legacyPackageId, ext, ext, () => format); AddType(typeSink, "format"); };
                 // enginePath 由 compat 侧的引擎适配器自持（老引擎 Init 需要包路径，新引擎面 Init 无参）。
-                // Legacy 包无 V1 反向域名 id（有 id 即走 V1 路径），故 packageId 给空；其适配器也不实现 IExtensionSettings、无设置可分桶。
-                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(string.Empty, type, type, engine); AddType(typeSink, "voice"); };
+                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(legacyPackageId, type, type, engine); AddType(typeSink, "voice"); };
 
                 var assemblies = description?.assemblies ?? Array.Empty<string>();
                 var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine, compatLog]);
