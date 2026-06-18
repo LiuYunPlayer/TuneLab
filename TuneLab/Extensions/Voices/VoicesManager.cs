@@ -11,7 +11,7 @@ internal static class VoicesManager
     // 内建声源引擎显式注册（编进宿主、无 description.json）。空引擎(type="")是无声源 part 的回退。
     public static void LoadBuiltIn()
     {
-        RegisterEngine(string.Empty, string.Empty, new EmptyVoiceEngine());
+        RegisterEngine(string.Empty, string.Empty, string.Empty, new EmptyVoiceEngine());
     }
 
     public static void Destroy()
@@ -26,10 +26,11 @@ internal static class VoicesManager
     // 由 ExtensionManager（V1 manifest 驱动）实例化后、或 Compat.Legacy（经 LegacyLoadHook → LegacyCompatLoader）
     // 包装好适配器后注册引擎实例。引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
     // type 是不可变身份 id（工程序列化引用）；displayName 仅供 UI 展示、可本地化。内建/先到优先：type 已存在则跳过。
-    public static void RegisterEngine(string type, string displayName, IVoiceEngine engine)
+    // packageId 是来源插件包的反向域名 id（内建为空）——供扩展设置按包分桶持久化，避免不同包同 id 引擎设置串味。
+    public static void RegisterEngine(string packageId, string type, string displayName, IVoiceEngine engine)
     {
         if (!mVoiceEngines.ContainsKey(type))
-            mVoiceEngines.Add(type, new VoiceEngineStatus(engine, displayName));
+            mVoiceEngines.Add(type, new VoiceEngineStatus(engine, displayName, packageId));
     }
 
     public static IReadOnlyList<string> GetAllVoiceEngines()
@@ -40,6 +41,10 @@ internal static class VoicesManager
     // UI 展示名（本地化，注册时按当前语言定）；未注册回退到 id 本身。
     public static string GetDisplayName(string type)
         => mVoiceEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
+
+    // 来源插件包 id（扩展设置按包分桶用）；内建 / 未注册为空。
+    public static string GetPackageId(string type)
+        => mVoiceEngines.TryGetValue(type, out var status) ? status.PackageId : string.Empty;
 
     // 取该 voice 的扩展设置接口（未实现 IExtensionSettings 则 null）；不触发 Init——设置须在 Init 前可编辑。
     // 走 RawEngine（非 Engine：后者在 Init 前返回 null），因 schema/设置须先于 Init 可达。
@@ -127,13 +132,15 @@ internal static class VoicesManager
         // 未经 Init 的引擎实例（仅供读扩展设置 schema/回喂——这些须先于 Init 可达）。
         public IVoiceEngine RawEngine => mVoiceEngine;
         public string DisplayName { get; }
+        public string PackageId { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public VoiceEngineStatus(IVoiceEngine engine, string displayName)
+        public VoiceEngineStatus(IVoiceEngine engine, string displayName, string packageId)
         {
             mVoiceEngine = engine;
             DisplayName = displayName;
+            PackageId = packageId;
         }
 
         // Init 无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。

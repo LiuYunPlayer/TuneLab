@@ -7,7 +7,6 @@
   "sdk-version": "1.0",
   "type": "format",
   "extension": "tltest",
-  "import": "TuneLab.TestPlugins.V1Format.TestImportFormat",
-  "export": "TuneLab.TestPlugins.V1Format.TestExportFormat",
+  "classes": ["TuneLab.TestPlugins.V1Format.TestImportFormat", "TuneLab.TestPlugins.V1Format.TestExportFormat"],
   "assembly": "V1.Format.dll"
 }

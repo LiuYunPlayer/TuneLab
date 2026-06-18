@@ -26,11 +26,12 @@ internal static class EffectManager
 
     // 由 ExtensionManager（V1 manifest 驱动）实例化后注册引擎。type 已存在则跳过（内建/先到优先）。
     // type 是不可变身份 id（工程序列化引用）；displayName 仅供 UI 展示、可本地化。
+    // packageId 是来源插件包的反向域名 id（内建为空）——供扩展设置按包分桶持久化，避免不同包同 id 引擎设置串味。
     // 引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
-    public static void RegisterEngine(string type, string displayName, IEffectEngine engine)
+    public static void RegisterEngine(string packageId, string type, string displayName, IEffectEngine engine)
     {
         if (!mEngines.ContainsKey(type))
-            mEngines.Add(type, new EffectEngineStatus(engine, displayName));
+            mEngines.Add(type, new EffectEngineStatus(engine, displayName, packageId));
     }
 
     public static IReadOnlyList<string> GetAllEffectEngines() => mEngines.Keys;
@@ -38,6 +39,10 @@ internal static class EffectManager
     // UI 展示名（本地化，注册时按当前语言定）；未注册回退到 id 本身。
     public static string GetDisplayName(string type)
         => mEngines.TryGetValue(type, out var status) && !string.IsNullOrEmpty(status.DisplayName) ? status.DisplayName : type;
+
+    // 来源插件包 id（扩展设置按包分桶用）；内建 / 未注册为空。
+    public static string GetPackageId(string type)
+        => mEngines.TryGetValue(type, out var status) ? status.PackageId : string.Empty;
 
     public static bool Exists(string type) => mEngines.ContainsKey(type);
 
@@ -67,13 +72,15 @@ internal static class EffectManager
     {
         public IEffectEngine Engine => mEngine;
         public string DisplayName { get; }
+        public string PackageId { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public EffectEngineStatus(IEffectEngine engine, string displayName)
+        public EffectEngineStatus(IEffectEngine engine, string displayName, string packageId)
         {
             mEngine = engine;
             DisplayName = displayName;
+            PackageId = packageId;
         }
 
         // Init 无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。

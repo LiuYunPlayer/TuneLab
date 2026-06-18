@@ -10,15 +10,14 @@
       "type": "format",
       "extension": "tlsuite",
       "name": "Suite Format",
-      "import": "TuneLab.TestPlugins.Suite.Format.SuiteImportFormat",
-      "export": "TuneLab.TestPlugins.Suite.Format.SuiteExportFormat",
+      "classes": ["TuneLab.TestPlugins.Suite.Format.SuiteImportFormat", "TuneLab.TestPlugins.Suite.Format.SuiteExportFormat"],
       "assembly": "V1.Suite.Format.dll"
     },
     {
       "type": "voice",
       "engine": "TLSuiteVoice",
       "name": "Suite Voice",
-      "class": "TuneLab.TestPlugins.Suite.Voice.SuiteVoiceEngine",
+      "classes": ["TuneLab.TestPlugins.Suite.Voice.SuiteVoiceEngine"],
       "assembly": "V1.Suite.Voice.dll"
     }
   ]

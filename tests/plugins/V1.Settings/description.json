@@ -13,6 +13,6 @@
   "sdk-version": "1.0",
   "type": "voice",
   "engine": "TLSettingsDemo",
-  "class": "TuneLab.TestPlugins.V1Settings.SettingsVoiceEngine",
+  "classes": ["TuneLab.TestPlugins.V1Settings.SettingsVoiceEngine"],
   "assembly": "V1.Settings.dll"
 }

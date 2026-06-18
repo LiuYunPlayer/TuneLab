@@ -6,6 +6,6 @@
   "sdk-version": "1.0",
   "type": "format",
   "extension": "tlconfa",
-  "import": "TuneLab.TestPlugins.ConflictA.ConflictAImport",
+  "classes": ["TuneLab.TestPlugins.ConflictA.ConflictAImport"],
   "assembly": "Conflict.A.dll"
 }

@@ -531,7 +531,7 @@ internal partial class SettingsWindow : Window
         {
             // 密钥集按【当前值算出的】config 取（动态面板下密钥字段可能随值显隐），避免漏标/误标。
             var secrets = ExtensionSettingsStore.PasswordKeys(page.Entry.Settings.GetSettingsConfig(page.Context));
-            ExtensionSettingsStore.Save(page.Entry.Key, page.Data.GetInfo(), secrets);
+            ExtensionSettingsStore.Save(page.Entry.PackageId, page.Entry.ExtensionKey, page.Data.GetInfo(), secrets);
             ExtensionSettingsManager.ApplyOne(page.Entry); // 立即回喂（重载已落盘值、解密密钥）
             page.Data.Modified.Unsubscribe(page.Refresh);  // 解订阅，再解绑控件 + 归还池化控件（页面随后整体重建）
             page.Controller.ResetConfig();
