@@ -95,7 +95,7 @@ internal class ParameterTabBar : Panel
     }
 
     // 一个来源（voice / 某 effect）一组（连续轨与分段轨同在此 map、按声明序），组间插分隔符。按钮形态与 kind 无关（读 config 色/名）。
-    void AddAutomationGroup(IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex, ref bool firstGroup)
+    void AddAutomationGroup(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, int effectIndex, ref bool firstGroup)
     {
         if (configs.Count == 0)
             return;
@@ -107,10 +107,10 @@ internal class ParameterTabBar : Panel
         foreach (var kvp in configs)
         {
             var config = kvp.Value;
-            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key);
+            var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key.Id) : AutomationKey.Effect(effectIndex, kvp.Key.Id);
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(Color.Parse(config.Color), config.DisplayText ?? kvp.Key) { Margin = new(6, 0) };
+                button = new ParameterButton(Color.Parse(config.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
                 mCacheParameterButtons.Add(key, button);
@@ -147,10 +147,10 @@ internal class ParameterTabBar : Panel
                 SetState(key, mDependency.IsAutomationVisible(key) ? ParameterButton.ButtonState.Visible : ParameterButton.ButtonState.Off);
         }
 
-        void Sync(IReadOnlyOrderedMap<string, AutomationConfig> configs, int effectIndex)
+        void Sync(IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs, int effectIndex)
         {
             foreach (var kvp in configs)
-                SyncKey(effectIndex < 0 ? AutomationKey.Voice(kvp.Key) : AutomationKey.Effect(effectIndex, kvp.Key));
+                SyncKey(effectIndex < 0 ? AutomationKey.Voice(kvp.Key.Id) : AutomationKey.Effect(effectIndex, kvp.Key.Id));
         }
 
         Sync(Part.Voice.AutomationConfigs, -1);

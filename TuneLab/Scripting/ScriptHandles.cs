@@ -165,7 +165,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // ── 自动化曲线（automation，对齐 C# midi.Automations；不含 pitch） ──
 
     // 可编辑的自动化轨 id 列表（voice 声明，如 "Volume"；不含 pitch）。
-    public string[] AutomationIds() => Midi.Voice.AutomationConfigs.Keys.ToArray();
+    public string[] AutomationIds() => Midi.Voice.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
 
     // 在绝对 tick 区间 [startTick, endTick] 上等距采样某自动化曲线。NaN = 该处无曲线。
     public double[] SampleAutomation(string id, double startTick, double endTick, int samples)

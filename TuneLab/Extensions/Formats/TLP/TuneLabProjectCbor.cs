@@ -585,7 +585,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         reader.ReadEndMap();
     }
 
-    private PropertyObject ReadPropertyObject(CborReader reader)
+    internal static PropertyObject ReadPropertyObject(CborReader reader)
     {
         var map = new Map<string, PropertyValue>();
 
@@ -593,36 +593,51 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         while (reader.PeekState() != CborReaderState.EndMap)
         {
             var key = reader.ReadTextString();
-            var state = reader.PeekState();
-
-            switch (state)
-            {
-                case CborReaderState.Boolean:
-                    map.Add(key, reader.ReadBoolean());
-                    break;
-                case CborReaderState.UnsignedInteger:
-                case CborReaderState.NegativeInteger:
-                    map.Add(key, reader.ReadDouble());
-                    break;
-                case CborReaderState.SinglePrecisionFloat:
-                case CborReaderState.DoublePrecisionFloat:
-                case CborReaderState.HalfPrecisionFloat:
-                    map.Add(key, reader.ReadDouble());
-                    break;
-                case CborReaderState.TextString:
-                    map.Add(key, reader.ReadTextString());
-                    break;
-                case CborReaderState.StartMap:
-                    map.Add(key, ReadPropertyObject(reader));
-                    break;
-                default:
-                    reader.SkipValue();
-                    break;
-            }
+            map.Add(key, ReadPropertyValue(reader));
         }
         reader.ReadEndMap();
 
         return new PropertyObject(map);
+    }
+
+    // 递归读任意 PropertyValue（对象值与数组元素共用）。
+    static PropertyValue ReadPropertyValue(CborReader reader)
+    {
+        switch (reader.PeekState())
+        {
+            case CborReaderState.Boolean:
+                return reader.ReadBoolean();
+            case CborReaderState.UnsignedInteger:
+            case CborReaderState.NegativeInteger:
+            case CborReaderState.SinglePrecisionFloat:
+            case CborReaderState.DoublePrecisionFloat:
+            case CborReaderState.HalfPrecisionFloat:
+                return reader.ReadDouble();
+            case CborReaderState.TextString:
+                return reader.ReadTextString();
+            case CborReaderState.StartMap:
+                return ReadPropertyObject(reader);
+            case CborReaderState.StartArray:
+                return ReadPropertyArray(reader);
+            case CborReaderState.Null:
+                reader.ReadNull();
+                return PropertyValue.Null;
+            default:
+                reader.SkipValue();
+                return PropertyValue.Null;
+        }
+    }
+
+    static PropertyArray ReadPropertyArray(CborReader reader)
+    {
+        var values = new List<PropertyValue>();
+
+        reader.ReadStartArray();
+        while (reader.PeekState() != CborReaderState.EndArray)
+            values.Add(ReadPropertyValue(reader));
+        reader.ReadEndArray();
+
+        return new PropertyArray(values);
     }
 
     #endregion
@@ -989,32 +1004,44 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteEndMap();
     }
 
-    private void WritePropertyObject(CborWriter writer, PropertyObject properties)
+    internal static void WritePropertyObject(CborWriter writer, PropertyObject properties)
     {
         writer.WriteStartMap(null);
         foreach (var property in properties.Map)
         {
-            writer.WriteTextString(property.Key);
-            var value = property.Value;
+            // 稀疏：null / multiple 哨兵不写键（与 presence 语义一致：absent = 默认）。
+            if (property.Value.IsNull() || property.Value.IsMultiple())
+                continue;
 
-            if (value.ToObject(out var propertyObject))
-            {
-                WritePropertyObject(writer, propertyObject);
-            }
-            else if (value.ToBool(out var boolValue))
-            {
-                writer.WriteBoolean(boolValue);
-            }
-            else if (value.ToDouble(out var doubleValue))
-            {
-                writer.WriteDouble(doubleValue);
-            }
-            else if (value.ToString(out var stringValue))
-            {
-                writer.WriteTextString(stringValue);
-            }
+            writer.WriteTextString(property.Key);
+            WritePropertyValue(writer, property.Value);
         }
         writer.WriteEndMap();
+    }
+
+    // 递归写任意 PropertyValue（对象值与数组元素共用）。数组元素须按位写齐，故 Null 元素写成 CBOR null 占位。
+    static void WritePropertyValue(CborWriter writer, PropertyValue value)
+    {
+        if (value.ToObject(out var propertyObject))
+            WritePropertyObject(writer, propertyObject);
+        else if (value.ToArray(out var propertyArray))
+            WritePropertyArray(writer, propertyArray);
+        else if (value.ToBool(out var boolValue))
+            writer.WriteBoolean(boolValue);
+        else if (value.ToDouble(out var doubleValue))
+            writer.WriteDouble(doubleValue);
+        else if (value.ToString(out var stringValue))
+            writer.WriteTextString(stringValue);
+        else
+            writer.WriteNull();
+    }
+
+    static void WritePropertyArray(CborWriter writer, PropertyArray array)
+    {
+        writer.WriteStartArray(null);   // 不定长；空数组也照写 []（present-[] 是真实值，不可省）
+        foreach (var value in array)
+            WritePropertyValue(writer, value);
+        writer.WriteEndArray();
     }
 
     #endregion

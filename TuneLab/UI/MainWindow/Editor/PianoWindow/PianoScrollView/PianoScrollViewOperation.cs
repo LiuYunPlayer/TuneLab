@@ -461,13 +461,16 @@ internal partial class PianoScrollView
                                 }
                                 else
                                 {
-                                    if (e.IsDoubleClick)
+                                    // 悬浮在无颤音覆盖的音符上 → 单击落实预览颤音（鼠标位置 → 音符结尾）；否则框选。
+                                    var preview = GetVibratoAddPreview(e.Position);
+                                    if (preview != null)
                                     {
-                                        var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X)) - Part.Pos.Value;
-                                        var vibrato = Part.CreateVibrato(new VibratoInfo() { Pos = pos, Dur = QuantizedCellTicks(), Amplitude = 0.5, Frequency = 6, Phase = 0, Attack = 0.2, Release = 0.2 });
+                                        Part.Vibratos.DeselectAllItems();
+                                        var vibrato = Part.CreateVibrato(preview);
                                         vibrato.Select();
                                         Part.InsertVibrato(vibrato);
-                                        mVibratoEndResizeOperation.Down(TickAxis.Tick2X(vibrato.GlobalEndPos()), vibrato);
+                                        // 接拖拽起点边界微调（照搬 note 双击创建并拖拽）：create + 拖拽同属一次操作、一次提交。
+                                        mVibratoStartResizeOperation.Down(TickAxis.Tick2X(vibrato.GlobalStartPos()), vibrato);
                                     }
                                     else
                                     {
@@ -2780,12 +2783,10 @@ internal partial class PianoScrollView
             double posX = x - mOffset;
             double pos = PianoScrollView.TickAxis.X2Tick(posX);
             if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
-            double time = mNote.Part.TempoManager.GetTime(pos) - mNote.StartTime;
-            double ratio = time <= 0 ? mNote.StartPhonemeRatio : mNote.EndPhonemeRatio;
-            if (ratio == 0)
-                return;
-
-            time /= ratio;
+            double effRel = mNote.Part.TempoManager.GetTime(pos) - mNote.StartTime;
+            // effective（显示/合成时间）→ nominal（写回工程的偏移）逆解，与
+            // EffectivePinnedPhonemeTimes 的正向权重重分配互逆。
+            double time = mNote.NominalPhonemeTime(mIndex, effRel);
             if (mIndex != mNote.Phonemes.Count)
                 time = Math.Min(time, mNote.Phonemes[mIndex].EndTime.Value);
             if (mIndex != 0)

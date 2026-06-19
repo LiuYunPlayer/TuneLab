@@ -1688,8 +1688,8 @@ internal sealed class AgentSideBarContentProvider
     // provider 选择的单项 config：复用 ComboBoxConfig（label 走 DisplayText，由属性面板渲成统一样式）。
     ObjectConfig BuildProviderConfig()
     {
-        var props = new OrderedMap<string, IControllerConfig>();
-        props.Add(EngineKey, new ComboBoxConfig { DisplayText = "Model Provider".Tr(this), Options = mEngineOptions });
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add((EngineKey, "Model Provider".Tr(this)), new ComboBoxConfig { Options = mEngineOptions });
         return new ObjectConfig { Properties = props };
     }
 
@@ -1789,8 +1789,8 @@ internal sealed class AgentSideBarContentProvider
     {
         var map = new Map<string, PropertyValue>();
         foreach (var kv in config.Properties)
-            if (all.Map.TryGetValue(kv.Key, out var v))
-                map.Add(kv.Key, v);
+            if (all.Map.TryGetValue(kv.Key.Id, out var v))
+                map.Add(kv.Key.Id, v);
         return new PropertyObject(map);
     }
 

@@ -27,7 +27,7 @@ internal class ParameterTitleBar : MovableComponent
         event Action? ReadbackVisibilityChanged;
         IHolder<IMidiPart> PartHolder { get; }
         // 回显轨声明按 AutomationKey 分源（voice / 各 effect），按源序排列（voice 在前、各 effect 按 index）。
-        IReadOnlyOrderedMap<AutomationKey, AutomationConfig> ReadbackConfigs { get; }
+        IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs { get; }
         bool IsReadbackVisible(AutomationKey key);
         void SetReadbackVisible(AutomationKey key, bool isVisible);
     }
@@ -162,8 +162,8 @@ internal class ParameterTitleBar : MovableComponent
                     elems.Add(Elem.Label(labelText, MeasureTextWidth(labelText)));
                 }
             }
-            var config = kvp.Value;
-            string text = config.DisplayText ?? key.Id;
+            var config = kvp.Value.Config;
+            string text = kvp.Value.DisplayText;
             double width = EyeWidth + EyeTextGap + MeasureTextWidth(text);
             elems.Add(Elem.Chip(key, text, Color.Parse(config.Color), width));
         }

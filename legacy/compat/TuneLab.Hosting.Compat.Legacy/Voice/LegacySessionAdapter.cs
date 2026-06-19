@@ -56,10 +56,10 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     public string DefaultLyric => mSource.DefaultLyric;
 
     // —— 调度 ——
-    public VVoice.SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public VVoice.SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
         return FindNextDirtyPiece(startTime, endTime) is { } piece
-            ? new VVoice.SynthesisSegment(piece.StartTime, piece.EndTime)
+            ? new VVoice.SynthesisRange(piece.StartTime, piece.EndTime)
             : null;
     }
 
@@ -80,10 +80,10 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         return null;
     }
 
-    public async Task SynthesizeNext(VVoice.SynthesisSegment segment,
+    public async Task SynthesizeNext(double startTime, double endTime,
         CancellationToken cancellation = default)
     {
-        if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
+        if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
         // 同步前缀拉取快照：automation 开窗按 note 范围外扩固定秒余量（老引擎常对块边界外略作采样）。

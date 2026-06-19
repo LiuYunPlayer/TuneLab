@@ -337,17 +337,18 @@ public interface ISynthesisContext
 ```csharp
 // peek：窗内下一待合成块的纯值秒边界，【无副作用】。null = 窗内无待合成。
 // 数据线程上廉价执行（会被多会话 speculative 地问，多数不中选——别在这里做重活或捕获）。
-public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+public SynthesisRange? GetNextSegment(double startTime, double endTime)
 {
     // 基于完整 part 做【确定性】分片决策，返回下一脏块 [start,end]。
-    // 确定性是关键：commit 时会重算分块，须与本次 peek 得到同一块。
-    return FindNextDirtyPiece(startTime, endTime) is { } p ? new SynthesisSegment(p.StartTime, p.EndTime) : null;
+    // 确定性是关键：commit 时会按同一窗口重算分块，须与本次 peek 得到同一块。
+    return FindNextDirtyPiece(startTime, endTime) is { } p ? new SynthesisRange(p.StartTime, p.EndTime) : null;
 }
 
-public async Task SynthesizeNext(SynthesisSegment segment, CancellationToken cancellation = default)
+// commit 入参 = 选中它的那次 peek 的【同一窗口】（不是回灌 GetNextSegment 自报的 SynthesisRange）。
+public async Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default)
 {
-    // —— 同步前缀（仍在数据线程）：重算分块 + 圈定本块 note + GetSnapshot 物化快照 ——
-    if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece) return;
+    // —— 同步前缀（仍在数据线程）：按同一窗口重算分块 + 圈定本块 note + GetSnapshot 物化快照 ——
+    if (FindNextDirtyPiece(startTime, endTime) is not { } piece) return;
     var snapshot = mContext.GetSnapshot(piece.Notes, piece.Notes[0].StartTime.Value, piece.Notes[^1].EndTime.Value);
     piece.Dirty = false;            // 合成期间到达的新变更会重新标脏，完成后自然重排
     StatusChanged?.Invoke();        // 标记本段进入 Synthesizing
@@ -369,7 +370,7 @@ public async Task SynthesizeNext(SynthesisSegment segment, CancellationToken can
 
 调度坑点：
 
-- **peek→commit 原子衔接**：两者在同一调度 tick、同在数据线程，期间无编辑可插入。所以你的分片必须**确定性**（数据未变 ⇒ commit 重算得到 peek 报出的同一块）。peek 时若要为 commit 留信息（分块缓存），存进会话自己的字段，**不要**塞进 `SynthesisSegment`（它只是两个 `double`）。
+- **peek→commit 原子衔接**：两者在同一调度 tick、同在数据线程，期间无编辑可插入；commit 收到的是选中它的那次 peek 的**同一窗口**。所以你的分片必须**确定性**（数据未变 + 同一窗口 ⇒ commit 重算得到 peek 报出的同一块）。peek 时若要为 commit 留信息（分块缓存），存进会话自己的字段，**不要**塞进 `SynthesisRange`（它只是 peek 返回的两个 `double`）。
 - **一个会话同时只合成一块**；并行发生在不同 part 的不同会话之间，并发上限由宿主账本式管控。
 - **取消是正常调度结局**：`SynthesizeNext` 返回纯 `Task`、无 outcome。取消时**正常返回，绝不抛 `OperationCanceledException`**（否则逼每个 await 套 try-catch）。错误才抛异常（宿主 catch、该段标 `Failed`）。**槽位在 `await` 真正返回时才释放**——不可中止的实现把这块跑完再返回即可，资源始终封顶在并发上限内。
 - **进度**经状态带上报：`SynthesisStatusSegment.Progress`（[0,1]）+ `StatusChanged`，不经 `SynthesizeNext` 参数传。`Progress<T>` 在数据线程构造能捕获同步上下文，worker 的进度回报会 marshal 回数据线程。

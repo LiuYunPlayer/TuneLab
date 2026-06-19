@@ -20,6 +20,13 @@ internal class View : Container
 {
     public View()
     {
+        // 视图被标脏后，异步用「当前鼠标位置」补派一次相对 Move：本意是 scrollview 滚动/重布局后鼠标没动、
+        // 但鼠标相对内容的位置变了的场景，让进行中的操作（resize/draw/move）继续跟随内容。
+        // 副作用：任何使视图变脏的数据变更（创建音符/颤音、合成进度、播放头推进…）都会重派一次 Move，
+        // 故所有 OnMouseRelativeMoveToView 的操作 Move 必须对「同位置重复调用」幂等（现有 op 靠 DiscardTo(mHead)+绝对位置重算满足）。
+        // 潜在竞态（待统一优化）：靠"创建→变脏→这次补派的 Move 使 head 前进→松手时 Commit"来留存离散动作（如单击创建颤音并接拖拽），
+        // 依赖这条异步 post 在 mouse-up 之前执行；理论上若 up 抢先则会走 Discard 把刚创建的对象丢掉。日常手速下不触发，
+        // 后续应改为离散动作显式提交、不依赖刷新驱动的 Move。
         mDirtyHandler.OnDirty += () =>
         {
             InvalidateVisual();

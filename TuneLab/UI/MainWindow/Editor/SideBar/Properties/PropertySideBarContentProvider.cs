@@ -444,11 +444,17 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         {
             if (kvp.Value is ObjectConfig objectConfig)
             {
-                ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key));
+                ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key.Id));
+            }
+            else if (kvp.Value is ArrayConfig or ListConfig or ExtensibleObjectConfig)
+            {
+                // 数组/列表/变长键控容器：写入默认值（递归各元素/键 config 默认值拼成 PropertyArray/PropertyObject）。
+                // 显式重置即物化该值（变长键控 = 当前声明键的默认对象，替换整个容器值）。
+                node.SetValue(kvp.Key.Id, kvp.Value.GetDefaultValue());
             }
             else if (kvp.Value is IValueConfig valueConfig)
             {
-                node.SetValue(kvp.Key, valueConfig.DefaultValue);
+                node.SetValue(kvp.Key.Id, valueConfig.DefaultValue);
             }
         }
     }
@@ -475,7 +481,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         foreach (var kvp in mPart.Voice.AutomationConfigs)
         {
-            if (mPart.Automations.TryGetValue(kvp.Key, out var automation))
+            if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
                 automation.DefaultValue.Set(kvp.Value.DefaultValue);
         }
     }
@@ -487,14 +493,14 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         foreach (var kvp in mPart.Voice.AutomationConfigs)
         {
-            double value = preset.Automations.GetValueOrDefault(kvp.Key, kvp.Value.DefaultValue);
-            if (mPart.Automations.TryGetValue(kvp.Key, out var automation))
+            double value = preset.Automations.GetValueOrDefault(kvp.Key.Id, kvp.Value.DefaultValue);
+            if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
             {
                 automation.DefaultValue.Set(value);
             }
             else if (value != kvp.Value.DefaultValue)
             {
-                mPart.AddAutomation(kvp.Key)?.DefaultValue.Set(value);
+                mPart.AddAutomation(kvp.Key.Id)?.DefaultValue.Set(value);
             }
         }
     }
@@ -603,7 +609,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         foreach (var kvp in mPart.Voice.AutomationConfigs)
         {
-            var key = kvp.Key;
+            var key = kvp.Key.Id;
             if (mPart.Automations.TryGetValue(key, out var automation))
                 preset.Automations[key] = automation.DefaultValue.Value;
             else

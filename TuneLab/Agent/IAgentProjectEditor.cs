@@ -229,12 +229,12 @@ internal sealed class ProjectAgentEditor(
         {
             var c = kvp.Value;
             // VibratoEnvelope 只缩放已有颤音深度，单独写它不产生颤音——明确标注，免得被当成"加颤音"。
-            string note = string.Equals(kvp.Key, "VibratoEnvelope", StringComparison.Ordinal)
+            string note = string.Equals(kvp.Key.Id, "VibratoEnvelope", StringComparison.Ordinal)
                 ? " (scales depth of existing vibrato only; to add vibrato use add_vibrato)" : "";
             sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
                 "  {0} — \"{1}\", range [{2:0.###}..{3:0.###}], default {4:0.###}{5}{6}",
-                kvp.Key, c.DisplayText ?? kvp.Key, c.MinValue, c.MaxValue, c.DefaultValue,
-                part.Automations.ContainsKey(kvp.Key) ? ", has curve" : "", note));
+                kvp.Key.Id, kvp.Key.DisplayText ?? kvp.Key.Id, c.MinValue, c.MaxValue, c.DefaultValue,
+                part.Automations.ContainsKey(kvp.Key.Id) ? ", has curve" : "", note));
         }
         // effect 级参数轨当前不可经 agent 工具编辑（已知限制），仅列出告知存在。
         for (int i = 0; i < part.Effects.Count; i++)
@@ -244,7 +244,7 @@ internal sealed class ProjectAgentEditor(
                 continue;
             sb.AppendLine(string.Format("  (effect {0} \"{1}\" parameters — not editable by agent tools yet):", i + 1, eff.Type));
             foreach (var kvp in eff.AutomationConfigs)
-                sb.AppendLine(string.Format("    {0} — \"{1}\"", kvp.Key, kvp.Value.DisplayText ?? kvp.Key));
+                sb.AppendLine(string.Format("    {0} — \"{1}\"", kvp.Key.Id, kvp.Key.DisplayText ?? kvp.Key.Id));
         }
         return sb.ToString();
     }

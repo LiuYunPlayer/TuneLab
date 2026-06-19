@@ -226,7 +226,7 @@ internal class EffectsController : StackPanel
                 if (kvp.Value.IsPiecewise)
                     continue;
 
-                var row = new AutomationDefaultRow(mPart, AutomationKey.Effect(mIndex, kvp.Key), kvp.Key, kvp.Value);
+                var row = new AutomationDefaultRow(mPart, AutomationKey.Effect(mIndex, kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value);
                 mAutomationRows.Add(row);
                 mAutomationContainer.Children.Add(row);
             }

@@ -18,12 +18,12 @@ internal static class ConstantDefine
     public static readonly string PitchColor = "#FFCF40";
     public static readonly string VolumeID = "Volume";
     public static readonly string VibratoEnvelopeID = "VibratoEnvelope";
-    public static readonly IReadOnlyOrderedMap<string, AutomationConfig> PreCommonAutomationConfigs = new OrderedMap<string, AutomationConfig>()
+    public static readonly IReadOnlyOrderedMap<PropertyKey, AutomationConfig> PreCommonAutomationConfigs = new OrderedMap<PropertyKey, AutomationConfig>()
     {
-        { VolumeID, new AutomationConfig { DisplayText = "Volume".Tr(TC.Property), DefaultValue = 0, MinValue = -12, MaxValue = +12, Color = "#737CE5" } }
+        { (VolumeID, "Volume".Tr(TC.Property)), new AutomationConfig { DefaultValue = 0, MinValue = -12, MaxValue = +12, Color = "#737CE5" } }
     };
-    public static readonly IReadOnlyOrderedMap<string, AutomationConfig> PostCommonAutomationConfigs = new OrderedMap<string, AutomationConfig>()
+    public static readonly IReadOnlyOrderedMap<PropertyKey, AutomationConfig> PostCommonAutomationConfigs = new OrderedMap<PropertyKey, AutomationConfig>()
     {
-        { VibratoEnvelopeID, new AutomationConfig { DisplayText = "VibratoEnvelope".Tr(TC.Property), DefaultValue = 1, MinValue = 0, MaxValue = 2, Color = "#73DBE5" } }
+        { (VibratoEnvelopeID, "VibratoEnvelope".Tr(TC.Property)), new AutomationConfig { DefaultValue = 1, MinValue = 0, MaxValue = 2, Color = "#73DBE5" } }
     };
 }

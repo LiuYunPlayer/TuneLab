@@ -608,19 +608,22 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             Lyric = Track(new DerivedProperty<string>(context, () => note.FinalPronunciation() ?? note.Lyric.Value, note.Lyric, note.Pronunciation));
             Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.PinnedPhoneme>>(context, () =>
             {
-                var phonemes = new List<SDK.PinnedPhoneme>(note.Phonemes.Count);
-                foreach (var phoneme in note.Phonemes)
+                // effective note 相对秒：与钢琴窗显示共用同一派生（EffectivePinnedPhonemeTimes），
+                // 正向余量按权重重分配（元音吸收 note 伸缩），故拖长 note 后元音随之拉长。
+                // 依赖含 note.Pos/Dur：resize 触发重算（列表非空即整 note 钉死，引擎遵守约束）。
+                var times = note.EffectivePinnedPhonemeTimes();
+                var phonemes = new List<SDK.PinnedPhoneme>(times.Count);
+                for (int i = 0; i < times.Count; i++)
                 {
-                    // 宿主数据层的音素时长均为用户钉死值（note 相对秒）；列表非空即整 note 钉死。
                     phonemes.Add(new SDK.PinnedPhoneme
                     {
-                        Symbol = phoneme.Symbol.Value,
-                        StartTime = phoneme.StartTime.Value,
-                        EndTime = phoneme.EndTime.Value,
+                        Symbol = note.Phonemes[i].Symbol.Value,
+                        StartTime = times[i].Start,
+                        EndTime = times[i].End,
                     });
                 }
                 return phonemes;
-            }, note.Phonemes));
+            }, note.Phonemes, note.Pos, note.Dur));
             mProperties = new PropertyObjectGuard(context, note.Properties);
         }
 

@@ -28,11 +28,53 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new SingleBlockSession(context);
 
     // 声明（引擎层、纯函数）：按 context.VoiceId 区分两个声库——这正是 voiceId 进 context 的用例。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
-        => context.VoiceId == "suite-conditional" ? sEmptyConfigs : mSuiteAutomations;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
+    // suite-conditional：自动化 = f(已选 speaker)——每个混入的 speaker 派生一条混音曲线（多说话人混音式，演示
+    // 「+ speaker → part 属性物化 → 自动化重算 → 曲线按钮自动出现」；wiring 由宿主 OnPartPropertiesModified 既有链承担）。
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
+    {
+        if (context.VoiceId != "suite-conditional")
+            return mSuiteAutomations;
+
+        var selected = context.PartProperties.GetValue("speakers", PropertyObject.Empty);
+        var map = new OrderedMap<PropertyKey, AutomationConfig>();
+        foreach (var kvp in selected.Map)
+            map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
+        return map;
+    }
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context)
-        => new() { Properties = context.VoiceId == "suite-conditional" ? mConditionalPartProperties : mSuitePartProperties };
+        => context.VoiceId == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
+
+    // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（ExtensibleObjectConfig）。
+    // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
+    static ObjectConfig ConditionalPartConfig(IPartPropertyContext context)
+    {
+        var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
+
+        var selected = context.PartProperties.GetValue("speakers", PropertyObject.Empty);
+        var speakerProps = new OrderedMap<PropertyKey, IControllerConfig>();
+        foreach (var kvp in selected.Map)
+            speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
+
+        map.Add(("speakers", "Mixed Speakers"), new ExtensibleObjectConfig
+        {
+            Properties = speakerProps,
+            AddableElements = kSpeakers
+                .Select(s => new AddableKey((s.id, s.name), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() }))
+                .ToList(),
+        });
+
+        return new ObjectConfig { Properties = map };
+    }
+
+    static readonly (string id, string name)[] kSpeakers = { ("alice", "Alice"), ("bob", "Bob"), ("carol", "Carol") };
+    static string SpeakerName(string id)
+    {
+        foreach (var s in kSpeakers)
+            if (s.id == id)
+                return s.name;
+        return id;
+    }
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context)
         => context.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
 
@@ -41,7 +83,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     static ObjectConfig ConditionalNoteConfig(INotePropertyContext context)
     {
         var note = context.NoteProperties;
-        var map = new OrderedMap<string, IControllerConfig>
+        var map = new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
             { "letters", new TextBoxConfig() },
@@ -63,7 +105,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
             map.Add("detail", new TextBoxConfig());
         }
 
-        // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过，须靠 array 才能表达可重复列表）
+        // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过——key 唯一模型表达不了重复，正是 ④ array 的动机）
         var seen = new HashSet<string>();
         foreach (var ch in letters)
         {
@@ -72,20 +114,46 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
                 map.Add(key, new SliderConfig { DefaultValue = 0.5, MinValue = 0, MaxValue = 1 });
         }
 
+        // ④ 可重复列表 phonemes（PropertyArray + ListConfig）：与 ③ 的 key-unique 滑条对照——这里重复字符不跳过，
+        //   "i i an" 三个音素照样三行。presence/seed 语义：absent（从未写）→ 按 letters 逐字符 seed（默认值即该字符）；
+        //   present → 按实际元素数返回 TextBox（不再 seed）。面板：+ 弹菜单(Phoneme/Rest) 追加、行悬浮删除、原位编辑。
+        IReadOnlyList<IControllerConfig> phonemeElements = note.Map.ContainsKey("phonemes")
+            ? Enumerable.Range(0, note.GetValue("phonemes", PropertyArray.Empty).Count)
+                .Select(_ => (IControllerConfig)new TextBoxConfig()).ToList()
+            : letters.Select(c => (IControllerConfig)new TextBoxConfig { DefaultValue = c.ToString() }).ToList();
+        map.Add("phonemes", new ListConfig
+        {
+            Elements = phonemeElements,
+            AddableElements =
+            [
+                new AddableElement(new TextBoxConfig(), "Phoneme"),
+                new AddableElement(new TextBoxConfig { DefaultValue = "-" }, "Rest"),
+            ],
+        });
+
+        // ④ 定长数组 pair（PropertyArray + ArrayConfig）：固定 2 个滑条、不可增删；
+        //   absent → 显示 2 行默认值(0.2/0.8)、编辑任一即物化整段（演示 ArrayController + seed 越界惰性绑定）。
+        map.Add("pair", new ArrayConfig
+        {
+            Elements =
+            [
+                new SliderConfig { DefaultValue = 0.2, MinValue = 0, MaxValue = 1 },
+                new SliderConfig { DefaultValue = 0.8, MinValue = 0, MaxValue = 1 },
+            ],
+        });
+
         return new ObjectConfig { Properties = map };
     }
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-    static readonly OrderedMap<string, AutomationConfig> sEmptyConfigs = new();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyConfigs = new();
 
     // 自定义自动化名避开宿主保留名。
-    readonly OrderedMap<string, AutomationConfig> mSuiteAutomations = new() { { "Power", new AutomationConfig { DisplayText = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
-    readonly OrderedMap<string, IControllerConfig> mSuitePartProperties = new();
-    // 条件声库的 part 级勾选项，note config 据它沿链多出字段（演示 part→note 传播）。
-    readonly OrderedMap<string, IControllerConfig> mConditionalPartProperties = new() { { "fromPart", new CheckBoxConfig() } };
+    readonly OrderedMap<PropertyKey, AutomationConfig> mSuiteAutomations = new() { { ("Power", "Power"), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
+    readonly OrderedMap<PropertyKey, IControllerConfig> mSuitePartProperties = new();
     // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板三态呈现的多选测试 + 深层嵌套导航
     // （vibrato → lfo → range 共 3 层对象；见 tests/PROPERTY-TRISTATE/NAVIGATION-TEST-CASES.md）。
-    readonly OrderedMap<string, IControllerConfig> mSuiteNoteProperties = new()
+    readonly OrderedMap<PropertyKey, IControllerConfig> mSuiteNoteProperties = new()
     {
         { "tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
         { "accent", new CheckBoxConfig() },
@@ -93,15 +161,15 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         { "style", new ComboBoxConfig { Options = ["Soft", "Normal", "Strong"], DefaultOption = "Normal" } },
         // 值/显示分离 + 任意基础类型：界面显示 Low/Mid/High，底层存的是 int 值 0/1/2（默认 Mid=1）。
         { "quality", new ComboBoxConfig { Options = new ComboBoxOption[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }, DefaultOption = new ComboBoxOption(1, "Mid") } },
-        { "vibrato", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
+        { "vibrato", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "depth", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 } },
             { "on", new CheckBoxConfig() },
-            { "lfo", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
+            { "lfo", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
             {
                 { "rate", new SliderConfig { DefaultValue = 5, MinValue = 0, MaxValue = 20 } },
                 { "wave", new ComboBoxConfig { Options = ["Sine", "Triangle", "Square"] } },
-                { "range", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
+                { "range", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
                 {
                     { "min", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
                     { "max", new SliderConfig { DefaultValue = 1, MinValue = -1, MaxValue = 1 } },
@@ -128,17 +196,17 @@ public sealed class SingleBlockSession : ISynthesisSession
 
     public string DefaultLyric => "la";
 
-    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
         double blockStart = mContext.Notes.First!.StartTime.Value;
         double blockEnd = mContext.Notes.Last!.EndTime.Value;
-        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
+        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisRange(blockStart, blockEnd);
     }
 
-    public async Task SynthesizeNext(SynthesisSegment segment,
+    public async Task SynthesizeNext(double startTime, double endTime,
         CancellationToken cancellation = default)
     {
         if (mContext.Notes.Count == 0)
@@ -158,11 +226,11 @@ public sealed class SingleBlockSession : ISynthesisSession
         try
         {
             var notes = snapshot.Notes;
-            double startTime = notes.Count > 0 ? notes[0].StartTime : 0;
-            double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
-            int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
+            double blockStart = notes.Count > 0 ? notes[0].StartTime : 0;
+            double blockEnd = notes.Count > 0 ? notes[^1].EndTime : 0;
+            int sampleCount = Math.Max(1, (int)((blockEnd - blockStart) * kSampleRate));
             mSegment?.Dispose();
-            mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount, kSampleRate);
+            mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
             var phonemes = new List<SynthesizedPhoneme>(notes.Count);
             for (int i = 0; i < notes.Count; i++)
@@ -180,8 +248,8 @@ public sealed class SingleBlockSession : ISynthesisSession
                 });
             }
             mPhonemes = phonemes;
-            mBlockStart = startTime;
-            mBlockEnd = endTime;
+            mBlockStart = blockStart;
+            mBlockEnd = blockEnd;
         }
         finally
         {

@@ -39,7 +39,7 @@ internal class AutomationDefaultsController : StackPanel
             if (kvp.Value.IsPiecewise)
                 continue;
 
-            var row = new AutomationDefaultRow(mPart, AutomationKey.Voice(kvp.Key), kvp.Key, kvp.Value);
+            var row = new AutomationDefaultRow(mPart, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value);
             mRows.Add(row);
             Children.Add(row);
         }

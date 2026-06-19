@@ -9,7 +9,6 @@ namespace TuneLab.SDK;
 // 刻意不继承 SliderConfig：冻结面上解耦优先于 DRY——UI 复用滑条控件是宿主侧渲染选择，读各自字段即可。
 public class AutomationConfig : IValueConfig<double>
 {
-    public string? DisplayText { get; init; }
     // 连续轨的默认基线；分段轨置 double.NaN 表"无基线"。
     public required double DefaultValue { get; init; }
     public required double MinValue { get; init; }

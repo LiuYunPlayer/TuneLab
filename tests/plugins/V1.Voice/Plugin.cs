@@ -24,9 +24,9 @@ public sealed class TestVoiceEngine : IVoiceEngine
         mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
-        mPartProperties.Add("growl_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Enable Growl" });
+        mPartProperties.Add(("growl_enabled", "Enable Growl"), new CheckBoxConfig { DefaultValue = true });
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
-        mGrowlConfigs.Add("Growl", new AutomationConfig { DisplayText = "Growl", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
+        mGrowlConfigs.Add(("Growl", "Growl"), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
     }
 
     public void Destroy() { }
@@ -34,35 +34,35 @@ public sealed class TestVoiceEngine : IVoiceEngine
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new TestSession(context);
 
     // 声明（引擎层、纯函数）：条件轨集合 = f(part 参数值)。声明先于会话求值，故会话构造期 Growl 轨已就绪、可订阅。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
     {
         // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
-        var map = new OrderedMap<string, AutomationConfig>();
+        var map = new OrderedMap<PropertyKey, AutomationConfig>();
         if (context.PartProperties.GetBool("growl_enabled", true))
         {
             foreach (var kvp in mGrowlConfigs)
                 map.Add(kvp.Key, kvp.Value);
         }
-        map.Add("Bend", mBendConfig);
+        map.Add(("Bend", "Bend"), mBendConfig);
         return map;
     }
 
     // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
     // 曲线数据经 ISynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mReadbackConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-    readonly OrderedMap<string, AutomationConfig> mGrowlConfigs = new();
-    readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
+    readonly OrderedMap<PropertyKey, AutomationConfig> mGrowlConfigs = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mPartProperties = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
-    static readonly AutomationConfig mBendConfig = new() { DisplayText = "Bend", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
+    static readonly AutomationConfig mBendConfig = new() { DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
     // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
-    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new()
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
     {
-        { "energy", new AutomationConfig { DisplayText = "Energy", DefaultValue = double.NaN, MinValue = 0, MaxValue = 100, Color = "#E573B0" } },
+        { ("energy", "Energy"), new AutomationConfig { DefaultValue = double.NaN, MinValue = 0, MaxValue = 100, Color = "#E573B0" } },
     };
 }
 
@@ -93,10 +93,10 @@ public sealed class TestSession : ISynthesisSession
     public string DefaultLyric => "la";
 
     // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
-    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
         return FindNextDirtyPiece(startTime, endTime) is { } piece
-            ? new SynthesisSegment(piece.StartTime, piece.EndTime)
+            ? new SynthesisRange(piece.StartTime, piece.EndTime)
             : null;
     }
 
@@ -119,10 +119,10 @@ public sealed class TestSession : ISynthesisSession
         return null;
     }
 
-    public async Task SynthesizeNext(SynthesisSegment segment,
+    public async Task SynthesizeNext(double startTime, double endTime,
         CancellationToken cancellation = default)
     {
-        if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
+        if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
         // 同步前缀（数据线程）拉取快照：notes 即本块全集，曲线开窗按 note 范围。
