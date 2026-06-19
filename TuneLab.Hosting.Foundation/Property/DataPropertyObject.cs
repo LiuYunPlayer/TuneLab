@@ -36,19 +36,8 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     public DataPropertyValue SetValue(string key, PropertyValue value)
     {
         var dataPropertyValue = FindValue(key);
-        dataPropertyValue.Set(ToSlot(value));
+        dataPropertyValue.Set(PropertySlot.Canonicalize(value));
         return dataPropertyValue;
-    }
-
-    // 写入口 canonicalize：object 型值一律建成活子对象槽（标量槽永不含 object 值的不变量在此保证）。
-    static PropertySlot ToSlot(PropertyValue value)
-    {
-        if (!value.ToObject(out var objectValue))
-            return new PropertySlot(value);
-
-        var child = new DataPropertyObject();
-        child.SetInfo(objectValue);
-        return new PropertySlot(child);
     }
 
     void IDataPropertyObject.SetValue(string key, PropertyValue value) => SetValue(key, value);
@@ -83,7 +72,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         foreach (var kvp in info.Map)
         {
             DataPropertyValue dataPropertyValue = new();
-            dataPropertyValue.SetInfo(ToSlot(kvp.Value));
+            dataPropertyValue.SetInfo(PropertySlot.Canonicalize(kvp.Value));
             map.Add(kvp.Key, dataPropertyValue);
         }
         mMap.SetInfo(map);

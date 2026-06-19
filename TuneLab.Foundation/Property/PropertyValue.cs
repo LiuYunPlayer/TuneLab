@@ -29,6 +29,11 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return new PropertyValue(value);
     }
 
+    public static implicit operator PropertyValue(PropertyArray value)
+    {
+        return new PropertyValue(value);
+    }
+
     public static PropertyValue Create(PropertyValue value)
     {
         return value;
@@ -54,6 +59,11 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return new(value);
     }
 
+    public static PropertyValue Create(PropertyArray value)
+    {
+        return new(value);
+    }
+
     // 值的类型标签。
     public PropertyType Type => mType;
 
@@ -63,6 +73,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         if (typeof(T) == typeof(bool)) return mType == PropertyType.Boolean;
         if (typeof(T) == typeof(string)) return mType == PropertyType.String;
         if (typeof(T) == typeof(PropertyObject)) return mType == PropertyType.Object;
+        if (typeof(T) == typeof(PropertyArray)) return mType == PropertyType.Array;
         return false;
     }
 
@@ -101,6 +112,11 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     public bool IsObject()
     {
         return TypeIs<PropertyObject>();
+    }
+
+    public bool IsArray()
+    {
+        return TypeIs<PropertyArray>();
     }
 
     // 标量直读字段、无拆箱。
@@ -152,6 +168,18 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return false;
     }
 
+    public bool ToArray([MaybeNullWhen(false)] out PropertyArray result)
+    {
+        if (mType == PropertyType.Array)
+        {
+            result = (PropertyArray)mReference!;
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
     public bool ToInt(out int result)
     {
         bool success = ToDouble(out var d);
@@ -178,6 +206,10 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         else if (typeof(T) == typeof(PropertyObject))
         {
             if (mType == PropertyType.Object) { result = (T)mReference!; return true; }
+        }
+        else if (typeof(T) == typeof(PropertyArray))
+        {
+            if (mType == PropertyType.Array) { result = (T)mReference!; return true; }
         }
 
         result = default;
@@ -212,6 +244,13 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         mReference = value;
     }
 
+    PropertyValue(PropertyArray value)
+    {
+        mType = PropertyType.Array;
+        mNumber = 0d;
+        mReference = value;
+    }
+
     // 哨兵（Null / Multiple）：仅标签，无标量 / 引用负载。
     PropertyValue(PropertyType tag)
     {
@@ -229,7 +268,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
             PropertyType.Boolean => (mNumber != 0d).ToString(),
             PropertyType.Number => mNumber.ToString(),
             PropertyType.String => (string)mReference!,
-            PropertyType.Object => mReference!.ToString(),
+            PropertyType.Object or PropertyType.Array => mReference!.ToString(),
             _ => "null",
         };
     }
@@ -244,7 +283,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mType switch
         {
             PropertyType.Number or PropertyType.Boolean => mNumber.Equals(other.mNumber),
-            PropertyType.String or PropertyType.Object => mReference!.Equals(other.mReference),
+            PropertyType.String or PropertyType.Object or PropertyType.Array => mReference!.Equals(other.mReference),
             _ => true,  // Null / Multiple：同标签即相等
         };
     }
@@ -259,7 +298,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mType switch
         {
             PropertyType.Number or PropertyType.Boolean => mNumber.GetHashCode(),
-            PropertyType.String or PropertyType.Object => mReference?.GetHashCode() ?? 0,
+            PropertyType.String or PropertyType.Object or PropertyType.Array => mReference?.GetHashCode() ?? 0,
             _ => (int)mType,
         };
     }
