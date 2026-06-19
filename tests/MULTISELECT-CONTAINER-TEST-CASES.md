@@ -24,6 +24,14 @@
 | **定长数组 pair（缺位=默认）** | 单独改 A 的第 1 个 pair 值（→A 物化、B 仍未设），再多选 A+B | 改过的第 1 行显示 Multiple；**第 2 行显示共同默认值 0.8（不误报 Multiple）** ← 本轮修复点 |
 | undo/redo | 上述增删改后 Ctrl+Z/Y | 一次撤销单元整体回退/重做所有被扇出的音符 |
 
+**已知限制——纯 seed 且 seed 源多值的数组多选显示为空**
+
+夹具里 `phonemes` 从未编辑时按 `letters` 逐字符 seed。多选两 note、letters 不同（如 `jin` / `kin`）时，
+合并快照里 `letters` = `Multiple`，`GetNotePropertyConfig` 据此算出的 phonemes 长度为 0 → phonemes 显示空（仅 `+`）。
+原因：seed 是 config 产物（`f(letters)`），不是数据，不进数据合并；多选只把数据合并后算一次 config（方案 A），
+`f` 读到 `Multiple` 的 letters 无法还原各 note 各自的 seed。**这是预期边界，非数据层 bug**。
+要合并编辑：先在任一 note 编辑过一个音素（物化 phonemes），多选即走真实数组合并、正常显示 `[Multiple, 同, 同]`。
+
 ## 对象多选（note 面板 vibrato 等嵌套对象）
 
 | 用例 | 操作 | 验证点 |

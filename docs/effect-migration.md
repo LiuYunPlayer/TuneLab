@@ -795,6 +795,8 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 两个面（**config 计算**决定显示哪些行/键、**live 绑定**决定每个控件的三态值与扇出写）用同一套对齐规则，故行/键数与数据外观逐位/逐键对得上：config 层把各成员快照合并成一个三态 `PropertyObject` 喂一次 `f`（`MultiplePropertyMerge`）；数据层 `MultipleDataPropertyObject.Array` 复合成 `MultipleDataPropertyArray`（对象的 `Object(key)` 本就逐成员 compose、天然出键并集），控件无需感知多选。数据核心单测 `tests/TuneLab.Tests/MultiSelectMergeTests.cs`；真机用例 `tests/MULTISELECT-CONTAINER-TEST-CASES.md`。
 
+**已知边界——纯 seed 且 seed 源多值的数组**：seed（越界虚拟行）是 **config 的产物**（`f` 据其他字段算出元素数/默认值），不是数据，故不进数据合并。多选下若某数组从未物化、且其 seed 所依赖的字段在所选成员间不一致（合并为 `Multiple`），`f` 读到 `Multiple` 无法据此算出 seed → 该数组多选时渲染为空（仅 `+`）。这是方案 A（合并数据后只算一次 config）的固有取舍：各成员各自的 seed 不会被 index 合并成 `[Multiple, 同, 同]`。要合并编辑，先在任一成员物化该数组（编辑过一次）即转为真实数组合并、正常三态。修复需逐 note 各算 config 再合并（即方案 A 当初为性能否掉的逐 note 算），权衡后不做。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）
