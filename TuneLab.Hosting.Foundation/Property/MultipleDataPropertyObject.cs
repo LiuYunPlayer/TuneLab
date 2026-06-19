@@ -32,6 +32,15 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         return new MultipleDataPropertyObject(members);
     }
 
+    // 多选下数组编辑尚未设计（现阶段降级）：恰好单成员＝等价单选、直通真实数组；0/多成员返回空视图——
+    // 面板据此对多选不渲染可编辑数组行（绝不把写入静默落到首成员、造成数据错位）。
+    public IDataPropertyArray Array(string key)
+    {
+        if (mDataObjects.Count == 1)
+            return mDataObjects[0].Array(key);
+        return new EmptyDataPropertyArray(this);
+    }
+
     public PropertyValue GetValue(string key, PropertyValue defaultValue)
     {
         if (mDataObjects.Count == 0)
@@ -117,6 +126,22 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     {
         public static readonly EmptyDisposable Shared = new();
         public void Dispose() { }
+    }
+
+    // 多选/无选时数组导航的降级空视图：长度 0、写操作 no-op；结构事件借壳合并 Modified（永不发结构变化）。
+    // 元素导航返回 0 成员的复合对象（GetValue 出 Invalid、写入 no-op），使陈旧 token 访问也安全收敛。
+    sealed class EmptyDataPropertyArray(IDataObject root) : IDataObject.Wrapper(root), IDataPropertyArray
+    {
+        public int Count => 0;
+        public IReadOnlyList<string> Tokens => [];
+        public IModifiedEvent StructureModified => Modified;
+        public void Insert(int index, PropertyValue value) { }
+        public void Add(PropertyValue value) { }
+        public void RemoveAt(int index) { }
+        public IDataPropertyObject Object(string token) => new MultipleDataPropertyObject([]);
+        public IDataPropertyArray Array(string token) => this;
+        public PropertyValue GetValue(string token, PropertyValue defaultValue) => defaultValue;
+        public void SetValue(string token, PropertyValue value) { }
     }
 
     // 退出 merge 作用域时对所有成员 EndMergeNotify（与 MergeNotify 进入时的全成员 BeginMergeNotify 对称）。

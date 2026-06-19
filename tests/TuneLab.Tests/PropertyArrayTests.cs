@@ -200,4 +200,156 @@ public class PropertyArrayTests
         Assert.True(array[1].IsNull());
         Assert.True(array[2].ToDouble(out var third) && third == 3.0);
     }
+
+    // ===== ④-B-1 live-bind 数组导航层（IDataPropertyArray：稳定 token 寻址 / 懒导航 / 结构事件） =====
+
+    [Fact]
+    public void Tokens_OrderMatchesElements_AndAreDistinct()
+    {
+        var live = new DataPropertyArray();
+        live.Add(1.0);
+        live.Add(2.0);
+        live.Add(3.0);
+
+        var tokens = live.Tokens;
+        Assert.Equal(3, tokens.Count);
+        Assert.Equal(3, new HashSet<string>(tokens).Count);   // 互异
+        // token[i] 寻址第 i 个元素值
+        Assert.True(live.GetValue(tokens[0], -1.0).ToDouble(out var v0) && v0 == 1.0);
+        Assert.True(live.GetValue(tokens[2], -1.0).ToDouble(out var v2) && v2 == 3.0);
+    }
+
+    [Fact]
+    public void Token_StableAcrossInsertAndRemove()
+    {
+        var live = new DataPropertyArray();
+        live.Add(1.0);
+        live.Add(2.0);
+        var before = live.Tokens;   // [e_a, e_b]
+
+        live.Insert(1, 9.0);        // [1, 9, 2]
+        var afterInsert = live.Tokens;
+        Assert.Equal(before[0], afterInsert[0]);   // 原首元素 token 不变
+        Assert.Equal(before[1], afterInsert[2]);   // 原次元素 token 不变（下移）
+        Assert.DoesNotContain(afterInsert[1], before);   // 中插元素拿新 token
+
+        live.RemoveAt(1);           // 删掉中插的，回到 [1, 2]
+        var afterRemove = live.Tokens;
+        Assert.Equal(before[0], afterRemove[0]);   // 存活元素 token 仍不变
+        Assert.Equal(before[1], afterRemove[1]);
+    }
+
+    [Fact]
+    public void Token_StableAcrossUndoRedo()
+    {
+        var doc = new DataDocument();
+        var live = new DataPropertyArray(doc);
+        live.SetInfo(new PropertyArray(new PropertyValue[] { 1.0, 2.0 }));
+        doc.Commit();
+        var baseTokens = live.Tokens;        // [e_a, e_b]
+
+        live.Insert(1, 9.0);                 // [1, 9, 2]
+        doc.Commit();
+        var insertedTokens = live.Tokens;    // [e_a, e_c, e_b]
+
+        doc.Undo();                          // 回 [1, 2]：存活的是原两实例
+        Assert.Equal(baseTokens, live.Tokens);
+
+        doc.Redo();                          // 重做复活同一中插实例 → 同一 token
+        Assert.Equal(insertedTokens, live.Tokens);
+    }
+
+    [Fact]
+    public void SetValueByToken_EditsElementInPlace()
+    {
+        var live = new DataPropertyArray();
+        live.Add(1.0);
+        live.Add(2.0);
+        var token = live.Tokens[1];
+
+        live.SetValue(token, 9.0);
+        Assert.Equal(new PropertyArray(new PropertyValue[] { 1.0, 9.0 }), live.GetInfo());
+    }
+
+    [Fact]
+    public void ObjectByToken_NavigatesIntoObjectElement()
+    {
+        var live = new DataPropertyArray();
+        live.Add(Obj(("symbol", "ph"), ("dur", 120.0)));
+        var token = live.Tokens[0];
+
+        var element = live.Object(token);
+        Assert.True(element.GetValue("symbol", "").ToString(out var symbol) && symbol == "ph");
+
+        element.SetValue("symbol", "pp");   // 原位写回元素子字段
+        Assert.Equal(
+            new PropertyArray(new PropertyValue[] { Obj(("symbol", "pp"), ("dur", 120.0)) }),
+            live.GetInfo());
+    }
+
+    [Fact]
+    public void ArrayByToken_NavigatesIntoArrayElement()
+    {
+        var live = new DataPropertyArray();
+        live.Add(new PropertyArray(new PropertyValue[] { 1.0 }));
+        var token = live.Tokens[0];
+
+        var inner = live.Array(token);
+        Assert.Equal(1, inner.Count);
+        inner.Add(2.0);                     // 嵌套数组原位增元素
+
+        Assert.Equal(
+            (PropertyValue)new PropertyArray(new PropertyValue[] { 1.0, 2.0 }),
+            live.GetInfo()[0]);
+    }
+
+    [Fact]
+    public void ObjectArrayNavigation_IsLazy_ReadDoesNotCreate_WriteCreates()
+    {
+        var obj = new DataPropertyObject();
+
+        // 读不创建：缺席 key 导航出空数组外观，序列化里不冒出该 key（保 presence 语义）。
+        var view = obj.Array("list");
+        Assert.Equal(0, view.Count);
+        Assert.Empty(view.Tokens);
+        Assert.False(obj.GetInfo().Map.ContainsKey("list"));
+
+        // 写按需建路径：Add 后 key 物化为 present 数组。
+        view.Add(1.0);
+        var info = obj.GetInfo();
+        Assert.True(info.Map.ContainsKey("list"));
+        Assert.True(info.Map.TryGetValue("list", out var value) && value.ToArray(out var array) && array.Count == 1);
+    }
+
+    [Fact]
+    public void StructureModified_FiresOnStructuralChange_NotOnValueEdit()
+    {
+        var live = new DataPropertyArray();
+        int structureChanges = 0;
+        live.StructureModified.Subscribe(() => structureChanges++);
+
+        live.Add(1.0);                      // +1
+        live.Add(2.0);                      // +1
+        Assert.Equal(2, structureChanges);
+
+        live.SetValue(live.Tokens[1], 9.0); // 值原位编辑 → 不触发结构事件
+        Assert.Equal(2, structureChanges);
+
+        live.RemoveAt(0);                   // +1
+        Assert.Equal(3, structureChanges);
+    }
+
+    [Fact]
+    public void StaleToken_GetReturnsDefault_SetIsNoOp()
+    {
+        var live = new DataPropertyArray();
+        live.Add(1.0);
+        live.Add(2.0);
+        var stale = live.Tokens[0];
+        live.RemoveAt(0);                   // stale 指向的元素已删
+
+        Assert.True(live.GetValue(stale, 99.0).ToDouble(out var fallback) && fallback == 99.0);
+        live.SetValue(stale, 5.0);          // no-op，不抛、不复活
+        Assert.Equal(new PropertyArray(new PropertyValue[] { 2.0 }), live.GetInfo());
+    }
 }
