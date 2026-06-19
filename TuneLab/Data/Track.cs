@@ -65,8 +65,13 @@ internal class Track : DataObject, ITrack
 
     public bool RemovePart(IPart part)
     {
+        // 归属由集合判定（链表反向指针）；非成员删除是编程错误，DEBUG 期就地暴露，Release 仍宽容 no-op。
+        System.Diagnostics.Debug.Assert(mParts.Contains(part), "RemovePart: part 不属于本 track。");
         return mParts.Remove(part);
     }
+
+    // 同轨内重排（改 pos/dur）：摘除→跑 mutate→按新键重插。跨轨迁移属换父，仍走显式 RemovePart/InsertPart。
+    public void MovePart(IPart part, Action mutate) => mParts.Move(part, mutate);
 
     public MidiPart CreatePart(MidiPartInfo info)
     {

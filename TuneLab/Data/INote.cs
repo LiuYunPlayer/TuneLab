@@ -110,7 +110,7 @@ internal static class INoteExtension
     {
         note.Part.BeginMergeDirty();
         var newNote = note.Part.CreateNote(new NoteInfo() { Pos = pos, Dur = note.EndPos() - pos, Pitch = note.Pitch.Value, Lyric = "-" });
-        note.Dur.Set(pos - note.StartPos());
+        note.Part.MoveNote(note, () => note.Dur.Set(pos - note.StartPos()));
         note.Part.InsertNote(newNote);
         note.Part.EndMergeDirty();
         note.Part.Notes.DeselectAllItems();

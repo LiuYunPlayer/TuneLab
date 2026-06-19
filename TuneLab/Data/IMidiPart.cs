@@ -19,7 +19,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     // 自动化轨集合因参数 commit 而变（条件轨随值显隐）：UI 收到重建参数栏/默认值面板。仅实际变化时触发。
     IActionEvent AutomationConfigsModified { get; }
     INoteList Notes { get; }
-    IReadOnlyDataObjectList<Vibrato> Vibratos { get; }
+    IReadOnlyDataObjectLinkedList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
     IVoice Voice { get; }
     IDataProperty<double> Gain { get; }
@@ -51,12 +51,17 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     INote CreateNote(NoteInfo info);
     void InsertNote(INote note);
     bool RemoveNote(INote note);
+    // 改排序键（pos/dur）统一走 move：摘除→跑 mutate→按新键重插，调用方只在 mutate 内改属性。
+    void MoveNote(INote note, Action mutate);
+    void MoveNotes(IReadOnlyCollection<INote> notes, Action mutate);
     IEffect CreateEffect(EffectInfo info);
     void InsertEffect(int index, IEffect effect);
     bool RemoveEffect(IEffect effect);
     Vibrato CreateVibrato(VibratoInfo info);
     void InsertVibrato(Vibrato note);
     bool RemoveVibrato(Vibrato note);
+    void MoveVibrato(Vibrato vibrato, Action mutate);
+    void MoveVibratos(IReadOnlyCollection<Vibrato> vibratos, Action mutate);
     // 批量变更括号（含 undo/redo 重放）：插件把重活延迟到括号收口。
     void BeginMergeDirty();
     void EndMergeDirty();
@@ -411,7 +416,7 @@ internal static class IMidiPartExtension
         part.Notes.BeginMergeNotify();
         foreach (var (note, dur) in shrink)
         {
-            note.Dur.Set(dur);
+            part.MoveNote(note, () => note.Dur.Set(dur));
         }
         foreach (var note in remove)
         {

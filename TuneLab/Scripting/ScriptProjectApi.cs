@@ -215,12 +215,12 @@ internal sealed class ScriptProjectApi
         double? dur = OptNum(o, "dur");
         if (pos is { } vp && vp < 0) throw new ScriptApiException("pos must be >= 0.");
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
-        if (name != null) p.Name.Set(name);
-        bool reorder = (pos is { } np && np != p.Pos.Value) || (dur is { } nd && nd != p.Dur.Value);
-        if (reorder) p.Track.RemovePart(p);
-        if (pos is { } p2) p.Pos.Set(p2);
-        if (dur is { } d2) p.Dur.Set(d2);
-        if (reorder) p.Track.InsertPart(p);
+        p.Track.MovePart(p, () =>
+        {
+            if (name != null) p.Name.Set(name);
+            if (pos is { } p2) p.Pos.Set(p2);
+            if (dur is { } d2) p.Dur.Set(d2);
+        });
         mChanges++;
     }
 
@@ -255,13 +255,13 @@ internal sealed class ScriptProjectApi
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
         EnsureBracket(midi);
         double? relPos = pos is { } ap ? ap - midi.Pos.Value : null;
-        bool reorder = (relPos is { } rp && rp != n.Pos.Value) || (dur is { } nd && nd != n.Dur.Value);
-        if (reorder) midi.RemoveNote(n);
-        if (relPos is { } p2) n.Pos.Set(p2);
-        if (dur is { } d2) n.Dur.Set(d2);
-        if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
-        if (lyric != null) n.Lyric.Set(lyric);
-        if (reorder) midi.InsertNote(n);
+        midi.MoveNote(n, () =>
+        {
+            if (relPos is { } p2) n.Pos.Set(p2);
+            if (dur is { } d2) n.Dur.Set(d2);
+            if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
+            if (lyric != null) n.Lyric.Set(lyric);
+        });
         mChanges++;
     }
 

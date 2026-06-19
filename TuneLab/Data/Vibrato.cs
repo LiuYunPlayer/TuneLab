@@ -9,11 +9,15 @@ using TuneLab.SDK;
 
 namespace TuneLab.Data;
 
-internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable
+internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable, ILinkedNode<Vibrato>
 {
     public IActionEvent<double, double> RangeModified => mRangeModified;
     public IActionEvent SelectionChanged => mSelectionChanged;
     public IMidiPart Part => mPart;
+
+    Vibrato? ILinkedNode<Vibrato>.Next { get; set; } = null;
+    Vibrato? ILinkedNode<Vibrato>.Last { get; set; } = null;
+    ILinkedList<Vibrato>? ILinkedNode<Vibrato>.LinkedList { get; set; }
     public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
     public DataStruct<double> Pos { get; } = new();
     public DataStruct<double> Dur { get; } = new();

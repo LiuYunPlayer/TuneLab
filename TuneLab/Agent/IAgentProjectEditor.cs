@@ -424,13 +424,13 @@ internal sealed class ProjectAgentEditor(
         if (dur is { } vd && vd <= 0) throw new ArgumentException("dur must be positive.");
 
         var applied = new List<string>();
-        if (name != null && part.Name.Value != name) { part.Name.Set(name); applied.Add("name=\"" + name + "\""); }
-        // 改 pos/dur 影响 part 列表排序：摘除-重插维持有序（与拖动移动 part 的数据层做法一致）。
-        bool reorder = (pos is { } np && np != part.Pos.Value) || (dur is { } nd && nd != part.Dur.Value);
-        if (reorder) track.RemovePart(part);
-        if (pos is { } p2 && p2 != part.Pos.Value) { part.Pos.Set(p2); applied.Add(string.Format(CultureInfo.InvariantCulture, "pos={0:0}", p2)); }
-        if (dur is { } d2 && d2 != part.Dur.Value) { part.Dur.Set(d2); applied.Add(string.Format(CultureInfo.InvariantCulture, "dur={0:0}", d2)); }
-        if (reorder) track.InsertPart(part);
+        // 改 pos/dur 影响 part 列表排序：统一走 MovePart（摘除→改→按新键重插），维序由数据层保证。
+        track.MovePart(part, () =>
+        {
+            if (name != null && part.Name.Value != name) { part.Name.Set(name); applied.Add("name=\"" + name + "\""); }
+            if (pos is { } p2 && p2 != part.Pos.Value) { part.Pos.Set(p2); applied.Add(string.Format(CultureInfo.InvariantCulture, "pos={0:0}", p2)); }
+            if (dur is { } d2 && d2 != part.Dur.Value) { part.Dur.Set(d2); applied.Add(string.Format(CultureInfo.InvariantCulture, "dur={0:0}", d2)); }
+        });
 
         if (applied.Count == 0)
             return string.Format("Track {0} Part {1}: nothing changed.", trackNumber, partNumber);
@@ -562,13 +562,14 @@ internal sealed class ProjectAgentEditor(
             {
                 var note = ResolveNote(snapshot, s.NoteNumber);
                 double? newRelPos = s.Pos is { } np ? Rel(np) : null;
-                bool reorder = (newRelPos is { } rp && rp != note.Pos.Value) || (s.Dur is { } nd && nd != note.Dur.Value);
-                if (reorder) part.RemoveNote(note);
-                if (newRelPos is { } pos) note.Pos.Set(pos);
-                if (s.Dur is { } dur) note.Dur.Set(Math.Max(0, dur));
-                if (s.Pitch is { } pit) note.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
-                if (s.Lyric != null) note.Lyric.Set(s.Lyric);
-                if (reorder) part.InsertNote(note);
+                // 改 pos/dur 影响有序性：统一走 MoveNote（摘除→改→按新键重插）。
+                part.MoveNote(note, () =>
+                {
+                    if (newRelPos is { } pos) note.Pos.Set(pos);
+                    if (s.Dur is { } dur) note.Dur.Set(Math.Max(0, dur));
+                    if (s.Pitch is { } pit) note.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
+                    if (s.Lyric != null) note.Lyric.Set(s.Lyric);
+                });
                 return string.Format("set note {0}", s.NoteNumber);
             }
             case DeleteNoteOp d:
