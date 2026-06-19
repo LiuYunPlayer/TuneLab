@@ -2780,12 +2780,10 @@ internal partial class PianoScrollView
             double posX = x - mOffset;
             double pos = PianoScrollView.TickAxis.X2Tick(posX);
             if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
-            double time = mNote.Part.TempoManager.GetTime(pos) - mNote.StartTime;
-            double ratio = time <= 0 ? mNote.StartPhonemeRatio : mNote.EndPhonemeRatio;
-            if (ratio == 0)
-                return;
-
-            time /= ratio;
+            double effRel = mNote.Part.TempoManager.GetTime(pos) - mNote.StartTime;
+            // effective（显示/合成时间）→ nominal（写回工程的偏移）逆解，与
+            // EffectivePinnedPhonemeTimes 的正向权重重分配互逆。
+            double time = mNote.NominalPhonemeTime(mIndex, effRel);
             if (mIndex != mNote.Phonemes.Count)
                 time = Math.Min(time, mNote.Phonemes[mIndex].EndTime.Value);
             if (mIndex != 0)
