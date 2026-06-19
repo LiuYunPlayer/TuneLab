@@ -43,19 +43,35 @@ internal abstract class ArrayControllerBase : StackPanel
 
     protected IDataPropertyArray Array => mArray ?? throw new InvalidOperationException("ArrayController has no data object.");
 
-    // 删除请求（仅 Deletable 行的删除钮触发）：按当前 index 删元素并提交（成一个撤销单元）。
-    public void RequestRemove(string token)
+    // 把当前展示的 seed（越界虚拟行）物化为真实元素：数组从现长补齐到声明数、各取 element config 默认值。
+    // 任何结构操作（+ / 删除）前先调用——否则只动一个元素会令插件因 present 而不再 reseed、其余 seed 行塌掉。
+    protected void MaterializeSeed()
+    {
+        if (mArray == null)
+            return;
+        for (int i = mArray.Count; i < mElements.Count; i++)
+            mArray.Add(mElements[i].GetDefaultValue());
+    }
+
+    // 删除某行：先物化整段 seed（保 presence、其余行不塌），再按身份删该元素、提交（成一个撤销单元）。
+    // 真实行用 token（跨重排仍指向同一元素）；seed 行无 token，物化后用其位置。
+    void RemoveRow(int position, string? token)
     {
         if (mArray == null)
             return;
 
-        int index = mArray.Tokens.IndexOf(token);
-        if (index < 0)
+        MaterializeSeed();
+        int index = token != null ? mArray.Tokens.IndexOf(token) : position;
+        if (index < 0 || index >= mArray.Count)
             return;
 
         mArray.RemoveAt(index);
         mArray.Commit();
     }
+
+    // 行的删除回调（Deletable 时非 null）：真实行按 token、seed 行按位置。
+    protected Action? DeleteCallback(int position, string? token)
+        => Deletable ? () => RemoveRow(position, token) : null;
 
     // 元素行 keyed-diff 对齐到 elements.Count 行（镜像 PropertyObjectController.Reconcile）：
     //   现存位（i < 数据元素数）绑真实 token——身份稳定，中插/删只增删一行；
@@ -67,6 +83,7 @@ internal abstract class ArrayControllerBase : StackPanel
         if (mArray == null)
             return;
 
+        mElements = elements;
         var tokens = mArray.Tokens;
         int dataCount = tokens.Count;
         IReadOnlyList<PropertyValue>? seedDefaults = null;
@@ -80,13 +97,13 @@ internal abstract class ArrayControllerBase : StackPanel
             var cfg = elements[i];
             string key;
             IDataPropertyObject host;
-            bool deletable;
+            Action? onDelete;
 
             if (i < dataCount)
             {
                 key = tokens[i];
                 host = mArray;
-                deletable = Deletable;
+                onDelete = DeleteCallback(i, tokens[i]);   // 真实行：按 token 删
             }
             else
             {
@@ -95,7 +112,7 @@ internal abstract class ArrayControllerBase : StackPanel
                 key = SeedKeyPrefix + i;
                 seedDefaults ??= elements.Select(e => e.GetDefaultValue()).ToList();
                 host = new SeedPositionView(mArray, i, seedDefaults);
-                deletable = false; // 未物化元素不可删
+                onDelete = DeleteCallback(i, null);        // seed 行：删除前物化、按位置删
             }
 
             if (nextByKey.ContainsKey(key))
@@ -109,7 +126,7 @@ internal abstract class ArrayControllerBase : StackPanel
             }
             else
             {
-                nextByKey.Add(key, new ElementRow(this, host, key, cfg, deletable));
+                nextByKey.Add(key, new ElementRow(host, key, cfg, onDelete));
                 structureChanged = true; // 新建（含同 key 换类型 / seed 位物化为真实位）
             }
             nextOrder.Add(key);
@@ -173,6 +190,7 @@ internal abstract class ArrayControllerBase : StackPanel
     }
 
     protected IDataPropertyArray? mArray;
+    IReadOnlyList<IControllerConfig> mElements = [];   // 当前各元素 config（用于 seed 物化默认值）
     readonly StackPanel mRowsPanel = new() { Orientation = Orientation.Vertical };
     Dictionary<string, ElementRow> mRowsByKey = new();
     List<string> mOrder = new();
@@ -229,6 +247,7 @@ internal sealed class ListController : ArrayControllerBase
 
     void AddElement(AddableElement addable)
     {
+        MaterializeSeed();   // 先把当前展示的 seed 行物化为真实元素，再追加——否则其余 seed 行会塌掉
         Array.Add(addable.Template.GetDefaultValue());
         Array.Commit();
     }
@@ -237,39 +256,42 @@ internal sealed class ListController : ArrayControllerBase
     IReadOnlyList<AddableElement> mAddableElements = [];
 }
 
-// 单个元素行：DockPanel 容器 = 元素控件（填充）+ 可删时右侧悬浮删除钮。删除钮平时透明（不改行宽，避免悬浮抖动）。
+// 单个元素行：LayerPanel 层叠 = 元素控件（填满整行）+ 可删时右侧悬浮删除钮（浮于控件之上、不挤占布局，
+// 与其他同类控件观感一致）。删除钮平时透明、悬浮整行才显，故元素控件始终占满行宽、无右侧留白。
 sealed class ElementRow : IDisposable
 {
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
 
-    public ElementRow(ArrayControllerBase owner, IDataPropertyObject host, string bindKey, IControllerConfig config, bool deletable)
+    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, Action? onDelete)
     {
         // host = 现存位的数组外观（bindKey = token）或越界位的 SeedPositionView（bindKey 仅作行身份、视图按 position 寻址）。
         mWidget = ElementWidget.Create(host, bindKey, config);
 
-        mRoot = new DockPanel { LastChildFill = true, Margin = new(24, 6, 24, 6) };
+        mRoot = new LayerPanel { Background = Brushes.Transparent, Margin = new(24, 6, 24, 6) };
+        mRoot.Children.Add(mWidget.View);   // 底层：控件填满整行
 
-        if (deletable)
+        if (onDelete != null)
         {
             mDelete = ArrayControlsFactory.MakeIconButton("✕");
-            mDelete.Opacity = 0; // 悬浮才显（用透明度而非 IsVisible，保留占位、行内不抖）
-            mDelete.Clicked += () => owner.RequestRemove(bindKey);
-            DockPanel.SetDock(mDelete, Dock.Right);
-            mRoot.Children.Add(mDelete);
+            mDelete.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+            mDelete.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            mDelete.Margin = new(0, 0, 4, 0);
+            mDelete.Opacity = 0; // 悬浮才显（透明度而非 IsVisible，浮层不占布局、行内不抖）
+            mDelete.IsHitTestVisible = false; // Opacity 0 仍可命中，平时关掉点击，免拦控件右侧
+            mDelete.Clicked += onDelete;
+            mRoot.Children.Add(mDelete);   // 顶层：浮于控件右侧之上
 
-            mRoot.PointerEntered += (_, _) => mDelete.Opacity = 1;
-            mRoot.PointerExited += (_, _) => mDelete.Opacity = 0;
+            mRoot.PointerEntered += (_, _) => { mDelete.Opacity = 1; mDelete.IsHitTestVisible = true; };
+            mRoot.PointerExited += (_, _) => { mDelete.Opacity = 0; mDelete.IsHitTestVisible = false; };
         }
-
-        mRoot.Children.Add(mWidget.View);
     }
 
     public void Update(IControllerConfig config) => mWidget.Update(config);
 
     public void Dispose() => mWidget.Dispose();
 
-    readonly DockPanel mRoot;
+    readonly LayerPanel mRoot;
     readonly Button? mDelete;
     readonly ElementWidget mWidget;
 }
