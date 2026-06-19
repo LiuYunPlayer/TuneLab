@@ -335,6 +335,57 @@ internal class PropertyObjectController : StackPanel
         ComboBoxConfig mConfig;
     }
 
+    // 数组字段：字段本身带 key 标题，内容是独立的 Array/ListController 元素面板（元素行无标题，见 ArrayController.cs）。
+    class ArrayCreator : Creator
+    {
+        public ArrayCreator(PropertyObjectController parent, PropertyKey key, ArrayConfig config) : base(parent)
+        {
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mController = new ArrayController();
+            mController.Bind(parent.DataObject.Array(key.Id));
+            mController.Apply(config);
+        }
+
+        public override Type ConfigType => typeof(ArrayConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) => mController.Apply((ArrayConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mController.Unbind();
+            ObjectPoolManager.Return(mTitle);
+        }
+
+        readonly Label mTitle;
+        readonly ArrayController mController;
+    }
+
+    class ListCreator : Creator
+    {
+        public ListCreator(PropertyObjectController parent, PropertyKey key, ListConfig config) : base(parent)
+        {
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mController = new ListController();
+            mController.Bind(parent.DataObject.Array(key.Id));
+            mController.Apply(config);
+        }
+
+        public override Type ConfigType => typeof(ListConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) => mController.Apply((ListConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mController.Unbind();
+            ObjectPoolManager.Return(mTitle);
+        }
+
+        readonly Label mTitle;
+        readonly ListController mController;
+    }
+
     class CheckBoxCreator : Creator
     {
         public CheckBoxCreator(PropertyObjectController parent, PropertyKey key, CheckBoxConfig config) : base(parent)
@@ -390,6 +441,8 @@ internal class PropertyObjectController : StackPanel
         { typeof(TextBoxConfig), (parent, key, config) => new SingleLineTextCreator(parent, key, (TextBoxConfig)config) },
         { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
+        { typeof(ArrayConfig), (parent, key, config) => new ArrayCreator(parent, key, (ArrayConfig)config) },
+        { typeof(ListConfig), (parent, key, config) => new ListCreator(parent, key, (ListConfig)config) },
     };
 
     IDataPropertyObject? mDataObject;
