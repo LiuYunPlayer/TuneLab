@@ -7,8 +7,11 @@ namespace TuneLab.Foundation;
 
 // 多选编辑下的复合数组外观：把多个 IDataPropertyArray 按 index 对齐成一个三态数组（与标量多选的
 // MultipleDataPropertyObject 对称，只是项以 index 对齐而非 key）。长度取最长成员；index i 的值——各成员该位
-// 全有且全等给该值、值不等或有成员缺该位给 Multiple（缺位算差异，同对象缺键）。写扇出到「拥有该位」的成员
-// （不向更短成员凭空补元素）；结构操作（Add/Insert/RemoveAt）扇出到适用成员，各操作经 merge 合并通知消中间态闪烁。
+// 全等给该值、值不等给 Multiple。**「缺位 = 该位默认值」**：某成员短于 index i 时，该位按元素默认值参与比较
+// （与标量缺 key 取默认同理）——故一个 note 把数组物化、另一个仍 absent 时，值恰等于默认的那些位不会误报 Multiple。
+// 写**编辑即补齐**：扇出时把短于 index 的成员先按各位默认值补齐到该长度、再写入（实现「多选把不等长数组调成一样长」），
+// 默认值由控制器经 SetElementDefaults 注入（= 各元素 config 的默认值）。结构操作（Add/Insert/RemoveAt）扇出到适用成员，
+// 各操作经 merge 合并通知消中间态闪烁。
 // 元素 token = index 的十进制串：跨成员稳定的元素身份并不存在（各成员各自的 token 互不相干），index 即唯一可对齐的键；
 // 故结构变化会令 token 漂移、面板按 index keyed-diff 重建受影响行（多选下结构编辑少见，可接受）。
 // IDataObject / merge / Modified 等文档面委托内部 MultipleDataPropertyObject（成员本身即 IDataPropertyObject），
@@ -47,31 +50,38 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
 
     public IModifiedEvent StructureModified => mBase.Modified;
 
-    // 读：各成员该 index 全有且全等→该值；任一成员缺该位或值不等→Multiple。
+    // 控制器注入的各元素默认值（= element config 默认值）：缺位读取的回退值 + 编辑补齐时填短成员的值。
+    public void SetElementDefaults(IReadOnlyList<PropertyValue> defaults) => mElementDefaults = defaults;
+
+    // 读：各成员该 index 全等→该值，不等→Multiple；某成员短于该位 → 取该位默认值参与比较（缺位=默认）。
     public PropertyValue GetValue(string token, PropertyValue defaultValue)
     {
         if (!TryIndex(token, out var index))
             return defaultValue;
 
+        var fallback = index < mElementDefaults.Count ? mElementDefaults[index] : defaultValue;
         PropertyValue first = default;
         bool hasFirst = false;
         foreach (var array in mArrays)
         {
-            if (index >= array.Count)
-                return PropertyValue.Multiple;   // 有成员缺该位 → 差异
-            var value = array.GetValue(array.Tokens[index], defaultValue);
+            var value = index < array.Count ? array.GetValue(array.Tokens[index], fallback) : fallback;
             if (!hasFirst) { first = value; hasFirst = true; }
             else if (!value.Equals(first)) return PropertyValue.Multiple;
         }
-        return hasFirst ? first : defaultValue;
+        return hasFirst ? first : fallback;
     }
 
-    // 写：扇出到拥有该位的成员（更短成员跳过，不凭空补元素）。
+    // 写（编辑即补齐）：扇出到所有成员——短于该位的先按各位默认值补齐到该长度、再写入；已有该位的直接写。
     public void SetValue(string token, PropertyValue value)
     {
         if (!TryIndex(token, out var index))
             return;
-        FanOut(array => { if (index < array.Count) array.SetValue(array.Tokens[index], value); });
+        FanOut(array =>
+        {
+            for (int k = array.Count; k <= index; k++)
+                array.Add(k < mElementDefaults.Count ? mElementDefaults[k] : PropertyValue.Null);
+            array.SetValue(array.Tokens[index], value);
+        });
     }
 
     public void RemoveValue(string token)
@@ -144,4 +154,5 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
 
     readonly IReadOnlyList<IDataPropertyArray> mArrays;
     readonly MultipleDataPropertyObject mBase;
+    IReadOnlyList<PropertyValue> mElementDefaults = [];
 }

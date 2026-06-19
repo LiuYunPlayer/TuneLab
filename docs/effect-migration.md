@@ -790,7 +790,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **多选下容器的三态合并（定稿）**：标量多选已是「同值给该值 / 不等给 Multiple / 无选中给 Invalid」三态；容器沿同一三态、按各自身份模型递归对齐：
 
-- **数组家族（位置身份，不跨成员共享）**：按 **index 对齐**，结果长度取最长成员；index *i* 各成员全有且全等 → 该值，值不等或有成员缺该位 → `Multiple`（缺位算差异）。写只扇出到「拥有该位」的成员，绝不向更短成员凭空补元素（避免按位写入错位到不同语义的槽）。元素以 index 当 token——跨成员的元素实例身份并不存在，index 是唯一可对齐的键。
+- **数组家族（位置身份，不跨成员共享）**：按 **index 对齐**，结果长度取最长成员。**「缺位 = 该位默认值」**：某成员短于 index *i* 时，该位按元素默认值参与比较——故各成员该位全等（含「值=默认 vs 未设」）给该值、值不等给 `Multiple`。这与单选「absent 数组显示 seed 默认」一脉相承：一个 note 物化了数组、另一个仍 absent 时，恰等默认的那些位不会误报 `Multiple`（如定长 `pair` 改了一位、另一位仍是默认 → 另一位正确显示共同值）。写**编辑即补齐**：扇出时把短于该位的成员先按各位默认值补齐到该长度、再写入（即「多选把不等长数组调成一样长」）。元素以 index 当 token——跨成员的元素实例身份并不存在，index 是唯一可对齐的键。
 - **对象家族（键身份，跨成员共享）**：按 **key 并集对齐**，逐键递归同上（某键缺于部分成员算差异 → `Multiple`）。
 
 两个面（**config 计算**决定显示哪些行/键、**live 绑定**决定每个控件的三态值与扇出写）用同一套对齐规则，故行/键数与数据外观逐位/逐键对得上：config 层把各成员快照合并成一个三态 `PropertyObject` 喂一次 `f`（`MultiplePropertyMerge`）；数据层 `MultipleDataPropertyObject.Array` 复合成 `MultipleDataPropertyArray`（对象的 `Object(key)` 本就逐成员 compose、天然出键并集），控件无需感知多选。数据核心单测 `tests/TuneLab.Tests/MultiSelectMergeTests.cs`；真机用例 `tests/MULTISELECT-CONTAINER-TEST-CASES.md`。

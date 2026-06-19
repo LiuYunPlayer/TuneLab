@@ -142,7 +142,30 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
             ],
         });
 
+        // ④-D note 级变长键控容器 tags（ExtensibleObjectConfig）：part 面板的 Mixed Speakers 是单选场景，
+        //   这里放一个到可多选的 note 面板，供多选下「键并集合并 + 公共键编辑扇出」真机测试。
+        var selectedTags = note.GetValue("tags", PropertyObject.Empty);
+        var tagProps = new OrderedMap<PropertyKey, IControllerConfig>();
+        foreach (var kvp in selectedTags.Map)
+            tagProps.Add((kvp.Key, TagName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
+        map.Add(("tags", "Tags"), new ExtensibleObjectConfig
+        {
+            Properties = tagProps,
+            AddableElements = kTags
+                .Select(t => new AddableKey((t.id, t.name), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() }))
+                .ToList(),
+        });
+
         return new ObjectConfig { Properties = map };
+    }
+
+    static readonly (string id, string name)[] kTags = { ("red", "Red"), ("green", "Green"), ("blue", "Blue") };
+    static string TagName(string id)
+    {
+        foreach (var t in kTags)
+            if (t.id == id)
+                return t.name;
+        return id;
     }
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();

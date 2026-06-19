@@ -291,7 +291,22 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
     // 值的下发/写回/撤销刷新由逐字段绑定承担，选中变化时整体重绑（数据对象变 → SetConfig 重建）。
     // 选中不变期间 note 值 commit 触发 ReconcileNoteController（数据对象不变 → keyed-diff 复用控件）。
+    //
+    // 重绑 defer 到下一 UI 调度并合并：框选过程中选中集每帧都变，逐次同步全量重建（SetConfig 清空+重建整棵控件树）
+    // 会令数组/列表等变高控件每帧重排、视觉抖动。pending 标志把一拍内的多次选中变化并成一次重建。
     void RefreshNoteController()
+    {
+        if (mNoteRefreshPending)
+            return;
+        mNoteRefreshPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            mNoteRefreshPending = false;
+            RefreshNoteControllerNow();
+        });
+    }
+
+    void RefreshNoteControllerNow()
     {
         mNoteSub.DisposeAll();
         if (mPart == null)
@@ -645,6 +660,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     MultipleDataPropertyObject? mNoteData = null;
     bool mPartReconcilePending = false;
     bool mNoteReconcilePending = false;
+    bool mNoteRefreshPending = false;
     readonly DisposableManager s = new();
     readonly DisposableManager mNoteSub = new();
 }

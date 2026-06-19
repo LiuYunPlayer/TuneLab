@@ -84,6 +84,11 @@ internal abstract class ArrayControllerBase : StackPanel
             return;
 
         mElements = elements;
+
+        // 多选复合数组：注入各元素默认值，供「缺位=默认」读取 + 「编辑补齐」填短成员（单选真实数组无此需求）。
+        if (mArray is MultipleDataPropertyArray multiArray)
+            multiArray.SetElementDefaults(elements.Select(e => e.GetDefaultValue()).ToList());
+
         var tokens = mArray.Tokens;
         int dataCount = tokens.Count;
         IReadOnlyList<PropertyValue>? seedDefaults = null;

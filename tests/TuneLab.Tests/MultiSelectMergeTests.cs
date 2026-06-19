@@ -135,18 +135,33 @@ public class MultiSelectMergeTests
     }
 
     [Fact]
-    public void DataArray_SetValue_FansOutToMembersHavingIndex()
+    public void DataArray_GetValue_MissingMember_UsesElementDefault()
+    {
+        // pair 场景：a 物化为 [0.5, 0.8]，b 从未设过该键（absent）；元素默认 [0.2, 0.8]。
+        var a = NoteWith("pair", Arr(0.5, 0.8));
+        var b = new DataPropertyObject();   // 无 pair 键
+        var merged = (MultipleDataPropertyArray)MergedArray("pair", a, b);
+        merged.SetElementDefaults([0.2, 0.8]);
+
+        Assert.Equal(2, merged.Count);
+        Assert.True(merged.GetValue("0", -1.0).IsMultiple());                       // 0.5 vs 默认 0.2 → 不等
+        Assert.True(merged.GetValue("1", -1.0).ToDouble(out var v1) && v1 == 0.8);  // 0.8 vs 默认 0.8 → 相等（缺位取默认，不误报 Multiple）
+    }
+
+    [Fact]
+    public void DataArray_SetValue_PadsShorterMembersOnEdit()
     {
         var a = NoteWith("ph", Arr(1.0, 2.0));
         var b = NoteWith("ph", Arr(1.0, 9.0, 3.0));
-        var merged = MergedArray("ph", a, b);
+        var merged = (MultipleDataPropertyArray)MergedArray("ph", a, b);
+        merged.SetElementDefaults([0.0, 0.0, 0.0]);
 
-        merged.SetValue("1", 7.0);   // 两成员都有 index 1 → 都改
-        Assert.Equal((PropertyValue)Arr(1.0, 7.0), a.GetInfo().Map.TryGetValue("ph", out var av) ? av : default);
-        Assert.Equal((PropertyValue)Arr(1.0, 7.0, 3.0), b.GetInfo().Map.TryGetValue("ph", out var bv) ? bv : default);
-
-        merged.SetValue("2", 5.0);   // 只有 b 有 index 2 → 仅 b 改、a 不被凭空补
+        merged.SetValue("1", 7.0);   // 两成员都有 index 1 → 都改、不补
         Assert.Equal((PropertyValue)Arr(1.0, 7.0), a.GetInfo().Map["ph"]);
+        Assert.Equal((PropertyValue)Arr(1.0, 7.0, 3.0), b.GetInfo().Map["ph"]);
+
+        merged.SetValue("2", 5.0);   // a 缺 index 2 → 编辑即补齐：a 补到长度 3 再写
+        Assert.Equal((PropertyValue)Arr(1.0, 7.0, 5.0), a.GetInfo().Map["ph"]);
         Assert.Equal((PropertyValue)Arr(1.0, 7.0, 5.0), b.GetInfo().Map["ph"]);
     }
 
