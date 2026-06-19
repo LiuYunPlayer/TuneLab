@@ -14,9 +14,9 @@ internal interface IEffect : IDataObject<EffectInfo>
     // 来自引擎的参数面板配置；引擎缺失/未 Init 成功时为空配置（优雅降级）。
     ObjectConfig PropertyConfig { get; }
     // 连续轨与分段轨同在此 map（kind 由 AutomationConfig.IsPiecewise 现解析）。
-    IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs { get; }
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs { get; }
     // 合成参数回显轨声明（只读、独立于可编辑轨集合）：曲线数据经宿主聚合各段 processor 的回显按同一批 key 承载。
-    IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs { get; }
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations { get; }
     IAutomation? AddAutomation(string automationID);

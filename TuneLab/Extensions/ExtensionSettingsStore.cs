@@ -69,7 +69,7 @@ internal static class ExtensionSettingsStore
         var set = new HashSet<string>();
         foreach (var kv in config.Properties)
             if (kv.Value is TextBoxConfig tb && tb.IsPassword)
-                set.Add(kv.Key);
+                set.Add(kv.Key.Id);
         return set;
     }
 

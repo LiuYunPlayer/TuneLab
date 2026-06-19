@@ -7,7 +7,6 @@ namespace TuneLab.SDK;
 // （而非静默退化到某个未必合意的默认量程）。
 public class SliderConfig : IValueConfig<double>
 {
-    public string? DisplayText { get; init; }
     public required double DefaultValue { get; init; }
     public required double MinValue { get; init; }
     public required double MaxValue { get; init; }

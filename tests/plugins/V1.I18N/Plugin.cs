@@ -53,32 +53,31 @@ public sealed class I18NVoiceEngine : IVoiceEngine
         mVoiceInfos.Add("i18n-dynamic", new VoiceSourceInfo { Name = L.Tr("Cloud voice") + " [" + lang + "]", Description = L.Tr("A cloud-fetched voice") });
 
         // 声明类 config 在引擎层构建（本地化文案按当前语言）："raw" 用未收录词，验证未译时原样显示英文。
-        mNoteProperties.Add("depth", new SliderConfig { DisplayText = L.Tr("Depth"), DefaultValue = 0, MinValue = 0, MaxValue = 1 });
-        mNoteProperties.Add("quality", new ComboBoxConfig
+        mNoteProperties.Add(("depth", L.Tr("Depth")), new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
+        mNoteProperties.Add(("quality", L.Tr("Quality")), new ComboBoxConfig
         {
-            DisplayText = L.Tr("Quality"),
             Options = new ComboBoxOption[] { new(0, L.Tr("Low")), new(1, L.Tr("High")) },
             DefaultOption = new ComboBoxOption(0, L.Tr("Low")),
         });
-        mNoteProperties.Add("raw", new SliderConfig { DisplayText = L.Tr("Uncolored"), DefaultValue = 0, MinValue = 0, MaxValue = 1 });
+        mNoteProperties.Add(("raw", L.Tr("Uncolored")), new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
         // 自动化轨名本地化。
-        mAutomationConfigs.Add("breath", new AutomationConfig { DisplayText = L.Tr("Breath"), DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#A573E5" });
+        mAutomationConfigs.Add(("breath", L.Tr("Breath")), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#A573E5" });
     }
 
     public void Destroy() { }
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new I18NSession(context);
 
     // 声明（引擎层、纯函数）：本地化的轨/面板配置。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
-    static readonly OrderedMap<string, AutomationConfig> sEmptyConfigs = new();
+    readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mPartProperties = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyConfigs = new();
 }
 
 // 会话取单块最简模式（i18n 与音频无关）：整 part 一块、任何变更全量标脏，合成产出静音 + phoneme。

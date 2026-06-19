@@ -21,23 +21,23 @@ public sealed class GainEffectEngine : IEffectEngine
 
     // 条件轨集合：env_enabled 勾选才暴露 gain_env（轨集合 = f(当前参数值)）。取消勾选时已画 gain_env
     // 曲线由宿主保留隐藏、重新勾选即原样恢复。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context)
     {
         // 连续轨 gain_env（env_enabled 勾选才暴露）+ 分段轨 formant（恒在、DefaultValue=NaN）同在一张有序 map。
         // formant 可编辑、随工程序列化；本参照实现的 DSP 暂不消费它（effect 分段轨回写为未来需求）。
-        var map = new OrderedMap<string, AutomationConfig>();
+        var map = new OrderedMap<PropertyKey, AutomationConfig>();
         if (context.Properties.GetBool("env_enabled", true))
         {
             foreach (var kvp in mAutomations)
                 map.Add(kvp.Key, kvp.Value);
         }
-        map.Add("formant", mFormantConfig);
+        map.Add(("formant", "Formant"), mFormantConfig);
         return map;
     }
 
     // 回显轨声明（只读、分段形 DefaultValue=NaN）：处理产出的 loudness 包络回显，曲线数据经
     // GainProcessor.SynthesizedParameters 的 "loudness" key 承载。验证 effect 回显端到端与 voice 同构。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
 
     public void Init() { }
     public void Destroy() { }
@@ -45,30 +45,30 @@ public sealed class GainEffectEngine : IEffectEngine
 
     static ObjectConfig BuildConfig()
     {
-        var map = new OrderedMap<string, IControllerConfig>();
+        var map = new OrderedMap<PropertyKey, IControllerConfig>();
         map.Add("gain", new SliderConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0 });
-        map.Add("env_enabled", new CheckBoxConfig { DefaultValue = true, DisplayText = "Show Gain Env" });
+        map.Add(("env_enabled", "Show Gain Env"), new CheckBoxConfig { DefaultValue = true });
         return new ObjectConfig { Properties = map };
     }
 
-    static OrderedMap<string, AutomationConfig> BuildAutomations()
+    static OrderedMap<PropertyKey, AutomationConfig> BuildAutomations()
     {
-        var map = new OrderedMap<string, AutomationConfig>();
-        map.Add("gain_env", new AutomationConfig { DisplayText = "Gain Env", DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0, Color = "#FF8800" });
+        var map = new OrderedMap<PropertyKey, AutomationConfig>();
+        map.Add(("gain_env", "Gain Env"), new AutomationConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0, Color = "#FF8800" });
         return map;
     }
 
-    static OrderedMap<string, AutomationConfig> BuildReadbackConfigs()
+    static OrderedMap<PropertyKey, AutomationConfig> BuildReadbackConfigs()
     {
-        var map = new OrderedMap<string, AutomationConfig>();
-        map.Add("loudness", new AutomationConfig { DisplayText = "Loudness", DefaultValue = double.NaN, MinValue = 0.0, MaxValue = 2.0, Color = "#00B0FF" });
+        var map = new OrderedMap<PropertyKey, AutomationConfig>();
+        map.Add(("loudness", "Loudness"), new AutomationConfig { DefaultValue = double.NaN, MinValue = 0.0, MaxValue = 2.0, Color = "#00B0FF" });
         return map;
     }
 
     static readonly ObjectConfig mConfig = BuildConfig();
-    static readonly OrderedMap<string, AutomationConfig> mAutomations = BuildAutomations();
-    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
-    static readonly AutomationConfig mFormantConfig = new() { DisplayText = "Formant", DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#00C2A8" };
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = BuildAutomations();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
+    static readonly AutomationConfig mFormantConfig = new() { DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#00C2A8" };
 
     // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出段，按脏差分复用。
     sealed class GainProcessor : IEffectProcessor
@@ -263,16 +263,16 @@ public sealed class GainEffectEngine : IEffectEngine
 public sealed class ReverseEffectEngine : IEffectEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
     // 无回显（仅倒放音频）：返回空声明。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
     public void Init() { }
     public void Destroy() { }
     public IEffectProcessor CreateProcessor(IEffectContext context) => new ReverseProcessor(context);
 
-    static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
-    static readonly OrderedMap<string, AutomationConfig> mAutomations = new();
-    static readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new();
+    static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = new();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new();
 
     sealed class ReverseProcessor : IEffectProcessor
     {

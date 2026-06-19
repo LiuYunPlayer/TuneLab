@@ -88,7 +88,7 @@ internal static class SynthesisSnapshotFactory
         var automations = new Map<string, SynthesisAutomationSnapshot>();
         foreach (var kvp in part.Voice.AutomationConfigs)
         {
-            string key = kvp.Key;
+            string key = kvp.Key.Id;
             IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
                 ? AutomationSnapshot.Capture(automation, relStart, relEnd)
                 : new ConstantEvaluator(kvp.Value.DefaultValue);

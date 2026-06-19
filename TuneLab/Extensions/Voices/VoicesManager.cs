@@ -113,10 +113,10 @@ internal static class VoicesManager
     // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明，故无构造期时序陷阱）——
     // 引擎不可用 / id 未知 → 回退空引擎；插件求值抛异常 → 记日志并回退空引擎结果（声明每次参数 commit 都调，
     // 不能让一个烂实现拖垮 UI）。voiceId 由 context.VoiceId 承载（与 part 稀疏值同为纯函数输入）。
-    public static IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(string type, IPartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IPartPropertyContext context)
         => Declare(type, context.VoiceId, e => e.GetAutomationConfigs(context));
 
-    public static IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(string type, IPartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IPartPropertyContext context)
         => Declare(type, context.VoiceId, e => e.GetSynthesizedParameterConfigs(context));
 
     public static ObjectConfig GetPartPropertyConfig(string type, IPartPropertyContext context)

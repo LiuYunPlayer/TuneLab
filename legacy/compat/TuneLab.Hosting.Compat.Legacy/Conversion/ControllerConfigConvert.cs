@@ -38,28 +38,30 @@ internal static class ControllerConfigConvert
                 return new VConfig.ObjectConfig { Properties = o.Properties.ToV1ConfigMap() };
             default:
                 // 未知 config（含内部 IntegerConfig/ListConfig，正常不会从插件公共面出现）：优雅降级为空对象。
-                return new VConfig.ObjectConfig { Properties = new PStruct.OrderedMap<string, VConfig.IControllerConfig>() };
+                return new VConfig.ObjectConfig { Properties = new PStruct.OrderedMap<VConfig.PropertyKey, VConfig.IControllerConfig>() };
         }
     }
 
+    // 标签随键：legacy 属性无独立译名，键即标签（PropertyKey.DisplayText 留空、回退 Id）；
+    // legacy AutomationConfig 的 Name 进键的 DisplayText。
     public static VConfig.AutomationConfig ToV1(this LVoice.AutomationConfig a)
-        => new() { DisplayText = a.Name, DefaultValue = a.DefaultValue, MinValue = a.MinValue, MaxValue = a.MaxValue, Color = a.Color };
+        => new() { DefaultValue = a.DefaultValue, MinValue = a.MinValue, MaxValue = a.MaxValue, Color = a.Color };
 
-    public static PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> ToV1ConfigMap(
+    public static PStruct.IReadOnlyOrderedMap<VConfig.PropertyKey, VConfig.IControllerConfig> ToV1ConfigMap(
         this LStruct.IReadOnlyOrderedMap<string, LProp.IPropertyConfig> old)
     {
-        var map = new PStruct.OrderedMap<string, VConfig.IControllerConfig>();
+        var map = new PStruct.OrderedMap<VConfig.PropertyKey, VConfig.IControllerConfig>();
         foreach (var kv in old)
             map.Add(kv.Key, kv.Value.ToV1());
         return map;
     }
 
-    public static PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> ToV1AutomationMap(
+    public static PStruct.IReadOnlyOrderedMap<VConfig.PropertyKey, VConfig.AutomationConfig> ToV1AutomationMap(
         this LStruct.IReadOnlyOrderedMap<string, LVoice.AutomationConfig> old)
     {
-        var map = new PStruct.OrderedMap<string, VConfig.AutomationConfig>();
+        var map = new PStruct.OrderedMap<VConfig.PropertyKey, VConfig.AutomationConfig>();
         foreach (var kv in old)
-            map.Add(kv.Key, kv.Value.ToV1());
+            map.Add((kv.Key, kv.Value.Name), kv.Value.ToV1());
         return map;
     }
 }

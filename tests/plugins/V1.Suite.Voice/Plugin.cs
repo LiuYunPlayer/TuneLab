@@ -28,9 +28,9 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new SingleBlockSession(context);
 
     // 声明（引擎层、纯函数）：按 context.VoiceId 区分两个声库——这正是 voiceId 进 context 的用例。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
         => context.VoiceId == "suite-conditional" ? sEmptyConfigs : mSuiteAutomations;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context)
         => new() { Properties = context.VoiceId == "suite-conditional" ? mConditionalPartProperties : mSuitePartProperties };
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context)
@@ -41,7 +41,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     static ObjectConfig ConditionalNoteConfig(INotePropertyContext context)
     {
         var note = context.NoteProperties;
-        var map = new OrderedMap<string, IControllerConfig>
+        var map = new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
             { "letters", new TextBoxConfig() },
@@ -76,16 +76,16 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     }
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-    static readonly OrderedMap<string, AutomationConfig> sEmptyConfigs = new();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyConfigs = new();
 
     // 自定义自动化名避开宿主保留名。
-    readonly OrderedMap<string, AutomationConfig> mSuiteAutomations = new() { { "Power", new AutomationConfig { DisplayText = "Power", DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
-    readonly OrderedMap<string, IControllerConfig> mSuitePartProperties = new();
+    readonly OrderedMap<PropertyKey, AutomationConfig> mSuiteAutomations = new() { { ("Power", "Power"), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
+    readonly OrderedMap<PropertyKey, IControllerConfig> mSuitePartProperties = new();
     // 条件声库的 part 级勾选项，note config 据它沿链多出字段（演示 part→note 传播）。
-    readonly OrderedMap<string, IControllerConfig> mConditionalPartProperties = new() { { "fromPart", new CheckBoxConfig() } };
+    readonly OrderedMap<PropertyKey, IControllerConfig> mConditionalPartProperties = new() { { "fromPart", new CheckBoxConfig() } };
     // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板三态呈现的多选测试 + 深层嵌套导航
     // （vibrato → lfo → range 共 3 层对象；见 tests/PROPERTY-TRISTATE/NAVIGATION-TEST-CASES.md）。
-    readonly OrderedMap<string, IControllerConfig> mSuiteNoteProperties = new()
+    readonly OrderedMap<PropertyKey, IControllerConfig> mSuiteNoteProperties = new()
     {
         { "tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
         { "accent", new CheckBoxConfig() },
@@ -93,15 +93,15 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         { "style", new ComboBoxConfig { Options = ["Soft", "Normal", "Strong"], DefaultOption = "Normal" } },
         // 值/显示分离 + 任意基础类型：界面显示 Low/Mid/High，底层存的是 int 值 0/1/2（默认 Mid=1）。
         { "quality", new ComboBoxConfig { Options = new ComboBoxOption[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }, DefaultOption = new ComboBoxOption(1, "Mid") } },
-        { "vibrato", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
+        { "vibrato", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "depth", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 } },
             { "on", new CheckBoxConfig() },
-            { "lfo", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
+            { "lfo", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
             {
                 { "rate", new SliderConfig { DefaultValue = 5, MinValue = 0, MaxValue = 20 } },
                 { "wave", new ComboBoxConfig { Options = ["Sine", "Triangle", "Square"] } },
-                { "range", new ObjectConfig { Properties = new OrderedMap<string, IControllerConfig>
+                { "range", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
                 {
                     { "min", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
                     { "max", new SliderConfig { DefaultValue = 1, MinValue = -1, MaxValue = 1 } },

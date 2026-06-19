@@ -44,16 +44,17 @@ internal class PropertyObjectController : StackPanel
 
         foreach (var kvp in config.Properties)
         {
-            var key = kvp.Key;
+            var key = kvp.Key;      // PropertyKey：Id 用于数据寻址与 diff、DisplayText 用于标签
+            var id = key.Id;
             var cfg = kvp.Value;
-            if (nextByKey.ContainsKey(key))
+            if (nextByKey.ContainsKey(id))
                 continue; // ObjectConfig 是 map，key 本应唯一；防御重复
 
-            if (mCreatorsByKey.TryGetValue(key, out var existing) && existing.ConfigType == cfg.GetType())
+            if (mCreatorsByKey.TryGetValue(id, out var existing) && existing.ConfigType == cfg.GetType())
             {
                 existing.Update(cfg);
-                mCreatorsByKey.Remove(key);
-                nextByKey.Add(key, existing);
+                mCreatorsByKey.Remove(id);
+                nextByKey.Add(id, existing);
             }
             else
             {
@@ -62,10 +63,10 @@ internal class PropertyObjectController : StackPanel
                     Log.Error($"No controller found for config type: {cfg.GetType()}");
                     continue;
                 }
-                nextByKey.Add(key, factory(this, key, cfg));
+                nextByKey.Add(id, factory(this, key, cfg));
                 structureChanged = true; // 新建（含同 key 换类型）
             }
-            nextOrder.Add(key);
+            nextOrder.Add(id);
         }
 
         if (mCreatorsByKey.Count > 0)
@@ -170,9 +171,9 @@ internal class PropertyObjectController : StackPanel
 
     class ObjectCreator : Creator
     {
-        public ObjectCreator(PropertyObjectController parent, string key, ObjectConfig config) : base(parent)
+        public ObjectCreator(PropertyObjectController parent, PropertyKey key, ObjectConfig config) : base(parent)
         {
-            mTitle = CreateTitle(config.DisplayText ?? key, 26);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 26);
 
             mBorder = ObjectPoolManager.Get<Border>();
             mBorder.Margin = new(23, 12, 0, 0);
@@ -180,7 +181,7 @@ internal class PropertyObjectController : StackPanel
             mBorder.Background = Style.BACK.ToBrush();
 
             mController = ObjectPoolManager.Get<PropertyObjectController>();
-            mController.SetConfig(config, parent.DataObject.Object(key));
+            mController.SetConfig(config, parent.DataObject.Object(key.Id));
 
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
             mDockPanel.Margin = new(0, 0, 0, 0);
@@ -220,9 +221,9 @@ internal class PropertyObjectController : StackPanel
 
     class SliderCreator : Creator
     {
-        public SliderCreator(PropertyObjectController parent, string key, SliderConfig config) : base(parent)
+        public SliderCreator(PropertyObjectController parent, PropertyKey key, SliderConfig config) : base(parent)
         {
-            mTitle = CreateTitle(config.DisplayText ?? key, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
 
             mController = ObjectPoolManager.Get<SliderController>();
             mController.Margin = new(24, 12);
@@ -230,7 +231,7 @@ internal class PropertyObjectController : StackPanel
 
             // 先绑定（初次刷新即把真实值写入），Relayout 才加入可视树——否则池复用的控件会以残留旧值/旧量程
             // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
-            mController.BindDataProperty(parent.DataObject.NumberField(key, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.NumberField(key.Id, config.DefaultValue), s);
         }
 
         void Apply(SliderConfig config)
@@ -257,15 +258,15 @@ internal class PropertyObjectController : StackPanel
 
     class SingleLineTextCreator : Creator
     {
-        public SingleLineTextCreator(PropertyObjectController parent, string key, TextBoxConfig config) : base(parent)
+        public SingleLineTextCreator(PropertyObjectController parent, PropertyKey key, TextBoxConfig config) : base(parent)
         {
-            mTitle = CreateTitle(config.DisplayText ?? key, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
 
             mController = ObjectPoolManager.Get<SingleLineTextController>();
             mController.Margin = new(24, 12);
             mController.IsPassword = config.IsPassword;
 
-            mController.BindDataProperty(parent.DataObject.StringField(key, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.StringField(key.Id, config.DefaultValue), s);
         }
 
         public override Type ConfigType => typeof(TextBoxConfig);
@@ -285,11 +286,11 @@ internal class PropertyObjectController : StackPanel
 
     class ComboBoxCreator : Creator
     {
-        public ComboBoxCreator(PropertyObjectController parent, string key, ComboBoxConfig config) : base(parent)
+        public ComboBoxCreator(PropertyObjectController parent, PropertyKey key, ComboBoxConfig config) : base(parent)
         {
-            mKey = key;
+            mKey = key.Id;
             mConfig = config;
-            mTitle = CreateTitle(config.DisplayText ?? key, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
 
             mController = ObjectPoolManager.Get<ComboBoxController>();
             mController.Margin = new(24, 12);
@@ -336,7 +337,7 @@ internal class PropertyObjectController : StackPanel
 
     class CheckBoxCreator : Creator
     {
-        public CheckBoxCreator(PropertyObjectController parent, string key, CheckBoxConfig config) : base(parent)
+        public CheckBoxCreator(PropertyObjectController parent, PropertyKey key, CheckBoxConfig config) : base(parent)
         {
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
 
@@ -345,11 +346,11 @@ internal class PropertyObjectController : StackPanel
             mDockPanel.Children.Add(mController);
             DockPanel.SetDock(mController, Dock.Right);
 
-            mTitle = CreateTitle(config.DisplayText ?? key, 30);
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
             mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
             mDockPanel.Children.Add(mTitle);
 
-            mController.BindDataProperty(parent.DataObject.BoolField(key, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.BoolField(key.Id, config.DefaultValue), s);
         }
 
         public override Type ConfigType => typeof(CheckBoxConfig);
@@ -382,7 +383,7 @@ internal class PropertyObjectController : StackPanel
         return label;
     }
 
-    static readonly Map<Type, Func<PropertyObjectController, string, IControllerConfig, Creator>> mFactories = new()
+    static readonly Map<Type, Func<PropertyObjectController, PropertyKey, IControllerConfig, Creator>> mFactories = new()
     {
         { typeof(ObjectConfig), (parent, key, config) => new ObjectCreator(parent, key, (ObjectConfig)config) },
         { typeof(SliderConfig), (parent, key, config) => new SliderCreator(parent, key, (SliderConfig)config) },
