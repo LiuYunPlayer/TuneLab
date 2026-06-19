@@ -10,9 +10,11 @@ using Button = TuneLab.GUI.Components.Button;
 
 namespace TuneLab.UI;
 
-internal partial class PresetNameDialog : Window
+// 通用取名弹窗：一个文本输入 + OK。标题栏文字与窗口标题由调用方传入（如 "Preset Name" / "Script Name"），
+// 故 preset、script 等共用同一弹窗，不各造一份。返回 trim 后的名字，取消/空则返回 null。
+internal partial class NameInputDialog : Window
 {
-    public PresetNameDialog(string initialName = "")
+    public NameInputDialog(string titleText, string initialName = "")
     {
         InitializeComponent();
         Focusable = true;
@@ -21,8 +23,8 @@ internal partial class PresetNameDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Topmost = true;
 
-        TitleLabel.Content = "Preset Name".Tr(TC.Property);
-        Title = "Preset".Tr(TC.Property) + " - TuneLab";
+        TitleLabel.Content = titleText;
+        Title = titleText + " - TuneLab";
 
         this.Background = Style.BACK.ToBrush();
         TitleLabel.Foreground = Style.TEXT_LIGHT.ToBrush();
