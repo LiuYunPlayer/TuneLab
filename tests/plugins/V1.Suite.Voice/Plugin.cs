@@ -28,11 +28,53 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new SingleBlockSession(context);
 
     // 声明（引擎层、纯函数）：按 context.VoiceId 区分两个声库——这正是 voiceId 进 context 的用例。
+    // suite-conditional：自动化 = f(已选 speaker)——每个混入的 speaker 派生一条混音曲线（多说话人混音式，演示
+    // 「+ speaker → part 属性物化 → 自动化重算 → 曲线按钮自动出现」；wiring 由宿主 OnPartPropertiesModified 既有链承担）。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
-        => context.VoiceId == "suite-conditional" ? sEmptyConfigs : mSuiteAutomations;
+    {
+        if (context.VoiceId != "suite-conditional")
+            return mSuiteAutomations;
+
+        var selected = context.PartProperties.GetValue("speakers", PropertyObject.Empty);
+        var map = new OrderedMap<PropertyKey, AutomationConfig>();
+        foreach (var kvp in selected.Map)
+            map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
+        return map;
+    }
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context)
-        => new() { Properties = context.VoiceId == "suite-conditional" ? mConditionalPartProperties : mSuitePartProperties };
+        => context.VoiceId == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
+
+    // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（AddableObjectConfig）。
+    // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
+    static ObjectConfig ConditionalPartConfig(IPartPropertyContext context)
+    {
+        var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
+
+        var selected = context.PartProperties.GetValue("speakers", PropertyObject.Empty);
+        var speakerProps = new OrderedMap<PropertyKey, IControllerConfig>();
+        foreach (var kvp in selected.Map)
+            speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
+
+        map.Add(("speakers", "Mixed Speakers"), new AddableObjectConfig
+        {
+            Properties = speakerProps,
+            AddableElements = kSpeakers
+                .Select(s => new AddableKey((s.id, s.name), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() }))
+                .ToList(),
+        });
+
+        return new ObjectConfig { Properties = map };
+    }
+
+    static readonly (string id, string name)[] kSpeakers = { ("alice", "Alice"), ("bob", "Bob"), ("carol", "Carol") };
+    static string SpeakerName(string id)
+    {
+        foreach (var s in kSpeakers)
+            if (s.id == id)
+                return s.name;
+        return id;
+    }
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context)
         => context.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
 
@@ -109,8 +151,6 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     // 自定义自动化名避开宿主保留名。
     readonly OrderedMap<PropertyKey, AutomationConfig> mSuiteAutomations = new() { { ("Power", "Power"), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
     readonly OrderedMap<PropertyKey, IControllerConfig> mSuitePartProperties = new();
-    // 条件声库的 part 级勾选项，note config 据它沿链多出字段（演示 part→note 传播）。
-    readonly OrderedMap<PropertyKey, IControllerConfig> mConditionalPartProperties = new() { { "fromPart", new CheckBoxConfig() } };
     // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板三态呈现的多选测试 + 深层嵌套导航
     // （vibrato → lfo → range 共 3 层对象；见 tests/PROPERTY-TRISTATE/NAVIGATION-TEST-CASES.md）。
     readonly OrderedMap<PropertyKey, IControllerConfig> mSuiteNoteProperties = new()

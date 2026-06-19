@@ -42,6 +42,9 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
 
     void IDataPropertyObject.SetValue(string key, PropertyValue value) => SetValue(key, value);
 
+    // 移除某键（撤销由底层 DataObjectMap.Remove 命令承担）。缺键 = no-op。
+    public void RemoveValue(string key) => mMap.Remove(key);
+
     // 导航到嵌套对象：返回懒视图，读经 FindObject（不创建）、写经 GetOrCreateObject（按需建路径）。
     public IDataPropertyObject Object(string key) => new ObjectView(this, this, key);
 

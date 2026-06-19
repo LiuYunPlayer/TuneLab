@@ -70,6 +70,17 @@ public class DataPropertyArray : DataObject, IDataObject<PropertyArray>, IDataPr
     // 本层叶子写：陈旧 token → no-op（绑定元素已被删，写入作废）。撤销由 DataPropertyValue 自带命令承担。
     public void SetValue(string token, PropertyValue value) => ResolveToken(token)?.Set(PropertySlot.Canonicalize(value));
 
+    // 按 token 移除元素（IDataPropertyObject.RemoveValue 在数组上的语义 = 删该元素）：解析 token → RemoveAt。陈旧 token = no-op。
+    public void RemoveValue(string token)
+    {
+        var dataPropertyValue = ResolveToken(token);
+        if (dataPropertyValue == null)
+            return;
+        int index = mList.IndexOf(dataPropertyValue);
+        if (index >= 0)
+            mList.RemoveAt(index);
+    }
+
     // ===== ILazyObjectNode（key=元素 token）：解析到该元素槽的子对象/子数组，供 ObjectView/ArrayView 向元素内懒导航 =====
 
     DataPropertyObject? ILazyObjectNode.FindObject(string token) => ResolveToken(token)?.Value.Object;

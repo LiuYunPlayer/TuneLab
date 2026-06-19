@@ -74,6 +74,28 @@
 | CBOR 往返 | 存盘 → 重开工程 | phonemes（含重复）、pair 的值与顺序原样恢复 |
 | undo/redo | 添加/删除/编辑后 Ctrl+Z / Ctrl+Y | 逐元素粒度回退/重做，token 稳定、行不乱 |
 
+## ④-D AddableObjectConfig（变长键控容器）+ 多说话人混音式自动化联动
+
+object 家族的变长兄弟：项有唯一键 + 标签（`PropertyKey.DisplayText`）、按键寻址、`+` 从候选键挑（隐藏已存在键）。
+键控访问天生懒（`Object`/`GetValue` 读不建、写物化 + presence），无需 array 的越界 seed 适配。**真机测试**。
+
+**前置**：同上（装 `v1-suite.tlx`、声库 `[v1-suite] Conditional`）。看 **part 属性面板**（不是 note）的 **Mixed Speakers** 项。
+
+| 用例 | 操作 | 验证点 |
+|---|---|---|
+| 起步为空 | 刚建 part | Mixed Speakers 下只有 `+`、无行 |
+| 加键（多候选下拉） | 点 `+` | 弹菜单 Alice/Bob/Carol；选 Alice → 出现 `Alice` 行（仅标题 + 悬浮 ×，presence-only 条目） |
+| **自动化联动** | 加 Alice 后看参数区/自动化默认值行 | 自动出现一条 `Alice` 混音自动化曲线（验证 `+ → part 属性物化 → GetAutomationConfigs 重算 → 曲线按钮出现`，即多说话人混音的主诉求） |
+| 候选隐藏已存在 | 再点 `+` | 菜单只剩 Bob/Carol（Alice 已隐藏）；选 Bob → `Bob` 行 + `Bob` 自动化 |
+| 单候选直加 | 已加 2 个后点 `+` | 只剩 1 候选 → **直接添加**、不弹菜单 |
+| 候选耗尽 | 加满 3 个 | `+` 按钮隐藏（无候选） |
+| 删键 | 悬浮 `Alice` 行点 × | `Alice` 行消失 + `Alice` 自动化曲线消失 |
+| CBOR 往返 | 存盘→重开 | 已选 speaker 集合 + 各自动化原样恢复 |
+| undo/redo | 加/删后 Ctrl+Z/Y | 逐键回退/重做，自动化随之增减 |
+
+> 注：speaker 选择存为 part 属性 `speakers`（键控对象），自动化 = `f(该属性)`；曲线随属性变化自动增减的 wiring
+> 由宿主既有链承担（`MidiPart.OnPartPropertiesModified → RebuildAutomationConfigs → AutomationConfigsModified`），无需新增。
+
 **已知限制（记录在案）**
 - **seeded 滑条首次拖动一次性重建**：seed 位（虚拟行）首次写入物化整段→reconcile 用真实 token 行替换虚拟行，
   对连续提交的滑条会在第一拍重建（值已落、之后顺滑）。离散提交控件（TextBox/ComboBox/CheckBox）无此现象。

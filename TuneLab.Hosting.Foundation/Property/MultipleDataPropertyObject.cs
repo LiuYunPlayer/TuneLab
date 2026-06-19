@@ -69,6 +69,17 @@ public class MultipleDataPropertyObject : IDataPropertyObject
             dataObject.EndMergeNotify();
     }
 
+    // 移除键：扇出到所有对象（merge 同 SetValue，避免中间态闪烁）。
+    public void RemoveValue(string key)
+    {
+        foreach (var dataObject in mDataObjects)
+            dataObject.BeginMergeNotify();
+        foreach (var dataObject in mDataObjects)
+            dataObject.RemoveValue(key);
+        foreach (var dataObject in mDataObjects)
+            dataObject.EndMergeNotify();
+    }
+
     // ---- IDataObject：撤销机制委托首对象（文档级共享），Modified/WillModify 取合并事件，无选中时全 no-op ----
     public IModifiedEvent Modified => mModified;
     public IModifiedEvent WillModify => mWillModify;
@@ -142,6 +153,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         public IDataPropertyArray Array(string token) => this;
         public PropertyValue GetValue(string token, PropertyValue defaultValue) => defaultValue;
         public void SetValue(string token, PropertyValue value) { }
+        public void RemoveValue(string token) { }
     }
 
     // 退出 merge 作用域时对所有成员 EndMergeNotify（与 MergeNotify 进入时的全成员 BeginMergeNotify 对称）。

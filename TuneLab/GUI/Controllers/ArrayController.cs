@@ -317,6 +317,7 @@ internal abstract class ElementWidget : IDisposable
         ObjectConfig c => new ObjectElement(dataObject, token, c),
         ArrayConfig c => new NestedArrayElement(dataObject, token, c),
         ListConfig c => new NestedListElement(dataObject, token, c),
+        AddableObjectConfig c => new NestedAddableObjectElement(dataObject, token, c),
         _ => new UnknownElement(config),
     };
 
@@ -473,6 +474,27 @@ internal abstract class ElementWidget : IDisposable
         readonly ListController mController = new();
     }
 
+    // 数组套变长键控对象元素：嵌 AddableObjectController，导航进 dataObject.Object(token)。
+    sealed class NestedAddableObjectElement : ElementWidget
+    {
+        public NestedAddableObjectElement(IDataPropertyObject dataObject, string token, AddableObjectConfig config)
+        {
+            mController.Bind(dataObject.Object(token));
+            mController.Apply(config);
+        }
+
+        public override Control View => mController;
+        public override Type ConfigType => typeof(AddableObjectConfig);
+        public override void Update(IControllerConfig config) => mController.Apply((AddableObjectConfig)config);
+        public override void Dispose()
+        {
+            base.Dispose();
+            mController.Unbind();
+        }
+
+        readonly AddableObjectController mController = new();
+    }
+
     sealed class UnknownElement : ElementWidget
     {
         public UnknownElement(IControllerConfig config)
@@ -545,6 +567,7 @@ sealed class SeedPositionView : ForwardingDataObject, IDataPropertyObject
     // 防御：未物化先物化再下钻（标量 seed 流程不会触发）。
     public IDataPropertyObject Object(string key) { if (!Real) Materialize(); return mArray.Object(mArray.Tokens[mPosition]); }
     public IDataPropertyArray Array(string key) { if (!Real) Materialize(); return mArray.Array(mArray.Tokens[mPosition]); }
+    public void RemoveValue(string key) { } // seed 位删除由控制器 RemoveRow 处理，标量 seed 流程不触发
 
     readonly IDataPropertyArray mArray;
     readonly int mPosition;
@@ -570,6 +593,20 @@ internal static class ArrayControlsFactory
         button.Height = 24;
         return button;
     }
+
+    // 键控条目的行标题（取 PropertyKey.DisplayText）：复刻属性面板字段标题样式。
+    public static Label MakeRowTitle(string text)
+    {
+        return new Label
+        {
+            Content = text,
+            Height = 26,
+            FontSize = 12,
+            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
+            Foreground = Style.LIGHT_WHITE.ToBrush(),
+            Padding = new(24, 0),
+        };
+    }
 }
 
 // config → 默认 PropertyValue 的递归求值：叶子取 IValueConfig.DefaultValue，复合（对象/数组/列表）递归各成员拼合。
@@ -584,6 +621,14 @@ internal static class ControllerConfigDefaults
             {
                 var map = new Map<string, PropertyValue>();
                 foreach (var kvp in objectConfig.Properties)
+                    map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
+                return PropertyValue.Create(new PropertyObject(map));
+            }
+            case AddableObjectConfig addableObjectConfig:
+            {
+                // 变长键控容器默认值 = 当前已声明键的默认值拼成的对象（同 ObjectConfig）。
+                var map = new Map<string, PropertyValue>();
+                foreach (var kvp in addableObjectConfig.Properties)
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 return PropertyValue.Create(new PropertyObject(map));
             }

@@ -386,6 +386,33 @@ internal class PropertyObjectController : StackPanel
         readonly ListController mController;
     }
 
+    // 变长键控容器字段：字段带 key 标题，内容是 AddableObjectController（命名条目 + 增删，见 AddableObjectController.cs）。
+    // 绑到 Object(key.Id) 的嵌套对象——条目是该对象内的键。
+    class AddableObjectCreator : Creator
+    {
+        public AddableObjectCreator(PropertyObjectController parent, PropertyKey key, AddableObjectConfig config) : base(parent)
+        {
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+            mController = new AddableObjectController();
+            mController.Bind(parent.DataObject.Object(key.Id));
+            mController.Apply(config);
+        }
+
+        public override Type ConfigType => typeof(AddableObjectConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) => mController.Apply((AddableObjectConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mController.Unbind();
+            ObjectPoolManager.Return(mTitle);
+        }
+
+        readonly Label mTitle;
+        readonly AddableObjectController mController;
+    }
+
     class CheckBoxCreator : Creator
     {
         public CheckBoxCreator(PropertyObjectController parent, PropertyKey key, CheckBoxConfig config) : base(parent)
@@ -443,6 +470,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
         { typeof(ArrayConfig), (parent, key, config) => new ArrayCreator(parent, key, (ArrayConfig)config) },
         { typeof(ListConfig), (parent, key, config) => new ListCreator(parent, key, (ListConfig)config) },
+        { typeof(AddableObjectConfig), (parent, key, config) => new AddableObjectCreator(parent, key, (AddableObjectConfig)config) },
     };
 
     IDataPropertyObject? mDataObject;
