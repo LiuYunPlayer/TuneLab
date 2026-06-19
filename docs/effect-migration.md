@@ -730,6 +730,40 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **消费者爆炸半径（已核/已改）**：voice SDK `ISynthesisContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `ISynthesisSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行 + 段列表产物）；消费者 `MidiPart.GetAudioData`（播放逐段混音）+ `PianoScrollView.DrawWaveform`（逐段绘制）改读 `SynthesizedSegments`（`IMidiPart` 的 `SynthesizedAudio`/`Waveform` 塌缩为 `SynthesizedSegments`）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
 
+### 29. PropertyArray（有序可重复列表）+ Config 标签随槽走（设计定稿，待落地）
+
+承 §三.12（值模型留 `Array` 段未产出 / live-doc 数组形态「`DataList` vs `DataObjectList` 随需求定」）、§三.14（`PropertyArray` 推迟，typed 叶子包装 `PropertyBoolean/Number/String` 已弃——零消费者、具体类型重载替代）、§三.23（三态呈现）、§三.25（`config = f(context)` 整树重算）、§三.26（ComboBox 值/显示分离）。对应跟踪 issue「PropertyArray（有序可重复列表）」。需求驱动：重复音素 / 可中插删列表。先讨论达成共识，本节锁形状。
+
+**值容器（地板 `TuneLab.Foundation`，单份）`PropertyArray`** —— 与 `PropertyObject` 完全对称的 sealed 值类：构造拷入 `PropertyValue[]`、`Empty` 单例、`Count` + 索引器 + 枚举、深相等 + `GetHashCode` + `ToString`。元素是 `PropertyValue` 基类型（天然可嵌套：数组套对象 = 重复音素、数组套数组合法），**heterogeneous-capable**，值层不设同型约束；可靠索引访问、可知大小，取出是 `PropertyValue`、消费方按自身协议转。`PropertyArray` 本身即不可变冻结类型，满足「走冻结类型而非裸 `IList<>`」，不另造地板列表接口。`PropertyValue` 加 `Array` 臂：`Create(PropertyArray)` / 隐式转换 / 构造（存 `mReference`、`mType=Array`）/ `IsArray` / `ToArray(out)` / `To<PropertyArray>` / `TypeIs` / 三个 switch（`ToString`/`Equals`/`GetHashCode`）补 Array。
+
+**live-doc（`TuneLab.Hosting.Foundation`）`DataPropertyArray = DataObjectList<DataPropertyValue>`** —— 选 `DataObjectList` 而非 `DataList`（结掉 §三.12 那个未决点）：每元素槽是 `DataPropertyValue`（标量/子对象/子数组三选一），逐元素 attach/undo，中插/删/原位改都是细粒度命令，元素（含嵌套对象）有独立 live 身份、可被面板原位 live-bind。`PropertySlot` 扩第三臂（标量 / 子对象 / **子数组**）；`DataPropertyObject.ToSlot` 把 array 型值 canonicalize 成活 `DataPropertyArray` 子节点（与 object 型→`DataPropertyObject` 对称）。`GetInfo()→PropertyArray` / `SetInfo` / Insert/RemoveAt 递归触底。
+
+**序列化（TLP/CBOR）** —— 抽递归 `ReadPropertyValue`/`WritePropertyValue`（元素可任意类型），CBOR 读补 `StartArray`、写补 `value.ToArray(...)`→`WriteStartArray`。**空数组照写**（present-`[]` 是真实值，不能因空跳过——见下 presence 语义）。只动 TLP 原生格式；ACEP/VPR 等映射各自 schema、不沾。
+
+**Config 标签随槽走：去 `IControllerConfig` 的 DisplayText，引入 `PropertyKey`** —— 显示标签是「插槽」属性、非 config 内在：在 ObjectConfig 字段里是 key 的翻译、在数组元素里是行/类型名、在 `+` 菜单里是可加类型名——同一 config 放不同槽含义不同，故不属 config 本身。
+- `IControllerConfig` 回归**纯 marker**（无 DisplayText）；`IValueConfig.DefaultValue`（boxed `PropertyValue`）**保留**——唯一消费者是 `PropertySideBarContentProvider.ResetPartPropertiesToDefaults` 的「config→默认值」递归 walker（恢复默认 / 应用 preset），它要泛型拿任意 config 默认值；数组落地时此 walker 长出 `ArrayConfig`/`ListConfig` 两臂（递归 `Elements` 各位默认值拼 `PropertyArray`）。
+- `PropertyKey { string Id; string? DisplayText }`（`readonly struct`）：`Id` 是数据寻址用的稳定标识（= 落进 `PropertyObject` 的 key 字符串），`DisplayText` 是其翻译（缺省回退 `Id`）。**相等性/哈希只认 `Id`**，`DisplayText` 是注解、不入键身份——这恰好让 keyed-diff 在「语言切换、仅 DisplayText 变」时判同键、只重贴标签不重建控件。隐式转换 `string`→`PropertyKey`（无译文）与 `(string, string?)`→`PropertyKey`（带译文）保作者人体工学与 `[CollectionBuilder]` 字面量。
+- `ObjectConfig.Properties` 改 `IReadOnlyOrderedMap<PropertyKey, IControllerConfig>`（value 保持纯 config、不套娃）。**一致到底**：`AutomationConfig` 也归此制——`IVoiceEngine.GetAutomationConfigs`/`GetSynthesizedParameterConfigs` 与 `IEffectEngine.GetAutomationConfigs` 的返回从 `OrderedMap<string, AutomationConfig>` 改 `OrderedMap<PropertyKey, AutomationConfig>`、`AutomationConfig` 删 DisplayText。各叶子 config（Slider/TextBox/CheckBox/ComboBox）删各自 DisplayText；`ComboBoxOption.DisplayText` 不动（那是第三概念：选项值→显示文本）。
+
+**两种数组型 config（共用 `PropertyArray` 值容器）** ——
+- `ArrayConfig`（定长）：`IReadOnlyList<IControllerConfig> Elements`，逐 index 声明、允许异型，长度 = 声明数、不可增删；第 i 元素由 `Elements[i]` 渲染并绑定 `array[i]`。
+- `ListConfig`（变长）：`Elements`（当前已存元素的逐元素 config，插件读 context 传入 array 现算、长度 = 数据元素数）+ `IReadOnlyList<AddableElement> AddableElements`（`+` 菜单候选；单项点 + 直接追加该类型默认值、多项弹下拉按类型名选）。随 `f(context)` 重算故可依状态变化（达上限返回空 → + 禁用）。
+- `AddableElement { IControllerConfig Template; string? Label }`（`readonly struct`，隐式自 `IControllerConfig`）：**刻意独立成类型**而非复用 `List<IControllerConfig>`——与 `Elements` 破撞型（这是「下一个元素可选的若干类型」选择集、非「后续若干元素」位置序列）。`Template` 提供新元素 seed 默认值（宿主递归解析）+ 渲染配置，`Label` 是菜单类型名。
+- 数组元素无 key、故**无逐元素标签**；要带标签的行用 ObjectConfig 元素（其内部字段自带 key 标签），与「多类型宜用 ObjectConfig」一脉相承。
+
+**初始内容 / 默认值语义：presence 判别（key 在不在），非 emptiness** —— 空数组与「未初始化」必须可分，否则用户显式清空会被误当初始态重新 seed。判别符是 **key 是否存在**（`IPartPropertyContext` 既有语义「默认 = 字段不存在」、缺席读到 `Invalid`）：
+- key 缺席（从未写）= 未初始化 → 插件读到 `Invalid` → 按需 emit N 个 element config 当 seed（其默认值即初始值；任意 seed 内容由各 element config 默认值表达，无需独立 DefaultItems 字段）。
+- key 存在、值 = 空数组 `[]` = 用户显式清空 → 插件读到 count=0 → emit 空 `Elements` → 不再 seed。
+- 两条承重约束：**删到空写入「存在的空数组」、绝不删 key**（任何一次删除都把 absent 翻成 present、关闭 default 通道）；**序列化保留 present-`[]`**。default 是 absent 的有效值替身（展示 / 喂 getconfig / 读取统一用），首次写即物化、从此关闭。原则同 §三.23：别把多语义压进一个值、用显式标记（这里是 key presence）区分态。
+
+**类型不匹配 → 退回该 config 默认值**（沿既有 `DataPropertyObject.GetValue` 逻辑，**不做特殊 UI 呈现**）：类型不符时值已无意义，直接展示默认值；数据层原样保留原始 slot 值、不静默改写。
+
+**keyed-diff 键源** —— ObjectConfig 字段按 `PropertyKey`（Id-only）；list 行**按元素身份**（`DataObjectList` 给每个 `DataPropertyValue` 稳定引用身份），非 index——故中插/删只增删一行、后续行控件原样保留（这正是 plane② 选 `DataObjectList` 喂出来的；`DataList` 存值快照无元素身份、给不出稳定行键）。重排**先不做**（做时限同类型互换位置，纯 UX、与协议无关）。
+
+**消费者爆炸半径** —— 值模型 `PropertyValue`/`PropertyType` + 新 `PropertyArray`；live-doc 新 `DataPropertyArray` + `PropertySlot` 三臂 + `ToSlot`；序列化 `TuneLabProjectCbor` 递归读写；SDK config 面（`IControllerConfig` 去 DisplayText、新 `PropertyKey`/`ArrayConfig`/`ListConfig`/`AddableElement`、`ObjectConfig`/`AutomationConfig` 改键、叶子 config 删 DisplayText、`IVoiceEngine`/`IEffectEngine` 自动化返回改键）；面板渲染器（`PropertySideBarContentProvider` walker 扩臂 + 标签改从 `PropertyKey.DisplayText` 取）；全部声明 config 的站点（测试插件 `V1.*`）。两 SDK 预发布、无野外插件，按 release/2.0.0 不留兼容约定，破坏性换形态零 compat 负担。
+
+**落地范围（待用户定）**：数据核心（①地板 `PropertyArray` ②live `DataPropertyArray` ③TLP 读写）先行、④两 config + 控件 + 标签改制随真实 UI 消费者（如音素重复编辑）落；还是四层一并做。④带表现层增长面，按 §三.7「零消费者不建空壳」倾向前者。
+
 ---
 
 ## 四、讨论话题清单（按依赖顺序）
