@@ -762,7 +762,31 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **消费者爆炸半径** —— 值模型 `PropertyValue`/`PropertyType` + 新 `PropertyArray`；live-doc 新 `DataPropertyArray` + `PropertySlot` 三臂 + `ToSlot`；序列化 `TuneLabProjectCbor` 递归读写；SDK config 面（`IControllerConfig` 去 DisplayText、新 `PropertyKey`/`ArrayConfig`/`ListConfig`/`AddableElement`、`ObjectConfig`/`AutomationConfig` 改键、叶子 config 删 DisplayText、`IVoiceEngine`/`IEffectEngine` 自动化返回改键）；面板渲染器（`PropertySideBarContentProvider` walker 扩臂 + 标签改从 `PropertyKey.DisplayText` 取）；全部声明 config 的站点（测试插件 `V1.*`）。两 SDK 预发布、无野外插件，按 release/2.0.0 不留兼容约定，破坏性换形态零 compat 负担。
 
-**落地范围（待用户定）**：数据核心（①地板 `PropertyArray` ②live `DataPropertyArray` ③TLP 读写）先行、④两 config + 控件 + 标签改制随真实 UI 消费者（如音素重复编辑）落；还是四层一并做。④带表现层增长面，按 §三.7「零消费者不建空壳」倾向前者。
+**落地进度**：①地板 `PropertyArray` + ②live `DataPropertyArray` + ③TLP/CBOR 读写 + ④-A 标签改制（`PropertyKey`）均已落地；④-B-1 live-bind 导航层（`IDataPropertyArray` 稳定 token 寻址 + 懒导航）、④-B-2 面板控件（`Array`/`ListController` 独立元素渲染器 + seed 越界惰性绑定）、④-C 测试夹具（`[v1-suite] Conditional` 的 phonemes/pair）已落地并真机验收。元素渲染**不复用** `PropertyObjectController` 的「标题+分隔符」排布（元素无 key 标签、行内紧凑、悬浮删除浮层），是独立 `ElementWidget` 分发件。
+
+### 变长键控容器 `AddableObjectConfig` + array/object 范式判据（设计定稿，待落地）
+
+补齐容器 config 的 2×2 空格：
+
+| | 定长 | 变长 |
+|---|---|---|
+| 无标签 / 位置寻址（array 家族） | `ArrayConfig` | `ListConfig` |
+| 有标签 / 唯一键寻址（object 家族） | `ObjectConfig` | **`AddableObjectConfig`（本节）** |
+
+`ObjectConfig : AddableObjectConfig :: ArrayConfig : ListConfig`——`ObjectConfig`/`ArrayConfig` 是「定」（键/位置由插件声明、不可增减），各补一个可增减的变长兄弟。
+
+**范式判据**：不是「有没有标签」字面，而是**身份模型**——可重复、有序、匿名（"i i an"，靠位置/opaque token 认）→ **array 家族**；唯一键、每项一个用户可见的命名槽、不可重复 → **object 家族**。「想给某项加标签」即「该集合是键控的」信号：标签是键的属性、走 `PropertyKey.DisplayText`，**config 仍不带 DisplayText**（「标签随槽走」不破）。`object` 是 `array` 的结构超集（`DataPropertyArray` 内部即用 opaque token 当键），但**不合并**：list 序列化成 JSON 数组形 + 可重复，map 序列化成 JSON 对象形 + 唯一键；按身份模型选，非优劣。
+
+**`AddableObjectConfig`（变长键控）**：
+- `Properties`（`IReadOnlyOrderedMap<PropertyKey, IControllerConfig>`）—— 当前已存键的逐键 config，插件读 context 现算、可空（同 `ObjectConfig` 形）。
+- `AddableElements`（`IReadOnlyList<AddableKey>`，`AddableKey { PropertyKey Key; IControllerConfig Template; }`）—— `+` 菜单候选：`Key` 携 Id（数据键）+ DisplayText（菜单/行标签），`Template` 是该键加入后渲染并 seed 默认值的 config。键唯一 → 每候选最多加一次，`+` 菜单**隐藏已存在的键**；候选随 `f(context)` 重算（达上限/已全加 → 空 → `+` 禁用）。
+- presence/seed 同 array：键缺席→插件按需 seed 若干键当初始；present→按实际键集；删到空写「存在的空对象」、**不删整个 property key**。
+- **数据层免动**：`DataPropertyObject` 键本动态、`Object(key)` 懒导航「读不建/写物化」+ presence——与 array 共用「改前先物化」纪律（代理对象写入前若真实对象不存在则创建，同 automation API）。
+- **控件**：类似 `ListController` 的键控增删控制器——行标签取 `PropertyKey.DisplayText`、删除即删该键、`+` 菜单按候选 DisplayText 列出未存在的键、按键 keyed-diff。
+
+**首个消费者：多说话人音色混合**。part 级主 speaker 可混入任意其他 speaker（朴素实现给每个 speaker 各声明一条 automation → 参数栏拥挤）。改为：已选 speaker 存为一个键控 part 属性（`AddableObjectConfig`，key=speaker id、标签=speaker 名、`+` 候选=可用 speaker），`GetAutomationConfigs(context)` 读它逐已选 speaker 吐一条自动化。`+ speaker → 物化键 → part 属性 commit → 重算自动化 → 曲线按钮自动出现`。**自动化随 part 属性重算的 wiring 已存在**（`MidiPart.OnPartPropertiesModified`→`mVoice.RebuildAutomationConfigs(context)`→签名变发 `AutomationConfigsModified`；`AutomationDefaultsController`/`ParameterTabBar`/`ParameterTitleBar`/`AutomationRenderer` 均订阅之），**无需新增 wiring**。
+
+**待落地**：SDK 新增 `AddableObjectConfig` + `AddableKey`；面板新增键控增删控制器并注册进 `mFactories`；walker `ResetPartPropertiesToDefaults` 长 `AddableObjectConfig` 臂（递归各已声明键默认值）；测试夹具加一个键控可加属性（可直接用多说话人 speaker 选择形态）。多选下编辑沿用现降级（待 array 多选三态合并方案一并定）。
 
 ---
 
