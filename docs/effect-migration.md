@@ -379,7 +379,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **野外插件清单与版本范围**：
 - Legacy 三程序集（`TuneLab.Base` + `Extensions.Formats` + `Extensions.Voices`）**从未设过 `<Version>`/`AssemblyVersion`**（全仓仅一个 `Directory.Build.props` 且只含 `Nullable`）→ 野外插件链接的绑定身份一律 `Version=1.0.0.0, Culture=neutral, PublicKeyToken=null`（**未签名**）。发布跨度 **v1.0.0 → v1.6.0**（18 个 tag），AssemblyVersion 全程 1.0.0.0。
 - 跨版本公共面变动是**纯加性 DTO 增长**（`ProjectInfo`+`EditorInfo`/`ExportConfig`、`TrackInfo`+`AsRefer`/`Color`/`ExportEnabled`/`ExportChannels`、`NoteInfo`+`Pronunciation`、`SynthesisSegment<T>`+`PartProperties`；唯一反向是 `NoteInfo.Lyric` 由 `required` 放宽为可选，二进制层无破坏）→ **冻结 master/v1.6.0 这一个最新超集**即满足全部 1.x 期间编译的插件（老插件只读写自己认识的字段，新字段取默认）。
-- 内置格式（ACEP/Midi/TLP/UFData/VPR）是**主程序内建、走新 SDK、不经 compat**；compat 只服务外部 `.tlx` 包——**voice 引擎**（DiffSinger 类，捆绑 ONNX 等原生依赖）+ 社区 **format** 插件。
+- 内置格式（ACEP/Midi/TLP/UFData/VPR）是**主程序内建、走新 SDK、不经 compat**；compat 只服务外部 `.tlx` 包——**voice 引擎**（捆绑 ONNX 等原生依赖的第三方引擎）+ 社区 **format** 插件。
 - **兼容目标 = 全 1.x 社区插件尽力而为**（用户定）：不锁权威目标集，加载器对任何链接 1.0.0.0 的插件都尝试，失败**优雅降级（不崩主程序）**。权威清单留 #10 加载流程落地时按真机实测补全。
 
 **`AssemblyVersion` 钉值（钉进 `Compat.Legacy` 引用的冻结源）**：

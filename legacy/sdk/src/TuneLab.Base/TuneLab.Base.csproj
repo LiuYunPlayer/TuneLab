@@ -2,7 +2,7 @@
 
   <!-- ════════════════════════════════════════════════════════════════════════
        冻结 · 禁改   Legacy SDK 源码快照
-       改版前发布的老 SDK，野外已发布插件（DiffSinger 类 voice、社区 format）链接它。
+       改版前发布的老 SDK，野外已发布插件（第三方 voice、社区 format）链接它。
        · 绑定身份命门：AssemblyVersion 钉死 1.0.0.0（= 野外绑定身份，未签名，不可动）。
        · ABI 地板：TargetFramework 锁 net8，host 升级 .NET 不重编、靠 roll-forward 跑。
        · 不进 TuneLab.sln（见 legacy/Legacy.sln），不跟随主仓 analyzer/props。
