@@ -219,9 +219,9 @@ internal static class Extensions
         return path;
     }
 
-    public static void DrawCurve(this DrawingContext context, IEnumerable<Avalonia.Point> points, Color color, double thickness = 1, bool isClosed = false)
+    public static void DrawCurve(this DrawingContext context, IEnumerable<Avalonia.Point> points, Color color, double thickness = 1, bool isClosed = false, DashStyle? dashStyle = null)
     {
-        context.DrawGeometry(null, new Pen(color.ToBrush(), thickness, null, PenLineCap.Round, PenLineJoin.Round), points.ToPath(isClosed));
+        context.DrawGeometry(null, new Pen(color.ToBrush(), thickness, dashStyle, PenLineCap.Round, PenLineJoin.Round), points.ToPath(isClosed));
     }
 
     // 填充曲线与基线（baselineY）围成的面积（顶边沿 topPoints 折线、底边为 baselineY 的封闭多边形）。

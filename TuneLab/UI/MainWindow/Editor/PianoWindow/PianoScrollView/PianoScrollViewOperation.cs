@@ -461,13 +461,16 @@ internal partial class PianoScrollView
                                 }
                                 else
                                 {
-                                    if (e.IsDoubleClick)
+                                    // 悬浮在无颤音覆盖的音符上 → 单击落实预览颤音（鼠标位置 → 音符结尾）；否则框选。
+                                    var preview = GetVibratoAddPreview(e.Position);
+                                    if (preview != null)
                                     {
-                                        var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X)) - Part.Pos.Value;
-                                        var vibrato = Part.CreateVibrato(new VibratoInfo() { Pos = pos, Dur = QuantizedCellTicks(), Amplitude = 0.5, Frequency = 6, Phase = 0, Attack = 0.2, Release = 0.2 });
+                                        Part.Vibratos.DeselectAllItems();
+                                        var vibrato = Part.CreateVibrato(preview);
                                         vibrato.Select();
                                         Part.InsertVibrato(vibrato);
-                                        mVibratoEndResizeOperation.Down(TickAxis.Tick2X(vibrato.GlobalEndPos()), vibrato);
+                                        // 接拖拽起点边界微调（照搬 note 双击创建并拖拽）：create + 拖拽同属一次操作、一次提交。
+                                        mVibratoStartResizeOperation.Down(TickAxis.Tick2X(vibrato.GlobalStartPos()), vibrato);
                                     }
                                     else
                                     {

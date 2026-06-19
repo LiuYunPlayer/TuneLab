@@ -370,18 +370,11 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         DrawVibratos(context);
 
-        if (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock || mDependency.PianoTool.Value == PianoTool.Vibrato)
+        if (mDependency.PianoTool.Value is PianoTool.Note or PianoTool.Pitch or PianoTool.Lock or PianoTool.Vibrato)
         {
-            foreach (var vibrato in Part.Vibratos)
-            {
-                if (vibrato.GlobalEndPos() <= minVisibleTick)
-                    continue;
-
-                if (vibrato.GlobalStartPos() >= maxVisibleTick)
-                    break;
-
-                DrawPitch(context, TickAxis.Tick2X(vibrato.GlobalStartPos()), TickAxis.Tick2X(vibrato.GlobalEndPos()), Part.Pitch.GetValues, pitchColor.Opacity(0.5), 1);
-            }
+            // 颤音覆盖区、未绘制 pitch 处：在音符基线上叠加偏差画虚线波——颤音落笔即现波、不依赖合成完成；
+            // 切到 note 工具也能在"画了颤音的位置"看到预期音高。
+            DrawPitch(context, 0, Bounds.Width, Part.GetVibratoFallbackPitch, pitchColor.Opacity(0.7), 1, VibratoPreviewDashStyle);
         }
         DrawPitch(context, 0, Bounds.Width, Part.GetFinalPitch, pitchColor, mDependency.PianoTool.Value == PianoTool.Note ? 1 : 2);
     FinishDrawPitch:
@@ -476,7 +469,10 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
     }
 
-    void DrawPitch(DrawingContext context, double left, double right, Func<IReadOnlyList<double>, double[]> getPitch, Color pitchColor, double thickness)
+    // 颤音"立即展示"兜底波/悬浮预览波的虚线样式（未绘制 pitch 时区别于实线最终曲线）。
+    static readonly DashStyle VibratoPreviewDashStyle = new(new double[] { 4, 4 }, 0);
+
+    void DrawPitch(DrawingContext context, double left, double right, Func<IReadOnlyList<double>, double[]> getPitch, Color pitchColor, double thickness, DashStyle? dashStyle = null)
     {
         if (Part == null)
             return;
@@ -512,8 +508,45 @@ internal partial class PianoScrollView : View, IPianoScrollView
         var end = TickAxis.X2Tick(right) - pos;
         foreach (var pitchPoints in pitchLines)
         {
-            context.DrawCurve(pitchPoints, pitchColor, thickness);
+            context.DrawCurve(pitchPoints, pitchColor, thickness, false, dashStyle);
         }
+    }
+
+    // 颤音工具悬浮添加预览：鼠标悬浮在某音符本体上、且该音符不与任意颤音重叠时，
+    // 返回待建颤音参数（Pos = 鼠标量化 tick、Dur = 到音符结尾）；否则 null。落实与预览渲染共用。
+    VibratoInfo? GetVibratoAddPreview(Point position)
+    {
+        if (Part == null)
+            return null;
+
+        INote? hovered = null;
+        foreach (var note in Part.Notes)
+        {
+            if (this.NoteRect(note).Contains(position))
+            {
+                hovered = note;
+                break;
+            }
+        }
+        if (hovered == null)
+            return null;
+
+        foreach (var vibrato in Part.Vibratos)
+        {
+            if (vibrato.StartPos() < hovered.EndPos() && vibrato.EndPos() > hovered.StartPos())
+                return null;
+        }
+
+        double end = hovered.EndPos();
+        double lo = hovered.StartPos();
+        double hi = end - QuantizedCellTicks();
+        double pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos.Value;
+        pos = hi <= lo ? lo : Math.Clamp(pos, lo, hi);
+        double dur = end - pos;
+        if (dur <= 0)
+            return null;
+
+        return new VibratoInfo() { Pos = pos, Dur = dur, Amplitude = 0.5, Frequency = 6, Phase = 0, Attack = 0.2, Release = 0.2 };
     }
 
     void DrawVibratos(DrawingContext context)
@@ -556,13 +589,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
         {
             var hoverVibrato = hoverVibratoItem.Vibrato;
 
-            var centerX = hoverVibratoItem.CenterX();
-            var pitch = hoverVibratoItem.Pitch();
-            if (double.IsNaN(pitch))
-            {
-                context.DrawString("Please draw pitch first in the area".Tr(this), new Point(centerX, 32), textBrush, 12, Alignment.CenterTop);
-            }
-
             var frequencyPosition = hoverVibratoItem.FrequencyPosition();
             if (!double.IsNaN(frequencyPosition.Y))
             {
@@ -595,6 +621,20 @@ internal partial class PianoScrollView : View, IPianoScrollView
                     releasePosition + new Point(4, 0),
                     releasePosition + new Point(0, 12),
                 ], true));
+            }
+        }
+
+        // 悬浮添加预览：未操作、未命中已有颤音时，在音符上画预览框 + 虚线预览波（点击即落实）。
+        if (mState == State.None && mOperatingVibratoItem == null && raycastItem is not IVibratoItem)
+        {
+            var preview = GetVibratoAddPreview(MousePosition);
+            if (preview != null)
+            {
+                var info = preview;
+                double px = TickAxis.Tick2X(Part.Pos.Value + info.Pos);
+                double pw = TickAxis.PixelsPerTick * info.Dur;
+                context.DrawRectangle(Colors.White.Opacity(0.12).ToBrush(), new Pen(Colors.White.Opacity(0.5).ToUInt32(), 1, VibratoPreviewDashStyle), new Rect(px, 0, pw, Bounds.Height));
+                DrawPitch(context, px, px + pw, ticks => Part.GetVibratoAddPreviewPitch(ticks, info), Colors.White.Opacity(0.7), 1, VibratoPreviewDashStyle);
             }
         }
     }
