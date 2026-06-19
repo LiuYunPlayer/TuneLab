@@ -37,14 +37,14 @@ internal sealed class ScriptSideBarContentProvider
     Func<IMidiPart?>? mCurrentPart;
     Func<IQuantization?>? mQuantization;
 
-    // 代码框初始示例：短句注释、代码分行（贴写代码习惯、侧栏窄不占宽）。
+    // 代码框初始示例：全部注释 + 短行（用户上来可直接在下方写，无需删除；行短不撑横向滚动条）。
     const string Sample =
-        "// tl 是入口。点 Doc 看完整文档。\n" +
-        "// 示例：当前 part 所有音符升八度\n" +
-        "const part = tl.currentPart();\n" +
-        "for (const n of tl.notes(part)) {\n" +
-        "  tl.setNote(n, { pitch: n.pitch + 12 });\n" +
-        "}\n";
+        "// tl 是入口；点 Doc 看完整文档。\n" +
+        "// 例：当前 part 所有音符升八度\n" +
+        "// const part = tl.currentPart();\n" +
+        "// for (const n of part.notes())\n" +
+        "//   n.pitch += 12;\n" +
+        "\n";
 
     public ScriptSideBarContentProvider()
     {
@@ -166,9 +166,11 @@ internal sealed class ScriptSideBarContentProvider
     // 内嵌英文兜底（仅当 Resources/ScriptDoc 缺失时用）。
     const string FallbackDoc =
         "# Script\n\n" +
-        "Run JavaScript via `tl` to edit the project; the whole run is one undoable change. " +
-        "Reads (`tl.tracks()`, `tl.parts(track)`, `tl.notes(part)`, `tl.currentPart()`, `tl.selectedNotes(part)`) return arrays of handles. " +
-        "Positions are absolute ticks (`tl.ppq`), pitch is MIDI. Edit with `tl.addNote/setNote/removeNote`, `tl.addPart`, `tl.setTrack`, curves, etc. `print(x)` logs to the output below.";
+        "Run JavaScript to edit the project; the whole run is one undoable change. " +
+        "Object-style: global `tl` is the editor, project data is `tl.currentProject()`; tracks/parts/notes/vibratos are handles with read/write fields (`n.pitch += 12`, `track.isMute = true`) and methods. " +
+        "Reads (`tl.currentProject().tracks()`, `track.parts()`, `part.notes()`, `tl.currentPart()`, `part.selectedNotes()`) return arrays of handles (not a linked list). " +
+        "Create and delete both hang off the parent (`track.addPart({...})`/`track.removePart(p)`, `part.addNote({...})`/`part.removeNote(n)`). " +
+        "Positions are absolute ticks (`tl.ppq`), pitch is MIDI. `print(x)` logs to the output below.";
 
     // 用 TuneLab 内置 Button 组件造一个「圆角底色 + 居中文字」按钮；返回文字 ButtonContent 供动态改字。
     static TuneLab.GUI.Components.Button MakeButton(string text, double width, Color bg, Color bgHover, Color fg, out ButtonContent label)

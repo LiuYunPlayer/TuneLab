@@ -26,7 +26,7 @@ internal static class ScriptRunner
 
     public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, string code, CancellationToken cancellationToken)
     {
-        var api = new ScriptProjectApi(project, currentPart, quantization);
+        var context = new ScriptContext(project, currentPart, quantization);
         var output = new StringBuilder();
         string? resultText = null;
         string? error = null;
@@ -50,7 +50,7 @@ internal static class ScriptRunner
                     output.Append(Format(v)).Append('\n');
             }
 
-            engine.SetValue("tl", api);
+            engine.SetValue("tl", new ScriptApp(context));
             engine.SetValue("print", Print);
             engine.SetValue("log", Print);
             engine.Execute("globalThis.console = { log: print, info: print, warn: print, error: print, debug: print };");
@@ -75,8 +75,8 @@ internal static class ScriptRunner
         }
 
         // 无论成功/失败/取消：统一关 merge 括号；有改动则提交成一个可撤销单位（与 apply_edits 的"部分成功也落地"一致）。
-        bool committed = api.Finish();
-        return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, api.ChangeCount);
+        bool committed = context.Finish();
+        return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount);
     }
 
     static string Format(JsValue v)

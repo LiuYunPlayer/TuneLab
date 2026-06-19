@@ -23,7 +23,8 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
         "that would otherwise take many tool calls — e.g. \"for every note in bars 5-8, raise it an octave and add a harmony a third above\" is one loop. " +
         "The whole script runs as ONE undoable change. " +
         "BEFORE writing your first script in a conversation, call get_script_api once to load the full API, the handle/tick rules, and examples — do not guess method names. " +
-        "Key rules: reads return plain arrays of handles (for-of/index, not a linked list); positions are absolute ticks; pitch is MIDI; print(x) emits debug output.";
+        "Key rules: object-style — `tl` is the project, while tracks/parts/notes are handles with read/write fields (n.pitch += 1) and methods (part.notes(), note.remove()); " +
+        "collection methods return plain arrays (for-of/index, not a linked list); positions are absolute ticks; pitch is MIDI; print(x) emits debug output.";
 
     public string ParametersJsonSchema => """
         {
