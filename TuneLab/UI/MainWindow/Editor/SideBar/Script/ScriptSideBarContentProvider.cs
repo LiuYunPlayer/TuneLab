@@ -5,6 +5,9 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using AvaloniaEdit;
+using AvaloniaEdit.Highlighting;
+using AvaloniaEdit.Highlighting.Xshd;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -29,7 +32,7 @@ internal sealed class ScriptSideBarContentProvider
     public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantization = provider;
 
     readonly DockPanel mRoot = new() { LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
-    readonly TextInput mCodeBox;
+    readonly TextEditor mCodeBox;
     readonly Control mDocView;        // 人类可读文档（Markdown 渲染、自适应宽度换行），与代码框同位互斥
     readonly TextInput mOutputBox;
     bool mShowingDoc;
@@ -46,29 +49,68 @@ internal sealed class ScriptSideBarContentProvider
         "//   n.pitch += 12;\n" +
         "\n";
 
+    // 自定义 JS 语法高亮：暗底护眼配色（关键字用柔紫、避免刺眼亮蓝），且不依赖 AvaloniaEdit 内置定义是否存在。
+    const string XshdJs = """
+        <?xml version="1.0"?>
+        <SyntaxDefinition name="JavaScript" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+          <Color name="Comment" foreground="#6A9955" />
+          <Color name="String" foreground="#CE9178" />
+          <Color name="Number" foreground="#B5CEA8" />
+          <Color name="Keyword" foreground="#C586C0" />
+          <Color name="Literal" foreground="#4EC9B0" />
+          <RuleSet ignoreCase="false">
+            <Span color="Comment" begin="//" />
+            <Span color="Comment" multiline="true" begin="/\*" end="\*/" />
+            <Span color="String" begin="&quot;" end="&quot;"><RuleSet><Span begin="\\" end="." /></RuleSet></Span>
+            <Span color="String" begin="'" end="'"><RuleSet><Span begin="\\" end="." /></RuleSet></Span>
+            <Span color="String" multiline="true" begin="`" end="`" />
+            <Keywords color="Keyword">
+              <Word>const</Word><Word>let</Word><Word>var</Word><Word>function</Word>
+              <Word>return</Word><Word>if</Word><Word>else</Word><Word>for</Word>
+              <Word>of</Word><Word>in</Word><Word>while</Word><Word>do</Word>
+              <Word>break</Word><Word>continue</Word><Word>switch</Word><Word>case</Word>
+              <Word>default</Word><Word>new</Word><Word>typeof</Word><Word>instanceof</Word>
+              <Word>throw</Word><Word>try</Word><Word>catch</Word><Word>finally</Word>
+            </Keywords>
+            <Keywords color="Literal">
+              <Word>true</Word><Word>false</Word><Word>null</Word><Word>undefined</Word><Word>this</Word><Word>NaN</Word>
+            </Keywords>
+            <Rule color="Number">\b0[xX][0-9a-fA-F]+|\b\d+(\.[0-9]+)?([eE][+-]?[0-9]+)?</Rule>
+          </RuleSet>
+        </SyntaxDefinition>
+        """;
+
+    static readonly IHighlightingDefinition JsHighlighting = LoadJsHighlighting();
+
+    static IHighlightingDefinition LoadJsHighlighting()
+    {
+        using var reader = System.Xml.XmlReader.Create(new System.IO.StringReader(XshdJs));
+        return HighlightingLoader.Load(reader, HighlightingManager.Instance);
+    }
+
     public ScriptSideBarContentProvider()
     {
         var mono = new FontFamily("Consolas, Menlo, Courier New, monospace");
 
-        // 可编辑代码框：沿用 TuneLab 输入控件（扁平、无边框、圆角，hover/focus 不高亮）；底色用最深的 DARK（聚焦编辑区）。
-        // 多行须 HorizontalContentAlignment=Stretch + VerticalContentAlignment=Top（否则换行行首选择/对齐错乱）。
-        mCodeBox = new TextInput
+        // 可编辑代码框：AvaloniaEdit 代码编辑器（JS 语法高亮 + 行号）；底色用最深的 DARK（聚焦编辑区）。
+        mCodeBox = new TextEditor
         {
-            AcceptsReturn = true,
-            AcceptsTab = true,
-            TextWrapping = TextWrapping.NoWrap,
             FontFamily = mono,
             FontSize = 13,
             Background = Style.DARK.ToBrush(),
             Foreground = Style.TEXT_NORMAL.ToBrush(),
-            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            ShowLineNumbers = true,
+            LineNumbersForeground = Style.LIGHT_WHITE.Opacity(0.35).ToBrush(),
+            WordWrap = false,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Padding = new(8, 6),
             Margin = new(8, 8, 8, 0),
-            Text = Sample,
+            SyntaxHighlighting = JsHighlighting,
         };
-        ScrollViewer.SetVerticalScrollBarVisibility(mCodeBox, ScrollBarVisibility.Auto);
-        ScrollViewer.SetHorizontalScrollBarVisibility(mCodeBox, ScrollBarVisibility.Auto);
+        mCodeBox.Options.IndentationSize = 2;
+        mCodeBox.Options.ConvertTabsToSpaces = true;
+        mCodeBox.Text = Sample;
 
         // 人类文档页：与代码框【同位互斥】（点 Doc/Code 在原地翻面）。Markdown 渲染、自适应宽度换行（禁横向滚动）。
         // 这是【给人读】的版本，与喂 LLM 的速查表（ScriptApiReference / get_script_api）分开。

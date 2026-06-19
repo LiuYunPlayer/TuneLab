@@ -4,6 +4,8 @@ using Avalonia.Media;
 using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
+using AvaloniaEdit;
 using ReactiveUI;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
@@ -152,7 +154,11 @@ internal static class Extensions
 
     public static bool IsHandledByTextBox(this KeyEventArgs e)
     {
-        return e.Source is TextBox textBox && textBox.IsEnabled && textBox.IsEffectivelyVisible && textBox.IsFocused;
+        if (e.Source is TextBox textBox && textBox.IsEnabled && textBox.IsEffectivelyVisible && textBox.IsFocused)
+            return true;
+        // AvaloniaEdit 代码编辑器（Script 栏）：键事件源是其内部 TextArea/TextView，类型不是 TextBox——按视觉树归属判定，
+        // 让全局快捷键（空格=播放等）在编辑器聚焦时统一让路。
+        return e.Source is Avalonia.Visual v && v.FindAncestorOfType<TextEditor>(includeSelf: true) != null;
     }
 
     public static ModifierKeys ModifierKeys(this KeyEventArgs e)
