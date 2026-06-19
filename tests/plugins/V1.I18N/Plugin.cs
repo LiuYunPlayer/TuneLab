@@ -51,21 +51,8 @@ public sealed class I18NVoiceEngine : IVoiceEngine
         // 动态声库：模拟运行时（如云端）按语言产出的内容——名字里带上解析到的语言码，肉眼可证按语言走。
         var lang = TuneLabContext.Global.Language;
         mVoiceInfos.Add("i18n-dynamic", new VoiceSourceInfo { Name = L.Tr("Cloud voice") + " [" + lang + "]", Description = L.Tr("A cloud-fetched voice") });
-    }
 
-    public void Destroy() { }
-    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new I18NSession(context);
-
-    readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-}
-
-// 会话取单块最简模式（i18n 与音频无关）：整 part 一块、任何变更全量标脏，合成产出静音 + phoneme。
-public sealed class I18NSession : ISynthesisSession
-{
-    public I18NSession(ISynthesisContext context)
-    {
-        mContext = context;
-        // 属性标题本地化（DisplayText 按当前语言）。"raw" 用未收录词，验证未译时原样显示英文。
+        // 声明类 config 在引擎层构建（本地化文案按当前语言）："raw" 用未收录词，验证未译时原样显示英文。
         mNoteProperties.Add("depth", new SliderConfig { DisplayText = L.Tr("Depth"), DefaultValue = 0, MinValue = 0, MaxValue = 1 });
         mNoteProperties.Add("quality", new ComboBoxConfig
         {
@@ -76,7 +63,30 @@ public sealed class I18NSession : ISynthesisSession
         mNoteProperties.Add("raw", new SliderConfig { DisplayText = L.Tr("Uncolored"), DefaultValue = 0, MinValue = 0, MaxValue = 1 });
         // 自动化轨名本地化。
         mAutomationConfigs.Add("breath", new AutomationConfig { DisplayText = L.Tr("Breath"), DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#A573E5" });
+    }
 
+    public void Destroy() { }
+    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new I18NSession(context);
+
+    // 声明（引擎层、纯函数）：本地化的轨/面板配置。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
+
+    readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
+    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
+    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
+    static readonly OrderedMap<string, AutomationConfig> sEmptyConfigs = new();
+}
+
+// 会话取单块最简模式（i18n 与音频无关）：整 part 一块、任何变更全量标脏，合成产出静音 + phoneme。
+public sealed class I18NSession : ISynthesisSession
+{
+    public I18NSession(ISynthesisContext context)
+    {
+        mContext = context;
         mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
         context.Notes.Modified += MarkDirty;
         context.PartProperties.Modified += MarkDirty;
@@ -84,10 +94,6 @@ public sealed class I18NSession : ISynthesisSession
     }
 
     public string DefaultLyric => "la";
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     public SynthesisSegment? GetNextSegment(double startTime, double endTime)
     {
@@ -205,10 +211,6 @@ public sealed class I18NSession : ISynthesisSession
 
     readonly ISynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    static readonly OrderedMap<string, AutomationConfig> sEmptyConfigs = new();
-    readonly OrderedMap<string, IControllerConfig> mPartProperties = new();
-    readonly OrderedMap<string, IControllerConfig> mNoteProperties = new();
     bool mDirty;
     bool mSynthesizing;
     IAudioSegment? mSegment;

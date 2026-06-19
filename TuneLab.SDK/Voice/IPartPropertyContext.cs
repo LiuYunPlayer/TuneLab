@@ -13,6 +13,10 @@ namespace TuneLab.SDK;
 // 上游 commit 沿链触发下游重算（part 改 → 重算 part + note），下游不影响上游 → 无环、方向确定。
 public interface IPartPropertyContext
 {
+    // 选定声库（= 宿主 Voice.ID，IVoiceEngine.VoiceSourceInfos 的 key）：声明类 config 是
+    // f(voiceId, part 稀疏值) 的纯函数，voiceId 随 context 一并注入，引擎据此知道求值的是哪个模型。
+    // 这使 voice 的 context 必然带身份、与 effect 的 IEffectPropertyContext（单类型、无此对等物）永久分叉。
+    string VoiceId { get; }
     PropertyObject PartProperties { get; }
 }
 

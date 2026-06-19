@@ -1,8 +1,11 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace TuneLab.Foundation;
 
+[CollectionBuilder(typeof(OrderedMapBuilder), nameof(OrderedMapBuilder.Create))]
 public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue> where TKey : notnull
 {
     public int Count => mKeys.Count;
@@ -100,9 +103,9 @@ public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue> where TKey : n
     readonly Map<TKey, TValue> mMap = new();
     readonly List<TKey> mKeys = new();
 
-    public struct Enumerator : IEnumerator<ReadOnlyKeyValuePair<TKey, TValue>>, IEnumerator<TValue>
+    public struct Enumerator : IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>>, IEnumerator<TValue>
     {
-        public ReadOnlyKeyValuePair<TKey, TValue> Current => mMap.At(mCurrentIndex);
+        public IReadOnlyKeyValuePair<TKey, TValue> Current => mMap.At(mCurrentIndex);
 
         public Enumerator(OrderedMap<TKey, TValue> map)
         {
@@ -145,5 +148,16 @@ public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue> where TKey : n
         }
 
         readonly OrderedMap<TKey, TValue> mMap;
+    }
+}
+
+public static class OrderedMapBuilder
+{
+    public static OrderedMap<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair<TKey, TValue>> values) where TKey : notnull
+    {
+        var map = new OrderedMap<TKey, TValue>();
+        foreach (var kvp in values)
+            map.Add(kvp.Key, kvp.Value);
+        return map;
     }
 }

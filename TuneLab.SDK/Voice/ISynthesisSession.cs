@@ -12,30 +12,9 @@ namespace TuneLab.SDK;
 // 重建新会话（context 随会话重建）。会话是轻量句柄，重模型加载是懒的。
 public interface ISynthesisSession : IDisposable
 {
-    // —— 声明（该声源暴露什么；Name/Description 等元数据由 IVoiceEngine.VoiceSourceInfos 提供，不重复）——
-    // 接口面只保留函数式获取（静态声明是插件实现内部的事：返回缓存 map 即一行）。
+    // —— 运行时取值（会话创建后才被消费；声明类 config 已上移到 IVoiceEngine，不在此重复）——
+    // 默认歌词：创建 note 时取用，是会话级运行时取值（按需读，非构造前声明），故留在实例上。
     string DefaultLyric { get; }
-
-    // 自动化轨配置（连续 / 分段）：与 GetPartPropertyConfig 同为当前 part 参数值的纯函数——宿主在 part 参数
-    // commit 时按当前值重算轨集合并 diff 到 UI，故轨集合可随参数显隐（如某模式开关才暴露的轨）。
-    // 须为纯函数（同输入同输出、无副作用、轻量）；静态轨集合的插件忽略 context 返回固定 map 即可。
-    // 轨是 part 级（与 GetPartPropertyConfig 同用 part context，非 note 级）。
-    // 孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
-    // 连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），按声明序呈现。
-    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
-
-    // 合成参数回显轨声明（part 级，context 驱动、纯函数，与 GetAutomationConfigs 同语义）：
-    // 引擎产出的只读回显曲线（如 energy）暴露为一等只读轨，自带 DisplayText/Min/Max/Color——宿主据此
-    // 显隐、用各自色绘制，不可编辑。回显是分段形（DefaultValue 置 NaN，无基线、段间断开）。
-    // context 驱动 ⇒ 合成前 key 即存在，轨可预声明、显隐不抖。曲线数据另经 SynthesizedParameters 按同一批 key 承载。
-    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
-
-    // 条件属性面板：宿主在属性 commit 时按当前值重算面板（面板 = f(当前值)，context 即当前值快照）。
-    // 须为纯函数（同输入同输出、无副作用、轻量）：宿主在每次值 commit 时调用并 keyed-diff 到控件树。
-    // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
-    // GetPartPropertyConfig = part（会话主体）级，只依赖 part 自身值；GetNotePropertyConfig = note 级，依赖 part + note。
-    ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
-    ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 
     // —— 调度（宿主驱动逐步合成：插件只在被调用时干活，干完即停等下一次）——
     // 一个会话同时只合成一块；并行发生在不同 part 的不同会话之间，并发上限由宿主账本式管控。

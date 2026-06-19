@@ -1620,28 +1620,25 @@ internal partial class PianoScrollView
                 }
             }
 
-            foreach (var note in mMoveNotes)
-            {
-                note.Pos.Set(note.Pos.Value + posOffset);
-                note.Pitch.Set(note.Pitch.Value + pitchOffset);
-                part.RemoveNote(note);
-            }
-            if (Settings.ParameterSyncMode)
+            part.MoveNotes(mMoveNotes, () =>
             {
                 foreach (var note in mMoveNotes)
                 {
-                    part.Pitch.Clear(note.StartPos(), note.EndPos());
-                    foreach (var kvp in part.Automations)
+                    note.Pos.Set(note.Pos.Value + posOffset);
+                    note.Pitch.Set(note.Pitch.Value + pitchOffset);
+                }
+                if (Settings.ParameterSyncMode)
+                {
+                    foreach (var note in mMoveNotes)
                     {
-                        kvp.Value.Clear(note.StartPos(), note.EndPos(), Settings.ParameterBoundaryExtension);
+                        part.Pitch.Clear(note.StartPos(), note.EndPos());
+                        foreach (var kvp in part.Automations)
+                        {
+                            kvp.Value.Clear(note.StartPos(), note.EndPos(), Settings.ParameterBoundaryExtension);
+                        }
                     }
                 }
-            }
-
-            foreach (var note in mMoveNotes)
-            {
-                part.InsertNote(note);
-            }
+            });
             if (Settings.ParameterSyncMode)
             {
                 foreach (var info in pitchInfos)
@@ -1759,21 +1756,14 @@ internal partial class PianoScrollView
                 return;
             }
 
-            List<INote> modifiedNotes = new();
             PianoScrollView.Part.BeginMergeDirty();
             double offsetTick = startTick - mNote.StartPos();
-            mNote.Pos.Set(mNote.Pos.Value + offsetTick);
-            mNote.Dur.Set(mNote.Dur.Value - offsetTick);
-            modifiedNotes.Add(mNote);
             // 自由重叠：拉伸不再截断被盖到的邻居（去重叠责任在插件，用户可用"去除重叠"命令整理）。
-            foreach (var note in modifiedNotes)
+            PianoScrollView.Part.MoveNote(mNote, () =>
             {
-                PianoScrollView.Part.RemoveNote(note);
-            }
-            foreach (var note in modifiedNotes)
-            {
-                PianoScrollView.Part.InsertNote(note);
-            }
+                mNote.Pos.Set(mNote.Pos.Value + offsetTick);
+                mNote.Dur.Set(mNote.Dur.Value - offsetTick);
+            });
             PianoScrollView.Part.EndMergeDirty();
         }
 
@@ -1841,19 +1831,9 @@ internal partial class PianoScrollView
                 return;
             }
 
-            List<INote> modifiedNotes = new();
             PianoScrollView.Part.BeginMergeDirty();
-            mNote.Dur.Set(endTick - mNote.Pos.Value);
-            modifiedNotes.Add(mNote);
             // 自由重叠：拉伸不再截断被盖到的邻居（去重叠责任在插件，用户可用"去除重叠"命令整理）。
-            foreach (var note in modifiedNotes)
-            {
-                PianoScrollView.Part.RemoveNote(note);
-            }
-            foreach (var note in modifiedNotes)
-            {
-                PianoScrollView.Part.InsertNote(note);
-            }
+            PianoScrollView.Part.MoveNote(mNote, () => mNote.Dur.Set(endTick - mNote.Pos.Value));
             PianoScrollView.Part.EndMergeDirty();
         }
 
@@ -1946,10 +1926,11 @@ internal partial class PianoScrollView
 
             double offsetTick = startTick - mVibrato.StartPos();
             PianoScrollView.Part.BeginMergeDirty();
-            mVibrato.Pos.Set(mVibrato.Pos + offsetTick);
-            mVibrato.Dur.Set(mVibrato.Dur - offsetTick);
-            PianoScrollView.Part.RemoveVibrato(mVibrato);
-            PianoScrollView.Part.InsertVibrato(mVibrato);
+            PianoScrollView.Part.MoveVibrato(mVibrato, () =>
+            {
+                mVibrato.Pos.Set(mVibrato.Pos + offsetTick);
+                mVibrato.Dur.Set(mVibrato.Dur - offsetTick);
+            });
             PianoScrollView.Part.EndMergeDirty();
         }
 
@@ -2018,9 +1999,7 @@ internal partial class PianoScrollView
             }
 
             PianoScrollView.Part.BeginMergeDirty();
-            mVibrato.Dur.Set(endTick - mVibrato.Pos);
-            PianoScrollView.Part.RemoveVibrato(mVibrato);
-            PianoScrollView.Part.InsertVibrato(mVibrato);
+            PianoScrollView.Part.MoveVibrato(mVibrato, () => mVibrato.Dur.Set(endTick - mVibrato.Pos));
             PianoScrollView.Part.EndMergeDirty();
         }
 
@@ -2421,16 +2400,11 @@ internal partial class PianoScrollView
             mLastPosOffset = posOffset;
             mMoved = true;
             part.DiscardTo(mHead);
-            foreach (var vibrato in mMoveVibratos)
+            part.MoveVibratos(mMoveVibratos, () =>
             {
-                vibrato.Pos.Set(vibrato.Pos.Value + posOffset);
-                part.RemoveVibrato(vibrato);
-            }
-
-            foreach (var vibrato in mMoveVibratos)
-            {
-                part.InsertVibrato(vibrato);
-            }
+                foreach (var vibrato in mMoveVibratos)
+                    vibrato.Pos.Set(vibrato.Pos.Value + posOffset);
+            });
         }
 
         public void Up()
@@ -2700,26 +2674,32 @@ internal partial class PianoScrollView
             PianoScrollView.Part.BeginMergeDirty();
             if (mLeft != null)
             {
-                if (pos == mLeft.StartPos())
+                var left = mLeft;
+                if (pos == left.StartPos())
                 {
-                    PianoScrollView.Part.RemoveNote(mLeft);
-                }
-                else 
-                { 
-                    mLeft.Dur.Set(pos - mLeft.Pos.Value); 
-                }
-
-            }
-            if (mRight != null)
-            {
-                if (pos == mRight.EndPos())
-                {
-                    PianoScrollView.Part.RemoveNote(mRight);
+                    PianoScrollView.Part.RemoveNote(left);
                 }
                 else
                 {
-                    mRight.Dur.Set(mRight.EndPos() - pos);
-                    mRight.Pos.Set(pos);
+                    // 仅缩/伸尾（StartPos 不变），走 MoveNote 统一维序。
+                    PianoScrollView.Part.MoveNote(left, () => left.Dur.Set(pos - left.Pos.Value));
+                }
+            }
+            if (mRight != null)
+            {
+                var right = mRight;
+                if (pos == right.EndPos())
+                {
+                    PianoScrollView.Part.RemoveNote(right);
+                }
+                else
+                {
+                    // 起点随边界移动（改 StartPos 排序键），统一走 MoveNote 摘除-重插维序。
+                    PianoScrollView.Part.MoveNote(right, () =>
+                    {
+                        right.Dur.Set(right.EndPos() - pos);
+                        right.Pos.Set(pos);
+                    });
                 }
             }
             PianoScrollView.Part.EndMergeDirty();

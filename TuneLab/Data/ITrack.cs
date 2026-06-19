@@ -27,6 +27,8 @@ internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
 
     void InsertPart(IPart part);
     bool RemovePart(IPart part);
+    // 同轨内重排（改 pos/dur）：摘除→跑 mutate→按新键重插。跨轨迁移属换父，走 RemovePart/InsertPart。
+    void MovePart(IPart part, Action mutate);
     MidiPart CreatePart(MidiPartInfo info);
     AudioPart CreatePart(AudioPartInfo info);
     Part CreatePart(PartInfo info);

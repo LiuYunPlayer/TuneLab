@@ -61,7 +61,7 @@ public interface IExportFormat { Stream Serialize(ProjectInfo info); }
 
 ### Voice 接口（命名空间 `TuneLab.SDK`）
 > voice = **会话托管厚模型**：每种引擎一个 `IVoiceEngine`；宿主为每条 MidiPart 建一个 `ISynthesisSession`，
-> 会话承担声明（默认歌词/自动化轨/回显轨/属性面板）+ 逐步合成 + 产物（音高/回显/音素/音频/状态）。
+> 引擎承担声明（自动化轨/回显轨/属性面板，纯函数、不依赖会话）；会话承担默认歌词 + 逐步合成 + 产物（音高/回显/音素/音频/状态）。
 > 时间量一律**全局秒**（tick 不外露）。
 ```csharp
 public interface IVoiceEngine {
@@ -69,14 +69,15 @@ public interface IVoiceEngine {
     void Init();                                          // 无参；包目录经 Assembly.Location 自定位；失败抛异常
     void Destroy();
     ISynthesisSession CreateSession(string voiceId, ISynthesisContext context);   // 每 part 一个会话；context 随会话同生死
-}
-public interface ISynthesisSession : IDisposable {
-    string DefaultLyric { get; }
-    // 声明均为当前 part 参数值的纯函数（context 驱动），宿主在参数 commit 时重算并 diff 到 UI（轨/控件可随参数显隐）：
+    // 声明均为 f(voiceId, part 当前值) 的纯函数（不碰会话运行时状态；voiceId 经 context.VoiceId）；宿主在参数 commit 时重算并 diff 到 UI（轨/控件可随参数显隐）。
+    // 置于引擎而非会话：宿主在【建会话之前】即可求出声明，于是会话构造期 context.TryGetAutomation 对自己声明的轨必成（无构造期时序死环）。
     IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);            // 自动化轨（连续/分段同一 map，DefaultValue=NaN ⇒ 分段）
     IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);  // 只读回显轨声明（分段形 DefaultValue=NaN）
     ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
+}
+public interface ISynthesisSession : IDisposable {
+    string DefaultLyric { get; }   // 新建 note 默认歌词（会话级运行时取值；声明类 config 全在引擎上）
     // 调度（宿主驱动逐步合成）：peek 窗内下一待合成块（纯值边界、无副作用、null=窗内无待合成）→ 宿主调 SynthesizeNext 合成该块。
     SynthesisSegment? GetNextSegment(double startTime, double endTime);
     Task SynthesizeNext(SynthesisSegment segment, CancellationToken cancellation = default);  // 纯 Task：取消正常返回不抛 OCE；错误抛异常
@@ -130,6 +131,7 @@ public struct VoiceSourceInfo { string Name; string Description; ImageResource? 
 public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }  // 回显曲线：分段折线，段内 Point=(秒,值)，段间断开
 ```
 - 引擎 id 与实现类在 manifest：`{ "type":"voice", "engine":"id", "classes":["Ns.MyVoiceEngine"], "assembly":"X.dll" }`（`engine` 唯一；宿主在 `classes` 找实现 `IVoiceEngine` 的类）。实现类需无参构造函数。
+- 声明在引擎（gap：declaration timing）：4 个 GetConfig 在 `IVoiceEngine` 上、是 `f(voiceId, part 当前值)` 纯函数。`IPartPropertyContext { string VoiceId; PropertyObject PartProperties }`（多声库经 `VoiceId` 分流；`INotePropertyContext` 再加 `NoteProperties`）。voiceId 进 context 使 voice 的 context 与 effect 的 `IEffectPropertyContext`（无对等物）永久分叉。**会话构造期即可订阅自己声明的轨**：宿主在建会话前已据引擎声明填好轨集合，故 `context.TryGetAutomation(key,…)` 对你声明过的轨必成；漏订则该轨绘制后不触发重渲。
 - 调度语义：一会话同时只合成一块；并行发生在不同 part 的不同会话间，并发上限由宿主管控。取消是正常调度结局（不抛 `OperationCanceledException`）；`await` 真正返回才释放槽位。
 - 线程纪律：context（Notes/属性/automation）、`GetSnapshot`、`CreateAudioSegment` 仅可在 `SynthesizeNext` **同步前缀**（数据线程）读/调；之后 offload 只读已物化的 `SynthesisSnapshot`（不可变、可跨线程）。产物与 `CreateAudioSegment` 写入/Commit 在数据线程。
 - 命名纪律：`ILive*`=活视图（仅数据线程）、`*Snapshot`=冻结物（可跨线程、无事件）。

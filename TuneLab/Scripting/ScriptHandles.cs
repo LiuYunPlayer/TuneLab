@@ -47,7 +47,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
             lyric: ScriptArgs.OptStr(o, "lyric"));
     }
 
-    // 单字段属性 setter 与 Set() 共用：改 pos/dur 走摘除-重插维持有序。
+    // 单字段属性 setter 与 Set() 共用：改 pos/dur 经 MoveNote 摘除-重插维持有序（通知合并由数据层收口）。
     void Apply(int? pitch = null, double? absPos = null, double? dur = null, string? lyric = null)
     {
         var n = N;
@@ -55,13 +55,13 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
         ctx.EnsureBracket(midi);
         double? relPos = absPos is { } ap ? ap - midi.Pos.Value : null;
-        bool reorder = (relPos is { } rp && rp != n.Pos.Value) || (dur is { } nd && nd != n.Dur.Value);
-        if (reorder) midi.RemoveNote(n);
-        if (relPos is { } p2) n.Pos.Set(p2);
-        if (dur is { } d2) n.Dur.Set(d2);
-        if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
-        if (lyric != null) n.Lyric.Set(lyric);
-        if (reorder) midi.InsertNote(n);
+        midi.MoveNote(n, () =>
+        {
+            if (relPos is { } p2) n.Pos.Set(p2);
+            if (dur is { } d2) n.Dur.Set(d2);
+            if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
+            if (lyric != null) n.Lyric.Set(lyric);
+        });
         ctx.Bump();
     }
 
@@ -261,18 +261,18 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         Apply(ScriptArgs.OptStr(o, "name"), ScriptArgs.OptNum(o, "pos"), ScriptArgs.OptNum(o, "dur"));
     }
 
-    // 单字段属性 setter 与 Set() 共用：改 pos/dur 走摘除-重插维持轨内有序。
+    // 单字段属性 setter 与 Set() 共用：改 pos/dur 经 MovePart 摘除-重插维持轨内有序。
     void Apply(string? name = null, double? pos = null, double? dur = null)
     {
         var p = P;
         if (pos is { } vp && vp < 0) throw new ScriptApiException("pos must be >= 0.");
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
-        if (name != null) p.Name.Set(name);
-        bool reorder = (pos is { } np && np != p.Pos.Value) || (dur is { } nd && nd != p.Dur.Value);
-        if (reorder) p.Track.RemovePart(p);
-        if (pos is { } p2) p.Pos.Set(p2);
-        if (dur is { } d2) p.Dur.Set(d2);
-        if (reorder) p.Track.InsertPart(p);
+        p.Track.MovePart(p, () =>
+        {
+            if (name != null) p.Name.Set(name);
+            if (pos is { } p2) p.Pos.Set(p2);
+            if (dur is { } d2) p.Dur.Set(d2);
+        });
         ctx.Bump();
     }
 
@@ -381,7 +381,7 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
             release: ScriptArgs.OptNum(o, "release"));
     }
 
-    // 与 ScriptNote 一致：改 pos/dur 走摘除-重插维持列表有序（不依赖"消费方不在意顺序"这一弱不变量）。
+    // 改 pos/dur 经 MoveVibrato 摘除-重插维持列表有序（与 note/part 一致，通知合并由数据层收口）。
     void Apply(double? absPos = null, double? dur = null, double? frequency = null, double? amplitude = null,
         double? phase = null, double? attack = null, double? release = null)
     {
@@ -390,16 +390,16 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
         ctx.EnsureBracket(midi);
         double? relPos = absPos is { } ap ? ap - midi.Pos.Value : null;
-        bool reorder = (relPos is { } rp && rp != v.Pos.Value) || (dur is { } nd && nd != v.Dur.Value);
-        if (reorder) midi.RemoveVibrato(v);
-        if (relPos is { } p) v.Pos.Set(p);
-        if (dur is { } d) v.Dur.Set(d);
-        if (frequency is { } f) v.Frequency.Set(f);
-        if (amplitude is { } a) v.Amplitude.Set(a);
-        if (phase is { } ph) v.Phase.Set(ph);
-        if (attack is { } at) v.Attack.Set(at);
-        if (release is { } re) v.Release.Set(re);
-        if (reorder) midi.InsertVibrato(v);
+        midi.MoveVibrato(v, () =>
+        {
+            if (relPos is { } p) v.Pos.Set(p);
+            if (dur is { } d) v.Dur.Set(d);
+            if (frequency is { } f) v.Frequency.Set(f);
+            if (amplitude is { } a) v.Amplitude.Set(a);
+            if (phase is { } ph) v.Phase.Set(ph);
+            if (attack is { } at) v.Attack.Set(at);
+            if (release is { } re) v.Release.Set(re);
+        });
         ctx.Bump();
     }
 

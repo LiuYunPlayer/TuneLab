@@ -21,8 +21,8 @@
 两层（取消了原 `IVoiceSource` 中间层，其职责并入会话）：
 
 ```
-IVoiceEngine        每"引擎类型"一个：加载模型、列声库目录、创建合成会话
-  └ ISynthesisSession   每"part 合成"一个：声明 + 调度 + 产物 + 状态
+IVoiceEngine        每"引擎类型"一个：加载模型、列声库目录、创建合成会话、声明（轨/面板/回显）
+  └ ISynthesisSession   每"part 合成"一个：默认歌词 + 调度 + 产物 + 状态
 ```
 
 ```csharp
@@ -36,6 +36,12 @@ public interface IVoiceEngine
 
     // voiceId 选定声库；context 为该 part 的输入活视图（见 §3）
     ISynthesisSession CreateSession(string voiceId, ISynthesisContext context);
+
+    // 声明面（f(voiceId, 当前值) 纯函数，不依赖会话；voiceId 经 context.VoiceId）；详见后文「声明在引擎」修订。
+    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
+    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
+    ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
+    ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
 }
 ```
 
@@ -430,26 +436,35 @@ public class AutomationConfig : IValueConfig<double>
   ```
   `Portrait` 是格式无关的资源引用：封闭层次（构造器 private protected，变体仅 SDK 内新增），变体按数据形态分型（v1 仅 `FileImageResource` 路径变体——可指向图像文件或序列帧目录）、保持可序列化数据形态；动图（GIF/APNG）是宿主解码能力不进类型，Live2D/Spine 等富动态为独立特性。运行时会变的图像走目录变更信号（将来 `IVoiceEngine` 加性事件），资源对象本身恒为不可变值。
 
-- **会话直接暴露声明**（不再包一个 `VoiceSourceInfo` 字段，元数据由 `VoiceSourceInfos` 提供、不重复）。
-  **接口面只保留函数式获取**：接口不为它单设属性面——否则"固定属性 + 动态方法回退"两套并存显得多余。
-  **声明全部 context 驱动、纯函数**：轨集合（连续/分段）与属性面板均 = f(当前 part/note 参数值)，
-  宿主在参数 commit 时按当前值重算并 diff 到 UI——轨集合可随参数显隐（条件轨），属性面板可随值换控件/显隐。
-  静态声明的插件忽略 context 返回固定 map/config 即可。**孤儿数据**：轨从声明消失后宿主保留其已画曲线
-  （隐藏不删、不参与合成），参数回退使轨复现即原样恢复（数据层不裁剪）。
+- **声明在引擎、不在会话**（修订）：声明（轨集合 / 属性面板 / 回显轨）是 `f(voiceId, 当前 part/note 参数值)` 的
+  纯函数、不碰任何合成运行时状态，故移到 `IVoiceEngine` 上；`voiceId` 经 `IPartPropertyContext.VoiceId` 注入
+  （多声库分流）。**会话只保留 `DefaultLyric`**（创建后才取用的运行时值）。元数据仍由 `VoiceSourceInfos` 提供、不重复。
+  **声明全部 context 驱动、纯函数**：宿主在参数 commit 时按当前值重算并 diff 到 UI——轨集合可随参数显隐（条件轨），
+  属性面板可随值换控件/显隐。静态声明的插件忽略 context 返回固定 map/config 即可。**孤儿数据**：轨从声明消失后
+  宿主保留其已画曲线（隐藏不删、不参与合成），参数回退使轨复现即原样恢复（数据层不裁剪）。
+
+  **为何上移到引擎（根因）**：声明若留在会话上则成时序死环——会话要在构造期订阅自己声明的自动化轨
+  （`context.TryGetAutomation(key,…)`），但该轨是否"有效"取决于 `AutomationConfigs`，而 `AutomationConfigs`
+  又派生自会话自己的 `GetAutomationConfigs`——宿主要等会话构造完才拿得到声明，构造期订阅必失败。声明上移到引擎后，
+  宿主在**建会话之前**就能据引擎求出声明并填好轨集合，会话构造期 `TryGetAutomation` 对已声明轨**必成**，订阅可靠。
+  `voiceId` 进 `IPartPropertyContext` 使其与 effect 的 `IEffectPropertyContext`（单类型引擎、无此对等物）永久分叉。
 
   ```csharp
-  public interface ISynthesisSession   // 续
+  public interface IVoiceEngine   // 续（声明面）
   {
-      string DefaultLyric { get; }
-
-      // 自动化轨声明（part 级，context 驱动）；commit 时重算 + diff 轨集合。
-      IReadOnlyOrderedMap<string, AutomationConfig>          GetAutomationConfigs(IPartPropertyContext context);
-      IReadOnlyOrderedMap<string, PiecewiseAutomationConfig> GetPiecewiseAutomationConfigs(IPartPropertyContext context);
+      // 自动化轨声明（part 级，f(voiceId, 当前值)）；commit 时重算 + diff 轨集合。连续/分段同一 map（DefaultValue=NaN ⇒ 分段）。
+      IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
+      IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
 
       // 条件面板（吃宿主现造的 property context，纯函数，commit 时重算 + keyed-diff）；
-      // 静态面板的插件忽略 context 返回固定 ObjectConfig 即可。
+      // 静态面板的插件忽略 context（除 VoiceId 外）返回固定 ObjectConfig 即可。
       ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
       ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
+  }
+
+  public interface ISynthesisSession   // 续（仅余运行时取值）
+  {
+      string DefaultLyric { get; }
   }
   ```
 

@@ -36,7 +36,7 @@ internal class MidiPart : Part, IMidiPart
     public IReadOnlyDataObjectMap<string, IPiecewiseAutomation> PiecewiseAutomations => mPiecewiseAutomations;
     public IReadOnlyDataObjectList<IEffect> Effects => mEffects;
     public IPiecewiseAutomation Pitch => mPitchLine;
-    public IReadOnlyDataObjectList<Vibrato> Vibratos => mVibratos;
+    public IReadOnlyDataObjectLinkedList<Vibrato> Vibratos => mVibratos;
 
     // —— 合成消费面（session 模型）：状态/产物全由插件托管，宿主经管线包装拉取展示 ——
     public VoiceSynthesisPipeline? SynthesisPipeline => mPipeline;
@@ -58,7 +58,8 @@ internal class MidiPart : Part, IMidiPart
         mVoice = new(this, new VoiceInfo());
         mNotes = new();
         mNotes.Attach(this);
-        mVibratos = new(this);
+        mVibratos = new();
+        mVibratos.Attach(this);
         mAutomations = new(this);
         mPiecewiseAutomations = new(this);
         mEffects = new(this);
@@ -85,6 +86,8 @@ internal class MidiPart : Part, IMidiPart
 
     public bool RemoveNote(INote note)
     {
+        // 归属由集合判定（链表反向指针）；非成员删除是编程错误，DEBUG 期就地暴露，Release 仍宽容 no-op。
+        System.Diagnostics.Debug.Assert(mNotes.Contains(note), "RemoveNote: note 不属于本 part。");
         return mNotes.Remove(note);
     }
 
@@ -147,7 +150,7 @@ internal class MidiPart : Part, IMidiPart
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
-    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(Properties.GetInfo());
+    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mVoice.ID, Properties.GetInfo());
 
     // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
     string ComputeAutomationConfigsSignature()
@@ -185,25 +188,21 @@ internal class MidiPart : Part, IMidiPart
 
     public void InsertVibrato(Vibrato vibrato)
     {
-        int index = 0;
-        for (; index < mVibratos.Count; index++)
-        {
-            if (mVibratos[index].Pos.Value < vibrato.Pos.Value)
-                continue;
-
-            if (mVibratos[index].Pos.Value > vibrato.Pos.Value)
-                break;
-
-            if (mVibratos[index].Dur.Value < vibrato.Dur.Value)
-                break;
-        }
-        mVibratos.Insert(index, vibrato);
+        // 链表按 VibratoList.IsInOrder（Pos↑、同 Pos 时 Dur↓）自排，无需手工定位下标。
+        mVibratos.Insert(vibrato);
     }
 
     public bool RemoveVibrato(Vibrato vibrato)
     {
+        System.Diagnostics.Debug.Assert(mVibratos.Contains(vibrato), "RemoveVibrato: vibrato 不属于本 part。");
         return mVibratos.Remove(vibrato);
     }
+
+    // 改 note 排序键（pos/dur）统一走 move：摘除→跑 mutate→按新键重插，维序与 undo 由集合保证。
+    public void MoveNote(INote note, Action mutate) => mNotes.Move(note, mutate);
+    public void MoveNotes(IReadOnlyCollection<INote> notes, Action mutate) => mNotes.Move(notes, mutate);
+    public void MoveVibrato(Vibrato vibrato, Action mutate) => mVibratos.Move(vibrato, mutate);
+    public void MoveVibratos(IReadOnlyCollection<Vibrato> vibratos, Action mutate) => mVibratos.Move(vibratos, mutate);
 
     public void LockPitch(double start, double end, double extension)
     {
@@ -341,9 +340,12 @@ internal class MidiPart : Part, IMidiPart
     void RebuildSynthesisPipeline()
     {
         DisposeSynthesisPipeline();
+        // 【顺序不变量，勿调换】先填声明、后建会话：mVoice.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
+        // 必须在建会话之前填好——否则会话构造期经 TryGetAutomation 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
+        mVoice.RefreshDeclarations(BuildPartPropertyContext());
         mPipeline = new VoiceSynthesisPipeline(this, mVoice.Type, mVoice.ID);
         mPipeline.StatusChanged += OnPipelineStatusChanged;
-        mVoice.RefreshDeclarations(mPipeline.Session, BuildPartPropertyContext());
+        mVoice.SetSession(mPipeline.Session);   // 注入会话供 DefaultLyric 等运行时取值（建会话之后）
         // 重置签名基线（激活 / 换源时 UI 经各自既有触发整体重建，此处不发 AutomationConfigsModified，
         // 只对齐基线供后续参数 commit 的增量比对）。
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
@@ -358,7 +360,8 @@ internal class MidiPart : Part, IMidiPart
         mPipeline.StatusChanged -= OnPipelineStatusChanged;
         mPipeline.Dispose();
         mPipeline = null;
-        mVoice.RefreshDeclarations(null, BuildPartPropertyContext());
+        mVoice.SetSession(null);
+        mVoice.RefreshDeclarations(BuildPartPropertyContext());
         foreach (var note in mNotes)
         {
             note.SynthesizedPhonemes = null;
@@ -555,7 +558,7 @@ internal class MidiPart : Part, IMidiPart
     VoiceSynthesisPipeline? mPipeline;
 
     readonly NoteList mNotes;
-    readonly DataObjectList<Vibrato> mVibratos;
+    readonly VibratoList mVibratos;
     readonly DataObjectMap<string, IAutomation> mAutomations;
     readonly DataObjectMap<string, IPiecewiseAutomation> mPiecewiseAutomations;
     readonly DataObjectList<IEffect> mEffects;
@@ -593,5 +596,27 @@ internal class MidiPart : Part, IMidiPart
         }
 
         readonly MergableEvent mSelectionChanged = new();
+    }
+
+    // 颤音有序链表：与 NoteList 同构的排序键（StartPos↑、同起点时 EndPos↓，即 Pos↑/Dur↓），
+    // 与改链表前 InsertVibrato 的手工定位顺序一致。
+    class VibratoList : DataObjectLinkedList<Vibrato>
+    {
+        protected override bool IsInOrder(Vibrato prev, Vibrato next)
+        {
+            if (prev.StartPos() < next.StartPos())
+                return true;
+
+            if (prev.StartPos() > next.StartPos())
+                return false;
+
+            if (prev.EndPos() > next.EndPos())
+                return true;
+
+            if (prev.EndPos() < next.EndPos())
+                return false;
+
+            return true;
+        }
     }
 }

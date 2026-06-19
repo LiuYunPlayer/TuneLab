@@ -21,17 +21,21 @@ public sealed class ConflictVoiceEngine : IVoiceEngine
 
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new SilentSession();
 
-    readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-}
-
-// 静音会话：声明全空、不调度任何段。够路由/分组测试用。
-internal sealed class SilentSession : ISynthesisSession
-{
-    public string DefaultLyric => "la";
+    // 声明（引擎层、纯函数、全空）：路由/分组测试不需要轨/面板。
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => sEmptyAutomations;
     public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyAutomations;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => sEmptyConfig;
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => sEmptyConfig;
+
+    readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
+    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
+    static readonly OrderedMap<string, AutomationConfig> sEmptyAutomations = new();
+}
+
+// 静音会话：不调度任何段。够路由/分组测试用。
+internal sealed class SilentSession : ISynthesisSession
+{
+    public string DefaultLyric => "la";
 
     public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
     public Task SynthesizeNext(SynthesisSegment segment, CancellationToken cancellation = default) => Task.CompletedTask;
@@ -45,7 +49,5 @@ internal sealed class SilentSession : ISynthesisSession
 
     public void Dispose() { }
 
-    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
-    static readonly OrderedMap<string, AutomationConfig> sEmptyAutomations = new();
     static readonly Map<string, SynthesizedParameter> sEmptyParameters = new();
 }

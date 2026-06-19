@@ -9,7 +9,6 @@ using TuneLab.Foundation;
 using LProp = TuneLab.Base.Properties;
 using LVoice = TuneLab.Extensions.Voices;
 using VBase = TuneLab.SDK;
-using VConfig = TuneLab.SDK;
 using VVoice = TuneLab.SDK;
 using PStruct = TuneLab.Foundation;
 
@@ -30,10 +29,6 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mSync = SynchronizationContext.Current ?? throw new InvalidOperationException("LegacySessionAdapter must be created on the data thread.");
         mNoteViewCache = new LiveNoteViewCache(ReadNoteProperties);
 
-        mAutomationConfigs = source.AutomationConfigs.ToV1AutomationMap();
-        mPartProperties = source.PartProperties.ToV1ConfigMap();
-        mNoteProperties = source.NoteProperties.ToV1ConfigMap();
-
         // —— 懒脏策略（设计许可的最粗粒度实现的细化版）：任何 note 字段/增删 → 标脏所在块 +
         //    待重分片；曲线区间变更 → 标脏相交块；时基/part 属性 → 全部标脏重分片。 ——
         mNotesSubscription = mContext.Notes.WhenAny(SubscribeNote, UnsubscribeNote);
@@ -43,7 +38,9 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mContext.Committed += OnCommitted;
         mContext.Pitch.RangeModified += OnRangeModified;
         mContext.PitchDeviation.RangeModified += OnRangeModified;   // 老 Pitch 含偏差，偏差变化同样标脏
-        foreach (var key in mAutomationConfigs.Keys)
+        // 构造期即订阅本声源声明的各自动化轨：宿主已在建会话之前按引擎声明填好 AutomationConfigs，
+        // 故 TryGetAutomation 必成（声明已就绪）。键集取自老声源声明。
+        foreach (var key in mSource.AutomationConfigs.Keys)
         {
             if (mContext.TryGetAutomation(key, out var automation))
             {
@@ -55,13 +52,8 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         mNeedReSegment = true;
     }
 
-    // —— 声明（老声源声明是静态的：缓存转换、函数式返回；老模型无条件轨集合，忽略 context）——
+    // 默认歌词：会话级运行时取值（声明类 config 已上移到 VoiceEngineAdapter）。
     public string DefaultLyric => mSource.DefaultLyric;
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetAutomationConfigs(VVoice.IPartPropertyContext context) => mAutomationConfigs;
-    // 老模型无合成参数回显概念：返回空集合。
-    public PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> GetSynthesizedParameterConfigs(VVoice.IPartPropertyContext context) => sEmptyConfigs;
-    public VConfig.ObjectConfig GetPartPropertyConfig(VVoice.IPartPropertyContext context) => new() { Properties = mPartProperties };
-    public VConfig.ObjectConfig GetNotePropertyConfig(VVoice.INotePropertyContext context) => new() { Properties = mNoteProperties };
 
     // —— 调度 ——
     public VVoice.SynthesisSegment? GetNextSegment(double startTime, double endTime)
@@ -565,11 +557,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     readonly SynchronizationContext mSync;
     readonly LiveNoteViewCache mNoteViewCache;
 
-    readonly PStruct.IReadOnlyOrderedMap<string, VConfig.AutomationConfig> mAutomationConfigs;
-    readonly PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> mPartProperties;
-    readonly PStruct.IReadOnlyOrderedMap<string, VConfig.IControllerConfig> mNoteProperties;
     static readonly PStruct.Map<string, VVoice.SynthesizedParameter> mSynthesizedParameters = new();
-    static readonly PStruct.OrderedMap<string, VConfig.AutomationConfig> sEmptyConfigs = new();
 
     readonly IDisposable mNotesSubscription;
     readonly Dictionary<VVoice.ILiveNote, Action> mNoteHandlers = new(ReferenceEqualityComparer.Instance);

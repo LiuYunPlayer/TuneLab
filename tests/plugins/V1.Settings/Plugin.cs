@@ -43,6 +43,12 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
     public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context)
         => throw new NotSupportedException("V1.Settings is a settings-only demo fixture.");
 
+    // 声明面（全空）：本夹具不暴露轨/面板，仅验证扩展设置链路。
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => sEmptyAutomations;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyAutomations;
+    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => sEmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => sEmptyConfig;
+
     // 设置 schema：普通文本（模型路径）+ 密钥（API Key：掩码显示 + 加密落盘）+ 一个开关。
     // 动态演示：勾选「使用 GPU」后才暴露「GPU 设备」字段（据 context 当前值条件显隐）。
     public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
@@ -68,4 +74,6 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
     }
 
     static readonly OrderedMap<string, VoiceSourceInfo> sEmpty = new();
+    static readonly OrderedMap<string, AutomationConfig> sEmptyAutomations = new();
+    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
 }

@@ -209,10 +209,10 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     }
 
     IPartPropertyContext BuildPartContext()
-        => new PartPropertyContext(mPart!.Properties.GetInfo());
+        => new PartPropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo());
 
     INotePropertyContext BuildNoteContext()
-        => new NotePropertyContext(mPart!.Properties.GetInfo(), MergeNoteSnapshots());
+        => new NotePropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo(), MergeNoteSnapshots());
 
     // 当前选中 note 的三态合并快照：同 key 各 note 全等给该值、不等给 Multiple、全缺则不出现（稀疏）。
     PropertyObject MergeNoteSnapshots()
@@ -248,13 +248,15 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         return new PropertyObject(merged);
     }
 
-    sealed class PartPropertyContext(PropertyObject partProperties) : IPartPropertyContext
+    sealed class PartPropertyContext(string voiceId, PropertyObject partProperties) : IPartPropertyContext
     {
+        public string VoiceId => voiceId;
         public PropertyObject PartProperties => partProperties;
     }
 
-    sealed class NotePropertyContext(PropertyObject partProperties, PropertyObject noteProperties) : INotePropertyContext
+    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, PropertyObject noteProperties) : INotePropertyContext
     {
+        public string VoiceId => voiceId;
         public PropertyObject PartProperties => partProperties;
         public PropertyObject NoteProperties => noteProperties;
     }

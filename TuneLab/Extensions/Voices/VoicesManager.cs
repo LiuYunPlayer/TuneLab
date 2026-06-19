@@ -110,6 +110,39 @@ internal static class VoicesManager
         return GetInitedEngine(string.Empty)!.CreateSession(string.Empty, context);
     }
 
+    // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明，故无构造期时序陷阱）——
+    // 引擎不可用 / id 未知 → 回退空引擎；插件求值抛异常 → 记日志并回退空引擎结果（声明每次参数 commit 都调，
+    // 不能让一个烂实现拖垮 UI）。voiceId 由 context.VoiceId 承载（与 part 稀疏值同为纯函数输入）。
+    public static IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(string type, IPartPropertyContext context)
+        => Declare(type, context.VoiceId, e => e.GetAutomationConfigs(context));
+
+    public static IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(string type, IPartPropertyContext context)
+        => Declare(type, context.VoiceId, e => e.GetSynthesizedParameterConfigs(context));
+
+    public static ObjectConfig GetPartPropertyConfig(string type, IPartPropertyContext context)
+        => Declare(type, context.VoiceId, e => e.GetPartPropertyConfig(context));
+
+    public static ObjectConfig GetNotePropertyConfig(string type, INotePropertyContext context)
+        => Declare(type, context.VoiceId, e => e.GetNotePropertyConfig(context));
+
+    static T Declare<T>(string type, string voiceId, Func<IVoiceEngine, T> get)
+    {
+        var empty = GetInitedEngine(string.Empty)!;   // 空引擎注册于内建加载、Init 恒成功。
+        var engine = GetInitedEngine(type);
+        if (engine == null || !engine.VoiceSourceInfos.ContainsKey(voiceId))
+            engine = empty;
+
+        try
+        {
+            return get(engine);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(string.Format("Engine {0} declaration failed: {1}", type, ex));
+            return get(empty);
+        }
+    }
+
     // Init 该身份的【活实现】（用户选择 / 确定性默认解析出的那个包的引擎）。
     public static void InitEngine(string type)
     {

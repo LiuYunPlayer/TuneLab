@@ -846,9 +846,7 @@ internal partial class TrackScrollView
             {
                 endTick = TrackScrollView.GetQuantizedTick(endTick);
             }
-            mPart.Dur.Set(Math.Max(endTick - mPart.Pos.Value, TrackScrollView.QuantizedCellTicks()));
-            mTrack.RemovePart(mPart);
-            mTrack.InsertPart(mPart);
+            mTrack.MovePart(mPart, () => mPart.Dur.Set(Math.Max(endTick - mPart.Pos.Value, TrackScrollView.QuantizedCellTicks())));
         }
 
         public void Up()

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using TuneLab.Hosting.Compat.Legacy.Conversion;
 using LVoice = TuneLab.Extensions.Voices;
 using VVoice = TuneLab.SDK;
 using PStruct = TuneLab.Foundation;
@@ -34,4 +36,38 @@ internal sealed class VoiceEngineAdapter(LVoice.IVoiceEngine legacy, string engi
     {
         return new LegacySessionAdapter(legacy.CreateVoiceSource(voiceId), context);
     }
+
+    // —— 声明（V1 要求引擎层、不依赖会话）——
+    // 老声源声明是静态的，但取值需一个声源实例：按 voiceId 懒建一份「声明用」声源并缓存其转换后的 config
+    //（与 CreateSession 的会话用声源相互独立）。老模型无条件轨/无回显：轨/面板恒定、回显为空，忽略 context 值。
+    public PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> GetAutomationConfigs(VVoice.IPartPropertyContext context)
+        => Decl(context.VoiceId).Automation;
+    public PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> GetSynthesizedParameterConfigs(VVoice.IPartPropertyContext context)
+        => sEmptyConfigs;
+    public VVoice.ObjectConfig GetPartPropertyConfig(VVoice.IPartPropertyContext context)
+        => new() { Properties = Decl(context.VoiceId).PartProperties };
+    public VVoice.ObjectConfig GetNotePropertyConfig(VVoice.INotePropertyContext context)
+        => new() { Properties = Decl(context.VoiceId).NoteProperties };
+
+    Declarations Decl(string voiceId)
+    {
+        if (!mDeclarations.TryGetValue(voiceId, out var decl))
+        {
+            var source = legacy.CreateVoiceSource(voiceId);
+            decl = new Declarations(
+                source.AutomationConfigs.ToV1AutomationMap(),
+                source.PartProperties.ToV1ConfigMap(),
+                source.NoteProperties.ToV1ConfigMap());
+            mDeclarations[voiceId] = decl;
+        }
+        return decl;
+    }
+
+    sealed record Declarations(
+        PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> Automation,
+        PStruct.IReadOnlyOrderedMap<string, VVoice.IControllerConfig> PartProperties,
+        PStruct.IReadOnlyOrderedMap<string, VVoice.IControllerConfig> NoteProperties);
+
+    readonly Dictionary<string, Declarations> mDeclarations = new();
+    static readonly PStruct.OrderedMap<string, VVoice.AutomationConfig> sEmptyConfigs = new();
 }
