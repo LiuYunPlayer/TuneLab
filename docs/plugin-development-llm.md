@@ -79,8 +79,8 @@ public interface IVoiceEngine {
 public interface ISynthesisSession : IDisposable {
     string DefaultLyric { get; }   // 新建 note 默认歌词（会话级运行时取值；声明类 config 全在引擎上）
     // 调度（宿主驱动逐步合成）：peek 窗内下一待合成块（纯值边界、无副作用、null=窗内无待合成）→ 宿主调 SynthesizeNext 合成该块。
-    SynthesisSegment? GetNextSegment(double startTime, double endTime);
-    Task SynthesizeNext(SynthesisSegment segment, CancellationToken cancellation = default);  // 纯 Task：取消正常返回不抛 OCE；错误抛异常
+    SynthesisRange? GetNextSegment(double startTime, double endTime);  // 返回纯调度提示 SynthesisRange
+    Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default);  // 入参=选中它那次 peek 的同一窗口（按它确定性重导出同一块，非回灌 SynthesisRange）；纯 Task：取消正常返回不抛 OCE；错误抛异常
     // 产物（数据线程发布、发布即不可变、StatusChanged 单一刷新信号）：
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }              // 分段折线（秒, 半音）
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }  // 回显曲线数据，key 对齐 GetSynthesizedParameterConfigs
@@ -141,7 +141,7 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 - 属性约定（gap：note/part props）：per-note/part 专属参数全走 keyed `Properties`（不动 `ILiveNote` 固定面）——`GetNotePropertyConfig`/`GetPartPropertyConfig` 的 `ObjectConfig.Properties`（`OrderedMap<string, IControllerConfig>`）声明，合成时从 `SynthesisNoteSnapshot.Properties`/`snapshot.PartProperties` 用 `GetDouble/GetBool/GetInt/GetString/GetEnum(key, default)` 读（稀疏、读不到取默认）。控件：`SliderConfig`/`ComboBoxConfig`(值显分离)/`CheckBoxConfig`/`TextBoxConfig`。`AutomationConfig.DefaultValue=NaN⇒分段轨`。条件轨消失后宿主保留已画曲线（隐藏不删）。`VoiceSourceInfo.Portrait` 用 `FileImageResource(绝对路径)`。
 - 原生依赖打包（gap：native/ONNX）：私有依赖（第三方托管库、native dll/so/dylib、模型、dict）放包文件夹→进本包专属 ALC（与其他插件隔离、版本不冲突）；SDK 程序集与 .NET 运行时由宿主共享、勿打进包。定位包内资源用 `Path.GetDirectoryName(typeof(MyVoiceEngine).Assembly.Location)`（勿用工作目录/`AppContext.BaseDirectory`=宿主目录）。native dll 与托管 dll 同目录便于 P/Invoke 探测；跨平台按目标分别提供 + manifest `platforms` 过滤。大模型权重勿塞 `.tlx`（即装即载会很重）：用独立资源包，或实现 `IExtensionSettings` 让用户配模型路径（密钥用 `TextBoxConfig{IsPassword=true}`）。加载放 `Init`、失败抛异常（宿主优雅降级）。
 - 失效自管：构造订阅 context（`Notes` 增删用 `WhenAny` 自动接线 / `note.*.Modified` 字段 / `PartProperties.Modified` / `Pitch`+`PitchDeviation`+各轨 `RangeModified`(秒区间)）handler 只廉价标脏，重活（重分块）推迟到 `context.Committed`（逻辑编辑收口、单条也补发→批量编辑只重分块一次）。tempo 变化无独立信号（分解为 note 边界 `Modified` + 轨 `RangeModified`）。`Dispose` 退订 + Dispose 所有音频段。重叠 note(和弦) 分块判间隙用「组内最大结束」、块尾取 `Max(EndTime)`。
-- 相关类型：`ISynthesisSession`、`ISynthesisContext`、`SynthesisSegment`、`SynthesisSnapshot`、`SynthesisNoteSnapshot`、`SynthesisAutomationSnapshot`、`IAutomationEvaluator`、`ILiveNote`、`ILiveAutomation`、`IAudioSegment`、`PinnedPhoneme`、`SynthesizedPhoneme`、`SynthesizedParameter`、`VoiceSourceInfo`、`FileImageResource`、`AutomationConfig`、`IPartPropertyContext`、`INotePropertyContext`、`SynthesisStatusSegment`。
+- 相关类型：`ISynthesisSession`、`ISynthesisContext`、`SynthesisRange`、`SynthesisSnapshot`、`SynthesisNoteSnapshot`、`SynthesisAutomationSnapshot`、`IAutomationEvaluator`、`ILiveNote`、`ILiveAutomation`、`IAudioSegment`、`PinnedPhoneme`、`SynthesizedPhoneme`、`SynthesizedParameter`、`VoiceSourceInfo`、`FileImageResource`、`AutomationConfig`、`IPartPropertyContext`、`INotePropertyContext`、`SynthesisStatusSegment`。
 
 ### Effect 接口（命名空间 `TuneLab.SDK`）
 > effect = 对**整段已合成音频**的离线变换（如 SVC 换声），非实时 VST。**会话托管厚模型**：每种引擎一个 `IEffectEngine`；

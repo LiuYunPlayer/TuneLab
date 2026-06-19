@@ -386,21 +386,21 @@ internal class PropertyObjectController : StackPanel
         readonly ListController mController;
     }
 
-    // 变长键控容器字段：字段带 key 标题，内容是 AddableObjectController（命名条目 + 增删，见 AddableObjectController.cs）。
+    // 变长键控容器字段：字段带 key 标题，内容是 ExtensibleObjectController（命名条目 + 增删，见 ExtensibleObjectController.cs）。
     // 绑到 Object(key.Id) 的嵌套对象——条目是该对象内的键。
-    class AddableObjectCreator : Creator
+    class ExtensibleObjectCreator : Creator
     {
-        public AddableObjectCreator(PropertyObjectController parent, PropertyKey key, AddableObjectConfig config) : base(parent)
+        public ExtensibleObjectCreator(PropertyObjectController parent, PropertyKey key, ExtensibleObjectConfig config) : base(parent)
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
-            mController = new AddableObjectController();
+            mController = new ExtensibleObjectController();
             mController.Bind(parent.DataObject.Object(key.Id));
             mController.Apply(config);
         }
 
-        public override Type ConfigType => typeof(AddableObjectConfig);
+        public override Type ConfigType => typeof(ExtensibleObjectConfig);
         public override IEnumerable<Control> Views => [mTitle, mController];
-        public override void Update(IControllerConfig config) => mController.Apply((AddableObjectConfig)config);
+        public override void Update(IControllerConfig config) => mController.Apply((ExtensibleObjectConfig)config);
 
         public override void Dispose()
         {
@@ -410,7 +410,7 @@ internal class PropertyObjectController : StackPanel
         }
 
         readonly Label mTitle;
-        readonly AddableObjectController mController;
+        readonly ExtensibleObjectController mController;
     }
 
     class CheckBoxCreator : Creator
@@ -470,7 +470,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
         { typeof(ArrayConfig), (parent, key, config) => new ArrayCreator(parent, key, (ArrayConfig)config) },
         { typeof(ListConfig), (parent, key, config) => new ListCreator(parent, key, (ListConfig)config) },
-        { typeof(AddableObjectConfig), (parent, key, config) => new AddableObjectCreator(parent, key, (AddableObjectConfig)config) },
+        { typeof(ExtensibleObjectConfig), (parent, key, config) => new ExtensibleObjectCreator(parent, key, (ExtensibleObjectConfig)config) },
     };
 
     IDataPropertyObject? mDataObject;

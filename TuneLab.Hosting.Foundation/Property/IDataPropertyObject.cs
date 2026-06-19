@@ -17,7 +17,7 @@ public interface IDataPropertyObject : IDataObject, IReadOnlyNotifiablePropertyO
     // 本层叶子读/写（裸 PropertyValue 进出；typed 视图由下方字段扩展提供）。
     new PropertyValue GetValue(string key, PropertyValue defaultValue);
     void SetValue(string key, PropertyValue value);
-    // 移除本层某键（presence：把 present 翻回 absent）。缺键 = no-op；不下钻。变长键控容器（AddableObjectConfig）删条目用。
+    // 移除本层某键（presence：把 present 翻回 absent）。缺键 = no-op；不下钻。变长键控容器（ExtensibleObjectConfig）删条目用。
     void RemoveValue(string key);
 
     IReadOnlyNotifiablePropertyObject IReadOnlyNotifiablePropertyObject.Object(string key) => Object(key);

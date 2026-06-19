@@ -12,13 +12,13 @@ using Button = TuneLab.GUI.Components.Button;
 
 namespace TuneLab.GUI.Controllers;
 
-// 变长键控容器（AddableObjectConfig）的面板渲染：值落为 PropertyObject。与 ListController 对称，但项是「命名键」——
+// 变长键控容器（ExtensibleObjectConfig）的面板渲染：值落为 PropertyObject。与 ListController 对称，但项是「命名键」——
 // 每行带标签（PropertyKey.DisplayText）、按 key 寻址（非 token），底部 + 菜单从候选键里挑（隐藏已存在的键）。
 // 键控访问天生懒（DataPropertyObject 的 Object/GetValue 读不建、写物化 + presence），故无需 array 那套越界 seed 适配。
 // 典型用法是「起步为空、+ 增项」（如多说话人音色里选要混入的 speaker）；插件若对 absent 返回 seed 键，则随编辑物化。
-internal sealed class AddableObjectController : StackPanel
+internal sealed class ExtensibleObjectController : StackPanel
 {
-    public AddableObjectController()
+    public ExtensibleObjectController()
     {
         Orientation = Orientation.Vertical;
         Background = Style.INTERFACE.ToBrush();
@@ -43,7 +43,7 @@ internal sealed class AddableObjectController : StackPanel
         mDataObject = null;
     }
 
-    public void Apply(AddableObjectConfig config)
+    public void Apply(ExtensibleObjectConfig config)
     {
         mAddableElements = config.AddableElements;
         ReconcileRows(config.Properties);

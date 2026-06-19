@@ -94,17 +94,17 @@ public sealed class I18NSession : ISynthesisSession
 
     public string DefaultLyric => "la";
 
-    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
         double blockStart = mContext.Notes.First!.StartTime.Value;
         double blockEnd = mContext.Notes.Last!.EndTime.Value;
-        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
+        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisRange(blockStart, blockEnd);
     }
 
-    public async Task SynthesizeNext(SynthesisSegment segment,
+    public async Task SynthesizeNext(double startTime, double endTime,
         CancellationToken cancellation = default)
     {
         if (mContext.Notes.Count == 0)
@@ -122,14 +122,14 @@ public sealed class I18NSession : ISynthesisSession
         StatusChanged?.Invoke();
 
         var notes = snapshot.Notes;
-        double startTime = notes.Count > 0 ? notes[0].StartTime : 0;
-        double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
-        int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
+        double blockStart = notes.Count > 0 ? notes[0].StartTime : 0;
+        double blockEnd = notes.Count > 0 ? notes[^1].EndTime : 0;
+        int sampleCount = Math.Max(1, (int)((blockEnd - blockStart) * kSampleRate));
         mSegment?.Dispose();
-        mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount, kSampleRate);
+        mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
         mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
-        mBlockStart = startTime;
-        mBlockEnd = endTime;
+        mBlockStart = blockStart;
+        mBlockEnd = blockEnd;
         var phonemes = new List<SynthesizedPhoneme>(notes.Count);
         for (int i = 0; i < notes.Count; i++)
         {

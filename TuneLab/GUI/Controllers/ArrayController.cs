@@ -317,7 +317,7 @@ internal abstract class ElementWidget : IDisposable
         ObjectConfig c => new ObjectElement(dataObject, token, c),
         ArrayConfig c => new NestedArrayElement(dataObject, token, c),
         ListConfig c => new NestedListElement(dataObject, token, c),
-        AddableObjectConfig c => new NestedAddableObjectElement(dataObject, token, c),
+        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c),
         _ => new UnknownElement(config),
     };
 
@@ -474,25 +474,25 @@ internal abstract class ElementWidget : IDisposable
         readonly ListController mController = new();
     }
 
-    // 数组套变长键控对象元素：嵌 AddableObjectController，导航进 dataObject.Object(token)。
-    sealed class NestedAddableObjectElement : ElementWidget
+    // 数组套变长键控对象元素：嵌 ExtensibleObjectController，导航进 dataObject.Object(token)。
+    sealed class NestedExtensibleObjectElement : ElementWidget
     {
-        public NestedAddableObjectElement(IDataPropertyObject dataObject, string token, AddableObjectConfig config)
+        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config)
         {
             mController.Bind(dataObject.Object(token));
             mController.Apply(config);
         }
 
         public override Control View => mController;
-        public override Type ConfigType => typeof(AddableObjectConfig);
-        public override void Update(IControllerConfig config) => mController.Apply((AddableObjectConfig)config);
+        public override Type ConfigType => typeof(ExtensibleObjectConfig);
+        public override void Update(IControllerConfig config) => mController.Apply((ExtensibleObjectConfig)config);
         public override void Dispose()
         {
             base.Dispose();
             mController.Unbind();
         }
 
-        readonly AddableObjectController mController = new();
+        readonly ExtensibleObjectController mController = new();
     }
 
     sealed class UnknownElement : ElementWidget
@@ -624,7 +624,7 @@ internal static class ControllerConfigDefaults
                     map.Add(kvp.Key.Id, kvp.Value.GetDefaultValue());
                 return PropertyValue.Create(new PropertyObject(map));
             }
-            case AddableObjectConfig addableObjectConfig:
+            case ExtensibleObjectConfig addableObjectConfig:
             {
                 // 变长键控容器默认值 = 当前已声明键的默认值拼成的对象（同 ObjectConfig）。
                 var map = new Map<string, PropertyValue>();

@@ -37,8 +37,8 @@ internal sealed class SilentSession : ISynthesisSession
 {
     public string DefaultLyric => "la";
 
-    public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
-    public Task SynthesizeNext(SynthesisSegment segment, CancellationToken cancellation = default) => Task.CompletedTask;
+    public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
+    public Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default) => Task.CompletedTask;
 
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => Array.Empty<IReadOnlyList<Point>>();
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;

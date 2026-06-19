@@ -45,7 +45,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context)
         => context.VoiceId == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
 
-    // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（AddableObjectConfig）。
+    // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（ExtensibleObjectConfig）。
     // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
     static ObjectConfig ConditionalPartConfig(IPartPropertyContext context)
     {
@@ -56,7 +56,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         foreach (var kvp in selected.Map)
             speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
 
-        map.Add(("speakers", "Mixed Speakers"), new AddableObjectConfig
+        map.Add(("speakers", "Mixed Speakers"), new ExtensibleObjectConfig
         {
             Properties = speakerProps,
             AddableElements = kSpeakers
@@ -196,17 +196,17 @@ public sealed class SingleBlockSession : ISynthesisSession
 
     public string DefaultLyric => "la";
 
-    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
         if (!mDirty || mSynthesizing || mContext.Notes.Count == 0)
             return null;
 
         double blockStart = mContext.Notes.First!.StartTime.Value;
         double blockEnd = mContext.Notes.Last!.EndTime.Value;
-        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisSegment(blockStart, blockEnd);
+        return blockEnd < startTime || blockStart > endTime ? null : new SynthesisRange(blockStart, blockEnd);
     }
 
-    public async Task SynthesizeNext(SynthesisSegment segment,
+    public async Task SynthesizeNext(double startTime, double endTime,
         CancellationToken cancellation = default)
     {
         if (mContext.Notes.Count == 0)
@@ -226,11 +226,11 @@ public sealed class SingleBlockSession : ISynthesisSession
         try
         {
             var notes = snapshot.Notes;
-            double startTime = notes.Count > 0 ? notes[0].StartTime : 0;
-            double endTime = notes.Count > 0 ? notes[^1].EndTime : 0;
-            int sampleCount = Math.Max(1, (int)((endTime - startTime) * kSampleRate));
+            double blockStart = notes.Count > 0 ? notes[0].StartTime : 0;
+            double blockEnd = notes.Count > 0 ? notes[^1].EndTime : 0;
+            int sampleCount = Math.Max(1, (int)((blockEnd - blockStart) * kSampleRate));
             mSegment?.Dispose();
-            mSegment = mContext.CreateAudioSegment((long)(startTime * kSampleRate), sampleCount, kSampleRate);
+            mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
             var phonemes = new List<SynthesizedPhoneme>(notes.Count);
             for (int i = 0; i < notes.Count; i++)
@@ -248,8 +248,8 @@ public sealed class SingleBlockSession : ISynthesisSession
                 });
             }
             mPhonemes = phonemes;
-            mBlockStart = startTime;
-            mBlockEnd = endTime;
+            mBlockStart = blockStart;
+            mBlockEnd = blockEnd;
         }
         finally
         {

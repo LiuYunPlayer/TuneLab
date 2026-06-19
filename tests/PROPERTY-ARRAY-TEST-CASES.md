@@ -74,7 +74,7 @@
 | CBOR 往返 | 存盘 → 重开工程 | phonemes（含重复）、pair 的值与顺序原样恢复 |
 | undo/redo | 添加/删除/编辑后 Ctrl+Z / Ctrl+Y | 逐元素粒度回退/重做，token 稳定、行不乱 |
 
-## ④-D AddableObjectConfig（变长键控容器）+ 多说话人混音式自动化联动
+## ④-D ExtensibleObjectConfig（变长键控容器）+ 多说话人混音式自动化联动
 
 object 家族的变长兄弟：项有唯一键 + 标签（`PropertyKey.DisplayText`）、按键寻址、`+` 从候选键挑（隐藏已存在键）。
 键控访问天生懒（`Object`/`GetValue` 读不建、写物化 + presence），无需 array 的越界 seed 适配。**真机测试**。

@@ -93,10 +93,10 @@ public sealed class TestSession : ISynthesisSession
     public string DefaultLyric => "la";
 
     // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
-    public SynthesisSegment? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
         return FindNextDirtyPiece(startTime, endTime) is { } piece
-            ? new SynthesisSegment(piece.StartTime, piece.EndTime)
+            ? new SynthesisRange(piece.StartTime, piece.EndTime)
             : null;
     }
 
@@ -119,10 +119,10 @@ public sealed class TestSession : ISynthesisSession
         return null;
     }
 
-    public async Task SynthesizeNext(SynthesisSegment segment,
+    public async Task SynthesizeNext(double startTime, double endTime,
         CancellationToken cancellation = default)
     {
-        if (FindNextDirtyPiece(segment.StartTime, segment.EndTime) is not { } piece)
+        if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
         // 同步前缀（数据线程）拉取快照：notes 即本块全集，曲线开窗按 note 范围。

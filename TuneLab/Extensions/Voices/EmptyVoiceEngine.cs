@@ -32,9 +32,9 @@ internal class EmptyVoiceEngine : IVoiceEngine
     {
         public string DefaultLyric => "a";
 
-        public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
+        public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
 
-        public Task SynthesizeNext(SynthesisSegment segment,
+        public Task SynthesizeNext(double startTime, double endTime,
             CancellationToken cancellation = default)
         {
             return Task.CompletedTask;

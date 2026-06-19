@@ -476,7 +476,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         while (busy < limit && idle.Count > 0)
         {
             VoiceSynthesisPipeline? best = null;
-            SynthesisSegment bestSegment = default;
+            SynthesisRange bestSegment = default;
             bool bestIsAhead = false;
             foreach (var pipeline in idle)
             {
@@ -502,7 +502,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             if (best == null)
                 break;
 
-            best.Dispatch(bestSegment);
+            // 回传选中它的那次 peek 的同一窗口（ahead = [currentTime, +∞)，behind = (-∞, currentTime]），
+            // 而非 bestSegment 自身——插件据此确定性重导出 peek 报出的同一块。
+            if (bestIsAhead)
+                best.Dispatch(currentTime, double.MaxValue);
+            else
+                best.Dispatch(double.MinValue, currentTime);
             idle.Remove(best);
             busy++;
         }

@@ -408,7 +408,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             {
                 ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key.Id));
             }
-            else if (kvp.Value is ArrayConfig or ListConfig or AddableObjectConfig)
+            else if (kvp.Value is ArrayConfig or ListConfig or ExtensibleObjectConfig)
             {
                 // 数组/列表/变长键控容器：写入默认值（递归各元素/键 config 默认值拼成 PropertyArray/PropertyObject）。
                 // 显式重置即物化该值（变长键控 = 当前声明键的默认对象，替换整个容器值）。
