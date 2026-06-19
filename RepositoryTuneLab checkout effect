@@ -1,0 +1,20 @@
+[33mf2c6b51[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/agent[m[33m, [m[1;31morigin/release/2.0.0[m[33m, [m[1;31morigin/feature/agent[m[33m, [m[1;32mrelease/2.0.0[m[33m)[m Merge branch 'feature/agent' into release/2.0.0
+[33m23ce42a[m refactor: 收紧 agent 工具描述——pitch line 与 vibrato 加性叠加、勿断开音高线
+[33m2bbf396[m feat: agent 对话分步可见 + 流式实时 Markdown + 取消回复气泡
+[33mf8e55db[m feat: agent 加 add_vibrato 工具（创建真正的 Vibrato 对象）
+[33m8a72108[m Revert "refactor: effect 收口改订 effect.Modified，退掉 SynthesisBatch band-aid"
+[33mf7823b9[m fix: OpenAI 兼容流式 tool_call 被后续空 id/name 帧覆盖而丢失
+[33mc343b21[m feat: agent 工具集三层扩充（只读 / 业务写 / 批量 DSL）
+[33m1b4b209[m fix: Agent 报错/停止文案可复制——提示行改用 SelectableTextBlock
+[33me64f983[m feat: Agent 换模型保上下文 + 连接模型提示 + 标题加固 + 报错保留已输出
+[33m0644c43[m refactor: effect 收口改订 effect.Modified，退掉 SynthesisBatch band-aid
+[33m2d5b708[m refactor: ITiming 死契约从 TuneLab.SDK 下沉到宿主 TuneLab.Data.Timing
+[33m08e3a84[m docs: 订正 plugin-development 的 voice/effect 章节到当前 SDK 模型
+[33m74cda39[m feat: effect 收敛阶段三——回显富类型换形 + effect 回显端到端
+[33m6962336[m fix: Agent 短回复时 token 数与 Copy 挤在一起——token 文本加右边距
+[33m3576611[m refactor: Agent 设置页 provider 选择复用属性面板样式 + 改名 Model Provider
+[33m909ced3[m feat: Agent 撞工具回合上限时强制收尾——再请求一次不带工具让模型总结
+[33m65cbdad[m fix: DataObject merge 通知上行——中间态不漏成祖先 settled、收口沿父链补发
+[33m9a7b359[m feat: effect 收敛阶段二——厚 IEffectProcessor/每段一个 + 反应式 EffectGraph
+[33me4e922d[m feat: Agent 会话菜单 UI 完善——✕ 对齐 + 全名 tooltip + 原生观感
+[33mf4e9907[m feat: 原子写文件工具 SaveFile（仿 QSaveFile）+ 应用到 agent 写入点

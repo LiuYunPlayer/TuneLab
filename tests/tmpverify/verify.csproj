@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="TuneLab.Foundation" HintPath="D:\Documents\Repository\Tunelab\TuneLab.Foundation\bin\Debug\net8.0\TuneLab.Foundation.dll" />
+    <Reference Include="TuneLab.SDK" HintPath="D:\Documents\Repository\Tunelab\TuneLab.SDK\bin\Debug\net8.0\TuneLab.SDK.dll" />
+  </ItemGroup>
+</Project>

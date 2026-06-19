@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>DiffSinger</AssemblyName>
+    <RootNamespace>DiffSinger</RootNamespace>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\DiffSinger\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\TuneLab.Foundation\TuneLab.Foundation.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\TuneLab.SDK\TuneLab.SDK.csproj" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.21.0" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Extensions" Version="0.13.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.21.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="K4os.Hash.xxHash" Version="1.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Copy NuGet dependency DLLs to the output package directory -->
+  <Target Name="CopyDeps" AfterTargets="Build">
+    <ItemGroup>
+      <_DepsFiles Include="$(TargetDir)publish\*" Condition="Exists('$(TargetDir)publish')" />
+      <_DepsFiles Include="$(TargetDir)YamlDotNet.dll" />
+      <_DepsFiles Include="$(TargetDir)K4os.Hash.xxHash.dll" />
+      <_DepsFiles Include="$(TargetDir)Microsoft.ML.OnnxRuntime.dll" />
+      <_DepsFiles Include="$(TargetDir)Microsoft.ML.OnnxRuntime.Managed.dll" />
+      <_DepsFiles Include="$(TargetDir)onnxruntime.*.dll" />
+      <_DepsFiles Include="$(TargetDir)runtimes\**\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_DepsFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_DepsFiles->'%(RootDir)%(Directory)%(FileName)%(Extension)')" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Fallback: copy from NuGet cache -->
+  <Target Name="CopyNuGetDlls" AfterTargets="Build" Condition="'$(CopyDepsDisabled)' != 'true'">
+    <PropertyGroup>
+      <_NuGetRoot>$(NuGetPackageRoot)</_NuGetRoot>
+    </PropertyGroup>
+    <ItemGroup>
+      <_NuGetCopy Include="$(_NuGetRoot)\YamlDotNet\16.3.0\lib\net8.0\YamlDotNet.dll" />
+      <_NuGetCopy Include="$(_NuGetRoot)\K4os.Hash.xxHash\1.0.8\lib\net6.0\K4os.Hash.xxHash.dll" />
+      <_NuGetCopy Include="$(_NuGetRoot)\microsoft.ml.onnxruntime\1.21.0\lib\netstandard2.0\Microsoft.ML.OnnxRuntime.dll" />
+      <_NuGetCopy Include="$(_NuGetRoot)\microsoft.ml.onnxruntime.managed\1.21.0\lib\netstandard2.0\Microsoft.ML.OnnxRuntime.Managed.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_NuGetCopy)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('%(Identity)')" />
+  </Target>
+
+</Project>

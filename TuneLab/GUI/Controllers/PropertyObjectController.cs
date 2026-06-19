@@ -370,6 +370,56 @@ internal class PropertyObjectController : StackPanel
         readonly Components.CheckBox mController;
     }
 
+    // 按钮控件：渲染为可点击的按钮，触发 ButtonConfig.Action（在 UI 线程）。不绑定数据。
+    class ButtonCreator : Creator
+    {
+        public ButtonCreator(PropertyObjectController parent, string key, ButtonConfig config) : base(parent)
+        {
+            var text = config.DisplayText ?? key;
+
+            mButton = ObjectPoolManager.Get<Components.Button>();
+            mButton.Height = 32;
+            mButton.Margin = new(24, 8, 24, 8);
+            mButton.AddContent(new()
+            {
+                Item = new BorderItem() { CornerRadius = 4 },
+                ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE },
+            });
+            mButton.AddContent(new()
+            {
+                Item = new TextItem() { Text = text, FontSize = 13 },
+                ColorSet = new() { Color = Style.WHITE },
+            });
+
+            mAction = config.Action;
+            mButton.Clicked += OnClicked;
+        }
+
+        void OnClicked()
+        {
+            mAction?.Invoke();
+        }
+
+        public override Type ConfigType => typeof(ButtonConfig);
+        public override IEnumerable<Control> Views => [mButton];
+
+        public override void Update(IControllerConfig config)
+        {
+            var btn = (ButtonConfig)config;
+            mAction = btn.Action;
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mButton.Clicked -= OnClicked;
+            ObjectPoolManager.Return(mButton);
+        }
+
+        readonly Components.Button mButton;
+        Action? mAction;
+    }
+
     static Label CreateTitle(string title, double height)
     {
         var label = ObjectPoolManager.Get<Label>();
@@ -389,6 +439,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(TextBoxConfig), (parent, key, config) => new SingleLineTextCreator(parent, key, (TextBoxConfig)config) },
         { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
+        { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
     };
 
     IDataPropertyObject? mDataObject;

@@ -1,0 +1,10 @@
+{
+  "id": "com.tunelab.diffSinger",
+  "name": "DiffSinger",
+  "version": "1.0.0",
+  "author": "TuneLab Plugins",
+  "description": "Full DiffSinger voice engine: auto-scan voicebanks, G2P, dur/pitch/variance, acoustic model, vocoder, variance mapping.",
+  "sdk-version": "1.0",
+  "type": "voice",
+  "assemblies": ["DiffSinger.dll"]
+}
