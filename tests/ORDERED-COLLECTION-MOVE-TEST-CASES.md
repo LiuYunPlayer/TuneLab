@@ -51,13 +51,15 @@
 
 ## Bug 2：脚本 / Agent 改 pos/dur（reorder 标志已删，统一走 Move）
 
+> 本分支脚本 API 为**对象式**（句柄属性/方法），故下列脚本写法用 `note.*` / `part.*`，非旧的 `tl.setNote`/`tl.setPart`。颤音脚本 `vibrato.set({pos})` 走同一 `MoveVibrato` 路径、与 S1 同理。Agent 工具仍是 1-based 旧体系。
+
 | # | 操作 | 预期 |
 |---|---|---|
-| S1 | 脚本 `tl.setNote(note, {pos: …})` 改音符起点致次序变 | 音符移位且列表有序；脚本结束后一次撤销整体回退 |
-| S2 | 脚本 `tl.setNote(note, {pitch: …})` **只改音高**（非排序键） | 音高变、位置不变、无多余重排副作用；撤销回退 |
-| S3 | 脚本 `tl.setPart(part, {pos: …})` / `{dur: …}` | part 移位/伸缩且轨内有序；回灌/后续操作正常 |
+| S1 | 脚本 `note.pos = …`（或 `note.set({pos: …})`）改音符起点致次序变 | 音符移位且列表有序；脚本结束后一次撤销整体回退 |
+| S2 | 脚本 `note.pitch = …` **只改音高**（非排序键） | 音高变、位置不变、无多余重排副作用；撤销回退 |
+| S3 | 脚本 `part.set({pos: …})` / `part.set({dur: …})` | part 移位/伸缩且轨内有序；后续操作正常 |
 | S4 | Agent `set_note` / `set_part_properties` 改 pos/dur | 同上；编号随排序变化正确（part），撤销为一步 |
-| S5 | 脚本对同一已删 handle 再次 `removeNote` | 报"handle was removed"错误（Removed 守卫拦截），**不应**触发归属断言或崩溃 |
+| S5 | 脚本对同一已删 handle 再次 `part.removeNote(n)` | 报"handle was removed"错误（Removed 守卫拦截），**不应**触发归属断言或崩溃 |
 
 ## Bug 1：删除归属（DEBUG 断言不应在正常操作中触发）
 
