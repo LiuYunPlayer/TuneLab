@@ -57,63 +57,89 @@ internal abstract class ArrayControllerBase : StackPanel
         mArray.Commit();
     }
 
-    // 元素行按 token keyed-diff 对齐到 (token[i], elements[i])。镜像 PropertyObjectController.Reconcile：
-    // 同 token 同类型复用行仅更参数、token 消失则 dispose、新 token 建、同 token 换类型则换行；仅结构变化时重排布局。
+    // 元素行 keyed-diff 对齐到 elements.Count 行（镜像 PropertyObjectController.Reconcile）：
+    //   现存位（i < 数据元素数）绑真实 token——身份稳定，中插/删只增删一行；
+    //   越界（seed）位（i ≥ 数据元素数）绑 SeedPositionView——读默认、首次写物化整段 seed（presence 语义）。
+    // 同 key 同类型复用行仅更参数、key 消失则 dispose、新 key 建、同 key 换类型则换行；仅结构变化时重排布局。
+    // 复合 seed 元素物化前不渲染虚拟行（仅标量 seed 虚拟绑定，见 SeedPositionView）。
     protected void ReconcileRows(IReadOnlyList<IControllerConfig> elements)
     {
         if (mArray == null)
             return;
 
         var tokens = mArray.Tokens;
-        int n = Math.Min(tokens.Count, elements.Count);
+        int dataCount = tokens.Count;
+        IReadOnlyList<PropertyValue>? seedDefaults = null;
 
         var nextOrder = new List<string>();
-        var nextByToken = new Dictionary<string, ElementRow>();
+        var nextByKey = new Dictionary<string, ElementRow>();
         bool structureChanged = false;
 
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < elements.Count; i++)
         {
-            var token = tokens[i];
             var cfg = elements[i];
-            if (nextByToken.ContainsKey(token))
-                continue; // token 本就唯一；防御
+            string key;
+            IDataPropertyObject host;
+            bool deletable;
 
-            if (mRowsByToken.TryGetValue(token, out var existing) && existing.ConfigType == cfg.GetType())
+            if (i < dataCount)
             {
-                existing.Update(cfg);
-                mRowsByToken.Remove(token);
-                nextByToken.Add(token, existing);
+                key = tokens[i];
+                host = mArray;
+                deletable = Deletable;
             }
             else
             {
-                nextByToken.Add(token, new ElementRow(this, mArray, token, cfg, Deletable));
-                structureChanged = true; // 新建（含同 token 换类型）
+                if (cfg is not IValueConfig)
+                    continue; // 复合 seed 元素：物化前不渲染
+                key = SeedKeyPrefix + i;
+                seedDefaults ??= elements.Select(e => e.GetDefaultValue()).ToList();
+                host = new SeedPositionView(mArray, i, seedDefaults);
+                deletable = false; // 未物化元素不可删
             }
-            nextOrder.Add(token);
+
+            if (nextByKey.ContainsKey(key))
+                continue; // key 本就唯一；防御
+
+            if (mRowsByKey.TryGetValue(key, out var existing) && existing.ConfigType == cfg.GetType())
+            {
+                existing.Update(cfg);
+                mRowsByKey.Remove(key);
+                nextByKey.Add(key, existing);
+            }
+            else
+            {
+                nextByKey.Add(key, new ElementRow(this, host, key, cfg, deletable));
+                structureChanged = true; // 新建（含同 key 换类型 / seed 位物化为真实位）
+            }
+            nextOrder.Add(key);
         }
 
-        if (mRowsByToken.Count > 0)
-            structureChanged = true; // 有 token 被删
+        if (mRowsByKey.Count > 0)
+            structureChanged = true; // 有 key 被删
         if (!mOrder.SequenceEqual(nextOrder))
             structureChanged = true; // 顺序变
 
         if (structureChanged)
         {
-            foreach (var kvp in mRowsByToken)
+            foreach (var kvp in mRowsByKey)
             {
                 mRowsPanel.Children.Remove(kvp.Value.Root);
                 kvp.Value.Dispose();
             }
-            mRowsByToken = nextByToken;
+            mRowsByKey = nextByKey;
             mOrder = nextOrder;
             AlignRows();
         }
         else
         {
-            mRowsByToken = nextByToken;
+            mRowsByKey = nextByKey;
             mOrder = nextOrder;
         }
     }
+
+    // 虚拟（seed）行键前缀：以 '@' 起头，与真实元素 token（"e0"、"e1"…）绝不撞。
+    const string SeedKeyPrefix = "@seed:";
 
     // 增量对齐 mRowsPanel.Children 到 mOrder：复用行留原位（不失焦/不打断拖动），仅移动错位的、插入新建的、移除尾部多余。
     void AlignRows()
@@ -121,7 +147,7 @@ internal abstract class ArrayControllerBase : StackPanel
         int index = 0;
         foreach (var token in mOrder)
         {
-            var view = mRowsByToken[token].Root;
+            var view = mRowsByKey[token].Root;
             int current = mRowsPanel.Children.IndexOf(view);
             if (current == index)
             {
@@ -139,16 +165,16 @@ internal abstract class ArrayControllerBase : StackPanel
 
     void ResetRows()
     {
-        foreach (var kvp in mRowsByToken)
+        foreach (var kvp in mRowsByKey)
             kvp.Value.Dispose();
-        mRowsByToken = new();
+        mRowsByKey = new();
         mOrder = new();
         mRowsPanel.Children.Clear();
     }
 
     protected IDataPropertyArray? mArray;
     readonly StackPanel mRowsPanel = new() { Orientation = Orientation.Vertical };
-    Dictionary<string, ElementRow> mRowsByToken = new();
+    Dictionary<string, ElementRow> mRowsByKey = new();
     List<string> mOrder = new();
 }
 
@@ -217,9 +243,10 @@ sealed class ElementRow : IDisposable
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
 
-    public ElementRow(ArrayControllerBase owner, IDataPropertyArray array, string token, IControllerConfig config, bool deletable)
+    public ElementRow(ArrayControllerBase owner, IDataPropertyObject host, string bindKey, IControllerConfig config, bool deletable)
     {
-        mWidget = ElementWidget.Create(array, token, config);
+        // host = 现存位的数组外观（bindKey = token）或越界位的 SeedPositionView（bindKey 仅作行身份、视图按 position 寻址）。
+        mWidget = ElementWidget.Create(host, bindKey, config);
 
         mRoot = new DockPanel { LastChildFill = true, Margin = new(24, 6, 24, 6) };
 
@@ -227,7 +254,7 @@ sealed class ElementRow : IDisposable
         {
             mDelete = ArrayControlsFactory.MakeIconButton("✕");
             mDelete.Opacity = 0; // 悬浮才显（用透明度而非 IsVisible，保留占位、行内不抖）
-            mDelete.Clicked += () => owner.RequestRemove(token);
+            mDelete.Clicked += () => owner.RequestRemove(bindKey);
             DockPanel.SetDock(mDelete, Dock.Right);
             mRoot.Children.Add(mDelete);
 
@@ -439,6 +466,67 @@ internal abstract class ElementWidget : IDisposable
         readonly Label mView;
         readonly Type mConfigType;
     }
+}
+
+// 借壳数据对象（app 侧）：把整套文档身份（撤销/Modified/merge/Head）转发给被包裹对象。
+// 等价 Hosting.Foundation 内部的 IDataObject.Wrapper，但那是 internal、跨程序集不可用，故此处自备一份供 seed 视图复用。
+abstract class ForwardingDataObject(IDataObject inner) : IDataObject
+{
+    public IModifiedEvent Modified => inner.Modified;
+    public IModifiedEvent WillModify => inner.WillModify;
+    public Head Head => inner.Head;
+    public void Attach(IDataObject parent) => inner.Attach(parent);
+    public void Detach() => inner.Detach();
+    public IDisposable MergeNotify() => inner.MergeNotify();
+    public void BeginMergeNotify() => inner.BeginMergeNotify();
+    public void EndMergeNotify() => inner.EndMergeNotify();
+    public bool Commit() => inner.Commit();
+    public bool Discard() => inner.Discard();
+    public bool DiscardTo(Head head) => inner.DiscardTo(head);
+    public bool Undo() => inner.Undo();
+    public bool Redo() => inner.Redo();
+}
+
+// 越界（seed/虚拟）位置的数据外观：表示数组 position（≥ 现长）处尚未物化的元素槽。
+// 读：返回默认值（浏览不弄脏文档，对称标量字段「缺席读默认」）。
+// 写：先把整段 seed 物化——数组从现长补齐到 seedDefaults.Count 个元素、各取对应 element config 默认值（含本位），
+//     再对 position 落写入值。如此「首次写入即物化整段 seed」，物化后 present-count = N，插件不再 reseed、显示稳定不塌；
+//     下次 reconcile 用真实 token 行替换本虚拟行。提交由控件绑定的提交周期承担（与对象懒建 GetOrCreateObject 同，不在此 commit）。
+sealed class SeedPositionView : ForwardingDataObject, IDataPropertyObject
+{
+    public SeedPositionView(IDataPropertyArray array, int position, IReadOnlyList<PropertyValue> seedDefaults) : base(array)
+    {
+        mArray = array;
+        mPosition = position;
+        mSeedDefaults = seedDefaults;
+    }
+
+    bool Real => mPosition < mArray.Count;
+
+    void Materialize()
+    {
+        for (int i = mArray.Count; i < mSeedDefaults.Count; i++)
+            mArray.Add(mSeedDefaults[i]);
+    }
+
+    public PropertyValue GetValue(string key, PropertyValue defaultValue)
+        => Real ? mArray.GetValue(mArray.Tokens[mPosition], defaultValue) : defaultValue;
+
+    public void SetValue(string key, PropertyValue value)
+    {
+        if (!Real)
+            Materialize();
+        mArray.SetValue(mArray.Tokens[mPosition], value);
+    }
+
+    // 复合 seed 元素物化前不渲染虚拟行（见 ReconcileRows），故下列导航仅物化后（Real）走到；
+    // 防御：未物化先物化再下钻（标量 seed 流程不会触发）。
+    public IDataPropertyObject Object(string key) { if (!Real) Materialize(); return mArray.Object(mArray.Tokens[mPosition]); }
+    public IDataPropertyArray Array(string key) { if (!Real) Materialize(); return mArray.Array(mArray.Tokens[mPosition]); }
+
+    readonly IDataPropertyArray mArray;
+    readonly int mPosition;
+    readonly IReadOnlyList<PropertyValue> mSeedDefaults;
 }
 
 internal static class ArrayControlsFactory
