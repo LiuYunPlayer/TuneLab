@@ -63,7 +63,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
             map.Add("detail", new TextBoxConfig());
         }
 
-        // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过，须靠 array 才能表达可重复列表）
+        // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过——key 唯一模型表达不了重复，正是 ④ array 的动机）
         var seen = new HashSet<string>();
         foreach (var ch in letters)
         {
@@ -71,6 +71,34 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
             if (seen.Add(key))
                 map.Add(key, new SliderConfig { DefaultValue = 0.5, MinValue = 0, MaxValue = 1 });
         }
+
+        // ④ 可重复列表 phonemes（PropertyArray + ListConfig）：与 ③ 的 key-unique 滑条对照——这里重复字符不跳过，
+        //   "i i an" 三个音素照样三行。presence/seed 语义：absent（从未写）→ 按 letters 逐字符 seed（默认值即该字符）；
+        //   present → 按实际元素数返回 TextBox（不再 seed）。面板：+ 弹菜单(Phoneme/Rest) 追加、行悬浮删除、原位编辑。
+        IReadOnlyList<IControllerConfig> phonemeElements = note.Map.ContainsKey("phonemes")
+            ? Enumerable.Range(0, note.GetValue("phonemes", PropertyArray.Empty).Count)
+                .Select(_ => (IControllerConfig)new TextBoxConfig()).ToList()
+            : letters.Select(c => (IControllerConfig)new TextBoxConfig { DefaultValue = c.ToString() }).ToList();
+        map.Add("phonemes", new ListConfig
+        {
+            Elements = phonemeElements,
+            AddableElements =
+            [
+                new AddableElement(new TextBoxConfig(), "Phoneme"),
+                new AddableElement(new TextBoxConfig { DefaultValue = "-" }, "Rest"),
+            ],
+        });
+
+        // ④ 定长数组 pair（PropertyArray + ArrayConfig）：固定 2 个滑条、不可增删；
+        //   absent → 显示 2 行默认值(0.2/0.8)、编辑任一即物化整段（演示 ArrayController + seed 越界惰性绑定）。
+        map.Add("pair", new ArrayConfig
+        {
+            Elements =
+            [
+                new SliderConfig { DefaultValue = 0.2, MinValue = 0, MaxValue = 1 },
+                new SliderConfig { DefaultValue = 0.8, MinValue = 0, MaxValue = 1 },
+            ],
+        });
 
         return new ObjectConfig { Properties = map };
     }

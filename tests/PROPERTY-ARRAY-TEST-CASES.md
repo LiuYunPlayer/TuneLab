@@ -52,8 +52,33 @@
 | `StructureModified_FiresOnStructuralChange_NotOnValueEdit` | 结构事件只在增删触发；元素值原位编辑不触发 |
 | `StaleToken_GetReturnsDefault_SetIsNoOp` | 陈旧 token（元素已删）读退默认值、写 no-op（不抛、不复活） |
 
-## 不在本范围（记录在案）
+## ④-B-2 / ④-C 面板控件 + 真机回归（Array/ListController + 测试夹具）
 
-- **CBOR 端到端**（真机存盘/重开整工程）：当前无 UI 消费者能往 part Properties 写入数组（④-B-2/C 未做），故无法走真机产出路径；本文档以 `internal static` 直调单测覆盖了序列化逻辑本身（含空数组/null 元素边界）。控件落地后再补真机往返。
-- **多选下数组编辑**：`MultipleDataPropertyObject.Array` 现阶段降级（单成员直通、0/多成员返回空视图），多选三态合并方案待 ④ 收尾后讨论。
-- **ArrayConfig/ListConfig/AddableElement、PropertyKey 标签改制、面板渲染**：plane ④-B-2，随真实 UI 消费者落地时单测 + 真机。
+控件无标题、行内紧凑布局（独立元素渲染器，不复用对象字段「标题+分隔符」排布）；元素按稳定 token keyed-diff（复用行、
+不打断编辑/拖动）；越界（seed）位惰性绑定（读默认、首写物化整段）。**真机测试**（GUI 交互，无法单测）。
+
+**前置**：`dotnet build tests/TestPlugins.slnx -c Debug` → `pwsh tests/pack-tlx.ps1` → 把 `tests/tlx/v1-suite.tlx`
+拖进 TuneLab 窗口安装。新建 part，属性面板把声库设为 **`[v1-suite] Conditional`**，选中一个音符（note 面板出条件控件）。
+在 note 面板的 **letters** 文本框输入若干字母（如 `iian`）以驱动 seed。
+
+| 用例 | 操作 | 验证点 |
+|---|---|---|
+| seed 显示（List） | letters 设 `iian`、phonemes 从未写 | phonemes 列表显示 4 行（`i` `i` `a` `n`），重复 `i` **不跳过**（对照上方 key-unique 滑条只 3 个 `i/a/n`） |
+| seed 物化（List） | 编辑任一 seed 行文本并提交 | 整段 seed 物化为真实元素；行不塌、计数稳定；只产生一个撤销单元 |
+| 添加（多候选下拉） | 点列表底部 `+` | 弹菜单 `Phoneme`/`Rest`；选 `Phoneme` 追加空行、选 `Rest` 追加 `-` 行 |
+| 可重复 | 连续 `+`→Phoneme 添两行、各输入 `i` | 两个 `i` 并存（列表可重复，区别于对象 key 唯一） |
+| 行删除（悬浮） | 鼠标悬浮某行 | 右侧浮现 ✕，单击删该行；非悬浮时 ✕ 隐藏但行宽不抖（Opacity 占位） |
+| 原位编辑不丢焦点 | 在某行文本框连续输入 | keyed-diff 复用行，输入不被打断、不失焦 |
+| 定长数组 seed（Array） | 观察 `pair`（未写时） | 固定显示 2 行滑条、默认 0.2/0.8；无 `+`、无删除钮 |
+| 定长数组物化 | 拖动 `pair` 任一滑条 | 整段物化为 2 真实元素；值落库（首次拖动有一次性重建——见限制） |
+| CBOR 往返 | 存盘 → 重开工程 | phonemes（含重复）、pair 的值与顺序原样恢复 |
+| undo/redo | 添加/删除/编辑后 Ctrl+Z / Ctrl+Y | 逐元素粒度回退/重做，token 稳定、行不乱 |
+
+**已知限制（记录在案）**
+- **seeded 滑条首次拖动一次性重建**：seed 位（虚拟行）首次写入物化整段→reconcile 用真实 token 行替换虚拟行，
+  对连续提交的滑条会在第一拍重建（值已落、之后顺滑）。离散提交控件（TextBox/ComboBox/CheckBox）无此现象。
+- **复合（Object/Array）seed 元素物化前不渲染虚拟行**：仅标量 seed 走虚拟绑定；复合元素的 seed 显示留后续
+  （需 app 侧递归 seed 视图）。
+- **多选下数组编辑**：`MultipleDataPropertyObject.Array` 现阶段降级（单成员直通、0/多成员空视图），
+  多选三态合并方案待本话题收尾后讨论。
+- **CBOR 端到端单测**：序列化逻辑本身已由上方 ③ 直调单测覆盖（含空数组/null 元素）；真机往返见本节。
