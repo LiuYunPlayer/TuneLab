@@ -101,6 +101,6 @@ object 家族的变长兄弟：项有唯一键 + 标签（`PropertyKey.DisplayTe
   对连续提交的滑条会在第一拍重建（值已落、之后顺滑）。离散提交控件（TextBox/ComboBox/CheckBox）无此现象。
 - **复合（Object/Array）seed 元素物化前不渲染虚拟行**：仅标量 seed 走虚拟绑定；复合元素的 seed 显示留后续
   （需 app 侧递归 seed 视图）。
-- **多选下数组编辑**：`MultipleDataPropertyObject.Array` 现阶段降级（单成员直通、0/多成员空视图），
-  多选三态合并方案待本话题收尾后讨论。
+- **多选下容器编辑**：已实现（数组按 index 对齐、对象按 key 并集，逐位/逐键三态 + 扇出写）。
+  数据核心单测见 `tests/TuneLab.Tests/MultiSelectMergeTests.cs`；真机用例见 `tests/MULTISELECT-CONTAINER-TEST-CASES.md`。
 - **CBOR 端到端单测**：序列化逻辑本身已由上方 ③ 直调单测覆盖（含空数组/null 元素）；真机往返见本节。

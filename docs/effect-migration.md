@@ -786,7 +786,14 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **首个消费者：多说话人音色混合**。part 级主 speaker 可混入任意其他 speaker（朴素实现给每个 speaker 各声明一条 automation → 参数栏拥挤）。改为：已选 speaker 存为一个键控 part 属性（`ExtensibleObjectConfig`，key=speaker id、标签=speaker 名、`+` 候选=可用 speaker），`GetAutomationConfigs(context)` 读它逐已选 speaker 吐一条自动化。`+ speaker → 物化键 → part 属性 commit → 重算自动化 → 曲线按钮自动出现`。**自动化随 part 属性重算的 wiring 已存在**（`MidiPart.OnPartPropertiesModified`→`mVoice.RebuildAutomationConfigs(context)`→签名变发 `AutomationConfigsModified`；`AutomationDefaultsController`/`ParameterTabBar`/`ParameterTitleBar`/`AutomationRenderer` 均订阅之），**无需新增 wiring**。
 
-**待落地**：SDK 新增 `ExtensibleObjectConfig` + `AddableKey`；面板新增键控增删控制器并注册进 `mFactories`；walker `ResetPartPropertiesToDefaults` 长 `ExtensibleObjectConfig` 臂（递归各已声明键默认值）；测试夹具加一个键控可加属性（可直接用多说话人 speaker 选择形态）。多选下编辑沿用现降级（待 array 多选三态合并方案一并定）。
+**待落地**：SDK 新增 `ExtensibleObjectConfig` + `AddableKey`；面板新增键控增删控制器并注册进 `mFactories`；walker `ResetPartPropertiesToDefaults` 长 `ExtensibleObjectConfig` 臂（递归各已声明键默认值）；测试夹具加一个键控可加属性（可直接用多说话人 speaker 选择形态）。
+
+**多选下容器的三态合并（定稿）**：标量多选已是「同值给该值 / 不等给 Multiple / 无选中给 Invalid」三态；容器沿同一三态、按各自身份模型递归对齐：
+
+- **数组家族（位置身份，不跨成员共享）**：按 **index 对齐**，结果长度取最长成员；index *i* 各成员全有且全等 → 该值，值不等或有成员缺该位 → `Multiple`（缺位算差异）。写只扇出到「拥有该位」的成员，绝不向更短成员凭空补元素（避免按位写入错位到不同语义的槽）。元素以 index 当 token——跨成员的元素实例身份并不存在，index 是唯一可对齐的键。
+- **对象家族（键身份，跨成员共享）**：按 **key 并集对齐**，逐键递归同上（某键缺于部分成员算差异 → `Multiple`）。
+
+两个面（**config 计算**决定显示哪些行/键、**live 绑定**决定每个控件的三态值与扇出写）用同一套对齐规则，故行/键数与数据外观逐位/逐键对得上：config 层把各成员快照合并成一个三态 `PropertyObject` 喂一次 `f`（`MultiplePropertyMerge`）；数据层 `MultipleDataPropertyObject.Array` 复合成 `MultipleDataPropertyArray`（对象的 `Object(key)` 本就逐成员 compose、天然出键并集），控件无需感知多选。数据核心单测 `tests/TuneLab.Tests/MultiSelectMergeTests.cs`；真机用例 `tests/MULTISELECT-CONTAINER-TEST-CASES.md`。
 
 ---
 

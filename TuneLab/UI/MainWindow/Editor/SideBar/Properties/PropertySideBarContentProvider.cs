@@ -252,38 +252,13 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     INotePropertyContext BuildNoteContext()
         => new NotePropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo(), MergeNoteSnapshots());
 
-    // 当前选中 note 的三态合并快照：同 key 各 note 全等给该值、不等给 Multiple、全缺则不出现（稀疏）。
+    // 当前选中 note 的三态合并快照（驱动 note config 计算）：标量同 key 全等给该值、不等给 Multiple；
+    // 容器递归对齐——数组按 index（长度取最长，缺位算差异）、对象按 key 并集，与 live 绑定侧的
+    // MultipleDataPropertyArray / MultipleDataPropertyObject 用同一套规则，故 config 行/键数与数据外观对得上。
     PropertyObject MergeNoteSnapshots()
     {
         var snapshots = mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList();
-        if (snapshots.Count == 0)
-            return PropertyObject.Empty;
-        if (snapshots.Count == 1)
-            return snapshots[0];
-
-        var keys = new List<string>();
-        var seen = new HashSet<string>();
-        foreach (var snapshot in snapshots)
-            foreach (var kvp in snapshot.Map)
-                if (seen.Add(kvp.Key))
-                    keys.Add(kvp.Key);
-
-        var merged = new Map<string, PropertyValue>();
-        foreach (var key in keys)
-        {
-            var value = PropertyValue.Null;
-            bool first = true;
-            bool multiple = false;
-            foreach (var snapshot in snapshots)
-            {
-                // 缺该 key 视作 Invalid 占位参与比较：部分 note 设过、部分没设即算多值。
-                var current = snapshot.Map.TryGetValue(key, out var v) ? v : PropertyValue.Null;
-                if (first) { value = current; first = false; }
-                else if (!value.Equals(current)) { multiple = true; break; }
-            }
-            merged.Add(key, multiple ? PropertyValue.Multiple : value);
-        }
-        return new PropertyObject(merged);
+        return MultiplePropertyMerge.MergeSnapshots(snapshots);
     }
 
     sealed class PartPropertyContext(string voiceId, PropertyObject partProperties) : IPartPropertyContext
