@@ -92,6 +92,35 @@ public class MultiSelectMergeTests
     }
 
     [Fact]
+    public void Merge_Array_KeyAbsentInSomeMembers_PreservesLength()
+    {
+        // 容器键仅部分成员有（另一从未设该键）：不塌成 Multiple，按结构合并——长度取最长、缺位逐项 Multiple。
+        // （驱动 config 行数：避免「多选不等长/部分缺键 → 0 行」。）
+        var merged = MultiplePropertyMerge.MergeSnapshots([
+            Obj(("phonemes", Arr(1.0, 2.0))),
+            Obj(("other", 9.0)),   // 无 phonemes 键
+        ]);
+
+        Assert.True(ValueAt(merged, "phonemes").ToArray(out var arr));
+        Assert.Equal(2, arr.Count);
+        Assert.True(arr[0].IsMultiple());
+        Assert.True(arr[1].IsMultiple());
+    }
+
+    [Fact]
+    public void Merge_Object_KeyAbsentInSomeMembers_PreservesKeyUnion()
+    {
+        // 键控对象键仅部分成员有 → 键并集保留（不塌 Multiple）。
+        var merged = MultiplePropertyMerge.MergeSnapshots([
+            Obj(("tags", PropertyValue.Create(Obj(("red", PropertyValue.Create(PropertyObject.Empty)))))),
+            Obj(("other", 9.0)),
+        ]);
+
+        Assert.True(ValueAt(merged, "tags").ToObject(out var o));
+        Assert.True(o.Map.ContainsKey("red"));
+    }
+
+    [Fact]
     public void Merge_SingleOrEmpty_PassesThrough()
     {
         var single = Obj(("a", 1.0));

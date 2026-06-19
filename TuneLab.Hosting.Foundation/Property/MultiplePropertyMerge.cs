@@ -38,23 +38,30 @@ public static class MultiplePropertyMerge
 
     static PropertyValue Merge(IReadOnlyList<Slot> slots)
     {
-        // 任一成员缺该位/键 → 差异。
+        // 取 present 成员的主类型。容器型（数组/对象）即使部分成员缺席也按结构合并——缺席当空容器，
+        // 长度取最长 / 键取并集（保住「该显示几行 / 哪些键」），缺位逐项落 Multiple；
+        // 标量型只要有成员缺席即整体 Multiple（标量缺席=值不同）。
+        PropertyType? type = null;
+        bool anyAbsent = false;
+        bool mixed = false;
         foreach (var slot in slots)
-            if (!slot.Present)
-                return PropertyValue.Multiple;
-
-        var first = slots[0].Value;
-        var type = first.Type;
-        for (int i = 1; i < slots.Count; i++)
-            if (slots[i].Value.Type != type)
-                return PropertyValue.Multiple;   // 类型不一即差异
+        {
+            if (!slot.Present) { anyAbsent = true; continue; }
+            if (type == null) type = slot.Value.Type;
+            else if (slot.Value.Type != type) mixed = true;
+        }
+        if (type == null) return PropertyValue.Multiple;   // 全缺席（不应发生：至少一个成员有该键）
+        if (mixed) return PropertyValue.Multiple;           // present 成员类型不一
 
         if (type == PropertyType.Array)
             return MergeArrays(slots);
         if (type == PropertyType.Object)
             return MergeObjects(slots);
 
-        // 标量 / null：逐成员深比较。
+        // 标量 / null：任一缺席即差异；否则逐成员深比较。
+        if (anyAbsent)
+            return PropertyValue.Multiple;
+        var first = slots[0].Value;
         for (int i = 1; i < slots.Count; i++)
             if (!slots[i].Value.Equals(first))
                 return PropertyValue.Multiple;
@@ -67,10 +74,10 @@ public static class MultiplePropertyMerge
         int maxLen = 0;
         for (int i = 0; i < slots.Count; i++)
         {
-            slots[i].Value.ToArray(out var array);
-            arrays[i] = array!;
-            if (array!.Count > maxLen)
-                maxLen = array.Count;
+            // 缺席（或非数组）成员当空数组：长度取 present 成员里最长，缺位逐项落 Multiple。
+            arrays[i] = slots[i].Present && slots[i].Value.ToArray(out var array) ? array : PropertyArray.Empty;
+            if (arrays[i].Count > maxLen)
+                maxLen = arrays[i].Count;
         }
 
         var result = new List<PropertyValue>(maxLen);
@@ -91,9 +98,9 @@ public static class MultiplePropertyMerge
         var seen = new HashSet<string>();
         for (int i = 0; i < slots.Count; i++)
         {
-            slots[i].Value.ToObject(out var obj);
-            objects[i] = obj!;
-            foreach (var kvp in obj!.Map)
+            // 缺席（或非对象）成员当空对象：键取 present 成员的并集，缺键逐项落 Multiple。
+            objects[i] = slots[i].Present && slots[i].Value.ToObject(out var obj) ? obj : PropertyObject.Empty;
+            foreach (var kvp in objects[i].Map)
                 if (seen.Add(kvp.Key))
                     keys.Add(kvp.Key);   // 键并集（保序）
         }
