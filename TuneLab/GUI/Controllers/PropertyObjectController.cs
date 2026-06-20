@@ -370,6 +370,228 @@ internal class PropertyObjectController : StackPanel
         readonly Components.CheckBox mController;
     }
 
+    // 音素编辑器控件
+    class PhonemeEditorCreator : Creator
+    {
+        public PhonemeEditorCreator(PropertyObjectController parent, string key, PhonemeEditorConfig config) : base(parent)
+        {
+            mKey = key;
+            mPanel = ObjectPoolManager.Get<StackPanel>();
+            mPanel.Margin = new(0, 8);
+            mDataProp = Parent.DataObject.StringField(config.DataKey, "[]");
+
+            // 监听语言属性变化：当语言被用户（而非音素编辑器）修改时，清除自定义音素以强制 G2P 重生
+            if (!string.IsNullOrEmpty(config.LanguageDataKey))
+            {
+                mLangField = Parent.DataObject.ValueField(config.LanguageDataKey, PropertyValue.Create(string.Empty));
+                mLangField.Modified.Subscribe(OnLanguageFieldChanged, s);
+            }
+
+            Apply(config);
+        }
+
+        // 语言属性被外部（语言下拉）修改时清除自定义音素
+        void OnLanguageFieldChanged()
+        {
+            if (mSettingLanguage) return; // 音素编辑器自身提交导致的语言变更，不理
+            if (mLangField == null) return;
+            var curVal = mLangField.Value.ToString(out var lang) ? lang : string.Empty;
+            if (string.IsNullOrEmpty(curVal) || curVal == "multi")
+                return; // 空或 multi 不清除
+            // 用户主动选择了具体语言 → 清除自定义音素，强制 G2P 重生
+            mDataProp.Set("[]");
+        }
+
+        static string Serialize(IReadOnlyList<PhonemeEntry> phonemes)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append('[');
+            for (int i = 0; i < phonemes.Count; i++)
+            {
+                if (i > 0) sb.Append(',');
+                sb.Append("{\"s\":\"");
+                sb.Append(phonemes[i].Symbol.Replace("\\", "\\\\").Replace("\"", "\\\""));
+                sb.Append("\",\"v\":");
+                sb.Append(phonemes[i].IsVowel ? "true" : "false");
+                sb.Append('}');
+            }
+            sb.Append(']');
+            return sb.ToString();
+        }
+
+        void Commit(IReadOnlyList<PhonemeEntry> phonemes)
+        {
+            var json = Serialize(phonemes);
+            mDataProp.Set(json);
+            // 从音素符号中检测语言，回写语言属性
+            DetectAndSetLanguage(phonemes);
+            if (mConfig.OnChanged != null)
+                mConfig.OnChanged(json);
+        }
+
+        // 从音素符号中检测语言，回写语言属性。设 mSettingLanguage 标志以阻止 OnLanguageFieldChanged 清除音素。
+        void DetectAndSetLanguage(IReadOnlyList<PhonemeEntry> phonemes)
+        {
+            string? detectedLang = null;
+            bool mixed = false;
+            foreach (var ph in phonemes)
+            {
+                int idx = ph.Symbol.IndexOf('/');
+                if (idx < 0) continue;
+                string lang = ph.Symbol.Substring(0, idx);
+                if (detectedLang == null)
+                    detectedLang = lang;
+                else if (detectedLang != lang)
+                {
+                    mixed = true;
+                    break;
+                }
+            }
+            if (detectedLang == null) return;
+
+            string langKey = mConfig.LanguageDataKey;
+            string newLang = mixed ? "multi" : detectedLang;
+            var current = Parent.DataObject.GetValue(langKey, PropertyValue.Create(string.Empty));
+            if (current.ToString(out var curStr) && curStr == newLang)
+                return;
+            mSettingLanguage = true;
+            try { Parent.DataObject.SetValue(langKey, PropertyValue.Create(newLang)); }
+            finally { mSettingLanguage = false; }
+        }
+
+        // 字段
+        bool mSettingLanguage;
+        IDataProperty<PropertyValue>? mLangField;
+
+        void Apply(PhonemeEditorConfig config)
+        {
+            mPanel.Children.Clear();
+            mConfig = config;
+
+            var title = CreateTitle(config.DisplayText ?? mKey, 26);
+            mPanel.Children.Add(title);
+
+            RenderGroup("  Consonant", config.Phonemes.Where(p => !p.IsVowel).ToList(), isVowel: false);
+            RenderGroup("  Vowel", config.Phonemes.Where(p => p.IsVowel).ToList(), isVowel: true);
+        }
+
+        void RenderGroup(string label, List<PhonemeEntry> entries, bool isVowel)
+        {
+            var lbl = new Label { Content = label, FontSize = 11, Foreground = Style.LIGHT_WHITE.ToBrush(), Margin = new(24, 4, 0, 2) };
+            mPanel.Children.Add(lbl);
+
+            foreach (var phoneme in entries)
+            {
+                var row = CreatePhonemeRow(phoneme, isVowel);
+                mPanel.Children.Add(row);
+            }
+        }
+
+        // 布局：[lang↓(70px左)] [音素(弹性拉伸)] [+(22px)] [-(22px最右)]
+        // 注意 DockPanel LastChildFill=true，最后一个添加的 child 填充剩余空间
+        DockPanel CreatePhonemeRow(PhonemeEntry phoneme, bool isVowel)
+        {
+            int rowH = 24;
+            var dock = new DockPanel { Height = rowH + 4, Margin = new(24, 2, 24, 2) };
+            int phIdx = mConfig.Phonemes.IndexOf(phoneme);
+
+            // 1. 左端：语言前缀下拉（70px，无前缀时显示「??」）
+            string langPrefix = phoneme.Symbol.Contains('/') ? phoneme.Symbol.Split('/')[0] : "??";
+            var langCombo = new DropDown { Height = rowH, Width = 70, FontSize = 11, MinHeight = rowH, MaxHeight = rowH, Padding = new(6, 0) };
+            langCombo.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            foreach (var l in mConfig.AvailableLanguages) langCombo.Items.Add(l);
+            langCombo.SelectedItem = langPrefix;
+            langCombo.PlaceholderText = "??";
+            int capIdx2 = phIdx;
+            langCombo.SelectionChanged += (_, _) =>
+            {
+                if (capIdx2 < mConfig.Phonemes.Count && langCombo.SelectedItem is string newLang)
+                {
+                    var list = mConfig.Phonemes.ToList();
+                    if (capIdx2 < list.Count)
+                    {
+                        var entry = list[capIdx2];
+                        string p = entry.Symbol.Contains('/') ? entry.Symbol.Split('/')[1] : entry.Symbol;
+                        list[capIdx2] = new PhonemeEntry { Symbol = $"{newLang}/{p}", IsVowel = isVowel };
+                        Commit(list);
+                    }
+                }
+            };
+            DockPanel.SetDock(langCombo, Dock.Left);
+            dock.Children.Add(langCombo);
+
+            // 2. 右端：删除按钮（-）始终显示，仅一个时半透明
+            bool canDelete = isVowel ? mConfig.CanDeleteVowel : mConfig.CanDeleteConsonant;
+            var delBtn = new TuneLab.GUI.Components.Button { Width = 22, Height = rowH, Opacity = canDelete ? 1.0 : 0.5 };
+            int cap = phIdx;
+            delBtn.Clicked += () =>
+            {
+                if (!canDelete) return;
+                var list = mConfig.Phonemes.ToList();
+                if (cap < list.Count) list.RemoveAt(cap);
+                Commit(list);
+            };
+            delBtn.AddContent(new() { Item = new IconItem() { Icon = Assets.PhonemeDelete }, ColorSet = new() { Color = Style.WHITE } });
+            delBtn.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            DockPanel.SetDock(delBtn, Dock.Right);
+            dock.Children.Add(delBtn);
+
+            // 3. 右2：添加按钮（+）
+            var addBtn = new TuneLab.GUI.Components.Button { Width = 22, Height = rowH };
+            int capAdd = phIdx;
+            addBtn.Clicked += () =>
+            {
+                var list = mConfig.Phonemes.ToList();
+                var newEntry = new PhonemeEntry { Symbol = mConfig.AvailableLanguages.FirstOrDefault() ?? "??", IsVowel = isVowel };
+                list.Insert(capAdd + 1, newEntry);
+                Commit(list);
+            };
+            addBtn.AddContent(new() { Item = new IconItem() { Icon = Assets.PhonemeAdd }, ColorSet = new() { Color = Style.WHITE } });
+            addBtn.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            DockPanel.SetDock(addBtn, Dock.Right);
+            dock.Children.Add(addBtn);
+
+            // 4. 最后：音素文本输入（弹性拉伸填充剩余空间，高度匹配下拉栏）
+            string plain = phoneme.Symbol.Contains('/') ? phoneme.Symbol.Split('/')[1] : phoneme.Symbol;
+            var textInput = new TextInput { Height = rowH, MinHeight = rowH, MaxHeight = rowH, FontSize = 12, Text = plain, Padding = new(6, 0) };
+            textInput.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            textInput.Margin = new(4, 0, 4, 0);
+            int capIdx = phIdx;
+            textInput.ValueCommitted.Subscribe(() =>
+            {
+                var list = mConfig.Phonemes.ToList();
+                if (capIdx < list.Count)
+                {
+                    var entry = list[capIdx];
+                    string lang = entry.Symbol.Contains('/') ? entry.Symbol.Split('/')[0] : "";
+                    list[capIdx] = new PhonemeEntry { Symbol = string.IsNullOrEmpty(lang) ? textInput.Text : $"{lang}/{textInput.Text}", IsVowel = isVowel };
+                    Commit(list);
+                }
+            }, s);
+            // 作为最后一个 child，自动填充
+            dock.Children.Add(textInput);
+
+            return dock;
+        }
+
+        public override Type ConfigType => typeof(PhonemeEditorConfig);
+        public override IEnumerable<Control> Views => [mPanel];
+
+        public override void Update(IControllerConfig config) => Apply((PhonemeEditorConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mPanel.Children.Clear();
+            ObjectPoolManager.Return(mPanel);
+        }
+
+        readonly string mKey;
+        readonly StackPanel mPanel;
+        PhonemeEditorConfig mConfig = null!;
+        readonly IDataProperty<string> mDataProp;
+    }
+
     // 按钮控件：渲染为可点击的按钮，触发 ButtonConfig.Action（在 UI 线程）。不绑定数据。
     class ButtonCreator : Creator
     {
@@ -440,6 +662,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
         { typeof(ButtonConfig), (parent, key, config) => new ButtonCreator(parent, key, (ButtonConfig)config) },
+        { typeof(PhonemeEditorConfig), (parent, key, config) => new PhonemeEditorCreator(parent, key, (PhonemeEditorConfig)config) },
     };
 
     IDataPropertyObject? mDataObject;

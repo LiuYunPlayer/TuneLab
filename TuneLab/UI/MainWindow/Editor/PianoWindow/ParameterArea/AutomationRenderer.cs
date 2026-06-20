@@ -372,21 +372,24 @@ internal partial class AutomationRenderer : View
                 continue;
 
             var config = kvp.Value;
-            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, Color.Parse(config.Color));
+            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, Color.Parse(config.Color),
+                parameter.SegmentOpacityStops);
         }
     }
 
     // 一条回显轨：各分段（按段交付，段间空、跨段不连线）各自绘制为独立填充面积（仅面积、无描边）。
-    void DrawReadbackArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, double min, double max, Color color)
+    // 支持逐段多 GradientStop 透明度渐变：segmentStops[si] 为 Point 列表，X=相对位置(0~1), Y=透明度(0~1)。
+    void DrawReadbackArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, double min, double max, Color color,
+        IReadOnlyList<IReadOnlyList<Foundation.Point>>? segmentStops = null)
     {
         var tempoManager = Part!.TempoManager;
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        var fillBrush = color.Opacity(0.25).ToBrush();
         double baselineY = Bounds.Height;
 
-        foreach (var segment in segments)
+        for (int si = 0; si < segments.Count; si++)
         {
+            var segment = segments[si];
             if (segment.Count == 0)
                 continue;
 
@@ -414,6 +417,27 @@ internal partial class AutomationRenderer : View
             var points = new Point[count];
             for (int i = 0; i < count; i++)
                 points[i] = new(i + startX, ValueToY(ys[i], min, max));
+
+            // 构造画刷：用 segmentStops 创建多 GradientStop LinearGradientBrush 实现像素级渐变
+            IBrush fillBrush;
+            var stops = segmentStops != null && si < segmentStops.Count ? segmentStops[si] : null;
+            if (stops != null && stops.Count >= 2)
+            {
+                var gradBrush = new Avalonia.Media.LinearGradientBrush
+                {
+                    StartPoint = new RelativePoint(startX, 0, RelativeUnit.Absolute),
+                    EndPoint = new RelativePoint(endX, 0, RelativeUnit.Absolute),
+                    SpreadMethod = GradientSpreadMethod.Pad,
+                };
+                foreach (var sp in stops)
+                    gradBrush.GradientStops.Add(new GradientStop(color.Opacity(Math.Clamp(sp.Y, 0, 1)), Math.Clamp(sp.X, 0, 1)));
+                fillBrush = gradBrush;
+            }
+            else
+            {
+                // 无 stops 或仅 1 个 stop → 均匀 0.25
+                fillBrush = color.Opacity(0.25).ToBrush();
+            }
 
             context.FillCurveArea(points, baselineY, fillBrush);
         }
