@@ -129,7 +129,7 @@ internal partial class PianoScrollView
 
         public double Pitch()
         {
-            return PianoScrollView.Part == null ? double.NaN : PianoScrollView.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
+            return PianoScrollView.Part == null ? double.NaN : PianoScrollView.Part.GetEffectivePitchValue(Vibrato.Pos + Vibrato.Dur / 2) + 0.5;
         }
     }
 
@@ -153,7 +153,7 @@ internal partial class PianoScrollView
         {
             double left = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalStartPos());
             double right = PianoScrollView.TickAxis.Tick2X(Vibrato.GlobalEndPos());
-            double pitch = PianoScrollView.Part == null ? double.NaN : PianoScrollView.Part.Pitch.GetValue(Vibrato.Pos + Vibrato.Dur / 2);
+            double pitch = PianoScrollView.Part == null ? double.NaN : PianoScrollView.Part.GetEffectivePitchValue(Vibrato.Pos + Vibrato.Dur / 2);
             if (double.IsNaN(pitch))
                 return false;
 

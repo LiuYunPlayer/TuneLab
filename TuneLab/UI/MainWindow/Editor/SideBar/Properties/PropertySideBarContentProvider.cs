@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using System;
@@ -36,14 +37,27 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             .AddContent(new() { Item = new TextItem() { Text = "\u22EF", FontSize = 16 }, ColorSet = new() { Color = Colors.White } });
         mPresetMoreButton.Clicked += OnPresetMoreButtonClicked;
 
+        // 与 Script 侧栏脚本下拉同构：点开自定义 Flyout，列 None + 各 preset（点击应用、行右侧 ✕ 删除）。钮文字显示当前选中 preset。
+        mPresetButton = new TuneLab.GUI.Components.Button() { Height = 28, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch }
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
+        mPresetLabel = new ButtonContent() { Item = new TextItem() { Text = NonePresetOption, FontSize = 12 }, ColorSet = new() { Color = Style.LIGHT_WHITE } };
+        mPresetButton.AddContent(mPresetLabel);
+        mPresetButton.Clicked += OnPresetButtonClicked;
+
+        mPresetFlyout = new Flyout() { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        mPresetFlyout.FlyoutPresenterClasses.Add("agent-menu");
+        mPresetFlyout.Closed += (_, _) =>
+        {
+            mPresetFlyoutJustClosed = true;   // light-dismiss 再次点钮时先关闭，置标志让随后 Click 不重开 → toggle
+            Dispatcher.UIThread.Post(() => mPresetFlyoutJustClosed = false, DispatcherPriority.Input);
+        };
+
         var presetRow = new DockPanel() { LastChildFill = true };
         DockPanel.SetDock(mPresetMoreButton, Dock.Right);
         presetRow.Children.Add(mPresetMoreButton);
-        mPresetComboBox.Margin = new(0, 0, 8, 0);
-        presetRow.Children.Add(mPresetComboBox);
+        mPresetButton.Margin = new(0, 0, 8, 0);
+        presetRow.Children.Add(mPresetButton);
         mPresetContent.Children.Add(presetRow);
-
-        mPresetComboBox.ValueCommitted.Subscribe(OnPresetComboBoxValueCommitted);
 
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
         mPresetContentContainer.Child = mPresetContent;
@@ -79,8 +93,37 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         LoadPresets();
     }
 
-    void OnPresetComboBoxValueCommitted()
+    void OnPresetButtonClicked()
     {
+        if (mPresetFlyoutJustClosed) return;   // 再次点击恰逢 light-dismiss 刚关 → 不重开（toggle）
+        PopulatePresetMenu();
+        mPresetFlyout.ShowAt(mPresetButton);
+    }
+
+    // 每次打开重建：顶部「None」（恢复默认）+ 分隔线 + 各 preset（点击应用并记为选中、右侧 ✕ 删除）。
+    // 删除走二次确认（preset 比会话贵重，保留谨慎，不跟 script 的即时删一刀切）。
+    void PopulatePresetMenu()
+    {
+        var stack = new StackPanel() { Orientation = Orientation.Vertical, MinWidth = 220 };
+        stack.Children.Add(FlyoutMenuRow.Build(NonePresetOption.Tr(TC.Property), null, () => ApplySelection(null), null, mPresetFlyout));
+
+        if (mPresets.Count > 0)
+            stack.Children.Add(new Border() { Height = 1, Margin = new(8, 4), Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush() });
+        foreach (var preset in mPresets)
+        {
+            var name = preset.Name;
+            stack.Children.Add(FlyoutMenuRow.Build(name, name,
+                () => ApplySelection(name),
+                () => { mPresetFlyout.Hide(); _ = DeletePreset(name); }, mPresetFlyout));
+        }
+
+        mPresetFlyout.Content = stack;
+    }
+
+    // 点行：记为选中并应用到当前 part（None = 恢复默认）。没有 part 时只更新选中、不应用。
+    void ApplySelection(string? presetName)
+    {
+        SetSelectedPreset(presetName);
         OnApplyPresetClicked();
     }
 
@@ -102,11 +145,6 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         }
         {
             var menuItem = new MenuItem().SetName("Rename".Tr(TC.Menu)).SetAction(async () => await OnRenamePresetClicked());
-            menuItem.IsEnabled = hasSelection;
-            menu.Items.Add(menuItem);
-        }
-        {
-            var menuItem = new MenuItem().SetName("Delete".Tr(TC.Property)).SetAction(async () => await OnDeletePresetClicked());
             menuItem.IsEnabled = hasSelection;
             menu.Items.Add(menuItem);
         }
@@ -417,11 +455,17 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         {
             if (kvp.Value is ObjectConfig objectConfig)
             {
-                ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key));
+                ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key.Id));
+            }
+            else if (kvp.Value is ArrayConfig or ListConfig or ExtensibleObjectConfig)
+            {
+                // 数组/列表/变长键控容器：写入默认值（递归各元素/键 config 默认值拼成 PropertyArray/PropertyObject）。
+                // 显式重置即物化该值（变长键控 = 当前声明键的默认对象，替换整个容器值）。
+                node.SetValue(kvp.Key.Id, kvp.Value.GetDefaultValue());
             }
             else if (kvp.Value is IValueConfig valueConfig)
             {
-                node.SetValue(kvp.Key, valueConfig.DefaultValue);
+                node.SetValue(kvp.Key.Id, valueConfig.DefaultValue);
             }
         }
     }
@@ -448,7 +492,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         foreach (var kvp in mPart.Voice.AutomationConfigs)
         {
-            if (mPart.Automations.TryGetValue(kvp.Key, out var automation))
+            if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
                 automation.DefaultValue.Set(kvp.Value.DefaultValue);
         }
     }
@@ -460,30 +504,29 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         foreach (var kvp in mPart.Voice.AutomationConfigs)
         {
-            double value = preset.Automations.GetValueOrDefault(kvp.Key, kvp.Value.DefaultValue);
-            if (mPart.Automations.TryGetValue(kvp.Key, out var automation))
+            double value = preset.Automations.GetValueOrDefault(kvp.Key.Id, kvp.Value.DefaultValue);
+            if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
             {
                 automation.DefaultValue.Set(value);
             }
             else if (value != kvp.Value.DefaultValue)
             {
-                mPart.AddAutomation(kvp.Key)?.DefaultValue.Set(value);
+                mPart.AddAutomation(kvp.Key.Id)?.DefaultValue.Set(value);
             }
         }
     }
 
-    async Task OnDeletePresetClicked()
+    // 删除指定 preset（行内 ✕ 触发，先二次确认）；若删的是当前选中项，选中回落 None。
+    async Task DeletePreset(string presetName)
     {
-        var selectedPresetName = SelectedPresetName();
-        if (selectedPresetName == null)
-            return;
-
-        if (!await ConfirmDeleteAsync(selectedPresetName))
+        if (!await ConfirmDeleteAsync(presetName))
             return;
 
         try
         {
-            PresetConfigManager.DeletePreset(selectedPresetName);
+            PresetConfigManager.DeletePreset(presetName);
+            if (presetName.Equals(mSelectedPresetName, StringComparison.OrdinalIgnoreCase))
+                SetSelectedPreset(null);
             LoadPresets();
         }
         catch (Exception ex)
@@ -520,7 +563,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     async Task<string?> RequestPresetNameAsync(string initialName = "")
     {
-        var dialog = new PresetNameDialog(initialName);
+        var dialog = new NameInputDialog("Preset Name".Tr(TC.Property), initialName);
         var presetName = await dialog.ShowDialog<string?>(mPresetPanel.Window());
         presetName = presetName?.Trim();
         if (string.IsNullOrWhiteSpace(presetName))
@@ -577,7 +620,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         foreach (var kvp in mPart.Voice.AutomationConfigs)
         {
-            var key = kvp.Key;
+            var key = kvp.Key.Id;
             if (mPart.Automations.TryGetValue(key, out var automation))
                 preset.Automations[key] = automation.DefaultValue.Value;
             else
@@ -587,20 +630,23 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         return preset;
     }
 
+    // 重载 preset 列表（下拉每次打开时按 mPresets 重建）。selectedPresetName 给定则设为选中；否则保留当前选中，
+    // 若当前选中已不在列表中（被删/改名）则回落 None。
     void LoadPresets(string? selectedPresetName = null)
     {
         mPresets = PresetConfigManager.LoadPresets();
-        var options = new List<string>() { NonePresetOption };
-        options.AddRange(mPresets.Select(preset => preset.Name));
-        mPresetComboBox.SetConfig(new ComboBoxConfig { Options = options.Select(o => (ComboBoxOption)o).ToList() });
-        mPresetComboBox.Display(selectedPresetName ?? NonePresetOption);
+        var keep = selectedPresetName ?? mSelectedPresetName;
+        SetSelectedPreset(keep != null && mPresets.Any(p => p.Name.Equals(keep, StringComparison.OrdinalIgnoreCase)) ? keep : null);
     }
 
-    string? SelectedPresetName()
+    // 选中态：撑住 ⋯ 菜单 Save/Rename 的作用目标 + 下拉钮文字（null = None）。Flyout 是瞬态菜单，故选中态须自己记。
+    void SetSelectedPreset(string? presetName)
     {
-        var value = mPresetComboBox.Value.ToString() ?? NonePresetOption;
-        return value.Equals(NonePresetOption, StringComparison.OrdinalIgnoreCase) ? null : value;
+        mSelectedPresetName = string.IsNullOrWhiteSpace(presetName) ? null : presetName;
+        mPresetLabel.Item = new TextItem() { Text = (mSelectedPresetName ?? NonePresetOption.Tr(TC.Property)) + "  ▾", FontSize = 12 };
     }
+
+    string? SelectedPresetName() => mSelectedPresetName;
 
     readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
@@ -615,7 +661,11 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
     readonly LayerPanel mNoteContentPanel = new();
 
-    readonly ComboBoxController mPresetComboBox = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+    readonly TuneLab.GUI.Components.Button mPresetButton;
+    readonly ButtonContent mPresetLabel;
+    readonly Flyout mPresetFlyout;
+    bool mPresetFlyoutJustClosed;
+    string? mSelectedPresetName;
     readonly TuneLab.GUI.Components.Button mPresetMoreButton;
     readonly AutomationDefaultsController mAutomationController = new();
     readonly EffectsController mEffectsController = new();

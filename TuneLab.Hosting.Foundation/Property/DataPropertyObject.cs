@@ -5,7 +5,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Foundation;
 
-public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>, IDataPropertyObject, DataPropertyObject.ILazyObjectNode
+public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IReadOnlyMap<string, PropertyValue>, IDataPropertyObject, ILazyObjectNode
 {
     public IReadOnlyCollection<string> Keys => ((IReadOnlyMap<string, DataPropertyValue>)mMap).Keys;
 
@@ -36,25 +36,20 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
     public DataPropertyValue SetValue(string key, PropertyValue value)
     {
         var dataPropertyValue = FindValue(key);
-        dataPropertyValue.Set(ToSlot(value));
+        dataPropertyValue.Set(PropertySlot.Canonicalize(value));
         return dataPropertyValue;
-    }
-
-    // 写入口 canonicalize：object 型值一律建成活子对象槽（标量槽永不含 object 值的不变量在此保证）。
-    static PropertySlot ToSlot(PropertyValue value)
-    {
-        if (!value.ToObject(out var objectValue))
-            return new PropertySlot(value);
-
-        var child = new DataPropertyObject();
-        child.SetInfo(objectValue);
-        return new PropertySlot(child);
     }
 
     void IDataPropertyObject.SetValue(string key, PropertyValue value) => SetValue(key, value);
 
+    // 移除某键（撤销由底层 DataObjectMap.Remove 命令承担）。缺键 = no-op。
+    public void RemoveValue(string key) => mMap.Remove(key);
+
     // 导航到嵌套对象：返回懒视图，读经 FindObject（不创建）、写经 GetOrCreateObject（按需建路径）。
     public IDataPropertyObject Object(string key) => new ObjectView(this, this, key);
+
+    // 导航到嵌套数组：同对象懒视图，读经 FindArray（不创建）、写经 GetOrCreateArray（按需建路径）。
+    public IDataPropertyArray Array(string key) => new ArrayView(this, this, key);
 
     DataPropertyValue FindValue(string key)
     {
@@ -83,7 +78,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         foreach (var kvp in info.Map)
         {
             DataPropertyValue dataPropertyValue = new();
-            dataPropertyValue.SetInfo(ToSlot(kvp.Value));
+            dataPropertyValue.SetInfo(PropertySlot.Canonicalize(kvp.Value));
             map.Add(kvp.Key, dataPropertyValue);
         }
         mMap.SetInfo(map);
@@ -110,13 +105,7 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return GetEnumerator();
     }
 
-    // 单选侧懒导航的内部契约：解析真实子对象（不创建）/ find-or-create 子对象。不进公开接口（仅 ObjectView 与本类互链）。
-    internal interface ILazyObjectNode
-    {
-        DataPropertyObject? FindObject(string key);
-        DataPropertyObject GetOrCreateObject(string key);
-    }
-
+    // ILazyObjectNode（key=字段键）：解析真实子对象/子数组（不创建）/ find-or-create。契约与视图见 LazyPropertyNavigation.cs。
     DataPropertyObject? ILazyObjectNode.FindObject(string key)
     {
         return mMap.TryGetValue(key, out var dataPropertyValue) ? dataPropertyValue.Value.Object : null;
@@ -133,22 +122,20 @@ public class DataPropertyObject : DataObject, IDataObject<PropertyObject>, IRead
         return child;
     }
 
-    // 嵌套对象节点的懒视图：表示 owner 下 key 处的对象。读经 owner.FindObject 返回 default（不创建），
-    // 写经 owner.GetOrCreateObject 按需建路径；借壳 root 转发整套文档身份（撤销/Modified 根锚最外层对象）。
-    // 解析出的子对象本身是 ILazyObjectNode（concrete DataPropertyObject），故继续向下导航直接 cast 链。
-    sealed class ObjectView(IDataObject root, ILazyObjectNode owner, string key)
-        : IDataObject.Wrapper(root), IDataPropertyObject, ILazyObjectNode
+    DataPropertyArray? ILazyObjectNode.FindArray(string key)
     {
-        public IDataPropertyObject Object(string subKey) => new ObjectView(root, this, subKey);
+        return mMap.TryGetValue(key, out var dataPropertyValue) ? dataPropertyValue.Value.Array : null;
+    }
 
-        public PropertyValue GetValue(string subKey, PropertyValue defaultValue)
-            => owner.FindObject(key)?.GetValue(subKey, defaultValue) ?? defaultValue;
+    DataPropertyArray ILazyObjectNode.GetOrCreateArray(string key)
+    {
+        var dataPropertyValue = FindValue(key);
+        if (dataPropertyValue.Value.Array is { } existing)
+            return existing;
 
-        public void SetValue(string subKey, PropertyValue value)
-            => owner.GetOrCreateObject(key).SetValue(subKey, value);
-
-        DataPropertyObject? ILazyObjectNode.FindObject(string subKey) => ((ILazyObjectNode?)owner.FindObject(key))?.FindObject(subKey);
-        DataPropertyObject ILazyObjectNode.GetOrCreateObject(string subKey) => ((ILazyObjectNode)owner.GetOrCreateObject(key)).GetOrCreateObject(subKey);
+        var child = new DataPropertyArray();
+        dataPropertyValue.Set(new PropertySlot(child));
+        return child;
     }
 
     readonly DataObjectMap<string, DataPropertyValue> mMap = new();

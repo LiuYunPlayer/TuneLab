@@ -23,8 +23,8 @@ internal class EmptyVoiceEngine : IVoiceEngine
     }
 
     // 声明（引擎层、全空）：无声源 part 无轨/无面板。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mAutomationConfigs;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
 
@@ -32,9 +32,9 @@ internal class EmptyVoiceEngine : IVoiceEngine
     {
         public string DefaultLyric => "a";
 
-        public SynthesisSegment? GetNextSegment(double startTime, double endTime) => null;
+        public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
 
-        public Task SynthesizeNext(SynthesisSegment segment,
+        public Task SynthesizeNext(double startTime, double endTime,
             CancellationToken cancellation = default)
         {
             return Task.CompletedTask;
@@ -52,7 +52,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
         static readonly Map<string, SynthesizedParameter> mSynthesizedParameters = new();
     }
 
-    static readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
+    static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
     static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };
 }

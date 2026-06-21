@@ -12,9 +12,13 @@ public interface IDataPropertyObject : IDataObject, IReadOnlyNotifiablePropertyO
 {
     // 导航到嵌套对象节点：返回可继续导航的子对象外观。
     new IDataPropertyObject Object(string key);
+    // 导航到嵌套数组节点（有序可重复列表）：返回可继续导航/增删的子数组外观（lazy：key 不存在返回空外观，写时按需建路径）。
+    IDataPropertyArray Array(string key);
     // 本层叶子读/写（裸 PropertyValue 进出；typed 视图由下方字段扩展提供）。
     new PropertyValue GetValue(string key, PropertyValue defaultValue);
     void SetValue(string key, PropertyValue value);
+    // 移除本层某键（presence：把 present 翻回 absent）。缺键 = no-op；不下钻。变长键控容器（ExtensibleObjectConfig）删条目用。
+    void RemoveValue(string key);
 
     IReadOnlyNotifiablePropertyObject IReadOnlyNotifiablePropertyObject.Object(string key) => Object(key);
     PropertyValue IReadOnlyNotifiablePropertyObject.GetValue(string key, PropertyValue defaultValue) => GetValue(key, defaultValue);

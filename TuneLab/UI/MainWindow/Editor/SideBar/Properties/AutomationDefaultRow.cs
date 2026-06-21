@@ -29,7 +29,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
             FontSize = 12,
             VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
             Foreground = Style.LIGHT_WHITE.ToBrush(),
-            Content = config.DisplayText ?? keyName,
+            Content = keyName,
             Padding = new(24, 0),
         });
 

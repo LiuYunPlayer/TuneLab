@@ -40,9 +40,9 @@ internal sealed class VoiceEngineAdapter(LVoice.IVoiceEngine legacy, string engi
     // —— 声明（V1 要求引擎层、不依赖会话）——
     // 老声源声明是静态的，但取值需一个声源实例：按 voiceId 懒建一份「声明用」声源并缓存其转换后的 config
     //（与 CreateSession 的会话用声源相互独立）。老模型无条件轨/无回显：轨/面板恒定、回显为空，忽略 context 值。
-    public PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> GetAutomationConfigs(VVoice.IPartPropertyContext context)
+    public PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> GetAutomationConfigs(VVoice.IPartPropertyContext context)
         => Decl(context.VoiceId).Automation;
-    public PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> GetSynthesizedParameterConfigs(VVoice.IPartPropertyContext context)
+    public PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> GetSynthesizedParameterConfigs(VVoice.IPartPropertyContext context)
         => sEmptyConfigs;
     public VVoice.ObjectConfig GetPartPropertyConfig(VVoice.IPartPropertyContext context)
         => new() { Properties = Decl(context.VoiceId).PartProperties };
@@ -64,10 +64,10 @@ internal sealed class VoiceEngineAdapter(LVoice.IVoiceEngine legacy, string engi
     }
 
     sealed record Declarations(
-        PStruct.IReadOnlyOrderedMap<string, VVoice.AutomationConfig> Automation,
-        PStruct.IReadOnlyOrderedMap<string, VVoice.IControllerConfig> PartProperties,
-        PStruct.IReadOnlyOrderedMap<string, VVoice.IControllerConfig> NoteProperties);
+        PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> Automation,
+        PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.IControllerConfig> PartProperties,
+        PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.IControllerConfig> NoteProperties);
 
     readonly Dictionary<string, Declarations> mDeclarations = new();
-    static readonly PStruct.OrderedMap<string, VVoice.AutomationConfig> sEmptyConfigs = new();
+    static readonly PStruct.OrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> sEmptyConfigs = new();
 }

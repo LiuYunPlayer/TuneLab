@@ -45,6 +45,12 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IAutomation? AddAutomation(string automationID);
     IPiecewiseAutomation? AddPiecewiseAutomation(string automationID);
     double[] GetFinalPitch(IReadOnlyList<double> ticks);
+    // 有效基线（绘制优先、否则音符半音）：颤音控制柄/波形在未绘制 pitch 时也能锚在音符上即时显示。
+    double GetEffectivePitchValue(double tick);
+    // 颤音覆盖区内、未绘制 pitch 处的兜底虚线波（音符基线 + 颤音偏差），实线区段交给 GetFinalPitch。
+    double[] GetVibratoFallbackPitch(IReadOnlyList<double> ticks);
+    // 悬浮添加颤音的预览虚线波（有效基线 + 待建颤音偏移）。
+    double[] GetVibratoAddPreviewPitch(IReadOnlyList<double> ticks, VibratoInfo info);
     void LockPitch(double start, double end, double extension);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);
     double[] GetFinalAutomationValues(IReadOnlyList<double> ticks, string automationID);

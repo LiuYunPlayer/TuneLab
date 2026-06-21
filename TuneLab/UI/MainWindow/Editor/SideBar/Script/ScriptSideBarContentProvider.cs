@@ -1,14 +1,20 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Highlighting.Xshd;
 using TuneLab.Data;
+using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
@@ -39,6 +45,17 @@ internal sealed class ScriptSideBarContentProvider
     IProject? mProject;
     Func<IMidiPart?>? mCurrentPart;
     Func<IQuantization?>? mQuantization;
+
+    // 脚本库管理：顶部一行 = 左侧脚本选择钮（点开下拉，列库内脚本、行内 ✕ 删除，仿 Agent 会话下拉）+ 右侧 ⋯ 菜单
+    // （打开/导入/保存/另存/重命名，仿 Properties 的 preset ⋯ 收起范式）。脚本以 .js 文件存于 PathManager.ScriptsFolder，
+    // 由 ScriptLibrary 维护。mCurrentScriptName = 当前编辑器内容所属的库内脚本名；null 表示"未命名/外部打开的工作副本"（不入库）。
+    readonly Flyout mScriptFlyout;
+    readonly TuneLab.GUI.Components.Button mScriptButton;   // 下拉触发钮，显示当前脚本名
+    readonly ButtonContent mScriptLabel;
+    readonly TuneLab.GUI.Components.Button mMoreButton;     // ⋯ 菜单钮
+    bool mFlyoutJustClosed;
+    string? mCurrentScriptName;
+    bool mDirty;   // 编辑器内容自上次载入/新建/打开/保存以来是否被改过 → 标题前缀 *
 
     // 代码框初始示例：全部注释 + 短行（用户上来可直接在下方写，无需删除；行短不撑横向滚动条）。
     const string Sample =
@@ -111,6 +128,7 @@ internal sealed class ScriptSideBarContentProvider
         mCodeBox.Options.IndentationSize = 2;
         mCodeBox.Options.ConvertTabsToSpaces = true;
         mCodeBox.Text = Sample;
+        mCodeBox.TextChanged += (_, _) => MarkDirty();   // 用户编辑即标脏（程序性置文后由 SetCurrentScript 复位）
 
         // 人类文档页：与代码框【同位互斥】（点 Doc/Code 在原地翻面）。Markdown 渲染、自适应宽度换行（禁横向滚动）。
         // 这是【给人读】的版本，与喂 LLM 的速查表（ScriptApiReference / get_script_api）分开。
@@ -171,9 +189,43 @@ internal sealed class ScriptSideBarContentProvider
         buttons.Children.Add(viewToggle);
         buttons.Children.Add(runButton);
 
-        // 布局：底部输出区 + 其上按钮行固定，中央区填充剩余。
+        // ── 顶部脚本库管理栏 ───────────────────────────────────────────────────────
+        // ⋯ 菜单钮（仿 preset 的收起钮：圆角底 + ⋯）；脚本选择钮填充其左侧剩余宽。
+        mMoreButton = new TuneLab.GUI.Components.Button { Width = 28, Height = 28 }
+            .AddContent(new() { Item = new BorderItem { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER, PressedColor = Style.INTERFACE } })
+            .AddContent(new() { Item = new TextItem { Text = "⋯", FontSize = 16 }, ColorSet = new() { Color = Colors.White } });
+        mMoreButton.Clicked += OnMoreButtonClicked;
+
+        mScriptButton = new TuneLab.GUI.Components.Button { Height = 28, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch }
+            .AddContent(new() { Item = new BorderItem { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
+        mScriptLabel = new ButtonContent { Item = new TextItem { Text = "", FontSize = 12 }, ColorSet = new() { Color = Style.LIGHT_WHITE } };
+        mScriptButton.AddContent(mScriptLabel);
+        mScriptButton.Clicked += OnScriptButtonClicked;
+
+        // 下拉用自定义 Flyout（与 Agent 会话下拉同构）：StackPanel 装行，行右侧贴 ✕ 可删，整行 hover 高亮、点击加载。
+        mScriptFlyout = new Flyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        mScriptFlyout.FlyoutPresenterClasses.Add("agent-menu");
+        mScriptFlyout.Closed += (_, _) =>
+        {
+            mFlyoutJustClosed = true;     // light-dismiss 会在再次点钮时先关闭，置标志让随后的 Click 不重开 → toggle
+            Dispatcher.UIThread.Post(() => mFlyoutJustClosed = false, DispatcherPriority.Input);
+        };
+
+        var header = new DockPanel { Height = 44, LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
+        var headerInner = new DockPanel { LastChildFill = true, Margin = new(8, 8, 8, 0) };
+        DockPanel.SetDock(mMoreButton, Dock.Right);
+        mScriptButton.Margin = new(0, 0, 8, 0);
+        headerInner.Children.Add(mMoreButton);
+        headerInner.Children.Add(mScriptButton);
+        header.Children.Add(headerInner);
+
+        SetCurrentScript(null);   // 初始：未命名工作副本
+
+        // 布局：顶部管理栏固定；底部输出区 + 其上按钮行固定；中央区填充剩余。
+        DockPanel.SetDock(header, Dock.Top);
         DockPanel.SetDock(mOutputBox, Dock.Bottom);
         DockPanel.SetDock(buttons, Dock.Bottom);
+        mRoot.Children.Add(header);
         mRoot.Children.Add(mOutputBox);
         mRoot.Children.Add(buttons);
         mRoot.Children.Add(center);
@@ -251,5 +303,302 @@ internal sealed class ScriptSideBarContentProvider
         if (result.Ok && !string.IsNullOrEmpty(result.ResultText))
             sb.Append("\n\n--- result ---\n").Append(result.ResultText);
         mOutputBox.Text = sb.ToString();
+    }
+
+    // ───────────────── 脚本库管理 ─────────────────
+
+    // 设当前脚本名并清脏标（载入/新建/打开/另存后，编辑器内容与库文件一致）。
+    void SetCurrentScript(string? name)
+    {
+        mDirty = false;
+        SetScriptName(name);
+    }
+
+    // 只改名 + 刷标题（重命名时用：不动脏标——重命名只改库里的文件名，编辑器缓冲若已脏，相对新名仍是脏的）。
+    void SetScriptName(string? name)
+    {
+        mCurrentScriptName = string.IsNullOrWhiteSpace(name) ? null : name;
+        RefreshTitle();
+    }
+
+    // 下拉钮文字：脏则前缀 *；当前脚本名（null = 未命名工作副本，显示「Untitled」）；末尾缀 ▾ 提示可下拉。
+    void RefreshTitle()
+    {
+        var shown = mCurrentScriptName ?? "Untitled".Tr(this);
+        if (mDirty) shown = "*" + shown;
+        mScriptLabel.Item = new TextItem { Text = shown + "  ▾", FontSize = 12 };
+    }
+
+    void MarkDirty()
+    {
+        if (mDirty) return;
+        mDirty = true;
+        RefreshTitle();
+    }
+
+    // 切到代码视图（管理动作改的是代码，若正看文档则翻回去）。
+    void EnsureCodeView()
+    {
+        if (!mShowingDoc) return;
+        mShowingDoc = false;
+        mCodeBox.IsVisible = true;
+        mDocView.IsVisible = false;
+    }
+
+    void OnScriptButtonClicked()
+    {
+        if (mFlyoutJustClosed) return;   // 再次点击恰逢 light-dismiss 刚关 → 不重开（toggle）
+        PopulateScriptMenu();
+        mScriptFlyout.ShowAt(mScriptButton);
+    }
+
+    // 每次打开重建：顶部「New」（清空成未命名工作副本）+ 分隔线 + 库内脚本（点击加载、右侧 ✕ 删除）。
+    void PopulateScriptMenu()
+    {
+        var stack = new StackPanel { Orientation = Orientation.Vertical, MinWidth = 220 };
+        stack.Children.Add(FlyoutMenuRow.Build("New".Tr(this), null, NewScript, null, mScriptFlyout));
+
+        var names = ScriptLibrary.List();
+        if (names.Count > 0)
+            stack.Children.Add(new Border { Height = 1, Margin = new(8, 4), Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush() });
+        foreach (var name in names)
+        {
+            var captured = name;
+            stack.Children.Add(FlyoutMenuRow.Build(captured, captured,
+                () => LoadScript(captured),
+                () => { mScriptFlyout.Hide(); _ = DeleteScript(captured); }, mScriptFlyout));
+        }
+
+        mScriptFlyout.Content = stack;
+    }
+
+    // New：清空成未命名工作副本（保留起手注释示例，便于直接写）。
+    void NewScript()
+    {
+        mCodeBox.Text = Sample;
+        SetCurrentScript(null);
+        EnsureCodeView();
+    }
+
+    // 从库加载：读文件入编辑器、记其为当前脚本。
+    void LoadScript(string name)
+    {
+        try
+        {
+            mCodeBox.Text = ScriptLibrary.Read(name);
+            SetCurrentScript(name);
+            EnsureCodeView();
+        }
+        catch (Exception ex)
+        {
+            _ = mRoot.ShowMessage("Error".Tr(this), string.Format("Failed to load script \"{0}\": \n{1}", name, ex.Message));
+        }
+    }
+
+    // 删除库内脚本（先二次确认）；若删的是当前脚本，编辑器内容留下但降为未命名工作副本。
+    async Task DeleteScript(string name)
+    {
+        if (!await ConfirmAsync(string.Format("Delete script \"{0}\"?".Tr(this), name)))
+            return;
+        try
+        {
+            ScriptLibrary.Delete(name);
+            if (string.Equals(name, mCurrentScriptName, StringComparison.OrdinalIgnoreCase))
+                SetCurrentScript(null);
+        }
+        catch (Exception ex)
+        {
+            await mRoot.ShowMessage("Error".Tr(this), string.Format("Failed to delete script \"{0}\": \n{1}", name, ex.Message));
+        }
+    }
+
+    // ⋯ 菜单：打开（任意位置载入工作副本，不入库）/ 导入（复制进库并加载）/ 保存（覆盖当前脚本）/ 另存 / 重命名。
+    void OnMoreButtonClicked()
+    {
+        var menu = new ContextMenu();
+        var hasCurrent = mCurrentScriptName != null;
+
+        menu.Items.Add(new MenuItem().SetName("Open".Tr(this)).SetAction(async () => await OpenFromDisk()));
+        menu.Items.Add(new MenuItem().SetName("Import".Tr(this)).SetAction(async () => await ImportFromDisk()));
+        menu.Items.Add(new MenuItem().SetName("Save".Tr(this)).SetAction(async () => await SaveScript()));
+        menu.Items.Add(new MenuItem().SetName("Save As".Tr(this)).SetAction(async () => await SaveAsScript()));
+        {
+            var rename = new MenuItem().SetName("Rename".Tr(this)).SetAction(async () => await RenameScript());
+            rename.IsEnabled = hasCurrent;   // 只有库内脚本可重命名
+            menu.Items.Add(rename);
+        }
+
+        mMoreButton.OpenContextMenu(menu);
+    }
+
+    // 打开：从任意位置选 .js → 载入编辑器作工作副本（不入库，当前脚本置空）。
+    async Task OpenFromDisk()
+    {
+        var path = await PickJsFileAsync("Open Script".Tr(this));
+        if (path == null) return;
+        try
+        {
+            mCodeBox.Text = System.IO.File.ReadAllText(path);
+            SetCurrentScript(null);
+            EnsureCodeView();
+        }
+        catch (Exception ex)
+        {
+            await mRoot.ShowMessage("Error".Tr(this), "Failed to open file: \n" + ex.Message);
+        }
+    }
+
+    // 导入：从任意位置选若干 .js → 各复制进库。只入库，不打开/不改变当前编辑内容。
+    // 同名冲突按 Windows 复制冲突风格逐项询问（覆盖/跳过，无副本选项），并可"对剩余所有项执行此操作"。
+    async Task ImportFromDisk()
+    {
+        var paths = await PickJsFilesAsync("Import Script".Tr(this), allowMultiple: true);
+        if (paths.Count == 0) return;
+
+        bool? overwriteAll = null;   // null = 逐项询问；true = 全覆盖；false = 全跳过
+        var failed = new List<string>();
+        for (int i = 0; i < paths.Count; i++)
+        {
+            var path = paths[i];
+            if (ScriptLibrary.Exists(ScriptLibrary.NameForImport(path)))
+            {
+                if (overwriteAll == null)
+                {
+                    var (overwrite, applyToAll) = await AskImportConflict(ScriptLibrary.NameForImport(path), showApplyToAll: paths.Count - i > 1);
+                    if (applyToAll) overwriteAll = overwrite;
+                    if (!overwrite) continue;   // 跳过本项
+                }
+                else if (!overwriteAll.Value) continue;   // 全跳过
+                // 全覆盖 / 本项选覆盖 → 落到下面 Import
+            }
+            try { ScriptLibrary.Import(path, overwrite: true); }
+            catch (Exception ex) { failed.Add(System.IO.Path.GetFileName(path) + ": " + ex.Message); }
+        }
+        if (failed.Count > 0)
+            await mRoot.ShowMessage("Error".Tr(this), "Failed to import:\n" + string.Join("\n", failed));
+    }
+
+    // 同名冲突弹窗：覆盖(主) / 跳过；showApplyToAll 时附"对剩余所有项执行此操作"复选框。返回(是否覆盖, 是否应用到剩余全部)。
+    async Task<(bool overwrite, bool applyToAll)> AskImportConflict(string name, bool showApplyToAll)
+    {
+        var dialog = new TuneLab.GUI.Dialog();
+        dialog.SetTitle("Import".Tr(this));
+        dialog.SetMessage(string.Format("Script \"{0}\" already exists.".Tr(this), name));
+
+        var applyToAllBox = new TuneLab.GUI.Components.CheckBox();
+        applyToAllBox.Display(false);
+        if (showApplyToAll && dialog.FindControl<StackPanel>("MessageStackPanel") is { } messageStack)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Margin = new(0, 12, 0, 0) };
+            row.Children.Add(applyToAllBox);
+            row.Children.Add(new TextBlock { Text = "Do this for all remaining items".Tr(this), Foreground = Colors.White.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            messageStack.Children.Add(row);
+        }
+
+        bool overwrite = false;
+        var overwriteButton = dialog.AddButton("Overwrite".Tr(this), TuneLab.GUI.Dialog.ButtonType.Primary);
+        overwriteButton.Pressed += () => overwrite = true;
+        dialog.AddButton("Skip".Tr(this), TuneLab.GUI.Dialog.ButtonType.Normal);   // 默认 overwrite=false 即跳过
+        dialog.Topmost = true;
+        await dialog.ShowDialog(mRoot.Window());
+        return (overwrite, showApplyToAll && applyToAllBox.Value);
+    }
+
+    // 保存：覆盖当前脚本；无当前脚本（未命名工作副本）则转为另存。
+    async Task SaveScript()
+    {
+        if (mCurrentScriptName == null)
+        {
+            await SaveAsScript();
+            return;
+        }
+        try
+        {
+            ScriptLibrary.Save(mCurrentScriptName, mCodeBox.Text ?? "");
+            mDirty = false;
+            RefreshTitle();
+        }
+        catch (Exception ex) { await mRoot.ShowMessage("Error".Tr(this), "Failed to save script: \n" + ex.Message); }
+    }
+
+    // 另存：取新名 → 写入库（重名先确认覆盖）→ 选中为当前脚本。
+    async Task SaveAsScript()
+    {
+        var name = await RequestNameAsync(mCurrentScriptName ?? "");
+        if (name == null) return;
+        if (ScriptLibrary.Exists(name) && !await ConfirmAsync(string.Format("Overwrite script \"{0}\"?".Tr(this), name)))
+            return;
+        try
+        {
+            ScriptLibrary.Save(name, mCodeBox.Text ?? "");
+            SetCurrentScript(name);
+        }
+        catch (Exception ex) { await mRoot.ShowMessage("Error".Tr(this), "Failed to save script: \n" + ex.Message); }
+    }
+
+    // 重命名当前脚本（仅库内脚本可用）。新名重名先确认覆盖。
+    async Task RenameScript()
+    {
+        var old = mCurrentScriptName;
+        if (old == null) return;
+        var name = await RequestNameAsync(old);
+        if (name == null || name.Equals(old, StringComparison.OrdinalIgnoreCase)) return;
+        if (ScriptLibrary.Exists(name) && !await ConfirmAsync(string.Format("Overwrite script \"{0}\"?".Tr(this), name)))
+            return;
+        try
+        {
+            ScriptLibrary.Rename(old, name);
+            SetScriptName(name);   // 不清脏标：重命名只改库文件名，未保存的缓冲改动仍未落盘
+        }
+        catch (Exception ex) { await mRoot.ShowMessage("Error".Tr(this), "Failed to rename script: \n" + ex.Message); }
+    }
+
+    // 取名弹窗：返回 sanitize 后的非空名，取消/空则 null。
+    async Task<string?> RequestNameAsync(string initialName)
+    {
+        var dialog = new NameInputDialog("Script Name".Tr(this), initialName);
+        var name = await dialog.ShowDialog<string?>(mRoot.Window());
+        name = ScriptLibrary.SanitizeName(name?.Trim() ?? "");
+        return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    async Task<bool> ConfirmAsync(string message)
+    {
+        var dialog = new TuneLab.GUI.Dialog();
+        dialog.SetTitle("Tips".Tr(this));
+        dialog.SetMessage(message);
+        bool confirmed = false;
+        dialog.AddButton("Cancel".Tr(this), TuneLab.GUI.Dialog.ButtonType.Normal);
+        var ok = dialog.AddButton("OK".Tr(this), TuneLab.GUI.Dialog.ButtonType.Primary);
+        ok.Pressed += () => confirmed = true;
+        dialog.Topmost = true;
+        await dialog.ShowDialog(mRoot.Window());
+        return confirmed;
+    }
+
+    // 系统文件选择器：取本地路径。取消/无窗 → 空。单选用 allowMultiple=false（取首个）。
+    async Task<string?> PickJsFileAsync(string title)
+        => (await PickJsFilesAsync(title, allowMultiple: false)).FirstOrDefault();
+
+    async Task<IReadOnlyList<string>> PickJsFilesAsync(string title, bool allowMultiple)
+    {
+        var top = TopLevel.GetTopLevel(mRoot);
+        if (top == null) return [];
+        IReadOnlyList<IStorageFile> files;
+        try
+        {
+            files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = title,
+                AllowMultiple = allowMultiple,
+                FileTypeFilter = new[] { new FilePickerFileType("JavaScript") { Patterns = new[] { "*.js" } } },
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("Script file picker failed: " + ex.Message);
+            return [];
+        }
+        return files.Select(f => f.TryGetLocalPath()).Where(p => p != null).Select(p => p!).ToList();
     }
 }

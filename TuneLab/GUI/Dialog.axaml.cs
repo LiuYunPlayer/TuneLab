@@ -55,7 +55,14 @@ internal partial class Dialog : Window
             AdjustHeight();
         };
         // 首次 SizeChanged 多发生在 Show 之前（此时拿不到所在屏幕），故 Opened 后按真实屏幕再封顶一次。
-        Opened += (s, e) => AdjustHeight();
+        Opened += (s, e) =>
+        {
+            AdjustHeight();
+            // 自定义无边框 + Topmost 的模态窗在 Windows 下 ShowDialog 不一定抢到前台激活——不激活时首次悬浮/点击
+            // 会被系统"点击激活"吞掉（需点两次）。显式 Activate() 抢前台并聚焦末个按钮（通常是主按钮，回车即确认）。
+            Activate();
+            mLastButton?.Focus();
+        };
     }
 
     // 按消息高度撑高窗口，但**封顶到所在屏幕可用高的 85%**；超出部分由消息区 ScrollViewer 滚动，
@@ -108,6 +115,9 @@ internal partial class Dialog : Window
         Grid.SetColumn(buttonStack, ButtonsPanel.ColumnDefinitions.Count - 1);
         ButtonsPanel.Children.Add(buttonStack);
 
+        mLastButton = button;   // Opened 时聚焦它（末个添加的，通常即主/确认按钮），使窗口真正取得焦点、回车可确认
         return button;
     }
+
+    Button? mLastButton;
 }

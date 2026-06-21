@@ -178,8 +178,8 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 
 #### 捕获时机与线程（快照由插件主动拉取）
 
-- **`GetNextSegment`**：数据线程上的**廉价 peek**，live 全量访问——插件基于完整 part 做分片决策，只报出纯值秒边界（`SynthesisSegment` struct）；peek 常被多会话 speculative 地叫、多数不中选，不做任何捕获。
-- **`SynthesizeNext` 同步前缀**：仍在数据线程，插件**重算分块**（确定性分片 + peek→commit 同调度 tick 无编辑 ⇒ 与 peek 同结果），随后经 **`context.GetSnapshot(notes, startTick, endTick)` 主动拉取**所需快照——notes 与开窗区间由插件按本次合成需要自由圈定，一次合成可按需拉多份（如音素级小窗 + 音频级大窗）；**之后**才 offload 到 worker（进程内）/ 序列化送进程（v2）。
+- **`GetNextSegment`**：数据线程上的**廉价 peek**，live 全量访问——插件基于完整 part 做分片决策，只报出纯值秒边界（`SynthesisRange` struct，纯调度提示）；peek 常被多会话 speculative 地叫、多数不中选，不做任何捕获。
+- **`SynthesizeNext` 同步前缀**：仍在数据线程，入参是选中它的那次 peek 的**同一窗口** `(startTime, endTime)`（而非把 `SynthesisRange` 回灌），插件按同一窗口**重算分块**（确定性分片 + peek→commit 同调度 tick 无编辑 ⇒ 与 peek 同结果），随后经 **`context.GetSnapshot(notes, startTick, endTick)` 主动拉取**所需快照——notes 与开窗区间由插件按本次合成需要自由圈定，一次合成可按需拉多份（如音素级小窗 + 音频级大窗）；**之后**才 offload 到 worker（进程内）/ 序列化送进程（v2）。
 - 拉取式替代早期"segment 携带捕获声明、宿主代为物化递入"的形态：声明本就是插件需求的间接表达，直接调用消除一层间接；物化/版本缓存/记账仍收在宿主的 GetSnapshot 实现内，`GetSnapshot` 入口带数据线程断言（§3.2 防线 ②）兜住"offload 后才拉"的违例。
 
 #### 快照构成（非对称：小而必须的送、大而要算法的留宿主侧）
@@ -220,7 +220,7 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 |---|---|---|
 | note 快照 | worker 读的不可变值树 | 直接当序列化消息体 |
 | automation | worker 直读冻结点 + 宿主插值 | 快照序列化时物化为离散点（细节缓后） |
-| `SynthesisSegment`（纯值 struct） | 两个 double | 两个 double 直接过线 |
+| `SynthesisRange`（纯值 struct） | 两个 double | 两个 double 直接过线 |
 | `GetSnapshot` | 数据线程同步物化 | 插件进程发起的一次批量 RPC（快照即返回体，一次过线） |
 | context 订阅 | C# event，宿主在 UI 线程 emit | 宿主 emit 转 marshaled 消息（中间层本就宿主控 emit） |
 | 音频产物 `ReadAudio` | pull 拷贝 | pull 自共享内存 |
@@ -242,21 +242,23 @@ public interface ISynthesisSession
 {
     // —— 调度 ——
     // peek：窗内"下一块待合成"的纯值边界，无副作用
-    SynthesisSegment? GetNextSegment(double startTime, double endTime);
+    SynthesisRange? GetNextSegment(double startTime, double endTime);
 
-    // commit：合成 peek 报出的这一块。插件在同步前缀重算分块、经 context.GetSnapshot
-    // 拉取所需快照后 offload；await 返回 = 槽位释放、宿主重排。进度不在此传入——经状态带 + StatusChanged 上报。
-    Task SynthesizeNext(SynthesisSegment segment,
+    // commit：入参为选中它的那次 peek 的【同一窗口】（而非把 GetNextSegment 自报的 SynthesisRange 回灌）——
+    // 插件按同一窗口确定性重导出同一块、经 context.GetSnapshot 拉取所需快照后 offload；
+    // await 返回 = 槽位释放、宿主重排。进度不在此传入——经状态带 + StatusChanged 上报。
+    Task SynthesizeNext(double startTime, double endTime,
                         CancellationToken cancellation = default);
 
     // ... 声明 / 产物 / 状态见下 ...
     void Dispose();
 }
 
-// 调度块的纯值边界（readonly struct）：宿主只用它排播放线就近优先级。
-// 不携带捕获声明、不是插件对象——快照获取归插件主动（context.GetSnapshot）；
-// 插件 peek 时如需为 commit 留信息（分块缓存等）在会话自己的字段里存即可。
-public readonly struct SynthesisSegment(double startTime, double endTime)
+// GetNextSegment 的返回：插件报给宿主的"下一块大致区间"纯值边界（readonly struct），宿主只用它排播放线
+// 就近优先级。不精确、不承载 notelist——精确 notelist 由插件在 SynthesizeNext 里按同一窗口确定性重导出
+// （或 peek 时自缓存于会话字段），故它不入 SynthesizeNext 入参。命名改自旧 SynthesisSegment（"段"已被
+// IAudioSegment / SynthesisStatusSegment 占用，避免三义）。
+public readonly struct SynthesisRange(double startTime, double endTime)
 {
     public double StartTime { get; }   // 秒，与产物同一时间系
     public double EndTime { get; }

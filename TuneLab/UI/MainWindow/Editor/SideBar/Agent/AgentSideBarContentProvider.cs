@@ -433,7 +433,7 @@ internal sealed class AgentSideBarContentProvider
             var captured = ctx;
             entries.Add(new MenuEntry(ctx.CreatedAtUnix, ctx.Title, ctx.Busy,
                 () => SwitchTo(captured),
-                () => { DeleteContext(captured); mMenuFlyout.Hide(); }));
+                () => { mMenuFlyout.Hide(); _ = ConfirmAndDeleteContext(captured); }));
         }
 
         // 仅存在磁盘、当前未打开的会话（已打开的以活 context 为准、不重复列）。点击从盘加载。
@@ -444,9 +444,10 @@ internal sealed class AgentSideBarContentProvider
                 continue;
             var captured = session;
             var titleText = string.IsNullOrWhiteSpace(session.Title) ? "Untitled".Tr(this) : session.Title;
+            var capturedTitle = titleText;
             entries.Add(new MenuEntry(session.CreatedAtUnix, titleText, false,
                 () => LoadSession(captured),
-                () => { AgentSessionStore.Delete(captured.Id); mMenuFlyout.Hide(); }));
+                () => { mMenuFlyout.Hide(); _ = ConfirmAndDeleteSession(captured, capturedTitle); }));
         }
 
         if (entries.Count > 0)
@@ -469,6 +470,33 @@ internal sealed class AgentSideBarContentProvider
             AgentSessionStore.Delete(ctx.Session.Id);
         if (ctx == mActive)
             NewChat();
+    }
+
+    // ✕ 删除走二次确认（与 Script/Properties 侧栏一致；删会话会丢整段对话、且可能取消正在跑的请求，更需谨慎）。
+    async Task ConfirmAndDeleteContext(SessionContext ctx)
+    {
+        if (await ConfirmDeleteSession(ctx.Title))
+            DeleteContext(ctx);
+    }
+
+    async Task ConfirmAndDeleteSession(ChatSession session, string title)
+    {
+        if (await ConfirmDeleteSession(title))
+            AgentSessionStore.Delete(session.Id);
+    }
+
+    async Task<bool> ConfirmDeleteSession(string title)
+    {
+        var dialog = new TuneLab.GUI.Dialog();
+        dialog.SetTitle("Tips".Tr(this));
+        dialog.SetMessage(string.Format("Delete session \"{0}\"?".Tr(this), title));
+        bool confirmed = false;
+        dialog.AddButton("Cancel".Tr(this), TuneLab.GUI.Dialog.ButtonType.Normal);
+        var ok = dialog.AddButton("Delete".Tr(this), TuneLab.GUI.Dialog.ButtonType.Primary);
+        ok.Pressed += () => confirmed = true;
+        dialog.Topmost = true;
+        await dialog.ShowDialog(mRoot.Window());
+        return confirmed;
     }
 
     // 单行：标题填充（过长省略号 + 全名 tooltip）、可选右侧 ✕ 删除、可选行首运行指示点。整行 hover 高亮，点击触发 onClick 并关闭菜单。
@@ -511,7 +539,10 @@ internal sealed class AgentSideBarContentProvider
             };
             del.PointerEntered += (_, _) => del.Foreground = Colors.IndianRed.ToBrush();
             del.PointerExited += (_, _) => del.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
-            del.PointerPressed += (_, e) => { e.Handled = true; onDelete(); }; // Handled 拦掉整行点击，避免删完又加载
+            // 仅拦掉整行点击；删除放到 PointerReleased——按下时指针仍被 Flyout 捕获、鼠标未松开，此刻开模态确认窗会被系统
+            // "点击激活"吞掉首次悬浮/点击（需点两次）。等松开后再触发。
+            del.PointerPressed += (_, e) => e.Handled = true;
+            del.PointerReleased += (_, e) => { e.Handled = true; onDelete(); };
             DockPanel.SetDock(del, Dock.Right);
             dock.Children.Add(del);
         }
@@ -1657,8 +1688,8 @@ internal sealed class AgentSideBarContentProvider
     // provider 选择的单项 config：复用 ComboBoxConfig（label 走 DisplayText，由属性面板渲成统一样式）。
     ObjectConfig BuildProviderConfig()
     {
-        var props = new OrderedMap<string, IControllerConfig>();
-        props.Add(EngineKey, new ComboBoxConfig { DisplayText = "Model Provider".Tr(this), Options = mEngineOptions });
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add((EngineKey, "Model Provider".Tr(this)), new ComboBoxConfig { Options = mEngineOptions });
         return new ObjectConfig { Properties = props };
     }
 
@@ -1758,8 +1789,8 @@ internal sealed class AgentSideBarContentProvider
     {
         var map = new Map<string, PropertyValue>();
         foreach (var kv in config.Properties)
-            if (all.Map.TryGetValue(kv.Key, out var v))
-                map.Add(kv.Key, v);
+            if (all.Map.TryGetValue(kv.Key.Id, out var v))
+                map.Add(kv.Key.Id, v);
         return new PropertyObject(map);
     }
 

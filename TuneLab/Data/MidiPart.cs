@@ -164,13 +164,13 @@ internal class MidiPart : Part, IMidiPart
         return sb.ToString();
     }
 
-    static void AppendAutomationConfigs(StringBuilder sb, string source, IReadOnlyOrderedMap<string, AutomationConfig> configs)
+    static void AppendAutomationConfigs(StringBuilder sb, string source, IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs)
     {
         sb.Append(source).Append('{');
         foreach (var kvp in configs)
         {
             var c = kvp.Value;
-            sb.Append(kvp.Key).Append('|').Append(c.DisplayText).Append('|')
+            sb.Append(kvp.Key.Id).Append('|').Append(kvp.Key.DisplayText).Append('|')
               .Append(c.DefaultValue).Append('|').Append(c.MinValue).Append('|')
               .Append(c.MaxValue).Append('|').Append(c.Color).Append(';');
         }
@@ -304,10 +304,104 @@ internal class MidiPart : Part, IMidiPart
         return values;
     }
 
-    public double[] GetBasePitchByTimes(IReadOnlyList<double> times)
+    // 音符基线 pitch：每个 tick 取覆盖它的音符半音值，无音符为 NaN。ticks part 相对、升序。
+    // 重叠时"后 note 头盖前 note 尾"：按起点升序入栈，栈顶=最近开始且仍覆盖的 note；
+    // 栈顶结束则弹出回退到下层 note（其仍覆盖则恢复其音高）。
+    public double[] GetBasePitch(IReadOnlyList<double> ticks)
     {
-        double[] pitch = new double[times.Count];
+        double[] pitch = new double[ticks.Count];
+        pitch.Fill(double.NaN);
+        if (ticks.Count == 0)
+            return pitch;
+
+        var stack = new List<INote>();
+        using var it = mNotes.GetEnumerator();
+        INote? next = it.MoveNext() ? it.Current : null;
+        for (int i = 0; i < ticks.Count; i++)
+        {
+            double tick = ticks[i];
+            while (next != null && next.StartPos() <= tick)
+            {
+                stack.Add(next);
+                next = it.MoveNext() ? it.Current : null;
+            }
+            while (stack.Count > 0 && stack[^1].EndPos() <= tick)
+                stack.RemoveAt(stack.Count - 1);
+
+            if (stack.Count > 0)
+                pitch[i] = stack[^1].Pitch.Value;
+        }
         return pitch;
+    }
+
+    // 有效基线（单点）：用户绘制曲线优先，未绘制处落到覆盖音符的半音；都没有则 NaN。
+    // 颤音控制柄定位用它，使没画 pitch 时也能锚在音符上、即时可编辑。重叠同样"后 note 盖前 note"（取最末覆盖者）。
+    public double GetEffectivePitchValue(double tick)
+    {
+        double drawn = mPitchLine.GetValue(tick);
+        if (!double.IsNaN(drawn))
+            return drawn;
+
+        double result = double.NaN;
+        foreach (var note in mNotes)
+        {
+            if (note.StartPos() > tick)
+                break;
+
+            if (note.EndPos() > tick)
+                result = note.Pitch.Value;
+        }
+        return result;
+    }
+
+    // 颤音覆盖区内、未绘制 pitch 处的兜底虚线波（= 音符基线 + 颤音偏差）：只在"画了颤音的位置"显示预期音高，
+    // 颤音区外不画。已绘制 pitch 的区段交给实线 GetFinalPitch，避免二次叠加。
+    public double[] GetVibratoFallbackPitch(IReadOnlyList<double> ticks)
+    {
+        double[] result = new double[ticks.Count];
+        result.Fill(double.NaN);
+        if (mVibratos.Count == 0)
+            return result;
+
+        double[] drawn = mPitchLine.GetValues(ticks);
+        double[] basePitch = GetBasePitch(ticks);
+        double[] deviation = GetVibratoDeviation(ticks);
+        using var it = mVibratos.GetEnumerator();
+        Vibrato? vibrato = it.MoveNext() ? it.Current : null;
+        for (int i = 0; i < ticks.Count; i++)
+        {
+            double tick = ticks[i];
+            while (vibrato != null && vibrato.EndPos() < tick)
+                vibrato = it.MoveNext() ? it.Current : null;
+            if (vibrato == null)
+                break;
+
+            if (vibrato.StartPos() > tick || !double.IsNaN(drawn[i]) || double.IsNaN(basePitch[i]))
+                continue;
+
+            result[i] = basePitch[i] + deviation[i];
+        }
+        return result;
+    }
+
+    // 悬浮添加预览波：在有效基线（绘制优先、否则音符）上叠加单个待建颤音的偏移，无基线处 NaN。
+    public double[] GetVibratoAddPreviewPitch(IReadOnlyList<double> ticks, VibratoInfo info)
+    {
+        double[] drawn = mPitchLine.GetValues(ticks);
+        double[] basePitch = GetBasePitch(ticks);
+        var data = new[] { new VibratoMath.VibratoData(
+            info.Pos, info.Dur, info.Frequency, info.Amplitude, info.Phase, info.Attack, info.Release) };
+        Func<double[], double[]>? envelopeSampler = Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var envelope)
+            ? envelope.GetValues
+            : null;
+        double[] deviation = VibratoMath.GetDeviation(data, ticks, envelopeSampler, Pos.Value, TempoManager.GetTime);
+        double[] result = new double[ticks.Count];
+        for (int i = 0; i < ticks.Count; i++)
+        {
+            double baseline = double.IsNaN(drawn[i]) ? basePitch[i] : drawn[i];
+            result[i] = double.IsNaN(baseline) ? double.NaN : baseline + deviation[i];
+        }
+        return result;
     }
 
     // 批量变更括号（undo/redo 重放时同样成对触发）：让插件把重活（如重分片）延迟到 BatchEnd。

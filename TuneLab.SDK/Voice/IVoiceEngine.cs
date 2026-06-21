@@ -28,13 +28,14 @@ public interface IVoiceEngine
     // 静态声明的插件忽略 context 返回固定值即可。
 
     // 自动化轨配置（part 级）：连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），
-    // 按声明序呈现。孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
-    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
+    // 按声明序呈现。轨名/翻译随键（PropertyKey.DisplayText，缺省回退 Id）。
+    // 孤儿数据：轨从声明消失后宿主保留其已画曲线（隐藏不删），参数回退使该轨复现即原样恢复。
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
 
     // 合成参数回显轨声明（part 级，与 GetAutomationConfigs 同语义）：引擎产出的只读回显曲线（如 energy）
-    // 暴露为一等只读轨，自带 DisplayText/Min/Max/Color。回显是分段形（DefaultValue 置 NaN，无基线、段间断开）。
+    // 暴露为一等只读轨，轨名随键、自带 Min/Max/Color。回显是分段形（DefaultValue 置 NaN，无基线、段间断开）。
     // 曲线数据另经 ISynthesisSession.SynthesizedParameters 按同一批 key 承载。
-    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
 
     // 条件属性面板：part（会话主体）级只依赖 part 自身值；note 级依赖 part + 选中 note 三态合并值。
     // 宿主在每次值 commit 时调用并 keyed-diff 到控件树。

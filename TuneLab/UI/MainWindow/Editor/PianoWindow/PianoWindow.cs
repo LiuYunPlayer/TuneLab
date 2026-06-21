@@ -48,7 +48,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             if (mActiveAutomation.HasValue && IsAutomationVisible(mActiveAutomation.Value))
                 return mActiveAutomation.Value;
 
-            return AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key);
+            return AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
         }
         set
         {
@@ -141,7 +141,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
         ClipToBounds = true;
 
-        ActiveAutomation = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key);
+        ActiveAutomation = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
     }
 
     ~PianoWindow()
@@ -174,20 +174,20 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     //    Visible/Active 机制；显隐由参数区标题栏管控）——
     // 每次按源现合并（轨集合随参数 commit 涌现、规模小、不在热路径）：voice 声明 → AutomationKey.Voice，
     // 各 effect 声明 → AutomationKey.Effect(index)。
-    public IReadOnlyOrderedMap<AutomationKey, AutomationConfig> ReadbackConfigs
+    public IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs
     {
         get
         {
             if (Part == null)
                 return sEmptyReadbackConfigs;
 
-            var result = new OrderedMap<AutomationKey, AutomationConfig>();
+            var result = new OrderedMap<AutomationKey, AutomationConfigEntry>();
             foreach (var kvp in Part.Voice.SynthesizedParameterConfigs)
-                result.Add(AutomationKey.Voice(kvp.Key), kvp.Value);
+                result.Add(AutomationKey.Voice(kvp.Key.Id), new AutomationConfigEntry(kvp.Key, kvp.Value));
             for (int i = 0; i < Part.Effects.Count; i++)
             {
                 foreach (var kvp in Part.Effects[i].SynthesizedParameterConfigs)
-                    result.Add(AutomationKey.Effect(i, kvp.Key), kvp.Value);
+                    result.Add(AutomationKey.Effect(i, kvp.Key.Id), new AutomationConfigEntry(kvp.Key, kvp.Value));
             }
             return result;
         }
@@ -354,7 +354,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly List<AutomationKey> mVisibleAutomations = new();
     // 回显轨显隐集合（按轨 id；默认隐藏，用户经标题栏 chip 点亮）。
     readonly HashSet<AutomationKey> mVisibleReadbacks = new();
-    static readonly OrderedMap<AutomationKey, AutomationConfig> sEmptyReadbackConfigs = new();
+    static readonly OrderedMap<AutomationKey, AutomationConfigEntry> sEmptyReadbackConfigs = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
     readonly DisposableManager s = new();

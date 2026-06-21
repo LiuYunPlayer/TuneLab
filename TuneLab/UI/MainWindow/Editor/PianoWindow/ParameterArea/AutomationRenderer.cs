@@ -41,7 +41,7 @@ internal partial class AutomationRenderer : View
         bool IsAutomationVisible(AutomationKey automation);
         IReadOnlyList<AutomationKey> VisibleAutomations { get; }
         // 回显轨声明（按 AutomationKey 分源：voice / 各 effect，只读）：曲线数据经 Part 按同一批 key 承载。
-        IReadOnlyOrderedMap<AutomationKey, AutomationConfig> ReadbackConfigs { get; }
+        IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs { get; }
         bool IsReadbackVisible(AutomationKey key);
         INotifiableProperty<PianoTool> PianoTool { get; }
     }
@@ -371,9 +371,8 @@ internal partial class AutomationRenderer : View
             if (data == null || !data.TryGetValue(key.Id, out var parameter))
                 continue;
 
-            var config = kvp.Value;
-            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, Color.Parse(config.Color),
-                parameter.SegmentOpacityStops);
+            var config = kvp.Value.Config;
+            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, Color.Parse(config.Color));
         }
     }
 

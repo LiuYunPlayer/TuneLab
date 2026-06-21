@@ -18,9 +18,9 @@ internal class Voice : DataObject, IVoice
     // 缓存的代价 = 一个填充时序不变量：必须在「建会话之前」填好（见 MidiPart.RebuildSynthesisPipeline 的顺序），
     // 否则会话构造期经 TryGetAutomation 订阅自己声明的轨会读到空集合、订阅落空、参数绘制不触发重渲。
     // 将来若出现不可避免的缓存失效需求（如轨集合依赖缓存外的状态），就改成 live 计算（对齐 effect）并删掉本缓存。
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs => mAutomationConfigs;
     // 合成参数回显轨声明（独立扁平集合，不掺 Pre/PostCommon）：会话产出的只读回显轨自带 config，宿主据此显隐/绘制。
-    public IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
     // 声明类 config 求值移到引擎层（不依赖会话实例）：经 VoicesManager 按 type 解析活引擎，context 携带 voiceId。
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => VoicesManager.GetPartPropertyConfig(mType, context);
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => VoicesManager.GetNotePropertyConfig(mType, context);
@@ -116,6 +116,6 @@ internal class Voice : DataObject, IVoice
 
     ISynthesisSession? mSession;
     // 物化缓存（非 live）：由 RebuildAutomationConfigs 填，须在建会话前填好——详见 AutomationConfigs 属性处的说明。
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    readonly OrderedMap<string, AutomationConfig> mSynthesizedParameterConfigs = new();
+    readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new();
 }

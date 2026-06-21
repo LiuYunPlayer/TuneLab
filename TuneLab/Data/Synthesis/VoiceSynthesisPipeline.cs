@@ -55,16 +55,22 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
 
     // —— 调度面（Editor 驱动）——
 
+    // part 界裁窗（纯宿主侧）：peek 与 dispatch 共用，保证两者窗口一致 → 插件确定性分片重导出同一块。
+    void ClampToPart(ref double startTime, ref double endTime)
+    {
+        startTime = Math.Max(startTime, mPart.TempoManager.GetTime(mPart.StartPos));
+        endTime = Math.Min(endTime, mPart.TempoManager.GetTime(mPart.EndPos));
+    }
+
     // 窗内"下一块待合成"的廉价 peek；仅会话空闲时有意义。窗口与返回边界为全局秒。
     // 调度窗先与 part 界求交再问插件：part 被裁短后留在界外的 note 不该被合成
     //（呈现端本就按 part 界裁剪音频）；纯宿主侧裁窗，零接口变化。跨界 block 仍整块合成。
-    public SynthesisSegment? PeekNext(double startTime, double endTime)
+    public SynthesisRange? PeekNext(double startTime, double endTime)
     {
         if (mIsBusy || mDisposed)
             return null;
 
-        startTime = Math.Max(startTime, mPart.TempoManager.GetTime(mPart.StartPos));
-        endTime = Math.Min(endTime, mPart.TempoManager.GetTime(mPart.EndPos));
+        ClampToPart(ref startTime, ref endTime);
         if (endTime <= startTime)
             return null;
 
@@ -79,17 +85,20 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         }
     }
 
-    // commit：与 peek 在同一调度 tick 内同步衔接；快照由插件在 SynthesizeNext 的同步前缀
-    // 经 context.GetSnapshot 自行拉取。await 返回 = 槽位释放。
-    public async void Dispatch(SynthesisSegment segment)
+    // commit：与 peek 在同一调度 tick 内同步衔接；入参为选中它的那次 peek 的同一窗口（宿主据 ahead/behind
+    // 回传），插件按同一窗口确定性重导出同一块。快照由插件在 SynthesizeNext 的同步前缀经
+    // context.GetSnapshot 自行拉取。await 返回 = 槽位释放。
+    public async void Dispatch(double startTime, double endTime)
     {
         if (mIsBusy || mDisposed)
             return;
 
+        ClampToPart(ref startTime, ref endTime);   // 与 peek 同一裁窗，确保重导出命中同一块
+
         mIsBusy = true;
         try
         {
-            await mSession.SynthesizeNext(segment, mCancellation.Token);
+            await mSession.SynthesizeNext(startTime, endTime, mCancellation.Token);
         }
         catch (Exception ex)
         {

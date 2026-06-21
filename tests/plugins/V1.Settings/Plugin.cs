@@ -44,8 +44,8 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
         => throw new NotSupportedException("V1.Settings is a settings-only demo fixture.");
 
     // 声明面（全空）：本夹具不暴露轨/面板，仅验证扩展设置链路。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => sEmptyAutomations;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyAutomations;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => sEmptyAutomations;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyAutomations;
     public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => sEmptyConfig;
     public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => sEmptyConfig;
 
@@ -53,12 +53,12 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
     // 动态演示：勾选「使用 GPU」后才暴露「GPU 设备」字段（据 context 当前值条件显隐）。
     public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
     {
-        var props = new OrderedMap<string, IControllerConfig>();
-        props.Add("model_path", new TextBoxConfig { DisplayText = L.Tr("Model Path"), DefaultValue = string.Empty });
-        props.Add("api_key", new TextBoxConfig { DisplayText = L.Tr("API Key"), DefaultValue = string.Empty, IsPassword = true });
-        props.Add("use_gpu", new CheckBoxConfig { DisplayText = L.Tr("Use GPU"), DefaultValue = false });
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add(("model_path", L.Tr("Model Path")), new TextBoxConfig { DefaultValue = string.Empty });
+        props.Add(("api_key", L.Tr("API Key")), new TextBoxConfig { DefaultValue = string.Empty, IsPassword = true });
+        props.Add(("use_gpu", L.Tr("Use GPU")), new CheckBoxConfig { DefaultValue = false });
         if (context.Settings.GetBool("use_gpu", false))
-            props.Add("gpu_device", new TextBoxConfig { DisplayText = L.Tr("GPU Device"), DefaultValue = string.Empty });
+            props.Add(("gpu_device", L.Tr("GPU Device")), new TextBoxConfig { DefaultValue = string.Empty });
         return new ObjectConfig { Properties = props };
     }
 
@@ -74,6 +74,6 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
     }
 
     static readonly OrderedMap<string, VoiceSourceInfo> sEmpty = new();
-    static readonly OrderedMap<string, AutomationConfig> sEmptyAutomations = new();
-    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
+    static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
+    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
 }

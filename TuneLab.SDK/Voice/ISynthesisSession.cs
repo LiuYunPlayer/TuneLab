@@ -21,19 +21,21 @@ public interface ISynthesisSession : IDisposable
 
     // peek：窗内"下一块待合成"的纯值边界，无副作用；只在会话空闲时被问，数据线程上廉价执行
     // （live 全量访问、基于完整 part 做分片决策）。null = 窗内无待合成。
-    // 窗口与返回边界同为秒（与产物同一时间系）。
-    SynthesisSegment? GetNextSegment(double startTime, double endTime);
+    // 窗口与返回边界同为秒（与产物同一时间系）。返回纯调度提示 SynthesisRange。
+    SynthesisRange? GetNextSegment(double startTime, double endTime);
 
-    // commit：合成 peek 报出的这一块。与 peek 在同一调度 tick 内同步衔接（期间无编辑可插入），
-    // 插件在同步前缀重算分块（确定性分片 + 数据未变 ⇒ 与 peek 同结果）、经
-    // ISynthesisContext.GetSnapshot 拉取本次合成所需快照，之后才 offload——worker 只读快照。
+    // commit：合成宿主选中的这一块。入参是与选中它的那次 peek【完全相同】的窗口（秒）——而非把
+    // GetNextSegment 自报的 SynthesisRange 原样回灌：插件按同一窗口确定性重导出 notelist
+    // （确定性分片 + 数据未变 ⇒ 与 peek 同结果；或用 peek 时自缓存的分块）。与 peek 在同一调度 tick
+    // 内同步衔接（期间无编辑可插入），插件在同步前缀经 ISynthesisContext.GetSnapshot 拉取本次合成所需
+    // 快照，之后才 offload——worker 只读快照。
     // await 返回 = 槽位释放、宿主重排。返回纯 Task、无 outcome——真完成/被取消/失败都一样返回
     // （取消不抛 OperationCanceledException：取消是正常调度结局），错误经 GetStatus 看、
     // 是否还有待合成经 GetNextSegment 看。取消是尽力请求：不可中止的插件把这块跑完才返回，
     // 槽位在 await 真正返回时才释放、不在请求取消时——资源始终封顶在并发上限内。
     // 进度不在此传入——经 GetStatus 状态带（SynthesisStatusSegment.Progress）+ StatusChanged 上报；
     // 将来如需独立推送通道再加性补成员。
-    Task SynthesizeNext(SynthesisSegment segment,
+    Task SynthesizeNext(double startTime, double endTime,
                         CancellationToken cancellation = default);
 
     // —— 音频产物（插件 native 采样率域）——

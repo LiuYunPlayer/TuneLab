@@ -25,12 +25,12 @@ internal class Effect : DataObject, IEffect
     // 无缓存/无失效时序问题。配置很小、读取不在热路径，开销可忽略。
     // 轨从集合消失不裁剪 mAutomations 的曲线数据——保留隐藏、轨复现即原样恢复。
     // 连续轨与分段轨同在此 map（kind 由 AutomationConfig.IsPiecewise 现解析）；live 求值、随当前参数涌现，孤儿数据保留隐藏。
-    public IReadOnlyOrderedMap<string, AutomationConfig> AutomationConfigs
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs
         => Engine?.GetAutomationConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
 
     // 回显轨声明随当前参数值涌现（live、纯函数 of 当前值），镜像 AutomationConfigs；引擎缺失时为空集合。
     // 曲线数据不在数据层，由合成管线聚合各段 processor 的回显按同一批 key 承载。
-    public IReadOnlyOrderedMap<string, AutomationConfig> SynthesizedParameterConfigs
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs
         => Engine?.GetSynthesizedParameterConfigs(new EffectPropertyContext(Properties.GetInfo())) ?? EmptyAutomationConfigs;
 
     public Effect(MidiPart part, EffectInfo info)
@@ -116,8 +116,8 @@ internal class Effect : DataObject, IEffect
         public PropertyObject Properties => properties;
     }
 
-    static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<string, IControllerConfig>() };
-    static readonly IReadOnlyOrderedMap<string, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<string, AutomationConfig>();
+    static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly IReadOnlyOrderedMap<PropertyKey, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<PropertyKey, AutomationConfig>();
 
     readonly MidiPart mPart;
     readonly DataObjectMap<string, IAutomation> mAutomations;

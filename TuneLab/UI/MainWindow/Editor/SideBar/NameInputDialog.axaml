@@ -3,8 +3,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="180"
-        x:Class="TuneLab.UI.PresetNameDialog"
-        Title="Preset - TuneLab"
+        x:Class="TuneLab.UI.NameInputDialog"
+        Title="TuneLab"
         Width="400"
         Height="180"
         ExtendClientAreaChromeHints="NoChrome"
@@ -21,7 +21,7 @@
 
             <StackPanel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" IsHitTestVisible="False">
-                <Label Content="Preset Name" x:Name="TitleLabel" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" BorderThickness="0" IsHitTestVisible="False"/>
+                <Label Content="Name" x:Name="TitleLabel" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" BorderThickness="0" IsHitTestVisible="False"/>
             </StackPanel>
             <StackPanel Grid.Column="2" x:Name="WindowControl" HorizontalAlignment="Right" VerticalAlignment="Center" />
         </Grid>
