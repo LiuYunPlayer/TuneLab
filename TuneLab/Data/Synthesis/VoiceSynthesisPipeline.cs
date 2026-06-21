@@ -196,7 +196,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
             }
             foreach (var note in mPart.Notes)
             {
-                note.SynthesizedPhonemes = map.TryGetValue(note, out var list) ? list.ToArray() : null;
+                note.SynthesizedPhonemes = map.TryGetValue(note, out var list) ? list.ToArray() : [];
             }
         }
         catch (Exception ex)

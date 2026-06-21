@@ -24,4 +24,7 @@ public interface IPartPropertyContext
 public interface INotePropertyContext : IPartPropertyContext
 {
     PropertyObject NoteProperties { get; }
+    // 当前选中音符的时间范围（用于区段式操作，NaN 表示无选中）
+    double SelectionStartTime { get; }
+    double SelectionEndTime { get; }
 }

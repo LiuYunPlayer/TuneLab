@@ -250,7 +250,16 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         => new PartPropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo());
 
     INotePropertyContext BuildNoteContext()
-        => new NotePropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo(), MergeNoteSnapshots());
+    {
+        var selNotes = mPart!.Notes.AllSelectedItems().ToList();
+        double selStart = double.NaN, selEnd = double.NaN;
+        if (selNotes.Count > 0)
+        {
+            selStart = selNotes.Min(n => n.StartTime);
+            selEnd = selNotes.Max(n => n.EndTime);
+        }
+        return new NotePropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo(), MergeNoteSnapshots(), selStart, selEnd);
+    }
 
     // 当前选中 note 的三态合并快照：同 key 各 note 全等给该值、不等给 Multiple、全缺则不出现（稀疏）。
     PropertyObject MergeNoteSnapshots()
@@ -292,11 +301,13 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         public PropertyObject PartProperties => partProperties;
     }
 
-    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, PropertyObject noteProperties) : INotePropertyContext
+    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, PropertyObject noteProperties, double selStart, double selEnd) : INotePropertyContext
     {
         public string VoiceId => voiceId;
         public PropertyObject PartProperties => partProperties;
         public PropertyObject NoteProperties => noteProperties;
+        public double SelectionStartTime => selStart;
+        public double SelectionEndTime => selEnd;
     }
 
     void OnConfigChnaged()

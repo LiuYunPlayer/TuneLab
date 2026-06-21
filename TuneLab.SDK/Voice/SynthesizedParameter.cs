@@ -12,4 +12,9 @@ public sealed class SynthesizedParameter
     // 各连续段，按时间升序、互不重叠；段内 Points 为 (全局秒, 值) 折线。
     // 空集合 = 整条无值；段间间隙 = NaN 区（绘制断开）。
     public required IReadOnlyList<IReadOnlyList<Point>> Segments { get; init; }
+
+    // 每段的透明度渐变控制点（可选）。每段对应一组 Point，每个 Point 的 X=相对位置(0~1), Y=透明度(0~1)。
+    // 渲染器据此创建 LinearGradientBrush 的多 GradientStop，实现像素级平滑渐变。
+    // null = 整段使用默认透明度 0.25。
+    public IReadOnlyList<IReadOnlyList<Point>>? SegmentOpacityStops { get; init; }
 }

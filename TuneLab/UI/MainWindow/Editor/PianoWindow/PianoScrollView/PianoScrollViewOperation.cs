@@ -196,7 +196,7 @@ internal partial class PianoScrollView
                                                 List<INote> removeNotes = new();
                                                 foreach (var note in selectedNotes)
                                                 {
-                                                    if (note.SynthesizedPhonemes == null)
+                                                    if (note.SynthesizedPhonemes == null || note.SynthesizedPhonemes.IsEmpty())
                                                         continue;
 
                                                     foreach (var phoneme in note.SynthesizedPhonemes)
