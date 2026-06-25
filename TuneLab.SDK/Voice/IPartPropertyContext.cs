@@ -7,7 +7,7 @@ namespace TuneLab.SDK;
 // 只承载"用户改过的稀疏值"——未改过的字段不出现，其默认值由插件自己知道（默认 = 字段不存在）。
 //
 // 多选：`PartProperties` 是**各选中 part 的稀疏快照列表**（单选 = 1 个、无选中 = 空），宿主不替插件擅自合并。
-// 不在乎多选的插件 `context.PartProperties.Merge()`（Foundation 的 PropertyMerge 扩展方法）还原成单个三态快照
+// 不在乎多选的插件 `context.PartProperties.Merge()`（Foundation 的 PropertyObjectExtensions 扩展方法）还原成单个三态快照
 //（同 key 全等给值、不等/缺于部分成员给 Multiple），按单选写法处理；需要逐成员真值的插件直接遍历列表。
 //
 // part 级只依赖 part 自身值（面板内部联动 / 自动化轨随 part 参数显隐），不依赖 note 选择。
