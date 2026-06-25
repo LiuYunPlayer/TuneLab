@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TuneLab.Foundation;
 
@@ -13,16 +14,18 @@ namespace TuneLab.Foundation;
 // 容器型即使部分成员缺该键也按结构合并（缺席当空容器，保住长度/键并集），仅标量缺席整体 Multiple；递归触底。
 public static class PropertyMerge
 {
-    public static PropertyObject Merge(this IReadOnlyList<PropertyObject> snapshots)
+    public static PropertyObject Merge(this IEnumerable<PropertyObject> snapshots)
     {
-        if (snapshots.Count == 0)
+        // 需 Count + 索引器：已是 IReadOnlyList（含 context 属性）直接用、零分配；否则（如 LINQ 链）物化一次。
+        var list = snapshots as IReadOnlyList<PropertyObject> ?? snapshots.ToList();
+        if (list.Count == 0)
             return PropertyObject.Empty;
-        if (snapshots.Count == 1)
-            return snapshots[0];
+        if (list.Count == 1)
+            return list[0];
 
-        var slots = new Slot[snapshots.Count];
+        var slots = new Slot[list.Count];
         for (int i = 0; i < slots.Length; i++)
-            slots[i] = Slot.Of(PropertyValue.Create(snapshots[i]));
+            slots[i] = Slot.Of(PropertyValue.Create(list[i]));
 
         return MergeValues(slots).ToObject(out var merged) ? merged : PropertyObject.Empty;
     }
