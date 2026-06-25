@@ -117,6 +117,7 @@ public class NoteOverlapClampTests
         public IReadOnlyNotifiableProperty<int> Pitch { get; } = new Const<int>(60);
         public IReadOnlyNotifiableProperty<string> Lyric { get; } = new Const<string>("a");
         public IReadOnlyNotifiableProperty<IReadOnlyList<VoicePhoneme>> Phonemes { get; } = new Const<IReadOnlyList<VoicePhoneme>>([]);
+        public bool IsContinuation => false;
         public IReadOnlyNotifiablePropertyObject Properties => null!; // 钳位路径不触及
         public IVoiceNote? Next { get; set; }
         public IVoiceNote? Last { get; set; }

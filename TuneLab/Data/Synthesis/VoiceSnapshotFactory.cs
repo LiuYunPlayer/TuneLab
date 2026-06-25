@@ -42,6 +42,7 @@ internal static class VoiceSnapshotFactory
                 EndTime = note.EndTime.Value,                   // 有效末（去重叠，单声部音频口径；宿主独占音素布局）
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
+                IsContinuation = note.IsContinuation,           // 生效延续（相接链）；宿主独占判据，作稳定标志暴露
                 Phonemes = note.Phonemes.Value,                 // 派生 getter 每次新建列表，无活引用
                 Properties = proxy.Source.Properties.GetInfo(), // 值拷 PropertyObject
             });

@@ -347,13 +347,13 @@ public sealed class TestSession : IVoiceSession
             progress?.Report((double)(n + 1) / notes.Count);
         }
 
-        // —— 音素产出：歌词解析预测（自然放置，无压缩）→ 本地参考布局去重叠 → 按出身归属 ——
-        // 本引擎只声明每个 note 的音素 + 自然几何 + IsLead；去重叠 / 后盖前 / 跨 note 辅音簇压缩 / 钉死覆盖由
-        // 本文件内的参考布局 RefLayout（从宿主显示侧算法照抄、冻结副本）完成。SDK 不提供布局算法（形态演进中、
-        // 不进 ABI），插件按需照抄此实现即可与宿主显示一致；不抄就自由放置、错位非致命。
+        // —— 音素产出：歌词解析预测（自然放置，无压缩）→ 按出身归属 ——
+        // 本引擎只声明每个 note 的音素 + 标称时长 + 权重 + IsLead，按归属 note 键成 map 回报；定位 / 去重叠 / 后盖前 /
+        // 跨 note 辅音簇压缩全交宿主显示侧独占布局（合成音频也不消费音素位置，故本引擎无需自行解析）。需要把标称时长
+        // 解析成真实时序来驱动音频帧的引擎，调 SDK 的 VoicePhonemeLayout.Resolve 即可与宿主显示一致；不调就自由放置、错位非致命。
         //
         // 歌词解析（便于组合测试不同音素形态）：
-        // · "-"（唯一延音符）不产音素；空 / 纯辅音无元音 → 单个 "" 覆盖整组。
+        // · 延续 note（note.IsContinuation）不产音素，上面已跳过；空 / 纯辅音无元音 → 单个 "" 覆盖整组。
         // · 否则按「前置辅音簇(IsLead) + 元音簇(w=1) + 后辅音簇(w=0)」解析（元音字母 = a/e/i/o/u）：
         //     ka→k/a；kas→k/a/s；skat→s,k/a/t（**多前置辅音**，测跨 note 辅音簇）；kalt→k/a/l,t（**多后辅音**）；a→纯元音。
         //   前置辅音各 kLeadIn、从核起点往左累积（IsLead=true）；元音填到组末；后辅音各 kTrailDur 占组末。
@@ -361,18 +361,17 @@ public sealed class TestSession : IVoiceSession
         const double kLeadIn = 0.1;    // 前辅音时长（取较大值便于肉眼观察）
         const double kTrailDur = 0.1;  // 后辅音时长（固定）
         bool IsVowelCh(char c) => "aeiou".IndexOf(char.ToLowerInvariant(c)) >= 0;
-        bool IsContinuation(VoiceNoteSnapshot x) => x.Lyric == "-";
         var predicted = new List<RefLayout.Pred>();
         for (int n = 0; n < notes.Count; n++)
         {
             var note = notes[n];
-            if (IsContinuation(note))
+            if (note.IsContinuation)        // 宿主稳定标志，不再匹配歌词记号
                 continue;
 
             // 音素几何用 note 有效末 EndTime：元音自然铺到组末，后盖前 / 跨 note 压缩交宿主独占布局（RefLayout 仅报时长）。
-            // 延音符乘客须与当前组末**相接**（起点不晚于 groupEnd）才铺过——与前面有空隙的延音符不是乘客，不跨空隙铺。
+            // 延续乘客直接信 IsContinuation——它已是「生效延续」（含相接链回溯，孤儿延音符为 false），故无需再自判相接。
             double groupEnd = note.EndTime;
-            for (int m = n + 1; m < notes.Count && IsContinuation(notes[m]) && notes[m].StartTime <= groupEnd + 1e-6; m++)
+            for (int m = n + 1; m < notes.Count && notes[m].IsContinuation; m++)
                 groupEnd = notes[m].EndTime;
 
             string lyric = note.Lyric ?? "";

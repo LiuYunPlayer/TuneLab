@@ -40,8 +40,8 @@ public sealed class VoiceSnapshot
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out SynthesisAutomationSnapshot automation)
         => AutomationMap.TryGetValue(key, out automation);
 
-    // 音素布局不在 SDK：把钉死音素（VoicePhoneme：时长 / 权重 / IsLead）+ note 几何（StartTime / EndTime /
-    // 邻接 / 歌词）解析为真实时序，是引擎职责。宿主显示侧用一份去重叠算法（核起点=音符头、元音先让、辅音簇等比压、
-    // 有空隙则互不影响）；想与宿主显示完全一致的插件可照抄它作参考实现（见 tests/plugins/V1.Voice），否则自由放置——
-    // 错位非致命。该算法形态仍在演进，故不冻进 SDK ABI；SDK 只保证数据契约稳定。
+    // 音素布局在 SDK：把每 note 的标称音素（VoicePhoneme：时长 / 权重 / IsLead）+ 几何锚点（核起点 / 核填充终点）
+    // 解析为跨 note 去重叠后的真实时序，是 VoicePhonemeLayout.Resolve 这一纯函数。引擎调它即与宿主显示完全一致
+    // （核起点=音符头、元音先让、辅音簇等比压、有空隙则互不影响）；冻结的只是 I/O 形状、压缩体仍可宿主侧演进，
+    // 引擎运行时绑定宿主的这一份故永不漂移。想自管音频摆放的引擎可不调、自由放置——错位非致命。
 }
