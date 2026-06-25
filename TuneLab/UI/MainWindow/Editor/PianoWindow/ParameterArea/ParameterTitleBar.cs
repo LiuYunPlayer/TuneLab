@@ -7,6 +7,7 @@ using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
+using TuneLab.I18N;
 using TuneLab.SDK;
 using TuneLab.Utils;
 
@@ -17,7 +18,8 @@ namespace TuneLab.UI;
 // 参数区标题栏：既是拖拽改高的把手（空白区拖动），也是合成参数回显轨的显隐工具条。
 // 回显轨是 voice 级扁平只读集合，不入分源的底部 tabbar，故显隐按钮收在这条标题栏里（右对齐）。
 // 复用参数栏的小眼睛图标表显隐：眼睛点亮（config 色）= 可见，眼睛暗（灰白）= 隐藏。
-// 手势共存：按在按钮上 = 切换该回显轨显隐（不拖拽）；按在空白区 = 沿用拖拽改高。
+// 左对齐另置一个波形带显隐开关（声波图标 + 文本，图标点亮=展开 / 暗=收起），与回显轨显隐相互独立。
+// 手势共存：按在按钮上 = 切换该显隐（不拖拽）；按在空白区 = 沿用拖拽改高。
 internal class ParameterTitleBar : MovableComponent
 {
     public new event Action<double>? Moved;
@@ -30,6 +32,10 @@ internal class ParameterTitleBar : MovableComponent
         IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs { get; }
         bool IsReadbackVisible(AutomationKey key);
         void SetReadbackVisible(AutomationKey key, bool isVisible);
+        // 波形带显隐（左对齐开关）：与回显轨显隐相互独立。
+        IActionEvent WaveformVisibleChanged { get; }
+        bool IsWaveformVisible { get; }
+        void SetWaveformVisible(bool isVisible);
     }
 
     IMidiPart? Part => mDependency.PartHolder.Value;
@@ -40,6 +46,7 @@ internal class ParameterTitleBar : MovableComponent
         base.Moved.Subscribe(p => Moved?.Invoke(p.Y));
 
         mDependency.ReadbackVisibilityChanged += InvalidateVisual;
+        mDependency.WaveformVisibleChanged.Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.Modified.Subscribe(InvalidateVisual, s);
         // 换声源 → 回显轨声明随之变（按钮组要立即重绘，否则要等鼠标移上来才刷新）。
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(InvalidateVisual, s);
@@ -59,6 +66,15 @@ internal class ParameterTitleBar : MovableComponent
     public override void Render(DrawingContext context)
     {
         context.FillRectangle(new Color(255, 51, 51, 64).ToBrush(), this.Rect());
+
+        // 左对齐：波形带显隐开关。图标点亮（亮白）= 展开、暗（灰白）= 收起；文字恒亮（与右侧回显轨 chip 同口径）。
+        {
+            var toggle = WaveformToggle();
+            var iconColor = mDependency.IsWaveformVisible ? Style.WHITE : EyeOffColor;
+            var icon = GetWaveformIcon(iconColor);
+            icon.Draw(context, new Rect(icon.Size), toggle.IconRect);
+            context.DrawString(toggle.Text, new Point(toggle.TextX, Bounds.Height / 2), Style.LIGHT_WHITE.ToBrush(), FontSize, Alignment.LeftCenter);
+        }
 
         var (labels, chips) = Layout();
 
@@ -84,6 +100,14 @@ internal class ParameterTitleBar : MovableComponent
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
+        if (e.MouseButtonType == MouseButtonType.PrimaryButton && WaveformToggle().HitRect.Contains(e.Position))
+        {
+            // 波形开关命中：切换波形带显隐、吞掉本次按下（不进入拖拽）。
+            mPressOnChip = true;
+            mDependency.SetWaveformVisible(!mDependency.IsWaveformVisible);
+            return;
+        }
+
         if (e.MouseButtonType == MouseButtonType.PrimaryButton && TryHitChip(e.Position, out var key))
         {
             // 按钮命中：切换显隐、吞掉本次按下（不进入拖拽）。
@@ -196,6 +220,29 @@ internal class ParameterTitleBar : MovableComponent
         return (labels, chips);
     }
 
+    // 左对齐波形开关的图标/文本/命中区（声波图标 + "Waveform" 文本，命中区含文本宽度并左右内缩）。
+    (Rect IconRect, double TextX, string Text, Rect HitRect) WaveformToggle()
+    {
+        string text = "Waveform".Tr(TC.Document);
+        double iconTop = (Bounds.Height - WaveformIconSize) / 2;
+        var iconRect = new Rect(LeftMargin, iconTop, WaveformIconSize, WaveformIconSize);
+        double textX = LeftMargin + WaveformIconSize + EyeTextGap;
+        double width = WaveformIconSize + EyeTextGap + MeasureTextWidth(text);
+        var hitRect = new Rect(LeftMargin, 0, width, Bounds.Height).Inflate(new Thickness(ChipHitPadding, 0));
+        return (iconRect, textX, text, hitRect);
+    }
+
+    IImage GetWaveformIcon(Color color)
+    {
+        uint key = color.ToUInt32();
+        if (!mWaveformIconCache.TryGetValue(key, out var image))
+        {
+            image = GUI.Assets.Audio.GetImage(color);
+            mWaveformIconCache[key] = image;
+        }
+        return image;
+    }
+
     IImage GetEyeImage(Color color)
     {
         uint key = color.ToUInt32();
@@ -244,6 +291,8 @@ internal class ParameterTitleBar : MovableComponent
     const double LabelGap = 8;
     const double DividerGap = 10;
     const double RightMargin = 10;
+    const double LeftMargin = 10;
+    const double WaveformIconSize = 14;
     const double ChipHitPadding = 6;
     const string DividerText = "|";
 
@@ -254,6 +303,7 @@ internal class ParameterTitleBar : MovableComponent
 
     bool mPressOnChip;
     readonly Dictionary<uint, IImage> mEyeCache = new();
+    readonly Dictionary<uint, IImage> mWaveformIconCache = new();
     readonly IDependency mDependency;
     readonly DisposableManager s = new();
 }

@@ -41,6 +41,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         AutomationRenderer AutomationRenderer { get; }
         double WaveformBottom { get; }
         IActionEvent WaveformBottomChanged { get; }
+        bool IsWaveformVisible { get; }
+        IActionEvent WaveformVisibleChanged { get; }
     }
 
     public bool CanPaste => mDependency.PianoTool.Value switch 
@@ -89,6 +91,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartHolder.When(p => p.TempoManager.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.TimeSignatureManager.Modified).Subscribe(InvalidateVisual, s);
         mDependency.WaveformBottomChanged.Subscribe(InvalidateVisual, s);
+        mDependency.WaveformVisibleChanged.Subscribe(Update, s);
         mDependency.PianoTool.Modified.Subscribe(InvalidateVisual, s);
         TickAxis.AxisChanged += Update;
         PitchAxis.AxisChanged += Update;
@@ -663,6 +666,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
     void DrawWaveform(DrawingContext context)
     {
         if (Part == null)
+            return;
+
+        if (!mDependency.IsWaveformVisible)
             return;
 
         double height = WAVEFORM_HEIGHT;

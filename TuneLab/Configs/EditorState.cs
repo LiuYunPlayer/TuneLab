@@ -21,6 +21,7 @@ internal static class EditorState
     public static NotifiableProperty<double> ParameterPanelHeight { get; } = new(Defaults.ParameterPanelHeight);
     public static NotifiableProperty<double> ParameterPanelHeightNormal { get; } = new(Defaults.ParameterPanelHeightNormal);
     public static NotifiableProperty<double> ParameterPanelHeightMaximized { get; } = new(Defaults.ParameterPanelHeightMaximized);
+    public static NotifiableProperty<bool> WaveformVisible { get; } = new(Defaults.WaveformVisible);
 
     public static void Init(string path)
     {
@@ -48,6 +49,7 @@ internal static class EditorState
         ParameterPanelHeight.Value = stateFile.ParameterPanelHeight;
         ParameterPanelHeightNormal.Value = stateFile.ParameterPanelHeightNormal;
         ParameterPanelHeightMaximized.Value = stateFile.ParameterPanelHeightMaximized;
+        WaveformVisible.Value = stateFile.WaveformVisible;
         if (stateFile.ParameterPanelHeight != Defaults.ParameterPanelHeight &&
             stateFile.ParameterPanelHeightNormal == Defaults.ParameterPanelHeightNormal &&
             stateFile.ParameterPanelHeightMaximized == Defaults.ParameterPanelHeightMaximized)
@@ -72,6 +74,7 @@ internal static class EditorState
                 ParameterPanelHeight = ParameterPanelHeight,
                 ParameterPanelHeightNormal = ParameterPanelHeightNormal,
                 ParameterPanelHeightMaximized = ParameterPanelHeightMaximized,
+                WaveformVisible = WaveformVisible,
             }, JsonSerializerOptions);
 
             var folder = Path.GetDirectoryName(path);

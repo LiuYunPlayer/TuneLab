@@ -17,4 +17,5 @@ internal class EditorStateFile
     public double ParameterPanelHeight { get; set; } = 200;
     public double ParameterPanelHeightNormal { get; set; } = 200;
     public double ParameterPanelHeightMaximized { get; set; } = 200;
+    public bool WaveformVisible { get; set; } = true;
 }

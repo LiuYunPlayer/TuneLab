@@ -367,6 +367,12 @@ internal static class INoteExtension
             }));
     }
 
+    // 清除锁定（钉死）音素：清空后该 note 回到合成音素口径（与改歌词 / 改发音时的清空同源）。
+    public static void ClearLockedPhonemes(this INote note)
+    {
+        note.Phonemes.Clear();
+    }
+
     public static string? FinalPronunciation(this INote note)
     {
         if (!string.IsNullOrEmpty(note.Pronunciation.Value))

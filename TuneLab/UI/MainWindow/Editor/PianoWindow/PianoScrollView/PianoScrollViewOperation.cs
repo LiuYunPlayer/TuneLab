@@ -218,6 +218,27 @@ internal partial class PianoScrollView
                                             });
                                             menu.Items.Add(menuItem);
                                         }
+                                        // 仅当选中音符里有钉死（锁定）音素才提供「清除锁定音素」——清空后回到合成音素口径。
+                                        if (Part.Notes.AllSelectedItems().Any(n => !n.Phonemes.IsEmpty()))
+                                        {
+                                            var menuItem = new MenuItem().SetName("Clear Locked Phonemes".Tr(TC.Menu)).SetAction(() =>
+                                            {
+                                                bool changed = false;
+                                                Part.BeginMergeDirty();
+                                                foreach (var selectedNote in Part.Notes.AllSelectedItems())
+                                                {
+                                                    if (selectedNote.Phonemes.IsEmpty())
+                                                        continue;
+
+                                                    selectedNote.ClearLockedPhonemes();
+                                                    changed = true;
+                                                }
+                                                Part.EndMergeDirty();
+                                                if (changed)
+                                                    Part.Commit();
+                                            });
+                                            menu.Items.Add(menuItem);
+                                        }
 
                                         menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
@@ -1050,6 +1071,10 @@ internal partial class PianoScrollView
             default:
                 break;
         }
+
+        // 波形带收起时不绘制、也不暴露任何音素/note 边界拖拽热区。
+        if (!mDependency.IsWaveformVisible)
+            return;
 
         items.Add(new WaveformBackItem(this));
 

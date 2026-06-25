@@ -22,6 +22,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public event Action? VisibleAutomationChanged;
     public event Action? ReadbackVisibilityChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
+    public IActionEvent WaveformVisibleChanged => mWaveformVisibleChanged;
+    public bool IsWaveformVisible => EditorState.WaveformVisible.Value;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
     public IHolder<IMidiPart> PartHolder => mPartHolder;
@@ -193,6 +195,15 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
     }
 
+    public void SetWaveformVisible(bool isVisible)
+    {
+        if (EditorState.WaveformVisible.Value == isVisible)
+            return;
+
+        EditorState.WaveformVisible.Value = isVisible;
+        mWaveformVisibleChanged.Invoke();
+    }
+
     public bool IsReadbackVisible(AutomationKey key) => mVisibleReadbacks.Contains(key);
 
     public void SetReadbackVisible(AutomationKey key, bool isVisible)
@@ -357,6 +368,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     static readonly OrderedMap<AutomationKey, AutomationConfigEntry> sEmptyReadbackConfigs = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
+    readonly ActionEvent mWaveformVisibleChanged = new();
     readonly DisposableManager s = new();
 
     readonly Quantization mQuantization;

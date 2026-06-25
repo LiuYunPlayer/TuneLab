@@ -137,6 +137,7 @@
 "Untitled Project" = "未命名工程"
 "Part" = "片段"
 "Track" = "轨道"
+"Waveform" = "波形"
 
 [Menu]
 "File" = "文件"
@@ -185,6 +186,7 @@
 "Export Audio" = "导出音频"
 
 "Split by Phonemes" = "按音素拆分"
+"Clear Locked Phonemes" = "清除锁定音素"
 "Octave Up" = "升八度"
 "Octave Down" = "降八度"
 "Move Lyrics Forward" = "由此前置歌词"
