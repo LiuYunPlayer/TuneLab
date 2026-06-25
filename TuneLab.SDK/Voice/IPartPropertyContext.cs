@@ -7,9 +7,9 @@ namespace TuneLab.SDK;
 // 只承载"用户改过的稀疏值"——未改过的字段不出现，其默认值由插件自己知道（默认 = 字段不存在）。
 //
 // 多选：属性以**各选中成员的稀疏快照列表**注入（单选 = 1 个元素，无选中 = 空列表），宿主不替插件擅自合并。
-// 不在乎多选的插件直接 `PropertyMerge.Merge(context.XxxProperties)` 还原成单个三态快照（同 key 全等给值、
-// 不等给 Multiple、缺于部分成员给 Multiple），即可按单选写法处理；需要逐成员真值（如把不等长数组的 seed
-// 合成对、按各成员实际值算条件 config）的插件则直接遍历列表，避免合并丢失的真值。
+// 不在乎多选的插件直接 `context.XxxProperties.Merge()`（Foundation 的 PropertyMerge 扩展方法）还原成单个
+// 三态快照（同 key 全等给值、不等给 Multiple、缺于部分成员给 Multiple），即可按单选写法处理；需要逐成员真值
+// （如把不等长数组的 seed 合成对、按各成员实际值算条件 config）的插件则直接遍历列表，避免合并丢失的真值。
 //
 // 分两级、单向依赖：
 //   part 级（IPartPropertyContext）—— 输入只有 part 自身稀疏值，即面板内部联动（某控件影响同面板另一控件）；

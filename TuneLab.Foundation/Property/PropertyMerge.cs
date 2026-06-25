@@ -2,9 +2,9 @@ using System.Collections.Generic;
 
 namespace TuneLab.Foundation;
 
-// 把多个属性快照合成一个三态快照的公共工具——多选属性 config 求值的便利路径：
-// 不在乎多选的插件 `PropertyMerge.Merge(context.NoteProperties)` 即把列表还原成单个三态 PropertyObject，
-// 按单选写法处理；需要逐成员真值的插件直接遍历列表，不调本helper。
+// 把多个属性快照合成一个三态快照的公共工具——多选属性 config 求值的便利路径。
+// 扩展方法形态：在 context 属性上直接 `context.NoteProperties.Merge()`（也可静态 `PropertyMerge.Merge(list)`）。
+// 不在乎多选的插件调它把列表还原成单个三态 PropertyObject、按单选写法处理；需要逐成员真值的插件直接遍历列表、不调本 helper。
 //
 // 对齐规则（随身份模型，与宿主 live 绑定侧的 MultipleDataPropertyObject / MultipleDataPropertyArray 一致）：
 //   标量——各成员同值给该值、不等给 Multiple；
@@ -13,7 +13,7 @@ namespace TuneLab.Foundation;
 // 容器型即使部分成员缺该键也按结构合并（缺席当空容器，保住长度/键并集），仅标量缺席整体 Multiple；递归触底。
 public static class PropertyMerge
 {
-    public static PropertyObject Merge(IReadOnlyList<PropertyObject> snapshots)
+    public static PropertyObject Merge(this IReadOnlyList<PropertyObject> snapshots)
     {
         if (snapshots.Count == 0)
             return PropertyObject.Empty;

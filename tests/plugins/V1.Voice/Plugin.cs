@@ -38,7 +38,7 @@ public sealed class TestVoiceEngine : IVoiceEngine
     {
         // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
-        if (PropertyMerge.Merge(context.PartProperties).GetBool("growl_enabled", true))
+        if (context.PartProperties.Merge().GetBool("growl_enabled", true))
         {
             foreach (var kvp in mGrowlConfigs)
                 map.Add(kvp.Key, kvp.Value);

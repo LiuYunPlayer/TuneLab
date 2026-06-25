@@ -35,7 +35,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         if (context.VoiceId != "suite-conditional")
             return mSuiteAutomations;
 
-        var selected = PropertyMerge.Merge(context.PartProperties).GetValue("speakers", PropertyObject.Empty);
+        var selected = context.PartProperties.Merge().GetValue("speakers", PropertyObject.Empty);
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
         foreach (var kvp in selected.Map)
             map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
@@ -51,7 +51,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
 
-        var selected = PropertyMerge.Merge(context.PartProperties).GetValue("speakers", PropertyObject.Empty);
+        var selected = context.PartProperties.Merge().GetValue("speakers", PropertyObject.Empty);
         var speakerProps = new OrderedMap<PropertyKey, IControllerConfig>();
         foreach (var kvp in selected.Map)
             speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
@@ -83,7 +83,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     static ObjectConfig ConditionalNoteConfig(INotePropertyContext context)
     {
         // 多选：用 helper 合并成单个三态快照（不在乎逐 note 真值，按单选写法处理）。
-        var note = PropertyMerge.Merge(context.NoteProperties);
+        var note = context.NoteProperties.Merge();
         var map = new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
@@ -96,7 +96,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         map.Add("pick", new ComboBoxConfig { Options = options.Select(o => (ComboBoxOption)o).ToList() });
 
         // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
-        if (PropertyMerge.Merge(context.PartProperties).GetBool("fromPart", false))
+        if (context.PartProperties.Merge().GetBool("fromPart", false))
             map.Add("partGain", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100 });
 
         // ① mode=Advanced → 多出字段（显隐 / 换控件）
