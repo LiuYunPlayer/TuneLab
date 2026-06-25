@@ -9,6 +9,10 @@ using NoteInfo = TuneLab.SDK.NoteInfo;
 
 namespace TuneLab.Data;
 
+// 宿主显示侧的解析后音素（绝对秒、已跨 note 去重叠后的"落点"）：供音素带绘制 / 命中测试 / 拖拽 / 拆分消费。
+// 与 SDK 的 SynthesisPhoneme（音素描述符契约，只报标称时长）区分——位置由宿主按时长模型派生到此。
+internal readonly record struct DisplayPhoneme(string Symbol, double StartTime, double EndTime, double StretchWeight, bool IsLead);
+
 // 宿主业务层 note。不直接实现 SDK 的 ILiveNote——插件经会话级 context 的 note 代理
 // 订阅（中间层隔离）；本接口只服务宿主自身（编辑/UI/序列化）。
 internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote>
@@ -23,138 +27,287 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     IDataProperty<string> Pronunciation { get; }
     DataPropertyObject Properties { get; }
     IDataObjectList<IPhoneme> Phonemes { get; }
-    SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
+    SynthesisPhoneme[]? SynthesizedPhonemes { get; set; }
     IReadOnlyCollection<string> Pronunciations { get; }
 
     double StartTime => Part.TempoManager.GetTime(this.GlobalStartPos());
     double EndTime => Part.TempoManager.GetTime(this.GlobalEndPos());
 
-    // 用户钉死音素的显示形（绝对秒时间线，与合成产物同一时间系），供钢琴窗音素带显示/编辑。
-    // 与喂给插件的快照（SynthesisNoteProxy.Phonemes）共用 EffectivePinnedPhonemeTimes，
-    // 保证显示与合成对同一份钉死数据的解释一致。
-    IReadOnlyList<SynthesizedPhoneme> PinnedPhonemes
+    // 音素带显示 / 编辑的单一口径（绝对秒，与合成产物同一时间系，已跨 note 去重叠）：
+    // 固定音素用钉死几何，合成音素用引擎回报的绝对位置；**两者都进同一个 PhonemeLayout 推挤窗口**。
+    // 防御性——清除合成音素的责任虽交给插件，但宿主显示不假设插件守约：即便插件未及时清除 / 未自行去重叠
+    // 合成音素，本算法也把相接 / 重叠的相邻音素去重叠（无重叠时 PhonemeLayout 为 no-op，故守约插件显示不变）。
+    // 无内容（合成前 / 乘客被铺过 / 空 note）返回空。
+    IReadOnlyList<DisplayPhoneme> DisplayPhonemes
     {
         get
         {
-            var times = EffectivePinnedPhonemeTimes();
-            double start = StartTime;
-            var list = new SynthesizedPhoneme[times.Count];
-            for (int i = 0; i < times.Count; i++)
-                list[i] = new SynthesizedPhoneme()
-                {
-                    Symbol = Phonemes[i].Symbol.Value,
-                    StartTime = start + times[i].Start,
-                    EndTime = start + times[i].End,
-                };
+            bool pinned = !Phonemes.IsEmpty();
+            var synth = SynthesizedPhonemes;
+            int n = pinned ? Phonemes.Count : (synth?.Length ?? 0);
+            if (n == 0)
+                return [];
+
+            // 显示门控：本 note 的最终音素布局依赖相接邻居的音素几何（跨 note 推挤）。若某侧有「相接、非乘客、却尚无
+            // 音素数据」的邻居（正在合成 / 待合成 → 留白），本 note 的边界无法确定，强行按现状铺会在邻居数据到达后跳变，
+            // 故本 note 一并留白、待邻居音素就绪。相接才依赖——有空隙 / 到 part 末尾则各自独立、照常显示。
+            if (PrevNeighborUnresolved() || NextNeighborUnresolved())
+                return [];
+
+            var segs = new List<PhonemeLayout.Segment>();
+            var prev = PrevContentNeighbor();
+            var next = NextContentNeighbor();
+            if (prev != null)
+                AppendSegments(segs, prev, 0);
+            int baseIndex = segs.Count;
+            AppendSegments(segs, this, 1);
+            if (next != null)
+                AppendSegments(segs, next, 2);
+
+            var resolved = PhonemeLayout.Resolve(segs);
+            var list = new DisplayPhoneme[n];
+            for (int i = 0; i < n; i++)
+            {
+                var (start, end) = resolved[baseIndex + i];
+                list[i] = pinned
+                    ? new DisplayPhoneme(Phonemes[i].Symbol.Value, start, end, Phonemes[i].StretchWeight.Value, Phonemes[i].IsLead.Value)
+                    : new DisplayPhoneme(synth![i].Symbol, start, end, synth[i].StretchWeight, synth[i].IsLead);
+            }
             return list;
         }
     }
 
-    private double PhonemeStartTime => Phonemes.IsEmpty() ? 0 : Phonemes.ConstFirst().StartTime.Value;
-    private double PhonemeEndTime => Phonemes.IsEmpty() ? 0 : Phonemes.ConstLast().EndTime.Value;
-    // 越界音素的显示压缩比：负向引导音素被前一个 note 占用的空间挤压时按比例缩进。
-    // 邻居取 part 内相邻 note（足够远时比例自然退化为 1，行为与旧"段内邻居"基本等价）。
-    public double StartPhonemeRatio
+    // note 是否承载音素内容（钉死或合成）。无内容的 note（延音符 / 空 note）在音素时间线上透明：
+    // 被前一个 note 的音素铺设跳过、盖过去。要静音由插件自行为该 note 返回静止音素（如 sp），
+    // 一旦有内容即不再透明。宿主据此判定，不认任何具体歌词记号。
+    private static bool HasPhonemeContent(INote x)
     {
-        get
+        return !x.Phonemes.IsEmpty() || (x.SynthesizedPhonemes != null && !x.SynthesizedPhonemes.IsEmpty());
+    }
+
+    // 本 note 钉死音素的「自然末」绝对秒（元音前向铺过乘客 melisma，不封顶、不压缩）：
+    // 有延音符乘客时铺到**最后一个乘客**的末；无乘客时 = own 满末。own 尾用 **满末**（note 实际末，非去重叠后的有效末）——
+    // 音素几何一律用 note 满时长 / 满末，去重叠（音频单声部截断 / 暗色显示 / 跨 note 音素压缩）按用途各自施加：
+    // 后盖前的封顶 / 压缩交全局布局算法（PhonemeLayout）按相邻钉死 note 的满几何统一解析。
+    // （若此处用有效末，note 级重叠时 own 尾被钳到下一 note 起点，尾辅音被粘在该处、与下一 note 前辅音恒重叠，
+    //  元音只吸收这恒定一点点就到顶、无法随 note 靠近渐进压缩——故必须用满末，让 PhonemeLayout 见到真实增长的重叠。）
+    //
+    // 乘客判据 = 「无归属自己的音素」AND「是延音符（歌词 "-"）」：
+    // · 合成后以 origin（HasPhonemeContent）为权威——有自己音素即非乘客；
+    // · 合成前邻居还没音素，单看"无音素"会把还没合成的真音节误当乘客、元音越铺进去、合成后又缩回（跳动），
+    //   故再用唯一延音符约定 "-" 预测：真歌词 note 即便暂无音素也不被铺过、元音停在其起点（合成后落到其引导辅音前，仅微调）。
+    private double ForwardFillEnd()
+    {
+        double fillEnd = EndTime;   // 无乘客时 = own 满末（去重叠归 PhonemeLayout）
+        INote? next = Next;
+        // 乘客须与当前内容**相接**（next 起点不晚于已铺到的 fillEnd）才被铺过：延音符与前面有空隙时不是乘客，
+        // 元音不跨空隙铺过去（否则前音符音素会越过静音一直显示到脱离的延音符末）。
+        while (next != null && !HasPhonemeContent(next) && next.IsContinuation() && next.StartTime <= fillEnd + 1e-6)
         {
-            if (Last == null)
-                return 1;
+            // 有乘客：容纳音素的长度由**最后一个相接乘客**（乘客组末）决定，而非自己的结尾。
+            // 故覆盖（非与 own 末取 max）——own 满末可能因重叠长过乘客组（note 越过较短的延音符），
+            // 此时仍应铺到乘客组末为止，不延到自己更晚的满末。
+            fillEnd = next.EndTime;
+            next = next.Next;
+        }
+        return fillEnd;
+    }
 
-            double all = -PhonemeStartTime;
-            if (all <= 0)
-                return 1;
+    // 本 note 钉死音素的自然绝对秒边界（n+1 个，未经跨 note 后盖前压缩；同 note 内相邻音素末==下一个起）。
+    // 由「时长 + IsLead」累积派生（位置不存）：
+    // · 前置分界线（核起点）= 音符头；IsLead 音素从分界线往左累积各自时长（可任意加长、向 note 前越界）。
+    // · 核 + 后辅音往右：辅音(w=0)用固定时长，核(w>0)填充剩余空间（= fillEnd−分界线 − Σ后段辅音，按权重分摊）。
+    //   故核吸收 note 伸缩；末音素恒落在 fillEnd（满末 + melisma）。
+    // overrideIdx≥0 时该音素改用 overrideDur（拖拽反解用，不改数据）；核的时长恒为填充派生、override 对其无效。
+    private double[] NaturalAbsoluteBoundaries(int overrideIdx = -1, double overrideDur = 0)
+        => NaturalBoundaries(Phonemes.Count,
+            k => k == overrideIdx ? overrideDur : Phonemes[k].Duration.Value,
+            k => Phonemes[k].StretchWeight.Value,
+            k => Phonemes[k].IsLead.Value,
+            StartTime, ForwardFillEnd());
 
-            return Math.Min(1, (StartTime - Last.StartTime) / all);
+    // 合成音素的自然绝对秒边界：与钉死同一派生（核起点=音符头、前置往左累积、核填到 fillEnd），但取引擎回报的
+    // 时长 / 权重 / IsLead。关键——**不**直接用引擎回报的绝对位置（那是已去重叠压缩的产物；喂给布局会让
+    // 「内容末 vs 后 note 核起点」的相接判据把"已压缩到核前"误判成"有空隙"而早返回、跳过压缩）。改用自然几何后，
+    // 合成 note 与钉死 note 在跨 note 推挤里行为一致：拖邻居前辅音时本 note 元音同步压缩、所见即合成后所得。
+    private double[] SynthNaturalBoundaries(SynthesisPhoneme[] synth)
+        => NaturalBoundaries(synth.Length,
+            k => synth[k].Duration,
+            k => synth[k].StretchWeight,
+            k => synth[k].IsLead,
+            StartTime, ForwardFillEnd());
+
+    // 由「时长 + 权重 + IsLead」派生自然绝对秒边界（n+1 个，未经跨 note 压缩）：前置音素(IsLead)从核起点(=noteStart)
+    // 往左累积各自时长；核(w>0)填充剩余空间到 fillEnd（按权重分摊）；后辅音(w=0)用固定时长。位置不存、纯派生。
+    private static double[] NaturalBoundaries(int n, Func<int, double> dur, Func<int, double> weight, Func<int, bool> isLead, double noteStart, double fillEnd)
+    {
+        var pos = new double[n + 1];
+        if (n == 0)
+            return pos;
+
+        int L = 0;
+        while (L < n && isLead(L)) L++;   // 前置音素前缀
+
+        pos[L] = noteStart;
+        for (int k = L - 1; k >= 0; k--) pos[k] = pos[k + 1] - Math.Max(0, dur(k));
+
+        double rigidAfter = 0, elasticWeight = 0;
+        for (int k = L; k < n; k++)
+        {
+            if (weight(k) > 0) elasticWeight += weight(k);
+            else rigidAfter += Math.Max(0, dur(k));
+        }
+        double elasticSpace = Math.Max(0, (fillEnd - noteStart) - rigidAfter);
+        double p = noteStart;
+        for (int k = L; k < n; k++)
+        {
+            double w = weight(k);
+            double len = w > 0 ? (elasticWeight > 0 ? elasticSpace * (w / elasticWeight) : 0) : Math.Max(0, dur(k));
+            pos[k] = p;
+            p += len;
+            pos[k + 1] = p;
+        }
+        return pos;
+    }
+
+    // 最近的、带音素内容（钉死或合成）的相邻 note（跨过乘客；落在非乘客的自由/空 note 或边界则无邻居）。
+    // 用于全局布局的 3-note 窗口：相邻 note 间的去重叠相互独立，只需直接内容邻居即可正确解析本 note 的两条边界。
+    // 含合成邻居（非仅钉死）——显示侧防御性去重叠须把合成音素也当作推挤参与方。
+    private INote? PrevContentNeighbor()
+    {
+        INote? p = Last;
+        while (p != null && !HasPhonemeContent(p) && p.IsContinuation())
+            p = p.Last;
+        return p != null && HasPhonemeContent(p) ? p : null;
+    }
+
+    private INote? NextContentNeighbor()
+    {
+        INote? p = Next;
+        while (p != null && !HasPhonemeContent(p) && p.IsContinuation())
+            p = p.Next;
+        return p != null && HasPhonemeContent(p) ? p : null;
+    }
+
+    // 显示门控判据（见 DisplayPhonemes）：某侧是否存在「相接、非乘客、却无音素内容」的邻居 → 本 note 布局未决。
+    // 向前/向后跨过相接的延音符乘客（透明，由本 note 元音铺过），落在中断点 note：
+    // 内容 note → 已决；不相接 / 末尾 → 无依赖；非乘客且无音素且相接 → 未决（邻居待合成，本 note 须等其音素）。
+    private bool NextNeighborUnresolved()
+    {
+        double fillEnd = EndTime;   // 本 note 满末（向前铺过相接乘客，同 ForwardFillEnd 语义）
+        INote? next = Next;
+        while (next != null && !HasPhonemeContent(next) && next.IsContinuation() && next.StartTime <= fillEnd + 1e-6)
+        {
+            fillEnd = next.EndTime;
+            next = next.Next;
+        }
+        return next != null && !HasPhonemeContent(next) && next.StartTime <= fillEnd + 1e-6;
+    }
+
+    private bool PrevNeighborUnresolved()
+    {
+        double reachStart = StartTime;
+        INote? prev = Last;
+        while (prev != null && !HasPhonemeContent(prev) && prev.IsContinuation() && prev.EndTime >= reachStart - 1e-6)
+        {
+            reachStart = prev.StartTime;
+            prev = prev.Last;
+        }
+        return prev != null && !HasPhonemeContent(prev) && prev.EndTime >= reachStart - 1e-6;
+    }
+
+    // 把一个 note 的音素铺成全局布局段（note 分组序号 id；自然几何，绝对秒；弹性 = 权重）。
+    // 钉死 note 与合成 note 都用**自然几何**派生（核填到 fillEnd）——合成不用引擎回报的已压缩绝对位置，
+    // 否则相接判据会误判（见 SynthNaturalBoundaries）。两者同一布局，跨 note 推挤行为一致。
+    // overrideIdx≥0 仅对本 note 的钉死音素生效（拖拽反解时改 this 的某音素时长）。
+    private static void AppendSegments(List<PhonemeLayout.Segment> segs, INote note, int id, int overrideIdx = -1, double overrideDur = 0)
+    {
+        if (!note.Phonemes.IsEmpty())
+        {
+            var bound = note.NaturalAbsoluteBoundaries(overrideIdx, overrideDur);
+            for (int k = 0; k < note.Phonemes.Count; k++)
+                segs.Add(new PhonemeLayout.Segment(id, note.Phonemes[k].StretchWeight.Value, bound[k], bound[k + 1]));
+        }
+        else if (note.SynthesizedPhonemes is { } synth && synth.Length > 0)
+        {
+            var bound = note.SynthNaturalBoundaries(synth);
+            for (int k = 0; k < synth.Length; k++)
+                segs.Add(new PhonemeLayout.Segment(id, synth[k].StretchWeight, bound[k], bound[k + 1]));
         }
     }
 
-    // 正向音素时间线的终点边界（绝对秒）：默认到 note 终点；下一 note 占用时收到其首音素起点
-    // （限制在本 note 区间内），与 StartPhonemeRatio 的负向越界压缩对称。
-    private double PhonemeEndBoundary
-    {
-        get
-        {
-            double end = EndTime;
-            if (Next != null)
-                end = (Next.Phonemes.IsEmpty() ?
-                    (Next.SynthesizedPhonemes == null || Next.SynthesizedPhonemes.IsEmpty() ? Next.StartTime : Next.SynthesizedPhonemes.ConstFirst().StartTime) :
-                    Next.PhonemeStartTime + Next.StartTime).Limit(StartTime, EndTime);
-            return end;
-        }
-    }
-
-    // 钉死音素的 effective note 相对时间（秒），与 Phonemes 同序。单一真源：显示与合成快照共用。
-    // 正向（note 内）余量按 StretchWeight 重分配——new_dᵢ = dᵢ + Δ×(wᵢ/Σwⱼ)，辅音 w=0、元音 w=1
-    // 则 note 伸缩量全进元音，末音素恰好落在正向终点边界；Σw≤0（旧工程缺省 / 未设权重）退化为
-    // 均匀缩放（与旧行为一致，零回归）。负向引导音素按 StartPhonemeRatio 压缩。
-    // 单调钳制：极端缩短（note 短于辅音总长）时防止边界反相。
-    public IReadOnlyList<(double Start, double End)> EffectivePinnedPhonemeTimes()
+    // 本 note 钉死音素的 effective 相对秒边界（拖拽反解 / EffectivePinnedPhonemeTimes 用）。3-note 窗口
+    // （前/后最近**有内容**邻居 + 本，含合成邻居）喂全局两阶布局（PhonemeLayout）：元音先让、辅音簇等比压
+    // （含 kas+bus 跨 note 辅音簇）。相邻 note 间边界相互独立，故 3-note 窗口足以正确解析本 note 两条边界。
+    // overrideIdx≥0：用 overrideDur 代替本 note 该音素时长（拖拽反解用，不改数据）。
+    private (double Start, double End)[] ResolvedRelTimes(int overrideIdx, double overrideDur)
     {
         int n = Phonemes.Count;
-        if (n == 0)
-            return Array.Empty<(double, double)>();
+        var segs = new List<PhonemeLayout.Segment>();
+        var prev = PrevContentNeighbor();
+        var next = NextContentNeighbor();
+        if (prev != null)
+            AppendSegments(segs, prev, 0);
+        int baseIndex = segs.Count;   // 本 note 段在 segs 中的起点
+        AppendSegments(segs, this, 1, overrideIdx, overrideDur);
+        if (next != null)
+            AppendSegments(segs, next, 2);
 
-        double startRatio = StartPhonemeRatio;
-        double available = PhonemeEndBoundary - StartTime;   // 正向预算（秒）
-        double nominalSpan = PhonemeEndTime;                 // 正向 nominal 总跨度
-        double delta = available - nominalSpan;
-
-        double sumW = 0;
-        for (int i = 0; i < n; i++) sumW += Phonemes[i].Weight.Value;
-        bool weighted = sumW > 0;
-        double uniform = nominalSpan > 0 ? available / nominalSpan : 1;
-
-        // n+1 个边界：b[0]=首音素起点，b[k]=音素 k-1 终点（=音素 k 起点，契约：音素连续）。
-        var eff = new double[n + 1];
-        double weightBefore = 0;   // 边界 k 之前累计权重 = Σ w[0..k-1]
-        for (int k = 0; k <= n; k++)
-        {
-            double t = k == 0 ? Phonemes[0].StartTime.Value : Phonemes[k - 1].EndTime.Value;
-            double mapped = t <= 0
-                ? t * startRatio
-                : (weighted ? t + delta * (weightBefore / sumW) : t * uniform);
-            eff[k] = k == 0 ? mapped : Math.Max(mapped, eff[k - 1]);
-            if (k < n) weightBefore += Phonemes[k].Weight.Value;
-        }
-
+        var resolved = PhonemeLayout.Resolve(segs);
+        double start = StartTime;
         var result = new (double, double)[n];
-        for (int i = 0; i < n; i++) result[i] = (eff[i], eff[i + 1]);
+        for (int i = 0; i < n; i++)
+            result[i] = (resolved[baseIndex + i].Start - start, resolved[baseIndex + i].End - start);
         return result;
     }
 
-    // EffectivePinnedPhonemeTimes 的逆：把拖拽得到的 effective note 相对时间反解为应写回的
-    // nominal 偏移。boundaryIndex 为被拖边界（音素 boundaryIndex-1 终点 / 音素 boundaryIndex 起点，
-    // ==Count 表示末音素尾）。正向逆为线性平移、负向逆为按比例还原。
-    public double NominalPhonemeTime(int boundaryIndex, double effRel)
+    public IReadOnlyList<(double Start, double End)> EffectivePinnedPhonemeTimes() => ResolvedRelTimes(-1, 0);
+
+    // 拖拽音素起边界（index = 音素 index 的起点；末边界 index==n 派生不可拖）：把该边界拖到【显示】相对秒 targetRel。
+    // · index == L（前置分界线 = 首个非前置音素 = 核起点）：核起点恒为音符头（拍点），不可拖 → no-op。
+    // · 其余 index（前置辅音 / 后辅音的起点）：改的是音素 index 的 **时长**——累积布局令相邻音素整体平移（推挤）、核吸收。
+    // 跟手：显示位 = 自然布局经 PhonemeLayout 压缩后的结果，故反解——bisect 被编辑量使该边界的【显示】起点落到 targetRel
+    // （显示起点随该量单调变化）。压缩区里被布局钉住时，跟到钉点即止。改 pinned 即触发重合成。
+    void DragPinnedBoundary(int index, double targetRel)
     {
-        if (effRel <= 0)
-        {
-            double startRatio = StartPhonemeRatio;
-            return startRatio == 0 ? effRel : effRel / startRatio;
-        }
-
-        double available = PhonemeEndBoundary - StartTime;
-        double nominalSpan = PhonemeEndTime;
-        double delta = available - nominalSpan;
         int n = Phonemes.Count;
+        if (n == 0 || index < 0 || index >= n)
+            return;
 
-        double sumW = 0;
-        for (int i = 0; i < n; i++) sumW += Phonemes[i].Weight.Value;
-        if (sumW > 0)
+        int L = 0;
+        while (L < n && Phonemes[L].IsLead.Value) L++;   // 前置音素前缀；L = 前置分界线（核起点）下标
+
+        if (index == L)   // 核起点 = 音符头（拍点），不可拖
+            return;
+
+        // 下界放开（推挤语义：左侧邻居随之平移、无固定下界，可向 note 前自由伸展）；上界 = 本音素末（保正长、不与右反相）。
+        var cur = ResolvedRelTimes(-1, 0);
+        targetRel = Math.Min(targetRel, cur[index].End);
+
+        // 时长手柄：bisect 时长使该边界显示起点落到 targetRel（显示起点随时长单调递减）。
+        double DisplayedDur(double dur) => ResolvedRelTimes(index, dur)[index].Start;
+        double loDur = 0;
+        double hiDur = Math.Max(EndTime - StartTime, 0.05);
+        for (int i = 0; i < 24 && DisplayedDur(hiDur) > targetRel; i++) hiDur *= 2;
+        for (int it = 0; it < 32; it++)
         {
-            double weightBefore = 0;
-            for (int i = 0; i < boundaryIndex && i < n; i++) weightBefore += Phonemes[i].Weight.Value;
-            return effRel - delta * (weightBefore / sumW);
+            double mid = (loDur + hiDur) / 2;
+            if (DisplayedDur(mid) <= targetRel) hiDur = mid; else loDur = mid;
         }
-
-        double uniform = nominalSpan > 0 ? available / nominalSpan : 1;
-        return uniform == 0 ? effRel : effRel / uniform;
+        Phonemes[index].Duration.Set(hiDur);
     }
 }
 
 internal static class INoteExtension
 {
+    // 延音符：歌词 "-" 视为不带新歌词、延续前一个音节。"-" 是**唯一**延音符记号（空歌词不算——空/不认识的歌词
+    // 由插件按"不认识"处理、返回无效音素）。除编辑器/录词便利外，宿主音素铺设也用它作**合成前的乘客预测**
+    // （见 INote.ForwardFillEnd：合成后仍以 origin/HasPhonemeContent 为权威，合成前用 "-" 预测避免元音越铺进未合成的真音节）。
+    public static bool IsContinuation(this INote note)
+    {
+        return note.Lyric.Value == "-";
+    }
+
     public static double StartPos(this INote note)
     {
         return note.Pos.Value;
@@ -163,6 +316,22 @@ internal static class INoteExtension
     public static double EndPos(this INote note)
     {
         return note.Pos.Value + note.Dur.Value;
+    }
+
+    // 去重叠（后盖前，非破坏）：voice 单声部约束下 note 的有效结束 = 自身末与下一 note 起点的较小者。
+    // 起点从不移动、只缩尾；下一 note 取数据序相邻者（StartPos 升 / EndPos 降）。同起点和弦里较长的兄弟
+    // 被钳到自身起点（有效时长归零、被覆盖）。note 的 Dur 不动——这是派生量，供 voice 快照与钢琴窗暗色显示
+    // 共用一份定义；挂 instrument 引擎时调用方不取它即保留重叠多声部。part 相对 tick。
+    public static double EffectiveEndPos(this INote note)
+    {
+        var next = note.Next;
+        return next != null ? Math.Min(note.EndPos(), next.StartPos()) : note.EndPos();
+    }
+
+    // 有效时长是否归零（被完全覆盖：同起点和弦中排在前、非存活的兄弟）。voice 快照据此滤除、钢琴窗全暗显示。
+    public static bool IsOverlapZeroed(this INote note)
+    {
+        return note.EffectiveEndPos() <= note.StartPos();
     }
 
     public static double GlobalStartPos(this INote note)
@@ -175,10 +344,23 @@ internal static class INoteExtension
         return note.Part.Pos.Value + note.EndPos();
     }
 
+    // 全局有效结束（去重叠后盖前，见 EffectiveEndPos）：钢琴窗据此把 [有效结束, 画出末] 画暗。
+    public static double GlobalEffectiveEndPos(this INote note)
+    {
+        return note.Part.Pos.Value + note.EffectiveEndPos();
+    }
+
+    // 有效结束的全局秒（去重叠后）：音素乘客铺设与喂插件 / audio 同口径（snapshot 用 proxy 的有效末），
+    // 故乘客铺设须用此而非 INote.EndTime（画出末），否则乘客本体 dur 过长时元音末铺到画出末、与 audio 不符。
+    public static double EffectiveEndTime(this INote note)
+    {
+        return note.Part.TempoManager.GetTime(note.GlobalEffectiveEndPos());
+    }
+
     public static INote SplitAt(this INote note, double pos)
     {
         note.Part.BeginMergeDirty();
-        var newNote = note.Part.CreateNote(new NoteInfo() { Pos = pos, Dur = note.EndPos() - pos, Pitch = note.Pitch.Value, Lyric = "-" });
+        var newNote = note.Part.CreateNote(new NoteInfo() { Pos = pos, Dur = note.EndPos() - pos, Pitch = note.Pitch.Value, Lyric = "-" });   // "-" 延音软约定（编辑器默认）
         note.Part.MoveNote(note, () => note.Dur.Set(pos - note.StartPos()));
         note.Part.InsertNote(newNote);
         note.Part.EndMergeDirty();
@@ -197,18 +379,18 @@ internal static class INoteExtension
         if (note.SynthesizedPhonemes.IsEmpty())
             return;
 
-        // 锁定 = 把合成产物（时长 + 伸缩权重）整体固定为用户数据。
-        var startTime = note.StartTime;
-        foreach (var phoneme in note.SynthesizedPhonemes)
-        {
-            note.Phonemes.Add(Phoneme.Create(new PhonemeInfo()
+        // 锁定 = 把合成产物固定为用户数据：直接存各音素的【时长 + 权重 + IsLead】（位置由布局派生、不存）。
+        // 辅音(w=0)时长即固定长；核(w>0)时长记录但布局忽略（恒按填充派生），故无需「反压缩」——
+        // 显示侧 PhonemeLayout 会按当前邻居重新去重叠（核重新填充并再让位），与合成同源、常态下不双重压缩。
+        // 核起点恒在音符头，故无需记录前置分界线偏移。
+        foreach (var p in note.SynthesizedPhonemes)
+            note.Phonemes.Add(Phoneme.Create(new PhonemeInfo
             {
-                StartTime = phoneme.StartTime - startTime,
-                EndTime = phoneme.EndTime - startTime,
-                Symbol = phoneme.Symbol,
-                Weight = phoneme.StretchWeight,
+                Symbol = p.Symbol,
+                Duration = Math.Max(0, p.Duration),
+                StretchWeight = p.StretchWeight,
+                IsLead = p.IsLead,
             }));
-        }
     }
 
     public static string? FinalPronunciation(this INote note)

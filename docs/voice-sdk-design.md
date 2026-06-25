@@ -141,7 +141,7 @@ public interface ILiveNote
     IReadOnlyNotifiableProperty<double> EndTime   { get; }
     IReadOnlyNotifiableProperty<int>      Pitch  { get; }
     IReadOnlyNotifiableProperty<string>   Lyric  { get; }
-    IReadOnlyNotifiableProperty<IReadOnlyList<PinnedPhoneme>> Phonemes { get; }  // 见 §6
+    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesisPhoneme>> Phonemes { get; }  // 见 §6
     PropertyObject Properties { get; }   // 可订阅；voice 专属 per-note 参数都在这
 
     // 邻居链保留（协同发音方便）。注意：合成须在快照上沿链导航，见 §3.5。
@@ -186,7 +186,7 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 
 | 数据 | 形态 | 进程内 | 跨进程（v2） |
 |---|---|---|---|
-| **note** | eager 物化的不可变值快照（`StartTime/EndTime` 全局秒、`Pitch`、`Lyric`、`PinnedPhoneme[]`、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
+| **note** | eager 物化的不可变值快照（`StartTime`/`EndTime`=有效末·单声部音频口径·全局秒，宿主独占音素布局不暴露满末、`Pitch`、`Lyric`、`SynthesisPhoneme[]`=时长 / 权重 / IsLead、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
 | **automation** | **host 侧不可变原始点快照**；插件经 `IAutomationEvaluator.Evaluate(points)` 拉采样值 | worker 直接调求值器、宿主插值算法就地对冻结点插值 | 快照序列化时物化为离散点（提前采样，跨进程牺牲项；细节缓后）；**插值算法恒在宿主侧** |
 | **timing** | `ITiming` 接口接缝（接口与实现 `TempoSnapshot` 同居宿主 `TuneLab.Data.Timing`，与 live 同一套共享算法；不在插件 SDK 面） | worker 直接调冻结实现 | 快照序列化时物化为离散数据（细节缓后） |
 
@@ -303,9 +303,9 @@ public interface ISynthesisSession   // 续
     int SampleRate { get; }
 
     // —— 曲线类产物 ——
-    IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }                       // 分段
-    IReadOnlyMap<string, IReadOnlyList<IReadOnlyList<Point>>> SynthesizedParameters { get; }  // 同 effect 形状
-    IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }                                 // 见 §6
+    SynthesizedPitch SynthesizedPitch { get; }                                          // 具名富类型 { Segments }，见 §6
+    IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }           // 富类型，与 effect 同形
+    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes { get; } // 按归属 note 键，见 §6
 
     // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
@@ -350,53 +350,55 @@ public struct SynthesisStatusSegment
 
 ## 6. 音素
 
-音素时序会**外溢**（辅音常入侵上一个音符的尾巴），故输入/输出形态不同。
+音素描述符**方向无关**——输入（用户钉死约束）与输出（引擎合成产物）共用**一个类型** `SynthesisPhoneme`：只报「标称时长 + 弹性权重 + 前置标记」，**不报绝对位置**。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按同一时长模型派生、独占布局。
+
+```csharp
+// 描述符方向无关且稳定 → 进 / 出合并一个类型；持久层 PhonemeInfo 与本类型解耦（独立演进）。
+public struct SynthesisPhoneme
+{
+    public string Symbol;
+    public double Duration;       // 标称时长（秒）：辅音(w=0)固定长；核(w>0)此值被布局忽略（恒按填充派生）
+    public double StretchWeight;  // 弹性权重：0=刚性辅音 / >0=可伸核·元音（吸收 note 伸缩、按权重先让）
+    public bool   IsLead;         // 前置音素（音节核之前的引导辅音）：决定摆放（前置往左累积、核填充）
+}
+```
+
+**为何报时长而非绝对位置（时长模型核心）**：引擎报已压缩的绝对位置会让宿主布局误判——「内容末 vs 后 note 核起点」的相接判据把"已压缩到核前"误判成"有空隙"而早返回、跳过压缩。故引擎只报自然时长，宿主独占布局；引擎自己的音频内部如何摆放与此显示契约解耦。
 
 ### 输入（host→engine，per note）
 
+挂在 `ILiveNote.Phonemes`（`IReadOnlyList<SynthesisPhoneme>`）。
+
+- **位置由布局派生、不存**：前置分界线（核起点）= 音符头；`IsLead` 音素从分界线往左累积固定时长（可任意加长、向 note 前越界）；核 + 后辅音往右——辅音用固定时长、核填充到组末（含 melisma 铺过乘客）、多核按权重分摊。便于「推挤式」编辑（改一个音素长度，相邻整体平移而非互相挤占）。
+- **钉死粒度为整 note**：列表非空 = 全部音素用户钉死（约束，引擎遵守）；空列表 = 引擎从 `Lyric` 做 G2P + 全自由定时。不支持单音素级"部分钉死"。
+
+### 布局算法（宿主独占、不在 SDK）
+
+把「音素描述符（时长 / 权重 / IsLead）+ note 几何（`StartTime` / `EndTime` / 邻接 / 歌词）」解析为各音素真实 `[Start, End]`，是**宿主**的事。宿主侧有一份确定性纯函数 `PhonemeLayout`（`TuneLab.Data`，**非 SDK ABI**——形态仍演进，塞进公开 ABI 会逼插件版本对齐；SDK 只冻结数据契约）。想与宿主显示完全一致的引擎可**照抄参考实现**（`tests/plugins/V1.Voice` 的 `RefLayout`）作自然几何预测；否则自由放置、错位非致命。
+
+- **自然几何用 note 有效末 `EndTime`**：宿主独占布局后，note 满末不再暴露给插件（删了 `FullEndTime`）。元音自然铺到组末（含 melisma 铺过相接乘客），宿主再据真实邻居跨 note 去重叠。
+- **去重叠语义（两阶分级，逐 note 边界相互独立）**：重叠只发生在 note 边界（同 note 内连续无隙）。每个边界吸收跨度 = `[前 note 核起点（固定左锚）… 后 note 核起点（固定右锚、核不压）)`——① 元音（w>0）**先让**（从尾收缩，最多到 0）；② 元音耗尽仍超 → 辅音簇（w=0，前 note 尾辅音 ∪ 后 note 前辅音）**按标称长度等比压**（V1 无最小地板、可压到 0）；③ 单调钳制兜底。**仅相接 / 重叠才跨 note 协同**；有空隙（前 note 内容末 < 后 note 核起点）时两 note 音素各自保持自然几何、互不推挤。
+- **留白门控**：某侧有「相接、非乘客、却尚无音素数据」的邻居（正在合成 / 待合成）时，本 note 边界未决，宿主一并留白待邻居就绪，避免数据到达后跳变。
+- **乘客（延音符）= 无自身音素的 note**：被前一音节元音铺过（melisma）、透明。`-` 是纯插件 / 编辑器约定（合成前乘客预测用），合成后以「有无自身音素」为权威。
+
+### 输出（engine→host，合成时返回）：按归属 note 键的 map
+
 ```csharp
-// 命名与输出侧对仗：Pinned 进（用户钉死约束）、Synthesized 出（引擎产物）。
-public class PinnedPhoneme
-{
-    public string Symbol = string.Empty;
-    public double StartTime;   // note-相对秒，恒有值
-    public double EndTime;
-}
+IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes { get; }
 ```
 
-- 挂在 `ILiveNote.Phonemes`。**相对 note 起点的秒偏移**：可编辑、随 note 移动自动跟随（偏移不变）、负值表示越界到 note 之前的辅音引导。秒（而非 tick）是因为音素时长是声学量，应随 note 平移而保持、跨 tempo 不变形。
-- **钉死粒度为整 note**：列表非空 = 全部音素用户钉死（约束，引擎遵守）；空列表 = 引擎从 `Lyric` 做 G2P + 全自由定时。不支持单音素级"部分钉死"（半约束的组合空间对插件是真实负担，且宿主侧本就只产全钉死列表，没有生产者）。
-- **不引入最小音素时长声明**：宿主压缩（拖短 note）封顶在非负 clamp、可以压到 0——这只是编辑态约束值，合成正确性不受影响：引擎收到不合理约束按自己的音韵学知识兜底，输出的 `SynthesizedPhoneme` 才是权威（preview 本会被全量合成覆盖，见下节"宿主公式封顶"共识）。将来若要精细编辑 UX，在声明面纯加性补元数据即可。
+- **按归属 note 键**（而非扁平时间线 + 出身字段）：描述符不报绝对位置，**无主音素无锚不可定位、也落不进 note 失效链，故砍掉「无主音素（Note=null）」契约**——`SynthesisPhoneme` 不带 `Note` 字段，归属全由 map 键表达。辅音入侵上一 note 尾巴这类越界，由宿主派生位置时自然产生。（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。）
+- **键怎么填**：用递给 `GetSnapshot` 的活 note 列表（`origins`）按快照索引对齐回取（`snapshot.Notes[i]` ↔ `origins[i]`）。键仅作身份 token，合成中不得读其属性。脏 / 合成中的块不在 map 里报告其 note 的音素（宿主据此留白）。
+- **回填直拷**：宿主 `WriteBackPhonemes` 按键直接拷到对应 note（免归组）。
 
-### 输出（engine→host，合成时返回）
+### 伸缩、锁定与 preview
 
-```csharp
-public struct SynthesizedPhoneme
-{
-    public string Symbol;
-    public double StartTime;     // 绝对秒（与音频产物同一时间系），可越界/重叠
-    public double EndTime;
-    public ILiveNote? Note; // 出身 note（歌词归属），换气等无主音素为 null
-    public double StretchWeight; // 供宿主 preview 重算，见下
-}
-```
+音素如何随音符长度伸缩 / 去重叠是引擎的音韵学知识（元音优先让、各引擎自有比例），宿主没有元音/辅音概念。解法是把知识编码进每音素一个 `StretchWeight` 数字 + `IsLead` 前后标记，宿主据它跑确定性的两阶布局：
 
-- **扁平时间线 + 出身 note 引用**（而非按 note 装进字典）。`Note` 是"出身"（歌词归属），不是"压着谁"——N+1 的辅音入侵 N 的尾巴时 `Note = N+1`、`StartTime` 落在 N 范围内。无主音素 `Note = null`。这样既解开了字典 key 的二义，又能表达越界与换气。
-- 修掉旧 `SynthesizedPhoneme.ToString` 的格式 bug（`"{{0}"` 被转义成字面 `{`，Symbol 没替换）。
-
-### 伸缩与 preview（不引入 dur API）
-
-音素如何随音符长度伸缩是引擎的音韵学知识（元音优先拉、各引擎自有比例），宿主没有元音/辅音概念。解法**不是**在宿主养一套布局引擎，而是：
-
-- 引擎输出每个音素带 `StretchWeight`（透明权重，非黑盒）。宿主拖动/拉伸 note 时用**一条共享公式**就地算 preview，零引擎调用：
-  ```
-  new_dᵢ = dᵢ + Δ × (wᵢ / Σwⱼ)        // 再做非负 clamp
-  ```
-  辅音 w=0、元音 w=1 → 长度变化全进元音、辅音不动；w 默认 = dᵢ 即退化为均匀缩放（兼容旧行为）。宿主套公式但不需懂音韵学——知识被编码进一个数字。
-- **权重随锁定持久化进工程**：用户锁定音素的那一刻，固定下来的不只是时长，是"时长 + 伸缩性质"这个整体——权重随锁定动作完成所有权转移，本质上属于用户意图固定下来的数据（与 pinned 时长同一逻辑地位），故随 pinned 音素一并进工程（Format `PhonemeInfo.Weight`，数据层 `IPhoneme.Weight`）。这根除时序错位：若权重只存在于合成产物（缓存），"工程加载后、首轮合成前拖伸 note"的压缩只能退化均匀且**错误会固化进 pinned 数据**（引擎忠实遵守错误约束，无自愈通道）；入库后压缩任何时刻都有正确分布可用。旧工程缺省 Weight=0 → 与 **Σw ≤ 0**（插件未设权重）共用一条防御路径：退化均匀缩放。SDK 输入面（`TuneLab.SDK.PinnedPhoneme`）不带权重——引擎只消费钉死时长，权重是宿主编辑侧知识载体。
-- 移动 note → 相对偏移不变、跟随平移，不重算。
-- **preview 纯显示、绝不反馈给引擎当约束**；权威时长由**全量合成**重新定时并返回（带新权重），覆盖 preview（接受短暂"跳变"，因合成本就按播放线就近增量调度、纠正及时）。
-- 宿主公式**封顶在"权重 + 非负 clamp"**——真实下限/协同发音等硬情况交给引擎全量合成，不靠养大宿主公式覆盖。
+- **核时长由宿主填充派生**：核（w>0）的 `Duration` 被布局忽略（恒按 note 可用空间填充），报多少无所谓；辅音（w=0）的 `Duration` 即固定长。引擎无需自己摆位，只诚实报时长 + 权重 + 前后标记。
+- **权重随锁定持久化进工程**：用户锁定音素时固定的是"几何 + 伸缩性质"整体——`StretchWeight` 随锁定存进 `PhonemeInfo.StretchWeight` / 数据层 `IPhoneme.StretchWeight`。根除时序错位（工程加载后首轮合成前拖伸 note，压缩有正确分布而非退化均匀）。`StretchWeight` 默认填 `Duration`（全可伸、退化按时长比例缩）；`Σw ≤ 0` 退化均匀，无除零。
+- **锁定零跳变**：锁定 = 宿主取 `{Duration, StretchWeight, IsLead}` 按「核起点 = 音符头」重新派生位置；显示侧 `PhonemeLayout` 按当前邻居重新去重叠（核重新填充并再让位），与合成同源、常态不双重压缩，无需「反压缩」。
+- **preview 纯显示、绝不反馈给引擎当约束**：权威时长由全量合成重新定时返回（带新权重），覆盖 preview。
 
 ---
 
@@ -479,7 +481,7 @@ public class AutomationConfig : IValueConfig<double>
 **隔离/快照实现清单**（§3.5 已定调：数据层不加锁、不做 COW，靠不可变快照隔离）
 - 不可变**原始点快照容器** + 在其上的不可变 `IAutomationEvaluator` 实现（`Evaluate(times)` 对冻结点插值，查询轴秒）。
 - 抽一份**共享纯采样函数**：live `IAutomation`/`IPiecewiseCurve` 与上面的冻结求值器共用同一套"锚点 → 取值"算法（逻辑一份，杜绝两套实现漂移）。
-- **note 快照值**（StartTime/EndTime、Pitch、Lyric、`PinnedPhoneme[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
+- **note 快照值**（StartTime/EndTime、Pitch、Lyric、`SynthesisPhoneme[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
 - **tempo 快照**（`ITiming` 的冻结实现；`ITiming` 接口与实现家族同居宿主 `TuneLab.Data.Timing`，不在插件 SDK 面）。
 - 可选：automation 切片**版本缓存**（按"曲线版本 + 区间"缓存不可变副本，`RangeModified` 命中才作废/重拷）。
 - 契约钉死：`GetNextSegment` = 数据线程上廉价 peek（live 全量、定分片，报纯值边界）；`SynthesizeNext` 同步前缀在数据线程重算分块、经 `context.GetSnapshot` 拉取快照，再 offload。
@@ -488,7 +490,7 @@ public class AutomationConfig : IValueConfig<double>
 **实现阶段的清理项**
 - `IControllerConfig` 家族扁平化审计（§8）。
 - `ISynthesisData.GetAutomation` → `TryGetAutomation` 等命名对齐。
-- `SynthesizedPhoneme.ToString` 格式 bug。
+- ~~`SynthesizedPhoneme.ToString` 格式 bug~~（已随类型合并到 `SynthesisPhoneme` 重写、修正）。
 - DataObject 补 `WillModify` 事件（NotifiableProperty 统一的一环）。
 
 **缓后/独立**
@@ -532,7 +534,7 @@ public class AutomationConfig : IValueConfig<double>
   **曲线与底部基线围成的半透明积分面积**（用各自 config 色，分段 NaN 断开），只读、不可激活、不可编辑。去掉了"叠加到同名编辑轨"逻辑。
   线程契约（数据线程发布、发布即不可变、StatusChanged 单一刷新）已补进三个曲线产物成员注释。
 
-- **phoneme 输出模型小复盘**（待议，独立）：现扁平 `SynthesizedPhoneme[]` + 出身 note 回指。重新审视：越界由 StartTime/EndTime 表达（非结构决定，legacy note→list 同样能表达），故扁平相对 note→list 的**唯一实质差异是无主音素**（Note=null 的自由换气，view-only/不可钉，但正确性上"不参与任何 note 伸缩"）。待定：是否砍掉无主、输出是否改回 per-note。与回显/统一无关，不阻塞。
+- ~~**phoneme 输出模型小复盘**~~（**已定**）：输出改回 **per-note map** `IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>>`、**砍掉无主音素**（Note=null）。时长模型下音素只报时长、无绝对位置，无主音素无锚不可定位、也落不进 note→piece 失效链，故无意义；越界由宿主派生位置自然产生，无需扁平结构表达。进 / 出描述符合并为单一 `SynthesisPhoneme`（无 Note 字段）。breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。
 
 ---
 
@@ -631,7 +633,7 @@ public sealed class SynthesizedParameter
 //   SynthesizedParameters : IReadOnlyMap<string, SynthesizedParameter>   // 成员名不变
 ```
 
-形态用 nested-segments（产物本由合成器预分段，渲染端要段折线、不想逐点扫 NaN）。**`SynthesizedPitch` 不换形**（保持裸嵌套）——有意解耦：pitch 是固定专属通道（宿主全知其色/量程），parameter 是动态 keyed 集合（引擎声明、可带元数据）；给参数富类型恰配其更富生态，套到 pitch 上是 category error（同 §7「automation 不是一种 slider」、§0.3「解耦 > DRY」）。
+形态用 nested-segments（产物本由合成器预分段，渲染端要段折线、不想逐点扫 NaN）。**`SynthesizedPitch` 另立具名类型 `SynthesizedPitch { Segments }`**（与 `SynthesizedParameter` 有意**不共类型**）——pitch 是固定专属通道（宿主全知其色/量程，将来加清浊 / 颤音分解等专属维度），parameter 是动态 keyed 集合（引擎声明、自带 Min/Max/Color 元数据）；二者各自演进、不同线，套同一类型是 category error（同 §7「automation 不是一种 slider」、§0.3「解耦 > DRY」）。
 
 ### 10.7 effect 回显（与 voice 同构）（**已实现**）
 

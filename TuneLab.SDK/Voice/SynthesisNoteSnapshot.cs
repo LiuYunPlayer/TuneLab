@@ -12,9 +12,11 @@ namespace TuneLab.SDK;
 public sealed class SynthesisNoteSnapshot
 {
     public required double StartTime { get; init; }
+    // EndTime = 有效末（宿主去重叠后盖前钳到下一 note 起点，单声部音频口径，可重叠的尾巴已截）。
+    // 宿主独占音素布局（定位 / 跨 note 压缩 / melisma），插件只该见有效末——不再暴露 note 满末。
     public required double EndTime { get; init; }
     public required int Pitch { get; init; }
     public required string Lyric { get; init; }
-    public required IReadOnlyList<PinnedPhoneme> Phonemes { get; init; }
+    public required IReadOnlyList<SynthesisPhoneme> Phonemes { get; init; }
     public required PropertyObject Properties { get; init; }
 }

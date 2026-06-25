@@ -11,7 +11,10 @@ namespace TuneLab.Extensions.Formats.TLP;
 
 internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 {
-    const int CURRENT_VERSION = 0;
+    const int CURRENT_VERSION = 1;
+
+    // 读取期工程版本（ReadProject 起始重置为 0=legacy；version 字段恒先于 tracks 写出，故 note/音素读到时已就位）。
+    int mReadVersion;
 
     public ProjectInfo Deserialize(Stream streamToRead)
     {
@@ -34,6 +37,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 
     private ProjectInfo ReadProject(CborReader reader)
     {
+        mReadVersion = 0;   // 缺省 legacy；version 字段写在最前，notes 之前必已读到
         var projectInfo = new ProjectInfo();
 
         reader.ReadStartMap();
@@ -46,6 +50,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     var version = reader.ReadInt32();
                     if (version > CURRENT_VERSION)
                         throw new Exception("Unsupported Version");
+                    mReadVersion = version;
                     break;
                 case "editorInfo":
                     ReadEditorInfo(reader, projectInfo.EditorInfo);
@@ -429,7 +434,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 Lyric = lyric,
                 Pronunciation = pronunciation,
                 Properties = properties,
-                Phonemes = phonemes
+                Phonemes = phonemes,
             };
             notes.Add(noteInfo);
         }
@@ -438,32 +443,53 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 
     private void ReadPhonemes(CborReader reader, List<PhonemeInfo> phonemes)
     {
+        // 按工程版本分支（mReadVersion，不再逐音素探测字段）：
+        //   v≥1：duration/stretchWeight/isLead（每音素时长 + 弹性权重 + 前置标记，位置由布局派生不存）。
+        //   v<1（legacy）：startTime/endTime（相对音符头的秒，音符头=0）→ 时长 = endTime − startTime（音素连续）；
+        //     旧模型无前置 / 弹性概念：按区间中点落在音符头之前（(start+end)/2 < 0）判定为前置辅音（IsLead）；
+        //     第一个非前置音素默认为元音（弹性 w=1、吸收伸缩），其余（前置 + 后辅音）刚性 w=0。
+        bool legacy = mReadVersion < 1;
+        bool legacyVowelAssigned = false;
         reader.ReadStartArray();
         while (reader.PeekState() != CborReaderState.EndArray)
         {
-            var phonemeInfo = new PhonemeInfo();
+            string symbol = "";
+            double weight = 0;
+            double duration = 0;
+            bool isLead = false;
+            double startTime = 0, endTime = 0;
+
             reader.ReadStartMap();
             while (reader.PeekState() != CborReaderState.EndMap)
             {
                 var key = reader.ReadTextString();
                 switch (key)
                 {
-                    case "startTime":
-                        phonemeInfo.StartTime = reader.ReadDouble();
-                        break;
-                    case "endTime":
-                        phonemeInfo.EndTime = reader.ReadDouble();
-                        break;
-                    case "symbol":
-                        phonemeInfo.Symbol = reader.ReadTextString();
-                        break;
-                    default:
-                        reader.SkipValue();
-                        break;
+                    case "startTime": startTime = reader.ReadDouble(); break;
+                    case "endTime": endTime = reader.ReadDouble(); break;
+                    case "duration": duration = reader.ReadDouble(); break;
+                    case "stretchWeight": weight = reader.ReadDouble(); break;
+                    case "isLead": isLead = reader.ReadBoolean(); break;
+                    case "symbol": symbol = reader.ReadTextString(); break;
+                    default: reader.SkipValue(); break;
                 }
             }
             reader.ReadEndMap();
-            phonemes.Add(phonemeInfo);
+
+            if (legacy)
+            {
+                isLead = (startTime + endTime) < 0;
+                weight = (!isLead && !legacyVowelAssigned) ? 1 : 0;   // 首个非前置音素 = 元音
+                if (!isLead) legacyVowelAssigned = true;
+                duration = Math.Max(0, endTime - startTime);
+            }
+            phonemes.Add(new PhonemeInfo
+            {
+                Symbol = symbol,
+                Duration = duration,
+                StretchWeight = weight,
+                IsLead = isLead,
+            });
         }
         reader.ReadEndArray();
     }
@@ -903,14 +929,17 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         {
             writer.WriteStartMap(null);
 
-            writer.WriteTextString("startTime");
-            writer.WriteDouble(phoneme.StartTime);
-
-            writer.WriteTextString("endTime");
-            writer.WriteDouble(phoneme.EndTime);
-
             writer.WriteTextString("symbol");
             writer.WriteTextString(phoneme.Symbol);
+
+            writer.WriteTextString("duration");
+            writer.WriteDouble(phoneme.Duration);
+
+            writer.WriteTextString("stretchWeight");
+            writer.WriteDouble(phoneme.StretchWeight);
+
+            writer.WriteTextString("isLead");
+            writer.WriteBoolean(phoneme.IsLead);
 
             writer.WriteEndMap();
         }

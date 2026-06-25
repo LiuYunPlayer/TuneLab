@@ -40,16 +40,20 @@ internal class EmptyVoiceEngine : IVoiceEngine
             return Task.CompletedTask;
         }
 
-        public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
+        public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
-        public IReadOnlyList<SynthesizedPhoneme> Phonemes => [];
+        public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => mSynthesizedPhonemes;
 
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
+        public event Action? SynthesizedPhonemesChanged { add { } remove { } }
+        public event Action? SynthesizedParametersChanged { add { } remove { } }
+        public event Action? SynthesizedPitchChanged { add { } remove { } }
         public event Action? StatusChanged { add { } remove { } }
 
         public void Dispose() { }
 
         static readonly Map<string, SynthesizedParameter> mSynthesizedParameters = new();
+        static readonly Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>> mSynthesizedPhonemes = new();
     }
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();

@@ -320,23 +320,6 @@ internal partial class PianoScrollView
         }
     }
 
-    class WaveformNoteResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
-    {
-        public INote? Left;
-        public INote? Right;
-
-        public override bool Raycast(Point point)
-        {
-            if (Left == null && Right == null)
-                return false;
-
-            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
-            double pos = Left == null ? Right!.GlobalStartPos() : Left.GlobalEndPos();
-            double x = PianoScrollView.TickAxis.Tick2X(pos);
-            return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
-        }
-    }
-
     class WaveformPhonemeResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
@@ -344,17 +327,40 @@ internal partial class PianoScrollView
 
         public override bool Raycast(Point point)
         {
-            IReadOnlyList<SynthesizedPhoneme>? phonemes = Note.PinnedPhonemes;
-            if (phonemes.IsEmpty())
-                phonemes = Note.SynthesizedPhonemes;
-
-            if (phonemes == null || phonemes.IsEmpty() || PhonemeIndex > phonemes.Count)
+            var phonemes = Note.DisplayPhonemes;
+            if (phonemes.IsEmpty() || PhonemeIndex > phonemes.Count)
                 return false;
 
             double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
             double time = phonemes.Count == PhonemeIndex ? phonemes.ConstLast().EndTime : phonemes[PhonemeIndex].StartTime;
             double pos = Note.Part.TempoManager.GetTick(time);
             double x = PianoScrollView.TickAxis.Tick2X(pos);
+            return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
+        }
+    }
+
+    // 音素带内的 note 头/尾缩放热区：noteon 必落在某音素分界、noteoff 必落在某音素结尾，故可在音素带直接拖 note 边界。
+    // 视觉沿用音素拉杆长度（短，与音素边界同高），不是钢琴窗上方 note 矩形那条更长的缩放柄。
+    class WaveformNoteStartResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
+    {
+        public required INote Note;
+
+        public override bool Raycast(Point point)
+        {
+            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
+            double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
+            return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
+        }
+    }
+
+    class WaveformNoteEndResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
+    {
+        public required INote Note;
+
+        public override bool Raycast(Point point)
+        {
+            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
+            double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalEndPos());
             return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
         }
     }

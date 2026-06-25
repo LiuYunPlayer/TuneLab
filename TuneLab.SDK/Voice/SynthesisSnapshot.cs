@@ -39,4 +39,9 @@ public sealed class SynthesisSnapshot
 
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out SynthesisAutomationSnapshot automation)
         => AutomationMap.TryGetValue(key, out automation);
+
+    // 音素布局不在 SDK：把钉死音素（SynthesisPhoneme：时长 / 权重 / IsLead）+ note 几何（StartTime / EndTime /
+    // 邻接 / 歌词）解析为真实时序，是引擎职责。宿主显示侧用一份去重叠算法（核起点=音符头、元音先让、辅音簇等比压、
+    // 有空隙则互不影响）；想与宿主显示完全一致的插件可照抄它作参考实现（见 tests/plugins/V1.Voice），否则自由放置——
+    // 错位非致命。该算法形态仍在演进，故不冻进 SDK ABI；SDK 只保证数据契约稳定。
 }

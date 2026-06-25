@@ -10,34 +10,35 @@ namespace TuneLab.Data;
 
 internal class Phoneme : DataObject, IPhoneme
 {
-    public DataStruct<double> StartTime { get; } = new();
-    public DataStruct<double> EndTime { get; } = new();
+    // 标称时长（辅音固定 / 元音为派生填充、布局忽略此值）。位置由布局派生不存（元音起点对齐 note 起点、前辅音往左累积）。
+    public DataStruct<double> Duration { get; } = new();
     public DataString Symbol { get; } = new();
-    // 伸缩权重：锁定时随时长一并从合成产物固定（用户意图的一部分）；
-    // 宿主拖伸 note 分配长度变化用。旧工程缺省 0 → 公式 Σw≤0 退化均匀。
-    public DataStruct<double> Weight { get; } = new();
+    // 弹性伸缩权重：0 = 刚性辅音 / >0 = 可伸元音（吸收伸缩压缩）。
+    public DataStruct<double> StretchWeight { get; } = new();
+    // 是否前置音素（音节核之前的引导辅音）。
+    public DataStruct<bool> IsLead { get; } = new();
 
-    IDataProperty<double> IPhoneme.StartTime => StartTime;
-    IDataProperty<double> IPhoneme.EndTime => EndTime;
+    IDataProperty<double> IPhoneme.Duration => Duration;
     IDataProperty<string> IPhoneme.Symbol => Symbol;
-    IDataProperty<double> IPhoneme.Weight => Weight;
+    IDataProperty<double> IPhoneme.StretchWeight => StretchWeight;
+    IDataProperty<bool> IPhoneme.IsLead => IsLead;
 
     public Phoneme()
     {
-        StartTime.Attach(this);
-        EndTime.Attach(this);
+        Duration.Attach(this);
         Symbol.Attach(this);
-        Weight.Attach(this);
+        StretchWeight.Attach(this);
+        IsLead.Attach(this);
     }
 
     public PhonemeInfo GetInfo()
     {
         return new PhonemeInfo()
         {
-            StartTime = StartTime,
-            EndTime = EndTime,
+            Duration = Duration,
             Symbol = Symbol,
-            Weight = Weight
+            StretchWeight = StretchWeight,
+            IsLead = IsLead
         };
     }
 
@@ -51,9 +52,9 @@ internal class Phoneme : DataObject, IPhoneme
     public void SetInfo(PhonemeInfo info)
     {
         using var _ = MergeNotify();
-        StartTime.SetInfo(info.StartTime);
-        EndTime.SetInfo(info.EndTime);
+        Duration.SetInfo(info.Duration);
         Symbol.SetInfo(info.Symbol);
-        Weight.SetInfo(info.Weight);
+        StretchWeight.SetInfo(info.StretchWeight);
+        IsLead.SetInfo(info.IsLead);
     }
 }

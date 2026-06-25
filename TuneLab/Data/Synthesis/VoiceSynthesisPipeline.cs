@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
@@ -24,7 +25,7 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
 
     // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。
     public IReadOnlyList<SynthesizedSegment> SynthesizedSegments => mEffectGraph.SynthesizedSegments;
-    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mSession.SynthesizedPitch;
+    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mSession.SynthesizedPitch.Segments;
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSession.SynthesizedParameters;
     // 某个 effect 的回显曲线（聚合其各段 processor 的回显）；非本管线的 effect 返回空 map。
     public IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect) => mEffectGraph.GetSynthesizedParameters(effect);
@@ -36,12 +37,17 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         mSyncContext = SynchronizationContext.Current ?? throw new InvalidOperationException("VoiceSynthesisPipeline must be created on the data thread.");
         mContext = new SynthesisContext(part);
         mSession = VoicesManager.CreateSession(voiceType, voiceId, mContext);
-        mOnSessionStatusChanged = () => mSyncContext.Post(_ =>
-        {
-            if (!mDisposed)
-                StatusChanged?.Invoke();
-        }, null);
-        mSession.StatusChanged += mOnSessionStatusChanged;
+        // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：音素信号才回填 note（WriteBackPhonemes），
+        // 参数/音高/状态信号只触发 UI 重读重绘。高频的状态/进度 tick 因此不再带动音素回填。
+        // 引擎标脏 / 重分块后不再报告脏块音素，回填把对应 note 置空（留白），无需宿主在数据层单点清除。
+        mOnPhonemesChanged = Marshaled(() => { WriteBackPhonemes(); StatusChanged?.Invoke(); });
+        mOnParametersChanged = Marshaled(() => StatusChanged?.Invoke());
+        mOnPitchChanged = Marshaled(() => StatusChanged?.Invoke());
+        mOnStatusChanged = Marshaled(() => StatusChanged?.Invoke());
+        mSession.SynthesizedPhonemesChanged += mOnPhonemesChanged;
+        mSession.SynthesizedParametersChanged += mOnParametersChanged;
+        mSession.SynthesizedPitchChanged += mOnPitchChanged;
+        mSession.StatusChanged += mOnStatusChanged;
         // effect 半部：voice 段经 context.AudioSegmentsChanged 自驱动效果图；产物更新经 onChanged 回调转发 UI；
         // 销毁中最后一个在飞 effect 节点收尾时经 onSettled 回调管线重检销毁（voice/effect 都归才销毁会话）。
         mEffectGraph = new EffectGraph(mPart, mContext, mCancellation.Token,
@@ -162,9 +168,19 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         FinishDispose();
     }
 
+    // 把动作 marshal 回数据线程执行（session 出方向事件可任意线程触发）；已销毁则丢弃。
+    Action Marshaled(Action action) => () => mSyncContext.Post(_ =>
+    {
+        if (!mDisposed)
+            action();
+    }, null);
+
     void FinishDispose()
     {
-        mSession.StatusChanged -= mOnSessionStatusChanged;
+        mSession.SynthesizedPhonemesChanged -= mOnPhonemesChanged;
+        mSession.SynthesizedParametersChanged -= mOnParametersChanged;
+        mSession.SynthesizedPitchChanged -= mOnPitchChanged;
+        mSession.StatusChanged -= mOnStatusChanged;
         try
         {
             mSession.Dispose();
@@ -176,27 +192,19 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
         mCancellation.Dispose();
     }
 
-    // 合成音素回填到 note（UI 音素显示消费面）：扁平时间线按出身 note 归组。
+    // 合成音素回填到 note（UI 音素显示消费面）：产物已按归属 note 键，直拷到对应 note（免归组）。
+    // 键是 note 活代理（SynthesisNoteProxy），经 .Source 落回宿主 note；未在产物中的 note 置空（留白）。
     void WriteBackPhonemes()
     {
         try
         {
-            var map = new Dictionary<INote, List<SynthesizedPhoneme>>();
-            foreach (var phoneme in mSession.Phonemes)
-            {
-                if (phoneme.Note is not SynthesisContext.SynthesisNoteProxy proxy)
-                    continue;
-
-                if (!map.TryGetValue(proxy.Source, out var list))
-                {
-                    list = new List<SynthesizedPhoneme>();
-                    map.Add(proxy.Source, list);
-                }
-                list.Add(phoneme);
-            }
+            var map = mSession.SynthesizedPhonemes;
             foreach (var note in mPart.Notes)
             {
-                note.SynthesizedPhonemes = map.TryGetValue(note, out var list) ? list.ToArray() : null;
+                var proxy = mContext.ProxyOf(note);
+                note.SynthesizedPhonemes = proxy != null && map.TryGetValue(proxy, out var list) && list.Count > 0
+                    ? list.ToArray()
+                    : null;
             }
         }
         catch (Exception ex)
@@ -209,7 +217,10 @@ internal sealed class VoiceSynthesisPipeline : IDisposable
     readonly SynchronizationContext mSyncContext;
     readonly SynthesisContext mContext;
     readonly ISynthesisSession mSession;
-    readonly Action mOnSessionStatusChanged;
+    readonly Action mOnPhonemesChanged;
+    readonly Action mOnParametersChanged;
+    readonly Action mOnPitchChanged;
+    readonly Action mOnStatusChanged;
     readonly CancellationTokenSource mCancellation = new();
     readonly EffectGraph mEffectGraph;
 

@@ -67,7 +67,8 @@ internal sealed class LiveNoteView(
     public string Lyric => origin.Lyric.Value;
     // 按老声源的 NoteProperties 声明键现取（V1 订阅树外观不可枚举，键集来自声明）。
     public LProp.PropertyObject Properties => propertiesReader(origin);
-    public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes => LegacyNoteConvert.ToLegacyPinnedPhonemes(origin.Phonemes.Value, StartTime);
+    public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes => LegacyNoteConvert.ToLegacyPinnedPhonemes(
+        origin.Phonemes.Value, StartTime, EndTime);
 }
 
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
@@ -109,7 +110,8 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         // 取全局下一 note 起点冻结成边界——用全局 Next 而非 piece 内链尾，跨 piece 重叠也一致。
         EndTime = Math.Min(note.EndTime, origin.Next is { } next ? next.StartTime.Value : double.PositiveInfinity);
         Properties = Conversion.PropertyConvert.ToLegacy(note.Properties);
-        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime);
+        // 时长累积布局；末音素尾用有效末（EndTime，单声部钳位）；核起点恒在音符头。
+        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime, EndTime);
     }
 
     readonly VVoice.SynthesisNoteSnapshot mNote;
@@ -117,23 +119,45 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 
 internal static class LegacyNoteConvert
 {
-    // V1 钉死音素（note 相对秒，列表非空=整 note 钉死）→ 老接口的绝对秒列表（语义一致直转）。
+    // V1 音素描述符（时长 + 权重 + IsLead，列表非空=整 note 钉死）→ 老接口的绝对秒列表。
+    // 新 SDK 音素存「时长 + 权重 + IsLead」、位置由布局派生（去重叠 / 跨 note 压缩归全局布局 PhonemeLayout）；compat 侧按
+    // 「本 note 时长累积布局」解析即可——单声部旧引擎按收到的钉死时序处理，跨 note 辅音簇压缩属新 SDK 精修、对老引擎不必要。
+    //   · 前置分界线（核起点）= noteStart；IsLead 从分界线往左累积；核 + 后辅音往右、核(w>0)填充到 noteEndTime（有效末口径）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
-        IReadOnlyList<VVoice.PinnedPhoneme> phonemes, double noteStartTime)
+        IReadOnlyList<VVoice.SynthesisPhoneme> phonemes, double noteStartTime, double noteEndTime)
     {
-        if (phonemes.Count == 0)
+        int n = phonemes.Count;
+        if (n == 0)
             return [];
 
-        var result = new List<LVoice.SynthesizedPhoneme>(phonemes.Count);
-        foreach (var phoneme in phonemes)
+        var pos = new double[n + 1];
+        double leadBoundary = noteStartTime;
+        int L = 0;
+        while (L < n && phonemes[L].IsLead) L++;
+
+        pos[L] = leadBoundary;
+        for (int k = L - 1; k >= 0; k--) pos[k] = pos[k + 1] - Math.Max(0, phonemes[k].Duration);
+
+        double rigidAfter = 0, elasticWeight = 0;
+        for (int k = L; k < n; k++)
         {
-            result.Add(new LVoice.SynthesizedPhoneme
-            {
-                Symbol = phoneme.Symbol,
-                StartTime = noteStartTime + phoneme.StartTime,
-                EndTime = noteStartTime + phoneme.EndTime,
-            });
+            if (phonemes[k].StretchWeight > 0) elasticWeight += phonemes[k].StretchWeight;
+            else rigidAfter += Math.Max(0, phonemes[k].Duration);
         }
+        double elasticSpace = Math.Max(0, (noteEndTime - leadBoundary) - rigidAfter);
+        double p = leadBoundary;
+        for (int k = L; k < n; k++)
+        {
+            double w = phonemes[k].StretchWeight;
+            double len = w > 0 ? (elasticWeight > 0 ? elasticSpace * (w / elasticWeight) : 0) : Math.Max(0, phonemes[k].Duration);
+            pos[k] = p;
+            p += len;
+            pos[k + 1] = p;
+        }
+
+        var result = new List<LVoice.SynthesizedPhoneme>(n);
+        for (int k = 0; k < n; k++)
+            result.Add(new LVoice.SynthesizedPhoneme { Symbol = phonemes[k].Symbol, StartTime = pos[k], EndTime = pos[k + 1] });
         return result;
     }
 }

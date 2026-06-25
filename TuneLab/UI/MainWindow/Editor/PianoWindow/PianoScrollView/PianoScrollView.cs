@@ -72,7 +72,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mVibratoAttackOperation = new(this);
         mVibratoReleaseOperation = new(this);
         mVibratoMoveOperation = new(this);
-        mWaveformNoteResizeOperation = new(this);
         mWaveformPhonemeResizeOperation = new(this);
         mSelectionOperation = new(this);
         mAnchorSelectOperation = new(this);
@@ -291,6 +290,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IBrush selectedNoteBrush = Style.HIGH_LIGHT.ToBrush();
         IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();
         IBrush pronunciationBrush = Style.LIGHT_WHITE.ToBrush();
+        IBrush overlapCoverBrush = Colors.Black.Opacity(0.45).ToBrush();
         foreach (var note in Part.Notes)
         {
             if (note.GlobalEndPos() < minVisibleTick)
@@ -302,6 +302,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
             var rect = this.NoteRect(note);
             //context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
             context.FillRectangle(note.IsSelected ? selectedNoteBrush : noteBrush, rect, (float)round);
+
+            // 去重叠暗色盖住：被「后盖前」砍掉的尾段 [有效结束, 画出末] 画暗，亮色才是真正发声段——
+            // 用户即知此段被重叠覆盖。当前全为 voice part 故无条件；将来挂 instrument（保留重叠多声部）按引擎 gate。
+            double coverLeftX = TickAxis.Tick2X(note.GlobalEffectiveEndPos());
+            if (coverLeftX < rect.Right - 0.5)
+            {
+                double left = Math.Max(coverLeftX, rect.Left);
+                context.DrawRectangle(overlapCoverBrush, null, new RoundedRect(new Rect(left, rect.Top, rect.Right - left, rect.Height), 0, round, round, 0));
+            }
 
             rect = rect.Adjusted(8, -28, -8, 0);
             if (rect.Width <= 0)
@@ -749,55 +758,46 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         double yCenter = height / 2 + WaveformTop;
         IBrush brush = Style.WHITE.ToBrush();
-        IPen pen = new Pen(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), 1);
+        // 预测音素：细 / 半透明；钉死（固定）音素：粗 / 实色——让两者相接重叠时仍能一眼区分谁是手动固定的。
+        IPen penSynthesized = new Pen(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), 1);
+        IPen penPinned = new Pen(Style.WHITE.ToBrush(), 2);
 
         foreach (var note in Part.Notes)
         {
-            IReadOnlyList<SynthesizedPhoneme>? phonemes = note.PinnedPhonemes;
+            // 显示音素：固定 / 合成统一口径（已跨 note 去重叠，见 INote.DisplayPhonemes）。
+            // 两者都没有 → 什么都不画（合成前 / 乘客被铺过 / 空 note 一律留白，也就没有可拖的边界）。
+            var phonemes = note.DisplayPhonemes;
             if (phonemes.IsEmpty())
-                phonemes = note.SynthesizedPhonemes;
+                continue;
 
-            if (phonemes == null)
+            bool isPinned = !note.Phonemes.IsEmpty();
+            IPen pen = isPinned ? penPinned : penSynthesized;
+
+            var startTime = phonemes.ConstFirst().StartTime;
+            var endTime = phonemes.ConstLast().EndTime;
+            if (endTime < viewStartTime)
+                continue;
+
+            if (startTime > viewEndTime)
+                break;
+
+            // 画每个音素的开头线；note 末刻度（末音素的结尾）只在「与下个音符不相接」（有空隙 / 无下个）时才画。
+            // 相接 / 延音符时该边界由下个 note 的开头线接管——本 note 再画一条会在相接处多出一条线、且用本 note 的笔
+            // （如固定 note 的粗笔）盖在邻居的开头处，故跳过。与 noteoff 缩放柄的存在条件一致。
+            bool drawNoteEnd = note.Next == null || note.Next.StartPos() > note.EndPos() + 1e-6;
+            double right = double.NaN;
+            for (int i = 0; i < phonemes.Count; i++)
             {
-                var startTime = note.StartTime;
-                var endTime = note.EndTime;
-                if (endTime < viewStartTime)
-                    continue;
-
-                if (startTime > viewEndTime)
-                    break;
-
-                double left = TickAxis.Tick2X(tempoManager.GetTick(note.StartTime));
-                double right = TickAxis.Tick2X(tempoManager.GetTick(note.EndTime));
-                context.DrawLine(pen, new(left, yCenter - 12), new(left, yCenter + 12));
-                context.DrawLine(pen, new(right, yCenter - 12), new(right, yCenter + 12));
-                context.DrawString(note.Lyric.Value, new((left + right) / 2, yCenter), brush, 12, Alignment.Center);
-            }
-            else
-            {
-                if (phonemes.IsEmpty())
-                    continue;
-
-                var startTime = phonemes.ConstFirst().StartTime;
-                var endTime = phonemes.ConstLast().EndTime;
-                if (endTime < viewStartTime)
-                    continue;
-
-                if (startTime > viewEndTime)
-                    break;
-
-                double right = double.NaN;
-                foreach (var phoneme in phonemes)
+                var phoneme = phonemes[i];
+                double left = TickAxis.Tick2X(tempoManager.GetTick(phoneme.StartTime));
+                if (left != right)
                 {
-                    double left = TickAxis.Tick2X(tempoManager.GetTick(phoneme.StartTime));
-                    if (left != right)
-                    {
-                        context.DrawLine(pen, new(left, yCenter - 8), new(left, yCenter + 8));
-                    }
-                    right = TickAxis.Tick2X(tempoManager.GetTick(phoneme.EndTime));
-                    context.DrawLine(pen, new(right, yCenter - 8), new(right, yCenter + 8));
-                    context.DrawString(phoneme.Symbol, new((left + right) / 2, yCenter), brush, 12, Alignment.Center);
+                    context.DrawLine(pen, new(left, yCenter - 8), new(left, yCenter + 8));
                 }
+                right = TickAxis.Tick2X(tempoManager.GetTick(phoneme.EndTime));
+                if (i < phonemes.Count - 1 || drawNoteEnd)
+                    context.DrawLine(pen, new(right, yCenter - 8), new(right, yCenter + 8));
+                context.DrawString(phoneme.Symbol, new((left + right) / 2, yCenter), brush, 12, Alignment.Center);
             }
         }
     }

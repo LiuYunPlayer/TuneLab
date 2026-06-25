@@ -82,9 +82,9 @@ public interface ISynthesisSession : IDisposable {
     SynthesisRange? GetNextSegment(double startTime, double endTime);  // 返回纯调度提示 SynthesisRange
     Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default);  // 入参=选中它那次 peek 的同一窗口（按它确定性重导出同一块，非回灌 SynthesisRange）；纯 Task：取消正常返回不抛 OCE；错误抛异常
     // 产物（数据线程发布、发布即不可变、StatusChanged 单一刷新信号）：
-    IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }              // 分段折线（秒, 半音）
+    SynthesizedPitch SynthesizedPitch { get; }                                 // 具名富类型 { Segments }；空=new(){Segments=[]}
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }  // 回显曲线数据，key 对齐 GetSynthesizedParameterConfigs
-    IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
+    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes { get; }  // 按归属 note 键（origins[i]）；只报时长、无绝对位置；无主音素无契约
     IReadOnlyList<SynthesisStatusSegment> GetStatus();                         // 按段状态/进度/报错
     event Action? StatusChanged;                                              // 产物/状态有更新（任意线程触发，宿主 marshal）
 }
@@ -115,19 +115,21 @@ public sealed class SynthesisSnapshot {                    // context.GetSnapsho
 public sealed class SynthesisNoteSnapshot {                // 触底值类型、无活引用
     double StartTime { get; } double EndTime { get; }      // 全局秒
     int Pitch { get; } string Lyric { get; }
-    IReadOnlyList<PinnedPhoneme> Phonemes { get; }         // 物化副本
+    IReadOnlyList<SynthesisPhoneme> Phonemes { get; }      // 物化副本（时长/权重/IsLead，位置不存）
     PropertyObject Properties { get; }                     // per-note 参数值拷（GetDouble/GetBool/GetInt/GetString/GetEnum 读，稀疏、读不到取默认）
 }
 public sealed class SynthesisAutomationSnapshot { IAutomationEvaluator Evaluator { get; } }
 public interface IAutomationEvaluator { double[] Evaluate(IReadOnlyList<double> times); }  // times=全局秒；插值在宿主侧；连续轨永不NaN、分段轨段间NaN
 
-public class PinnedPhoneme { string Symbol; double StartTime; double EndTime; }  // 输入：note-相对秒偏移；负值=越界辅音引导
-public struct SynthesizedPhoneme {                         // 输出：扁平时间线
-    string Symbol; double StartTime; double EndTime;       // 绝对秒，可越界/重叠
-    ILiveNote? Note;        // 【出身】note（歌词归属，非「压着谁」）；换气等无主音素=null；仅身份token、合成中不得读其属性
-    double StretchWeight;   // 伸缩权重；无音韵学知识填 EndTime-StartTime（均匀缩放）；Σw≤0 宿主退化均匀
+// 音素描述符：进/出同型、方向无关；只报时长，位置/去重叠/melisma 全归宿主派生（引擎报绝对位置会让相接判据失真）。
+public struct SynthesisPhoneme {
+    string Symbol;
+    double Duration;        // 辅音(w=0)固定长；核(w>0)此值被布局忽略（恒按填充派生）
+    double StretchWeight;   // 0=刚性辅音 / >0=可伸核·元音（先让）；无音韵学知识填 Duration（均匀缩放）；Σw≤0 退化均匀
+    bool   IsLead;          // 前置音素（核之前的引导辅音）：前置往左累积、核+后辅音往右
 }
 public struct VoiceSourceInfo { string Name; string Description; ImageResource? Portrait; }  // Portrait 用 FileImageResource(绝对路径)，null=无
+public sealed class SynthesizedPitch { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }      // 音高回显：分段折线，段内 Point=(秒,半音)；与 SynthesizedParameter 有意不共类型
 public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }  // 回显曲线：分段折线，段内 Point=(秒,值)，段间断开
 ```
 - 引擎 id 与实现类在 manifest：`{ "type":"voice", "engine":"id", "classes":["Ns.MyVoiceEngine"], "assembly":"X.dll" }`（`engine` 唯一；宿主在 `classes` 找实现 `IVoiceEngine` 的类）。实现类需无参构造函数。
@@ -136,12 +138,12 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 - 线程纪律：context（Notes/属性/automation）、`GetSnapshot`、`CreateAudioSegment` 仅可在 `SynthesizeNext` **同步前缀**（数据线程）读/调；之后 offload 只读已物化的 `SynthesisSnapshot`（不可变、可跨线程）。产物与 `CreateAudioSegment` 写入/Commit 在数据线程。
 - 命名纪律：`ILive*`=活视图（仅数据线程）、`*Snapshot`=冻结物（可跨线程、无事件）。
 - 快照（gap：snapshot）：`GetSnapshot(notes, startTime, endTime)` 仅在 `SynthesizeNext` 同步前缀（offload 前、数据线程）调，可拉多份；`notes`=段内+协同发音邻居（你自由圈定），`snapshot.Notes` 与之【索引对齐】=产物归属依据。automation 是冻结求值器（`Evaluator.Evaluate(times)`），不是裸点；想前缀采好就同步前缀 Evaluate 成 double[] 自存再 offload。快照不可变、只写一次；数据变了→标脏→下次拉全新快照（替换而非同步，无锁）。
-- 音高（gap：pitch）：双通道 `finalPitch(t)=resolve(Pitch(t))+PitchDeviation(t)`。`Pitch` 分段（有值=用户钉死必守、NaN=自由区你自己生成，典型回退 note.Pitch）；`PitchDeviation` 连续永不NaN（vibrato 等汇于此，加在解析后绝对面上，自由区也生效）。按控制率布点→批量 `Evaluator.Evaluate(times)`→NaN处回退 note.Pitch 再加 deviation→逐采样插值。音高回显走 `SynthesizedPitch`（分段折线 Point=(秒,半音)）。
-- 音素（gap：phoneme I/O）：输入 `note.Phonemes` 整note钉死（非空=全钉、引擎守约束；空=从 Lyric 做 G2P+自由定时；不支持部分钉死），时间是 note-相对秒、负值越界。输出扁平 `SynthesizedPhoneme[]`（绝对秒、可越界重叠），`Note`=出身note（按快照索引从你递入的活 note 列表回取，仅身份token，合成中不读其属性），换气=null。`StretchWeight` 无知识填时长（均匀缩放）。preview 纯显示、绝不当约束回喂。
+- 音高（gap：pitch）：双通道 `finalPitch(t)=resolve(Pitch(t))+PitchDeviation(t)`。`Pitch` 分段（有值=用户钉死必守、NaN=自由区你自己生成，典型回退 note.Pitch）；`PitchDeviation` 连续永不NaN（vibrato 等汇于此，加在解析后绝对面上，自由区也生效）。按控制率布点→批量 `Evaluator.Evaluate(times)`→NaN处回退 note.Pitch 再加 deviation→逐采样插值。音高回显走 `SynthesizedPitch`（具名类型 `{ Segments }`，分段折线 Point=(秒,半音)；空=`new(){Segments=[]}`）。
+- 音素（gap：phoneme I/O）：进/出**同一类型** `SynthesisPhoneme`（只报 Symbol/Duration/StretchWeight/IsLead，**无绝对位置**——定位/去重叠/melisma 全归宿主派生）。输入 `note.Phonemes` 整note钉死（非空=全钉、引擎守约束；空=从 Lyric 做 G2P+自由定时；不支持部分钉死）。输出 `SynthesizedPhonemes` = **按归属 note 键的 map**（键=按快照索引从你递入的活 note 列表 `origins[i]` 回取，仅身份token、合成中不读其属性）；脏/合成中的块不报其 note 音素（宿主留白）。**无「无主音素」契约**（时长模型下无锚不可定位）。核时长由宿主填充派生（报多少无所谓）、辅音填固定长；`StretchWeight` 无知识填 `Duration`。preview 纯显示、绝不当约束回喂。
 - 属性约定（gap：note/part props）：per-note/part 专属参数全走 keyed `Properties`（不动 `ILiveNote` 固定面）——`GetNotePropertyConfig`/`GetPartPropertyConfig` 的 `ObjectConfig.Properties`（`OrderedMap<string, IControllerConfig>`）声明，合成时从 `SynthesisNoteSnapshot.Properties`/`snapshot.PartProperties` 用 `GetDouble/GetBool/GetInt/GetString/GetEnum(key, default)` 读（稀疏、读不到取默认）。控件：`SliderConfig`/`ComboBoxConfig`(值显分离)/`CheckBoxConfig`/`TextBoxConfig`。`AutomationConfig.DefaultValue=NaN⇒分段轨`。条件轨消失后宿主保留已画曲线（隐藏不删）。`VoiceSourceInfo.Portrait` 用 `FileImageResource(绝对路径)`。
 - 原生依赖打包（gap：native/ONNX）：私有依赖（第三方托管库、native dll/so/dylib、模型、dict）放包文件夹→进本包专属 ALC（与其他插件隔离、版本不冲突）；SDK 程序集与 .NET 运行时由宿主共享、勿打进包。定位包内资源用 `Path.GetDirectoryName(typeof(MyVoiceEngine).Assembly.Location)`（勿用工作目录/`AppContext.BaseDirectory`=宿主目录）。native dll 与托管 dll 同目录便于 P/Invoke 探测；跨平台按目标分别提供 + manifest `platforms` 过滤。大模型权重勿塞 `.tlx`（即装即载会很重）：用独立资源包，或实现 `IExtensionSettings` 让用户配模型路径（密钥用 `TextBoxConfig{IsPassword=true}`）。加载放 `Init`、失败抛异常（宿主优雅降级）。
 - 失效自管：构造订阅 context（`Notes` 增删用 `WhenAny` 自动接线 / `note.*.Modified` 字段 / `PartProperties.Modified` / `Pitch`+`PitchDeviation`+各轨 `RangeModified`(秒区间)）handler 只廉价标脏，重活（重分块）推迟到 `context.Committed`（逻辑编辑收口、单条也补发→批量编辑只重分块一次）。tempo 变化无独立信号（分解为 note 边界 `Modified` + 轨 `RangeModified`）。`Dispose` 退订 + Dispose 所有音频段。重叠 note(和弦) 分块判间隙用「组内最大结束」、块尾取 `Max(EndTime)`。
-- 相关类型：`ISynthesisSession`、`ISynthesisContext`、`SynthesisRange`、`SynthesisSnapshot`、`SynthesisNoteSnapshot`、`SynthesisAutomationSnapshot`、`IAutomationEvaluator`、`ILiveNote`、`ILiveAutomation`、`IAudioSegment`、`PinnedPhoneme`、`SynthesizedPhoneme`、`SynthesizedParameter`、`VoiceSourceInfo`、`FileImageResource`、`AutomationConfig`、`IPartPropertyContext`、`INotePropertyContext`、`SynthesisStatusSegment`。
+- 相关类型：`ISynthesisSession`、`ISynthesisContext`、`SynthesisRange`、`SynthesisSnapshot`、`SynthesisNoteSnapshot`、`SynthesisAutomationSnapshot`、`IAutomationEvaluator`、`ILiveNote`、`ILiveAutomation`、`IAudioSegment`、`SynthesisPhoneme`、`SynthesizedPitch`、`SynthesizedParameter`、`VoiceSourceInfo`、`FileImageResource`、`AutomationConfig`、`IPartPropertyContext`、`INotePropertyContext`、`SynthesisStatusSegment`。
 
 ### Effect 接口（命名空间 `TuneLab.SDK`）
 > effect = 对**整段已合成音频**的离线变换（如 SVC 换声），非实时 VST。**会话托管厚模型**：每种引擎一个 `IEffectEngine`；

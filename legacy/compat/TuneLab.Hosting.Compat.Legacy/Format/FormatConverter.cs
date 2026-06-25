@@ -137,24 +137,48 @@ internal static class FormatConverter
     {
         Pos = o.Pos, Dur = o.Dur, Pitch = o.Pitch, Lyric = o.Lyric, Pronunciation = o.Pronunciation,
         Properties = o.Properties.ToV1(),
-        Phonemes = o.Phonemes.Select(ToV1).ToList(),
+        Phonemes = PhonemesToV1(o.Phonemes),
     };
     public static Old.NoteInfo ToLegacy(this New.NoteInfo n) => new()
     {
         Pos = n.Pos, Dur = n.Dur, Pitch = n.Pitch, Lyric = n.Lyric, Pronunciation = n.Pronunciation,
         Properties = n.Properties.ToLegacy(),
-        Phonemes = n.Phonemes.Select(ToLegacy).ToList(),
+        Phonemes = PhonemesToLegacy(n.Phonemes),
     };
 
-    // ── PhonemeInfo ──
-    public static New.PhonemeInfo ToV1(this Old.PhonemeInfo o) => new()
+    // ── PhonemeInfo（note 级整组转换）──
+    // 新模型 PhonemeInfo 用「时长 + 权重」(Duration/Weight)、位置由布局派生；旧模型是相对音符头的秒 StartTime/EndTime（音符头=0）。
+    // 旧→新：时长 = EndTime − StartTime（音素连续）；旧模型无前置 / 弹性概念：
+    //   按区间中点落在音符头之前（(Start+End)/2 < 0）判定为前置辅音（IsLead）；
+    //   第一个非前置音素默认为元音（弹性 w=1、吸收伸缩），其余（前置 + 后辅音）刚性 w=0。
+    static List<New.PhonemeInfo> PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes)
     {
-        StartTime = o.StartTime, EndTime = o.EndTime, Symbol = o.Symbol,
-    };
-    public static Old.PhonemeInfo ToLegacy(this New.PhonemeInfo n) => new()
+        var times = new List<(double Start, double End, string Symbol, double StretchWeight, bool IsLead)>(phonemes.Count);
+        bool vowelAssigned = false;
+        foreach (var p in phonemes)
+        {
+            bool isLead = (p.StartTime + p.EndTime) < 0;
+            double weight = (!isLead && !vowelAssigned) ? 1 : 0;   // 首个非前置音素 = 元音
+            if (!isLead) vowelAssigned = true;
+            times.Add((p.StartTime, p.EndTime, p.Symbol, weight, isLead));
+        }
+        return New.PhonemeInfo.FromTimes(times);
+    }
+
+    // 新→旧为 best-effort：旧插件只认绝对相对秒，而 compat 这层无 note 几何（满末/邻居）还原元音填充与前辅音越界。
+    // 退化为从 0 起累积各音素时长（元音亦按记录时长排、不填充）——格式转换够用。
+    static List<Old.PhonemeInfo> PhonemesToLegacy(IReadOnlyList<New.PhonemeInfo> phonemes)
     {
-        StartTime = n.StartTime, EndTime = n.EndTime, Symbol = n.Symbol,
-    };
+        var result = new List<Old.PhonemeInfo>(phonemes.Count);
+        double t = 0;
+        foreach (var p in phonemes)
+        {
+            double end = t + System.Math.Max(0, p.Duration);
+            result.Add(new Old.PhonemeInfo { Symbol = p.Symbol, StartTime = t, EndTime = end });
+            t = end;
+        }
+        return result;
+    }
 
     // ── VibratoInfo ──
     public static New.VibratoInfo ToV1(this Old.VibratoInfo o) => new()

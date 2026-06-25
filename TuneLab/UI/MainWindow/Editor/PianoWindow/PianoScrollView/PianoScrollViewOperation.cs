@@ -1,4 +1,4 @@
-﻿using DynamicData;
+using DynamicData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,34 +47,22 @@ internal partial class PianoScrollView
                 var item = ItemAt(e.Position);
                 bool DetectWaveformPrimaryButton()
                 {
-                    if (e.IsDoubleClick && item is WaveformBackItem)
-                    {
-                        if (Part == null)
-                            return false;
-
-                        if (e.IsDoubleClick)
-                        {
-                            var pos = TickAxis.X2Tick(e.Position.X);
-                            if (alt) pos = GetQuantizedTick(pos);
-                            pos -= Part.Pos.Value;
-                            foreach (var note in Part.Notes)
-                            {
-                                if (note.StartPos() < pos && note.EndPos() > pos)
-                                {
-                                    Cursor = new Cursor(StandardCursorType.SizeWestEast);
-                                    mWaveformNoteResizeOperation.Down(e.Position.X, note, note.SplitAt(pos));
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    else if (item is WaveformNoteResizeItem waveformNoteResizeItem)
-                    {
-                        mWaveformNoteResizeOperation.Down(e.Position.X, waveformNoteResizeItem.Left, waveformNoteResizeItem.Right);
-                    }
-                    else if (item is WaveformPhonemeResizeItem waveformPhonemeResizeItem)
+                    // 波形/音素带：响应音素边界拖拽 + note 头/尾缩放（noteon/noteoff 落在音素分界，故可在带内直接缩放 note）。
+                    if (item is WaveformPhonemeResizeItem waveformPhonemeResizeItem)
                     {
                         mWaveformPhonemeResizeOperation.Down(e.Position.X, waveformPhonemeResizeItem.Note, waveformPhonemeResizeItem.PhonemeIndex);
+                    }
+                    else if (item is WaveformNoteStartResizeItem waveformNoteStartResizeItem)
+                    {
+                        // 与上个（有音素的）note 相接（重叠/相邻）→ 共享边界：联动移上个 note 尾；否则只移本 note 头。
+                        var sn = waveformNoteStartResizeItem.Note;
+                        var prev = sn.Last;
+                        INote? coupled = prev != null && WaveformHasPhonemes(prev) && prev.EndPos() >= sn.StartPos() - 1e-6 ? prev : null;
+                        mNoteStartResizeOperation.Down(e.Position.X, sn, coupled);
+                    }
+                    else if (item is WaveformNoteEndResizeItem waveformNoteEndResizeItem)
+                    {
+                        mNoteEndResizeOperation.Down(e.Position.X, waveformNoteEndResizeItem.Note);
                     }
                     else if (item is WaveformBackItem)
                     {
@@ -196,17 +184,20 @@ internal partial class PianoScrollView
                                                 List<INote> removeNotes = new();
                                                 foreach (var note in selectedNotes)
                                                 {
-                                                    if (note.SynthesizedPhonemes == null)
+                                                    // 用显示侧解析后音素（绝对落点）来拆分：契约层的合成音素只报时长，位置由此派生。
+                                                    var phonemes = note.DisplayPhonemes;
+                                                    if (phonemes.IsEmpty())
                                                         continue;
 
-                                                    foreach (var phoneme in note.SynthesizedPhonemes)
+                                                    foreach (var phoneme in phonemes)
                                                     {
                                                         var info = note.GetInfo();
                                                         info.Pos = tempoManager.GetTick(phoneme.StartTime) - pos;
                                                         info.Dur = tempoManager.GetTick(phoneme.EndTime) - pos - info.Pos;
                                                         info.Lyric = phoneme.Symbol;
                                                         info.Pronunciation = string.Empty;
-                                                        info.Phonemes = [new() { StartTime = 0, EndTime = phoneme.EndTime - phoneme.StartTime, Symbol = phoneme.Symbol }];
+                                                        // 单音素填满新 note：时长 = 该音素长（= 新 note 长）、权重沿用引擎产物（元音则布局填满、辅音则固定此长）。
+                                                        info.Phonemes = [new() { Symbol = phoneme.Symbol, Duration = phoneme.EndTime - phoneme.StartTime, StretchWeight = phoneme.StretchWeight }];
                                                         phonemeNoteInfos.Add(info);
                                                     }
 
@@ -608,9 +599,6 @@ internal partial class PianoScrollView
             case State.VibratoMoving:
                 mVibratoMoveOperation.Move(e.Position, alt);
                 break;
-            case State.WaveformNoteResizing:
-                mWaveformNoteResizeOperation.Move(e.Position.X, alt);
-                break;
             case State.WaveformPhonemeResizing:
                 mWaveformPhonemeResizeOperation.Move(e.Position.X, alt);
                 break;
@@ -629,7 +617,7 @@ internal partial class PianoScrollView
                 break;
             default:
                 var item = ItemAt(e.Position);
-                if (item is WaveformNoteResizeItem || item is WaveformPhonemeResizeItem)
+                if (item is WaveformPhonemeResizeItem || item is WaveformNoteStartResizeItem || item is WaveformNoteEndResizeItem)
                 {
                     Cursor = new Cursor(StandardCursorType.SizeWestEast);
                 }
@@ -754,10 +742,6 @@ internal partial class PianoScrollView
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mVibratoMoveOperation.Up();
                 break;
-            case State.WaveformNoteResizing:
-                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
-                    mWaveformNoteResizeOperation.Up();
-                break;
             case State.WaveformPhonemeResizing:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mWaveformPhonemeResizeOperation.Up();
@@ -832,13 +816,6 @@ internal partial class PianoScrollView
                     e.Handled = true;
                 }
                 break;
-            case State.WaveformNoteResizing:
-                if (e.Key == Key.LeftAlt)
-                {
-                    mWaveformNoteResizeOperation.Move(MousePosition.X, true);
-                    e.Handled = true;
-                }
-                break;
             case State.None:
                 if (e.Key == Key.LeftCtrl && (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock))
                 {
@@ -892,13 +869,6 @@ internal partial class PianoScrollView
                 if (e.Key == Key.LeftAlt)
                 {
                     mVibratoMoveOperation.Move(MousePosition, false);
-                    e.Handled = true;
-                }
-                break;
-            case State.WaveformNoteResizing:
-                if (e.Key == Key.LeftAlt)
-                {
-                    mWaveformNoteResizeOperation.Move(MousePosition.X, false);
                     e.Handled = true;
                 }
                 break;
@@ -1083,14 +1053,11 @@ internal partial class PianoScrollView
 
         items.Add(new WaveformBackItem(this));
 
-        WaveformNoteResizeItem? lastItem = null;
+        // 波形/音素带只暴露音素边界拖拽热区；note 边界缩放归钢琴窗上方的 note 矩形，避免两类热区在边界处打架。
         foreach (var note in Part.Notes)
         {
-            IReadOnlyList<SynthesizedPhoneme>? phonemes = note.PinnedPhonemes;
+            var phonemes = note.DisplayPhonemes;
             if (phonemes.IsEmpty())
-                phonemes = note.SynthesizedPhonemes;
-
-            if (phonemes == null || phonemes.IsEmpty())
                 continue;
 
             var startTime = phonemes.ConstFirst().StartTime;
@@ -1101,33 +1068,25 @@ internal partial class PianoScrollView
             if (startTime > viewEndTime)
                 break;
 
-            for (var i = 0; i <= phonemes.Count; i++)
+            // 只为 n 个起边界建拖拽柄（0..n-1）；末音素的尾是派生量（own 尾 + 乘客铺设 + 后盖前），不可拖、无柄。
+            for (var i = 0; i < phonemes.Count; i++)
             {
                 items.Add(new WaveformPhonemeResizeItem(this) { Note = note, PhonemeIndex = i });
             }
-        }
 
-        foreach (var note in Part.Notes)
-        {
-            if (note.GlobalEndPos() < startPos)
-                continue;
-
-            if (note.GlobalStartPos() > endPos)
-                break;
-
-            if (lastItem != null && lastItem.Left!.EndPos() == note.StartPos())
-            {
-                lastItem.Right = note;
-            }
-            else
-            {
-                items.Add(new WaveformNoteResizeItem(this) { Left = null, Right = note });
-            }
-            var item = new WaveformNoteResizeItem(this) { Left = note, Right = null };
-            items.Add(item);
-            lastItem = item;
+            // noteon 缩放柄恒有（音素带内短拉杆；后加，故在核起点处优先于 no-op 音素柄）。与上个 note 相接时为共享边界（见 Down）。
+            items.Add(new WaveformNoteStartResizeItem(this) { Note = note });
+            // noteoff 缩放柄仅当与下一个 note **不相接**（有空隙 / 无下个）才有——相接（重叠 / 相邻 / 延音符）时该边界归下个
+            // note 的 noteon 共享柄、或被 melisma / 重叠覆盖，此处不画也不可拖。此时末音素恰好结束在 note 末、自带刻度即手柄视觉。
+            var nextNote = note.Next;
+            if (nextNote == null || nextNote.StartPos() > note.EndPos() + 1e-6)
+                items.Add(new WaveformNoteEndResizeItem(this) { Note = note });
         }
     }
+
+    // note 是否有可显示音素（钉死或合成）；无则音素带里它什么都没有、无任何拖柄。
+    static bool WaveformHasPhonemes(INote note)
+        => !note.Phonemes.IsEmpty() || (note.SynthesizedPhonemes != null && !note.SynthesizedPhonemes.IsEmpty());
 
     protected override void OnMouseEnter(MouseEnterEventArgs e)
     {
@@ -1727,7 +1686,9 @@ internal partial class PianoScrollView
 
     class NoteStartResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
-        public void Down(double x, INote note)
+        // coupledPrev 非空（音素带共享边界）：本 note 头移动时，联动把上个 note 的尾跟到同一处——拖的是两 note
+        // 的分界线（外侧两端不动）。此模式下夹在 [上个 note 起点+一格, 本 note 末-一格]，两 note 均保正长、不删除。
+        public void Down(double x, INote note, INote? coupledPrev = null)
         {
             if (PianoScrollView.Part == null)
                 return;
@@ -1736,6 +1697,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mNote = note;
+            mCoupledPrev = coupledPrev;
             double start = PianoScrollView.TickAxis.Tick2X(mNote.GlobalStartPos());
             mOffset = x - start;
         }
@@ -1753,7 +1715,17 @@ internal partial class PianoScrollView
             double startTick = PianoScrollView.TickAxis.X2Tick(start);
             if (!alt) startTick = Math.Min(PianoScrollView.GetQuantizedTick(startTick), PianoScrollView.GetQuantizedTick(mNote.GlobalEndPos()) - PianoScrollView.QuantizedCellTicks());
             startTick -= PianoScrollView.Part.Pos.Value;
-            if (startTick >= mNote.EndPos())
+
+            if (mCoupledPrev != null)
+            {
+                // 共享边界：夹在两 note 之间，均保正长、不删除任一。
+                double cell = PianoScrollView.QuantizedCellTicks();
+                double lo = mCoupledPrev.StartPos() + cell;
+                double hi = mNote.EndPos() - cell;
+                if (hi < lo) hi = lo;
+                startTick = Math.Clamp(startTick, lo, hi);
+            }
+            else if (startTick >= mNote.EndPos())
             {
                 PianoScrollView.Part.RemoveNote(mNote);
                 return;
@@ -1767,6 +1739,12 @@ internal partial class PianoScrollView
                 mNote.Pos.Set(mNote.Pos.Value + offsetTick);
                 mNote.Dur.Set(mNote.Dur.Value - offsetTick);
             });
+            if (mCoupledPrev != null)
+            {
+                // 上个 note 尾跟到本 note 新起点（分界线联动）。
+                double prevDur = startTick - mCoupledPrev.StartPos();
+                PianoScrollView.Part.MoveNote(mCoupledPrev, () => mCoupledPrev.Dur.Set(prevDur));
+            }
             PianoScrollView.Part.EndMergeDirty();
         }
 
@@ -1791,10 +1769,12 @@ internal partial class PianoScrollView
                 PianoScrollView.Part.Commit();
             }
             mNote = null;
+            mCoupledPrev = null;
         }
 
         double mOffset;
         INote? mNote;
+        INote? mCoupledPrev;
         Head mHead;
     }
 
@@ -2638,131 +2618,21 @@ internal partial class PianoScrollView
 
     readonly AnchorSelectOperation mAnchorSelectOperation;
 
-    class WaveformNoteResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
-    {
-        public void Down(double x, INote? left, INote? right)
-        {
-            if (left == null && right == null)
-                return;
-
-            if (PianoScrollView.Part == null)
-                return;
-
-            State = State.WaveformNoteResizing;
-            PianoScrollView.Part.BeginMergeDirty();
-            mHead = PianoScrollView.Part.Head;
-            mLeft = left;
-            mRight = right;
-            mOffset = x - PianoScrollView.TickAxis.Tick2X(mLeft == null ? mRight!.GlobalStartPos() : mLeft.GlobalEndPos()); ;
-        }
-
-        public void Move(double x, bool alt)
-        {
-            if (mLeft == null && mRight == null)
-                return;
-
-            if (PianoScrollView.Part == null)
-                return;
-
-            PianoScrollView.Part.DiscardTo(mHead);
-            double posX = x - mOffset;
-            double pos = PianoScrollView.TickAxis.X2Tick(posX);
-            if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
-            pos -= PianoScrollView.Part.Pos.Value;
-            var last = mLeft == null ? mRight?.Last : mLeft;
-            if (last != null) pos = Math.Max(pos, last.StartPos());
-            var next = mRight == null ? mLeft?.Next : mRight;
-            if (next != null) pos = Math.Min(pos, next.EndPos());
-
-            PianoScrollView.Part.BeginMergeDirty();
-            if (mLeft != null)
-            {
-                var left = mLeft;
-                if (pos == left.StartPos())
-                {
-                    PianoScrollView.Part.RemoveNote(left);
-                }
-                else
-                {
-                    // 仅缩/伸尾（StartPos 不变），走 MoveNote 统一维序。
-                    PianoScrollView.Part.MoveNote(left, () => left.Dur.Set(pos - left.Pos.Value));
-                }
-            }
-            if (mRight != null)
-            {
-                var right = mRight;
-                if (pos == right.EndPos())
-                {
-                    PianoScrollView.Part.RemoveNote(right);
-                }
-                else
-                {
-                    // 起点随边界移动（改 StartPos 排序键），统一走 MoveNote 摘除-重插维序。
-                    PianoScrollView.Part.MoveNote(right, () =>
-                    {
-                        right.Dur.Set(right.EndPos() - pos);
-                        right.Pos.Set(pos);
-                    });
-                }
-            }
-            PianoScrollView.Part.EndMergeDirty();
-        }
-
-        public void Up()
-        {
-            State = State.None;
-
-            if (mLeft == null && mRight == null)
-                return;
-
-            if (PianoScrollView.Part == null)
-                return;
-
-            var head = PianoScrollView.Part.Head;
-            PianoScrollView.Part.EndMergeDirty();
-            if (head == mHead)
-            {
-                PianoScrollView.Part.Discard();
-            }
-            else
-            {
-                PianoScrollView.Part.Commit();
-            }
-            mLeft = null;
-            mRight = null;
-        }
-
-        double mOffset;
-        INote? mLeft;
-        INote? mRight;
-        Head mHead;
-    }
-
-    readonly WaveformNoteResizeOperation mWaveformNoteResizeOperation;
 
     class WaveformPhonemeResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         public void Down(double x, INote note, int index)
         {
             var head = note.Part.Head;
+            // 只锁定被拖的 note（不锁邻居）：反解只需 3-note 窗口，且布局已支持合成邻居参与推挤（无需邻居钉死）。
+            // 代价是提交触发重合成时，与本 note 同块的相邻合成音素会短暂留白再回显——可接受，换取不冻结全曲预测。
             note.LockPhonemes();
-            if (note.Phonemes.IsEmpty() || index > note.Phonemes.Count)
+            // 被显示门控留白的 note 本就没有手柄、拖不动（DisplayPhonemes 为空）；此处仍兜底，避免极端时序下取空索引崩溃。
+            var phonemes = note.DisplayPhonemes;
+            if (note.Phonemes.IsEmpty() || phonemes.IsEmpty() || index > phonemes.Count)
             {
                 note.DiscardTo(head);
                 return;
-            }
-
-            var last = note.Last;
-            while (last != null)
-            {
-                last.LockPhonemes();
-                last = last.Last;
-            }
-            var next = note.Next;
-            while (next != null)
-            {
-                next.LockPhonemes();
-                next = next.Next;
             }
 
             State = State.WaveformPhonemeResizing;
@@ -2770,7 +2640,6 @@ internal partial class PianoScrollView
             mHead = note.Part.Head;
             mNote = note;
             mIndex = index;
-            var phonemes = note.PinnedPhonemes;
             mOffset = x - PianoScrollView.TickAxis.Tick2X(note.Part.TempoManager.GetTick(index == phonemes.Count ? phonemes.ConstLast().EndTime : phonemes[index].StartTime));
         }
 
@@ -2784,18 +2653,9 @@ internal partial class PianoScrollView
             double pos = PianoScrollView.TickAxis.X2Tick(posX);
             if (alt) pos = PianoScrollView.GetQuantizedTick(pos);
             double effRel = mNote.Part.TempoManager.GetTime(pos) - mNote.StartTime;
-            // effective（显示/合成时间）→ nominal（写回工程的偏移）逆解，与
-            // EffectivePinnedPhonemeTimes 的正向权重重分配互逆。
-            double time = mNote.NominalPhonemeTime(mIndex, effRel);
-            if (mIndex != mNote.Phonemes.Count)
-                time = Math.Min(time, mNote.Phonemes[mIndex].EndTime.Value);
-            if (mIndex != 0)
-                time = Math.Max(time, mNote.Phonemes[mIndex - 1].StartTime.Value);
-
-            if (mIndex != mNote.Phonemes.Count)
-                mNote.Phonemes[mIndex].StartTime.Set(time);
-            if (mIndex != 0)
-                mNote.Phonemes[mIndex - 1].EndTime.Set(time);
+            // effective（显示秒）→ 改写该边界 offset（保留 anchor 的伸缩跟随），
+            // 共享边界两侧同步、钳在相邻边界之间。
+            mNote.DragPinnedBoundary(mIndex, effRel);
         }
 
         public void Up()
@@ -2889,7 +2749,6 @@ internal partial class PianoScrollView
         VibratoAttackAdjusting,
         VibratoReleaseAdjusting,
         VibratoMoving,
-        WaveformNoteResizing,
         WaveformPhonemeResizing,
         SelectionCreating,
         AnchorSelecting,

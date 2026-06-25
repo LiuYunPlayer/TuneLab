@@ -39,7 +39,7 @@ internal static class SynthesisSnapshotFactory
             notes.Add(new SynthesisNoteSnapshot
             {
                 StartTime = note.StartTime.Value,               // 全局秒（note proxy 已换算）
-                EndTime = note.EndTime.Value,
+                EndTime = note.EndTime.Value,                   // 有效末（去重叠，单声部音频口径；宿主独占音素布局）
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
                 Phonemes = note.Phonemes.Value,                 // 派生 getter 每次新建列表，无活引用

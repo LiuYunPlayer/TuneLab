@@ -44,18 +44,30 @@ public interface ISynthesisSession : IDisposable
     // 不在会话级声明——插件完全可按用户选择逐段用不同率（如提供合成采样率下拉）。
     // 时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是各音频段（未交付区域即静音）。
 
-    // —— 曲线类产物 ——
-    // 线程契约（三者同）：由插件在数据线程发布（合成完在 marshal 回数据线程的续延里换引用）；发布的集合即不可变，
-    // 宿主可跨线程只读；每次更新经 StatusChanged 单一信号通知，宿主收到即重读重绘。接口不强制不可变性，插件自保。
-    IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }   // 分段
+    // —— 曲线类 / 离散产物 ——
+    // 线程契约（全部产物同）：由插件在数据线程发布（合成完在 marshal 回数据线程的续延里换引用）；发布的集合即不可变，
+    // 宿主可跨线程只读；每种产物各有专属更新信号（见下），宿主收到即重读对应产物。接口不强制不可变性，插件自保。
+    // 合成音高（具名富类型，分段折线）：固定专属通道，与通用 keyed 参数解耦各自演进。
+    SynthesizedPitch SynthesizedPitch { get; }
     // 回显曲线数据（按轨 id 键、与音频/音高同一秒时间系）：key 与 GetSynthesizedParameterConfigs 对齐，
     // 仅承载曲线数据本身（轨形态/色由 config 给）；每条为具名富类型 SynthesizedParameter（分段折线）。
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
-    IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
+    // 合成音素（按归属 note 键，每 note 一组 SynthesisPhoneme，只报标称时长——定位 / 去重叠归宿主）。
+    // 引擎自行托管失效——脏 / 合成中的块不应在此报告其 note 的音素（宿主据此留白）。时长模型下无主音素无锚不可定位、
+    // 故无「无主音素」契约（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载）。
+    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes { get; }
 
     // —— 状态 / 按段报错（统一时间线）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
-    // 单一刷新信号：产物/状态有更新，宿主收到直接刷新（区域信息看 GetStatus）。
+
+    // —— 更新信号（按产物分离）——
+    // 一种产物一个信号：宿主对不同产物要做的事不同（音素回填到 note / 参数轨重绘 / 音高曲线重绘 / 状态带重绘），
+    // 分离后宿主只刷新变化的那部分；高频的状态/进度（StatusChanged，逐 tick）不再带动产物重读。
+    // 只在对应产物**真正变化**时 fire（产物没变就别 fire）。音频产物不在此列——经 IAudioSegment.Commit 自有通道驱动。
     // 出方向事件允许任意线程触发，宿主负责 marshal。
+    event Action? SynthesizedPhonemesChanged;
+    event Action? SynthesizedParametersChanged;
+    event Action? SynthesizedPitchChanged;
+    // 状态 / 进度（GetStatus）变化——通常最高频（进度条逐 tick），不触及产物。
     event Action? StatusChanged;
 }

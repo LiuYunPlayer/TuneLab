@@ -15,7 +15,7 @@ public interface ILiveNote
     IReadOnlyNotifiableProperty<double> EndTime { get; }
     IReadOnlyNotifiableProperty<int> Pitch { get; }
     IReadOnlyNotifiableProperty<string> Lyric { get; }
-    IReadOnlyNotifiableProperty<IReadOnlyList<PinnedPhoneme>> Phonemes { get; }
+    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesisPhoneme>> Phonemes { get; }
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
     // 邻居链（协同发音用）。活视图上仅供数据线程的分片决策 live 导航——事件 handler 内

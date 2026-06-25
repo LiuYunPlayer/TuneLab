@@ -40,11 +40,14 @@ internal sealed class SilentSession : ISynthesisSession
     public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
     public Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default) => Task.CompletedTask;
 
-    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => Array.Empty<IReadOnlyList<Point>>();
+    public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;
-    public IReadOnlyList<SynthesizedPhoneme> Phonemes => Array.Empty<SynthesizedPhoneme>();
+    public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => Array.Empty<SynthesisStatusSegment>();
+    public event Action? SynthesizedPhonemesChanged { add { } remove { } }
+    public event Action? SynthesizedParametersChanged { add { } remove { } }
+    public event Action? SynthesizedPitchChanged { add { } remove { } }
     public event Action? StatusChanged { add { } remove { } }
 
     public void Dispose() { }
@@ -52,4 +55,5 @@ internal sealed class SilentSession : ISynthesisSession
     static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
     static readonly Map<string, SynthesizedParameter> sEmptyParameters = new();
+    static readonly Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>> sEmptyPhonemes = new();
 }

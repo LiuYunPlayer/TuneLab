@@ -94,7 +94,7 @@ internal partial class LyricInput : Window
             return;
 
         var lyricResults = LyricUtils.Split(mLyricInputBox.Text);
-        var notes = mSkipTenutoCheckBox.IsChecked ? mNotes.Where(note => note.Lyric.Value != "-") : mNotes;
+        var notes = mSkipTenutoCheckBox.IsChecked ? mNotes.Where(note => !note.IsContinuation()) : mNotes;
         using var enumerator = (mSkipTenutoCheckBox.IsChecked ? lyricResults.Where(lyricResult => lyricResult.Lyric != "-") : lyricResults).GetEnumerator();
         foreach (var note in notes)
         {

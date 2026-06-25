@@ -244,7 +244,7 @@ public sealed class SingleBlockSession : ISynthesisSession
 
         mDirty = false;
         mSynthesizing = true;
-        StatusChanged?.Invoke();
+        NotifyAll();
 
         try
         {
@@ -255,19 +255,15 @@ public sealed class SingleBlockSession : ISynthesisSession
             mSegment?.Dispose();
             mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
-            var phonemes = new List<SynthesizedPhoneme>(notes.Count);
+            var phonemes = new Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>>();
             for (int i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
                 double noteStart = note.StartTime;
                 double noteEnd = note.EndTime;
-                phonemes.Add(new SynthesizedPhoneme
+                phonemes.Add(origins[i], new List<SynthesisPhoneme>   // 索引对齐：产物归属回活 note（map 键）
                 {
-                    Symbol = note.Lyric,
-                    StartTime = noteStart,
-                    EndTime = noteEnd,
-                    Note = origins[i],   // 索引对齐：产物归属回活 note
-                    StretchWeight = noteEnd - noteStart,
+                    new() { Symbol = note.Lyric, Duration = noteEnd - noteStart, StretchWeight = noteEnd - noteStart },
                 });
             }
             mPhonemes = phonemes;
@@ -277,15 +273,15 @@ public sealed class SingleBlockSession : ISynthesisSession
         finally
         {
             mSynthesizing = false;
-            StatusChanged?.Invoke();
+            NotifyAll();
         }
 
         await Task.CompletedTask;
     }
 
-    public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
+    public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
-    public IReadOnlyList<SynthesizedPhoneme> Phonemes => mPhonemes;
+    public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()
     {
@@ -303,7 +299,19 @@ public sealed class SingleBlockSession : ISynthesisSession
         return [new SynthesisStatusSegment { StartTime = start, EndTime = end, Status = status }];
     }
 
+    public event Action? SynthesizedPhonemesChanged;
+    public event Action? SynthesizedParametersChanged;
+    public event Action? SynthesizedPitchChanged;
     public event Action? StatusChanged;
+
+    // 测试插件：产物与状态一并通知（本实现产物只有音素，参数/音高恒空）。
+    void NotifyAll()
+    {
+        SynthesizedPhonemesChanged?.Invoke();
+        SynthesizedParametersChanged?.Invoke();
+        SynthesizedPitchChanged?.Invoke();
+        StatusChanged?.Invoke();
+    }
 
     public void Dispose()
     {
@@ -338,7 +346,7 @@ public sealed class SingleBlockSession : ISynthesisSession
     void MarkDirty()
     {
         mDirty = true;
-        StatusChanged?.Invoke();
+        NotifyAll();
     }
 
     void OnRangeModified(double startTime, double endTime) => MarkDirty();
@@ -352,5 +360,5 @@ public sealed class SingleBlockSession : ISynthesisSession
     IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
-    IReadOnlyList<SynthesizedPhoneme> mPhonemes = [];
+    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> mPhonemes = new Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>>();
 }

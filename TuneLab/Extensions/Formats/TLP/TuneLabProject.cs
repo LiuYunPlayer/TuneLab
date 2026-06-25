@@ -16,7 +16,7 @@ namespace TuneLab.Extensions.Formats.TLP;
 
 internal class TuneLabProject : IImportFormat, IExportFormat
 {
-    const int CURRENT_VERSION = 0;
+    const int CURRENT_VERSION = 1;
     public ProjectInfo Deserialize(Stream streamToRead)
     {
         using (StreamReader reader = new StreamReader(streamToRead, Encoding.UTF8))
@@ -106,22 +106,45 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 Pitch = (int)note["pitch"],
                                 Lyric = (string)note["lyric"],
                                 Pronunciation = (string)note["pronunciation"],
-                                Properties = FromJson(note["properties"])
+                                Properties = FromJson(note["properties"]),
                             };
 
                             if (note.TryGetValue("phonemes", out var phonemes))
                             {
+                                // 按工程版本分支（不再逐音素探测字段）：
+                                //   v≥1：duration/stretchWeight/isLead（每音素时长 + 弹性权重 + 前置标记，位置由布局派生不存）。
+                                //   v<1（legacy）：startTime/endTime（相对音符头的秒，音符头=0）→ 时长 = endTime − startTime（音素连续）；
+                                //     旧模型无前置 / 弹性概念：按区间中点落在音符头之前（(start+end)/2 < 0）判定为前置辅音（IsLead）；
+                                //     第一个非前置音素默认为元音（弹性 w=1、吸收伸缩），其余（前置 + 后辅音）刚性 w=0。
+                                bool legacy = versoin < 1;
+                                bool legacyVowelAssigned = false;
                                 foreach (JObject phoneme in phonemes)
                                 {
-                                    var phonemeInfo = new PhonemeInfo()
+                                    string symbol = (string)phoneme["symbol"] ?? "";
+                                    double duration, weight;
+                                    bool isLead;
+                                    if (legacy)
                                     {
-                                        StartTime = (double)phoneme["startTime"],
-                                        EndTime = (double)phoneme["endTime"],
-                                        Symbol = (string)phoneme["symbol"],
-                                        Weight = (double?)phoneme["weight"] ?? 0,
-                                    };
-
-                                    noteInfo.Phonemes.Add(phonemeInfo);
+                                        double startTime = (double?)phoneme["startTime"] ?? 0;
+                                        double endTime = (double?)phoneme["endTime"] ?? 0;
+                                        isLead = (startTime + endTime) < 0;
+                                        weight = (!isLead && !legacyVowelAssigned) ? 1 : 0;   // 首个非前置音素 = 元音
+                                        if (!isLead) legacyVowelAssigned = true;
+                                        duration = Math.Max(0, endTime - startTime);
+                                    }
+                                    else
+                                    {
+                                        duration = (double?)phoneme["duration"] ?? 0;
+                                        weight = (double?)phoneme["stretchWeight"] ?? 0;
+                                        isLead = (bool?)phoneme["isLead"] ?? false;
+                                    }
+                                    noteInfo.Phonemes.Add(new PhonemeInfo()
+                                    {
+                                        Symbol = symbol,
+                                        Duration = duration,
+                                        StretchWeight = weight,
+                                        IsLead = isLead,
+                                    });
                                 }
                             }
 
@@ -331,10 +354,10 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                             foreach (var phonemeInfo in noteInfo.Phonemes)
                             {
                                 var phoneme = new JObject();
-                                phoneme.Add("startTime", phonemeInfo.StartTime);
-                                phoneme.Add("endTime", phonemeInfo.EndTime);
                                 phoneme.Add("symbol", phonemeInfo.Symbol);
-                                phoneme.Add("weight", phonemeInfo.Weight);
+                                phoneme.Add("duration", phonemeInfo.Duration);
+                                phoneme.Add("stretchWeight", phonemeInfo.StretchWeight);
+                                phoneme.Add("isLead", phonemeInfo.IsLead);
 
                                 phonemes.Add(phoneme);
                             }

@@ -101,7 +101,7 @@ internal static class MidiUtility
                     }
                     else
                     {
-                        note.Lyric = lastNoteEndPos == note.Pos ? "-" : "a";
+                        note.Lyric = lastNoteEndPos == note.Pos ? "-" : "a";   // "-" 延音软约定（相邻 note 默认）
                     }
                     lastNoteEndPos = note.EndPos();
                 }

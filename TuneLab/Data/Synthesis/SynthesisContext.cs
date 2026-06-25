@@ -585,7 +585,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         public IReadOnlyNotifiableProperty<double> EndTime { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
-        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.PinnedPhoneme>> Phonemes { get; }
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesisPhoneme>> Phonemes { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public ILiveNote? Next => mContext.ProxyOf(mNote.Next);
@@ -601,29 +601,34 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
             StartTime = Track(new DerivedProperty<double>(context, () =>
                 context.mTiming.ToSecond(part.Pos.Value + note.Pos.Value),
                 note.Pos));
+            // 有效结束（去重叠后盖前，非破坏）：voice 单声部约束下钳到下一 note 起点（见 INote.EffectiveEndPos）。
+            // 这是喂插件的「单声部音频」口径——去重叠责任在宿主，插件直接拿不重叠的 note。
+            // 音素布局（定位 / 跨 note 压缩 / melisma）也由宿主独占，插件只见有效末，不再暴露 note 满末。
+            // 依赖含下一 note 的 Pos，但源只挂 note 自身 Pos/Dur：重叠的相邻 note 必同处一个分块，
+            // 邻居移动经其自身变更已标脏该块并重分块，故有效结束的变化由块级重渲覆盖，无需在此追踪邻居（且 Next 身份会变）。
             EndTime = Track(new DerivedProperty<double>(context, () =>
-                context.mTiming.ToSecond(part.Pos.Value + note.Pos.Value + note.Dur.Value),
+                context.mTiming.ToSecond(part.Pos.Value + note.EffectiveEndPos()),
                 note.Pos, note.Dur));
             Pitch = Track(new DerivedProperty<int>(context, () => note.Pitch.Value, note.Pitch));
             Lyric = Track(new DerivedProperty<string>(context, () => note.FinalPronunciation() ?? note.Lyric.Value, note.Lyric, note.Pronunciation));
-            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.PinnedPhoneme>>(context, () =>
+            // 钉死音素的「时长 + 权重」（与工程存储同形）：位置 / 去重叠 / 跨 note 压缩由插件按时长 + note 几何自行派生
+            // （布局算法不在 SDK，插件按需照抄参考实现）。时长不随 note 伸缩改变，
+            // 故只依赖 note.Phonemes；note resize 经 StartTime/EndTime 另行触发重合成。
+            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.SynthesisPhoneme>>(context, () =>
             {
-                // effective note 相对秒：与钢琴窗显示共用同一派生（EffectivePinnedPhonemeTimes），
-                // 正向余量按权重重分配（元音吸收 note 伸缩），故拖长 note 后元音随之拉长。
-                // 依赖含 note.Pos/Dur：resize 触发重算（列表非空即整 note 钉死，引擎遵守约束）。
-                var times = note.EffectivePinnedPhonemeTimes();
-                var phonemes = new List<SDK.PinnedPhoneme>(times.Count);
-                for (int i = 0; i < times.Count; i++)
+                var phonemes = new List<SDK.SynthesisPhoneme>(note.Phonemes.Count);
+                foreach (var p in note.Phonemes)
                 {
-                    phonemes.Add(new SDK.PinnedPhoneme
+                    phonemes.Add(new SDK.SynthesisPhoneme
                     {
-                        Symbol = note.Phonemes[i].Symbol.Value,
-                        StartTime = times[i].Start,
-                        EndTime = times[i].End,
+                        Symbol = p.Symbol.Value,
+                        Duration = p.Duration.Value,
+                        StretchWeight = p.StretchWeight.Value,
+                        IsLead = p.IsLead.Value,
                     });
                 }
                 return phonemes;
-            }, note.Phonemes, note.Pos, note.Dur));
+            }, note.Phonemes));
             mProperties = new PropertyObjectGuard(context, note.Properties);
         }
 

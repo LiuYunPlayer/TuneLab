@@ -163,7 +163,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     // —— 音频产物（每块经 IAudioSegment 握柄交付；采样率随段在 CreateAudioSegment 传入；协议：全局 0 时刻 = 采样点 0）——
 
     // —— 曲线类产物 ——
-    public IReadOnlyList<IReadOnlyList<PStruct.Point>> SynthesizedPitch
+    public VVoice.SynthesizedPitch SynthesizedPitch
     {
         get
         {
@@ -172,20 +172,21 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             {
                 result.AddRange(piece.PitchLines);
             }
-            return result;
+            return new VVoice.SynthesizedPitch { Segments = result };
         }
     }
 
     public PStruct.IReadOnlyMap<string, VVoice.SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
-    public IReadOnlyList<VVoice.SynthesizedPhoneme> Phonemes
+    public PStruct.IReadOnlyMap<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>> SynthesizedPhonemes
     {
         get
         {
-            var result = new List<VVoice.SynthesizedPhoneme>();
+            var result = new PStruct.Map<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>>();
             foreach (var piece in mPieces)
             {
-                result.AddRange(piece.Phonemes);
+                foreach (var kvp in piece.Phonemes)   // 块间 note 不相交，直接并入
+                    result.Add(kvp.Key, kvp.Value);
             }
             return result;
         }
@@ -213,6 +214,9 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         return result;
     }
 
+    public event Action? SynthesizedPhonemesChanged;
+    public event Action? SynthesizedParametersChanged;
+    public event Action? SynthesizedPitchChanged;
     public event Action? StatusChanged;
 
     public void Dispose()
@@ -433,35 +437,41 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             .Select(line => (IReadOnlyList<PStruct.Point>)line.Select(p => p.ToV1()).ToList())
             .ToList();
 
-        // 音素扁平化：老结果按 note 装字典（键 = 我们递入的快照包装）→ 经 Origin 归出身 live 代理。
-        var phonemes = new List<VVoice.SynthesizedPhoneme>();
+        // 音素归组：老结果按 note 装字典（键 = 我们递入的快照包装）→ 经 Origin 归出身 live 代理（map 键）。
+        var phonemes = new PStruct.Map<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>>();
         foreach (var kv in result.SynthesizedPhonemes)
         {
             if (kv.Key is not SnapshotNoteView view)
                 continue;
 
+            var list = new List<VVoice.SynthesisPhoneme>();
             foreach (var phoneme in kv.Value)
             {
-                phonemes.Add(new VVoice.SynthesizedPhoneme
+                list.Add(new VVoice.SynthesisPhoneme
                 {
                     Symbol = phoneme.Symbol,
-                    StartTime = phoneme.StartTime,
-                    EndTime = phoneme.EndTime,
-                    Note = view.Origin,
+                    Duration = phoneme.EndTime - phoneme.StartTime,   // 老引擎报绝对位置，转标称时长
                     // 老引擎无伸缩权重概念：w = 时长，退化为均匀缩放（与旧 preview 行为一致）。
                     StretchWeight = phoneme.EndTime - phoneme.StartTime,
                 });
             }
+            if (list.Count > 0)
+                phonemes.Add(view.Origin, list);
         }
         piece.Phonemes = phonemes;
 
         NotifyStatusChanged();
     }
 
+    // 兼容 shim：老引擎一次性产出全部产物、无细粒度失效图，故统一一并通知（含状态）。
     void NotifyStatusChanged()
     {
-        if (!mDisposed)
-            StatusChanged?.Invoke();
+        if (mDisposed)
+            return;
+        SynthesizedPhonemesChanged?.Invoke();
+        SynthesizedParametersChanged?.Invoke();
+        SynthesizedPitchChanged?.Invoke();
+        StatusChanged?.Invoke();
     }
 
     // —— 老引擎的输入读取（V1 订阅树外观不可枚举：键集来自老声源的声明）——
@@ -503,7 +513,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public LVoice.SynthesisResult? Result;
         public VVoice.IAudioSegment? Segment;
         public IReadOnlyList<IReadOnlyList<PStruct.Point>> PitchLines = [];
-        public IReadOnlyList<VVoice.SynthesizedPhoneme> Phonemes = [];
+        public PStruct.IReadOnlyMap<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>> Phonemes = new PStruct.Map<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>>();
     }
 
     // 老 ISynthesisData：全部读冻结快照（worker 线程安全）。
