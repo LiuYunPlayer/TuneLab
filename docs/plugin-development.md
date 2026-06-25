@@ -280,7 +280,7 @@ public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mPart
 public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mNoteConfig;
 ```
 
-> `IPartPropertyContext` 携带 **`VoiceId`**（选定声库）+ `PartProperties`；`INotePropertyContext` 再加 `NoteProperties`。两者都是 **`IReadOnlyList<PropertyObject>`**——各选中成员的稀疏快照（单选 = 1 个、无选中 = 空），宿主不替你合并。不在乎多选就 `context.NoteProperties.Merge()`（`PropertyMerge` 扩展方法，在 `TuneLab.Foundation`）还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`）、按单选写；要逐成员真值（如把不等长数组的 seed 合成对）就直接遍历列表。voiceId 进 context 使 voice 的 context 与 effect 的 `IEffectPropertyContext`（无此对等物）永久分叉——这是有意的：effect 是单类型引擎，没有「选哪个库」的概念。
+> `IPartPropertyContext`（part 面板/自动化）：`VoiceId` + **`IReadOnlyList<PropertyObject> PartProperties`**（各选中 part 的稀疏快照，可多选 part）。`INotePropertyContext`（note 面板，**独立接口、不继承**）：`VoiceId` + **`PropertyObject PartProperties`**（note 所属的**单个** part——note 必属一个 part）+ **`IReadOnlyList<PropertyObject> NoteProperties`**（各选中 note）。列表成员不在乎多选就 `.Merge()`（`PropertyMerge` 扩展方法，在 `TuneLab.Foundation`）还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`）按单选写；要逐成员真值（如把不等长数组的 seed 合成对）就直接遍历列表。voiceId 进 context 使 voice 的 context 与 effect 的 `IEffectPropertyContext`（无此对等物）永久分叉——这是有意的：effect 是单类型引擎，没有「选哪个库」的概念。
 
 **note / part 属性约定（keyed `Properties`，这是 per-note/per-part 参数的唯一通道）**：
 
