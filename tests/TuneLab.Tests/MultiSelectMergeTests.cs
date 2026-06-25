@@ -23,12 +23,12 @@ public class MultiSelectMergeTests
     static PropertyValue ValueAt(PropertyObject obj, string key)
         => obj.Map.TryGetValue(key, out var v) ? v : PropertyValue.Null;
 
-    // ===== config 层：MultiplePropertyMerge.MergeSnapshots =====
+    // ===== config 层：PropertyMerge.Merge =====
 
     [Fact]
     public void Merge_Scalar_SameValueOrMultiple()
     {
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("a", 1.0), ("b", 2.0)),
             Obj(("a", 1.0), ("b", 3.0)),
         ]);
@@ -41,7 +41,7 @@ public class MultiSelectMergeTests
     public void Merge_MissingKey_IsMultiple()
     {
         // 键并集：b 只在其一 → 视作差异。
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("a", 1.0)),
             Obj(("a", 1.0), ("b", 2.0)),
         ]);
@@ -54,7 +54,7 @@ public class MultiSelectMergeTests
     public void Merge_Array_ByIndex_MaxLength()
     {
         // [1,2] vs [1,9,3] → 长度 3：index0 同值=1、index1 不等=Multiple、index2 缺位=Multiple。
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("arr", Arr(1.0, 2.0))),
             Obj(("arr", Arr(1.0, 9.0, 3.0))),
         ]);
@@ -69,7 +69,7 @@ public class MultiSelectMergeTests
     [Fact]
     public void Merge_Array_AllEqual_PreservesValues()
     {
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("arr", Arr(1.0, 2.0))),
             Obj(("arr", Arr(1.0, 2.0))),
         ]);
@@ -81,7 +81,7 @@ public class MultiSelectMergeTests
     public void Merge_Object_KeyUnion_Recurses()
     {
         // {x:1} vs {x:1,y:2} → {x:1, y:Multiple}（y 缺于其一）。
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("o", PropertyValue.Create(Obj(("x", 1.0))))),
             Obj(("o", PropertyValue.Create(Obj(("x", 1.0), ("y", 2.0))))),
         ]);
@@ -96,7 +96,7 @@ public class MultiSelectMergeTests
     {
         // 容器键仅部分成员有（另一从未设该键）：不塌成 Multiple，按结构合并——长度取最长、缺位逐项 Multiple。
         // （驱动 config 行数：避免「多选不等长/部分缺键 → 0 行」。）
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("phonemes", Arr(1.0, 2.0))),
             Obj(("other", 9.0)),   // 无 phonemes 键
         ]);
@@ -111,7 +111,7 @@ public class MultiSelectMergeTests
     public void Merge_Object_KeyAbsentInSomeMembers_PreservesKeyUnion()
     {
         // 键控对象键仅部分成员有 → 键并集保留（不塌 Multiple）。
-        var merged = MultiplePropertyMerge.MergeSnapshots([
+        var merged = PropertyMerge.Merge([
             Obj(("tags", PropertyValue.Create(Obj(("red", PropertyValue.Create(PropertyObject.Empty)))))),
             Obj(("other", 9.0)),
         ]);
@@ -124,8 +124,8 @@ public class MultiSelectMergeTests
     public void Merge_SingleOrEmpty_PassesThrough()
     {
         var single = Obj(("a", 1.0));
-        Assert.Equal(single, MultiplePropertyMerge.MergeSnapshots([single]));
-        Assert.Equal(PropertyObject.Empty, MultiplePropertyMerge.MergeSnapshots([]));
+        Assert.Equal(single, PropertyMerge.Merge([single]));
+        Assert.Equal(PropertyObject.Empty, PropertyMerge.Merge([]));
     }
 
     // ===== 数据层：MultipleDataPropertyArray（经 MultipleDataPropertyObject.Array 取得） =====

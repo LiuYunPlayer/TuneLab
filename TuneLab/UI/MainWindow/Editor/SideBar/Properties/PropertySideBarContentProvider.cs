@@ -246,32 +246,25 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         });
     }
 
+    // part 单选 → 单元素列表；note 多选 → 各选中 note 的稀疏快照列表（宿主不替插件合并，插件按需 PropertyMerge.Merge）。
     IPartPropertyContext BuildPartContext()
-        => new PartPropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo());
+        => new PartPropertyContext(mPart!.Voice.ID, [mPart!.Properties.GetInfo()]);
 
     INotePropertyContext BuildNoteContext()
-        => new NotePropertyContext(mPart!.Voice.ID, mPart!.Properties.GetInfo(), MergeNoteSnapshots());
+        => new NotePropertyContext(mPart!.Voice.ID, [mPart!.Properties.GetInfo()],
+            mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList());
 
-    // 当前选中 note 的三态合并快照（驱动 note config 计算）：标量同 key 全等给该值、不等给 Multiple；
-    // 容器递归对齐——数组按 index（长度取最长，缺位算差异）、对象按 key 并集，与 live 绑定侧的
-    // MultipleDataPropertyArray / MultipleDataPropertyObject 用同一套规则，故 config 行/键数与数据外观对得上。
-    PropertyObject MergeNoteSnapshots()
-    {
-        var snapshots = mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList();
-        return MultiplePropertyMerge.MergeSnapshots(snapshots);
-    }
-
-    sealed class PartPropertyContext(string voiceId, PropertyObject partProperties) : IPartPropertyContext
+    sealed class PartPropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties) : IPartPropertyContext
     {
         public string VoiceId => voiceId;
-        public PropertyObject PartProperties => partProperties;
+        public IReadOnlyList<PropertyObject> PartProperties => partProperties;
     }
 
-    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, PropertyObject noteProperties) : INotePropertyContext
+    sealed class NotePropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties, IReadOnlyList<PropertyObject> noteProperties) : INotePropertyContext
     {
         public string VoiceId => voiceId;
-        public PropertyObject PartProperties => partProperties;
-        public PropertyObject NoteProperties => noteProperties;
+        public IReadOnlyList<PropertyObject> PartProperties => partProperties;
+        public IReadOnlyList<PropertyObject> NoteProperties => noteProperties;
     }
 
     void OnConfigChnaged()

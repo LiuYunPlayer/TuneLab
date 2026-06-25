@@ -648,7 +648,8 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **性能：不做 host 记忆化。** commit 语义决定"每次触发必然伴随至少一个值变化"→ 记忆化命中前提（触发但输入没变）几乎不成立；唯一可能命中的"沿链传播但下游不依赖该字段"需**依赖追踪**才能精确判断，而那个已被否决（保持 `f` 黑盒纯函数），粗粒度整 context 深比较救不了。故记忆化是净负担（每次白做一次 `PropertyObject` 深比较），砍掉。性能防线就是 commit 触发的低频 + `f` 契约。
 
-**多选 = 合并喂一次（方案 A）。** note 多选合并成**一个**三态 `PropertyObject` 喂一次 `f`（非逐 note 算——后者 O(选中数)，大选区平方级）。`f` 依赖的字段若多选不一致，读到 `Multiple` 哨兵（§三.23），作者按默认 fallback，复用三态、不需新机制。
+**多选 = 传成员列表、`f` 调一次（方案 A 的修订）。** `IPartPropertyContext.PartProperties` / `INotePropertyContext.NoteProperties` 是**各选中成员的稀疏快照列表**（单选 = 1 个、无选中 = 空），仍只调一次 `f`（O(选中数) 遍历、无 N 次调用，避开「逐 note 算 config」的开销）。不在乎多选的插件 `PropertyMerge.Merge(context.XxxProperties)` 把列表还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`），按单选写法处理；需要逐成员真值的插件（如把不等长数组 seed 合成对）直接遍历列表。
+> 原始设计是「宿主先合并成一个三态 `PropertyObject` 再喂 `f`」，但这把 `Multiple` 哨兵强塞进插件契约、且 seed 来源字段多值时塌成空（见 §三.29 末）。改为传列表 + 公共 `PropertyMerge.Merge` helper：合并成可选、宿主不擅自决定语义，`Multiple` 退为 helper 的产物（仍保留，作显示与便利合并用）。
 
 **默认值 = "字段不存在"。** `f` 的输入是**稀疏实际值**（`GetInfo` 只含写过的字段，§三.24 懒建不存默认），所以 `f` 不需"先有 config 才有输入"→ 破"算 config 要先有值、要默认值又要先有 config"的环。推论：① **恢复默认 = 清空数据节点字段**（回到"不存在"），现靠静态遍历 `config.Properties` 写 `DefaultValue` 的重置（`ResetPartPropertiesToDefaults`）简化为"清空"，不再依赖 config 可遍历；preset 保存仍 `GetInfo` 出稀疏字段。② **显示 fallback 不阻塞**：渲染叶子时数据有值用实际值、无则用 `f` 当前输出 config 的 `DefaultValue`（此时已拿到 config）。③ `f` 内读 ctx 缺失 key = `Invalid` 哨兵，作者自行 fallback。
 
@@ -793,7 +794,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - **数组家族（位置身份，不跨成员共享）**：按 **index 对齐**，结果长度取最长成员。**「缺位 = 该位默认值」**：某成员短于 index *i* 时，该位按元素默认值参与比较——故各成员该位全等（含「值=默认 vs 未设」）给该值、值不等给 `Multiple`。这与单选「absent 数组显示 seed 默认」一脉相承：一个 note 物化了数组、另一个仍 absent 时，恰等默认的那些位不会误报 `Multiple`（如定长 `pair` 改了一位、另一位仍是默认 → 另一位正确显示共同值）。写**编辑即补齐**：扇出时把短于该位的成员先按各位默认值补齐到该长度、再写入（即「多选把不等长数组调成一样长」）。元素以 index 当 token——跨成员的元素实例身份并不存在，index 是唯一可对齐的键。
 - **对象家族（键身份，跨成员共享）**：按 **key 并集对齐**，逐键递归同上（某键缺于部分成员算差异 → `Multiple`）。
 
-两个面（**config 计算**决定显示哪些行/键、**live 绑定**决定每个控件的三态值与扇出写）用同一套对齐规则，故行/键数与数据外观逐位/逐键对得上：config 层把各成员快照合并成一个三态 `PropertyObject` 喂一次 `f`（`MultiplePropertyMerge`）；数据层 `MultipleDataPropertyObject.Array` 复合成 `MultipleDataPropertyArray`（对象的 `Object(key)` 本就逐成员 compose、天然出键并集），控件无需感知多选。数据核心单测 `tests/TuneLab.Tests/MultiSelectMergeTests.cs`；真机用例 `tests/MULTISELECT-CONTAINER-TEST-CASES.md`。
+两个面（**config 计算**决定显示哪些行/键、**live 绑定**决定每个控件的三态值与扇出写）用同一套对齐规则，故行/键数与数据外观逐位/逐键对得上：config 层经公共 helper `PropertyMerge.Merge`（Foundation，插件可调）把各成员快照合并成一个三态 `PropertyObject`——插件按需调用，宿主只传成员列表（见 §三.27 修订）；数据层 `MultipleDataPropertyObject.Array` 复合成 `MultipleDataPropertyArray`（对象的 `Object(key)` 本就逐成员 compose、天然出键并集），控件无需感知多选。数据核心单测 `tests/TuneLab.Tests/MultiSelectMergeTests.cs`；真机用例 `tests/MULTISELECT-CONTAINER-TEST-CASES.md`。
 
 **已知边界——纯 seed 且 seed 源多值的数组**：seed（越界虚拟行）是 **config 的产物**（`f` 据其他字段算出元素数/默认值），不是数据，故不进数据合并。多选下若某数组从未物化、且其 seed 所依赖的字段在所选成员间不一致（合并为 `Multiple`），`f` 读到 `Multiple` 无法据此算出 seed → 该数组多选时渲染为空（仅 `+`）。这是方案 A（合并数据后只算一次 config）的固有取舍：各成员各自的 seed 不会被 index 合并成 `[Multiple, 同, 同]`。要合并编辑，先在任一成员物化该数组（编辑过一次）即转为真实数组合并、正常三态。修复需逐 note 各算 config 再合并（即方案 A 当初为性能否掉的逐 note 算），权衡后不做。
 

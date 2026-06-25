@@ -28,7 +28,7 @@ internal class Voice : DataObject, IVoice
     public Voice(DataObject parent, VoiceInfo info) : base(parent)
     {
         WriteInfo(info);
-        RefreshDeclarations(new PartPropertyContext(mID, PropertyObject.Empty));
+        RefreshDeclarations(new PartPropertyContext(mID, []));
     }
 
     public VoiceInfo GetInfo()

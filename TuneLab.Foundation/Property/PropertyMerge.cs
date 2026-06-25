@@ -1,18 +1,19 @@
 using System.Collections.Generic;
-using TuneLab.Foundation;
 
 namespace TuneLab.Foundation;
 
-// 多选编辑下把多个属性快照合成一个三态快照（驱动「该显示哪些控件 / 行 / 键」的 config 计算）。
-// 对齐规则随身份模型：
+// 把多个属性快照合成一个三态快照的公共工具——多选属性 config 求值的便利路径：
+// 不在乎多选的插件 `PropertyMerge.Merge(context.NoteProperties)` 即把列表还原成单个三态 PropertyObject，
+// 按单选写法处理；需要逐成员真值的插件直接遍历列表，不调本helper。
+//
+// 对齐规则（随身份模型，与宿主 live 绑定侧的 MultipleDataPropertyObject / MultipleDataPropertyArray 一致）：
 //   标量——各成员同值给该值、不等给 Multiple；
-//   数组——按 index 对齐，长度取最长成员，某 index 仅部分成员有 = 差异 → 该位 Multiple（缺位算差异，同对象缺键）；
-//   对象——按 key 并集对齐，某 key 仅部分成员有 = 差异 → 递归（缺键的成员以「缺席」参与，触底为 Multiple）。
-// 递归触底；任一层「有成员缺该位/键」即判差异。与 live 绑定侧的 MultipleDataPropertyObject / MultipleDataPropertyArray
-// 用同一套对齐规则（index 对数组、key 对对象），故 config 给出的行/键数与数据外观逐位/逐键对得上。
-public static class MultiplePropertyMerge
+//   数组——按 index 对齐，长度取最长成员，缺位逐项给 Multiple；
+//   对象——按 key 并集对齐，逐键递归。
+// 容器型即使部分成员缺该键也按结构合并（缺席当空容器，保住长度/键并集），仅标量缺席整体 Multiple；递归触底。
+public static class PropertyMerge
 {
-    public static PropertyObject MergeSnapshots(IReadOnlyList<PropertyObject> snapshots)
+    public static PropertyObject Merge(IReadOnlyList<PropertyObject> snapshots)
     {
         if (snapshots.Count == 0)
             return PropertyObject.Empty;
@@ -23,10 +24,10 @@ public static class MultiplePropertyMerge
         for (int i = 0; i < slots.Length; i++)
             slots[i] = Slot.Of(PropertyValue.Create(snapshots[i]));
 
-        return Merge(slots).ToObject(out var merged) ? merged : PropertyObject.Empty;
+        return MergeValues(slots).ToObject(out var merged) ? merged : PropertyObject.Empty;
     }
 
-    // 一个成员在某位/键上的参与项：缺席（短于该 index / 无该 key）以 Present=false 参与，强制该节点判差异。
+    // 一个成员在某位/键上的参与项：缺席（短于该 index / 无该 key）以 Present=false 参与。
     readonly struct Slot
     {
         public readonly bool Present;
@@ -36,7 +37,7 @@ public static class MultiplePropertyMerge
         public static readonly Slot Absent = new(false, PropertyValue.Null);
     }
 
-    static PropertyValue Merge(IReadOnlyList<Slot> slots)
+    static PropertyValue MergeValues(IReadOnlyList<Slot> slots)
     {
         // 取 present 成员的主类型。容器型（数组/对象）即使部分成员缺席也按结构合并——缺席当空容器，
         // 长度取最长 / 键取并集（保住「该显示几行 / 哪些键」），缺位逐项落 Multiple；
@@ -86,7 +87,7 @@ public static class MultiplePropertyMerge
         {
             for (int i = 0; i < arrays.Length; i++)
                 childSlots[i] = index < arrays[i].Count ? Slot.Of(arrays[i][index]) : Slot.Absent;
-            result.Add(Merge(childSlots));
+            result.Add(MergeValues(childSlots));
         }
         return new PropertyArray(result);
     }
@@ -111,7 +112,7 @@ public static class MultiplePropertyMerge
         {
             for (int i = 0; i < objects.Length; i++)
                 childSlots[i] = objects[i].Map.TryGetValue(key, out var value) ? Slot.Of(value) : Slot.Absent;
-            map.Add(key, Merge(childSlots));
+            map.Add(key, MergeValues(childSlots));
         }
         return new PropertyObject(map);
     }
