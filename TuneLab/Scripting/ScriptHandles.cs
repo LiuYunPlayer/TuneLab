@@ -34,7 +34,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     public double Dur { get => N.Dur.Value; set => Apply(dur: value); }
     public int Pitch { get => N.Pitch.Value; set => Apply(pitch: value); }          // MIDI 0..127
     public string Lyric { get => N.Lyric.Value; set => Apply(lyric: value ?? string.Empty); }
-    public string PitchName => ScriptPitch.Name(N.Pitch.Value);                     // 只读，如 "C4"
+    public string PitchName => MusicTheory.PitchName(N.Pitch.Value);                 // 只读，如 "C4"
 
     // 批量原子改：{pos?, dur?, pitch?, lyric?}（改 pos/dur 只重排一次）。
     public void Set(JsValue props)
@@ -84,11 +84,11 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     public double Dur { get => P.Dur.Value; set => Apply(dur: value); }
     public string Type => P is IMidiPart ? "midi" : "audio";
 
-    // 本 part 的声源信息（只读快照）。仅 midi part。
+    // 本 part 的声源信息（只读快照）。仅 midi part。kind 区分 voice / instrument。
     public ScriptVoice Voice()
     {
-        var v = Midi.Voice;
-        return new ScriptVoice(v.Type, v.ID, v.Name, v.DefaultLyric);
+        var v = Midi.SoundSource;
+        return new ScriptVoice(v.Type, v.ID, v.Name, v.DefaultLyric, v.Kind == SourceKind.Voice ? "voice" : "instrument");
     }
 
     // ── 音符 ──
@@ -165,7 +165,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // ── 自动化曲线（automation，对齐 C# midi.Automations；不含 pitch） ──
 
     // 可编辑的自动化轨 id 列表（voice 声明，如 "Volume"；不含 pitch）。
-    public string[] AutomationIds() => Midi.Voice.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
+    public string[] AutomationIds() => Midi.SoundSource.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
 
     // 在绝对 tick 区间 [startTick, endTick] 上等距采样某自动化曲线。NaN = 该处无曲线。
     public double[] SampleAutomation(string id, double startTick, double endTick, int samples)
@@ -408,14 +408,16 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
             Pos, Dur, Frequency, Amplitude);
 }
 
-// 一个 part 的声源信息（只读快照）。
-internal sealed class ScriptVoice(string type, string id, string name, string defaultLyric)
+// 一个 part 的声源信息（只读快照）。kind = "voice" | "instrument"。
+internal sealed class ScriptVoice(string type, string id, string name, string defaultLyric, string kind)
 {
     public string Type { get; } = type;
     public string Id { get; } = id;
     public string Name { get; } = name;
+    public string Kind { get; } = kind;
+    // 默认歌词（instrument 恒 "a"，无意义；保留以兼容既有脚本字段）。
     public string DefaultLyric { get; } = defaultLyric;
-    public override string ToString() => string.Format(CultureInfo.InvariantCulture, "Voice(\"{0}\", type={1}, id={2})", Name, Type, Id);
+    public override string ToString() => string.Format(CultureInfo.InvariantCulture, "SoundSource(\"{0}\", kind={1}, type={2}, id={3})", Name, Kind, Type, Id);
 }
 
 // 一个速度标记（只读快照）。
@@ -446,16 +448,3 @@ internal sealed class ScriptPlayhead(double tick, double seconds, int bar, doubl
     public override string ToString() => string.Format(CultureInfo.InvariantCulture, "Playhead(tick={0:0}, bar {1}:{2:0.##}, playing={3})", Tick, Bar, Beat, Playing);
 }
 
-// 音高 MIDI → 音名（C0 = MIDI 12）。
-internal static class ScriptPitch
-{
-    static readonly string[] Names = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-
-    public static string Name(int midi)
-    {
-        int rel = midi - MusicTheory.C0_PITCH;
-        int octave = (int)System.Math.Floor(rel / 12.0);
-        int idx = ((rel % 12) + 12) % 12;
-        return Names[idx] + octave.ToString(CultureInfo.InvariantCulture);
-    }
-}

@@ -182,7 +182,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                 return sEmptyReadbackConfigs;
 
             var result = new OrderedMap<AutomationKey, AutomationConfigEntry>();
-            foreach (var kvp in Part.Voice.SynthesizedParameterConfigs)
+            foreach (var kvp in Part.SoundSource.SynthesizedParameterConfigs)
                 result.Add(AutomationKey.Voice(kvp.Key.Id), new AutomationConfigEntry(kvp.Key, kvp.Value));
             for (int i = 0; i < Part.Effects.Count; i++)
             {

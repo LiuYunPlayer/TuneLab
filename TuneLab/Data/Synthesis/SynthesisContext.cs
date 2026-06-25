@@ -16,7 +16,7 @@ namespace TuneLab.Data.Synthesis;
 //
 // 坐标系约定（SDK 面）：tick/秒均为全局工程轴（与音频产物、状态段同一时间系）；
 // 宿主数据层的 part 相对量在本层完成偏移换算。
-internal sealed class SynthesisContext : ISynthesisContext, IDisposable
+internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
 {
     public MidiPart Part => mPart;
 
@@ -85,19 +85,22 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         return segment;
     }
 
-    // 宿主侧读取面（同 TuneLab 程序集内的管线消费）：已交付音频的段供 effect 链按段过。
-    internal IReadOnlyList<AudioSegment> AudioSegments => mAudioSegments;
+    // 宿主侧读取面（IAudioSegmentHost，供 EffectGraph 消费）：已交付音频的段供 effect 链按段过。
+    public IReadOnlyList<AudioSegment> AudioSegments => mAudioSegments;
 
-    // 段集 / 段内容变化（Commit 或 Dispose）→ 通知管线 reconcile（变了哪段据 AudioSegments + CommitVersion 算）。
-    internal event Action? AudioSegmentsChanged;
+    // 段集 / 段内容变化（Commit 或 Dispose）→ 通知效果图 reconcile（变了哪段据 AudioSegments + CommitVersion 算）。
+    public event Action? AudioSegmentsChanged;
 
-    void RemoveAudioSegment(AudioSegment segment)
+    // IAudioSegmentOwner：段握柄回调（线程断言转发给 DEBUG 期的 AssertDataThread，Release 下空转）。
+    public void AssertSegmentThread() => AssertDataThread();
+
+    public void RemoveAudioSegment(AudioSegment segment)
     {
         mAudioSegments.Remove(segment);
         NotifyAudioSegmentsChanged();
     }
 
-    void NotifyAudioSegmentsChanged()
+    public void NotifyAudioSegmentsChanged()
     {
         if (!mDisposed)
             AudioSegmentsChanged?.Invoke();
@@ -152,11 +155,28 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         mAudioSegments.Clear();
     }
 
-    // —— 转发旋钮（线程/时机/故障隔离/批量都收在这里）——
+    // —— 转发旋钮（ISynthesisForwarder；线程/时机/故障隔离/批量都收在这里）——
+
+    // 数据线程断言转发：AssertDataThread 是 [Conditional("DEBUG")]，故 Release 下本方法体内的调用被消除、空转。
+    public void AssertThread() => AssertDataThread();
+
+    // 全局秒 → part 相对 tick（AutomationProxy 求值用）：全局秒 → 全局 tick → 减 part 偏移。
+    public double[] ToRelativeTicks(IReadOnlyList<double> times)
+    {
+        AssertDataThread();
+        double pos = mPart.Pos.Value;
+        double[] globalTicks = mTiming.ToTicks(times);
+        double[] relTicks = new double[globalTicks.Length];
+        for (int i = 0; i < globalTicks.Length; i++)
+        {
+            relTicks[i] = globalTicks[i] - pos;
+        }
+        return relTicks;
+    }
 
     // 改后类通知的统一转发口：变更通知发完后补一个 Committed 收口（不在显式批量中时给单条编辑也补，
     // 契约"每个逻辑编辑都收口一次"的单条情形；批量中则由 OnBatchEnd 在批量结束统一收口）。try-catch 隔离插件故障。
-    internal void ForwardChange(Action raise)
+    public void ForwardChange(Action raise)
     {
         if (mDisposed)
             return;
@@ -178,7 +198,7 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     }
 
     // 改前事件直转（不入括号）：插件在 handler 内读旧值做廉价记录，重活留到 BatchEnd。
-    internal void ForwardWill(Action raise)
+    public void ForwardWill(Action raise)
     {
         if (mDisposed)
             return;
@@ -297,49 +317,8 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
     readonly List<AudioSegment> mAudioSegments = new();
     bool mDisposed;
 
-    // —— 音频段握柄的宿主实现：创建时一次性分配固定缓冲（采样域，全局采样位置 SampleOffset）；
-    //    插件就地写子区间、Commit 标固定；管线读 SampleOffset/Samples 拼装、驱动 effect。
-    //    Dispose = 从登记表摘除（重分片 / 改长度位置时重建）。 ——
-    internal sealed class AudioSegment : IAudioSegment
-    {
-        public AudioSegment(SynthesisContext owner, long sampleOffset, int sampleCount, int sampleRate)
-        {
-            mOwner = owner;
-            SampleOffset = sampleOffset;
-            SampleRate = sampleRate;
-            mSamples = new float[Math.Max(0, sampleCount)];
-        }
-
-        public long SampleOffset { get; }
-        public int SampleRate { get; }   // 该段 native 采样率（插件创建时传入；宿主侧读取，不经 IAudioSegment 暴露给插件）
-        public float[] Samples => mSamples;
-        public bool IsCommitted { get; private set; }
-        public int CommitVersion { get; private set; }   // 每次 Commit 自增：管线据此识别"同握柄重提交"重建该段链
-
-        public void Write(int offset, ReadOnlySpan<float> samples)
-        {
-            mOwner.AssertDataThread();
-            samples.CopyTo(mSamples.AsSpan(offset));   // 越界即抛（契约：超出 sampleCount 非法）
-            IsCommitted = false;
-        }
-
-        public void Commit()
-        {
-            mOwner.AssertDataThread();
-            IsCommitted = true;
-            CommitVersion++;
-            mOwner.NotifyAudioSegmentsChanged();
-        }
-
-        public void Dispose()
-        {
-            mOwner.AssertDataThread();
-            mOwner.RemoveAudioSegment(this);
-        }
-
-        readonly SynthesisContext mOwner;
-        readonly float[] mSamples;
-    }
+    // 音频段握柄已提为共享类（见 AudioSegment.cs / IAudioSegmentOwner）：voice / instrument context 共用、
+    // EffectGraph 统一消费。本类作为 IAudioSegmentOwner 提供其线程断言 / 摘除 / 通知回调。
 
     // —— ITiming 活实现：直接转发 TempoManager（仅数据线程使用；快照侧用 TempoSnapshot）——
     sealed class LiveTiming(SynthesisContext context, ITempoManager tempoManager) : ITiming
@@ -350,31 +329,8 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         public double[] ToTicks(IReadOnlyList<double> seconds) { context.AssertDataThread(); return tempoManager.GetTicks(seconds); }
     }
 
-    // —— 曲线类的会话级活视图：取值经 sampler 委托（part 相对 tick 轴）回宿主数据层，
-    //    秒↔tick 换算与 part 偏移由本代理在边界完成；区间事件由 context 换算成全局秒后注入。 ——
-    internal sealed class AutomationProxy(SynthesisContext context, Func<IReadOnlyList<double>, double[]> sampler) : ILiveAutomation
-    {
-        public event Action<double, double>? RangeModified;
-
-        // 查询轴 = 全局秒：全局秒 → 全局 tick → part 相对 tick → 喂数据层 sampler。
-        public double[] Evaluate(IReadOnlyList<double> times)
-        {
-            context.AssertDataThread();
-            double pos = context.mPart.Pos.Value;
-            double[] globalTicks = context.mTiming.ToTicks(times);
-            double[] relTicks = new double[globalTicks.Length];
-            for (int i = 0; i < globalTicks.Length; i++)
-            {
-                relTicks[i] = globalTicks[i] - pos;
-            }
-            return sampler(relTicks);
-        }
-
-        internal void NotifyRangeModified(double startSecond, double endSecond)
-        {
-            context.ForwardChange(() => RangeModified?.Invoke(startSecond, endSecond));
-        }
-    }
+    // AutomationProxy / DerivedProperty / PropertyObjectGuard 已提为共享代理（见 SynthesisProxies.cs），
+    // 经 ISynthesisForwarder 复用于 voice / instrument 两 context。
 
     // —— note 代理集合：镜像 part.Notes（顺序即链表序，无索引承诺——SDK 面即链表形态），
     //    增删自动建/毁代理并转发结构事件。 ——
@@ -476,102 +432,6 @@ internal sealed class SynthesisContext : ISynthesisContext, IDisposable
         readonly INoteList mNotes;
         readonly Dictionary<INote, SynthesisNoteProxy> mProxies = new();
         readonly DisposableManager s = new();
-    }
-
-    // —— 派生只读属性：借壳一个或多个数据层源（最小订阅面）的改前/改后事件，
-    //    值即时从 getter 计算；事件字段在本对象上（短命），源订阅随 Dispose 拆除。 ——
-    sealed class DerivedProperty<T> : IReadOnlyNotifiableProperty<T>, IDisposable
-    {
-        public event Action? WillModify;
-        public event Action? Modified;
-        public T Value
-        {
-            get
-            {
-                mContext.AssertDataThread();
-                return mGetter();
-            }
-        }
-
-        public DerivedProperty(SynthesisContext context, Func<T> getter, params IReadOnlyNotifiable[] sources)
-        {
-            mContext = context;
-            mGetter = getter;
-            mSources = sources;
-            mOnWillModify = () => mContext.ForwardWill(() => WillModify?.Invoke());
-            mOnModified = () => mContext.ForwardChange(() => Modified?.Invoke());
-            foreach (var source in mSources)
-            {
-                source.WillModify += mOnWillModify;
-                source.Modified += mOnModified;
-            }
-        }
-
-        public void Dispose()
-        {
-            foreach (var source in mSources)
-            {
-                source.WillModify -= mOnWillModify;
-                source.Modified -= mOnModified;
-            }
-        }
-
-        readonly SynthesisContext mContext;
-        readonly Func<T> mGetter;
-        readonly IReadOnlyNotifiable[] mSources;
-        readonly Action mOnWillModify;
-        readonly Action mOnModified;
-    }
-
-    // —— 属性树守卫：把宿主长寿 property object 包成会话级只读外观。
-    //    导航逐层包裹（per key 缓存）、读值直透、事件 re-raise 到自身字段。 ——
-    sealed class PropertyObjectGuard : IReadOnlyNotifiablePropertyObject, IDisposable
-    {
-        public event Action? WillModify;
-        public event Action? Modified;
-
-        public PropertyObjectGuard(SynthesisContext context, IReadOnlyNotifiablePropertyObject source)
-        {
-            mContext = context;
-            mSource = source;
-            mOnWillModify = () => mContext.ForwardWill(() => WillModify?.Invoke());
-            mOnModified = () => mContext.ForwardChange(() => Modified?.Invoke());
-            mSource.WillModify += mOnWillModify;
-            mSource.Modified += mOnModified;
-        }
-
-        public IReadOnlyNotifiablePropertyObject Object(string key)
-        {
-            if (!mChildren.TryGetValue(key, out var child))
-            {
-                child = new PropertyObjectGuard(mContext, mSource.Object(key));
-                mChildren.Add(key, child);
-            }
-            return child;
-        }
-
-        public PropertyValue GetValue(string key, PropertyValue defaultValue)
-        {
-            mContext.AssertDataThread();
-            return mSource.GetValue(key, defaultValue);
-        }
-
-        public void Dispose()
-        {
-            mSource.WillModify -= mOnWillModify;
-            mSource.Modified -= mOnModified;
-            foreach (var kvp in mChildren)
-            {
-                kvp.Value.Dispose();
-            }
-            mChildren.Clear();
-        }
-
-        readonly SynthesisContext mContext;
-        readonly IReadOnlyNotifiablePropertyObject mSource;
-        readonly Action mOnWillModify;
-        readonly Action mOnModified;
-        readonly Dictionary<string, PropertyObjectGuard> mChildren = new();
     }
 
     // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局秒（ToSecond(partPos+notePos)，

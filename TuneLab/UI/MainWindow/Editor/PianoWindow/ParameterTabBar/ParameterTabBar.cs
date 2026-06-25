@@ -43,7 +43,7 @@ internal class ParameterTabBar : Panel
         Children.Add(mAutomationLayout);
 
         mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
-        mDependency.PartHolder.When(p => p.Voice.Modified).Subscribe(OnAutomationConfigsChanged, s);
+        mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(OnAutomationConfigsChanged, s);
         mDependency.PartHolder.When(p => p.Effects.ListModified).Subscribe(OnAutomationConfigsChanged, s);
         // 条件自动化轨随参数 commit 显隐 → 重建轨按钮（仅轨集合实变时触发）。
         mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(OnAutomationConfigsChanged, s);
@@ -89,7 +89,7 @@ internal class ParameterTabBar : Panel
             return;
 
         bool firstGroup = true;
-        AddAutomationGroup(Part.Voice.AutomationConfigs, -1, ref firstGroup);
+        AddAutomationGroup(Part.SoundSource.AutomationConfigs, -1, ref firstGroup);
         for (int i = 0; i < Part.Effects.Count; i++)
             AddAutomationGroup(Part.Effects[i].AutomationConfigs, i, ref firstGroup);
     }
@@ -153,7 +153,7 @@ internal class ParameterTabBar : Panel
                 SyncKey(effectIndex < 0 ? AutomationKey.Voice(kvp.Key.Id) : AutomationKey.Effect(effectIndex, kvp.Key.Id));
         }
 
-        Sync(Part.Voice.AutomationConfigs, -1);
+        Sync(Part.SoundSource.AutomationConfigs, -1);
         for (int i = 0; i < Part.Effects.Count; i++)
             Sync(Part.Effects[i].AutomationConfigs, i);
     }

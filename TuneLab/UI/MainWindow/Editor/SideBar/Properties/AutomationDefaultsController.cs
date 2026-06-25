@@ -34,7 +34,7 @@ internal class AutomationDefaultsController : StackPanel
             return;
 
         // 默认值面板只列连续轨（分段轨无默认基线）。
-        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
         {
             if (kvp.Value.IsPiecewise)
                 continue;

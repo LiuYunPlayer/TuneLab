@@ -165,7 +165,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         if (mPart != null)
         {
-            mPart.Voice.Modified.Subscribe(OnConfigChnaged, s);
+            mPart.SoundSource.Modified.Subscribe(OnConfigChnaged, s);
             mPart.Notes.SelectionChanged.Subscribe(OnNoteSelectionChanged, s);
             // part 属性 commit（结果态）→ 重算 part 面板（自身联动）并沿链重算 note 面板（note config 依赖 part 值）。
             mPart.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
@@ -212,7 +212,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        mPartPropertiesController.SetConfig(mPart.Voice.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
+        mPartPropertiesController.SetConfig(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
     }
 
     // 重算 defer 到下一 UI 调度：属性 commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
@@ -228,7 +228,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mPartReconcilePending = false;
             if (mPart == null)
                 return;
-            mPartPropertiesController.Reconcile(mPart.Voice.GetPartPropertyConfig(BuildPartContext()));
+            mPartPropertiesController.Reconcile(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()));
         });
     }
 
@@ -242,16 +242,17 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             mNoteReconcilePending = false;
             if (mPart == null || mNoteData == null)
                 return;
-            mNotePropertiesController.Reconcile(mPart.Voice.GetNotePropertyConfig(BuildNoteContext()));
+            mNotePropertiesController.Reconcile(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()));
         });
     }
 
-    // part 单选 → 单元素列表；note 多选 → 各选中 note 的稀疏快照列表（宿主不替插件合并，插件按需 PropertyMerge.Merge）。
+    // part 面板单 part → 单元素列表（保留列表形以备多 part）；note 面板 → 单个所属 part + 各选中 note 列表
+    //（宿主不替插件合并，插件按需 .Merge()）。
     IPartPropertyContext BuildPartContext()
-        => new PartPropertyContext(mPart!.Voice.ID, [mPart!.Properties.GetInfo()]);
+        => new PartPropertyContext(mPart!.SoundSource.ID, [mPart!.Properties.GetInfo()]);
 
     INotePropertyContext BuildNoteContext()
-        => new NotePropertyContext(mPart!.Voice.ID, [mPart!.Properties.GetInfo()],
+        => new NotePropertyContext(mPart!.SoundSource.ID, mPart!.Properties.GetInfo(),
             mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList());
 
     sealed class PartPropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties) : IPartPropertyContext
@@ -260,10 +261,10 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         public IReadOnlyList<PropertyObject> PartProperties => partProperties;
     }
 
-    sealed class NotePropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties, IReadOnlyList<PropertyObject> noteProperties) : INotePropertyContext
+    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, IReadOnlyList<PropertyObject> noteProperties) : INotePropertyContext
     {
         public string VoiceId => voiceId;
-        public IReadOnlyList<PropertyObject> PartProperties => partProperties;
+        public PropertyObject PartProperties => partProperties;
         public IReadOnlyList<PropertyObject> NoteProperties => noteProperties;
     }
 
@@ -314,7 +315,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         // 遮罩仅压暗 + 挡交互、提示去选音符。
         var dataObjects = mPart.Notes.AllSelectedItems().Select(note => note.Properties).ToList();
         mNoteData = new MultipleDataPropertyObject(dataObjects);
-        mNotePropertiesController.SetConfig(mPart.Voice.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
+        mNotePropertiesController.SetConfig(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
         mNoteData.Modified.Subscribe(ReconcileNoteController, mNoteSub);
     }
@@ -403,7 +404,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        ResetPartPropertiesToDefaults(mPart.Voice.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
+        ResetPartPropertiesToDefaults(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
         ResetAutomationDefaults();
         mPart.Commit();
     }
@@ -413,8 +414,8 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        mPart.Voice.SetInfo(new VoiceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
-        ResetPartPropertiesToDefaults(mPart.Voice.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
+        mPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
+        ResetPartPropertiesToDefaults(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
         ApplyPresetProperties(preset.Properties, mPart.Properties);
         ApplyAutomationDefaults(preset);
         mPart.Commit();
@@ -462,7 +463,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
         {
             if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
                 automation.DefaultValue.Set(kvp.Value.DefaultValue);
@@ -474,7 +475,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
         {
             double value = preset.Automations.GetValueOrDefault(kvp.Key.Id, kvp.Value.DefaultValue);
             if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
@@ -586,11 +587,11 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         var preset = new PartPreset()
         {
             Name = presetName,
-            Voice = mPart.Voice.GetInfo(),
+            Voice = mPart.SoundSource.GetInfo(),
             Properties = mPart.Properties.GetInfo(),
         };
 
-        foreach (var kvp in mPart.Voice.AutomationConfigs)
+        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
         {
             var key = kvp.Key.Id;
             if (mPart.Automations.TryGetValue(key, out var automation))

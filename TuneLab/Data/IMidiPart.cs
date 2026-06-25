@@ -21,7 +21,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     INoteList Notes { get; }
     IReadOnlyDataObjectLinkedList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
-    IVoice Voice { get; }
+    ISoundSource SoundSource { get; }
     IDataProperty<double> Gain { get; }
     IReadOnlyDataObjectMap<string, IAutomation> Automations { get; }
     // 声明分段轨（除 Pitch 外的可编辑分段曲线），按轨 id 存；Pitch 是专属常驻通道、不入此 map。
@@ -30,7 +30,7 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IPiecewiseAutomation Pitch { get; }
 
     // —— 合成消费面（session 模型，插件托管状态与产物，宿主拉取展示）——
-    Synthesis.VoiceSynthesisPipeline? SynthesisPipeline { get; }
+    Synthesis.ISynthesisPipeline? SynthesisPipeline { get; }
     bool IsSynthesisBatching { get; }
     IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus();
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
@@ -77,13 +77,13 @@ internal static class IMidiPartExtension
 {
     public static bool IsEffectiveAutomation(this IMidiPart part, string id)
     {
-        return part.Voice.AutomationConfigs.ContainsKey(id);
+        return part.SoundSource.AutomationConfigs.ContainsKey(id);
     }
 
     public static AutomationConfig GetEffectiveAutomationConfig(this IMidiPart part, string id)
     {
-        if (part.Voice.AutomationConfigs.ContainsKey(id))
-            return part.Voice.AutomationConfigs[id];
+        if (part.SoundSource.AutomationConfigs.ContainsKey(id))
+            return part.SoundSource.AutomationConfigs[id];
 
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
     }
@@ -102,7 +102,7 @@ internal static class IMidiPartExtension
             return false;
         }
 
-        return part.Voice.AutomationConfigs.TryGetValue(key.Id, out config!);
+        return part.SoundSource.AutomationConfigs.TryGetValue(key.Id, out config!);
     }
 
     public static bool IsEffectiveAutomation(this IMidiPart part, AutomationKey key)
@@ -494,7 +494,7 @@ internal static class IMidiPartExtension
         var basePart = SortedPartInfos[0];
         ret.Pos = SortedPartInfos.First().Pos;
         ret.Dur = SortedPartInfos.Last().Dur + SortedPartInfos.Last().Pos - ret.Pos;
-        ret.Voice = basePart.Voice;
+        ret.SoundSource = basePart.SoundSource;
         ret.Gain = basePart.Gain;
         ret.Name = basePart.Name;
         ret.Properties = basePart.Properties;
@@ -562,7 +562,7 @@ internal static class IMidiPartExtension
             Dur = end - start,
             Gain = part.Gain.GetInfo(),
             Name = part.Name.GetInfo(),
-            Voice = part.Voice.GetInfo(),
+            SoundSource = part.SoundSource.GetInfo(),
             Properties = part.Properties.GetInfo(),
             Pitch = parameters.Pitch,
             Notes = notes,

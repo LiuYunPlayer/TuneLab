@@ -11,6 +11,7 @@ using TuneLab.Utils;
 
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Agent;
 namespace TuneLab.Extensions;
@@ -56,6 +57,7 @@ internal static class ExtensionManager
         PathManager.MakeSureExist(PathManager.ExtensionsFolder);
         FormatsManager.LoadBuiltIn();
         VoicesManager.LoadBuiltIn();
+        InstrumentsManager.LoadBuiltIn();
         EffectManager.LoadBuiltIn();
         AgentModelManager.LoadBuiltIn();
         foreach (var dir in Directory.GetDirectories(PathManager.ExtensionsFolder))
@@ -70,6 +72,7 @@ internal static class ExtensionManager
     public static void Destroy()
     {
         VoicesManager.Destroy();
+        InstrumentsManager.Destroy();
         EffectManager.Destroy();
         AgentModelManager.Destroy();
     }
@@ -284,7 +287,7 @@ internal static class ExtensionManager
         return File.Exists(full) ? full : null;
     }
 
-    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "effect" or "agent-model";
+    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "instrument" or "effect" or "agent-model";
 
     // legacy 包的稳定包 id（无 V1 manifest id 时）：用目录名——每个安装唯一、跨会话稳定，
     // 供冲突消解区分多个 legacy 包并反查显示名。LegacyCompatLoader 注册与 LoadResult.Id 须用同一值。
@@ -318,6 +321,12 @@ internal static class ExtensionManager
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
                 if (!TryScanCtor<IVoiceEngine>(assembly, candidates, out var vctor, out error)) return false;
                 VoicesManager.RegisterEngine(packageId, ext.engine, displayName, (IVoiceEngine)vctor!.Invoke(null));
+                return true;
+
+            case "instrument":
+                if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
+                if (!TryScanCtor<IInstrumentEngine>(assembly, candidates, out var ictor2, out error)) return false;
+                InstrumentsManager.RegisterEngine(packageId, ext.engine, displayName, (IInstrumentEngine)ictor2!.Invoke(null));
                 return true;
 
             case "effect":

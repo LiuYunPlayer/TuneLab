@@ -103,8 +103,8 @@ internal class ACEStudioProject : IImportFormat, IExportFormat
                                 PartInfo? partInfo = null;
                                 var midiPartInfo = new MidiPartInfo();
                                 midiPartInfo.Properties = PropertyObject.Empty;
-                                midiPartInfo.Voice.Type = "";
-                                midiPartInfo.Voice.ID = "";
+                                midiPartInfo.SoundSource.Type = "";
+                                midiPartInfo.SoundSource.ID = "";
 
                                 partInfo = midiPartInfo;
 

@@ -104,7 +104,7 @@ internal static class FormatConverter
     public static New.MidiPartInfo ToV1(this Old.MidiPartInfo o) => new()
     {
         Name = o.Name, Pos = o.Pos, Dur = o.Dur, Gain = o.Gain,
-        Voice = o.Voice.ToV1(),
+        SoundSource = o.Voice.ToSoundSource(),
         Notes = o.Notes.Select(ToV1).ToList(),
         Automations = o.Automations.ToV1Map(a => a.ToV1()),
         Pitch = o.Pitch.Select(p => p.ToV1()).ToList(),
@@ -114,7 +114,7 @@ internal static class FormatConverter
     public static Old.MidiPartInfo ToLegacy(this New.MidiPartInfo n) => new()
     {
         Name = n.Name, Pos = n.Pos, Dur = n.Dur, Gain = n.Gain,
-        Voice = n.Voice.ToLegacy(),
+        Voice = n.SoundSource.ToLegacy(),
         Notes = n.Notes.Select(ToLegacy).ToList(),
         Automations = n.Automations.ToLegacyMap(a => a.ToLegacy()),
         Pitch = n.Pitch.Select(p => p.ToLegacy()).ToList(),
@@ -194,9 +194,10 @@ internal static class FormatConverter
         AffectedAutomations = n.AffectedAutomations.ToLegacyMap(d => d),
     };
 
-    // ── VoiceInfo ──
-    public static New.VoiceInfo ToV1(this Old.VoiceInfo o) => new() { Type = o.Type, ID = o.ID };
-    public static Old.VoiceInfo ToLegacy(this New.VoiceInfo n) => new() { Type = n.Type, ID = n.ID };
+    // ── VoiceInfo（legacy，仅 voice）↔ SoundSourceInfo（new）──
+    // legacy 格式只有 voice：old→new 种类恒 Voice；new→old 丢弃 Kind（instrument part 无法回灌 legacy 格式）。
+    public static New.SoundSourceInfo ToSoundSource(this Old.VoiceInfo o) => new() { Kind = New.SourceKind.Voice, Type = o.Type, ID = o.ID };
+    public static Old.VoiceInfo ToLegacy(this New.SoundSourceInfo n) => new() { Type = n.Type, ID = n.ID };
 
     // ── AutomationInfo ──
     public static New.AutomationInfo ToV1(this Old.AutomationInfo o) => new()

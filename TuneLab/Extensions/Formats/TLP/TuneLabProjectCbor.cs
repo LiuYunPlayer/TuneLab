@@ -366,10 +366,14 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             switch (key)
             {
                 case "type":
-                    midiPartInfo.Voice.Type = reader.ReadTextString();
+                    midiPartInfo.SoundSource.Type = reader.ReadTextString();
                     break;
                 case "id":
-                    midiPartInfo.Voice.ID = reader.ReadTextString();
+                    midiPartInfo.SoundSource.ID = reader.ReadTextString();
+                    break;
+                case "kind":
+                    // 缺省（旧工程无此键）= Voice，经 MidiPartInfo.SoundSource 默认值兜底。
+                    midiPartInfo.SoundSource.Kind = reader.ReadTextString() == "instrument" ? SourceKind.Instrument : SourceKind.Voice;
                     break;
                 default:
                     reader.SkipValue();
@@ -841,9 +845,11 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("voice");
         writer.WriteStartMap(null);
         writer.WriteTextString("type");
-        writer.WriteTextString(midiPart.Voice.Type);
+        writer.WriteTextString(midiPart.SoundSource.Type);
         writer.WriteTextString("id");
-        writer.WriteTextString(midiPart.Voice.ID);
+        writer.WriteTextString(midiPart.SoundSource.ID);
+        writer.WriteTextString("kind");
+        writer.WriteTextString(midiPart.SoundSource.Kind == SourceKind.Instrument ? "instrument" : "voice");
         writer.WriteEndMap();
 
         writer.WriteTextString("properties");

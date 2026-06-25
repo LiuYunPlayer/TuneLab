@@ -38,6 +38,17 @@ public static class MusicTheory
 
     public const int C0_PITCH = A4_PITCH - 48 - 9;
 
+    static readonly string[] PitchNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+
+    // MIDI 音高 → 音名（C0 = MIDI 12，A4 = 69 → "A4"）。
+    public static string PitchName(int pitch)
+    {
+        int rel = pitch - C0_PITCH;
+        int octave = (int)Math.Floor(rel / 12.0);
+        int idx = ((rel % 12) + 12) % 12;
+        return PitchNames[idx] + octave;
+    }
+
     public static double PitchToFrequency(double pitch)
     {
         return A4_FREQUENCY * Math.Pow(ONE_TWELFTH_POW_OF_2, pitch - A4_PITCH);

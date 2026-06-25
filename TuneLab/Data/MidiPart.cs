@@ -28,7 +28,7 @@ internal class MidiPart : Part, IMidiPart
     public DataStruct<double> Gain { get; }
     public DataPropertyObject Properties { get; }
     public INoteList Notes => mNotes;
-    public IVoice Voice => mVoice;
+    public ISoundSource SoundSource => mSource;
     IDataProperty<double> IMidiPart.Gain => Gain;
     public IReadOnlyDataObjectMap<string, IAutomation> Automations => mAutomations;
     // 声明分段轨（除 Pitch 外、声源声明的可编辑分段曲线，即 AutomationConfig.IsPiecewise 的轨），按轨 id 存。
@@ -39,7 +39,7 @@ internal class MidiPart : Part, IMidiPart
     public IReadOnlyDataObjectLinkedList<Vibrato> Vibratos => mVibratos;
 
     // —— 合成消费面（session 模型）：状态/产物全由插件托管，宿主经管线包装拉取展示 ——
-    public VoiceSynthesisPipeline? SynthesisPipeline => mPipeline;
+    public ISynthesisPipeline? SynthesisPipeline => mPipeline;
     public bool IsSynthesisBatching => mSynthesisBatch.IsBatching;
     internal BatchSignal SynthesisBatch => mSynthesisBatch;
     public IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus() => mPipeline?.GetStatus() ?? [];
@@ -55,7 +55,7 @@ internal class MidiPart : Part, IMidiPart
         Dur = new(this);
         Gain = new(this);
         Properties = new(this);
-        mVoice = new(this, new VoiceInfo());
+        mSource = new(this, new SoundSourceInfo());
         mNotes = new();
         mNotes.Attach(this);
         mVibratos = new();
@@ -71,7 +71,7 @@ internal class MidiPart : Part, IMidiPart
         Dur.Modified.Subscribe(mDurationChanged);
         // 换声源：丢弃旧会话、重建新会话（context 随会话重建）。
         // 注：本订阅在一切 UI 订阅之前注册，UI 收到 Voice.Modified 时声明已刷新。
-        mVoice.Modified.Subscribe(OnVoiceModified);
+        mSource.Modified.Subscribe(OnVoiceModified);
         // part 参数 commit：voice 的条件自动化轨集合可能随之变；重算并按需通知 UI。
         Properties.Modified.Subscribe(OnPartPropertiesModified);
         // 其余数据变更（note/pitch/automation/tempo/平移）不再由 part 驱动重分片——
@@ -137,7 +137,7 @@ internal class MidiPart : Part, IMidiPart
     {
         if (mPipeline == null)
             return;
-        mVoice.RebuildAutomationConfigs(BuildPartPropertyContext());
+        mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
         if (RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
     }
@@ -150,15 +150,15 @@ internal class MidiPart : Part, IMidiPart
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
-    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mVoice.ID, [Properties.GetInfo()]);
+    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mSource.ID, [Properties.GetInfo()]);
 
     // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
     string ComputeAutomationConfigsSignature()
     {
         var sb = new StringBuilder();
-        AppendAutomationConfigs(sb, "v", mVoice.AutomationConfigs);
+        AppendAutomationConfigs(sb, "v", mSource.AutomationConfigs);
         // 回显轨集合（context 驱动、可随参数显隐）纳入签名：其增删要驱动标题栏工具条重建。
-        AppendAutomationConfigs(sb, "r", mVoice.SynthesizedParameterConfigs);
+        AppendAutomationConfigs(sb, "r", mSource.SynthesizedParameterConfigs);
         for (int i = 0; i < mEffects.Count; i++)
             AppendAutomationConfigs(sb, "e" + i, mEffects[i].AutomationConfigs);
         return sb.ToString();
@@ -434,12 +434,23 @@ internal class MidiPart : Part, IMidiPart
     void RebuildSynthesisPipeline()
     {
         DisposeSynthesisPipeline();
-        // 【顺序不变量，勿调换】先填声明、后建会话：mVoice.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
+        // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
         // 必须在建会话之前填好——否则会话构造期经 TryGetAutomation 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
-        mVoice.RefreshDeclarations(BuildPartPropertyContext());
-        mPipeline = new VoiceSynthesisPipeline(this, mVoice.Type, mVoice.ID);
-        mPipeline.StatusChanged += OnPipelineStatusChanged;
-        mVoice.SetSession(mPipeline.Session);   // 注入会话供 DefaultLyric 等运行时取值（建会话之后）
+        mSource.RefreshDeclarations(BuildPartPropertyContext());
+        if (mSource.Kind == SourceKind.Voice)
+        {
+            var voicePipeline = new VoiceSynthesisPipeline(this, mSource.Type, mSource.ID);
+            voicePipeline.StatusChanged += OnPipelineStatusChanged;
+            mSource.SetSession(voicePipeline.Session);   // 注入会话供 DefaultLyric 等运行时取值（建会话之后）
+            mPipeline = voicePipeline;
+        }
+        else
+        {
+            // instrument 无会话级 DefaultLyric 注入（恒 "a"）；产物仅音频 + 参数回显，无音素回填。
+            var instrumentPipeline = new InstrumentSynthesisPipeline(this, mSource.Type, mSource.ID);
+            instrumentPipeline.StatusChanged += OnPipelineStatusChanged;
+            mPipeline = instrumentPipeline;
+        }
         // 重置签名基线（激活 / 换源时 UI 经各自既有触发整体重建，此处不发 AutomationConfigsModified，
         // 只对齐基线供后续参数 commit 的增量比对）。
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
@@ -454,8 +465,8 @@ internal class MidiPart : Part, IMidiPart
         mPipeline.StatusChanged -= OnPipelineStatusChanged;
         mPipeline.Dispose();
         mPipeline = null;
-        mVoice.SetSession(null);
-        mVoice.RefreshDeclarations(BuildPartPropertyContext());
+        mSource.SetSession(null);
+        mSource.RefreshDeclarations(BuildPartPropertyContext());
         foreach (var note in mNotes)
         {
             note.SynthesizedPhonemes = null;
@@ -495,12 +506,12 @@ internal class MidiPart : Part, IMidiPart
 
     public bool IsEffectiveAutomation(string id)
     {
-        return Voice.AutomationConfigs.TryGetValue(id, out var config) && !config.IsPiecewise;
+        return SoundSource.AutomationConfigs.TryGetValue(id, out var config) && !config.IsPiecewise;
     }
 
     public AutomationConfig GetEffectiveAutomationConfig(string id)
     {
-        if (Voice.AutomationConfigs.TryGetValue(id, out var config) && !config.IsPiecewise)
+        if (SoundSource.AutomationConfigs.TryGetValue(id, out var config) && !config.IsPiecewise)
             return config;
 
         throw new ArgumentException(string.Format("Automation {0} is not effective!", id));
@@ -522,12 +533,12 @@ internal class MidiPart : Part, IMidiPart
 
     public bool IsEffectivePiecewiseAutomation(string id)
     {
-        return Voice.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise;
+        return SoundSource.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise;
     }
 
     public AutomationConfig GetEffectivePiecewiseAutomationConfig(string id)
     {
-        if (Voice.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise)
+        if (SoundSource.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise)
             return config;
 
         throw new ArgumentException(string.Format("Piecewise automation {0} is not effective!", id));
@@ -547,7 +558,7 @@ internal class MidiPart : Part, IMidiPart
             PiecewiseAutomations = mPiecewiseAutomations.PiecewiseAutomationsToInfo(),
             Pitch = mPitchLine.GetInfo(),
             Vibratos = mVibratos.GetInfo().ToInfo(),
-            Voice = mVoice.GetInfo(),
+            SoundSource = mSource.GetInfo(),
             Properties = Properties.GetInfo(),
         };
     }
@@ -565,7 +576,7 @@ internal class MidiPart : Part, IMidiPart
         mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
         mPiecewiseAutomations.SetInfo(info.PiecewiseAutomations.ToPiecewiseAutomations());
         mPitchLine.SetInfo(info.Pitch);
-        mVoice.SetInfo(info.Voice);
+        mSource.SetInfo(info.SoundSource);
         Properties.SetInfo(info.Properties);
     }
 
@@ -649,7 +660,7 @@ internal class MidiPart : Part, IMidiPart
     readonly ActionEvent mAutomationConfigsModified = new();
     string mAutomationConfigsSignature = string.Empty;
     readonly BatchSignal mSynthesisBatch = new();
-    VoiceSynthesisPipeline? mPipeline;
+    ISynthesisPipeline? mPipeline;
 
     readonly NoteList mNotes;
     readonly VibratoList mVibratos;
@@ -658,7 +669,7 @@ internal class MidiPart : Part, IMidiPart
     readonly DataObjectList<IEffect> mEffects;
     readonly Dictionary<IEffect, Action> mEffectModifiedHandlers = new();
     readonly PiecewiseAutomation mPitchLine;
-    readonly Voice mVoice;
+    readonly SoundSource mSource;
 
     static readonly Map<string, SynthesizedParameter> EmptySynthesizedParameters = new();
 

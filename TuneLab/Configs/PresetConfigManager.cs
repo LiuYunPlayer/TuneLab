@@ -142,7 +142,7 @@ internal static class PresetConfigManager
         var preset = new PartPreset()
         {
             Name = json.Value<string>("name") ?? string.Empty,
-            Voice = new VoiceInfo()
+            Voice = new SoundSourceInfo()
             {
                 Type = json["voice"]?["type"]?.Value<string>() ?? string.Empty,
                 ID = json["voice"]?["id"]?.Value<string>() ?? string.Empty,
@@ -216,7 +216,7 @@ internal static class PresetConfigManager
 internal class PartPreset
 {
     public string Name { get; set; } = string.Empty;
-    public VoiceInfo Voice { get; set; } = new();
+    public SoundSourceInfo Voice { get; set; } = new();
     public PropertyObject Properties { get; set; } = PropertyObject.Empty;
     public Dictionary<string, double> Automations { get; set; } = [];
 }

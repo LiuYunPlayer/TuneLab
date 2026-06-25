@@ -1,0 +1,12 @@
+{
+  "id": "com.tunelab.test.v1instrument",
+  "name": "V1 Test Instrument",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "V1 instrument 测试引擎：一个引擎挂 2 个音色（sine/square），多声部叠加合成、满末不去重叠。",
+  "sdk-version": "1.0",
+  "type": "instrument",
+  "engine": "TLTestInstrumentV1",
+  "classes": ["TuneLab.TestPlugins.V1Instrument.TestInstrumentEngine"],
+  "assembly": "V1.Instrument.dll"
+}

@@ -447,7 +447,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         int limit = EffectTaskGate.Limit;   // voice 与 effect 并行度同受 Settings.MaxParallelSynthesisTasks 统辖
         int busy = 0;
-        var idle = new List<VoiceSynthesisPipeline>();
+        var idle = new List<ISynthesisPipeline>();
         foreach (var track in Project.Tracks)
         {
             foreach (var part in track.Parts)
@@ -475,7 +475,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         double currentTime = AudioEngine.CurrentTime;
         while (busy < limit && idle.Count > 0)
         {
-            VoiceSynthesisPipeline? best = null;
+            ISynthesisPipeline? best = null;
             SynthesisRange bestSegment = default;
             bool bestIsAhead = false;
             foreach (var pipeline in idle)

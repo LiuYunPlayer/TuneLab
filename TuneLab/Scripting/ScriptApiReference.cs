@@ -37,7 +37,7 @@ internal static class ScriptApiReference
         "\n" +
         "part\n" +
         "  fields (read/write):  name, pos, dur     field (read-only): type (\"midi\"/\"audio\")\n" +
-        "  part.voice()                             {type, id, name, defaultLyric}   (read-only snapshot)\n" +
+        "  part.voice()                             {type, id, name, kind, defaultLyric}   (sound source snapshot; kind=\"voice\"|\"instrument\")\n" +
         "  part.notes()                             [note]\n" +
         "  part.selectedNotes()                     [note]   (currently selected in the piano editor)\n" +
         "  part.notesInRange(start, end)            [note]   (absolute ticks, [start,end), by note start)\n" +

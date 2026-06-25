@@ -10,6 +10,7 @@
     <Project Path="plugins/V1.Effect/V1.Effect.csproj" />
     <Project Path="plugins/V1.Format/V1.Format.csproj" />
     <Project Path="plugins/V1.I18N/V1.I18N.csproj" />
+    <Project Path="plugins/V1.Instrument/V1.Instrument.csproj" />
     <Project Path="plugins/V1.NoAssemblies/V1.NoAssemblies.csproj" />
     <Project Path="plugins/V1.RouteConflict.A/V1.RouteConflict.A.csproj" />
     <Project Path="plugins/V1.RouteConflict.B/V1.RouteConflict.B.csproj" />

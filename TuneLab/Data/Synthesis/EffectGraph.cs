@@ -26,16 +26,16 @@ namespace TuneLab.Data.Synthesis;
 // processor 的 ProcessingRequested 恒在数据线程触发（见 SDK 约定）。
 internal sealed class EffectGraph : IDisposable
 {
-    public EffectGraph(MidiPart part, SynthesisContext context, CancellationToken cancellation, Action onChanged, Action onSettled)
+    public EffectGraph(MidiPart part, IAudioSegmentHost segments, CancellationToken cancellation, Action onChanged, Action onSettled)
     {
         mPart = part;
-        mContext = context;
+        mSegments = segments;
         mCancellation = cancellation;
         mOnChanged = onChanged;
         mOnSettled = onSettled;
         mPumpCallback = RequestSchedule;
         mOnVoiceSegmentsChanged = RequestSchedule;
-        mContext.AudioSegmentsChanged += mOnVoiceSegmentsChanged;
+        mSegments.AudioSegmentsChanged += mOnVoiceSegmentsChanged;
         RebuildStructureSubscriptions();
         Schedule();
     }
@@ -79,7 +79,7 @@ internal sealed class EffectGraph : IDisposable
             return;
         mDisposed = true;
 
-        mContext.AudioSegmentsChanged -= mOnVoiceSegmentsChanged;
+        mSegments.AudioSegmentsChanged -= mOnVoiceSegmentsChanged;
         EffectTaskGate.Unregister(mPumpCallback);
         mStructureSubscriptions?.DisposeAll();
 
@@ -279,9 +279,9 @@ internal sealed class EffectGraph : IDisposable
     // 已提交的 voice 段 → 工程率上游快照（按握柄缓存、CommitVersion 变才重采）；消失的段弃其上游。
     List<UpstreamSegment> CollectVoiceUpstreams()
     {
-        var present = new HashSet<SynthesisContext.AudioSegment>();
+        var present = new HashSet<AudioSegment>();
         var result = new List<UpstreamSegment>();
-        foreach (var segment in mContext.AudioSegments)
+        foreach (var segment in mSegments.AudioSegments)
         {
             if (!segment.IsCommitted || segment.Samples.Length == 0)
                 continue;
@@ -307,7 +307,7 @@ internal sealed class EffectGraph : IDisposable
 
         if (mVoiceUpstreams.Count > present.Count)
         {
-            var stale = new List<SynthesisContext.AudioSegment>();
+            var stale = new List<AudioSegment>();
             foreach (var key in mVoiceUpstreams.Keys)
             {
                 if (!present.Contains(key))
@@ -475,7 +475,7 @@ internal sealed class EffectGraph : IDisposable
     }
 
     readonly MidiPart mPart;
-    readonly SynthesisContext mContext;
+    readonly IAudioSegmentHost mSegments;
     readonly CancellationToken mCancellation;
     readonly Action mOnChanged;
     readonly Action mOnSettled;
@@ -483,7 +483,7 @@ internal sealed class EffectGraph : IDisposable
     readonly Action mOnVoiceSegmentsChanged;
 
     readonly Dictionary<(IEffect Effect, object InputKey), EffectNode> mNodes = new();
-    readonly Dictionary<SynthesisContext.AudioSegment, UpstreamSegment> mVoiceUpstreams = new();
+    readonly Dictionary<AudioSegment, UpstreamSegment> mVoiceUpstreams = new();
     DisposableManager? mStructureSubscriptions;
 
     SynthesizedSegment[] mSynthesizedSegments = [];

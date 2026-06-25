@@ -132,7 +132,7 @@ internal partial class PianoScrollView
                                             var pitch = (int)PitchAxis.Y2Pitch(e.Position.Y);
                                             var pos = TickAxis.X2Tick(e.Position.X);
                                             if (!alt) pos = GetQuantizedTick(pos);
-                                            var note = Part.CreateNote(new NoteInfo() { Pos = pos - Part.Pos.Value, Dur = QuantizedCellTicks(), Pitch = pitch, Lyric = Part.Voice.DefaultLyric });
+                                            var note = Part.CreateNote(new NoteInfo() { Pos = pos - Part.Pos.Value, Dur = QuantizedCellTicks(), Pitch = pitch, Lyric = Part.SoundSource.DefaultLyric });
                                             Part.InsertNote(note);
                                             mNoteEndResizeOperation.Down(TickAxis.Tick2X(note.GlobalEndPos()), note);
                                         }

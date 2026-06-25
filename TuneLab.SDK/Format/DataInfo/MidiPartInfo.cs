@@ -10,7 +10,7 @@ namespace TuneLab.SDK;
 public class MidiPartInfo : PartInfo
 {
     public double Gain { get; set; } = 0;
-    public VoiceInfo Voice { get; set; } = new VoiceInfo();
+    public SoundSourceInfo SoundSource { get; set; } = new SoundSourceInfo();
     public List<EffectInfo> Effects { get; set; } = new();
     public List<NoteInfo> Notes { get; set; } = new();
     public Map<string, AutomationInfo> Automations { get; set; } = new();

@@ -28,12 +28,12 @@
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
-- `type` (string, **必填**) — `"format"` | `"voice"` | `"effect"` | `"agent-model"` | 资源类（如 `"voicebank"`）。
-- `engine` (string, voice/effect/agent-model **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
+- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | `"agent-model"` | 资源类（如 `"voicebank"`）。
+- `engine` (string, voice/instrument/effect/agent-model **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
 - `extension` (string, format **必填**) — 文件扩展名 **id**（不带点；同属不可变身份）。
 - `name` (string, 选填) — **显示名**（UI 用，可与 id 不同、可翻译）；省略则 UI 退回显示 id。
 - `localizations` (object, 选填) — 翻译 `name`，如 `{ "zh-CN": { "name": "增益" } }`。
-- `classes` (string[], 含代码**必填**) — **入口候选类全名数组**。宿主把数组里的类都扫一遍，按本 `type` 所需接口逐个匹配、命中即注册：voice→`IVoiceEngine` / effect→`IEffectEngine` / agent-model→`IAgentModelEngine`（首个命中者）；format→`IImportFormat`(注册导入)+`IExportFormat`(注册导出)，各扫一遍、至少命中其一，同一类可同实现两接口。无需精确登记哪个类干哪件事——列上候选、宿主按接口认领。每个候选类需无参构造函数。
+- `classes` (string[], 含代码**必填**) — **入口候选类全名数组**。宿主把数组里的类都扫一遍，按本 `type` 所需接口逐个匹配、命中即注册：voice→`IVoiceEngine` / instrument→`IInstrumentEngine` / effect→`IEffectEngine` / agent-model→`IAgentModelEngine`（首个命中者）；format→`IImportFormat`(注册导入)+`IExportFormat`(注册导出)，各扫一遍、至少命中其一，同一类可同实现两接口。无需精确登记哪个类干哪件事——列上候选、宿主按接口认领。每个候选类需无参构造函数。
 - `assembly` (string, 含代码**必填**) — 含上述候选类的单个程序集（相对包根，所有候选类同居此程序集）；资源包不写。
 - `platforms` (string[], 选填) — 如 `["win","osx","linux"]` 或 `["win-x64"]`；空=全平台。
 - **身份 id vs 显示名**：`engine`/`extension` 是身份（注册键 + 序列化引用，不可变）；`name`/`localizations` 仅 UI 展示、可改可译。
@@ -133,7 +133,7 @@ public sealed class SynthesizedPitch { IReadOnlyList<IReadOnlyList<Point>> Segme
 public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }  // 回显曲线：分段折线，段内 Point=(秒,值)，段间断开
 ```
 - 引擎 id 与实现类在 manifest：`{ "type":"voice", "engine":"id", "classes":["Ns.MyVoiceEngine"], "assembly":"X.dll" }`（`engine` 唯一；宿主在 `classes` 找实现 `IVoiceEngine` 的类）。实现类需无参构造函数。
-- 声明在引擎（gap：declaration timing）：4 个 GetConfig 在 `IVoiceEngine` 上、是 `f(voiceId, 选中成员当前值)` 纯函数。`IPartPropertyContext { string VoiceId; IReadOnlyList<PropertyObject> PartProperties }`（part 面板，可多选 part；多声库经 `VoiceId` 分流）。`INotePropertyContext`**独立不继承** `{ string VoiceId; PropertyObject PartProperties; IReadOnlyList<PropertyObject> NoteProperties }`——note 必属单 part 故 PartProperties 单数、NoteProperties 是各选中 note 列表。列表成员不在乎多选就 `context.NoteProperties.Merge()`（`PropertyMerge` 扩展方法@`TuneLab.Foundation`）还原成单个三态 `PropertyObject` 按单选写；要逐成员真值就遍历列表。voiceId 进 context 使 voice 的 context 与 effect 的 `IEffectPropertyContext`（无对等物）永久分叉。**会话构造期即可订阅自己声明的轨**：宿主在建会话前已据引擎声明填好轨集合，故 `context.TryGetAutomation(key,…)` 对你声明过的轨必成；漏订则该轨绘制后不触发重渲。
+- 声明在引擎（gap：declaration timing）：4 个 GetConfig 在 `IVoiceEngine` 上、是 `f(voiceId, 选中成员当前值)` 纯函数。`IPartPropertyContext { string VoiceId; IReadOnlyList<PropertyObject> PartProperties }`（part 面板，可多选 part；多声库经 `VoiceId` 分流）。`INotePropertyContext`**独立不继承** `{ string VoiceId; PropertyObject PartProperties; IReadOnlyList<PropertyObject> NoteProperties }`——note 必属单 part 故 PartProperties 单数、NoteProperties 是各选中 note 列表。列表成员不在乎多选就 `context.NoteProperties.Merge()`（`PropertyObjectExtensions` 扩展方法@`TuneLab.Foundation`）还原成单个三态 `PropertyObject` 按单选写；要逐成员真值就遍历列表。voiceId 进 context 使 voice 的 context 与 effect 的 `IEffectPropertyContext`（无对等物）永久分叉。**会话构造期即可订阅自己声明的轨**：宿主在建会话前已据引擎声明填好轨集合，故 `context.TryGetAutomation(key,…)` 对你声明过的轨必成；漏订则该轨绘制后不触发重渲。
 - 调度语义：一会话同时只合成一块；并行发生在不同 part 的不同会话间，并发上限由宿主管控。取消是正常调度结局（不抛 `OperationCanceledException`）；`await` 真正返回才释放槽位。
 - 线程纪律：context（Notes/属性/automation）、`GetSnapshot`、`CreateAudioSegment` 仅可在 `SynthesizeNext` **同步前缀**（数据线程）读/调；之后 offload 只读已物化的 `SynthesisSnapshot`（不可变、可跨线程）。产物与 `CreateAudioSegment` 写入/Commit 在数据线程。
 - 命名纪律：`ILive*`=活视图（仅数据线程）、`*Snapshot`=冻结物（可跨线程、无事件）。
@@ -144,6 +144,15 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 - 原生依赖打包（gap：native/ONNX）：私有依赖（第三方托管库、native dll/so/dylib、模型、dict）放包文件夹→进本包专属 ALC（与其他插件隔离、版本不冲突）；SDK 程序集与 .NET 运行时由宿主共享、勿打进包。定位包内资源用 `Path.GetDirectoryName(typeof(MyVoiceEngine).Assembly.Location)`（勿用工作目录/`AppContext.BaseDirectory`=宿主目录）。native dll 与托管 dll 同目录便于 P/Invoke 探测；跨平台按目标分别提供 + manifest `platforms` 过滤。大模型权重勿塞 `.tlx`（即装即载会很重）：用独立资源包，或实现 `IExtensionSettings` 让用户配模型路径（密钥用 `TextBoxConfig{IsPassword=true}`）。加载放 `Init`、失败抛异常（宿主优雅降级）。
 - 失效自管：构造订阅 context（`Notes` 增删用 `WhenAny` 自动接线 / `note.*.Modified` 字段 / `PartProperties.Modified` / `Pitch`+`PitchDeviation`+各轨 `RangeModified`(秒区间)）handler 只廉价标脏，重活（重分块）推迟到 `context.Committed`（逻辑编辑收口、单条也补发→批量编辑只重分块一次）。tempo 变化无独立信号（分解为 note 边界 `Modified` + 轨 `RangeModified`）。`Dispose` 退订 + Dispose 所有音频段。重叠 note(和弦) 分块判间隙用「组内最大结束」、块尾取 `Max(EndTime)`。
 - 相关类型：`ISynthesisSession`、`ISynthesisContext`、`SynthesisRange`、`SynthesisSnapshot`、`SynthesisNoteSnapshot`、`SynthesisAutomationSnapshot`、`IAutomationEvaluator`、`ILiveNote`、`ILiveAutomation`、`IAudioSegment`、`SynthesisPhoneme`、`SynthesizedPitch`、`SynthesizedParameter`、`VoiceSourceInfo`、`FileImageResource`、`AutomationConfig`、`IPartPropertyContext`、`INotePropertyContext`、`SynthesisStatusSegment`。
+
+### Instrument 接口（命名空间 `TuneLab.SDK`）
+> instrument = **多声部音源**（合成器/采样器）。与 voice **机制同构**（引擎/会话/调度/隔离快照/音频段/effect 链/扩展设置一致），接口族 `IInstrument*` 平行、与 voice 无继承。**仅三处实质不同**：
+- **note 满末、不去重叠**：`IInstrumentNote.EndTime`/`InstrumentNoteSnapshot.EndTime` = `Pos+Dur`（宿主不钳到下一 note）；`Notes` 直传原始可重叠 note（和弦/多声部），引擎自行叠加混音（每个 note 按其 `Pitch` 各发一段、求和）。
+- **无歌词/音素**：`IInstrumentNote` 无 `Lyric`/`Phonemes`；会话无 `DefaultLyric`、不产 `SynthesizedPhonemes`。
+- **无 pitch 曲线、产物仅音频**：`IInstrumentContext` 无 `Pitch`/`PitchDeviation`（纯按 note 整数 `Pitch` 发声）；会话不产 `SynthesizedPitch`。仍可声明 automation 轨 + `SynthesizedParameters` 回显。
+- 接口：`IInstrumentEngine`（`InstrumentSourceInfos` 按 id 键的音色目录 + `Init/Destroy/CreateSession` + 声明四函数）/ `IInstrumentSession`（`GetNextSegment`/`SynthesizeNext`/`SynthesizedParameters`/`GetStatus` + 两事件）/ `IInstrumentContext`（`Notes`/`PartProperties`/`TryGetAutomation`/`GetSnapshot`/`CreateAudioSegment`/`Committed`）/ `IInstrumentNote`/`InstrumentSnapshot`/`InstrumentNoteSnapshot`/`InstrumentSourceInfo`/`IInstrumentPartPropertyContext`/`IInstrumentNotePropertyContext`。失效自管同 voice（无 `Pitch`/`PitchDeviation` 订阅、无音素/歌词字段订阅）。
+- 容器式发布（一引擎多音色，如 Kontakt）：`Init()` 扫已装资源包填 `InstrumentSourceInfos`，`InstrumentId` 选具体乐器；一插件一乐器 = 单条目。
+- 参考实现 `tests/plugins/V1.Instrument`（sine/square 两音色、多声部叠加）；完整契约见 `docs/instrument-sdk-design.md`。
 
 ### Effect 接口（命名空间 `TuneLab.SDK`）
 > effect = 对**整段已合成音频**的离线变换（如 SVC 换声），非实时 VST。**会话托管厚模型**：每种引擎一个 `IEffectEngine`；

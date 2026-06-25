@@ -15,7 +15,7 @@ namespace TuneLab.Data.Synthesis;
 //
 // 线程纪律：除标注外全部成员仅数据线程访问；session.StatusChanged 允许任意线程触发，
 // 这里负责 marshal 回数据线程再对外转发。
-internal sealed class VoiceSynthesisPipeline : IDisposable
+internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
 {
     // 状态/产物有更新（已 marshal 到数据线程），宿主 UI 收到直接刷新；区域信息看 GetStatus()。
     public event Action? StatusChanged;

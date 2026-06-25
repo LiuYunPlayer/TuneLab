@@ -161,9 +161,10 @@ internal sealed class ProjectAgentEditor(
             double end = start + part.Dur.Value;
             if (part is IMidiPart midi)
             {
+                string srcKind = midi.SoundSource.Kind == SourceKind.Voice ? "voice" : "instrument";
                 sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
-                    "  Part {0}: midi \"{1}\", ticks [{2:0}..{3:0}], voice=\"{4}\", notes={5}",
-                    i + 1, part.Name.Value, start, end, midi.Voice.Name, midi.Notes.Count()));
+                    "  Part {0}: midi \"{1}\", ticks [{2:0}..{3:0}], {4}=\"{5}\", notes={6}",
+                    i + 1, part.Name.Value, start, end, srcKind, midi.SoundSource.Name, midi.Notes.Count()));
             }
             else
             {
@@ -190,6 +191,9 @@ internal sealed class ProjectAgentEditor(
             "Track {0} Part {1} notes (pos is an absolute tick; part spans [{2:0}..{3:0}]; NoteNumber is 1-based):",
             trackNumber, partNumber, partPos, partPos + part.Dur.Value));
 
+        // instrument part 无歌词概念，note 的 lyric 字段无意义——不回灌给 agent，避免噪声与误导（不会去改乐器音符的歌词）。
+        bool showLyric = part.SoundSource.Kind == SourceKind.Voice;
+
         int number = 0;     // 1-based 编号按 part 内完整音符序，过滤不改变编号
         int listed = 0;
         bool truncated = false;
@@ -205,9 +209,10 @@ internal sealed class ProjectAgentEditor(
                 break;
             }
             listed++;
+            string lyricSuffix = showLyric ? string.Format(CultureInfo.InvariantCulture, ", lyric=\"{0}\"", note.Lyric.Value) : "";
             sb.AppendLine(string.Format(CultureInfo.InvariantCulture,
-                "  Note {0}: pos={1:0}, dur={2:0}, pitch={3}({4}), lyric=\"{5}\"",
-                number, pos, note.Dur.Value, note.Pitch.Value, PitchName(note.Pitch.Value), note.Lyric.Value));
+                "  Note {0}: pos={1:0}, dur={2:0}, pitch={3}({4}){5}",
+                number, pos, note.Dur.Value, note.Pitch.Value, MusicTheory.PitchName(note.Pitch.Value), lyricSuffix));
         }
         if (listed == 0)
             sb.AppendLine("  (no notes in range)");
@@ -225,7 +230,7 @@ internal sealed class ProjectAgentEditor(
             trackNumber, partNumber));
         sb.AppendLine("  pitch — final pitch curve in MIDI scale; edit via apply_edits set_pitch_line / clear_pitch.");
         // voice 级（已含宿主自带 Volume / VibratoEnvelope + 引擎声明的条件轨）。
-        foreach (var kvp in part.Voice.AutomationConfigs)
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
             var c = kvp.Value;
             // VibratoEnvelope 只缩放已有颤音深度，单独写它不产生颤音——明确标注，免得被当成"加颤音"。
@@ -556,7 +561,7 @@ internal sealed class ProjectAgentEditor(
                 var note = part.CreateNote(new NoteInfo { Pos = Rel(a.Pos), Dur = a.Dur, Pitch = pitch, Lyric = a.Lyric ?? string.Empty });
                 part.InsertNote(note);
                 return string.Format(CultureInfo.InvariantCulture,
-                    "add note at tick={0:0} dur={1:0} pitch={2}({3}) lyric=\"{4}\"", a.Pos, a.Dur, pitch, PitchName(pitch), a.Lyric);
+                    "add note at tick={0:0} dur={1:0} pitch={2}({3}) lyric=\"{4}\"", a.Pos, a.Dur, pitch, MusicTheory.PitchName(pitch), a.Lyric);
             }
             case SetNoteOp s:
             {
@@ -694,19 +699,11 @@ internal sealed class ProjectAgentEditor(
 
     static string GetPartHeader(int trackNumber, int partNumber, IMidiPart part)
     {
+        string srcKind = part.SoundSource.Kind == SourceKind.Voice ? "voice" : "instrument";
         return string.Format(CultureInfo.InvariantCulture,
-            "  Track {0} Part {1}: \"{2}\", ticks [{3:0}..{4:0}], voice=\"{5}\", notes={6}",
+            "  Track {0} Part {1}: \"{2}\", ticks [{3:0}..{4:0}], {5}=\"{6}\", notes={7}",
             trackNumber, partNumber, part.Name.Value, part.Pos.Value, part.Pos.Value + part.Dur.Value,
-            part.Voice.Name, part.Notes.Count());
+            srcKind, part.SoundSource.Name, part.Notes.Count());
     }
 
-    static readonly string[] NoteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-
-    static string PitchName(int midi)
-    {
-        int rel = midi - MusicTheory.C0_PITCH;   // C0 = MIDI 12
-        int octave = (int)Math.Floor(rel / 12.0);
-        int idx = ((rel % 12) + 12) % 12;
-        return NoteNames[idx] + octave.ToString(CultureInfo.InvariantCulture);
-    }
 }

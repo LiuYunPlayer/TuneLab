@@ -6,6 +6,7 @@ using TuneLab.Extensions.Agent;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Instruments;
 using TuneLab.Utils;
 
 namespace TuneLab.Extensions;
@@ -78,6 +79,7 @@ internal static class ExtensionRouting
     {
         var rows = new List<RouteRow>();
         Collect(rows, "voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetProviders);
+        Collect(rows, "instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetProviders);
         Collect(rows, "effect", EffectManager.GetAllEffectEngines(), EffectManager.GetProviders);
         Collect(rows, "agent-model", AgentModelManager.GetAllAgentModelEngines(), AgentModelManager.GetProviders);
         Collect(rows, "format-import", FormatsManager.GetAllImportFormats(), FormatsManager.GetImportProviders);

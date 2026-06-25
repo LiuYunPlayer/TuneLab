@@ -123,9 +123,9 @@ namespace TuneLab.Extensions.Formats.VPR
                     var midiPartInfo = new MidiPartInfo();
 
                     midiPartInfo.Properties = PropertyObject.Empty;
-                    // midiPartInfo.Voice.Type = "VOCALOID" + ((string?)vprSequence["version"]?["major"] ?? "5");
-                    midiPartInfo.Voice.Type = "VOCALOID5";
-                    midiPartInfo.Voice.ID = ((string?)part["voice"]?["compID"] ?? "");
+                    // midiPartInfo.SoundSource.Type = "VOCALOID" + ((string?)vprSequence["version"]?["major"] ?? "5");
+                    midiPartInfo.SoundSource.Type = "VOCALOID5";
+                    midiPartInfo.SoundSource.ID = ((string?)part["voice"]?["compID"] ?? "");
 
                     var midiEffects = ((JArray?)part["midiEffects"] ?? []);
                     var parameters = midiEffects.Cast<JObject>().FirstOrDefault(c => (string?)c["id"] == "VoiceColor")?["parameters"] ?? new JArray();

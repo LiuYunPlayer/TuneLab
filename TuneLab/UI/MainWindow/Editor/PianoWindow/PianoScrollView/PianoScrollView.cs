@@ -303,13 +303,16 @@ internal partial class PianoScrollView : View, IPianoScrollView
             //context.FillRectangle(getPartColor(Part.Track,note.IsSelected).ToBrush(), rect, (float)round);
             context.FillRectangle(note.IsSelected ? selectedNoteBrush : noteBrush, rect, (float)round);
 
-            // 去重叠暗色盖住：被「后盖前」砍掉的尾段 [有效结束, 画出末] 画暗，亮色才是真正发声段——
-            // 用户即知此段被重叠覆盖。当前全为 voice part 故无条件；将来挂 instrument（保留重叠多声部）按引擎 gate。
-            double coverLeftX = TickAxis.Tick2X(note.GlobalEffectiveEndPos());
-            if (coverLeftX < rect.Right - 0.5)
+            // 去重叠暗色盖住：被「后盖前」砍掉的尾段 [有效结束, 画出末] 画暗，亮色才是真正发声段——用户即知此段被重叠覆盖。
+            // 仅 voice（单声部去重叠口径）才画；instrument 保留重叠多声部，重叠段真发声、不该提示被盖。
+            if (Part.SoundSource.Kind == SourceKind.Voice)
             {
-                double left = Math.Max(coverLeftX, rect.Left);
-                context.DrawRectangle(overlapCoverBrush, null, new RoundedRect(new Rect(left, rect.Top, rect.Right - left, rect.Height), 0, round, round, 0));
+                double coverLeftX = TickAxis.Tick2X(note.GlobalEffectiveEndPos());
+                if (coverLeftX < rect.Right - 0.5)
+                {
+                    double left = Math.Max(coverLeftX, rect.Left);
+                    context.DrawRectangle(overlapCoverBrush, null, new RoundedRect(new Rect(left, rect.Top, rect.Right - left, rect.Height), 0, round, round, 0));
+                }
             }
 
             rect = rect.Adjusted(8, -28, -8, 0);
@@ -317,11 +320,20 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 continue;
 
             var clip = context.PushClip(rect);
-            context.DrawString(note.Lyric.Value, rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
-            var pronunciation = note.FinalPronunciation();
-            if (!string.IsNullOrEmpty(pronunciation))
+            if (Part.SoundSource.Kind == SourceKind.Voice)
             {
-                context.DrawString(pronunciation, rect, pronunciationBrush, 12, Alignment.LeftTop, Alignment.LeftCenter, new(0, 14));
+                // voice：显示歌词 + 最终发音（音素来源）。
+                context.DrawString(note.Lyric.Value, rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
+                var pronunciation = note.FinalPronunciation();
+                if (!string.IsNullOrEmpty(pronunciation))
+                {
+                    context.DrawString(pronunciation, rect, pronunciationBrush, 12, Alignment.LeftTop, Alignment.LeftCenter, new(0, 14));
+                }
+            }
+            else
+            {
+                // instrument：无歌词，显示音名（如 "A4"）。
+                context.DrawString(MusicTheory.PitchName(note.Pitch.Value), rect, lyricBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, new(0, 14));
             }
             clip.Dispose();
         }

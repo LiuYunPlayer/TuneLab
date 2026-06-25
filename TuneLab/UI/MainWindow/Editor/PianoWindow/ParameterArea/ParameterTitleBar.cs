@@ -42,7 +42,7 @@ internal class ParameterTitleBar : MovableComponent
         mDependency.ReadbackVisibilityChanged += InvalidateVisual;
         mDependency.PartHolder.Modified.Subscribe(InvalidateVisual, s);
         // 换声源 → 回显轨声明随之变（按钮组要立即重绘，否则要等鼠标移上来才刷新）。
-        mDependency.PartHolder.When(p => p.Voice.Modified).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(InvalidateVisual, s);
         // 回显轨集合随参数 commit 显隐（context 驱动）→ 重绘按钮组。
         mDependency.PartHolder.When(p => p.AutomationConfigsModified).Subscribe(InvalidateVisual, s);
         // effect 增删/重排 + 各 effect 参数变（条件回显轨显隐、分组与显示名）→ 回显分组随之变，重绘。

@@ -62,7 +62,7 @@ internal sealed class SnapTickTool(IAgentProjectEditor editor) : IAgentTool
 internal sealed class GetTrackDetailTool(IAgentProjectEditor editor) : IAgentTool
 {
     public string Name => "get_track_detail";
-    public string Description => "Get details of one track: its properties and the list of its parts (1-based part numbers, tick range, voice, note count).";
+    public string Description => "Get details of one track: its properties and the list of its parts (1-based part numbers, tick range, sound source — labeled voice= for a singing voice or instrument= for a polyphonic instrument, note count).";
 
     public string ParametersJsonSchema => """
         {
@@ -125,7 +125,7 @@ internal sealed class GetPartNotesTool(IAgentProjectEditor editor) : IAgentTool
 internal sealed class GetPartParametersTool(IAgentProjectEditor editor) : IAgentTool
 {
     public string Name => "get_part_parameters";
-    public string Description => "List the editable parameters of a midi part: \"pitch\" plus every available automation id (including built-in ones like Volume and VibratoEnvelope, and any the voice declares), each with display name, value range and default. Call this to discover automation ids before reading or editing them.";
+    public string Description => "List the editable parameters of a midi part: \"pitch\" plus every available automation id (built-in ones like Volume, plus any the part's sound source declares — a voice also exposes VibratoEnvelope), each with display name, value range and default. Call this to discover automation ids before reading or editing them.";
 
     public string ParametersJsonSchema => """
         {
@@ -155,7 +155,7 @@ internal sealed class GetPartParametersTool(IAgentProjectEditor editor) : IAgent
 internal sealed class GetParameterTool(IAgentProjectEditor editor) : IAgentTool
 {
     public string Name => "get_parameter";
-    public string Description => "Sample a parameter curve of a midi part over a tick range. Use \"pitch\" for the final pitch curve (MIDI scale), or an automation id declared by the part's voice/effect. Returns evenly spaced samples.";
+    public string Description => "Sample a parameter curve of a midi part over a tick range. Use \"pitch\" for the final pitch curve (MIDI scale), or an automation id declared by the part's sound source/effect. Returns evenly spaced samples.";
 
     public string ParametersJsonSchema => """
         {

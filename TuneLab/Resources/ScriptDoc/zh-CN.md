@@ -77,7 +77,7 @@
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
-| `part.voice()` | `{type, id, name, defaultLyric}` | 本 part 的声源信息（只读快照）。仅 MIDI part。 |
+| `part.voice()` | `{type, id, name, kind, defaultLyric}` | 本 part 的声源信息（只读快照）；`kind` 为 `"voice"` 或 `"instrument"`。仅 MIDI part。 |
 | `part.notes()` | `[note]` | 本 MIDI part 的所有音符句柄。 |
 | `part.selectedNotes()` | `[note]` | 钢琴窗中当前选中的音符（无选中返回空数组）。 |
 | `part.notesInRange(startTick, endTick)` | `[note]` | 绝对 tick `[start, end)` 内（按起点判定）的音符。 |

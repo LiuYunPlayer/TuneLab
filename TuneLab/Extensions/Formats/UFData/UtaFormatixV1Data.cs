@@ -76,8 +76,8 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
                     };
                     var midiPartInfo = new MidiPartInfo();
                     midiPartInfo.Properties = PropertyObject.Empty;
-                    midiPartInfo.Voice.Type = "";
-                    midiPartInfo.Voice.ID = "";
+                    midiPartInfo.SoundSource.Type = "";
+                    midiPartInfo.SoundSource.ID = "";
 
                     var notes = track["notes"]?.ToArray();
                     foreach (JObject note in notes)

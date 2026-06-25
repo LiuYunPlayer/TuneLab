@@ -21,6 +21,7 @@ using TuneLab.I18N;
 using Splat;
 
 using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Instruments;
 namespace TuneLab.UI;
 
 internal partial class TrackScrollView
@@ -226,12 +227,47 @@ internal partial class TrackScrollView
                                                                 {
                                                                     if (part is MidiPart midiPart)
                                                                     {
-                                                                        midiPart.Voice.SetInfo(new VoiceInfo() { Type = type, ID = info.Key });
+                                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = type, ID = info.Key });
                                                                     }
                                                                 }
                                                                 Project.Commit();
                                                             });
                                                         engine.Items.Add(voice);
+                                                    }
+                                                }
+                                                menuItem.Items.Add(engine);
+                                            }
+                                            menu.Items.Add(menuItem);
+                                        }
+                                        {
+                                            // 设置 instrument 音源（与 Set Voice 同构、二选一；当前沿用急切式二级菜单）。
+                                            var menuItem = new MenuItem() { Header = "Set Instrument".Tr(TC.Menu) };
+                                            var allEngines = InstrumentsManager.GetAllInstrumentEngines();
+                                            for (int i = 0; i < allEngines.Count; i++)
+                                            {
+                                                var type = allEngines[i];
+                                                var infos = InstrumentsManager.GetAllInstrumentInfos(type);
+                                                if (infos == null)
+                                                    continue;
+
+                                                var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In".Tr(TC.Menu) : InstrumentsManager.GetDisplayName(type) };
+                                                {
+                                                    foreach (var info in infos)
+                                                    {
+                                                        var instrument = new MenuItem().
+                                                            SetName(info.Value.Name).
+                                                            SetAction(() =>
+                                                            {
+                                                                foreach (var part in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
+                                                                {
+                                                                    if (part is MidiPart midiPart)
+                                                                    {
+                                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = type, ID = info.Key });
+                                                                    }
+                                                                }
+                                                                Project.Commit();
+                                                            });
+                                                        engine.Items.Add(instrument);
                                                     }
                                                 }
                                                 menuItem.Items.Add(engine);

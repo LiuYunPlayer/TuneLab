@@ -93,8 +93,10 @@ internal class TuneLabProject : IImportFormat, IExportFormat
 
                         midiPartInfo.Gain = (double?)part["gain"] ?? 0;
                         midiPartInfo.Properties = FromJson(part["properties"]);
-                        midiPartInfo.Voice.Type = (string)part["voice"]["type"];
-                        midiPartInfo.Voice.ID = (string)part["voice"]["id"];
+                        midiPartInfo.SoundSource.Type = (string)part["voice"]["type"];
+                        midiPartInfo.SoundSource.ID = (string)part["voice"]["id"];
+                        // 缺省（旧工程无此键）= Voice。
+                        midiPartInfo.SoundSource.Kind = (string?)part["voice"]?["kind"] == "instrument" ? SourceKind.Instrument : SourceKind.Voice;
 
                         var notes = part["notes"].ToArray();
                         foreach (JObject note in notes)
@@ -333,8 +335,9 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     part.Add("gain", midiPartInfo.Gain);
                     part.Add("voice", new JObject()
                     {
-                        { "type", midiPartInfo.Voice.Type },
-                        { "id", midiPartInfo.Voice.ID },
+                        { "type", midiPartInfo.SoundSource.Type },
+                        { "id", midiPartInfo.SoundSource.ID },
+                        { "kind", midiPartInfo.SoundSource.Kind == SourceKind.Instrument ? "instrument" : "voice" },
                     });
                     part.Add("properties", ToJson(midiPartInfo.Properties));
 

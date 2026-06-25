@@ -86,7 +86,7 @@ internal static class SynthesisSnapshotFactory
 
         // —— automation：全部已声明轨按区间开窗物化（无数据对象的轨冻结为默认值常量）——
         var automations = new Map<string, SynthesisAutomationSnapshot>();
-        foreach (var kvp in part.Voice.AutomationConfigs)
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
             string key = kvp.Key.Id;
             IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
