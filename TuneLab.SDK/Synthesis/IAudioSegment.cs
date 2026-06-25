@@ -2,7 +2,7 @@ using System;
 
 namespace TuneLab.SDK;
 
-// 音频段握柄：宿主实现、经 ISynthesisContext.CreateAudioSegment 分配，插件持有并写入。
+// 音频段握柄：宿主实现、经 IVoiceContext.CreateAudioSegment 分配，插件持有并写入。
 // 它是音频产物的承载单元，也是下游 effect 链的失效/重渲染单元——一个段 Commit 即作为整体送
 // effect 重过（effect 缓存按握柄身份键：段重 Commit → 该段链重跑；段销毁 → 丢该段缓存）。
 // 段的起始与长度在创建时固定（宿主据此一次性分配缓冲，就地写入故渐进合成不累积重拷）；

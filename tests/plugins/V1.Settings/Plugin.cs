@@ -40,14 +40,14 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
     public void Destroy() { }
 
     // 仅设置演示，不参与实际合成。
-    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context)
+    public IVoiceSession CreateSession(string voiceId, IVoiceContext context)
         => throw new NotSupportedException("V1.Settings is a settings-only demo fixture.");
 
     // 声明面（全空）：本夹具不暴露轨/面板，仅验证扩展设置链路。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => sEmptyAutomations;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyAutomations;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => sEmptyConfig;
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => sEmptyConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context) => sEmptyAutomations;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => sEmptyAutomations;
+    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context) => sEmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context) => sEmptyConfig;
 
     // 设置 schema：普通文本（模型路径）+ 密钥（API Key：掩码显示 + 加密落盘）+ 一个开关。
     // 动态演示：勾选「使用 GPU」后才暴露「GPU 设备」字段（据 context 当前值条件显隐）。

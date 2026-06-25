@@ -11,7 +11,7 @@ namespace TuneLab.SDK;
 //
 // 坐标系约定：插件侧时间量一律为全局秒（与音频产物、状态段同一时间系）；tick 仅是宿主乐谱内部表示、不外露。
 //
-// 与 voice 的 ISynthesisContext 差异：Notes 元素是 IInstrumentNote（满末、不去重叠）；
+// 与 voice 的 IVoiceContext 差异：Notes 元素是 IInstrumentNote（满末、不去重叠）；
 // 【无 Pitch / PitchDeviation 双音高通道】（v1 纯按 note 整数 pitch 发声）。其余（automation / 快照 /
 // 音频段 / Committed 收口）与 voice 同构。
 public interface IInstrumentContext
@@ -25,7 +25,7 @@ public interface IInstrumentContext
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
 
     // 通用 automation 轨（引擎声明的力度 / 表情 / 动态等，与 pitch 无关）；不声明即恒 false。
-    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ILiveAutomation automation);
+    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation);
 
     // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同邻居，插件自由圈定，
     // 返回的 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。

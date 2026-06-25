@@ -91,7 +91,7 @@ internal static class VoicesManager
     }
 
     // 创建合成会话；引擎不可用或 id 未知时回退空声源会话（行为等价于无声源 part）。
-    public static ISynthesisSession CreateSession(string type, string id, ISynthesisContext context)
+    public static IVoiceSession CreateSession(string type, string id, IVoiceContext context)
     {
         var engine = GetInitedEngine(type);
         if (engine != null && engine.VoiceSourceInfos.ContainsKey(id))
@@ -113,16 +113,16 @@ internal static class VoicesManager
     // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明，故无构造期时序陷阱）——
     // 引擎不可用 / id 未知 → 回退空引擎；插件求值抛异常 → 记日志并回退空引擎结果（声明每次参数 commit 都调，
     // 不能让一个烂实现拖垮 UI）。voiceId 由 context.VoiceId 承载（与 part 稀疏值同为纯函数输入）。
-    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IPartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IVoicePartPropertyContext context)
         => Declare(type, context.VoiceId, e => e.GetAutomationConfigs(context));
 
-    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IPartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IVoicePartPropertyContext context)
         => Declare(type, context.VoiceId, e => e.GetSynthesizedParameterConfigs(context));
 
-    public static ObjectConfig GetPartPropertyConfig(string type, IPartPropertyContext context)
+    public static ObjectConfig GetPartPropertyConfig(string type, IVoicePartPropertyContext context)
         => Declare(type, context.VoiceId, e => e.GetPartPropertyConfig(context));
 
-    public static ObjectConfig GetNotePropertyConfig(string type, INotePropertyContext context)
+    public static ObjectConfig GetNotePropertyConfig(string type, IVoiceNotePropertyContext context)
         => Declare(type, context.VoiceId, e => e.GetNotePropertyConfig(context));
 
     static T Declare<T>(string type, string voiceId, Func<IVoiceEngine, T> get)

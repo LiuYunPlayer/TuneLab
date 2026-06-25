@@ -14,11 +14,11 @@ namespace TuneLab.Data.Synthesis;
 //
 // 全秒轴：插件面 [startTime, endTime] 与各求值器查询点均为全局秒；tick 仅在本物化器与冻结
 // 求值器内部出现（经 tempo 快照换算）。snapshot 不携带 Timing——插件不碰 tick。
-internal static class SynthesisSnapshotFactory
+internal static class VoiceSnapshotFactory
 {
     // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；
     // 快照 Notes 与递入 notes 索引对齐（产物归属契约）。[startTime, endTime] 为全局秒开窗区间。
-    public static SynthesisSnapshot Capture(MidiPart part, IReadOnlyList<ILiveNote> sourceNotes, double startTime, double endTime)
+    public static VoiceSnapshot Capture(MidiPart part, IReadOnlyList<IVoiceNote> sourceNotes, double startTime, double endTime)
     {
         double partPos = part.Pos.Value;
 
@@ -30,13 +30,13 @@ internal static class SynthesisSnapshotFactory
         double relEnd = timing.ToTick(endTime) - partPos;
 
         // —— note 值树（经代理接口读值，全部触底到值类型；列表顺序即递入声明顺序）——
-        var notes = new List<SynthesisNoteSnapshot>(sourceNotes.Count);
+        var notes = new List<VoiceNoteSnapshot>(sourceNotes.Count);
         foreach (var note in sourceNotes)
         {
-            if (note is not SynthesisContext.SynthesisNoteProxy proxy)
+            if (note is not VoiceSynthesisContext.VoiceNoteProxy proxy)
                 throw new ArgumentException("Segment notes must come from this part's synthesis context.");
 
-            notes.Add(new SynthesisNoteSnapshot
+            notes.Add(new VoiceNoteSnapshot
             {
                 StartTime = note.StartTime.Value,               // 全局秒（note proxy 已换算）
                 EndTime = note.EndTime.Value,                   // 有效末（去重叠，单声部音频口径；宿主独占音素布局）
@@ -98,7 +98,7 @@ internal static class SynthesisSnapshotFactory
                 envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) });
         }
 
-        return new SynthesisSnapshot
+        return new VoiceSnapshot
         {
             Notes = notes,
             Pitch = pitch,

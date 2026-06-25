@@ -75,7 +75,7 @@ internal class MidiPart : Part, IMidiPart
         // part 参数 commit：voice 的条件自动化轨集合可能随之变；重算并按需通知 UI。
         Properties.Modified.Subscribe(OnPartPropertiesModified);
         // 其余数据变更（note/pitch/automation/tempo/平移）不再由 part 驱动重分片——
-        // 失效判定归插件，变更流经 SynthesisContext 转发。
+        // 失效判定归插件，变更流经 VoiceSynthesisContext 转发。
         SetInfo(info);
     }
 
@@ -150,7 +150,7 @@ internal class MidiPart : Part, IMidiPart
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
-    IPartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mSource.ID, [Properties.GetInfo()]);
+    IVoicePartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mSource.ID, [Properties.GetInfo()]);
 
     // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
     string ComputeAutomationConfigsSignature()
@@ -581,7 +581,7 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 合成失效不再由 part 驱动：automation 的 RangeModified/DefaultValue 变更经
-    // SynthesisContext 转发给插件，由插件按自己的失效依赖图标脏。
+    // VoiceSynthesisContext 转发给插件，由插件按自己的失效依赖图标脏。
     Automation CreateAutomation(string automationID, AutomationInfo info)
     {
         return new Automation(this, info);

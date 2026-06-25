@@ -21,7 +21,7 @@ internal class Automation : DataObject, IAutomation
     {
         mPart = part;
         // RangeModified 只表"锚点几何区间变更"，不并入默认值平移（保其本义、避免 ±∞ 哨兵耦合）。
-        // 默认值平移 = 整轨全区间失效，由合成失效订阅方（voice 的 SynthesisContext / effect 的 VoiceSynthesisPipeline）
+        // 默认值平移 = 整轨全区间失效，由合成失效订阅方（voice 的 VoiceSynthesisContext / effect 的 VoiceSynthesisPipeline）
         // 显式订阅 DefaultValue.Modified 处理。
         DefaultValue = new(this);
         mPoints = new(this);

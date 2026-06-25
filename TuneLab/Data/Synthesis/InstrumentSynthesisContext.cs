@@ -10,7 +10,7 @@ using TuneLab.Utils;
 namespace TuneLab.Data.Synthesis;
 
 // IInstrumentContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
-// 与 voice 的 SynthesisContext 同构但精简——instrument 无 pitch/vibrato 双音高通道、note 取满末（不去重叠）、
+// 与 voice 的 VoiceSynthesisContext 同构但精简——instrument 无 pitch/vibrato 双音高通道、note 取满末（不去重叠）、
 // 无 Lyric/Phonemes。领域中性的代理（DerivedProperty/PropertyObjectGuard/AutomationProxy）经 ISynthesisForwarder 复用；
 // 音频段机制（AudioSegment/IAudioSegmentHost/Owner）与 EffectGraph 与 voice 共用。
 //
@@ -82,7 +82,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
             AudioSegmentsChanged?.Invoke();
     }
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ILiveAutomation automation)
+    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
     {
         if (!mPart.IsEffectiveAutomation(key))
         {

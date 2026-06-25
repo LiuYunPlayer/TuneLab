@@ -77,7 +77,7 @@ The project's data: tracks, tempo, time signatures.
 
 | Method | Returns | Notes |
 |---|---|---|
-| `part.voice()` | `{type, id, name, kind, defaultLyric}` | The part's sound source info (read-only snapshot); `kind` is `"voice"` or `"instrument"`. MIDI parts only. |
+| `part.soundSource()` | `{type, id, name, kind, defaultLyric}` | The part's sound source info (read-only snapshot); `kind` is `"voice"` or `"instrument"`. MIDI parts only. |
 | `part.notes()` | `[note]` | All note handles in this MIDI part. |
 | `part.selectedNotes()` | `[note]` | Notes currently selected in the piano editor (empty if none). |
 | `part.notesInRange(startTick, endTick)` | `[note]` | Notes within absolute ticks `[start, end)` (by note start). |

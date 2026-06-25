@@ -9,7 +9,7 @@ using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;
 
-// 一个 part 的合成管线宿主包装：持有会话级 context + ISynthesisSession（voice 半部），
+// 一个 part 的合成管线宿主包装：持有会话级 context + IVoiceSession（voice 半部），
 // 对上提供调度面（peek/dispatch + 并发槽位状态）、音素回填；effect 半部委托给 EffectGraph
 // （「effect 实例 × 段」反应式处理器图，自管失效与重处理、跨段并行、链尾按时间混音）。
 //
@@ -20,7 +20,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     // 状态/产物有更新（已 marshal 到数据线程），宿主 UI 收到直接刷新；区域信息看 GetStatus()。
     public event Action? StatusChanged;
 
-    public ISynthesisSession Session => mSession;
+    public IVoiceSession Session => mSession;
     public bool IsBusy => mIsBusy;
 
     // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。
@@ -35,7 +35,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     {
         mPart = part;
         mSyncContext = SynchronizationContext.Current ?? throw new InvalidOperationException("VoiceSynthesisPipeline must be created on the data thread.");
-        mContext = new SynthesisContext(part);
+        mContext = new VoiceSynthesisContext(part);
         mSession = VoicesManager.CreateSession(voiceType, voiceId, mContext);
         // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：音素信号才回填 note（WriteBackPhonemes），
         // 参数/音高/状态信号只触发 UI 重读重绘。高频的状态/进度 tick 因此不再带动音素回填。
@@ -193,7 +193,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     }
 
     // 合成音素回填到 note（UI 音素显示消费面）：产物已按归属 note 键，直拷到对应 note（免归组）。
-    // 键是 note 活代理（SynthesisNoteProxy），经 .Source 落回宿主 note；未在产物中的 note 置空（留白）。
+    // 键是 note 活代理（VoiceNoteProxy），经 .Source 落回宿主 note；未在产物中的 note 置空（留白）。
     void WriteBackPhonemes()
     {
         try
@@ -215,8 +215,8 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
 
     readonly MidiPart mPart;
     readonly SynchronizationContext mSyncContext;
-    readonly SynthesisContext mContext;
-    readonly ISynthesisSession mSession;
+    readonly VoiceSynthesisContext mContext;
+    readonly IVoiceSession mSession;
     readonly Action mOnPhonemesChanged;
     readonly Action mOnParametersChanged;
     readonly Action mOnPitchChanged;

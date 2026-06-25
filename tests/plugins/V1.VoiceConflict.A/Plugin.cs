@@ -19,13 +19,13 @@ public sealed class ConflictVoiceEngine : IVoiceEngine
 
     public void Destroy() { }
 
-    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new SilentSession();
+    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new SilentSession();
 
     // 声明（引擎层、纯函数、全空）：路由/分组测试不需要轨/面板。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => sEmptyAutomations;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyAutomations;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => sEmptyConfig;
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => sEmptyConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context) => sEmptyAutomations;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => sEmptyAutomations;
+    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context) => sEmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context) => sEmptyConfig;
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
@@ -33,7 +33,7 @@ public sealed class ConflictVoiceEngine : IVoiceEngine
 }
 
 // 静音会话：不调度任何段。够路由/分组测试用。
-internal sealed class SilentSession : ISynthesisSession
+internal sealed class SilentSession : IVoiceSession
 {
     public string DefaultLyric => "la";
 
@@ -42,7 +42,7 @@ internal sealed class SilentSession : ISynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;
-    public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
+    public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => Array.Empty<SynthesisStatusSegment>();
     public event Action? SynthesizedPhonemesChanged { add { } remove { } }
@@ -53,5 +53,5 @@ internal sealed class SilentSession : ISynthesisSession
     public void Dispose() { }
 
     static readonly Map<string, SynthesizedParameter> sEmptyParameters = new();
-    static readonly Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>> sEmptyPhonemes = new();
+    static readonly Map<IVoiceNote, IReadOnlyList<VoicePhoneme>> sEmptyPhonemes = new();
 }

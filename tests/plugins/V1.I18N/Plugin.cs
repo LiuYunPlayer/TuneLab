@@ -65,13 +65,13 @@ public sealed class I18NVoiceEngine : IVoiceEngine
     }
 
     public void Destroy() { }
-    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new I18NSession(context);
+    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new I18NSession(context);
 
     // 声明（引擎层、纯函数）：本地化的轨/面板配置。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => new() { Properties = mNoteProperties };
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => sEmptyConfigs;
+    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context) => new() { Properties = mNoteProperties };
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
@@ -81,9 +81,9 @@ public sealed class I18NVoiceEngine : IVoiceEngine
 }
 
 // 会话取单块最简模式（i18n 与音频无关）：整 part 一块、任何变更全量标脏，合成产出静音 + phoneme。
-public sealed class I18NSession : ISynthesisSession
+public sealed class I18NSession : IVoiceSession
 {
-    public I18NSession(ISynthesisContext context)
+    public I18NSession(IVoiceContext context)
     {
         mContext = context;
         mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
@@ -130,13 +130,13 @@ public sealed class I18NSession : ISynthesisSession
         mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
         mBlockStart = blockStart;
         mBlockEnd = blockEnd;
-        var phonemes = new Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>>();
+        var phonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
         for (int i = 0; i < notes.Count; i++)
         {
             var note = notes[i];
             double noteStart = note.StartTime;
             double noteEnd = note.EndTime;
-            phonemes.Add(origins[i], new List<SynthesisPhoneme>
+            phonemes.Add(origins[i], new List<VoicePhoneme>
             {
                 new() { Symbol = note.Lyric, Duration = noteEnd - noteStart, StretchWeight = noteEnd - noteStart },
             });
@@ -151,7 +151,7 @@ public sealed class I18NSession : ISynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
-    public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => mPhonemes;
+    public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()
     {
@@ -188,7 +188,7 @@ public sealed class I18NSession : ISynthesisSession
         mSegment?.Dispose();
     }
 
-    void SubscribeNote(ILiveNote note)
+    void SubscribeNote(IVoiceNote note)
     {
         note.StartTime.Modified += MarkDirty;
         note.EndTime.Modified += MarkDirty;
@@ -198,7 +198,7 @@ public sealed class I18NSession : ISynthesisSession
         note.Properties.Modified += MarkDirty;
     }
 
-    void UnsubscribeNote(ILiveNote note)
+    void UnsubscribeNote(IVoiceNote note)
     {
         note.StartTime.Modified -= MarkDirty;
         note.EndTime.Modified -= MarkDirty;
@@ -216,12 +216,12 @@ public sealed class I18NSession : ISynthesisSession
 
     const int kSampleRate = 44100;
 
-    readonly ISynthesisContext mContext;
+    readonly IVoiceContext mContext;
     readonly IDisposable mNotesSubscription;
     bool mDirty;
     bool mSynthesizing;
     IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
-    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> mPhonemes = new Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>>();
+    IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> mPhonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
 }

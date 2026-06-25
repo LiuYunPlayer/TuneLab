@@ -25,12 +25,12 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public void Destroy() { }
 
     // 两个声库共用同一最简会话（差异只在声明，已上移到引擎）。
-    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context) => new SingleBlockSession(context);
+    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new SingleBlockSession(context);
 
     // 声明（引擎层、纯函数）：按 context.VoiceId 区分两个声库——这正是 voiceId 进 context 的用例。
     // suite-conditional：自动化 = f(已选 speaker)——每个混入的 speaker 派生一条混音曲线（多说话人混音式，演示
     // 「+ speaker → part 属性物化 → 自动化重算 → 曲线按钮自动出现」；wiring 由宿主 OnPartPropertiesModified 既有链承担）。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context)
     {
         if (context.VoiceId != "suite-conditional")
             return mSuiteAutomations;
@@ -41,13 +41,13 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
             map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
         return map;
     }
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => sEmptyConfigs;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => sEmptyConfigs;
+    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context)
         => context.VoiceId == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
 
     // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（ExtensibleObjectConfig）。
     // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
-    static ObjectConfig ConditionalPartConfig(IPartPropertyContext context)
+    static ObjectConfig ConditionalPartConfig(IVoicePartPropertyContext context)
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
 
@@ -75,12 +75,12 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
                 return s.name;
         return id;
     }
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context)
+    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context)
         => context.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
 
     // 条件 note 面板：note config = f(context)，随当前值动态变化——① 显隐/换控件（mode=Advanced 多出字段）；
     // ② 控件参数随值变（pick 选项 = letters 逐字符）；③ 动态数量控件（letters 每个唯一字符派生一个滑条）。
-    static ObjectConfig ConditionalNoteConfig(INotePropertyContext context)
+    static ObjectConfig ConditionalNoteConfig(IVoiceNotePropertyContext context)
     {
         // 多选：用 helper 合并成单个三态快照（不在乎逐 note 真值，按单选写法处理）。
         var note = context.NoteProperties.Merge();
@@ -205,9 +205,9 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
 
 // 单块最简会话：整 part 一块；订阅 context 全部变更通知 → 全量标脏（懒插件合法策略）。
 // 声明（轨/面板）已上移到 SuiteVoiceEngine，会话不再承载，两个声库共用本类。
-public sealed class SingleBlockSession : ISynthesisSession
+public sealed class SingleBlockSession : IVoiceSession
 {
-    public SingleBlockSession(ISynthesisContext context)
+    public SingleBlockSession(IVoiceContext context)
     {
         mContext = context;
         mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
@@ -256,13 +256,13 @@ public sealed class SingleBlockSession : ISynthesisSession
             mSegment?.Dispose();
             mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
-            var phonemes = new Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>>();
+            var phonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
             for (int i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
                 double noteStart = note.StartTime;
                 double noteEnd = note.EndTime;
-                phonemes.Add(origins[i], new List<SynthesisPhoneme>   // 索引对齐：产物归属回活 note（map 键）
+                phonemes.Add(origins[i], new List<VoicePhoneme>   // 索引对齐：产物归属回活 note（map 键）
                 {
                     new() { Symbol = note.Lyric, Duration = noteEnd - noteStart, StretchWeight = noteEnd - noteStart },
                 });
@@ -282,7 +282,7 @@ public sealed class SingleBlockSession : ISynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
-    public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => mPhonemes;
+    public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()
     {
@@ -324,7 +324,7 @@ public sealed class SingleBlockSession : ISynthesisSession
         mSegment?.Dispose();
     }
 
-    void SubscribeNote(ILiveNote note)
+    void SubscribeNote(IVoiceNote note)
     {
         note.StartTime.Modified += MarkDirty;
         note.EndTime.Modified += MarkDirty;
@@ -334,7 +334,7 @@ public sealed class SingleBlockSession : ISynthesisSession
         note.Properties.Modified += MarkDirty;
     }
 
-    void UnsubscribeNote(ILiveNote note)
+    void UnsubscribeNote(IVoiceNote note)
     {
         note.StartTime.Modified -= MarkDirty;
         note.EndTime.Modified -= MarkDirty;
@@ -354,12 +354,12 @@ public sealed class SingleBlockSession : ISynthesisSession
 
     const int kSampleRate = 44100;
 
-    readonly ISynthesisContext mContext;
+    readonly IVoiceContext mContext;
     readonly IDisposable mNotesSubscription;
     bool mDirty;
     bool mSynthesizing;
     IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
-    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> mPhonemes = new Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>>();
+    IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> mPhonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
 }

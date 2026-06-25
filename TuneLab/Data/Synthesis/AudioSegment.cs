@@ -23,7 +23,7 @@ internal interface IAudioSegmentOwner
 }
 
 // 音频段握柄（宿主实现 SDK 的 IAudioSegment）：创建时一次性分配固定缓冲，插件就地写子区间、Commit() 标固定，
-// 重分片 Dispose() 释放重建。从 voice 的 SynthesisContext 提为共享类，voice / instrument context 共用、
+// 重分片 Dispose() 释放重建。从 voice 的 VoiceSynthesisContext 提为共享类，voice / instrument context 共用、
 // EffectGraph 统一消费。时间对齐：全局 0 时刻 = 采样点 0；缓冲按插件 native 采样率从段起始铺。
 // 线程：写 / 提交 / 释放全在数据线程（worker 渲染完，在 marshal 回数据线程的续延里写）。
 internal sealed class AudioSegment : IAudioSegment

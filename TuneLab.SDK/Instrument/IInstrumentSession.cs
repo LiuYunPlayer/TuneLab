@@ -8,7 +8,7 @@ namespace TuneLab.SDK;
 //
 // 生命周期：绑定一个 part，活到 part 被删除（Dispose）；换音源时宿主丢弃旧会话、重建新会话。
 //
-// 与 voice 的 ISynthesisSession 差异：【无 DefaultLyric、无 SynthesizedPhonemes、无 SynthesizedPitch】
+// 与 voice 的 IVoiceSession 差异：【无 DefaultLyric、无 SynthesizedPhonemes、无 SynthesizedPitch】
 // 及其事件——instrument 仅产音频 + 可选参数回显。调度、音频交付（经 context.CreateAudioSegment）、
 // 状态时间线与 voice 同构。
 //

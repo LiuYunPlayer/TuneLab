@@ -10,10 +10,10 @@ using NoteInfo = TuneLab.SDK.NoteInfo;
 namespace TuneLab.Data;
 
 // 宿主显示侧的解析后音素（绝对秒、已跨 note 去重叠后的"落点"）：供音素带绘制 / 命中测试 / 拖拽 / 拆分消费。
-// 与 SDK 的 SynthesisPhoneme（音素描述符契约，只报标称时长）区分——位置由宿主按时长模型派生到此。
+// 与 SDK 的 VoicePhoneme（音素描述符契约，只报标称时长）区分——位置由宿主按时长模型派生到此。
 internal readonly record struct DisplayPhoneme(string Symbol, double StartTime, double EndTime, double StretchWeight, bool IsLead);
 
-// 宿主业务层 note。不直接实现 SDK 的 ILiveNote——插件经会话级 context 的 note 代理
+// 宿主业务层 note。不直接实现 SDK 的 IVoiceNote——插件经会话级 context 的 note 代理
 // 订阅（中间层隔离）；本接口只服务宿主自身（编辑/UI/序列化）。
 internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote>
 {
@@ -27,7 +27,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     IDataProperty<string> Pronunciation { get; }
     DataPropertyObject Properties { get; }
     IDataObjectList<IPhoneme> Phonemes { get; }
-    SynthesisPhoneme[]? SynthesizedPhonemes { get; set; }
+    VoicePhoneme[]? SynthesizedPhonemes { get; set; }
     IReadOnlyCollection<string> Pronunciations { get; }
 
     double StartTime => Part.TempoManager.GetTime(this.GlobalStartPos());
@@ -130,7 +130,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // 时长 / 权重 / IsLead。关键——**不**直接用引擎回报的绝对位置（那是已去重叠压缩的产物；喂给布局会让
     // 「内容末 vs 后 note 核起点」的相接判据把"已压缩到核前"误判成"有空隙"而早返回、跳过压缩）。改用自然几何后，
     // 合成 note 与钉死 note 在跨 note 推挤里行为一致：拖邻居前辅音时本 note 元音同步压缩、所见即合成后所得。
-    private double[] SynthNaturalBoundaries(SynthesisPhoneme[] synth)
+    private double[] SynthNaturalBoundaries(VoicePhoneme[] synth)
         => NaturalBoundaries(synth.Length,
             k => synth[k].Duration,
             k => synth[k].StretchWeight,

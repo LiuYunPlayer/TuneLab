@@ -22,9 +22,9 @@ namespace TuneLab.Hosting.Compat.Legacy.Voice;
 // 这是 chord 支持引入前老 Note.EndTime 的原样行为，仅复刻进 compat、不外泄到新 SDK 面。
 
 // 活视图包装：身份按 V1 note 代理缓存（同一代理恒得同一包装，分片 EqualsWith 依赖引用相等）。
-internal sealed class LiveNoteViewCache(Func<VVoice.ILiveNote, LProp.PropertyObject> propertiesReader)
+internal sealed class LiveNoteViewCache(Func<VVoice.IVoiceNote, LProp.PropertyObject> propertiesReader)
 {
-    public LiveNoteView Wrap(VVoice.ILiveNote origin)
+    public LiveNoteView Wrap(VVoice.IVoiceNote origin)
     {
         if (!mViews.TryGetValue(origin, out var view))
         {
@@ -34,9 +34,9 @@ internal sealed class LiveNoteViewCache(Func<VVoice.ILiveNote, LProp.PropertyObj
         return view;
     }
 
-    public void Prune(IReadOnlyCollection<VVoice.ILiveNote> alive)
+    public void Prune(IReadOnlyCollection<VVoice.IVoiceNote> alive)
     {
-        var dead = new List<VVoice.ILiveNote>();
+        var dead = new List<VVoice.IVoiceNote>();
         foreach (var kv in mViews)
         {
             if (!alive.Contains(kv.Key))
@@ -48,15 +48,15 @@ internal sealed class LiveNoteViewCache(Func<VVoice.ILiveNote, LProp.PropertyObj
         }
     }
 
-    readonly Dictionary<VVoice.ILiveNote, LiveNoteView> mViews = new(ReferenceEqualityComparer.Instance);
+    readonly Dictionary<VVoice.IVoiceNote, LiveNoteView> mViews = new(ReferenceEqualityComparer.Instance);
 }
 
 internal sealed class LiveNoteView(
-    VVoice.ILiveNote origin,
+    VVoice.IVoiceNote origin,
     LiveNoteViewCache cache,
-    Func<VVoice.ILiveNote, LProp.PropertyObject> propertiesReader) : LVoice.ISynthesisNote
+    Func<VVoice.IVoiceNote, LProp.PropertyObject> propertiesReader) : LVoice.ISynthesisNote
 {
-    public VVoice.ILiveNote Origin => origin;
+    public VVoice.IVoiceNote Origin => origin;
 
     public LVoice.ISynthesisNote? Next => origin.Next is { } next ? cache.Wrap(next) : null;
     public LVoice.ISynthesisNote? Last => origin.Last is { } last ? cache.Wrap(last) : null;
@@ -74,7 +74,7 @@ internal sealed class LiveNoteView(
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
 internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 {
-    public VVoice.ILiveNote Origin { get; }
+    public VVoice.IVoiceNote Origin { get; }
 
     public LVoice.ISynthesisNote? Next { get; private set; }
     public LVoice.ISynthesisNote? Last { get; private set; }
@@ -86,7 +86,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; }
 
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
-        IReadOnlyList<VVoice.SynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.ILiveNote> origins)
+        IReadOnlyList<VVoice.VoiceNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceNote> origins)
     {
         var views = new SnapshotNoteView[notes.Count];
         for (int i = 0; i < notes.Count; i++)
@@ -101,7 +101,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         return views;
     }
 
-    SnapshotNoteView(VVoice.SynthesisNoteSnapshot note, VVoice.ILiveNote origin)
+    SnapshotNoteView(VVoice.VoiceNoteSnapshot note, VVoice.IVoiceNote origin)
     {
         mNote = note;
         Origin = origin;
@@ -114,7 +114,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime, EndTime);
     }
 
-    readonly VVoice.SynthesisNoteSnapshot mNote;
+    readonly VVoice.VoiceNoteSnapshot mNote;
 }
 
 internal static class LegacyNoteConvert
@@ -124,7 +124,7 @@ internal static class LegacyNoteConvert
     // 「本 note 时长累积布局」解析即可——单声部旧引擎按收到的钉死时序处理，跨 note 辅音簇压缩属新 SDK 精修、对老引擎不必要。
     //   · 前置分界线（核起点）= noteStart；IsLead 从分界线往左累积；核 + 后辅音往右、核(w>0)填充到 noteEndTime（有效末口径）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
-        IReadOnlyList<VVoice.SynthesisPhoneme> phonemes, double noteStartTime, double noteEndTime)
+        IReadOnlyList<VVoice.VoicePhoneme> phonemes, double noteStartTime, double noteEndTime)
     {
         int n = phonemes.Count;
         if (n == 0)

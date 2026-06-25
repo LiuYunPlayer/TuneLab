@@ -648,7 +648,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **性能：不做 host 记忆化。** commit 语义决定"每次触发必然伴随至少一个值变化"→ 记忆化命中前提（触发但输入没变）几乎不成立；唯一可能命中的"沿链传播但下游不依赖该字段"需**依赖追踪**才能精确判断，而那个已被否决（保持 `f` 黑盒纯函数），粗粒度整 context 深比较救不了。故记忆化是净负担（每次白做一次 `PropertyObject` 深比较），砍掉。性能防线就是 commit 触发的低频 + `f` 契约。
 
-**多选 = 传成员列表、`f` 调一次（方案 A 的修订）。** `IPartPropertyContext.PartProperties` / `INotePropertyContext.NoteProperties` 是**各选中成员的稀疏快照列表**（单选 = 1 个、无选中 = 空），仍只调一次 `f`（O(选中数) 遍历、无 N 次调用，避开「逐 note 算 config」的开销）。不在乎多选的插件 `PropertyObjectExtensions.Merge(context.XxxProperties)` 把列表还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`），按单选写法处理；需要逐成员真值的插件（如把不等长数组 seed 合成对）直接遍历列表。
+**多选 = 传成员列表、`f` 调一次（方案 A 的修订）。** `IVoicePartPropertyContext.PartProperties` / `IVoiceNotePropertyContext.NoteProperties` 是**各选中成员的稀疏快照列表**（单选 = 1 个、无选中 = 空），仍只调一次 `f`（O(选中数) 遍历、无 N 次调用，避开「逐 note 算 config」的开销）。不在乎多选的插件 `PropertyObjectExtensions.Merge(context.XxxProperties)` 把列表还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`），按单选写法处理；需要逐成员真值的插件（如把不等长数组 seed 合成对）直接遍历列表。
 > 原始设计是「宿主先合并成一个三态 `PropertyObject` 再喂 `f`」，但这把 `Multiple` 哨兵强塞进插件契约、且 seed 来源字段多值时塌成空（见 §三.29 末）。改为传列表 + 公共 `PropertyObjectExtensions.Merge` helper：合并成可选、宿主不擅自决定语义，`Multiple` 退为 helper 的产物（仍保留，作显示与便利合并用）。
 
 **默认值 = "字段不存在"。** `f` 的输入是**稀疏实际值**（`GetInfo` 只含写过的字段，§三.24 懒建不存默认），所以 `f` 不需"先有 config 才有输入"→ 破"算 config 要先有值、要默认值又要先有 config"的环。推论：① **恢复默认 = 清空数据节点字段**（回到"不存在"），现靠静态遍历 `config.Properties` 写 `DefaultValue` 的重置（`ResetPartPropertiesToDefaults`）简化为"清空"，不再依赖 config 可遍历；preset 保存仍 `GetInfo` 出稀疏字段。② **显示 fallback 不阻塞**：渲染叶子时数据有值用实际值、无则用 `f` 当前输出 config 的 `DefaultValue`（此时已拿到 config）。③ `f` 内读 ctx 缺失 key = `Invalid` 哨兵，作者自行 fallback。
@@ -729,7 +729,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - **提交③**（波形 + 播放逐段、丢弃拼接 buffer）：管线暴露段列表 `SynthesizedSegments` 替代单条 `SynthesizedAudio`/`Waveform`；`MidiPart.GetAudioData`（播放）与 `PianoScrollView.DrawWaveform`（波形）改为遍历段各自混音/绘制；段波形按 `Samples` 引用相等缓存（只重算重跑段）。段间空洞留白、稀疏 part 省内存、补全增量闭环。
 - **后续（缓后，纯加性）**：宿主累积 `Write` 的子区间、随 `Commit` 把脏区间交 effect + effect 自决段内局部重合成 + 段内拼接/淡化（含跨级脏传播形态再定）；写 API 已为此铺好（`Write(offset, samples)` 本就带区间），无需再加接口。
 
-**消费者爆炸半径（已核/已改）**：voice SDK `ISynthesisContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `ISynthesisSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行 + 段列表产物）；消费者 `MidiPart.GetAudioData`（播放逐段混音）+ `PianoScrollView.DrawWaveform`（逐段绘制）改读 `SynthesizedSegments`（`IMidiPart` 的 `SynthesizedAudio`/`Waveform` 塌缩为 `SynthesizedSegments`）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
+**消费者爆炸半径（已核/已改）**：voice SDK `IVoiceContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `IVoiceSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行 + 段列表产物）；消费者 `MidiPart.GetAudioData`（播放逐段混音）+ `PianoScrollView.DrawWaveform`（逐段绘制）改读 `SynthesizedSegments`（`IMidiPart` 的 `SynthesizedAudio`/`Waveform` 塌缩为 `SynthesizedSegments`）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
 
 ### 29. PropertyArray（有序可重复列表）+ Config 标签随槽走（设计定稿，待落地）
 
@@ -752,7 +752,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - `AddableElement { IControllerConfig Template; string? Label }`（`readonly struct`，隐式自 `IControllerConfig`）：**刻意独立成类型**而非复用 `List<IControllerConfig>`——与 `Elements` 破撞型（这是「下一个元素可选的若干类型」选择集、非「后续若干元素」位置序列）。`Template` 提供新元素 seed 默认值（宿主递归解析）+ 渲染配置，`Label` 是菜单类型名。
 - 数组元素无 key、故**无逐元素标签**；要带标签的行用 ObjectConfig 元素（其内部字段自带 key 标签），与「多类型宜用 ObjectConfig」一脉相承。
 
-**初始内容 / 默认值语义：presence 判别（key 在不在），非 emptiness** —— 空数组与「未初始化」必须可分，否则用户显式清空会被误当初始态重新 seed。判别符是 **key 是否存在**（`IPartPropertyContext` 既有语义「默认 = 字段不存在」、缺席读到 `Invalid`）：
+**初始内容 / 默认值语义：presence 判别（key 在不在），非 emptiness** —— 空数组与「未初始化」必须可分，否则用户显式清空会被误当初始态重新 seed。判别符是 **key 是否存在**（`IVoicePartPropertyContext` 既有语义「默认 = 字段不存在」、缺席读到 `Invalid`）：
 - key 缺席（从未写）= 未初始化 → 插件读到 `Invalid` → 按需 emit N 个 element config 当 seed（其默认值即初始值；任意 seed 内容由各 element config 默认值表达，无需独立 DefaultItems 字段）。
 - key 存在、值 = 空数组 `[]` = 用户显式清空 → 插件读到 count=0 → emit 空 `Elements` → 不再 seed。
 - 两条承重约束：**删到空写入「存在的空数组」、绝不删 key**（任何一次删除都把 absent 翻成 present、关闭 default 通道）；**序列化保留 present-`[]`**。default 是 absent 的有效值替身（展示 / 喂 getconfig / 读取统一用），首次写即物化、从此关闭。原则同 §三.23：别把多语义压进一个值、用显式标记（这里是 key presence）区分态。

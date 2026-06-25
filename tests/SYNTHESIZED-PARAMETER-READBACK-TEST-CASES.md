@@ -1,7 +1,7 @@
 # 合成参数回显（只读回显轨）测试用例
 
 > 本文覆盖**本次改动的受影响范围**：引擎合成时产出的参数曲线被宿主作**一等只读回显轨**呈现。
-> 轨形态由引擎经 `ISynthesisSession.GetSynthesizedParameterConfigs(context)` 声明（独立 key、自带 DisplayText/Min/Max/Color、
+> 轨形态由引擎经 `IVoiceSession.GetSynthesizedParameterConfigs(context)` 声明（独立 key、自带 DisplayText/Min/Max/Color、
 > 分段形 `DefaultValue=NaN`），曲线数据经 `SynthesizedParameters` 按同一批 key 承载。
 > 宿主把这些轨：
 > - 显隐开关放在**参数区标题栏右侧**（曲线区正上方那条细栏），复用参数栏的小眼睛图标，不进底部分源 tabbar；

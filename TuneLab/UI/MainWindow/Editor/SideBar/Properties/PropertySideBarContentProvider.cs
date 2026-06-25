@@ -248,20 +248,20 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     // part 面板单 part → 单元素列表（保留列表形以备多 part）；note 面板 → 单个所属 part + 各选中 note 列表
     //（宿主不替插件合并，插件按需 .Merge()）。
-    IPartPropertyContext BuildPartContext()
+    IVoicePartPropertyContext BuildPartContext()
         => new PartPropertyContext(mPart!.SoundSource.ID, [mPart!.Properties.GetInfo()]);
 
-    INotePropertyContext BuildNoteContext()
+    IVoiceNotePropertyContext BuildNoteContext()
         => new NotePropertyContext(mPart!.SoundSource.ID, mPart!.Properties.GetInfo(),
             mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList());
 
-    sealed class PartPropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties) : IPartPropertyContext
+    sealed class PartPropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties) : IVoicePartPropertyContext
     {
         public string VoiceId => voiceId;
         public IReadOnlyList<PropertyObject> PartProperties => partProperties;
     }
 
-    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, IReadOnlyList<PropertyObject> noteProperties) : INotePropertyContext
+    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, IReadOnlyList<PropertyObject> noteProperties) : IVoiceNotePropertyContext
     {
         public string VoiceId => voiceId;
         public PropertyObject PartProperties => partProperties;

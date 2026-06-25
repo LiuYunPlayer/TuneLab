@@ -3,7 +3,7 @@ using TuneLab.Foundation;
 namespace TuneLab.SDK;
 
 // 会话活视图中的 note（可订阅，仅数据线程）——instrument（多声部音源）专属面。
-// 与 voice 的 ILiveNote 的实质差异（分水岭）：
+// 与 voice 的 IVoiceNote 的实质差异（分水岭）：
 //   ① EndTime = note 满末（Pos+Dur 换算的全局秒），【不钳位】——instrument 原味消费重叠几何，
 //      宿主不去重叠；
 //   ② 无 Lyric / 无 Phonemes——instrument 无歌词、无音素系统。

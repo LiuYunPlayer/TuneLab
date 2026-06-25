@@ -85,10 +85,10 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     public string Type => P is IMidiPart ? "midi" : "audio";
 
     // 本 part 的声源信息（只读快照）。仅 midi part。kind 区分 voice / instrument。
-    public ScriptVoice Voice()
+    public ScriptSoundSource SoundSource()
     {
         var v = Midi.SoundSource;
-        return new ScriptVoice(v.Type, v.ID, v.Name, v.DefaultLyric, v.Kind == SourceKind.Voice ? "voice" : "instrument");
+        return new ScriptSoundSource(v.Type, v.ID, v.Name, v.DefaultLyric, v.Kind == SourceKind.Voice ? "voice" : "instrument");
     }
 
     // ── 音符 ──
@@ -409,7 +409,7 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
 }
 
 // 一个 part 的声源信息（只读快照）。kind = "voice" | "instrument"。
-internal sealed class ScriptVoice(string type, string id, string name, string defaultLyric, string kind)
+internal sealed class ScriptSoundSource(string type, string id, string name, string defaultLyric, string kind)
 {
     public string Type { get; } = type;
     public string Id { get; } = id;

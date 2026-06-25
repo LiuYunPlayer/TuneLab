@@ -11,7 +11,7 @@ namespace TuneLab.SDK;
 // 替换，而非同步：快照只写一次（构造，数据线程），构造 happens-before worker 启动，此后只读；
 // 数据变了走活视图通知 → 插件标脏 → 下次合成拉一份全新快照。无共享可变状态，无需锁。
 //
-// 与 voice 的 SynthesisSnapshot 差异：Notes 为满末快照（不去重叠）；【无 Pitch / PitchDeviation 通道】
+// 与 voice 的 VoiceSnapshot 差异：Notes 为满末快照（不去重叠）；【无 Pitch / PitchDeviation 通道】
 // （instrument v1 纯按 note 整数 pitch 发声）。automation 双通道若将来需要（弯音）为纯加性扩展。
 public sealed class InstrumentSnapshot
 {

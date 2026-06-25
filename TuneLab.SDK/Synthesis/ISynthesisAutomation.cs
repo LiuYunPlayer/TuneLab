@@ -5,7 +5,7 @@
 //
 // 继承 IAutomationEvaluator 是 is-a：活/冻两面共用同一份求值签名（同一采样语义），
 // 活视图只额外多一个区间订阅事件；冻结面（SynthesisAutomationSnapshot）则只取求值能力。
-public interface ILiveAutomation : IAutomationEvaluator
+public interface ISynthesisAutomation : IAutomationEvaluator
 {
     // (startTime, endTime)，全局秒。除曲线本身编辑外，tempo 变化导致的秒轴位移也经此通知
     // （同一 tick 锚点经新 tempo 映射到不同秒位置 → 宿主在批量括号内对受影响轨触发全区间）。

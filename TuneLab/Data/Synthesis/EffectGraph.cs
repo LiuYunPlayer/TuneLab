@@ -658,7 +658,7 @@ internal sealed class EffectGraph : IDisposable
             Input = input;
             mBatchSignal = part.SynthesisBatch;
 
-            // 收口脉冲与颗粒脏同源、经 part 合成批量收口（与 voice 的 SynthesisContext 对称，避免用 effect.Modified
+            // 收口脉冲与颗粒脏同源、经 part 合成批量收口（与 voice 的 VoiceSynthesisContext 对称，避免用 effect.Modified
             // 聚合事件——其在滑条拖拽 merge 中乱发、又不在 merge 收口补发，导致触发与终值错位、滞后一拍）：
             //   · 参数：effect.Properties.Modified（settled，滑条拖拽经 DataObject merge 收到松手才发）——
             //     mProperties 在 re-raise Modified（processor 据此标参数脏）后回调 ForwardCommitted，顺序确定；
@@ -674,7 +674,7 @@ internal sealed class EffectGraph : IDisposable
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
         public event Action? Committed;
 
-        public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ILiveAutomation automation)
+        public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
         {
             if (!mEffect.AutomationConfigs.TryGetValue(key, out var config) || config.IsPiecewise)
             {
@@ -814,7 +814,7 @@ internal sealed class EffectGraph : IDisposable
     }
 
     // —— 该 effect 某条自动化轨的活视图：求值（全局秒 → 全局 tick → part 相对 tick → effect 取值）+ 区间订阅。——
-    sealed class AutomationProxy(MidiPart part, IEffect effect, string automationID) : ILiveAutomation
+    sealed class AutomationProxy(MidiPart part, IEffect effect, string automationID) : ISynthesisAutomation
     {
         public event Action<double, double>? RangeModified;
 

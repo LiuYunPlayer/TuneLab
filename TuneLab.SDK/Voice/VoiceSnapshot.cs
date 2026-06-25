@@ -6,7 +6,7 @@ namespace TuneLab.SDK;
 
 // 宿主物化的不可变合成快照（context.GetSnapshot 的返回体）：插件在 SynthesizeNext 的
 // 同步前缀（数据线程）主动拉取，之后才 offload——worker 永不碰活对象，只读它。
-// 形状与 ISynthesisContext 活视图镜像对称，但为纯数据体：无事件（"把回调留到合成线程"在
+// 形状与 IVoiceContext 活视图镜像对称，但为纯数据体：无事件（"把回调留到合成线程"在
 // 类型上写不出来）、无活引用；构造形态 = 无参 + required init（初始化后不可变，加字段纯加性）。
 //
 // 替换，而非同步：快照只写一次（构造，数据线程），构造 happens-before worker 启动，此后只读；
@@ -18,10 +18,10 @@ namespace TuneLab.SDK;
 // 常是合成的中间产物（音素定时后才知道在哪采），快照时刻预知不了；想"冻结时算好"的插件在
 // 同步前缀调求值器把值采成 double[] 自存即可。原始锚点不暴露、插值算法恒在宿主侧（杜绝两套
 // 插值漂移；v2 跨进程在快照序列化时物化为离散点）。
-public sealed class SynthesisSnapshot
+public sealed class VoiceSnapshot
 {
     // 不可变值快照，有序列表；与 GetSnapshot 递入的 notes 索引对齐（产物归属契约），邻居按索引导航。
-    public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }
+    public required IReadOnlyList<VoiceNoteSnapshot> Notes { get; init; }
 
     // automation 冻结快照（可扩展容器，见 SynthesisAutomationSnapshot）：当前裹一个全局秒轴求值器，
     // 开窗 = 拉取区间内原始锚点就地插值。Pitch/PitchDeviation 双通道语义与活视图镜像
@@ -40,7 +40,7 @@ public sealed class SynthesisSnapshot
     public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out SynthesisAutomationSnapshot automation)
         => AutomationMap.TryGetValue(key, out automation);
 
-    // 音素布局不在 SDK：把钉死音素（SynthesisPhoneme：时长 / 权重 / IsLead）+ note 几何（StartTime / EndTime /
+    // 音素布局不在 SDK：把钉死音素（VoicePhoneme：时长 / 权重 / IsLead）+ note 几何（StartTime / EndTime /
     // 邻接 / 歌词）解析为真实时序，是引擎职责。宿主显示侧用一份去重叠算法（核起点=音符头、元音先让、辅音簇等比压、
     // 有空隙则互不影响）；想与宿主显示完全一致的插件可照抄它作参考实现（见 tests/plugins/V1.Voice），否则自由放置——
     // 错位非致命。该算法形态仍在演进，故不冻进 SDK ABI；SDK 只保证数据契约稳定。

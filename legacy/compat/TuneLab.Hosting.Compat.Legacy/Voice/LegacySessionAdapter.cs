@@ -14,15 +14,15 @@ using PStruct = TuneLab.Foundation;
 
 namespace TuneLab.Hosting.Compat.Legacy.Voice;
 
-// 把老 IVoiceSource + ISynthesisTask（task 模型）适配成 V1 ISynthesisSession（会话模型）：
+// 把老 IVoiceSource + ISynthesisTask（task 模型）适配成 V1 IVoiceSession（会话模型）：
 // compat 层内置一个"迷你宿主"——分片账本（老 Segment() 决定分片）、脏判定（懒策略：
 // 订阅 context 全部变更通知按块标脏、BatchEnd 重分片并按 note 集等价保留未变块的缓存）、
 // 产物聚合（多块音频拼成单一时间线、音素扁平化归出身、状态带按块平铺）。
 //
 // 线程纪律：除老 task 的回调（任意线程，一律 Post 回数据线程再落账）外，全部成员仅数据线程访问。
-internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
+internal sealed class LegacySessionAdapter : VVoice.IVoiceSession
 {
-    public LegacySessionAdapter(LVoice.IVoiceSource source, VVoice.ISynthesisContext context)
+    public LegacySessionAdapter(LVoice.IVoiceSource source, VVoice.IVoiceContext context)
     {
         mSource = source;
         mContext = context;
@@ -178,11 +178,11 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     public PStruct.IReadOnlyMap<string, VVoice.SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
-    public PStruct.IReadOnlyMap<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>> SynthesizedPhonemes
+    public PStruct.IReadOnlyMap<VVoice.IVoiceNote, IReadOnlyList<VVoice.VoicePhoneme>> SynthesizedPhonemes
     {
         get
         {
-            var result = new PStruct.Map<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>>();
+            var result = new PStruct.Map<VVoice.IVoiceNote, IReadOnlyList<VVoice.VoicePhoneme>>();
             foreach (var piece in mPieces)
             {
                 foreach (var kvp in piece.Phonemes)   // 块间 note 不相交，直接并入
@@ -249,7 +249,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     // —— 变更接线（数据线程）——
 
-    void SubscribeNote(VVoice.ILiveNote note)
+    void SubscribeNote(VVoice.IVoiceNote note)
     {
         void handler()
         {
@@ -265,13 +265,13 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         note.Properties.Modified += handler;
     }
 
-    void UnsubscribeNote(VVoice.ILiveNote note)
+    void UnsubscribeNote(VVoice.IVoiceNote note)
     {
         if (mNoteHandlers.Remove(note, out var handler))
             DetachNoteHandler(note, handler);
     }
 
-    void DetachNoteHandler(VVoice.ILiveNote note, Action handler)
+    void DetachNoteHandler(VVoice.IVoiceNote note, Action handler)
     {
         note.StartTime.Modified -= handler;
         note.EndTime.Modified -= handler;
@@ -281,7 +281,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         note.Properties.Modified -= handler;
     }
 
-    void OnNotesStructureChanged(VVoice.ILiveNote note)
+    void OnNotesStructureChanged(VVoice.IVoiceNote note)
     {
         mNeedReSegment = true;
     }
@@ -316,7 +316,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             NotifyStatusChanged();
     }
 
-    void MarkNoteDirty(VVoice.ILiveNote note)
+    void MarkNoteDirty(VVoice.IVoiceNote note)
     {
         foreach (var piece in mPieces)
         {
@@ -354,7 +354,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     {
         mNeedReSegment = false;
 
-        var origins = new List<VVoice.ILiveNote>(mContext.Notes);
+        var origins = new List<VVoice.IVoiceNote>(mContext.Notes);
         var liveViews = new List<LiveNoteView>(origins.Count);
         foreach (var origin in origins)
         {
@@ -438,16 +438,16 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
             .ToList();
 
         // 音素归组：老结果按 note 装字典（键 = 我们递入的快照包装）→ 经 Origin 归出身 live 代理（map 键）。
-        var phonemes = new PStruct.Map<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>>();
+        var phonemes = new PStruct.Map<VVoice.IVoiceNote, IReadOnlyList<VVoice.VoicePhoneme>>();
         foreach (var kv in result.SynthesizedPhonemes)
         {
             if (kv.Key is not SnapshotNoteView view)
                 continue;
 
-            var list = new List<VVoice.SynthesisPhoneme>();
+            var list = new List<VVoice.VoicePhoneme>();
             foreach (var phoneme in kv.Value)
             {
-                list.Add(new VVoice.SynthesisPhoneme
+                list.Add(new VVoice.VoicePhoneme
                 {
                     Symbol = phoneme.Symbol,
                     Duration = phoneme.EndTime - phoneme.StartTime,   // 老引擎报绝对位置，转标称时长
@@ -481,7 +481,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         return ReadProperties(mSource.PartProperties.Keys, mContext.PartProperties);
     }
 
-    LProp.PropertyObject ReadNoteProperties(VVoice.ILiveNote note)
+    LProp.PropertyObject ReadNoteProperties(VVoice.IVoiceNote note)
     {
         return ReadProperties(mSource.NoteProperties.Keys, note.Properties);
     }
@@ -502,7 +502,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
 
     sealed class Piece
     {
-        public required IReadOnlyList<VVoice.ILiveNote> Notes;
+        public required IReadOnlyList<VVoice.IVoiceNote> Notes;
         public double StartTime;
         public double EndTime;
         public bool Dirty;
@@ -513,14 +513,14 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public LVoice.SynthesisResult? Result;
         public VVoice.IAudioSegment? Segment;
         public IReadOnlyList<IReadOnlyList<PStruct.Point>> PitchLines = [];
-        public PStruct.IReadOnlyMap<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>> Phonemes = new PStruct.Map<VVoice.ILiveNote, IReadOnlyList<VVoice.SynthesisPhoneme>>();
+        public PStruct.IReadOnlyMap<VVoice.IVoiceNote, IReadOnlyList<VVoice.VoicePhoneme>> Phonemes = new PStruct.Map<VVoice.IVoiceNote, IReadOnlyList<VVoice.VoicePhoneme>>();
     }
 
     // 老 ISynthesisData：全部读冻结快照（worker 线程安全）。
     // 老接口与 V1 求值器同为秒轴（V1 全秒轴改造后），直接转调、无需换算。
     // 老 Pitch 语义 = 最终音高（含 vibrato）：新双通道在此合成 Pitch + PitchDeviation（NaN=自由区保持 NaN，
     // 与老引擎"无绘制即自由"的预期一致；老模型本就收不到自由区的偏差，行为不回退）。
-    sealed class SnapshotSynthesisData(VVoice.SynthesisSnapshot snapshot, IReadOnlyList<SnapshotNoteView> views) : LVoice.ISynthesisData
+    sealed class SnapshotSynthesisData(VVoice.VoiceSnapshot snapshot, IReadOnlyList<SnapshotNoteView> views) : LVoice.ISynthesisData
     {
         public IEnumerable<LVoice.ISynthesisNote> Notes => views;
         public LProp.PropertyObject PartProperties => mPartProperties ??= snapshot.PartProperties.ToLegacy();
@@ -547,7 +547,7 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
         public double[] GetValue(IReadOnlyList<double> times) => evaluator.Evaluate(times);
     }
 
-    sealed class ComposedFinalPitchGetter(VVoice.SynthesisSnapshot snapshot) : LVoice.IAutomationValueGetter
+    sealed class ComposedFinalPitchGetter(VVoice.VoiceSnapshot snapshot) : LVoice.IAutomationValueGetter
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
@@ -563,15 +563,15 @@ internal sealed class LegacySessionAdapter : VVoice.ISynthesisSession
     }
 
     readonly LVoice.IVoiceSource mSource;
-    readonly VVoice.ISynthesisContext mContext;
+    readonly VVoice.IVoiceContext mContext;
     readonly SynchronizationContext mSync;
     readonly LiveNoteViewCache mNoteViewCache;
 
     static readonly PStruct.Map<string, VVoice.SynthesizedParameter> mSynthesizedParameters = new();
 
     readonly IDisposable mNotesSubscription;
-    readonly Dictionary<VVoice.ILiveNote, Action> mNoteHandlers = new(ReferenceEqualityComparer.Instance);
-    readonly List<VVoice.ILiveAutomation> mSubscribedAutomations = new();
+    readonly Dictionary<VVoice.IVoiceNote, Action> mNoteHandlers = new(ReferenceEqualityComparer.Instance);
+    readonly List<VVoice.ISynthesisAutomation> mSubscribedAutomations = new();
 
     readonly List<Piece> mPieces = new();
     bool mNeedReSegment;

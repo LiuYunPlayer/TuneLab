@@ -27,12 +27,12 @@ internal class SoundSource : DataObject, ISoundSource
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
 
     // 声明类 config 求值在引擎层（不依赖会话实例）：按 Kind 解析活引擎，context 携带音源 id。
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context)
+    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetPartPropertyConfig(mType, context)
             : InstrumentsManager.GetPartPropertyConfig(mType, new InstrumentPartContext(context));
 
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context)
+    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetNotePropertyConfig(mType, context)
             : InstrumentsManager.GetNotePropertyConfig(mType, new InstrumentNoteContext(context));
@@ -65,7 +65,7 @@ internal class SoundSource : DataObject, ISoundSource
 
     // 声明刷新（不依赖会话）：重算名字 + 轨/回显集合。声明类 config 全是引擎层纯函数，故可在「建会话之前」调用。
     // 不触发 Notify：本方法在 SoundSource.Modified 的 part 侧 handler 内被调，先于 UI 刷新执行。
-    public void RefreshDeclarations(IPartPropertyContext context)
+    public void RefreshDeclarations(IVoicePartPropertyContext context)
     {
         mName = ResolveName();
         RebuildAutomationConfigs(context);
@@ -82,7 +82,7 @@ internal class SoundSource : DataObject, ISoundSource
     }
 
     // 注入合成会话（建会话之后，仅 voice）：供 DefaultLyric 等会话级运行时取值；instrument 无此需求。
-    public void SetSession(ISynthesisSession? session)
+    public void SetSession(IVoiceSession? session)
     {
         mSession = session;
     }
@@ -90,7 +90,7 @@ internal class SoundSource : DataObject, ISoundSource
     // 按当前 part 参数值重算自动化轨集合（轨集合 = f(当前值)）。
     // 通用轨：Volume（PreCommon，宿主混音应用、对 voice / instrument 皆有效）两类都并；
     // VibratoEnvelope（PostCommon）是 voice 颤音专属，仅 voice 并。
-    public void RebuildAutomationConfigs(IPartPropertyContext context)
+    public void RebuildAutomationConfigs(IVoicePartPropertyContext context)
     {
         mAutomationConfigs.Clear();
         foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs)
@@ -120,12 +120,12 @@ internal class SoundSource : DataObject, ISoundSource
         }
     }
 
-    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredAutomationConfigs(IPartPropertyContext context)
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredAutomationConfigs(IVoicePartPropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetAutomationConfigs(mType, context)
             : InstrumentsManager.GetAutomationConfigs(mType, new InstrumentPartContext(context));
 
-    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredSynthesizedParameterConfigs(IPartPropertyContext context)
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredSynthesizedParameterConfigs(IVoicePartPropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetSynthesizedParameterConfigs(mType, context)
             : InstrumentsManager.GetSynthesizedParameterConfigs(mType, new InstrumentPartContext(context));
@@ -147,13 +147,13 @@ internal class SoundSource : DataObject, ISoundSource
 
     // —— instrument context 适配：把 voice 形态的 context 包成 instrument 形态（InstrumentId = VoiceId）。
     //    voice 形态的宿主 context 复用数据层既有 PartPropertyContext（其 VoiceId 即"音源 id"）。 ——
-    sealed class InstrumentPartContext(IPartPropertyContext context) : IInstrumentPartPropertyContext
+    sealed class InstrumentPartContext(IVoicePartPropertyContext context) : IInstrumentPartPropertyContext
     {
         public string InstrumentId => context.VoiceId;
         public IReadOnlyList<PropertyObject> PartProperties => context.PartProperties;
     }
 
-    sealed class InstrumentNoteContext(INotePropertyContext context) : IInstrumentNotePropertyContext
+    sealed class InstrumentNoteContext(IVoiceNotePropertyContext context) : IInstrumentNotePropertyContext
     {
         public string InstrumentId => context.VoiceId;
         public PropertyObject PartProperties => context.PartProperties;
@@ -165,7 +165,7 @@ internal class SoundSource : DataObject, ISoundSource
     string mID;
     string mName = string.Empty;
 
-    ISynthesisSession? mSession;
+    IVoiceSession? mSession;
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new();
 }

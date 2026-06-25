@@ -9,7 +9,7 @@ namespace TuneLab.Data;
 //
 // 单一稳定数据对象（身份不变、Modified 事件不断线）：换种类只改 Kind/Type/ID（同 SetInfo），不替换对象——
 // 故外部对 part.SoundSource.Modified 的订阅永不悬挂。声明方法沿用 voice 既有 context 形态
-//（IPartPropertyContext/INotePropertyContext，其 VoiceId 即"音源 id"），instrument 分支在实现内适配，
+//（IVoicePartPropertyContext/IVoiceNotePropertyContext，其 VoiceId 即"音源 id"），instrument 分支在实现内适配，
 // 故 MidiPart / 属性面板等消费点无需感知种类。
 internal interface ISoundSource : IDataObject<SoundSourceInfo>
 {
@@ -23,6 +23,6 @@ internal interface ISoundSource : IDataObject<SoundSourceInfo>
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs { get; }
     // 合成参数回显轨声明（只读、独立于可编辑轨集合）：曲线数据经 IMidiPart.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs { get; }
-    ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
-    ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
+    ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context);
+    ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context);
 }

@@ -6,7 +6,7 @@ using TuneLab.SDK;
 namespace TuneLab.Data.Synthesis;
 
 // 合成 context 对其会话级活视图代理（DerivedProperty / PropertyObjectGuard / AutomationProxy）暴露的转发面：
-// voice 的 SynthesisContext 与 instrument 的 InstrumentSynthesisContext 都实现，使这些领域中性的代理两边共用。
+// voice 的 VoiceSynthesisContext 与 instrument 的 InstrumentSynthesisContext 都实现，使这些领域中性的代理两边共用。
 // 各 context 自己实现 ForwardChange/ForwardWill（含各自的 Committed 收口与批量括号语义）；代理只管通过此面转发。
 internal interface ISynthesisForwarder
 {
@@ -118,7 +118,7 @@ internal sealed class PropertyObjectGuard : IReadOnlyNotifiablePropertyObject, I
 
 // —— 曲线类的会话级活视图：取值经 sampler 委托（part 相对 tick 轴）回宿主数据层，
 //    秒↔tick 换算与 part 偏移由 forwarder.ToRelativeTicks 在边界完成；区间事件由 context 换算成全局秒后注入。 ——
-internal sealed class AutomationProxy(ISynthesisForwarder forwarder, Func<IReadOnlyList<double>, double[]> sampler) : ILiveAutomation
+internal sealed class AutomationProxy(ISynthesisForwarder forwarder, Func<IReadOnlyList<double>, double[]> sampler) : ISynthesisAutomation
 {
     public event Action<double, double>? RangeModified;
 

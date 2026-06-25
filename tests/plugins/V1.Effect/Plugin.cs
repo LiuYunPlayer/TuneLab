@@ -238,7 +238,7 @@ public sealed class GainEffectEngine : IEffectEngine
         }
 
         readonly IEffectContext mContext;
-        ILiveAutomation? mEnvAutomation;
+        ISynthesisAutomation? mEnvAutomation;
         IAudioSegment? mOutSegment;
         long mOutOffset;
         int mOutCount;

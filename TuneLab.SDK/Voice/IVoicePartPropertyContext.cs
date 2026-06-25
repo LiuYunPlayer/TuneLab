@@ -11,11 +11,11 @@ namespace TuneLab.SDK;
 //（同 key 全等给值、不等/缺于部分成员给 Multiple），按单选写法处理；需要逐成员真值的插件直接遍历列表。
 //
 // part 级只依赖 part 自身值（面板内部联动 / 自动化轨随 part 参数显隐），不依赖 note 选择。
-// note 级是另一个独立上下文（INotePropertyContext，单独成接口/文件，不继承本接口）——因 note 必属单个 part，
+// note 级是另一个独立上下文（IVoiceNotePropertyContext，单独成接口/文件，不继承本接口）——因 note 必属单个 part，
 // 其 part 维度是单数，与本接口的多 part 列表语义不同，故不复用继承。
 // 上游 commit 沿链触发下游重算（part 改 → 重算 part + note），下游不影响上游 → 无环、方向确定。
 // 冻结接口纯加性扩展（以后加只读属性不破坏旧插件）。
-public interface IPartPropertyContext
+public interface IVoicePartPropertyContext
 {
     // 选定声库（= 宿主 Voice.ID，IVoiceEngine.VoiceSourceInfos 的 key）：声明类 config 是
     // f(voiceId, part 稀疏值) 的纯函数，voiceId 随 context 一并注入，引擎据此知道求值的是哪个模型。

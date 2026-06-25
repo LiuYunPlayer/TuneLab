@@ -6,7 +6,7 @@ using TuneLab.SDK;
 namespace TuneLab.Data.Synthesis;
 
 // InstrumentSnapshot 的物化器：插件在 SynthesizeNext 同步前缀经 context.GetSnapshot 拉取，这里在数据线程 eager 物化。
-// 与 voice 的 SynthesisSnapshotFactory 同构但精简——note 取【满末】（Pos+Dur，不去重叠）、无 Lyric/Phonemes、
+// 与 voice 的 VoiceSnapshotFactory 同构但精简——note 取【满末】（Pos+Dur，不去重叠）、无 Lyric/Phonemes、
 // 无 Pitch/PitchDeviation 双音高通道、无 vibrato 偏移。automation 取原始曲线开窗冻结。
 //
 // 全秒轴：插件面 [startTime, endTime] 与各求值器查询点均为全局秒；tick 仅在本物化器与冻结求值器内部出现。

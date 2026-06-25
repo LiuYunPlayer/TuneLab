@@ -8,7 +8,7 @@ namespace TuneLab.Data.Synthesis;
 
 // 一个 part 的合成管线对宿主（Editor 调度 + MidiPart 产物转发）暴露的统一面：voice / instrument 各有实现。
 // 调度（peek/dispatch + 并发槽位）与产物读取（音频段 / 回显 / 状态）领域无关，故抽象在此；
-// 领域专属面（如 voice 的 ISynthesisSession Session、音素回填）留在各自具体类，不进本抽象。
+// 领域专属面（如 voice 的 IVoiceSession Session、音素回填）留在各自具体类，不进本抽象。
 // SynthesizedPitch 是 voice 专属富产物，instrument 实现返回空（保持统一面、宿主绘制端无需分支）。
 internal interface ISynthesisPipeline : IDisposable
 {

@@ -22,7 +22,7 @@
 
 ```
 IVoiceEngine        每"引擎类型"一个：加载模型、列声库目录、创建合成会话、声明（轨/面板/回显）
-  └ ISynthesisSession   每"part 合成"一个：默认歌词 + 调度 + 产物 + 状态
+  └ IVoiceSession   每"part 合成"一个：默认歌词 + 调度 + 产物 + 状态
 ```
 
 ```csharp
@@ -35,13 +35,13 @@ public interface IVoiceEngine
     void Destroy();
 
     // voiceId 选定声库；context 为该 part 的输入活视图（见 §3）
-    ISynthesisSession CreateSession(string voiceId, ISynthesisContext context);
+    IVoiceSession CreateSession(string voiceId, IVoiceContext context);
 
     // 声明面（f(voiceId, 当前值) 纯函数，不依赖会话；voiceId 经 context.VoiceId）；详见后文「声明在引擎」修订。
-    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
-    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
-    ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
-    ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
+    IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context);
+    IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context);
+    ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context);
+    ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context);
 }
 ```
 
@@ -63,25 +63,25 @@ public interface IVoiceEngine
 
 `session = engine.CreateSession(voiceId, context)`。会话绑定一个 part，活到 part 被删除（`Dispose`）。换声源（换引擎）时：宿主丢弃旧会话、重建新会话，**context 也随会话重建**（稳定的是其背后的数据层）。
 
-### 3.2 输入：`ISynthesisContext`（会话级、订阅式活视图）
+### 3.2 输入：`IVoiceContext`（会话级、订阅式活视图）
 
 context 由**宿主实现、会话级**（每次 `CreateSession` 新建、随会话死），向插件暴露**可订阅属性**。插件用与宿主侧一致的手感订阅：
 
 ```csharp
-public interface ISynthesisContext
+public interface IVoiceContext
 {
     // 链表形态（无索引承诺——宿主数据层即双向链表，可索引是插件不需要的承诺）：
     // 顺序消费用枚举、头尾 O(1) 走 First/Last、邻居导航走 note.Next/Last；支持 WhenAny。
-    IReadOnlyNotifiableLinkedList<ILiveNote> Notes { get; }
+    IReadOnlyNotifiableLinkedList<IVoiceNote> Notes { get; }
     PropertyObject PartProperties { get; }                    // 可订阅
-    bool TryGetAutomation(string key, out ILiveAutomation automation);
-    ILiveAutomation Pitch { get; }            // 绝对约束：有值=用户钉死，NaN=插件自由
-    ILiveAutomation PitchDeviation { get; }   // 加性偏差：处处有值、默认 0、永不 NaN
+    bool TryGetAutomation(string key, out ISynthesisAutomation automation);
+    ISynthesisAutomation Pitch { get; }            // 绝对约束：有值=用户钉死，NaN=插件自由
+    ISynthesisAutomation PitchDeviation { get; }   // 加性偏差：处处有值、默认 0、永不 NaN
 
     // 物化合成快照（插件主动拉取，见 §3.5/§4）：notes = 本次合成所需 note（含协同发音邻居，
     // 插件自由圈定，返回 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。
     // 仅数据线程、仅 SynthesizeNext 同步前缀调用；一次合成可按需拉多份。
-    SynthesisSnapshot GetSnapshot(IReadOnlyList<ILiveNote> notes, double startTime, double endTime);
+    VoiceSnapshot GetSnapshot(IReadOnlyList<IVoiceNote> notes, double startTime, double endTime);
 
     // 音频产物的宿主分配工厂（见 §5）：插件合成产出音频时申请一个段握柄，写入、Commit() 标完成，
     // 重分片（或改长度/位置）时 Dispose() 释放重建。宿主据此持有段登记表、驱动下游 effect 链按段重渲染。
@@ -97,7 +97,7 @@ public interface ISynthesisContext
 // 注：IAutomationEvaluator（纯求值，TuneLab.SDK、voice/effect 共用；查询轴统一全局秒——
 // 插件侧只面对秒轴）与本接口的分离是"活视图可订阅 / 冻结面无事件"双视图的类型化体现；
 // 继承关系维持（is-a 成立：同一份采样例程可同型吃活视图与冻结求值器）。
-public interface ILiveAutomation : IAutomationEvaluator
+public interface ISynthesisAutomation : IAutomationEvaluator
 {
     event Action<double, double>? RangeModified;   // (startTime, endTime)，全局秒
 }
@@ -107,7 +107,7 @@ public interface ILiveAutomation : IAutomationEvaluator
 
 **变更定位的三种最小事实**：字段变了（note 可订阅属性，配合 `WillModify`/`Modified` 拿新旧值）、区间变了（曲线 `RangeModified` 带秒范围）、集合变了（`Notes` 增删）。失效依赖图（这些事实映射到哪些段、重合成到管线哪一级）归插件——机制粒度足够支撑最精细策略，也允许懒插件"任何通知 → 全部标脏"。**不设独立的"时基变了"信号**：tempo 变化被分解为上述具体事实——note 边界秒值变（`StartTime/EndTime.Modified`）+ automation 秒映射移位（宿主在批量括号内对受影响轨触发全区间 `RangeModified`），插件用既有订阅即收到（详见 §3.3）。
 
-**命名约定（线程纪律编码进名字）**：活视图**元素**类型用 `ILive*` 前缀（可订阅，仅数据线程；按对象本质命名、不绑 voice/effect——边界不可知，将来被其他插件类型共用零改名，如 `ILiveNote`/`ILiveAutomation`，effect 收敛直接复用见 §10）；会话**容器**保留 domain 名（`ISynthesisContext`=voice、`IEffectContext`=effect，因其暴露面本质不同、不可共用一名）；`*Snapshot` 后缀 = 不可变冻结物家族（纯值无事件，可跨线程）；`IAutomationEvaluator`/`ITiming` = 横跨两域的求值/换算能力接口（实现可活可冻，接口面不带事件）。活视图上的事件恒在数据线程触发与处理；快照上**没有**事件（类型上拿不到，"把回调留到合成线程"写不出来）。出方向（插件→宿主）的 `StatusChanged` 允许任意线程触发、宿主负责 marshal（v2 跨进程时它本就是 IPC 消息）；进度经状态带（`SynthesisStatusSegment.Progress`）+ `StatusChanged` 上报（不单设 `IProgress` 推送参数；将来如需独立推送通道再加性补）。
+**命名约定（前缀编码桶 + 线程纪律）**：一条分层规则——① **域专属**类型带与所属文件夹一致的域前缀（`Voice*`/`Instrument*`，对称如 `IVoiceSession`↔`IInstrumentSession`、`IVoiceNote`↔`IInstrumentNote`、`VoiceSnapshot`↔`InstrumentSnapshot`）；② **共享中性**类型用 `Synthesis*` 前缀（或本就中性的 `IAudioSegment`/`IAutomationEvaluator`），统一落 `TuneLab.SDK/Synthesis/`，零 voice/instrument 语义、两族（及 effect）共用零改名（effect 收敛直接复用见 §10）；③ **产物例外**——engine→host 的输出值用 `Synthesized*` 角色前缀、不受桶规则约束（`SynthesizedPitch` 属 voice 落 `Voice/`、`SynthesizedParameter` 共享落 `Synthesis/`）。会话**容器**用域名（`IVoiceContext`=voice、`IEffectContext`=effect，因其暴露面本质不同、不可共用一名）；活视图与冻结快照成对、靠 `*Snapshot` 后缀区分（活=裸名、冻=`+Snapshot`）：`IVoiceNote`↔`VoiceNoteSnapshot`、共享活视图自动化 `ISynthesisAutomation`↔`SynthesisAutomationSnapshot`——活视图不再靠 `Live` 前缀标记（已弃，活视图本就不靠前缀消歧）；`*Snapshot` 后缀 = 不可变冻结物家族（纯值无事件，可跨线程）；`IAutomationEvaluator`/`ITiming` = 横跨两域的求值/换算能力接口（实现可活可冻，接口面不带事件）。活视图上的事件恒在数据线程触发与处理；快照上**没有**事件（类型上拿不到，"把回调留到合成线程"写不出来）。出方向（插件→宿主）的 `StatusChanged` 允许任意线程触发、宿主负责 marshal（v2 跨进程时它本就是 IPC 消息）；进度经状态带（`SynthesisStatusSegment.Progress`）+ `StatusChanged` 上报（不单设 `IProgress` 推送参数；将来如需独立推送通道再加性补）。
 
 **纪律的强制层级**：插件持有 context 引用、技术上可以在 worker 线程访问活视图——进程内无法类型强制（C# 无线程所有权类型系统），"仅数据线程"是纪律性约束。三道防线：① 命名纪律（本节）；② 宿主 context 实现的各取值/枚举入口带**数据线程断言**（DEBUG 编译），违例插件在开发期第一次跨线程访问即抛异常，而非静默数据竞争；③ v2 进程隔离后物理强制（context 留在宿主进程，worker 进程摸不到引用）。
 
@@ -130,27 +130,27 @@ public interface IReadOnlyNotifiableProperty<out T>
 
 `WhenAny` 作为该接口（及其集合）的**扩展方法定义在 TuneLab.Foundation（契约层），逻辑一份**；宿主 Hosting.Foundation 的富 NotifiableProperty 实现此接口，host 与插件共用同一份 `WhenAny`，不存在两份实现漂移。
 
-### 3.3 `ILiveNote` / 时间真值域 / `ITiming`
+### 3.3 `IVoiceNote` / 时间真值域 / `ITiming`
 
-宿主业务层的 `INote` **不暴露**；SDK 另立 `ILiveNote`，字段皆为可订阅属性。**固定字段保持最小**（通用乐理属性），voice 专属的 per-note 参数一律走 `Properties`（keyed）——加新参数 = 加 `NoteProperties` 的 key，不动 `ILiveNote` 固定面。
+宿主业务层的 `INote` **不暴露**；SDK 另立 `IVoiceNote`，字段皆为可订阅属性。**固定字段保持最小**（通用乐理属性），voice 专属的 per-note 参数一律走 `Properties`（keyed）——加新参数 = 加 `NoteProperties` 的 key，不动 `IVoiceNote` 固定面。
 
 ```csharp
-public interface ILiveNote
+public interface IVoiceNote
 {
     IReadOnlyNotifiableProperty<double> StartTime { get; }   // 全局秒（tempo 派生，变化经 Modified 通知）
     IReadOnlyNotifiableProperty<double> EndTime   { get; }
     IReadOnlyNotifiableProperty<int>      Pitch  { get; }
     IReadOnlyNotifiableProperty<string>   Lyric  { get; }
-    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesisPhoneme>> Phonemes { get; }  // 见 §6
+    IReadOnlyNotifiableProperty<IReadOnlyList<VoicePhoneme>> Phonemes { get; }  // 见 §6
     PropertyObject Properties { get; }   // 可订阅；voice 专属 per-note 参数都在这
 
     // 邻居链保留（协同发音方便）。注意：合成须在快照上沿链导航，见 §3.5。
-    ILiveNote? Next { get; }
-    ILiveNote? Last { get; }
+    IVoiceNote? Next { get; }
+    IVoiceNote? Last { get; }
 }
 ```
 
-**插件侧全秒轴原则：插件面对的所有时间量统一为全局秒，tick 只是宿主乐谱内部表示、不外露。**合成是声学域作业（音频按秒/采样点），插件需要的永远是"第 X 秒"；note 边界、曲线查询点、开窗区间、`RangeModified` 区间一律秒。秒由 tempo 表换算而来——精度上 double 秒在工程规模下远超采样点（比 48kHz 采样间隔精确约 7 个数量级），对合成无损；tick 的整数精确性价值在编辑域（网格对齐、定点比较），合成域用不到。插件因此**不碰任何 tick↔秒换算**：宿主在 note 边界派生、求值器边界、快照物化处完成换算，`ISynthesisContext` 与 `SynthesisSnapshot` 都**不暴露** `ITiming`。
+**插件侧全秒轴原则：插件面对的所有时间量统一为全局秒，tick 只是宿主乐谱内部表示、不外露。**合成是声学域作业（音频按秒/采样点），插件需要的永远是"第 X 秒"；note 边界、曲线查询点、开窗区间、`RangeModified` 区间一律秒。秒由 tempo 表换算而来——精度上 double 秒在工程规模下远超采样点（比 48kHz 采样间隔精确约 7 个数量级），对合成无损；tick 的整数精确性价值在编辑域（网格对齐、定点比较），合成域用不到。插件因此**不碰任何 tick↔秒换算**：宿主在 note 边界派生、求值器边界、快照物化处完成换算，`IVoiceContext` 与 `VoiceSnapshot` 都**不暴露** `ITiming`。
 
 tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `TempoSnapshot` 冻结实现）承担——`ITiming` 接口与其实现家族同居宿主 `TuneLab.Data.Timing`，**不在插件 SDK 面**（既不进 context/snapshot，类型本身也已从 `TuneLab.SDK` 移除）。
 
@@ -186,7 +186,7 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 
 | 数据 | 形态 | 进程内 | 跨进程（v2） |
 |---|---|---|---|
-| **note** | eager 物化的不可变值快照（`StartTime`/`EndTime`=有效末·单声部音频口径·全局秒，宿主独占音素布局不暴露满末、`Pitch`、`Lyric`、`SynthesisPhoneme[]`=时长 / 权重 / IsLead、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
+| **note** | eager 物化的不可变值快照（`StartTime`/`EndTime`=有效末·单声部音频口径·全局秒，宿主独占音素布局不暴露满末、`Pitch`、`Lyric`、`VoicePhoneme[]`=时长 / 权重 / IsLead、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
 | **automation** | **host 侧不可变原始点快照**；插件经 `IAutomationEvaluator.Evaluate(points)` 拉采样值 | worker 直接调求值器、宿主插值算法就地对冻结点插值 | 快照序列化时物化为离散点（提前采样，跨进程牺牲项；细节缓后）；**插值算法恒在宿主侧** |
 | **timing** | `ITiming` 接口接缝（接口与实现 `TempoSnapshot` 同居宿主 `TuneLab.Data.Timing`，与 live 同一套共享算法；不在插件 SDK 面） | worker 直接调冻结实现 | 快照序列化时物化为离散数据（细节缓后） |
 
@@ -238,7 +238,7 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 - **并发上限**由宿主设置（账本式，可运行时改：调大则填满空槽、调小则停派新的等 drain，必要时发 token 抢占）。
 
 ```csharp
-public interface ISynthesisSession
+public interface IVoiceSession
 {
     // —— 调度 ——
     // peek：窗内"下一块待合成"的纯值边界，无副作用
@@ -267,9 +267,9 @@ public readonly struct SynthesisRange(double startTime, double endTime)
 // 宿主物化的不可变快照（context.GetSnapshot 的返回体）：纯数据体故为具体类型（§0 原则 5），
 // 无参构造 + required init（初始化后不可变，加字段纯加性）。形状与活视图镜像对称。
 // 物化/版本缓存/限速/并发记账全留宿主一处；v2 跨进程时它就是 GetSnapshot 一次批量 RPC 的返回体。
-public sealed class SynthesisSnapshot
+public sealed class VoiceSnapshot
 {
-    public required IReadOnlyList<SynthesisNoteSnapshot> Notes { get; init; }   // 与递入 notes 索引对齐（邻居按索引导航）
+    public required IReadOnlyList<VoiceNoteSnapshot> Notes { get; init; }   // 与递入 notes 索引对齐（邻居按索引导航）
     public required ITiming Timing { get; init; }    // 接口接缝：实现在宿主侧（与 live 共享算法），SDK 不带实现
     public required SynthesisAutomationSnapshot Pitch { get; init; }          // 可扩展容器（裹全局秒轴求值器 Evaluator），开窗 = 拉取区间；双通道语义同活视图
     public required IAutomationEvaluator PitchDeviation { get; init; }
@@ -278,7 +278,7 @@ public sealed class SynthesisSnapshot
 }
 ```
 
-**快照 note 不带邻居链**（接口最小化）：`Notes` 有序列表与 `GetSnapshot` 递入的 notes 索引对齐已含全部邻接信息，协同发音按索引取邻居即可。活视图 `ILiveNote` 的 `Next/Last` 保留——事件 handler 内只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是分片决策的真实便利。
+**快照 note 不带邻居链**（接口最小化）：`Notes` 有序列表与 `GetSnapshot` 递入的 notes 索引对齐已含全部邻接信息，协同发音按索引取邻居即可。活视图 `IVoiceNote` 的 `Next/Last` 保留——事件 handler 内只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是分片决策的真实便利。
 
 **peek→commit 原子性**：两者在同一调度 tick 内、同在数据线程同步衔接，期间无编辑可插入——commit 时插件重算分块（确定性分片）必得 peek 报出的同一块；`GetSnapshot` 默认把全部已声明轨按区间开窗物化（bulk 拷亚毫秒级），将来有压力再加可选 keys 白名单，不动接口面。原"半透明 token + downcast 取私货 + 不跨 tick 缓存"一组约定随 segment 纯值化整体消失；原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
 
@@ -296,7 +296,7 @@ public sealed class SynthesisSnapshot
 为何音频单独走段握柄而非 `ReadAudio` 扁平 pull：下游 effect 链（离线整段模型，如 SVC 换声，整段重过很贵）要能**按段增量重渲染**——voice 改了哪段，只有那段重新过 effect 链，而不是 voice 产物一变就整 part 重跑。把 voice 本就内部持有的分片，提升成宿主持有的一等握柄，段即 effect 的失效/重渲染单元。
 
 ```csharp
-public interface ISynthesisSession   // 续
+public interface IVoiceSession   // 续
 {
     // —— 音频采样率（插件 native 率；音频本体经 IAudioSegment 握柄交付，不再 ReadAudio pull）——
     // 工程率是唯一真值，宿主比对：相等直读、不等套一层流式重采样（集中宿主一处，会话与工程率变化解耦）。
@@ -305,7 +305,7 @@ public interface ISynthesisSession   // 续
     // —— 曲线类产物 ——
     SynthesizedPitch SynthesizedPitch { get; }                                          // 具名富类型 { Segments }，见 §6
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }           // 富类型，与 effect 同形
-    IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes { get; } // 按归属 note 键，见 §6
+    IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes { get; } // 按归属 note 键，见 §6
 
     // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
@@ -350,11 +350,11 @@ public struct SynthesisStatusSegment
 
 ## 6. 音素
 
-音素描述符**方向无关**——输入（用户钉死约束）与输出（引擎合成产物）共用**一个类型** `SynthesisPhoneme`：只报「标称时长 + 弹性权重 + 前置标记」，**不报绝对位置**。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按同一时长模型派生、独占布局。
+音素描述符**方向无关**——输入（用户钉死约束）与输出（引擎合成产物）共用**一个类型** `VoicePhoneme`：只报「标称时长 + 弹性权重 + 前置标记」，**不报绝对位置**。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按同一时长模型派生、独占布局。
 
 ```csharp
 // 描述符方向无关且稳定 → 进 / 出合并一个类型；持久层 PhonemeInfo 与本类型解耦（独立演进）。
-public struct SynthesisPhoneme
+public struct VoicePhoneme
 {
     public string Symbol;
     public double Duration;       // 标称时长（秒）：辅音(w=0)固定长；核(w>0)此值被布局忽略（恒按填充派生）
@@ -367,7 +367,7 @@ public struct SynthesisPhoneme
 
 ### 输入（host→engine，per note）
 
-挂在 `ILiveNote.Phonemes`（`IReadOnlyList<SynthesisPhoneme>`）。
+挂在 `IVoiceNote.Phonemes`（`IReadOnlyList<VoicePhoneme>`）。
 
 - **位置由布局派生、不存**：前置分界线（核起点）= 音符头；`IsLead` 音素从分界线往左累积固定时长（可任意加长、向 note 前越界）；核 + 后辅音往右——辅音用固定时长、核填充到组末（含 melisma 铺过乘客）、多核按权重分摊。便于「推挤式」编辑（改一个音素长度，相邻整体平移而非互相挤占）。
 - **钉死粒度为整 note**：列表非空 = 全部音素用户钉死（约束，引擎遵守）；空列表 = 引擎从 `Lyric` 做 G2P + 全自由定时。不支持单音素级"部分钉死"。
@@ -384,10 +384,10 @@ public struct SynthesisPhoneme
 ### 输出（engine→host，合成时返回）：按归属 note 键的 map
 
 ```csharp
-IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes { get; }
+IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes { get; }
 ```
 
-- **按归属 note 键**（而非扁平时间线 + 出身字段）：描述符不报绝对位置，**无主音素无锚不可定位、也落不进 note 失效链，故砍掉「无主音素（Note=null）」契约**——`SynthesisPhoneme` 不带 `Note` 字段，归属全由 map 键表达。辅音入侵上一 note 尾巴这类越界，由宿主派生位置时自然产生。（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。）
+- **按归属 note 键**（而非扁平时间线 + 出身字段）：描述符不报绝对位置，**无主音素无锚不可定位、也落不进 note 失效链，故砍掉「无主音素（Note=null）」契约**——`VoicePhoneme` 不带 `Note` 字段，归属全由 map 键表达。辅音入侵上一 note 尾巴这类越界，由宿主派生位置时自然产生。（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。）
 - **键怎么填**：用递给 `GetSnapshot` 的活 note 列表（`origins`）按快照索引对齐回取（`snapshot.Notes[i]` ↔ `origins[i]`）。键仅作身份 token，合成中不得读其属性。脏 / 合成中的块不在 map 里报告其 note 的音素（宿主据此留白）。
 - **回填直拷**：宿主 `WriteBackPhonemes` 按键直接拷到对应 note（免归组）。
 
@@ -441,7 +441,7 @@ public class AutomationConfig : IValueConfig<double>
   `Portrait` 是格式无关的资源引用：封闭层次（构造器 private protected，变体仅 SDK 内新增），变体按数据形态分型（v1 仅 `FileImageResource` 路径变体——可指向图像文件或序列帧目录）、保持可序列化数据形态；动图（GIF/APNG）是宿主解码能力不进类型，Live2D/Spine 等富动态为独立特性。运行时会变的图像走目录变更信号（将来 `IVoiceEngine` 加性事件），资源对象本身恒为不可变值。
 
 - **声明在引擎、不在会话**（修订）：声明（轨集合 / 属性面板 / 回显轨）是 `f(voiceId, 当前 part/note 参数值)` 的
-  纯函数、不碰任何合成运行时状态，故移到 `IVoiceEngine` 上；`voiceId` 经 `IPartPropertyContext.VoiceId` 注入
+  纯函数、不碰任何合成运行时状态，故移到 `IVoiceEngine` 上；`voiceId` 经 `IVoicePartPropertyContext.VoiceId` 注入
   （多声库分流）。**会话只保留 `DefaultLyric`**（创建后才取用的运行时值）。元数据仍由 `VoiceSourceInfos` 提供、不重复。
   **声明全部 context 驱动、纯函数**：宿主在参数 commit 时按当前值重算并 diff 到 UI——轨集合可随参数显隐（条件轨），
   属性面板可随值换控件/显隐。静态声明的插件忽略 context 返回固定 map/config 即可。**孤儿数据**：轨从声明消失后
@@ -451,22 +451,22 @@ public class AutomationConfig : IValueConfig<double>
   （`context.TryGetAutomation(key,…)`），但该轨是否"有效"取决于 `AutomationConfigs`，而 `AutomationConfigs`
   又派生自会话自己的 `GetAutomationConfigs`——宿主要等会话构造完才拿得到声明，构造期订阅必失败。声明上移到引擎后，
   宿主在**建会话之前**就能据引擎求出声明并填好轨集合，会话构造期 `TryGetAutomation` 对已声明轨**必成**，订阅可靠。
-  `voiceId` 进 `IPartPropertyContext` 使其与 effect 的 `IEffectPropertyContext`（单类型引擎、无此对等物）永久分叉。
+  `voiceId` 进 `IVoicePartPropertyContext` 使其与 effect 的 `IEffectPropertyContext`（单类型引擎、无此对等物）永久分叉。
 
   ```csharp
   public interface IVoiceEngine   // 续（声明面）
   {
       // 自动化轨声明（part 级，f(voiceId, 当前值)）；commit 时重算 + diff 轨集合。连续/分段同一 map（DefaultValue=NaN ⇒ 分段）。
-      IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context);
-      IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context);
+      IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context);
+      IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context);
 
       // 条件面板（吃宿主现造的 property context，纯函数，commit 时重算 + keyed-diff）；
       // 静态面板的插件忽略 context（除 VoiceId 外）返回固定 ObjectConfig 即可。
-      ObjectConfig GetPartPropertyConfig(IPartPropertyContext context);
-      ObjectConfig GetNotePropertyConfig(INotePropertyContext context);
+      ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context);
+      ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context);
   }
 
-  public interface ISynthesisSession   // 续（仅余运行时取值）
+  public interface IVoiceSession   // 续（仅余运行时取值）
   {
       string DefaultLyric { get; }
   }
@@ -481,7 +481,7 @@ public class AutomationConfig : IValueConfig<double>
 **隔离/快照实现清单**（§3.5 已定调：数据层不加锁、不做 COW，靠不可变快照隔离）
 - 不可变**原始点快照容器** + 在其上的不可变 `IAutomationEvaluator` 实现（`Evaluate(times)` 对冻结点插值，查询轴秒）。
 - 抽一份**共享纯采样函数**：live `IAutomation`/`IPiecewiseCurve` 与上面的冻结求值器共用同一套"锚点 → 取值"算法（逻辑一份，杜绝两套实现漂移）。
-- **note 快照值**（StartTime/EndTime、Pitch、Lyric、`SynthesisPhoneme[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
+- **note 快照值**（StartTime/EndTime、Pitch、Lyric、`VoicePhoneme[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
 - **tempo 快照**（`ITiming` 的冻结实现；`ITiming` 接口与实现家族同居宿主 `TuneLab.Data.Timing`，不在插件 SDK 面）。
 - 可选：automation 切片**版本缓存**（按"曲线版本 + 区间"缓存不可变副本，`RangeModified` 命中才作废/重拷）。
 - 契约钉死：`GetNextSegment` = 数据线程上廉价 peek（live 全量、定分片，报纯值边界）；`SynthesizeNext` 同步前缀在数据线程重算分块、经 `context.GetSnapshot` 拉取快照，再 offload。
@@ -490,7 +490,7 @@ public class AutomationConfig : IValueConfig<double>
 **实现阶段的清理项**
 - `IControllerConfig` 家族扁平化审计（§8）。
 - `ISynthesisData.GetAutomation` → `TryGetAutomation` 等命名对齐。
-- ~~`SynthesizedPhoneme.ToString` 格式 bug~~（已随类型合并到 `SynthesisPhoneme` 重写、修正）。
+- ~~`SynthesizedPhoneme.ToString` 格式 bug~~（已随类型合并到 `VoicePhoneme` 重写、修正）。
 - DataObject 补 `WillModify` 事件（NotifiableProperty 统一的一环）。
 
 **缓后/独立**
@@ -499,20 +499,20 @@ public class AutomationConfig : IValueConfig<double>
 - **RESOLUTION 维持常量 480**（= 2⁵·3·5，二/三/五连音至 128 分音符整数落格；与 MIDI PPQ 同概念——SMF 按文件头可变、DAW 内部固定常量，导入按 `480/filePPQ` 缩放）：不做可调（每个 tick 数值失去自释含义、跨工程粘贴要换算、进 Format ABI，全是横切成本而收益约等于零）。若需更细网格，将来定点化时顺路一次性升高常量（如 960），那次本就要动数据层与 Format。
 - **简易合成框架**（双 SDK）：把宿主式分片/调度做成插件侧库，简单插件复用、自定义插件走原生托管。本设计先做核心协议，框架降优先级；它同时可收编 legacy 引擎的薄模型适配。
 - **音频段内子区间增量**（`IAudioSegment` 段内增量）：`Write(offset, samples)` 本就带"段内哪段变了"的区间（中间态仅驱动进度/波形、不进 effect），宿主累积这些区间随 `Commit` 交 effect，effect 自行决定段内局部重合成 + 拼接（含上下文余量 / 淡化、跨级脏传播）。V1 按整段失效（段 Commit 即整段送 effect、不消费写区间），子区间增量是纯加性优化、缓后。
-- **effect 收敛到本会话模型**（当前 effect 为「宿主厚 / 插件薄」的逐段处理器模型：状态/调度/`cache[segment][stage]` 失效图全在宿主）。**设计已铺细 → §10**；落地分阶段见 §10.8。已锁的收敛决策（5 条，§10 逐条展开）：① 平行接口 `IEffectSession`（不与 `ISynthesisSession` 合并基类）；② `IEffectContext` 对偶 `ISynthesisContext`（暴露上游音频段活视图 + 自身参数/自动化 + GetSnapshot + 产出段，宿主接线、effect 对链结构无感）；③ 调度统一、链为单位（一个段区间自上而下跑完一遍 = 一个调度单位，按播放线就近挑；effect-only 改动退化为从脏的那一级往下）——voice 非音频产物（pitch/phoneme）不依赖 effect、eager 暴露不被串行；此为宿主调度策略、不进冻结面；④ `IEffectChange` 退役，effect 订阅 context 自算 dirty（失效图搬进插件）；⑤ `SynthesizedParameters` 借此换富类型（见下）。重构时一并处理：
-  - ~~`IAutomationEvaluator` 与 `ILiveAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
+- **effect 收敛到本会话模型**（当前 effect 为「宿主厚 / 插件薄」的逐段处理器模型：状态/调度/`cache[segment][stage]` 失效图全在宿主）。**设计已铺细 → §10**；落地分阶段见 §10.8。已锁的收敛决策（5 条，§10 逐条展开）：① 平行接口 `IEffectSession`（不与 `IVoiceSession` 合并基类）；② `IEffectContext` 对偶 `IVoiceContext`（暴露上游音频段活视图 + 自身参数/自动化 + GetSnapshot + 产出段，宿主接线、effect 对链结构无感）；③ 调度统一、链为单位（一个段区间自上而下跑完一遍 = 一个调度单位，按播放线就近挑；effect-only 改动退化为从脏的那一级往下）——voice 非音频产物（pitch/phoneme）不依赖 effect、eager 暴露不被串行；此为宿主调度策略、不进冻结面；④ `IEffectChange` 退役，effect 订阅 context 自算 dirty（失效图搬进插件）；⑤ `SynthesizedParameters` 借此换富类型（见下）。重构时一并处理：
+  - ~~`IAutomationEvaluator` 与 `ISynthesisAutomation` 的合并/归属再审~~（已决：维持继承——is-a 成立，同一份采样例程同型吃活/冻两面；接口轴无关、轴由暴露面规定）。
   - ~~`SynthesizedParameters` 的双重 `IReadOnlyList<Point>` 实为 piecewise 结构，届时考虑引入富类型~~（**已实现**，见 §10.6：换形为 `SynthesizedParameter`，voice/effect 两侧同形）。
   - ~~`IPropertyContext` 从 SDK.Voice 挪 SDK.Base（effect 条件面板复用）~~（已随 SDK 程序集合并消解：voice/effect 同居 `TuneLab.SDK` 顶层命名空间，effect 可直接复用）。
 - ~~**动态声明面**：轨集合/属性声明运行中变化 + 既有轨用户数据的归宿~~（**已实现**：声明全部 context 驱动、纯函数，
   宿主在参数 commit 时按当前值重算并 diff——轨集合随参数显隐（`GetAutomationConfigs`/`GetPiecewiseAutomationConfigs`
-  收 `IPartPropertyContext`），属性面板同 `GetPartPropertyConfig`/`GetNotePropertyConfig`；effect 侧 `IEffectEngine.GetPropertyConfig`/`GetAutomationConfigs` 同构（各收 effect 专属 `IEffectPropertyContext`——voice/effect context 分开以备 effect 将来追加 part 级官方字段而发散；effect 单层故用不带 Part 的 `GetPropertyConfig`）。
+  收 `IVoicePartPropertyContext`），属性面板同 `GetPartPropertyConfig`/`GetNotePropertyConfig`；effect 侧 `IEffectEngine.GetPropertyConfig`/`GetAutomationConfigs` 同构（各收 effect 专属 `IEffectPropertyContext`——voice/effect context 分开以备 effect 将来追加 part 级官方字段而发散；effect 单层故用不带 Part 的 `GetPropertyConfig`）。
   voice 走材料化缓存（part 参数驱动重算），effect 走惰性 dirty 缓存（自身参数驱动），宿主聚合签名去抖、仅轨集合实变才刷新 UI。
   孤儿数据归宿定为**保留隐藏、轨复现即原样恢复**：数据层不因声明收缩而裁剪曲线，隐藏轨不参与合成。
   引擎自发的运行中变化（如异步模型加载后改轨集合，非参数驱动）若将来需要，再加声明级变更事件——当前 context 驱动已覆盖参数驱动的全部场景。）
 - 动态立绘 / 动态全局背景图（宿主渲染能力，独立特性）。
 
 - ~~**合成参数回显 + 可编辑分段轨**~~（**已实现**）：
-  - 合成参数回显：`ISynthesisSession.SynthesizedParameters`（按轨 id 键、与音频/音高同一秒时间系、分段）端到端透传
+  - 合成参数回显：`IVoiceSession.SynthesizedParameters`（按轨 id 键、与音频/音高同一秒时间系、分段）端到端透传
     （pipeline→MidiPart），在参数栏按 id join 到同名 voice 轨上**只读叠加**（白色半透明、NaN 段断开），镜像合成音高回显。（effect 回显后于阶段三补齐，见 §10.7。）
   - 可编辑分段轨：除 Pitch 外，声源/效果器在 `GetAutomationConfigs` 里声明分段轨（`AutomationConfig.DefaultValue=NaN` ⇒ `IsPiecewise`；见 §7 合并记），
     宿主按轨 id 存 `DataObjectMap<string, IPiecewiseAutomation>`（MidiPart + Effect 各一份；Pitch 仍是专属常驻通道、不入此 map），
@@ -525,7 +525,7 @@ public class AutomationConfig : IValueConfig<double>
   宿主保留两数据类型 + 两序列化槽，路由处按 `IsPiecewise` 现解析；唯一特判 NaN 的 automation 消费方是 `AutomationDefaultsController`（分段轨不显默认基线行）。
 
 - ~~**合成参数回显升级为只读回显轨**~~（**已实现**）：旧版 `SynthesizedParameters` 是"按 id 叠加到同名编辑轨、借其 config 画白线"，已废弃。
-  改为**一等只读回显轨**：`ISynthesisSession` 加 `GetSynthesizedParameterConfigs(IPartPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>`
+  改为**一等只读回显轨**：`IVoiceSession` 加 `GetSynthesizedParameterConfigs(IVoicePartPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>`
   （回显是分段形、`DefaultValue=NaN`；context 驱动、可预声明 ⇒ 合成前 key 即存在、显隐不抖），`SynthesizedParameters` 退回只承载曲线数据（按同一批 key）。
   宿主把这些 key 作**可显隐的只读轨**（独立 key 如 `energy`、自带 Min/Max/Color/DisplayText）：在 `Voice.SynthesizedParameterConfigs` 并行材料化（镜像 `RebuildAutomationConfigs`，
   随 part 参数 commit 重算、纳入聚合签名）；UI 侧独立于可编辑轨的 `AutomationKey`/`VisibleAutomations`/tabbar 机制——
@@ -534,7 +534,7 @@ public class AutomationConfig : IValueConfig<double>
   **曲线与底部基线围成的半透明积分面积**（用各自 config 色，分段 NaN 断开），只读、不可激活、不可编辑。去掉了"叠加到同名编辑轨"逻辑。
   线程契约（数据线程发布、发布即不可变、StatusChanged 单一刷新）已补进三个曲线产物成员注释。
 
-- ~~**phoneme 输出模型小复盘**~~（**已定**）：输出改回 **per-note map** `IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>>`、**砍掉无主音素**（Note=null）。时长模型下音素只报时长、无绝对位置，无主音素无锚不可定位、也落不进 note→piece 失效链，故无意义；越界由宿主派生位置自然产生，无需扁平结构表达。进 / 出描述符合并为单一 `SynthesisPhoneme`（无 Note 字段）。breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。
+- ~~**phoneme 输出模型小复盘**~~（**已定**）：输出改回 **per-note map** `IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>>`、**砍掉无主音素**（Note=null）。时长模型下音素只报时长、无绝对位置，无主音素无锚不可定位、也落不进 note→piece 失效链，故无意义；越界由宿主派生位置自然产生，无需扁平结构表达。进 / 出描述符合并为单一 `VoicePhoneme`（无 Note 字段）。breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。
 
 ---
 
@@ -569,14 +569,14 @@ public interface IEffectContext
     // 该 effect 自身参数活视图（取代退役的 IEffectInput.Properties；订阅 Modified 标参数脏）。
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
-    // 该 effect 声明的自动化轨（查询轴 = 全局秒）；订阅 ILiveAutomation.RangeModified、按本段时间界自筛标脏。
-    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ILiveAutomation automation);
+    // 该 effect 声明的自动化轨（查询轴 = 全局秒）；订阅 ISynthesisAutomation.RangeModified、按本段时间界自筛标脏。
+    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation);
 
     // 产出（与 voice 同一握柄 IAudioSegment）：自由重分段——输出段起始/长度/采样率均可与输入不同，
     // 可一段进多段出。宿主把输出段接成下游 effect 的 Input。仅数据线程调用。
     IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate);
 
-    event Action? Committed;   // 逻辑编辑收口（同 ISynthesisContext.Committed），processor 在此一次性做重活
+    event Action? Committed;   // 逻辑编辑收口（同 IVoiceContext.Committed），processor 在此一次性做重活
 }
 
 // 上游音频段的只读视图（voice 输出，或链上前一个 effect 的输出）：整段、不可分割。
@@ -589,7 +589,7 @@ public interface IUpstreamAudioSegment
 }
 ```
 
-**为何整段直读、无快照**：上游 segment 是一个整体输入单位、不可分割（不像 voice 要从乐谱开窗物化 note/曲线）。已提交版本的 PCM 不可变（重 Commit = 换新缓冲、版本递增），故 worker 在同步前缀抓住引用后可直读，无需拷一份快照——与旧模型同效率（旧模型本就按 commit 版本物化一份 buffer 按引用传 `Process`）。自动化值由 processor 在同步前缀用 `ILiveAutomation.Evaluate`（数据线程）预采成数组再 offload；参数同理读值。都是 processor 自管的轻量捕获，不需要 SDK 快照类型。
+**为何整段直读、无快照**：上游 segment 是一个整体输入单位、不可分割（不像 voice 要从乐谱开窗物化 note/曲线）。已提交版本的 PCM 不可变（重 Commit = 换新缓冲、版本递增），故 worker 在同步前缀抓住引用后可直读，无需拷一份快照——与旧模型同效率（旧模型本就按 commit 版本物化一份 buffer 按引用传 `Process`）。自动化值由 processor 在同步前缀用 `ISynthesisAutomation.Evaluate`（数据线程）预采成数组再 offload；参数同理读值。都是 processor 自管的轻量捕获，不需要 SDK 快照类型。
 
 ### 10.3 `IEffectProcessor`（厚）
 

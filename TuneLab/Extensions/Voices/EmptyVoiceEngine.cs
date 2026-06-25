@@ -17,18 +17,18 @@ internal class EmptyVoiceEngine : IVoiceEngine
 
     public void Destroy() { }
 
-    public ISynthesisSession CreateSession(string voiceId, ISynthesisContext context)
+    public IVoiceSession CreateSession(string voiceId, IVoiceContext context)
     {
         return new EmptySession();
     }
 
     // 声明（引擎层、全空）：无声源 part 无轨/无面板。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IPartPropertyContext context) => mAutomationConfigs;
-    public ObjectConfig GetPartPropertyConfig(IPartPropertyContext context) => mEmptyConfig;
-    public ObjectConfig GetNotePropertyConfig(INotePropertyContext context) => mEmptyConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => mAutomationConfigs;
+    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context) => mEmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context) => mEmptyConfig;
 
-    class EmptySession : ISynthesisSession
+    class EmptySession : IVoiceSession
     {
         public string DefaultLyric => "a";
 
@@ -42,7 +42,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
 
         public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
-        public IReadOnlyMap<ILiveNote, IReadOnlyList<SynthesisPhoneme>> SynthesizedPhonemes => mSynthesizedPhonemes;
+        public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => mSynthesizedPhonemes;
 
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
         public event Action? SynthesizedPhonemesChanged { add { } remove { } }
@@ -53,7 +53,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
         public void Dispose() { }
 
         static readonly Map<string, SynthesizedParameter> mSynthesizedParameters = new();
-        static readonly Map<ILiveNote, IReadOnlyList<SynthesisPhoneme>> mSynthesizedPhonemes = new();
+        static readonly Map<IVoiceNote, IReadOnlyList<VoicePhoneme>> mSynthesizedPhonemes = new();
     }
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();

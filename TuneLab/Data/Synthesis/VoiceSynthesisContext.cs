@@ -9,25 +9,25 @@ using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;
 
-// ISynthesisContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
+// IVoiceContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
 // 插件订阅的事件字段全在本对象/其代理对象上（短命，随会话一起回收 → 泄漏结构性不可能）；
 // 本对象内部订阅长寿数据层（part/note/automation/tempo），由宿主在数据线程转发——
 // 借壳数据层最小订阅面（IReadOnlyNotifiable），天然只转发已提交的真实变更（merge 中间态不外漏）。
 //
 // 坐标系约定（SDK 面）：tick/秒均为全局工程轴（与音频产物、状态段同一时间系）；
 // 宿主数据层的 part 相对量在本层完成偏移换算。
-internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
+internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
 {
     public MidiPart Part => mPart;
 
-    public IReadOnlyNotifiableLinkedList<ILiveNote> Notes => mNotes;
+    public IReadOnlyNotifiableLinkedList<IVoiceNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
-    public ILiveAutomation Pitch => mPitch;
-    public ILiveAutomation PitchDeviation => mPitchDeviation;
+    public ISynthesisAutomation Pitch => mPitch;
+    public ISynthesisAutomation PitchDeviation => mPitchDeviation;
 
     public event Action? Committed;
 
-    public SynthesisContext(MidiPart part)
+    public VoiceSynthesisContext(MidiPart part)
     {
         mPart = part;
         mDataThreadId = System.Environment.CurrentManagedThreadId;
@@ -68,10 +68,10 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
     // [startTime, endTime] 为全局秒开窗区间，物化器内部经 tempo 快照换算到 tick 找锚点。
-    public SynthesisSnapshot GetSnapshot(IReadOnlyList<ILiveNote> notes, double startTime, double endTime)
+    public VoiceSnapshot GetSnapshot(IReadOnlyList<IVoiceNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
-        return SynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
+        return VoiceSnapshotFactory.Capture(mPart, notes, startTime, endTime);
     }
 
     // 音频段工厂（插件调入）：一次性分配固定长度缓冲、登记握柄。插件就地写子区间、Commit 标完成，
@@ -106,7 +106,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
             AudioSegmentsChanged?.Invoke();
     }
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ILiveAutomation automation)
+    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
     {
         if (!mPart.IsEffectiveAutomation(key))
         {
@@ -129,7 +129,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
     internal void AssertDataThread()
     {
         if (System.Environment.CurrentManagedThreadId != mDataThreadId)
-            throw new InvalidOperationException("Synthesis live view (ISynthesisContext and its proxies) must only be accessed on the data thread; synthesize against the immutable SynthesisSnapshot instead.");
+            throw new InvalidOperationException("Synthesis live view (IVoiceContext and its proxies) must only be accessed on the data thread; synthesize against the immutable VoiceSnapshot instead.");
     }
 
     public void Dispose()
@@ -206,7 +206,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
         Guarded(raise);
     }
 
-    internal SynthesisNoteProxy? ProxyOf(INote? note) => note == null ? null : mNotes.ProxyOf(note);
+    internal VoiceNoteProxy? ProxyOf(INote? note) => note == null ? null : mNotes.ProxyOf(note);
 
     static void Guarded(Action action)
     {
@@ -321,7 +321,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
     // EffectGraph 统一消费。本类作为 IAudioSegmentOwner 提供其线程断言 / 摘除 / 通知回调。
 
     // —— ITiming 活实现：直接转发 TempoManager（仅数据线程使用；快照侧用 TempoSnapshot）——
-    sealed class LiveTiming(SynthesisContext context, ITempoManager tempoManager) : ITiming
+    sealed class LiveTiming(VoiceSynthesisContext context, ITempoManager tempoManager) : ITiming
     {
         public double ToSecond(double tick) { context.AssertDataThread(); return tempoManager.GetTime(tick); }
         public double ToTick(double second) { context.AssertDataThread(); return tempoManager.GetTick(second); }
@@ -334,13 +334,13 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
 
     // —— note 代理集合：镜像 part.Notes（顺序即链表序，无索引承诺——SDK 面即链表形态），
     //    增删自动建/毁代理并转发结构事件。 ——
-    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<ILiveNote>, IDisposable
+    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IVoiceNote>, IDisposable
     {
-        public event Action<ILiveNote>? ItemAdded;
-        public event Action<ILiveNote>? ItemRemoved;
+        public event Action<IVoiceNote>? ItemAdded;
+        public event Action<IVoiceNote>? ItemRemoved;
         public event Action? Modified;
 
-        public ILiveNote? First
+        public IVoiceNote? First
         {
             get
             {
@@ -350,7 +350,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
             }
         }
 
-        public ILiveNote? Last
+        public IVoiceNote? Last
         {
             get
             {
@@ -360,13 +360,13 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
             }
         }
 
-        public NoteProxyList(SynthesisContext context)
+        public NoteProxyList(VoiceSynthesisContext context)
         {
             mContext = context;
             mNotes = context.mPart.Notes;
             foreach (var note in mNotes)
             {
-                mProxies.Add(note, new SynthesisNoteProxy(context, note));
+                mProxies.Add(note, new VoiceNoteProxy(context, note));
             }
             mNotes.ItemAdded.Subscribe(OnItemAdded, s);
             mNotes.ItemRemoved.Subscribe(OnItemRemoved, s);
@@ -375,7 +375,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
 
         public int Count => mNotes.Count;
 
-        public IEnumerator<ILiveNote> GetEnumerator()
+        public IEnumerator<IVoiceNote> GetEnumerator()
         {
             mContext.AssertDataThread();
             foreach (var note in mNotes)
@@ -386,12 +386,12 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public SynthesisNoteProxy ProxyOf(INote note)
+        public VoiceNoteProxy ProxyOf(INote note)
         {
             if (!mProxies.TryGetValue(note, out var proxy))
             {
                 // 防御：理论上增删事件已维护全集，此处兜底补建。
-                proxy = new SynthesisNoteProxy(mContext, note);
+                proxy = new VoiceNoteProxy(mContext, note);
                 mProxies.Add(note, proxy);
             }
             return proxy;
@@ -409,7 +409,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
 
         void OnItemAdded(INote note)
         {
-            var proxy = new SynthesisNoteProxy(mContext, note);
+            var proxy = new VoiceNoteProxy(mContext, note);
             mProxies[note] = proxy;
             mContext.ForwardChange(() => ItemAdded?.Invoke(proxy));
         }
@@ -428,16 +428,16 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
             mContext.ForwardChange(() => Modified?.Invoke());
         }
 
-        readonly SynthesisContext mContext;
+        readonly VoiceSynthesisContext mContext;
         readonly INoteList mNotes;
-        readonly Dictionary<INote, SynthesisNoteProxy> mProxies = new();
+        readonly Dictionary<INote, VoiceNoteProxy> mProxies = new();
         readonly DisposableManager s = new();
     }
 
     // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局秒（ToSecond(partPos+notePos)，
     //    DerivedProperty source 含 part.Pos / TempoManager，故 tempo 变 / part 平移自动触发边界 Modified）；
     //    Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
-    internal sealed class SynthesisNoteProxy : ILiveNote, IDisposable
+    internal sealed class VoiceNoteProxy : IVoiceNote, IDisposable
     {
         public INote Source => mNote;
 
@@ -445,13 +445,13 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
         public IReadOnlyNotifiableProperty<double> EndTime { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
-        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesisPhoneme>> Phonemes { get; }
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.VoicePhoneme>> Phonemes { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
-        public ILiveNote? Next => mContext.ProxyOf(mNote.Next);
-        public ILiveNote? Last => mContext.ProxyOf(mNote.Last);
+        public IVoiceNote? Next => mContext.ProxyOf(mNote.Next);
+        public IVoiceNote? Last => mContext.ProxyOf(mNote.Last);
 
-        public SynthesisNoteProxy(SynthesisContext context, INote note)
+        public VoiceNoteProxy(VoiceSynthesisContext context, INote note)
         {
             mContext = context;
             mNote = note;
@@ -474,12 +474,12 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
             // 钉死音素的「时长 + 权重」（与工程存储同形）：位置 / 去重叠 / 跨 note 压缩由插件按时长 + note 几何自行派生
             // （布局算法不在 SDK，插件按需照抄参考实现）。时长不随 note 伸缩改变，
             // 故只依赖 note.Phonemes；note resize 经 StartTime/EndTime 另行触发重合成。
-            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.SynthesisPhoneme>>(context, () =>
+            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.VoicePhoneme>>(context, () =>
             {
-                var phonemes = new List<SDK.SynthesisPhoneme>(note.Phonemes.Count);
+                var phonemes = new List<SDK.VoicePhoneme>(note.Phonemes.Count);
                 foreach (var p in note.Phonemes)
                 {
-                    phonemes.Add(new SDK.SynthesisPhoneme
+                    phonemes.Add(new SDK.VoicePhoneme
                     {
                         Symbol = p.Symbol.Value,
                         Duration = p.Duration.Value,
@@ -508,7 +508,7 @@ internal sealed class SynthesisContext : ISynthesisContext, ISynthesisForwarder,
             return property;
         }
 
-        readonly SynthesisContext mContext;
+        readonly VoiceSynthesisContext mContext;
         readonly INote mNote;
         readonly PropertyObjectGuard mProperties;
         readonly List<IDisposable> mDisposables = new();
