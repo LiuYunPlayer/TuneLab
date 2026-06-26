@@ -1,26 +1,52 @@
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// part 属性面板 / 自动化轨声明的 config 求值上下文（注入式只读）：插件据此返回当前应呈现的 ObjectConfig / 轨集合。
-// 只承载"用户改过的稀疏值"——未改过的字段不出现，其默认值由插件自己知道（默认 = 字段不存在）。
+// voice 声明面（GetXxxConfig）的求值上下文族：调用级只读**值视图**（`*View` 后缀 = 声明读值投影，区别于会话裸名活视图
+// IVoiceContext/IVoiceNote 与跨线程冻结 *Snapshot）。与 instrument 持平行副本（域专属、独立演进）。
 //
-// 多选：`PartProperties` 是**各选中 part 的稀疏快照列表**（单选 = 1 个、无选中 = 空），宿主不替插件擅自合并。
-// 不在乎多选的插件 `context.PartProperties.Merge()`（Foundation 的 PropertyObjectExtensions 扩展方法）还原成单个三态快照
-//（同 key 全等给值、不等/缺于部分成员给 Multiple），按单选写法处理；需要逐成员真值的插件直接遍历列表。
+// 为何是值（PropertyObject）而非会话活对象：声明多选要做三态合并（PropertyObjectExtensions.Merge——逐 key 比对各成员
+// 值快照、不等给 Multiple），这是 PropertyObject 值操作；会话面活外观 IReadOnlyNotifiablePropertyObject 是导航式、
+// 喂不进 Merge、也无三态 / 无值快照形。故声明面与会话面（IVoiceContext 活视图）**不复用**，各取所需。
 //
-// part 级只依赖 part 自身值（面板内部联动 / 自动化轨随 part 参数显隐），不依赖 note 选择。
-// note 级是另一个独立上下文（IVoiceNotePropertyContext，单独成接口/文件，不继承本接口）——因 note 必属单个 part，
-// 其 part 维度是单数，与本接口的多 part 列表语义不同，故不复用继承。
-// 上游 commit 沿链触发下游重算（part 改 → 重算 part + note），下游不影响上游 → 无环、方向确定。
-// 冻结接口纯加性扩展（以后加只读属性不破坏旧插件）。
+// 生命周期 = 调用级：GetConfig 是数据线程一次性同步只读求值（读完即返、不留存）。宿主就地包一层、调完即弃——
+// 构造期 / 管线拆除后 / 无会话时照样能包（直读数据层、永远在）。引擎可读 part 当前真值（含非属性字段：note 时间 /
+// 音高 / 歌词、已声明自动化曲线、note 集合本身）条件化 schema。线程契约：仅数据线程同步只读、不留存视图引用。
+
+// 单条 part 的只读值视图（声明面）。
+public interface IVoicePartView
+{
+    // 该 part 选定声库（= IVoiceEngine.VoiceSourceInfos 的 key）：引擎据此分流多声库。
+    string VoiceId { get; }
+    // 当前 note 集合（只读、宿主当前序）：原始几何，未经引擎口径的去重叠 / 钳位。
+    IReadOnlyList<IVoiceNoteView> Notes { get; }
+    // part 属性值快照（多选 part 时各 part 一个，三态合并归插件：context.Parts.Select(p => p.PartProperties).Merge()）。
+    PropertyObject PartProperties { get; }
+    // 读某条已声明自动化轨当前曲线（按 key；查询轴全局秒）。未声明 / 无数据 = false。
+    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out IAutomationEvaluator automation);
+}
+
+// voice part 数据 note 的只读值视图（声明面；EndTime 取原始满末，未钳）。
+public interface IVoiceNoteView
+{
+    double StartTime { get; }              // 全局秒
+    double EndTime { get; }                // 全局秒（原始满末，未钳）
+    int Pitch { get; }
+    string Lyric { get; }
+    PropertyObject Properties { get; }     // per-note 属性值快照；多选 note 合并三态归插件
+}
+
+// part 级声明壳（多选 part；单选 = 1 个、无选中 = 空）。包一层壳抗迭代——以后加只读字段不动方法签名。
 public interface IVoicePartPropertyContext
 {
-    // 选定声库（= 宿主 Voice.ID，IVoiceEngine.VoiceSourceInfos 的 key）：声明类 config 是
-    // f(voiceId, part 稀疏值) 的纯函数，voiceId 随 context 一并注入，引擎据此知道求值的是哪个模型。
-    // 这使 voice 的 context 必然带身份、与 effect 的 IEffectPropertyContext（单类型、无此对等物）永久分叉。
-    string VoiceId { get; }
-    // 各选中 part 的稀疏快照（多选 part 编辑时逐 part 一个；无选中 = 空列表）。
-    IReadOnlyList<PropertyObject> PartProperties { get; }
+    IReadOnlyList<IVoicePartView> Parts { get; }
+}
+
+// note 级声明壳（单 part、多选其下 note）。VoiceId / part 当前值经 Part 取。
+public interface IVoiceNotePropertyContext
+{
+    IVoicePartView Part { get; }
+    IReadOnlyList<IVoiceNoteView> Notes { get; }
 }

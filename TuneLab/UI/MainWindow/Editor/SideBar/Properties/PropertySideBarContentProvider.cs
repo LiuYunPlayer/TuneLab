@@ -248,25 +248,14 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
     // part 面板单 part → 单元素列表（保留列表形以备多 part）；note 面板 → 单个所属 part + 各选中 note 列表
     //（宿主不替插件合并，插件按需 .Merge()）。
-    IVoicePartPropertyContext BuildPartContext()
-        => new PartPropertyContext(mPart!.SoundSource.ID, [mPart!.Properties.GetInfo()]);
+    // 声明面活视图壳（引擎无关、调用级）：part 面板单 part → 单元素列表；note 面板 → 单个所属 part + 各选中 note 列表
+    //（宿主不替插件合并，插件按需遍历 .Merge()）。复用数据层 PartContext/PartNote（TuneLab.Data）。
+    PartPropertyContext BuildPartContext()
+        => PartPropertyContext.Single(mPart!);
 
-    IVoiceNotePropertyContext BuildNoteContext()
-        => new NotePropertyContext(mPart!.SoundSource.ID, mPart!.Properties.GetInfo(),
-            mPart!.Notes.AllSelectedItems().Select(note => note.Properties.GetInfo()).ToList());
-
-    sealed class PartPropertyContext(string voiceId, IReadOnlyList<PropertyObject> partProperties) : IVoicePartPropertyContext
-    {
-        public string VoiceId => voiceId;
-        public IReadOnlyList<PropertyObject> PartProperties => partProperties;
-    }
-
-    sealed class NotePropertyContext(string voiceId, PropertyObject partProperties, IReadOnlyList<PropertyObject> noteProperties) : IVoiceNotePropertyContext
-    {
-        public string VoiceId => voiceId;
-        public PropertyObject PartProperties => partProperties;
-        public IReadOnlyList<PropertyObject> NoteProperties => noteProperties;
-    }
+    NotePropertyContext BuildNoteContext()
+        => new(new PartContext(mPart!),
+            mPart!.Notes.AllSelectedItems().Select(n => new PartContext.PartNote(n)).ToList());
 
     void OnConfigChnaged()
     {

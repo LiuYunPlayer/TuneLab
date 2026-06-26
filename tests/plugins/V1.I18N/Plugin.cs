@@ -65,7 +65,7 @@ public sealed class I18NVoiceEngine : IVoiceEngine
     }
 
     public void Destroy() { }
-    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new I18NSession(context);
+    public IVoiceSession CreateSession(IVoiceContext context) => new I18NSession(context);
 
     // 声明（引擎层、纯函数）：本地化的轨/面板配置。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context) => mAutomationConfigs;

@@ -40,7 +40,7 @@ public sealed class SettingsVoiceEngine : IVoiceEngine, IExtensionSettings
     public void Destroy() { }
 
     // 仅设置演示，不参与实际合成。
-    public IVoiceSession CreateSession(string voiceId, IVoiceContext context)
+    public IVoiceSession CreateSession(IVoiceContext context)
         => throw new NotSupportedException("V1.Settings is a settings-only demo fixture.");
 
     // 声明面（全空）：本夹具不暴露轨/面板，仅验证扩展设置链路。

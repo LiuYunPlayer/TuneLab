@@ -32,22 +32,25 @@ internal sealed class VoiceEngineAdapter(LVoice.IVoiceEngine legacy, string engi
 
     public void Destroy() => legacy.Destroy();
 
-    public VVoice.IVoiceSession CreateSession(string voiceId, VVoice.IVoiceContext context)
+    public VVoice.IVoiceSession CreateSession(VVoice.IVoiceContext context)
     {
-        return new LegacySessionAdapter(legacy.CreateVoiceSource(voiceId), context);
+        return new LegacySessionAdapter(legacy.CreateVoiceSource(context.VoiceId), context);
     }
 
     // —— 声明（V1 要求引擎层、不依赖会话）——
     // 老声源声明是静态的，但取值需一个声源实例：按 voiceId 懒建一份「声明用」声源并缓存其转换后的 config
     //（与 CreateSession 的会话用声源相互独立）。老模型无条件轨/无回显：轨/面板恒定、回显为空，忽略 context 值。
+    // voiceId 由声明壳内各 part 的 SourceId 承载（V1 单 part 调用）。
     public PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> GetAutomationConfigs(VVoice.IVoicePartPropertyContext context)
-        => Decl(context.VoiceId).Automation;
+        => Decl(SourceIdOf(context)).Automation;
     public PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> GetSynthesizedParameterConfigs(VVoice.IVoicePartPropertyContext context)
         => sEmptyConfigs;
     public VVoice.ObjectConfig GetPartPropertyConfig(VVoice.IVoicePartPropertyContext context)
-        => new() { Properties = Decl(context.VoiceId).PartProperties };
+        => new() { Properties = Decl(SourceIdOf(context)).PartProperties };
     public VVoice.ObjectConfig GetNotePropertyConfig(VVoice.IVoiceNotePropertyContext context)
-        => new() { Properties = Decl(context.VoiceId).NoteProperties };
+        => new() { Properties = Decl(context.Part.VoiceId).NoteProperties };
+
+    static string SourceIdOf(VVoice.IVoicePartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 
     Declarations Decl(string voiceId)
     {

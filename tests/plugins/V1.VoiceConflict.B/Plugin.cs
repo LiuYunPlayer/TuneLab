@@ -19,7 +19,7 @@ public sealed class ConflictVoiceEngine : IVoiceEngine
 
     public void Destroy() { }
 
-    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new SilentSession();
+    public IVoiceSession CreateSession(IVoiceContext context) => new SilentSession();
 
     // 声明（引擎层、纯函数、全空）：路由/分组测试不需要轨/面板。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context) => sEmptyAutomations;

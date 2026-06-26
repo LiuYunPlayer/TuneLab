@@ -31,14 +31,14 @@ public sealed class TestVoiceEngine : IVoiceEngine
 
     public void Destroy() { }
 
-    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new TestSession(context);
+    public IVoiceSession CreateSession(IVoiceContext context) => new TestSession(context);
 
     // 声明（引擎层、纯函数）：条件轨集合 = f(part 参数值)。声明先于会话求值，故会话构造期 Growl 轨已就绪、可订阅。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context)
     {
         // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
-        if (context.PartProperties.Merge().GetBool("growl_enabled", true))
+        if (context.Parts.Select(p => p.PartProperties).Merge().GetBool("growl_enabled", true))
         {
             foreach (var kvp in mGrowlConfigs)
                 map.Add(kvp.Key, kvp.Value);

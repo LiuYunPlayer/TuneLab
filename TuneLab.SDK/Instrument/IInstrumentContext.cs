@@ -16,6 +16,9 @@ namespace TuneLab.SDK;
 // 音频段 / Committed 收口）与 voice 同构。
 public interface IInstrumentContext
 {
+    // 选定音源（= IInstrumentEngine.InstrumentSourceInfos 的 key）：context 生命内**不可变**（换音源 = 宿主重建 context + 会话），
+    // 故烘入 context、CreateSession 不再单列 instrumentId。
+    string InstrumentId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走 First/Last、
     // 邻居导航走 note.Next/Last；支持 WhenAny（成员增删自动接线）。
     //

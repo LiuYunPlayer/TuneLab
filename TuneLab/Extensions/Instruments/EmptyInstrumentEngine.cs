@@ -18,7 +18,7 @@ internal class EmptyInstrumentEngine : IInstrumentEngine
 
     public void Destroy() { }
 
-    public IInstrumentSession CreateSession(string instrumentId, IInstrumentContext context)
+    public IInstrumentSession CreateSession(IInstrumentContext context)
     {
         return new EmptySession();
     }

@@ -22,6 +22,9 @@ namespace TuneLab.SDK;
 // 全区间 RangeModified。插件用既有订阅机制即收到，无需"时基变了"这种元信号。
 public interface IVoiceContext
 {
+    // 选定声库（= IVoiceEngine.VoiceSourceInfos 的 key）：context 生命内**不可变**（换声库 = 宿主重建 context + 会话），
+    // 故烘入 context、CreateSession 不再单列 voiceId。会话面本就是会话级生命周期，带身份不引入额外耦合。
+    string VoiceId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
     // First/Last、邻居导航走 note.Next/Last；支持 WhenAny（成员增删自动接线）。
     //

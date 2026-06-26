@@ -26,21 +26,21 @@ internal class SoundSource : DataObject, ISoundSource
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs => mAutomationConfigs;
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs => mSynthesizedParameterConfigs;
 
-    // 声明类 config 求值在引擎层（不依赖会话实例）：按 Kind 解析活引擎，context 携带音源 id。
-    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context)
+    // 声明类 config 求值在引擎层（不依赖会话实例）：按 Kind 上行委派对应管理器，context（PartPropertyContext/NotePropertyContext）同时满足两域。
+    public ObjectConfig GetPartPropertyConfig(PartPropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetPartPropertyConfig(mType, context)
-            : InstrumentsManager.GetPartPropertyConfig(mType, new InstrumentPartContext(context));
+            : InstrumentsManager.GetPartPropertyConfig(mType, context);
 
-    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context)
+    public ObjectConfig GetNotePropertyConfig(NotePropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetNotePropertyConfig(mType, context)
-            : InstrumentsManager.GetNotePropertyConfig(mType, new InstrumentNoteContext(context));
+            : InstrumentsManager.GetNotePropertyConfig(mType, context);
 
     public SoundSource(DataObject parent, SoundSourceInfo info) : base(parent)
     {
         WriteInfo(info);
-        RefreshDeclarations(new PartPropertyContext(mID, []));
+        RefreshDeclarations(PartPropertyContext.Empty);
     }
 
     public SoundSourceInfo GetInfo()
@@ -65,7 +65,7 @@ internal class SoundSource : DataObject, ISoundSource
 
     // 声明刷新（不依赖会话）：重算名字 + 轨/回显集合。声明类 config 全是引擎层纯函数，故可在「建会话之前」调用。
     // 不触发 Notify：本方法在 SoundSource.Modified 的 part 侧 handler 内被调，先于 UI 刷新执行。
-    public void RefreshDeclarations(IVoicePartPropertyContext context)
+    public void RefreshDeclarations(PartPropertyContext context)
     {
         mName = ResolveName();
         RebuildAutomationConfigs(context);
@@ -90,7 +90,7 @@ internal class SoundSource : DataObject, ISoundSource
     // 按当前 part 参数值重算自动化轨集合（轨集合 = f(当前值)）。
     // 通用轨：Volume（PreCommon，宿主混音应用、对 voice / instrument 皆有效）两类都并；
     // VibratoEnvelope（PostCommon）是 voice 颤音专属，仅 voice 并。
-    public void RebuildAutomationConfigs(IVoicePartPropertyContext context)
+    public void RebuildAutomationConfigs(PartPropertyContext context)
     {
         mAutomationConfigs.Clear();
         foreach (var kvp in ConstantDefine.PreCommonAutomationConfigs)
@@ -120,15 +120,15 @@ internal class SoundSource : DataObject, ISoundSource
         }
     }
 
-    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredAutomationConfigs(IVoicePartPropertyContext context)
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredAutomationConfigs(PartPropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetAutomationConfigs(mType, context)
-            : InstrumentsManager.GetAutomationConfigs(mType, new InstrumentPartContext(context));
+            : InstrumentsManager.GetAutomationConfigs(mType, context);
 
-    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredSynthesizedParameterConfigs(IVoicePartPropertyContext context)
+    IReadOnlyOrderedMap<PropertyKey, AutomationConfig> DeclaredSynthesizedParameterConfigs(PartPropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetSynthesizedParameterConfigs(mType, context)
-            : InstrumentsManager.GetSynthesizedParameterConfigs(mType, new InstrumentPartContext(context));
+            : InstrumentsManager.GetSynthesizedParameterConfigs(mType, context);
 
     [MemberNotNull(nameof(mType))]
     [MemberNotNull(nameof(mID))]
@@ -143,21 +143,6 @@ internal class SoundSource : DataObject, ISoundSource
     {
         public void Redo() { source.WriteInfo(after); source.Notify(); }
         public void Undo() { source.WriteInfo(before); source.Notify(); }
-    }
-
-    // —— instrument context 适配：把 voice 形态的 context 包成 instrument 形态（InstrumentId = VoiceId）。
-    //    voice 形态的宿主 context 复用数据层既有 PartPropertyContext（其 VoiceId 即"音源 id"）。 ——
-    sealed class InstrumentPartContext(IVoicePartPropertyContext context) : IInstrumentPartPropertyContext
-    {
-        public string InstrumentId => context.VoiceId;
-        public IReadOnlyList<PropertyObject> PartProperties => context.PartProperties;
-    }
-
-    sealed class InstrumentNoteContext(IVoiceNotePropertyContext context) : IInstrumentNotePropertyContext
-    {
-        public string InstrumentId => context.VoiceId;
-        public PropertyObject PartProperties => context.PartProperties;
-        public IReadOnlyList<PropertyObject> NoteProperties => context.NoteProperties;
     }
 
     SourceKind mKind;

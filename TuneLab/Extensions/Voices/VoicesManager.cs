@@ -90,15 +90,15 @@ internal static class VoicesManager
         return false;
     }
 
-    // 创建合成会话；引擎不可用或 id 未知时回退空声源会话（行为等价于无声源 part）。
-    public static IVoiceSession CreateSession(string type, string id, IVoiceContext context)
+    // 创建合成会话；引擎不可用或 id 未知时回退空声源会话（行为等价于无声源 part）。voiceId 由 context.VoiceId 承载。
+    public static IVoiceSession CreateSession(string type, IVoiceContext context)
     {
         var engine = GetInitedEngine(type);
-        if (engine != null && engine.VoiceSourceInfos.ContainsKey(id))
+        if (engine != null && engine.VoiceSourceInfos.ContainsKey(context.VoiceId))
         {
             try
             {
-                return engine.CreateSession(id, context);
+                return engine.CreateSession(context);
             }
             catch (Exception ex)
             {
@@ -107,23 +107,26 @@ internal static class VoicesManager
         }
 
         // 空引擎注册于内建加载、Init 恒成功。
-        return GetInitedEngine(string.Empty)!.CreateSession(string.Empty, context);
+        return GetInitedEngine(string.Empty)!.CreateSession(context);
     }
 
     // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明，故无构造期时序陷阱）——
     // 引擎不可用 / id 未知 → 回退空引擎；插件求值抛异常 → 记日志并回退空引擎结果（声明每次参数 commit 都调，
-    // 不能让一个烂实现拖垮 UI）。voiceId 由 context.VoiceId 承载（与 part 稀疏值同为纯函数输入）。
+    // 不能让一个烂实现拖垮 UI）。voiceId 由 context 内各 part 的 VoiceId 承载（与 part 真值同为纯函数输入）。
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IVoicePartPropertyContext context)
-        => Declare(type, context.VoiceId, e => e.GetAutomationConfigs(context));
+        => Declare(type, VoiceIdOf(context), e => e.GetAutomationConfigs(context));
 
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IVoicePartPropertyContext context)
-        => Declare(type, context.VoiceId, e => e.GetSynthesizedParameterConfigs(context));
+        => Declare(type, VoiceIdOf(context), e => e.GetSynthesizedParameterConfigs(context));
 
     public static ObjectConfig GetPartPropertyConfig(string type, IVoicePartPropertyContext context)
-        => Declare(type, context.VoiceId, e => e.GetPartPropertyConfig(context));
+        => Declare(type, VoiceIdOf(context), e => e.GetPartPropertyConfig(context));
 
     public static ObjectConfig GetNotePropertyConfig(string type, IVoiceNotePropertyContext context)
-        => Declare(type, context.VoiceId, e => e.GetNotePropertyConfig(context));
+        => Declare(type, context.Part.VoiceId, e => e.GetNotePropertyConfig(context));
+
+    // 路由 / 校验用声库 id：多选 part 取首个（phase A 各调用点恒单 part；跨引擎多选由上游不调声明拦下）。
+    static string VoiceIdOf(IVoicePartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 
     static T Declare<T>(string type, string voiceId, Func<IVoiceEngine, T> get)
     {

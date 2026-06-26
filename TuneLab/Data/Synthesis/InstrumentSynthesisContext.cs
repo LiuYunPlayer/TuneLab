@@ -19,14 +19,16 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
 {
     public MidiPart Part => mPart;
 
+    public string InstrumentId => mInstrumentId;
     public IReadOnlyNotifiableLinkedList<IInstrumentNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
 
     public event Action? Committed;
 
-    public InstrumentSynthesisContext(MidiPart part)
+    public InstrumentSynthesisContext(MidiPart part, string instrumentId)
     {
         mPart = part;
+        mInstrumentId = instrumentId;
         mDataThreadId = System.Environment.CurrentManagedThreadId;
         mTiming = new LiveTiming(this, part.TempoManager);
         mNotes = new NoteProxyList(this);
@@ -230,6 +232,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
     }
 
     readonly MidiPart mPart;
+    readonly string mInstrumentId;
     readonly int mDataThreadId;
     readonly BatchSignal mBatchSignal;
     readonly LiveTiming mTiming;

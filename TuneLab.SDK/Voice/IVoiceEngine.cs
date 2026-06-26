@@ -17,14 +17,14 @@ public interface IVoiceEngine
     void Init();
     void Destroy();
 
-    // voiceId 选定声库（VoiceSourceInfos 的 key）；context 为该 part 的输入活视图，随会话同生共死。
-    IVoiceSession CreateSession(string voiceId, IVoiceContext context);
+    // context 为该 part 的输入活视图（含 VoiceId），随会话同生共死；voiceId 已并入 context、不再单列。
+    IVoiceSession CreateSession(IVoiceContext context);
 
     // —— 声明（该声源暴露什么）：纯函数式获取，不依赖会话实例 ——
-    // 全为当前 part 参数值的纯函数（同输入同输出、无副作用、轻量）：宿主在 part 参数 commit 时按当前值
-    // 重算并 diff 到 UI，故面板/轨集合可随参数显隐（如某模式开关才暴露的轨）。选哪个声库由 context.VoiceId 给。
-    // 置于引擎而非会话：声明不碰合成运行时状态，故无需会话实例即可求值——宿主据此在「建会话之前」就填好
-    // 声明（轨集合/面板），会话构造期插件即可订阅自己声明的轨（声明已就绪），无构造期时序陷阱。
+    // 全为当前 part 真值的纯函数（同输入同输出、无副作用、轻量）：宿主在值 commit 时按当前值重算并 diff 到 UI，
+    // 故面板/轨集合可随参数显隐（如某模式开关才暴露的轨）。声明面收**调用级只读活视图**（IVoicePart*，voice 专属、
+    // 与 instrument 持平行副本）——引擎可读 part 当前真值（含非属性字段：note 时间/音高/歌词、已声明自动化曲线、
+    // note 集合）决定 schema。选哪个声库由 context.Parts[i].VoiceId 给。仅数据线程同步调用、只读不订阅。
     // 静态声明的插件忽略 context 返回固定值即可。
 
     // 自动化轨配置（part 级）：连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），

@@ -30,8 +30,8 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
     {
         mPart = part;
         mSyncContext = SynchronizationContext.Current ?? throw new InvalidOperationException("InstrumentSynthesisPipeline must be created on the data thread.");
-        mContext = new InstrumentSynthesisContext(part);
-        mSession = InstrumentsManager.CreateSession(instrumentType, instrumentId, mContext);
+        mContext = new InstrumentSynthesisContext(part, instrumentId);
+        mSession = InstrumentsManager.CreateSession(instrumentType, mContext);
         // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：instrument 只有参数回显与状态/进度，无音素/音高。
         mOnParametersChanged = Marshaled(() => StatusChanged?.Invoke());
         mOnStatusChanged = Marshaled(() => StatusChanged?.Invoke());

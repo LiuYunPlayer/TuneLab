@@ -8,9 +8,8 @@ namespace TuneLab.Data;
 // 声明（默认歌词/自动化轨/属性面板）在宿主侧物化缓存，按 Kind 委派给对应引擎管理器（Voices / Instruments）。
 //
 // 单一稳定数据对象（身份不变、Modified 事件不断线）：换种类只改 Kind/Type/ID（同 SetInfo），不替换对象——
-// 故外部对 part.SoundSource.Modified 的订阅永不悬挂。声明方法沿用 voice 既有 context 形态
-//（IVoicePartPropertyContext/IVoiceNotePropertyContext，其 VoiceId 即"音源 id"），instrument 分支在实现内适配，
-// 故 MidiPart / 属性面板等消费点无需感知种类。
+// 故外部对 part.SoundSource.Modified 的订阅永不悬挂。声明 context 是宿主 PartPropertyContext/NotePropertyContext
+//（一套实现同时满足 voice / instrument 两域的 SDK 声明 context），实现按 Kind 上行委派对应管理器。
 internal interface ISoundSource : IDataObject<SoundSourceInfo>
 {
     SourceKind Kind { get; }
@@ -23,6 +22,6 @@ internal interface ISoundSource : IDataObject<SoundSourceInfo>
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> AutomationConfigs { get; }
     // 合成参数回显轨声明（只读、独立于可编辑轨集合）：曲线数据经 IMidiPart.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs { get; }
-    ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context);
-    ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context);
+    ObjectConfig GetPartPropertyConfig(PartPropertyContext context);
+    ObjectConfig GetNotePropertyConfig(NotePropertyContext context);
 }

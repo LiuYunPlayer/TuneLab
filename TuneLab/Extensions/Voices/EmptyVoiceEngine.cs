@@ -17,7 +17,7 @@ internal class EmptyVoiceEngine : IVoiceEngine
 
     public void Destroy() { }
 
-    public IVoiceSession CreateSession(string voiceId, IVoiceContext context)
+    public IVoiceSession CreateSession(IVoiceContext context)
     {
         return new EmptySession();
     }

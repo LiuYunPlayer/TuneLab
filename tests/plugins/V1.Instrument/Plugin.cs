@@ -26,7 +26,7 @@ public sealed class TestInstrumentEngine : IInstrumentEngine
 
     public void Destroy() { }
 
-    public IInstrumentSession CreateSession(string instrumentId, IInstrumentContext context) => new TestSession(context, instrumentId);
+    public IInstrumentSession CreateSession(IInstrumentContext context) => new TestSession(context, context.InstrumentId);
 
     // 声明（引擎层、纯函数）：本参照不暴露额外可编辑轨 / 回显轨 / 属性面板（纯按 note pitch 发声）。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentPartPropertyContext context) => mEmptyConfigs;

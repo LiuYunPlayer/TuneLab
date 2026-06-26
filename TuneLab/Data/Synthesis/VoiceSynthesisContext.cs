@@ -20,6 +20,7 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
 {
     public MidiPart Part => mPart;
 
+    public string VoiceId => mVoiceId;
     public IReadOnlyNotifiableLinkedList<IVoiceNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
@@ -27,9 +28,10 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
 
     public event Action? Committed;
 
-    public VoiceSynthesisContext(MidiPart part)
+    public VoiceSynthesisContext(MidiPart part, string voiceId)
     {
         mPart = part;
+        mVoiceId = voiceId;
         mDataThreadId = System.Environment.CurrentManagedThreadId;
         mTiming = new LiveTiming(this, part.TempoManager);
         // 音高双通道：Pitch = 纯用户绘制曲线（NaN=自由）；PitchDeviation = 宿主侧偏差源汇总
@@ -304,6 +306,7 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
     }
 
     readonly MidiPart mPart;
+    readonly string mVoiceId;
     readonly int mDataThreadId;
     readonly BatchSignal mBatchSignal;
     readonly LiveTiming mTiming;

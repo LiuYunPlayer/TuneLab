@@ -18,13 +18,13 @@ public interface IInstrumentEngine
     void Init();
     void Destroy();
 
-    // instrumentId 选定音源（InstrumentSourceInfos 的 key）；context 为该 part 的输入活视图，随会话同生共死。
-    IInstrumentSession CreateSession(string instrumentId, IInstrumentContext context);
+    // context 为该 part 的输入活视图（含 InstrumentId），随会话同生共死；instrumentId 已并入 context、不再单列。
+    IInstrumentSession CreateSession(IInstrumentContext context);
 
     // —— 声明（该音源暴露什么）：纯函数式获取，不依赖会话实例 ——
-    // 全为当前 part 参数值的纯函数（同输入同输出、无副作用、轻量）：宿主在 part 参数 commit 时按当前值
-    // 重算并 diff 到 UI，故面板 / 轨集合可随参数显隐。选哪个音源由 context.InstrumentId 给。
-    // 置于引擎而非会话：声明不碰合成运行时状态，宿主据此在「建会话之前」就填好声明，无构造期时序陷阱。
+    // 全为当前 part 真值的纯函数（同输入同输出、无副作用、轻量）：宿主在值 commit 时按当前值重算并 diff 到 UI，
+    // 故面板 / 轨集合可随参数显隐。声明面收**调用级只读活视图**（IInstrumentPart*，instrument 专属、与 voice 持平行副本）——
+    // 选哪个音源由 context.Parts[i].InstrumentId 给。仅数据线程同步调用、只读不订阅。
 
     // 自动化轨配置（part 级）：连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），
     // 按声明序呈现。轨名 / 翻译随键（PropertyKey.DisplayText，缺省回退 Id）。

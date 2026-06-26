@@ -88,15 +88,15 @@ internal static class InstrumentsManager
         return false;
     }
 
-    // 创建合成会话；引擎不可用或 id 未知时回退空音源会话（行为等价于无音源 part）。
-    public static IInstrumentSession CreateSession(string type, string id, IInstrumentContext context)
+    // 创建合成会话；引擎不可用或 id 未知时回退空音源会话（行为等价于无音源 part）。instrumentId 由 context.InstrumentId 承载。
+    public static IInstrumentSession CreateSession(string type, IInstrumentContext context)
     {
         var engine = GetInitedEngine(type);
-        if (engine != null && engine.InstrumentSourceInfos.ContainsKey(id))
+        if (engine != null && engine.InstrumentSourceInfos.ContainsKey(context.InstrumentId))
         {
             try
             {
-                return engine.CreateSession(id, context);
+                return engine.CreateSession(context);
             }
             catch (Exception ex)
             {
@@ -105,21 +105,23 @@ internal static class InstrumentsManager
         }
 
         // 空引擎注册于内建加载、Init 恒成功。
-        return GetInitedEngine(string.Empty)!.CreateSession(string.Empty, context);
+        return GetInitedEngine(string.Empty)!.CreateSession(context);
     }
 
-    // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明）——
+    // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明）；instrumentId 由 context 内各 part 的 InstrumentId 承载。——
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IInstrumentPartPropertyContext context)
-        => Declare(type, context.InstrumentId, e => e.GetAutomationConfigs(context));
+        => Declare(type, InstrumentIdOf(context), e => e.GetAutomationConfigs(context));
 
     public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IInstrumentPartPropertyContext context)
-        => Declare(type, context.InstrumentId, e => e.GetSynthesizedParameterConfigs(context));
+        => Declare(type, InstrumentIdOf(context), e => e.GetSynthesizedParameterConfigs(context));
 
     public static ObjectConfig GetPartPropertyConfig(string type, IInstrumentPartPropertyContext context)
-        => Declare(type, context.InstrumentId, e => e.GetPartPropertyConfig(context));
+        => Declare(type, InstrumentIdOf(context), e => e.GetPartPropertyConfig(context));
 
     public static ObjectConfig GetNotePropertyConfig(string type, IInstrumentNotePropertyContext context)
-        => Declare(type, context.InstrumentId, e => e.GetNotePropertyConfig(context));
+        => Declare(type, context.Part.InstrumentId, e => e.GetNotePropertyConfig(context));
+
+    static string InstrumentIdOf(IInstrumentPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].InstrumentId : string.Empty;
 
     static T Declare<T>(string type, string instrumentId, Func<IInstrumentEngine, T> get)
     {

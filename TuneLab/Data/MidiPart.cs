@@ -150,7 +150,7 @@ internal class MidiPart : Part, IMidiPart
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
-    IVoicePartPropertyContext BuildPartPropertyContext() => new PartPropertyContext(mSource.ID, [Properties.GetInfo()]);
+    PartPropertyContext BuildPartPropertyContext() => PartPropertyContext.Single(this);
 
     // 聚合签名 = voice 轨集合 + 各 effect 轨集合（按 key + 字段平铺）；用于参数 commit 时的增量去抖。
     string ComputeAutomationConfigsSignature()

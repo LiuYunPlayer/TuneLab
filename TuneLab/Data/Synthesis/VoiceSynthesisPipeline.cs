@@ -35,8 +35,8 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     {
         mPart = part;
         mSyncContext = SynchronizationContext.Current ?? throw new InvalidOperationException("VoiceSynthesisPipeline must be created on the data thread.");
-        mContext = new VoiceSynthesisContext(part);
-        mSession = VoicesManager.CreateSession(voiceType, voiceId, mContext);
+        mContext = new VoiceSynthesisContext(part, voiceId);
+        mSession = VoicesManager.CreateSession(voiceType, mContext);
         // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：音素信号才回填 note（WriteBackPhonemes），
         // 参数/音高/状态信号只触发 UI 重读重绘。高频的状态/进度 tick 因此不再带动音素回填。
         // 引擎标脏 / 重分块后不再报告脏块音素，回填把对应 note 置空（留白），无需宿主在数据层单点清除。

@@ -25,17 +25,17 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public void Destroy() { }
 
     // 两个声库共用同一最简会话（差异只在声明，已上移到引擎）。
-    public IVoiceSession CreateSession(string voiceId, IVoiceContext context) => new SingleBlockSession(context);
+    public IVoiceSession CreateSession(IVoiceContext context) => new SingleBlockSession(context);
 
-    // 声明（引擎层、纯函数）：按 context.VoiceId 区分两个声库——这正是 voiceId 进 context 的用例。
+    // 声明（引擎层、纯函数）：按音源 id 区分两个声库——这正是声明面读 SourceId 的用例。
     // suite-conditional：自动化 = f(已选 speaker)——每个混入的 speaker 派生一条混音曲线（多说话人混音式，演示
     // 「+ speaker → part 属性物化 → 自动化重算 → 曲线按钮自动出现」；wiring 由宿主 OnPartPropertiesModified 既有链承担）。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context)
     {
-        if (context.VoiceId != "suite-conditional")
+        if (SourceIdOf(context) != "suite-conditional")
             return mSuiteAutomations;
 
-        var selected = context.PartProperties.Merge().GetValue("speakers", PropertyObject.Empty);
+        var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
         foreach (var kvp in selected.Map)
             map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
@@ -43,7 +43,9 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     }
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context)
-        => context.VoiceId == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
+        => SourceIdOf(context) == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
+
+    static string SourceIdOf(IVoicePartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 
     // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（ExtensibleObjectConfig）。
     // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
@@ -51,7 +53,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
 
-        var selected = context.PartProperties.Merge().GetValue("speakers", PropertyObject.Empty);
+        var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var speakerProps = new OrderedMap<PropertyKey, IControllerConfig>();
         foreach (var kvp in selected.Map)
             speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
@@ -76,14 +78,14 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         return id;
     }
     public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context)
-        => context.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
+        => context.Part.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
 
     // 条件 note 面板：note config = f(context)，随当前值动态变化——① 显隐/换控件（mode=Advanced 多出字段）；
     // ② 控件参数随值变（pick 选项 = letters 逐字符）；③ 动态数量控件（letters 每个唯一字符派生一个滑条）。
     static ObjectConfig ConditionalNoteConfig(IVoiceNotePropertyContext context)
     {
         // 多选：用 helper 合并成单个三态快照（不在乎逐 note 真值，按单选写法处理）。
-        var note = context.NoteProperties.Merge();
+        var note = context.Notes.Select(n => n.Properties).Merge();
         var map = new OrderedMap<PropertyKey, IControllerConfig>
         {
             { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
@@ -96,7 +98,7 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
         map.Add("pick", new ComboBoxConfig { Options = options.Select(o => (ComboBoxOption)o).ToList() });
 
         // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
-        if (context.PartProperties.GetBool("fromPart", false))
+        if (context.Part.PartProperties.GetBool("fromPart", false))
             map.Add("partGain", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100 });
 
         // ① mode=Advanced → 多出字段（显隐 / 换控件）
