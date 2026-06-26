@@ -462,6 +462,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             double duration = 0;
             bool isLead = false;
             double startTime = 0, endTime = 0;
+            PropertyObject? properties = null;
 
             reader.ReadStartMap();
             while (reader.PeekState() != CborReaderState.EndMap)
@@ -475,6 +476,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     case "stretchWeight": weight = reader.ReadDouble(); break;
                     case "isLead": isLead = reader.ReadBoolean(); break;
                     case "symbol": symbol = reader.ReadTextString(); break;
+                    case "properties": properties = ReadPropertyObject(reader); break;
                     default: reader.SkipValue(); break;
                 }
             }
@@ -493,6 +495,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 Duration = duration,
                 StretchWeight = weight,
                 IsLead = isLead,
+                Properties = properties,
             });
         }
         reader.ReadEndArray();
@@ -946,6 +949,13 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 
             writer.WriteTextString("isLead");
             writer.WriteBoolean(phoneme.IsLead);
+
+            // per-phoneme 引擎自定义属性（空则省略，pay-as-you-go）。
+            if (phoneme.Properties is { } props && props.Map.Count > 0)
+            {
+                writer.WriteTextString("properties");
+                WritePropertyObject(writer, props);
+            }
 
             writer.WriteEndMap();
         }

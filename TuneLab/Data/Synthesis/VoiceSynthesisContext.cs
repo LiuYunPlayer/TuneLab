@@ -452,7 +452,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         public IReadOnlyNotifiableProperty<double> EndTime { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
-        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.VoicePhoneme>> Phonemes { get; }
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesizedPhoneme>> Phonemes { get; }
         // 生效延续：普通只读、读时按相接链求值（数据线程，O(链长)）。无独立通知——其输入 Lyric/位置本就可订阅。
         public bool IsContinuation => mNote.IsEffectiveContinuation();
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
@@ -483,12 +483,12 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             // 钉死音素的「时长 + 权重」（与工程存储同形）：位置 / 去重叠 / 跨 note 压缩由插件按时长 + note 几何自行派生
             // （布局算法不在 SDK，插件按需照抄参考实现）。时长不随 note 伸缩改变，
             // 故只依赖 note.Phonemes；note resize 经 StartTime/EndTime 另行触发重合成。
-            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.VoicePhoneme>>(context, () =>
+            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.SynthesizedPhoneme>>(context, () =>
             {
-                var phonemes = new List<SDK.VoicePhoneme>(note.Phonemes.Count);
+                var phonemes = new List<SDK.SynthesizedPhoneme>(note.Phonemes.Count);
                 foreach (var p in note.Phonemes)
                 {
-                    phonemes.Add(new SDK.VoicePhoneme
+                    phonemes.Add(new SDK.SynthesizedPhoneme
                     {
                         Symbol = p.Symbol.Value,
                         Duration = p.Duration.Value,

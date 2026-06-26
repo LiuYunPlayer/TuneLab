@@ -27,6 +27,16 @@ public interface IVoiceSynthesisPartView
     IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
 }
 
+// voice 音素的只读值视图（声明面）：几何当前值 + per-phoneme 属性值快照。属性只在钉死音素上有意义。
+public interface IVoiceSynthesisPhonemeView
+{
+    string Symbol { get; }
+    double Duration { get; }              // 标称时长（秒）
+    double StretchWeight { get; }
+    bool IsLead { get; }
+    PropertyObject Properties { get; }    // per-phoneme 属性值快照
+}
+
 // voice part 数据 note 的只读值视图（声明面；EndTime 取原始满末，未钳）。
 public interface IVoiceSynthesisNoteView
 {
@@ -35,6 +45,8 @@ public interface IVoiceSynthesisNoteView
     int Pitch { get; }
     string Lyric { get; }
     PropertyObject Properties { get; }     // per-note 属性值快照；多选 note 合并三态归插件
+    // 该 note 的有序音素（前置辅音 → 核 → 后辅音）；位置 = 索引。音素属性声明（GetPhonemePropertyConfigs）即吃这串。
+    IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes { get; }
 }
 
 // part 级声明壳（多选 part；单选 = 1 个、无选中 = 空）。包一层壳抗迭代——以后加只读字段不动方法签名。
@@ -49,3 +61,4 @@ public interface IVoiceSynthesisNotePropertyContext
     IVoiceSynthesisPartView Part { get; }
     IReadOnlyList<IVoiceSynthesisNoteView> Notes { get; }
 }
+

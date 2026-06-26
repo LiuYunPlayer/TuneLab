@@ -56,6 +56,48 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
         public int Pitch => note.Pitch.Value;
         public string Lyric => note.Lyric.Value;   // 仅 IVoiceSynthesisNoteView 暴露
         public PropertyObject Properties => note.Properties.GetInfo();
+        // 该 note 的**显示音素**（仅 IVoiceSynthesisNoteView 暴露——instrument 无音素）：钉死则取 IPhoneme（带属性）、
+        // 否则取合成音素（属性空，编辑时由宿主钉死后写入）。引擎据此对所见音素声明属性 schema，无论是否已钉死。
+        public IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes
+        {
+            get
+            {
+                if (note.Phonemes.Count > 0)
+                    return note.Phonemes.Select(p => new PartPhoneme(p)).ToList();
+                if (note.SynthesizedPhonemes is { Length: > 0 } synth)
+                    return synth.Select(p => new PartPhoneme(p)).ToList();
+                return [];
+            }
+        }
+    }
+
+    // part 数据音素的只读值视图（声明面，voice 专属）：几何当前值 + per-phoneme 属性值快照。
+    // 两种来源：钉死音素 IPhoneme（属性走 HasProperties 闸门、不物化）、合成音素 SynthesizedPhoneme（属性恒空）。
+    internal sealed class PartPhoneme : IVoiceSynthesisPhonemeView
+    {
+        public string Symbol { get; }
+        public double Duration { get; }
+        public double StretchWeight { get; }
+        public bool IsLead { get; }
+        public PropertyObject Properties { get; }
+
+        public PartPhoneme(IPhoneme phoneme)
+        {
+            Symbol = phoneme.Symbol.Value;
+            Duration = phoneme.Duration.Value;
+            StretchWeight = phoneme.StretchWeight.Value;
+            IsLead = phoneme.IsLead.Value;
+            Properties = phoneme.HasProperties ? phoneme.Properties.GetInfo() : PropertyObject.Empty;
+        }
+
+        public PartPhoneme(SynthesizedPhoneme phoneme)
+        {
+            Symbol = phoneme.Symbol;
+            Duration = phoneme.Duration;
+            StretchWeight = phoneme.StretchWeight;
+            IsLead = phoneme.IsLead;
+            Properties = PropertyObject.Empty;
+        }
     }
 }
 

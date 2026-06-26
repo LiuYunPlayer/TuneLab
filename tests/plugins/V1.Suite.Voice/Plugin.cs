@@ -79,6 +79,7 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
     }
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
         => context.Part.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
+    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     // 条件 note 面板：note config = f(context)，随当前值动态变化——① 显隐/换控件（mode=Advanced 多出字段）；
     // ② 控件参数随值变（pick 选项 = letters 逐字符）；③ 动态数量控件（letters 每个唯一字符派生一个滑条）。
@@ -258,13 +259,13 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
             mSegment?.Dispose();
             mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
-            var phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
+            var phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
             for (int i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
                 double noteStart = note.StartTime;
                 double noteEnd = note.EndTime;
-                phonemes.Add(origins[i], new List<VoicePhoneme>   // 索引对齐：产物归属回活 note（map 键）
+                phonemes.Add(origins[i], new List<SynthesizedPhoneme>   // 索引对齐：产物归属回活 note（map 键）
                 {
                     new() { Symbol = note.Lyric, Duration = noteEnd - noteStart, StretchWeight = noteEnd - noteStart },
                 });
@@ -284,7 +285,7 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
-    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => mPhonemes;
+    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()
     {
@@ -363,5 +364,5 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
     IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
-    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> mPhonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
+    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> mPhonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
 }

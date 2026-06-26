@@ -24,7 +24,7 @@ namespace TuneLab.UI;
 
 internal class PropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPresetPanel, mPartPanel, mEffectsPanel, mAutomationPanel, mNotePanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Properties.GetImage(Style.LIGHT_WHITE), Name = "Properties".Tr(TC.Property), Items = [mPresetPanel, mPartPanel, mEffectsPanel, mAutomationPanel, mNotePanel, mPhonemePanel] };
 
     public PropertySideBarContentProvider()
     {
@@ -89,6 +89,14 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mNoteContentPanel.Children.Add(mNoteContent);
         mNoteContentPanel.Children.Add(mNoteContentMask);
         mNotePanel.Content = mNoteContentPanel;
+
+        var phonemeName = new Label() { Content = "Phoneme".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        mPhonemePanel.Title = phonemeName;
+        mPhonemeContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mPhonemeContent.Children.Add(mPhonemeRowsPanel);
+        mPhonemePanel.Content = mPhonemeContent;
+        // 有音素声明了属性（逐音素 config 非空、至少一行）才显示本面板；默认隐藏。
+        mPhonemePanel.IsVisible = false;
 
         LoadPresets();
     }
@@ -181,6 +189,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         RefreshPartController();
         mEffectsController.SetPart(part);
         RefreshNoteController();
+        RefreshPhonemeController();
     }
 
     void Terminate()
@@ -192,6 +201,9 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mEffectsController.SetPart(null);
         mNoteSub.DisposeAll();
         mNoteData = null;
+        mPhonemeSub.DisposeAll();
+        mPhonemeRowsPanel.Children.Clear();
+        mPhonemePanel.IsVisible = false;
     }
 
     // part 值 commit：part 面板按当前值重算（数据对象不变，走 Reconcile），并沿链触发 note 面板重算。
@@ -202,6 +214,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
 
         ReconcilePartController();
         ReconcileNoteController();
+        RefreshPhonemeController();   // 音素面板：part 值变可能改 schema/对齐，直接重建（编辑为 settled 触发，无活拖拽）
     }
 
     // ---- 条件属性面板：config = f(context)，按当前值重算并 keyed-diff 到控件树 ----
@@ -269,6 +282,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     void OnNoteSelectionChanged()
     {
         RefreshNoteController();
+        RefreshPhonemeController();   // 音素面板 scope = 选中 note 的音素
     }
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
@@ -307,6 +321,170 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
         mNotePropertiesController.SetConfig(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
         mNoteData.Modified.Subscribe(ReconcileNoteController, mNoteSub);
+    }
+
+    // ---- 音素属性面板（scope = 选中 note 的钉死音素；引擎未声明音素属性即整面板隐藏）----
+    // config 空（引擎默认不声明 phoneme 属性）→ 隐藏面板、不物化任何音素 Properties（pay-as-you-go）。
+    // config 非空 → 绑定选中 note 的音素 Properties（多音素合一）、无音素则盖遮罩。
+    void RefreshPhonemeController()
+    {
+        if (mPhonemeRefreshPending)
+            return;
+        mPhonemeRefreshPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            mPhonemeRefreshPending = false;
+            RefreshPhonemeControllerNow();
+        });
+    }
+
+    // 一个选中 note 的音素声明信息：显示音素（钉死则 IPhoneme、否则合成）+ 逐音素 config + 核位置（leadCount）。
+    readonly record struct PhonemeNoteInfo(INote Note, bool Pinned, int Count, int LeadCount, ObjectConfig?[] Configs);
+
+    void RefreshPhonemeControllerNow()
+    {
+        mPhonemeSub.DisposeAll();
+        mPhonemeRowsPanel.Children.Clear();
+        if (mPart == null)
+        {
+            mPhonemePanel.IsVisible = false;
+            return;
+        }
+
+        // 一次成批求 config（复用 note 声明上下文）：与各 note 显示音素扁平展开索引对齐，拆回各 note 的逐音素 config。
+        // 同时算各 note 的核位置 leadCount（首个 IsLead=false 的下标；无非 lead 则 = count）。
+        var configs = mPart.SoundSource.GetPhonemePropertyConfigs(BuildNoteContext());
+        int flat = 0;
+        var perNote = new List<PhonemeNoteInfo>();
+        foreach (var note in mPart.Notes.AllSelectedItems())
+        {
+            bool pinned = note.Phonemes.Count > 0;
+            int count = pinned ? note.Phonemes.Count : (note.SynthesizedPhonemes?.Length ?? 0);
+            var cfgs = new ObjectConfig?[count];
+            int leadCount = count;
+            for (int i = 0; i < count; i++)
+            {
+                cfgs[i] = flat < configs.Count ? configs[flat] : null;
+                flat++;
+                bool isLead = pinned ? note.Phonemes[i].IsLead.Value : note.SynthesizedPhonemes![i].IsLead;
+                if (!isLead && leadCount == count)
+                    leadCount = i;   // 第一个非 lead = 核 = 对齐 0
+            }
+            perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount, cfgs));
+            // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。
+            note.Phonemes.ListModified.Subscribe(RefreshPhonemeController, mPhonemeSub);
+        }
+
+        // 对齐索引 = 音素位置 − leadCount（核 = 0、前置辅音离核越近越靠 −1、核后 = +1+）。各 note 按此有符号索引对齐成 slot。
+        int minA = 0, maxA = 0;
+        foreach (var n in perNote)
+        {
+            if (n.Count == 0) continue;
+            minA = Math.Min(minA, -n.LeadCount);
+            maxA = Math.Max(maxA, n.Count - 1 - n.LeadCount);
+        }
+
+        bool addedLead = false, addedBoundary = false;
+        for (int a = minA; a <= maxA; a++)
+        {
+            // 该 slot 各 note 在对齐位 a 处的音素成员（config 非空者）。
+            var members = new List<(PhonemeNoteInfo Note, int Index)>();
+            foreach (var n in perNote)
+            {
+                int idx = n.LeadCount + a;
+                if (idx < 0 || idx >= n.Count) continue;
+                if (n.Configs[idx] is not { } c || c.Properties.Count == 0) continue;
+                members.Add((n, idx));
+            }
+            if (members.Count == 0) continue;
+
+            // IsLead 分界：前置辅音（a<0）与核+后（a>=0，核=0）之间插一条「—— Note Start ——」带字分隔，标出"核"=音符头锚点。
+            if (a >= 0 && addedLead && !addedBoundary)
+            {
+                mPhonemeRowsPanel.Children.Add(BuildBoundaryDivider());
+                addedBoundary = true;
+            }
+            if (a < 0)
+                addedLead = true;
+
+            var config = members[0].Note.Configs[members[0].Index]!;   // 代表 config（首成员）
+
+            // 符号三态：各成员符号全等显该符号、否则 (Multiple)。
+            var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedPhonemes![m.Index].Symbol).Distinct().ToList();
+            string symbol = symbols.Count == 1 ? (string.IsNullOrEmpty(symbols[0]) ? "-" : symbols[0]) : "(Multiple)".Tr(TC.Property);
+            var label = new Label() { Content = symbol, Height = 28, FontSize = 12, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+            var controller = new PropertyObjectController();
+
+            if (members.All(m => m.Note.Pinned))
+            {
+                // 全钉死：各 note 该位音素真 .Properties → MultipleDataPropertyObject 三态合并 / 写扇出 / Head 委托首成员。
+                var data = members.Select(m => (IDataPropertyObject)m.Note.Note.Phonemes[m.Index].Properties).ToList();
+                controller.SetConfig(config, data.Count == 1 ? data[0] : new MultipleDataPropertyObject(data));
+                foreach (var m in members)
+                    m.Note.Note.Phonemes[m.Index].Properties.Modified.Subscribe(RefreshPhonemeController, mPhonemeSub);
+            }
+            else
+            {
+                // 含合成音素：每成员一个 buffer（共享一个 throwaway DataDocument 拿 Head）；pinned 成员 seed 真值、合成成员留空
+                // → MultipleDataPropertyObject 三态（缺位=默认，参考 ListConfig）。松手提交时各 note 钉死（取不到就创建）+ buffer 写回。
+                var doc = new DataDocument();
+                var bufs = new List<IDataPropertyObject>(members.Count);
+                var apply = new List<(INote Note, int Index, DataPropertyObject Buffer)>(members.Count);
+                foreach (var m in members)
+                {
+                    var buf = new DataPropertyObject(doc);
+                    if (m.Note.Pinned)
+                    {
+                        var ph = m.Note.Note.Phonemes[m.Index];
+                        if (ph.HasProperties)
+                            buf.SetInfo(ph.Properties.GetInfo());
+                    }
+                    bufs.Add(buf);
+                    apply.Add((m.Note.Note, m.Index, buf));
+                }
+                IDataPropertyObject data = bufs.Count == 1 ? bufs[0] : new MultipleDataPropertyObject(bufs);
+                controller.SetConfig(config, data);
+                data.Modified.Subscribe(() => PinAndApply(apply), mPhonemeSub);
+            }
+
+            var row = new StackPanel() { Orientation = Orientation.Vertical };
+            row.Children.Add(label);
+            row.Children.Add(controller);
+            mPhonemeRowsPanel.Children.Add(row);
+        }
+
+        mPhonemePanel.IsVisible = mPhonemeRowsPanel.Children.Count > 0;
+    }
+
+    // 编辑（松手提交）含合成音素的 slot：对涉及的每个 note 先钉死（LockPhonemes 幂等、保几何——"取不到就创建"=钉死），
+    // 再把该成员 buffer 值写回该位音素属性，整体提交为一个撤销步。随后 Phonemes.ListModified 触发重建 → 该 slot 转真绑定。
+    void PinAndApply(IReadOnlyList<(INote Note, int Index, DataPropertyObject Buffer)> members)
+    {
+        if (mPart == null)
+            return;
+        foreach (var (note, idx, buf) in members)
+        {
+            note.LockPhonemes();
+            if (idx < note.Phonemes.Count)
+                note.Phonemes[idx].Properties.SetInfo(buf.GetInfo());
+        }
+        mPart.Commit();
+    }
+
+    // IsLead 分界分隔：「——— Note Start ———」（两侧细线 + 居中文字），标出核=音符头的对齐锚点。
+    static Control BuildBoundaryDivider()
+    {
+        var left = new Border() { Height = 1, Background = Style.LIGHT_WHITE.Opacity(0.25).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var right = new Border() { Height = 1, Background = Style.LIGHT_WHITE.Opacity(0.25).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var text = new TextBlock() { Text = "Note Start".Tr(TC.Property), FontSize = 11, Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(), Margin = new(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var grid = new Grid() { ColumnDefinitions = new ColumnDefinitions("*,Auto,*"), Margin = new(24, 6) };
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(text, 1);
+        Grid.SetColumn(right, 2);
+        grid.Children.Add(left);
+        grid.Children.Add(text);
+        grid.Children.Add(right);
+        return grid;
     }
 
     async Task OnSaveAsPresetClicked()
@@ -616,11 +794,13 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly StackPanel mEffectsContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };
+    readonly StackPanel mPhonemeContent = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPresetPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mEffectsPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mNotePanel = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mPhonemePanel = new() { Orientation = Orientation.Vertical };
     readonly LayerPanel mNoteContentPanel = new();
 
     readonly TuneLab.GUI.Components.Button mPresetButton;
@@ -634,6 +814,8 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     readonly MidiPartFixedController mPartFixedController = new();
     readonly PropertyObjectController mPartPropertiesController = new();
     readonly PropertyObjectController mNotePropertiesController = new();
+    // 音素属性逐 slot 呈现：按 IsLead 分界、核=0 的有符号对齐索引把各 note 音素合并成 slot，每 slot 一行（符号标签 + 控制器）。
+    readonly StackPanel mPhonemeRowsPanel = new() { Orientation = Orientation.Vertical };
 
     readonly Border mNoteContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
 
@@ -644,6 +826,8 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     bool mPartReconcilePending = false;
     bool mNoteReconcilePending = false;
     bool mNoteRefreshPending = false;
+    bool mPhonemeRefreshPending = false;
     readonly DisposableManager s = new();
     readonly DisposableManager mNoteSub = new();
+    readonly DisposableManager mPhonemeSub = new();
 }

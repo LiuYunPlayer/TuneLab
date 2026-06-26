@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
@@ -20,6 +21,9 @@ public class PhonemeInfo
     // 是否前置音素（音节核之前的引导辅音）：true 从「前置分界线」往左累积；false（核 + 后辅音）往右、核填充。
     // 显式标记（不再用 w>0 推断），把「前后归属」与「弹性 StretchWeight」解耦。
     public bool IsLead { get; set; }
+
+    // per-phoneme 引擎自定义属性（GetPhonemePropertyConfigs 声明的轨）。无属性时为 null、不序列化（pay-as-you-go）。
+    public PropertyObject? Properties { get; set; }
 
     // 由「连续的相对秒区间 + 权重 + 是否前置」批量构造（lock 合成产物 / 旧工程相对时间导入共用）：时长 = End − Start。
     // 位置信息（起点）不入存储——由布局按「核起点 = 音符头、前置往左、核填充」派生。

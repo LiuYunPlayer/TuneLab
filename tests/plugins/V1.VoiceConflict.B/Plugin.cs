@@ -26,6 +26,7 @@ public sealed class ConflictVoiceEngine : IVoiceSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyAutomations;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => sEmptyConfig;
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => sEmptyConfig;
+    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
@@ -42,7 +43,7 @@ internal sealed class SilentSession : IVoiceSynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;
-    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
+    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => Array.Empty<SynthesisStatusSegment>();
     public event Action? SynthesizedPhonemesChanged { add { } remove { } }
@@ -55,5 +56,5 @@ internal sealed class SilentSession : IVoiceSynthesisSession
     static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
     static readonly Map<string, SynthesizedParameter> sEmptyParameters = new();
-    static readonly Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> sEmptyPhonemes = new();
+    static readonly Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> sEmptyPhonemes = new();
 }

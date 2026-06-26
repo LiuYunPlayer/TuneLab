@@ -22,6 +22,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mVoiceInfos.Add("v1-alice", new VoiceSourceInfo { Name = "Alice (V1 Test)", Description = "Test voice Alice" });
         mVoiceInfos.Add("v1-bob", new VoiceSourceInfo { Name = "Bob (V1 Test)", Description = "Test voice Bob" });
         mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
+        // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。
+        mPhonemeProperties.Add("accent", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), new CheckBoxConfig { DefaultValue = true });
@@ -52,11 +54,19 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => new() { Properties = mPartProperties };
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => new() { Properties = mNoteProperties };
+    // 音素属性声明（复用 note 上下文；返回与"各 note 音素扁平展开"对齐的 config 列表）：本参照实现给每个音素都暴露 accent 轨；
+    // 据音素位置（note 内索引）/ 符号 / IsLead 条件化各异 schema 可在此扩展。
+    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
+    {
+        var config = new ObjectConfig { Properties = mPhonemeProperties };
+        return context.Notes.SelectMany(n => n.Phonemes).Select(_ => config).ToList();
+    }
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mGrowlConfigs = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mPhonemeProperties = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
     static readonly AutomationConfig mBendConfig = new() { DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
     // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
@@ -198,11 +208,11 @@ public sealed class TestSession : IVoiceSynthesisSession
     // 合成音素：仅在「音素几何未失效」（PhonemesStale=false）时报告。分级失效——音素几何只被**上游**（时长 / 歌词 /
     // 结构）变动清掉；同级（锁定音素）/ 下游（音高 / 参数 / 音频）变动**不**清音素，故锁定音素、改音高、画曲线时音素照常
     // 显示、不留白。不看 Dirty / Synthesizing：音素未失效时即便该块正重渲音频，旧音素仍有效、持续显示。
-    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes
+    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes
     {
         get
         {
-            var result = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
+            var result = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
             foreach (var piece in mPieces)
             {
                 if (piece.PhonemesStale || piece.Failed || piece.Segment == null)
@@ -265,7 +275,7 @@ public sealed class TestSession : IVoiceSynthesisSession
     }
 
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
-    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> Phonemes, List<Point> EnergyReadback);
+    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Phonemes, List<Point> EnergyReadback);
 
     static RenderResult? Render(VoiceSynthesisSnapshot snapshot, IReadOnlyList<IVoiceSynthesisNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
@@ -274,7 +284,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         if (notes.Count == 0)
         {
             progress?.Report(1);
-            return new RenderResult([], 0, new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>(), []);
+            return new RenderResult([], 0, new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>(), []);
         }
 
         // 模拟合成耗时：分步等待并上报进度（取消即中途退出，产物保持上一版）。期间宿主显示该块「合成中」、
@@ -350,7 +360,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         // —— 音素产出：歌词解析预测（自然放置，无压缩）→ 按出身归属 ——
         // 本引擎只声明每个 note 的音素 + 标称时长 + 权重 + IsLead，按归属 note 键成 map 回报；定位 / 去重叠 / 后盖前 /
         // 跨 note 辅音簇压缩全交宿主显示侧独占布局（合成音频也不消费音素位置，故本引擎无需自行解析）。需要把标称时长
-        // 解析成真实时序来驱动音频帧的引擎，调 SDK 的 VoicePhonemeLayout.Resolve 即可与宿主显示一致；不调就自由放置、错位非致命。
+        // 解析成真实时序来驱动音频帧的引擎，调 SDK 的 PhonemeLayout.Resolve 即可与宿主显示一致；不调就自由放置、错位非致命。
         //
         // 歌词解析（便于组合测试不同音素形态）：
         // · 延续 note（note.IsContinuation）不产音素，上面已跳过；空 / 纯辅音无元音 → 单个 "" 覆盖整组。
@@ -576,7 +586,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         public string? Error;
         public double Progress;
         public IAudioSegment? Segment;
-        public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> Phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
+        public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
         public IReadOnlyList<Point> EnergyReadback = [];
     }
 
@@ -609,7 +619,7 @@ static class RefLayout
     }
 
     // 主入口：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map。位置 / 压缩 / 相接判定交宿主。
-    public static IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceSynthesisNote> origins)
+    public static IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceSynthesisNote> origins)
     {
         var byNote = new Dictionary<int, List<Pred>>();
         foreach (var p in predicted)
@@ -619,20 +629,20 @@ static class RefLayout
             list.Add(p);
         }
 
-        var result = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
+        var result = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
         for (int ni = 0; ni < snapshot.Notes.Count; ni++)
         {
             var note = snapshot.Notes[ni];
-            var list = new List<VoicePhoneme>();
+            var list = new List<SynthesizedPhoneme>();
             if (note.Phonemes.Count > 0)   // 钉死 note：报钉死时长（位置不报）
             {
-                foreach (var ph in note.Phonemes)
-                    list.Add(new VoicePhoneme { Symbol = ph.Symbol, Duration = ph.Duration, StretchWeight = ph.StretchWeight, IsLead = ph.IsLead });
+                foreach (var ph in note.Phonemes)   // 几何字段（本回显不读 per-phoneme 属性）
+                    list.Add(new SynthesizedPhoneme { Symbol = ph.Symbol, Duration = ph.Duration, StretchWeight = ph.StretchWeight, IsLead = ph.IsLead });
             }
             else if (byNote.TryGetValue(ni, out var preds))   // 自由 note：报预测时长
             {
                 foreach (var p in preds)
-                    list.Add(new VoicePhoneme { Symbol = p.Symbol, Duration = p.EndTime - p.StartTime, StretchWeight = p.StretchWeight, IsLead = p.IsLead });
+                    list.Add(new SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.EndTime - p.StartTime, StretchWeight = p.StretchWeight, IsLead = p.IsLead });
             }
             if (list.Count > 0)
                 result.Add(origins[ni], list);

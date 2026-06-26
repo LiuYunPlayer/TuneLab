@@ -15,7 +15,7 @@ public interface IVoiceSynthesisNote
     IReadOnlyNotifiableProperty<double> EndTime { get; }
     IReadOnlyNotifiableProperty<int> Pitch { get; }
     IReadOnlyNotifiableProperty<string> Lyric { get; }
-    IReadOnlyNotifiableProperty<IReadOnlyList<VoicePhoneme>> Phonemes { get; }
+    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> Phonemes { get; }
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
     // 延续标志（宿主拥有的稳定契约）：true = 本 note 是**生效的延续**——延音符且经不断裂的相接链回溯到发声 note

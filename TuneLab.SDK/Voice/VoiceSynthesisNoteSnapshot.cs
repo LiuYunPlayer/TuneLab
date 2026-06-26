@@ -21,6 +21,7 @@ public sealed class VoiceSynthesisNoteSnapshot
     // （连音 / melisma 乘客）。孤儿延音符（被空隙断链）为 false，故读本标志即与宿主一致、不会把前元音误铺进静音。
     // 判据规则宿主独占、可演进；插件读本标志判延续，不自行匹配歌词记号。加性字段、默认 false。
     public bool IsContinuation { get; init; }
-    public required IReadOnlyList<VoicePhoneme> Phonemes { get; init; }
+    // 钉死音素的冻结表项（几何描述符 + per-phoneme 属性值快照）；非钉死（引擎 G2P）note 此列表为空。
+    public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> Phonemes { get; init; }
     public required PropertyObject Properties { get; init; }
 }

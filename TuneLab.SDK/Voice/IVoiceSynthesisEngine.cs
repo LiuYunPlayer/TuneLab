@@ -41,4 +41,11 @@ public interface IVoiceSynthesisEngine
     // 宿主在每次值 commit 时调用并 keyed-diff 到控件树。
     ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context);
+
+    // per-phoneme 自定义属性声明（required；逐音素求值）：复用 note 声明上下文（`IVoiceSynthesisNotePropertyContext`——
+    // 其 NoteView 现带 `Phonemes`），返回与"选中各 note 的音素**扁平展开**（context.Notes 顺序 × 各 note 的 Phonemes 顺序）"
+    // **索引对齐**的 config 列表（list[k] = 第 k 个扁平音素的 schema）。故 schema 可依音素在 note 内的位置 / 邻居 / note 信息
+    // 条件化（如首辅音 vs 核），且天然支持多选 note。**返回空列表 = 所有音素均无属性**；否则长度须 = 扁平音素总数。
+    // 值回灌到钉死音素（合成时经 VoiceSynthesisPhonemeSnapshot.Properties 读取）。属性只存在于钉死音素上（用户数据）。
+    IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
 }

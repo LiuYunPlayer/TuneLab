@@ -146,6 +146,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                         Duration = duration,
                                         StretchWeight = weight,
                                         IsLead = isLead,
+                                        Properties = phoneme.TryGetValue("properties", out var phonemeProps) ? FromJson(phonemeProps) : null,
                                     });
                                 }
                             }
@@ -361,6 +362,9 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 phoneme.Add("duration", phonemeInfo.Duration);
                                 phoneme.Add("stretchWeight", phonemeInfo.StretchWeight);
                                 phoneme.Add("isLead", phonemeInfo.IsLead);
+                                // per-phoneme 引擎自定义属性（空则省略，pay-as-you-go）。
+                                if (phonemeInfo.Properties is { } phonemeProps && phonemeProps.Map.Count > 0)
+                                    phoneme.Add("properties", ToJson(phonemeProps));
 
                                 phonemes.Add(phoneme);
                             }

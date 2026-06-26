@@ -43,7 +43,7 @@ internal static class VoiceSynthesisSnapshotFactory
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
                 IsContinuation = note.IsContinuation,           // 生效延续（相接链）；宿主独占判据，作稳定标志暴露
-                Phonemes = note.Phonemes.Value,                 // 派生 getter 每次新建列表，无活引用
+                Phonemes = CapturePhonemes(proxy.Source),       // 钉死音素：几何描述符 + per-phoneme 属性值快照
                 Properties = proxy.Source.Properties.GetInfo(), // 值拷 PropertyObject
             });
         }
@@ -107,6 +107,22 @@ internal static class VoiceSynthesisSnapshotFactory
             Automations = automations,
             PartProperties = part.Properties.GetInfo(),
         };
+    }
+
+    // 钉死音素物化：几何字段平铺 + per-phoneme 属性值快照。属性 lazy——未编辑过的音素走 HasProperties 闸门直接取
+    // PropertyObject.Empty、不触发物化。非钉死（引擎 G2P）note 的 Phonemes 为空。
+    static IReadOnlyList<VoiceSynthesisPhonemeSnapshot> CapturePhonemes(INote note)
+    {
+        int n = note.Phonemes.Count;
+        var result = new VoiceSynthesisPhonemeSnapshot[n];
+        for (int i = 0; i < n; i++)
+        {
+            var p = note.Phonemes[i];
+            result[i] = new VoiceSynthesisPhonemeSnapshot(
+                p.Symbol.Value, p.Duration.Value, p.StretchWeight.Value, p.IsLead.Value,
+                p.HasProperties ? p.Properties.GetInfo() : PropertyObject.Empty);
+        }
+        return result;
     }
 
     // 按目标轨解析 vibrato 振幅（音高轨用自身振幅，其余查影响表），过滤无影响者。

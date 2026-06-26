@@ -27,16 +27,16 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     IDataProperty<string> Pronunciation { get; }
     DataPropertyObject Properties { get; }
     IDataObjectList<IPhoneme> Phonemes { get; }
-    VoicePhoneme[]? SynthesizedPhonemes { get; set; }
+    SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
     IReadOnlyCollection<string> Pronunciations { get; }
 
     double StartTime => Part.TempoManager.GetTime(this.GlobalStartPos());
     double EndTime => Part.TempoManager.GetTime(this.GlobalEndPos());
 
     // 音素带显示 / 编辑的单一口径（绝对秒，与合成产物同一时间系，已跨 note 去重叠）：
-    // 固定音素用钉死几何，合成音素用引擎回报的绝对位置；**两者都进同一个 VoicePhonemeLayout 推挤窗口**。
+    // 固定音素用钉死几何，合成音素用引擎回报的绝对位置；**两者都进同一个 PhonemeLayout 推挤窗口**。
     // 防御性——清除合成音素的责任虽交给插件，但宿主显示不假设插件守约：即便插件未及时清除 / 未自行去重叠
-    // 合成音素，本算法也把相接 / 重叠的相邻音素去重叠（无重叠时 VoicePhonemeLayout 为 no-op，故守约插件显示不变）。
+    // 合成音素，本算法也把相接 / 重叠的相邻音素去重叠（无重叠时 PhonemeLayout 为 no-op，故守约插件显示不变）。
     // 无内容（合成前 / 乘客被铺过 / 空 note）返回空。
     IReadOnlyList<DisplayPhoneme> DisplayPhonemes
     {
@@ -54,7 +54,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             if (PrevNeighborUnresolved() || NextNeighborUnresolved())
                 return [];
 
-            var window = new List<VoicePhonemeLayoutNote>();
+            var window = new List<PhonemeLayoutNote>();
             var prev = PrevContentNeighbor();
             var next = NextContentNeighbor();
             if (prev != null)
@@ -64,7 +64,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             if (next != null)
                 window.Add(BuildLayoutNote(next));
 
-            var selfTimes = VoicePhonemeLayout.Resolve(window)[baseIndex];
+            var selfTimes = PhonemeLayout.Resolve(window)[baseIndex];
             var list = new DisplayPhoneme[n];
             for (int i = 0; i < n; i++)
             {
@@ -88,7 +88,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // 本 note 钉死音素的核填充终点绝对秒（元音前向铺过乘客 melisma，不封顶、不压缩）：
     // 有延音符乘客时铺到**最后一个相接乘客**的末；无乘客时 = own 末。
     // 用**有效末**（去重叠后，= EffectiveEndTime）——与喂插件的快照同口径（snapshot 走 proxy 的有效末），
-    // 故宿主与插件喂给共享 VoicePhonemeLayout 的 FillEnd 同口径、WYSIWYG 由构造保证（不靠"满末≡有效末"的等价证明）。
+    // 故宿主与插件喂给共享 PhonemeLayout 的 FillEnd 同口径、WYSIWYG 由构造保证（不靠"满末≡有效末"的等价证明）。
     // note 级去重叠（pos/dur-only，钳到下一 note 起点）是**前置**步骤、与音素布局正交；音素布局在其下游、不见原始重叠。
     // （满末与有效末喂进布局其实结果等价：核是弹性吸收者，压缩量 = Σ辅音−available，与核自然长无关 → 与 fillEnd 无关。
     //  取有效末是为构造一致，非功能必需。）
@@ -117,14 +117,14 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // **不**用引擎回报的绝对位置（那是已去重叠压缩的产物；喂给布局会让相接判据把"已压缩到核前"误判成"有空隙"而
     // 跳过压缩）。改用自然几何后合成 note 与钉死 note 在跨 note 推挤里行为一致：拖邻居前辅音时本 note 元音同步压缩。
     // overrideIdx≥0 时本 note 该钉死音素改用 overrideDur（拖拽反解用，不改数据）；核时长恒按填充派生、override 对其无效。
-    private static VoicePhonemeLayoutNote BuildLayoutNote(INote note, int overrideIdx = -1, double overrideDur = 0)
+    private static PhonemeLayoutNote BuildLayoutNote(INote note, int overrideIdx = -1, double overrideDur = 0)
     {
-        IReadOnlyList<VoicePhoneme> phonemes;
+        IReadOnlyList<SynthesizedPhoneme> phonemes;
         if (!note.Phonemes.IsEmpty())
         {
-            var arr = new VoicePhoneme[note.Phonemes.Count];
+            var arr = new SynthesizedPhoneme[note.Phonemes.Count];
             for (int k = 0; k < note.Phonemes.Count; k++)
-                arr[k] = new VoicePhoneme
+                arr[k] = new SynthesizedPhoneme
                 {
                     Symbol = note.Phonemes[k].Symbol.Value,
                     Duration = k == overrideIdx ? overrideDur : note.Phonemes[k].Duration.Value,
@@ -138,7 +138,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         else
             phonemes = [];
 
-        return new VoicePhonemeLayoutNote { FillStart = note.StartTime, FillEnd = note.ForwardFillEnd(), Phonemes = phonemes };
+        return new PhonemeLayoutNote { FillStart = note.StartTime, FillEnd = note.ForwardFillEnd(), Phonemes = phonemes };
     }
 
     // 最近的、带音素内容（钉死或合成）的相邻 note（跨过乘客；落在非乘客的自由/空 note 或边界则无邻居）。
@@ -194,7 +194,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     private (double Start, double End)[] ResolvedRelTimes(int overrideIdx, double overrideDur)
     {
         int n = Phonemes.Count;
-        var window = new List<VoicePhonemeLayoutNote>();
+        var window = new List<PhonemeLayoutNote>();
         var prev = PrevContentNeighbor();
         var next = NextContentNeighbor();
         if (prev != null)
@@ -204,7 +204,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         if (next != null)
             window.Add(BuildLayoutNote(next));
 
-        var selfTimes = VoicePhonemeLayout.Resolve(window)[baseIndex];
+        var selfTimes = PhonemeLayout.Resolve(window)[baseIndex];
         double start = StartTime;
         var result = new (double, double)[n];
         for (int i = 0; i < n; i++)
@@ -217,7 +217,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // 拖拽音素起边界（index = 音素 index 的起点；末边界 index==n 派生不可拖）：把该边界拖到【显示】相对秒 targetRel。
     // · index == L（前置分界线 = 首个非前置音素 = 核起点）：核起点恒为音符头（拍点），不可拖 → no-op。
     // · 其余 index（前置辅音 / 后辅音的起点）：改的是音素 index 的 **时长**——累积布局令相邻音素整体平移（推挤）、核吸收。
-    // 跟手：显示位 = 自然布局经 VoicePhonemeLayout 压缩后的结果，故反解——bisect 被编辑量使该边界的【显示】起点落到 targetRel
+    // 跟手：显示位 = 自然布局经 PhonemeLayout 压缩后的结果，故反解——bisect 被编辑量使该边界的【显示】起点落到 targetRel
     // （显示起点随该量单调变化）。压缩区里被布局钉住时，跟到钉点即止。改 pinned 即触发重合成。
     void DragPinnedBoundary(int index, double targetRel)
     {
@@ -355,7 +355,7 @@ internal static class INoteExtension
 
         // 锁定 = 把合成产物固定为用户数据：直接存各音素的【时长 + 权重 + IsLead】（位置由布局派生、不存）。
         // 辅音(w=0)时长即固定长；核(w>0)时长记录但布局忽略（恒按填充派生），故无需「反压缩」——
-        // 显示侧 VoicePhonemeLayout 会按当前邻居重新去重叠（核重新填充并再让位），与合成同源、常态下不双重压缩。
+        // 显示侧 PhonemeLayout 会按当前邻居重新去重叠（核重新填充并再让位），与合成同源、常态下不双重压缩。
         // 核起点恒在音符头，故无需记录前置分界线偏移。
         foreach (var p in note.SynthesizedPhonemes)
             note.Phonemes.Add(Phoneme.Create(new PhonemeInfo

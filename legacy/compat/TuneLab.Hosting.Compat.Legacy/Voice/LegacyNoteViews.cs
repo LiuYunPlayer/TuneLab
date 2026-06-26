@@ -111,7 +111,10 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         EndTime = Math.Min(note.EndTime, origin.Next is { } next ? next.StartTime.Value : double.PositiveInfinity);
         Properties = Conversion.PropertyConvert.ToLegacy(note.Properties);
         // 时长累积布局；末音素尾用有效末（EndTime，单声部钳位）；核起点恒在音符头。
-        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime, EndTime);
+        // 快照音素几何字段平铺 + per-phoneme 属性，V1 老引擎不需要属性——只取几何重建 SynthesizedPhoneme。
+        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(
+            note.Phonemes.Select(static p => new VVoice.SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight, IsLead = p.IsLead }).ToArray(),
+            StartTime, EndTime);
     }
 
     readonly VVoice.VoiceSynthesisNoteSnapshot mNote;
@@ -124,7 +127,7 @@ internal static class LegacyNoteConvert
     // 「本 note 时长累积布局」解析即可——单声部旧引擎按收到的钉死时序处理，跨 note 辅音簇压缩属新 SDK 精修、对老引擎不必要。
     //   · 前置分界线（核起点）= noteStart；IsLead 从分界线往左累积；核 + 后辅音往右、核(w>0)填充到 noteEndTime（有效末口径）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
-        IReadOnlyList<VVoice.VoicePhoneme> phonemes, double noteStartTime, double noteEndTime)
+        IReadOnlyList<VVoice.SynthesizedPhoneme> phonemes, double noteStartTime, double noteEndTime)
     {
         int n = phonemes.Count;
         if (n == 0)

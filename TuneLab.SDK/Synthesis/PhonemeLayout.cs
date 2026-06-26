@@ -5,7 +5,7 @@ namespace TuneLab.SDK;
 
 // 一个 note 的音素布局输入：几何锚点 + 该 note 的音素描述符（顺序：前置辅音 → 核 → 后辅音，与 IsLead 前缀一致）。
 // 音素位置不传——由布局按时长模型从「核起点 + 标称时长 + IsLead + 权重」派生。
-public readonly struct VoicePhonemeLayoutNote
+public readonly struct PhonemeLayoutNote
 {
     // 填充区间左界 = 核起点 = 音符头（绝对秒）。核从这里往右填充、前置音素(IsLead)从这里往左累积（可越界到 note 之前）。
     public double FillStart { get; init; }
@@ -19,17 +19,17 @@ public readonly struct VoicePhonemeLayoutNote
     public double FillEnd { get; init; }
 
     // 本 note 的音素，顺序 = 前置辅音 → 核 → 后辅音。布局只读其 Duration / StretchWeight / IsLead。
-    public IReadOnlyList<VoicePhoneme> Phonemes { get; init; }
+    public IReadOnlyList<SynthesizedPhoneme> Phonemes { get; init; }
 }
 
 // 一个音素去重叠后的真实时间区间（绝对秒）。Resolve 的返回元素。
-public readonly struct VoicePhonemeTiming
+public readonly struct PhonemeTiming
 {
     public double Start { get; }
     public double End { get; }
     public double Duration => End - Start;
 
-    public VoicePhonemeTiming(double start, double end)
+    public PhonemeTiming(double start, double end)
     {
         Start = start;
         End = end;
@@ -49,7 +49,7 @@ public readonly struct VoicePhonemeTiming
 //
 // 此前布局算法不进 SDK（顾虑"塞进 ABI 逼插件版本对齐"）；现冻结的只是 I/O 形状（数据契约），压缩内部逻辑仍
 // 可宿主侧自由演进——插件运行时绑定宿主的这一份，故随宿主算法演进永不漂移（音频 == 显示，WYSIWYG）。想自定义
-// 音频摆放（交叉淡入等）的引擎可不调，仍按 VoicePhoneme 自由放置；调用方也可不传整段、对任意连续 note 区间成立。
+// 音频摆放（交叉淡入等）的引擎可不调，仍按 SynthesizedPhoneme 自由放置；调用方也可不传整段、对任意连续 note 区间成立。
 //
 // 派生（每 note，自然几何）：
 //   · 核起点 = FillStart；IsLead 音素从核起点往左依次累积各自标称时长（可越界到 note 之前）；
@@ -58,11 +58,11 @@ public readonly struct VoicePhonemeTiming
 //   · 只在相接 / 重叠的 note 边界压缩，左锚 = 前 note 核起点（音符头，恒不动）、右锚 = 后 note 核起点（核不压不动）；
 //   · ① 元音先从尾收缩让位；② 仍超则辅音簇按标称长等比压；退化反序就地塌缩 + 单调钳制兜底。
 //   · note 间有空隙时两侧互不影响（前置辅音可自然探入空隙、不被推挤）。
-public static class VoicePhonemeLayout
+public static class PhonemeLayout
 {
     // 标称时长 + note 几何 → 跨 note 去重叠后的真实绝对时序。
     // 返回与输入同构的交错数组：notes[i].Phonemes[j] 的真实落点 = result[i][j]。
-    public static VoicePhonemeTiming[][] Resolve(IReadOnlyList<VoicePhonemeLayoutNote> notes)
+    public static PhonemeTiming[][] Resolve(IReadOnlyList<PhonemeLayoutNote> notes)
     {
         var segments = new List<Segment>();
         var offsets = new int[notes.Count];
@@ -81,11 +81,11 @@ public static class VoicePhonemeLayout
 
         var resolved = ResolveSegments(segments);
 
-        var result = new VoicePhonemeTiming[notes.Count][];
+        var result = new PhonemeTiming[notes.Count][];
         for (int i = 0; i < notes.Count; i++)
         {
             int count = notes[i].Phonemes?.Count ?? 0;
-            var times = new VoicePhonemeTiming[count];
+            var times = new PhonemeTiming[count];
             for (int k = 0; k < count; k++)
                 times[k] = resolved[offsets[i] + k];
             result[i] = times;
@@ -95,7 +95,7 @@ public static class VoicePhonemeLayout
 
     // 由「时长 + 权重 + IsLead」派生单 note 的自然绝对秒边界（n+1 个，未经跨 note 压缩）：前置音素(IsLead)从核起点
     // (=FillStart)往左累积各自时长；核(w>0)填充剩余空间到 FillEnd（按权重分摊）；后辅音(w=0)用固定时长。位置不存、纯派生。
-    static double[] NaturalBoundaries(VoicePhonemeLayoutNote note)
+    static double[] NaturalBoundaries(PhonemeLayoutNote note)
     {
         var phonemes = note.Phonemes;
         int n = phonemes?.Count ?? 0;
@@ -161,7 +161,7 @@ public static class VoicePhonemeLayout
     //   · 退化重叠（两核起点反序、可用空间为负）：就地塌缩到前 note 核起点；单调钳制兜底。
     // 仅相接 / 重叠的相邻 note 才跨 note 协同。两 note 间有空隙时音素互不影响（后 note 前置辅音可自然探入空隙、显示上与
     // 前 note 重叠，但谁都不被推挤 / 压缩）——固定音素不因邻居在空隙内移动而跳变。
-    static VoicePhonemeTiming[] ResolveSegments(IReadOnlyList<Segment> segments)
+    static PhonemeTiming[] ResolveSegments(IReadOnlyList<Segment> segments)
     {
         int m = segments.Count;
         var rs = new double[m];
@@ -187,9 +187,9 @@ public static class VoicePhonemeLayout
             if (re[i] < rs[i]) re[i] = rs[i];
         }
 
-        var result = new VoicePhonemeTiming[m];
+        var result = new PhonemeTiming[m];
         for (int i = 0; i < m; i++)
-            result[i] = new VoicePhonemeTiming(rs[i], re[i]);
+            result[i] = new PhonemeTiming(rs[i], re[i]);
         return result;
     }
 

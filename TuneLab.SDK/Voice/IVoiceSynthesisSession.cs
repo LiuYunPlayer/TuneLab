@@ -55,7 +55,7 @@ public interface IVoiceSynthesisSession : IDisposable
     // 合成音素（按归属 note 键，每 note 一组 VoicePhoneme，只报标称时长——定位 / 去重叠归宿主）。
     // 引擎自行托管失效——脏 / 合成中的块不应在此报告其 note 的音素（宿主据此留白）。时长模型下无主音素无锚不可定位、
     // 故无「无主音素」契约（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载）。
-    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes { get; }
+    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes { get; }
 
     // —— 状态 / 按段报错（统一时间线）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
