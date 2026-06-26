@@ -18,7 +18,7 @@ namespace TuneLab.UI;
 // 参数区标题栏：既是拖拽改高的把手（空白区拖动），也是合成参数回显轨的显隐工具条。
 // 回显轨是 voice 级扁平只读集合，不入分源的底部 tabbar，故显隐按钮收在这条标题栏里（右对齐）。
 // 复用参数栏的小眼睛图标表显隐：眼睛点亮（config 色）= 可见，眼睛暗（灰白）= 隐藏。
-// 左对齐另置一个波形带显隐开关（声波图标 + 文本，图标点亮=展开 / 暗=收起），与回显轨显隐相互独立。
+// 左对齐另置一个波形带显隐开关（波形条图标 + 文本，图标点亮=展开 / 暗=收起），与回显轨显隐相互独立。
 // 手势共存：按在按钮上 = 切换该显隐（不拖拽）；按在空白区 = 沿用拖拽改高。
 internal class ParameterTitleBar : MovableComponent
 {
@@ -220,7 +220,7 @@ internal class ParameterTitleBar : MovableComponent
         return (labels, chips);
     }
 
-    // 左对齐波形开关的图标/文本/命中区（声波图标 + "Waveform" 文本，命中区含文本宽度并左右内缩）。
+    // 左对齐波形开关的图标/文本/命中区（波形条图标 + "Waveform" 文本，命中区含文本宽度并左右内缩）。
     (Rect IconRect, double TextX, string Text, Rect HitRect) WaveformToggle()
     {
         string text = "Waveform".Tr(TC.Document);
@@ -237,7 +237,7 @@ internal class ParameterTitleBar : MovableComponent
         uint key = color.ToUInt32();
         if (!mWaveformIconCache.TryGetValue(key, out var image))
         {
-            image = GUI.Assets.Audio.GetImage(color);
+            image = GUI.Assets.Waveform.GetImage(color);
             mWaveformIconCache[key] = image;
         }
         return image;
