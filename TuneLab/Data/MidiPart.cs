@@ -435,7 +435,7 @@ internal class MidiPart : Part, IMidiPart
     {
         DisposeSynthesisPipeline();
         // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
-        // 必须在建会话之前填好——否则会话构造期经 TryGetAutomation 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
+        // 必须在建会话之前填好——否则会话构造期经 context.Automations 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
         mSource.RefreshDeclarations(BuildPartPropertyContext());
         if (mSource.Kind == SourceKind.Voice)
         {

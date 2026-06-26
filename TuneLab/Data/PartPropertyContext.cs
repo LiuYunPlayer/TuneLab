@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.SDK;
@@ -12,25 +11,27 @@ namespace TuneLab.Data;
 // （covariance + 显式接口实现）——这是宿主内部复用，不是 SDK 公共契约。
 
 // 单条 part 的只读值视图：同时实现 voice / instrument 两域的 part 视图。
-internal sealed class PartContext(IMidiPart part) : IVoicePartView, IInstrumentPartView
+internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IInstrumentSynthesisPartView
 {
-    public string VoiceId => part.SoundSource.ID;          // IVoicePartView
+    public string VoiceId => part.SoundSource.ID;          // IVoiceSynthesisPartView
     public string InstrumentId => part.SoundSource.ID;     // IInstrumentPartView（同一底层音源 id）
     public PropertyObject PartProperties => part.Properties.GetInfo();
 
-    IReadOnlyList<IVoiceNoteView> IVoicePartView.Notes => Notes;
-    IReadOnlyList<IInstrumentNoteView> IInstrumentPartView.Notes => Notes;
+    IReadOnlyList<IVoiceSynthesisNoteView> IVoiceSynthesisPartView.Notes => Notes;
+    IReadOnlyList<IInstrumentSynthesisNoteView> IInstrumentSynthesisPartView.Notes => Notes;
     IReadOnlyList<PartNote> Notes => mNotes ??= part.Notes.Select(n => new PartNote(n)).ToList();
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out IAutomationEvaluator automation)
+    // 已声明 automation 轨当前曲线求值器只读 map：轨集 = 当前音源引擎声明的 AutomationConfigs；
+    // 求值器无状态、每次读现建（声明面是调用级一次性求值，不留存）。
+    public IReadOnlyMap<string, IAutomationEvaluator> Automations
     {
-        if (string.IsNullOrEmpty(key) || !part.SoundSource.AutomationConfigs.ContainsKey(key))
+        get
         {
-            automation = null;
-            return false;
+            var map = new Map<string, IAutomationEvaluator>();
+            foreach (var kvp in part.SoundSource.AutomationConfigs)
+                map.Add(kvp.Key.Id, new Evaluator(part, kvp.Key.Id));
+            return map;
         }
-        automation = new Evaluator(part, key);
-        return true;
     }
 
     List<PartNote>? mNotes;
@@ -48,32 +49,32 @@ internal sealed class PartContext(IMidiPart part) : IVoicePartView, IInstrumentP
     }
 
     // part 数据 note：同时满足 voice（带 Lyric）/ instrument（无 Lyric，多出的 Lyric 成员对其接口不可见）两域。EndTime 取原始满末。
-    internal sealed class PartNote(INote note) : IVoiceNoteView, IInstrumentNoteView
+    internal sealed class PartNote(INote note) : IVoiceSynthesisNoteView, IInstrumentSynthesisNoteView
     {
         public double StartTime => note.StartTime;
         public double EndTime => note.EndTime;     // = TempoManager.GetTime(GlobalEndPos)，原始满末
         public int Pitch => note.Pitch.Value;
-        public string Lyric => note.Lyric.Value;   // 仅 IVoiceNoteView 暴露
+        public string Lyric => note.Lyric.Value;   // 仅 IVoiceSynthesisNoteView 暴露
         public PropertyObject Properties => note.Properties.GetInfo();
     }
 }
 
 // part 级声明壳（多选 part；单选 = 1 个、无选中 = 空）：同时满足两域（covariance over IReadOnlyList<PartContext>）。
-internal sealed class PartPropertyContext(IReadOnlyList<PartContext> parts) : IVoicePartPropertyContext, IInstrumentPartPropertyContext
+internal sealed class PartPropertyContext(IReadOnlyList<PartContext> parts) : IVoiceSynthesisPartPropertyContext, IInstrumentSynthesisPartPropertyContext
 {
     public static readonly PartPropertyContext Empty = new([]);
-    IReadOnlyList<IVoicePartView> IVoicePartPropertyContext.Parts => parts;
-    IReadOnlyList<IInstrumentPartView> IInstrumentPartPropertyContext.Parts => parts;
+    IReadOnlyList<IVoiceSynthesisPartView> IVoiceSynthesisPartPropertyContext.Parts => parts;
+    IReadOnlyList<IInstrumentSynthesisPartView> IInstrumentSynthesisPartPropertyContext.Parts => parts;
 
     public static PartPropertyContext Single(IMidiPart part) => new([new PartContext(part)]);
 }
 
 // note 级声明壳（单 part、多选其下 note）：同时满足两域。
 internal sealed class NotePropertyContext(PartContext part, IReadOnlyList<PartContext.PartNote> notes)
-    : IVoiceNotePropertyContext, IInstrumentNotePropertyContext
+    : IVoiceSynthesisNotePropertyContext, IInstrumentSynthesisNotePropertyContext
 {
-    IVoicePartView IVoiceNotePropertyContext.Part => part;
-    IReadOnlyList<IVoiceNoteView> IVoiceNotePropertyContext.Notes => notes;
-    IInstrumentPartView IInstrumentNotePropertyContext.Part => part;
-    IReadOnlyList<IInstrumentNoteView> IInstrumentNotePropertyContext.Notes => notes;
+    IVoiceSynthesisPartView IVoiceSynthesisNotePropertyContext.Part => part;
+    IReadOnlyList<IVoiceSynthesisNoteView> IVoiceSynthesisNotePropertyContext.Notes => notes;
+    IInstrumentSynthesisPartView IInstrumentSynthesisNotePropertyContext.Part => part;
+    IReadOnlyList<IInstrumentSynthesisNoteView> IInstrumentSynthesisNotePropertyContext.Notes => notes;
 }

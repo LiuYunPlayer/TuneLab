@@ -14,7 +14,7 @@ internal static class InstrumentsManager
     // 内建空引擎显式注册（编进宿主、无 description.json）。空引擎(type="")是无音源 part 的回退。
     public static void LoadBuiltIn()
     {
-        RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyInstrumentEngine());
+        RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyInstrumentSynthesisEngine());
     }
 
     public static void Destroy()
@@ -28,7 +28,7 @@ internal static class InstrumentsManager
     // type 是不可变身份 id（工程序列化引用），【跨包可重名】；displayName 仅供 UI 展示、可本地化。
     // packageId 是来源插件包的反向域名 id（内建为 (built-in)）。
     // 【冲突消解】不同包同 type 均并存登记（用户在矩阵选活实现）；【同包同 type 只留首个】（包内重复属打包错误，warn 后忽略）。
-    public static void RegisterEngine(string packageId, string type, string displayName, IInstrumentEngine engine)
+    public static void RegisterEngine(string packageId, string type, string displayName, IInstrumentSynthesisEngine engine)
     {
         if (!mInstrumentEngines.TryGetValue(type, out var list))
         {
@@ -89,7 +89,7 @@ internal static class InstrumentsManager
     }
 
     // 创建合成会话；引擎不可用或 id 未知时回退空音源会话（行为等价于无音源 part）。instrumentId 由 context.InstrumentId 承载。
-    public static IInstrumentSession CreateSession(string type, IInstrumentContext context)
+    public static IInstrumentSynthesisSession CreateSession(string type, IInstrumentSynthesisContext context)
     {
         var engine = GetInitedEngine(type);
         if (engine != null && engine.InstrumentSourceInfos.ContainsKey(context.InstrumentId))
@@ -109,21 +109,21 @@ internal static class InstrumentsManager
     }
 
     // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明）；instrumentId 由 context 内各 part 的 InstrumentId 承载。——
-    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IInstrumentPartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IInstrumentSynthesisPartPropertyContext context)
         => Declare(type, InstrumentIdOf(context), e => e.GetAutomationConfigs(context));
 
-    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IInstrumentPartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IInstrumentSynthesisPartPropertyContext context)
         => Declare(type, InstrumentIdOf(context), e => e.GetSynthesizedParameterConfigs(context));
 
-    public static ObjectConfig GetPartPropertyConfig(string type, IInstrumentPartPropertyContext context)
+    public static ObjectConfig GetPartPropertyConfig(string type, IInstrumentSynthesisPartPropertyContext context)
         => Declare(type, InstrumentIdOf(context), e => e.GetPartPropertyConfig(context));
 
-    public static ObjectConfig GetNotePropertyConfig(string type, IInstrumentNotePropertyContext context)
+    public static ObjectConfig GetNotePropertyConfig(string type, IInstrumentSynthesisNotePropertyContext context)
         => Declare(type, context.Part.InstrumentId, e => e.GetNotePropertyConfig(context));
 
-    static string InstrumentIdOf(IInstrumentPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].InstrumentId : string.Empty;
+    static string InstrumentIdOf(IInstrumentSynthesisPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].InstrumentId : string.Empty;
 
-    static T Declare<T>(string type, string instrumentId, Func<IInstrumentEngine, T> get)
+    static T Declare<T>(string type, string instrumentId, Func<IInstrumentSynthesisEngine, T> get)
     {
         var empty = GetInitedEngine(string.Empty)!;   // 空引擎注册于内建加载、Init 恒成功。
         var engine = GetInitedEngine(type);
@@ -153,7 +153,7 @@ internal static class InstrumentsManager
     }
 
     // 该身份当前活实现的引擎实例（按用户选择 / 确定性默认解析），惰性 Init；未注册 / Init 失败返回 null。
-    static IInstrumentEngine? GetInitedEngine(string type)
+    static IInstrumentSynthesisEngine? GetInitedEngine(string type)
     {
         var status = ActiveStatus(type);
         if (status == null)
@@ -187,15 +187,15 @@ internal static class InstrumentsManager
 
     class InstrumentEngineStatus
     {
-        public IInstrumentEngine? Engine => IsInited ? mInstrumentEngine : null;
+        public IInstrumentSynthesisEngine? Engine => IsInited ? mInstrumentEngine : null;
         // 未经 Init 的引擎实例（仅供读扩展设置 schema / 回喂——这些须先于 Init 可达）。
-        public IInstrumentEngine RawEngine => mInstrumentEngine;
+        public IInstrumentSynthesisEngine RawEngine => mInstrumentEngine;
         public string DisplayName { get; }
         public string PackageId { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public InstrumentEngineStatus(IInstrumentEngine engine, string displayName, string packageId)
+        public InstrumentEngineStatus(IInstrumentSynthesisEngine engine, string displayName, string packageId)
         {
             mInstrumentEngine = engine;
             DisplayName = displayName;
@@ -219,7 +219,7 @@ internal static class InstrumentsManager
             return mIsInited;
         }
 
-        IInstrumentEngine mInstrumentEngine;
+        IInstrumentSynthesisEngine mInstrumentEngine;
         bool mIsInited = false;
     }
 

@@ -674,20 +674,27 @@ internal sealed class EffectGraph : IDisposable
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
         public event Action? Committed;
 
-        public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
+        // 已声明连续 automation 轨只读 map：轨集 = effect 声明的 AutomationConfigs 中非分段者；
+        // 代理按 key 缓存、缺则补建；每次读重建 map 以反映当前声明集。
+        public IReadOnlyMap<string, ISynthesisAutomation> Automations
         {
-            if (!mEffect.AutomationConfigs.TryGetValue(key, out var config) || config.IsPiecewise)
+            get
             {
-                automation = null;
-                return false;
+                var map = new Map<string, ISynthesisAutomation>();
+                foreach (var kvp in mEffect.AutomationConfigs)
+                {
+                    if (kvp.Value.IsPiecewise)
+                        continue;
+                    string key = kvp.Key.Id;
+                    if (!mAutomationProxies.TryGetValue(key, out var proxy))
+                    {
+                        proxy = new AutomationProxy(mPart, mEffect, key);
+                        mAutomationProxies.Add(key, proxy);
+                    }
+                    map.Add(key, proxy);
+                }
+                return map;
             }
-            if (!mAutomationProxies.TryGetValue(key, out var proxy))
-            {
-                proxy = new AutomationProxy(mPart, mEffect, key);
-                mAutomationProxies.Add(key, proxy);
-            }
-            automation = proxy;
-            return true;
         }
 
         public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)

@@ -13,7 +13,7 @@ internal static class VoicesManager
     // 内建声源引擎显式注册（编进宿主、无 description.json）。空引擎(type="")是无声源 part 的回退。
     public static void LoadBuiltIn()
     {
-        RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyVoiceEngine());
+        RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyVoiceSynthesisEngine());
     }
 
     public static void Destroy()
@@ -29,7 +29,7 @@ internal static class VoicesManager
     // type 是不可变身份 id（工程序列化引用），【跨包可重名】；displayName 仅供 UI 展示、可本地化。
     // packageId 是来源插件包的反向域名 id（内建为 (built-in)）——身份组按它区分各包实现，并供扩展设置按包分桶。
     // 【冲突消解】不同包同 type 均并存登记（用户在矩阵选活实现）；【同包同 type 只留首个】（包内重复实现属打包错误，warn 后忽略）。
-    public static void RegisterEngine(string packageId, string type, string displayName, IVoiceEngine engine)
+    public static void RegisterEngine(string packageId, string type, string displayName, IVoiceSynthesisEngine engine)
     {
         if (!mVoiceEngines.TryGetValue(type, out var list))
         {
@@ -91,7 +91,7 @@ internal static class VoicesManager
     }
 
     // 创建合成会话；引擎不可用或 id 未知时回退空声源会话（行为等价于无声源 part）。voiceId 由 context.VoiceId 承载。
-    public static IVoiceSession CreateSession(string type, IVoiceContext context)
+    public static IVoiceSynthesisSession CreateSession(string type, IVoiceSynthesisContext context)
     {
         var engine = GetInitedEngine(type);
         if (engine != null && engine.VoiceSourceInfos.ContainsKey(context.VoiceId))
@@ -113,22 +113,22 @@ internal static class VoicesManager
     // —— 声明类 config 求值（不依赖会话实例：宿主在「建会话之前」即可填好声明，故无构造期时序陷阱）——
     // 引擎不可用 / id 未知 → 回退空引擎；插件求值抛异常 → 记日志并回退空引擎结果（声明每次参数 commit 都调，
     // 不能让一个烂实现拖垮 UI）。voiceId 由 context 内各 part 的 VoiceId 承载（与 part 真值同为纯函数输入）。
-    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IVoicePartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(string type, IVoiceSynthesisPartPropertyContext context)
         => Declare(type, VoiceIdOf(context), e => e.GetAutomationConfigs(context));
 
-    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IVoicePartPropertyContext context)
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(string type, IVoiceSynthesisPartPropertyContext context)
         => Declare(type, VoiceIdOf(context), e => e.GetSynthesizedParameterConfigs(context));
 
-    public static ObjectConfig GetPartPropertyConfig(string type, IVoicePartPropertyContext context)
+    public static ObjectConfig GetPartPropertyConfig(string type, IVoiceSynthesisPartPropertyContext context)
         => Declare(type, VoiceIdOf(context), e => e.GetPartPropertyConfig(context));
 
-    public static ObjectConfig GetNotePropertyConfig(string type, IVoiceNotePropertyContext context)
+    public static ObjectConfig GetNotePropertyConfig(string type, IVoiceSynthesisNotePropertyContext context)
         => Declare(type, context.Part.VoiceId, e => e.GetNotePropertyConfig(context));
 
     // 路由 / 校验用声库 id：多选 part 取首个（phase A 各调用点恒单 part；跨引擎多选由上游不调声明拦下）。
-    static string VoiceIdOf(IVoicePartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
+    static string VoiceIdOf(IVoiceSynthesisPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 
-    static T Declare<T>(string type, string voiceId, Func<IVoiceEngine, T> get)
+    static T Declare<T>(string type, string voiceId, Func<IVoiceSynthesisEngine, T> get)
     {
         var empty = GetInitedEngine(string.Empty)!;   // 空引擎注册于内建加载、Init 恒成功。
         var engine = GetInitedEngine(type);
@@ -158,7 +158,7 @@ internal static class VoicesManager
     }
 
     // 该身份当前活实现的引擎实例（按用户选择 / 确定性默认解析），惰性 Init；未注册 / Init 失败返回 null。
-    static IVoiceEngine? GetInitedEngine(string type)
+    static IVoiceSynthesisEngine? GetInitedEngine(string type)
     {
         var status = ActiveStatus(type);
         if (status == null)
@@ -192,15 +192,15 @@ internal static class VoicesManager
 
     class VoiceEngineStatus
     {
-        public IVoiceEngine? Engine => IsInited ? mVoiceEngine : null;
+        public IVoiceSynthesisEngine? Engine => IsInited ? mVoiceEngine : null;
         // 未经 Init 的引擎实例（仅供读扩展设置 schema/回喂——这些须先于 Init 可达）。
-        public IVoiceEngine RawEngine => mVoiceEngine;
+        public IVoiceSynthesisEngine RawEngine => mVoiceEngine;
         public string DisplayName { get; }
         public string PackageId { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public VoiceEngineStatus(IVoiceEngine engine, string displayName, string packageId)
+        public VoiceEngineStatus(IVoiceSynthesisEngine engine, string displayName, string packageId)
         {
             mVoiceEngine = engine;
             DisplayName = displayName;
@@ -224,7 +224,7 @@ internal static class VoicesManager
             return mIsInited;
         }
 
-        IVoiceEngine mVoiceEngine;
+        IVoiceSynthesisEngine mVoiceEngine;
         bool mIsInited = false;
     }
 

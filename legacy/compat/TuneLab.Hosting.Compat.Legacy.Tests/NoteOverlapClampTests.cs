@@ -93,14 +93,14 @@ public class NoteOverlapClampTests
 
     // —— 脚手架 ——
 
-    static LiveNoteView Live(IVoiceNote origin)
+    static LiveNoteView Live(IVoiceSynthesisNote origin)
     {
         // propertiesReader 仅在访问 .Properties 时调用；钳位路径不触及，给个合法空对象即可。
         var cache = new LiveNoteViewCache(_ => new LProp.PropertyObject(new LStruct.Map<string, LProp.PropertyValue>()));
         return cache.Wrap(origin);
     }
 
-    static VoiceNoteSnapshot Snap(double start, double end) => new()
+    static VoiceSynthesisNoteSnapshot Snap(double start, double end) => new()
     {
         StartTime = start,
         EndTime = end,
@@ -110,7 +110,7 @@ public class NoteOverlapClampTests
         Properties = PropertyObject.Empty,
     };
 
-    sealed class FakeNote(double start, double end) : IVoiceNote
+    sealed class FakeNote(double start, double end) : IVoiceSynthesisNote
     {
         public IReadOnlyNotifiableProperty<double> StartTime { get; } = new Const<double>(start);
         public IReadOnlyNotifiableProperty<double> EndTime { get; } = new Const<double>(end);
@@ -119,8 +119,8 @@ public class NoteOverlapClampTests
         public IReadOnlyNotifiableProperty<IReadOnlyList<VoicePhoneme>> Phonemes { get; } = new Const<IReadOnlyList<VoicePhoneme>>([]);
         public bool IsContinuation => false;
         public IReadOnlyNotifiablePropertyObject Properties => null!; // 钳位路径不触及
-        public IVoiceNote? Next { get; set; }
-        public IVoiceNote? Last { get; set; }
+        public IVoiceSynthesisNote? Next { get; set; }
+        public IVoiceSynthesisNote? Last { get; set; }
     }
 
     sealed class Const<T>(T value) : IReadOnlyNotifiableProperty<T>

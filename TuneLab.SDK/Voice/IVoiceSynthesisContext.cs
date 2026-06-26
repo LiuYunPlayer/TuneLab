@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using TuneLab.Foundation;
+﻿using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
@@ -20,9 +19,9 @@ namespace TuneLab.SDK;
 // 是宿主乐谱内部表示、不外露。tempo 变化无独立信号——它被分解为具体变更：note 边界秒值变 →
 // 其 StartTime/EndTime.Modified 触发；automation 秒映射移位 → 宿主在批量括号内对受影响轨触发
 // 全区间 RangeModified。插件用既有订阅机制即收到，无需"时基变了"这种元信号。
-public interface IVoiceContext
+public interface IVoiceSynthesisContext
 {
-    // 选定声库（= IVoiceEngine.VoiceSourceInfos 的 key）：context 生命内**不可变**（换声库 = 宿主重建 context + 会话），
+    // 选定声库（= IVoiceSynthesisEngine.VoiceSourceInfos 的 key）：context 生命内**不可变**（换声库 = 宿主重建 context + 会话），
     // 故烘入 context、CreateSession 不再单列 voiceId。会话面本就是会话级生命周期，带身份不引入额外耦合。
     string VoiceId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
@@ -31,9 +30,14 @@ public interface IVoiceContext
     // 排序契约（全序、确定性）：StartTime 升序 → 同起点 EndTime 降序（长 note 在前）→
     // 再同则保持宿主插入序。note 可重叠（和弦）——序列直传原始可重叠 note，"后盖前"等
     // 去重叠是插件自己的责任（单声部插件按需截断，和弦插件原味消费重叠）。
-    IReadOnlyNotifiableLinkedList<IVoiceNote> Notes { get; }
+    IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
-    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation);
+
+    // 已声明 automation 轨（引擎经 GetAutomationConfigs 声明的，按 key）：只读 map，可枚举可点取
+    // （插件不必重跑声明逻辑去探有哪些轨；跨进程也由宿主一次枚举物化送达，免反复回调）。与 Pitch/
+    // PitchDeviation 两条固定通道并列、互不相属。轨集随声明动态变（config 是当前值的纯函数）——取用前
+    // 重读本属性即当前集；订阅各轨 ISynthesisAutomation.RangeModified 收区间失效。
+    IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
     // 音高的两个平行通道（绝对约束 + 相对偏差）：
     // Pitch = 用户钉死的绝对音高曲线（分段型：有值=钉死、NaN=插件自由发挥）；
@@ -47,11 +51,11 @@ public interface IVoiceContext
     // 插件自由圈定，返回的 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。
     // 仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用；一次合成可按需拉多份
     // （如音素级小窗 + 音频级大窗）。物化/版本缓存/记账留在宿主实现内。
-    VoiceSnapshot GetSnapshot(IReadOnlyList<IVoiceNote> notes, double startTime, double endTime);
+    VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime);
 
     // 音频产物的宿主分配工厂：插件合成产出音频时申请一个段握柄，写入、Commit() 标完成，
     // 重分片（或改长度/位置）时 Dispose() 释放重建。宿主据此持有段登记表、驱动下游 effect 链按段
-    // 重渲染（段是音频承载 + effect 失效单元，与 IVoiceSession.GetStatus 的 UI 状态段解耦，两套分区可不同）。
+    // 重渲染（段是音频承载 + effect 失效单元，与 IVoiceSynthesisSession.GetStatus 的 UI 状态段解耦，两套分区可不同）。
     // 仅数据线程调用；sampleOffset = 全局起始采样位置（native 率，全局 0 时刻 = 采样点 0），sampleCount = 段长（采样数），
     // sampleRate = 该段 native 采样率（插件传入，宿主据此解释/重采样；可逐段不同）。
     IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate);

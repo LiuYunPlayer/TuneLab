@@ -24,14 +24,14 @@ public static class LegacyCompatEntry
     //   packagePath     —— 包文件夹（= ALC / 安装单位）。
     //   assemblies      —— description 显式声明的程序集（相对名）；空 → 扫目录全部 *.dll。
     //   addImporter/addExporter —— (扩展名, V1 IImportFormat/IExportFormat 适配器)。
-    //   addVoiceEngine  —— (引擎 type, V1 IVoiceEngine 适配器, enginePath=包目录)。
+    //   addVoiceEngine  —— (引擎 type, V1 IVoiceSynthesisEngine 适配器, enginePath=包目录)。
     // 返回是否注册到任何插件；全程优雅降级，单个程序集/类型失败不影响其余、不抛给宿主。
     public static bool TryLoad(
         string packagePath,
         string[] assemblies,
         Action<string, VFmt.IImportFormat> addImporter,
         Action<string, VFmt.IExportFormat> addExporter,
-        Action<string, VVoice.IVoiceEngine, string> addVoiceEngine,
+        Action<string, VVoice.IVoiceSynthesisEngine, string> addVoiceEngine,
         Action<string> log)
     {
         // 预热冻结契约程序集：主程序对它们无 ProjectReference（不在 Default ALC 的 TPA），
@@ -136,7 +136,7 @@ public static class LegacyCompatEntry
     static bool TryVoice(
         Type type,
         string packagePath,
-        Action<string, VVoice.IVoiceEngine, string> addVoiceEngine,
+        Action<string, VVoice.IVoiceSynthesisEngine, string> addVoiceEngine,
         HashSet<string> seenVoice,
         Action<string> log)
     {

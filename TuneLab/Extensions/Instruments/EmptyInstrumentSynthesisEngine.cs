@@ -9,8 +9,8 @@ namespace TuneLab.Extensions.Instruments;
 
 // 空音源引擎（type = ""）：无音源 part 的回退实现。会话永远报告"窗内无待合成"，
 // 产物全空——part 不参与合成调度、UI 无状态带，行为等价于静音。
-// 与 EmptyVoiceEngine 同构，差异仅 instrument 接口面（无 DefaultLyric / 音素 / 音高回显）。
-internal class EmptyInstrumentEngine : IInstrumentEngine
+// 与 EmptyVoiceSynthesisEngine 同构，差异仅 instrument 接口面（无 DefaultLyric / 音素 / 音高回显）。
+internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
 {
     public IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos => new OrderedMap<string, InstrumentSourceInfo>() { { string.Empty, mInstrumentSourceInfo } };
 
@@ -18,18 +18,18 @@ internal class EmptyInstrumentEngine : IInstrumentEngine
 
     public void Destroy() { }
 
-    public IInstrumentSession CreateSession(IInstrumentContext context)
+    public IInstrumentSynthesisSession CreateSession(IInstrumentSynthesisContext context)
     {
         return new EmptySession();
     }
 
     // 声明（引擎层、全空）：无音源 part 无轨 / 无面板。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentPartPropertyContext context) => mAutomationConfigs;
-    public ObjectConfig GetPartPropertyConfig(IInstrumentPartPropertyContext context) => mEmptyConfig;
-    public ObjectConfig GetNotePropertyConfig(IInstrumentNotePropertyContext context) => mEmptyConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentSynthesisPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentSynthesisPartPropertyContext context) => mAutomationConfigs;
+    public ObjectConfig GetPartPropertyConfig(IInstrumentSynthesisPartPropertyContext context) => mEmptyConfig;
+    public ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext context) => mEmptyConfig;
 
-    class EmptySession : IInstrumentSession
+    class EmptySession : IInstrumentSynthesisSession
     {
         public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
 

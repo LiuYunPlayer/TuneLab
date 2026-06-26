@@ -20,7 +20,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     // 状态/产物有更新（已 marshal 到数据线程），宿主 UI 收到直接刷新；区域信息看 GetStatus()。
     public event Action? StatusChanged;
 
-    public IVoiceSession Session => mSession;
+    public IVoiceSynthesisSession Session => mSession;
     public bool IsBusy => mIsBusy;
 
     // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。
@@ -216,7 +216,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     readonly MidiPart mPart;
     readonly SynchronizationContext mSyncContext;
     readonly VoiceSynthesisContext mContext;
-    readonly IVoiceSession mSession;
+    readonly IVoiceSynthesisSession mSession;
     readonly Action mOnPhonemesChanged;
     readonly Action mOnParametersChanged;
     readonly Action mOnPitchChanged;

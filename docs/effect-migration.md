@@ -388,9 +388,9 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **format / voice / effect 优先级：format 与 voice 并行（effect 无老插件）**：
 - effect 是新概念、**无老插件**，compat 不含 effect 路径。
-- 用户定 **format 与 voice 并行**推进。**依赖张力（如实记录，不掩盖）**：Format 路径可**立即完整落地**（effect 参考 `FormatConverter` 224 行已全实现，目标接口 `SDK.Format` 在 #7 已冻结）；**Voice 适配器的目标面依赖 #11** 定下的新 `IVoiceEngine`/`ISynthesis*` 形状（effect 参考 voice 路径多为 `NotImplementedException` 正因此）。故"并行"的可落地含义 = Legacy 侧源码冻结 + 适配器骨架与 Format **同步起步**，但 Voice 适配器**填实**被 #11 接口冻结**门控**；#11 一旦定面即补齐，按 §三.15 加性不变量不返工。
+- 用户定 **format 与 voice 并行**推进。**依赖张力（如实记录，不掩盖）**：Format 路径可**立即完整落地**（effect 参考 `FormatConverter` 224 行已全实现，目标接口 `SDK.Format` 在 #7 已冻结）；**Voice 适配器的目标面依赖 #11** 定下的新 `IVoiceSynthesisEngine`/`ISynthesis*` 形状（effect 参考 voice 路径多为 `NotImplementedException` 正因此）。故"并行"的可落地含义 = Legacy 侧源码冻结 + 适配器骨架与 Format **同步起步**，但 Voice 适配器**填实**被 #11 接口冻结**门控**；#11 一旦定面即补齐，按 §三.15 加性不变量不返工。
 
-> **#10 修订（松绑 #11 门控）**：上述"Voice 适配器被 #11 门控"的前提**不成立**——它误用了 effect 分支那套半成品 voice SDK（满是 `NotImplementedException`），而 **#7 取的是 master 的完整 voice 接口**并作为 ABI 地板冻结。经核验，现有 `SDK.Voice`（`IVoiceEngine`/`IVoiceSource`/`ISynthesisData`/`ISynthesisNote`/`ISynthesisTask`/`SynthesisResult`）**完整无占位**，且 voice 与 effect 是独立域（#11 做 effect 链/dirty/渲染管线接入，不改 voice 插件契约签名）。故**敲定：Voice 适配器以现有 `SDK.Voice` 为稳定适配目标，与 Format 真正并行落地，不再门控于 #11**；即便将来 voice 接口加成员，§三.15 加性不变量保证适配器不返工。
+> **#10 修订（松绑 #11 门控）**：上述"Voice 适配器被 #11 门控"的前提**不成立**——它误用了 effect 分支那套半成品 voice SDK（满是 `NotImplementedException`），而 **#7 取的是 master 的完整 voice 接口**并作为 ABI 地板冻结。经核验，现有 `SDK.Voice`（`IVoiceSynthesisEngine`/`IVoiceSource`/`ISynthesisData`/`ISynthesisNote`/`ISynthesisTask`/`SynthesisResult`）**完整无占位**，且 voice 与 effect 是独立域（#11 做 effect 链/dirty/渲染管线接入，不改 voice 插件契约签名）。故**敲定：Voice 适配器以现有 `SDK.Voice` 为稳定适配目标，与 Format 真正并行落地，不再门控于 #11**；即便将来 voice 接口加成员，§三.15 加性不变量保证适配器不返工。
 
 **collectible / 热卸载触发条件（呼应 §三.15 留给 #9 的判定）**：
 - 野外 voice 引擎**确实捆绑冲突第三方依赖**（各自 ONNX/原生运行时版本）→ 坐实 **per-plugin ALC 是必要而非可选优化**。但依赖冲突由**非 collectible 的 per-plugin ALC 已根除**，**不构成 collectible 触发**。
@@ -430,7 +430,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **引用策略：反射加载、零编译依赖（用户定，强于文档原设想）**。主程序对 Compat.Legacy 与 legacy SDK **无任何 ProjectReference**——编译期连 Compat 的公开 API 都看不到（探针验证：主程序 `using TuneLab.Base` 报 CS0234）。接入三段解耦：
 - ExtensionManager 经 `LegacyLoadHook`（`Func`，运行时设）委托，对 Compat 零编译认知。
-- 启动时 `LegacyCompatLoader.Wire()` 反射 `Assembly.LoadFrom` 加载 `TuneLab.Hosting.Compat.Legacy.dll`，取 `LegacyCompatEntry.TryLoad`，注入**注册委托**装上 hook。委托参数全是共享契约类型（`IImportFormat`/`IExportFormat`/`IVoiceEngine`，跨 Default ALC 同一 Type），反射 Invoke 实参精确匹配。
+- 启动时 `LegacyCompatLoader.Wire()` 反射 `Assembly.LoadFrom` 加载 `TuneLab.Hosting.Compat.Legacy.dll`，取 `LegacyCompatEntry.TryLoad`，注入**注册委托**装上 hook。委托参数全是共享契约类型（`IImportFormat`/`IExportFormat`/`IVoiceSynthesisEngine`，跨 Default ALC 同一 Type），反射 Invoke 实参精确匹配。
 - 注册反转：Compat 够不到 `internal` managers，故 host 实现注册委托（转发 `FormatsManager.RegisterImporter`/`RegisterExporter`、`VoicesManager.RegisterEngine`）传入；Compat 往里"推"已包成 V1 适配器的老插件。
 - 部署：`TuneLab.csproj` 加 MSBuild target（非 ProjectReference）构建 Compat + 拷其产物（Compat.dll + 三冻结 dll）进输出；V1 SDK 引用 `Private=false` 不重复拷。
 
@@ -648,7 +648,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **性能：不做 host 记忆化。** commit 语义决定"每次触发必然伴随至少一个值变化"→ 记忆化命中前提（触发但输入没变）几乎不成立；唯一可能命中的"沿链传播但下游不依赖该字段"需**依赖追踪**才能精确判断，而那个已被否决（保持 `f` 黑盒纯函数），粗粒度整 context 深比较救不了。故记忆化是净负担（每次白做一次 `PropertyObject` 深比较），砍掉。性能防线就是 commit 触发的低频 + `f` 契约。
 
-**多选 = 传成员列表、`f` 调一次（方案 A 的修订）。** `IVoicePartPropertyContext.PartProperties` / `IVoiceNotePropertyContext.NoteProperties` 是**各选中成员的稀疏快照列表**（单选 = 1 个、无选中 = 空），仍只调一次 `f`（O(选中数) 遍历、无 N 次调用，避开「逐 note 算 config」的开销）。不在乎多选的插件 `PropertyObjectExtensions.Merge(context.XxxProperties)` 把列表还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`），按单选写法处理；需要逐成员真值的插件（如把不等长数组 seed 合成对）直接遍历列表。
+**多选 = 传成员列表、`f` 调一次（方案 A 的修订）。** `IVoiceSynthesisPartPropertyContext.PartProperties` / `IVoiceSynthesisNotePropertyContext.NoteProperties` 是**各选中成员的稀疏快照列表**（单选 = 1 个、无选中 = 空），仍只调一次 `f`（O(选中数) 遍历、无 N 次调用，避开「逐 note 算 config」的开销）。不在乎多选的插件 `PropertyObjectExtensions.Merge(context.XxxProperties)` 把列表还原成单个三态 `PropertyObject`（同 key 全等给值、不等/部分缺给 `Multiple`），按单选写法处理；需要逐成员真值的插件（如把不等长数组 seed 合成对）直接遍历列表。
 > 原始设计是「宿主先合并成一个三态 `PropertyObject` 再喂 `f`」，但这把 `Multiple` 哨兵强塞进插件契约、且 seed 来源字段多值时塌成空（见 §三.29 末）。改为传列表 + 公共 `PropertyObjectExtensions.Merge` helper：合并成可选、宿主不擅自决定语义，`Multiple` 退为 helper 的产物（仍保留，作显示与便利合并用）。
 
 **默认值 = "字段不存在"。** `f` 的输入是**稀疏实际值**（`GetInfo` 只含写过的字段，§三.24 懒建不存默认），所以 `f` 不需"先有 config 才有输入"→ 破"算 config 要先有值、要默认值又要先有 config"的环。推论：① **恢复默认 = 清空数据节点字段**（回到"不存在"），现靠静态遍历 `config.Properties` 写 `DefaultValue` 的重置（`ResetPartPropertiesToDefaults`）简化为"清空"，不再依赖 config 可遍历；preset 保存仍 `GetInfo` 出稀疏字段。② **显示 fallback 不阻塞**：渲染叶子时数据有值用实际值、无则用 `f` 当前输出 config 的 `DefaultValue`（此时已拿到 config）。③ `f` 内读 ctx 缺失 key = `Invalid` 哨兵，作者自行 fallback。
@@ -729,7 +729,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - **提交③**（波形 + 播放逐段、丢弃拼接 buffer）：管线暴露段列表 `SynthesizedSegments` 替代单条 `SynthesizedAudio`/`Waveform`；`MidiPart.GetAudioData`（播放）与 `PianoScrollView.DrawWaveform`（波形）改为遍历段各自混音/绘制；段波形按 `Samples` 引用相等缓存（只重算重跑段）。段间空洞留白、稀疏 part 省内存、补全增量闭环。
 - **后续（缓后，纯加性）**：宿主累积 `Write` 的子区间、随 `Commit` 把脏区间交 effect + effect 自决段内局部重合成 + 段内拼接/淡化（含跨级脏传播形态再定）；写 API 已为此铺好（`Write(offset, samples)` 本就带区间），无需再加接口。
 
-**消费者爆炸半径（已核/已改）**：voice SDK `IVoiceContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `IVoiceSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行 + 段列表产物）；消费者 `MidiPart.GetAudioData`（播放逐段混音）+ `PianoScrollView.DrawWaveform`（逐段绘制）改读 `SynthesizedSegments`（`IMidiPart` 的 `SynthesizedAudio`/`Waveform` 塌缩为 `SynthesizedSegments`）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
+**消费者爆炸半径（已核/已改）**：voice SDK `IVoiceSynthesisContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `IVoiceSynthesisSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行 + 段列表产物）；消费者 `MidiPart.GetAudioData`（播放逐段混音）+ `PianoScrollView.DrawWaveform`（逐段绘制）改读 `SynthesizedSegments`（`IMidiPart` 的 `SynthesizedAudio`/`Waveform` 塌缩为 `SynthesizedSegments`）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
 
 ### 29. PropertyArray（有序可重复列表）+ Config 标签随槽走（设计定稿，待落地）
 
@@ -744,7 +744,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **Config 标签随槽走：去 `IControllerConfig` 的 DisplayText，引入 `PropertyKey`** —— 显示标签是「插槽」属性、非 config 内在：在 ObjectConfig 字段里是 key 的翻译、在数组元素里是行/类型名、在 `+` 菜单里是可加类型名——同一 config 放不同槽含义不同，故不属 config 本身。
 - `IControllerConfig` 回归**纯 marker**（无 DisplayText）；`IValueConfig.DefaultValue`（boxed `PropertyValue`）**保留**——唯一消费者是 `PropertySideBarContentProvider.ResetPartPropertiesToDefaults` 的「config→默认值」递归 walker（恢复默认 / 应用 preset），它要泛型拿任意 config 默认值；数组落地时此 walker 长出 `ArrayConfig`/`ListConfig` 两臂（递归 `Elements` 各位默认值拼 `PropertyArray`）。
 - `PropertyKey { string Id; string? DisplayText }`（`readonly struct`）：`Id` 是数据寻址用的稳定标识（= 落进 `PropertyObject` 的 key 字符串），`DisplayText` 是其翻译（缺省回退 `Id`）。**相等性/哈希只认 `Id`**，`DisplayText` 是注解、不入键身份——这恰好让 keyed-diff 在「语言切换、仅 DisplayText 变」时判同键、只重贴标签不重建控件。隐式转换 `string`→`PropertyKey`（无译文）与 `(string, string?)`→`PropertyKey`（带译文）保作者人体工学与 `[CollectionBuilder]` 字面量。
-- `ObjectConfig.Properties` 改 `IReadOnlyOrderedMap<PropertyKey, IControllerConfig>`（value 保持纯 config、不套娃）。**一致到底**：`AutomationConfig` 也归此制——`IVoiceEngine.GetAutomationConfigs`/`GetSynthesizedParameterConfigs` 与 `IEffectEngine.GetAutomationConfigs` 的返回从 `OrderedMap<string, AutomationConfig>` 改 `OrderedMap<PropertyKey, AutomationConfig>`、`AutomationConfig` 删 DisplayText。各叶子 config（Slider/TextBox/CheckBox/ComboBox）删各自 DisplayText；`ComboBoxOption.DisplayText` 不动（那是第三概念：选项值→显示文本）。
+- `ObjectConfig.Properties` 改 `IReadOnlyOrderedMap<PropertyKey, IControllerConfig>`（value 保持纯 config、不套娃）。**一致到底**：`AutomationConfig` 也归此制——`IVoiceSynthesisEngine.GetAutomationConfigs`/`GetSynthesizedParameterConfigs` 与 `IEffectEngine.GetAutomationConfigs` 的返回从 `OrderedMap<string, AutomationConfig>` 改 `OrderedMap<PropertyKey, AutomationConfig>`、`AutomationConfig` 删 DisplayText。各叶子 config（Slider/TextBox/CheckBox/ComboBox）删各自 DisplayText；`ComboBoxOption.DisplayText` 不动（那是第三概念：选项值→显示文本）。
 
 **两种数组型 config（共用 `PropertyArray` 值容器）** ——
 - `ArrayConfig`（定长）：`IReadOnlyList<IControllerConfig> Elements`，逐 index 声明、允许异型，长度 = 声明数、不可增删；第 i 元素由 `Elements[i]` 渲染并绑定 `array[i]`。
@@ -752,7 +752,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - `AddableElement { IControllerConfig Template; string? Label }`（`readonly struct`，隐式自 `IControllerConfig`）：**刻意独立成类型**而非复用 `List<IControllerConfig>`——与 `Elements` 破撞型（这是「下一个元素可选的若干类型」选择集、非「后续若干元素」位置序列）。`Template` 提供新元素 seed 默认值（宿主递归解析）+ 渲染配置，`Label` 是菜单类型名。
 - 数组元素无 key、故**无逐元素标签**；要带标签的行用 ObjectConfig 元素（其内部字段自带 key 标签），与「多类型宜用 ObjectConfig」一脉相承。
 
-**初始内容 / 默认值语义：presence 判别（key 在不在），非 emptiness** —— 空数组与「未初始化」必须可分，否则用户显式清空会被误当初始态重新 seed。判别符是 **key 是否存在**（`IVoicePartPropertyContext` 既有语义「默认 = 字段不存在」、缺席读到 `Invalid`）：
+**初始内容 / 默认值语义：presence 判别（key 在不在），非 emptiness** —— 空数组与「未初始化」必须可分，否则用户显式清空会被误当初始态重新 seed。判别符是 **key 是否存在**（`IVoiceSynthesisPartPropertyContext` 既有语义「默认 = 字段不存在」、缺席读到 `Invalid`）：
 - key 缺席（从未写）= 未初始化 → 插件读到 `Invalid` → 按需 emit N 个 element config 当 seed（其默认值即初始值；任意 seed 内容由各 element config 默认值表达，无需独立 DefaultItems 字段）。
 - key 存在、值 = 空数组 `[]` = 用户显式清空 → 插件读到 count=0 → emit 空 `Elements` → 不再 seed。
 - 两条承重约束：**删到空写入「存在的空数组」、绝不删 key**（任何一次删除都把 absent 翻成 present、关闭 default 通道）；**序列化保留 present-`[]`**。default 是 absent 的有效值替身（展示 / 喂 getconfig / 读取统一用），首次写即物化、从此关闭。原则同 §三.23：别把多语义压进一个值、用显式标记（这里是 key presence）区分态。
@@ -761,7 +761,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **keyed-diff 键源** —— ObjectConfig 字段按 `PropertyKey`（Id-only）；list 行**按元素身份**（`DataObjectList` 给每个 `DataPropertyValue` 稳定引用身份），非 index——故中插/删只增删一行、后续行控件原样保留（这正是 plane② 选 `DataObjectList` 喂出来的；`DataList` 存值快照无元素身份、给不出稳定行键）。重排**先不做**（做时限同类型互换位置，纯 UX、与协议无关）。
 
-**消费者爆炸半径** —— 值模型 `PropertyValue`/`PropertyType` + 新 `PropertyArray`；live-doc 新 `DataPropertyArray` + `PropertySlot` 三臂 + `ToSlot`；序列化 `TuneLabProjectCbor` 递归读写；SDK config 面（`IControllerConfig` 去 DisplayText、新 `PropertyKey`/`ArrayConfig`/`ListConfig`/`AddableElement`、`ObjectConfig`/`AutomationConfig` 改键、叶子 config 删 DisplayText、`IVoiceEngine`/`IEffectEngine` 自动化返回改键）；面板渲染器（`PropertySideBarContentProvider` walker 扩臂 + 标签改从 `PropertyKey.DisplayText` 取）；全部声明 config 的站点（测试插件 `V1.*`）。两 SDK 预发布、无野外插件，按 release/2.0.0 不留兼容约定，破坏性换形态零 compat 负担。
+**消费者爆炸半径** —— 值模型 `PropertyValue`/`PropertyType` + 新 `PropertyArray`；live-doc 新 `DataPropertyArray` + `PropertySlot` 三臂 + `ToSlot`；序列化 `TuneLabProjectCbor` 递归读写；SDK config 面（`IControllerConfig` 去 DisplayText、新 `PropertyKey`/`ArrayConfig`/`ListConfig`/`AddableElement`、`ObjectConfig`/`AutomationConfig` 改键、叶子 config 删 DisplayText、`IVoiceSynthesisEngine`/`IEffectEngine` 自动化返回改键）；面板渲染器（`PropertySideBarContentProvider` walker 扩臂 + 标签改从 `PropertyKey.DisplayText` 取）；全部声明 config 的站点（测试插件 `V1.*`）。两 SDK 预发布、无野外插件，按 release/2.0.0 不留兼容约定，破坏性换形态零 compat 负担。
 
 **落地进度**：①地板 `PropertyArray` + ②live `DataPropertyArray` + ③TLP/CBOR 读写 + ④-A 标签改制（`PropertyKey`）均已落地；④-B-1 live-bind 导航层（`IDataPropertyArray` 稳定 token 寻址 + 懒导航）、④-B-2 面板控件（`Array`/`ListController` 独立元素渲染器 + seed 越界惰性绑定）、④-C 测试夹具（`[v1-suite] Conditional` 的 phonemes/pair）已落地并真机验收。元素渲染**不复用** `PropertyObjectController` 的「标题+分隔符」排布（元素无 key 标签、行内紧凑、悬浮删除浮层），是独立 `ElementWidget` 分发件。
 
@@ -902,7 +902,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
   - 目录：`ExtensionCompatibilityLayer/`
 - **核心问题**：
   - ALC 隔离要不要做？做了能减多少 adapter 代码？
-  - Capability pattern 如何与现有 IEffectEngine / IVoiceEngine / IFormat 结合？
+  - Capability pattern 如何与现有 IEffectEngine / IVoiceSynthesisEngine / IFormat 结合？
   - 双向数据穿越（host ↔ 老插件）的所有权和生命周期
   - 性能基准：Properties[key]、双向集合 wrapper、enumerator 装箱
 - **前置话题**：#7

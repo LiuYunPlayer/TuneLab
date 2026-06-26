@@ -194,7 +194,7 @@ public sealed class GainEffectEngine : IEffectEngine
         {
             if (mEnvAutomation != null)
                 mEnvAutomation.RangeModified -= OnEnvRangeModified;
-            mEnvAutomation = mContext.TryGetAutomation("gain_env", out var automation) ? automation : null;
+            mEnvAutomation = mContext.Automations.TryGetValue("gain_env", out var automation) ? automation : null;
             if (mEnvAutomation != null)
                 mEnvAutomation.RangeModified += OnEnvRangeModified;
         }

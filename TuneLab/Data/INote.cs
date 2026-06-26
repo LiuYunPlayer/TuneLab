@@ -263,7 +263,7 @@ internal static class INoteExtension
     // 生效的延续（**喂插件 SDK 的 IsContinuation 标志**，对齐宿主 melisma 实际决策）：是延音符("-")，且经**不断裂的相接链**
     // 回溯到一个真歌词(发声)note。孤儿延音符（链被空隙断开、或链头无发声 note）返回 false——故插件读本标志即与宿主一致，
     // 不会把孤儿延音符误当真延音、把前元音铺进静音（那种不对等是 footgun）。纯 Lyric + 位置派生（不依赖合成态），
-    // 故 live 侧 IVoiceNote.IsContinuation 可作普通只读字段、按需求值无需通知（其输入 Lyric/位置本就可订阅）。
+    // 故 live 侧 IVoiceSynthesisNote.IsContinuation 可作普通只读字段、按需求值无需通知（其输入 Lyric/位置本就可订阅）。
     public static bool IsEffectiveContinuation(this INote note)
     {
         if (note.Lyric.Value != "-")

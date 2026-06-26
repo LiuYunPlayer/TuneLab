@@ -167,7 +167,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
     readonly MidiPart mPart;
     readonly SynchronizationContext mSyncContext;
     readonly InstrumentSynthesisContext mContext;
-    readonly IInstrumentSession mSession;
+    readonly IInstrumentSynthesisSession mSession;
     readonly Action mOnParametersChanged;
     readonly Action mOnStatusChanged;
     readonly CancellationTokenSource mCancellation = new();

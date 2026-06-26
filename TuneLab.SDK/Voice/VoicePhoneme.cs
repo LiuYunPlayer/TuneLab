@@ -1,7 +1,7 @@
 namespace TuneLab.SDK;
 
 // 音素描述符（方向无关，输入 / 输出共用一个类型）：只报「标称时长 + 弹性权重 + 前置标记」，**不报绝对位置**。
-// 进（用户钉死约束，挂 IVoiceNote.Phonemes）与出（引擎合成产物，IVoiceSession.SynthesizedPhonemes）同形——
+// 进（用户钉死约束，挂 IVoiceSynthesisNote.Phonemes）与出（引擎合成产物，IVoiceSynthesisSession.SynthesizedPhonemes）同形——
 // 描述符方向无关且稳定，故合并；持久层 PhonemeInfo 与本类型解耦（独立演进，见 Format/DataInfo/PhonemeInfo）。
 //
 // 时长模型：引擎只报标称时长，定位 / 跨 note 去重叠压缩 / melisma 铺设全由宿主按同一时长模型派生
@@ -12,7 +12,7 @@ namespace TuneLab.SDK;
 // （WYSIWYG）的引擎调它即可——冻结的只是 I/O 形状，压缩内部逻辑仍可宿主侧演进，引擎运行时绑定宿主的这一份故永不漂移。
 // 想自管音频摆放（交叉淡入等）的引擎可不调，仍按本描述符自由放置、错位非致命。
 //
-// 粒度为整 note：IVoiceNote.Phonemes 列表非空 = 全部音素用户钉死（引擎遵守约束）；为空 = 引擎从 Lyric 做 G2P + 全自由定时。
+// 粒度为整 note：IVoiceSynthesisNote.Phonemes 列表非空 = 全部音素用户钉死（引擎遵守约束）；为空 = 引擎从 Lyric 做 G2P + 全自由定时。
 public struct VoicePhoneme
 {
     public string Symbol;

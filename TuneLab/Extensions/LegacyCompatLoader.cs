@@ -52,7 +52,7 @@ internal static class LegacyCompatLoader
                 Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(legacyPackageId, ext, ext, () => format); AddType(typeSink, "format"); };
                 Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(legacyPackageId, ext, ext, () => format); AddType(typeSink, "format"); };
                 // enginePath 由 compat 侧的引擎适配器自持（老引擎 Init 需要包路径，新引擎面 Init 无参）。
-                Action<string, IVoiceEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(legacyPackageId, type, type, engine); AddType(typeSink, "voice"); };
+                Action<string, IVoiceSynthesisEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(legacyPackageId, type, type, engine); AddType(typeSink, "voice"); };
 
                 var assemblies = description?.assemblies ?? Array.Empty<string>();
                 var result = method.Invoke(null, [path, assemblies, addImporter, addExporter, addVoiceEngine, compatLog]);

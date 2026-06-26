@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
@@ -8,18 +7,19 @@ namespace TuneLab.SDK;
 // 持平行副本（不抽公共类、各自独立演进；instrument note 无 Lyric——其无歌词系统）。为何值而非活对象：见 voice 侧说明（三态 Merge 需值）。
 
 // 单条 part 的只读值视图（声明面）。
-public interface IInstrumentPartView
+public interface IInstrumentSynthesisPartView
 {
-    // 该 part 选定音源（= IInstrumentEngine.InstrumentSourceInfos 的 key）：引擎据此分流多音源。
+    // 该 part 选定音源（= IInstrumentSynthesisEngine.InstrumentSourceInfos 的 key）：引擎据此分流多音源。
     string InstrumentId { get; }
     // 当前 note 集合（只读、宿主当前序）：原始几何，instrument 不去重叠。
-    IReadOnlyList<IInstrumentNoteView> Notes { get; }
+    IReadOnlyList<IInstrumentSynthesisNoteView> Notes { get; }
     PropertyObject PartProperties { get; }
-    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out IAutomationEvaluator automation);
+    // 已声明 automation 轨当前曲线求值器（按 key；查询轴全局秒）：只读 map，可枚举可点取。
+    IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
 }
 
 // instrument part 数据 note 的只读值视图（声明面；满末；【无 Lyric】）。
-public interface IInstrumentNoteView
+public interface IInstrumentSynthesisNoteView
 {
     double StartTime { get; }
     double EndTime { get; }
@@ -27,13 +27,13 @@ public interface IInstrumentNoteView
     PropertyObject Properties { get; }
 }
 
-public interface IInstrumentPartPropertyContext
+public interface IInstrumentSynthesisPartPropertyContext
 {
-    IReadOnlyList<IInstrumentPartView> Parts { get; }
+    IReadOnlyList<IInstrumentSynthesisPartView> Parts { get; }
 }
 
-public interface IInstrumentNotePropertyContext
+public interface IInstrumentSynthesisNotePropertyContext
 {
-    IInstrumentPartView Part { get; }
-    IReadOnlyList<IInstrumentNoteView> Notes { get; }
+    IInstrumentSynthesisPartView Part { get; }
+    IReadOnlyList<IInstrumentSynthesisNoteView> Notes { get; }
 }

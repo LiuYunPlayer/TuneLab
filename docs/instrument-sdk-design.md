@@ -55,8 +55,8 @@ instrument 加 pitch 不碰 voice，voice 加成员也不碰 instrument，各自
 
 > 物理位置：除 `AutomationConfig`（属 `ControllerConfigs/`）外，上列共享叶子统一落 `TuneLab.SDK/Synthesis/` 文件夹——`Synthesis*` 前缀与该文件夹同义=共享中性；域专属类型则分落 `Voice/` 与 `Instrument/`（命名空间一律平铺 `TuneLab.SDK`，文件夹仅作分桶）。
 
-> 注：`IVoicePartPropertyContext` / `IVoiceNotePropertyContext` **不在**中性集——它们携带音源身份 id
-> （voice 侧是 `VoiceId`），故 instrument 另有平行的 `IInstrumentPartPropertyContext`
+> 注：`IVoiceSynthesisPartPropertyContext` / `IVoiceSynthesisNotePropertyContext` **不在**中性集——它们携带音源身份 id
+> （voice 侧是 `VoiceId`），故 instrument 另有平行的 `IInstrumentSynthesisPartPropertyContext`
 > （携带 `InstrumentId`），见 §2。
 
 ### 1.3 宿主单核（非 ABI，最大复用）
@@ -77,36 +77,36 @@ instrument 加 pitch 不碰 voice，voice 加成员也不碰 instrument，各自
 > 隔离与快照模型、automation 双语义与 Config 家族——与 voice **完全同构**，见
 > [voice-sdk-design.md §3.5 / §4 / §7 / §8](voice-sdk-design.md)。下面只列与 voice 的差异。
 
-### 2.1 `IInstrumentNote`（满末、无语音）
+### 2.1 `IInstrumentSynthesisNote`（满末、无语音）
 
 ```
 IReadOnlyNotifiableProperty<double> StartTime   // 全局秒
 IReadOnlyNotifiableProperty<double> EndTime      // note 满末（Pos+Dur 换算秒），不钳位
 IReadOnlyNotifiableProperty<int>    Pitch
 IReadOnlyNotifiablePropertyObject   Properties
-IInstrumentNote? Next / Last                     // 邻居链（数据线程分片导航）
+IInstrumentSynthesisNote? Next / Last                     // 邻居链（数据线程分片导航）
 ```
 
-- 与 `IVoiceNote` 的差异：**`EndTime` 是满末、不钳位**（这是分水岭）；**无 `Lyric`、无 `Phonemes`**。
+- 与 `IVoiceSynthesisNote` 的差异：**`EndTime` 是满末、不钳位**（这是分水岭）；**无 `Lyric`、无 `Phonemes`**。
 - `Notes` 链表**直传原始可重叠 note**（和弦 / 多声部裸喂）；排序契约同 voice（StartTime 升序 →
   同起点 EndTime 降序 → 宿主插入序），但**不做任何去重叠**。
 
-### 2.2 `IInstrumentContext`（去掉双音高通道）
+### 2.2 `IInstrumentSynthesisContext`（去掉双音高通道）
 
 ```
-IReadOnlyNotifiableLinkedList<IInstrumentNote> Notes
+IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote> Notes
 IReadOnlyNotifiablePropertyObject PartProperties
-bool TryGetAutomation(string key, out ISynthesisAutomation automation)
-InstrumentSnapshot GetSnapshot(IReadOnlyList<IInstrumentNote> notes, double startTime, double endTime)
+IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
+InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime)
 IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)
 event Action? Committed
 ```
 
-- 与 `IVoiceContext` 的差异：**删 `Pitch` / `PitchDeviation`**（v1 纯 note pitch 发声）。
-- **保留 `TryGetAutomation`** + 通用 automation 轨：引擎仍可声明力度 / 表情 / 动态等轨（与 pitch 曲线无关）；
-  不声明即零轨。
+- 与 `IVoiceSynthesisContext` 的差异：**删 `Pitch` / `PitchDeviation`**（v1 纯 note pitch 发声）。
+- **通用 automation 轨经只读 map `Automations`**（可点取 `TryGetValue` / 可枚举）：引擎仍可声明力度 / 表情 / 动态等轨
+  （与 pitch 曲线无关）；不声明即零轨。
 
-### 2.3 `IInstrumentSession : IDisposable`（砍语音产物）
+### 2.3 `IInstrumentSynthesisSession : IDisposable`（砍语音产物）
 
 ```
 SynthesisRange? GetNextSegment(double startTime, double endTime)
@@ -117,30 +117,30 @@ event Action? SynthesizedParametersChanged
 event Action? StatusChanged
 ```
 
-- 与 `IVoiceSession` 的差异：**删 `DefaultLyric`、`SynthesizedPhonemes`、`SynthesizedPitch`**
+- 与 `IVoiceSynthesisSession` 的差异：**删 `DefaultLyric`、`SynthesizedPhonemes`、`SynthesizedPitch`**
   及其事件。音频仍走 `context.CreateAudioSegment`（不在 session 面）。
 
-### 2.4 `IInstrumentEngine`
+### 2.4 `IInstrumentSynthesisEngine`
 
 ```
 IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos
 void Init() / void Destroy()
-IInstrumentSession CreateSession(string instrumentId, IInstrumentContext context)
-IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentPartPropertyContext context)
-IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentPartPropertyContext context)
-ObjectConfig GetPartPropertyConfig(IInstrumentPartPropertyContext context)
-ObjectConfig GetNotePropertyConfig(IInstrumentNotePropertyContext context)
+IInstrumentSynthesisSession CreateSession(string instrumentId, IInstrumentSynthesisContext context)
+IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentSynthesisPartPropertyContext context)
+IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentSynthesisPartPropertyContext context)
+ObjectConfig GetPartPropertyConfig(IInstrumentSynthesisPartPropertyContext context)
+ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext context)
 ```
 
-- 与 `IVoiceEngine` 同构，差异仅命名（`VoiceSourceInfo` → `InstrumentSourceInfo`，声明上下文携带
+- 与 `IVoiceSynthesisEngine` 同构，差异仅命名（`VoiceSourceInfo` → `InstrumentSourceInfo`，声明上下文携带
   `InstrumentId`）。note 级属性面板保留——per-note 力度 / 演奏法仍有用。
 
 ### 2.5 值 / 快照类型
 
 - `InstrumentSourceInfo`：`Name` / `Description` / 可选 `Portrait`（同 `VoiceSourceInfo`）。
-- `InstrumentNoteSnapshot`：`StartTime` / `EndTime`(满末) / `Pitch` / `Properties`，无 Lyric/Phonemes。
-- `InstrumentSnapshot`：`Notes` / `AutomationMap`(+`TryGetAutomation`) / `PartProperties`，**无 Pitch/PitchDeviation**。
-- `IInstrumentPartPropertyContext`：`InstrumentId` + `PartProperties`；`IInstrumentNotePropertyContext`
+- `InstrumentSynthesisNoteSnapshot`：`StartTime` / `EndTime`(满末) / `Pitch` / `Properties`，无 Lyric/Phonemes。
+- `InstrumentSynthesisSnapshot`：`Notes` / `Automations`(只读 map：`IReadOnlyMap<string, SynthesisAutomationSnapshot>`) / `PartProperties`，**无 Pitch/PitchDeviation**。
+- `IInstrumentSynthesisPartPropertyContext`：`InstrumentId` + `PartProperties`；`IInstrumentSynthesisNotePropertyContext`
   加 `NoteProperties`。语义同 voice 的属性上下文。
 
 ---
@@ -152,7 +152,7 @@ ObjectConfig GetNotePropertyConfig(IInstrumentNotePropertyContext context)
 - **引擎生命周期与错误**：`Init`（懒）/ `Destroy`，失败抛异常、宿主在调用边界 catch。
 - **调度**：宿主驱动逐步合成，`peek`（`GetNextSegment`）+ `commit`（`SynthesizeNext`）同窗口确定性
   重导出，并发槽位账本管控。见 voice §4。
-- **隔离与快照**：活视图仅数据线程；合成只读 `InstrumentSnapshot`（不可变值树，构造 happens-before
+- **隔离与快照**：活视图仅数据线程；合成只读 `InstrumentSynthesisSnapshot`（不可变值树，构造 happens-before
   offload）。见 voice §3.5。
 - **automation**：连续 / 分段两形态由 `AutomationConfig.DefaultValue` 是否 NaN 区分；区间失效订阅
   `ISynthesisAutomation.RangeModified`；快照开窗冻结求值器。见 voice §7。
@@ -175,11 +175,11 @@ ObjectConfig GetNotePropertyConfig(IInstrumentNotePropertyContext context)
 | SynthesizedParameters 之外的输出产物 | session | 插件 | ⚠️ 同上 |
 
 **规则**：
-- **宿主实现、插件只读的面**（`IInstrumentContext` / `IInstrumentNote` / `InstrumentSnapshot`）：
+- **宿主实现、插件只读的面**（`IInstrumentSynthesisContext` / `IInstrumentSynthesisNote` / `InstrumentSynthesisSnapshot`）：
   加成员 = 宿主多给一个属性，旧插件不读照常跑、新插件按需读——**纯加性，连旧插件二进制都不受影响**
   （旧 DLL 根本未引用新成员）。**v1 砍掉 pitch 曲线因此零风险、完全可逆**：将来支持弯音时，只是宿主把
   `Pitch`/`PitchDeviation` 加回 context + 快照多采一道曲线即可。
-- **插件实现的面**（`IInstrumentSession` / `IInstrumentEngine`）：裸加成员要求插件实现它、是破坏性的。
+- **插件实现的面**（`IInstrumentSynthesisSession` / `IInstrumentSynthesisEngine`）：裸加成员要求插件实现它、是破坏性的。
   **约定**：任何后续在插件实现面新增的输出成员，一律用**默认接口方法（DIM）给 `Empty` 兜底**
   （net8 / C# 12 支持），使输出侧增补也保持加性、不破已装插件。
 

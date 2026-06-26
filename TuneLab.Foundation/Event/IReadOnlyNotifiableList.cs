@@ -4,7 +4,7 @@
 // 结构变更后的聚合信号。成员自身的字段变化不经此处——订阅成员的
 // IReadOnlyNotifiableProperty（WhenAny 自动管理接线）。
 // 不承诺随机访问：宿主数据结构可能是链表（O(1) 索引给不出来），顺序消费用枚举、
-// 邻居导航走成员自身的链（如 IVoiceNote.Next/Last）。
+// 邻居导航走成员自身的链（如 IVoiceSynthesisNote.Next/Last）。
 public interface IReadOnlyNotifiableCollection<T> : IReadOnlyCollection<T>
 {
     event Action<T>? ItemAdded;

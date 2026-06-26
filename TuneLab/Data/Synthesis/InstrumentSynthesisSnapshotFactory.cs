@@ -5,14 +5,14 @@ using TuneLab.SDK;
 
 namespace TuneLab.Data.Synthesis;
 
-// InstrumentSnapshot 的物化器：插件在 SynthesizeNext 同步前缀经 context.GetSnapshot 拉取，这里在数据线程 eager 物化。
-// 与 voice 的 VoiceSnapshotFactory 同构但精简——note 取【满末】（Pos+Dur，不去重叠）、无 Lyric/Phonemes、
+// InstrumentSynthesisSnapshot 的物化器：插件在 SynthesizeNext 同步前缀经 context.GetSnapshot 拉取，这里在数据线程 eager 物化。
+// 与 voice 的 VoiceSynthesisSnapshotFactory 同构但精简——note 取【满末】（Pos+Dur，不去重叠）、无 Lyric/Phonemes、
 // 无 Pitch/PitchDeviation 双音高通道、无 vibrato 偏移。automation 取原始曲线开窗冻结。
 //
 // 全秒轴：插件面 [startTime, endTime] 与各求值器查询点均为全局秒；tick 仅在本物化器与冻结求值器内部出现。
-internal static class InstrumentSnapshotFactory
+internal static class InstrumentSynthesisSnapshotFactory
 {
-    public static InstrumentSnapshot Capture(MidiPart part, IReadOnlyList<IInstrumentNote> sourceNotes, double startTime, double endTime)
+    public static InstrumentSynthesisSnapshot Capture(MidiPart part, IReadOnlyList<IInstrumentSynthesisNote> sourceNotes, double startTime, double endTime)
     {
         double partPos = part.Pos.Value;
 
@@ -23,13 +23,13 @@ internal static class InstrumentSnapshotFactory
         double relEnd = timing.ToTick(endTime) - partPos;
 
         // note 值树（满末，经代理读值触底到值类型；列表顺序即递入声明顺序）。
-        var notes = new List<InstrumentNoteSnapshot>(sourceNotes.Count);
+        var notes = new List<InstrumentSynthesisNoteSnapshot>(sourceNotes.Count);
         foreach (var note in sourceNotes)
         {
             if (note is not InstrumentSynthesisContext.InstrumentNoteProxy proxy)
                 throw new ArgumentException("Segment notes must come from this part's instrument synthesis context.");
 
-            notes.Add(new InstrumentNoteSnapshot
+            notes.Add(new InstrumentSynthesisNoteSnapshot
             {
                 StartTime = note.StartTime.Value,           // 全局秒（proxy 已换算）
                 EndTime = note.EndTime.Value,               // 满末（不去重叠）
@@ -49,10 +49,10 @@ internal static class InstrumentSnapshotFactory
             automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new SecondToTickEvaluator(baseEvaluator, partPos, timesToTicks) });
         }
 
-        return new InstrumentSnapshot
+        return new InstrumentSynthesisSnapshot
         {
             Notes = notes,
-            AutomationMap = automations,
+            Automations = automations,
             PartProperties = part.Properties.GetInfo(),
         };
     }

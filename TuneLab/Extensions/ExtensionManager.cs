@@ -319,14 +319,14 @@ internal static class ExtensionManager
         {
             case "voice":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryScanCtor<IVoiceEngine>(assembly, candidates, out var vctor, out error)) return false;
-                VoicesManager.RegisterEngine(packageId, ext.engine, displayName, (IVoiceEngine)vctor!.Invoke(null));
+                if (!TryScanCtor<IVoiceSynthesisEngine>(assembly, candidates, out var vctor, out error)) return false;
+                VoicesManager.RegisterEngine(packageId, ext.engine, displayName, (IVoiceSynthesisEngine)vctor!.Invoke(null));
                 return true;
 
             case "instrument":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryScanCtor<IInstrumentEngine>(assembly, candidates, out var ictor2, out error)) return false;
-                InstrumentsManager.RegisterEngine(packageId, ext.engine, displayName, (IInstrumentEngine)ictor2!.Invoke(null));
+                if (!TryScanCtor<IInstrumentSynthesisEngine>(assembly, candidates, out var ictor2, out error)) return false;
+                InstrumentsManager.RegisterEngine(packageId, ext.engine, displayName, (IInstrumentSynthesisEngine)ictor2!.Invoke(null));
                 return true;
 
             case "effect":

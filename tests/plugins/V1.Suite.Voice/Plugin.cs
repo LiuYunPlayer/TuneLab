@@ -11,7 +11,7 @@ namespace TuneLab.TestPlugins.Suite.Voice;
 
 // 一包多插件之 voice：2 个声库（名取自共享 Common）。会话取单块最简模式——整 part 一块、
 // 任何变更全量标脏（设计许可的最懒失效策略），合成产出静音 + phoneme（合成保真已由 V1.Voice 覆盖）。
-public sealed class SuiteVoiceEngine : IVoiceEngine
+public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
@@ -25,12 +25,12 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
     public void Destroy() { }
 
     // 两个声库共用同一最简会话（差异只在声明，已上移到引擎）。
-    public IVoiceSession CreateSession(IVoiceContext context) => new SingleBlockSession(context);
+    public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context) => new SingleBlockSession(context);
 
     // 声明（引擎层、纯函数）：按音源 id 区分两个声库——这正是声明面读 SourceId 的用例。
     // suite-conditional：自动化 = f(已选 speaker)——每个混入的 speaker 派生一条混音曲线（多说话人混音式，演示
     // 「+ speaker → part 属性物化 → 自动化重算 → 曲线按钮自动出现」；wiring 由宿主 OnPartPropertiesModified 既有链承担）。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context)
     {
         if (SourceIdOf(context) != "suite-conditional")
             return mSuiteAutomations;
@@ -41,15 +41,15 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
             map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
         return map;
     }
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => sEmptyConfigs;
-    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyConfigs;
+    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context)
         => SourceIdOf(context) == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
 
-    static string SourceIdOf(IVoicePartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
+    static string SourceIdOf(IVoiceSynthesisPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 
     // 条件声库的 part 面板：fromPart 勾选 + 变长键控容器 speakers（ExtensibleObjectConfig）。
     // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
-    static ObjectConfig ConditionalPartConfig(IVoicePartPropertyContext context)
+    static ObjectConfig ConditionalPartConfig(IVoiceSynthesisPartPropertyContext context)
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
 
@@ -77,12 +77,12 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
                 return s.name;
         return id;
     }
-    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context)
+    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
         => context.Part.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
 
     // 条件 note 面板：note config = f(context)，随当前值动态变化——① 显隐/换控件（mode=Advanced 多出字段）；
     // ② 控件参数随值变（pick 选项 = letters 逐字符）；③ 动态数量控件（letters 每个唯一字符派生一个滑条）。
-    static ObjectConfig ConditionalNoteConfig(IVoiceNotePropertyContext context)
+    static ObjectConfig ConditionalNoteConfig(IVoiceSynthesisNotePropertyContext context)
     {
         // 多选：用 helper 合并成单个三态快照（不在乎逐 note 真值，按单选写法处理）。
         var note = context.Notes.Select(n => n.Properties).Merge();
@@ -207,9 +207,9 @@ public sealed class SuiteVoiceEngine : IVoiceEngine
 
 // 单块最简会话：整 part 一块；订阅 context 全部变更通知 → 全量标脏（懒插件合法策略）。
 // 声明（轨/面板）已上移到 SuiteVoiceEngine，会话不再承载，两个声库共用本类。
-public sealed class SingleBlockSession : IVoiceSession
+public sealed class SingleBlockSession : IVoiceSynthesisSession
 {
-    public SingleBlockSession(IVoiceContext context)
+    public SingleBlockSession(IVoiceSynthesisContext context)
     {
         mContext = context;
         mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
@@ -258,7 +258,7 @@ public sealed class SingleBlockSession : IVoiceSession
             mSegment?.Dispose();
             mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
-            var phonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
+            var phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
             for (int i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
@@ -284,7 +284,7 @@ public sealed class SingleBlockSession : IVoiceSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
-    public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => mPhonemes;
+    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus()
     {
@@ -326,7 +326,7 @@ public sealed class SingleBlockSession : IVoiceSession
         mSegment?.Dispose();
     }
 
-    void SubscribeNote(IVoiceNote note)
+    void SubscribeNote(IVoiceSynthesisNote note)
     {
         note.StartTime.Modified += MarkDirty;
         note.EndTime.Modified += MarkDirty;
@@ -336,7 +336,7 @@ public sealed class SingleBlockSession : IVoiceSession
         note.Properties.Modified += MarkDirty;
     }
 
-    void UnsubscribeNote(IVoiceNote note)
+    void UnsubscribeNote(IVoiceSynthesisNote note)
     {
         note.StartTime.Modified -= MarkDirty;
         note.EndTime.Modified -= MarkDirty;
@@ -356,12 +356,12 @@ public sealed class SingleBlockSession : IVoiceSession
 
     const int kSampleRate = 44100;
 
-    readonly IVoiceContext mContext;
+    readonly IVoiceSynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
     bool mDirty;
     bool mSynthesizing;
     IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
-    IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> mPhonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
+    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> mPhonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
 }

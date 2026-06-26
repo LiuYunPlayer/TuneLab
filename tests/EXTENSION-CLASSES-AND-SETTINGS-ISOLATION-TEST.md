@@ -34,14 +34,14 @@
 > 全部用现有夹具即可，无需新建。重点：换成 `classes` 后**加载/注册行为与改造前完全一致**。
 
 - **A1 voice 单类认领**：装 V1.Voice → 扩展侧栏显示 Loaded；新建 voice part 选 V1 Test Voice，声库列出 Alice/Bob，能合成正弦。
-  - 验证：`classes:["…TestVoiceEngine"]` 被按 `IVoiceEngine` 认领。
+  - 验证：`classes:["…TestVoiceEngine"]` 被按 `IVoiceSynthesisEngine` 认领。
 - **A2 effect 一包两引擎**：装 V1.Effect → Gain、Reverse 都注册；part 上各自可挂、可调参。
 - **A3 format 双类认领**：装 V1.Format → 导入与导出菜单都出现 `.tltest`；往返一遍。
   - 验证：`classes` 里 importer 类按 `IImportFormat` 认领为导入、exporter 类按 `IExportFormat` 认领为导出（数组里两个类各被对的接口认领）。
 - **A4 一包多 extension**：装 V1.Suite.Format → format（Suite Format）与 voice（Suite Voice）都注册，共享 Common.dll 一份。
 - **A5 ALC 隔离不回归**：装 Conflict.A + Conflict.B → 两者都 Loaded，各用自己捆绑的 Helper 版本（导入各自扩展名验证）。
 - **A6 负向：漏 assembly**：装 V1.NoAssemblies → 侧栏 Failed，tooltip 指出 assembly 缺失（不再扫全文件夹兜底）。
-- **A7 负向：classes 无命中**（手工造）：临时把某 voice 夹具的 `classes` 改成一个不实现 `IVoiceEngine` 的类名（或不存在的类名）→ 该条目 Failed，tooltip 形如「no class implementing IVoiceEngine among […]」或「'X' not found」。改回即恢复。
+- **A7 负向：classes 无命中**（手工造）：临时把某 voice 夹具的 `classes` 改成一个不实现 `IVoiceSynthesisEngine` 的类名（或不存在的类名）→ 该条目 Failed，tooltip 形如「no class implementing IVoiceSynthesisEngine among […]」或「'X' not found」。改回即恢复。
 - **A8（可选）一类双接口**：把 V1.Format 的导入/导出合成一个类同时实现 `IImportFormat` + `IExportFormat`、`classes` 只列这一个类 → 导入与导出都注册到该类。验证「同一类被两个接口同时认领」。
 
 ---

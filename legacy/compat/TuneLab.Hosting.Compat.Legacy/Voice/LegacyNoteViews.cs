@@ -22,9 +22,9 @@ namespace TuneLab.Hosting.Compat.Legacy.Voice;
 // 这是 chord 支持引入前老 Note.EndTime 的原样行为，仅复刻进 compat、不外泄到新 SDK 面。
 
 // 活视图包装：身份按 V1 note 代理缓存（同一代理恒得同一包装，分片 EqualsWith 依赖引用相等）。
-internal sealed class LiveNoteViewCache(Func<VVoice.IVoiceNote, LProp.PropertyObject> propertiesReader)
+internal sealed class LiveNoteViewCache(Func<VVoice.IVoiceSynthesisNote, LProp.PropertyObject> propertiesReader)
 {
-    public LiveNoteView Wrap(VVoice.IVoiceNote origin)
+    public LiveNoteView Wrap(VVoice.IVoiceSynthesisNote origin)
     {
         if (!mViews.TryGetValue(origin, out var view))
         {
@@ -34,9 +34,9 @@ internal sealed class LiveNoteViewCache(Func<VVoice.IVoiceNote, LProp.PropertyOb
         return view;
     }
 
-    public void Prune(IReadOnlyCollection<VVoice.IVoiceNote> alive)
+    public void Prune(IReadOnlyCollection<VVoice.IVoiceSynthesisNote> alive)
     {
-        var dead = new List<VVoice.IVoiceNote>();
+        var dead = new List<VVoice.IVoiceSynthesisNote>();
         foreach (var kv in mViews)
         {
             if (!alive.Contains(kv.Key))
@@ -48,15 +48,15 @@ internal sealed class LiveNoteViewCache(Func<VVoice.IVoiceNote, LProp.PropertyOb
         }
     }
 
-    readonly Dictionary<VVoice.IVoiceNote, LiveNoteView> mViews = new(ReferenceEqualityComparer.Instance);
+    readonly Dictionary<VVoice.IVoiceSynthesisNote, LiveNoteView> mViews = new(ReferenceEqualityComparer.Instance);
 }
 
 internal sealed class LiveNoteView(
-    VVoice.IVoiceNote origin,
+    VVoice.IVoiceSynthesisNote origin,
     LiveNoteViewCache cache,
-    Func<VVoice.IVoiceNote, LProp.PropertyObject> propertiesReader) : LVoice.ISynthesisNote
+    Func<VVoice.IVoiceSynthesisNote, LProp.PropertyObject> propertiesReader) : LVoice.ISynthesisNote
 {
-    public VVoice.IVoiceNote Origin => origin;
+    public VVoice.IVoiceSynthesisNote Origin => origin;
 
     public LVoice.ISynthesisNote? Next => origin.Next is { } next ? cache.Wrap(next) : null;
     public LVoice.ISynthesisNote? Last => origin.Last is { } last ? cache.Wrap(last) : null;
@@ -74,7 +74,7 @@ internal sealed class LiveNoteView(
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
 internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 {
-    public VVoice.IVoiceNote Origin { get; }
+    public VVoice.IVoiceSynthesisNote Origin { get; }
 
     public LVoice.ISynthesisNote? Next { get; private set; }
     public LVoice.ISynthesisNote? Last { get; private set; }
@@ -86,7 +86,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; }
 
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
-        IReadOnlyList<VVoice.VoiceNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceNote> origins)
+        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins)
     {
         var views = new SnapshotNoteView[notes.Count];
         for (int i = 0; i < notes.Count; i++)
@@ -101,7 +101,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         return views;
     }
 
-    SnapshotNoteView(VVoice.VoiceNoteSnapshot note, VVoice.IVoiceNote origin)
+    SnapshotNoteView(VVoice.VoiceSynthesisNoteSnapshot note, VVoice.IVoiceSynthesisNote origin)
     {
         mNote = note;
         Origin = origin;
@@ -114,7 +114,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(note.Phonemes, StartTime, EndTime);
     }
 
-    readonly VVoice.VoiceNoteSnapshot mNote;
+    readonly VVoice.VoiceSynthesisNoteSnapshot mNote;
 }
 
 internal static class LegacyNoteConvert

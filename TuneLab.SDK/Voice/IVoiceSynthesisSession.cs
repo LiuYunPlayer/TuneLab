@@ -10,7 +10,7 @@ namespace TuneLab.SDK;
 //
 // 生命周期：绑定一个 part，活到 part 被删除（Dispose）；换声源时宿主丢弃旧会话、
 // 重建新会话（context 随会话重建）。会话是轻量句柄，重模型加载是懒的。
-public interface IVoiceSession : IDisposable
+public interface IVoiceSynthesisSession : IDisposable
 {
     // —— 运行时取值（会话创建后才被消费；声明类 config 已上移到 IVoiceEngine，不在此重复）——
     // 默认歌词：创建 note 时取用，是会话级运行时取值（按需读，非构造前声明），故留在实例上。
@@ -27,7 +27,7 @@ public interface IVoiceSession : IDisposable
     // commit：合成宿主选中的这一块。入参是与选中它的那次 peek【完全相同】的窗口（秒）——而非把
     // GetNextSegment 自报的 SynthesisRange 原样回灌：插件按同一窗口确定性重导出 notelist
     // （确定性分片 + 数据未变 ⇒ 与 peek 同结果；或用 peek 时自缓存的分块）。与 peek 在同一调度 tick
-    // 内同步衔接（期间无编辑可插入），插件在同步前缀经 IVoiceContext.GetSnapshot 拉取本次合成所需
+    // 内同步衔接（期间无编辑可插入），插件在同步前缀经 IVoiceSynthesisContext.GetSnapshot 拉取本次合成所需
     // 快照，之后才 offload——worker 只读快照。
     // await 返回 = 槽位释放、宿主重排。返回纯 Task、无 outcome——真完成/被取消/失败都一样返回
     // （取消不抛 OperationCanceledException：取消是正常调度结局），错误经 GetStatus 看、
@@ -39,7 +39,7 @@ public interface IVoiceSession : IDisposable
                         CancellationToken cancellation = default);
 
     // —— 音频产物（插件 native 采样率域）——
-    // 音频本体经 IAudioSegment 握柄交付：插件向 IVoiceContext.CreateAudioSegment 申请段时传入该段的
+    // 音频本体经 IAudioSegment 握柄交付：插件向 IVoiceSynthesisContext.CreateAudioSegment 申请段时传入该段的
     // native 采样率（宿主据此解释、与工程率比对：相等直读、不等套一层流式重采样，集中宿主一处）。采样率随段走、
     // 不在会话级声明——插件完全可按用户选择逐段用不同率（如提供合成采样率下拉）。
     // 时间对齐协议：全局 0 时刻 = 采样点 0；覆盖区域的权威信息是各音频段（未交付区域即静音）。
@@ -55,7 +55,7 @@ public interface IVoiceSession : IDisposable
     // 合成音素（按归属 note 键，每 note 一组 VoicePhoneme，只报标称时长——定位 / 去重叠归宿主）。
     // 引擎自行托管失效——脏 / 合成中的块不应在此报告其 note 的音素（宿主据此留白）。时长模型下无主音素无锚不可定位、
     // 故无「无主音素」契约（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载）。
-    IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes { get; }
+    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes { get; }
 
     // —— 状态 / 按段报错（统一时间线）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();

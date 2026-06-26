@@ -13,7 +13,7 @@ namespace TuneLab.TestPlugins.V1Instrument;
 // 用于验证：instrument 注册、音色目录、CreateSession、满末 note（不去重叠）、重叠 note 混音、分块状态带、
 // 增量重合成、effect 链对 instrument 输出生效。无歌词 / 音素 / pitch 曲线（instrument v1 纯按 note pitch 发声）。
 
-public sealed class TestInstrumentEngine : IInstrumentEngine
+public sealed class TestInstrumentEngine : IInstrumentSynthesisEngine
 {
     public IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos => mInfos;
 
@@ -26,22 +26,22 @@ public sealed class TestInstrumentEngine : IInstrumentEngine
 
     public void Destroy() { }
 
-    public IInstrumentSession CreateSession(IInstrumentContext context) => new TestSession(context, context.InstrumentId);
+    public IInstrumentSynthesisSession CreateSession(IInstrumentSynthesisContext context) => new TestSession(context, context.InstrumentId);
 
     // 声明（引擎层、纯函数）：本参照不暴露额外可编辑轨 / 回显轨 / 属性面板（纯按 note pitch 发声）。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentPartPropertyContext context) => mEmptyConfigs;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentPartPropertyContext context) => mEmptyConfigs;
-    public ObjectConfig GetPartPropertyConfig(IInstrumentPartPropertyContext context) => mEmptyPanel;
-    public ObjectConfig GetNotePropertyConfig(IInstrumentNotePropertyContext context) => mEmptyPanel;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentSynthesisPartPropertyContext context) => mEmptyConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IInstrumentSynthesisPartPropertyContext context) => mEmptyConfigs;
+    public ObjectConfig GetPartPropertyConfig(IInstrumentSynthesisPartPropertyContext context) => mEmptyPanel;
+    public ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext context) => mEmptyPanel;
 
     readonly OrderedMap<string, InstrumentSourceInfo> mInfos = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mEmptyConfigs = new();
     static readonly ObjectConfig mEmptyPanel = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
 }
 
-public sealed class TestSession : IInstrumentSession
+public sealed class TestSession : IInstrumentSynthesisSession
 {
-    public TestSession(IInstrumentContext context, string instrumentId)
+    public TestSession(IInstrumentSynthesisContext context, string instrumentId)
     {
         mContext = context;
         mSquare = instrumentId == "square";
@@ -158,7 +158,7 @@ public sealed class TestSession : IInstrumentSession
     // —— 合成（worker 线程，只读冻结快照）：块内每个 note（含重叠和弦）按其整数 pitch 叠加一段波形。 ——
     sealed record RenderResult(float[] Audio, double StartTime);
 
-    static RenderResult? Render(InstrumentSnapshot snapshot, bool square, IProgress<double>? progress, CancellationToken cancellation)
+    static RenderResult? Render(InstrumentSynthesisSnapshot snapshot, bool square, IProgress<double>? progress, CancellationToken cancellation)
     {
         var notes = snapshot.Notes;
         if (notes.Count == 0)
@@ -211,14 +211,14 @@ public sealed class TestSession : IInstrumentSession
     {
         mNeedResegment = false;
 
-        var groups = new List<List<IInstrumentNote>>();
-        List<IInstrumentNote>? current = null;
+        var groups = new List<List<IInstrumentSynthesisNote>>();
+        List<IInstrumentSynthesisNote>? current = null;
         double groupMaxEnd = 0;
         foreach (var note in mContext.Notes)
         {
             if (current == null || note.StartTime.Value > groupMaxEnd)
             {
-                current = new List<IInstrumentNote>();
+                current = new List<IInstrumentSynthesisNote>();
                 groups.Add(current);
                 groupMaxEnd = note.EndTime.Value;
             }
@@ -260,7 +260,7 @@ public sealed class TestSession : IInstrumentSession
         StatusChanged?.Invoke();
     }
 
-    void SubscribeNote(IInstrumentNote note)
+    void SubscribeNote(IInstrumentSynthesisNote note)
     {
         void onChanged() => MarkNoteDirty(note);
         mNoteHandlers[note] = onChanged;
@@ -270,7 +270,7 @@ public sealed class TestSession : IInstrumentSession
         note.Properties.Modified += onChanged;
     }
 
-    void UnsubscribeNote(IInstrumentNote note)
+    void UnsubscribeNote(IInstrumentSynthesisNote note)
     {
         if (!mNoteHandlers.Remove(note, out var h))
             return;
@@ -280,7 +280,7 @@ public sealed class TestSession : IInstrumentSession
         note.Properties.Modified -= h;
     }
 
-    void OnNotesStructureChanged(IInstrumentNote note) => mNeedResegment = true;
+    void OnNotesStructureChanged(IInstrumentSynthesisNote note) => mNeedResegment = true;
 
     void MarkAllDirtyAndResegment()
     {
@@ -298,7 +298,7 @@ public sealed class TestSession : IInstrumentSession
             Resegment();
     }
 
-    void MarkNoteDirty(IInstrumentNote note)
+    void MarkNoteDirty(IInstrumentSynthesisNote note)
     {
         foreach (var piece in mPieces)
         {
@@ -312,7 +312,7 @@ public sealed class TestSession : IInstrumentSession
 
     sealed class Piece
     {
-        public required IReadOnlyList<IInstrumentNote> Notes;
+        public required IReadOnlyList<IInstrumentSynthesisNote> Notes;
         public double StartTime;
         public double EndTime;
         public bool Dirty;
@@ -329,10 +329,10 @@ public sealed class TestSession : IInstrumentSession
 
     static readonly Map<string, SynthesizedParameter> mEmptyReadback = new();
 
-    readonly IInstrumentContext mContext;
+    readonly IInstrumentSynthesisContext mContext;
     readonly bool mSquare;
     readonly IDisposable mNotesSubscription;
-    readonly Dictionary<IInstrumentNote, Action> mNoteHandlers = new();
+    readonly Dictionary<IInstrumentSynthesisNote, Action> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
     bool mNeedResegment;
 }

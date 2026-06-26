@@ -13,7 +13,7 @@ namespace TuneLab.TestPlugins.V1Voice;
 // 用于验证：引擎注册、声库列表、CreateSession、分块状态带（多段着色/进度）、变更标脏增量重合成、
 // snapshot.Notes 与 segment.Notes 的索引对齐契约（产物归属回活 note）。
 
-public sealed class TestVoiceEngine : IVoiceEngine
+public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
@@ -31,10 +31,10 @@ public sealed class TestVoiceEngine : IVoiceEngine
 
     public void Destroy() { }
 
-    public IVoiceSession CreateSession(IVoiceContext context) => new TestSession(context);
+    public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context) => new TestSession(context);
 
     // 声明（引擎层、纯函数）：条件轨集合 = f(part 参数值)。声明先于会话求值，故会话构造期 Growl 轨已就绪、可订阅。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoicePartPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context)
     {
         // 连续轨 Growl（growl_enabled 勾选才暴露）+ 分段轨 Bend（恒在、DefaultValue=NaN）同在一张有序 map。
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
@@ -48,10 +48,10 @@ public sealed class TestVoiceEngine : IVoiceEngine
     }
 
     // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
-    // 曲线数据经 IVoiceSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoicePartPropertyContext context) => mReadbackConfigs;
-    public ObjectConfig GetPartPropertyConfig(IVoicePartPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNotePropertyConfig(IVoiceNotePropertyContext context) => new() { Properties = mNoteProperties };
+    // 曲线数据经 IVoiceSynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
+    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => new() { Properties = mPartProperties };
+    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => new() { Properties = mNoteProperties };
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mGrowlConfigs = new();
@@ -66,9 +66,9 @@ public sealed class TestVoiceEngine : IVoiceEngine
     };
 }
 
-public sealed class TestSession : IVoiceSession
+public sealed class TestSession : IVoiceSynthesisSession
 {
-    public TestSession(IVoiceContext context)
+    public TestSession(IVoiceSynthesisContext context)
     {
         mContext = context;
 
@@ -83,8 +83,8 @@ public sealed class TestSession : IVoiceSession
         context.Pitch.RangeModified += OnPitchRangeModified;
         context.PitchDeviation.RangeModified += OnPitchRangeModified;
         // 构造期即订阅自己声明的 Growl 轨：宿主在建会话之前已按引擎声明填好 AutomationConfigs，
-        // 故此处 TryGetAutomation 必成（声明已就绪）——参数绘制后的区间失效经此回调送达、触发重渲。
-        if (context.TryGetAutomation("Growl", out var growl))
+        // 故此处 context.Automations 已含自己声明的轨——参数绘制后的区间失效经此回调送达、触发重渲。
+        if (context.Automations.TryGetValue("Growl", out var growl))
             growl.RangeModified += OnAutomationRangeModified;
 
         mNeedResegment = true;
@@ -198,11 +198,11 @@ public sealed class TestSession : IVoiceSession
     // 合成音素：仅在「音素几何未失效」（PhonemesStale=false）时报告。分级失效——音素几何只被**上游**（时长 / 歌词 /
     // 结构）变动清掉；同级（锁定音素）/ 下游（音高 / 参数 / 音频）变动**不**清音素，故锁定音素、改音高、画曲线时音素照常
     // 显示、不留白。不看 Dirty / Synthesizing：音素未失效时即便该块正重渲音频，旧音素仍有效、持续显示。
-    public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes
+    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> SynthesizedPhonemes
     {
         get
         {
-            var result = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
+            var result = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
             foreach (var piece in mPieces)
             {
                 if (piece.PhonemesStale || piece.Failed || piece.Segment == null)
@@ -265,16 +265,16 @@ public sealed class TestSession : IVoiceSession
     }
 
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
-    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> Phonemes, List<Point> EnergyReadback);
+    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> Phonemes, List<Point> EnergyReadback);
 
-    static RenderResult? Render(VoiceSnapshot snapshot, IReadOnlyList<IVoiceNote> origins,
+    static RenderResult? Render(VoiceSynthesisSnapshot snapshot, IReadOnlyList<IVoiceSynthesisNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
     {
         var notes = snapshot.Notes;
         if (notes.Count == 0)
         {
             progress?.Report(1);
-            return new RenderResult([], 0, new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>(), []);
+            return new RenderResult([], 0, new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>(), []);
         }
 
         // 模拟合成耗时：分步等待并上报进度（取消即中途退出，产物保持上一版）。期间宿主显示该块「合成中」、
@@ -428,14 +428,14 @@ public sealed class TestSession : IVoiceSession
 
         // 按 note 间隙分块；note 可重叠（和弦），故以"组内最大结束"判间隙，而非上一 note 的结束
         //（同起点和弦里上一 note 可能结束更早，用它会把仍在响的长音错误地切出去）。
-        var groups = new List<List<IVoiceNote>>();
-        List<IVoiceNote>? current = null;
+        var groups = new List<List<IVoiceSynthesisNote>>();
+        List<IVoiceSynthesisNote>? current = null;
         double groupMaxEnd = 0;
         foreach (var note in mContext.Notes)
         {
             if (current == null || note.StartTime.Value > groupMaxEnd)
             {
-                current = new List<IVoiceNote>();
+                current = new List<IVoiceSynthesisNote>();
                 groups.Add(current);
                 groupMaxEnd = note.EndTime.Value;
             }
@@ -478,7 +478,7 @@ public sealed class TestSession : IVoiceSession
         NotifyProducts();   // 重分块：块集合 / 脏态变 → 产物报告随之变化
     }
 
-    void SubscribeNote(IVoiceNote note)
+    void SubscribeNote(IVoiceSynthesisNote note)
     {
         // 分级失效（链：时长/歌词[几何] → 音素 → 音高 → 参数 → 音频）：改某级输入只清其下游产物回显。
         void onGeometry() => MarkNoteDirty(note, phonemesStale: true, parametersStale: true);        // 时长/歌词：音素几何变 → 音素 + 下游全失效
@@ -493,7 +493,7 @@ public sealed class TestSession : IVoiceSession
         note.Properties.Modified += onProperties;
     }
 
-    void UnsubscribeNote(IVoiceNote note)
+    void UnsubscribeNote(IVoiceSynthesisNote note)
     {
         if (!mNoteHandlers.Remove(note, out var h))
             return;
@@ -506,7 +506,7 @@ public sealed class TestSession : IVoiceSession
         note.Properties.Modified -= h.Properties;
     }
 
-    void OnNotesStructureChanged(IVoiceNote note) => mNeedResegment = true;
+    void OnNotesStructureChanged(IVoiceSynthesisNote note) => mNeedResegment = true;
 
     void MarkAllDirtyAndResegment()
     {
@@ -546,7 +546,7 @@ public sealed class TestSession : IVoiceSession
     }
 
     // 分级标脏：当级输入变 → 置其下游产物的 stale（音频恒重渲）。phonemesStale / parametersStale 控制对应回显在重渲期间是否留白。
-    void MarkNoteDirty(IVoiceNote note, bool phonemesStale, bool parametersStale)
+    void MarkNoteDirty(IVoiceSynthesisNote note, bool phonemesStale, bool parametersStale)
     {
         foreach (var piece in mPieces)
         {
@@ -565,7 +565,7 @@ public sealed class TestSession : IVoiceSession
 
     sealed class Piece
     {
-        public required IReadOnlyList<IVoiceNote> Notes;
+        public required IReadOnlyList<IVoiceSynthesisNote> Notes;
         public double StartTime;
         public double EndTime;
         public bool Dirty;            // 音频 / 产物需重渲（任何上游变动都置）
@@ -576,7 +576,7 @@ public sealed class TestSession : IVoiceSession
         public string? Error;
         public double Progress;
         public IAudioSegment? Segment;
-        public IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> Phonemes = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
+        public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> Phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
         public IReadOnlyList<Point> EnergyReadback = [];
     }
 
@@ -589,9 +589,9 @@ public sealed class TestSession : IVoiceSession
     const int kAttackSamples = (int)(0.008 * kSampleRate);   // 8ms 渐入
     const int kReleaseSamples = (int)(0.012 * kSampleRate);  // 12ms 渐出
 
-    readonly IVoiceContext mContext;
+    readonly IVoiceSynthesisContext mContext;
     readonly IDisposable mNotesSubscription;
-    readonly Dictionary<IVoiceNote, (Action Geometry, Action PitchOrPhonemes, Action Properties)> mNoteHandlers = new();
+    readonly Dictionary<IVoiceSynthesisNote, (Action Geometry, Action PitchOrPhonemes, Action Properties)> mNoteHandlers = new();
     readonly List<Piece> mPieces = new();
     bool mNeedResegment;
 }
@@ -609,7 +609,7 @@ static class RefLayout
     }
 
     // 主入口：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map。位置 / 压缩 / 相接判定交宿主。
-    public static IReadOnlyMap<IVoiceNote, IReadOnlyList<VoicePhoneme>> Build(VoiceSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceNote> origins)
+    public static IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceSynthesisNote> origins)
     {
         var byNote = new Dictionary<int, List<Pred>>();
         foreach (var p in predicted)
@@ -619,7 +619,7 @@ static class RefLayout
             list.Add(p);
         }
 
-        var result = new Map<IVoiceNote, IReadOnlyList<VoicePhoneme>>();
+        var result = new Map<IVoiceSynthesisNote, IReadOnlyList<VoicePhoneme>>();
         for (int ni = 0; ni < snapshot.Notes.Count; ni++)
         {
             var note = snapshot.Notes[ni];

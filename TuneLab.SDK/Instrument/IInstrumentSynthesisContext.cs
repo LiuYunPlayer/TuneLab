@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
@@ -11,12 +10,12 @@ namespace TuneLab.SDK;
 //
 // 坐标系约定：插件侧时间量一律为全局秒（与音频产物、状态段同一时间系）；tick 仅是宿主乐谱内部表示、不外露。
 //
-// 与 voice 的 IVoiceContext 差异：Notes 元素是 IInstrumentNote（满末、不去重叠）；
+// 与 voice 的 IVoiceSynthesisContext 差异：Notes 元素是 IInstrumentNote（满末、不去重叠）；
 // 【无 Pitch / PitchDeviation 双音高通道】（v1 纯按 note 整数 pitch 发声）。其余（automation / 快照 /
 // 音频段 / Committed 收口）与 voice 同构。
-public interface IInstrumentContext
+public interface IInstrumentSynthesisContext
 {
-    // 选定音源（= IInstrumentEngine.InstrumentSourceInfos 的 key）：context 生命内**不可变**（换音源 = 宿主重建 context + 会话），
+    // 选定音源（= IInstrumentSynthesisEngine.InstrumentSourceInfos 的 key）：context 生命内**不可变**（换音源 = 宿主重建 context + 会话），
     // 故烘入 context、CreateSession 不再单列 instrumentId。
     string InstrumentId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走 First/Last、
@@ -24,16 +23,17 @@ public interface IInstrumentContext
     //
     // 排序契约（全序、确定性）：StartTime 升序 → 同起点 EndTime 降序（长 note 在前）→ 再同则保持宿主插入序。
     // 【note 可重叠且宿主不去重叠】——instrument 引擎原味消费重叠几何（和弦 / 多声部），自行决定叠加发声。
-    IReadOnlyNotifiableLinkedList<IInstrumentNote> Notes { get; }
+    IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote> Notes { get; }
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
 
-    // 通用 automation 轨（引擎声明的力度 / 表情 / 动态等，与 pitch 无关）；不声明即恒 false。
-    bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation);
+    // 通用 automation 轨（引擎声明的力度 / 表情 / 动态等，与 pitch 无关）：只读 map，可枚举可点取
+    // （与 voice 的 IVoiceSynthesisContext.Automations 同语义）；引擎不声明即恒空。
+    IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
     // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同邻居，插件自由圈定，
     // 返回的 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。
     // 仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用。
-    InstrumentSnapshot GetSnapshot(IReadOnlyList<IInstrumentNote> notes, double startTime, double endTime);
+    InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime);
 
     // 音频产物的宿主分配工厂：插件产出音频时申请段握柄，写入、Commit() 标完成，重分片时 Dispose() 释放重建。
     // 宿主据此持有段登记表、驱动下游 effect 链按段重渲染。仅数据线程调用；sampleOffset = 全局起始采样位置

@@ -2,7 +2,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// 声库目录元数据（IVoiceEngine.VoiceSourceInfos 的值；会话不重复承载这些）。
+// 声库目录元数据（IVoiceSynthesisEngine.VoiceSourceInfos 的值；会话不重复承载这些）。
 public struct VoiceSourceInfo
 {
     public string Name;

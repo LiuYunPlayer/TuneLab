@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Data.Timing;
@@ -9,18 +8,18 @@ using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;
 
-// IInstrumentContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
+// IInstrumentSynthesisContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
 // 与 voice 的 VoiceSynthesisContext 同构但精简——instrument 无 pitch/vibrato 双音高通道、note 取满末（不去重叠）、
 // 无 Lyric/Phonemes。领域中性的代理（DerivedProperty/PropertyObjectGuard/AutomationProxy）经 ISynthesisForwarder 复用；
 // 音频段机制（AudioSegment/IAudioSegmentHost/Owner）与 EffectGraph 与 voice 共用。
 //
 // 坐标系约定：tick/秒均为全局工程轴；宿主数据层的 part 相对量在本层完成偏移换算。
-internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
+internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
 {
     public MidiPart Part => mPart;
 
     public string InstrumentId => mInstrumentId;
-    public IReadOnlyNotifiableLinkedList<IInstrumentNote> Notes => mNotes;
+    public IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
 
     public event Action? Committed;
@@ -50,10 +49,10 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
     }
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：满末口径、无双音高通道。
-    public InstrumentSnapshot GetSnapshot(IReadOnlyList<IInstrumentNote> notes, double startTime, double endTime)
+    public InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
-        return InstrumentSnapshotFactory.Capture(mPart, notes, startTime, endTime);
+        return InstrumentSynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
     }
 
     public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)
@@ -84,29 +83,33 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
             AudioSegmentsChanged?.Invoke();
     }
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
+    // 已声明 automation 轨只读 map：轨集 = 当前音源引擎声明的 AutomationConfigs；代理按 key 缓存、缺则补建；
+    // 每次读重建 map 以反映当前声明集。原始曲线（无 vibrato 偏移）：instrument 无颤音语义。
+    public IReadOnlyMap<string, ISynthesisAutomation> Automations
     {
-        if (!mPart.IsEffectiveAutomation(key))
+        get
         {
-            automation = null;
-            return false;
+            AssertDataThread();
+            var map = new Map<string, ISynthesisAutomation>();
+            foreach (var kvp in mPart.SoundSource.AutomationConfigs)
+            {
+                string key = kvp.Key.Id;
+                if (!mAutomationProxies.TryGetValue(key, out var proxy))
+                {
+                    proxy = new AutomationProxy(this, ticks => mPart.GetAutomationValues(ticks, key));
+                    mAutomationProxies.Add(key, proxy);
+                }
+                map.Add(key, proxy);
+            }
+            return map;
         }
-
-        if (!mAutomationProxies.TryGetValue(key, out var proxy))
-        {
-            // 原始曲线（无 vibrato 偏移）：instrument 无颤音语义。
-            proxy = new AutomationProxy(this, ticks => mPart.GetAutomationValues(ticks, key));
-            mAutomationProxies.Add(key, proxy);
-        }
-        automation = proxy;
-        return true;
     }
 
     [System.Diagnostics.Conditional("DEBUG")]
     internal void AssertDataThread()
     {
         if (System.Environment.CurrentManagedThreadId != mDataThreadId)
-            throw new InvalidOperationException("Synthesis live view (IInstrumentContext and its proxies) must only be accessed on the data thread; synthesize against the immutable InstrumentSnapshot instead.");
+            throw new InvalidOperationException("Synthesis live view (IInstrumentSynthesisContext and its proxies) must only be accessed on the data thread; synthesize against the immutable InstrumentSynthesisSnapshot instead.");
     }
 
     public void Dispose()
@@ -254,13 +257,13 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
     }
 
     // —— note 代理集合：镜像 part.Notes（链表序、无索引承诺），增删自动建/毁代理并转发结构事件。 ——
-    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IInstrumentNote>, IDisposable
+    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote>, IDisposable
     {
-        public event Action<IInstrumentNote>? ItemAdded;
-        public event Action<IInstrumentNote>? ItemRemoved;
+        public event Action<IInstrumentSynthesisNote>? ItemAdded;
+        public event Action<IInstrumentSynthesisNote>? ItemRemoved;
         public event Action? Modified;
 
-        public IInstrumentNote? First
+        public IInstrumentSynthesisNote? First
         {
             get
             {
@@ -270,7 +273,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
             }
         }
 
-        public IInstrumentNote? Last
+        public IInstrumentSynthesisNote? Last
         {
             get
             {
@@ -295,7 +298,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
 
         public int Count => mNotes.Count;
 
-        public IEnumerator<IInstrumentNote> GetEnumerator()
+        public IEnumerator<IInstrumentSynthesisNote> GetEnumerator()
         {
             mContext.AssertDataThread();
             foreach (var note in mNotes)
@@ -354,7 +357,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
     }
 
     // —— note 代理：满末（Pos+Dur，不去重叠）、无 Lyric/Phonemes；边界为全局秒。 ——
-    internal sealed class InstrumentNoteProxy : IInstrumentNote, IDisposable
+    internal sealed class InstrumentNoteProxy : IInstrumentSynthesisNote, IDisposable
     {
         public INote Source => mNote;
 
@@ -363,8 +366,8 @@ internal sealed class InstrumentSynthesisContext : IInstrumentContext, ISynthesi
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
-        public IInstrumentNote? Next => mContext.ProxyOf(mNote.Next);
-        public IInstrumentNote? Last => mContext.ProxyOf(mNote.Last);
+        public IInstrumentSynthesisNote? Next => mContext.ProxyOf(mNote.Next);
+        public IInstrumentSynthesisNote? Last => mContext.ProxyOf(mNote.Last);
 
         public InstrumentNoteProxy(InstrumentSynthesisContext context, INote note)
         {

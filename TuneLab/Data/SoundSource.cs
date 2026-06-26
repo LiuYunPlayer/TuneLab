@@ -82,7 +82,7 @@ internal class SoundSource : DataObject, ISoundSource
     }
 
     // 注入合成会话（建会话之后，仅 voice）：供 DefaultLyric 等会话级运行时取值；instrument 无此需求。
-    public void SetSession(IVoiceSession? session)
+    public void SetSession(IVoiceSynthesisSession? session)
     {
         mSession = session;
     }
@@ -150,7 +150,7 @@ internal class SoundSource : DataObject, ISoundSource
     string mID;
     string mName = string.Empty;
 
-    IVoiceSession? mSession;
+    IVoiceSynthesisSession? mSession;
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new();
 }

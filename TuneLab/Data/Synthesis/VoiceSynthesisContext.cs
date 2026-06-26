@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Data.Timing;
@@ -9,19 +8,19 @@ using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;
 
-// IVoiceContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
+// IVoiceSynthesisContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
 // 插件订阅的事件字段全在本对象/其代理对象上（短命，随会话一起回收 → 泄漏结构性不可能）；
 // 本对象内部订阅长寿数据层（part/note/automation/tempo），由宿主在数据线程转发——
 // 借壳数据层最小订阅面（IReadOnlyNotifiable），天然只转发已提交的真实变更（merge 中间态不外漏）。
 //
 // 坐标系约定（SDK 面）：tick/秒均为全局工程轴（与音频产物、状态段同一时间系）；
 // 宿主数据层的 part 相对量在本层完成偏移换算。
-internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
+internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesisForwarder, IAudioSegmentHost, IAudioSegmentOwner, IDisposable
 {
     public MidiPart Part => mPart;
 
     public string VoiceId => mVoiceId;
-    public IReadOnlyNotifiableLinkedList<IVoiceNote> Notes => mNotes;
+    public IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
     public ISynthesisAutomation PitchDeviation => mPitchDeviation;
@@ -70,10 +69,10 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
     // [startTime, endTime] 为全局秒开窗区间，物化器内部经 tempo 快照换算到 tick 找锚点。
-    public VoiceSnapshot GetSnapshot(IReadOnlyList<IVoiceNote> notes, double startTime, double endTime)
+    public VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
-        return VoiceSnapshotFactory.Capture(mPart, notes, startTime, endTime);
+        return VoiceSynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
     }
 
     // 音频段工厂（插件调入）：一次性分配固定长度缓冲、登记握柄。插件就地写子区间、Commit 标完成，
@@ -108,21 +107,26 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
             AudioSegmentsChanged?.Invoke();
     }
 
-    public bool TryGetAutomation(string key, [MaybeNullWhen(false)] out ISynthesisAutomation automation)
+    // 已声明 automation 轨只读 map：轨集 = 当前音源引擎声明的 AutomationConfigs（孤儿 / 他引擎数据不在内）；
+    // 代理按 key 缓存（保订阅稳定）、缺则补建；每次读重建 map 以反映当前声明集。
+    public IReadOnlyMap<string, ISynthesisAutomation> Automations
     {
-        if (!mPart.IsEffectiveAutomation(key))
+        get
         {
-            automation = null;
-            return false;
+            AssertDataThread();
+            var map = new Map<string, ISynthesisAutomation>();
+            foreach (var kvp in mPart.SoundSource.AutomationConfigs)
+            {
+                string key = kvp.Key.Id;
+                if (!mAutomationProxies.TryGetValue(key, out var proxy))
+                {
+                    proxy = new AutomationProxy(this, ticks => mPart.GetFinalAutomationValues(ticks, key));
+                    mAutomationProxies.Add(key, proxy);
+                }
+                map.Add(key, proxy);
+            }
+            return map;
         }
-
-        if (!mAutomationProxies.TryGetValue(key, out var proxy))
-        {
-            proxy = new AutomationProxy(this, ticks => mPart.GetFinalAutomationValues(ticks, key));
-            mAutomationProxies.Add(key, proxy);
-        }
-        automation = proxy;
-        return true;
     }
 
     // 数据线程纪律断言（DEBUG）：活视图仅数据线程可用是纪律性约束，类型上无法强制——
@@ -131,7 +135,7 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
     internal void AssertDataThread()
     {
         if (System.Environment.CurrentManagedThreadId != mDataThreadId)
-            throw new InvalidOperationException("Synthesis live view (IVoiceContext and its proxies) must only be accessed on the data thread; synthesize against the immutable VoiceSnapshot instead.");
+            throw new InvalidOperationException("Synthesis live view (IVoiceSynthesisContext and its proxies) must only be accessed on the data thread; synthesize against the immutable VoiceSynthesisSnapshot instead.");
     }
 
     public void Dispose()
@@ -337,13 +341,13 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
 
     // —— note 代理集合：镜像 part.Notes（顺序即链表序，无索引承诺——SDK 面即链表形态），
     //    增删自动建/毁代理并转发结构事件。 ——
-    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IVoiceNote>, IDisposable
+    sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote>, IDisposable
     {
-        public event Action<IVoiceNote>? ItemAdded;
-        public event Action<IVoiceNote>? ItemRemoved;
+        public event Action<IVoiceSynthesisNote>? ItemAdded;
+        public event Action<IVoiceSynthesisNote>? ItemRemoved;
         public event Action? Modified;
 
-        public IVoiceNote? First
+        public IVoiceSynthesisNote? First
         {
             get
             {
@@ -353,7 +357,7 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
             }
         }
 
-        public IVoiceNote? Last
+        public IVoiceSynthesisNote? Last
         {
             get
             {
@@ -378,7 +382,7 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
 
         public int Count => mNotes.Count;
 
-        public IEnumerator<IVoiceNote> GetEnumerator()
+        public IEnumerator<IVoiceSynthesisNote> GetEnumerator()
         {
             mContext.AssertDataThread();
             foreach (var note in mNotes)
@@ -440,7 +444,7 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
     // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局秒（ToSecond(partPos+notePos)，
     //    DerivedProperty source 含 part.Pos / TempoManager，故 tempo 变 / part 平移自动触发边界 Modified）；
     //    Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
-    internal sealed class VoiceNoteProxy : IVoiceNote, IDisposable
+    internal sealed class VoiceNoteProxy : IVoiceSynthesisNote, IDisposable
     {
         public INote Source => mNote;
 
@@ -453,8 +457,8 @@ internal sealed class VoiceSynthesisContext : IVoiceContext, ISynthesisForwarder
         public bool IsContinuation => mNote.IsEffectiveContinuation();
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
-        public IVoiceNote? Next => mContext.ProxyOf(mNote.Next);
-        public IVoiceNote? Last => mContext.ProxyOf(mNote.Last);
+        public IVoiceSynthesisNote? Next => mContext.ProxyOf(mNote.Next);
+        public IVoiceSynthesisNote? Last => mContext.ProxyOf(mNote.Last);
 
         public VoiceNoteProxy(VoiceSynthesisContext context, INote note)
         {

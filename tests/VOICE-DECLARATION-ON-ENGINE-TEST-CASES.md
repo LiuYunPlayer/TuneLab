@@ -1,8 +1,8 @@
 # voice 声明上移到引擎 + 构造期订阅 测试用例
 
 > 本文只覆盖**本次改动的受影响范围**：voice 的声明面（`GetAutomationConfigs` / `GetSynthesizedParameterConfigs` /
-> `GetPartPropertyConfig` / `GetNotePropertyConfig`）从 `IVoiceSession` 上移到 **`IVoiceEngine`**，`voiceId` 经
-> **`IVoicePartPropertyContext.VoiceId`** 注入；会话只余 `DefaultLyric`。宿主据此在**建会话之前**填好声明，使会话
+> `GetPartPropertyConfig` / `GetNotePropertyConfig`）从 `IVoiceSynthesisSession` 上移到 **`IVoiceSynthesisEngine`**，`voiceId` 经
+> **`IVoiceSynthesisPartPropertyContext.VoiceId`** 注入；会话只余 `DefaultLyric`。宿主据此在**建会话之前**填好声明，使会话
 > **构造期即可订阅自己声明的自动化轨**（修复"绘制完参数不触发重渲"的根因）。
 >
 > 轨编辑/合成/孤儿数据/条件显隐的既有行为应**完全不变**（仅声明来源从 session 改为 engine）——本文验证"行为不回归"

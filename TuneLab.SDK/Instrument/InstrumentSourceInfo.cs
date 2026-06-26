@@ -2,7 +2,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// 音源目录元数据（IInstrumentEngine.InstrumentSourceInfos 的值；会话不重复承载这些）。
+// 音源目录元数据（IInstrumentSynthesisEngine.InstrumentSourceInfos 的值；会话不重复承载这些）。
 public struct InstrumentSourceInfo
 {
     public string Name;

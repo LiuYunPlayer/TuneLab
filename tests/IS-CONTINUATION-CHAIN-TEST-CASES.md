@@ -5,7 +5,7 @@
 ## 背景
 
 - 宿主显示侧（`ForwardFillEnd`）**一直**按相接门控铺设：孤儿延音符不被前元音铺过、显示空白。本次**不改显示行为**。
-- 改的是**喂插件的标志值**：`IVoiceNote.IsContinuation` / `VoiceNoteSnapshot.IsContinuation` 现在 = 宿主 melisma 实际吞并集（含相接链），使插件**直接信标志即与宿主一致**，不会把孤儿误当真延音、把前元音铺进静音（消除一类不对等 footgun）。
+- 改的是**喂插件的标志值**：`IVoiceSynthesisNote.IsContinuation` / `VoiceSynthesisNoteSnapshot.IsContinuation` 现在 = 宿主 melisma 实际吞并集（含相接链），使插件**直接信标志即与宿主一致**，不会把孤儿误当真延音、把前元音铺进静音（消除一类不对等 footgun）。
 - 判据实现：`INote.IsEffectiveContinuation()`（`TuneLab/Data/INote.cs`）——是 `-` 且向前回溯，遇空隙断链 / 链头无发声 note → `false`。
 
 ## 用例 1：相接链 → 生效延续（true，melisma）
