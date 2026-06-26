@@ -254,7 +254,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         PathManager.MakeSureExist(PathManager.AutoSaveFolder);
         PathManager.MakeSureExist(PathManager.AutoSaveHistoryFolder);
         RecentFilesManager.Init();
-        RecentFilesManager.RecentFilesChanged += (sender, args) => UpdateRecentFilesMenu();
 
         NewProject();
         CheckUpdate();
@@ -1125,6 +1124,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var menu = new Menu() { Background = Style.BACK.ToBrush(), Height = 40 };
         {
             var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("File");
+            // 最近文件子菜单按需重建：仅在「文件」菜单打开时刷新，避免在某个最近文件项的点击命令执行期间
+            // 清空其所属集合（会移除正在被点击的项，破坏菜单内部选中/弹窗状态，导致下次首次悬浮二级菜单被立即关闭）
+            menuBarItem.SubmenuOpened += (_, _) => UpdateRecentFilesMenu();
             {
                 var menuItem = new MenuItem().SetTrName("New").SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
                 menuBarItem.Items.Add(menuItem);
@@ -1134,25 +1136,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Recent Files");
-                foreach (var mRecentFile in RecentFilesManager.GetRecentFiles())
-                {
-                    var mRecentFilesMenuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() =>
-                    {
-                        SwitchProjectSafely(() => OpenProjectByPath(mRecentFile.FilePath));
-                        Menu.Close();
-                    });
-                    menuItem.Items.Add(mRecentFilesMenuItem);
-                }
-
-                if (menuItem.Items.Count == 0)
-                {
-                    var mRecentFilesMenuItem = new MenuItem().SetTrName("Empty");
-                    mRecentFilesMenuItem.IsEnabled = false;
-                    menuItem.Items.Add(mRecentFilesMenuItem);
-                }
-
-                mRecentFilesMenu = menuItem;
+                mRecentFilesMenu = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Recent Files");
+                UpdateRecentFilesMenu();
                 menuBarItem.Items.Add(mRecentFilesMenu);
             }
             {
@@ -1354,7 +1339,18 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mRecentFilesMenu.Items.Clear();
         foreach (var mRecentFile in RecentFilesManager.GetRecentFiles())
         {
-            var menuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() => SwitchProjectSafely(() => OpenProjectByPath(mRecentFile.FilePath)));
+            var menuItem = new MenuItem().SetName(mRecentFile.FileName).SetAction(() =>
+            {
+                SwitchProjectSafely(() => OpenProjectByPath(mRecentFile.FilePath));
+                Menu.Close();
+            });
+            mRecentFilesMenu.Items.Add(menuItem);
+        }
+
+        if (mRecentFilesMenu.Items.Count == 0)
+        {
+            var menuItem = new MenuItem().SetTrName("Empty");
+            menuItem.IsEnabled = false;
             mRecentFilesMenu.Items.Add(menuItem);
         }
     }

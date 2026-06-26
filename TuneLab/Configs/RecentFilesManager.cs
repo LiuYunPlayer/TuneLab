@@ -10,7 +10,6 @@ internal static class RecentFilesManager
 {
     private const int MaxFiles = 20;
     private static readonly string storageFile = Path.Combine(PathManager.ConfigsFolder, "RecentFiles.txt");
-    public static event EventHandler? RecentFilesChanged;
 
     public static void Init()
     {
@@ -71,8 +70,6 @@ internal static class RecentFilesManager
         }
 
         SaveRecentFiles(recentFiles);
-
-        RecentFilesChanged?.Invoke(null, EventArgs.Empty);
     }
 
     public static List<FileRecord> GetRecentFiles()
