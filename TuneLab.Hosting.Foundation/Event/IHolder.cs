@@ -31,13 +31,17 @@ public static class IHolderExtension
         {
             mHolder = holder;
             mSubscriber = subscriber;
-
-            mHolder.WillModify.Subscribe(OnWillModify);
-            mHolder.Modified.Subscribe(OnModified);
         }
 
+        // 引用计数：仅当有下游时才挂在 holder 的替换通知上，清零即摘，避免被长寿 holder pin 住。
         public void Subscribe(TEvent invokable)
         {
+            if (mEvents.Count == 0)
+            {
+                mHolder.WillModify.Subscribe(OnWillModify);
+                mHolder.Modified.Subscribe(OnModified);
+            }
+
             if (mHolder.Value != null)
                 mSubscriber.Subscribe(mHolder.Value, invokable);
 
@@ -46,10 +50,17 @@ public static class IHolderExtension
 
         public void Unsubscribe(TEvent invokable)
         {
+            if (!mEvents.Remove(invokable))
+                return;
+
             if (mHolder.Value != null)
                 mSubscriber.Unsubscribe(mHolder.Value, invokable);
 
-            mEvents.Remove(invokable);
+            if (mEvents.Count == 0)
+            {
+                mHolder.WillModify.Unsubscribe(OnWillModify);
+                mHolder.Modified.Unsubscribe(OnModified);
+            }
         }
 
         void OnWillModify()
