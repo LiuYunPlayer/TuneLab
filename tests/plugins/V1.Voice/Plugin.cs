@@ -85,10 +85,16 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；
         // 曲线区间变化 → 标脏相交块；时基/part 属性 → 全部标脏。
-        mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
-        context.Notes.ItemAdded += OnNotesStructureChanged;
-        context.Notes.ItemRemoved += OnNotesStructureChanged;
-        context.PartProperties.Modified += MarkAllDirtyAndResegment;
+        // 分级失效（链：时长/歌词[几何] → 音素 → 音高 → 参数 → 音频）：不同事件清不同下游产物，按级各开一个 WhenAnyItem。
+        context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Lyric.Modified)
+            .Subscribe(note => MarkNoteDirty(note, phonemesStale: true, parametersStale: true), mSubscriptions);
+        context.Notes.WhenAnyItem(n => n.Pitch.Modified, n => n.Phonemes.Modified)
+            .Subscribe(note => MarkNoteDirty(note, phonemesStale: false, parametersStale: true), mSubscriptions);
+        context.Notes.WhenAnyItem(n => n.Properties.Modified)
+            .Subscribe(note => MarkNoteDirty(note, phonemesStale: false, parametersStale: false), mSubscriptions);
+        context.Notes.ItemAdded.Subscribe(OnNotesStructureChanged, mSubscriptions);
+        context.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged, mSubscriptions);
+        context.PartProperties.Modified.Subscribe(MarkAllDirtyAndResegment, mSubscriptions);
         context.Committed += OnCommitted;
         context.Pitch.RangeModified += OnPitchRangeModified;
         context.PitchDeviation.RangeModified += OnPitchRangeModified;
@@ -262,10 +268,7 @@ public sealed class TestSession : IVoiceSynthesisSession
 
     public void Dispose()
     {
-        mNotesSubscription.Dispose();
-        mContext.Notes.ItemAdded -= OnNotesStructureChanged;
-        mContext.Notes.ItemRemoved -= OnNotesStructureChanged;
-        mContext.PartProperties.Modified -= MarkAllDirtyAndResegment;
+        mSubscriptions.DisposeAll();
         mContext.Committed -= OnCommitted;
         mContext.Pitch.RangeModified -= OnPitchRangeModified;
         mContext.PitchDeviation.RangeModified -= OnPitchRangeModified;
@@ -488,34 +491,6 @@ public sealed class TestSession : IVoiceSynthesisSession
         NotifyProducts();   // 重分块：块集合 / 脏态变 → 产物报告随之变化
     }
 
-    void SubscribeNote(IVoiceSynthesisNote note)
-    {
-        // 分级失效（链：时长/歌词[几何] → 音素 → 音高 → 参数 → 音频）：改某级输入只清其下游产物回显。
-        void onGeometry() => MarkNoteDirty(note, phonemesStale: true, parametersStale: true);        // 时长/歌词：音素几何变 → 音素 + 下游全失效
-        void onPitchOrPhonemes() => MarkNoteDirty(note, phonemesStale: false, parametersStale: true); // 音高 / 锁定音素：不动音素几何 → 仅下游参数失效
-        void onProperties() => MarkNoteDirty(note, phonemesStale: false, parametersStale: false);     // 属性（同级参数兄弟）：仅重渲音频，回显不失效
-        mNoteHandlers[note] = (onGeometry, onPitchOrPhonemes, onProperties);
-        note.StartTime.Modified += onGeometry;
-        note.EndTime.Modified += onGeometry;
-        note.Lyric.Modified += onGeometry;
-        note.Pitch.Modified += onPitchOrPhonemes;
-        note.Phonemes.Modified += onPitchOrPhonemes;
-        note.Properties.Modified += onProperties;
-    }
-
-    void UnsubscribeNote(IVoiceSynthesisNote note)
-    {
-        if (!mNoteHandlers.Remove(note, out var h))
-            return;
-
-        note.StartTime.Modified -= h.Geometry;
-        note.EndTime.Modified -= h.Geometry;
-        note.Lyric.Modified -= h.Geometry;
-        note.Pitch.Modified -= h.PitchOrPhonemes;
-        note.Phonemes.Modified -= h.PitchOrPhonemes;
-        note.Properties.Modified -= h.Properties;
-    }
-
     void OnNotesStructureChanged(IVoiceSynthesisNote note) => mNeedResegment = true;
 
     void MarkAllDirtyAndResegment()
@@ -600,8 +575,7 @@ public sealed class TestSession : IVoiceSynthesisSession
     const int kReleaseSamples = (int)(0.012 * kSampleRate);  // 12ms 渐出
 
     readonly IVoiceSynthesisContext mContext;
-    readonly IDisposable mNotesSubscription;
-    readonly Dictionary<IVoiceSynthesisNote, (Action Geometry, Action PitchOrPhonemes, Action Properties)> mNoteHandlers = new();
+    readonly DisposableManager mSubscriptions = new();
     readonly List<Piece> mPieces = new();
     bool mNeedResegment;
 }

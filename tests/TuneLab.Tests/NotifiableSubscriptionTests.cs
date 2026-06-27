@@ -16,8 +16,8 @@ public class NotifiableSubscriptionTests
         IReadOnlyNotifiableProperty<double> readOnly = property;
 
         double oldSeen = double.NaN, newSeen = double.NaN;
-        readOnly.WillModify += () => oldSeen = readOnly.Value;
-        readOnly.Modified += () => newSeen = readOnly.Value;
+        readOnly.WillModify.Subscribe(() => oldSeen = readOnly.Value);
+        readOnly.Modified.Subscribe(() => newSeen = readOnly.Value);
 
         property.Set(5);
         Assert.Equal(0.0, oldSeen);
@@ -36,8 +36,8 @@ public class NotifiableSubscriptionTests
         property.Set(5);
 
         int fired = 0;
-        readOnly.WillModify += () => fired++;
-        readOnly.Modified += () => fired++;
+        readOnly.WillModify.Subscribe(() => fired++);
+        readOnly.Modified.Subscribe(() => fired++);
 
         property.Set(5);
         Assert.Equal(0, fired);
@@ -51,8 +51,8 @@ public class NotifiableSubscriptionTests
 
         int willCount = 0, modifiedCount = 0, willAllCount = 0;
         double firstWillSaw = double.NaN;
-        readOnly.WillModify += () => { willCount++; firstWillSaw = readOnly.Value; };
-        readOnly.Modified += () => modifiedCount++;
+        readOnly.WillModify.Subscribe(() => { willCount++; firstWillSaw = readOnly.Value; });
+        readOnly.Modified.Subscribe(() => modifiedCount++);
         property.WillModify.Subscribe((bool _) => willAllCount++);   // 全量形状收到每次改前
 
         property.BeginMergeNotify();
@@ -81,8 +81,8 @@ public class NotifiableSubscriptionTests
         IReadOnlyNotifiableProperty<double> readOnly = property;
 
         double oldSeen = double.NaN, newSeen = double.NaN;
-        readOnly.WillModify += () => oldSeen = readOnly.Value;
-        readOnly.Modified += () => newSeen = readOnly.Value;
+        readOnly.WillModify.Subscribe(() => oldSeen = readOnly.Value);
+        readOnly.Modified.Subscribe(() => newSeen = readOnly.Value);
 
         property.Value = 7;
         Assert.Equal(3.0, oldSeen);
@@ -98,10 +98,9 @@ public class NotifiableSubscriptionTests
         list.Add(a);
 
         int fired = 0;
-        Action onChanged = () => fired++;
-        var subscription = list.WhenAny(
-            p => ((IReadOnlyNotifiableProperty<double>)p).Modified += onChanged,
-            p => ((IReadOnlyNotifiableProperty<double>)p).Modified -= onChanged);
+        Action<NotifiableProperty<double>> onChanged = _ => fired++;
+        var aggregate = list.WhenAnyItem(p => ((IReadOnlyNotifiableProperty<double>)p).Modified);
+        aggregate.Subscribe(onChanged);
 
         a.Value = 1;                      // 既有成员已接线
         Assert.Equal(1, fired);
@@ -114,25 +113,29 @@ public class NotifiableSubscriptionTests
         a.Value = 2;                      // 移除成员自动退订
         Assert.Equal(2, fired);
 
-        subscription.Dispose();
-        b.Value = 2;                      // 整体退订后全部静默
+        aggregate.Unsubscribe(onChanged);
+        b.Value = 2;                      // 退订后全部静默
         Assert.Equal(2, fired);
     }
 
     class FakeNotifiableList<T> : IReadOnlyNotifiableList<T>
     {
-        public event Action<T>? ItemAdded;
-        public event Action<T>? ItemRemoved;
-        public event Action? Modified;
+        public IActionEvent<T> ItemAdded => mItemAdded;
+        public IActionEvent<T> ItemRemoved => mItemRemoved;
+        public IActionEvent StructureModified => mStructureModified;
+        public IEnumerable<T> Items => this;
 
         public T this[int index] => mItems[index];
         public int Count => mItems.Count;
         public IEnumerator<T> GetEnumerator() => mItems.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public void Add(T item) { mItems.Add(item); ItemAdded?.Invoke(item); Modified?.Invoke(); }
-        public void Remove(T item) { mItems.Remove(item); ItemRemoved?.Invoke(item); Modified?.Invoke(); }
+        public void Add(T item) { mItems.Add(item); mItemAdded.Invoke(item); mStructureModified.Invoke(); }
+        public void Remove(T item) { mItems.Remove(item); mItemRemoved.Invoke(item); mStructureModified.Invoke(); }
 
+        readonly ActionEvent<T> mItemAdded = new();
+        readonly ActionEvent<T> mItemRemoved = new();
+        readonly ActionEvent mStructureModified = new();
         readonly List<T> mItems = [];
     }
 }

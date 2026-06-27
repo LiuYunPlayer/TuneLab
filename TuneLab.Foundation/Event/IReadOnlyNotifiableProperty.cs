@@ -9,8 +9,8 @@ namespace TuneLab.Foundation;
 //   不直接触及宿主长寿对象。
 public interface IReadOnlyNotifiable
 {
-    event Action? WillModify;
-    event Action? Modified;
+    IActionEvent WillModify { get; }
+    IActionEvent Modified { get; }
 }
 
 // 叶子属性面：事件 + 廉价可读值。只有"读值是 O(1) 属性"的叶子才实现到这一层——

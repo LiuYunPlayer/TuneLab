@@ -844,22 +844,22 @@ internal sealed class EffectGraph : IDisposable
     // —— 只读属性活视图守卫：借壳 effect.Properties（短命随节点死、读时不跨线程），事件 re-raise 到自身。——
     sealed class LivePropertyObject : IReadOnlyNotifiablePropertyObject, IDisposable
     {
-        public event Action? WillModify;
-        public event Action? Modified;
+        public IActionEvent WillModify => mWillModify;
+        public IActionEvent Modified => mModified;
 
         // onModified（可选）在 re-raise Modified 之后回调——供 owner 在颗粒脏（订阅 Modified 者）已置后再收口，
         // 顺序确定（不依赖跨接口的订阅注册次序）。仅根节点传入，子节点（Object(key)）不带。
         public LivePropertyObject(IReadOnlyNotifiablePropertyObject source, Action? onModified = null)
         {
             mSource = source;
-            mOnWillModify = () => WillModify?.Invoke();
+            mOnWillModify = () => mWillModify.Invoke();
             mOnModified = () =>
             {
-                Modified?.Invoke();
+                mModified.Invoke();
                 onModified?.Invoke();
             };
-            mSource.WillModify += mOnWillModify;
-            mSource.Modified += mOnModified;
+            mSource.WillModify.Subscribe(mOnWillModify);
+            mSource.Modified.Subscribe(mOnModified);
         }
 
         public IReadOnlyNotifiablePropertyObject Object(string key)
@@ -876,8 +876,8 @@ internal sealed class EffectGraph : IDisposable
 
         public void Dispose()
         {
-            mSource.WillModify -= mOnWillModify;
-            mSource.Modified -= mOnModified;
+            mSource.WillModify.Unsubscribe(mOnWillModify);
+            mSource.Modified.Unsubscribe(mOnModified);
             foreach (var kv in mChildren)
                 kv.Value.Dispose();
             mChildren.Clear();
@@ -886,6 +886,8 @@ internal sealed class EffectGraph : IDisposable
         readonly IReadOnlyNotifiablePropertyObject mSource;
         readonly Action mOnWillModify;
         readonly Action mOnModified;
+        readonly ActionEvent mWillModify = new();
+        readonly ActionEvent mModified = new();
         readonly Dictionary<string, LivePropertyObject> mChildren = new();
     }
 }

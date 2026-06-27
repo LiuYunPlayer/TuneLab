@@ -21,11 +21,11 @@ internal interface ISynthesisForwarder
 }
 
 // —— 派生只读属性：借壳一个或多个数据层源（最小订阅面）的改前/改后事件，
-//    值即时从 getter 计算；事件字段在本对象上（短命），源订阅随 Dispose 拆除。 ——
+//    值即时从 getter 计算；事件在本对象上（短命），源订阅随 Dispose 拆除。 ——
 internal sealed class DerivedProperty<T> : IReadOnlyNotifiableProperty<T>, IDisposable
 {
-    public event Action? WillModify;
-    public event Action? Modified;
+    public IActionEvent WillModify => mWillModify;
+    public IActionEvent Modified => mModified;
     public T Value
     {
         get
@@ -40,12 +40,12 @@ internal sealed class DerivedProperty<T> : IReadOnlyNotifiableProperty<T>, IDisp
         mForwarder = forwarder;
         mGetter = getter;
         mSources = sources;
-        mOnWillModify = () => mForwarder.ForwardWill(() => WillModify?.Invoke());
-        mOnModified = () => mForwarder.ForwardChange(() => Modified?.Invoke());
+        mOnWillModify = () => mForwarder.ForwardWill(() => mWillModify.Invoke());
+        mOnModified = () => mForwarder.ForwardChange(() => mModified.Invoke());
         foreach (var source in mSources)
         {
-            source.WillModify += mOnWillModify;
-            source.Modified += mOnModified;
+            source.WillModify.Subscribe(mOnWillModify);
+            source.Modified.Subscribe(mOnModified);
         }
     }
 
@@ -53,8 +53,8 @@ internal sealed class DerivedProperty<T> : IReadOnlyNotifiableProperty<T>, IDisp
     {
         foreach (var source in mSources)
         {
-            source.WillModify -= mOnWillModify;
-            source.Modified -= mOnModified;
+            source.WillModify.Unsubscribe(mOnWillModify);
+            source.Modified.Unsubscribe(mOnModified);
         }
     }
 
@@ -63,23 +63,25 @@ internal sealed class DerivedProperty<T> : IReadOnlyNotifiableProperty<T>, IDisp
     readonly IReadOnlyNotifiable[] mSources;
     readonly Action mOnWillModify;
     readonly Action mOnModified;
+    readonly ActionEvent mWillModify = new();
+    readonly ActionEvent mModified = new();
 }
 
 // —— 属性树守卫：把宿主长寿 property object 包成会话级只读外观。
-//    导航逐层包裹（per key 缓存）、读值直透、事件 re-raise 到自身字段。 ——
+//    导航逐层包裹（per key 缓存）、读值直透、事件 re-raise 到自身。 ——
 internal sealed class PropertyObjectGuard : IReadOnlyNotifiablePropertyObject, IDisposable
 {
-    public event Action? WillModify;
-    public event Action? Modified;
+    public IActionEvent WillModify => mWillModify;
+    public IActionEvent Modified => mModified;
 
     public PropertyObjectGuard(ISynthesisForwarder forwarder, IReadOnlyNotifiablePropertyObject source)
     {
         mForwarder = forwarder;
         mSource = source;
-        mOnWillModify = () => mForwarder.ForwardWill(() => WillModify?.Invoke());
-        mOnModified = () => mForwarder.ForwardChange(() => Modified?.Invoke());
-        mSource.WillModify += mOnWillModify;
-        mSource.Modified += mOnModified;
+        mOnWillModify = () => mForwarder.ForwardWill(() => mWillModify.Invoke());
+        mOnModified = () => mForwarder.ForwardChange(() => mModified.Invoke());
+        mSource.WillModify.Subscribe(mOnWillModify);
+        mSource.Modified.Subscribe(mOnModified);
     }
 
     public IReadOnlyNotifiablePropertyObject Object(string key)
@@ -100,8 +102,8 @@ internal sealed class PropertyObjectGuard : IReadOnlyNotifiablePropertyObject, I
 
     public void Dispose()
     {
-        mSource.WillModify -= mOnWillModify;
-        mSource.Modified -= mOnModified;
+        mSource.WillModify.Unsubscribe(mOnWillModify);
+        mSource.Modified.Unsubscribe(mOnModified);
         foreach (var kvp in mChildren)
         {
             kvp.Value.Dispose();
@@ -113,6 +115,8 @@ internal sealed class PropertyObjectGuard : IReadOnlyNotifiablePropertyObject, I
     readonly IReadOnlyNotifiablePropertyObject mSource;
     readonly Action mOnWillModify;
     readonly Action mOnModified;
+    readonly ActionEvent mWillModify = new();
+    readonly ActionEvent mModified = new();
     readonly Dictionary<string, PropertyObjectGuard> mChildren = new();
 }
 

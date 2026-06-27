@@ -278,12 +278,12 @@ internal partial class PianoScrollView
                                             });
                                             menu.Items.Add(menuItem);
                                         }
-                                        if (note.Last != null && Part.Notes.End != null)
+                                        if (note.Last != null && Part.Notes.Last != null)
                                         {
                                             var menuItem = new MenuItem().SetName("Move Lyrics Backward".Tr(TC.Menu)).SetAction(() =>
                                             {
                                                 Part.BeginMergeDirty();
-                                                var it = Part.Notes.End;
+                                                var it = Part.Notes.Last;
                                                 while (it != note && it.Last != null)
                                                 {
                                                     var last = it.Last;

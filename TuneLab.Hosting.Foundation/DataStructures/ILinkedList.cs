@@ -18,27 +18,27 @@ public interface ILinkedList<T> : IReadOnlyLinkedList<T> where T : class, ILinke
 
 public static class ILinkedListExtension
 {
-    public static void AddBegin<T>(this ILinkedList<T> linkedList, T item) where T : class, ILinkedNode<T>
+    public static void AddFirst<T>(this ILinkedList<T> linkedList, T item) where T : class, ILinkedNode<T>
     {
-        if (linkedList.Begin == null)
+        if (linkedList.First == null)
         {
             linkedList.Insert(item);
         }
         else
         {
-            linkedList.InsertBefore(linkedList.Begin, item);
+            linkedList.InsertBefore(linkedList.First, item);
         }
     }
 
-    public static void AddEnd<T>(this ILinkedList<T> linkedList, T item) where T : class, ILinkedNode<T>
+    public static void AddLast<T>(this ILinkedList<T> linkedList, T item) where T : class, ILinkedNode<T>
     {
-        if (linkedList.End == null)
+        if (linkedList.Last == null)
         {
             linkedList.Insert(item);
         }
         else
         {
-            linkedList.InsertAfter(linkedList.End, item);
+            linkedList.InsertAfter(linkedList.Last, item);
         }
     }
 }

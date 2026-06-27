@@ -77,7 +77,7 @@ public sealed class GainEffectEngine : IEffectEngine
         {
             mContext = context;
             mContext.Input.Committed += OnInputCommitted;
-            mContext.Properties.Modified += OnPropertiesModified;
+            mContext.Properties.Modified.Subscribe(OnPropertiesModified);
             mContext.Committed += OnCommitted;
             WireEnvAutomation();
         }
@@ -230,7 +230,7 @@ public sealed class GainEffectEngine : IEffectEngine
         public void Dispose()
         {
             mContext.Input.Committed -= OnInputCommitted;
-            mContext.Properties.Modified -= OnPropertiesModified;
+            mContext.Properties.Modified.Unsubscribe(OnPropertiesModified);
             mContext.Committed -= OnCommitted;
             if (mEnvAutomation != null)
                 mEnvAutomation.RangeModified -= OnEnvRangeModified;

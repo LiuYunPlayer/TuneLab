@@ -47,10 +47,11 @@ public sealed class TestSession : IInstrumentSynthesisSession
         mSquare = instrumentId == "square";
 
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）。instrument 无 pitch 曲线 / 音素。
-        mNotesSubscription = NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
-        context.Notes.ItemAdded += OnNotesStructureChanged;
-        context.Notes.ItemRemoved += OnNotesStructureChanged;
-        context.PartProperties.Modified += MarkAllDirtyAndResegment;
+        context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified, n => n.Properties.Modified)
+            .Subscribe(MarkNoteDirty, mSubscriptions);
+        context.Notes.ItemAdded.Subscribe(OnNotesStructureChanged, mSubscriptions);
+        context.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged, mSubscriptions);
+        context.PartProperties.Modified.Subscribe(MarkAllDirtyAndResegment, mSubscriptions);
         context.Committed += OnCommitted;
 
         mNeedResegment = true;
@@ -145,10 +146,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
 
     public void Dispose()
     {
-        mNotesSubscription.Dispose();
-        mContext.Notes.ItemAdded -= OnNotesStructureChanged;
-        mContext.Notes.ItemRemoved -= OnNotesStructureChanged;
-        mContext.PartProperties.Modified -= MarkAllDirtyAndResegment;
+        mSubscriptions.DisposeAll();
         mContext.Committed -= OnCommitted;
         foreach (var piece in mPieces)
             piece.Segment?.Dispose();
@@ -260,26 +258,6 @@ public sealed class TestSession : IInstrumentSynthesisSession
         StatusChanged?.Invoke();
     }
 
-    void SubscribeNote(IInstrumentSynthesisNote note)
-    {
-        void onChanged() => MarkNoteDirty(note);
-        mNoteHandlers[note] = onChanged;
-        note.StartTime.Modified += onChanged;
-        note.EndTime.Modified += onChanged;
-        note.Pitch.Modified += onChanged;
-        note.Properties.Modified += onChanged;
-    }
-
-    void UnsubscribeNote(IInstrumentSynthesisNote note)
-    {
-        if (!mNoteHandlers.Remove(note, out var h))
-            return;
-        note.StartTime.Modified -= h;
-        note.EndTime.Modified -= h;
-        note.Pitch.Modified -= h;
-        note.Properties.Modified -= h;
-    }
-
     void OnNotesStructureChanged(IInstrumentSynthesisNote note) => mNeedResegment = true;
 
     void MarkAllDirtyAndResegment()
@@ -331,8 +309,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
 
     readonly IInstrumentSynthesisContext mContext;
     readonly bool mSquare;
-    readonly IDisposable mNotesSubscription;
-    readonly Dictionary<IInstrumentSynthesisNote, Action> mNoteHandlers = new();
+    readonly DisposableManager mSubscriptions = new();
     readonly List<Piece> mPieces = new();
     bool mNeedResegment;
 }

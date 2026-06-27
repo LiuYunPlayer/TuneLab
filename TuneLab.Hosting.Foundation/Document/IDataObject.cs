@@ -13,18 +13,10 @@ public interface IDataObject : IReadOnlyNotifiable
     new IModifiedEvent WillModify { get; }
     Head Head { get; }
 
-    // 最小面适配：Modified 经 ActionEvent 的 Action 重载订阅，天然只收结果态（canIgnore=false），
-    // merge 中间态不外漏；WillModify 改前事件不参与 merge 合并（旧值须在每次变更前可读）。
-    event Action? IReadOnlyNotifiable.WillModify
-    {
-        add { if (value != null) WillModify.Subscribe(value); }
-        remove { if (value != null) WillModify.Unsubscribe(value); }
-    }
-    event Action? IReadOnlyNotifiable.Modified
-    {
-        add { if (value != null) Modified.Subscribe(value); }
-        remove { if (value != null) Modified.Unsubscribe(value); }
-    }
+    // 最小面适配（DIM）：SDK 的 IActionEvent 面直接由富事件 IModifiedEvent 满足（IModifiedEvent : IActionEvent）。
+    // 经 IActionEvent 的无参 Subscribe 只收结果态（canIgnore=false），merge 中间态不外漏。
+    IActionEvent IReadOnlyNotifiable.WillModify => WillModify;
+    IActionEvent IReadOnlyNotifiable.Modified => Modified;
     void Attach(IDataObject parent);
     void Detach();
     // 合并通知作用域：进=BeginMergeNotify、出（Dispose）=EndMergeNotify，异常也平衡。

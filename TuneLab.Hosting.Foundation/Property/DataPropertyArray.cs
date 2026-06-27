@@ -14,7 +14,7 @@ public class DataPropertyArray : DataObject, IDataObject<PropertyArray>, IDataPr
     public int Count => mList.Count;
 
     // 结构变化通知（增删/重排）。= 底层列表的结构事件；元素值原位编辑只动该元素 DataPropertyValue、不触发此事件。
-    public IModifiedEvent StructureModified => mList.ListModified;
+    public IModifiedEvent StructureModified => mList.StructureModified;
 
     // 有序稳定 token：顺序随列表，身份按元素实例惰性赋号、跨 undo/redo 稳定。
     public IReadOnlyList<string> Tokens

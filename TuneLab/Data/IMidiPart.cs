@@ -194,7 +194,7 @@ internal static class IMidiPartExtension
 
     public static (int, int) PitchRange(this IMidiPart part)
     {
-        var note = part.Notes.Begin;
+        var note = part.Notes.First;
         if (note == null)
             return (0, 0);
 

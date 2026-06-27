@@ -259,17 +259,22 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     // —— note 代理集合：镜像 part.Notes（链表序、无索引承诺），增删自动建/毁代理并转发结构事件。 ——
     sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote>, IDisposable
     {
-        public event Action<IInstrumentSynthesisNote>? ItemAdded;
-        public event Action<IInstrumentSynthesisNote>? ItemRemoved;
-        public event Action? Modified;
+        public IActionEvent<IInstrumentSynthesisNote> ItemAdded => mItemAdded;
+        public IActionEvent<IInstrumentSynthesisNote> ItemRemoved => mItemRemoved;
+        public IActionEvent StructureModified => mStructureModified;
+        public IEnumerable<IInstrumentSynthesisNote> Items => this;
+
+        readonly ActionEvent<IInstrumentSynthesisNote> mItemAdded = new();
+        readonly ActionEvent<IInstrumentSynthesisNote> mItemRemoved = new();
+        readonly ActionEvent mStructureModified = new();
 
         public IInstrumentSynthesisNote? First
         {
             get
             {
                 mContext.AssertDataThread();
-                var begin = mNotes.Begin;
-                return begin == null ? null : ProxyOf(begin);
+                var first = mNotes.First;
+                return first == null ? null : ProxyOf(first);
             }
         }
 
@@ -278,8 +283,8 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             get
             {
                 mContext.AssertDataThread();
-                var end = mNotes.End;
-                return end == null ? null : ProxyOf(end);
+                var last = mNotes.Last;
+                return last == null ? null : ProxyOf(last);
             }
         }
 
@@ -293,7 +298,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             }
             mNotes.ItemAdded.Subscribe(OnItemAdded, s);
             mNotes.ItemRemoved.Subscribe(OnItemRemoved, s);
-            mNotes.ListModified.Subscribe(OnListModified, s);
+            mNotes.StructureModified.Subscribe(OnStructureModified, s);
         }
 
         public int Count => mNotes.Count;
@@ -333,7 +338,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         {
             var proxy = new InstrumentNoteProxy(mContext, note);
             mProxies[note] = proxy;
-            mContext.ForwardChange(() => ItemAdded?.Invoke(proxy));
+            mContext.ForwardChange(() => mItemAdded.Invoke(proxy));
         }
 
         void OnItemRemoved(INote note)
@@ -341,13 +346,13 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             if (!mProxies.Remove(note, out var proxy))
                 return;
 
-            mContext.ForwardChange(() => ItemRemoved?.Invoke(proxy));
+            mContext.ForwardChange(() => mItemRemoved.Invoke(proxy));
             proxy.Dispose();
         }
 
-        void OnListModified()
+        void OnStructureModified()
         {
-            mContext.ForwardChange(() => Modified?.Invoke());
+            mContext.ForwardChange(() => mStructureModified.Invoke());
         }
 
         readonly InstrumentSynthesisContext mContext;

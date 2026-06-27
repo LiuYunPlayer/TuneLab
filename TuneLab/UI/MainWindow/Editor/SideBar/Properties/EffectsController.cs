@@ -37,7 +37,7 @@ internal class EffectsController : StackPanel
         if (mPart != null)
         {
             // 链结构变化（增删/重排）整链重建；每个 effect 的参数/启用经逐字段绑定自动刷新与提交。
-            mPart.Effects.ListModified.Subscribe(Rebuild, s);
+            mPart.Effects.StructureModified.Subscribe(Rebuild, s);
         }
 
         Rebuild();

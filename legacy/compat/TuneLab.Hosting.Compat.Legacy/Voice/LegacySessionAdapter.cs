@@ -31,10 +31,13 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
         // —— 懒脏策略（设计许可的最粗粒度实现的细化版）：任何 note 字段/增删 → 标脏所在块 +
         //    待重分片；曲线区间变更 → 标脏相交块；时基/part 属性 → 全部标脏重分片。 ——
-        mNotesSubscription = mContext.Notes.WhenAny(SubscribeNote, UnsubscribeNote);
-        mContext.Notes.ItemAdded += OnNotesStructureChanged;
-        mContext.Notes.ItemRemoved += OnNotesStructureChanged;
-        mContext.PartProperties.Modified += OnPartPropertiesModified;
+        mNotesDirty = mContext.Notes.WhenAnyItem(
+            n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified,
+            n => n.Lyric.Modified, n => n.Phonemes.Modified, n => n.Properties.Modified);
+        mNotesDirty.Subscribe(OnNoteDirty);
+        mContext.Notes.ItemAdded.Subscribe(OnNotesStructureChanged);
+        mContext.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged);
+        mContext.PartProperties.Modified.Subscribe(OnPartPropertiesModified);
         mContext.Committed += OnCommitted;
         mContext.Pitch.RangeModified += OnRangeModified;
         mContext.PitchDeviation.RangeModified += OnRangeModified;   // 老 Pitch 含偏差，偏差变化同样标脏
@@ -225,10 +228,10 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             return;
         mDisposed = true;
 
-        mNotesSubscription.Dispose();
-        mContext.Notes.ItemAdded -= OnNotesStructureChanged;
-        mContext.Notes.ItemRemoved -= OnNotesStructureChanged;
-        mContext.PartProperties.Modified -= OnPartPropertiesModified;
+        mNotesDirty.Unsubscribe(OnNoteDirty);
+        mContext.Notes.ItemAdded.Unsubscribe(OnNotesStructureChanged);
+        mContext.Notes.ItemRemoved.Unsubscribe(OnNotesStructureChanged);
+        mContext.PartProperties.Modified.Unsubscribe(OnPartPropertiesModified);
         mContext.Committed -= OnCommitted;
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
@@ -237,11 +240,6 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             automation.RangeModified -= OnRangeModified;
         }
         mSubscribedAutomations.Clear();
-        foreach (var kv in mNoteHandlers)
-        {
-            DetachNoteHandler(kv.Key, kv.Value);
-        }
-        mNoteHandlers.Clear();
         foreach (var piece in mPieces)
             piece.Segment?.Dispose();
         mPieces.Clear();
@@ -249,36 +247,12 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     // —— 变更接线（数据线程）——
 
-    void SubscribeNote(VVoice.IVoiceSynthesisNote note)
+    // 任一 note 的几何/发音/属性变更 → 标脏该 note 所在块 + 待重分片。WhenAnyItem 带成员标识，
+    // 故能精确标脏变化的 note；成员订阅生命周期（增删接线/退订）由 WhenAnyItem 托管。
+    void OnNoteDirty(VVoice.IVoiceSynthesisNote note)
     {
-        void handler()
-        {
-            MarkNoteDirty(note);
-            mNeedReSegment = true;
-        }
-        mNoteHandlers[note] = handler;
-        note.StartTime.Modified += handler;
-        note.EndTime.Modified += handler;
-        note.Pitch.Modified += handler;
-        note.Lyric.Modified += handler;
-        note.Phonemes.Modified += handler;
-        note.Properties.Modified += handler;
-    }
-
-    void UnsubscribeNote(VVoice.IVoiceSynthesisNote note)
-    {
-        if (mNoteHandlers.Remove(note, out var handler))
-            DetachNoteHandler(note, handler);
-    }
-
-    void DetachNoteHandler(VVoice.IVoiceSynthesisNote note, Action handler)
-    {
-        note.StartTime.Modified -= handler;
-        note.EndTime.Modified -= handler;
-        note.Pitch.Modified -= handler;
-        note.Lyric.Modified -= handler;
-        note.Phonemes.Modified -= handler;
-        note.Properties.Modified -= handler;
+        MarkNoteDirty(note);
+        mNeedReSegment = true;
     }
 
     void OnNotesStructureChanged(VVoice.IVoiceSynthesisNote note)
@@ -569,8 +543,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     static readonly PStruct.Map<string, VVoice.SynthesizedParameter> mSynthesizedParameters = new();
 
-    readonly IDisposable mNotesSubscription;
-    readonly Dictionary<VVoice.IVoiceSynthesisNote, Action> mNoteHandlers = new(ReferenceEqualityComparer.Instance);
+    readonly IActionEvent<VVoice.IVoiceSynthesisNote> mNotesDirty;
     readonly List<VVoice.ISynthesisAutomation> mSubscribedAutomations = new();
 
     readonly List<Piece> mPieces = new();

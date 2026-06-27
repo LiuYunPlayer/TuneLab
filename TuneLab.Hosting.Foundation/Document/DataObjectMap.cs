@@ -18,8 +18,10 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     public ICollection<TValue> Values => mMap.Values;
 
     // 收敛集合接口要一元（仅值）的增删事件；映射公开的是二元（键+值），故另持一元投影，在 OnAdd/OnRemove 里同步触发。
-    IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemAdded => mValueAdded;
-    IActionEvent<TValue> IReadOnlyDataCollection<TValue>.ItemRemoved => mValueRemoved;
+    IActionEvent<TValue> IReadOnlyNotifiableEnumerable<TValue>.ItemAdded => mValueAdded;
+    IActionEvent<TValue> IReadOnlyNotifiableEnumerable<TValue>.ItemRemoved => mValueRemoved;
+    // 值集合结构变更聚合信号 = 底层映射的内容变更事件（增删键时 Notify）。
+    IActionEvent IReadOnlyNotifiableEnumerable<TValue>.StructureModified => mMap.Modified;
     public IEnumerable<TValue> Items => mMap.Values;
     public int Count => mMap.Count;
     public TValue this[TKey key] { get => mMap[key]; set => mMap[key] = value; }

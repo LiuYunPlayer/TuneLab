@@ -8,7 +8,7 @@ namespace TuneLab.Foundation;
 
 public interface IReadOnlyLinkedList<out T> : IReadOnlyCollection<T>
 {
-    T? Begin { get; }
-    T? End { get; }
+    T? First { get; }
+    T? Last { get; }
     IEnumerator<T> Inverse();
 }

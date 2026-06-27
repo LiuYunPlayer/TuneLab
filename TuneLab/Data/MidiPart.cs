@@ -65,7 +65,7 @@ internal class MidiPart : Part, IMidiPart
         mEffects = new(this);
         mEffects.ItemAdded.Subscribe(OnEffectAdded);
         mEffects.ItemRemoved.Subscribe(OnEffectRemoved);
-        mEffects.ListModified.Subscribe(OnEffectChainStructureModified);
+        mEffects.StructureModified.Subscribe(OnEffectChainStructureModified);
         mPitchLine = new();
         mPitchLine.Attach(this);
         Dur.Modified.Subscribe(mDurationChanged);
@@ -146,7 +146,7 @@ internal class MidiPart : Part, IMidiPart
     void OnEffectChainStructureModified()
     {
         mPipeline?.OnEffectChainStructureChanged();
-        // 链变更经 Effects.ListModified 已驱动 UI 重建；此处只对齐签名基线，避免后续参数 commit 误判。
+        // 链变更经 Effects.StructureModified 已驱动 UI 重建；此处只对齐签名基线，避免后续参数 commit 误判。
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
@@ -679,7 +679,7 @@ internal class MidiPart : Part, IMidiPart
 
         public NoteList()
         {
-            ListModified.Subscribe(mSelectionChanged);
+            StructureModified.Subscribe(mSelectionChanged);
             this.WhenAny(note => note.SelectionChanged).Subscribe(mSelectionChanged);
         }
 

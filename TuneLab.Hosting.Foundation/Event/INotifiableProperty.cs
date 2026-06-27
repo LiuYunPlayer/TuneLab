@@ -6,9 +6,8 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation;
 
-public interface INotifiableProperty<T>
+// 可写可通知属性 = 只读可通知属性 + 写。WillModify/Modified 继承自 IReadOnlyNotifiable。
+public interface INotifiableProperty<T> : IReadOnlyNotifiableProperty<T>
 {
-    IActionEvent Modified { get; }
-    IActionEvent WillModify { get; }
-    T Value { get; set; }
+    new T Value { get; set; }
 }

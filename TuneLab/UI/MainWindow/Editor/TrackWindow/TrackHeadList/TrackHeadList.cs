@@ -47,7 +47,7 @@ internal class TrackHeadList : LayerPanel
 
         mDependency.TrackVerticalAxis.AxisChanged += mTrackHeadLayer.InvalidateArrange;
         mDependency.ProjectHolder.Modified.Subscribe(mDirtyHandler.SetDirty, s);
-        mDependency.ProjectHolder.When(project => project.Tracks.ListModified).Subscribe(mDirtyHandler.SetDirty, s);
+        mDependency.ProjectHolder.When(project => project.Tracks.StructureModified).Subscribe(mDirtyHandler.SetDirty, s);
     }
 
     ~TrackHeadList()

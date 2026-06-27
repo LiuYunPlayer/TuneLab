@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation;
 
-public interface IInvokableEvent<out TEvent>
+public interface ISubscriber<in T, in TFunction>
 {
-    TEvent InvokeEvent { get; }
+    void Subscribe(T observable, TFunction action);
+    void Unsubscribe(T observable, TFunction action);
 }

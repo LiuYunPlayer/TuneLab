@@ -126,7 +126,7 @@ public class NoteOverlapClampTests
     sealed class Const<T>(T value) : IReadOnlyNotifiableProperty<T>
     {
         public T Value => value;
-        public event Action? WillModify { add { } remove { } }
-        public event Action? Modified { add { } remove { } }
+        public IActionEvent WillModify => ActionEvent.Empty;
+        public IActionEvent Modified => ActionEvent.Empty;
     }
 }

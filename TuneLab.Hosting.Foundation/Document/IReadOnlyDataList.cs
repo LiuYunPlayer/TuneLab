@@ -7,8 +7,8 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Foundation;
 
-public interface IReadOnlyDataList<out T> : IReadOnlyDataObject<IEnumerable<T>>, IReadOnlyDataCollection<T>, IReadOnlyList<T>
+// 成员增删/聚合通知（ItemAdded/ItemRemoved/StructureModified）+ 计数 + 随机索引继承自 SDK 的 IReadOnlyNotifiableList。
+public interface IReadOnlyDataList<out T> : IReadOnlyNotifiableList<T>, IReadOnlyDataObject<IEnumerable<T>>
 {
-    // 成员增删事件（ItemAdded / ItemRemoved）+ 当前成员（Items）继承自 IReadOnlyDataCollection。
     IActionEvent<T, T> ItemReplaced { get; }
 }

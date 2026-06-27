@@ -47,7 +47,7 @@ public static class IReadOnlyNotifiablePropertyObjectExtension
         : IReadOnlyNotifiableProperty<T>
     {
         public T Value => read(propertyObject.GetValue(key, defaultValue));
-        public event Action? WillModify { add => propertyObject.WillModify += value; remove => propertyObject.WillModify -= value; }
-        public event Action? Modified { add => propertyObject.Modified += value; remove => propertyObject.Modified -= value; }
+        public IActionEvent WillModify => propertyObject.WillModify;
+        public IActionEvent Modified => propertyObject.Modified;
     }
 }

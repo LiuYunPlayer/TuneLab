@@ -9,6 +9,8 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
 {
     public IActionEvent<T> ItemAdded => mItemAdded;
     public IActionEvent<T> ItemRemoved => mItemRemoved;
+    // 结构变更聚合信号 = 自身内容变更事件（链表只在增删时 Notify）。
+    public IActionEvent StructureModified => Modified;
     public IEnumerable<T> Items => this;
 
     public DataLinkedList()
@@ -16,9 +18,9 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
         mList = new(this);
     }
 
-    public T? Begin => mList.Begin;
+    public T? First => mList.First;
 
-    public T? End => mList.End;
+    public T? Last => mList.Last;
 
     public int Count => mList.Count;
 
@@ -107,7 +109,7 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
         public void Redo()
         {
             if (last == null)
-                dataLinkedList.mList.AddBegin(item);
+                dataLinkedList.mList.AddFirst(item);
             else
                 dataLinkedList.mList.InsertAfter(last, item);
             dataLinkedList.mItemAdded.Invoke(item);
@@ -134,7 +136,7 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
         public void Undo()
         {
             if (last == null)
-                dataLinkedList.mList.AddBegin(item);
+                dataLinkedList.mList.AddFirst(item);
             else
                 dataLinkedList.mList.InsertAfter(last, item);
             dataLinkedList.mItemAdded.Invoke(item);

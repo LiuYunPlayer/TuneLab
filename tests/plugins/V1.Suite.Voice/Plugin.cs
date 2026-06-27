@@ -213,9 +213,10 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
     public SingleBlockSession(IVoiceSynthesisContext context)
     {
         mContext = context;
-        mNotesSubscription = TuneLab.Foundation.NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);
-        context.Notes.Modified += MarkDirty;
-        context.PartProperties.Modified += MarkDirty;
+        context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified, n => n.Lyric.Modified, n => n.Phonemes.Modified, n => n.Properties.Modified)
+            .Subscribe(_ => MarkDirty(), mSubscriptions);
+        context.Notes.StructureModified.Subscribe(MarkDirty, mSubscriptions);
+        context.PartProperties.Modified.Subscribe(MarkDirty, mSubscriptions);
         context.Pitch.RangeModified += OnRangeModified;
         context.PitchDeviation.RangeModified += OnRangeModified;
         mDirty = true;
@@ -319,32 +320,10 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
 
     public void Dispose()
     {
-        mNotesSubscription.Dispose();
-        mContext.Notes.Modified -= MarkDirty;
-        mContext.PartProperties.Modified -= MarkDirty;
+        mSubscriptions.DisposeAll();
         mContext.Pitch.RangeModified -= OnRangeModified;
         mContext.PitchDeviation.RangeModified -= OnRangeModified;
         mSegment?.Dispose();
-    }
-
-    void SubscribeNote(IVoiceSynthesisNote note)
-    {
-        note.StartTime.Modified += MarkDirty;
-        note.EndTime.Modified += MarkDirty;
-        note.Pitch.Modified += MarkDirty;
-        note.Lyric.Modified += MarkDirty;
-        note.Phonemes.Modified += MarkDirty;
-        note.Properties.Modified += MarkDirty;
-    }
-
-    void UnsubscribeNote(IVoiceSynthesisNote note)
-    {
-        note.StartTime.Modified -= MarkDirty;
-        note.EndTime.Modified -= MarkDirty;
-        note.Pitch.Modified -= MarkDirty;
-        note.Lyric.Modified -= MarkDirty;
-        note.Phonemes.Modified -= MarkDirty;
-        note.Properties.Modified -= MarkDirty;
     }
 
     void MarkDirty()
@@ -358,7 +337,7 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
     const int kSampleRate = 44100;
 
     readonly IVoiceSynthesisContext mContext;
-    readonly IDisposable mNotesSubscription;
+    readonly DisposableManager mSubscriptions = new();
     bool mDirty;
     bool mSynthesizing;
     IAudioSegment? mSegment;

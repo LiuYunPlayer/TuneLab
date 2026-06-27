@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- 订阅组合子的实现细节（ActionSubscriber/SelectorSubscriber 等 internal）对宿主可见，
+         供其 IHolder.When 复用，而不进 SDK 的 public 契约。 -->
+    <InternalsVisibleTo Include="TuneLab.Hosting.Foundation" />
+  </ItemGroup>
+
 </Project>

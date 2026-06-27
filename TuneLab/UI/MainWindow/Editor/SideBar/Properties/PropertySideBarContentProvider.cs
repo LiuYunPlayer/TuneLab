@@ -372,7 +372,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             }
             perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount, cfgs));
             // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。
-            note.Phonemes.ListModified.Subscribe(RefreshPhonemeController, mPhonemeSub);
+            note.Phonemes.StructureModified.Subscribe(RefreshPhonemeController, mPhonemeSub);
         }
 
         // 对齐索引 = 音素位置 − leadCount（核 = 0、前置辅音离核越近越靠 −1、核后 = +1+）。各 note 按此有符号索引对齐成 slot。
@@ -457,7 +457,7 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
     }
 
     // 编辑（松手提交）含合成音素的 slot：对涉及的每个 note 先钉死（LockPhonemes 幂等、保几何——"取不到就创建"=钉死），
-    // 再把该成员 buffer 值写回该位音素属性，整体提交为一个撤销步。随后 Phonemes.ListModified 触发重建 → 该 slot 转真绑定。
+    // 再把该成员 buffer 值写回该位音素属性，整体提交为一个撤销步。随后 Phonemes.StructureModified 触发重建 → 该 slot 转真绑定。
     void PinAndApply(IReadOnlyList<(INote Note, int Index, DataPropertyObject Buffer)> members)
     {
         if (mPart == null)

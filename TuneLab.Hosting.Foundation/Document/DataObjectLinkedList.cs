@@ -10,13 +10,13 @@ namespace TuneLab.Foundation;
 
 public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> where T : class, IDataObject, ILinkedNode<T>
 {
-    public IModifiedEvent ListModified => mDataLinkedList.Modified;
+    public IModifiedEvent StructureModified => mDataLinkedList.Modified;
     public IActionEvent<T> ItemAdded => mDataLinkedList.ItemAdded;
     public IActionEvent<T> ItemRemoved => mDataLinkedList.ItemRemoved;
     public IEnumerable<T> Items => this;
 
-    public T? Begin => mDataLinkedList.Begin;
-    public T? End => mDataLinkedList.End;
+    public T? First => mDataLinkedList.First;
+    public T? Last => mDataLinkedList.Last;
     public int Count => mDataLinkedList.Count;
 
     public DataObjectLinkedList()

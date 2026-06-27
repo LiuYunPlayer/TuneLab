@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -8,16 +9,18 @@ namespace TuneLab.Foundation;
 
 public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 {
-    public T? Begin => mBegin;
-    public T? End => mEnd;
+    public T? First => mFirst;
+    public T? Last => mLast;
     public int Count => mCount;
 
     public void Insert(T item)
     {
+        Debug.Assert(item.LinkedList == null, "Item already belongs to a linked list; re-inserting would corrupt the structure of both lists.");
+
         if (Count == 0)
         {
-            mBegin = item;
-            mEnd = item;
+            mFirst = item;
+            mLast = item;
 
             item.LinkedList = this;
             mCount++;
@@ -61,7 +64,7 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
         item.LinkedList = null;
         if (last == null)
         {
-            mBegin = next;
+            mFirst = next;
         }
         else
         {
@@ -69,7 +72,7 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
         }
         if (next == null)
         {
-            mEnd = last;
+            mLast = last;
         }
         else
         {
@@ -78,7 +81,7 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
         mCount--;
         if (mLastInsertedItem == item)
         {
-            mLastInsertedItem = mEnd;
+            mLastInsertedItem = mLast;
         }
 
         return true;
@@ -93,8 +96,8 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
             item.LinkedList = null;
         }
         mCount = 0;
-        mBegin = null;
-        mEnd = null;
+        mFirst = null;
+        mLast = null;
         mLastInsertedItem = null;
     }
 
@@ -105,8 +108,11 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
     public void InsertAfter(T last, T item)
     {
-        if (last == mEnd)
-            mEnd = item;
+        Debug.Assert(Contains(last), "Anchor item does not belong to this linked list.");
+        Debug.Assert(item.LinkedList == null, "Item already belongs to a linked list; re-inserting would corrupt the structure of both lists.");
+
+        if (last == mLast)
+            mLast = item;
 
         item.Last = last;
         item.Next = last.Next;
@@ -123,8 +129,11 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
     public void InsertBefore(T next, T item)
     {
-        if (next == mBegin)
-            mBegin = item;
+        Debug.Assert(Contains(next), "Anchor item does not belong to this linked list.");
+        Debug.Assert(item.LinkedList == null, "Item already belongs to a linked list; re-inserting would corrupt the structure of both lists.");
+
+        if (next == mFirst)
+            mFirst = item;
 
         item.Last = next.Last;
         item.Next = next;
@@ -146,7 +155,7 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
     public IEnumerator<T> GetEnumerator()
     {
-        var current = mBegin;
+        var current = mFirst;
         while (current != null)
         {
             var next = current.Next;
@@ -157,7 +166,7 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
     public IEnumerator<T> Inverse()
     {
-        var current = mEnd;
+        var current = mLast;
         while (current != null)
         {
             var last = current.Last;
@@ -168,8 +177,8 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    T? mBegin = null;
-    T? mEnd = null;
+    T? mFirst = null;
+    T? mLast = null;
     int mCount = 0;
 
     T? mLastInsertedItem = null;

@@ -7,7 +7,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Foundation;
 
-public interface IReadOnlyDataObjectMap<TKey, TValue> : IReadOnlyDataMap<TKey, TValue>, IReadOnlyDataCollection<TValue> where TKey : notnull where TValue : IDataObject
+public interface IReadOnlyDataObjectMap<TKey, TValue> : IReadOnlyDataMap<TKey, TValue>, IReadOnlyNotifiableEnumerable<TValue> where TKey : notnull where TValue : IDataObject
 {
     // 仅映射结构变更（键增删/值替换）；元素内容的深层变更走继承自 IDataObject 的 Modified。
     IModifiedEvent MapModified { get; }

@@ -350,17 +350,22 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     //    增删自动建/毁代理并转发结构事件。 ——
     sealed class NoteProxyList : IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote>, IDisposable
     {
-        public event Action<IVoiceSynthesisNote>? ItemAdded;
-        public event Action<IVoiceSynthesisNote>? ItemRemoved;
-        public event Action? Modified;
+        public IActionEvent<IVoiceSynthesisNote> ItemAdded => mItemAdded;
+        public IActionEvent<IVoiceSynthesisNote> ItemRemoved => mItemRemoved;
+        public IActionEvent StructureModified => mStructureModified;
+        public IEnumerable<IVoiceSynthesisNote> Items => this;
+
+        readonly ActionEvent<IVoiceSynthesisNote> mItemAdded = new();
+        readonly ActionEvent<IVoiceSynthesisNote> mItemRemoved = new();
+        readonly ActionEvent mStructureModified = new();
 
         public IVoiceSynthesisNote? First
         {
             get
             {
                 mContext.AssertDataThread();
-                var begin = mNotes.Begin;
-                return begin == null ? null : ProxyOf(begin);
+                var first = mNotes.First;
+                return first == null ? null : ProxyOf(first);
             }
         }
 
@@ -369,8 +374,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             get
             {
                 mContext.AssertDataThread();
-                var end = mNotes.End;
-                return end == null ? null : ProxyOf(end);
+                var last = mNotes.Last;
+                return last == null ? null : ProxyOf(last);
             }
         }
 
@@ -384,7 +389,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             }
             mNotes.ItemAdded.Subscribe(OnItemAdded, s);
             mNotes.ItemRemoved.Subscribe(OnItemRemoved, s);
-            mNotes.ListModified.Subscribe(OnListModified, s);
+            mNotes.StructureModified.Subscribe(OnStructureModified, s);
         }
 
         public int Count => mNotes.Count;
@@ -425,7 +430,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         {
             var proxy = new VoiceNoteProxy(mContext, note);
             mProxies[note] = proxy;
-            mContext.ForwardChange(() => ItemAdded?.Invoke(proxy));
+            mContext.ForwardChange(() => mItemAdded.Invoke(proxy));
         }
 
         void OnItemRemoved(INote note)
@@ -433,13 +438,13 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             if (!mProxies.Remove(note, out var proxy))
                 return;
 
-            mContext.ForwardChange(() => ItemRemoved?.Invoke(proxy));
+            mContext.ForwardChange(() => mItemRemoved.Invoke(proxy));
             proxy.Dispose();
         }
 
-        void OnListModified()
+        void OnStructureModified()
         {
-            mContext.ForwardChange(() => Modified?.Invoke());
+            mContext.ForwardChange(() => mStructureModified.Invoke());
         }
 
         readonly VoiceSynthesisContext mContext;
