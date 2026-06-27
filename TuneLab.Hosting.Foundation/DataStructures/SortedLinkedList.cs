@@ -61,6 +61,19 @@ public sealed class SortedLinkedList<T> : ISortedLinkedList<T> where T : class, 
 
     public bool Remove(T item) => mList.Remove(item);
 
+    // 精确复位：按记录的前驱锚点原样放回（after==null 即放到表头），绕过排序定位。仅供同程序集的
+    // undo/redo 重放用——复合撤销时元素的排序键可能尚未回滚（如"改键+重排"逆序回放，重排先于改键被撤），
+    // 此时只能按结构位置而非当前键还原。internal 故域层（他程序集）取不到，对外的有序不变量仍封死。
+    internal void Reinsert(T? after, T item)
+    {
+        if (after == null)
+            mList.AddFirst(item);
+        else
+            mList.InsertAfter(after, item);
+
+        mCursor = item;
+    }
+
     public void Clear()
     {
         mList.Clear();

@@ -30,7 +30,7 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
         mList.Insert(item);
         mItemAdded.Invoke(item);
         Notify();
-        Push(new InsertCommand(this, item));
+        Push(new InsertCommand(this, item, item.Last));
     }
 
     public bool Remove(T item)
@@ -38,7 +38,7 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
         if (!Contains(item))
             return false;
 
-        PushAndDo(new RemoveCommand(this, item));
+        PushAndDo(new RemoveCommand(this, item, item.Last));
         return true;
     }
 
@@ -85,12 +85,13 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
         }
     }
 
-    // undo/redo 重放走有序 Insert：元素的排序键不变，重插必落回同一有序位置，无需记录原结构锚点。
-    class InsertCommand(SortedDataLinkedList<T> dataLinkedList, T item) : ICommand
+    // undo/redo 按记录的前驱锚点精确复位（走 Reinsert），而非有序重插：复合撤销时元素排序键可能尚未回滚
+    // （如"改键+重排"逆序回放，重排先于改键被撤），此刻只能按结构位置还原，否则会落到错误的有序槽位。
+    class InsertCommand(SortedDataLinkedList<T> dataLinkedList, T item, T? last) : ICommand
     {
         public void Redo()
         {
-            dataLinkedList.mList.Insert(item);
+            dataLinkedList.mList.Reinsert(last, item);
             dataLinkedList.mItemAdded.Invoke(item);
             dataLinkedList.Notify();
         }
@@ -103,7 +104,7 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
         }
     }
 
-    class RemoveCommand(SortedDataLinkedList<T> dataLinkedList, T item) : ICommand
+    class RemoveCommand(SortedDataLinkedList<T> dataLinkedList, T item, T? last) : ICommand
     {
         public void Redo()
         {
@@ -114,7 +115,7 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
 
         public void Undo()
         {
-            dataLinkedList.mList.Insert(item);
+            dataLinkedList.mList.Reinsert(last, item);
             dataLinkedList.mItemAdded.Invoke(item);
             dataLinkedList.Notify();
         }
