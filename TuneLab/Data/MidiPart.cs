@@ -65,7 +65,7 @@ internal class MidiPart : Part, IMidiPart
         mEffects = new(this);
         mEffects.ItemAdded.Subscribe(OnEffectAdded);
         mEffects.ItemRemoved.Subscribe(OnEffectRemoved);
-        mEffects.StructureModified.Subscribe(OnEffectChainStructureModified);
+        mEffects.MembershipModified.Subscribe(OnEffectChainMembershipModified);
         mPitchLine = new();
         mPitchLine.Attach(this);
         Dur.Modified.Subscribe(mDurationChanged);
@@ -143,10 +143,10 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 链结构变化（增删/重排）：各段弃处理器、从头重建效果链（voice 输出已缓存，不重跑 voice）。
-    void OnEffectChainStructureModified()
+    void OnEffectChainMembershipModified()
     {
         mPipeline?.OnEffectChainStructureChanged();
-        // 链变更经 Effects.StructureModified 已驱动 UI 重建；此处只对齐签名基线，避免后续参数 commit 误判。
+        // 链变更经 Effects.MembershipModified 已驱动 UI 重建；此处只对齐签名基线，避免后续参数 commit 误判。
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
     }
 
@@ -679,7 +679,7 @@ internal class MidiPart : Part, IMidiPart
 
         public NoteList()
         {
-            StructureModified.Subscribe(mSelectionChanged);
+            MembershipModified.Subscribe(mSelectionChanged);
             this.WhenAny(note => note.SelectionChanged).Subscribe(mSelectionChanged);
         }
 

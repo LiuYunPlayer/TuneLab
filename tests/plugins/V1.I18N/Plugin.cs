@@ -89,7 +89,7 @@ public sealed class I18NSession : IVoiceSynthesisSession
         mContext = context;
         context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified, n => n.Lyric.Modified, n => n.Phonemes.Modified, n => n.Properties.Modified)
             .Subscribe(_ => MarkDirty(), mSubscriptions);
-        context.Notes.StructureModified.Subscribe(MarkDirty, mSubscriptions);
+        context.Notes.MembershipModified.Subscribe(MarkDirty, mSubscriptions);
         context.PartProperties.Modified.Subscribe(MarkDirty, mSubscriptions);
         mDirty = true;
     }

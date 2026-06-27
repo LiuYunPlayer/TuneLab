@@ -322,11 +322,11 @@ public class PropertyArrayTests
     }
 
     [Fact]
-    public void StructureModified_FiresOnStructuralChange_NotOnValueEdit()
+    public void MembershipModified_FiresOnStructuralChange_NotOnValueEdit()
     {
         var live = new DataPropertyArray();
         int structureChanges = 0;
-        live.StructureModified.Subscribe(() => structureChanges++);
+        live.MembershipModified.Subscribe(() => structureChanges++);
 
         live.Add(1.0);                      // +1
         live.Add(2.0);                      // +1

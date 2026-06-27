@@ -21,7 +21,7 @@ public class DataObjectMap<TKey, TValue> : DataObject, IDataObjectMap<TKey, TVal
     IActionEvent<TValue> IReadOnlyNotifiableEnumerable<TValue>.ItemAdded => mValueAdded;
     IActionEvent<TValue> IReadOnlyNotifiableEnumerable<TValue>.ItemRemoved => mValueRemoved;
     // 值集合结构变更聚合信号 = 底层映射的内容变更事件（增删键时 Notify）。
-    IActionEvent IReadOnlyNotifiableEnumerable<TValue>.StructureModified => mMap.Modified;
+    IActionEvent IReadOnlyNotifiableEnumerable<TValue>.MembershipModified => mMap.Modified;
     public IEnumerable<TValue> Items => mMap.Values;
     public int Count => mMap.Count;
     public TValue this[TKey key] { get => mMap[key]; set => mMap[key] = value; }

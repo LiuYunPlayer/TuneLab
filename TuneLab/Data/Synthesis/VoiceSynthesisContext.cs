@@ -352,12 +352,12 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     {
         public IActionEvent<IVoiceSynthesisNote> ItemAdded => mItemAdded;
         public IActionEvent<IVoiceSynthesisNote> ItemRemoved => mItemRemoved;
-        public IActionEvent StructureModified => mStructureModified;
+        public IActionEvent MembershipModified => mMembershipModified;
         public IEnumerable<IVoiceSynthesisNote> Items => this;
 
         readonly ActionEvent<IVoiceSynthesisNote> mItemAdded = new();
         readonly ActionEvent<IVoiceSynthesisNote> mItemRemoved = new();
-        readonly ActionEvent mStructureModified = new();
+        readonly ActionEvent mMembershipModified = new();
 
         public IVoiceSynthesisNote? First
         {
@@ -389,7 +389,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             }
             mNotes.ItemAdded.Subscribe(OnItemAdded, s);
             mNotes.ItemRemoved.Subscribe(OnItemRemoved, s);
-            mNotes.StructureModified.Subscribe(OnStructureModified, s);
+            mNotes.MembershipModified.Subscribe(OnMembershipModified, s);
         }
 
         public int Count => mNotes.Count;
@@ -442,9 +442,9 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             proxy.Dispose();
         }
 
-        void OnStructureModified()
+        void OnMembershipModified()
         {
-            mContext.ForwardChange(() => mStructureModified.Invoke());
+            mContext.ForwardChange(() => mMembershipModified.Invoke());
         }
 
         readonly VoiceSynthesisContext mContext;

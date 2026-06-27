@@ -17,7 +17,7 @@ public interface IReadOnlyNotifiableEnumerable<out T>
     IActionEvent<T> ItemAdded { get; }
     IActionEvent<T> ItemRemoved { get; }
     // 任一成员增删后的聚合信号，与逐项的 ItemAdded / ItemRemoved 互补（不带成员标识，只表"成员结构变过了"）。
-    IActionEvent StructureModified { get; }
+    IActionEvent MembershipModified { get; }
     IEnumerable<T> Items { get; }
 }
 
@@ -183,7 +183,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
     {
         public IActionEvent<T> ItemAdded => mItemAdded;
         public IActionEvent<T> ItemRemoved => mItemRemoved;
-        public IActionEvent StructureModified => mStructureModified;
+        public IActionEvent MembershipModified => mMembershipModified;
         public IEnumerable<T> Items => mCollection.Items.Where(mPredicate);
 
         public WhereCollection(IReadOnlyNotifiableEnumerable<T> collection, Func<T, bool> predicate, Func<T, IEvent<Action>> predicateChanged)
@@ -208,7 +208,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
             if (mPredicate(item))
             {
                 mItemAdded.Invoke(item);
-                mStructureModified.Invoke();
+                mMembershipModified.Invoke();
             }
         }
 
@@ -219,7 +219,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
             if (mPredicate(item))
             {
                 mItemRemoved.Invoke(item);
-                mStructureModified.Invoke();
+                mMembershipModified.Invoke();
             }
         }
 
@@ -232,7 +232,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
                     mItemAdded.Invoke(item);
                 else
                     mItemRemoved.Invoke(item);
-                mStructureModified.Invoke();
+                mMembershipModified.Invoke();
             }
 
             mPredicateChanged(item).Subscribe(OnPredicateChanged);
@@ -250,7 +250,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
 
         readonly ActionEvent<T> mItemAdded = new();
         readonly ActionEvent<T> mItemRemoved = new();
-        readonly ActionEvent mStructureModified = new();
+        readonly ActionEvent mMembershipModified = new();
 
         readonly IReadOnlyNotifiableEnumerable<T> mCollection;
         readonly Func<T, bool> mPredicate;

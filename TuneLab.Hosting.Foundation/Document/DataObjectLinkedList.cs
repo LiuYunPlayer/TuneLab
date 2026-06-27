@@ -10,7 +10,7 @@ namespace TuneLab.Foundation;
 
 public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> where T : class, IDataObject, ILinkedNode<T>
 {
-    public IModifiedEvent StructureModified => mDataLinkedList.Modified;
+    public IModifiedEvent MembershipModified => mDataLinkedList.Modified;
     public IActionEvent<T> ItemAdded => mDataLinkedList.ItemAdded;
     public IActionEvent<T> ItemRemoved => mDataLinkedList.ItemRemoved;
     public IEnumerable<T> Items => this;

@@ -122,7 +122,7 @@ public class NotifiableSubscriptionTests
     {
         public IActionEvent<T> ItemAdded => mItemAdded;
         public IActionEvent<T> ItemRemoved => mItemRemoved;
-        public IActionEvent StructureModified => mStructureModified;
+        public IActionEvent MembershipModified => mMembershipModified;
         public IEnumerable<T> Items => this;
 
         public T this[int index] => mItems[index];
@@ -130,12 +130,12 @@ public class NotifiableSubscriptionTests
         public IEnumerator<T> GetEnumerator() => mItems.GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public void Add(T item) { mItems.Add(item); mItemAdded.Invoke(item); mStructureModified.Invoke(); }
-        public void Remove(T item) { mItems.Remove(item); mItemRemoved.Invoke(item); mStructureModified.Invoke(); }
+        public void Add(T item) { mItems.Add(item); mItemAdded.Invoke(item); mMembershipModified.Invoke(); }
+        public void Remove(T item) { mItems.Remove(item); mItemRemoved.Invoke(item); mMembershipModified.Invoke(); }
 
         readonly ActionEvent<T> mItemAdded = new();
         readonly ActionEvent<T> mItemRemoved = new();
-        readonly ActionEvent mStructureModified = new();
+        readonly ActionEvent mMembershipModified = new();
         readonly List<T> mItems = [];
     }
 }

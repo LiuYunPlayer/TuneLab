@@ -261,12 +261,12 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     {
         public IActionEvent<IInstrumentSynthesisNote> ItemAdded => mItemAdded;
         public IActionEvent<IInstrumentSynthesisNote> ItemRemoved => mItemRemoved;
-        public IActionEvent StructureModified => mStructureModified;
+        public IActionEvent MembershipModified => mMembershipModified;
         public IEnumerable<IInstrumentSynthesisNote> Items => this;
 
         readonly ActionEvent<IInstrumentSynthesisNote> mItemAdded = new();
         readonly ActionEvent<IInstrumentSynthesisNote> mItemRemoved = new();
-        readonly ActionEvent mStructureModified = new();
+        readonly ActionEvent mMembershipModified = new();
 
         public IInstrumentSynthesisNote? First
         {
@@ -298,7 +298,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             }
             mNotes.ItemAdded.Subscribe(OnItemAdded, s);
             mNotes.ItemRemoved.Subscribe(OnItemRemoved, s);
-            mNotes.StructureModified.Subscribe(OnStructureModified, s);
+            mNotes.MembershipModified.Subscribe(OnMembershipModified, s);
         }
 
         public int Count => mNotes.Count;
@@ -350,9 +350,9 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             proxy.Dispose();
         }
 
-        void OnStructureModified()
+        void OnMembershipModified()
         {
-            mContext.ForwardChange(() => mStructureModified.Invoke());
+            mContext.ForwardChange(() => mMembershipModified.Invoke());
         }
 
         readonly InstrumentSynthesisContext mContext;

@@ -10,7 +10,7 @@ internal class DataLinkedList<T> : DataObject, IDataLinkedList<T> where T : clas
     public IActionEvent<T> ItemAdded => mItemAdded;
     public IActionEvent<T> ItemRemoved => mItemRemoved;
     // 结构变更聚合信号 = 自身内容变更事件（链表只在增删时 Notify）。
-    public IActionEvent StructureModified => Modified;
+    public IActionEvent MembershipModified => Modified;
     public IEnumerable<T> Items => this;
 
     public DataLinkedList()

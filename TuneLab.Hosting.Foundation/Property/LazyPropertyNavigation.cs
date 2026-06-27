@@ -47,7 +47,7 @@ internal sealed class ArrayView(IDataObject root, ILazyObjectNode owner, string 
     public int Count => owner.FindArray(key)?.Count ?? 0;
     public IReadOnlyList<string> Tokens => owner.FindArray(key)?.Tokens ?? [];
     // 借壳 root（= Wrapper 的 Modified）：数组缺席、或经 undo 重建为新实例时订阅仍有效（保守多触发，面板按 token diff 吸收）。
-    public IModifiedEvent StructureModified => Modified;
+    public IModifiedEvent MembershipModified => Modified;
 
     public void Insert(int index, PropertyValue value) => owner.GetOrCreateArray(key).Insert(index, value);
     public void Add(PropertyValue value) => owner.GetOrCreateArray(key).Add(value);

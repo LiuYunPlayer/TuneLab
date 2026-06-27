@@ -48,7 +48,7 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
         }
     }
 
-    public IModifiedEvent StructureModified => mBase.Modified;
+    public IModifiedEvent MembershipModified => mBase.Modified;
 
     // 控制器注入的各元素默认值（= element config 默认值）：缺位读取的回退值 + 编辑补齐时填短成员的值。
     public void SetElementDefaults(IReadOnlyList<PropertyValue> defaults) => mElementDefaults = defaults;

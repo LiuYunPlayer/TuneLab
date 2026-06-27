@@ -14,7 +14,7 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
     public IActionEvent<T> ItemRemoved => mItemRemoved;
     public IActionEvent<T, T> ItemReplaced => mItemReplaced;
     // 结构变更聚合信号 = 自身内容变更事件（列表只在增删/替换时 Notify）。
-    public IActionEvent StructureModified => Modified;
+    public IActionEvent MembershipModified => Modified;
     public IEnumerable<T> Items => this;
     public int Count => mList.Count;
 
