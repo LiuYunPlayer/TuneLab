@@ -11,5 +11,12 @@ public class SliderConfig : IValueConfig<double>
     public required double MinValue { get; init; }
     public required double MaxValue { get; init; }
     public bool IsInteger { get; init; } = false;
+
+    // 声明该值可随机：宿主会在滑条右侧给出随机入口，触发后在量程内重新取值（如随机种子）。
+    // 配合大数（整数量程可能很大）时数值标签会自动按内容加宽。
+    // 注意：值底层以 double 存储，整数仅在 [-2^53, 2^53] 内精确；随机取值会钳到该区间，
+    // 超出部分不参与抽取（避免大整数被量化导致无法精确回存，如种子复现失真）。
+    public bool Randomizable { get; init; } = false;
+
     PropertyValue IValueConfig.DefaultValue => PropertyValue.Create(DefaultValue);
 }

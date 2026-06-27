@@ -222,7 +222,7 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 - 密钥：`TextBoxConfig { IsPassword = true }` → 宿主掩码显示 + 安全落盘（Win=DPAPI 密文就地 / macOS=钥匙串；无安全存储则**不保存该字段、绝不明文**+告警；官方支持 Win/macOS）。值类型仍是普通 string。
 - 读值：`settings.GetString(key, default)` / `GetDouble` / `GetInt` / `GetBool(key, default)`。读不到按默认 fallback。
 - `DisplayText` 由插件自译（按 `TuneLabContext.Global.Language`）；manifest **不**声明设置（纯代码）。
-- 控件配置类型：`TextBoxConfig`（`DefaultValue`/`IsPassword`）、`CheckBoxConfig`（`DefaultValue`）、`ComboBoxConfig`、`SliderConfig`；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
+- 控件配置类型：`TextBoxConfig`（`DefaultValue`/`IsPassword`）、`CheckBoxConfig`（`DefaultValue`）、`ComboBoxConfig`、`SliderConfig`（`DefaultValue`/`MinValue`/`MaxValue`/`IsInteger`/`Randomizable`，后者声明可随机、宿主在右侧给出随机入口）；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
 
 ### 常见错误（避免）
 - ❌ 漏 `id` → 被当成 Legacy。

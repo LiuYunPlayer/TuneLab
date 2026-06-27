@@ -239,6 +239,7 @@ internal class PropertyObjectController : StackPanel
             mController.SetRange(config.MinValue, config.MaxValue);
             mController.SetDefaultValue(config.DefaultValue);
             mController.IsInteger = config.IsInteger;
+            mController.ShowRandomButton = config.Randomizable;
         }
 
         public override Type ConfigType => typeof(SliderConfig);

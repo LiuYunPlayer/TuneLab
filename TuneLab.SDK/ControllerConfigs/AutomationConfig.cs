@@ -15,6 +15,10 @@ public class AutomationConfig : IValueConfig<double>
     public required double MaxValue { get; init; }
     public required string Color { get; init; }
 
+    // 声明默认基线可随机：UI 默认值面板（滑条）右侧给出随机入口，在量程内重新取值。
+    // 与 SliderConfig.Randomizable 同义；整数精度上限同为 double 的 2^53。
+    public bool Randomizable { get; init; } = false;
+
     // 分段（间断、无默认基线）轨 = DefaultValue 为 NaN；连续轨为实数。
     public bool IsPiecewise => double.IsNaN(DefaultValue);
 

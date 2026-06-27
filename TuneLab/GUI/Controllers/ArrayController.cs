@@ -340,6 +340,7 @@ internal abstract class ElementWidget : IDisposable
             mController.SetRange(config.MinValue, config.MaxValue);
             mController.SetDefaultValue(config.DefaultValue);
             mController.IsInteger = config.IsInteger;
+            mController.ShowRandomButton = config.Randomizable;
         }
 
         public override Control View => mController;

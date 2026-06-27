@@ -36,6 +36,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
         mSlider = new SliderController() { Margin = new(24, 12) };
         mSlider.SetRange(config.MinValue, config.MaxValue);
         mSlider.SetDefaultValue(config.DefaultValue);
+        mSlider.ShowRandomButton = config.Randomizable;
         Children.Add(mSlider);
 
         Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });

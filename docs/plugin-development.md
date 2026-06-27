@@ -286,7 +286,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 **note / part 属性约定（keyed `Properties`，这是 per-note/per-part 参数的唯一通道）**：
 
 - `IVoiceSynthesisNote` 的固定字段只有最小通用乐理量（`StartTime`/`EndTime`/`Pitch`/`Lyric`/`Phonemes`）。**所有 voice 专属的 per-note 参数（如张力、气声、性别）都走 `note.Properties`（keyed）**——加新参数 = 在 `GetNotePropertyConfig` 的 `ObjectConfig.Properties` 里加一个 key，不动接口固定面。part 级专属参数同理走 `GetPartPropertyConfig`。
-- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（`DefaultValue`/`MinValue`/`MaxValue`/`IsInteger`，量程与默认值必填）、`ComboBoxConfig`（`Options` + `DefaultOption`，值/显示分离，可「界面中文/底层存枚举值」）、`CheckBoxConfig`、`TextBoxConfig`（`IsPassword` 可掩码）；容器是 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
+- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（`DefaultValue`/`MinValue`/`MaxValue`/`IsInteger`，量程与默认值必填；`Randomizable` 声明可随机，宿主在右侧给出随机入口、点一下在量程内重取值，适合随机种子等场景，大数时数值标签自动加宽）、`ComboBoxConfig`（`Options` + `DefaultOption`，值/显示分离，可「界面中文/底层存枚举值」）、`CheckBoxConfig`、`TextBoxConfig`（`IsPassword` 可掩码）；容器是 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
 
 ```csharp
 readonly ObjectConfig mNoteConfig = new()
@@ -300,7 +300,7 @@ readonly ObjectConfig mNoteConfig = new()
 ```
 
 - **读值**：合成时从 `VoiceSynthesisNoteSnapshot.Properties`（`PropertyObject` 值拷）读，用 `GetDouble(key, default)` / `GetBool` / `GetInt` / `GetString` / `GetEnum<T>`。**稀疏存储**——只有用户改过的字段才在里面；读不到就用你声明的默认值（`PropertyObject` 的 `Get*` 第二参数就是 fallback，传与声明一致的默认值即可）。
-- **`AutomationConfig`**：`DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color`（如 `"#E5A573"`）。**`DefaultValue = double.NaN` ⇒ 分段轨**（无默认基线、段间断开，如 pitch 类、bend）；实数 ⇒ 连续轨（处处有值、有基线，如 growl）。回显轨恒为分段形（`DefaultValue = NaN`）。
+- **`AutomationConfig`**：`DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color`（如 `"#E5A573"`） / `Randomizable`（默认值面板的滑条右侧加随机入口，宜用于连续轨）。**`DefaultValue = double.NaN` ⇒ 分段轨**（无默认基线、段间断开，如 pitch 类、bend）；实数 ⇒ 连续轨（处处有值、有基线，如 growl）。回显轨恒为分段形（`DefaultValue = NaN`）。
 - **条件声明 + 孤儿数据**：轨集合可随参数显隐（如某开关勾选才暴露 Growl 轨）。轨从声明里消失后，宿主**保留其已画曲线（隐藏不删、不参与合成）**，参数回退使该轨复现即原样恢复——你不必担心条件轨切换会丢用户数据。
 
 > ⚠️ **自动化参数名避开宿主保留名**：`GetAutomationConfigs` 的键会和宿主内置自动化合并展示，与内置项**重名会被内置项占用、你的参数显示不出**。已知保留名：**`Volume`**、**`VibratoEnvelope`**。请用自己的独特名（如 `Breathiness` / `Growl` / 加前缀）。
