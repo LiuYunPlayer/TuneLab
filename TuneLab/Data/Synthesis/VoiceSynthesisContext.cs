@@ -254,12 +254,19 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         var subscriptions = new DisposableManager();
         vibrato.RangeModified.Subscribe(NotifyDeviationRangeModified, subscriptions);
         mVibratoSubscriptions.Add(vibrato, subscriptions);
+        // 颤音存在性变化本身即偏移变化：新增后该覆盖区间多了一份偏移源，须主动标脏。
+        // 颤音的 RangeModified 只在其属性 merge 提交后发，纯增删不会自发 → 这里补发一次，
+        // 否则只增不改的颤音不会重合成（删除路径对称处理见 UnwireVibrato）。
+        NotifyDeviationRangeModified(vibrato.StartPos(), vibrato.EndPos());
     }
 
     void UnwireVibrato(Vibrato vibrato)
     {
         if (mVibratoSubscriptions.Remove(vibrato, out var subscriptions))
             subscriptions.DisposeAll();
+        // 被删颤音原覆盖区间的偏移随之消失，须标脏让该段重算（此时 Detach 仅断链表指针，
+        // Pos/Dur 值仍可读）。链表 Remove 不发区间事件、其 RangeModified 订阅亦已拆，故须在此补发。
+        NotifyDeviationRangeModified(vibrato.StartPos(), vibrato.EndPos());
     }
 
     void WireAutomation(string key, IAutomation automation)
