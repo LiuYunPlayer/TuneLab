@@ -10,7 +10,7 @@ public readonly struct PhonemeLayoutNote
     // 填充区间左界 = 核起点 = 音符头（绝对秒）。核从这里往右填充、前置音素(IsLead)从这里往左累积（可越界到 note 之前）。
     public double FillStart { get; init; }
 
-    // 填充区间右界 = 核填充终点（绝对秒）= 自己的末 + 仅铺过延续乘客（IsContinuation）的 melisma。核(w>0)填充到这里、后辅音(w=0)用其标称时长。
+    // 填充区间右界 = 核填充终点（绝对秒）= 自己的末 + 仅铺过延续乘客（IsContinuation）的 melisma。核(w>0)（以标称时长为原长、余量按权重分摊）共同填到这里、后辅音(w=0)用其标称时长。
     // 由调用方按自己的数据模型算（宿主走 continuation 前向铺末；引擎走延续跳过逻辑）——布局数学不掺和。
     // 这是 WYSIWYG 口径：要音频 == 宿主显示，FillEnd 须与宿主同口径——自己有效末 + 仅延续乘客 melisma；
     // **真发声 note 间的空隙停在自己末、不把元音铺过空隙到下一发声 note**（空隙是静音）。
@@ -53,7 +53,8 @@ public readonly struct PhonemeTiming
 //
 // 派生（每 note，自然几何）：
 //   · 核起点 = FillStart；IsLead 音素从核起点往左依次累积各自标称时长（可越界到 note 之前）；
-//   · 核(w>0)填充剩余空间到 FillEnd（多核按权重分摊）；后辅音(w=0)用其标称时长。核的标称时长被忽略（恒按填充派生）。
+//   · 核(w>0)以标称时长为原长、填充剩余空间到 FillEnd——可用余量(空间−各核原长和)按权重分摊到各核（单核时原长被抵消、退化为整段填充）；
+//     后辅音(w=0)用其标称时长。
 // 再做跨 note 去重叠：
 //   · 只在相接 / 重叠的 note 边界压缩，左锚 = 前 note 核起点（音符头，恒不动）、右锚 = 后 note 核起点（核不压不动）；
 //   · ① 元音先从尾收缩让位；② 仍超则辅音簇按标称长等比压；退化反序就地塌缩 + 单调钳制兜底。
@@ -94,7 +95,8 @@ public static class PhonemeLayout
     }
 
     // 由「时长 + 权重 + IsLead」派生单 note 的自然绝对秒边界（n+1 个，未经跨 note 压缩）：前置音素(IsLead)从核起点
-    // (=FillStart)往左累积各自时长；核(w>0)填充剩余空间到 FillEnd（按权重分摊）；后辅音(w=0)用固定时长。位置不存、纯派生。
+    // (=FillStart)往左累积各自时长；核(w>0)以标称时长为原长、按权重分摊填充剩余空间到 FillEnd（余量=空间−各核原长和）；
+    // 后辅音(w=0)用固定时长。位置不存、纯派生。
     static double[] NaturalBoundaries(PhonemeLayoutNote note)
     {
         var phonemes = note.Phonemes;
@@ -112,18 +114,25 @@ public static class PhonemeLayout
         pos[L] = noteStart;
         for (int k = L - 1; k >= 0; k--) pos[k] = pos[k + 1] - Math.Max(0, phonemes![k].Duration);
 
-        double rigidAfter = 0, elasticWeight = 0;
+        // 核(w>0)以标称时长为原长、按权重分摊弹性余量（余量 = 可用空间 − 各核原长之和）：
+        // 单核退化为整段填充（原长被余量抵消，恒等于可用空间）；多核时原长决定彼此分界、权重只决定拉伸/压缩的分摊，
+        // 故相邻两核间的边界随各自标称时长移动（拖拽手柄即靠改时长反解此边界）。权重是音素固有属性、编辑器不改。
+        double rigidAfter = 0, elasticWeight = 0, elasticBase = 0;
         for (int k = L; k < n; k++)
         {
-            if (phonemes![k].StretchWeight > 0) elasticWeight += phonemes[k].StretchWeight;
+            if (phonemes![k].StretchWeight > 0) { elasticWeight += phonemes[k].StretchWeight; elasticBase += Math.Max(0, phonemes[k].Duration); }
             else rigidAfter += Math.Max(0, phonemes[k].Duration);
         }
         double elasticSpace = Math.Max(0, (fillEnd - noteStart) - rigidAfter);
+        double slack = elasticSpace - elasticBase;   // >0 拉伸 / <0 压缩，按权重分摊到各核
         double p = noteStart;
         for (int k = L; k < n; k++)
         {
             double w = phonemes![k].StretchWeight;
-            double len = w > 0 ? (elasticWeight > 0 ? elasticSpace * (w / elasticWeight) : 0) : Math.Max(0, phonemes[k].Duration);
+            double len = w > 0
+                ? (elasticWeight > 0 ? Math.Max(0, phonemes[k].Duration) + slack * (w / elasticWeight) : 0)
+                : Math.Max(0, phonemes[k].Duration);
+            if (len < 0) len = 0;   // 过压（核被权重分摊压到负）就地钉死，保单调；拖拽至此即止
             pos[k] = p;
             p += len;
             pos[k + 1] = p;

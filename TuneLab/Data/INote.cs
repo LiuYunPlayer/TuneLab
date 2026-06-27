@@ -216,7 +216,8 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
 
     // 拖拽音素起边界（index = 音素 index 的起点；末边界 index==n 派生不可拖）：把该边界拖到【显示】相对秒 targetRel。
     // · index == L（前置分界线 = 首个非前置音素 = 核起点）：核起点恒为音符头（拍点），不可拖 → no-op。
-    // · 其余 index（前置辅音 / 后辅音的起点）：改的是音素 index 的 **时长**——累积布局令相邻音素整体平移（推挤）、核吸收。
+    // · 其余 index（前置辅音 / 后辅音 / 第二个起的核的起点）：改的是音素 index 的 **时长**——累积布局令相邻音素整体平移（推挤）、核吸收。
+    //   多核场景下改本核时长会经共享弹性余量改写前一核的长度，从而单调挪动本核起点（故"两元音间分界线"亦可拖，无需特判）。
     // 跟手：显示位 = 自然布局经 PhonemeLayout 压缩后的结果，故反解——bisect 被编辑量使该边界的【显示】起点落到 targetRel
     // （显示起点随该量单调变化）。压缩区里被布局钉住时，跟到钉点即止。改 pinned 即触发重合成。
     void DragPinnedBoundary(int index, double targetRel)

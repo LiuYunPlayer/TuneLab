@@ -17,10 +17,11 @@ public struct SynthesizedPhoneme
 {
     public string Symbol;
 
-    // 标称时长（秒）：辅音(StretchWeight=0)为其固定长；核 / 元音(StretchWeight>0)的此值被布局忽略（恒按填充派生）。
+    // 标称时长（秒）：辅音(StretchWeight=0)为其固定长；核 / 元音(StretchWeight>0)为其原长——布局以原长为基、
+    // 把可用余量(空间−各核原长和)按权重分摊到各核（单核时原长被抵消、退化为整段填充；多核时原长决定彼此分界）。
     public double Duration;
 
-    // 伸缩权重：0 = 刚性辅音（长度固定）；>0 = 可伸核 / 元音（吸收 note 伸缩 / 压缩，按权重分摊、先让）。
+    // 伸缩权重：0 = 刚性辅音（长度固定）；>0 = 可伸核 / 元音（在原长之上吸收 note 伸缩 / 压缩余量，按权重分摊、先让）。
     // 用户锁定音素时随时长一并固定为用户数据。Σw ≤ 0（含未设、默认零）时宿主退化为均匀缩放，无除零。
     public double StretchWeight;
 
