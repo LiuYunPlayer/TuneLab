@@ -10,8 +10,16 @@ public interface IReadOnlyOrderedMap<TKey, out TValue> : IReadOnlyMap<TKey, TVal
     // 有序版收紧：顺序注册表的 Keys/Values 是有索引的 IReadOnlyList。
     new IReadOnlyList<TKey> Keys { get; }
     new IReadOnlyList<TValue> Values { get; }
-    TKey KeyAt(int index);
-    TValue ValueAt(int index);
+}
+
+public static class IReadOnlyOrderedMapExtension
+{
+    // KeyAt/ValueAt 是 Keys/Values 索引访问的派生便利，不进接口契约。
+    public static TKey KeyAt<TKey, TValue>(this IReadOnlyOrderedMap<TKey, TValue> map, int index) where TKey : notnull
+        => map.Keys[index];
+
+    public static TValue ValueAt<TKey, TValue>(this IReadOnlyOrderedMap<TKey, TValue> map, int index) where TKey : notnull
+        => map.Values[index];
 }
 
 public static class IReadOnlyOrderedMapBuilder
