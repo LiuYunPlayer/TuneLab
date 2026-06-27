@@ -38,16 +38,16 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         mContext.Notes.ItemAdded.Subscribe(OnNotesStructureChanged);
         mContext.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged);
         mContext.PartProperties.Modified.Subscribe(OnPartPropertiesModified);
-        mContext.Committed += OnCommitted;
-        mContext.Pitch.RangeModified += OnRangeModified;
-        mContext.PitchDeviation.RangeModified += OnRangeModified;   // 老 Pitch 含偏差，偏差变化同样标脏
+        mContext.Committed.Subscribe(OnCommitted);
+        mContext.Pitch.RangeModified.Subscribe(OnRangeModified);
+        mContext.PitchDeviation.RangeModified.Subscribe(OnRangeModified);   // 老 Pitch 含偏差，偏差变化同样标脏
         // 构造期即订阅本声源声明的各自动化轨：宿主已在建会话之前按引擎声明填好 AutomationConfigs，
         // 故 context.Automations 已含自己声明的轨。键集取自老声源声明。
         foreach (var key in mSource.AutomationConfigs.Keys)
         {
             if (mContext.Automations.TryGetValue(key, out var automation))
             {
-                automation.RangeModified += OnRangeModified;
+                automation.RangeModified.Subscribe(OnRangeModified);
                 mSubscribedAutomations.Add(automation);
             }
         }
@@ -217,10 +217,14 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         return result;
     }
 
-    public event Action? SynthesizedPhonemesChanged;
-    public event Action? SynthesizedParametersChanged;
-    public event Action? SynthesizedPitchChanged;
-    public event Action? StatusChanged;
+    public IActionEvent SynthesizedPhonemesChanged => mSynthesizedPhonemesChanged;
+    public IActionEvent SynthesizedParametersChanged => mSynthesizedParametersChanged;
+    public IActionEvent SynthesizedPitchChanged => mSynthesizedPitchChanged;
+    public IActionEvent StatusChanged => mStatusChanged;
+    readonly ActionEvent mSynthesizedPhonemesChanged = new();
+    readonly ActionEvent mSynthesizedParametersChanged = new();
+    readonly ActionEvent mSynthesizedPitchChanged = new();
+    readonly ActionEvent mStatusChanged = new();
 
     public void Dispose()
     {
@@ -232,12 +236,12 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         mContext.Notes.ItemAdded.Unsubscribe(OnNotesStructureChanged);
         mContext.Notes.ItemRemoved.Unsubscribe(OnNotesStructureChanged);
         mContext.PartProperties.Modified.Unsubscribe(OnPartPropertiesModified);
-        mContext.Committed -= OnCommitted;
-        mContext.Pitch.RangeModified -= OnRangeModified;
-        mContext.PitchDeviation.RangeModified -= OnRangeModified;
+        mContext.Committed.Unsubscribe(OnCommitted);
+        mContext.Pitch.RangeModified.Unsubscribe(OnRangeModified);
+        mContext.PitchDeviation.RangeModified.Unsubscribe(OnRangeModified);
         foreach (var automation in mSubscribedAutomations)
         {
-            automation.RangeModified -= OnRangeModified;
+            automation.RangeModified.Unsubscribe(OnRangeModified);
         }
         mSubscribedAutomations.Clear();
         foreach (var piece in mPieces)
@@ -442,10 +446,10 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     {
         if (mDisposed)
             return;
-        SynthesizedPhonemesChanged?.Invoke();
-        SynthesizedParametersChanged?.Invoke();
-        SynthesizedPitchChanged?.Invoke();
-        StatusChanged?.Invoke();
+        mSynthesizedPhonemesChanged.Invoke();
+        mSynthesizedParametersChanged.Invoke();
+        mSynthesizedPitchChanged.Invoke();
+        mStatusChanged.Invoke();
     }
 
     // —— 老引擎的输入读取（V1 订阅树外观不可枚举：键集来自老声源的声明）——

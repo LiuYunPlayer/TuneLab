@@ -42,8 +42,8 @@ internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
-        public event Action? SynthesizedParametersChanged { add { } remove { } }
-        public event Action? StatusChanged { add { } remove { } }
+        public IActionEvent SynthesizedParametersChanged => ActionEvent.Empty;
+        public IActionEvent StatusChanged => ActionEvent.Empty;
 
         public void Dispose() { }
 

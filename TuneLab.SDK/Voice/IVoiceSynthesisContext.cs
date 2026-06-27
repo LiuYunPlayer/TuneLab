@@ -64,5 +64,5 @@ public interface IVoiceSynthesisContext
     //（单条编辑也补发——故插件无需区分"在不在批量中"）。它不是宿主缓冲，而是让插件延迟昂贵状态修正的
     // 收口点——每条变更通知里廉价记录/标脏，Committed 一次性做重活（如重分片）；批量编辑（移调几百个 note）
     // 因此只重分片一次。出方向事件，宿主在数据线程触发。
-    event Action? Committed;
+    IActionEvent Committed { get; }
 }

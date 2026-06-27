@@ -217,8 +217,8 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
             .Subscribe(_ => MarkDirty(), mSubscriptions);
         context.Notes.MembershipModified.Subscribe(MarkDirty, mSubscriptions);
         context.PartProperties.Modified.Subscribe(MarkDirty, mSubscriptions);
-        context.Pitch.RangeModified += OnRangeModified;
-        context.PitchDeviation.RangeModified += OnRangeModified;
+        context.Pitch.RangeModified.Subscribe(OnRangeModified);
+        context.PitchDeviation.RangeModified.Subscribe(OnRangeModified);
         mDirty = true;
     }
 
@@ -304,25 +304,29 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
         return [new SynthesisStatusSegment { StartTime = start, EndTime = end, Status = status }];
     }
 
-    public event Action? SynthesizedPhonemesChanged;
-    public event Action? SynthesizedParametersChanged;
-    public event Action? SynthesizedPitchChanged;
-    public event Action? StatusChanged;
+    public IActionEvent SynthesizedPhonemesChanged => mSynthesizedPhonemesChanged;
+    public IActionEvent SynthesizedParametersChanged => mSynthesizedParametersChanged;
+    public IActionEvent SynthesizedPitchChanged => mSynthesizedPitchChanged;
+    public IActionEvent StatusChanged => mStatusChanged;
+    readonly ActionEvent mSynthesizedPhonemesChanged = new();
+    readonly ActionEvent mSynthesizedParametersChanged = new();
+    readonly ActionEvent mSynthesizedPitchChanged = new();
+    readonly ActionEvent mStatusChanged = new();
 
     // 测试插件：产物与状态一并通知（本实现产物只有音素，参数/音高恒空）。
     void NotifyAll()
     {
-        SynthesizedPhonemesChanged?.Invoke();
-        SynthesizedParametersChanged?.Invoke();
-        SynthesizedPitchChanged?.Invoke();
-        StatusChanged?.Invoke();
+        mSynthesizedPhonemesChanged.Invoke();
+        mSynthesizedParametersChanged.Invoke();
+        mSynthesizedPitchChanged.Invoke();
+        mStatusChanged.Invoke();
     }
 
     public void Dispose()
     {
         mSubscriptions.DisposeAll();
-        mContext.Pitch.RangeModified -= OnRangeModified;
-        mContext.PitchDeviation.RangeModified -= OnRangeModified;
+        mContext.Pitch.RangeModified.Unsubscribe(OnRangeModified);
+        mContext.PitchDeviation.RangeModified.Unsubscribe(OnRangeModified);
         mSegment?.Dispose();
     }
 

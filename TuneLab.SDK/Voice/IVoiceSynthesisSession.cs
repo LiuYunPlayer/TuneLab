@@ -65,9 +65,9 @@ public interface IVoiceSynthesisSession : IDisposable
     // 分离后宿主只刷新变化的那部分；高频的状态/进度（StatusChanged，逐 tick）不再带动产物重读。
     // 只在对应产物**真正变化**时 fire（产物没变就别 fire）。音频产物不在此列——经 IAudioSegment.Commit 自有通道驱动。
     // 出方向事件允许任意线程触发，宿主负责 marshal。
-    event Action? SynthesizedPhonemesChanged;
-    event Action? SynthesizedParametersChanged;
-    event Action? SynthesizedPitchChanged;
+    IActionEvent SynthesizedPhonemesChanged { get; }
+    IActionEvent SynthesizedParametersChanged { get; }
+    IActionEvent SynthesizedPitchChanged { get; }
     // 状态 / 进度（GetStatus）变化——通常最高频（进度条逐 tick），不触及产物。
-    event Action? StatusChanged;
+    IActionEvent StatusChanged { get; }
 }

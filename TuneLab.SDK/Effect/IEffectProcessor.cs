@@ -28,5 +28,5 @@ public interface IEffectProcessor : IDisposable
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
 
     // 处理器自标脏后触发（恒在数据线程）；宿主据此调度 Process。
-    event Action? ProcessingRequested;
+    IActionEvent ProcessingRequested { get; }
 }

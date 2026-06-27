@@ -25,7 +25,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     public ISynthesisAutomation Pitch => mPitch;
     public ISynthesisAutomation PitchDeviation => mPitchDeviation;
 
-    public event Action? Committed;
+    public IActionEvent Committed => mCommitted;
+    readonly ActionEvent mCommitted = new();
 
     public VoiceSynthesisContext(MidiPart part, string voiceId)
     {
@@ -199,7 +200,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         }
         finally
         {
-            Guarded(() => Committed?.Invoke());
+            Guarded(mCommitted.Invoke);
         }
     }
 
@@ -226,7 +227,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         }
     }
 
-    void OnBatchEnd() => Guarded(() => Committed?.Invoke());
+    void OnBatchEnd() => Guarded(mCommitted.Invoke);
 
     // part 相对 tick 区间 → 全局秒区间（±∞ 直通，表整轨失效）。
     double ToGlobalSecond(double relTick)

@@ -383,7 +383,7 @@ public interface IVoiceSynthesisContext
     ISynthesisAutomation PitchDeviation { get; }   // 加性偏差（连续、默认 0、永不 NaN），见 §5.6
     VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime);  // 见 §5.5
     IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate);             // 见 §5.8
-    event Action? Committed;                   // 逻辑编辑收口，见 §5.9
+    IActionEvent Committed { get; }            // 逻辑编辑收口，见 §5.9
 }
 ```
 
@@ -412,10 +412,10 @@ public async Task SynthesizeNext(double startTime, double endTime, CancellationT
     if (FindNextDirtyPiece(startTime, endTime) is not { } piece) return;
     var snapshot = mContext.GetSnapshot(piece.Notes, piece.Notes[0].StartTime.Value, piece.Notes[^1].EndTime.Value);
     piece.Dirty = false;            // 合成期间到达的新变更会重新标脏，完成后自然重排
-    StatusChanged?.Invoke();        // 标记本段进入 Synthesizing
+    mStatusChanged.Invoke();        // 标记本段进入 Synthesizing（mStatusChanged 是 IActionEvent StatusChanged 背后的 ActionEvent 字段）
 
     // —— offload：worker 只读 snapshot 算 PCM/音素/曲线（绝不碰活视图）——
-    var report = new Progress<double>(p => { piece.Progress = p; StatusChanged?.Invoke(); });
+    var report = new Progress<double>(p => { piece.Progress = p; mStatusChanged.Invoke(); });
     var rendered = await Task.Run(() => Render(snapshot, piece.Notes, report, cancellation), CancellationToken.None);
     if (rendered == null) return;   // 取消：正常返回，产物保持上一版
 
@@ -425,7 +425,7 @@ public async Task SynthesizeNext(double startTime, double endTime, CancellationT
     piece.Segment.Write(0, rendered.Audio);
     piece.Segment.Commit();
     piece.Phonemes = rendered.Phonemes;
-    StatusChanged?.Invoke();
+    mStatusChanged.Invoke();
 }
 ```
 
@@ -603,10 +603,10 @@ mNotesSub = NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, Unsubscri
 context.Notes.ItemAdded   += _ => mNeedResegment = true;
 context.Notes.ItemRemoved += _ => mNeedResegment = true;
 context.PartProperties.Modified += MarkAllDirty;
-context.Pitch.RangeModified         += OnRangeModified;   // (startTime, endTime) 秒：只标脏相交的块
-context.PitchDeviation.RangeModified += OnRangeModified;
-if (context.Automations.TryGetValue("Growl", out var growl)) growl.RangeModified += OnRangeModified;   // ← 构造期即可订阅自己声明的轨
-context.Committed += () => { if (mNeedResegment) Resegment(); };   // 逻辑编辑收口：一次性做重活
+context.Pitch.RangeModified.Subscribe(OnRangeModified);   // (startTime, endTime) 秒：只标脏相交的块
+context.PitchDeviation.RangeModified.Subscribe(OnRangeModified);
+if (context.Automations.TryGetValue("Growl", out var growl)) growl.RangeModified.Subscribe(OnRangeModified);   // ← 构造期即可订阅自己声明的轨
+context.Committed.Subscribe(() => { if (mNeedResegment) Resegment(); });   // 逻辑编辑收口：一次性做重活
 ```
 
 > **构造期订阅自己声明的自动化轨是可靠的**：声明（`GetAutomationConfigs`）在引擎上、宿主在建会话之前已据此填好轨集合，故会话构造函数里 `context.Automations` 已含你声明的轨（`TryGetValue` 取得 / 可枚举）。绘制该轨后的区间失效经此回调送达 → 标脏 → 下个调度 tick 重渲。若漏订阅，绘制完参数将不触发重渲（轨数据变了但没人标脏）。
@@ -711,12 +711,13 @@ class MyEffectProcessor : IEffectProcessor
     public MyEffectProcessor(IEffectContext context)
     {
         mContext = context;
-        mContext.Input.Committed += OnDirty;          // 上游音频重提交
-        mContext.Properties.Modified += OnDirty;      // 本 effect 参数变
-        mContext.Committed += OnCommitted;            // 逻辑编辑收口（颗粒脏标完后一次性发）
+        mContext.Input.Committed.Subscribe(OnDirty);          // 上游音频重提交
+        mContext.Properties.Modified.Subscribe(OnDirty);      // 本 effect 参数变
+        mContext.Committed.Subscribe(OnCommitted);            // 逻辑编辑收口（颗粒脏标完后一次性发）
     }
 
-    public event Action? ProcessingRequested;
+    public IActionEvent ProcessingRequested => mProcessingRequested;
+    readonly ActionEvent mProcessingRequested = new();
 
     // 本段回显曲线（key 与 GetSynthesizedParameterConfigs 对齐）：数据线程发布、宿主只读、收尾随产物一并重读。无回显返回空 map。
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
@@ -755,13 +756,13 @@ class MyEffectProcessor : IEffectProcessor
     }
 
     void OnDirty() => mDirty = true;
-    void OnCommitted() { if (mDirty) { mDirty = false; ProcessingRequested?.Invoke(); } }
+    void OnCommitted() { if (mDirty) { mDirty = false; mProcessingRequested.Invoke(); } }
 
     public void Dispose()
     {
-        mContext.Input.Committed -= OnDirty;
-        mContext.Properties.Modified -= OnDirty;
-        mContext.Committed -= OnCommitted;
+        mContext.Input.Committed.Unsubscribe(OnDirty);
+        mContext.Properties.Modified.Unsubscribe(OnDirty);
+        mContext.Committed.Unsubscribe(OnCommitted);
         /* 释放该段常驻状态、输出段句柄 */
     }
 

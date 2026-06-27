@@ -52,7 +52,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
         context.Notes.ItemAdded.Subscribe(OnNotesStructureChanged, mSubscriptions);
         context.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged, mSubscriptions);
         context.PartProperties.Modified.Subscribe(MarkAllDirtyAndResegment, mSubscriptions);
-        context.Committed += OnCommitted;
+        context.Committed.Subscribe(OnCommitted);
 
         mNeedResegment = true;
     }
@@ -90,9 +90,9 @@ public sealed class TestSession : IInstrumentSynthesisSession
         piece.Dirty = false;
         piece.Synthesizing = true;
         piece.Progress = 0;
-        StatusChanged?.Invoke();
+        mStatusChanged.Invoke();
 
-        var report = new Progress<double>(p => { piece.Progress = p; StatusChanged?.Invoke(); });
+        var report = new Progress<double>(p => { piece.Progress = p; mStatusChanged.Invoke(); });
 
         try
         {
@@ -113,7 +113,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
         finally
         {
             piece.Synthesizing = false;
-            StatusChanged?.Invoke();
+            mStatusChanged.Invoke();
         }
     }
 
@@ -141,13 +141,15 @@ public sealed class TestSession : IInstrumentSynthesisSession
         return result;
     }
 
-    public event Action? SynthesizedParametersChanged;
-    public event Action? StatusChanged;
+    public IActionEvent SynthesizedParametersChanged => mSynthesizedParametersChanged;
+    public IActionEvent StatusChanged => mStatusChanged;
+    readonly ActionEvent mSynthesizedParametersChanged = new();
+    readonly ActionEvent mStatusChanged = new();
 
     public void Dispose()
     {
         mSubscriptions.DisposeAll();
-        mContext.Committed -= OnCommitted;
+        mContext.Committed.Unsubscribe(OnCommitted);
         foreach (var piece in mPieces)
             piece.Segment?.Dispose();
         mPieces.Clear();
@@ -255,7 +257,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
             piece.Segment?.Dispose();
         mPieces.Clear();
         mPieces.AddRange(newPieces);
-        StatusChanged?.Invoke();
+        mStatusChanged.Invoke();
     }
 
     void OnNotesStructureChanged(IInstrumentSynthesisNote note) => mNeedResegment = true;

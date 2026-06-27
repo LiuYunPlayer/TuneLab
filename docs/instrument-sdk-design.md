@@ -99,7 +99,7 @@ IReadOnlyNotifiablePropertyObject PartProperties
 IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime)
 IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)
-event Action? Committed
+IActionEvent Committed { get; }
 ```
 
 - 与 `IVoiceSynthesisContext` 的差异：**删 `Pitch` / `PitchDeviation`**（v1 纯 note pitch 发声）。
@@ -113,8 +113,8 @@ SynthesisRange? GetNextSegment(double startTime, double endTime)
 Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default)
 IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters   // 参数回显（引擎声明才有）
 IReadOnlyList<SynthesisStatusSegment> GetStatus()
-event Action? SynthesizedParametersChanged
-event Action? StatusChanged
+IActionEvent SynthesizedParametersChanged { get; }
+IActionEvent StatusChanged { get; }
 ```
 
 - 与 `IVoiceSynthesisSession` 的差异：**删 `DefaultLyric`、`SynthesizedPhonemes`、`SynthesizedPitch`**

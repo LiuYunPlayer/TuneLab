@@ -25,7 +25,7 @@ public interface IEffectContext
 
     // 逻辑编辑收口（同 IVoiceSynthesisContext.Committed）：颗粒事件（Input.Committed/Properties.Modified/
     // automation.RangeModified）标脏后此处一次性收口，处理器在此判脏触发 ProcessingRequested、做重活。
-    event Action? Committed;
+    IActionEvent Committed { get; }
 }
 
 // 上游音频段的只读视图（voice 输出，或链上前一个 effect 的输出）：整段、不可分割。
@@ -43,5 +43,5 @@ public interface IUpstreamAudioSegment
     int CommitVersion { get; }
 
     // 内容变（未来可加性补 RangeCommitted 局部更新信号）。
-    event Action? Committed;
+    IActionEvent Committed { get; }
 }

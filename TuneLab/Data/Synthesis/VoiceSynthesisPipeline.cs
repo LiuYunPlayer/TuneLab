@@ -44,10 +44,10 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         mOnParametersChanged = Marshaled(() => StatusChanged?.Invoke());
         mOnPitchChanged = Marshaled(() => StatusChanged?.Invoke());
         mOnStatusChanged = Marshaled(() => StatusChanged?.Invoke());
-        mSession.SynthesizedPhonemesChanged += mOnPhonemesChanged;
-        mSession.SynthesizedParametersChanged += mOnParametersChanged;
-        mSession.SynthesizedPitchChanged += mOnPitchChanged;
-        mSession.StatusChanged += mOnStatusChanged;
+        mSession.SynthesizedPhonemesChanged.Subscribe(mOnPhonemesChanged);
+        mSession.SynthesizedParametersChanged.Subscribe(mOnParametersChanged);
+        mSession.SynthesizedPitchChanged.Subscribe(mOnPitchChanged);
+        mSession.StatusChanged.Subscribe(mOnStatusChanged);
         // effect 半部：voice 段经 context.AudioSegmentsChanged 自驱动效果图；产物更新经 onChanged 回调转发 UI；
         // 销毁中最后一个在飞 effect 节点收尾时经 onSettled 回调管线重检销毁（voice/effect 都归才销毁会话）。
         mEffectGraph = new EffectGraph(mPart, mContext, mCancellation.Token,
@@ -177,10 +177,10 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
 
     void FinishDispose()
     {
-        mSession.SynthesizedPhonemesChanged -= mOnPhonemesChanged;
-        mSession.SynthesizedParametersChanged -= mOnParametersChanged;
-        mSession.SynthesizedPitchChanged -= mOnPitchChanged;
-        mSession.StatusChanged -= mOnStatusChanged;
+        mSession.SynthesizedPhonemesChanged.Unsubscribe(mOnPhonemesChanged);
+        mSession.SynthesizedParametersChanged.Unsubscribe(mOnParametersChanged);
+        mSession.SynthesizedPitchChanged.Unsubscribe(mOnPitchChanged);
+        mSession.StatusChanged.Unsubscribe(mOnStatusChanged);
         try
         {
             mSession.Dispose();

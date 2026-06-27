@@ -337,7 +337,7 @@ internal sealed class EffectGraph : IDisposable
         }
         node.ProcessingRequestedHandler = () => OnProcessingRequested(node);
         if (node.Processor != null)
-            node.Processor.ProcessingRequested += node.ProcessingRequestedHandler;
+            node.Processor.ProcessingRequested.Subscribe(node.ProcessingRequestedHandler);
         node.Pending = true;
         node.LastInputVersion = input.CommitVersion;
         mNodes.Add(key, node);
@@ -538,7 +538,7 @@ internal sealed class EffectGraph : IDisposable
             if (Processor != null)
             {
                 if (ProcessingRequestedHandler != null)
-                    Processor.ProcessingRequested -= ProcessingRequestedHandler;
+                    Processor.ProcessingRequested.Unsubscribe(ProcessingRequestedHandler);
                 try { Processor.Dispose(); }
                 catch (Exception ex) { Log.Error("Effect processor dispose failed: " + ex); }
                 Processor = null;
@@ -566,7 +566,8 @@ internal sealed class EffectGraph : IDisposable
         public int SampleRate { get; private set; }
         public ReadOnlyMemory<float> Samples => mSamples;
         public int CommitVersion { get; private set; }
-        public event Action? Committed;
+        public IActionEvent Committed => mCommitted;
+        readonly ActionEvent mCommitted = new();
 
         public double StartTime => SampleRate > 0 ? (double)SampleOffset / SampleRate : 0;
 
@@ -581,7 +582,7 @@ internal sealed class EffectGraph : IDisposable
             SourceVersion = sourceVersion;
             CommitVersion++;
             mCachedVersion = -1;   // 链尾段缓存失效
-            Committed?.Invoke();
+            mCommitted.Invoke();
         }
 
         public void InvalidateSnapshot() => SourceVersion = -1;
@@ -672,7 +673,8 @@ internal sealed class EffectGraph : IDisposable
 
         public IUpstreamAudioSegment Input { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
-        public event Action? Committed;
+        public IActionEvent Committed => mCommitted;
+        readonly ActionEvent mCommitted = new();
 
         // 已声明连续 automation 轨只读 map：轨集 = effect 声明的 AutomationConfigs 中非分段者；
         // 代理按 key 缓存、缺则补建；每次读重建 map 以反映当前声明集。
@@ -726,7 +728,7 @@ internal sealed class EffectGraph : IDisposable
 
         internal void RaiseCommitted()
         {
-            try { Committed?.Invoke(); }
+            try { mCommitted.Invoke(); }
             catch (Exception ex) { Log.Error("Effect context committed handler threw: " + ex); }
         }
 
@@ -823,7 +825,8 @@ internal sealed class EffectGraph : IDisposable
     // —— 该 effect 某条自动化轨的活视图：求值（全局秒 → 全局 tick → part 相对 tick → effect 取值）+ 区间订阅。——
     sealed class AutomationProxy(MidiPart part, IEffect effect, string automationID) : ISynthesisAutomation
     {
-        public event Action<double, double>? RangeModified;
+        public IActionEvent<double, double> RangeModified => mRangeModified;
+        readonly ActionEvent<double, double> mRangeModified = new();
 
         public double[] Evaluate(IReadOnlyList<double> times)
         {
@@ -836,7 +839,7 @@ internal sealed class EffectGraph : IDisposable
 
         internal void NotifyRangeModified(double startSecond, double endSecond)
         {
-            try { RangeModified?.Invoke(startSecond, endSecond); }
+            try { mRangeModified.Invoke(startSecond, endSecond); }
             catch (Exception ex) { Log.Error("Effect automation range handler threw: " + ex); }
         }
     }

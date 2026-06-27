@@ -76,13 +76,14 @@ public sealed class GainEffectEngine : IEffectEngine
         public GainProcessor(IEffectContext context)
         {
             mContext = context;
-            mContext.Input.Committed += OnInputCommitted;
+            mContext.Input.Committed.Subscribe(OnInputCommitted);
             mContext.Properties.Modified.Subscribe(OnPropertiesModified);
-            mContext.Committed += OnCommitted;
+            mContext.Committed.Subscribe(OnCommitted);
             WireEnvAutomation();
         }
 
-        public event Action? ProcessingRequested;
+        public IActionEvent ProcessingRequested => mProcessingRequested;
+        readonly ActionEvent mProcessingRequested = new();
 
         // 本段 loudness 回显（与输出同步重算）；输出无变化时沿用上轮。线程同输出：Process 在数据线程同步发布。
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
@@ -187,16 +188,16 @@ public sealed class GainEffectEngine : IEffectEngine
         void OnCommitted()
         {
             if (mAudioDirty || mPropertiesDirty || mEnvDirty)
-                ProcessingRequested?.Invoke();
+                mProcessingRequested.Invoke();
         }
 
         void WireEnvAutomation()
         {
             if (mEnvAutomation != null)
-                mEnvAutomation.RangeModified -= OnEnvRangeModified;
+                mEnvAutomation.RangeModified.Unsubscribe(OnEnvRangeModified);
             mEnvAutomation = mContext.Automations.TryGetValue("gain_env", out var automation) ? automation : null;
             if (mEnvAutomation != null)
-                mEnvAutomation.RangeModified += OnEnvRangeModified;
+                mEnvAutomation.RangeModified.Subscribe(OnEnvRangeModified);
         }
 
         bool IntersectsSegment(double startTime, double endTime)
@@ -229,11 +230,11 @@ public sealed class GainEffectEngine : IEffectEngine
 
         public void Dispose()
         {
-            mContext.Input.Committed -= OnInputCommitted;
+            mContext.Input.Committed.Unsubscribe(OnInputCommitted);
             mContext.Properties.Modified.Unsubscribe(OnPropertiesModified);
-            mContext.Committed -= OnCommitted;
+            mContext.Committed.Unsubscribe(OnCommitted);
             if (mEnvAutomation != null)
-                mEnvAutomation.RangeModified -= OnEnvRangeModified;
+                mEnvAutomation.RangeModified.Unsubscribe(OnEnvRangeModified);
             mOutSegment?.Dispose();
         }
 
@@ -279,11 +280,12 @@ public sealed class ReverseEffectEngine : IEffectEngine
         public ReverseProcessor(IEffectContext context)
         {
             mContext = context;
-            mContext.Input.Committed += OnInputCommitted;
-            mContext.Committed += OnCommitted;
+            mContext.Input.Committed.Subscribe(OnInputCommitted);
+            mContext.Committed.Subscribe(OnCommitted);
         }
 
-        public event Action? ProcessingRequested;
+        public IActionEvent ProcessingRequested => mProcessingRequested;
+        readonly ActionEvent mProcessingRequested = new();
 
         // 无回显：恒空 map。
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
@@ -319,7 +321,7 @@ public sealed class ReverseEffectEngine : IEffectEngine
         void OnCommitted()
         {
             if (mAudioDirty)
-                ProcessingRequested?.Invoke();
+                mProcessingRequested.Invoke();
         }
 
         void CommitOutput(long offset, int count, int rate, float[] samples)
@@ -341,8 +343,8 @@ public sealed class ReverseEffectEngine : IEffectEngine
 
         public void Dispose()
         {
-            mContext.Input.Committed -= OnInputCommitted;
-            mContext.Committed -= OnCommitted;
+            mContext.Input.Committed.Unsubscribe(OnInputCommitted);
+            mContext.Committed.Unsubscribe(OnCommitted);
             mOutSegment?.Dispose();
         }
 

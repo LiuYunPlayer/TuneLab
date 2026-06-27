@@ -46,10 +46,10 @@ internal sealed class SilentSession : IVoiceSynthesisSession
     public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => Array.Empty<SynthesisStatusSegment>();
-    public event Action? SynthesizedPhonemesChanged { add { } remove { } }
-    public event Action? SynthesizedParametersChanged { add { } remove { } }
-    public event Action? SynthesizedPitchChanged { add { } remove { } }
-    public event Action? StatusChanged { add { } remove { } }
+    public IActionEvent SynthesizedPhonemesChanged => ActionEvent.Empty;
+    public IActionEvent SynthesizedParametersChanged => ActionEvent.Empty;
+    public IActionEvent SynthesizedPitchChanged => ActionEvent.Empty;
+    public IActionEvent StatusChanged => ActionEvent.Empty;
 
     public void Dispose() { }
 

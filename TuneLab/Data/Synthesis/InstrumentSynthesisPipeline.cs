@@ -35,8 +35,8 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：instrument 只有参数回显与状态/进度，无音素/音高。
         mOnParametersChanged = Marshaled(() => StatusChanged?.Invoke());
         mOnStatusChanged = Marshaled(() => StatusChanged?.Invoke());
-        mSession.SynthesizedParametersChanged += mOnParametersChanged;
-        mSession.StatusChanged += mOnStatusChanged;
+        mSession.SynthesizedParametersChanged.Subscribe(mOnParametersChanged);
+        mSession.StatusChanged.Subscribe(mOnStatusChanged);
         // effect 半部：instrument 段经 context.AudioSegmentsChanged 自驱动效果图（与 voice 同一套 EffectGraph）。
         mEffectGraph = new EffectGraph(mPart, mContext, mCancellation.Token,
             onChanged: () =>
@@ -151,8 +151,8 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
 
     void FinishDispose()
     {
-        mSession.SynthesizedParametersChanged -= mOnParametersChanged;
-        mSession.StatusChanged -= mOnStatusChanged;
+        mSession.SynthesizedParametersChanged.Unsubscribe(mOnParametersChanged);
+        mSession.StatusChanged.Unsubscribe(mOnStatusChanged);
         try
         {
             mSession.Dispose();

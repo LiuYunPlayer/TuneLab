@@ -95,13 +95,13 @@ public sealed class TestSession : IVoiceSynthesisSession
         context.Notes.ItemAdded.Subscribe(OnNotesStructureChanged, mSubscriptions);
         context.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged, mSubscriptions);
         context.PartProperties.Modified.Subscribe(MarkAllDirtyAndResegment, mSubscriptions);
-        context.Committed += OnCommitted;
-        context.Pitch.RangeModified += OnPitchRangeModified;
-        context.PitchDeviation.RangeModified += OnPitchRangeModified;
+        context.Committed.Subscribe(OnCommitted);
+        context.Pitch.RangeModified.Subscribe(OnPitchRangeModified);
+        context.PitchDeviation.RangeModified.Subscribe(OnPitchRangeModified);
         // 构造期即订阅自己声明的 Growl 轨：宿主在建会话之前已按引擎声明填好 AutomationConfigs，
         // 故此处 context.Automations 已含自己声明的轨——参数绘制后的区间失效经此回调送达、触发重渲。
         if (context.Automations.TryGetValue("Growl", out var growl))
-            growl.RangeModified += OnAutomationRangeModified;
+            growl.RangeModified.Subscribe(OnAutomationRangeModified);
 
         mNeedResegment = true;
     }
@@ -156,7 +156,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         var report = new Progress<double>(p =>
         {
             piece.Progress = p;
-            StatusChanged?.Invoke();
+            mStatusChanged.Invoke();
         });
 
         try
@@ -251,27 +251,31 @@ public sealed class TestSession : IVoiceSynthesisSession
         return result;
     }
 
-    public event Action? SynthesizedPhonemesChanged;
-    public event Action? SynthesizedParametersChanged;
-    public event Action? SynthesizedPitchChanged;
-    public event Action? StatusChanged;
+    public IActionEvent SynthesizedPhonemesChanged => mSynthesizedPhonemesChanged;
+    public IActionEvent SynthesizedParametersChanged => mSynthesizedParametersChanged;
+    public IActionEvent SynthesizedPitchChanged => mSynthesizedPitchChanged;
+    public IActionEvent StatusChanged => mStatusChanged;
+    readonly ActionEvent mSynthesizedPhonemesChanged = new();
+    readonly ActionEvent mSynthesizedParametersChanged = new();
+    readonly ActionEvent mSynthesizedPitchChanged = new();
+    readonly ActionEvent mStatusChanged = new();
 
     // 产物（音素 / 参数 / 音高）一并变化时统一通知 + 状态：本参照实现三者同源——块完成 / 标脏 / 重分块时一起变，
     // 故一起 fire。状态/进度（进度 tick）只 fire StatusChanged，不带动产物重读（这是信号分离的收益所在）。
     void NotifyProducts()
     {
-        SynthesizedPhonemesChanged?.Invoke();
-        SynthesizedParametersChanged?.Invoke();
-        SynthesizedPitchChanged?.Invoke();
-        StatusChanged?.Invoke();
+        mSynthesizedPhonemesChanged.Invoke();
+        mSynthesizedParametersChanged.Invoke();
+        mSynthesizedPitchChanged.Invoke();
+        mStatusChanged.Invoke();
     }
 
     public void Dispose()
     {
         mSubscriptions.DisposeAll();
-        mContext.Committed -= OnCommitted;
-        mContext.Pitch.RangeModified -= OnPitchRangeModified;
-        mContext.PitchDeviation.RangeModified -= OnPitchRangeModified;
+        mContext.Committed.Unsubscribe(OnCommitted);
+        mContext.Pitch.RangeModified.Unsubscribe(OnPitchRangeModified);
+        mContext.PitchDeviation.RangeModified.Unsubscribe(OnPitchRangeModified);
         foreach (var piece in mPieces)
             piece.Segment?.Dispose();
         mPieces.Clear();

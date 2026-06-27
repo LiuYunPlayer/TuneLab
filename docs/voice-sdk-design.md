@@ -104,7 +104,7 @@ public interface IVoiceSynthesisContext
 // 继承关系维持（is-a 成立：同一份采样例程可同型吃活视图与冻结求值器）。
 public interface ISynthesisAutomation : IAutomationEvaluator
 {
-    event Action<double, double>? RangeModified;   // (startTime, endTime)，全局秒
+    IActionEvent<double, double> RangeModified { get; }   // (startTime, endTime)，全局秒
 }
 ```
 
@@ -314,7 +314,7 @@ public interface IVoiceSynthesisSession   // 续
 
     // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
-    event Action? StatusChanged;   // 单一刷新信号
+    IActionEvent StatusChanged { get; }   // 单一刷新信号
 }
 
 // 音频段握柄：宿主实现、经 context.CreateAudioSegment(offset, count) 分配，插件持有并写入。
@@ -728,7 +728,7 @@ public interface IEffectContext
     // 可一段进多段出。宿主把输出段接成下游 effect 的 Input。仅数据线程调用。
     IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate);
 
-    event Action? Committed;   // 逻辑编辑收口（同 IVoiceSynthesisContext.Committed），processor 在此一次性做重活
+    IActionEvent Committed { get; }   // 逻辑编辑收口（同 IVoiceSynthesisContext.Committed），processor 在此一次性做重活
 }
 
 // 上游音频段的只读视图（voice 输出，或链上前一个 effect 的输出）：整段、不可分割。
@@ -737,7 +737,7 @@ public interface IUpstreamAudioSegment
     long SampleOffset { get; } int SampleCount { get; } int SampleRate { get; }
     ReadOnlyMemory<float> Samples { get; }   // 已提交版本不可变整段 PCM；同步前缀抓引用、worker 直读
     int CommitVersion { get; }               // 重 Commit 递增，processor 据此判是否需重处理
-    event Action? Committed;                  // 内容变（未来可加性补 RangeCommitted 局部更新信号）
+    IActionEvent Committed { get; }                  // 内容变（未来可加性补 RangeCommitted 局部更新信号）
 }
 ```
 
@@ -754,7 +754,7 @@ public interface IEffectProcessor : IDisposable
     Task Process(CancellationToken cancellation = default);
 
     // 订阅 context（Input.Committed / Properties.Modified / automation.RangeModified）自标脏后触发 → 宿主据此调度 Process。
-    event Action? ProcessingRequested;
+    IActionEvent ProcessingRequested { get; }
 }
 ```
 

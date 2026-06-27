@@ -39,7 +39,7 @@ public interface IInstrumentSynthesisSession : IDisposable
 
     // —— 更新信号（按产物分离；只在对应产物真正变化时 fire）——
     // 音频产物不在此列——经 IAudioSegment.Commit 自有通道驱动。出方向事件允许任意线程触发，宿主负责 marshal。
-    event Action? SynthesizedParametersChanged;
+    IActionEvent SynthesizedParametersChanged { get; }
     // 状态 / 进度（GetStatus）变化——通常最高频（进度条逐 tick），不触及产物。
-    event Action? StatusChanged;
+    IActionEvent StatusChanged { get; }
 }

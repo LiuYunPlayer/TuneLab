@@ -124,7 +124,8 @@ internal sealed class PropertyObjectGuard : IReadOnlyNotifiablePropertyObject, I
 //    秒↔tick 换算与 part 偏移由 forwarder.ToRelativeTicks 在边界完成；区间事件由 context 换算成全局秒后注入。 ——
 internal sealed class AutomationProxy(ISynthesisForwarder forwarder, Func<IReadOnlyList<double>, double[]> sampler) : ISynthesisAutomation
 {
-    public event Action<double, double>? RangeModified;
+    public IActionEvent<double, double> RangeModified => mRangeModified;
+    readonly ActionEvent<double, double> mRangeModified = new();
 
     // 查询轴 = 全局秒：全局秒 → part 相对 tick → 喂数据层 sampler。
     public double[] Evaluate(IReadOnlyList<double> times)
@@ -135,6 +136,6 @@ internal sealed class AutomationProxy(ISynthesisForwarder forwarder, Func<IReadO
 
     internal void NotifyRangeModified(double startSecond, double endSecond)
     {
-        forwarder.ForwardChange(() => RangeModified?.Invoke(startSecond, endSecond));
+        forwarder.ForwardChange(() => mRangeModified.Invoke(startSecond, endSecond));
     }
 }

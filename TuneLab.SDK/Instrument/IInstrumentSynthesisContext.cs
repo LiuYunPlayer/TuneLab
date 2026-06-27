@@ -42,5 +42,5 @@ public interface IInstrumentSynthesisContext
 
     // 逻辑编辑收口信号：每个逻辑编辑（一个 command）的全部变更通知发完后触发一次——让插件延迟昂贵状态修正
     //（每条变更廉价标脏，Committed 一次性做重活，如重分片）。出方向事件，宿主在数据线程触发。
-    event Action? Committed;
+    IActionEvent Committed { get; }
 }

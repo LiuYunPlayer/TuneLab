@@ -22,7 +22,8 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     public IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
 
-    public event Action? Committed;
+    public IActionEvent Committed => mCommitted;
+    readonly ActionEvent mCommitted = new();
 
     public InstrumentSynthesisContext(MidiPart part, string instrumentId)
     {
@@ -163,7 +164,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         }
         finally
         {
-            Guarded(() => Committed?.Invoke());
+            Guarded(mCommitted.Invoke);
         }
     }
 
@@ -189,7 +190,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         }
     }
 
-    void OnBatchEnd() => Guarded(() => Committed?.Invoke());
+    void OnBatchEnd() => Guarded(mCommitted.Invoke);
 
     double ToGlobalSecond(double relTick)
     {
