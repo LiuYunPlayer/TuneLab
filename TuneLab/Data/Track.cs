@@ -143,9 +143,11 @@ internal class Track : DataObject, ITrack
         mParts.SetInfo(info.Parts.Convert(CreatePart).ToArray());
     }
 
-    class PartList : DataObjectLinkedList<IPart>
+    class PartList : SortedDataObjectLinkedList<IPart>
     {
-        protected override bool IsInOrder(IPart prev, IPart next)
+        public PartList() : base(IsInOrder) { }
+
+        static bool IsInOrder(IPart prev, IPart next)
         {
             if (prev.StartPos() < next.StartPos())
                 return true;

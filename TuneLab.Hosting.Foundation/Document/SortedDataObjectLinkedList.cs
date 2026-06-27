@@ -8,7 +8,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Foundation;
 
-public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> where T : class, IDataObject, ILinkedNode<T>
+public class SortedDataObjectLinkedList<T> : DataObject, ISortedDataObjectLinkedList<T> where T : class, IDataObject, ILinkedNode<T>
 {
     public IModifiedEvent MembershipModified => mDataLinkedList.Modified;
     public IActionEvent<T> ItemAdded => mDataLinkedList.ItemAdded;
@@ -19,9 +19,10 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
     public T? Last => mDataLinkedList.Last;
     public int Count => mDataLinkedList.Count;
 
-    public DataObjectLinkedList()
+    public SortedDataObjectLinkedList(Func<T, T, bool> isInOrder)
     {
-        mDataLinkedList = new(this);
+        mIsInOrder = isInOrder;
+        mDataLinkedList = new(isInOrder);
         mDataLinkedList.Attach(this);
         mDataLinkedList.ItemAdded.Subscribe(OnAdd);
         mDataLinkedList.ItemRemoved.Subscribe(OnRemove);
@@ -80,23 +81,13 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
             return;
 
         var node = (ILinkedNode<T>)item;
-        bool inOrder = (node.Last == null || IsInOrder(node.Last, item))
-                    && (node.Next == null || IsInOrder(item, node.Next));
+        bool inOrder = (node.Last == null || mIsInOrder(node.Last, item))
+                    && (node.Next == null || mIsInOrder(item, node.Next));
         if (inOrder)
             return;
 
         Remove(item);
         Insert(item);
-    }
-
-    public void InsertAfter(T last, T item)
-    {
-        mDataLinkedList.InsertAfter(last, item);
-    }
-
-    public void InsertBefore(T next, T item)
-    {
-        mDataLinkedList.InsertBefore(next, item);
     }
 
     public void Clear()
@@ -129,11 +120,6 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
         mDataLinkedList.SetInfo(info);
     }
 
-    protected virtual bool IsInOrder(T prev, T next)
-    {
-        return true;
-    }
-
     void OnAdd(T item)
     {
         item.Attach(this);
@@ -144,13 +130,6 @@ public class DataObjectLinkedList<T> : DataObject, IDataObjectLinkedList<T> wher
         item.Detach();
     }
 
-    class DataLinkedList(DataObjectLinkedList<T> dataObjectLinkedList) : DataLinkedList<T>
-    {
-        protected override bool IsInOrder(T prev, T next)
-        {
-            return dataObjectLinkedList.IsInOrder(prev, next);
-        }
-    }
-
-    readonly DataLinkedList mDataLinkedList;
+    readonly Func<T, T, bool> mIsInOrder;
+    readonly SortedDataLinkedList<T> mDataLinkedList;
 }

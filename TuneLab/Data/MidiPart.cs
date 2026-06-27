@@ -673,17 +673,17 @@ internal class MidiPart : Part, IMidiPart
 
     static readonly Map<string, SynthesizedParameter> EmptySynthesizedParameters = new();
 
-    class NoteList : DataObjectLinkedList<INote>, INoteList
+    class NoteList : SortedDataObjectLinkedList<INote>, INoteList
     {
         public IMergableEvent SelectionChanged => mSelectionChanged;
 
-        public NoteList()
+        public NoteList() : base(IsInOrder)
         {
             MembershipModified.Subscribe(mSelectionChanged);
             this.WhenAny(note => note.SelectionChanged).Subscribe(mSelectionChanged);
         }
 
-        protected override bool IsInOrder(INote prev, INote next)
+        static bool IsInOrder(INote prev, INote next)
         {
             if (prev.StartPos() < next.StartPos())
                 return true;
@@ -705,9 +705,11 @@ internal class MidiPart : Part, IMidiPart
 
     // 颤音有序链表：与 NoteList 同构的排序键（StartPos↑、同起点时 EndPos↓，即 Pos↑/Dur↓），
     // 与改链表前 InsertVibrato 的手工定位顺序一致。
-    class VibratoList : DataObjectLinkedList<Vibrato>
+    class VibratoList : SortedDataObjectLinkedList<Vibrato>
     {
-        protected override bool IsInOrder(Vibrato prev, Vibrato next)
+        public VibratoList() : base(IsInOrder) { }
+
+        static bool IsInOrder(Vibrato prev, Vibrato next)
         {
             if (prev.StartPos() < next.StartPos())
                 return true;

@@ -1,55 +1,31 @@
-﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 
 namespace TuneLab.Foundation;
 
-public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
+// 纯双向链表：只负责节点拼接与遍历，对元素顺序无任何约定。写入口为"两端（AddFirst/AddLast）+ 相对节点
+// （InsertAfter/InsertBefore）"，空表由 AddFirst/AddLast 承担首元素 seeding。按键自动定位的有序插入见 SortedLinkedList<T>。
+public sealed class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 {
     public T? First => mFirst;
     public T? Last => mLast;
     public int Count => mCount;
 
-    public void Insert(T item)
+    public void AddFirst(T item)
     {
-        Debug.Assert(item.LinkedList == null, "Item already belongs to a linked list; re-inserting would corrupt the structure of both lists.");
-
-        if (Count == 0)
-        {
-            mFirst = item;
-            mLast = item;
-
-            item.LinkedList = this;
-            mCount++;
-            mLastInsertedItem = item;
-        }
+        if (mCount == 0)
+            Seed(item);
         else
-        {
-            bool direction = IsInOrder(mLastInsertedItem!, item);
-            if (direction)
-            {
-                T last = mLastInsertedItem!;
-                while (last.Next != null && IsInOrder(last.Next, item))
-                {
-                    last = last.Next;
-                }
+            InsertBefore(mFirst!, item);
+    }
 
-                InsertAfter(last, item);
-            }
-            else
-            {
-                T next = mLastInsertedItem!;
-                while (next.Last != null && !IsInOrder(next.Last, item))
-                {
-                    next = next.Last;
-                }
-
-                InsertBefore(next, item);
-            }
-        }
+    public void AddLast(T item)
+    {
+        if (mCount == 0)
+            Seed(item);
+        else
+            InsertAfter(mLast!, item);
     }
 
     public bool Remove(T item)
@@ -79,10 +55,6 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
             next.Last = last;
         }
         mCount--;
-        if (mLastInsertedItem == item)
-        {
-            mLastInsertedItem = mLast;
-        }
 
         return true;
     }
@@ -98,7 +70,6 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
         mCount = 0;
         mFirst = null;
         mLast = null;
-        mLastInsertedItem = null;
     }
 
     public bool Contains(T item)
@@ -124,7 +95,6 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
         item.LinkedList = this;
         mCount++;
-        mLastInsertedItem = item;
     }
 
     public void InsertBefore(T next, T item)
@@ -145,12 +115,6 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
         item.LinkedList = this;
         mCount++;
-        mLastInsertedItem = item;
-    }
-
-    protected virtual bool IsInOrder(T prev, T next)
-    {
-        return true;
     }
 
     public IEnumerator<T> GetEnumerator()
@@ -177,9 +141,15 @@ public class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<T>
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+    void Seed(T item)
+    {
+        mFirst = item;
+        mLast = item;
+        item.LinkedList = this;
+        mCount++;
+    }
+
     T? mFirst = null;
     T? mLast = null;
     int mCount = 0;
-
-    T? mLastInsertedItem = null;
 }

@@ -1,44 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace TuneLab.Foundation;
 
+// 无序链表的可变契约：写入口为"两端（AddFirst/AddLast）+ 相对节点（InsertAfter/InsertBefore）"，对元素顺序无约定。
+// 按键自动定位的有序插入见 ISortedLinkedList<T>。
 public interface ILinkedList<T> : IReadOnlyLinkedList<T> where T : class, ILinkedNode<T>
 {
-    void Insert(T item);
-    bool Remove(T item);
+    void AddFirst(T item);
+    void AddLast(T item);
     void InsertAfter(T last, T item);
     void InsertBefore(T next, T item);
+    bool Remove(T item);
     void Clear();
     bool Contains(T item);
-}
-
-public static class ILinkedListExtension
-{
-    public static void AddFirst<T>(this ILinkedList<T> linkedList, T item) where T : class, ILinkedNode<T>
-    {
-        if (linkedList.First == null)
-        {
-            linkedList.Insert(item);
-        }
-        else
-        {
-            linkedList.InsertBefore(linkedList.First, item);
-        }
-    }
-
-    public static void AddLast<T>(this ILinkedList<T> linkedList, T item) where T : class, ILinkedNode<T>
-    {
-        if (linkedList.Last == null)
-        {
-            linkedList.Insert(item);
-        }
-        else
-        {
-            linkedList.InsertAfter(linkedList.Last, item);
-        }
-    }
 }
