@@ -75,6 +75,8 @@ internal sealed class SaveScriptTool(IProject project, Func<IMidiPart?>? current
         ScriptToolContext.Note => "the piano-roll note right-click menu",
         ScriptToolContext.Part => "the arrangement part right-click menu",
         ScriptToolContext.PartContent => "the piano-roll blank right-click menu",
+        ScriptToolContext.Track => "the track-header right-click menu",
+        ScriptToolContext.TrackContent => "the arrangement blank-lane right-click menu",
         _ => "the top Scripts menu",
     };
 }

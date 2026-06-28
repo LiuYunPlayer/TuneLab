@@ -7,10 +7,10 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Scripting;
 
-// 脚本工具挂载的上下文：决定注册到哪个菜单。
-//  global=顶部 Scripts 菜单；note=钢琴卷帘命中音符；part=编排区命中 part（整个对象）；partContent=钢琴卷帘空白（part 内容区）。
-//  （track / trackContent 待轨道头交互升级——加 track 选中模型——后再做。）
-internal enum ScriptToolContext { Global, Note, Part, PartContent }
+// 脚本工具挂载的上下文：决定注册到哪个菜单、对应不同的目标心智。
+//  global=顶部 Scripts 菜单；note=钢琴卷帘命中音符；partContent=钢琴卷帘空白（part 内容区）；
+//  part=编排区命中 part（part 整体对象）；track=轨道头（track 整体对象）；trackContent=编排区空白（track 容器/泳道）。
+internal enum ScriptToolContext { Global, Note, Part, PartContent, Track, TrackContent }
 
 // 一个"工具脚本"（定义了 getScriptInfo 的库内脚本）的元数据。ScriptName=库内文件名（去扩展），用于加载/运行；
 // 其余来自 getScriptInfo() 的返回。亮灭(enabled)不做——它只是 UI 糖、不防逻辑错误，真正校验在脚本 main() 里。
@@ -124,6 +124,8 @@ internal static class ScriptTools
         "note" => ScriptToolContext.Note,
         "part" => ScriptToolContext.Part,
         "partcontent" => ScriptToolContext.PartContent,
+        "track" => ScriptToolContext.Track,
+        "trackcontent" => ScriptToolContext.TrackContent,
         _ => ScriptToolContext.Global,
     };
 }

@@ -2,7 +2,7 @@
 
 对应设计：`docs/script-tools-design.md`。本批只测「脚本工具化 + 运行收口加固」新增范围，不覆盖已通过的脚本基线（侧栏运行、对象式 API 等）。
 
-> 本批 context 为 `note` / `part` / `partContent` / `global`。`track` / `trackContent`（轨道头、编排空白）**待轨道头交互升级（加选中模型 + 拖拽调位）后再做**，不在本批。`enabled`（菜单灰显）**已取消**——它只是 UI 糖、不防逻辑错误，校验在脚本 main() 里。
+> context 全集：`global` / `note` / `partContent` / `part` / `track` / `trackContent`（track 两个在轨道头选中模型落地后已补齐）。`enabled`（菜单灰显）**已取消**——它只是 UI 糖、不防逻辑错误，校验在脚本 main() 里。
 
 ## 前置
 
@@ -17,6 +17,8 @@
 | harmony-third.js | note | 加三度和声 | 钢琴卷帘**命中音符**右键 | 选中音符上方三度加和声 |
 | lyrics-lowercase.js | partContent | 歌词转小写 | 钢琴卷帘**空白**右键 | 当前 part 全部歌词转小写 |
 | tag-part-name.js | part | 标记选中 Part | 编排区**命中 part**右键 | 选中的 part 名追加 " *" |
+| toggle-mute-track.js | track | 切换静音 | **轨道头**右键 | 选中轨道切换 mute |
+| tag-track-parts.js | trackContent | 标记轨内所有 Part | 编排区**空白泳道**右键 | 该轨所有 part 名追加 " *" |
 | plain-scratch.js | （无 getScriptInfo） | —— | 不出现 | 普通脚本 |
 
 > 准备一个含至少一条 MIDI part、part 内有若干带歌词音符的工程；在钢琴窗打开该 part。
@@ -43,7 +45,17 @@
 ## 4. 编排区命中 part 右键（context=part，只在命中 part 时）
 
 1. 编排区**命中某 part**右键（可先多选几个 part）→ 底部有「标记选中 Part」。点击 → 选中的 part 名各追加 " *"；Ctrl+Z 撤销。
-2. 编排区**空白处**右键 → **不应**有「标记选中 Part」（trackContent 本批未做，空白处无脚本工具）。
+2. 编排区**空白处**右键 → **不应**有「标记选中 Part」（那里是 trackContent，见 §4b）。
+
+## 4a. 轨道头右键（context=track）
+
+1. **轨道头**右键（未选中的轨道会先被选中；可 Ctrl 多选几条再右键）→ 菜单底部有「切换静音」。点击 → 选中轨道的 mute 翻转；Ctrl+Z 撤销。
+2. 重复打开不叠加（轨道头菜单只建一次→每次打开重建工具区，工具项只有一份）。
+
+## 4b. 编排区空白泳道右键（context=trackContent）
+
+1. 编排区某轨的**空白泳道**右键（会选中该行轨道）→ 菜单底部有「标记轨内所有 Part」。点击 → 该轨所有 part 名各追加 " *"；Ctrl+Z 撤销。
+2. **不应**出现 part 工具「标记选中 Part」（那是命中 part 时才有）。
 
 ## 5. 普通脚本不进菜单
 

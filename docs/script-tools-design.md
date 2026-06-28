@@ -39,7 +39,7 @@ function getScriptInfo() {
     category: 'Pitch',        // 菜单分组（同 category 聚一组）
     author:   'someone',
     version:  '1.0.0',
-    context:  'note',         // note | part | partContent | global —— 决定挂哪个菜单（见 §3）
+    context:  'note',         // note | partContent | part | track | trackContent | global —— 决定挂哪个菜单（见 §3）
   };
 }
 
@@ -80,7 +80,7 @@ function main() {
 
 ### 挂载点（由 `context` 决定）
 
-各菜单按"右键命中对象 vs 命中空白"分支，对应不同的目标心智，故 context 也分开。脚本经"该 context 天经地义的入口"取目标——命中 note/part 时该对象必被选中，故用选区：
+各菜单按"右键命中对象 vs 命中空白"分支，对应不同的目标心智，故 context 也分开。脚本经"该 context 天经地义的入口"取目标——命中 note/part/track 时该对象必被选中（右键即选中），故一律用选区：
 
 | context | 挂载点 | 目标对象 | 脚本取目标 |
 |---|---|---|---|
@@ -88,10 +88,12 @@ function main() {
 | `note` | 钢琴卷帘**命中音符**右键 | 选中的音符 | `tl.currentPart().selectedNotes()` |
 | `partContent` | 钢琴卷帘**空白**右键（part 的内容区） | 当前编辑的 part | `tl.currentPart()` |
 | `part` | 编排区**命中 part**右键（part 整体对象） | 选中的 parts（可多选） | `tl.selectedParts()` |
+| `track` | **轨道头**右键（整轨对象） | 选中的轨道（可多选） | `tl.selectedTracks()` |
+| `trackContent` | 编排区**空白泳道**右键（轨道容器区） | 该泳道的轨道 | `tl.selectedTracks()` |
 
-注入点：`PianoScrollViewOperation`（note 进命中音符分支、partContent 进空白分支）、`TrackScrollViewOperation`（part 进命中 part 分支）。
+注入点：`PianoScrollViewOperation`（note 进命中音符分支、partContent 进空白分支）、`TrackScrollViewOperation`（part 进命中 part 分支、trackContent 进空白泳道分支）、`TrackHead`（track，菜单只建一次 → `menu.Opening` 时 `RefreshContextTools` 重建）。
 
-**待后续（轨道头交互升级后）**：`track`（轨道头，整轨对象）/ `trackContent`（编排区空白，轨道容器区）。前提是给 `ITrack` 加选中模型（+ 拖拽调位），届时二者用 `tl.selectedTracks()`，与 note/part 对齐。命名取 content/content 对称（`partContent`/`trackContent`）。
+右键即选中：轨道头右键选中本轨（`ITrack : ISelectable`，与 part/note 一致）；编排空白泳道右键选中该行轨道。故 track/trackContent 都用 `tl.selectedTracks()`。命名取 content/content 对称（`partContent`/`trackContent`）。
 
 ### 不做亮灭（enabled）
 

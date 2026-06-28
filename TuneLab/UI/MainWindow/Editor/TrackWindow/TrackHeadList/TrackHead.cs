@@ -257,6 +257,9 @@ internal class TrackHead : DockPanel
             menu.Items.Add(menuItem);
         }
 
+        // 用户脚本工具（context=track，整轨对象）：此菜单只建一次，故每次打开按当前脚本库重建工具区。
+        // 右键已在 OnPointerPressed 选中本轨，故工具目标 = tl.selectedTracks()。
+        menu.Opening += (_, _) => ScriptToolMenu.RefreshContextTools(menu, Scripting.ScriptToolContext.Track, this);
         ContextMenu = menu;
         Background = Brushes.Transparent;
 

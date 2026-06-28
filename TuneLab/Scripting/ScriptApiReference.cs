@@ -21,6 +21,7 @@ internal static class ScriptApiReference
         "  tl.currentProject()                      -> project   (your data entry point)\n" +
         "  tl.currentPart()                         part | null   (the part open in the piano editor)\n" +
         "  tl.selectedParts()                       [part]   (parts selected in the arrangement)\n" +
+        "  tl.selectedTracks()                      [track]  (tracks selected in the track list)\n" +
         "  tl.playhead()                            {tick, seconds, bar, beat, playing}\n" +
         "  tl.snap(tick)                            tick snapped to the editor grid\n" +
         "\n" +
@@ -82,6 +83,8 @@ internal static class ScriptApiReference
         "    'note'        -> piano-roll right-click ON a note.   Target = tl.currentPart().selectedNotes() (the clicked note is always selected).\n" +
         "    'partContent' -> piano-roll right-click on BLANK.    Target = tl.currentPart() (its content).\n" +
         "    'part'        -> arrangement right-click ON a part.  Target = tl.selectedParts() (the clicked part is always selected; may be many).\n" +
+        "    'track'        -> track-header right-click.          Target = tl.selectedTracks() (the clicked track is always selected; may be many).\n" +
+        "    'trackContent' -> arrangement right-click on a track's BLANK lane.  Target = tl.selectedTracks().\n" +
         "  main() runs as ONE undoable change; on any error EVERYTHING rolls back. A script WITHOUT getScriptInfo is a plain run-once script (Script side panel only, never in menus).\n" +
         "  EXAMPLE tool — 'Add Third Harmony' on selected notes:\n" +
         "    function getScriptInfo() { return { name: tl.language === 'zh-CN' ? '加三度和声' : 'Add Third Harmony', context: 'note' }; }\n" +

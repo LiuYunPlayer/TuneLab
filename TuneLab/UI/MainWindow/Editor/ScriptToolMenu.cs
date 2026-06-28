@@ -66,17 +66,36 @@ internal static class ScriptToolMenu
         return items;
     }
 
+    // 注入项的标记，便于"只建一次"的菜单（TrackHead）每次打开时清掉上轮注入再重建。
+    const string ToolTag = "script-tool";
+
+    static List<ScriptToolInfo> ToolsFor(ScriptToolContext context)
+        => Discover().Where(t => t.Context == context)
+                     .OrderBy(t => t.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
+
     // 在某右键菜单末尾追加该 context 下的工具项（前置一条分隔线）。无工具则什么都不加。
-    // 用于每次右键都重新构建的菜单（钢琴卷帘音符/空白、编排区命中 part）。
+    // 用于每次右键都重新构建的菜单（钢琴卷帘音符/空白、编排区命中 part/空白）。
     public static void AppendContextTools(ItemCollection items, ScriptToolContext context, Control anchor)
     {
-        var tools = Discover().Where(t => t.Context == context)
-                              .OrderBy(t => t.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
+        var tools = ToolsFor(context);
         if (tools.Count == 0) return;
 
-        items.Add(new Separator());
+        items.Add(new Separator { Tag = ToolTag });
         foreach (var tool in tools)
-            items.Add(MakeItem(tool, anchor));
+        {
+            var item = MakeItem(tool, anchor);
+            item.Tag = ToolTag;
+            items.Add(item);
+        }
+    }
+
+    // 用于"只建一次"的菜单（TrackHead）：每次打开先移除上轮注入的工具项，再按当前脚本库重建。挂 menu.Opening。
+    public static void RefreshContextTools(ContextMenu menu, ScriptToolContext context, Control anchor)
+    {
+        for (int i = menu.Items.Count - 1; i >= 0; i--)
+            if (menu.Items[i] is Control c && Equals(c.Tag, ToolTag))
+                menu.Items.RemoveAt(i);
+        AppendContextTools(menu.Items, context, anchor);
     }
 
     static MenuItem MakeItem(ScriptToolInfo tool, Control anchor)

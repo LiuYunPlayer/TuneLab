@@ -333,6 +333,16 @@ internal partial class TrackScrollView
                                         DeleteTrackAt(trackIndex);
                                     }).SetInputGesture(Key.Delete);
                                     menu.Items.Add(menuItem);
+
+                                    // 用户脚本工具（context=trackContent，轨道容器/泳道）：右键空白泳道命中某轨 → 选中该轨（镜像 part/轨道头），
+                                    // 工具目标 = tl.selectedTracks()。
+                                    var track = Project.Tracks[trackIndex];
+                                    if (!track.IsSelected)
+                                    {
+                                        Project.Tracks.DeselectAllItems();
+                                        track.Select();
+                                    }
+                                    ScriptToolMenu.AppendContextTools(menu.Items, Scripting.ScriptToolContext.TrackContent, this);
                                 }
                             }
 

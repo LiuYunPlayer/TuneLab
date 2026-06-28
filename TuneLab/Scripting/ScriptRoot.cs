@@ -44,6 +44,10 @@ internal sealed class ScriptApp
     public ScriptPart[] SelectedParts()
         => mContext.Project.Tracks.SelectMany(t => t.Parts).Where(p => p.IsSelected).Select(mContext.WrapPart).ToArray();
 
+    // 当前选中的轨道（支持多选）；无选中返回空数组。右键轨道头/空白泳道时该轨必被选中，故这是 track/trackContent 工具的目标入口。
+    public ScriptTrack[] SelectedTracks()
+        => mContext.Project.Tracks.Where(t => t.IsSelected).Select(mContext.WrapTrack).ToArray();
+
     public ScriptPlayhead Playhead()
     {
         double sec = AudioEngine.CurrentTime;
