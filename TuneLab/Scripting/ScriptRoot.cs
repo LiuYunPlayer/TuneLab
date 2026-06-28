@@ -50,7 +50,12 @@ internal sealed class ScriptApp
 
     // 编排区当前的范围选区（DAW 式 tick×轨道矩形，编辑器态、不入工程）；无选区返回 null。轨道号 1-based、连续区间。
     // 与 selectedParts()/selectedNotes()（选中的对象）正交：它只圈出"这片地方"、与里面有没有 part 无关，脚本据其横纵跨度批量处理落在区域里的东西。
-    public ScriptSelection? Selection() => mContext.Selection;
+    // 命名与 pianoSelection() 对偶：trackSelection=编排区(tick×轨道)、pianoSelection=钢琴窗(tick)，各负责一块。
+    public ScriptSelection? TrackSelection() => mContext.TrackSelection;
+
+    // 钢琴窗当前的范围选区（DAW 式 tick 带，限当前 part、贯穿全音高，编辑器态、不入工程）；无选区返回 null。
+    // 与 selection()（编排区 tick×轨道）正交且独立并存：本接口只有时间维，脚本据其圈出当前 part 里"这段时间"批量处理。
+    public ScriptPianoSelection? PianoSelection() => mContext.PianoSelection;
 
     public ScriptPlayhead Playhead()
     {

@@ -13,5 +13,4 @@ internal enum PianoTool
     Anchor,
     Lock,
     Vibrato,
-    Select,
 }

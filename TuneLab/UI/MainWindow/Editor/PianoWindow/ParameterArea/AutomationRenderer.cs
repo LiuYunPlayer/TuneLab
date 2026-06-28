@@ -51,6 +51,7 @@ internal partial class AutomationRenderer : View
         mDependency = dependency;
 
         mMiddleDragOperation = new(this);
+        mRegionSelectionOperation = new(this);
         mDrawOperation = new(this);
         mClearOperation = new(this);
         mAnchorSelectOperation = new(this);
@@ -112,11 +113,13 @@ internal partial class AutomationRenderer : View
         mDependency.ReadbackVisibilityChanged += InvalidateVisual;
         mDependency.TickAxis.AxisChanged += Update;
         mDependency.TickAxis.AxisChanged += UpdateAnchorValueInput;
+        mDependency.PianoScrollView.RegionSelectionChanged += InvalidateVisual;   // 范围选区变化（任一区拖/清）→ 参数区重绘同一条 tick 带
     }
 
     ~AutomationRenderer()
     {
         s.DisposeAll();
+        mDependency.PianoScrollView.RegionSelectionChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= UpdateAnchorValueInput;
         mDependency.VisibleAutomationChanged -= InvalidateVisual;
@@ -252,6 +255,8 @@ internal partial class AutomationRenderer : View
 
         // 合成参数回显轨（只读）：在可编辑轨之上、活动轨之下绘制为半透明积分面积。可独立显隐（标题栏管控）。
         DrawReadbackParameters(context);
+
+        DrawRegionSelection(context);
 
         if (activeAutomation == null)
             return;
@@ -417,6 +422,22 @@ internal partial class AutomationRenderer : View
 
             context.FillCurveArea(points, baselineY, fillBrush);
         }
+    }
+
+    // 范围选区（与音符区共用的同一条 tick 带）：白罩 + 纯白虚线，贯穿参数区全高。状态归 PianoScrollView，
+    // 在此读 CurrentRegionSelection 绘制；参数区自身也可 Shift+拖建区（见 OnMouseDown 的 RegionSelectionOperation）。
+    void DrawRegionSelection(DrawingContext context)
+    {
+        if (mDependency.PianoScrollView.CurrentRegionSelection is not { } region)
+            return;
+
+        double left = TickAxis.Tick2X(region.StartTick);
+        double right = TickAxis.Tick2X(region.EndTick);
+        // 白罩 + 左右两条纯白虚线竖边（不画上下横边）：与音符区那段拼成一条连续竖带、无横切、不叠画。
+        context.FillRectangle(GUI.Style.WHITE.Opacity(0.12).ToBrush(), new Rect(left, 0, right - left, Bounds.Height));
+        var pen = new Pen(GUI.Style.WHITE.ToUInt32(), 1) { DashStyle = DashStyle.Dash };
+        context.DrawLine(pen, new Point(left, 0), new Point(left, Bounds.Height));
+        context.DrawLine(pen, new Point(right, 0), new Point(right, Bounds.Height));
     }
 
     public Point TickAndValueToPoint(double tick, double value, double min, double max)

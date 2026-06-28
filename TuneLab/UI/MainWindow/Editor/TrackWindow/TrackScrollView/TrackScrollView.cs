@@ -669,7 +669,44 @@ internal partial class TrackScrollView : View
     internal void SetSelection(RegionSelection selection)
     {
         mRegionSelection = selection;
+        SelectObjectsInRegion(selection);   // 同步高亮覆盖的 part + 跨到的轨道头
         SelectionChanged?.Invoke();
+    }
+
+    // 选区覆盖的 part（头在 [startTick,endTick) 左闭右开、且轨道在 [start,end]）设为选中 + 选区跨到的轨道头设为选中。
+    // 让"选区覆盖了哪些 part / 哪些轨道"可见；编排区 Ctrl+C/Delete 作用于选中 part，故与选区一致（选区即选中这些 part）。
+    // 轨道头选中纯视觉反馈：Delete 键只删选中 part（删轨只在轨道头右键菜单），故选中轨道头不会误删轨。
+    void SelectObjectsInRegion(RegionSelection selection)
+    {
+        if (Project == null)
+            return;
+
+        int max = Project.Tracks.Count - 1;
+        if (max < 0)
+            return;
+
+        int t0 = Math.Clamp(selection.StartTrackIndex, 0, max);
+        int t1 = Math.Clamp(selection.EndTrackIndex, 0, max);
+
+        Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
+        for (int i = t0; i <= t1; i++)
+        {
+            foreach (var part in Project.Tracks[i].Parts)
+            {
+                double start = part.StartPos();
+                if (start < selection.StartTick)
+                    continue;
+
+                if (start >= selection.EndTick)
+                    break;
+
+                part.Select();
+            }
+        }
+
+        Project.Tracks.DeselectAllItems();
+        for (int i = t0; i <= t1; i++)
+            Project.Tracks[i].Select();
     }
 
     internal void ClearSelection()

@@ -70,11 +70,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mAgentSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);
+        mAgentSideBarContentProvider.SetPianoSelectionProvider(CurrentPianoScriptSelection);
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mScriptSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mScriptSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);
+        mScriptSideBarContentProvider.SetPianoSelectionProvider(CurrentPianoScriptSelection);
         // 用户脚本工具菜单的访问器（顶部 Scripts 菜单 + 各右键菜单共用）：工程随新建/打开切换，故传访问器。
-        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection);
+        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 320, Margin = new(1, 0, 0, 0) };
@@ -1423,6 +1425,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         var sel = mTrackWindow.TrackScrollView.CurrentSelection;
         return sel is { } s ? new ScriptSelection(s.StartTick, s.EndTick, s.StartTrackIndex + 1, s.EndTrackIndex + 1) : null;
+    }
+
+    // 钢琴窗范围选区（编辑器态，tick 带）→ 脚本快照（tl.pianoSelection()）。无选区 null。与编排区选区独立并存。
+    ScriptPianoSelection? CurrentPianoScriptSelection()
+    {
+        var sel = mPianoWindow.PianoScrollView.CurrentRegionSelection;
+        return sel is { } s ? new ScriptPianoSelection(s.StartTick, s.EndTick) : null;
     }
 
     readonly FunctionBar mFunctionBar;

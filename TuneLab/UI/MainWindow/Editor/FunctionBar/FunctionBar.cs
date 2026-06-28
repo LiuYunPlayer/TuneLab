@@ -141,7 +141,7 @@ internal class FunctionBar : LayerPanel
                 AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool".Tr(this));
                 AddButton(PianoTool.Lock, Assets.Brush, "Pitch Locking Brush".Tr(this));
                 AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool".Tr(this));
-                AddButton(PianoTool.Select, Assets.Select, "Selection Tool".Tr(this));
+                // 范围选区(tick 带)不再是工具：任意工具下 Shift+拖即画，零工具切换（见 PianoScrollView 的 SelectionOperation）。
             }
             dockPanel.AddDock(pianoToolPanel);
         }

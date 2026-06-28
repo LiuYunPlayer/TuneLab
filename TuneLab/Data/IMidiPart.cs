@@ -315,18 +315,22 @@ internal static class IMidiPartExtension
         return new ParameterClipboard() { Pitch = pitch, Automations = automations };
     }
 
-    public static void PasteAt(this IMidiPart part, NoteClipboard clipboard, double pos)
+    // select：是否取消当前选中、改选中粘贴出来的对象（默认 true=标准粘贴行为）。
+    // 传 false 则完全不动选中态（用于"有范围选区时粘贴不抢选中态、保持选区高亮"）。
+    public static void PasteAt(this IMidiPart part, NoteClipboard clipboard, double pos, bool select = true)
     {
         if (clipboard.IsEmpty())
             return;
 
-        part.Notes.DeselectAllItems();
+        if (select)
+            part.Notes.DeselectAllItems();
         part.BeginMergeDirty();
         part.Notes.BeginMergeNotify();
         foreach (var noteInfo in clipboard)
         {
             var note = part.CreateNote(noteInfo);
-            note.Select();
+            if (select)
+                note.Select();
             note.Pos.Set(note.Pos.Value + pos);
             part.InsertNote(note);
         }
@@ -334,17 +338,19 @@ internal static class IMidiPartExtension
         part.EndMergeDirty();
     }
 
-    public static void PasteAt(this IMidiPart part, VibratoClipboard clipboard, double pos)
+    public static void PasteAt(this IMidiPart part, VibratoClipboard clipboard, double pos, bool select = true)
     {
         if (clipboard.IsEmpty())
             return;
 
-        part.Vibratos.DeselectAllItems();
+        if (select)
+            part.Vibratos.DeselectAllItems();
         part.BeginMergeDirty();
         foreach (var vibratoInfo in clipboard)
         {
             var vibrato = part.CreateVibrato(vibratoInfo);
-            vibrato.Select();
+            if (select)
+                vibrato.Select();
             vibrato.Pos.Set(vibrato.Pos + pos);
             part.InsertVibrato(vibrato);
         }

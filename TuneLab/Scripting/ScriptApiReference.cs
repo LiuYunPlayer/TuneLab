@@ -22,7 +22,8 @@ internal static class ScriptApiReference
         "  tl.currentPart()                         part | null   (the part open in the piano editor)\n" +
         "  tl.selectedParts()                       [part]   (parts selected in the arrangement)\n" +
         "  tl.selectedTracks()                      [track]  (tracks selected in the track list)\n" +
-        "  tl.selection()                           {startTick, endTick, startTrackNumber, endTrackNumber} | null  (the arrangement RANGE selection: a tick×track area the user dragged out; track numbers 1-based, contiguous; null when none. ORTHOGONAL to selectedParts/selectedNotes — it marks a place, not objects, so use it to bulk-process whatever falls inside)\n" +
+        "  tl.trackSelection()                      {startTick, endTick, startTrackNumber, endTrackNumber} | null  (the arrangement RANGE selection: a tick×track area the user dragged out; track numbers 1-based, contiguous; null when none. ORTHOGONAL to selectedParts/selectedNotes — it marks a place, not objects, so use it to bulk-process whatever falls inside)\n" +
+        "  tl.pianoSelection()                      {startTick, endTick} | null  (the piano-editor RANGE selection: a tick band the user dragged out inside the current part, spanning all pitches; null when none. Time-only — no track/pitch. Coexists independently with tl.trackSelection(); use it to bulk-process whatever falls in that time span of the current part)\n" +
         "  tl.playhead()                            {tick, seconds, bar, beat, playing}\n" +
         "  tl.snap(tick)                            tick snapped to the editor grid\n" +
         "\n" +

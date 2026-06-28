@@ -129,7 +129,7 @@ internal partial class AutomationRenderer
         [MemberNotNullWhen(true, nameof(mAutomation))]
         public bool IsOperating => mAutomation != null && State == State.Drawing;
 
-        public void Down(Avalonia.Point mousePosition)
+        public void Down(Avalonia.Point mousePosition, bool constantValue)
         {
             if (IsOperating || AutomationRenderer.Part == null)
                 return;
@@ -142,16 +142,17 @@ internal partial class AutomationRenderer
             State = State.Drawing;
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = mAutomation.Head;
-            mPointLines.Add([ToTickAndValue(mousePosition)]);
+            mDownValue = AutomationRenderer.YToValue(mousePosition.Y, mMin, mMax);   // 锁定按下时的 y，供定值绘制
+            mPointLines.Add([ToTickAndValue(mousePosition, constantValue)]);
             mAutomation.AddLine(mPointLines[0], Settings.ParameterBoundaryExtension);
         }
 
-        public void Move(Avalonia.Point mousePosition)
+        public void Move(Avalonia.Point mousePosition, bool constantValue)
         {
             if (!IsOperating)
                 return;
 
-            var point = ToTickAndValue(mousePosition);
+            var point = ToTickAndValue(mousePosition, constantValue);
             var lastLine = mPointLines.Last();
             var lastPoint = mDirection ? lastLine.Last() : lastLine.First();
             if (lastPoint.X == point.X)
@@ -199,15 +200,16 @@ internal partial class AutomationRenderer
             State = State.None;
         }
 
-        Point ToTickAndValue(Avalonia.Point mousePosition)
+        Point ToTickAndValue(Avalonia.Point mousePosition, bool constantValue)
         {
-            return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - AutomationRenderer.Part!.Pos.Value,
-                AutomationRenderer.YToValue(mousePosition.Y, mMin, mMax));
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(mousePosition.Y, mMin, mMax);
+            return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - AutomationRenderer.Part!.Pos.Value, value);
         }
 
         IPiecewiseAutomation? mAutomation;
         double mMin;
         double mMax;
+        double mDownValue;   // 定值绘制锁定的值（按下时捕获）
         bool mDirection;
         Head mHead;
         readonly List<List<Point>> mPointLines = new();

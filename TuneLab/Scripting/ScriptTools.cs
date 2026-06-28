@@ -85,7 +85,7 @@ internal static class ScriptTools
         // 快速排除：不含 "getScriptInfo" 字样必非工具，不 eval（避免跑普通脚本顶层=其动作）。
         if (string.IsNullOrEmpty(code) || !code.Contains("getScriptInfo")) return (null, null);
 
-        var context = new ScriptContext(project, currentPart, quantization, language, null);   // 选区与元数据无关
+        var context = new ScriptContext(project, currentPart, quantization, language, null, null);   // 选区(编排区/钢琴窗)与元数据无关
         try
         {
             var engine = ScriptRunner.CreateEngine(ScriptLimits.Agent, default);

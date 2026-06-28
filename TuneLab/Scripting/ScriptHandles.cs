@@ -462,3 +462,12 @@ internal sealed class ScriptSelection(double startTick, double endTick, int star
     public override string ToString() => string.Format(CultureInfo.InvariantCulture, "Selection(ticks {0:0}..{1:0}, tracks {2}..{3})", StartTick, EndTick, StartTrackNumber, EndTrackNumber);
 }
 
+// 钢琴窗范围选区（DAW 式 tick 带，限当前 part、贯穿全音高，编辑器态、不入工程）的只读快照。
+// 与编排区 ScriptSelection 正交且独立并存——它只有时间维（无轨道、无音高），脚本据其 tick 跨度批量处理当前 part 里落在区间内的东西。
+internal sealed class ScriptPianoSelection(double startTick, double endTick)
+{
+    public double StartTick { get; } = startTick;
+    public double EndTick { get; } = endTick;
+    public override string ToString() => string.Format(CultureInfo.InvariantCulture, "PianoSelection(ticks {0:0}..{1:0})", StartTick, EndTick);
+}
+

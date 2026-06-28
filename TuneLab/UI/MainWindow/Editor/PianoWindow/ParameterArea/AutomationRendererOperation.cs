@@ -39,7 +39,30 @@ internal partial class AutomationRenderer
         {
             case State.None:
                 bool ctrl = (e.KeyModifiers & ModifierKeys.Ctrl) != 0;
+                bool alt = (e.KeyModifiers & ModifierKeys.Alt) != 0;
+                bool shift = (e.KeyModifiers & ModifierKeys.Shift) != 0;
                 var item = ItemAt(e.Position);
+
+                // Shift+主键拖 = 画范围选区（与音符区共用同一条 tick 带，零工具切换）。先于工具/锚点/绘制逻辑拦截。
+                // 未拖(点击)的清空交给 OnMouseUp 的点击阈值统一判定（mPrimaryDownPos 记于此）。
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                {
+                    mPrimaryDownPos = e.Position;
+                    if (shift)
+                    {
+                        if (Part != null)
+                            mRegionSelectionOperation.Down(e.Position.X, alt);
+                        break;
+                    }
+                }
+
+                // 右键 → 弹范围选区菜单：有激活选区 或 按住 Shift（同音符区；Shift 让"复制后清了区仍可粘贴"）。优先于工具右键。
+                if (e.MouseButtonType == MouseButtonType.SecondaryButton && (mDependency.PianoScrollView.HasRegionSelection || shift))
+                {
+                    mDependency.PianoScrollView.OpenRegionMenu(e.Position.X);
+                    break;
+                }
+
                 if (mDependency.PianoTool.Value == PianoTool.Anchor)
                 {
                     Part?.Pitch.DeselectAllAnchors();
@@ -124,10 +147,11 @@ internal partial class AutomationRenderer
                     switch (e.MouseButtonType)
                     {
                         case MouseButtonType.PrimaryButton:
+                            // Ctrl = 定值绘制：锁住按下时的 y 画水平线（保持参数值不变的重要画法）。
                             if (ActiveIsPiecewise())
-                                mPiecewiseDrawOperation.Down(e.Position);
+                                mPiecewiseDrawOperation.Down(e.Position, ctrl);
                             else
-                                mDrawOperation.Down(e.Position);
+                                mDrawOperation.Down(e.Position, ctrl);
                             break;
                         case MouseButtonType.SecondaryButton:
                             if (ActiveIsPiecewise())
@@ -156,11 +180,18 @@ internal partial class AutomationRenderer
 
     protected override void OnMouseRelativeMoveToView(MouseMoveEventArgs e)
     {
+        bool ctrl = (e.KeyModifiers & ModifierKeys.Ctrl) != 0;
+        bool alt = (e.KeyModifiers & ModifierKeys.Alt) != 0;
+        bool shift = (e.KeyModifiers & ModifierKeys.Shift) != 0;
         switch (mState)
         {
+            case State.RegionSelecting:
+                mRegionSelectionOperation.Move(e.Position.X, alt);
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Ibeam);
+                break;
             case State.Drawing:
-                if (mDrawOperation.IsOperating) mDrawOperation.Move(e.Position);
-                else mPiecewiseDrawOperation.Move(e.Position);
+                if (mDrawOperation.IsOperating) mDrawOperation.Move(e.Position, ctrl);
+                else mPiecewiseDrawOperation.Move(e.Position, ctrl);
                 break;
             case State.Clearing:
                 if (mClearOperation.IsOperating) mClearOperation.Move(e.Position.X);
@@ -182,6 +213,11 @@ internal partial class AutomationRenderer
                 mVibratoAmplitudeOperation.Move(e.Position.Y);
                 break;
             default:
+                if (shift)
+                {
+                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Ibeam);   // Shift = 画范围选区模式
+                    break;
+                }
                 var item = ItemAt(e.Position);
                 if (item is VibratoItem)
                 {
@@ -205,6 +241,10 @@ internal partial class AutomationRenderer
     {
         switch (mState)
         {
+            case State.RegionSelecting:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mRegionSelectionOperation.Up();
+                break;
             case State.Drawing:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                 {
@@ -246,6 +286,14 @@ internal partial class AutomationRenderer
                 break;
             default:
                 break;
+        }
+
+        // 主键点击(未拖，位移 ≤ 阈值)即清空范围选区。真拖(画区/绘制/选锚)不触发；右键不参与。镜像音符区。
+        if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+        {
+            var d = e.Position - mPrimaryDownPos;
+            if (d.X * d.X + d.Y * d.Y <= ClickThreshold * ClickThreshold)
+                mDependency.PianoScrollView.ClearRegionSelection();
         }
 
         if (mMiddleDragOperation.IsOperating)
@@ -415,12 +463,60 @@ internal partial class AutomationRenderer
 
     readonly MiddleDragOperation mMiddleDragOperation;
 
+    // 参数区的范围选区操作：与音符区共用同一条 tick 带（状态归 PianoScrollView）。本操作只算 x→tick（吸附复用 PianoScrollView）、
+    // 写进 PianoScrollView.SetRegionSelection；纵向(值轴)与范围无关、贯穿全高。未拖(点击)不建区——清/留交给 OnMouseUp 点击阈值。
+    class RegionSelectionOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        public bool IsOperating => State == State.RegionSelecting;
+
+        public void Down(double x, bool noSnap)
+        {
+            if (State != State.None || AutomationRenderer.Part == null)
+                return;
+
+            State = State.RegionSelecting;
+            mDownTick = TickAt(x, noSnap);
+            AutomationRenderer.mDependency.PianoScrollView.SetRegionSelection(mDownTick, mDownTick);
+        }
+
+        public void Move(double x, bool noSnap)
+        {
+            if (!IsOperating)
+                return;
+
+            AutomationRenderer.mDependency.PianoScrollView.SetRegionSelection(mDownTick, TickAt(x, noSnap));
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            State = State.None;
+            var pianoScrollView = AutomationRenderer.mDependency.PianoScrollView;
+            if (pianoScrollView.CurrentRegionSelection is { } sel && sel.EndTick <= sel.StartTick)
+                pianoScrollView.ClearRegionSelection();
+        }
+
+        double TickAt(double x, bool noSnap)
+        {
+            double tick = AutomationRenderer.TickAxis.X2Tick(x);
+            if (!noSnap)
+                tick = AutomationRenderer.mDependency.PianoScrollView.GetQuantizedTick(tick);
+            return Math.Max(0, tick);
+        }
+
+        double mDownTick;
+    }
+
+    readonly RegionSelectionOperation mRegionSelectionOperation;
+
     class DrawOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
         [MemberNotNullWhen(true, nameof(mAutomation))]
         public bool IsOperating => mAutomation != null && State == State.Drawing;
 
-        public void Down(Avalonia.Point mousePosition)
+        public void Down(Avalonia.Point mousePosition, bool constantValue)
         {
             if (IsOperating)
                 return;
@@ -444,17 +540,18 @@ internal partial class AutomationRenderer
             var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationKey.Value);
             mMin = config.MinValue;
             mMax = config.MaxValue;
+            mDownValue = mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin);   // 锁定按下时的 y，供定值绘制
 
-            mPointLines.Add([ToTickAndValue(mousePosition)]);
+            mPointLines.Add([ToTickAndValue(mousePosition, constantValue)]);
             mAutomation.AddLine(mPointLines[0], Settings.ParameterBoundaryExtension);
         }
 
-        public void Move(Avalonia.Point mousePosition)
+        public void Move(Avalonia.Point mousePosition, bool constantValue)
         {
             if (!IsOperating)
                 return;
 
-            var point = ToTickAndValue(mousePosition);
+            var point = ToTickAndValue(mousePosition, constantValue);
             var lastLine = mPointLines.Last();
             var lastPoint = mDirection ? lastLine.Last() : lastLine.First();
             if (lastPoint.X == point.X)
@@ -509,15 +606,16 @@ internal partial class AutomationRenderer
             State = State.None;
         }
 
-        TuneLab.Foundation.Point ToTickAndValue(Avalonia.Point mousePosition)
+        TuneLab.Foundation.Point ToTickAndValue(Avalonia.Point mousePosition, bool constantValue)
         {
-            return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - mAutomation!.Part.Pos.Value,
-                mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin));
+            double value = constantValue ? mDownValue : mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin);
+            return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - mAutomation!.Part.Pos.Value, value);
         }
 
         IAutomation? mAutomation = null;
         double mMax;
         double mMin;
+        double mDownValue;   // 定值绘制锁定的值（按下时捕获）
         bool mDirection;
         Head mHead;
         readonly List<List<TuneLab.Foundation.Point>> mPointLines = new();
@@ -952,7 +1050,12 @@ internal partial class AutomationRenderer
         AnchorDeleting,
         AnchorMoving,
         VibratoAmplitudeAdjusting,
+        RegionSelecting,
     }
 
     State mState = State.None;
+
+    // 主键按下点 + 点击判定阈值：抬起时位移 ≤ 阈值即视为"点击(未拖)"，用于清空范围选区。镜像音符区 PianoScrollViewOperation。
+    Avalonia.Point mPrimaryDownPos;
+    const double ClickThreshold = 4;
 }

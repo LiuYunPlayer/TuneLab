@@ -96,7 +96,7 @@ internal sealed class AgentSideBarContentProvider
             {
                 // 操作工程：定向（看） + 脚本（改/算/细读）
                 new GetProjectOverviewTool(project),
-                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider),
+                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider, mPianoSelectionProvider),
                 new GetScriptApiTool(),
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用。
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
@@ -114,6 +114,7 @@ internal sealed class AgentSideBarContentProvider
     public void SetCurrentPartProvider(Func<IMidiPart?> provider) => mCurrentPartProvider = provider;
     public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantizationProvider = provider;
     public void SetSelectionProvider(Func<ScriptSelection?> provider) => mSelectionProvider = provider;
+    public void SetPianoSelectionProvider(Func<ScriptPianoSelection?> provider) => mPianoSelectionProvider = provider;
 
     // ───────────────── 聊天视图 ─────────────────
 
@@ -1886,6 +1887,7 @@ internal sealed class AgentSideBarContentProvider
     Func<IMidiPart?>? mCurrentPartProvider;
     Func<IQuantization?>? mQuantizationProvider;
     Func<ScriptSelection?>? mSelectionProvider;
+    Func<ScriptPianoSelection?>? mPianoSelectionProvider;
     IReadOnlyList<IAgentTool> mTools = [];
     IAgentModelSession? mSession;
 

@@ -71,6 +71,66 @@ internal partial class PianoScrollView
         return false;
     }
 
+    // 范围选区右键菜单：复制/粘贴 全部 + 各单类（平级展开，便于点击）。粘贴在光标处。单类型快捷键仍走当前工具的 Ctrl+C/V/Del。
+    // public：参数区(AutomationRenderer)右键落在带内时也调它（共用同一 TickAxis/X，故传其 e.Position.X 即可）。
+    public void OpenRegionMenu(double mouseX)
+    {
+        if (Part == null)
+            return;
+
+        double pastePos = GetQuantizedTick(TickAxis.X2Tick(mouseX)) - Part.Pos.Value;
+        // 复制/删除针对选区本身 → 仅当右键落在选区带内才给；带外（多半是粘贴目标）或无选区 → 只给粘贴族。
+        bool insideRegion = HasRegionSelection && IsInRegion(mouseX);
+        var menu = new ContextMenu();
+
+        // 选区操作（复制/剪切/删除，针对选区本身）：仅右键落在带内才给。各保留 "X Selection"（整段全类型）在一级、并标快捷键
+        //（有选区时 Ctrl+C/X、Delete 正作用于全部，与之对应），低频的单类型收进 "X Only" 二级菜单。各族间用分隔线隔开。
+        if (insideRegion)
+        {
+            menu.Items.Add(new MenuItem().SetName("Copy Selection".Tr(TC.Menu)).SetAction(() => CopyRegion(null)).SetInputGesture(Key.C, ModifierKeys.Ctrl));
+            menu.Items.Add(RegionKindSubmenu("Copy Only", CopyRegion));
+            menu.Items.Add(new Avalonia.Controls.Separator());
+            menu.Items.Add(new MenuItem().SetName("Cut Selection".Tr(TC.Menu)).SetAction(() => CutRegion(null)).SetInputGesture(Key.X, ModifierKeys.Ctrl));
+            menu.Items.Add(RegionKindSubmenu("Cut Only", CutRegion));
+            menu.Items.Add(new Avalonia.Controls.Separator());
+            menu.Items.Add(new MenuItem().SetName("Delete Selection".Tr(TC.Menu)).SetAction(() => DeleteRegion(null)).SetInputGesture(Key.Delete));
+            menu.Items.Add(RegionKindSubmenu("Delete Only", DeleteRegion));
+        }
+
+        // 粘贴族（高频，留在一级、平铺）：只列剪贴板里有的，在光标处（无选区也能粘——复制后清了区仍想粘贴，正是 Shift+右键的用途）。
+        var pasteItems = new List<MenuItem>();
+        if (CanPaste)
+            pasteItems.Add(new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() => PasteAt(pastePos)).SetInputGesture(Key.V, ModifierKeys.Ctrl));
+        if (ClipboardHas(RegionDataKind.Notes))
+            pasteItems.Add(new MenuItem().SetName("Paste Notes".Tr(TC.Menu)).SetAction(() => PasteRegion(RegionDataKind.Notes, pastePos)));
+        if (ClipboardHas(RegionDataKind.Pitch))
+            pasteItems.Add(new MenuItem().SetName("Paste Pitch".Tr(TC.Menu)).SetAction(() => PasteRegion(RegionDataKind.Pitch, pastePos)));
+        if (ClipboardHas(RegionDataKind.Vibratos))
+            pasteItems.Add(new MenuItem().SetName("Paste Vibratos".Tr(TC.Menu)).SetAction(() => PasteRegion(RegionDataKind.Vibratos, pastePos)));
+        if (ClipboardHas(RegionDataKind.Automations))
+            pasteItems.Add(new MenuItem().SetName("Paste Automations".Tr(TC.Menu)).SetAction(() => PasteRegion(RegionDataKind.Automations, pastePos)));
+        if (pasteItems.Count > 0)
+        {
+            if (menu.Items.Count > 0)
+                menu.Items.Add(new Avalonia.Controls.Separator());
+            foreach (var item in pasteItems)
+                menu.Items.Add(item);
+        }
+
+        this.OpenContextMenu(menu);
+    }
+
+    // "X Only" 二级菜单：单类型（Notes/Pitch/Vibratos/Automations）→ action(该类)。供 Copy/Cut/Delete Only 复用。
+    MenuItem RegionKindSubmenu(string headerKey, Action<RegionDataKind?> action)
+    {
+        var sub = new MenuItem().SetName(headerKey.Tr(TC.Menu));
+        sub.Items.Add(new MenuItem().SetName("Notes".Tr(TC.Menu)).SetAction(() => action(RegionDataKind.Notes)));
+        sub.Items.Add(new MenuItem().SetName("Pitch".Tr(TC.Menu)).SetAction(() => action(RegionDataKind.Pitch)));
+        sub.Items.Add(new MenuItem().SetName("Vibratos".Tr(TC.Menu)).SetAction(() => action(RegionDataKind.Vibratos)));
+        sub.Items.Add(new MenuItem().SetName("Automations".Tr(TC.Menu)).SetAction(() => action(RegionDataKind.Automations)));
+        return sub;
+    }
+
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
         switch (mState)
@@ -83,6 +143,28 @@ internal partial class PianoScrollView
                 // 合成状态条：右键命中失败段/带阶段文案的段 → 直接复制文案到剪贴板（报错全文）；其余段照常走下方菜单。
                 if (e.MouseButtonType == MouseButtonType.SecondaryButton && TrySynthesisStripCopy(e.Position))
                     break;
+
+                // 右键 → 弹范围选区菜单的两种入口：① 有激活选区（任意位置，复制/删/粘）② 按住 Shift（Shift 是"造区"修饰键，
+                // 即便没区也给——典型：复制后清了区、想在某处粘贴，不必为粘贴再造一个区）。优先于各工具的右键行为（如 Pitch 擦除）。
+                if (e.MouseButtonType == MouseButtonType.SecondaryButton && (HasRegionSelection || (e.KeyModifiers & ModifierKeys.Shift) != 0))
+                {
+                    OpenRegionMenu(e.Position.X);
+                    break;
+                }
+
+                // Shift + 主键拖 = 画 DAW 式范围选区（tick 带，常驻、任意工具零切换；取代旧 Select 工具）。先于工具逻辑拦截：
+                // 命中 note / 波形与否一律进此分支——范围与对象框选正交。Alt 透传给 op 作免吸附。
+                // 未拖(点击)不在此清，交给 OnMouseUp 的点击阈值统一判定（mPrimaryDownPos 记于此）。
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                {
+                    mPrimaryDownPos = e.Position;
+                    if ((e.KeyModifiers & ModifierKeys.Shift) != 0)
+                    {
+                        if (Part != null)   // 无 part 时不建区（范围对空窗无意义）；Shift+主键仍吞掉，不落到工具动作
+                            mSelectionOperation.Down(e.Position.X, alt);
+                        break;
+                    }
+                }
                 bool DetectWaveformPrimaryButton()
                 {
                     // 波形/音素带：响应音素边界拖拽 + note 头/尾缩放（noteon/noteoff 落在音素分界，故可在带内直接缩放 note）。
@@ -382,13 +464,9 @@ internal partial class PianoScrollView
                         switch (e.MouseButtonType)
                         {
                             case MouseButtonType.PrimaryButton:
+                                // 范围选区已统一为 Shift+拖（上方全局拦截）；Ctrl 改作"定值绘制"——锁住按下时的 y 画水平线（重要的保值画法）。
                                 if (!DetectWaveformPrimaryButton())
-                                {
-                                    if (ctrl)
-                                        mSelectionOperation.Down(e.Position.X, alt);
-                                    else
-                                        mPitchDrawOperation.Down(e.Position);
-                                }
+                                    mPitchDrawOperation.Down(e.Position, ctrl);
                                 break;
                             case MouseButtonType.SecondaryButton:
                                 mPitchClearOperation.Down(e.Position.X);
@@ -458,13 +536,9 @@ internal partial class PianoScrollView
                         switch (e.MouseButtonType)
                         {
                             case MouseButtonType.PrimaryButton:
+                                // 范围选区已统一为 Shift+拖；锁定笔只按 x 作用（无 y 维），故 Ctrl 在此无特殊语义。
                                 if (!DetectWaveformPrimaryButton())
-                                {
-                                    if (ctrl)
-                                        mSelectionOperation.Down(e.Position.X, alt);
-                                    else
-                                        mPitchLockOperation.Down(e.Position.X);
-                                }
+                                    mPitchLockOperation.Down(e.Position.X);
                                 break;
                             case MouseButtonType.SecondaryButton:
                                 mPitchClearOperation.Down(e.Position.X);
@@ -580,15 +654,6 @@ internal partial class PianoScrollView
                                 break;
                         }
                         break;
-                    case PianoTool.Select:
-                        switch (e.MouseButtonType)
-                        {
-                            case MouseButtonType.PrimaryButton:
-                                if (!DetectWaveformPrimaryButton())
-                                    mSelectionOperation.Down(e.Position.X, alt);
-                                break;
-                        }
-                        break;
                 }
                 break;
             default:
@@ -616,7 +681,7 @@ internal partial class PianoScrollView
                 mNoteSelectOperation.Move(e.Position);
                 break;
             case State.PitchDrawing:
-                mPitchDrawOperation.Move(e.Position);
+                mPitchDrawOperation.Move(e.Position, ctrl);
                 break;
             case State.PitchClearing:
                 mPitchClearOperation.Move(e.Position.X);
@@ -678,6 +743,11 @@ internal partial class PianoScrollView
                 break;
             default:
                 UpdateSynthesisHover(e.Position);   // 合成状态条 hover 延时计时（进区域起表/划走取消）
+                if (shift)
+                {
+                    Cursor = new Cursor(StandardCursorType.Ibeam);   // Shift = 画范围选区模式：光标即时提示
+                    break;
+                }
                 var item = ItemAt(e.Position);
                 if (item is WaveformPhonemeResizeItem || item is WaveformNoteStartResizeItem || item is WaveformNoteEndResizeItem)
                 {
@@ -717,13 +787,7 @@ internal partial class PianoScrollView
                             break;
                         case PianoTool.Pitch:
                         case PianoTool.Lock:
-                            if (ctrl)
-                                Cursor = new Cursor(StandardCursorType.Ibeam);
-                            else
-                                Cursor = null;
-                            break;
-                        case PianoTool.Select:
-                            Cursor = new Cursor(StandardCursorType.Ibeam);
+                            Cursor = null;
                             break;
                         default:
                             Cursor = null;
@@ -828,6 +892,15 @@ internal partial class PianoScrollView
                 break;
         }
 
+        // 主键点击(未拖，位移 ≤ 阈值)即清空范围选区：非 Shift 点击=工具动作(框选零矩形/落点)、Shift 点击=零宽选区，二者都该清。
+        // 真拖(画区/框选/移动)位移超阈值不触发；右键永不参与(留给范围选区菜单 / 工具右键)。镜像编排区 TrackScrollView 的处理。
+        if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+        {
+            var d = e.Position - mPrimaryDownPos;
+            if (d.X * d.X + d.Y * d.Y <= ClickThreshold * ClickThreshold)
+                ClearRegionSelection();
+        }
+
         if (e.MouseButtonType == MouseButtonType.MiddleButton)
             mMiddleDragOperation.Up();
     }
@@ -879,7 +952,8 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.None:
-                if (e.Key == Key.LeftCtrl && (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock))
+                // Shift 按下即进"画范围选区"模式 → 光标变 I-beam（不依赖鼠标移动即时反馈）。
+                if ((e.Key is Key.LeftShift or Key.RightShift) && Part != null)
                 {
                     Cursor = new Cursor(StandardCursorType.Ibeam);
                     e.Handled = true;
@@ -935,9 +1009,9 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.None:
-                if (e.Key == Key.LeftCtrl && (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock))
+                if (e.Key is Key.LeftShift or Key.RightShift)
                 {
-                    Cursor = null;
+                    Cursor = null;   // 松 Shift：复位（下次移动按 item/tool 重算）
                     e.Handled = true;
                 }
                 break;
@@ -1226,7 +1300,7 @@ internal partial class PianoScrollView
                 return;
 
             State = SelectState;
-            PianoScrollView.mSelection.IsAcitve = false;
+            PianoScrollView.ClearRegionSelection();   // 框选对象即清掉范围选区（二者对 copy 互斥消歧）
             mDownTick = PianoScrollView.TickAxis.X2Tick(point.X) - PianoScrollView.Part.Pos.Value;
             mDownPitch = PianoScrollView.PitchAxis.Y2Pitch(point.Y);
             if (ctrl)
@@ -1339,7 +1413,7 @@ internal partial class PianoScrollView
     {
         public bool IsOperating => State == State.PitchDrawing;
 
-        public void Down(Avalonia.Point mousePosition)
+        public void Down(Avalonia.Point mousePosition, bool constantValue)
         {
             if (IsOperating)
                 return;
@@ -1350,12 +1424,13 @@ internal partial class PianoScrollView
             State = State.PitchDrawing;
             PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
+            mDownValue = PianoScrollView.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5;   // 锁定按下时的 y，供定值绘制保值
 
-            mPointLines.Add([ToTickAndValue(mousePosition)]);
+            mPointLines.Add([ToTickAndValue(mousePosition, constantValue)]);
             PianoScrollView.Part.Pitch.AddLine(mPointLines[0], Settings.ParameterBoundaryExtension);
         }
 
-        public void Move(Avalonia.Point mousePosition)
+        public void Move(Avalonia.Point mousePosition, bool constantValue)
         {
             if (!IsOperating)
                 return;
@@ -1363,7 +1438,7 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            var point = ToTickAndValue(mousePosition);
+            var point = ToTickAndValue(mousePosition, constantValue);
             var lastLine = mPointLines.Last();
             var lastPoint = mDirection ? lastLine.Last() : lastLine.First();
             if (lastPoint.X == point.X)
@@ -1418,12 +1493,14 @@ internal partial class PianoScrollView
             mPointLines.Clear();
         }
 
-        Point ToTickAndValue(Avalonia.Point mousePosition)
+        Point ToTickAndValue(Avalonia.Point mousePosition, bool constantValue)
         {
-            return new(PianoScrollView.TickAxis.X2Tick(mousePosition.X) - PianoScrollView.Part!.Pos.Value, PianoScrollView.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5);
+            double value = constantValue ? mDownValue : PianoScrollView.PitchAxis.Y2Pitch(mousePosition.Y) - 0.5;
+            return new(PianoScrollView.TickAxis.X2Tick(mousePosition.X) - PianoScrollView.Part!.Pos.Value, value);
         }
 
         bool mDirection;
+        double mDownValue;   // 定值绘制锁定的 y（按下时捕获）
         readonly List<List<Point>> mPointLines = new();
         Head mHead;
     }
@@ -2762,37 +2839,32 @@ internal partial class PianoScrollView
             double pos = PianoScrollView.TickAxis.X2Tick(x);
             if (!alt) pos = PianoScrollView.GetQuantizedTick(pos);
             mDownPos = pos;
-            PianoScrollView.mSelection.IsAcitve = true;
-            PianoScrollView.mSelection.Start = pos;
-            PianoScrollView.mSelection.End = pos;
-            PianoScrollView.InvalidateVisual();
+            PianoScrollView.SetRegionSelection(pos, pos);
         }
 
         public void Move(double x, bool alt)
         {
             double pos = PianoScrollView.TickAxis.X2Tick(x);
             if (!alt) pos = PianoScrollView.GetQuantizedTick(pos);
-            var min = Math.Min(pos, mDownPos);
-            var max = Math.Max(pos, mDownPos);
-            PianoScrollView.mSelection.Start = min;
-            PianoScrollView.mSelection.End = max;
-            PianoScrollView.InvalidateVisual();
+            PianoScrollView.SetRegionSelection(mDownPos, pos);
         }
 
         public void Up()
         {
             State = State.None;
 
-            if (PianoScrollView.mSelection.Duration == 0)
-                PianoScrollView.mSelection.IsAcitve = false;
-
-            PianoScrollView.InvalidateVisual();
+            if (PianoScrollView.CurrentRegionSelection is { } sel && sel.EndTick <= sel.StartTick)
+                PianoScrollView.ClearRegionSelection();
         }
 
         double mDownPos;
     }
 
     readonly SelectionOperation mSelectionOperation;
+
+    // 主键按下点 + 点击判定阈值：抬起时位移 ≤ 阈值即视为"点击(未拖)"，用于清空范围选区。镜像编排区 TrackScrollViewOperation。
+    Avalonia.Point mPrimaryDownPos;
+    const double ClickThreshold = 4;
 
     PreviewAnchorGroupItem? mPreviewPitchItem = null;
 

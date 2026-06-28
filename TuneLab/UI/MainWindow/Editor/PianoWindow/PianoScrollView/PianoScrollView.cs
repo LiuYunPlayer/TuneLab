@@ -46,12 +46,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         IActionEvent WaveformVisibleChanged { get; }
     }
 
-    public bool CanPaste => mDependency.PianoTool.Value switch 
-    { 
-        PianoTool.Note => !mNoteClipboard.IsEmpty(), 
-        PianoTool.Vibrato => !mVibratoClipboard.IsEmpty(),
-        _ => false 
-    };
+    // 能否粘贴只看剪贴板里有没有东西（与当前工具无关）——粘贴语义 = 粘贴上次复制的全部内容。
+    public bool CanPaste => !mNoteClipboard.IsEmpty() || !mVibratoClipboard.IsEmpty() || !mParameterClipboard.IsEmpty;
     public State OperationState => mState;
 
     public PianoScrollView(IDependency dependency)
@@ -82,6 +78,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mAnchorMoveOperation = new(this);
 
         mDependency.PartHolder.Modified.Subscribe(Update, s);
+        mDependency.PartHolder.Modified.Subscribe(ClearRegionSelection, s);   // 切 part：上一 part 的范围选区作废
         mDependency.PartHolder.When(p => p.Modified).Subscribe(Update, s);
         mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
         mDependency.PartHolder.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
@@ -588,14 +585,23 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         // draw pitch
         double pitchOpacity = MathUtility.LineValue(-6.7, 0, -4.3, 1, TickAxis.ScaleLevel).Limit(0, 1);
+
+        // pitch/lock/anchor 工具下的暗遮罩“恒在”（强调可编辑音高），与缩放/pitchOpacity 无关。
+        bool pitchEditTool = mDependency.PianoTool.Value is PianoTool.Pitch or PianoTool.Lock or PianoTool.Anchor;
+
         if (pitchOpacity == 0)
+        {
+            // 缩放太小：省略 pitch 曲线绘制，但遮罩仍要画（原先被这处跳转连遮罩一起省略了——bug）。
+            if (pitchEditTool)
+                context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
             goto FinishDrawPitch;
+        }
 
         Color pitchColor = Colors.White.Opacity(pitchOpacity * (mDependency.PianoTool.Value == PianoTool.Note ? 0.3 : 1));
 
         DrawSynthesizedPitch(context, pitchColor);
 
-        if (mDependency.PianoTool.Value == PianoTool.Pitch || mDependency.PianoTool.Value == PianoTool.Lock || mDependency.PianoTool.Value == PianoTool.Anchor)
+        if (pitchEditTool)
             context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
 
         DrawVibratos(context);
@@ -640,12 +646,18 @@ internal partial class PianoScrollView : View, IPianoScrollView
             context.FillRectangle(Colors.Black.Opacity(0.3).ToBrush(), this.Rect().Adjusted(end, 0, 0, 0));
         }
 
-        // draw selection
+        // draw region selection（DAW 式范围选区：白罩 + 左右两条纯白虚线竖边）。
+        // 白是 hue-neutral；虚线 + 白色刻意区别于"框选对象"的 HIGH_LIGHT 实色框。只画到参数区顶（WaveformBottom=参数层上沿），
+        // 参数区那段由 AutomationRenderer 自己画——避免两层在参数区叠画（半透明叠加发暗）。不画上下横边 → 跨区拼成一条连续竖带、无横切。
         if (mSelection.IsAcitve)
         {
             double left = TickAxis.Tick2X(mSelection.Start);
             double right = TickAxis.Tick2X(mSelection.End);
-            context.DrawRectangle(SelectionColor.Opacity(0.25).ToBrush(), new Pen(SelectionColor.ToUInt32()), new Rect(left, -2, right - left, Bounds.Height + 4));
+            double bottom = Math.Max(0, WaveformBottom);
+            context.FillRectangle(RegionSelectionColor.Opacity(0.12).ToBrush(), new Rect(left, -2, right - left, bottom + 2));
+            var regionPen = new Pen(RegionSelectionColor.ToUInt32(), 1) { DashStyle = DashStyle.Dash };
+            context.DrawLine(regionPen, new Point(left, -2), new Point(left, bottom));
+            context.DrawLine(regionPen, new Point(right, -2), new Point(right, bottom));
         }
 
         DrawWaveform(context);
@@ -681,6 +693,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (synthesisStatus.Count > 0)
         {
             var tempoManager = Part.TempoManager;
+            // 状态条恒显（像 note 一样不随缩放隐去）；稳定性靠 SynthesisStatusStrip 内部像素对齐保证。
             SynthesisStatusStrip.Draw(context, synthesisStatus, tempoManager, TickAxis, SynthesisStripTop, SynthesisStripHeight, SynthesisStripRadius, shimmerPhase);
             DrawSynthesisStatusOverlay(context, synthesisStatus, tempoManager);
         }
@@ -898,7 +911,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 var info = preview;
                 double px = TickAxis.Tick2X(Part.Pos.Value + info.Pos);
                 double pw = TickAxis.PixelsPerTick * info.Dur;
-                context.DrawRectangle(Colors.White.Opacity(0.12).ToBrush(), new Pen(Colors.White.Opacity(0.5).ToUInt32(), 1, VibratoPreviewDashStyle), new Rect(px, 0, pw, Bounds.Height));
+                // 用颤音本身的黑半透明打底（与已落实颤音同款）+ 白虚线框（"预览/待添加"提示）——区别于范围选区的白罩白虚线，避免撞样式。
+                context.DrawRectangle(Colors.Black.Opacity(0.25).ToBrush(), new Pen(Colors.White.Opacity(0.5).ToUInt32(), 1, VibratoPreviewDashStyle), new Rect(px, 0, pw, Bounds.Height));
                 DrawPitch(context, px, px + pw, ticks => Part.GetVibratoAddPreviewPitch(ticks, info), Colors.White.Opacity(0.7), 1, VibratoPreviewDashStyle);
             }
         }
@@ -1012,8 +1026,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (opacity <= 0)
             return;
 
-        if (opacity < 1)
-            context.PushOpacity(opacity);
+        // 必须 using 限定作用域：原先裸 push 不还原，会把这层 opacity 泄漏给之后绘制的内容（如顶部状态条）。
+        using var _ = context.PushOpacity(opacity);
 
         double yCenter = height / 2 + WaveformTop;
         IBrush brush = Style.WHITE.ToBrush();
@@ -1088,12 +1102,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
         return MusicTheory.RESOLUTION / quantizationBase / division;
     }
 
-    double GetQuantizedTick(double tick)
+    // 量化吸附（公开：参数区 AutomationRenderer 画范围选区时复用同一吸附口径，共用 TickAxis/Quantization 故结果一致）。
+    public double GetQuantizedTick(double tick)
     {
         double cell = QuantizedCellTicks();
         return (tick / cell).Round() * cell;
     }
 
+    // 范围选区(region selection)的内部态：一条贯穿全音高的全局 tick 带。由 Shift+拖（任意工具）或 Pitch/Lock+Ctrl 拖建立，
+    // 常驻直到主键点击/切 part 清空。同时是钢琴窗 Copy/Paste/Delete 的范围（按当前工具决定作用于哪类数据）与脚本 tl.pianoSelection() 的数据源。
     class Selection
     {
         public double Start { get; set; } = 0;
@@ -1105,37 +1122,202 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     Selection mSelection = new();
 
-    NoteClipboard mNoteClipboard = new();
-    VibratoClipboard mVibratoClipboard = new();
-    ParameterClipboard mParameterClipboard = new() { Pitch = [], Automations = [] };
-    public void Copy()
+    // 范围选区变化通知：参数区 AutomationRenderer 订阅后重绘——区状态归本视图，参数区也画同一条 tick 带（且可在参数区 Shift+拖建区）。
+    public event Action? RegionSelectionChanged;
+
+    // 设置范围选区（全局 tick 区间，自动取 min/max）。音符区拖、参数区拖统一经此，触发本视图 + 参数区重绘。
+    public void SetRegionSelection(double startTick, double endTick)
+    {
+        mSelection.Start = Math.Min(startTick, endTick);
+        mSelection.End = Math.Max(startTick, endTick);
+        mSelection.IsAcitve = true;
+        SelectObjectsInRegion();   // 同步高亮选区覆盖的 note/vibrato（让"选区覆盖了谁"可见）
+        OnRegionSelectionChanged();
+    }
+
+    // 把选区覆盖的 note + vibrato 全设为选中（不按工具区分）。**因为 Ctrl+C/Delete/Cut 在有选区时都作用于全部类型**，
+    // 故"区内对象全高亮"是真话(它们确会被复制/删除)、不误导；note 高亮的唯一判别就是"是否选中"。
+    // 头在选区内、左闭右开，与 AllNotesInSelection / Copy·Delete 的 range 同批（区别于框选的"重叠"判定）。
+    void SelectObjectsInRegion()
     {
         if (Part == null)
             return;
 
         double pos = Part.Pos.Value;
+        double s = mSelection.Start - pos;
+        double e = mSelection.End - pos;
+
+        Part.Notes.SelectionChanged.BeginMerge();
+        Part.Notes.DeselectAllItems();
+        foreach (var note in Part.AllNotesInSelection(s, e))
+            note.Select();
+        Part.Notes.SelectionChanged.EndMerge();
+
+        Part.Vibratos.DeselectAllItems();
+        foreach (var vibrato in Part.AllVibratosInSelection(s, e))
+            vibrato.Select();
+    }
+
+    // 清空范围选区（主键点击未拖 / 切 part 调用）。无选区则不动。
+    public void ClearRegionSelection()
+    {
+        if (!mSelection.IsAcitve)
+            return;
+
+        mSelection.IsAcitve = false;
+        OnRegionSelectionChanged();
+    }
+
+    void OnRegionSelectionChanged()
+    {
+        InvalidateVisual();
+        RegionSelectionChanged?.Invoke();
+    }
+
+    // 脚本侧 tl.pianoSelection() 的数据源 + 参数区绘制源：当前范围选区的全局 tick 区间（start ≤ end）；无选区 null。pitch 维不参与（贯穿全音高）。
+    public (double StartTick, double EndTick)? CurrentRegionSelection
+        => mSelection.IsAcitve ? (mSelection.Start, mSelection.End) : null;
+
+    // —— 范围选区右键菜单：copy/paste 全类型 + 按类（Notes/Pitch/Vibratos/Automations），优先于各工具的右键行为。——
+    // 心智模型：复制=按区填剪贴板（全部或某类）、粘贴=从剪贴板取（全部或某类，在光标处）。Ctrl+C/V 仍按当前工具，是同一功能的快捷路径。
+    internal enum RegionDataKind { Notes, Pitch, Vibratos, Automations }
+
+    // 是否存在激活选区。右键菜单的触发条件：只要有激活选区，右键（带内带外都行）即弹菜单——
+    // 因为复制的源是选区、粘贴的目标常在选区外（要在别处右键粘贴）。类比文本编辑器"选中后右键=对选区操作"。
+    // 菜单优先于各工具右键；选区一清（左键点击）各工具右键即恢复。参数区共用同一判定。
+    public bool HasRegionSelection => mSelection.IsAcitve;
+
+    // 横坐标 x 是否落在激活选区带内（带贯穿全高，只判 X）。用于右键菜单按"带内/带外"调整复制/粘贴族先后。
+    public bool IsInRegion(double x)
+        => mSelection.IsAcitve && x >= TickAxis.Tick2X(mSelection.Start) && x <= TickAxis.Tick2X(mSelection.End);
+
+    // 复制选区：先清空全部剪贴板，再填选定子集。kind=null 复制全部；否则只填该类（pitch/automations 各自从 CopyParameters 拆出）。
+    public void CopyRegion(RegionDataKind? kind)
+    {
+        if (Part == null || !mSelection.IsAcitve)
+            return;
+
+        double pos = Part.Pos.Value;
+        double start = mSelection.Start - pos;
+        double end = mSelection.End - pos;
+        ClearClipboards();
+        if (kind is null or RegionDataKind.Notes)
+            mNoteClipboard = Part.CopyNotes(start, end);
+        if (kind is null or RegionDataKind.Vibratos)
+            mVibratoClipboard = Part.CopyVibratos(start, end);
+        if (kind is null or RegionDataKind.Pitch or RegionDataKind.Automations)
+        {
+            var p = Part.CopyParameters(start, end);
+            mParameterClipboard = new()
+            {
+                Pitch = kind is null or RegionDataKind.Pitch ? p.Pitch : [],
+                Automations = kind is null or RegionDataKind.Automations ? p.Automations : [],
+            };
+        }
+    }
+
+    // 单类粘贴（光标 pos 处，从剪贴板取该类）。整块粘贴（全部）走 PasteAt。
+    // 粒度粘贴的用处：复制一次（全部）后，按需只粘其中某几类——1 次复制 + N 次单类粘贴，比"复制 N 次 + 粘贴 N 次"省一半操作。
+    public void PasteRegion(RegionDataKind kind, double pos)
+    {
+        if (Part == null)
+            return;
+
+        bool select = !mSelection.IsAcitve;   // 有选区时不抢选中态（保持选区高亮）
+        switch (kind)
+        {
+            case RegionDataKind.Notes:
+                if (mNoteClipboard.IsEmpty()) return;
+                Part.PasteAt(mNoteClipboard, pos, select);
+                break;
+            case RegionDataKind.Vibratos:
+                if (mVibratoClipboard.IsEmpty()) return;
+                Part.PasteAt(mVibratoClipboard, pos, select);
+                break;
+            case RegionDataKind.Pitch:
+                if (mParameterClipboard.Pitch.IsEmpty()) return;
+                Part.PasteAt(new ParameterClipboard { Pitch = mParameterClipboard.Pitch, Automations = [] }, pos, Settings.ParameterBoundaryExtension);
+                break;
+            case RegionDataKind.Automations:
+                if (mParameterClipboard.Automations.Count == 0) return;
+                Part.PasteAt(new ParameterClipboard { Pitch = [], Automations = mParameterClipboard.Automations }, pos, Settings.ParameterBoundaryExtension);
+                break;
+        }
+        Part.Commit();
+    }
+
+    // 删除选区内指定类型（kind=null 全部；不清区本身）。Pitch/Automations 各自拆出（= ClearParameters 的拆分），支持粒度删/剪。
+    public void DeleteRegion(RegionDataKind? kind)
+    {
+        if (Part == null || !mSelection.IsAcitve)
+            return;
+
+        double pos = Part.Pos.Value;
+        double s = mSelection.Start - pos;
+        double e = mSelection.End - pos;
+        if (kind is null or RegionDataKind.Notes)
+            Part.DeleteAllNotesInSelection(s, e);
+        if (kind is null or RegionDataKind.Vibratos)
+            Part.DeleteAllVibratosInSelection(s, e);
+        if (kind is null or RegionDataKind.Pitch)
+            Part.Pitch.Clear(s, e);
+        if (kind is null or RegionDataKind.Automations)
+            foreach (var automation in Part.Automations.Values)
+                automation.Clear(s, e, Settings.ParameterBoundaryExtension);
+        Part.Commit();
+    }
+
+    // 剪切选区内指定类型 = 复制 + 删除（同一 kind）。
+    public void CutRegion(RegionDataKind? kind)
+    {
+        CopyRegion(kind);
+        DeleteRegion(kind);
+    }
+
+    // 剪贴板是否有该类（控制 Paste 各单类子项的显隐——只列剪贴板里有的）。
+    public bool ClipboardHas(RegionDataKind kind) => kind switch
+    {
+        RegionDataKind.Notes => !mNoteClipboard.IsEmpty(),
+        RegionDataKind.Vibratos => !mVibratoClipboard.IsEmpty(),
+        RegionDataKind.Pitch => !mParameterClipboard.Pitch.IsEmpty(),
+        RegionDataKind.Automations => mParameterClipboard.Automations.Count > 0,
+        _ => false,
+    };
+
+    NoteClipboard mNoteClipboard = new();
+    VibratoClipboard mVibratoClipboard = new();
+    ParameterClipboard mParameterClipboard = new() { Pitch = [], Automations = [] };
+
+    // 复制语义：每次 Copy / Copy All 先清空全部剪贴板，再按"这次复制了什么"往里填（单类型填一种、Copy All 填三种）。
+    // 粘贴只看剪贴板里现有什么就粘什么 → 粘贴永远等于上次复制的内容，无隐藏模式、不会出现剪贴板与"模式"失同步的陈旧数据。
+    void ClearClipboards()
+    {
+        mNoteClipboard = new();
+        mVibratoClipboard = new();
+        mParameterClipboard = new() { Pitch = [], Automations = [] };
+    }
+
+    // Ctrl+C：有激活选区 → 复制整个选区(全部类型)。多复制无害(粘贴时再按需选)，且让"区内对象全高亮"成为真话(它们确会被复制) → 不误导。
+    // 无选区 → 按当前工具复制选中对象(Note/Vibrato)。想只复制 pitch/某条 automation(低频) → 走右键各单类项。Ctrl+V 统一粘剪贴板现有全部。
+    public void Copy()
+    {
+        if (Part == null)
+            return;
+
+        if (mSelection.IsAcitve)
+        {
+            CopyRegion(null);
+            return;
+        }
+
+        ClearClipboards();
         switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Note:
-                mNoteClipboard = mSelection.IsAcitve ? Part.CopyNotes(mSelection.Start - pos, mSelection.End - pos) : Part.CopyNotes();
+                mNoteClipboard = Part.CopyNotes();
                 break;
             case PianoTool.Vibrato:
-                mVibratoClipboard = mSelection.IsAcitve ? Part.CopyVibratos(mSelection.Start - pos, mSelection.End - pos) : Part.CopyVibratos();
-                break;
-            case PianoTool.Pitch:
-            case PianoTool.Lock:
-                if (mSelection.IsAcitve)
-                {
-                    mParameterClipboard = Part.CopyParameters(mSelection.Start - pos, mSelection.End - pos);
-                }
-                break;
-            case PianoTool.Select:
-                if (mSelection.IsAcitve)
-                {
-                    mNoteClipboard = Part.CopyNotes(mSelection.Start - pos, mSelection.End - pos);
-                    mVibratoClipboard = Part.CopyVibratos(mSelection.Start - pos, mSelection.End - pos);
-                    mParameterClipboard = Part.CopyParameters(mSelection.Start - pos, mSelection.End - pos);
-                }
+                mVibratoClipboard = Part.CopyVibratos();
                 break;
         }
     }
@@ -1148,33 +1330,33 @@ internal partial class PianoScrollView : View, IPianoScrollView
         PasteAt(GetQuantizedTick(mDependency.Playhead.Pos) - Part.Pos.Value);
     }
 
+    // 粘贴 = 剪贴板里有啥粘啥（音符/颤音/参数各自独立，非空才粘）。不看当前工具——粘贴语义恒等于上次复制。
+    // 有激活选区时不选中粘贴物（select=false）：保持"选中态恒 == 选区覆盖"的不变量，避免"复制到底针对选区还是选中音符"的困惑；
+    // 无选区则选中粘贴物（标准行为）。
     public void PasteAt(double pos)
     {
         if (Part == null)
             return;
 
-        switch (mDependency.PianoTool.Value)
+        bool select = !mSelection.IsAcitve;
+        bool any = false;
+        if (!mNoteClipboard.IsEmpty())
         {
-            case PianoTool.Note:
-                Part.PasteAt(mNoteClipboard, pos);
-                Part.Commit();
-                break;
-            case PianoTool.Vibrato:
-                Part.PasteAt(mVibratoClipboard, pos);
-                Part.Commit();
-                break;
-            case PianoTool.Pitch:
-            case PianoTool.Lock:
-                Part.PasteAt(mParameterClipboard, pos, Settings.ParameterBoundaryExtension);
-                Part.Commit();
-                break;
-            case PianoTool.Select:
-                Part.PasteAt(mNoteClipboard, pos);
-                Part.PasteAt(mVibratoClipboard, pos);
-                Part.PasteAt(mParameterClipboard, pos, Settings.ParameterBoundaryExtension);
-                Part.Commit();
-                break;
+            Part.PasteAt(mNoteClipboard, pos, select);
+            any = true;
         }
+        if (!mVibratoClipboard.IsEmpty())
+        {
+            Part.PasteAt(mVibratoClipboard, pos, select);
+            any = true;
+        }
+        if (!mParameterClipboard.IsEmpty)
+        {
+            Part.PasteAt(mParameterClipboard, pos, Settings.ParameterBoundaryExtension);
+            any = true;
+        }
+        if (any)
+            Part.Commit();
     }
 
     public void Cut()
@@ -1183,66 +1365,32 @@ internal partial class PianoScrollView : View, IPianoScrollView
         Delete();
     }
 
+    // Delete：有激活选区 → 删整个选区(全部类型，= 右键 Delete Selection)。与 Ctrl+C 复制全部、区内全高亮一致——
+    // 否则 Pitch 工具下 Delete 只清 pitch、而高亮的 note 不删，又成误导。无选区 → 按当前工具删选中对象。想只删某类(低频)走右键。
     public void Delete()
     {
         if (Part == null)
             return;
 
-        double pos = Part.Pos.Value;
+        if (mSelection.IsAcitve)
+        {
+            DeleteRegion(null);
+            return;
+        }
+
         switch (mDependency.PianoTool.Value)
         {
             case PianoTool.Note:
-                if (mSelection.IsAcitve)
-                {
-                    Part.DeleteAllNotesInSelection(mSelection.Start - pos, mSelection.End - pos);
-                    Part.Commit();
-                }
-                else
-                {
-                    Part.DeleteAllSelectedNotes();
-                    Part.Commit();
-                }
+                Part.DeleteAllSelectedNotes();
+                Part.Commit();
                 break;
             case PianoTool.Vibrato:
-                if (mSelection.IsAcitve)
-                {
-                    Part.DeleteAllVibratosInSelection(mSelection.Start - pos, mSelection.End - pos);
-                    Part.Commit();
-                }
-                else
-                {
-                    Part.DeleteAllSelectedVibratos();
-                    Part.Commit();
-                }
-                break;
-            case PianoTool.Pitch:
-            case PianoTool.Lock:
-                if (mSelection.IsAcitve)
-                {
-                    Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
-                    Part.Commit();
-                }
+                Part.DeleteAllSelectedVibratos();
+                Part.Commit();
                 break;
             case PianoTool.Anchor:
-                if (mSelection.IsAcitve)
-                {
-                    Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
-                    Part.Commit();
-                }
-                else
-                {
-                    Part.Pitch.DeleteAllSelectedAnchors();
-                    Part.Commit();
-                }
-                break;
-            case PianoTool.Select:
-                if (mSelection.IsAcitve)
-                {
-                    Part.DeleteAllNotesInSelection(mSelection.Start - pos, mSelection.End - pos);
-                    Part.DeleteAllVibratosInSelection(mSelection.Start - pos, mSelection.End - pos);
-                    Part.ClearParameters(mSelection.Start - pos, mSelection.End - pos);
-                    Part.Commit();
-                }
+                Part.Pitch.DeleteAllSelectedAnchors();
+                Part.Commit();
                 break;
             default:
                 break;
@@ -1367,6 +1515,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
     Color BlackKeyColor => GUI.Style.BLACK_KEY;
     Color LineColor => GUI.Style.LINE;
     Color SelectionColor => GUI.Style.HIGH_LIGHT;
+    // 范围选区(region selection)用白色：hue-neutral，且与"框选对象"的 HIGH_LIGHT 实色框靠色相+线型区分。
+    static Color RegionSelectionColor => GUI.Style.WHITE;
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
     const double LineWidth = 1;
