@@ -12,9 +12,10 @@ using TuneLab.Foundation;
 namespace TuneLab.Scripting;
 
 // 一次脚本运行的结果。Ok=false 时 Error 为给脚本作者（含 agent 模型）的清晰错误说明。
-// Committed=是否有改动落地成一个可撤销单位（出错/取消则原子回退，恒为 false）；Output=脚本 print/log 的捕获文本。
+// Committed=是否有改动落地成一个可撤销单位（出错/取消/被拦则原子回退，恒为 false）；Output=脚本 print/log 的捕获文本。
 // Changes=本次尝试的改动数（成功时即已提交数；出错时为回退掉的数，仅供信息）。
-internal readonly record struct ScriptRunResult(bool Ok, string? Error, string Output, string? ResultText, bool Committed, int Changes);
+// Blocked=脚本试图在别处 UI 操作进行中写工程而被拦（只读脚本不会）；调用方可据此等 Pushable 恢复后整段重跑。
+internal readonly record struct ScriptRunResult(bool Ok, string? Error, string Output, string? ResultText, bool Committed, int Changes, bool Blocked);
 
 // 运行资源上限——按触发源分流：agent 写的代码当失控保险丝（紧）；用户显式运行放宽（无时限、靠 Cancel 中止）。
 internal readonly record struct ScriptLimits(TimeSpan? Timeout, int MaxStatements)
@@ -53,14 +54,12 @@ internal static class ScriptRunner
 
     public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, ScriptLimits limits, string code, CancellationToken cancellationToken)
     {
-        // 入口守卫：别处 UI 操作中途（未提交栈非空）禁止运行——否则 Commit 会吞掉它的未提交改动、与其在途数据交错。
-        if (!project.Pushable())
-            return new ScriptRunResult(false, "another operation is in progress; finish or cancel it first.", "", null, false, 0);
-
+        // 写守卫不在入口、而下沉到首次写入（ScriptContext.EnsureWritable）：只读脚本即便在用户操作中途也畅通，只拦写。
         var context = new ScriptContext(project, currentPart, quantization, language);
         var output = new StringBuilder();
         string? resultText = null;
         string? error = null;
+        bool blocked = false;
 
         try
         {
@@ -99,6 +98,11 @@ internal static class ScriptRunner
         {
             error = ae.Message;    // API 用法/参数错误
         }
+        catch (ScriptBlockedException be)
+        {
+            error = be.Message;    // 别处 UI 操作进行中、写被拦——调用方可 wait-retry
+            blocked = true;
+        }
         catch (Exception ex)
         {
             error = cancellationToken.IsCancellationRequested
@@ -108,7 +112,7 @@ internal static class ScriptRunner
 
         // 收口：成功且有改动 → 提交成一个可撤销单位；出错/取消/无改动 → 原子回退到跑脚本前的干净状态。
         bool committed = context.Finish(rollback: error != null);
-        return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount);
+        return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount, blocked);
     }
 
     internal static string Format(JsValue v)

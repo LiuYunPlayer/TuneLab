@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Jint.Native;
 using Jint.Native.Function;
 using TuneLab.Data;
 using TuneLab.Foundation;
@@ -68,43 +69,52 @@ internal static class ScriptTools
         try { code = ScriptLibrary.Read(name); }
         catch (Exception ex) { Log.Warning(string.Format("Failed to read script \"{0}\" for tool discovery: {1}", name, ex.Message)); return null; }
 
-        // 快速排除：不含 "getScriptInfo" 字样的脚本必非工具，直接跳过——避免为枚举而 eval 普通脚本顶层（=其动作）。
-        // 误报（注释/字符串里恰含此词）至多多 eval 一次、且改动会被下方 finally 原子回退，不影响正确性。
-        if (!code.Contains("getScriptInfo")) return null;
+        var (info, error) = InspectSource(name, code, project, currentPart, quantization, language);
+        if (error != null)
+            Log.Warning(string.Format("Script \"{0}\" getScriptInfo failed; skipped from tools: {1}", name, error));
+        return info;
+    }
 
-        // 元数据枚举用紧上限当保险丝；不取消。
+    // 解析一段脚本【源码】的工具元数据（不保存、不跑 main）。供枚举与 agent 的 save_script 预校验共用。返回 (info, error)：
+    //  · info!=null            → 合法工具脚本；
+    //  · info==null,error==null → 非工具脚本（没有 getScriptInfo）；
+    //  · error!=null            → 有 getScriptInfo 但 eval/解析失败（消息回报调用方）。
+    // 顶层在沙箱里 eval（约定无副作用）、调一次 getScriptInfo 取字段；任何意外数据改动在 finally 原子回退。
+    public static (ScriptToolInfo? Info, string? Error) InspectSource(string scriptName, string code, IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language)
+    {
+        // 快速排除：不含 "getScriptInfo" 字样必非工具，不 eval（避免跑普通脚本顶层=其动作）。
+        if (string.IsNullOrEmpty(code) || !code.Contains("getScriptInfo")) return (null, null);
+
         var context = new ScriptContext(project, currentPart, quantization, language);
         try
         {
             var engine = ScriptRunner.CreateEngine(ScriptLimits.Agent, default);
             engine.SetValue("tl", new ScriptApp(context));
-            engine.SetValue("print", (Action<Jint.Native.JsValue>)(_ => { }));
-            engine.SetValue("log", (Action<Jint.Native.JsValue>)(_ => { }));
+            engine.SetValue("print", (Action<JsValue>)(_ => { }));
+            engine.SetValue("log", (Action<JsValue>)(_ => { }));
             engine.Execute("globalThis.console = { log: print, info: print, warn: print, error: print, debug: print };");
 
             engine.Execute(code);   // 顶层：约定只定义函数、无副作用
             if (engine.GetValue("getScriptInfo") is not Function)
-                return null;        // 不是工具脚本
+                return (null, null);   // 不是工具脚本
 
             var infoVal = engine.Invoke("getScriptInfo");
             var o = ScriptArgs.Obj(infoVal, "getScriptInfo() result");
-            string display = ScriptArgs.OptStr(o, "name") is { Length: > 0 } n ? n : name;
-            return new ScriptToolInfo(
-                ScriptName: name,
+            string display = ScriptArgs.OptStr(o, "name") is { Length: > 0 } n ? n : scriptName;
+            return (new ScriptToolInfo(
+                ScriptName: scriptName,
                 DisplayName: display,
                 Category: ScriptArgs.OptStr(o, "category"),
                 Author: ScriptArgs.OptStr(o, "author"),
                 Version: ScriptArgs.OptStr(o, "version"),
-                Context: ParseContext(ScriptArgs.OptStr(o, "context")));
+                Context: ParseContext(ScriptArgs.OptStr(o, "context"))), null);
         }
         catch (Exception ex)
         {
-            Log.Warning(string.Format("Script \"{0}\" getScriptInfo failed; skipped from tools: {1}", name, ex.Message));
-            return null;
+            return (null, ex.Message);
         }
         finally
         {
-            // 丢弃 getScriptInfo 期间的任何意外改动（只回退本次枚举新增的命令，不动别处未提交改动）。
             context.Finish(rollback: true);
         }
     }

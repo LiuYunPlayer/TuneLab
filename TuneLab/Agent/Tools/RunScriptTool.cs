@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.Scripting;
@@ -37,7 +38,11 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
         }
         """;
 
-    public Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
+    // 写守卫被拦时（用户正操作）的最长等待与轮询间隔：脚本会原子回退、整段安全重跑，故等用户松手后自动落地。
+    const int MaxWaitMs = 3000;
+    const int PollMs = 120;
+
+    public async Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
     {
         string code;
         try
@@ -47,15 +52,28 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
         }
         catch (Exception ex)
         {
-            return Task.FromResult("Error: invalid arguments — " + ex.Message);
+            return "Error: invalid arguments — " + ex.Message;
         }
 
         if (string.IsNullOrWhiteSpace(code))
-            return Task.FromResult("Error: \"code\" is empty.");
+            return "Error: \"code\" is empty.";
 
+        // 在 UI 线程跑（数据层改动要求如此）。若写被拦（用户正操作），脚本已原子回退、工程未动，
+        // 故等用户松手（Pushable 恢复）后整段重跑——对模型透明；超时才回报。
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, currentPart, quantization, language, ScriptLimits.Agent, code, cancellationToken); }
-        catch (Exception ex) { return Task.FromResult("Error: " + ex.Message); }
+        try
+        {
+            result = await Dispatcher.UIThread.InvokeAsync(() => ScriptRunner.Run(project, currentPart, quantization, language, ScriptLimits.Agent, code, cancellationToken));
+            int waited = 0;
+            while (result.Blocked && waited < MaxWaitMs && !cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(PollMs, cancellationToken);
+                waited += PollMs;
+                result = await Dispatcher.UIThread.InvokeAsync(() => ScriptRunner.Run(project, currentPart, quantization, language, ScriptLimits.Agent, code, cancellationToken));
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return "Error: " + ex.Message; }
 
         var sb = new StringBuilder();
         if (result.Ok)
@@ -63,6 +81,11 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
             sb.Append(result.Committed
                 ? string.Format("Script ran OK. Applied {0} edit(s) as one undoable change.", result.Changes)
                 : "Script ran OK. No changes were made.");
+        }
+        else if (result.Blocked)
+        {
+            // 等满仍被拦：自解释回报（模型无需任何先验知识）。
+            return "The user is editing the project right now, so the script did not run and nothing was changed. Wait a moment and try again, or ask the user to finish their current edit.";
         }
         else
         {
@@ -74,6 +97,6 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
             sb.Append("\n--- output ---\n").Append(result.Output.TrimEnd('\n'));
         if (result.Ok && !string.IsNullOrEmpty(result.ResultText))
             sb.Append("\n--- result ---\n").Append(result.ResultText);
-        return Task.FromResult(sb.ToString());
+        return sb.ToString();
     }
 }

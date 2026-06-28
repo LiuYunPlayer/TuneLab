@@ -69,6 +69,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
 
     public ScriptTrack AddTrack(JsValue name)
     {
+        ctx.EnsureWritable();
         ctx.Project.AddTrack(new TrackInfo { Name = ScriptArgs.AsStrOrNull(name) ?? "Track" });
         ctx.Bump();
         return ctx.WrapTrack(ctx.Project.Tracks[ctx.Project.Tracks.Count - 1]);
@@ -77,6 +78,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
     public void RemoveTrack(ScriptTrack track)
     {
         if (track == null || track.Removed) throw new ScriptApiException("expected a live track handle (from project.tracks()/project.addTrack()).");
+        ctx.EnsureWritable();
         ctx.Project.RemoveTrack(track.Track);
         track.Removed = true;
         ctx.Bump();
@@ -91,6 +93,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
     public void SetTempo(double bpm, JsValue atTick)
     {
         if (bpm <= 0) throw new ScriptApiException("bpm must be positive.");
+        ctx.EnsureWritable();
         double tick = ScriptArgs.AsNumOrNull(atTick) ?? 0;
         var manager = ctx.Project.TempoManager;
         int existing = -1;
@@ -104,6 +107,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
     public void SetTimeSignature(int numerator, int denominator, JsValue atBar)
     {
         if (numerator < 1 || denominator < 1) throw new ScriptApiException("numerator/denominator must be >= 1.");
+        ctx.EnsureWritable();
         int barIndex = (ScriptArgs.AsIntOrNull(atBar) ?? 1) - 1;   // 1-based 小节号 → 0-based index
         if (barIndex < 0) throw new ScriptApiException("atBar must be >= 1.");
         var manager = ctx.Project.TimeSignatureManager;

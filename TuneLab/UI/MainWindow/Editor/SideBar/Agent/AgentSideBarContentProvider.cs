@@ -87,37 +87,21 @@ internal sealed class AgentSideBarContentProvider
     // 工程切换时由 Editor 调用：重建 Facade 与工具（runner 下次发送时按新工具重建，历史重置）。
     public void SetProject(IProject? project)
     {
-        mProjectEditor = project != null ? new ProjectAgentEditor(project, mCurrentPartProvider, mQuantizationProvider) : null;
-        mTools = mProjectEditor != null
+        mProject = project;
+        // 单一动作面（CodeAct）：编辑工程一律走 run_script（对象式 `tl` API），读取只留一个定向总览，其余读取也走脚本。
+        // 另有脚本库管理工具，让 agent 把功能沉淀成可注册进菜单的复用工具。
+        mTools = project != null
             ? new List<IAgentTool>
             {
-                // Layer 1 只读
-                new ListTracksTool(mProjectEditor),
-                new GetCurrentPartTool(mProjectEditor),
-                new GetPlayheadTool(mProjectEditor),
-                new SnapTickTool(mProjectEditor),
-                new GetTrackDetailTool(mProjectEditor),
-                new GetPartNotesTool(mProjectEditor),
-                new GetPartParametersTool(mProjectEditor),
-                new GetParameterTool(mProjectEditor),
-                // Layer 2 业务级写（各一个可撤销单位）
-                new TransposeNotesTool(mProjectEditor),
-                new AddVibratoTool(mProjectEditor),
-                new ShiftPitchTool(mProjectEditor),
-                new SetTrackPropertiesTool(mProjectEditor),
-                new AddTrackTool(mProjectEditor),
-                new RemoveTrackTool(mProjectEditor),
-                new AddPartTool(mProjectEditor),
-                new RemovePartTool(mProjectEditor),
-                new SetPartPropertiesTool(mProjectEditor),
-                new SetTempoTool(mProjectEditor),
-                new SetTimeSignatureTool(mProjectEditor),
-                // Layer 3 批量 DSL（整批一个可撤销单位）
-                new ApplyEditsTool(mProjectEditor),
-                // Layer 4 脚本逃生口（独立脚本模块，整段一个可撤销单位）：复杂/批量/带循环条件的编辑。
-                // get_script_api 是其「按需文档」（渐进式披露）：完整 API 不常驻 prompt，模型写脚本前调一次取回。
-                new RunScriptTool(project!, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
+                // 操作工程：定向（看） + 脚本（改/算/细读）
+                new GetProjectOverviewTool(project),
+                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
                 new GetScriptApiTool(),
+                // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用。
+                new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
+                new ListScriptsTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
+                new ReadScriptTool(),
+                new DeleteScriptTool(),
             }
             : [];
         // 工具随新工程重建：各会话下次发送时按新工具重建 runner（对话历史经 SeedHistory / 会话消息保留）。
@@ -963,7 +947,7 @@ internal sealed class AgentSideBarContentProvider
             ShowSettings();
             return;
         }
-        if (mProjectEditor == null)
+        if (mProject == null)
         {
             AppendMessage(ctx, "system", "No project is open.".Tr(this));
             return;
@@ -1835,24 +1819,18 @@ internal sealed class AgentSideBarContentProvider
 
     const string SystemPrompt =
         "You are an assistant embedded in TuneLab, a singing voice synthesis editor. " +
-        "You can inspect and edit the current project by calling the provided tools. " +
-        "Only call a tool when the user explicitly asks you to inspect or modify the project. " +
-        "For greetings, small talk, or statements that are not requests, reply briefly in natural language and do not call any tool. " +
-        "When a request does need project facts, call a tool rather than guessing. " +
-        "Tool results that appear earlier in this conversation are snapshots of the project as it was at that moment and may now be stale — the user (or your own later edits) may have changed tracks, parts, notes, tempo or counts since. Before any operation that depends on current counts, indices or values (e.g. editing a note by its number, referring to \"track N\", or assuming how many parts exist), re-read the relevant state with the appropriate get tool first rather than trusting an older result. " +
-        "Addressing is 1-based everywhere: track 1 is the first track, and part/note numbers are 1-based too. " +
-        "Positions and durations are in ticks; call get_project_overview to learn the PPQ (ticks per quarter note) and the tempo/time signature. " +
-        "For multi-step or fine-grained edits (writing a melody, editing many notes, drawing pitch/parameter curves), prefer the apply_edits tool so the whole batch is a single undoable change. " +
-        "For edits that need loops, conditions, computation, or bulk transforms over many notes, prefer run_script (a JavaScript program that runs as one undoable change and saves many tool round-trips); call get_script_api once to load its full API before writing your first script. " +
-        "Before editing notes by number, read them with get_part_notes to get current NoteNumbers. " +
-        "Notes live inside a part; apply_edits writes into an existing part. If the target track has no part to hold the notes (e.g. writing a melody from scratch), first call add_part to create one, then write notes into the part number it returns. " +
-        "When the user refers to \"the current part\"/\"this part\" without numbers, call get_current_part to resolve its track/part numbers; when they refer to \"the playhead\"/\"here\"/\"the current position\", call get_playhead to get the tick. " +
-        "CRITICAL: every tool argument must be a concrete literal value (a number or string). Never put placeholders, template expressions, code, or references to other tools inside arguments — for example do NOT write \"${get_current_part().trackNumber}\", \"get_part_notes(...)\", or any ${...} expression. There is no inline evaluation. Instead, first call the read tool, read the actual values from its result text, then call the next tool with those literal numbers. " +
-        "To transpose notes (e.g. up an octave = +12 semitones) use transpose_notes (a part) or shift_track_pitch (a whole track) — do NOT use set_pitch_line, which only draws a pitch curve and does not move note pitches. " +
-        "To add vibrato (颤音) use add_vibrato — do NOT set the VibratoEnvelope automation for this; VibratoEnvelope only scales the depth of an existing vibrato and produces nothing on its own. " +
-        "Vibrato is overlaid additively on the pitch line and is independent of it: when drawing a pitch line and adding vibrato over the same span, draw ONE continuous pitch line over the whole span and add vibrato on top — never break or split the pitch line where the vibrato is. " +
-        "All tick positions in every tool are ABSOLUTE (global) ticks — the same coordinate space as the playhead, get_project_overview and bar numbers. You never convert between coordinate systems and never subtract a part start. " +
-        "The playhead is not grid-aligned; when writing a melody or placing notes on the beat, snap your target ticks with snap_tick first.";
+        "You operate the project almost entirely by writing small JavaScript programs through the run_script tool (the `tl` object API): one script reads, computes and edits in a single step and runs as ONE undoable change. " +
+        "Only act on the project when the user explicitly asks you to inspect or modify it; for greetings, small talk or non-requests, reply briefly in natural language and call no tool. " +
+        "How to work: " +
+        "(1) Call get_project_overview first to orient — it gives PPQ, tempo, time signature and every track with 1-based numbers and part/note counts. " +
+        "(2) Before writing your first script in a conversation, call get_script_api once to load the full `tl` API, the handle/tick rules and examples — do not guess method names. " +
+        "(3) Do everything else with run_script — reading detail (e.g. print(tl.currentPart().notes())), computing, and all edits. On error the whole run rolls back, so fix the script and re-run rather than patching from a half-applied state. " +
+        "Coordinates: positions/durations are ABSOLUTE ticks (tl.ppq = ticks per quarter), pitch is MIDI; get_project_overview addressing is 1-based. " +
+        "Editor state lives on `tl`: tl.currentPart() resolves \"this/the current part\", tl.selectedNotes()/tl.selectedParts() are the user's selection, tl.playhead() is \"here\". The grid is not where the playhead is — snap target ticks with tl.snap(...) when placing notes on the beat. " +
+        "Vibrato is overlaid additively on the pitch line: when drawing a pitch line and adding vibrato over the same span, draw ONE continuous pitch line over the whole span and add vibrato on top (part.addVibrato) — never split the pitch line where the vibrato is; and do NOT use VibratoEnvelope to create vibrato (it only scales an existing one). " +
+        "ALWAYS narrate in natural language what each script does, and why, before or after running it, so the user follows your actions without reading code. " +
+        "When the user wants a REUSABLE feature they can run again from a menu (\"add a menu item that …\", \"make me a tool to …\"), or a one-off they would clearly want repeatedly, author a script tool — define getScriptInfo() + main() (see get_script_api) — and save it with save_script; it registers into the matching menu (top Scripts, or the note / part / piano-blank right-click) for one-click reuse. Use list_scripts / read_script / delete_script to manage them. " +
+        "Earlier tool results are stale snapshots (the user or your own edits may have changed things); re-read with get_project_overview or a script before relying on current counts or values.";
 
     readonly Panel mRoot = new();
     readonly DockPanel mChatView = new() { LastChildFill = true };
@@ -1902,7 +1880,7 @@ internal sealed class AgentSideBarContentProvider
     readonly DataPropertyObject mProviderData;
     IReadOnlyList<ComboBoxOption> mEngineOptions = [];
     const string EngineKey = "provider";
-    IAgentProjectEditor? mProjectEditor;
+    IProject? mProject;
     Func<IMidiPart?>? mCurrentPartProvider;
     Func<IQuantization?>? mQuantizationProvider;
     IReadOnlyList<IAgentTool> mTools = [];

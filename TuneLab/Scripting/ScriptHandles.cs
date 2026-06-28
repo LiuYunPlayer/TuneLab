@@ -267,6 +267,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         var p = P;
         if (pos is { } vp && vp < 0) throw new ScriptApiException("pos must be >= 0.");
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
+        ctx.EnsureWritable();
         p.Track.MovePart(p, () =>
         {
             if (name != null) p.Name.Set(name);
@@ -316,6 +317,7 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
         double dur = ScriptArgs.ReqNum(o, "dur");
         if (pos < 0) throw new ScriptApiException("pos must be >= 0.");
         if (dur <= 0) throw new ScriptApiException("dur must be positive.");
+        ctx.EnsureWritable();
         var part = t.CreatePart(new MidiPartInfo { Name = ScriptArgs.OptStr(o, "name") ?? "Part", Pos = pos, Dur = dur });
         t.InsertPart(part);
         ctx.Bump();
@@ -325,6 +327,7 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
     public void RemovePart(ScriptPart part)
     {
         if (part == null || part.Removed) throw new ScriptApiException("expected a live part handle (from track.parts()/track.addPart()).");
+        ctx.EnsureWritable();
         T.RemovePart(part.Part);
         part.Removed = true;
         ctx.Bump();
@@ -340,6 +343,7 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
     void Apply(string? name = null, bool? mute = null, bool? solo = null, double? gain = null, double? pan = null)
     {
         var t = T;
+        ctx.EnsureWritable();
         if (name != null) t.Name.Set(name);
         if (mute is { } m) t.IsMute.Set(m);
         if (solo is { } s) t.IsSolo.Set(s);

@@ -69,6 +69,16 @@
 
 - 应用运行中往 `%APPDATA%\TuneLab\Scripts\` 丢一个新的带 getScriptInfo 的 .js（或删一个）→ 不重启，下次打开「脚本」菜单即见变化（顶部菜单靠目录监视器提前重建）。
 
+## 10. Agent 造工具（save_script / list_scripts / read_script / delete_script）
+
+> 需配好一个 agent 模型 provider，在 Agent 侧栏对话。
+
+1. **造工具**：对 agent 说「帮我做个工具，把当前 part 所有音符时值翻倍，放到钢琴空白右键菜单」。期望：agent 调 `get_script_api` 看约定 → `save_script`（context=partContent，含 getScriptInfo+main）→ 回报「Registered as menu tool "…" in the piano-roll blank right-click menu」。随后钢琴卷帘**空白右键**即见该工具，点击生效、可撤销。
+2. **破损不落库**：让 agent 存一个 getScriptInfo 里有语法错误的脚本。期望：`save_script` 返回 eval 错误、**未保存**（list_scripts 看不到、菜单无），agent 据错误改写重试。
+3. **列/读/删**：「列出我的脚本」→ `list_scripts`（标出工具+context / plain）；「看看 X」→ `read_script`；「删掉 X」→ `delete_script`，删后菜单同步消失。
+4. **复用主张**：对 agent 提**重复性**诉求（「我以后经常要给选中音符加八度」），期望它倾向 `save_script` 造可复用工具，而非每次 run_script。
+5. **回归**：save_script 只存不执行（存完工程无改动、无新撤销项）；run_script 一次性仍正常。
+
 ---
 
 ## 回归检查（不应被破坏）

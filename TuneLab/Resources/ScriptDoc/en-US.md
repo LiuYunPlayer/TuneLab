@@ -23,7 +23,7 @@ The global object `tl` is the **editor**; the project data hangs off `tl.current
   - A handle is **valid only for the current run** (objects have no persistent id and are lost when the app closes): **never write a handle literal** — always get it and use it on the spot. Using a removed handle throws.
 - **Coordinates are always absolute ticks.** All positions/durations are absolute (global) ticks (`tl.ppq` is ticks per quarter note, default 480) — the same coordinate system as the playhead and bars. You **never** do any conversion.
 - **Pitch is a MIDI number**, 60 = C4 (fractional values for cents).
-- **Edits before an error still land.** If the script throws partway, the edits made before the error are still applied as one undoable change and the error is returned — so you can fix and retry, or undo.
+- **On error, everything rolls back.** If the script throws partway, all changes it made are undone (the project is left unchanged) and the error is returned — so you fix the script and re-run, never patching from a half-applied state.
 - **Debug output.** `print(x)` / `console.log(x)` is collected and shown in the output area below.
 
 ---
@@ -169,4 +169,4 @@ for (const n of part.notes()) if (n.pitch < 36) part.removeNote(n);
 - **Create and delete both go through the parent** (`track.addPart`/`removePart`, `part.addNote`/`removeNote`, …) — there is no `x.remove()`.
 - **Changing `pos`/`dur` may change ordering.** Parts/notes/vibratos keep start order — handle addressing is unaffected (still the same object), but if you are iterating that collection at the same time, remember you hold the array snapshot taken when iteration began.
 - **Notes live inside a MIDI part.** To write a melody from scratch, `tl.currentProject().addTrack()` (or pick a track), `track.addPart({...})`, then `part.addNote` into it.
-- **Error handling.** A thrown script returns its message (syntax/type errors usually carry a line number); edits made before the error are already applied as one undoable change — `Ctrl+Z` to undo, or fix and re-run.
+- **Error handling.** A thrown script returns its message (syntax/type errors usually carry a line number) and **rolls back everything it changed** — the project is left untouched, so fix the script and re-run.

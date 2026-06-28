@@ -65,12 +65,25 @@ internal static class ScriptApiReference
         "\n" +
         "print(x) / console.log(x) -> debugging output (returned to you / shown in the panel).\n" +
         "Notes live inside a MIDI part; to write a melody from scratch, tl.currentProject().addTrack() (or pick one), track.addPart({...}), then part.addNote into the returned part.\n" +
-        "If the script throws, edits made before the error are still applied as one undoable change and the error is returned, so you can fix and retry.\n" +
+        "If the script throws, EVERYTHING rolls back (the project is left unchanged) and the error is returned, so fix the script and re-run rather than patching from a half-applied state.\n" +
         "\n" +
         "EXAMPLE — raise every note in the current part an octave and add a harmony a third above:\n" +
         "  const part = tl.currentPart();\n" +
         "  for (const n of part.notes()) {\n" +
         "    part.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 4, lyric: n.lyric });   // third above\n" +
         "    n.pitch += 12;                                                                  // original up an octave\n" +
-        "  }";
+        "  }\n" +
+        "\n" +
+        "TOOL SCRIPTS (for save_script) — register a REUSABLE menu tool the user can click again later. Define two top-level functions; the top level must have NO side effects (it is evaluated just to read metadata):\n" +
+        "  function getScriptInfo() { return { name, category, author, version, context }; }   // metadata only; read tl.language here to localize `name`\n" +
+        "  function main() { /* the action — use `tl` exactly like a run_script body */ }\n" +
+        "  context decides where it appears AND what it targets:\n" +
+        "    'global'      -> top Scripts menu (grouped by category). Act on tl.currentPart() / whole project.\n" +
+        "    'note'        -> piano-roll right-click ON a note.   Target = tl.currentPart().selectedNotes() (the clicked note is always selected).\n" +
+        "    'partContent' -> piano-roll right-click on BLANK.    Target = tl.currentPart() (its content).\n" +
+        "    'part'        -> arrangement right-click ON a part.  Target = tl.selectedParts() (the clicked part is always selected; may be many).\n" +
+        "  main() runs as ONE undoable change; on any error EVERYTHING rolls back. A script WITHOUT getScriptInfo is a plain run-once script (Script side panel only, never in menus).\n" +
+        "  EXAMPLE tool — 'Add Third Harmony' on selected notes:\n" +
+        "    function getScriptInfo() { return { name: tl.language === 'zh-CN' ? '加三度和声' : 'Add Third Harmony', context: 'note' }; }\n" +
+        "    function main() { const p = tl.currentPart(); for (const n of p.selectedNotes()) p.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 4, lyric: n.lyric }); }";
 }

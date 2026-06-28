@@ -8,6 +8,10 @@ namespace TuneLab.Scripting;
 // 脚本里抛出的"用法/参数错误"——宿主据其 Message 把清晰错误回报给脚本作者（含 agent 模型），不带 C# 栈噪声。
 internal sealed class ScriptApiException(string message) : Exception(message);
 
+// 脚本试图在"别处 UI 操作进行中"（文档有未提交命令）改工程时抛出——只读脚本永不触发。
+// 宿主据此特判：用户前台运行→回报；agent→等 Pushable 恢复后自动整段重跑（原子回退保证安全）。
+internal sealed class ScriptBlockedException() : Exception("a user editing operation is in progress; the project can't be modified right now.");
+
 // 一次脚本运行的【收口内核 / 共享上下文】，脚本语言面【完全不可见】（不注入 JS，全是 internal 成员）。
 // 所有对象——编辑器根 `tl`(ScriptApp)、工程 `tl.currentProject()`(ScriptProject)、各句柄——都持有同一个 ScriptContext，
 // 写操作经它统一收口。这是一个【独立模块】：只依赖数据层（TuneLab.Data/Foundation），不依赖 agent。
@@ -26,6 +30,9 @@ internal sealed class ScriptContext
     readonly Func<IQuantization?>? mQuantization;
     readonly Func<string?>? mLanguage;
     readonly Head mStartHead;   // 运行前的撤销锚点（构造时即捕获，早于任何 merge 括号/改动）；出错回退至此
+    // 本次运行能否写：构造时取一次 Pushable()。脚本同步跑、运行期用户无法插入新操作，故此值全程不变——
+    // 守卫只在"首次写入"时检查它（EnsureWritable），从而只读脚本即便在用户操作中途也畅通，只拦写。
+    readonly bool mWritable;
 
     // 句柄缓存（按底层对象引用）：同一对象多次读取返回同一句柄，使脚本里 === 成立、并支持删除后置失效标记。
     readonly Dictionary<INote, ScriptNote> mNotes = new();
@@ -44,6 +51,14 @@ internal sealed class ScriptContext
         mQuantization = quantization;
         mLanguage = language;
         mStartHead = project.Head;
+        mWritable = project.Pushable();
+    }
+
+    // 首次写入守卫：别处 UI 操作进行中（!Pushable）则拒绝写——只读脚本不调用任何写入口，故永不触发。
+    internal void EnsureWritable()
+    {
+        if (!mWritable)
+            throw new ScriptBlockedException();
     }
 
     // ── 给根对象（ScriptApp / ScriptProject）读的底层入口 ──
@@ -58,6 +73,7 @@ internal sealed class ScriptContext
 
     internal void EnsureBracket(IMidiPart midi)
     {
+        EnsureWritable();   // 所有音符/曲线/颤音写入都经此，是它们的统一写守卫点
         if (mBracketed.Add(midi))
         {
             midi.BeginMergeDirty();
