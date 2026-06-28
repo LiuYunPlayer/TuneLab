@@ -35,6 +35,10 @@ internal class ScalableScrollAxis : IScrollAxis
     public void MovePivotToCoor(double coor) { _MovePivotToCoor(coor); TryNotify(); }
     public void MovePosToCoor(double pos, double coor) { _Move(Pos2Coor(pos) - coor); TryNotify(); }
 
+    // 供派生轴在自有布局状态（如轨道拖拽位移）变化时标脏；随后调 TryNotify() 经统一的脏标志流程触发，
+    // 不向派生类暴露绕过脏标志的无条件触发。
+    protected void SetChanged() => mChanged = true;
+
     double mPivotPos = 0;
     double mFactor = 1;
     double mContentSize = 1;
@@ -100,7 +104,7 @@ internal class ScalableScrollAxis : IScrollAxis
     }
 
     bool mChanged = false;
-    void TryNotify()
+    protected void TryNotify()
     {
         if (mChanged)
             AxisChanged?.Invoke();

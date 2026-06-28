@@ -27,6 +27,10 @@ internal class Track : DataObject, ITrack
     public int ExportChannels { get; set; } = 1;
     public IReadOnlyDataObjectLinkedList<IPart> Parts => mParts;
 
+    // 选中是瞬态视图状态（与 Part 一致），不进 undo、不参与序列化。
+    public IActionEvent SelectionChanged => mSelectionChanged;
+    public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
+
     IDataProperty<string> ITrack.Name => Name;
 
     IDataProperty<bool> ITrack.IsMute => IsMute;
@@ -167,4 +171,6 @@ internal class Track : DataObject, ITrack
 
     readonly IProject mProject;
     readonly PartList mParts;
+    readonly ActionEvent mSelectionChanged = new();
+    bool mIsSelected = false;
 }

@@ -187,228 +187,22 @@ internal partial class TrackScrollView : View
             }
         }
 
-        var tempoManager = Project.TempoManager;
-
-        // draw parts
+        // 轨道分隔线（背景层）；parts 本身由各 PartItem 在 base View.Render 阶段绘制于其上。
         IBrush lineBrush = Style.DARK.ToBrush();
-        double partLineWidth = 1;
-        IPen editPartPen = new Pen(Style.LIGHT_WHITE.ToBrush(), partLineWidth);
-        IBrush titleBrush = Brushes.Black;
-        IBrush statusBrush = Brushes.White;
         for (int trackIndex = 0; trackIndex < Project.Tracks.Count; trackIndex++)
         {
             double lineBottom = TrackVerticalAxis.GetTop(trackIndex + 1);
-            if (lineBottom <= 0)
+            if (lineBottom <= 0 || lineBottom - 1 >= Bounds.Height)
                 continue;
-
-            double top = TrackVerticalAxis.GetTop(trackIndex);
-            if (top >= Bounds.Height)
-                break;
 
             context.FillRectangle(lineBrush, new(0, lineBottom - 1, Bounds.Width, 1));
-
-            double bottom = TrackVerticalAxis.GetBottom(trackIndex);
-            if (bottom <= 0)
-                continue;
-
-            var track = Project.Tracks[trackIndex];
-            foreach (var part in track.Parts)
-            {
-                if (part.EndPos() <= startPos)
-                    continue;
-
-                if (part.StartPos() >= endPos)
-                    break;
-
-                bool isEditingPart = part == mDependency.EditingPart.Value;
-                double left = Math.Max(TickAxis.Tick2X(part.StartPos()), -8);
-                double right = Math.Min(TickAxis.Tick2X(part.EndPos()), Bounds.Width + 8);
-
-                var trackColor = track.GetColor();
-                var frameColor = part.IsSelected ? trackColor.Lighter() : trackColor;
-
-                var partRect = new Rect(left, top, right - left, bottom - top);
-                context.DrawRectangle(trackColor.Opacity(0.25).ToBrush(), null, partRect, 4, 4);
-                
-                var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
-                context.DrawRectangle(frameColor.ToBrush(), null, partRect.WithHeight(16).ToRoundedRect(new(4, 4, 0, 0)));
-                var contentRect = partRect.Adjusted(0, 20, 0, -4);
-                if (part is MidiPart midiPart)
-                {
-                    using (context.PushClip(titleRect))
-                    {
-                        context.DrawString($"{midiPart.Name}[{midiPart.SoundSource.Name}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface : new Typeface(FontFamily.Default, weight : isEditingPart ? FontWeight.Bold : FontWeight.Normal));
-                    }
-
-                    if (!midiPart.Notes.IsEmpty())
-                    {
-                        using (context.PushClip(contentRect))
-                        {
-                            var (minPitch, maxPitch) = midiPart.PitchRange();
-                            double pitchGap = maxPitch - minPitch + 1;
-                            double pitchHeight = Math.Min(contentRect.Height / pitchGap, 8);
-                            double partStartPos = Math.Max(startPos, midiPart.StartPos) - midiPart.Pos;
-                            double partEndPos = Math.Min(endPos, midiPart.EndPos) - midiPart.Pos;
-                            IBrush brush = frameColor.ToBrush();
-                            foreach (var note in midiPart.Notes)
-                            {
-                                if (note.EndPos() <= partStartPos)
-                                    continue;
-
-                                if (note.StartPos() >= partEndPos)
-                                    break;
-
-                                double noteLeft = TickAxis.Tick2X(note.StartPos() + midiPart.Pos);
-                                double noteRight = TickAxis.Tick2X(note.EndPos() + midiPart.Pos);
-                                context.FillRectangle(brush, new(noteLeft, contentRect.Y + (maxPitch - note.Pitch.Value) * pitchHeight, noteRight - noteLeft, pitchHeight));
-                            }
-                        }
-                    } 
-                }
-                else if (part is AudioPart audioPart)
-                {
-                    using (context.PushClip(titleRect))
-                    {
-                        context.DrawString($"{audioPart.Name}[{audioPart.Path}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
-                    }
-
-                    var statusRect = contentRect.Adjusted(Math.Max(0, -contentRect.Left) + 8, 0, -8, 0);
-                    switch (audioPart.Status.Value)
-                    {
-                        case AudioPartStatus.Loading:
-                            using (context.PushClip(statusRect))
-                                context.DrawString("Loading...".Tr(this), statusRect, statusBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
-                            break;
-                        case AudioPartStatus.Unlinked:
-                            using (context.PushClip(statusRect))
-                                context.DrawString("Failed to load audio. Double click to relink.".Tr(this), statusRect, statusBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
-                            break;
-                        case AudioPartStatus.Linked:
-                            if (audioPart.ChannelCount > 0)
-                            {
-                                for (int channelIndex = 0; channelIndex < audioPart.ChannelCount; channelIndex++)
-                                {
-                                    if (audioPart.EndPos < TickAxis.MinVisibleTick)
-                                        continue;
-
-                                    if (audioPart.StartPos > TickAxis.MaxVisibleTick)
-                                        break;
-
-                                    var waveform = audioPart.GetWaveform(channelIndex);
-                                    if (waveform == null)
-                                        continue;
-
-                                    double minTick = Math.Max(TickAxis.MinVisibleTick, audioPart.StartPos);
-                                    double maxTick = Math.Min(TickAxis.MaxVisibleTick, audioPart.EndPos);
-                                    double minX = TickAxis.Tick2X(minTick);
-                                    double maxX = TickAxis.Tick2X(maxTick);
-                                    var xs = new List<double>();
-                                    var positions = new List<double>();
-                                    double gap = 1;
-                                    double xp = minX - gap;
-                                    double startTime = audioPart.TempoManager.GetTime(audioPart.StartPos);
-                                    do
-                                    {
-                                        xp += gap;
-                                        xs.Add(xp);
-                                        double time = tempoManager.GetTime(TickAxis.X2Tick(xp));
-                                        positions.Add((time - startTime) * ((IAudioSource)audioPart).SampleRate);
-                                    }
-                                    while (xp < maxX);
-
-                                    if (positions.Count < 2)
-                                        continue;
-
-                                    double channelHeight = contentRect.Height / audioPart.ChannelCount;
-                                    float channelTop = (float)(contentRect.Top + channelHeight * channelIndex);
-                                    float r = (float)channelHeight / 2;
-                                    float toY(float value) => channelTop + (1 - value) * r;
-
-                                    var values = waveform.GetValues(positions);
-                                    var peaks = waveform.GetPeaks(positions, values);
-                                    for (int i = 0; i < xs.Count; i++)
-                                    {
-                                        values[i] = toY(values[i]);
-                                    }
-                                    for (int i = 0; i < peaks.Length; i++)
-                                    {
-                                        peaks[i].min = toY(peaks[i].min);
-                                        peaks[i].max = toY(peaks[i].max);
-                                    }
-                                    // 性能优先先采用画矩形的方案
-                                    IBrush waveformBrush = frameColor.ToBrush();
-                                    for (int i = 0; i < peaks.Length; i++)
-                                    {
-                                        double x = xs[i];
-                                        var peak = peaks[i];
-                                        context.FillRectangle(waveformBrush, new(xs[i], peak.max, gap, peak.min - peak.max));
-                                    }
-
-                                    /*
-                                    for (int i = 0; i < peaks.Length; i++)
-                                    {
-                                        double x = xs[i];
-                                        var peak = peaks[i];
-                                        var path = new PathGeometry();
-                                        using (var pathContext = path.Open())
-                                        {
-                                            pathContext.BeginFigure(new Point(x, values[i]), true);
-                                            pathContext.LineTo(new Point(x + gap * peak.minRatio, peak.min));
-                                            pathContext.LineTo(new Point(xs[i + 1], values[i + 1]));
-                                            pathContext.LineTo(new Point(x + gap * peak.maxRatio, peak.max));
-                                            pathContext.EndFigure(true);
-                                        }
-                                        context.DrawGeometry(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), null, path);
-                                    }
-                                    */
-                                    /*
-                                    for (int i = 0; i < peaks.Length; i++)
-                                    {
-                                        var points = new List<Point>();
-                                        double x = xs[i];
-                                        var peak = peaks[i];
-                                        points.Add(new Point(x, values[i]));
-                                        points.Add(new Point(x + gap * peak.minRatio, peak.min));
-                                        points.Add(new Point(xs[i + 1], values[i + 1]));
-                                        points.Add(new Point(x + gap * peak.maxRatio, peak.max));
-                                        context.DrawCurve(points, Style.LIGHT_WHITE.Opacity(0.5), gap, true);
-                                    }
-                                    */
-                                    /*
-                                    var points = new List<Point>();
-                                    for (int i = 0; i < peaks.Length; i++)
-                                    {
-                                        double x = xs[i];
-                                        var peak = peaks[i];
-                                        points.Add(new Point(x, values[i]));
-                                        points.Add(new Point(x + gap * peak.minRatio, peak.min));
-                                    }
-                                    for (int i = peaks.Length; i > 0; i--)
-                                    {
-                                        double x = xs[i];
-                                        var peak = peaks[i - 1];
-                                        points.Add(new Point(x, values[i]));
-                                        points.Add(new Point(x + gap * peak.maxRatio, peak.max));
-                                    }
-                                    context.DrawCurve(points, Style.LIGHT_WHITE.Opacity(0.5), gap, true);
-                                    */
-                                }
-                            }
-                            break;
-                    }
-                }
-
-                context.DrawRectangle(
-                    null,
-                    isEditingPart ? editPartPen : new Pen(frameColor.Opacity(part.IsSelected ? 1 : 0.5).ToBrush(), partLineWidth),
-                    partRect.Inflate(-partLineWidth / 2),
-                    4, 4);
-            }
         }
 
         // draw import parts
         if (mDragFileOperation.IsOperating)
         {
+            IBrush titleBrush = Brushes.Black;
+            double partLineWidth = 1;
             double left = Math.Max(TickAxis.Tick2X(mDragFileOperation.Pos), -8);
             for (int i = 0; i < mDragFileOperation.PreImportAudioInfos.Count; i++)
             {
@@ -838,6 +632,7 @@ internal partial class TrackScrollView : View
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
     const double LineWidth = 1;
+    const int GlowRingCount = 3;   // 编辑态外发光的同心环层数
 
     Color BarLineColor => Style.LINE.Opacity(1.5);
     Color BeatLineColor => Style.LINE.Opacity(1);

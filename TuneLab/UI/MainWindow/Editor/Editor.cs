@@ -185,10 +185,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         };
         ProjectHolder.WillModify.Subscribe(OnProjectWillChange, s);
         ProjectHolder.Modified.Subscribe(OnProjectChanged, s);
-        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(null); });
-        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.ItemAdded)).Subscribe(part => { if (part == mEditingPart) SwitchEditingPart(mEditingPart); });
-        ProjectHolder.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(null); mExportSideBarContentProvider.RefreshTrackList(); });
-        ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) SwitchEditingPart(mEditingPart); mExportSideBarContentProvider.RefreshTrackList(); });
+        // 在编 part 被摘除（移动/重排会先 Remove 再 Insert）时暂存到 mDetachedEditingPart——SwitchEditingPart(null)
+        // 会清空 mEditingPart，故不能再拿它判断复位；待同一 part（或其轨道）重新插入时据此复位，避免钢琴窗变空。
+        // 复位成功才清空暂存：多 part/多轨同时挪动时，别让无关的插入提前清掉它。
+        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.ItemRemoved)).Subscribe(part => { if (part == mEditingPart) { mDetachedEditingPart = mEditingPart; SwitchEditingPart(null); } });
+        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.ItemAdded)).Subscribe(part => { if (mDetachedEditingPart != null && part == mDetachedEditingPart) { SwitchEditingPart(mDetachedEditingPart); mDetachedEditingPart = null; } });
+        ProjectHolder.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) { mDetachedEditingPart = mEditingPart; SwitchEditingPart(null); } mExportSideBarContentProvider.RefreshTrackList(); });
+        ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (mDetachedEditingPart != null && track.Parts.Contains(mDetachedEditingPart)) { SwitchEditingPart(mDetachedEditingPart); mDetachedEditingPart = null; } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
         mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
@@ -1408,6 +1411,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     Head mAutoSaveHead;
 
     IPart? mEditingPart = null;
+    IPart? mDetachedEditingPart = null;   // 轨道被临时摘除（如重排）期间暂存的在编 part，待其轨道重新插入时复位
     IPart? mLastPart = null;
 
     readonly TrackWindow mTrackWindow;

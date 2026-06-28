@@ -9,7 +9,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.Data;
 
-internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack
+internal interface ITrack : IDataObject<TrackInfo>, IAudioTrack, ISelectable
 {
     IProject Project { get; }
     ITempoManager TempoManager { get; }

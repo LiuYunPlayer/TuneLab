@@ -96,6 +96,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     {
         mTickAxis.ViewLength = e.NewSize.Width - mTrackHeadList.Width;
         mTrackVerticalAxis.ViewLength = e.NewSize.Height - mTimelineView.Height;
+        mTrackVerticalAxis.RefreshContentSize();   // 可滚动范围含一个视图高余量，随视图高变化重算
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

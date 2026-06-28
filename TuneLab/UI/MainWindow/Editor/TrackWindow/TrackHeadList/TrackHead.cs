@@ -1,7 +1,9 @@
-﻿using Avalonia.Controls;
+﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +21,16 @@ using TuneLab.I18N;
 using TuneLab.GUI.Controllers;
 
 namespace TuneLab.UI;
+
+// 轨道头拖拽调位的宿主（由承载轨道头的布局层实现）。轨道头不直接依赖布局层私有类型，
+// 经此接口驱动实时预览与落定提交。
+internal interface ITrackHeadDragHost
+{
+    void BeginTrackHeadDrag(TrackHead head, double grabOffsetY);
+    void UpdateTrackHeadDrag(double pointerYInHost);
+    void EndTrackHeadDrag();
+    void CancelTrackHeadDrag();
+}
 
 internal class TrackHead : DockPanel
 {
@@ -38,6 +50,7 @@ internal class TrackHead : DockPanel
             .AddContent(new() { Item = new IconItem() { Icon = Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Bind(mTrackHolder.Select(track => track.IsSolo), s);
         mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
+        this.AddDock(mSelectionStrip, Dock.Left);
         var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {
             leftArea.AddDock(mAmplitudeViewer);
@@ -63,6 +76,7 @@ internal class TrackHead : DockPanel
         }
         this.AddDock(bottomArea);
 
+        mTrackHolder.When(track => track.SelectionChanged).Subscribe(UpdateSelectionVisual, s);
         mTrackHolder.When(track => track.Color.Modified).Subscribe(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); }, s);
         mIndexPanel.RegisterOnTrackColorUpdated(() => { if (Track == null) return; mIndexLabel.Background = Track.GetColor().ToBrush(); mIndexPanel.Background = Track.GetColor().ToBrush(); });
         mTrackHolder.WillModify.Subscribe(() =>
@@ -255,6 +269,142 @@ internal class TrackHead : DockPanel
         s.DisposeAll();
     }
 
+    // 选中态：整行底色提亮 + 左缘强调条（强调条常驻 3px，仅切换颜色，避免选中时布局抖动）。
+    void UpdateSelectionVisual()
+    {
+        bool selected = Track != null && Track.IsSelected;
+        Background = selected ? Style.HIGH_LIGHT.Opacity(0.18).ToBrush() : Brushes.Transparent;
+        mSelectionStrip.Background = selected ? Style.HIGH_LIGHT.ToBrush() : Brushes.Transparent;
+        // 名称标签默认是不透明 INTERFACE 底，选中时改透明以露出整行高亮底色，避免出现一块未变色的色斑。
+        mName.Background = selected ? Brushes.Transparent : Style.INTERFACE.ToBrush();
+    }
+
+    // 按下源是否落在“占用指针的交互控件”（滑条/开关）上。这些控件靠指针捕获自行拖动，
+    // 轨道头不得介入；而名称/序号标签（双击才进编辑）、电平表、空白区都可作为选中/拖拽候选。
+    static bool IsOnInteractiveControl(object? source, Control stopAt)
+    {
+        var v = source as Visual;
+        while (v != null && !ReferenceEquals(v, stopAt))
+        {
+            if (v is AbstractSlider || v is Toggle)
+                return true;
+
+            v = v.GetVisualParent();
+        }
+        return false;
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        if (e.Handled || Track == null)
+            return;
+
+        mDragCandidate = !IsOnInteractiveControl(e.Source, this);
+        if (!mDragCandidate)
+            return;
+
+        var point = e.GetCurrentPoint(this);
+        bool ctrl = (e.KeyModifiers & KeyModifiers.Control) != 0;
+        if (point.Properties.IsLeftButtonPressed)
+        {
+            SelectOnPress(ctrl);
+            mPressCtrl = ctrl;
+
+            // 仅记录起点，不在此处抢捕获：越过阈值后再惰性捕获，否则会毁掉名称/序号标签的双击进编辑，
+            // 也会夺走滑条/开关的指针捕获。pointerYInHost 取相对布局层，拖拽期间稳定。
+            if (this.GetVisualParent() is Visual host)
+            {
+                mPointerDown = true;
+                mDownYInHost = e.GetPosition(host).Y;
+                mGrabOffsetY = mDownYInHost - Bounds.Y;
+            }
+        }
+        else if (point.Properties.IsRightButtonPressed)
+        {
+            // 右键命中未选中的轨道头：先独占选中它，使后续右键菜单作用于本轨（镜像 part）。
+            if (!Track.IsSelected)
+                SelectOnPress(false);
+        }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        if (!mPointerDown)
+            return;
+
+        // 按键已松（捕获在子控件上时本头收不到 up，标志可能滞留）→ 复位，避免悬空触发拖拽。
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            mPointerDown = false;
+            return;
+        }
+
+        if (this.GetVisualParent() is not Visual host || host is not ITrackHeadDragHost dragHost)
+            return;
+
+        double yInHost = e.GetPosition(host).Y;
+        if (!mDragging)
+        {
+            if (Math.Abs(yInHost - mDownYInHost) < DragThreshold)
+                return;
+
+            mDragging = true;
+            e.Pointer.Capture(this);   // 此刻才接管：确保是真正的拖动而非点击/双击
+            dragHost.BeginTrackHeadDrag(this, mGrabOffsetY);
+        }
+        dragHost.UpdateTrackHeadDrag(yInHost);
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        bool wasPlainClick = mPointerDown && !mDragging && mDragCandidate && !mPressCtrl;
+        if (mDragging && this.GetVisualParent() is ITrackHeadDragHost dragHost)
+        {
+            dragHost.EndTrackHeadDrag();
+            e.Pointer.Capture(null);   // 只释放我们自己惰性捕获的指针，别误清其他控件的捕获
+        }
+        else if (wasPlainClick && Track != null)
+        {
+            // 平地单击（无 ctrl、未拖拽）收敛为只选中本轨——按下时为支持多选拖拽保留了原选区，此处落定收敛。
+            Track.Project.Tracks.DeselectAllItems();
+            Track.Select();
+        }
+
+        mPointerDown = false;
+        mDragging = false;
+        mDragCandidate = false;
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        if (mDragging && this.GetVisualParent() is ITrackHeadDragHost dragHost)
+            dragHost.CancelTrackHeadDrag();   // 捕获丢失：取消并回弹，不提交重排
+
+        mPointerDown = false;
+        mDragging = false;
+    }
+
+    // 选中语义镜像 part：Ctrl 增减选；普通点击若未选中则独占选中，已选中则保留（便于多选拖拽）。
+    void SelectOnPress(bool ctrl)
+    {
+        if (Track == null)
+            return;
+
+        if (ctrl)
+        {
+            Track.Inselect();
+        }
+        else if (!Track.IsSelected)
+        {
+            Track.Project.Tracks.DeselectAllItems();
+            Track.Select();
+        }
+    }
+
     private void MoveToIndex(int newIndex)
     {
         if (Track == null) return;
@@ -286,6 +436,7 @@ internal class TrackHead : DockPanel
             mIndexLabel.Background = Track.GetColor().ToBrush();
             mIndexPanel.Background = Track.GetColor().ToBrush();
         }
+        UpdateSelectionVisual();
     }
 
     private void AudioEngine_PlayStateChanged()
@@ -314,9 +465,18 @@ internal class TrackHead : DockPanel
     }
 
     Holder<ITrack> mTrackHolder = new();
-    ITrack? Track => mTrackHolder.Value;
+    public ITrack? Track => mTrackHolder.Value;
     int mTrackIndex = -1;
 
+    const double DragThreshold = 4;
+    bool mDragCandidate = false;
+    bool mPressCtrl = false;
+    bool mPointerDown = false;
+    bool mDragging = false;
+    double mDownYInHost = 0;
+    double mGrabOffsetY = 0;
+
+    readonly Border mSelectionStrip = new() { Width = 3, Margin = new(0, 0, 0, 1), Background = Brushes.Transparent, IsHitTestVisible = false };
     readonly LayerPanel mIndexPanel = new() { Background = Style.ITEM.ToBrush(), Width = 24, Margin = new(0, 0, 0, 1) };
     readonly EditableLabel mIndexLabel = new() { MinWidth = 16, Foreground = Brushes.Black, CornerRadius = new(0), Padding = new(0), FontSize = 12, VerticalAlignment =Avalonia.Layout.VerticalAlignment.Center,HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
     readonly EditableLabel mName = new() { FontSize = 12, CornerRadius = new(0), Padding = new(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), InputBackground = Style.BACK.ToBrush(), Height = 16 };

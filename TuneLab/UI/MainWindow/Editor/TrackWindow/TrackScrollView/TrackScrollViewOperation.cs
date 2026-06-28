@@ -57,6 +57,9 @@ internal partial class TrackScrollView
                             if (Project == null)
                                 break;
 
+                            // 在内容区交互即视为焦点离开轨道头 → 清掉轨道头选中（省去滚到底找空白取消的麻烦）。
+                            Project.Tracks.DeselectAllItems();
+
                             bool ctrl = e.KeyModifiers == ModifierKeys.Ctrl;
                             var item = ItemAt(e.Position);
                             if (item is PartItem partItem)
@@ -453,45 +456,54 @@ internal partial class TrackScrollView
         if (Project == null)
             return;
 
-        for (int trackIndex = 0; trackIndex < Project.Tracks.Count; trackIndex++)
+        // 拖拽时被拖轨竖向位置乱序（GetTop 非单调），故按轨逐个做可见性裁剪、不靠顺序 break；
+        // 并把被拖（选中）轨放到最后添加 → 其 PartItem 渲染时压在最上层（置顶）。
+        int count = Project.Tracks.Count;
+        for (int trackIndex = 0; trackIndex < count; trackIndex++)
         {
-            double lineBottom = TrackVerticalAxis.GetTop(trackIndex + 1);
-            if (lineBottom <= 0)
+            if (!TrackVerticalAxis.IsDraggedTrack(trackIndex))
+                AddTrackPartItems(items, trackIndex);
+        }
+        if (TrackVerticalAxis.IsTrackDragging)
+            for (int trackIndex = 0; trackIndex < count; trackIndex++)
+                if (TrackVerticalAxis.IsDraggedTrack(trackIndex))
+                    AddTrackPartItems(items, trackIndex);
+    }
+
+    void AddTrackPartItems(IItemCollection items, int trackIndex)
+    {
+        if (Project == null)
+            return;
+
+        double top = TrackVerticalAxis.GetTop(trackIndex);
+        double bottom = TrackVerticalAxis.GetBottom(trackIndex);
+        if (bottom <= 0 || top >= Bounds.Height)
+            return;
+
+        var track = Project.Tracks[trackIndex];
+        foreach (var part in track.Parts)
+        {
+            if (part.EndPos() <= TickAxis.MinVisibleTick)
                 continue;
 
-            double top = TrackVerticalAxis.GetTop(trackIndex);
-            if (top >= Bounds.Height)
+            if (part.StartPos() >= TickAxis.MaxVisibleTick)
                 break;
 
-            double bottom = TrackVerticalAxis.GetBottom(trackIndex);
-            if (bottom <= 0)
+            items.Add(new PartItem(this) { Part = part, TrackIndex = trackIndex });
+            items.Add(new PartNameItem(this) { Part = part, TrackIndex = trackIndex });
+        }
+
+        foreach (var part in track.Parts)
+        {
+            double right = TickAxis.Tick2X(part.EndPos());
+
+            if (right < -8)
                 continue;
 
-            var track = Project.Tracks[trackIndex];
-            foreach (var part in track.Parts)
-            {
-                if (part.EndPos() <= TickAxis.MinVisibleTick)
-                    continue;
+            if (right > Bounds.Width + 8)
+                break;
 
-                if (part.StartPos() >= TickAxis.MaxVisibleTick)
-                    break;
-
-                items.Add(new PartItem(this) { Part = part, TrackIndex = trackIndex });
-                items.Add(new PartNameItem(this) { Part = part, TrackIndex = trackIndex });
-            }
-
-            foreach (var part in track.Parts)
-            {
-                double right = TickAxis.Tick2X(part.EndPos());
-
-                if (right < -8)
-                    continue;
-
-                if (right > Bounds.Width + 8)
-                    break;
-
-                items.Add(new PartEndResizeItem(this) { Part = part, TrackIndex = trackIndex });
-            }
+            items.Add(new PartEndResizeItem(this) { Part = part, TrackIndex = trackIndex });
         }
     }
 
