@@ -384,7 +384,6 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             maxA = Math.Max(maxA, n.Count - 1 - n.LeadCount);
         }
 
-        bool addedLead = false, addedBoundary = false;
         for (int a = minA; a <= maxA; a++)
         {
             // 该 slot 各 note 在对齐位 a 处的音素成员（config 非空者）。
@@ -398,21 +397,15 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
             }
             if (members.Count == 0) continue;
 
-            // IsLead 分界：前置辅音（a<0）与核+后（a>=0，核=0）之间插一条「—— Note Start ——」带字分隔，标出"核"=音符头锚点。
-            if (a >= 0 && addedLead && !addedBoundary)
-            {
-                mPhonemeRowsPanel.Children.Add(BuildBoundaryDivider());
-                addedBoundary = true;
-            }
-            if (a < 0)
-                addedLead = true;
+            // IsLead 用标签底色区分：前置辅音（a<0，核前）= 非选中 note 色铺垫；核及核后（a>=0，核=0=音符头锚点）= 选中 note 高亮色。
+            bool isLead = a < 0;
 
             var config = members[0].Note.Configs[members[0].Index]!;   // 代表 config（首成员）
 
-            // 符号三态：各成员符号全等显该符号、否则 (Multiple)。
+            // 符号三态：各成员符号全等显该符号、否则 (...)。
             var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedPhonemes![m.Index].Symbol).Distinct().ToList();
-            string symbol = symbols.Count == 1 ? (string.IsNullOrEmpty(symbols[0]) ? "-" : symbols[0]) : "(Multiple)".Tr(TC.Property);
-            var label = new Label() { Content = symbol, Height = 28, FontSize = 12, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+            string symbol = symbols.Count == 1 ? (string.IsNullOrEmpty(symbols[0]) ? "-" : symbols[0]) : "(...)";
+            var label = new Label() { Content = symbol, Width = 36, MinHeight = 28, FontSize = 12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, Foreground = Brushes.White, Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush(), Padding = new(0) };
             var controller = new PropertyObjectController();
 
             if (members.All(m => m.Note.Pinned))
@@ -447,7 +440,10 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
                 data.Modified.Subscribe(() => PinAndApply(apply), mPhonemeSub);
             }
 
-            var row = new StackPanel() { Orientation = Orientation.Vertical };
+            // 左右排布：音素符号标签固定宽列在左、属性控制器占满右侧（控制器多行时标签竖向居中拉伸对齐）。
+            var row = new Grid() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(controller, 1);
             row.Children.Add(label);
             row.Children.Add(controller);
             mPhonemeRowsPanel.Children.Add(row);
@@ -469,22 +465,6 @@ internal class PropertySideBarContentProvider : ISideBarContentProvider
                 note.Phonemes[idx].Properties.SetInfo(buf.GetInfo());
         }
         mPart.Commit();
-    }
-
-    // IsLead 分界分隔：「——— Note Start ———」（两侧细线 + 居中文字），标出核=音符头的对齐锚点。
-    static Control BuildBoundaryDivider()
-    {
-        var left = new Border() { Height = 1, Background = Style.LIGHT_WHITE.Opacity(0.25).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-        var right = new Border() { Height = 1, Background = Style.LIGHT_WHITE.Opacity(0.25).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-        var text = new TextBlock() { Text = "Note Start".Tr(TC.Property), FontSize = 11, Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(), Margin = new(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-        var grid = new Grid() { ColumnDefinitions = new ColumnDefinitions("*,Auto,*"), Margin = new(24, 6) };
-        Grid.SetColumn(left, 0);
-        Grid.SetColumn(text, 1);
-        Grid.SetColumn(right, 2);
-        grid.Children.Add(left);
-        grid.Children.Add(text);
-        grid.Children.Add(right);
-        return grid;
     }
 
     async Task OnSaveAsPresetClicked()
