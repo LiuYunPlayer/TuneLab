@@ -48,6 +48,10 @@ internal sealed class ScriptApp
     public ScriptTrack[] SelectedTracks()
         => mContext.Project.Tracks.Where(t => t.IsSelected).Select(mContext.WrapTrack).ToArray();
 
+    // 编排区当前的范围选区（DAW 式 tick×轨道矩形，编辑器态、不入工程）；无选区返回 null。轨道号 1-based、连续区间。
+    // 与 selectedParts()/selectedNotes()（选中的对象）正交：它只圈出"这片地方"、与里面有没有 part 无关，脚本据其横纵跨度批量处理落在区域里的东西。
+    public ScriptSelection? Selection() => mContext.Selection;
+
     public ScriptPlayhead Playhead()
     {
         double sec = AudioEngine.CurrentTime;

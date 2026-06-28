@@ -52,10 +52,10 @@ internal static class ScriptRunner
         });
     }
 
-    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, ScriptLimits limits, string code, CancellationToken cancellationToken)
+    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, ScriptLimits limits, string code, CancellationToken cancellationToken)
     {
         // 写守卫不在入口、而下沉到首次写入（ScriptContext.EnsureWritable）：只读脚本即便在用户操作中途也畅通，只拦写。
-        var context = new ScriptContext(project, currentPart, quantization, language);
+        var context = new ScriptContext(project, currentPart, quantization, language, selection);
         var output = new StringBuilder();
         string? resultText = null;
         string? error = null;

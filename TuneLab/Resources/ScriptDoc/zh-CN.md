@@ -37,6 +37,7 @@
 | `tl.ppq` | number | 每四分音符的 tick 数（默认 480）。 |
 | `tl.currentProject()` | `project` | 当前工程（你的数据入口，见下）。 |
 | `tl.currentPart()` | `part \| null` | 钢琴窗当前打开编辑的 MIDI part。 |
+| `tl.selection()` | `{startTick, endTick, startTrackNumber, endTrackNumber} \| null` | 编排区的**范围选区**——在编排区 Shift+拖 圈出的 tick×轨道矩形；轨道号 1-based、连续区间；无选区时为 `null`。与 `selectedParts`/`selectedNotes`（选中的**对象**）**正交**：它圈的是"一片地方"而非对象，用它批量处理落在区域里的东西。 |
 | `tl.playhead()` | `{tick, seconds, bar, beat, playing}` | 播放线位置（bar/beat 为 1-based）。 |
 | `tl.snap(tick)` | number | 把绝对 tick 吸附到编辑器网格。 |
 

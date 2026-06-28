@@ -37,6 +37,7 @@ Editor-level entry points — a system constant, the current project, and the ed
 | `tl.ppq` | number | Ticks per quarter note (default 480). |
 | `tl.currentProject()` | `project` | The current project (your data entry point; see below). |
 | `tl.currentPart()` | `part \| null` | The MIDI part open in the piano editor. |
+| `tl.selection()` | `{startTick, endTick, startTrackNumber, endTrackNumber} \| null` | The arrangement **range selection** — a tick×track area dragged out in the arranger (Shift+drag); track numbers 1-based and contiguous; `null` when there is none. **Orthogonal** to `selectedParts`/`selectedNotes` (selected *objects*): it marks a *place*, not objects, so use it to bulk-process whatever falls inside. |
 | `tl.playhead()` | `{tick, seconds, bar, beat, playing}` | Playhead position (bar/beat are 1-based). |
 | `tl.snap(tick)` | number | Snap an absolute tick to the editor's grid. |
 

@@ -19,7 +19,7 @@ using TuneLab.I18N;
 
 namespace TuneLab.UI;
 
-internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
+internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollView.IDependency, PlayheadLayer.IDependency, RegionSelectionLayer.IDependency, TrackVerticalAxis.IDependency, TrackHeadList.IDependency
 {
     public IHolder<IProject> ProjectHolder => mDependency.ProjectHolder;
     public IHolder<ITimeline> TimelineHolder => mDependency.ProjectHolder;
@@ -75,7 +75,12 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
                 layer.AddDock(new Border() { Height = 1, Background = Style.BACK.ToBrush() }, Dock.Top);
 
                 mTrackScrollView = new(this);
-                layer.AddDock(mTrackScrollView);
+                // TrackScrollView 与范围选区覆盖层同区叠放：覆盖层压在 parts 之上、共用同一坐标系（GetTop 无需偏移）。
+                var scrollArea = new LayerPanel();
+                scrollArea.Children.Add(mTrackScrollView);
+                mRegionSelectionLayer = new(this);
+                scrollArea.Children.Add(mRegionSelectionLayer);
+                layer.AddDock(scrollArea);
             }
             layerPanel.Children.Add(layer);
 
@@ -143,6 +148,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     readonly TrackHeadList mTrackHeadList;
     readonly TimelineView mTimelineView;
     readonly TrackScrollView mTrackScrollView;
+    readonly RegionSelectionLayer mRegionSelectionLayer;
     readonly PlayheadLayer mPlayheadLayer;
 
     readonly IDependency mDependency;

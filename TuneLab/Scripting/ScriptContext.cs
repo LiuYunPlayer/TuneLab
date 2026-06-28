@@ -29,6 +29,7 @@ internal sealed class ScriptContext
     readonly Func<IMidiPart?>? mCurrentPart;
     readonly Func<IQuantization?>? mQuantization;
     readonly Func<string?>? mLanguage;
+    readonly Func<ScriptSelection?>? mSelection;
     readonly Head mStartHead;   // 运行前的撤销锚点（构造时即捕获，早于任何 merge 括号/改动）；出错回退至此
     // 本次运行能否写：构造时取一次 Pushable()。脚本同步跑、运行期用户无法插入新操作，故此值全程不变——
     // 守卫只在"首次写入"时检查它（EnsureWritable），从而只读脚本即便在用户操作中途也畅通，只拦写。
@@ -44,12 +45,13 @@ internal sealed class ScriptContext
     readonly HashSet<IMidiPart> mBracketed = new();
     int mChanges;   // 发生的改动计数（>0 才 Commit）
 
-    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language)
+    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection)
     {
         mProject = project;
         mCurrentPart = currentPart;
         mQuantization = quantization;
         mLanguage = language;
+        mSelection = selection;
         mStartHead = project.Head;
         mWritable = project.Pushable();
     }
@@ -65,6 +67,8 @@ internal sealed class ScriptContext
     internal IProject Project => mProject;
     internal IMidiPart? CurrentMidiPart => mCurrentPart?.Invoke();
     internal IQuantization? Quantization => mQuantization?.Invoke();
+    // 编排区范围选区快照（编辑器态）；无源或无选区时 null。
+    internal ScriptSelection? Selection => mSelection?.Invoke();
     // 当前界面语言文化码（如 "zh-CN"）；脚本经 tl.language 读，用于本地化显示名/对话框文案。无源时空串。
     internal string Language => mLanguage?.Invoke() ?? "";
 

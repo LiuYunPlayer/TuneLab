@@ -452,3 +452,13 @@ internal sealed class ScriptPlayhead(double tick, double seconds, int bar, doubl
     public override string ToString() => string.Format(CultureInfo.InvariantCulture, "Playhead(tick={0:0}, bar {1}:{2:0.##}, playing={3})", Tick, Bar, Beat, Playing);
 }
 
+// 编排区范围选区（DAW 式 tick×轨道矩形，编辑器态、不入工程）的只读快照。轨道号 1-based、连续区间，start≤end。
+internal sealed class ScriptSelection(double startTick, double endTick, int startTrackNumber, int endTrackNumber)
+{
+    public double StartTick { get; } = startTick;
+    public double EndTick { get; } = endTick;
+    public int StartTrackNumber { get; } = startTrackNumber;   // 1-based
+    public int EndTrackNumber { get; } = endTrackNumber;       // 1-based
+    public override string ToString() => string.Format(CultureInfo.InvariantCulture, "Selection(ticks {0:0}..{1:0}, tracks {2}..{3})", StartTick, EndTick, StartTrackNumber, EndTrackNumber);
+}
+

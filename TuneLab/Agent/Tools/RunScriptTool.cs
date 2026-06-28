@@ -15,7 +15,7 @@ namespace TuneLab.Agent;
 //
 // 工具本身很薄：解析 code 字符串，交给【独立的脚本模块】(TuneLab.Scripting) 执行，把日志/结果/错误回灌。
 // 脚本引擎、动作面 API、沙箱、整段=一次 Commit 的收口都在脚本模块里，不在 agent 层——agent 只是它的一个消费者。
-internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language) : IAgentTool
+internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection) : IAgentTool
 {
     public string Name => "run_script";
 
@@ -63,13 +63,13 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
         ScriptRunResult result;
         try
         {
-            result = await Dispatcher.UIThread.InvokeAsync(() => ScriptRunner.Run(project, currentPart, quantization, language, ScriptLimits.Agent, code, cancellationToken));
+            result = await Dispatcher.UIThread.InvokeAsync(() => ScriptRunner.Run(project, currentPart, quantization, language, selection, ScriptLimits.Agent, code, cancellationToken));
             int waited = 0;
             while (result.Blocked && waited < MaxWaitMs && !cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(PollMs, cancellationToken);
                 waited += PollMs;
-                result = await Dispatcher.UIThread.InvokeAsync(() => ScriptRunner.Run(project, currentPart, quantization, language, ScriptLimits.Agent, code, cancellationToken));
+                result = await Dispatcher.UIThread.InvokeAsync(() => ScriptRunner.Run(project, currentPart, quantization, language, selection, ScriptLimits.Agent, code, cancellationToken));
             }
         }
         catch (OperationCanceledException) { throw; }

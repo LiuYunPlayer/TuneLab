@@ -23,6 +23,10 @@ using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
 
+// 编排区范围选区（DAW 式 tick×轨道矩形）：纯编辑器态、不入工程。轨道为 0-based 连续 index，已规范化 start≤end。
+// 概念面（脚本 API / 用户）称 selection / 选区；代码内用 RegionSelection 与既有 part 框选 SelectOperation 消歧。
+internal readonly record struct RegionSelection(double StartTick, double EndTick, int StartTrackIndex, int EndTrackIndex);
+
 internal partial class TrackScrollView : View
 {
     public interface IDependency
@@ -43,6 +47,7 @@ internal partial class TrackScrollView : View
 
         mMiddleDragOperation = new(this);
         mSelectOperation = new(this);
+        mRegionSelectionOperation = new(this);
         mPartMoveOperation = new(this);
         mPartEndResizeOperation = new(this);
         mDragFileOperation = new(this);
@@ -67,6 +72,7 @@ internal partial class TrackScrollView : View
         TrackVerticalAxis.AxisChanged += InvalidateArrange;
 
         mDependency.ProjectHolder.Modified.Subscribe(Update, s);
+        mDependency.ProjectHolder.Modified.Subscribe(ClearSelection, s);   // 切工程清掉范围选区（纯编辑器态、不跨工程）
         mDependency.ProjectHolder.When(project => project.Modified).Subscribe(Update, s);
         mDependency.EditingPart.Modified.Subscribe(InvalidateVisual, s);
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part.SelectionChanged))).Subscribe(InvalidateVisual, s);
@@ -240,6 +246,8 @@ internal partial class TrackScrollView : View
             var rect = mSelectOperation.SelectionRect();
             context.DrawRectangle(SelectionColor.Opacity(0.25).ToBrush(), new Pen(SelectionColor.ToUInt32()), rect);
         }
+
+        // 范围选区(常驻)不在此画：它由 RegionSelectionLayer 覆盖层画在 parts 之上（避免被 part 遮挡）。
     }
 
     public double QuantizedCellTicks()
@@ -640,6 +648,40 @@ internal partial class TrackScrollView : View
     Color BeatLineColor => Style.LINE.Opacity(1);
     Color CellLineColor => Style.LINE.Opacity(0.5);
     Color SelectionColor => Style.HIGH_LIGHT;
+
+    // 范围选区变化通知：覆盖层 RegionSelectionLayer 据此重绘（选区状态归本类、渲染在覆盖层）。
+    public event Action? SelectionChanged;
+
+    // 当前范围选区（编辑器态，读时按现存轨道数钳制：行越界则收窄，整体出界则视为无选区）。
+    public RegionSelection? CurrentSelection
+    {
+        get
+        {
+            if (mRegionSelection is not { } r || Project == null)
+                return null;
+            int max = Project.Tracks.Count - 1;
+            if (max < 0 || r.StartTrackIndex > max)
+                return null;
+            return r.EndTrackIndex > max ? r with { EndTrackIndex = max } : r;
+        }
+    }
+
+    internal void SetSelection(RegionSelection selection)
+    {
+        mRegionSelection = selection;
+        SelectionChanged?.Invoke();
+    }
+
+    internal void ClearSelection()
+    {
+        if (mRegionSelection == null)
+            return;
+
+        mRegionSelection = null;
+        SelectionChanged?.Invoke();
+    }
+
+    RegionSelection? mRegionSelection;
 
     readonly IDependency mDependency;
     readonly DisposableManager s = new();

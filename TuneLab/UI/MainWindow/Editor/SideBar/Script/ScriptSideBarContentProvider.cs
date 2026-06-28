@@ -36,6 +36,7 @@ internal sealed class ScriptSideBarContentProvider
     public void SetProject(IProject? project) => mProject = project;
     public void SetCurrentPartProvider(Func<IMidiPart?> provider) => mCurrentPart = provider;
     public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantization = provider;
+    public void SetSelectionProvider(Func<ScriptSelection?> provider) => mSelection = provider;
 
     readonly DockPanel mRoot = new() { LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
     readonly TextEditor mCodeBox;
@@ -45,6 +46,7 @@ internal sealed class ScriptSideBarContentProvider
     IProject? mProject;
     Func<IMidiPart?>? mCurrentPart;
     Func<IQuantization?>? mQuantization;
+    Func<ScriptSelection?>? mSelection;
 
     // 脚本库管理：顶部一行 = 左侧脚本选择钮（点开下拉，列库内脚本、行内 ✕ 删除，仿 Agent 会话下拉）+ 右侧 ⋯ 菜单
     // （打开/导入/保存/另存/重命名，仿 Properties 的 preset ⋯ 收起范式）。脚本以 .js 文件存于 PathManager.ScriptsFolder，
@@ -284,7 +286,7 @@ internal sealed class ScriptSideBarContentProvider
         if (string.IsNullOrWhiteSpace(code)) { mOutputBox.Text = "Script is empty."; return; }
 
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, () => TranslationManager.CurrentLanguage.Value, ScriptLimits.Interactive, code, CancellationToken.None); }
+        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, () => TranslationManager.CurrentLanguage.Value, mSelection, ScriptLimits.Interactive, code, CancellationToken.None); }
         catch (Exception ex) { mOutputBox.Text = "Host error: " + ex.Message; return; }
 
         var sb = new System.Text.StringBuilder();

@@ -18,6 +18,7 @@ using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
+using TuneLab.Scripting;
 using TuneLab.SDK;
 using TuneLab.Utils;
 using ScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility;
@@ -95,7 +96,7 @@ internal sealed class AgentSideBarContentProvider
             {
                 // 操作工程：定向（看） + 脚本（改/算/细读）
                 new GetProjectOverviewTool(project),
-                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
+                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider),
                 new GetScriptApiTool(),
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用。
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
@@ -112,6 +113,7 @@ internal sealed class AgentSideBarContentProvider
     // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。
     public void SetCurrentPartProvider(Func<IMidiPart?> provider) => mCurrentPartProvider = provider;
     public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantizationProvider = provider;
+    public void SetSelectionProvider(Func<ScriptSelection?> provider) => mSelectionProvider = provider;
 
     // ───────────────── 聊天视图 ─────────────────
 
@@ -1883,6 +1885,7 @@ internal sealed class AgentSideBarContentProvider
     IProject? mProject;
     Func<IMidiPart?>? mCurrentPartProvider;
     Func<IQuantization?>? mQuantizationProvider;
+    Func<ScriptSelection?>? mSelectionProvider;
     IReadOnlyList<IAgentTool> mTools = [];
     IAgentModelSession? mSession;
 

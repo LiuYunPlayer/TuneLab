@@ -60,6 +60,16 @@ internal partial class TrackScrollView
                             // 在内容区交互即视为焦点离开轨道头 → 清掉轨道头选中（省去滚到底找空白取消的麻烦）。
                             Project.Tracks.DeselectAllItems();
 
+                            mPrimaryDownPos = e.Position;   // 供抬起时判定"点击(未拖)→清空范围选区"
+
+                            // Shift + 拖 = 画 DAW 式范围选区（常驻、零工具切换；素拖仍走下方 part 框选）。范围与对象正交，
+                            // 故命中 part 与否一律进此分支。Alt 透传给 op 作免吸附。清空交给抬起的点击阈值判定统一处理。
+                            if ((e.KeyModifiers & ModifierKeys.Shift) != 0)
+                            {
+                                mRegionSelectionOperation.Down(e.Position, alt);
+                                break;
+                            }
+
                             bool ctrl = e.KeyModifiers == ModifierKeys.Ctrl;
                             var item = ItemAt(e.Position);
                             if (item is PartItem partItem)
@@ -375,6 +385,9 @@ internal partial class TrackScrollView
             case State.Selecting:
                 mSelectOperation.Move(e.Position);
                 break;
+            case State.RegionSelecting:
+                mRegionSelectionOperation.Move(e.Position, alt);
+                break;
             case State.PartMoving:
                 mPartMoveOperation.Move(e.Position, alt);
                 break;
@@ -403,6 +416,10 @@ internal partial class TrackScrollView
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mSelectOperation.Up();
                 break;
+            case State.RegionSelecting:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mRegionSelectionOperation.Up();
+                break;
             case State.PartMoving:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mPartMoveOperation.Up();
@@ -415,6 +432,15 @@ internal partial class TrackScrollView
                 break;
         }
 
+        // 主键点击(未拖，位移 < 阈值)即清空范围选区：非 Shift 点击=框选零矩形、Shift 点击=零宽选区，二者都该清。
+        // 真拖(框选/移动 part/Shift 画区)位移超阈值不触发；右键永不参与(留给常驻右键菜单)。
+        if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+        {
+            var d = e.Position - mPrimaryDownPos;
+            if (d.X * d.X + d.Y * d.Y <= ClickThreshold * ClickThreshold)
+                ClearSelection();
+        }
+
         if (e.MouseButtonType == MouseButtonType.MiddleButton)
             mMiddleDragOperation.Up();
     }
@@ -423,6 +449,13 @@ internal partial class TrackScrollView
     {
         switch (mState)
         {
+            case State.RegionSelecting:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mRegionSelectionOperation.Move(MousePosition, true);
+                    e.Handled = true;
+                }
+                break;
             case State.PartMoving:
                 if (e.Key == Key.LeftAlt)
                 {
@@ -444,6 +477,13 @@ internal partial class TrackScrollView
     {
         switch (mState)
         {
+            case State.RegionSelecting:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mRegionSelectionOperation.Move(MousePosition, false);
+                    e.Handled = true;
+                }
+                break;
             case State.PartMoving:
                 if (e.Key == Key.LeftAlt)
                 {
@@ -715,6 +755,74 @@ internal partial class TrackScrollView
     }
 
     readonly SelectOperation mSelectOperation;
+
+    // Shift+拖 画的 DAW 式范围选区操作：与 SelectOperation(框选 parts)并列、但与对象无关——只把 tick×轨道矩形
+    // 写进编辑器态(TrackScrollView.SetSelection)。tick 默认吸量化网格(Alt 免吸附)、纵向吸整轨并钳到现存轨道。
+    // 未拖(点击)不建区——清/留交给 OnMouseUp 的点击阈值判定，故 Down 不动旧选区、Up 也不收尾。
+    class RegionSelectionOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
+    {
+        public bool IsOperating => State == State.RegionSelecting;
+
+        public void Down(Avalonia.Point point, bool alt)
+        {
+            if (State != State.None)
+                return;
+
+            if (TrackScrollView.Project == null)
+                return;
+
+            State = State.RegionSelecting;
+            mDownTick = TickAt(point.X, alt);
+            mDownTrackIndex = TrackIndexAt(point.Y);
+        }
+
+        public void Move(Avalonia.Point point, bool alt)
+        {
+            if (!IsOperating)
+                return;
+
+            if (TrackScrollView.Project == null)
+                return;
+
+            double tick = TickAt(point.X, alt);
+            int trackIndex = TrackIndexAt(point.Y);
+            TrackScrollView.SetSelection(new(
+                Math.Min(tick, mDownTick), Math.Max(tick, mDownTick),
+                Math.Min(trackIndex, mDownTrackIndex), Math.Max(trackIndex, mDownTrackIndex)));
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            State = State.None;
+        }
+
+        double TickAt(double x, bool alt)
+        {
+            double tick = TrackScrollView.TickAxis.X2Tick(x);
+            if (!alt)
+                tick = TrackScrollView.GetQuantizedTick(tick);
+            return Math.Max(0, tick);
+        }
+
+        int TrackIndexAt(double y)
+        {
+            int count = TrackScrollView.Project!.Tracks.Count;
+            int index = TrackScrollView.TrackVerticalAxis.GetPosition(y).TrackIndex;
+            return Math.Clamp(index, 0, Math.Max(0, count - 1));
+        }
+
+        double mDownTick;
+        int mDownTrackIndex;
+    }
+
+    readonly RegionSelectionOperation mRegionSelectionOperation;
+
+    // 主键按下点 + 点击判定阈值：抬起时位移 ≤ 阈值即视为"点击(未拖)"，用于清空范围选区。
+    Avalonia.Point mPrimaryDownPos;
+    const double ClickThreshold = 4;
 
     class PartMoveOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
@@ -1021,6 +1129,7 @@ internal partial class TrackScrollView
     {
         None,
         Selecting,
+        RegionSelecting,
         PartMoving,
         PartEndResizing,
         FileDragging,

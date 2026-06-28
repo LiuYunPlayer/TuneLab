@@ -31,6 +31,7 @@ using System.Xml.Linq;
 using System.Text.Json;
 using TuneLab.I18N;
 using TuneLab.Configs;
+using TuneLab.Scripting;
 using Splat;
 using System.Reactive.Joins;
 using System.Runtime.InteropServices;
@@ -68,10 +69,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // agent 经此实时读取"当前编辑 part"（用户说"当前/这个 part"时解析序号）与当前量化（吸附网格）。
         mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
+        mAgentSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mScriptSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
+        mScriptSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);
         // 用户脚本工具菜单的访问器（顶部 Scripts 菜单 + 各右键菜单共用）：工程随新建/打开切换，故传访问器。
-        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization);
+        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 320, Margin = new(1, 0, 0, 0) };
@@ -1415,6 +1418,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     IPart? mLastPart = null;
 
     readonly TrackWindow mTrackWindow;
+    // 编排区范围选区（编辑器态）→ 脚本快照（tl.selection()）：UI 侧 0-based 行号在此边界转 1-based 轨道号。无选区 null。
+    ScriptSelection? CurrentScriptSelection()
+    {
+        var sel = mTrackWindow.TrackScrollView.CurrentSelection;
+        return sel is { } s ? new ScriptSelection(s.StartTick, s.EndTick, s.StartTrackIndex + 1, s.EndTrackIndex + 1) : null;
+    }
+
     readonly FunctionBar mFunctionBar;
     readonly PianoWindow mPianoWindow;
     readonly SideBar mRightSideBar;
