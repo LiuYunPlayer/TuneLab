@@ -23,7 +23,7 @@ public class DataDocument : DataObject
         StatusChanged?.Invoke();
     }
 
-    public bool Pushable()
+    public override bool Pushable()
     {
         return mUncommitedCommands.IsEmpty();
     }

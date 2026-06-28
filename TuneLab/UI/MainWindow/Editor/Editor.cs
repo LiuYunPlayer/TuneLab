@@ -70,6 +70,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mScriptSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
+        // 用户脚本工具菜单的访问器（顶部 Scripts 菜单 + 各右键菜单共用）：工程随新建/打开切换，故传访问器。
+        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 320, Margin = new(1, 0, 0, 0) };
@@ -397,6 +399,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mExportSideBarContentProvider.SetProject(Project);
         mAgentSideBarContentProvider.SetProject(Project);
         mScriptSideBarContentProvider.SetProject(Project);
+        // 工程就绪后重建 Scripts 菜单（菜单可能在首个工程加载前就建好、那时只有占位项）。
+        mRebuildScriptsMenu?.Invoke();
 
         StartAutoSynthesis();
         mAutoSaveTimer.Start();
@@ -1220,6 +1224,24 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         {
+            // 用户脚本工具（context=global）：脚本库里定义了 getScriptInfo 的脚本自动出现于此（按 category 分组）。
+            // 每次打开时重建——用户增删/改脚本即时反映（与 Recent Files 同范式）。
+            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Scripts");
+            void Rebuild()
+            {
+                menuBarItem.Items.Clear();
+                foreach (var item in ScriptToolMenu.BuildGlobalMenuItems(this))
+                    menuBarItem.Items.Add(item);
+            }
+            // 不在本菜单自身 SubmenuOpened 时重建——边打开边换 Items 会让首次悬浮二级（分组）子菜单被立即关闭
+            // （与 Recent Files 同坑）。改为：内容须在菜单打开前就备好——靠脚本目录的文件监视器在增删改时提前重建。
+            mRebuildScriptsMenu = Rebuild;
+            Rebuild();
+            SetupScriptsWatcher(Rebuild);
+            menu.Items.Add(menuBarItem);
+        }
+
+        {
             var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Extensions");
             {
                 var menuItem = new MenuItem().SetTrName("Install/Update").SetAction(async () =>
@@ -1273,6 +1295,32 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     MenuItem mUndoMenuItem;
     MenuItem mRedoMenuItem;
     public MenuItem mRecentFilesMenu;
+
+    // 顶部 Scripts 菜单的重建钩子 + 脚本目录监视器（用户增删改脚本时提前重建菜单，避免边打开边改）。
+    Action? mRebuildScriptsMenu;
+    System.IO.FileSystemWatcher? mScriptsWatcher;
+
+    void SetupScriptsWatcher(Action rebuild)
+    {
+        try
+        {
+            PathManager.MakeSureExist(PathManager.ScriptsFolder);
+            mScriptsWatcher = new System.IO.FileSystemWatcher(PathManager.ScriptsFolder, "*.js")
+            {
+                NotifyFilter = System.IO.NotifyFilters.FileName | System.IO.NotifyFilters.LastWrite,
+                EnableRaisingEvents = true,
+            };
+            void OnChanged(object? s, System.IO.FileSystemEventArgs e) => Dispatcher.UIThread.Post(rebuild);
+            mScriptsWatcher.Created += OnChanged;
+            mScriptsWatcher.Deleted += OnChanged;
+            mScriptsWatcher.Changed += OnChanged;
+            mScriptsWatcher.Renamed += (s, e) => Dispatcher.UIThread.Post(rebuild);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning("Failed to watch scripts folder: " + ex.Message);
+        }
+    }
 
     class PlayheadForProject : IPlayhead
     {

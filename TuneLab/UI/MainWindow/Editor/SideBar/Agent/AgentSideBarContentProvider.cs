@@ -116,7 +116,7 @@ internal sealed class AgentSideBarContentProvider
                 new ApplyEditsTool(mProjectEditor),
                 // Layer 4 脚本逃生口（独立脚本模块，整段一个可撤销单位）：复杂/批量/带循环条件的编辑。
                 // get_script_api 是其「按需文档」（渐进式披露）：完整 API 不常驻 prompt，模型写脚本前调一次取回。
-                new RunScriptTool(project!, mCurrentPartProvider, mQuantizationProvider),
+                new RunScriptTool(project!, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
                 new GetScriptApiTool(),
             }
             : [];

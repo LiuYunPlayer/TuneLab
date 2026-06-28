@@ -17,8 +17,10 @@ internal static class ScriptApiReference
         "\n" +
         "tl  (the editor)\n" +
         "  tl.ppq                                   ticks per quarter note (scalar property)\n" +
+        "  tl.language                              current UI culture code, e.g. \"zh-CN\"/\"en-US\" (for localized text)\n" +
         "  tl.currentProject()                      -> project   (your data entry point)\n" +
         "  tl.currentPart()                         part | null   (the part open in the piano editor)\n" +
+        "  tl.selectedParts()                       [part]   (parts selected in the arrangement)\n" +
         "  tl.playhead()                            {tick, seconds, bar, beat, playing}\n" +
         "  tl.snap(tick)                            tick snapped to the editor grid\n" +
         "\n" +

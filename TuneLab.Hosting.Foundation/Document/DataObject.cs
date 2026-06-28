@@ -31,6 +31,8 @@ public abstract class DataObject : IDataObject
         return new MergeScope(this);
     }
 
+    // 委托到撤销根；无父（游离/根本身另行 override）默认可申请。
+    public virtual bool Pushable() => mParent?.Pushable() ?? true;
     public virtual bool Commit() => mParent?.Commit() ?? false;
     public virtual bool Discard() => mParent?.Discard() ?? false;
     public virtual bool DiscardTo(Head head) => mParent?.DiscardTo(head) ?? false;

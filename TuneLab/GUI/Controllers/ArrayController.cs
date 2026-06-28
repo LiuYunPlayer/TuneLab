@@ -530,6 +530,7 @@ abstract class ForwardingDataObject(IDataObject inner) : IDataObject
     public IDisposable MergeNotify() => inner.MergeNotify();
     public void BeginMergeNotify() => inner.BeginMergeNotify();
     public void EndMergeNotify() => inner.EndMergeNotify();
+    public bool Pushable() => inner.Pushable();
     public bool Commit() => inner.Commit();
     public bool Discard() => inner.Discard();
     public bool DiscardTo(Head head) => inner.DiscardTo(head);

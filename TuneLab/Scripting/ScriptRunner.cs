@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using Jint;
 using Jint.Native;
+using Jint.Native.Function;
 using Jint.Runtime.Interop;
 using TuneLab.Data;
 using TuneLab.Foundation;
@@ -11,38 +12,59 @@ using TuneLab.Foundation;
 namespace TuneLab.Scripting;
 
 // 一次脚本运行的结果。Ok=false 时 Error 为给脚本作者（含 agent 模型）的清晰错误说明。
-// Committed=出错前/正常结束时是否有改动落地成一个可撤销单位；Output=脚本 print/log 的捕获文本。
+// Committed=是否有改动落地成一个可撤销单位（出错/取消则原子回退，恒为 false）；Output=脚本 print/log 的捕获文本。
+// Changes=本次尝试的改动数（成功时即已提交数；出错时为回退掉的数，仅供信息）。
 internal readonly record struct ScriptRunResult(bool Ok, string? Error, string Output, string? ResultText, bool Committed, int Changes);
+
+// 运行资源上限——按触发源分流：agent 写的代码当失控保险丝（紧）；用户显式运行放宽（无时限、靠 Cancel 中止）。
+internal readonly record struct ScriptLimits(TimeSpan? Timeout, int MaxStatements)
+{
+    // agent：紧上限，防模型写出失控循环。
+    public static readonly ScriptLimits Agent = new(TimeSpan.FromSeconds(5), 5_000_000);
+    // 用户显式运行（侧栏 / 菜单工具）：时限大幅放宽以容纳大批量任务，语句上限放大；仅作失控保险丝。
+    // 注：脚本当前在 UI 线程同步跑，真正"不冻 UI 的可取消长任务"需后台执行（后续 phase），故此处仍保留有限时限兜底。
+    public static readonly ScriptLimits Interactive = new(TimeSpan.FromSeconds(60), 200_000_000);
+}
 
 // 脚本运行的【独立宿主】：不依赖 agent。负责
 //  ① 构造沙箱化的 Jint 引擎（不暴露 CLR、限递归/语句数/超时/内存）；
-//  ② 注入动作面 `tl`（ScriptProjectApi）与 print/log/console.log 输出捕获；
-//  ③ 在最外层把"整段脚本 = 一次 Commit"与 merge 括号收口包起来（脚本语言面看不到这些危险操作）。
+//  ② 注入动作面 `tl`（ScriptApp）与 print/log/console.log 输出捕获；
+//  ③ 双模式分发：脚本定义了 getScriptInfo（=工具）则动作在 main()，否则整段脚本体即动作；
+//  ④ 在最外层把"整段脚本 = 一次 Commit / 出错原子回退"与 merge 括号收口包起来（脚本语言面看不到这些）。
 internal static class ScriptRunner
 {
     const int MaxOutput = 16 * 1024;          // 捕获输出上限（防淹没）
-    const int MaxStatements = 5_000_000;      // 语句数上限（截断死循环）
-    static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
-    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, string code, CancellationToken cancellationToken)
+    // 沙箱化引擎工厂（运行与元数据枚举共用）：不开 CLR；限递归/语句数/内存/超时；camelCase→PascalCase。
+    internal static Engine CreateEngine(ScriptLimits limits, CancellationToken cancellationToken)
     {
-        var context = new ScriptContext(project, currentPart, quantization);
+        return new Engine(options =>
+        {
+            options.LimitRecursion(64);
+            options.MaxStatements(limits.MaxStatements);
+            if (limits.Timeout is { } timeout)
+                options.TimeoutInterval(timeout);
+            options.LimitMemory(64L * 1024 * 1024);
+            options.CancellationToken(cancellationToken);
+            // 让 JS 的 camelCase 成员名匹配 C# 的 PascalCase（tl.addNote → AddNote、note.pos → Pos、tl.language → Language）。
+            options.SetTypeResolver(new TypeResolver { MemberNameComparer = StringComparer.OrdinalIgnoreCase });
+        });
+    }
+
+    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, ScriptLimits limits, string code, CancellationToken cancellationToken)
+    {
+        // 入口守卫：别处 UI 操作中途（未提交栈非空）禁止运行——否则 Commit 会吞掉它的未提交改动、与其在途数据交错。
+        if (!project.Pushable())
+            return new ScriptRunResult(false, "another operation is in progress; finish or cancel it first.", "", null, false, 0);
+
+        var context = new ScriptContext(project, currentPart, quantization, language);
         var output = new StringBuilder();
         string? resultText = null;
         string? error = null;
 
         try
         {
-            var engine = new Engine(options =>
-            {
-                options.LimitRecursion(64);
-                options.MaxStatements(MaxStatements);
-                options.TimeoutInterval(Timeout);
-                options.LimitMemory(64L * 1024 * 1024);
-                options.CancellationToken(cancellationToken);
-                // 让 JS 的 camelCase 成员名匹配 C# 的 PascalCase（tl.addNote → AddNote、note.pos → Pos）。
-                options.SetTypeResolver(new TypeResolver { MemberNameComparer = StringComparer.OrdinalIgnoreCase });
-            });
+            var engine = CreateEngine(limits, cancellationToken);
 
             void Print(JsValue v)
             {
@@ -55,9 +77,19 @@ internal static class ScriptRunner
             engine.SetValue("log", Print);
             engine.Execute("globalThis.console = { log: print, info: print, warn: print, error: print, debug: print };");
 
+            // 顶层：工具脚本=定义出 getScriptInfo/main（约定无副作用）；普通脚本=整段即动作。
             var completion = engine.Evaluate(code);
-            if (completion is not null && !completion.IsUndefined() && !completion.IsNull())
+            if (engine.GetValue("getScriptInfo") is Function)
+            {
+                // 工具脚本：动作在 main()。其返回值（若有）作为结果文本。
+                var mainResult = engine.Invoke("main");
+                if (mainResult is not null && !mainResult.IsUndefined() && !mainResult.IsNull())
+                    resultText = Format(mainResult);
+            }
+            else if (completion is not null && !completion.IsUndefined() && !completion.IsNull())
+            {
                 resultText = Format(completion);
+            }
         }
         catch (Jint.Runtime.JavaScriptException jse)
         {
@@ -74,12 +106,12 @@ internal static class ScriptRunner
                 : ex.Message;      // 超时 / 递归 / 内存 / 语句数上限等
         }
 
-        // 无论成功/失败/取消：统一关 merge 括号；有改动则提交成一个可撤销单位（与 apply_edits 的"部分成功也落地"一致）。
-        bool committed = context.Finish();
+        // 收口：成功且有改动 → 提交成一个可撤销单位；出错/取消/无改动 → 原子回退到跑脚本前的干净状态。
+        bool committed = context.Finish(rollback: error != null);
         return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount);
     }
 
-    static string Format(JsValue v)
+    internal static string Format(JsValue v)
     {
         if (v is null || v.IsUndefined()) return "undefined";
         if (v.IsNull()) return "null";

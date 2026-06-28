@@ -24,6 +24,8 @@ internal sealed class ScriptContext
     readonly IProject mProject;
     readonly Func<IMidiPart?>? mCurrentPart;
     readonly Func<IQuantization?>? mQuantization;
+    readonly Func<string?>? mLanguage;
+    readonly Head mStartHead;   // 运行前的撤销锚点（构造时即捕获，早于任何 merge 括号/改动）；出错回退至此
 
     // 句柄缓存（按底层对象引用）：同一对象多次读取返回同一句柄，使脚本里 === 成立、并支持删除后置失效标记。
     readonly Dictionary<INote, ScriptNote> mNotes = new();
@@ -35,17 +37,21 @@ internal sealed class ScriptContext
     readonly HashSet<IMidiPart> mBracketed = new();
     int mChanges;   // 发生的改动计数（>0 才 Commit）
 
-    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization)
+    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language)
     {
         mProject = project;
         mCurrentPart = currentPart;
         mQuantization = quantization;
+        mLanguage = language;
+        mStartHead = project.Head;
     }
 
     // ── 给根对象（ScriptApp / ScriptProject）读的底层入口 ──
     internal IProject Project => mProject;
     internal IMidiPart? CurrentMidiPart => mCurrentPart?.Invoke();
     internal IQuantization? Quantization => mQuantization?.Invoke();
+    // 当前界面语言文化码（如 "zh-CN"）；脚本经 tl.language 读，用于本地化显示名/对话框文案。无源时空串。
+    internal string Language => mLanguage?.Invoke() ?? "";
 
     // ── 写收口 ──
     internal void Bump() => mChanges++;
@@ -59,9 +65,12 @@ internal sealed class ScriptContext
         }
     }
 
-    // 关闭所有 merge 括号；有改动则提交成一次可撤销单位。返回是否提交。宿主在 finally 调用（含脚本抛错路径，
-    // 此时把"出错前已发生的改动"也作为一个可撤销单位落地——与 apply_edits 的"部分成功也落地"一致）。
-    internal bool Finish()
+    // 关闭所有 merge 括号后收口。宿主在最外层 finally 调用：
+    //  · rollback=false 且有改动 → Commit 成一个可撤销单位，返回 true；
+    //  · rollback=true（脚本抛错/超时/取消）或无改动 → DiscardTo(startHead) 撤掉本次运行的全部未提交命令
+    //    （含 merge 括号），干净回退到跑脚本前状态，返回 false。
+    // 必须先关括号再收口：先 EndMerge 让 Begin/End 在未提交栈里成对平衡，DiscardTo 的逆序 Undo 才与一次正常 Undo 等价。
+    internal bool Finish(bool rollback)
     {
         foreach (var part in mBracketed)
         {
@@ -69,11 +78,12 @@ internal sealed class ScriptContext
             part.EndMergeDirty();
         }
         mBracketed.Clear();
-        if (mChanges > 0)
+        if (!rollback && mChanges > 0)
         {
             mProject.Commit();
             return true;
         }
+        mProject.DiscardTo(mStartHead);
         return false;
     }
 

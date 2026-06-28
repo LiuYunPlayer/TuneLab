@@ -57,6 +57,9 @@
 "Save" = "保存"
 "Tips" = "提示"
 "Error" = "错误"
+"Failed to load script:" = "加载脚本失败："
+"Host error:" = "宿主错误："
+"All changes were rolled back; the project is unchanged." = "所有改动已回退，工程未改变。"
 "Program crashed last time. Open auto-backup file?" = "程序异常退出。要打开自动备份文件么？"
 "The project has not been saved.\n Do you want to save it?" = "工程还未保存。\n 是否保存？"
 "Input Lyrics" = "输入歌词"
@@ -167,6 +170,10 @@
 "Transport" = "走带"
 "Play" = "播放"
 "Pause" = "暂停"
+
+"Scripts" = "脚本"
+"No script tools" = "无脚本工具"
+"Script" = "脚本"
 
 "Cut" = "剪切"
 "Copy" = "复制"

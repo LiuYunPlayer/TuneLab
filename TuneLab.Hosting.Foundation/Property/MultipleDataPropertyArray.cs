@@ -146,6 +146,7 @@ public sealed class MultipleDataPropertyArray : IDataPropertyArray
     public IDisposable MergeNotify() => mBase.MergeNotify();
     public void BeginMergeNotify() => mBase.BeginMergeNotify();
     public void EndMergeNotify() => mBase.EndMergeNotify();
+    public bool Pushable() => mBase.Pushable();
     public bool Commit() => mBase.Commit();
     public bool Discard() => mBase.Discard();
     public bool DiscardTo(Head head) => mBase.DiscardTo(head);

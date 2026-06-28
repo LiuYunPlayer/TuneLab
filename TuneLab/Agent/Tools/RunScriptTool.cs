@@ -14,7 +14,7 @@ namespace TuneLab.Agent;
 //
 // 工具本身很薄：解析 code 字符串，交给【独立的脚本模块】(TuneLab.Scripting) 执行，把日志/结果/错误回灌。
 // 脚本引擎、动作面 API、沙箱、整段=一次 Commit 的收口都在脚本模块里，不在 agent 层——agent 只是它的一个消费者。
-internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization) : IAgentTool
+internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language) : IAgentTool
 {
     public string Name => "run_script";
 
@@ -54,7 +54,7 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
             return Task.FromResult("Error: \"code\" is empty.");
 
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, currentPart, quantization, code, cancellationToken); }
+        try { result = ScriptRunner.Run(project, currentPart, quantization, language, ScriptLimits.Agent, code, cancellationToken); }
         catch (Exception ex) { return Task.FromResult("Error: " + ex.Message); }
 
         var sb = new StringBuilder();
@@ -67,8 +67,8 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
         else
         {
             sb.Append("Script error: ").Append(result.Error);
-            if (result.Committed)
-                sb.Append(string.Format("\n(Edits made before the error — {0} — were still applied as one undoable change. Re-read state before retrying.)", result.Changes));
+            // 原子回退：出错时跑脚本前的全部改动已撤销，工程未变。修脚本本身后重跑，不要基于当前状态打补丁。
+            sb.Append("\n(All changes were rolled back; the project is unchanged. Fix the script and re-run — do not patch from current state.)");
         }
         if (!string.IsNullOrEmpty(result.Output))
             sb.Append("\n--- output ---\n").Append(result.Output.TrimEnd('\n'));

@@ -39,6 +39,13 @@ internal static class ScriptLibrary
     public static bool Exists(string name)
         => !string.IsNullOrWhiteSpace(name) && File.Exists(PathFor(name));
 
+    // 文件最后写入时间（UTC），用于元数据枚举的缓存失效；不存在/读失败返回 MinValue。
+    public static DateTime GetLastWriteTimeUtc(string name)
+    {
+        try { return File.GetLastWriteTimeUtc(PathFor(name)); }
+        catch { return DateTime.MinValue; }
+    }
+
     public static string Read(string name)
         => File.ReadAllText(PathFor(name));
 

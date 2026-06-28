@@ -314,6 +314,7 @@ internal partial class PianoScrollView
                                             var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(Delete).SetInputGesture(Key.Delete);
                                             menu.Items.Add(menuItem);
                                         }
+                                        ScriptToolMenu.AppendContextTools(menu.Items, Scripting.ScriptToolContext.Note, this);   // 命中音符 → note 工具（目标=选中音符）
                                     }
                                     else
                                     {
@@ -329,6 +330,7 @@ internal partial class PianoScrollView
                                                 menu.Items.Add(menuItem);
                                             }
                                         }
+                                        ScriptToolMenu.AppendContextTools(menu.Items, Scripting.ScriptToolContext.PartContent, this);   // 钢琴空白 → partContent 工具（目标=当前 part）
                                     }
 
                                     this.OpenContextMenu(menu);

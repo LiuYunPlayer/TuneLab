@@ -293,6 +293,7 @@ internal partial class TrackScrollView
                                         var menuItem = new MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(DeleteAllSelectedParts).SetInputGesture(Key.Delete);
                                         menu.Items.Add(menuItem);
                                     }
+                                    ScriptToolMenu.AppendContextTools(menu.Items, Scripting.ScriptToolContext.Part, this);   // 命中 part → part 工具（目标=选中 parts）
                                 }
                             }
                             else

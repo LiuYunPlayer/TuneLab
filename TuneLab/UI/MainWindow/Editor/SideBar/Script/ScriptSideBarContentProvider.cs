@@ -284,7 +284,7 @@ internal sealed class ScriptSideBarContentProvider
         if (string.IsNullOrWhiteSpace(code)) { mOutputBox.Text = "Script is empty."; return; }
 
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, code, CancellationToken.None); }
+        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, () => TranslationManager.CurrentLanguage.Value, ScriptLimits.Interactive, code, CancellationToken.None); }
         catch (Exception ex) { mOutputBox.Text = "Host error: " + ex.Message; return; }
 
         var sb = new System.Text.StringBuilder();
@@ -295,8 +295,7 @@ internal sealed class ScriptSideBarContentProvider
         else
         {
             sb.Append("✗ Script error: ").Append(result.Error);
-            if (result.Committed)
-                sb.Append(string.Format("\n(Edits made before the error — {0} — were still applied as one undoable change.)", result.Changes));
+            sb.Append("\n(All changes were rolled back — the project is unchanged.)");
         }
         if (!string.IsNullOrEmpty(result.Output))
             sb.Append("\n\n--- output ---\n").Append(result.Output.TrimEnd('\n'));

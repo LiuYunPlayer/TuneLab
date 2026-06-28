@@ -25,6 +25,9 @@ public interface IDataObject : IReadOnlyNotifiable
     // 显式合并边界（跨方法 begin/end 用）；同一段内成对调用，常态优先用 MergeNotify() 作用域。
     void BeginMergeNotify();
     void EndMergeNotify();
+    // 文档当前是否处于"无未提交命令"的可申请提交态：为真才可安全发起一段新的提交。
+    // 委托到撤销根（DataDocument），用于在另一处 UI 操作中途时拒绝发起脚本/批量提交，避免吞掉它的未提交改动。
+    bool Pushable();
     bool Commit();
     bool Discard();
     bool DiscardTo(Head head);
@@ -43,6 +46,7 @@ public interface IDataObject : IReadOnlyNotifiable
         public IDisposable MergeNotify() => dataObject.MergeNotify();
         public void BeginMergeNotify() => dataObject.BeginMergeNotify();
         public void EndMergeNotify() => dataObject.EndMergeNotify();
+        public bool Pushable() => dataObject.Pushable();
         public bool Commit() => dataObject.Commit();
         public bool Discard() => dataObject.Discard();
         public bool DiscardTo(Head head) => dataObject.DiscardTo(head);

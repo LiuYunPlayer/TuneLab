@@ -26,6 +26,10 @@ internal sealed class ScriptApp
     // 每四分音符的 tick 数（系统常量；C# 中在 MusicTheory，不在 IProject，故归编辑器/系统级）。
     public double Ppq => MusicTheory.RESOLUTION;
 
+    // 当前界面语言文化码（如 "zh-CN"/"en-US"）。用于在 getScriptInfo 里产出本地化显示名、或动作里本地化对话框文案。
+    // 与工程无关，无工程打开时亦可读。
+    public string Language => mContext.Language;
+
     // 当前工程对象（脚本的工程数据入口）。
     public ScriptProject CurrentProject() => mProject;
 
@@ -35,6 +39,10 @@ internal sealed class ScriptApp
         var part = mContext.CurrentMidiPart;
         return part == null ? null : mContext.WrapPart(part);
     }
+
+    // 编排区当前选中的 parts（跨全部轨道，支持多选）；无选中返回空数组。右键某 part 时它必被选中，故这是"右键目标"的入口。
+    public ScriptPart[] SelectedParts()
+        => mContext.Project.Tracks.SelectMany(t => t.Parts).Where(p => p.IsSelected).Select(mContext.WrapPart).ToArray();
 
     public ScriptPlayhead Playhead()
     {
