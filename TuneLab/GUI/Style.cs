@@ -34,6 +34,13 @@ internal static class Style
     public static readonly Color AMP_WARN = new(255, 255, 214, 51);
     public static readonly Color AMP_PEAK = new(255, 255, 71, 71);
 
+    // 合成状态条语义色（沿用习惯：灰=待合成 橙=合成中 绿=已合成 红=失败）；
+    // 实色不透明，压在音符上也读得清。
+    public static readonly Color SYNTHESIS_PENDING = new(255, 108, 112, 126);
+    public static readonly Color SYNTHESIS_SYNTHESIZING = new(255, 245, 166, 35);
+    public static readonly Color SYNTHESIS_SYNTHESIZED = new(255, 70, 196, 110);
+    public static readonly Color SYNTHESIS_FAILED = new(255, 255, 90, 90);
+
     public static readonly string[] TRACK_COLORS =
     [
         "#737CE5",

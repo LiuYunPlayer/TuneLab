@@ -119,6 +119,20 @@ internal partial class TrackScrollView
                         }
                     }
                 }
+
+                // 合成状态条：贴标题栏下沿一条同款细带（上沿拍直贴标题、下沿小圆角），全局一眼扫到谁在跑/失败。
+                // 位置随标题固定、跨轨对齐；落在标题(16)与内容(20)之间的空隙里、不压音符。编辑视图静态——无流光、无 hover。
+                var synthesisStatus = midiPart.GetSynthesisStatus();
+                if (synthesisStatus.Count > 0)
+                {
+                    const double titleHeight = 16, stripHeight = 3;
+                    double stripTop = top + titleHeight;
+                    if (stripTop + stripHeight <= bottom)   // part 够高才画
+                    {
+                        using (context.PushClip(partRect))
+                            SynthesisStatusStrip.Draw(context, synthesisStatus, tempoManager, view.TickAxis, stripTop, stripHeight, 1.5);
+                    }
+                }
             }
             else if (part is AudioPart audioPart)
             {

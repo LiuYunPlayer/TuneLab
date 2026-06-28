@@ -37,6 +37,40 @@ internal partial class PianoScrollView
         }
     }
 
+    // 合成状态条右键复制：命中某段且该段值得复制（失败 / 带阶段文案）→ 直接把文案拷进剪贴板，返回 true 拦下事件。
+    // 只一个动作不弹菜单（弹也只有「复制」一项）；鼠标仍在条上，hover pill 不消失，正好当“复制了啥”的回显。
+    bool TrySynthesisStripCopy(Avalonia.Point position)
+    {
+        if (Part == null)
+            return false;
+
+        if (position.Y < SynthesisStripTop || position.Y > SynthesisStripTop + SynthesisStripHeight + SynthesisHoverPadding)
+            return false;
+
+        var tempoManager = Part.TempoManager;
+        foreach (var seg in Part.GetSynthesisStatus())
+        {
+            double left = TickAxis.Tick2X(tempoManager.GetTick(seg.StartTime));
+            double right = TickAxis.Tick2X(tempoManager.GetTick(seg.EndTime));
+            if (position.X < left || position.X > right)
+                continue;
+
+            bool worthCopying = seg.Status == SynthesisSegmentStatus.Failed || !string.IsNullOrEmpty(seg.Message);
+            if (!worthCopying)
+                return false;
+
+            string text = SynthesisStatusText(seg);
+            if (string.IsNullOrEmpty(text))
+                return false;
+
+            _ = Avalonia.Controls.TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(text);
+            ShowSynthesisCopyFeedback(seg.StartTime);
+            return true;
+        }
+
+        return false;
+    }
+
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
         switch (mState)
@@ -45,6 +79,10 @@ internal partial class PianoScrollView
                 bool alt = (e.KeyModifiers & ModifierKeys.Alt) != 0;
                 bool ctrl = (e.KeyModifiers & ModifierKeys.Ctrl) != 0;
                 var item = ItemAt(e.Position);
+
+                // 合成状态条：右键命中失败段/带阶段文案的段 → 直接复制文案到剪贴板（报错全文）；其余段照常走下方菜单。
+                if (e.MouseButtonType == MouseButtonType.SecondaryButton && TrySynthesisStripCopy(e.Position))
+                    break;
                 bool DetectWaveformPrimaryButton()
                 {
                     // 波形/音素带：响应音素边界拖拽 + note 头/尾缩放（noteon/noteoff 落在音素分界，故可在带内直接缩放 note）。
@@ -639,6 +677,7 @@ internal partial class PianoScrollView
                 mAnchorMoveOperation.Move(e.Position);
                 break;
             default:
+                UpdateSynthesisHover(e.Position);   // 合成状态条 hover 延时计时（进区域起表/划走取消）
                 var item = ItemAt(e.Position);
                 if (item is WaveformPhonemeResizeItem || item is WaveformNoteStartResizeItem || item is WaveformNoteEndResizeItem)
                 {

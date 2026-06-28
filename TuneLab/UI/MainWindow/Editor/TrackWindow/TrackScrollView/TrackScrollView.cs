@@ -72,6 +72,8 @@ internal partial class TrackScrollView : View
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part.SelectionChanged))).Subscribe(InvalidateVisual, s);
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is AudioPart audioPart ? audioPart.AudioChanged : new ActionEvent()))).Subscribe(InvalidateVisual, s); // TODO: 支持一下可空类型的event
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is AudioPart audioPart ? audioPart.Status.Modified : new ActionEvent()))).Subscribe(InvalidateVisual, s);
+        // midi part 合成状态/进度变化 → 刷新 part 底缝那条状态条（否则当前 part 跑进度时编排视图不动）。
+        mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is IMidiPart midiPart ? midiPart.SynthesisStatusChanged : new ActionEvent()))).Subscribe(InvalidateVisual, s);
         Quantization.QuantizationChanged += InvalidateVisual;
         TickAxis.AxisChanged += Update;
         TrackVerticalAxis.AxisChanged += Update;

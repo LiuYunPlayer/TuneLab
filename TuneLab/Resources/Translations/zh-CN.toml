@@ -45,6 +45,12 @@
 "Please draw pitch first in the area" = "请先在此区域绘制音高"
 "Frequency" = "频率"
 "Phase" = "相位"
+"Pending" = "待合成"
+"Synthesizing" = "合成中"
+"Synthesized" = "已合成"
+"Synthesis failed" = "合成失败"
+"Right-click to copy" = "右键复制"
+"Copied" = "已复制"
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "拖拽以关联颤音"

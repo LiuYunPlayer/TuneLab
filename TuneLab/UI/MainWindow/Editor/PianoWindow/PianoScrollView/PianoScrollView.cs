@@ -20,6 +20,7 @@ using TuneLab.SDK;
 using TuneLab.Utils;
 using TuneLab.I18N;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using TuneLab.Configs;
 using System.IO;
 
@@ -135,6 +136,250 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (Part == null)
             return;
 
+        InvalidateVisual();
+    }
+
+    // —— 合成状态条 —— //
+    const double SynthesisStripTop = 0;
+    const double SynthesisStripHeight = 4;       // 视觉细带
+    const double SynthesisStripRadius = 2;
+    const double SynthesisHoverPadding = 4;      // hover/右键命中区 = 细带 + 这点余量 ≈ 8px；别太大，免得挡住顶部画 note
+    const double SynthesisHoverDelaySeconds = 0.3; // hover 弹文案的延时：鼠标路过不闪、停够才弹
+    const double TopShadowHeight = 18;           // 顶部向下渐隐的暗影高度（常驻，标尺与内容的层次）
+
+    // 顶部渐变阴影：常驻，与状态条无关——让上方 TimelineView 标尺与下方音符内容有层次。
+    void DrawTopShadow(DrawingContext context)
+    {
+        var shadowBrush = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Colors.Black.Opacity(0.3), 0),
+                new GradientStop(Colors.Black.Opacity(0), 1),
+            }
+        };
+        context.FillRectangle(shadowBrush, new Rect(0, 0, Bounds.Width, TopShadowHeight));
+    }
+
+    // —— 合成状态条 hover 延时：鼠标进命中区起表，停够 SynthesisHoverDelaySeconds 才算“就绪”可弹；划走即取消。 —— //
+    bool mSynthesisHovering;
+    bool mSynthesisHoverReady;
+    DispatcherTimer? mSynthesisHoverTimer;
+
+    void UpdateSynthesisHover(Point position)
+    {
+        bool inZone = position.Y >= SynthesisStripTop && position.Y <= SynthesisStripTop + SynthesisStripHeight + SynthesisHoverPadding;
+        if (inZone)
+        {
+            if (mSynthesisHovering)
+                return;
+
+            mSynthesisHovering = true;
+            mSynthesisHoverReady = false;
+            mSynthesisHoverTimer ??= CreateSynthesisHoverTimer();
+            mSynthesisHoverTimer.Stop();
+            mSynthesisHoverTimer.Start();
+        }
+        else if (mSynthesisHovering)
+        {
+            mSynthesisHovering = false;
+            mSynthesisHoverReady = false;
+            mSynthesisHoverTimer?.Stop();
+            InvalidateVisual();
+        }
+    }
+
+    DispatcherTimer CreateSynthesisHoverTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(SynthesisHoverDelaySeconds) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            mSynthesisHoverReady = true;
+            InvalidateVisual();
+        };
+        return timer;
+    }
+    const double SynthesisShimmerPeriod = 1.25;  // 流光一趟的秒数
+
+    DispatcherTimer? mSynthesisShimmerTimer;
+    readonly Stopwatch mSynthesisShimmerClock = new();
+
+    void EnsureSynthesisShimmer()
+    {
+        mSynthesisShimmerTimer ??= CreateSynthesisShimmerTimer();
+        if (!mSynthesisShimmerTimer.IsEnabled)
+        {
+            mSynthesisShimmerClock.Restart();
+            mSynthesisShimmerTimer.Start();
+        }
+    }
+
+    DispatcherTimer CreateSynthesisShimmerTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        timer.Tick += (_, _) => InvalidateVisual();
+        return timer;
+    }
+
+    void StopSynthesisShimmer()
+    {
+        if (mSynthesisShimmerTimer is { IsEnabled: true })
+            mSynthesisShimmerTimer.Stop();
+        mSynthesisShimmerClock.Reset();
+    }
+
+    // hover 命中某段 → 在细带下方弹出文案 pill（阶段/进度/错误全文）；pill 锚在段首、不跟随鼠标、渐显渐隐。
+    // 失败不再画 ⚠——红条本身已是足够的失败信号；要拿走文字用右键「复制」（见 TrySynthesisStripCopy）。
+    void DrawSynthesisStatusOverlay(DrawingContext context, IReadOnlyList<SynthesisStatusSegment> segments, ITempoManager tempoManager)
+    {
+        // 本帧是否该显示 pill：就绪 + 鼠标在命中区 + 命中到有文案的段。命中时记下内容（渐隐期间仍用这份）。
+        bool show = false;
+        if (IsHover && mSynthesisHoverReady)
+        {
+            var mouse = MousePosition;
+            if (mouse.Y >= SynthesisStripTop && mouse.Y <= SynthesisStripTop + SynthesisStripHeight + SynthesisHoverPadding)
+            {
+                foreach (var seg in segments)
+                {
+                    double left = TickAxis.Tick2X(tempoManager.GetTick(seg.StartTime));
+                    double right = TickAxis.Tick2X(tempoManager.GetTick(seg.EndTime));
+                    if (mouse.X < left || mouse.X > right)
+                        continue;
+
+                    string text = SynthesisStatusText(seg);
+                    if (string.IsNullOrEmpty(text))
+                        break;
+
+                    // 正文（报错/进度）恒在；仅尾部提示在“右键复制 ↔ Copied”间原地切换，文案框不变形、不消失。
+                    bool copyable = seg.Status == SynthesisSegmentStatus.Failed || !string.IsNullOrEmpty(seg.Message);
+                    string? hint = null;
+                    if (copyable)
+                    {
+                        bool showCopied = !double.IsNaN(mSynthesisCopiedSegmentStart)
+                            && Math.Abs(mSynthesisCopiedSegmentStart - seg.StartTime) < 1e-6
+                            && mSynthesisCopyClock.Elapsed.TotalSeconds < SynthesisCopyFeedbackSeconds;
+                        hint = showCopied ? "Copied".Tr(this) : "Right-click to copy".Tr(this);
+                    }
+
+                    mTooltipText = text;       // 锚在段首；记下内容供渐隐期间继续绘制
+                    mTooltipHint = hint;
+                    mTooltipAnchorX = left;
+                    show = true;
+                    break;
+                }
+            }
+        }
+
+        AdvanceTooltipFade(show ? 1 : 0);
+        if (mTooltipOpacity > 0.01 && !string.IsNullOrEmpty(mTooltipText))
+            DrawSynthesisTooltip(context, mTooltipAnchorX, mTooltipText!, mTooltipHint, mTooltipOpacity);
+    }
+
+    // —— pill 渐显渐隐：每帧把不透明度朝目标(0/1)推进，过渡期用 16ms 定时器持续重绘。 —— //
+    const double TooltipFadeSeconds = 0.12;
+    double mTooltipOpacity;
+    string? mTooltipText;
+    string? mTooltipHint;
+    double mTooltipAnchorX;
+    DispatcherTimer? mTooltipFadeTimer;
+    readonly Stopwatch mTooltipFadeClock = new();
+
+    void AdvanceTooltipFade(double target)
+    {
+        if (mTooltipOpacity == target)
+        {
+            if (mTooltipFadeTimer is { IsEnabled: true })
+                mTooltipFadeTimer.Stop();
+            mTooltipFadeClock.Reset();
+            return;
+        }
+
+        double dt = mTooltipFadeClock.IsRunning ? mTooltipFadeClock.Elapsed.TotalSeconds : 0;
+        mTooltipFadeClock.Restart();
+        double step = TooltipFadeSeconds <= 0 ? 1 : dt / TooltipFadeSeconds;
+        mTooltipOpacity = target > mTooltipOpacity
+            ? Math.Min(target, mTooltipOpacity + step)
+            : Math.Max(target, mTooltipOpacity - step);
+
+        mTooltipFadeTimer ??= CreateTooltipFadeTimer();
+        if (!mTooltipFadeTimer.IsEnabled)
+            mTooltipFadeTimer.Start();
+    }
+
+    DispatcherTimer CreateTooltipFadeTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        timer.Tick += (_, _) => InvalidateVisual();
+        return timer;
+    }
+
+    string SynthesisStatusText(SynthesisStatusSegment seg)
+    {
+        switch (seg.Status)
+        {
+            case SynthesisSegmentStatus.Pending:
+                return "Pending".Tr(this);
+            case SynthesisSegmentStatus.Synthesized:
+                return "Synthesized".Tr(this);
+            case SynthesisSegmentStatus.Failed:
+                return string.IsNullOrEmpty(seg.Message) ? "Synthesis failed".Tr(this) : seg.Message;
+            case SynthesisSegmentStatus.Synthesizing:
+                string head = seg.Progress > 0 ? $"{(int)Math.Round(seg.Progress.Limit(0, 1) * 100)}%" : "Synthesizing".Tr(this);
+                return string.IsNullOrEmpty(seg.Message) ? head : head + " · " + seg.Message;
+            default:
+                return string.Empty;
+        }
+    }
+
+    // 段首锚定的文案 pill：主文案（白）+ 可选暗色提示（如“右键复制”，LIGHT_WHITE 弱化）；opacity 驱动渐显渐隐。
+    void DrawSynthesisTooltip(DrawingContext context, double anchorX, string text, string? hint, double opacity)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        var face = Typeface.Default;
+        var fMain = new FormattedText(text, culture, FlowDirection.LeftToRight, face, 12, null);
+        FormattedText? fHint = string.IsNullOrEmpty(hint) ? null : new FormattedText(hint, culture, FlowDirection.LeftToRight, face, 12, null);
+
+        const double padH = 8, padV = 4, gap = 10;
+        double textW = fMain.Width + (fHint != null ? gap + fHint.Width : 0);
+        double w = textW + padH * 2;
+        double h = Math.Max(fMain.Height, fHint?.Height ?? 0) + padV * 2;
+        double x = Math.Clamp(anchorX, 0, Math.Max(0, Bounds.Width - w));
+        double y = SynthesisStripTop + SynthesisStripHeight + 4;
+        var rect = new Rect(x, y, w, h);
+        context.DrawRectangle(Style.DARK.Opacity(0.92 * opacity).ToBrush(), new Pen(Style.LINE.Opacity(opacity).ToBrush(), 1), new RoundedRect(rect, 6));
+
+        double cy = y + h / 2;
+        context.DrawString(text, new Point(x + padH, cy), Colors.White.Opacity(opacity).ToBrush(), 12, Alignment.LeftCenter);
+        if (fHint != null)
+            context.DrawString(hint!, new Point(x + padH + fMain.Width + gap, cy), Style.LIGHT_WHITE.Opacity(opacity).ToBrush(), 12, Alignment.LeftCenter);
+    }
+
+    // —— 右键复制成功回显 —— //
+    const double SynthesisCopyFeedbackSeconds = 1.5;
+    readonly Stopwatch mSynthesisCopyClock = new();
+    double mSynthesisCopiedSegmentStart = double.NaN;
+    DispatcherTimer? mSynthesisCopyTimer;
+
+    // 右键复制成功后调用：在该段 pill 上短暂显示“Copied”，到点自动撤掉。
+    void ShowSynthesisCopyFeedback(double segmentStartTime)
+    {
+        mSynthesisCopiedSegmentStart = segmentStartTime;
+        mSynthesisCopyClock.Restart();
+        if (mSynthesisCopyTimer == null)
+        {
+            mSynthesisCopyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(SynthesisCopyFeedbackSeconds) };
+            mSynthesisCopyTimer.Tick += (_, _) =>
+            {
+                mSynthesisCopyTimer!.Stop();
+                mSynthesisCopiedSegmentStart = double.NaN;
+                InvalidateVisual();
+            };
+        }
+        mSynthesisCopyTimer.Stop();
+        mSynthesisCopyTimer.Start();
         InvalidateVisual();
     }
 
@@ -341,45 +586,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
             clip.Dispose();
         }
 
-        var tempoManager = Part.TempoManager;
-
-        // 合成状态带：插件托管的统一状态时间线（按段着色 + 进度 + 失败信息）。
-        foreach (var statusSegment in Part.GetSynthesisStatus())
-        {
-            IBrush brush = statusSegment.Status switch
-            {
-                SynthesisSegmentStatus.Pending => Colors.Gray.Opacity(0.5).ToBrush(),
-                SynthesisSegmentStatus.Failed => Colors.Red.Opacity(0.5).ToBrush(),
-                SynthesisSegmentStatus.Synthesized => Colors.Green.Opacity(0.5).ToBrush(),
-                SynthesisSegmentStatus.Synthesizing => Colors.Orange.Opacity(0.5).ToBrush(),
-                _ => throw new UnreachableException(),
-            };
-            double left = TickAxis.Tick2X(tempoManager.GetTick(statusSegment.StartTime));
-            double right = TickAxis.Tick2X(tempoManager.GetTick(statusSegment.EndTime));
-            if (statusSegment.Status == SynthesisSegmentStatus.Synthesizing)
-            {
-                double center = MathUtility.LineValue(0, left, 1, right, statusSegment.Progress);
-                context.DrawRectangle(Colors.Green.Opacity(0.5).ToBrush(), null, new RoundedRect(new(left, 12, center - left, 8), 2, 0, 0, 2));
-                context.DrawRectangle(Colors.Orange.Opacity(0.5).ToBrush(), null, new RoundedRect(new(center, 12, right - center, 8), 0, 2, 2, 0));
-                if (!string.IsNullOrEmpty(statusSegment.Message))
-                {
-                    var rect = new Rect(left, 8, right - left, 16);
-                    using var clip = context.PushClip(rect);
-                    context.DrawString(statusSegment.Message, rect, Colors.White.ToBrush(), 12, Alignment.LeftCenter, Alignment.LeftCenter);
-                }
-            }
-            else if (statusSegment.Status == SynthesisSegmentStatus.Failed && !string.IsNullOrEmpty(statusSegment.Message))
-            {
-                var rect = new Rect(left, 8, right - left, 16);
-                using var clip = context.PushClip(rect);
-                context.DrawString(statusSegment.Message, rect, Colors.Red.ToBrush(), 12, Alignment.LeftCenter, Alignment.LeftCenter);
-            }
-            else
-            {
-                context.FillRectangle(brush, new Rect(left, 12, right - left, 8), 2);
-            }
-        }
-
         // draw pitch
         double pitchOpacity = MathUtility.LineValue(-6.7, 0, -4.3, 1, TickAxis.ScaleLevel).Limit(0, 1);
         if (pitchOpacity == 0)
@@ -443,6 +649,41 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
 
         DrawWaveform(context);
+
+        // 合成状态条 + 顶部阴影（放在 OnRender 末尾 → 最上层，盖过 pitch/选区/波形等）：
+        // 状态时间线贴音符区顶沿一条细带（灰=待合成 橙=合成中 绿=已合成 红=失败）。合成中段流光需逐帧重绘——
+        // 按是否存在“合成中”段起停定时器；文案不常驻，hover 才弹 pill；右键复制（见 TrySynthesisStripCopy）。
+        var synthesisStatus = Part.GetSynthesisStatus();
+        bool anySynthesizing = false;
+        for (int i = 0; i < synthesisStatus.Count; i++)
+        {
+            if (synthesisStatus[i].Status == SynthesisSegmentStatus.Synthesizing)
+            {
+                anySynthesizing = true;
+                break;
+            }
+        }
+
+        double shimmerPhase = -1;
+        if (anySynthesizing)
+        {
+            EnsureSynthesisShimmer();
+            shimmerPhase = (mSynthesisShimmerClock.Elapsed.TotalSeconds / SynthesisShimmerPeriod) % 1.0;
+        }
+        else
+        {
+            StopSynthesisShimmer();
+        }
+
+        // 顶部渐变阴影（常驻，与有无状态条无关）：让上方标尺(TimelineView)与下方音符内容拉开层次；状态条（若有）再浮其上。
+        DrawTopShadow(context);
+
+        if (synthesisStatus.Count > 0)
+        {
+            var tempoManager = Part.TempoManager;
+            SynthesisStatusStrip.Draw(context, synthesisStatus, tempoManager, TickAxis, SynthesisStripTop, SynthesisStripHeight, SynthesisStripRadius, shimmerPhase);
+            DrawSynthesisStatusOverlay(context, synthesisStatus, tempoManager);
+        }
     }
 
     void DrawSynthesizedPitch(DrawingContext context, Color pitchColor)

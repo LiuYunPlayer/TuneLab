@@ -12,6 +12,7 @@ namespace TuneLab.TestPlugins.V1Voice;
 // 失效与产物；合成时按每个 note 的音高填一段正弦，并产出按出身 note 归属的扁平 phoneme。
 // 用于验证：引擎注册、声库列表、CreateSession、分块状态带（多段着色/进度）、变更标脏增量重合成、
 // snapshot.Notes 与 segment.Notes 的索引对齐契约（产物归属回活 note）。
+// 测试钩子：把某 note 歌词改成 "fail"，该块合成必失败并带报错文案——验证失败段红条 + hover 报错 + 右键复制。
 
 public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 {
@@ -306,6 +307,11 @@ public sealed class TestSession : IVoiceSynthesisSession
                 progress?.Report((double)(sIdx + 1) / steps);
             }
         }
+
+        // 测试用：歌词为 "fail" 的 note 必定让本块合成失败并带报错文案——用于验证失败段红条 + hover 报错 + 右键复制。
+        // 放在模拟耗时之后抛，可肉眼看到该段 橙(合成中)→红(失败) 的过渡。仅本块受影响，其他块照常合成。
+        if (notes.Any(n => string.Equals(n.Lyric, "fail", StringComparison.OrdinalIgnoreCase)))
+            throw new Exception("Synthesis failed: forced test failure triggered by lyric \"fail\".");
 
         // note 可重叠（和弦）：起点恒为首 note（已按 StartTime 升序），但结束须取全体最大——
         // 同起点和弦的数据层序是 EndPos 降，notes[^1] 反而结束最早，不能当块尾。
