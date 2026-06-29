@@ -87,7 +87,8 @@ internal partial class TrackScrollView
 
             var titleRect = partRect.WithHeight(16).Adjusted(Math.Max(0, -partRect.Left) + 8, 0, -8, 0);
             context.DrawRectangle(frameColor.ToBrush(), null, partRect.WithHeight(16).ToRoundedRect(new(4, 4, 0, 0)));
-            var contentRect = partRect.Adjusted(0, 20, 0, -4);
+            // note 内容上移到 +24（与上方状态条 16–19 拉开 ~5px，避免缩略图贴着状态条难分）；下边缘仍留 4px。
+            var contentRect = partRect.Adjusted(0, 24, 0, -4);
             if (part is MidiPart midiPart)
             {
                 using (context.PushClip(titleRect))
@@ -101,7 +102,7 @@ internal partial class TrackScrollView
                     {
                         var (minPitch, maxPitch) = midiPart.PitchRange();
                         double pitchGap = maxPitch - minPitch + 1;
-                        double pitchHeight = Math.Min(contentRect.Height / pitchGap, 8);
+                        double pitchHeight = Math.Min(contentRect.Height / pitchGap, 4);   // 上限 4（偶数像素对齐）：音域很窄时不至于显得过胖
                         double partStartPos = Math.Max(startPos, midiPart.StartPos) - midiPart.Pos;
                         double partEndPos = Math.Min(endPos, midiPart.EndPos) - midiPart.Pos;
                         IBrush brush = frameColor.ToBrush();
@@ -120,18 +121,14 @@ internal partial class TrackScrollView
                     }
                 }
 
-                // 合成状态条：贴标题栏下沿一条同款细带（上沿拍直贴标题、下沿小圆角），全局一眼扫到谁在跑/失败。
-                // 位置随标题固定、跨轨对齐；落在标题(16)与内容(20)之间的空隙里、不压音符。编辑视图静态——无流光、无 hover。
-                var synthesisStatus = midiPart.GetSynthesisStatus();
-                if (synthesisStatus.Count > 0)
+                // 合成状态条：贴标题栏下沿，只标“非可播放”的脏/错区间——待合成&合成中=灰（合成中叠灰色流光）、失败=红；
+                // 已合成/空 part 不显条（绿=可播放=干净）。位置随标题固定、跨轨对齐，落在标题(16)与内容(20)之间、不压音符。
+                const double titleHeight = 16, stripHeight = 3;
+                double stripTop = top + titleHeight;
+                if (stripTop + stripHeight <= bottom)   // part 够高才画
                 {
-                    const double titleHeight = 16, stripHeight = 3;
-                    double stripTop = top + titleHeight;
-                    if (stripTop + stripHeight <= bottom)   // part 够高才画
-                    {
-                        using (context.PushClip(partRect))
-                            SynthesisStatusStrip.Draw(context, synthesisStatus, tempoManager, view.TickAxis, stripTop, stripHeight, 1.5);
-                    }
+                    using (context.PushClip(partRect))
+                        SynthesisStatusStrip.DrawCoarse(context, midiPart.GetSynthesisStatus(), tempoManager, view.TickAxis, stripTop, stripHeight, 1.5, view.SynthesisShimmerPhase);
                 }
             }
             else if (part is AudioPart audioPart)

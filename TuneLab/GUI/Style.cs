@@ -36,7 +36,9 @@ internal static class Style
 
     // 合成状态条语义色（沿用习惯：灰=待合成 橙=合成中 绿=已合成 红=失败）；
     // 实色不透明，压在音符上也读得清。
-    public static readonly Color SYNTHESIS_PENDING = new(255, 108, 112, 126);
+    public static readonly Color SYNTHESIS_PENDING = new(255, 146, 150, 166);
+    // 编排区 part 状态条的脏区间灰：比钢琴窗的 PENDING 更亮——part 选中时会叠白罩(@0.16)冲淡，且底色是轨道色，需更跳。
+    public static readonly Color SYNTHESIS_DIRTY_PART = new(255, 188, 192, 204);
     public static readonly Color SYNTHESIS_SYNTHESIZING = new(255, 245, 166, 35);
     public static readonly Color SYNTHESIS_SYNTHESIZED = new(255, 70, 196, 110);
     public static readonly Color SYNTHESIS_FAILED = new(255, 255, 90, 90);

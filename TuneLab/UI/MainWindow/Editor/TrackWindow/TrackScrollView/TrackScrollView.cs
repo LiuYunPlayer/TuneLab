@@ -14,6 +14,8 @@ using TuneLab.Audio;
 using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using System.Diagnostics;
 using System.IO;
 using TuneLab.Utils;
 using TuneLab.I18N;
@@ -100,12 +102,52 @@ internal partial class TrackScrollView : View
         TrackVerticalAxis.AxisChanged -= Update;
     }
 
+    // —— 合成中流光：扫描是否有 part 正在合成，驱动一个轻量定时器并算相位；PartItem 画脏区间时取用 SynthesisShimmerPhase。 —— //
+    public double SynthesisShimmerPhase => mSynthesisShimmerPhase;
+    double mSynthesisShimmerPhase = -1;
+    DispatcherTimer? mSynthesisShimmerTimer;
+    readonly Stopwatch mSynthesisShimmerClock = new();
+    const double SynthesisShimmerPeriod = 1.25;
+
+    void UpdateSynthesisShimmer()
+    {
+        bool anySynthesizing = Project != null && Project.Tracks.Any(
+            t => t.Parts.Any(p => p is MidiPart mp && mp.GetSynthesisStatus().Any(s => s.Status == SynthesisSegmentStatus.Synthesizing)));
+
+        if (anySynthesizing)
+        {
+            mSynthesisShimmerTimer ??= CreateSynthesisShimmerTimer();
+            if (!mSynthesisShimmerTimer.IsEnabled)
+            {
+                mSynthesisShimmerClock.Restart();
+                mSynthesisShimmerTimer.Start();
+            }
+            mSynthesisShimmerPhase = (mSynthesisShimmerClock.Elapsed.TotalSeconds / SynthesisShimmerPeriod) % 1.0;
+        }
+        else
+        {
+            if (mSynthesisShimmerTimer is { IsEnabled: true })
+                mSynthesisShimmerTimer.Stop();
+            mSynthesisShimmerClock.Reset();
+            mSynthesisShimmerPhase = -1;
+        }
+    }
+
+    DispatcherTimer CreateSynthesisShimmerTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        timer.Tick += (_, _) => InvalidateVisual();
+        return timer;
+    }
+
     protected override void OnRender(DrawingContext context)
     {
         context.FillRectangle(Brushes.Transparent, this.Rect());
 
         if (Project == null)
             return;
+
+        UpdateSynthesisShimmer();
 
         var timeSignatureManager = Project.TimeSignatureManager;
 

@@ -66,6 +66,68 @@ internal static class SynthesisStatusStrip
         }
     }
 
+    // 粗粒度版（编排区 part 用）：只忠实标出“非可播放”的脏/错区间——待合成 & 合成中=灰（合成中叠灰色流光表“在跑”），
+    // 失败=红；已合成 / 无内容不画（绿=可播放=干净无标记）。故空 part、全合成 part 都不显条，最忠实、最不打扰。
+    // 不需要合并——要合并的“已合成”本来就不画。比钢琴窗粗：不画绿橙进度细分。
+    // shimmerPhase∈[0,1) 时给合成中段叠灰色流光；<0 关闭（无 part 在合成时）。
+    public static void DrawCoarse(
+        DrawingContext context,
+        IReadOnlyList<SynthesisStatusSegment> segments,
+        ITempoManager tempoManager,
+        TickAxis tickAxis,
+        double top, double height, double radius,
+        double shimmerPhase = -1)
+    {
+        var grayBrush = Style.SYNTHESIS_DIRTY_PART.ToBrush();   // 比钢琴窗更亮（抗白罩、对轨道色更跳）
+        var redBrush = Style.SYNTHESIS_FAILED.ToBrush();
+
+        // 合并相邻同类区间（灰 = 待合成/合成中，红 = 失败；已合成跳过），画成一条连续段，避免逐段圆角留缺口。
+        int n = segments.Count;
+        for (int i = 0; i < n;)
+        {
+            if (segments[i].Status == SynthesisSegmentStatus.Synthesized)
+            {
+                i++;
+                continue;
+            }
+
+            bool red = segments[i].Status == SynthesisSegmentStatus.Failed;
+            double left = Math.Round(tickAxis.Tick2X(tempoManager.GetTick(segments[i].StartTime)));
+            double right = left;
+            int j = i;
+            for (; j < n; j++)
+            {
+                var st = segments[j].Status;
+                if (st == SynthesisSegmentStatus.Synthesized)
+                    break;
+                if ((st == SynthesisSegmentStatus.Failed) != red)
+                    break;   // 不同类（红 vs 灰），收束当前 run
+                right = Math.Round(tickAxis.Tick2X(tempoManager.GetTick(segments[j].EndTime)));
+            }
+            if (right < left + 1)
+                right = left + 1;
+
+            FillSeg(context, red ? redBrush : grayBrush, left, right, top, height, radius, radius);
+
+            // 流光只叠在“合成中”的原始片上（不是整条合并灰条）；触及 run 端的片跟随其圆角，免得方角溢出。
+            if (!red && shimmerPhase >= 0)
+            {
+                for (int k = i; k < j; k++)
+                {
+                    if (segments[k].Status != SynthesisSegmentStatus.Synthesizing)
+                        continue;
+                    double sl = Math.Round(tickAxis.Tick2X(tempoManager.GetTick(segments[k].StartTime)));
+                    double sr = Math.Round(tickAxis.Tick2X(tempoManager.GetTick(segments[k].EndTime)));
+                    if (sr < sl + 1)
+                        sr = sl + 1;
+                    DrawShimmer(context, sl, sr, top, height, sl <= left ? radius : 0, sr >= right ? radius : 0, shimmerPhase);
+                }
+            }
+
+            i = j;
+        }
+    }
+
     // 填一段：上沿两角拍直，下沿左/右角圆角分别为 blRadius/brRadius。
     static void FillSeg(DrawingContext context, IBrush brush, double left, double right, double top, double height, double blRadius, double brRadius)
     {
