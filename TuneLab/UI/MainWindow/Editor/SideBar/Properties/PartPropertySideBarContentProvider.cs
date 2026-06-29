@@ -119,7 +119,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     // 删除走二次确认（preset 比会话贵重，保留谨慎，不跟 script 的即时删一刀切）。
     void PopulatePresetMenu()
     {
-        var stack = new StackPanel() { Orientation = Orientation.Vertical, MinWidth = 220 };
+        // 宽度对齐触发钮（Flyout 已 BottomEdgeAlignedLeft 左对齐），而非写死 MinWidth。
+        var stack = new StackPanel() { Orientation = Orientation.Vertical, Width = mPresetButton.Bounds.Width };
         stack.Children.Add(FlyoutMenuRow.Build(NonePresetOption.Tr(TC.Property), null, () => ApplySelection(null), null, mPresetFlyout));
 
         if (mPresets.Count > 0)
