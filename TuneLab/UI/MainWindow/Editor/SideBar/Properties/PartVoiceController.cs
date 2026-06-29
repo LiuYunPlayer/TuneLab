@@ -58,41 +58,50 @@ internal class PartVoiceController : StackPanel
         }
 
         var source = mParts[0].SoundSource;
-        mVoiceController.SetConfig(BuildConfig(source.Kind, source.Type));
-
-        // 各 part 音源全等才高亮对应项，否则三态 "-"。
-        bool allSame = true;
+        // 三态：sameEngine=各 part 引擎(Kind+Type)全同；sameVoice=连音源 ID 也全同。
+        bool sameEngine = true, sameVoice = true;
         for (int i = 1; i < mParts.Count; i++)
         {
             var other = mParts[i].SoundSource;
-            if (other.Kind != source.Kind || other.Type != source.Type || other.ID != source.ID)
+            if (other.Kind != source.Kind || other.Type != source.Type)
             {
-                allSame = false;
+                sameEngine = false;
+                sameVoice = false;
                 break;
             }
+            if (other.ID != source.ID)
+                sameVoice = false;
         }
-        if (!allSame)
+
+        // 同引擎：顶部列当前引擎音源 + 两段（排除当前引擎）；混引擎：无顶部、两段列出全部引擎。
+        mVoiceController.SetConfig(sameEngine ? BuildConfig(source.Kind, source.Type) : BuildConfig(null, null));
+
+        // voice 必定显示：全同显该 voice，否则三态 "(Multiple)"——不因多选差异而隐藏整个下拉。
+        if (sameVoice)
+        {
+            int index = mEntries.FindIndex(e => e.Kind == source.Kind && e.Type == source.Type && e.Id == source.ID);
+            if (index < 0)
+                mVoiceController.DisplayNull();
+            else
+                mVoiceController.Display(PropertyValue.Create((double)index));
+        }
+        else
         {
             mVoiceController.DisplayMultiple();
-            return;
         }
-        int index = mEntries.FindIndex(e => e.Kind == source.Kind && e.Type == source.Type && e.Id == source.ID);
-        if (index < 0)
-            mVoiceController.DisplayNull();
-        else
-            mVoiceController.Display(PropertyValue.Create((double)index));
     }
 
     // 构建选项树并同步填充 mEntries（叶子 value = 其在 mEntries 的下标）。
-    ComboBoxConfig BuildConfig(SourceKind currentKind, string currentType)
+    // currentKind==null 表示混引擎（无单一当前引擎）：跳过顶部当前引擎音源段、两段不排除任何引擎。
+    ComboBoxConfig BuildConfig(SourceKind? currentKind, string? currentType)
     {
         mEntries.Clear();
         var options = new List<ComboBoxOption>();
 
-        // 顶部：当前引擎的各音源（含当前 voice，便于直接切换 / 高亮）。
-        if (TryEnumerateSources(currentKind, currentType, out var currentSources))
+        // 顶部：当前引擎的各音源（含当前 voice，便于直接切换 / 高亮）。混引擎时无此段。
+        if (currentKind is SourceKind ck && currentType != null && TryEnumerateSources(ck, currentType, out var currentSources))
             foreach (var src in currentSources)
-                options.Add(Leaf(currentKind, currentType, src));
+                options.Add(Leaf(ck, currentType, src));
 
         AddEngineSection(options, "Voices".Tr(TC.Property), SourceKind.Voice, VoicesManager.GetAllVoiceEngines(), currentKind, currentType);
         AddEngineSection(options, "Instruments".Tr(TC.Property), SourceKind.Instrument, InstrumentsManager.GetAllInstrumentEngines(), currentKind, currentType);
@@ -100,14 +109,14 @@ internal class PartVoiceController : StackPanel
         return new ComboBoxConfig() { Options = options };
     }
 
-    // 某一类(kind)的各引擎做成二级子菜单分组（排除当前引擎，其音源已在顶部）；跳过加载失败(infos==null)的引擎，
-    // 空音源引擎仍展示为空子菜单。整段前置一条带字分隔线；该类无可展示引擎则整段省略。
-    void AddEngineSection(List<ComboBoxOption> options, string label, SourceKind kind, IReadOnlyList<string> engines, SourceKind currentKind, string currentType)
+    // 某一类(kind)的各引擎做成二级子菜单分组（排除当前引擎，其音源已在顶部；混引擎 currentKind=null 时不排除）；
+    // 跳过加载失败(infos==null)的引擎，空音源引擎退化为无子菜单的一级项。整段前置一条带字分隔线；该类无引擎则整段省略。
+    void AddEngineSection(List<ComboBoxOption> options, string label, SourceKind kind, IReadOnlyList<string> engines, SourceKind? currentKind, string? currentType)
     {
         var groups = new List<ComboBoxOption>();
         foreach (var type in engines)
         {
-            if (kind == currentKind && type == currentType)
+            if (currentKind == kind && type == currentType)
                 continue;
             if (!TryEnumerateSources(kind, type, out var sources))
                 continue;

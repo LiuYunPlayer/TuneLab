@@ -194,8 +194,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         // Preset/Effects 是单 part 概念，仅单选时绑当前 part；多/空选 mPart 为 null（panel 也已隐藏）。
         mEffectsController.SetPart(mPart);
 
-        // Voice 与 Automation：单选或同引擎多选才合并展示，否则清空。
-        mPartVoiceController.SetParts(ShowsMerged() ? mParts : Array.Empty<IMidiPart>());
+        // Voice 必定展示（混引擎自行退化为全引擎列表 + (Multiple)）；Automation 仅单选或同引擎多选才合并展示。
+        mPartVoiceController.SetParts(mParts);
         mAutomationController.SetParts(ShowsMerged() ? mParts : Array.Empty<IMidiPart>());
 
         // Gain：单/多/空统一合并绑定（空 → 滑块 Invalid）。
@@ -213,7 +213,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         bool empty = mParts.Count == 0;
 
         mPresetPanel.IsVisible = !empty;       // Preset：单/多选均可（Apply 扇出到全部，含统一混源音源）
-        mVoicePanel.IsVisible = merged;        // Voice：单选或同引擎多选（engine 须一致才能展示一个引擎/voice 下拉）
+        mVoicePanel.IsVisible = !empty;        // Voice：必定显示（混引擎也合并显示 (Multiple)，菜单退化为全引擎列表）
         mEffectsPanel.IsVisible = single;      // Effects 单 part 概念（多对象 config 待 SDK）
         mAutomationPanel.IsVisible = merged;
 
