@@ -18,7 +18,7 @@ internal static class VoiceSynthesisSnapshotFactory
 {
     // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；
     // 快照 Notes 与递入 notes 索引对齐（产物归属契约）。[startTime, endTime] 为全局秒开窗区间。
-    public static VoiceSynthesisSnapshot Capture(MidiPart part, IReadOnlyList<IVoiceSynthesisNote> sourceNotes, double startTime, double endTime)
+    public static VoiceSynthesisSnapshot Capture(MidiPart part, IEnumerable<IVoiceSynthesisNote> sourceNotes, double startTime, double endTime)
     {
         double partPos = part.Pos.Value;
 
@@ -30,7 +30,7 @@ internal static class VoiceSynthesisSnapshotFactory
         double relEnd = timing.ToTick(endTime) - partPos;
 
         // —— note 值树（经代理接口读值，全部触底到值类型；列表顺序即递入声明顺序）——
-        var notes = new List<VoiceSynthesisNoteSnapshot>(sourceNotes.Count);
+        var notes = new List<VoiceSynthesisNoteSnapshot>();
         foreach (var note in sourceNotes)
         {
             if (note is not VoiceSynthesisContext.VoiceNoteProxy proxy)

@@ -153,16 +153,23 @@ internal static class FormatConverter
     //   第一个非前置音素默认为元音（弹性 w=1、吸收伸缩），其余（前置 + 后辅音）刚性 w=0。
     static List<New.PhonemeInfo> PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes)
     {
-        var times = new List<(double Start, double End, string Symbol, double StretchWeight, bool IsLead)>(phonemes.Count);
+        var result = new List<New.PhonemeInfo>(phonemes.Count);
         bool vowelAssigned = false;
         foreach (var p in phonemes)
         {
             bool isLead = (p.StartTime + p.EndTime) < 0;
             double weight = (!isLead && !vowelAssigned) ? 1 : 0;   // 首个非前置音素 = 元音
             if (!isLead) vowelAssigned = true;
-            times.Add((p.StartTime, p.EndTime, p.Symbol, weight, isLead));
+            // 位置（起点）不入存储——由新模型布局按「核起点 = 音符头、前置往左、核填充」派生；此处仅留时长 = End − Start。
+            result.Add(new New.PhonemeInfo
+            {
+                Symbol = p.Symbol,
+                Duration = Math.Max(0, p.EndTime - p.StartTime),
+                StretchWeight = weight,
+                IsLead = isLead,
+            });
         }
-        return New.PhonemeInfo.FromTimes(times);
+        return result;
     }
 
     // 新→旧为 best-effort：旧插件只认绝对相对秒，而 compat 这层无 note 几何（满末/邻居）还原元音填充与前辅音越界。

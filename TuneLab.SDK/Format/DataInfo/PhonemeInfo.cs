@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
@@ -24,14 +22,4 @@ public class PhonemeInfo
 
     // per-phoneme 引擎自定义属性（GetPhonemePropertyConfigs 声明的轨）。无属性时为 null、不序列化（pay-as-you-go）。
     public PropertyObject? Properties { get; set; }
-
-    // 由「连续的相对秒区间 + 权重 + 是否前置」批量构造（lock 合成产物 / 旧工程相对时间导入共用）：时长 = End − Start。
-    // 位置信息（起点）不入存储——由布局按「核起点 = 音符头、前置往左、核填充」派生。
-    public static List<PhonemeInfo> FromTimes(IReadOnlyList<(double Start, double End, string Symbol, double StretchWeight, bool IsLead)> items)
-    {
-        var result = new List<PhonemeInfo>(items.Count);
-        foreach (var it in items)
-            result.Add(new PhonemeInfo { Symbol = it.Symbol, Duration = Math.Max(0, it.End - it.Start), StretchWeight = it.StretchWeight, IsLead = it.IsLead });
-        return result;
-    }
 }

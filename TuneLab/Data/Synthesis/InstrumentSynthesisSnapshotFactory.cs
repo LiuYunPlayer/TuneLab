@@ -12,7 +12,7 @@ namespace TuneLab.Data.Synthesis;
 // 全秒轴：插件面 [startTime, endTime] 与各求值器查询点均为全局秒；tick 仅在本物化器与冻结求值器内部出现。
 internal static class InstrumentSynthesisSnapshotFactory
 {
-    public static InstrumentSynthesisSnapshot Capture(MidiPart part, IReadOnlyList<IInstrumentSynthesisNote> sourceNotes, double startTime, double endTime)
+    public static InstrumentSynthesisSnapshot Capture(MidiPart part, IEnumerable<IInstrumentSynthesisNote> sourceNotes, double startTime, double endTime)
     {
         double partPos = part.Pos.Value;
 
@@ -23,7 +23,7 @@ internal static class InstrumentSynthesisSnapshotFactory
         double relEnd = timing.ToTick(endTime) - partPos;
 
         // note 值树（满末，经代理读值触底到值类型；列表顺序即递入声明顺序）。
-        var notes = new List<InstrumentSynthesisNoteSnapshot>(sourceNotes.Count);
+        var notes = new List<InstrumentSynthesisNoteSnapshot>();
         foreach (var note in sourceNotes)
         {
             if (note is not InstrumentSynthesisContext.InstrumentNoteProxy proxy)
