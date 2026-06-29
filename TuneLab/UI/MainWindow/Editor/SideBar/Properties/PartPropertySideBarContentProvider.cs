@@ -185,33 +185,37 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     {
         ApplyMode();
 
-        // 单 part 专属栏：多选/空选时 mPart 为 null，各 controller 自行清空（panel 也已隐藏）。
-        mAutomationController.Part = mPart;
+        // Preset/Effects 是单 part 概念，仅单选时绑当前 part；多/空选 mPart 为 null（panel 也已隐藏）。
         mEffectsController.SetPart(mPart);
+
+        // Automation 默认值：单选或同引擎多选才合并展示，否则清空。
+        mAutomationController.SetParts(ShowsMerged() ? mParts : Array.Empty<IMidiPart>());
 
         // Gain：单/多/空统一合并绑定（空 → 滑块 Invalid）。
         mPartFixedController.SetParts(mParts);
 
-        // 动态属性：单选或同源多选才求 config 合并展示，否则清空。
+        // 动态属性：单选或同引擎多选才求 config 合并展示，否则清空。
         RefreshPartController();
     }
 
     // 按目标 part 集决定各栏显隐（见类注释的多选语义）。
     void ApplyMode()
     {
-        int n = mParts.Count;
-        bool single = n == 1;
-        bool sameEngine = n > 1 && AllSameEngine();
-        bool empty = n == 0;
+        bool single = mParts.Count == 1;
+        bool merged = ShowsMerged();   // 单选或同引擎多选：动态属性 + Automation 合并展示
+        bool empty = mParts.Count == 0;
 
-        mPresetPanel.IsVisible = single;
-        mAutomationPanel.IsVisible = single;
+        mPresetPanel.IsVisible = single;       // Preset/Effects 单 part 概念
         mEffectsPanel.IsVisible = single;
+        mAutomationPanel.IsVisible = merged;
 
-        mPartFixedController.IsVisible = !empty;                    // Gain：>=1 即显（含混源公共属性）
-        mPartPropertiesController.IsVisible = single || sameEngine; // 动态属性：单选或同源多选
+        mPartFixedController.IsVisible = !empty;        // Gain：>=1 即显（含混源公共属性）
+        mPartPropertiesController.IsVisible = merged;   // 动态属性：单选或同引擎多选
         mPartContentMask.IsVisible = empty;
     }
+
+    // 是否合并展示引擎相关栏（动态属性 / Automation）：单选，或同引擎多选。混源多选 / 空选为否。
+    bool ShowsMerged() => mParts.Count == 1 || (mParts.Count > 1 && AllSameEngine());
 
     bool AllSameEngine()
     {
@@ -239,7 +243,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
     void RefreshPartController()
     {
-        if (mParts.Count == 0 || (mParts.Count > 1 && !AllSameEngine()))
+        if (!ShowsMerged())
         {
             mPartPropertiesController.ResetConfig();
             return;
@@ -262,7 +266,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         Dispatcher.UIThread.Post(() =>
         {
             mPartReconcilePending = false;
-            if (mParts.Count == 0 || (mParts.Count > 1 && !AllSameEngine()))
+            if (!ShowsMerged())
                 return;
             mPartPropertiesController.Reconcile(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()));
         });

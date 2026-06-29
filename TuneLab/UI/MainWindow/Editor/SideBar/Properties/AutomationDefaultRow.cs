@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using TuneLab.Data;
@@ -14,11 +15,18 @@ namespace TuneLab.UI;
 // 自含两条定制语义：① 拖动时合并脏标记（BeginMergeDirty/EndMergeDirty）避免每帧重合成；
 // ② 编辑某条尚不存在的自动化时按需 AddAutomation（经 AutomationKey 路由 voice/effect）。
 // 外部（undo/redo/preset）改默认值由容器订阅后调 Refresh()。
+//
+// 支持多 part（同引擎多选）：值三态合并（各 part 默认值全等显该值、否则 "-"），编辑扇出到所有 part——
+// 各 part 按需懒建轨、共享文档撤销根（DiscardTo/Commit 走首 part 即作用全文档），整段编辑归一个撤销单元。
+// 单 part 即 N=1 特例（effect 块仍用单 part 构造）。
 internal sealed class AutomationDefaultRow : StackPanel, IDisposable
 {
     public AutomationDefaultRow(IMidiPart part, AutomationKey key, string keyName, AutomationConfig config)
+        : this(new[] { part }, key, keyName, config) { }
+
+    public AutomationDefaultRow(IReadOnlyList<IMidiPart> parts, AutomationKey key, string keyName, AutomationConfig config)
     {
-        mPart = part;
+        mParts = parts;
         mKey = key;
         mConfig = config;
         Orientation = Orientation.Vertical;
@@ -50,36 +58,58 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
 
     public void Refresh()
     {
-        mSlider.Display(mPart.GetEffectiveAutomation(mKey)?.DefaultValue.Value ?? mConfig.DefaultValue);
+        if (mParts.Count == 0)
+        {
+            mSlider.DisplayNull();
+            return;
+        }
+        // 三态：各 part 当前默认值（轨不存在取 config 默认）全等显该值，否则 "-"。
+        var first = ValueOf(mParts[0]);
+        for (int i = 1; i < mParts.Count; i++)
+        {
+            if (ValueOf(mParts[i]) != first)
+            {
+                mSlider.DisplayMultiple();
+                return;
+            }
+        }
+        mSlider.Display(first);
     }
+
+    double ValueOf(IMidiPart part) => part.GetEffectiveAutomation(mKey)?.DefaultValue.Value ?? mConfig.DefaultValue;
 
     void OnValueWillChange()
     {
-        mPart.BeginMergeDirty();    // 合成批量：拖动期间不每帧重合成
-        // 懒建一次（轨不存在则现建），随后对其默认值开通知 merge：拖动期间只发可忽略中间态、不发结果态 Modified，
-        // 否则外部刷新订阅（DefaultValue.Modified）会在拖动中回写 slider，与拖动相互打架→抖动。
-        var automation = mPart.GetEffectiveAutomation(mKey) ?? mPart.AddEffectiveAutomation(mKey);
-        if (automation != null)
+        // 各 part：合成批量（拖动期间不每帧重合成）+ 懒建一次轨 + 对其默认值开通知 merge（拖动只发可忽略中间态、不发结果态，
+        // 否则外部刷新订阅会在拖动中回写 slider 与拖动打架）。mHead 在建轨之后捕获：DiscardTo 只回退本次拖动写值、不回退建轨。
+        foreach (var part in mParts)
         {
-            automation.DefaultValue.BeginMergeNotify();
-            mMerging = true;
+            part.BeginMergeDirty();
+            var automation = part.GetEffectiveAutomation(mKey) ?? part.AddEffectiveAutomation(mKey);
+            automation?.DefaultValue.BeginMergeNotify();
         }
-        // mHead 在 AddAutomation 之后捕获：ValueChanged 的 DiscardTo(mHead) 只回退本次拖动的值写入，不回退建轨本身。
-        mHead = mPart.Head;
+        mMerging = true;
+        mHead = mParts.Count > 0 ? mParts[0].Head : default;
     }
 
     void OnValueChanged()
     {
-        mPart.DiscardTo(mHead);
-        mPart.GetEffectiveAutomation(mKey)?.DefaultValue.Set(mSlider.Value);
+        if (mParts.Count == 0)
+            return;
+        // 全 part 共享同一文档撤销栈：DiscardTo(首 part Head) 回退该 head 之后全文档的拖动写值，再把新值扇出到各 part。
+        mParts[0].DiscardTo(mHead);
+        foreach (var part in mParts)
+            part.GetEffectiveAutomation(mKey)?.DefaultValue.Set(mSlider.Value);
     }
 
     void OnValueCommitted()
     {
         OnValueChanged();
         EndMerge();
-        mPart.EndMergeDirty();
-        mPart.Commit();
+        foreach (var part in mParts)
+            part.EndMergeDirty();
+        if (mParts.Count > 0)
+            mParts[0].Commit();
     }
 
     // 退出通知 merge（幂等）：仅在已进入时 EndMergeNotify，避免无配对多发 / merge 计数泄漏（含编辑中途被释放的兜底）。
@@ -88,7 +118,8 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
         if (!mMerging)
             return;
         mMerging = false;
-        mPart.GetEffectiveAutomation(mKey)?.DefaultValue.EndMergeNotify();
+        foreach (var part in mParts)
+            part.GetEffectiveAutomation(mKey)?.DefaultValue.EndMergeNotify();
     }
 
     public void Dispose()
@@ -97,7 +128,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
         s.DisposeAll();
     }
 
-    readonly IMidiPart mPart;
+    readonly IReadOnlyList<IMidiPart> mParts;
     readonly AutomationKey mKey;
     readonly AutomationConfig mConfig;
     readonly SliderController mSlider;

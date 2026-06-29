@@ -14,7 +14,8 @@ namespace TuneLab.UI;
 // 共用 AutomationDefaultRow 承载每行的合并脏 + 按需 AddAutomation 语义。
 internal class AutomationDefaultsController : StackPanel
 {
-    public IMidiPart? Part { get => mPart; set { mPart = value; Rebuild(); } }
+    // 目标 part 集（单 part / 同引擎多选 / 空）。多选合并各 part 同名连续轨的默认值（三态 + 写扇出，见 AutomationDefaultRow）。
+    public void SetParts(IReadOnlyList<IMidiPart> parts) { mParts = parts; Rebuild(); }
 
     public AutomationDefaultsController()
     {
@@ -30,24 +31,27 @@ internal class AutomationDefaultsController : StackPanel
         mRows.Clear();
         Children.Clear();
 
-        if (mPart == null)
+        if (mParts.Count == 0)
             return;
 
-        // 默认值面板只列连续轨（分段轨无默认基线）。
-        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
+        // 默认值面板只列连续轨（分段轨无默认基线）。多选同引擎，用首个 part 的 AutomationConfigs 作 schema。
+        foreach (var kvp in mParts[0].SoundSource.AutomationConfigs)
         {
             if (kvp.Value.IsPiecewise)
                 continue;
 
-            var row = new AutomationDefaultRow(mPart, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value);
+            var row = new AutomationDefaultRow(mParts, AutomationKey.Voice(kvp.Key.Id), kvp.Key.DisplayText ?? kvp.Key.Id, kvp.Value);
             mRows.Add(row);
             Children.Add(row);
         }
 
         // 默认值外部（undo/redo/preset）改动 → 刷新所有行；自动化轨增减 → 重建；
-        // 条件自动化轨随参数 commit 显隐 → 重建（仅轨集合实变时触发）。
-        mPart.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
-        mPart.AutomationConfigsModified.Subscribe(Rebuild, s);
+        // 条件自动化轨随参数 commit 显隐 → 重建（仅轨集合实变时触发）。各 part 都订阅。
+        foreach (var part in mParts)
+        {
+            part.Automations.WhenAny(automation => automation.DefaultValue.Modified).Subscribe(Refresh, s);
+            part.AutomationConfigsModified.Subscribe(Rebuild, s);
+        }
     }
 
     void Refresh()
@@ -56,7 +60,7 @@ internal class AutomationDefaultsController : StackPanel
             row.Refresh();
     }
 
-    IMidiPart? mPart = null;
+    IReadOnlyList<IMidiPart> mParts = [];
     readonly List<AutomationDefaultRow> mRows = new();
     readonly DisposableManager s = new();
 }
