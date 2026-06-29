@@ -49,9 +49,10 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             .AddContent(new() { Item = new TextItem() { Text = "⋯", FontSize = 16 }, ColorSet = new() { Color = Colors.White } });
         mPresetMoreButton.Clicked += OnPresetMoreButtonClicked;
 
-        // 与 Script 侧栏脚本下拉同构：点开自定义 Flyout，列 None + 各 preset（点击应用、行右侧 ✕ 删除）。钮文字显示当前选中 preset。
+        // 点开自定义 Flyout，列 None + 各 preset（点击应用、行右侧 ✕ 删除）。钮文字显示当前 part 关联的 preset。
+        // 触发钮用深色（Style.BACK）+ ▾，与 Voice/属性等下拉外观统一（不再用偏亮的 BUTTON_NORMAL）。
         mPresetButton = new TuneLab.GUI.Components.Button() { Height = 28, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch }
-            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
+            .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BACK, HoveredColor = Style.BACK } });
         mPresetLabel = new ButtonContent() { Item = new TextItem() { Text = NonePresetOption, FontSize = 12 }, ColorSet = new() { Color = Style.LIGHT_WHITE } };
         mPresetButton.AddContent(mPresetLabel);
         mPresetButton.Clicked += OnPresetButtonClicked;
@@ -64,16 +65,16 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             Dispatcher.UIThread.Post(() => mPresetFlyoutJustClosed = false, DispatcherPriority.Input);
         };
 
-        var presetRow = new DockPanel() { LastChildFill = true };
+        // 缩进 24（与其它控件一致）：整行 Margin(24,12)，⋯ 钮靠右即距面板边 24，主钮填满、与 ⋯ 间隔 8。
+        var presetRow = new DockPanel() { LastChildFill = true, Margin = new(24, 12) };
         DockPanel.SetDock(mPresetMoreButton, Dock.Right);
         presetRow.Children.Add(mPresetMoreButton);
         mPresetButton.Margin = new(0, 0, 8, 0);
         presetRow.Children.Add(mPresetButton);
         mPresetContent.Children.Add(presetRow);
 
-        mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
-        mPresetContentContainer.Child = mPresetContent;
-        mPresetPanel.Content = mPresetContentContainer;
+        mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mPresetPanel.Content = mPresetContent;
 
         var voiceName = new Label() { Content = "Voice".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mVoicePanel.Title = voiceName;
@@ -639,9 +640,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         return string.Format("Selected: {0} parts".Tr(TC.Property), mParts.Count);
     }
 
-    // 底部不留 padding：否则 INTERFACE 底色的 12px 余白与同色的下一栏标题相连、视觉上把下一栏标题撑高。
-    readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 0) };
-    readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
+    // 满宽 INTERFACE 底（与其它栏一致——它们的 INTERFACE 底来自控件自身）；内容缩进由行 Margin(24,12) 提供。
+    readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Background = Style.INTERFACE.ToBrush() };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mEffectsContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mVoiceContent = new() { Orientation = Orientation.Vertical };
