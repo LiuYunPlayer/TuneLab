@@ -684,7 +684,6 @@ internal partial class TrackScrollView : View
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
     const double LineWidth = 1;
-    const int GlowRingCount = 3;   // 编辑态外发光的同心环层数
 
     Color BarLineColor => Style.LINE.Opacity(1.5);
     Color BeatLineColor => Style.LINE.Opacity(1);

@@ -52,7 +52,7 @@ internal partial class TrackScrollView
             return Rect().Contains(point);
         }
 
-        // part 自绘：本体底色/标题/midi 音符或波形/基础轮廓/选中（白叠加+白边框）/编辑（强调色边框+外发光）。
+        // part 自绘：本体底色/标题/midi 音符或波形/基础轮廓/选中（白内描边）/编辑（标题右上角斜放 ✏️ 图标）。
         // 竖向位置经 GetTop/GetBottom（drag-aware）取得，故拖动轨道头时内容自动跟随。
         public override void Render(DrawingContext context)
         {
@@ -74,8 +74,8 @@ internal partial class TrackScrollView
             double right = Math.Min(view.TickAxis.Tick2X(part.EndPos()), view.Bounds.Width + 8);
 
             var trackColor = track.GetColor();
-            // 选中/编辑不再靠改色区分（会与轨道色撞色）：颜色恒为轨道色，
-            // 选中用白色叠加+白边框、编辑用强调色边框+外发光，二者是解耦的两维。
+            // 选中→白色内描边（不叠白罩——会与编排区范围选区的白叠加层撞）；
+            // 编辑→仅在标题右上角放一枚斜放 ✏️ 图标，不改本体色。
             var frameColor = trackColor;
 
             IBrush titleBrush = Brushes.Black;
@@ -221,28 +221,30 @@ internal partial class TrackScrollView
                 partRect.Inflate(-partLineWidth / 2),
                 4, 4);
 
-            // 选中维度：整块罩半透明白（色彩无关地“提亮”）+ 内侧 2px 白边框。
+            // 选中维度：2px 白色内描边（内描边落在 part 内，相邻 part 紧挨也不重叠/越界）。
             if (part.IsSelected)
             {
-                context.DrawRectangle(Style.WHITE.Opacity(0.16).ToBrush(), null, partRect, 4, 4);
                 context.DrawRectangle(null, new Pen(Style.WHITE.ToBrush(), 2), partRect.Inflate(-1), 4, 4);
             }
 
-            // 编辑维度：取轨道色的提亮版做“同色相外发光”（向外渐隐的同心环）+ 紧贴外缘的提亮实边框。
-            // 用色相一致的光晕 → 任意轨道色下都和谐（不像固定强调色在异色 part 上突兀）；
-            // 靠“只有编辑态才有光晕”这个效果本身区分，与选中的白色叠加/白边框（不同色相+内外位置）并存不冲突。
+            // 编辑维度：在标题栏右上角放一枚醒目的 ✏️ 图标（斜放，更像“在写”），明确“正在编辑此 part”。
+            // 钳到视野内：横向锚到 part 右缘与视口右缘的较小者，故 part 滑出右侧时图标仍贴在视口右沿可见。
             if (isEditingPart)
             {
-                var glowColor = trackColor.Brighter(0.5);
-                int rings = TrackScrollView.GlowRingCount;
-                for (int g = rings; g >= 1; g--)
-                {
-                    double inflate = g * 2;
-                    double opacity = 0.55 * (1 - (g - 1) / (double)rings);
-                    double radius = 4 + inflate;
-                    context.DrawRectangle(null, new Pen(glowColor.Opacity(opacity).ToBrush(), 2.5), partRect.Inflate(inflate), radius, radius);
-                }
-                context.DrawRectangle(null, new Pen(glowColor.ToBrush(), 2), partRect.Inflate(1), 5, 5);
+                const double iconSize = 14;
+                const double margin = 4;
+                double centerX, centerY = top + 8;   // 标题栏(16px)垂直居中
+                double maxCenterX = Math.Min(right, view.Bounds.Width) - margin - iconSize / 2;
+                double minCenterX = Math.Max(left, 0) + margin + iconSize / 2;   // 极窄 part：退到可见左缘而非画出框外
+                centerX = Math.Max(minCenterX, maxCenterX);
+
+                // 绕图标中心转 ~140°，让笔尖朝左下、笔身斜向右上（书写姿态）。
+                var center = new Avalonia.Point(centerX, centerY);
+                var rotate = Avalonia.Matrix.CreateTranslation(-center.X, -center.Y)
+                    * Avalonia.Matrix.CreateRotation(140 * Math.PI / 180)
+                    * Avalonia.Matrix.CreateTranslation(center.X, center.Y);
+                using (context.PushTransform(rotate))
+                    context.DrawString("✏️", center, titleBrush, iconSize, Alignment.Center);
             }
         }
     }
