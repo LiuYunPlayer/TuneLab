@@ -80,7 +80,9 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         var items = new List<DropDownItem>(options.Count);
         foreach (var option in options)
         {
-            if (option.IsGroup)
+            if (option.IsSeparator)
+                items.Add(new DropDownItem() { Text = option.DisplayText ?? string.Empty, IsSeparator = true });
+            else if (option.IsGroup)
                 items.Add(new DropDownItem() { Text = option.ShowText(), Children = BuildItems(option.SubOptions!) });
             else
                 items.Add(new DropDownItem() { Text = option.ShowText(), Tag = option.Value });
@@ -88,12 +90,14 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         return items;
     }
 
-    // 展平叶子（DFS，分组展开）——与 DropDown 内部展平同序，故 SelectedIndex 在两侧一致。
+    // 展平叶子（DFS，分组展开、跳过分隔线）——与 DropDown 内部展平同序，故 SelectedIndex 在两侧一致。
     static void CollectLeaves(IReadOnlyList<ComboBoxOption> options, List<ComboBoxOption> leaves)
     {
         foreach (var option in options)
         {
-            if (option.IsGroup)
+            if (option.IsSeparator)
+                continue;
+            else if (option.IsGroup)
                 CollectLeaves(option.SubOptions!, leaves);
             else
                 leaves.Add(option);

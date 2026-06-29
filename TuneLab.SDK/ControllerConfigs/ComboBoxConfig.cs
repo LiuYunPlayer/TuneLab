@@ -15,16 +15,22 @@ public struct ComboBoxOption(PropertyValue value, string? displayText = null) : 
 {
     public PropertyValue Value { get; set; } = value;
     public string? DisplayText { get; set; } = displayText;
-    // 非空 = 分组项（本身不可选，展开为二级子菜单）；子项各自带值/显示文本、可再嵌套。仅经分组构造函数设置。
+    // 非 null = 分组项（本身不可选，展开为二级子菜单）；子项各自带值/显示文本、可再嵌套。仅经分组构造函数设置。
     // 与 Value 语义互斥（叶子有值无子项、分组有子项无值），故不混入叶子主构造函数的可选参数。
+    // 允许空列表：表示"分组存在但暂无子项"（如引擎已加载但无音源），渲染为空子菜单、不可选。
     public IReadOnlyList<ComboBoxOption>? SubOptions { get; set; } = null;
-    public readonly bool IsGroup => SubOptions is { Count: > 0 };
+    public readonly bool IsGroup => SubOptions is not null;
+    // 分隔线项：不可选、不计入选中；DisplayText 为可选居中标签（null/空 = 纯线）。
+    public bool IsSeparator { get; init; } = false;
 
-    // 分组构造：显示文本 + 子项；本身不可选，Value 取 Null（不参与选中/反查）。
+    // 分组构造：显示文本 + 子项（空列表 = 空分组）；本身不可选，Value 取 Null（不参与选中/反查）。
     public ComboBoxOption(string displayText, IReadOnlyList<ComboBoxOption> subOptions) : this(PropertyValue.Null, displayText)
     {
         SubOptions = subOptions;
     }
+
+    // 分隔线（可带居中标签）：分段用。
+    public static ComboBoxOption Separator(string? label = null) => new(PropertyValue.Null, label) { IsSeparator = true };
 
     // 显示文本：优先 DisplayText，缺省回退到值的字面量。
     public readonly string ShowText() => DisplayText ?? Value.ToString() ?? string.Empty;
@@ -48,7 +54,7 @@ public struct ComboBoxOption(PropertyValue value, string? displayText = null) : 
     public static implicit operator ComboBoxOption(decimal value) => new(PropertyValue.Create((double)value));
 
     public readonly bool Equals(ComboBoxOption other)
-        => Value.Equals(other.Value) && DisplayText == other.DisplayText && SubOptionsEqual(SubOptions, other.SubOptions);
+        => Value.Equals(other.Value) && DisplayText == other.DisplayText && IsSeparator == other.IsSeparator && SubOptionsEqual(SubOptions, other.SubOptions);
     public override readonly bool Equals(object? obj) => obj is ComboBoxOption other && Equals(other);
     public override readonly int GetHashCode() => HashCode.Combine(Value, DisplayText);
 

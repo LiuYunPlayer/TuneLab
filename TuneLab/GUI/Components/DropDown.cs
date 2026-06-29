@@ -13,13 +13,15 @@ using TuneLab.Utils;
 
 namespace TuneLab.GUI.Components;
 
-// 下拉选项节点：Children 非空 = 分组（本身不可选，悬浮/点击展开二级菜单），否则为可选叶子（Tag 为选中回传标识）。
+// 下拉选项节点：Children 非 null = 分组（本身不可选，悬浮/点击展开二级菜单，允许空=空子菜单）；
+// IsSeparator = 分隔线（不可选，Text 为可选居中标签）；否则为可选叶子（Tag 为选中回传标识）。
 internal sealed class DropDownItem
 {
     public required string Text { get; init; }
     public object? Tag { get; init; }
     public IReadOnlyList<DropDownItem>? Children { get; init; }
-    public bool IsGroup => Children is { Count: > 0 };
+    public bool IsSeparator { get; init; }
+    public bool IsGroup => Children is not null;
 }
 
 // 自造下拉控件（弃用原生 ComboBox）：触发面（文字 + ▾）+ 自管 Popup 菜单，支持二级子菜单。
@@ -110,7 +112,9 @@ internal class DropDown : Panel
     {
         foreach (var item in items)
         {
-            if (item.IsGroup)
+            if (item.IsSeparator)
+                continue;
+            else if (item.IsGroup)
                 Flatten(item.Children!);
             else
                 mLeaves.Add(item);
@@ -164,6 +168,9 @@ internal class DropDown : Panel
 
     Control BuildRow(DropDownItem item)
     {
+        if (item.IsSeparator)
+            return BuildSeparator(item.Text);
+
         var title = new TextBlock()
         {
             Text = item.Text,
@@ -201,10 +208,13 @@ internal class DropDown : Panel
         }
 
         // 分组行：子 Popup 建在主菜单内容树内（与行同根），故 PlacementTarget=row 定位正常、可悬浮到侧边。
+        // 负 HorizontalOffset 让子菜单与父菜单轻微重叠（仿右键菜单），消除指针横移时中途踩空隙导致收起。
         var subPopup = new Popup()
         {
             PlacementTarget = row,
             Placement = PlacementMode.RightEdgeAlignedTop,
+            HorizontalOffset = -6,
+            VerticalOffset = -5,
             IsLightDismissEnabled = false,
             Child = BuildMenu(item.Children!, 0),
         };
@@ -222,6 +232,26 @@ internal class DropDown : Panel
         host.Children.Add(row);
         host.Children.Add(subPopup);
         return host;
+    }
+
+    // 分隔线：无标签 = 纯线；有标签 = 左线 + 居中文字 + 右线。不可交互、不计入选中。
+    static Control BuildSeparator(string label)
+    {
+        var line = () => new Border() { Height = 1, Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        if (string.IsNullOrEmpty(label))
+            return new Border() { Height = 1, Margin = new(10, 5), Background = Style.LIGHT_WHITE.Opacity(0.15).ToBrush() };
+
+        var grid = new Grid() { ColumnDefinitions = new ColumnDefinitions("*,Auto,*"), Margin = new(10, 6) };
+        var left = line();
+        var text = new TextBlock() { Text = label, FontSize = 10, Margin = new(8, 0), Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var right = line();
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(text, 1);
+        Grid.SetColumn(right, 2);
+        grid.Children.Add(left);
+        grid.Children.Add(text);
+        grid.Children.Add(right);
+        return grid;
     }
 
     void CloseSubMenu()
