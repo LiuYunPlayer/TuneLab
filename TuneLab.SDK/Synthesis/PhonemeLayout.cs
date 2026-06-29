@@ -54,7 +54,7 @@ public readonly struct PhonemeTiming
 //
 // 单一逻辑、note 驱动（无"单音符 / 跨音符"两条路，仅音素集合大小随相接而变）：逐 note 取可用空间 [FillStart, FillEnd]，
 // 收集落在该空间内的音素——本 note 的非前置音素（核 + 后辅音），外加**仅当与后 note 相接时**后 note 的前置音素——
-// 交给 Distribute 统一分配（拉伸 / 一级压缩 / 二级压缩）。前置音素若其所属 note 前方无相接音符，则按原长往左堆叠
+// 交给 Distribute 统一分配（乘法 / 等比模型：可伸音素缩放比 = r^w，刚性音素不动）。前置音素若其所属 note 前方无相接音符，则按原长往左堆叠
 // （不拉不压）；前方相接时其前置已并入前 note 的可用空间一并分配，不重复摆放。
 // 相接判据 = FillEnd[i] >= FillStart[i+1]：锚点为同一乐谱 tick 经确定性换算的秒、相接时精确相等，故严格比较无需容差。
 public static class PhonemeLayout
@@ -136,11 +136,14 @@ public static class PhonemeLayout
         return notes[i].FillEnd >= notes[i + 1].FillStart;
     }
 
-    // 把一组音素的标称时长按权重 + 可用空间分配为最终长度（确定性纯函数，三档无单跨之分）：
-    //   · 可用空间 ≥ 原长和：拉伸——超出部分按权重摊给各音素（w=0 分到 0、不动）；全 w=0 退化为按原长等比拉伸占满。
-    //   · 可用空间 < w=0 原长和：二级压缩——w>0 全归 0，w=0 按标称长等比压缩占满可用空间。
-    //   · 介于两者：一级压缩——w=0 不变，剩余空间由 w>0 按权重水填分配（分到负长者出局钳 0、余者重算，直到无出局）。
-    // 不变量：Σ最终长度 ≤ 可用空间（拉伸时取等），音素绝不溢出可用空间。
+    // 把一组音素的标称时长按权重 + 可用空间分配为最终长度（确定性纯函数，乘法 / 等比模型）：
+    // 每个可伸音素(w>0)的缩放比 len/d = r^w，r 是由「分配后总长 = 可用空间」唯一确定的全局基准缩放比
+    // （r>1 拉伸 / r<1 压缩 / r=1 不变）；刚性音素(w=0) 恒为原长、不参与（r^0=1）。同权重 ⇒ 同缩放比（等比保形）。
+    //   · 无可伸音素(全 w=0)：全部按原长等比缩放占满（拉伸 / 压缩皆均匀，复刻无弹性数据的整体缩放）。
+    //   · 核空间(= 可用空间 − Σ刚性原长) ≤ 0：连刚性音素都塞不下 → 可伸音素全归 0、刚性音素按原长等比压占满。
+    //   · 同权重(含单核)：闭式 len = d·(核空间/Σ核原长)（r^w 整体即此因子，无需解 r）。
+    //   · 异权重：二分解 Σ_{w>0} d·r^w = 核空间，夹到相邻 double（r 不再变化）为止，len = d·r^w。
+    // 不变量：Σ最终长度 = 可用空间，音素绝不溢出可用空间。
     static double[] Distribute(IReadOnlyList<double> dur, IReadOnlyList<double> weight, double space)
     {
         int n = dur.Count;
@@ -148,64 +151,74 @@ public static class PhonemeLayout
         if (n == 0) return len;
         if (space < 0) space = 0;
 
-        double naturalTotal = 0, totalWeight = 0, rigidTotal = 0;
+        double naturalTotal = 0, totalWeight = 0, coreNatural = 0;
+        double firstWeight = 0;
+        bool hasCore = false, uniformWeight = true;
         for (int k = 0; k < n; k++)
         {
             naturalTotal += dur[k];
-            if (weight[k] > 0) totalWeight += weight[k];
-            else rigidTotal += dur[k];
-        }
-
-        // 拉伸：超出原长的部分按权重分摊。
-        if (space >= naturalTotal)
-        {
-            double extra = space - naturalTotal;
-            if (totalWeight > Epsilon)
-                for (int k = 0; k < n; k++)
-                    len[k] = dur[k] + (weight[k] > 0 ? extra * (weight[k] / totalWeight) : 0);
-            else if (naturalTotal > Epsilon)   // 全 w=0 退化：按原长等比拉伸占满
-                for (int k = 0; k < n; k++)
-                    len[k] = dur[k] * (space / naturalTotal);
-            // naturalTotal≈0：无原长可分，全 0
-            return len;
-        }
-
-        // 二级压缩：w=0 原长都塞不下 → w>0 全归 0，w=0 等比压缩占满。
-        if (space < rigidTotal)
-        {
-            double scale = rigidTotal > Epsilon ? space / rigidTotal : 0;
-            for (int k = 0; k < n; k++)
-                len[k] = weight[k] > 0 ? 0 : dur[k] * scale;
-            return len;
-        }
-
-        // 一级压缩：w=0 保持原长，w>0 按权重水填到剩余空间。
-        for (int k = 0; k < n; k++)
-            len[k] = dur[k];                 // w=0 终值；w>0 在水填中覆盖
-        double coreSpace = space - rigidTotal;
-        var dropped = new bool[n];
-        while (true)
-        {
-            double activeWeight = 0, activeBase = 0;
-            for (int k = 0; k < n; k++)
-                if (weight[k] > 0 && !dropped[k]) { activeWeight += weight[k]; activeBase += dur[k]; }
-            if (activeWeight <= Epsilon) break;
-
-            double delta = coreSpace - activeBase;   // ≤ 0：按权重分摊的收缩量
-            bool anyDropped = false;
-            for (int k = 0; k < n; k++)
-                if (weight[k] > 0 && !dropped[k] && dur[k] + delta * (weight[k] / activeWeight) < 0)
-                {
-                    dropped[k] = true; len[k] = 0; anyDropped = true;   // 压到负 → 出局钳 0
-                }
-            if (!anyDropped)
+            if (weight[k] > 0)
             {
-                for (int k = 0; k < n; k++)
-                    if (weight[k] > 0 && !dropped[k])
-                        len[k] = dur[k] + delta * (weight[k] / activeWeight);
-                break;
+                totalWeight += weight[k];
+                coreNatural += dur[k];
+                if (!hasCore) { firstWeight = weight[k]; hasCore = true; }
+                else if (weight[k] != firstWeight) uniformWeight = false;
             }
         }
+        double rigidTotal = naturalTotal - coreNatural;
+
+        // 无可伸音素（全 w=0）：按原长等比缩放占满。
+        if (!hasCore)
+        {
+            if (naturalTotal > Epsilon)
+                for (int k = 0; k < n; k++) len[k] = dur[k] * (space / naturalTotal);
+            return len;
+        }
+
+        double coreSpace = space - rigidTotal;
+
+        // 二级压缩：刚性音素都塞不下 → 可伸音素全归 0、刚性按原长等比压占满。
+        if (coreSpace <= Epsilon)
+        {
+            double scale = rigidTotal > Epsilon ? space / rigidTotal : 0;
+            for (int k = 0; k < n; k++) len[k] = weight[k] > 0 ? 0 : dur[k] * scale;
+            return len;
+        }
+
+        // 核原长全 0（数据异常、乘法奇点 d·r^w≡0）：按权重把核空间线性分给可伸音素。
+        if (coreNatural <= Epsilon)
+        {
+            for (int k = 0; k < n; k++)
+                len[k] = weight[k] > 0 ? coreSpace * (weight[k] / totalWeight) : dur[k];
+            return len;
+        }
+
+        // 同权重（含单核）→ 闭式等比：r^w 整体 = 核空间/核原长和。
+        if (uniformWeight)
+        {
+            double factor = coreSpace / coreNatural;
+            for (int k = 0; k < n; k++) len[k] = weight[k] > 0 ? dur[k] * factor : dur[k];
+            return len;
+        }
+
+        // 异权重 → 二分解 CoreSum(r) = Σ_{w>0} d·r^w = coreSpace（CoreSum 对 r 单调增、根唯一）。
+        double CoreSum(double r)
+        {
+            double s = 0;
+            for (int k = 0; k < n; k++) if (weight[k] > 0) s += dur[k] * Math.Pow(r, weight[k]);
+            return s;
+        }
+        double lo = 0, hi = 1;
+        while (CoreSum(hi) < coreSpace) hi *= 2;   // 倍增找上界（CoreSum(0)=0 < coreSpace 故 lo=0 有效）
+        double mid = hi;
+        while (true)
+        {
+            double next = (lo + hi) * 0.5;
+            mid = next;
+            if (next <= lo || next >= hi) break;   // 夹到相邻 double，r 不再变化为止（解到 double 精度）
+            if (CoreSum(next) < coreSpace) lo = next; else hi = next;
+        }
+        for (int k = 0; k < n; k++) len[k] = weight[k] > 0 ? dur[k] * Math.Pow(mid, weight[k]) : dur[k];
         return len;
     }
 }

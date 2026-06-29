@@ -405,11 +405,11 @@ IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Synthesized
 
 ### 伸缩、锁定与 preview
 
-音素如何随音符长度伸缩 / 去重叠是引擎的音韵学知识（元音优先让、各引擎自有比例），宿主没有元音/辅音概念。解法是把知识编码进每音素一个 `StretchWeight` 数字 + `IsLead` 前后标记，宿主据它跑确定性的两阶布局：
+音素如何随音符长度伸缩 / 去重叠是引擎的音韵学知识（元音吸收伸缩、各引擎自有比例），宿主没有元音/辅音概念。解法是把知识编码进每音素一个 `StretchWeight` 数字 + `IsLead` 前后标记，宿主据它跑确定性的乘法 / 等比布局（缩放比 `len/d = r^w`）：
 
-- **核时长由宿主填充派生**：核（w>0）的 `Duration` 被布局忽略（恒按 note 可用空间填充），报多少无所谓；辅音（w=0）的 `Duration` 即固定长。引擎无需自己摆位，只诚实报时长 + 权重 + 前后标记。
-- **权重随锁定持久化进工程**：用户锁定音素时固定的是"几何 + 伸缩性质"整体——`StretchWeight` 随锁定存进 `PhonemeInfo.StretchWeight` / 数据层 `IPhoneme.StretchWeight`。根除时序错位（工程加载后首轮合成前拖伸 note，压缩有正确分布而非退化均匀）。`StretchWeight` 默认填 `Duration`（全可伸、退化按时长比例缩）；`Σw ≤ 0` 退化均匀，无除零。
-- **锁定零跳变**：锁定 = 宿主取 `{Duration, StretchWeight, IsLead}` 按「核起点 = 音符头」重新派生位置；显示侧 `PhonemeLayout` 按当前邻居重新去重叠（核重新填充并再让位），与合成同源、常态不双重压缩，无需「反压缩」。
+- **核时长是基准比例**：核（w>0）的 `Duration` 是原长——单核时被抵消（恒填满核空间）、多核时定彼此基准比例（各乘 `r^w`）；辅音（w=0）的 `Duration` 即固定长。引擎无需自己摆位，只诚实报时长 + 权重 + 前后标记。
+- **权重随锁定持久化进工程**：用户锁定音素时固定的是"几何 + 伸缩性质"整体——`StretchWeight` 随锁定存进 `PhonemeInfo.StretchWeight` / 数据层 `IPhoneme.StretchWeight`。根除时序错位（工程加载后首轮合成前拖伸 note，伸缩有正确分布而非退化均匀）。`StretchWeight` 默认全填同一正值（如 `1`，等比缩放）；全 `w=0` 退化为按原长整体等比，无除零。
+- **锁定零跳变**：锁定 = 宿主取 `{Duration, StretchWeight, IsLead}` 按「核起点 = 音符头」重新派生位置；显示侧 `PhonemeLayout` 按当前邻居重新分配（可伸音素按 `r^w` 重新缩放），与合成同源、常态不双重压缩，无需「反压缩」。
 - **preview 纯显示、绝不反馈给引擎当约束**：权威时长由全量合成重新定时返回（带新权重），覆盖 preview。
 
 ### 音素属性（per-phoneme 自定义属性，引擎声明 + 宿主通用持有）

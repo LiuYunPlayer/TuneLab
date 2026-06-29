@@ -4,8 +4,9 @@ using Xunit.Abstractions;
 
 namespace TuneLab.Tests;
 
-// PhonemeLayout.Resolve（合成域共享纯函数）的回归：可用空间内统一分配——拉伸 / 一级水填 / 二级等比，
-// 跨 note 相接借前置、间隙归属各自；不变量 = 音素绝不溢出可用空间。
+// PhonemeLayout.Resolve（合成域共享纯函数）的回归：可用空间内乘法 / 等比分配（缩放比 = r^w）——
+// 同权重等比保形、异权重指数解 r、刚性不动、极限退二级等比压；跨 note 相接借前置、间隙归属各自；
+// 不变量 = 音素绝不溢出可用空间。
 public class PhonemeLayoutTests
 {
     readonly ITestOutputHelper _out;
@@ -29,26 +30,30 @@ public class PhonemeLayoutTests
         Assert.Equal(0.25, r[0][2].Duration, 9);                // b 等比
     }
 
-    // 一级压缩、多核不等长水填：短核出局钳 0、长核吸收余下压缩，不溢出。
+    // 同权重压缩 → 等比保形：缩放比统一，相对比例不变（乘法模型的核心）。
     [Fact]
-    public void SingleNote_FirstStage_WaterFill()
+    public void SingleNote_UniformWeight_Proportional()
     {
         var r = PhonemeLayout.Resolve(new[] { Note(0, 0.3, Ph("v1", 0.1, 1), Ph("v2", 0.5, 1)) });
         _out.WriteLine($"v1={r[0][0]} v2={r[0][1]}");
-        Assert.Equal(0.0, r[0][0].Duration, 9);
-        Assert.Equal(0.3, r[0][1].Duration, 9);
+        // 同权重 → factor=0.3/0.6=0.5，各乘 0.5：比例恒为 0.1:0.5=1:5
+        Assert.Equal(0.05, r[0][0].Duration, 9);
+        Assert.Equal(0.25, r[0][1].Duration, 9);
         Assert.True(r[0][1].End <= 0.3 + 1e-9);
     }
 
-    // 拉伸：多核按权重分摊余量；w=0 不动。
+    // 异权重拉伸 → 解 r：缩放比 = r^w（w=2 比 w=1 拉得更多）；w=0 不动。
     [Fact]
-    public void SingleNote_Stretch_ByWeight()
+    public void SingleNote_DifferentWeight_SolveR()
     {
         var r = PhonemeLayout.Resolve(new[] { Note(0, 1.0, Ph("c", 0.1, 0, true), Ph("v1", 0.3, 1), Ph("v2", 0.2, 2)) });
         _out.WriteLine($"c={r[0][0]} v1={r[0][1]} v2={r[0][2]}");
-        // space=1.0, 非lead 原长 0.5, extra=0.5 按权重 1:2 → v1+0.1667 v2+0.3333
-        Assert.Equal(0.3 + 0.5 / 3, r[0][1].Duration, 6);
-        Assert.Equal(0.2 + 1.0 / 3, r[0][2].Duration, 6);
+        // 核空间=1.0, 解 0.3·r + 0.2·r² = 1.0 → r=(-0.3+√0.89)/0.4≈1.608495
+        double rr = (-0.3 + System.Math.Sqrt(0.89)) / 0.4;
+        Assert.Equal(0.3 * rr, r[0][1].Duration, 9);            // v1 = 0.3·r
+        Assert.Equal(0.2 * rr * rr, r[0][2].Duration, 9);       // v2 = 0.2·r²
+        Assert.True(r[0][2].Duration > r[0][1].Duration);       // w=2 拉得更多
+        Assert.Equal(1.0, r[0][2].End, 6);                      // 占满核空间
         Assert.Equal(-0.1, r[0][0].Start, 9);                   // lead 往左堆原长 0.1
         Assert.Equal(0.0, r[0][0].End, 9);
     }
@@ -64,7 +69,7 @@ public class PhonemeLayoutTests
         Assert.Equal(1.0, r[0][1].End, 9);                      // 占满，无留白
     }
 
-    // 跨 note 相接：后 note 的 lead 并入前 note 可用空间一起压缩；多核按权重共同让位。
+    // 跨 note 相接：后 note 的 lead 并入前 note 可用空间；等权双核等比拉伸、借来的 lead 刚性不动。
     [Fact]
     public void CrossNote_BorrowLead_MultiCore()
     {
@@ -73,11 +78,11 @@ public class PhonemeLayoutTests
         var b = Note(1.0, 2.0, Ph("s", 0.4, 0, true), Ph("u", 0.0, 1));
         var r = PhonemeLayout.Resolve(new[] { a, b });
         _out.WriteLine($"u#={r[0][1]} #n={r[0][2]} s(借)={r[1][0]} u={r[1][1]}");
-        // 可用空间[0,1.0]，members=u#(0.3)+#n(0.2)+s(0.4)=0.9 < 1.0 → 拉伸？不，space=1.0>0.9 → 拉伸
-        // 等权核 u#,#n 共享 extra=0.1 → 各+0.05；s(w0)不动 0.4
-        Assert.Equal(0.35, r[0][1].Duration, 9);
-        Assert.Equal(0.25, r[0][2].Duration, 9);
-        Assert.Equal(0.4, r[1][0].Duration, 9);                 // 借来的 lead s
+        // 可用空间[0,1.0]，members=u#(w1,0.3)+#n(w1,0.2)+s(w0,0.4)。刚性 s=0.4，核空间=0.6，
+        // 同权重核 factor=0.6/0.5=1.2：u#=0.36, #n=0.24（等比保形 0.3:0.2=3:2）
+        Assert.Equal(0.36, r[0][1].Duration, 9);
+        Assert.Equal(0.24, r[0][2].Duration, 9);
+        Assert.Equal(0.4, r[1][0].Duration, 9);                 // 借来的 lead s 刚性不动
         Assert.Equal(1.0, r[1][0].End, 9);                      // s 末接 B 核起点
         Assert.Equal(0, r[1][0].Start - 0.6, 9);                // s 起 = 1.0-0.4
     }

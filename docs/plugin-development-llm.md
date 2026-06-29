@@ -134,8 +134,8 @@ public interface IAutomationEvaluator { double[] Evaluate(IReadOnlyList<double> 
 // 音素描述符：进/出同型、方向无关；只报时长，位置/去重叠/melisma 全归宿主派生（引擎报绝对位置会让相接判据失真）。
 public struct SynthesizedPhoneme {
     string Symbol;
-    double Duration;        // 辅音(w=0)固定长；核(w>0)此值被布局忽略（恒按填充派生）
-    double StretchWeight;   // 0=刚性辅音 / >0=可伸核·元音（先让）；无音韵学知识填 Duration（均匀缩放）；Σw≤0 退化均匀
+    double Duration;        // 辅音(w=0)固定长；核(w>0)原长（单核被抵消恒填满核空间、多核定基准比例）
+    double StretchWeight;   // 缩放比 len/d=r^w：0=刚性辅音 / >0=可伸核·元音；无音韵学知识全填同一正值(如1,等比)；全w=0退化整体等比
     bool   IsLead;          // 前置音素（核之前的引导辅音）：前置往左累积、核+后辅音往右
 }
 public struct VoiceSourceInfo { string Name; string Description; ImageResource? Portrait; }  // Portrait 用 FileImageResource(绝对路径)，null=无
