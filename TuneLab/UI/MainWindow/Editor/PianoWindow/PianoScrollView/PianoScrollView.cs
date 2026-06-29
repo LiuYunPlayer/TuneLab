@@ -17,10 +17,12 @@ using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.SDK;
+using TuneLab.Extensions.Voices;
+using TuneLab.Extensions.Instruments;
 using TuneLab.Utils;
 using TuneLab.I18N;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TuneLab.Configs;
 using System.IO;
 
@@ -117,6 +119,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
         Settings.BackgroundImagePath.Modified.Subscribe(LoadBackgroundImage, s);
         Settings.BackgroundImageOpacity.Modified.Subscribe(InvalidateVisual, s);
         LoadBackgroundImage();
+
+        // voice 立绘随当前 part 及其音源（换引擎 / 换声库）变化重解析；动图播放随挂载 / 卸载视觉树起停（不可见不空转）。
+        mDependency.PartHolder.Modified.Subscribe(LoadPortrait, s);
+        mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(LoadPortrait, s);
+        AttachedToVisualTree += (_, _) => UpdateImagePlayback();
+        DetachedFromVisualTree += (_, _) => UpdateImagePlayback();
+        LoadPortrait();
     }
 
     ~PianoScrollView()
@@ -493,14 +502,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
             }
         }
         
-        // draw background
-        if (mBackgroundImage != null)
+        // draw decorative image（立绘优先）：当前声库有立绘则画立绘，否则画全局背景图——二者互斥、共用 ImagePlayer（静态 / 动图）。
+        // 二者同样靠右贴住、按高度填满钢琴窗等比缩放，并同套 BackgroundImageOpacity 不透明度；画在网格之后、音符之前（音符盖其上仍清晰）。
+        var decoFrame = mPortrait?.CurrentFrame ?? mBackground?.CurrentFrame;
+        if (decoFrame != null && decoFrame.Size.Height > 0)
         {
-            var imageSize = mBackgroundImage.Size;
-            var ratio = Bounds.Height / imageSize.Height;
-            imageSize *= ratio;
+            var imageSize = decoFrame.Size;
+            imageSize *= Bounds.Height / imageSize.Height;
             using var _ = context.PushOpacity(Settings.BackgroundImageOpacity);
-            context.DrawImage(mBackgroundImage, new Rect(Bounds.Width - imageSize.Width, 0, imageSize.Width, imageSize.Height));
+            context.DrawImage(decoFrame, new Rect(Bounds.Width - imageSize.Width, 0, imageSize.Width, imageSize.Height));
         }
 
         // draw refer note
@@ -1077,22 +1087,64 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     void LoadBackgroundImage()
     {
-        if (!File.Exists(Settings.BackgroundImagePath))
-        {
-            mBackgroundImage = null;
-            InvalidateVisual();
-            return;
-        }
+        mBackground?.Dispose();
+        string path = Settings.BackgroundImagePath.Value;
+        mBackground = File.Exists(path) ? ImagePlayer.Load(path) : null;
+        if (mBackground != null)
+            mBackground.FrameChanged += InvalidateVisual;
 
-        try
+        UpdateImagePlayback();
+        InvalidateVisual();
+    }
+
+    // 解析当前 part 音源声库的立绘并缓存（按路径去重，避免每次重绘重载）；无立绘 / 文件不存在则清空。
+    void LoadPortrait()
+    {
+        string? path = ResolvePortraitPath();
+        if (path == mPortraitPath)
+            return;
+
+        mPortraitPath = path;
+        mPortrait?.Dispose();
+        mPortrait = path != null ? ImagePlayer.Load(path) : null;
+        if (mPortrait != null)
+            mPortrait.FrameChanged += InvalidateVisual;
+
+        UpdateImagePlayback();
+        InvalidateVisual();
+    }
+
+    // 立绘优先：只让「实际要画的那张图」（有立绘则立绘、否则背景图）的动图定时器在跑——被盖掉的那张停表省 CPU；
+    // 控件未挂上视觉树（不可见）时两者都停。静态图无定时器，Start/Stop 皆空操作。
+    void UpdateImagePlayback()
+    {
+        bool attached = this.GetVisualRoot() != null;
+        var active = mPortrait ?? mBackground;
+        if (mPortrait != null)
+            mBackground?.Stop();   // 背景图被立绘盖掉
+
+        if (attached)
+            active?.Start();
+        else
         {
-            mBackgroundImage = new Bitmap(Settings.BackgroundImagePath);
-            InvalidateVisual();
+            mPortrait?.Stop();
+            mBackground?.Stop();
         }
-        catch (Exception ex)
-        {
-            Log.Error("Failed to load background image: " + ex);
-        }
+    }
+
+    // 仅支持路径变体的立绘（FileImageResource）；其他变体宿主暂不解码，走兜底（无立绘）。
+    string? ResolvePortraitPath()
+    {
+        var part = Part;
+        if (part == null)
+            return null;
+
+        var source = part.SoundSource;
+        ImageResource? portrait = source.Kind == SourceKind.Voice
+            ? (VoicesManager.TryGetVoiceInfo(source.Type, source.ID, out var voiceInfo) ? voiceInfo.Portrait : null)
+            : (InstrumentsManager.TryGetInstrumentInfo(source.Type, source.ID, out var instrumentInfo) ? instrumentInfo.Portrait : null);
+
+        return portrait is FileImageResource fileImage && File.Exists(fileImage.Path) ? fileImage.Path : null;
     }
 
     double QuantizedCellTicks()
@@ -1509,7 +1561,11 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     readonly TextInput mLyricInput;
 
-    IImage? mBackgroundImage = null;
+    // 钢琴窗右侧装饰图（静态 / 动图统一走 ImagePlayer）：立绘随当前音源声库变，背景图来自全局设置。
+    // 立绘优先——有立绘只画立绘，否则才画背景图（见 Render 与 UpdateImagePlayback）。
+    ImagePlayer? mPortrait = null;
+    string? mPortraitPath = null;
+    ImagePlayer? mBackground = null;
 
     Color WhiteKeyColor => GUI.Style.WHITE_KEY;
     Color BlackKeyColor => GUI.Style.BLACK_KEY;

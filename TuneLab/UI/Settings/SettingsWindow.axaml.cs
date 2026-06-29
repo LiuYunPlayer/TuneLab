@@ -390,7 +390,17 @@ internal partial class SettingsWindow : Window
     {
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
 
-        // Custom Background Image + Opacity
+        // 全局背景图：路径 + 不透明度。不透明度同时作用于声库立绘（立绘优先于背景图显示），与路径解耦、单列一行；
+        // 按用户意愿标签仍按背景图措辞（不强调立绘 / 背景之分）。
+        {
+            var name = new TextBlock() { Text = "Custom Background Image".Tr(this) + ": ", Margin = new(24, 12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            listView.Content.Children.Add(name);
+        }
+        {
+            var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [FilePickerFileTypes.ImageAll] } };
+            controller.Bind(Settings.BackgroundImagePath, false, s);
+            listView.Content.Children.Add(controller);
+        }
         {
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
@@ -401,19 +411,10 @@ internal partial class SettingsWindow : Window
                 panel.AddDock(slider, Dock.Right);
             }
             {
-                var name = new TextBlock() { Text = "Opacity".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new(0, 0, 12, 0) };
-                panel.AddDock(name, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Custom Background Image".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                var name = new TextBlock() { Text = "Background Image Opacity".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 panel.AddDock(name);
             }
             listView.Content.Children.Add(panel);
-        }
-        {
-            var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [FilePickerFileTypes.ImageAll] } };
-            controller.Bind(Settings.BackgroundImagePath, false, s);
-            listView.Content.Children.Add(controller);
         }
 
         // Track Hue Change Rate

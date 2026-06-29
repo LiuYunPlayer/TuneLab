@@ -522,6 +522,7 @@ public class AutomationConfig : IValueConfig<double>
   }
   ```
   `Portrait` 是格式无关的资源引用：封闭层次（构造器 private protected，变体仅 SDK 内新增），变体按数据形态分型（v1 仅 `FileImageResource` 路径变体——可指向图像文件或序列帧目录）、保持可序列化数据形态；动图（GIF/APNG）是宿主解码能力不进类型，Live2D/Spine 等富动态为独立特性。运行时会变的图像走目录变更信号（将来 `IVoiceSynthesisEngine` 加性事件），资源对象本身恒为不可变值。
+  宿主渲染：钢琴窗按当前 part 音源声库解析 `Portrait`，把图（静态 / 动图当前帧）画在网格之后、音符之前（音符盖其上仍清晰）。**立绘优先于全局背景图**——当前声库有立绘则画立绘（背景图让位、且其动图定时器停表省 CPU），无立绘才画全局背景图。两者**同样靠右贴住、按高度填满钢琴窗等比缩放，并同套 `BackgroundImageOpacity` 不透明度**（仅来源与优先级不同，几何 / 透明度一致）。两者还**共用同一帧播放器**（`ImagePlayer`）：解码走 Skia（`SKCodec`），**静态图**（png/jpg/静态 webp…）= 单帧无定时器；**动图**（animated webp / gif / apng）= 多帧 + 逐帧时长，`DispatcherTimer` 按帧时长推进、控件挂上视觉树才播（不可见不空转）——故全局背景图也支持动图。仅解码指向**单个图像文件**的路径（立绘走 `FileImageResource` 路径变体）；序列帧目录 / 其余变体 / WebM 等视频容器走兜底（不显示）。换 part / 换引擎 / 换声库即重解析（按路径去重，不重复加载）。`instrument` 同理走 `InstrumentSourceInfo.Portrait`。
 
 - **声明在引擎、不在会话**：声明（轨集合 / 属性面板 / 回显轨）是当前 part/note/phoneme 值的纯函数、不碰任何合成
   运行时状态，故全留 `IVoiceSynthesisEngine`（一处、规整）。**会话只保留 `DefaultLyric`**（创建后才取用的运行时值）。
@@ -660,7 +661,7 @@ public class AutomationConfig : IValueConfig<double>
   voice 走材料化缓存（part 参数驱动重算），effect 走惰性 dirty 缓存（自身参数驱动），宿主聚合签名去抖、仅轨集合实变才刷新 UI。
   孤儿数据归宿定为**保留隐藏、轨复现即原样恢复**：数据层不因声明收缩而裁剪曲线，隐藏轨不参与合成。
   引擎自发的运行中变化（如异步模型加载后改轨集合，非参数驱动）若将来需要，再加声明级变更事件——当前 context 驱动已覆盖参数驱动的全部场景。）
-- 动态立绘 / 动态全局背景图（宿主渲染能力，独立特性）。
+- ~~动态立绘~~（**已实现**：静态图 + 动图 animated webp/gif/apng，帧播放器走 Skia `SKCodec`，详见 §8 `Portrait` 宿主渲染）；动态全局背景图、序列帧目录立绘、Live2D/Spine 富动态仍为独立特性。
 
 - ~~**合成参数回显 + 可编辑分段轨**~~（**已实现**）：
   - 合成参数回显：`IVoiceSynthesisSession.SynthesizedParameters`（按轨 id 键、与音频/音高同一秒时间系、分段）端到端透传

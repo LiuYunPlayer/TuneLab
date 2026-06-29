@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 立绘资源（随包发布，引擎按包目录拼绝对路径喂 FileImageResource）：静态 webp + 动态 webp 各一。 -->
+    <Content Include="portrait.webp" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="portrait-anim.webp" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

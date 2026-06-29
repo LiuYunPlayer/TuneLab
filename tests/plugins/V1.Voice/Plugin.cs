@@ -20,8 +20,14 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 
     public void Init()
     {
-        mVoiceInfos.Add("v1-alice", new VoiceSourceInfo { Name = "Alice (V1 Test)", Description = "Test voice Alice" });
+        // 立绘路径按包目录拼出（DLL 经 Assembly.Location 自定位）。三态各覆盖一条路径：
+        // Alice = 静态 webp，Carol = 动态 webp（animated），Bob = 无立绘。
+        var packageDir = System.IO.Path.GetDirectoryName(typeof(TestVoiceEngine).Assembly.Location) ?? "";
+        var staticPortrait = System.IO.Path.Combine(packageDir, "portrait.webp");
+        var animatedPortrait = System.IO.Path.Combine(packageDir, "portrait-anim.webp");
+        mVoiceInfos.Add("v1-alice", new VoiceSourceInfo { Name = "Alice (V1 Test)", Description = "Test voice Alice", Portrait = new FileImageResource(staticPortrait) });
         mVoiceInfos.Add("v1-bob", new VoiceSourceInfo { Name = "Bob (V1 Test)", Description = "Test voice Bob" });
+        mVoiceInfos.Add("v1-carol", new VoiceSourceInfo { Name = "Carol (V1 Test)", Description = "Test voice Carol", Portrait = new FileImageResource(animatedPortrait) });
         mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
         // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。
         mPhonemeProperties.Add("accent", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
