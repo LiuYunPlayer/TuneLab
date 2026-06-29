@@ -1,6 +1,6 @@
 # ComboBox 任意基础类型 + DisplayText（值/显示分离）· 测试用例
 
-> 范围：`ComboBoxConfig` 的选项从纯 `string` 升级为 `ComboBoxOption`——选项值可为任意基础类型（统一存进单一 `PropertyValue`），并带独立 `DisplayText`（界面显示文本 ≠ 底层存储值）；默认值是「值」而非「索引」。
+> 范围：`ComboBoxConfig` 的选项从纯 `string` 升级为 `ComboBoxItem`——选项值可为任意基础类型（统一存进单一 `PropertyValue`），并带独立 `DisplayText`（界面显示文本 ≠ 底层存储值）；默认值是「值」而非「索引」。
 > 只测本次升级的新行为：值/显示分离、typed 值存取、默认值语义、多选三态、以及对既有 ComboBox 用法的回归。
 > 属性面板的三态呈现、reconcile 复用等已由 `PROPERTY-TRISTATE-TEST-CASES.md`、`PROPERTY-CONDITIONAL-TEST-CASES.md` 覆盖，不在此重跑。
 

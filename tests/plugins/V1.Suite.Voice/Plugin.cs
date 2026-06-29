@@ -38,12 +38,12 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
         var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
         foreach (var kvp in selected.Map)
-            map.Add((kvp.Key, SpeakerName(kvp.Key)), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" });
+            map.Add((kvp.Key, SpeakerName(kvp.Key)), AutomationConfig.Create(0, 100).WithColor("#73E5A5").WithDefault(0));
         return map;
     }
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context)
-        => SourceIdOf(context) == "suite-conditional" ? ConditionalPartConfig(context) : new() { Properties = mSuitePartProperties };
+        => SourceIdOf(context) == "suite-conditional" ? ConditionalPartConfig(context) : ObjectConfig.Create(mSuitePartProperties);
 
     static string SourceIdOf(IVoiceSynthesisPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 
@@ -51,22 +51,20 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
     // present 键 = 当前已选 speaker（读 context）；+ 候选 = 全部 speaker（控件隐藏已存在的）；条目仅 presence（空 ObjectConfig）。
     static ObjectConfig ConditionalPartConfig(IVoiceSynthesisPartPropertyContext context)
     {
-        var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", new CheckBoxConfig() } };
+        var map = new OrderedMap<PropertyKey, IControllerConfig> { { "fromPart", CheckBoxConfig.Create() } };
 
         var selected = context.Parts.Select(p => p.PartProperties).Merge().GetValue("speakers", PropertyObject.Empty);
         var speakerProps = new OrderedMap<PropertyKey, IControllerConfig>();
         foreach (var kvp in selected.Map)
-            speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
+            speakerProps.Add((kvp.Key, SpeakerName(kvp.Key)), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
 
-        map.Add(("speakers", "Mixed Speakers"), new ExtensibleObjectConfig
-        {
-            Properties = speakerProps,
-            AddableElements = kSpeakers
-                .Select(s => new AddableKey((s.id, s.name), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() }))
-                .ToList(),
-        });
+        map.Add(("speakers", "Mixed Speakers"), ExtensibleObjectConfig.Create(
+            speakerProps,
+            kSpeakers
+                .Select(s => new AddableKey((s.id, s.name), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>())))
+                .ToList()));
 
-        return new ObjectConfig { Properties = map };
+        return ObjectConfig.Create(map);
     }
 
     static readonly (string id, string name)[] kSpeakers = { ("alice", "Alice"), ("bob", "Bob"), ("carol", "Carol") };
@@ -78,7 +76,7 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
         return id;
     }
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
-        => context.Part.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : new() { Properties = mSuiteNoteProperties };
+        => context.Part.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : ObjectConfig.Create(mSuiteNoteProperties);
     public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     // 条件 note 面板：note config = f(context)，随当前值动态变化——① 显隐/换控件（mode=Advanced 多出字段）；
@@ -89,24 +87,24 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
         var note = context.Notes.Select(n => n.Properties).Merge();
         var map = new OrderedMap<PropertyKey, IControllerConfig>
         {
-            { "mode", new ComboBoxConfig { Options = ["Simple", "Advanced"] } },
-            { "letters", new TextBoxConfig() },
+            { "mode", ComboBoxConfig.Create(["Simple", "Advanced"]) },
+            { "letters", TextBoxConfig.Create() },
         };
 
         // ② pick 选项随 letters 变（内容 + 数量）
         var letters = note.GetString("letters", "");
         var options = letters.Length > 0 ? letters.Select(c => c.ToString()).ToList() : ["(empty)"];
-        map.Add("pick", new ComboBoxConfig { Options = options.Select(o => (ComboBoxOption)o).ToList() });
+        map.Add("pick", ComboBoxConfig.Create(options.Select(o => (ComboBoxItem)o).ToList()));
 
         // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
         if (context.Part.PartProperties.GetBool("fromPart", false))
-            map.Add("partGain", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100 });
+            map.Add("partGain", SliderConfig.Linear(0, 0, 100));
 
         // ① mode=Advanced → 多出字段（显隐 / 换控件）
         if (note.GetString("mode", "Simple") == "Advanced")
         {
-            map.Add("gain", new SliderConfig { DefaultValue = 0, MinValue = -12, MaxValue = 12 });
-            map.Add("detail", new TextBoxConfig());
+            map.Add("gain", SliderConfig.Linear(0, -12, 12));
+            map.Add("detail", TextBoxConfig.Create());
         }
 
         // ③ 每个唯一字符 → 一个滑条（key = 字符；重复字符跳过——key 唯一模型表达不了重复，正是 ④ array 的动机）
@@ -115,7 +113,7 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
         {
             var key = ch.ToString();
             if (seen.Add(key))
-                map.Add(key, new SliderConfig { DefaultValue = 0.5, MinValue = 0, MaxValue = 1 });
+                map.Add(key, SliderConfig.Linear(0.5, 0, 1));
         }
 
         // ④ 可重复列表 phonemes（PropertyArray + ListConfig）：与 ③ 的 key-unique 滑条对照——这里重复字符不跳过，
@@ -123,44 +121,36 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
         //   present → 按实际元素数返回 TextBox（不再 seed）。面板：+ 弹菜单(Phoneme/Rest) 追加、行悬浮删除、原位编辑。
         IReadOnlyList<IControllerConfig> phonemeElements = note.Map.ContainsKey("phonemes")
             ? Enumerable.Range(0, note.GetValue("phonemes", PropertyArray.Empty).Count)
-                .Select(_ => (IControllerConfig)new TextBoxConfig()).ToList()
-            : letters.Select(c => (IControllerConfig)new TextBoxConfig { DefaultValue = c.ToString() }).ToList();
-        map.Add("phonemes", new ListConfig
-        {
-            Elements = phonemeElements,
-            AddableElements =
+                .Select(_ => (IControllerConfig)TextBoxConfig.Create()).ToList()
+            : letters.Select(c => (IControllerConfig)TextBoxConfig.Create(c.ToString())).ToList();
+        map.Add("phonemes", ListConfig.Create(
+            phonemeElements,
             [
-                new AddableElement(new TextBoxConfig(), "Phoneme"),
-                new AddableElement(new TextBoxConfig { DefaultValue = "-" }, "Rest"),
-            ],
-        });
+                new AddableElement(TextBoxConfig.Create(), "Phoneme"),
+                new AddableElement(TextBoxConfig.Create("-"), "Rest"),
+            ]));
 
         // ④ 定长数组 pair（PropertyArray + ArrayConfig）：固定 2 个滑条、不可增删；
         //   absent → 显示 2 行默认值(0.2/0.8)、编辑任一即物化整段（演示 ArrayController + seed 越界惰性绑定）。
-        map.Add("pair", new ArrayConfig
-        {
-            Elements =
+        map.Add("pair", ArrayConfig.Create(
             [
-                new SliderConfig { DefaultValue = 0.2, MinValue = 0, MaxValue = 1 },
-                new SliderConfig { DefaultValue = 0.8, MinValue = 0, MaxValue = 1 },
-            ],
-        });
+                SliderConfig.Linear(0.2, 0, 1),
+                SliderConfig.Linear(0.8, 0, 1),
+            ]));
 
         // ④-D note 级变长键控容器 tags（ExtensibleObjectConfig）：part 面板的 Mixed Speakers 是单选场景，
         //   这里放一个到可多选的 note 面板，供多选下「键并集合并 + 公共键编辑扇出」真机测试。
         var selectedTags = note.GetValue("tags", PropertyObject.Empty);
         var tagProps = new OrderedMap<PropertyKey, IControllerConfig>();
         foreach (var kvp in selectedTags.Map)
-            tagProps.Add((kvp.Key, TagName(kvp.Key)), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() });
-        map.Add(("tags", "Tags"), new ExtensibleObjectConfig
-        {
-            Properties = tagProps,
-            AddableElements = kTags
-                .Select(t => new AddableKey((t.id, t.name), new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>() }))
-                .ToList(),
-        });
+            tagProps.Add((kvp.Key, TagName(kvp.Key)), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>()));
+        map.Add(("tags", "Tags"), ExtensibleObjectConfig.Create(
+            tagProps,
+            kTags
+                .Select(t => new AddableKey((t.id, t.name), ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>())))
+                .ToList()));
 
-        return new ObjectConfig { Properties = map };
+        return ObjectConfig.Create(map);
     }
 
     static readonly (string id, string name)[] kTags = { ("red", "Red"), ("green", "Green"), ("blue", "Blue") };
@@ -176,33 +166,33 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyConfigs = new();
 
     // 自定义自动化名避开宿主保留名。
-    readonly OrderedMap<PropertyKey, AutomationConfig> mSuiteAutomations = new() { { ("Power", "Power"), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#73E5A5" } } };
+    readonly OrderedMap<PropertyKey, AutomationConfig> mSuiteAutomations = new() { { ("Power", "Power"), AutomationConfig.Create(0, 100).WithColor("#73E5A5").WithDefault(0) } };
     readonly OrderedMap<PropertyKey, IControllerConfig> mSuitePartProperties = new();
     // 四类控件各一项 + 多层嵌套 ObjectConfig，供属性面板三态呈现的多选测试 + 深层嵌套导航
     // （vibrato → lfo → range 共 3 层对象；见 tests/PROPERTY-TRISTATE/NAVIGATION-TEST-CASES.md）。
     readonly OrderedMap<PropertyKey, IControllerConfig> mSuiteNoteProperties = new()
     {
-        { "tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
-        { "accent", new CheckBoxConfig() },
-        { "label", new TextBoxConfig() },
-        { "style", new ComboBoxConfig { Options = ["Soft", "Normal", "Strong"], DefaultOption = "Normal" } },
+        { "tension", SliderConfig.Linear(0, -1, 1) },
+        { "accent", CheckBoxConfig.Create() },
+        { "label", TextBoxConfig.Create() },
+        { "style", ComboBoxConfig.Create(["Soft", "Normal", "Strong"]).WithDefault("Normal") },
         // 值/显示分离 + 任意基础类型：界面显示 Low/Mid/High，底层存的是 int 值 0/1/2（默认 Mid=1）。
-        { "quality", new ComboBoxConfig { Options = new ComboBoxOption[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }, DefaultOption = new ComboBoxOption(1, "Mid") } },
-        { "vibrato", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
+        { "quality", ComboBoxConfig.Create(new ComboBoxItem[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }).WithDefault(new ComboBoxItem(1, "Mid")) },
+        { "vibrato", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
         {
-            { "depth", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 } },
-            { "on", new CheckBoxConfig() },
-            { "lfo", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
+            { "depth", SliderConfig.Linear(0, 0, 1) },
+            { "on", CheckBoxConfig.Create() },
+            { "lfo", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
             {
-                { "rate", new SliderConfig { DefaultValue = 5, MinValue = 0, MaxValue = 20 } },
-                { "wave", new ComboBoxConfig { Options = ["Sine", "Triangle", "Square"] } },
-                { "range", new ObjectConfig { Properties = new OrderedMap<PropertyKey, IControllerConfig>
+                { "rate", SliderConfig.Linear(5, 0, 20) },
+                { "wave", ComboBoxConfig.Create(["Sine", "Triangle", "Square"]) },
+                { "range", ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
                 {
-                    { "min", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
-                    { "max", new SliderConfig { DefaultValue = 1, MinValue = -1, MaxValue = 1 } },
-                } } },
-            } } },
-        } } },
+                    { "min", SliderConfig.Linear(0, -1, 1) },
+                    { "max", SliderConfig.Linear(1, -1, 1) },
+                }) },
+            }) },
+        }) },
     };
 }
 

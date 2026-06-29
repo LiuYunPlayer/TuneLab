@@ -18,6 +18,7 @@ using TuneLab.GUI.Controllers;
 using Avalonia.Platform.Storage;
 using TuneLab.Audio;
 using TuneLab.Extensions;
+using ComboBoxItem = TuneLab.SDK.ComboBoxItem;   // 消歧：避开 Avalonia.Controls.ComboBoxItem
 
 namespace TuneLab.UI;
 
@@ -218,7 +219,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new() { Options = TranslationManager.Languages.Select(o => (ComboBoxOption)o).ToList() });
+                comboBox.SetConfig(ComboBoxConfig.Create(TranslationManager.Languages.Select(o => (ComboBoxItem)o).ToList()));
                 comboBox.Bind(Settings.Language, false, s);
                 panel.AddDock(comboBox, Dock.Right);
             }
@@ -309,7 +310,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(new() { Options = AudioEngine.GetAllDrivers().Select(o => (ComboBoxOption)o).ToList() });
+                comboBox.SetConfig(ComboBoxConfig.Create(AudioEngine.GetAllDrivers().Select(o => (ComboBoxItem)o).ToList()));
                 comboBox.Bind(Settings.AudioDriver, false, s);
                 comboBox.Display(AudioEngine.CurrentDriver.Value);
                 panel.AddDock(comboBox, Dock.Right);
@@ -326,7 +327,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(new() { Options = AudioEngine.GetAllDevices().Select(o => (ComboBoxOption)o).ToList() });
+                comboBox.SetConfig(ComboBoxConfig.Create(AudioEngine.GetAllDevices().Select(o => (ComboBoxItem)o).ToList()));
                 comboBox.Bind(Settings.AudioDevice, false, s);
                 comboBox.Display(AudioEngine.CurrentDevice.Value);
                 panel.AddDock(comboBox, Dock.Right);
@@ -343,7 +344,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new() { Options = ["32000", "44100", "48000", "96000", "192000"] });
+                comboBox.SetConfig(ComboBoxConfig.Create(["32000", "44100", "48000", "96000", "192000"]));
                 comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.SampleRate, false, s);
                 comboBox.Display(AudioEngine.SampleRate.Value.ToString());
                 panel.AddDock(comboBox, Dock.Right);
@@ -360,7 +361,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(new() { Options = ["64", "128", "256", "512", "1024", "2048", "4096", "8192"] });
+                comboBox.SetConfig(ComboBoxConfig.Create(["64", "128", "256", "512", "1024", "2048", "4096", "8192"]));
                 comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.BufferSize, false, s);
                 comboBox.Display(AudioEngine.BufferSize.Value.ToString());
                 panel.AddDock(comboBox, Dock.Right);
@@ -575,10 +576,8 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(36, 8, 24, 8) };
             {
                 var comboBox = new ComboBoxController() { Width = 280 };
-                comboBox.SetConfig(new ComboBoxConfig
-                {
-                    Options = row.Options.Select(o => new ComboBoxOption(PropertyValue.Create(o.PackageId), OptionLabel(o))).ToList<ComboBoxOption>(),
-                });
+                comboBox.SetConfig(ComboBoxConfig.Create(
+                    row.Options.Select(o => new ComboBoxItem(PropertyValue.Create(o.PackageId), OptionLabel(o))).ToList<ComboBoxItem>()));
                 comboBox.Display(PropertyValue.Create(row.ActivePackageId));
                 var routeKey = row.RouteKey;
                 comboBox.ValueCommitted.Subscribe(() =>

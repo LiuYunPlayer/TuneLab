@@ -29,7 +29,7 @@ public sealed class ConflictVoiceEngine : IVoiceSynthesisEngine
     public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
-    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig sEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
 }
 
@@ -53,7 +53,7 @@ internal sealed class SilentSession : IVoiceSynthesisSession
 
     public void Dispose() { }
 
-    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig sEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
     static readonly Map<string, SynthesizedParameter> sEmptyParameters = new();
     static readonly Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> sEmptyPhonemes = new();

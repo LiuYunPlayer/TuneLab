@@ -55,12 +55,12 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
     public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
     {
         var props = new OrderedMap<PropertyKey, IControllerConfig>();
-        props.Add(("model_path", L.Tr("Model Path")), new TextBoxConfig { DefaultValue = string.Empty });
-        props.Add(("api_key", L.Tr("API Key")), new TextBoxConfig { DefaultValue = string.Empty, IsPassword = true });
-        props.Add(("use_gpu", L.Tr("Use GPU")), new CheckBoxConfig { DefaultValue = false });
+        props.Add(("model_path", L.Tr("Model Path")), TextBoxConfig.Create(string.Empty));
+        props.Add(("api_key", L.Tr("API Key")), TextBoxConfig.Create(string.Empty).WithPassword());
+        props.Add(("use_gpu", L.Tr("Use GPU")), CheckBoxConfig.Create(false));
         if (context.Settings.GetBool("use_gpu", false))
-            props.Add(("gpu_device", L.Tr("GPU Device")), new TextBoxConfig { DefaultValue = string.Empty });
-        return new ObjectConfig { Properties = props };
+            props.Add(("gpu_device", L.Tr("GPU Device")), TextBoxConfig.Create(string.Empty));
+        return ObjectConfig.Create(props);
     }
 
     // 回喂可观测点：把收到的设置打日志，供测试核对"重启后引擎确实收到了持久化的值"。密钥只记录是否非空、不打印明文。
@@ -76,5 +76,5 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
 
     static readonly OrderedMap<string, VoiceSourceInfo> sEmpty = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
-    static readonly ObjectConfig sEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig sEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
 }

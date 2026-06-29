@@ -46,9 +46,9 @@ internal sealed class VoiceEngineAdapter(LVoice.IVoiceEngine legacy, string engi
     public PStruct.IReadOnlyOrderedMap<VVoice.PropertyKey, VVoice.AutomationConfig> GetSynthesizedParameterConfigs(VVoice.IVoiceSynthesisPartPropertyContext context)
         => sEmptyConfigs;
     public VVoice.ObjectConfig GetPartPropertyConfig(VVoice.IVoiceSynthesisPartPropertyContext context)
-        => new() { Properties = Decl(SourceIdOf(context)).PartProperties };
+        => VVoice.ObjectConfig.Create(Decl(SourceIdOf(context)).PartProperties);
     public VVoice.ObjectConfig GetNotePropertyConfig(VVoice.IVoiceSynthesisNotePropertyContext context)
-        => new() { Properties = Decl(context.Part.VoiceId).NoteProperties };
+        => VVoice.ObjectConfig.Create(Decl(context.Part.VoiceId).NoteProperties);
     public IReadOnlyList<VVoice.ObjectConfig> GetPhonemePropertyConfigs(VVoice.IVoiceSynthesisNotePropertyContext context) => [];
 
     static string SourceIdOf(VVoice.IVoiceSynthesisPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;

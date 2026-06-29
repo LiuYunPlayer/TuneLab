@@ -7,7 +7,7 @@ namespace TuneLab.GUI.Controllers;
 
 // 值模型为单一 PropertyValue box：option 值可为任意基础类型，显示用 option.ShowText()（DisplayText 缺省回退值字面量）。
 // 数据驱动的 Display(value) 按值在展平叶子里反查下标以高亮对应项；用户选择则反向把该项的值发为数据改动。
-// 底层是自造 DropDown（支持二级子菜单）：config 的 ComboBoxOption.SubOptions 递归建成 DropDownItem.Children。
+// 底层是自造 DropDown（支持二级子菜单）：config 的 ComboBoxItem.SubItems 递归建成 DropDownItem.Children。
 internal class ComboBoxController : DropDown, IDataValueController<PropertyValue>, IValueController<string>
 {
     public IActionEvent ValueWillChange => mValueWillChange;
@@ -31,10 +31,10 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
     {
         mConfig = config;
         mLeaves.Clear();
-        CollectLeaves(config.Options, mLeaves);
+        CollectLeaves(config.Items, mLeaves);
         // 重建选项不应走「用户改动」路径（reconcile 高频 SetConfig），屏蔽随后的选中变化。
         mAcceptSelectionChanged = false;
-        SetItems(BuildItems(config.Options));
+        SetItems(BuildItems(config.Items));
         mAcceptSelectionChanged = true;
         Display(config.DefaultOption.Value);
     }
@@ -75,7 +75,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         mAcceptSelectionChanged = true;
     }
 
-    static List<DropDownItem> BuildItems(IReadOnlyList<ComboBoxOption> options)
+    static List<DropDownItem> BuildItems(IReadOnlyList<ComboBoxItem> options)
     {
         var items = new List<DropDownItem>(options.Count);
         foreach (var option in options)
@@ -83,7 +83,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
             if (option.IsSeparator)
                 items.Add(new DropDownItem() { Text = option.DisplayText ?? string.Empty, IsSeparator = true });
             else if (option.IsGroup)
-                items.Add(new DropDownItem() { Text = option.ShowText(), Children = BuildItems(option.SubOptions!) });
+                items.Add(new DropDownItem() { Text = option.ShowText(), Children = BuildItems(option.SubItems!) });
             else
                 items.Add(new DropDownItem() { Text = option.ShowText(), Tag = option.Value });
         }
@@ -91,14 +91,14 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
     }
 
     // 展平叶子（DFS，分组展开、跳过分隔线）——与 DropDown 内部展平同序，故 SelectedIndex 在两侧一致。
-    static void CollectLeaves(IReadOnlyList<ComboBoxOption> options, List<ComboBoxOption> leaves)
+    static void CollectLeaves(IReadOnlyList<ComboBoxItem> options, List<ComboBoxItem> leaves)
     {
         foreach (var option in options)
         {
             if (option.IsSeparator)
                 continue;
             else if (option.IsGroup)
-                CollectLeaves(option.SubOptions!, leaves);
+                CollectLeaves(option.SubItems!, leaves);
             else
                 leaves.Add(option);
         }
@@ -138,7 +138,7 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
     readonly ActionEvent mValueChanged = new();
     readonly ActionEvent mValueCommitted = new();
 
-    ComboBoxConfig mConfig = new() { Options = [] };
-    readonly List<ComboBoxOption> mLeaves = new();
+    ComboBoxConfig mConfig = ComboBoxConfig.Create([]);
+    readonly List<ComboBoxItem> mLeaves = new();
     PropertyValue mValue = PropertyValue.Null;
 }

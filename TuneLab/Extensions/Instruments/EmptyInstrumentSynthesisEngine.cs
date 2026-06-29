@@ -51,6 +51,6 @@ internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
     }
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
-    static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig mEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static InstrumentSourceInfo mInstrumentSourceInfo = new() { Name = "Empty Instrument", Description = "" };
 }

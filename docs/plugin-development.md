@@ -286,15 +286,15 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 **note / part 属性约定（keyed `Properties`，这是 per-note/per-part 参数的唯一通道）**：
 
 - `IVoiceSynthesisNote` 的固定字段只有最小通用乐理量（`StartTime`/`EndTime`/`Pitch`/`Lyric`/`Phonemes`）。**所有 voice 专属的 per-note 参数（如张力、气声、性别）都走 `note.Properties`（keyed）**——加新参数 = 在 `GetNotePropertyConfig` 的 `ObjectConfig.Properties` 里加一个 key，不动接口固定面。part 级专属参数同理走 `GetPartPropertyConfig`。
-- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（`DefaultValue`/`MinValue`/`MaxValue`/`IsInteger`，量程与默认值必填；`Randomizable` 声明可随机，宿主在右侧给出随机入口、点一下在量程内重取值，适合随机种子等场景，大数时数值标签自动加宽）、`ComboBoxConfig`（`Options` + `DefaultOption`，值/显示分离，可「界面中文/底层存枚举值」）、`CheckBoxConfig`、`TextBoxConfig`（`IsPassword` 可掩码）；容器是 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
+- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（构造函数已封，只走静态工厂：`SliderConfig.Linear(default, min, max)` 连续、`SliderConfig.Integer(default, min, max)` 整数、`SliderConfig.Create(default, scale)` 接自定义标度 `INormalizedScale`；流式 `.WithFormat(INumberFormat)` 定制数值显示/回读、`.WithRandomizable()` 声明可随机——宿主在右侧给随机入口、点一下在标度上按归一化均匀重取值，适合随机种子等场景）、`ComboBoxConfig.Create(options)`（值/显示分离，可「界面中文/底层存枚举值」；`.WithDefault(option)` 指定默认选中，缺省取首项）、`CheckBoxConfig.Create(default)`、`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）；以上构造函数均已封、只走静态工厂。容器是 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`（复合型尚未工厂化）。
 
 ```csharp
 readonly ObjectConfig mNoteConfig = new()
 {
     Properties = new OrderedMap<string, IControllerConfig>
     {
-        { "tension",   new SliderConfig { DisplayText = "Tension", DefaultValue = 0, MinValue = -1, MaxValue = 1 } },
-        { "breathiness", new SliderConfig { DisplayText = "Breathiness", DefaultValue = 0, MinValue = 0, MaxValue = 1 } },
+        { "tension",   SliderConfig.Linear(0, -1, 1) },
+        { "breathiness", SliderConfig.Linear(0, 0, 1) },
     },
 };
 ```
@@ -340,10 +340,10 @@ static readonly ObjectConfig VowelConfig = new()
 {
     Properties = new OrderedMap<string, IControllerConfig>
     {
-        { "stress", new SliderConfig { DisplayText = "Stress", DefaultValue = 0, MinValue = 0, MaxValue = 1 } },
+        { "stress", SliderConfig.Linear(0, 0, 1) },
     },
 };
-static readonly ObjectConfig NoneConfig = new() { Properties = new() };
+static readonly ObjectConfig NoneConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
 
 static ObjectConfig ConfigForPhonemeAt(IVoiceSynthesisNoteView note, IReadOnlyList<IVoiceSynthesisPhonemeView> phonemes, int i)
     => phonemes[i].StretchWeight > 0 ? VowelConfig : NoneConfig;
@@ -692,13 +692,13 @@ public class MyEffectEngine : IEffectEngine   // engine id 在 manifest 的 "eng
     {
         Properties = new OrderedMap<string, IControllerConfig>
         {
-            { "amount", new SliderConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0 } },
+            { "amount", SliderConfig.Linear(1.0, 0.0, 2.0) },
         },
     };
-    readonly OrderedMap<string, AutomationConfig> mAutomationConfigs = new();
-    readonly OrderedMap<string, AutomationConfig> mReadbackConfigs = new()
+    readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
+    readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
     {
-        { "loudness", new AutomationConfig { DisplayText = "Loudness", DefaultValue = double.NaN, MinValue = 0, MaxValue = 2, Color = "#00B0FF" } },
+        { ("loudness", "Loudness"), AutomationConfig.Create(0, 2).WithColor("#00B0FF") },
     };
 }
 ```
@@ -825,14 +825,14 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
     //（"先填模型路径，Init 才加载得了模型"——schema 不能依赖 Init 后的状态）。
     public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
     {
-        var props = new OrderedMap<string, IControllerConfig>();
-        props.Add("model_path", new TextBoxConfig { DisplayText = "模型路径", DefaultValue = "" });
-        props.Add("api_key", new TextBoxConfig { DisplayText = "API Key", IsPassword = true }); // 密钥：掩码显示 + 加密落盘
-        props.Add("use_gpu", new CheckBoxConfig { DisplayText = "使用 GPU", DefaultValue = false });
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add(("model_path", "模型路径"), TextBoxConfig.Create(""));
+        props.Add(("api_key", "API Key"), TextBoxConfig.Create().WithPassword()); // 密钥：掩码显示 + 加密落盘
+        props.Add(("use_gpu", "使用 GPU"), CheckBoxConfig.Create(false));
         // 动态/条件项：据已填值决定显隐（如勾了 GPU 才暴露设备字段）。
         if (context.Settings.GetBool("use_gpu", false))
-            props.Add("gpu_device", new TextBoxConfig { DisplayText = "GPU 设备", DefaultValue = "" });
-        return new ObjectConfig { Properties = props };
+            props.Add(("gpu_device", "GPU 设备"), TextBoxConfig.Create(""));
+        return ObjectConfig.Create(props);
     }
 
     // —— 接收持久化的值 ——

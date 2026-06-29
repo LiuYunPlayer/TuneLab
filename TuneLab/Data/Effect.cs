@@ -116,7 +116,7 @@ internal class Effect : DataObject, IEffect
         public PropertyObject Properties => properties;
     }
 
-    static readonly ObjectConfig EmptyPropertyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig EmptyPropertyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly IReadOnlyOrderedMap<PropertyKey, AutomationConfig> EmptyAutomationConfigs = new OrderedMap<PropertyKey, AutomationConfig>();
 
     readonly MidiPart mPart;

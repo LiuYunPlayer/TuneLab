@@ -19,33 +19,35 @@ internal static class ControllerConfigConvert
             case LVoice.AutomationConfig a:
                 return a.ToV1();
             case LProp.NumberConfig n:
-                return new VConfig.SliderConfig { DefaultValue = n.DefaultValue, MinValue = n.MinValue, MaxValue = n.MaxValue, IsInteger = n.IsInterger };
+                return n.IsInterger
+                    ? VConfig.SliderConfig.Integer(n.DefaultValue, n.MinValue, n.MaxValue)
+                    : VConfig.SliderConfig.Linear(n.DefaultValue, n.MinValue, n.MaxValue);
             case LProp.BooleanConfig b:
-                return new VConfig.CheckBoxConfig { DefaultValue = b.DefaultValue };
+                return VConfig.CheckBoxConfig.Create(b.DefaultValue);
             case LProp.StringConfig s:
-                return new VConfig.TextBoxConfig { DefaultValue = s.DefaultValue };
+                return VConfig.TextBoxConfig.Create(s.DefaultValue);
             case LProp.EnumConfig e:
             {
-                // legacy EnumConfig 是 string 选项 + 索引默认值；V1 ComboBoxConfig 是 ComboBoxOption 选项 + 值默认值。
-                var options = new VConfig.ComboBoxOption[e.Options.Count];
+                // legacy EnumConfig 是 string 选项 + 索引默认值；V1 ComboBoxConfig 是 ComboBoxItem 选项 + 值默认值。
+                var options = new VConfig.ComboBoxItem[e.Options.Count];
                 for (int i = 0; i < e.Options.Count; i++)
                     options[i] = e.Options[i];
                 var defaultValue = (uint)e.DefaultIndex < (uint)options.Length ? options[e.DefaultIndex]
                     : options.Length > 0 ? options[0] : default;
-                return new VConfig.ComboBoxConfig { Options = options, DefaultOption = defaultValue };
+                return VConfig.ComboBoxConfig.Create(options).WithDefault(defaultValue);
             }
             case LProp.ObjectConfig o:
-                return new VConfig.ObjectConfig { Properties = o.Properties.ToV1ConfigMap() };
+                return VConfig.ObjectConfig.Create(o.Properties.ToV1ConfigMap());
             default:
                 // 未知 config（含内部 IntegerConfig/ListConfig，正常不会从插件公共面出现）：优雅降级为空对象。
-                return new VConfig.ObjectConfig { Properties = new PStruct.OrderedMap<VConfig.PropertyKey, VConfig.IControllerConfig>() };
+                return VConfig.ObjectConfig.Create(new PStruct.OrderedMap<VConfig.PropertyKey, VConfig.IControllerConfig>());
         }
     }
 
     // 标签随键：legacy 属性无独立译名，键即标签（PropertyKey.DisplayText 留空、回退 Id）；
     // legacy AutomationConfig 的 Name 进键的 DisplayText。
     public static VConfig.AutomationConfig ToV1(this LVoice.AutomationConfig a)
-        => new() { DefaultValue = a.DefaultValue, MinValue = a.MinValue, MaxValue = a.MaxValue, Color = a.Color };
+        => VConfig.AutomationConfig.Create(a.MinValue, a.MaxValue).WithColor(a.Color).WithDefault(a.DefaultValue);
 
     public static PStruct.IReadOnlyOrderedMap<VConfig.PropertyKey, VConfig.IControllerConfig> ToV1ConfigMap(
         this LStruct.IReadOnlyOrderedMap<string, LProp.IPropertyConfig> old)

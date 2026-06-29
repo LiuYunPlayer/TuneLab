@@ -15,6 +15,7 @@ using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
 using TuneLab.Utils;
 using static TuneLab.Foundation.MusicTheory;
+using ComboBoxItem = TuneLab.SDK.ComboBoxItem;   // 消歧：避开 Avalonia.Controls.ComboBoxItem
 
 namespace TuneLab.UI;
 
@@ -110,7 +111,7 @@ internal class FunctionBar : LayerPanel
                     ("1/80", QuantizationBase.Base_5, QuantizationDivision.Division_16),
                     ("1/160", QuantizationBase.Base_5, QuantizationDivision.Division_32),
                 ];
-                quantizationComboBox.SetConfig(new() { Options = options.Select(option => (ComboBoxOption)option.option).ToList(), DefaultOption = options[3].option });
+                quantizationComboBox.SetConfig(ComboBoxConfig.Create(options.Select(option => (ComboBoxItem)option.option).ToList()).WithDefault(options[3].option));
                 quantizationComboBox.ValueCommitted.Subscribe(() => { var index = quantizationComboBox.Index; if ((uint)index >= options.Length) return; mQuantizationChanged.Invoke(options[index].quantizationBase, options[index].quantizationDivision); });
                 quantizationPanel.Children.Add(quantizationComboBox);
             }

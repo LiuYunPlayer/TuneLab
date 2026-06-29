@@ -14,8 +14,14 @@ namespace TuneLab.SDK;
 //   按类型名选再追加。随 f(context) 一并重算，故可依当前状态变化（如达上限时返回空 → + 禁用）。
 //
 // 与 ObjectConfig/ArrayConfig 同为复合型、不实现 IValueConfig。重排先不做（做时限同类型互换位置）。
-public class ListConfig : IControllerConfig
+// 构造函数全封，只走静态工厂。
+public sealed class ListConfig : IControllerConfig
 {
-    public required IReadOnlyList<IControllerConfig> Elements { get; init; }
-    public required IReadOnlyList<AddableElement> AddableElements { get; init; }
+    public IReadOnlyList<IControllerConfig> Elements { get; private init; } = null!;
+    public IReadOnlyList<AddableElement> AddableElements { get; private init; } = null!;
+
+    private ListConfig() { }
+
+    public static ListConfig Create(IReadOnlyList<IControllerConfig> elements, IReadOnlyList<AddableElement> addableElements)
+        => new() { Elements = elements, AddableElements = addableElements };
 }

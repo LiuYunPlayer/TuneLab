@@ -53,15 +53,13 @@ public sealed class I18NVoiceEngine : IVoiceSynthesisEngine
         mVoiceInfos.Add("i18n-dynamic", new VoiceSourceInfo { Name = L.Tr("Cloud voice") + " [" + lang + "]", Description = L.Tr("A cloud-fetched voice") });
 
         // 声明类 config 在引擎层构建（本地化文案按当前语言）："raw" 用未收录词，验证未译时原样显示英文。
-        mNoteProperties.Add(("depth", L.Tr("Depth")), new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
-        mNoteProperties.Add(("quality", L.Tr("Quality")), new ComboBoxConfig
-        {
-            Options = new ComboBoxOption[] { new(0, L.Tr("Low")), new(1, L.Tr("High")) },
-            DefaultOption = new ComboBoxOption(0, L.Tr("Low")),
-        });
-        mNoteProperties.Add(("raw", L.Tr("Uncolored")), new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
+        mNoteProperties.Add(("depth", L.Tr("Depth")), SliderConfig.Linear(0, 0, 1));
+        mNoteProperties.Add(("quality", L.Tr("Quality")), ComboBoxConfig
+            .Create(new ComboBoxItem[] { new(0, L.Tr("Low")), new(1, L.Tr("High")) })
+            .WithDefault(new ComboBoxItem(0, L.Tr("Low"))));
+        mNoteProperties.Add(("raw", L.Tr("Uncolored")), SliderConfig.Linear(0, 0, 1));
         // 自动化轨名本地化。
-        mAutomationConfigs.Add(("breath", L.Tr("Breath")), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#A573E5" });
+        mAutomationConfigs.Add(("breath", L.Tr("Breath")), AutomationConfig.Create(0, 100).WithColor("#A573E5").WithDefault(0));
     }
 
     public void Destroy() { }
@@ -70,8 +68,8 @@ public sealed class I18NVoiceEngine : IVoiceSynthesisEngine
     // 声明（引擎层、纯函数）：本地化的轨/面板配置。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyConfigs;
-    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => new() { Properties = mNoteProperties };
+    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
+    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => ObjectConfig.Create(mNoteProperties);
     public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();

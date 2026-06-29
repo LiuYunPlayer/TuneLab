@@ -276,7 +276,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **Config 命名按 UI 控件，不按值类型**：同一值类型可对应多种控件（int 可用 TextBox 也可用 Slider），不同控件的可配参数不同（TextBox 有 `IsSingleLine`、ComboBox 有 display-text、Slider 有 min/max）。控件命名诚实承载"用哪个控件 + 配什么"的作者意图，是 TuneLab 一贯暴露给作者的模型。采纳 effect 的 `SliderConfig`/`CheckBoxConfig`/`ComboBoxConfig`/`TextBoxConfig`，**否决** Base 的值类型命名（`NumberConfig`…）。对现存第三方插件是破坏性改名，由整代版本化 + compat 层（§三.2）吸收。
 
-**值模型用单一 box，不做标量/树双 box**：effect 曾分裂 `PrimitiveValue`（标量）vs `PropertyValue`（树）各带 readonly 变体——分裂的收益面窄（仅 combo 选项 / config 默认值的编译期"只收标量"保证），成本面宽（冻结表面翻倍 + 标量在两 box 间永久 up-cast 噪音，违 §三.10 内核增长纪律）。**折中**：只保留单一 `PropertyValue` box + 轻量 `IPrimitiveValue` 标记接口（标记 `PropertyBoolean/Number/String`）；combo/config 入口用**具体类型重载**（`ComboBoxOption(bool/double/string)`）拿编译期保证，无需第二个 box。读写方向仍按 §三.11 边界二分保留 `IPropertyValue`/`IReadOnlyPropertyValue`（服务回只读、插件填可变）。
+**值模型用单一 box，不做标量/树双 box**：effect 曾分裂 `PrimitiveValue`（标量）vs `PropertyValue`（树）各带 readonly 变体——分裂的收益面窄（仅 combo 选项 / config 默认值的编译期"只收标量"保证），成本面宽（冻结表面翻倍 + 标量在两 box 间永久 up-cast 噪音，违 §三.10 内核增长纪律）。**折中**：只保留单一 `PropertyValue` box + 轻量 `IPrimitiveValue` 标记接口（标记 `PropertyBoolean/Number/String`）；combo/config 入口用**具体类型重载**（`ComboBoxItem(bool/double/string)`）拿编译期保证，无需第二个 box。读写方向仍按 §三.11 边界二分保留 `IPropertyValue`/`IReadOnlyPropertyValue`（服务回只读、插件填可变）。
 
 **值模型形状**（采纳 effect 结构，但 effect 代码是半成品，#7 落地时补齐）：JSON 树 + `PropertyType` 枚举 + `PropertyNull.Shared` 哨兵（替代旧 `Invalid`）。**必须补齐** effect 漏掉/注释掉的：① 值相等性（`property增加相等性判定` 意图——undo 去重 `IDataObject<T>.Set` 的 `Equals(before,info)` 依赖它，类型 + 深比较）；② `ToString`；③ 数组走 §三.11 冻结集合接口而非裸 `IList<>`；④ 命名清理（统一 `UnBox`，删 `PrimitiveValue`/`UnBoxing` 不一致与残留 `PropertyValue_V1Extensions`）。
 
@@ -676,15 +676,15 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 承 §三.12「combo/config 入口用具体类型重载拿编译期保证、不引入第二个 box」、§三.14「单一 `PropertyValue` box」。原 `ComboBoxConfig` 选项是纯 `string`、存进数据的就是选项字符串本身、控件硬绑 `StringField`——插件无法用 int/double/bool 当值，也无法「界面显示文本 ≠ 底层存储值」。
 
 **契约（SDK.Base）**：
-- `ComboBoxOption`（struct）：`PropertyValue Value` + `string? DisplayText`（`ShowText()` = DisplayText 缺省回退 `Value.ToString()`）；实现 `IEquatable`（供 reconcile 的 `Options.SequenceEqual` 免反射）。对 `bool`/`string`/全部整数与浮点类型提供隐式转换（数字一律 `PropertyValue.Create((double)v)`，与 JSON number 一致）——插件可直接写裸值。
-- `ComboBoxConfig(IReadOnlyList<ComboBoxOption> options, ComboBoxOption defaultValue)`：默认值是「值」而非「索引」；`IValueConfig.DefaultValue => DefaultOption.Value`。
+- `ComboBoxItem`（struct）：`PropertyValue Value` + `string? DisplayText`（`ShowText()` = DisplayText 缺省回退 `Value.ToString()`）；实现 `IEquatable`（供 reconcile 的 `Options.SequenceEqual` 免反射）。对 `bool`/`string`/全部整数与浮点类型提供隐式转换（数字一律 `PropertyValue.Create((double)v)`，与 JSON number 一致）——插件可直接写裸值。
+- `ComboBoxConfig(IReadOnlyList<ComboBoxItem> options, ComboBoxItem defaultValue)`：默认值是「值」而非「索引」；`IValueConfig.DefaultValue => DefaultOption.Value`。
 
-**关键取舍：不设 `IReadOnlyList<基础类型>` 的便捷构造器。** 否则集合表达式字面量（如 `["a","b"]`）会在「string-list ctor」与「ComboBoxOption-list ctor（元素经隐式转换）」间产生重载二义——C# 12 的择优规则判不出更优、直接报 CS0121（C# 13 才补此规则）。只留唯一的 ComboBoxOption-list ctor 后：字面量 `["a","b"]` / `[1,2,3]` / 混合 `[1,"x",true]` 都逐元素隐式转成 ComboBoxOption、匹配该唯一 ctor，**C# 12 也不二义**；已建好的 typed 变量（如 `List<string>`，不会逐元素隐式转）由调用方就地 `.Select(o => (ComboBoxOption)o).ToList()`。
+**关键取舍：不设 `IReadOnlyList<基础类型>` 的便捷构造器。** 否则集合表达式字面量（如 `["a","b"]`）会在「string-list ctor」与「ComboBoxItem-list ctor（元素经隐式转换）」间产生重载二义——C# 12 的择优规则判不出更优、直接报 CS0121（C# 13 才补此规则）。只留唯一的 ComboBoxItem-list ctor 后：字面量 `["a","b"]` / `[1,2,3]` / 混合 `[1,"x",true]` 都逐元素隐式转成 ComboBoxItem、匹配该唯一 ctor，**C# 12 也不二义**；已建好的 typed 变量（如 `List<string>`，不会逐元素隐式转）由调用方就地 `.Select(o => (ComboBoxItem)o).ToList()`。
 
 **host**：
 - `ComboBoxController` 值模型 `string`→`PropertyValue`（`Display` 按值在 options 里反查下标高亮——`PropertyValue` 是 struct，手写 `.Equals` 循环，不能用 `where T:class` 的 `IndexOf`）；保留 `int Index`（FunctionBar 按选中位置联动）+ 显式 `IValueController<string>` 外观（Settings 的语言/驱动下拉、`Select(int.Parse)` 桥到 int 设置）。
 - 新增 `IDataPropertyObject.ValueField(key, default)`：裸 `PropertyValue` 字段（identity read/write），供值类型不定的控件按原始值绑定；三态经 `IRawValueProperty.RawValue` 仍由绑定层分派。`ComboBoxCreator` 改绑 `ValueField`（存的是 option 值本身、非显示文本）。
-- 调用点 index→值语义迁移：preset 下拉、FunctionBar 量化、Settings×3、conditional `pick`、legacy 兼容层 `EnumConfig→ComboBoxConfig`（typed list 一并转 ComboBoxOption）。
+- 调用点 index→值语义迁移：preset 下拉、FunctionBar 量化、Settings×3、conditional `pick`、legacy 兼容层 `EnumConfig→ComboBoxConfig`（typed list 一并转 ComboBoxItem）。
 
 **测试**：基线 `SuiteVoiceSource` 加 `quality` 项（int 值 0/1/2 + DisplayText 显示 Low/Mid/High，演示值/显示分离 + 任意类型）；独立文档 `tests/COMBOBOX-TYPED-OPTIONS-TEST-CASES.md`（不污染条件面板基线）。`TuneLab.sln` + `V1.Suite.Voice`（net8 默认 C# 12）均 **0 错误**。
 
@@ -744,7 +744,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **Config 标签随槽走：去 `IControllerConfig` 的 DisplayText，引入 `PropertyKey`** —— 显示标签是「插槽」属性、非 config 内在：在 ObjectConfig 字段里是 key 的翻译、在数组元素里是行/类型名、在 `+` 菜单里是可加类型名——同一 config 放不同槽含义不同，故不属 config 本身。
 - `IControllerConfig` 回归**纯 marker**（无 DisplayText）；`IValueConfig.DefaultValue`（boxed `PropertyValue`）**保留**——唯一消费者是 `PropertySideBarContentProvider.ResetPartPropertiesToDefaults` 的「config→默认值」递归 walker（恢复默认 / 应用 preset），它要泛型拿任意 config 默认值；数组落地时此 walker 长出 `ArrayConfig`/`ListConfig` 两臂（递归 `Elements` 各位默认值拼 `PropertyArray`）。
 - `PropertyKey { string Id; string? DisplayText }`（`readonly struct`）：`Id` 是数据寻址用的稳定标识（= 落进 `PropertyObject` 的 key 字符串），`DisplayText` 是其翻译（缺省回退 `Id`）。**相等性/哈希只认 `Id`**，`DisplayText` 是注解、不入键身份——这恰好让 keyed-diff 在「语言切换、仅 DisplayText 变」时判同键、只重贴标签不重建控件。隐式转换 `string`→`PropertyKey`（无译文）与 `(string, string?)`→`PropertyKey`（带译文）保作者人体工学与 `[CollectionBuilder]` 字面量。
-- `ObjectConfig.Properties` 改 `IReadOnlyOrderedMap<PropertyKey, IControllerConfig>`（value 保持纯 config、不套娃）。**一致到底**：`AutomationConfig` 也归此制——`IVoiceSynthesisEngine.GetAutomationConfigs`/`GetSynthesizedParameterConfigs` 与 `IEffectEngine.GetAutomationConfigs` 的返回从 `OrderedMap<string, AutomationConfig>` 改 `OrderedMap<PropertyKey, AutomationConfig>`、`AutomationConfig` 删 DisplayText。各叶子 config（Slider/TextBox/CheckBox/ComboBox）删各自 DisplayText；`ComboBoxOption.DisplayText` 不动（那是第三概念：选项值→显示文本）。
+- `ObjectConfig.Properties` 改 `IReadOnlyOrderedMap<PropertyKey, IControllerConfig>`（value 保持纯 config、不套娃）。**一致到底**：`AutomationConfig` 也归此制——`IVoiceSynthesisEngine.GetAutomationConfigs`/`GetSynthesizedParameterConfigs` 与 `IEffectEngine.GetAutomationConfigs` 的返回从 `OrderedMap<string, AutomationConfig>` 改 `OrderedMap<PropertyKey, AutomationConfig>`、`AutomationConfig` 删 DisplayText。各叶子 config（Slider/TextBox/CheckBox/ComboBox）删各自 DisplayText；`ComboBoxItem.DisplayText` 不动（那是第三概念：选项值→显示文本）。
 
 **两种数组型 config（共用 `PropertyArray` 值容器）** ——
 - `ArrayConfig`（定长）：`IReadOnlyList<IControllerConfig> Elements`，逐 index 声明、允许异型，长度 = 声明数、不可增删；第 i 元素由 `Elements[i]` 渲染并绑定 `array[i]`。
@@ -753,7 +753,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - 数组元素无 key、故**无逐元素标签**；要带标签的行用 ObjectConfig 元素（其内部字段自带 key 标签），与「多类型宜用 ObjectConfig」一脉相承。
 
 **初始内容 / 默认值语义：presence 判别（key 在不在），非 emptiness** —— 空数组与「未初始化」必须可分，否则用户显式清空会被误当初始态重新 seed。判别符是 **key 是否存在**（`IVoiceSynthesisPartPropertyContext` 既有语义「默认 = 字段不存在」、缺席读到 `Invalid`）：
-- key 缺席（从未写）= 未初始化 → 插件读到 `Invalid` → 按需 emit N 个 element config 当 seed（其默认值即初始值；任意 seed 内容由各 element config 默认值表达，无需独立 DefaultItems 字段）。
+- key 缺席（从未写）= 未初始化 → 插件读到 `Invalid` → 按需 emit N 个 element config 当 seed（其默认值即初始值；任意 seed 内容由各 element config 默认值表达，无需独立 DefaultOptions 字段）。
 - key 存在、值 = 空数组 `[]` = 用户显式清空 → 插件读到 count=0 → emit 空 `Elements` → 不再 seed。
 - 两条承重约束：**删到空写入「存在的空数组」、绝不删 key**（任何一次删除都把 absent 翻成 present、关闭 default 通道）；**序列化保留 present-`[]`**。default 是 absent 的有效值替身（展示 / 喂 getconfig / 读取统一用），首次写即物化、从此关闭。原则同 §三.23：别把多语义压进一个值、用显式标记（这里是 key presence）区分态。
 

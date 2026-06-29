@@ -58,6 +58,6 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
     }
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
-    static readonly ObjectConfig mEmptyConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig mEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };
 }

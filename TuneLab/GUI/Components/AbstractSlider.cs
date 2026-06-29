@@ -18,10 +18,15 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     public IActionEvent ValueCommitted => mValueCommitted;
     public IActionEvent ValueDisplayed => mValueDisplayed;
     public double Value { get => mValue; set { if (value == Value) return; mValueWillChange.Invoke(); ChangeValue(value); mValueCommitted.Invoke(); } }
-    public double MinValue => mMinValue;
-    public double MaxValue => mMaxValue;
+    // 量程由标度定义：两端即 ToValue(0)/ToValue(1)（约定标度单调递增）。
+    public double MinValue => mScale.ToValue(0);
+    public double MaxValue => mScale.ToValue(1);
     public double DefaultValue { get => mDefaultValue; set => mDefaultValue = value; }
-    public bool IsInteger { get => mIsInteger; set { mIsInteger = value; RefreshUI(); } }
+    // 标度：位置↔值映射的唯一来源。SDK 滑条经此直接注入（含对数等任意标度）。
+    public INormalizedScale Scale { get => mScale; set { mScale = value; RefreshUI(); } }
+    // 便利开关：整数态。仅供宿主内非 SDK 滑条（设置面板/增益等）沿用旧式 SetRange + IsInteger 用法；
+    // 改它会按当前量程重建线性/整数标度。SDK 滑条不走这条，直接设 Scale。
+    public bool IsInteger { get => mIsInteger; set { mIsInteger = value; mScale = BuildLinearScale(MinValue, MaxValue); RefreshUI(); } }
     public int IntergerValue => mValue.Round();
     public AbstractThumb? Thumb { get => mThumb.Value; set => mThumb.Set(value); }
 
@@ -78,10 +83,12 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
 
     public void SetRange(double min, double max)
     {
-        mMinValue = min;
-        mMaxValue = max;
+        mScale = BuildLinearScale(min, max);
         RefreshUI();
     }
+
+    INormalizedScale BuildLinearScale(double min, double max)
+        => mIsInteger ? NormalizedScale.Integer(min, max) : NormalizedScale.Linear(min, max);
 
     public void Display(double value)
     {
@@ -194,15 +201,14 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         Vector axis = (EndPoint - StartPoint).ToVector();
         Vector vector = (point - StartPoint).ToVector();
         var r = vector * axis / axis.SquaredLength;
-        var v = MathUtility.LineValue(0, MinValue, 1, MaxValue, r);
-        return double.IsNaN(v) ? DefaultValue : v;
+        return double.IsNaN(r) ? DefaultValue : mScale.ToValue(r.Limit(0, 1));
     }
 
     void ChangeValue(double value)
     {
-        value = value.Limit(MinValue, MaxValue);
-        if (IsInteger)
-            value = value.Round();
+        // 经标度归一化后钳到 [0,1] 再回值：一步同时完成钳量程 + 离散化（整数/步长等）。
+        if (!double.IsNaN(value))
+            value = mScale.ToValue(mScale.ToNormalized(value).Limit(0, 1));
 
         if (value == Value)
             return;
@@ -217,8 +223,9 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
     {
         var start = GetStartPoint(size);
         var end = GetEndPoint(size);
-        double x = MathUtility.LineValue(MinValue, start.X, MaxValue, end.X, Value.Limit(mMinValue, mMaxValue));
-        double y = MathUtility.LineValue(MinValue, start.Y, MaxValue, end.Y, Value.Limit(mMinValue, mMaxValue));
+        double t = mScale.ToNormalized(mValue).Limit(0, 1);
+        double x = start.X + (end.X - start.X) * t;
+        double y = start.Y + (end.Y - start.Y) * t;
         return new Avalonia.Point(x, y);
     }
 
@@ -232,8 +239,7 @@ internal abstract class AbstractSlider : Container, IDataValueController<double>
         mValueDisplayed.Invoke();
     }
 
-    double mMinValue = 0;
-    double mMaxValue = 1;
+    INormalizedScale mScale = NormalizedScale.Linear(0, 1);
     double mDefaultValue = 0;
     bool mIsInteger = false;
     double mValue = 0;

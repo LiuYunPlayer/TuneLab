@@ -236,9 +236,9 @@ internal class PropertyObjectController : StackPanel
 
         void Apply(SliderConfig config)
         {
-            mController.SetRange(config.MinValue, config.MaxValue);
+            mController.SetScale(config.Scale);
             mController.SetDefaultValue(config.DefaultValue);
-            mController.IsInteger = config.IsInteger;
+            mController.NumberFormat = config.Format;
             mController.ShowRandomButton = config.Randomizable;
         }
 
@@ -316,7 +316,7 @@ internal class PropertyObjectController : StackPanel
         public override void Update(IControllerConfig config)
         {
             var combo = (ComboBoxConfig)config;
-            if (combo.Options.SequenceEqual(mConfig.Options))
+            if (combo.Items.SequenceEqual(mConfig.Items))
                 return;
             mConfig = combo;
             s.DisposeAll();

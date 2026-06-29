@@ -10,4 +10,11 @@
     <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
   </ItemGroup>
 
+  <!-- 宿主可见 SDK internal：ComboBoxItem 的 IsSeparator/Separator() 等内部成员供宿主渲染器读，插件（无 IVT）够不着。 -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>TuneLab</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

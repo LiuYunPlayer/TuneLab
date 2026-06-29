@@ -269,22 +269,12 @@ internal partial class AutomationRenderer : View
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        double min, max;
-        string colorStr;
-        if (activeContinuous)
-        {
-            var config = Part.GetEffectiveAutomationConfig(active);
-            min = config.MinValue;
-            max = config.MaxValue;
-            colorStr = config.Color;
-        }
-        else
-        {
-            var config = Part.GetEffectivePiecewiseAutomationConfig(active);
-            min = config.MinValue;
-            max = config.MaxValue;
-            colorStr = config.Color;
-        }
+        var config = activeContinuous
+            ? Part.GetEffectiveAutomationConfig(active)
+            : Part.GetEffectivePiecewiseAutomationConfig(active);
+        double min = config.MinValue;
+        double max = config.MaxValue;
+        string colorStr = config.Color;
 
         // vibrato 叠加层与"拖拽关联颤音"提示仅对 voice 连续轨绘制（effect 与分段轨皆无 automation-vibrato 概念）。
         if (activeContinuous && !active.IsEffect)
@@ -351,8 +341,10 @@ internal partial class AutomationRenderer : View
             context.DrawRectangle(selectionColor.Opacity(0.25).ToBrush(), new Pen(selectionColor.ToUInt32()), rect);
         }
 
-        context.DrawString(max.ToString("+0.00;-0.00"), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
-        context.DrawString(min.ToString("+0.00;-0.00"), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+        // 上下界处显示：优先用 config 的描述文本（MaxLabel/MinLabel，插件自译），否则按 config.Format 格式化数值（缺省两位小数带符号）。
+        string BoundText(double value) => config.Format is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
+        context.DrawString(config.MaxLabel ?? BoundText(max), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+        context.DrawString(config.MinLabel ?? BoundText(min), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
     }
 
     // 合成参数回显轨（只读，voice 级一等轨）：遍历声明的回显轨，对每条可见轨用 Part.SynthesizedParameters
