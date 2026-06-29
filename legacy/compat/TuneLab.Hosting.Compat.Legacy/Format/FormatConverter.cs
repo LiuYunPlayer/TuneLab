@@ -150,16 +150,14 @@ internal static class FormatConverter
     // 新模型 PhonemeInfo 用「时长 + 权重」(Duration/Weight)、位置由布局派生；旧模型是相对音符头的秒 StartTime/EndTime（音符头=0）。
     // 旧→新：时长 = EndTime − StartTime（音素连续）；旧模型无前置 / 弹性概念：
     //   按区间中点落在音符头之前（(Start+End)/2 < 0）判定为前置辅音（IsLead）；
-    //   第一个非前置音素默认为元音（弹性 w=1、吸收伸缩），其余（前置 + 后辅音）刚性 w=0。
+    //   权重一律 0——老版本所有音素随音符等比缩放，布局的「全 w=0 退化为按原长等比」恰好复刻这一行为。
     static List<New.PhonemeInfo> PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes)
     {
         var result = new List<New.PhonemeInfo>(phonemes.Count);
-        bool vowelAssigned = false;
         foreach (var p in phonemes)
         {
             bool isLead = (p.StartTime + p.EndTime) < 0;
-            double weight = (!isLead && !vowelAssigned) ? 1 : 0;   // 首个非前置音素 = 元音
-            if (!isLead) vowelAssigned = true;
+            double weight = 0;
             // 位置（起点）不入存储——由新模型布局按「核起点 = 音符头、前置往左、核填充」派生；此处仅留时长 = End − Start。
             result.Add(new New.PhonemeInfo
             {

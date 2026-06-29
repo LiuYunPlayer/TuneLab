@@ -117,9 +117,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 //   v≥1：duration/stretchWeight/isLead（每音素时长 + 弹性权重 + 前置标记，位置由布局派生不存）。
                                 //   v<1（legacy）：startTime/endTime（相对音符头的秒，音符头=0）→ 时长 = endTime − startTime（音素连续）；
                                 //     旧模型无前置 / 弹性概念：按区间中点落在音符头之前（(start+end)/2 < 0）判定为前置辅音（IsLead）；
-                                //     第一个非前置音素默认为元音（弹性 w=1、吸收伸缩），其余（前置 + 后辅音）刚性 w=0。
+                                //     权重一律 0——老版本所有音素随音符等比缩放，布局的「全 w=0 退化为按原长等比」恰好复刻这一行为。
                                 bool legacy = versoin < 1;
-                                bool legacyVowelAssigned = false;
                                 foreach (JObject phoneme in phonemes)
                                 {
                                     string symbol = (string)phoneme["symbol"] ?? "";
@@ -130,8 +129,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                         double startTime = (double?)phoneme["startTime"] ?? 0;
                                         double endTime = (double?)phoneme["endTime"] ?? 0;
                                         isLead = (startTime + endTime) < 0;
-                                        weight = (!isLead && !legacyVowelAssigned) ? 1 : 0;   // 首个非前置音素 = 元音
-                                        if (!isLead) legacyVowelAssigned = true;
+                                        weight = 0;
                                         duration = Math.Max(0, endTime - startTime);
                                     }
                                     else
