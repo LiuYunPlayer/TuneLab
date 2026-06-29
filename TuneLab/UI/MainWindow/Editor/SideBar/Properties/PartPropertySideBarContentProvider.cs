@@ -31,7 +31,7 @@ internal enum PartPanelSource { Current, Selected }
 // 合并展示，混源则只剩 Gain；Preset/Automation/Effects 是单 part 概念，多选时隐藏（Effects 待 SDK 支持多对象 config 后再做）。
 internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = Title, Items = [mPresetPanel, mPartPanel, mAutomationPanel, mEffectsPanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = Title, Items = [mPresetPanel, mVoicePanel, mPartPanel, mAutomationPanel, mEffectsPanel] };
 
     // 大标题随目标 part 变化（重命名/选中变化/单多切换）实时更新，宿主据此刷新 SideBar 顶栏。
     public event Action? TitleChanged;
@@ -73,6 +73,12 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPresetContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush(), Margin = new(-12, 0) });
         mPresetContentContainer.Child = mPresetContent;
         mPresetPanel.Content = mPresetContentContainer;
+
+        var voiceName = new Label() { Content = "Voice".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
+        mVoicePanel.Title = voiceName;
+        mVoiceContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
+        mVoiceContent.Children.Add(mPartVoiceController);
+        mVoicePanel.Content = mVoiceContent;
 
         var propertiesName = new Label() { Content = "Properties".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mPartPanel.Title = propertiesName;
@@ -188,7 +194,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         // Preset/Effects 是单 part 概念，仅单选时绑当前 part；多/空选 mPart 为 null（panel 也已隐藏）。
         mEffectsController.SetPart(mPart);
 
-        // Automation 默认值：单选或同引擎多选才合并展示，否则清空。
+        // Voice 与 Automation：单选或同引擎多选才合并展示，否则清空。
+        mPartVoiceController.SetParts(ShowsMerged() ? mParts : Array.Empty<IMidiPart>());
         mAutomationController.SetParts(ShowsMerged() ? mParts : Array.Empty<IMidiPart>());
 
         // Gain：单/多/空统一合并绑定（空 → 滑块 Invalid）。
@@ -206,6 +213,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         bool empty = mParts.Count == 0;
 
         mPresetPanel.IsVisible = !empty;       // Preset：单/多选均可（Apply 扇出到全部，含统一混源音源）
+        mVoicePanel.IsVisible = merged;        // Voice：单选或同引擎多选（engine 须一致才能展示一个引擎/voice 下拉）
         mEffectsPanel.IsVisible = single;      // Effects 单 part 概念（多对象 config 待 SDK）
         mAutomationPanel.IsVisible = merged;
 
@@ -602,11 +610,14 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mEffectsContent = new() { Orientation = Orientation.Vertical };
+    readonly StackPanel mVoiceContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mPartContent = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPresetPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mEffectsPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
+    readonly CollapsiblePanel mVoicePanel = new() { Orientation = Orientation.Vertical };
+    readonly PartVoiceController mPartVoiceController = new();
     readonly LayerPanel mPartContentPanel = new();
     readonly Border mPartContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
 
