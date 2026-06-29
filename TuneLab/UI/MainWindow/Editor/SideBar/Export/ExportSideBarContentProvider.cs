@@ -134,10 +134,10 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             Margin = new Thickness(12, 0, 12, 8),
             HorizontalAlignment = AvaloniaHorizontalAlignment.Stretch,
         };
+        var sampleRateItems = new List<DropDownItem>();
         foreach (var rate in SampleRates)
-        {
-            mSampleRateDropDown.Items.Add(new ComboBoxItem { Content = rate.ToString() + " Hz" });
-        }
+            sampleRateItems.Add(new DropDownItem { Text = rate.ToString() + " Hz" });
+        mSampleRateDropDown.SetItems(sampleRateItems);
         mSampleRateDropDown.SelectedIndex = Array.IndexOf(SampleRates, 44100);
         mSampleRateDropDown.SelectionChanged += (s, e) => SaveExportConfigToProject();
         mContentPanel.Children.Add(mSampleRateDropDown);
@@ -152,10 +152,10 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             Margin = new Thickness(12, 0, 12, 8),
             HorizontalAlignment = AvaloniaHorizontalAlignment.Stretch,
         };
+        var bitDepthItems = new List<DropDownItem>();
         foreach (var depth in BitDepths)
-        {
-            mBitDepthDropDown.Items.Add(new ComboBoxItem { Content = depth.ToString() + " bit" });
-        }
+            bitDepthItems.Add(new DropDownItem { Text = depth.ToString() + " bit" });
+        mBitDepthDropDown.SetItems(bitDepthItems);
         mBitDepthDropDown.SelectedIndex = Array.IndexOf(BitDepths, 16);
         mBitDepthDropDown.SelectionChanged += (s, e) => SaveExportConfigToProject();
         mContentPanel.Children.Add(mBitDepthDropDown);

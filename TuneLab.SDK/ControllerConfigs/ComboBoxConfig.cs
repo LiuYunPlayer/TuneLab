@@ -15,6 +15,16 @@ public struct ComboBoxOption(PropertyValue value, string? displayText = null) : 
 {
     public PropertyValue Value { get; set; } = value;
     public string? DisplayText { get; set; } = displayText;
+    // 非空 = 分组项（本身不可选，展开为二级子菜单）；子项各自带值/显示文本、可再嵌套。仅经分组构造函数设置。
+    // 与 Value 语义互斥（叶子有值无子项、分组有子项无值），故不混入叶子主构造函数的可选参数。
+    public IReadOnlyList<ComboBoxOption>? SubOptions { get; set; } = null;
+    public readonly bool IsGroup => SubOptions is { Count: > 0 };
+
+    // 分组构造：显示文本 + 子项；本身不可选，Value 取 Null（不参与选中/反查）。
+    public ComboBoxOption(string displayText, IReadOnlyList<ComboBoxOption> subOptions) : this(PropertyValue.Null, displayText)
+    {
+        SubOptions = subOptions;
+    }
 
     // 显示文本：优先 DisplayText，缺省回退到值的字面量。
     public readonly string ShowText() => DisplayText ?? Value.ToString() ?? string.Empty;
@@ -37,9 +47,19 @@ public struct ComboBoxOption(PropertyValue value, string? displayText = null) : 
     public static implicit operator ComboBoxOption(double value) => new(PropertyValue.Create(value));
     public static implicit operator ComboBoxOption(decimal value) => new(PropertyValue.Create((double)value));
 
-    public readonly bool Equals(ComboBoxOption other) => Value.Equals(other.Value) && DisplayText == other.DisplayText;
+    public readonly bool Equals(ComboBoxOption other)
+        => Value.Equals(other.Value) && DisplayText == other.DisplayText && SubOptionsEqual(SubOptions, other.SubOptions);
     public override readonly bool Equals(object? obj) => obj is ComboBoxOption other && Equals(other);
     public override readonly int GetHashCode() => HashCode.Combine(Value, DisplayText);
+
+    static bool SubOptionsEqual(IReadOnlyList<ComboBoxOption>? a, IReadOnlyList<ComboBoxOption>? b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a is null || b is null || a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+            if (!a[i].Equals(b[i])) return false;
+        return true;
+    }
 }
 
 // 原 EnumConfig（按 UI 控件命名）。选项与默认值都用 ComboBoxOption（值/显示分离），默认值是「值」而非「索引」。
