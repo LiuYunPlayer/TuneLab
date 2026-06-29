@@ -10,7 +10,8 @@ internal enum SideBarTab
 {
     None,
     Extensions,
-    Properties,
+    PartProperties,
+    NoteProperties,
     Export,
     Agent,
     Script,

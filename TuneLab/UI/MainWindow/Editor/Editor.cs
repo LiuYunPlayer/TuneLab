@@ -198,15 +198,18 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectHolder.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) { mDetachedEditingPart = mEditingPart; SwitchEditingPart(null); } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (mDetachedEditingPart != null && track.Parts.Contains(mDetachedEditingPart)) { SwitchEditingPart(mDetachedEditingPart); mDetachedEditingPart = null; } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
-        mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
+        mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPartPropertySideBarContentProvider.SetPart(mPianoWindow.Part); mNotePropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
 
         mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
         {
             mRightSideBar.IsVisible = true;
             switch (mRightSideTabBar.SelectedTab.Value)
             {
-                case SideBarTab.Properties:
-                    mRightSideBar.SetContent(SideBarTab.Properties, mPropertySideBarContentProvider.Content);
+                case SideBarTab.PartProperties:
+                    mRightSideBar.SetContent(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Content);
+                    break;
+                case SideBarTab.NoteProperties:
+                    mRightSideBar.SetContent(SideBarTab.NoteProperties, mNotePropertySideBarContentProvider.Content);
                     break;
                 case SideBarTab.Extensions:
                     mExtensionSideBarContentProvider.RefreshExtensions();
@@ -229,7 +232,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     break;
             }
         });
-        mRightSideBar.SetContent(SideBarTab.Properties, mPropertySideBarContentProvider.Content);
+        mRightSideBar.SetContent(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Content);
 
         mExtensionSideBarContentProvider.InstallRequested += async () =>
         {
@@ -1439,7 +1442,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly SideBar mRightSideBar;
     readonly SideTabBar mRightSideTabBar;
 
-    readonly PropertySideBarContentProvider mPropertySideBarContentProvider = new();
+    readonly PartPropertySideBarContentProvider mPartPropertySideBarContentProvider = new();
+    readonly NotePropertySideBarContentProvider mNotePropertySideBarContentProvider = new();
     readonly ExtensionSideBarContentProvider mExtensionSideBarContentProvider = new();
     readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
     readonly AgentSideBarContentProvider mAgentSideBarContentProvider = new();
