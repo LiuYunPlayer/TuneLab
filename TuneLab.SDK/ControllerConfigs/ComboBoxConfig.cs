@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
@@ -21,12 +22,14 @@ public struct ComboBoxOption(PropertyValue value, string? displayText = null) : 
     public IReadOnlyList<ComboBoxOption>? SubOptions { get; set; } = null;
     public readonly bool IsGroup => SubOptions is not null;
     // 分隔线项：不可选、不计入选中；DisplayText 为可选居中标签（null/空 = 纯线）。
-    public bool IsSeparator { get; init; } = false;
+    // private set：唯一构造路径是 Separator() 工厂，外部初始化器不能把普通项标成分隔线（避免矛盾态）。
+    public bool IsSeparator { get; private set; } = false;
 
     // 分组构造：显示文本 + 子项（空列表 = 空分组）；本身不可选，Value 取 Null（不参与选中/反查）。
-    public ComboBoxOption(string displayText, IReadOnlyList<ComboBoxOption> subOptions) : this(PropertyValue.Null, displayText)
+    // 收 IEnumerable 便于调用方直接传 .Select(...) 结果，内部物化为 IReadOnlyList（需多次索引/读取，不可留惰性序列）。
+    public ComboBoxOption(string displayText, IEnumerable<ComboBoxOption> subOptions) : this(PropertyValue.Null, displayText)
     {
-        SubOptions = subOptions;
+        SubOptions = subOptions as IReadOnlyList<ComboBoxOption> ?? subOptions.ToList();
     }
 
     // 分隔线（可带居中标签）：分段用。

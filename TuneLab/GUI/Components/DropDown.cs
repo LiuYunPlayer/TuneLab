@@ -131,16 +131,17 @@ internal class DropDown : Panel
 
     public void Open()
     {
-        mPopup.Child = BuildMenu(mTopItems, Bounds.Width);
+        mPopup.Child = BuildMenu(mTopItems, Bounds.Width, root: true);
         mPopup.IsOpen = true;
     }
 
     // width > 0：固定菜单宽度（根菜单 = 触发面宽，与本体对齐）；<= 0：随内容（子菜单）。
-    Control BuildMenu(IReadOnlyList<DropDownItem> items, double width)
+    // root：是否顶层菜单。顶层行 enter 时收起已展开的兄弟子菜单；子菜单内的行不收，否则指针移进子菜单即把自己关掉（浮不过去）。
+    Control BuildMenu(IReadOnlyList<DropDownItem> items, double width, bool root)
     {
         var stack = new StackPanel() { Orientation = Orientation.Vertical };
         foreach (var item in items)
-            stack.Children.Add(BuildRow(item));
+            stack.Children.Add(BuildRow(item, root));
 
         var scroll = new ScrollViewer()
         {
@@ -166,10 +167,13 @@ internal class DropDown : Panel
         return border;
     }
 
-    Control BuildRow(DropDownItem item)
+    Control BuildRow(DropDownItem item, bool root)
     {
         if (item.IsSeparator)
             return BuildSeparator(item.Text);
+
+        // 空分组（如引擎已加载但无音源）退化为一级项：无箭头、不可选、点了无效（仿右键菜单里的空引擎项）。
+        bool expandable = item.IsGroup && item.Children!.Count > 0;
 
         var title = new TextBlock()
         {
@@ -180,7 +184,7 @@ internal class DropDown : Panel
             Foreground = Style.LIGHT_WHITE.ToBrush(),
         };
         var dock = new DockPanel() { LastChildFill = true };
-        if (item.IsGroup)
+        if (expandable)
         {
             var chevron = new TextBlock() { Text = "▸", FontSize = 11, Margin = new(12, 0, 0, 0), Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
             DockPanel.SetDock(chevron, Dock.Right);
@@ -193,45 +197,50 @@ internal class DropDown : Panel
             Padding = new(10, 6),
             CornerRadius = new(4),
             Background = Brushes.Transparent,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(item.IsGroup && !expandable ? StandardCursorType.Arrow : StandardCursorType.Hand),
             Child = dock,
         };
         row.PointerEntered += (_, _) => row.Background = Style.LIGHT_WHITE.Opacity(0.08).ToBrush();
         row.PointerExited += (_, _) => row.Background = Brushes.Transparent;
 
-        if (!item.IsGroup)
+        if (expandable)
         {
-            // 进入叶子行时收起任何已展开的子菜单（从分组移到同级叶子）。
+            // 分组行：子 Popup 建在主菜单内容树内（与行同根），故 PlacementTarget=row 定位正常、可悬浮到侧边。
+            // 负 HorizontalOffset 让子菜单与父菜单轻微重叠（仿右键菜单），消除指针横移时中途踩空隙导致收起。
+            var subPopup = new Popup()
+            {
+                PlacementTarget = row,
+                Placement = PlacementMode.RightEdgeAlignedTop,
+                HorizontalOffset = -6,
+                VerticalOffset = -5,
+                IsLightDismissEnabled = false,
+                Child = BuildMenu(item.Children!, 0, root: false),
+            };
+            void OpenThis()
+            {
+                if (!ReferenceEquals(mOpenSub, subPopup))
+                    CloseSubMenu();
+                mOpenSub = subPopup;
+                subPopup.IsOpen = true;
+            }
+            row.PointerEntered += (_, _) => OpenThis();
+            row.PointerReleased += (_, e) => { e.Handled = true; OpenThis(); };
+
+            var host = new Panel();
+            host.Children.Add(row);
+            host.Children.Add(subPopup);
+            return host;
+        }
+
+        // 顶层的叶子/空分组行：enter 时收起兄弟子菜单（子菜单内的行不收，否则移进子菜单会把自己关掉 → 浮不过去）。
+        if (root)
             row.PointerEntered += (_, _) => CloseSubMenu();
+
+        // 叶子可选；空分组 no-op（不挂选择）。
+        if (!item.IsGroup)
             row.PointerReleased += (_, e) => { e.Handled = true; Select(item); };
-            return row;
-        }
 
-        // 分组行：子 Popup 建在主菜单内容树内（与行同根），故 PlacementTarget=row 定位正常、可悬浮到侧边。
-        // 负 HorizontalOffset 让子菜单与父菜单轻微重叠（仿右键菜单），消除指针横移时中途踩空隙导致收起。
-        var subPopup = new Popup()
-        {
-            PlacementTarget = row,
-            Placement = PlacementMode.RightEdgeAlignedTop,
-            HorizontalOffset = -6,
-            VerticalOffset = -5,
-            IsLightDismissEnabled = false,
-            Child = BuildMenu(item.Children!, 0),
-        };
-        void OpenThis()
-        {
-            if (!ReferenceEquals(mOpenSub, subPopup))
-                CloseSubMenu();
-            mOpenSub = subPopup;
-            subPopup.IsOpen = true;
-        }
-        row.PointerEntered += (_, _) => OpenThis();
-        row.PointerReleased += (_, e) => { e.Handled = true; OpenThis(); };
-
-        var host = new Panel();
-        host.Children.Add(row);
-        host.Children.Add(subPopup);
-        return host;
+        return row;
     }
 
     // 分隔线：无标签 = 纯线；有标签 = 左线 + 居中文字 + 右线。不可交互、不计入选中。
