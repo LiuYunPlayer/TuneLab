@@ -198,7 +198,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectHolder.When(project => project.Tracks.ItemRemoved).Subscribe(track => { if (track.Parts.Contains(mEditingPart)) { mDetachedEditingPart = mEditingPart; SwitchEditingPart(null); } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (mDetachedEditingPart != null && track.Parts.Contains(mDetachedEditingPart)) { SwitchEditingPart(mDetachedEditingPart); mDetachedEditingPart = null; } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
-        mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mPartPropertySideBarContentProvider.SetPart(mPianoWindow.Part); mNotePropertySideBarContentProvider.SetPart(mPianoWindow.Part); }, s);
+        mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mNotePropertySideBarContentProvider.SetPart(mPianoWindow.Part); UpdatePartPanelTarget(); }, s);
+
+        // Part 面板焦点感知驱动：焦点在编排区且有选中 part → 显示选中集；否则显示钢琴窗当前编辑 part。
+        // GotFocus（冒泡、含已处理）记录最近活跃的编辑区；选中变化 / 编辑 part 变化 / 焦点变化都触发重算。
+        mTrackWindow.AddHandler(InputElement.GotFocusEvent, (_, _) => { mPartPanelFocusArea = PartPanelFocusArea.Arrangement; UpdatePartPanelTarget(); }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        mPianoWindow.AddHandler(InputElement.GotFocusEvent, (_, _) => { mPartPanelFocusArea = PartPanelFocusArea.Piano; UpdatePartPanelTarget(); }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part.SelectionChanged))).Subscribe(UpdatePartPanelTarget);
+        mPartPropertySideBarContentProvider.TitleChanged += () => mRightSideBar.SetTitle(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Title);
+        UpdatePartPanelTarget();
 
         mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
         {
@@ -289,6 +297,30 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             mPianoWindow.Part = midiPart;
         }
+    }
+
+    // 焦点感知地把目标 part 集下发给 Part 侧栏；合并一拍内的多次触发（框选时每个 part 的 SelectionChanged 都触发）。
+    void UpdatePartPanelTarget()
+    {
+        if (mPartTargetUpdatePending)
+            return;
+        mPartTargetUpdatePending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            mPartTargetUpdatePending = false;
+            UpdatePartPanelTargetNow();
+        });
+    }
+
+    void UpdatePartPanelTargetNow()
+    {
+        var selected = Project?.Tracks.SelectMany(track => track.Parts).OfType<IMidiPart>().Where(part => part.IsSelected).ToList() ?? new List<IMidiPart>();
+        if (mPartPanelFocusArea == PartPanelFocusArea.Arrangement && selected.Count > 0)
+            mPartPropertySideBarContentProvider.SetParts(selected, PartPanelSource.Selected);
+        else if (mPianoWindow.Part is { } editing)
+            mPartPropertySideBarContentProvider.SetParts(new[] { editing }, PartPanelSource.Current);
+        else
+            mPartPropertySideBarContentProvider.SetParts(Array.Empty<IMidiPart>(), PartPanelSource.Current);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -1444,6 +1476,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     readonly PartPropertySideBarContentProvider mPartPropertySideBarContentProvider = new();
     readonly NotePropertySideBarContentProvider mNotePropertySideBarContentProvider = new();
+    enum PartPanelFocusArea { Piano, Arrangement }
+    PartPanelFocusArea mPartPanelFocusArea = PartPanelFocusArea.Piano;
+    bool mPartTargetUpdatePending = false;
     readonly ExtensionSideBarContentProvider mExtensionSideBarContentProvider = new();
     readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
     readonly AgentSideBarContentProvider mAgentSideBarContentProvider = new();

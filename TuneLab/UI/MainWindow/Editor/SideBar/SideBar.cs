@@ -41,8 +41,16 @@ internal class SideBar : DockPanel
     // 每页（key 区分）一个独立 ListView，各自持有自己的 ScrollView / 滚动轴；切页只切可见性。
     // 故各页滚动位置天然各记各的、互不共享，无需存取偏移、也无切页布局时序问题。
     // 内容控件是 provider 的稳定成员（只重挂载、不重建），故每页只在首次填充一次。
+    // 更新某页签的顶栏标题（仅当它是当前页时生效）：供内容随状态变化的页（如 Part 面板随目标 part 切换）实时改标题。
+    public void SetTitle(SideBarTab key, string name)
+    {
+        if (mCurrentKey == key)
+            mName.Content = name;
+    }
+
     public void SetContent(SideBarTab key, SideBarContent content)
     {
+        mCurrentKey = key;
         mIcon.Source = content.Icon;
         mName.Content = content.Name;
 
@@ -74,6 +82,7 @@ internal class SideBar : DockPanel
     // 且不能被无限宽测量的页（如 Agent 对话面板）。控件自身负责内部滚动与换行。
     public void SetFullContent(SideBarTab key, IImage icon, string name, Control content)
     {
+        mCurrentKey = key;
         mIcon.Source = icon;
         mName.Content = name;
 
@@ -105,4 +114,5 @@ internal class SideBar : DockPanel
     readonly Dictionary<SideBarTab, ListView> mPages = new();
     readonly Dictionary<SideBarTab, Control> mFullPages = new();
     Control? mCurrent;
+    SideBarTab mCurrentKey = SideBarTab.None;
 }

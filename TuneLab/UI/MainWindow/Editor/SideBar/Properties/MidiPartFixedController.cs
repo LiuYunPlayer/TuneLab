@@ -17,7 +17,6 @@ namespace TuneLab.UI;
 
 internal class MidiPartFixedController : StackPanel
 {
-    public IMidiPart? Part { get => mPart.Value; set => mPart.Set(value); }
     public MidiPartFixedController()
     {
         Background = Style.INTERFACE.ToBrush();
@@ -26,8 +25,14 @@ internal class MidiPartFixedController : StackPanel
         AddController(mGainController, "Gain".Tr(TC.Property));
         mGainController.SetRange(-24, +24);
         mGainController.SetDefaultValue(0);
-        mGainController.Bind(mPart.Select(part => part.Gain), s);
+    }
 
+    // 绑定到目标 part 集（单/多/空统一走 MultipleDataProperty：空→滑块 Invalid、单→等价单绑、多→三态合并 + 写扇出）。
+    public void SetParts(IReadOnlyList<IMidiPart> parts)
+    {
+        s.DisposeAll();
+        var gain = new MultipleDataProperty<double>(parts.Select(part => part.Gain).ToList(), 0.0, value => PropertyValue.Create(value));
+        mGainController.BindDataProperty(gain, s);
     }
 
     void AddController(Control control, string name)
@@ -44,8 +49,6 @@ internal class MidiPartFixedController : StackPanel
         Children.Add(control);
         Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
     }
-
-    readonly Holder<IMidiPart> mPart = new();
 
     readonly SliderController mGainController = new() { Margin = new(24, 12) };
     readonly DisposableManager s = new();

@@ -20,11 +20,22 @@ using static TuneLab.GUI.Dialog;
 
 namespace TuneLab.UI;
 
-// Part 作用域属性侧栏：Preset / Part / Effects / Automation。与 note 作用域面板（见 NotePropertySideBarContentProvider）
+// 目标 part 的来源：钢琴窗当前编辑的 part（Current）或编排区选中的 part 集（Selected）。决定大标题文案。
+internal enum PartPanelSource { Current, Selected }
+
+// Part 作用域属性侧栏：Preset / Properties / Automation / Effects。与 note 作用域面板（见 NotePropertySideBarContentProvider）
 // 拆为两个独立页签，两者各自订阅当前 part 的数据层事件、互不引用（靠事件解耦）。
+//
+// 目标 part 由宿主按焦点感知下发（见 Editor.UpdatePartPanelTarget）：单 part = 单选，多 part = 编排区多选。
+// 多选语义：Gain（公共属性）始终合并展示；动态属性仅当全部 part 同引擎（Kind+Type 一致）时调该引擎 GetPartPropertyConfig
+// 合并展示，混源则只剩 Gain；Preset/Automation/Effects 是单 part 概念，多选时隐藏（Effects 待 SDK 支持多对象 config 后再做）。
 internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 {
-    public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = "Part".Tr(TC.Property), Items = [mPresetPanel, mPartPanel, mAutomationPanel, mEffectsPanel] };
+    public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = Title, Items = [mPresetPanel, mPartPanel, mAutomationPanel, mEffectsPanel] };
+
+    // 大标题随目标 part 变化（重命名/选中变化/单多切换）实时更新，宿主据此刷新 SideBar 顶栏。
+    public event Action? TitleChanged;
+    public string Title { get; private set; } = "Part".Tr(TC.Property);
 
     public PartPropertySideBarContentProvider()
     {
@@ -68,7 +79,10 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPartContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         mPartContent.Children.Add(mPartFixedController);
         mPartContent.Children.Add(mPartPropertiesController);
-        mPartPanel.Content = mPartContent;
+        // 无目标 part 时盖遮罩（压暗 + 挡交互），提示去选 part；有 part 时按 mode 显隐 Gain / 动态属性。
+        mPartContentPanel.Children.Add(mPartContent);
+        mPartContentPanel.Children.Add(mPartContentMask);
+        mPartPanel.Content = mPartContentPanel;
 
         var effectsName = new Label() { Content = "Effects".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mEffectsPanel.Title = effectsName;
@@ -82,6 +96,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mAutomationContent.Children.Add(mAutomationController);
         mAutomationPanel.Content = mAutomationContent;
 
+        ApplyMode();
         LoadPresets();
     }
 
@@ -144,61 +159,96 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPresetMoreButton.OpenContextMenu(menu);
     }
 
-    public void SetPart(IMidiPart? part)
+    // 焦点感知下发的目标 part 集（单/多/空）。单 part 字段 mPart 供单 part 专属栏（Preset/Automation/Effects）使用。
+    public void SetParts(IReadOnlyList<IMidiPart> parts, PartPanelSource source)
     {
-        if (mPart != null)
-        {
-            s.DisposeAll();
+        s.DisposeAll();
 
-            Terminate();
+        mParts = parts;
+        mSource = source;
+        mPart = parts.Count == 1 ? parts[0] : null;
+
+        foreach (var part in mParts)
+        {
+            part.SoundSource.Modified.Subscribe(OnConfigChnaged, s);
+            // part 属性 commit（结果态）→ 重算动态属性面板（自身联动）。
+            part.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
+            // 重命名 → 刷新大标题。
+            part.Name.Modified.Subscribe(RaiseTitleChanged, s);
         }
 
-        mPart = part;
-
-        if (mPart != null)
-        {
-            mPart.SoundSource.Modified.Subscribe(OnConfigChnaged, s);
-            // part 属性 commit（结果态）→ 重算 part 面板（自身联动）。
-            mPart.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
-
-            Setup(mPart);
-        }
+        Setup();
+        RaiseTitleChanged();
     }
 
-    void Setup(IMidiPart part)
+    void Setup()
     {
-        mAutomationController.Part = part;
-        mPartFixedController.Part = part;
+        ApplyMode();
+
+        // 单 part 专属栏：多选/空选时 mPart 为 null，各 controller 自行清空（panel 也已隐藏）。
+        mAutomationController.Part = mPart;
+        mEffectsController.SetPart(mPart);
+
+        // Gain：单/多/空统一合并绑定（空 → 滑块 Invalid）。
+        mPartFixedController.SetParts(mParts);
+
+        // 动态属性：单选或同源多选才求 config 合并展示，否则清空。
         RefreshPartController();
-        mEffectsController.SetPart(part);
     }
 
-    void Terminate()
+    // 按目标 part 集决定各栏显隐（见类注释的多选语义）。
+    void ApplyMode()
     {
-        mAutomationController.Part = null;
-        mPartFixedController.Part = null;
-        mPartPropertiesController.ResetConfig();
-        mEffectsController.SetPart(null);
+        int n = mParts.Count;
+        bool single = n == 1;
+        bool sameEngine = n > 1 && AllSameEngine();
+        bool empty = n == 0;
+
+        mPresetPanel.IsVisible = single;
+        mAutomationPanel.IsVisible = single;
+        mEffectsPanel.IsVisible = single;
+
+        mPartFixedController.IsVisible = !empty;                    // Gain：>=1 即显（含混源公共属性）
+        mPartPropertiesController.IsVisible = single || sameEngine; // 动态属性：单选或同源多选
+        mPartContentMask.IsVisible = empty;
     }
 
-    // part 值 commit：part 面板按当前值重算（数据对象不变，走 Reconcile）。
+    bool AllSameEngine()
+    {
+        if (mParts.Count == 0)
+            return false;
+        var kind = mParts[0].SoundSource.Kind;
+        var type = mParts[0].SoundSource.Type;
+        for (int i = 1; i < mParts.Count; i++)
+            if (mParts[i].SoundSource.Kind != kind || mParts[i].SoundSource.Type != type)
+                return false;
+        return true;
+    }
+
+    // part 值 commit：动态属性面板按当前值重算（数据对象不变，走 Reconcile）。
     void OnPartPropertiesModified()
     {
-        if (mPart == null)
+        if (mParts.Count == 0)
             return;
 
         ReconcilePartController();
     }
 
     // ---- 条件属性面板：config = f(context)，按当前值重算并 keyed-diff 到控件树 ----
-    // part config 仅依赖 part 自身值。
+    // part config 依赖各 part 自身值（多选传多 part context，由引擎合并）。
 
     void RefreshPartController()
     {
-        if (mPart == null)
+        if (mParts.Count == 0 || (mParts.Count > 1 && !AllSameEngine()))
+        {
+            mPartPropertiesController.ResetConfig();
             return;
+        }
 
-        mPartPropertiesController.SetConfig(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
+        var data = mParts.Count == 1
+            ? (IDataPropertyObject)mParts[0].Properties
+            : new MultipleDataPropertyObject(mParts.Select(part => part.Properties).ToList());
+        mPartPropertiesController.SetConfig(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()), data);
     }
 
     // 重算 defer 到下一 UI 调度：属性 commit 可能发生在控件自身事件回调链中（如 ComboBox 的 SelectionChanged），
@@ -212,23 +262,21 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         Dispatcher.UIThread.Post(() =>
         {
             mPartReconcilePending = false;
-            if (mPart == null)
+            if (mParts.Count == 0 || (mParts.Count > 1 && !AllSameEngine()))
                 return;
-            mPartPropertiesController.Reconcile(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()));
+            mPartPropertiesController.Reconcile(mParts[0].SoundSource.GetPartPropertyConfig(BuildPartContext()));
         });
     }
 
-    // part 面板单 part → 单元素列表（保留列表形以备多 part）。复用数据层 PartContext（TuneLab.Data）。
+    // 声明面活视图壳（引擎无关、调用级）：part 面板各 part → 一个 PartContext，组成 part 列表
+    //（宿主不替插件合并，插件按需 .Merge()）。复用数据层 PartContext（TuneLab.Data）。
     PartPropertyContext BuildPartContext()
-        => PartPropertyContext.Single(mPart!);
+        => new(mParts.Select(part => new PartContext(part)).ToList());
 
+    // 任一 part 音源变化（换音源 → 引擎/门控/config 可能变）：整体按当前目标重建。
     void OnConfigChnaged()
     {
-        Terminate();
-        if (mPart == null)
-            return;
-
-        Setup(mPart);
+        Setup();
     }
 
     async Task OnSaveAsPresetClicked()
@@ -532,6 +580,22 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
     string? SelectedPresetName() => mSelectedPresetName;
 
+    void RaiseTitleChanged()
+    {
+        Title = ComputeTitle();
+        TitleChanged?.Invoke();
+    }
+
+    // 大标题：无 → "Part"；单个 → "Editing/Selected: 名字"（来源区分当前 part vs 编排区选中）；多选 → "Selected: N parts"。
+    string ComputeTitle()
+    {
+        if (mParts.Count == 0)
+            return "Part".Tr(TC.Property);
+        if (mParts.Count == 1)
+            return string.Format((mSource == PartPanelSource.Selected ? "Selected: {0}" : "Editing: {0}").Tr(TC.Property), mParts[0].Name.Value);
+        return string.Format("Selected: {0} parts".Tr(TC.Property), mParts.Count);
+    }
+
     readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
@@ -541,6 +605,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     readonly CollapsiblePanel mAutomationPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mEffectsPanel = new() { Orientation = Orientation.Vertical };
     readonly CollapsiblePanel mPartPanel = new() { Orientation = Orientation.Vertical };
+    readonly LayerPanel mPartContentPanel = new();
+    readonly Border mPartContentMask = new() { Background = Colors.Black.Opacity(0.3).ToBrush() };
 
     readonly TuneLab.GUI.Components.Button mPresetButton;
     readonly ButtonContent mPresetLabel;
@@ -554,7 +620,9 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     readonly PropertyObjectController mPartPropertiesController = new();
 
     const string NonePresetOption = "None";
-    IMidiPart? mPart = null;
+    IReadOnlyList<IMidiPart> mParts = [];
+    PartPanelSource mSource = PartPanelSource.Current;
+    IMidiPart? mPart = null;   // 单选时 = 唯一 part，供单 part 专属栏（Preset/Automation/Effects）使用；多/空选为 null
     List<PartPreset> mPresets = [];
     bool mPartReconcilePending = false;
     readonly DisposableManager s = new();
