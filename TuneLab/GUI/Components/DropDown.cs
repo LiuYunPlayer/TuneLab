@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -70,15 +71,8 @@ internal class DropDown : Panel
             Dispatcher.UIThread.Post(() => mJustClosed = false, DispatcherPriority.Input);
         };
 
-        mSubPopup = new Popup()
-        {
-            Placement = PlacementMode.RightEdgeAlignedTop,
-            IsLightDismissEnabled = false,
-        };
-
         Children.Add(mFace);
         Children.Add(mPopup);
-        Children.Add(mSubPopup);
     }
 
     public string? PlaceholderText { get => mPlaceholderText; set { mPlaceholderText = value; RefreshLabel(); } }
@@ -133,14 +127,14 @@ internal class DropDown : Panel
 
     public void Open()
     {
-        mPopup.MinWidth = Bounds.Width;
-        mPopup.Child = BuildMenu(mTopItems, root: true);
+        mPopup.Child = BuildMenu(mTopItems, Bounds.Width);
         mPopup.IsOpen = true;
     }
 
-    Control BuildMenu(IReadOnlyList<DropDownItem> items, bool root)
+    // width > 0：固定菜单宽度（根菜单 = 触发面宽，与本体对齐）；<= 0：随内容（子菜单）。
+    Control BuildMenu(IReadOnlyList<DropDownItem> items, double width)
     {
-        var stack = new StackPanel() { Orientation = Orientation.Vertical, MinWidth = root ? Bounds.Width : 160 };
+        var stack = new StackPanel() { Orientation = Orientation.Vertical };
         foreach (var item in items)
             stack.Children.Add(BuildRow(item));
 
@@ -150,15 +144,22 @@ internal class DropDown : Panel
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             Content = stack,
         };
-        return new Border()
+        var border = new Border()
         {
-            Background = Style.INTERFACE.ToBrush(),
+            Background = Style.BACK.ToBrush(),
             CornerRadius = new(4),
-            Padding = new(4),
+            Padding = new(0, 4),
             BorderThickness = new(1),
-            BorderBrush = Style.BACK.ToBrush(),
+            BorderBrush = Style.INTERFACE.ToBrush(),
             Child = scroll,
         };
+        if (width > 0)
+            border.Width = width;
+        else
+            border.MinWidth = 140;
+        // 屏蔽滚轮穿透：ScrollViewer 能滚则先消费（标 Handled）；滚到尽头未处理者冒泡至此 → 吞掉，不传到后面面板。
+        border.AddHandler(InputElement.PointerWheelChangedEvent, (_, e) => e.Handled = true, RoutingStrategies.Bubble);
+        return border;
     }
 
     Control BuildRow(DropDownItem item)
@@ -186,43 +187,49 @@ internal class DropDown : Panel
             CornerRadius = new(4),
             Background = Brushes.Transparent,
             Cursor = new Cursor(StandardCursorType.Hand),
-            MinWidth = 120,
             Child = dock,
         };
-        row.PointerEntered += (_, _) =>
-        {
-            row.Background = Style.LIGHT_WHITE.Opacity(0.08).ToBrush();
-            if (item.IsGroup)
-                OpenSubMenu(row, item.Children!);
-            else
-                CloseSubMenu();
-        };
+        row.PointerEntered += (_, _) => row.Background = Style.LIGHT_WHITE.Opacity(0.08).ToBrush();
         row.PointerExited += (_, _) => row.Background = Brushes.Transparent;
-        row.PointerReleased += (_, e) =>
-        {
-            e.Handled = true;
-            if (item.IsGroup)
-                OpenSubMenu(row, item.Children!);
-            else
-                Select(item);
-        };
-        return row;
-    }
 
-    void OpenSubMenu(Control anchor, IReadOnlyList<DropDownItem> children)
-    {
-        if (ReferenceEquals(mSubAnchor, anchor) && mSubPopup.IsOpen)
-            return;
-        mSubAnchor = anchor;
-        mSubPopup.PlacementTarget = anchor;
-        mSubPopup.Child = BuildMenu(children, root: false);
-        mSubPopup.IsOpen = true;
+        if (!item.IsGroup)
+        {
+            // 进入叶子行时收起任何已展开的子菜单（从分组移到同级叶子）。
+            row.PointerEntered += (_, _) => CloseSubMenu();
+            row.PointerReleased += (_, e) => { e.Handled = true; Select(item); };
+            return row;
+        }
+
+        // 分组行：子 Popup 建在主菜单内容树内（与行同根），故 PlacementTarget=row 定位正常、可悬浮到侧边。
+        var subPopup = new Popup()
+        {
+            PlacementTarget = row,
+            Placement = PlacementMode.RightEdgeAlignedTop,
+            IsLightDismissEnabled = false,
+            Child = BuildMenu(item.Children!, 0),
+        };
+        void OpenThis()
+        {
+            if (!ReferenceEquals(mOpenSub, subPopup))
+                CloseSubMenu();
+            mOpenSub = subPopup;
+            subPopup.IsOpen = true;
+        }
+        row.PointerEntered += (_, _) => OpenThis();
+        row.PointerReleased += (_, e) => { e.Handled = true; OpenThis(); };
+
+        var host = new Panel();
+        host.Children.Add(row);
+        host.Children.Add(subPopup);
+        return host;
     }
 
     void CloseSubMenu()
     {
-        mSubPopup.IsOpen = false;
-        mSubAnchor = null;
+        if (mOpenSub == null)
+            return;
+        mOpenSub.IsOpen = false;
+        mOpenSub = null;
     }
 
     void Select(DropDownItem leaf)
@@ -230,9 +237,7 @@ internal class DropDown : Panel
         CloseSubMenu();
         mPopup.IsOpen = false;
         int index = mLeaves.IndexOf(leaf);
-        if (index < 0)
-            return;
-        if (index == mSelectedIndex)
+        if (index < 0 || index == mSelectedIndex)
         {
             RefreshLabel();
             return;
@@ -262,8 +267,7 @@ internal class DropDown : Panel
     readonly TextBlock mLabel;
     readonly Border mFace;
     readonly Popup mPopup;
-    readonly Popup mSubPopup;
-    Control? mSubAnchor;
+    Popup? mOpenSub;
     string? mPlaceholderText;
     IReadOnlyList<DropDownItem> mTopItems = [];
     readonly List<DropDownItem> mLeaves = new();

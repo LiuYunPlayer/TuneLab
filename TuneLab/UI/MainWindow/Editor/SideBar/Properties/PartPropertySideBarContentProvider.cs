@@ -606,7 +606,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         return string.Format("Selected: {0} parts".Tr(TC.Property), mParts.Count);
     }
 
-    readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 12) };
+    // 底部不留 padding：否则 INTERFACE 底色的 12px 余白与同色的下一栏标题相连、视觉上把下一栏标题撑高。
+    readonly Border mPresetContentContainer = new() { Background = Style.INTERFACE.ToBrush(), Padding = new(12, 0, 12, 0) };
     readonly StackPanel mPresetContent = new() { Orientation = Orientation.Vertical, Spacing = 8 };
     readonly StackPanel mAutomationContent = new() { Orientation = Orientation.Vertical };
     readonly StackPanel mEffectsContent = new() { Orientation = Orientation.Vertical };
