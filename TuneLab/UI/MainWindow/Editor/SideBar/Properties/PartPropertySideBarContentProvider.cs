@@ -205,8 +205,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         bool merged = ShowsMerged();   // 单选或同引擎多选：动态属性 + Automation 合并展示
         bool empty = mParts.Count == 0;
 
-        mPresetPanel.IsVisible = single;       // Preset/Effects 单 part 概念
-        mEffectsPanel.IsVisible = single;
+        mPresetPanel.IsVisible = !empty;       // Preset：单/多选均可（Apply 扇出到全部，含统一混源音源）
+        mEffectsPanel.IsVisible = single;      // Effects 单 part 概念（多对象 config 待 SDK）
         mAutomationPanel.IsVisible = merged;
 
         mPartFixedController.IsVisible = !empty;        // Gain：>=1 即显（含混源公共属性）
@@ -343,45 +343,49 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         SavePreset(selectedPresetName);
     }
 
+    // 应用 preset / 恢复默认：扇出到所有目标 part（单选即 1 个），归为一个撤销步（共享文档，commit 一次）。
+    // None = 恢复默认；其余 = 设音源 + 重置属性 + 套 preset 属性/自动化默认。多选混源亦可——apply 会统一各 part 音源。
     void OnApplyPresetClicked()
     {
-        if (mPart == null)
+        if (mParts.Count == 0)
             return;
 
         var selectedPresetName = SelectedPresetName();
-        if (selectedPresetName == null)
+        PartPreset? preset = null;
+        if (selectedPresetName != null)
         {
-            ApplyDefaultPreset();
-            return;
+            preset = mPresets.FirstOrDefault(item => item.Name.Equals(selectedPresetName, StringComparison.OrdinalIgnoreCase));
+            if (preset == null)
+                return;
         }
 
-        var preset = mPresets.FirstOrDefault(item => item.Name.Equals(selectedPresetName, StringComparison.OrdinalIgnoreCase));
-        if (preset == null)
-            return;
-
-        ApplyPreset(preset);
+        foreach (var part in mParts)
+            part.BeginMergeDirty();
+        foreach (var part in mParts)
+        {
+            if (preset == null)
+                ApplyDefaultPresetTo(part);
+            else
+                ApplyPresetTo(part, preset);
+        }
+        foreach (var part in mParts)
+            part.EndMergeDirty();
+        mParts[0].Commit();
     }
 
-    void ApplyDefaultPreset()
+    // 单 part 的应用（config 按该 part 自身音源现算：apply 可能正在改音源，须 per-part 单元素 context）。
+    void ApplyDefaultPresetTo(IMidiPart part)
     {
-        if (mPart == null)
-            return;
-
-        ResetPartPropertiesToDefaults(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
-        ResetAutomationDefaults();
-        mPart.Commit();
+        ResetPartPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
+        ResetAutomationDefaultsOf(part);
     }
 
-    void ApplyPreset(PartPreset preset)
+    void ApplyPresetTo(IMidiPart part, PartPreset preset)
     {
-        if (mPart == null)
-            return;
-
-        mPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
-        ResetPartPropertiesToDefaults(mPart.SoundSource.GetPartPropertyConfig(BuildPartContext()), mPart.Properties);
-        ApplyPresetProperties(preset.Properties, mPart.Properties);
-        ApplyAutomationDefaults(preset);
-        mPart.Commit();
+        part.SoundSource.SetInfo(new SoundSourceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
+        ResetPartPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
+        ApplyPresetProperties(preset.Properties, part.Properties);
+        ApplyAutomationDefaultsTo(part, preset);
     }
 
     // 沿 ObjectConfig 结构与数据节点并行导航：嵌套 config 走 node.Object(key) 下降，叶子 config 写 node.SetValue。
@@ -421,33 +425,27 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         }
     }
 
-    void ResetAutomationDefaults()
+    void ResetAutomationDefaultsOf(IMidiPart part)
     {
-        if (mPart == null)
-            return;
-
-        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
-            if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
+            if (part.Automations.TryGetValue(kvp.Key.Id, out var automation))
                 automation.DefaultValue.Set(kvp.Value.DefaultValue);
         }
     }
 
-    void ApplyAutomationDefaults(PartPreset preset)
+    void ApplyAutomationDefaultsTo(IMidiPart part, PartPreset preset)
     {
-        if (mPart == null)
-            return;
-
-        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
             double value = preset.Automations.GetValueOrDefault(kvp.Key.Id, kvp.Value.DefaultValue);
-            if (mPart.Automations.TryGetValue(kvp.Key.Id, out var automation))
+            if (part.Automations.TryGetValue(kvp.Key.Id, out var automation))
             {
                 automation.DefaultValue.Set(value);
             }
             else if (value != kvp.Value.DefaultValue)
             {
-                mPart.AddAutomation(kvp.Key.Id)?.DefaultValue.Set(value);
+                part.AddAutomation(kvp.Key.Id)?.DefaultValue.Set(value);
             }
         }
     }
