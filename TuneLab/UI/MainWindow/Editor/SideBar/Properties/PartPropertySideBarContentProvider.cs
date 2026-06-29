@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
 using TuneLab.Data;
@@ -133,18 +134,20 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         mPresetFlyout.Content = stack;
     }
 
-    // 点行：记为选中并应用到当前 part（None = 恢复默认）。没有 part 时只更新选中、不应用。
+    // 点行：应用到所有目标 part（None = 恢复默认）并建立运行期关联（None = 解除关联）。
     void ApplySelection(string? presetName)
     {
-        SetSelectedPreset(presetName);
-        OnApplyPresetClicked();
+        ApplyPresetToAll(presetName);
+        foreach (var part in mParts)
+            Associate(part, presetName);
+        RefreshPresetLabel();
     }
 
     void OnPresetMoreButtonClicked()
     {
         var menu = new ContextMenu();
-        var hasSelection = SelectedPresetName() != null;
         var hasPart = mPart != null;
+        var hasSelection = mPart != null && AssociationOf(mPart) != null;
 
         {
             var menuItem = new MenuItem().SetName("Save As".Tr(TC.Menu)).SetAction(async () => await OnSaveAsPresetClicked());
@@ -203,6 +206,9 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
         // 动态属性：单选或同引擎多选才求 config 合并展示，否则清空。
         RefreshPartController();
+
+        // 下拉钮文字 = 当前目标 part 的运行期 preset 关联（切 part 即跟随）。
+        RefreshPresetLabel();
     }
 
     // 按目标 part 集决定各栏显隐（见类注释的多选语义）。
@@ -311,11 +317,13 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         }
 
         SavePreset(presetName);
+        Associate(mPart, presetName);   // Save As 建立运行期关联（后续 Save 直接回写它）
+        RefreshPresetLabel();
     }
 
     async Task OnRenamePresetClicked()
     {
-        var selectedPresetName = SelectedPresetName();
+        var selectedPresetName = mPart != null ? AssociationOf(mPart) : null;
         if (selectedPresetName == null)
             return;
 
@@ -341,7 +349,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        var selectedPresetName = SelectedPresetName();
+        var selectedPresetName = AssociationOf(mPart);
         if (selectedPresetName == null)
             return;
 
@@ -353,16 +361,15 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
     // 应用 preset / 恢复默认：扇出到所有目标 part（单选即 1 个），归为一个撤销步（共享文档，commit 一次）。
     // None = 恢复默认；其余 = 设音源 + 重置属性 + 套 preset 属性/自动化默认。多选混源亦可——apply 会统一各 part 音源。
-    void OnApplyPresetClicked()
+    void ApplyPresetToAll(string? presetName)
     {
         if (mParts.Count == 0)
             return;
 
-        var selectedPresetName = SelectedPresetName();
         PartPreset? preset = null;
-        if (selectedPresetName != null)
+        if (presetName != null)
         {
-            preset = mPresets.FirstOrDefault(item => item.Name.Equals(selectedPresetName, StringComparison.OrdinalIgnoreCase));
+            preset = mPresets.FirstOrDefault(item => item.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
             if (preset == null)
                 return;
         }
@@ -467,8 +474,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         try
         {
             PresetConfigManager.DeletePreset(presetName);
-            if (presetName.Equals(mSelectedPresetName, StringComparison.OrdinalIgnoreCase))
-                SetSelectedPreset(null);
+            RemapAssociations(presetName, null);   // 删除：指向它的运行期关联一并解除
             LoadPresets();
         }
         catch (Exception ex)
@@ -525,7 +531,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         try
         {
             PresetConfigManager.SavePreset(BuildPreset(presetName));
-            LoadPresets(presetName);
+            LoadPresets();
         }
         catch (Exception ex)
         {
@@ -539,7 +545,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         try
         {
             PresetConfigManager.RenamePreset(oldPresetName, newPresetName);
-            LoadPresets(newPresetName);
+            RemapAssociations(oldPresetName, newPresetName);   // 关联跟随改名
+            LoadPresets();
         }
         catch (Exception ex)
         {
@@ -572,23 +579,49 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         return preset;
     }
 
-    // 重载 preset 列表（下拉每次打开时按 mPresets 重建）。selectedPresetName 给定则设为选中；否则保留当前选中，
-    // 若当前选中已不在列表中（被删/改名）则回落 None。
-    void LoadPresets(string? selectedPresetName = null)
+    // 重载 preset 列表（下拉每次打开时按 mPresets 重建）+ 刷新钮文字。
+    void LoadPresets()
     {
         mPresets = PresetConfigManager.LoadPresets();
-        var keep = selectedPresetName ?? mSelectedPresetName;
-        SetSelectedPreset(keep != null && mPresets.Any(p => p.Name.Equals(keep, StringComparison.OrdinalIgnoreCase)) ? keep : null);
+        RefreshPresetLabel();
     }
 
-    // 选中态：撑住 ⋯ 菜单 Save/Rename 的作用目标 + 下拉钮文字（null = None）。Flyout 是瞬态菜单，故选中态须自己记。
-    void SetSelectedPreset(string? presetName)
+    // ---- part↔preset 运行期关联（弱键、会话内有效、不进工程、part 删除自动回收）----
+    string? AssociationOf(IMidiPart part) => mPresetAssociations.TryGetValue(part, out var name) ? name : null;
+
+    void Associate(IMidiPart part, string? presetName)
     {
-        mSelectedPresetName = string.IsNullOrWhiteSpace(presetName) ? null : presetName;
-        mPresetLabel.Item = new TextItem() { Text = (mSelectedPresetName ?? NonePresetOption.Tr(TC.Property)) + "  ▾", FontSize = 12 };
+        if (string.IsNullOrWhiteSpace(presetName))
+            mPresetAssociations.Remove(part);
+        else
+            mPresetAssociations.AddOrUpdate(part, presetName);
     }
 
-    string? SelectedPresetName() => mSelectedPresetName;
+    // 改名/删除后批量重映射关联（newName=null 表示删除该名的所有关联）。
+    void RemapAssociations(string oldName, string? newName)
+    {
+        var affected = new List<IMidiPart>();
+        foreach (var kvp in mPresetAssociations)
+            if (kvp.Value.Equals(oldName, StringComparison.OrdinalIgnoreCase))
+                affected.Add(kvp.Key);
+        foreach (var part in affected)
+            Associate(part, newName);
+    }
+
+    // 下拉钮文字 = 当前目标 part 的关联（全等显之、混选不一致显 (Multiple)、无 part/无关联显 None）。
+    void RefreshPresetLabel()
+    {
+        string? common = null;
+        bool first = true, mixed = false;
+        foreach (var part in mParts)
+        {
+            var a = AssociationOf(part);
+            if (first) { common = a; first = false; }
+            else if (a != common) { mixed = true; break; }
+        }
+        string text = mixed ? "(Multiple)" : (common ?? NonePresetOption.Tr(TC.Property));
+        mPresetLabel.Item = new TextItem() { Text = text + "  ▾", FontSize = 12 };
+    }
 
     void RaiseTitleChanged()
     {
@@ -626,7 +659,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     readonly ButtonContent mPresetLabel;
     readonly Flyout mPresetFlyout;
     bool mPresetFlyoutJustClosed;
-    string? mSelectedPresetName;
+    // part↔preset 运行期关联（弱键、会话内）：apply/saveAs 建立，None/删除解除；切 part 跟随、重启自然丢、不进工程文件。
+    readonly ConditionalWeakTable<IMidiPart, string> mPresetAssociations = new();
     readonly TuneLab.GUI.Components.Button mPresetMoreButton;
     readonly AutomationDefaultsController mAutomationController = new();
     readonly EffectsController mEffectsController = new();
