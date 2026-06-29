@@ -56,8 +56,8 @@ public readonly struct PhonemeTiming
 //   · 核(w>0)以标称时长为原长、填充剩余空间到 FillEnd——可用余量(空间−各核原长和)按权重分摊到各核（单核时原长被抵消、退化为整段填充）；
 //     后辅音(w=0)用其标称时长。
 // 再做跨 note 去重叠：
-//   · 只在相接 / 重叠的 note 边界压缩，左锚 = 前 note 核起点（音符头，恒不动）、右锚 = 后 note 核起点（核不压不动）；
-//   · ① 元音先从尾收缩让位；② 仍超则辅音簇按标称长等比压；退化反序就地塌缩 + 单调钳制兜底。
+//   · 只在相接 / 重叠的 note 边界压缩，左锚 = 前 note 首核起点（音符头，恒不动）、右锚 = 后 note 核起点（核不压不动）；
+//   · ① 核(w>0)先让位（跨度内全部核按各自权重分摊收缩、各到 0）；② 仍超则辅音簇按标称长等比压；退化反序就地塌缩 + 单调钳制兜底。
 //   · note 间有空隙时两侧互不影响（前置辅音可自然探入空隙、不被推挤）。
 public static class PhonemeLayout
 {
@@ -164,9 +164,9 @@ public static class PhonemeLayout
     // 返回去重叠后各音素的真实 [Start, End]（绝对秒），与输入同序、单调不重叠。
     // 重叠只可能发生在 note 边界（同 note 内连续无隙不会重叠）。逐边界从左到右独立解析；相邻边界的音素集两两不相交、
     // 互不影响（核起点恒不动 = 共同固定锚），故 3-note 窗口或整段同一结果。
-    //   · **不变量：音符头垂直投影到音素带上的那个点恒不动**——核起点及其左侧（前置辅音、间隙）一律不进压缩跨度。
-    //   · 吸收跨度 = [前 note 核起点（固定左锚）… 后 note 核起点（固定右锚，核不压不动)）。
-    //   · ① 元音先让（w>0，从尾收缩，最多到 0）；② 元音耗尽仍超 → 辅音簇（w=0，前 note 尾辅音 ∪ 后 note 前辅音）按标称长等比压。
+    //   · **不变量：音符头垂直投影到音素带上的那个点恒不动**——首核起点及其左侧（前置辅音、间隙）一律不进压缩跨度。
+    //   · 吸收跨度 = [前 note 首核起点（固定左锚）… 后 note 核起点（固定右锚，核不压不动)）；前 note 首核到末尾的全部核都在跨度内。
+    //   · ① 核先让（w>0，跨度内全部核按各自权重分摊收缩，各最多到 0）；② 核耗尽仍超 → 辅音簇（w=0，前 note 尾辅音 ∪ 后 note 前辅音）按标称长等比压。
     //   · 退化重叠（两核起点反序、可用空间为负）：就地塌缩到前 note 核起点；单调钳制兜底。
     // 仅相接 / 重叠的相邻 note 才跨 note 协同。两 note 间有空隙时音素互不影响（后 note 前置辅音可自然探入空隙、显示上与
     // 前 note 重叠，但谁都不被推挤 / 压缩）——固定音素不因邻居在空隙内移动而跳变。
@@ -208,15 +208,15 @@ public static class PhonemeLayout
         int aNote = segments[i].Note;
         int bNote = segments[i + 1].Note;
 
-        // 左锚 = A 的核起点（A 内最后一个 w>0）；A 无核（纯辅音）则取 A 首音素。核起点固定、不移动。
-        int left = i;
-        for (int j = i; j >= 0 && segments[j].Note == aNote; j--)
-        {
-            left = j;
-            if (segments[j].Weight > 0)
-                break;
-        }
-        double leftPos = rs[left];   // 固定左锚（前 note 核起点 = 音符头）
+        // 左锚 = A 的第一个核起点（A 内首个 w>0 = 音符头）；A 无核（纯辅音）则取 A 首音素。核起点固定、不移动。
+        // 退到首核（而非末核）是为让 A 从首核到末尾的所有核都进入压缩跨度、按各自权重共同让位；
+        // 首核之前的 IsLead 前置辅音照旧留在左侧、不参与压缩。
+        int aStart = i;
+        while (aStart > 0 && segments[aStart - 1].Note == aNote) aStart--;
+        int left = aStart;   // A 无核则取首音素
+        for (int j = aStart; j <= i; j++)
+            if (segments[j].Weight > 0) { left = j; break; }
+        double leftPos = rs[left];   // 固定左锚（前 note 首核起点 = 音符头）
 
         // 右锚 = B 核起点（核不压、不动）；B 无核则取 B 末讫。跨度 = [left .. spanEnd]。
         int spanEnd;
@@ -249,12 +249,24 @@ public static class PhonemeLayout
 
         if (need > Epsilon)
         {
-            // ① 元音先让（跨度内至多一个核 = left，从尾收缩）。
-            if (segments[left].Weight > 0)
+            // ① 核(w>0)先让：把 need 按权重分摊到跨度内所有核，各自最多收缩到 0。
+            //    多轮分摊——某核被压到 0 后退出，其残余在仍有余量的核间按权重重新分摊（权重大者让得多）。
+            while (need > Epsilon)
             {
-                double shrink = Math.Min(need, len[0]);
-                len[0] -= shrink;
-                need -= shrink;
+                double roundWeight = 0;
+                for (int k = 0; k < count; k++)
+                    if (segments[left + k].Weight > 0 && len[k] > Epsilon) roundWeight += segments[left + k].Weight;
+                if (roundWeight <= Epsilon) break;
+
+                double roundNeed = need;
+                for (int k = 0; k < count; k++)
+                {
+                    double w = segments[left + k].Weight;
+                    if (w <= 0 || len[k] <= Epsilon) continue;
+                    double shrink = Math.Min(len[k], roundNeed * (w / roundWeight));
+                    len[k] -= shrink;
+                    need -= shrink;
+                }
             }
             // ② 辅音簇按标称长度等比压（可到 0）。
             if (need > Epsilon)
