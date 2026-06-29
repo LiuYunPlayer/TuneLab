@@ -46,29 +46,29 @@ public sealed class GainEffectEngine : IEffectEngine
     static ObjectConfig BuildConfig()
     {
         var map = new OrderedMap<PropertyKey, IControllerConfig>();
-        map.Add("gain", new SliderConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0 });
-        map.Add(("env_enabled", "Show Gain Env"), new CheckBoxConfig { DefaultValue = true });
-        return new ObjectConfig { Properties = map };
+        map.Add("gain", SliderConfig.Linear(1.0, 0.0, 2.0));
+        map.Add(("env_enabled", "Show Gain Env"), CheckBoxConfig.Create(true));
+        return ObjectConfig.Create(map);
     }
 
     static OrderedMap<PropertyKey, AutomationConfig> BuildAutomations()
     {
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
-        map.Add(("gain_env", "Gain Env"), new AutomationConfig { DefaultValue = 1.0, MinValue = 0.0, MaxValue = 2.0, Color = "#FF8800" });
+        map.Add(("gain_env", "Gain Env"), AutomationConfig.Create(0.0, 2.0).WithColor("#FF8800").WithDefault(1.0));
         return map;
     }
 
     static OrderedMap<PropertyKey, AutomationConfig> BuildReadbackConfigs()
     {
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
-        map.Add(("loudness", "Loudness"), new AutomationConfig { DefaultValue = double.NaN, MinValue = 0.0, MaxValue = 2.0, Color = "#00B0FF" });
+        map.Add(("loudness", "Loudness"), AutomationConfig.Create(0.0, 2.0).WithColor("#00B0FF"));
         return map;
     }
 
     static readonly ObjectConfig mConfig = BuildConfig();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = BuildAutomations();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
-    static readonly AutomationConfig mFormantConfig = new() { DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#00C2A8" };
+    static readonly AutomationConfig mFormantConfig = AutomationConfig.Create(-100, 100).WithColor("#00C2A8");
 
     // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出段，按脏差分复用。
     sealed class GainProcessor : IEffectProcessor
@@ -271,7 +271,7 @@ public sealed class ReverseEffectEngine : IEffectEngine
     public void Destroy() { }
     public IEffectProcessor CreateProcessor(IEffectContext context) => new ReverseProcessor(context);
 
-    static readonly ObjectConfig mConfig = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new();
 

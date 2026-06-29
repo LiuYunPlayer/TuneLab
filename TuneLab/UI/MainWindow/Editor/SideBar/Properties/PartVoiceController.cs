@@ -11,6 +11,7 @@ using TuneLab.GUI.Controllers;
 using TuneLab.SDK;
 using TuneLab.Utils;
 using TuneLab.I18N;
+using ComboBoxItem = TuneLab.SDK.ComboBoxItem;   // 消歧：避开 Avalonia.Controls.ComboBoxItem
 
 namespace TuneLab.UI;
 
@@ -96,7 +97,7 @@ internal class PartVoiceController : StackPanel
     ComboBoxConfig BuildConfig(SourceKind? currentKind, string? currentType)
     {
         mEntries.Clear();
-        var options = new List<ComboBoxOption>();
+        var options = new List<ComboBoxItem>();
 
         // 顶部：当前引擎的各音源（含当前 voice，便于直接切换 / 高亮）。混引擎时无此段。
         if (currentKind is SourceKind ck && currentType != null && TryEnumerateSources(ck, currentType, out var currentSources))
@@ -106,14 +107,14 @@ internal class PartVoiceController : StackPanel
         AddEngineSection(options, "Voices".Tr(TC.Property), SourceKind.Voice, VoicesManager.GetAllVoiceEngines(), currentKind, currentType);
         AddEngineSection(options, "Instruments".Tr(TC.Property), SourceKind.Instrument, InstrumentsManager.GetAllInstrumentEngines(), currentKind, currentType);
 
-        return new ComboBoxConfig() { Options = options };
+        return ComboBoxConfig.Create(options);
     }
 
     // 某一类(kind)的各引擎做成二级子菜单分组（排除当前引擎，其音源已在顶部；混引擎 currentKind=null 时不排除）；
     // 跳过加载失败(infos==null)的引擎，空音源引擎退化为无子菜单的一级项。整段前置一条带字分隔线；该类无引擎则整段省略。
-    void AddEngineSection(List<ComboBoxOption> options, string label, SourceKind kind, IReadOnlyList<string> engines, SourceKind? currentKind, string? currentType)
+    void AddEngineSection(List<ComboBoxItem> options, string label, SourceKind kind, IReadOnlyList<string> engines, SourceKind? currentKind, string? currentType)
     {
-        var groups = new List<ComboBoxOption>();
+        var groups = new List<ComboBoxItem>();
         foreach (var type in engines)
         {
             if (currentKind == kind && type == currentType)
@@ -121,20 +122,20 @@ internal class PartVoiceController : StackPanel
             if (!TryEnumerateSources(kind, type, out var sources))
                 continue;
             var leaves = sources.Select(src => Leaf(kind, type, src)).ToList();
-            groups.Add(new ComboBoxOption(EngineName(kind, type), leaves));
+            groups.Add(new ComboBoxItem(EngineName(kind, type), leaves));
         }
         if (groups.Count == 0)
             return;
-        options.Add(ComboBoxOption.Separator(label));
+        options.Add(ComboBoxItem.Separator(label));
         options.AddRange(groups);
     }
 
     // 登记一个音源叶子：记入 mEntries 并以其下标为 value。
-    ComboBoxOption Leaf(SourceKind kind, string type, Source source)
+    ComboBoxItem Leaf(SourceKind kind, string type, Source source)
     {
         int index = mEntries.Count;
         mEntries.Add(new Entry(kind, type, source.Id));
-        return new ComboBoxOption(PropertyValue.Create((double)index), source.Name);
+        return new ComboBoxItem(PropertyValue.Create((double)index), source.Name);
     }
 
     static string EngineName(SourceKind kind, string type)

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TuneLab.Foundation;
@@ -188,6 +190,17 @@ internal static class ExtensionManager
                     continue;
                 }
 
+                // 加载期 ABI 校验：插件对不兼容的旧 SDK 编译（引用了已改名/删除的类型或成员）时，此处即拒，
+                // 而非加载后用时才 TypeLoad/MissingMethod 惊崩。
+                if (!ValidateSdkReferences(assemblyFile, out var abiMissing))
+                {
+                    failed++;
+                    var reason = string.Format("{0}: built against an incompatible SDK ({1} no longer exists)", IdentityLabel(ext, kind), abiMissing);
+                    reasons.Add(reason);
+                    Log.Warning(string.Format("Extension {0}: {1}", description.name, reason));
+                    continue;
+                }
+
                 alc ??= new PluginLoadContext(path, assemblyFile);
                 var assembly = alc.LoadFromAssemblyPath(assemblyFile);
 
@@ -221,6 +234,90 @@ internal static class ExtensionManager
             && string.IsNullOrEmpty(result.Error) && reasons.Count > 0)
             result.Error = string.Join("; ", reasons);
     }
+
+    // 加载期 ABI 校验：扫插件程序集对 TuneLab.SDK 的 TypeRef / MemberRef，逐个在宿主当前加载的 SDK 程序集解析。
+    // 有解析不了的（类型或成员被改名/删除）即说明它对不兼容的旧 SDK 编译——加载就拒，免得用时才 TypeLoad/MissingMethod 崩主程序。
+    // 纯读元数据表（不执行插件代码、不解析 IL、不实例化）；SDK 表面缓存一次，单插件成本亚毫秒。legacy 插件不引 TuneLab.SDK、自然全过。
+    // 仅按"名"校验、不比签名——足以拦改名/删除这类常见破坏；属性经 get_/set_ 访问器名一并覆盖。父为 TypeSpec（泛型实例）等则跳过（保守、不误杀）。
+    static bool ValidateSdkReferences(string assemblyFile, out string? missing)
+    {
+        missing = null;
+        try
+        {
+            using var stream = File.OpenRead(assemblyFile);
+            using var pe = new PEReader(stream);
+            if (!pe.HasMetadata)
+                return true;
+
+            var mr = pe.GetMetadataReader();
+            var (sdkTypes, sdkMembers) = sSdkSurface.Value;
+
+            // TypeRef：仅校验直属 AssemblyRef = TuneLab.SDK 的顶层类型；命中者记下句柄供 MemberRef 复用。
+            var sdkTypeRefs = new Dictionary<TypeReferenceHandle, string>();
+            foreach (var handle in mr.TypeReferences)
+            {
+                var typeRef = mr.GetTypeReference(handle);
+                if (typeRef.ResolutionScope.Kind != HandleKind.AssemblyReference)
+                    continue;
+                var asmRef = mr.GetAssemblyReference((AssemblyReferenceHandle)typeRef.ResolutionScope);
+                if (!mr.GetString(asmRef.Name).Equals("TuneLab.SDK", StringComparison.Ordinal))
+                    continue;
+
+                var ns = mr.GetString(typeRef.Namespace);
+                var name = mr.GetString(typeRef.Name);
+                var fullName = string.IsNullOrEmpty(ns) ? name : ns + "." + name;
+                if (!sdkTypes.Contains(fullName))
+                {
+                    missing = "type " + fullName;
+                    return false;
+                }
+                sdkTypeRefs[handle] = fullName;
+            }
+
+            // MemberRef：父为命中 SDK 的 TypeRef 时，按成员名校验存在。
+            foreach (var handle in mr.MemberReferences)
+            {
+                var memberRef = mr.GetMemberReference(handle);
+                if (memberRef.Parent.Kind != HandleKind.TypeReference)
+                    continue;
+                if (!sdkTypeRefs.TryGetValue((TypeReferenceHandle)memberRef.Parent, out var typeFull))
+                    continue;
+                var memberName = mr.GetString(memberRef.Name);
+                if (sdkMembers.TryGetValue(typeFull, out var names) && !names.Contains(memberName))
+                {
+                    missing = "member " + typeFull + "." + memberName;
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // 读元数据失败不拦（保守）：交由后续加载/调用兜底，避免误杀。
+            Log.Warning(string.Format("SDK reference validation skipped for {0}: {1}", assemblyFile, ex.Message));
+            return true;
+        }
+    }
+
+    // 宿主当前 SDK 的全部类型全名集 + 各类型成员名集（含 get_/set_ 访问器与 .ctor）；构建一次缓存（SDK 程序集小、毫秒内）。
+    static readonly Lazy<(HashSet<string> Types, Dictionary<string, HashSet<string>> Members)> sSdkSurface = new(() =>
+    {
+        var types = new HashSet<string>(StringComparer.Ordinal);
+        var members = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+        foreach (var type in typeof(IControllerConfig).Assembly.GetTypes())
+        {
+            var full = type.FullName;
+            if (full == null)
+                continue;
+            types.Add(full);
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var member in type.GetMembers(flags))
+                names.Add(member.Name);
+            members[full] = names;
+        }
+        return (types, members);
+    });
 
     static void LoadLegacy(string path, ExtensionDescription? description, string folderName)
     {

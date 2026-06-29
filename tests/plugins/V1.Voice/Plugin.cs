@@ -28,14 +28,14 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mVoiceInfos.Add("v1-alice", new VoiceSourceInfo { Name = "Alice (V1 Test)", Description = "Test voice Alice", Portrait = new FileImageResource(staticPortrait) });
         mVoiceInfos.Add("v1-bob", new VoiceSourceInfo { Name = "Bob (V1 Test)", Description = "Test voice Bob" });
         mVoiceInfos.Add("v1-carol", new VoiceSourceInfo { Name = "Carol (V1 Test)", Description = "Test voice Carol", Portrait = new FileImageResource(animatedPortrait) });
-        mNoteProperties.Add("tension", new SliderConfig { DefaultValue = 0, MinValue = -1, MaxValue = 1 });
+        mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1));
         // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。
-        mPhonemeProperties.Add("accent", new SliderConfig { DefaultValue = 0, MinValue = 0, MaxValue = 1 });
+        mPhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1));
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
-        mPartProperties.Add(("growl_enabled", "Enable Growl"), new CheckBoxConfig { DefaultValue = true });
+        mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
-        mGrowlConfigs.Add(("Growl", "Growl"), new AutomationConfig { DefaultValue = 0, MinValue = 0, MaxValue = 100, Color = "#E5A573" });
+        mGrowlConfigs.Add(("Growl", "Growl"), AutomationConfig.Create(0, 100).WithColor("#E5A573").WithDefault(0));
     }
 
     public void Destroy() { }
@@ -59,13 +59,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
     // 曲线数据经 IVoiceSynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
-    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => new() { Properties = mPartProperties };
-    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => new() { Properties = mNoteProperties };
+    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
+    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => ObjectConfig.Create(mNoteProperties);
     // 音素属性声明（复用 note 上下文；返回与"各 note 音素扁平展开"对齐的 config 列表）：本参照实现给每个音素都暴露 accent 轨；
     // 据音素位置（note 内索引）/ 符号 / IsLead 条件化各异 schema 可在此扩展。
     public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
     {
-        var config = new ObjectConfig { Properties = mPhonemeProperties };
+        var config = ObjectConfig.Create(mPhonemeProperties);
         return context.Notes.SelectMany(n => n.Phonemes).Select(_ => config).ToList();
     }
 
@@ -75,11 +75,11 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mPhonemeProperties = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
-    static readonly AutomationConfig mBendConfig = new() { DefaultValue = double.NaN, MinValue = -100, MaxValue = 100, Color = "#73C2E5" };
+    static readonly AutomationConfig mBendConfig = AutomationConfig.Create(-100, 100).WithColor("#73C2E5");
     // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
     {
-        { ("energy", "Energy"), new AutomationConfig { DefaultValue = double.NaN, MinValue = 0, MaxValue = 100, Color = "#E573B0" } },
+        { ("energy", "Energy"), AutomationConfig.Create(0, 100).WithColor("#E573B0") },
     };
 }
 

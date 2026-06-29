@@ -23,6 +23,7 @@ using TuneLab.SDK;
 using TuneLab.Utils;
 using ScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility;
 using PlacementMode = Avalonia.Controls.PlacementMode;
+using ComboBoxItem = TuneLab.SDK.ComboBoxItem;   // 消歧：避开 Avalonia.Controls.ComboBoxItem
 
 namespace TuneLab.UI;
 
@@ -48,7 +49,7 @@ internal sealed class AgentSideBarContentProvider
 
         var engines = AgentModelManager.GetAllAgentModelEngines().ToList();
         // 选项值存不可变引擎 id（用于保存/连接/比较），显示文本用本地化显示名。
-        mEngineOptions = engines.Select(e => new ComboBoxOption(PropertyValue.Create(e), AgentModelManager.GetDisplayName(e))).ToList();
+        mEngineOptions = engines.Select(e => new ComboBoxItem(PropertyValue.Create(e), AgentModelManager.GetDisplayName(e))).ToList();
         // 上次选中的 provider 存 app Settings；各 provider 的配置值各存 ExtensionSettings.json 的 "agent-model:<id>" 桶。
         var savedEngine = Settings.AgentModelProvider.Value;
         bool hadSaved = !string.IsNullOrEmpty(savedEngine) && engines.Contains(savedEngine);
@@ -1676,8 +1677,8 @@ internal sealed class AgentSideBarContentProvider
     ObjectConfig BuildProviderConfig()
     {
         var props = new OrderedMap<PropertyKey, IControllerConfig>();
-        props.Add((EngineKey, "Model Provider".Tr(this)), new ComboBoxConfig { Options = mEngineOptions });
-        return new ObjectConfig { Properties = props };
+        props.Add((EngineKey, "Model Provider".Tr(this)), ComboBoxConfig.Create(mEngineOptions));
+        return ObjectConfig.Create(props);
     }
 
     string CurrentEngineType() => mProviderData.GetValue(EngineKey, PropertyValue.Create(string.Empty)).ToString() ?? string.Empty;
@@ -1881,7 +1882,7 @@ internal sealed class AgentSideBarContentProvider
     // provider 选择单独挂一个数据对象（不污染 mSettings 的持久化）；engine 值存于 EngineKey 字段。
     readonly DataDocument mProviderDocument = new();
     readonly DataPropertyObject mProviderData;
-    IReadOnlyList<ComboBoxOption> mEngineOptions = [];
+    IReadOnlyList<ComboBoxItem> mEngineOptions = [];
     const string EngineKey = "provider";
     IProject? mProject;
     Func<IMidiPart?>? mCurrentPartProvider;

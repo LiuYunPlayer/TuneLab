@@ -36,7 +36,7 @@ public sealed class TestInstrumentEngine : IInstrumentSynthesisEngine
 
     readonly OrderedMap<string, InstrumentSourceInfo> mInfos = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mEmptyConfigs = new();
-    static readonly ObjectConfig mEmptyPanel = new() { Properties = new OrderedMap<PropertyKey, IControllerConfig>() };
+    static readonly ObjectConfig mEmptyPanel = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
 }
 
 public sealed class TestSession : IInstrumentSynthesisSession

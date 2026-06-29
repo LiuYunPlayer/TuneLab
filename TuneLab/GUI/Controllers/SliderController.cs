@@ -23,8 +23,21 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
     public IActionEvent ValueChanged => mSlider.ValueChanged;
     public IActionEvent ValueCommitted => mSlider.ValueCommitted;
     public double Value => mSlider.Value;
-    public bool IsInteger { get => mSlider.IsInteger; set { mSlider.IsInteger = value; RefreshLabelWidth(); } }
+    // 非 SDK 便利路（设置面板等）：整数态同时把显示切到 0 位小数（沿用重构前 IsInteger 决定格式的行为）。
+    public bool IsInteger { get => mSlider.IsInteger; set { mSlider.IsInteger = value; mNumberFormat = TuneLab.SDK.NumberFormat.Decimals(value ? 0 : 2); RefreshLabel(); RefreshLabelWidth(); } }
     public bool ShowRandomButton { get => mRandomButton.IsVisible; set => mRandomButton.IsVisible = value; }
+
+    // SDK 滑条经此注入标度（线性/整数/自定义）。
+    public void SetScale(INormalizedScale scale) { mSlider.Scale = scale; RefreshLabelWidth(); }
+
+    // 数值显示/回读格式；置 null 回退默认（定宽 2 位小数）。务必用定宽格式——RefreshLabelWidth 只量 min/max
+    // 两端定框宽，假设最宽文本在端点；变宽格式（如裁尾随零）会让中段多位小数溢出框。
+    public INumberFormat? NumberFormat
+    {
+        get => mNumberFormat;
+        set { mNumberFormat = value ?? TuneLab.SDK.NumberFormat.Decimals(2); RefreshLabel(); RefreshLabelWidth(); }
+    }
+    INumberFormat mNumberFormat = TuneLab.SDK.NumberFormat.Decimals(2);
     int IValueController<int>.Value => mSlider.IntergerValue;
 
     public SliderController()
@@ -50,7 +63,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
         mEditableLabel.EndInput.Subscribe(() =>
         {
             var text = mEditableLabel.Text;
-            if (double.TryParse(text, out var result))
+            if (mNumberFormat.Parse(text) is double result)
             {
                 mSlider.Value = result;
             }
@@ -60,36 +73,11 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
         RefreshLabel();
     }
 
-    // double 仅能精确表示 [-2^53, 2^53] 内的整数；属性系统底层用 double 存值，
-    // 超出此范围的整数会被量化、无法原样回存（种子复现会失真）。随机取值时把整数量程
-    // 钳在此范围，保证抽到的值一定能精确回存/回显（不抽一个会被悄悄破坏的大数）。
-    const double MaxSafeInteger = 9007199254740992; // 2^53
-
-    // 在 [min, max] 内重新随机取值并提交（走 Value setter，记录撤销）。
+    // 在标度上按归一化均匀重取值并提交（走 Value setter，记录撤销）。
+    // 抽 [0,1) 再经标度回值：对数轴按对数均匀、整数轴落整数，统一一行。
     void Randomize()
     {
-        var min = mSlider.MinValue;
-        var max = mSlider.MaxValue;
-        if (max <= min)
-        {
-            mSlider.Value = min;
-            return;
-        }
-
-        double value;
-        if (mSlider.IsInteger)
-        {
-            // 钳到 double 整数精确区间后再抽，hi 必 ≤ 2^53，hi+1 不会溢出 long。
-            long lo = (long)Math.Ceiling(Math.Max(min, -MaxSafeInteger));
-            long hi = (long)Math.Floor(Math.Min(max, MaxSafeInteger));
-            value = hi <= lo ? lo : Random.Shared.NextInt64(lo, hi + 1); // 含上界
-        }
-        else
-        {
-            value = min + Random.Shared.NextDouble() * (max - min);
-        }
-
-        mSlider.Value = value;
+        mSlider.Value = mSlider.Scale.ToValue(Random.Shared.NextDouble());
     }
 
     public void SetRange(double min, double max)
@@ -124,8 +112,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
         RefreshLabel();
     }
 
-    // 整数用 long 而非 int 格式化：随机种子等大数可超 int 范围，(int) 会截断显错值。
-    string FormatValue(double value) => mSlider.IsInteger ? ((long)value).ToString() : value.ToString("F2");
+    string FormatValue(double value) => mNumberFormat.Format(value);
 
     // 两态均空轨（thumb 随 NaN 隐藏），仅靠标签区分：Multiple 显 "-"、Invalid 留空。
     // 拖动中 slider 取到真实值（非 NaN）即照常显数，不受残留状态标志干扰。
@@ -143,15 +130,28 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
     void RefreshLabel()
     {
         mEditableLabel.Text = GetValueString();
+
+        // 兜底：静态四样本估不到的宽度（如 Custom 格式在区间内部的宽度峰值）若真超框，临时扩张到放得下、绝不裁字。
+        // 不持久也不回缩——面板常重建，下次 RefreshLabelWidth / 控件重建即回落到估计值，维护回缩无意义。
+        double needed = Math.Ceiling(MeasureLabelText(mEditableLabel.Text) + LabelHorizontalPadding);
+        if (needed > mEditableLabel.Width)
+            mEditableLabel.Width = needed;
     }
 
-    // 量程两端格式化串里取最宽者，加内边距后固定数字框宽度——保证任意桁数都能放下且拖动中宽度不变。
+    // 估"最宽显示文本"定框宽：min/max 端点取最大整数位与符号，再各向内扰动一个多位小数（min+ε / max−ε）逼出
+    // 变宽格式（Custom）的小数宽度——四样本取最宽。这只是静态估计，渲染时真超了由 RefreshLabel 临时扩张兜底。
     void RefreshLabelWidth()
     {
-        double textWidth = Math.Max(MeasureLabelText(FormatValue(mSlider.MinValue)),
-                                    MeasureLabelText(FormatValue(mSlider.MaxValue)));
+        double min = mSlider.MinValue;
+        double max = mSlider.MaxValue;
+        double textWidth = Math.Max(
+            Math.Max(MeasureLabelText(FormatValue(min)), MeasureLabelText(FormatValue(min + WidthProbeOffset))),
+            Math.Max(MeasureLabelText(FormatValue(max)), MeasureLabelText(FormatValue(max - WidthProbeOffset))));
         mEditableLabel.Width = Math.Max(48, Math.Ceiling(textWidth) + LabelHorizontalPadding);
     }
+
+    // 向内扰动量：一个多位小数，逼变宽格式吐出小数宽度；够小不致跨整数位、对定宽格式无影响（照样按其位数渲染）。
+    const double WidthProbeOffset = 0.1234567890123;
 
     double MeasureLabelText(string text)
     {

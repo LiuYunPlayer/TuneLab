@@ -45,7 +45,7 @@ public static class TuneLabContext { public static ITuneLabContext Global { get;
 ## 4. 引擎级串：插件侧自译
 
 - 插件在**能读到 `Language` 的时机**构建 config——在 `Init` 内、或在暴露 config 的 getter 里懒构建（不再 `static readonly` 纯静态单语）。
-- `IControllerConfig.DisplayText`（属性标题/自动化名）、`ComboBoxOption.DisplayText`（选项）、`VoiceSourceInfo.Name/Description`（声库）= 按 `TuneLabContext.Global.Language` 取的本地化串。
+- `IControllerConfig.DisplayText`（属性标题/自动化名）、`ComboBoxItem.DisplayText`（选项）、`VoiceSourceInfo.Name/Description`（声库）= 按 `TuneLabContext.Global.Language` 取的本地化串。
 - 未本地化（插件返回单语）→ 宿主原样显示，无回退逻辑（原串即结果）。
 
 ## 5. 显示/标识分离：`IControllerConfig.DisplayText`

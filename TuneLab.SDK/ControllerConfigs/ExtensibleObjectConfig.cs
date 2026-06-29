@@ -15,8 +15,15 @@ namespace TuneLab.SDK;
 //
 // 与 ObjectConfig/ArrayConfig/ListConfig 同为复合型、不实现 IValueConfig（默认值由宿主递归各键默认值求得）。
 // 「需要逐项标签」即「键控」的信号：标签走 PropertyKey.DisplayText、config 仍不带 DisplayText。
-public class ExtensibleObjectConfig : IControllerConfig
+// 构造函数全封，只走静态工厂。
+public sealed class ExtensibleObjectConfig : IControllerConfig
 {
-    public required IReadOnlyOrderedMap<PropertyKey, IControllerConfig> Properties { get; init; }
-    public required IReadOnlyList<AddableKey> AddableElements { get; init; }
+    public IReadOnlyOrderedMap<PropertyKey, IControllerConfig> Properties { get; private init; } = null!;
+    public IReadOnlyList<AddableKey> AddableElements { get; private init; } = null!;
+
+    private ExtensibleObjectConfig() { }
+
+    public static ExtensibleObjectConfig Create(
+        IReadOnlyOrderedMap<PropertyKey, IControllerConfig> properties, IReadOnlyList<AddableKey> addableElements)
+        => new() { Properties = properties, AddableElements = addableElements };
 }
