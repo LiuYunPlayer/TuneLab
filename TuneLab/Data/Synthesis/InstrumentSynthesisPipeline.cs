@@ -16,6 +16,12 @@ namespace TuneLab.Data.Synthesis;
 internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
 {
     public event Action? StatusChanged;
+    // 参数回显信号 instrument 也有，会触发；音素/音高 instrument 无、永不触发（故 CS0067 抑制）。
+    public event Action? ParametersChanged;
+#pragma warning disable CS0067
+    public event Action? PhonemesChanged;
+    public event Action? PitchChanged;
+#pragma warning restore CS0067
 
     public bool IsBusy => mIsBusy;
 
@@ -33,7 +39,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         mContext = new InstrumentSynthesisContext(part, instrumentId);
         mSession = InstrumentsManager.CreateSession(instrumentType, mContext);
         // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：instrument 只有参数回显与状态/进度，无音素/音高。
-        mOnParametersChanged = Marshaled(() => StatusChanged?.Invoke());
+        mOnParametersChanged = Marshaled(() => { ParametersChanged?.Invoke(); StatusChanged?.Invoke(); });
         mOnStatusChanged = Marshaled(() => StatusChanged?.Invoke());
         mSession.SynthesizedParametersChanged.Subscribe(mOnParametersChanged);
         mSession.StatusChanged.Subscribe(mOnStatusChanged);

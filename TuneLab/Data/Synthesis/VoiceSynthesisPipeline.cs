@@ -17,8 +17,12 @@ namespace TuneLab.Data.Synthesis;
 // 这里负责 marshal 回数据线程再对外转发。
 internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
 {
-    // 状态/产物有更新（已 marshal 到数据线程），宿主 UI 收到直接刷新；区域信息看 GetStatus()。
+    // 状态/产物有更新（已 marshal 到数据线程），宿主 UI 收到直接刷新；区域信息看 GetStatus()。任意产物/状态变化都触发（合并信号）。
     public event Action? StatusChanged;
+    // 分离产物信号（各自仅对应产物变化时触发）：供精确响应的消费者订阅，避免接到合并的 StatusChanged。
+    public event Action? PhonemesChanged;
+    public event Action? ParametersChanged;
+    public event Action? PitchChanged;
 
     public IVoiceSynthesisSession Session => mSession;
     public bool IsBusy => mIsBusy;
@@ -40,9 +44,9 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         // 按产物分流订阅 session 信号（各自 marshal 回数据线程）：音素信号才回填 note（WriteBackPhonemes），
         // 参数/音高/状态信号只触发 UI 重读重绘。高频的状态/进度 tick 因此不再带动音素回填。
         // 引擎标脏 / 重分块后不再报告脏块音素，回填把对应 note 置空（留白），无需宿主在数据层单点清除。
-        mOnPhonemesChanged = Marshaled(() => { WriteBackPhonemes(); StatusChanged?.Invoke(); });
-        mOnParametersChanged = Marshaled(() => StatusChanged?.Invoke());
-        mOnPitchChanged = Marshaled(() => StatusChanged?.Invoke());
+        mOnPhonemesChanged = Marshaled(() => { WriteBackPhonemes(); PhonemesChanged?.Invoke(); StatusChanged?.Invoke(); });
+        mOnParametersChanged = Marshaled(() => { ParametersChanged?.Invoke(); StatusChanged?.Invoke(); });
+        mOnPitchChanged = Marshaled(() => { PitchChanged?.Invoke(); StatusChanged?.Invoke(); });
         mOnStatusChanged = Marshaled(() => StatusChanged?.Invoke());
         mSession.SynthesizedPhonemesChanged.Subscribe(mOnPhonemesChanged);
         mSession.SynthesizedParametersChanged.Subscribe(mOnParametersChanged);

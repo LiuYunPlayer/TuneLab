@@ -19,6 +19,10 @@ namespace TuneLab.Data;
 internal class MidiPart : Part, IMidiPart
 {
     public IActionEvent SynthesisStatusChanged => mSynthesisStatusChanged;
+    // 分离产物信号（各自仅对应产物变化触发，不被进度/其它产物 tick 带动）：精确响应的消费者订阅这些、而非合并的 SynthesisStatusChanged。
+    public IActionEvent SynthesizedPhonemesChanged => mSynthesizedPhonemesChanged;
+    public IActionEvent SynthesizedParametersChanged => mSynthesizedParametersChanged;
+    public IActionEvent SynthesizedPitchChanged => mSynthesizedPitchChanged;
     // 自动化轨集合因参数 commit 而变（voice 依赖 part 参数、各 effect 依赖自身参数）：UI 收到重建参数栏/默认值面板。
     // 仅在轨集合实际变化时触发（签名比对去抖）；换源/链增删走各自既有 UI 触发，不重复经此事件。
     public IActionEvent AutomationConfigsModified => mAutomationConfigsModified;
@@ -451,6 +455,9 @@ internal class MidiPart : Part, IMidiPart
             instrumentPipeline.StatusChanged += OnPipelineStatusChanged;
             mPipeline = instrumentPipeline;
         }
+        mPipeline.PhonemesChanged += OnPipelinePhonemesChanged;
+        mPipeline.ParametersChanged += OnPipelineParametersChanged;
+        mPipeline.PitchChanged += OnPipelinePitchChanged;
         // 重置签名基线（激活 / 换源时 UI 经各自既有触发整体重建，此处不发 AutomationConfigsModified，
         // 只对齐基线供后续参数 commit 的增量比对）。
         mAutomationConfigsSignature = ComputeAutomationConfigsSignature();
@@ -463,6 +470,9 @@ internal class MidiPart : Part, IMidiPart
             return;
 
         mPipeline.StatusChanged -= OnPipelineStatusChanged;
+        mPipeline.PhonemesChanged -= OnPipelinePhonemesChanged;
+        mPipeline.ParametersChanged -= OnPipelineParametersChanged;
+        mPipeline.PitchChanged -= OnPipelinePitchChanged;
         mPipeline.Dispose();
         mPipeline = null;
         mSource.SetSession(null);
@@ -476,6 +486,21 @@ internal class MidiPart : Part, IMidiPart
     void OnPipelineStatusChanged()
     {
         mSynthesisStatusChanged.Invoke();
+    }
+
+    void OnPipelinePhonemesChanged()
+    {
+        mSynthesizedPhonemesChanged.Invoke();
+    }
+
+    void OnPipelineParametersChanged()
+    {
+        mSynthesizedParametersChanged.Invoke();
+    }
+
+    void OnPipelinePitchChanged()
+    {
+        mSynthesizedPitchChanged.Invoke();
     }
 
     public INote CreateNote(NoteInfo info)
@@ -657,6 +682,9 @@ internal class MidiPart : Part, IMidiPart
     protected override int SampleRate => AudioEngine.SampleRate.Value;
 
     readonly ActionEvent mSynthesisStatusChanged = new();
+    readonly ActionEvent mSynthesizedPhonemesChanged = new();
+    readonly ActionEvent mSynthesizedParametersChanged = new();
+    readonly ActionEvent mSynthesizedPitchChanged = new();
     readonly ActionEvent mAutomationConfigsModified = new();
     string mAutomationConfigsSignature = string.Empty;
     readonly BatchSignal mSynthesisBatch = new();

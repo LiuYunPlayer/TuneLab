@@ -16,6 +16,11 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
 {
     // 合成状态/产物有更新（含会话重建），UI 收到直接刷新；区域信息看 GetSynthesisStatus()。
     IActionEvent SynthesisStatusChanged { get; }
+    // 分离产物信号（各自仅对应产物变化触发，不被进度/其它产物 tick 带动）：精确响应的消费者订阅这些，而非合并的 SynthesisStatusChanged。
+    // 即便当前无消费者也暴露，使未来接线天然连到精确信号、不默认接到合并信号浪费性能。
+    IActionEvent SynthesizedPhonemesChanged { get; }   // voice-only 触发
+    IActionEvent SynthesizedParametersChanged { get; } // voice / instrument 均触发
+    IActionEvent SynthesizedPitchChanged { get; }      // voice-only 触发
     // 自动化轨集合因参数 commit 而变（条件轨随值显隐）：UI 收到重建参数栏/默认值面板。仅实际变化时触发。
     IActionEvent AutomationConfigsModified { get; }
     INoteList Notes { get; }

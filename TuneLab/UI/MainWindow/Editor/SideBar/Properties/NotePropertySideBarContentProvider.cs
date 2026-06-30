@@ -59,6 +59,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             mPart.Notes.SelectionChanged.Subscribe(OnNoteSelectionChanged, s);
             // part 属性 commit（结果态）→ 沿链重算 note 面板（note config 依赖 part 值）。
             mPart.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
+            // 重合成回填新 SynthesizedPhonemes（精确信号，不被进度/参数/音高 tick 带动）→ 音素面板按显示音素签名变化才重建。
+            mPart.SynthesizedPhonemesChanged.Subscribe(OnSynthesizedPhonemesChanged, s);
 
             Setup(mPart);
         }
@@ -78,6 +80,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mPhonemeSub.DisposeAll();
         mPhonemeRowsPanel.Children.Clear();
         mPhonemePanel.IsVisible = false;
+        mPhonemeSignature = string.Empty;
     }
 
     // part 值 commit：沿链触发 note 面板重算（note config 依赖 part 值），音素面板直接重建（part 值变可能改 schema/对齐）。
@@ -126,6 +129,35 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     {
         RefreshNoteController();
         RefreshPhonemeController();   // 音素面板 scope = 选中 note 的音素
+    }
+
+    // 合成音素回填（已是精确信号）。但它为 part 级、覆写所有 note，且每个分块完成各触发一次，
+    // 故仍按显示音素签名（符号/IsLead/数量/钉死态）守卫——仅选中 note 该重画的内容真变了才重建：
+    // 滤掉"非选中 note 的块完成"、"重合成产出同一音素"两类空转，并保护进行中的音素属性编辑不被中途重建打断。
+    void OnSynthesizedPhonemesChanged()
+    {
+        if (mPart == null)
+            return;
+
+        var signature = PhonemeSignature();
+        if (signature == mPhonemeSignature)
+            return;
+
+        mPhonemeSignature = signature;
+        RefreshPhonemeController();
+    }
+
+    // 选中 note 的显示音素结构签名（决定面板布局的字段：钉死态 + 各音素符号 + IsLead）。值类属性不入签名——
+    // 它们由各 slot 绑定 / Properties.Modified 单独刷新。
+    string PhonemeSignature()
+    {
+        if (mPart == null)
+            return string.Empty;
+
+        return string.Join(";", mPart.Notes.AllSelectedItems().Select(note =>
+            note.Phonemes.Count > 0
+                ? "P" + string.Join("|", note.Phonemes.Select(p => p.Symbol.Value + (p.IsLead.Value ? "<" : ">")))
+                : "S" + (note.SynthesizedPhonemes is { } synth ? string.Join("|", synth.Select(p => p.Symbol + (p.IsLead ? "<" : ">"))) : "")));
     }
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
@@ -293,6 +325,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         }
 
         mPhonemePanel.IsVisible = mPhonemeRowsPanel.Children.Count > 0;
+        mPhonemeSignature = PhonemeSignature();   // 同步基线：此后仅签名再变才经 OnSynthesisStatusChanged 重建
     }
 
     // 编辑（松手提交）含合成音素的 slot：对涉及的每个 note 先钉死（LockPhonemes 幂等、保几何——"取不到就创建"=钉死），
@@ -327,6 +360,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     bool mNoteReconcilePending = false;
     bool mNoteRefreshPending = false;
     bool mPhonemeRefreshPending = false;
+    string mPhonemeSignature = string.Empty;
     readonly DisposableManager s = new();
     readonly DisposableManager mNoteSub = new();
     readonly DisposableManager mPhonemeSub = new();
