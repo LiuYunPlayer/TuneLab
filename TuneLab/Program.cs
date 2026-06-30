@@ -65,6 +65,7 @@ class Program
         // init setting
         Settings.Init(PathManager.SettingsFilePath);
         EditorState.Init(PathManager.EditorStateFilePath);
+        RecentSoundSourceManager.Init(PathManager.RecentSoundSourcesFilePath);
 
         // init translation
         TranslationManager.Init(PathManager.TranslationsFolder);

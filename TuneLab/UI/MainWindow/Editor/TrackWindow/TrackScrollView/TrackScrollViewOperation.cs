@@ -10,6 +10,7 @@ using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
@@ -220,6 +221,42 @@ internal partial class TrackScrollView
                                         }
                                         {
                                             var menuItem = new MenuItem() { Header = "Set Voice".Tr(TC.Menu) };
+
+                                            // 选用某 voice：扇出到全部选中 part + 记入最近使用并存盘。
+                                            void ApplyVoice(string type, string id)
+                                            {
+                                                foreach (var part in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
+                                                {
+                                                    if (part is MidiPart midiPart)
+                                                    {
+                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = type, ID = id });
+                                                    }
+                                                }
+                                                RecentSoundSourceManager.PushVoice(type, id);
+                                                Project.Commit();
+                                            }
+
+                                            // 最近栏：列最近使用的 voice，选项写「引擎名 - voice 名」，身份失效（卸载/改 id）的项跳过。
+                                            {
+                                                var recentMenu = new MenuItem() { Header = "Recent".Tr(TC.Menu) };
+                                                foreach (var recent in RecentSoundSourceManager.Voices)
+                                                {
+                                                    if (!VoicesManager.TryGetVoiceInfo(recent.Type, recent.ID, out var recentInfo))
+                                                        continue;
+
+                                                    var engineName = string.IsNullOrEmpty(recent.Type) ? "Built-In".Tr(TC.Menu) : VoicesManager.GetDisplayName(recent.Type);
+                                                    var recentItem = new MenuItem().
+                                                        SetName(engineName + " - " + recentInfo.Name).
+                                                        SetAction(() => ApplyVoice(recent.Type, recent.ID));
+                                                    recentMenu.Items.Add(recentItem);
+                                                }
+                                                if (recentMenu.Items.Count > 0)
+                                                {
+                                                    menuItem.Items.Add(recentMenu);
+                                                    menuItem.Items.Add(new Separator());
+                                                }
+                                            }
+
                                             var allEngines = VoicesManager.GetAllVoiceEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
@@ -234,17 +271,7 @@ internal partial class TrackScrollView
                                                     {
                                                         var voice = new MenuItem().
                                                             SetName(info.Value.Name).
-                                                            SetAction(() =>
-                                                            {
-                                                                foreach (var part in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
-                                                                {
-                                                                    if (part is MidiPart midiPart)
-                                                                    {
-                                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = type, ID = info.Key });
-                                                                    }
-                                                                }
-                                                                Project.Commit();
-                                                            });
+                                                            SetAction(() => ApplyVoice(type, info.Key));
                                                         engine.Items.Add(voice);
                                                     }
                                                 }
@@ -255,6 +282,42 @@ internal partial class TrackScrollView
                                         {
                                             // 设置 instrument 音源（与 Set Voice 同构、二选一；当前沿用急切式二级菜单）。
                                             var menuItem = new MenuItem() { Header = "Set Instrument".Tr(TC.Menu) };
+
+                                            // 选用某 instrument：扇出到全部选中 part + 记入最近使用并存盘。
+                                            void ApplyInstrument(string type, string id)
+                                            {
+                                                foreach (var part in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
+                                                {
+                                                    if (part is MidiPart midiPart)
+                                                    {
+                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = type, ID = id });
+                                                    }
+                                                }
+                                                RecentSoundSourceManager.PushInstrument(type, id);
+                                                Project.Commit();
+                                            }
+
+                                            // 最近栏：列最近使用的 instrument，选项写「引擎名 - instrument 名」，身份失效（卸载/改 id）的项跳过。
+                                            {
+                                                var recentMenu = new MenuItem() { Header = "Recent".Tr(TC.Menu) };
+                                                foreach (var recent in RecentSoundSourceManager.Instruments)
+                                                {
+                                                    if (!InstrumentsManager.TryGetInstrumentInfo(recent.Type, recent.ID, out var recentInfo))
+                                                        continue;
+
+                                                    var engineName = string.IsNullOrEmpty(recent.Type) ? "Built-In".Tr(TC.Menu) : InstrumentsManager.GetDisplayName(recent.Type);
+                                                    var recentItem = new MenuItem().
+                                                        SetName(engineName + " - " + recentInfo.Name).
+                                                        SetAction(() => ApplyInstrument(recent.Type, recent.ID));
+                                                    recentMenu.Items.Add(recentItem);
+                                                }
+                                                if (recentMenu.Items.Count > 0)
+                                                {
+                                                    menuItem.Items.Add(recentMenu);
+                                                    menuItem.Items.Add(new Separator());
+                                                }
+                                            }
+
                                             var allEngines = InstrumentsManager.GetAllInstrumentEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
@@ -269,17 +332,7 @@ internal partial class TrackScrollView
                                                     {
                                                         var instrument = new MenuItem().
                                                             SetName(info.Value.Name).
-                                                            SetAction(() =>
-                                                            {
-                                                                foreach (var part in Project.Tracks.SelectMany(track => track.Parts).AllSelectedItems())
-                                                                {
-                                                                    if (part is MidiPart midiPart)
-                                                                    {
-                                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = type, ID = info.Key });
-                                                                    }
-                                                                }
-                                                                Project.Commit();
-                                                            });
+                                                            SetAction(() => ApplyInstrument(type, info.Key));
                                                         engine.Items.Add(instrument);
                                                     }
                                                 }

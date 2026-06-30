@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Instruments;
@@ -36,6 +37,8 @@ internal class PartVoiceController : StackPanel
         Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
 
         mVoiceController.ValueCommitted.Subscribe(OnVoiceCommitted);
+        // 最近列表是本下拉的数据源（右键菜单等处也会改它），订阅其变更信号即时重建选项。控件单例长存，随其生命周期常驻订阅。
+        RecentSoundSourceManager.Changed.Subscribe(Refresh);
     }
 
     public void SetParts(IReadOnlyList<IMidiPart> parts)
@@ -92,22 +95,62 @@ internal class PartVoiceController : StackPanel
         }
     }
 
-    // 构建选项树并同步填充 mEntries（叶子 value = 其在 mEntries 的下标）。
-    // currentKind==null 表示混引擎（无单一当前引擎）：跳过顶部当前引擎音源段、两段不排除任何引擎。
+    // 构建选项树并同步填充 mEntries（叶子 value = 其在 mEntries 的下标）。两 kind 顺次成段，当前 kind 在前：
+    //   当前 kind：最近 → 当前引擎音源（带字分隔线＝引擎名）→ 当前 kind 其余引擎；
+    //   另一 kind：最近 → 该 kind 全部引擎。
+    // currentKind==null 表示混引擎（无单一当前引擎）：voice 段在前 instrument 段在后，各段省去当前引擎子段、引擎不排除。
     ComboBoxConfig BuildConfig(SourceKind? currentKind, string? currentType)
     {
         mEntries.Clear();
         var options = new List<ComboBoxItem>();
 
-        // 顶部：当前引擎的各音源（含当前 voice，便于直接切换 / 高亮）。混引擎时无此段。
-        if (currentKind is SourceKind ck && currentType != null && TryEnumerateSources(ck, currentType, out var currentSources))
-            foreach (var src in currentSources)
-                options.Add(Leaf(ck, currentType, src));
+        var order = currentKind is SourceKind cur
+            ? new[] { cur, Other(cur) }
+            : new[] { SourceKind.Voice, SourceKind.Instrument };
 
-        AddEngineSection(options, "Voices".Tr(TC.Property), SourceKind.Voice, VoicesManager.GetAllVoiceEngines(), currentKind, currentType);
-        AddEngineSection(options, "Instruments".Tr(TC.Property), SourceKind.Instrument, InstrumentsManager.GetAllInstrumentEngines(), currentKind, currentType);
+        foreach (var kind in order)
+        {
+            AddRecentSection(options, kind);
+            if (currentKind == kind && currentType != null)
+                AddCurrentEngineSection(options, kind, currentType);
+            AddEngineSection(options, KindLabel(kind), kind, Engines(kind), currentKind, currentType);
+        }
 
         return ComboBoxConfig.Create(options);
+    }
+
+    static SourceKind Other(SourceKind kind) => kind == SourceKind.Voice ? SourceKind.Instrument : SourceKind.Voice;
+    static string KindLabel(SourceKind kind) => (kind == SourceKind.Voice ? "Voices" : "Instruments").Tr(TC.Property);
+    static IReadOnlyList<string> Engines(SourceKind kind) => kind == SourceKind.Voice ? VoicesManager.GetAllVoiceEngines() : InstrumentsManager.GetAllInstrumentEngines();
+    static IReadOnlyList<RecentSoundSource> RecentList(SourceKind kind) => kind == SourceKind.Voice ? RecentSoundSourceManager.Voices : RecentSoundSourceManager.Instruments;
+
+    // 该 kind 的最近使用段：选项写「引擎名 - 音源名」（跨引擎需引擎名消歧），身份失效（卸载/改 id）项跳过；列表空则整段省略。
+    void AddRecentSection(List<ComboBoxItem> options, SourceKind kind)
+    {
+        var leaves = new List<ComboBoxItem>();
+        foreach (var recent in RecentList(kind))
+        {
+            if (!TryGetSourceName(kind, recent.Type, recent.ID, out var name))
+                continue;
+            int index = mEntries.Count;
+            mEntries.Add(new Entry(kind, recent.Type, recent.ID));
+            leaves.Add(new ComboBoxItem(PropertyValue.Create((double)index), EngineName(kind, recent.Type) + " - " + name));
+        }
+        if (leaves.Count == 0)
+            return;
+        // 带字分隔线＝「Recent + 本 kind」（如 Recent Voices / Recent Instruments），与下方该 kind 的引擎段呼应。
+        options.Add(ComboBoxItem.Separator("Recent".Tr(TC.Property) + " " + KindLabel(kind)));
+        options.AddRange(leaves);
+    }
+
+    // 当前引擎的各音源（便于直接在本引擎内切换 / 高亮）；带字分隔线＝引擎名。引擎无音源则整段省略（不留空字头）。
+    void AddCurrentEngineSection(List<ComboBoxItem> options, SourceKind kind, string type)
+    {
+        if (!TryEnumerateSources(kind, type, out var sources) || sources.Count == 0)
+            return;
+        options.Add(ComboBoxItem.Separator(EngineName(kind, type)));
+        foreach (var src in sources)
+            options.Add(Leaf(kind, type, src));
     }
 
     // 某一类(kind)的各引擎做成二级子菜单分组（排除当前引擎，其音源已在顶部；混引擎 currentKind=null 时不排除）；
@@ -143,6 +186,21 @@ internal class PartVoiceController : StackPanel
         if (string.IsNullOrEmpty(type))
             return "Built-In".Tr(TC.Property);
         return kind == SourceKind.Voice ? VoicesManager.GetDisplayName(type) : InstrumentsManager.GetDisplayName(type);
+    }
+
+    // 取单个音源的显示名；引擎不可用 / id 未知（最近项已失效）返回 false。
+    static bool TryGetSourceName(SourceKind kind, string type, string id, out string name)
+    {
+        if (kind == SourceKind.Voice)
+        {
+            if (VoicesManager.TryGetVoiceInfo(type, id, out var info)) { name = info.Name; return true; }
+        }
+        else
+        {
+            if (InstrumentsManager.TryGetInstrumentInfo(type, id, out var info)) { name = info.Name; return true; }
+        }
+        name = string.Empty;
+        return false;
     }
 
     // 列某引擎的音源；infos==null（引擎未加载/不可用）返回 false 表示该引擎应跳过；非 null 但空则返回空列表（空子菜单）。
@@ -190,6 +248,10 @@ internal class PartVoiceController : StackPanel
             part.SoundSource.SetInfo(new SoundSourceInfo() { Kind = kind, Type = type, ID = id });
         foreach (var part in mParts)
             part.EndMergeDirty();
+        if (kind == SourceKind.Voice)
+            RecentSoundSourceManager.PushVoice(type, id);
+        else
+            RecentSoundSourceManager.PushInstrument(type, id);
         mParts[0].Commit();
     }
 
