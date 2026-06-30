@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TuneLab.Foundation;
 
 namespace TuneLab.Foundation;
@@ -22,8 +23,8 @@ public class MultipleDataProperty<T> : IDataProperty<T>, IRawValueProperty where
         mProperties = properties as IReadOnlyList<IDataProperty<T>> ?? new List<IDataProperty<T>>(properties);
         mDefaultValue = defaultValue;
         mToRawValue = toRawValue;
-        mModified = new MergedEvent(mProperties, p => p.Modified);
-        mWillModify = new MergedEvent(mProperties, p => p.WillModify);
+        mModified = mProperties.Select(p => p.Modified).MergeModified();
+        mWillModify = mProperties.Select(p => p.WillModify).MergeModified();
         mRoot = mProperties.Count > 0 ? mProperties[0] : null;
     }
 
@@ -87,19 +88,10 @@ public class MultipleDataProperty<T> : IDataProperty<T>, IRawValueProperty where
         public void Dispose() { foreach (var p in properties) p.EndMergeNotify(); }
     }
 
-    // 任一对象的事件都转发给同一订阅者（两种订阅形状：无参=结果态、带 bool=全量），见 MultipleDataPropertyObject。
-    class MergedEvent(IReadOnlyList<IDataProperty<T>> properties, Func<IDataProperty<T>, IModifiedEvent> pick) : IModifiedEvent
-    {
-        public void Subscribe(Action invokable) { foreach (var p in properties) pick(p).Subscribe(invokable); }
-        public void Unsubscribe(Action invokable) { foreach (var p in properties) pick(p).Unsubscribe(invokable); }
-        public void Subscribe(Action<bool> invokable) { foreach (var p in properties) pick(p).Subscribe(invokable); }
-        public void Unsubscribe(Action<bool> invokable) { foreach (var p in properties) pick(p).Unsubscribe(invokable); }
-    }
-
     readonly IReadOnlyList<IDataProperty<T>> mProperties;
     readonly T mDefaultValue;
     readonly Func<T, PropertyValue> mToRawValue;
-    readonly MergedEvent mModified;
-    readonly MergedEvent mWillModify;
+    readonly IModifiedEvent mModified;
+    readonly IModifiedEvent mWillModify;
     readonly IDataProperty<T>? mRoot;
 }

@@ -21,7 +21,7 @@ internal class TempoManager : DataObject, ITempoManager
         mTempos = new(this);
         mProject = project;
         // 浠讳綍鍙樻洿锛堝惈 undo/redo 涓庢嫋鍔ㄤ腑闂存€侊級閮借鎹㈢畻蹇収澶辨晥锛屼笅娆″彇鐢ㄦ椂鎯版€ч噸寤恒€?
-        Modified.Subscribe((bool _) => mSnapshot = null);
+        Modified.AsEverytime().Subscribe((bool _) => mSnapshot = null);
         SetInfo(tempos);
     }
 

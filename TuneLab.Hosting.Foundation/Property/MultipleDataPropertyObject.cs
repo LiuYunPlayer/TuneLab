@@ -19,8 +19,8 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     public MultipleDataPropertyObject(IReadOnlyCollection<IDataPropertyObject> dataObjects)
     {
         mDataObjects = dataObjects as IReadOnlyList<IDataPropertyObject> ?? dataObjects.ToList();
-        mModified = new MergedModifiedEvent(mDataObjects);
-        mWillModify = new MergedWillModifyEvent(mDataObjects);
+        mModified = mDataObjects.Select(d => d.Modified).MergeModified();
+        mWillModify = mDataObjects.Select(d => d.WillModify).MergeModified();
         mRoot = mDataObjects.Count > 0 ? mDataObjects[0] : null;
     }
 
@@ -109,35 +109,6 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     public bool Undo() => mRoot?.Undo() ?? false;
     public bool Redo() => mRoot?.Redo() ?? false;
 
-    // 任一对象的 Modified 都转发给同一订阅者：扇出/撤销逐对象触发刷新，最后一次刷新时全部已写完 → 显示最终值。
-    // 两种订阅形状（无参=结果态、带 bool=全量）都转发到各对象的 Modified。
-    class MergedModifiedEvent(IReadOnlyList<IDataPropertyObject> dataObjects) : IModifiedEvent
-    {
-        public void Subscribe(Action invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.Modified.Subscribe(invokable);
-        }
-
-        public void Unsubscribe(Action invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.Modified.Unsubscribe(invokable);
-        }
-
-        public void Subscribe(Action<bool> invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.Modified.Subscribe(invokable);
-        }
-
-        public void Unsubscribe(Action<bool> invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.Modified.Unsubscribe(invokable);
-        }
-    }
-
     sealed class EmptyDisposable : IDisposable
     {
         public static readonly EmptyDisposable Shared = new();
@@ -154,36 +125,8 @@ public class MultipleDataPropertyObject : IDataPropertyObject
         }
     }
 
-    // 任一对象的 WillModify 都转发给同一订阅者（与 MergedModifiedEvent 同理，两种订阅形状）。
-    class MergedWillModifyEvent(IReadOnlyList<IDataPropertyObject> dataObjects) : IModifiedEvent
-    {
-        public void Subscribe(Action invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.WillModify.Subscribe(invokable);
-        }
-
-        public void Unsubscribe(Action invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.WillModify.Unsubscribe(invokable);
-        }
-
-        public void Subscribe(Action<bool> invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.WillModify.Subscribe(invokable);
-        }
-
-        public void Unsubscribe(Action<bool> invokable)
-        {
-            foreach (var dataObject in dataObjects)
-                dataObject.WillModify.Unsubscribe(invokable);
-        }
-    }
-
     readonly IReadOnlyList<IDataPropertyObject> mDataObjects;
-    readonly MergedModifiedEvent mModified;
-    readonly MergedWillModifyEvent mWillModify;
+    readonly IModifiedEvent mModified;
+    readonly IModifiedEvent mWillModify;
     readonly IDataPropertyObject? mRoot;
 }

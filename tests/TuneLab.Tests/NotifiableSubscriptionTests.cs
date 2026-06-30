@@ -53,7 +53,7 @@ public class NotifiableSubscriptionTests
         double firstWillSaw = double.NaN;
         readOnly.WillModify.Subscribe(() => { willCount++; firstWillSaw = readOnly.Value; });
         readOnly.Modified.Subscribe(() => modifiedCount++);
-        property.WillModify.Subscribe((bool _) => willAllCount++);   // 全量形状收到每次改前
+        property.WillModify.AsEverytime().Subscribe((bool _) => willAllCount++);   // 全量脸收到每次改前
 
         property.BeginMergeNotify();
         property.Set(1);

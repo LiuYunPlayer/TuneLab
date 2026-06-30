@@ -24,7 +24,7 @@ public class DataObjectMergeNotifyTests
         public Probe(DataObject node)
         {
             node.Modified.Subscribe(() => Settled++);
-            node.Modified.Subscribe((bool canIgnore) => { All++; CanIgnores.Add(canIgnore); });
+            node.Modified.AsEverytime().Subscribe((bool canIgnore) => { All++; CanIgnores.Add(canIgnore); });
         }
     }
 
