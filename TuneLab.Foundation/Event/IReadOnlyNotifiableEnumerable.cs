@@ -27,7 +27,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
     // 成员增删自动接线/退订。与无参 WhenAny 互补：WhenAny 聚合成一个共享触发器、handler 不知道是谁；
     // WhenAnyItem 让 handler 拿到触发的成员，可做 per-member 精确处理（如增量标脏 markDirty(item)）。
     public static IActionEvent<T> WhenAnyItem<T>(this IReadOnlyNotifiableEnumerable<T> source,
-        params Func<T, IActionEvent>[] eventSelectors)
+        params Func<T, IEvent<Action>>[] eventSelectors)
     {
         return new AnyItemEvent<T>(source, eventSelectors);
     }
@@ -93,7 +93,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
     // 转发 lambda 身份须留存（mWires）才能精确退订——这正是「带回成员」不可约的代价（区别于 AnyEvent/AnyActionEvent 的无账本直订）。
     class AnyItemEvent<T> : MemberEventBase<T, Action<T>>, IActionEvent<T>
     {
-        public AnyItemEvent(IReadOnlyNotifiableEnumerable<T> source, Func<T, IActionEvent>[] selectors) : base(source)
+        public AnyItemEvent(IReadOnlyNotifiableEnumerable<T> source, Func<T, IEvent<Action>>[] selectors) : base(source)
         {
             mSelectors = selectors;
         }
@@ -101,7 +101,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
         protected override void WireItem(T item, Action<T> handler)
         {
             void Forward() => handler(item);
-            var subscriptions = new List<(IActionEvent Event, Action Forward)>();
+            var subscriptions = new List<(IEvent<Action> Event, Action Forward)>();
             foreach (var selector in mSelectors)
             {
                 var actionEvent = selector(item);
@@ -120,8 +120,8 @@ public static class IReadOnlyNotifiableEnumerableExtension
             }
         }
 
-        readonly Func<T, IActionEvent>[] mSelectors;
-        readonly Dictionary<(T, Action<T>), List<(IActionEvent Event, Action Forward)>> mWires = new();
+        readonly Func<T, IEvent<Action>>[] mSelectors;
+        readonly Dictionary<(T, Action<T>), List<(IEvent<Action> Event, Action Forward)>> mWires = new();
     }
 
     // 跟随集合任一成员的某个事件：成员增删时自动接上/退订，使用者只订一次。
@@ -143,9 +143,9 @@ public static class IReadOnlyNotifiableEnumerableExtension
     // WhenAnyItem 的「匿名」对偶：任一成员的任一选择事件触发 → 触发，但不带成员标识。
     // 与 WhenAnyItem 同样接受多个 0 参选择器（params），区别仅在是否把成员递给下游。
     // 注意重载决议：单个选择器的调用会优先匹配上面保荷载的 WhenAny<T,TEvent>（params 仅在扩展形式下适用，
-    // 普通形式优先）；要走本匿名聚合，传 2 个及以上选择器，或显式取 IActionEvent。
+    // 普通形式优先）；要走本匿名聚合，传 2 个及以上选择器，或显式传 Func<T, IEvent<Action>>[] 数组。
     public static IActionEvent WhenAny<T>(this IReadOnlyNotifiableEnumerable<T> source,
-        params Func<T, IActionEvent>[] eventSelectors)
+        params Func<T, IEvent<Action>>[] eventSelectors)
     {
         return new AnyActionEvent<T>(source, eventSelectors);
     }
@@ -168,7 +168,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
     // WhenAny（匿名/多选择器）的组合子：0 参下游 Action 直接订到每个成员的每个选择事件，同样无转发器、无账本。
     class AnyActionEvent<T> : MemberEventBase<T, Action>, IActionEvent
     {
-        public AnyActionEvent(IReadOnlyNotifiableEnumerable<T> source, Func<T, IActionEvent>[] selectors) : base(source)
+        public AnyActionEvent(IReadOnlyNotifiableEnumerable<T> source, Func<T, IEvent<Action>>[] selectors) : base(source)
         {
             mSelectors = selectors;
         }
@@ -185,7 +185,7 @@ public static class IReadOnlyNotifiableEnumerableExtension
                 selector(item).Unsubscribe(handler);
         }
 
-        readonly Func<T, IActionEvent>[] mSelectors;
+        readonly Func<T, IEvent<Action>>[] mSelectors;
     }
 
     // 响应式过滤视图：成员的谓词翻转时合成 ItemAdded / ItemRemoved，过滤结果随谓词实时变化。
