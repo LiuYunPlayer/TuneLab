@@ -198,9 +198,9 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNoteData.Modified.Subscribe(ReconcileNoteController, mNoteSub);
     }
 
-    // ---- 音素属性面板（scope = 选中 note 的钉死音素；引擎未声明音素属性即整面板隐藏）----
-    // config 空（引擎默认不声明 phoneme 属性）→ 隐藏面板、不物化任何音素 Properties（pay-as-you-go）。
-    // config 非空 → 绑定选中 note 的音素 Properties（多音素合一）、无音素则盖遮罩。
+    // ---- 音素编辑面板（scope = 选中 note 的显示音素，多 note 按核对齐合并成 slot）----
+    // 每个有音素的 slot 出一行：符号列（可编、扇出）+（引擎声明了属性时）属性控制器。任一选中 note 有音素即显示面板。
+    // 引擎自定义属性仍 pay-as-you-go：未声明则不物化、右侧无控制器，但符号列照常可编。
     void RefreshPhonemeController()
     {
         if (mPhonemeRefreshPending)
@@ -261,67 +261,77 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         for (int a = minA; a <= maxA; a++)
         {
-            // 该 slot 各 note 在对齐位 a 处的音素成员（config 非空者）。
+            // 该 slot 各 note 在对齐位 a 处的音素成员（**全部音素**，不再只取声明了属性者——符号编辑 / 增删对所有音素可用）。
             var members = new List<(PhonemeNoteInfo Note, int Index)>();
             foreach (var n in perNote)
             {
                 int idx = n.LeadCount + a;
                 if (idx < 0 || idx >= n.Count) continue;
-                if (n.Configs[idx] is not { } c || c.Properties.Count == 0) continue;
                 members.Add((n, idx));
             }
             if (members.Count == 0) continue;
 
-            // IsLead 用标签底色区分：前置辅音（a<0，核前）= 非选中 note 色铺垫；核及核后（a>=0，核=0=音符头锚点）= 选中 note 高亮色。
+            // IsLead 用底色区分：前置辅音（a<0，核前）= 非选中 note 色铺垫；核及核后（a>=0，核=0=音符头锚点）= 选中 note 高亮色。
             bool isLead = a < 0;
 
-            var config = members[0].Note.Configs[members[0].Index]!;   // 代表 config（首成员）
-
-            // 符号三态：各成员符号全等显该符号、否则 (...)。
+            // 符号（可编、扇出）：各成员符号全等显该符号、否则 (...)。双击编辑，提交即对各成员 LockPhonemes + set Symbol 成一个撤销步。
             var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedPhonemes![m.Index].Symbol).Distinct().ToList();
-            string symbol = symbols.Count == 1 ? (string.IsNullOrEmpty(symbols[0]) ? "-" : symbols[0]) : "(...)";
-            var label = new Label() { Content = symbol, Width = 36, MinHeight = 28, FontSize = 12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, Foreground = Brushes.White, Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush(), Padding = new(0) };
-            var controller = new PropertyObjectController();
+            string displayed = symbols.Count == 1 ? symbols[0] : "(...)";
+            var symbolField = BuildSymbolCell(displayed, isLead, members);
 
-            if (members.All(m => m.Note.Pinned))
+            // 引擎声明了属性的成员才建属性控制器（其余成员只有符号列 + 右键增删）。
+            var propMembers = members.Where(m => m.Note.Configs[m.Index] is { } c && c.Properties.Count > 0).ToList();
+            Control? controller = null;
+            if (propMembers.Count > 0)
             {
-                // 全钉死：各 note 该位音素真 .Properties → MultipleDataPropertyObject 三态合并 / 写扇出 / Head 委托首成员。
-                var data = members.Select(m => (IDataPropertyObject)m.Note.Note.Phonemes[m.Index].Properties).ToList();
-                controller.SetConfig(config, data.Count == 1 ? data[0] : new MultipleDataPropertyObject(data));
-                foreach (var m in members)
-                    m.Note.Note.Phonemes[m.Index].Properties.Modified.Subscribe(RefreshPhonemeController, mPhonemeSub);
-            }
-            else
-            {
-                // 含合成音素：每成员一个 buffer（共享一个 throwaway DataDocument 拿 Head）；pinned 成员 seed 真值、合成成员留空
-                // → MultipleDataPropertyObject 三态（缺位=默认，参考 ListConfig）。松手提交时各 note 钉死（取不到就创建）+ buffer 写回。
-                var doc = new DataDocument();
-                var bufs = new List<IDataPropertyObject>(members.Count);
-                var apply = new List<(INote Note, int Index, DataPropertyObject Buffer)>(members.Count);
-                foreach (var m in members)
+                var config = propMembers[0].Note.Configs[propMembers[0].Index]!;   // 代表 config（首个有属性成员）
+                var poc = new PropertyObjectController() { ShowSeparators = false };   // 分界由行单元统一拥有（见下），控制器不再自吐尾随分隔
+                controller = poc;
+                if (propMembers.All(m => m.Note.Pinned))
                 {
-                    var buf = new DataPropertyObject(doc);
-                    if (m.Note.Pinned)
-                    {
-                        var ph = m.Note.Note.Phonemes[m.Index];
-                        if (ph.HasProperties)
-                            buf.SetInfo(ph.Properties.GetInfo());
-                    }
-                    bufs.Add(buf);
-                    apply.Add((m.Note.Note, m.Index, buf));
+                    // 全钉死：各 note 该位音素真 .Properties → MultipleDataPropertyObject 三态合并 / 写扇出 / Head 委托首成员。
+                    var data = propMembers.Select(m => (IDataPropertyObject)m.Note.Note.Phonemes[m.Index].Properties).ToList();
+                    poc.SetConfig(config, data.Count == 1 ? data[0] : new MultipleDataPropertyObject(data));
+                    foreach (var m in propMembers)
+                        m.Note.Note.Phonemes[m.Index].Properties.Modified.Subscribe(RefreshPhonemeController, mPhonemeSub);
                 }
-                IDataPropertyObject data = bufs.Count == 1 ? bufs[0] : new MultipleDataPropertyObject(bufs);
-                controller.SetConfig(config, data);
-                data.Modified.Subscribe(() => PinAndApply(apply), mPhonemeSub);
+                else
+                {
+                    // 含合成音素：每成员一个 buffer（共享一个 throwaway DataDocument 拿 Head）；pinned 成员 seed 真值、合成成员留空
+                    // → MultipleDataPropertyObject 三态（缺位=默认，参考 ListConfig）。松手提交时各 note 钉死（取不到就创建）+ buffer 写回。
+                    var doc = new DataDocument();
+                    var bufs = new List<IDataPropertyObject>(propMembers.Count);
+                    var apply = new List<(INote Note, int Index, DataPropertyObject Buffer)>(propMembers.Count);
+                    foreach (var m in propMembers)
+                    {
+                        var buf = new DataPropertyObject(doc);
+                        if (m.Note.Pinned)
+                        {
+                            var ph = m.Note.Note.Phonemes[m.Index];
+                            if (ph.HasProperties)
+                                buf.SetInfo(ph.Properties.GetInfo());
+                        }
+                        bufs.Add(buf);
+                        apply.Add((m.Note.Note, m.Index, buf));
+                    }
+                    IDataPropertyObject data = bufs.Count == 1 ? bufs[0] : new MultipleDataPropertyObject(bufs);
+                    poc.SetConfig(config, data);
+                    data.Modified.Subscribe(() => PinAndApply(apply), mPhonemeSub);
+                }
             }
 
-            // 左右排布：音素符号标签固定宽列在左、属性控制器占满右侧（控制器多行时标签竖向居中拉伸对齐）。
+            // 行单元：符号列在左、属性控制器占满右侧（无声明属性则仅符号列）。整行视为一个整体。
             var row = new Grid() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-            Grid.SetColumn(label, 0);
-            Grid.SetColumn(controller, 1);
-            row.Children.Add(label);
-            row.Children.Add(controller);
+            Grid.SetColumn(symbolField, 0);
+            row.Children.Add(symbolField);
+            if (controller != null)
+            {
+                Grid.SetColumn(controller, 1);
+                row.Children.Add(controller);
+            }
             mPhonemeRowsPanel.Children.Add(row);
+            // 行单元之间的整宽分界线（贯通符号列 + 属性列）：由行容器统一拥有，控制器内部分隔已关。
+            mPhonemeRowsPanel.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         }
 
         mPhonemePanel.IsVisible = mPhonemeRowsPanel.Children.Count > 0;
@@ -330,6 +340,51 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     // 编辑（松手提交）含合成音素的 slot：对涉及的每个 note 先钉死（LockPhonemes 幂等、保几何——"取不到就创建"=钉死），
     // 再把该成员 buffer 值写回该位音素属性，整体提交为一个撤销步。随后 Phonemes.MembershipModified 触发重建 → 该 slot 转真绑定。
+    // 音素符号单元：底色 band（Border 填满整高、IsLead 配色）+ 其上一只**透明背景、单行高、居中**的 EditableLabel
+    // （复用标准 TextInput 的编辑：圆角 4 / padding 等天然一致）。双击原地改符号，提交即扇出。
+    Control BuildSymbolCell(string displayed, bool isLead, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
+    {
+        var panel = new LayerPanel() { Width = 36, MinHeight = 28 };
+        var band = new Border() { Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush() };
+        var label = new EditableLabel()
+        {
+            Height = 28,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Background = Brushes.Transparent,   // 透明，露出底色 band
+            Foreground = Brushes.White,
+            FontSize = 12,
+            CornerRadius = new(2),              // 仅音素符号输入框圆角 2（作用于内部 TextInput；band 是独立 Border 不受影响）
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Text = displayed,
+        };
+        label.EndInput.Subscribe(() =>
+        {
+            var text = label.Text;
+            if (text != displayed)   // 无变化（含多值未改的 "(...)"）不提交
+                CommitSymbol(members, text);
+        });
+        panel.Children.Add(band);
+        panel.Children.Add(label);
+        return panel;
+    }
+
+    // 编辑某 slot 符号：对各成员 note 先钉死（LockPhonemes 幂等、合成→钉死保几何），再写该位音素 Symbol，整体提交为一个撤销步。
+    // 随后重合成回填经 SynthesizedPhonemesChanged + 签名变化触发重建。
+    void CommitSymbol(IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members, string symbol)
+    {
+        if (mPart == null)
+            return;
+        foreach (var (n, idx) in members)
+        {
+            var note = n.Note;
+            note.LockPhonemes();
+            if (idx < note.Phonemes.Count)
+                note.Phonemes[idx].Symbol.Set(symbol);
+        }
+        mPart.Commit();
+    }
+
     void PinAndApply(IReadOnlyList<(INote Note, int Index, DataPropertyObject Buffer)> members)
     {
         if (mPart == null)

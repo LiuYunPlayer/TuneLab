@@ -18,6 +18,10 @@ namespace TuneLab.GUI.Controllers;
 // 同 key 换类型则换控件。纯参数变化不重排布局；仅结构（增删/换类型/顺序）变化时重排。订阅/重算时机由调用方管理。
 internal class PropertyObjectController : StackPanel
 {
+    // 是否在每个属性后渲染尾随分隔线（默认 true）。嵌入到自带整行分界的容器（如音素面板逐行单元）时置 false，
+    // 避免控制器再吐一条只占自身宽度的分界、与外层整宽分界重叠。设置须在 SetConfig 前（决定 creator 的 LayoutViews）。
+    public bool ShowSeparators { get; set; } = true;
+
     public PropertyObjectController()
     {
         Background = Style.INTERFACE.ToBrush();
@@ -156,7 +160,8 @@ internal class PropertyObjectController : StackPanel
             {
                 foreach (var view in Views)
                     yield return view;
-                yield return mSeparator;
+                if (Parent.ShowSeparators)
+                    yield return mSeparator;
             }
         }
         public abstract void Update(IControllerConfig config);
