@@ -79,7 +79,7 @@ internal static class SynthesisStatusStrip
         double shimmerPhase = -1)
     {
         var grayBrush = Style.SYNTHESIS_DIRTY_PART.ToBrush();   // 比钢琴窗更亮（抗白罩、对轨道色更跳）
-        var redBrush = Style.SYNTHESIS_FAILED.ToBrush();
+        var redBrush = Style.SYNTHESIS_FAILED_PART.ToBrush();   // 同理用高饱和亮红
 
         // 合并相邻同类区间（灰 = 待合成/合成中，红 = 失败；已合成跳过），画成一条连续段，避免逐段圆角留缺口。
         int n = segments.Count;
