@@ -339,6 +339,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             panel.Children.Add(strip);
             if (controller != null)
                 panel.Children.Add(controller);
+            panel.ContextMenu = BuildSlotContextMenu(members);   // 右键 拆分 / 删除（整个音素面板均可触发，同对齐位扇出）
             mPhonemeRowsPanel.Children.Add(panel);
             // 行单元之间的整宽分界线：由行容器统一拥有，控制器内部分隔已关。
             mPhonemeRowsPanel.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
@@ -460,6 +461,57 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         }, mPhonemeSub);
 
         return box;
+    }
+
+    // 音素 slot 右键菜单：拆分 / 删除。两者同对齐位扇出（每个有该位的 note 各自做，无该位忽略），各成员先 LockPhonemes
+    // （合成→钉死），整体一个撤销步。
+    Avalonia.Controls.ContextMenu BuildSlotContextMenu(IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
+    {
+        var menu = new Avalonia.Controls.ContextMenu();
+
+        // 拆分：把该位音素一分为二，两段完全复制原音素（符号/IsLead/权重/引擎属性全同），仅时长平分——前半 d/2、后半 d−d/2
+        //（此式保证两 double 相加严格 == 原长）。
+        menu.Items.Add(new Avalonia.Controls.MenuItem().SetName("Split".Tr(TC.Menu)).SetAction(() =>
+        {
+            if (mPart == null)
+                return;
+            mPart.BeginMergeDirty();
+            foreach (var (n, idx) in members)
+            {
+                var note = n.Note;
+                note.LockPhonemes();
+                if (idx >= note.Phonemes.Count)
+                    continue;
+                var ph = note.Phonemes[idx];
+                double d = ph.Duration.Value;
+                double firstHalf = d / 2;
+                var info = ph.GetInfo();         // 复制 Symbol/Duration/StretchWeight/IsLead/Properties
+                info.Duration = d - firstHalf;   // 后半段
+                ph.Duration.Set(firstHalf);      // 原音素留前半段
+                note.Phonemes.Insert(idx + 1, Phoneme.Create(info));
+            }
+            mPart.EndMergeDirty();
+            mPart.Commit();
+        }));
+
+        // 删除：删该位音素；删空则该 note 回到合成音素口径（空钉死列表 ≡ 合成）。
+        menu.Items.Add(new Avalonia.Controls.MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
+        {
+            if (mPart == null)
+                return;
+            mPart.BeginMergeDirty();
+            foreach (var (n, idx) in members)
+            {
+                var note = n.Note;
+                note.LockPhonemes();
+                if (idx < note.Phonemes.Count)
+                    note.Phonemes.RemoveAt(idx);
+            }
+            mPart.EndMergeDirty();
+            mPart.Commit();
+        }));
+
+        return menu;
     }
 
     // 编辑某 slot 符号：对各成员 note 先钉死（LockPhonemes 幂等、合成→钉死保几何），再写该位音素 Symbol，整体提交为一个撤销步。
