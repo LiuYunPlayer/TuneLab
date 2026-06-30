@@ -257,6 +257,54 @@ internal class PropertyObjectController : StackPanel
         readonly SliderController mController;
     }
 
+    // 可拖拽数值框：number 的无界/单界/双界通用控件（slider 是双有界特化）。控件自身实现 IDataValueController<double>，
+    // 故直接用之、不另套 controller。无界数值无可视轨道、本就占地小，故采 CheckBox 式同行布局（标题在左、数值框靠右），
+    // 不像 slider 占整行。
+    class DraggableNumberBoxCreator : Creator
+    {
+        public DraggableNumberBoxCreator(PropertyObjectController parent, PropertyKey key, DraggableNumberBoxConfig config) : base(parent)
+        {
+            mDockPanel = ObjectPoolManager.Get<DockPanel>();
+
+            mController = new DraggableNumberBox() { Width = 80, Margin = new(24, 8) };
+            mDockPanel.Children.Add(mController);
+            DockPanel.SetDock(mController, Dock.Right);
+
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 40);
+            mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
+            mDockPanel.Children.Add(mTitle);
+
+            Apply(config);
+            mController.BindDataProperty(parent.DataObject.NumberField(key.Id, config.DefaultValue), s);
+        }
+
+        void Apply(DraggableNumberBoxConfig config)
+        {
+            mController.MinValue = config.Min;
+            mController.MaxValue = config.Max;
+            mController.Response = config.Response;
+            mController.Step = config.Step;
+            mController.NumberFormat = config.Format;
+            mController.DefaultValue = config.DefaultValue;
+        }
+
+        public override Type ConfigType => typeof(DraggableNumberBoxConfig);
+        public override IEnumerable<Control> Views => [mDockPanel];
+        public override void Update(IControllerConfig config) => Apply((DraggableNumberBoxConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mDockPanel.Children.Clear();
+            ObjectPoolManager.Return(mTitle);
+            ObjectPoolManager.Return(mDockPanel);
+        }
+
+        readonly Label mTitle;
+        readonly DockPanel mDockPanel;
+        readonly DraggableNumberBox mController;
+    }
+
     class SingleLineTextCreator : Creator
     {
         public SingleLineTextCreator(PropertyObjectController parent, PropertyKey key, TextBoxConfig config) : base(parent)
@@ -466,6 +514,7 @@ internal class PropertyObjectController : StackPanel
     {
         { typeof(ObjectConfig), (parent, key, config) => new ObjectCreator(parent, key, (ObjectConfig)config) },
         { typeof(SliderConfig), (parent, key, config) => new SliderCreator(parent, key, (SliderConfig)config) },
+        { typeof(DraggableNumberBoxConfig), (parent, key, config) => new DraggableNumberBoxCreator(parent, key, (DraggableNumberBoxConfig)config) },
         { typeof(TextBoxConfig), (parent, key, config) => new SingleLineTextCreator(parent, key, (TextBoxConfig)config) },
         { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },

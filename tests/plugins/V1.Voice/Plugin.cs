@@ -31,6 +31,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1));
         // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。
         mPhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1));
+        // 无界数值框（验证 DraggableNumberBox/DraggableNumberBoxConfig）：横拖擦写、双击键入、无上下界、Shift 精调。
+        mPhonemeProperties.Add(("offset", "Offset (ms)"), DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1)));
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));
