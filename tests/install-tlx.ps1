@@ -34,9 +34,12 @@ foreach ($n in $Names) {
         if ($entry) {
             $sr = New-Object IO.StreamReader($entry.Open())
             try {
-                $desc = $sr.ReadToEnd() | ConvertFrom-Json
+                # Malformed description.json (e.g. the bad-manifest fixture) must not abort the
+                # whole install — fall back to the file-name folder and let the host reject it.
+                $desc = $sr.ReadToEnd() | ConvertFrom-Json -ErrorAction Stop
                 if ($desc.name) { $pkg = $desc.name }
-            } finally { $sr.Close() }
+            } catch { Write-Warning "bad description.json in $n; using file name as folder" }
+            finally { $sr.Close() }
         }
     } finally { $zip.Dispose() }
 
