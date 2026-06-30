@@ -99,7 +99,11 @@ public static class IDataValueControllerExtension
                 Property.Commit();
             }, s);
 
-            mPropertyHolder.When(p => p.Modified).Subscribe(Refresh, s);
+            // 跟随属性内容变化刷新控件显示。订阅带 canIgnore 的形式，中间态(canIgnore==true)与结果态都刷新，
+            // 使本控件能实时反映他处编辑（如钢琴窗拖动）对同一属性的中间过程，而不必等其提交。
+            // 会发中间态的只有拖拽类控件，自编辑时回灌同值无害；文本框编辑全程不发中间态，故无光标干扰之虞。
+            // （注：这只刷新本字段控件的显示，与"面板重算只在提交时触发"无关——后者是另一处订阅结果态的消费者。）
+            mPropertyHolder.When(p => p.Modified.AsEverytime()).Subscribe(_ => Refresh(), s);
 
             mPropertyHolder.Modified.Subscribe(Refresh);
 

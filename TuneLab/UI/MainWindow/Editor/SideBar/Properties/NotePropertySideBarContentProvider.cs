@@ -401,7 +401,22 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         };
         box.SetupToolTip(tooltip);
 
-        // 视图映射的数据本体：钉死成员取 field(phoneme).Value、合成成员取 synthValue（合成数组无 per-field 通知）。
+        if (members.All(m => m.Note.Pinned))
+        {
+            // 全钉死：直接绑定真实属性。BindDataProperty 一手包办"订阅数据→刷新显示 + 编辑→merge/commit/撤销"；
+            // 中间态双向同步后，拖动经数据层通知钢琴窗实时重绘。多成员扇出 + 三态经 MultipleDataProperty。
+            var props = members.Select(m => field(m.Note.Note.Phonemes[m.Index])).ToList();
+            IDataProperty<double> data = props.Count == 1
+                ? props[0]
+                : new MultipleDataProperty<double>(props, config.DefaultValue, v => PropertyValue.Create(v));
+            box.BindDataProperty(data, mPhonemeSub);
+            return box;
+        }
+
+        // 含合成音素：合成音素无可绑定的 IDataProperty（值在 SynthesizedPhonemes[] 里、无 .Modified/.Set），又不能一显示就锁定。
+        // 故手写"首拖固定"——镜像波形拖拽 op：起手对各成员 LockPhonemes（合成→钉死）+ BeginMergeDirty（只延迟重合成、不抑制
+        // 数据通知，钢琴窗据 Notes.Phonemes.Modified 实时重绘）；每帧先取 box.Value 再 DiscardTo(head) 后扇出写回；松手 Commit
+        //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期 mPhonemeEditing 抑制面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
         double ReadOf((PhonemeNoteInfo Note, int Index) m)
             => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedPhonemes![m.Index]);
         void Refresh()
@@ -413,16 +428,24 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 box.DisplayMultiple();
         }
         Refresh();
-        // 订阅所映射数据的变化 → 刷新显示（如波形拖动改 Duration、撤销/重做等外部改动）。仅钉死成员有可订阅属性；
-        // 合成值变化经面板重建（SynthesizedPhonemesChanged + 签名）覆盖。
+        // 仅钉死成员有可订阅属性（混合 slot 里也可能有），订阅其变化刷新显示。
         foreach (var m in members)
             if (m.Note.Pinned)
                 field(m.Note.Note.Phonemes[m.Index]).Modified.Subscribe(Refresh, mPhonemeSub);
+        // 合成（未钉死）成员的值取自 SynthesizedPhonemes 快照、无可订阅的 IDataProperty：重合成回填新值后须刷新本框。
+        // 该回填即便不改显示音素签名（符号/IsLead 不变、仅时长/权重变）也不触发面板重建，故必须在此单独订阅，
+        // 否则解钉/重合成后值框停留在旧快照——典型如撤销音素长度编辑：属性回退已正确，但解钉重建读到尚未刷新的
+        // SynthesizedPhonemes（仍是编辑时的回声），稍后重合成回原值却因签名未变被守卫挡掉，导致显示永久闪回撤回前的值。
+        if (mPart != null && members.Any(m => !m.Note.Pinned))
+            mPart.SynthesizedPhonemesChanged.Subscribe(() =>
+            {
+                // 合成音素数量变化时签名会变、随后整面板重建（本订阅随即失效）；但本订阅可能在那次重建前先被调用，
+                // 此时按旧 m.Index 读新数组会越界，故先校验结构、变了就跳过，留给重建处理。
+                if (members.Any(m => !m.Note.Pinned && (m.Note.Note.SynthesizedPhonemes is not { } sp || m.Index >= sp.Length)))
+                    return;
+                Refresh();
+            }, mPhonemeSub);
 
-        // 实时编辑（镜像波形拖拽 op）：起手对各成员 LockPhonemes（合成→钉死）+ BeginMergeDirty（只延迟重合成、不抑制
-        // 数据通知，故钢琴窗据 Notes.Phonemes.Modified 拖动每帧实时重绘）；每帧 DiscardTo(head) 后把 box.Value 扇出写回各成员
-        // 真实字段；松手 EndMergeDirty + Commit（无改动则 Discard、连带回滚锁定）成一个撤销步。编辑期 mPhonemeEditing 抑制
-        // 面板重建（锁定的 MembershipModified 不打断拖动），提交后显式重建复位。
         Head editHead = default;
         box.ValueWillChange.Subscribe(() =>
         {
@@ -438,8 +461,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         {
             if (mPart == null)
                 return;
-            // 必须先取 box.Value：DiscardTo 回退数据会经 field.Modified→Refresh 把 box 显示也改回原值，
-            // 若在 DiscardTo 后再读就读到原值（导致拖拽显示在正确值/原值间交替闪烁）。
+            // 必须先取 box.Value：DiscardTo 回退数据会经 field.Modified→Refresh 把显示也改回原值，后取就读到原值（交替闪烁）。
             var v = box.Value;
             mPart.DiscardTo(editHead);
             foreach (var (n, idx) in members)
