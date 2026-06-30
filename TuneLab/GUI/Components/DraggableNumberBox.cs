@@ -27,6 +27,10 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
     public IDragResponse Response { get; set; } = DragResponse.Linear(1.0);
     public double? Step { get; set; }
     public INumberFormat NumberFormat { get => mFormat; set { mFormat = value; InvalidateVisual(); } }
+    // 静态显示时的底色（双击进入编辑时才显标准深色输入框）。默认深底；置 null = 透明（露出容器底色，如音素色条），仅绘数值文本。
+    public IBrush? BoxBackground { get => mBoxBackground; set { mBoxBackground = value; InvalidateVisual(); } }
+    // 静态数值文本颜色。默认 LIGHT_WHITE；透明底（如音素色条）上可设纯白以保对比。
+    public IBrush TextForeground { get => mTextForeground; set { mTextForeground = value; InvalidateVisual(); } }
     // 三态（Multiple/Invalid，mValue=NaN）下无确定起点；从此值起拖（同 slider 的 ValueOn NaN 回退），使未设值的属性也可被拖动赋值。
     public double DefaultValue { get; set; } = 0;
 
@@ -77,14 +81,15 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
 
     public override void Render(DrawingContext context)
     {
-        context.FillRectangle(Style.BACK.ToBrush(), this.Rect(), 4);
+        if (mBoxBackground != null)
+            context.FillRectangle(mBoxBackground, this.Rect(), 4);
 
         var text = GetValueString();
         if (string.IsNullOrEmpty(text))
             return;
 
         var formatted = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(Assets.NotoMono), 12, Style.LIGHT_WHITE.ToBrush());
+            new Typeface(Assets.NotoMono), 12, mTextForeground);
         context.DrawText(formatted, new((Bounds.Width - formatted.Width) / 2, (Bounds.Height - formatted.Height) / 2));
     }
 
@@ -212,6 +217,8 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
     static readonly Avalonia.Input.Cursor SizeWestEastCursor = new(StandardCursorType.SizeWestEast);
 
     readonly TextInput mTextInput;
+    IBrush? mBoxBackground = Style.BACK.ToBrush();
+    IBrush mTextForeground = Style.LIGHT_WHITE.ToBrush();
     INumberFormat mFormat = TuneLab.SDK.NumberFormat.Decimals(2);
     State mState = State.Value;
     double mValue = 0;

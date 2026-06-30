@@ -218,6 +218,9 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     void RefreshPhonemeControllerNow()
     {
+        if (mPhonemeEditing)
+            return;   // 编辑进行中抑制重建（避免打断拖动/键入）；提交后由 ValueCommitted 显式重建复位
+
         mPhonemeSub.DisposeAll();
         mPhonemeRowsPanel.Children.Clear();
         if (mPart == null)
@@ -277,7 +280,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             // 符号（可编、扇出）：各成员符号全等显该符号、否则 (...)。双击编辑，提交即对各成员 LockPhonemes + set Symbol 成一个撤销步。
             var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedPhonemes![m.Index].Symbol).Distinct().ToList();
             string displayed = symbols.Count == 1 ? symbols[0] : "(...)";
-            var symbolField = BuildSymbolCell(displayed, isLead, members);
+            var symbolField = BuildSymbolCell(displayed, members);
 
             // 引擎声明了属性的成员才建属性控制器（其余成员只有符号列 + 右键增删）。
             var propMembers = members.Where(m => m.Note.Configs[m.Index] is { } c && c.Properties.Count > 0).ToList();
@@ -320,17 +323,24 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 }
             }
 
-            // 行单元：符号列在左、属性控制器占满右侧（无声明属性则仅符号列）。整行视为一个整体。
-            var row = new Grid() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-            Grid.SetColumn(symbolField, 0);
-            row.Children.Add(symbolField);
+            // 行单元 = 顶部色条（IsLead 配色：符号靠左 + 时长/权重值框靠右，无文字标签、悬浮 tooltip）+（引擎声明属性时）其下属性面板。
+            // 符号铺在音素自己面板顶部、值框紧凑靠右：长符号有整行宽度容纳；ms 单位本身已表达时长，无需文字标签；无引擎属性时右侧不再留空。
+            var strip = new DockPanel() { Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush() };
+            var rightGroup = new StackPanel() { Orientation = Orientation.Horizontal, Margin = new(0, 0, 4, 0) };
+            rightGroup.Children.Add(BuildDoubleField("Duration".Tr(TC.Property), members,
+                ph => ph.Duration, sp => sp.Duration, DurationConfig));
+            rightGroup.Children.Add(BuildDoubleField("Stretch Weight".Tr(TC.Property), members,
+                ph => ph.StretchWeight, sp => sp.StretchWeight, WeightConfig));
+            DockPanel.SetDock(rightGroup, Dock.Right);
+            strip.Children.Add(rightGroup);
+            strip.Children.Add(symbolField);   // 占满左侧
+
+            var panel = new StackPanel() { Orientation = Orientation.Vertical };
+            panel.Children.Add(strip);
             if (controller != null)
-            {
-                Grid.SetColumn(controller, 1);
-                row.Children.Add(controller);
-            }
-            mPhonemeRowsPanel.Children.Add(row);
-            // 行单元之间的整宽分界线（贯通符号列 + 属性列）：由行容器统一拥有，控制器内部分隔已关。
+                panel.Children.Add(controller);
+            mPhonemeRowsPanel.Children.Add(panel);
+            // 行单元之间的整宽分界线：由行容器统一拥有，控制器内部分隔已关。
             mPhonemeRowsPanel.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
         }
 
@@ -340,21 +350,21 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     // 编辑（松手提交）含合成音素的 slot：对涉及的每个 note 先钉死（LockPhonemes 幂等、保几何——"取不到就创建"=钉死），
     // 再把该成员 buffer 值写回该位音素属性，整体提交为一个撤销步。随后 Phonemes.MembershipModified 触发重建 → 该 slot 转真绑定。
-    // 音素符号单元：底色 band（Border 填满整高、IsLead 配色）+ 其上一只**透明背景、单行高、居中**的 EditableLabel
-    // （复用标准 TextInput 的编辑：圆角 4 / padding 等天然一致）。双击原地改符号，提交即扇出。
-    Control BuildSymbolCell(string displayed, bool isLead, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
+    // 音素符号：透明背景的 EditableLabel，铺在顶部色条左侧、靠左显示（长符号有整行宽度容纳）。底色由色条提供。
+    // 复用标准 TextInput 编辑（padding 等一致），圆角 2。双击原地改符号，提交即扇出。
+    Control BuildSymbolCell(string displayed, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
     {
-        var panel = new LayerPanel() { Width = 36, MinHeight = 28 };
-        var band = new Border() { Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush() };
         var label = new EditableLabel()
         {
             Height = 28,
+            MinWidth = 40,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Background = Brushes.Transparent,   // 透明，露出底色 band
+            Background = Brushes.Transparent,   // 透明，露出色条底色
             Foreground = Brushes.White,
             FontSize = 12,
-            CornerRadius = new(2),              // 仅音素符号输入框圆角 2（作用于内部 TextInput；band 是独立 Border 不受影响）
-            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            CornerRadius = new(2),
+            Padding = new(16, 0),               // 符号左侧留多一点边距
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,
             Text = displayed,
         };
@@ -364,9 +374,92 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             if (text != displayed)   // 无变化（含多值未改的 "(...)"）不提交
                 CommitSymbol(members, text);
         });
-        panel.Children.Add(band);
-        panel.Children.Add(label);
-        return panel;
+        return label;
+    }
+
+    // 内建 double 字段（时长 / 权重）：[标题 | 可拖数值框] 同行。复用引擎属性那套——每成员一个 buffer（共享 throwaway doc）
+    // 经 MultipleDataPropertyObject 扇出 + 三态合并；DraggableNumberBox 的拖动 merge 经此 buffer 走，settled 时对各成员
+    // LockPhonemes（合成→钉死）+ 写回内建字段 + 一个撤销步。read 取当前值（钉死/合成）、write 落到 Duration/StretchWeight。
+    Control BuildDoubleField(string tooltip, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members,
+        Func<IPhoneme, IDataProperty<double>> field, Func<SynthesizedPhoneme, double> synthValue, DraggableNumberBoxConfig config)
+    {
+        var box = new DraggableNumberBox
+        {
+            Width = 64,
+            Height = 28,
+            Margin = new(2, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            BoxBackground = null,           // 透明底：静态只显数值、露出色条；双击才出标准深色输入框（去掉色缝）
+            TextForeground = Brushes.White, // 色条上用纯白，不降明度
+            MinValue = config.Min,
+            MaxValue = config.Max,
+            Response = config.Response,
+            Step = config.Step,
+            NumberFormat = config.Format,
+            DefaultValue = config.DefaultValue,
+        };
+        box.SetupToolTip(tooltip);
+
+        // 视图映射的数据本体：钉死成员取 field(phoneme).Value、合成成员取 synthValue（合成数组无 per-field 通知）。
+        double ReadOf((PhonemeNoteInfo Note, int Index) m)
+            => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedPhonemes![m.Index]);
+        void Refresh()
+        {
+            var vals = members.Select(ReadOf).Distinct().ToList();
+            if (vals.Count == 1)
+                box.Display(vals[0]);
+            else
+                box.DisplayMultiple();
+        }
+        Refresh();
+        // 订阅所映射数据的变化 → 刷新显示（如波形拖动改 Duration、撤销/重做等外部改动）。仅钉死成员有可订阅属性；
+        // 合成值变化经面板重建（SynthesizedPhonemesChanged + 签名）覆盖。
+        foreach (var m in members)
+            if (m.Note.Pinned)
+                field(m.Note.Note.Phonemes[m.Index]).Modified.Subscribe(Refresh, mPhonemeSub);
+
+        // 实时编辑（镜像波形拖拽 op）：起手对各成员 LockPhonemes（合成→钉死）+ BeginMergeDirty（只延迟重合成、不抑制
+        // 数据通知，故钢琴窗据 Notes.Phonemes.Modified 拖动每帧实时重绘）；每帧 DiscardTo(head) 后把 box.Value 扇出写回各成员
+        // 真实字段；松手 EndMergeDirty + Commit（无改动则 Discard、连带回滚锁定）成一个撤销步。编辑期 mPhonemeEditing 抑制
+        // 面板重建（锁定的 MembershipModified 不打断拖动），提交后显式重建复位。
+        Head editHead = default;
+        box.ValueWillChange.Subscribe(() =>
+        {
+            if (mPart == null)
+                return;
+            mPhonemeEditing = true;
+            foreach (var (n, _) in members)
+                n.Note.LockPhonemes();
+            mPart.BeginMergeDirty();
+            editHead = mPart.Head;
+        }, mPhonemeSub);
+        box.ValueChanged.Subscribe(() =>
+        {
+            if (mPart == null)
+                return;
+            // 必须先取 box.Value：DiscardTo 回退数据会经 field.Modified→Refresh 把 box 显示也改回原值，
+            // 若在 DiscardTo 后再读就读到原值（导致拖拽显示在正确值/原值间交替闪烁）。
+            var v = box.Value;
+            mPart.DiscardTo(editHead);
+            foreach (var (n, idx) in members)
+                if (idx < n.Note.Phonemes.Count)
+                    field(n.Note.Phonemes[idx]).Set(v);
+        }, mPhonemeSub);
+        box.ValueCommitted.Subscribe(() =>
+        {
+            if (mPart == null)
+                return;
+            var head = mPart.Head;
+            mPart.EndMergeDirty();
+            if (head == editHead)
+                mPart.Discard();
+            else
+                mPart.Commit();
+            mPhonemeEditing = false;
+            RefreshPhonemeController();
+        }, mPhonemeSub);
+
+        return box;
     }
 
     // 编辑某 slot 符号：对各成员 note 先钉死（LockPhonemes 幂等、合成→钉死保几何），再写该位音素 Symbol，整体提交为一个撤销步。
@@ -415,7 +508,19 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     bool mNoteReconcilePending = false;
     bool mNoteRefreshPending = false;
     bool mPhonemeRefreshPending = false;
+    bool mPhonemeEditing = false;   // 音素字段拖动/键入进行中：抑制面板重建，避免锁定/写入触发的事件中途打断编辑
     string mPhonemeSignature = string.Empty;
+
+    // 时长：内部存秒，显示/键入按 ms（1ms/px 拖动），下界 0、无上界。
+    static readonly DraggableNumberBoxConfig DurationConfig = DraggableNumberBoxConfig.Create(0)
+        .WithMin(0)
+        .WithResponse(DragResponse.Linear(0.001))
+        .WithFormat(NumberFormat.Custom(v => $"{v * 1000:F0} ms", t => double.TryParse(t.Replace("ms", "").Trim(), out var ms) ? ms / 1000.0 : null));
+    // 权重：下界 0、无上界，0.01/px 拖动，2 位小数。
+    static readonly DraggableNumberBoxConfig WeightConfig = DraggableNumberBoxConfig.Create(1)
+        .WithMin(0)
+        .WithResponse(DragResponse.Linear(0.01))
+        .WithFormat(NumberFormat.Decimals(2));
     readonly DisposableManager s = new();
     readonly DisposableManager mNoteSub = new();
     readonly DisposableManager mPhonemeSub = new();

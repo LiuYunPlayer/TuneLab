@@ -84,6 +84,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartHolder.When(p => p.Modified).Subscribe(Update, s);
         mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
         mDependency.PartHolder.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
+        // 钉死音素几何变化（侧栏拖时长/权重、改符号等）→ 实时重绘音素带。侧栏编辑走 BeginMergeDirty（只延迟重合成、
+        // 不抑制数据通知），故 Phonemes.Modified 在拖动每帧触发、音素带跟手；不依赖重合成（那只在提交后发）。
+        mDependency.PartHolder.When(p => p.Notes.WhenAny(n => n.Phonemes.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Vibratos.WhenAny(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
         mDependency.PartHolder.When(p => p.Track.Project.Tracks.WhenAny(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
