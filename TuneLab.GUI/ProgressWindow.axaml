@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TuneLab.GUI.ProgressWindow"
+        Title="TuneLab"
+        Width="400" Height="190"
+        CanResize="False"
+        Topmost="True"
+        WindowStartupLocation="CenterOwner"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="0"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <!-- 无标题栏、整窗一体：全窗可拖动（见代码）。安装器与主程序共用此窗。 -->
+    <StackPanel Margin="28,22" VerticalAlignment="Center" Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <Image Source="avares://TuneLab.GUI/Assets/TuneLab.ico" Width="24" Height="24" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TitleText" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold"/>
+        </StackPanel>
+        <ProgressBar x:Name="Bar" Minimum="0" Maximum="1" Height="6"/>
+        <TextBlock x:Name="StatusText" FontSize="11" TextTrimming="CharacterEllipsis"/>
+        <Panel x:Name="CancelSlot" HorizontalAlignment="Right" Margin="0,6,0,0"/>
+    </StackPanel>
+</Window>
