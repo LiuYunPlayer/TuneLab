@@ -81,8 +81,8 @@ jobs:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           with:
             upload_url: ${{ needs.create-release.outputs.upload_url }}
-            asset_path: TuneLab.Setup/bin/installer/TuneLab-Setup-${{ steps.ver.outputs.version }}-win-x64.exe
-            asset_name: TuneLab-Setup-${{ steps.ver.outputs.version }}-win-x64.exe
+            asset_path: TuneLab.Setup/bin/installer/TuneLab-Setup-win-x64-v${{ steps.ver.outputs.version }}.exe
+            asset_name: TuneLab-Setup-win-x64-v${{ steps.ver.outputs.version }}.exe
             asset_content_type: application/octet-stream
 
     release:

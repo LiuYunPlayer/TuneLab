@@ -9,7 +9,7 @@
       3) 把 stage\（app + 向导）打成 zip 载荷；
       4) 框架依赖单文件发布极小外层解压器 TuneLab.Setup.Stub -> stub exe（无 Avalonia）；
       5) 拼接：stub exe + 载荷 zip + 24 字节 footer(magic8 + offset8LE + length8LE)
-         -> 最终 TuneLab-Setup-<version>-win-x64.exe。
+         -> 最终 TuneLab-Setup-win-x64-v<version>.exe。
     运行时：外层 stub 读尾部 footer、解压 stage 到临时目录、运行其中的 TuneLab.Setup.exe 向导；
     向导从所在目录整体铺到安装目录（向导自身一并落地，成为卸载器/更新器）。
     框架依赖：不打包 .NET 运行时；裸机首启弹微软官方 .NET 提示。
@@ -21,7 +21,7 @@
     Release / Debug，默认 Release。
 
 .PARAMETER OutputPath
-    最终安装器 exe 输出路径。默认 TuneLab.Setup\bin\installer\TuneLab-Setup-<version>-win-x64.exe。
+    最终安装器 exe 输出路径。默认 TuneLab.Setup\bin\installer\TuneLab-Setup-win-x64-v<version>.exe。
 
 .EXAMPLE
     pwsh CIUtils/pack-installer.ps1
@@ -61,7 +61,7 @@ $zipPath  = Join-Path $work 'payload.zip'
 
 if (-not $OutputPath) {
     $installerDir = Join-Path $repoRoot 'TuneLab.Setup\bin\installer'
-    $OutputPath = Join-Path $installerDir "TuneLab-Setup-$Version-$runtime.exe"
+    $OutputPath = Join-Path $installerDir "TuneLab-Setup-$runtime-v$Version.exe"
 }
 $installerDir = Split-Path -Parent $OutputPath
 

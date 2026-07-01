@@ -43,11 +43,12 @@ jobs:
         shell: pwsh
         run: ./CIUtils/pack-installer.ps1 -Version ${{ steps.ver.outputs.version }}
 
-      # artifact 名带版本号：网页下载得到 TuneLab-Setup-<version>-win-x64.zip（GitHub 对
-      # artifact 一律打成 zip，无法直出裸 exe；裸 exe 直下需走 Release 资产，见 upload-release.yml）。
+      # artifact 名对齐既有 TuneLab-<runtime>-v<version> 约定：网页下载得到
+      # TuneLab-Setup-win-x64-v<version>.zip（GitHub 对 artifact 一律打成 zip，无法直出裸 exe；
+      # 裸 exe 直下需走 Release 资产，见 upload-release.yml）。
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TuneLab-Setup-${{ steps.ver.outputs.version }}-win-x64
+          name: TuneLab-Setup-win-x64-v${{ steps.ver.outputs.version }}
           path: TuneLab.Setup/bin/installer/*.exe
           if-no-files-found: error
