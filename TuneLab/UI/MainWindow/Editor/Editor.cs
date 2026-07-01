@@ -1128,29 +1128,40 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     // 整包自更新：下载新安装器（带进度）→ 拉起其 -update 静默模式 → 退出本进程释放文件锁，
     // 由安装器覆盖当前安装目录并重启 TuneLab。
-    private async void StartUpdate(UpdateDialog dialog, UpdateInfo info)
+    private void StartUpdate(UpdateDialog announcement, UpdateInfo info)
     {
+        announcement.Close();
         if (string.IsNullOrEmpty(info.url))
         {
             ProcessHelper.OpenUrl("https://tunelab.app");
             return;
         }
 
-        dialog.SetButtonsEnabled(false);
-        var progress = new Progress<double>(p => dialog.SetMessage("Downloading update".Tr(TC.Dialog) + $"… {p:P0}"));
-        try
+        // 非模态下载（主程序仍可操作、可取消）。下载完请求走正常关闭流程重启——未保存提示等逻辑与手动关闭一致。
+        var window = new TuneLab.GUI.ProgressWindow();
+        window.SetTitle("Downloading update…".Tr(TC.Dialog));
+        window.ShowCancel("Cancel".Tr(TC.Dialog));
+        var cts = new System.Threading.CancellationTokenSource();
+        window.CancelRequested += () => cts.Cancel();
+        window.Opened += async (_, _) =>
         {
-            var installerPath = await AppUpdateManager.DownloadInstallerAsync(info.url, progress, CancellationToken.None);
-            dialog.SetMessage("Installing update, TuneLab will restart…".Tr(TC.Dialog));
-            AppUpdateManager.LaunchInstallerUpdate(installerPath);
-            this.Window().Close();
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Update download failed: {ex.Message}");
-            dialog.SetMessage("Update failed. Please try again later.".Tr(TC.Dialog));
-            dialog.SetButtonsEnabled(true);
-        }
+            var progress = new Progress<double>(p => { window.SetProgress(p); window.SetStatus($"{p:P0}"); });
+            try
+            {
+                var path = await AppUpdateManager.DownloadInstallerAsync(info.url!, progress, cts.Token);
+                if (cts.IsCancellationRequested) { window.Close(); return; }
+                window.Close();
+                (this.Window() as MainWindow)?.RequestUpdateRestart(path);
+            }
+            catch (OperationCanceledException) { window.Close(); }
+            catch (Exception ex)
+            {
+                Log.Error($"Update download failed: {ex}");
+                window.Close();
+                await this.ShowMessage("Update".Tr(TC.Dialog), "Update failed. Please try again later.".Tr(TC.Dialog));
+            }
+        };
+        window.Show(this.Window());
     }
 
     public async void CheckUpdate(bool IsAutoCheck = true)
@@ -1188,6 +1199,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
         }
     }
+
+    private void ShowAbout() => _ = new Dialogs.AboutDialog().ShowDialog(this.Window());
 
     [MemberNotNull(nameof(mUndoMenuItem))]
     [MemberNotNull(nameof(mRedoMenuItem))]
@@ -1353,6 +1366,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
             {
                 var menuItem = new MenuItem().SetTrName("Check for Updates...").SetAction(() => CheckUpdate(false));
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetTrName("About TuneLab").SetAction(ShowAbout);
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);

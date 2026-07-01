@@ -119,7 +119,11 @@ internal static class AppUpdateManager
     /// </summary>
     public static void LaunchInstallerUpdate(string installerPath)
     {
-        ProcessHelper.CreateProcess(installerPath, ["-update", AppDomain.CurrentDomain.BaseDirectory]);
+        // 去掉结尾分隔符：BaseDirectory 以 '\' 结尾，朴素加引号时结尾 \" 会把闭合引号转义掉，
+        // 导致安装器收到的目标路径尾部混入一个 " 而建目录失败。
+        var installDir = AppDomain.CurrentDomain.BaseDirectory
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        ProcessHelper.CreateProcess(installerPath, ["-update", installDir]);
     }
 
     static string? TryGetFileName(string url)

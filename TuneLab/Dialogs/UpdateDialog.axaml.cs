@@ -82,8 +82,5 @@ internal partial class UpdateDialog : Window
 
         return button;
     }
-
-    // 下载期间禁用全部按钮，避免重复触发。
-    public void SetButtonsEnabled(bool enabled) => ButtonsPanel.IsEnabled = enabled;
 }
 

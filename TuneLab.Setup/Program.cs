@@ -11,13 +11,19 @@ internal static class Program
     {
         var options = CliOptions.Parse(args);
 
-        // 静默模式（供 App 自更新 / 卸载入口调用），不拉起 GUI。
-        // 本阶段仅搭交互安装器骨架，静默模式留待自更新专题接入。
-        if (options.Mode != SetupMode.Interactive)
+        // 卸载：无界面静默执行。
+        if (options.Mode == SetupMode.Uninstall)
             return SilentRunner.Run(options);
 
-        // i18n 需在建窗前就位（向导文案在构造时解析）。
-        SetupI18N.Init();
+        // i18n 在 App.OnFrameworkInitializationCompleted 里初始化（需 Avalonia 起来后 AssetLoader 才能读内嵌 toml）。
+
+        // -update：显示可视进度窗（填住主程序退出→覆盖→重启之间的空白，避免像崩溃）。
+        if (options.Mode == SetupMode.Update)
+        {
+            var dir = options.TargetDir ?? Core.ProductInfo.DefaultInstallDir;
+            App.MainWindowFactory = () => UpdateRunner.CreateWindow(dir);
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }

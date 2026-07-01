@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TuneLab.Dialogs.AboutDialog"
+        Title="About TuneLab"
+        Width="440" Height="380"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="40"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <DockPanel>
+        <!-- 标题栏（可拖动 + 关闭按钮在代码里构建） -->
+        <Grid x:Name="TitleBar" DockPanel.Dock="Top" Height="40" ColumnDefinitions="*,Auto">
+            <Label x:Name="TitleLabel" Grid.Column="0" Content="About" VerticalAlignment="Center"
+                   Margin="16,0" FontWeight="Bold" FontSize="14" Foreground="White"/>
+            <Panel x:Name="CloseSlot" Grid.Column="1"/>
+        </Grid>
+
+        <ContentControl x:Name="Content">
+            <!-- 内容分区：logo / 名称 / 版本 / 标语 / 链接。后续可在此追加更多区块。 -->
+            <StackPanel Margin="28,20" Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Image Source="avares://TuneLab/Assets/TuneLab.ico" Width="72" Height="72" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="NameText" Text="TuneLab" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="VersionText" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="Tagline" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360"
+                           HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                <StackPanel x:Name="LinksPanel" Orientation="Horizontal" Spacing="8"
+                            HorizontalAlignment="Center" Margin="0,10,0,0"/>
+            </StackPanel>
+        </ContentControl>
+    </DockPanel>
+</Window>

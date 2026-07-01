@@ -39,10 +39,29 @@ internal sealed class DirectoryPayloadProvider : IPayloadProvider
             string rel = Path.GetRelativePath(mSourceDir, src);
             string dest = Path.Combine(targetDir, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(src, dest, overwrite: true);
+            CopyWithRetry(src, dest, ct);
 
             done += new FileInfo(src).Length;
             progress?.Report(new ExtractProgress(done, total, rel));
+        }
+    }
+
+    // 更新场景下目标文件可能刚被退出的 app 短暂占用（OS 尚未完全释放句柄），重试等其释放。
+    static void CopyWithRetry(string src, string dest, CancellationToken ct)
+    {
+        const int maxAttempts = 20;
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Copy(src, dest, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < maxAttempts)
+            {
+                ct.ThrowIfCancellationRequested();
+                Thread.Sleep(300);
+            }
         }
     }
 }

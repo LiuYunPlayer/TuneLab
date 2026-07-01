@@ -29,6 +29,8 @@ public partial class MainWindow : Window
     const int UnsetWindowPosition = int.MinValue;
     private PlatformID platform;
     private bool isCloseConfirm;
+    // 下载好待应用的更新安装器路径：走正常关闭流程退出时才拉起它（覆盖+重启），取消退出则清除。
+    private string? mPendingUpdateInstaller;
     private bool mApplyingSavedWindowPlacement;
     private TextBlock TitleLabel;
     private Button maximizeButton;
@@ -216,6 +218,13 @@ public partial class MainWindow : Window
         this.WindowState = WindowState.Minimized;
     }
 
+    // 下载完更新后由 Editor 调用：记下安装器、走正常关闭流程（含未保存提示）。取消退出则不更新。
+    public void RequestUpdateRestart(string installerPath)
+    {
+        mPendingUpdateInstaller = installerPath;
+        Close();
+    }
+
     private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!isCloseConfirm && !mEditor.Document.IsSaved)
@@ -224,7 +233,8 @@ public partial class MainWindow : Window
             var modal = new Dialog();
             modal.SetTitle("Tips".Tr(TC.Dialog));
             modal.SetMessage("The project has not been saved.\n Do you want to save it?".Tr(TC.Dialog));
-            modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
+            // 取消退出：连带取消待应用的更新。
+            modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { mPendingUpdateInstaller = null; };
             modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal).Clicked += () => { isCloseConfirm = true; Close(); };
             modal.AddButton("Save".Tr(TC.Dialog), ButtonType.Primary).Clicked += async () => { await mEditor.SaveProject(); isCloseConfirm = true; Close(); };
             modal.Topmost = true;
@@ -238,6 +248,10 @@ public partial class MainWindow : Window
         Settings.Save(PathManager.SettingsFilePath);
         EditorState.Save(PathManager.EditorStateFilePath);
         mEditor.ClearAutoSaveFile();
+
+        // 有待应用的更新：在真正退出前拉起安装器（它会等本进程退出释放锁，再覆盖并重启）。
+        if (mPendingUpdateInstaller != null)
+            AppUpdateManager.LaunchInstallerUpdate(mPendingUpdateInstaller);
     }
 
     void ApplySavedWindowPlacement()

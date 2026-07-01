@@ -24,7 +24,8 @@
 param(
     [string]$Version = '9.9.9',
     [int]$Port = 8000,
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [int]$ThrottleKBps = 0   # >0 时限速发送安装器，便于观察下载进度（KB/s）
 )
 
 $ErrorActionPreference = 'Stop'
@@ -85,7 +86,22 @@ try {
                 Write-Response $stream '200 OK' 'application/json' $jsonBytes
             }
             elseif ($path -like "*/$installerName") {
-                Write-Response $stream '200 OK' 'application/octet-stream' $installerBytes
+                if ($ThrottleKBps -gt 0) {
+                    $hdr = "HTTP/1.1 200 OK`r`nContent-Type: application/octet-stream`r`nContent-Length: $($installerBytes.Length)`r`nConnection: close`r`n`r`n"
+                    $hb = [System.Text.Encoding]::ASCII.GetBytes($hdr)
+                    $stream.Write($hb, 0, $hb.Length)
+                    $chunk = $ThrottleKBps * 1024
+                    $pos = 0
+                    while ($pos -lt $installerBytes.Length) {
+                        $n = [Math]::Min($chunk, $installerBytes.Length - $pos)
+                        $stream.Write($installerBytes, $pos, $n); $stream.Flush()
+                        $pos += $n
+                        Start-Sleep -Milliseconds 1000
+                    }
+                }
+                else {
+                    Write-Response $stream '200 OK' 'application/octet-stream' $installerBytes
+                }
             }
             else {
                 Write-Response $stream '404 Not Found' 'text/plain' ([byte[]]@())
