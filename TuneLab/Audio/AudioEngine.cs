@@ -302,7 +302,11 @@ internal static class AudioEngine
 
     static void SetDriverToPlaybackHandler()
     {
-        var drivers = mAudioPlaybackHandler!.GetAllDrivers();
+        // 关闭时 handler 可能已被释放，而设备/驱动变更的队列回调仍可能触发 —— 加守卫避免 shutdown 竞态 NRE。
+        if (mAudioPlaybackHandler == null)
+            return;
+
+        var drivers = mAudioPlaybackHandler.GetAllDrivers();
         if (drivers.IsEmpty())
             return;
 
@@ -315,7 +319,10 @@ internal static class AudioEngine
 
     static void SetDeviceToPlaybackHandler()
     {
-        var devices = mAudioPlaybackHandler!.GetAllDevices();
+        if (mAudioPlaybackHandler == null)
+            return;
+
+        var devices = mAudioPlaybackHandler.GetAllDevices();
         if (devices.IsEmpty())
             return;
 
