@@ -1118,13 +1118,39 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         dialog.SetMessage("Version".Tr(TC.Dialog) + $": {mUpdateCheck.version}\n" + "Public Date".Tr(TC.Dialog) + $": {mUpdateCheck.publishedAt}");
         dialog.SetMDMessage(mUpdateCheck.description ?? "");
         if (IsAutoCheck)
-            dialog.AddButton("Ignore".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version);
+            dialog.AddButton("Ignore".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal).Clicked += () => AppUpdateManager.SaveIgnoreVersion(mUpdateCheck.version!);
         dialog.AddButton("Later".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Normal);
-        dialog.AddButton("Download".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Primary).Clicked += () =>
-        {
-            ProcessHelper.OpenUrl(mUpdateCheck.url);
-        };
+        // 下载期间对话框需保持打开以显示进度，故关闭按钮自带的自动 Close。
+        dialog.AddButton("Update".Tr(TC.Dialog), GUI.UpdateDialog.ButtonType.Primary, closeOnClick: false).Clicked
+            += () => StartUpdate(dialog, mUpdateCheck);
         await dialog.ShowDialog(this.Window());
+    }
+
+    // 整包自更新：下载新安装器（带进度）→ 拉起其 -update 静默模式 → 退出本进程释放文件锁，
+    // 由安装器覆盖当前安装目录并重启 TuneLab。
+    private async void StartUpdate(UpdateDialog dialog, UpdateInfo info)
+    {
+        if (string.IsNullOrEmpty(info.url))
+        {
+            ProcessHelper.OpenUrl("https://tunelab.app");
+            return;
+        }
+
+        dialog.SetButtonsEnabled(false);
+        var progress = new Progress<double>(p => dialog.SetMessage("Downloading update".Tr(TC.Dialog) + $"… {p:P0}"));
+        try
+        {
+            var installerPath = await AppUpdateManager.DownloadInstallerAsync(info.url, progress, CancellationToken.None);
+            dialog.SetMessage("Installing update, TuneLab will restart…".Tr(TC.Dialog));
+            AppUpdateManager.LaunchInstallerUpdate(installerPath);
+            this.Window().Close();
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Update download failed: {ex.Message}");
+            dialog.SetMessage("Update failed. Please try again later.".Tr(TC.Dialog));
+            dialog.SetButtonsEnabled(true);
+        }
     }
 
     public async void CheckUpdate(bool IsAutoCheck = true)

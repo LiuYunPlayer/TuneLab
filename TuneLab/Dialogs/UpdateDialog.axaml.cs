@@ -59,7 +59,7 @@ internal partial class UpdateDialog : Window
         markDownScrollViewer.Markdown = message;
     }
 
-    public Button AddButton(string text, ButtonType type)
+    public Button AddButton(string text, ButtonType type, bool closeOnClick = true)
     {
         ButtonsPanel.ColumnDefinitions.Add(new ColumnDefinition() { Width = new GridLength(1, GridUnitType.Star) });
         var button = new Button() { MinWidth = 96, Height = 40 };
@@ -72,7 +72,9 @@ internal partial class UpdateDialog : Window
 
         button.AddContent(new() { Item = new TextItem() { Text = text }, ColorSet = new() { Color = type == ButtonType.Primary ? Colors.White : Style.LIGHT_WHITE } });
 
-        button.Clicked += Close;
+        // 更新按钮需在下载/进度期间保持对话框打开，故可关闭自动 Close。
+        if (closeOnClick)
+            button.Clicked += Close;
         var buttonStack = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, Children = { button }, Height = 40, Margin = new(0) };
 
         Grid.SetColumn(buttonStack, ButtonsPanel.ColumnDefinitions.Count - 1);
@@ -80,5 +82,8 @@ internal partial class UpdateDialog : Window
 
         return button;
     }
+
+    // 下载期间禁用全部按钮，避免重复触发。
+    public void SetButtonsEnabled(bool enabled) => ButtonsPanel.IsEnabled = enabled;
 }
 

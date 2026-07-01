@@ -50,15 +50,17 @@ internal sealed class Installer
 
             // 卸载器/更新器 TuneLab.Setup.exe 已随目录一并铺入安装目录，无需单独复制。
 
-            // 3) 快捷方式（0.88 → 0.92）
-            progress?.Report(new InstallStatus(0.90, "Creating shortcuts…"));
-            CreateShortcuts(installDir);
-
-            // 4) 文件关联（0.92 → 0.96）
-            if (mOptions.RegisterFileAssociations)
+            // 3-4) 快捷方式 + 文件关联：仅首次安装。更新模式跳过，保留用户当初的选择。
+            if (!mOptions.IsUpdate)
             {
-                progress?.Report(new InstallStatus(0.94, "Registering file associations…"));
-                FileAssociation.Register(installDir);
+                progress?.Report(new InstallStatus(0.90, "Creating shortcuts…"));
+                CreateShortcuts(installDir);
+
+                if (mOptions.RegisterFileAssociations)
+                {
+                    progress?.Report(new InstallStatus(0.94, "Registering file associations…"));
+                    FileAssociation.Register(installDir);
+                }
             }
 
             // 5) 卸载注册表（0.96 → 1.0）

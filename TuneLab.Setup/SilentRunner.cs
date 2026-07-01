@@ -31,6 +31,7 @@ internal static class SilentRunner
                     {
                         InstallDir = options.TargetDir ?? ProductInfo.DefaultInstallDir,
                         LaunchAfterInstall = false,
+                        IsUpdate = true,
                     };
                     var installer = new Installer(opts);
                     installer.InstallAsync(null, CancellationToken.None).GetAwaiter().GetResult();
