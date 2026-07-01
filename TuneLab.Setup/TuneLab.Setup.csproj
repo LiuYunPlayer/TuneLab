@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<LangVersion>latest</LangVersion>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<ApplicationIcon>Assets\TuneLab.ico</ApplicationIcon>
+		<AssemblyName>TuneLab.Setup</AssemblyName>
+		<!-- 安装器只面向 Windows。框架依赖：与主程序发布模型一致，不打包 .NET 运行时，
+		     体积小、更新不重下运行时。裸机双击时 apphost 会自动弹微软官方的 .NET 下载提示。
+		     保留 win-x64 RID 以生成原生 apphost（.exe）。 -->
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<SelfContained>false</SelfContained>
+	</PropertyGroup>
+
+	<!-- 单文件、去符号，仅在 publish 时生效，普通 build 不受影响 -->
+	<PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+		<DebugType>none</DebugType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<AvaloniaResource Include="Assets\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Avalonia" Version="11.3.15" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.15" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.15" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.15" />
+		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.15" />
+		<!-- 快捷方式/卸载/文件关联都写 HKCU 注册表；net8.0 平台 TFM 需显式引入 -->
+		<PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+	</ItemGroup>
+
+	<!-- 复用主程序抽出的 GUI 控件与 i18n 机制，保证安装器观感与 TuneLab 一致。 -->
+	<ItemGroup>
+		<ProjectReference Include="..\TuneLab.GUI\TuneLab.GUI.csproj" />
+		<ProjectReference Include="..\TuneLab.I18N\TuneLab.I18N.csproj" />
+	</ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <ApplicationIcon>..\TuneLab.Setup\Assets\TuneLab.ico</ApplicationIcon>
+    <AssemblyName>TuneLab.Setup.Stub</AssemblyName>
+    <ApplicationManifest>..\TuneLab.Setup\app.manifest</ApplicationManifest>
+    <!-- 极小外层解压器：无 Avalonia，框架依赖。裸机双击弹微软 .NET 提示，与向导/主程序一致。 -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+</Project>

@@ -83,8 +83,11 @@
 		<LegacyCompatOutputDir>$(MSBuildThisFileDirectory)..\legacy\compat\TuneLab.Hosting.Compat.Legacy\bin\$(Configuration)\net8.0\</LegacyCompatOutputDir>
 	</PropertyGroup>
 
+	<!-- RemoveProperties：Compat.Legacy 是反射加载的纯 net8.0 托管库，不该继承主程序 publish 的
+	     RuntimeIdentifier/自包含/单文件属性（否则子项目按未还原的 RID 目标构建，报 NETSDK1047）。 -->
 	<Target Name="BuildLegacyCompat" BeforeTargets="Build">
-		<MSBuild Projects="$(LegacyCompatProject)" Targets="Build" Properties="Configuration=$(Configuration)" />
+		<MSBuild Projects="$(LegacyCompatProject)" Targets="Build" Properties="Configuration=$(Configuration)"
+				 RemoveProperties="RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishSingleFile" />
 	</Target>
 
 	<Target Name="CopyLegacyCompat" AfterTargets="Build" DependsOnTargets="BuildLegacyCompat">

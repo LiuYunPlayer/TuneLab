@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="TuneLab.Setup.Views.MainWindow"
+        Title="TuneLab Setup"
+        Width="620" Height="384"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1">
+
+    <Grid x:Name="Root" RowDefinitions="36,*,Auto">
+
+        <!-- 自定义标题栏（可拖动 + 关闭按钮在代码里构建） -->
+        <Border Grid.Row="0" x:Name="TitleBar">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="12,0" VerticalAlignment="Center">
+                    <Image Source="avares://TuneLab.Setup/Assets/TuneLab.ico" Width="18" Height="18"/>
+                    <TextBlock x:Name="TitleText" VerticalAlignment="Center" FontSize="12"/>
+                </StackPanel>
+                <Panel Grid.Column="2" x:Name="TitleButtons"/>
+            </Grid>
+        </Border>
+
+        <!-- 内容区：各步骤面板叠放，仅一个可见 -->
+        <Panel Grid.Row="1" Margin="28,22">
+
+            <!-- Welcome -->
+            <StackPanel x:Name="WelcomePanel" Spacing="10" VerticalAlignment="Center">
+                <TextBlock x:Name="WelcomeTitle" Text="TuneLab" FontSize="28" FontWeight="Bold"/>
+                <TextBlock x:Name="WelcomeVersion" FontSize="16" FontWeight="SemiBold"/>
+                <TextBlock x:Name="WelcomeBody" TextWrapping="Wrap" LineHeight="22" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <!-- Options -->
+            <StackPanel x:Name="OptionsPanel" Spacing="14" IsVisible="False">
+                <TextBlock x:Name="LocationLabel"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Panel x:Name="InstallDirSlot" Grid.Column="0"/>
+                    <Panel x:Name="BrowseSlot" Grid.Column="1"/>
+                </Grid>
+                <StackPanel x:Name="OptionsBox" Spacing="12" Margin="0,6,0,0"/>
+            </StackPanel>
+
+            <!-- Progress -->
+            <StackPanel x:Name="ProgressPanel" Spacing="14" VerticalAlignment="Center" IsVisible="False">
+                <TextBlock x:Name="ProgressStatus"/>
+                <ProgressBar x:Name="ProgressBar" Minimum="0" Maximum="1" Height="6"/>
+                <TextBlock x:Name="ProgressEntry" FontSize="11" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <!-- Finish -->
+            <StackPanel x:Name="FinishPanel" Spacing="14" VerticalAlignment="Center" IsVisible="False">
+                <TextBlock x:Name="FinishTitle" FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock x:Name="FinishMessage" TextWrapping="Wrap" LineHeight="22"/>
+                <Panel x:Name="LaunchSlot" HorizontalAlignment="Left"/>
+            </StackPanel>
+
+        </Panel>
+
+        <!-- 底部导航（按钮在代码里构建） -->
+        <Border Grid.Row="2" x:Name="FooterBar" Padding="24,14">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <Panel Grid.Column="0" x:Name="CancelSlot"/>
+                <Panel Grid.Column="2" x:Name="BackSlot" Margin="0,0,8,0"/>
+                <Panel Grid.Column="3" x:Name="NextSlot"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
