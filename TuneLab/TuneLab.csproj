@@ -63,6 +63,8 @@
 	  <ProjectReference Include="..\ExtensionInstaller\ExtensionInstaller.csproj" />
 	  <ProjectReference Include="..\TuneLab.Hosting.Foundation\TuneLab.Hosting.Foundation.csproj" />
 	  <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
+	  <ProjectReference Include="..\TuneLab.I18N\TuneLab.I18N.csproj" />
+	  <ProjectReference Include="..\TuneLab.GUI\TuneLab.GUI.csproj" />
 	  <ProjectReference Include="..\TuneLab.SDK\TuneLab.SDK.csproj" />
 	</ItemGroup>
 

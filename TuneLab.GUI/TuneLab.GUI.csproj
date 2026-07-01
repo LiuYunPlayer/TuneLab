@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.15" />
+    <PackageReference Include="Avalonia.Svg.Skia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.2.0" />
+    <PackageReference Include="Avalonia.ReactiveUI" Version="11.3.8" />
+    <PackageReference Include="Svg.Skia" Version="3.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
+    <ProjectReference Include="..\TuneLab.Hosting.Foundation\TuneLab.Hosting.Foundation.csproj" />
+    <ProjectReference Include="..\TuneLab.SDK\TuneLab.SDK.csproj" />
+    <ProjectReference Include="..\TuneLab.I18N\TuneLab.I18N.csproj" />
+  </ItemGroup>
+
+  <!-- 类型保持 internal，靠 InternalsVisibleTo 暴露给宿主与安装器。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="TuneLab" />
+    <InternalsVisibleTo Include="TuneLab.Setup" />
+  </ItemGroup>
+
+</Project>

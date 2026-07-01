@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tomlyn" Version="0.18.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />
+    <ProjectReference Include="..\TuneLab.Hosting.Foundation\TuneLab.Hosting.Foundation.csproj" />
+  </ItemGroup>
+
+  <!-- 类型保持 internal，靠 InternalsVisibleTo 暴露给宿主与安装器（与主程序对 TuneLab.Tests 的做法一致）。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="TuneLab" />
+    <InternalsVisibleTo Include="TuneLab.GUI" />
+    <InternalsVisibleTo Include="TuneLab.Setup" />
+  </ItemGroup>
+
+</Project>

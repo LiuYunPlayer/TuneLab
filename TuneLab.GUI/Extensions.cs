@@ -13,8 +13,6 @@ using Rect = Avalonia.Rect;
 using RoundedRect = Avalonia.RoundedRect;
 using TuneLab.GUI;
 using System.Threading.Tasks;
-using TuneLab.Data;
-using TuneLab.SDK;
 using TuneLab.I18N;
 using Avalonia.Platform.Storage;
 using System.Linq;
@@ -431,20 +429,5 @@ internal static class Extensions
     public static void AddDock(this DockPanel panel, Control control)
     {
         panel.Children.Add(control);
-    }
-
-    public static void NewTrack(this IProject project)
-    {
-        project.AddTrack(new TrackInfo() { Name = "Track".Tr(TC.Document) + "_" + (project.Tracks.Count + 1), Color = Style.GetNewColor(project.Tracks.Count) });
-    }
-
-    public static int PartsCount(this IProject project)
-    {
-        int count = 0;
-        foreach (var track in project.Tracks)
-        {
-            count += track.Parts.Count;
-        }
-        return count;
     }
 }
