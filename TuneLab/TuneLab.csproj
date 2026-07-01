@@ -84,8 +84,13 @@
 	</PropertyGroup>
 
 	<!-- RemoveProperties：Compat.Legacy 是反射加载的纯 net8.0 托管库，不该继承主程序 publish 的
-	     RuntimeIdentifier/自包含/单文件属性（否则子项目按未还原的 RID 目标构建，报 NETSDK1047）。 -->
+	     RuntimeIdentifier/自包含/单文件属性（否则子项目按未还原的 RID 目标构建，报 NETSDK1047）。
+	     Restore 与 Build 分两次调用：Compat.Legacy 无 ProjectReference，主程序的隐式 restore 不覆盖它，
+	     clean 环境（CI/新 clone）没有 project.assets.json 会报 NETSDK1004；且二者须分开，单次调用里项目只
+	     求值一次、会在 assets 生成前固化，Build 仍读不到还原结果。 -->
 	<Target Name="BuildLegacyCompat" BeforeTargets="Build">
+		<MSBuild Projects="$(LegacyCompatProject)" Targets="Restore" Properties="Configuration=$(Configuration)"
+				 RemoveProperties="RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishSingleFile" />
 		<MSBuild Projects="$(LegacyCompatProject)" Targets="Build" Properties="Configuration=$(Configuration)"
 				 RemoveProperties="RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishSingleFile" />
 	</Target>
