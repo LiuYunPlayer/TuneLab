@@ -81,6 +81,8 @@ if ($LASTEXITCODE -ne 0) { throw "Wizard publish failed." }
 if (-not (Test-Path (Join-Path $stageDir 'TuneLab.Setup.exe'))) { throw "Wizard exe missing in stage." }
 
 Write-Host "==> [3/5] Zipping payload (app + wizard)…" -ForegroundColor Cyan
+# 去掉调试符号：Release 安装包用不上 .pdb。
+Get-ChildItem $stageDir -Recurse -Filter *.pdb | Remove-Item -Force
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 [System.IO.Compression.ZipFile]::CreateFromDirectory(
     $stageDir, $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
