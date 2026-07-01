@@ -1,0 +1,41 @@
+name: Build installer
+
+# 手动触发（Actions 页 "Run workflow"）产出 Windows 安装器作为可下载 artifact，
+# 用于在不打 tag / 不建 Release 的情况下验证安装器与打包流程。跑完的 run 可随时删除。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（留空则用 TuneLab.csproj 的 <Version>）'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Pack installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Pack installer
+        shell: pwsh
+        run: |
+          $v = "${{ github.event.inputs.version }}"
+          if ($v) { ./CIUtils/pack-installer.ps1 -Version $v }
+          else    { ./CIUtils/pack-installer.ps1 }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TuneLab-Setup-win-x64
+          path: TuneLab.Setup/bin/installer/*.exe
+          if-no-files-found: error
