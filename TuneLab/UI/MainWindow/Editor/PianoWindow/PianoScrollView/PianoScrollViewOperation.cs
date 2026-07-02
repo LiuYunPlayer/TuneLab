@@ -1882,12 +1882,38 @@ internal partial class PianoScrollView
 
             PianoScrollView.Part.BeginMergeDirty();
             double offsetTick = startTick - mNote.StartPos();
-            // 自由重叠：拉伸不再截断被盖到的邻居（去重叠责任在插件，用户可用"去除重叠"命令整理）。
+            // voice（去重叠单声部）：头部左拉推挤更早的邻居——起点被越过者删除、尾巴被盖到者截断到新起点。
+            // instrument（可重叠）：不动邻居，自由拉出重叠。coupled 路径边界已钳位联动，无新重叠可推。
+            // 每次 Move 从 mHead 重放，故基于原始状态先算定再施加（遍历中摘除链表会踩空）。
+            List<(INote note, double dur)>? shrink = null;
+            List<INote>? remove = null;
+            if (mCoupledPrev == null && PianoScrollView.Part.SoundSource.Kind == SourceKind.Voice)
+            {
+                var note = mNote;
+                while (note.Last != null)
+                {
+                    note = note.Last;
+                    if (note.StartPos() >= startTick)
+                        (remove ??= new()).Add(note);
+                    else if (note.EndPos() > startTick)
+                        (shrink ??= new()).Add((note, startTick - note.StartPos()));
+                }
+            }
             PianoScrollView.Part.MoveNote(mNote, () =>
             {
                 mNote.Pos.Set(mNote.Pos.Value + offsetTick);
                 mNote.Dur.Set(mNote.Dur.Value - offsetTick);
             });
+            if (shrink != null)
+            {
+                foreach (var (note, dur) in shrink)
+                    PianoScrollView.Part.MoveNote(note, () => note.Dur.Set(dur));
+            }
+            if (remove != null)
+            {
+                foreach (var note in remove)
+                    PianoScrollView.Part.RemoveNote(note);
+            }
             if (mCoupledPrev != null)
             {
                 // 上个 note 尾跟到本 note 新起点（分界线联动）。
@@ -1964,8 +1990,34 @@ internal partial class PianoScrollView
             }
 
             PianoScrollView.Part.BeginMergeDirty();
-            // 自由重叠：拉伸不再截断被盖到的邻居（去重叠责任在插件，用户可用"去除重叠"命令整理）。
+            // voice（去重叠单声部）：尾部右拉推挤后续的邻居——终点被越过者删除、头部被盖到者起点推到新终点。
+            // instrument（可重叠）：不动邻居，自由拉出重叠。
+            // 每次 Move 从 mHead 重放，故基于原始状态先算定再施加（遍历中摘除链表会踩空）。
+            List<(INote note, double noteEnd)>? push = null;
+            List<INote>? remove = null;
+            if (PianoScrollView.Part.SoundSource.Kind == SourceKind.Voice)
+            {
+                var note = mNote;
+                while (note.Next != null)
+                {
+                    note = note.Next;
+                    if (note.EndPos() <= endTick)
+                        (remove ??= new()).Add(note);
+                    else if (note.StartPos() < endTick)
+                        (push ??= new()).Add((note, note.EndPos()));
+                }
+            }
             PianoScrollView.Part.MoveNote(mNote, () => mNote.Dur.Set(endTick - mNote.Pos.Value));
+            if (push != null)
+            {
+                foreach (var (note, noteEnd) in push)
+                    PianoScrollView.Part.MoveNote(note, () => { note.Pos.Set(endTick); note.Dur.Set(noteEnd - endTick); });
+            }
+            if (remove != null)
+            {
+                foreach (var note in remove)
+                    PianoScrollView.Part.RemoveNote(note);
+            }
             PianoScrollView.Part.EndMergeDirty();
         }
 
