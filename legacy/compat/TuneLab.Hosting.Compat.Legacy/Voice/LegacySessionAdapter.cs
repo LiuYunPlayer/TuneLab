@@ -426,6 +426,15 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             if (kv.Key is not SnapshotNoteView view)
                 continue;
 
+            // 延音符回显抑制：老模型严格不支持音素跨 note、不特殊看待延音符——老插件对延音符只能
+            // 回传占位音素来适配（占位符号从无宿主约定，各引擎自便，不可按符号识别）。新模型延音符
+            // 不承载音素，乘客判定（HasPhonemeContent）见到回显就不再把它当乘客——前 note 元音不铺过
+            // melisma、延音符上还多出占位块。故对生效延音符（快照 IsContinuation，宿主权威判定）无条件
+            // 丢弃回显：乘客成立、前元音铺过，与老引擎自行延续元音的音频一致。孤儿延音符
+            // （IsContinuation=false，断链）不抑制，回显如实呈现。
+            if (view.IsContinuation)
+                continue;
+
             var list = new List<VVoice.SynthesizedPhoneme>();
             foreach (var phoneme in kv.Value)
             {

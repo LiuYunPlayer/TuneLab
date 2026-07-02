@@ -86,6 +86,8 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public string Lyric => mNote.Lyric;
     public LProp.PropertyObject Properties { get; }
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; private set; } = [];
+    // 生效延续标志透传（宿主权威判定，快照冻结值）：产物落账用它识别延音符、抑制占位回显。
+    public bool IsContinuation => mNote.IsContinuation;
 
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
         IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins,
