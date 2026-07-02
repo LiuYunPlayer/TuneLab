@@ -101,4 +101,16 @@
 		</ItemGroup>
 		<Copy SourceFiles="@(LegacyCompatBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
 	</Target>
+
+	<!-- publish 只收集 ResolvedFileToPublish 清单，CopyLegacyCompat 散拷进 OutDir 的文件不会被带走，
+	     须另行注入清单，否则安装包缺兼容层、legacy 插件全部 skipped。 -->
+	<Target Name="PublishLegacyCompat" AfterTargets="ComputeResolvedFilesToPublishList" DependsOnTargets="BuildLegacyCompat">
+		<ItemGroup>
+			<LegacyCompatPublishBinary Include="$(LegacyCompatOutputDir)*.dll" />
+			<ResolvedFileToPublish Include="@(LegacyCompatPublishBinary)">
+				<RelativePath>%(LegacyCompatPublishBinary.Filename)%(LegacyCompatPublishBinary.Extension)</RelativePath>
+				<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+			</ResolvedFileToPublish>
+		</ItemGroup>
+	</Target>
 </Project>
