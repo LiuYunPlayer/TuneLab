@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
@@ -33,6 +34,8 @@ internal class FunctionBar : LayerPanel
     {
         INotifiableProperty<PianoTool> PianoTool { get; }
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
+        IPlayhead Playhead { get; }
+        IHolder<IProject> ProjectHolder { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -82,6 +85,41 @@ internal class FunctionBar : LayerPanel
                 SetupToolTip(gotoEndButton, "Go to End".Tr(this));
                 gotoEndButton.Clicked += () => { GotoEndAsked?.Invoke(); };
                 audioControlPanel.Children.Add(gotoEndButton);
+
+                // 时间码：播放头位置的绝对时间。tick→秒依赖 tempo，故除播放头移动外还需跟 tempo 修改与工程切换刷新。
+                // 毫秒段单独小号浅色，与时分秒拉开主次。
+                var timecodeMainRun = new Run() { FontSize = 16 };
+                var timecodeMsRun = new Run() { FontSize = 12, Foreground = Style.WHITE.Opacity(0.4).ToBrush() };
+                var timecodeLabel = new TextBlock()
+                {
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    FontFamily = Assets.NotoMono,
+                    Foreground = Style.TEXT_NORMAL.ToBrush(),
+                    Inlines = new InlineCollection() { timecodeMainRun, timecodeMsRun },
+                };
+                void UpdateTimecode()
+                {
+                    var project = mDependency.ProjectHolder.Value;
+                    double seconds = project == null ? 0 : project.TempoManager.GetTime(mDependency.Playhead.Pos);
+                    var time = TimeSpan.FromSeconds(Math.Max(0, seconds));
+                    timecodeMainRun.Text = time.ToString(@"hh\:mm\:ss");
+                    timecodeMsRun.Text = time.ToString(@"\.fff");
+                }
+                mDependency.Playhead.PosChanged.Subscribe(UpdateTimecode, s);
+                mDependency.ProjectHolder.Modified.Subscribe(UpdateTimecode, s);
+                mDependency.ProjectHolder.When(p => p.TempoManager.Modified).Subscribe(UpdateTimecode, s);
+                UpdateTimecode();
+                var timecodeBorder = new Border()
+                {
+                    Child = timecodeLabel,
+                    Background = Style.DARK.ToBrush(),
+                    BorderBrush = Style.LINE.ToBrush(),
+                    BorderThickness = new(1),
+                    CornerRadius = new(4),
+                    Padding = new(12, 7),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                };
+                audioControlPanel.Children.Add(timecodeBorder);
             }
             dockPanel.AddDock(audioControlPanel, Dock.Left);
 
@@ -152,6 +190,11 @@ internal class FunctionBar : LayerPanel
         Background = Style.BACK.ToBrush();
     }
 
+    ~FunctionBar()
+    {
+        s.DisposeAll();
+    }
+
     class Mover : MovableComponent
     {
         public override void Render(DrawingContext context)
@@ -161,6 +204,8 @@ internal class FunctionBar : LayerPanel
     }
 
     readonly ActionEvent<QuantizationBase, QuantizationDivision> mQuantizationChanged = new();
+
+    readonly DisposableManager s = new();
 
     readonly IDependency mDependency;
 }
