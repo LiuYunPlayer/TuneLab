@@ -28,6 +28,8 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     public TrackVerticalAxis TrackVerticalAxis => mTrackVerticalAxis;
     public IPlayhead Playhead => mDependency.Playhead;
     public IHolder<IPart> EditingPart => mDependency.EditingPart;
+    public TickAxis PianoTickAxis => mDependency.PianoTickAxis;
+    public PitchAxis PianoPitchAxis => mDependency.PianoPitchAxis;
     public IProject? Project => ProjectHolder.Value;
     public TrackScrollView TrackScrollView => mTrackScrollView;
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
@@ -37,6 +39,8 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         IHolder<IProject> ProjectHolder { get; }
         IPlayhead Playhead { get; }
         IHolder<IPart> EditingPart { get; }
+        TickAxis PianoTickAxis { get; }
+        PitchAxis PianoPitchAxis { get; }
         void SwitchEditingPart(IPart? part);
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }

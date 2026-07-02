@@ -231,6 +231,28 @@ internal partial class TrackScrollView
             // 钳到视野内：横向锚到 part 右缘与视口右缘的较小者，故 part 滑出右侧时图标仍贴在视口右沿可见。
             if (isEditingPart)
             {
+                // 钢琴窗视野白框：横向 = 钢琴窗可见 tick 区间；纵向 = 可见音高区间按缩略图同一套映射
+                // （contentRect.Y + (maxPitch + 1 - pitch) * pitchHeight，与上方画 note 的式子一致）换算，均钳进 part。
+                // 与“选中”的 2px 白色内描边区分：此框 1px 半透明，且随钢琴窗滚动/缩放实时移动。
+                double viewportLeft = Math.Max(view.TickAxis.Tick2X(view.PianoTickAxis.MinVisibleTick), left);
+                double viewportRight = Math.Min(view.TickAxis.Tick2X(view.PianoTickAxis.MaxVisibleTick), right);
+                double viewportTop = titleRect.Bottom;   // 上界钳到标题栏下沿，白框不入侵标题栏
+                double viewportBottom = bottom;
+                if (part is MidiPart editingMidiPart && !editingMidiPart.Notes.IsEmpty())
+                {
+                    var (minPitch, maxPitch) = editingMidiPart.PitchRange();
+                    double pitchHeight = Math.Min(contentRect.Height / (maxPitch - minPitch + 1), 4);
+                    double PitchToThumbY(double pitch) => contentRect.Y + (maxPitch + 1 - pitch) * pitchHeight;
+                    viewportTop = Math.Max(PitchToThumbY(view.PianoPitchAxis.MaxVisiblePitch), titleRect.Bottom);
+                    viewportBottom = Math.Min(PitchToThumbY(view.PianoPitchAxis.MinVisiblePitch), bottom);
+                }
+                if (viewportRight > viewportLeft && viewportBottom > viewportTop)
+                {
+                    const double viewportLineWidth = 1;
+                    var viewportRect = new Rect(viewportLeft, viewportTop, viewportRight - viewportLeft, viewportBottom - viewportTop);
+                    context.DrawRectangle(null, new Pen(Style.WHITE.Opacity(0.7).ToBrush(), viewportLineWidth), viewportRect.Inflate(-viewportLineWidth / 2));
+                }
+
                 const double iconSize = 14;
                 const double margin = 4;
                 double centerX, centerY = top + 8;   // 标题栏(16px)垂直居中

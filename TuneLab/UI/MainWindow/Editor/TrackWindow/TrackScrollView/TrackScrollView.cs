@@ -34,6 +34,8 @@ internal partial class TrackScrollView : View
     public interface IDependency
     {
         TickAxis TickAxis { get; }
+        TickAxis PianoTickAxis { get; }
+        PitchAxis PianoPitchAxis { get; }
         TrackVerticalAxis TrackVerticalAxis { get; }
         IQuantization Quantization { get; }
         IHolder<IProject> ProjectHolder { get; }
@@ -85,6 +87,8 @@ internal partial class TrackScrollView : View
         Quantization.QuantizationChanged += InvalidateVisual;
         TickAxis.AxisChanged += Update;
         TrackVerticalAxis.AxisChanged += Update;
+        PianoTickAxis.AxisChanged += InvalidateVisual;   // 钢琴窗滚动/缩放 → 编辑 part 上的视野白框跟随
+        PianoPitchAxis.AxisChanged += InvalidateVisual;
 
         AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -100,6 +104,8 @@ internal partial class TrackScrollView : View
         Quantization.QuantizationChanged -= InvalidateVisual;
         TickAxis.AxisChanged -= Update;
         TrackVerticalAxis.AxisChanged -= Update;
+        PianoTickAxis.AxisChanged -= InvalidateVisual;
+        PianoPitchAxis.AxisChanged -= InvalidateVisual;
     }
 
     // —— 合成中流光：扫描是否有 part 正在合成，驱动一个轻量定时器并算相位；PartItem 画脏区间时取用 SynthesisShimmerPhase。 —— //
@@ -677,6 +683,8 @@ internal partial class TrackScrollView : View
     readonly TextInput mNameInput;
 
     TickAxis TickAxis => mDependency.TickAxis;
+    TickAxis PianoTickAxis => mDependency.PianoTickAxis;
+    PitchAxis PianoPitchAxis => mDependency.PianoPitchAxis;
     TrackVerticalAxis TrackVerticalAxis => mDependency.TrackVerticalAxis;
     IQuantization Quantization => mDependency.Quantization;
     IProject? Project => mDependency.ProjectHolder.Value;

@@ -49,6 +49,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IPlayhead Playhead => mPlayhead;
     public IHolder<IProject> ProjectHolder => mDocument.ProjectHolder;
     public IHolder<IPart> EditingPart => mPianoWindow.PartHolder;
+    public TickAxis PianoTickAxis => mPianoWindow.TickAxis;
+    public PitchAxis PianoPitchAxis => mPianoWindow.PitchAxis;
     public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(UI.PianoTool.Note);
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; } = new NotifiableProperty<PlayScrollTarget>(UI.PlayScrollTarget.None);
     public Editor()
