@@ -72,6 +72,8 @@ internal sealed class LiveNoteView(
 }
 
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
+// 钉死音素时序在 CreateChain 里对整链做一次联合布局（与宿主显示同一套 PhonemeLayout 跨 note 去重叠），
+// 老引擎收到的长度位置 == 用户看到的布局——老版本 TuneLab 同样是宿主侧算好长度再传引擎。
 internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 {
     public VVoice.IVoiceSynthesisNote Origin { get; }
@@ -83,10 +85,11 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public int Pitch => mNote.Pitch;
     public string Lyric => mNote.Lyric;
     public LProp.PropertyObject Properties { get; }
-    public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; }
+    public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; private set; } = [];
 
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
-        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins)
+        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins,
+        Func<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>?>? echoPhonemes = null)
     {
         var views = new SnapshotNoteView[notes.Count];
         for (int i = 0; i < notes.Count; i++)
@@ -97,6 +100,41 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         {
             views[i].Next = views[i + 1];
             views[i + 1].Last = views[i];
+        }
+
+        // —— 整链联合布局：钉死 note 用钉死描述符；未钉死 note 以上次回显作推挤上下文（宿主显示同样
+        // 拿合成音素当去重叠参与方），但仍喂空列表给老引擎——音素由它自行预测，回显只影响邻居的挤压。
+        // 锚点 = [note 头, 有效末]，与显示同口径。piece 边界外的邻居看不见——恰与老语义一致（老 INote
+        // 的 Start/EndPhonemeRatio 用 Last/NextInSegment，本就是 segment 内的）。
+        // 不相接不推挤（空隙两侧互不影响）是新模型的期望语义，合成照此执行、不复刻老版跨空隙顶推：
+        // 空隙处 lead 伸入前 note 的重叠原样交给老引擎（与显示画的一致）。知情差异：乘客 melisma 的
+        // FillEnd 前向铺末不做（"-" note 会原样喂给老引擎、由其自行延续元音）。
+        var nodes = new PhonemeLayoutNote[views.Length];
+        var pinned = new IReadOnlyList<VVoice.SynthesizedPhoneme>?[views.Length];
+        for (int i = 0; i < views.Length; i++)
+        {
+            IReadOnlyList<VVoice.SynthesizedPhoneme> descriptors;
+            if (notes[i].Phonemes.Count > 0)
+            {
+                // 快照音素几何字段平铺 + per-phoneme 属性，V1 老引擎不需要属性——只取几何。
+                descriptors = notes[i].Phonemes.Select(static p => new VVoice.SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight, IsLead = p.IsLead }).ToArray();
+                pinned[i] = descriptors;
+            }
+            else
+            {
+                descriptors = echoPhonemes?.Invoke(origins[i]) ?? [];
+            }
+            nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, Phonemes = descriptors };
+        }
+        var timings = PhonemeLayout.Resolve(nodes);
+        for (int i = 0; i < views.Length; i++)
+        {
+            if (pinned[i] is not { } descriptors)
+                continue;   // 未钉死：喂空列表，回显仅作布局上下文
+            var list = new LVoice.SynthesizedPhoneme[descriptors.Count];
+            for (int k = 0; k < descriptors.Count; k++)
+                list[k] = new LVoice.SynthesizedPhoneme { Symbol = descriptors[k].Symbol, StartTime = timings[i][k].Start, EndTime = timings[i][k].End };
+            views[i].Phonemes = list;
         }
         return views;
     }
@@ -110,11 +148,6 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         // 取全局下一 note 起点冻结成边界——用全局 Next 而非 piece 内链尾，跨 piece 重叠也一致。
         EndTime = Math.Min(note.EndTime, origin.Next is { } next ? next.StartTime.Value : double.PositiveInfinity);
         Properties = Conversion.PropertyConvert.ToLegacy(note.Properties);
-        // 时长累积布局；末音素尾用有效末（EndTime，单声部钳位）；核起点恒在音符头。
-        // 快照音素几何字段平铺 + per-phoneme 属性，V1 老引擎不需要属性——只取几何重建 SynthesizedPhoneme。
-        Phonemes = LegacyNoteConvert.ToLegacyPinnedPhonemes(
-            note.Phonemes.Select(static p => new VVoice.SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight, IsLead = p.IsLead }).ToArray(),
-            StartTime, EndTime);
     }
 
     readonly VVoice.VoiceSynthesisNoteSnapshot mNote;
@@ -123,9 +156,10 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 internal static class LegacyNoteConvert
 {
     // V1 音素描述符（时长 + 权重 + IsLead，列表非空=整 note 钉死）→ 老接口的绝对秒列表。
-    // 新 SDK 音素存「时长 + 权重 + IsLead」、位置由布局派生（去重叠 / 跨 note 压缩归全局布局 PhonemeLayout）；compat 侧按
-    // 「本 note 时长累积布局」解析即可——单声部旧引擎按收到的钉死时序处理，跨 note 辅音簇压缩属新 SDK 精修、对老引擎不必要。
-    //   · 前置分界线（核起点）= noteStart；IsLead 从分界线往左累积；核 + 后辅音往右、核(w>0)填充到 noteEndTime（有效末口径）。
+    // 直接调 SDK 共享布局 PhonemeLayout（单 note 区间调用），与宿主显示同一套分配数学——全 w=0
+    // 等比填满、乘法弹性模型、二级压缩全部一致，且随宿主布局算法演进不漂移。
+    // 仅剩 LiveNoteView（Segment 分片输入）在用：老 Segment 只看时间间隙分片、不消费音素精确时序，
+    // 单 note 布局足够；合成数据的钉死时序走 SnapshotNoteView.CreateChain 的整链联合布局（含跨 note 去重叠）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
         IReadOnlyList<VVoice.SynthesizedPhoneme> phonemes, double noteStartTime, double noteEndTime)
     {
@@ -133,34 +167,16 @@ internal static class LegacyNoteConvert
         if (n == 0)
             return [];
 
-        var pos = new double[n + 1];
-        double leadBoundary = noteStartTime;
-        int L = 0;
-        while (L < n && phonemes[L].IsLead) L++;
-
-        pos[L] = leadBoundary;
-        for (int k = L - 1; k >= 0; k--) pos[k] = pos[k + 1] - Math.Max(0, phonemes[k].Duration);
-
-        double rigidAfter = 0, elasticWeight = 0;
-        for (int k = L; k < n; k++)
+        var timings = PhonemeLayout.Resolve([new PhonemeLayoutNote
         {
-            if (phonemes[k].StretchWeight > 0) elasticWeight += phonemes[k].StretchWeight;
-            else rigidAfter += Math.Max(0, phonemes[k].Duration);
-        }
-        double elasticSpace = Math.Max(0, (noteEndTime - leadBoundary) - rigidAfter);
-        double p = leadBoundary;
-        for (int k = L; k < n; k++)
-        {
-            double w = phonemes[k].StretchWeight;
-            double len = w > 0 ? (elasticWeight > 0 ? elasticSpace * (w / elasticWeight) : 0) : Math.Max(0, phonemes[k].Duration);
-            pos[k] = p;
-            p += len;
-            pos[k + 1] = p;
-        }
+            FillStart = noteStartTime,
+            FillEnd = noteEndTime,
+            Phonemes = phonemes,
+        }])[0];
 
         var result = new List<LVoice.SynthesizedPhoneme>(n);
         for (int k = 0; k < n; k++)
-            result.Add(new LVoice.SynthesizedPhoneme { Symbol = phonemes[k].Symbol, StartTime = pos[k], EndTime = pos[k + 1] });
+            result.Add(new LVoice.SynthesizedPhoneme { Symbol = phonemes[k].Symbol, StartTime = timings[k].Start, EndTime = timings[k].End });
         return result;
     }
 }

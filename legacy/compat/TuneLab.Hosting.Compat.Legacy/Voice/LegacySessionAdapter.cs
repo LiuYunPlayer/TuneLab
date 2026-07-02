@@ -95,7 +95,11 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             piece.Notes,
             piece.Notes.First().StartTime.Value - windowMarginSeconds,
             piece.Notes.Last().EndTime.Value + windowMarginSeconds);
-        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes);
+        // 整链联合布局的推挤上下文：未钉死邻居用上次回显——与宿主显示同源
+        // （显示读的 note.SynthesizedPhonemes 即本会话上次交付的回显）。
+        var echo = SynthesizedPhonemes;
+        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes,
+            origin => echo.TryGetValue(origin, out var list) ? list : null);
         var data = new SnapshotSynthesisData(snapshot, views);
 
         LVoice.ISynthesisTask task;
