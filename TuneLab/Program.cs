@@ -26,6 +26,12 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // 开发环境（VS Code 集成终端/agent shell 等）会给子进程注入 NoDefaultCurrentDirectoryInExePath=1，
+        // 置位后 cmd 不再从工作目录解析可执行文件，会破坏经 cmd 相对路径拉起辅助进程的插件
+        // （子进程环境继承自宿主）。清掉它，让任意启动方式下插件子进程环境与桌面双击启动一致；
+        // 只影响本进程及子进程，不改系统设置。
+        Environment.SetEnvironmentVariable("NoDefaultCurrentDirectoryInExePath", null);
+
         // init logger
         Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
         Log.Info("Version: " + AppInfo.Version);
