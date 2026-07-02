@@ -152,13 +152,15 @@ internal partial class PianoScrollView
                     break;
                 }
 
-                // Shift + 主键拖 = 画 DAW 式范围选区（tick 带，常驻、任意工具零切换；取代旧 Select 工具）。先于工具逻辑拦截：
-                // 命中 note / 波形与否一律进此分支——范围与对象框选正交。Alt 透传给 op 作免吸附。
+                // Shift + 主键拖 = 画 DAW 式范围选区（tick 带，常驻、任意工具零切换；取代旧 Select 工具）。先于工具逻辑拦截。
+                // 唯一例外：Note 工具下按在 note 本体上 = 约束移动（锁 pos 只变音高），放行给工具逻辑——Shift 落在对象上是
+                // 约束对象操作、落在空处才是造区；选区是 1-D tick 带、y 无关，起笔点用 note 上下方空白/波形带即可，不损失。
+                // 其余命中（波形、note 边缘、其他工具）一律进此分支——范围与对象框选正交。Alt 透传给 op 作免吸附。
                 // 未拖(点击)不在此清，交给 OnMouseUp 的点击阈值统一判定（mPrimaryDownPos 记于此）。
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                 {
                     mPrimaryDownPos = e.Position;
-                    if ((e.KeyModifiers & ModifierKeys.Shift) != 0)
+                    if ((e.KeyModifiers & ModifierKeys.Shift) != 0 && !IsShiftNoteMove(item))
                     {
                         if (Part != null)   // 无 part 时不建区（范围对空窗无意义）；Shift+主键仍吞掉，不落到工具动作
                             mSelectionOperation.Down(e.Position.X, alt);
@@ -743,12 +745,12 @@ internal partial class PianoScrollView
                 break;
             default:
                 UpdateSynthesisHover(e.Position);   // 合成状态条 hover 延时计时（进区域起表/划走取消）
-                if (shift)
+                var item = ItemAt(e.Position);
+                if (shift && !IsShiftNoteMove(item))
                 {
-                    Cursor = new Cursor(StandardCursorType.Ibeam);   // Shift = 画范围选区模式：光标即时提示
+                    Cursor = new Cursor(StandardCursorType.Ibeam);   // Shift = 画范围选区模式：光标即时提示（note 本体上是约束移动，不提示）
                     break;
                 }
-                var item = ItemAt(e.Position);
                 if (item is WaveformPhonemeResizeItem || item is WaveformNoteStartResizeItem || item is WaveformNoteEndResizeItem)
                 {
                     Cursor = new Cursor(StandardCursorType.SizeWestEast);
@@ -905,6 +907,10 @@ internal partial class PianoScrollView
             mMiddleDragOperation.Up();
     }
 
+    // Shift+主键在此落点是否该走"约束移动"（拖动中锁 pos 只变音高）而非画范围选区：Note 工具 + note 本体。
+    // 边缘缩放/波形带/其他工具不在内——那些场景 Shift 无移动语义，保持造区。光标提示与按下分流共用此判定。
+    bool IsShiftNoteMove(Item? item) => mDependency.PianoTool.Value == PianoTool.Note && item is NoteItem;
+
     protected override void OnKeyDownEvent(KeyEventArgs e)
     {
         switch (mState)
@@ -952,10 +958,10 @@ internal partial class PianoScrollView
                 }
                 break;
             case State.None:
-                // Shift 按下即进"画范围选区"模式 → 光标变 I-beam（不依赖鼠标移动即时反馈）。
+                // Shift 按下即进"画范围选区"模式 → 光标变 I-beam（不依赖鼠标移动即时反馈）；悬停 note 本体时是约束移动，不变。
                 if ((e.Key is Key.LeftShift or Key.RightShift) && Part != null)
                 {
-                    Cursor = new Cursor(StandardCursorType.Ibeam);
+                    Cursor = IsShiftNoteMove(ItemAt(MousePosition)) ? null : new Cursor(StandardCursorType.Ibeam);
                     e.Handled = true;
                 }
                 break;
