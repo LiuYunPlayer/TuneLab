@@ -71,7 +71,7 @@ internal partial class AutomationRenderer : View
             Width = AnchorValueInputWidth,
             Height = AnchorValueInputHeight,
             Padding = new(0),
-            FontFamily = Assets.NotoMono,
+            FontFamily = Assets.SegoeUI,
             FontSize = 12,
             CornerRadius = new(4),
             HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,

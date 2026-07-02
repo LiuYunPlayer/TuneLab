@@ -55,7 +55,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
 
         // 宽度按量程最大桁数固定（见 RefreshLabelWidth）：拖动中桁数变化不改宽，避免连带 slider 长度
         // 抖动、thumb 在光标下位移。MinWidth 仅作 SetRange 前的初始保底。
-        mEditableLabel = new() { Height = 24, MinWidth = 48, Padding = new(8, 0), FontFamily = Assets.NotoMono, FontSize = 12, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
+        mEditableLabel = new() { Height = 24, MinWidth = 48, Padding = new(8, 0), FontFamily = Assets.SegoeUI, FontSize = 12, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
         this.AddDock(mEditableLabel, Dock.Right);
 
         this.AddDock(mSlider);

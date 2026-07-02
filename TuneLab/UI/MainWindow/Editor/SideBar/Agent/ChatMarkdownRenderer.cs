@@ -24,7 +24,8 @@ namespace TuneLab.UI;
 internal static class ChatMarkdownRenderer
 {
     // 等宽字体回退链：用裸家名（缺失会优雅回退默认，不像 avares 资源缺失那样在 TextLayout 里硬抛）。
-    // 注意 Assets/Fonts 目录为空、avares://.../#NotoMono 取不到字形，绝不能用于 SelectableTextBlock.FontFamily。
+    // 内置 Assets.NotoMono 可用（真身 Assets/Font#Noto Mono），但仅 Regular 字形；此处 Markdown 内联会继承
+    // Bold/Italic，为避免字形缺失仍走系统链。
     static readonly FontFamily Mono = new("Consolas, Menlo, Courier New");
 
     // 正文字体：系统默认为主，追加各平台彩色 emoji 字体作回退（兜底单码位 emoji）。

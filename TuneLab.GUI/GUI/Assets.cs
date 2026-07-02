@@ -65,5 +65,12 @@ internal static class Assets
     public static SvgIcon Dice = new("<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3\" stroke=\"white\" stroke-width=\"2\"/>\n<circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"15.5\" cy=\"8.5\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"12\" cy=\"12\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"8.5\" cy=\"15.5\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"15.5\" cy=\"15.5\" r=\"1.5\" fill=\"white\"/>\n</svg>");
     public static SvgIcon None = new("");
 
-    public static FontFamily NotoMono = new FontFamily("NotoMono");
+    // 内置等宽字体，真身在 TuneLab 主工程 Assets/Font/NotoMono-Regular-1.ttf（ttf 内部家族名带空格：Noto Mono）。
+    // 只有 Regular 字形，使用处勿继承 Bold/Italic；无中文字形，勿用于含可翻译文本的字符串。
+    public static FontFamily NotoMono = new FontFamily("avares://TuneLab/Assets/Font#Noto Mono");
+
+    // 数值显示/输入的默认观感字体：显式 Segoe UI（平台默认，表格数字同宽）。历史上这些处写裸名 "NotoMono"
+    // 解析失败回退到它，观感已被认可为基准。勿改成不设 FontFamily——那会继承 WithInterFont 注入的
+    // 应用默认 Inter（数字比例宽度）；非 Windows 缺 Segoe UI 时回退平台默认，与旧行为一致。
+    public static FontFamily SegoeUI = new FontFamily("Segoe UI");
 }

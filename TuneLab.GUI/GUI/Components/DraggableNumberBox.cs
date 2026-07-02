@@ -89,7 +89,7 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
             return;
 
         var formatted = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface(Assets.NotoMono), 12, mTextForeground);
+            new Typeface(Assets.SegoeUI), 12, mTextForeground);
         context.DrawText(formatted, new((Bounds.Width - formatted.Width) / 2, (Bounds.Height - formatted.Height) / 2));
     }
 

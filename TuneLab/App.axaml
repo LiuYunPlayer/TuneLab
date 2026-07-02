@@ -10,10 +10,6 @@
 		<StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml"/>
 		<StyleInclude Source="avares://TuneLab/Assets/GlobalStyle.axaml"/>
     </Application.Styles>
-	<Application.Resources>
-		<FontFamily x:Key="NotoMono">avares://TuneLab/Assets/Fonts#NotoMono</FontFamily>
-	</Application.Resources>
-
     <NativeMenu.Menu>
         <NativeMenu>
             <!-- <NativeMenuItem Header="About" /> -->
