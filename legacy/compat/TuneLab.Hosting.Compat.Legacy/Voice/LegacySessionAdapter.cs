@@ -431,6 +431,9 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
                     Duration = phoneme.EndTime - phoneme.StartTime,   // 老引擎报绝对位置，转标称时长
                     // 老引擎无伸缩权重概念：w = 时长，退化为均匀缩放（与旧 preview 行为一致）。
                     StretchWeight = phoneme.EndTime - phoneme.StartTime,
+                    // 老引擎无前置概念，与老工程导入同口径按时间判定：区间中点落在音符头之前 → 前置辅音。
+                    // 老结果为绝对秒，分界线 = 本 note 起点（起点无单声部钳位，直接用快照值）。
+                    IsLead = phoneme.StartTime + phoneme.EndTime < 2 * view.StartTime,
                 });
             }
             if (list.Count > 0)
