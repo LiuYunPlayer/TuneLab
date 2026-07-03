@@ -2241,6 +2241,9 @@ internal partial class PianoScrollView
             double start = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalStartPos());
             mOffset = x - start;
             mAmplitudeDownPitch = null;
+            // 拖拽中边界量化吸附会让鼠标落在颤音矩形外，raycast 悬浮判定时有时无 → 悬浮层文字频闪；
+            // 故与振幅/频率等操作一致，拖拽期间钉住操作项保持常显。
+            PianoScrollView.mOperatingVibratoItem = mItem = new VibratoItem(PianoScrollView) { Vibrato = vibrato };
         }
 
         // 创建接拖拽用：横向仍是起点微调，纵向以按下点为基准调振幅。
@@ -2263,6 +2266,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.DiscardTo(mHead);
+            PianoScrollView.mOperatingVibratoItem = mItem;
             double start = x - mOffset;
             double startTick = PianoScrollView.TickAxis.X2Tick(start);
             if (!alt) startTick = Math.Min(PianoScrollView.GetQuantizedTick(startTick), PianoScrollView.GetQuantizedTick(mVibrato.GlobalEndPos()) - PianoScrollView.QuantizedCellTicks());
@@ -2270,6 +2274,8 @@ internal partial class PianoScrollView
             if (startTick >= mVibrato.EndPos())
             {
                 PianoScrollView.Part.RemoveVibrato(mVibrato);
+                // 颤音被拖没（取消式删除）期间解钉，避免悬浮层文字悬空；下帧 DiscardTo 复活后再钉回。
+                PianoScrollView.mOperatingVibratoItem = null;
                 return;
             }
 
@@ -2311,11 +2317,14 @@ internal partial class PianoScrollView
             }
             mVibrato = null;
             mAmplitudeDownPitch = null;
+            mItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         double mOffset;
         double? mAmplitudeDownPitch;
         double mBaseAmplitude;
+        VibratoItem? mItem;
         Vibrato? mVibrato;
         Head mHead;
     }
@@ -2335,6 +2344,8 @@ internal partial class PianoScrollView
             mVibrato = vibrato;
             double end = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalEndPos());
             mOffset = x - end;
+            // 同起点拖拽：量化吸附下鼠标可能在颤音矩形外，钉住操作项防悬浮层文字频闪。
+            PianoScrollView.mOperatingVibratoItem = mItem = new VibratoItem(PianoScrollView) { Vibrato = vibrato };
         }
 
         public void Move(double x, bool alt)
@@ -2346,6 +2357,7 @@ internal partial class PianoScrollView
                 return;
 
             PianoScrollView.Part.DiscardTo(mHead);
+            PianoScrollView.mOperatingVibratoItem = mItem;
             double end = x - mOffset;
             double endTick = PianoScrollView.TickAxis.X2Tick(end);
             if (!alt) endTick = Math.Max(PianoScrollView.GetQuantizedTick(endTick), PianoScrollView.GetQuantizedTick(mVibrato.GlobalStartPos()) + PianoScrollView.QuantizedCellTicks());
@@ -2353,6 +2365,7 @@ internal partial class PianoScrollView
             if (endTick <= mVibrato.StartPos())
             {
                 PianoScrollView.Part.RemoveVibrato(mVibrato);
+                PianoScrollView.mOperatingVibratoItem = null;
                 return;
             }
 
@@ -2382,9 +2395,12 @@ internal partial class PianoScrollView
                 PianoScrollView.Part.Commit();
             }
             mVibrato = null;
+            mItem = null;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         double mOffset;
+        VibratoItem? mItem;
         Vibrato? mVibrato;
         Head mHead;
     }
@@ -2760,6 +2776,8 @@ internal partial class PianoScrollView
             mVibrato = vibrato;
             mDownPos = mVibrato.GlobalStartPos();
             mTickOffset = PianoScrollView.TickAxis.X2Tick(point.X) - mDownPos;
+            // 量化吸附下鼠标可能移出颤音矩形（窄颤音尤甚），钉住操作项防悬浮层文字频闪。
+            PianoScrollView.mOperatingVibratoItem = new VibratoItem(PianoScrollView) { Vibrato = vibrato };
         }
 
         public void Move(Avalonia.Point point, bool alt)
@@ -2825,6 +2843,7 @@ internal partial class PianoScrollView
             mVibrato = null;
             mMoveVibratos = null;
             mLastPosOffset = 0;
+            PianoScrollView.mOperatingVibratoItem = null;
         }
 
         Vibrato? mVibrato;
