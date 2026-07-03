@@ -230,7 +230,7 @@ internal sealed class EffectGraph : IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error(string.Format("Effect {0} process failed: {1}", node.Effect.Type, ex));
+            Log.ErrorAttributed(string.Format("Effect {0} process failed", node.Effect.Type), ex);
             errored = true;
         }
         finally
@@ -333,7 +333,7 @@ internal sealed class EffectGraph : IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error(string.Format("Effect {0} create processor failed: {1}", effect.Type, ex));
+            Log.ErrorAttributed(string.Format("Effect {0} create processor failed", effect.Type), ex);
         }
         node.ProcessingRequestedHandler = () => OnProcessingRequested(node);
         if (node.Processor != null)
@@ -540,7 +540,7 @@ internal sealed class EffectGraph : IDisposable
                 if (ProcessingRequestedHandler != null)
                     Processor.ProcessingRequested.Unsubscribe(ProcessingRequestedHandler);
                 try { Processor.Dispose(); }
-                catch (Exception ex) { Log.Error("Effect processor dispose failed: " + ex); }
+                catch (Exception ex) { Log.ErrorAttributed("Effect processor dispose failed", ex); }
                 Processor = null;
             }
             Context.Dispose();
@@ -729,7 +729,7 @@ internal sealed class EffectGraph : IDisposable
         internal void RaiseCommitted()
         {
             try { mCommitted.Invoke(); }
-            catch (Exception ex) { Log.Error("Effect context committed handler threw: " + ex); }
+            catch (Exception ex) { Log.ErrorAttributed("Effect context committed handler threw", ex); }
         }
 
         // 把已提交输出段同步成下游上游集（按各输出段 CommitVersion 重拷快照）。未提交的段不进下游。
@@ -840,7 +840,7 @@ internal sealed class EffectGraph : IDisposable
         internal void NotifyRangeModified(double startSecond, double endSecond)
         {
             try { mRangeModified.Invoke(startSecond, endSecond); }
-            catch (Exception ex) { Log.Error("Effect automation range handler threw: " + ex); }
+            catch (Exception ex) { Log.ErrorAttributed("Effect automation range handler threw", ex); }
         }
     }
 

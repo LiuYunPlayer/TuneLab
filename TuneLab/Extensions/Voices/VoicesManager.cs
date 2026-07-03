@@ -102,7 +102,7 @@ internal static class VoicesManager
             }
             catch (Exception ex)
             {
-                Log.Error(string.Format("Engine {0} create session failed: {1}", type, ex));
+                Log.ErrorAttributed(string.Format("Engine {0} create session failed", type), ex);
             }
         }
 
@@ -144,7 +144,7 @@ internal static class VoicesManager
         }
         catch (Exception ex)
         {
-            Log.Error(string.Format("Engine {0} declaration failed: {1}", type, ex));
+            Log.ErrorAttributed(string.Format("Engine {0} declaration failed", type), ex);
             return get(empty);
         }
     }
@@ -180,7 +180,7 @@ internal static class VoicesManager
         }
         catch (Exception ex)
         {
-            Log.Error(string.Format("Engine {0} init failed: {1}", type, ex));
+            Log.ErrorAttributed(string.Format("Engine {0} init failed", type), ex);
             return null;
         }
 

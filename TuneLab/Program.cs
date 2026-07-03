@@ -36,9 +36,19 @@ class Program
         Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
         Log.Info("Version: " + AppInfo.Version);
 
-        // 异步缓冲日志需在退出 / 崩溃时刷盘，否则丢失未落盘日志。崩溃时顺带记下异常。
+        // 异步缓冲日志需在退出 / 崩溃时刷盘，否则丢失未落盘日志。崩溃时顺带记下异常（自动归因到肇事插件）。
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Log.Shutdown();
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => { Log.Error("Unhandled exception: " + e.ExceptionObject); Log.Shutdown(); };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex)
+                Log.ErrorAttributed("Unhandled exception", ex);
+            else
+                Log.Error("Unhandled exception: " + e.ExceptionObject);
+            Log.Shutdown();
+        };
+
+        // 无人 await 的 Task 抛异常不会崩进程，异常会被 GC 静默吞掉——记下堆栈并标记已观察，避免无声丢失。
+        TaskScheduler.UnobservedTaskException += (_, e) => { Log.ErrorAttributed("Unobserved task exception", e.Exception); e.SetObserved(); };
 
         // check if other instance is running
         var lockFile = LockFile.Create(PathManager.LockFilePath);

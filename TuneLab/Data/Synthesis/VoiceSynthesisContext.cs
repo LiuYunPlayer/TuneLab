@@ -223,7 +223,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         }
         catch (Exception ex)
         {
-            Log.Error("Synthesis context handler threw: " + ex);
+            Log.ErrorAttributed("Synthesis context handler threw", ex);
         }
     }
 

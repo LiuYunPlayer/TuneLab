@@ -76,7 +76,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         }
         catch (Exception ex)
         {
-            Log.Error("Instrument GetNextSegment failed: " + ex);
+            Log.ErrorAttributed("Instrument GetNextSegment failed", ex);
             return null;
         }
     }
@@ -95,7 +95,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         }
         catch (Exception ex)
         {
-            Log.Error("Instrument SynthesizeNext threw: " + ex);
+            Log.ErrorAttributed("Instrument SynthesizeNext threw", ex);
         }
         finally
         {
@@ -165,7 +165,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         }
         catch (Exception ex)
         {
-            Log.Error("Instrument session dispose failed: " + ex);
+            Log.ErrorAttributed("Instrument session dispose failed", ex);
         }
         mCancellation.Dispose();
     }

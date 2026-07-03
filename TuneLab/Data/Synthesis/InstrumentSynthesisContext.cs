@@ -186,7 +186,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         }
         catch (Exception ex)
         {
-            Log.Error("Instrument synthesis context handler threw: " + ex);
+            Log.ErrorAttributed("Instrument synthesis context handler threw", ex);
         }
     }
 

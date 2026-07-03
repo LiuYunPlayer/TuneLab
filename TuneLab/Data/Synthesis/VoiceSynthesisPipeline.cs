@@ -90,7 +90,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         }
         catch (Exception ex)
         {
-            Log.Error("GetNextSegment failed: " + ex);
+            Log.ErrorAttributed("GetNextSegment failed", ex);
             return null;
         }
     }
@@ -113,7 +113,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         catch (Exception ex)
         {
             // 契约上取消/失败都正常返回；抛出即插件违约，宿主在调用边界 catch 兜底。
-            Log.Error("SynthesizeNext threw: " + ex);
+            Log.ErrorAttributed("SynthesizeNext threw", ex);
         }
         finally
         {
@@ -191,7 +191,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         }
         catch (Exception ex)
         {
-            Log.Error("Session dispose failed: " + ex);
+            Log.ErrorAttributed("Session dispose failed", ex);
         }
         mCancellation.Dispose();
     }
@@ -213,7 +213,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         }
         catch (Exception ex)
         {
-            Log.Error("Write back phonemes failed: " + ex);
+            Log.ErrorAttributed("Write back phonemes failed", ex);
         }
     }
 
