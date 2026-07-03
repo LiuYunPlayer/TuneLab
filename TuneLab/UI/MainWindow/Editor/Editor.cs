@@ -49,6 +49,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public IPlayhead Playhead => mPlayhead;
     public IHolder<IProject> ProjectHolder => mDocument.ProjectHolder;
     public IHolder<IPart> EditingPart => mPianoWindow.PartHolder;
+    public IHolder<IMidiPart> EditingPartHolder => mPianoWindow.PartHolder;
     public TickAxis PianoTickAxis => mPianoWindow.TickAxis;
     public PitchAxis PianoPitchAxis => mPianoWindow.PitchAxis;
     public INotifiableProperty<PianoTool> PianoTool { get; } = new NotifiableProperty<PianoTool>(UI.PianoTool.Note);
@@ -66,8 +67,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             PlayScrollTarget.Value = autoScrollTarget;
         }
 
-        mFunctionBar = new(this);
+        // 钢琴窗先于功能栏构造：FunctionBar 构造时即订阅 EditingPartHolder（颤音工具可用性）。
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
+        mFunctionBar = new(this);
         // agent 经此实时读取"当前编辑 part"（用户说"当前/这个 part"时解析序号）与当前量化（吸附网格）。
         mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
@@ -201,6 +203,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ProjectHolder.When(project => project.Tracks.ItemAdded).Subscribe(track => { if (mDetachedEditingPart != null && track.Parts.Contains(mDetachedEditingPart)) { SwitchEditingPart(mDetachedEditingPart); mDetachedEditingPart = null; } mExportSideBarContentProvider.RefreshTrackList(); });
         ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Name.Modified)).Subscribe(() => mExportSideBarContentProvider.RefreshTrackList());
         mPianoWindow.PartHolder.Modified.Subscribe(() => { mPianoWindow.IsVisible = mPianoWindow.Part != null; mNotePropertySideBarContentProvider.SetPart(mPianoWindow.Part); UpdatePartPanelTarget(); }, s);
+        // instrument 音源无颤音系统：编辑 part 切换 / 音源就地换种类时，颤音工具自动退回音符工具（工具栏按钮同步置灰，见 FunctionBar）。
+        void EnsurePianoToolAvailable() { if (PianoTool.Value == UI.PianoTool.Vibrato && mPianoWindow.Part?.SoundSource.Kind == SourceKind.Instrument) PianoTool.Value = UI.PianoTool.Note; }
+        mPianoWindow.PartHolder.Modified.Subscribe(EnsurePianoToolAvailable, s);
+        mPianoWindow.PartHolder.When(part => part.SoundSource.Modified).Subscribe(EnsurePianoToolAvailable);
 
         // Part 面板焦点感知驱动：焦点在编排区且有选中 part → 显示选中集；否则显示钢琴窗当前编辑 part。
         // GotFocus（冒泡、含已处理）记录最近活跃的编辑区；选中变化 / 编辑 part 变化 / 焦点变化都触发重算。
@@ -362,7 +368,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
         else if (e.ModifierKeys() == ModifierKeys.None && e.Key >= Key.D1 && e.Key <= Key.D6)
         {
-            mPianoWindow.PianoTool.Value = (PianoTool)(e.Key - Key.D1);
+            var tool = (PianoTool)(e.Key - Key.D1);
+            // instrument 音源无颤音系统：快捷键与工具栏同口径拦截。
+            if (tool != UI.PianoTool.Vibrato || mPianoWindow.Part?.SoundSource.Kind != SourceKind.Instrument)
+                mPianoWindow.PianoTool.Value = tool;
         }
         else
         {

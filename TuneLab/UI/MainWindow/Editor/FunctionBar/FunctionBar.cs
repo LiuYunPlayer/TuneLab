@@ -36,6 +36,7 @@ internal class FunctionBar : LayerPanel
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
         IPlayhead Playhead { get; }
         IHolder<IProject> ProjectHolder { get; }
+        IHolder<IMidiPart> EditingPartHolder { get; }
     }
 
     public FunctionBar(IDependency dependency)
@@ -158,7 +159,7 @@ internal class FunctionBar : LayerPanel
             var pianoToolPanel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
             {
                 int index = 0;
-                void AddButton(PianoTool tool, SvgIcon icon, string tipText)
+                Toggle AddButton(PianoTool tool, SvgIcon icon, string tipText)
                 {
                     index++;
                     var toggle = new Toggle() { Width = 36, Height = 36 }
@@ -174,12 +175,19 @@ internal class FunctionBar : LayerPanel
                     mDependency.PianoTool.Modified.Subscribe(OnPianoToolChanged);
                     pianoToolPanel.Children.Add(toggle);
                     OnPianoToolChanged();
+                    return toggle;
                 }
                 AddButton(PianoTool.Note, Assets.Pointer, "Note Tool".Tr(this));
                 AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Pen".Tr(this));
                 AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool".Tr(this));
                 AddButton(PianoTool.Lock, Assets.Brush, "Pitch Locking Brush".Tr(this));
-                AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool".Tr(this));
+                var vibratoToggle = AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool".Tr(this));
+                // instrument 音源无颤音系统：编辑 instrument part 时直接隐藏颤音工具按钮
+                //（快捷键拦截与自动退回音符工具在 Editor 侧做）。
+                void UpdateVibratoToolAvailable() => vibratoToggle.IsVisible = mDependency.EditingPartHolder.Value?.SoundSource.Kind != SourceKind.Instrument;
+                mDependency.EditingPartHolder.Modified.Subscribe(UpdateVibratoToolAvailable, s);
+                mDependency.EditingPartHolder.When(part => part.SoundSource.Modified).Subscribe(UpdateVibratoToolAvailable, s);
+                UpdateVibratoToolAvailable();
                 // 范围选区(tick 带)不再是工具：任意工具下 Shift+拖即画，零工具切换（见 PianoScrollView 的 SelectionOperation）。
             }
             dockPanel.AddDock(pianoToolPanel);
