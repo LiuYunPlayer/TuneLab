@@ -645,8 +645,8 @@ internal partial class PianoScrollView
                                         var vibrato = Part.CreateVibrato(preview);
                                         vibrato.Select();
                                         Part.InsertVibrato(vibrato);
-                                        // 接拖拽起点边界微调（照搬 note 双击创建并拖拽）：create + 拖拽同属一次操作、一次提交。
-                                        mVibratoStartResizeOperation.Down(TickAxis.Tick2X(vibrato.GlobalStartPos()), vibrato);
+                                        // 接拖拽起点边界微调（照搬 note 双击创建并拖拽）：create + 拖拽同属一次操作、一次提交；纵向可顺手调振幅。
+                                        mVibratoStartResizeOperation.DownForCreate(TickAxis.Tick2X(vibrato.GlobalStartPos()), e.Position.Y, vibrato);
                                     }
                                     else
                                     {
@@ -752,7 +752,7 @@ internal partial class PianoScrollView
                 mVibratoSelectOperation.Move(e.Position);
                 break;
             case State.VibratoStartResizing:
-                mVibratoStartResizeOperation.Move(e.Position.X, alt);
+                mVibratoStartResizeOperation.Move(e.Position.X, e.Position.Y, alt);
                 break;
             case State.VibratoEndResizing:
                 mVibratoEndResizeOperation.Move(e.Position.X, alt);
@@ -989,7 +989,7 @@ internal partial class PianoScrollView
             case State.VibratoStartResizing:
                 if (e.Key == Key.LeftAlt)
                 {
-                    mVibratoStartResizeOperation.Move(MousePosition.X, true);
+                    mVibratoStartResizeOperation.Move(MousePosition.X, MousePosition.Y, true);
                     e.Handled = true;
                 }
                 break;
@@ -1046,7 +1046,7 @@ internal partial class PianoScrollView
             case State.VibratoStartResizing:
                 if (e.Key == Key.LeftAlt)
                 {
-                    mVibratoStartResizeOperation.Move(MousePosition.X, false);
+                    mVibratoStartResizeOperation.Move(MousePosition.X, MousePosition.Y, false);
                     e.Handled = true;
                 }
                 break;
@@ -2240,9 +2240,21 @@ internal partial class PianoScrollView
             mVibrato = vibrato;
             double start = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalStartPos());
             mOffset = x - start;
+            mAmplitudeDownPitch = null;
         }
 
-        public void Move(double x, bool alt)
+        // 创建接拖拽用：横向仍是起点微调，纵向以按下点为基准调振幅。
+        public void DownForCreate(double x, double y, Vibrato vibrato)
+        {
+            Down(x, vibrato);
+            if (mVibrato == null)
+                return;
+
+            mAmplitudeDownPitch = PianoScrollView.PitchAxis.Y2Pitch(y);
+            mBaseAmplitude = mVibrato.Amplitude;
+        }
+
+        public void Move(double x, double y, bool alt)
         {
             if (mVibrato == null)
                 return;
@@ -2269,6 +2281,12 @@ internal partial class PianoScrollView
                 mVibrato.Dur.Set(mVibrato.Dur - offsetTick);
             });
             PianoScrollView.Part.EndMergeDirty();
+
+            if (mAmplitudeDownPitch is double downPitch)
+            {
+                double amplitudeOffset = PianoScrollView.PitchAxis.Y2Pitch(y) - downPitch;
+                mVibrato.Amplitude.Set(Math.Max(0, mBaseAmplitude + amplitudeOffset));
+            }
         }
 
         public void Up()
@@ -2292,9 +2310,12 @@ internal partial class PianoScrollView
                 PianoScrollView.Part.Commit();
             }
             mVibrato = null;
+            mAmplitudeDownPitch = null;
         }
 
         double mOffset;
+        double? mAmplitudeDownPitch;
+        double mBaseAmplitude;
         Vibrato? mVibrato;
         Head mHead;
     }
