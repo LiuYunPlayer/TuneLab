@@ -114,6 +114,25 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mLyricInput.EndInput.Subscribe(OnLyricInputComplete);
         Children.Add(mLyricInput);
 
+        // 音素输入框以「音素文字」为锚：同字号、文字水平居中、矩形中心 = 音素文字中心（见 PhonemeInputRect），
+        // 弹出瞬间框内文字与底下画的符号同位置不跳。矮壳（垂直零 padding，靠 VerticalContentAlignment 居中）。
+        mPhonemeInput = new TextInput()
+        {
+            Padding = new Thickness(2, 0),
+            // TextInput 基类默认 HorizontalContentAlignment=Left：TextPresenter 只有内容宽、贴左，
+            // TextAlignment.Center 会失效——须 Stretch 让 presenter 占满框宽，居中才作用于整框。
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            TextAlignment = TextAlignment.Center,
+            Background = Brushes.White,
+            Foreground = Brushes.Black,
+            BorderThickness = new(0),
+            FontSize = LyricInputFontSize,
+            CaretBrush = Brushes.Black,
+            IsVisible = false
+        };
+        mPhonemeInput.EndInput.Subscribe(OnPhonemeInputComplete);
+        Children.Add(mPhonemeInput);
+
         ClipToBounds = true;
 
         TickAxis.AxisChanged += InvalidateArrange;
@@ -803,17 +822,19 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
     }
 
-    // 颤音工具悬浮添加预览：鼠标悬浮在某音符本体上、且该音符不与任意颤音重叠时，
-    // 返回待建颤音参数（Pos = 鼠标量化 tick、Dur = 到音符结尾）；否则 null。落实与预览渲染共用。
+    // 颤音工具悬浮添加预览：鼠标悬浮在某音符本体的无颤音位置上时，返回待建颤音参数
+    // （Pos = 鼠标量化 tick、Dur = 到下一个颤音起点或音符结尾中较早者）；否则 null。落实与预览渲染共用。
     VibratoInfo? GetVibratoAddPreview(Point position)
     {
         if (Part == null)
             return null;
 
+        // 命中检测按去重叠口径（后盖前）：被下一音符盖掉的尾段不发声，不算悬浮命中，颤音也不该铺进去。
+        double mouseTick = TickAxis.X2Tick(position.X) - Part.Pos.Value;
         INote? hovered = null;
         foreach (var note in Part.Notes)
         {
-            if (this.NoteRect(note).Contains(position))
+            if (this.NoteRect(note).Contains(position) && mouseTick < note.EffectiveEndPos())
             {
                 hovered = note;
                 break;
@@ -822,14 +843,23 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (hovered == null)
             return null;
 
+        // 预览区间 = 鼠标所在的空白段：左界抬到左侧最近颤音右缘（防起点量化取整落回其内部），
+        // 右界截到右侧最近颤音起点与音符有效末（去重叠后）中较早者。鼠标点落在已有颤音内则无预览。
+        double end = hovered.EffectiveEndPos();
+        double lo = hovered.StartPos();
         foreach (var vibrato in Part.Vibratos)
         {
-            if (vibrato.StartPos() < hovered.EndPos() && vibrato.EndPos() > hovered.StartPos())
+            if (vibrato.StartPos() <= mouseTick && mouseTick < vibrato.EndPos())
                 return null;
-        }
 
-        double end = hovered.EndPos();
-        double lo = hovered.StartPos();
+            if (vibrato.EndPos() <= mouseTick)
+                lo = Math.Max(lo, vibrato.EndPos());
+            else
+                end = Math.Min(end, vibrato.StartPos());
+        }
+        if (end <= lo)
+            return null;
+
         double hi = end - QuantizedCellTicks();
         double pos = GetQuantizedTick(TickAxis.X2Tick(position.X)) - Part.Pos.Value;
         pos = hi <= lo ? lo : Math.Clamp(pos, lo, hi);
@@ -1042,11 +1072,83 @@ internal partial class PianoScrollView : View, IPianoScrollView
         // 必须 using 限定作用域：原先裸 push 不还原，会把这层 opacity 泄漏给之后绘制的内容（如顶部状态条）。
         using var _ = context.PushOpacity(opacity);
 
-        double yCenter = height / 2 + WaveformTop;
+        // 波形带上下分层（仅 voice）：上半区 = note 边界操作、下半区 = 音素操作。音素刻度/文字贴底边，
+        // note 边界杆贴顶边。非 voice（instrument 等）无音素、不分层、不画 note 杆。
+        bool layered = Part.SoundSource.Kind == SourceKind.Voice;
+        var hoverItem = HoverItem();
+
+        // hover 反馈：中线分隔线 + 悬停半区淡遮罩，把"看不见的分层"显形。半区跟命中判定走（不是裸 y）——
+        // 悬浮区块提亮（只亮所在区块、不整半带亮）：上半空白 = 鼠标所在 note 的区间、下半空白 = 所在显示音素
+        // 的区段。悬在线上不亮区块——线自身换主题色（见 DrawBoundary / DrawNoteHandle）。
+        if (layered && hoverItem is WaveformBackItem)
+        {
+            bool upper = MousePosition.Y < WaveformCenterY;
+            double blockLeft = double.NaN, blockRight = double.NaN;
+            if (upper)
+            {
+                double tick = TickAxis.X2Tick(MousePosition.X) - Part.Pos.Value;
+                foreach (var note in Part.Notes)
+                {
+                    if (note.StartPos() > tick)
+                        break;
+
+                    if (note.EndPos() > tick)
+                    {
+                        blockLeft = TickAxis.Tick2X(note.GlobalStartPos());
+                        blockRight = TickAxis.Tick2X(note.GlobalEndPos());
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                double time = tempoManager.GetTime(TickAxis.X2Tick(MousePosition.X));
+                foreach (var note in Part.Notes)
+                {
+                    var display = note.DisplayPhonemes;
+                    if (display.IsEmpty() || time < display.ConstFirst().StartTime || time >= display.ConstLast().EndTime)
+                        continue;
+
+                    foreach (var p in display)
+                    {
+                        if (p.StartTime <= time && time < p.EndTime)
+                        {
+                            blockLeft = TickAxis.Tick2X(tempoManager.GetTick(p.StartTime));
+                            blockRight = TickAxis.Tick2X(tempoManager.GetTick(p.EndTime));
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            if (!double.IsNaN(blockLeft))
+            {
+                double top = upper ? WaveformTop : WaveformCenterY;
+                context.FillRectangle(Colors.White.Opacity(0.045).ToBrush(), new(blockLeft, top, blockRight - blockLeft, WAVEFORM_HEIGHT / 2));
+            }
+        }
+
+        // 分界线都靠边：音素刻度锚在底沿（留 4px 边距）、note 边界杆锚在顶沿（留 2px），中间留给波形。
+        double yPhonemeBottom = WaveformBottom - 4;
+        double yPhonemeTop = yPhonemeBottom - 16;
+        double yNoteTop = WaveformTop + 2;
+        double yNoteBottom = yNoteTop + 16;
         IBrush brush = Style.WHITE.ToBrush();
         // 预测音素：细 / 半透明；钉死（固定）音素：粗 / 实色——让两者相接重叠时仍能一眼区分谁是手动固定的。
         IPen penSynthesized = new Pen(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), 1);
         IPen penPinned = new Pen(Style.WHITE.ToBrush(), 2);
+        // note 边界统一笔画（上半区的杆 + 下半区的核起点/末线是同一条边界的上下两段，样式一致）。
+        IPen penNoteBoundary = new Pen(Style.LIGHT_WHITE.Opacity(0.7).ToBrush(), 1);
+        // hover 提亮 = 线换主题色，粗细不动——粗细专职「钉死/合成」语义，颜色专职悬浮态，两维正交。
+        IPen penHoverThin = new Pen(Style.HIGH_LIGHT.ToBrush(), 1);
+        IPen penHoverThick = new Pen(Style.HIGH_LIGHT.ToBrush(), 2);
+        var hoverPhoneme = hoverItem as WaveformPhonemeResizeItem;
+        var hoverNoteStart = hoverItem as WaveformNoteStartResizeItem;
+        var hoverNoteEnd = hoverItem as WaveformNoteEndResizeItem;
+        void DrawNoteHandle(double x, bool hovered)
+        {
+            context.DrawLine(hovered ? penHoverThin : penNoteBoundary, new(x, yNoteTop), new(x, yNoteBottom));
+        }
 
         foreach (var note in Part.Notes)
         {
@@ -1067,10 +1169,37 @@ internal partial class PianoScrollView : View, IPianoScrollView
             if (startTime > viewEndTime)
                 break;
 
-            // 画每个音素的开头线；note 末刻度（末音素的结尾）只在「与下个音符不相接」（有空隙 / 无下个）时才画。
-            // 相接 / 延音符时该边界由下个 note 的开头线接管——本 note 再画一条会在相接处多出一条线、且用本 note 的笔
-            // （如固定 note 的粗笔）盖在邻居的开头处，故跳过。与 noteoff 缩放柄的存在条件一致。
-            bool drawNoteEnd = note.Next == null || note.Next.StartPos() > note.EndPos() + 1e-6;
+            // 画每个音素的开头线；末线（末音素的结尾）只交给「真正会画开头线的接管者」——沿相接链向后跳过
+            // 无显示音素的乘客（melisma 被铺过的延音符），落到第一个有显示音素的相接 note：有 → 该边界由它的
+            // 开头线接管、本 note 不画（再画会在相接处叠线）；无（链到头 / 空隙断链 / 邻居无内容）→ 自己画，
+            // 否则 melisma 的有效末（= 链末乘客的尾）会悬空无线。endOwner = 链末 note = 上半区尾杆的属主，
+            // 供末线 hover 与尾杆联动。
+            var endOwner = note;
+            var takeover = note.Next;
+            while (takeover != null && takeover.StartPos() <= endOwner.EndPos() + 1e-6 && takeover.DisplayPhonemes.IsEmpty())
+            {
+                endOwner = takeover;
+                takeover = takeover.Next;
+            }
+            bool drawNoteEnd = takeover == null || takeover.StartPos() > endOwner.EndPos() + 1e-6 || takeover.DisplayPhonemes.IsEmpty();
+            // 悬停的音素边界号（左线 = i、右线 = i+1）换主题色提亮，指明"点下去拖的是哪条"。
+            int hoverBoundary = hoverPhoneme != null && hoverPhoneme.Note == note ? hoverPhoneme.PhonemeIndex : -1;
+            // 核起点（边界 lead = note 头）与末边界（= note 有效末）是 note 边界的下半段：用与上半区 note 杆
+            // 一致的统一笔画，hover 与上半杆联动（一条边界一体提亮）；拖它就是拖 note 边界（热区全带高，见
+            // WaveformNoteStartResizeItem）。其余边界才是音素刻度（粗细 = 钉死/合成）。
+            int lead = 0;
+            while (lead < phonemes.Count && phonemes[lead].IsLead) lead++;
+            void DrawBoundary(int k, double x)
+            {
+                bool isNoteLine = k == lead || k == phonemes.Count;
+                bool hovered = k == hoverBoundary
+                    || (k == lead && hoverNoteStart?.Note == note)
+                    || (k == phonemes.Count && hoverNoteEnd?.Note == endOwner);
+                IPen linePen = isNoteLine
+                    ? (hovered ? penHoverThin : penNoteBoundary)
+                    : (hovered ? (isPinned ? penHoverThick : penHoverThin) : pen);
+                context.DrawLine(linePen, new(x, yPhonemeTop), new(x, yPhonemeBottom));
+            }
             double right = double.NaN;
             for (int i = 0; i < phonemes.Count; i++)
             {
@@ -1078,12 +1207,38 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 double left = TickAxis.Tick2X(tempoManager.GetTick(phoneme.StartTime));
                 if (left != right)
                 {
-                    context.DrawLine(pen, new(left, yCenter - 8), new(left, yCenter + 8));
+                    DrawBoundary(i, left);
                 }
                 right = TickAxis.Tick2X(tempoManager.GetTick(phoneme.EndTime));
                 if (i < phonemes.Count - 1 || drawNoteEnd)
-                    context.DrawLine(pen, new(right, yCenter - 8), new(right, yCenter + 8));
-                context.DrawString(phoneme.Symbol, new((left + right) / 2, yCenter), brush, 12, Alignment.Center);
+                    DrawBoundary(i + 1, right);
+                // 音素文字下对齐（随刻度靠底）。
+                context.DrawString(phoneme.Symbol, new((left + right) / 2, (yPhonemeTop + yPhonemeBottom) / 2), brush, 12, Alignment.Center);
+            }
+        }
+
+        // note 边界杆（上半区，仅 voice 分层，与 UpdateItems 的热区同条件）：对**所有** note——无音素 note、
+        // 延音符也画，边界操作不依赖音素。头杆恒有；尾杆仅与下个 note 不相接时（相接边界归下个 note 的头杆）。
+        if (layered)
+        {
+            foreach (var note in Part.Notes)
+            {
+                if (note.EndTime < viewStartTime)
+                    continue;
+
+                if (note.StartTime > viewEndTime)
+                    break;
+
+                DrawNoteHandle(TickAxis.Tick2X(note.GlobalStartPos()), hoverNoteStart?.Note == note);
+                if (note.Next == null || note.Next.StartPos() > note.EndPos() + 1e-6)
+                    DrawNoteHandle(TickAxis.Tick2X(note.GlobalEndPos()), hoverNoteEnd?.Note == note);
+            }
+
+            // 切刀预览：悬在上半区空白且落点有 note 可切 → 鼠标处画虚线，提示单击即在此切分（落点与单击一致）。
+            if (IsHover && hoverItem is WaveformBackItem && TrySplitNotePreview(MousePosition, out double splitX))
+            {
+                var splitPen = new Pen(Style.WHITE.Opacity(0.6).ToBrush(), 1) { DashStyle = DashStyle.Dash };
+                context.DrawLine(splitPen, new(splitX, yNoteTop), new(splitX, WaveformCenterY));
             }
         }
     }
@@ -1500,6 +1655,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (mLyricInput.IsVisible)
             mLyricInput.Arrange(LyricInputRect());
 
+        if (mPhonemeInput.IsVisible)
+            mPhonemeInput.Arrange(PhonemeInputRect());
+
         return finalSize;
     }
 
@@ -1555,14 +1713,117 @@ internal partial class PianoScrollView : View, IPianoScrollView
         return new Rect(x, y - h / 2, Math.Max(w, LyricInputMinWidth), h);
     }
 
+    // 波形带下半区双击音素 → 就地编辑音素符号。提交时按空白拆分：n 个 token = 原音素等分为 n 段逐一命名；
+    // 空输入（全删 / 纯空格）= 删除该音素。见 OnPhonemeInputComplete。
+    public void EnterInputPhoneme(INote note, int index)
+    {
+        if (mInputPhonemeNote != null)
+            return;
+
+        var display = note.DisplayPhonemes;
+        if (index >= display.Count)
+            return;
+
+        mInputPhonemeNote = note;
+        mInputPhonemeIndex = index;
+        mPhonemeInput.Display(display[index].Symbol);
+        mPhonemeInput.IsVisible = true;
+        mPhonemeInput.Focus();
+        mPhonemeInput.SelectAll();
+    }
+
+    void OnPhonemeInputComplete()
+    {
+        if (mInputPhonemeNote == null)
+            return;
+
+        var note = mInputPhonemeNote;
+        int index = mInputPhonemeIndex;
+        mInputPhonemeNote = null;
+        mPhonemeInput.IsVisible = false;
+
+        // 按任意空白拆分；符号是自由文本、不校验（引擎不认识的符号由合成侧自行处理）。
+        var tokens = mPhonemeInput.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var display = note.DisplayPhonemes;
+        if (index >= display.Count)
+            return;
+
+        if (tokens.Length == 1 && tokens[0] == display[index].Symbol)
+            return;   // 无变化，不惊动数据（不锁定、不产生 undo 步）
+
+        var head = note.Part.Head;
+        note.LockPhonemes();
+        if (note.Phonemes.Count != display.Count)
+        {
+            // 锁定后钉死音素应与显示音素一一对应；不一致说明状态在竞态中漂了，整体回滚。
+            note.Part.DiscardTo(head);
+            return;
+        }
+
+        var phoneme = note.Phonemes[index];
+        if (tokens.Length == 0)
+        {
+            // 空输入 = 删除该音素。全删空则 Phonemes 清空、回到合成音素口径（与清除锁定同语义）。
+            note.Phonemes.RemoveAt(index);
+        }
+        else
+        {
+            // 等分：时长 / 伸缩权重均摊——辅音(w=0)固定时长等分；核(w>0)按权重比例填充，等权即显示等分。
+            // 各段继承前置标志；引擎自定义属性留在首段（拆分不复制，避免语义不明的双份属性）。
+            double duration = phoneme.Duration.Value / tokens.Length;
+            double weight = phoneme.StretchWeight.Value / tokens.Length;
+            bool isLead = phoneme.IsLead.Value;
+            phoneme.Symbol.Set(tokens[0]);
+            phoneme.Duration.Set(duration);
+            phoneme.StretchWeight.Set(weight);
+            for (int i = 1; i < tokens.Length; i++)
+            {
+                note.Phonemes.Insert(index + i, Phoneme.Create(new PhonemeInfo
+                {
+                    Symbol = tokens[i],
+                    Duration = duration,
+                    StretchWeight = weight,
+                    IsLead = isLead,
+                }));
+            }
+        }
+        note.Commit();
+    }
+
+    Rect PhonemeInputRect()
+    {
+        var note = mInputPhonemeNote;
+        if (note == null || Part == null)
+            return new Rect();
+
+        var display = note.DisplayPhonemes;
+        if (mInputPhonemeIndex >= display.Count)
+            return new Rect();
+
+        var tempoManager = Part.TempoManager;
+        double left = TickAxis.Tick2X(tempoManager.GetTick(display[mInputPhonemeIndex].StartTime));
+        double right = TickAxis.Tick2X(tempoManager.GetTick(display[mInputPhonemeIndex].EndTime));
+        // 以音素文字中心为锚对称扩展：中心 x = 音素区间中点、中心 y = 刻度区文字中心（与 DrawWaveform 的
+        // DrawString 落点一致），保证框内文字与底下画的符号同位置。窄音素向两侧对称加宽到最小宽。
+        double centerX = (left + right) / 2;
+        double centerY = WaveformBottom - 4 - 8;
+        double w = Math.Max(right - left, PhonemeInputMinWidth);
+        return new Rect(centerX - w / 2, centerY - PhonemeInputHeight / 2, w, PhonemeInputHeight);
+    }
+
     INote? mInputLyricNote = null;
+    INote? mInputPhonemeNote = null;
+    int mInputPhonemeIndex;
 
     const int LyricInputFontSize = 12;
     const double LyricInputVerticalPadding = 8;
     const double LyricInputHeight = LyricInputFontSize + 2 * LyricInputVerticalPadding;
     const double LyricInputMinWidth = 60;
+    const double PhonemeInputHeight = 18;   // 12px 字行高 ~16 + 余量；矮壳贴着音素文字
+    const double PhonemeInputMinWidth = 48;
 
     readonly TextInput mLyricInput;
+    readonly TextInput mPhonemeInput;
 
     // 钢琴窗右侧装饰图（静态 / 动图统一走 ImagePlayer）：立绘随当前音源声库变，背景图来自全局设置。
     // 立绘优先——有立绘只画立绘，否则才画背景图（见 Render 与 UpdateImagePlayback）。
@@ -1583,6 +1844,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
     double WaveformTop => mDependency.WaveformBottom - WAVEFORM_HEIGHT;
     double WaveformBottom => mDependency.WaveformBottom;
+    // 波形带上下分层的分界（仅 voice 语义生效）：上半区 = note 边界操作、下半区 = 音素操作。
+    double WaveformCenterY => mDependency.WaveformBottom - WAVEFORM_HEIGHT / 2;
 
     readonly DisposableManager s = new();
 

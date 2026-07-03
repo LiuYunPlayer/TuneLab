@@ -320,6 +320,8 @@ internal partial class PianoScrollView
         }
     }
 
+    // 波形带上下分层（仅 voice 有这些热区）：上半区 = note 边界操作、下半区 = 音素边界操作。
+    // 音素柄只占下半区；note 边界热区全带高（贯穿线语义，见下），两者在下半区的重叠由 items 顺序消歧（note 后加优先）。
     class WaveformPhonemeResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
@@ -331,25 +333,26 @@ internal partial class PianoScrollView
             if (phonemes.IsEmpty() || PhonemeIndex > phonemes.Count)
                 return false;
 
-            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
             double time = phonemes.Count == PhonemeIndex ? phonemes.ConstLast().EndTime : phonemes[PhonemeIndex].StartTime;
             double pos = Note.Part.TempoManager.GetTick(time);
             double x = PianoScrollView.TickAxis.Tick2X(pos);
-            return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
+            return point.Y >= PianoScrollView.WaveformCenterY && point.Y <= PianoScrollView.WaveformBottom && point.X >= x - 8 && point.X <= x + 8;
         }
     }
 
-    // 音素带内的 note 头/尾缩放热区：noteon 必落在某音素分界、noteoff 必落在某音素结尾，故可在音素带直接拖 note 边界。
-    // 视觉沿用音素拉杆长度（短，与音素边界同高），不是钢琴窗上方 note 矩形那条更长的缩放柄。
+    // note 头/尾缩放热区：note 边界贯穿上下半区（上半杆 + 下半的核起点线/末音素终点线是同一条边界的上下两段），
+    // 沿线任意高度都可拖；后加优先，线 ±8 内盖过下半区的音素柄/双击编辑。**下探与下半段线的存在性对齐**——
+    // 该 note 无显示音素（延音符乘客被铺过 / 未合成）时下半区没画对应线，热区也只占上半区，不抢音素域
+    // （典型：melisma 中延音符头的分界线下方正是前 note 铺过来的元音区间，音素操作必须保留）。
     class WaveformNoteStartResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
 
         public override bool Raycast(Point point)
         {
-            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
             double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
-            return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
+            double bottom = Note.DisplayPhonemes.IsEmpty() ? PianoScrollView.WaveformCenterY : PianoScrollView.WaveformBottom;
+            return point.Y >= PianoScrollView.WaveformTop && point.Y <= bottom && point.X >= x - 8 && point.X <= x + 8;
         }
     }
 
@@ -359,9 +362,31 @@ internal partial class PianoScrollView
 
         public override bool Raycast(Point point)
         {
-            double center = (PianoScrollView.WaveformTop + PianoScrollView.WaveformBottom) / 2;
             double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalEndPos());
-            return point.Y >= center - 12 && point.Y <= center + 12 && point.X >= x - 8 && point.X <= x + 8;
+            double bottom = ReachesPhonemeLane() ? PianoScrollView.WaveformBottom : PianoScrollView.WaveformCenterY;
+            return point.Y >= PianoScrollView.WaveformTop && point.Y <= bottom && point.X >= x - 8 && point.X <= x + 8;
+        }
+
+        // 尾杆的下探判定与头杆不同：自己有显示音素之外，作为被铺乘客（display 空）时若沿相接链回溯存在
+        // 有显示音素的 note，其元音正铺到本 note 尾（FillEnd 对齐有效末）——下半区在此画的正是那条末线
+        //（见 DrawWaveform 的 endOwner），故也全带高可拖。
+        bool ReachesPhonemeLane()
+        {
+            if (!Note.DisplayPhonemes.IsEmpty())
+                return true;
+
+            var cur = Note;
+            while (true)
+            {
+                var prev = cur.Last;
+                if (prev == null || prev.EndPos() < cur.StartPos() - 1e-6)
+                    return false;
+
+                if (!prev.DisplayPhonemes.IsEmpty())
+                    return true;
+
+                cur = prev;
+            }
         }
     }
 }
