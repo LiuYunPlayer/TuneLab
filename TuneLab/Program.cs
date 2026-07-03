@@ -82,6 +82,7 @@ class Program
         Settings.Init(PathManager.SettingsFilePath);
         EditorState.Init(PathManager.EditorStateFilePath);
         RecentSoundSourceManager.Init(PathManager.RecentSoundSourcesFilePath);
+        ParameterPinning.Init(PathManager.ParameterPinsFilePath);
 
         // init translation
         TranslationManager.Init(PathManager.TranslationsFolder);

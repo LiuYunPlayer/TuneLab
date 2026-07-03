@@ -30,6 +30,10 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNoteScheduler = new(RefreshNoteControllerNow, ReconcileNoteControllerNow);
         mPhonemeScheduler = new(RefreshPhonemeControllerNow, RefreshPhonemeValues);
 
+        // note 属性右键菜单（钉选到参数面板）：只挂 note 面板顶层属性——lane 值按顶层 id 直取 note.Properties，
+        // 嵌套属性无 lane 寻址形；part / 音素面板不挂（lane 语义 = per-note 值）。
+        mNotePropertiesController.ItemContextMenuProvider = BuildNotePropertyContextMenu;
+
         var noteName = new Label() { Content = "Note".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mNotePanel.Title = noteName;
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
@@ -116,6 +120,47 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     NotePropertyContext BuildNoteContext()
         => new(new PartContext(mPart!),
             mPart!.Notes.AllSelectedItems().Select(n => new PartContext.PartNote(n)).ToList());
+
+    // note 属性右键菜单：有界数值属性给「在参数面板编辑 / 从参数面板移除」钉选项。钉选是用户偏好
+    //（跟声源身份走、自管持久化，见 ParameterPinning）——SDK 声明面零变动，所有引擎的属性即刻可钉。
+    // 菜单项每次右键现建，钉选态随点随变；钉/解钉后就地驱动 part 重算 lane 集合（tabbar/渲染器经
+    // AutomationConfigsModified 刷新）。
+    IReadOnlyList<Avalonia.Controls.MenuItem>? BuildNotePropertyContextMenu(PropertyKey key, IControllerConfig config)
+    {
+        var item = TryBuildLanePinMenuItem(ParameterPinKind.NoteProperty, key, config);
+        return item == null ? null : [item];
+    }
+
+    // 钉选菜单项（note / phoneme 两 scope 共用）：无 lane 资格（非有界数值）返回 null。
+    Avalonia.Controls.MenuItem? TryBuildLanePinMenuItem(ParameterPinKind scope, PropertyKey key, IControllerConfig config)
+    {
+        var part = mPart;
+        if (part == null || !LaneEntry.TryGetBoundedNumber(config, out _))
+            return null;
+
+        bool pinned = ParameterPinning.IsPinned(part.SoundSource, scope, key.Id);
+        string name = (pinned ? "Remove from Parameter Panel" : "Edit in Parameter Panel").Tr(TC.Menu);
+        return new Avalonia.Controls.MenuItem().SetName(name).SetAction(() =>
+        {
+            if (pinned)
+                ParameterPinning.Unpin(part.SoundSource, scope, key.Id);
+            else
+                ParameterPinning.Pin(part.SoundSource, scope, key.Id, OccupiedAutomationColors(part));
+            part.RefreshPinnedLaneConfigs();
+        });
+    }
+
+    // 参数面板当前已占用的 automation 轨色（voice + 各 effect）：钉选分配轨色时避开（lane 既有色由 Pin 内部并入）。
+    static IEnumerable<string> OccupiedAutomationColors(IMidiPart part)
+    {
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
+            yield return kvp.Value.Color;
+        foreach (var effect in part.Effects)
+        {
+            foreach (var kvp in effect.AutomationConfigs)
+                yield return kvp.Value.Color;
+        }
+    }
 
     void OnConfigChnaged()
     {
@@ -270,6 +315,17 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             {
                 var config = propMembers[0].Note.Configs[propMembers[0].Index]!;   // 代表 config（首个有属性成员）
                 var poc = new PropertyObjectController() { ShowSeparators = false };   // 分界由行单元统一拥有（见下），控制器不再自吐尾随分隔
+                // 属性行右键 = 钉选项（phoneme scope）+ 既有 slot 动作（拆分/删除）——属性行的右键被本钩子接管后
+                // 不再冒泡到行容器的 ContextMenu，故把 slot 项并进来，避免"点在属性上就丢拆分/删除"。
+                var menuMembers = members;
+                poc.ItemContextMenuProvider = (key, cfg) =>
+                {
+                    var items = new List<Avalonia.Controls.MenuItem>();
+                    if (TryBuildLanePinMenuItem(ParameterPinKind.PhonemeProperty, key, cfg) is { } pin)
+                        items.Add(pin);
+                    items.AddRange(BuildSlotMenuItems(menuMembers));
+                    return items;
+                };
                 controller = poc;
                 if (propMembers.All(m => m.Note.Pinned))
                 {
@@ -473,10 +529,19 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     Avalonia.Controls.ContextMenu BuildSlotContextMenu(IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
     {
         var menu = new Avalonia.Controls.ContextMenu();
+        foreach (var item in BuildSlotMenuItems(members))
+            menu.Items.Add(item);
+        return menu;
+    }
+
+    // slot 动作项本体（拆分/删除）：行容器 ContextMenu 与属性行钉选菜单（ItemContextMenuProvider）两处共用。
+    List<Avalonia.Controls.MenuItem> BuildSlotMenuItems(IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members)
+    {
+        var items = new List<Avalonia.Controls.MenuItem>();
 
         // 拆分：把该位音素一分为二，两段完全复制原音素（符号/IsLead/权重/引擎属性全同），仅时长平分——前半 d/2、后半 d−d/2
         //（此式保证两 double 相加严格 == 原长）。
-        menu.Items.Add(new Avalonia.Controls.MenuItem().SetName("Split".Tr(TC.Menu)).SetAction(() =>
+        items.Add(new Avalonia.Controls.MenuItem().SetName("Split".Tr(TC.Menu)).SetAction(() =>
         {
             if (mPart == null)
                 return;
@@ -500,7 +565,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         }));
 
         // 删除：删该位音素；删空则该 note 回到合成音素口径（空钉死列表 ≡ 合成）。
-        menu.Items.Add(new Avalonia.Controls.MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
+        items.Add(new Avalonia.Controls.MenuItem().SetName("Delete".Tr(TC.Menu)).SetAction(() =>
         {
             if (mPart == null)
                 return;
@@ -516,7 +581,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             mPart.Commit();
         }));
 
-        return menu;
+        return items;
     }
 
     // 编辑某 slot 符号：对各成员 note 先钉死（LockPhonemes 幂等、合成→钉死保几何），再写该位音素 Symbol，整体提交为一个撤销步。

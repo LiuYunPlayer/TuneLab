@@ -28,16 +28,19 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mVoiceInfos.Add("v1-alice", new VoiceSourceInfo { Name = "Alice (V1 Test)", Description = "Test voice Alice", Portrait = new FileImageResource(staticPortrait) });
         mVoiceInfos.Add("v1-bob", new VoiceSourceInfo { Name = "Bob (V1 Test)", Description = "Test voice Bob" });
         mVoiceInfos.Add("v1-carol", new VoiceSourceInfo { Name = "Carol (V1 Test)", Description = "Test voice Carol", Portrait = new FileImageResource(animatedPortrait) });
-        mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1));
-        // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。
-        mPhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1));
+        // 量程端点描述文本（验证 SliderConfig Min/MaxLabel：滑条两端 + 上参数面板后 lane 上下界同源显示）。
+        mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1).WithMinLabel("Relaxed").WithMaxLabel("Tense"));
+        // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。只设一端，验证单端显示。
+        mPhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1).WithMaxLabel("Strong"));
         // 无界数值框（验证 DraggableNumberBox/DraggableNumberBoxConfig）：横拖擦写、双击键入、无上下界、Shift 精调。
         mPhonemeProperties.Add(("offset", "Offset (ms)"), DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1)));
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));
         // 自定义自动化参数名避开宿主保留名（Volume/VibratoEnvelope 等内置项）。
-        mGrowlConfigs.Add(("Growl", "Growl"), AutomationConfig.Create(0, 100).WithColor("#E5A573").WithDefault(0));
+        // Min/MaxLabel：验证 automation 端点描述文本（参数区上下界 + 侧栏默认值滑条两端，此前无 producer 覆盖）。
+        mGrowlConfigs.Add(("Growl", "Growl"), AutomationConfig.Create(0, 100).WithColor("#E5A573").WithDefault(0)
+            .WithMinLabel("Clean").WithMaxLabel("Growly"));
     }
 
     public void Destroy() { }

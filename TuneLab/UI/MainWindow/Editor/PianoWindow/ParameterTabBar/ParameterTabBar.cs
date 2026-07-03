@@ -7,9 +7,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.Data;
+using TuneLab.I18N;
 using TuneLab.Utils;
 using TuneLab.SDK;
 
@@ -90,8 +92,53 @@ internal class ParameterTabBar : Panel
 
         bool firstGroup = true;
         AddAutomationGroup(Part.SoundSource.AutomationConfigs, -1, ref firstGroup);
+        AddLaneButtons(Part.NoteLaneConfigs, AutomationKey.NoteLane);
+        AddLaneButtons(Part.PhonemeLaneConfigs, AutomationKey.PhonemeLane);
         for (int i = 0; i < Part.Effects.Count; i++)
             AddAutomationGroup(Part.Effects[i].AutomationConfigs, i, ref firstGroup);
+    }
+
+    // 属性 lane 按钮（note 组在前、phoneme 组随后）：与 voice 轨同源（钉选的声源属性），故并入 voice 组尾部、不插分隔符。
+    // 轨色是宿主钉选时分配的（config 无色概念），名字沿用属性声明的 DisplayText。
+    void AddLaneButtons(IReadOnlyOrderedMap<PropertyKey, LaneEntry> lanes, Func<string, AutomationKey> makeKey)
+    {
+        foreach (var kvp in lanes)
+        {
+            var key = makeKey(kvp.Key.Id);
+            if (!mCacheParameterButtons.TryGetValue(key, out var button))
+            {
+                button = new ParameterButton(Color.Parse(kvp.Value.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
+                var captured = key;
+                button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
+                // lane 按钮右键可就地解钉——与侧栏属性行右键对称；也是「引擎不再声明该属性」时死 tab 的唯一移除口
+                //（此时侧栏没有对应控件可右键）。只在创建时挂一次（缓存按钮跨重建复用）。
+                var capturedButton = button;
+                button.ContextRequested += (_, e) =>
+                {
+                    var part = Part;
+                    if (part == null)
+                        return;
+                    var scope = captured.IsPhonemeLane ? ParameterPinKind.PhonemeProperty : ParameterPinKind.NoteProperty;
+                    var menu = new ContextMenu();
+                    menu.Items.Add(new MenuItem().SetName("Remove from Parameter Panel".Tr(TC.Menu)).SetAction(() =>
+                    {
+                        ParameterPinning.Unpin(part.SoundSource, scope, captured.Id);
+                        part.RefreshPinnedLaneConfigs();
+                    }));
+                    menu.Open(capturedButton);
+                    e.Handled = true;
+                };
+                mCacheParameterButtons.Add(key, button);
+            }
+            else
+            {
+                // 解钉后重钉可能分配到不同轨色（也可能切语言换 DisplayText）：缓存按钮就地对齐。
+                button.Color = Color.Parse(kvp.Value.Color);
+                button.Text = kvp.Key.DisplayText ?? kvp.Key.Id;
+            }
+            mAutomationButtons.Add(key, button);
+            mAutomationLayout.Children.Add(button);
+        }
     }
 
     // 一个来源（voice / 某 effect）一组（连续轨与分段轨同在此 map、按声明序），组间插分隔符。按钮形态与 kind 无关（读 config 色/名）。
@@ -154,6 +201,10 @@ internal class ParameterTabBar : Panel
         }
 
         Sync(Part.SoundSource.AutomationConfigs, -1);
+        foreach (var kvp in Part.NoteLaneConfigs)
+            SyncKey(AutomationKey.NoteLane(kvp.Key.Id));
+        foreach (var kvp in Part.PhonemeLaneConfigs)
+            SyncKey(AutomationKey.PhonemeLane(kvp.Key.Id));
         for (int i = 0; i < Part.Effects.Count; i++)
             Sync(Part.Effects[i].AutomationConfigs, i);
     }

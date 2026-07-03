@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Extensions.Effect;
@@ -26,6 +27,13 @@ internal class MidiPart : Part, IMidiPart
     // 自动化轨集合因参数 commit 而变（voice 依赖 part 参数、各 effect 依赖自身参数）：UI 收到重建参数栏/默认值面板。
     // 仅在轨集合实际变化时触发（签名比对去抖）；换源/链增删走各自既有 UI 触发，不重复经此事件。
     public IActionEvent AutomationConfigsModified => mAutomationConfigsModified;
+    // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：钉选 ∩ 当前属性 config 的有界数值条目，按声明序。
+    // 重建时机与 voice 轨集合同步（管线重建/换源/part 参数 commit）+ 钉选变更（RefreshPinnedLaneConfigs）
+    // + 音素回填补算（phoneme lane 声明面依赖合成产物，见 OnPipelinePhonemesChanged）。
+    // 刻意不订阅 note/音素增删/值变：schema 随内容漂移是罕见边角（值本体渲染时活读、无滞后），
+    // 避免批量粘贴/拖拽时反复全量求值；漂移在下一次 part 参数 commit / 管线重建时自愈。
+    public IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs => mNoteLaneConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, LaneEntry> PhonemeLaneConfigs => mPhonemeLaneConfigs;
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
     public override DataStruct<double> Dur { get; }
@@ -142,8 +150,81 @@ internal class MidiPart : Part, IMidiPart
         if (mPipeline == null)
             return;
         mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
+        RebuildPinnedLaneConfigs();   // note/phoneme 属性 config 依赖 part 值，lane 集合/量程可能随之变
         if (RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
+    }
+
+    // 钉选变更后由动作方（侧栏菜单）调用：重算两 scope 的 lane 集合，实变则通知参数面板 UI（tabbar/渲染器同批消费者）。
+    public void RefreshPinnedLaneConfigs()
+    {
+        RebuildPinnedLaneConfigs();
+        if (RefreshAutomationConfigsSignatureChanged())
+            mAutomationConfigsModified.Invoke();
+    }
+
+    // lane 集合 = 钉选（含轨色）∩ 当前属性 config 的有界数值条目（呈现序 = config 声明序）。
+    // config 用「全 part note」口径求值——不能随选区闪（选区归侧栏面板管）；无钉选时零开销短路。
+    // phoneme scope：逐音素 config 可异构，lane 条目按【首见声明】取量程口径（同 id 后续音素的异构量程不另开 lane）；
+    // instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme 的 instrument 场景本就不存在）。
+    void RebuildPinnedLaneConfigs()
+    {
+        OrderedMap<PropertyKey, LaneEntry>? previousPhonemeLanes = null;
+        if (mPhonemeLaneConfigs.Count > 0)
+        {
+            previousPhonemeLanes = new();
+            foreach (var kvp in mPhonemeLaneConfigs)
+                previousPhonemeLanes.Add(kvp.Key, kvp.Value);
+        }
+        mNoteLaneConfigs.Clear();
+        mPhonemeLaneConfigs.Clear();
+        var pinnedNote = ParameterPinning.GetPinned(mSource, ParameterPinKind.NoteProperty);
+        var pinnedPhoneme = ParameterPinning.GetPinned(mSource, ParameterPinKind.PhonemeProperty);
+        if (pinnedNote.Count == 0 && pinnedPhoneme.Count == 0)
+            return;
+
+        var context = new NotePropertyContext(new PartContext(this), mNotes.Select(n => new PartContext.PartNote(n)).ToList());
+        if (pinnedNote.Count > 0)
+        {
+            foreach (var kvp in mSource.GetNotePropertyConfig(context).Properties)
+                TryAddLaneEntry(mNoteLaneConfigs, pinnedNote, kvp.Key, kvp.Value);
+        }
+        if (pinnedPhoneme.Count > 0)
+        {
+            var configs = mSource.GetPhonemePropertyConfigs(context);
+            if (configs.Count > 0)
+            {
+                // 有音素声明面：正常求交集，未声明的钉选自然缺席（引擎条件隐藏语义，同条件自动化轨）。
+                foreach (var config in configs)
+                {
+                    foreach (var kvp in config.Properties)
+                        TryAddLaneEntry(mPhonemeLaneConfigs, pinnedPhoneme, kvp.Key, kvp.Value);
+                }
+            }
+            else
+            {
+                // 信息真空（尚无任何显示音素，典型 = 激活后合成未产出）：这不是引擎声明隐藏，钉选的 lane 须在场
+                // （tab 可见）。有旧物化条目沿用（保量程/名字），否则给未解析占位；合成回填后升级（见 OnPipelinePhonemesChanged）。
+                foreach (var (id, color) in pinnedPhoneme)
+                {
+                    if (previousPhonemeLanes != null && previousPhonemeLanes.TryGetValue(id, out var previous))
+                        mPhonemeLaneConfigs.Add(id, previous with { Color = color });
+                    else
+                        mPhonemeLaneConfigs.Add(id, new LaneEntry(0, 1, 0, null, null, null, color, Resolved: false));
+                }
+            }
+        }
+    }
+
+    static void TryAddLaneEntry(OrderedMap<PropertyKey, LaneEntry> lanes, Dictionary<string, string> pinned, PropertyKey key, IControllerConfig config)
+    {
+        if (lanes.ContainsKey(key.Id))
+            return;
+        if (!pinned.TryGetValue(key.Id, out var color))
+            return;
+        if (!LaneEntry.TryGetBoundedNumber(config, out var shape))
+            return;
+        lanes.Add(key, shape with { Color = color });
     }
 
     // 链结构变化（增删/重排）：各段弃处理器、从头重建效果链（voice 输出已缓存，不重跑 voice）。
@@ -165,7 +246,23 @@ internal class MidiPart : Part, IMidiPart
         AppendAutomationConfigs(sb, "r", mSource.SynthesizedParameterConfigs);
         for (int i = 0; i < mEffects.Count; i++)
             AppendAutomationConfigs(sb, "e" + i, mEffects[i].AutomationConfigs);
+        // 属性 lane 集合纳入签名：钉选增删/量程变要驱动 tabbar/渲染器重建。
+        AppendLaneConfigs(sb, "n", mNoteLaneConfigs);
+        AppendLaneConfigs(sb, "p", mPhonemeLaneConfigs);
         return sb.ToString();
+    }
+
+    static void AppendLaneConfigs(StringBuilder sb, string source, IReadOnlyOrderedMap<PropertyKey, LaneEntry> lanes)
+    {
+        sb.Append(source).Append('{');
+        foreach (var kvp in lanes)
+        {
+            var e = kvp.Value;
+            sb.Append(kvp.Key.Id).Append('|').Append(kvp.Key.DisplayText).Append('|')
+              .Append(e.DefaultValue).Append('|').Append(e.MinValue).Append('|')
+              .Append(e.MaxValue).Append('|').Append(e.Color).Append(';');
+        }
+        sb.Append('}');
     }
 
     static void AppendAutomationConfigs(StringBuilder sb, string source, IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs)
@@ -441,6 +538,7 @@ internal class MidiPart : Part, IMidiPart
         // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
         // 必须在建会话之前填好——否则会话构造期经 context.Automations 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
         mSource.RefreshDeclarations(BuildPartPropertyContext());
+        RebuildPinnedLaneConfigs();
         if (mSource.Kind == SourceKind.Voice)
         {
             var voicePipeline = new VoiceSynthesisPipeline(this, mSource.Type, mSource.ID);
@@ -477,6 +575,7 @@ internal class MidiPart : Part, IMidiPart
         mPipeline = null;
         mSource.SetSession(null);
         mSource.RefreshDeclarations(BuildPartPropertyContext());
+        RebuildPinnedLaneConfigs();
         foreach (var note in mNotes)
         {
             note.SynthesizedPhonemes = null;
@@ -490,7 +589,26 @@ internal class MidiPart : Part, IMidiPart
 
     void OnPipelinePhonemesChanged()
     {
+        // phoneme lane 的声明面依赖合成产物：激活时合成音素尚未产出的话，lane 条目是未解析占位（tab 在场、面板空）。
+        // 首批音素回填即补算升级为已解析；集合已齐时为廉价 no-op（钉了引擎不声明的陈旧 id 时会随回填重试，
+        // 可接受——声明求值是纯函数轻量）。
+        if (HasUnresolvedPhonemeLane())
+        {
+            RebuildPinnedLaneConfigs();
+            if (RefreshAutomationConfigsSignatureChanged())
+                mAutomationConfigsModified.Invoke();
+        }
         mSynthesizedPhonemesChanged.Invoke();
+    }
+
+    bool HasUnresolvedPhonemeLane()
+    {
+        foreach (var kvp in mPhonemeLaneConfigs)
+        {
+            if (!kvp.Value.Resolved)
+                return true;
+        }
+        return mPhonemeLaneConfigs.Count < ParameterPinning.GetPinned(mSource, ParameterPinKind.PhonemeProperty).Count;
     }
 
     void OnPipelineParametersChanged()
@@ -687,6 +805,8 @@ internal class MidiPart : Part, IMidiPart
     readonly ActionEvent mSynthesizedPitchChanged = new();
     readonly ActionEvent mAutomationConfigsModified = new();
     string mAutomationConfigsSignature = string.Empty;
+    readonly OrderedMap<PropertyKey, LaneEntry> mNoteLaneConfigs = new();
+    readonly OrderedMap<PropertyKey, LaneEntry> mPhonemeLaneConfigs = new();
     readonly BatchSignal mSynthesisBatch = new();
     ISynthesisPipeline? mPipeline;
 

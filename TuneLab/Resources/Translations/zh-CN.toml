@@ -225,6 +225,8 @@
 "Split by Phonemes" = "按音素拆分"
 "Lock Phonemes" = "锁定音素"
 "Clear Locked Phonemes" = "清除锁定音素"
+"Edit in Parameter Panel" = "在参数栏编辑"
+"Remove from Parameter Panel" = "从参数栏移除"
 "Octave Up" = "升八度"
 "Octave Down" = "降八度"
 "Move Lyrics Forward" = "由此前置歌词"

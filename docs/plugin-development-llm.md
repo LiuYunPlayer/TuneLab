@@ -222,7 +222,7 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 - 密钥：`TextBoxConfig { IsPassword = true }` → 宿主掩码显示 + 安全落盘（Win=DPAPI 密文就地 / macOS=钥匙串；无安全存储则**不保存该字段、绝不明文**+告警；官方支持 Win/macOS）。值类型仍是普通 string。
 - 读值：`settings.GetString(key, default)` / `GetDouble` / `GetInt` / `GetBool(key, default)`。读不到按默认 fallback。
 - `DisplayText` 由插件自译（按 `TuneLabContext.Global.Language`）；manifest **不**声明设置（纯代码）。
-- 控件配置类型（值配置构造函数均已封、只走静态工厂）：`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）、`CheckBoxConfig.Create(default)`、`ComboBoxConfig.Create(options)`（`.WithDefault(option)`）、`SliderConfig`（`SliderConfig.Linear(default,min,max)` 连续 / `SliderConfig.Integer(default,min,max)` 整数 / `SliderConfig.Create(default, INormalizedScale)` 自定义标度；流式 `.WithFormat(INumberFormat)`、`.WithRandomizable()` 声明可随机、宿主在右侧给随机入口）；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
+- 控件配置类型（值配置构造函数均已封、只走静态工厂）：`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）、`CheckBoxConfig.Create(default)`、`ComboBoxConfig.Create(options)`（`.WithDefault(option)`）、`SliderConfig`（`SliderConfig.Linear(default,min,max)` 连续 / `SliderConfig.Integer(default,min,max)` 整数 / `SliderConfig.Create(default, INormalizedScale)` 自定义标度；流式 `.WithFormat(INumberFormat)`、`.WithRandomizable()` 声明可随机（宿主在右侧给随机入口）、`.WithMinLabel(text)`/`.WithMaxLabel(text)` 量程端点描述文本（滑条两端 + 参数面板上下界，插件自译、可只设一端，同 `AutomationConfig` 语义））；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
 
 ### 常见错误（避免）
 - ❌ 漏 `id` → 被当成 Legacy。

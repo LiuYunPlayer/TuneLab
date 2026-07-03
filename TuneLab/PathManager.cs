@@ -18,6 +18,7 @@ internal static class PathManager
     public static string SettingsFilePath => Path.Combine(ConfigsFolder, "Settings.json");
     public static string EditorStateFilePath => Path.Combine(ConfigsFolder, "EditorState.json");
     public static string RecentSoundSourcesFilePath => Path.Combine(ConfigsFolder, "RecentSoundSources.json");
+    public static string ParameterPinsFilePath => Path.Combine(ConfigsFolder, "ParameterPins.json");
     public static string ExtensionsFolder => Path.Combine(TuneLabFolder, "Extensions");
     public static string AgentSessionsFolder => Path.Combine(TuneLabFolder, "AgentSessions");
     public static string ScriptsFolder => Path.Combine(TuneLabFolder, "Scripts");

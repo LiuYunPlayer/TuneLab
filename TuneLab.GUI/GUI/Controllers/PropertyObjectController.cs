@@ -22,6 +22,10 @@ internal class PropertyObjectController : StackPanel
     // 避免控制器再吐一条只占自身宽度的分界、与外层整宽分界重叠。设置须在 SetConfig 前（决定 creator 的 LayoutViews）。
     public bool ShowSeparators { get; set; } = true;
 
+    // 宿主注入的逐属性右键菜单（返回 null/空 = 该属性无菜单）：菜单项在每次右键时现取，随宿主状态（如钉选态）即时变化。
+    // 只挂在数值类控件（slider / 拖拽数值框）上；嵌套 ObjectConfig 的子控制器不继承本钩子（作用面 = 本层直属属性）。
+    public Func<PropertyKey, IControllerConfig, IReadOnlyList<MenuItem>?>? ItemContextMenuProvider { get; set; }
+
     public PropertyObjectController()
     {
         Background = Style.INTERFACE.ToBrush();
@@ -168,9 +172,33 @@ internal class PropertyObjectController : StackPanel
         public virtual void Dispose()
         {
             s.DisposeAll();
+            foreach (var detach in mContextMenuDetachers)
+                detach();
+            mContextMenuDetachers.Clear();
             ObjectPoolManager.Return(mSeparator);
         }
 
+        // 把宿主的逐属性右键菜单挂到内容控件上：菜单每次打开现建（项文案/勾选态随宿主状态变），无菜单则不拦截右键。
+        // 控件多为池化复用，handler 记入 detacher、Dispose 时摘除，避免归池后残留订阅。
+        protected void AttachContextMenu(Control control, PropertyKey key, Func<IControllerConfig> currentConfig)
+        {
+            void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+            {
+                var items = Parent.ItemContextMenuProvider?.Invoke(key, currentConfig());
+                if (items == null || items.Count == 0)
+                    return;
+
+                var menu = new ContextMenu();
+                foreach (var item in items)
+                    menu.Items.Add(item);
+                menu.Open(control);
+                e.Handled = true;
+            }
+            control.ContextRequested += OnContextRequested;
+            mContextMenuDetachers.Add(() => control.ContextRequested -= OnContextRequested);
+        }
+
+        readonly List<Action> mContextMenuDetachers = new();
         readonly Border mSeparator;
     }
 
@@ -234,6 +262,14 @@ internal class PropertyObjectController : StackPanel
             mController.Margin = new(24, 12);
             Apply(config);
 
+            // 标题 + 滑条包进同一容器，右键菜单挂容器上整行可触（含控件外边距的空白区——
+            // 透明底使空白区可命中；不包则空白区落在外层 StackPanel 上、不归本属性）。
+            mPanel = ObjectPoolManager.Get<StackPanel>();
+            mPanel.Background = Avalonia.Media.Brushes.Transparent;
+            mPanel.Children.Add(mTitle);
+            mPanel.Children.Add(mController);
+            AttachContextMenu(mPanel, key, () => mConfig);
+
             // 先绑定（初次刷新即把真实值写入），Relayout 才加入可视树——否则池复用的控件会以残留旧值/旧量程
             // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
             mController.BindDataProperty(parent.DataObject.NumberField(key.Id, config.DefaultValue), s);
@@ -241,25 +277,31 @@ internal class PropertyObjectController : StackPanel
 
         void Apply(SliderConfig config)
         {
+            mConfig = config;
             mController.SetScale(config.Scale);
             mController.SetDefaultValue(config.DefaultValue);
             mController.NumberFormat = config.Format;
             mController.ShowRandomButton = config.Randomizable;
+            mController.SetBoundLabels(config.MinLabel, config.MaxLabel);
         }
 
         public override Type ConfigType => typeof(SliderConfig);
-        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override IEnumerable<Control> Views => [mPanel];
         public override void Update(IControllerConfig config) => Apply((SliderConfig)config);
 
         public override void Dispose()
         {
             base.Dispose();
+            mPanel.Children.Clear();
+            ObjectPoolManager.Return(mPanel);
             ObjectPoolManager.Return(mController);
             ObjectPoolManager.Return(mTitle);
         }
 
         readonly Label mTitle;
+        readonly StackPanel mPanel;
         readonly SliderController mController;
+        SliderConfig mConfig = null!;   // Apply 于构造期必先行
     }
 
     // 可拖拽数值框：number 的无界/单界/双界通用控件（slider 是双有界特化）。控件自身实现 IDataValueController<double>，
@@ -270,6 +312,7 @@ internal class PropertyObjectController : StackPanel
         public DraggableNumberBoxCreator(PropertyObjectController parent, PropertyKey key, DraggableNumberBoxConfig config) : base(parent)
         {
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
+            mDockPanel.Background = Avalonia.Media.Brushes.Transparent;   // 空白区可命中，右键菜单整行可触
 
             mController = new DraggableNumberBox() { Width = 80, Margin = new(24, 8) };
             mDockPanel.Children.Add(mController);
@@ -280,11 +323,13 @@ internal class PropertyObjectController : StackPanel
             mDockPanel.Children.Add(mTitle);
 
             Apply(config);
+            AttachContextMenu(mDockPanel, key, () => mConfig);
             mController.BindDataProperty(parent.DataObject.NumberField(key.Id, config.DefaultValue), s);
         }
 
         void Apply(DraggableNumberBoxConfig config)
         {
+            mConfig = config;
             mController.MinValue = config.Min;
             mController.MaxValue = config.Max;
             mController.Response = config.Response;
@@ -308,6 +353,7 @@ internal class PropertyObjectController : StackPanel
         readonly Label mTitle;
         readonly DockPanel mDockPanel;
         readonly DraggableNumberBox mController;
+        DraggableNumberBoxConfig mConfig = null!;   // Apply 于构造期必先行
     }
 
     class SingleLineTextCreator : Creator

@@ -61,6 +61,10 @@ internal partial class AutomationRenderer : View
 
         mPiecewiseDrawOperation = new(this);
         mPiecewiseClearOperation = new(this);
+        mNoteLaneDrawOperation = new(this);
+        mNoteLaneClearOperation = new(this);
+        mPhonemeLaneDrawOperation = new(this);
+        mPhonemeLaneClearOperation = new(this);
         mPiecewiseAnchorDeleteOperation = new(this);
         mPiecewiseAnchorMoveOperation = new(this);
         mPiecewiseAnchorSelectOperation = new(this);
@@ -95,6 +99,18 @@ internal partial class AutomationRenderer : View
         // 合成状态/产物更新（插件在合成过程中逐步填入回显曲线，经 StatusChanged 通知）→ 重绘，
         // 否则参数区的合成参数回显要等下次鼠标事件等其它失效源才刷新（滞后）。
         mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(InvalidateVisual, s);
+        // 属性 lane（钉选 note/phoneme 属性）随 note/音素增删/时值/属性值变重绘；无 lane 时不扰动（note 拖拽是高频路径）。
+        mDependency.PartHolder.When(p => p.Notes.Modified).Subscribe(() =>
+        {
+            if (Part != null && (Part.NoteLaneConfigs.Count > 0 || Part.PhonemeLaneConfigs.Count > 0))
+                InvalidateVisual();
+        }, s);
+        // phoneme lane 的段几何来自显示音素（合成回填驱动）：回填新音素后段的位置/数量会变，须重绘。
+        mDependency.PartHolder.When(p => p.SynthesizedPhonemesChanged).Subscribe(() =>
+        {
+            if (Part != null && Part.PhonemeLaneConfigs.Count > 0)
+                InvalidateVisual();
+        }, s);
         mDependency.PartHolder.When(p => p.Vibratos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Pos.Modified).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.Modified.Subscribe(UpdateAnchorValueInput, s);
@@ -168,13 +184,102 @@ internal partial class AutomationRenderer : View
 
         double lineWidth = 1;
 
-        // 按 kind 分派：连续轨画含 vibrato 的最终值（处处有值）；分段轨画分段曲线（段间 NaN，断开不连线）。
-        void Draw(AutomationKey automationID)
+        // 按 kind 分派：连续轨画含 vibrato 的最终值（处处有值）；分段轨画分段曲线（段间 NaN，断开不连线）；
+        // 属性 lane 画逐 note / 逐音素值段（顶线 + active 时半透明柱）。
+        void Draw(AutomationKey automationID, bool isActive)
         {
-            if (Part.IsEffectiveAutomation(automationID))
+            if (Part.IsEffectiveNoteLane(automationID))
+                DrawNoteLane(automationID, isActive);
+            else if (Part.IsEffectivePhonemeLane(automationID))
+                DrawPhonemeLane(automationID, isActive);
+            else if (Part.IsEffectiveAutomation(automationID))
                 DrawContinuous(automationID);
             else if (Part.IsEffectivePiecewiseAutomation(automationID))
                 DrawPiecewise(automationID);
+        }
+
+        // note lane：每个 note 一段——顶部实色横线是值指示（与分段轨的段视觉同族），active 时其下再垫半透明柱，
+        // 给块感与 note 对应关系。段区间经 NoteLaneRanges 去重叠；右端再内缩 1px 留缝，相邻 note 不连成墙；
+        // 未写过值的 note 画在 DefaultValue 高度。
+        void DrawNoteLane(AutomationKey automationID, bool isActive)
+        {
+            var entry = Part.GetNoteLaneEntry(automationID);
+            var color = Color.Parse(entry.Color);
+            var lineBrush = color.ToBrush();
+            var fillBrush = color.Opacity(0.25).ToBrush();
+            double minVisibleTick = TickAxis.MinVisibleTick;
+            double maxVisibleTick = TickAxis.MaxVisibleTick;
+            double topLineWidth = isActive ? 2 : 1;
+            var laneDefault = PropertyValue.Create(entry.DefaultValue);
+            foreach (var (note, startTick, endTick) in NoteLaneRanges(Part))
+            {
+                if (endTick <= minVisibleTick)
+                    continue;
+
+                if (startTick >= maxVisibleTick)
+                    break;
+
+                double left = TickAxis.Tick2X(startTick);
+                double right = TickAxis.Tick2X(endTick) - 1;   // 1px 缝
+                if (right <= left)
+                    right = left + 1;
+
+                note.Properties.GetValue(automationID.Id, laneDefault).ToDouble(out double value);
+                double y = ValueToY(value, entry.MinValue, entry.MaxValue);
+                if (isActive)
+                    context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
+                context.FillRectangle(lineBrush, new Rect(left, Math.Max(0, y - topLineWidth / 2), right - left, topLineWidth));
+            }
+        }
+
+        // phoneme lane：每个显示音素一段，几何走 note.DisplayPhonemes（绝对秒、跨 note 已去重叠——与波形带同口径）。
+        // 值只在钉死音素上存在（经 HasProperties 闸门读、不触发 lazy 物化）；合成音素画默认值高度。
+        // 邻接未解析的 note 其 DisplayPhonemes 为空 → 暂无段，合成回填后经订阅重绘补上。
+        void DrawPhonemeLane(AutomationKey automationID, bool isActive)
+        {
+            var entry = Part.GetPhonemeLaneEntry(automationID);
+            if (!entry.Resolved)
+                return;   // 未解析占位（合成音素未产出）：tab 在场但无段可画、量程未知
+
+            var color = Color.Parse(entry.Color);
+            var lineBrush = color.ToBrush();
+            var fillBrush = color.Opacity(0.25).ToBrush();
+            var tempoManager = Part.TempoManager;
+            double minVisibleSec = tempoManager.GetTime(Math.Max(0, TickAxis.MinVisibleTick));
+            double maxVisibleSec = tempoManager.GetTime(Math.Max(0, TickAxis.MaxVisibleTick));
+            double topLineWidth = isActive ? 2 : 1;
+            var laneDefault = PropertyValue.Create(entry.DefaultValue);
+            foreach (var note in Part.Notes)
+            {
+                // 音素段可越出 note 几何（前置辅音前伸 / 元音向满末充填），note 级过滤只做右侧宽松截断、逐段精筛。
+                if (note.StartTime > maxVisibleSec + LeadExtensionSlack)
+                    break;
+
+                var phonemes = note.DisplayPhonemes;
+                if (phonemes.Count == 0 || phonemes[^1].EndTime <= minVisibleSec)
+                    continue;
+
+                bool pinned = note.Phonemes.Count > 0;
+                for (int i = 0; i < phonemes.Count; i++)
+                {
+                    var phoneme = phonemes[i];
+                    if (phoneme.EndTime <= minVisibleSec || phoneme.StartTime >= maxVisibleSec)
+                        continue;
+
+                    double left = TickAxis.Tick2X(tempoManager.GetTick(phoneme.StartTime));
+                    double right = TickAxis.Tick2X(tempoManager.GetTick(phoneme.EndTime)) - 1;   // 1px 缝
+                    if (right <= left)
+                        right = left + 1;
+
+                    double value = entry.DefaultValue;
+                    if (pinned && i < note.Phonemes.Count && note.Phonemes[i].HasProperties)
+                        note.Phonemes[i].Properties.GetValue(automationID.Id, laneDefault).ToDouble(out value);
+                    double y = ValueToY(value, entry.MinValue, entry.MaxValue);
+                    if (isActive)
+                        context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
+                    context.FillRectangle(lineBrush, new Rect(left, Math.Max(0, y - topLineWidth / 2), right - left, topLineWidth));
+                }
+            }
         }
 
         void DrawContinuous(AutomationKey automationID)
@@ -248,7 +353,7 @@ internal partial class AutomationRenderer : View
             if (!mDependency.IsAutomationVisible(automation))
                 continue;
 
-            Draw(automation);
+            Draw(automation, false);
         }
 
         context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
@@ -264,17 +369,43 @@ internal partial class AutomationRenderer : View
         var active = activeAutomation.Value;
         bool activeContinuous = Part.IsEffectiveAutomation(active);
         bool activePiecewise = !activeContinuous && Part.IsEffectivePiecewiseAutomation(active);
-        if (!activeContinuous && !activePiecewise)
+        bool activeNoteLane = Part.IsEffectiveNoteLane(active);
+        bool activePhonemeLane = Part.IsEffectivePhonemeLane(active);
+        if (!activeContinuous && !activePiecewise && !activeNoteLane && !activePhonemeLane)
             return;
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        var config = activeContinuous
-            ? Part.GetEffectiveAutomationConfig(active)
-            : Part.GetEffectivePiecewiseAutomationConfig(active);
-        double min = config.MinValue;
-        double max = config.MaxValue;
-        string colorStr = config.Color;
+        // 量程与显示口径按来源取：automation 走 config、属性 lane 走 entry——两者同带 Min/MaxLabel 描述文本
+        //（lane 的 label 来自 SliderConfig 声明，与滑条两端显示同源）。
+        double min, max;
+        SDK.INumberFormat? numberFormat;
+        string? minLabel, maxLabel;
+        string colorStr;
+        bool boundsKnown = true;
+        if (activeNoteLane || activePhonemeLane)
+        {
+            var entry = activeNoteLane ? Part.GetNoteLaneEntry(active) : Part.GetPhonemeLaneEntry(active);
+            min = entry.MinValue;
+            max = entry.MaxValue;
+            numberFormat = entry.Format;
+            minLabel = entry.MinLabel;
+            maxLabel = entry.MaxLabel;
+            colorStr = entry.Color;
+            boundsKnown = entry.Resolved;   // 未解析占位：量程未知，不显上下界
+        }
+        else
+        {
+            var config = activeContinuous
+                ? Part.GetEffectiveAutomationConfig(active)
+                : Part.GetEffectivePiecewiseAutomationConfig(active);
+            min = config.MinValue;
+            max = config.MaxValue;
+            numberFormat = config.Format;
+            minLabel = config.MinLabel;
+            maxLabel = config.MaxLabel;
+            colorStr = config.Color;
+        }
 
         // vibrato 叠加层与"拖拽关联颤音"提示仅对 voice 连续轨绘制（effect 与分段轨皆无 automation-vibrato 概念）。
         if (activeContinuous && !active.IsEffect)
@@ -332,7 +463,7 @@ internal partial class AutomationRenderer : View
         }
 
         lineWidth = 2;
-        Draw(active);
+        Draw(active, true);
 
         if (mAnchorSelectOperation.IsOperating || mPiecewiseAnchorSelectOperation.IsOperating)
         {
@@ -341,10 +472,13 @@ internal partial class AutomationRenderer : View
             context.DrawRectangle(selectionColor.Opacity(0.25).ToBrush(), new Pen(selectionColor.ToUInt32()), rect);
         }
 
-        // 上下界处显示：优先用 config 的描述文本（MaxLabel/MinLabel，插件自译），否则按 config.Format 格式化数值（缺省两位小数带符号）。
-        string BoundText(double value) => config.Format is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
-        context.DrawString(config.MaxLabel ?? BoundText(max), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
-        context.DrawString(config.MinLabel ?? BoundText(min), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+        // 上下界处显示：优先用描述文本（MaxLabel/MinLabel，插件自译），否则按 Format 格式化数值（缺省两位小数带符号）。
+        if (boundsKnown)
+        {
+            string BoundText(double value) => numberFormat is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
+            context.DrawString(maxLabel ?? BoundText(max), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+            context.DrawString(minLabel ?? BoundText(min), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+        }
     }
 
     // 合成参数回显轨（只读，voice 级一等轨）：遍历声明的回显轨，对每条可见轨用 Part.SynthesizedParameters
@@ -430,6 +564,27 @@ internal partial class AutomationRenderer : View
         var pen = new Pen(GUI.Style.WHITE.ToUInt32(), 1) { DashStyle = DashStyle.Dash };
         context.DrawLine(pen, new Point(left, 0), new Point(left, Bounds.Height));
         context.DrawLine(pen, new Point(right, 0), new Point(right, Bounds.Height));
+    }
+
+    // 音素段可越出所属 note 几何（前置辅音向前伸、元音向满末/melisma 充填）：note 级可见性/命中过滤
+    // 只能做宽松截断，本值是前伸量的保守上界（秒）。
+    const double LeadExtensionSlack = 2;
+
+    // note lane 的呈现/命中区间（全局 tick）：起点 = note 起点，终点 = min(note 满末, 下一 note 起点)——
+    // 展示宽度去重叠，镜像合成侧「后盖前」钳位口径（尾巴钳到数据序下一 note 起点、起点从不动）；
+    // 钳后无宽度者（被完全覆盖 / 同起点和弦兄弟）不出段。渲染与编辑命中共用本口径，所见即所改。
+    static IEnumerable<(INote Note, double StartTick, double EndTick)> NoteLaneRanges(IMidiPart part)
+    {
+        for (var note = part.Notes.First; note != null; note = note.Next)
+        {
+            double startTick = note.GlobalStartPos();
+            double endTick = note.GlobalEndPos();
+            if (note.Next != null)
+                endTick = Math.Min(endTick, note.Next.GlobalStartPos());
+            if (endTick <= startTick)
+                continue;
+            yield return (note, startTick, endTick);
+        }
     }
 
     public Point TickAndValueToPoint(double tick, double value, double min, double max)

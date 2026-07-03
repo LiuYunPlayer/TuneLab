@@ -22,7 +22,16 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     IActionEvent SynthesizedParametersChanged { get; } // voice / instrument 均触发
     IActionEvent SynthesizedPitchChanged { get; }      // voice-only 触发
     // 自动化轨集合因参数 commit 而变（条件轨随值显隐）：UI 收到重建参数栏/默认值面板。仅实际变化时触发。
+    // 属性 lane 集合（见 NoteLaneConfigs / PhonemeLaneConfigs）的增删也并入本事件（同一批 UI 消费者：tabbar / 渲染器）。
     IActionEvent AutomationConfigsModified { get; }
+    // 参数面板 note 属性 lane 集合（物化缓存）：用户钉选 ∩ 当前 note 属性 config 的有界数值条目，按声明序。
+    // 值本体在各 note.Properties 里按 id 存取；本集合只承载呈现口径（量程/默认值/格式/轨色）。
+    IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs { get; }
+    // 参数面板 phoneme 属性 lane 集合（物化缓存）：用户钉选 ∩ 逐音素 config 并集里的有界数值条目（同 id 取首见声明）。
+    // 值本体在各钉死音素的 Properties 里按 id 存取（合成音素无属性、显示默认值）；voice 专属（instrument 恒空）。
+    IReadOnlyOrderedMap<PropertyKey, LaneEntry> PhonemeLaneConfigs { get; }
+    // 钉选变更后由动作方调用：重算两 scope 的 lane 集合，实变则经 AutomationConfigsModified 通知 UI。
+    void RefreshPinnedLaneConfigs();
     INoteList Notes { get; }
     IReadOnlyDataObjectLinkedList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
@@ -95,10 +104,18 @@ internal static class IMidiPartExtension
 
     // ── 按 AutomationKey 路由（voice/part 级，或某个 effect）。数据层仍按 plain id 存，这里只做来源分派。 ──
     // 连续/分段由同一张 config map 承载，kind 由 AutomationConfig.IsPiecewise 现解析（AutomationKey 本身不带 kind）。
+    // 属性 lane（note/phoneme）是独立来源（数据在 note.Properties / phoneme.Properties、非时间曲线）：
+    // automation 路由一律不认它——即便 lane id 与某条 automation id 同名，也不得互相兜底（Source 参与 key 相等比较）。
 
     // 从对应来源（voice / 某 effect）取该 key 的 config（不分 kind），不存在返回 false。
     static bool TryGetSourceConfig(IMidiPart part, AutomationKey key, out AutomationConfig config)
     {
+        if (key.IsLane)
+        {
+            config = null!;
+            return false;
+        }
+
         if (key.IsEffect)
         {
             if (key.EffectIndex < part.Effects.Count)
@@ -108,6 +125,34 @@ internal static class IMidiPartExtension
         }
 
         return part.SoundSource.AutomationConfigs.TryGetValue(key.Id, out config!);
+    }
+
+    // ── 属性 lane 路由（与 automation 对偶的第三来源，note / phoneme 两 scope 各自分派）。──
+
+    public static bool IsEffectiveNoteLane(this IMidiPart part, AutomationKey key)
+    {
+        return key.IsNoteLane && part.NoteLaneConfigs.ContainsKey(key.Id);
+    }
+
+    public static LaneEntry GetNoteLaneEntry(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsNoteLane && part.NoteLaneConfigs.TryGetValue(key.Id, out var entry))
+            return entry;
+
+        throw new ArgumentException(string.Format("Note lane {0} is not effective!", key.Id));
+    }
+
+    public static bool IsEffectivePhonemeLane(this IMidiPart part, AutomationKey key)
+    {
+        return key.IsPhonemeLane && part.PhonemeLaneConfigs.ContainsKey(key.Id);
+    }
+
+    public static LaneEntry GetPhonemeLaneEntry(this IMidiPart part, AutomationKey key)
+    {
+        if (key.IsPhonemeLane && part.PhonemeLaneConfigs.TryGetValue(key.Id, out var entry))
+            return entry;
+
+        throw new ArgumentException(string.Format("Phoneme lane {0} is not effective!", key.Id));
     }
 
     public static bool IsEffectiveAutomation(this IMidiPart part, AutomationKey key)
@@ -126,6 +171,9 @@ internal static class IMidiPartExtension
     // 取已存在的自动化数据对象（voice 或对应 effect），不存在返回 null。
     public static IAutomation? GetEffectiveAutomation(this IMidiPart part, AutomationKey key)
     {
+        if (key.IsNoteLane)
+            return null;
+
         if (key.IsEffect)
         {
             if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].Automations.TryGetValue(key.Id, out var effectAutomation))
@@ -139,6 +187,9 @@ internal static class IMidiPartExtension
     // 取或创建自动化数据对象（按需在对应来源里 Add）。
     public static IAutomation? AddEffectiveAutomation(this IMidiPart part, AutomationKey key)
     {
+        if (key.IsNoteLane)
+            return null;
+
         if (key.IsEffect)
             return key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].AddAutomation(key.Id) : null;
 
@@ -163,6 +214,9 @@ internal static class IMidiPartExtension
     // 取已存在的分段轨数据对象（voice 或对应 effect），不存在返回 null。
     public static IPiecewiseAutomation? GetEffectivePiecewiseAutomation(this IMidiPart part, AutomationKey key)
     {
+        if (key.IsNoteLane)
+            return null;
+
         if (key.IsEffect)
         {
             if (key.EffectIndex < part.Effects.Count && part.Effects[key.EffectIndex].PiecewiseAutomations.TryGetValue(key.Id, out var effectAutomation))
@@ -176,15 +230,21 @@ internal static class IMidiPartExtension
     // 取或创建分段轨数据对象（按需在对应来源里 Add）。
     public static IPiecewiseAutomation? AddEffectivePiecewiseAutomation(this IMidiPart part, AutomationKey key)
     {
+        if (key.IsNoteLane)
+            return null;
+
         if (key.IsEffect)
             return key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].AddPiecewiseAutomation(key.Id) : null;
 
         return part.AddPiecewiseAutomation(key.Id);
     }
 
-    // 最终曲线取值：voice 走含 vibrato 的最终值；effect 走其自身曲线（无 vibrato）。
+    // 最终曲线取值：voice 走含 vibrato 的最终值；effect 走其自身曲线（无 vibrato）。note lane 非时间曲线，不在此取值。
     public static double[] GetFinalAutomationValues(this IMidiPart part, IReadOnlyList<double> ticks, AutomationKey key)
     {
+        if (key.IsNoteLane)
+            return new double[ticks.Count];
+
         if (key.IsEffect)
         {
             if (key.EffectIndex < part.Effects.Count)

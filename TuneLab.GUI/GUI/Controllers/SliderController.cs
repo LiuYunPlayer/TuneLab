@@ -45,7 +45,7 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
         Background = Style.INTERFACE.ToBrush();
 
         // 量程内随机取值的按钮（默认隐藏，由 ShowRandomButton 开启）：放在最右侧，数值标签在其左。
-        mRandomButton = new Button() { Width = 24, Height = 24, Margin = new(4, 0, 0, 0), IsVisible = false };
+        mRandomButton = new Button() { Width = 24, Height = 24, Margin = new(4, 0, 0, 0), IsVisible = false, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
         mRandomButton
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = Style.LIGHT_WHITE.Opacity(0.1), PressedColor = Style.LIGHT_WHITE.Opacity(0.16) } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Dice, Scale = 0.7 }, ColorSet = new() { Color = Style.LIGHT_WHITE } });
@@ -55,10 +55,26 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
 
         // 宽度按量程最大桁数固定（见 RefreshLabelWidth）：拖动中桁数变化不改宽，避免连带 slider 长度
         // 抖动、thumb 在光标下位移。MinWidth 仅作 SetRange 前的初始保底。
-        mEditableLabel = new() { Height = 24, MinWidth = 48, Padding = new(8, 0), FontFamily = Assets.SegoeUI, FontSize = 12, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
+        // 顶部对齐（Height 24 = 轨道行高）：端点描述行出现时控件整体变高，值框仍与轨道同排、不下坠。
+        mEditableLabel = new() { Height = 24, MinWidth = 48, Padding = new(8, 0), FontFamily = Assets.SegoeUI, FontSize = 12, CornerRadius = new(4), HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.BACK.ToBrush() };
         this.AddDock(mEditableLabel, Dock.Right);
 
-        this.AddDock(mSlider);
+        // 量程两端描述文本（config 声明，如 min="Soft"、max="Hard"）：置于轨道正下方一行（同高度内联会挤占轨道长度），
+        // min 左对齐轨道起点、max 右对齐轨道终点（行与轨道同宽、共享右缩进）；未声明整行折叠不占位（见 SetBoundLabels）。
+        // 淡色小字与数值框区分——它是量纲语义、不是当前值。
+        mMinBoundLabel = new() { FontSize = 11, IsVisible = false, Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush() };
+        mMaxBoundLabel = new() { FontSize = 11, IsVisible = false, Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush() };
+        // 顶部留 4px：与轨道行（thumb 下缘）拉开呼吸距离。
+        mBoundLabelRow = new DockPanel() { Margin = new(0, 4, 24, 0), IsVisible = false, LastChildFill = false };
+        mBoundLabelRow.AddDock(mMinBoundLabel, Dock.Left);
+        mBoundLabelRow.AddDock(mMaxBoundLabel, Dock.Right);
+
+        // 轨道列（轨道 + 其下描述行）占满剩余宽度；轨道行定高与右侧值框同高。
+        mSlider.Height = 24;
+        var sliderColumn = new StackPanel() { Orientation = Orientation.Vertical };
+        sliderColumn.Children.Add(mSlider);
+        sliderColumn.Children.Add(mBoundLabelRow);
+        this.AddDock(sliderColumn);
 
         mEditableLabel.EndInput.Subscribe(() =>
         {
@@ -84,6 +100,16 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
     {
         mSlider.SetRange(min, max);
         RefreshLabelWidth();
+    }
+
+    // 量程两端描述文本（null/空 = 该端不显示；两端皆空整行折叠不占位）。池化复用方每次 Apply 都要调（含清空路径）。
+    public void SetBoundLabels(string? minLabel, string? maxLabel)
+    {
+        mMinBoundLabel.Text = minLabel;
+        mMinBoundLabel.IsVisible = !string.IsNullOrEmpty(minLabel);
+        mMaxBoundLabel.Text = maxLabel;
+        mMaxBoundLabel.IsVisible = !string.IsNullOrEmpty(maxLabel);
+        mBoundLabelRow.IsVisible = mMinBoundLabel.IsVisible || mMaxBoundLabel.IsVisible;
     }
 
     public void SetDefaultValue(double value)
@@ -172,5 +198,8 @@ internal class SliderController : DockPanel, IDataValueController<double>, IData
 
     EditableLabel mEditableLabel;
     Button mRandomButton;
+    readonly TextBlock mMinBoundLabel;
+    readonly TextBlock mMaxBoundLabel;
+    readonly DockPanel mBoundLabelRow;
     Slider mSlider = new() { Margin = new(0, 0, 24, 0) };
 }

@@ -148,13 +148,21 @@ internal partial class AutomationRenderer
                     {
                         case MouseButtonType.PrimaryButton:
                             // Ctrl = 定值绘制：锁住按下时的 y 画水平线（保持参数值不变的重要画法）。
-                            if (ActiveIsPiecewise())
+                            if (ActiveIsNoteLane())
+                                mNoteLaneDrawOperation.Down(e.Position, ctrl);
+                            else if (ActiveIsPhonemeLane())
+                                mPhonemeLaneDrawOperation.Down(e.Position, ctrl);
+                            else if (ActiveIsPiecewise())
                                 mPiecewiseDrawOperation.Down(e.Position, ctrl);
                             else
                                 mDrawOperation.Down(e.Position, ctrl);
                             break;
                         case MouseButtonType.SecondaryButton:
-                            if (ActiveIsPiecewise())
+                            if (ActiveIsNoteLane())
+                                mNoteLaneClearOperation.Down(e.Position.X);
+                            else if (ActiveIsPhonemeLane())
+                                mPhonemeLaneClearOperation.Down(e.Position.X);
+                            else if (ActiveIsPiecewise())
                                 mPiecewiseClearOperation.Down(e.Position.X);
                             else
                                 mClearOperation.Down(e.Position.X);
@@ -211,6 +219,14 @@ internal partial class AutomationRenderer
                 break;
             case State.VibratoAmplitudeAdjusting:
                 mVibratoAmplitudeOperation.Move(e.Position.Y);
+                break;
+            case State.NoteLaneDrawing:
+                if (mNoteLaneDrawOperation.IsOperating) mNoteLaneDrawOperation.Move(e.Position, ctrl);
+                else mPhonemeLaneDrawOperation.Move(e.Position, ctrl);
+                break;
+            case State.NoteLaneClearing:
+                if (mNoteLaneClearOperation.IsOperating) mNoteLaneClearOperation.Move(e.Position.X);
+                else mPhonemeLaneClearOperation.Move(e.Position.X);
                 break;
             default:
                 if (shift)
@@ -283,6 +299,20 @@ internal partial class AutomationRenderer
             case State.VibratoAmplitudeAdjusting:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mVibratoAmplitudeOperation.Up();
+                break;
+            case State.NoteLaneDrawing:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                {
+                    if (mNoteLaneDrawOperation.IsOperating) mNoteLaneDrawOperation.Up();
+                    else mPhonemeLaneDrawOperation.Up();
+                }
+                break;
+            case State.NoteLaneClearing:
+                if (e.MouseButtonType == MouseButtonType.SecondaryButton)
+                {
+                    if (mNoteLaneClearOperation.IsOperating) mNoteLaneClearOperation.Up();
+                    else mPhonemeLaneClearOperation.Up();
+                }
                 break;
             default:
                 break;
@@ -426,6 +456,353 @@ internal partial class AutomationRenderer
         public AutomationRenderer AutomationRenderer => automationRenderer;
         public State State { get => AutomationRenderer.mState; set => AutomationRenderer.mState = value; }
     }
+
+    bool ActiveIsNoteLane()
+    {
+        var key = mDependency.ActiveAutomation;
+        return Part != null && key != null && Part.IsEffectiveNoteLane(key.Value);
+    }
+
+    bool ActiveIsPhonemeLane()
+    {
+        var key = mDependency.ActiveAutomation;
+        return Part != null && key != null && Part.IsEffectivePhonemeLane(key.Value);
+    }
+
+    // note lane 绘制：主键拖动把扫过的 note 的属性值写为鼠标处值（Ctrl = 锁定按下值，横扫即批量定值）。
+    // 与连续轨 DrawOperation 同用「DiscardTo 重放」模式：每帧丢弃未提交命令、按各 note 最新目标值整批重写
+    //（同一 note 只留最后一次赋值，命令数有界），抬起统一 Commit——整段拖动一个撤销步。
+    // 值写 note.Properties（数据在 note 上、非时间曲线）；命中区间与渲染共用 NoteLaneRanges（去重叠口径）。
+    class NoteLaneDrawOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        // 与 phoneme lane 操作共用 State.NoteLaneDrawing，靠 mPart 区分是否本操作在跑（镜像连续/分段轨的判别方式）。
+        public bool IsOperating => State == State.NoteLaneDrawing && mPart != null;
+
+        public void Down(Avalonia.Point position, bool constantValue)
+        {
+            if (State != State.None)
+                return;
+
+            var part = AutomationRenderer.Part;
+            var key = AutomationRenderer.mDependency.ActiveAutomation;
+            if (part == null || key == null || !part.IsEffectiveNoteLane(key.Value))
+                return;
+
+            State = State.NoteLaneDrawing;
+            mPart = part;
+            mId = key.Value.Id;
+            mEntry = part.GetNoteLaneEntry(key.Value);
+            part.BeginMergeDirty();
+            mHead = part.Head;
+            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            mLastX = position.X;
+            Apply(position, constantValue);
+        }
+
+        public void Move(Avalonia.Point position, bool constantValue)
+        {
+            if (!IsOperating)
+                return;
+
+            Apply(position, constantValue);
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            mPart!.EndMergeDirty();
+            mPart.Commit();
+            mPart = null;
+            mValues.Clear();
+            State = State.None;
+        }
+
+        void Apply(Avalonia.Point position, bool constantValue)
+        {
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            double tick0 = AutomationRenderer.TickAxis.X2Tick(Math.Min(mLastX, position.X));
+            double tick1 = AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X));
+            mLastX = position.X;
+
+            foreach (var (note, startTick, endTick) in NoteLaneRanges(mPart!))
+            {
+                if (endTick <= tick0)
+                    continue;
+
+                if (startTick > tick1)
+                    break;
+
+                mValues[note] = value;
+            }
+
+            mPart!.DiscardTo(mHead);
+            foreach (var kvp in mValues)
+                kvp.Key.Properties.SetValue(mId, PropertyValue.Create(kvp.Value));
+        }
+
+        IMidiPart? mPart;
+        string mId = string.Empty;
+        LaneEntry mEntry;
+        double mDownValue;   // 定值绘制锁定的值（按下时捕获）
+        double mLastX;
+        Head mHead;
+        readonly Dictionary<INote, double> mValues = new();
+    }
+
+    readonly NoteLaneDrawOperation mNoteLaneDrawOperation;
+
+    // note lane 清除：右键横扫把扫过区间内的 note 属性值移除（回到插件默认值）——对偶连续轨的右键清除。
+    // 同 DiscardTo 重放：区间只扩不缩，每帧对区间内 note 整批 RemoveValue，抬起 Commit 一个撤销步。
+    class NoteLaneClearOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        // 与 phoneme lane 操作共用 State.NoteLaneClearing，靠 mPart 区分是否本操作在跑。
+        public bool IsOperating => State == State.NoteLaneClearing && mPart != null;
+
+        public void Down(double x)
+        {
+            if (State != State.None)
+                return;
+
+            var part = AutomationRenderer.Part;
+            var key = AutomationRenderer.mDependency.ActiveAutomation;
+            if (part == null || key == null || !part.IsEffectiveNoteLane(key.Value))
+                return;
+
+            State = State.NoteLaneClearing;
+            mPart = part;
+            mId = key.Value.Id;
+            part.BeginMergeDirty();
+            mHead = part.Head;
+            double tick = AutomationRenderer.TickAxis.X2Tick(x);
+            mStart = tick;
+            mEnd = tick;
+            Apply();
+        }
+
+        public void Move(double x)
+        {
+            if (!IsOperating)
+                return;
+
+            double tick = AutomationRenderer.TickAxis.X2Tick(x);
+            mStart = Math.Min(mStart, tick);
+            mEnd = Math.Max(mEnd, tick);
+            Apply();
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            mPart!.EndMergeDirty();
+            mPart.Commit();
+            mPart = null;
+            State = State.None;
+        }
+
+        void Apply()
+        {
+            mPart!.DiscardTo(mHead);
+            foreach (var (note, startTick, endTick) in NoteLaneRanges(mPart))
+            {
+                if (endTick <= mStart)
+                    continue;
+
+                if (startTick > mEnd)
+                    break;
+
+                note.Properties.RemoveValue(mId);
+            }
+        }
+
+        IMidiPart? mPart;
+        string mId = string.Empty;
+        double mStart;
+        double mEnd;
+        Head mHead;
+    }
+
+    readonly NoteLaneClearOperation mNoteLaneClearOperation;
+
+    // phoneme lane 绘制：主键拖动把扫过的显示音素属性值写为鼠标处值（Ctrl = 锁定按下值）。写回走音素编辑统一范式：
+    // 受影响 note 先 LockPhonemes（幂等，合成→钉死保几何）再写该位音素 Properties；DiscardTo 重放、抬起单 Commit。
+    // 命中几何与渲染共用 note.DisplayPhonemes（绝对秒、去重叠），目标按 (note, index) 记账——重放把钉死撤回后
+    // 再 lock 重建，索引仍对齐（钉死列表逐位拷贝自合成音素、几何不变）。
+    class PhonemeLaneDrawOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        public bool IsOperating => State == State.NoteLaneDrawing && mPart != null;
+
+        public void Down(Avalonia.Point position, bool constantValue)
+        {
+            if (State != State.None)
+                return;
+
+            var part = AutomationRenderer.Part;
+            var key = AutomationRenderer.mDependency.ActiveAutomation;
+            if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value))
+                return;
+
+            mEntry = part.GetPhonemeLaneEntry(key.Value);
+            if (!mEntry.Resolved)
+                return;   // 未解析占位（合成音素未产出）：量程未知，不可编辑
+
+            State = State.NoteLaneDrawing;
+            mPart = part;
+            mId = key.Value.Id;
+            part.BeginMergeDirty();
+            mHead = part.Head;
+            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            mLastX = position.X;
+            Apply(position, constantValue);
+        }
+
+        public void Move(Avalonia.Point position, bool constantValue)
+        {
+            if (!IsOperating)
+                return;
+
+            Apply(position, constantValue);
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            mPart!.EndMergeDirty();
+            mPart.Commit();
+            mPart = null;
+            mTargets.Clear();
+            State = State.None;
+        }
+
+        void Apply(Avalonia.Point position, bool constantValue)
+        {
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            var tempoManager = mPart!.TempoManager;
+            double sec0 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Min(mLastX, position.X))));
+            double sec1 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X))));
+            mLastX = position.X;
+
+            foreach (var note in mPart.Notes)
+            {
+                if (note.StartTime > sec1 + LeadExtensionSlack)
+                    break;
+
+                var phonemes = note.DisplayPhonemes;
+                for (int i = 0; i < phonemes.Count; i++)
+                {
+                    if (phonemes[i].EndTime <= sec0 || phonemes[i].StartTime > sec1)
+                        continue;
+
+                    mTargets[(note, i)] = value;
+                }
+            }
+
+            mPart.DiscardTo(mHead);
+            foreach (var target in mTargets)
+            {
+                var note = target.Key.Note;
+                note.LockPhonemes();   // 幂等：同 note 多目标重复调用无害
+                if (target.Key.Index < note.Phonemes.Count)
+                    note.Phonemes[target.Key.Index].Properties.SetValue(mId, PropertyValue.Create(target.Value));
+            }
+        }
+
+        IMidiPart? mPart;
+        string mId = string.Empty;
+        LaneEntry mEntry;
+        double mDownValue;   // 定值绘制锁定的值（按下时捕获）
+        double mLastX;
+        Head mHead;
+        readonly Dictionary<(INote Note, int Index), double> mTargets = new();
+    }
+
+    readonly PhonemeLaneDrawOperation mPhonemeLaneDrawOperation;
+
+    // phoneme lane 清除：右键横扫把扫过区间内【钉死音素】的该属性值移除（回到插件默认值）。
+    // 未钉死音素本就显示默认值，清除不为其钉死（不为 no-op 制造数据）；HasProperties 闸门避免 lazy 物化。
+    class PhonemeLaneClearOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        public bool IsOperating => State == State.NoteLaneClearing && mPart != null;
+
+        public void Down(double x)
+        {
+            if (State != State.None)
+                return;
+
+            var part = AutomationRenderer.Part;
+            var key = AutomationRenderer.mDependency.ActiveAutomation;
+            if (part == null || key == null || !part.IsEffectivePhonemeLane(key.Value))
+                return;
+
+            State = State.NoteLaneClearing;
+            mPart = part;
+            mId = key.Value.Id;
+            part.BeginMergeDirty();
+            mHead = part.Head;
+            double sec = part.TempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(x)));
+            mStart = sec;
+            mEnd = sec;
+            Apply();
+        }
+
+        public void Move(double x)
+        {
+            if (!IsOperating)
+                return;
+
+            double sec = mPart!.TempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(x)));
+            mStart = Math.Min(mStart, sec);
+            mEnd = Math.Max(mEnd, sec);
+            Apply();
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            mPart!.EndMergeDirty();
+            mPart.Commit();
+            mPart = null;
+            State = State.None;
+        }
+
+        void Apply()
+        {
+            mPart!.DiscardTo(mHead);
+            foreach (var note in mPart.Notes)
+            {
+                if (note.StartTime > mEnd + LeadExtensionSlack)
+                    break;
+
+                if (note.Phonemes.Count == 0)
+                    continue;
+
+                var phonemes = note.DisplayPhonemes;
+                for (int i = 0; i < phonemes.Count && i < note.Phonemes.Count; i++)
+                {
+                    if (phonemes[i].EndTime <= mStart || phonemes[i].StartTime > mEnd)
+                        continue;
+
+                    if (note.Phonemes[i].HasProperties)
+                        note.Phonemes[i].Properties.RemoveValue(mId);
+                }
+            }
+        }
+
+        IMidiPart? mPart;
+        string mId = string.Empty;
+        double mStart;
+        double mEnd;
+        Head mHead;
+    }
+
+    readonly PhonemeLaneClearOperation mPhonemeLaneClearOperation;
 
     class MiddleDragOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
@@ -1051,6 +1428,8 @@ internal partial class AutomationRenderer
         AnchorMoving,
         VibratoAmplitudeAdjusting,
         RegionSelecting,
+        NoteLaneDrawing,
+        NoteLaneClearing,
     }
 
     State mState = State.None;
