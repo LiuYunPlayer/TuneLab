@@ -364,6 +364,30 @@ internal partial class PianoScrollView
                                             });
                                             menu.Items.Add(menuItem);
                                         }
+                                        // 仅当选中音符里有「可锁而未锁」的（有合成音素、无钉死音素）才提供「锁定音素」——
+                                        // 把合成产物固定为用户数据（与拖音素边界时的隐式锁定同源，见 INote.LockPhonemes）。
+                                        if (Part.Notes.AllSelectedItems().Any(n => n.Phonemes.IsEmpty() && n.SynthesizedPhonemes != null && !n.SynthesizedPhonemes.IsEmpty()))
+                                        {
+                                            var menuItem = new MenuItem().SetName("Lock Phonemes".Tr(TC.Menu)).SetAction(() =>
+                                            {
+                                                bool changed = false;
+                                                Part.BeginMergeDirty();
+                                                foreach (var selectedNote in Part.Notes.AllSelectedItems())
+                                                {
+                                                    if (!selectedNote.Phonemes.IsEmpty())
+                                                        continue;
+
+                                                    selectedNote.LockPhonemes();
+                                                    changed |= !selectedNote.Phonemes.IsEmpty();
+                                                }
+                                                Part.EndMergeDirty();
+                                                if (changed)
+                                                    Part.Commit();
+                                                else
+                                                    Part.Discard();
+                                            });
+                                            menu.Items.Add(menuItem);
+                                        }
                                         // 仅当选中音符里有钉死（锁定）音素才提供「清除锁定音素」——清空后回到合成音素口径。
                                         if (Part.Notes.AllSelectedItems().Any(n => !n.Phonemes.IsEmpty()))
                                         {
@@ -2443,7 +2467,8 @@ internal partial class PianoScrollView
             double offset = x - mX;
             foreach (var vibrato in mVibratos)
             {
-                vibrato.Frequency.Set((vibrato.Frequency + offset / -30).Limit(3, 9));
+                // 对数手感：每 180px 频率变化 e 倍，在默认 6Hz 附近约等效旧的 30px/Hz 线性手感
+                vibrato.Frequency.Set(vibrato.Frequency * Math.Exp(offset / -180));
             }
         }
 

@@ -223,6 +223,7 @@
 "Export Audio" = "导出音频"
 
 "Split by Phonemes" = "按音素拆分"
+"Lock Phonemes" = "锁定音素"
 "Clear Locked Phonemes" = "清除锁定音素"
 "Octave Up" = "升八度"
 "Octave Down" = "降八度"

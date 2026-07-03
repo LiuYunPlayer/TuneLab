@@ -1077,7 +1077,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
         bool layered = Part.SoundSource.Kind == SourceKind.Voice;
         var hoverItem = HoverItem();
 
-        // hover 反馈：中线分隔线 + 悬停半区淡遮罩，把"看不见的分层"显形。半区跟命中判定走（不是裸 y）——
+        // 箱庭结构线：中线横贯整带作上下两室的公共壁——note 边界杆顶满上室、音素刻度线顶满下室，与之相交
+        // 成格；顶边再画一条封住上室（底边不画：紧贴参数区标题栏，已有现成分界）。随音素 UI 同一 opacity 域淡出。
+        if (layered)
+        {
+            var penFrame = new Pen(Style.LIGHT_WHITE.Opacity(0.25).ToBrush(), 1);
+            context.DrawLine(penFrame, new(0, WaveformTop), new(Bounds.Width, WaveformTop));
+            context.DrawLine(penFrame, new(0, WaveformCenterY), new(Bounds.Width, WaveformCenterY));
+        }
+
         // 悬浮区块提亮（只亮所在区块、不整半带亮）：上半空白 = 鼠标所在 note 的区间、下半空白 = 所在显示音素
         // 的区段。悬在线上不亮区块——线自身换主题色（见 DrawBoundary / DrawNoteHandle）。
         if (layered && hoverItem is WaveformBackItem)
@@ -1124,30 +1132,33 @@ internal partial class PianoScrollView : View, IPianoScrollView
             if (!double.IsNaN(blockLeft))
             {
                 double top = upper ? WaveformTop : WaveformCenterY;
-                context.FillRectangle(Colors.White.Opacity(0.045).ToBrush(), new(blockLeft, top, blockRight - blockLeft, WAVEFORM_HEIGHT / 2));
+                context.FillRectangle(Colors.White.Opacity(0.12).ToBrush(), new(blockLeft, top, blockRight - blockLeft, WAVEFORM_HEIGHT / 2));
             }
         }
 
-        // 分界线都靠边：音素刻度锚在底沿（留 4px 边距）、note 边界杆锚在顶沿（留 2px），中间留给波形。
-        double yPhonemeBottom = WaveformBottom - 4;
-        double yPhonemeTop = yPhonemeBottom - 16;
-        double yNoteTop = WaveformTop + 2;
-        double yNoteBottom = yNoteTop + 16;
+        // 箱庭式分界线：各顶满自己半室——note 边界杆 = 上室全高、音素刻度线 = 下室全高，与中线基准线
+        // 相交成格，每个音素 / 每段 note 区间是一个完整的「格子」，文字居中于格。
+        double yPhonemeBottom = WaveformBottom;
+        double yPhonemeTop = WaveformCenterY;
+        double yNoteTop = WaveformTop;
+        double yNoteBottom = WaveformCenterY;
+        // 音素文字一律纯白，钉死 = 粗体、合成 = 常规——固定态只由字重表达，线不参与
+        // （定稿版：粗线/降灰/内描边/主题色字/提亮紫都试过，或扎眼或隐晦或泛白，纯白加粗最稳）。
         IBrush brush = Style.WHITE.ToBrush();
-        // 预测音素：细 / 半透明；钉死（固定）音素：粗 / 实色——让两者相接重叠时仍能一眼区分谁是手动固定的。
-        IPen penSynthesized = new Pen(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), 1);
-        IPen penPinned = new Pen(Style.WHITE.ToBrush(), 2);
+        Typeface pinnedTypeface = new(Typeface.Default.FontFamily, FontStyle.Normal, FontWeight.Bold);
+        // 音素刻度统一细线。
+        IPen penPhoneme = new Pen(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), 1);
         // note 边界统一笔画（上半区的杆 + 下半区的核起点/末线是同一条边界的上下两段，样式一致）。
+        // 降灰细线——顶满半室后线很长，纯白太扎眼；灰一档正好让格壁退为结构、波形和文字留在前景。
         IPen penNoteBoundary = new Pen(Style.LIGHT_WHITE.Opacity(0.7).ToBrush(), 1);
-        // hover 提亮 = 线换主题色，粗细不动——粗细专职「钉死/合成」语义，颜色专职悬浮态，两维正交。
-        IPen penHoverThin = new Pen(Style.HIGH_LIGHT.ToBrush(), 1);
-        IPen penHoverThick = new Pen(Style.HIGH_LIGHT.ToBrush(), 2);
+        // hover 提亮 = 纯白加粗（字色已让出纯白通道给悬浮态，不再与钉死标识撞车）。
+        IPen penHover = new Pen(Style.WHITE.ToBrush(), 2);
         var hoverPhoneme = hoverItem as WaveformPhonemeResizeItem;
         var hoverNoteStart = hoverItem as WaveformNoteStartResizeItem;
         var hoverNoteEnd = hoverItem as WaveformNoteEndResizeItem;
         void DrawNoteHandle(double x, bool hovered)
         {
-            context.DrawLine(hovered ? penHoverThin : penNoteBoundary, new(x, yNoteTop), new(x, yNoteBottom));
+            context.DrawLine(hovered ? penHover : penNoteBoundary, new(x, yNoteTop), new(x, yNoteBottom));
         }
 
         foreach (var note in Part.Notes)
@@ -1159,7 +1170,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 continue;
 
             bool isPinned = !note.Phonemes.IsEmpty();
-            IPen pen = isPinned ? penPinned : penSynthesized;
 
             var startTime = phonemes.ConstFirst().StartTime;
             var endTime = phonemes.ConstLast().EndTime;
@@ -1186,7 +1196,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             int hoverBoundary = hoverPhoneme != null && hoverPhoneme.Note == note ? hoverPhoneme.PhonemeIndex : -1;
             // 核起点（边界 lead = note 头）与末边界（= note 有效末）是 note 边界的下半段：用与上半区 note 杆
             // 一致的统一笔画，hover 与上半杆联动（一条边界一体提亮）；拖它就是拖 note 边界（热区全带高，见
-            // WaveformNoteStartResizeItem）。其余边界才是音素刻度（粗细 = 钉死/合成）。
+            // WaveformNoteStartResizeItem）。其余边界是音素刻度。
             int lead = 0;
             while (lead < phonemes.Count && phonemes[lead].IsLead) lead++;
             void DrawBoundary(int k, double x)
@@ -1195,9 +1205,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 bool hovered = k == hoverBoundary
                     || (k == lead && hoverNoteStart?.Note == note)
                     || (k == phonemes.Count && hoverNoteEnd?.Note == endOwner);
-                IPen linePen = isNoteLine
-                    ? (hovered ? penHoverThin : penNoteBoundary)
-                    : (hovered ? (isPinned ? penHoverThick : penHoverThin) : pen);
+                IPen linePen = hovered ? penHover : isNoteLine ? penNoteBoundary : penPhoneme;
                 context.DrawLine(linePen, new(x, yPhonemeTop), new(x, yPhonemeBottom));
             }
             double right = double.NaN;
@@ -1212,8 +1220,8 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 right = TickAxis.Tick2X(tempoManager.GetTick(phoneme.EndTime));
                 if (i < phonemes.Count - 1 || drawNoteEnd)
                     DrawBoundary(i + 1, right);
-                // 音素文字下对齐（随刻度靠底）。
-                context.DrawString(phoneme.Symbol, new((left + right) / 2, (yPhonemeTop + yPhonemeBottom) / 2), brush, 12, Alignment.Center);
+                // 音素文字居中于格；钉死 = 粗体、合成 = 常规。
+                context.DrawString(phoneme.Symbol, new((left + right) / 2, (yPhonemeTop + yPhonemeBottom) / 2), brush, 12, Alignment.Center, isPinned ? pinnedTypeface : null);
             }
         }
 
@@ -1803,12 +1811,11 @@ internal partial class PianoScrollView : View, IPianoScrollView
         var tempoManager = Part.TempoManager;
         double left = TickAxis.Tick2X(tempoManager.GetTick(display[mInputPhonemeIndex].StartTime));
         double right = TickAxis.Tick2X(tempoManager.GetTick(display[mInputPhonemeIndex].EndTime));
-        // 以音素文字中心为锚对称扩展：中心 x = 音素区间中点、中心 y = 刻度区文字中心（与 DrawWaveform 的
-        // DrawString 落点一致），保证框内文字与底下画的符号同位置。窄音素向两侧对称加宽到最小宽。
+        // 填满整个下室格子：高 = 下室全高、宽 = 音素区间宽（文字垂直居中即与画的符号同位置）。
+        // 窄音素以区间中点为锚向两侧对称加宽到最小宽，保证加宽后文字中心不偏。
         double centerX = (left + right) / 2;
-        double centerY = WaveformBottom - 4 - 8;
         double w = Math.Max(right - left, PhonemeInputMinWidth);
-        return new Rect(centerX - w / 2, centerY - PhonemeInputHeight / 2, w, PhonemeInputHeight);
+        return new Rect(centerX - w / 2, WaveformCenterY, w, WaveformBottom - WaveformCenterY);
     }
 
     INote? mInputLyricNote = null;
@@ -1819,7 +1826,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
     const double LyricInputVerticalPadding = 8;
     const double LyricInputHeight = LyricInputFontSize + 2 * LyricInputVerticalPadding;
     const double LyricInputMinWidth = 60;
-    const double PhonemeInputHeight = 18;   // 12px 字行高 ~16 + 余量；矮壳贴着音素文字
     const double PhonemeInputMinWidth = 48;
 
     readonly TextInput mLyricInput;
@@ -1840,7 +1846,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
     const double LineWidth = 1;
-    const double WAVEFORM_HEIGHT = 64;
+    const double WAVEFORM_HEIGHT = 56;   // 半室 28 = 标准文本框高，音素输入框恰好填满下室格子
 
     double WaveformTop => mDependency.WaveformBottom - WAVEFORM_HEIGHT;
     double WaveformBottom => mDependency.WaveformBottom;
