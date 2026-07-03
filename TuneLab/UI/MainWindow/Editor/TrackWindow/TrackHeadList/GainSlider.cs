@@ -1,7 +1,6 @@
 ﻿using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,9 +8,7 @@ using System.Threading.Tasks;
 using TuneLab.GUI.Components;
 using TuneLab.GUI;
 using TuneLab.Utils;
-using TuneLab.Foundation;
 using Avalonia.Controls;
-using Avalonia.Threading;
 
 using Point = Avalonia.Point;
 
@@ -22,12 +19,9 @@ internal class GainSlider : AbstractSlider
     public GainSlider()
     {
         Thumb = new GainThumb(this);
-        mDirtyHandler.OnReset += SetupTip;
-        mDirtyHandler.OnDirty += () =>
-        {
-            Dispatcher.UIThread.Post(mDirtyHandler.Reset, DispatcherPriority.Normal);
-        };
-        ValueDisplayed.Subscribe(mDirtyHandler.SetDirty);
+        // tooltip 跟随显示值合拍更新（单级）：拖动中每帧的值变化并成一拍一次重设。
+        mTipRefresh = new(SetupTip);
+        ValueDisplayed.Subscribe(mTipRefresh.InvalidateStructure);
     }
 
     private void SetupTip()
@@ -73,5 +67,5 @@ internal class GainSlider : AbstractSlider
         }
     }
 
-    DirtyHandler mDirtyHandler = new();
+    readonly ViewRefreshScheduler mTipRefresh;
 }

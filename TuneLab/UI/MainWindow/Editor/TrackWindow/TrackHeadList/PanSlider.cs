@@ -1,13 +1,11 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.Utils;
@@ -21,12 +19,9 @@ internal class PanSlider : AbstractSlider
     public PanSlider()
     {
         Thumb = new PanThumb(this);
-        mDirtyHandler.OnReset += SetupTip;
-        mDirtyHandler.OnDirty += () =>
-        {
-            Dispatcher.UIThread.Post(mDirtyHandler.Reset, DispatcherPriority.Normal);
-        };
-        ValueDisplayed.Subscribe(mDirtyHandler.SetDirty);
+        // tooltip 跟随显示值合拍更新（单级）：拖动中每帧的值变化并成一拍一次重设。
+        mTipRefresh = new(SetupTip);
+        ValueDisplayed.Subscribe(mTipRefresh.InvalidateStructure);
         SetupTip();
     }
 
@@ -82,5 +77,5 @@ internal class PanSlider : AbstractSlider
         }
     }
 
-    DirtyHandler mDirtyHandler = new();
+    readonly ViewRefreshScheduler mTipRefresh;
 }

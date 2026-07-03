@@ -35,19 +35,16 @@ internal class TrackHeadList : LayerPanel
         mTrackHeadLayer = new(this);
         Children.Add(mTrackHeadLayer);
 
-        mDirtyHandler.OnDirty += () =>
+        // 轨道列表变化合拍重建（单级）：一拍内的多次数据变更并成一次刷新。
+        mTrackListRefresh = new(() =>
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                mTrackHeadLayer.OnTrackListModified();
-                mBackLayer.InvalidateVisual();
-                mDirtyHandler.Reset();
-            }, DispatcherPriority.Normal);
-        };
+            mTrackHeadLayer.OnTrackListModified();
+            mBackLayer.InvalidateVisual();
+        });
 
         mDependency.TrackVerticalAxis.AxisChanged += mTrackHeadLayer.InvalidateArrange;
-        mDependency.ProjectHolder.Modified.Subscribe(mDirtyHandler.SetDirty, s);
-        mDependency.ProjectHolder.When(project => project.Tracks.MembershipModified).Subscribe(mDirtyHandler.SetDirty, s);
+        mDependency.ProjectHolder.Modified.Subscribe(mTrackListRefresh.InvalidateStructure, s);
+        mDependency.ProjectHolder.When(project => project.Tracks.MembershipModified).Subscribe(mTrackListRefresh.InvalidateStructure, s);
     }
 
     ~TrackHeadList()
@@ -293,7 +290,7 @@ internal class TrackHeadList : LayerPanel
         readonly TrackHeadList mTrackHeadList;
     }
 
-    readonly DirtyHandler mDirtyHandler = new();
+    readonly ViewRefreshScheduler mTrackListRefresh;
     readonly DisposableManager s = new();
 
     readonly BackLayer mBackLayer;
