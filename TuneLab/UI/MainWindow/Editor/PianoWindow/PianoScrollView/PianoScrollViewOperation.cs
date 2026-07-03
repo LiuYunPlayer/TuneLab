@@ -2364,6 +2364,8 @@ internal partial class PianoScrollView
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
             mPos = PianoScrollView.TickAxis.X2Tick(x);
+            mLastX = x;
+            mDirection = 0;
         }
 
         public void Move(double x)
@@ -2377,9 +2379,29 @@ internal partial class PianoScrollView
             PianoScrollView.Part.DiscardTo(mHead);
             double mX = PianoScrollView.TickAxis.Tick2X(mPos);
             double offset = x - mX;
+            if (x != mLastX)
+            {
+                mDirection = x > mLastX ? 1 : -1;
+                mLastX = x;
+            }
             foreach (var vibrato in mVibratos)
             {
-                vibrato.Phase.Set((vibrato.Phase + offset / 30).Limit(-1, 1));
+                // 相位周期为 2（合成侧 sin(wt - Phase·π)）：拖过 ±1 环绕续拖，但累计值钳在 [-3, 3]，
+                // 保住"甩到头即取极值"的操作。钳在墙上时符号由墙决定（回拖未脱墙前不闪变号）；
+                // 环绕到 [-1, 1]，中途恰落 ±1 边界时符号跟随拖拽方向。
+                double raw = vibrato.Phase + offset / 30;
+                double phase;
+                if (raw >= 3)
+                    phase = 1;
+                else if (raw <= -3)
+                    phase = -1;
+                else
+                {
+                    phase = raw - 2 * Math.Floor((raw + 1) / 2);
+                    if (phase == -1 && mDirection > 0)
+                        phase = 1;
+                }
+                vibrato.Phase.Set(phase);
             }
         }
 
@@ -2405,6 +2427,8 @@ internal partial class PianoScrollView
 
         IReadOnlyCollection<Vibrato>? mVibratos;
         double mPos;
+        double mLastX;
+        int mDirection;
         Head mHead;
     }
 
