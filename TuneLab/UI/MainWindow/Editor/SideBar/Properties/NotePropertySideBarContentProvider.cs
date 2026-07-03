@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,6 +24,12 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     public NotePropertySideBarContentProvider()
     {
+        // 两面板各一个"标脏→合拍重建"调度器：note 面板（结构=选中集变化整体重绑 SetConfig、值=config 沿链重算
+        // keyed-diff 复用控件）、音素面板（结构=签名/成员变化整面板重建、值=时长/权重值框轻刷新，编辑中经 Suspended 抑制）。
+        // 订阅回调一律只标脏不读数，读取集中在 flush 回调内（settled 状态上执行），见 ViewRefreshScheduler。
+        mNoteScheduler = new(RefreshNoteControllerNow, ReconcileNoteControllerNow);
+        mPhonemeScheduler = new(RefreshPhonemeControllerNow, RefreshPhonemeValues);
+
         var noteName = new Label() { Content = "Note".Tr(TC.Property), Height = 38, FontSize = 14, VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush(), Background = Style.INTERFACE.ToBrush(), Padding = new(24, 0) };
         mNotePanel.Title = noteName;
         mNoteContent.Children.Add(new Border() { Height = 1, Background = Style.BACK.ToBrush() });
@@ -68,8 +73,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     void Setup(IMidiPart part)
     {
-        RefreshNoteController();
-        RefreshPhonemeController();
+        mNoteScheduler.InvalidateStructure();
+        mPhonemeScheduler.InvalidateStructure();
     }
 
     void Terminate()
@@ -79,7 +84,9 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNoteData = null;
         mPhonemeSub.DisposeAll();
         mPhonemeRowsPanel.Children.Clear();
+        mPhonemeValueRefreshers.Clear();
         mPhonemePanel.IsVisible = false;
+        mPhonemeScheduler.Suspended = false;   // 在飞编辑的抑制态不跨 part 存留（提交回调随控件树废弃，可能不再触发复位）
         mPhonemeSignature = string.Empty;
     }
 
@@ -89,25 +96,19 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
-        ReconcileNoteController();
-        RefreshPhonemeController();   // 音素面板：part 值变可能改 schema/对齐，直接重建（编辑为 settled 触发，无活拖拽）
+        mNoteScheduler.InvalidateValues();        // note 面板：数据对象不变 → keyed-diff 复用控件
+        mPhonemeScheduler.InvalidateStructure();  // 音素面板：part 值变可能改 schema/对齐，直接重建（编辑为 settled 触发，无活拖拽）
     }
 
     // ---- 条件属性面板：config = f(context)，按当前值重算并 keyed-diff 到控件树 ----
     // note config 依赖 part 值 + 当前选中 note 的三态合并值。
 
-    void ReconcileNoteController()
+    // note 面板值级 flush：config 沿链重算 + keyed-diff 到控件树（数据对象不变、复用控件）。
+    void ReconcileNoteControllerNow()
     {
-        if (mNoteReconcilePending)
+        if (mPart == null || mNoteData == null)
             return;
-        mNoteReconcilePending = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            mNoteReconcilePending = false;
-            if (mPart == null || mNoteData == null)
-                return;
-            mNotePropertiesController.Reconcile(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()));
-        });
+        mNotePropertiesController.Reconcile(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()));
     }
 
     // 声明面活视图壳（引擎无关、调用级）：note 面板 → 单个所属 part + 各选中 note 列表
@@ -127,13 +128,15 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     void OnNoteSelectionChanged()
     {
-        RefreshNoteController();
-        RefreshPhonemeController();   // 音素面板 scope = 选中 note 的音素
+        mNoteScheduler.InvalidateStructure();
+        mPhonemeScheduler.InvalidateStructure();   // 音素面板 scope = 选中 note 的音素
     }
 
     // 合成音素回填（已是精确信号）。但它为 part 级、覆写所有 note，且每个分块完成各触发一次，
-    // 故仍按显示音素签名（符号/IsLead/数量/钉死态）守卫——仅选中 note 该重画的内容真变了才重建：
-    // 滤掉"非选中 note 的块完成"、"重合成产出同一音素"两类空转，并保护进行中的音素属性编辑不被中途重建打断。
+    // 故按显示音素签名（符号/IsLead/数量/钉死态）分流：签名变了才整面板重建，滤掉"非选中 note 的块完成"类空转；
+    // 签名没变仍可能是"重合成产出同一音素但时长/权重变了"，降级为值刷新——典型如撤销音素长度编辑：解钉重建
+    // 读到旧回声快照，稍后重合成回原值时签名未变，值框必须靠这次轻刷新纠正显示。
+    // 签名读取是对当前数据的整体扫描（不经任何构建时下标快照），不违反"订阅回调只标脏不读数"的纪律。
     void OnSynthesizedPhonemesChanged()
     {
         if (mPart == null)
@@ -141,10 +144,13 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         var signature = PhonemeSignature();
         if (signature == mPhonemeSignature)
+        {
+            mPhonemeScheduler.InvalidateValues();
             return;
+        }
 
         mPhonemeSignature = signature;
-        RefreshPhonemeController();
+        mPhonemeScheduler.InvalidateStructure();
     }
 
     // 选中 note 的显示音素结构签名（决定面板布局的字段：钉死态 + 各音素符号 + IsLead）。值类属性不入签名——
@@ -162,22 +168,10 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
     // 值的下发/写回/撤销刷新由逐字段绑定承担，选中变化时整体重绑（数据对象变 → SetConfig 重建）。
-    // 选中不变期间 note 值 commit 触发 ReconcileNoteController（数据对象不变 → keyed-diff 复用控件）。
+    // 选中不变期间 note/part 值 commit 走 mNoteScheduler 值级（数据对象不变 → keyed-diff 复用控件）。
     //
-    // 重绑 defer 到下一 UI 调度并合并：框选过程中选中集每帧都变，逐次同步全量重建（SetConfig 清空+重建整棵控件树）
-    // 会令数组/列表等变高控件每帧重排、视觉抖动。pending 标志把一拍内的多次选中变化并成一次重建。
-    void RefreshNoteController()
-    {
-        if (mNoteRefreshPending)
-            return;
-        mNoteRefreshPending = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            mNoteRefreshPending = false;
-            RefreshNoteControllerNow();
-        });
-    }
-
+    // 重绑经 mNoteScheduler 合拍：框选过程中选中集每帧都变，逐次同步全量重建（SetConfig 清空+重建整棵控件树）
+    // 会令数组/列表等变高控件每帧重排、视觉抖动，调度器把一拍内的多次选中变化并成一次重建。
     void RefreshNoteControllerNow()
     {
         mNoteSub.DisposeAll();
@@ -195,33 +189,20 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mNoteData = new MultipleDataPropertyObject(dataObjects);
         mNotePropertiesController.SetConfig(mPart.SoundSource.GetNotePropertyConfig(BuildNoteContext()), mNoteData);
         mNoteContentMask.IsVisible = dataObjects.Count == 0;
-        mNoteData.Modified.Subscribe(ReconcileNoteController, mNoteSub);
+        mNoteData.Modified.Subscribe(mNoteScheduler.InvalidateValues, mNoteSub);
     }
 
     // ---- 音素编辑面板（scope = 选中 note 的显示音素，多 note 按核对齐合并成 slot）----
     // 每个有音素的 slot 出一行：符号列（可编、扇出）+（引擎声明了属性时）属性控制器。任一选中 note 有音素即显示面板。
     // 引擎自定义属性仍 pay-as-you-go：未声明则不物化、右侧无控制器，但符号列照常可编。
-    void RefreshPhonemeController()
-    {
-        if (mPhonemeRefreshPending)
-            return;
-        mPhonemeRefreshPending = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            mPhonemeRefreshPending = false;
-            RefreshPhonemeControllerNow();
-        });
-    }
-
     // 一个选中 note 的音素声明信息：显示音素（钉死则 IPhoneme、否则合成）+ 逐音素 config + 核位置（leadCount）。
     readonly record struct PhonemeNoteInfo(INote Note, bool Pinned, int Count, int LeadCount, ObjectConfig?[] Configs);
 
+    // 音素面板结构级 flush：整面板重建。编辑中抑制由 mPhonemeScheduler.Suspended 承担（保留脏位，提交复位时补排）。
     void RefreshPhonemeControllerNow()
     {
-        if (mPhonemeEditing)
-            return;   // 编辑进行中抑制重建（避免打断拖动/键入）；提交后由 ValueCommitted 显式重建复位
-
         mPhonemeSub.DisposeAll();
+        mPhonemeValueRefreshers.Clear();
         mPhonemeRowsPanel.Children.Clear();
         if (mPart == null)
         {
@@ -250,7 +231,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             }
             perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount, cfgs));
             // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。
-            note.Phonemes.MembershipModified.Subscribe(RefreshPhonemeController, mPhonemeSub);
+            note.Phonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
         }
 
         // 对齐索引 = 音素位置 − leadCount（核 = 0、前置辅音离核越近越靠 −1、核后 = +1+）。各 note 按此有符号索引对齐成 slot。
@@ -296,7 +277,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                     var data = propMembers.Select(m => (IDataPropertyObject)m.Note.Note.Phonemes[m.Index].Properties).ToList();
                     poc.SetConfig(config, data.Count == 1 ? data[0] : new MultipleDataPropertyObject(data));
                     foreach (var m in propMembers)
-                        m.Note.Note.Phonemes[m.Index].Properties.Modified.Subscribe(RefreshPhonemeController, mPhonemeSub);
+                        m.Note.Note.Phonemes[m.Index].Properties.Modified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
                 }
                 else
                 {
@@ -346,7 +327,15 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         }
 
         mPhonemePanel.IsVisible = mPhonemeRowsPanel.Children.Count > 0;
-        mPhonemeSignature = PhonemeSignature();   // 同步基线：此后仅签名再变才经 OnSynthesisStatusChanged 重建
+        mPhonemeSignature = PhonemeSignature();   // 同步基线：此后 OnSynthesizedPhonemesChanged 按签名分流（变=重建、不变=值刷新）
+    }
+
+    // 音素面板值级 flush：逐值框轻刷新。调度器不变量保证仅在本拍结构干净时执行，
+    // 各 Refresh 按构建时结构快照（Pinned/Index）读数因此是安全的。
+    void RefreshPhonemeValues()
+    {
+        foreach (var refresh in mPhonemeValueRefreshers)
+            refresh();
     }
 
     // 编辑（松手提交）含合成音素的 slot：对涉及的每个 note 先钉死（LockPhonemes 幂等、保几何——"取不到就创建"=钉死），
@@ -416,7 +405,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // 含合成音素：合成音素无可绑定的 IDataProperty（值在 SynthesizedPhonemes[] 里、无 .Modified/.Set），又不能一显示就锁定。
         // 故手写"首拖固定"——镜像波形拖拽 op：起手对各成员 LockPhonemes（合成→钉死）+ BeginMergeDirty（只延迟重合成、不抑制
         // 数据通知，钢琴窗据 Notes.Phonemes.Modified 实时重绘）；每帧先取 box.Value 再 DiscardTo(head) 后扇出写回；松手 Commit
-        //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期 mPhonemeEditing 抑制面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
+        //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期 mPhonemeScheduler.Suspended 抑制面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
         double ReadOf((PhonemeNoteInfo Note, int Index) m)
             => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedPhonemes![m.Index]);
         void Refresh()
@@ -428,30 +417,23 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 box.DisplayMultiple();
         }
         Refresh();
-        // 仅钉死成员有可订阅属性（混合 slot 里也可能有），订阅其变化刷新显示。
+        // 后续刷新只标脏不读数，读取集中回本 Refresh（值级 flush 经 mPhonemeValueRefreshers 调回）。
+        // Refresh 按构建时结构快照（Pinned/Index）读数是安全的：值级 flush 仅在本拍结构干净时执行（调度器不变量），
+        // 任何结构变化（如改歌词 Lyric.Set → Phonemes.Clear 解钉）必然已标结构脏、本拍走整面板重建而非值刷新。
+        mPhonemeValueRefreshers.Add(Refresh);
+        // 钉死成员属性变化（含撤销回退）→ 值级标脏。仅钉死成员有可订阅属性（混合 slot 里也可能有）。
         foreach (var m in members)
             if (m.Note.Pinned)
-                field(m.Note.Note.Phonemes[m.Index]).Modified.Subscribe(Refresh, mPhonemeSub);
-        // 合成（未钉死）成员的值取自 SynthesizedPhonemes 快照、无可订阅的 IDataProperty：重合成回填新值后须刷新本框。
-        // 该回填即便不改显示音素签名（符号/IsLead 不变、仅时长/权重变）也不触发面板重建，故必须在此单独订阅，
-        // 否则解钉/重合成后值框停留在旧快照——典型如撤销音素长度编辑：属性回退已正确，但解钉重建读到尚未刷新的
-        // SynthesizedPhonemes（仍是编辑时的回声），稍后重合成回原值却因签名未变被守卫挡掉，导致显示永久闪回撤回前的值。
-        if (mPart != null && members.Any(m => !m.Note.Pinned))
-            mPart.SynthesizedPhonemesChanged.Subscribe(() =>
-            {
-                // 合成音素数量变化时签名会变、随后整面板重建（本订阅随即失效）；但本订阅可能在那次重建前先被调用，
-                // 此时按旧 m.Index 读新数组会越界，故先校验结构、变了就跳过，留给重建处理。
-                if (members.Any(m => !m.Note.Pinned && (m.Note.Note.SynthesizedPhonemes is not { } sp || m.Index >= sp.Length)))
-                    return;
-                Refresh();
-            }, mPhonemeSub);
+                field(m.Note.Note.Phonemes[m.Index]).Modified.Subscribe(mPhonemeScheduler.InvalidateValues, mPhonemeSub);
+        // 合成（未钉死）成员的值取自 SynthesizedPhonemes 快照、无可订阅的 IDataProperty：重合成回填新值
+        //（签名未变、不触发重建）时由面板级 OnSynthesizedPhonemesChanged 分流为值级标脏，此处无需再订阅。
 
         Head editHead = default;
         box.ValueWillChange.Subscribe(() =>
         {
             if (mPart == null)
                 return;
-            mPhonemeEditing = true;
+            mPhonemeScheduler.Suspended = true;
             foreach (var (n, _) in members)
                 n.Note.LockPhonemes();
             mPart.BeginMergeDirty();
@@ -478,8 +460,9 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 mPart.Discard();
             else
                 mPart.Commit();
-            mPhonemeEditing = false;
-            RefreshPhonemeController();
+            // 复位抑制（编辑期被扣下的脏位自动补排），并显式标结构脏：提交后锁定成立，本 slot 转全钉死绑定路径。
+            mPhonemeScheduler.Suspended = false;
+            mPhonemeScheduler.InvalidateStructure();
         }, mPhonemeSub);
 
         return box;
@@ -579,10 +562,11 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
     IMidiPart? mPart = null;
     MultipleDataPropertyObject? mNoteData = null;
-    bool mNoteReconcilePending = false;
-    bool mNoteRefreshPending = false;
-    bool mPhonemeRefreshPending = false;
-    bool mPhonemeEditing = false;   // 音素字段拖动/键入进行中：抑制面板重建，避免锁定/写入触发的事件中途打断编辑
+    // 两面板的"标脏→合拍重建"调度器（构造函数初始化）；音素编辑拖动/键入期间经 Suspended 抑制重建。
+    readonly ViewRefreshScheduler mNoteScheduler;
+    readonly ViewRefreshScheduler mPhonemeScheduler;
+    // 音素面板各值框的轻刷新入口：结构级 flush（重建）时重收，值级 flush 逐个调用。
+    readonly List<Action> mPhonemeValueRefreshers = new();
     string mPhonemeSignature = string.Empty;
 
     // 时长：内部存秒，显示/键入按 ms（1ms/px 拖动），下界 0、无上界。
