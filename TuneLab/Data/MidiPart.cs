@@ -62,6 +62,7 @@ internal class MidiPart : Part, IMidiPart
 
     public MidiPart(ITrack track, MidiPartInfo info) : base(track)
     {
+        mOnTimebaseModified = OnTimebaseModified;
         Name = new(this, string.Empty);
         Pos = new(this);
         Dur = new(this);
@@ -86,7 +87,12 @@ internal class MidiPart : Part, IMidiPart
         mSource.Modified.Subscribe(OnVoiceModified);
         // part 参数 commit：voice 的条件自动化轨集合可能随之变；重算并按需通知 UI。
         Properties.Modified.Subscribe(OnPartPropertiesModified);
-        // 其余数据变更（note/pitch/automation/tempo/平移）不再由 part 驱动重分片——
+        // part 平移 → 时基重建（兑现 VoiceSynthesisContext 既定设计的一半，另一半 tempo 见 Activate）：
+        // 平移跨 bpm 段会改各 note 秒时长、非纯偏移；note 边界代理刻意不订阅 part.Pos，其变化由
+        // session 重建覆盖。拖动的每步是 DiscardTo+重放（皆 settled），重建靠 OnTimebaseModified 的
+        // 调度轮折叠去抖。
+        Pos.Modified.Subscribe(mOnTimebaseModified);
+        // 其余数据变更（note/pitch/automation）不再由 part 驱动重分片——
         // 失效判定归插件，变更流经 VoiceSynthesisContext 转发。
         SetInfo(info);
     }
@@ -519,11 +525,48 @@ internal class MidiPart : Part, IMidiPart
     public override void Activate()
     {
         RebuildSynthesisPipeline();
+        // 时基变更（tempo 表）→ 整体重建会话：兑现 VoiceSynthesisContext 的既定设计（note 边界代理
+        // 刻意不订阅 TempoManager，其变化由 session 重建覆盖——此前该接线缺失，tempo 一改插件收不到
+        // 任何通知）。重建经 OnTimebaseModified 折叠到调度轮（settled 通道挡不住头重放式编辑手势）。
+        // tempo 属工程级对象、寿命长于 part，订阅挂激活生命周期。
+        TempoManager.Modified.Subscribe(mOnTimebaseModified);
     }
 
     public override void Deactivate()
     {
+        TempoManager.Modified.Unsubscribe(mOnTimebaseModified);
         DisposeSynthesisPipeline();
+    }
+
+    // 时基变更统一入口（tempo 表变更 / part 平移）：整体重建会话（含 context）——平移跨 bpm 段会改
+    // 各 note 秒时长、非纯偏移，第一版无脑重建最简单正确。
+    //
+    // 重建**折叠到调度轮末尾**执行：settled 通道挡不住头重放式拖拽——part 拖动每个量化步进是
+    // DiscardTo(还原 Pos) → Pos.Set → 可能的摘除重插 的三连触发、且皆为 settled（该路径不走 merge
+    // 作用域），逐触发重建即 3× 会话抖动。重建挂起到 SynchronizationContext 回调，一轮内多次触发
+    // 合并为一次；期间任何一次重建（如摘除重插的 Activate）都会清除挂起（见 RebuildSynthesisPipeline
+    // 入口），不双跑。
+    void OnTimebaseModified()
+    {
+        if (mPipeline == null || mTimebaseRebuildPending)
+            return;
+
+        var syncContext = SynchronizationContext.Current;
+        if (syncContext == null)
+        {
+            RebuildSynthesisPipeline();   // 无调度上下文（测试等环境）：退化为就地重建
+            return;
+        }
+
+        mTimebaseRebuildPending = true;
+        syncContext.Post(_ =>
+        {
+            if (!mTimebaseRebuildPending)
+                return;                   // 期间已被其它路径重建（拖动跨排序的摘除重插）或已停用
+            mTimebaseRebuildPending = false;
+            if (mPipeline != null)
+                RebuildSynthesisPipeline();
+        }, null);
     }
 
     void OnVoiceModified()
@@ -534,6 +577,7 @@ internal class MidiPart : Part, IMidiPart
 
     void RebuildSynthesisPipeline()
     {
+        mTimebaseRebuildPending = false;   // 任何一次重建都满足挂起的时基重建诉求（见 OnTimebaseModified）
         DisposeSynthesisPipeline();
         // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），
         // 必须在建会话之前填好——否则会话构造期经 context.Automations 订阅自己声明的轨会读到空缓存、订阅落空、绘制参数不重渲。
@@ -809,6 +853,10 @@ internal class MidiPart : Part, IMidiPart
     readonly OrderedMap<PropertyKey, LaneEntry> mPhonemeLaneConfigs = new();
     readonly BatchSignal mSynthesisBatch = new();
     ISynthesisPipeline? mPipeline;
+    // 时基变更钩的稳定句柄（tempo 订阅/退订须同一实例，见 Activate/Deactivate；Pos 订阅共用）。
+    readonly Action mOnTimebaseModified;
+    // 时基重建挂起位（调度轮内合并多次触发为一次重建，见 OnTimebaseModified）。
+    bool mTimebaseRebuildPending;
 
     readonly NoteList mNotes;
     readonly VibratoList mVibratos;

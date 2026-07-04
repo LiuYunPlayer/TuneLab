@@ -9,7 +9,7 @@ namespace TuneLab.SDK;
 // 活视图只额外多一个区间订阅事件；冻结面（SynthesisAutomationSnapshot）则只取求值能力。
 public interface ISynthesisAutomation : IAutomationEvaluator
 {
-    // (startTime, endTime)，全局秒。除曲线本身编辑外，tempo 变化导致的秒轴位移也经此通知
-    // （同一 tick 锚点经新 tempo 映射到不同秒位置 → 宿主在批量括号内对受影响轨触发全区间）。
+    // (startTime, endTime)，全局秒。只通知曲线本身的编辑；tempo 变化导致的秒轴位移**不**经此通知
+    // ——时基变更走会话整体重建（见 IVoiceSynthesisContext 头注释），重建后的新视图即新秒轴。
     IActionEvent<double, double> RangeModified { get; }
 }

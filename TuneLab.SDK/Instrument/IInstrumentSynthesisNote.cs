@@ -9,8 +9,9 @@ namespace TuneLab.SDK;
 //   ② 无 Lyric / 无 Phonemes——instrument 无歌词、无音素系统。
 // 固定字段保持最小（通用乐理属性）；instrument 专属 per-note 参数走 Properties（keyed）。
 //
-// 时间量为全局秒（与音频产物同系）：边界是 tempo 表派生的秒值，tempo 变化时边界值随之改变、
-// 其 StartTime/EndTime.Modified 即触发。tick 是宿主乐谱内部表示、不外露。
+// 时间量为全局秒（与音频产物同系）：边界是 tempo 表派生的秒值。时基变更（tempo 表 / part 平移）
+// 不走增量通知——宿主整体重建会话（同 voice），边界 Modified 只在 note 自身编辑时触发。
+// tick 是宿主乐谱内部表示、不外露。
 public interface IInstrumentSynthesisNote
 {
     IReadOnlyNotifiableProperty<double> StartTime { get; }

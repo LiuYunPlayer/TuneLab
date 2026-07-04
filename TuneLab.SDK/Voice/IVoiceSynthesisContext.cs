@@ -16,9 +16,9 @@ namespace TuneLab.SDK;
 // 机制粒度支撑最精细策略，也允许"任何通知 → 全部标脏"的懒实现。
 //
 // 坐标系约定（SDK 面）：插件侧时间量一律为全局秒（与音频产物、状态段同一时间系）；tick 仅
-// 是宿主乐谱内部表示、不外露。tempo 变化无独立信号——它被分解为具体变更：note 边界秒值变 →
-// 其 StartTime/EndTime.Modified 触发；automation 秒映射移位 → 宿主在批量括号内对受影响轨触发
-// 全区间 RangeModified。插件用既有订阅机制即收到，无需"时基变了"这种元信号。
+// 是宿主乐谱内部表示、不外露。时基变更（tempo 表 / part 平移）无独立信号也无增量分解通知——
+// 宿主直接**整体重建会话**（旧会话 Dispose、新 context 新会话），新会话读到的即新秒值。
+// 插件无需处理"时基变了"：正确实现 Dispose（退订 + 释放音频段）即天然正确。
 public interface IVoiceSynthesisContext
 {
     // 选定声库（= IVoiceSynthesisEngine.VoiceSourceInfos 的 key）：context 生命内**不可变**（换声库 = 宿主重建 context + 会话），

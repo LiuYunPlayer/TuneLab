@@ -10,7 +10,8 @@ namespace TuneLab.Data.Synthesis;
 
 // IVoiceSynthesisContext 的宿主实现：会话级中间层，每次 CreateSession 新建、随会话死。
 // 插件订阅的事件字段全在本对象/其代理对象上（短命，随会话一起回收 → 泄漏结构性不可能）；
-// 本对象内部订阅长寿数据层（part/note/automation/tempo），由宿主在数据线程转发——
+// 本对象内部订阅长寿数据层（part/note/automation；tempo 不订阅——时基变更走会话整体重建），
+// 由宿主在数据线程转发——
 // 借壳数据层最小订阅面（IReadOnlyNotifiable），天然只转发已提交的真实变更（merge 中间态不外漏）。
 //
 // 坐标系约定（SDK 面）：tick/秒均为全局工程轴（与音频产物、状态段同一时间系）；
@@ -47,7 +48,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
 
         // 时基变了（tempo 表变更 / part 平移）：宿主整体重建 session（含 context），不在此做
         // 增量通知——平移跨 bpm 段会改各 note 秒时长，非纯偏移，第一版无脑重建最简单正确。
-        // 故 note 边界 DerivedProperty 不订阅 part.Pos / TempoManager（其变化由 session 重建覆盖）。
+        // 故 note 边界 DerivedProperty 不订阅 part.Pos / TempoManager（其变化由 session 重建覆盖；
+        // 重建接线在 MidiPart.OnTimebaseModified，调度轮内合并触发）。
 
         // 区间失效分通道：pitch 曲线 → Pitch；vibrato 几何 → PitchDeviation。
         part.Pitch.RangeModified.Subscribe(NotifyPitchRangeModified, s);
@@ -455,7 +457,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     }
 
     // —— note 代理：固定字段全部以派生属性借壳数据层；边界为全局秒（ToSecond(partPos+notePos)，
-    //    DerivedProperty source 含 part.Pos / TempoManager，故 tempo 变 / part 平移自动触发边界 Modified）；
+    //    DerivedProperty source **只含 note 自身字段**——part.Pos / TempoManager 刻意不入 source，
+    //    时基变更由会话整体重建覆盖（接线在 MidiPart.OnTimebaseModified），非增量通知）；
     //    Lyric 取最终发音（与旧 SDK 面一致）；Phonemes 转为 pinned 约束形。 ——
     internal sealed class VoiceNoteProxy : IVoiceSynthesisNote, IDisposable
     {

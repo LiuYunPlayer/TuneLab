@@ -6,9 +6,9 @@ namespace TuneLab.SDK;
 // voice 专属 per-note 参数一律走 Properties（keyed）——加新参数 = 加会话声明 NoteProperties
 // 的 key，不动本接口固定面。
 //
-// 时间量为全局秒（插件侧统一秒轴，与音频产物同系）：note 边界是 tempo 表派生的秒值，tempo
-// 变化时边界值随之改变，其 StartTime/EndTime.Modified 即触发——这正是"tempo 变了"对插件的
-// 具体体现，无需独立的时基信号。tick 是宿主乐谱内部表示、不外露。
+// 时间量为全局秒（插件侧统一秒轴，与音频产物同系）：note 边界是 tempo 表派生的秒值。
+// 时基变更（tempo 表 / part 平移）**不走增量通知**——宿主整体重建会话（含 context），新会话
+// 读到新秒值；边界 Modified 只在 note 自身编辑时触发。tick 是宿主乐谱内部表示、不外露。
 public interface IVoiceSynthesisNote
 {
     IReadOnlyNotifiableProperty<double> StartTime { get; }
