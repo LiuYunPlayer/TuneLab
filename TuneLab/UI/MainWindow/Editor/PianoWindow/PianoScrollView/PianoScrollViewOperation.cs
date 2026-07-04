@@ -180,7 +180,10 @@ internal partial class PianoScrollView
                         var sn = waveformNoteStartResizeItem.Note;
                         var prev = sn.Last;
                         INote? coupled = prev != null && prev.EndPos() >= sn.StartPos() - 1e-6 ? prev : null;
-                        if (e.IsDoubleClick && coupled != null && sn.IsContinuation() && coupled.Pitch.Value == sn.Pitch.Value)
+                        // 手势跟随插件判定（IsEffectiveContinuation）：source 认哪种记号是延音，合并手势就出现在哪。
+                        // 判定是插件通知延音的唯一通道、宿主照单全收——不叠加钉死等额外合取（钉死在延续 note 上
+                        // 的语义归引擎解释；标准判定自带钉死排除，故默认语义下钉死 note 本就不会被判延续）。
+                        if (e.IsDoubleClick && coupled != null && sn.IsEffectiveContinuation() && coupled.Pitch.Value == sn.Pitch.Value)
                         {
                             // 双击延音符与前 note 的分隔线（同音高）= 删除分隔线：前 note 吞并延音符——单击落刀切分的逆操作。
                             // 延音符无自己的歌词语义，其钉死音素随删除丢弃（本就是前音节的延续）。

@@ -469,8 +469,6 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
         public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesizedPhoneme>> Phonemes { get; }
-        // 生效延续：普通只读、读时按相接链求值（数据线程，O(链长)）。无独立通知——其输入 Lyric/位置本就可订阅。
-        public bool IsContinuation => mNote.IsEffectiveContinuation();
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public IVoiceSynthesisNote? Next => mContext.ProxyOf(mNote.Next);

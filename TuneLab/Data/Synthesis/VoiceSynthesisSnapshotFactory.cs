@@ -42,7 +42,6 @@ internal static class VoiceSynthesisSnapshotFactory
                 EndTime = note.EndTime.Value,                   // 有效末（去重叠，单声部音频口径；宿主独占音素布局）
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
-                IsContinuation = note.IsContinuation,           // 生效延续（相接链）；宿主独占判据，作稳定标志暴露
                 Phonemes = CapturePhonemes(proxy.Source),       // 钉死音素：几何描述符 + per-phoneme 属性值快照
                 Properties = proxy.Source.Properties.GetInfo(), // 值拷 PropertyObject
             });

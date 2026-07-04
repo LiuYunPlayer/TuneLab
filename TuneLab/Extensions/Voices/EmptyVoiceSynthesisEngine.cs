@@ -33,6 +33,28 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
     {
         public string DefaultLyric => "a";
 
+        // 零引擎的延音判定语义 = 编辑器 "-" 录入约定（本引擎是宿主授权自己代管的回退实现，判定语义
+        // 与其它引擎同权、自有）：无声源 part（含缺插件的工程回退至此）上，split/merge 手势与钉死
+        // melisma 显示在选到真引擎之前成对可用、观感不散架。语义：歌词 "-" ∧ 经不断裂相接链回溯到
+        // 内容 note（严格比较——边界同源 tick 换算，相接即精确相等）∧ 本 note 无钉死音素（孤儿 = false）。
+        public bool IsContinuation(IVoiceSynthesisNote note)
+        {
+            if (note.Lyric.Value != "-" || note.Phonemes.Value.Count > 0)
+                return false;
+            var cur = note;
+            while (true)
+            {
+                var prev = cur.Last;
+                if (prev == null)
+                    return false;                          // 链跑出开头、无内容 note → 孤儿
+                if (prev.EndTime.Value < cur.StartTime.Value)
+                    return false;                          // 空隙断链 → 孤儿
+                if (prev.Lyric.Value != "-" || prev.Phonemes.Value.Count > 0)
+                    return true;                           // 回溯到链头 → 生效延续
+                cur = prev;
+            }
+        }
+
         public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
 
         public Task SynthesizeNext(double startTime, double endTime,

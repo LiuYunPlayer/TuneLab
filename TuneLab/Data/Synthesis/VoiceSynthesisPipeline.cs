@@ -196,8 +196,19 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         mCancellation.Dispose();
     }
 
+    // note 的会话延音判定（MidiPart 判定缓存重建时调用；数据线程，插件异常由调用方护栏兜底）。
+    // 代理恒存在：NoteProxyList.ProxyOf 对缺失映射兜底补建（不依赖增删事件时序），非 null note
+    // 必得代理——不存在"note 已入集合、代理未建"的闪判窗口。
+    public bool JudgeContinuation(INote note)
+    {
+        return mSession.IsContinuation(mContext.ProxyOf(note)!);
+    }
+
     // 合成音素回填到 note（UI 音素显示消费面）：产物已按归属 note 键，直拷到对应 note（免归组）。
     // 键是 note 活代理（VoiceNoteProxy），经 .Source 落回宿主 note；未在产物中的 note 置空（留白）。
+    // 回显**如实落账、不做任何校验丢弃**：数据忠实存储，但显示是否读取由延音判定裁决（判定优先级
+    // 最高——判定为延续的 note 其音素根本不被读取，违约回显即被忽略、兜底零成本）。回填对引擎世代
+    // 零感知：legacy 适配器判定恒 false（老模型无乘客机制），其占位回显自然走普通内容显示。
     void WriteBackPhonemes()
     {
         try

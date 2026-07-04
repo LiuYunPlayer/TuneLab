@@ -42,6 +42,13 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     {
         get
         {
+            // 乘客透明：插件判定为延续的 note 不渲染自己的音素——判定优先级最高（布局第一步就是
+            // 延音判定，过了这层才读音素数据），钉死、违约回显都不例外：钉死在延续 note 上的语义
+            // 归引擎解释；违约回显如实落账但不被读取（忽略即兜底）。legacy 适配器判定恒 false
+            // （老模型无乘客机制，忠实降级），其占位回显走本判据之外的普通内容显示。
+            if (this.IsEffectiveContinuation())
+                return [];
+
             bool pinned = !Phonemes.IsEmpty();
             var synth = SynthesizedPhonemes;
             int n = pinned ? Phonemes.Count : (synth?.Length ?? 0);
@@ -77,9 +84,9 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         }
     }
 
-    // note 是否承载音素内容（钉死或合成）。无内容的 note（延音符 / 空 note）在音素时间线上透明：
-    // 被前一个 note 的音素铺设跳过、盖过去。要静音由插件自行为该 note 返回静止音素（如 sp），
-    // 一旦有内容即不再透明。宿主据此判定，不认任何具体歌词记号。
+    // note 是否承载音素数据（钉死或合成）——布局意义上的"有几何可铺"。它不是乘客判据（乘客身份
+    // = IsEffectiveContinuation，插件判定的唯一通道、宿主照单全收），只用于显示门控终判
+    //（"非乘客邻居有没有数据可依"）。
     private static bool HasPhonemeContent(INote x)
     {
         return !x.Phonemes.IsEmpty() || (x.SynthesizedPhonemes != null && !x.SynthesizedPhonemes.IsEmpty());
@@ -93,19 +100,19 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // （满末与有效末喂进布局其实结果等价：核是弹性吸收者，压缩量 = Σ辅音−available，与核自然长无关 → 与 fillEnd 无关。
     //  取有效末是为构造一致，非功能必需。）
     //
-    // 乘客判据 = 「无归属自己的音素」AND「是延音符（歌词 "-"）」：
-    // · 合成后以 origin（HasPhonemeContent）为权威——有自己音素即非乘客；
-    // · 合成前邻居还没音素，单看"无音素"会把还没合成的真音节误当乘客、元音越铺进去、合成后又缩回（跳动），
-    //   故再用唯一延音符约定 "-" 预测：真歌词 note 即便暂无音素也不被铺过、元音停在其起点（合成后落到其引导辅音前，仅微调）。
+    // 乘客判据 = IsEffectiveContinuation，纯插件判定、无任何宿主合取——判定优先级最高：布局第一步
+    // 就是延音判定，判定为延续的 note 其音素数据（钉死 / 回显）根本不被读取（钉死语义归引擎解释；
+    // 违约回显落账但被忽略；legacy 适配器判定恒 false——老模型无乘客机制，其回显走普通内容显示）。
+    // 原"合成前用 '-' 预测、合成后以 HasPhonemeContent 为权威"的双轨制退役，显示骨架合成前即终态。
+    // 不设相接条件：空隙语义归插件——标准判定跨空隙断链（空隙 = 静音）；自定义判定若跨空隙延续，
+    // 宿主照铺、音频照做，显示与音频一起走。
     private double ForwardFillEnd()
     {
         double fillEnd = this.EffectiveEndTime();   // 无乘客时 = own 有效末（与快照口径一致）
         INote? next = Next;
-        // 乘客须与当前内容**相接**（next 起点不晚于已铺到的 fillEnd）才被铺过：延音符与前面有空隙时不是乘客，
-        // 元音不跨空隙铺过去（否则前音符音素会越过静音一直显示到脱离的延音符末）。
-        while (next != null && !HasPhonemeContent(next) && next.IsContinuation() && next.StartTime <= fillEnd + 1e-6)
+        while (next != null && next.IsEffectiveContinuation())
         {
-            // 有乘客：容纳音素的长度由**最后一个相接乘客**（乘客组末）决定，覆盖而非取 max。
+            // 有乘客：容纳音素的长度由**最后一个乘客**（乘客组末）决定，覆盖而非取 max。
             fillEnd = next.EffectiveEndTime();
             next = next.Next;
         }
@@ -147,7 +154,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     private INote? PrevContentNeighbor()
     {
         INote? p = Last;
-        while (p != null && !HasPhonemeContent(p) && p.IsContinuation())
+        while (p != null && p.IsEffectiveContinuation())
             p = p.Last;
         return p != null && HasPhonemeContent(p) ? p : null;
     }
@@ -155,7 +162,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     private INote? NextContentNeighbor()
     {
         INote? p = Next;
-        while (p != null && !HasPhonemeContent(p) && p.IsContinuation())
+        while (p != null && p.IsEffectiveContinuation())
             p = p.Next;
         return p != null && HasPhonemeContent(p) ? p : null;
     }
@@ -165,26 +172,28 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // 内容 note → 已决；不相接 / 末尾 → 无依赖；非乘客且无音素且相接 → 未决（邻居待合成，本 note 须等其音素）。
     private bool NextNeighborUnresolved()
     {
-        double fillEnd = this.EffectiveEndTime();   // 本 note 有效末（向前铺过相接乘客，同 ForwardFillEnd 口径）
+        double fillEnd = this.EffectiveEndTime();   // 本 note 有效末（向前铺过乘客，同 ForwardFillEnd 口径）
         INote? next = Next;
-        while (next != null && !HasPhonemeContent(next) && next.IsContinuation() && next.StartTime <= fillEnd + 1e-6)
+        while (next != null && next.IsEffectiveContinuation())
         {
             fillEnd = next.EffectiveEndTime();
             next = next.Next;
         }
-        return next != null && !HasPhonemeContent(next) && next.StartTime <= fillEnd + 1e-6;
+        // 终判仍看相接：这是布局依赖的几何前提（不相接的邻居音素推挤不到本 note），非延音判定。
+        // 严格比较无容差：边界同源于 tick 经确定性换算的秒，相接即精确相等（PhonemeLayout.Connected 同论证）。
+        return next != null && !HasPhonemeContent(next) && next.StartTime <= fillEnd;
     }
 
     private bool PrevNeighborUnresolved()
     {
         double reachStart = StartTime;
         INote? prev = Last;
-        while (prev != null && !HasPhonemeContent(prev) && prev.IsContinuation() && prev.EndTime >= reachStart - 1e-6)
+        while (prev != null && prev.IsEffectiveContinuation())
         {
             reachStart = prev.StartTime;
             prev = prev.Last;
         }
-        return prev != null && !HasPhonemeContent(prev) && prev.EndTime >= reachStart - 1e-6;
+        return prev != null && !HasPhonemeContent(prev) && prev.EndTime >= reachStart;
     }
 
     // 本 note 钉死音素的 effective 相对秒边界（拖拽反解 / EffectivePinnedPhonemeTimes 用）。3-note 窗口
@@ -252,35 +261,22 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
 
 internal static class INoteExtension
 {
-    // 延音符（**结构判据**，宿主内部用）：歌词 "-" 视为不带新歌词、延续前一个音节。"-" 是**唯一**延音符记号
-    // （空歌词不算——空/不认识的歌词由插件按"不认识"处理、返回无效音素）。除编辑器/录词便利外，宿主音素铺设也用它作
-    // **合成前的乘客预测**（见 INote.ForwardFillEnd：合成后仍以 origin/HasPhonemeContent 为权威，合成前用 "-" 预测避免元音越铺进未合成的真音节）。
-    // 注意：本判据只看记号、**不含相接**；宿主各处铺设走法各自再合取相接条件。喂给插件的稳定标志见 IsEffectiveContinuation。
-    public static bool IsContinuation(this INote note)
+    // 编辑器延音记号（**录入便利判据**，仅编辑器 UX 用：split 默认填 "-"、录词跳过等）。
+    // "-" 是编辑器的默认延音记号约定，**不再是契约概念**——延音的结构判定已完整下放插件
+    // （见 IsEffectiveContinuation），本判据不参与布局 / 手势 / 合成。
+    public static bool IsEditorContinuationLyric(this INote note)
     {
         return note.Lyric.Value == "-";
     }
 
-    // 生效的延续（**喂插件 SDK 的 IsContinuation 标志**，对齐宿主 melisma 实际决策）：是延音符("-")，且经**不断裂的相接链**
-    // 回溯到一个真歌词(发声)note。孤儿延音符（链被空隙断开、或链头无发声 note）返回 false——故插件读本标志即与宿主一致，
-    // 不会把孤儿延音符误当真延音、把前元音铺进静音（那种不对等是 footgun）。纯 Lyric + 位置派生（不依赖合成态），
-    // 故 live 侧 IVoiceSynthesisNote.IsContinuation 可作普通只读字段、按需求值无需通知（其输入 Lyric/位置本就可订阅）。
+    // 生效延续（显示布局 + 编辑手势的统一判据）= 引擎完整判定的缓存值（IVoiceSynthesisSession.IsContinuation
+    // 经 MidiPart 物化），宿主不叠加任何自己的判据。判定同步可知——显示骨架合成前即终态（硬 WYSIWYG）。
+    // 判定无真空、也无宿主链回溯：voice part 恒有会话（无声源回退零引擎 EmptyVoiceSynthesisEngine，
+    // 其判定 = 编辑器 "-" 约定——那是该引擎自有的语义）；instrument 无延音概念、恒 false。
+    // 链 / 空隙 / 孤儿规则不再是契约资产——各引擎判定语义自有（SDK 无共享实现）。
     public static bool IsEffectiveContinuation(this INote note)
     {
-        if (note.Lyric.Value != "-")
-            return false;
-        var cur = note;
-        while (true)
-        {
-            var prev = cur.Last;
-            if (prev == null)
-                return false;                          // 链跑出开头、无发声 note → 孤儿
-            if (prev.EndTime < cur.StartTime - 1e-6)
-                return false;                          // 空隙断链 → 孤儿
-            if (prev.Lyric.Value != "-")
-                return true;                           // 回溯到真歌词 → 生效延续
-            cur = prev;                                // prev 也是 "-"，继续回溯
-        }
+        return note.Part.IsPluginContinuation(note);
     }
 
     public static double StartPos(this INote note)

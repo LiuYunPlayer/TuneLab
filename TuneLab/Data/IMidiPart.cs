@@ -33,6 +33,10 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     // 钉选变更后由动作方调用：重算两 scope 的 lane 集合，实变则经 AutomationConfigsModified 通知 UI。
     void RefreshPinnedLaneConfigs();
     INoteList Notes { get; }
+    // note 的延音判定（插件完整判定的物化缓存，宿主照单消费——显示布局 / 编辑手势同源；
+    // 契约见 IVoiceSynthesisSession.IsContinuation）。voice part 恒有会话（无声源回退空引擎，
+    // 其判定 = 编辑器 "-" 约定）；instrument 无延音概念、恒 false。
+    bool IsPluginContinuation(INote note);
     IReadOnlyDataObjectLinkedList<Vibrato> Vibratos { get; }
     DataPropertyObject Properties { get; }
     ISoundSource SoundSource { get; }

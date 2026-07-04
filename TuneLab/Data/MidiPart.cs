@@ -87,12 +87,18 @@ internal class MidiPart : Part, IMidiPart
         mSource.Modified.Subscribe(OnVoiceModified);
         // part 参数 commit：voice 的条件自动化轨集合可能随之变；重算并按需通知 UI。
         Properties.Modified.Subscribe(OnPartPropertiesModified);
-        // part 平移 → 时基重建（兑现 VoiceSynthesisContext 既定设计的一半，另一半 tempo 见 Activate）：
-        // 平移跨 bpm 段会改各 note 秒时长、非纯偏移；note 边界代理刻意不订阅 part.Pos，其变化由
-        // session 重建覆盖。拖动的每步是 DiscardTo+重放（皆 settled），重建靠 OnTimebaseModified 的
-        // 调度轮折叠去抖。
+        // 延音判定缓存失效（源一）：判定输入域含会话可达的一切 part 数据，part 级任意数据变更保守一律
+        // 失效——含 merge 中间态（拖拽期布局同样消费判定，输入变了就得重判）。注意输入域**大于**本数据
+        // 树：代理边界是 tempo 派生的秒值，tempo 表在工程级树外——由时基重建接线覆盖（源二，见
+        // Activate / OnTimebaseModified）。part 平移（Pos）在本数据树内、经源一覆盖，其会话重建走
+        // 时基入口（见下 Pos 订阅）。合成产物是运行时字段、不在任何失效源内，天然不触发——顺带机械
+        // 强制"判定禁依赖产物"。
+        Modified.AsEverytime().Subscribe(_ => mContinuationDirty = true);
+        // part 平移 → 时基重建（兑现 VoiceSynthesisContext 既定设计的另一半）：平移跨 bpm 段会改
+        // 各 note 秒时长、非纯偏移；note 边界代理刻意不订阅 part.Pos，其变化由 session 重建覆盖。
+        // 拖动的每步是 DiscardTo+重放（皆 settled），重建靠 OnTimebaseModified 的调度轮折叠去抖。
         Pos.Modified.Subscribe(mOnTimebaseModified);
-        // 其余数据变更（note/pitch/automation）不再由 part 驱动重分片——
+        // 其余数据变更（note/pitch/automation/tempo/平移）不再由 part 驱动重分片——
         // 失效判定归插件，变更流经 VoiceSynthesisContext 转发。
         SetInfo(info);
     }
@@ -107,6 +113,40 @@ internal class MidiPart : Part, IMidiPart
         // 归属由集合判定（链表反向指针）；非成员删除是编程错误，DEBUG 期就地暴露，Release 仍宽容 no-op。
         System.Diagnostics.Debug.Assert(mNotes.Contains(note), "RemoveNote: note 不属于本 part。");
         return mNotes.Remove(note);
+    }
+
+    // —— 延音判定缓存 —— 会话 IsContinuation 的按 part 求值结果（插件完整判定，宿主不叠加任何自己的
+    // 判据、照单消费）。缓存是承重件：消费在渲染速率（DisplayPhonemes → ForwardFillEnd → 重绘），跨插件
+    // 边界的判定调用不能跟着渲染跑；失效在编辑速率（构造里的 part 级 Modified 单订阅点）。
+    public bool IsPluginContinuation(INote note)
+    {
+        if (mContinuationDirty)
+        {
+            mContinuation.Clear();
+            foreach (var n in mNotes)
+                mContinuation[n] = JudgeContinuation(n);
+            mContinuationDirty = false;
+        }
+        return mContinuation.TryGetValue(note, out var v) && v;
+    }
+
+    // 会话判定护栏（与声明求值同策略：插件抛异常记日志回退 false，不拖垮布局）。
+    // voice part **恒有会话**（无声源/未知源回退空引擎会话，其判定 = 编辑器 "-" 约定，见
+    // EmptyVoiceSynthesisEngine），故无会话分支实际只剩 instrument part（无音素/延音概念，
+    // 恒 false 如实）与管线重建的同步瞬时窗口（现实不可达）。
+    bool JudgeContinuation(INote note)
+    {
+        if (mVoicePipeline == null)
+            return false;
+        try
+        {
+            return mVoicePipeline.JudgeContinuation(note);
+        }
+        catch (Exception ex)
+        {
+            Log.ErrorAttributed("Session continuation judgment threw", ex);
+            return false;
+        }
     }
 
     public IEffect CreateEffect(EffectInfo info)
@@ -527,8 +567,9 @@ internal class MidiPart : Part, IMidiPart
         RebuildSynthesisPipeline();
         // 时基变更（tempo 表）→ 整体重建会话：兑现 VoiceSynthesisContext 的既定设计（note 边界代理
         // 刻意不订阅 TempoManager，其变化由 session 重建覆盖——此前该接线缺失，tempo 一改插件收不到
-        // 任何通知）。重建经 OnTimebaseModified 折叠到调度轮（settled 通道挡不住头重放式编辑手势）。
-        // tempo 属工程级对象、寿命长于 part，订阅挂激活生命周期。
+        // 任何通知）。重建经 OnTimebaseModified 折叠到调度轮（settled 通道挡不住头重放式编辑手势），
+        // 并顺带失效延音判定缓存（秒轴是判定的契约合法输入域）。tempo 属工程级对象、寿命长于 part，
+        // 订阅挂激活生命周期。
         TempoManager.Modified.Subscribe(mOnTimebaseModified);
     }
 
@@ -539,15 +580,17 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 时基变更统一入口（tempo 表变更 / part 平移）：整体重建会话（含 context）——平移跨 bpm 段会改
-    // 各 note 秒时长、非纯偏移，第一版无脑重建最简单正确。
+    // 各 note 秒时长、非纯偏移，第一版无脑重建最简单正确。未激活（无管线）时只失效判定缓存（回退
+    // 路径同样消费秒轴）。
     //
     // 重建**折叠到调度轮末尾**执行：settled 通道挡不住头重放式拖拽——part 拖动每个量化步进是
     // DiscardTo(还原 Pos) → Pos.Set → 可能的摘除重插 的三连触发、且皆为 settled（该路径不走 merge
-    // 作用域），逐触发重建即 3× 会话抖动。重建挂起到 SynchronizationContext 回调，一轮内多次触发
-    // 合并为一次；期间任何一次重建（如摘除重插的 Activate）都会清除挂起（见 RebuildSynthesisPipeline
-    // 入口），不双跑。
+    // 作用域），逐触发重建即 3× 会话抖动（插件方 review 发现）。判定缓存同步标脏（拖拽期布局立即
+    // 消费、必须实时），重建则挂起到 SynchronizationContext 回调，一轮内多次触发合并为一次；期间
+    // 任何一次重建（如摘除重插的 Activate）都会清除挂起（见 RebuildSynthesisPipeline 入口），不双跑。
     void OnTimebaseModified()
     {
+        mContinuationDirty = true;
         if (mPipeline == null || mTimebaseRebuildPending)
             return;
 
@@ -589,6 +632,8 @@ internal class MidiPart : Part, IMidiPart
             voicePipeline.StatusChanged += OnPipelineStatusChanged;
             mSource.SetSession(voicePipeline.Session);   // 注入会话供 DefaultLyric 等运行时取值（建会话之后）
             mPipeline = voicePipeline;
+            mVoicePipeline = voicePipeline;              // 延音判定的会话查询入口（换会话即换判定语义）
+            mContinuationDirty = true;
         }
         else
         {
@@ -617,6 +662,8 @@ internal class MidiPart : Part, IMidiPart
         mPipeline.PitchChanged -= OnPipelinePitchChanged;
         mPipeline.Dispose();
         mPipeline = null;
+        mVoicePipeline = null;
+        mContinuationDirty = true;
         mSource.SetSession(null);
         mSource.RefreshDeclarations(BuildPartPropertyContext());
         RebuildPinnedLaneConfigs();
@@ -853,6 +900,9 @@ internal class MidiPart : Part, IMidiPart
     readonly OrderedMap<PropertyKey, LaneEntry> mPhonemeLaneConfigs = new();
     readonly BatchSignal mSynthesisBatch = new();
     ISynthesisPipeline? mPipeline;
+    VoiceSynthesisPipeline? mVoicePipeline;
+    bool mContinuationDirty = true;
+    readonly Dictionary<INote, bool> mContinuation = new();
     // 时基变更钩的稳定句柄（tempo 订阅/退订须同一实例，见 Activate/Deactivate；Pos 订阅共用）。
     readonly Action mOnTimebaseModified;
     // 时基重建挂起位（调度轮内合并多次触发为一次重建，见 OnTimebaseModified）。

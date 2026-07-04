@@ -94,7 +94,8 @@ internal partial class LyricInput : Window
             return;
 
         var lyricResults = LyricUtils.Split(mLyricInputBox.Text);
-        var notes = mSkipTenutoCheckBox.IsChecked ? mNotes.Where(note => !note.IsContinuation()) : mNotes;
+        // 录词跳过按编辑器 "-" 记号（录入便利，与右侧歌词串里的 "-" 同一约定），不走插件判定。
+        var notes = mSkipTenutoCheckBox.IsChecked ? mNotes.Where(note => !note.IsEditorContinuationLyric()) : mNotes;
         using var enumerator = (mSkipTenutoCheckBox.IsChecked ? lyricResults.Where(lyricResult => lyricResult.Lyric != "-") : lyricResults).GetEnumerator();
         foreach (var note in notes)
         {

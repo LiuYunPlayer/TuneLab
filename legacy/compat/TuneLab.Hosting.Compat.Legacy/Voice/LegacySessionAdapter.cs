@@ -58,6 +58,13 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     // 默认歌词：会话级运行时取值（声明类 config 已上移到 VoiceEngineAdapter）。
     public string DefaultLyric => mSource.DefaultLyric;
 
+    // 延音判定（覆盖接口默认体）：恒 false——老模型**完全没有乘客机制**，"-" note 在老世界就是一个
+    // 普通 note（引擎自行决定延续元音或回传占位），显示上也从无"前 note 元音铺过 melisma"的形态。
+    // 忠实降级 = 不给老引擎伪造新模型的铺末观感：留空型引擎的 "-" note 显示空白、占位型引擎的占位
+    // 回显走普通内容显示——均与老版本 TuneLab 观感一致；钉死也天然界内（P1 场景无从发生）。
+    // 恒 false 同时意味着判定零产物依赖、恒稳定：新契约的骨架恒等保证对 legacy 平凡成立。
+    public bool IsContinuation(VVoice.IVoiceSynthesisNote note) => false;
+
     // —— 调度 ——
     public VVoice.SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
@@ -426,15 +433,10 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             if (kv.Key is not SnapshotNoteView view)
                 continue;
 
-            // 延音符回显抑制：老模型严格不支持音素跨 note、不特殊看待延音符——老插件对延音符只能
-            // 回传占位音素来适配（占位符号从无宿主约定，各引擎自便，不可按符号识别）。新模型延音符
-            // 不承载音素，乘客判定（HasPhonemeContent）见到回显就不再把它当乘客——前 note 元音不铺过
-            // melisma、延音符上还多出占位块。故对生效延音符（快照 IsContinuation，宿主权威判定）无条件
-            // 丢弃回显：乘客成立、前元音铺过，与老引擎自行延续元音的音频一致。孤儿延音符
-            // （IsContinuation=false，断链）不抑制，回显如实呈现。
-            if (view.IsContinuation)
-                continue;
-
+            // 回显如实落账（含老引擎对 "-" note 回传的占位音素，不再抑制）：本会话延音判定恒 false
+            // （见 IsContinuation——老模型无乘客机制），故所有回显都走宿主的普通内容显示——占位型引擎
+            // 的占位块、留空型引擎的空白，均与老版本 TuneLab 观感一致（显示 == 引擎实际所为，钉死
+            // 天然界内、P1 场景无从发生）。
             var list = new List<VVoice.SynthesizedPhoneme>();
             foreach (var phoneme in kv.Value)
             {

@@ -18,11 +18,9 @@ public interface IVoiceSynthesisNote
     IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> Phonemes { get; }
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
-    // 延续标志（宿主拥有的稳定契约）：true = 本 note 是**生效的延续**——延音符且经不断裂的相接链回溯到发声 note
-    // （连音 / melisma 乘客）。孤儿延音符（被空隙断链）为 false，故读本标志即与宿主显示一致、不会把前元音误铺进静音。
-    // 判据规则宿主独占、可演进，插件读本标志不自行匹配歌词记号。
-    // **普通只读字段、无独立通知**：它是 Lyric + 相接(位置)的派生量，要响应其变化请订阅 Lyric / StartTime / EndTime。
-    bool IsContinuation { get; }
+    // 延音身份不在本面：判定权完整归插件（IVoiceSynthesisSession.IsContinuation，宿主照单消费），
+    // 回喂只会是实现自己的输出、纯冗余，故无此字段。实现以本面数据（Lyric / 位置 / Phonemes / 邻居导航）
+    // 自行判定——SDK 刻意不提供判定实现（判定绑定合成行为，语义须实现完全自有，见会话方法注释）。
 
     // 邻居链（协同发音用）。活视图上仅供数据线程的分片决策 live 导航——事件 handler 内
     // 只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是真实便利；

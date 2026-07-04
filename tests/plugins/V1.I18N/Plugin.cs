@@ -93,6 +93,8 @@ public sealed class I18NSession : IVoiceSynthesisSession
     }
 
     public string DefaultLyric => "la";
+    // 本引擎无延音语义（每个 note 都是内容），如实恒 false——判定与合成行为成对，不做 melisma 就不声称。
+    public bool IsContinuation(IVoiceSynthesisNote note) => false;
 
     public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {

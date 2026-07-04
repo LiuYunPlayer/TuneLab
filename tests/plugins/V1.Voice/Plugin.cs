@@ -120,6 +120,29 @@ public sealed class TestSession : IVoiceSynthesisSession
 
     public string DefaultLyric => "la";
 
+    // 延音判定（本引擎语义 = 编辑器 "-" 约定，参考实现）：歌词 "-" ∧ 经不断裂相接链回溯到内容 note
+    // （相接 = 前末 ≥ 后起，严格比较——边界同源 tick 换算，相接即精确相等）∧ 本 note 无钉死音素
+    // （钉死即内容、退出乘客并成为合法链头；孤儿 = false）。**与合成行为成对**：Render 的快照域
+    // IsCont 是本判定在快照上的等价复刻（按间隙分块 ⇒ 块内自判与 live 等价），两处语义必须一致——
+    // 判定为延续的 note 不产音素、其时段由链头元音铺过（绑定性）。
+    public bool IsContinuation(IVoiceSynthesisNote note)
+    {
+        if (note.Lyric.Value != "-" || note.Phonemes.Value.Count > 0)
+            return false;
+        var cur = note;
+        while (true)
+        {
+            var prev = cur.Last;
+            if (prev == null)
+                return false;                              // 链跑出开头、无内容 note → 孤儿
+            if (prev.EndTime.Value < cur.StartTime.Value)
+                return false;                              // 空隙断链 → 孤儿
+            if (prev.Lyric.Value != "-" || prev.Phonemes.Value.Count > 0)
+                return true;                               // 回溯到链头 → 生效延续
+            cur = prev;
+        }
+    }
+
     // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
     public SynthesisRange? GetNextSegment(double startTime, double endTime)
     {
@@ -387,7 +410,8 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 解析成真实时序来驱动音频帧的引擎，调 SDK 的 PhonemeLayout.Resolve 即可与宿主显示一致；不调就自由放置、错位非致命。
         //
         // 歌词解析（便于组合测试不同音素形态）：
-        // · 延续 note（note.IsContinuation）不产音素，上面已跳过；空 / 纯辅音无元音 → 单个 "" 覆盖整组。
+        // · 延续 note 不产音素（绑定性：判定为延续的 note 不得回传音素，区段发音全部挂链头）；
+        //   空 / 纯辅音无元音 → 单个 "" 覆盖整组。
         // · 否则按「前置辅音簇(IsLead) + 元音簇(w=1) + 后辅音簇(w=0)」解析（元音字母 = a/e/i/o/u）：
         //     ka→k/a；kas→k/a/s；skat→s,k/a/t（**多前置辅音**，测跨 note 辅音簇）；kalt→k/a/l,t（**多后辅音**）；a→纯元音。
         //   前置辅音各 kLeadIn、从核起点往左累积（IsLead=true）；元音填到组末；后辅音各 kTrailDur 占组末。
@@ -395,17 +419,35 @@ public sealed class TestSession : IVoiceSynthesisSession
         const double kLeadIn = 0.1;    // 前辅音时长（取较大值便于肉眼观察）
         const double kTrailDur = 0.1;  // 后辅音时长（固定）
         bool IsVowelCh(char c) => "aeiou".IndexOf(char.ToLowerInvariant(c)) >= 0;
+
+        // 快照域延音判定（与本会话对宿主的判定同语义——即 SDK 接口默认体："-" ∧ 相接链回溯到内容 note
+        // ∧ 本 note 无钉死音素）。判定契约的作用域是 live 数据；本引擎按 note 间隙分块、链不跨块，
+        // 故块内快照自判与 live 判定等价（块首即 "-" 时链头必不在别的块 → 孤儿）。
+        bool IsCont(int index)
+        {
+            var it = notes[index];
+            if (it.Lyric != "-" || it.Phonemes.Count > 0)
+                return false;
+            for (int i = index; i > 0; i--)
+            {
+                if (notes[i - 1].EndTime < notes[i].StartTime)
+                    return false;                          // 空隙断链 → 孤儿（严格比较：边界同源 tick 换算，相接即精确相等）
+                if (notes[i - 1].Lyric != "-" || notes[i - 1].Phonemes.Count > 0)
+                    return true;                           // 回溯到链头 → 生效延续
+            }
+            return false;                                  // 触底无链头 → 孤儿
+        }
+
         var predicted = new List<RefLayout.Pred>();
         for (int n = 0; n < notes.Count; n++)
         {
             var note = notes[n];
-            if (note.IsContinuation)        // 宿主稳定标志，不再匹配歌词记号
+            if (IsCont(n))                  // 绑定性：判定为延续的 note 不回传音素
                 continue;
 
             // 音素几何用 note 有效末 EndTime：元音自然铺到组末，后盖前 / 跨 note 压缩交宿主独占布局（RefLayout 仅报时长）。
-            // 延续乘客直接信 IsContinuation——它已是「生效延续」（含相接链回溯，孤儿延音符为 false），故无需再自判相接。
             double groupEnd = note.EndTime;
-            for (int m = n + 1; m < notes.Count && notes[m].IsContinuation; m++)
+            for (int m = n + 1; m < notes.Count && IsCont(m); m++)
                 groupEnd = notes[m].EndTime;
 
             string lyric = note.Lyric ?? "";

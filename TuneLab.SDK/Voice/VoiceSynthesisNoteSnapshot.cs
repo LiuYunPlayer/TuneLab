@@ -17,10 +17,9 @@ public sealed class VoiceSynthesisNoteSnapshot
     public required double EndTime { get; init; }
     public required int Pitch { get; init; }
     public required string Lyric { get; init; }
-    // 延续标志（宿主拥有的稳定契约）：true = 本 note 是**生效的延续**——延音符且经不断裂的相接链回溯到发声 note
-    // （连音 / melisma 乘客）。孤儿延音符（被空隙断链）为 false，故读本标志即与宿主一致、不会把前元音误铺进静音。
-    // 判据规则宿主独占、可演进；插件读本标志判延续，不自行匹配歌词记号。加性字段、默认 false。
-    public bool IsContinuation { get; init; }
+    // 延音身份不在快照面：判定权完整归插件（IVoiceSynthesisSession.IsContinuation，判定域是 live 数据）。
+    // 快照窗口可能裁掉链头，快照域自判会与 live 判定分叉——需要把身份带进 worker 的实现，应在
+    // SynthesizeNext 的同步前缀对 live note 调用自己的判定、随自有快照结构一并冻结。
     // 钉死音素的冻结表项（几何描述符 + per-phoneme 属性值快照）；非钉死（引擎 G2P）note 此列表为空。
     public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> Phonemes { get; init; }
     public required PropertyObject Properties { get; init; }

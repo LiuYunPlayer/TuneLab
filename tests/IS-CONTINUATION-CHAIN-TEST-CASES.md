@@ -1,5 +1,14 @@
 # IsContinuation 相接链判据测试用例
 
+> **宿主判据已退役（本文判据描述仅存档历史语义）**：延音判定权已完整下放引擎
+> （`IVoiceSynthesisSession.IsContinuation`，宿主照单消费、零判据），`IsContinuation` 回喂标志删除，
+> 链语义不再是契约资产（各引擎判定语义自有，SDK 无共享实现）。**当前无自动化回归**——曾迁出的
+> `ContinuationJudgmentTests` 随 SDK 共享实现的否决一并删除（测试对象不复存在）。
+> 本文用例 1–3 的链语义仍与两个宿主自带实现一致（零引擎 `EmptyVoiceSynthesisEngine` 的编辑器 `"-"`
+> 约定判定、样例插件 V1.Voice 的自有判定），可作为**手测用例**对无声源 part / 样例引擎复用（把
+> "标志值"期望改读为"判定为延续 → 显示透明、前元音铺过"）；两者的自动化回归候选后置（零引擎为
+> internal，需宿主程序集测试基建）。现行契约见 `docs/continuation-contract-draft.md`。
+
 只覆盖本次受影响范围：`IsContinuation` 标志从「是不是延音符记号」收窄为「**生效延续**」——延音符 **且** 经不断裂的相接链回溯到发声 note。孤儿延音符（被空隙断链）应为 `false`。与既有音素显示基线（PHONEME-DISPLAY-TEST-CASES.md）独立。
 
 ## 背景
