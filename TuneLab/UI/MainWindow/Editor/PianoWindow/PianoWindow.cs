@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media;
 using System;
 using System.Collections.Generic;
@@ -116,6 +117,22 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
                         mParameterLayer.AddDock(mParameterTitleBar, Dock.Bottom);
                     }
                     pianoScrollViewPanel.Children.Add(mParameterLayer);
+
+                    // 滚动条置顶层：纵向绑音高轴、贴右边；横向绑时间轴（无界，设 ContentExtentProvider = 内容末尾口径）。
+                    // 横向条落在"波形上方"（= note 区下沿）而非窗口最底——由布局 Margin 定位（见 UpdateHorizontalBarMargin）。
+                    mVerticalScrollBar = new(mPitchAxis, Orientation.Vertical);
+                    mHorizontalScrollBar = new(mTickAxis, Orientation.Horizontal) { ContentExtentProvider = GetContentEndX };
+                    pianoScrollViewPanel.Children.Add(mVerticalScrollBar);
+                    pianoScrollViewPanel.Children.Add(mHorizontalScrollBar);
+
+                    // 靠近边缘才显示：view 层职责。铺满 pianoScrollViewPanel 但只手柄可命中、其余穿透。
+                    mVerticalReveal = new(mVerticalScrollBar, pianoScrollViewPanel, Orientation.Vertical);
+                    mHorizontalReveal = new(mHorizontalScrollBar, pianoScrollViewPanel, Orientation.Horizontal);
+
+                    // 横向条底边落在波形上方：以 Margin 定位（布局职责），随参数区高/波形显隐更新。
+                    UpdateHorizontalBarMargin();
+                    mWaveformBottomChanged.Subscribe(UpdateHorizontalBarMargin, s);
+                    mWaveformVisibleChanged.Subscribe(UpdateHorizontalBarMargin, s);
                 }
                 pianoLayer.AddDock(pianoScrollViewPanel);
 
@@ -376,9 +393,33 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     readonly TickAxis mTickAxis;
     readonly PitchAxis mPitchAxis;
 
+    // 横向滚动条的内容末尾像素长度：当前 part 的末尾 tick × 每 tick 像素（手柄滑到底 = 视口远边正好落在
+    // part 末尾；无限拖仍可继续拖过末尾、手柄钳在边缘）。
+    double GetContentEndX()
+    {
+        var part = mPartHolder.Value;
+        if (part == null)
+            return 0;
+
+        return part.EndPos() * mTickAxis.PixelsPerTick;
+    }
+
+    // 横向条落在"波形上方"（note 区下沿）：底边留白 = 参数区高 + 波形高（波形可见时），用 Margin 定位。
+    void UpdateHorizontalBarMargin()
+    {
+        double inset = mParameterTitleBar.Bounds.Height + mParameterContainer.Bounds.Height;
+        if (IsWaveformVisible)
+            inset += PianoScrollView.WAVEFORM_HEIGHT;
+        mHorizontalScrollBar.Margin = new Thickness(0, 0, 0, inset);
+    }
+
     readonly PianoScrollView mPianoScrollView;
     readonly TimelineView mPianoTimelineView;
     readonly PlayheadLayer mPlayheadLayer;
+    readonly ScrollBar mVerticalScrollBar;
+    readonly ScrollBar mHorizontalScrollBar;
+    readonly EdgeProximityReveal mVerticalReveal;
+    readonly EdgeProximityReveal mHorizontalReveal;
     readonly ParameterContainer mParameterContainer;
     readonly ParameterTitleBar mParameterTitleBar;
     readonly PianoRoll mPianoRoll;

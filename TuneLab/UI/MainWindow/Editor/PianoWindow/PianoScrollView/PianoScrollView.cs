@@ -1852,7 +1852,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
     const double MIN_GRID_GAP = 12;
     const double MIN_REALITY_GRID_GAP = MIN_GRID_GAP * 2;
     const double LineWidth = 1;
-    const double WAVEFORM_HEIGHT = 56;   // 半室 28 = 标准文本框高，音素输入框恰好填满下室格子
+    public const double WAVEFORM_HEIGHT = 56;   // 半室 28 = 标准文本框高，音素输入框恰好填满下室格子
 
     double WaveformTop => mDependency.WaveformBottom - WAVEFORM_HEIGHT;
     double WaveformBottom => mDependency.WaveformBottom;
