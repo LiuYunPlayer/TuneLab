@@ -80,10 +80,20 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
 
                 mTrackScrollView = new(this);
                 // TrackScrollView 与范围选区覆盖层同区叠放：覆盖层压在 parts 之上、共用同一坐标系（GetTop 无需偏移）。
-                var scrollArea = new LayerPanel();
+                // ClipToBounds：与钢琴窗一致，裁掉子级（尤其压低高度时横向条手柄）溢出到本区之外、盖住上方 timeline。
+                var scrollArea = new LayerPanel() { ClipToBounds = true };
                 scrollArea.Children.Add(mTrackScrollView);
                 mRegionSelectionLayer = new(this);
                 scrollArea.Children.Add(mRegionSelectionLayer);
+                // 滚动条：横向绑时间轴（无界，设 ContentExtentProvider = 内容末尾口径）、纵向绑轨道轴（有界）。
+                // 铺满 scrollArea 但只手柄可命中、其余穿透（不抢 parts 指针事件）。
+                mHorizontalScrollBar = new(mTickAxis, Orientation.Horizontal) { ContentExtentProvider = GetContentEndX };
+                mVerticalScrollBar = new(mTrackVerticalAxis, Orientation.Vertical);
+                scrollArea.Children.Add(mHorizontalScrollBar);
+                scrollArea.Children.Add(mVerticalScrollBar);
+                // 靠近边缘才显示：view 层职责（普通控件默认常驻，此处按编排区需求加显隐）。
+                mHorizontalReveal = new(mHorizontalScrollBar, scrollArea, Orientation.Horizontal);
+                mVerticalReveal = new(mVerticalScrollBar, scrollArea, Orientation.Vertical);
                 layer.AddDock(scrollArea);
             }
             layerPanel.Children.Add(layer);
@@ -149,11 +159,31 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     readonly TickAxis mTickAxis;
     readonly TrackVerticalAxis mTrackVerticalAxis;
 
+    // 横向滚动条的内容末尾像素长度：所有 part 的最大末尾 tick × 每 tick 像素（手柄滑到底 = 视口远边正好
+    // 落在内容末尾；无限拖仍可继续拖过末尾、手柄钳在边缘）。
+    double GetContentEndX()
+    {
+        var project = Project;
+        if (project == null)
+            return 0;
+
+        double maxEndTick = 0;
+        foreach (var track in project.Tracks)
+            foreach (var part in track.Parts)
+                maxEndTick = Math.Max(maxEndTick, part.EndPos());
+
+        return maxEndTick * mTickAxis.PixelsPerTick;
+    }
+
     readonly TrackHeadList mTrackHeadList;
     readonly TimelineView mTimelineView;
     readonly TrackScrollView mTrackScrollView;
     readonly RegionSelectionLayer mRegionSelectionLayer;
     readonly PlayheadLayer mPlayheadLayer;
+    readonly ScrollBar mHorizontalScrollBar;
+    readonly ScrollBar mVerticalScrollBar;
+    readonly EdgeProximityReveal mHorizontalReveal;
+    readonly EdgeProximityReveal mVerticalReveal;
 
     readonly IDependency mDependency;
 }
