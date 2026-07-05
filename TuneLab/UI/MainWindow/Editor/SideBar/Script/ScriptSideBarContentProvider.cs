@@ -41,8 +41,11 @@ internal sealed class ScriptSideBarContentProvider
 
     readonly DockPanel mRoot = new() { LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
     readonly TextEditor mCodeBox;
+    readonly OverlayScrollBars mCodeScrollBars;
     readonly Control mDocView;        // 人类可读文档（Markdown 渲染、自适应宽度换行），与代码框同位互斥
+    readonly OverlayScrollBars mDocScrollBars;
     readonly TextInput mOutputBox;
+    readonly OverlayScrollBars mOutputScrollBars;
     bool mShowingDoc;
     IProject? mProject;
     Func<IMidiPart?>? mCurrentPart;
@@ -123,8 +126,8 @@ internal sealed class ScriptSideBarContentProvider
             ShowLineNumbers = true,
             LineNumbersForeground = Style.LIGHT_WHITE.Opacity(0.35).ToBrush(),
             WordWrap = false,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,   // 隐藏原生条，改挂统一浮层滚动条
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
             Padding = new(8, 6),
             Margin = new(8, 8, 8, 0),
             SyntaxHighlighting = JsHighlighting,
@@ -133,19 +136,24 @@ internal sealed class ScriptSideBarContentProvider
         mCodeBox.Options.ConvertTabsToSpaces = true;
         mCodeBox.Text = Sample;
         mCodeBox.TextChanged += (_, _) => MarkDirty();   // 用户编辑即标脏（程序性置文后由 SetCurrentScript 复位）
+        // 统一浮层滚动条：横 / 竖都挂（代码不换行、两向都可能溢出）+ 平滑滚轮（shift+滚轮横向）；
+        // cursorElement=TextArea：悬停手柄时把 i-beam 切成箭头。
+        mCodeScrollBars = new OverlayScrollBars(mCodeBox, horizontal: true, vertical: true, cursorElement: mCodeBox.TextArea.TextView);
 
         // 人类文档页：与代码框【同位互斥】（点 Doc/Code 在原地翻面）。Markdown 渲染、自适应宽度换行（禁横向滚动）。
         // 这是【给人读】的版本，与喂 LLM 的速查表（ScriptApiReference / get_script_api）分开。
         var docContent = ChatMarkdownRenderer.Render(LoadDoc());
-        docContent.Margin = new(12, 4, 24, 8);   // 右内边距更大：给竖向滚动条让位，正文在其左侧换行，左右视觉对称
-        mDocView = new ScrollViewer
+        docContent.Margin = new(TuneLab.GUI.Components.ScrollBar.ReservedThickness, 4, TuneLab.GUI.Components.ScrollBar.ReservedThickness, 8);   // 左右等宽 = 滚动条预留厚度：右让竖条、左对称
+        var docView = new ScrollViewer
         {
             Content = docContent,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,   // 隐藏原生条，改挂统一浮层滚动条
             Margin = new(8, 8, 8, 0),
             IsVisible = false,
         };
+        mDocView = docView;
+        mDocScrollBars = new OverlayScrollBars(docView, horizontal: false, vertical: true);   // 文档为箭头光标，无需 cursorElement
 
         // 只读输出（console）：比可编辑框更平淡又有层级——BACK 底、暗前景、无插入符、不可编辑。
         mOutputBox = new TextInput
@@ -160,11 +168,12 @@ internal sealed class ScriptSideBarContentProvider
             HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
             VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Top,
             CaretBrush = Brushes.Transparent,
-            Padding = new(8, 6),
+            Padding = new(TuneLab.GUI.Components.ScrollBar.ReservedThickness, 6),   // 横向内边距 = 滚动条预留厚度：右让竖条、左对称
             Margin = new(8, 0, 8, 8),
             MinHeight = 120,
         };
-        ScrollViewer.SetVerticalScrollBarVisibility(mOutputBox, ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollBarVisibility(mOutputBox, ScrollBarVisibility.Hidden);   // 隐藏原生条，改挂统一浮层滚动条
+        mOutputScrollBars = new OverlayScrollBars(mOutputBox, horizontal: false, vertical: true, cursorElement: mOutputBox);
 
         // 中央区：代码框 / 文档页叠放，仅其一可见，Doc/Code 按钮原地翻面。
         var center = new Panel();
