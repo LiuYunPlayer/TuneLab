@@ -571,6 +571,7 @@ internal sealed class AgentSideBarContentProvider
         mActive = ctx;
         mMessagesHost.Children.Clear();
         mMessagesHost.Children.Add(ctx.View);
+        mMessagesHost.Children.Add(ctx.Scrollbar);   // 覆盖在消息区之上，只手柄可点、不抢气泡点击
         ApplyBubbleWidths(ctx.View); // 离屏期间侧栏可能被拖宽，切回时按当前宽度重排该会话气泡
         SetTitle(ctx.Title);
         RefreshSendControls();
@@ -1502,7 +1503,8 @@ internal sealed class AgentSideBarContentProvider
         MaxWidth = mBubbleMaxWidth,
         CornerRadius = new(8),
         Padding = new(10, 6),
-        Margin = new(8, 4),
+        // 右对齐的用户气泡右 margin = 滚动条预留厚度，避免被竖条压住（左对齐系统气泡右侧不贴边、维持 8）。
+        Margin = mine ? new(8, 4, ScrollBar.ReservedThickness, 4) : new(8, 4),
         Background = (mine ? Style.BUTTON_PRIMARY : Style.INTERFACE).ToBrush(),
         HorizontalAlignment = mine ? Avalonia.Layout.HorizontalAlignment.Right : Avalonia.Layout.HorizontalAlignment.Left,
         Child = content,
@@ -1890,6 +1892,7 @@ internal sealed class AgentSideBarContentProvider
     sealed class SessionContext
     {
         public readonly ListView View;          // 该会话独立的消息滚动区（离屏时仍保留，承载进行中的占位/分步气泡）
+        public readonly ScrollBar Scrollbar;    // 绑该 View 竖轴的浮层滚动条，与 View 一同放进 mMessagesHost（覆盖层、只手柄可点）
         public ChatSession? Session;             // 落盘模型（null=尚未落盘的新对话，首轮成功后建立）
         public AgentRunner? Runner;              // 该会话的对话主循环（持有累积的对话历史）
         public CancellationTokenSource? Cts;     // 该会话当前在飞请求的取消源（停止键 / 删除该会话时触发）
@@ -1901,7 +1904,11 @@ internal sealed class AgentSideBarContentProvider
         public string Title = "New Chat";        // 该会话标题（切到它时写入头部标签）
         public bool TitleManual;                 // 标题是否被用户手动改过：true 则不再被自动标题覆盖
         public long CreatedAtUnix;               // 会话建立时刻（本地新建=当时；加载已存=其原始创建时刻）。菜单按它降序排，位置稳定、新会话在顶
-        public SessionContext(ListView view) => View = view;
+        public SessionContext(ListView view)
+        {
+            View = view;
+            Scrollbar = new ScrollBar(view.VerticalAxis, Orientation.Vertical);
+        }
     }
 
     readonly List<SessionContext> mContexts = new(); // 所有打开中的会话（含后台在跑的、未落盘的新对话）
