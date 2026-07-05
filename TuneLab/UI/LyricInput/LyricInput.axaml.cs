@@ -49,7 +49,6 @@ internal partial class LyricInput : Window
         mLyricInputBox.Width = 432;
         mLyricInputBox.Height = 168;
         mLyricInputBox.Background = Style.BACK.ToBrush();
-        mLyricInputBox.Padding = new(8, 8);
         mLyricInputBox.Foreground = Style.WHITE.ToBrush();
         TextareaBox.Children.Add(mLyricInputBox);
 

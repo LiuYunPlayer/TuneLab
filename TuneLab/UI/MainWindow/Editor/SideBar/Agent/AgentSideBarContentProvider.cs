@@ -189,7 +189,7 @@ internal sealed class AgentSideBarContentProvider
         mInput.MaxHeight = 120;
         // 对称内边距(6/6) → 行盒在框内居中；VerticalAlignment=Center 让这个紧贴内容的框在输入行里整体居中
         //（否则 DockPanel 会把它拉伸到行高、内容顶对齐而显偏上）。
-        mInput.Padding = new(8, 6);
+        mInput.Padding = new(0, 6, ScrollBar.ReservedThickness, 6);
         mInput.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
         mInput.AutoGrow = true;
         // 隐藏竖滚动条：内容仍可滚轮/光标跟随滚动；超 MaxHeight 后靠此内滚，不显条更干净。
