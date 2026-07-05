@@ -40,7 +40,7 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         Foreground = Style.TEXT_NORMAL.ToBrush();
         FontSize = 12;
         // 横向内边距 = 滚动条预留厚度：右侧让文字不被竖条压住，左侧等宽保持对称。
-        Padding = new(ScrollBar.ReservedThickness, 8, ScrollBar.ReservedThickness, ScrollBar.ReservedThickness);
+        Padding = new(ScrollBar.ReservedThickness, 8);
         BorderThickness = new(0);
         // 选中样式对齐单行 TextInput：浅底(LIGHT_WHITE) + 深字(BACK)。
         TextArea.SelectionBrush = Style.LIGHT_WHITE.ToBrush();
