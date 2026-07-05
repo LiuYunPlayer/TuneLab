@@ -448,17 +448,21 @@ internal partial class PianoScrollView : View, IPianoScrollView
         int endIndex = endMeter.TimeSignatureIndex;
 
         var timeSignatures = timeSignatureManager.TimeSignatures;
+
+        // draw bar（小节线抽稀：像素连续淡出 [12,24]，与相邻量化网格同套；缩小时按拍号段落分段省略，段首恒画。
+        // 与时间线标尺各走一套——标尺是线+号一体的离散档淡出，此处是无号网格线，故用 ForEachGridLine）
         IBrush lineBrush = LineColor.ToBrush();
+        BarGridLayout.ForEachGridLine(timeSignatureManager, TickAxis, (in BarGridLayout.BarLine line) =>
+        {
+            double x = TickAxis.Tick2X(line.Tick);
+            var brush = line.Opacity >= 1 ? lineBrush : LineColor.Opacity(line.Opacity).ToBrush();
+            context.FillRectangle(brush, new Rect(x, 0, 1, Bounds.Height));
+        });
+
         for (int i = startIndex; i <= endIndex; i++)
         {
-            // draw bar
             int nextTimeSignatureBarIndex = i + 1 == timeSignatures.Count ? (int)Math.Ceiling(endMeter.BarIndex) : timeSignatures[i + 1].BarIndex;
             int thisTimeSignatureBarIndex = Math.Max(timeSignatures[i].BarIndex, (int)Math.Floor(startMeter.BarIndex));
-            for (int barIndex = thisTimeSignatureBarIndex; barIndex < nextTimeSignatureBarIndex; barIndex++)
-            {
-                double xBarIndex = TickAxis.Tick2X(timeSignatures[i].GetTickByBarIndex(barIndex));
-                context.FillRectangle(lineBrush, new Rect(xBarIndex, 0, 1, Bounds.Height));
-            }
 
             // draw beat
             double pixelsPerBeat = timeSignatures[i].TicksPerBeat() * TickAxis.PixelsPerTick;
@@ -562,7 +566,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
             }
         
         // draw note
-        double round = 4;
+        // 圆角随缩放降级：ScaleLevel≥-4 满圆角(4)，缩到 ≤-8 收敛为纯直角——缩小时大量窄 note
+        // 收成齐整方块、读作干净的旋律轮廓，而非糊成一团的圆角药丸。旧常用缩放区(≥-4)观感不变。
+        double round = 4 * MathUtility.LineValue(-8, 0, -4, 1, TickAxis.ScaleLevel).Limit(0, 1);
         IBrush noteBrush = Style.ITEM.ToBrush();
         IBrush selectedNoteBrush = Style.HIGH_LIGHT.ToBrush();
         IBrush lyricBrush = Colors.White.Opacity(0.7).ToBrush();

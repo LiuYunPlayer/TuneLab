@@ -142,7 +142,6 @@ internal partial class TimelineView : View
     protected override void OnRender(DrawingContext context)
     {
         IBrush barLineBrush = new Color(178, 255, 255, 255).ToBrush();
-        IBrush textBrush = new Color(178, 255, 255, 255).ToBrush();
 
         context.FillRectangle(Back.ToBrush(), this.Rect());
 
@@ -162,24 +161,33 @@ internal partial class TimelineView : View
         int endIndex = endMeter.TimeSignatureIndex;
 
         var timeSignatures = timeSignatureManager.TimeSignatures;
+
+        // 小节线 + 小节号（抽稀，与钢琴窗网格共用 BarGridLayout）。段首小节号让位给该处的拍号标记，不重复标。
+        // 向左多留 48px（= startPos）好让贴左边缘的小节号先探入。
+        BarGridLayout.ForEachBarLine(timeSignatureManager, TickAxis, startPos, endPos, (in BarGridLayout.BarLine line) =>
+        {
+            double x = TickAxis.Tick2X(line.Tick);
+            // 线与号是一体：共用同一 brush（同一 opacity），淡出时一起淡，不会一实一淡割裂。
+            var brush = line.Opacity >= 1 ? barLineBrush : new Color(178, 255, 255, 255).Opacity(line.Opacity).ToBrush();
+            context.FillRectangle(brush, new Rect(x, 0, 1, 12));
+            // 每根小节线都带号；仅段首让位给该处的拍号标记不重复标（线仍照上面画）。
+            if (!line.IsSegmentStart)
+                context.DrawText(new FormattedText((line.BarIndex + 1).ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, brush), new Point(x + 8, 8));
+        });
+
+        // 拍线（按拍号段落渐隐，逻辑不变）
         for (int timeSignatureIndex = startIndex; timeSignatureIndex <= endIndex; timeSignatureIndex++)
         {
             int nextTimeSignatureBarIndex = timeSignatureIndex + 1 == timeSignatures.Count ? (int)Math.Ceiling(endMeter.BarIndex) : timeSignatures[timeSignatureIndex + 1].BarIndex;
             int thisTimeSignatureBarIndex = Math.Max(timeSignatures[timeSignatureIndex].BarIndex, (int)Math.Floor(startMeter.BarIndex));
             double pixelsPerBeat = TickAxis.PixelsPerTick * timeSignatures[timeSignatureIndex].TicksPerBeat();
             double beatOpacity = MathUtility.LineValue(12, 0, 24, 1, pixelsPerBeat).Limit(0, 1);
+            if (beatOpacity == 0)
+                continue;
+
             IBrush beatLineBrush = new Color(127, 255, 255, 255).Opacity(beatOpacity).ToBrush();
             for (int barIndex = thisTimeSignatureBarIndex; barIndex < nextTimeSignatureBarIndex; barIndex++)
             {
-                double xBarIndex = TickAxis.Tick2X(timeSignatures[timeSignatureIndex].GetTickByBarIndex(barIndex));
-                context.FillRectangle(barLineBrush, new Rect(xBarIndex, 0, 1, 12));
-                if (barIndex != thisTimeSignatureBarIndex)
-                    context.DrawText(new FormattedText((barIndex + 1).ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, textBrush), new Point(xBarIndex + 8, 8));
-
-                // draw beat
-                if (beatOpacity == 0)
-                    continue;
-
                 for (int beatIndex = 1; beatIndex < timeSignatures[timeSignatureIndex].Numerator; beatIndex++)
                 {
                     double xBeatIndex = TickAxis.Tick2X(timeSignatures[timeSignatureIndex].GetTickByBarAndBeat(barIndex, beatIndex));

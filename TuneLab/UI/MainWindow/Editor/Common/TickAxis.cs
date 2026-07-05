@@ -59,7 +59,7 @@ internal class TickAxis : AnimationScalableScrollAxis
     double Tick2Pos(double tick) => tick;
     double Pos2Tick(double pos) => pos;
 
-    const double MIN_SCALE_LEVEL = -8;
+    const double MIN_SCALE_LEVEL = -14;   // 放宽下探看全貌；小节线抽稀（BarGridLayout）保证缩小后仍可读
     const double MAX_SCALE_LEVEL = 8;
     const double DEFAULT_PPT = 0.25;
     const double SAMPLE_PPT = 4;

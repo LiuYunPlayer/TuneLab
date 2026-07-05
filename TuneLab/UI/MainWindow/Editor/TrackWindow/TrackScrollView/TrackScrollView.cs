@@ -167,17 +167,21 @@ internal partial class TrackScrollView : View
         int endIndex = endMeter.TimeSignatureIndex;
 
         var timeSignatures = timeSignatureManager.TimeSignatures;
+
+        // draw bar（小节线抽稀：像素连续淡出 [12,24]，与相邻量化网格同套、无号；照钢琴窗内部网格那套。
+        // 与时间线标尺各走一套——标尺是线+号一体的离散档淡出，此处是无号网格线，故用 ForEachGridLine）
         IBrush barLineBrush = BarLineColor.ToBrush();
+        BarGridLayout.ForEachGridLine(timeSignatureManager, TickAxis, (in BarGridLayout.BarLine line) =>
+        {
+            double x = TickAxis.Tick2X(line.Tick);
+            var brush = line.Opacity >= 1 ? barLineBrush : BarLineColor.Opacity(line.Opacity).ToBrush();
+            context.FillRectangle(brush, new Rect(x, 0, 1, Bounds.Height));
+        });
+
         for (int timeSignatureIndex = startIndex; timeSignatureIndex <= endIndex; timeSignatureIndex++)
         {
-            // draw bar
             int nextTimeSignatureBarIndex = timeSignatureIndex + 1 == timeSignatures.Count ? (int)Math.Ceiling(endMeter.BarIndex) : timeSignatures[timeSignatureIndex + 1].BarIndex;
             int thisTimeSignatureBarIndex = Math.Max(timeSignatures[timeSignatureIndex].BarIndex, (int)Math.Floor(startMeter.BarIndex));
-            for (int barIndex = thisTimeSignatureBarIndex; barIndex < nextTimeSignatureBarIndex; barIndex++)
-            {
-                double xBarIndex = TickAxis.Tick2X(timeSignatures[timeSignatureIndex].GetTickByBarIndex(barIndex));
-                context.FillRectangle(barLineBrush, new Rect(xBarIndex, 0, 1, Bounds.Height));
-            }
 
             // draw beat
             double pixelsPerBeat = timeSignatures[timeSignatureIndex].TicksPerBeat() * TickAxis.PixelsPerTick;
