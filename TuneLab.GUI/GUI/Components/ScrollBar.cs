@@ -25,6 +25,9 @@ internal sealed class ScrollBar : Control, ICustomHitTest
     // null（有界轴）直接用 axis.ContentLength、走普通位置位移拖动。
     public Func<double>? ContentExtentProvider { get; set; }
 
+    // 手柄占用的贴边总厚度（两侧留白 + 手柄宽）。作覆盖层时内容想避开手柄，可给内容留此右边距。
+    public static double ReservedThickness => EdgeMargin * 2 + ThumbThickness;
+
     public ScrollBar(IScrollAxis axis, Orientation orientation)
     {
         mAxis = axis;
@@ -32,11 +35,8 @@ internal sealed class ScrollBar : Control, ICustomHitTest
         mAxis.AxisChanged += OnAxisChanged;
     }
 
-    ~ScrollBar()
-    {
-        mAxis.AxisChanged -= OnAxisChanged;
-        DetachInput();
-    }
+    // 不设终结器：轴↔本条、输入源↔本条 的订阅都在自包含对象图内（宿主被回收时整块一起回收），不会泄漏；
+    // 且终结器在 GC 线程运行，碰 UI 属性（如 DetachInput 里的 IsHitTestVisible）会抛「Call from invalid thread」。
 
     // 可选：从宿主接管指针输入，用于本控件自己收不到事件的场景——最典型是挂在 AdornerLayer 上叠在第三方
     // 控件（AvaloniaEdit）之上时，adorner 拿不到自身指针事件。挂上后本控件 hit-test 关闭（纯绘制），改由
@@ -79,13 +79,6 @@ internal sealed class ScrollBar : Control, ICustomHitTest
     // 须显式挡掉"已淡出"的情形——Avalonia 连 Opacity=0 的控件也照样命中测试（透明≠不可点），
     // 否则淡没了的滚动条其手柄区仍会吃掉点击。
     public bool HitTest(Point point) => Opacity > 0 && IsOverThumb(point);
-
-    // 作普通控件（如 DockPanel 保留道）时给一个厚度；作覆盖层时父级（LayerPanel）会强制 finalSize、此值不生效。
-    protected override Size MeasureOverride(Size availableSize)
-    {
-        double thickness = EdgeMargin * 2 + ThumbThickness;
-        return mOrientation == Orientation.Vertical ? new Size(thickness, 0) : new Size(0, thickness);
-    }
 
     public override void Render(DrawingContext context)
     {
@@ -312,6 +305,6 @@ internal sealed class ScrollBar : Control, ICustomHitTest
 
     const double ThumbThickness = 8;    // 手柄宽度：够大方、好点中，仍不膨胀
     const double ThumbOpacity = 0.5;    // 手柄自身透明度（整体显隐由外部 Opacity 再叠）
-    const double EdgeMargin = 3;        // 手柄离边缘留白
+    const double EdgeMargin = 2;        // 手柄离边缘留白
     const double GrabPadding = 6;       // 抓取判定较视觉手柄略放宽
 }
