@@ -45,15 +45,12 @@ internal partial class LyricInput : Window
 
         Content.Background = Style.INTERFACE.ToBrush();
 
-        mLyricInputBox = new TextInput();
-        mLyricInputBox.AcceptsReturn = true;
+        mLyricInputBox = new MultilineTextInput();
         mLyricInputBox.Width = 432;
         mLyricInputBox.Height = 168;
         mLyricInputBox.Background = Style.BACK.ToBrush();
         mLyricInputBox.Padding = new(8, 8);
-        mLyricInputBox.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Top;
         mLyricInputBox.Foreground = Style.WHITE.ToBrush();
-        mLyricInputBox.TextWrapping = TextWrapping.Wrap;
         TextareaBox.Children.Add(mLyricInputBox);
 
         var SkipTenutoLabelPanel = new StackPanel();
@@ -116,6 +113,6 @@ internal partial class LyricInput : Window
 
     IReadOnlyCollection<INote>? mNotes = null;
 
-    readonly TextInput mLyricInputBox;
+    readonly MultilineTextInput mLyricInputBox;
     readonly CheckBox mSkipTenutoCheckBox;
 }

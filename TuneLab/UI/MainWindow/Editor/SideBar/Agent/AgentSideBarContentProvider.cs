@@ -185,24 +185,15 @@ internal sealed class AgentSideBarContentProvider
         DockPanel.SetDock(mAttachButton, Dock.Left);
         inputRow.Children.Add(mAttachButton);
         // 多行自增长：随内容长高、自动换行，到上限内部滚动；Enter 发送，Shift+Enter 换行。
-        mInput.AcceptsReturn = true;
-        mInput.TextWrapping = TextWrapping.Wrap;
-        mInput.MinHeight = 28;
+        // MultilineTextInput 基于 AvaloniaEdit，自动换行/多行为内建；AutoGrow 让框高紧贴内容(内容+对称内边距)、封顶 MaxHeight 后内滚。
         mInput.MaxHeight = 120;
-        // 竖直内边距：TextInput 构造默认 Padding=(8,0)（竖距为 0），补一点上下内边距给文字留白。
+        // 对称内边距(6/6) → 行盒在框内居中；VerticalAlignment=Center 让这个紧贴内容的框在输入行里整体居中
+        //（否则 DockPanel 会把它拉伸到行高、内容顶对齐而显偏上）。
         mInput.Padding = new(8, 6);
-        // 竖直居中：发送键(32px)会把输入行撑到 32 高，Top 对齐会让单行文字偏上、与发送图标不齐；Center 让单行竖直居中、
-        // 与发送图标对齐；多行时框随内容长高、内容填满，Center 与 Top 视觉一致。
-        mInput.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
-        // 多行换行的关键：TextInput 默认 HorizontalContentAlignment=Left（为单行属性编辑而设），会让模板内承载文字的
-        // presenter 按内容宽度摆放而非填满框宽，使 Wrap 形成自反馈、末字恒折到第二行。多行场景必须改回 Stretch。
-        mInput.HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
-        // 临时隐藏原生滚动条：Fluent 原生竖条 hover 会膨胀成带箭头的粗条遮挡文字，很丑；内容仍可滚轮/光标跟随滚动。
-        // 最终态拟用自带 scrollaxis 封装专门的 overlay 细滚动条控件再替换。隐藏也彻底排除滚动条对布局的影响。
-        ScrollViewer.SetVerticalScrollBarVisibility(mInput, ScrollBarVisibility.Hidden);
-        // 关闭布局取整：分数缩放下避免可用宽度被像素 floor 掉一截而在边界处误折一字（轻微保险）。
-        // 注：对“从换行行首选择导致上一行末字跳行”无效——那是 Avalonia 在 Wrap 下选择重排的框架层行为，原生 TextBox 难根治，留待将来自定义文本/滚动控件处理。
-        mInput.UseLayoutRounding = false;
+        mInput.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+        mInput.AutoGrow = true;
+        // 隐藏竖滚动条：内容仍可滚轮/光标跟随滚动；超 MaxHeight 后靠此内滚，不显条更干净。
+        mInput.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
         mInput.Background = Brushes.Transparent;
         mInput.Watermark = "Type a message...".Tr(this);
         // Enter 发送 / Shift+Enter 换行。用 handledEventsToo：AcceptsReturn 下 TextBox 类处理器会先处理 Enter（插入换行并标
@@ -1625,7 +1616,7 @@ internal sealed class AgentSideBarContentProvider
         mInput.Text = string.IsNullOrEmpty(cur) ? p : p + "\n" + cur;
         mActive.PendingText = null;
         RefreshPendingChip();
-        mInput.Focus();
+        mInput.TextArea.Focus();
     }
 
     // ✕：丢弃 pending（不发出）。
@@ -1841,7 +1832,7 @@ internal sealed class AgentSideBarContentProvider
     readonly DockPanel mSettingsView = new() { LastChildFill = true };
     // 可见会话的消息滚动区挂载点：切换会话只换其 Child 为目标会话各自的 ListView（离屏会话的视图被其 SessionContext 持有、不销毁）。
     readonly Panel mMessagesHost = new();
-    readonly TextInput mInput = new();
+    readonly MultilineTextInput mInput = new();
     // token 用量状态行（输入框上方）：显示当前会话的累计 + 上下文占用，随会话切换/每轮刷新（见 RefreshTokenStatus）。
     readonly TextBlock mTokenStatus = new();
     // 图片附件：待发缩略图条 + 待发图片列表（属"当前撰写"状态、与输入框共享、跨会话切换保留）+ 📎按钮。
