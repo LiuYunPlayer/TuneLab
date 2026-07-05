@@ -1,10 +1,16 @@
 using System;
 using System.Globalization;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using AvaloniaEdit;
 using AvaloniaEdit.Rendering;
+using TuneLab.Animation;
 using TuneLab.Foundation;
 using TuneLab.GUI.Controllers;
 using TuneLab.Utils;
@@ -34,7 +40,8 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
 
         WordWrap = true;   // 自动换行（多行输入本意；横向不滚）
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
-        VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        // 隐藏原生 Fluent 竖条（仍可滚），改挂统一浮层滚动条（贴边细条、靠近才浮现）。
+        VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
 
         Background = Style.BACK.ToBrush();
         Foreground = Style.TEXT_NORMAL.ToBrush();
@@ -53,6 +60,116 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         // 焦点落在内部 TextArea 上：进入=开始编辑（ValueWillChange），退出=提交（ValueCommitted）。
         TextArea.GotFocus += (s, e) => mEnterInput.Invoke();
         TextArea.LostFocus += (s, e) => mEndInput.Invoke();
+
+        // 统一滚动条：绑 AvaloniaEdit 滚动的 IScrollAxis 适配器，经 AdornerLayer 叠在文本框上。adorner 拿不到
+        // 自身指针事件，故用 AttachInput 让它从本控件（隧道）接管输入。普通文本框常驻显示（可滚才画手柄），
+        // 不做"靠近才显"。
+        mScrollBar = new(new TextEditorScrollAxis(this), Orientation.Vertical);
+        mScrollBar.AttachInput(this);
+        AttachedToVisualTree += OnAttachedForScrollBar;
+        DetachedFromVisualTree += OnDetachedForScrollBar;
+
+        // 平滑滚轮：隧道阶段拦截（抢在 AvaloniaEdit 原生逐行跳滚之前），指数缓动 ScrollViewer 偏移，
+        // 与钢琴/编排区滚轮手感一致。无可滚内容时放行、让事件冒泡到外层可滚容器。
+        mScrollAnimation = new WheelScrollAnimation(this);
+        AddHandler(PointerWheelChangedEvent, OnWheelScroll, RoutingStrategies.Tunnel);
+    }
+
+    void OnWheelScroll(object? sender, PointerWheelEventArgs e)
+    {
+        var sv = this.FindDescendantOfType<ScrollViewer>();
+        if (sv == null)
+            return;
+
+        double max = Math.Max(0, sv.Extent.Height - sv.Viewport.Height);
+        if (max <= 0)
+            return;   // 无可滚内容：放行冒泡（外层容器可接管）
+
+        double baseOffset = mWheelAnimating ? mWheelTarget : sv.Offset.Y;
+        mWheelTarget = Math.Clamp(baseOffset - e.Delta.Y * WheelStep, 0, max);
+        mLastWheelMs = double.NaN;
+        mWheelAnimating = true;
+        AnimationManager.SharedManager.StartAnimation(mScrollAnimation);
+        e.Handled = true;
+    }
+
+    void TickWheelScroll(double millisec)
+    {
+        var sv = this.FindDescendantOfType<ScrollViewer>();
+        if (sv == null)
+        {
+            mWheelAnimating = false;
+            AnimationManager.SharedManager.StopAnimation(mScrollAnimation);
+            return;
+        }
+
+        double dt = double.IsNaN(mLastWheelMs) ? 16 : Math.Max(0, millisec - mLastWheelMs);
+        mLastWheelMs = millisec;
+
+        double cur = sv.Offset.Y;
+        double k = 1 - Math.Exp(-dt / WheelTau);
+        double next = cur + (mWheelTarget - cur) * k;
+        if (Math.Abs(next - mWheelTarget) < 0.5)
+            next = mWheelTarget;
+
+        if (next != cur)
+            sv.Offset = new Vector(sv.Offset.X, next);
+
+        if (next == mWheelTarget)
+        {
+            mWheelAnimating = false;
+            AnimationManager.SharedManager.StopAnimation(mScrollAnimation);
+        }
+    }
+
+    sealed class WheelScrollAnimation(MultilineTextInput owner) : IAnimation
+    {
+        public void Update(double millisec) => owner.TickWheelScroll(millisec);
+    }
+
+    void OnAttachedForScrollBar(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        var layer = AdornerLayer.GetAdornerLayer(this);
+        if (layer == null || layer.Children.Contains(mScrollBar))
+            return;
+
+        AdornerLayer.SetAdornedElement(mScrollBar, this);
+        layer.Children.Add(mScrollBar);
+    }
+
+    void OnDetachedForScrollBar(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        (mScrollBar.Parent as AdornerLayer)?.Children.Remove(mScrollBar);
+    }
+
+    // 把 AvaloniaEdit 的滚动适配成 IScrollAxis，供统一滚动条复用。只做纵向（WordWrap 下无横向滚动）。
+    // 直接操作模板里的内部 ScrollViewer（标准滚动模型：Offset 设即滚、自带钳制）——TextEditor 的
+    // ScrollToVerticalOffset/VerticalOffset 等 facade 实测拖动时不生效/读值恒 0。ScrollViewer 在模板套用后
+    // 才存在，故懒解析。
+    sealed class TextEditorScrollAxis : IScrollAxis
+    {
+        public event Action? AxisChanged;
+        public double ViewLength { get => ScrollViewer?.Viewport.Height ?? 0; set { } }
+        public double ContentLength => ScrollViewer?.Extent.Height ?? 0;
+        public double ViewOffset
+        {
+            get => ScrollViewer?.Offset.Y ?? 0;
+            set { var sv = ScrollViewer; if (sv != null) sv.Offset = new Vector(sv.Offset.X, value); }
+        }
+
+        public TextEditorScrollAxis(TextEditor editor)
+        {
+            mEditor = editor;
+            var textView = editor.TextArea.TextView;
+            textView.ScrollOffsetChanged += (s, e) => AxisChanged?.Invoke();   // 滚动
+            textView.VisualLinesChanged += (s, e) => AxisChanged?.Invoke();    // 内容/排版变（打字增行等）
+            editor.SizeChanged += (s, e) => AxisChanged?.Invoke();             // 视口尺寸变
+        }
+
+        ScrollViewer? ScrollViewer => mScrollViewer ??= mEditor.FindDescendantOfType<ScrollViewer>();
+
+        readonly TextEditor mEditor;
+        ScrollViewer? mScrollViewer;
     }
 
     // 子类须借 TextEditor 的 ControlTheme（模板按 key=typeof(TextEditor) 注册）：Avalonia 默认按控件自身类型找模板，
@@ -132,6 +249,15 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
 
     bool mAutoGrow;
     string? mWatermark;
+
+    readonly ScrollBar mScrollBar;
+
+    readonly WheelScrollAnimation mScrollAnimation;
+    bool mWheelAnimating;
+    double mWheelTarget;
+    double mLastWheelMs = double.NaN;
+    const double WheelStep = 50;   // 每格滚轮位移（px）
+    const double WheelTau = 60;    // 缓动时间常数（ms）
 
     readonly ActionEvent mEnterInput = new();
     readonly ActionEvent mTextChanged = new();
