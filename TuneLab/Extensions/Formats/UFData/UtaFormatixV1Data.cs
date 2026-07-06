@@ -143,7 +143,7 @@ internal class UtaFormatixV1Data : IImportFormat, IExportFormat
                     {
                         partInfo.Name = "Part_1";
                         partInfo.Pos = 0;
-                        partInfo.Dur = (int)notes[notes.Count() - 1]?["tickOff"] != null ? (int)notes[notes.Count() - 1]?["tickOff"] + 480 : int.MaxValue;
+                        partInfo.EndOffset = (int)notes[notes.Count() - 1]?["tickOff"] != null ? (int)notes[notes.Count() - 1]?["tickOff"] + 480 : int.MaxValue;
 
                         trackInfo.Parts.Add(partInfo);
                     }

@@ -86,7 +86,7 @@ internal static class MidiUtility
             }
             if (notes.Count != 0)
             {
-                part.Dur = ((int)Math.Ceiling((double)notes.Last().EndPos() / (4 * MusicTheory.RESOLUTION)) + 1) * MusicTheory.RESOLUTION * 4;
+                part.EndOffset = ((int)Math.Ceiling((double)notes.Last().EndPos() / (4 * MusicTheory.RESOLUTION)) + 1) * MusicTheory.RESOLUTION * 4;
                 var track = new TrackInfo();
                 track.Name = part.Name;
                 track.Parts.Add(part);

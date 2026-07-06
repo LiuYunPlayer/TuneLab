@@ -253,7 +253,8 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             string? type = null;
             string name = "";
             double pos = 0;
-            double dur = 0;
+            double startOffset = 0;
+            double endOffset = 0;
 
             // First pass to get type
             var startPosition = reader.BytesRemaining;
@@ -281,8 +282,11 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     case "pos":
                         pos = reader.ReadDouble();
                         break;
-                    case "dur":
-                        dur = reader.ReadDouble();
+                    case "startOffset":
+                        startOffset = reader.ReadDouble();
+                        break;
+                    case "endOffset":
+                        endOffset = reader.ReadDouble();
                         break;
                     case "gain":
                         if (midiPartInfo != null)
@@ -343,14 +347,16 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             {
                 midiPartInfo.Name = name;
                 midiPartInfo.Pos = pos;
-                midiPartInfo.Dur = dur;
+                midiPartInfo.StartOffset = startOffset;
+                midiPartInfo.EndOffset = endOffset;
                 parts.Add(midiPartInfo);
             }
             else if (audioPartInfo != null)
             {
                 audioPartInfo.Name = name;
                 audioPartInfo.Pos = pos;
-                audioPartInfo.Dur = dur;
+                audioPartInfo.StartOffset = startOffset;
+                audioPartInfo.EndOffset = endOffset;
                 parts.Add(audioPartInfo);
             }
         }
@@ -837,8 +843,11 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("pos");
         writer.WriteDouble(midiPart.Pos);
 
-        writer.WriteTextString("dur");
-        writer.WriteDouble(midiPart.Dur);
+        writer.WriteTextString("startOffset");
+        writer.WriteDouble(midiPart.StartOffset);
+
+        writer.WriteTextString("endOffset");
+        writer.WriteDouble(midiPart.EndOffset);
 
         writer.WriteTextString("gain");
         writer.WriteDouble(midiPart.Gain);
@@ -884,8 +893,11 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("pos");
         writer.WriteDouble(audioPart.Pos);
 
-        writer.WriteTextString("dur");
-        writer.WriteDouble(audioPart.Dur);
+        writer.WriteTextString("startOffset");
+        writer.WriteDouble(audioPart.StartOffset);
+
+        writer.WriteTextString("endOffset");
+        writer.WriteDouble(audioPart.EndOffset);
 
         writer.WriteTextString("path");
         writer.WriteTextString(audioPart.Path);

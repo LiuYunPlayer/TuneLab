@@ -666,7 +666,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                         new MidiPartInfo()
                         {
                             Name = "Part".Tr(TC.Document) + "_1",
-                            Dur = 64 * MusicTheory.RESOLUTION * 4
+                            EndOffset = 64 * MusicTheory.RESOLUTION * 4
                         }
                     ]
                 }]

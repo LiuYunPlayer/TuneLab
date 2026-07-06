@@ -67,7 +67,7 @@ The project's data: tracks, tempo, time signatures.
 | Method | Returns | Notes |
 |---|---|---|
 | `track.parts()` | `[part]` | All part handles on this track (sorted by start). |
-| `track.addPart({pos, dur, name?})` | `part` | Add an empty MIDI part (absolute ticks), returns its handle. |
+| `track.addPart({startPos, endPos, name?})` | `part` | Add an empty MIDI part (`startPos`/`endPos` are the visible span in absolute ticks), returns its handle. |
 | `track.removePart(part)` | — | Remove a part from this track. |
 | `track.set({name?, isMute?, isSolo?, gain?, pan?})` | — | Assign several fields at once; `pan` is clamped to [-1, 1]. |
 
@@ -75,7 +75,7 @@ The project's data: tracks, tempo, time signatures.
 
 ## `part`
 
-**Fields** (bare properties, read/write): `name`, `pos`, `dur`; **read-only**: `type` (`"midi"`/`"audio"`).
+**Fields** (bare properties, read/write): `name`, `startPos`, `endPos` (the part's visible span in absolute ticks); **read-only**: `type` (`"midi"`/`"audio"`). Setting `startPos` moves the whole part (content follows, length preserved); setting `endPos` resizes the right edge.
 
 | Method | Returns | Notes |
 |---|---|---|
@@ -95,7 +95,7 @@ The project's data: tracks, tempo, time signatures.
 | `part.vibratos()` | `[vibrato]` | All vibrato handles in this part. |
 | `part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?})` | `vibrato` | Add a vibrato (overlaid on the pitch curve; defaults 6Hz / 1 semitone), returns its handle. |
 | `part.removeVibrato(vibrato)` | — | Remove a vibrato from this part. |
-| `part.set({name?, pos?, dur?})` | — | Assign several fields at once (rename / move / resize). |
+| `part.set({name?, startPos?, endPos?})` | — | Assign several fields at once (rename / move / resize). |
 
 ---
 
@@ -143,7 +143,7 @@ const project = tl.currentProject();
 const src = project.tracks()[0];
 const dst = project.addTrack("Harmony +8");
 for (const p of src.parts()) {
-  const np = dst.addPart({ pos: p.pos, dur: p.dur, name: p.name });
+  const np = dst.addPart({ startPos: p.startPos, endPos: p.endPos, name: p.name });
   for (const n of p.notes())
     np.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 12, lyric: n.lyric });
 }

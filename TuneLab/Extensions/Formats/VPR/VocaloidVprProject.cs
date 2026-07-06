@@ -361,7 +361,7 @@ namespace TuneLab.Extensions.Formats.VPR
                     {
                         partInfo.Name = ((string?)part["name"] ?? "Part_" + partNum);
                         partInfo.Pos = ((int?)part["pos"] ?? 0);
-                        partInfo.Dur = ((int?)part["duration"] ?? 0);
+                        partInfo.EndOffset = ((int?)part["duration"] ?? 0);
 
                         trackInfo.Parts.Add(partInfo);
                     }

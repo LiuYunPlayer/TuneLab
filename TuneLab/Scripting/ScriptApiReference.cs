@@ -37,11 +37,11 @@ internal static class ScriptApiReference
         "track\n" +
         "  fields (read/write):  name, isMute, isSolo, gain, pan       // gain is in dB (0 = unity); pan in [-1,1]\n" +
         "  track.parts()                            [part]\n" +
-        "  track.addPart({pos, dur, name?}) -> part    track.removePart(part)\n" +
+        "  track.addPart({startPos, endPos, name?}) -> part    track.removePart(part)\n" +
         "  track.set({name?, isMute?, isSolo?, gain?, pan?})   // assign several fields at once\n" +
         "\n" +
         "part\n" +
-        "  fields (read/write):  name, pos, dur     field (read-only): type (\"midi\"/\"audio\")\n" +
+        "  fields (read/write):  name, startPos, endPos    field (read-only): type (\"midi\"/\"audio\")   // startPos/endPos = the part's visible span in absolute ticks; setting startPos moves the whole part (content follows), setting endPos resizes the right edge\n" +
         "  part.soundSource()                       {type, id, name, kind, defaultLyric}   (sound source snapshot; kind=\"voice\"|\"instrument\")\n" +
         "  part.notes()                             [note]\n" +
         "  part.selectedNotes()                     [note]   (currently selected in the piano editor)\n" +
@@ -56,7 +56,7 @@ internal static class ScriptApiReference
         "  part.setAutomation(id, start, end, points, defaultValue?)    part.clearAutomation(id, start, end)   // value=absolute parameter value, created on demand\n" +
         "  part.vibratos()                          [vibrato]\n" +
         "  part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?}) -> vibrato    part.removeVibrato(vibrato)\n" +
-        "  part.set({name?, pos?, dur?})\n" +
+        "  part.set({name?, startPos?, endPos?})\n" +
         "\n" +
         "note\n" +
         "  fields (read/write):  pos, dur, pitch, lyric             field (read-only): pitchName  (e.g. \"C4\")\n" +

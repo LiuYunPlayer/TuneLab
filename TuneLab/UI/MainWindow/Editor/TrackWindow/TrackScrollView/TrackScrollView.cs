@@ -445,7 +445,7 @@ internal partial class TrackScrollView : View
             project.NewTrack();
         }
         var track = project.Tracks[trackIndex];
-        var part = track.CreatePart(new AudioPartInfo() { Name = name, Pos = pos, Dur = dur, Path = path });
+        var part = track.CreatePart(new AudioPartInfo() { Name = name, Pos = pos, EndOffset = dur, Path = path });
         track.InsertPart(part);
         if (isNewTrack)
         {
@@ -579,10 +579,13 @@ internal partial class TrackScrollView : View
                     {
                         return dstProject.TempoManager.GetTick(srcTempoManager!.GetTime(src));
                     }
-                    //SyncPartTick
-                    partInfo.Dur = SyncTick(partInfo.Pos + partInfo.Dur);
-                    partInfo.Pos = SyncTick(partInfo.Pos);
-                    partInfo.Dur -= partInfo.Pos;
+                    //SyncPartTick：锚点/起点/终点三点各自换算到目标时基，再重算相对偏移（StartOffset=0 时等价旧逻辑）。
+                    double newPos = SyncTick(partInfo.Pos);
+                    double newStart = SyncTick(partInfo.Pos + partInfo.StartOffset);
+                    double newEnd = SyncTick(partInfo.Pos + partInfo.EndOffset);
+                    partInfo.Pos = newPos;
+                    partInfo.StartOffset = newStart - newPos;
+                    partInfo.EndOffset = newEnd - newPos;
                     if (isMidiPart)
                     {
                         var midiPartInfo = (MidiPartInfo)partInfo;

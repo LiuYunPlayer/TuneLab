@@ -129,7 +129,7 @@ internal partial class TrackScrollView
                                     }
                                     var track = Project.Tracks[trackIndex];
                                     var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X));
-                                    var part = track.CreatePart(new MidiPartInfo() { Name = "Part".Tr(TC.Document) + "_" + (track.Project.PartsCount() + 1), Pos = pos, Dur = QuantizedCellTicks() });
+                                    var part = track.CreatePart(new MidiPartInfo() { Name = "Part".Tr(TC.Document) + "_" + (track.Project.PartsCount() + 1), Pos = pos, EndOffset = QuantizedCellTicks() });
                                     track.InsertPart(part);
                                     mPartEndResizeOperation.Down(TickAxis.Tick2X(part.EndPos), part, track);
                                 }
@@ -1066,7 +1066,8 @@ internal partial class TrackScrollView
             {
                 endTick = TrackScrollView.GetQuantizedTick(endTick);
             }
-            mTrack.MovePart(mPart, () => mPart.Dur.Set(Math.Max(endTick - mPart.Pos.Value, TrackScrollView.QuantizedCellTicks())));
+            // 拖右边缘 = 只改 EndOffset（终点相对锚点的偏移）；下限保证可见长度 ≥ 一个量化格。
+            mTrack.MovePart(mPart, () => mPart.EndOffset.Set(Math.Max(endTick - mPart.Pos.Value, mPart.StartOffset.Value + TrackScrollView.QuantizedCellTicks())));
         }
 
         public void Up()
@@ -1153,7 +1154,7 @@ internal partial class TrackScrollView
             foreach (var info in mPreImportAudioInfos)
             {
                 var track = TrackScrollView.Project.Tracks[trackIndex];
-                var part = track.CreatePart(new AudioPartInfo() { Pos = mLastPos, Dur = info.Dur, Name = info.name, Path = info.path });
+                var part = track.CreatePart(new AudioPartInfo() { Pos = mLastPos, EndOffset = info.Dur, Name = info.name, Path = info.path });
                 part.Select();
                 track.InsertPart(part);
                 trackIndex++;

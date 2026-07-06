@@ -19,11 +19,14 @@ namespace TuneLab.Data
         public IPart? Last => ((ILinkedNode<IPart>)this).Last;
         public abstract IDataProperty<string> Name { get; }
         public abstract IDataProperty<double> Pos { get; }
-        public abstract IDataProperty<double> Dur { get; }
+        public abstract IDataProperty<double> StartOffset { get; }
+        public abstract IDataProperty<double> EndOffset { get; }
         public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
 
-        public double StartPos => Pos.Value;
-        public double EndPos => Pos.Value + Dur.Value;
+        // 派生几何：起点/终点 = 锚点 ± 偏移；可见长度 = 两偏移之差（Dur 不再是原始可写字段，见 IPart 几何模型）。
+        public double Dur => EndOffset.Value - StartOffset.Value;
+        public double StartPos => Pos.Value + StartOffset.Value;
+        public double EndPos => Pos.Value + EndOffset.Value;
 
         public Part(ITrack track)
         {
@@ -43,7 +46,7 @@ namespace TuneLab.Data
         public virtual void Deactivate() { }
 
         IActionEvent IDuration.DurationChanged => mDurationChanged;
-        double IDuration.Duration => Dur.Value;
+        double IDuration.Duration => Dur;
 
         double IAudioSource.StartTime => TempoManager.GetTime(StartPos);
         int IAudioSource.SampleRate => SampleRate;

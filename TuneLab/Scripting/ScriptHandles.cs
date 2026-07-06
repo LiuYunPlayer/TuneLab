@@ -80,8 +80,9 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     IMidiPart Midi => P is IMidiPart m ? m : throw new ScriptApiException("this part is not a MIDI part; notes/curves require a MIDI part.");
 
     public string Name { get => P.Name.Value; set => Apply(name: value); }
-    public double Pos { get => P.Pos.Value; set => Apply(pos: value); }   // 绝对 tick
-    public double Dur { get => P.Dur.Value; set => Apply(dur: value); }
+    // 只暴露 part 的真实几何（可见窗口的绝对 tick 起止），不暴露内部锚点/偏移三元组。
+    public double StartPos { get => P.StartPos(); set => Apply(startPos: value); }   // 绝对 tick（可见起点）
+    public double EndPos { get => P.EndPos(); set => Apply(endPos: value); }         // 绝对 tick（可见终点）
     public string Type => P is IMidiPart ? "midi" : "audio";
 
     // 本 part 的声源信息（只读快照）。仅 midi part。kind 区分 voice / instrument。
@@ -258,21 +259,23 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     public void Set(JsValue props)
     {
         var o = ScriptArgs.Obj(props, "props");
-        Apply(ScriptArgs.OptStr(o, "name"), ScriptArgs.OptNum(o, "pos"), ScriptArgs.OptNum(o, "dur"));
+        Apply(ScriptArgs.OptStr(o, "name"), ScriptArgs.OptNum(o, "startPos"), ScriptArgs.OptNum(o, "endPos"));
     }
 
-    // 单字段属性 setter 与 Set() 共用：改 pos/dur 经 MovePart 摘除-重插维持轨内有序。
-    void Apply(string? name = null, double? pos = null, double? dur = null)
+    // 单字段属性 setter 与 Set() 共用：改 startPos/endPos 经 MovePart 摘除-重插维持轨内有序。
+    // startPos = 移动整段（平移锚点、内容跟随、长度不变）；endPos = 缩放右边缘（移末端、内容不动）。
+    void Apply(string? name = null, double? startPos = null, double? endPos = null)
     {
         var p = P;
-        if (pos is { } vp && vp < 0) throw new ScriptApiException("pos must be >= 0.");
-        if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
+        if (startPos is { } vs && vs < 0) throw new ScriptApiException("startPos must be >= 0.");
+        if (endPos is { } ve && ve <= (startPos ?? p.StartPos())) throw new ScriptApiException("endPos must be greater than startPos.");
         ctx.EnsureWritable();
         p.Track.MovePart(p, () =>
         {
             if (name != null) p.Name.Set(name);
-            if (pos is { } p2) p.Pos.Set(p2);
-            if (dur is { } d2) p.Dur.Set(d2);
+            // 先移动（若给了 startPos）再缩放右边缘（endPos 用移动后的锚点换算）。
+            if (startPos is { } s) p.Pos.Set(p.Pos.Value + (s - p.StartPos()));
+            if (endPos is { } e) p.EndOffset.Set(e - p.Pos.Value);
         });
         ctx.Bump();
     }
@@ -289,7 +292,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 
     public override string ToString()
         => string.Format(CultureInfo.InvariantCulture, "Part(\"{0}\", {1}, ticks [{2:0}..{3:0}])",
-            P.Name.Value, Type, Pos, Pos + Dur);
+            P.Name.Value, Type, StartPos, EndPos);
 }
 
 // 一个轨道句柄。
@@ -308,17 +311,18 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
 
     public ScriptPart[] Parts() => T.Parts.Select(ctx.WrapPart).ToArray();
 
-    // info: {pos, dur, name?}。在本轨新建空 midi part（绝对 tick）。
+    // info: {startPos, endPos, name?}。在本轨新建空 midi part（绝对 tick 的可见起止）。
     public ScriptPart AddPart(JsValue info)
     {
         var t = T;
         var o = ScriptArgs.Obj(info, "info");
-        double pos = ScriptArgs.ReqNum(o, "pos");
-        double dur = ScriptArgs.ReqNum(o, "dur");
-        if (pos < 0) throw new ScriptApiException("pos must be >= 0.");
-        if (dur <= 0) throw new ScriptApiException("dur must be positive.");
+        double startPos = ScriptArgs.ReqNum(o, "startPos");
+        double endPos = ScriptArgs.ReqNum(o, "endPos");
+        if (startPos < 0) throw new ScriptApiException("startPos must be >= 0.");
+        if (endPos <= startPos) throw new ScriptApiException("endPos must be greater than startPos.");
         ctx.EnsureWritable();
-        var part = t.CreatePart(new MidiPartInfo { Name = ScriptArgs.OptStr(o, "name") ?? "Part", Pos = pos, Dur = dur });
+        // 新建 part 锚点落在起点、无前向裁剪（StartOffset=0），可见窗口 = [startPos, endPos]。
+        var part = t.CreatePart(new MidiPartInfo { Name = ScriptArgs.OptStr(o, "name") ?? "Part", Pos = startPos, EndOffset = endPos - startPos });
         t.InsertPart(part);
         ctx.Bump();
         return ctx.WrapPart(part);

@@ -150,7 +150,7 @@ internal class ACEStudioProject : IImportFormat, IExportFormat
                                 {
                                     partInfo.Name = ((string?)part["name"] ?? "Part_" + partNum);
                                     partInfo.Pos = ((int?)part["pos"] ?? 0);
-                                    partInfo.Dur = ((int?)part["dur"] ?? 0);
+                                    partInfo.EndOffset = ((int?)part["dur"] ?? 0);
                                     trackInfo.Parts.Add(partInfo);
                                 }
 
@@ -249,10 +249,10 @@ internal class ACEStudioProject : IImportFormat, IExportFormat
                     {
                         var pattern = new JObject()
                         {
-                            { "clipDur", partInfo.Dur },
+                            { "clipDur", partInfo.EndOffset - partInfo.StartOffset },
                             { "clipPos", 0 },
                             { "color", "" },
-                            { "dur", partInfo.Dur },
+                            { "dur", partInfo.EndOffset - partInfo.StartOffset },
                             { "pos", partInfo.Pos },
                             { "enabled", true },
                             { "extraInfo", new JObject() },
@@ -322,7 +322,7 @@ internal class ACEStudioProject : IImportFormat, IExportFormat
                         track.Add("patterns", patterns);
                     }
 
-                    maxTrackLength = (int)(partInfo.Pos + partInfo.Dur + 480 > maxTrackLength ? partInfo.Pos + partInfo.Dur + 480 : maxTrackLength);
+                    maxTrackLength = (int)(partInfo.Pos + partInfo.EndOffset + 480 > maxTrackLength ? partInfo.Pos + partInfo.EndOffset + 480 : maxTrackLength);
                 }
 
                 tracks.Add(track);

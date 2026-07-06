@@ -567,8 +567,10 @@ internal static class IMidiPartExtension
         }
         var ret = new MidiPartInfo();
         var basePart = SortedPartInfos[0];
+        // 合并后锚点 = 首段锚点（内容据此 rebase）；起点保留首段起点、终点取末段终点，均换算到该锚点。
         ret.Pos = SortedPartInfos.First().Pos;
-        ret.Dur = SortedPartInfos.Last().Dur + SortedPartInfos.Last().Pos - ret.Pos;
+        ret.StartOffset = SortedPartInfos.First().StartOffset;
+        ret.EndOffset = SortedPartInfos.Last().Pos + SortedPartInfos.Last().EndOffset - ret.Pos;
         ret.SoundSource = basePart.SoundSource;
         ret.Gain = basePart.Gain;
         ret.Name = basePart.Name;
@@ -633,8 +635,9 @@ internal static class IMidiPartExtension
         }
         return new MidiPartInfo()
         {
+            // 提取的子段为全新独立 part：锚点落在子段起点、无前向裁剪（StartOffset 默认 0）、长度 = end - start。
             Pos = start + part.Pos.Value,
-            Dur = end - start,
+            EndOffset = end - start,
             Gain = part.Gain.GetInfo(),
             Name = part.Name.GetInfo(),
             SoundSource = part.SoundSource.GetInfo(),

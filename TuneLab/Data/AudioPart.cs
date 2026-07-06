@@ -18,7 +18,8 @@ internal class AudioPart : Part, IAudioPart
     public INotifiableProperty<string> BaseDirectory { get; } = new NotifiableProperty<string>(string.Empty);
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
-    public override DataStruct<double> Dur { get; }
+    public override DataStruct<double> StartOffset { get; }
+    public override DataStruct<double> EndOffset { get; }
     public DataString Path { get; }
     IDataProperty<string> IAudioPart.Path => Path;
 
@@ -26,9 +27,11 @@ internal class AudioPart : Part, IAudioPart
     {
         Name = new(this, string.Empty);
         Pos = new(this);
-        Dur = new(this);
+        StartOffset = new(this);
+        EndOffset = new(this);
         Path = new(this, string.Empty);
-        Dur.Modified.Subscribe(mDurationChanged);
+        StartOffset.Modified.Subscribe(mDurationChanged);
+        EndOffset.Modified.Subscribe(mDurationChanged);
         Path.Modified.Subscribe(Reload);
         BaseDirectory.Modified.Subscribe(() =>
         { 
@@ -53,7 +56,8 @@ internal class AudioPart : Part, IAudioPart
         {
             Name = Name,
             Pos = Pos,
-            Dur = Dur,
+            StartOffset = StartOffset,
+            EndOffset = EndOffset,
             Path = path
         };
     }
@@ -63,7 +67,8 @@ internal class AudioPart : Part, IAudioPart
         using var _ = MergeNotify();
         Name.SetInfo(info.Name);
         Pos.SetInfo(info.Pos);
-        Dur.SetInfo(info.Dur);
+        StartOffset.SetInfo(info.StartOffset);
+        EndOffset.SetInfo(info.EndOffset);
         Path.SetInfo(info.Path);
     }
 

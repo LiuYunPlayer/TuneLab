@@ -67,7 +67,7 @@
 | 方法 | 返回 | 说明 |
 |---|---|---|
 | `track.parts()` | `[part]` | 本轨所有 part 句柄（按起点排序）。 |
-| `track.addPart({pos, dur, name?})` | `part` | 在本轨新建空 MIDI part（绝对 tick），返回其句柄。 |
+| `track.addPart({startPos, endPos, name?})` | `part` | 在本轨新建空 MIDI part（`startPos`/`endPos` 为绝对 tick 的可见起止），返回其句柄。 |
 | `track.removePart(part)` | — | 从本轨删除一个 part。 |
 | `track.set({name?, isMute?, isSolo?, gain?, pan?})` | — | 一次改多个字段；`pan` 钳到 [-1, 1]。 |
 
@@ -75,7 +75,7 @@
 
 ## `part`
 
-**字段**（裸属性，可读写）：`name`、`pos`、`dur`；**只读**：`type`（`"midi"`/`"audio"`）。
+**字段**（裸属性，可读写）：`name`、`startPos`、`endPos`（part 可见窗口的绝对 tick 起止）；**只读**：`type`（`"midi"`/`"audio"`）。写 `startPos` = 平移整段（内容跟随、长度不变），写 `endPos` = 缩放右边缘。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
@@ -95,7 +95,7 @@
 | `part.vibratos()` | `[vibrato]` | 本 part 的所有颤音句柄。 |
 | `part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?})` | `vibrato` | 新增颤音（叠加在音高曲线之上，默认 6Hz / 1 半音），返回其句柄。 |
 | `part.removeVibrato(vibrato)` | — | 从本 part 删除一个颤音。 |
-| `part.set({name?, pos?, dur?})` | — | 一次改多个字段（改名/移动/缩放）。 |
+| `part.set({name?, startPos?, endPos?})` | — | 一次改多个字段（改名/移动/缩放）。 |
 
 ---
 
@@ -143,7 +143,7 @@ const project = tl.currentProject();
 const src = project.tracks()[0];
 const dst = project.addTrack("Harmony +8");
 for (const p of src.parts()) {
-  const np = dst.addPart({ pos: p.pos, dur: p.dur, name: p.name });
+  const np = dst.addPart({ startPos: p.startPos, endPos: p.endPos, name: p.name });
   for (const n of p.notes())
     np.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 12, lyric: n.lyric });
 }

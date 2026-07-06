@@ -103,7 +103,8 @@ internal static class FormatConverter
     // ── MidiPartInfo ──
     public static New.MidiPartInfo ToV1(this Old.MidiPartInfo o) => new()
     {
-        Name = o.Name, Pos = o.Pos, Dur = o.Dur, Gain = o.Gain,
+        // legacy 无前向裁剪概念：锚点=Pos、StartOffset=0（默认）、EndOffset=可见长度。
+        Name = o.Name, Pos = o.Pos, EndOffset = o.Dur, Gain = o.Gain,
         SoundSource = o.Voice.ToSoundSource(),
         Notes = o.Notes.Select(ToV1).ToList(),
         Automations = o.Automations.ToV1Map(a => a.ToV1()),
@@ -113,7 +114,7 @@ internal static class FormatConverter
     };
     public static Old.MidiPartInfo ToLegacy(this New.MidiPartInfo n) => new()
     {
-        Name = n.Name, Pos = n.Pos, Dur = n.Dur, Gain = n.Gain,
+        Name = n.Name, Pos = n.Pos, Dur = n.EndOffset - n.StartOffset, Gain = n.Gain,
         Voice = n.SoundSource.ToLegacy(),
         Notes = n.Notes.Select(ToLegacy).ToList(),
         Automations = n.Automations.ToLegacyMap(a => a.ToLegacy()),
@@ -125,11 +126,11 @@ internal static class FormatConverter
     // ── AudioPartInfo ──
     public static New.AudioPartInfo ToV1(this Old.AudioPartInfo o) => new()
     {
-        Name = o.Name, Pos = o.Pos, Dur = o.Dur, Path = o.Path,
+        Name = o.Name, Pos = o.Pos, EndOffset = o.Dur, Path = o.Path,
     };
     public static Old.AudioPartInfo ToLegacy(this New.AudioPartInfo n) => new()
     {
-        Name = n.Name, Pos = n.Pos, Dur = n.Dur, Path = n.Path,
+        Name = n.Name, Pos = n.Pos, Dur = n.EndOffset - n.StartOffset, Path = n.Path,
     };
 
     // ── NoteInfo ──

@@ -250,7 +250,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
 
                     partInfo.Name = (string)part["name"];
                     partInfo.Pos = (int)part["pos"];
-                    partInfo.Dur = (int)part["dur"];
+                    partInfo.StartOffset = part.TryGetValue("startOffset", out var startOffset) ? (double)startOffset : 0;
+                    partInfo.EndOffset = part.TryGetValue("endOffset", out var endOffset) ? (double)endOffset : 0;
 
                     trackInfo.Parts.Add(partInfo);
                 }
@@ -326,7 +327,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                 var part = new JObject();
                 part.Add("name", partInfo.Name);
                 part.Add("pos", partInfo.Pos);
-                part.Add("dur", partInfo.Dur);
+                part.Add("startOffset", partInfo.StartOffset);
+                part.Add("endOffset", partInfo.EndOffset);
 
                 if (partInfo is MidiPartInfo midiPartInfo)
                 {

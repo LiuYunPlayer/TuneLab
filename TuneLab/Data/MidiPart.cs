@@ -36,7 +36,8 @@ internal class MidiPart : Part, IMidiPart
     public IReadOnlyOrderedMap<PropertyKey, LaneEntry> PhonemeLaneConfigs => mPhonemeLaneConfigs;
     public override DataString Name { get; }
     public override DataStruct<double> Pos { get; }
-    public override DataStruct<double> Dur { get; }
+    public override DataStruct<double> StartOffset { get; }
+    public override DataStruct<double> EndOffset { get; }
     public DataStruct<double> Gain { get; }
     public DataPropertyObject Properties { get; }
     public INoteList Notes => mNotes;
@@ -65,7 +66,8 @@ internal class MidiPart : Part, IMidiPart
         mOnTimebaseModified = OnTimebaseModified;
         Name = new(this, string.Empty);
         Pos = new(this);
-        Dur = new(this);
+        StartOffset = new(this);
+        EndOffset = new(this);
         Gain = new(this);
         Properties = new(this);
         mSource = new(this, new SoundSourceInfo());
@@ -81,7 +83,8 @@ internal class MidiPart : Part, IMidiPart
         mEffects.MembershipModified.Subscribe(OnEffectChainMembershipModified);
         mPitchLine = new();
         mPitchLine.Attach(this);
-        Dur.Modified.Subscribe(mDurationChanged);
+        StartOffset.Modified.Subscribe(mDurationChanged);
+        EndOffset.Modified.Subscribe(mDurationChanged);
         // 换声源：丢弃旧会话、重建新会话（context 随会话重建）。
         // 注：本订阅在一切 UI 订阅之前注册，UI 收到 Voice.Modified 时声明已刷新。
         mSource.Modified.Subscribe(OnVoiceModified);
@@ -784,7 +787,8 @@ internal class MidiPart : Part, IMidiPart
         {
             Name = Name,
             Pos = Pos,
-            Dur = Dur,
+            StartOffset = StartOffset,
+            EndOffset = EndOffset,
             Gain = Gain,
             Notes = mNotes.GetInfo().ToInfo(),
             Effects = mEffects.GetInfo().ToInfo(),
@@ -802,7 +806,8 @@ internal class MidiPart : Part, IMidiPart
         using var _ = MergeNotify();
         Name.SetInfo(info.Name);
         Pos.SetInfo(info.Pos);
-        Dur.SetInfo(info.Dur);
+        StartOffset.SetInfo(info.StartOffset);
+        EndOffset.SetInfo(info.EndOffset);
         Gain.SetInfo(info.Gain);
         mNotes.SetInfo(info.Notes.Convert(CreateNote).ToArray());
         mEffects.SetInfo(info.Effects.Convert(CreateEffect).ToArray());
