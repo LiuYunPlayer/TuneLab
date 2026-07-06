@@ -11,7 +11,9 @@ namespace TuneLab.Extensions.Formats.TLP;
 
 internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 {
-    const int CURRENT_VERSION = 1;
+    // v0=legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1=2.0.0 中间态（新音素、几何仍 dur）；
+    // v2=当前（part 几何改为锚点 Pos+StartOffset+EndOffset，删除 dur）。反序列化按版本忠实降级 legacy 几何。
+    const int CURRENT_VERSION = 2;
 
     // 读取期工程版本（ReadProject 起始重置为 0=legacy；version 字段恒先于 tracks 写出，故 note/音素读到时已就位）。
     int mReadVersion;
@@ -255,6 +257,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             double pos = 0;
             double startOffset = 0;
             double endOffset = 0;
+            double durLegacy = 0;   // legacy 几何（v<2）：旧工程只存 dur
 
             // First pass to get type
             var startPosition = reader.BytesRemaining;
@@ -287,6 +290,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                         break;
                     case "endOffset":
                         endOffset = reader.ReadDouble();
+                        break;
+                    case "dur":
+                        durLegacy = reader.ReadDouble();
                         break;
                     case "gain":
                         if (midiPartInfo != null)
@@ -343,20 +349,23 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             }
             reader.ReadEndMap();
 
+            // 几何字段由版本号唯一决定（与 JSON 一致，不猜字段）：v<2（legacy）只存 dur → 锚点即起点（StartOffset=0）、
+            // 终点 = 锚点 + dur；v≥2 用锚点模型 startOffset/endOffset。
+            bool legacyGeom = mReadVersion < 2;
             if (midiPartInfo != null)
             {
                 midiPartInfo.Name = name;
                 midiPartInfo.Pos = pos;
-                midiPartInfo.StartOffset = startOffset;
-                midiPartInfo.EndOffset = endOffset;
+                midiPartInfo.StartOffset = legacyGeom ? 0 : startOffset;
+                midiPartInfo.EndOffset = legacyGeom ? durLegacy : endOffset;
                 parts.Add(midiPartInfo);
             }
             else if (audioPartInfo != null)
             {
                 audioPartInfo.Name = name;
                 audioPartInfo.Pos = pos;
-                audioPartInfo.StartOffset = startOffset;
-                audioPartInfo.EndOffset = endOffset;
+                audioPartInfo.StartOffset = legacyGeom ? 0 : startOffset;
+                audioPartInfo.EndOffset = legacyGeom ? durLegacy : endOffset;
                 parts.Add(audioPartInfo);
             }
         }

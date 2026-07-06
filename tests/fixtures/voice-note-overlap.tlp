@@ -1,5 +1,5 @@
 {
-  "version": 0,
+  "version": 2,
   "tempos": [{ "pos": 0, "bpm": 120 }],
   "timeSignatures": [{ "barIndex": 0, "numerator": 4, "denominator": 4 }],
   "tracks": [

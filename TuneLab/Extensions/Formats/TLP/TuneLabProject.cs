@@ -16,7 +16,9 @@ namespace TuneLab.Extensions.Formats.TLP;
 
 internal class TuneLabProject : IImportFormat, IExportFormat
 {
-    const int CURRENT_VERSION = 1;
+    // v0=legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1=2.0.0 中间态（新音素、几何仍 dur）；
+    // v2=当前（part 几何改为锚点 Pos+StartOffset+EndOffset，删除 dur）。反序列化按版本忠实降级 legacy 几何。
+    const int CURRENT_VERSION = 2;
     public ProjectInfo Deserialize(Stream streamToRead)
     {
         using (StreamReader reader = new StreamReader(streamToRead, Encoding.UTF8))
@@ -250,8 +252,19 @@ internal class TuneLabProject : IImportFormat, IExportFormat
 
                     partInfo.Name = (string)part["name"];
                     partInfo.Pos = (int)part["pos"];
-                    partInfo.StartOffset = part.TryGetValue("startOffset", out var startOffset) ? (double)startOffset : 0;
-                    partInfo.EndOffset = part.TryGetValue("endOffset", out var endOffset) ? (double)endOffset : 0;
+                    // 几何字段由版本号唯一决定（不按字段存在与否猜测）：
+                    //   v<2（legacy）：只存 dur、无前向裁剪概念 → 锚点即起点（StartOffset=0）、终点 = 锚点 + dur。
+                    //   v≥2：锚点模型 startOffset/endOffset。
+                    if (versoin < 2)
+                    {
+                        partInfo.StartOffset = 0;
+                        partInfo.EndOffset = (double)part["dur"];
+                    }
+                    else
+                    {
+                        partInfo.StartOffset = (double)part["startOffset"];
+                        partInfo.EndOffset = (double)part["endOffset"];
+                    }
 
                     trackInfo.Parts.Add(partInfo);
                 }
