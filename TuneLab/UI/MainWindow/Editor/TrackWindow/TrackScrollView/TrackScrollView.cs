@@ -766,6 +766,79 @@ internal partial class TrackScrollView : View
             Project.Tracks[i].Select();
     }
 
+    // 右键判定：坐标点是否落在给定范围选区内（tick 左闭右开、轨道闭区间），供编排区右键菜单决定是否给"合并"。
+    bool IsPointInRegionSelection(Point point, RegionSelection selection)
+    {
+        double tick = TickAxis.X2Tick(point.X);
+        int trackIndex = TrackVerticalAxis.GetPosition(point.Y).TrackIndex;
+        return tick >= selection.StartTick && tick < selection.EndTick
+            && trackIndex >= selection.StartTrackIndex && trackIndex <= selection.EndTrackIndex;
+    }
+
+    // 合并待处理组：逐轨收集与选区 tick 区间相交的 MidiPart（横跨边界的也算，稍后裁到选区内），按起点升序
+    // （满足 MergePartInfos 的有序前提）；每轨 ≥1 个即纳入——单个 part 也算（合并=裁到选区、选区即结果边界）。音频 part 被 OfType 滤除。
+    List<(ITrack Track, MidiPart[] Parts)> CollectRegionMergeGroups(RegionSelection selection)
+    {
+        var groups = new List<(ITrack, MidiPart[])>();
+        if (Project == null)
+            return groups;
+
+        int max = Project.Tracks.Count - 1;
+        if (max < 0)
+            return groups;
+
+        int t0 = Math.Clamp(selection.StartTrackIndex, 0, max);
+        int t1 = Math.Clamp(selection.EndTrackIndex, 0, max);
+        for (int i = t0; i <= t1; i++)
+        {
+            var track = Project.Tracks[i];
+            var midiParts = track.Parts.OfType<MidiPart>()
+                .Where(p => p.StartPos() < selection.EndTick && p.EndPos() > selection.StartTick)
+                .OrderBy(p => p.StartPos())
+                .ToArray();
+            if (midiParts.Length >= 1)
+                groups.Add((track, midiParts));
+        }
+        return groups;
+    }
+
+    // 合并（闸刀语义）：选区边界 [StartTick, EndTick] 像闸刀——先把横跨边界的 part 在边界处切开，选区内的片段每轨合并成一个 part，
+    // 选区外切下的两截保留为独立 part（不删除）。跨轨不合并。切分/合并均复用破坏式 RangeInfo + MergePartInfos（part-local 坐标）。
+    public void MergeRegionPerTrack(RegionSelection selection)
+    {
+        if (Project == null)
+            return;
+
+        var groups = CollectRegionMergeGroups(selection);
+        if (groups.Count == 0)
+            return;
+
+        double s = selection.StartTick;
+        double e = selection.EndTick;
+        foreach (var (track, parts) in groups)
+        {
+            var insideInfos = new List<MidiPartInfo>();   // 落在选区内的片段：合并成一个
+            var leftovers = new List<MidiPartInfo>();      // 被闸刀切下的选区外片段：保留为独立 part
+            foreach (var p in parts)
+            {
+                double pos = p.Pos.Value;
+                if (p.StartPos() < s)
+                    leftovers.Add(p.RangeInfo(p.StartPos() - pos, s - pos));   // 左截 [StartPos, S]
+                if (p.EndPos() > e)
+                    leftovers.Add(p.RangeInfo(e - pos, p.EndPos() - pos));     // 右截 [E, EndPos]
+                insideInfos.Add(p.RangeInfo(Math.Max(s, p.StartPos()) - pos, Math.Min(e, p.EndPos()) - pos));   // 选区内一截
+            }
+
+            foreach (var oldPart in parts)
+                track.RemovePart(oldPart);
+            // insideInfos 按 part 起点升序（parts 已排序、裁剪起点单调）→ 满足 MergePartInfos 有序前提。
+            track.InsertPart(track.CreatePart(IMidiPartExtension.MergePartInfos(insideInfos.ToArray())));
+            foreach (var leftover in leftovers)
+                track.InsertPart(track.CreatePart(leftover));
+        }
+        Project.Commit();
+    }
+
     internal void ClearSelection()
     {
         if (mRegionSelection == null)

@@ -149,8 +149,23 @@ internal partial class TrackScrollView
                             if (Project == null)
                                 return;
 
-                            var item = ItemAt(e.Position);
                             var position = e.Position;
+
+                            // 右键落在当前范围选区内 → 选区菜单绝对优先，先于命中 part/轨道的判定、直接接管并返回，
+                            // 绝不落到点中 part/轨道的那套菜单（两者操作对象不同、互斥）。目前选区菜单仅"合并"（闸刀语义）：
+                            // 选区边界切开横跨的 part、选区内片段每轨合并成一个、选区外切下的保留。选区盖到任意 MidiPart 即给出。
+                            if (CurrentSelection is { } regionSelection && IsPointInRegionSelection(position, regionSelection))
+                            {
+                                var regionMenu = new ContextMenu();
+                                if (CollectRegionMergeGroups(regionSelection).Count > 0)
+                                    regionMenu.Items.Add(new MenuItem().SetName("Merge".Tr(TC.Menu)).SetAction(() => MergeRegionPerTrack(regionSelection)));
+
+                                if (regionMenu.Items.Count > 0)
+                                    this.OpenContextMenu(regionMenu);
+                                return;
+                            }
+
+                            var item = ItemAt(e.Position);
                             var menu = new ContextMenu();
                             if (item is IPartItem partItem)
                             {
@@ -201,7 +216,7 @@ internal partial class TrackScrollView
                                             var trackIndex = TrackVerticalAxis.GetPosition(e.Position.Y).TrackIndex;
                                             var track = Project.Tracks[trackIndex];
                                             if (part.IsSelected && track.Parts.Count(p => p.IsSelected) > 1)
-                                            {   
+                                            {
                                                 var partArray = track.Parts.OrderBy(p => p.StartTime).ToArray();
                                                 int partIndex = Array.FindIndex(partArray, p => p == part);
                                                 int prevIndex = partIndex;
