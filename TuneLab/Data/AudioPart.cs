@@ -77,7 +77,15 @@ internal class AudioPart : Part, IAudioPart
         if (mAudioData == null)
             return new EmptyAudioData();
 
-        return mAudioData.GetAudioData(offset, count);
+        // 音频样本 0 锚在锚点 Pos：可见起点相对锚点的样本偏移 = headSkip（前向裁剪跳过被裁的头部、揭示后段）。
+        // headSkip<0（前向扩展越过锚点）与超出解码长度的部分由 AudioData 包装补静音。
+        return mAudioData.GetAudioData(HeadSkipSamples() + offset, count);
+    }
+
+    // 可见起点相对锚点的样本数（>0 前向裁剪跳过的头部，<0 锚点前的静音区）。
+    int HeadSkipSamples()
+    {
+        return (int)(((IAudioSource)this).SampleRate * (TempoManager.GetTime(StartPos) - TempoManager.GetTime(Pos.Value)));
     }
 
     public override void OnSampleRateChanged()
@@ -92,7 +100,8 @@ internal class AudioPart : Part, IAudioPart
 
     protected override int SampleCount()
     {
-        return mAudioData == null ? 0 : Math.Min(base.SampleCount(), mAudioData.Count);
+        // 可见窗长（base）与"从 headSkip 到解码末尾的可用音频"取小：前向裁剪后头部可用音频相应减少。
+        return mAudioData == null ? 0 : Math.Min(base.SampleCount(), Math.Max(0, mAudioData.Count - HeadSkipSamples()));
     }
 
     public async void Reload()

@@ -54,6 +54,7 @@ internal partial class TrackScrollView : View
         mRegionSelectionOperation = new(this);
         mPartMoveOperation = new(this);
         mPartEndResizeOperation = new(this);
+        mPartStartResizeOperation = new(this);
         mDragFileOperation = new(this);
         mNameInput = new TextInput()
         {

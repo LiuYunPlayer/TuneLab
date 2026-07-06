@@ -118,6 +118,10 @@ internal partial class TrackScrollView
                             {
                                 mPartEndResizeOperation.Down(e.Position.X, partEndResizeItem.Part, Project.Tracks[partEndResizeItem.TrackIndex]);
                             }
+                            else if (item is PartStartResizeItem partStartResizeItem)
+                            {
+                                mPartStartResizeOperation.Down(e.Position.X, partStartResizeItem.Part, Project.Tracks[partStartResizeItem.TrackIndex]);
+                            }
                             else
                             {
                                 if (e.IsDoubleClick)
@@ -447,9 +451,12 @@ internal partial class TrackScrollView
             case State.PartEndResizing:
                 mPartEndResizeOperation.Move(e.Position.X, alt);
                 break;
+            case State.PartStartResizing:
+                mPartStartResizeOperation.Move(e.Position.X, alt);
+                break;
             default:
                 var item = ItemAt(e.Position);
-                if (item is PartEndResizeItem)
+                if (item is PartEndResizeItem or PartStartResizeItem)
                 {
                     Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.SizeWestEast);
                 }
@@ -480,6 +487,10 @@ internal partial class TrackScrollView
             case State.PartEndResizing:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
                     mPartEndResizeOperation.Up();
+                break;
+            case State.PartStartResizing:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mPartStartResizeOperation.Up();
                 break;
             default:
                 break;
@@ -523,6 +534,13 @@ internal partial class TrackScrollView
                     e.Handled = true;
                 }
                 break;
+            case State.PartStartResizing:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mPartStartResizeOperation.Move(MousePosition.X, true);
+                    e.Handled = true;
+                }
+                break;
         }
     }
 
@@ -548,6 +566,13 @@ internal partial class TrackScrollView
                 if (e.Key == Key.LeftAlt)
                 {
                     mPartEndResizeOperation.Move(MousePosition.X, false);
+                    e.Handled = true;
+                }
+                break;
+            case State.PartStartResizing:
+                if (e.Key == Key.LeftAlt)
+                {
+                    mPartStartResizeOperation.Move(MousePosition.X, false);
                     e.Handled = true;
                 }
                 break;
@@ -594,6 +619,21 @@ internal partial class TrackScrollView
 
             items.Add(new PartItem(this) { Part = part, TrackIndex = trackIndex });
             items.Add(new PartNameItem(this) { Part = part, TrackIndex = trackIndex });
+        }
+
+        // 左边缘手柄：按可见起点裁剪可见性（parts 按 StartPos 升序）。放在 part 体之后 → ItemAt 反向遍历时优先命中。
+        // midi/audio 均开放：音频样本 0 锚在锚点 Pos，左裁 = 揭示后段音频、锚点前 = 静音（见 AudioPart.GetAudioData）。
+        foreach (var part in track.Parts)
+        {
+            double left = TickAxis.Tick2X(part.StartPos());
+
+            if (left < -8)
+                continue;
+
+            if (left > Bounds.Width + 8)
+                break;
+
+            items.Add(new PartStartResizeItem(this) { Part = part, TrackIndex = trackIndex });
         }
 
         foreach (var part in track.Parts)
@@ -912,6 +952,7 @@ internal partial class TrackScrollView
             mHead = part.Head;
             mPart = part;
             mDownPartPos = mPart.Pos.Value;
+            mMinStartPos = mMoveParts.SelectMany(p => p.parts).Min(p => p.StartPos());
             mTickOffset = TrackScrollView.TickAxis.X2Tick(point.X) - part.Pos.Value;
             mTrackIndex = TrackScrollView.TrackVerticalAxis.GetPosition(point.Y).TrackIndex;
             TrackScrollView.TrackVerticalAxis.SetAutoContentSize(false);
@@ -938,6 +979,8 @@ internal partial class TrackScrollView
                 pos = TrackScrollView.GetQuantizedTick(pos);
             }
             double posOffset = pos - mDownPartPos;
+            // 钳制整体左移：最左 part 的可见起点不越过时间轴 0（否则会拖出视野外拉不回来）。
+            posOffset = Math.Max(posOffset, -mMinStartPos);
             if (posOffset == mLastPosOffset && trackIndexOffset == mLastTrackIndexOffset)
                 return;
 
@@ -1029,6 +1072,7 @@ internal partial class TrackScrollView
         bool mIsSelected;
         bool mMoved = false;
         double mDownPartPos;
+        double mMinStartPos;   // 本次拖动全部选中 part 中最小的可见起点：用于钳制整体左移不越过时间轴 0
         double mTickOffset;
         int mTrackIndex;
 
@@ -1089,6 +1133,59 @@ internal partial class TrackScrollView
     }
 
     readonly PartEndResizeOperation mPartEndResizeOperation;
+
+    // 拖左边缘 = 前向裁剪/扩展：只改 StartOffset（起点相对锚点的偏移），锚点与内容不动、非破坏（窗外内容保留）。
+    // StartOffset>0 裁剪、<0 扩展；下限保证起点不越过时间轴 0，上限保证可见长度 ≥ 一个量化格。
+    class PartStartResizeOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
+    {
+        public void Down(double x, IPart part, ITrack track)
+        {
+            State = State.PartStartResizing;
+            mPart = part;
+            mTrack = track;
+            double start = TrackScrollView.TickAxis.Tick2X(mPart.StartPos());
+            mOffset = x - start;
+            mHead = mPart.Head;
+        }
+
+        public void Move(double x, bool alt)
+        {
+            if (mPart == null)
+                return;
+
+            if (mTrack == null)
+                return;
+
+            mPart.DiscardTo(mHead);
+            double start = x - mOffset;
+            double startTick = TrackScrollView.TickAxis.X2Tick(start);
+            if (!alt)
+            {
+                startTick = TrackScrollView.GetQuantizedTick(startTick);
+            }
+            double target = Math.Max(0, startTick);   // 起点不越过时间轴 0（越 0 的前向扩展被钳住）
+            mTrack.MovePart(mPart, () => mPart.StartOffset.Set(Math.Min(target - mPart.Pos.Value, mPart.EndOffset.Value - TrackScrollView.QuantizedCellTicks())));
+        }
+
+        public void Up()
+        {
+            State = State.None;
+
+            if (mPart == null)
+                return;
+
+            mPart.Commit();
+            mPart = null;
+            mTrack = null;
+        }
+
+        Head mHead;
+        double mOffset;
+        IPart? mPart;
+        ITrack? mTrack;
+    }
+
+    readonly PartStartResizeOperation mPartStartResizeOperation;
 
     class DragFileOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
@@ -1186,6 +1283,7 @@ internal partial class TrackScrollView
         RegionSelecting,
         PartMoving,
         PartEndResizing,
+        PartStartResizing,
         FileDragging,
     }
 

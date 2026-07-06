@@ -172,7 +172,8 @@ internal partial class TrackScrollView
                                 var positions = new List<double>();
                                 double gap = 1;
                                 double xp = minX - gap;
-                                double startTime = audioPart.TempoManager.GetTime(audioPart.StartPos);
+                                // 样本 0 锚在锚点 Pos（非可见起点）：前向裁剪时波形随之揭示后段、锚点前为静音，与播放一致。
+                                double startTime = audioPart.TempoManager.GetTime(audioPart.Pos.Value);
                                 do
                                 {
                                     xp += gap;
@@ -281,6 +282,21 @@ internal partial class TrackScrollView
             double top = TrackScrollView.TrackVerticalAxis.GetTop(TrackIndex);
             double bottom = TrackScrollView.TrackVerticalAxis.GetBottom(TrackIndex);
             double x = TrackScrollView.TickAxis.Tick2X(Part.EndPos());
+            return point.Y >= top && point.Y <= bottom && point.X > x - 8 && point.X < x + 8;
+        }
+    }
+
+    // 左边缘拖拽命中区（可见起点 ±8px、贯穿整轨高）：前向裁剪/扩展手柄，与右边缘的 PartEndResizeItem 对称。
+    class PartStartResizeItem(TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView)
+    {
+        public IPart Part;
+        public int TrackIndex;
+
+        public override bool Raycast(Avalonia.Point point)
+        {
+            double top = TrackScrollView.TrackVerticalAxis.GetTop(TrackIndex);
+            double bottom = TrackScrollView.TrackVerticalAxis.GetBottom(TrackIndex);
+            double x = TrackScrollView.TickAxis.Tick2X(Part.StartPos());
             return point.Y >= top && point.Y <= bottom && point.X > x - 8 && point.X < x + 8;
         }
     }
