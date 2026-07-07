@@ -41,10 +41,7 @@ internal sealed class OverlayScrollBars
         }
 
         if (smoothWheel)
-        {
-            mWheel = new WheelAnimation(this);
-            host.AddHandler(InputElement.PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
-        }
+            mWheel = new SmoothWheelScroller(host, () => ScrollViewer, allowHorizontal: mHorizontal != null);
         // 冒泡相位（晚于内容控件）+ 每帧强制，才能压过 AvaloniaEdit 按帧设的 i-beam。
         if (cursorElement != null)
             host.AddHandler(InputElement.PointerMovedEvent, OnHostPointerMoved, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -161,66 +158,6 @@ internal sealed class OverlayScrollBars
         }
     }
 
-    // 平滑滚轮：隧道拦截原生逐行跳滚，指数缓动偏移；shift+滚轮走横向（若挂了横向条）、否则纵向。无可滚内容放行冒泡。
-    void OnWheel(object? sender, PointerWheelEventArgs e)
-    {
-        var sv = ScrollViewer;
-        if (sv == null)
-            return;
-
-        bool horizontal = (e.KeyModifiers & KeyModifiers.Shift) != 0 && mHorizontal != null;
-        double max = horizontal
-            ? Math.Max(0, sv.Extent.Width - sv.Viewport.Width)
-            : Math.Max(0, sv.Extent.Height - sv.Viewport.Height);
-        if (max <= 0)
-            return;   // 无可滚内容：放行冒泡（外层容器可接管）
-
-        double curBase = mWheelAnimating && mWheelHorizontal == horizontal
-            ? mWheelTarget
-            : (horizontal ? sv.Offset.X : sv.Offset.Y);
-        double delta = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
-        mWheelTarget = Math.Clamp(curBase - delta * WheelStep, 0, max);
-        mWheelHorizontal = horizontal;
-        mLastWheelMs = double.NaN;
-        mWheelAnimating = true;
-        AnimationManager.SharedManager.StartAnimation(mWheel!);
-        e.Handled = true;
-    }
-
-    void TickWheel(double millisec)
-    {
-        var sv = ScrollViewer;
-        if (sv == null)
-        {
-            mWheelAnimating = false;
-            AnimationManager.SharedManager.StopAnimation(mWheel!);
-            return;
-        }
-
-        double dt = double.IsNaN(mLastWheelMs) ? 16 : Math.Max(0, millisec - mLastWheelMs);
-        mLastWheelMs = millisec;
-
-        double cur = mWheelHorizontal ? sv.Offset.X : sv.Offset.Y;
-        double k = 1 - Math.Exp(-dt / WheelTau);
-        double next = cur + (mWheelTarget - cur) * k;
-        if (Math.Abs(next - mWheelTarget) < 0.5)
-            next = mWheelTarget;
-
-        if (next != cur)
-            sv.Offset = mWheelHorizontal ? new Vector(next, sv.Offset.Y) : new Vector(sv.Offset.X, next);
-
-        if (next == mWheelTarget)
-        {
-            mWheelAnimating = false;
-            AnimationManager.SharedManager.StopAnimation(mWheel!);
-        }
-    }
-
-    sealed class WheelAnimation(OverlayScrollBars owner) : IAnimation
-    {
-        public void Update(double millisec) => owner.TickWheel(millisec);
-    }
-
     // 宿主 ScrollViewer 的单方向 IScrollAxis 适配；变化由外层经 Raise() 通知。
     sealed class Axis(OverlayScrollBars owner, Orientation orientation) : IScrollAxis
     {
@@ -283,14 +220,7 @@ internal sealed class OverlayScrollBars
     bool mOverThumb;
     Cursor? mSavedCursor;
 
-    readonly WheelAnimation? mWheel;
-    bool mWheelAnimating;
-    bool mWheelHorizontal;
-    double mWheelTarget;
-    double mLastWheelMs = double.NaN;
+    readonly SmoothWheelScroller? mWheel;
 
     static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
-
-    const double WheelStep = 50;   // 每格滚轮位移（px）
-    const double WheelTau = 60;    // 缓动时间常数（ms）
 }

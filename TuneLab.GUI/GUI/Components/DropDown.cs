@@ -156,6 +156,8 @@ internal class DropDown : Panel
         var scrollHost = new Panel();
         scrollHost.Children.Add(scroll);
         scrollHost.Children.Add(bar);
+        // 平滑滚轮（与全局观感一致）：原生逐格跳滚换成缓动。scroll 经隧道事件订阅持有它 → 随菜单树共存亡。
+        _ = new SmoothWheelScroller(scroll, () => scroll);
         var border = new Border()
         {
             Background = Style.BACK.ToBrush(),
