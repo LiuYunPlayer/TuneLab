@@ -380,7 +380,9 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(name);
         }
         {
-            var controller = new PathInput() { Margin = new(24, 12), Options = new FolderPickerOpenOptions() };
+            // 优先指向 SoundFont（.sf2）文件作为预览音源；仍兼容旧的「逐键 WAV 文件夹」路径（手填即可）。
+            var soundFontType = new FilePickerFileType("SoundFont") { Patterns = ["*.sf2"] };
+            var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [soundFontType] } };
             controller.Bind(Settings.PianoKeySamplesPath, false, s);
             listView.Content.Children.Add(controller);
         }

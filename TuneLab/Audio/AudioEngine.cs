@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using MeltySynth;
 using TuneLab.Audio.SDL2;
 using TuneLab.Foundation;
 using TuneLab.Utils;
@@ -45,6 +46,8 @@ internal static class AudioEngine
         {
             SetDeviceToPlaybackHandler();
         };
+
+        InitDefaultSoundFont();
 
         ProgressChanged += OnProgressChanged;
         SampleRate.Modified.Subscribe(OnSampleRateModified);
@@ -217,6 +220,16 @@ internal static class AudioEngine
         try
         {
             mKeySamples.Fill(null);
+
+            // 路径指向 .sf2 文件：作为用户预览音源（经 MeltySynth），优先于内置。
+            if (File.Exists(path) && Path.GetExtension(path).Equals(".sf2", StringComparison.OrdinalIgnoreCase))
+            {
+                SetUserSoundFont(path);
+                return;
+            }
+
+            // 非 SF2：清除用户音源、回落到内置；目录则按旧机制逐键 WAV。
+            SetUserSoundFont(null);
             if (!Directory.Exists(path))
                 return;
 
@@ -262,11 +275,91 @@ internal static class AudioEngine
         if ((uint)keyIndex >= mKeySamples.Length)
             return;
 
-        var keySample = mKeySamples[keyIndex];
+        // 优先级：用户逐键 WAV > 预览音源（用户 SF2 或内置 SF2）渲染音。
+        var keySample = mKeySamples[keyIndex] ?? GetPreviewKeySample(keyIndex);
         if (keySample == null)
             return;
 
         AudioPlayer.Play(keySample);
+    }
+
+    // 活动预览音源：用户 SF2 优先，否则内置 SF2。
+    static SoundFont? ActiveSoundFont => mUserSoundFont ?? mDefaultSoundFont;
+
+    // 加载内置默认预览音源（Upright Piano KW，CC0，随程序分发）。
+    static void InitDefaultSoundFont()
+    {
+        try
+        {
+            var path = Path.Combine(PathManager.ResourcesFolder, "SoundFonts", DefaultSoundFontFileName);
+            if (!File.Exists(path))
+                Log.Warning("Default piano soundfont not found: " + path);
+            else
+                mDefaultSoundFont = new SoundFont(path);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to load default piano soundfont: " + ex);
+            mDefaultSoundFont = null;
+        }
+        RebuildPreviewSynthesizer();
+    }
+
+    // 用户自定义预览音源（按键采样路径指向的 .sf2 文件）；传 null 清除、回落到内置。
+    static void SetUserSoundFont(string? path)
+    {
+        try
+        {
+            mUserSoundFont = path != null ? new SoundFont(path) : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to load user soundfont: " + path + " " + ex);
+            mUserSoundFont = null;
+        }
+        RebuildPreviewSynthesizer();
+    }
+
+    // 按活动音源 + 当前采样率重建 Synthesizer，并清空按键渲染缓存（音源或采样率变更后旧渲染音已失效）。
+    static void RebuildPreviewSynthesizer()
+    {
+        lock (mPreviewLock)
+        {
+            Array.Clear(mPreviewKeySamples);
+            var font = ActiveSoundFont;
+            mPreviewSynthesizer = font != null ? new Synthesizer(font, SampleRate.Value) : null;
+        }
+    }
+
+    // 各键首次触发时离线渲染一小段并缓存（懒加载，避开启动期渲染 128 键的开销）。
+    static IAudioData? GetPreviewKeySample(int keyIndex)
+    {
+        lock (mPreviewLock)
+        {
+            if (mPreviewKeySamples[keyIndex] is { } cached)
+                return cached;
+            if (mPreviewSynthesizer == null)
+                return null;
+
+            int key = keyIndex + MusicTheory.MIN_PITCH;
+            int sampleRate = SampleRate.Value;
+            int sustainCount = (int)(sampleRate * PreviewSustainSeconds);
+            int releaseCount = (int)(sampleRate * PreviewReleaseSeconds);
+
+            var left = new float[sustainCount + releaseCount];
+            var right = new float[sustainCount + releaseCount];
+
+            // 每键独立渲染：清残留 → NoteOn 渲染延音段 → NoteOff 渲染释音尾。
+            mPreviewSynthesizer.Reset();
+            mPreviewSynthesizer.NoteOn(0, key, PreviewVelocity);
+            mPreviewSynthesizer.Render(left.AsSpan(0, sustainCount), right.AsSpan(0, sustainCount));
+            mPreviewSynthesizer.NoteOff(0, key);
+            mPreviewSynthesizer.Render(left.AsSpan(sustainCount, releaseCount), right.AsSpan(sustainCount, releaseCount));
+
+            var data = new StereoAudioData(left, right);
+            mPreviewKeySamples[keyIndex] = data;
+            return data;
+        }
     }
 
     static void OnProgressChanged()
@@ -282,6 +375,7 @@ internal static class AudioEngine
             mAudioPlaybackHandler.SampleRate = SampleRate.Value;
         if (mKeySamplesPath != null)
             LoadKeySamples(mKeySamplesPath);
+        RebuildPreviewSynthesizer();
     }
 
     static void OnBufferSizeModified()
@@ -394,4 +488,15 @@ internal static class AudioEngine
 
     static readonly IAudioData?[] mKeySamples = new IAudioData?[MusicTheory.PITCH_COUNT];
     static string? mKeySamplesPath = null;
+
+    // 预览音源（经 MeltySynth 渲染）：用户 SF2 优先，否则内置 SF2（Resources/SoundFonts 下随程序分发，CC0 免任何义务）。
+    const string DefaultSoundFontFileName = "UprightPianoKW.sf2";
+    const int PreviewVelocity = 100;
+    const double PreviewSustainSeconds = 0.5;
+    const double PreviewReleaseSeconds = 0.8;
+    static SoundFont? mDefaultSoundFont = null;
+    static SoundFont? mUserSoundFont = null;
+    static Synthesizer? mPreviewSynthesizer = null;   // 由 ActiveSoundFont 构建
+    static readonly IAudioData?[] mPreviewKeySamples = new IAudioData?[MusicTheory.PITCH_COUNT];
+    static readonly object mPreviewLock = new();
 }
