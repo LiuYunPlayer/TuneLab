@@ -69,6 +69,7 @@ internal partial class SettingsWindow : Window
         mContentBorder.Background = Style.INTERFACE.ToBrush();
 
         Settings.Language.Modified.Subscribe(async () => await this.ShowMessage("Tips".Tr(TC.Dialog), "Please restart to apply settings.".Tr(this)), s);
+        AppFont.Bind(this);   // 设置窗自身也实时反映所选界面字体（改后即时可见，无需重启）
 
         // Create tab pages
         var tabPages = new List<TabPageInfo>
@@ -390,6 +391,26 @@ internal partial class SettingsWindow : Window
     private Control CreateAppearancePage()
     {
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
+
+        // 界面字体：空值 = 系统默认（Inter + 平台脚本回退链）；其余为本机已装字体家族名。改后须重启（字体在启动时装配）。
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var options = new List<ComboBoxItem> { new(PropertyValue.Create(string.Empty), "System Default".Tr(this)) };
+                options.AddRange(FontManager.Current.SystemFonts
+                    .Select(f => f.Name).Distinct().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
+                    .Select(n => (ComboBoxItem)n));
+                var comboBox = new ComboBoxController() { Width = 180 };
+                comboBox.SetConfig(ComboBoxConfig.Create(options));
+                comboBox.Bind(Settings.InterfaceFontFamily, false, s);
+                panel.AddDock(comboBox, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Interface Font".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
 
         // 全局背景图：路径 + 不透明度。不透明度同时作用于声库立绘（立绘优先于背景图显示），与路径解耦、单列一行；
         // 按用户意愿标签仍按背景图措辞（不强调立绘 / 背景之分）。

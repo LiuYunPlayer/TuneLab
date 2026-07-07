@@ -9,6 +9,8 @@ namespace TuneLab.Configs;
 internal class SettingsFile
 {
     public string Language { get; set; } = string.Empty;
+    // 界面字体家族名（空 = 系统默认，走 Inter + 平台回退链）。空值外的选中字体作 FontManager 默认家族。
+    public string InterfaceFontFamily { get; set; } = string.Empty;
     public string AutoScrollTarget { get; set; } = "None";
     public double MasterGain { get; set; } = 0;
     public string BackgroundImagePath { get; set; } = string.Empty;

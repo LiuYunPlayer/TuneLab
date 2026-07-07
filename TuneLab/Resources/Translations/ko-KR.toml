@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "인터페이스 글꼴"
+"System Default" = "시스템 기본값"
 "Settings" = "설정"
 "Please restart to apply settings." = "프로그램 재시작 후에 설정이 반영됩니다."
 "Language" = "언어"

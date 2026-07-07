@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Arayüz Yazı Tipi"
+"System Default" = "Sistem Varsayılanı"
 "Settings" = "Ayarlar"
 "Please restart to apply settings." = "Ayarları uygulamak için lütfen yeniden başlatın."
 "Language" = "Dil"

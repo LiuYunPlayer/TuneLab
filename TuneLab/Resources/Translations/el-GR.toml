@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Γραμματοσειρά διεπαφής"
+"System Default" = "Προεπιλογή συστήματος"
 "Settings" = "Ρυθμίσεις"
 "Please restart to apply settings." = "Παρακαλώ, Κάντε επανεκκίνηση την εφαρμογή για να εφαρμόσετε τις ρυθμίσεις."
 "Language" = "Γλώσσες"

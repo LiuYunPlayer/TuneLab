@@ -172,7 +172,7 @@ internal partial class TimelineView : View
             context.FillRectangle(brush, new Rect(x, 0, 1, 12));
             // 每根小节线都带号；仅段首让位给该处的拍号标记不重复标（线仍照上面画）。
             if (!line.IsSegmentStart)
-                context.DrawText(new FormattedText((line.BarIndex + 1).ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, brush), new Point(x + 8, 8));
+                context.DrawText(new FormattedText((line.BarIndex + 1).ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, AppFont.Typeface, 12, brush), new Point(x + 8, 8));
         });
 
         // 拍线（按拍号段落渐隐，逻辑不变）
@@ -204,7 +204,7 @@ internal partial class TimelineView : View
 
     public double TempoWidth(ITempo tempo)
     {
-        return new FormattedText(BpmString(tempo), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
+        return new FormattedText(BpmString(tempo), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, AppFont.Typeface, 12, null).Width + 16;
     }
 
     public string MeterString(ITimeSignature timeSignature)
@@ -214,7 +214,7 @@ internal partial class TimelineView : View
 
     public double TimeSignatureWidth(ITimeSignature timeSignature)
     {
-        return new FormattedText(MeterString(timeSignature), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
+        return new FormattedText(MeterString(timeSignature), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, AppFont.Typeface, 12, null).Width + 16;
     }
 
     double QuantizedCellTicks()

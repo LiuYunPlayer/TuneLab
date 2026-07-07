@@ -259,7 +259,7 @@ internal class ParameterTitleBar : MovableComponent
         if (string.IsNullOrEmpty(text))
             return 0;
 
-        var formattedText = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, FontSize, Brushes.White);
+        var formattedText = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, AppFont.Typeface, FontSize, Brushes.White);
         return formattedText.Width;
     }
 

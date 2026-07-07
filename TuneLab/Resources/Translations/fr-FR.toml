@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Police de l'interface"
+"System Default" = "Par défaut du système"
 "Settings" = "Paramètres"
 "Please restart to apply settings." = "Veuillez redémarrer pour appliquer les paramètres."
 "Language" = "Langues"

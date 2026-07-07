@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Oberflächenschriftart"
+"System Default" = "Systemstandard"
 "Settings" = "Einstellungen"
 "Please restart to apply settings." = "Starte neu um Einstellungen zu übernehmen."
 "Language" = "Sprache"

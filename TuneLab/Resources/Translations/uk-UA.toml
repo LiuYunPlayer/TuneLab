@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Шрифт інтерфейсу"
+"System Default" = "Системний за замовчуванням"
 "Settings" = "Налаштування"
 "Please restart to apply settings." = "Будь ласка, перезапустіть програму, щоб застосувати налаштування."
 "Language" = "Мова"

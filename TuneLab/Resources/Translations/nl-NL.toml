@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Interface-lettertype"
+"System Default" = "Systeemstandaard"
 "Settings" = "Instellingen"
 "Please restart to apply settings." = "Herstart om de instellingen toe te passen."
 "Language" = "Taal"

@@ -82,7 +82,7 @@ internal partial class PianoScrollView
         public override bool Raycast(Point point)
         {
             double left = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
-            double width = new FormattedText(Note.FinalPronunciation() ?? string.Empty, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, null).Width + 16;
+            double width = new FormattedText(Note.FinalPronunciation() ?? string.Empty, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, AppFont.Typeface, 12, null).Width + 16;
             double bottom = PianoScrollView.PitchAxis.Pitch2Y(Note.Pitch.Value + 1);
             double top = bottom - 28;
             return new Rect(left, top, width, bottom - top).Contains(point);

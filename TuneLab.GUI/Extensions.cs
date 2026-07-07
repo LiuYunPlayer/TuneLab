@@ -185,9 +185,14 @@ internal static class Extensions
         context.DrawString(text, new Avalonia.Point(rect.X - anchor.Item1 + offset.X, rect.Y - anchor.Item2 + offset.Y), brush, fontSize, pivotAlignment, typeface);
     }
 
+    // 裸 DrawString（未显式传 typeface）的默认字体。由宿主按用户所选界面字体实时注入（见主工程 AppFont）；
+    // 未注入时 = 平台默认。裸 DrawString 遍布编排/钢琴/参数区，集中在此一处切换即全部随界面字体实时跟随，
+    // 免去逐个调用点传 typeface。显式传了 typeface 的调用（数值/等宽/加粗）不受影响。
+    public static Typeface DrawStringTypeface = Typeface.Default;
+
     public static void DrawString(this DrawingContext context, string text, Avalonia.Point point, IBrush brush, double fontSize, int alignment, Typeface? typeface = null)
     {
-        typeface ??= Typeface.Default;
+        typeface ??= DrawStringTypeface;
         if (string.IsNullOrWhiteSpace(text))
             return;
 

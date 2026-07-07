@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "介面字型"
+"System Default" = "系統預設"
 "Settings" = "設定"
 "Please restart to apply settings." = "請重新啟動以套用設定"
 "Language" = "語言"
@@ -121,6 +123,7 @@
 "Paste" = "貼上"
 "Rename" = "重新命名"
 "Split" = "拆分"
+"Merge" = "合併"
 "Set Voice" = "設定音源"
 "Built-In" = "內建"
 "Delete" = "刪除"

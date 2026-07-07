@@ -14,6 +14,7 @@ internal static class Settings
 {
     public static readonly SettingsFile DefaultSettings = new();
     public static NotifiableProperty<string> Language { get; } = DefaultSettings.Language;
+    public static NotifiableProperty<string> InterfaceFontFamily { get; } = DefaultSettings.InterfaceFontFamily;
     public static NotifiableProperty<string> AutoScrollTarget { get; } = DefaultSettings.AutoScrollTarget;
     public static NotifiableProperty<double> MasterGain { get; } = DefaultSettings.MasterGain;
     public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
@@ -51,6 +52,7 @@ internal static class Settings
         settingsFile ??= DefaultSettings;
 
         Language.Value = settingsFile.Language;
+        InterfaceFontFamily.Value = settingsFile.InterfaceFontFamily;
         AutoScrollTarget.Value = settingsFile.AutoScrollTarget;
         MasterGain.Value = settingsFile.MasterGain;
         BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
@@ -77,6 +79,7 @@ internal static class Settings
             var content = JsonSerializer.Serialize(new SettingsFile()
             {
                 Language = Language,
+                InterfaceFontFamily = InterfaceFontFamily,
                 AutoScrollTarget = AutoScrollTarget,
                 MasterGain = MasterGain,
                 BackgroundImagePath = BackgroundImagePath,

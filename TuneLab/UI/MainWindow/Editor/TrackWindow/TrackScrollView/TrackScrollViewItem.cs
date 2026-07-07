@@ -93,7 +93,7 @@ internal partial class TrackScrollView
             {
                 using (context.PushClip(titleRect))
                 {
-                    context.DrawString($"{midiPart.Name}[{midiPart.SoundSource.Name}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface: new Typeface(FontFamily.Default, weight: isEditingPart ? FontWeight.Bold : FontWeight.Normal));
+                    context.DrawString($"{midiPart.Name}[{midiPart.SoundSource.Name}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter, typeface: new Typeface(AppFont.Current, weight: isEditingPart ? FontWeight.Bold : FontWeight.Normal));
                 }
 
                 if (!midiPart.Notes.IsEmpty())

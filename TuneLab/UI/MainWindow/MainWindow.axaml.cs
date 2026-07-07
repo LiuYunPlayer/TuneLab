@@ -51,6 +51,7 @@ public partial class MainWindow : Window
         Focusable = true;
         IsTabStop = false;
         isCloseConfirm = false;
+        AppFont.Bind(this);   // 界面字体实时应用（控件树经继承 + 自绘层整树重绘）
         Background = Style.BACK.ToBrush();
         Content.Margin = new(1, 0);
 

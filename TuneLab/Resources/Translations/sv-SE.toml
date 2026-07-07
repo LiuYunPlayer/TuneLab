@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "Gränssnittsteckensnitt"
+"System Default" = "Systemstandard"
 "Settings" = "Inställningar"
 "Please restart to apply settings." = "Starta om TuneLab för att applicera inställningarna."
 "Language" = "Språk"

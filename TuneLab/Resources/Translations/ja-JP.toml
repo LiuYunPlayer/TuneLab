@@ -1,4 +1,6 @@
 [SettingsWindow]
+"Interface Font" = "インターフェイスフォント"
+"System Default" = "システム既定"
 "Settings" = "設定"
 "Please restart to apply settings." = "設定を適用するには再起動が必要です。"
 "Language" = "言語"

@@ -114,24 +114,37 @@ class Program
             .UseReactiveUI()
             .With(new FontManagerOptions()
             {
-                DefaultFamilyName = Settings.Language.Value == "ja-JP" ? JapaneseUIFontFamilyName() : null,
-                FontFallbacks =
-                [
-                    (Settings.Language.Value == "ja-JP") ?
-                        OperatingSystem.IsWindows() ?
-                            new FontFallback() { FontFamily = "Yu Gothic UI" } :
-                        OperatingSystem.IsMacOS() ?
-                            new FontFallback() { FontFamily = JapaneseUIFontFamilyName() } :
-                            new FontFallback() { FontFamily = "Noto Sans CJK JP" } :
-                        new FontFallback() { FontFamily = "Microsoft YaHei" },
-                ]
+                // 用户自选界面字体优先作默认家族；未选则留空走 Inter（拉丁/西里尔/希腊），非拉丁脚本靠下方回退链兜底。
+                DefaultFamilyName = string.IsNullOrWhiteSpace(Settings.InterfaceFontFamily.Value) ? null : Settings.InterfaceFontFamily.Value,
+                FontFallbacks = BuildFontFallbacks(Settings.Language.Value),
             });
     }
 
-    static string JapaneseUIFontFamilyName()
+    // 覆盖全球主要脚本的有序回退链（每 OS 一套，只引用系统已装字体名、不分发任何字体文件）。
+    // Skia 后端另有字形级系统回退（SKFontManager.MatchCharacter）作最终兜底；本链的作用是「控制选中哪个字体」——
+    // 尤其汉字统一（中/日/韩同码位字形不同）：把与界面语言匹配的 CJK 字体排在链首，避免系统按 OS 语言猜错地区字形。
+    static FontFallback[] BuildFontFallbacks(string language)
     {
-        return OperatingSystem.IsWindows() ? "Yu Gothic UI" :
-            OperatingSystem.IsMacOS() ? "Hiragino Sans" :
-            "Noto Sans CJK JP";
+        // 界面语言对应的首选 CJK（放在 CJK 段最前，解汉字统一歧义）。
+        static string[] PreferredCjk(string lang) => lang switch
+        {
+            "ja-JP" => OperatingSystem.IsWindows() ? ["Yu Gothic UI"] : OperatingSystem.IsMacOS() ? ["Hiragino Sans"] : ["Noto Sans CJK JP"],
+            "ko-KR" => OperatingSystem.IsWindows() ? ["Malgun Gothic"] : OperatingSystem.IsMacOS() ? ["Apple SD Gothic Neo"] : ["Noto Sans CJK KR"],
+            "zh-TW" or "zh-HK" or "zh-Hant" => OperatingSystem.IsWindows() ? ["Microsoft JhengHei"] : OperatingSystem.IsMacOS() ? ["PingFang TC"] : ["Noto Sans CJK TC"],
+            _ => OperatingSystem.IsWindows() ? ["Microsoft YaHei"] : OperatingSystem.IsMacOS() ? ["PingFang SC"] : ["Noto Sans CJK SC"],
+        };
+
+        // 各 OS 覆盖「拉丁+其余脚本」的字体名（系统预装；顺序 = 拉丁/西里尔/希腊/阿拉伯/希伯来 → 全部 CJK → 印度系 → 泰）。
+        string[] families = OperatingSystem.IsWindows()
+            ? ["Segoe UI", "Microsoft YaHei", "Microsoft JhengHei", "Yu Gothic UI", "Malgun Gothic", "Nirmala UI", "Leelawadee UI"]
+            : OperatingSystem.IsMacOS()
+            ? ["PingFang SC", "PingFang TC", "Hiragino Sans", "Apple SD Gothic Neo"]  // mac 系统回退很全，其余交给 Skia
+            : ["Noto Sans", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK JP", "Noto Sans CJK KR", "Noto Sans Devanagari", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Hebrew"];
+
+        // 语言首选 CJK 提到最前、去重，其余按上表顺序补齐。
+        var ordered = new List<string>();
+        foreach (var name in PreferredCjk(language)) ordered.Add(name);
+        foreach (var name in families) if (!ordered.Contains(name)) ordered.Add(name);
+        return ordered.Select(name => new FontFallback() { FontFamily = name }).ToArray();
     }
 }

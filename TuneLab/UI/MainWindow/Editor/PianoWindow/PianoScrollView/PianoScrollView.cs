@@ -366,7 +366,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
     void DrawSynthesisTooltip(DrawingContext context, double anchorX, string text, string? hint, double opacity)
     {
         var culture = System.Globalization.CultureInfo.CurrentCulture;
-        var face = Typeface.Default;
+        var face = AppFont.Typeface;
         var fMain = new FormattedText(text, culture, FlowDirection.LeftToRight, face, 12, null);
         FormattedText? fHint = string.IsNullOrEmpty(hint) ? null : new FormattedText(hint, culture, FlowDirection.LeftToRight, face, 12, null);
 
@@ -1151,7 +1151,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         // 音素文字一律纯白，钉死 = 粗体、合成 = 常规——固定态只由字重表达，线不参与
         // （定稿版：粗线/降灰/内描边/主题色字/提亮紫都试过，或扎眼或隐晦或泛白，纯白加粗最稳）。
         IBrush brush = Style.WHITE.ToBrush();
-        Typeface pinnedTypeface = new(Typeface.Default.FontFamily, FontStyle.Normal, FontWeight.Bold);
+        Typeface pinnedTypeface = new(AppFont.Current, FontStyle.Normal, FontWeight.Bold);
         // 音素刻度统一细线。
         IPen penPhoneme = new Pen(Style.LIGHT_WHITE.Opacity(0.5).ToBrush(), 1);
         // note 边界统一笔画（上半区的杆 + 下半区的核起点/末线是同一条边界的上下两段，样式一致）。
