@@ -38,7 +38,7 @@ internal partial class AboutDialog : Window
         versionText.Foreground = Style.HIGH_LIGHT.ToBrush();
         versionText.Text = "Version".Tr(TC.Dialog) + " " + AppInfo.VersionString;
         tagline.Foreground = Style.LIGHT_WHITE.ToBrush();
-        tagline.Text = "A lightweight singing voice synthesis editor.".Tr(TC.Dialog);
+        tagline.Text = "An open, extensible singing voice synthesis editor.".Tr(TC.Dialog);
 
         // 标题栏关闭按钮
         var close = new Button { Width = 46, Height = 40 };

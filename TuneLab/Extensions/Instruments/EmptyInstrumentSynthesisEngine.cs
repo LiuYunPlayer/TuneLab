@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
+using TuneLab.I18N;
 using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Instruments;
@@ -12,7 +13,8 @@ namespace TuneLab.Extensions.Instruments;
 // 与 EmptyVoiceSynthesisEngine 同构，差异仅 instrument 接口面（无 DefaultLyric / 音素 / 音高回显）。
 internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
 {
-    public IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos => new OrderedMap<string, InstrumentSourceInfo>() { { string.Empty, mInstrumentSourceInfo } };
+    // 名字在此惰性翻译（运行时取值，译器已就绪；切语言强制重启，故无需热更新）——避免静态字段在类加载早于语言设定时取到空翻译。
+    public IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos => new OrderedMap<string, InstrumentSourceInfo>() { { string.Empty, new InstrumentSourceInfo { Name = "Empty Instrument".Tr(TC.Property), Description = "" } } };
 
     public void Init() { }
 
@@ -52,5 +54,4 @@ internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
     static readonly ObjectConfig mEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
-    static InstrumentSourceInfo mInstrumentSourceInfo = new() { Name = "Empty Instrument", Description = "" };
 }

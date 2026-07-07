@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using TuneLab.Foundation;
+using TuneLab.I18N;
 using TuneLab.SDK;
 
 using TuneLab.Extensions.Voices;
@@ -81,10 +82,10 @@ internal class SoundSource : DataObject, ISoundSource
     {
         if (mKind == SourceKind.Voice)
             return VoicesManager.TryGetVoiceInfo(mType, mID, out var v)
-                ? v.Name : (string.IsNullOrEmpty(mID) ? "Empty Voice" : mID);
+                ? v.Name : (string.IsNullOrEmpty(mID) ? "Empty Voice".Tr(TC.Property) : mID);
 
         return InstrumentsManager.TryGetInstrumentInfo(mType, mID, out var i)
-            ? i.Name : (string.IsNullOrEmpty(mID) ? "Empty Instrument" : mID);
+            ? i.Name : (string.IsNullOrEmpty(mID) ? "Empty Instrument".Tr(TC.Property) : mID);
     }
 
     // 注入合成会话（建会话之后，仅 voice）：供 DefaultLyric 等会话级运行时取值；instrument 无此需求。

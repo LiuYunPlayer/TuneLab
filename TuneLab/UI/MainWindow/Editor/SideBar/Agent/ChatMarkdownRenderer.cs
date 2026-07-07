@@ -11,6 +11,7 @@ using Markdig.Extensions.TaskLists;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using TuneLab.GUI;
+using TuneLab.I18N;
 using TuneLab.Utils;
 
 namespace TuneLab.UI;
@@ -175,7 +176,7 @@ internal static class ChatMarkdownRenderer
         };
 
         // 悬浮复制按钮（方案1）：跨块选区不做，代码块靠它独立整段复制。默认隐藏，悬浮代码框才淡入。
-        var copyText = new TextBlock { Text = "Copy", FontSize = 10, Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush() };
+        var copyText = new TextBlock { Text = "Copy".Tr(TC.Menu), FontSize = 10, Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush() };
         var copy = new Border
         {
             Background = Style.BACK.Opacity(0.7).ToBrush(),

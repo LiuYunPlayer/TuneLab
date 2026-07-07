@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
+using TuneLab.I18N;
 using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Voices;
@@ -11,7 +12,8 @@ namespace TuneLab.Extensions.Voices;
 // 产物全空——part 不参与合成调度、UI 无状态带，行为等价于静音。
 internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
 {
-    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, mVoiceSourceInfo } };
+    // 名字在此惰性翻译（运行时取值，译器已就绪；切语言强制重启，故无需热更新）——避免静态字段在类加载早于语言设定时取到空翻译。
+    public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => new OrderedMap<string, VoiceSourceInfo>() { { string.Empty, new VoiceSourceInfo { Name = "Empty Voice".Tr(TC.Property), Description = "" } } };
 
     public void Init() { }
 
@@ -81,5 +83,4 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
     static readonly ObjectConfig mEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
-    static VoiceSourceInfo mVoiceSourceInfo = new() { Name = "Empty Voice", Description = "" };
 }

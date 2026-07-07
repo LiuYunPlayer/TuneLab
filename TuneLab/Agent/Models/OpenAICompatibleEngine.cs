@@ -1,4 +1,5 @@
 using TuneLab.Foundation;
+using TuneLab.I18N;
 using TuneLab.SDK;
 
 namespace TuneLab.Agent.Models;
@@ -11,12 +12,12 @@ internal sealed class OpenAICompatibleEngine : IAgentModelEngine
     public ObjectConfig GetPropertyConfig(IAgentModelPropertyContext context)
     {
         var properties = new OrderedMap<PropertyKey, IControllerConfig>();
-        properties.Add(("base_url", "Base URL"), TextBoxConfig.Create("https://api.openai.com/v1"));
-        properties.Add(("api_key", "API Key"), TextBoxConfig.Create().WithPassword());
-        properties.Add(("model", "Model"), TextBoxConfig.Create("gpt-4o-mini"));
-        properties.Add(("temperature", "Temperature"), SliderConfig.Linear(1, 0, 2));
+        properties.Add(("base_url", "Base URL".Tr(this)), TextBoxConfig.Create("https://api.openai.com/v1"));
+        properties.Add(("api_key", "API Key".Tr(this)), TextBoxConfig.Create().WithPassword());
+        properties.Add(("model", "Model".Tr(this)), TextBoxConfig.Create("gpt-4o-mini"));
+        properties.Add(("temperature", "Temperature".Tr(this)), SliderConfig.Linear(1, 0, 2));
         // 0 = 不发送 max_tokens，由服务端用默认上限。
-        properties.Add(("max_tokens", "Max Tokens (0=auto)"), SliderConfig.Integer(0, 0, 32768));
+        properties.Add(("max_tokens", "Max Tokens (0=auto)".Tr(this)), SliderConfig.Integer(0, 0, 32768));
         return ObjectConfig.Create(properties);
     }
 

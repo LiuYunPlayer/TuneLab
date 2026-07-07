@@ -292,13 +292,13 @@ internal sealed class ScriptSideBarContentProvider
     void Run()
     {
         var project = mProject;
-        if (project == null) { mOutputBox.Text = "No project is open."; return; }
+        if (project == null) { mOutputBox.Text = "No project is open.".Tr(this); return; }
         string code = mCodeBox.Text ?? "";
-        if (string.IsNullOrWhiteSpace(code)) { mOutputBox.Text = "Script is empty."; return; }
+        if (string.IsNullOrWhiteSpace(code)) { mOutputBox.Text = "Script is empty.".Tr(this); return; }
 
         ScriptRunResult result;
         try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, () => TranslationManager.CurrentLanguage.Value, mSelection, mPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None); }
-        catch (Exception ex) { mOutputBox.Text = "Host error: " + ex.Message; return; }
+        catch (Exception ex) { mOutputBox.Text = "Host error: ".Tr(this) + ex.Message; return; }
 
         var sb = new System.Text.StringBuilder();
         if (result.Ok)
