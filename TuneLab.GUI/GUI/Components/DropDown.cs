@@ -147,8 +147,15 @@ internal class DropDown : Panel
         {
             MaxHeight = 420,
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,   // 原生竖条隐藏，改叠自造条
             Content = stack,
         };
+        // 用自造 ScrollBar 替换原生竖条（与全局观感一致）。直接叠在视觉树里（非 AdornerLayer）：ICustomHitTest 令
+        // 只有手柄可命中——悬到手柄上时本条即 pointer-over、显默认箭头；其余穿透到下方选项行（手型），故不再"手柄上仍是手型"。
+        var bar = new ScrollBar(new ScrollViewerVerticalAxis(scroll), Orientation.Vertical);
+        var scrollHost = new Panel();
+        scrollHost.Children.Add(scroll);
+        scrollHost.Children.Add(bar);
         var border = new Border()
         {
             Background = Style.BACK.ToBrush(),
@@ -156,7 +163,7 @@ internal class DropDown : Panel
             Padding = new(0, 4),
             BorderThickness = new(1),
             BorderBrush = Style.INTERFACE.ToBrush(),
-            Child = scroll,
+            Child = scrollHost,
         };
         if (width > 0)
             border.Width = width;
@@ -301,6 +308,29 @@ internal class DropDown : Panel
     {
         mFace.Arrange(new Rect(finalSize));
         return finalSize;
+    }
+
+    // 把菜单弹层的原生 ScrollViewer 适配成竖向 IScrollAxis 供自造 ScrollBar 驱动：Offset 即滚、Viewport/Extent 为视口/内容，
+    // 偏移或尺寸变即通知条重绘。ScrollViewer 经事件订阅持有本适配器、本适配器与条互持 → 随菜单树共存亡，无需另存引用。
+    sealed class ScrollViewerVerticalAxis : IScrollAxis
+    {
+        public ScrollViewerVerticalAxis(ScrollViewer sv)
+        {
+            mScrollViewer = sv;
+            mScrollViewer.ScrollChanged += (_, _) => AxisChanged?.Invoke();
+            mScrollViewer.SizeChanged += (_, _) => AxisChanged?.Invoke();
+        }
+
+        public event Action? AxisChanged;
+        public double ViewLength { get => mScrollViewer.Viewport.Height; set { } }
+        public double ContentLength => mScrollViewer.Extent.Height;
+        public double ViewOffset
+        {
+            get => mScrollViewer.Offset.Y;
+            set => mScrollViewer.Offset = new Vector(mScrollViewer.Offset.X, value);
+        }
+
+        readonly ScrollViewer mScrollViewer;
     }
 
     readonly TextBlock mLabel;
