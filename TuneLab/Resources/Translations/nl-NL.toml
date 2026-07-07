@@ -89,22 +89,16 @@
 "Open" = "Open"
 "Save" = "Opslaan"
 "Save As" = "Opslaan als"
-"Export As (test)" = "Exporteren als (test)"
+"Export As" = "Exporteren als"
 "Export Mix" = "Export Mix"
 
 "Edit" = "Edit"
 "Undo" = "Undo"
 "Redo" = "Redo"
-"Settings" = "Instellingen"
 
-"Project" = "Project"
 "Add Track" = "Track toevoegen"
 "Import Track" = "Importeer track"
 "Import Audio" = "Audio importeren"
-
-"Transport" = "Transport"
-"Play" = "Speel"
-"Pause" = "Pauze"
 
 "Cut" = "Cut"
 "Copy" = "Copy"
@@ -138,9 +132,6 @@
 "As Refer" = "als Referentie"
 "Visible as Refer" = "visuele Referentie"
 "Hidden as Refer" = "Verborgen Referentie"
-
-"TuneLab Forum" = "TuneLab forum"
-"TuneLab GitHub" = "TuneLab GitHub"
 
 "Empty" = "Leeg"
 "Check for Updates..." = "Controleer op updates..."

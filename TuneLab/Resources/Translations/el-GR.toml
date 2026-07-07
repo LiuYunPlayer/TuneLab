@@ -93,25 +93,16 @@
 "Open" = "Άνοιγμα Αρχείου"
 "Save" = "Αποθήκευση Αρχείου"
 "Save As" = "Αποθήκευση Ως"
-"Export As (test)" = "Εξαγωγή Ως (Δοκιμαστική Λειτουργία)"
+"Export As" = "Εξαγωγή Ως"
 "Export Mix" = "Εξαγωγή Mix"
 
 "Edit" = "Επεξεργασία"
 "Undo" = "Αναίρεση"
 "Redo" = "Επαναφορά"
-"Settings" = "Ρυθμίσεις"
 
-"Extensions" = "Επεκτάσεις"
-"Install/Update" = "Εγκατάσταση / Ενημέρωση"
-
-"Project" = "Έργο"
 "Add Track" = "Προσθήκη Κομματιού"
 "Import Track" = "Εισαγωγή Κομματιού"
 "Import Audio" = "Εισαγωγή Ήχου"
-
-"Transport" = "Μεταφορά"
-"Play" = "Αναπαραγωγή"
-"Pause" = "Παύση"
 
 "Cut" = "Αποκοπή (Cut)"
 "Copy" = "Αντιγραφή (Copy)"
@@ -145,9 +136,6 @@
 "As Refer" = "Αναφορά"
 "Visible as Refer" = "Ενεργοποίηση Αναφοράς"
 "Hidden as Refer" = "Απενεργοποίηση Αναφοράς"
-
-"TuneLab Forum" = "TuneLab Forum Ιστοσελίδα"
-"TuneLab GitHub" = "TuneLab GitHub Ιστοσελίδα"
 
 "Empty" = "Άδειο"
 "Check for Updates..." = "Έλεγχος για Ενημερώσεις..."

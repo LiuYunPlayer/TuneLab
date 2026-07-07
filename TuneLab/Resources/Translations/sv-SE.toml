@@ -89,22 +89,16 @@
 "Open" = "Öppna"
 "Save" = "Spara"
 "Save As" = "Spara Som"
-"Export As (test)" = "Exportera Som (test)"
+"Export As" = "Exportera Som"
 "Export Mix" = "Exportera Mix"
 
 "Edit" = "Redigera"
 "Undo" = "Ångra"
 "Redo" = "Återställ"
-"Settings" = "Inställningar"
 
-"Project" = "Projekt"
 "Add Track" = "Lägg till spår"
 "Import Track" = "Importera Spår"
 "Import Audio" = "Importera Ljud"
-
-"Transport" = "Transport"
-"Play" = "Spela"
-"Pause" = "Pausa"
 
 "Cut" = "Klipp"
 "Copy" = "Kopiera"
@@ -138,9 +132,6 @@
 "As Refer" = "Som referens"
 "Visible as Refer" = "Synlig som referens"
 "Hidden as Refer" = "Dold som referens"
-
-"TuneLab Forum" = "TuneLab's Forum"
-"TuneLab GitHub" = "TuneLab's GitHub"
 
 "Empty" = "Tom"
 "Check for Updates..." = "Sök efter uppdateringar..."

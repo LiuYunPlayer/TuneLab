@@ -114,24 +114,16 @@
 "Open" = "開く"
 "Save" = "保存"
 "Save As" = "名前を付けて保存"
-"Export As (test)" = "エクスポート（実験的機能）"
+"Export As" = "エクスポート"
 "Export Mix" = "ミックスをエクスポート"
 
 "Edit" = "編集"
 "Undo" = "元に戻す"
 "Redo" = "やり直す"
-"Settings" = "設定"
-"Extensions" = "拡張機能"
-"Install/Update" = "インストール/更新"
 
-"Project" = "プロジェクト"
 "Add Track" = "トラックを追加"
 "Import Track" = "トラックをインポート"
 "Import Audio" = "オーディオをインポート"
-
-"Transport" = "トランスポート"
-"Play" = "再生"
-"Pause" = "一時停止"
 
 "Cut" = "切り取り"
 "Copy" = "コピー"
@@ -170,8 +162,6 @@
 "Visible as Refer" = "参照表示を有効化"
 "Hidden as Refer" = "参照表示を無効化"
 
-"TuneLab Forum" = "TuneLabフォーラム"
-"TuneLab GitHub" = "TuneLab GitHub"
 "Open TuneLab Folder" = "TuneLabフォルダーを開く"
 "Open Log" = "ログを開く"
 

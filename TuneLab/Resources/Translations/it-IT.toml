@@ -89,22 +89,16 @@
 "Open" = "Apri"
 "Save" = "Salva"
 "Save As" = "Salva come"
-"Export As (test)" = "Esporta come (test)"
+"Export As" = "Esporta come"
 "Export Mix" = "Esporta mix"
 
 "Edit" = "Modifica"
 "Undo" = "Annulla"
 "Redo" = "Ripristina"
-"Settings" = "Impostazioni"
 
-"Project" = "Progetto"
 "Add Track" = "Aggiungi Traccia"
 "Import Track" = "Importa Traccia"
 "Import Audio" = "Importa Audio"
-
-"Transport" = "Trasporto"
-"Play" = "Riproduci"
-"Pause" = "Pausa"
 
 "Cut" = "Taglia"
 "Copy" = "Copia"
@@ -138,9 +132,6 @@
 "As Refer" = "Riferimento"
 "Visible as Refer" = "Riferimento visibile"
 "Hidden as Refer" = "Riferimento nascosto"
-
-"TuneLab Forum" = "Forum TuneLab"
-"TuneLab GitHub" = "TuneLab GitHub"
 
 "Empty" = "Vuoto"
 "Check for Updates..." = "Cerca aggiornamenti..."

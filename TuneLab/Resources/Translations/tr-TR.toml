@@ -89,22 +89,16 @@
 "Open" = "Aç"
 "Save" = "Kaydet"
 "Save As" = "Farklı Kaydet"
-"Export As (test)" = "Dışa Farklı Aktar (Deneysel)"
+"Export As" = "Dışa Farklı Aktar"
 "Export Mix" = "Miks Dışa Aktar"
 
 "Edit" = "Düzenle"
 "Undo" = "Geri Al"
 "Redo" = "Yinele"
-"Settings" = "Ayarlar"
 
-"Project" = "Proje"
 "Add Track" = "Parça Ekle"
 "Import Track" = "Parçayı İçe Aktar"
 "Import Audio" = "Ses İçe Aktar"
-
-"Transport" = "Taşıma"
-"Play" = "Oynat"
-"Pause" = "Duraklat"
 
 "Cut" = "Kes"
 "Copy" = "Kopyala"
@@ -138,9 +132,6 @@
 "As Refer" = "Referans Olarak"
 "Visible as Refer" = "Referans Olarak Görünür"
 "Hidden as Refer" = "Referans Olarak Gizli"
-
-"TuneLab Forum" = "TuneLab Forum"
-"TuneLab GitHub" = "TuneLab GitHub"
 
 "Empty" = "Boş"
 "Check for Updates..." = "Güncellemeleri Kontrol Et..."

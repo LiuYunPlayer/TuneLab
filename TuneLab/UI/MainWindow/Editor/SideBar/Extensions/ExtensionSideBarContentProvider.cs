@@ -36,6 +36,8 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     {
         mContentPanel.Orientation = Orientation.Vertical;
         mContentPanel.ClipToBounds = true;
+        // 内容区底色与搜索栏一致（INTERFACE），使按钮下方的列表区不再露出更暗的宿主背景。
+        mContentPanel.Background = Style.INTERFACE.ToBrush();
 
         // 列表宽度优先于 item：ScrollView 用无限宽测量，item 会按内容自然全宽算 desired 而撑宽列表。
         // 以内容面板实测宽（= 侧栏宽，由 ListView FitWidth 排布保证）作为每个 item 的 MaxWidth，在 measure 期就钉死宽度，
@@ -78,12 +80,8 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         mContentPanel.Children.Add(mCountLabel);
         mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush() });
 
-        // Extension list container
-        mExtensionListPanel = new StackPanel { Orientation = Orientation.Vertical };
-        mContentPanel.Children.Add(mExtensionListPanel);
-
-        // Bottom area: Open Extensions Folder + Refresh buttons
-        var bottomPanel = new StackPanel
+        // Action area: Install Extension + Open Extensions Folder buttons (below the count label)
+        var actionPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
             Margin = new Thickness(12, 8),
@@ -95,7 +93,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             e.Handled = true;
             InstallRequested?.Invoke();
         };
-        bottomPanel.Children.Add(installBtn);
+        actionPanel.Children.Add(installBtn);
 
         var openFolderBtn = CreateBottomButton("Open Extensions Folder".Tr(TC.Dialog));
         openFolderBtn.PointerPressed += (s, e) =>
@@ -103,10 +101,14 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             e.Handled = true;
             OpenExtensionsFolder();
         };
-        bottomPanel.Children.Add(openFolderBtn);
+        actionPanel.Children.Add(openFolderBtn);
 
-        mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush(), Margin = new Thickness(0, 4, 0, 0) });
-        mContentPanel.Children.Add(bottomPanel);
+        mContentPanel.Children.Add(actionPanel);
+        mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush() });
+
+        // Extension list container
+        mExtensionListPanel = new StackPanel { Orientation = Orientation.Vertical };
+        mContentPanel.Children.Add(mExtensionListPanel);
 
         // Initial load
         RefreshExtensions();

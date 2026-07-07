@@ -169,25 +169,16 @@
 "Open" = "打开"
 "Save" = "保存"
 "Save As" = "另存为"
-"Export As (test)" = "导出为 (实验性)"
+"Export As" = "导出为"
 "Export Mix" = "导出混音文件"
 
 "Edit" = "编辑"
 "Undo" = "撤销"
 "Redo" = "重做"
-"Settings" = "设置"
 
-"Extensions" = "扩展"
-"Install/Update" = "安装或更新"
-
-"Project" = "工程"
 "Add Track" = "添加轨道"
 "Import Track" = "导入工程轨道"
 "Import Audio" = "导入音频轨道"
-
-"Transport" = "走带"
-"Play" = "播放"
-"Pause" = "暂停"
 
 "Scripts" = "脚本"
 "No script tools" = "无脚本工具"
@@ -251,8 +242,6 @@
 "Visible as Refer" = "作为参考显示"
 "Hidden as Refer" = "隐藏参考显示"
 
-"TuneLab Forum" = "TuneLab 社区"
-"TuneLab GitHub" = "TuneLab 项目仓库"
 "Open TuneLab Folder" = "打开 TuneLab 文件夹"
 "Open Log" = "打开日志"
 

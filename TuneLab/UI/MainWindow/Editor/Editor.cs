@@ -1261,7 +1261,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Export As (test)");
+                var menuItem = new MenuItem().SetTrName("Add Track").SetAction(AddTrack);
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetTrName("Import Audio").SetAction(ImportAudio);
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem().SetTrName("Import Track").SetAction(ImportTrack);
+                menuBarItem.Items.Add(menuItem);
+            }
+            {
+                var menuItem = new MenuItem() { Foreground = Style.TEXT_LIGHT.ToBrush() }.SetTrName("Export As");
                 foreach (var format in FormatsManager.GetAllExportFormats())
                 {
                     var menuItem2 = new MenuItem().SetName(format).SetAction(() => ExportAs(format));
@@ -1288,46 +1300,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
                 mRedoMenuItem = menuItem;
             }
-            {
-                var menuItem = new MenuItem().SetTrName("Settings").SetAction(() =>
-                {
-                    var settingsWindow = new SettingsWindow();
-                    settingsWindow.Show(this.Window());
-                });
-                menuBarItem.Items.Add(menuItem);
-            }
-            menu.Items.Add(menuBarItem);
-        }
-
-        {
-            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Project");
-            {
-                var menuItem = new MenuItem().SetTrName("Add Track").SetAction(AddTrack);
-                menuBarItem.Items.Add(menuItem);
-            }
-            {
-                var menuItem = new MenuItem().SetTrName("Import Audio").SetAction(ImportAudio);
-                menuBarItem.Items.Add(menuItem);
-            }
-            {
-                var menuItem = new MenuItem().SetTrName("Import Track").SetAction(ImportTrack);
-                menuBarItem.Items.Add(menuItem);
-            }
-            menu.Items.Add(menuBarItem);
-        }
-
-        {
-            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Transport");
-            {
-                var menuItem = new MenuItem().
-                    SetName("Play".Tr(TC.Menu)).
-                    SetAction(ChangePlayState).
-                    SetInputGesture(Key.Space);
-                void UpdateHeader() => menuItem.SetName(AudioEngine.IsPlaying ? "Pause".Tr(TC.Menu) : "Play".Tr(TC.Menu));
-                AudioEngine.PlayStateChanged += UpdateHeader;
-                TranslationManager.CurrentLanguage.Modified.Subscribe(UpdateHeader);
-                menuBarItem.Items.Add(menuItem);
-            }
             menu.Items.Add(menuBarItem);
         }
 
@@ -1350,38 +1322,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
 
         {
-            var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Extensions");
-            {
-                var menuItem = new MenuItem().SetTrName("Install/Update").SetAction(async () =>
-                {
-                    var topLevel = TopLevel.GetTopLevel(this);
-                    if (topLevel == null)
-                        return;
-                    var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-                    {
-                        Title = "Open Tlx File",
-                        AllowMultiple = true,
-                        FileTypeFilter = [new("TuneLab Extension") { Patterns = ["*.tlx"] }]
-                    });
-                    if (files.IsEmpty()) return;
-                    var fileList = files.Select(f => f.TryGetLocalPath()).Where(f => f != null).ToArray();
-                    if (fileList != null) InstallExtensions(fileList);
-                });
-                menuBarItem.Items.Add(menuItem);
-            }
-            menu.Items.Add(menuBarItem);
-        }
-
-        {
             var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Help");
-            {
-                var menuItem = new MenuItem().SetTrName("TuneLab Forum").SetAction(() => ProcessHelper.OpenUrl("https://forum.tunelab.app"));
-                menuBarItem.Items.Add(menuItem);
-            }
-            {
-                var menuItem = new MenuItem().SetTrName("TuneLab GitHub").SetAction(() => ProcessHelper.OpenUrl("https://github.com/LiuYunPlayer/TuneLab"));
-                menuBarItem.Items.Add(menuItem);
-            }
             {
                 var menuItem = new MenuItem().SetTrName("Open TuneLab Folder").SetAction(() => ProcessHelper.OpenUrl(PathManager.TuneLabFolder));
                 menuBarItem.Items.Add(menuItem);

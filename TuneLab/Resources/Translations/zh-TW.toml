@@ -98,25 +98,16 @@
 "Open" = "打開"
 "Save" = "儲存"
 "Save As" = "另存為"
-"Export As (test)" = "匯出為 (實驗性功能)"
+"Export As" = "匯出為"
 "Export Mix" = "匯出為混音檔案"
 
 "Edit" = "編輯"
 "Undo" = "復原"
 "Redo" = "重做"
-"Settings" = "設定"
 
-"Extensions" = "功能"
-"Install/Update" = "安装或更新"
-
-"Project" = "專案"
 "Add Track" = "新增軌道"
 "Import Track" = "匯入專案軌道"
 "Import Audio" = "匯入音訊軌道"
-
-"Transport" = "播放控制"
-"Play" = "播放"
-"Pause" = "暫停"
 
 "Cut" = "剪下"
 "Copy" = "複製"
@@ -167,9 +158,6 @@
 "As Refer" = "作為參考"
 "Visible as Refer" = "作為參考顯示"
 "Hidden as Refer" = "隱藏參考顯示"
-
-"TuneLab Forum" = "TuneLab 論壇"
-"TuneLab GitHub" = "TuneLab Github"
 
 "Empty" = "空"
 "Check for Updates..." = "檢查更新..."

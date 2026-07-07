@@ -89,22 +89,16 @@
 "Open" = "Відкрити"
 "Save" = "Зберегти"
 "Save As" = "Зберегти як"
-"Export As (test)" = "Експортувати як (тест)"
+"Export As" = "Експортувати як"
 "Export Mix" = "Експортувати мікс"
 
 "Edit" = "Редагувати"
 "Undo" = "Скасувати"
 "Redo" = "Повторити"
-"Settings" = "Налаштування"
 
-"Project" = "Проект"
 "Add Track" = "Додати доріжку"
 "Import Track" = "Імпортувати доріжку"
 "Import Audio" = "Імпортувати аудіо"
-
-"Transport" = "Транспорт"
-"Play" = "Відтворити"
-"Pause" = "Призупинити"
 
 "Cut" = "Вирізати"
 "Copy" = "Копіювати"
@@ -138,9 +132,6 @@
 "As Refer" = "Як посилання"
 "Visible as Refer" = "Видимий як посилання"
 "Hidden as Refer" = "Прихований як посилання"
-
-"TuneLab Forum" = "Форум TuneLab"
-"TuneLab GitHub" = "TuneLab на GitHub"
 
 "Empty" = "Порожньо"
 "Check for Updates..." = "Перевірити оновлення..."

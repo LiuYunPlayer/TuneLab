@@ -89,22 +89,16 @@
 "Open" = "열기"
 "Save" = "저장"
 "Save As" = "다른 이름으로 저장"
-"Export As (test)" = "내보내기 (실험)"
+"Export As" = "내보내기"
 "Export Mix" = "믹스해서 내보내기"
 
 "Edit" = "수정"
 "Undo" = "실행 취소"
 "Redo" = "다시 실행"
-"Settings" = "설정"
 
-"Project" = "프로젝트"
 "Add Track" = "트랙 추가"
 "Import Track" = "트랙 가져오기"
 "Import Audio" = "오디오 가져오기"
-
-"Transport" = "트랜스포트"
-"Play" = "재생"
-"Pause" = "일시정지"
 
 "Cut" = "잘라내기"
 "Copy" = "복사"
@@ -138,9 +132,6 @@
 "As Refer" = "참조"
 "Visible as Refer" = "참조 활성화"
 "Hidden as Refer" = "참조 비활성화"
-
-"TuneLab Forum" = "TuneLab 포럼"
-"TuneLab GitHub" = "TuneLab GitHub"
 
 "Empty" = "없음"
 "Check for Updates..." = "업데이트 확인..."
