@@ -45,10 +45,49 @@ internal class Slider : AbstractSlider
     {
         context.FillRectangle(Brushes.Transparent, this.Rect());
 
+        // 背景轨道画在 thumb 实际行程范围内（StartPoint↔EndPoint，两端已内缩 ThumbRadius），
+        // 而非整个控件宽/高——否则量程两端到控件边缘的空段也会染色，与可滑动区域不符。
+        var start = StartPoint;
+        var end = EndPoint;
         if (Direction.IsHorizontal())
-            context.FillRectangle(Style.BACK.ToBrush(), new(0, (Bounds.Height - 4) / 2, Bounds.Width, 4), 2);
+        {
+            double left = Math.Min(start.X, end.X);
+            context.FillRectangle(Style.BACK.ToBrush(), new(left, (Bounds.Height - 4) / 2, Math.Abs(end.X - start.X), 4), 2);
+        }
         else
-            context.FillRectangle(Style.BACK.ToBrush(), new((Bounds.Width - 4) / 2, 0, 4, Bounds.Height), 2);
+        {
+            double top = Math.Min(start.Y, end.Y);
+            context.FillRectangle(Style.BACK.ToBrush(), new((Bounds.Width - 4) / 2, top, 4, Math.Abs(end.Y - start.Y)), 2);
+        }
+
+        DrawDefaultToValueRange(context);
+    }
+
+    // 在轨道上画出「当前值 ↔ 默认值」的区间：两端点沿 thumb 行程轴取（与 thumb 中心对齐），
+    // 方向由 StartPoint/EndPoint 已编码，四个方向通用。当前值为 NaN（多选/空）时不画。
+    void DrawDefaultToValueRange(DrawingContext context)
+    {
+        if (double.IsNaN(Value))
+            return;
+
+        var start = StartPoint;
+        var end = EndPoint;
+        double tCur = Scale.ToNormalized(Value).Limit(0, 1);
+        double tDef = Scale.ToNormalized(DefaultValue).Limit(0, 1);
+
+        var brush = Style.HIGH_LIGHT.ToBrush();
+        if (Direction.IsHorizontal())
+        {
+            double x1 = start.X + (end.X - start.X) * tCur;
+            double x2 = start.X + (end.X - start.X) * tDef;
+            context.FillRectangle(brush, new(Math.Min(x1, x2), (Bounds.Height - 4) / 2, Math.Abs(x1 - x2), 4), 2);
+        }
+        else
+        {
+            double y1 = start.Y + (end.Y - start.Y) * tCur;
+            double y2 = start.Y + (end.Y - start.Y) * tDef;
+            context.FillRectangle(brush, new((Bounds.Width - 4) / 2, Math.Min(y1, y2), 4, Math.Abs(y1 - y2)), 2);
+        }
     }
 
     protected override Avalonia.Point GetStartPoint(Avalonia.Size size) => Direction switch
