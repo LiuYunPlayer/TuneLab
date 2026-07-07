@@ -1,31 +1,13 @@
 # TuneLab
-TuneLab is a lightweight singing voice synthesis editor that supports multiple synthesis engines and supports importing or exporting multiple project formats.
+*English | [简体中文](README.zh-CN.md)*
+
+TuneLab is an extensible singing voice synthesis editor.
+
+Through extensions, it supports multiple synthesis engines, various project formats, and effects. TuneLab also provides built-in scripting and an AI agent, and is fully localized into many languages.
 ## Extension installation
-Drag the `tlx` extension package file into the editor to install it.
+Drag a `.tlx` extension package into the editor, or install one from the extensions sidebar.
 ## Extension development
-You can develop your own project formats and synthesis engine extensions.
-- You can place your project in the `/Extensions` folder and .gitignore will automatically ignore everything in that folder.
-- Adding a `description.json` file to the extension package allows TuneLab to better support your extension. Its content is as follows:
-
-|Field Name|Field Type|Required|Description|
-|-|-|-|-|
-|name|string|√|Your extension name.
-|company|string|×|Your company name.
-|platforms|string Array|×|Supported platforms, null or empty means all. All available values see `Platforms`
-|assemblies|string Array|×|Assemblies containing extension interfaces. If null, TuneLab will try to load all assemblies.
-|version|string|×|Your extension version.
-
-- Platforms
-
-    Platform field consists of \<OS>-\<Architecture> or \<OS> (e.g. "win-x64" "osx").
-    - Available OS values: `osx` `win`
-    - Available Architecture values: `x64` `x86` `arm64` `arm`
-
-    If the value is only \<OS>, all architectures of the operating system are considered supported.
-
-- Pack
-
-    Compress the extension package into a zip and change the suffix to `.tlx`.
+You can develop your own extensions, such as synthesis engines, project formats, effects, and instruments. See the [Plugin Development Guide](docs/plugin-development.md) for details.
 
 # Translation contributor
 | Lang | contributor |

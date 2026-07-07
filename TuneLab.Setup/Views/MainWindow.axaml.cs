@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         BuildNavButtons();
         BuildOptions();
 
-        WelcomeBody.Text = Tr("A lightweight singing voice synthesis editor. This wizard will guide you through the installation. Click Next to continue.");
+        WelcomeBody.Text = Tr("An extensible singing voice synthesis editor. This wizard will guide you through the installation. Click Next to continue.");
         WelcomeVersion.Text = Tr("Version") + " " + ProductInfo.VersionString;
         LocationLabel.Text = Tr("Install location");
 
