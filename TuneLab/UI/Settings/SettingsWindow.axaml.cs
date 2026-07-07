@@ -220,7 +220,7 @@ internal partial class SettingsWindow : Window
             var panel = new DockPanel() { Margin = new(24, 12) };
             {
                 var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(ComboBoxConfig.Create(TranslationManager.Languages.Select(o => (ComboBoxItem)o).ToList()));
+                comboBox.SetConfig(ComboBoxConfig.Create(TranslationManager.Languages.Select(o => new ComboBoxItem(o, TranslationManager.GetDisplayName(o))).ToList()));
                 comboBox.Bind(Settings.Language, false, s);
                 panel.AddDock(comboBox, Dock.Right);
             }
