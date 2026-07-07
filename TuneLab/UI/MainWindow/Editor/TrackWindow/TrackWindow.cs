@@ -127,17 +127,22 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         {
             case TrackScrollView.State.None:
                 e.Handled = true;
+                // 有范围选区时 Ctrl+C/X、Delete 作用于选区（闸刀语义，与选区右键菜单一致）；否则作用于选中的整块 part。
+                var region = TrackScrollView.CurrentSelection;
                 if (e.Match(Key.Delete))
                 {
-                    TrackScrollView.DeleteAllSelectedParts();
+                    if (region is { } deleteRegion) TrackScrollView.DeleteRegion(deleteRegion);
+                    else TrackScrollView.DeleteAllSelectedParts();
                 }
                 else if (e.Match(Key.C, ModifierKeys.Ctrl))
                 {
-                    TrackScrollView.Copy();
+                    if (region is { } copyRegion) TrackScrollView.CopyRegion(copyRegion);
+                    else TrackScrollView.Copy();
                 }
                 else if (e.Match(Key.X, ModifierKeys.Ctrl))
                 {
-                    TrackScrollView.Cut();
+                    if (region is { } cutRegion) TrackScrollView.CutRegion(cutRegion);
+                    else TrackScrollView.Cut();
                 }
                 else if (e.Match(Key.V, ModifierKeys.Ctrl))
                 {

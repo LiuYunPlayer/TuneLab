@@ -353,7 +353,12 @@ internal partial class TrackScrollView : View
         mPartClipboard = clipboard;
     }
 
-    public void PasteAt(double pos)
+    // 不指定目标轨：各 part 回原轨（Ctrl+V 在播放头处的默认行为）。
+    public void PasteAt(double pos) => PasteAt(pos, null);
+
+    // 指定 targetTrackIndex：把剪贴板最上轨（首轨）映射到该轨、其余按相对轨距平移；落到现存轨道之外的整轨跳过。
+    // tick 维统一按 pos−剪贴板锚点 平移（锚点 = 剪贴板中最早片段的 Pos）。
+    public void PasteAt(double pos, int? targetTrackIndex)
     {
         if (Project == null)
             return;
@@ -361,11 +366,16 @@ internal partial class TrackScrollView : View
         if (mPartClipboard.IsEmpty())
             return;
 
+        int trackOffset = targetTrackIndex is { } target ? target - mPartClipboard.content.Min(c => c.trackIndex) : 0;
         double offset = pos - mPartClipboard.pos;
         Project.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
         foreach (var partInfosWithTrackIndex in mPartClipboard.content)
         {
-            var track = Project.Tracks[partInfosWithTrackIndex.trackIndex];
+            int destTrackIndex = partInfosWithTrackIndex.trackIndex + trackOffset;
+            if (destTrackIndex < 0 || destTrackIndex >= Project.Tracks.Count)
+                continue;
+
+            var track = Project.Tracks[destTrackIndex];
             foreach (var partInfo in partInfosWithTrackIndex.parts)
             {
                 var part = track.CreatePart(partInfo);
@@ -837,6 +847,112 @@ internal partial class TrackScrollView : View
                 track.InsertPart(track.CreatePart(leftover));
         }
         Project.Commit();
+    }
+
+    // 把任意 part 裁到绝对 tick 区间 [start, end] 得到只含该段的 PartInfo（闸刀切分/复制的共用原语）：
+    // MidiPart 走破坏式 RangeInfo（内容 rebase 到 start、StartOffset=0）；音频等其它 part 保持锚点 Pos（样本 0 对齐不变）、
+    // 只调 StartOffset/EndOffset 划出子窗口——单 part 裁剪对 midi/音频均无损。
+    static PartInfo ClipPartToRange(IPart part, double start, double end)
+    {
+        double pos = part.Pos.Value;
+        if (part is IMidiPart midiPart)
+            return midiPart.RangeInfo(start - pos, end - pos);
+
+        var info = part.GetInfo();
+        info.Pos = pos;
+        info.StartOffset = start - pos;
+        info.EndOffset = end - pos;
+        return info;
+    }
+
+    // 选区内相交的 part（任意类型，按轨、按起点升序，每轨 ≥1 即纳入）：copy/cut/delete 用。
+    // 与 merge 的 MidiPart-only 收集（CollectRegionMergeGroups）区分——单 part 裁剪对音频也无损，故这里不限类型。
+    List<(int TrackIndex, IPart[] Parts)> CollectRegionParts(RegionSelection selection)
+    {
+        var groups = new List<(int, IPart[])>();
+        if (Project == null)
+            return groups;
+
+        int max = Project.Tracks.Count - 1;
+        if (max < 0)
+            return groups;
+
+        int t0 = Math.Clamp(selection.StartTrackIndex, 0, max);
+        int t1 = Math.Clamp(selection.EndTrackIndex, 0, max);
+        for (int i = t0; i <= t1; i++)
+        {
+            var parts = Project.Tracks[i].Parts
+                .Where(p => p.StartPos() < selection.EndTick && p.EndPos() > selection.StartTick)
+                .OrderBy(p => p.StartPos())
+                .ToArray();
+            if (parts.Length >= 1)
+                groups.Add((i, parts));
+        }
+        return groups;
+    }
+
+    // 选区是否覆盖到任意 part（决定 copy/cut/delete 菜单项是否给出）。
+    public bool RegionCoversAnyPart(RegionSelection selection) => CollectRegionParts(selection).Count > 0;
+
+    // 复制选区（闸刀）：各轨相交 part 裁到选区内的片段存入 part 剪贴板（锚点 = 最早片段的 Pos，供 PasteAt 对齐）。不改工程。
+    public void CopyRegion(RegionSelection selection)
+    {
+        if (Project == null)
+            return;
+
+        var groups = CollectRegionParts(selection);
+        if (groups.Count == 0)
+            return;
+
+        double s = selection.StartTick;
+        double e = selection.EndTick;
+        var clipboard = new PartClipboard();
+        foreach (var (trackIndex, parts) in groups)
+        {
+            var clipped = parts
+                .Select(p => ClipPartToRange(p, Math.Max(s, p.StartPos()), Math.Min(e, p.EndPos())))
+                .ToList();
+            clipboard.pos = Math.Min(clipboard.pos, clipped.Min(info => info.Pos));
+            clipboard.content.Add(new(trackIndex, clipped));
+        }
+        mPartClipboard = clipboard;
+    }
+
+    // 删除选区（闸刀）：各轨相交 part 在选区边界切开，删掉选区内片段、保留选区外切下的两截（不整块删）。
+    public void DeleteRegion(RegionSelection selection)
+    {
+        if (Project == null)
+            return;
+
+        var groups = CollectRegionParts(selection);
+        if (groups.Count == 0)
+            return;
+
+        double s = selection.StartTick;
+        double e = selection.EndTick;
+        foreach (var (trackIndex, parts) in groups)
+        {
+            var track = Project.Tracks[trackIndex];
+            foreach (var p in parts)
+            {
+                var leftovers = new List<PartInfo>();
+                if (p.StartPos() < s)
+                    leftovers.Add(ClipPartToRange(p, p.StartPos(), s));   // 左截 [StartPos, S]
+                if (p.EndPos() > e)
+                    leftovers.Add(ClipPartToRange(p, e, p.EndPos()));     // 右截 [E, EndPos]
+                track.RemovePart(p);
+                foreach (var leftover in leftovers)
+                    track.InsertPart(track.CreatePart(leftover));
+            }
+        }
+        Project.Commit();
+    }
+
+    // 剪切选区（闸刀）= 复制裁到选区的片段 + 删除选区内片段（保留区外）。
+    public void CutRegion(RegionSelection selection)
+    {
+        CopyRegion(selection);
+        DeleteRegion(selection);
     }
 
     internal void ClearSelection()

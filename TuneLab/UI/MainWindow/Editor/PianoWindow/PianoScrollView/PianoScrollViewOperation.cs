@@ -133,6 +133,9 @@ internal partial class PianoScrollView
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
+        // 点击即夺取键盘焦点（与编排区对称）：原先钢琴窗焦点仅靠 FunctionBar.GotFocus 一次性粘上，
+        // 编排区加了点击夺焦后若此处不加，点过编排区再回钢琴窗其快捷键会失灵。
+        Focus();
         switch (mState)
         {
             case State.None:

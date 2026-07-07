@@ -47,6 +47,9 @@ internal partial class TrackScrollView
 
     protected override async void OnMouseDown(MouseDownEventArgs e)
     {
+        // 点击即夺取键盘焦点：Component 默认不 focus，焦点会一直停在 Editor 上、导致本面板经 TrackWindow.OnKeyDown
+        // 的快捷键（Ctrl+C/X/V、Delete 等）永不触发。与钢琴窗对称（下方 PianoScrollView 亦然）实现"点哪个面板哪个生效"。
+        Focus();
         switch (mState)
         {
             case State.None:
@@ -152,13 +155,32 @@ internal partial class TrackScrollView
                             var position = e.Position;
 
                             // 右键落在当前范围选区内 → 选区菜单绝对优先，先于命中 part/轨道的判定、直接接管并返回，
-                            // 绝不落到点中 part/轨道的那套菜单（两者操作对象不同、互斥）。目前选区菜单仅"合并"（闸刀语义）：
-                            // 选区边界切开横跨的 part、选区内片段每轨合并成一个、选区外切下的保留。选区盖到任意 MidiPart 即给出。
+                            // 绝不落到点中 part/轨道的那套菜单（两者操作对象不同、互斥）。选区菜单各项均"闸刀语义"（选区边界切开横跨的 part）：
+                            //   合并（仅 MidiPart，多源音频并不了）：选区内片段每轨合并成一个、区外切下的保留；
+                            //   复制/剪切/删除（任意 part 类型）：作用于裁到选区的片段、区外切下的保留；粘贴在光标处。
                             if (CurrentSelection is { } regionSelection && IsPointInRegionSelection(position, regionSelection))
                             {
                                 var regionMenu = new ContextMenu();
                                 if (CollectRegionMergeGroups(regionSelection).Count > 0)
                                     regionMenu.Items.Add(new MenuItem().SetName("Merge".Tr(TC.Menu)).SetAction(() => MergeRegionPerTrack(regionSelection)));
+
+                                if (RegionCoversAnyPart(regionSelection))
+                                {
+                                    if (regionMenu.Items.Count > 0)
+                                        regionMenu.Items.Add(new Separator());
+                                    regionMenu.Items.Add(new MenuItem().SetName("Copy Selection".Tr(TC.Menu)).SetAction(() => CopyRegion(regionSelection)).SetInputGesture(Key.C, ModifierKeys.Ctrl));
+                                    regionMenu.Items.Add(new MenuItem().SetName("Cut Selection".Tr(TC.Menu)).SetAction(() => CutRegion(regionSelection)).SetInputGesture(Key.X, ModifierKeys.Ctrl));
+                                    regionMenu.Items.Add(new MenuItem().SetName("Delete Selection".Tr(TC.Menu)).SetAction(() => DeleteRegion(regionSelection)).SetInputGesture(Key.Delete));
+                                }
+
+                                if (CanPaste)
+                                {
+                                    if (regionMenu.Items.Count > 0)
+                                        regionMenu.Items.Add(new Separator());
+                                    var pastePos = GetQuantizedTick(TickAxis.X2Tick(position.X));
+                                    var pasteTrackIndex = TrackVerticalAxis.GetPosition(position.Y).TrackIndex;
+                                    regionMenu.Items.Add(new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() => PasteAt(pastePos, pasteTrackIndex)).SetInputGesture(Key.V, ModifierKeys.Ctrl));
+                                }
 
                                 if (regionMenu.Items.Count > 0)
                                     this.OpenContextMenu(regionMenu);
@@ -403,7 +425,7 @@ internal partial class TrackScrollView
                                         var pos = GetQuantizedTick(TickAxis.X2Tick(position.X));
                                         var menuItem = new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() =>
                                         {
-                                            PasteAt(pos);
+                                            PasteAt(pos, trackIndex);
                                         }).SetInputGesture(Key.V, ModifierKeys.Ctrl);
                                         menu.Items.Add(menuItem);
                                     }
