@@ -908,6 +908,21 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (Project == null)
             return;
 
+        // 导出范围窗口：全曲 → 无边界；选区 → 编排区范围选区的 tick 区间转时间钳制。
+        double startTime = 0;
+        double? endTime = null;
+        if (options.RangeMode == ExportRangeMode.Selection)
+        {
+            if (mTrackWindow.TrackScrollView.CurrentSelection is not { } selection || selection.EndTick <= selection.StartTick)
+            {
+                await this.ShowMessage("Export".Tr(TC.Dialog), "No selection to export.".Tr(TC.Dialog));
+                return;
+            }
+
+            startTime = Project.TempoManager.GetTime(selection.StartTick);
+            endTime = Project.TempoManager.GetTime(selection.EndTick);
+        }
+
         // Create export progress dialog with progress bar
         var exportDialog = new ExportDialog();
         exportDialog.SetTitle("Export".Tr(TC.Dialog));
@@ -960,12 +975,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
                     if (trackIndex == -1)
                     {
-                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, options.BitDepth, trackProgress);
+                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, options.BitDepth, trackProgress, startTime: startTime, endTime: endTime);
                     }
                     else if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
                     {
                         var track = project.Tracks[trackIndex];
-                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, options.BitDepth, trackProgress);
+                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, options.BitDepth, trackProgress, startTime: startTime, endTime: endTime);
                     }
                 }
             }

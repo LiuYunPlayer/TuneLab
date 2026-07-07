@@ -107,23 +107,24 @@ internal static class AudioEngine
         ExportTrack(filePath, track, isStereo, SampleRate.Value, 16);
     }
 
-    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default, double startTime = 0, double? endTime = null)
     {
-        double endTime = track.EndTime;
-        endTime = Math.Max(endTime, 0);
-        endTime += 1;
-        int endPosition = (endTime * SampleRate.Value).Ceil();
+        double defaultEndTime = Math.Max(track.EndTime, 0) + 1;
+        int startPosition = (Math.Max(startTime, 0) * SampleRate.Value).Floor();
+        int endPosition = ((endTime ?? defaultEndTime) * SampleRate.Value).Ceil();
+        endPosition = Math.Max(endPosition, startPosition);
+        int length = endPosition - startPosition;
         int channelCount = isStereo ? 2 : 1;
-        float[] buffer = new float[endPosition * channelCount];
+        float[] buffer = new float[length * channelCount];
 
         // Process in chunks for progress reporting
         int chunkSize = BufferSize.Value;
-        for (int chunkStart = 0; chunkStart < endPosition; chunkStart += chunkSize)
+        for (int chunkStart = startPosition; chunkStart < endPosition; chunkStart += chunkSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
             int chunkEnd = Math.Min(chunkStart + chunkSize, endPosition);
-            AudioGraph.AddData(track, chunkStart, chunkEnd, isStereo, buffer, chunkStart * channelCount);
-            progress?.Report((double)chunkEnd / endPosition * 0.8);
+            AudioGraph.AddData(track, chunkStart, chunkEnd, isStereo, buffer, (chunkStart - startPosition) * channelCount);
+            progress?.Report(length > 0 ? (double)(chunkEnd - startPosition) / length * 0.8 : 0.8);
         }
 
         progress?.Report(0.8);
@@ -144,21 +145,23 @@ internal static class AudioEngine
         ExportMaster(filePath, isStereo, SampleRate.Value, 16);
     }
 
-    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default, double startTime = 0, double? endTime = null)
     {
-        var endTime = AudioGraph.EndTime;
-        int endPosition = (endTime * SampleRate.Value).Ceil();
+        int startPosition = (Math.Max(startTime, 0) * SampleRate.Value).Floor();
+        int endPosition = ((endTime ?? AudioGraph.EndTime) * SampleRate.Value).Ceil();
+        endPosition = Math.Max(endPosition, startPosition);
+        int length = endPosition - startPosition;
         int channelCount = isStereo ? 2 : 1;
-        float[] buffer = new float[endPosition * channelCount];
+        float[] buffer = new float[length * channelCount];
 
         // Process in chunks for progress reporting
         int chunkSize = BufferSize.Value;
-        for (int chunkStart = 0; chunkStart < endPosition; chunkStart += chunkSize)
+        for (int chunkStart = startPosition; chunkStart < endPosition; chunkStart += chunkSize)
         {
             cancellationToken.ThrowIfCancellationRequested();
             int chunkEnd = Math.Min(chunkStart + chunkSize, endPosition);
-            AudioGraph.MixData(chunkStart, chunkEnd, isStereo, buffer, chunkStart * channelCount);
-            progress?.Report((double)chunkEnd / endPosition * 0.8);
+            AudioGraph.MixData(chunkStart, chunkEnd, isStereo, buffer, (chunkStart - startPosition) * channelCount);
+            progress?.Report(length > 0 ? (double)(chunkEnd - startPosition) / length * 0.8 : 0.8);
         }
 
         progress?.Report(0.8);

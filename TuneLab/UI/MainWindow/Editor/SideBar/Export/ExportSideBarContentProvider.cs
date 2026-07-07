@@ -64,6 +64,24 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
         AddSeparator();
 
+        // --- Export Range (whole song / selection) ---
+        AddSectionLabel("Export Range".Tr(TC.Dialog));
+        mRangeDropDown = new DropDown
+        {
+            Height = 28,
+            Margin = new Thickness(12, 0, 12, 8),
+            HorizontalAlignment = AvaloniaHorizontalAlignment.Stretch,
+        };
+        mRangeDropDown.SetItems(new List<DropDownItem>
+        {
+            new() { Text = "Whole Song".Tr(TC.Dialog) },
+            new() { Text = "Selection".Tr(TC.Dialog) },
+        });
+        mRangeDropDown.SelectedIndex = 0;
+        mContentPanel.Children.Add(mRangeDropDown);
+
+        AddSeparator();
+
         // --- Export Button ---
         var exportBtnContainer = new Border
         {
@@ -323,6 +341,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             SelectedTracks = selectedTracks,
             SampleRate = selectedSampleRate,
             BitDepth = selectedBitDepth,
+            RangeMode = mRangeDropDown.SelectedIndex == 1 ? ExportRangeMode.Selection : ExportRangeMode.WholeSong,
         });
     }
 
@@ -476,6 +495,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     readonly StackPanel mContentPanel = new();
     readonly PathInput mPathInput;
     readonly SingleLineTextController mFileNameInput;
+    readonly DropDown mRangeDropDown;
     readonly DropDown mSampleRateDropDown;
     readonly DropDown mBitDepthDropDown;
     readonly StackPanel mTrackListPanel;
@@ -495,6 +515,12 @@ internal class ExportTrackInfo
     public required int Channels { get; init; } // 1 = mono, 2 = stereo
 }
 
+internal enum ExportRangeMode
+{
+    WholeSong,
+    Selection, // 编排区范围选区的 tick 区间，导出时钳到此时间窗
+}
+
 internal class ExportOptions
 {
     public required string ExportPath { get; init; }
@@ -502,4 +528,5 @@ internal class ExportOptions
     public required List<ExportTrackInfo> SelectedTracks { get; init; }
     public required int SampleRate { get; init; }
     public required int BitDepth { get; init; }
+    public required ExportRangeMode RangeMode { get; init; }
 }
