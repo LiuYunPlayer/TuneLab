@@ -34,3 +34,4 @@
 "Updating…" = "正在更新…"
 "Restarting TuneLab…" = "正在重启 TuneLab…"
 "Update failed: " = "更新失败："
+"TuneLab is running. Please close it to continue." = "TuneLab 正在运行，请先关闭它再继续。"

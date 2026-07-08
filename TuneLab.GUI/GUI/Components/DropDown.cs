@@ -79,6 +79,10 @@ internal class DropDown : Panel
 
     public string? PlaceholderText { get => mPlaceholderText; set { mPlaceholderText = value; RefreshLabel(); } }
 
+    // 触发面背景（默认 Style.BACK）。当宿主背景与之同色、下拉会糊进背景时可覆盖以形成对比
+    // （如安装器把语言下拉放在深色内容区上，覆盖成 Style.INTERFACE 让其像一个可见控件）。
+    public IBrush? FaceBackground { get => mFace.Background; set => mFace.Background = value; }
+
     public int SelectedIndex
     {
         get => mSelectedIndex;

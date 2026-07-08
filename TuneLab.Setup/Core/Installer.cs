@@ -103,22 +103,39 @@ internal sealed class Installer
         }
     }
 
+    // 主程序 lock 文件路径（每用户 AppData，与主程序约定一致）。
+    static string LockFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        ProductInfo.ProductName, ProductInfo.ProductName + ".lock");
+
+    // 目标机上 TuneLab 是否正在运行：lock 文件被独占持有即运行中；能独占打开的是残留、视为未运行。
+    public static bool IsAppRunning()
+    {
+        if (!File.Exists(LockFilePath))
+            return false;
+        try
+        {
+            using var _ = File.Open(LockFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+    }
+
     static async Task WaitForAppExitAsync(CancellationToken ct)
     {
-        string lockFile = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            ProductInfo.ProductName, ProductInfo.ProductName + ".lock");
-
-        while (File.Exists(lockFile))
+        while (File.Exists(LockFilePath))
         {
             ct.ThrowIfCancellationRequested();
             // lock 文件可能只是残留（被独占则会抛），尝试独占打开判断是否真被占用。
             try
             {
-                using var _ = File.Open(lockFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                using var _ = File.Open(LockFilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
                 // 能独占 → 是残留，删掉继续。
                 _.Dispose();
-                File.Delete(lockFile);
+                File.Delete(LockFilePath);
                 break;
             }
             catch (IOException)
