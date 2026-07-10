@@ -254,18 +254,25 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         double cum = 0;                                  // 音素 index 起点的自然 offset
         for (int k = 0; k < index; k++) cum += Math.Max(0, Phonemes[k].Duration.Value);
 
-        // index==0 且落在音符头（前面无音素可编辑、无 lead）：拖它 = 改 Preutterance，把首音素前半拉过音符头形成跨拍。
-        // 往左（targetRel<0）→ 首音素越界到拍前、Preutterance 增；往右 → 减到 0（首音素起点不能晚于音符头，否则留洞）。
-        if (index == 0 && preutter <= 1e-9)
+        // 首音素(index==0)的左边界 = 其拍前部分(front)的起点。index==0 时 cum=0 → front 自然长 = Preutterance
+        // （拍前未压缩，1:1，故 front 显示长 = 自然长 = −targetRel）。前面无音素可编辑，统一按「改 front(=Preutterance)、
+        // 保持拍后部分(back)不变」处理，右缘随之：左缘越左 → front 增（纯前置更长 / 跨拍前半更多）；越过 note 头 → front→0（全拍后）。
+        // 纯前置 lead(back=0)与跨拍首音素(back>0)都线性跟手、无跳；避免走拍后 bisect 去改被 front 钉死的首音素起点（无杠杆→发散→挤没邻居）。
+        if (index == 0)
         {
-            var cur0 = ResolvedRelTimes(-1, 0);
-            double dispLen0 = cur0[0].End - cur0[0].Start;
-            double natLen0 = Math.Max(0, Phonemes[0].Duration.Value);
-            double newPre = targetRel < 0 && dispLen0 > 1e-9 ? (-targetRel) / dispLen0 * natLen0 : 0;
-            Preutterance.Set(Math.Clamp(newPre, 0, natLen0));
-            return;
+            double firstDur = Math.Max(0, Phonemes[0].Duration.Value);
+            if (preutter <= firstDur + 1e-9)   // note 头落在首音素内（跨拍 / 纯前置末 / 全拍后）：改 front(=Preutterance)、保拍后部分(back)、右缘随之
+            {
+                double back = Math.Max(0, firstDur - preutter);
+                double newPre = Math.Max(0, -targetRel);       // 左缘位置 → 新 front（拍前未压缩 1:1）
+                Preutterance.Set(newPre);
+                Phonemes[0].Duration.Set(newPre + back);
+                return;
+            }
+            // 否则首音素整段拍前、note 头更深（其后才有 lead/跨拍音素）：落到下面纯前置分支——grow 首音素 + Preutterance 同步，
+            // 保后续切点/跨拍不变（不把 note 头处的边界吸附走）。
         }
-        // 其余落在音符头的边界（index>0）不特殊处理：走下面的拍后规则改**线前**音素（如最后一个 lead），
+        // 落在音符头的边界（index>0）不特殊处理：走下面的拍后规则改**线前**音素（如最后一个 lead），
         // 线前音素随拖动越过音符头自然形成跨拍、Preutterance 不变、方向与光标一致。
 
         var cur = ResolvedRelTimes(-1, 0);
