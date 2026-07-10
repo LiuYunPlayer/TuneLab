@@ -86,7 +86,7 @@ public interface IVoiceSynthesisSession : IDisposable {
     // 产物（数据线程发布、发布即不可变、StatusChanged 单一刷新信号）：
     SynthesizedPitch SynthesizedPitch { get; }                                 // 具名富类型 { Segments }；空=new(){Segments=[]}
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }  // 回显曲线数据，key 对齐 GetSynthesizedParameterConfigs
-    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes { get; }  // 按归属 note 键（origins[i]）；只报时长、无绝对位置；无主音素无契约
+    IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; }  // 值=SynthesizedSyllable{Phonemes,Preutterance}；按归属 note 键（origins[i]）；只报时长、无绝对位置；无主音素无契约
     IReadOnlyList<SynthesisStatusSegment> GetStatus();                         // 按段状态/进度/报错
     IActionEvent StatusChanged { get; }                                       // 产物/状态有更新（任意线程触发，宿主 marshal）
 }
@@ -125,8 +125,8 @@ public readonly struct VoiceSynthesisPhonemeSnapshot {     // 合成快照里一
     string Symbol { get; }                                // 几何字段平铺直读；喂 PhonemeLayout.Resolve 时按字段重建 SynthesizedPhoneme
     double Duration { get; }
     double StretchWeight { get; }
-    bool IsLead { get; }
     PropertyObject Properties { get; }                     // 该音素经 GetPhonemePropertyConfigs 声明的属性冻结值；未声明/未设=PropertyObject.Empty（GetDouble/GetBool/… 读，稀疏取默认）
+    // 前后归属由 VoiceSynthesisNoteSnapshot.Preutterance（拍前发声量）派生，不落每音素标志
 }
 public sealed class SynthesisAutomationSnapshot { IAutomationEvaluator Evaluator { get; } }
 public interface IAutomationEvaluator { double[] Evaluate(IReadOnlyList<double> times); }  // times=全局秒；插值在宿主侧；连续轨永不NaN、分段轨段间NaN
@@ -136,8 +136,9 @@ public struct SynthesizedPhoneme {
     string Symbol;
     double Duration;        // 辅音(w=0)固定长；核(w>0)原长（单核被抵消恒填满核空间、多核定基准比例）
     double StretchWeight;   // 缩放比 len/d=r^w：0=刚性辅音 / >0=可伸核·元音；无音韵学知识全填同一正值(如1,等比)；全w=0退化整体等比
-    bool   IsLead;          // 前置音素（核之前的引导辅音）：前置往左累积、核+后辅音往右
+    // 前后归属不落每音素：由 note 级 Preutterance（拍前发声量）派生
 }
+public readonly struct SynthesizedSyllable { IReadOnlyList<SynthesizedPhoneme> Phonemes; double Preutterance; }  // 合成产物 map 值型；Preutterance=note 头之前音素占位长度(拍前发声量)、决定拍前/拍后归属、支持跨拍
 public struct VoiceSourceInfo { string Name; string Description; ImageResource? Portrait; }  // Portrait 用 FileImageResource(绝对路径)，null=无
 public sealed class SynthesizedPitch { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }      // 音高回显：分段折线，段内 Point=(秒,半音)；与 SynthesizedParameter 有意不共类型
 public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }  // 回显曲线：分段折线，段内 Point=(秒,值)，段间断开

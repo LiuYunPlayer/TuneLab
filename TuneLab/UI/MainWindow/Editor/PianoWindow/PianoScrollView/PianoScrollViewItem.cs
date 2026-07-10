@@ -320,8 +320,8 @@ internal partial class PianoScrollView
         }
     }
 
-    // 波形带上下分层（仅 voice 有这些热区）：上半区 = note 边界操作、下半区 = 音素边界操作。
-    // 音素柄只占下半区；note 边界热区全带高（贯穿线语义，见下），两者在下半区的重叠由 items 顺序消歧（note 后加优先）。
+    // 波形带上下分层（仅 voice 有这些热区）：上半区 = note 边界操作、下半区 = 音素边界操作。**上下完全解耦**：
+    // 音素柄只占下半区、note 杆只占上半区，即便音素边界恰落在音符头也各自独立、互不合并、互不遮挡。
     class WaveformPhonemeResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
@@ -340,10 +340,7 @@ internal partial class PianoScrollView
         }
     }
 
-    // note 头/尾缩放热区：note 边界贯穿上下半区（上半杆 + 下半的核起点线/末音素终点线是同一条边界的上下两段），
-    // 沿线任意高度都可拖；后加优先，线 ±8 内盖过下半区的音素柄/双击编辑。**下探与下半段线的存在性对齐**——
-    // 该 note 无显示音素（延音符乘客被铺过 / 未合成）时下半区没画对应线，热区也只占上半区，不抢音素域
-    // （典型：melisma 中延音符头的分界线下方正是前 note 铺过来的元音区间，音素操作必须保留）。
+    // note 头缩放热区：**只占上半区**（上下完全解耦——下半区一律留给音素柄，即便音素边界恰落在音符头也不越界抢它）。
     class WaveformNoteStartResizeItem(PianoScrollView pianoScrollView) : PianoScrollViewItem(pianoScrollView)
     {
         public required INote Note;
@@ -351,8 +348,7 @@ internal partial class PianoScrollView
         public override bool Raycast(Point point)
         {
             double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
-            double bottom = Note.DisplayPhonemes.IsEmpty() ? PianoScrollView.WaveformCenterY : PianoScrollView.WaveformBottom;
-            return point.Y >= PianoScrollView.WaveformTop && point.Y <= bottom && point.X >= x - 8 && point.X <= x + 8;
+            return point.Y >= PianoScrollView.WaveformTop && point.Y <= PianoScrollView.WaveformCenterY && point.X >= x - 8 && point.X <= x + 8;
         }
     }
 

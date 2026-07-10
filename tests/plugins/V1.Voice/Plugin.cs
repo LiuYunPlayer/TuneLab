@@ -249,11 +249,11 @@ public sealed class TestSession : IVoiceSynthesisSession
     // 合成音素：仅在「音素几何未失效」（PhonemesStale=false）时报告。分级失效——音素几何只被**上游**（时长 / 歌词 /
     // 结构）变动清掉；同级（锁定音素）/ 下游（音高 / 参数 / 音频）变动**不**清音素，故锁定音素、改音高、画曲线时音素照常
     // 显示、不留白。不看 Dirty / Synthesizing：音素未失效时即便该块正重渲音频，旧音素仍有效、持续显示。
-    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes
+    public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes
     {
         get
         {
-            var result = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
+            var result = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
             foreach (var piece in mPieces)
             {
                 if (piece.PhonemesStale || piece.Failed || piece.Segment == null)
@@ -317,7 +317,7 @@ public sealed class TestSession : IVoiceSynthesisSession
     }
 
     // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
-    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Phonemes, List<Point> EnergyReadback);
+    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> Phonemes, List<Point> EnergyReadback);
 
     static RenderResult? Render(VoiceSynthesisSnapshot snapshot, IReadOnlyList<IVoiceSynthesisNote> origins,
         IProgress<double>? progress, CancellationToken cancellation)
@@ -326,7 +326,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         if (notes.Count == 0)
         {
             progress?.Report(1);
-            return new RenderResult([], 0, new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>(), []);
+            return new RenderResult([], 0, new Map<IVoiceSynthesisNote, SynthesizedSyllable>(), []);
         }
 
         // 模拟合成耗时：分步等待并上报进度（取消即中途退出，产物保持上一版）。期间宿主显示该块「合成中」、
@@ -412,12 +412,14 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 歌词解析（便于组合测试不同音素形态）：
         // · 延续 note 不产音素（绑定性：判定为延续的 note 不得回传音素，区段发音全部挂链头）；
         //   空 / 纯辅音无元音 → 单个 "" 覆盖整组。
-        // · 否则按「前置辅音簇(IsLead) + 元音簇(w=1) + 后辅音簇(w=0)」解析（元音字母 = a/e/i/o/u）：
-        //     ka→k/a；kas→k/a/s；skat→s,k/a/t（**多前置辅音**，测跨 note 辅音簇）；kalt→k/a/l,t（**多后辅音**）；a→纯元音。
-        //   前置辅音各 kLeadIn、从核起点往左累积（IsLead=true）；元音填到组末；后辅音各 kTrailDur 占组末。
-        //   核起点恒在音符头。
+        // · 否则按「前置辅音簇(w=0) + 元音簇 + 后辅音簇(w=0)」解析（元音字母 = a/e/i/o/u）：
+        //     前置辅音各 kLeadIn 从核起点往左累积（IsLead=true）；**元音簇逐字母拆成多个 w=1 弹性音素**（测多元音）；后辅音各 kTrailDur。
+        //     ka→k/a；skat→s,k/a/t（多前置辅音）；kai→k/a/i（**多元音**）；kait→k/a/i/t；kalt→k/a/l,t（多后辅音）。
+        // · **歌词前缀 `*` = 跨拍测试**：把该 note 的 Preutterance 设成「首音素时长的一半」，令音符头切进首音素中点
+        //   （分界不对齐音符头、首音素跨拍：前半落拍前域 / 后半落拍后域）。如 `*ka`→k 跨拍；`*ai`→a 跨拍。无 `*` 时核起点恒在音符头。
         const double kLeadIn = 0.1;    // 前辅音时长（取较大值便于肉眼观察）
         const double kTrailDur = 0.1;  // 后辅音时长（固定）
+        const double kVowelDur = 0.2;  // 每个元音字母的标称时长（同权重→按此比例分核空间；相等则均分）
         bool IsVowelCh(char c) => "aeiou".IndexOf(char.ToLowerInvariant(c)) >= 0;
 
         // 快照域延音判定（与本会话对宿主的判定同语义——即 SDK 接口默认体："-" ∧ 相接链回溯到内容 note
@@ -439,6 +441,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         }
 
         var predicted = new List<RefLayout.Pred>();
+        var notePreutter = new Dictionary<int, double>();   // 每 free note 的前置量（= 前置辅音时长和；`*` 跨拍时落进音素内部）
         for (int n = 0; n < notes.Count; n++)
         {
             var note = notes[n];
@@ -451,6 +454,8 @@ public sealed class TestSession : IVoiceSynthesisSession
                 groupEnd = notes[m].EndTime;
 
             string lyric = note.Lyric ?? "";
+            bool straddle = lyric.StartsWith("*");   // 前缀 `*` = 跨拍测试（剥掉后再解析歌词）
+            if (straddle) lyric = lyric.Substring(1);
 
             // 切分：前置辅音簇 [0,vi) | 元音簇 [vi,vj) | 后辅音簇 [vj,len)
             int vi = 0; while (vi < lyric.Length && !IsVowelCh(lyric[vi])) vi++;
@@ -459,6 +464,7 @@ public sealed class TestSession : IVoiceSynthesisSession
             if (vi >= vj)   // 无元音（空 / 纯辅音 / 不认识）：单个 "" 覆盖整组
             {
                 predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = "", StretchWeight = 1, StartTime = note.StartTime, EndTime = groupEnd });
+                notePreutter[n] = straddle ? 0.5 * Math.Max(0, groupEnd - note.StartTime) : 0;
                 continue;
             }
 
@@ -467,20 +473,26 @@ public sealed class TestSession : IVoiceSynthesisSession
             for (int k = 0; k < onsetCount; k++)                    // 前置辅音：从核起点往左累积，IsLead=true
             {
                 double s = vowelOnset - (onsetCount - k) * kLeadIn;
-                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 0, IsLead = true, StartTime = s, EndTime = s + kLeadIn });
+                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 0, StartTime = s, EndTime = s + kLeadIn });
             }
             double vowelEnd = codaCount > 0 ? Math.Max(vowelOnset, groupEnd - codaCount * kTrailDur) : groupEnd;
-            predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric.Substring(vi, vj - vi), StretchWeight = 1, IsLead = false, StartTime = vowelOnset, EndTime = vowelEnd });
+            for (int k = vi; k < vj; k++)                           // 元音簇逐字母 → 多个 w=1 弹性音素（测多元音）
+            {
+                double s = vowelOnset + (k - vi) * kVowelDur;
+                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 1, StartTime = s, EndTime = s + kVowelDur });
+            }
             double t = vowelEnd;
             for (int k = vj; k < lyric.Length; k++)                 // 后辅音：核后依次，IsLead=false
             {
-                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 0, IsLead = false, StartTime = t, EndTime = t + kTrailDur });
+                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 0, StartTime = t, EndTime = t + kTrailDur });
                 t += kTrailDur;
             }
+            // 前置量 = 前置辅音时长和；`*` 跨拍时改为「首音素时长的一半」令音符头切进首音素中点。
+            notePreutter[n] = straddle ? 0.5 * (onsetCount > 0 ? kLeadIn : kVowelDur) : onsetCount * kLeadIn;
         }
 
         // 参考预测：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map（位置 / 压缩交宿主）。
-        var phonemes = RefLayout.Build(snapshot, predicted, origins);
+        var phonemes = RefLayout.Build(snapshot, predicted, origins, notePreutter);
 
         // 参数回显（energy）：本参照实现产出一条「引擎实际施加的 energy」分段曲线，与音频/音高同一秒时间系，
         // 供宿主作只读回显轨绘制。此处用一条确定性正弦波形（10..90，落在 energy 的 0..100 域内）驱动回显路径。
@@ -624,7 +636,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         public string? Error;
         public double Progress;
         public IAudioSegment? Segment;
-        public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Phonemes = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
+        public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> Phonemes = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
         public IReadOnlyList<Point> EnergyReadback = [];
     }
 
@@ -651,12 +663,12 @@ static class RefLayout
     // 自由 note 的预测音素（标称几何，时长 = EndTime − StartTime；位置仅预测内部用，不进契约）。
     public struct Pred
     {
-        public int NoteIndex; public string Symbol; public double StretchWeight; public bool IsLead;
+        public int NoteIndex; public string Symbol; public double StretchWeight;
         public double StartTime; public double EndTime;
     }
 
     // 主入口：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map。位置 / 压缩 / 相接判定交宿主。
-    public static IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceSynthesisNote> origins)
+    public static IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceSynthesisNote> origins, IReadOnlyDictionary<int, double>? preutterOverride = null)
     {
         var byNote = new Dictionary<int, List<Pred>>();
         foreach (var p in predicted)
@@ -666,23 +678,30 @@ static class RefLayout
             list.Add(p);
         }
 
-        var result = new Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>>();
+        var result = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
         for (int ni = 0; ni < snapshot.Notes.Count; ni++)
         {
             var note = snapshot.Notes[ni];
             var list = new List<SynthesizedPhoneme>();
-            if (note.Phonemes.Count > 0)   // 钉死 note：报钉死时长（位置不报）
+            double preutterance;
+            if (note.Phonemes.Count > 0)   // 钉死 note：报钉死时长（位置不报），前置量取快照
             {
                 foreach (var ph in note.Phonemes)   // 几何字段（本回显不读 per-phoneme 属性）
-                    list.Add(new SynthesizedPhoneme { Symbol = ph.Symbol, Duration = ph.Duration, StretchWeight = ph.StretchWeight, IsLead = ph.IsLead });
+                    list.Add(new SynthesizedPhoneme { Symbol = ph.Symbol, Duration = ph.Duration, StretchWeight = ph.StretchWeight });
+                preutterance = note.Preutterance;
             }
-            else if (byNote.TryGetValue(ni, out var preds))   // 自由 note：报预测时长
+            else if (byNote.TryGetValue(ni, out var preds))   // 自由 note：报预测时长；前置量由调用方按 note 显式给出
             {
                 foreach (var p in preds)
-                    list.Add(new SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.EndTime - p.StartTime, StretchWeight = p.StretchWeight, IsLead = p.IsLead });
+                    list.Add(new SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.EndTime - p.StartTime, StretchWeight = p.StretchWeight });
+                preutterance = preutterOverride != null && preutterOverride.TryGetValue(ni, out var ov) ? ov : 0;
+            }
+            else
+            {
+                continue;
             }
             if (list.Count > 0)
-                result.Add(origins[ni], list);
+                result.Add(origins[ni], new SynthesizedSyllable(list, preutterance));
         }
         return result;
     }

@@ -67,7 +67,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
 
         public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
-        public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes => mSynthesizedPhonemes;
+        public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes => mSynthesizedPhonemes;
 
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
         public IActionEvent SynthesizedPhonemesChanged => ActionEvent.Empty;
@@ -78,7 +78,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
         public void Dispose() { }
 
         static readonly Map<string, SynthesizedParameter> mSynthesizedParameters = new();
-        static readonly Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> mSynthesizedPhonemes = new();
+        static readonly Map<IVoiceSynthesisNote, SynthesizedSyllable> mSynthesizedPhonemes = new();
     }
 
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();

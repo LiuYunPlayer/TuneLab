@@ -16,8 +16,6 @@ internal interface IPhoneme : IDataObject<PhonemeInfo>
     IDataProperty<string> Symbol { get; }
     // 弹性伸缩权重：0 = 刚性辅音（长度固定）；>0 = 可伸元音（吸收 note 伸缩 / 压缩、按权重分摊先让）。
     IDataProperty<double> StretchWeight { get; }
-    // 是否前置音素（音节核之前的引导辅音）：true 从前置分界线往左累积；false（核 + 后辅音）往右、核填充。
-    IDataProperty<bool> IsLead { get; }
 
     // 引擎声明的 per-phoneme 自定义属性（GetPhonemePropertyConfig）。**lazy 物化**：未编辑过的音素零开销
     // （绝大多数音素无属性）。读 Properties 即按需物化（编辑路径用）；只读消费（快照 / 合并）走 HasProperties

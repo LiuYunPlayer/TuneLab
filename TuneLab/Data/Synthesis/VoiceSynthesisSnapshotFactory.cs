@@ -43,6 +43,7 @@ internal static class VoiceSynthesisSnapshotFactory
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
                 Phonemes = CapturePhonemes(proxy.Source),       // 钉死音素：几何描述符 + per-phoneme 属性值快照
+                Preutterance = proxy.Source.Preutterance.Value, // 钉死前置量（拍前发声量）；非钉死 note = 0
                 Properties = proxy.Source.Properties.GetInfo(), // 值拷 PropertyObject
             });
         }
@@ -118,7 +119,7 @@ internal static class VoiceSynthesisSnapshotFactory
         {
             var p = note.Phonemes[i];
             result[i] = new VoiceSynthesisPhonemeSnapshot(
-                p.Symbol.Value, p.Duration.Value, p.StretchWeight.Value, p.IsLead.Value,
+                p.Symbol.Value, p.Duration.Value, p.StretchWeight.Value,
                 p.HasProperties ? p.Properties.GetInfo() : PropertyObject.Empty);
         }
         return result;

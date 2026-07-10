@@ -469,6 +469,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
         public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesizedPhoneme>> Phonemes { get; }
+        public IReadOnlyNotifiableProperty<double> Preutterance { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public IVoiceSynthesisNote? Next => mContext.ProxyOf(mNote.Next);
@@ -507,11 +508,12 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
                         Symbol = p.Symbol.Value,
                         Duration = p.Duration.Value,
                         StretchWeight = p.StretchWeight.Value,
-                        IsLead = p.IsLead.Value,
                     });
                 }
                 return phonemes;
             }, note.Phonemes));
+            // 钉死前置量（拍前发声量）：与 Phonemes 同源、只依赖 note.Preutterance。
+            Preutterance = Track(new DerivedProperty<double>(context, () => note.Preutterance.Value, note.Preutterance));
             mProperties = new PropertyObjectGuard(context, note.Properties);
         }
 

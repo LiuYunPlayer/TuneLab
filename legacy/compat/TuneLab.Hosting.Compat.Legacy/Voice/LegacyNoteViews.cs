@@ -68,7 +68,7 @@ internal sealed class LiveNoteView(
     // 按老声源的 NoteProperties 声明键现取（V1 订阅树外观不可枚举，键集来自声明）。
     public LProp.PropertyObject Properties => propertiesReader(origin);
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes => LegacyNoteConvert.ToLegacyPinnedPhonemes(
-        origin.Phonemes.Value, StartTime, EndTime);
+        origin.Phonemes.Value, origin.Preutterance.Value, StartTime, EndTime);
 }
 
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
@@ -88,8 +88,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; private set; } = [];
 
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
-        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins,
-        Func<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>?>? echoPhonemes = null)
+        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins)
     {
         var views = new SnapshotNoteView[notes.Count];
         for (int i = 0; i < notes.Count; i++)
@@ -102,29 +101,32 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
             views[i + 1].Last = views[i];
         }
 
-        // —— 整链联合布局：钉死 note 用钉死描述符；未钉死 note 以上次回显作推挤上下文（宿主显示同样
-        // 拿合成音素当去重叠参与方），但仍喂空列表给老引擎——音素由它自行预测，回显只影响邻居的挤压。
-        // 锚点 = [note 头, 有效末]，与显示同口径。piece 边界外的邻居看不见——恰与老语义一致（老 INote
-        // 的 Start/EndPhonemeRatio 用 Last/NextInSegment，本就是 segment 内的）。
-        // 不相接不推挤（空隙两侧互不影响）是新模型的期望语义，合成照此执行、不复刻老版跨空隙顶推：
-        // 空隙处 lead 伸入前 note 的重叠原样交给老引擎（与显示画的一致）。知情差异：乘客 melisma 的
-        // FillEnd 前向铺末不做（"-" note 会原样喂给老引擎、由其自行延续元音）。
+        // —— 喂引擎的联合布局：只在**钉死 note 之间**联合（各用自己的钉死描述符去重叠）；未钉死 note **不进布局**
+        // （喂空、音素由老引擎自行预测）。刻意**不**拿未钉死邻居的上一轮回显当推挤上下文——否则钉死 note 会借走
+        // 邻居回显的前置辅音、缩短自己的元音给一个**我们并不喂引擎**的辅音留位，老引擎独立帧对齐两段就在接缝补整帧
+        // Sil（钉死 hua ↔ 未钉死 xiang 的 s\ 实测）。让钉死元音铺满自己的 note、未钉死邻居的协同发音由引擎自理，
+        // 接缝无坑、无 Sil（对齐老 TuneLab：宿主算好钉死段长直到 note 边界，邻辅音由引擎自补重叠）。
+        // 锚点 = [note 头, 有效末]，与显示同口径。不相接不推挤、不复刻老版跨空隙顶推。
         var nodes = new PhonemeLayoutNote[views.Length];
         var pinned = new IReadOnlyList<VVoice.SynthesizedPhoneme>?[views.Length];
         for (int i = 0; i < views.Length; i++)
         {
             IReadOnlyList<VVoice.SynthesizedPhoneme> descriptors;
+            double preutter;
             if (notes[i].Phonemes.Count > 0)
             {
-                // 快照音素几何字段平铺 + per-phoneme 属性，V1 老引擎不需要属性——只取几何。
-                descriptors = notes[i].Phonemes.Select(static p => new VVoice.SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight, IsLead = p.IsLead }).ToArray();
+                // 快照音素几何字段平铺 + per-phoneme 属性，V1 老引擎不需要属性——只取几何。前后归属由 note 级 Preutterance 派生。
+                descriptors = notes[i].Phonemes.Select(static p => new VVoice.SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight }).ToArray();
+                preutter = notes[i].Preutterance;
                 pinned[i] = descriptors;
             }
             else
             {
-                descriptors = echoPhonemes?.Invoke(origins[i]) ?? [];
+                // 未钉死 note 不进喂引擎布局：喂空、由引擎预测（回显只作宿主显示上下文，不进此处布局）。
+                descriptors = [];
+                preutter = 0;
             }
-            nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, Phonemes = descriptors };
+            nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, Preutterance = preutter, Phonemes = descriptors };
         }
         var timings = PhonemeLayout.Resolve(nodes);
         for (int i = 0; i < views.Length; i++)
@@ -161,7 +163,7 @@ internal static class LegacyNoteConvert
     // 仅剩 LiveNoteView（Segment 分片输入）在用：老 Segment 只看时间间隙分片、不消费音素精确时序，
     // 单 note 布局足够；合成数据的钉死时序走 SnapshotNoteView.CreateChain 的整链联合布局（含跨 note 去重叠）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
-        IReadOnlyList<VVoice.SynthesizedPhoneme> phonemes, double noteStartTime, double noteEndTime)
+        IReadOnlyList<VVoice.SynthesizedPhoneme> phonemes, double preutterance, double noteStartTime, double noteEndTime)
     {
         int n = phonemes.Count;
         if (n == 0)
@@ -171,6 +173,7 @@ internal static class LegacyNoteConvert
         {
             FillStart = noteStartTime,
             FillEnd = noteEndTime,
+            Preutterance = preutterance,
             Phonemes = phonemes,
         }])[0];
 

@@ -1270,18 +1270,10 @@ internal partial class PianoScrollView
             if (startTime > viewEndTime)
                 break;
 
-            // 只为 n 个起边界建拖拽柄（0..n-1）；末音素的尾是派生量（own 尾 + 乘客铺设 + 后盖前），不可拖、无柄。
-            // 核起点（边界 lead）恒等于 note 头（拍点）、DragPinnedBoundary 对它 no-op——它是 note 边界的下半段
-            // （操作归上半区的 note 杆），不建音素柄，免得 hover/按下假装可拖。
-            int lead = 0;
-            while (lead < phonemes.Count && phonemes[lead].IsLead) lead++;
+            // 每个音素起边界一个独立拖拽柄（末音素的尾是派生量，不可拖、无柄）。与 note 头/末杆完全解耦——
+            // note 杆只占上半区、音素柄只占下半区，即便某音素边界恰落在音符头也各自独立、互不合并。
             for (var i = 0; i < phonemes.Count; i++)
-            {
-                if (i == lead)
-                    continue;
-
                 items.Add(new WaveformPhonemeResizeItem(this) { Note = note, PhonemeIndex = i });
-            }
         }
 
         // note 边界缩放热区（上半区，仅 voice 分层）：对**所有** note——无音素 note、延音符也有，边界操作不依赖音素。
@@ -2868,6 +2860,8 @@ internal partial class PianoScrollView
     readonly VibratoMoveOperation mVibratoMoveOperation;
 
     IVibratoItem? mOperatingVibratoItem = null;
+    // 拖拽中的波形拖杆（音素边界 resize）：高亮恒随被拖的这根，不被 raycast hover 抢（拖不动时鼠标飘到别的柄不该改高亮）。
+    PianoScrollViewItem? mOperatingWaveformItem = null;
 
     class AnchorDeleteOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
@@ -3066,6 +3060,7 @@ internal partial class PianoScrollView
             mNote = note;
             mIndex = index;
             mOffset = x - PianoScrollView.TickAxis.Tick2X(note.Part.TempoManager.GetTick(index == phonemes.Count ? phonemes.ConstLast().EndTime : phonemes[index].StartTime));
+            PianoScrollView.mOperatingWaveformItem = new WaveformPhonemeResizeItem(PianoScrollView) { Note = note, PhonemeIndex = index };
         }
 
         public void Move(double x, bool alt)
@@ -3086,6 +3081,7 @@ internal partial class PianoScrollView
         public void Up()
         {
             State = State.None;
+            PianoScrollView.mOperatingWaveformItem = null;
 
             if (mNote == null)
                 return;

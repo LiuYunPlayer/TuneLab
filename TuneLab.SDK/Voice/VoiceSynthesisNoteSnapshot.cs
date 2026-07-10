@@ -22,5 +22,8 @@ public sealed class VoiceSynthesisNoteSnapshot
     // SynthesizeNext 的同步前缀对 live note 调用自己的判定、随自有快照结构一并冻结。
     // 钉死音素的冻结表项（几何描述符 + per-phoneme 属性值快照）；非钉死（引擎 G2P）note 此列表为空。
     public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> Phonemes { get; init; }
+    // 前置量（拍前发声量，自然秒）：note 头之前音素的占位长度，决定钉死音素的拍前 / 拍后归属（见 PhonemeLayout）。
+    // 加性字段（非 required、默认 0）：无钉死音素或元音起手时 = 0。
+    public double Preutterance { get; init; }
     public required PropertyObject Properties { get; init; }
 }

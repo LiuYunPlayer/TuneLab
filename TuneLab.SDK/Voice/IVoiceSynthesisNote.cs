@@ -16,6 +16,9 @@ public interface IVoiceSynthesisNote
     IReadOnlyNotifiableProperty<int> Pitch { get; }
     IReadOnlyNotifiableProperty<string> Lyric { get; }
     IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> Phonemes { get; }
+    // 前置量（拍前发声量，自然秒）：note 头之前音素的占位长度，决定钉死音素的拍前 / 拍后归属（见 PhonemeLayout）。
+    // 仅在 Phonemes 非空（整 note 钉死）时有意义；元音起手 / 无钉死时 = 0。
+    IReadOnlyNotifiableProperty<double> Preutterance { get; }
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
     // 延音身份不在本面：判定权完整归插件（IVoiceSynthesisSession.IsContinuation，宿主照单消费），

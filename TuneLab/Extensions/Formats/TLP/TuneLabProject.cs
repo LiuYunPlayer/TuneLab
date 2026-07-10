@@ -17,7 +17,8 @@ namespace TuneLab.Extensions.Formats.TLP;
 internal class TuneLabProject : IImportFormat, IExportFormat
 {
     // v0=legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1=2.0.0 中间态（新音素、几何仍 dur）；
-    // v2=当前（part 几何改为锚点 Pos+StartOffset+EndOffset，删除 dur）。反序列化按版本忠实降级 legacy 几何。
+    // v2=当前（part 几何锚点 Pos+StartOffset+EndOffset）。音素前置量的 isLead↔preutterance 两种表示同为 v2
+    //（当前版顶替 isLead 那版），故靠**字段**而非版本号区分（见音素读取）。反序列化按版本忠实降级 legacy 几何。
     const int CURRENT_VERSION = 2;
     public ProjectInfo Deserialize(Stream streamToRead)
     {
@@ -115,40 +116,39 @@ internal class TuneLabProject : IImportFormat, IExportFormat
 
                             if (note.TryGetValue("phonemes", out var phonemes))
                             {
-                                // 按工程版本分支（不再逐音素探测字段）：
-                                //   v≥1：duration/stretchWeight/isLead（每音素时长 + 弹性权重 + 前置标记，位置由布局派生不存）。
-                                //   v<1（legacy）：startTime/endTime（相对音符头的秒，音符头=0）→ 时长 = endTime − startTime（音素连续）；
-                                //     旧模型无前置 / 弹性概念：按区间中点落在音符头之前（(start+end)/2 < 0）判定为前置辅音（IsLead）；
-                                //     权重一律 0——老版本所有音素随音符等比缩放，布局的「全 w=0 退化为按原长等比」恰好复刻这一行为。
+                                // 当前格式：每音素 duration/stretchWeight，前置量为 note 级 preutterance（拍前发声量）。
+                                // v<1（legacy 1.x）：startTime/endTime（相对音符头的秒，音符头=0）→ 时长 = endTime − startTime（音素连续）；
+                                //   旧模型无前置 / 弹性概念：按区间中点落在音符头之前（(start+end)/2 < 0）判前置辅音折算出 note 级前置量、权重恒 0
+                                //   （老版随音符等比缩放，布局「全 w=0 退化为按原长等比」复刻之）。
                                 bool legacy = versoin < 1;
+                                double leadPreutterance = 0;   // 仅 legacy：从前置前缀折算
+                                bool stillLead = true;
                                 foreach (JObject phoneme in phonemes)
                                 {
                                     string symbol = (string)phoneme["symbol"] ?? "";
                                     double duration, weight;
-                                    bool isLead;
                                     if (legacy)
                                     {
                                         double startTime = (double?)phoneme["startTime"] ?? 0;
                                         double endTime = (double?)phoneme["endTime"] ?? 0;
-                                        isLead = (startTime + endTime) < 0;
                                         weight = 0;
                                         duration = Math.Max(0, endTime - startTime);
+                                        if (stillLead && (startTime + endTime) < 0) leadPreutterance += duration; else stillLead = false;
                                     }
                                     else
                                     {
                                         duration = (double?)phoneme["duration"] ?? 0;
                                         weight = (double?)phoneme["stretchWeight"] ?? 0;
-                                        isLead = (bool?)phoneme["isLead"] ?? false;
                                     }
                                     noteInfo.Phonemes.Add(new PhonemeInfo()
                                     {
                                         Symbol = symbol,
                                         Duration = duration,
                                         StretchWeight = weight,
-                                        IsLead = isLead,
                                         Properties = phoneme.TryGetValue("properties", out var phonemeProps) ? FromJson(phonemeProps) : null,
                                     });
                                 }
+                                noteInfo.Preutterance = legacy ? leadPreutterance : ((double?)note["preutterance"] ?? 0);
                             }
 
                             midiPartInfo.Notes.Add(noteInfo);
@@ -367,6 +367,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         note.Add("properties", ToJson(noteInfo.Properties));
                         if (!noteInfo.Phonemes.IsEmpty())
                         {
+                            note.Add("preutterance", noteInfo.Preutterance);   // note 级前置量（拍前发声量）
                             var phonemes = new JArray();
                             foreach (var phonemeInfo in noteInfo.Phonemes)
                             {
@@ -374,7 +375,6 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 phoneme.Add("symbol", phonemeInfo.Symbol);
                                 phoneme.Add("duration", phonemeInfo.Duration);
                                 phoneme.Add("stretchWeight", phonemeInfo.StretchWeight);
-                                phoneme.Add("isLead", phonemeInfo.IsLead);
                                 // per-phoneme 引擎自定义属性（空则省略，pay-as-you-go）。
                                 if (phonemeInfo.Properties is { } phonemeProps && phonemeProps.Map.Count > 0)
                                     phoneme.Add("properties", ToJson(phonemeProps));

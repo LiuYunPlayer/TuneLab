@@ -15,13 +15,10 @@ internal class Phoneme : DataObject, IPhoneme
     public DataString Symbol { get; } = new();
     // 弹性伸缩权重：0 = 刚性辅音 / >0 = 可伸元音（吸收伸缩压缩）。
     public DataStruct<double> StretchWeight { get; } = new();
-    // 是否前置音素（音节核之前的引导辅音）。
-    public DataStruct<bool> IsLead { get; } = new();
 
     IDataProperty<double> IPhoneme.Duration => Duration;
     IDataProperty<string> IPhoneme.Symbol => Symbol;
     IDataProperty<double> IPhoneme.StretchWeight => StretchWeight;
-    IDataProperty<bool> IPhoneme.IsLead => IsLead;
 
     // per-phoneme 引擎自定义属性：lazy 物化（未编辑零开销）。空容器 ≡ 无属性，故只读消费走 HasProperties 闸门。
     DataPropertyObject? mProperties;
@@ -33,7 +30,6 @@ internal class Phoneme : DataObject, IPhoneme
         Duration.Attach(this);
         Symbol.Attach(this);
         StretchWeight.Attach(this);
-        IsLead.Attach(this);
     }
 
     public PhonemeInfo GetInfo()
@@ -43,7 +39,6 @@ internal class Phoneme : DataObject, IPhoneme
             Duration = Duration,
             Symbol = Symbol,
             StretchWeight = StretchWeight,
-            IsLead = IsLead,
             // 空属性省略（pay-as-you-go）：未编辑过的音素不写 Properties。
             Properties = HasProperties ? mProperties!.GetInfo() : null,
         };
@@ -62,7 +57,6 @@ internal class Phoneme : DataObject, IPhoneme
         Duration.SetInfo(info.Duration);
         Symbol.SetInfo(info.Symbol);
         StretchWeight.SetInfo(info.StretchWeight);
-        IsLead.SetInfo(info.IsLead);
         // 仅在有属性时物化 + 灌入；无则保持 lazy 未物化（零开销）。
         if (info.Properties != null && info.Properties.Map.Count > 0)
             Properties.SetInfo(info.Properties);

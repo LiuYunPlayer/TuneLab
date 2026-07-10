@@ -45,7 +45,7 @@ internal sealed class SilentSession : IVoiceSynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;
-    public IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes => sEmptyPhonemes;
+    public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes => sEmptyPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> GetStatus() => Array.Empty<SynthesisStatusSegment>();
     public IActionEvent SynthesizedPhonemesChanged => ActionEvent.Empty;
@@ -58,5 +58,5 @@ internal sealed class SilentSession : IVoiceSynthesisSession
     static readonly ObjectConfig sEmptyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> sEmptyAutomations = new();
     static readonly Map<string, SynthesizedParameter> sEmptyParameters = new();
-    static readonly Map<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> sEmptyPhonemes = new();
+    static readonly Map<IVoiceSynthesisNote, SynthesizedSyllable> sEmptyPhonemes = new();
 }

@@ -16,9 +16,6 @@ public class PhonemeInfo
     public string Symbol { get; set; } = string.Empty;
     public double Duration { get; set; }
     public double StretchWeight { get; set; }
-    // 是否前置音素（音节核之前的引导辅音）：true 从「前置分界线」往左累积；false（核 + 后辅音）往右、核填充。
-    // 显式标记（不再用 w>0 推断），把「前后归属」与「弹性 StretchWeight」解耦。
-    public bool IsLead { get; set; }
 
     // per-phoneme 引擎自定义属性（GetPhonemePropertyConfigs 声明的轨）。无属性时为 null、不序列化（pay-as-you-go）。
     public PropertyObject? Properties { get; set; }

@@ -20,12 +20,14 @@ internal class Note : DataObject, INote
     DataPronunciation Pronunciation { get; }
     public DataPropertyObject Properties { get; }
     public DataObjectList<IPhoneme> Phonemes { get; } = new();
+    public DataStruct<double> Preutterance { get; }
     public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
 
     public double StartPos => Pos.Value;
     public double EndPos => Pos.Value + Dur.Value;
 
     public SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
+    public double SynthesizedPreutterance { get; set; }
     public IReadOnlyCollection<string> Pronunciations => Lyric.Pronunciations;
 
     IDataProperty<double> INote.Pos => Pos;
@@ -34,6 +36,7 @@ internal class Note : DataObject, INote
     IDataProperty<string> INote.Lyric => Lyric;
     IDataProperty<string> INote.Pronunciation => Pronunciation;
     IDataObjectList<IPhoneme> INote.Phonemes => Phonemes;
+    IDataProperty<double> INote.Preutterance => Preutterance;
 
     INote? ILinkedNode<INote>.Next { get; set; } = null;
     INote? ILinkedNode<INote>.Last { get; set; } = null;
@@ -48,6 +51,7 @@ internal class Note : DataObject, INote
         Pronunciation = new(this);
         Properties = new(this);
         Phonemes.Attach(this);
+        Preutterance = new(this);
         mPart = part;
         SetInfo(info);
     }
@@ -63,6 +67,7 @@ internal class Note : DataObject, INote
             Pronunciation = Pronunciation,
             Properties = Properties.GetInfo(),
             Phonemes = Phonemes.GetInfo().ToInfo(),
+            Preutterance = Preutterance,
         };
 
         return info;
@@ -78,6 +83,7 @@ internal class Note : DataObject, INote
         Pronunciation.SetInfo(info.Pronunciation);
         Properties.SetInfo(info.Properties);
         Phonemes.SetInfo(info.Phonemes.Convert(Phoneme.Create).ToArray());
+        Preutterance.SetInfo(info.Preutterance);
     }
 
     class DataLyric : DataString

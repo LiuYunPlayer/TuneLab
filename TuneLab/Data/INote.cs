@@ -11,7 +11,7 @@ namespace TuneLab.Data;
 
 // 宿主显示侧的解析后音素（绝对秒、已跨 note 去重叠后的"落点"）：供音素带绘制 / 命中测试 / 拖拽 / 拆分消费。
 // 与 SDK 的 VoicePhoneme（音素描述符契约，只报标称时长）区分——位置由宿主按时长模型派生到此。
-internal readonly record struct DisplayPhoneme(string Symbol, double StartTime, double EndTime, double StretchWeight, bool IsLead);
+internal readonly record struct DisplayPhoneme(string Symbol, double StartTime, double EndTime, double StretchWeight);
 
 // 宿主业务层 note。不直接实现 SDK 的 IVoiceNote——插件经会话级 context 的 note 代理
 // 订阅（中间层隔离）；本接口只服务宿主自身（编辑/UI/序列化）。
@@ -27,7 +27,12 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     IDataProperty<string> Pronunciation { get; }
     DataPropertyObject Properties { get; }
     IDataObjectList<IPhoneme> Phonemes { get; }
+    // 钉死音素的前置量（拍前发声量，自然秒）：note 头之前音素的占位长度，决定拍前 / 拍后归属（见 PhonemeLayout）。
+    // 仅 Phonemes 非空时有意义；元音起手 / 无钉死时 = 0。持久化（NoteInfo.Preutterance）、undo。
+    IDataProperty<double> Preutterance { get; }
     SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
+    // 合成产物的前置量（拍前发声量）：与 SynthesizedPhonemes 同源回填（引擎回报的 SynthesizedSyllable.Preutterance）。
+    double SynthesizedPreutterance { get; set; }
     IReadOnlyCollection<string> Pronunciations { get; }
 
     double StartTime => Part.TempoManager.GetTime(this.GlobalStartPos());
@@ -76,9 +81,10 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             for (int i = 0; i < n; i++)
             {
                 var (start, end) = selfTimes[i];
+                // 前后归属（拍前/拍后/跨拍）不再落每音素标志——需要时由消费方按 StartTime/EndTime 与 note 头几何派生。
                 list[i] = pinned
-                    ? new DisplayPhoneme(Phonemes[i].Symbol.Value, start, end, Phonemes[i].StretchWeight.Value, Phonemes[i].IsLead.Value)
-                    : new DisplayPhoneme(synth![i].Symbol, start, end, synth[i].StretchWeight, synth[i].IsLead);
+                    ? new DisplayPhoneme(Phonemes[i].Symbol.Value, start, end, Phonemes[i].StretchWeight.Value)
+                    : new DisplayPhoneme(synth![i].Symbol, start, end, synth[i].StretchWeight);
             }
             return list;
         }
@@ -127,6 +133,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     private static PhonemeLayoutNote BuildLayoutNote(INote note, int overrideIdx = -1, double overrideDur = 0)
     {
         IReadOnlyList<SynthesizedPhoneme> phonemes;
+        double preutterance;
         if (!note.Phonemes.IsEmpty())
         {
             var arr = new SynthesizedPhoneme[note.Phonemes.Count];
@@ -136,16 +143,22 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
                     Symbol = note.Phonemes[k].Symbol.Value,
                     Duration = k == overrideIdx ? overrideDur : note.Phonemes[k].Duration.Value,
                     StretchWeight = note.Phonemes[k].StretchWeight.Value,
-                    IsLead = note.Phonemes[k].IsLead.Value,
                 };
             phonemes = arr;
+            preutterance = note.Preutterance.Value;   // 钉死前置量（拍前发声量），note 本体直接提供
         }
         else if (note.SynthesizedPhonemes is { Length: > 0 } synth)
+        {
             phonemes = synth;
+            preutterance = note.SynthesizedPreutterance;   // 合成回填的前置量
+        }
         else
+        {
             phonemes = [];
+            preutterance = 0;
+        }
 
-        return new PhonemeLayoutNote { FillStart = note.StartTime, FillEnd = note.ForwardFillEnd(), Phonemes = phonemes };
+        return new PhonemeLayoutNote { FillStart = note.StartTime, FillEnd = note.ForwardFillEnd(), Preutterance = preutterance, Phonemes = phonemes };
     }
 
     // 最近的、带音素内容（钉死或合成）的相邻 note（跨过乘客；落在非乘客的自由/空 note 或边界则无邻居）。
@@ -224,38 +237,72 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     public IReadOnlyList<(double Start, double End)> EffectivePinnedPhonemeTimes() => ResolvedRelTimes(-1, 0);
 
     // 拖拽音素起边界（index = 音素 index 的起点；末边界 index==n 派生不可拖）：把该边界拖到【显示】相对秒 targetRel。
-    // · index == L（前置分界线 = 首个非前置音素 = 核起点）：核起点恒为音符头（拍点），不可拖 → no-op。
-    // · 其余 index（前置辅音 / 后辅音 / 第二个起的核的起点）：改的是音素 index 的 **时长**——累积布局令相邻音素整体平移（推挤）、核吸收。
-    //   多核场景下改本核时长会经共享弹性余量改写前一核的长度，从而单调挪动本核起点（故"两元音间分界线"亦可拖，无需特判）。
-    // 跟手：显示位 = 自然布局经 PhonemeLayout 压缩后的结果，故反解——bisect 被编辑量使该边界的【显示】起点落到 targetRel
-    // （显示起点随该量单调变化）。压缩区里被布局钉住时，跟到钉点即止。改 pinned 即触发重合成。
+    // 规则「编辑相邻的刚性音素」——刚性音素时长直接=屏幕长度、可直接设；弹性音素长度是派生的（由 Distribute 吸收）：
+    // · onset（恰好落在 note 头的边界）：走独立 onset 手柄（改 Preutterance），不在此拖 → no-op。
+    // · index 落在拍后（自然offset ≥ Preutterance）：**线前刚性→改线前音素**（其末端=该边界，线性）、否则改线后音素；
+    //   bisect 反解使该边界显示起点落到 targetRel（弹性核吸收、拍后其余整体平移）；Preutterance 不动。
+    // · index 落在拍前（自然offset < Preutterance）：拍前音素按自然长往左堆，改其 Duration 会顺累积推动 note 头切点/拍后音素，
+    //   故**同步改 Preutterance（同量）**把变化吸进 pre-roll、拍后不动（右缘固定，newDur = 显示右缘 − targetRel，线性）。
+    // 改 pinned 即触发重合成。
     void DragPinnedBoundary(int index, double targetRel)
     {
         int n = Phonemes.Count;
         if (n == 0 || index < 0 || index >= n)
             return;
 
-        int L = 0;
-        while (L < n && Phonemes[L].IsLead.Value) L++;   // 前置音素前缀；L = 前置分界线（核起点）下标
+        double preutter = Preutterance.Value;
+        double cum = 0;                                  // 音素 index 起点的自然 offset
+        for (int k = 0; k < index; k++) cum += Math.Max(0, Phonemes[k].Duration.Value);
 
-        if (index == L)   // 核起点 = 音符头（拍点），不可拖
+        // index==0 且落在音符头（前面无音素可编辑、无 lead）：拖它 = 改 Preutterance，把首音素前半拉过音符头形成跨拍。
+        // 往左（targetRel<0）→ 首音素越界到拍前、Preutterance 增；往右 → 减到 0（首音素起点不能晚于音符头，否则留洞）。
+        if (index == 0 && preutter <= 1e-9)
+        {
+            var cur0 = ResolvedRelTimes(-1, 0);
+            double dispLen0 = cur0[0].End - cur0[0].Start;
+            double natLen0 = Math.Max(0, Phonemes[0].Duration.Value);
+            double newPre = targetRel < 0 && dispLen0 > 1e-9 ? (-targetRel) / dispLen0 * natLen0 : 0;
+            Preutterance.Set(Math.Clamp(newPre, 0, natLen0));
             return;
+        }
+        // 其余落在音符头的边界（index>0）不特殊处理：走下面的拍后规则改**线前**音素（如最后一个 lead），
+        // 线前音素随拖动越过音符头自然形成跨拍、Preutterance 不变、方向与光标一致。
 
-        // 下界放开（推挤语义：左侧邻居随之平移、无固定下界，可向 note 前自由伸展）；上界 = 本音素末（保正长、不与右反相）。
         var cur = ResolvedRelTimes(-1, 0);
-        targetRel = Math.Min(targetRel, cur[index].End);
+        targetRel = Math.Min(targetRel, cur[index].End); // 上界 = 本音素末（保正长）
 
-        // 时长手柄：bisect 时长使该边界显示起点落到 targetRel（显示起点随时长单调递减）。
-        double DisplayedDur(double dur) => ResolvedRelTimes(index, dur)[index].Start;
-        double loDur = 0;
-        double hiDur = Math.Max(EndTime - StartTime, 0.05);
-        for (int i = 0; i < 24 && DisplayedDur(hiDur) > targetRel; i++) hiDur *= 2;
+        double oldDur = Math.Max(0, Phonemes[index].Duration.Value);
+
+        if (cum + oldDur < preutter + 1e-9)              // **整段**在拍前（音素末 ≤ note 头）= 纯前置：右缘固定、线性求长 + Preutterance 同步吸收
+        {
+            double newDur = Math.Max(0, cur[index].End - targetRel);
+            Phonemes[index].Duration.Set(newDur);
+            Preutterance.Set(Math.Max(0, preutter + (newDur - oldDur)));
+            return;
+        }
+        // 到这里 index 音素末 > note 头：要么整段拍后、要么**本音素就是跨拍音素**（其左边界虽在拍前，整段却跨过 note 头）。
+        // 跨拍音素的左边界不能走上面的纯前置公式（其 End 在拍后很右、newDur 会突变致跳），改走下面「编辑相邻刚性音素」——
+        // 编辑线前刚性音素（其末端=该边界），跨拍音素前半随之增减、线性跟手、Preutterance 不变。
+
+        // 拍后：一条边界 = 线前那个音素的末端。编辑相邻的**刚性**音素（其时长可直接决定该边界；弹性由 Distribute 吸收）：
+        // 线前刚性→改线前（末端即该边界，改它线性单调）；否则改线后（弹性核经比例吸收，仍单调可解）。
+        int editIdx = (index > 0 && Phonemes[index - 1].StretchWeight.Value == 0) ? index - 1 : index;
+        if (editIdx == index - 1)                          // 改线前音素：下界保其正长
+            targetRel = Math.Max(targetRel, cur[index - 1].Start);
+        double BoundaryAt(double dur) => ResolvedRelTimes(editIdx, dur)[index].Start;
+        double loDur = 0, hiDur = Math.Max(EndTime - StartTime, 0.05);
+        bool inc = BoundaryAt(hiDur) >= BoundaryAt(0);     // 改线前刚性→随时长单调增；改线后→单调减
+        for (int i = 0; i < 24; i++)
+        {
+            if (inc ? BoundaryAt(hiDur) >= targetRel : BoundaryAt(hiDur) <= targetRel) break;
+            hiDur *= 2;
+        }
         for (int it = 0; it < 32; it++)
         {
             double mid = (loDur + hiDur) / 2;
-            if (DisplayedDur(mid) <= targetRel) hiDur = mid; else loDur = mid;
+            if (inc ? BoundaryAt(mid) >= targetRel : BoundaryAt(mid) <= targetRel) hiDur = mid; else loDur = mid;
         }
-        Phonemes[index].Duration.Set(hiDur);
+        Phonemes[editIdx].Duration.Set(hiDur);
     }
 }
 
@@ -350,17 +397,17 @@ internal static class INoteExtension
         if (note.SynthesizedPhonemes.IsEmpty())
             return;
 
-        // 锁定 = 把合成产物固定为用户数据：直接存各音素的【时长 + 权重 + IsLead】（位置由布局派生、不存）。
+        // 锁定 = 把合成产物固定为用户数据：直接存各音素的【时长 + 权重】（位置由布局派生、不存），
+        // 并把合成前置量固化为 note.Preutterance（拍前 / 拍后归属由它派生，故无需每音素 IsLead）。
         // 辅音(w=0)时长即固定长；核(w>0)时长记录但布局忽略（恒按填充派生），故无需「反压缩」——
         // 显示侧 PhonemeLayout 会按当前邻居重新去重叠（核重新填充并再让位），与合成同源、常态下不双重压缩。
-        // 核起点恒在音符头，故无需记录前置分界线偏移。
+        note.Preutterance.Set(note.SynthesizedPreutterance);
         foreach (var p in note.SynthesizedPhonemes)
             note.Phonemes.Add(Phoneme.Create(new PhonemeInfo
             {
                 Symbol = p.Symbol,
                 Duration = Math.Max(0, p.Duration),
                 StretchWeight = p.StretchWeight,
-                IsLead = p.IsLead,
             }));
     }
 

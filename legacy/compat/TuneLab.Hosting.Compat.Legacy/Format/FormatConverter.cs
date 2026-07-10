@@ -134,49 +134,52 @@ internal static class FormatConverter
     };
 
     // ── NoteInfo ──
-    public static New.NoteInfo ToV1(this Old.NoteInfo o) => new()
+    public static New.NoteInfo ToV1(this Old.NoteInfo o)
     {
-        Pos = o.Pos, Dur = o.Dur, Pitch = o.Pitch, Lyric = o.Lyric, Pronunciation = o.Pronunciation,
-        Properties = o.Properties.ToV1(),
-        Phonemes = PhonemesToV1(o.Phonemes),
-    };
+        var phonemes = PhonemesToV1(o.Phonemes, out double preutterance);
+        return new()
+        {
+            Pos = o.Pos, Dur = o.Dur, Pitch = o.Pitch, Lyric = o.Lyric, Pronunciation = o.Pronunciation,
+            Properties = o.Properties.ToV1(),
+            Phonemes = phonemes,
+            Preutterance = preutterance,
+        };
+    }
     public static Old.NoteInfo ToLegacy(this New.NoteInfo n) => new()
     {
         Pos = n.Pos, Dur = n.Dur, Pitch = n.Pitch, Lyric = n.Lyric, Pronunciation = n.Pronunciation,
         Properties = n.Properties.ToLegacy(),
-        Phonemes = PhonemesToLegacy(n.Phonemes),
+        Phonemes = PhonemesToLegacy(n.Phonemes, n.Preutterance),
     };
 
     // ── PhonemeInfo（note 级整组转换）──
-    // 新模型 PhonemeInfo 用「时长 + 权重」(Duration/Weight)、位置由布局派生；旧模型是相对音符头的秒 StartTime/EndTime（音符头=0）。
-    // 旧→新：时长 = EndTime − StartTime（音素连续）；旧模型无前置 / 弹性概念：
-    //   按区间中点落在音符头之前（(Start+End)/2 < 0）判定为前置辅音（IsLead）；
-    //   权重一律 0——老版本所有音素随音符等比缩放，布局的「全 w=0 退化为按原长等比」恰好复刻这一行为。
-    static List<New.PhonemeInfo> PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes)
+    // 新模型 PhonemeInfo 用「时长 + 权重」(Duration/Weight)、位置由布局 + note 级 Preutterance 派生；
+    // 旧模型是相对音符头的秒 StartTime/EndTime（音符头=0）。
+    // 旧→新：时长 = EndTime − StartTime（音素连续）；权重一律 0（老版本所有音素随音符等比缩放，布局「全 w=0 退化按原长等比」复刻之）；
+    //   前置量 preutterance = 音符头 − 首音素起点（= −StartTime[0]，钳 ≥0）——保留老引擎的真实分界、不吸头（对齐 Sil 修法口径）。
+    static List<New.PhonemeInfo> PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes, out double preutterance)
     {
         var result = new List<New.PhonemeInfo>(phonemes.Count);
+        preutterance = phonemes.Count > 0 ? Math.Max(0, -phonemes[0].StartTime) : 0;
         foreach (var p in phonemes)
         {
-            bool isLead = (p.StartTime + p.EndTime) < 0;
-            double weight = 0;
-            // 位置（起点）不入存储——由新模型布局按「核起点 = 音符头、前置往左、核填充」派生；此处仅留时长 = End − Start。
+            // 位置（起点）不入存储——由新模型布局按「note 头 + Preutterance + 时长」派生；此处仅留时长 = End − Start。
             result.Add(new New.PhonemeInfo
             {
                 Symbol = p.Symbol,
                 Duration = Math.Max(0, p.EndTime - p.StartTime),
-                StretchWeight = weight,
-                IsLead = isLead,
+                StretchWeight = 0,
             });
         }
         return result;
     }
 
     // 新→旧为 best-effort：旧插件只认绝对相对秒，而 compat 这层无 note 几何（满末/邻居）还原元音填充与前辅音越界。
-    // 退化为从 0 起累积各音素时长（元音亦按记录时长排、不填充）——格式转换够用。
-    static List<Old.PhonemeInfo> PhonemesToLegacy(IReadOnlyList<New.PhonemeInfo> phonemes)
+    // 退化为从 −Preutterance 起累积各音素时长（音符头之前的前置料落负秒，元音亦按记录时长排、不填充）——格式转换够用。
+    static List<Old.PhonemeInfo> PhonemesToLegacy(IReadOnlyList<New.PhonemeInfo> phonemes, double preutterance)
     {
         var result = new List<Old.PhonemeInfo>(phonemes.Count);
-        double t = 0;
+        double t = -preutterance;
         foreach (var p in phonemes)
         {
             double end = t + System.Math.Max(0, p.Duration);

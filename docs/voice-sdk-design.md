@@ -310,7 +310,7 @@ public interface IVoiceSynthesisSession   // 续
     // —— 曲线类产物 ——
     SynthesizedPitch SynthesizedPitch { get; }                                          // 具名富类型 { Segments }，见 §6
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }           // 富类型，与 effect 同形
-    IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes { get; } // 按归属 note 键，每 note 一组 VoicePhoneme（只报几何），见 §6
+    IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; } // 按归属 note 键，每 note 一组 VoicePhoneme（只报几何），见 §6
 
     // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
     IReadOnlyList<SynthesisStatusSegment> GetStatus();
@@ -355,18 +355,24 @@ public struct SynthesisStatusSegment
 
 ## 6. 音素
 
-音素**几何核** `SynthesizedPhoneme`（`Symbol + 标称时长 Duration + 弹性权重 StretchWeight + 前置标记 IsLead`，**不报绝对位置**）是输入 / 输出 / 布局三方共享的稳定形状。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按同一时长模型派生、独占布局。
+音素**几何核** `SynthesizedPhoneme`（`Symbol + 标称时长 Duration + 弹性权重 StretchWeight`，**不报绝对位置、不报前后归属**）是输入 / 输出 / 布局三方共享的稳定形状。前后归属（拍前 / 拍后）由 **note 级 `Preutterance`**（拍前发声量，自然秒）派生、不落每音素标志。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按同一时长模型 + Preutterance 派生、独占布局。
 
 ```csharp
-// 音素描述符（方向无关，输入 / 输出共用一个类型）：只报几何（标称时长 + 弹性权重 + 前置标记），**不报绝对位置**。
-// 进（用户钉死约束，挂 IVoiceSynthesisNote.Phonemes）与出（引擎产物 IVoiceSynthesisSession.SynthesizedPhonemes）同形，
-// 故合并为一个方向无关类型。同时是布局纯函数 PhonemeLayout.Resolve 的载体（布局只读几何、方向无关）。
+// 音素描述符（方向无关，输入 / 输出共用一个类型）：只报几何（标称时长 + 弹性权重），**不报绝对位置、不报前后归属**。
+// 进（用户钉死约束，挂 IVoiceSynthesisNote.Phonemes）与出（引擎产物 IVoiceSynthesisSession.SynthesizedPhonemes 的组）同形。
+// 同时是布局纯函数 PhonemeLayout.Resolve 的载体（布局只读几何、方向无关；前后归属由 PhonemeLayoutNote.Preutterance 派生）。
 public struct SynthesizedPhoneme
 {
     public string Symbol;
     public double Duration;        // 标称时长（秒）：辅音(w=0)固定长；核(w>0)此值被布局忽略（恒按填充派生）
     public double StretchWeight;   // 弹性权重：0=刚性辅音 / >0=可伸核·元音（吸收 note 伸缩、按权重先让）
-    public bool   IsLead;          // 前置音素（音节核之前的引导辅音）：决定摆放（前置往左累积、核填充）
+}
+
+// 合成产物 map 的值型：一组归属 note 的音素 + 前置量 Preutterance（拍前发声量，自然秒 = note 头之前音素的占位长度）。
+public readonly struct SynthesizedSyllable
+{
+    public IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
+    public double Preutterance { get; }   // note 头落在音素自然时间带上的偏移；决定拍前 / 拍后归属、支持音素跨拍
 }
 ```
 
@@ -395,7 +401,7 @@ public struct SynthesizedPhoneme
 ### 输出（engine→host，合成时返回）：按归属 note 键的 map
 
 ```csharp
-IReadOnlyMap<IVoiceSynthesisNote, IReadOnlyList<SynthesizedPhoneme>> SynthesizedPhonemes { get; }
+IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; }
 ```
 
 - **按归属 note 键**（而非扁平时间线 + 出身字段）：描述符不报绝对位置，**无主音素无锚不可定位、也落不进 note 失效链，故砍掉「无主音素（Note=null）」契约**——`SynthesizedPhoneme` 不带 `Note` 字段，归属全由 map 键表达。辅音入侵上一 note 尾巴这类越界，由宿主派生位置时自然产生。（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。）
@@ -441,8 +447,8 @@ public interface IVoiceSynthesisPhonemeView
     string Symbol { get; }
     double Duration { get; }          // 标称时长（秒）
     double StretchWeight { get; }
-    bool   IsLead { get; }
     PropertyObject Properties { get; }
+    // 前后归属由所属 note 视图的 double Preutterance 派生，不落每音素标志
 }
 ```
 
@@ -457,8 +463,8 @@ public readonly struct VoiceSynthesisPhonemeSnapshot
     public string Symbol { get; }
     public double Duration { get; }
     public double StretchWeight { get; }
-    public bool IsLead { get; }
     public PropertyObject Properties { get; }   // 未声明 / 未设 = PropertyObject.Empty
+    // 前后归属由 VoiceSynthesisNoteSnapshot.Preutterance 派生，不落每音素标志
 }
 ```
 

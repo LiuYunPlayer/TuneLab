@@ -102,11 +102,9 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             piece.Notes,
             piece.Notes.First().StartTime.Value - windowMarginSeconds,
             piece.Notes.Last().EndTime.Value + windowMarginSeconds);
-        // 整链联合布局的推挤上下文：未钉死邻居用上次回显——与宿主显示同源
-        // （显示读的 note.SynthesizedPhonemes 即本会话上次交付的回显）。
-        var echo = SynthesizedPhonemes;
-        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes,
-            origin => echo.TryGetValue(origin, out var list) ? list : null);
+        // 喂引擎的联合布局只在钉死 note 间进行；未钉死邻居不进布局（喂空、引擎自行预测协同发音）——
+        // 见 CreateChain 注释：借未钉死邻居回显会缩短钉死元音、给不喂的辅音留坑、被引擎帧量化成 Sil。
+        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes);
         var data = new SnapshotSynthesisData(snapshot, views);
 
         LVoice.ISynthesisTask task;
@@ -192,11 +190,11 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     public PStruct.IReadOnlyMap<string, VVoice.SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
-    public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>> SynthesizedPhonemes
+    public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> SynthesizedPhonemes
     {
         get
         {
-            var result = new PStruct.Map<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>>();
+            var result = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
             foreach (var piece in mPieces)
             {
                 foreach (var kvp in piece.Phonemes)   // 块间 note 不相交，直接并入
@@ -417,6 +415,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         mSessionRate = result.SamplingRate;
 
         piece.Result = result;
+
         // 段握柄：丢旧建新（一握柄 = 一次渲染）；写入整段后 Commit 把整段音频交宿主驱动 effect。
         piece.Segment?.Dispose();
         piece.Segment = mContext.CreateAudioSegment((long)(result.StartTime * result.SamplingRate), result.AudioData.Length, result.SamplingRate);
@@ -427,33 +426,37 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             .ToList();
 
         // 音素归组：老结果按 note 装字典（键 = 我们递入的快照包装）→ 经 Origin 归出身 live 代理（map 键）。
-        var phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>>();
+        var phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
         foreach (var kv in result.SynthesizedPhonemes)
         {
             if (kv.Key is not SnapshotNoteView view)
                 continue;
 
             // 回显如实落账（含老引擎对 "-" note 回传的占位音素，不再抑制）：本会话延音判定恒 false
-            // （见 IsContinuation——老模型无乘客机制），故所有回显都走宿主的普通内容显示——占位型引擎
-            // 的占位块、留空型引擎的空白，均与老版本 TuneLab 观感一致（显示 == 引擎实际所为，钉死
-            // 天然界内、P1 场景无从发生）。
+            // （见 IsContinuation——老模型无乘客机制），故所有回显都走宿主的普通内容显示。
             var list = new List<VVoice.SynthesizedPhoneme>();
+            double firstStart = double.NaN;
             foreach (var phoneme in kv.Value)
             {
+                if (double.IsNaN(firstStart))
+                    firstStart = phoneme.StartTime;
                 list.Add(new VVoice.SynthesizedPhoneme
                 {
                     Symbol = phoneme.Symbol,
                     Duration = phoneme.EndTime - phoneme.StartTime,   // 老引擎报绝对位置，转标称时长
                     // 老引擎无伸缩权重概念：与老工程导入同口径全 w=0——布局对全 w=0 按原长等比缩放占满，
-                    // 正是旧版"所有音素随音符等比伸缩"的行为；lead 恒刚性、不参与前 note 的弹性分配。
+                    // 正是旧版"所有音素随音符等比伸缩"的行为。
                     StretchWeight = 0,
-                    // 老引擎无前置概念，与老工程导入同口径按时间判定：区间中点落在音符头之前 → 前置辅音。
-                    // 老结果为绝对秒，分界线 = 本 note 起点（起点无单声部钳位，直接用快照值）。
-                    IsLead = phoneme.StartTime + phoneme.EndTime < 2 * view.StartTime,
                 });
             }
             if (list.Count > 0)
-                phonemes.Add(view.Origin, list);
+            {
+                // 前置量 = note 头 − 首音素起点（老引擎报的绝对位置的真实分界），**不吸头**：保留引擎略跨头的边界，
+                // 根治「边界强吸 note 头引入 sub-frame 错位、被引擎帧量化放大成整帧 Sil」。老结果为绝对秒、
+                // 分界线 = 本 note 起点（起点无单声部钳位，直接用快照值）。忠实降级：位置由引擎报的绝对值反算、不猜。
+                double preutterance = Math.Max(0, view.StartTime - firstStart);
+                phonemes.Add(view.Origin, new VVoice.SynthesizedSyllable(list, preutterance));
+            }
         }
         piece.Phonemes = phonemes;
 
@@ -510,7 +513,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         public LVoice.SynthesisResult? Result;
         public VVoice.IAudioSegment? Segment;
         public IReadOnlyList<IReadOnlyList<PStruct.Point>> PitchLines = [];
-        public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>> Phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, IReadOnlyList<VVoice.SynthesizedPhoneme>>();
+        public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> Phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
     }
 
     // 老 ISynthesisData：全部读冻结快照（worker 线程安全）。

@@ -1081,7 +1081,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         // 波形带上下分层（仅 voice）：上半区 = note 边界操作、下半区 = 音素操作。音素刻度/文字贴底边，
         // note 边界杆贴顶边。非 voice（instrument 等）无音素、不分层、不画 note 杆。
         bool layered = Part.SoundSource.Kind == SourceKind.Voice;
-        var hoverItem = HoverItem();
+        var hoverItem = mOperatingWaveformItem ?? HoverItem();
 
         // 箱庭结构线：中线横贯整带作上下两室的公共壁——note 边界杆顶满上室、音素刻度线顶满下室，与之相交
         // 成格；顶边再画一条封住上室（底边不画：紧贴参数区标题栏，已有现成分界）。随音素 UI 同一 opacity 域淡出。
@@ -1200,20 +1200,16 @@ internal partial class PianoScrollView : View, IPianoScrollView
             bool drawNoteEnd = takeover == null || takeover.StartPos() > endOwner.EndPos() + 1e-6 || takeover.DisplayPhonemes.IsEmpty();
             // 悬停的音素边界号（左线 = i、右线 = i+1）换主题色提亮，指明"点下去拖的是哪条"。
             int hoverBoundary = hoverPhoneme != null && hoverPhoneme.Note == note ? hoverPhoneme.PhonemeIndex : -1;
-            // 核起点（边界 lead = note 头）与末边界（= note 有效末）是 note 边界的下半段：用与上半区 note 杆
-            // 一致的统一笔画，hover 与上半杆联动（一条边界一体提亮）；拖它就是拖 note 边界（热区全带高，见
-            // WaveformNoteStartResizeItem）。其余边界是音素刻度。
-            int lead = 0;
-            while (lead < phonemes.Count && phonemes[lead].IsLead) lead++;
+            // 末边界（= note 有效末）是 note 边界的下半段（与上半 note 杆同笔画、hover 联动）；音素起边界是独立音素刻度。
             void DrawBoundary(int k, double x)
             {
-                bool isNoteLine = k == lead || k == phonemes.Count;
-                bool hovered = k == hoverBoundary
-                    || (k == lead && hoverNoteStart?.Note == note)
-                    || (k == phonemes.Count && hoverNoteEnd?.Note == endOwner);
-                IPen linePen = hovered ? penHover : isNoteLine ? penNoteBoundary : penPhoneme;
+                bool isNoteEnd = k == phonemes.Count;
+                bool hovered = k == hoverBoundary || (isNoteEnd && hoverNoteEnd?.Note == endOwner);
+                IPen linePen = hovered ? penHover : isNoteEnd ? penNoteBoundary : penPhoneme;
                 context.DrawLine(linePen, new(x, yPhonemeTop), new(x, yPhonemeBottom));
             }
+            // note 头线**只在上半 note 泳道**画（见 DrawNoteHandle），不伸进音素泳道——上下完全解耦。音素泳道只画音素边界；
+            // note 尾线例外（末音素结尾恒 = note 有效末，故 k==count 那条以 note 笔画画在音素泳道里，仍是真实音素边界）。
             double right = double.NaN;
             for (int i = 0; i < phonemes.Count; i++)
             {
@@ -1786,7 +1782,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
             // 各段继承前置标志；引擎自定义属性留在首段（拆分不复制，避免语义不明的双份属性）。
             double duration = phoneme.Duration.Value / tokens.Length;
             double weight = phoneme.StretchWeight.Value / tokens.Length;
-            bool isLead = phoneme.IsLead.Value;
             phoneme.Symbol.Set(tokens[0]);
             phoneme.Duration.Set(duration);
             phoneme.StretchWeight.Set(weight);
@@ -1797,7 +1792,6 @@ internal partial class PianoScrollView : View, IPianoScrollView
                     Symbol = tokens[i],
                     Duration = duration,
                     StretchWeight = weight,
-                    IsLead = isLead,
                 }));
             }
         }

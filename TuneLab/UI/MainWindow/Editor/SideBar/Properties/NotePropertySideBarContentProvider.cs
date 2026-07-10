@@ -198,17 +198,40 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mPhonemeScheduler.InvalidateStructure();
     }
 
-    // 选中 note 的显示音素结构签名（决定面板布局的字段：钉死态 + 各音素符号 + IsLead）。值类属性不入签名——
-    // 它们由各 slot 绑定 / Properties.Modified 单独刷新。
+    // 选中 note 的显示音素结构签名（决定面板布局的字段：钉死态 + 各音素符号 + lead 归属）。值类属性不入签名——
+    // 它们由各 slot 绑定 / Properties.Modified 单独刷新。lead 归属由 Preutterance 派生（前 lead 个音素）。
     string PhonemeSignature()
     {
         if (mPart == null)
             return string.Empty;
 
         return string.Join(";", mPart.Notes.AllSelectedItems().Select(note =>
-            note.Phonemes.Count > 0
-                ? "P" + string.Join("|", note.Phonemes.Select(p => p.Symbol.Value + (p.IsLead.Value ? "<" : ">")))
-                : "S" + (note.SynthesizedPhonemes is { } synth ? string.Join("|", synth.Select(p => p.Symbol + (p.IsLead ? "<" : ">"))) : "")));
+        {
+            int lead = PhonemeLeadCount(note);
+            if (note.Phonemes.Count > 0)
+                return "P" + string.Join("|", note.Phonemes.Select((p, i) => p.Symbol.Value + (i < lead ? "<" : ">")));
+            var synth = note.SynthesizedPhonemes;
+            return "S" + (synth != null ? string.Join("|", synth.Select((p, i) => p.Symbol + (i < lead ? "<" : ">"))) : "");
+        }));
+    }
+
+    // 一个 note 的前置（lead）音素个数：由 Preutterance（拍前发声量）+ 各音素时长累积派生（IsLead 不再存）。
+    // = 落在 note 头之前的音素数（累积末 ≤ Preutterance 的连续前缀；恰好切中某音素内部则那个音素算拍后 = 非 lead）。
+    static int PhonemeLeadCount(INote note)
+    {
+        bool pinned = note.Phonemes.Count > 0;
+        int count = pinned ? note.Phonemes.Count : (note.SynthesizedPhonemes?.Length ?? 0);
+        double preutter = pinned ? note.Preutterance.Value : note.SynthesizedPreutterance;
+        double cum = 0;
+        int lead = 0;
+        for (int i = 0; i < count; i++)
+        {
+            double dur = pinned ? Math.Max(0, note.Phonemes[i].Duration.Value) : Math.Max(0, note.SynthesizedPhonemes![i].Duration);
+            double end = cum + dur;
+            if (end <= preutter + 1e-9) lead = i + 1; else break;
+            cum = end;
+        }
+        return lead;
     }
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
@@ -265,15 +288,12 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             bool pinned = note.Phonemes.Count > 0;
             int count = pinned ? note.Phonemes.Count : (note.SynthesizedPhonemes?.Length ?? 0);
             var cfgs = new ObjectConfig?[count];
-            int leadCount = count;
             for (int i = 0; i < count; i++)
             {
                 cfgs[i] = flat < configs.Count ? configs[flat] : null;
                 flat++;
-                bool isLead = pinned ? note.Phonemes[i].IsLead.Value : note.SynthesizedPhonemes![i].IsLead;
-                if (!isLead && leadCount == count)
-                    leadCount = i;   // 第一个非 lead = 核 = 对齐 0
             }
+            int leadCount = PhonemeLeadCount(note);   // 核位置：前置音素个数（由 Preutterance 派生）
             perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount, cfgs));
             // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。
             note.Phonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
