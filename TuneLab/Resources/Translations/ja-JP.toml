@@ -105,6 +105,8 @@
 "Deselect All" = "すべて選択解除"
 "Sample Rate" = "サンプルレート"
 "Bit Depth" = "ビット深度"
+"Format" = "フォーマット"
+"Bitrate" = "ビットレート"
 "Mono" = "モノラル"
 "Stereo" = "ステレオ"
 "Extensions" = "拡張機能"

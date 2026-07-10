@@ -18,8 +18,10 @@ internal class Project : DataObject, IProject
     public IReadOnlyDataObjectList<ITrack> Tracks => mTracks;
     public string ExportPath { get; set; } = string.Empty;
     public string ExportFileName { get; set; } = string.Empty;
+    public string ExportFormat { get; set; } = "wav";
     public int ExportSampleRate { get; set; } = 44100;
     public int ExportBitDepth { get; set; } = 16;
+    public int ExportBitrate { get; set; } = 320;
     public bool MasterExportEnabled { get; set; } = true;
     public int MasterExportChannels { get; set; } = 2;
 
@@ -58,8 +60,10 @@ internal class Project : DataObject, IProject
         {
             ExportPath = ExportPath,
             FileName = ExportFileName,
+            Format = ExportFormat,
             SampleRate = ExportSampleRate,
             BitDepth = ExportBitDepth,
+            Bitrate = ExportBitrate,
             MasterExportEnabled = MasterExportEnabled,
             MasterExportChannels = MasterExportChannels,
         };
@@ -77,8 +81,10 @@ internal class Project : DataObject, IProject
         {
             ExportPath = info.ExportConfig.ExportPath;
             ExportFileName = info.ExportConfig.FileName;
+            ExportFormat = string.IsNullOrEmpty(info.ExportConfig.Format) ? "wav" : info.ExportConfig.Format;
             ExportSampleRate = info.ExportConfig.SampleRate;
             ExportBitDepth = info.ExportConfig.BitDepth;
+            ExportBitrate = info.ExportConfig.Bitrate;
             MasterExportEnabled = info.ExportConfig.MasterExportEnabled;
             MasterExportChannels = info.ExportConfig.MasterExportChannels;
         }

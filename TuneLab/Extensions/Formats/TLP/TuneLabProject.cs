@@ -278,10 +278,14 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     projectInfo.ExportConfig.ExportPath = (string)exportPath;
                 if (exportConfigObj.TryGetValue("fileName", out var fileName))
                     projectInfo.ExportConfig.FileName = (string)fileName;
+                if (exportConfigObj.TryGetValue("format", out var format))
+                    projectInfo.ExportConfig.Format = (string)format;
                 if (exportConfigObj.TryGetValue("sampleRate", out var sampleRate))
                     projectInfo.ExportConfig.SampleRate = (int)sampleRate;
                 if (exportConfigObj.TryGetValue("bitDepth", out var bitDepth))
                     projectInfo.ExportConfig.BitDepth = (int)bitDepth;
+                if (exportConfigObj.TryGetValue("bitrate", out var bitrate))
+                    projectInfo.ExportConfig.Bitrate = (int)bitrate;
                 if (exportConfigObj.TryGetValue("masterExportEnabled", out var masterExportEnabled))
                     projectInfo.ExportConfig.MasterExportEnabled = (bool)masterExportEnabled;
                 if (exportConfigObj.TryGetValue("masterExportChannels", out var masterExportChannels))
@@ -463,8 +467,10 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         var exportConfig = new JObject();
         exportConfig.Add("exportPath", projectInfo.ExportConfig.ExportPath);
         exportConfig.Add("fileName", projectInfo.ExportConfig.FileName);
+        exportConfig.Add("format", projectInfo.ExportConfig.Format);
         exportConfig.Add("sampleRate", projectInfo.ExportConfig.SampleRate);
         exportConfig.Add("bitDepth", projectInfo.ExportConfig.BitDepth);
+        exportConfig.Add("bitrate", projectInfo.ExportConfig.Bitrate);
         exportConfig.Add("masterExportEnabled", projectInfo.ExportConfig.MasterExportEnabled);
         exportConfig.Add("masterExportChannels", projectInfo.ExportConfig.MasterExportChannels);
         project.Add("exportConfig", exportConfig);

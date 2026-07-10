@@ -105,6 +105,8 @@
 "Deselect All" = "Tüm Seçimi Kaldır"
 "Sample Rate" = "Örnekleme Hızı"
 "Bit Depth" = "Bit Derinliği"
+"Format" = "Biçim"
+"Bitrate" = "Bit hızı"
 "Mono" = "Mono"
 "Stereo" = "Stereo"
 "Extensions" = "Uzantılar"

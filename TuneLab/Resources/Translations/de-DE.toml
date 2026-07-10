@@ -105,6 +105,8 @@
 "Deselect All" = "Auswahl aufheben"
 "Sample Rate" = "Abtastrate"
 "Bit Depth" = "Bittiefe"
+"Format" = "Format"
+"Bitrate" = "Bitrate"
 "Mono" = "Mono"
 "Stereo" = "Stereo"
 "Extensions" = "Erweiterungen"

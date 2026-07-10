@@ -6,17 +6,41 @@ using System.Reflection.PortableExecutable;
 using System.Text;
 using NAudio.Wave;
 using NAudio.Flac;
+using NAudio.Lame;
+using NAudio.Vorbis;
 using NLayer.NAudioSupport;
 using TuneLab.Foundation;
 using NAudio.Dsp;
+using OggVorbisEncoder;
+using CUETools.Codecs;
+using CUETools.Codecs.FLAKE;
 
 namespace TuneLab.Audio.NAudio;
 
 internal class NAudioCodec : IAudioCodec
 {
-    public IEnumerable<string> AllDecodableFormats { get; } = ["wav", "mp3", "flac", "aiff", "aif", "aifc"];
+    public IEnumerable<string> AllDecodableFormats { get; } = ["wav", "mp3", "flac", "ogg", "aiff", "aif", "aifc"];
 
-    public void EncodeToWav(string path, float[] buffer, int sampleRate, int bitPerSample, int channelCount)
+    public void Encode(string path, float[] buffer, int sampleRate, int channelCount, AudioEncodeSettings settings)
+    {
+        switch (settings.Format)
+        {
+            case AudioExportFormat.Mp3:
+                EncodeToMp3(path, buffer, sampleRate, channelCount, settings.Bitrate);
+                break;
+            case AudioExportFormat.Flac:
+                EncodeToFlac(path, buffer, sampleRate, channelCount, settings.BitDepth);
+                break;
+            case AudioExportFormat.Ogg:
+                EncodeToOgg(path, buffer, sampleRate, channelCount, OggQuality(settings.Bitrate));
+                break;
+            default:
+                EncodeToWav(path, buffer, sampleRate, settings.BitDepth, channelCount);
+                break;
+        }
+    }
+
+    static void EncodeToWav(string path, float[] buffer, int sampleRate, int bitPerSample, int channelCount)
     {
         switch (bitPerSample)
         {
@@ -46,6 +70,105 @@ internal class NAudioCodec : IAudioCodec
             }
         }
     }
+
+    static void EncodeToMp3(string path, float[] buffer, int sampleRate, int channelCount, int bitrate)
+    {
+        var waveFormat = new WaveFormat(sampleRate, 16, channelCount);
+        var bytes = To16BitsBytes(buffer);
+        using var writer = new LameMP3FileWriter(path, waveFormat, bitrate);
+        writer.Write(bytes, 0, bytes.Length);
+    }
+
+    // FLAC 存整数 PCM，仅 16/24 位。用纯托管 FLAKE 编码器（无原生依赖）。
+    static void EncodeToFlac(string path, float[] buffer, int sampleRate, int channelCount, int bitDepth)
+    {
+        int bits = bitDepth == 24 ? 24 : 16;
+        int samplesPerChannel = buffer.Length / channelCount;
+        int max = (1 << (bits - 1)) - 1;
+        int min = -(1 << (bits - 1));
+        float scale = 1 << (bits - 1);
+
+        var samples = new int[samplesPerChannel, channelCount];
+        for (int i = 0; i < samplesPerChannel; i++)
+        {
+            for (int c = 0; c < channelCount; c++)
+            {
+                int v = (int)(buffer[i * channelCount + c] * scale);
+                samples[i, c] = Math.Clamp(v, min, max);
+            }
+        }
+
+        var pcm = new AudioPCMConfig(bits, channelCount, sampleRate);
+        var writer = new FlakeWriter(path, pcm) { CompressionLevel = 8 };
+        try
+        {
+            writer.Write(new AudioBuffer(pcm, samples, samplesPerChannel));
+        }
+        finally
+        {
+            writer.Close();
+        }
+    }
+
+    // OGG Vorbis，纯托管编码器；quality 为 Vorbis VBR 基准质量(0..1)。
+    static void EncodeToOgg(string path, float[] buffer, int sampleRate, int channelCount, float quality)
+    {
+        int samplesPerChannel = buffer.Length / channelCount;
+        var samples = new float[channelCount][];
+        for (int c = 0; c < channelCount; c++)
+            samples[c] = new float[samplesPerChannel];
+        for (int i = 0; i < samplesPerChannel; i++)
+        {
+            for (int c = 0; c < channelCount; c++)
+                samples[c][i] = buffer[i * channelCount + c];
+        }
+
+        var info = VorbisInfo.InitVariableBitRate(channelCount, sampleRate, quality);
+        using var outStream = File.Create(path);
+        var oggStream = new OggStream(1);
+
+        oggStream.PacketIn(HeaderPacketBuilder.BuildInfoPacket(info));
+        oggStream.PacketIn(HeaderPacketBuilder.BuildCommentsPacket(new Comments()));
+        oggStream.PacketIn(HeaderPacketBuilder.BuildBooksPacket(info));
+        while (oggStream.PageOut(out OggPage headerPage, true))
+            WriteOggPage(outStream, headerPage);
+
+        var state = ProcessingState.Create(info);
+        const int block = 4096;
+        for (int offset = 0; offset < samplesPerChannel; offset += block)
+        {
+            int len = Math.Min(block, samplesPerChannel - offset);
+            state.WriteData(samples, len, offset);
+            DrainOggPackets(state, oggStream, outStream, false);
+        }
+        state.WriteEndOfStream();
+        DrainOggPackets(state, oggStream, outStream, true);
+    }
+
+    static void DrainOggPackets(ProcessingState state, OggStream oggStream, Stream outStream, bool force)
+    {
+        while (state.PacketOut(out OggPacket packet))
+        {
+            oggStream.PacketIn(packet);
+            while (oggStream.PageOut(out OggPage page, force))
+                WriteOggPage(outStream, page);
+        }
+    }
+
+    static void WriteOggPage(Stream outStream, OggPage page)
+    {
+        outStream.Write(page.Header, 0, page.Header.Length);
+        outStream.Write(page.Body, 0, page.Body.Length);
+    }
+
+    // 有损格式 UI 暴露 kbps 目标；映射到 Vorbis VBR 基准质量。
+    static float OggQuality(int bitrate) => bitrate switch
+    {
+        <= 128 => 0.4f,
+        <= 192 => 0.6f,
+        <= 256 => 0.8f,
+        _ => 1.0f,
+    };
 
     public AudioInfo GetAudioInfo(string path)
     {
@@ -133,7 +256,7 @@ internal class NAudioCodec : IAudioCodec
             using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
                 stream.Read(buffer, 0, 4);
-                tag = Encoding.UTF8.GetString(buffer.AsSpan(0, 4));
+                tag = System.Text.Encoding.UTF8.GetString(buffer.AsSpan(0, 4));
             }
             if (tag == "RIFF")
             {
@@ -146,6 +269,10 @@ internal class NAudioCodec : IAudioCodec
             if (tag == "fLaC")
             {
                 return new FlacReader(path);
+            }
+            if (tag == "OggS" || ext == ".ogg")
+            {
+                return new VorbisWaveReader(path);
             }
             if (ext == ".aiff" || ext == ".aif" || ext == ".aifc")
             {

@@ -105,6 +105,8 @@
 "Deselect All" = "Зняти виділення"
 "Sample Rate" = "Частота дискретизації"
 "Bit Depth" = "Бітова глибина"
+"Format" = "Формат"
+"Bitrate" = "Бітрейт"
 "Mono" = "Моно"
 "Stereo" = "Стерео"
 "Extensions" = "Розширення"

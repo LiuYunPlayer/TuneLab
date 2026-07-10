@@ -105,6 +105,8 @@
 "Deselect All" = "Avmarkera alla"
 "Sample Rate" = "Samplingsfrekvens"
 "Bit Depth" = "Bitdjup"
+"Format" = "Format"
+"Bitrate" = "Bithastighet"
 "Mono" = "Mono"
 "Stereo" = "Stereo"
 "Extensions" = "Tillägg"

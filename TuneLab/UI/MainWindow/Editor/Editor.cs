@@ -971,16 +971,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                         });
                     });
 
-                    string filePath = Path.Combine(options.ExportPath, options.FileName + "_" + trackName.ToValidFileName() + ".wav");
+                    string filePath = Path.Combine(options.ExportPath, options.FileName + "_" + trackName.ToValidFileName() + options.Format.Extension());
+                    var settings = new AudioEncodeSettings { Format = options.Format, BitDepth = options.BitDepth, Bitrate = options.Bitrate };
 
                     if (trackIndex == -1)
                     {
-                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, options.BitDepth, trackProgress, startTime: startTime, endTime: endTime);
+                        AudioEngine.ExportMaster(filePath, isStereo, options.SampleRate, settings, trackProgress, startTime: startTime, endTime: endTime);
                     }
                     else if (trackIndex >= 0 && trackIndex < project.Tracks.Count)
                     {
                         var track = project.Tracks[trackIndex];
-                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, options.BitDepth, trackProgress, startTime: startTime, endTime: endTime);
+                        AudioEngine.ExportTrack(filePath, track, isStereo, options.SampleRate, settings, trackProgress, startTime: startTime, endTime: endTime);
                     }
                 }
             }

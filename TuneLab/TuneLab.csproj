@@ -38,6 +38,9 @@
 		<!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
 		<PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.15" />
 		<PackageReference Include="BunLabs.NAudio.Flac" Version="2.0.1" />
+		<PackageReference Include="CUETools.Codecs.FLAKE" Version="1.0.5" />
+		<PackageReference Include="NAudio.Lame" Version="2.1.0" />
+		<PackageReference Include="OggVorbisEncoder" Version="1.2.2" />
 		<PackageReference Include="csharp-kana" Version="1.0.1" />
 		<PackageReference Include="csharp-pinyin" Version="1.0.1" />
 		<PackageReference Include="Flurl.Http" Version="4.0.2" />
@@ -47,6 +50,7 @@
 		<PackageReference Include="MeltySynth" Version="2.4.1" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="8.0.13" />
 		<PackageReference Include="NAudio" Version="2.2.1" />
+		<PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
 		<PackageReference Include="PinYinConverterCore" Version="1.0.2" />

@@ -227,11 +227,17 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 case "fileName":
                     config.FileName = reader.ReadTextString();
                     break;
+                case "format":
+                    config.Format = reader.ReadTextString();
+                    break;
                 case "sampleRate":
                     config.SampleRate = reader.ReadInt32();
                     break;
                 case "bitDepth":
                     config.BitDepth = reader.ReadInt32();
+                    break;
+                case "bitrate":
+                    config.Bitrate = reader.ReadInt32();
                     break;
                 case "masterExportEnabled":
                     config.MasterExportEnabled = reader.ReadBoolean();
@@ -815,11 +821,17 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("fileName");
         writer.WriteTextString(config.FileName);
 
+        writer.WriteTextString("format");
+        writer.WriteTextString(config.Format);
+
         writer.WriteTextString("sampleRate");
         writer.WriteInt32(config.SampleRate);
 
         writer.WriteTextString("bitDepth");
         writer.WriteInt32(config.BitDepth);
+
+        writer.WriteTextString("bitrate");
+        writer.WriteInt32(config.Bitrate);
 
         writer.WriteTextString("masterExportEnabled");
         writer.WriteBoolean(config.MasterExportEnabled);

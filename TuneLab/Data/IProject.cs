@@ -13,8 +13,10 @@ internal interface IProject : IDataObject<ProjectInfo>, ITimeline, IDisposable
     IReadOnlyDataObjectList<ITrack> Tracks { get; }
     string ExportPath { get; set; }
     string ExportFileName { get; set; }
+    string ExportFormat { get; set; }
     int ExportSampleRate { get; set; }
     int ExportBitDepth { get; set; }
+    int ExportBitrate { get; set; }
     bool MasterExportEnabled { get; set; }
     int MasterExportChannels { get; set; }
     void AddTrack(TrackInfo info);

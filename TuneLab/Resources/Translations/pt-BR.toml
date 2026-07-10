@@ -105,6 +105,8 @@
 "Deselect All" = "Desmarcar Tudo"
 "Sample Rate" = "Taxa de Amostragem"
 "Bit Depth" = "Profundidade de Bits"
+"Format" = "Formato"
+"Bitrate" = "Taxa de bits"
 "Mono" = "Mono"
 "Stereo" = "Estéreo"
 "Extensions" = "Extensões"

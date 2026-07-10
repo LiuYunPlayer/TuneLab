@@ -105,6 +105,8 @@
 "Deselect All" = "모두 선택 해제"
 "Sample Rate" = "샘플 레이트"
 "Bit Depth" = "비트 심도"
+"Format" = "형식"
+"Bitrate" = "비트레이트"
 "Mono" = "모노"
 "Stereo" = "스테레오"
 "Extensions" = "확장"

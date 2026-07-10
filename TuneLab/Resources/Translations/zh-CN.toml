@@ -105,6 +105,8 @@
 "Deselect All" = "全不选"
 "Sample Rate" = "采样率"
 "Bit Depth" = "位深度"
+"Format" = "格式"
+"Bitrate" = "比特率"
 "Mono" = "单声道"
 "Stereo" = "立体声"
 "Extensions" = "扩展"

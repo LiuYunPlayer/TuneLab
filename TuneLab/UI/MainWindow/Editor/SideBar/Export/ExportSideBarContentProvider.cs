@@ -144,6 +144,24 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
         AddSeparator();
 
+        // --- Format ---
+        AddSectionLabel("Format".Tr(TC.Dialog));
+        mFormatDropDown = new DropDown
+        {
+            Height = 28,
+            Margin = new Thickness(12, 0, 12, 8),
+            HorizontalAlignment = AvaloniaHorizontalAlignment.Stretch,
+        };
+        var formatItems = new List<DropDownItem>();
+        foreach (var label in FormatLabels)
+            formatItems.Add(new DropDownItem { Text = label });
+        mFormatDropDown.SetItems(formatItems);
+        mFormatDropDown.SelectedIndex = 0;
+        mFormatDropDown.SelectionChanged += (s, e) => { UpdateFormatDependentVisibility(); SaveExportConfigToProject(); };
+        mContentPanel.Children.Add(mFormatDropDown);
+
+        AddSeparator();
+
         // --- Sample Rate ---
         AddSectionLabel("Sample Rate".Tr(TC.Dialog));
         mSampleRateDropDown = new DropDown
@@ -162,8 +180,10 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
         AddSeparator();
 
-        // --- Bit Depth ---
-        AddSectionLabel("Bit Depth".Tr(TC.Dialog));
+        // --- Bit Depth (WAV/FLAC 无损格式) ---
+        mBitDepthGroup = new StackPanel { Orientation = Orientation.Vertical };
+        mContentPanel.Children.Add(mBitDepthGroup);
+        mBitDepthGroup.Children.Add(CreateSectionLabel("Bit Depth".Tr(TC.Dialog)));
         mBitDepthDropDown = new DropDown
         {
             Height = 28,
@@ -176,8 +196,43 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         mBitDepthDropDown.SetItems(bitDepthItems);
         mBitDepthDropDown.SelectedIndex = Array.IndexOf(BitDepths, 16);
         mBitDepthDropDown.SelectionChanged += (s, e) => SaveExportConfigToProject();
-        mContentPanel.Children.Add(mBitDepthDropDown);
+        mBitDepthGroup.Children.Add(mBitDepthDropDown);
+
+        // --- Bitrate (MP3/OGG 有损格式) ---
+        mBitrateGroup = new StackPanel { Orientation = Orientation.Vertical };
+        mContentPanel.Children.Add(mBitrateGroup);
+        mBitrateGroup.Children.Add(CreateSectionLabel("Bitrate".Tr(TC.Dialog)));
+        mBitrateDropDown = new DropDown
+        {
+            Height = 28,
+            Margin = new Thickness(12, 0, 12, 8),
+            HorizontalAlignment = AvaloniaHorizontalAlignment.Stretch,
+        };
+        var bitrateItems = new List<DropDownItem>();
+        foreach (var rate in Bitrates)
+            bitrateItems.Add(new DropDownItem { Text = rate.ToString() + " kbps" });
+        mBitrateDropDown.SetItems(bitrateItems);
+        mBitrateDropDown.SelectedIndex = Array.IndexOf(Bitrates, 320);
+        mBitrateDropDown.SelectionChanged += (s, e) => SaveExportConfigToProject();
+        mBitrateGroup.Children.Add(mBitrateDropDown);
+
+        UpdateFormatDependentVisibility();
     }
+
+    void UpdateFormatDependentVisibility()
+    {
+        bool lossy = FormatIds[Math.Max(0, mFormatDropDown.SelectedIndex)] is "mp3" or "ogg";
+        mBitDepthGroup.IsVisible = !lossy;
+        mBitrateGroup.IsVisible = lossy;
+    }
+
+    static AudioExportFormat ParseFormat(string id) => id switch
+    {
+        "mp3" => AudioExportFormat.Mp3,
+        "flac" => AudioExportFormat.Flac,
+        "ogg" => AudioExportFormat.Ogg,
+        _ => AudioExportFormat.Wav,
+    };
 
     public void SetProject(IProject? project)
     {
@@ -246,8 +301,11 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             {
                 mPathInput.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
                 mFileNameInput.Display("export");
+                mFormatDropDown.SelectedIndex = 0;
                 mSampleRateDropDown.SelectedIndex = Array.IndexOf(SampleRates, 44100);
                 mBitDepthDropDown.SelectedIndex = Array.IndexOf(BitDepths, 16);
+                mBitrateDropDown.SelectedIndex = Array.IndexOf(Bitrates, 320);
+                UpdateFormatDependentVisibility();
                 return;
             }
 
@@ -261,11 +319,19 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
                     ? fallbackName
                     : "export");
 
+            var fmtIndex = Array.IndexOf(FormatIds, mProject.ExportFormat);
+            mFormatDropDown.SelectedIndex = fmtIndex >= 0 ? fmtIndex : 0;
+
             var srIndex = Array.IndexOf(SampleRates, mProject.ExportSampleRate);
             mSampleRateDropDown.SelectedIndex = srIndex >= 0 ? srIndex : Array.IndexOf(SampleRates, 44100);
 
             var bdIndex = Array.IndexOf(BitDepths, mProject.ExportBitDepth);
             mBitDepthDropDown.SelectedIndex = bdIndex >= 0 ? bdIndex : Array.IndexOf(BitDepths, 16);
+
+            var brIndex = Array.IndexOf(Bitrates, mProject.ExportBitrate);
+            mBitrateDropDown.SelectedIndex = brIndex >= 0 ? brIndex : Array.IndexOf(Bitrates, 320);
+
+            UpdateFormatDependentVisibility();
         }
         finally
         {
@@ -280,8 +346,10 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
         mProject.ExportPath = mPathInput.Value;
         mProject.ExportFileName = mFileNameInput.Value;
+        mProject.ExportFormat = FormatIds[Math.Max(0, mFormatDropDown.SelectedIndex)];
         mProject.ExportSampleRate = SampleRates[Math.Max(0, mSampleRateDropDown.SelectedIndex)];
         mProject.ExportBitDepth = BitDepths[Math.Max(0, mBitDepthDropDown.SelectedIndex)];
+        mProject.ExportBitrate = Bitrates[Math.Max(0, mBitrateDropDown.SelectedIndex)];
 
         // Save master track settings
         if (mTrackItems.Count > 0 && mTrackItems[0].IsMaster)
@@ -315,8 +383,10 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             return;
         }
 
+        var selectedFormat = ParseFormat(FormatIds[Math.Max(0, mFormatDropDown.SelectedIndex)]);
         var selectedSampleRate = SampleRates[Math.Max(0, mSampleRateDropDown.SelectedIndex)];
         var selectedBitDepth = BitDepths[Math.Max(0, mBitDepthDropDown.SelectedIndex)];
+        var selectedBitrate = Bitrates[Math.Max(0, mBitrateDropDown.SelectedIndex)];
 
         var selectedTracks = new List<ExportTrackInfo>();
         for (int i = 0; i < mTrackItems.Count; i++)
@@ -339,8 +409,10 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             ExportPath = resolvedPath,
             FileName = fileName,
             SelectedTracks = selectedTracks,
+            Format = selectedFormat,
             SampleRate = selectedSampleRate,
             BitDepth = selectedBitDepth,
+            Bitrate = selectedBitrate,
             RangeMode = mRangeDropDown.SelectedIndex == 1 ? ExportRangeMode.Selection : ExportRangeMode.WholeSong,
         });
     }
@@ -457,14 +529,18 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
     void AddSectionLabel(string text)
     {
-        var label = new TextBlock
+        mContentPanel.Children.Add(CreateSectionLabel(text));
+    }
+
+    static TextBlock CreateSectionLabel(string text)
+    {
+        return new TextBlock
         {
             Text = text,
             FontSize = 12,
             Foreground = Style.LIGHT_WHITE.Opacity(0.7).ToBrush(),
             Margin = new Thickness(12, 8, 12, 4),
         };
-        mContentPanel.Children.Add(label);
     }
 
     void AddSeparator()
@@ -496,8 +572,12 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     readonly PathInput mPathInput;
     readonly SingleLineTextController mFileNameInput;
     readonly DropDown mRangeDropDown;
+    readonly DropDown mFormatDropDown;
     readonly DropDown mSampleRateDropDown;
     readonly DropDown mBitDepthDropDown;
+    readonly DropDown mBitrateDropDown;
+    readonly StackPanel mBitDepthGroup;
+    readonly StackPanel mBitrateGroup;
     readonly StackPanel mTrackListPanel;
     readonly List<TrackItem> mTrackItems = new();
 
@@ -505,8 +585,11 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     IProject? mProject;
     bool mIsLoading;
 
+    static readonly string[] FormatIds = ["wav", "mp3", "flac", "ogg"];
+    static readonly string[] FormatLabels = ["WAV", "MP3", "FLAC", "OGG"];
     static readonly int[] SampleRates = [32000, 44100, 48000, 88200, 96000];
     static readonly int[] BitDepths = [16, 24, 32];
+    static readonly int[] Bitrates = [128, 192, 256, 320];
 }
 
 internal class ExportTrackInfo
@@ -526,7 +609,9 @@ internal class ExportOptions
     public required string ExportPath { get; init; }
     public required string FileName { get; init; }
     public required List<ExportTrackInfo> SelectedTracks { get; init; }
+    public required AudioExportFormat Format { get; init; }
     public required int SampleRate { get; init; }
-    public required int BitDepth { get; init; }
+    public required int BitDepth { get; init; } // 无损格式(WAV/FLAC)位深
+    public required int Bitrate { get; init; }  // 有损格式(MP3/OGG)目标码率 kbps
     public required ExportRangeMode RangeMode { get; init; }
 }

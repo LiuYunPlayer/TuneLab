@@ -107,10 +107,10 @@ internal static class AudioEngine
 
     public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo)
     {
-        ExportTrack(filePath, track, isStereo, SampleRate.Value, 16);
+        ExportTrack(filePath, track, isStereo, SampleRate.Value, AudioEncodeSettings.Wav(16));
     }
 
-    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default, double startTime = 0, double? endTime = null)
+    public static void ExportTrack(string filePath, IAudioTrack track, bool isStereo, int outputSampleRate, AudioEncodeSettings settings, IProgress<double>? progress = null, CancellationToken cancellationToken = default, double startTime = 0, double? endTime = null)
     {
         double defaultEndTime = Math.Max(track.EndTime, 0) + 1;
         int startPosition = (Math.Max(startTime, 0) * SampleRate.Value).Floor();
@@ -139,16 +139,16 @@ internal static class AudioEngine
         progress?.Report(0.9);
         cancellationToken.ThrowIfCancellationRequested();
 
-        AudioUtils.EncodeToWav(filePath, buffer, outputSampleRate, bitDepth, channelCount);
+        AudioUtils.Encode(filePath, buffer, outputSampleRate, channelCount, settings);
         progress?.Report(1.0);
     }
 
     public static void ExportMaster(string filePath, bool isStereo)
     {
-        ExportMaster(filePath, isStereo, SampleRate.Value, 16);
+        ExportMaster(filePath, isStereo, SampleRate.Value, AudioEncodeSettings.Wav(16));
     }
 
-    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, int bitDepth, IProgress<double>? progress = null, CancellationToken cancellationToken = default, double startTime = 0, double? endTime = null)
+    public static void ExportMaster(string filePath, bool isStereo, int outputSampleRate, AudioEncodeSettings settings, IProgress<double>? progress = null, CancellationToken cancellationToken = default, double startTime = 0, double? endTime = null)
     {
         int startPosition = (Math.Max(startTime, 0) * SampleRate.Value).Floor();
         int endPosition = ((endTime ?? AudioGraph.EndTime) * SampleRate.Value).Ceil();
@@ -176,7 +176,7 @@ internal static class AudioEngine
         progress?.Report(0.9);
         cancellationToken.ThrowIfCancellationRequested();
 
-        AudioUtils.EncodeToWav(filePath, buffer, outputSampleRate, bitDepth, channelCount);
+        AudioUtils.Encode(filePath, buffer, outputSampleRate, channelCount, settings);
         progress?.Report(1.0);
     }
 

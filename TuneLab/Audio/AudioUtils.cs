@@ -35,9 +35,9 @@ internal static class AudioUtils
         return mAudioCodec!.Decode(path, ref sampleRate);
     }
 
-    public static void EncodeToWav(string path, float[] buffer, int sampleRate, int bitPerSample, int channelCount)
+    public static void Encode(string path, float[] buffer, int sampleRate, int channelCount, AudioEncodeSettings settings)
     {
-        mAudioCodec!.EncodeToWav(path, buffer, sampleRate, bitPerSample, channelCount);
+        mAudioCodec!.Encode(path, buffer, sampleRate, channelCount, settings);
     }
 
     public static float[] Resample(float[] buffer, int channelCount, int inputSampleRate, int outputSampleRate)
