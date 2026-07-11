@@ -130,7 +130,9 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // **不**用引擎回报的绝对位置（那是已去重叠压缩的产物；喂给布局会让相接判据把"已压缩到核前"误判成"有空隙"而
     // 跳过压缩）。改用自然几何后合成 note 与钉死 note 在跨 note 推挤里行为一致：拖邻居前辅音时本 note 元音同步压缩。
     // overrideIdx≥0 时本 note 该钉死音素改用 overrideDur（拖拽反解用，不改数据）；核时长恒按填充派生、override 对其无效。
-    private static PhonemeLayoutNote BuildLayoutNote(INote note, int overrideIdx = -1, double overrideDur = 0)
+    // overridePreutter 非 NaN 时本 note 前置量改用它（拖首音素/纯前置边界反解用，不改数据）。
+    // overrideIdx2/overrideDur2：第二处时长覆盖（同 note 内 roll 需同时改被拖线两侧两个音素，反解用）。
+    private static PhonemeLayoutNote BuildLayoutNote(INote note, int overrideIdx = -1, double overrideDur = 0, double overridePreutter = double.NaN, int overrideIdx2 = -1, double overrideDur2 = 0)
     {
         IReadOnlyList<SynthesizedPhoneme> phonemes;
         double preutterance;
@@ -141,7 +143,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
                 arr[k] = new SynthesizedPhoneme
                 {
                     Symbol = note.Phonemes[k].Symbol.Value,
-                    Duration = k == overrideIdx ? overrideDur : note.Phonemes[k].Duration.Value,
+                    Duration = k == overrideIdx ? overrideDur : k == overrideIdx2 ? overrideDur2 : note.Phonemes[k].Duration.Value,
                     StretchWeight = note.Phonemes[k].StretchWeight.Value,
                 };
             phonemes = arr;
@@ -157,6 +159,9 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             phonemes = [];
             preutterance = 0;
         }
+
+        if (!double.IsNaN(overridePreutter))
+            preutterance = overridePreutter;
 
         return new PhonemeLayoutNote { FillStart = note.StartTime, FillEnd = note.ForwardFillEnd(), Preutterance = preutterance, Phonemes = phonemes };
     }
@@ -213,7 +218,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // （前/后最近**有内容**邻居 + 本，含合成邻居）喂全局两阶布局（SDK 的 VoicePhonemeLayout）：元音先让、辅音簇
     // 等比压（含跨 note 辅音簇）。相邻 note 间边界相互独立，故 3-note 窗口足以正确解析本 note 两条边界。
     // overrideIdx≥0：用 overrideDur 代替本 note 该音素时长（拖拽反解用，不改数据）。
-    private (double Start, double End)[] ResolvedRelTimes(int overrideIdx, double overrideDur)
+    private (double Start, double End)[] ResolvedRelTimes(int overrideIdx, double overrideDur, double overridePreutter = double.NaN)
     {
         int n = Phonemes.Count;
         var window = new List<PhonemeLayoutNote>();
@@ -222,7 +227,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         if (prev != null)
             window.Add(BuildLayoutNote(prev));
         int baseIndex = window.Count;   // 本 note 在窗口中的下标
-        window.Add(BuildLayoutNote(this, overrideIdx, overrideDur));
+        window.Add(BuildLayoutNote(this, overrideIdx, overrideDur, overridePreutter));
         if (next != null)
             window.Add(BuildLayoutNote(next));
 
@@ -235,6 +240,39 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     }
 
     public IReadOnlyList<(double Start, double End)> EffectivePinnedPhonemeTimes() => ResolvedRelTimes(-1, 0);
+
+    // 拖边界所在压缩域是否全刚性（无 w>0 弹性核）：本 note + 相接内容邻居全部音素 w==0 才算。
+    // 全刚性 = 无吸收者 → 拖边界走 roll（左右对分守恒总长），否则弹性核吸收、走反解 bisect。合成音素也算入（按其权重）。
+    private bool BoundaryDomainAllRigid()
+    {
+        static bool AllRigid(INote x)
+        {
+            if (!x.Phonemes.IsEmpty())
+                return x.Phonemes.All(p => p.StretchWeight.Value == 0);
+            var s = x.SynthesizedPhonemes;
+            return s == null || s.All(p => p.StretchWeight == 0);
+        }
+        if (!AllRigid(this))
+            return false;
+        if (PrevContentNeighbor() is { } prev && !AllRigid(prev))
+            return false;
+        if (NextContentNeighbor() is { } next && !AllRigid(next))
+            return false;
+        return true;
+    }
+
+    // 拖音素边界起手的钉死：钉死本 note；若可能发生跨 note roll（拖首音素起边界 + 相接前内容邻居 + 全刚性域），
+    // 一并钉死前内容邻居——因 roll 要编辑前邻末音素，它须有可编辑的钉死音素（否则仍是只读合成音素）。
+    // 由波形拖杆 op 在 Down 时调用（钉死须先于 mHead 快照，DiscardTo 才保钉死态）。
+    public void LockPhonemesForBoundaryDrag(int index)
+    {
+        this.LockPhonemes();
+        // 与 DragPinnedBoundary 的跨 note roll 门槛一致：仅当拖首音素、全刚性域、本音素有拍前部分、前邻相接时才会 roll 进前邻
+        //（否则不需编辑前邻，勿多余钉死邻居）。此处 this 已钉死，Preutterance 取钉死值。
+        if (index == 0 && Preutterance.Value > 1e-9 && BoundaryDomainAllRigid()
+            && PrevContentNeighbor() is { } prev && prev.ForwardFillEnd() >= StartTime)
+            prev.LockPhonemes();
+    }
 
     // 拖拽音素起边界（index = 音素 index 的起点；末边界 index==n 派生不可拖）：把该边界拖到【显示】相对秒 targetRel。
     // 规则「编辑相邻的刚性音素」——刚性音素时长直接=屏幕长度、可直接设；弹性音素长度是派生的（由 Distribute 吸收）：
@@ -254,19 +292,114 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         double cum = 0;                                  // 音素 index 起点的自然 offset
         for (int k = 0; k < index; k++) cum += Math.Max(0, Phonemes[k].Duration.Value);
 
-        // 首音素(index==0)的左边界 = 其拍前部分(front)的起点。index==0 时 cum=0 → front 自然长 = Preutterance
-        // （拍前未压缩，1:1，故 front 显示长 = 自然长 = −targetRel）。前面无音素可编辑，统一按「改 front(=Preutterance)、
-        // 保持拍后部分(back)不变」处理，右缘随之：左缘越左 → front 增（纯前置更长 / 跨拍前半更多）；越过 note 头 → front→0（全拍后）。
-        // 纯前置 lead(back=0)与跨拍首音素(back>0)都线性跟手、无跳；避免走拍后 bisect 去改被 front 钉死的首音素起点（无杠杆→发散→挤没邻居）。
+        // 全刚性域（无弹性核，如 legacy 全 w=0）：拖边界不能靠核吸收——弹性反解会让被拖音素自然长发散（越拖越钝、
+        // 自然长冲向无穷、拆开相接音符即露馅）。改走 roll：在被拖线两侧相邻音素间转移自然长（守恒二者之和），
+        // 显示线性、有界（转移量夹在守恒区间内）、不发散。左音素 = index>0 时本 note[index−1]；index==0 时相接前
+        // 内容邻居的末音素（跨 note）。Preutterance 只随「被拖音素是其 note 首音素(index 0) 且向左长」而 +d——首音素左缘
+        // = note 前置区起点，左移即前置量 +d。被削的左音素动的是其**拍后侧右缘**（拍前部分不动），故左音素所在 note 的
+        // Preutterance 保持不变——修「拖后音符辅音影响前音符拍前音素」。跨 note roll 需前邻已钉死（见 LockPhonemesForBoundaryDrag）。
+        if (BoundaryDomainAllRigid())
+        {
+            var right = Phonemes[index];
+            double r0 = Math.Max(0, right.Duration.Value);
+
+            IPhoneme? left = null;
+            INote? rollPrev = null;
+            int leftIdx = -1;
+            double l0 = 0;
+            if (index > 0)
+            {
+                double cumLeft = cum - Math.Max(0, Phonemes[index - 1].Duration.Value);
+                // 仅当被拖线两侧音素同域时才 roll——同 note 内即「两侧都在拍后」（左音素起点 ≥ note 头，同属本 note 填充域，
+                // 边界不跨拍前/拍后分界，两侧 Preutterance 均不受影响）。否则不 roll，落通用分支。
+                if (cumLeft >= preutter - 1e-9)
+                {
+                    leftIdx = index - 1;
+                    left = Phonemes[leftIdx];
+                    l0 = Math.Max(0, left.Duration.Value);
+                }
+            }
+            // 跨 note：被拖首音素须确为借入前邻填充域的前置料——前邻相接（其填充末 ≥ 本 note 头）且本音素有拍前部分
+            //（preutter>0）。前邻须已钉死（Down 时 LockPhonemesForBoundaryDrag 已处理）方可编辑其末音素。
+            else if (preutter > 1e-9 && PrevContentNeighbor() is { } p && !p.Phonemes.IsEmpty() && p.ForwardFillEnd() >= StartTime)
+            {
+                rollPrev = p;
+                leftIdx = p.Phonemes.Count - 1;
+                left = p.Phonemes[leftIdx];
+                l0 = Math.Max(0, left.Duration.Value);
+            }
+            // left==null（边界跨域 / 无相接前邻 / 前邻未钉死 / 纯 onset）：无同域 roll 伙伴 → 落下面通用分支（自由左堆 1:1、不发散）。
+
+            if (left != null)
+            {
+                // 转移量 d（>0 = 被拖音素向左长、左邻缩）→ 被拖音素显示起点（相对本 note 头）。
+                // index==0（跨 note）：本 note 前置量 += d（首音素左移）；前邻 Preutterance 不覆写（保持——只削其末音素拍后侧）。
+                // index>0（同 note、两侧拍后）：Preutterance 不变。
+                double StartAt(double d)
+                {
+                    double rightDur = Math.Max(0, r0 + d), leftDur = Math.Max(0, l0 - d);
+                    var window = new List<PhonemeLayoutNote>();
+                    var prevN = PrevContentNeighbor();
+                    var nextN = NextContentNeighbor();
+                    int baseIndex;
+                    if (index == 0)
+                    {
+                        if (prevN != null)
+                            window.Add(ReferenceEquals(prevN, rollPrev)
+                                ? BuildLayoutNote(prevN, leftIdx, leftDur)     // 前邻 Preutterance 保持（不覆写）
+                                : BuildLayoutNote(prevN));
+                        baseIndex = window.Count;
+                        window.Add(BuildLayoutNote(this, 0, rightDur, Math.Max(0, preutter + d)));
+                    }
+                    else
+                    {
+                        if (prevN != null) window.Add(BuildLayoutNote(prevN));
+                        baseIndex = window.Count;
+                        window.Add(BuildLayoutNote(this, index, rightDur, double.NaN, index - 1, leftDur));
+                    }
+                    if (nextN != null) window.Add(BuildLayoutNote(nextN));
+                    return PhonemeLayout.Resolve(window)[baseIndex][index].Start - StartTime;
+                }
+
+                // d ∈ [−r0, l0]（守恒区间，两侧均 ≥ 0）；StartAt 随 d 增单调减（右音素向左长）。目标越界即夹到端点。
+                double lo = -r0, hi = l0;
+                for (int it = 0; it < 40; it++)
+                {
+                    double mid = (lo + hi) / 2;
+                    if (StartAt(mid) <= targetRel) hi = mid; else lo = mid;
+                }
+                double dd = (lo + hi) / 2;
+                right.Duration.Set(Math.Max(0, r0 + dd));
+                left.Duration.Set(Math.Max(0, l0 - dd));
+                if (index == 0)
+                    Preutterance.Set(Math.Max(0, preutter + dd));   // 本 note 前置量随首音素左移增长；前邻 Preutterance 不动
+                return;
+            }
+        }
+
+        // 首音素(index==0)的左边界 = 其拍前部分(front)的起点。index==0 时 cum=0 → front 自然长 = Preutterance。
+        // 编辑的正确旋钮是 front(=Preutterance)、拍后部分(back)不变（避免走拍后 bisect 去改被 front 钉死的首音素
+        // 起点——无杠杆→发散→挤没邻居）：左缘越左 → front 增（纯前置更长 / 跨拍前半更多）；越过 note 头 → front→0（全拍后）。
+        // 但 front 的【显示】长 ≠ 自然长：当相接前 note 把本音素前置料借入其填充域时，前置被 Distribute 压缩
+        //（非 1:1）。故不能直接令 front = −targetRel，须按显示几何 bisect front，使首音素显示起点落到 targetRel
+        //（跨 note 相接压缩、以及无 lead 前置自由左堆都由布局统一反解，线性跟手、无跳）。
         if (index == 0)
         {
             double firstDur = Math.Max(0, Phonemes[0].Duration.Value);
             if (preutter <= firstDur + 1e-9)   // note 头落在首音素内（跨拍 / 纯前置末 / 全拍后）：改 front(=Preutterance)、保拍后部分(back)、右缘随之
             {
                 double back = Math.Max(0, firstDur - preutter);
-                double newPre = Math.Max(0, -targetRel);       // 左缘位置 → 新 front（拍前未压缩 1:1）
-                Preutterance.Set(newPre);
-                Phonemes[0].Duration.Set(newPre + back);
+                // 给定 front（拍前自然长），首音素显示起点：Duration = front + back、Preutterance = front 一并喂布局反解。
+                double StartAt(double front) => ResolvedRelTimes(0, front + back, front)[0].Start;
+                double loF = 0, hiF = Math.Max(firstDur, 0.05);
+                for (int i = 0; i < 24 && StartAt(hiF) > targetRel; i++) hiF *= 2;   // front↑ → 起点↓（单调减），倍增找下界
+                for (int it = 0; it < 32; it++)
+                {
+                    double mid = (loF + hiF) / 2;
+                    if (StartAt(mid) <= targetRel) hiF = mid; else loF = mid;
+                }
+                Preutterance.Set(hiF);
+                Phonemes[0].Duration.Set(hiF + back);
                 return;
             }
             // 否则首音素整段拍前、note 头更深（其后才有 lead/跨拍音素）：落到下面纯前置分支——grow 首音素 + Preutterance 同步，
@@ -280,11 +413,20 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
 
         double oldDur = Math.Max(0, Phonemes[index].Duration.Value);
 
-        if (cum + oldDur < preutter + 1e-9)              // **整段**在拍前（音素末 ≤ note 头）= 纯前置：右缘固定、线性求长 + Preutterance 同步吸收
+        if (cum + oldDur < preutter + 1e-9)              // **整段**在拍前（音素末 ≤ note 头）= 纯前置：右缘固定、Preutterance 同步吸收
         {
-            double newDur = Math.Max(0, cur[index].End - targetRel);
-            Phonemes[index].Duration.Set(newDur);
-            Preutterance.Set(Math.Max(0, preutter + (newDur - oldDur)));
+            // grow 本音素 + Preutterance 同量（保后续切点/跨拍不变）。显示长 ≠ 自然长（相接前 note 借入其前置料会压缩），
+            // 故按显示几何 bisect 自然时长，使本音素显示起点落到 targetRel（自由左堆时压缩比 = 1、退化为线性，与旧式等价）。
+            double StartAt(double dur) => ResolvedRelTimes(index, dur, Math.Max(0, preutter + (dur - oldDur)))[index].Start;
+            double loD = 0, hiD = Math.Max(oldDur, 0.05);
+            for (int i = 0; i < 24 && StartAt(hiD) > targetRel; i++) hiD *= 2;   // dur↑ → 起点↓（单调减）
+            for (int it = 0; it < 32; it++)
+            {
+                double mid = (loD + hiD) / 2;
+                if (StartAt(mid) <= targetRel) hiD = mid; else loD = mid;
+            }
+            Phonemes[index].Duration.Set(hiD);
+            Preutterance.Set(Math.Max(0, preutter + (hiD - oldDur)));
             return;
         }
         // 到这里 index 音素末 > note 头：要么整段拍后、要么**本音素就是跨拍音素**（其左边界虽在拍前，整段却跨过 note 头）。

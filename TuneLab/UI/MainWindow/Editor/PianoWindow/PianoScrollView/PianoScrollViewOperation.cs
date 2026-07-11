@@ -3043,9 +3043,10 @@ internal partial class PianoScrollView
         public void Down(double x, INote note, int index)
         {
             var head = note.Part.Head;
-            // 只锁定被拖的 note（不锁邻居）：反解只需 3-note 窗口，且布局已支持合成邻居参与推挤（无需邻居钉死）。
+            // 钉死被拖的 note；若将发生跨 note roll（全刚性域拖首音素起边界），一并钉死前内容邻居使其末音素可编辑
+            //（见 INote.LockPhonemesForBoundaryDrag）。非 roll 情形只锁本 note——反解只需 3-note 窗口、合成邻居可参与推挤。
             // 代价是提交触发重合成时，与本 note 同块的相邻合成音素会短暂留白再回显——可接受，换取不冻结全曲预测。
-            note.LockPhonemes();
+            note.LockPhonemesForBoundaryDrag(index);
             // 被显示门控留白的 note 本就没有手柄、拖不动（DisplayPhonemes 为空）；此处仍兜底，避免极端时序下取空索引崩溃。
             var phonemes = note.DisplayPhonemes;
             if (note.Phonemes.IsEmpty() || phonemes.IsEmpty() || index > phonemes.Count)

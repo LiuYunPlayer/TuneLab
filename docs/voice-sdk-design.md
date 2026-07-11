@@ -418,6 +418,17 @@ IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get
 - **锁定零跳变**：锁定 = 宿主取 `{Duration, StretchWeight, IsLead}` 按「核起点 = 音符头」重新派生位置；显示侧 `PhonemeLayout` 按当前邻居重新分配（可伸音素按 `r^w` 重新缩放），与合成同源、常态不双重压缩，无需「反压缩」。
 - **preview 纯显示、绝不反馈给引擎当约束**：权威时长由全量合成重新定时返回（带新权重），覆盖 preview。
 
+### 编辑：生长方向与全刚性 roll（宿主编辑侧，不入契约）
+
+用户改音素长度有两个入口——**波形带拖音素起边界拖杆**、**侧栏音素时长数值框**——两者共用一套「按 note 头派生生长方向」的语义。核心不变量：
+
+- **nominal 神圣**：一次编辑只改用户直接操作的音素的 nominal（`Duration`）+ 其所属 note 的 `Preutterance`；**绝不**把邻居核的 nominal 当吸收暂存去改（核 nominal=0 是乘法奇点 `d·r^w≡0`，撤走上下文后弹不回、是数据损坏）。
+- **生长方向由 head 派生**：音素在其 note 头之前的占比 `f = clamp(Preutterance − 前缀累计, 0, 时长) / 时长`。改长度 δ 时 `Preutterance += f·δ`——纯拍前 `f=1`（前置辅音向左长、右缘钉在 head）、纯拍后 `f=0`（向右长）、跨拍按比例，两端连续无跳。侧栏数值框即按此耦合 `Preutterance`（起手取基线 `f`，随 `DiscardTo` 每帧从基线重算）。
+- **有弹性核（w>0）时**：拖某刚性音素边界 = 改该音素 nominal，弹性核在布局里自动吸收（刚性显示=自然长、1:1 跟手），其余音素不动、核 nominal 不变，有界不发散。反解 bisect 命中显示目标即可。
+- **全刚性域（无核，如 legacy 全 `w=0`）**：无吸收者 → 若仍靠反解会让被拖音素自然长发散（越拖越钝、拆开相接音符露出畸长）。改走 **roll**：在被拖线两侧相邻音素间转移自然长（守恒二者之和）——被拖边界线性跟手、域端点固定、自然长夹在 `[0, 两者之和]` 内。左音素 = 同 note 内 `index−1`（两侧须同在拍后即同域），或拖首音素时**相接前内容邻居的末音素**（跨 note roll，前邻的前置料被借入本域）。跨 note roll 需前邻已钉死方可编辑，故拖杆按下时按同一门槛一并钉死前邻（见宿主 `INote.LockPhonemesForBoundaryDrag`）。两侧各按自己的 `f` 同步各自 note 的 `Preutterance`。
+
+> 说明：当前实现只对「域内有核」与「全刚性」两类做了闭环。**同域多核**（如权重 `1 0 0 1`，改中间刚性时全局等比会让两侧核都动）尚保留全局等比行为——它非发散、nominal 安全，只是「仅最近核让位」的定向吸收待做（需把 `PhonemeLayout` 的全局等比压缩改为按核分单元的局部压缩，属共享契约变更，暂缓）。
+
 ### 音素属性（per-phoneme 自定义属性，引擎声明 + 宿主通用持有）
 
 让 voice 引擎能给**音素**声明用户可编辑的自定义属性（与 note 的 `GetNotePropertyConfig` 平行），用于按音素设引擎特定值（如每音素 tension / 对齐微调 / 语言 tag / 音素级混合比例）。per-phoneme 的**引擎专属、宿主不解释**数据走 `PropertyObject` 属性袋——这正是 `PropertyObject` 在 note/part 上扮演的角色（宿主不懂语义、引擎声明 schema、宿主通用地存 / 撤销 / 渲染），故 phoneme 沿用同一机制，而非在几何描述符里塞 `Language` 这种宿主根本不关心的 typed 字段。

@@ -385,7 +385,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             var strip = new DockPanel() { Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush() };
             var rightGroup = new StackPanel() { Orientation = Orientation.Horizontal, Margin = new(0, 0, 4, 0) };
             rightGroup.Children.Add(BuildDoubleField("Duration".Tr(TC.Property), members,
-                ph => ph.Duration, sp => sp.Duration, DurationConfig));
+                ph => ph.Duration, sp => sp.Duration, DurationConfig, couplePreutterance: true));
             rightGroup.Children.Add(BuildDoubleField("Stretch Weight".Tr(TC.Property), members,
                 ph => ph.StretchWeight, sp => sp.StretchWeight, WeightConfig));
             DockPanel.SetDock(rightGroup, Dock.Right);
@@ -446,8 +446,13 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     // 内建 double 字段（时长 / 权重）：[标题 | 可拖数值框] 同行。复用引擎属性那套——每成员一个 buffer（共享 throwaway doc）
     // 经 MultipleDataPropertyObject 扇出 + 三态合并；DraggableNumberBox 的拖动 merge 经此 buffer 走，settled 时对各成员
     // LockPhonemes（合成→钉死）+ 写回内建字段 + 一个撤销步。read 取当前值（钉死/合成）、write 落到 Duration/StretchWeight。
+    // couplePreutterance（仅时长字段）：改音素长度时按「拍前占比 f」同步 Preutterance（P += f·δ）——拍前音素向左长
+    // （前置辅音的物理生长方向）、拍后向右长、跨拍按比例分。f = clamp(P−cumBefore, 0, 旧长)/旧长，取编辑起手基线。
+    // 这与拖音素分界线同源（均由 note 头位置派生生长方向），只是入口是数值框。开启后强制走手写编辑路径（非 BindDataProperty），
+    // 因为要在写时长的同一步里改 Preutterance。
     Control BuildDoubleField(string tooltip, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members,
-        Func<IPhoneme, IDataProperty<double>> field, Func<SynthesizedPhoneme, double> synthValue, DraggableNumberBoxConfig config)
+        Func<IPhoneme, IDataProperty<double>> field, Func<SynthesizedPhoneme, double> synthValue, DraggableNumberBoxConfig config,
+        bool couplePreutterance = false)
     {
         var box = new DraggableNumberBox
         {
@@ -466,7 +471,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         };
         box.SetupToolTip(tooltip);
 
-        if (members.All(m => m.Note.Pinned))
+        if (!couplePreutterance && members.All(m => m.Note.Pinned))
         {
             // 全钉死：直接绑定真实属性。BindDataProperty 一手包办"订阅数据→刷新显示 + 编辑→merge/commit/撤销"；
             // 中间态双向同步后，拖动经数据层通知钢琴窗实时重绘。多成员扇出 + 三态经 MultipleDataProperty。
@@ -505,6 +510,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         //（签名未变、不触发重建）时由面板级 OnSynthesizedPhonemesChanged 分流为值级标脏，此处无需再订阅。
 
         Head editHead = default;
+        // Preutterance 耦合的编辑起手基线：每 note 一份（旧长 + 起手 Preutterance + 拍前占比 f），随 DiscardTo 每帧从此基线重算。
+        var baseline = new Dictionary<INote, (double OldDur, double P0, double Front)>();
         box.ValueWillChange.Subscribe(() =>
         {
             if (mPart == null)
@@ -514,6 +521,22 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 n.Note.LockPhonemes();
             mPart.BeginMergeDirty();
             editHead = mPart.Head;
+            if (couplePreutterance)
+            {
+                baseline.Clear();
+                foreach (var (n, idx) in members)
+                {
+                    var note = n.Note;
+                    if (idx >= note.Phonemes.Count)
+                        continue;
+                    double cumBefore = 0;
+                    for (int k = 0; k < idx; k++) cumBefore += Math.Max(0, note.Phonemes[k].Duration.Value);
+                    double oldDur = Math.Max(0, note.Phonemes[idx].Duration.Value);
+                    double p0 = note.Preutterance.Value;
+                    double f = oldDur > 1e-9 ? Math.Clamp((p0 - cumBefore) / oldDur, 0, 1) : 0;   // 拍前占比
+                    baseline[note] = (oldDur, p0, f);
+                }
+            }
         }, mPhonemeSub);
         box.ValueChanged.Subscribe(() =>
         {
@@ -523,8 +546,13 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             var v = box.Value;
             mPart.DiscardTo(editHead);
             foreach (var (n, idx) in members)
-                if (idx < n.Note.Phonemes.Count)
-                    field(n.Note.Phonemes[idx]).Set(v);
+            {
+                if (idx >= n.Note.Phonemes.Count)
+                    continue;
+                field(n.Note.Phonemes[idx]).Set(v);
+                if (couplePreutterance && baseline.TryGetValue(n.Note, out var bl))
+                    n.Note.Preutterance.Set(Math.Max(0, bl.P0 + bl.Front * (v - bl.OldDur)));   // P += f·δ（拍前占比同步）
+            }
         }, mPhonemeSub);
         box.ValueCommitted.Subscribe(() =>
         {

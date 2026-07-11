@@ -146,4 +146,24 @@ public class PhonemeLayoutTests
         Assert.Equal(1.5, r[0][1].End, 9);                      // v 弹性填满 note 域
         Assert.True(r[0][0].End > 1.0 + 1e-6);                  // 关键：边界确实跨过 note 头、未被 snap
     }
+
+    // 全刚性域拖边界的 roll 不变量（本 note 内两拍后刚性音素）：在被拖线两侧转移自然长（守恒二者之和）→ 被拖边界移动、
+    // 域端点（起/末）固定、自然长有界（≤ 两者之和）。这是 INote.DragPinnedBoundary 全刚性分支所依赖的模型：无弹性核可吸收时
+    // 改用 roll，避免「只改单侧 → 等比压缩下自然长发散」（越拖越钝、拆开相接音符露出畸长）。
+    [Fact]
+    public void AllRigid_RollConservesTotal_EndpointsFixed()
+    {
+        // a(0.9,w0) k(0.3,w0) 均拍后，域 [0,1.0] 过满（自然和 1.2）→ 等比压缩比 1/1.2
+        var before = PhonemeLayout.Resolve(new[] { Note(0, 0, 1.0, Ph("a", 0.9, 0), Ph("k", 0.3, 0)) });
+        _out.WriteLine($"before a={before[0][0]} k={before[0][1]}");
+        Assert.Equal(0.75, before[0][0].End, 9);                // a|k 边界 = 0.9/1.2
+        Assert.Equal(1.0, before[0][1].End, 9);                 // 域末固定
+
+        // roll：a→k 转移自然长 0.3（守恒和恒为 1.2），a=0.6 k=0.6
+        var after = PhonemeLayout.Resolve(new[] { Note(0, 0, 1.0, Ph("a", 0.6, 0), Ph("k", 0.6, 0)) });
+        _out.WriteLine($"after a={after[0][0]} k={after[0][1]}");
+        Assert.Equal(0.0, after[0][0].Start, 9);                // 域起固定
+        Assert.Equal(0.5, after[0][0].End, 9);                  // a|k 边界左移到 0.6/1.2 = 0.5（线性跟随转移量）
+        Assert.Equal(1.0, after[0][1].End, 9);                  // 域末仍固定，未受影响
+    }
 }
