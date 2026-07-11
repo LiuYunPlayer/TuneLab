@@ -67,6 +67,26 @@ public partial class App : Application
 
                 LegacyCompatLoader.Wire();
                 ExtensionManager.LoadExtensions();
+
+                // 声库引擎须在 MainWindow 构建前初始化：MainWindow 构造时会新建默认工程，
+                // 其 part 立即 Activate 并构建合成管线，此刻引擎若未 Init 则会回落到空会话且无回建路径（起动即无声）。
+                // （同时也让 Set Voice 右键菜单更快弹出。）
+                foreach (var engine in VoicesManager.GetAllVoiceEngines())
+                {
+                    try
+                    {
+                        VoicesManager.InitEngine(engine);
+                    }
+                    catch (Exception ex)
+                    {
+                        var dialog = new Dialog();
+                        dialog.SetTitle("Error");
+                        dialog.SetMessage(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
+                        dialog.AddButton("OK", Dialog.ButtonType.Primary);
+                        dialog.Show();
+                    }
+                }
+
                 mMainWindow = new MainWindow();
                 desktop.MainWindow = mMainWindow;
 
@@ -110,23 +130,6 @@ public partial class App : Application
                 dialog.SetMessage(ex.ToString());
                 dialog.AddButton("Quit", Dialog.ButtonType.Primary).Clicked += () => { Process.GetCurrentProcess().Kill(); };
                 dialog.Show();
-            }
-
-            // 暂时改为提前初始化，使Set Voice右键菜单能更快弹出
-            foreach (var engine in VoicesManager.GetAllVoiceEngines())
-            {
-                try
-                {
-                    VoicesManager.InitEngine(engine);
-                }
-                catch (Exception ex)
-                {
-                    var dialog = new Dialog();
-                    dialog.SetTitle("Error");
-                    dialog.SetMessage(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
-                    dialog.AddButton("OK", Dialog.ButtonType.Primary);
-                    dialog.Show();
-                }
             }
         }
 
