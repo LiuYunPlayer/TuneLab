@@ -56,21 +56,18 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
         public int Pitch => note.Pitch.Value;
         public string Lyric => note.Lyric.Value;   // 仅 IVoiceSynthesisNoteView 暴露
         public PropertyObject Properties => note.Properties.GetInfo();
-        // 前置量（拍前发声量）：钉死取 note.Preutterance，否则取合成回填的 SynthesizedPreutterance。
-        public double Preutterance => note.Phonemes.Count > 0 ? note.Preutterance.Value : note.SynthesizedPreutterance;
-        // 该 note 的**显示音素**（仅 IVoiceSynthesisNoteView 暴露——instrument 无音素）：钉死则取 IPhoneme（带属性）、
+        // 结合线偏移：钉死取 note.BodyOffset，否则取合成回填的 SynthesizedSyllable.BodyOffset。
+        public double BodyOffset => note.HasPinnedPhonemes ? note.BodyOffset.Value : (note.SynthesizedSyllable?.BodyOffset ?? 0);
+        // 该 note 的**显示音素**双列表（仅 IVoiceSynthesisNoteView 暴露——instrument 无音素）：钉死则取 IPhoneme（带属性）、
         // 否则取合成音素（属性空，编辑时由宿主钉死后写入）。引擎据此对所见音素声明属性 schema，无论是否已钉死。
-        public IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes
-        {
-            get
-            {
-                if (note.Phonemes.Count > 0)
-                    return note.Phonemes.Select(p => new PartPhoneme(p)).ToList();
-                if (note.SynthesizedPhonemes is { Length: > 0 } synth)
-                    return synth.Select(p => new PartPhoneme(p)).ToList();
-                return [];
-            }
-        }
+        public IReadOnlyList<IVoiceSynthesisPhonemeView> LeadingPhonemes => note.HasPinnedPhonemes
+            ? note.LeadingPhonemes.Select(p => new PartPhoneme(p)).ToList()
+            : (note.SynthesizedSyllable?.LeadingPhonemes.Select(p => new PartPhoneme(p)).ToList() ?? []);
+        public IReadOnlyList<IVoiceSynthesisPhonemeView> BodyPhonemes => note.HasPinnedPhonemes
+            ? note.BodyPhonemes.Select(p => new PartPhoneme(p)).ToList()
+            : (note.SynthesizedSyllable?.BodyPhonemes.Select(p => new PartPhoneme(p)).ToList() ?? []);
+        // 全序列视图 = 引导 ++ 主体（音素属性 schema 声明按此串对齐）。
+        public IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes => [.. LeadingPhonemes, .. BodyPhonemes];
     }
 
     // part 数据音素的只读值视图（声明面，voice 专属）：几何当前值 + per-phoneme 属性值快照。

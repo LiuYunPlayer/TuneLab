@@ -3,8 +3,8 @@ using System.Collections.Generic;
 
 namespace TuneLab.SDK;
 
-// 一个 note 的音素布局输入：几何锚点（note 头 / 填充末）+ 前置量 Preutterance + 该 note 的音素描述符（时间序）。
-// 音素位置不传——由布局按时长模型从「note 头 + Preutterance + 标称时长 + 权重」派生。
+// 一个 note 的音素布局输入：几何锚点（note 头 / 填充末）+ 结构化双列表（引导 / 主体）+ 有符号 BodyOffset。
+// 音素位置不传——由布局按时长模型从「junction = note 头 + BodyOffset + 标称时长 + 权重」单次锚定派生。
 public readonly struct PhonemeLayoutNote
 {
     // 填充区间左界 = note 头（绝对秒）。这是压缩域的分界线：note 头之前的音素料归**前 note** 的域，
@@ -16,15 +16,20 @@ public readonly struct PhonemeLayoutNote
     // 这是 WYSIWYG 口径：要音频 == 宿主显示，FillEnd 须与宿主同口径。
     public double FillEnd { get; init; }
 
-    // 前置量（自然秒）：note 头之前音素的占位长度 = note 头落在本 note 音素自然时间带上的偏移（从首音素起点量起）。
-    // 决定 lead/核归属——**派生、无 per-phoneme 标志**：自然带上偏移 < Preutterance 的音素在 note 头之前（拍前料），
-    // 之后在其后（拍后料）。若 note 头恰落进某音素内部（跨拍，如半元音）→ 该音素一分为二：前半归前 note 压缩域、
-    // 后半归本域，两半锚 note 头处相接（重压时前后半压缩比不同，允许拐点）。Preutterance 钳到 [0, Σ时长]。
-    // 与相接判据正交（判据只吃 note 几何 FillStart/FillEnd），故放开前置量不影响跨 note 去重叠的相接判定。
-    public double Preutterance { get; init; }
+    // 引导音素（核前前置辅音），时间序。布局只读其 Duration / StretchWeight。
+    public IReadOnlyList<SynthesizedPhoneme> LeadingPhonemes { get; init; }
+    // 主体音素（核 + 尾辅音），时间序。
+    public IReadOnlyList<SynthesizedPhoneme> BodyPhonemes { get; init; }
 
-    // 本 note 的音素，顺序 = 时间序。布局只读其 Duration / StretchWeight（不读 IsLead——前后归属由 Preutterance 派生）。
-    public IReadOnlyList<SynthesizedPhoneme> Phonemes { get; init; }
+    // 主体起点（= 两列表结合线 junction）相对 note 头的有符号偏移：junction = FillStart + BodyOffset（左负右正）。
+    // 布局以 junction 为唯一原点单次摆放：body 正向累加、leading 反向累加；BodyOffset=0 时 junction ≡ FillStart（同一数、
+    // 无加减）→ 结合线零误差落头上。**绝不**走「Preutterance = Σleading − BodyOffset 再正向累加」（双求和亚帧漂移）。
+    // 头切分（供跨 note 压缩）与本分类正交：切点恒是 note 头（FillStart），头落在哪个音素内由 junction 摆放后位置与
+    // FillStart 直接比较得出（noteStart − junction = −BodyOffset，精确、严格比较无容差）；被切音素**未必**= 结合线那个。
+    public double BodyOffset { get; init; }
+
+    // 全序列音素数（引导 + 主体）。
+    public int PhonemeCount => (LeadingPhonemes?.Count ?? 0) + (BodyPhonemes?.Count ?? 0);
 }
 
 // 一个音素去重叠后的真实时间区间（绝对秒）。Resolve 的返回元素。
@@ -63,7 +68,8 @@ public static class PhonemeLayout
 {
     const double Epsilon = 1e-9;
 
-    // 标称时长 + note 几何 + 前置量 → 真实绝对时序。返回与输入同构的交错数组：notes[i].Phonemes[j] 的真实落点 = result[i][j]。
+    // 标称时长 + note 几何 + BodyOffset → 真实绝对时序。返回与输入同构的交错数组：全序列（LeadingPhonemes ++ BodyPhonemes）
+    // 第 j 个音素的真实落点 = result[i][j]。
     public static PhonemeTiming[][] Resolve(IReadOnlyList<PhonemeLayoutNote> notes)
     {
         int count = notes.Count;
@@ -199,19 +205,19 @@ public static class PhonemeLayout
     // 故严格比较无需容差（note 级去重叠是前置步骤，喂进来的 note 不交叠 → 相接即相等、有空隙即 FillEnd < FillStart）。
     static bool Connected(IReadOnlyList<PhonemeLayoutNote> notes, int i)
     {
-        if ((notes[i].Phonemes?.Count ?? 0) == 0 || (notes[i + 1].Phonemes?.Count ?? 0) == 0)
+        if (notes[i].PhonemeCount == 0 || notes[i + 1].PhonemeCount == 0)
             return false;
         return notes[i].FillEnd >= notes[i + 1].FillStart;
     }
 
-    // 一个 note 按 Preutterance 切成拍前 / 跨拍 / 拍后的中间结果。
+    // 一个 note 以 junction 为原点单次摆放、按 note 头切成拍前 / 跨拍 / 拍后的中间结果。索引 = 全序列（引导 ++ 主体）。
     readonly struct NoteSplit
     {
         public readonly int Count;
         public readonly double[] Dur;
         public readonly double[] Weight;
         public readonly byte[] Class;      // 0 = 全拍前, 1 = 跨拍, 2 = 全拍后
-        public readonly int Straddler;     // 跨拍音素下标，无则 -1
+        public readonly int Straddler;     // 跨拍音素下标（被 note 头一分为二），无则 -1
         public readonly double FrontLen;   // 跨拍音素落在 note 头之前的自然长
         public readonly double BackLen;    // 跨拍音素落在 note 头之后的自然长
 
@@ -221,43 +227,49 @@ public static class PhonemeLayout
             Straddler = straddler; FrontLen = frontLen; BackLen = backLen;
         }
 
+        // junction-anchored（单次求和、无 Σ 往返）：以 junction（= note 头 + BodyOffset）为唯一原点，
+        // body 从 junction 正向铺、leading 从 junction 反向铺，得每音素相对 note 头的自然位置；再以 note 头（rel 0）
+        // 就地切拍前 / 跨拍 / 拍后。BodyOffset=0 时 body 首起点 = 0 + 0 精确落 note 头（不经 Σleading 相减，规避亚帧漂移）。
         public static NoteSplit Compute(in PhonemeLayoutNote note)
         {
-            var phonemes = note.Phonemes;
-            int n = phonemes?.Count ?? 0;
+            var leading = note.LeadingPhonemes;
+            var body = note.BodyPhonemes;
+            int lc = leading?.Count ?? 0;
+            int bc = body?.Count ?? 0;
+            int n = lc + bc;
             var dur = new double[n];
             var weight = new double[n];
-            double total = 0;
-            for (int k = 0; k < n; k++)
-            {
-                dur[k] = Math.Max(0, phonemes![k].Duration);
-                weight[k] = phonemes[k].StretchWeight;
-                total += dur[k];
-            }
+            for (int k = 0; k < lc; k++) { dur[k] = Math.Max(0, leading![k].Duration); weight[k] = leading[k].StretchWeight; }
+            for (int k = 0; k < bc; k++) { dur[lc + k] = Math.Max(0, body![k].Duration); weight[lc + k] = body[k].StretchWeight; }
 
-            double p = note.Preutterance;
-            if (p < 0) p = 0;
-            if (p > total) p = total;   // 钳到 [0, Σ时长]：越界退化为全拍后 / 全拍前，不留静音间隙
+            double offset = note.BodyOffset;   // junction 相对 note 头
 
+            // 每音素相对 note 头的自然 [start, end]（note 头 = 0）：body 从 junction 正向、leading 从 junction 反向。
+            var ps = new double[n];
+            var pe = new double[n];
+            double c = offset;
+            for (int i = 0; i < bc; i++) { int k = lc + i; ps[k] = c; pe[k] = c + dur[k]; c = pe[k]; }
+            c = offset;
+            for (int j = lc - 1; j >= 0; j--) { pe[j] = c; ps[j] = c - dur[j]; c = ps[j]; }
+
+            // 就地切拍前 / 跨拍 / 拍后（与 note 头 = 0 比较，严格无容差；链单调 ⇒ 类序为 0…0 [1] 2…2、至多一个跨拍）。
             var cls = new byte[n];
             int straddler = -1;
             double frontLen = 0, backLen = 0;
-            double c = 0;
             for (int k = 0; k < n; k++)
             {
-                double cs = c, ce = c + dur[k];
-                if (ce <= p + Epsilon)          // 整段在 note 头之前
+                double cs = ps[k], ce = pe[k];
+                if (ce <= Epsilon)              // 整段在 note 头之前
                     cls[k] = 0;
-                else if (cs >= p - Epsilon)     // 整段在 note 头之后
+                else if (cs >= -Epsilon)        // 整段在 note 头之后
                     cls[k] = 2;
-                else                            // note 头落在本音素内部 → 跨拍
+                else                            // note 头落在本音素内部 → 跨拍（前半落拍前域、后半落拍后域）
                 {
                     cls[k] = 1;
                     straddler = k;
-                    frontLen = p - cs;
-                    backLen = ce - p;
+                    frontLen = -cs;
+                    backLen = ce;
                 }
-                c = ce;
             }
             return new NoteSplit(n, dur, weight, cls, straddler, frontLen, backLen);
         }

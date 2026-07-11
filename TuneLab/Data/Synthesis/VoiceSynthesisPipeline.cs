@@ -217,16 +217,10 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
             foreach (var note in mPart.Notes)
             {
                 var proxy = mContext.ProxyOf(note);
-                if (proxy != null && map.TryGetValue(proxy, out var group) && group.Phonemes.Count > 0)
-                {
-                    note.SynthesizedPhonemes = group.Phonemes.ToArray();
-                    note.SynthesizedPreutterance = group.Preutterance;
-                }
+                if (proxy != null && map.TryGetValue(proxy, out var syllable) && syllable.Phonemes.Count > 0)
+                    note.SynthesizedSyllable = syllable;
                 else
-                {
-                    note.SynthesizedPhonemes = null;
-                    note.SynthesizedPreutterance = 0;
-                }
+                    note.SynthesizedSyllable = null;
             }
         }
         catch (Exception ex)

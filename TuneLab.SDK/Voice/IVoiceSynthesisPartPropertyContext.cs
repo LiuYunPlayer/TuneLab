@@ -44,8 +44,12 @@ public interface IVoiceSynthesisNoteView
     int Pitch { get; }
     string Lyric { get; }
     PropertyObject Properties { get; }     // per-note 属性值快照；多选 note 合并三态归插件
-    double Preutterance { get; }           // 前置量（拍前发声量，自然秒）：note 头之前音素的占位长度
-    // 该 note 的有序音素（时间序）；位置 = 索引。音素属性声明（GetPhonemePropertyConfigs）即吃这串。
+    double BodyOffset { get; }             // 主体起点（结合线）相对 note 头的有符号偏移（junction = noteStart + BodyOffset）
+    // 钉死音素的结构化双列表（引导 / 主体），时间序。分类即列表成员。
+    IReadOnlyList<IVoiceSynthesisPhonemeView> LeadingPhonemes { get; }
+    IReadOnlyList<IVoiceSynthesisPhonemeView> BodyPhonemes { get; }
+    // 该 note 的有序音素全序列视图 = LeadingPhonemes ++ BodyPhonemes（时间序）；位置 = 索引。
+    // 音素属性声明（GetPhonemePropertyConfigs）即吃这串（顺序须与宿主音素面板对齐口径一致）。
     IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes { get; }
 }
 

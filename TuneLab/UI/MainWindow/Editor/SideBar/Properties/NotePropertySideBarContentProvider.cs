@@ -198,8 +198,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         mPhonemeScheduler.InvalidateStructure();
     }
 
-    // 选中 note 的显示音素结构签名（决定面板布局的字段：钉死态 + 各音素符号 + lead 归属）。值类属性不入签名——
-    // 它们由各 slot 绑定 / Properties.Modified 单独刷新。lead 归属由 Preutterance 派生（前 lead 个音素）。
+    // 选中 note 的显示音素结构签名（决定面板布局的字段：钉死态 + 各音素符号 + 引导 / 主体归属）。值类属性不入签名——
+    // 它们由各 slot 绑定 / Properties.Modified 单独刷新。引导归属 = 结构化分类（前 leadCount 个音素属引导列表）。
     string PhonemeSignature()
     {
         if (mPart == null)
@@ -208,31 +208,15 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         return string.Join(";", mPart.Notes.AllSelectedItems().Select(note =>
         {
             int lead = PhonemeLeadCount(note);
-            if (note.Phonemes.Count > 0)
+            if (note.HasPinnedPhonemes)
                 return "P" + string.Join("|", note.Phonemes.Select((p, i) => p.Symbol.Value + (i < lead ? "<" : ">")));
-            var synth = note.SynthesizedPhonemes;
-            return "S" + (synth != null ? string.Join("|", synth.Select((p, i) => p.Symbol + (i < lead ? "<" : ">"))) : "");
+            return "S" + (note.SynthesizedSyllable is { } s ? string.Join("|", s.Phonemes.Select((p, i) => p.Symbol + (i < lead ? "<" : ">"))) : "");
         }));
     }
 
-    // 一个 note 的前置（lead）音素个数：由 Preutterance（拍前发声量）+ 各音素时长累积派生（IsLead 不再存）。
-    // = 落在 note 头之前的音素数（累积末 ≤ Preutterance 的连续前缀；恰好切中某音素内部则那个音素算拍后 = 非 lead）。
+    // 一个 note 的引导音素个数 = 引导列表长度（结构化、稳定、不由几何派生）。
     static int PhonemeLeadCount(INote note)
-    {
-        bool pinned = note.Phonemes.Count > 0;
-        int count = pinned ? note.Phonemes.Count : (note.SynthesizedPhonemes?.Length ?? 0);
-        double preutter = pinned ? note.Preutterance.Value : note.SynthesizedPreutterance;
-        double cum = 0;
-        int lead = 0;
-        for (int i = 0; i < count; i++)
-        {
-            double dur = pinned ? Math.Max(0, note.Phonemes[i].Duration.Value) : Math.Max(0, note.SynthesizedPhonemes![i].Duration);
-            double end = cum + dur;
-            if (end <= preutter + 1e-9) lead = i + 1; else break;
-            cum = end;
-        }
-        return lead;
-    }
+        => note.HasPinnedPhonemes ? note.LeadingPhonemes.Count : (note.SynthesizedSyllable?.LeadingPhonemes.Count ?? 0);
 
     // 把 note 属性面板绑定到当前选中 note 集合（多选合一）。无选中则盖遮罩。
     // 值的下发/写回/撤销刷新由逐字段绑定承担，选中变化时整体重绑（数据对象变 → SetConfig 重建）。
@@ -285,18 +269,19 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         var perNote = new List<PhonemeNoteInfo>();
         foreach (var note in mPart.Notes.AllSelectedItems())
         {
-            bool pinned = note.Phonemes.Count > 0;
-            int count = pinned ? note.Phonemes.Count : (note.SynthesizedPhonemes?.Length ?? 0);
+            bool pinned = note.HasPinnedPhonemes;
+            int count = pinned ? note.PhonemeCount : (note.SynthesizedSyllable?.Phonemes.Count ?? 0);
             var cfgs = new ObjectConfig?[count];
             for (int i = 0; i < count; i++)
             {
                 cfgs[i] = flat < configs.Count ? configs[flat] : null;
                 flat++;
             }
-            int leadCount = PhonemeLeadCount(note);   // 核位置：前置音素个数（由 Preutterance 派生）
+            int leadCount = PhonemeLeadCount(note);   // 核位置：引导音素个数（结构化列表长度）
             perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount, cfgs));
-            // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。
-            note.Phonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
+            // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。两列表各订一次。
+            note.LeadingPhonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
+            note.BodyPhonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
         }
 
         // 对齐索引 = 音素位置 − leadCount（核 = 0、前置辅音离核越近越靠 −1、核后 = +1+）。各 note 按此有符号索引对齐成 slot。
@@ -324,7 +309,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             bool isLead = a < 0;
 
             // 符号（可编、扇出）：各成员符号全等显该符号、否则 (...)。双击编辑，提交即对各成员 LockPhonemes + set Symbol 成一个撤销步。
-            var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedPhonemes![m.Index].Symbol).Distinct().ToList();
+            var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedSyllable!.Value.Phonemes[m.Index].Symbol).Distinct().ToList();
             string displayed = symbols.Count == 1 ? symbols[0] : "(...)";
             var symbolField = BuildSymbolCell(displayed, members);
 
@@ -385,7 +370,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             var strip = new DockPanel() { Background = (isLead ? Style.ITEM : Style.HIGH_LIGHT).ToBrush() };
             var rightGroup = new StackPanel() { Orientation = Orientation.Horizontal, Margin = new(0, 0, 4, 0) };
             rightGroup.Children.Add(BuildDoubleField("Duration".Tr(TC.Property), members,
-                ph => ph.Duration, sp => sp.Duration, DurationConfig, couplePreutterance: true));
+                ph => ph.Duration, sp => sp.Duration, DurationConfig));
             rightGroup.Children.Add(BuildDoubleField("Stretch Weight".Tr(TC.Property), members,
                 ph => ph.StretchWeight, sp => sp.StretchWeight, WeightConfig));
             DockPanel.SetDock(rightGroup, Dock.Right);
@@ -446,13 +431,10 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     // 内建 double 字段（时长 / 权重）：[标题 | 可拖数值框] 同行。复用引擎属性那套——每成员一个 buffer（共享 throwaway doc）
     // 经 MultipleDataPropertyObject 扇出 + 三态合并；DraggableNumberBox 的拖动 merge 经此 buffer 走，settled 时对各成员
     // LockPhonemes（合成→钉死）+ 写回内建字段 + 一个撤销步。read 取当前值（钉死/合成）、write 落到 Duration/StretchWeight。
-    // couplePreutterance（仅时长字段）：改音素长度时按「拍前占比 f」同步 Preutterance（P += f·δ）——拍前音素向左长
-    // （前置辅音的物理生长方向）、拍后向右长、跨拍按比例分。f = clamp(P−cumBefore, 0, 旧长)/旧长，取编辑起手基线。
-    // 这与拖音素分界线同源（均由 note 头位置派生生长方向），只是入口是数值框。开启后强制走手写编辑路径（非 BindDataProperty），
-    // 因为要在写时长的同一步里改 Preutterance。
+    // 生长方向由所属列表自动决定、无需耦合：改引导音素 → 向左长（BodyOffset 不变、junction 固定 ⇒ 主体不动）；
+    // 改主体音素 → 向右长（BodyOffset 不变）。故只写时长即可，双列表模型使旧「按拍前占比同步 Preutterance」的耦合归零。
     Control BuildDoubleField(string tooltip, IReadOnlyList<(PhonemeNoteInfo Note, int Index)> members,
-        Func<IPhoneme, IDataProperty<double>> field, Func<SynthesizedPhoneme, double> synthValue, DraggableNumberBoxConfig config,
-        bool couplePreutterance = false)
+        Func<IPhoneme, IDataProperty<double>> field, Func<SynthesizedPhoneme, double> synthValue, DraggableNumberBoxConfig config)
     {
         var box = new DraggableNumberBox
         {
@@ -471,7 +453,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         };
         box.SetupToolTip(tooltip);
 
-        if (!couplePreutterance && members.All(m => m.Note.Pinned))
+        if (members.All(m => m.Note.Pinned))
         {
             // 全钉死：直接绑定真实属性。BindDataProperty 一手包办"订阅数据→刷新显示 + 编辑→merge/commit/撤销"；
             // 中间态双向同步后，拖动经数据层通知钢琴窗实时重绘。多成员扇出 + 三态经 MultipleDataProperty。
@@ -488,7 +470,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // 数据通知，钢琴窗据 Notes.Phonemes.Modified 实时重绘）；每帧先取 box.Value 再 DiscardTo(head) 后扇出写回；松手 Commit
         //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期 mPhonemeScheduler.Suspended 抑制面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
         double ReadOf((PhonemeNoteInfo Note, int Index) m)
-            => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedPhonemes![m.Index]);
+            => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedSyllable!.Value.Phonemes[m.Index]);
         void Refresh()
         {
             var vals = members.Select(ReadOf).Distinct().ToList();
@@ -510,8 +492,6 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         //（签名未变、不触发重建）时由面板级 OnSynthesizedPhonemesChanged 分流为值级标脏，此处无需再订阅。
 
         Head editHead = default;
-        // Preutterance 耦合的编辑起手基线：每 note 一份（旧长 + 起手 Preutterance + 拍前占比 f），随 DiscardTo 每帧从此基线重算。
-        var baseline = new Dictionary<INote, (double OldDur, double P0, double Front)>();
         box.ValueWillChange.Subscribe(() =>
         {
             if (mPart == null)
@@ -521,22 +501,6 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 n.Note.LockPhonemes();
             mPart.BeginMergeDirty();
             editHead = mPart.Head;
-            if (couplePreutterance)
-            {
-                baseline.Clear();
-                foreach (var (n, idx) in members)
-                {
-                    var note = n.Note;
-                    if (idx >= note.Phonemes.Count)
-                        continue;
-                    double cumBefore = 0;
-                    for (int k = 0; k < idx; k++) cumBefore += Math.Max(0, note.Phonemes[k].Duration.Value);
-                    double oldDur = Math.Max(0, note.Phonemes[idx].Duration.Value);
-                    double p0 = note.Preutterance.Value;
-                    double f = oldDur > 1e-9 ? Math.Clamp((p0 - cumBefore) / oldDur, 0, 1) : 0;   // 拍前占比
-                    baseline[note] = (oldDur, p0, f);
-                }
-            }
         }, mPhonemeSub);
         box.ValueChanged.Subscribe(() =>
         {
@@ -547,11 +511,10 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             mPart.DiscardTo(editHead);
             foreach (var (n, idx) in members)
             {
-                if (idx >= n.Note.Phonemes.Count)
+                if (idx >= n.Note.PhonemeCount)
                     continue;
+                // 只写时长：所属列表自动决定生长方向（引导向左、主体向右），BodyOffset 不动、junction 固定。
                 field(n.Note.Phonemes[idx]).Set(v);
-                if (couplePreutterance && baseline.TryGetValue(n.Note, out var bl))
-                    n.Note.Preutterance.Set(Math.Max(0, bl.P0 + bl.Front * (v - bl.OldDur)));   // P += f·δ（拍前占比同步）
             }
         }, mPhonemeSub);
         box.ValueCommitted.Subscribe(() =>
@@ -598,15 +561,16 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             {
                 var note = n.Note;
                 note.LockPhonemes();
-                if (idx >= note.Phonemes.Count)
+                if (idx >= note.PhonemeCount)
                     continue;
-                var ph = note.Phonemes[idx];
+                var (list, local) = note.LocatePhoneme(idx);   // 拆分留在同一列表（归属不变）
+                var ph = list[local];
                 double d = ph.Duration.Value;
                 double firstHalf = d / 2;
-                var info = ph.GetInfo();         // 复制 Symbol/Duration/StretchWeight/IsLead/Properties
+                var info = ph.GetInfo();         // 复制 Symbol/Duration/StretchWeight/Properties
                 info.Duration = d - firstHalf;   // 后半段
                 ph.Duration.Set(firstHalf);      // 原音素留前半段
-                note.Phonemes.Insert(idx + 1, Phoneme.Create(info));
+                list.Insert(local + 1, Phoneme.Create(info));
             }
             mPart.EndMergeDirty();
             mPart.Commit();
@@ -622,8 +586,11 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             {
                 var note = n.Note;
                 note.LockPhonemes();
-                if (idx < note.Phonemes.Count)
-                    note.Phonemes.RemoveAt(idx);
+                if (idx < note.PhonemeCount)
+                {
+                    var (list, local) = note.LocatePhoneme(idx);
+                    list.RemoveAt(local);
+                }
             }
             mPart.EndMergeDirty();
             mPart.Commit();
@@ -642,7 +609,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         {
             var note = n.Note;
             note.LockPhonemes();
-            if (idx < note.Phonemes.Count)
+            if (idx < note.PhonemeCount)
                 note.Phonemes[idx].Symbol.Set(symbol);
         }
         mPart.Commit();
@@ -655,7 +622,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         foreach (var (note, idx, buf) in members)
         {
             note.LockPhonemes();
-            if (idx < note.Phonemes.Count)
+            if (idx < note.PhonemeCount)
                 note.Phonemes[idx].Properties.SetInfo(buf.GetInfo());
         }
         mPart.Commit();

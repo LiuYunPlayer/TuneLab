@@ -5,8 +5,9 @@ using Xunit.Abstractions;
 namespace TuneLab.Tests;
 
 // PhonemeLayout.Resolve（合成域共享纯函数）的回归：可用空间内乘法 / 等比分配（缩放比 = r^w）——
-// 同权重等比保形、异权重指数解 r、刚性不动、极限退二级等比压；note 头(Preutterance)切拍前/拍后两域、
-// 跨 note 相接借拍前料、间隙归属各自；跨拍音素本体一分为二锚 note 头处相接；不变量 = 音素绝不溢出可用空间。
+// 同权重等比保形、异权重指数解 r、刚性不动、极限退二级等比压；note 头切拍前/拍后两域、跨 note 相接借拍前料、
+// 间隙归属各自；跨拍音素本体一分为二锚 note 头处相接；不变量 = 音素绝不溢出可用空间。
+// 摆放以 junction = note 头 + BodyOffset 为原点单次锚定（body 正向 / leading 反向累加），BodyOffset=0 恒等精确落头上。
 public class PhonemeLayoutTests
 {
     readonly ITestOutputHelper _out;
@@ -15,9 +16,15 @@ public class PhonemeLayoutTests
     static SynthesizedPhoneme Ph(string s, double dur, double w)
         => new() { Symbol = s, Duration = dur, StretchWeight = w };
 
-    // preutter = note 头之前音素的占位长度（拍前发声量）。切在 lead/核边界时 = Σ前置音素时长。
+    // 行为复刻用助手：把全部音素放主体列表、BodyOffset = −preutter（结合线在 note 头左 preutter 处），
+    // 使 note 头在全序列链上的累积切点 = preutter（= 旧标量 Preutterance 语义，头几何与结果逐字等价）。
+    // preutter = note 头之前音素的占位长度（拍前发声量）。
     static PhonemeLayoutNote Note(double preutter, double s, double e, params SynthesizedPhoneme[] ph)
-        => new() { Preutterance = preutter, FillStart = s, FillEnd = e, Phonemes = ph };
+        => new() { BodyOffset = -preutter, FillStart = s, FillEnd = e, LeadingPhonemes = [], BodyPhonemes = ph };
+
+    // 显式双列表助手（新模型：引导 / 主体 + 有符号 BodyOffset）。
+    static PhonemeLayoutNote NoteLB(double bodyOffset, double s, double e, SynthesizedPhoneme[] leading, SynthesizedPhoneme[] body)
+        => new() { BodyOffset = bodyOffset, FillStart = s, FillEnd = e, LeadingPhonemes = leading, BodyPhonemes = body };
 
     // 二级压缩：核让到 0、辅音等比压，绝不超出 note。
     [Fact]
@@ -118,7 +125,7 @@ public class PhonemeLayoutTests
     [Fact]
     public void Straddle_BorrowedAcrossNotes()
     {
-        // A 头0 末1.0 [v(w1,0.5)]；B 头1.0 末1.1 [g(w0,0.2)]，Preutterance=0.1 → g 跨 B 头(前0.1/后0.1)
+        // A 头0 末1.0 [v(w1,0.5)]；B 头1.0 末1.1 [g(w0,0.2)]，preutter=0.1 → g 跨 B 头(前0.1/后0.1)
         var a = Note(0, 0, 1.0, Ph("v", 0.5, 1));
         var b = Note(0.1, 1.0, 1.1, Ph("g", 0.2, 0));
         var r = PhonemeLayout.Resolve(new[] { a, b });
@@ -133,7 +140,7 @@ public class PhonemeLayoutTests
 
     // Sil 反例回归（VOCALOID5 hua|xiang）：引擎报的音素边界略跨 note 头时，**不吸头**——保留其真实分界。
     // 现象根因：旧「分界必卡 note 头」把略跨头的边界 snap 到头，引入 sub-frame 错位、被引擎帧量化放大成整帧 Sil。
-    // 以 Preutterance 保真实分界即根除。此处：辅音 c(w0,0.05) 的 note 头(1.0)切点 = Preutterance 0.03 →
+    // 以 BodyOffset 保真实分界即根除。此处：辅音 c(w0,0.05) 的 note 头(1.0)切点 = preutter 0.03 →
     // c 跨拍（前 0.03 / 后 0.02），c|v 边界应停在 1.02（离头 0.02），**不得**被吸到 1.0。
     [Fact]
     public void Sil_OffHeadBoundary_NotSnapped()
@@ -165,5 +172,40 @@ public class PhonemeLayoutTests
         Assert.Equal(0.0, after[0][0].Start, 9);                // 域起固定
         Assert.Equal(0.5, after[0][0].End, 9);                  // a|k 边界左移到 0.6/1.2 = 0.5（线性跟随转移量）
         Assert.Equal(1.0, after[0][1].End, 9);                  // 域末仍固定，未受影响
+    }
+
+    // 新：BodyOffset=0 时主体首起点精确落 note 头（零误差、不经 Σleading 相减）。引导 c(w0,0.1) 落头前、主体 a(w1,0.2) 从头起。
+    [Fact]
+    public void BodyOffsetZero_JunctionExactlyOnHead()
+    {
+        var r = PhonemeLayout.Resolve(new[] { NoteLB(0, 1.0, 1.5, [Ph("c", 0.1, 0)], [Ph("a", 0.2, 1)]) });
+        _out.WriteLine($"c={r[0][0]} a={r[0][1]}");
+        Assert.Equal(1.0, r[0][1].Start);                       // 主体首起点 == note 头，**精确**相等（无容差）
+        Assert.Equal(1.0, r[0][0].End);                         // 引导末 == note 头，精确
+        Assert.Equal(0.9, r[0][0].Start, 9);                    // 引导 c 往左堆原长 0.1
+        Assert.Equal(1.5, r[0][1].End, 9);                      // 主体核弹性填满 note 域
+    }
+
+    // 新：分类抗抖——列表成员固定，BodyOffset ±ε 只令几何连续微动，绝不改变全序列次序（引导恒在主体前）。
+    // 旧几何派生模型里辅元音分界近 note 头时帧量化会翻分类；结构化双列表下分类 = 列表成员，与 BodyOffset 无关。
+    [Fact]
+    public void Classification_StableUnderOffsetJitter()
+    {
+        SynthesizedPhoneme[] leading = [Ph("c", 0.05, 0)];
+        SynthesizedPhoneme[] body = [Ph("v", 0.2, 1)];
+        const double eps = 1e-7;
+        var rMinus = PhonemeLayout.Resolve(new[] { NoteLB(-eps, 1.0, 1.5, leading, body) });
+        var rZero = PhonemeLayout.Resolve(new[] { NoteLB(0, 1.0, 1.5, leading, body) });
+        var rPlus = PhonemeLayout.Resolve(new[] { NoteLB(eps, 1.0, 1.5, leading, body) });
+        _out.WriteLine($"-ε c={rMinus[0][0]} v={rMinus[0][1]}");
+        _out.WriteLine($"+ε c={rPlus[0][0]} v={rPlus[0][1]}");
+        // 全序列次序恒定：index 0 = 引导 c（在主体前），index 1 = 主体 v；BodyOffset 抖动只令位置连续微动、不翻次序。
+        Assert.True(rMinus[0][0].Start < rMinus[0][1].Start);
+        Assert.True(rPlus[0][0].Start < rPlus[0][1].Start);
+        // 连续性：±ε 的落点差 = O(ε)，无帧翻转式跳变。
+        Assert.True(System.Math.Abs(rPlus[0][0].End - rMinus[0][0].End) < 1e-5);
+        Assert.True(System.Math.Abs(rPlus[0][1].Start - rMinus[0][1].Start) < 1e-5);
+        // 结合线随 BodyOffset 单调：+ε 的主体起点 ≥ 0 的（junction 右移）。
+        Assert.True(rPlus[0][1].Start >= rZero[0][1].Start - 1e-12);
     }
 }

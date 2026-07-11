@@ -672,7 +672,7 @@ internal class MidiPart : Part, IMidiPart
         RebuildPinnedLaneConfigs();
         foreach (var note in mNotes)
         {
-            note.SynthesizedPhonemes = null;
+            note.SynthesizedSyllable = null;
         }
     }
 

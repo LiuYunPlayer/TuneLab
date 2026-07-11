@@ -36,7 +36,7 @@ public sealed class VoiceSynthesisSnapshot
     // 固定通道独立、不在此 map。物化已在宿主侧一次完成，直接暴露 map 零额外负担、跨进程也免反复回调。
     public required IReadOnlyMap<string, SynthesisAutomationSnapshot> Automations { get; init; }
 
-    // 音素布局在 SDK：把每 note 的标称音素（SynthesizedPhoneme：时长 / 权重）+ 前置量 Preutterance + 几何锚点（note 头 / 核填充终点）
+    // 音素布局在 SDK：把每 note 的标称音素（SynthesizedPhoneme：时长 / 权重）+ 双列表分类 + BodyOffset + 几何锚点（note 头 / 核填充终点）
     // 解析为跨 note 去重叠后的真实时序，是 PhonemeLayout.Resolve 这一纯函数。引擎调它即与宿主显示完全一致
     // （核起点=音符头、可伸音素按缩放比 r^w 等比伸缩、刚性辅音不动、有空隙则互不影响）；冻结的只是 I/O 形状、分配体仍可宿主侧演进，
     // 引擎运行时绑定宿主的这一份故永不漂移。想自管音频摆放的引擎可不调、自由放置——错位非致命。

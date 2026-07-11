@@ -19,15 +19,18 @@ internal class Note : DataObject, INote
     DataLyric Lyric { get; }
     DataPronunciation Pronunciation { get; }
     public DataPropertyObject Properties { get; }
-    public DataObjectList<IPhoneme> Phonemes { get; } = new();
-    public DataStruct<double> Preutterance { get; }
+    // 钉死音素结构化双列表：引导（核前前置辅音）/ 主体（核 + 尾辅音）。分类即列表成员（抗抖）。
+    public DataObjectList<IPhoneme> LeadingPhonemes { get; } = new();
+    public DataObjectList<IPhoneme> BodyPhonemes { get; } = new();
+    // 主体起点（= 两列表结合线）相对 note 头的有符号偏移：junction = noteStart + BodyOffset（左负右正）。
+    public DataStruct<double> BodyOffset { get; }
     public bool IsSelected { get => mIsSelected; set { if (mIsSelected == value) return; mIsSelected = value; mSelectionChanged.Invoke(); } }
 
     public double StartPos => Pos.Value;
     public double EndPos => Pos.Value + Dur.Value;
 
-    public SynthesizedPhoneme[]? SynthesizedPhonemes { get; set; }
-    public double SynthesizedPreutterance { get; set; }
+    // 合成产物壳（引导/主体双列表 + BodyOffset，见 SynthesizedSyllable）；引擎回填、宿主 LockPhonemes 固化。
+    public SynthesizedSyllable? SynthesizedSyllable { get; set; }
     public IReadOnlyCollection<string> Pronunciations => Lyric.Pronunciations;
 
     IDataProperty<double> INote.Pos => Pos;
@@ -35,8 +38,9 @@ internal class Note : DataObject, INote
     IDataProperty<int> INote.Pitch => Pitch;
     IDataProperty<string> INote.Lyric => Lyric;
     IDataProperty<string> INote.Pronunciation => Pronunciation;
-    IDataObjectList<IPhoneme> INote.Phonemes => Phonemes;
-    IDataProperty<double> INote.Preutterance => Preutterance;
+    IDataObjectList<IPhoneme> INote.LeadingPhonemes => LeadingPhonemes;
+    IDataObjectList<IPhoneme> INote.BodyPhonemes => BodyPhonemes;
+    IDataProperty<double> INote.BodyOffset => BodyOffset;
 
     INote? ILinkedNode<INote>.Next { get; set; } = null;
     INote? ILinkedNode<INote>.Last { get; set; } = null;
@@ -50,8 +54,9 @@ internal class Note : DataObject, INote
         Lyric = new(this);
         Pronunciation = new(this);
         Properties = new(this);
-        Phonemes.Attach(this);
-        Preutterance = new(this);
+        LeadingPhonemes.Attach(this);
+        BodyPhonemes.Attach(this);
+        BodyOffset = new(this);
         mPart = part;
         SetInfo(info);
     }
@@ -66,8 +71,9 @@ internal class Note : DataObject, INote
             Lyric = Lyric,
             Pronunciation = Pronunciation,
             Properties = Properties.GetInfo(),
-            Phonemes = Phonemes.GetInfo().ToInfo(),
-            Preutterance = Preutterance,
+            LeadingPhonemes = LeadingPhonemes.GetInfo().ToInfo().ToList(),
+            BodyPhonemes = BodyPhonemes.GetInfo().ToInfo().ToList(),
+            BodyOffset = BodyOffset,
         };
 
         return info;
@@ -82,8 +88,9 @@ internal class Note : DataObject, INote
         Lyric.SetInfo(info.Lyric);
         Pronunciation.SetInfo(info.Pronunciation);
         Properties.SetInfo(info.Properties);
-        Phonemes.SetInfo(info.Phonemes.Convert(Phoneme.Create).ToArray());
-        Preutterance.SetInfo(info.Preutterance);
+        LeadingPhonemes.SetInfo(info.LeadingPhonemes.Convert(Phoneme.Create).ToArray());
+        BodyPhonemes.SetInfo(info.BodyPhonemes.Convert(Phoneme.Create).ToArray());
+        BodyOffset.SetInfo(info.BodyOffset);
     }
 
     class DataLyric : DataString
@@ -102,7 +109,8 @@ internal class Note : DataObject, INote
         public override void Set(string value)
         {
             base.Set(value);
-            mNote.Phonemes.Clear();
+            mNote.LeadingPhonemes.Clear();
+            mNote.BodyPhonemes.Clear();
             mNote.Pronunciation.Set(LyricUtils.GetPreferredPronunciation(Value));
         }
 
@@ -114,7 +122,8 @@ internal class Note : DataObject, INote
         public override void Set(string value)
         {
             base.Set(value);
-            note.Phonemes.Clear();
+            note.LeadingPhonemes.Clear();
+            note.BodyPhonemes.Clear();
         }
     }
 

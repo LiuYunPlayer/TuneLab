@@ -42,8 +42,9 @@ internal static class VoiceSynthesisSnapshotFactory
                 EndTime = note.EndTime.Value,                   // 有效末（去重叠，单声部音频口径；宿主独占音素布局）
                 Pitch = note.Pitch.Value,
                 Lyric = note.Lyric.Value,
-                Phonemes = CapturePhonemes(proxy.Source),       // 钉死音素：几何描述符 + per-phoneme 属性值快照
-                Preutterance = proxy.Source.Preutterance.Value, // 钉死前置量（拍前发声量）；非钉死 note = 0
+                LeadingPhonemes = CapturePhonemes(proxy.Source.LeadingPhonemes),   // 引导音素：几何描述符 + per-phoneme 属性值快照
+                BodyPhonemes = CapturePhonemes(proxy.Source.BodyPhonemes),         // 主体音素
+                BodyOffset = proxy.Source.BodyOffset.Value,     // 钉死结合线偏移；非钉死 note = 0
                 Properties = proxy.Source.Properties.GetInfo(), // 值拷 PropertyObject
             });
         }
@@ -109,15 +110,15 @@ internal static class VoiceSynthesisSnapshotFactory
         };
     }
 
-    // 钉死音素物化：几何字段平铺 + per-phoneme 属性值快照。属性 lazy——未编辑过的音素走 HasProperties 闸门直接取
-    // PropertyObject.Empty、不触发物化。非钉死（引擎 G2P）note 的 Phonemes 为空。
-    static IReadOnlyList<VoiceSynthesisPhonemeSnapshot> CapturePhonemes(INote note)
+    // 钉死音素物化（逐列表）：几何字段平铺 + per-phoneme 属性值快照。属性 lazy——未编辑过的音素走 HasProperties 闸门直接取
+    // PropertyObject.Empty、不触发物化。非钉死（引擎 G2P）note 两列表皆空。
+    static IReadOnlyList<VoiceSynthesisPhonemeSnapshot> CapturePhonemes(IDataObjectList<IPhoneme> phonemes)
     {
-        int n = note.Phonemes.Count;
+        int n = phonemes.Count;
         var result = new VoiceSynthesisPhonemeSnapshot[n];
         for (int i = 0; i < n; i++)
         {
-            var p = note.Phonemes[i];
+            var p = phonemes[i];
             result[i] = new VoiceSynthesisPhonemeSnapshot(
                 p.Symbol.Value, p.Duration.Value, p.StretchWeight.Value,
                 p.HasProperties ? p.Properties.GetInfo() : PropertyObject.Empty);

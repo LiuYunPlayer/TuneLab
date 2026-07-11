@@ -11,10 +11,10 @@ namespace TuneLab.Extensions.Formats.TLP;
 
 internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 {
-    // v0=legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1=2.0.0 中间态（新音素、几何仍 dur）；
-    // v2=当前（part 几何锚点 Pos+StartOffset+EndOffset）。音素前置量的 isLead↔preutterance 两种表示同为 v2
-    //（当前版顶替 isLead 那版），故靠**字段**而非版本号区分（见音素读取）。反序列化按版本忠实降级 legacy 几何。
-    const int CURRENT_VERSION = 2;
+    // v0 = 唯一发布过的 legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1 = 当前 2.0.0（part 几何锚点 Pos+StartOffset+EndOffset、
+    // 音素结构化双列表 leadingPhonemes/bodyPhonemes + bodyOffset）。2.0.0 未发布，dev 期间的中间 bump 不占发布版本号——折叠回 v1；
+    // legacy 判据几何与音素统一为 version<1（仅 v0）。
+    const int CURRENT_VERSION = 1;
 
     // 读取期工程版本（ReadProject 起始重置为 0=legacy；version 字段恒先于 tracks 写出，故 note/音素读到时已就位）。
     int mReadVersion;
@@ -356,9 +356,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             }
             reader.ReadEndMap();
 
-            // 几何字段由版本号唯一决定（与 JSON 一致，不猜字段）：v<2（legacy）只存 dur → 锚点即起点（StartOffset=0）、
-            // 终点 = 锚点 + dur；v≥2 用锚点模型 startOffset/endOffset。
-            bool legacyGeom = mReadVersion < 2;
+            // 几何字段由版本号唯一决定（与 JSON 一致，不猜字段）：v<1（legacy 1.x）只存 dur → 锚点即起点（StartOffset=0）、
+            // 终点 = 锚点 + dur；v≥1（当前 2.0.0）用锚点模型 startOffset/endOffset。
+            bool legacyGeom = mReadVersion < 1;
             if (midiPartInfo != null)
             {
                 midiPartInfo.Name = name;
@@ -416,9 +416,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             string lyric = "";
             string pronunciation = "";
             PropertyObject properties = PropertyObject.Empty;
-            List<PhonemeInfo> phonemes = new();
-            double notePreutterance = 0;      // 当前格式：note 级前置量
-            double leadPreutterance = 0;      // 仅 v<1 legacy：从前置前缀折算
+            List<PhonemeInfo> leadingPhonemes = new();
+            List<PhonemeInfo> bodyPhonemes = new();
+            double bodyOffset = 0;            // 当前格式：note 级结合线偏移（有符号）；legacy 恒 0
 
             reader.ReadStartMap();
             while (reader.PeekState() != CborReaderState.EndMap)
@@ -444,11 +444,18 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     case "properties":
                         properties = ReadPropertyObject(reader);
                         break;
-                    case "preutterance":
-                        notePreutterance = reader.ReadDouble();
+                    case "bodyOffset":
+                        bodyOffset = reader.ReadDouble();
+                        break;
+                    case "leadingPhonemes":
+                        ReadPhonemes(reader, leadingPhonemes);
+                        break;
+                    case "bodyPhonemes":
+                        ReadPhonemes(reader, bodyPhonemes);
                         break;
                     case "phonemes":
-                        leadPreutterance = ReadPhonemes(reader, phonemes);
+                        // v<1 legacy 单数组（startTime/endTime）：按位置降级分两列表（与 legacy 引擎回显同一套），返回 bodyOffset。
+                        bodyOffset = ReadLegacyPhonemes(reader, leadingPhonemes, bodyPhonemes);
                         break;
                     default:
                         reader.SkipValue();
@@ -465,30 +472,56 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 Lyric = lyric,
                 Pronunciation = pronunciation,
                 Properties = properties,
-                Phonemes = phonemes,
-                // v<1 legacy 折算前置量；当前格式直读 note 级 preutterance。
-                Preutterance = mReadVersion < 1 ? leadPreutterance : notePreutterance,
+                LeadingPhonemes = leadingPhonemes,
+                BodyPhonemes = bodyPhonemes,
+                BodyOffset = bodyOffset,
             };
             notes.Add(noteInfo);
         }
         reader.ReadEndArray();
     }
 
-    // 返回 v<1 legacy 从前置前缀折算出的 note 级前置量（拍前发声量 = 前置音素时长和）；当前格式恒返回 0
-    //（前置量由 ReadNotes 直读 "preutterance" 键）。分支：
-    //   当前：duration/stretchWeight（前后归属由 note 级 preutterance 派生）。
-    //   v<1（legacy 1.x）：startTime/endTime→时长（音素连续），按区间中点<0 判前置辅音、权重 0 → 折算前置量。
-    private double ReadPhonemes(CborReader reader, List<PhonemeInfo> phonemes)
+    // 当前格式音素数组读（leadingPhonemes / bodyPhonemes 共用）：duration/stretchWeight + per-phoneme 属性。
+    private void ReadPhonemes(CborReader reader, List<PhonemeInfo> phonemes)
     {
-        bool legacy = mReadVersion < 1;
-        double preutterance = 0;
-        bool stillLead = true;
         reader.ReadStartArray();
         while (reader.PeekState() != CborReaderState.EndArray)
         {
             string symbol = "";
             double weight = 0;
             double duration = 0;
+            PropertyObject? properties = null;
+
+            reader.ReadStartMap();
+            while (reader.PeekState() != CborReaderState.EndMap)
+            {
+                var key = reader.ReadTextString();
+                switch (key)
+                {
+                    case "duration": duration = reader.ReadDouble(); break;
+                    case "stretchWeight": weight = reader.ReadDouble(); break;
+                    case "symbol": symbol = reader.ReadTextString(); break;
+                    case "properties": properties = ReadPropertyObject(reader); break;
+                    default: reader.SkipValue(); break;
+                }
+            }
+            reader.ReadEndMap();
+
+            phonemes.Add(new PhonemeInfo { Symbol = symbol, Duration = duration, StretchWeight = weight, Properties = properties });
+        }
+        reader.ReadEndArray();
+    }
+
+    // v<1 legacy 单数组（startTime/endTime，相对音符头，音符头=0）：与 legacy 引擎回显同一套降级逻辑——时长 = end − start；
+    // 按区间中点 < 音符头（start+end<0）的连续前缀判引导、其余归主体；① 至少一个拍后音素（全归引导则末个挪进主体）；
+    // ② 首个拍后音素 w=1（弹性核填满音符）、其余 w=0。返回 bodyOffset = 主体首起点（rel 音符头，不吸头、保真实分界）。
+    private double ReadLegacyPhonemes(CborReader reader, List<PhonemeInfo> leading, List<PhonemeInfo> body)
+    {
+        var items = new List<(PhonemeInfo Info, double Start, double End)>();
+        reader.ReadStartArray();
+        while (reader.PeekState() != CborReaderState.EndArray)
+        {
+            string symbol = "";
             double startTime = 0, endTime = 0;
             PropertyObject? properties = null;
 
@@ -500,8 +533,6 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 {
                     case "startTime": startTime = reader.ReadDouble(); break;
                     case "endTime": endTime = reader.ReadDouble(); break;
-                    case "duration": duration = reader.ReadDouble(); break;
-                    case "stretchWeight": weight = reader.ReadDouble(); break;
                     case "symbol": symbol = reader.ReadTextString(); break;
                     case "properties": properties = ReadPropertyObject(reader); break;
                     default: reader.SkipValue(); break;
@@ -509,23 +540,21 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             }
             reader.ReadEndMap();
 
-            if (legacy)
-            {
-                weight = 0;
-                duration = Math.Max(0, endTime - startTime);
-                // 前置前缀折算前置量（当前格式不折算，前置量走 note 级 preutterance）。
-                if (stillLead && (startTime + endTime) < 0) preutterance += duration; else stillLead = false;
-            }
-            phonemes.Add(new PhonemeInfo
-            {
-                Symbol = symbol,
-                Duration = duration,
-                StretchWeight = weight,
-                Properties = properties,
-            });
+            items.Add((new PhonemeInfo { Symbol = symbol, Duration = Math.Max(0, endTime - startTime), Properties = properties }, startTime, endTime));
         }
         reader.ReadEndArray();
-        return preutterance;
+
+        int n = items.Count;
+        if (n == 0) return 0;
+        int leadCount = 0;
+        for (int i = 0; i < n; i++) { if ((items[i].Start + items[i].End) < 0) leadCount = i + 1; else break; }
+        if (leadCount >= n) leadCount = n - 1;
+        for (int i = 0; i < n; i++)
+        {
+            items[i].Info.StretchWeight = i == leadCount ? 1 : 0;
+            if (i < leadCount) leading.Add(items[i].Info); else body.Add(items[i].Info);
+        }
+        return items[leadCount].Start;
     }
 
     private void ReadPitch(CborReader reader, List<List<Point>> pitch)
@@ -959,13 +988,16 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             writer.WriteTextString("properties");
             WritePropertyObject(writer, note.Properties);
 
-            if (note.Phonemes.Count > 0)
+            if (note.LeadingPhonemes.Count > 0 || note.BodyPhonemes.Count > 0)
             {
-                writer.WriteTextString("preutterance");
-                writer.WriteDouble(note.Preutterance);
+                writer.WriteTextString("bodyOffset");
+                writer.WriteDouble(note.BodyOffset);
 
-                writer.WriteTextString("phonemes");
-                WritePhonemes(writer, note.Phonemes);
+                writer.WriteTextString("leadingPhonemes");
+                WritePhonemes(writer, note.LeadingPhonemes);
+
+                writer.WriteTextString("bodyPhonemes");
+                WritePhonemes(writer, note.BodyPhonemes);
             }
 
             writer.WriteEndMap();

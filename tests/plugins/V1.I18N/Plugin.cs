@@ -85,7 +85,7 @@ public sealed class I18NSession : IVoiceSynthesisSession
     public I18NSession(IVoiceSynthesisContext context)
     {
         mContext = context;
-        context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified, n => n.Lyric.Modified, n => n.Phonemes.Modified, n => n.Properties.Modified)
+        context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified, n => n.Lyric.Modified, n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified, n => n.Properties.Modified)
             .Subscribe(_ => MarkDirty(), mSubscriptions);
         context.Notes.MembershipModified.Subscribe(MarkDirty, mSubscriptions);
         context.PartProperties.Modified.Subscribe(MarkDirty, mSubscriptions);
@@ -138,10 +138,10 @@ public sealed class I18NSession : IVoiceSynthesisSession
             var note = notes[i];
             double noteStart = note.StartTime;
             double noteEnd = note.EndTime;
-            phonemes.Add(origins[i], new SynthesizedSyllable(new List<SynthesizedPhoneme>
+            phonemes.Add(origins[i], new SynthesizedSyllable([], new List<SynthesizedPhoneme>
             {
                 new() { Symbol = note.Lyric, Duration = noteEnd - noteStart, StretchWeight = noteEnd - noteStart },
-            }, 0));   // 单核音素、元音起手 → 前置量 0
+            }, 0));   // 无引导、单核主体、元音起手 → BodyOffset 0
         }
         mPhonemes = phonemes;
 

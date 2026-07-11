@@ -100,7 +100,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 分级失效（链：时长/歌词[几何] → 音素 → 音高 → 参数 → 音频）：不同事件清不同下游产物，按级各开一个 WhenAnyItem。
         context.Notes.WhenAnyItem(n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Lyric.Modified)
             .Subscribe(note => MarkNoteDirty(note, phonemesStale: true, parametersStale: true), mSubscriptions);
-        context.Notes.WhenAnyItem(n => n.Pitch.Modified, n => n.Phonemes.Modified)
+        context.Notes.WhenAnyItem(n => n.Pitch.Modified, n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified)
             .Subscribe(note => MarkNoteDirty(note, phonemesStale: false, parametersStale: true), mSubscriptions);
         context.Notes.WhenAnyItem(n => n.Properties.Modified)
             .Subscribe(note => MarkNoteDirty(note, phonemesStale: false, parametersStale: false), mSubscriptions);
@@ -127,7 +127,7 @@ public sealed class TestSession : IVoiceSynthesisSession
     // 判定为延续的 note 不产音素、其时段由链头元音铺过（绑定性）。
     public bool IsContinuation(IVoiceSynthesisNote note)
     {
-        if (note.Lyric.Value != "-" || note.Phonemes.Value.Count > 0)
+        if (note.Lyric.Value != "-" || note.LeadingPhonemes.Value.Count > 0 || note.BodyPhonemes.Value.Count > 0)
             return false;
         var cur = note;
         while (true)
@@ -137,7 +137,7 @@ public sealed class TestSession : IVoiceSynthesisSession
                 return false;                              // 链跑出开头、无内容 note → 孤儿
             if (prev.EndTime.Value < cur.StartTime.Value)
                 return false;                              // 空隙断链 → 孤儿
-            if (prev.Lyric.Value != "-" || prev.Phonemes.Value.Count > 0)
+            if (prev.Lyric.Value != "-" || prev.LeadingPhonemes.Value.Count > 0 || prev.BodyPhonemes.Value.Count > 0)
                 return true;                               // 回溯到链头 → 生效延续
             cur = prev;
         }
@@ -470,10 +470,10 @@ public sealed class TestSession : IVoiceSynthesisSession
 
             double vowelOnset = note.StartTime;                     // 核起点 = 音符头
             int onsetCount = vi, codaCount = lyric.Length - vj;
-            for (int k = 0; k < onsetCount; k++)                    // 前置辅音：从核起点往左累积，IsLead=true
+            for (int k = 0; k < onsetCount; k++)                    // 前置辅音：从核起点往左累积，归引导列表
             {
                 double s = vowelOnset - (onsetCount - k) * kLeadIn;
-                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 0, StartTime = s, EndTime = s + kLeadIn });
+                predicted.Add(new RefLayout.Pred { NoteIndex = n, Symbol = lyric[k].ToString(), StretchWeight = 0, StartTime = s, EndTime = s + kLeadIn, Leading = true });
             }
             double vowelEnd = codaCount > 0 ? Math.Max(vowelOnset, groupEnd - codaCount * kTrailDur) : groupEnd;
             for (int k = vi; k < vj; k++)                           // 元音簇逐字母 → 多个 w=1 弹性音素（测多元音）
@@ -665,6 +665,7 @@ static class RefLayout
     {
         public int NoteIndex; public string Symbol; public double StretchWeight;
         public double StartTime; public double EndTime;
+        public bool Leading;   // 归引导列表（核前前置辅音）；元音簇 / 后辅音 / 无元音兜底 = false（主体）
     }
 
     // 主入口：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map。位置 / 压缩 / 相接判定交宿主。
@@ -678,30 +679,40 @@ static class RefLayout
             list.Add(p);
         }
 
+        static SynthesizedPhoneme Ph(string symbol, double dur, double w) => new() { Symbol = symbol, Duration = dur, StretchWeight = w };
+
         var result = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
         for (int ni = 0; ni < snapshot.Notes.Count; ni++)
         {
             var note = snapshot.Notes[ni];
-            var list = new List<SynthesizedPhoneme>();
-            double preutterance;
-            if (note.Phonemes.Count > 0)   // 钉死 note：报钉死时长（位置不报），前置量取快照
+            var leading = new List<SynthesizedPhoneme>();
+            var body = new List<SynthesizedPhoneme>();
+            double bodyOffset;
+            if (note.LeadingPhonemes.Count > 0 || note.BodyPhonemes.Count > 0)   // 钉死 note：报钉死双列表（位置不报），结合线取快照
             {
-                foreach (var ph in note.Phonemes)   // 几何字段（本回显不读 per-phoneme 属性）
-                    list.Add(new SynthesizedPhoneme { Symbol = ph.Symbol, Duration = ph.Duration, StretchWeight = ph.StretchWeight });
-                preutterance = note.Preutterance;
+                foreach (var ph in note.LeadingPhonemes) leading.Add(Ph(ph.Symbol, ph.Duration, ph.StretchWeight));   // 几何字段（本回显不读 per-phoneme 属性）
+                foreach (var ph in note.BodyPhonemes) body.Add(Ph(ph.Symbol, ph.Duration, ph.StretchWeight));
+                bodyOffset = note.BodyOffset;
             }
-            else if (byNote.TryGetValue(ni, out var preds))   // 自由 note：报预测时长；前置量由调用方按 note 显式给出
+            else if (byNote.TryGetValue(ni, out var preds))   // 自由 note：报预测时长；结合线由调用方按 note 给出「有效前置量」换算
             {
+                double leadSum = 0;
                 foreach (var p in preds)
-                    list.Add(new SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.EndTime - p.StartTime, StretchWeight = p.StretchWeight });
-                preutterance = preutterOverride != null && preutterOverride.TryGetValue(ni, out var ov) ? ov : 0;
+                {
+                    var ph = Ph(p.Symbol, p.EndTime - p.StartTime, p.StretchWeight);
+                    if (p.Leading) { leading.Add(ph); leadSum += Math.Max(0, ph.Duration); }
+                    else body.Add(ph);
+                }
+                // BodyOffset = Σ引导时长 − 有效前置量（preutterOverride 沿用旧标量语义：note 头到全序列首音素起点的距离）。
+                double preutter = preutterOverride != null && preutterOverride.TryGetValue(ni, out var ov) ? ov : 0;
+                bodyOffset = leadSum - preutter;
             }
             else
             {
                 continue;
             }
-            if (list.Count > 0)
-                result.Add(origins[ni], new SynthesizedSyllable(list, preutterance));
+            if (leading.Count > 0 || body.Count > 0)
+                result.Add(origins[ni], new SynthesizedSyllable(leading, body, bodyOffset));
         }
         return result;
     }

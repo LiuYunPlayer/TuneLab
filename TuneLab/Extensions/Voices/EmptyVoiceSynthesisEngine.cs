@@ -41,7 +41,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
         // 内容 note（严格比较——边界同源 tick 换算，相接即精确相等）∧ 本 note 无钉死音素（孤儿 = false）。
         public bool IsContinuation(IVoiceSynthesisNote note)
         {
-            if (note.Lyric.Value != "-" || note.Phonemes.Value.Count > 0)
+            if (note.Lyric.Value != "-" || note.LeadingPhonemes.Value.Count > 0 || note.BodyPhonemes.Value.Count > 0)
                 return false;
             var cur = note;
             while (true)
@@ -51,7 +51,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
                     return false;                          // 链跑出开头、无内容 note → 孤儿
                 if (prev.EndTime.Value < cur.StartTime.Value)
                     return false;                          // 空隙断链 → 孤儿
-                if (prev.Lyric.Value != "-" || prev.Phonemes.Value.Count > 0)
+                if (prev.Lyric.Value != "-" || prev.LeadingPhonemes.Value.Count > 0 || prev.BodyPhonemes.Value.Count > 0)
                     return true;                           // 回溯到链头 → 生效延续
                 cur = prev;
             }

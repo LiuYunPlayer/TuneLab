@@ -348,8 +348,10 @@ internal partial class PianoScrollView
                                                         info.Dur = tempoManager.GetTick(phoneme.EndTime) - pos - info.Pos;
                                                         info.Lyric = phoneme.Symbol;
                                                         info.Pronunciation = string.Empty;
-                                                        // 单音素填满新 note：时长 = 该音素长（= 新 note 长）、权重沿用引擎产物（元音则布局填满、辅音则固定此长）。
-                                                        info.Phonemes = [new() { Symbol = phoneme.Symbol, Duration = phoneme.EndTime - phoneme.StartTime, StretchWeight = phoneme.StretchWeight }];
+                                                        // 单音素填满新 note：归主体列表（无引导、结合线对齐音符头）；时长 = 该音素长（= 新 note 长）、权重沿用引擎产物。
+                                                        info.LeadingPhonemes = [];
+                                                        info.BodyPhonemes = [new() { Symbol = phoneme.Symbol, Duration = phoneme.EndTime - phoneme.StartTime, StretchWeight = phoneme.StretchWeight }];
+                                                        info.BodyOffset = 0;
                                                         phonemeNoteInfos.Add(info);
                                                     }
 
@@ -372,7 +374,7 @@ internal partial class PianoScrollView
                                         }
                                         // 仅当选中音符里有「可锁而未锁」的（有合成音素、无钉死音素）才提供「锁定音素」——
                                         // 把合成产物固定为用户数据（与拖音素边界时的隐式锁定同源，见 INote.LockPhonemes）。
-                                        if (Part.Notes.AllSelectedItems().Any(n => n.Phonemes.IsEmpty() && n.SynthesizedPhonemes != null && !n.SynthesizedPhonemes.IsEmpty()))
+                                        if (Part.Notes.AllSelectedItems().Any(n => !n.HasPinnedPhonemes && n.SynthesizedSyllable is { } s && s.Phonemes.Count > 0))
                                         {
                                             var menuItem = new MenuItem().SetName("Lock Phonemes".Tr(TC.Menu)).SetAction(() =>
                                             {
@@ -380,11 +382,11 @@ internal partial class PianoScrollView
                                                 Part.BeginMergeDirty();
                                                 foreach (var selectedNote in Part.Notes.AllSelectedItems())
                                                 {
-                                                    if (!selectedNote.Phonemes.IsEmpty())
+                                                    if (selectedNote.HasPinnedPhonemes)
                                                         continue;
 
                                                     selectedNote.LockPhonemes();
-                                                    changed |= !selectedNote.Phonemes.IsEmpty();
+                                                    changed |= selectedNote.HasPinnedPhonemes;
                                                 }
                                                 Part.EndMergeDirty();
                                                 if (changed)
@@ -395,7 +397,7 @@ internal partial class PianoScrollView
                                             menu.Items.Add(menuItem);
                                         }
                                         // 仅当选中音符里有钉死（锁定）音素才提供「清除锁定音素」——清空后回到合成音素口径。
-                                        if (Part.Notes.AllSelectedItems().Any(n => !n.Phonemes.IsEmpty()))
+                                        if (Part.Notes.AllSelectedItems().Any(n => n.HasPinnedPhonemes))
                                         {
                                             var menuItem = new MenuItem().SetName("Clear Locked Phonemes".Tr(TC.Menu)).SetAction(() =>
                                             {
@@ -403,7 +405,7 @@ internal partial class PianoScrollView
                                                 Part.BeginMergeDirty();
                                                 foreach (var selectedNote in Part.Notes.AllSelectedItems())
                                                 {
-                                                    if (selectedNote.Phonemes.IsEmpty())
+                                                    if (!selectedNote.HasPinnedPhonemes)
                                                         continue;
 
                                                     selectedNote.ClearLockedPhonemes();
@@ -3049,7 +3051,7 @@ internal partial class PianoScrollView
             note.LockPhonemesForBoundaryDrag(index);
             // 被显示门控留白的 note 本就没有手柄、拖不动（DisplayPhonemes 为空）；此处仍兜底，避免极端时序下取空索引崩溃。
             var phonemes = note.DisplayPhonemes;
-            if (note.Phonemes.IsEmpty() || phonemes.IsEmpty() || index > phonemes.Count)
+            if (!note.HasPinnedPhonemes || phonemes.IsEmpty() || index > phonemes.Count)
             {
                 note.DiscardTo(head);
                 return;

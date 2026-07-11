@@ -191,7 +191,7 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 
 | 数据 | 形态 | 进程内 | 跨进程（v2） |
 |---|---|---|---|
-| **note** | eager 物化的不可变值快照（`StartTime`/`EndTime`=有效末·单声部音频口径·全局秒，宿主独占音素布局不暴露满末、`Pitch`、`Lyric`、`VoiceSynthesisPhonemeSnapshot[]`=几何描述符（`SynthesizedPhoneme`：时长 / 权重 / IsLead）+ per-phoneme 属性值拷、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
+| **note** | eager 物化的不可变值快照（`StartTime`/`EndTime`=有效末·单声部音频口径·全局秒，宿主独占音素布局不暴露满末、`Pitch`、`Lyric`、`VoiceSynthesisPhonemeSnapshot` 引导 / 主体双列表=几何描述符（`SynthesizedPhoneme`：时长 / 权重）+ per-phoneme 属性值拷、`BodyOffset`、`Properties` 值拷；有序列表与递入 notes 索引对齐，邻居按索引导航） | worker 直读 | 序列化进消息体送过去 |
 | **automation** | **host 侧不可变原始点快照**；插件经 `IAutomationEvaluator.Evaluate(points)` 拉采样值 | worker 直接调求值器、宿主插值算法就地对冻结点插值 | 快照序列化时物化为离散点（提前采样，跨进程牺牲项；细节缓后）；**插值算法恒在宿主侧** |
 | **timing** | `ITiming` 接口接缝（接口与实现 `TempoSnapshot` 同居宿主 `TuneLab.Data.Timing`，与 live 同一套共享算法；不在插件 SDK 面） | worker 直接调冻结实现 | 快照序列化时物化为离散数据（细节缓后） |
 
@@ -355,12 +355,11 @@ public struct SynthesisStatusSegment
 
 ## 6. 音素
 
-音素**几何核** `SynthesizedPhoneme`（`Symbol + 标称时长 Duration + 弹性权重 StretchWeight`，**不报绝对位置、不报前后归属**）是输入 / 输出 / 布局三方共享的稳定形状。前后归属（拍前 / 拍后）由 **note 级 `Preutterance`**（拍前发声量，自然秒）派生、不落每音素标志。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按同一时长模型 + Preutterance 派生、独占布局。
+音素**几何核** `SynthesizedPhoneme`（`Symbol + 标称时长 Duration + 弹性权重 StretchWeight`，**不报绝对位置、不报前后归属**）是输入 / 输出 / 布局三方共享的稳定形状。引导 / 主体归属做成**结构化双列表**（`LeadingPhonemes` / `BodyPhonemes`，引擎声明、成员即分类、抗帧抖动、跨拍音素可显式归属、结构上无交替洞）；几何收进一个有符号 **`BodyOffset`**（主体起点 = 两列表结合线 junction 相对 note 头的偏移，左负右正）。分类与几何正交。定位 / 跨 note 去重叠压缩 / melisma 铺设 / 留白门控全由**宿主**按 `PhonemeLayout` 独占布局。
 
 ```csharp
 // 音素描述符（方向无关，输入 / 输出共用一个类型）：只报几何（标称时长 + 弹性权重），**不报绝对位置、不报前后归属**。
-// 进（用户钉死约束，挂 IVoiceSynthesisNote.Phonemes）与出（引擎产物 IVoiceSynthesisSession.SynthesizedPhonemes 的组）同形。
-// 同时是布局纯函数 PhonemeLayout.Resolve 的载体（布局只读几何、方向无关；前后归属由 PhonemeLayoutNote.Preutterance 派生）。
+// 进（用户钉死约束，挂 IVoiceSynthesisNote 两列表）与出（引擎产物 SynthesizedSyllable 两列表）同形；也是 PhonemeLayout.Resolve 的载体。
 public struct SynthesizedPhoneme
 {
     public string Symbol;
@@ -368,13 +367,17 @@ public struct SynthesizedPhoneme
     public double StretchWeight;   // 弹性权重：0=刚性辅音 / >0=可伸核·元音（吸收 note 伸缩、按权重先让）
 }
 
-// 合成产物 map 的值型：一组归属 note 的音素 + 前置量 Preutterance（拍前发声量，自然秒 = note 头之前音素的占位长度）。
+// 合成产物 map 的值型：一个归属 note 的音节 = 引导 / 主体双列表 + 有符号 BodyOffset。
 public readonly struct SynthesizedSyllable
 {
-    public IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }
-    public double Preutterance { get; }   // note 头落在音素自然时间带上的偏移；决定拍前 / 拍后归属、支持音素跨拍
+    public IReadOnlyList<SynthesizedPhoneme> LeadingPhonemes { get; }   // 引导：核前前置辅音，时间序
+    public IReadOnlyList<SynthesizedPhoneme> BodyPhonemes { get; }      // 主体：核 + 尾辅音，时间序
+    public double BodyOffset { get; }   // junction = noteStart + BodyOffset（左负右正）；0⇒主体起点精确落头、<0⇒主体首元素跨头、>0⇒引导末元素跨头
+    public IReadOnlyList<SynthesizedPhoneme> Phonemes { get; }          // 只读全序列视图 = Leading ++ Body（每次拼接）
 }
 ```
+
+**摆放公式（冻结规格，单次锚定、无 Σ 往返）**：以 `junction = noteStart + BodyOffset` 为唯一原点，body 正向累加（`body[i].start = junction + Σ_{k<i} body[k].dur`）、leading 反向累加（`leading[j].end = junction − Σ_{k>j} leading[k].dur`）。`BodyOffset=0` 时 `junction ≡ noteStart`（同一数、无加减）→ 结合线零误差落头上。**绝不**走「`Preutterance = Σleading − BodyOffset` 再正向累加」（双求和亚帧漂移，会被引擎帧量化放大成整帧，Sil 教训）。头切分（供跨 note 压缩）恒以 note 头（`FillStart`）为切点，头落在哪个音素内由摆放后位置与 note 头直接比较（`noteStart − junction = −BodyOffset`，精确、严格无容差）——被切的跨拍音素**未必**= 结合线那个音素（二者相距 `BodyOffset`），正是分类与几何解耦。
 
 **`SynthesizedPhoneme` 维持单一方向无关类型（不拆三角色）**：音素的"几何"进出对称，故输入约束与输出产物共用一个 `SynthesizedPhoneme`，布局纯函数也直接吃它。引入 per-phoneme 引擎属性（§6 末「音素属性」）后**不破这条对称**——属性不混进 `SynthesizedPhoneme`，而是只在**输入侧 / 钉死音素**上、随合成快照单独以 `VoiceSynthesisPhonemeSnapshot`（= 几何字段平铺 + `PropertyObject Properties`，见 §6 末）承载。这样几何契约保持瘦、布局只碰几何，而属性是 niche 的 pay-as-you-go 附加（绝大多数音素无属性）。
 
@@ -384,7 +387,7 @@ public readonly struct SynthesizedSyllable
 
 活视图挂在 `IVoiceSynthesisNote.Phonemes`（`IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>>`，整列表换引用即通知；活视图侧**只暴露几何**、不带属性——引擎在合成时经快照读属性，见 §6 末）；进合成快照时物化为 `VoiceSynthesisPhonemeSnapshot[]`（几何描述符 + 属性值拷）。
 
-- **位置由布局派生、不存**：前置分界线（核起点）= 音符头；`IsLead` 音素从分界线往左累积固定时长（可任意加长、向 note 前越界）；核 + 后辅音往右——辅音用固定时长、核填充到组末（含 melisma 铺过乘客）、多核按权重分摊。便于「推挤式」编辑（改一个音素长度，相邻整体平移而非互相挤占）。
+- **位置由布局派生、不存**：结合线 junction = 音符头 + `BodyOffset`；引导音素从 junction 往左累积固定时长（可任意加长、向 note 前越界）；主体（核 + 后辅音）从 junction 往右——辅音用固定时长、核填充到组末（含 melisma 铺过乘客）、多核按权重分摊。便于「推挤式」编辑（改一个音素长度，相邻整体平移而非互相挤占）。
 - **钉死粒度为整 note**：列表非空 = 全部音素用户钉死（约束，引擎遵守）；空列表 = 引擎从 `Lyric` 做 G2P + 全自由定时。不支持单音素级"部分钉死"。
 
 ### 布局算法（SDK 共享纯函数 `PhonemeLayout.Resolve`）
@@ -411,21 +414,21 @@ IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get
 
 ### 伸缩、锁定与 preview
 
-音素如何随音符长度伸缩 / 去重叠是引擎的音韵学知识（元音吸收伸缩、各引擎自有比例），宿主没有元音/辅音概念。解法是把知识编码进每音素一个 `StretchWeight` 数字 + `IsLead` 前后标记，宿主据它跑确定性的乘法 / 等比布局（缩放比 `len/d = r^w`）：
+音素如何随音符长度伸缩 / 去重叠是引擎的音韵学知识（元音吸收伸缩、各引擎自有比例），宿主没有元音/辅音概念。解法是把知识编码进每音素一个 `StretchWeight` 数字 + 引导 / 主体双列表归属，宿主据它跑确定性的乘法 / 等比布局（缩放比 `len/d = r^w`）：
 
-- **核时长是基准比例**：核（w>0）的 `Duration` 是原长——单核时被抵消（恒填满核空间）、多核时定彼此基准比例（各乘 `r^w`）；辅音（w=0）的 `Duration` 即固定长。引擎无需自己摆位，只诚实报时长 + 权重 + 前后标记。
+- **核时长是基准比例**：核（w>0）的 `Duration` 是原长——单核时被抵消（恒填满核空间）、多核时定彼此基准比例（各乘 `r^w`）；辅音（w=0）的 `Duration` 即固定长。引擎无需自己摆位，只诚实报时长 + 权重 + 双列表归属 + BodyOffset。
 - **权重随锁定持久化进工程**：用户锁定音素时固定的是"几何 + 伸缩性质"整体——`StretchWeight` 随锁定存进 `PhonemeInfo.StretchWeight` / 数据层 `IPhoneme.StretchWeight`。根除时序错位（工程加载后首轮合成前拖伸 note，伸缩有正确分布而非退化均匀）。`StretchWeight` 默认全填同一正值（如 `1`，等比缩放）；全 `w=0` 退化为按原长整体等比，无除零。
-- **锁定零跳变**：锁定 = 宿主取 `{Duration, StretchWeight, IsLead}` 按「核起点 = 音符头」重新派生位置；显示侧 `PhonemeLayout` 按当前邻居重新分配（可伸音素按 `r^w` 重新缩放），与合成同源、常态不双重压缩，无需「反压缩」。
+- **锁定零跳变**：锁定 = 宿主取 `{LeadingPhonemes, BodyPhonemes, BodyOffset}` 按 junction 摆放重新派生位置；显示侧 `PhonemeLayout` 按当前邻居重新分配（可伸音素按 `r^w` 重新缩放），与合成同源、常态不双重压缩，无需「反压缩」。
 - **preview 纯显示、绝不反馈给引擎当约束**：权威时长由全量合成重新定时返回（带新权重），覆盖 preview。
 
 ### 编辑：生长方向与全刚性 roll（宿主编辑侧，不入契约）
 
 用户改音素长度有两个入口——**波形带拖音素起边界拖杆**、**侧栏音素时长数值框**——两者共用一套「按 note 头派生生长方向」的语义。核心不变量：
 
-- **nominal 神圣**：一次编辑只改用户直接操作的音素的 nominal（`Duration`）+ 其所属 note 的 `Preutterance`；**绝不**把邻居核的 nominal 当吸收暂存去改（核 nominal=0 是乘法奇点 `d·r^w≡0`，撤走上下文后弹不回、是数据损坏）。
-- **生长方向由 head 派生**：音素在其 note 头之前的占比 `f = clamp(Preutterance − 前缀累计, 0, 时长) / 时长`。改长度 δ 时 `Preutterance += f·δ`——纯拍前 `f=1`（前置辅音向左长、右缘钉在 head）、纯拍后 `f=0`（向右长）、跨拍按比例，两端连续无跳。侧栏数值框即按此耦合 `Preutterance`（起手取基线 `f`，随 `DiscardTo` 每帧从基线重算）。
+- **nominal 神圣**：一次编辑只改用户直接操作的音素的 nominal（`Duration`）+（必要时）其所属 note 的 `BodyOffset`；**绝不**把邻居核的 nominal 当吸收暂存去改（核 nominal=0 是乘法奇点 `d·r^w≡0`，撤走上下文后弹不回、是数据损坏）。
+- **生长方向由所属列表决定（双列表模型的简化）**：改**引导**音素时长 → 向左长（`BodyOffset` 不变 ⇒ junction 固定 ⇒ 主体整体不动，引导链往左伸）；改**主体**音素时长 → 向右长（`BodyOffset` 不变）。故侧栏数值框只写时长即可，无需旧「按拍前占比 `f` 耦合 `Preutterance`」——双列表使生长方向随成员归属自动成立、耦合归零。
 - **有弹性核（w>0）时**：拖某刚性音素边界 = 改该音素 nominal，弹性核在布局里自动吸收（刚性显示=自然长、1:1 跟手），其余音素不动、核 nominal 不变，有界不发散。反解 bisect 命中显示目标即可。
-- **全刚性域（无核，如 legacy 全 `w=0`）**：无吸收者 → 若仍靠反解会让被拖音素自然长发散（越拖越钝、拆开相接音符露出畸长）。改走 **roll**：在被拖线两侧相邻音素间转移自然长（守恒二者之和）——被拖边界线性跟手、域端点固定、自然长夹在 `[0, 两者之和]` 内。左音素 = 同 note 内 `index−1`（两侧须同在拍后即同域），或拖首音素时**相接前内容邻居的末音素**（跨 note roll，前邻的前置料被借入本域）。跨 note roll 需前邻已钉死方可编辑，故拖杆按下时按同一门槛一并钉死前邻（见宿主 `INote.LockPhonemesForBoundaryDrag`）。两侧各按自己的 `f` 同步各自 note 的 `Preutterance`。
+- **全刚性域（无核，如 legacy 全 `w=0`）**：无吸收者 → 若仍靠反解会让被拖音素自然长发散（越拖越钝、拆开相接音符露出畸长）。改走 **roll**：在被拖线两侧相邻音素间转移自然长（守恒二者之和）——被拖边界线性跟手、域端点固定、自然长夹在 `[0, 两者之和]` 内。左音素 = 同 note 内 `index−1`（两侧同属主体域），或拖首音素时**相接前内容邻居的末音素**（跨 note roll，前邻的前置料被借入本域）。跨 note roll 需前邻已钉死方可编辑，故拖杆按下时按同一门槛一并钉死前邻（见宿主 `INote.LockPhonemesForBoundaryDrag`）。拖首引导音素向左长时结合线随之外扩（本 note `BodyOffset` 同步、主体不动）。实现上宿主拖拽反解内部用等价参数「有效前置量 P = Σleading − BodyOffset」复用反解数学、末转回 `BodyOffset`（迭代收敛、非帧精度路径；常态显示 / 音频直取存储 `BodyOffset`）。
 
 > 说明：当前实现只对「域内有核」与「全刚性」两类做了闭环。**同域多核**（如权重 `1 0 0 1`，改中间刚性时全局等比会让两侧核都动）尚保留全局等比行为——它非发散、nominal 安全，只是「仅最近核让位」的定向吸收待做（需把 `PhonemeLayout` 的全局等比压缩改为按核分单元的局部压缩，属共享契约变更，暂缓）。
 
@@ -459,7 +462,7 @@ public interface IVoiceSynthesisPhonemeView
     double Duration { get; }          // 标称时长（秒）
     double StretchWeight { get; }
     PropertyObject Properties { get; }
-    // 前后归属由所属 note 视图的 double Preutterance 派生，不落每音素标志
+    // 引导 / 主体归属由所属列表给（note 视图的 LeadingPhonemes / BodyPhonemes + double BodyOffset），不落每音素标志
 }
 ```
 
@@ -475,7 +478,7 @@ public readonly struct VoiceSynthesisPhonemeSnapshot
     public double Duration { get; }
     public double StretchWeight { get; }
     public PropertyObject Properties { get; }   // 未声明 / 未设 = PropertyObject.Empty
-    // 前后归属由 VoiceSynthesisNoteSnapshot.Preutterance 派生，不落每音素标志
+    // 引导 / 主体归属由所属列表给（VoiceSynthesisNoteSnapshot.LeadingPhonemes / BodyPhonemes + BodyOffset），不落每音素标志
 }
 ```
 
@@ -486,7 +489,7 @@ public readonly struct VoiceSynthesisPhonemeSnapshot
 - **属性只存在于钉死音素上**（用户数据）；引擎 G2P 的自动音素、合成产物音素**无属性**。给音素设属性这一动作**隐含钉死该 note 的音素**（与既有"编辑音素即转用户数据、`Phonemes` 非空 = 整 note 钉死"一致）。
 - **真相源在数据层实体**：宿主 `IPhoneme`（`: IDataObject<PhonemeInfo>`，原有 Duration/Symbol/StretchWeight/IsLead）**加 `DataPropertyObject Properties`**，与 `INote.Properties` 完全平行——身份 / 持久 / undo / merge 全由数据层既有机制承担。`VoiceSynthesisPhonemeSnapshot.Properties` / `IVoiceSynthesisPhonemeView.Properties` 是它的冻 / 读投影。
 - **pay-as-you-go（轻量）**：数据层 `IPhoneme.Properties` 是 **lazy**——首次写才物化 `DataPropertyObject`，未编辑过的音素零开销；只读消费（快照 / 三态合并）走 `HasProperties` 闸门避免无谓物化；持久层 `PhonemeInfo.Properties` 空则为 `null`、不序列化。**空容器 ≡ 无属性**。
-- **活视图侧不变**：`IVoiceSynthesisNote.Phonemes` 仍是几何列表（不带属性）——引擎在合成时经快照 `VoiceSynthesisPhonemeSnapshot.Properties` 读属性，活视图侧无须改面。
+- **活视图侧不变**：`IVoiceSynthesisNote` 的 `LeadingPhonemes` / `BodyPhonemes` 仍是几何列表（不带属性）——引擎在合成时经快照 `VoiceSynthesisPhonemeSnapshot.Properties` 读属性，活视图侧无须改面。
 - **引擎声明 schema**：`GetPhonemePropertyConfigs` 复用 note 声明上下文 `IVoiceSynthesisNotePropertyContext`（每个 `IVoiceSynthesisNoteView` 带 `Phonemes`），返回与「选中各 note 的音素扁平展开」（顺序 = `context.Notes` × 各 note `Phonemes`）索引对齐的 schema 列表（条件式，可依音素在 note 内的位置 / 邻居 / note 信息 / part / voice 给不同控件，如对首辅音、核、尾辅音返回不同配置；空列表 = 所有音素无属性）；每个 phoneme 的 `Properties` 存值，宿主渲染时三态合并 + keyed-diff。phoneme 声明上下文与 note 声明上下文本就等价，故复用同一接口、不重复造类型。
 - **曲线类不进属性**：per-phoneme 的音高 / 能量曲线本质是**时间轴参数**，走回显 / automation 通道（§7），不做成音素属性。
 - **voice-only**：instrument 无音素系统，不涉及。

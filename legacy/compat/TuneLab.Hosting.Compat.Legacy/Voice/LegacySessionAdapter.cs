@@ -33,7 +33,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         //    待重分片；曲线区间变更 → 标脏相交块；时基/part 属性 → 全部标脏重分片。 ——
         mNotesDirty = mContext.Notes.WhenAnyItem(
             n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified,
-            n => n.Lyric.Modified, n => n.Phonemes.Modified, n => n.Properties.Modified);
+            n => n.Lyric.Modified, n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified, n => n.Properties.Modified);
         mNotesDirty.Subscribe(OnNoteDirty);
         mContext.Notes.ItemAdded.Subscribe(OnNotesStructureChanged);
         mContext.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged);
@@ -434,28 +434,39 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
             // 回显如实落账（含老引擎对 "-" note 回传的占位音素，不再抑制）：本会话延音判定恒 false
             // （见 IsContinuation——老模型无乘客机制），故所有回显都走宿主的普通内容显示。
-            var list = new List<VVoice.SynthesizedPhoneme>();
-            double firstStart = double.NaN;
+            // 分类进引导 / 主体双列表（老模型无 lead 字段，按位置降级，本质即当年"猜 isLead"）：音素中点落在 note 头之前的连续
+            // 前缀 = 引导、其余 = 主体。BodyOffset = 主体首起点 − note 头（**不吸头**：保留引擎略跨头的真实分界，根治边界强吸头引入
+            // sub-frame 错位被帧量化成整帧 Sil）。两条修正（老引擎无权重概念，宿主补足使布局像真人嗓）：
+            //   ① **至少一个拍后音素**：若按中点判完全归引导（无主体），把**最后一个引导**挪进主体，保证有核可填满音符。
+            //   ② **首个拍后音素 w=1**（弹性核、填满音符到满末）；其余音素 w=0（刚性、固定长）。
+            var items = new List<VVoice.SynthesizedPhoneme>();
+            var starts = new List<double>();
             foreach (var phoneme in kv.Value)
             {
-                if (double.IsNaN(firstStart))
-                    firstStart = phoneme.StartTime;
-                list.Add(new VVoice.SynthesizedPhoneme
-                {
-                    Symbol = phoneme.Symbol,
-                    Duration = phoneme.EndTime - phoneme.StartTime,   // 老引擎报绝对位置，转标称时长
-                    // 老引擎无伸缩权重概念：与老工程导入同口径全 w=0——布局对全 w=0 按原长等比缩放占满，
-                    // 正是旧版"所有音素随音符等比伸缩"的行为。
-                    StretchWeight = 0,
-                });
+                items.Add(new VVoice.SynthesizedPhoneme { Symbol = phoneme.Symbol, Duration = phoneme.EndTime - phoneme.StartTime });
+                starts.Add(phoneme.StartTime);
             }
-            if (list.Count > 0)
+            int count = items.Count;
+            if (count > 0)
             {
-                // 前置量 = note 头 − 首音素起点（老引擎报的绝对位置的真实分界），**不吸头**：保留引擎略跨头的边界，
-                // 根治「边界强吸 note 头引入 sub-frame 错位、被引擎帧量化放大成整帧 Sil」。老结果为绝对秒、
-                // 分界线 = 本 note 起点（起点无单声部钳位，直接用快照值）。忠实降级：位置由引擎报的绝对值反算、不猜。
-                double preutterance = Math.Max(0, view.StartTime - firstStart);
-                phonemes.Add(view.Origin, new VVoice.SynthesizedSyllable(list, preutterance));
+                int leadCount = 0;                                    // 中点 < note 头的连续前缀 = 引导
+                for (int i = 0; i < count; i++)
+                {
+                    if ((starts[i] + starts[i] + items[i].Duration) < 2 * view.StartTime) leadCount = i + 1; else break;
+                }
+                if (leadCount >= count) leadCount = count - 1;        // ① 保证 ≥1 拍后：全归引导时把末个引导挪进主体
+
+                var leading = new List<VVoice.SynthesizedPhoneme>();
+                var body = new List<VVoice.SynthesizedPhoneme>();
+                for (int i = 0; i < count; i++)
+                {
+                    var d = items[i];
+                    d.StretchWeight = i == leadCount ? 1 : 0;         // ② 首个拍后音素 = 弹性核 w=1，其余 w=0
+                    if (i < leadCount) leading.Add(d); else body.Add(d);
+                }
+                // junction（结合线）= 主体首起点（其原始绝对起点）。BodyOffset = junction − note 头（有符号、不吸头）。
+                double bodyOffset = starts[leadCount] - view.StartTime;
+                phonemes.Add(view.Origin, new VVoice.SynthesizedSyllable(leading, body, bodyOffset));
             }
         }
         piece.Phonemes = phonemes;

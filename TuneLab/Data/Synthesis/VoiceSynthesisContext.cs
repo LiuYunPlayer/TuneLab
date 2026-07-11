@@ -468,8 +468,9 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         public IReadOnlyNotifiableProperty<double> EndTime { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
         public IReadOnlyNotifiableProperty<string> Lyric { get; }
-        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesizedPhoneme>> Phonemes { get; }
-        public IReadOnlyNotifiableProperty<double> Preutterance { get; }
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesizedPhoneme>> LeadingPhonemes { get; }
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SDK.SynthesizedPhoneme>> BodyPhonemes { get; }
+        public IReadOnlyNotifiableProperty<double> BodyOffset { get; }
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public IVoiceSynthesisNote? Next => mContext.ProxyOf(mNote.Next);
@@ -498,22 +499,19 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             // 钉死音素的「时长 + 权重」（与工程存储同形）：位置 / 去重叠 / 跨 note 压缩由插件按时长 + note 几何自行派生
             // （布局算法不在 SDK，插件按需照抄参考实现）。时长不随 note 伸缩改变，
             // 故只依赖 note.Phonemes；note resize 经 StartTime/EndTime 另行触发重合成。
-            Phonemes = Track(new DerivedProperty<IReadOnlyList<SDK.SynthesizedPhoneme>>(context, () =>
+            static IReadOnlyList<SDK.SynthesizedPhoneme> Convert(IDataObjectList<IPhoneme> list)
             {
-                var phonemes = new List<SDK.SynthesizedPhoneme>(note.Phonemes.Count);
-                foreach (var p in note.Phonemes)
-                {
-                    phonemes.Add(new SDK.SynthesizedPhoneme
-                    {
-                        Symbol = p.Symbol.Value,
-                        Duration = p.Duration.Value,
-                        StretchWeight = p.StretchWeight.Value,
-                    });
-                }
+                var phonemes = new List<SDK.SynthesizedPhoneme>(list.Count);
+                foreach (var p in list)
+                    phonemes.Add(new SDK.SynthesizedPhoneme { Symbol = p.Symbol.Value, Duration = p.Duration.Value, StretchWeight = p.StretchWeight.Value });
                 return phonemes;
-            }, note.Phonemes));
-            // 钉死前置量（拍前发声量）：与 Phonemes 同源、只依赖 note.Preutterance。
-            Preutterance = Track(new DerivedProperty<double>(context, () => note.Preutterance.Value, note.Preutterance));
+            }
+            // 钉死双列表（时长 + 权重，与工程存储同形）：位置 / 去重叠 / 跨 note 压缩由插件按时长 + note 几何自行派生。
+            // 时长不随 note 伸缩改变，故各只依赖自身列表；note resize 经 StartTime/EndTime 另行触发重合成。
+            LeadingPhonemes = Track(new DerivedProperty<IReadOnlyList<SDK.SynthesizedPhoneme>>(context, () => Convert(note.LeadingPhonemes), note.LeadingPhonemes));
+            BodyPhonemes = Track(new DerivedProperty<IReadOnlyList<SDK.SynthesizedPhoneme>>(context, () => Convert(note.BodyPhonemes), note.BodyPhonemes));
+            // 钉死 BodyOffset（结合线相对 note 头）：与双列表同源、只依赖 note.BodyOffset。
+            BodyOffset = Track(new DerivedProperty<double>(context, () => note.BodyOffset.Value, note.BodyOffset));
             mProperties = new PropertyObjectGuard(context, note.Properties);
         }
 

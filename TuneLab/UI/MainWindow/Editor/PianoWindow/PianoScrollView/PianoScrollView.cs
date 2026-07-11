@@ -86,7 +86,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartHolder.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
         // 钉死音素几何变化（侧栏拖时长/权重、改符号等）→ 实时重绘音素带。侧栏编辑走 BeginMergeDirty（只延迟重合成、
         // 不抑制数据通知），故 Phonemes.Modified 在拖动每帧触发、音素带跟手；不依赖重合成（那只在提交后发）。
-        mDependency.PartHolder.When(p => p.Notes.WhenAny(n => n.Phonemes.Modified)).Subscribe(InvalidateVisual, s);
+        mDependency.PartHolder.When(p => p.Notes.WhenAny(n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Vibratos.WhenAny(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
         mDependency.PartHolder.When(p => p.Track.Project.Tracks.WhenAny(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);
@@ -1763,23 +1763,25 @@ internal partial class PianoScrollView : View, IPianoScrollView
 
         var head = note.Part.Head;
         note.LockPhonemes();
-        if (note.Phonemes.Count != display.Count)
+        if (note.PhonemeCount != display.Count)
         {
             // 锁定后钉死音素应与显示音素一一对应；不一致说明状态在竞态中漂了，整体回滚。
             note.Part.DiscardTo(head);
             return;
         }
 
-        var phoneme = note.Phonemes[index];
+        // 全序列下标 → 所属列表 + 局部下标（增删在具体列表上做，同 slot 归属不变）。
+        var (list, local) = note.LocatePhoneme(index);
+        var phoneme = list[local];
         if (tokens.Length == 0)
         {
-            // 空输入 = 删除该音素。全删空则 Phonemes 清空、回到合成音素口径（与清除锁定同语义）。
-            note.Phonemes.RemoveAt(index);
+            // 空输入 = 删除该音素。全删空则该 note 回到合成音素口径（清空两列表与清除锁定同语义）。
+            list.RemoveAt(local);
         }
         else
         {
             // 等分：时长 / 伸缩权重均摊——辅音(w=0)固定时长等分；核(w>0)按权重比例填充，等权即显示等分。
-            // 各段继承前置标志；引擎自定义属性留在首段（拆分不复制，避免语义不明的双份属性）。
+            // 各段留在同一列表（归属不变）；引擎自定义属性留在首段（拆分不复制，避免语义不明的双份属性）。
             double duration = phoneme.Duration.Value / tokens.Length;
             double weight = phoneme.StretchWeight.Value / tokens.Length;
             phoneme.Symbol.Set(tokens[0]);
@@ -1787,7 +1789,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             phoneme.StretchWeight.Set(weight);
             for (int i = 1; i < tokens.Length; i++)
             {
-                note.Phonemes.Insert(index + i, Phoneme.Create(new PhonemeInfo
+                list.Insert(local + i, Phoneme.Create(new PhonemeInfo
                 {
                     Symbol = tokens[i],
                     Duration = duration,

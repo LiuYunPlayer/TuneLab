@@ -16,10 +16,10 @@ namespace TuneLab.Extensions.Formats.TLP;
 
 internal class TuneLabProject : IImportFormat, IExportFormat
 {
-    // v0=legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1=2.0.0 中间态（新音素、几何仍 dur）；
-    // v2=当前（part 几何锚点 Pos+StartOffset+EndOffset）。音素前置量的 isLead↔preutterance 两种表示同为 v2
-    //（当前版顶替 isLead 那版），故靠**字段**而非版本号区分（见音素读取）。反序列化按版本忠实降级 legacy 几何。
-    const int CURRENT_VERSION = 2;
+    // v0 = 唯一发布过的 legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1 = 当前 2.0.0（part 几何锚点 Pos+StartOffset+EndOffset、
+    // 音素结构化双列表 leadingPhonemes/bodyPhonemes + bodyOffset）。2.0.0 未发布，dev 期间的中间 bump 不占发布版本号——折叠回 v1；
+    // legacy 判据几何与音素统一为 version<1（仅 v0）。
+    const int CURRENT_VERSION = 1;
     public ProjectInfo Deserialize(Stream streamToRead)
     {
         using (StreamReader reader = new StreamReader(streamToRead, Encoding.UTF8))
@@ -31,8 +31,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             if (project == null)
                 throw new Exception("Json deserialization failed!");
 
-            var versoin = (int)project["version"];
-            if (versoin > CURRENT_VERSION)
+            var version = (int)project["version"];
+            if (version > CURRENT_VERSION)
                 throw new Exception("Unsupported Version");
 
             var tempos = project["tempos"].ToArray();
@@ -114,41 +114,38 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 Properties = FromJson(note["properties"]),
                             };
 
-                            if (note.TryGetValue("phonemes", out var phonemes))
+                            // 当前格式：钉死音素为结构化双列表 leadingPhonemes/bodyPhonemes（各含 duration/stretchWeight），
+                            //   结合线为 note 级 bodyOffset（有符号）。
+                            // v<1（legacy 1.x）：单 phonemes 数组，startTime/endTime（相对音符头的秒，音符头=0）。与 legacy 引擎回显同一套
+                            //   降级逻辑：时长 = endTime − startTime；按区间中点 < 音符头（(start+end)/2<0）的连续前缀判引导、其余归主体；
+                            //   ① 至少一个拍后音素（全归引导则末个挪进主体）；② 首个拍后音素 w=1（弹性核填满音符）、其余 w=0；
+                            //   bodyOffset = 主体首起点（rel 音符头，不吸头、保真实分界）。
+                            if (version < 1)
                             {
-                                // 当前格式：每音素 duration/stretchWeight，前置量为 note 级 preutterance（拍前发声量）。
-                                // v<1（legacy 1.x）：startTime/endTime（相对音符头的秒，音符头=0）→ 时长 = endTime − startTime（音素连续）；
-                                //   旧模型无前置 / 弹性概念：按区间中点落在音符头之前（(start+end)/2 < 0）判前置辅音折算出 note 级前置量、权重恒 0
-                                //   （老版随音符等比缩放，布局「全 w=0 退化为按原长等比」复刻之）。
-                                bool legacy = versoin < 1;
-                                double leadPreutterance = 0;   // 仅 legacy：从前置前缀折算
-                                bool stillLead = true;
-                                foreach (JObject phoneme in phonemes)
+                                if (note.TryGetValue("phonemes", out var phonemes))
                                 {
-                                    string symbol = (string)phoneme["symbol"] ?? "";
-                                    double duration, weight;
-                                    if (legacy)
+                                    var items = new List<(PhonemeInfo Info, double Start, double End)>();
+                                    foreach (JObject phoneme in phonemes)
                                     {
                                         double startTime = (double?)phoneme["startTime"] ?? 0;
                                         double endTime = (double?)phoneme["endTime"] ?? 0;
-                                        weight = 0;
-                                        duration = Math.Max(0, endTime - startTime);
-                                        if (stillLead && (startTime + endTime) < 0) leadPreutterance += duration; else stillLead = false;
+                                        items.Add((new PhonemeInfo()
+                                        {
+                                            Symbol = (string)phoneme["symbol"] ?? "",
+                                            Duration = Math.Max(0, endTime - startTime),
+                                            Properties = phoneme.TryGetValue("properties", out var pp) ? FromJson(pp) : null,
+                                        }, startTime, endTime));
                                     }
-                                    else
-                                    {
-                                        duration = (double?)phoneme["duration"] ?? 0;
-                                        weight = (double?)phoneme["stretchWeight"] ?? 0;
-                                    }
-                                    noteInfo.Phonemes.Add(new PhonemeInfo()
-                                    {
-                                        Symbol = symbol,
-                                        Duration = duration,
-                                        StretchWeight = weight,
-                                        Properties = phoneme.TryGetValue("properties", out var phonemeProps) ? FromJson(phonemeProps) : null,
-                                    });
+                                    SplitLegacyPhonemes(items, noteInfo);
                                 }
-                                noteInfo.Preutterance = legacy ? leadPreutterance : ((double?)note["preutterance"] ?? 0);
+                            }
+                            else
+                            {
+                                if (note.TryGetValue("leadingPhonemes", out var lp))
+                                    foreach (JObject phoneme in lp) noteInfo.LeadingPhonemes.Add(ReadPhoneme(phoneme));
+                                if (note.TryGetValue("bodyPhonemes", out var bp))
+                                    foreach (JObject phoneme in bp) noteInfo.BodyPhonemes.Add(ReadPhoneme(phoneme));
+                                noteInfo.BodyOffset = (double?)note["bodyOffset"] ?? 0;
                             }
 
                             midiPartInfo.Notes.Add(noteInfo);
@@ -253,9 +250,9 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     partInfo.Name = (string)part["name"];
                     partInfo.Pos = (int)part["pos"];
                     // 几何字段由版本号唯一决定（不按字段存在与否猜测）：
-                    //   v<2（legacy）：只存 dur、无前向裁剪概念 → 锚点即起点（StartOffset=0）、终点 = 锚点 + dur。
-                    //   v≥2：锚点模型 startOffset/endOffset。
-                    if (versoin < 2)
+                    //   v<1（legacy 1.x）：只存 dur、无前向裁剪概念 → 锚点即起点（StartOffset=0）、终点 = 锚点 + dur。
+                    //   v≥1（当前 2.0.0）：锚点模型 startOffset/endOffset。
+                    if (version < 1)
                     {
                         partInfo.StartOffset = 0;
                         partInfo.EndOffset = (double)part["dur"];
@@ -369,24 +366,11 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         note.Add("lyric", noteInfo.Lyric);
                         note.Add("pronunciation", noteInfo.Pronunciation);
                         note.Add("properties", ToJson(noteInfo.Properties));
-                        if (!noteInfo.Phonemes.IsEmpty())
+                        if (noteInfo.LeadingPhonemes.Count > 0 || noteInfo.BodyPhonemes.Count > 0)
                         {
-                            note.Add("preutterance", noteInfo.Preutterance);   // note 级前置量（拍前发声量）
-                            var phonemes = new JArray();
-                            foreach (var phonemeInfo in noteInfo.Phonemes)
-                            {
-                                var phoneme = new JObject();
-                                phoneme.Add("symbol", phonemeInfo.Symbol);
-                                phoneme.Add("duration", phonemeInfo.Duration);
-                                phoneme.Add("stretchWeight", phonemeInfo.StretchWeight);
-                                // per-phoneme 引擎自定义属性（空则省略，pay-as-you-go）。
-                                if (phonemeInfo.Properties is { } phonemeProps && phonemeProps.Map.Count > 0)
-                                    phoneme.Add("properties", ToJson(phonemeProps));
-
-                                phonemes.Add(phoneme);
-                            }
-
-                            note.Add("phonemes", phonemes);
+                            note.Add("bodyOffset", noteInfo.BodyOffset);   // note 级结合线偏移（有符号）
+                            note.Add("leadingPhonemes", WritePhonemes(noteInfo.LeadingPhonemes));
+                            note.Add("bodyPhonemes", WritePhonemes(noteInfo.BodyPhonemes));
                         }
 
                         notes.Add(note);
@@ -476,6 +460,52 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         project.Add("exportConfig", exportConfig);
 
         return new MemoryStream(Encoding.UTF8.GetBytes(project.ToString(Formatting.None)));
+    }
+
+    // v<1 legacy 单音素数组按位置降级分双列表（与 legacy 引擎回显同一套）：中点 < 音符头（start+end<0）的连续前缀 = 引导；
+    // ① 至少一个拍后音素（全归引导则末个挪进主体）；② 首个拍后音素 w=1（弹性核填满音符）、其余 w=0；
+    // bodyOffset = 主体首起点（rel 音符头，不吸头、保真实分界）。items 的 Info 是引用，就地设 StretchWeight。
+    static void SplitLegacyPhonemes(List<(PhonemeInfo Info, double Start, double End)> items, NoteInfo noteInfo)
+    {
+        int n = items.Count;
+        if (n == 0) { noteInfo.BodyOffset = 0; return; }
+        int leadCount = 0;
+        for (int i = 0; i < n; i++) { if ((items[i].Start + items[i].End) < 0) leadCount = i + 1; else break; }
+        if (leadCount >= n) leadCount = n - 1;
+        for (int i = 0; i < n; i++)
+        {
+            items[i].Info.StretchWeight = i == leadCount ? 1 : 0;
+            if (i < leadCount) noteInfo.LeadingPhonemes.Add(items[i].Info); else noteInfo.BodyPhonemes.Add(items[i].Info);
+        }
+        noteInfo.BodyOffset = items[leadCount].Start;
+    }
+
+    // 当前格式单音素读：duration/stretchWeight + per-phoneme 引擎自定义属性（引导 / 主体归属由所属列表给）。
+    PhonemeInfo ReadPhoneme(JObject phoneme) => new()
+    {
+        Symbol = (string)phoneme["symbol"] ?? "",
+        Duration = (double?)phoneme["duration"] ?? 0,
+        StretchWeight = (double?)phoneme["stretchWeight"] ?? 0,
+        Properties = phoneme.TryGetValue("properties", out var props) ? FromJson(props) : null,
+    };
+
+    JArray WritePhonemes(IReadOnlyList<PhonemeInfo> phonemes)
+    {
+        var array = new JArray();
+        foreach (var phonemeInfo in phonemes)
+        {
+            var phoneme = new JObject
+            {
+                { "symbol", phonemeInfo.Symbol },
+                { "duration", phonemeInfo.Duration },
+                { "stretchWeight", phonemeInfo.StretchWeight },
+            };
+            // per-phoneme 引擎自定义属性（空则省略，pay-as-you-go）。
+            if (phonemeInfo.Properties is { } phonemeProps && phonemeProps.Map.Count > 0)
+                phoneme.Add("properties", ToJson(phonemeProps));
+            array.Add(phoneme);
+        }
+        return array;
     }
 
     PropertyObject FromJson(JToken jToken)

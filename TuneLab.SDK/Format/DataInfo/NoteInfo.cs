@@ -15,10 +15,15 @@ public class NoteInfo
     public string Lyric { get; set; } = string.Empty;
     public string Pronunciation { get; set; } = string.Empty;
     public PropertyObject Properties { get; set; } = PropertyObject.Empty;
-    public List<PhonemeInfo> Phonemes { get; set; } = new();
-    // 前置量（拍前发声量，自然秒）：note 头之前钉死音素的占位长度，决定拍前 / 拍后归属（见 PhonemeLayout）。
-    // 仅在 Phonemes 非空时有意义；默认 0（元音起手 / 无钉死）。
-    public double Preutterance { get; set; }
+    // 钉死音素的结构化双列表：引导（核前前置辅音）/ 主体（核 + 尾辅音），时间序。两者皆空 = 非钉死。
+    public List<PhonemeInfo> LeadingPhonemes { get; set; } = new();
+    public List<PhonemeInfo> BodyPhonemes { get; set; } = new();
+    // 主体起点（= 两列表结合线）相对 note 头的有符号偏移：junction = noteStart + BodyOffset（左负右正）。
+    // 仅在有音素时有意义；默认 0（元音起手 / 无钉死）。
+    public double BodyOffset { get; set; }
+
+    // 全序列只读视图 = LeadingPhonemes ++ BodyPhonemes（时间序）；供只读消费者用（每次拼接）。
+    public IReadOnlyList<PhonemeInfo> Phonemes => LeadingPhonemes.Concat(BodyPhonemes).ToList();
 }
 
 public static class NoteInfoExtension

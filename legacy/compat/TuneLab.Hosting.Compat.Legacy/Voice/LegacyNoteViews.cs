@@ -68,7 +68,7 @@ internal sealed class LiveNoteView(
     // 按老声源的 NoteProperties 声明键现取（V1 订阅树外观不可枚举，键集来自声明）。
     public LProp.PropertyObject Properties => propertiesReader(origin);
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes => LegacyNoteConvert.ToLegacyPinnedPhonemes(
-        origin.Phonemes.Value, origin.Preutterance.Value, StartTime, EndTime);
+        origin.LeadingPhonemes.Value, origin.BodyPhonemes.Value, origin.BodyOffset.Value, StartTime, EndTime);
 }
 
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
@@ -108,25 +108,23 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
         // 接缝无坑、无 Sil（对齐老 TuneLab：宿主算好钉死段长直到 note 边界，邻辅音由引擎自补重叠）。
         // 锚点 = [note 头, 有效末]，与显示同口径。不相接不推挤、不复刻老版跨空隙顶推。
         var nodes = new PhonemeLayoutNote[views.Length];
-        var pinned = new IReadOnlyList<VVoice.SynthesizedPhoneme>?[views.Length];
+        var pinned = new IReadOnlyList<VVoice.SynthesizedPhoneme>?[views.Length];   // 全序列（引导 ++ 主体），与 timings 索引对齐
         for (int i = 0; i < views.Length; i++)
         {
-            IReadOnlyList<VVoice.SynthesizedPhoneme> descriptors;
-            double preutter;
-            if (notes[i].Phonemes.Count > 0)
+            static VVoice.SynthesizedPhoneme Descriptor(VVoice.VoiceSynthesisPhonemeSnapshot p) => new() { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight };
+            if (notes[i].LeadingPhonemes.Count > 0 || notes[i].BodyPhonemes.Count > 0)
             {
-                // 快照音素几何字段平铺 + per-phoneme 属性，V1 老引擎不需要属性——只取几何。前后归属由 note 级 Preutterance 派生。
-                descriptors = notes[i].Phonemes.Select(static p => new VVoice.SynthesizedPhoneme { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight }).ToArray();
-                preutter = notes[i].Preutterance;
-                pinned[i] = descriptors;
+                // 快照音素几何字段平铺，V1 老引擎不需要属性——只取几何。引导 / 主体归属由所属列表给。
+                var leading = notes[i].LeadingPhonemes.Select(Descriptor).ToArray();
+                var body = notes[i].BodyPhonemes.Select(Descriptor).ToArray();
+                nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, LeadingPhonemes = leading, BodyPhonemes = body, BodyOffset = notes[i].BodyOffset };
+                pinned[i] = notes[i].Phonemes.Select(Descriptor).ToArray();   // 全序列，供输出（timings 同序）
             }
             else
             {
                 // 未钉死 note 不进喂引擎布局：喂空、由引擎预测（回显只作宿主显示上下文，不进此处布局）。
-                descriptors = [];
-                preutter = 0;
+                nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, LeadingPhonemes = [], BodyPhonemes = [], BodyOffset = 0 };
             }
-            nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, Preutterance = preutter, Phonemes = descriptors };
         }
         var timings = PhonemeLayout.Resolve(nodes);
         for (int i = 0; i < views.Length; i++)
@@ -157,15 +155,16 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 
 internal static class LegacyNoteConvert
 {
-    // V1 音素描述符（时长 + 权重 + IsLead，列表非空=整 note 钉死）→ 老接口的绝对秒列表。
+    // V1 音素双列表（引导 / 主体 + BodyOffset，非空=整 note 钉死）→ 老接口的绝对秒列表。
     // 直接调 SDK 共享布局 PhonemeLayout（单 note 区间调用），与宿主显示同一套分配数学——全 w=0
     // 等比填满、乘法弹性模型、二级压缩全部一致，且随宿主布局算法演进不漂移。
     // 仅剩 LiveNoteView（Segment 分片输入）在用：老 Segment 只看时间间隙分片、不消费音素精确时序，
     // 单 note 布局足够；合成数据的钉死时序走 SnapshotNoteView.CreateChain 的整链联合布局（含跨 note 去重叠）。
     public static IReadOnlyList<LVoice.SynthesizedPhoneme> ToLegacyPinnedPhonemes(
-        IReadOnlyList<VVoice.SynthesizedPhoneme> phonemes, double preutterance, double noteStartTime, double noteEndTime)
+        IReadOnlyList<VVoice.SynthesizedPhoneme> leading, IReadOnlyList<VVoice.SynthesizedPhoneme> body, double bodyOffset,
+        double noteStartTime, double noteEndTime)
     {
-        int n = phonemes.Count;
+        int n = leading.Count + body.Count;
         if (n == 0)
             return [];
 
@@ -173,13 +172,16 @@ internal static class LegacyNoteConvert
         {
             FillStart = noteStartTime,
             FillEnd = noteEndTime,
-            Preutterance = preutterance,
-            Phonemes = phonemes,
+            LeadingPhonemes = leading,
+            BodyPhonemes = body,
+            BodyOffset = bodyOffset,
         }])[0];
 
         var result = new List<LVoice.SynthesizedPhoneme>(n);
-        for (int k = 0; k < n; k++)
-            result.Add(new LVoice.SynthesizedPhoneme { Symbol = phonemes[k].Symbol, StartTime = timings[k].Start, EndTime = timings[k].End });
+        for (int k = 0; k < leading.Count; k++)
+            result.Add(new LVoice.SynthesizedPhoneme { Symbol = leading[k].Symbol, StartTime = timings[k].Start, EndTime = timings[k].End });
+        for (int k = 0; k < body.Count; k++)
+            result.Add(new LVoice.SynthesizedPhoneme { Symbol = body[k].Symbol, StartTime = timings[leading.Count + k].Start, EndTime = timings[leading.Count + k].End });
         return result;
     }
 }

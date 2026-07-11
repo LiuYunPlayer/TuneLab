@@ -1,4 +1,6 @@
-﻿using TuneLab.Foundation;
+﻿using System.Collections.Generic;
+using System.Linq;
+using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
@@ -20,10 +22,14 @@ public sealed class VoiceSynthesisNoteSnapshot
     // 延音身份不在快照面：判定权完整归插件（IVoiceSynthesisSession.IsContinuation，判定域是 live 数据）。
     // 快照窗口可能裁掉链头，快照域自判会与 live 判定分叉——需要把身份带进 worker 的实现，应在
     // SynthesizeNext 的同步前缀对 live note 调用自己的判定、随自有快照结构一并冻结。
-    // 钉死音素的冻结表项（几何描述符 + per-phoneme 属性值快照）；非钉死（引擎 G2P）note 此列表为空。
-    public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> Phonemes { get; init; }
-    // 前置量（拍前发声量，自然秒）：note 头之前音素的占位长度，决定钉死音素的拍前 / 拍后归属（见 PhonemeLayout）。
+    // 钉死音素的冻结表项（几何描述符 + per-phoneme 属性值快照），结构化双列表：引导（核前前置辅音）/ 主体（核 + 尾辅音）。
+    // 非钉死（引擎 G2P）note 两列表皆空。分类即列表成员（抗抖、跨拍可显式归属）。
+    public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> LeadingPhonemes { get; init; }
+    public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> BodyPhonemes { get; init; }
+    // 全序列只读视图 = LeadingPhonemes ++ BodyPhonemes（时间序）；供「要全部」的消费者用（每次拼接、不可变）。
+    public IReadOnlyList<VoiceSynthesisPhonemeSnapshot> Phonemes => LeadingPhonemes.Concat(BodyPhonemes).ToList();
+    // 主体起点（= 两列表结合线）相对 note 头的有符号偏移：junction = noteStart + BodyOffset（左负右正）。
     // 加性字段（非 required、默认 0）：无钉死音素或元音起手时 = 0。
-    public double Preutterance { get; init; }
+    public double BodyOffset { get; init; }
     public required PropertyObject Properties { get; init; }
 }

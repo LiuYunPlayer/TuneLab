@@ -15,10 +15,13 @@ public interface IVoiceSynthesisNote
     IReadOnlyNotifiableProperty<double> EndTime { get; }
     IReadOnlyNotifiableProperty<int> Pitch { get; }
     IReadOnlyNotifiableProperty<string> Lyric { get; }
-    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> Phonemes { get; }
-    // 前置量（拍前发声量，自然秒）：note 头之前音素的占位长度，决定钉死音素的拍前 / 拍后归属（见 PhonemeLayout）。
-    // 仅在 Phonemes 非空（整 note 钉死）时有意义；元音起手 / 无钉死时 = 0。
-    IReadOnlyNotifiableProperty<double> Preutterance { get; }
+    // 钉死音素的结构化双列表（引导 = 核前前置辅音；主体 = 核 + 尾辅音），时间序。两者皆空 = 非钉死（引擎 G2P）。
+    // 分类即列表成员（不从几何派生、抗抖）；订阅变化须同订两列表（无合并信号，见会话注释）。
+    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> LeadingPhonemes { get; }
+    IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> BodyPhonemes { get; }
+    // 主体起点（= 两列表结合线）相对 note 头的有符号偏移：junction = noteStart + BodyOffset（左负右正）。
+    // 仅在钉死（有音素）时有意义；元音起手 / 无钉死时 = 0。定位由此 + 几何锚点派生（见 PhonemeLayout）。
+    IReadOnlyNotifiableProperty<double> BodyOffset { get; }
     IReadOnlyNotifiablePropertyObject Properties { get; }
 
     // 延音身份不在本面：判定权完整归插件（IVoiceSynthesisSession.IsContinuation，宿主照单消费），

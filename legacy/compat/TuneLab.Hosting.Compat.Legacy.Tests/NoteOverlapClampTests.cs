@@ -106,7 +106,8 @@ public class NoteOverlapClampTests
         EndTime = end,
         Pitch = 60,
         Lyric = "a",
-        Phonemes = [],
+        LeadingPhonemes = [],
+        BodyPhonemes = [],
         Properties = PropertyObject.Empty,
     };
 
@@ -116,7 +117,9 @@ public class NoteOverlapClampTests
         public IReadOnlyNotifiableProperty<double> EndTime { get; } = new Const<double>(end);
         public IReadOnlyNotifiableProperty<int> Pitch { get; } = new Const<int>(60);
         public IReadOnlyNotifiableProperty<string> Lyric { get; } = new Const<string>("a");
-        public IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> Phonemes { get; } = new Const<IReadOnlyList<SynthesizedPhoneme>>([]);
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> LeadingPhonemes { get; } = new Const<IReadOnlyList<SynthesizedPhoneme>>([]);
+        public IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>> BodyPhonemes { get; } = new Const<IReadOnlyList<SynthesizedPhoneme>>([]);
+        public IReadOnlyNotifiableProperty<double> BodyOffset { get; } = new Const<double>(0);
         public IReadOnlyNotifiablePropertyObject Properties => null!; // 钳位路径不触及
         public IVoiceSynthesisNote? Next { get; set; }
         public IVoiceSynthesisNote? Last { get; set; }

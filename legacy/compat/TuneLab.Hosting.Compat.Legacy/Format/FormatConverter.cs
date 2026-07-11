@@ -136,55 +136,69 @@ internal static class FormatConverter
     // ── NoteInfo ──
     public static New.NoteInfo ToV1(this Old.NoteInfo o)
     {
-        var phonemes = PhonemesToV1(o.Phonemes, out double preutterance);
+        PhonemesToV1(o.Phonemes, out var leading, out var body, out double bodyOffset);
         return new()
         {
             Pos = o.Pos, Dur = o.Dur, Pitch = o.Pitch, Lyric = o.Lyric, Pronunciation = o.Pronunciation,
             Properties = o.Properties.ToV1(),
-            Phonemes = phonemes,
-            Preutterance = preutterance,
+            LeadingPhonemes = leading,
+            BodyPhonemes = body,
+            BodyOffset = bodyOffset,
         };
     }
     public static Old.NoteInfo ToLegacy(this New.NoteInfo n) => new()
     {
         Pos = n.Pos, Dur = n.Dur, Pitch = n.Pitch, Lyric = n.Lyric, Pronunciation = n.Pronunciation,
         Properties = n.Properties.ToLegacy(),
-        Phonemes = PhonemesToLegacy(n.Phonemes, n.Preutterance),
+        Phonemes = PhonemesToLegacy(n.LeadingPhonemes, n.BodyPhonemes, n.BodyOffset),
     };
 
     // ── PhonemeInfo（note 级整组转换）──
-    // 新模型 PhonemeInfo 用「时长 + 权重」(Duration/Weight)、位置由布局 + note 级 Preutterance 派生；
-    // 旧模型是相对音符头的秒 StartTime/EndTime（音符头=0）。
-    // 旧→新：时长 = EndTime − StartTime（音素连续）；权重一律 0（老版本所有音素随音符等比缩放，布局「全 w=0 退化按原长等比」复刻之）；
-    //   前置量 preutterance = 音符头 − 首音素起点（= −StartTime[0]，钳 ≥0）——保留老引擎的真实分界、不吸头（对齐 Sil 修法口径）。
-    static List<New.PhonemeInfo> PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes, out double preutterance)
+    // 新模型：结构化双列表（引导 / 主体，各 Duration/Weight）+ 有符号 BodyOffset；位置由布局按 junction 派生。
+    // 旧模型：相对音符头的秒 StartTime/EndTime（音符头=0），无 lead 标记、无弹性概念。
+    // 旧→新（与 legacy 引擎回显同一套逻辑）：时长 = EndTime − StartTime；按区间中点落在音符头之前（(start+end)/2 < 0）的连续前缀判
+    //   引导辅音、其余归主体（无 lead 字段，按位置降级）。两条修正：① 至少一个拍后音素（全归引导时把末个引导挪进主体）；
+    //   ② 首个拍后音素 w=1（弹性核填满音符）、其余 w=0（刚性）。BodyOffset = 主体首起点（rel 音符头）——不吸头、保真实分界。
+    static void PhonemesToV1(IReadOnlyList<Old.PhonemeInfo> phonemes, out List<New.PhonemeInfo> leading, out List<New.PhonemeInfo> body, out double bodyOffset)
     {
-        var result = new List<New.PhonemeInfo>(phonemes.Count);
-        preutterance = phonemes.Count > 0 ? Math.Max(0, -phonemes[0].StartTime) : 0;
-        foreach (var p in phonemes)
+        leading = new();
+        body = new();
+        bodyOffset = 0;
+        int n = phonemes.Count;
+        if (n == 0)
+            return;
+        int leadCount = 0;
+        for (int i = 0; i < n; i++)
         {
-            // 位置（起点）不入存储——由新模型布局按「note 头 + Preutterance + 时长」派生；此处仅留时长 = End − Start。
-            result.Add(new New.PhonemeInfo
-            {
-                Symbol = p.Symbol,
-                Duration = Math.Max(0, p.EndTime - p.StartTime),
-                StretchWeight = 0,
-            });
+            if ((phonemes[i].StartTime + phonemes[i].EndTime) < 0) leadCount = i + 1; else break;
         }
-        return result;
+        if (leadCount >= n) leadCount = n - 1;   // ① 保证 ≥1 拍后
+        for (int i = 0; i < n; i++)
+        {
+            var info = new New.PhonemeInfo { Symbol = phonemes[i].Symbol, Duration = Math.Max(0, phonemes[i].EndTime - phonemes[i].StartTime), StretchWeight = i == leadCount ? 1 : 0 };   // ② 首拍后 w=1
+            if (i < leadCount) leading.Add(info); else body.Add(info);
+        }
+        bodyOffset = phonemes[leadCount].StartTime;   // 主体首起点相对音符头（= junction 偏移，不吸头）
     }
 
     // 新→旧为 best-effort：旧插件只认绝对相对秒，而 compat 这层无 note 几何（满末/邻居）还原元音填充与前辅音越界。
-    // 退化为从 −Preutterance 起累积各音素时长（音符头之前的前置料落负秒，元音亦按记录时长排、不填充）——格式转换够用。
-    static List<Old.PhonemeInfo> PhonemesToLegacy(IReadOnlyList<New.PhonemeInfo> phonemes, double preutterance)
+    // junction-anchored 排位（junction 相对音符头 = BodyOffset）：主体从 junction 正向、引导从 junction 反向铺原长——格式转换够用。
+    static List<Old.PhonemeInfo> PhonemesToLegacy(IReadOnlyList<New.PhonemeInfo> leading, IReadOnlyList<New.PhonemeInfo> body, double bodyOffset)
     {
-        var result = new List<Old.PhonemeInfo>(phonemes.Count);
-        double t = -preutterance;
-        foreach (var p in phonemes)
+        var result = new List<Old.PhonemeInfo>(leading.Count + body.Count);
+        // 引导反向铺：末音素结尾 = junction（= bodyOffset），往左依次。先算各引导起点。
+        double t = bodyOffset;
+        var leadStarts = new double[leading.Count];
+        for (int j = leading.Count - 1; j >= 0; j--) { double s = t - Math.Max(0, leading[j].Duration); leadStarts[j] = s; t = s; }
+        for (int j = 0; j < leading.Count; j++)
+            result.Add(new Old.PhonemeInfo { Symbol = leading[j].Symbol, StartTime = leadStarts[j], EndTime = leadStarts[j] + Math.Max(0, leading[j].Duration) });
+        // 主体正向铺：首音素起点 = junction，往右依次。
+        double u = bodyOffset;
+        foreach (var p in body)
         {
-            double end = t + System.Math.Max(0, p.Duration);
-            result.Add(new Old.PhonemeInfo { Symbol = p.Symbol, StartTime = t, EndTime = end });
-            t = end;
+            double end = u + Math.Max(0, p.Duration);
+            result.Add(new Old.PhonemeInfo { Symbol = p.Symbol, StartTime = u, EndTime = end });
+            u = end;
         }
         return result;
     }
