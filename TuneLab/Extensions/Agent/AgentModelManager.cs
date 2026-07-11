@@ -13,7 +13,7 @@ namespace TuneLab.Extensions.Agent;
 // 未注册 / Init 失败的类型由调用方按"该模型不可用"优雅降级。
 internal static class AgentModelManager
 {
-    // 内建 agent 模型引擎显式注册（编进宿主、无 description.json）。openai-compatible 为开箱即用的参考适配器。
+    // 内建 agent 模型引擎显式注册（编进宿主、无 manifest.json）。openai-compatible 为开箱即用的参考适配器。
     public static void LoadBuiltIn()
     {
         RegisterEngine(ExtensionManager.BuiltInPackageId, "openai-compatible", "OpenAI Compatible", new TuneLab.Agent.Models.OpenAICompatibleEngine());

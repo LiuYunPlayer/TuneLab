@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- 测试插件（V1 / format）。引用当前 V1 SDK，Private=false 不打进包（宿主提供，见 plugin-development.md）。
-       输出直接落 tests/packages/v1-format/（dll + description.json），供拖进 App 或拷进扩展目录测试。 -->
+       输出直接落 tests/packages/v1-format/（dll + manifest.json），供拖进 App 或拷进扩展目录测试。 -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

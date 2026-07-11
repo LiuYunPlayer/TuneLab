@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

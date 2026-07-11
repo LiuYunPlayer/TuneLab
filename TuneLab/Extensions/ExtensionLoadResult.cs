@@ -5,7 +5,7 @@ namespace TuneLab.Extensions;
 internal enum ExtensionGeneration
 {
     V1,      // 含 id 的新版插件，走 manifest 先导 + per-folder ALC 加载
-    Legacy,  // 无 id（老 schema 或无 description.json），走兼容层 / 盲扫 fallback
+    Legacy,  // 无 id（老 schema 或无 manifest.json），走兼容层 / 盲扫 fallback
 }
 
 internal enum ExtensionLoadStatus

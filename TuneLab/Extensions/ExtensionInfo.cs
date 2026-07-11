@@ -6,8 +6,8 @@ using TuneLab.Utils;
 
 namespace TuneLab.Extensions;
 
-// 插件级（注册单位）元数据：description.json 的 extensions[] 中每个元素，
-// 或单插件简写时由顶层字段兜底（ExtensionDescription 继承本类）。
+// 插件级（注册单位）元数据：manifest.json 的 extensions[] 中每个元素，
+// 或单插件简写时由顶层字段兜底（ExtensionManifest 继承本类）。
 //
 // 身份内联进 manifest（不再靠代码 attribute）：一个条目 = 一个具体可注册能力，自带身份 + 实现类全名，
 // 宿主读完 manifest 即知插件提供什么、无需加载程序集反射。

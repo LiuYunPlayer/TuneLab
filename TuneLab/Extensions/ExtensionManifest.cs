@@ -3,7 +3,7 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Extensions;
 
-// 包级（部署/安装/卸载/dedup 单位）元数据 = description.json 最外层。
+// 包级（部署/安装/卸载/dedup 单位）元数据 = manifest.json 最外层。
 //
 // 代际判定：含 id ⇒ V1；无 id（老 schema：只有 name/version/assemblies/platforms，或根本无文件）⇒ Legacy。
 //   id 是通用于一切 V1 包（代码 + 资源）、Legacy 从未有过的字段，故用它作判别符
@@ -15,7 +15,7 @@ namespace TuneLab.Extensions;
 //
 // name/localizations/LocalizedName 继承自基类（包级 name 与单插件简写时的引擎显示名共用同一字段）。
 // 包元数据本地化：manifest 是宿主直接读、早于任何插件代码，无法靠插件自译，故内置按语言的覆盖。
-internal class ExtensionDescription : ExtensionInfo
+internal class ExtensionManifest : ExtensionInfo
 {
     public string? id { get; set; }
     public string version { get; set; } = "1.0.0";

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- 测试插件（Legacy / voice）。引用【冻结】Legacy SDK，Private=false。输出落 tests/packages/legacy-voice/。
-       刻意【不带 description.json】→ 验证 Legacy 无 manifest 的纯扫描发现路径（Compat 扫目录全部 dll）。 -->
+       刻意【不带 manifest.json】→ 验证 Legacy 无 manifest 的纯扫描发现路径（Compat 扫目录全部 dll）。 -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

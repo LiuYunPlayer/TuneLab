@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 验证 description.json 省略 assemblies 时，加载器扫文件夹全部 dll 找入口。输出落 packages/v1-no-assemblies/。 -->
+  <!-- 验证 manifest.json 省略 assemblies 时，加载器扫文件夹全部 dll 找入口。输出落 packages/v1-no-assemblies/。 -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="description.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

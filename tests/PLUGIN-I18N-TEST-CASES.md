@@ -2,7 +2,7 @@
 
 > 独立需求独立文档。本文只覆盖「插件文案按宿主语言本地化」这一改动影响的范围：
 > 引擎级串（属性标题、ComboBox 选项、自动化轨名、声库名/简介）由插件按当前语言**自译**返回，
-> 包元数据（name/description）由宿主按 description.json 的 `localizations` 挑选。
+> 包元数据（name/description）由宿主按 manifest.json 的 `localizations` 挑选。
 > **不涉及** 属性面板三态、effect 合成链、format/voice 合成正确性等既有基线，无需重跑。
 >
 > 设计见 [docs/plugin-i18n-design.md](../docs/plugin-i18n-design.md)。

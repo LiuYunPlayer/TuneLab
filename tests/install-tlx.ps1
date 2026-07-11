@@ -26,25 +26,25 @@ foreach ($n in $Names) {
     $tlx = Join-Path $tlxDir "$n.tlx"
     if (-not (Test-Path $tlx)) { Write-Warning "missing $tlx, skipped"; continue }
 
-    # Package folder name = description.json "name" (host uses this); fall back to file name.
+    # Package folder name = manifest.json "name" (host uses this); fall back to file name.
     $pkg = $n
     $zip = [IO.Compression.ZipFile]::OpenRead($tlx)
     try {
-        $entry = $zip.GetEntry('description.json')
+        $entry = $zip.GetEntry('manifest.json')
         if ($entry) {
             $sr = New-Object IO.StreamReader($entry.Open())
             try {
-                # Malformed description.json (e.g. the bad-manifest fixture) must not abort the
+                # Malformed manifest.json (e.g. the bad-manifest fixture) must not abort the
                 # whole install — fall back to the file-name folder and let the host reject it.
                 $desc = $sr.ReadToEnd() | ConvertFrom-Json -ErrorAction Stop
                 if ($desc.name) { $pkg = $desc.name }
-            } catch { Write-Warning "bad description.json in $n; using file name as folder" }
+            } catch { Write-Warning "bad manifest.json in $n; using file name as folder" }
             finally { $sr.Close() }
         }
     } finally { $zip.Dispose() }
 
     # Remove prior installs of the same plugin: both the package-name folder and the
-    # file-name folder (legacy installs done before description.json carried a name),
+    # file-name folder (legacy installs done before manifest.json carried a name),
     # otherwise two folders share one id and collide.
     foreach ($folder in (@($pkg, $n) | Select-Object -Unique)) {
         $p = Join-Path $extRoot $folder

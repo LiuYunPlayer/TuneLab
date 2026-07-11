@@ -1065,12 +1065,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var name = Path.GetFileNameWithoutExtension(file);
 
-            // 读包名（容错）：description.json 缺失/损坏不阻断安装——解压后由 ExtensionManager.Load
+            // 读包名（容错）：manifest.json 缺失/损坏不阻断安装——解压后由 ExtensionManager.Load
             // 优雅记录加载状态。绝不让一个坏包的解析异常冒泡（本方法是 async void，未捕获即崩进程）。
             try
             {
                 using var archive = ZipFile.OpenRead(file);
-                using var stream = archive.GetEntry("description.json")?.Open();
+                using var stream = archive.GetEntry("manifest.json")?.Open();
                 if (stream != null)
                 {
                     var description = JsonSerializer.Deserialize<Description>(stream);

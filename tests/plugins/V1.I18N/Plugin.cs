@@ -10,7 +10,7 @@ namespace TuneLab.TestPlugins.V1I18N;
 
 // i18n 演示夹具（独立于 tristate/conditional/navigation 等基线夹具，不污染其期望）。
 // 验证「插件侧自译」：引擎/会话在能读到 TuneLabContext.Global.Language 时构建本地化文案——
-//   属性标题（DisplayText）、ComboBox 选项、自动化轨名、声库名/简介。manifest 走 description.json 的 localizations。
+//   属性标题（DisplayText）、ComboBox 选项、自动化轨名、声库名/简介。manifest 走 manifest.json 的 localizations。
 //   故意留一个未收录词（"Uncolored"）验证「未译时原样显示」；动态声库名内嵌语言码以肉眼可证「按语言产出」。
 
 // 插件自带的极简翻译方案（Arch A：宿主不参与查表，插件用自己喜欢的任何方式，这里用内置词典演示）。

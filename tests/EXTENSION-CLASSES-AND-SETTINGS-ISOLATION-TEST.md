@@ -12,7 +12,7 @@
 ## 前置（测试前由助手完成）
 
 - `dotnet build tests/TestPlugins.slnx -c Release` → 各 V1 夹具产物落 `tests/packages/*`。
-- 把要装的夹具打成 `.tlx`（zip + 改扩展名，`description.json` 在根）。本轮已把全部 V1 夹具 manifest 改为 `classes`。
+- 把要装的夹具打成 `.tlx`（zip + 改扩展名，`manifest.json` 在根）。本轮已把全部 V1 夹具 manifest 改为 `classes`。
 - 用户只需：开应用 → 安装 tlx → 按下列用例核对。
 
 涉及夹具与 **UI 显示名**（找的是显示名、非 Type id）：

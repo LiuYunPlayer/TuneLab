@@ -10,7 +10,7 @@
 ## 1. Core Concepts
 
 - **A plugin package = a folder**. It is the atomic unit of deployment, installation, and uninstallation, placed into TuneLab's extension directory (see §9).
-- **`description.json` is the package's identity manifest**, which must sit at the **top level** of the package folder. New (V1) plugins **must** include it; TuneLab reads this file first and then **selectively** loads the assemblies inside the package based on its contents — it does not blindly scan the whole folder.
+- **`manifest.json` is the package's identity manifest**, which must sit at the **top level** of the package folder. New (V1) plugins **must** include it; TuneLab reads this file first and then **selectively** loads the assemblies inside the package based on its contents — it does not blindly scan the whole folder.
 - **One package can contain multiple plugins**. If you have a shared infrastructure assembly, you can pack multiple plugins built on top of it into the same package — the infrastructure is distributed once and loaded once at runtime (they share a single load context).
 - **Plugin category (type)**: currently supported are `format` (project file import/export), `voice` (singing synthesis engine), `instrument` (polyphonic sound-source engine such as a synth/sampler), and `effect` (an effect that applies whole-segment offline transforms to synthesized audio, such as voice conversion). A package can also be a pure **resource package** (no code, e.g. voicebank resources).
 
@@ -21,7 +21,7 @@ Each plugin package is loaded into its own **isolated AssemblyLoadContext (ALC)*
 
 ---
 
-## 2. description.json
+## 2. manifest.json
 
 ### 2.1 Fields
 
@@ -153,7 +153,7 @@ Rules:
 
 ## 4. Writing a Format Plugin
 
-Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file extension and implementing classes go in `description.json` (`extension` + `classes` + `assembly`); you **no longer declare them via attributes** in code. The importer and exporter can be two classes (both listed in `classes`) or a single class implementing both interfaces.
+Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file extension and implementing classes go in `manifest.json` (`extension` + `classes` + `assembly`); you **no longer declare them via attributes** in code. The importer and exporter can be two classes (both listed in `classes`) or a single class implementing both interfaces.
 
 ```csharp
 using System.IO;
@@ -202,7 +202,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
 
 ### 5.0 Mental model (read this section first)
 
-- **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `description.json`'s `engine`, the implementing class is listed in `classes`, and the host claims it via the `IVoiceSynthesisEngine` interface). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
+- **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `manifest.json`'s `engine`, the implementing class is listed in `classes`, and the host claims it via the `IVoiceSynthesisEngine` interface). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
 - **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / readback tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
 - **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks are the host's internal score representation and are **never exposed** to the plugin. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
 - **Two views + thread discipline (the most important pitfall)**:
@@ -666,7 +666,7 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 
 An effect transforms **already-synthesized whole-segment audio**. It targets **relatively slow offline models** (e.g. SVC voice conversion, neural timbre conversion), not real-time VST-style effects.
 
-Implement `IEffectEngine`. A **parameterless constructor** is required. The effect id goes in `description.json`'s `engine`, and the implementing class is listed in `classes` (the host claims it via the `IEffectEngine` interface, no longer using attributes). There is one engine per effect type; the host creates a **persistent thick processor** `IEffectProcessor` per "effect instance × upstream audio segment" in the project to drive it. The processor holds its own segment's context `IEffectContext`, **subscribes itself, and manages invalidation and reprocessing itself** — the engine-private invalidation graph (which parameter / which automation segment marks dirty and triggers which internal recomputes) lives inside the processor, which the host cannot replicate, hence a thick model.
+Implement `IEffectEngine`. A **parameterless constructor** is required. The effect id goes in `manifest.json`'s `engine`, and the implementing class is listed in `classes` (the host claims it via the `IEffectEngine` interface, no longer using attributes). There is one engine per effect type; the host creates a **persistent thick processor** `IEffectProcessor` per "effect instance × upstream audio segment" in the project to drive it. The processor holds its own segment's context `IEffectContext`, **subscribes itself, and manages invalidation and reprocessing itself** — the engine-private invalidation graph (which parameter / which automation segment marks dirty and triggers which internal recomputes) lives inside the processor, which the host cannot replicate, hence a thick model.
 
 Manifest entry: `{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "classes": ["My.Ns.MyEffectEngine"], "assembly": "MyEffect.dll" }` (`engine` is the immutable identity; `name` is an optional display name that can be translated via `localizations`; the host looks in `classes` for a class implementing `IEffectEngine`).
 
@@ -860,7 +860,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 - **Dynamic/conditional items**: `GetSettingsConfig(context)` is a pure function of `context.Settings` (the currently-filled values); after the user changes a value the host recomputes by the current values and diffs to the control tree, so it can show/hide fields based on the filled values (e.g. a field that appears only when some switch is on).
 - **Feedback timing**: the host feeds it once after loading all extensions at startup (before `Init`), and again after the user saves the settings. Whether a setting change affects **already-running** sessions/processors (whether they need rebuilding) is decided and handled by you.
 - **Localization**: the settings items' `DisplayText` is translated by you (the same paradigm as the property panel, producing text by `TuneLabContext.Global.Language`); the host does no lookup.
-- **No manifest declaration needed**: the settings schema goes purely through code (`GetSettingsConfig`); `description.json` is not involved.
+- **No manifest declaration needed**: the settings schema goes purely through code (`GetSettingsConfig`); `manifest.json` is not involved.
 
 ### 8.3 Where the user changes them
 
@@ -874,7 +874,7 @@ The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionS
 
 ## 9. Packaging, Installation, Uninstallation
 
-- **Package format**: zip up the package folder and change the extension to **`.tlx`**, requiring `description.json` at the zip's **root**.
+- **Package format**: zip up the package folder and change the extension to **`.tlx`**, requiring `manifest.json` at the zip's **root**.
 - **Installation**: in TuneLab, drag the `.tlx` into the window, or use "Install Extension" in the extensions sidebar. Installing extracts it to the extension directory and **loads it immediately** (no restart needed).
 - **Extension directory**: `%AppData%/TuneLab/Extensions/<package name>/` (Windows). "Open Extensions Folder" in the sidebar opens it directly.
 - **Uninstallation**: "Uninstall" on each item in the extensions sidebar. Uninstallation is completed **after the editor closes** by a standalone `ExtensionInstaller` (deleting after file locks are released), with an option to "restart now" to take effect.
@@ -883,7 +883,7 @@ The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionS
 
 ## 10. Loading and Validation Behavior
 
-When TuneLab loads each package: **discover** → read `description.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **scanning the `classes` candidates to claim by the interfaces required by this `type` and instantiate & register** (no longer reflecting over attributes).
+When TuneLab loads each package: **discover** → read `manifest.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **scanning the `classes` candidates to claim by the interfaces required by this `type` and instantiate & register** (no longer reflecting over attributes).
 
 - Any step's failure **degrades gracefully**: only the problematic plugin/entry is skipped, **the host never crashes**, and the loading status is reflected in the extensions sidebar and the log.
 - `sdk-version` higher than the host → that package is skipped with a notice.
@@ -894,7 +894,7 @@ When TuneLab loads each package: **discover** → read `description.json` and **
 
 ## Appendix: Legacy Plugins
 
-Old plugins released before the overhaul (linking the old `TuneLab.Base` / `TuneLab.Extensions.Formats` / `TuneLab.Extensions.Voices`) are **Legacy**: their `description.json` has **no `id`** (or no such file at all). TuneLab identifies them as Legacy accordingly and hands them to the compatibility layer.
+Old plugins released before the overhaul (linking the old `TuneLab.Base` / `TuneLab.Extensions.Formats` / `TuneLab.Extensions.Voices`) are **Legacy**: their `manifest.json` has **no `id`** (or no such file at all). TuneLab identifies them as Legacy accordingly and hands them to the compatibility layer.
 
 - **New plugins should not adopt the Legacy form** — always include `id` and the new-format fields, and write per this document.
 - The Legacy compatibility layer will be kept long-term, so old plugins are under no forced-migration pressure; but new features (e.g. effect) are provided only in V1.

@@ -101,7 +101,7 @@
 （选中包已不在 → 按默认策略回退到仍在的提供者 A）。矩阵中该行下拉因 B 已卸载只剩 A。
 
 ### TC8 — 同一包内重复同身份只留其一（打包错误降级）
-> 可选；需手改一个夹具的 description.json，把 `classes` 写成两个都实现 IImportFormat 的类、或重复声明同扩展名的两个 `extensions[]` 条目。
+> 可选；需手改一个夹具的 manifest.json，把 `classes` 写成两个都实现 IImportFormat 的类、或重复声明同扩展名的两个 `extensions[]` 条目。
 
 **预期**：该包仍加载成功（首个实现生效），日志出现 `... already registered by package ...，duplicate ignored` 的 Warning；不因包内重复而整包失败。
 

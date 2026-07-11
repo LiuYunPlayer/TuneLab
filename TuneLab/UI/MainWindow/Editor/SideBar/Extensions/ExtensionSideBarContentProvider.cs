@@ -123,7 +123,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
 
     private void ScanExtensions()
     {
-        // 直接消费 ExtensionManager 的结构化加载结果，不再重复解析 description.json
+        // 直接消费 ExtensionManager 的结构化加载结果，不再重复解析 manifest.json
         // 或靠字符串匹配猜类型——类型/名称/版本/代际都来自真实加载结果。
         foreach (var result in ExtensionManager.LoadResults)
         {

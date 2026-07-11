@@ -14,7 +14,7 @@ namespace TuneLab.Extensions.Formats;
 // 故一个扩展名可分别为导入、导出选不同包的实现。工厂延迟实例化（与旧行为一致）。
 internal static class FormatsManager
 {
-    // 内建格式显式注册（编进宿主、无 description.json，故不走 manifest，直接登记）。
+    // 内建格式显式注册（编进宿主、无 manifest.json，故不走 manifest，直接登记）。
     public static void LoadBuiltIn()
     {
         var pkg = ExtensionManager.BuiltInPackageId;

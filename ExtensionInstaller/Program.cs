@@ -90,7 +90,7 @@ internal class Program
             foreach (var zipPath in installPaths)
             {
                 var name = Path.GetFileNameWithoutExtension(zipPath);
-                var entry = ZipFile.OpenRead(zipPath).GetEntry("description.json");
+                var entry = ZipFile.OpenRead(zipPath).GetEntry("manifest.json");
                 if (entry != null)
                 {
                     var description = JsonSerializer.Deserialize<Description>(entry.Open());

@@ -65,7 +65,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 | `v1-resource.tlx` | **Loaded** | 无代码资源包，只登记不加载程序集 |
 | `v1-no-assemblies.tlx` | **Failed** | format 条目声明了 extension/import 但漏 `assembly` → assembly not found；**主程序不崩** |
 | `v1-effect-unsupported.tlx` | **Failed** | type=effect 但声明的程序集 never-loaded.dll 缺失（assembly not found）；**主程序不崩** |
-| `v1-bad-manifest.tlx` | **Failed**（或安装时报错） | description.json 损坏；**主程序不崩** |
+| `v1-bad-manifest.tlx` | **Failed**（或安装时报错） | manifest.json 损坏；**主程序不崩** |
 
 > 通则：任何包加载失败都只跳过该包、在侧边栏/日志反映，绝不崩主程序。可把坏包和正常包一起装，确认正常包照常 Loaded。
 

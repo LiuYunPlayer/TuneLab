@@ -7,18 +7,18 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `description.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `extension`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectEngine`（对整段音频做离线变换）、agent-model 找 `IAgentModelEngine`，+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `extension`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectEngine`（对整段音频做离线变换）、agent-model 找 `IAgentModelEngine`，+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
 ## 事实清单
 
 ### 包结构
-- 插件包 = 一个文件夹；根目录必须有 `description.json`。
-- 发布格式 `.tlx` = zip，`description.json` 在 zip 根目录。
+- 插件包 = 一个文件夹；根目录必须有 `manifest.json`。
+- 发布格式 `.tlx` = zip，`manifest.json` 在 zip 根目录。
 - 私有依赖（第三方/原生库）放进包文件夹随包分发；SDK 程序集**不要**放进包。
 
-### description.json schema
+### manifest.json schema
 包级字段（顶层）：
 - `id` (string, **必填**) — 唯一标识，反向域名。**有 id ⇒ V1**。
 - `name` (string, **必填**) — 展示名。
@@ -238,7 +238,7 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 
 ## 最小完整示例（format）
 
-`description.json`：
+`manifest.json`：
 ```json
 {
   "id": "com.example.myfmt",

@@ -11,7 +11,7 @@ namespace TuneLab.Extensions.Instruments;
 // instrument（多声部音源）引擎注册表——镜像 VoicesManager，差异仅 instrument 接口面与路由 kind。
 internal static class InstrumentsManager
 {
-    // 内建空引擎显式注册（编进宿主、无 description.json）。空引擎(type="")是无音源 part 的回退。
+    // 内建空引擎显式注册（编进宿主、无 manifest.json）。空引擎(type="")是无音源 part 的回退。
     public static void LoadBuiltIn()
     {
         RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyInstrumentSynthesisEngine());

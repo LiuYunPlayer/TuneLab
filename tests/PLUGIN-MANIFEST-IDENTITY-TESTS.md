@@ -1,7 +1,7 @@
 # 插件身份内联 manifest · 测试用例
 
 本轮改动：插件的具体身份（引擎 type id、格式扩展名、实现类）从代码 attribute 搬进
-`description.json`——manifest 成为单一真相，宿主按 `class`/`import`/`export` 精确取类型实例化，
+`manifest.json`——manifest 成为单一真相，宿主按 `class`/`import`/`export` 精确取类型实例化，
 **不再反射扫 attribute**。SDK 的 `[VoiceEngine]`/`[EffectEngine]`/`[AgentModelEngine]`/`[ImportFormat]`/`[ExportFormat]`
 已移除；内建格式/声源/agent 模型改为显式代码注册。
 

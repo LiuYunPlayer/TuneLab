@@ -1,4 +1,4 @@
-# 把测试插件包打成 .tlx（= zip，根目录含 description.json + dll），供 App 内拖拽/Install Extension 安装。
+# 把测试插件包打成 .tlx（= zip，根目录含 manifest.json + dll），供 App 内拖拽/Install Extension 安装。
 # .tlx 是 TuneLab 的安装单位：拖文件夹进窗口【不会】安装，只有 .tlx 文件会（见 Editor.OnDrop / InstallExtensions）。
 #
 # 用法：先构建测试插件，再打包：
@@ -25,7 +25,7 @@ if ($sources.Count -eq 0) {
 foreach ($dir in $sources) {
     $tlx = Join-Path $out ($dir.Name + '.tlx')
     if (Test-Path $tlx) { Remove-Item $tlx -Force }
-    # 打包文件夹【内容】到 .tlx（description.json/dll 落 zip 根）
+    # 打包文件夹【内容】到 .tlx（manifest.json/dll 落 zip 根）
     [System.IO.Compression.ZipFile]::CreateFromDirectory($dir.FullName, $tlx)
     Write-Host "packed $($dir.Name).tlx"
 }

@@ -19,7 +19,7 @@ using TuneLab.Extensions.Agent;
 namespace TuneLab.Extensions;
 
 // 扩展统一加载管线：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
-// 取代原先 Format/Voice 各自重复解析 description.json、各自 Assembly.LoadFrom 的分散结构。
+// 取代原先 Format/Voice 各自重复解析 manifest.json、各自 Assembly.LoadFrom 的分散结构。
 internal static class ExtensionManager
 {
     // host 提供的 SDK ABI 地板版本（V1）。插件 sdk-version 须 <= 此值方可加载。
@@ -49,7 +49,7 @@ internal static class ExtensionManager
     // Compat.Legacy 接入点：设置后接管 Legacy 包加载，返回 true 表示已处理。
     // 第三参 typeSink 由 hook 在注册成功时回填真实类别（"format"/"voice"），供 sidebar
     // 展示精确类型而非笼统 "Legacy"——hook 在 Compat 内部才知道老插件实际实现了哪些接口。
-    public static Func<string, ExtensionDescription?, ICollection<string>, bool>? LegacyLoadHook { get; set; }
+    public static Func<string, ExtensionManifest?, ICollection<string>, bool>? LegacyLoadHook { get; set; }
 
     public static IReadOnlyList<string> PendingUninstalls => mPendingUninstalls;
     public static bool RestartAfterUninstall { get; set; }
@@ -84,15 +84,15 @@ internal static class ExtensionManager
     {
         var folderName = Path.GetFileName(path);
 
-        // ── 发现：读 description.json（一次，集中）──
-        ExtensionDescription? description = null;
-        var descriptionPath = Path.Combine(path, "description.json");
+        // ── 发现：读 manifest.json（一次，集中）──
+        ExtensionManifest? description = null;
+        var descriptionPath = Path.Combine(path, "manifest.json");
         if (File.Exists(descriptionPath))
         {
             try
             {
                 using var stream = File.OpenRead(descriptionPath);
-                description = JsonSerializer.Deserialize<ExtensionDescription>(stream);
+                description = JsonSerializer.Deserialize<ExtensionManifest>(stream);
             }
             catch (Exception ex)
             {
@@ -104,7 +104,7 @@ internal static class ExtensionManager
                     Name = folderName,
                     Generation = ExtensionGeneration.V1,
                     Status = ExtensionLoadStatus.Failed,
-                    Error = "Invalid description.json: " + ex.Message,
+                    Error = "Invalid manifest.json: " + ex.Message,
                 });
                 return;
             }
@@ -117,7 +117,7 @@ internal static class ExtensionManager
             LoadLegacy(path, description, folderName);
     }
 
-    static void LoadV1(string path, ExtensionDescription description)
+    static void LoadV1(string path, ExtensionManifest description)
     {
         var lang = TranslationManager.CurrentLanguage.Value;
         var result = new ExtensionLoadResult
@@ -319,7 +319,7 @@ internal static class ExtensionManager
         return (types, members);
     });
 
-    static void LoadLegacy(string path, ExtensionDescription? description, string folderName)
+    static void LoadLegacy(string path, ExtensionManifest? description, string folderName)
     {
         var lang = TranslationManager.CurrentLanguage.Value;
         var result = new ExtensionLoadResult
