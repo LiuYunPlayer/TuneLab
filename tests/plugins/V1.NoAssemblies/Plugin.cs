@@ -11,7 +11,7 @@ public sealed class NoAssembliesImport : IImportFormat
         var project = new ProjectInfo();
         project.Tempos.Add(new TempoInfo { Pos = 0, Bpm = 120 });
         var track = new TrackInfo { Name = "scanned (no assemblies declared)" };
-        var part = new MidiPartInfo { Name = "scan", Pos = 0, Dur = 480 };
+        var part = new MidiPartInfo { Name = "scan", Pos = 0, EndOffset = 480 };
         part.Notes.Add(new NoteInfo { Pos = 0, Dur = 480, Pitch = 62, Lyric = "scan" });
         track.Parts.Add(part);
         project.Tracks.Add(track);

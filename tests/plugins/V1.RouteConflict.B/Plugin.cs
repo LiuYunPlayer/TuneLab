@@ -13,7 +13,7 @@ public sealed class RouteImport : IImportFormat
         var project = new ProjectInfo();
         project.Tempos.Add(new TempoInfo { Pos = 0, Bpm = 120 });
         var track = new TrackInfo { Name = "Route Conflict — Imported by Package B" };
-        var part = new MidiPartInfo { Name = "B", Pos = 0, Dur = 480 };
+        var part = new MidiPartInfo { Name = "B", Pos = 0, EndOffset = 480 };
         part.Notes.Add(new NoteInfo { Pos = 0, Dur = 480, Pitch = 67, Lyric = "B" });
         track.Parts.Add(part);
         project.Tracks.Add(track);

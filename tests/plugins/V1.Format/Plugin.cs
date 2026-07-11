@@ -33,7 +33,7 @@ public sealed class TestImportFormat : IImportFormat
         foreach (var tr in dto.Tracks)
         {
             var track = new TrackInfo { Name = tr.Name };
-            var part = new MidiPartInfo { Name = tr.Name, Pos = 0, Dur = tr.Dur };
+            var part = new MidiPartInfo { Name = tr.Name, Pos = 0, EndOffset = tr.Dur };
             foreach (var n in tr.Notes)
                 part.Notes.Add(new NoteInfo { Pos = n.Pos, Dur = n.Dur, Pitch = n.Pitch, Lyric = n.Lyric });
             track.Parts.Add(part);
@@ -58,7 +58,7 @@ public sealed class TestExportFormat : IExportFormat
             {
                 if (part is MidiPartInfo midi)
                 {
-                    trackDto.Dur = midi.Dur;
+                    trackDto.Dur = midi.EndOffset - midi.StartOffset;
                     foreach (var n in midi.Notes)
                         trackDto.Notes.Add(new NoteDto { Pos = n.Pos, Dur = n.Dur, Pitch = n.Pitch, Lyric = n.Lyric });
                 }

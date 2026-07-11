@@ -12,7 +12,7 @@ public sealed class ConflictAImport : IImportFormat
         var project = new ProjectInfo();
         project.Tempos.Add(new TempoInfo { Pos = 0, Bpm = 120 });
         var track = new TrackInfo { Name = $"ConflictHelper v{version} (pkg A)" };
-        var part = new MidiPartInfo { Name = "A", Pos = 0, Dur = 480 };
+        var part = new MidiPartInfo { Name = "A", Pos = 0, EndOffset = 480 };
         part.Notes.Add(new NoteInfo { Pos = 0, Dur = 480, Pitch = 60, Lyric = version });
         track.Parts.Add(part);
         project.Tracks.Add(track);

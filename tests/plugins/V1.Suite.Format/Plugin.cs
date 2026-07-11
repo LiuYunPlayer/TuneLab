@@ -13,7 +13,7 @@ public sealed class SuiteImportFormat : IImportFormat
         var project = new ProjectInfo();
         project.Tempos.Add(new TempoInfo { Pos = 0, Bpm = 120 });
         var track = new TrackInfo { Name = SuiteCommon.Label("Format") };
-        var part = new MidiPartInfo { Name = "suite", Pos = 0, Dur = 960 };
+        var part = new MidiPartInfo { Name = "suite", Pos = 0, EndOffset = 960 };
         part.Notes.Add(new NoteInfo { Pos = 0, Dur = 480, Pitch = 60, Lyric = "su" });
         part.Notes.Add(new NoteInfo { Pos = 480, Dur = 480, Pitch = 64, Lyric = "ite" });
         track.Parts.Add(part);
