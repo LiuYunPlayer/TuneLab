@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 包级 README 详情页素材（测详情窗渲染 + 语言回退 + 相对图片按包目录解析）。 -->
+    <Content Include="README.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="README.zh-CN.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- 立绘资源（随包发布，引擎按包目录拼绝对路径喂 FileImageResource）：静态 webp + 动态 webp 各一。 -->
     <Content Include="portrait.webp" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="portrait-anim.webp" CopyToOutputDirectory="PreserveNewest" />
