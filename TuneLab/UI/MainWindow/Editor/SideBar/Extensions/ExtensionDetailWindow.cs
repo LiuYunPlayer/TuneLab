@@ -26,6 +26,7 @@ internal sealed class ExtensionDetailInfo
     public string? ReadmeMarkdown;                 // 无 README 时为空 → 显占位
     public string? ReadmePath;                     // README 文件绝对路径（供「用外部编辑器打开」）；无则不显该按钮
     public bool HasSettings;                       // 该插件是否声明了扩展设置（决定是否显示齿轮）
+    public bool IsPendingUninstall;                // 打开时该插件是否已处于待卸载态（决定卸载按钮初始态）
 }
 
 // 扩展详情窗：点侧栏条目弹出，渲染包级 README（正文完全由作者定义、宿主不解释）。
@@ -33,9 +34,10 @@ internal sealed class ExtensionDetailInfo
 // 无边框 + 扩展客户区（沿用 Dialog 的自绘外观），顶栏自绘（拖动 + 关闭），正文区滚动。
 internal sealed class ExtensionDetailWindow : Window
 {
-    // 齿轮 → 跳设置窗对应插件；Uninstall → 卸载。二者由 provider 接到宿主既有流程（窗口自身不持有卸载/设置逻辑）。
+    // 齿轮 → 跳设置窗对应插件；Uninstall/CancelUninstall → 卸载/撤销。由 provider 接到宿主既有流程并跨视图同步态。
     public event Action? SettingsRequested;
     public event Action? UninstallRequested;
+    public event Action? CancelUninstallRequested;
 
     public ExtensionDetailWindow(ExtensionDetailInfo info)
     {
@@ -243,7 +245,7 @@ internal sealed class ExtensionDetailWindow : Window
         };
         if (info.HasSettings)
             bottomRow.Children.Add(TextButton("Settings".Tr(TC.Dialog), Assets.Settings, () => SettingsRequested?.Invoke()));
-        bottomRow.Children.Add(TextButton("Uninstall".Tr(TC.Dialog), null, () => UninstallRequested?.Invoke()));
+        bottomRow.Children.Add(BuildUninstallButton(info.IsPendingUninstall));
         col.AddDock(bottomRow, Dock.Bottom);
 
         return col;
@@ -284,6 +286,58 @@ internal sealed class ExtensionDetailWindow : Window
         return btn;
     }
 
+    // 卸载按钮（两态，与卡片一致）：正常态点击走卸载流程；待卸载态点击弹「取消卸载」菜单。
+    Control BuildUninstallButton(bool pending)
+    {
+        mUninstallText = new TextBlock { FontSize = 12, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        mUninstallBtn = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(12, 6),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Child = mUninstallText,
+        };
+        mUninstallBtn.PointerEntered += (_, _) => { if (!mPendingUninstall) mUninstallBtn!.Background = Style.BUTTON_NORMAL_HOVER.ToBrush(); };
+        mUninstallBtn.PointerExited += (_, _) => { if (!mPendingUninstall) mUninstallBtn!.Background = Style.BUTTON_NORMAL.ToBrush(); };
+        mUninstallBtn.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            if (mPendingUninstall)
+            {
+                var menu = new ContextMenu();
+                menu.Items.Add(new MenuItem().SetName("Cancel Uninstall".Tr(TC.Dialog)).SetAction(() => CancelUninstallRequested?.Invoke()));
+                mUninstallBtn!.OpenContextMenu(menu);
+            }
+            else
+            {
+                UninstallRequested?.Invoke();
+            }
+        };
+        SetUninstallPending(pending);
+        return mUninstallBtn;
+    }
+
+    // 由 provider 在卸载确认/取消后调用，跨视图同步卸载按钮态（Uninstall ↔ Pending Uninstall）。
+    public void SetUninstallPending(bool pending)
+    {
+        mPendingUninstall = pending;
+        if (mUninstallBtn == null || mUninstallText == null)
+            return;
+        if (pending)
+        {
+            mUninstallBtn.Background = Style.BACK.ToBrush();
+            mUninstallText.Text = "Pending Uninstall".Tr(TC.Dialog);
+            mUninstallText.Foreground = Style.LIGHT_WHITE.Opacity(0.4).ToBrush();
+        }
+        else
+        {
+            mUninstallBtn.Background = Style.BUTTON_NORMAL.ToBrush();
+            mUninstallText.Text = "Uninstall".Tr(TC.Dialog);
+            mUninstallText.Foreground = Style.LIGHT_WHITE.ToBrush();
+        }
+    }
+
     // 正文：README（相对图片按包目录解析）或「无文档」占位。
     // 横向禁滚（内容按视口宽换行、根治右边界溢出）；纵向隐藏原生条、改挂 app 自制浮层滚动条 OverlayScrollBars。
     Control BuildBody(ExtensionDetailInfo info)
@@ -319,4 +373,7 @@ internal sealed class ExtensionDetailWindow : Window
     }
 
     OverlayScrollBars? mScrollBars;
+    Border? mUninstallBtn;
+    TextBlock? mUninstallText;
+    bool mPendingUninstall;
 }

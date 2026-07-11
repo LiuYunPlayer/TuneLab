@@ -186,6 +186,14 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     {
         ExtensionManager.RemovePendingUninstall(itemView.ExtensionPath);
         itemView.UnmarkPendingUninstall();
+        SyncDetailUninstall(itemView.ExtensionPath);
+    }
+
+    // 若详情窗正展示该插件，把其卸载按钮态同步为当前 PendingUninstalls（跨卡片/详情窗一致）。
+    private void SyncDetailUninstall(string dirPath)
+    {
+        if (mDetailWindow != null && mDetailWindowPath == dirPath)
+            mDetailWindow.SetUninstallPending(ExtensionManager.PendingUninstalls.Contains(dirPath));
     }
 
     // 打开设置窗并定位到该插件的扩展设置区（详情窗齿轮触发）。
@@ -228,18 +236,26 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
                 ReadmeMarkdown = markdown,
                 ReadmePath = readmePath,
                 HasSettings = hasSettings,
+                IsPendingUninstall = ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath),
             };
 
             mDetailWindow?.Close();
             var win = new ExtensionDetailWindow(info);
-            win.Closed += (_, _) => { if (ReferenceEquals(mDetailWindow, win)) mDetailWindow = null; };
-            // 齿轮 → 打开设置窗并定位到该插件；Uninstall → 复用卡片的卸载流程（含确认对话框 + 待卸载标记）。
+            mDetailWindowPath = result.DirectoryPath;
+            win.Closed += (_, _) => { if (ReferenceEquals(mDetailWindow, win)) { mDetailWindow = null; mDetailWindowPath = null; } };
+            // 齿轮 → 打开设置窗并定位到该插件；Uninstall/Cancel → 复用卡片的卸载/撤销流程（含确认对话框 + 待卸载标记）。
             win.SettingsRequested += () => OnOpenSettings(result);
             win.UninstallRequested += () =>
             {
                 var itemView = mAllExtensions.FirstOrDefault(v => v.ExtensionPath == result.DirectoryPath);
                 if (itemView != null)
                     OnUninstallExtension(itemView);
+            };
+            win.CancelUninstallRequested += () =>
+            {
+                var itemView = mAllExtensions.FirstOrDefault(v => v.ExtensionPath == result.DirectoryPath);
+                if (itemView != null)
+                    OnCancelUninstall(itemView);
             };
             mDetailWindow = win;
 
@@ -272,6 +288,9 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
                     // Record the extension for uninstall when TuneLab exits naturally.
                     ExtensionManager.AddPendingUninstall(dirPath);
                     itemView.MarkPendingUninstall();
+                    // 就地同步详情窗（勿放在 await 之后：Dialog 先挂的 Close 会让 ShowDialog 内联恢复、
+                    // 使 await 后的代码早于本 handler 运行、读到旧状态）。
+                    SyncDetailUninstall(dirPath);
                 };
                 dialog.AddButton("Restart".Tr(TC.Dialog), TuneLab.GUI.Dialog.ButtonType.Primary).Clicked += () =>
                 {
@@ -280,6 +299,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
                     ExtensionManager.AddPendingUninstall(dirPath);
                     ExtensionManager.RestartAfterUninstall = true;
                     itemView.MarkPendingUninstall();
+                    SyncDetailUninstall(dirPath);
 
                     // Close the app so the exit handler fires
                     window.Close();
@@ -334,4 +354,5 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     private readonly TextInput mSearchBox;
     private readonly List<ExtensionItemView> mAllExtensions = new();
     private ExtensionDetailWindow? mDetailWindow; // 当前详情窗（单窗），关闭时置空
+    private string? mDetailWindowPath;            // 详情窗当前展示的插件目录（用于跨视图同步卸载态）
 }
