@@ -667,28 +667,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                         {
                             Name = "Part".Tr(TC.Document) + "_1",
                             EndOffset = 64 * MusicTheory.RESOLUTION * 4,
-                            SoundSource = DefaultVoiceSoundSource(),
+                            SoundSource = RecentSoundSourceManager.DefaultVoiceSoundSource(),
                         }
                     ]
                 }]
             }));
         });
-    }
-
-    // 新工程默认歌手沿用上次使用的歌手（最近使用列表首项）；无历史时回退空音源。
-    static SoundSourceInfo DefaultVoiceSoundSource()
-    {
-        var recent = RecentSoundSourceManager.Voices;
-        if (recent.Count == 0)
-            return new SoundSourceInfo();
-
-        var last = recent[0];
-        return new SoundSourceInfo()
-        {
-            Kind = SourceKind.Voice,
-            Type = last.Type,
-            ID = last.ID,
-        };
     }
 
     async void SwitchProjectSafely(Action SwitchProject)

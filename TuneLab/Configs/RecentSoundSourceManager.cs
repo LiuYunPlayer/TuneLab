@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 
 namespace TuneLab.Configs;
 
@@ -19,6 +20,16 @@ internal static class RecentSoundSourceManager
 
     public static void PushVoice(string type, string id) => Push(mVoices, type, id);
     public static void PushInstrument(string type, string id) => Push(mInstruments, type, id);
+
+    // 新工程 / 新建 part 的默认歌手：沿用最近使用列表首项；无历史时回退空音源。
+    public static SoundSourceInfo DefaultVoiceSoundSource()
+    {
+        if (mVoices.Count == 0)
+            return new SoundSourceInfo();
+
+        var last = mVoices[0];
+        return new SoundSourceInfo() { Kind = SourceKind.Voice, Type = last.Type, ID = last.ID };
+    }
 
     // 记录一次选用：同身份去重后置顶、截断到上限、即时存盘并广播变更。
     static void Push(List<RecentSoundSource> list, string type, string id)
