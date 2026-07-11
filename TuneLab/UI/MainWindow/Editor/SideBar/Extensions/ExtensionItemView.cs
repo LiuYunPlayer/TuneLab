@@ -22,13 +22,17 @@ internal class ExtensionItemView : Border
 {
     public event Action? UninstallRequested;
     public event Action? CancelUninstallRequested;
+    // 点整张卡片（避开卸载按钮/菜单等已 Handled 的热区）打开详情窗。
+    public event Action? OpenDetailRequested;
+    // 点卡片上的齿轮（无文字）→ 打开设置窗对应插件位置。仅在插件声明了扩展设置时显示。
+    public event Action? OpenSettingsRequested;
     public string ExtensionName { get; }
     public string ExtensionVersion { get; }
     public string ExtensionType { get; }
     public string ExtensionPath { get; }
     public bool IsPendingUninstall { get; private set; }
 
-    public ExtensionItemView(string name, string version, IReadOnlyList<string> types, string author, string description, string? iconPath, string extensionPath, ExtensionLoadStatus status, string? error)
+    public ExtensionItemView(string name, string version, IReadOnlyList<string> types, string author, string description, string? iconPath, string extensionPath, ExtensionLoadStatus status, string? error, bool hasSettings)
     {
         ExtensionName = name;
         ExtensionVersion = version;
@@ -50,38 +54,9 @@ internal class ExtensionItemView : Border
         // 左侧图标区（64×64）。带图标的包：不画任何打底背景/圆角，直接原样摆放图标
         // （与 VSCode 一致——图标的形状/圆角/透明完全交给作者，宿主不叠加遮罩，避免双重圆角不协调）。
         // 无图标的包：退回深色圆角方块 + 名称首字母占位。
-        var iconSize = 64.0;
-        var iconImage = TryCreateIconImage(iconPath, iconSize);
-        Control iconVisual;
-        if (iconImage != null)
-        {
-            iconImage.Margin = new Thickness(0, 0, 12, 0);
-            iconImage.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
-            iconVisual = iconImage;
-        }
-        else
-        {
-            iconVisual = new Border
-            {
-                Width = iconSize,
-                Height = iconSize,
-                CornerRadius = new CornerRadius(8),
-                Background = Style.DARK.ToBrush(),
-                Margin = new Thickness(0, 0, 12, 0),
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
-                ClipToBounds = true,
-                Child = new TextBlock
-                {
-                    Text = GetIconText(name),
-                    FontSize = GetIconFontSize(name),
-                    FontWeight = FontWeight.Bold,
-                    Foreground = Brushes.White,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                    TextAlignment = TextAlignment.Center,
-                }
-            };
-        }
+        var iconVisual = CreateIconVisual(iconPath, name, 64.0);
+        iconVisual.Margin = new Thickness(0, 0, 12, 0);
+        iconVisual.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
         mainPanel.AddDock(iconVisual, Dock.Left);
 
         // Right side: info + action area
@@ -90,37 +65,49 @@ internal class ExtensionItemView : Border
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
         };
 
-        // 作者行（小字，仅在有作者时展示；过长截断）。与底行小字徽标编为一组贴近放置，
-        // 让空隙落在大字名称与小字之间——视觉上作者更靠近第三行而非第一行。
+        // 作者行（小字，过长截断）+ 右侧设置齿轮（无文字，仅在插件声明了扩展设置时）同一行：作者左、齿轮右。
+        // 有作者或有设置任一即建此行；位于版本(上)与卸载(下)之间。
+        // 用 DockPanel（齿轮 Dock.Right + 图标 Dock.Left + 文字填充）：填充的文字受限于剩余宽度，省略号才生效。
         Control? authorRow = null;
-        if (!string.IsNullOrWhiteSpace(author))
+        if (!string.IsNullOrWhiteSpace(author) || hasSettings)
         {
-            // 以图标高度（11px）为基准固定整行高度，图标与文字都在这个高度里上下居中、水平靠左：
-            //  - 行高 = 图标高，文字的自然行盒（比 11 高）居中溢出对称、不会把图标顶偏；两者中心对齐。
-            //  - 用 DockPanel（图标 Dock.Left + 文字填充）而非水平 StackPanel：StackPanel 给子元素无限宽，
-            //    文字量不出可截断宽度会溢出面板；DockPanel 的填充子项受限于剩余宽度，省略号才生效。
-            const double authorIconSize = 12;   // 配 11px 作者小字的视觉尺寸（行高基准也跟随此值）
-            var authorDock = new DockPanel { Height = authorIconSize, Margin = new Thickness(0, 0, 0, 6) };
-            authorDock.AddDock(new Image
+            const double authorIconSize = 12;   // 配 11px 作者小字的视觉尺寸
+            // 行高不固定：由最高子项（齿轮 16）决定，图标/文字在其中居中；无齿轮时回到小字自然高。
+            var authorDock = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+
+            // 齿轮先 Dock.Right（图标化、透明底白色，hover 变亮——仿编辑器底部设置按钮）。
+            if (hasSettings)
             {
-                Source = Assets.Author.GetImage(Style.LIGHT_WHITE.Opacity(0.6)),
-                Width = authorIconSize,
-                Height = authorIconSize,
-                Margin = new Thickness(0, 0, 4, 0),
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            }, Dock.Left);
-            authorDock.AddDock(new TextBlock
+                // IconItem 按「图标原生尺寸(24) × Scale」居中绘制；Scale=16/24 → 图标 16px，与 16px 按钮同大。
+                var gear = new TuneLab.GUI.Components.Button { Width = 16, Height = 16, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }
+                    .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 16.0 / 24.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
+                gear.Clicked += () => OpenSettingsRequested?.Invoke();
+                // 吞掉齿轮上的 Tapped，避免点齿轮时冒泡触发卡片开详情。
+                gear.AddHandler(Gestures.TappedEvent, (_, e) => e.Handled = true);
+                authorDock.AddDock(gear, Dock.Right);
+            }
+
+            if (!string.IsNullOrWhiteSpace(author))
             {
-                Text = author,
-                FontSize = 11,
-                Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
-                Height = authorIconSize,   // 与图标、行高三者一致，保证上下对齐
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                // 不设 HorizontalAlignment：填充项须保持 Stretch 才被约束宽度、省略号才生效；
-                // 文字靠左由默认 TextAlignment.Left 保证。
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                TextWrapping = TextWrapping.NoWrap,
-            });
+                authorDock.AddDock(new Image
+                {
+                    Source = Assets.Author.GetImage(Style.LIGHT_WHITE.Opacity(0.6)),
+                    Width = authorIconSize,
+                    Height = authorIconSize,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                }, Dock.Left);
+                // 文字最后加 = 填充中间（LastChildFill），受限剩余宽 → 省略号生效。
+                authorDock.AddDock(new TextBlock
+                {
+                    Text = author,
+                    FontSize = 11,
+                    Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    TextWrapping = TextWrapping.NoWrap,
+                });
+            }
             authorRow = authorDock;
         }
 
@@ -162,6 +149,9 @@ internal class ExtensionItemView : Border
                 }
             };
             bottomRow.AddDock(mUninstallBtn, Dock.Right);
+            // 吞掉卸载按钮上的 Tapped：卡片开详情走 Gestures.Tapped（与 PointerPressed 是两个事件，
+            // 后者 Handled 拦不住前者冒泡），故在按钮处 handle 掉 Tapped，避免点卸载/齿轮时又弹详情。
+            mUninstallBtn.AddHandler(Gestures.TappedEvent, (_, e) => e.Handled = true);
 
             // 类别徽标：每种 type 单独一枚（而非逗号拼进一枚）。
             // Skipped/Failed 不渲染类别、只渲染状态徽标（showTypeBadge 已据此判定）。
@@ -264,6 +254,13 @@ internal class ExtensionItemView : Border
 
         // 整张卡片的悬浮 tooltip：给出卡片上省略/未展示的完整信息（全名 + 版本 + 作者 + 简介）。
         ToolTip.SetTip(this, BuildTooltip(name, version, author, description));
+
+        // 整卡可点打开详情：悬浮微亮 + 手型提示。卸载/齿轮等操作按钮各自 handle 掉 Tapped（见其定义处），
+        // 故点它们不会冒泡成本卡的 Tapped 而误开详情——热区分离。
+        Cursor = new Cursor(StandardCursorType.Hand);
+        PointerEntered += (_, _) => Background = Style.LIGHT_WHITE.Opacity(0.04).ToBrush();
+        PointerExited += (_, _) => Background = Style.INTERFACE.ToBrush();
+        AddHandler(Gestures.TappedEvent, (_, _) => OpenDetailRequested?.Invoke());
     }
 
     // 卡片 hover tooltip 文案：完整名称、版本、作者、简介（缺省项跳过）。
@@ -276,6 +273,34 @@ internal class ExtensionItemView : Border
         if (!string.IsNullOrWhiteSpace(description))
             sb.Append("\n\n").Append(description);
         return sb.ToString();
+    }
+
+    // 扩展图标视觉：有可解码图标 → 原样 Image（不叠打底/圆角，形状交给作者）；否则深色圆角方块 + 名称首字母占位。
+    // 卡片与详情窗共用（size 不同）；外边距/对齐由调用方按各自布局设置。
+    internal static Control CreateIconVisual(string? iconPath, string name, double size)
+    {
+        var iconImage = TryCreateIconImage(iconPath, size);
+        if (iconImage != null)
+            return iconImage;
+
+        return new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 8),
+            Background = Style.DARK.ToBrush(),
+            ClipToBounds = true,
+            Child = new TextBlock
+            {
+                Text = GetIconText(name),
+                FontSize = GetIconFontSize(name) * (size / 64.0),
+                FontWeight = FontWeight.Bold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+            }
+        };
     }
 
     // 从包内图标文件构建可渲染的 Image：.svg 走矢量、其余按位图解码。

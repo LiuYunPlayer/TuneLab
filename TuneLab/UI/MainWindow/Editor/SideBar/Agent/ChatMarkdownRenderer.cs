@@ -1,10 +1,14 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Svg.Skia;
 using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Extensions.TaskLists;
@@ -43,20 +47,24 @@ internal static class ChatMarkdownRenderer
         .UseEmojiAndSmiley()  // :smile: → 😄（无对应字形则回退，不会崩）
         .Build();
 
-    public static Control Render(string markdown)
+    public static Control Render(string markdown) => Render(markdown, null);
+
+    // baseDir 非空时：Markdown 里的相对图片按它（= 内容所在目录，如插件包目录）解析并就地渲染本地图片；
+    // baseDir 为空则沿用「不渲染图片」的旧行为。远程 http(s) 图片一律不抓取（避免意外网络请求）。
+    public static Control Render(string markdown, string? baseDir)
     {
         var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
         var doc = Markdig.Markdown.Parse(markdown ?? string.Empty, Pipeline);
         foreach (var block in doc)
         {
-            var c = RenderBlock(block);
+            var c = RenderBlock(block, baseDir);
             if (c != null)
                 panel.Children.Add(c);
         }
         return panel;
     }
 
-    static Control? RenderBlock(Block block)
+    static Control? RenderBlock(Block block, string? baseDir)
     {
         switch (block)
         {
@@ -66,22 +74,25 @@ internal static class ChatMarkdownRenderer
                 tb.FontSize = h.Level switch { 1 => 18, 2 => 16, 3 => 14, _ => 13 };
                 tb.FontWeight = FontWeight.Bold;
                 if (h.Inline != null)
-                    RenderInlines(h.Inline, tb.Inlines!);
+                    RenderInlines(h.Inline, tb.Inlines!, baseDir);
                 return tb;
             }
             case ParagraphBlock p:
             {
+                // 仅含图片的段落：直接以块级图片渲染（不塞进文本行，避免 InlineUIContainer 撑坏行盒）。
+                if (baseDir != null && TryRenderImageParagraph(p, baseDir, out var img))
+                    return img;
                 var tb = NewText();
                 if (p.Inline != null)
-                    RenderInlines(p.Inline, tb.Inlines!);
+                    RenderInlines(p.Inline, tb.Inlines!, baseDir);
                 return tb;
             }
             case Table table:
-                return RenderTable(table);
+                return RenderTable(table, baseDir);
             case ListBlock list:
-                return RenderList(list);
+                return RenderList(list, baseDir);
             case QuoteBlock quote:
-                return RenderQuote(quote);
+                return RenderQuote(quote, baseDir);
             case ThematicBreakBlock:
                 return new Border { Height = 1, Margin = new(0, 4), Background = Style.LIGHT_WHITE.Opacity(0.2).ToBrush() };
             case CodeBlock code: // FencedCodeBlock 也属 CodeBlock
@@ -89,6 +100,32 @@ internal static class ChatMarkdownRenderer
             default:
                 return null;
         }
+    }
+
+    // 段落是否「只有一张图片」（可含环绕空白），是则输出块级图片控件。用于把 README 里独占一行的插图放大展示。
+    static bool TryRenderImageParagraph(ParagraphBlock p, string baseDir, out Control? image)
+    {
+        image = null;
+        if (p.Inline == null)
+            return false;
+        LinkInline? only = null;
+        foreach (var inline in p.Inline)
+        {
+            switch (inline)
+            {
+                case LinkInline { IsImage: true } li when only == null:
+                    only = li;
+                    break;
+                case LiteralInline lit when string.IsNullOrWhiteSpace(lit.Content.ToString()):
+                    break; // 忽略图片前后的纯空白
+                default:
+                    return false; // 混入其它内容 → 走普通段落
+            }
+        }
+        if (only == null)
+            return false;
+        image = TryCreateImage(baseDir, only.Url, block: true);
+        return image != null;
     }
 
     static SelectableTextBlock NewText() => new()
@@ -99,7 +136,7 @@ internal static class ChatMarkdownRenderer
         Foreground = Colors.White.ToBrush(),
     };
 
-    static Control RenderList(ListBlock list)
+    static Control RenderList(ListBlock list, string? baseDir)
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2, Margin = new(6, 2, 0, 2) };
         int index = 1;
@@ -112,7 +149,7 @@ internal static class ChatMarkdownRenderer
             var content = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
             foreach (var sub in li)
             {
-                var c = RenderBlock(sub);
+                var c = RenderBlock(sub, baseDir);
                 if (c != null)
                     content.Children.Add(c);
             }
@@ -145,12 +182,12 @@ internal static class ChatMarkdownRenderer
     static bool IsTaskItem(ListItemBlock li)
         => li.Count > 0 && li[0] is ParagraphBlock p && p.Inline?.FirstChild is TaskList;
 
-    static Control RenderQuote(QuoteBlock quote)
+    static Control RenderQuote(QuoteBlock quote, string? baseDir)
     {
         var inner = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
         foreach (var sub in quote)
         {
-            var c = RenderBlock(sub);
+            var c = RenderBlock(sub, baseDir);
             if (c != null)
                 inner.Children.Add(c);
         }
@@ -215,7 +252,7 @@ internal static class ChatMarkdownRenderer
 
     // 表格 → Avalonia Grid：列宽按内容自适应——短列用 Auto（贴合内容、不浪费空间、不提前换行），含长文本的列用 Star
     // （吸收剩余宽度、需要时才换行）。修掉「等宽星列把短列留白、却逼长列过早换行」。表头加粗 + 浅底；细网格线。
-    static Control RenderTable(Table table)
+    static Control RenderTable(Table table, string? baseDir)
     {
         int cols = table.ColumnDefinitions.Count;
         foreach (var rowObj in table)
@@ -267,7 +304,7 @@ internal static class ChatMarkdownRenderer
                     BorderThickness = new(1),
                     Background = row.IsHeader ? Style.LIGHT_WHITE.Opacity(0.06).ToBrush() : null,
                     Padding = new(6, 3),
-                    Child = RenderCell(cell, row.IsHeader, align),
+                    Child = RenderCell(cell, row.IsHeader, align, baseDir),
                 };
                 Grid.SetRow(cellBorder, rowIndex);
                 Grid.SetColumn(cellBorder, c);
@@ -281,12 +318,12 @@ internal static class ChatMarkdownRenderer
         return grid;
     }
 
-    static Control RenderCell(TableCell cell, bool header, TableColumnAlign? align)
+    static Control RenderCell(TableCell cell, bool header, TableColumnAlign? align, string? baseDir)
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2 };
         foreach (var sub in cell)
         {
-            var c = RenderBlock(sub);
+            var c = RenderBlock(sub, baseDir);
             if (c is SelectableTextBlock stb)
             {
                 if (header)
@@ -371,6 +408,51 @@ internal static class ChatMarkdownRenderer
         return new InlineUIContainer(tb) { BaselineAlignment = BaselineAlignment.TextBottom };
     }
 
+    // Markdown 图片 → Avalonia Image：仅解析到本地文件才渲染（相对路径按 baseDir 拼、绝对本地路径直用）。
+    // 远程 http(s)/data URI 一律不加载（避免网络请求 / 内存放大），返回 null 由调用方退回替代文字或整段忽略。
+    // .svg 走矢量、其余按位图解码；解码失败也返回 null。block=块级独占图（更大上限、左对齐）；否则行内小图。
+    static Control? TryCreateImage(string baseDir, string? url, bool block)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            // 去掉可能的 #fragment / ?query，再按内容目录解析相对路径。
+            var clean = url.Split('?', '#')[0];
+            var path = Path.IsPathRooted(clean) ? clean : Path.Combine(baseDir, clean);
+            if (!File.Exists(path))
+                return null;
+
+            IImage source;
+            if (Path.GetExtension(path).Equals(".svg", StringComparison.OrdinalIgnoreCase))
+                source = new SvgImage { Source = SvgSource.LoadFromSvg(File.ReadAllText(path)) };
+            else
+            {
+                using var stream = File.OpenRead(path);
+                source = new Bitmap(stream);
+            }
+
+            return new Image
+            {
+                Source = source,
+                Stretch = Stretch.Uniform,
+                MaxWidth = block ? 640 : 480,
+                MaxHeight = block ? 640 : 320,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Margin = block ? new(0, 4) : new(0),
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     // 收集内联的纯文本（用于链接显示文本）。
     static string GetInlineText(ContainerInline container)
     {
@@ -435,7 +517,7 @@ internal static class ChatMarkdownRenderer
         return false;
     }
 
-    static void RenderInlines(ContainerInline container, InlineCollection target)
+    static void RenderInlines(ContainerInline container, InlineCollection target, string? baseDir)
     {
         foreach (var inline in container)
         {
@@ -450,7 +532,7 @@ internal static class ChatMarkdownRenderer
                     Span span = em.DelimiterChar == '~' ? new Span { TextDecorations = TextDecorations.Strikethrough }
                               : em.DelimiterCount >= 2 ? new Bold()
                               : new Italic();
-                    RenderInlines(em, span.Inlines);
+                    RenderInlines(em, span.Inlines, baseDir);
                     target.Add(span);
                     break;
                 }
@@ -461,7 +543,15 @@ internal static class ChatMarkdownRenderer
                 case LinkInline link:
                 {
                     if (link.IsImage)
-                        break; // 图片暂不渲染
+                    {
+                        // 行内图片：能解析到本地文件才内嵌；否则退回显示替代文字（alt），避免整块丢失。
+                        var inlineImg = baseDir != null ? TryCreateImage(baseDir, link.Url, block: false) : null;
+                        if (inlineImg != null)
+                            target.Add(new InlineUIContainer(inlineImg) { BaselineAlignment = BaselineAlignment.TextBottom });
+                        else
+                            AppendText(target, GetInlineText(link));
+                        break;
+                    }
                     var text = GetInlineText(link);
                     if (string.IsNullOrEmpty(text))
                         text = link.Url ?? string.Empty;
@@ -479,7 +569,7 @@ internal static class ChatMarkdownRenderer
                     target.Add(new LineBreak());
                     break;
                 case ContainerInline c:
-                    RenderInlines(c, target); // 其他容器型内联：递归子节点
+                    RenderInlines(c, target, baseDir); // 其他容器型内联：递归子节点
                     break;
                 default:
                 {

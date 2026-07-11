@@ -70,17 +70,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         mContentPanel.Children.Add(searchPanel);
         mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush() });
 
-        // Extension count label
-        mCountLabel = new TextBlock
-        {
-            FontSize = 11,
-            Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
-            Margin = new Thickness(12, 6),
-        };
-        mContentPanel.Children.Add(mCountLabel);
-        mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush() });
-
-        // Action area: Install Extension + Open Extensions Folder buttons (below the count label)
+        // Action area: Install Extension + Open Extensions Folder buttons
         var actionPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -106,6 +96,17 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         mContentPanel.Children.Add(actionPanel);
         mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush() });
 
+        // Extension count label（放在安装/打开文件夹按钮栏之下）；整条 BACK 底色（Padding 取代 Margin 使深色铺满）。
+        mCountLabel = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
+            Background = Style.BACK.ToBrush(),
+            Padding = new Thickness(12, 6),
+        };
+        mContentPanel.Children.Add(mCountLabel);
+        mContentPanel.Children.Add(new Border { Height = 1, Background = Style.BACK.ToBrush() });
+
         // Extension list container
         mExtensionListPanel = new StackPanel { Orientation = Orientation.Vertical };
         mContentPanel.Children.Add(mExtensionListPanel);
@@ -125,11 +126,17 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     {
         // 直接消费 ExtensionManager 的结构化加载结果，不再重复解析 manifest.json
         // 或靠字符串匹配猜类型——类型/名称/版本/代际都来自真实加载结果。
+        // 声明了扩展设置的包 id 集合（决定卡片/详情窗是否显示齿轮）。一次取用、逐项判成员即可。
+        var settingsPackages = ExtensionSettingsManager.GetEntries().Select(e => e.PackageId).ToHashSet();
+
         foreach (var result in ExtensionManager.LoadResults)
         {
-            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.Error);
+            bool hasSettings = !string.IsNullOrEmpty(result.Id) && settingsPackages.Contains(result.Id);
+            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.Error, hasSettings);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
             itemView.CancelUninstallRequested += () => OnCancelUninstall(itemView);
+            itemView.OpenDetailRequested += () => OnOpenDetail(result);
+            itemView.OpenSettingsRequested += () => OnOpenSettings(result);
             if (ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath))
                 itemView.MarkPendingUninstall();
             mAllExtensions.Add(itemView);
@@ -170,15 +177,78 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     private void UpdateCountLabel(int shown, int total)
     {
         if (shown == total)
-            mCountLabel.Text = string.Format("{0} extension(s) installed", total);
+            mCountLabel.Text = string.Format("{0} extension(s) installed".Tr(TC.Dialog), total);
         else
-            mCountLabel.Text = string.Format("{0} of {1} extension(s)", shown, total);
+            mCountLabel.Text = string.Format("{0} of {1} extension(s)".Tr(TC.Dialog), shown, total);
     }
 
     private void OnCancelUninstall(ExtensionItemView itemView)
     {
         ExtensionManager.RemovePendingUninstall(itemView.ExtensionPath);
         itemView.UnmarkPendingUninstall();
+    }
+
+    // 打开设置窗并定位到该插件的扩展设置区（详情窗齿轮触发）。
+    private void OnOpenSettings(ExtensionLoadResult result)
+    {
+        var settings = new SettingsWindow(result.Id);
+        if (TopLevel.GetTopLevel(mContentPanel) is Avalonia.Controls.Window owner)
+            settings.Show(owner);
+        else
+            settings.Show();
+    }
+
+    // 打开扩展详情窗：按当前语言解析包级 README（无则显占位），弹出可缩放详情窗。
+    // 单窗：再次打开先关旧窗，避免堆叠。
+    private void OnOpenDetail(ExtensionLoadResult result)
+    {
+        try
+        {
+            var readmePath = ExtensionReadme.Resolve(result.DirectoryPath, TranslationManager.CurrentLanguage.Value);
+            string? markdown = null;
+            if (readmePath != null)
+            {
+                try { markdown = File.ReadAllText(readmePath); }
+                catch { /* 读取失败按无文档处理 */ }
+            }
+
+            // 该插件是否声明了扩展设置（决定详情窗是否显示齿轮）：按包 id 匹配设置条目。
+            bool hasSettings = !string.IsNullOrEmpty(result.Id)
+                && ExtensionSettingsManager.GetEntries().Any(e => e.PackageId == result.Id);
+
+            var info = new ExtensionDetailInfo
+            {
+                Name = result.Name,
+                Version = result.Version,
+                Author = result.Author,
+                Summary = result.Description,
+                IconPath = result.IconPath,
+                Types = DisplayTypes(result),
+                PackageDir = result.DirectoryPath,
+                ReadmeMarkdown = markdown,
+                ReadmePath = readmePath,
+                HasSettings = hasSettings,
+            };
+
+            mDetailWindow?.Close();
+            var win = new ExtensionDetailWindow(info);
+            win.Closed += (_, _) => { if (ReferenceEquals(mDetailWindow, win)) mDetailWindow = null; };
+            // 齿轮 → 打开设置窗并定位到该插件；Uninstall → 复用卡片的卸载流程（含确认对话框 + 待卸载标记）。
+            win.SettingsRequested += () => OnOpenSettings(result);
+            win.UninstallRequested += () =>
+            {
+                var itemView = mAllExtensions.FirstOrDefault(v => v.ExtensionPath == result.DirectoryPath);
+                if (itemView != null)
+                    OnUninstallExtension(itemView);
+            };
+            mDetailWindow = win;
+
+            if (TopLevel.GetTopLevel(mContentPanel) is Avalonia.Controls.Window owner)
+                win.Show(owner);
+            else
+                win.Show();
+        }
+        catch { }
     }
 
     private async void OnUninstallExtension(ExtensionItemView itemView)
@@ -263,4 +333,5 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     private readonly TextBlock mCountLabel;
     private readonly TextInput mSearchBox;
     private readonly List<ExtensionItemView> mAllExtensions = new();
+    private ExtensionDetailWindow? mDetailWindow; // 当前详情窗（单窗），关闭时置空
 }

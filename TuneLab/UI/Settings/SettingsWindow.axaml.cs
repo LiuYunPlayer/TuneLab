@@ -24,8 +24,12 @@ namespace TuneLab.UI;
 
 internal partial class SettingsWindow : Window
 {
-    public SettingsWindow()
+    public SettingsWindow() : this(null) { }
+
+    // focusExtensionPackageId：非空且该包声明了扩展设置时，开窗即切到「扩展」tab 并滚动到该插件区（详情窗齿轮用）。
+    public SettingsWindow(string? focusExtensionPackageId)
     {
+        mFocusExtensionPackageId = focusExtensionPackageId;
         InitializeComponent();
         Focusable = true;
         CanResize = false;
@@ -91,11 +95,36 @@ internal partial class SettingsWindow : Window
             mTabPages.Add(tabPage);
         }
 
-        // Select the first tab by default
-        if (mTabPages.Count > 0)
+        // 默认选首个 tab；但若请求了定位某插件设置且该插件确有设置，则直接切到「扩展」tab 并滚动到它。
+        int initialTab = 0;
+        if (!string.IsNullOrEmpty(mFocusExtensionPackageId)
+            && ExtensionSettingsManager.GetEntries().Any(e => e.PackageId == mFocusExtensionPackageId))
         {
-            SelectTab(0);
+            var idx = mTabPages.FindIndex(p => p.Name == "Extensions");
+            if (idx >= 0)
+                initialTab = idx;
         }
+        if (mTabPages.Count > 0)
+            SelectTab(initialTab);
+
+        // 「扩展」页构建时已捕获目标插件的标题控件；布局完成后把它滚到可视区顶部（尽力而为，失败不影响切页）。
+        if (mFocusListView != null && mFocusEntryControl != null)
+            Avalonia.Threading.Dispatcher.UIThread.Post(ScrollFocusIntoView, Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
+    // 把捕获到的目标插件设置区滚动到「扩展」页顶部附近。用自制 ScrollView 的竖轴（BringIntoView 对它不生效）。
+    private void ScrollFocusIntoView()
+    {
+        try
+        {
+            if (mFocusListView == null || mFocusEntryControl == null)
+                return;
+            // 目标控件相对内容面板的 Y = 需要的滚动量（内容初始 offset 0，Bounds.Y 即距顶距离）。留 12px 上边距。
+            var y = mFocusEntryControl.Bounds.Y;
+            if (y > 0)
+                mFocusListView.VerticalAxis.ViewOffset = System.Math.Max(0, y - 12);
+        }
+        catch { }
     }
 
     private Border CreateTabButton(TabPageInfo tabPage)
@@ -520,13 +549,21 @@ internal partial class SettingsWindow : Window
 
         foreach (var entry in entries)
         {
-            listView.Content.Children.Add(new TextBlock
+            var title = new TextBlock
             {
                 Text = entry.DisplayName,
                 FontSize = 14,
                 Margin = new Thickness(24, 16, 24, 0),
                 Foreground = Style.TEXT_LIGHT.ToBrush(),
-            });
+            };
+            listView.Content.Children.Add(title);
+
+            // 记下待定位插件的标题控件 + 所在 ListView，供开窗后滚动到位。
+            if (!string.IsNullOrEmpty(mFocusExtensionPackageId) && entry.PackageId == mFocusExtensionPackageId)
+            {
+                mFocusListView = listView;
+                mFocusEntryControl = title;
+            }
 
             // 设置数据须挂在文档根上（属性面板字段绑定会读 DataObject.Head），每 extension 一份独立 DataDocument。
             var data = new DataPropertyObject(new DataDocument());
@@ -724,6 +761,10 @@ internal partial class SettingsWindow : Window
     private readonly List<Border> mTabButtons = new();
     private readonly List<TabPageInfo> mTabPages = new();
     private int mSelectedIndex = -1;
+    // 详情窗齿轮请求定位到某插件设置：捕获其标题控件 + 所在 ListView，开窗后滚到位。
+    private readonly string? mFocusExtensionPackageId;
+    private ListView? mFocusListView;
+    private Control? mFocusEntryControl;
     private readonly DisposableManager s = new();
     // 当前「扩展」页各 extension 的实时编辑（切走/关窗时统一落盘后清空）。
     private readonly List<ExtensionPage> mExtensionPages = new();
