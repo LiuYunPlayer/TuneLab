@@ -22,13 +22,8 @@ internal static class FormatsManager
         RegisterExporter(pkg, "tlp", "TuneLab Project", () => new TLP.TuneLabProject());
         RegisterImporter(pkg, "tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
         RegisterExporter(pkg, "tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
-        RegisterImporter(pkg, "acep", "ACE Studio Project", () => new ACEP.ACEStudioProject());
-        RegisterExporter(pkg, "acep", "ACE Studio Project", () => new ACEP.ACEStudioProject());
-        RegisterImporter(pkg, "ufdata", "UtaFormatix Data", () => new UFData.UtaFormatixV1Data());
-        RegisterExporter(pkg, "ufdata", "UtaFormatix Data", () => new UFData.UtaFormatixV1Data());
         RegisterImporter(pkg, "mid", "MIDI", () => new Midi.MidiWithExtension_mid());
         RegisterImporter(pkg, "midi", "MIDI", () => new Midi.MidiWithExtension_midi());
-        RegisterImporter(pkg, "vpr", "VOCALOID Project", () => new VPR.VprWithExtension());
     }
 
     // 工厂注册导入器：内建（LoadBuiltIn）、V1（ExtensionManager 按 manifest class 实例化）、
