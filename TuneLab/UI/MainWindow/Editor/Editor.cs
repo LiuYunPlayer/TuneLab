@@ -22,6 +22,8 @@ using System.Diagnostics.CodeAnalysis;
 using Avalonia.Platform.Storage;
 using System.IO;
 using TuneLab.GUI.Input;
+using TuneLab.Input;
+using KeyBinding = TuneLab.GUI.Input.KeyBinding;   // 消歧：Avalonia.Input 也有 KeyBinding
 using System.Diagnostics;
 using static TuneLab.GUI.Dialog;
 using TuneLab.Utils;
@@ -271,6 +273,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         AddHandler(DragDrop.DropEvent, OnDrop);
 
+        RegisterKeyCommands();
         Menu = CreateMenu();
 
         mFunctionBar.GotFocus += (s, e) => { mPianoWindow.PianoScrollView.Focus(); };
@@ -342,40 +345,75 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (e.IsHandledByTextBox())
             return;
 
-        e.Handled = true;
-        if (e.Match(Key.Space))
+        e.Handled = Keymap.TryHandle(KeyScope.Editor, e);
+    }
+
+    // Editor 作用域的内置快捷键命令。手势即当前默认，分发经 Keymap（见 docs/keybinding-system.md）。
+    void RegisterKeyCommands()
+    {
+        Keymap.Register(new() { Id = "file.new", DisplayName = () => "New".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.N, KeyBinding.PrimaryModifier), Execute = NewProject });
+        Keymap.Register(new() { Id = "file.open", DisplayName = () => "Open".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.O, KeyBinding.PrimaryModifier), Execute = OpenProject });
+        Keymap.Register(new() { Id = "file.save", DisplayName = () => "Save".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.S, KeyBinding.PrimaryModifier), Execute = () => { _ = SaveProject(); } });
+        Keymap.Register(new() { Id = "file.saveAs", DisplayName = () => "Save As".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.S, KeyBinding.PrimaryModifier | KeyModifiers.Shift), Execute = () => { _ = SaveProjectAs(); } });
+
+        Keymap.Register(new() { Id = "edit.undo", DisplayName = () => "Undo".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Z, KeyBinding.PrimaryModifier), Execute = Undo });
+        Keymap.Register(new() { Id = "edit.redo", DisplayName = () => "Redo".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Y, KeyBinding.PrimaryModifier), Execute = Redo });
+        // 剪贴板类动词是"通用动作"：编排区与钢琴窗共享同一个键，触发时按当前聚焦的编辑面路由（各面自带操作中守卫）。
+        // 见 docs/keybinding-system.md §2。
+        Keymap.Register(new() { Id = "edit.copy", DisplayName = () => "Copy".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.C, KeyBinding.PrimaryModifier), Execute = () => RouteEdit(p => p.CopySelection(), t => t.CopySelection()) });
+        Keymap.Register(new() { Id = "edit.cut", DisplayName = () => "Cut".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.X, KeyBinding.PrimaryModifier), Execute = () => RouteEdit(p => p.CutSelection(), t => t.CutSelection()) });
+        Keymap.Register(new() { Id = "edit.paste", DisplayName = () => "Paste".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.V, KeyBinding.PrimaryModifier), Execute = () => RouteEdit(p => p.PasteSelection(), t => t.PasteSelection()) });
+        Keymap.Register(new() { Id = "edit.delete", DisplayName = () => "Delete".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Delete), Execute = () => RouteEdit(p => p.DeleteSelection(), t => t.DeleteSelection()) });
+        Keymap.Register(new() { Id = "edit.selectAll", DisplayName = () => "Select All".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.A, KeyBinding.PrimaryModifier), Execute = () => RouteEdit(p => p.SelectAllInPiano(), t => t.SelectAllInTrack()) });
+
+        // 域 = 功能身份，不随分发作用域走（见 docs/keybinding-system.md §1.1）：transport 而非 editor.playback。
+        Keymap.Register(new() { Id = "transport.play", DisplayName = () => "Play/Pause".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Space), Execute = ChangePlayState });
+        Keymap.Register(new() { Id = "part.reopenLast", DisplayName = () => "Reopen Last Part".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Tab, KeyBinding.PrimaryModifier), Execute = ReopenLastPart });
+
+        // 显示名沿用工具栏（FunctionBar）既有措辞，复用其翻译、与工具栏保持一致。
+        RegisterToolCommand("tool.note", "Note Tool", Key.D1, UI.PianoTool.Note);
+        RegisterToolCommand("tool.pitch", "Pitch Pen", Key.D2, UI.PianoTool.Pitch);
+        RegisterToolCommand("tool.anchor", "Anchor Tool", Key.D3, UI.PianoTool.Anchor);
+        RegisterToolCommand("tool.lock", "Pitch Locking Brush", Key.D4, UI.PianoTool.Lock);
+        RegisterToolCommand("tool.vibrato", "Vibrato Tool", Key.D5, UI.PianoTool.Vibrato);
+    }
+
+    void RegisterToolCommand(string id, string name, Key key, PianoTool tool)
+    {
+        Keymap.Register(new()
         {
-            ChangePlayState();
-        }
-        else if (e.Match(Key.Z, ModifierKeys.Ctrl))
-        {
-            Undo();
-        }
-        else if (e.Match(Key.Y, ModifierKeys.Ctrl))
-        {
-            Redo();
-        }
-        else if (e.Match(Key.Tab, ModifierKeys.Ctrl))
-        {
-            if (mLastPart != null && mDocument.Pushable())
+            Id = id,
+            DisplayName = () => name.Tr(TC.Menu),
+            Scope = KeyScope.Editor,
+            DefaultGesture = new(key),
+            Execute = () =>
             {
-                var track = mLastPart.Track;
-                if (track.Parts.Contains(mLastPart) && track.Project.Tracks.Contains(track))
-                {
-                    SwitchEditingPart(mLastPart);
-                }
+                // instrument 音源无颤音系统：快捷键与工具栏同口径拦截。
+                if (tool != UI.PianoTool.Vibrato || mPianoWindow.Part?.SoundSource.Kind != SourceKind.Instrument)
+                    mPianoWindow.PianoTool.Value = tool;
             }
-        }
-        else if (e.ModifierKeys() == ModifierKeys.None && e.Key >= Key.D1 && e.Key <= Key.D6)
+        });
+    }
+
+    // 剪贴板类命令按当前键盘焦点路由到对应编辑面：焦点在编排区→track 动作、在钢琴窗→piano 动作、都不在→空操作。
+    // 两面为兄弟节点，焦点至多落在其一，故不歧义。各面方法自带"操作进行中"守卫。
+    void RouteEdit(Action<PianoWindow> piano, Action<TrackWindow> track)
+    {
+        if (mTrackWindow.IsKeyboardFocusWithin)
+            track(mTrackWindow);
+        else if (mPianoWindow.IsKeyboardFocusWithin)
+            piano(mPianoWindow);
+    }
+
+    void ReopenLastPart()
+    {
+        if (mLastPart != null && mDocument.Pushable())
         {
-            var tool = (PianoTool)(e.Key - Key.D1);
-            // instrument 音源无颤音系统：快捷键与工具栏同口径拦截。
-            if (tool != UI.PianoTool.Vibrato || mPianoWindow.Part?.SoundSource.Kind != SourceKind.Instrument)
-                mPianoWindow.PianoTool.Value = tool;
-        }
-        else
-        {
-            e.Handled = false;
+            var track = mLastPart.Track;
+            if (track.Parts.Contains(mLastPart) && track.Project.Tracks.Contains(track))
+            {
+                SwitchEditingPart(mLastPart);
+            }
         }
     }
 
@@ -1242,11 +1280,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             // 清空其所属集合（会移除正在被点击的项，破坏菜单内部选中/弹窗状态，导致下次首次悬浮二级菜单被立即关闭）
             menuBarItem.SubmenuOpened += (_, _) => UpdateRecentFilesMenu();
             {
-                var menuItem = new MenuItem().SetTrName("New").SetAction(NewProject).SetShortcut(Key.N, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("New").SetCommand("file.new");
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetTrName("Open").SetAction(OpenProject).SetShortcut(Key.O, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Open").SetCommand("file.open");
                 menuBarItem.Items.Add(menuItem);
             }
             {
@@ -1255,11 +1293,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(mRecentFilesMenu);
             }
             {
-                var menuItem = new MenuItem().SetTrName("Save").SetAction(async () => { await SaveProject(); }).SetShortcut(Key.S, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Save").SetCommand("file.save");
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetTrName("Save As").SetAction(async () => { await SaveProjectAs(); }).SetShortcut(Key.S, ModifierKeys.Ctrl | ModifierKeys.Shift);
+                var menuItem = new MenuItem().SetTrName("Save As").SetCommand("file.saveAs");
                 menuBarItem.Items.Add(menuItem);
             }
             {
@@ -1293,12 +1331,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             var menuBarItem = new MenuItem { Foreground = Style.TEXT_LIGHT.ToBrush(), Focusable = false }.SetTrName("Edit");
             {
-                var menuItem = new MenuItem().SetTrName("Undo").SetAction(Undo).SetInputGesture(Key.Z, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Undo").SetCommand("edit.undo");
                 menuBarItem.Items.Add(menuItem);
                 mUndoMenuItem = menuItem;
             }
             {
-                var menuItem = new MenuItem().SetTrName("Redo").SetAction(Redo).SetInputGesture(Key.Y, ModifierKeys.Ctrl);
+                var menuItem = new MenuItem().SetTrName("Redo").SetCommand("edit.redo");
                 menuBarItem.Items.Add(menuItem);
                 mRedoMenuItem = menuItem;
             }
@@ -1314,6 +1352,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Clear();
                 foreach (var item in ScriptToolMenu.BuildGlobalMenuItems(this))
                     menuBarItem.Items.Add(item);
+                // 全部工具脚本（不限 context）同步为可绑定命令，供快捷键分发与设置页。
+                ScriptToolMenu.SyncKeyCommands(this);
             }
             // 不在本菜单自身 SubmenuOpened 时重建——边打开边换 Items 会让首次悬浮二级（分组）子菜单被立即关闭
             // （与 Recent Files 同坑）。改为：内容须在菜单打开前就备好——靠脚本目录的文件监视器在增删改时提前重建。

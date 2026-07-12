@@ -82,6 +82,7 @@ internal partial class SettingsWindow : Window
             new("Audio", Assets.Audio, CreateAudioPage),
             new("Appearance", Assets.Appearance, CreateAppearancePage),
             new("Editing", Assets.Editing, CreateEditorPage),
+            new("Keybindings", Assets.Keyboard, () => new KeymapSettingsPage(this)),
             new("Extensions", Assets.Extensions, CreateExtensionsPage),
             new("Extension Routing", Assets.ExtensionRouting, CreateRoutingPage),
         };

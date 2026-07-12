@@ -118,46 +118,42 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         mTrackVerticalAxis.RefreshContentSize();   // 可滚动范围含一个视图高余量，随视图高变化重算
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.IsHandledByTextBox())
-            return;
+    // 剪贴板类命令（复制/剪切/粘贴/删除/全选）是与钢琴窗共享的通用动作，注册在 Editor 域、由 Editor 按聚焦面
+    // 路由到下列 *Selection 方法（不再由本控件自建 OnKeyDown 分发）。有范围选区时作用于选区（闸刀语义，与选区
+    // 右键菜单一致）、否则作用于选中的整块 part。仅在无进行中操作时生效——原本由 OnKeyDown 前置守卫，此处自守。
+    bool CanRunEditCommand => TrackScrollView.OperationState == TrackScrollView.State.None;
 
-        switch (TrackScrollView.OperationState)
-        {
-            case TrackScrollView.State.None:
-                e.Handled = true;
-                // 有范围选区时 Ctrl+C/X、Delete 作用于选区（闸刀语义，与选区右键菜单一致）；否则作用于选中的整块 part。
-                var region = TrackScrollView.CurrentSelection;
-                if (e.Match(Key.Delete))
-                {
-                    if (region is { } deleteRegion) TrackScrollView.DeleteRegion(deleteRegion);
-                    else TrackScrollView.DeleteAllSelectedParts();
-                }
-                else if (e.Match(Key.C, ModifierKeys.Ctrl))
-                {
-                    if (region is { } copyRegion) TrackScrollView.CopyRegion(copyRegion);
-                    else TrackScrollView.Copy();
-                }
-                else if (e.Match(Key.X, ModifierKeys.Ctrl))
-                {
-                    if (region is { } cutRegion) TrackScrollView.CutRegion(cutRegion);
-                    else TrackScrollView.Cut();
-                }
-                else if (e.Match(Key.V, ModifierKeys.Ctrl))
-                {
-                    TrackScrollView.PasteAt(TrackScrollView.GetQuantizedTick(Playhead.Pos));
-                }
-                else if (e.Match(Key.A, ModifierKeys.Ctrl))
-                {
-                    Project?.Tracks.SelectMany(track => track.Parts).SelectAllItems();
-                }
-                else
-                {
-                    e.Handled = false;
-                }
-                break;
-        } 
+    public void CopySelection()
+    {
+        if (!CanRunEditCommand) return;
+        if (TrackScrollView.CurrentSelection is { } region) TrackScrollView.CopyRegion(region);
+        else TrackScrollView.Copy();
+    }
+
+    public void CutSelection()
+    {
+        if (!CanRunEditCommand) return;
+        if (TrackScrollView.CurrentSelection is { } region) TrackScrollView.CutRegion(region);
+        else TrackScrollView.Cut();
+    }
+
+    public void PasteSelection()
+    {
+        if (!CanRunEditCommand) return;
+        TrackScrollView.PasteAt(TrackScrollView.GetQuantizedTick(Playhead.Pos));
+    }
+
+    public void DeleteSelection()
+    {
+        if (!CanRunEditCommand) return;
+        if (TrackScrollView.CurrentSelection is { } region) TrackScrollView.DeleteRegion(region);
+        else TrackScrollView.DeleteAllSelectedParts();
+    }
+
+    public void SelectAllInTrack()
+    {
+        if (!CanRunEditCommand) return;
+        Project?.Tracks.SelectMany(track => track.Parts).SelectAllItems();
     }
 
     readonly Quantization mQuantization;

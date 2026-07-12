@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.I18N;
+using TuneLab.Input;
 using TuneLab.Scripting;
 using TuneLab.Utils;
 
@@ -68,6 +69,36 @@ internal static class ScriptToolMenu
             }
         }
         return items;
+    }
+
+    // 已注册的脚本命令 id 集（用于增删同步）。
+    static readonly HashSet<string> sRegisteredCommandIds = new();
+
+    // 把脚本库里全部工具脚本同步为可绑定命令：id=script:<ScriptName>、无默认手势、Editor 域（编辑器内全局可达，
+    // 按当前 part/选区实时运行——同 Run 路径）。随 Scripts 菜单重建调用：新增脚本注册、消失脚本注销；
+    // 消失脚本的用户 override 由 Keymap 静默保留（缺 id 即不进分发索引），脚本回归即复活。见 docs/keybinding-system.md §6。
+    public static void SyncKeyCommands(Control anchor)
+    {
+        var currentIds = new HashSet<string>();
+        foreach (var tool in Discover())
+        {
+            var id = "script:" + tool.ScriptName;
+            currentIds.Add(id);
+            Keymap.Register(new()
+            {
+                Id = id,
+                DisplayName = () => tool.DisplayName,
+                Scope = KeyScope.Editor,
+                DefaultGesture = null,
+                Execute = () => Run(tool, anchor),
+            });
+        }
+
+        foreach (var id in sRegisteredCommandIds)
+            if (!currentIds.Contains(id))
+                Keymap.Unregister(id);
+        sRegisteredCommandIds.Clear();
+        sRegisteredCommandIds.UnionWith(currentIds);
     }
 
     // 注入项的标记，便于"只建一次"的菜单（TrackHead）每次打开时清掉上轮注入再重建。

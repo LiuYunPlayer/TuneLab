@@ -14,6 +14,7 @@ using TuneLab.GUI;
 using TuneLab.Configs;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
+using TuneLab.Input;
 using TuneLab.Utils;
 using static TuneLab.GUI.Dialog;
 using Button = TuneLab.GUI.Components.Button;
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
         ApplySavedWindowPlacement();
 
         this.KeyDown += OnKeyDown;
+        RegisterKeyCommands();
 
 #if AVALONIA
         this.AttachDevTools();
@@ -311,16 +313,24 @@ public partial class MainWindow : Window
 
     void OnKeyDown(object? sender, KeyEventArgs args)
     {
-        if (args.KeyModifiers == KeyModifiers.None)
+        args.Handled = Keymap.TryHandle(KeyScope.Global, args);
+    }
+
+    // Global 作用域的内置快捷键命令（跨全窗口生效，由最外层 Window.KeyDown 兜底分发）。
+    void RegisterKeyCommands()
+    {
+        Keymap.Register(new()
         {
-            switch (args.Key)
-            {
-                case Key.F11:
-                    OnMenuFullScreen(this, new RoutedEventArgs()); // Call your existing method
-                    args.Handled = true;
-                    break;
-            }
-        }
+            Id = "app.fullscreen",
+            DisplayName = () => "Full Screen".Tr(TC.Menu),
+            Scope = KeyScope.Global,
+            // 按平台走原生约定：Windows=F11，Mac=⌃⌘F（物理 Control+Meta+F，改用物理修饰后可表达；见
+            // docs/keybinding-system.md §1.2）。若 macOS 自身截走 ⌃⌘F 做系统全屏，效果一致；用户仍可重绑。
+            DefaultGesture = OperatingSystem.IsMacOS()
+                ? new(Key.F, KeyModifiers.Control | KeyModifiers.Meta)
+                : new(Key.F11),
+            Execute = () => OnMenuFullScreen(this, new RoutedEventArgs()),
+        });
     }
     
     void OnMenuFullScreen(object sender, RoutedEventArgs args) {

@@ -63,6 +63,9 @@ internal static class Assets
     public static SvgIcon Waveform = new("<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M3.5 9V15M6.5 5V19M9.5 8V16M12.5 2.5V21.5M15.5 8V16M18.5 5V19M21.5 9V15\" stroke=\"white\" stroke-width=\"2\" stroke-linecap=\"round\"/>\n</svg>");
     // 骰子（五点面）：滑条「随机取值」按钮用。
     public static SvgIcon Dice = new("<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3\" stroke=\"white\" stroke-width=\"2\"/>\n<circle cx=\"8.5\" cy=\"8.5\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"15.5\" cy=\"8.5\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"12\" cy=\"12\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"8.5\" cy=\"15.5\" r=\"1.5\" fill=\"white\"/>\n<circle cx=\"15.5\" cy=\"15.5\" r=\"1.5\" fill=\"white\"/>\n</svg>");
+    // 键盘：外框 + 若干键位点（用于设置窗「快捷键」页）。
+    public static SvgIcon Keyboard = new("<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\" stroke=\"white\" stroke-width=\"1.5\"/>\n<path d=\"M8 15H16\" stroke=\"white\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>\n<circle cx=\"7\" cy=\"9.5\" r=\"0.75\" fill=\"white\"/>\n<circle cx=\"10\" cy=\"9.5\" r=\"0.75\" fill=\"white\"/>\n<circle cx=\"13\" cy=\"9.5\" r=\"0.75\" fill=\"white\"/>\n<circle cx=\"16\" cy=\"9.5\" r=\"0.75\" fill=\"white\"/>\n<circle cx=\"7\" cy=\"12.5\" r=\"0.75\" fill=\"white\"/>\n<circle cx=\"17\" cy=\"12.5\" r=\"0.75\" fill=\"white\"/>\n</svg>");
+
     public static SvgIcon None = new("");
 
     // 内置等宽字体，真身在 TuneLab 主工程 Assets/Font/NotoMono-Regular-1.ttf（ttf 内部家族名带空格：Noto Mono）。

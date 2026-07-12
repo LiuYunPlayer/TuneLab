@@ -8,11 +8,13 @@ using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
+using TuneLab.Input;
 using TuneLab.Data;
 using TuneLab.Utils;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
 using TuneLab.Configs;
+using TuneLab.I18N;
 using Avalonia.Threading;
 
 namespace TuneLab.UI;
@@ -161,6 +163,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         ClipToBounds = true;
 
         ActiveAutomation = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
+
+        RegisterKeyCommands();
     }
 
     ~PianoWindow()
@@ -236,81 +240,71 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         if (e.IsHandledByTextBox())
             return;
 
-        var automationRenderer = mParameterContainer.AutomationRenderer;
-        if (automationRenderer.IsOperating)
+        if (mParameterContainer.AutomationRenderer.IsOperating)
             return;
 
-        bool preferAutomationAnchorActions = PianoTool.Value == UI.PianoTool.Anchor && automationRenderer.IsHover;
+        // 命令级快捷键仅在无进行中操作（拖动/缩放等）时分发；进行中的操作态修饰键由各 Operation 自行处理、不经此。
+        if (PianoScrollView.OperationState != PianoScrollView.State.None)
+            return;
 
-        switch (PianoScrollView.OperationState)
+        e.Handled = Keymap.TryHandle(KeyScope.PianoWindow, e);
+    }
+
+    // PianoWindow 作用域的内置快捷键命令（钢琴窗专属：移调 / 八度）。剪贴板类动词（复制/剪切/粘贴/删除/全选）
+    // 是与编排区共享的通用动作，注册在 Editor 域、由 Editor 按聚焦面路由到下列 *Selection 方法，不在此登记。
+    void RegisterKeyCommands()
+    {
+        // 域 = 功能身份（note 音符级操作），非分发作用域（虽在 PianoWindow 分发）。见 docs/keybinding-system.md §1.1。
+        Keymap.Register(new() { Id = "note.octaveUp", DisplayName = () => "Octave Up".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Up, KeyModifiers.Shift), Execute = () => PianoScrollView.OctaveUp() });
+        Keymap.Register(new() { Id = "note.octaveDown", DisplayName = () => "Octave Down".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Down, KeyModifiers.Shift), Execute = () => PianoScrollView.OctaveDown() });
+        Keymap.Register(new() { Id = "note.transposeUp", DisplayName = () => "Semitone Up".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Up), Execute = () => PianoScrollView.ChangeKey(+1) });
+        Keymap.Register(new() { Id = "note.transposeDown", DisplayName = () => "Semitone Down".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Down), Execute = () => PianoScrollView.ChangeKey(-1) });
+    }
+
+    // 剪贴板类命令仅在无进行中操作（拖动/缩放等）时生效——原本由 OnKeyDown 前置守卫，改由 Editor 路由后在此自守。
+    bool CanRunEditCommand => !mParameterContainer.AutomationRenderer.IsOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
+
+    public void CopySelection() { if (CanRunEditCommand) PianoScrollView.Copy(); }
+    public void CutSelection() { if (CanRunEditCommand) PianoScrollView.Cut(); }
+    public void PasteSelection() { if (CanRunEditCommand) PianoScrollView.Paste(); }
+
+    public void DeleteSelection()
+    {
+        if (!CanRunEditCommand)
+            return;
+        var automationRenderer = mParameterContainer.AutomationRenderer;
+        // Anchor 工具且悬停 automation 时删锚点，否则删所选对象。
+        if (PianoTool.Value == UI.PianoTool.Anchor && automationRenderer.IsHover)
+            automationRenderer.DeleteSelectedAnchors();
+        else
+            PianoScrollView.Delete();
+    }
+
+    public void SelectAllInPiano()
+    {
+        if (!CanRunEditCommand)
+            return;
+        var automationRenderer = mParameterContainer.AutomationRenderer;
+        switch (PianoTool.Value)
         {
-            case PianoScrollView.State.None:
-                e.Handled = true;
-                if (e.Match(Key.Delete))
-                {
-                    if (preferAutomationAnchorActions)
-                        automationRenderer.DeleteSelectedAnchors();
-                    else
-                        PianoScrollView.Delete();
-                }
-                else if (e.Match(Key.C, ModifierKeys.Ctrl))
-                {
-                    PianoScrollView.Copy();
-                }
-                else if (e.Match(Key.X, ModifierKeys.Ctrl))
-                {
-                    PianoScrollView.Cut();
-                }
-                else if (e.Match(Key.V, ModifierKeys.Ctrl))
-                {
-                    PianoScrollView.Paste();
-                }
-                else if (e.Match(Key.A, ModifierKeys.Ctrl))
-                {
-                    switch (PianoTool.Value)
-                    {
-                        case UI.PianoTool.Note:
-                            Part?.Notes.SelectAllItems();
-                            break;
-                        case UI.PianoTool.Vibrato:
-                            Part?.Vibratos.SelectAllItems();
-                            break;
-                        case UI.PianoTool.Anchor:
-                            if (automationRenderer.IsHover)
-                                automationRenderer.SelectAllAnchors();
-                            else
-                            {
-                                Part?.DeselectAllAutomationPoints();
-                                automationRenderer.InvalidateVisual();
-                                automationRenderer.RefreshAnchorValueInput();
-                                Part?.Pitch.SelectAllAnchors();
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-
-                }
-                else if (e.Match(Key.Up, ModifierKeys.Shift))
-                {
-                    PianoScrollView.OctaveUp();
-                }
-                else if (e.Match(Key.Down, ModifierKeys.Shift))
-                {
-                    PianoScrollView.OctaveDown();
-                }
-                else if (e.Match(Key.Up))
-                {
-                    PianoScrollView.ChangeKey(+1);
-                }
-                else if (e.Match(Key.Down))
-                {
-                    PianoScrollView.ChangeKey(-1);
-                }
+            case UI.PianoTool.Note:
+                Part?.Notes.SelectAllItems();
+                break;
+            case UI.PianoTool.Vibrato:
+                Part?.Vibratos.SelectAllItems();
+                break;
+            case UI.PianoTool.Anchor:
+                if (automationRenderer.IsHover)
+                    automationRenderer.SelectAllAnchors();
                 else
                 {
-                    e.Handled = false;
+                    Part?.DeselectAllAutomationPoints();
+                    automationRenderer.InvalidateVisual();
+                    automationRenderer.RefreshAnchorValueInput();
+                    Part?.Pitch.SelectAllAnchors();
                 }
+                break;
+            default:
                 break;
         }
     }

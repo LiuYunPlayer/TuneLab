@@ -83,6 +83,7 @@ class Program
         EditorState.Init(PathManager.EditorStateFilePath);
         RecentSoundSourceManager.Init(PathManager.RecentSoundSourcesFilePath);
         ParameterPinning.Init(PathManager.ParameterPinsFilePath);
+        TuneLab.Input.Keymap.Init(PathManager.KeymapFilePath);
 
         // init translation
         TranslationManager.Init(PathManager.TranslationsFolder);
