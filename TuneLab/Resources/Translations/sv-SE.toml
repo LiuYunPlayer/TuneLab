@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Genväg delas mellan områden"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Den här genvägen används även av {0} i ett annat område. Båda förblir aktiva — bindningen för det fokuserade området har företräde."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Krockar med {0} i samma område; det här kommandot gäller för närvarande."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Krockar med {0} i samma område; för närvarande gäller \"{1}\"."
+"Also bound to {0} in another area; the focused area wins." = "Även bunden till {0} i ett annat område; det fokuserade området vinner."
 "File" = "Fil"
 "Edit" = "Redigera"
 "Notes" = "Noter"

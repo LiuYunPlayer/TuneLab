@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Сочетание используется в разных областях"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Это сочетание также используется командой {0} в другой области. Оба остаются активными — приоритет у привязки активной области."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Конфликтует с {0} в той же области; сейчас действует эта команда."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Конфликтует с {0} в той же области; сейчас действует \"{1}\"."
+"Also bound to {0} in another area; the focused area wins." = "Также назначено на {0} в другой области; приоритет у активной области."
 "File" = "Файл"
 "Edit" = "Редактировать"
 "Notes" = "Ноты"

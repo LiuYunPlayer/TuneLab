@@ -97,6 +97,20 @@ internal static class Keymap
         return null;
     }
 
+    // 与 id 同作用域、同生效手势的其它命令 id（持久同域冲突组，供设置页警示展示）。空=无冲突。
+    // 冲突来源不限交互绑定：手改 Keymap.json、多脚本声明同默认手势等都会形成，故须能随时检测、非仅绑定当时。
+    // 分发的生效者由注册序决定（见 Index：注册序最小者胜，内建先注册故恒胜）。
+    public static IReadOnlyList<string> SameScopeConflictPeers(string id)
+    {
+        if (!mCommands.TryGetValue(id, out var self) || Effective(id) is not { } g)
+            return Array.Empty<string>();
+        var peers = new List<string>();
+        foreach (var cmd in mCommands.Values)
+            if (cmd.Id != id && cmd.Scope == self.Scope && Effective(cmd.Id) is { } og && og.Equals(g))
+                peers.Add(cmd.Id);
+        return peers;
+    }
+
     // 生效手势 = override（若该 id 有 override 条目，含 null 解绑）否则默认。
     public static KeyBinding? Effective(string id)
     {
@@ -166,7 +180,12 @@ internal static class Keymap
             var gesture = Effective(cmd.Id);
             if (gesture == null)
                 continue;
-            index[(cmd.Scope, gesture.Value)] = cmd;   // 默认集内同 scope 无同手势冲突；UI 层负责用户重绑时的冲突提示
+            var key = (cmd.Scope, gesture.Value);
+            // 同作用域撞键（可来自手改 JSON、多脚本同默认等）时确定性取胜：注册序最小者（内建启动期先注册故恒胜、
+            // 不被第三方脚本夺走）。冲突不隐藏——设置页 SameScopeConflictPeers 持久警示，由用户消解。
+            if (index.TryGetValue(key, out var existing) && OrderOf(existing.Id) <= OrderOf(cmd.Id))
+                continue;
+            index[key] = cmd;
         }
         mIndex = index;
         return index;

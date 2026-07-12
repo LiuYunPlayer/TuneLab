@@ -27,6 +27,9 @@ internal sealed class KeymapSettingsPage : DockPanel
     string mSearch = string.Empty;
     string? mRecordingId;               // 正在录制手势的命令 id（null=未在录制）
 
+    static readonly IBrush WarnBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0x6C, 0x5C));    // 同域冲突（红，须消解）
+    static readonly IBrush ShareBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xC0, 0x4E));   // 跨域共用（黄，提示）
+
     // 分组由命令 id 的功能域派生（纯显示，可随时调整；只有 id 域 key 本身是冻结契约）。顺序与标题在此定。
     // 域外/未列出的命令兜底归到各自域名（不隐藏）。见 docs/keybinding-system.md §1.1、§8。
     static readonly (string Domain, string Label)[] DomainOrder =
@@ -122,6 +125,32 @@ internal sealed class KeymapSettingsPage : DockPanel
 
         Keymap.Rebind(id, binding);
         Rebuild();
+
+        // 跨域同手势不算冲突（焦点解析：聚焦哪个子树，哪层绑定生效、内层遮蔽外层，见 docs/keybinding-system.md §9）。
+        // 不阻止，但绑定后告知，免得用户以为其中某个"失灵"。
+        var others = OtherScopeUsers(id, binding);
+        if (others.Count > 0)
+        {
+            var names = string.Join(", ", others.Select(c => "\"" + c.DisplayName() + "\""));
+            await Inform("Shortcut Shared Across Areas".Tr(mOwner),
+                string.Format("This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority.".Tr(mOwner), names));
+        }
+    }
+
+    // 同手势但不同作用域的其它命令（跨域共用，非冲突）。self 须已注册（设置页显示的即注册命令）。
+    static IReadOnlyList<KeyCommand> OtherScopeUsers(string id, KeyBinding binding)
+    {
+        if (!Keymap.TryGet(id, out var self))
+            return Array.Empty<KeyCommand>();
+        var list = new List<KeyCommand>();
+        foreach (var cmd in Keymap.Commands)
+        {
+            if (cmd.Id == id || cmd.Scope == self.Scope)
+                continue;
+            if (Keymap.Effective(cmd.Id) is { } g && g.Equals(binding))
+                list.Add(cmd);
+        }
+        return list;
     }
 
     void Rebuild()
@@ -184,17 +213,58 @@ internal sealed class KeymapSettingsPage : DockPanel
     {
         var panel = new DockPanel() { Margin = new(36, 5, 24, 5) };
 
-        var actions = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        // 操作区固定列布局：重置(↺) | 清除(✕) | 手势芯片。各列定宽、条件图标缺失留空位、芯片也定宽——跨行对齐成列。
+        // 冲突指示（⚠）不占独立列，而是嵌进芯片、置于手势文字前（见 MakeGestureChip）；罕见的 ↺ 置最左，其空位并入
+        // "命令名↔动作簇"留白，使常态下 ✕ 与芯片始终紧贴、无多余间隔。
+        var actions = new Grid { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        actions.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(30)));   // ↺ 重置
+        actions.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(30)));   // ✕ 清除
+        actions.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));      // 手势芯片（定宽）
+
+        void PlaceCol(Control c, int col) { Grid.SetColumn(c, col); actions.Children.Add(c); }
 
         // 重置（仅在有 override 时）：回默认手势。
         if (Keymap.HasOverride(cmd.Id))
-            actions.Children.Add(MakeGlyphButton("↺", "Reset to Default".Tr(mOwner), () => { Keymap.ResetToDefault(cmd.Id); Rebuild(); }));
+            PlaceCol(MakeGlyphButton("↺", "Reset to Default".Tr(mOwner), () => { Keymap.ResetToDefault(cmd.Id); Rebuild(); }), 0);
 
         // 清除（仅在当前有绑定时）：解绑。
-        if (Keymap.Effective(cmd.Id) != null)
-            actions.Children.Add(MakeGlyphButton("✕", "Clear".Tr(mOwner), () => { Keymap.Rebind(cmd.Id, null); Rebuild(); }));
+        var effective = Keymap.Effective(cmd.Id);
+        if (effective != null)
+            PlaceCol(MakeGlyphButton("✕", "Clear".Tr(mOwner), () => { Keymap.Rebind(cmd.Id, null); Rebuild(); }), 1);
 
-        actions.Children.Add(MakeGestureChip(cmd));
+        // 持久冲突展示（不止绑定当时），用彩色 ⚠（嵌芯片、文字前）+ 同色手势文字编码，原因挂芯片 tooltip：
+        // 同域撞键=红（须消解，来自手改 JSON / 多脚本同默认等）；跨域共用=黄（焦点共存、非错误）。见 §9。
+        IBrush? chipColor = null;
+        string? chipTip = null;
+        if (effective != null)
+        {
+            var peers = Keymap.SameScopeConflictPeers(cmd.Id);
+            if (peers.Count > 0)
+            {
+                // 冲突双方【都】警示（用户对各方有同等修改权，应综合判断而非被诱导只改败者）。稳定决胜者=同组注册序
+                // 最小者（分发生效者），tooltip 各自点明"当前谁生效"，把完整信息交用户权衡。见 docs/keybinding-system.md §9。
+                string winner = cmd.Id;
+                foreach (var p in peers)
+                    if (Keymap.OrderOf(p) < Keymap.OrderOf(winner)) winner = p;
+                var peerNames = string.Join("、", peers.Select(NameOf));
+                chipColor = WarnBrush;
+                chipTip = winner == cmd.Id
+                    ? string.Format("Conflicts with {0} in the same area; this one currently takes effect.".Tr(mOwner), peerNames)
+                    : string.Format("Conflicts with {0} in the same area; \"{1}\" currently takes effect.".Tr(mOwner), peerNames, NameOf(winner));
+            }
+            else
+            {
+                var others = OtherScopeUsers(cmd.Id, effective.Value);
+                if (others.Count > 0)
+                {
+                    chipColor = ShareBrush;
+                    chipTip = string.Format("Also bound to {0} in another area; the focused area wins.".Tr(mOwner),
+                        string.Join("、", others.Select(c => c.DisplayName())));
+                }
+            }
+        }
+
+        PlaceCol(MakeGestureChip(cmd, chipColor, chipTip), 2);
         panel.AddDock(actions, Dock.Right);
 
         panel.AddDock(new TextBlock
@@ -209,22 +279,28 @@ internal sealed class KeymapSettingsPage : DockPanel
         return panel;
     }
 
-    // 手势芯片：显示当前手势（或「未绑定」），点击进入录制态。
-    Border MakeGestureChip(KeyCommand cmd)
+    // 手势芯片：显示当前手势（或「未绑定」），点击进入录制态。conflictBorder!=null 时描该色边（红=同域冲突/
+    // 黄=跨域共用），并挂 tip 说明；录制态恒以高亮边覆盖。冲突用手势【文字】上色（比描边更醒目、直指冲突的绑定本身）。
+    Border MakeGestureChip(KeyCommand cmd, IBrush? conflictColor = null, string? tip = null)
     {
         bool recording = mRecordingId == cmd.Id;
         var effective = Keymap.Effective(cmd.Id);
+        var normalFore = (effective == null && !recording ? Style.LIGHT_WHITE.Opacity(0.4) : Style.TEXT_LIGHT).ToBrush();
+        // 有冲突且非录制、且当前确有手势时 → ⚠ 前缀 + 文字整体染冲突色（红/黄）；否则常规色。
+        bool showConflict = conflictColor != null && !recording && effective != null;
+        var gesture = recording ? "Press keys…".Tr(mOwner) : (effective?.ToDisplayString() ?? "Unbound".Tr(mOwner));
         var text = new TextBlock
         {
-            Text = recording ? "Press keys…".Tr(mOwner) : (effective?.ToDisplayString() ?? "Unbound".Tr(mOwner)),
+            Text = showConflict ? "⚠ " + gesture : gesture,
             FontSize = 12,
-            Foreground = (effective == null && !recording ? Style.LIGHT_WHITE.Opacity(0.4) : Style.TEXT_LIGHT).ToBrush(),
+            Foreground = showConflict ? conflictColor : normalFore,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,   // 极长组合键兜底，不撑破定宽
         };
         var border = new Border
         {
-            MinWidth = 96,
+            Width = 124,   // 定宽：跨行芯片左缘对齐，不随手势文本长短漂移；略宽以容纳 ⚠ 前缀
             Height = 26,
             Padding = new(10, 0),
             CornerRadius = new(4),
@@ -235,6 +311,8 @@ internal sealed class KeymapSettingsPage : DockPanel
             Focusable = true,
             Child = text,
         };
+        if (tip != null)
+            ToolTip.SetTip(border, tip);
         border.PointerPressed += (s, e) =>
         {
             if (mRecordingId != null)
@@ -255,6 +333,9 @@ internal sealed class KeymapSettingsPage : DockPanel
         };
         return border;
     }
+
+    // 命令 id → 显示名（未注册则回退 id）。
+    static string NameOf(string id) => Keymap.TryGet(id, out var c) ? c.DisplayName() : id;
 
     Border MakeTextButton(string text, Action onClick)
     {
@@ -301,6 +382,19 @@ internal sealed class KeymapSettingsPage : DockPanel
         ToolTip.SetTip(border, tip);
         border.PointerPressed += (s, e) => onClick();
         return border;
+    }
+
+    // 单按钮告知（不阻止，仅解释），用于跨域共用手势的焦点遮蔽提示。
+    Task Inform(string title, string message)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var modal = new Dialog();
+        modal.SetTitle(title);
+        modal.SetMessage(message);
+        modal.AddButton("OK".Tr(mOwner), ButtonType.Primary).Clicked += () => tcs.TrySetResult(true);
+        modal.Topmost = true;
+        _ = modal.ShowDialog(mOwner);
+        return tcs.Task;
     }
 
     Task<bool> Confirm(string title, string message)

@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Скорочення спільне для областей"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Це скорочення також використовує {0} в іншій області. Обидва лишаються активними — пріоритет має прив'язка активної області."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Конфліктує з {0} у тій самій області; зараз діє ця команда."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Конфліктує з {0} у тій самій області; зараз діє \"{1}\"."
+"Also bound to {0} in another area; the focused area wins." = "Також призначено на {0} в іншій області; пріоритет має активна область."
 "File" = "Файл"
 "Edit" = "Редагувати"
 "Notes" = "Ноти"

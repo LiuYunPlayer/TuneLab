@@ -7,20 +7,25 @@ using TuneLab.Foundation;
 
 namespace TuneLab.Scripting;
 
-// 脚本工具挂载的上下文：决定注册到哪个菜单、对应不同的目标心智。
-//  global=顶部 Scripts 菜单；note=钢琴卷帘命中音符；partContent=钢琴卷帘空白（part 内容区）；
-//  part=编排区命中 part（part 整体对象）；track=轨道头（track 整体对象）；trackContent=编排区空白（track 容器/泳道）。
-internal enum ScriptToolContext { Global, Note, Part, PartContent, Track, TrackContent }
+// 脚本工具挂载的上下文：决定注册到哪个菜单、对应不同的目标心智。每个编辑区的右键分支各自闭合：
+//  global=顶部 Scripts 菜单；
+//  钢琴窗三分支：note=命中音符 / partContent=命中空白（part 内容区）/ pianoSelection=命中范围选区（tick 带，tl.pianoSelection()）；
+//  编排区三分支 + 轨道头：part=命中 part / trackContent=空白泳道 / trackSelection=命中范围选区（tick×轨道，tl.trackSelection()）/ track=轨道头。
+internal enum ScriptToolContext { Global, Note, Part, PartContent, Track, TrackContent, PianoSelection, TrackSelection }
 
 // 一个"工具脚本"（定义了 getScriptInfo 的库内脚本）的元数据。ScriptName=库内文件名（去扩展），用于加载/运行；
 // 其余来自 getScriptInfo() 的返回。亮灭(enabled)不做——它只是 UI 糖、不防逻辑错误，真正校验在脚本 main() 里。
+// DeclaredId/DefaultGesture 是快捷键系统用的原始声明串（未校验）：稳定绑定锚点与建议默认手势，
+// 校验/解析归 UI 侧（ScriptToolMenu），本层只忠实透出作者声明。见 docs/keybinding-system.md §6。
 internal sealed record ScriptToolInfo(
     string ScriptName,
     string DisplayName,
     string? Category,
     string? Author,
     string? Version,
-    ScriptToolContext Context);
+    ScriptToolContext Context,
+    string? DeclaredId = null,
+    string? DefaultGesture = null);
 
 // 脚本工具枚举器：扫描脚本库，逐个在沙箱里 eval 顶层 + 调 getScriptInfo 收元数据。只有定义了 getScriptInfo 的脚本
 // 才算"工具"、参与菜单注册；普通脚本（没有 getScriptInfo）不在此列。按 (文件 mtime, 语言) 缓存，避免每次重复 eval
@@ -107,7 +112,9 @@ internal static class ScriptTools
                 Category: ScriptArgs.OptStr(o, "category"),
                 Author: ScriptArgs.OptStr(o, "author"),
                 Version: ScriptArgs.OptStr(o, "version"),
-                Context: ParseContext(ScriptArgs.OptStr(o, "context"))), null);
+                Context: ParseContext(ScriptArgs.OptStr(o, "context")),
+                DeclaredId: ScriptArgs.OptStr(o, "id"),
+                DefaultGesture: ScriptArgs.OptStr(o, "defaultGesture")), null);
         }
         catch (Exception ex)
         {
@@ -126,6 +133,8 @@ internal static class ScriptTools
         "partcontent" => ScriptToolContext.PartContent,
         "track" => ScriptToolContext.Track,
         "trackcontent" => ScriptToolContext.TrackContent,
+        "pianoselection" => ScriptToolContext.PianoSelection,
+        "trackselection" => ScriptToolContext.TrackSelection,
         _ => ScriptToolContext.Global,
     };
 }

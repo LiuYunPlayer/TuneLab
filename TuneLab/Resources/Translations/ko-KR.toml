@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "영역 간 단축키 공유"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "이 단축키는 다른 영역에서 {0}에도 사용됩니다. 둘 다 활성 상태이며, 포커스된 영역의 바인딩이 우선합니다."
+"Conflicts with {0} in the same area; this one currently takes effect." = "같은 영역에서 {0}과(와) 충돌합니다. 현재 이 명령이 적용됩니다."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "같은 영역에서 {0}과(와) 충돌합니다. 현재 \"{1}\"이(가) 적용됩니다."
+"Also bound to {0} in another area; the focused area wins." = "다른 영역에서 {0}에도 바인딩되어 있습니다. 포커스된 영역이 우선합니다."
 "File" = "파일"
 "Edit" = "수정"
 "Notes" = "노트"

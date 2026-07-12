@@ -117,6 +117,10 @@ internal partial class PianoScrollView
                 menu.Items.Add(item);
         }
 
+        // 命中选区带 → pianoSelection 工具（目标=tl.pianoSelection()）。仅落在带内才给，与上方选区操作一致。
+        if (insideRegion)
+            ScriptToolMenu.AppendContextTools(menu.Items, Scripting.ScriptToolContext.PianoSelection, this);
+
         this.OpenContextMenu(menu);
     }
 

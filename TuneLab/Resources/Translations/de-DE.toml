@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Tastenkürzel bereichsübergreifend geteilt"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Dieses Tastenkürzel wird in einem anderen Bereich auch von {0} verwendet. Beide bleiben aktiv – die Zuordnung des fokussierten Bereichs hat Vorrang."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Kollidiert mit {0} im selben Bereich; dieser Befehl ist derzeit aktiv."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Kollidiert mit {0} im selben Bereich; derzeit ist \"{1}\" aktiv."
+"Also bound to {0} in another area; the focused area wins." = "Auch in einem anderen Bereich an {0} gebunden; der fokussierte Bereich hat Vorrang."
 "File" = "Datei"
 "Edit" = "Bearbeiten"
 "Notes" = "Noten"

@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "快捷键跨区域共用"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "该快捷键在另一区域也被 {0} 使用。两者均生效——以聚焦区域的绑定优先。"
+"Conflicts with {0} in the same area; this one currently takes effect." = "与 {0} 在同一区域冲突；此命令当前生效。"
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "与 {0} 在同一区域冲突；当前由\"{1}\"生效。"
+"Also bound to {0} in another area; the focused area wins." = "在另一区域也绑定给 {0}；以聚焦区域优先。"
 "File" = "文件"
 "Edit" = "编辑"
 "Notes" = "音符"

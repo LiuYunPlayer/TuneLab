@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Atalho compartilhado entre áreas"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Este atalho também é usado por {0} em outra área. Ambos permanecem ativos — a associação da área em foco tem prioridade."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Conflita com {0} na mesma área; este comando está ativo no momento."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Conflita com {0} na mesma área; atualmente \"{1}\" está ativo."
+"Also bound to {0} in another area; the focused area wins." = "Também associado a {0} em outra área; a área em foco prevalece."
 "File" = "Arquivo"
 "Edit" = "Editar"
 "Notes" = "Notas"

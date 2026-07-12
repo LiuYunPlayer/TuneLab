@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Raccourci partagé entre zones"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Ce raccourci est aussi utilisé par {0} dans une autre zone. Les deux restent actifs — la liaison de la zone active est prioritaire."
+"Conflicts with {0} in the same area; this one currently takes effect." = "En conflit avec {0} dans la même zone ; cette commande est actuellement active."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "En conflit avec {0} dans la même zone ; \"{1}\" est actuellement actif."
+"Also bound to {0} in another area; the focused area wins." = "Également lié à {0} dans une autre zone ; la zone active est prioritaire."
 "File" = "Fichier"
 "Edit" = "Modifier"
 "Notes" = "Notes"

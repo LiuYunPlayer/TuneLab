@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Κοινή συντόμευση μεταξύ περιοχών"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Αυτή η συντόμευση χρησιμοποιείται επίσης από {0} σε άλλη περιοχή. Και οι δύο παραμένουν ενεργές — προτεραιότητα έχει η αντιστοίχιση της εστιασμένης περιοχής."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Συγκρούεται με {0} στην ίδια περιοχή· αυτή η εντολή ισχύει αυτήν τη στιγμή."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Συγκρούεται με {0} στην ίδια περιοχή· αυτήν τη στιγμή ισχύει το \"{1}\"."
+"Also bound to {0} in another area; the focused area wins." = "Έχει αντιστοιχιστεί επίσης σε {0} σε άλλη περιοχή· υπερισχύει η εστιασμένη περιοχή."
 "File" = "Αρχείο"
 "Edit" = "Επεξεργασία"
 "Notes" = "Νότες"

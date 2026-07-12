@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Scorciatoia condivisa tra aree"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Questa scorciatoia è usata anche da {0} in un'altra area. Entrambe restano attive: ha priorità l'assegnazione dell'area attiva."
+"Conflicts with {0} in the same area; this one currently takes effect." = "In conflitto con {0} nella stessa area; questo comando è attualmente attivo."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "In conflitto con {0} nella stessa area; attualmente è attivo \"{1}\"."
+"Also bound to {0} in another area; the focused area wins." = "Assegnata anche a {0} in un'altra area; ha priorità l'area attiva."
 "File" = "File"
 "Edit" = "Modifica"
 "Notes" = "Note"

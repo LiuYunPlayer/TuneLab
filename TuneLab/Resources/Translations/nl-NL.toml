@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Sneltoets gedeeld over gebieden"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Deze sneltoets wordt ook door {0} in een ander gebied gebruikt. Beide blijven actief — de toewijzing van het gefocuste gebied heeft voorrang."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Conflicteert met {0} in hetzelfde gebied; deze opdracht is momenteel actief."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Conflicteert met {0} in hetzelfde gebied; momenteel is \"{1}\" actief."
+"Also bound to {0} in another area; the focused area wins." = "Ook aan {0} gekoppeld in een ander gebied; het gefocuste gebied wint."
 "File" = "File"
 "Edit" = "Edit"
 "Notes" = "Notes"

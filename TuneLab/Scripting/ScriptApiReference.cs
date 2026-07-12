@@ -78,15 +78,20 @@ internal static class ScriptApiReference
         "  }\n" +
         "\n" +
         "TOOL SCRIPTS (for save_script) — register a REUSABLE menu tool the user can click again later. Define two top-level functions; the top level must have NO side effects (it is evaluated just to read metadata):\n" +
-        "  function getScriptInfo() { return { name, category, author, version, context }; }   // metadata only; read tl.language here to localize `name`\n" +
+        "  function getScriptInfo() { return { name, category, author, version, context, id?, defaultGesture? }; }   // metadata only; read tl.language here to localize `name`\n" +
         "  function main() { /* the action — use `tl` exactly like a run_script body */ }\n" +
-        "  context decides where it appears AND what it targets:\n" +
-        "    'global'      -> top Scripts menu (grouped by category). Act on tl.currentPart() / whole project.\n" +
+        "  context decides where it appears, what it targets, AND the shortcut's active area:\n" +
+        "    'global'      -> top Scripts menu (grouped by category). Act on tl.currentPart() / whole project. Shortcut works anywhere in the editor.\n" +
         "    'note'        -> piano-roll right-click ON a note.   Target = tl.currentPart().selectedNotes() (the clicked note is always selected).\n" +
         "    'partContent' -> piano-roll right-click on BLANK.    Target = tl.currentPart() (its content).\n" +
+        "    'pianoSelection' -> piano-roll right-click ON the range selection.  Target = tl.pianoSelection() (a tick band; null when none).\n" +
         "    'part'        -> arrangement right-click ON a part.  Target = tl.selectedParts() (the clicked part is always selected; may be many).\n" +
         "    'track'        -> track-header right-click.          Target = tl.selectedTracks() (the clicked track is always selected; may be many).\n" +
         "    'trackContent' -> arrangement right-click on a track's BLANK lane.  Target = tl.selectedTracks().\n" +
+        "    'trackSelection' -> arrangement right-click ON the range selection.  Target = tl.trackSelection() (tick x track; null when none).\n" +
+        "  piano* contexts' shortcuts fire only in the piano roll, arrangement contexts only in the arrangement (global anywhere). Triggered by a shortcut (no click), the target is the CURRENT selection (empty selection -> main() should no-op).\n" +
+        "  id (optional): a STABLE keybinding/settings anchor, independent of the filename — set it once, never change it after publishing, so renaming/reinstalling keeps the user's shortcut. Chars: A-Z a-z 0-9 . _ -. Omit it and the filename is the id (renaming then drops the binding).\n" +
+        "  defaultGesture (optional): a suggested shortcut like 'mod+shift+k' (mod = Cmd on macOS / Ctrl on Windows; or write ctrl/cmd/alt/shift literally). Applied only if that key is free in the script's area; it NEVER overrides a built-in. Users can rebind in Settings.\n" +
         "  main() runs as ONE undoable change; on any error EVERYTHING rolls back. A script WITHOUT getScriptInfo is a plain run-once script (Script side panel only, never in menus).\n" +
         "  EXAMPLE tool — 'Add Third Harmony' on selected notes:\n" +
         "    function getScriptInfo() { return { name: tl.language === 'zh-CN' ? '加三度和声' : 'Add Third Harmony', context: 'note' }; }\n" +

@@ -13,6 +13,7 @@ using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
 using TuneLab.GUI;
+using TuneLab.Input;
 using TuneLab.Utils;
 using TuneLab.SDK;
 using TuneLab.I18N;
@@ -118,8 +119,21 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         mTrackVerticalAxis.RefreshContentSize();   // 可滚动范围含一个视图高余量，随视图高变化重算
     }
 
+    // 编排区作用域的命令分发（TrackWindow 域）。焦点落在编排区子树时本控件先收到键、命中即截停，未命中自然
+    // 冒泡到 Editor。目前 TrackWindow 域承载 track/part/trackContent 上下文的脚本命令（内建命令暂无此域）；
+    // 剪贴板类 edit.* 仍在 Editor 域、由 Editor 按聚焦面路由（不在此匹配，故此处 false 后照常冒泡）。
+    // 仅在无进行中操作时分发——与钢琴窗一致。
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.IsHandledByTextBox())
+            return;
+        if (TrackScrollView.OperationState != TrackScrollView.State.None)
+            return;
+        e.Handled = Keymap.TryHandle(KeyScope.TrackWindow, e);
+    }
+
     // 剪贴板类命令（复制/剪切/粘贴/删除/全选）是与钢琴窗共享的通用动作，注册在 Editor 域、由 Editor 按聚焦面
-    // 路由到下列 *Selection 方法（不再由本控件自建 OnKeyDown 分发）。有范围选区时作用于选区（闸刀语义，与选区
+    // 路由到下列 *Selection 方法（不由本控件的 OnKeyDown 分发）。有范围选区时作用于选区（闸刀语义，与选区
     // 右键菜单一致）、否则作用于选中的整块 part。仅在无进行中操作时生效——原本由 OnKeyDown 前置守卫，此处自守。
     bool CanRunEditCommand => TrackScrollView.OperationState == TrackScrollView.State.None;
 

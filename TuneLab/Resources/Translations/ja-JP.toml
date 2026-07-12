@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "ショートカットの領域間共有"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "このショートカットは別の領域でも {0} が使用しています。どちらも有効で、フォーカス中の領域の割り当てが優先されます。"
+"Conflicts with {0} in the same area; this one currently takes effect." = "同じ領域で {0} と競合しています。現在はこのコマンドが有効です。"
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "同じ領域で {0} と競合しています。現在は\"{1}\"が有効です。"
+"Also bound to {0} in another area; the focused area wins." = "別の領域でも {0} に割り当てられています。フォーカス中の領域が優先されます。"
 "File" = "ファイル"
 "Edit" = "編集"
 "Notes" = "ノート"

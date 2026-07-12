@@ -182,6 +182,9 @@ internal partial class TrackScrollView
                                     regionMenu.Items.Add(new MenuItem().SetName("Paste".Tr(TC.Menu)).SetAction(() => PasteAt(pastePos, pasteTrackIndex)).SetInputGesture(Key.V, ModifierKeys.Ctrl));
                                 }
 
+                                // 命中编排区选区 → trackSelection 工具（目标=tl.trackSelection()）。
+                                ScriptToolMenu.AppendContextTools(regionMenu.Items, Scripting.ScriptToolContext.TrackSelection, this);
+
                                 if (regionMenu.Items.Count > 0)
                                     this.OpenContextMenu(regionMenu);
                                 return;

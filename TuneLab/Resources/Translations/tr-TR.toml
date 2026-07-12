@@ -1,4 +1,9 @@
 [SettingsWindow]
+"Shortcut Shared Across Areas" = "Kısayol alanlar arasında paylaşılıyor"
+"This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Bu kısayol başka bir alanda {0} tarafından da kullanılıyor. İkisi de etkin kalır — odaklanılan alanın ataması önceliklidir."
+"Conflicts with {0} in the same area; this one currently takes effect." = "Aynı alanda {0} ile çakışıyor; şu anda bu komut etkin."
+"Conflicts with {0} in the same area; \"{1}\" currently takes effect." = "Aynı alanda {0} ile çakışıyor; şu anda \"{1}\" etkin."
+"Also bound to {0} in another area; the focused area wins." = "Başka bir alanda {0} öğesine de atanmış; odaklanılan alan önceliklidir."
 "File" = "Dosya"
 "Edit" = "Düzenle"
 "Notes" = "Notalar"

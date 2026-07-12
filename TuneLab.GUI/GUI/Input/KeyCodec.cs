@@ -100,7 +100,15 @@ internal static class KeyCodec
         return sb.ToString();
     }
 
-    public static bool TryParse(string? s, out KeyBinding binding)
+    // 存储/加载路径：只认物理修饰令牌 ctrl/alt/shift/cmd（Keymap.json 按平台存物理键，见 §1.2）。
+    public static bool TryParse(string? s, out KeyBinding binding) => TryParseCore(s, allowPrimaryAlias: false, out binding);
+
+    // 脚本声明期专用：额外接受 mod/primary 别名，解析为本平台 PrimaryModifier（Mac ⌘ / Win Ctrl），
+    // 让 getScriptInfo.defaultGesture 一句 "mod+k" 两平台自适应（对等内建默认用 KeyBinding.PrimaryModifier）。
+    // 落盘不得走此路径——存储只认物理 ctrl/cmd。见 docs/keybinding-system.md §1.2、§6。
+    public static bool TryParseDeclaration(string? s, out KeyBinding binding) => TryParseCore(s, allowPrimaryAlias: true, out binding);
+
+    static bool TryParseCore(string? s, bool allowPrimaryAlias, out KeyBinding binding)
     {
         binding = default;
         if (string.IsNullOrWhiteSpace(s))
@@ -119,6 +127,7 @@ internal static class KeyCodec
                 case "alt": mods |= KeyModifiers.Alt; break;
                 case "shift": mods |= KeyModifiers.Shift; break;
                 case "cmd": mods |= KeyModifiers.Meta; break;
+                case "mod" or "primary" when allowPrimaryAlias: mods |= KeyBinding.PrimaryModifier; break;
                 default: return false;   // 未知修饰令牌
             }
         }
