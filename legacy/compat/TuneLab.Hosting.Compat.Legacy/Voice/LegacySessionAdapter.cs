@@ -29,12 +29,18 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         mSync = SynchronizationContext.Current ?? throw new InvalidOperationException("LegacySessionAdapter must be created on the data thread.");
         mNoteViewCache = new LiveNoteViewCache(ReadNoteProperties);
 
-        // —— 懒脏策略（设计许可的最粗粒度实现的细化版）：任何 note 字段/增删 → 标脏所在块 +
-        //    待重分片；曲线区间变更 → 标脏相交块；时基/part 属性 → 全部标脏重分片。 ——
-        mNotesDirty = mContext.Notes.WhenAnyItem(
+        // —— 懒脏策略（设计许可的最粗粒度实现的细化版）：note 字段变更分两桶——
+        //    **基线脏**（改音素预测输入：几何/音高/歌词/属性）→ 作废基线回显缓存 + 标脏 + 待重分片；
+        //    **渲染脏**（只改声学，不改音素预测：钉死音素双列表/结合线）→ 只标脏（保基线缓存、仅重渲）；
+        //    曲线区间变更（automation）走 OnRangeModified，属渲染脏，**绝不**作废基线缓存；
+        //    时基/part 属性 → 全部标脏（part 属性可能改预测，作废全部基线）+ 重分片。 ——
+        mNotesBaselineDirty = mContext.Notes.WhenAnyItem(
             n => n.StartTime.Modified, n => n.EndTime.Modified, n => n.Pitch.Modified,
-            n => n.Lyric.Modified, n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified, n => n.Properties.Modified);
-        mNotesDirty.Subscribe(OnNoteDirty);
+            n => n.Lyric.Modified, n => n.Properties.Modified);
+        mNotesBaselineDirty.Subscribe(OnNoteBaselineDirty);
+        mNotesRenderDirty = mContext.Notes.WhenAnyItem(
+            n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified);
+        mNotesRenderDirty.Subscribe(OnNoteRenderDirty);
         mContext.Notes.ItemAdded.Subscribe(OnNotesStructureChanged);
         mContext.Notes.ItemRemoved.Subscribe(OnNotesStructureChanged);
         mContext.PartProperties.Modified.Subscribe(OnPartPropertiesModified);
@@ -96,30 +102,12 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
-        // 同步前缀拉取快照：automation 开窗按 note 范围外扩固定秒余量（老引擎常对块边界外略作采样）。
+        // 同步前缀拉取快照：automation 开窗按 note 范围外扩固定秒余量（老引擎常对块边界外略作采样）。两 pass 共用同一份。
         const double windowMarginSeconds = 0.5;
         var snapshot = mContext.GetSnapshot(
             piece.Notes,
             piece.Notes.First().StartTime.Value - windowMarginSeconds,
             piece.Notes.Last().EndTime.Value + windowMarginSeconds);
-        // 喂引擎的联合布局只在钉死 note 间进行；未钉死邻居不进布局（喂空、引擎自行预测协同发音）——
-        // 见 CreateChain 注释：借未钉死邻居回显会缩短钉死元音、给不喂的辅音留坑、被引擎帧量化成 Sil。
-        var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes);
-        var data = new SnapshotSynthesisData(snapshot, views);
-
-        LVoice.ISynthesisTask task;
-        try
-        {
-            task = mSource.CreateSynthesisTask(data);
-        }
-        catch (Exception ex)
-        {
-            piece.Failed = true;
-            piece.Error = ex.Message;
-            piece.Dirty = false;
-            NotifyStatusChanged();
-            return;
-        }
 
         // 开始即清脏：合成期间到达的新变更会重新标脏，完成后自然重排（替换，而非同步）。
         piece.Dirty = false;
@@ -129,30 +117,87 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         piece.Progress = 0;
         NotifyStatusChanged();
 
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        task.Complete += result => mSync.Post(_ =>
+        try
         {
-            OnPieceComplete(piece, result, views);
-            tcs.TrySetResult();
-        }, null);
-        task.Error += message => mSync.Post(_ =>
-        {
-            piece.Failed = true;
-            piece.Error = message;
-            NotifyStatusChanged();
-            tcs.TrySetResult();
-        }, null);
-        task.Progress += p => mSync.Post(_ =>
-        {
-            piece.Progress = p;
-            NotifyStatusChanged();
-        }, null);
+            // —— 基线 pass：缓存缺失 / 内在脏时先跑一遍 no-pin 自然预测（全喂空），取音素落缓存、丢音频 ——
+            if (piece.BaselineDirty || piece.BaselineEcho == null)
+            {
+                var baselineViews = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes, baselineEcho: null);
+                var baseline = await RunPass(new SnapshotSynthesisData(snapshot, baselineViews), progressPiece: null, cancellation);
+                if (baseline.Cancelled)
+                {
+                    piece.Dirty = true;
+                    return;
+                }
+                if (baseline.Result == null)
+                {
+                    piece.Failed = true;
+                    piece.Error = baseline.Error;
+                    return;
+                }
+                piece.BaselineEcho = BuildEcho(baseline.Result, baselineViews);
+                piece.BaselineDirty = false;
+            }
 
-        // 取消是尽力请求且正常返回：Stop 老任务后直接视为本块结束（缓存未更新则保持待合成）。
+            // —— 真实 pass：钉死 note 用用户值、未钉死 note 用基线缓存 → 全显式时间线（无引擎当场自预测、无接缝 Sil、音频==显示）——
+            var echo = new VVoice.SynthesizedSyllable?[piece.Notes.Count];
+            for (int i = 0; i < piece.Notes.Count; i++)
+                echo[i] = piece.BaselineEcho!.TryGetValue(piece.Notes[i], out var syllable) ? syllable : null;
+            var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes, echo);
+            var real = await RunPass(new SnapshotSynthesisData(snapshot, views), progressPiece: piece, cancellation);
+            if (real.Cancelled)
+            {
+                piece.Dirty = true;
+                return;
+            }
+            if (real.Result == null)
+            {
+                piece.Failed = true;
+                piece.Error = real.Error;
+                return;
+            }
+            OnPieceComplete(piece, real.Result);
+        }
+        finally
+        {
+            piece.Synthesizing = false;
+            NotifyStatusChanged();
+        }
+    }
+
+    // 跑老引擎一遍：建任务、接线回调、Start、await 到完成 / 失败 / 取消（都正常返回，不抛）。
+    // progressPiece 非空才把进度落账（基线 pass 不报进度）。回调经 mSync.Post 落回数据线程，
+    // await 续体因数据线程有捕获的 SynchronizationContext 而恢复在数据线程 → 调用方后续（BuildEcho/OnPieceComplete）皆数据线程。
+    async Task<(LVoice.SynthesisResult? Result, string? Error, bool Cancelled)> RunPass(
+        SnapshotSynthesisData data, Piece? progressPiece, CancellationToken cancellation)
+    {
+        LVoice.ISynthesisTask task;
+        try
+        {
+            task = mSource.CreateSynthesisTask(data);
+        }
+        catch (Exception ex)
+        {
+            return (null, ex.Message, false);
+        }
+
+        var tcs = new TaskCompletionSource<(LVoice.SynthesisResult?, string?, bool)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        task.Complete += result => mSync.Post(_ => tcs.TrySetResult((result, null, false)), null);
+        task.Error += message => mSync.Post(_ => tcs.TrySetResult((null, message, false)), null);
+        if (progressPiece != null)
+        {
+            task.Progress += p => mSync.Post(_ =>
+            {
+                progressPiece.Progress = p;
+                NotifyStatusChanged();
+            }, null);
+        }
+
+        // 取消是尽力请求且正常返回：Stop 老任务后视为本 pass 取消（调用方保持待合成）。
         using var registration = cancellation.Register(() =>
         {
             try { task.Stop(); } catch { /* 插件侧异常不外溢 */ }
-            mSync.Post(_ => { piece.Dirty = true; tcs.TrySetResult(); }, null);
+            mSync.Post(_ => tcs.TrySetResult((null, null, true)), null);
         });
 
         try
@@ -161,15 +206,57 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         }
         catch (Exception ex)
         {
-            piece.Failed = true;
-            piece.Error = ex.Message;
+            return (null, ex.Message, false);
         }
 
-        if (!piece.Failed)
-            await tcs.Task;
+        return await tcs.Task;
+    }
 
-        piece.Synthesizing = false;
-        NotifyStatusChanged();
+    // 老结果的音素 → 每 note 的 SynthesizedSyllable（自然预测缓存）：分类进引导 / 主体双列表（老模型无 lead 字段，
+    // 按位置降级——音素中点落 note 头之前的连续前缀 = 引导、其余 = 主体；不吸头，保留引擎略跨头分界，根治强吸头引入
+    // sub-frame 错位被帧量化成整帧 Sil）。两条修正（老引擎无权重概念，宿主补足使布局像真人嗓）：
+    //   ① **至少一个拍后音素**：若按中点判完全归引导（无主体），把**最后一个引导**挪进主体，保证有核可填满音符。
+    //   ② **首个拍后音素 w=1**（弹性核、填满音符到满末）；其余音素 w=0（刚性、固定长）。
+    static PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> BuildEcho(
+        LVoice.SynthesisResult result, IReadOnlyList<SnapshotNoteView> views)
+    {
+        var echo = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
+        foreach (var kv in result.SynthesizedPhonemes)
+        {
+            if (kv.Key is not SnapshotNoteView view)
+                continue;
+
+            var items = new List<VVoice.SynthesizedPhoneme>();
+            var starts = new List<double>();
+            foreach (var phoneme in kv.Value)
+            {
+                items.Add(new VVoice.SynthesizedPhoneme { Symbol = phoneme.Symbol, Duration = phoneme.EndTime - phoneme.StartTime });
+                starts.Add(phoneme.StartTime);
+            }
+            int count = items.Count;
+            if (count == 0)
+                continue;
+
+            int leadCount = 0;                                    // 中点 < note 头的连续前缀 = 引导
+            for (int i = 0; i < count; i++)
+            {
+                if ((starts[i] + starts[i] + items[i].Duration) < 2 * view.StartTime) leadCount = i + 1; else break;
+            }
+            if (leadCount >= count) leadCount = count - 1;        // ① 保证 ≥1 拍后：全归引导时把末个引导挪进主体
+
+            var leading = new List<VVoice.SynthesizedPhoneme>();
+            var body = new List<VVoice.SynthesizedPhoneme>();
+            for (int i = 0; i < count; i++)
+            {
+                var d = items[i];
+                d.StretchWeight = i == leadCount ? 1 : 0;         // ② 首个拍后音素 = 弹性核 w=1，其余 w=0
+                if (i < leadCount) leading.Add(d); else body.Add(d);
+            }
+            // junction（结合线）= 主体首起点（其原始绝对起点）。BodyOffset = junction − note 头（有符号、不吸头）。
+            double bodyOffset = starts[leadCount] - view.StartTime;
+            echo.Add(view.Origin, new VVoice.SynthesizedSyllable(leading, body, bodyOffset));
+        }
+        return echo;
     }
 
     // —— 音频产物（每块经 IAudioSegment 握柄交付；采样率随段在 CreateAudioSegment 传入；协议：全局 0 时刻 = 采样点 0）——
@@ -241,7 +328,8 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             return;
         mDisposed = true;
 
-        mNotesDirty.Unsubscribe(OnNoteDirty);
+        mNotesBaselineDirty.Unsubscribe(OnNoteBaselineDirty);
+        mNotesRenderDirty.Unsubscribe(OnNoteRenderDirty);
         mContext.Notes.ItemAdded.Unsubscribe(OnNotesStructureChanged);
         mContext.Notes.ItemRemoved.Unsubscribe(OnNotesStructureChanged);
         mContext.PartProperties.Modified.Unsubscribe(OnPartPropertiesModified);
@@ -260,11 +348,18 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     // —— 变更接线（数据线程）——
 
-    // 任一 note 的几何/发音/属性变更 → 标脏该 note 所在块 + 待重分片。WhenAnyItem 带成员标识，
-    // 故能精确标脏变化的 note；成员订阅生命周期（增删接线/退订）由 WhenAnyItem 托管。
-    void OnNoteDirty(VVoice.IVoiceSynthesisNote note)
+    // 基线脏（几何/音高/歌词/属性 → 改音素预测）：作废该 note 所在块的基线回显缓存 + 标脏 + 待重分片。
+    void OnNoteBaselineDirty(VVoice.IVoiceSynthesisNote note)
     {
-        MarkNoteDirty(note);
+        MarkNoteDirty(note, baselineDirty: true);
+        mNeedReSegment = true;
+    }
+
+    // 渲染脏（钉死音素双列表/结合线 → 只改声学、不改音素预测）：仅标脏所在块，**保留基线回显缓存**。
+    // 仍待重分片（分片按 note 时间间隙、不依赖音素内容，故通常为 note 集等价的 no-op 重分片、基线缓存随块复用保留）。
+    void OnNoteRenderDirty(VVoice.IVoiceSynthesisNote note)
+    {
+        MarkNoteDirty(note, baselineDirty: false);
         mNeedReSegment = true;
     }
 
@@ -275,7 +370,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     void OnPartPropertiesModified()
     {
-        MarkAllDirty();
+        MarkAllDirty(baselineDirty: true);   // part 属性可能改音素预测 → 作废全部基线
         mNeedReSegment = true;
     }
 
@@ -303,20 +398,26 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             NotifyStatusChanged();
     }
 
-    void MarkNoteDirty(VVoice.IVoiceSynthesisNote note)
+    void MarkNoteDirty(VVoice.IVoiceSynthesisNote note, bool baselineDirty)
     {
         foreach (var piece in mPieces)
         {
             if (piece.Notes.Contains(note))
+            {
                 MarkDirty(piece);
+                if (baselineDirty)
+                    piece.BaselineDirty = true;
+            }
         }
     }
 
-    void MarkAllDirty()
+    void MarkAllDirty(bool baselineDirty)
     {
         foreach (var piece in mPieces)
         {
             MarkDirty(piece);
+            if (baselineDirty)
+                piece.BaselineDirty = true;
         }
     }
 
@@ -392,7 +493,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     // —— 产物落账（数据线程，经 Post 进入）——
 
-    void OnPieceComplete(Piece piece, LVoice.SynthesisResult result, IReadOnlyList<SnapshotNoteView> views)
+    void OnPieceComplete(Piece piece, LVoice.SynthesisResult result)
     {
         if (mDisposed || !mPieces.Contains(piece))
             return; // 已被重分片取代，过期结果丢弃
@@ -425,51 +526,12 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             .Select(line => (IReadOnlyList<PStruct.Point>)line.Select(p => p.ToV1()).ToList())
             .ToList();
 
-        // 音素归组：老结果按 note 装字典（键 = 我们递入的快照包装）→ 经 Origin 归出身 live 代理（map 键）。
-        var phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
-        foreach (var kv in result.SynthesizedPhonemes)
-        {
-            if (kv.Key is not SnapshotNoteView view)
-                continue;
-
-            // 回显如实落账（含老引擎对 "-" note 回传的占位音素，不再抑制）：本会话延音判定恒 false
-            // （见 IsContinuation——老模型无乘客机制），故所有回显都走宿主的普通内容显示。
-            // 分类进引导 / 主体双列表（老模型无 lead 字段，按位置降级，本质即当年"猜 isLead"）：音素中点落在 note 头之前的连续
-            // 前缀 = 引导、其余 = 主体。BodyOffset = 主体首起点 − note 头（**不吸头**：保留引擎略跨头的真实分界，根治边界强吸头引入
-            // sub-frame 错位被帧量化成整帧 Sil）。两条修正（老引擎无权重概念，宿主补足使布局像真人嗓）：
-            //   ① **至少一个拍后音素**：若按中点判完全归引导（无主体），把**最后一个引导**挪进主体，保证有核可填满音符。
-            //   ② **首个拍后音素 w=1**（弹性核、填满音符到满末）；其余音素 w=0（刚性、固定长）。
-            var items = new List<VVoice.SynthesizedPhoneme>();
-            var starts = new List<double>();
-            foreach (var phoneme in kv.Value)
-            {
-                items.Add(new VVoice.SynthesizedPhoneme { Symbol = phoneme.Symbol, Duration = phoneme.EndTime - phoneme.StartTime });
-                starts.Add(phoneme.StartTime);
-            }
-            int count = items.Count;
-            if (count > 0)
-            {
-                int leadCount = 0;                                    // 中点 < note 头的连续前缀 = 引导
-                for (int i = 0; i < count; i++)
-                {
-                    if ((starts[i] + starts[i] + items[i].Duration) < 2 * view.StartTime) leadCount = i + 1; else break;
-                }
-                if (leadCount >= count) leadCount = count - 1;        // ① 保证 ≥1 拍后：全归引导时把末个引导挪进主体
-
-                var leading = new List<VVoice.SynthesizedPhoneme>();
-                var body = new List<VVoice.SynthesizedPhoneme>();
-                for (int i = 0; i < count; i++)
-                {
-                    var d = items[i];
-                    d.StretchWeight = i == leadCount ? 1 : 0;         // ② 首个拍后音素 = 弹性核 w=1，其余 w=0
-                    if (i < leadCount) leading.Add(d); else body.Add(d);
-                }
-                // junction（结合线）= 主体首起点（其原始绝对起点）。BodyOffset = junction − note 头（有符号、不吸头）。
-                double bodyOffset = starts[leadCount] - view.StartTime;
-                phonemes.Add(view.Origin, new VVoice.SynthesizedSyllable(leading, body, bodyOffset));
-            }
-        }
-        piece.Phonemes = phonemes;
+        // 音素上报 = **基线自然预测缓存**（原始、未压缩），不用真实 pass 的回传：
+        //   · 未钉死 note → 宿主 DisplayPhonemes 用它作布局上下文，与 CreateChain 喂引擎的同一份 → 音频==显示；
+        //   · 钉死 note → 宿主用其钉死 Phonemes（忽略此项），此处报的自然预测无害；
+        //   · 只认可复现的自然预测缓存、与真实 pass 的瞬态帧量化无关 → 关闭重开一致。
+        // 延音判定恒 false（见 IsContinuation——老模型无乘客机制），故所有回显走宿主普通内容显示。
+        piece.Phonemes = piece.BaselineEcho ?? new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
 
         NotifyStatusChanged();
     }
@@ -525,6 +587,12 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         public VVoice.IAudioSegment? Segment;
         public IReadOnlyList<IReadOnlyList<PStruct.Point>> PitchLines = [];
         public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> Phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
+
+        // 基线自然预测（no-pin 跑一遍得到、按内在数据有效）：喂引擎时未钉死 note 用它，宿主显示也上报它作
+        // SynthesizedSyllable（两处同一份原始描述符 → 音频==显示）。默认待建（BaselineDirty=true / null）；
+        // 内在脏才作废、渲染脏（钉死/automation）保留 → 编辑期稳定、关闭重开重跑得同一份 → 结果确定。
+        public bool BaselineDirty = true;
+        public PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>? BaselineEcho;
     }
 
     // 老 ISynthesisData：全部读冻结快照（worker 线程安全）。
@@ -580,7 +648,8 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     static readonly PStruct.Map<string, VVoice.SynthesizedParameter> mSynthesizedParameters = new();
 
-    readonly IActionEvent<VVoice.IVoiceSynthesisNote> mNotesDirty;
+    readonly IActionEvent<VVoice.IVoiceSynthesisNote> mNotesBaselineDirty;
+    readonly IActionEvent<VVoice.IVoiceSynthesisNote> mNotesRenderDirty;
     readonly List<VVoice.ISynthesisAutomation> mSubscribedAutomations = new();
 
     readonly List<Piece> mPieces = new();

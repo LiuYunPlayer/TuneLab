@@ -72,7 +72,7 @@ internal sealed class LiveNoteView(
 }
 
 // 快照包装：按段一次性建链（与 segment.Notes 索引对齐，Origin 留作产物归属的身份 token）。
-// 钉死音素时序在 CreateChain 里对整链做一次联合布局（与宿主显示同一套 PhonemeLayout 跨 note 去重叠），
+// 音素时序在 CreateChain 里对整链做一次联合布局（与宿主显示同一套 PhonemeLayout 跨 note 去重叠），
 // 老引擎收到的长度位置 == 用户看到的布局——老版本 TuneLab 同样是宿主侧算好长度再传引擎。
 internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
 {
@@ -87,8 +87,16 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
     public LProp.PropertyObject Properties { get; }
     public IReadOnlyList<LVoice.SynthesizedPhoneme> Phonemes { get; private set; } = [];
 
+    // 整链联合布局。由 baselineEcho 区分两 pass：
+    //   · baselineEcho == null（**基线 pass**）：全部 note 喂空、老引擎自然预测（宿主拿回显建缓存）。
+    //   · baselineEcho != null（**真实 pass**）：钉死 note 用用户钉死双列表；未钉死 note 用缓存的自然预测 baselineEcho[i]
+    //     （无缓存项则喂空、退回引擎当场预测）。两类都进 PhonemeLayout 联合去重叠、都作为**显式音素**喂引擎——引擎无
+    //     当场自预测、整条时间线全显式 → 接缝无补帧 Sil；宿主显示用同一份原始描述符过同一 PhonemeLayout → 音频 == 显示。
+    //     且喂引擎只认「落盘钉死数据 + 可复现的自然预测缓存」，与瞬态无关 → 关闭重开结果一致。
+    // 锚点 = [note 头, 有效末]，与显示同口径。老版本 TuneLab 同样是宿主算好长度再传引擎。
     public static IReadOnlyList<SnapshotNoteView> CreateChain(
-        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins)
+        IReadOnlyList<VVoice.VoiceSynthesisNoteSnapshot> notes, IReadOnlyList<VVoice.IVoiceSynthesisNote> origins,
+        IReadOnlyList<VVoice.SynthesizedSyllable?>? baselineEcho = null)
     {
         var views = new SnapshotNoteView[notes.Count];
         for (int i = 0; i < notes.Count; i++)
@@ -101,36 +109,40 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
             views[i + 1].Last = views[i];
         }
 
-        // —— 喂引擎的联合布局：只在**钉死 note 之间**联合（各用自己的钉死描述符去重叠）；未钉死 note **不进布局**
-        // （喂空、音素由老引擎自行预测）。刻意**不**拿未钉死邻居的上一轮回显当推挤上下文——否则钉死 note 会借走
-        // 邻居回显的前置辅音、缩短自己的元音给一个**我们并不喂引擎**的辅音留位，老引擎独立帧对齐两段就在接缝补整帧
-        // Sil（钉死 hua ↔ 未钉死 xiang 的 s\ 实测）。让钉死元音铺满自己的 note、未钉死邻居的协同发音由引擎自理，
-        // 接缝无坑、无 Sil（对齐老 TuneLab：宿主算好钉死段长直到 note 边界，邻辅音由引擎自补重叠）。
-        // 锚点 = [note 头, 有效末]，与显示同口径。不相接不推挤、不复刻老版跨空隙顶推。
+        static VVoice.SynthesizedPhoneme Descriptor(VVoice.VoiceSynthesisPhonemeSnapshot p) => new() { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight };
+
         var nodes = new PhonemeLayoutNote[views.Length];
-        var pinned = new IReadOnlyList<VVoice.SynthesizedPhoneme>?[views.Length];   // 全序列（引导 ++ 主体），与 timings 索引对齐
+        var emit = new IReadOnlyList<VVoice.SynthesizedPhoneme>?[views.Length];   // 要输出并喂引擎的全序列（引导 ++ 主体）；null = 喂空
         for (int i = 0; i < views.Length; i++)
         {
-            static VVoice.SynthesizedPhoneme Descriptor(VVoice.VoiceSynthesisPhonemeSnapshot p) => new() { Symbol = p.Symbol, Duration = p.Duration, StretchWeight = p.StretchWeight };
-            if (notes[i].LeadingPhonemes.Count > 0 || notes[i].BodyPhonemes.Count > 0)
+            IReadOnlyList<VVoice.SynthesizedPhoneme> leading = [], body = [];
+            double bodyOffset = 0;
+
+            if (baselineEcho != null && (notes[i].LeadingPhonemes.Count > 0 || notes[i].BodyPhonemes.Count > 0))
             {
-                // 快照音素几何字段平铺，V1 老引擎不需要属性——只取几何。引导 / 主体归属由所属列表给。
-                var leading = notes[i].LeadingPhonemes.Select(Descriptor).ToArray();
-                var body = notes[i].BodyPhonemes.Select(Descriptor).ToArray();
-                nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, LeadingPhonemes = leading, BodyPhonemes = body, BodyOffset = notes[i].BodyOffset };
-                pinned[i] = notes[i].Phonemes.Select(Descriptor).ToArray();   // 全序列，供输出（timings 同序）
+                // 钉死 note（仅真实 pass）：用户钉死双列表。几何字段平铺直取，老引擎不需要属性。
+                leading = notes[i].LeadingPhonemes.Select(Descriptor).ToArray();
+                body = notes[i].BodyPhonemes.Select(Descriptor).ToArray();
+                bodyOffset = notes[i].BodyOffset;
+                emit[i] = notes[i].Phonemes.Select(Descriptor).ToArray();
             }
-            else
+            else if (baselineEcho != null && baselineEcho[i] is { } echo && (echo.LeadingPhonemes.Count > 0 || echo.BodyPhonemes.Count > 0))
             {
-                // 未钉死 note 不进喂引擎布局：喂空、由引擎预测（回显只作宿主显示上下文，不进此处布局）。
-                nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, LeadingPhonemes = [], BodyPhonemes = [], BodyOffset = 0 };
+                // 未钉死 note、有基线缓存（真实 pass）：喂缓存的自然预测（引擎渲染这份而非当场重预测 → 无接缝 Sil）。
+                leading = echo.LeadingPhonemes;
+                body = echo.BodyPhonemes;
+                bodyOffset = echo.BodyOffset;
+                emit[i] = echo.Phonemes;
             }
+            // else：基线 pass 全部 note，或真实 pass 中无缓存的未钉死 note → 喂空（leading/body 已空、emit[i] 留 null）。
+
+            nodes[i] = new PhonemeLayoutNote { FillStart = views[i].StartTime, FillEnd = views[i].EndTime, LeadingPhonemes = leading, BodyPhonemes = body, BodyOffset = bodyOffset };
         }
         var timings = PhonemeLayout.Resolve(nodes);
         for (int i = 0; i < views.Length; i++)
         {
-            if (pinned[i] is not { } descriptors)
-                continue;   // 未钉死：喂空列表，回显仅作布局上下文
+            if (emit[i] is not { } descriptors)
+                continue;   // 喂空
             var list = new LVoice.SynthesizedPhoneme[descriptors.Count];
             for (int k = 0; k < descriptors.Count; k++)
                 list[k] = new LVoice.SynthesizedPhoneme { Symbol = descriptors[k].Symbol, StartTime = timings[i][k].Start, EndTime = timings[i][k].End };
