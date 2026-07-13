@@ -82,11 +82,13 @@ internal partial class PianoScrollView : View, IPianoScrollView
         mDependency.PartHolder.Modified.Subscribe(Update, s);
         mDependency.PartHolder.Modified.Subscribe(ClearRegionSelection, s);   // 切 part：上一 part 的范围选区作废
         mDependency.PartHolder.When(p => p.Modified).Subscribe(Update, s);
+        // 侧栏属性拖动（Gain→波形振幅、音素时长/权重→音素带，及任意属性）经数据层 merge notify：拖动期只发 canIgnore
+        // 中间态，结果态（默认脸 p.Modified，即上一条订 Update 的那个）要松手才发，故上一条拖动中不触发。这里另订全量脸
+        // （AsEverytime，中间态也触发）只做重绘——使波形/音素带在拖动每帧按新值跟手刷新，不必等提交。重建交互热区仍留给
+        // 结果态的 Update：这类拖动都发生在侧栏，钢琴窗热区中途无需更新。音素几何变化本就沿链传到 p.Modified，故此条亦覆盖之。
+        mDependency.PartHolder.When(p => p.Modified.AsEverytime()).Subscribe(_ => InvalidateVisual(), s);
         mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(OnSynthesisStatusChanged, s);
         mDependency.PartHolder.When(p => p.Notes.SelectionChanged).Subscribe(InvalidateVisual, s);
-        // 钉死音素几何变化（侧栏拖时长/权重、改符号等）→ 实时重绘音素带。侧栏编辑走 BeginMergeDirty（只延迟重合成、
-        // 不抑制数据通知），故 Phonemes.Modified 在拖动每帧触发、音素带跟手；不依赖重合成（那只在提交后发）。
-        mDependency.PartHolder.When(p => p.Notes.WhenAny(n => n.LeadingPhonemes.Modified, n => n.BodyPhonemes.Modified, n => n.BodyOffset.Modified)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Vibratos.WhenAny(vibrato => vibrato.SelectionChanged)).Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.When(p => p.Pitch.Modified).Subscribe(InvalidateVisual, s); 
         mDependency.PartHolder.When(p => p.Track.Project.Tracks.WhenAny(track => track.AsRefer.Modified)).Subscribe(InvalidateVisual, s);

@@ -96,11 +96,17 @@ internal partial class AutomationRenderer : View
         mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.PiecewiseAutomations.Modified)).Subscribe(InvalidateVisual, s);
         // effect 自动化数据在各 effect.Automations 里，编辑它不会触发 part.Automations.Modified，需单独订阅（否则拖动不重绘）。
         mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified)).Subscribe(InvalidateVisual, s);
+        // 自动化默认值经侧栏滑条拖动：走 DefaultValue 的 merge notify，拖动期只发 canIgnore 中间态、结果态松手才发，
+        // 故上面订结果态（默认脸）的重绘拖动中不触发。这里另订全量脸只做重绘，使曲线基线随默认值拖动实时移动（voice + effect 两源）。
+        mDependency.PartHolder.When(p => p.Automations.Modified.AsEverytime()).Subscribe(_ => InvalidateVisual(), s);
+        mDependency.PartHolder.When(p => p.Effects.WhenAny(effect => effect.Automations.Modified.AsEverytime())).Subscribe(_ => InvalidateVisual(), s);
         // 合成状态/产物更新（插件在合成过程中逐步填入回显曲线，经 StatusChanged 通知）→ 重绘，
         // 否则参数区的合成参数回显要等下次鼠标事件等其它失效源才刷新（滞后）。
         mDependency.PartHolder.When(p => p.SynthesisStatusChanged).Subscribe(InvalidateVisual, s);
         // 属性 lane（钉选 note/phoneme 属性）随 note/音素增删/时值/属性值变重绘；无 lane 时不扰动（note 拖拽是高频路径）。
-        mDependency.PartHolder.When(p => p.Notes.Modified).Subscribe(() =>
+        // 订全量脸（AsEverytime，中间态也触发）而非仅结果态：钉选属性值在侧栏面板拖动时走 merge notify（拖动期只发 canIgnore
+        // 中间态、结果态松手才发），若只订结果态则 lane 值段拖动中不刷、松手才跳。中间态重绘只在有 lane 时才做，仍避让 note 高频拖拽。
+        mDependency.PartHolder.When(p => p.Notes.Modified.AsEverytime()).Subscribe(_ =>
         {
             if (Part != null && (Part.NoteLaneConfigs.Count > 0 || Part.PhonemeLaneConfigs.Count > 0))
                 InvalidateVisual();
