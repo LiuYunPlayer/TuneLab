@@ -145,22 +145,63 @@ internal static class ExtensionSettingsStore
         return null;
     }
 
-    // PropertyValue → 原生 JSON node（bool/number/string）。嵌套对象暂不支持（设置项均为标量），返回 false 跳过。
+    // PropertyValue → 原生 JSON node。标量(bool/number/string)直落；复合型(array/object)递归下探——
+    // 支撑 ListConfig/ArrayConfig（值为 PropertyArray）与嵌套 ObjectConfig（值为 PropertyObject）。
+    // Null 落为 JSON null；Multiple 是多选聚合的 UI 态、不应进持久值，返回 false 跳过。
     static bool ToNode(PropertyValue value, out JsonNode? node)
     {
         if (value.ToBool(out var b)) { node = JsonValue.Create(b); return true; }
         if (value.ToDouble(out var d)) { node = JsonValue.Create(d); return true; }
         if (value.ToString(out var s)) { node = JsonValue.Create(s ?? string.Empty); return true; }
+        if (value.ToArray(out var arr))
+        {
+            var jarr = new JsonArray();
+            foreach (var item in arr)
+                jarr.Add(ToNode(item, out var child) ? child : null); // 元素级 null 占位保序（含 Null / 无法表示项）
+            node = jarr;
+            return true;
+        }
+        if (value.ToObject(out var obj))
+        {
+            var jobj = new JsonObject();
+            foreach (var kvp in obj.Map)
+                if (ToNode(kvp.Value, out var child))
+                    jobj[kvp.Key] = child;
+            node = jobj;
+            return true;
+        }
+        if (value.IsNull()) { node = null; return true; }
         node = null;
         return false;
     }
 
-    // 原生 JSON node → PropertyValue（按 token 类型：bool→number→string）。
+    // 原生 JSON node → PropertyValue。标量按 token 类型(bool→number→string)；复合型(array/object)递归还原；
+    // JSON null → PropertyValue.Null。与 ToNode 对称，往返稳定。
     static bool ToPropertyValue(JsonNode? node, out PropertyValue value)
     {
         value = default;
+        if (node is JsonObject jo)
+        {
+            var map = new Map<string, PropertyValue>();
+            foreach (var (key, child) in jo)
+                if (ToPropertyValue(child, out var pv))
+                    map.Add(key, pv);
+            value = new PropertyObject(map);
+            return true;
+        }
+        if (node is JsonArray ja)
+        {
+            var list = new List<PropertyValue>(ja.Count);
+            foreach (var child in ja)
+                list.Add(ToPropertyValue(child, out var pv) ? pv : PropertyValue.Null);
+            value = new PropertyArray(list);
+            return true;
+        }
         if (node is not JsonValue jv)
-            return false;
+        {
+            value = PropertyValue.Null; // JSON null（数组元素占位等）
+            return node is null;
+        }
         if (jv.TryGetValue<bool>(out var b)) { value = b; return true; }
         if (jv.TryGetValue<double>(out var d)) { value = d; return true; }
         if (jv.TryGetValue<string>(out var s)) { value = s; return true; }
