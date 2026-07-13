@@ -80,7 +80,10 @@ public static class LegacyCompatEntry
                 }
                 catch (Exception ex)
                 {
-                    log(string.Format("实例化/注册类型失败 {0}: {1}", type.FullName, ex.Message));
+                    // 构造函数抛错多为 TargetInvocationException（Message 只是通用套话）——展开内层，
+                    // 并打完整异常（含缺失程序集名/堆栈），否则野外"依赖外部安装软件"的插件无法诊断。
+                    var real = (ex as System.Reflection.TargetInvocationException)?.InnerException ?? ex;
+                    log(string.Format("实例化/注册类型失败 {0}: {1}", type.FullName, real));
                 }
             }
         }
