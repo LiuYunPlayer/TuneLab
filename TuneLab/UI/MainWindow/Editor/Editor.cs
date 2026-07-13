@@ -39,6 +39,7 @@ using System.Reactive.Joins;
 using System.Runtime.InteropServices;
 
 using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Voices;
 namespace TuneLab.UI;
 
 internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency, FunctionBar.IDependency
@@ -1144,6 +1145,28 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
         }
 
+        // 刚 Load 的引擎此刻只完成「注册」尚未 Init。补做启动时对 voice 引擎的急切 Init
+        // （见 App.OnFrameworkInitializationCompleted），让新装的声源引擎无需重启即可用。
+        // Init 失败与安装成败是两回事（插件已装好，是初始化出错），故不并入安装汇总——
+        // 单独弹窗报错，语义与启动时的 Init 失败提示一致。
+        // 其余类别（instrument/effect/agent-model）本就惰性、首次使用时 Init，无需在此急切化。
+        List<string> initFailed = [];
+        if (succeeded.Count > 0)
+        {
+            ExtensionSettingsManager.ApplyPersisted(); // Init 前回喂已落盘设置（与启动同序）
+            foreach (var engine in VoicesManager.GetAllVoiceEngines())
+            {
+                try
+                {
+                    VoicesManager.InitEngine(engine); // 已 Init 的引擎为空操作
+                }
+                catch (Exception ex)
+                {
+                    initFailed.Add(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
+                }
+            }
+        }
+
         // Auto-refresh the extension list in the sidebar
         mExtensionSideBarContentProvider.RefreshExtensions();
         if (mRightSideTabBar.SelectedTab.Value == SideBarTab.Extensions)
@@ -1159,6 +1182,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 summary.Add("Failed: ".Tr(TC.Dialog) + string.Join("; ", failed));
             await this.ShowMessage("Tips".Tr(TC.Dialog), string.Join("\n", summary));
         }
+
+        // Init 失败与安装汇总分开弹窗：插件已装好，仅初始化出错。
+        if (initFailed.Count > 0)
+            await this.ShowMessage("Error".Tr(TC.Dialog), string.Join("\n\n", initFailed));
 
         if (installedExtension.IsEmpty())
             return;
