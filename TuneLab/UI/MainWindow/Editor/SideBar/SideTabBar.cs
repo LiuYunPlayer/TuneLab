@@ -40,11 +40,11 @@ internal class SideTabBar : ListView
             OnTabChanged();
         }
 
-        AddTab(SideBarTab.Extensions, "Extensions".Tr(this), Assets.Extensions);
         AddTab(SideBarTab.PartProperties, "Part".Tr(this), Assets.Part);
         AddTab(SideBarTab.NoteProperties, "Note".Tr(this), Assets.Note);
-        AddTab(SideBarTab.Export, "Export".Tr(this), Assets.Export);
         AddTab(SideBarTab.Agent, "Agent".Tr(this), Assets.Agent);
         AddTab(SideBarTab.Script, "Script".Tr(this), Assets.Script);
+        AddTab(SideBarTab.Extensions, "Extensions".Tr(this), Assets.Extensions);
+        AddTab(SideBarTab.Export, "Export".Tr(this), Assets.Export);
     }
 }
