@@ -73,7 +73,9 @@ internal partial class Dialog : Window
         double desired = mMessageHeight + chrome;
 
         double maxHeight = 600;
-        var screen = Screens?.ScreenFromVisual(this);
+        // Show 前 ScreenFromVisual 拿不到所在屏幕，退而按主屏封顶（多数情况即最终屏幕），
+        // 尽量让窗口一出现就是最终高度；真在别的屏且更矮时才由 Opened 的二次封顶修正。
+        var screen = Screens?.ScreenFromVisual(this) ?? Screens?.Primary;
         if (screen != null)
             maxHeight = screen.WorkingArea.Height / screen.Scaling * 0.85;
 
@@ -89,6 +91,16 @@ internal partial class Dialog : Window
     public void SetMessage(string message)
     {
         messageTextBlock.Text = message;
+
+        // Show 前离线预量文本高度、提前定好窗高：否则窗口先以默认高度弹出、首次布局后才被
+        // SizeChanged 撑大，肉眼可见跳变；且 CenterScreen 按旧高度居中，消息越长窗口越偏下。
+        // （TextBlock.Measure 不要求挂进可视树；Dialog 未绑自定义字体，离线排版与真实布局同用
+        // FontManager 默认字体，量出的高度一致。）
+        messageTextBlock.Measure(new Size(Width - MessageStackPanel.Margin.Left - MessageStackPanel.Margin.Right, double.PositiveInfinity));
+        mMessageHeight = messageTextBlock.DesiredSize.Height;
+        if (mMessageHeight > 108)
+            MessageStackPanel.Margin = new Thickness(12, 16);
+        AdjustHeight();
     }
 
     public void SetTextAlignment(TextAlignment alignment)
