@@ -289,7 +289,9 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // 域边界跨越无感，junction 不是边界、随材料平移）。显示语义（左移 p>0，右移镜像）：
     //   · 线后音素显示 +p，其末端与其后一切冻结；
     //   · 线与被消解弹性之间的刚性**整体平移**（长度不变、不写标称）；
-    //   · 线前作用域内的弹性核按 ∝(w·显示长) 分担吸收 p（触底出局水填；标称地板 1ms 防乘法奇点 d·r^w≡0 弹不回）；
+    //   · 线前作用域内的弹性核按 ∝(w·显示长) 分担吸收 p（触底出局水填；标称地板 1ms 防乘法奇点 d·r^w≡0 弹不回），
+    //     **按 junction 分两梯队**：近侧（线到 junction 间）先吸收、耗尽才轮到越 junction 侧——junction 是有音乐
+    //     意义的锚，近侧有弹性可吸收时不被推动（右移镜像同理：近侧弹性优先回胀）；
     //   · 弹性全触底才进相 B：刚性**均分收缩**（水填至 0）。
     // 写入 = 如实入账（每笔标称改动 = 该部分真实显示变化按其压缩因子 disp/nom 折算，故总标称在同权情形守恒、
     // 一般情形有界可逆）：线后 nominal += p/因子；被吸收弹性 / 相 B 刚性 nominal −= 份额/因子；只平移的不写；
@@ -419,32 +421,41 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             }
             else if (p > 0)
             {
-                // 弹性 ∝ w·disp 水填
-                double remaining = p;
-                var active = new List<int>();
-                for (int k = 0; k < parties.Count; k++)
-                    if (parties[k].W > 0 && parties[k].Cap > 1e-12) active.Add(k);
-                while (remaining > 1e-12 && active.Count > 0)
+                // 弹性 ∝ w·disp 水填，**按 junction 分两梯队**：近侧（线到 junction 之间的弹性）先吸收——
+                // junction 是有音乐意义的锚（元音起点），近侧还有弹性可吸收时不被推动；近侧耗尽才轮到
+                // 越 junction 一侧（引导 / 前 note 弹性），junction 自此才开始平移（2026-07-15 用户裁定）。
+                double WaterFill(List<int> active, double amount)
                 {
-                    double denom = 0;
-                    foreach (int k in active) denom += parties[k].W * parties[k].Disp;
-                    if (denom <= 1e-12) break;
-                    bool anyCapped = false;
-                    for (int m = active.Count - 1; m >= 0; m--)
+                    while (amount > 1e-12 && active.Count > 0)
                     {
-                        int k = active[m];
-                        double room = parties[k].Cap - deltas[k];
-                        if (remaining * parties[k].W * parties[k].Disp / denom >= room)
+                        double denom = 0;
+                        foreach (int k in active) denom += parties[k].W * parties[k].Disp;
+                        if (denom <= 1e-12) break;
+                        bool anyCapped = false;
+                        for (int m = active.Count - 1; m >= 0; m--)
                         {
-                            deltas[k] += room; remaining -= room; active.RemoveAt(m); anyCapped = true;
+                            int k = active[m];
+                            double room = parties[k].Cap - deltas[k];
+                            if (amount * parties[k].W * parties[k].Disp / denom >= room)
+                            {
+                                deltas[k] += room; amount -= room; active.RemoveAt(m); anyCapped = true;
+                            }
+                        }
+                        if (!anyCapped)
+                        {
+                            foreach (int k in active) deltas[k] += amount * parties[k].W * parties[k].Disp / denom;
+                            amount = 0;
                         }
                     }
-                    if (!anyCapped)
-                    {
-                        foreach (int k in active) deltas[k] += remaining * parties[k].W * parties[k].Disp / denom;
-                        remaining = 0;
-                    }
+                    return amount;
                 }
+                var nearSide = new List<int>();
+                var farSide = new List<int>();
+                for (int k = 0; k < parties.Count; k++)
+                    if (parties[k].W > 0 && parties[k].Cap > 1e-12)
+                        (parties[k].LeftOfJunction ? farSide : nearSide).Add(k);
+                double remaining = WaterFill(nearSide, p);
+                remaining = WaterFill(farSide, remaining);
                 // 相 B：残余 → 刚性均分水填
                 if (remaining > 1e-12)
                 {
@@ -490,31 +501,45 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             }
             else if (p < 0)
             {
-                // 右移镜像：优先弹性增益（∝ w·disp）——own 弹性经本域池直接受益、无需封顶；prev 侧共享"可回撤量"
-                // 封顶（prevGainCap），溢出转 own 弹性；弹性无处安放的残余 → own 刚性均分增益（引导经 BodyOffset
-                // 耦合右伸、body 刚性经池右伸，仅 body 侧线 index≥lc 有 bo 耦合；prev 刚性无有效显示机制、不参与）。
+                // 右移镜像（同样按 junction 分梯队）：**近侧弹性优先受益**（junction 不被拉动）；近侧无弹性才轮到
+                // 越 junction 通道——own 远侧弹性经本域池受益、prev 侧共享"可回撤量"封顶（prevGainCap），溢出转 own；
+                // 弹性无处安放的残余 → own 刚性均分增益（引导经 BodyOffset 耦合右伸、body 刚性经池右伸；
+                // prev 刚性无有效显示机制、不参与）。
                 double gain = -p;
-                double ownDenom = 0, prevDenom = 0;
+                double nearDenom = 0;
                 foreach (var pt in parties)
-                {
-                    if (pt.W <= 0) continue;
-                    if (pt.IsPrev) prevDenom += pt.W * pt.Disp; else ownDenom += pt.W * pt.Disp;
-                }
+                    if (pt.W > 0 && !pt.LeftOfJunction) nearDenom += pt.W * pt.Disp;
                 double remaining = gain;
-                if (ownDenom + prevDenom > 1e-12)
+                if (nearDenom > 1e-12)
                 {
-                    double prevShare = gain * prevDenom / (ownDenom + prevDenom);
-                    if (prevShare > prevGainCap) prevShare = prevGainCap;
-                    double ownShare = ownDenom > 1e-12 ? gain - prevShare : 0;
                     for (int k = 0; k < parties.Count; k++)
+                        if (parties[k].W > 0 && !parties[k].LeftOfJunction)
+                            deltas[k] = p * parties[k].W * parties[k].Disp / nearDenom;
+                    remaining = 0;
+                }
+                else
+                {
+                    double ownDenom = 0, prevDenom = 0;
+                    foreach (var pt in parties)
                     {
-                        var pt = parties[k];
                         if (pt.W <= 0) continue;
-                        deltas[k] = pt.IsPrev
-                            ? (prevDenom > 1e-12 ? -prevShare * pt.W * pt.Disp / prevDenom : 0)
-                            : -ownShare * pt.W * pt.Disp / ownDenom;
+                        if (pt.IsPrev) prevDenom += pt.W * pt.Disp; else ownDenom += pt.W * pt.Disp;
                     }
-                    remaining = gain - prevShare - ownShare;
+                    if (ownDenom + prevDenom > 1e-12)
+                    {
+                        double prevShare = gain * prevDenom / (ownDenom + prevDenom);
+                        if (prevShare > prevGainCap) prevShare = prevGainCap;
+                        double ownShare = ownDenom > 1e-12 ? gain - prevShare : 0;
+                        for (int k = 0; k < parties.Count; k++)
+                        {
+                            var pt = parties[k];
+                            if (pt.W <= 0) continue;
+                            deltas[k] = pt.IsPrev
+                                ? (prevDenom > 1e-12 ? -prevShare * pt.W * pt.Disp / prevDenom : 0)
+                                : -ownShare * pt.W * pt.Disp / ownDenom;
+                        }
+                        remaining = gain - prevShare - ownShare;
+                    }
                 }
                 if (remaining > 1e-12)
                 {
