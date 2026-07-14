@@ -1782,10 +1782,12 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
         else
         {
-            // 等分：时长 / 伸缩权重均摊——辅音(w=0)固定时长等分；核(w>0)按权重比例填充，等权即显示等分。
+            // 等分：只均摊时长，**权重原样保留**——乘法模型下 w 是缩放指数/伸缩类别（len = d·r^w），不是可分摊的量：
+            // 各段同 w、时长均摊 ⇒ 任意 r 下各段之和 = (d/n)·r^w·n = d·r^w，拆分前后伸缩行为严格不变（与侧栏 Split 同口径）；
+            // 均摊 w 会改变伸缩类别（压缩时行为突变、破坏同权等比保形）。
             // 各段留在同一列表（归属不变）；引擎自定义属性留在首段（拆分不复制，避免语义不明的双份属性）。
             double duration = phoneme.Duration.Value / tokens.Length;
-            double weight = phoneme.StretchWeight.Value / tokens.Length;
+            double weight = phoneme.StretchWeight.Value;
             phoneme.Symbol.Set(tokens[0]);
             phoneme.Duration.Set(duration);
             phoneme.StretchWeight.Set(weight);
