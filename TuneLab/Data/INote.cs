@@ -246,16 +246,18 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // （前/后最近**有内容**邻居 + 本，含合成邻居）喂全局两阶布局（SDK 的 VoicePhonemeLayout）：元音先让、辅音簇
     // 等比压（含跨 note 辅音簇）。相邻 note 间边界相互独立，故 3-note 窗口足以正确解析本 note 两条边界。
     // overrideIdx≥0：用 overrideDur 代替本 note 该音素时长（拖拽反解用，不改数据）。
-    private (double Start, double End)[] ResolvedRelTimes(int overrideIdx, double overrideDur, double overridePreutter = double.NaN)
+    // prevOverrideIdx/prevOverrideDur：覆盖前内容邻居某音素时长（跨 note roll 反解用——拖本 note 首音素起边界时，
+    // 与前 note 末音素守恒转移，须在同一窗口里同时改前 note 那个音素）。
+    private (double Start, double End)[] ResolvedRelTimes(int overrideIdx, double overrideDur, double overridePreutter = double.NaN, int overrideIdx2 = -1, double overrideDur2 = 0, int prevOverrideIdx = -1, double prevOverrideDur = 0)
     {
         int n = PhonemeCount;
         var window = new List<PhonemeLayoutNote>();
         var prev = PrevContentNeighbor();
         var next = NextContentNeighbor();
         if (prev != null)
-            window.Add(BuildLayoutNote(prev));
+            window.Add(BuildLayoutNote(prev, prevOverrideIdx, prevOverrideDur));
         int baseIndex = window.Count;   // 本 note 在窗口中的下标
-        window.Add(BuildLayoutNote(this, overrideIdx, overrideDur, overridePreutter));
+        window.Add(BuildLayoutNote(this, overrideIdx, overrideDur, overridePreutter, overrideIdx2, overrideDur2));
         if (next != null)
             window.Add(BuildLayoutNote(next));
 
@@ -286,23 +288,51 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         BodyOffset.Set(sum - p);
     }
 
-    // 拖音素边界起手的钉死：只钉死本 note。DragPinnedBoundary 一律「改线后」——只编辑本 note 的 phoneme[index] 时长（或结合线改本 note
-    // BodyOffset），从不编辑邻居数据（邻居显示的变化由布局按本 note 新几何重解出、非改其数据），故无需钉死邻居。
-    // 由波形拖杆 op 在 Down 时调用（钉死须先于 mHead 快照，DiscardTo 才保钉死态）。index 保留供签名兼容、当前不再据它分派。
+    // 拖音素边界起手的钉死：按线的**主域**钉死域参与者。主域 = 线基线显示位所在域（显示起点 < note 头 ⇒ 前域，否则本域），
+    // 参与者 = 界定该域的两个内容 note（各自贡献拍后料 / 借入拍前料）：
+    //   · 主域 = 前域：钉本 note + 前内容邻居（域 owner，其末音素是相②转移伙伴、布局须确定）；
+    //   · 主域 = 本域：钉本 note + 后内容邻居（其拍前料借入本域共享空间，冻结域几何——拖完不因其重合成而漂移）。
+    // 相接才共域（有空隙则拍前料自由堆叠、无共享空间可冻结，不钉）。Case 2（拖拽实际跨过 note 头进入相邻域，双向）
+    // 的目标域参与者由 DragPinnedBoundary 就地钉死（merge-dirty 内，未跨不钉）。由波形拖杆 op 在 Down 时调用
+    // （钉死须先于 mHead 快照，DiscardTo 才保钉死态）。
     public void LockPhonemesForBoundaryDrag(int index)
     {
         this.LockPhonemes();
+        var display = DisplayPhonemes;
+        if (index >= display.Count)
+            return;   // 末边界（index==n）派生不可拖，不钉邻居
+        if (display[index].StartTime < StartTime)
+        {
+            if (PrevContentNeighbor() is { } prev && prev.ForwardFillEnd() >= StartTime)
+                prev.LockPhonemes();
+        }
+        else if (NextContentNeighbor() is { } next && this.ForwardFillEnd() >= next.StartTime)
+        {
+            next.LockPhonemes();
+        }
     }
 
-    // 拖拽音素起边界（index = 音素 index 的起点；末边界 index==n 派生不可拖）：把该边界拖到【显示】相对秒 targetRel。
+    // 拖拽音素起边界（index = phoneme[index] 起点这条"线"；末边界 index==n 派生不可拖）：把线拖到【显示】相对秒 targetRel。
     //
-    // 最根本原则（2026-07-09 定）：**拖某条线，只动其线后（右侧）那个音素 phoneme[index] 的 Duration**；弹性核经 Distribute
-    // 自动吸收、不写其数据。双列表模型使其比 Preutterance 版更干净——**调任何单个音素时长都不碰 BodyOffset**：
-    //   · 引导反向锚 junction ⇒ 编辑引导音素只动其左侧、其后（朝主体/junction）恒不动（旧版改拍前音素才需同步 Preutterance，此处天然免除）；
-    //   · 主体正向锚 junction ⇒ 编辑主体音素由弹性核吸收补偿、junction 与两侧其余不动。
-    // BodyOffset 只由**结合线句柄**（junction = 主体起点，线后是弹性核、resize 无意义）单独改，见下首分支——**唯一**动 offset 的拖拽。
-    // 全刚性域（无核吸收）例外：改单个音素会「全 w=0 整体等比」把改动摊给全体、灵敏度发散，改走 roll（两侧转移守恒、BodyOffset 仍不动）。
-    // 改 pinned 即触发重合成。
+    // 统一域模型（2026-07-14 定）：**note 头把时间轴切成"域"（相邻两内容 note 头之间的区间；不相接则各自独立），线的编辑以域为作用范围**。
+    // 主域 = 线基线显示位所在域（拍前 ⇒ 前域，否则本域）；相邻域间**双向无感跨越**（一次手势内连续，无需松手分步）。
+    // 起手 LockPhonemesForBoundaryDrag 已钉死主域参与者；
+    // 跨域音素由 PhonemeLayout 按 note 头切两半、分别独立参与两域各自的分配。统一旋钮：**每根线都改线后音素的标称时长**
+    // （结合线额外同步位移 BodyOffset，见下），相位递进：
+    //   相①（弹性吸收）：改线后标称、由域内弹性(w>0)吸收。弹性在线前时线 1:1 跟手、其后不动；弹性全在线后时线不动（合理——要动线
+    //     去拖刚性侧）。域边界跨越无需显式两段式：引导反向锚 junction ⇒ 材料随标称增长自然越过 note 头重分类（本域段守恒滑移、
+    //     前域段由前域弹性吸收），显示位对旋钮连续单调，一次 bisect 即覆盖"移到边界 + 在前域续走"两段。
+    //   相②（刚性守恒转移）：仅当域内弹性耗尽（只剩非弹性，NotCompressed 临界）才触发——线后钳到耗尽点，在线前/线后两部分间转移
+    //     时长、刚性总长不变（缩放因子不变 ⇒ 线性跟手、界内不畸大）。两侧须皆刚性（弹↔刚转移破坏刚性总长守恒；拖弹性线时域内
+    //     恒有弹性、相②天然不触发）。线前 = 同 note 左邻（index≥1）或前内容 note 末音素（index==0，前邻居已钉死）。
+    //   · **结合线（index==lc 且有主体）**：线后是核、显示长由填充派生——单独改标称不动线，故额外**同步位移 BodyOffset**（唯一动
+    //     offset 的线）：核标称末固定、核标称 = 标称末 − BodyOffset 随动。显示位对 P（有效前置量）单调减，bracket-bisect 到目标；
+    //     渐近极限（前域塞满）以停滞限幅截断扩界，防 P/标称畸大。
+    //   · **其余弹性线后（w>0，非结合线）**：改标称只换取弹性池内份额重分（域内多弹性才有效、单弹性不动），无耗尽临界也无相②，
+    //     bisect + 停滞限幅。
+    // 跨域钉死（Case 2，双向）：线实际跨过 note 头进入相邻域时，就地钉死目标域的另一参与者（左跨 ⇒ 前域 owner、
+    // 右跨 ⇒ 后内容邻居）——在拖拽 merge-dirty 会话内，未跨不钉。唯一的硬极限是结构性的：首音素起点线不越 note 头右侧
+    // （域内材料从 note 头起排，首音素起点不可能显示在头右——minDur 平区下限使线停头上、拍后半保留）。改 pinned 即触发重合成。
     void DragPinnedBoundary(int index, double targetRel)
     {
         int n = PhonemeCount;
@@ -312,74 +342,138 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         int lc = LeadingPhonemes.Count;
         int bc = BodyPhonemes.Count;
 
-        // 结合线（junction = 主体起点，index == 引导数且有主体）：线后是弹性核（时长由填充派生、resize 无意义）——
-        // 拖它 = 移动核起点相对拍点 = **改 BodyOffset**（引导反向 / 主体正向随 junction 一起平移，内容整体相对拍点滑动）。
-        // 这是**唯一**改 BodyOffset 的拖拽。内部经等价参数 P bisect（BodyOffset = Σleading − P，Σleading 不变 ⇒ 单调），末转回 BodyOffset。
-        // **解析式 clamp（防突变）**：不许把核（body[0]）整段拖到 note 头之前——否则它退出填充域、其拍后半从填满 note 末**突降**到 note 头
-        // （核猛缩"跑到前面"）。故 BodyOffset ≥ −body[0].nom（留一丝拍后半、核仍跨头填充）⇔ P ≤ Σleading + body[0].nom。核起点更靠前无意义。
+        // —— 统一预处理：按基线显示位定主域 → 跨域（Case 2）时就地钉死目标域参与者（双向无感，一次手势内连续跨越）——
+        var baseline = ResolvedRelTimes(-1, 0);
+        bool preBeat = baseline[index].Start < 0;
+        if (!preBeat && targetRel < 0 && PrevContentNeighbor() is { } crossPrev && crossPrev.ForwardFillEnd() >= StartTime)
+            crossPrev.LockPhonemes();   // 本域线左跨进前域：钉死前域 owner（冻结前域几何 + 相②可编辑其末音素）
+        else if (preBeat && targetRel > 0 && NextContentNeighbor() is { } crossNext && this.ForwardFillEnd() >= crossNext.StartTime)
+            crossNext.LockPhonemes();   // 前域线右跨回本域：钉死本域另一参与者（后内容邻居，其拍前料共享本域空间）
+
+        // —— 结合线：改 BodyOffset（核起点相对拍点），bracket-bisect P 到目标；左向上限 = Σleading + 核显示长（留一丝拍后半保填充）——
         if (index == lc && bc > 0)
         {
             double leadSum = 0;
             foreach (var ph in LeadingPhonemes) leadSum += Math.Max(0, ph.Duration.Value);
-            double maxP = leadSum + Math.Max(0, BodyPhonemes[0].Duration.Value) - 1e-6;   // 留 1e-6 拍后半：核恒判为跨拍、填充不塌
+            // 拖 junction = 移核起点（改 BodyOffset）**且同步改核标称**：核标称末在拖动中固定（拖头、末不动），
+            // 故核标称 = 标称末 − BodyOffset。同步改标称是关键——核往左 straddle 时标称随之增长、拍后半标称恒 > 0，
+            // NoteSplit 永不把核重分类成"整段拍前"、a 不跳进前域；左向也不再被标称硬封（无需 maxP）。到极限由前域压缩自然平滑停住。
+            // 以 P（有效前置量）为 bisect 变量：BodyOffset = leadSum − P、核标称 = nominalEnd − BodyOffset = nominalEnd − leadSum + P。
+            double nominalEnd = BodyOffset.Value + Math.Max(0, BodyPhonemes[0].Duration.Value);   // 核标称末 rel note 头（拖动中固定）
+            double CoreDurOf(double p) => Math.Max(0, nominalEnd - (leadSum - p));
+            double StartAt(double p) => ResolvedRelTimes(index, CoreDurOf(p), p)[index].Start;   // 核起点显示位；P↑ ⇒ 起点↓（单调减）
             double p0 = EffectivePreutterance();
-            double StartAt(double p) => ResolvedRelTimes(-1, 0, p)[index].Start;   // 核起点显示位（含跨拍压缩）；P↑ ⇒ junction 左移 ⇒ 起点↓（单调减）
             double span = Math.Max(EndTime - StartTime, 0.05);
-            double lo = p0, hi = Math.Min(p0, maxP);
-            for (int i = 0; i < 40 && StartAt(hi) > targetRel && hi < maxP; i++) hi = Math.Min(maxP, hi + span);   // 左扩（BodyOffset↓），封顶 maxP
-            for (int i = 0; i < 40 && StartAt(lo) < targetRel; i++) lo -= span;                                    // 右扩（核起点右移 / lead-in 空白，Q2 不 clamp）
+            double lo, hi;
+            if (targetRel < StartAt(p0))   // 向左（核起点前移）：P 往上找
+            {
+                lo = p0; hi = p0 + span;
+                for (int i = 0; i < 60 && StartAt(hi) > targetRel; i++)
+                {
+                    if (StartAt(hi) - StartAt(hi + span) < 1e-4) break;   // 渐近极限（前域塞满）：移动 < 0.1ms/步 → 停扩界防畸大
+                    hi += span;
+                }
+            }
+            else                           // 向右（核起点后移、核标称缩短）：P 往下找
+            {
+                hi = p0; lo = p0 - span;
+                for (int i = 0; i < 60 && StartAt(lo) < targetRel; i++)
+                {
+                    if (StartAt(lo - span) - StartAt(lo) < 1e-4) break;
+                    lo -= span;
+                }
+            }
             for (int it = 0; it < 48; it++)
             {
                 double mid = (lo + hi) / 2;
                 if (StartAt(mid) <= targetRel) hi = mid; else lo = mid;
             }
-            SetEffectivePreutterance(Math.Min((lo + hi) / 2, maxP));   // 转回 BodyOffset；封顶保核跨头（右向不 clamp）
+            double pFinal = (lo + hi) / 2;
+            SetEffectivePreutterance(pFinal);                    // 改 offset
+            BodyPhonemes[0].Duration.Set(CoreDurOf(pFinal));     // 同步改核标称
             return;
         }
 
-        // 改线后音素（**BodyOffset 全程不动**）：编辑被拖线**线后**那个音素 phoneme[index] 的 Duration，bisect 令其显示起点落 targetRel。
-        // 引导反向锚 junction ⇒ 编辑引导音素只动其左侧、其后（朝主体）恒不动；主体则由弹性核吸收 ⇒ 其后由核补偿。junction、两侧其余音素均不动。
-        // 不钳 targetRel 到「当前末端」——过满时该末端被压到≈起点会误钳、导致往右拖不动无法还原；正长由 bisect 区间 [0,·]（时长≥0）自然保证。
-        double oldDur = Math.Max(0, Phonemes[index].Duration.Value);
-        double StartOf(double dur) => ResolvedRelTimes(index, dur)[index].Start;   // dur↑ ⇒ 起点↓（引导反向长 / 主体被核吸收左推），单调减
+        // —— 首音素平区下限（仅基线在拍前时）：右拖到 note 头后，dur 在 [0, 拍后半] 内线位恒 = 头（平区），朴素 bisect 会收敛到
+        // 平区最小值把拍后半削没。dur 下限 = 拍后半长度（= 首音素显示末，其末不随本音素 dur 变）⇒ 线恰停 note 头、拍后半完整保留。
+        // 基线在本域（首音素整簇落拍后）时无此约束——套用会把下限误钳成整个显示长、右拖锁死。
+        double minDur = index == 0 && preBeat ? Math.Max(0, baseline[0].End) : 0;
 
-        // 被拖的刚性音素（辅音）在域有弹性松弛时显示长恒 = nominal（1:1 跟手、其后不动）；核让到 0（过满）后再增 nominal 会被二级压缩
-        // （显示长 < nominal），同域其它音素被等比压走→突变。故分两态：
-        //  · 有松弛（当前未被压缩）：**精确 clamp** 在「被拖音素仍未被压缩」的最大 nominal 处（= 核耗尽点）——填满松弛量为止、其后恒不动、无突变。
-        //  · 已过满（当前已被压缩，如短音符塞多辅音）：无松弛可锁，退化为普通二级压缩反解（WYSIWYG，邻辅音随之等比压——过满时不可避免），
-        //    但用「翻倍移动 < 0.1ms 即停」限幅防 nominal 发散/畸大。既不锁死（可继续调整/退回），也不畸变。超此极限想更靠左应改拖结合线（BodyOffset）。
+        double oldDur = Math.Max(0, Phonemes[index].Duration.Value);
+        double StartOf(double dur) => ResolvedRelTimes(index, dur)[index].Start;   // dur↑ ⇒ 起点↓（单调减）
+
+        // —— 弹性线后（w>0，非结合线）：改标称 = 弹性池内份额重分（域内多弹性才有效、单弹性线不动），渐近、无耗尽临界、无相② ——
+        if (Phonemes[index].StretchWeight.Value > 0)
+        {
+            double loE = minDur, hiE = oldDur;
+            for (int i = 0; i < 40 && StartOf(hiE) > targetRel; i++)
+            {
+                double next = Math.Max(hiE * 2, 0.05);
+                if (StartOf(hiE) - StartOf(next) < 1e-4) break;   // 停滞限幅：单弹性不动 / 渐近极限，停扩界防标称发散
+                hiE = next;
+            }
+            if (StartOf(loE) - StartOf(hiE) < 1e-9)
+                return;   // 全程平坦（线对本旋钮不敏感）：不动数据，避免无视觉变化的标称改写
+            for (int it = 0; it < 40; it++) { double mid = (loE + hiE) / 2; if (StartOf(mid) <= targetRel) hiE = mid; else loE = mid; }
+            Phonemes[index].Duration.Set(hiE);
+            return;
+        }
+
+        // —— 刚性线后：相① 弹性吸收 →（域内弹性耗尽）相② 刚性守恒转移 ——
         double DispLen(double dur) { var t = ResolvedRelTimes(index, dur)[index]; return t.End - t.Start; }
-        bool NotCompressed(double dur) => dur <= 1e-9 || DispLen(dur) >= dur - 1e-6;
-        double loD = 0, hiD = Math.Max(oldDur, 0.05);
+        bool NotCompressed(double dur) => dur <= 1e-9 || DispLen(dur) >= dur - 1e-6;   // 未被二级压缩 = 域内仍有弹性松弛
+
+        // 相①：改线后音素 Duration，弹性核吸收；找核耗尽点 hiD（超过它弹性归 0、再增会二级压缩）。
+        double hiD = Math.Max(oldDur, 0.05);
+        bool reachableInAbsorb;
         if (NotCompressed(oldDur))
         {
-            // 有松弛：向上找上界——**一到目标可达即停**（勿一路翻倍到 2^N 巨值，否则末次 bisect 区间过大、精度退化成整数倍跳跃）；
-            // 若在够到目标前先撞压缩临界（核耗尽），则 clamp 到临界（自然态最大 nominal、其后不动无突变）。
             for (int i = 0; i < 40 && NotCompressed(hiD) && StartOf(hiD) > targetRel; i++) hiD *= 2;
-            if (!NotCompressed(hiD))   // 先撞压缩临界 → 二分 cap（精确落在核耗尽处）
+            if (!NotCompressed(hiD))   // 撞压缩临界 → 二分 cap 到核耗尽点
             {
                 double lo = Math.Max(oldDur, 0.05), hi = hiD;
                 for (int it = 0; it < 40; it++) { double mid = (lo + hi) / 2; if (NotCompressed(mid)) lo = mid; else hi = mid; }
                 hiD = lo;
+                reachableInAbsorb = StartOf(hiD) <= targetRel;   // 目标在核耗尽前即可达？
             }
-            // else：目标在压缩前即可达 → hiD 是紧上界（~2× 所需），直接进最终 bisect（精度足）。
+            else reachableInAbsorb = true;   // 压缩前即可达
         }
         else
         {
-            // 已过满（无松弛可锁）：普通反解 + 限幅（防发散），不锁死。同样一到目标可达即停。
-            for (int i = 0; i < 40 && StartOf(hiD) > targetRel; i++)
-            {
-                double next = hiD * 2;
-                if (StartOf(hiD) - StartOf(next) < 1e-4) break;   // 移动 < 0.1ms/翻倍：接近极限、停
-                hiD = next;
-            }
+            hiD = oldDur;                                        // 已过满（无松弛）：本相仅能右移（缩线后音素）
+            reachableInAbsorb = StartOf(oldDur) <= targetRel;
         }
-        for (int it = 0; it < 40; it++)   // 在 [0, hiD] 内解 targetRel；超出可达则收敛到 hiD（clamp）
+
+        if (reachableInAbsorb)   // 相①内可达：核吸收、其后不动，bisect [minDur, hiD]（首音素头下限=拍后半，其余为 0）
         {
-            double mid = (loD + hiD) / 2;
-            if (StartOf(mid) <= targetRel) hiD = mid; else loD = mid;
+            double loD = minDur;
+            if (hiD < loD) hiD = loD;
+            for (int it = 0; it < 40; it++) { double mid = (loD + hiD) / 2; if (StartOf(mid) <= targetRel) hiD = mid; else loD = mid; }
+            Phonemes[index].Duration.Set(hiD);
+            return;
         }
+
+        // 相②：弹性耗尽仍没到目标 → 线后钳到耗尽点，转刚性守恒转移（线前/线后间分配、和不变）。
         Phonemes[index].Duration.Set(hiD);
+        IPhoneme? linePrev = null; INote? prevOwner = null; int prevIdx = -1;
+        if (index >= 1) { linePrev = Phonemes[index - 1]; prevOwner = this; prevIdx = index - 1; }
+        else if (PrevContentNeighbor() is { } pn && pn.HasPinnedPhonemes && pn.PhonemeCount > 0) { prevOwner = pn; prevIdx = pn.PhonemeCount - 1; linePrev = pn.Phonemes[prevIdx]; }
+
+        if (linePrev != null && linePrev.StretchWeight.Value == 0 && Phonemes[index].StretchWeight.Value == 0)
+        {
+            double curNom = hiD;
+            double prevNom = Math.Max(0, linePrev.Duration.Value);
+            // 转移量 x：线后 = curNom + x、线前 = prevNom − x；x ∈ [−curNom, prevNom]。x↑ ⇒ 线后长/线前短 ⇒ 分界线左移（起点↓，单调减）。
+            double StartRoll(double x) => prevOwner == this
+                ? ResolvedRelTimes(index, curNom + x, double.NaN, prevIdx, prevNom - x)[index].Start
+                : ResolvedRelTimes(index, curNom + x, double.NaN, -1, 0, prevIdx, prevNom - x)[index].Start;
+            double loX = -curNom, hiX = prevNom;
+            for (int it = 0; it < 48; it++) { double mid = (loX + hiX) / 2; if (StartRoll(mid) <= targetRel) hiX = mid; else loX = mid; }
+            double x = (loX + hiX) / 2;
+            Phonemes[index].Duration.Set(curNom + x);
+            linePrev.Duration.Set(prevNom - x);
+        }
+        // else：无可转移的刚性线前（线前是弹性核 / 无前 note）→ 已钳在耗尽点、止于此（不畸大）。
     }
 }
 
