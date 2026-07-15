@@ -27,7 +27,8 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
 
         double start = points[0].Pos;
         double end = points[points.Count - 1].Pos;
-        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        var dirty = AnchorDirtyRange.PiecewiseGroup();
+        void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         var startPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
         var endPoints = new System.Collections.Generic.LinkedList<AnchorPoint>();
@@ -99,13 +100,21 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
             mAnchorGroups.RemoveAt(insertIndex);
         }
         mAnchorGroups.Insert(insertIndex, newLine);
+        dirty.Union(start, end);
+        // 新旧曲线接缝处的锚点改写了保留段一侧的切线，按影响半径向保留段外扩
+        if (startPoints.Count > 0)
+            dirty.Touch(newLine, startPoints.Count - 1);
+        if (endPoints.Count > 0)
+            dirty.Touch(newLine, startPoints.Count + points.Count);
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }
 
     public void Clear(double start, double end)
     {
-        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        var dirty = AnchorDirtyRange.PiecewiseGroup();
+        dirty.Union(start, end);
+        void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         for (int gi = mAnchorGroups.Count - 1; gi >= 0; gi--)
         {
@@ -140,6 +149,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                 var endLine = new T();
                 endLine.SetInfo(endPoints);
                 mAnchorGroups.Insert(gi + 1, endLine);
+                dirty.Touch(endLine, 0);   // 边界锚点改写保留尾段起始处的切线
             }
 
             if (anchorGroup.Start < start)
@@ -154,6 +164,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                     }
                 }
                 anchorGroup.Add(newPoint);
+                dirty.Touch(anchorGroup, anchorGroup.Count - 1);   // 边界锚点改写保留头段末尾处的切线
             }
             else
             {
@@ -181,10 +192,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
         for (int gi = AnchorGroups.Count - 1; gi >= 0; gi--)
         {
             var anchorGroup = AnchorGroups[gi];
-            double start = anchorGroup.End;
-            double end = anchorGroup.Start;
+            var dirty = AnchorDirtyRange.PiecewiseGroup();
             bool hasSelectedAnchor = false;
-            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
             for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
             {
                 if (anchorGroup[pi].Pos > e)
@@ -199,8 +209,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                     hasSelectedAnchor = true;
                 }
 
-                end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
-                start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                dirty.Touch(anchorGroup, pi);
                 anchorGroup.RemoveAt(pi);
             }
             if (anchorGroup.IsEmpty())
@@ -219,10 +228,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
         for (int gi = AnchorGroups.Count - 1; gi >= 0; gi--)
         {
             var anchorGroup = AnchorGroups[gi];
-            double start = anchorGroup.End;
-            double end = anchorGroup.Start;
+            var dirty = AnchorDirtyRange.PiecewiseGroup();
             bool hasSelectedAnchor = false;
-            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
             for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
             {
                 if (anchorGroup[pi].IsSelected)
@@ -233,8 +241,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                         hasSelectedAnchor = true;
                     }
 
-                    end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
-                    start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    dirty.Touch(anchorGroup, pi);
                     anchorGroup.RemoveAt(pi);
                 }
             }
@@ -260,10 +267,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
         for (int gi = AnchorGroups.Count - 1; gi >= 0; gi--)
         {
             var anchorGroup = AnchorGroups[gi];
-            double start = anchorGroup.End;
-            double end = anchorGroup.Start;
+            var dirty = AnchorDirtyRange.PiecewiseGroup();
             bool hasDeleteAnchor = false;
-            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
             for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
             {
                 if (anchorGroup[pi] == point)
@@ -274,8 +280,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                         hasDeleteAnchor = true;
                     }
 
-                    end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
-                    start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    dirty.Touch(anchorGroup, pi);
                     anchorGroup.RemoveAt(pi);
 
                     flag--;
@@ -301,9 +306,8 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
 
     public void InsertPoint(AnchorPoint point)
     {
-        double start = point.Pos;
-        double end = point.Pos;
-        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        var dirty = AnchorDirtyRange.PiecewiseGroup();
+        void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         var areaID = this.GetAreaID(point.Pos);
         if (areaID.IsInGroup)
@@ -326,8 +330,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
             }
 
             anchorGroup.Insert(pi, point);
-            start = anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos;
-            end = anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos;
+            dirty.Touch(anchorGroup, pi);
         }
         else
         {
@@ -337,8 +340,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
             {
                 var anchorGroup = mAnchorGroups[areaID.LeftIndex];
                 anchorGroup.Add(point);
-                start = anchorGroup[(anchorGroup.Count - 2).Limit(0, anchorGroup.Count - 1)].Pos;
-                end = anchorGroup[(anchorGroup.Count - 1).Limit(0, anchorGroup.Count - 1)].Pos;
+                dirty.Touch(anchorGroup, anchorGroup.Count - 1);
                 if (rightHasSelectedAnchor)
                 {
                     ConnectAnchorGroup(areaID.LeftIndex);
@@ -350,14 +352,14 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                 {
                     var anchorGroup = mAnchorGroups[areaID.RightIndex];
                     anchorGroup.Insert(0, point);
-                    start = anchorGroup[0.Limit(0, anchorGroup.Count - 1)].Pos;
-                    end = anchorGroup[1.Limit(0, anchorGroup.Count - 1)].Pos;
+                    dirty.Touch(anchorGroup, 0);
                 }
                 else
                 {
                     var anchorGroup = new T();
                     anchorGroup.Add(point);
                     mAnchorGroups.Insert(areaID.RightIndex, anchorGroup);
+                    dirty.Touch(anchorGroup, 0);
                 }
             }
         }
@@ -371,17 +373,16 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
         if (points.IsEmpty())
             return;
 
-        double start = anchorGroup.IsEmpty() ? double.PositiveInfinity : anchorGroup.End;
-        double end = anchorGroup.IsEmpty() ? double.NegativeInfinity : anchorGroup.Start;
-        bool hasDeleteAnchor = false;
-        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        var dirty = AnchorDirtyRange.PiecewiseGroup();
+        bool hasInsertedAnchor = false;
+        void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
 
         if (anchorGroup.IsEmpty())
         {
-            start = points.ConstFirst().Pos;
-            start = points.ConstLast().Pos;
             Push(new UndoOnlyCommand(NotifyRangeModified));
             anchorGroup.SetInfo(points);
+            dirty.Touch(anchorGroup, 0);
+            dirty.Touch(anchorGroup, anchorGroup.Count - 1);
             NotifyRangeModified();
             Push(new RedoOnlyCommand(NotifyRangeModified));
             return;
@@ -398,15 +399,14 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
 
             void Insert(int index)
             {
-                if (!hasDeleteAnchor)
+                if (!hasInsertedAnchor)
                 {
                     Push(new UndoOnlyCommand(NotifyRangeModified));
-                    hasDeleteAnchor = true;
+                    hasInsertedAnchor = true;
                 }
 
                 anchorGroup.Insert(index, anchor);
-                end = Math.Max(end, anchorGroup[(index + 1).Limit(0, anchorGroup.Count - 1)].Pos);
-                start = Math.Min(start, anchorGroup[(index - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                dirty.Touch(anchorGroup, index);
             }
 
             if (pi >= 0 && anchorGroup[pi].Pos == anchor.Pos)
@@ -419,7 +419,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                 Insert(pi + 1);
             }
         }
-        if (hasDeleteAnchor)
+        if (hasInsertedAnchor)
         {
             NotifyRangeModified();
             Push(new RedoOnlyCommand(NotifyRangeModified));
@@ -434,9 +434,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
         var leftAnchorGroup = mAnchorGroups[leftIndex];
         var rightAnchorGroup = mAnchorGroups[leftIndex + 1];
 
-        double start = leftAnchorGroup[(leftAnchorGroup.Count - 2).Limit(0, leftAnchorGroup.Count - 1)].Pos;
-        double end = rightAnchorGroup[1.Limit(0, rightAnchorGroup.Count - 1)].Pos;
-        void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+        int junctionIndex = leftAnchorGroup.Count - 1;
+        var dirty = AnchorDirtyRange.PiecewiseGroup();
+        void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
 
         for (int i = rightAnchorGroup.Count - 1; i >= 0; i--)
@@ -447,6 +447,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
         }
         mAnchorGroups.RemoveAt(leftIndex + 1);
 
+        // 接缝两侧锚点由组端点(切线恒 0)变为内点，切线随邻居重算
+        dirty.Touch(leftAnchorGroup, junctionIndex);
+        dirty.Touch(leftAnchorGroup, junctionIndex + 1);
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }
@@ -459,10 +462,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
             double rightSide = gi == mAnchorGroups.Count - 1 ? double.PositiveInfinity : mAnchorGroups[gi + 1].Start;
             var anchorGroup = mAnchorGroups[gi];
             var selectedAnchors = new System.Collections.Generic.LinkedList<AnchorPoint>();
-            double start = anchorGroup.End;
-            double end = anchorGroup.Start;
+            var dirty = AnchorDirtyRange.PiecewiseGroup();
             bool hasSelectedAnchor = false;
-            void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+            void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
             for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
             {
                 if (anchorGroup[pi].IsSelected)
@@ -473,8 +475,7 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                         hasSelectedAnchor = true;
                     }
 
-                    end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
-                    start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
+                    dirty.Touch(anchorGroup, pi);
                     selectedAnchors.AddFirst(anchorGroup[pi]);
                     anchorGroup.RemoveAt(pi);
                 }
@@ -557,10 +558,9 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
 
             foreach (var anchorGroup in mAnchorGroups)
             {
-                double start = anchorGroup.End;
-                double end = anchorGroup.Start;
+                var dirty = AnchorDirtyRange.PiecewiseGroup();
                 bool hasSelectedAnchor = false;
-                void NotifyRangeModified() => mRangeModified.Invoke(start, end);
+                void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
                 for (int pi = anchorGroup.Count - 1; pi >= 0; pi--)
                 {
                     var anchorPoint = anchorGroup[pi];
@@ -572,9 +572,8 @@ internal class PiecewiseAutomation<T> : DataObject, IPiecewiseAutomation where T
                             hasSelectedAnchor = true;
                         }
 
-                        end = Math.Max(end, anchorGroup[(pi + 1).Limit(0, anchorGroup.Count - 1)].Pos);
-                        start = Math.Min(start, anchorGroup[(pi - 1).Limit(0, anchorGroup.Count - 1)].Pos);
                         anchorGroup[pi] = new AnchorPoint(anchorPoint.Pos, anchorPoint.Value + offsetValue) { IsSelected = true };
+                        dirty.Touch(anchorGroup, pi);
                     }
                 }
 

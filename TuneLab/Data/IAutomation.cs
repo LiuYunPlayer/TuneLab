@@ -17,7 +17,6 @@ internal interface IAutomation : IDataObject<AutomationInfo>
     double[] GetValues(IReadOnlyList<double> ticks);
     void AddLine(IReadOnlyList<AnchorPoint> points, double extend);
     void Clear(double start, double end, double extend);
-    void AddPoints(IReadOnlyList<AnchorPoint> points);
     void InsertPoint(AnchorPoint point);
     void DeletePoints(double start, double end);
     void DeletePoints(IReadOnlyList<AnchorPoint> points);
