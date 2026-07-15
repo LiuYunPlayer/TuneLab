@@ -225,6 +225,7 @@
 
 [Menu]
 "Full Screen" = "全屏"
+"Toggle Parameter Panel" = "显示/隐藏参数面板"
 "Select All" = "全选"
 "Note Tool" = "音符工具"
 "Pitch Pen" = "音高画笔"

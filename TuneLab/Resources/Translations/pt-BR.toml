@@ -220,6 +220,7 @@
 
 [Menu]
 "Full Screen" = "Tela cheia"
+"Toggle Parameter Panel" = "Mostrar/ocultar painel de parâmetros"
 "Select All" = "Selecionar Tudo"
 "Note Tool" = "Nota"
 "Pitch Pen" = "Pitch (Desenho)"

@@ -220,6 +220,7 @@
 
 [Menu]
 "Full Screen" = "전체 화면"
+"Toggle Parameter Panel" = "매개변수 패널 표시/숨기기"
 "Select All" = "모두 선택"
 "Note Tool" = "노트 툴"
 "Pitch Pen" = "피치 툴"

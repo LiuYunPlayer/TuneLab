@@ -354,6 +354,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         Keymap.Register(new() { Id = "transport.gotoEnd", DisplayName = () => "Go to End".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.End), Execute = GotoEnd });
         Keymap.Register(new() { Id = "part.reopenLast", DisplayName = () => "Reopen Last Part".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Tab, KeyBinding.PrimaryModifier), Execute = ReopenLastPart });
 
+        // 域 = view（显示层开关）。参数面板折叠/恢复与拖到最低等价；在 Editor 分发以便钢琴窗/编排区焦点下均可触发。
+        Keymap.Register(new() { Id = "view.toggleParameterPanel", DisplayName = () => "Toggle Parameter Panel".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.P, KeyBinding.PrimaryModifier), Execute = () => mPianoWindow.ToggleParameterPanel() });
+
         // 显示名沿用工具栏（FunctionBar）既有措辞，复用其翻译、与工具栏保持一致。
         RegisterToolCommand("tool.note", "Note Tool", Key.D1, UI.PianoTool.Note);
         RegisterToolCommand("tool.pitch", "Pitch Pen", Key.D2, UI.PianoTool.Pitch);

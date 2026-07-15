@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.GUI;
+using TuneLab.GUI.Components;
 using TuneLab.Data;
 using TuneLab.I18N;
 using TuneLab.Utils;
@@ -29,6 +30,10 @@ internal class ParameterTabBar : Panel
         IHolder<IMidiPart> PartHolder { get; }
         AutomationKey? ActiveAutomation { get; }
         bool IsAutomationVisible(AutomationKey automation);
+        // 参数面板折叠/恢复（tabbar 最左小眼睛）：与 Ctrl+P 共用同一切换逻辑。
+        IActionEvent ParameterPanelVisibilityChanged { get; }
+        bool IsParameterPanelVisible { get; }
+        void ToggleParameterPanel();
     }
 
     public ParameterTabBar(IDependency dependency)
@@ -41,8 +46,27 @@ internal class ParameterTabBar : Panel
         mPitchButton.State = ParameterButton.ButtonState.Visible;
         mPitchButton.StateChangeAsked += (state) => { mPitchButton.State = state; };
 
-        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(0, 9) };;
+        // 左右各让出钢琴键列宽：左侧留给面板开关（避免轨多时居中流式布局铺过来重叠），右侧对称、保持轨按钮相对窗口居中。
+        mAutomationLayout = new() { Orientation = Orientation.Horizontal, HorizontalAlignment=Avalonia.Layout.HorizontalAlignment.Center, Margin = new Thickness(PianoWindow.ROLL_WIDTH, 9) };
         Children.Add(mAutomationLayout);
+
+        // 最左侧：整个参数面板的折叠/恢复开关（底部面板图标，展开=实心底条 / 收起=空底框；不用小眼睛，与轨显隐语义区分）。
+        // 钉在 tabbar 而非参数区标题栏——tabbar 不随面板改高移动，收起后可在原位连点恢复。
+        // 无底色，悬停反馈走图标变色：两态都提亮一档（展开 LIGHT_WHITE→纯白，收起半透明→LIGHT_WHITE），静息时仍保持亮暗有别。
+        var panelIconItem = new IconItem() { Icon = Assets.BottomPanel };
+        mPanelToggle = new Toggle() { Width = 24, Height = 24 }
+            .AddContent(new() { Item = panelIconItem, CheckedColorSet = new() { Color = Style.LIGHT_WHITE, HoveredColor = Colors.White, PressedColor = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Style.LIGHT_WHITE, PressedColor = Style.LIGHT_WHITE } });
+        mPanelToggle.SetupToolTip("Toggle Parameter Panel".Tr(TC.Menu));
+        mPanelToggle.Switched.Subscribe(() => mDependency.ToggleParameterPanel());
+        void SyncPanelToggle()
+        {
+            bool visible = mDependency.IsParameterPanelVisible;
+            panelIconItem.Icon = visible ? Assets.BottomPanel : Assets.BottomPanelCollapsed;
+            mPanelToggle.Display(visible);
+        }
+        mDependency.ParameterPanelVisibilityChanged.Subscribe(SyncPanelToggle, s);
+        SyncPanelToggle();
+        Children.Add(mPanelToggle);
 
         mDependency.PartHolder.Modified.Subscribe(OnPartChanged, s);
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(OnAutomationConfigsChanged, s);
@@ -77,6 +101,8 @@ internal class ParameterTabBar : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         mAutomationLayout.Arrange(new Rect(finalSize));
+        // 面板开关钉在左侧预留区内水平居中（正对钢琴键列）、垂直居中，位置不随轨按钮集合变化。
+        mPanelToggle.Arrange(new Rect((PianoWindow.ROLL_WIDTH - mPanelToggle.Width) / 2, (finalSize.Height - mPanelToggle.Height) / 2, mPanelToggle.Width, mPanelToggle.Height));
         return finalSize;
     }
 
@@ -226,6 +252,7 @@ internal class ParameterTabBar : Panel
     Color Back => Style.INTERFACE;
 
     readonly WrapPanel mAutomationLayout;
+    readonly Toggle mPanelToggle;
     readonly ParameterButton mPitchButton;
     readonly OrderedMap<AutomationKey, ParameterButton> mAutomationButtons = new();
     readonly Map<AutomationKey, ParameterButton> mCacheParameterButtons = new();
