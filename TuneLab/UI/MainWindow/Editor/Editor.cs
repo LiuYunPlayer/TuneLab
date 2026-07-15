@@ -173,28 +173,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             EditorState.TrackWindowHeight.Value = mTrackWindowHeight;
         };
         mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
-        mFunctionBar.GotoStartAsked += () =>
-        {
-            var startTime = 0;
-            AudioEngine.Seek(startTime);
-            if (Project == null) 
-                return;
-
-            var startTick = Project.TempoManager.GetTick(startTime);
-            mTrackWindow.TickAxis.AnimateMoveTickToX(startTick, 0);
-            mPianoWindow.TickAxis.AnimateMoveTickToX(startTick, 0);
-        };
-        mFunctionBar.GotoEndAsked += () =>
-        {
-            var endTime = AudioEngine.EndTime;
-            AudioEngine.Seek(endTime);
-            if (Project == null) 
-                return;
-
-            var endTick = Project.TempoManager.GetTick(endTime);
-            mTrackWindow.TickAxis.AnimateMoveTickToX(endTick, mTrackWindow.TickAxis.ViewLength);
-            mPianoWindow.TickAxis.AnimateMoveTickToX(endTick, mPianoWindow.TickAxis.ViewLength);
-        };
+        mFunctionBar.GotoStartAsked += GotoStart;
+        mFunctionBar.GotoEndAsked += GotoEnd;
         ProjectHolder.WillModify.Subscribe(OnProjectWillChange, s);
         ProjectHolder.Modified.Subscribe(OnProjectChanged, s);
         // 在编 part 被摘除（移动/重排会先 Remove 再 Insert）时暂存到 mDetachedEditingPart——SwitchEditingPart(null)
@@ -368,7 +348,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         Keymap.Register(new() { Id = "edit.selectAll", DisplayName = () => "Select All".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.A, KeyBinding.PrimaryModifier), Execute = () => RouteEdit(p => p.SelectAllInPiano(), t => t.SelectAllInTrack()) });
 
         // 域 = 功能身份，不随分发作用域走（见 docs/keybinding-system.md §1.1）：transport 而非 editor.playback。
+        // 显示名沿用工具栏（FunctionBar）既有措辞，与 Go to Start / Go to End 按钮一致。
         Keymap.Register(new() { Id = "transport.play", DisplayName = () => "Play/Pause".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Space), Execute = ChangePlayState });
+        Keymap.Register(new() { Id = "transport.gotoStart", DisplayName = () => "Go to Start".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Home), Execute = GotoStart });
+        Keymap.Register(new() { Id = "transport.gotoEnd", DisplayName = () => "Go to End".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.End), Execute = GotoEnd });
         Keymap.Register(new() { Id = "part.reopenLast", DisplayName = () => "Reopen Last Part".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Tab, KeyBinding.PrimaryModifier), Execute = ReopenLastPart });
 
         // 显示名沿用工具栏（FunctionBar）既有措辞，复用其翻译、与工具栏保持一致。
@@ -1088,6 +1071,31 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         if (AudioEngine.IsPlaying) AudioEngine.Pause();
         else AudioEngine.Play();
+    }
+
+    // 跳到工程起点/终点：移动播放头，并让轨道窗与钢琴窗时间轴跟过去（与 FunctionBar 按钮同一路径）。
+    void GotoStart()
+    {
+        var startTime = 0;
+        AudioEngine.Seek(startTime);
+        if (Project == null)
+            return;
+
+        var startTick = Project.TempoManager.GetTick(startTime);
+        mTrackWindow.TickAxis.AnimateMoveTickToX(startTick, 0);
+        mPianoWindow.TickAxis.AnimateMoveTickToX(startTick, 0);
+    }
+
+    void GotoEnd()
+    {
+        var endTime = AudioEngine.EndTime;
+        AudioEngine.Seek(endTime);
+        if (Project == null)
+            return;
+
+        var endTick = Project.TempoManager.GetTick(endTime);
+        mTrackWindow.TickAxis.AnimateMoveTickToX(endTick, mTrackWindow.TickAxis.ViewLength);
+        mPianoWindow.TickAxis.AnimateMoveTickToX(endTick, mPianoWindow.TickAxis.ViewLength);
     }
 
     struct Description
