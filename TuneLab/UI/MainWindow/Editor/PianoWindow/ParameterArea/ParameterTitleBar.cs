@@ -18,7 +18,7 @@ namespace TuneLab.UI;
 // 参数区标题栏：既是拖拽改高的把手（空白区拖动），也是合成参数回显轨的显隐工具条。
 // 回显轨是 voice 级扁平只读集合，不入分源的底部 tabbar，故显隐按钮收在这条标题栏里（右对齐）。
 // 复用参数栏的小眼睛图标表显隐：眼睛点亮（config 色）= 可见，眼睛暗（灰白）= 隐藏。
-// 左对齐另置一个波形带显隐开关（波形条图标 + 文本，图标点亮=展开 / 暗=收起），与回显轨显隐相互独立。
+// 左对齐另置一个波形带显隐开关（波形条图标 + 文本，图标点亮=展开 / 暗=收起），最右侧用小眼睛折叠/恢复整个参数面板。
 // 手势共存：按在按钮上 = 切换该显隐（不拖拽）；按在空白区 = 沿用拖拽改高。
 internal class ParameterTitleBar : MovableComponent
 {
@@ -36,6 +36,9 @@ internal class ParameterTitleBar : MovableComponent
         IActionEvent WaveformVisibleChanged { get; }
         bool IsWaveformVisible { get; }
         void SetWaveformVisible(bool isVisible);
+        IActionEvent ParameterPanelVisibilityChanged { get; }
+        bool IsParameterPanelVisible { get; }
+        void ToggleParameterPanel();
     }
 
     IMidiPart? Part => mDependency.PartHolder.Value;
@@ -47,6 +50,7 @@ internal class ParameterTitleBar : MovableComponent
 
         mDependency.ReadbackVisibilityChanged += InvalidateVisual;
         mDependency.WaveformVisibleChanged.Subscribe(InvalidateVisual, s);
+        mDependency.ParameterPanelVisibilityChanged.Subscribe(InvalidateVisual, s);
         mDependency.PartHolder.Modified.Subscribe(InvalidateVisual, s);
         // 换声源 → 回显轨声明随之变（按钮组要立即重绘，否则要等鼠标移上来才刷新）。
         mDependency.PartHolder.When(p => p.SoundSource.Modified).Subscribe(InvalidateVisual, s);
@@ -96,10 +100,25 @@ internal class ParameterTitleBar : MovableComponent
             var textColor = Style.LIGHT_WHITE.ToBrush();
             context.DrawString(chip.Text, new Point(chip.Rect.X + EyeWidth + EyeTextGap, chip.Rect.Y + chip.Rect.Height / 2), textColor, FontSize, Alignment.LeftCenter);
         }
+
+        // 最右侧：整个参数面板的折叠/恢复开关，与 Ctrl+P 共用同一切换逻辑。
+        {
+            var toggle = ParameterPanelToggle();
+            var eyeColor = mDependency.IsParameterPanelVisible ? Style.WHITE : EyeOffColor;
+            var eye = GetEyeImage(eyeColor);
+            eye.Draw(context, new Rect(eye.Size), toggle.IconRect);
+        }
     }
 
     protected override void OnMouseDown(MouseDownEventArgs e)
     {
+        if (e.MouseButtonType == MouseButtonType.PrimaryButton && ParameterPanelToggle().HitRect.Contains(e.Position))
+        {
+            mPressOnChip = true;
+            mDependency.ToggleParameterPanel();
+            return;
+        }
+
         if (e.MouseButtonType == MouseButtonType.PrimaryButton && WaveformToggle().HitRect.Contains(e.Position))
         {
             // 波形开关命中：切换波形带显隐、吞掉本次按下（不进入拖拽）。
@@ -205,7 +224,7 @@ internal class ParameterTitleBar : MovableComponent
         }
 
         double height = Bounds.Height;
-        double x = Bounds.Width - RightMargin - total;
+        double x = ParameterPanelToggle().HitRect.X - ParameterToggleGap - total;
         foreach (var e in elems)
         {
             x += e.GapBefore;
@@ -230,6 +249,17 @@ internal class ParameterTitleBar : MovableComponent
         double width = WaveformIconSize + EyeTextGap + MeasureTextWidth(text);
         var hitRect = new Rect(LeftMargin, 0, width, Bounds.Height).Inflate(new Thickness(ChipHitPadding, 0));
         return (iconRect, textX, text, hitRect);
+    }
+
+    (Rect IconRect, Rect HitRect) ParameterPanelToggle()
+    {
+        var hitRect = new Rect(Bounds.Width - RightMargin - ParameterToggleWidth, 0, ParameterToggleWidth, Bounds.Height);
+        var iconRect = new Rect(
+            hitRect.X + (hitRect.Width - EyeWidth) / 2,
+            (Bounds.Height - EyeHeight) / 2,
+            EyeWidth,
+            EyeHeight);
+        return (iconRect, hitRect);
     }
 
     IImage GetWaveformIcon(Color color)
@@ -293,6 +323,8 @@ internal class ParameterTitleBar : MovableComponent
     const double RightMargin = 10;
     const double LeftMargin = 10;
     const double WaveformIconSize = 14;
+    const double ParameterToggleWidth = 24;
+    const double ParameterToggleGap = 10;
     const double ChipHitPadding = 6;
     const string DividerText = "|";
 

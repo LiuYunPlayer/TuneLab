@@ -26,7 +26,9 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     public event Action? ReadbackVisibilityChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public IActionEvent WaveformVisibleChanged => mWaveformVisibleChanged;
+    public IActionEvent ParameterPanelVisibilityChanged => mParameterPanelVisibilityChanged;
     public bool IsWaveformVisible => EditorState.WaveformVisible.Value;
+    public bool IsParameterPanelVisible => mParameterHeight > 0.5;
     public TickAxis TickAxis => mTickAxis;
     public PitchAxis PitchAxis => mPitchAxis;
     public IHolder<IMidiPart> PartHolder => mPartHolder;
@@ -68,7 +70,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
     }
     public IReadOnlyList<AutomationKey> VisibleAutomations => mVisibleAutomations;
-    public double WaveformBottom => mPianoScrollView.Bounds.Height - mParameterTitleBar.Bounds.Height - mParameterContainer.Bounds.Height;
+    public double WaveformBottom => mPianoScrollView.Bounds.Height - mParameterTitleBar.Height - mParameterContainer.Height;
     public interface IDependency
     {
         IPlayhead Playhead { get; }
@@ -309,6 +311,24 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         }
     }
 
+    // 一键折叠/恢复参数面板内容高度（标题栏仍保留，与拖到最低等价）。
+    // 收起前把当前非零高度写入 EditorState，恢复时再读回；折叠态本身不落盘为 0，避免覆盖原高度。
+    public void ToggleParameterPanel()
+    {
+        if (mParameterHeight > 0.5)
+        {
+            StoreParameterHeight(mParameterHeight);
+            mParameterHeight = 0;
+            CorrectParameterHeight(false);
+            return;
+        }
+
+        var restore = GetStoredParameterHeight();
+        if (restore < 1)
+            restore = EditorState.Defaults.ParameterPanelHeight;
+        mParameterHeight = restore;
+        CorrectParameterHeight(false);
+    }
 
     void CorrectParameterHeight(bool saveHeight = false)
     {
@@ -320,6 +340,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
             StoreParameterHeight(mParameterHeight);
         }
         mWaveformBottomChanged.Invoke();
+        mParameterPanelVisibilityChanged.Invoke();
     }
 
     void BindWindowState()
@@ -381,6 +402,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     readonly ActionEvent mWaveformBottomChanged = new();
     readonly ActionEvent mWaveformVisibleChanged = new();
+    readonly ActionEvent mParameterPanelVisibilityChanged = new();
     readonly DisposableManager s = new();
 
     readonly Quantization mQuantization;
@@ -401,7 +423,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     // 横向条落在"波形上方"（note 区下沿）：底边留白 = 参数区高 + 波形高（波形可见时），用 Margin 定位。
     void UpdateHorizontalBarMargin()
     {
-        double inset = mParameterTitleBar.Bounds.Height + mParameterContainer.Bounds.Height;
+        double inset = mParameterTitleBar.Height + mParameterContainer.Height;
         if (IsWaveformVisible)
             inset += PianoScrollView.WAVEFORM_HEIGHT;
         mHorizontalScrollBar.Margin = new Thickness(0, 0, 0, inset);

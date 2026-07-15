@@ -220,6 +220,7 @@
 
 [Menu]
 "Full Screen" = "全画面表示"
+"Toggle Parameter Panel" = "パラメータパネルの表示切替"
 "Select All" = "すべて選択"
 "Note Tool" = "ノートツール"
 "Pitch Pen" = "ピッチツール"

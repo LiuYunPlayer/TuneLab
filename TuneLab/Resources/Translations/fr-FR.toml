@@ -220,6 +220,7 @@
 
 [Menu]
 "Full Screen" = "Plein écran"
+"Toggle Parameter Panel" = "Afficher/masquer le panneau des paramètres"
 "Select All" = "Tout sélectionner"
 "Note Tool" = "Outil de Notes"
 "Pitch Pen" = "Tonalité (crayon)"
