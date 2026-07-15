@@ -388,7 +388,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     }
 
     const double TIME_AXIS_HEIGHT = 48;
-    const double ROLL_WIDTH = 64;
+    // 钢琴键列宽：ParameterTabBar 引用它对齐左侧预留区（面板开关正对键列居中）。
+    public const double ROLL_WIDTH = 64;
     // 抬高以容纳回显轨显隐 chip（色块 + 文本）；空白区仍可拖拽改高。
     const double PARAMETER_TITLE_BAR_HEIGHT = 24;
 
