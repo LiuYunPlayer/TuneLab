@@ -16,6 +16,7 @@ using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
+using TuneLab.Data.Synthesis;
 using TuneLab.SDK;
 using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Instruments;
@@ -262,8 +263,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
     }
 
     // hover 命中某段 → 在细带下方弹出文案 pill（阶段/进度/错误全文）；pill 锚在段首、不跟随鼠标、渐显渐隐。
+    // 段列表是 z 序图层（底层在前），命中反向遍历取最上层——与画家算法的覆盖语义一致。
     // 失败不再画 ⚠——红条本身已是足够的失败信号；要拿走文字用右键「复制」（见 TrySynthesisStripCopy）。
-    void DrawSynthesisStatusOverlay(DrawingContext context, IReadOnlyList<SynthesisStatusSegment> segments, ITempoManager tempoManager)
+    void DrawSynthesisStatusOverlay(DrawingContext context, IReadOnlyList<SynthesisDisplaySegment> segments, ITempoManager tempoManager)
     {
         // 本帧是否该显示 pill：就绪 + 鼠标在命中区 + 命中到有文案的段。命中时记下内容（渐隐期间仍用这份）。
         bool show = false;
@@ -272,8 +274,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
             var mouse = MousePosition;
             if (mouse.Y >= SynthesisStripTop && mouse.Y <= SynthesisStripTop + SynthesisStripHeight + SynthesisHoverPadding)
             {
-                foreach (var seg in segments)
+                for (int i = segments.Count - 1; i >= 0; i--)
                 {
+                    var seg = segments[i];
                     double left = TickAxis.Tick2X(tempoManager.GetTick(seg.StartTime));
                     double right = TickAxis.Tick2X(tempoManager.GetTick(seg.EndTime));
                     if (mouse.X < left || mouse.X > right)
@@ -284,7 +287,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                         break;
 
                     // 正文（报错/进度）恒在；仅尾部提示在“右键复制 ↔ Copied”间原地切换，文案框不变形、不消失。
-                    bool copyable = seg.Status == SynthesisSegmentStatus.Failed || !string.IsNullOrEmpty(seg.Message);
+                    bool copyable = seg.State is SynthesisDisplayState.Failed or SynthesisDisplayState.Degraded || !string.IsNullOrEmpty(seg.Message);
                     string? hint = null;
                     if (copyable)
                     {
@@ -346,17 +349,23 @@ internal partial class PianoScrollView : View, IPianoScrollView
         return timer;
     }
 
-    string SynthesisStatusText(SynthesisStatusSegment seg)
+    string SynthesisStatusText(SynthesisDisplaySegment seg)
     {
-        switch (seg.Status)
+        switch (seg.State)
         {
-            case SynthesisSegmentStatus.Pending:
+            case SynthesisDisplayState.Pending:
                 return "Pending".Tr(this);
-            case SynthesisSegmentStatus.Synthesized:
+            case SynthesisDisplayState.Final:
                 return "Synthesized".Tr(this);
-            case SynthesisSegmentStatus.Failed:
+            case SynthesisDisplayState.Claimed:
+            case SynthesisDisplayState.Interim:
+                // 声称完成 / 待下游：非最终的软绿——有引擎/宿主文案用之，否则按"已合成(待定)"意会到已合成文案。
+                return string.IsNullOrEmpty(seg.Message) ? "Synthesized".Tr(this) : seg.Message;
+            case SynthesisDisplayState.Failed:
                 return string.IsNullOrEmpty(seg.Message) ? "Synthesis failed".Tr(this) : seg.Message;
-            case SynthesisSegmentStatus.Synthesizing:
+            case SynthesisDisplayState.Degraded:
+                return string.IsNullOrEmpty(seg.Message) ? "Playing unprocessed audio".Tr(this) : seg.Message;
+            case SynthesisDisplayState.Synthesizing:
                 string head = seg.Progress > 0 ? $"{(int)Math.Round(seg.Progress.Limit(0, 1) * 100)}%" : "Synthesizing".Tr(this);
                 return string.IsNullOrEmpty(seg.Message) ? head : head + " · " + seg.Message;
             default:
@@ -709,7 +718,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         bool anySynthesizing = false;
         for (int i = 0; i < synthesisStatus.Count; i++)
         {
-            if (synthesisStatus[i].Status == SynthesisSegmentStatus.Synthesizing)
+            if (synthesisStatus[i].State == SynthesisDisplayState.Synthesizing)
             {
                 anySynthesizing = true;
                 break;

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using TuneLab.Foundation;
 using TuneLab.GUI.Components;
 using TuneLab.Data;
+using TuneLab.Data.Synthesis;
 using TuneLab.GUI;
 using TuneLab.SDK;
 using TuneLab.Audio;
@@ -119,7 +120,7 @@ internal partial class TrackScrollView : View
     void UpdateSynthesisShimmer()
     {
         bool anySynthesizing = Project != null && Project.Tracks.Any(
-            t => t.Parts.Any(p => p is MidiPart mp && mp.GetSynthesisStatus().Any(s => s.Status == SynthesisSegmentStatus.Synthesizing)));
+            t => t.Parts.Any(p => p is MidiPart mp && mp.GetSynthesisStatus().Any(s => s.State == SynthesisDisplayState.Synthesizing)));
 
         if (anySynthesizing)
         {

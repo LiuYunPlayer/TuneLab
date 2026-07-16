@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Сочетание используется в разных областях"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Это сочетание также используется командой {0} в другой области. Оба остаются активными — приоритет у привязки активной области."
 "Conflicts with {0} in the same area; this one currently takes effect." = "Конфликтует с {0} в той же области; сейчас действует эта команда."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Синтез"
 "Synthesized" = "Синтезировано"
 "Synthesis failed" = "Сбой синтеза"
+"Playing unprocessed audio" = "Воспроизводится необработанный звук"
 "Right-click to copy" = "Щёлкните правой кнопкой, чтобы скопировать"
 "Copied" = "Скопировано"
 
@@ -380,3 +381,8 @@
 "Model" = "Модель"
 "Temperature" = "Температура"
 "Max Tokens (0=auto)" = "Макс. токенов (0=авто)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Обработка эффекта: {0} ({1}/{2})"
+"Processing effects" = "Обработка эффектов"
+"Effect {0} failed, playing unprocessed audio" = "Эффект {0} не сработал, воспроизводится необработанный звук"

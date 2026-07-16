@@ -55,7 +55,7 @@ internal class MidiPart : Part, IMidiPart
     public ISynthesisPipeline? SynthesisPipeline => mPipeline;
     public bool IsSynthesisBatching => mSynthesisBatch.IsBatching;
     internal BatchSignal SynthesisBatch => mSynthesisBatch;
-    public IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus() => mPipeline?.GetStatus() ?? [];
+    public IReadOnlyList<SynthesisDisplaySegment> GetSynthesisStatus() => mPipeline?.GetStatus() ?? [];
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => mPipeline?.SynthesizedPitch ?? [];
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mPipeline?.SynthesizedParameters ?? EmptySynthesizedParameters;
     public IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect) => mPipeline?.GetEffectSynthesizedParameters(effect) ?? EmptySynthesizedParameters;
@@ -181,7 +181,7 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 某个 effect 的参数/启用/自动化变化：失效与重处理由效果图各 processor 订阅自管（processor 经
-    // IEffectContext 自算 dirty），宿主此处只处理条件自动化轨集合的 UI 增量刷新。
+    // IEffectSynthesisContext 自算 dirty），宿主此处只处理条件自动化轨集合的 UI 增量刷新。
     void OnEffectModified(IEffect effect)
     {
         int index = mEffects.IndexOf(effect);

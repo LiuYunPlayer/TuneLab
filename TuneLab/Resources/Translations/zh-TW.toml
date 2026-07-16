@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "快捷鍵跨區域共用"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "該快捷鍵在另一區域也被 {0} 使用。兩者皆生效——以聚焦區域的綁定優先。"
 "Conflicts with {0} in the same area; this one currently takes effect." = "與 {0} 在同一區域衝突；此命令目前生效。"
@@ -86,6 +86,7 @@
 "Synthesizing" = "合成中"
 "Synthesized" = "已合成"
 "Synthesis failed" = "合成失敗"
+"Playing unprocessed audio" = "正在播放未處理音訊"
 "Right-click to copy" = "右鍵複製"
 "Copied" = "已複製"
 
@@ -385,3 +386,8 @@
 "Model" = "模型"
 "Temperature" = "溫度"
 "Max Tokens (0=auto)" = "最大 Token 數（0=自動）"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "正在處理效果器：{0}（{1}/{2}）"
+"Processing effects" = "正在處理效果器"
+"Effect {0} failed, playing unprocessed audio" = "效果器 {0} 處理失敗，正在播放未處理音訊"

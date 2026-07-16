@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Скорочення спільне для областей"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Це скорочення також використовує {0} в іншій області. Обидва лишаються активними — пріоритет має прив'язка активної області."
 "Conflicts with {0} in the same area; this one currently takes effect." = "Конфліктує з {0} у тій самій області; зараз діє ця команда."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Синтезування"
 "Synthesized" = "Синтезовано"
 "Synthesis failed" = "Помилка синтезу"
+"Playing unprocessed audio" = "Відтворюється необроблений звук"
 "Right-click to copy" = "Клацніть правою кнопкою, щоб скопіювати"
 "Copied" = "Скопійовано"
 
@@ -380,3 +381,8 @@
 "Model" = "Модель"
 "Temperature" = "Температура"
 "Max Tokens (0=auto)" = "Макс. токенів (0=авто)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Обробка ефекту: {0} ({1}/{2})"
+"Processing effects" = "Обробка ефектів"
+"Effect {0} failed, playing unprocessed audio" = "Помилка ефекту {0}, відтворюється необроблений звук"

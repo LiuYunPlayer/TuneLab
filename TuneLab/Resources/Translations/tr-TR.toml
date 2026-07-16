@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Kısayol alanlar arasında paylaşılıyor"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Bu kısayol başka bir alanda {0} tarafından da kullanılıyor. İkisi de etkin kalır — odaklanılan alanın ataması önceliklidir."
 "Conflicts with {0} in the same area; this one currently takes effect." = "Aynı alanda {0} ile çakışıyor; şu anda bu komut etkin."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Sentezleniyor"
 "Synthesized" = "Sentezlendi"
 "Synthesis failed" = "Sentez başarısız"
+"Playing unprocessed audio" = "İşlenmemiş ses çalınıyor"
 "Right-click to copy" = "Kopyalamak için sağ tıklayın"
 "Copied" = "Kopyalandı"
 
@@ -380,3 +381,8 @@
 "Model" = "Model"
 "Temperature" = "Sıcaklık"
 "Max Tokens (0=auto)" = "Maks. Token (0=otomatik)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Efekt işleniyor: {0} ({1}/{2})"
+"Processing effects" = "Efektler işleniyor"
+"Effect {0} failed, playing unprocessed audio" = "{0} efekti başarısız oldu, işlenmemiş ses çalınıyor"

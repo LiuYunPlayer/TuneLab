@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Scorciatoia condivisa tra aree"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Questa scorciatoia è usata anche da {0} in un'altra area. Entrambe restano attive: ha priorità l'assegnazione dell'area attiva."
 "Conflicts with {0} in the same area; this one currently takes effect." = "In conflitto con {0} nella stessa area; questo comando è attualmente attivo."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Sintesi in corso"
 "Synthesized" = "Sintetizzato"
 "Synthesis failed" = "Sintesi fallita"
+"Playing unprocessed audio" = "Riproduzione dell'audio non elaborato"
 "Right-click to copy" = "Clic destro per copiare"
 "Copied" = "Copiato"
 
@@ -380,3 +381,8 @@
 "Model" = "Modello"
 "Temperature" = "Temperatura"
 "Max Tokens (0=auto)" = "Token max (0=auto)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Elaborazione effetto: {0} ({1}/{2})"
+"Processing effects" = "Elaborazione effetti"
+"Effect {0} failed, playing unprocessed audio" = "Effetto {0} non riuscito, riproduzione dell'audio non elaborato"

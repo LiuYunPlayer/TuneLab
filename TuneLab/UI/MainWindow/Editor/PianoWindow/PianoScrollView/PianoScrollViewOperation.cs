@@ -5,6 +5,7 @@ using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
+using TuneLab.Data.Synthesis;
 using TuneLab.SDK;
 using Rect = Avalonia.Rect;
 using ContextMenu = Avalonia.Controls.ContextMenu;
@@ -48,14 +49,17 @@ internal partial class PianoScrollView
             return false;
 
         var tempoManager = Part.TempoManager;
-        foreach (var seg in Part.GetSynthesisStatus())
+        var segments = Part.GetSynthesisStatus();
+        // z 序图层（底层在前）：反向遍历取最上层——与绘制覆盖、hover pill 同一命中语义。
+        for (int i = segments.Count - 1; i >= 0; i--)
         {
+            var seg = segments[i];
             double left = TickAxis.Tick2X(tempoManager.GetTick(seg.StartTime));
             double right = TickAxis.Tick2X(tempoManager.GetTick(seg.EndTime));
             if (position.X < left || position.X > right)
                 continue;
 
-            bool worthCopying = seg.Status == SynthesisSegmentStatus.Failed || !string.IsNullOrEmpty(seg.Message);
+            bool worthCopying = seg.State is SynthesisDisplayState.Failed or SynthesisDisplayState.Degraded || !string.IsNullOrEmpty(seg.Message);
             if (!worthCopying)
                 return false;
 

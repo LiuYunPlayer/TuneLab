@@ -428,8 +428,8 @@ internal static class ExtensionManager
 
             case "effect":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryScanCtor<IEffectEngine>(assembly, candidates, out var ector, out error)) return false;
-                EffectManager.RegisterEngine(packageId, ext.engine, displayName, (IEffectEngine)ector!.Invoke(null));
+                if (!TryScanCtor<IEffectSynthesisEngine>(assembly, candidates, out var ector, out error)) return false;
+                EffectManager.RegisterEngine(packageId, ext.engine, displayName, (IEffectSynthesisEngine)ector!.Invoke(null));
                 return true;
 
             case "agent-model":

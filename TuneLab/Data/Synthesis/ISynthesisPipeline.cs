@@ -30,7 +30,9 @@ internal interface ISynthesisPipeline : IDisposable
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
     IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect);
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();
+    // 状态带显示图层（z 序平铺列表，底层在前；画家算法）：
+    // 声称完成垫底 → 音频事实 → voice Pending（排队声明）→ effect 活动声称 → voice 合成中/失败恒顶。
+    IReadOnlyList<SynthesisDisplaySegment> GetStatus();
 
     // —— 调度面（Editor 驱动逐步合成）——
     SynthesisRange? PeekNext(double startTime, double endTime);

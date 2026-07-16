@@ -33,7 +33,21 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSession.SynthesizedParameters;
     // 某个 effect 的回显曲线（聚合其各段 processor 的回显）；非本管线的 effect 返回空 map。
     public IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect) => mEffectGraph.GetSynthesizedParameters(effect);
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mSession.GetStatus();
+    // 状态带显示图层（画家算法，底层在前）：声称完成垫底 → 音频事实 → voice Pending（排队声明，
+    // 盖过陈旧事实绿、被活动覆盖）→ effect 活动声称 → voice 合成中/失败恒顶。
+    // 亮绿 Final 只能来自链尾音频事实（图层来源保证「绿=听到的即最终」）。
+    public IReadOnlyList<SynthesisDisplaySegment> GetStatus()
+    {
+        var layers = new List<SynthesisDisplaySegment>();
+        var effectActive = new List<SynthesisDisplaySegment>();
+        var claims = mSession.GetStatus();
+        SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.ClaimedDone);
+        mEffectGraph.CollectDisplaySegments(layers, effectActive);
+        SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.Pending);
+        layers.AddRange(effectActive);
+        SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.Active);
+        return layers;
+    }
 
     public VoiceSynthesisPipeline(MidiPart part, string voiceType, string voiceId)
     {

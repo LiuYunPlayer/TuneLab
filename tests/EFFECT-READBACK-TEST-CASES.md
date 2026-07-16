@@ -5,8 +5,8 @@
 >    具名富类型 `SynthesizedParameter`（含 `Segments`）。voice 回显行为**不变**——本文只验证它没回归，细节见
 >    `SYNTHESIZED-PARAMETER-READBACK-TEST-CASES.md`，不重复。
 > 2. **效果器回显轨（新）**：effect 引擎也能像 voice 一样暴露**一等只读回显轨**。轨形态由引擎经
->    `IEffectEngine.GetSynthesizedParameterConfigs(context)` 声明（独立 key、自带 DisplayText/Min/Max/Color、
->    分段形 `DefaultValue=NaN`），曲线数据经 `IEffectProcessor.SynthesizedParameters` 按同一批 key 承载、由宿主
+>    `IEffectSynthesisEngine.GetSynthesizedParameterConfigs(context)` 声明（独立 key、自带 DisplayText/Min/Max/Color、
+>    分段形 `DefaultValue=NaN`），曲线数据经 `IEffectSynthesisProcessor.SynthesizedParameters` 按同一批 key 承载、由宿主
 >    聚合该 effect 各段后呈现。宿主把 voice 与各 effect 的回显轨**按源统一**到参数区标题栏，复用同一套显隐/绘制。
 >
 > 回显是**只读呈现层**：不可编辑、不可激活、不进数据层、不参与序列化（与 voice 回显同构）。

@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "ショートカットの領域間共有"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "このショートカットは別の領域でも {0} が使用しています。どちらも有効で、フォーカス中の領域の割り当てが優先されます。"
 "Conflicts with {0} in the same area; this one currently takes effect." = "同じ領域で {0} と競合しています。現在はこのコマンドが有効です。"
@@ -86,6 +86,7 @@
 "Synthesizing" = "合成中"
 "Synthesized" = "合成完了"
 "Synthesis failed" = "合成に失敗しました"
+"Playing unprocessed audio" = "未処理のオーディオを再生中"
 "Right-click to copy" = "右クリックでコピー"
 "Copied" = "コピーしました"
 
@@ -380,3 +381,8 @@
 "Model" = "モデル"
 "Temperature" = "温度"
 "Max Tokens (0=auto)" = "最大トークン数（0=自動）"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "エフェクト処理中：{0}（{1}/{2}）"
+"Processing effects" = "エフェクト処理中"
+"Effect {0} failed, playing unprocessed audio" = "エフェクト {0} の処理に失敗、未処理のオーディオを再生中"

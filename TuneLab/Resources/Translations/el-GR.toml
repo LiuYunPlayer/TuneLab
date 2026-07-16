@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Κοινή συντόμευση μεταξύ περιοχών"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Αυτή η συντόμευση χρησιμοποιείται επίσης από {0} σε άλλη περιοχή. Και οι δύο παραμένουν ενεργές — προτεραιότητα έχει η αντιστοίχιση της εστιασμένης περιοχής."
 "Conflicts with {0} in the same area; this one currently takes effect." = "Συγκρούεται με {0} στην ίδια περιοχή· αυτή η εντολή ισχύει αυτήν τη στιγμή."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Σύνθεση σε εξέλιξη"
 "Synthesized" = "Ολοκληρωμένη σύνθεση"
 "Synthesis failed" = "Η σύνθεση απέτυχε"
+"Playing unprocessed audio" = "Αναπαραγωγή μη επεξεργασμένου ήχου"
 "Right-click to copy" = "Δεξί κλικ για αντιγραφή"
 "Copied" = "Αντιγράφηκε"
 
@@ -380,3 +381,8 @@
 "Model" = "Μοντέλο"
 "Temperature" = "Θερμοκρασία"
 "Max Tokens (0=auto)" = "Μέγιστα Tokens (0=αυτόματο)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Επεξεργασία εφέ: {0} ({1}/{2})"
+"Processing effects" = "Επεξεργασία εφέ"
+"Effect {0} failed, playing unprocessed audio" = "Το εφέ {0} απέτυχε, αναπαραγωγή μη επεξεργασμένου ήχου"

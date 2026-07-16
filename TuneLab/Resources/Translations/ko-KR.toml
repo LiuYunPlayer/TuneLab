@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "영역 간 단축키 공유"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "이 단축키는 다른 영역에서 {0}에도 사용됩니다. 둘 다 활성 상태이며, 포커스된 영역의 바인딩이 우선합니다."
 "Conflicts with {0} in the same area; this one currently takes effect." = "같은 영역에서 {0}과(와) 충돌합니다. 현재 이 명령이 적용됩니다."
@@ -86,6 +86,7 @@
 "Synthesizing" = "합성 중"
 "Synthesized" = "합성 완료"
 "Synthesis failed" = "합성 실패"
+"Playing unprocessed audio" = "처리되지 않은 오디오 재생 중"
 "Right-click to copy" = "우클릭하여 복사"
 "Copied" = "복사됨"
 
@@ -380,3 +381,8 @@
 "Model" = "모델"
 "Temperature" = "온도"
 "Max Tokens (0=auto)" = "최대 토큰 수 (0=자동)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "이펙트 처리 중: {0} ({1}/{2})"
+"Processing effects" = "이펙트 처리 중"
+"Effect {0} failed, playing unprocessed audio" = "이펙트 {0} 처리 실패, 처리되지 않은 오디오 재생 중"

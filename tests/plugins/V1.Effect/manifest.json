@@ -3,10 +3,12 @@
   "name": "V1 Test Effect",
   "version": "1.0.0",
   "author": "TuneLab Tests",
-  "description": "V1 effect 测试：同包两个引擎 Gain(参数增益) + Reverse(倒放)，验证 effect 链/bypass/重排/参数面板。",
+  "description": "V1 effect 测试：同包四个引擎 Gain(参数增益) + Reverse(倒放) + Slow Gain(慢速进度演示) + Fail Demo(恒失败降级演示)，验证 effect 链/bypass/重排/参数面板/状态带。",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "effect", "engine": "TLTestGain",    "name": "Gain",    "classes": ["TuneLab.TestPlugins.V1Effect.GainEffectEngine"],    "assembly": "V1.Effect.dll" },
-    { "type": "effect", "engine": "TLTestReverse", "name": "Reverse", "classes": ["TuneLab.TestPlugins.V1Effect.ReverseEffectEngine"], "assembly": "V1.Effect.dll" }
+    { "type": "effect", "engine": "TLTestGain",     "name": "Gain",      "classes": ["TuneLab.TestPlugins.V1Effect.GainEffectEngine"],     "assembly": "V1.Effect.dll" },
+    { "type": "effect", "engine": "TLTestReverse",  "name": "Reverse",   "classes": ["TuneLab.TestPlugins.V1Effect.ReverseEffectEngine"],  "assembly": "V1.Effect.dll" },
+    { "type": "effect", "engine": "TLTestSlowGain", "name": "Slow Gain", "classes": ["TuneLab.TestPlugins.V1Effect.SlowGainEffectEngine"], "assembly": "V1.Effect.dll" },
+    { "type": "effect", "engine": "TLTestFail",     "name": "Fail Demo", "classes": ["TuneLab.TestPlugins.V1Effect.FailEffectEngine"],     "assembly": "V1.Effect.dll" }
   ]
 }

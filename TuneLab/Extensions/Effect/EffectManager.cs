@@ -31,7 +31,7 @@ internal static class EffectManager
     // type 是不可变身份 id（工程序列化引用）；displayName 仅供 UI 展示、可本地化。
     // packageId 是来源插件包的反向域名 id（内建为 (built-in)）——身份组按它区分各包实现，并供扩展设置按包分桶。
     // 引擎 Init 无参：插件 DLL 经 Assembly.Location 自定位包目录，无需宿主递路径。
-    public static void RegisterEngine(string packageId, string type, string displayName, IEffectEngine engine)
+    public static void RegisterEngine(string packageId, string type, string displayName, IEffectSynthesisEngine engine)
     {
         if (!mEngines.TryGetValue(type, out var list))
         {
@@ -73,7 +73,7 @@ internal static class EffectManager
     }
 
     // 取该身份活实现且已 Init 的引擎；未注册 / Init 失败返回 null（调用方按 passthrough 优雅降级，不崩主程序）。
-    public static IEffectEngine? GetInitedEngine(string type)
+    public static IEffectSynthesisEngine? GetInitedEngine(string type)
     {
         var engine = ActiveStatus(type);
         if (engine == null)
@@ -99,13 +99,13 @@ internal static class EffectManager
 
     class EffectEngineStatus
     {
-        public IEffectEngine Engine => mEngine;
+        public IEffectSynthesisEngine Engine => mEngine;
         public string DisplayName { get; }
         public string PackageId { get; }
         [MemberNotNullWhen(true, nameof(Engine))]
         public bool IsInited => mIsInited;
 
-        public EffectEngineStatus(IEffectEngine engine, string displayName, string packageId)
+        public EffectEngineStatus(IEffectSynthesisEngine engine, string displayName, string packageId)
         {
             mEngine = engine;
             DisplayName = displayName;
@@ -129,7 +129,7 @@ internal static class EffectManager
             return mIsInited;
         }
 
-        readonly IEffectEngine mEngine;
+        readonly IEffectSynthesisEngine mEngine;
         bool mIsInited = false;
     }
 

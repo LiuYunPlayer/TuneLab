@@ -30,7 +30,19 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
     public IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch => [];
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSession.SynthesizedParameters;
     public IReadOnlyMap<string, SynthesizedParameter> GetEffectSynthesizedParameters(IEffect effect) => mEffectGraph.GetSynthesizedParameters(effect);
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mSession.GetStatus();
+    // 状态带显示图层（与 voice 管线同构的画家算法组装；z 序见 VoiceSynthesisPipeline.GetStatus）。
+    public IReadOnlyList<SynthesisDisplaySegment> GetStatus()
+    {
+        var layers = new List<SynthesisDisplaySegment>();
+        var effectActive = new List<SynthesisDisplaySegment>();
+        var claims = mSession.GetStatus();
+        SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.ClaimedDone);
+        mEffectGraph.CollectDisplaySegments(layers, effectActive);
+        SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.Pending);
+        layers.AddRange(effectActive);
+        SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.Active);
+        return layers;
+    }
 
     public InstrumentSynthesisPipeline(MidiPart part, string instrumentType, string instrumentId)
     {

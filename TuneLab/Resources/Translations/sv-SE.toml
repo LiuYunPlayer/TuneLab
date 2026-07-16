@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Genväg delas mellan områden"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Den här genvägen används även av {0} i ett annat område. Båda förblir aktiva — bindningen för det fokuserade området har företräde."
 "Conflicts with {0} in the same area; this one currently takes effect." = "Krockar med {0} i samma område; det här kommandot gäller för närvarande."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Syntetiserar"
 "Synthesized" = "Syntetiserad"
 "Synthesis failed" = "Syntes misslyckades"
+"Playing unprocessed audio" = "Obearbetat ljud spelas upp"
 "Right-click to copy" = "Högerklicka för att kopiera"
 "Copied" = "Kopierad"
 
@@ -380,3 +381,8 @@
 "Model" = "Modell"
 "Temperature" = "Temperatur"
 "Max Tokens (0=auto)" = "Max tokens (0=auto)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Bearbetar effekt: {0} ({1}/{2})"
+"Processing effects" = "Bearbetar effekter"
+"Effect {0} failed, playing unprocessed audio" = "Effekten {0} misslyckades, obearbetat ljud spelas upp"

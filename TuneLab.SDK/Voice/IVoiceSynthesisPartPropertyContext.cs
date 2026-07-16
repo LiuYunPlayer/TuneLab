@@ -23,7 +23,9 @@ public interface IVoiceSynthesisPartView
     IReadOnlyList<IVoiceSynthesisNoteView> Notes { get; }
     // part 属性值快照（多选 part 时各 part 一个，三态合并归插件：context.Parts.Select(p => p.PartProperties).Merge()）。
     PropertyObject PartProperties { get; }
-    // 已声明自动化轨当前曲线求值器（按 key；查询轴全局秒）：只读 map，可枚举可点取。
+    // 当前**存在用户内容**的自动化轨求值器（按 key；查询轴全局秒；连续/分段/被 vibrato 投影皆算有内容，
+    // 含孤儿）：只读 map，可枚举可点取。外生口径（非「已声明」）：声明集 = f(context)，按声明枚举会把
+    // 引擎上一轮输出喂回声明求值；未绘制且无投影的已声明轨不在 map——其值恒为引擎自知的默认。
     IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
 }
 

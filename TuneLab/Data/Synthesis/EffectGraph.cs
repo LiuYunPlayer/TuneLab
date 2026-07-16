@@ -6,24 +6,28 @@ using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
+using TuneLab.I18N;
 using TuneLab.SDK;
 using TuneLab.Utils;
 
 namespace TuneLab.Data.Synthesis;
 
-// 「effect 实例 × 段」反应式处理器图：voice 交付的每个音频段（及链上每一级的输出段）都是图中一个输入；
-// 每个「启用且引擎可用的 effect × 一个输入段」配一个厚 IEffectProcessor 节点（自管该段失效与重处理）。
+// 「effect 实例 × 段」反应式处理器图：voice 交付的每个音频段是一棵下游树的根——每级 effect 对每个输入段
+// 配一个厚 IEffectSynthesisProcessor 节点，节点产出分段自由（1→N，如按静音切分的 splitter），
+// 各输出段各自成为下一级节点的输入；输入面恒单段（消费单元 = 宿主的失效/调度/身份/错误半径粒度）。
 //
 // 模型（段间彼此无共享上下文，分别处理后由消费端按时间混音）：
-//   · voice 段 Commit → 作为第一级各 processor 的 Input；某级 processor 的输出段集 → 下一级各建 processor 接为 Input。
-//   · 失效自管：processor 订阅自己的 IEffectContext（Input.Committed / Properties.Modified / automation.RangeModified）
-//     自算 dirty，于 context.Committed 触发 ProcessingRequested；宿主据此把该节点标 Pending 并调度 Process。
+//   · 失效判定权归宿主（SDK 零上报义务）：本段输入重 Commit / 本 effect 参数 settled 变更 /
+//     本 effect 自动化变更区间与本段相交 → 保守标该节点 Pending（编辑批量经 part 合成批量收口，
+//     BatchEnd 一次性放行）；引擎在 Process 内自比缓存早退去重（不重 Commit 即跳过下游）。
 //   · 调度：跨段/跨 part 并行，受 EffectTaskGate（Settings.MaxParallelSynthesisTasks）全局封顶；
-//     按播放线就近挑 Pending 节点。链尾各输出段汇为 SynthesizedSegments（消费端按绝对时间混音）。
-//   · bypass / 引擎缺失的 effect 不建节点（该级整体 passthrough，输入直接喂下一级 / 链尾）。
+//     按播放线就近挑 Pending 节点。树尾各输出段汇为 SynthesizedSegments（消费端按绝对时间混音）。
+//   · bypass / 引擎缺失的 effect 不建节点（该级整体 passthrough，输入直接喂下一级 / 树尾）。
+//   · 状态图层：树的调度事实（Final/Interim/Degraded）与各活动节点的声称经 CollectDisplaySegments
+//     按 z 序交给管线拼装（画家算法，见 SynthesisDisplaySegment）。
 //
-// 线程纪律：除 processor.Process 内部 offload 的 worker 外，全部成员仅数据线程访问（活视图纪律）。
-// processor 的 ProcessingRequested 恒在数据线程触发（见 SDK 约定）。
+// 线程纪律：除 processor.Process 内部 offload 的 worker 与 StatusChanged（任意线程触发、此处 marshal）外，
+// 全部成员仅数据线程访问（活视图纪律）。
 internal sealed class EffectGraph : IDisposable
 {
     public EffectGraph(MidiPart part, IAudioSegmentHost segments, CancellationToken cancellation, Action onChanged, Action onSettled)
@@ -33,6 +37,7 @@ internal sealed class EffectGraph : IDisposable
         mCancellation = cancellation;
         mOnChanged = onChanged;
         mOnSettled = onSettled;
+        mSyncContext = SynchronizationContext.Current ?? throw new InvalidOperationException("EffectGraph must be created on the data thread.");
         mPumpCallback = RequestSchedule;
         mOnVoiceSegmentsChanged = RequestSchedule;
         mSegments.AudioSegmentsChanged += mOnVoiceSegmentsChanged;
@@ -50,6 +55,161 @@ internal sealed class EffectGraph : IDisposable
 
     // 仍有在飞 Process（用于管线延迟销毁：voice/effect 都归后才销毁会话与图）。
     public bool IsBusy => mRunningCount > 0;
+
+    // 把 effect 侧的状态带图层按 z 序追加进 output（数据线程；画家算法——底层在前，管线再拼 voice 声称）：
+    //   ① 声称完成（Claimed，软绿垫底）：活动 processor 自报的 Synthesized 段（非最终，会被事实覆盖）；
+    //   ② 事实层（每树）：干净完成 → 各树尾段范围 Final（亮绿只能由此产生；1→N 时天然多段）；
+    //      定局但有级失败 → Degraded（琥珀，passthrough 降级，范围 = 树已知内容之并）；
+    //      在飞/截断 → Interim（软绿，已提交的头段/中间产物之并——重处理期间"当前听到的内容"就在这里）；
+    //   ③ 活动声称（输出到 activeClaims，由管线在 voice Pending 之上拼装）：**所有**活动节点各自发声称
+    //      （processor 自报或宿主按调度事实兜底：输入范围整段 Synthesizing、无进度、点名 effect 与级序）；
+    //      按级序降序排好——后画在上 ⇒ 最早级的声称最上层（上游在跑意味着下游必将重跑，
+    //      它是该时刻最有信息量的陈述）。
+    public void CollectDisplaySegments(List<SynthesisDisplaySegment> output, List<SynthesisDisplaySegment> activeOutput)
+    {
+        if (mTrees.Count == 0)
+            return;
+
+        // ① 声称完成垫底 + 收集 ③ 的条目（分流输出，保证 z 序：Claimed 全部在事实层之下）。
+        List<(int Stage, SynthesisDisplaySegment Seg)>? activeClaims = null;
+        foreach (var tree in mTrees)
+        {
+            foreach (var node in tree.Nodes)
+            {
+                if (!(node.Pending || node.Running || node.Removed))
+                    continue;
+
+                var claims = node.Processor?.GetStatus();
+                if (claims == null || claims.Count == 0)
+                {
+                    // 兜底：调度事实（该节点在跑/待跑）→ 输入范围整段合成中、无进度。
+                    (activeClaims ??= new()).Add((node.StageIndex, new SynthesisDisplaySegment
+                    {
+                        StartTime = node.Input.StartTime,
+                        EndTime = node.Input.EndTime,
+                        State = SynthesisDisplayState.Synthesizing,
+                        Message = StageMessage(node),
+                    }));
+                    continue;
+                }
+
+                foreach (var claim in claims)
+                {
+                    if (claim.EndTime <= claim.StartTime)
+                        continue;
+                    if (claim.Status == SynthesisSegmentStatus.Synthesized)
+                    {
+                        output.Add(new SynthesisDisplaySegment
+                        {
+                            StartTime = claim.StartTime,
+                            EndTime = claim.EndTime,
+                            State = SynthesisDisplayState.Claimed,
+                            Message = claim.Message,
+                        });
+                        continue;
+                    }
+                    (activeClaims ??= new()).Add((node.StageIndex, new SynthesisDisplaySegment
+                    {
+                        StartTime = claim.StartTime,
+                        EndTime = claim.EndTime,
+                        State = claim.Status switch
+                        {
+                            SynthesisSegmentStatus.Pending => SynthesisDisplayState.Pending,
+                            SynthesisSegmentStatus.Failed => SynthesisDisplayState.Failed,
+                            _ => SynthesisDisplayState.Synthesizing,
+                        },
+                        Progress = claim.Progress.Limit(0, 1),
+                        Message = string.IsNullOrEmpty(claim.Message) ? StageMessage(node) : claim.Message,
+                    }));
+                }
+            }
+        }
+
+        // ② 事实层（每树）。
+        foreach (var tree in mTrees)
+        {
+            bool anyActive = tree.Truncated;
+            EffectNode? firstErrored = null;
+            foreach (var node in tree.Nodes)
+            {
+                if (node.Pending || node.Running || node.Removed)
+                    anyActive = true;
+                if (node.Errored)
+                    firstErrored ??= node;
+            }
+
+            if (!anyActive && firstErrored == null)
+            {
+                // 树干净完成：各树尾段范围 = 亮绿事实。
+                foreach (var tailInput in tree.TailInputs)
+                {
+                    if (tailInput.EndTime > tailInput.StartTime)
+                        output.Add(new SynthesisDisplaySegment
+                        {
+                            StartTime = tailInput.StartTime,
+                            EndTime = tailInput.EndTime,
+                            State = SynthesisDisplayState.Final,
+                        });
+                }
+                continue;
+            }
+
+            // 树已知内容之并（头段 + 各节点输入 + 树尾段——覆盖全部已提交中间产物）。
+            double start = tree.Head.StartTime;
+            double end = tree.Head.EndTime;
+            foreach (var node in tree.Nodes)
+            {
+                start = Math.Min(start, node.Input.StartTime);
+                end = Math.Max(end, node.Input.EndTime);
+            }
+            foreach (var tailInput in tree.TailInputs)
+            {
+                start = Math.Min(start, tailInput.StartTime);
+                end = Math.Max(end, tailInput.EndTime);
+            }
+            if (end <= start)
+                continue;
+
+            if (!anyActive)
+            {
+                // 定局且有级失败：降级（可播 passthrough，非无声）。
+                string message = string.Format("Effect {0} failed, playing unprocessed audio".Tr(TrContext),
+                    EffectManager.GetDisplayName(firstErrored!.Effect.Type));
+                if (!string.IsNullOrEmpty(firstErrored.ErrorMessage))
+                    message += "\n" + firstErrored.ErrorMessage;
+                output.Add(new SynthesisDisplaySegment
+                {
+                    StartTime = start,
+                    EndTime = end,
+                    State = SynthesisDisplayState.Degraded,
+                    Message = message,
+                });
+            }
+            else
+            {
+                // 在飞/截断：已提交内容待（在）下游处理。
+                output.Add(new SynthesisDisplaySegment
+                {
+                    StartTime = start,
+                    EndTime = end,
+                    State = SynthesisDisplayState.Interim,
+                    Message = "Processing effects".Tr(TrContext),
+                });
+            }
+        }
+
+        // ③ 活动声称分流输出：级序降序（后画在上 ⇒ 最早级最上层）。
+        if (activeClaims != null)
+        {
+            activeClaims.Sort((a, b) => b.Stage.CompareTo(a.Stage));
+            foreach (var (_, seg) in activeClaims)
+                activeOutput.Add(seg);
+        }
+    }
+
+    string StageMessage(EffectNode node)
+        => string.Format("Processing effect: {0} ({1}/{2})".Tr(TrContext),
+            EffectManager.GetDisplayName(node.Effect.Type), node.StageIndex + 1, mTotalStages);
 
     // 链结构变化（增删/重排/启用切换）：重建启用-effect 订阅 + 重排图（reconcile 自然弃旧建新）。
     public void OnStructureChanged()
@@ -138,39 +298,65 @@ internal sealed class EffectGraph : IDisposable
         mOnChanged();
     }
 
-    // 由当前真相重算图：启用-effect 序列 → 逐级拉起/复用节点、收集各级输出接为下一级输入；
-    // 弃不再被任何级需要的节点；最后算链尾段。
+    // 由当前真相重算图：每个已提交 voice 段是一棵树的根——逐级拉起/复用节点、把每个已提交输出段
+    // 接为下一级各节点的输入（1→N：某级可产出多段，如 splitter）；某节点尚无产出则该分支截断
+    // （下游节点待其产出后再物化）。顺便记账树结构（供状态图层派生）。
+    // 弃不再被任何树需要的节点；最后算树尾段集。
     void Reconcile()
     {
         var active = RecomputeActiveEffects();
 
-        // 第一级输入 = 已提交的 voice 段（按工程率快照）。
-        var stageInputs = CollectVoiceUpstreams();
+        // 树根输入 = 已提交的 voice 段（按工程率快照）。
+        var heads = CollectVoiceUpstreams();
 
         var desired = new HashSet<(IEffect, object)>();
-        for (int k = 0; k < active.Count; k++)
+        var trees = new List<Tree>(heads.Count);
+        var tail = new List<UpstreamSegment>(heads.Count);
+        foreach (var head in heads)
         {
-            var effect = active[k];
-            var engine = EffectManager.GetInitedEngine(effect.Type);
-            if (engine == null)
-                continue;   // RecomputeActiveEffects 已过滤，理论不至；防御。
-
-            var nextInputs = new List<UpstreamSegment>();
-            foreach (var input in stageInputs)
+            var tree = new Tree(head);
+            var inputs = new List<UpstreamSegment> { head };
+            for (int k = 0; k < active.Count; k++)
             {
-                var node = GetOrCreateNode(effect, engine, input);
-                desired.Add((effect, input.SourceKey));
-                if (node.Removed)
-                    continue;
-                nextInputs.AddRange(node.RefreshDownstreamInputs());
+                var effect = active[k];
+                var engine = EffectManager.GetInitedEngine(effect.Type);
+                if (engine == null)
+                    continue;   // RecomputeActiveEffects 已过滤，理论不至；防御。
+
+                var next = new List<UpstreamSegment>();
+                foreach (var input in inputs)
+                {
+                    var node = GetOrCreateNode(effect, engine, input);
+                    node.StageIndex = k;
+                    desired.Add((effect, input.SourceKey));
+                    tree.Nodes.Add(node);
+                    if (node.Removed)
+                    {
+                        // 旧节点在飞待毁：本分支暂无可信输出（收尾销毁后下轮 reconcile 重建）。
+                        tree.Truncated = true;
+                        continue;
+                    }
+
+                    var outputs = node.RefreshDownstreamInputs();
+                    if (outputs.Count == 0)
+                        tree.Truncated = true;   // 本节点尚未产出（首跑在跑/待跑）：下游待产出后物化。
+                    next.AddRange(outputs);
+                }
+                inputs = next;
             }
-            stageInputs = nextInputs;
+            tree.TailInputs.AddRange(inputs);
+            trees.Add(tree);
+            // 树尾段 = 已产出分支的尾段（截断分支自然缺席：首跑留白；重跑时旧输出仍已提交、播放陈旧内容）。
+            tail.AddRange(inputs);
         }
+        mTrees = trees;
+        mTotalStages = active.Count;
 
         // 弃不再被需要的节点（在飞者延迟到收尾销毁）。
         RemoveNodesNotIn(desired);
 
-        // 输入重提交的存活节点：补发 context.Committed 触发其 ProcessingRequested（新建节点本就 Pending）。
+        // 输入重提交的存活节点：宿主直接标 Pending（失效判定权归宿主；插件侧 Input.Committed 事件
+        // 已随快照刷新发出，仅作缓存提示）。新建节点本就 Pending。
         foreach (var node in mNodes.Values)
         {
             if (node.Removed)
@@ -179,11 +365,11 @@ internal sealed class EffectGraph : IDisposable
             if (version != node.LastInputVersion)
             {
                 node.LastInputVersion = version;
-                node.Context.RaiseCommitted();
+                node.Pending = true;
             }
         }
 
-        BuildSynthesizedSegments(stageInputs);
+        BuildSynthesizedSegments(tail);
         BuildEffectReadbacks();
     }
 
@@ -231,11 +417,14 @@ internal sealed class EffectGraph : IDisposable
         catch (Exception ex)
         {
             Log.ErrorAttributed(string.Format("Effect {0} process failed", node.Effect.Type), ex);
+            node.ErrorMessage = ex.Message;   // 供状态带降级文案（Degraded pill 可复制）
             errored = true;
         }
         finally
         {
             node.Errored = errored;     // 先于 Release：唤醒的等待者 reconcile 时即读到正确 passthrough 态
+            if (!errored)
+                node.ErrorMessage = null;
             node.Running = false;
             node.Cancellation = null;
             linked.Dispose();
@@ -319,7 +508,7 @@ internal sealed class EffectGraph : IDisposable
         return result;
     }
 
-    EffectNode GetOrCreateNode(IEffect effect, IEffectEngine engine, UpstreamSegment input)
+    EffectNode GetOrCreateNode(IEffect effect, IEffectSynthesisEngine engine, UpstreamSegment input)
     {
         var key = (effect, input.SourceKey);
         if (mNodes.TryGetValue(key, out var node))
@@ -335,9 +524,11 @@ internal sealed class EffectGraph : IDisposable
         {
             Log.ErrorAttributed(string.Format("Effect {0} create processor failed", effect.Type), ex);
         }
-        node.ProcessingRequestedHandler = () => OnProcessingRequested(node);
-        if (node.Processor != null)
-            node.Processor.ProcessingRequested.Subscribe(node.ProcessingRequestedHandler);
+        // 失效判定权归宿主：context 的作用域信号（参数 settled 变更 / 自动化变更区间与本段相交，
+        // 批量经合成批量收口）汇到 DirtySink → 标本节点 Pending 并调度。
+        context.DirtySink = () => OnNodeDirty(node);
+        node.StatusChangedHandler = () => OnProcessorStatusChanged(node);
+        node.Processor?.StatusChanged.Subscribe(node.StatusChangedHandler);
         node.Pending = true;
         node.LastInputVersion = input.CommitVersion;
         mNodes.Add(key, node);
@@ -370,12 +561,25 @@ internal sealed class EffectGraph : IDisposable
         }
     }
 
-    void OnProcessingRequested(EffectNode node)
+    // 节点的作用域信号收口（数据线程；来自其 context 的 DirtySink）：保守标 Pending、调度。
+    void OnNodeDirty(EffectNode node)
     {
         if (mDisposed || node.Removed)
             return;
         node.Pending = true;
         RequestSchedule();
+    }
+
+    // 处理器状态声称变化（SDK 允许任意线程触发）：marshal 回数据线程驱动 UI 刷新（重绘幂等自节流），
+    // 声称内容在图层派生时经 GetStatus 拉取。
+    void OnProcessorStatusChanged(EffectNode node)
+    {
+        mSyncContext.Post(_ =>
+        {
+            if (mDisposed || node.Removed)
+                return;
+            mOnChanged();
+        }, null);
     }
 
     void DisposeAndRemove(EffectNode node)
@@ -479,12 +683,18 @@ internal sealed class EffectGraph : IDisposable
     readonly CancellationToken mCancellation;
     readonly Action mOnChanged;
     readonly Action mOnSettled;
+    readonly SynchronizationContext mSyncContext;
     readonly Action mPumpCallback;
     readonly Action mOnVoiceSegmentsChanged;
 
     readonly Dictionary<(IEffect Effect, object InputKey), EffectNode> mNodes = new();
     readonly Dictionary<AudioSegment, UpstreamSegment> mVoiceUpstreams = new();
+    List<Tree> mTrees = [];
+    int mTotalStages;
     DisposableManager? mStructureSubscriptions;
+
+    // 状态带文案翻译上下文（toml [SynthesisStatus] 节）。
+    const string TrContext = "SynthesisStatus";
 
     SynthesizedSegment[] mSynthesizedSegments = [];
     IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> mEffectReadbacks = EmptyEffectReadbacks;
@@ -495,19 +705,31 @@ internal sealed class EffectGraph : IDisposable
     bool mDirty;
     bool mDisposed;
 
+    // —— 一棵树的记账（每个已提交 voice 段一棵）：树根 + 已物化的全部节点（各级、可分叉）+ 树尾段集，
+    //    供状态图层派生读取。Truncated = 有分支尚无产出（下游节点待其产出后才物化）。——
+    sealed class Tree(UpstreamSegment head)
+    {
+        public UpstreamSegment Head { get; } = head;
+        public List<EffectNode> Nodes { get; } = new();
+        public List<UpstreamSegment> TailInputs { get; } = new();
+        public bool Truncated;
+    }
+
     // —— 单个「effect × 段」节点：处理器 + 上下文 + 调度状态 + 输出段→下游上游 的映射 ——
     sealed class EffectNode
     {
         public IEffect Effect { get; }
         public EffectContext Context { get; }
         public UpstreamSegment Input { get; }
-        public IEffectProcessor? Processor;
-        public Action? ProcessingRequestedHandler;
+        public IEffectSynthesisProcessor? Processor;
+        public Action? StatusChangedHandler;
 
         public bool Pending;
         public bool Running;
         public bool Removed;
         public bool Errored;            // 处理失败/无处理器 → 本段 passthrough（输出 = 输入）
+        public string? ErrorMessage;    // 最近一次失败的异常消息（成功后清空；供降级文案）
+        public int StageIndex;          // 在启用链中的级序（每轮 reconcile 刷新；声称文案 (k+1)/N 用）
         public int LastInputVersion;
         public CancellationTokenSource? Cancellation;
 
@@ -518,7 +740,8 @@ internal sealed class EffectGraph : IDisposable
             Input = input;
         }
 
-        // 本节点供下游的输入段集：失败/无处理器 → 直传输入（passthrough）；否则 = 各已提交输出段（包成上游）。
+        // 本节点供下游的输入段集：失败/无处理器 → 直传输入（passthrough）；
+        // 否则 = 各已提交输出段（包成上游，1→N 自由）；尚未产出 → 空（本分支截断）。
         public IReadOnlyList<UpstreamSegment> RefreshDownstreamInputs()
         {
             if (Errored)
@@ -537,8 +760,8 @@ internal sealed class EffectGraph : IDisposable
             Removed = true;
             if (Processor != null)
             {
-                if (ProcessingRequestedHandler != null)
-                    Processor.ProcessingRequested.Unsubscribe(ProcessingRequestedHandler);
+                if (StatusChangedHandler != null)
+                    Processor.StatusChanged.Unsubscribe(StatusChangedHandler);
                 try { Processor.Dispose(); }
                 catch (Exception ex) { Log.ErrorAttributed("Effect processor dispose failed", ex); }
                 Processor = null;
@@ -549,9 +772,15 @@ internal sealed class EffectGraph : IDisposable
         UpstreamSegment[]? mPassthrough;
     }
 
-    // —— 上游音频段（SDK 面）：voice 输出或上一级 effect 输出的只读不可变视图。
-    //    已提交版本 PCM 为按源 CommitVersion 拷的快照（重 Commit 换新缓冲）；worker 同步前缀抓引用直读。——
-    sealed class UpstreamSegment : IUpstreamAudioSegment
+    // —— 上游音频段（直接实现 SDK 音频面 IEffectSynthesisAudio，经 context.Input 暴露）：
+    //    voice 输出或上一级 effect 输出的只读视图。读取为「区间 + 调用方缓冲」copy-out（同步前缀物化）；
+    //    宿主存储形态是内部细节（当前 flat 数组，可无缝换分页）。已提交内容为按源 CommitVersion 拷的快照
+    //    （重 Commit 换新缓冲）。
+    //    本副本是**提交闸门的物化，必须存在**：生产者的段缓冲是就地渐进写（Commit 前的写只供进度/波形），
+    //    「已提交内容」要独立于活缓冲就必须有这份拷贝——不可"优化"成上游引用。副本引用也**从不外借**
+    //    （Read 是唯一窄门）：这保住将来按脏区间原地增量更新本副本的自由（消整段克隆），外借引用与原地更新不能共存。
+    //    同一实例可同时喂多个节点（如同段上的多个第一级 effect），事件共享无碍。——
+    sealed class UpstreamSegment : IEffectSynthesisAudio
     {
         // 图键：底层源对象身份（voice 段握柄 / 上一级输出段）——节点按此稳定缓存。
         public object SourceKey { get; }
@@ -564,12 +793,15 @@ internal sealed class EffectGraph : IDisposable
         public long SampleOffset { get; private set; }
         public int SampleCount => mSamples.Length;
         public int SampleRate { get; private set; }
-        public ReadOnlyMemory<float> Samples => mSamples;
+        public void Read(int offset, Span<float> destination) => mSamples.AsSpan(offset, destination.Length).CopyTo(destination);
         public int CommitVersion { get; private set; }
-        public IActionEvent Committed => mCommitted;
-        readonly ActionEvent mCommitted = new();
+        // 内容变更的区间账本 (offset, count)（数据线程；当前快照为整段重拷 → 如实报整段区间，
+        // Write 区间累积落地后细化）。
+        public IActionEvent<int, int> RangeModified => mRangeModified;
+        readonly ActionEvent<int, int> mRangeModified = new();
 
         public double StartTime => SampleRate > 0 ? (double)SampleOffset / SampleRate : 0;
+        public double EndTime => SampleRate > 0 ? StartTime + (double)SampleCount / SampleRate : StartTime;
 
         // 已观测的源 CommitVersion（CollectVoiceUpstreams / RefreshOutputs 据此判是否需重拷快照）。
         public int SourceVersion { get; private set; } = -1;
@@ -582,7 +814,7 @@ internal sealed class EffectGraph : IDisposable
             SourceVersion = sourceVersion;
             CommitVersion++;
             mCachedVersion = -1;   // 链尾段缓存失效
-            mCommitted.Invoke();
+            mRangeModified.Invoke(0, snapshot.Length);
         }
 
         public void InvalidateSnapshot() => SourceVersion = -1;
@@ -649,32 +881,38 @@ internal sealed class EffectGraph : IDisposable
         readonly float[] mSamples;
     }
 
-    // —— IEffectContext 宿主实现：绑定「该 effect × 一个上游段」、随节点死。processor 订阅它自管失效。——
-    sealed class EffectContext : IEffectContext, IDisposable
+    // —— IEffectSynthesisContext 宿主实现：绑定「该 effect × 一个上游段」、随节点死。
+    //    失效判定权在此落地：作用域信号（参数 settled 变更 / 自动化变更区间与本段相交）经批量收口
+    //    汇到 DirtySink（→ 图标 Pending 并调度）；颗粒事件照发给插件，仅作缓存提示。——
+    sealed class EffectContext : IEffectSynthesisContext, IDisposable
     {
         public EffectContext(MidiPart part, IEffect effect, UpstreamSegment input)
         {
             mPart = part;
             mEffect = effect;
-            Input = input;
+            mInput = input;
             mBatchSignal = part.SynthesisBatch;
 
-            // 收口脉冲与颗粒脏同源、经 part 合成批量收口（与 voice 的 VoiceSynthesisContext 对称，避免用 effect.Modified
+            // 标脏时机经 part 合成批量收口（与 voice 的 VoiceSynthesisContext 对称，避免用 effect.Modified
             // 聚合事件——其在滑条拖拽 merge 中乱发、又不在 merge 收口补发，导致触发与终值错位、滞后一拍）：
             //   · 参数：effect.Properties.Modified（settled，滑条拖拽经 DataObject merge 收到松手才发）——
-            //     mProperties 在 re-raise Modified（processor 据此标参数脏）后回调 ForwardCommitted，顺序确定；
-            //   · 自动化：各轨 RangeModified（每步同步发，但绘制操作处于合成批量内 → 收口到 BatchEnd 一次）。
-            // 批量中只标 pending、BatchEnd 一次性收口；不在批量则即时收口。
-            mProperties = new LivePropertyObject(effect.Properties, ForwardCommitted);
+            //     mProperties 在 re-raise Modified（插件缓存提示）后回调 MarkDirty，顺序确定；
+            //   · 自动化：各轨 RangeModified（每步同步发，但绘制操作处于合成批量内 → 收口到 BatchEnd 一次），
+            //     与本段时间界相交才标脏（不相交的变更不惊动本节点——通用相交判定归宿主，不再各插件自抄）。
+            // 批量中只记 pending、BatchEnd 一次性放行；不在批量则即时放行。
+            mProperties = new LivePropertyObject(effect.Properties, MarkDirty);
             mOnBatchEnd = OnBatchEnd;
             mBatchSignal.BatchEnd += mOnBatchEnd;
             WireAutomations();
         }
 
-        public IUpstreamAudioSegment Input { get; }
+        // 作用域信号收口后的去处（图在建节点时接线 → 标该节点 Pending + 调度）。
+        public Action? DirtySink;
+
+        // 输入音频面：内部 UpstreamSegment 直接实现 SDK 接口（含区间账本 RangeModified），零转发。
+        public IEffectSynthesisAudio Input => mInput;
+
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
-        public IActionEvent Committed => mCommitted;
-        readonly ActionEvent mCommitted = new();
 
         // 已声明连续 automation 轨只读 map：轨集 = effect 声明的 AutomationConfigs 中非分段者；
         // 代理按 key 缓存、缺则补建；每次读重建 map 以反映当前声明集。
@@ -701,35 +939,40 @@ internal sealed class EffectGraph : IDisposable
 
         public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)
         {
+            // 登记表语义（与 voice 同构）：产出分段自由（1→N，如 splitter），各段独立 Write/Commit/Dispose。
             var segment = new OutputSegment(this, sampleOffset, sampleCount, sampleRate);
             mOutputs.Add(segment);
             return segment;
         }
 
-        // 收口：批量中（如 automation 绘制的 BeginMergeDirty 作用域）只标 pending，BatchEnd 一次性发；
-        // 非批量（如滑条松手时的 Properties.Modified）即时发。
-        void ForwardCommitted()
+        // 跨线程冻结快照（仅同步前缀；音频不在此列——Input.Read 自物化）。
+        public EffectSynthesisSnapshot GetSnapshot(double startTime, double endTime)
+            => EffectSynthesisSnapshotFactory.Capture(mPart, mEffect, startTime, endTime);
+
+        // 标脏收口：批量中（如 automation 绘制的 BeginMergeDirty 作用域）只记 pending，BatchEnd 一次性放行；
+        // 非批量（如滑条松手时的 Properties.Modified）即时放行。
+        void MarkDirty()
         {
             if (mBatchSignal.IsBatching)
             {
-                mPendingCommitted = true;
+                mPendingDirty = true;
                 return;
             }
-            RaiseCommitted();
+            FlushDirty();
         }
 
         void OnBatchEnd()
         {
-            if (!mPendingCommitted)
+            if (!mPendingDirty)
                 return;
-            mPendingCommitted = false;
-            RaiseCommitted();
+            mPendingDirty = false;
+            FlushDirty();
         }
 
-        internal void RaiseCommitted()
+        void FlushDirty()
         {
-            try { mCommitted.Invoke(); }
-            catch (Exception ex) { Log.ErrorAttributed("Effect context committed handler threw", ex); }
+            try { DirtySink?.Invoke(); }
+            catch (Exception ex) { Log.ErrorAttributed("Effect dirty sink threw", ex); }
         }
 
         // 把已提交输出段同步成下游上游集（按各输出段 CommitVersion 重拷快照）。未提交的段不进下游。
@@ -782,16 +1025,23 @@ internal sealed class EffectGraph : IDisposable
         void OnAutomationMapModified()
         {
             WireAutomations();
-            ForwardCommitted();
+            MarkDirty();   // 轨集合变（条件轨显隐）：保守标脏。
         }
 
-        // part 相对 tick 区间 → 全局秒，注入对应轨代理的 RangeModified（颗粒脏：processor 据此标 env 脏），
-        // 随后收口（绘制操作处于合成批量内 → BatchEnd 一次性触发处理）。
+        // part 相对 tick 区间 → 全局秒，注入对应轨代理的 RangeModified（插件缓存提示），
+        // 并做宿主侧相交判定：变更区间与本段时间界相交才标脏（不相交的编辑不惊动本节点）。
         void NotifyAutomationRange(string id, double relStartTick, double relEndTick)
         {
+            double startSecond = RelTickToGlobalSecond(relStartTick);
+            double endSecond = RelTickToGlobalSecond(relEndTick);
             if (mAutomationProxies.TryGetValue(id, out var proxy))
-                proxy.NotifyRangeModified(RelTickToGlobalSecond(relStartTick), RelTickToGlobalSecond(relEndTick));
-            ForwardCommitted();
+                proxy.NotifyRangeModified(startSecond, endSecond);
+
+            // 输入未就绪（空段）保守标脏——节点反正过不了 Pump 的就绪闸，Pending 无害。
+            bool intersects = mInput.SampleCount == 0
+                || (endSecond >= mInput.StartTime && startSecond <= mInput.EndTime);
+            if (intersects)
+                MarkDirty();
         }
 
         double RelTickToGlobalSecond(double relTick)
@@ -812,10 +1062,11 @@ internal sealed class EffectGraph : IDisposable
 
         readonly MidiPart mPart;
         readonly IEffect mEffect;
+        readonly UpstreamSegment mInput;
         readonly BatchSignal mBatchSignal;
         readonly LivePropertyObject mProperties;
         readonly Action mOnBatchEnd;
-        bool mPendingCommitted;
+        bool mPendingDirty;
         readonly List<OutputSegment> mOutputs = new();
         readonly Dictionary<OutputSegment, UpstreamSegment> mOutputUpstreams = new();
         readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();

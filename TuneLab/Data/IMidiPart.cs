@@ -50,7 +50,8 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     // —— 合成消费面（session 模型，插件托管状态与产物，宿主拉取展示）——
     Synthesis.ISynthesisPipeline? SynthesisPipeline { get; }
     bool IsSynthesisBatching { get; }
-    IReadOnlyList<SynthesisStatusSegment> GetSynthesisStatus();
+    // 状态带显示图层（z 序平铺列表，底层在前；画家算法）——见 Synthesis.SynthesisDisplaySegment。
+    IReadOnlyList<Synthesis.SynthesisDisplaySegment> GetSynthesisStatus();
     IReadOnlyList<IReadOnlyList<Point>> SynthesizedPitch { get; }
     // 引擎合成出的参数曲线（按轨 id 键、与音频/音高同一秒时间系）：key 与 Voice.SynthesizedParameterConfigs
     // 对齐，宿主把它们作一等只读回显轨绘制（参数区填充面积、可独立显隐），非叠加到同名编辑轨。

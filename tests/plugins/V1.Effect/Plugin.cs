@@ -10,23 +10,27 @@ namespace TuneLab.TestPlugins.V1Effect;
 // 参数面板（Gain 有 gain 滑块）、per-effect 时间轴自动化（Gain 有 gain_env 自动化轨）、
 // 链串行（Gain 与 Reverse 串联）、bypass、增删/重排。
 //
-// 厚处理器：每个「effect 实例 × 一个上游段」一个 processor，构造拿 IEffectContext 自订阅、自管失效：
+// 厚处理器：每个「effect 实例 × 一个上游段」一个 processor，构造拿 IEffectSynthesisContext 自订阅、自管失效：
 //   · 订阅 context.Input.Committed / Properties.Modified / 自动化 RangeModified 标脏，于 context.Committed 触发 ProcessingRequested；
 //   · 跨 Process 调用缓存内部中间结果（env 取值、gain 标量、输出段句柄）、按脏只重算受影响内容；
 //   · gain_env 的变更秒区间若不与本段相交 → 不标脏、不触发处理 → 本段输出不变、下游被跳过；
 //   · 输出经 context.CreateAudioSegment 持久持有句柄，重处理时就地重写并重 Commit（无关变化时不重 Commit）。
-public sealed class GainEffectEngine : IEffectEngine
+public sealed class GainEffectEngine : IEffectSynthesisEngine
 {
-    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
+    public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
 
     // 条件轨集合：env_enabled 勾选才暴露 gain_env（轨集合 = f(当前参数值)）。取消勾选时已画 gain_env
     // 曲线由宿主保留隐藏、重新勾选即原样恢复。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context)
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context)
     {
         // 连续轨 gain_env（env_enabled 勾选才暴露）+ 分段轨 formant（恒在、DefaultValue=NaN）同在一张有序 map。
         // formant 可编辑、随工程序列化；本参照实现的 DSP 暂不消费它（effect 分段轨回写为未来需求）。
+        // 多选裁决示范：config 是整个选区的纯函数——全部选中实例都启用才显示 gain_env（保守合并）。
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
-        if (context.Properties.GetBool("env_enabled", true))
+        bool envEnabled = context.Effects.Count > 0;
+        foreach (var view in context.Effects)
+            envEnabled &= view.Properties.GetBool("env_enabled", true);
+        if (envEnabled)
         {
             foreach (var kvp in mAutomations)
                 map.Add(kvp.Key, kvp.Value);
@@ -37,11 +41,11 @@ public sealed class GainEffectEngine : IEffectEngine
 
     // 回显轨声明（只读、分段形 DefaultValue=NaN）：处理产出的 loudness 包络回显，曲线数据经
     // GainProcessor.SynthesizedParameters 的 "loudness" key 承载。验证 effect 回显端到端与 voice 同构。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
 
     public void Init() { }
     public void Destroy() { }
-    public IEffectProcessor CreateProcessor(IEffectContext context) => new GainProcessor(context);
+    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new GainProcessor(context);
 
     static ObjectConfig BuildConfig()
     {
@@ -70,43 +74,44 @@ public sealed class GainEffectEngine : IEffectEngine
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
     static readonly AutomationConfig mFormantConfig = AutomationConfig.Create(-100, 100).WithColor("#00C2A8");
 
-    // output = input * gain * gainEnv(t)。持久缓存 env/gain/输出段，按脏差分复用。
-    sealed class GainProcessor : IEffectProcessor
+    // output = input * gain * gainEnv(t)。缓存型处理器示范：订阅颗粒事件（可选信息源）维护差分缓存，
+    // Process 里按脏只重算受影响内容；调度归宿主（被调到才干活、无关变化早退不重 Commit → 下游被跳过）。
+    sealed class GainProcessor : IEffectSynthesisProcessor
     {
-        public GainProcessor(IEffectContext context)
+        public GainProcessor(IEffectSynthesisContext context)
         {
             mContext = context;
-            mContext.Input.Committed.Subscribe(OnInputCommitted);
+            mContext.Input.RangeModified.Subscribe(OnInputRangeModified);
             mContext.Properties.Modified.Subscribe(OnPropertiesModified);
-            mContext.Committed.Subscribe(OnCommitted);
             WireEnvAutomation();
         }
 
-        public IActionEvent ProcessingRequested => mProcessingRequested;
-        readonly ActionEvent mProcessingRequested = new();
+        // 同步瞬时处理，不自报状态（空声称 → 宿主按调度事实兜底呈现，验证兜底路径）。
+        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
+        public IActionEvent StatusChanged => mStatusChanged;
+        readonly ActionEvent mStatusChanged = new();
 
         // 本段 loudness 回显（与输出同步重算）；输出无变化时沿用上轮。线程同输出：Process 在数据线程同步发布。
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
 
         public Task Process(CancellationToken cancellation = default)
         {
-            // 同步前缀（数据线程）：抓输入 PCM 引用 + 预采参数/自动化值。
-            var input = mContext.Input;
-            var src = input.Samples;
-            int rate = input.SampleRate;
-            long offset = input.SampleOffset;
-            int count = src.Length;
+            // 同步前缀（数据线程）：把输入 PCM 拷出到自有缓冲 + 预采参数/自动化值。
+            int rate = mContext.Input.SampleRate;
+            long offset = mContext.Input.SampleOffset;
+            int count = mContext.Input.SampleCount;
+            var src = new float[count];
+            mContext.Input.Read(0, src);
             double segStart = rate > 0 ? (double)offset / rate : 0;
 
             bool initial = mOutput == null;
-            bool audioChanged = initial || mAudioDirty || input.CommitVersion != mLastInputVersion;
+            bool audioChanged = initial || mAudioDirty;   // 失效判据 = Input.Committed 事件（SDK 无版本号）
             bool gainChanged = initial || mPropertiesDirty;
             bool envChanged = initial || audioChanged || mEnvDirty;
 
             mAudioDirty = false;
             mPropertiesDirty = false;
             mEnvDirty = false;
-            mLastInputVersion = input.CommitVersion;
 
             // 与本段无关的变化（如 gain_env 改在别的段时间区间）：输出不变 → 不重 Commit，下游据版本不变跳过。
             if (!audioChanged && !gainChanged && !envChanged && mOutput != null)
@@ -130,12 +135,11 @@ public sealed class GainEffectEngine : IEffectEngine
                 }
             }
 
-            var srcSpan = src.Span;
             var dst = new float[count];
             for (int i = 0; i < count; i++)
             {
                 double m = mGain * (mEnv != null && i < mEnv.Length ? mEnv[i] : 1.0);
-                dst[i] = (float)(srcSpan[i] * m);
+                dst[i] = (float)(src[i] * m);
             }
 
             CommitOutput(offset, count, rate, dst);
@@ -168,7 +172,8 @@ public sealed class GainEffectEngine : IEffectEngine
             return map;
         }
 
-        void OnInputCommitted() => mAudioDirty = true;
+        // 输入区间账本 (offset, count)（本引擎无局部能力，只消费到布尔粒度；局部重合成引擎在此累积区间、成功产出后清账）。
+        void OnInputRangeModified(int offset, int count) => mAudioDirty = true;
 
         void OnPropertiesModified()
         {
@@ -183,12 +188,6 @@ public sealed class GainEffectEngine : IEffectEngine
             // 仅当变更秒区间与本段相交才标脏（否则本段无关、不触发处理 → 下游被跳过）。
             if (IntersectsSegment(startTime, endTime))
                 mEnvDirty = true;
-        }
-
-        void OnCommitted()
-        {
-            if (mAudioDirty || mPropertiesDirty || mEnvDirty)
-                mProcessingRequested.Invoke();
         }
 
         void WireEnvAutomation()
@@ -230,15 +229,14 @@ public sealed class GainEffectEngine : IEffectEngine
 
         public void Dispose()
         {
-            mContext.Input.Committed.Unsubscribe(OnInputCommitted);
+            mContext.Input.RangeModified.Unsubscribe(OnInputRangeModified);
             mContext.Properties.Modified.Unsubscribe(OnPropertiesModified);
-            mContext.Committed.Unsubscribe(OnCommitted);
             if (mEnvAutomation != null)
                 mEnvAutomation.RangeModified.Unsubscribe(OnEnvRangeModified);
             mOutSegment?.Dispose();
         }
 
-        readonly IEffectContext mContext;
+        readonly IEffectSynthesisContext mContext;
         ISynthesisAutomation? mEnvAutomation;
         IAudioSegment? mOutSegment;
         long mOutOffset;
@@ -248,7 +246,6 @@ public sealed class GainEffectEngine : IEffectEngine
         bool mAudioDirty;
         bool mPropertiesDirty;
         bool mEnvDirty;
-        int mLastInputVersion;
 
         double[]? mEnv;          // 缓存的逐采样 gain_env 取值
         double mGain = 1.0;      // 缓存的 gain 标量
@@ -256,84 +253,64 @@ public sealed class GainEffectEngine : IEffectEngine
         IReadOnlyMap<string, SynthesizedParameter> mReadback = EmptyReadback;
 
         static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly SynthesisStatusSegment[] EmptyStatus = [];
     }
 }
 
 // 倒放效果器：无参数，反转样本顺序。与 Gain 同包，链中可观察顺序/增删效果。
-// 仅被上游音频变化触发（无参数/自动化）；音频未变时不重 Commit（下游被跳过）。
-public sealed class ReverseEffectEngine : IEffectEngine
+// **最简处理器示范**：零订阅、零状态——被调到 Process 就按当前输入干活（电平语义），
+// 调度时机全权归宿主（宿主只在本段真变时调它）。
+public sealed class ReverseEffectEngine : IEffectSynthesisEngine
 {
-    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mConfig;
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomations;
+    public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mAutomations;
     // 无回显（仅倒放音频）：返回空声明。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
     public void Init() { }
     public void Destroy() { }
-    public IEffectProcessor CreateProcessor(IEffectContext context) => new ReverseProcessor(context);
+    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new ReverseProcessor(context);
 
     static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new();
 
-    sealed class ReverseProcessor : IEffectProcessor
+    sealed class ReverseProcessor(IEffectSynthesisContext context) : IEffectSynthesisProcessor
     {
-        public ReverseProcessor(IEffectContext context)
-        {
-            mContext = context;
-            mContext.Input.Committed.Subscribe(OnInputCommitted);
-            mContext.Committed.Subscribe(OnCommitted);
-        }
-
-        public IActionEvent ProcessingRequested => mProcessingRequested;
-        readonly ActionEvent mProcessingRequested = new();
+        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
+        public IActionEvent StatusChanged => mStatusChanged;
+        readonly ActionEvent mStatusChanged = new();
 
         // 无回显：恒空 map。
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
 
         public Task Process(CancellationToken cancellation = default)
         {
-            var input = mContext.Input;
-            var src = input.Samples;
+            var input = context.Input;
             int rate = input.SampleRate;
             long offset = input.SampleOffset;
-            int count = src.Length;
+            int count = input.SampleCount;
 
-            bool initial = mOutput == null;
-            bool audioChanged = initial || mAudioDirty || input.CommitVersion != mLastInputVersion;
-            mAudioDirty = false;
-            mLastInputVersion = input.CommitVersion;
-
-            if (!audioChanged && mOutput != null)
-                return Task.CompletedTask;
-
-            var srcSpan = src.Span;
+            var src = new float[count];
+            input.Read(0, src);
             var dst = new float[count];
             for (int i = 0; i < count; i++)
-                dst[i] = srcSpan[count - 1 - i];
+                dst[i] = src[count - 1 - i];
 
             CommitOutput(offset, count, rate, dst);
-            mOutput = dst;
             return Task.CompletedTask;
-        }
-
-        void OnInputCommitted() => mAudioDirty = true;
-
-        void OnCommitted()
-        {
-            if (mAudioDirty)
-                mProcessingRequested.Invoke();
         }
 
         void CommitOutput(long offset, int count, int rate, float[] samples)
         {
-            if (mOutput != null && mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
+            // 重用同位同长同率的输出段句柄（就地重写重 Commit）；几何变了则换段。
+            if (mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
             {
                 mOutSegment.Write(0, samples);
                 mOutSegment.Commit();
                 return;
             }
             mOutSegment?.Dispose();
-            mOutSegment = mContext.CreateAudioSegment(offset, count, rate);
+            mOutSegment = context.CreateAudioSegment(offset, count, rate);
             mOutOffset = offset;
             mOutCount = count;
             mOutRate = rate;
@@ -341,23 +318,170 @@ public sealed class ReverseEffectEngine : IEffectEngine
             mOutSegment.Commit();
         }
 
-        public void Dispose()
-        {
-            mContext.Input.Committed.Unsubscribe(OnInputCommitted);
-            mContext.Committed.Unsubscribe(OnCommitted);
-            mOutSegment?.Dispose();
-        }
+        public void Dispose() => mOutSegment?.Dispose();
 
-        readonly IEffectContext mContext;
         IAudioSegment? mOutSegment;
         long mOutOffset;
         int mOutCount;
         int mOutRate;
 
-        bool mAudioDirty;
-        int mLastInputVersion;
-        float[]? mOutput;
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly SynthesisStatusSegment[] EmptyStatus = [];
+    }
+}
+
+// 慢速增益（声称上报演示）：模拟长耗时离线模型（SVC 类）——worker 分步处理 ~3s、逐步发布声称段
+// （Synthesizing + 进度，状态带呈纵向水位），验证流光与取消（编辑打断后正常返回不写产物）。
+// 固定 0.8 增益，无参数/自动化；调度归宿主，零失效订阅。
+public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
+{
+    public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mEmpty;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mEmpty;
+    public void Init() { }
+    public void Destroy() { }
+    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new SlowGainProcessor(context);
+
+    static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mEmpty = new();
+
+    sealed class SlowGainProcessor(IEffectSynthesisContext context) : IEffectSynthesisProcessor
+    {
+        // 声称时间线：处理中发布一条 Synthesizing 段（本段范围 + 整体进度）；完成/取消清空（事实层接管）。
+        // 发布 = 换引用（不可变数组）、任意线程 Invoke StatusChanged——宿主 marshal 后拉取。
+        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mStatus;
+        public IActionEvent StatusChanged => mStatusChanged;
+        readonly ActionEvent mStatusChanged = new();
+
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+
+        public async Task Process(CancellationToken cancellation = default)
+        {
+            // 同步前缀（数据线程）：把输入 PCM 拷出到自有缓冲。
+            var input = context.Input;
+            int rate = input.SampleRate;
+            long offset = input.SampleOffset;
+            int count = input.SampleCount;
+
+            var src = new float[count];
+            input.Read(0, src);
+            double segStart = rate > 0 ? (double)offset / rate : 0;
+            double segEnd = rate > 0 ? segStart + (double)count / rate : segStart;
+
+            // offload 到 worker 分步处理并报声称（Synthesizing + 进度）；取消 = 正常返回 null（不写产物）。
+            var dst = await Task.Run(() =>
+            {
+                const int steps = 30;
+                var buffer = new float[count];
+                for (int step = 0; step < steps; step++)
+                {
+                    if (cancellation.IsCancellationRequested)
+                        return null;
+                    Thread.Sleep(100);
+                    int begin = (int)((long)count * step / steps);
+                    int end = (int)((long)count * (step + 1) / steps);
+                    for (int i = begin; i < end; i++)
+                        buffer[i] = src[i] * 0.8f;
+                    PublishStatus(segStart, segEnd, (step + 1) / (double)steps);
+                }
+                return buffer;
+            });
+            if (dst == null)
+            {
+                ClearStatus();
+                return;   // 取消是正常调度结局
+            }
+
+            // await 续延回数据线程：写出并 Commit，声称退场（宿主事实层接管呈现）。
+            CommitOutput(offset, count, rate, dst);
+            ClearStatus();
+        }
+
+        void PublishStatus(double startTime, double endTime, double progress)
+        {
+            mStatus = new[]
+            {
+                new SynthesisStatusSegment
+                {
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    Status = SynthesisSegmentStatus.Synthesizing,
+                    Progress = progress,
+                },
+            };
+            mStatusChanged.Invoke();
+        }
+
+        void ClearStatus()
+        {
+            if (mStatus.Length == 0)
+                return;
+            mStatus = EmptyStatus;
+            mStatusChanged.Invoke();
+        }
+
+        void CommitOutput(long offset, int count, int rate, float[] samples)
+        {
+            if (mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
+            {
+                mOutSegment.Write(0, samples);
+                mOutSegment.Commit();
+                return;
+            }
+            mOutSegment?.Dispose();
+            mOutSegment = context.CreateAudioSegment(offset, count, rate);
+            mOutOffset = offset;
+            mOutCount = count;
+            mOutRate = rate;
+            mOutSegment.Write(0, samples);
+            mOutSegment.Commit();
+        }
+
+        public void Dispose() => mOutSegment?.Dispose();
+
+        IAudioSegment? mOutSegment;
+        long mOutOffset;
+        int mOutCount;
+        int mOutRate;
+
+        SynthesisStatusSegment[] mStatus = EmptyStatus;   // 发布 = 换引用（引用赋值原子，宿主跨线程读安全）
 
         static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly SynthesisStatusSegment[] EmptyStatus = [];
+    }
+}
+
+// 恒失败（降级演示）：Process 恒抛异常 → 宿主 catch → 该段 passthrough——验证状态带琥珀 Degraded、
+// pill 文案（含引擎异常消息、可复制）、以及失败级 passthrough 后下游/链尾仍可播。
+public sealed class FailEffectEngine : IEffectSynthesisEngine
+{
+    public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mEmpty;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mEmpty;
+    public void Init() { }
+    public void Destroy() { }
+    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new FailProcessor(context);
+
+    static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mEmpty = new();
+
+    sealed class FailProcessor(IEffectSynthesisContext context) : IEffectSynthesisProcessor
+    {
+        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
+        public IActionEvent StatusChanged => mStatusChanged;
+        readonly ActionEvent mStatusChanged = new();
+
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+
+        public Task Process(CancellationToken cancellation = default)
+        {
+            _ = context;   // 恒失败演示：不消费输入
+            throw new InvalidOperationException("Simulated failure for degraded-status testing.");
+        }
+
+        public void Dispose() { }
+
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly SynthesisStatusSegment[] EmptyStatus = [];
     }
 }

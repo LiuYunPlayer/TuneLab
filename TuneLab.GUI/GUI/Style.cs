@@ -44,6 +44,13 @@ internal static class Style
     public static readonly Color SYNTHESIS_FAILED = new(255, 206, 104, 104);
     // 编排区 part 状态条的失败红：同灰色脏区间一样需更跳——选中叠白罩冲淡 + 底是轨道色，故用高饱和的亮红。
     public static readonly Color SYNTHESIS_FAILED_PART = new(255, 255, 64, 64);
+    // 降级琥珀（可播但非最终，如某级 effect 失败 passthrough）：黄于合成中橙、别于失败红，警示而非错误。
+    public static readonly Color SYNTHESIS_DEGRADED = new(255, 214, 186, 70);
+    // 软绿（声称完成/待下游的非最终内容，及合成中段的纵向进度水位）：暗于最终亮绿一档——
+    // 明度档承载「声称/最终」语义，亮绿只能来自链尾音频事实。
+    public static readonly Color SYNTHESIS_INTERIM = new(255, 76, 116, 92);
+    // 编排区 part 状态条的降级琥珀：同上需更跳，用高饱和亮黄。
+    public static readonly Color SYNTHESIS_DEGRADED_PART = new(255, 255, 204, 0);
 
     public static readonly string[] TRACK_COLORS =
     [

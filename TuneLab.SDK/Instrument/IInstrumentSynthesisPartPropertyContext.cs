@@ -14,7 +14,8 @@ public interface IInstrumentSynthesisPartView
     // 当前 note 集合（只读、宿主当前序）：原始几何，instrument 不去重叠。
     IReadOnlyList<IInstrumentSynthesisNoteView> Notes { get; }
     PropertyObject PartProperties { get; }
-    // 已声明 automation 轨当前曲线求值器（按 key；查询轴全局秒）：只读 map，可枚举可点取。
+    // 当前**存在用户内容**的自动化轨求值器（按 key；查询轴全局秒；口径与理由同 IVoiceSynthesisPartView.Automations：
+    // 外生输入、非「已声明」——未绘制且无 vibrato 投影的已声明轨不在 map，其值恒为引擎自知的默认）。
     IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }
 }
 

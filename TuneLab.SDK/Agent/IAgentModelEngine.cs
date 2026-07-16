@@ -4,7 +4,7 @@ namespace TuneLab.SDK;
 
 // agent 模型引擎：把宿主的对话/工具调用翻译成对某个外部 LLM 的请求。一个引擎实例对应一种适配器类型
 // （如"OpenAI 兼容端点"）；用户在设置界面填好该引擎声明的 properties（端点、密钥、模型名等）后，
-// 宿主用这些值创建一个 IAgentModelSession 开始工作。与 IEffectEngine 同范式（声明参数 + 懒加载 + 创建会话）。
+// 宿主用这些值创建一个 IAgentModelSession 开始工作。与 IEffectSynthesisEngine 同范式（声明参数 + 懒加载 + 创建会话）。
 public interface IAgentModelEngine
 {
     // 参数面板配置：声明该适配器暴露给用户的可编辑配置（端点 URL、API Key、模型名、温度等），

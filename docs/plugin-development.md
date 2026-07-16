@@ -56,7 +56,7 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 |---|---|
 | `voice` | `IVoiceSynthesisEngine` (the first hit is registered as the engine) |
 | `instrument` | `IInstrumentSynthesisEngine` (the first hit is registered as the engine) |
-| `effect` | `IEffectEngine` |
+| `effect` | `IEffectSynthesisEngine` |
 | `agent-model` | `IAgentModelEngine` |
 | `format` | `IImportFormat` (→ registers import) + `IExportFormat` (→ registers export), each scanned, **at least one must hit**; one class may implement both |
 
@@ -283,7 +283,7 @@ public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext con
 public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => mNoteConfig;
 ```
 
-> `IVoiceSynthesisPartPropertyContext` (part panel / automation): `VoiceId` + **`IReadOnlyList<PropertyObject> PartProperties`** (the sparse snapshot of each selected part; multiple parts may be selected). `IVoiceSynthesisNotePropertyContext` (note panel, a **separate interface, not inheriting**): `VoiceId` + **`PropertyObject PartProperties`** (the **single** part the note belongs to — a note always belongs to one part) + **`IReadOnlyList<PropertyObject> NoteProperties`** (each selected note). If a list member doesn't care about multi-selection, call `.Merge()` (the `PropertyObjectExtensions` extension method, in `TuneLab.Foundation`) to reduce it to a single tri-state `PropertyObject` (same key all-equal → the value, unequal/partly-missing → `Multiple`) and write as if single-selected; if you need per-member truth (e.g. combining seeds of unequal-length arrays) iterate the list directly. Having voiceId in the context makes the voice context permanently diverge from effect's `IEffectPropertyContext` (which has no equivalent) — this is intentional: effect is a single-type engine and has no notion of "which bank to pick".
+> `IVoiceSynthesisPartPropertyContext` (part panel / automation): `VoiceId` + **`IReadOnlyList<PropertyObject> PartProperties`** (the sparse snapshot of each selected part; multiple parts may be selected). `IVoiceSynthesisNotePropertyContext` (note panel, a **separate interface, not inheriting**): `VoiceId` + **`PropertyObject PartProperties`** (the **single** part the note belongs to — a note always belongs to one part) + **`IReadOnlyList<PropertyObject> NoteProperties`** (each selected note). If a list member doesn't care about multi-selection, call `.Merge()` (the `PropertyObjectExtensions` extension method, in `TuneLab.Foundation`) to reduce it to a single tri-state `PropertyObject` (same key all-equal → the value, unequal/partly-missing → `Multiple`) and write as if single-selected; if you need per-member truth (e.g. combining seeds of unequal-length arrays) iterate the list directly. Having voiceId in the context makes the voice context permanently diverge from effect's `IEffectSynthesisPropertyContext` (which has no equivalent) — this is intentional: effect is a single-type engine and has no notion of "which bank to pick".
 
 **Note / part property conventions (the keyed `Properties`, the sole channel for per-note/per-part parameters)**:
 
@@ -667,31 +667,31 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 
 An effect transforms **already-synthesized whole-segment audio**. It targets **relatively slow offline models** (e.g. SVC voice conversion, neural timbre conversion), not real-time VST-style effects.
 
-Implement `IEffectEngine`. A **parameterless constructor** is required. The effect id goes in `manifest.json`'s `engine`, and the implementing class is listed in `classes` (the host claims it via the `IEffectEngine` interface, no longer using attributes). There is one engine per effect type; the host creates a **persistent thick processor** `IEffectProcessor` per "effect instance × upstream audio segment" in the project to drive it. The processor holds its own segment's context `IEffectContext`, **subscribes itself, and manages invalidation and reprocessing itself** — the engine-private invalidation graph (which parameter / which automation segment marks dirty and triggers which internal recomputes) lives inside the processor, which the host cannot replicate, hence a thick model.
+Implement `IEffectSynthesisEngine`. A **parameterless constructor** is required. The effect id goes in `manifest.json`'s `engine`, and the implementing class is listed in `classes` (the host claims it via the `IEffectSynthesisEngine` interface, no longer using attributes). There is one engine per effect type; the host creates a **persistent thick processor** `IEffectSynthesisProcessor` per "effect instance × upstream audio segment" in the project to drive it. The processor holds its own segment's context `IEffectSynthesisContext`, **subscribes itself, and manages invalidation and reprocessing itself** — the engine-private invalidation graph (which parameter / which automation segment marks dirty and triggers which internal recomputes) lives inside the processor, which the host cannot replicate, hence a thick model.
 
-Manifest entry: `{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "classes": ["My.Ns.MyEffectEngine"], "assembly": "MyEffect.dll" }` (`engine` is the immutable identity; `name` is an optional display name that can be translated via `localizations`; the host looks in `classes` for a class implementing `IEffectEngine`).
+Manifest entry: `{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "classes": ["My.Ns.MyEffectEngine"], "assembly": "MyEffect.dll" }` (`engine` is the immutable identity; `name` is an optional display name that can be translated via `localizations`; the host looks in `classes` for a class implementing `IEffectSynthesisEngine`).
 
 ```csharp
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
-public class MyEffectEngine : IEffectEngine   // engine id is declared in the manifest's "engine"
+public class MyEffectEngine : IEffectSynthesisEngine   // engine id is declared in the manifest's "engine"
 {
     // Property panel / automation tracks / readback tracks: all pure functions of the current parameter values (context.Properties) — the host recomputes on parameter commit
     // and diffs to the UI, so controls/tracks may show/hide with parameters (conditional declaration). A static one ignores context and returns fixed values (as below).
-    public ObjectConfig GetPropertyConfig(IEffectPropertyContext context) => mPropertyConfig;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectPropertyContext context) => mAutomationConfigs;
+    public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mPropertyConfig;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mAutomationConfigs;
 
     // Synthesized-parameter readback track declarations (read-only, independent of editable automation tracks): the read-only curves the processing produces (e.g. loudness) are exposed as first-class read-only tracks,
     // piecewise (DefaultValue=NaN), with their own DisplayText/Min/Max/Color. An engine with no readback returns an empty map.
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
 
     // Parameterless: the package directory is self-located via Assembly.Location (no host-passed path). On failure just throw; the host catches at the call boundary → passthrough degradation.
     public void Init() { /* ... load the model ... */ }
     public void Destroy() { /* release resources */ }
 
     // One persistent thick processor per "effect instance × one upstream audio segment"; the context is host-implemented, exposing this segment's input + parameters/automation + output ports + closure event.
-    public IEffectProcessor CreateProcessor(IEffectContext context) => new MyEffectProcessor(context);
+    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new MyEffectProcessor(context);
 
     readonly ObjectConfig mPropertyConfig = new()
     {
@@ -708,21 +708,27 @@ public class MyEffectEngine : IEffectEngine   // engine id is declared in the ma
 }
 ```
 
-The processor grabs `IEffectContext` at construction and subscribes itself (`Input.Committed` / `Properties.Modified` / each automation's `RangeModified`), computes dirty itself, and fires `ProcessingRequested` once at `context.Committed` (the logical-edit closure); the host schedules `Process` accordingly. The **synchronous prefix** of `Process` (data thread) grabs the `Input.Samples` reference + pre-samples parameter/automation values, and only then may offload to a worker; the product is written out via `context.CreateAudioSegment` and `Commit`ted. **An engine with no internal incremental work to do just re-processes the whole segment on any signal.**
+Invalidation judgment belongs to the host: it conservatively schedules `Process` on scoped signals (this segment's input re-committed / this effect's parameters settled-changed / this effect's automation edits whose range intersects this segment). The processor carries **no reporting duty** -- `Process` has **level semantics**: "make the output consistent with the current input", not "apply this change"; the synchronous prefix reads the latest truth, and how many edits happened in between is invisible and irrelevant. The **synchronous prefix** (data thread) copies the needed range out via `Input.Read` into its own buffer + pre-samples parameter/automation values, and only then may offload to a worker; the product is written out via `context.CreateAudioSegment` and `Commit`ted. Since host scheduling is conservative, a cache-savvy engine compares against its own caches and returns early without re-committing when the output would not change (downstream is then skipped); **an engine with no internal incremental work just re-processes whenever called.** The granular events (`Input.Committed` / `Properties.Modified` / `RangeModified`) remain available as optional cache-refresh hints -- the simplest engine subscribes to nothing.
 
 ```csharp
-class MyEffectProcessor : IEffectProcessor
+class MyEffectProcessor : IEffectSynthesisProcessor
 {
-    public MyEffectProcessor(IEffectContext context)
+    public MyEffectProcessor(IEffectSynthesisContext context)
     {
         mContext = context;
+        // Optional cache-refresh hints (scheduling is the host's job; the simplest engine subscribes to nothing):
         mContext.Input.Committed.Subscribe(OnDirty);          // upstream audio re-committed
         mContext.Properties.Modified.Subscribe(OnDirty);      // this effect's parameters changed
-        mContext.Committed.Subscribe(OnCommitted);            // logical-edit closure (fired once after the granular dirty-marking completes)
     }
 
-    public IActionEvent ProcessingRequested => mProcessingRequested;
-    readonly ActionEvent mProcessingRequested = new();
+    // Status claim timeline (same vocabulary as the voice session; global seconds; the subject is this processor's OWN
+    // product -- not bounded by the input geometry). A Synthesizing segment carries Progress; a Synthesized segment is a
+    // "claimed done" (shown as a non-final soft color -- final green only ever comes from actual chain-tail audio).
+    // Return an empty list to let the host render a default from scheduling facts. StatusChanged may fire from any thread
+    // (report in place from the worker); the host marshals before pulling GetStatus.
+    public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mStatus;
+    public IActionEvent StatusChanged => mStatusChanged;
+    readonly ActionEvent mStatusChanged = new();
 
     // This segment's readback curves (keys aligned with GetSynthesizedParameterConfigs): published on the data thread, host read-only, re-read along with the product on wrap-up. Return an empty map if there is no readback.
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
@@ -731,10 +737,11 @@ class MyEffectProcessor : IEffectProcessor
     {
         // —— Synchronous prefix (data thread): grab the input PCM reference + pre-sample parameter/automation values ——
         var input = mContext.Input;
-        var src = input.Samples;                       // the committed version's immutable whole-segment PCM
         int rate = input.SampleRate;
         long offset = input.SampleOffset;
-        int count = src.Length;
+        int count = input.SampleCount;
+        var src = new float[count];
+        input.Read(0, src);                            // copy-out into your own buffer (range reads are fine too)
         double amount = mContext.Properties.GetValue("amount", PropertyValue.Create(1.0)).ToDouble(out var a) ? a : 1.0;
 
         // Automation (optional): sample values at sample time points, query axis = global seconds (same time system as audio).
@@ -748,9 +755,10 @@ class MyEffectProcessor : IEffectProcessor
         }
 
         // —— After this you may offload to a worker (only reading the immutable values materialized above, never touching host live data) ——
-        var dst = DoProcess(src.Span, amount, env);
+        var dst = DoProcess(src, amount, env);
 
-        // Output: request an output segment (may be re-segmented, with length/sample rate differing from the input), write, and Commit.
+        // Output: registry semantics (same as voice) — segmentation of the product is free (1-to-N is legal, e.g. a
+        // silence splitter); each segment lives independently (Write/Commit/Dispose; to change geometry, Dispose then recreate).
         var outSegment = mContext.CreateAudioSegment(offset, dst.Length, rate);
         outSegment.Write(0, dst);
         outSegment.Commit();
@@ -760,35 +768,35 @@ class MyEffectProcessor : IEffectProcessor
         return Task.CompletedTask;                      // errors throw (host catches → passthrough); don't swallow here
     }
 
-    void OnDirty() => mDirty = true;
-    void OnCommitted() { if (mDirty) { mDirty = false; mProcessingRequested.Invoke(); } }
+    void OnDirty() => mDirty = true;   // consumed inside Process to decide what to recompute (cache refinement only)
 
     public void Dispose()
     {
         mContext.Input.Committed.Unsubscribe(OnDirty);
         mContext.Properties.Modified.Unsubscribe(OnDirty);
-        mContext.Committed.Unsubscribe(OnCommitted);
         /* release this segment's resident state, output segment handles */
     }
 
-    readonly IEffectContext mContext;
+    readonly IEffectSynthesisContext mContext;
     bool mDirty;
+    IReadOnlyList<SynthesisStatusSegment> mStatus = [];   // publish by swapping the reference (atomic)
     IReadOnlyMap<string, SynthesizedParameter> mReadback = new Map<string, SynthesizedParameter>();
 }
 ```
 
 Key points:
 
-- **Thick processor, self-managed invalidation**: `CreateProcessor(context)` builds a long-lived instance for "this effect × this upstream segment", which holds `context` and subscribes itself, and reuses internal caches across `Process` calls; the host `Dispose`s it on segment destruction / effect deletion / re-segmentation / sample-rate change. **Do not** rebuild the state on every `Process`. A change unrelated to this segment (e.g. automation edited in another segment's time interval) → no dirty-marking, no processing triggered → this segment's output is unchanged, and the host skips downstream based on the unchanged version.
-- **The input is an indivisible whole segment**: `context.Input` (`IUpstreamAudioSegment`) = the upstream voice output or the previous effect's output on the chain; the committed version's PCM is immutable (a re-Commit swaps in a new buffer and increments `CommitVersion`).
-- **Output via a handle**: `context.CreateAudioSegment(offset, count, rate)` requests an output segment, then `Write` + `Commit`; one segment in, multiple out, freely re-segmentable, the sample rate travels with the segment (when it differs from the project rate the host wraps a resample).
-- **Readback tracks (optional)**: the read-only curves the engine produces are declared via `GetSynthesizedParameterConfigs` + carried per-segment via `IEffectProcessor.SynthesizedParameters` (the host stitches the segments of the same effect by key). Read-only, non-editable, not in the data layer, not serialized; isomorphic to voice readback, shown/hidden by source in the parameter-area title bar.
+- **Thick processor, host-owned invalidation**: `CreateProcessor(context)` builds a long-lived instance for "this effect × this upstream segment" that reuses internal caches across `Process` calls; the host `Dispose`s it on segment destruction / effect deletion / re-segmentation / sample-rate change. The host schedules conservatively on scoped signals (it performs the automation-range/segment intersection generically — an edit in another segment's interval never wakes this node); parameter-dependency and value-level dedup are the engine's optional early-out inside `Process` (return without re-committing → downstream skipped).
+- **The input is an indivisible whole segment**: `context.Input` (`IEffectSynthesisAudio`) exposes `SampleOffset/Count/Rate` + `Read(offset, span)` (copy-out; the host storage layout is an implementation detail). There is no "committed" pulse -- being called into `Process` means the input is ready (scheduling is the host's job). `Input.RangeModified(offset, count)` is the content-change **ledger** (per-range, flat int pair -- same precedent as automation `RangeModified`): cache-savvy engines accumulate ranges and clear them only after a successful commit of their own output.
+- **Output via handles, registry semantics**: `context.CreateAudioSegment(offset, count, rate)` — segmentation of the product is free (**1-to-N is legal**: e.g. a silence **splitter** that re-establishes segment granularity so every downstream effect gets per-segment incrementality and parallelism for free); each output segment lives independently and each committed one feeds a downstream node. The input side stays single-segment (the consumption unit is the host's invalidation/scheduling/identity granularity). The only hard rule: **do not redistribute the time axis** (automation/readback and the part display share the global-seconds axis); slight geometry differences (frame padding, added tails) are fine. The sample rate travels with the segment (when it differs from the project rate the host wraps a resample).
+- **Status claims (optional)**: publish a status timeline via `GetStatus()` (immutable list swap) and fire `StatusChanged` (any thread) -- a Synthesizing segment with `Progress` renders as a vertical fill on the strip; Synthesized segments are "claimed done" (soft, non-final). An engine that reports nothing gets a host default derived from scheduling facts.
+- **Readback tracks (optional)**: the read-only curves the engine produces are declared via `GetSynthesizedParameterConfigs` + carried per-segment via `IEffectSynthesisProcessor.SynthesizedParameters` (the host stitches the segments of the same effect by key). Read-only, non-editable, not in the data layer, not serialized; isomorphic to voice readback, shown/hidden by source in the parameter-area title bar.
 - **Conditional declaration**: `GetPropertyConfig` / `GetAutomationConfigs` / `GetSynthesizedParameterConfigs` are pure functions of the current parameter values (same input → same output, no side effects, lightweight), recomputed on parameter commit — so controls/tracks may show/hide with parameters. After a track disappears from the declaration the host **keeps its already-drawn curve** (hidden, not deleted), restored as-is when the parameter rolls back.
 - **Effect chain**: multiple effects may hang on one MidiPart, **serial** in declaration order — the previous output is the next input; at the chain tail the segments are mixed by absolute time. Chain order, bypass, and add/remove are managed by the user in the property panel.
 - **Graceful degradation / cancellation on failure**: when an exception is thrown the host treats that segment as passthrough, without interrupting playback; cancellation is requested via `cancellation` and returns normally (**do not** throw `OperationCanceledException`), and the scheduling slot is released only when the `await` actually returns.
 - **Thread discipline**: the `context` (`Input` / `Properties` / automation) may be read only in the **synchronous prefix** (data thread) of `Process`; after offload read only the materialized immutable values; `SynthesizedParameters` and the output segment must be published on the data thread.
 
-The related interfaces are all in `TuneLab.SDK`: `IEffectEngine` / `IEffectProcessor` / `IEffectContext` / `IUpstreamAudioSegment` / `IAudioSegment` / `IEffectPropertyContext` / `ISynthesisAutomation`.
+The related interfaces are all in `TuneLab.SDK`: `IEffectSynthesisEngine` / `IEffectSynthesisProcessor` / `IEffectSynthesisContext` / `IEffectSynthesisAudio` / `IAudioSegment` / `IEffectSynthesisPropertyContext` / `ISynthesisAutomation`.
 
 ---
 

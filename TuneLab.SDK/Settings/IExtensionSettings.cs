@@ -4,7 +4,7 @@ namespace TuneLab.SDK;
 
 // 扩展能力级持久设置（opt-in）：任何扩展能力的实现类（voice/effect 引擎等）按需"再实现"它，声明一组随宿主、
 // 跨工程持久化、与运行时实例/段参数无关的配置——典型如 API key、模型路径、设备选择。宿主在设置窗口渲染面板、
-// 按能力落盘、运行时回喂。区别于 IEffectEngine.GetPropertyConfig 等"随工程序列化的实例/段级属性"。
+// 按能力落盘、运行时回喂。区别于 IEffectSynthesisEngine.GetPropertyConfig 等"随工程序列化的实例/段级属性"。
 //
 // 命名取 extension（= 宿主术语里"per 能力实现者单位"；安装包是 ExtensionPackage、可含多个 extension），
 // 不锚死 "engine"——便于将来非 engine 的顶级能力类型也接入设置。粒度是【per extension】（如每个 voice/effect

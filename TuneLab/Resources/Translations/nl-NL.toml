@@ -1,4 +1,4 @@
-[SettingsWindow]
+﻿[SettingsWindow]
 "Shortcut Shared Across Areas" = "Sneltoets gedeeld over gebieden"
 "This shortcut is also used by {0} in another area. Both stay active — the binding for the focused area takes priority." = "Deze sneltoets wordt ook door {0} in een ander gebied gebruikt. Beide blijven actief — de toewijzing van het gefocuste gebied heeft voorrang."
 "Conflicts with {0} in the same area; this one currently takes effect." = "Conflicteert met {0} in hetzelfde gebied; deze opdracht is momenteel actief."
@@ -86,6 +86,7 @@
 "Synthesizing" = "Synthetiseren"
 "Synthesized" = "Gesynthetiseerd"
 "Synthesis failed" = "Synthese mislukt"
+"Playing unprocessed audio" = "Onverwerkte audio wordt afgespeeld"
 "Right-click to copy" = "Klik met rechtermuisknop om te kopiëren"
 "Copied" = "Gekopieerd"
 
@@ -380,3 +381,8 @@
 "Model" = "Model"
 "Temperature" = "Temperatuur"
 "Max Tokens (0=auto)" = "Max. tokens (0=auto)"
+
+[SynthesisStatus]
+"Processing effect: {0} ({1}/{2})" = "Effect wordt verwerkt: {0} ({1}/{2})"
+"Processing effects" = "Effecten worden verwerkt"
+"Effect {0} failed, playing unprocessed audio" = "Effect {0} mislukt, onverwerkte audio wordt afgespeeld"

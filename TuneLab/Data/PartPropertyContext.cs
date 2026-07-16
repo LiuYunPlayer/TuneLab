@@ -21,30 +21,55 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
     IReadOnlyList<IInstrumentSynthesisNoteView> IInstrumentSynthesisPartView.Notes => Notes;
     IReadOnlyList<PartNote> Notes => mNotes ??= part.Notes.Select(n => new PartNote(n)).ToList();
 
-    // 已声明 automation 轨当前曲线求值器只读 map：轨集 = 当前音源引擎声明的 AutomationConfigs；
+    // 当前**存在用户内容**的轨的求值器只读 map（外生口径，与 effect 声明面同判例：声明集 = f(context)，
+    // 按「已声明」枚举会把引擎上一轮声明输出喂回声明求值、形成滞后反馈环）。有内容 = 连续曲线 / 分段曲线 /
+    // 被 vibrato 投影（三者皆用户创造，含孤儿）；未绘制且无投影的已声明轨不在 map——其值恒为引擎自知的默认。
     // 求值器无状态、每次读现建（声明面是调用级一次性求值，不留存）。
     public IReadOnlyMap<string, IAutomationEvaluator> Automations
     {
         get
         {
             var map = new Map<string, IAutomationEvaluator>();
-            foreach (var kvp in part.SoundSource.AutomationConfigs)
-                map.Add(kvp.Key.Id, new Evaluator(part, kvp.Key.Id));
+            foreach (var kvp in part.Automations)
+                map.Add(kvp.Key, new Evaluator(part, kvp.Key, piecewise: false));
+            foreach (var kvp in part.PiecewiseAutomations)
+            {
+                if (!map.ContainsKey(kvp.Key))
+                    map.Add(kvp.Key, new Evaluator(part, kvp.Key, piecewise: true));
+            }
+            foreach (var vibrato in part.Vibratos)
+            {
+                foreach (var kvp in vibrato.AffectedAutomations)
+                {
+                    if (!map.ContainsKey(kvp.Key))
+                        map.Add(kvp.Key, new Evaluator(part, kvp.Key, piecewise: false));
+                }
+            }
             return map;
         }
     }
 
     List<PartNote>? mNotes;
 
-    // 读某条已声明自动化轨当前曲线：查询轴全局秒 → 逐点换算全局 tick → 读 part 终值（含偏差源）。
-    sealed class Evaluator(IMidiPart part, string key) : IAutomationEvaluator
+    // 读某轨当前曲线：查询轴全局秒 → part 相对 tick（part 级取值器均吃相对 tick——旧实现漏减 Pos，
+    // part 不在 0 时整体偏移）→ 连续轨读终值（基线/默认 + vibrato 投影）、分段轨读曲线（无曲线处 NaN）。
+    sealed class Evaluator(IMidiPart part, string key, bool piecewise) : IAutomationEvaluator
     {
         public double[] Evaluate(IReadOnlyList<double> times)
         {
+            double pos = part.Pos.Value;
             var ticks = new double[times.Count];
             for (int i = 0; i < times.Count; i++)
-                ticks[i] = part.TempoManager.GetTick(times[i]);
-            return part.GetFinalAutomationValues(ticks, key);
+                ticks[i] = part.TempoManager.GetTick(times[i]) - pos;
+
+            if (!piecewise)
+                return part.GetFinalAutomationValues(ticks, key);
+
+            if (part.PiecewiseAutomations.TryGetValue(key, out var automation))
+                return automation.GetValues(ticks);
+            var values = new double[times.Count];
+            values.Fill(double.NaN);
+            return values;
         }
     }
 
