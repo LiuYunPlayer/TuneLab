@@ -343,6 +343,18 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                         else
                             reader.SkipValue();
                         break;
+                    case "piecewiseAutomations":
+                        if (midiPartInfo != null)
+                            ReadPiecewiseAutomations(reader, midiPartInfo.PiecewiseAutomations);
+                        else
+                            reader.SkipValue();
+                        break;
+                    case "effects":
+                        if (midiPartInfo != null)
+                            ReadEffects(reader, midiPartInfo.Effects);
+                        else
+                            reader.SkipValue();
+                        break;
                     case "path":
                         if (audioPartInfo != null)
                             audioPartInfo.Path = reader.ReadTextString();
@@ -674,6 +686,59 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         reader.ReadEndMap();
     }
 
+    // 分段轨 map（轨 id → 折线段集，同 Pitch 形）：part 级声明分段轨与 effect 级共用。
+    private void ReadPiecewiseAutomations(CborReader reader, Map<string, List<List<Point>>> map)
+    {
+        reader.ReadStartMap();
+        while (reader.PeekState() != CborReaderState.EndMap)
+        {
+            var key = reader.ReadTextString();
+            var lines = new List<List<Point>>();
+            ReadPitch(reader, lines);
+            map.Add(key, lines);
+        }
+        reader.ReadEndMap();
+    }
+
+    // 效果链（数组序 = 声明序 = 串行处理序）：类型 + 启用(bypass) + 参数 + 自动化 + 分段轨。
+    private void ReadEffects(CborReader reader, List<EffectInfo> effects)
+    {
+        reader.ReadStartArray();
+        while (reader.PeekState() != CborReaderState.EndArray)
+        {
+            var effectInfo = new EffectInfo();
+            reader.ReadStartMap();
+            while (reader.PeekState() != CborReaderState.EndMap)
+            {
+                var key = reader.ReadTextString();
+                switch (key)
+                {
+                    case "type":
+                        effectInfo.Type = reader.ReadTextString();
+                        break;
+                    case "enabled":
+                        effectInfo.IsEnabled = reader.ReadBoolean();
+                        break;
+                    case "properties":
+                        effectInfo.Properties = ReadPropertyObject(reader);
+                        break;
+                    case "automations":
+                        ReadAutomations(reader, effectInfo.Automations);
+                        break;
+                    case "piecewiseAutomations":
+                        ReadPiecewiseAutomations(reader, effectInfo.PiecewiseAutomations);
+                        break;
+                    default:
+                        reader.SkipValue();
+                        break;
+                }
+            }
+            reader.ReadEndMap();
+            effects.Add(effectInfo);
+        }
+        reader.ReadEndArray();
+    }
+
     internal static PropertyObject ReadPropertyObject(CborReader reader)
     {
         var map = new Map<string, PropertyValue>();
@@ -935,7 +1000,61 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("automations");
         WriteAutomations(writer, midiPart.Automations);
 
+        // 空集合不落键（多数 part 无 effect/分段轨；读侧缺键 = 默认空，语义一致）。
+        if (midiPart.PiecewiseAutomations.Count > 0)
+        {
+            writer.WriteTextString("piecewiseAutomations");
+            WritePiecewiseAutomations(writer, midiPart.PiecewiseAutomations);
+        }
+
+        if (midiPart.Effects.Count > 0)
+        {
+            writer.WriteTextString("effects");
+            WriteEffects(writer, midiPart.Effects);
+        }
+
         writer.WriteEndMap();
+    }
+
+    private void WritePiecewiseAutomations(CborWriter writer, Map<string, List<List<Point>>> map)
+    {
+        writer.WriteStartMap(null);
+        foreach (var kvp in map)
+        {
+            writer.WriteTextString(kvp.Key);
+            WritePitch(writer, kvp.Value);
+        }
+        writer.WriteEndMap();
+    }
+
+    private void WriteEffects(CborWriter writer, List<EffectInfo> effects)
+    {
+        writer.WriteStartArray(null);
+        foreach (var effect in effects)
+        {
+            writer.WriteStartMap(null);
+
+            writer.WriteTextString("type");
+            writer.WriteTextString(effect.Type);
+
+            writer.WriteTextString("enabled");
+            writer.WriteBoolean(effect.IsEnabled);
+
+            writer.WriteTextString("properties");
+            WritePropertyObject(writer, effect.Properties);
+
+            writer.WriteTextString("automations");
+            WriteAutomations(writer, effect.Automations);
+
+            if (effect.PiecewiseAutomations.Count > 0)
+            {
+                writer.WriteTextString("piecewiseAutomations");
+                WritePiecewiseAutomations(writer, effect.PiecewiseAutomations);
+            }
+
+            writer.WriteEndMap();
+        }
+        writer.WriteEndArray();
     }
 
     private void WriteAudioPart(CborWriter writer, AudioPartInfo audioPart)

@@ -233,6 +233,28 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                             }
                         }
 
+                        if (part.TryGetValue("piecewiseAutomations", out var piecewiseAutomations))
+                            ReadJsonPiecewiseAutomations(piecewiseAutomations, midiPartInfo.PiecewiseAutomations);
+
+                        if (part.TryGetValue("effects", out var effects))
+                        {
+                            foreach (JObject effect in effects.ToArray())
+                            {
+                                var effectInfo = new EffectInfo()
+                                {
+                                    Type = (string?)effect["type"] ?? string.Empty,
+                                    IsEnabled = (bool?)effect["enabled"] ?? true,
+                                };
+                                if (effect.TryGetValue("properties", out var effectProperties))
+                                    effectInfo.Properties = FromJson(effectProperties);
+                                if (effect.TryGetValue("automations", out var effectAutomations))
+                                    ReadJsonAutomations(effectAutomations, effectInfo.Automations);
+                                if (effect.TryGetValue("piecewiseAutomations", out var effectPiecewise))
+                                    ReadJsonPiecewiseAutomations(effectPiecewise, effectInfo.PiecewiseAutomations);
+                                midiPartInfo.Effects.Add(effectInfo);
+                            }
+                        }
+
                         partInfo = midiPartInfo;
                     }
                     else if (type == "audio")
@@ -433,6 +455,27 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         vibratos.Add(vibrato);
                     }
                     part.Add("vibratos", vibratos);
+
+                    // 空集合不落键（多数 part 无 effect/分段轨；读侧缺键 = 默认空，语义一致）。
+                    if (midiPartInfo.PiecewiseAutomations.Count > 0)
+                        part.Add("piecewiseAutomations", PiecewiseAutomationsToJson(midiPartInfo.PiecewiseAutomations));
+
+                    if (midiPartInfo.Effects.Count > 0)
+                    {
+                        var effects = new JArray();
+                        foreach (var effectInfo in midiPartInfo.Effects)
+                        {
+                            var effect = new JObject();
+                            effect.Add("type", effectInfo.Type);
+                            effect.Add("enabled", effectInfo.IsEnabled);
+                            effect.Add("properties", ToJson(effectInfo.Properties));
+                            effect.Add("automations", AutomationsToJson(effectInfo.Automations));
+                            if (effectInfo.PiecewiseAutomations.Count > 0)
+                                effect.Add("piecewiseAutomations", PiecewiseAutomationsToJson(effectInfo.PiecewiseAutomations));
+                            effects.Add(effect);
+                        }
+                        part.Add("effects", effects);
+                    }
                 }
                 else if (partInfo is AudioPartInfo audioPartInfo)
                 {
@@ -506,6 +549,100 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             array.Add(phoneme);
         }
         return array;
+    }
+
+    // —— 自动化/分段轨的 JSON 形辅助（与 part 级内联读写同形；effect 级与 part 级分段轨共用）——
+
+    static void ReadJsonAutomations(JToken automations, Map<string, AutomationInfo> map)
+    {
+        foreach (JProperty property in automations.Children())
+        {
+            var automationInfo = new AutomationInfo
+            {
+                DefaultValue = (double?)property.Value["default"] ?? 0,
+            };
+            bool flag = false;
+            double x = 0;
+            foreach (double value in property.Value["values"]!.ToArray())
+            {
+                if (flag)
+                    automationInfo.Points.Add(new Point(x, value));
+                else
+                    x = value;
+                flag = !flag;
+            }
+            map.Add(property.Name, automationInfo);
+        }
+    }
+
+    static List<List<Point>> ReadJsonLines(JToken linesToken)
+    {
+        var lines = new List<List<Point>>();
+        foreach (JArray values in linesToken.ToArray())
+        {
+            var line = new List<Point>();
+            bool flag = false;
+            double x = 0;
+            foreach (double value in values)
+            {
+                if (flag)
+                    line.Add(new Point(x, value));
+                else
+                    x = value;
+                flag = !flag;
+            }
+            lines.Add(line);
+        }
+        return lines;
+    }
+
+    static void ReadJsonPiecewiseAutomations(JToken token, Map<string, List<List<Point>>> map)
+    {
+        foreach (JProperty property in token.Children())
+            map.Add(property.Name, ReadJsonLines(property.Value));
+    }
+
+    static JObject AutomationsToJson(Map<string, AutomationInfo> map)
+    {
+        var automations = new JObject();
+        foreach (var kvp in map)
+        {
+            var automation = new JObject();
+            automation.Add("default", kvp.Value.DefaultValue);
+            var values = new JArray();
+            foreach (var point in kvp.Value.Points)
+            {
+                values.Add(point.X);
+                values.Add(point.Y);
+            }
+            automation.Add("values", values);
+            automations.Add(kvp.Key, automation);
+        }
+        return automations;
+    }
+
+    static JArray LinesToJson(List<List<Point>> lines)
+    {
+        var array = new JArray();
+        foreach (var line in lines)
+        {
+            var values = new JArray();
+            foreach (var point in line)
+            {
+                values.Add(point.X);
+                values.Add(point.Y);
+            }
+            array.Add(values);
+        }
+        return array;
+    }
+
+    static JObject PiecewiseAutomationsToJson(Map<string, List<List<Point>>> map)
+    {
+        var piecewise = new JObject();
+        foreach (var kvp in map)
+            piecewise.Add(kvp.Key, LinesToJson(kvp.Value));
+        return piecewise;
     }
 
     PropertyObject FromJson(JToken jToken)
