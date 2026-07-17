@@ -198,6 +198,21 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                     }
                                 }
 
+                                // 外层键 = effect 槽位下标（JSON 键须为字符串，读回解析 int）。
+                                if (vibrato.TryGetValue("affectedEffectAutomations", out var affectedEffectAutomations))
+                                {
+                                    foreach (JProperty slot in affectedEffectAutomations.Children())
+                                    {
+                                        if (!int.TryParse(slot.Name, out int effectIndex))
+                                            continue;
+
+                                        var slotTracks = new Map<string, double>();
+                                        foreach (JProperty property in slot.Value.Children())
+                                            slotTracks.Add(property.Name, (double)property.Value);
+                                        vibratoInfo.AffectedEffectAutomations.Add(effectIndex, slotTracks);
+                                    }
+                                }
+
                                 midiPartInfo.Vibratos.Add(vibratoInfo);
                             }
                         }
@@ -452,6 +467,19 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                             vibrato.Add("affectedAutomations", affectiveAutomations);
                         }
 
+                        if (vibratoInfo.AffectedEffectAutomations.Count != 0)
+                        {
+                            var affectedEffectAutomations = new JObject();
+                            foreach (var slot in vibratoInfo.AffectedEffectAutomations)
+                            {
+                                var slotTracks = new JObject();
+                                foreach (var kvp in slot.Value)
+                                    slotTracks.Add(kvp.Key, kvp.Value);
+                                affectedEffectAutomations.Add(slot.Key.ToString(), slotTracks);
+                            }
+                            vibrato.Add("affectedEffectAutomations", affectedEffectAutomations);
+                        }
+
                         vibratos.Add(vibrato);
                     }
                     part.Add("vibratos", vibratos);
@@ -645,60 +673,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         return piecewise;
     }
 
-    PropertyObject FromJson(JToken jToken)
-    {
-        var map = new Map<string, PropertyValue>();
-
-        foreach (JProperty property in jToken.Children())
-        {
-            var key = property.Name;
-            var value = property.Value;
-            switch (value.Type)
-            {
-                case JTokenType.Boolean:
-                    map.Add(key, (bool)value);
-                    break;
-                case JTokenType.Integer:
-                    map.Add(key, (int)value);
-                    break;
-                case JTokenType.Float:
-                    map.Add(key, (double)value);
-                    break;
-                case JTokenType.String:
-                    map.Add(key, (string)value);
-                    break;
-                case JTokenType.Object:
-                    map.Add(key, FromJson(value));
-                    break;
-            }
-        }
-        return new(map);
-    }
-
-    JObject ToJson(PropertyObject properties)
-    {
-        var json = new JObject();
-        foreach (var property in properties.Map)
-        {
-            var key = property.Key;
-            var value = property.Value;
-            if (value.ToObject(out var propertyObject))
-            {
-                json.Add(key, ToJson(propertyObject));
-            }
-            else if (value.ToBool(out var boolValue))
-            {
-                json.Add(key, boolValue);
-            }
-            else if (value.ToDouble(out var doubleValue))
-            {
-                json.Add(key, doubleValue);
-            }
-            else if (value.ToString(out var strinValue))
-            {
-                json.Add(key, strinValue);
-            }
-        }
-        return json;
-    }
+    // PropertyObject ↔ JSON 走全仓唯一共用转换（含 PropertyArray 臂），语义与 CBOR 版对齐。
+    static PropertyObject FromJson(JToken? jToken) => PropertyJsonUtils.ToPropertyObject(jToken);
+    static JObject ToJson(PropertyObject properties) => PropertyJsonUtils.ToJson(properties);
 }

@@ -124,12 +124,13 @@ internal partial class AutomationRenderer
                                     break;
 
                                 var automationKey = mDependency.ActiveAutomation;
-                                if (automationKey == null || automationKey.Value.IsEffect)
+                                // 双击解除关联：voice / effect 连续轨皆可（lane / 分段轨无关联概念）。
+                                if (automationKey == null || !Part.IsEffectiveAutomation(automationKey.Value))
                                     break;
 
                                 foreach (var vibrato in Part.Vibratos.AllSelectedItems())
                                 {
-                                    vibrato.AffectedAutomations.Remove(automationKey.Value.Id);
+                                    vibrato.RemoveAssociation(automationKey.Value);
                                 }
                                 Part.Commit();
                             }
@@ -1343,22 +1344,21 @@ internal partial class AutomationRenderer
                 return;
 
             var automationKey = AutomationRenderer.mDependency.ActiveAutomation;
-            // vibrato 振幅调节只作用于 voice 自动化（effect 不参与颤音）。
-            if (automationKey == null || automationKey.Value.IsEffect)
+            // vibrato 振幅调节：voice 与 effect 连续自动化皆可（按 key 路由到各自影响表）。
+            if (automationKey == null)
                 return;
 
             if (!AutomationRenderer.Part.IsEffectiveAutomation(automationKey.Value))
                 return;
 
-            var automationID = automationKey.Value.Id;
             State = State.VibratoAmplitudeAdjusting;
             AutomationRenderer.Part.BeginMergeDirty();
             mVibratos = vibratos;
-            mAutomationID = automationID;
+            mKey = automationKey.Value;
             foreach (var vibrato in mVibratos)
             {
-                if (!vibrato.AffectedAutomations.ContainsKey(automationID))
-                    vibrato.AffectedAutomations.Add(automationID, 0);
+                if (!vibrato.IsAssociated(mKey))
+                    vibrato.SetAmplitude(mKey, 0);
             }
             mHead = AutomationRenderer.Part.Head;
             var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationKey.Value);
@@ -1380,7 +1380,7 @@ internal partial class AutomationRenderer
             double offset = value - mValue;
             foreach (var vibrato in mVibratos)
             {
-                vibrato.AffectedAutomations[mAutomationID] = vibrato.AffectedAutomations[mAutomationID] + offset;
+                vibrato.SetAmplitude(mKey, vibrato.GetAmplitude(mKey) + offset);
             }
         }
 
@@ -1409,7 +1409,7 @@ internal partial class AutomationRenderer
         }
 
         IReadOnlyCollection<Vibrato>? mVibratos;
-        string mAutomationID;
+        AutomationKey mKey;
         double mValue;
         double mMax;
         double mMin;

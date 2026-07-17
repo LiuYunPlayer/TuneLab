@@ -78,11 +78,11 @@ internal static class VoiceSynthesisSnapshotFactory
 
         // —— 音高双通道：Pitch = 纯用户绘制曲线开窗快照（NaN=自由）；
         //    PitchDeviation = vibrato 偏移冻结合成（基线 0，与 live GetVibratoDeviation 同一套共享算法）。 ——
-        var pitch = new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalEvaluator(
+        var pitch = new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalAutomationEvaluator(
             PiecewiseAutomationSnapshot.Capture(part.Pitch, relStart, relEnd),
             [], envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: true) };
-        var pitchDeviation = new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalEvaluator(
-            new ConstantEvaluator(0),
+        var pitchDeviation = new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalAutomationEvaluator(
+            new ConstantAutomationEvaluator(0),
             SelectVibratos(vibratoCaptures, string.Empty),
             envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) };
 
@@ -93,8 +93,8 @@ internal static class VoiceSynthesisSnapshotFactory
             string key = kvp.Key.Id;
             IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
                 ? AutomationSnapshot.Capture(automation, relStart, relEnd)
-                : new ConstantEvaluator(kvp.Value.DefaultValue);
-            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalEvaluator(
+                : new ConstantAutomationEvaluator(kvp.Value.DefaultValue);
+            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalAutomationEvaluator(
                 baseEvaluator,
                 SelectVibratos(vibratoCaptures, key),
                 envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) });
@@ -150,50 +150,4 @@ internal static class VoiceSynthesisSnapshotFactory
         double Phase, double Attack, double Release,
         IReadOnlyDictionary<string, double> AffectedAutomations);
 
-    // 最终求值的冻结合成：开窗基础快照 + vibrato 偏移（共享纯函数）。查询轴 = 全局秒，
-    // 此处经 tempo 快照换算到全局 tick、再减 part 偏移到相对 tick 求值。
-    // skipNaN：pitch 段间空值不叠加偏移（与 live 行为一致）。
-    sealed class FrozenFinalEvaluator(
-        IAutomationEvaluator baseEvaluator,
-        IReadOnlyList<VibratoMath.VibratoData> vibratos,
-        Func<double[], double[]>? envelopeSampler,
-        double partPos,
-        Func<double, double> tickToTime,
-        Func<IReadOnlyList<double>, double[]> timesToTicks,
-        bool skipNaN) : IAutomationEvaluator
-    {
-        public double[] Evaluate(IReadOnlyList<double> times)
-        {
-            double[] globalTicks = timesToTicks(times);
-            double[] ticks = new double[times.Count];
-            for (int i = 0; i < times.Count; i++)
-            {
-                ticks[i] = globalTicks[i] - partPos;
-            }
-
-            var values = baseEvaluator.Evaluate(ticks);
-            if (vibratos.Count == 0)
-                return values;
-
-            var deviation = VibratoMath.GetDeviation(vibratos, ticks, envelopeSampler, partPos, tickToTime);
-            for (int i = 0; i < values.Length; i++)
-            {
-                if (skipNaN && double.IsNaN(values[i]))
-                    continue;
-
-                values[i] += deviation[i];
-            }
-            return values;
-        }
-    }
-
-    sealed class ConstantEvaluator(double value) : IAutomationEvaluator
-    {
-        public double[] Evaluate(IReadOnlyList<double> times)
-        {
-            double[] values = new double[times.Count];
-            values.Fill(value);
-            return values;
-        }
-    }
 }

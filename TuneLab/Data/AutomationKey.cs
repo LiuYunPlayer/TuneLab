@@ -29,3 +29,16 @@ internal readonly record struct AutomationKey(AutomationSource Source, int Effec
     public static AutomationKey NoteLane(string id) => new(AutomationSource.NoteLane, -1, id);
     public static AutomationKey PhonemeLane(string id) => new(AutomationSource.PhonemeLane, -1, id);
 }
+
+// effect 自动化轨在【数据层】的持久身份：effect 在 part 链中的槽位下标 + 该 effect 内的轨 id。
+// 用于 Vibrato.AffectedEffectAutomations 的键（随工程持久化）。与 AutomationKey 的分工：AutomationKey 是
+// UI→数据的路由键（带来源、不持久化），本类型是落进数据的外键——槽位下标由宿主在链结构变更（增/删/重排，
+// 唯一操作点 = Effects 面板）时同步重映射，故对持久化视作稳定。
+internal readonly record struct EffectAutomationRef(int EffectIndex, string Id)
+{
+    public static EffectAutomationRef From(AutomationKey key)
+    {
+        System.Diagnostics.Debug.Assert(key.IsEffect);
+        return new(key.EffectIndex, key.Id);
+    }
+}

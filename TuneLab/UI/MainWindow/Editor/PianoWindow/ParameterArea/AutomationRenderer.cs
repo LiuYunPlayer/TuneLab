@@ -413,8 +413,9 @@ internal partial class AutomationRenderer : View
             colorStr = config.Color;
         }
 
-        // vibrato 叠加层与"拖拽关联颤音"提示仅对 voice 连续轨绘制（effect 与分段轨皆无 automation-vibrato 概念）。
-        if (activeContinuous && !active.IsEffect)
+        // vibrato 叠加层与"拖拽关联颤音"提示：连续轨（voice 与 effect 皆可关联颤音）绘制；分段轨无 automation-vibrato 概念。
+        // 主曲线（DrawContinuous）画含 vibrato 的终值，这里在颤音覆盖区叠画不含 vibrato 的基线（半透明 ghost）。
+        if (activeContinuous)
         {
             foreach (var vibrato in Part.Vibratos)
             {
@@ -441,7 +442,7 @@ internal partial class AutomationRenderer : View
                 double range = max - min;
                 double r = Bounds.Height / range;
 
-                double[] values = Part.GetAutomationValues(vticks, active.Id);
+                double[] values = Part.GetEffectiveAutomationValues(vticks, active);
 
                 for (int i = 0; i < values.Length; i++)
                 {
@@ -459,7 +460,7 @@ internal partial class AutomationRenderer : View
 
             if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
             {
-                if (!vibratoItem.Vibrato.AffectedAutomations.ContainsKey(active.Id))
+                if (!vibratoItem.Vibrato.IsAssociated(active))
                 {
                     var vibrato = vibratoItem.Vibrato;
                     double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);

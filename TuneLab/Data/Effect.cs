@@ -110,52 +110,88 @@ internal class Effect : DataObject, IEffect
 
     IEffectSynthesisEngine? Engine => EffectManager.GetInitedEngine(Type);
 
-    // 条件面板求值上下文（单实例壳）：数据层求值恒单选——本 effect 自己一个视图；
-    // 多选 part 的合并面板由 UI 层用各实例视图构造多元素上下文（同 voice 多选 part 的形状）。
-    sealed class EffectPropertyContext(Effect effect) : IEffectSynthesisPropertyContext, IEffectSynthesisView
+    // 多选 part「对应槽位」实例组的合并声明面求值（UI 层构造）：slot = 各 part 同槽位的 effect 实例
+    //（Type 已对齐、引擎取首实例），context 携全部实例视图、三态合并归引擎——与 voice 的
+    // GetPartPropertyConfig(多 part context) 同构。单实例即 N=1 特例。
+    public static ObjectConfig GetPropertyConfig(IReadOnlyList<IEffect> slot)
+        => slot.Count > 0
+            ? ((Effect)slot[0]).Engine?.GetPropertyConfig(new EffectPropertyContext(slot)) ?? EmptyPropertyConfig
+            : EmptyPropertyConfig;
+
+    public static IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IReadOnlyList<IEffect> slot)
+        => slot.Count > 0
+            ? ((Effect)slot[0]).Engine?.GetAutomationConfigs(new EffectPropertyContext(slot)) ?? EmptyAutomationConfigs
+            : EmptyAutomationConfigs;
+
+    // 条件面板求值上下文（多选壳）：数据层自身求值恒单选——本 effect 一个视图；
+    // 多选 part 的合并面板由 UI 层用各 part 对应槽位的实例构造多元素上下文（见上方静态求值口）。
+    sealed class EffectPropertyContext : IEffectSynthesisPropertyContext
     {
-        public IReadOnlyList<IEffectSynthesisView> Effects => [this];
-        public PropertyObject Properties => effect.Properties.GetInfo();
+        public EffectPropertyContext(Effect effect) => Effects = [new View(effect)];
+        public EffectPropertyContext(IReadOnlyList<IEffect> effects) => Effects = effects.Select(IEffectSynthesisView (e) => new View((Effect)e)).ToList();
 
-        // 当前**存在曲线数据**的轨的求值器（连续/分段皆在、含孤儿；未绘制的已声明轨不在 map——其值恒为
-        // 引擎自知的默认，点取缺失即回退引擎默认）。刻意不按「已声明」口径枚举：声明集正是本次求值要产出的
-        // 东西（AutomationConfigs = f(context)），按声明枚举是自引用递归（voice 无此问题因其读的是音源缓存的
-        // 上一次物化声明）。求值器无状态、每次读现建——声明面是调用级一次性求值，不留存。
-        public IReadOnlyMap<string, IAutomationEvaluator> Automations
+        public IReadOnlyList<IEffectSynthesisView> Effects { get; }
+
+        sealed class View(Effect effect) : IEffectSynthesisView
         {
-            get
+            public PropertyObject Properties => effect.Properties.GetInfo();
+
+            // 当前**存在用户内容**的轨的求值器（连续/分段皆在、含孤儿；有内容 = 曲线数据 / 被 vibrato 投影，
+            // 与 voice 声明面同口径）。未绘制且无投影的已声明轨不在 map——其值恒为引擎自知的默认，点取缺失即回退
+            // 引擎默认。刻意不按「已声明」口径枚举：声明集正是本次求值要产出的东西（AutomationConfigs = f(context)），
+            // 按声明枚举是自引用递归（voice 无此问题因其读的是音源缓存的上一次物化声明）。
+            // 求值器无状态、每次读现建——声明面是调用级一次性求值，不留存。
+            public IReadOnlyMap<string, IAutomationEvaluator> Automations
             {
-                var map = new Map<string, IAutomationEvaluator>();
-                foreach (var kvp in effect.mAutomations)
-                    map.Add(kvp.Key, new Evaluator(effect, kvp.Key, piecewise: false));
-                foreach (var kvp in effect.mPiecewiseAutomations)
+                get
                 {
-                    if (!map.ContainsKey(kvp.Key))
-                        map.Add(kvp.Key, new Evaluator(effect, kvp.Key, piecewise: true));
+                    var map = new Map<string, IAutomationEvaluator>();
+                    foreach (var kvp in effect.mAutomations)
+                        map.Add(kvp.Key, new Evaluator(effect, kvp.Key, piecewise: false));
+                    foreach (var kvp in effect.mPiecewiseAutomations)
+                    {
+                        if (!map.ContainsKey(kvp.Key))
+                            map.Add(kvp.Key, new Evaluator(effect, kvp.Key, piecewise: true));
+                    }
+                    int index = effect.mPart.Effects.IndexOf(effect);
+                    foreach (var vibrato in effect.mPart.Vibratos)
+                    {
+                        foreach (var kvp in vibrato.AffectedEffectAutomations)
+                        {
+                            if (kvp.Key.EffectIndex == index && !map.ContainsKey(kvp.Key.Id))
+                                map.Add(kvp.Key.Id, new Evaluator(effect, kvp.Key.Id, piecewise: false));
+                        }
+                    }
+                    return map;
                 }
-                return map;
             }
-        }
 
-        // 查询轴全局秒 → 全局 tick → part 相对 tick → 读 effect 当前曲线（连续轨按默认值填，分段轨无曲线处 NaN）。
-        sealed class Evaluator(Effect effect, string key, bool piecewise) : IAutomationEvaluator
-        {
-            public double[] Evaluate(IReadOnlyList<double> times)
+            // 查询轴全局秒 → 全局 tick → part 相对 tick → 读 effect 当前曲线：连续轨读终值（基线/默认 +
+            // vibrato 投影，槽位现场解析）、分段轨读曲线（无曲线处 NaN）。
+            sealed class Evaluator(Effect effect, string key, bool piecewise) : IAutomationEvaluator
             {
-                var part = effect.mPart;
-                double pos = part.Pos.Value;
-                var ticks = new double[times.Count];
-                for (int i = 0; i < times.Count; i++)
-                    ticks[i] = part.TempoManager.GetTick(times[i]) - pos;
+                public double[] Evaluate(IReadOnlyList<double> times)
+                {
+                    var part = effect.mPart;
+                    double pos = part.Pos.Value;
+                    var ticks = new double[times.Count];
+                    for (int i = 0; i < times.Count; i++)
+                        ticks[i] = part.TempoManager.GetTick(times[i]) - pos;
 
-                if (!piecewise)
-                    return effect.GetAutomationValues(ticks, key);
+                    if (!piecewise)
+                    {
+                        int index = ((IMidiPart)part).Effects.IndexOf(effect);
+                        if (index < 0)
+                            return effect.GetAutomationValues(ticks, key);
+                        return ((IMidiPart)part).GetFinalAutomationValues(ticks, AutomationKey.Effect(index, key));
+                    }
 
-                if (effect.mPiecewiseAutomations.TryGetValue(key, out var automation))
-                    return automation.GetValues(ticks);
-                var values = new double[times.Count];
-                values.Fill(double.NaN);
-                return values;
+                    if (effect.mPiecewiseAutomations.TryGetValue(key, out var automation))
+                        return automation.GetValues(ticks);
+                    var values = new double[times.Count];
+                    values.Fill(double.NaN);
+                    return values;
+                }
             }
         }
     }

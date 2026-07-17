@@ -624,6 +624,9 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     case "affectedAutomations":
                         ReadAffectedAutomations(reader, vibratoInfo.AffectedAutomations);
                         break;
+                    case "affectedEffectAutomations":
+                        ReadAffectedEffectAutomations(reader, vibratoInfo.AffectedEffectAutomations);
+                        break;
                     default:
                         reader.SkipValue();
                         break;
@@ -643,6 +646,20 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             var key = reader.ReadTextString();
             var value = reader.ReadDouble();
             affectedAutomations.Add(key, value);
+        }
+        reader.ReadEndMap();
+    }
+
+    // 外层键 = effect 槽位下标（CBOR 原生 int 键），内层同 voice 影响表。
+    private void ReadAffectedEffectAutomations(CborReader reader, Map<int, Map<string, double>> affectedEffectAutomations)
+    {
+        reader.ReadStartMap();
+        while (reader.PeekState() != CborReaderState.EndMap)
+        {
+            int index = reader.ReadInt32();
+            var tracks = new Map<string, double>();
+            ReadAffectedAutomations(reader, tracks);
+            affectedEffectAutomations.Add(index, tracks);
         }
         reader.ReadEndMap();
     }
@@ -1204,6 +1221,24 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                 {
                     writer.WriteTextString(kvp.Key);
                     writer.WriteDouble(kvp.Value);
+                }
+                writer.WriteEndMap();
+            }
+
+            if (vibrato.AffectedEffectAutomations.Count > 0)
+            {
+                writer.WriteTextString("affectedEffectAutomations");
+                writer.WriteStartMap(null);
+                foreach (var slot in vibrato.AffectedEffectAutomations)
+                {
+                    writer.WriteInt32(slot.Key);
+                    writer.WriteStartMap(null);
+                    foreach (var kvp in slot.Value)
+                    {
+                        writer.WriteTextString(kvp.Key);
+                        writer.WriteDouble(kvp.Value);
+                    }
+                    writer.WriteEndMap();
                 }
                 writer.WriteEndMap();
             }

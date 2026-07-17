@@ -244,18 +244,61 @@ internal static class IMidiPartExtension
         return part.AddPiecewiseAutomation(key.Id);
     }
 
-    // 最终曲线取值：voice 走含 vibrato 的最终值；effect 走其自身曲线（无 vibrato）。note lane 非时间曲线，不在此取值。
-    public static double[] GetFinalAutomationValues(this IMidiPart part, IReadOnlyList<double> ticks, AutomationKey key)
+    // 原始曲线取值（不含 vibrato，按来源路由）：叠加层基线绘制等需要「纯用户曲线」的消费者用。lane 非时间曲线，返回零。
+    public static double[] GetEffectiveAutomationValues(this IMidiPart part, IReadOnlyList<double> ticks, AutomationKey key)
     {
-        if (key.IsNoteLane)
+        if (key.IsLane)
             return new double[ticks.Count];
 
         if (key.IsEffect)
         {
             if (key.EffectIndex < part.Effects.Count)
                 return part.Effects[key.EffectIndex].GetAutomationValues(ticks, key.Id);
+            return new double[ticks.Count];
+        }
 
-            var values = new double[ticks.Count];
+        return part.GetAutomationValues(ticks, key.Id);
+    }
+
+    // 按 AutomationKey 解析各颤音对目标轨的偏移曲线（voice 轨查 AffectedAutomations、effect 轨查
+    // AffectedEffectAutomations），包络与算法与 MidiPart.GetVibratoDeviation(string) 同一套共享纯函数。
+    public static double[] GetVibratoDeviation(this IMidiPart part, IReadOnlyList<double> ticks, AutomationKey key)
+    {
+        List<Synthesis.VibratoMath.VibratoData>? vibratos = null;
+        foreach (var vibrato in part.Vibratos)
+        {
+            double amplitude = vibrato.GetAmplitude(key);
+            if (amplitude == 0)
+                continue;
+
+            (vibratos ??= new()).Add(new Synthesis.VibratoMath.VibratoData(
+                vibrato.Pos, vibrato.Dur, vibrato.Frequency, amplitude,
+                vibrato.Phase, vibrato.Attack, vibrato.Release));
+        }
+        if (vibratos == null)
+            return new double[ticks.Count];
+
+        Func<double[], double[]>? envelopeSampler = part.Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var vibratoEnvelope)
+            ? vibratoEnvelope.GetValues
+            : null;
+        return Synthesis.VibratoMath.GetDeviation(vibratos, ticks, envelopeSampler, part.Pos.Value, part.TempoManager.GetTime);
+    }
+
+    // 最终曲线取值：voice 与 effect 均为自身曲线 + 该轨的 vibrato 偏移。note lane 非时间曲线，不在此取值。
+    public static double[] GetFinalAutomationValues(this IMidiPart part, IReadOnlyList<double> ticks, AutomationKey key)
+    {
+        if (key.IsLane)
+            return new double[ticks.Count];
+
+        if (key.IsEffect)
+        {
+            if (key.EffectIndex >= part.Effects.Count)
+                return new double[ticks.Count];
+
+            var values = part.Effects[key.EffectIndex].GetAutomationValues(ticks, key.Id);
+            var deviation = part.GetVibratoDeviation(ticks, key);
+            for (int i = 0; i < values.Length; i++)
+                values[i] += deviation[i];
             return values;
         }
 
