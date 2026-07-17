@@ -112,6 +112,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     void OnPresetButtonClicked()
     {
         if (mPresetFlyoutJustClosed) return;   // 再次点击恰逢 light-dismiss 刚关 → 不重开（toggle）
+        LoadPresets();   // 打开列表前重扫磁盘：手工放进 Presets 文件夹的 preset 文件（转发共享）免重启即现
         PopulatePresetMenu();
         mPresetFlyout.ShowAt(mPresetButton);
     }
@@ -305,6 +306,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             return;
 
+        LoadPresets();   // 重名判定基于磁盘现状（用户可能刚在资源管理器里增删过文件）
         var presetName = await RequestPresetNameAsync();
         if (presetName == null)
             return;
@@ -330,6 +332,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         if (selectedPresetName == null)
             return;
 
+        LoadPresets();   // 同 Save As：重名判定基于磁盘现状
         var presetName = await RequestPresetNameAsync(selectedPresetName);
         if (presetName == null || presetName.Equals(selectedPresetName, StringComparison.OrdinalIgnoreCase))
             return;
@@ -400,7 +403,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 
     void ApplyPresetTo(IMidiPart part, PartPreset preset)
     {
-        part.SoundSource.SetInfo(new SoundSourceInfo() { Type = preset.Voice.Type, ID = preset.Voice.ID });
+        part.SoundSource.SetInfo(preset.Source);
         ResetPartPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
         ApplyPresetProperties(preset.Properties, part.Properties);
         ApplyAutomationDefaultsTo(part, preset);
@@ -426,6 +429,38 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
                 node.SetValue(kvp.Key.Id, valueConfig.DefaultValue);
             }
         }
+    }
+
+    // preset 抓取用：按 config 树把默认值物化进快照——显式值优先、absent 字段落抓取时的声明默认值。
+    // 默认值也是声音的一部分：引擎日后改默认值不应改变既存 preset 的声音（与 automations 的物化抓取同口径）。
+    // config 之外的既有键（孤儿/条件面板当前隐藏字段的存值）原样保留，与换引擎保留数据同判例。
+    static PropertyObject MaterializeProperties(ObjectConfig config, PropertyObject current)
+    {
+        var map = new Map<string, PropertyValue>();
+        foreach (var kvp in config.Properties)
+        {
+            var key = kvp.Key.Id;
+            bool hasCurrent = current.Map.TryGetValue(key, out var currentValue);
+            if (kvp.Value is ObjectConfig objectConfig)
+            {
+                var sub = hasCurrent && currentValue.ToObject(out var currentObject) ? currentObject : PropertyObject.Empty;
+                map.Add(key, MaterializeProperties(objectConfig, sub));
+            }
+            else if (kvp.Value is ArrayConfig or ListConfig or ExtensibleObjectConfig)
+            {
+                map.Add(key, hasCurrent ? currentValue : kvp.Value.GetDefaultValue());
+            }
+            else if (kvp.Value is IValueConfig valueConfig)
+            {
+                map.Add(key, hasCurrent ? currentValue : valueConfig.DefaultValue);
+            }
+        }
+        foreach (var kvp in current.Map)
+        {
+            if (!map.ContainsKey(kvp.Key))
+                map.Add(kvp.Key, kvp.Value);
+        }
+        return new PropertyObject(map);
     }
 
     static void ApplyPresetProperties(PropertyObject properties, IDataPropertyObject node)
@@ -456,7 +491,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     {
         foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
-            double value = preset.Automations.GetValueOrDefault(kvp.Key.Id, kvp.Value.DefaultValue);
+            double value = preset.Automations.TryGetValue(kvp.Key.Id, out var info) ? info.DefaultValue : kvp.Value.DefaultValue;
             if (part.Automations.TryGetValue(kvp.Key.Id, out var automation))
             {
                 automation.DefaultValue.Set(value);
@@ -526,6 +561,14 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             return null;
         }
 
+        // 文件名即 preset 名：非法文件名当场拦下（存储层同规则兜底）。
+        var nameError = PresetConfigManager.GetPresetNameError(presetName);
+        if (nameError != null)
+        {
+            await mPresetPanel.ShowMessage("Error".Tr(TC.Dialog), nameError);
+            return null;
+        }
+
         return presetName;
     }
 
@@ -566,17 +609,18 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         var preset = new PartPreset()
         {
             Name = presetName,
-            Voice = mPart.SoundSource.GetInfo(),
-            Properties = mPart.Properties.GetInfo(),
+            Source = mPart.SoundSource.GetInfo(),
+            Properties = MaterializeProperties(
+                mPart.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(mPart)),
+                mPart.Properties.GetInfo()),
         };
 
+        // 只抓默认值、Points 恒空（preset 口径：不含时间轴内容，见 PartPreset 头注释）。
         foreach (var kvp in mPart.SoundSource.AutomationConfigs)
         {
             var key = kvp.Key.Id;
-            if (mPart.Automations.TryGetValue(key, out var automation))
-                preset.Automations[key] = automation.DefaultValue.Value;
-            else
-                preset.Automations[key] = kvp.Value.DefaultValue;
+            double value = mPart.Automations.TryGetValue(key, out var automation) ? automation.DefaultValue.Value : kvp.Value.DefaultValue;
+            preset.Automations.Add(key, new AutomationInfo() { DefaultValue = value });
         }
 
         return preset;

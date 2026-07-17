@@ -19,7 +19,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
     // v0 = 唯一发布过的 legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1 = 当前 2.0.0（part 几何锚点 Pos+StartOffset+EndOffset、
     // 音素结构化双列表 leadingPhonemes/bodyPhonemes + bodyOffset）。2.0.0 未发布，dev 期间的中间 bump 不占发布版本号——折叠回 v1；
     // legacy 判据几何与音素统一为 version<1（仅 v0）。
-    const int CURRENT_VERSION = 1;
+    // internal：part preset 文件（Presets.json）与本格式共用叶子序列化（DataInfoJsonUtils），版本号同号跟随。
+    internal const int CURRENT_VERSION = 1;
     public ProjectInfo Deserialize(Stream streamToRead)
     {
         using (StreamReader reader = new StreamReader(streamToRead, Encoding.UTF8))
@@ -96,10 +97,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
 
                         midiPartInfo.Gain = (double?)part["gain"] ?? 0;
                         midiPartInfo.Properties = FromJson(part["properties"]);
-                        midiPartInfo.SoundSource.Type = (string)part["voice"]["type"];
-                        midiPartInfo.SoundSource.ID = (string)part["voice"]["id"];
-                        // 缺省（旧工程无此键）= Voice。
-                        midiPartInfo.SoundSource.Kind = (string?)part["voice"]?["kind"] == "instrument" ? SourceKind.Instrument : SourceKind.Voice;
+                        midiPartInfo.SoundSource = DataInfoJsonUtils.ToSoundSourceInfo(part["voice"]);
 
                         var notes = part["notes"].ToArray();
                         foreach (JObject note in notes)
@@ -215,35 +213,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         }
 
                         if (part.TryGetValue("automations", out var automations))
-                        {
-                            foreach (JProperty property in automations.Children())
-                            {
-                                var automationInfo = new AutomationInfo();
-
-                                var key = property.Name;
-                                var automation = property.Value;
-
-                                automationInfo.DefaultValue = (double)automation["default"];
-
-                                var values = automation["values"].ToArray();
-                                bool flag = false;
-                                double x = 0;
-                                foreach (double value in values)
-                                {
-                                    if (flag)
-                                    {
-                                        automationInfo.Points.Add(new Point(x, value));
-                                    }
-                                    else
-                                    {
-                                        x = value;
-                                    }
-                                    flag = !flag;
-                                }
-
-                                midiPartInfo.Automations.Add(key, automationInfo);
-                            }
-                        }
+                            DataInfoJsonUtils.ReadAutomations(automations, midiPartInfo.Automations);
 
                         if (part.TryGetValue("piecewiseAutomations", out var piecewiseAutomations))
                             ReadJsonPiecewiseAutomations(piecewiseAutomations, midiPartInfo.PiecewiseAutomations);
@@ -261,7 +231,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 if (effect.TryGetValue("properties", out var effectProperties))
                                     effectInfo.Properties = FromJson(effectProperties);
                                 if (effect.TryGetValue("automations", out var effectAutomations))
-                                    ReadJsonAutomations(effectAutomations, effectInfo.Automations);
+                                    DataInfoJsonUtils.ReadAutomations(effectAutomations, effectInfo.Automations);
                                 if (effect.TryGetValue("piecewiseAutomations", out var effectPiecewise))
                                     ReadJsonPiecewiseAutomations(effectPiecewise, effectInfo.PiecewiseAutomations);
                                 midiPartInfo.Effects.Add(effectInfo);
@@ -383,12 +353,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                 {
                     part.Add("type", "midi");
                     part.Add("gain", midiPartInfo.Gain);
-                    part.Add("voice", new JObject()
-                    {
-                        { "type", midiPartInfo.SoundSource.Type },
-                        { "id", midiPartInfo.SoundSource.ID },
-                        { "kind", midiPartInfo.SoundSource.Kind == SourceKind.Instrument ? "instrument" : "voice" },
-                    });
+                    part.Add("voice", DataInfoJsonUtils.ToJson(midiPartInfo.SoundSource));
                     part.Add("properties", ToJson(midiPartInfo.Properties));
 
                     var notes = new JArray();
@@ -412,23 +377,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                     }
                     part.Add("notes", notes);
 
-                    var automations = new JObject();
-                    foreach (var automationInfo in midiPartInfo.Automations)
-                    {
-                        var automation = new JObject();
-                        automation.Add("default", automationInfo.Value.DefaultValue);
-
-                        var values = new JArray();
-                        foreach (var pointInfo in automationInfo.Value.Points)
-                        {
-                            values.Add(pointInfo.X);
-                            values.Add(pointInfo.Y);
-                        }
-                        automation.Add("values", values);
-
-                        automations.Add(automationInfo.Key, automation);
-                    }
-                    part.Add("automations", automations);
+                    part.Add("automations", DataInfoJsonUtils.ToJson(midiPartInfo.Automations));
 
                     var pitch = new JArray();
                     foreach (var lineInfo in midiPartInfo.Pitch)
@@ -496,7 +445,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                             effect.Add("type", effectInfo.Type);
                             effect.Add("enabled", effectInfo.IsEnabled);
                             effect.Add("properties", ToJson(effectInfo.Properties));
-                            effect.Add("automations", AutomationsToJson(effectInfo.Automations));
+                            effect.Add("automations", DataInfoJsonUtils.ToJson(effectInfo.Automations));
                             if (effectInfo.PiecewiseAutomations.Count > 0)
                                 effect.Add("piecewiseAutomations", PiecewiseAutomationsToJson(effectInfo.PiecewiseAutomations));
                             effects.Add(effect);
@@ -578,29 +527,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         return array;
     }
 
-    // —— 自动化/分段轨的 JSON 形辅助（与 part 级内联读写同形；effect 级与 part 级分段轨共用）——
-
-    static void ReadJsonAutomations(JToken automations, Map<string, AutomationInfo> map)
-    {
-        foreach (JProperty property in automations.Children())
-        {
-            var automationInfo = new AutomationInfo
-            {
-                DefaultValue = (double?)property.Value["default"] ?? 0,
-            };
-            bool flag = false;
-            double x = 0;
-            foreach (double value in property.Value["values"]!.ToArray())
-            {
-                if (flag)
-                    automationInfo.Points.Add(new Point(x, value));
-                else
-                    x = value;
-                flag = !flag;
-            }
-            map.Add(property.Name, automationInfo);
-        }
-    }
+    // —— 分段轨的 JSON 形辅助（effect 级与 part 级共用；automation 轨/音源身份的叶子读写在共用件 DataInfoJsonUtils）——
 
     static List<List<Point>> ReadJsonLines(JToken linesToken)
     {
@@ -627,25 +554,6 @@ internal class TuneLabProject : IImportFormat, IExportFormat
     {
         foreach (JProperty property in token.Children())
             map.Add(property.Name, ReadJsonLines(property.Value));
-    }
-
-    static JObject AutomationsToJson(Map<string, AutomationInfo> map)
-    {
-        var automations = new JObject();
-        foreach (var kvp in map)
-        {
-            var automation = new JObject();
-            automation.Add("default", kvp.Value.DefaultValue);
-            var values = new JArray();
-            foreach (var point in kvp.Value.Points)
-            {
-                values.Add(point.X);
-                values.Add(point.Y);
-            }
-            automation.Add("values", values);
-            automations.Add(kvp.Key, automation);
-        }
-        return automations;
     }
 
     static JArray LinesToJson(List<List<Point>> lines)
