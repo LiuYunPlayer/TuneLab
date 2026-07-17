@@ -302,7 +302,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 - **B. 声明式数据 + host 求值**（**倾向**）：字段带 `visibleWhen: Func<…,bool>` 或 `{选项→config}` 表，ABI 只多一个 `Func`/map，host 拥有实时值、求值时机可控，无响应式引擎。
 - **折中**：走 B 的内核（小 ABI、host 求值），在 SDK.Base 上包一层薄 `If().ElseIf().Else()` 糖拿回 A 的可读性。**最小单份**、无 `_V1`、与 Config 家族同处 SDK.Base，**永不进 Primitives**。
 
-**（#12 后方案演进 → §三.25）**：上述"B 内核 + 逐字段可见性谓词 + 薄糖"的设想，已被更统一的 **`ObjectConfig = f(context)` 整树重算**模型取代——动态性不是埋在 config 树里的节点，而是整棵 config 成为数据的纯函数。详见 §三.25。
+**（#12 后方案演进 → §三.25，本项就此关闭）**：上述"B 内核 + 逐字段可见性谓词 + 薄糖"的设想，已被更统一的 **`ObjectConfig = f(context)` 整树重算**模型取代——动态性不是埋在 config 树里的节点，而是整棵 config 成为数据的纯函数。详见 §三.25。**谓词/糖不再做**：PropertyContext（config = f(context)）已完全覆盖条件面板需求，条件表达式作为独立机制正式砍掉，不留待办。
 
 ### 14. SDK 分层 + 命名物理落地（#7 确立，已改代码）
 
@@ -481,7 +481,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **定位（先讨论达成共识）**：effect 面向**耗时长的离线模型**（如 SVC 换声），**不是实时 VST**（reverb/EQ 等留后续）。决定了任务式异步 + 整段 `MonoAudio` 进出的形状。
 
-**SDK.Effect 形状（最小冻结面）**：`IEffectEngine`（`PropertyConfig: ObjectConfig` + `AutomationConfigs` + `Init(enginePath, out error)` + `Destroy` + `CreateSynthesisTask(input, output)`）；`IEffectSynthesisInput`（`MonoAudio Audio` + `PropertyObject Properties` + `TryGetAutomation`）；`IEffectSynthesisOutput`（`MonoAudio Audio` sink，**塌缩**——不再 `: ISynthesisOutput`）；`IEffectSynthesisTask`（`Complete`/`Progress`/`Error` + `Start`/`Stop`，一次性处理器）；`[EffectEngine("type")]`。**dirty/缓存全归宿主编排器，SDK 不含 DirtyEvent**（比 effect 分支更小）；输出仅音频（pitch/automation 回写推迟）。
+**SDK.Effect 形状（最小冻结面）**：`IEffectEngine`（`PropertyConfig: ObjectConfig` + `AutomationConfigs` + `Init(enginePath, out error)` + `Destroy` + `CreateSynthesisTask(input, output)`）；`IEffectSynthesisInput`（`MonoAudio Audio` + `PropertyObject Properties` + `TryGetAutomation`）；`IEffectSynthesisOutput`（`MonoAudio Audio` sink，**塌缩**——不再 `: ISynthesisOutput`）；`IEffectSynthesisTask`（`Complete`/`Progress`/`Error` + `Start`/`Stop`，一次性处理器）；`[EffectEngine("type")]`。**dirty/缓存全归宿主编排器，SDK 不含 DirtyEvent**（比 effect 分支更小）；输出仅音频（pitch/automation 回写推迟）。**（终局形态更新：参数回显已落地——`IEffectSynthesisProcessor.SynthesizedParameters` 按轨 id 发布分段折线，与 `GetSynthesizedParameterConfigs` 对齐、宿主按 key 拼接各段；音频之外的回显不再是空缺。）**
 
 **共享词汇抽到 SDK.Base（修订 §三.12）**：`IAutomationValueGetter` + `AutomationConfig` 从 SDK.Voice 搬到 **SDK.Base**（voice/effect 共用，合"定义一份"纪律；V1 无野外插件、ABI 零破坏，纯内部 churn——含 host UI + Compat.Legacy 命名空间改写）。`ISynthesisNote`/`SynthesizedPhoneme` 仍留 SDK.Voice。
 
@@ -491,7 +491,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **合成接入（SynthesisPiece 内编排，不动 voice/AudioGraph）**：voice `Complete` 后把 `float[]` 包成 `MonoAudio`，**按 piece（voice 分片）独立**串行过链——每级 `CreateSynthesisTask` 异步处理，链尾输出 = piece 最终音频。**per-piece 是有意的 context 缩减**（片间连续性由 voice 分片函数负责，非 effect 跨段拼接）。**每级输出缓存 + 仅下游失效**：effect[i] 参数/启用/自动化变化→从 i 级重跑（上游缓存复用，避免重跑昂贵 SVC）；链结构变化→从 0；voice 脏→整链。bypass / 引擎缺失 / 出错 = 该级 passthrough，优雅降级。generation 计数 + 同步上下文 post 防异步竞态。
 
-**UI（最小）**：属性侧栏新增 Effects 面板（`EffectsController`）——链列表 + 增/删/上下移/bypass + 「Add Effect」菜单列引擎类型；参数面板**复用现有 `ObjectController`**（按 effect 的 `PropertyConfig` 渲染、`Properties` 双向）。**per-effect 时间轴自动化编辑 UI 推迟**（数据模型/接口已支持，曲线编辑后补）；preset 与属性面板重设计随后续。
+**UI（最小）**：属性侧栏新增 Effects 面板（`EffectsController`）——链列表 + 增/删/上下移/bypass + 「Add Effect」菜单列引擎类型；参数面板**复用现有 `ObjectController`**（按 effect 的 `PropertyConfig` 渲染、`Properties` 双向）。**per-effect 时间轴自动化编辑 UI 推迟**（数据模型/接口已支持，曲线编辑后补；#12 已落地）；preset 与属性面板重设计随后续。**（后续更新：part 级 preset 已落地——`PresetConfigManager` + 侧栏 Preset 面板，内容 = 音源 + part 属性 + automation 默认值；effect 链是否入 preset 仍开放。）** **（多选接线完成）**：Effects 面板多选 part 时按**槽位（index）对齐**合并展示（参照容器多选「数组家族按 index 对齐」判例，链不齐不整块隐藏）：槽位数 = 最长链、短链 part 该槽位为 empty 占位（只出现在链尾连续区）；槽内非空实例类型全等 → 全功能合并（bypass/参数走 `MultipleDataProperty`/`MultipleDataPropertyObject` 三态、config 经 `Effect.GetPropertyConfig(slot)` 多实例 context 由引擎合并——消费终局形态的 `IEffectSynthesisPropertyContext` 多选壳；缺位 part 的默认值行按默认值参与三态、写扇出自动跳过）；类型不等 → 受限行（标题 `(Multiple)`、保留 bypass/替换/删除）。新增**替换**交互（类型标签即按钮弹引擎菜单，单选亦可用）：有实例的 part 原位换类型（槽位不变、颤音关联条目按孤儿语义保留）、链长恰为该槽的 part 补位、更短的跳过。移位仅链等长时提供；结构操作扇出全部 part、共享文档一次 Commit。**后续形态（在案待做）**：槽位重排改为轨道头式拖拽 + 挤压动画。
 
 配套：[plugin-development.md](plugin-development.md) 加 §6 Effect 章节 + [plugin-development-llm.md](plugin-development-llm.md) 加 Effect 接口清单。
 
@@ -510,14 +510,14 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 **提交② effect 自动化接入参数面板 / 侧栏（与 voice 统一）**：
 - **`AutomationKey`（来源 + plain id）做 UI→数据路由**，**否决伪造字符串前缀**（voice 轨真名可能撞前缀；用户定用类型）；数据仍按 plain id 存各自容器、key 不持久化。`IMidiPart` 加按 `AutomationKey` 路由的扩展（分派 voice / 对应 effect），`MidiPart` 不动、string 版留给内部 voice 调用。
 - **统一交互**（用户定）：voice 与各 effect 自动化平等汇入底部参数选择栏与右侧栏默认值——**点亮小眼睛→叠加绘制，toggle 开→编辑**；voice 一组、每个 effect 一组、组间分隔符（右侧栏 effect 组带名字表头）。
-- **effect 无颤音**：active 为 effect 轨时跳过颤音叠加层与关联操作（否则 voice-only 的 string 取值路径会拿 effect id 查 voice 配置而抛异常）。颤音影响 effect 参数（`Vibrato.AffectedAutomations` 可扩展）太复杂，先不做。
+- **effect 无颤音**：active 为 effect 轨时跳过颤音叠加层与关联操作（否则 voice-only 的 string 取值路径会拿 effect id 查 voice 配置而抛异常）。颤音影响 effect 参数（`Vibrato.AffectedAutomations` 可扩展）太复杂，先不做。**（后续已落地，本项关闭）**：`Vibrato.AffectedEffectAutomations`（键 = `EffectAutomationRef`{槽位下标, 轨 id}，与 voice 表平行、命名空间互不相扰；持久化进 TLP JSON/CBOR 的 `affectedEffectAutomations` 嵌套表）；振幅口径统一走 `Vibrato.GetAmplitude/SetAmplitude/IsAssociated(AutomationKey)`，拖拽关联/双击解除/叠加层对 voice 与 effect 连续轨同一交互；取值 = `GetFinalAutomationValues(key)` 含偏移（live 与合成快照同一套共享纯函数）、effect 快照工厂按槽位切片冻结、EffectGraph 节点订阅颤音区间事件按「前后影响集之并 ∩ 本段」保守标脏；链结构增/删/重排（唯一操作点 = Effects 面板）经 `RemapEffectIndexes` 在同一撤销单元内同步重映射槽位外键（原位替换槽位不变、条目按孤儿语义保留）。**标脏分源**：`Vibrato.EffectAmplitudesModified` 与 `RangeModified` 二分——改 effect 关联振幅只惊动 effect 链、不把 voice（音高偏差）标脏重合成（子级 settled 置源标记、聚合 Modified 按标记分发，事件基数与结果态语义不变）；几何/参数/voice 影响表仍走 `RangeModified`（voice 与 effect 都消费）。**取值口径**：effect 活代理（`EffectGraph.AutomationProxy`）与快照工厂同为终值口径（基线/默认 + vibrato 偏移），与 voice 活代理 `GetFinalAutomationValues` 同判例。
 - 渲染器补订阅各 `effect.Automations` 改动（否则拖动 effect 自动化不重绘——voice 只听 `part.Automations.Modified`）。
 
 **推迟项（均已论证安全后补）**：
-- **条件表达式系统（§三.13）继续推迟**：已论证**未来纯增量可补**——配置类加可选 `Func<PropertyObject,bool>` 谓词（具体类加字段始终加性，或族根 `IControllerConfig` 走 DIM），host 侧求值，糖是扩展方法，**不需新 Primitives 类型**；live-bind 把每字段做成可观察 `IDataProperty`，反为它铺路。
+- **条件表达式系统（§三.13）继续推迟**：已论证**未来纯增量可补**——配置类加可选 `Func<PropertyObject,bool>` 谓词（具体类加字段始终加性，或族根 `IControllerConfig` 走 DIM），host 侧求值，糖是扩展方法，**不需新 Primitives 类型**；live-bind 把每字段做成可观察 `IDataProperty`，反为它铺路。**（后被 §三.25 config = f(context) 完全取代，正式砍掉，见 §三.13 尾注。）**
 - **PropertyValue 全树重构（§三.14）继续推迟**：ComboBox 维持 string-only、桥只用单一 `PropertyValue` box（`ToNumber/ToBoolean/ToString` 足够），`IPrimitiveValue`/`PropertyBoolean/Number/String`/`PropertyArray` 仍零消费者。
 - **dataobject 集合接口 / `IDataObject` DIM 重构**（effect 那套 `IReadOnlyDataCollection` 统一）**不纳入**：与属性面板正交、是 Foundation 内部自由演进层、推迟零 ABI 风险；桥建在 master 现有 `DataPropertyObject`/`IDataProperty`/`.Any` 上。
-- **effect preset** 未做（Part preset 面板保留不动）。
+- **effect preset** 未做（Part preset 面板保留不动）。**（后续更新：part 级 preset 已重做落地——`PresetConfigManager` 存 `Presets.json`、侧栏 Preset 面板保存/应用/删除，内容 = 音源 + part 属性 + automation 默认值；effect 链仍不入 preset，是否纳入待需求。）**
 
 ---
 
@@ -606,7 +606,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **真机暴露并修复（非三态本身、属相邻既有缺陷）**：① 扇出逐对象触发刷新致中间态闪烁/文本框光标跳 → `MultipleDataPropertyObject.SetValue` 包进 merge（中间 canIgnore、结果态订阅者不被打断）+ `TextInput` 编辑中（聚焦）不被刷新覆盖；② CheckBox 图标用共享 `mCheckItem.Icon`，`DisplayNull/Multiple` 改之而正常 `Display` 不还原 + 池复用残留 → 只在进入勾选确定态设 √、取消勾选不动图标（避开 150ms 颜色淡出动画把 √ 画出来）；③ Slider thumb 初次选中跳动 = 首帧 Bounds 滞后的三个侧面：bind 先于 add（值）、`ThumbPivotPosition` 用 `finalSize` 算端点（轨道尺寸）、`AbstractThumb.Piovt` 用 `DesiredSize` 算居中偏移（Bounds 首帧为 0）。
 
-**推迟不变**：条件表达式系统（§三.13，纯增量可后补，本话题只铺哨兵地基未实现谓词）、PropertyValue 全树重构（§三.14，仅加 Multiple 哨兵非包装类型）。
+**推迟不变**：条件表达式系统（§三.13，纯增量可后补，本话题只铺哨兵地基未实现谓词）、PropertyValue 全树重构（§三.14，仅加 Multiple 哨兵非包装类型）。**（后续终局：条件表达式被 §三.25 config = f(context) 完全取代、正式砍掉；PropertyValue 数组臂随 §三.29 `PropertyArray` 落地，typed 叶子包装维持弃案。）**
 
 **测试**：测试 voice `V1.Suite.Voice` 的 NoteProperties 增四类控件 + 嵌套 `vibrato` ObjectConfig；独立测试文档 `tests/PROPERTY-TRISTATE-TEST-CASES.md`（只测三态范围，不污染基线）。
 
@@ -731,7 +731,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **消费者爆炸半径（已核/已改）**：voice SDK `IVoiceSynthesisContext`（加 `CreateAudioSegment` + `AudioSegmentsChanged`）/ `IVoiceSynthesisSession`（去 `ReadAudio`）/ 新 `IAudioSegment`；测试插件 `V1.Voice` / `V1.Suite.Voice` / `V1.I18N`；compat `LegacySessionAdapter`（每块一段）；宿主 `SynthesisContext`（段握柄实现 + 登记表 + 通知）+ `VoiceSynthesisPipeline`（按段链运行 + 段列表产物）；消费者 `MidiPart.GetAudioData`（播放逐段混音）+ `PianoScrollView.DrawWaveform`（逐段绘制）改读 `SynthesizedSegments`（`IMidiPart` 的 `SynthesizedAudio`/`Waveform` 塌缩为 `SynthesizedSegments`）。两 SDK 预发布、无野外插件，churn 内部（沿用 §三.19「V1 ABI 零破坏」）。
 
-### 29. PropertyArray（有序可重复列表）+ Config 标签随槽走（设计定稿，待落地）
+### 29. PropertyArray（有序可重复列表）+ Config 标签随槽走（已落地）
 
 承 §三.12（值模型留 `Array` 段未产出 / live-doc 数组形态「`DataList` vs `DataObjectList` 随需求定」）、§三.14（`PropertyArray` 推迟，typed 叶子包装 `PropertyBoolean/Number/String` 已弃——零消费者、具体类型重载替代）、§三.23（三态呈现）、§三.25（`config = f(context)` 整树重算）、§三.26（ComboBox 值/显示分离）。对应跟踪 issue「PropertyArray（有序可重复列表）」。需求驱动：重复音素 / 可中插删列表。先讨论达成共识，本节锁形状。
 
@@ -765,7 +765,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **落地进度**：①地板 `PropertyArray` + ②live `DataPropertyArray` + ③TLP/CBOR 读写 + ④-A 标签改制（`PropertyKey`）均已落地；④-B-1 live-bind 导航层（`IDataPropertyArray` 稳定 token 寻址 + 懒导航）、④-B-2 面板控件（`Array`/`ListController` 独立元素渲染器 + seed 越界惰性绑定）、④-C 测试夹具（`[v1-suite] Conditional` 的 phonemes/pair）已落地并真机验收。元素渲染**不复用** `PropertyObjectController` 的「标题+分隔符」排布（元素无 key 标签、行内紧凑、悬浮删除浮层），是独立 `ElementWidget` 分发件。
 
-### 变长键控容器 `ExtensibleObjectConfig` + array/object 范式判据（设计定稿，待落地）
+### 变长键控容器 `ExtensibleObjectConfig` + array/object 范式判据（已落地）
 
 补齐容器 config 的 2×2 空格：
 
@@ -787,7 +787,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 **首个消费者：多说话人音色混合**。part 级主 speaker 可混入任意其他 speaker（朴素实现给每个 speaker 各声明一条 automation → 参数栏拥挤）。改为：已选 speaker 存为一个键控 part 属性（`ExtensibleObjectConfig`，key=speaker id、标签=speaker 名、`+` 候选=可用 speaker），`GetAutomationConfigs(context)` 读它逐已选 speaker 吐一条自动化。`+ speaker → 物化键 → part 属性 commit → 重算自动化 → 曲线按钮自动出现`。**自动化随 part 属性重算的 wiring 已存在**（`MidiPart.OnPartPropertiesModified`→`mVoice.RebuildAutomationConfigs(context)`→签名变发 `AutomationConfigsModified`；`AutomationDefaultsController`/`ParameterTabBar`/`ParameterTitleBar`/`AutomationRenderer` 均订阅之），**无需新增 wiring**。
 
-**待落地**：SDK 新增 `ExtensibleObjectConfig` + `AddableKey`；面板新增键控增删控制器并注册进 `mFactories`；walker `ResetPartPropertiesToDefaults` 长 `ExtensibleObjectConfig` 臂（递归各已声明键默认值）；测试夹具加一个键控可加属性（可直接用多说话人 speaker 选择形态）。
+**已落地**：SDK `ExtensibleObjectConfig` + `AddableKey`；面板键控增删控制器 `ExtensibleObjectController`；walker 长臂；测试夹具 `[v1-suite] Conditional` 的 part 级 `speakers` 与 note 级 `tags`。
 
 **多选下容器的三态合并（定稿）**：标量多选已是「同值给该值 / 不等给 Multiple / 无选中给 Invalid」三态；容器沿同一三态、按各自身份模型递归对齐：
 
