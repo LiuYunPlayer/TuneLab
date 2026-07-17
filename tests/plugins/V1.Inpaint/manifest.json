@@ -1,0 +1,12 @@
+{
+  "id": "com.tunelab.test.v1inpaint",
+  "name": "V1 Test Inpaint",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "V1 inpainting 形态 voice 测试引擎：整 part 单一贯穿音频段、就地覆写重 Commit（段身份跨编辑存活、下游 effect processor 不重建）、只重合成脏区、状态声称只罩脏区。",
+  "sdk-version": "1.0",
+  "type": "voice",
+  "engine": "TLTestInpaintV1",
+  "classes": ["TuneLab.TestPlugins.V1Inpaint.InpaintVoiceEngine"],
+  "assembly": "V1.Inpaint.dll"
+}
