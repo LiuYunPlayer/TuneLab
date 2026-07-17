@@ -165,7 +165,7 @@ internal class EffectsController : StackPanel
         });
     }
 
-    // 删除槽位：只作用于有该槽位的 part；颤音影响表（槽位外键）在同一撤销单元内同步重映射。
+    // 删除槽位：只作用于有该槽位的 part。颤音影响表按实例 id 锚定：条目成孤儿保留（不裁剪），undo 同 id 重连。
     void RemoveEffect(int index)
     {
         WithBatch(() =>
@@ -175,15 +175,14 @@ internal class EffectsController : StackPanel
                 if (index >= part.Effects.Count)
                     continue;
                 part.RemoveEffect(part.Effects[index]);
-                foreach (var vibrato in part.Vibratos)
-                    vibrato.RemapEffectIndexes(i => i == index ? -1 : i > index ? i - 1 : i);
             }
         });
     }
 
-    // 替换槽位为指定类型：有实例的 part 原位换新（同槽位，其余槽位下标不动 → 无需重映射；
-    // 该槽位的颤音关联条目按孤儿语义保留——新类型有同名轨即直接生效，否则隐藏保留）；
-    // 链长恰为该槽位的 part 补位（empty 只在链尾连续，补位即落在本槽）；更短的 part 跳过（先补前面的空槽）。
+    // 替换槽位为指定类型：**保留全部用户数据、只换 Type**（GetInfo → 换 Type → 原位重建）——id、参数、
+    // 自动化曲线、分段轨、bypass、颤音关联全保留；新引擎不认识的键/轨按孤儿语义隐藏保留，换回原类型全量恢复
+    //（与 voice 换引擎不清 automation 同判例）。链长恰为该槽位的 part 补位（empty 只在链尾连续，补位即落在本槽、
+    // 新发 id）；更短的 part 跳过（先补前面的空槽）。
     void ReplaceEffect(int index, string type)
     {
         WithBatch(() =>
@@ -192,10 +191,13 @@ internal class EffectsController : StackPanel
             {
                 if (index < part.Effects.Count)
                 {
-                    if (part.Effects[index].Type == type)
+                    var old = part.Effects[index];
+                    if (old.Type == type)
                         continue;
-                    part.RemoveEffect(part.Effects[index]);
-                    part.InsertEffect(index, part.CreateEffect(new() { Type = type }));
+                    var info = old.GetInfo();
+                    info.Type = type;
+                    part.RemoveEffect(old);
+                    part.InsertEffect(index, part.CreateEffect(info));
                 }
                 else if (index == part.Effects.Count)
                 {
@@ -205,7 +207,7 @@ internal class EffectsController : StackPanel
         });
     }
 
-    // 移位（仅链等长时可用，Rebuild 已门控按钮显隐）；颤音槽位外键同步重映射。
+    // 移位（仅链等长时可用，Rebuild 已门控按钮显隐）；颤音关联按实例 id 锚定，随实例走、无需任何簿记。
     void MoveEffect(int index, int delta)
     {
         if (mParts.Count == 0)
@@ -224,12 +226,6 @@ internal class EffectsController : StackPanel
                 var effect = part.Effects[index];
                 part.RemoveEffect(effect);
                 part.InsertEffect(target, effect);
-                foreach (var vibrato in part.Vibratos)
-                    vibrato.RemapEffectIndexes(i =>
-                        i == index ? target
-                        : index < target && i > index && i <= target ? i - 1
-                        : target < index && i >= target && i < index ? i + 1
-                        : i);
             }
         });
     }

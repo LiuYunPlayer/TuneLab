@@ -10,6 +10,9 @@ namespace TuneLab.Data;
 internal class Effect : DataObject, IEffect
 {
     public IMidiPart Part => mPart;
+    // 实例稳定标识（不透明、永不复用；作用域承诺 = 本 part 链内唯一，随机生成使其事实上更强）：
+    // info.Id 空 → 构造发号，非空 → 沿用——undo/part 复制/装载天然保持身份，孤儿引用（颤音影响表）随之重连。
+    public string Id { get; }
     public string Type { get; }
     public DataStruct<bool> IsEnabled { get; }
     public DataPropertyObject Properties { get; }
@@ -36,6 +39,7 @@ internal class Effect : DataObject, IEffect
     public Effect(MidiPart part, EffectInfo info)
     {
         mPart = part;
+        Id = string.IsNullOrEmpty(info.Id) ? Guid.NewGuid().ToString("N") : info.Id;
         Type = info.Type;
         IsEnabled = new DataStruct<bool>(this);
         Properties = new DataPropertyObject(this);
@@ -91,6 +95,7 @@ internal class Effect : DataObject, IEffect
     {
         return new EffectInfo()
         {
+            Id = Id,
             Type = Type,
             IsEnabled = IsEnabled.Value,
             Automations = mAutomations.GetInfo().ToInfo(),
@@ -153,12 +158,11 @@ internal class Effect : DataObject, IEffect
                         if (!map.ContainsKey(kvp.Key))
                             map.Add(kvp.Key, new Evaluator(effect, kvp.Key, piecewise: true));
                     }
-                    int index = effect.mPart.Effects.IndexOf(effect);
                     foreach (var vibrato in effect.mPart.Vibratos)
                     {
                         foreach (var kvp in vibrato.AffectedEffectAutomations)
                         {
-                            if (kvp.Key.EffectIndex == index && !map.ContainsKey(kvp.Key.Id))
+                            if (kvp.Key.EffectId == effect.Id && !map.ContainsKey(kvp.Key.Id))
                                 map.Add(kvp.Key.Id, new Evaluator(effect, kvp.Key.Id, piecewise: false));
                         }
                     }

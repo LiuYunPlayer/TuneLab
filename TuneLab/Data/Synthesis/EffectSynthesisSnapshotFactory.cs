@@ -22,8 +22,7 @@ internal static class EffectSynthesisSnapshotFactory
         double relStart = timing.ToTick(startTime) - partPos;
         double relEnd = timing.ToTick(endTime) - partPos;
 
-        // —— vibrato 参数值拷（窗口相交者，含本 effect 的影响表切片）+ 包络轨开窗快照 ——
-        int effectIndex = ((IMidiPart)part).Effects.IndexOf(effect);
+        // —— vibrato 参数值拷（窗口相交者，含本 effect 的影响表切片，按实例 id 匹配）+ 包络轨开窗快照 ——
         var vibratoCaptures = new List<VibratoCapture>();
         foreach (var vibrato in part.Vibratos)
         {
@@ -36,7 +35,7 @@ internal static class EffectSynthesisSnapshotFactory
             Dictionary<string, double>? affected = null;
             foreach (var kvp in vibrato.AffectedEffectAutomations)
             {
-                if (kvp.Key.EffectIndex == effectIndex)
+                if (kvp.Key.EffectId == effect.Id)
                     (affected ??= new()).Add(kvp.Key.Id, kvp.Value);
             }
             if (affected == null)

@@ -31,8 +31,9 @@ internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable, ILin
     public DataStruct<double> Attack { get; } = new();
     public DataStruct<double> Release { get; } = new();
     public DataMap<string, double> AffectedAutomations { get; } = new();
-    // 对 effect 自动化轨的影响振幅（与 voice 表平行、命名空间互不相扰）：键 = 槽位下标 + 轨 id。
-    // 槽位下标由宿主在链结构变更（增/删/重排，唯一操作点 = Effects 面板）时经 RemapEffectIndexes 同步改写。
+    // 对 effect 自动化轨的影响振幅（与 voice 表平行、命名空间互不相扰）：键 = effect 实例稳定 id + 轨 id。
+    // 锚实例身份而非链内位置：重排/替换无需重映射；删除留孤儿条目（不裁剪，与孤儿曲线同判例），
+    // undo 恢复同 id 的 effect 即自然重连。
     public DataMap<EffectAutomationRef, double> AffectedEffectAutomations { get; } = new();
 
     public Vibrato(IMidiPart part)
@@ -80,24 +81,33 @@ internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable, ILin
         }
     }
 
-    // —— 影响表的统一口径（按 AutomationKey 分派 voice / effect 表；lane 不参与颤音，一律视作无关联）。——
+    // —— 影响表的统一口径（按 AutomationKey 分派 voice / effect 表；lane 不参与颤音，一律视作无关联）。
+    //    AutomationKey 携槽位下标（UI 路由键），此处经本 part 现场解析成实例 id 再查/写表；
+    //    槽位越界（交互瞬间链已变）按无关联处理。——
+
+    EffectAutomationRef? ResolveEffectRef(AutomationKey key)
+    {
+        if (key.EffectIndex < 0 || key.EffectIndex >= mPart.Effects.Count)
+            return null;
+        return new EffectAutomationRef(mPart.Effects[key.EffectIndex].Id, key.Id);
+    }
 
     public double GetAmplitude(AutomationKey key)
     {
         if (key.IsLane)
             return 0;
-        return key.IsEffect
-            ? AffectedEffectAutomations.GetValueOrDefault(EffectAutomationRef.From(key), 0)
-            : AffectedAutomations.GetValueOrDefault(key.Id, 0);
+        if (!key.IsEffect)
+            return AffectedAutomations.GetValueOrDefault(key.Id, 0);
+        return ResolveEffectRef(key) is { } reference ? AffectedEffectAutomations.GetValueOrDefault(reference, 0) : 0;
     }
 
     public bool IsAssociated(AutomationKey key)
     {
         if (key.IsLane)
             return false;
-        return key.IsEffect
-            ? AffectedEffectAutomations.ContainsKey(EffectAutomationRef.From(key))
-            : AffectedAutomations.ContainsKey(key.Id);
+        if (!key.IsEffect)
+            return AffectedAutomations.ContainsKey(key.Id);
+        return ResolveEffectRef(key) is { } reference && AffectedEffectAutomations.ContainsKey(reference);
     }
 
     // 写振幅（无关联即建立关联）。
@@ -106,7 +116,8 @@ internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable, ILin
         System.Diagnostics.Debug.Assert(!key.IsLane);
         if (key.IsEffect)
         {
-            var reference = EffectAutomationRef.From(key);
+            if (ResolveEffectRef(key) is not { } reference)
+                return;
             if (AffectedEffectAutomations.ContainsKey(reference))
                 AffectedEffectAutomations[reference] = amplitude;
             else
@@ -126,31 +137,13 @@ internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable, ILin
         if (key.IsLane)
             return;
         if (key.IsEffect)
-            AffectedEffectAutomations.Remove(EffectAutomationRef.From(key));
-        else
-            AffectedAutomations.Remove(key.Id);
-    }
-
-    // 链结构变更时的槽位重映射（由结构操作点在同一撤销单元内调用）：remap 返回新下标，-1 = 该槽位已删除 → 条目丢弃。
-    public void RemapEffectIndexes(Func<int, int> remap)
-    {
-        List<(EffectAutomationRef Key, double Amplitude, int NewIndex)>? changes = null;
-        foreach (var kvp in AffectedEffectAutomations)
         {
-            int newIndex = remap(kvp.Key.EffectIndex);
-            if (newIndex != kvp.Key.EffectIndex)
-                (changes ??= new()).Add((kvp.Key, kvp.Value, newIndex));
+            if (ResolveEffectRef(key) is { } reference)
+                AffectedEffectAutomations.Remove(reference);
         }
-        if (changes == null)
-            return;
-
-        using var _ = MergeNotify();
-        foreach (var change in changes)
-            AffectedEffectAutomations.Remove(change.Key);
-        foreach (var change in changes)
+        else
         {
-            if (change.NewIndex >= 0)
-                AffectedEffectAutomations.Add(change.Key with { EffectIndex = change.NewIndex }, change.Amplitude);
+            AffectedAutomations.Remove(key.Id);
         }
     }
 
@@ -185,23 +178,23 @@ internal class Vibrato : DataObject, IDataObject<VibratoInfo>, ISelectable, ILin
         };
     }
 
-    // 运行期扁平表（键 = 槽位+轨 id）↔ info 嵌套表（槽位 → 轨 id → 振幅）。
-    static Map<int, Map<string, double>> ToInfo(IReadOnlyMap<EffectAutomationRef, double> map)
+    // 运行期扁平表（键 = 实例 id + 轨 id）↔ info 嵌套表（实例 id → 轨 id → 振幅）。
+    static Map<string, Map<string, double>> ToInfo(IReadOnlyMap<EffectAutomationRef, double> map)
     {
-        var info = new Map<int, Map<string, double>>();
+        var info = new Map<string, Map<string, double>>();
         foreach (var kvp in map)
         {
-            if (!info.TryGetValue(kvp.Key.EffectIndex, out var tracks))
+            if (!info.TryGetValue(kvp.Key.EffectId, out var tracks))
             {
                 tracks = new Map<string, double>();
-                info.Add(kvp.Key.EffectIndex, tracks);
+                info.Add(kvp.Key.EffectId, tracks);
             }
             tracks.Add(kvp.Key.Id, kvp.Value);
         }
         return info;
     }
 
-    static Map<EffectAutomationRef, double> FromInfo(IReadOnlyMap<int, Map<string, double>> info)
+    static Map<EffectAutomationRef, double> FromInfo(IReadOnlyMap<string, Map<string, double>> info)
     {
         var map = new Map<EffectAutomationRef, double>();
         foreach (var slot in info)

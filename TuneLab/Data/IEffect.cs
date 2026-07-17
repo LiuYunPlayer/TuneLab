@@ -8,6 +8,8 @@ namespace TuneLab.Data;
 internal interface IEffect : IDataObject<EffectInfo>
 {
     IMidiPart Part { get; }
+    // 实例稳定标识（不透明、永不复用，本 part 链内唯一）：持久横向引用（颤音影响表）的外键锚点。
+    string Id { get; }
     string Type { get; }
     IDataProperty<bool> IsEnabled { get; }
     DataPropertyObject Properties { get; }

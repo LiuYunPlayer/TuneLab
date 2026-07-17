@@ -34,11 +34,12 @@
    松手后播放听感变化、波形区波形随之更新。
 3. 编辑与该 effect 段时间不相交的颤音：该段不应重跑（状态带无变化）。
 
-### A4. 链结构变更的槽位重映射
+### A4. 链结构变更下关联跟随实例（id 锚定，零重映射）
 1. part 上加两个 effect：**Gain**（槽 0）与 **Slow Gain**（槽 1），给 Gain 的 Gain Env 关联一个颤音。
 2. 在 Effects 面板把 Gain 下移（Gain↔Slow Gain 互换槽位）：Gain Env 的颤音波动**跟随 Gain 移动**（不会错挂到 Slow Gain 的轨上）。
 3. Ctrl+Z 撤销移动：波动仍在 Gain 上、振幅不变。
-4. 删除 Slow Gain（高槽位删除不影响低槽位）与删除 Gain（关联条目随之丢弃、撤销可回）分别验证。
+4. 删除 Gain：关联条目成孤儿（不报错）；Ctrl+Z 恢复——同 id 重连，波动原样回来。
+5. 复制该 part（编排区复制粘贴）：副本 part 里颤音对 Gain Env 的波动独立成立（副本引用副本的 effect）。
 
 ### A5. 工程往返
 1. 建立 A1 关联后保存工程（.tlp），关闭重开：颤音对 Gain Env 的波动原样恢复（振幅一致）。
@@ -74,11 +75,13 @@
 1. 两 part 都有 Gain 的槽位，Gain 块下的 Gain Env 默认值行：两 part 默认值相同显示该值、不同显示 "-"。
 2. 拖动该行滑条：扇出到两 part（听感/曲线基线同步变），松手一个撤销步。
 
-### B5. 替换 effect（单选即可测）
-1. 单选 part，链 [Gain]：点槽位类型标签（现为按钮）→ 弹引擎菜单 → 选 Reverse：原位替换为 Reverse，
-   参数区随新引擎重建；Ctrl+Z 回到 Gain（原参数值恢复）。
-2. Gain 的 Gain Env 有颤音关联时替换成 Reverse 再换回 Gain：关联条目保留（孤儿语义），换回后波动恢复。
-3. 选择与当前相同的类型：无操作（不产生撤销步）。
+### B5. 替换 effect（保数据换 Type，单选即可测）
+1. 单选 part，链 [Gain]：调过 gain 参数、画过 gain_env 曲线后，点槽位类型标签 → 弹引擎菜单 → 选 Reverse：
+   原位替换为 Reverse，参数区随新引擎重建。
+2. **不经 undo** 再替换回 Gain：gain 参数值、gain_env 曲线、颤音关联**全量恢复**（替换保数据，
+   旧引擎的键/轨在新引擎下按孤儿隐藏保留——与 voice 换引擎不清 automation 同判例）。
+3. Ctrl+Z 两步依次回退两次替换，状态一致。
+4. 选择与当前相同的类型：无操作（不产生撤销步）。
 
 ## C. PropertyValue JSON 统一序列化（PropertyArray 臂）
 

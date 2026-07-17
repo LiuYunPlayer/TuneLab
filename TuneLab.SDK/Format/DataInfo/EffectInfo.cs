@@ -7,6 +7,10 @@ namespace TuneLab.SDK;
 // 效果器按声明顺序在所属 MidiPart 上构成串行处理链。
 public class EffectInfo
 {
+    // 实例稳定标识（不透明字符串、永不复用；承诺作用域 = 所在 part 的 effect 链内唯一）：
+    // 供持久化的对象间横向引用锚定身份（当前消费者 = 颤音影响表 VibratoInfo.AffectedEffectAutomations）。
+    // 空 = 宿主构造时发号；非空 = 沿用（undo/复制/装载天然保持身份）。克隆进同一条链的操作须显式清空再插入。
+    public string Id { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public bool IsEnabled { get; set; } = true;
     public Map<string, AutomationInfo> Automations { get; set; } = new();

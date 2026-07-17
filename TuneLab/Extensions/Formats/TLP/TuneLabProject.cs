@@ -198,18 +198,15 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                     }
                                 }
 
-                                // 外层键 = effect 槽位下标（JSON 键须为字符串，读回解析 int）。
+                                // 外层键 = effect 实例稳定 id（EffectInfo.Id）。
                                 if (vibrato.TryGetValue("affectedEffectAutomations", out var affectedEffectAutomations))
                                 {
                                     foreach (JProperty slot in affectedEffectAutomations.Children())
                                     {
-                                        if (!int.TryParse(slot.Name, out int effectIndex))
-                                            continue;
-
                                         var slotTracks = new Map<string, double>();
                                         foreach (JProperty property in slot.Value.Children())
                                             slotTracks.Add(property.Name, (double)property.Value);
-                                        vibratoInfo.AffectedEffectAutomations.Add(effectIndex, slotTracks);
+                                        vibratoInfo.AffectedEffectAutomations.Add(slot.Name, slotTracks);
                                     }
                                 }
 
@@ -257,6 +254,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                             {
                                 var effectInfo = new EffectInfo()
                                 {
+                                    Id = (string?)effect["id"] ?? string.Empty,
                                     Type = (string?)effect["type"] ?? string.Empty,
                                     IsEnabled = (bool?)effect["enabled"] ?? true,
                                 };
@@ -475,7 +473,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                                 var slotTracks = new JObject();
                                 foreach (var kvp in slot.Value)
                                     slotTracks.Add(kvp.Key, kvp.Value);
-                                affectedEffectAutomations.Add(slot.Key.ToString(), slotTracks);
+                                affectedEffectAutomations.Add(slot.Key, slotTracks);
                             }
                             vibrato.Add("affectedEffectAutomations", affectedEffectAutomations);
                         }
@@ -494,6 +492,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
                         foreach (var effectInfo in midiPartInfo.Effects)
                         {
                             var effect = new JObject();
+                            effect.Add("id", effectInfo.Id);
                             effect.Add("type", effectInfo.Type);
                             effect.Add("enabled", effectInfo.IsEnabled);
                             effect.Add("properties", ToJson(effectInfo.Properties));
