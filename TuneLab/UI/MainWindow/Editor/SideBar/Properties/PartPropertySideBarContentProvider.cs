@@ -29,7 +29,8 @@ internal enum PartPanelSource { Current, Selected }
 //
 // 目标 part 由宿主按焦点感知下发（见 Editor.UpdatePartPanelTarget）：单 part = 单选，多 part = 编排区多选。
 // 多选语义：Gain（公共属性）始终合并展示；动态属性仅当全部 part 同引擎（Kind+Type 一致）时调该引擎 GetPartPropertyConfig
-// 合并展示，混源则只剩 Gain；Preset/Automation/Effects 是单 part 概念，多选时隐藏（Effects 待 SDK 支持多对象 config 后再做）。
+// 合并展示，混源则只剩 Gain；Preset/Automation 是单 part 概念，多选时隐藏；Effects 多选时按槽位（index）对齐
+// 合并展示——槽内类型全等则全功能合并，类型不等/部分缺位显示 (Multiple)/占位行（可替换/删除），不整块隐藏。
 internal class PartPropertySideBarContentProvider : ISideBarContentProvider
 {
     public SideBar.SideBarContent Content => new() { Icon = Assets.Part.GetImage(Style.LIGHT_WHITE), Name = Title, Items = [mPresetPanel, mVoicePanel, mPartPanel, mAutomationPanel, mEffectsPanel] };
@@ -197,8 +198,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     {
         ApplyMode();
 
-        // Preset/Effects 是单 part 概念，仅单选时绑当前 part；多/空选 mPart 为 null（panel 也已隐藏）。
-        mEffectsController.SetPart(mPart);
+        // Effects：单/多选统一按 part 集合并展示（多选要求链对齐，不对齐时面板隐藏、控件树自清空）。
+        mEffectsController.SetParts(mParts);
 
         // Voice 必定展示（混引擎自行退化为全引擎列表 + (Multiple)）；Automation 仅单选或同引擎多选才合并展示。
         mPartVoiceController.SetParts(mParts);
@@ -217,13 +218,12 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
     // 按目标 part 集决定各栏显隐（见类注释的多选语义）。
     void ApplyMode()
     {
-        bool single = mParts.Count == 1;
         bool merged = ShowsMerged();   // 单选或同引擎多选：动态属性 + Automation 合并展示
         bool empty = mParts.Count == 0;
 
         mPresetPanel.IsVisible = !empty;       // Preset：单/多选均可（Apply 扇出到全部，含统一混源音源）
         mVoicePanel.IsVisible = !empty;        // Voice：必定显示（混引擎也合并显示 (Multiple)，菜单退化为全引擎列表）
-        mEffectsPanel.IsVisible = single;      // Effects 单 part 概念（多对象 config 待 SDK）
+        mEffectsPanel.IsVisible = !empty;      // Effects：有 part 即显（多选按槽位对齐合并，链不齐以 Multiple/empty 槽呈现）
         mAutomationPanel.IsVisible = merged;
 
         mPartFixedController.IsVisible = !empty;        // Gain：>=1 即显（含混源公共属性）
