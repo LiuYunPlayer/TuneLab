@@ -27,7 +27,7 @@ public interface IEffectSynthesisEngine
     // 引擎处理产出的只读回显曲线（如 loudness）暴露为一等只读轨，轨名随键、自带 Min/Max/Color——宿主据此
     // 显隐、用各自色绘制，不可编辑。回显是分段形（DefaultValue 置 NaN，无基线、段间断开）。
     // 须为纯函数（同输入同输出、无副作用、轻量）；无回显的引擎返回空 map 即可。
-    // 曲线数据另经 IEffectSynthesisProcessor.SynthesizedParameters 按同一批 key 承载。
+    // 曲线数据另经 IEffectSynthesisSession.SynthesizedParameters 按同一批 key 承载。
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context);
 
     // 初始化引擎（加载模型等）。无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定。
@@ -39,7 +39,7 @@ public interface IEffectSynthesisEngine
 
     // 创建一个持久厚处理器，绑定一条「effect 实例 × 一个上游音频段」的处理通道（context 由宿主实现、
     // 暴露本段输入 + 该 effect 参数/自动化 + 产出口）。失效判定与调度归宿主（处理器零上报义务，
-    // 被调到 Process 就按当前真相干活——电平语义，见 IEffectSynthesisProcessor）；
+    // 被调到 Process 就按当前真相干活——电平语义，见 IEffectSynthesisSession）；
     // 段销毁 / effect 删除 / 重分段 / 采样率变时宿主 Dispose 处理器。
-    IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context);
+    IEffectSynthesisSession CreateSession(IEffectSynthesisContext context);
 }

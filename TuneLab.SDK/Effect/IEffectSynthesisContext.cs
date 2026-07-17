@@ -2,8 +2,8 @@ using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
 
-// 一个厚 IEffectSynthesisProcessor 的输入上下文：宿主实现、绑定「该 effect 实例 × 一个上游音频段」、随处理器死。
-// 失效判定权归宿主（见 IEffectSynthesisProcessor）——本 context 的颗粒事件只是缓存型引擎的可选信息源。
+// 一个厚 IEffectSynthesisSession 的输入上下文：宿主实现、绑定「该 effect 实例 × 一个上游音频段」、随处理器死。
+// 失效判定权归宿主（见 IEffectSynthesisSession）——本 context 的颗粒事件只是缓存型引擎的可选信息源。
 // 仅数据线程访问（活视图纪律；offload 前在同步前缀物化）。
 //
 // 坐标系约定：自动化查询轴 = 全局秒，与音频产物、状态段同一时间系（与 IVoiceSynthesisContext 一致）；

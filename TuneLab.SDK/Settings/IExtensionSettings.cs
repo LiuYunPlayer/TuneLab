@@ -24,7 +24,7 @@ public interface IExtensionSettings
     ObjectConfig GetSettingsConfig(IExtensionSettingsContext context);
 
     // 宿主把持久化的设置值回喂给实现者：加载完成后灌一次（早于任何 Init/会话），用户在设置窗口保存后再灌一次。
-    // 实现者自存这些值、自行用于 Init/CreateSession/CreateProcessor；设置变更对已在运行实例的影响（是否需重建
+    // 实现者自存这些值、自行用于 Init/CreateSession/CreateSession；设置变更对已在运行实例的影响（是否需重建
     // 会话/处理器）由实现者自理。读不到的字段按自身默认 fallback。
     void ApplySettings(PropertyObject settings);
 }

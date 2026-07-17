@@ -3,7 +3,7 @@
 本清单只覆盖「effect 链处理从宿主厚 / 插件薄改为厚 processor / 每段一个」这次重写**受影响的范围**，
 不复测已通过的 voice 合成基线。重写要点（被测对象）：
 
-- 每个「启用且引擎可用的 effect × 一个上游音频段」一个厚 `IEffectSynthesisProcessor`，自管该段失效与重处理；
+- 每个「启用且引擎可用的 effect × 一个上游音频段」一个厚 `IEffectSynthesisSession`，自管该段失效与重处理；
 - 失效自管：processor 订阅 `IEffectSynthesisContext`（`Input.Committed` / `Properties.Modified` / 自动化 `RangeModified`），
   于 `Committed` 触发 `ProcessingRequested`，宿主据此调度 `Process`；
 - 段间独立、无共享上下文；链尾各输出段按绝对时间混音成最终音频（重叠相加）；

@@ -6,15 +6,14 @@ using TuneLab.SDK;
 
 namespace TuneLab.TestPlugins.V1Effect;
 
-// 两个 effect 引擎打在同一个包/程序集里，验证：引擎按 [EffectEngine] 注册、一包多 effect、
-// 参数面板（Gain 有 gain 滑块）、per-effect 时间轴自动化（Gain 有 gain_env 自动化轨）、
-// 链串行（Gain 与 Reverse 串联）、bypass、增删/重排。
-//
-// 厚处理器：每个「effect 实例 × 一个上游段」一个 processor，构造拿 IEffectSynthesisContext 自订阅、自管失效：
-//   · 订阅 context.Input.Committed / Properties.Modified / 自动化 RangeModified 标脏，于 context.Committed 触发 ProcessingRequested；
-//   · 跨 Process 调用缓存内部中间结果（env 取值、gain 标量、输出段句柄）、按脏只重算受影响内容；
-//   · gain_env 的变更秒区间若不与本段相交 → 不标脏、不触发处理 → 本段输出不变、下游被跳过；
-//   · 输出经 context.CreateAudioSegment 持久持有句柄，重处理时就地重写并重 Commit（无关变化时不重 Commit）。
+// 四个 effect 引擎打在同一个包/程序集里，覆盖不同的会话姿势（引擎经 manifest classes 注册、一包多 effect、
+// 参数面板 / per-effect 自动化 / 链串行 / bypass / 增删重排）：
+//   · Gain     —— 缓存型会话示范：订阅颗粒事件（可选信息源）维护差分缓存，按脏只重算受影响内容、
+//                 无关变化早退不重 Commit（下游被跳过）；
+//   · Reverse  —— 零订阅最简会话：被调到 Process 就按当前输入干活（电平语义）；
+//   · Slow Gain—— 声称上报 + 段内局部重合成范式（账本收窄重算窗、耗时∝窗长、输出 Resize 保身份）；
+//   · Fail Demo—— 恒失败（降级琥珀呈现）。
+// 失效判定权归宿主：会话零上报义务，调度时机全在宿主（作用域信号 + 区间相交 + 批量收口）。
 public sealed class GainEffectEngine : IEffectSynthesisEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
@@ -40,12 +39,12 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
     }
 
     // 回显轨声明（只读、分段形 DefaultValue=NaN）：处理产出的 loudness 包络回显，曲线数据经
-    // GainProcessor.SynthesizedParameters 的 "loudness" key 承载。验证 effect 回显端到端与 voice 同构。
+    // GainSession.SynthesizedParameters 的 "loudness" key 承载。验证 effect 回显端到端与 voice 同构。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
 
     public void Init() { }
     public void Destroy() { }
-    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new GainProcessor(context);
+    public IEffectSynthesisSession CreateSession(IEffectSynthesisContext context) => new GainSession(context);
 
     static ObjectConfig BuildConfig()
     {
@@ -74,11 +73,11 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
     static readonly AutomationConfig mFormantConfig = AutomationConfig.Create(-100, 100).WithColor("#00C2A8");
 
-    // output = input * gain * gainEnv(t)。缓存型处理器示范：订阅颗粒事件（可选信息源）维护差分缓存，
+    // output = input * gain * gainEnv(t)。缓存型会话示范：订阅颗粒事件（可选信息源）维护差分缓存，
     // Process 里按脏只重算受影响内容；调度归宿主（被调到才干活、无关变化早退不重 Commit → 下游被跳过）。
-    sealed class GainProcessor : IEffectSynthesisProcessor
+    sealed class GainSession : IEffectSynthesisSession
     {
-        public GainProcessor(IEffectSynthesisContext context)
+        public GainSession(IEffectSynthesisContext context)
         {
             mContext = context;
             mContext.Input.RangeModified.Subscribe(OnInputRangeModified);
@@ -93,6 +92,8 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
 
         // 本段 loudness 回显（与输出同步重算）；输出无变化时沿用上轮。线程同输出：Process 在数据线程同步发布。
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
+        public IActionEvent SynthesizedParametersChanged => mParametersChanged;
+        readonly ActionEvent mParametersChanged = new();
 
         public Task Process(CancellationToken cancellation = default)
         {
@@ -105,7 +106,8 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
             double segStart = rate > 0 ? (double)offset / rate : 0;
 
             bool initial = mOutput == null;
-            bool audioChanged = initial || mAudioDirty;   // 失效判据 = Input.Committed 事件（SDK 无版本号）
+            bool geometryChanged = mOutSegment == null || mOutOffset != offset || mOutCount != count || mOutRate != rate;
+            bool audioChanged = initial || mAudioDirty || geometryChanged;   // 纯几何提交（裁剪）账本静默，靠几何比对捕获
             bool gainChanged = initial || mPropertiesDirty;
             bool envChanged = initial || audioChanged || mEnvDirty;
 
@@ -145,6 +147,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
             CommitOutput(offset, count, rate, dst);
             mOutput = dst;
             mReadback = BuildReadback(dst, rate, segStart);
+            mParametersChanged.Invoke();   // 回显发布即触发（本引擎同步收尾发布，兜底重聚合也会覆盖；示范契约姿势）
             return Task.CompletedTask;   // 错误经抛异常报告（宿主 catch → passthrough），此处不吞异常。
         }
 
@@ -172,8 +175,9 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
             return map;
         }
 
-        // 输入区间账本 (offset, count)（本引擎无局部能力，只消费到布尔粒度；局部重合成引擎在此累积区间、成功产出后清账）。
-        void OnInputRangeModified(int offset, int count) => mAudioDirty = true;
+        // 输入区间账本 (start=绝对采样位置, count)（本引擎无局部能力，只消费到布尔粒度；
+        // 局部重合成范式见同包 Slow Gain：累积区间、按账本收窄重算窗、成功产出后清账）。
+        void OnInputRangeModified(long start, int count) => mAudioDirty = true;
 
         void OnPropertiesModified()
         {
@@ -211,15 +215,16 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
 
         void CommitOutput(long offset, int count, int rate, float[] samples)
         {
-            // 重用同位同长同率的输出段句柄（就地重写重 Commit）；几何变了则换段。
-            if (mOutput != null && mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
+            // 同几何：就地重写重 Commit。几何变：同率走 Resize（身份保持、下游节点与缓存存活）；换率才换段。
+            if (mOutSegment == null || mOutRate != rate)
             {
-                mOutSegment.Write(0, samples);
-                mOutSegment.Commit();
-                return;
+                mOutSegment?.Dispose();
+                mOutSegment = mContext.CreateAudioSegment(offset, count, rate);
             }
-            mOutSegment?.Dispose();
-            mOutSegment = mContext.CreateAudioSegment(offset, count, rate);
+            else if (mOutCount != count || mOutOffset != offset)
+            {
+                mOutSegment.Resize(offset, count);
+            }
             mOutOffset = offset;
             mOutCount = count;
             mOutRate = rate;
@@ -258,7 +263,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
 }
 
 // 倒放效果器：无参数，反转样本顺序。与 Gain 同包，链中可观察顺序/增删效果。
-// **最简处理器示范**：零订阅、零状态——被调到 Process 就按当前输入干活（电平语义），
+// **最简会话示范**：零订阅、零状态——被调到 Process 就按当前输入干活（电平语义），
 // 调度时机全权归宿主（宿主只在本段真变时调它）。
 public sealed class ReverseEffectEngine : IEffectSynthesisEngine
 {
@@ -268,20 +273,22 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
     public void Init() { }
     public void Destroy() { }
-    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new ReverseProcessor(context);
+    public IEffectSynthesisSession CreateSession(IEffectSynthesisContext context) => new ReverseSession(context);
 
     static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = new();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new();
 
-    sealed class ReverseProcessor(IEffectSynthesisContext context) : IEffectSynthesisProcessor
+    sealed class ReverseSession(IEffectSynthesisContext context) : IEffectSynthesisSession
     {
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
-        // 无回显：恒空 map。
+        // 无回显：恒空 map、信号永不触发。
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+        public IActionEvent SynthesizedParametersChanged => mParametersChanged;
+        readonly ActionEvent mParametersChanged = new();
 
         public Task Process(CancellationToken cancellation = default)
         {
@@ -302,15 +309,16 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
 
         void CommitOutput(long offset, int count, int rate, float[] samples)
         {
-            // 重用同位同长同率的输出段句柄（就地重写重 Commit）；几何变了则换段。
-            if (mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
+            // 同几何：就地重写重 Commit。几何变：同率走 Resize（身份保持）；换率才换段。
+            if (mOutSegment == null || mOutRate != rate)
             {
-                mOutSegment.Write(0, samples);
-                mOutSegment.Commit();
-                return;
+                mOutSegment?.Dispose();
+                mOutSegment = context.CreateAudioSegment(offset, count, rate);
             }
-            mOutSegment?.Dispose();
-            mOutSegment = context.CreateAudioSegment(offset, count, rate);
+            else if (mOutCount != count || mOutOffset != offset)
+            {
+                mOutSegment.Resize(offset, count);
+            }
             mOutOffset = offset;
             mOutCount = count;
             mOutRate = rate;
@@ -330,9 +338,11 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
     }
 }
 
-// 慢速增益（声称上报演示）：模拟长耗时离线模型（SVC 类）——worker 分步处理 ~3s、逐步发布声称段
-// （Synthesizing + 进度，状态带呈纵向水位），验证流光与取消（编辑打断后正常返回不写产物）。
-// 固定 0.8 增益，无参数/自动化；调度归宿主，零失效订阅。
+// 慢速增益（声称上报 + **段内局部重合成**双示范）：模拟长耗时离线模型（SVC 类）。
+// 局部重合成范式（完整闭环）：订阅 Input.RangeModified 累积绝对轴脏区间账本 → Process 按账本收窄
+// 重算窗（只 Read/重算/写回变更区，耗时 ∝ 窗长——编辑 inpainting 引擎的一个 note 时肉眼可感）→
+// 输出几何变化走 Resize（身份保持，交集内容 = 仍有效的旧产物原样保留）→ 成功产出后清账（取消退账）。
+// 声称只罩重算窗（Synthesizing + 进度，状态带只有窗口区变橙+水位）。固定 0.8 增益，无参数/自动化。
 public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
 {
     public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
@@ -340,61 +350,153 @@ public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mEmpty;
     public void Init() { }
     public void Destroy() { }
-    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new SlowGainProcessor(context);
+    public IEffectSynthesisSession CreateSession(IEffectSynthesisContext context) => new SlowGainSession(context);
 
     static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> mEmpty = new();
 
-    sealed class SlowGainProcessor(IEffectSynthesisContext context) : IEffectSynthesisProcessor
+    sealed class SlowGainSession : IEffectSynthesisSession
     {
-        // 声称时间线：处理中发布一条 Synthesizing 段（本段范围 + 整体进度）；完成/取消清空（事实层接管）。
+        public SlowGainSession(IEffectSynthesisContext context)
+        {
+            mContext = context;
+            mContext.Input.RangeModified.Subscribe(OnInputRangeModified);
+        }
+
+        // 声称时间线：处理中发布一条 Synthesizing 段（重算窗范围 + 进度）；完成/取消清空（事实层接管）。
         // 发布 = 换引用（不可变数组）、任意线程 Invoke StatusChanged——宿主 marshal 后拉取。
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+        public IActionEvent SynthesizedParametersChanged => mParametersChanged;
+        readonly ActionEvent mParametersChanged = new();
 
         public async Task Process(CancellationToken cancellation = default)
         {
-            // 同步前缀（数据线程）：把输入 PCM 拷出到自有缓冲。
-            var input = context.Input;
+            // —— 同步前缀（数据线程）——
+            var input = mContext.Input;
             int rate = input.SampleRate;
             long offset = input.SampleOffset;
             int count = input.SampleCount;
+            if (count <= 0 || rate <= 0)
+                return;
 
-            var src = new float[count];
-            input.Read(0, src);
-            double segStart = rate > 0 ? (double)offset / rate : 0;
-            double segEnd = rate > 0 ? segStart + (double)count / rate : segStart;
+            bool geometryChanged = mOutSegment == null || mOutOffset != offset || mOutCount != count || mOutRate != rate;
 
-            // offload 到 worker 分步处理并报声称（Synthesizing + 进度）；取消 = 正常返回 null（不写产物）。
+            // 重算窗：账本并集 → **外扩上下文余量**（新旧内容的对接处需要重算——「收到范围变更后扩张一点
+            // 标脏范围，让新内容与旧内容对上」的参考姿势；本引擎点态，余量纯为示范，真实引擎按感受野取）
+            // → ∩ 段界。裁剪掉的区域账目照收（绝对轴「从有到无」也是内容变更，且上游 Resize 对称差必入账）：
+            // 求交后落在段外的部分自然消失，但其外扩壳留在界内——边界邻域被如实重算。
+            int winFrom, winLength;
+            if (mOutSegment != null && mOutRate == rate && mPending.Count > 0)
+            {
+                int margin = Math.Max(1, (int)(kContextMarginSeconds * rate));
+                long boundStart = long.MaxValue, boundEnd = long.MinValue;
+                foreach (var (start, length) in mPending)
+                {
+                    boundStart = Math.Min(boundStart, start);
+                    boundEnd = Math.Max(boundEnd, start + length);
+                }
+                boundStart = Math.Max(boundStart - margin, offset);
+                boundEnd = Math.Min(boundEnd + margin, offset + count);
+                if (boundEnd <= boundStart)
+                {
+                    // 变更（含外扩壳）全在段界外：界内无内容可重算——几何跟随（Resize 自动把对称差
+                    // 入账给自己的下游）+ 空提交；几何没变则纯 no-op。
+                    mPending.Clear();
+                    if (geometryChanged)
+                    {
+                        mOutSegment.Resize(offset, count);
+                        mOutOffset = offset;
+                        mOutCount = count;
+                        mOutSegment.Commit();
+                    }
+                    return;
+                }
+                winFrom = (int)(boundStart - offset);
+                winLength = (int)(boundEnd - boundStart);
+            }
+            else if (mOutSegment != null && mOutRate == rate && !geometryChanged)
+            {
+                return;   // 无账本、无几何变化：内容没变（如上游 no-op 重提交），早退不重 Commit
+            }
+            else
+            {
+                winFrom = 0;
+                winLength = count;   // 首跑 / 换率（Resize 不改率，换率换段整算）
+            }
+            mPending.Clear();   // 账本消费（成功产出即清；取消/失败在结局处退账）
+
+            var src = new float[winLength];
+            input.Read(winFrom, src);
+            double winStart = (offset + winFrom) / (double)rate;
+            double winEnd = winStart + winLength / (double)rate;
+
+            // —— offload：耗时 ∝ 重算窗占比（整段 ~3s；局部重算按比例缩短——账本收窄重算量的可感证据）——
+            int totalMs = Math.Max(200, (int)(3000.0 * winLength / count));
             var dst = await Task.Run(() =>
             {
-                const int steps = 30;
-                var buffer = new float[count];
+                int steps = Math.Max(3, totalMs / 100);
+                var buffer = new float[winLength];
                 for (int step = 0; step < steps; step++)
                 {
                     if (cancellation.IsCancellationRequested)
                         return null;
-                    Thread.Sleep(100);
-                    int begin = (int)((long)count * step / steps);
-                    int end = (int)((long)count * (step + 1) / steps);
+                    Thread.Sleep(totalMs / steps);
+                    int begin = (int)((long)winLength * step / steps);
+                    int end = (int)((long)winLength * (step + 1) / steps);
                     for (int i = begin; i < end; i++)
                         buffer[i] = src[i] * 0.8f;
-                    PublishStatus(segStart, segEnd, (step + 1) / (double)steps);
+                    PublishStatus(winStart, winEnd, (step + 1) / (double)steps);
                 }
                 return buffer;
             });
             if (dst == null)
             {
+                // 取消：退账（本窗未产出、不丢更新），下轮重排。
+                mPending.Add((offset + winFrom, winLength));
                 ClearStatus();
-                return;   // 取消是正常调度结局
+                return;
             }
 
-            // await 续延回数据线程：写出并 Commit，声称退场（宿主事实层接管呈现）。
-            CommitOutput(offset, count, rate, dst);
+            // —— await 续延回数据线程：产出。几何变化走 Resize（身份保持，交集旧产物仍有效原样保留），
+            //    只写回重算窗并 Commit——下游账本随之只有本窗。——
+            if (mOutSegment == null || mOutRate != rate)
+            {
+                mOutSegment?.Dispose();
+                mOutSegment = mContext.CreateAudioSegment(offset, count, rate);
+            }
+            else if (geometryChanged)
+            {
+                mOutSegment.Resize(offset, count);
+            }
+            mOutOffset = offset;
+            mOutCount = count;
+            mOutRate = rate;
+            mOutSegment.Write(winFrom, dst);
+            mOutSegment.Commit();
             ClearStatus();
+        }
+
+        // 输入区间账本（绝对轴）：累积进待处理集；绝对坐标在上游 Resize 前后天然稳定，无需重定基。
+        void OnInputRangeModified(long start, int count)
+        {
+            if (count <= 0)
+                return;
+            long end = start + count;
+            for (int i = mPending.Count - 1; i >= 0; i--)
+            {
+                var (s, c) = mPending[i];
+                long e = s + c;
+                if (e < start || s > end)
+                    continue;
+                start = Math.Min(start, s);
+                end = Math.Max(end, e);
+                mPending.RemoveAt(i);
+            }
+            mPending.Add((start, (int)Math.Min(int.MaxValue, end - start)));
         }
 
         void PublishStatus(double startTime, double endTime, double progress)
@@ -420,25 +522,16 @@ public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
             mStatusChanged.Invoke();
         }
 
-        void CommitOutput(long offset, int count, int rate, float[] samples)
+        public void Dispose()
         {
-            if (mOutSegment != null && mOutCount == count && mOutOffset == offset && mOutRate == rate)
-            {
-                mOutSegment.Write(0, samples);
-                mOutSegment.Commit();
-                return;
-            }
+            mContext.Input.RangeModified.Unsubscribe(OnInputRangeModified);
             mOutSegment?.Dispose();
-            mOutSegment = context.CreateAudioSegment(offset, count, rate);
-            mOutOffset = offset;
-            mOutCount = count;
-            mOutRate = rate;
-            mOutSegment.Write(0, samples);
-            mOutSegment.Commit();
         }
 
-        public void Dispose() => mOutSegment?.Dispose();
+        const double kContextMarginSeconds = 0.1;   // 示范用上下文余量（真实上下文引擎按自己的感受野取）
 
+        readonly IEffectSynthesisContext mContext;
+        readonly List<(long Start, int Count)> mPending = new();   // 脏区间账本（绝对轴；成功产出清、取消退）
         IAudioSegment? mOutSegment;
         long mOutOffset;
         int mOutCount;
@@ -460,18 +553,20 @@ public sealed class FailEffectEngine : IEffectSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mEmpty;
     public void Init() { }
     public void Destroy() { }
-    public IEffectSynthesisProcessor CreateProcessor(IEffectSynthesisContext context) => new FailProcessor(context);
+    public IEffectSynthesisSession CreateSession(IEffectSynthesisContext context) => new FailSession(context);
 
     static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> mEmpty = new();
 
-    sealed class FailProcessor(IEffectSynthesisContext context) : IEffectSynthesisProcessor
+    sealed class FailSession(IEffectSynthesisContext context) : IEffectSynthesisSession
     {
         public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+        public IActionEvent SynthesizedParametersChanged => mParametersChanged;
+        readonly ActionEvent mParametersChanged = new();
 
         public Task Process(CancellationToken cancellation = default)
         {

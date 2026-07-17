@@ -66,7 +66,7 @@ EFFECT-TEST-CASES.md / EFFECT-READBACK-TEST-CASES.md（基线不动）。
 
 ## F. 契约与调度
 
-- [ ] F1 无 `Read` 越界异常（Gain/Reverse/SlowGain 均整段 Read）。
+- [ ] F1 无 `Read` 越界异常（Gain/Reverse 整段 Read；SlowGain 首跑整段、此后按账本窗口局部 Read）。
 - [ ] F2 宿主标脏的区间相交过滤：把 Gain 的 gain_env 曲线改在**另一个段**的时间区间——本段不重跑
       （带不闪、回显不变）；改在本段区间内 → 正常重跑。
 - [ ] F3 只调 Gain 滑条（参数 settled 变更）：所有段的 Gain 级重跑（保守调度），瞬时完成、无异常。

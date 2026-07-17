@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace TuneLab.SDK;
 
 // 一次 agent 会话：持有到某个模型的连接（含用户配置的端点/密钥/模型名等），驱动多轮对话。
-// 与 effect 的 IEffectSynthesisProcessor 同位——由引擎用"用户确定后的 properties"创建，宿主在会话存活期间复用。
+// 与 effect 的 IEffectSynthesisSession 同位——由引擎用"用户确定后的 properties"创建，宿主在会话存活期间复用。
 public interface IAgentModelSession : IDisposable
 {
     // 本会话支持的输入模态。宿主据此启停附件入口（如仅 Text 则不显示图片附件按钮）。
