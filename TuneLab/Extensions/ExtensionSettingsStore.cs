@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using TuneLab.Agent;
 using TuneLab.Foundation;
 using TuneLab.SDK;
@@ -11,8 +11,8 @@ using TuneLab.Utils;
 namespace TuneLab.Extensions;
 
 // 扩展能力级设置的通用本地持久化（Configs/ExtensionSettings.json）。
-// 值用【原生 JSON 存法】（与工程文件 .tlp 的 PropertyObject 存法一致）：string/number/bool 直接落原生 JSON，
-// 不逐字段包 {Kind,Sec,...}——类型靠 JSON token 本身判定。
+// 值用【原生 JSON 存法】（与工程文件 .tlp 的 PropertyObject 存法一致），值转换走全仓唯一共用的
+// PropertyJsonUtils（string/number/bool 直落原生 JSON、array/object 递归，类型靠 JSON token 本身判定）。
 // 【两级分桶】顶层按 packageId（插件包反向域名 id）分桶，桶内再按 extensionKey(="kind:extensionId")。
 //   理由：不同插件包可能实现相同类型且 id 相同（如两个包都做 format "svp" / voice 同名引擎），仅按 extensionKey
 //   分桶会令其设置互相覆盖、串味。加一层 packageId 使各包设置物理隔离。用包 id 作【JSON key】而非文件名——
@@ -27,7 +27,6 @@ namespace TuneLab.Extensions;
 internal static class ExtensionSettingsStore
 {
     static string FilePath => Path.Combine(PathManager.ConfigsFolder, "ExtensionSettings.json");
-    static readonly JsonSerializerOptions sJsonOptions = new() { WriteIndented = true };
 
     // 读某 extension 的设置值（先定位 packageId 桶、再定位 extensionKey 子桶）。
     // secretKeys（来自 schema 的 IsPassword）标出哪些字段需解密/从凭据库取回。
@@ -36,15 +35,15 @@ internal static class ExtensionSettingsStore
         var result = new Dictionary<string, PropertyValue>();
         try
         {
-            if (ReadRoot()?[packageId] is not JsonObject pkg || pkg[extensionKey] is not JsonObject bucket)
+            if (ReadRoot()?[packageId] is not JObject pkg || pkg[extensionKey] is not JObject bucket)
                 return result;
 
-            foreach (var (key, node) in bucket)
+            foreach (var property in bucket.Properties())
             {
-                if (secretKeys.Contains(key))
-                    result[key] = LoadSecret(packageId, extensionKey, key, node);
-                else if (ToPropertyValue(node, out var pv))
-                    result[key] = pv;
+                if (secretKeys.Contains(property.Name))
+                    result[property.Name] = LoadSecret(packageId, extensionKey, property.Name, property.Value);
+                else
+                    result[property.Name] = PropertyJsonUtils.ToPropertyValue(property.Value);
             }
         }
         catch (Exception ex)
@@ -83,11 +82,11 @@ internal static class ExtensionSettingsStore
 
     static readonly IReadOnlySet<string> sNoSecrets = new HashSet<string>();
 
-    static string LoadSecret(string packageId, string extensionKey, string key, JsonNode? node)
+    static string LoadSecret(string packageId, string extensionKey, string key, JToken? node)
     {
         if (OperatingSystem.IsWindows())
         {
-            var blob = (node as JsonValue)?.TryGetValue<string>(out var s) == true ? s : string.Empty;
+            var blob = node?.Type == JTokenType.String ? (string?)node ?? string.Empty : string.Empty;
             return string.IsNullOrEmpty(blob) ? string.Empty : SecretStore.DpapiUnprotect(blob); // DPAPI 密文 → 明文
         }
         // macOS：真密钥在钥匙串，文件只存空串；取不到则空（不存在明文回退）。
@@ -100,9 +99,9 @@ internal static class ExtensionSettingsStore
     {
         try
         {
-            var root = ReadRoot() ?? new JsonObject();
-            var pkg = root[packageId] as JsonObject ?? new JsonObject();
-            var bucket = new JsonObject();
+            var root = ReadRoot() ?? new JObject();
+            var pkg = root[packageId] as JObject ?? new JObject();
+            var bucket = new JObject();
             foreach (var kvp in values.Map)
             {
                 if (secretKeys.Contains(kvp.Key))
@@ -118,14 +117,16 @@ internal static class ExtensionSettingsStore
                         bucket[kvp.Key] = node;
                     continue;
                 }
-                if (ToNode(kvp.Value, out var plain))
-                    bucket[kvp.Key] = plain;
+                // 稀疏语义同 PropertyJsonUtils.ToJson(PropertyObject)：哨兵不写键（absent = 默认）。
+                if (kvp.Value.IsNull() || kvp.Value.IsMultiple())
+                    continue;
+                bucket[kvp.Key] = PropertyJsonUtils.ToJson(kvp.Value);
             }
             pkg[extensionKey] = bucket;
             root[packageId] = pkg;
 
             PathManager.MakeSureExist(PathManager.ConfigsFolder);
-            SaveFile.WriteAllText(FilePath, root.ToJsonString(sJsonOptions));
+            SaveFile.WriteAllText(FilePath, root.ToString(Formatting.Indented));
         }
         catch (Exception ex)
         {
@@ -135,84 +136,21 @@ internal static class ExtensionSettingsStore
 
     // 密钥应写入文件的节点：Windows=DPAPI 密文；macOS=进钥匙串后存空串。
     // 无安全存储可用（官方未支持的 Linux / headless）→ 返回 null，调用方跳过该字段，绝不明文落盘。
-    static JsonNode? SaveSecret(string packageId, string extensionKey, string key, string secret)
+    static JToken? SaveSecret(string packageId, string extensionKey, string key, string secret)
     {
         if (OperatingSystem.IsWindows())
-            return JsonValue.Create(SecretStore.DpapiProtect(secret)); // DPAPI 密文，仅原用户原机可解
+            return new JValue(SecretStore.DpapiProtect(secret)); // DPAPI 密文，仅原用户原机可解
         if (SecretStore.OsStore(Account(packageId, extensionKey, key), secret))
-            return JsonValue.Create(string.Empty);                     // 真密钥进钥匙串，文件留空
+            return new JValue(string.Empty);                     // 真密钥进钥匙串，文件留空
         Log.Warning(string.Format("Extension secret '{0}' not saved: no secure store available on this platform.", key));
         return null;
     }
 
-    // PropertyValue → 原生 JSON node。标量(bool/number/string)直落；复合型(array/object)递归下探——
-    // 支撑 ListConfig/ArrayConfig（值为 PropertyArray）与嵌套 ObjectConfig（值为 PropertyObject）。
-    // Null 落为 JSON null；Multiple 是多选聚合的 UI 态、不应进持久值，返回 false 跳过。
-    static bool ToNode(PropertyValue value, out JsonNode? node)
-    {
-        if (value.ToBool(out var b)) { node = JsonValue.Create(b); return true; }
-        if (value.ToDouble(out var d)) { node = JsonValue.Create(d); return true; }
-        if (value.ToString(out var s)) { node = JsonValue.Create(s ?? string.Empty); return true; }
-        if (value.ToArray(out var arr))
-        {
-            var jarr = new JsonArray();
-            foreach (var item in arr)
-                jarr.Add(ToNode(item, out var child) ? child : null); // 元素级 null 占位保序（含 Null / 无法表示项）
-            node = jarr;
-            return true;
-        }
-        if (value.ToObject(out var obj))
-        {
-            var jobj = new JsonObject();
-            foreach (var kvp in obj.Map)
-                if (ToNode(kvp.Value, out var child))
-                    jobj[kvp.Key] = child;
-            node = jobj;
-            return true;
-        }
-        if (value.IsNull()) { node = null; return true; }
-        node = null;
-        return false;
-    }
-
-    // 原生 JSON node → PropertyValue。标量按 token 类型(bool→number→string)；复合型(array/object)递归还原；
-    // JSON null → PropertyValue.Null。与 ToNode 对称，往返稳定。
-    static bool ToPropertyValue(JsonNode? node, out PropertyValue value)
-    {
-        value = default;
-        if (node is JsonObject jo)
-        {
-            var map = new Map<string, PropertyValue>();
-            foreach (var (key, child) in jo)
-                if (ToPropertyValue(child, out var pv))
-                    map.Add(key, pv);
-            value = new PropertyObject(map);
-            return true;
-        }
-        if (node is JsonArray ja)
-        {
-            var list = new List<PropertyValue>(ja.Count);
-            foreach (var child in ja)
-                list.Add(ToPropertyValue(child, out var pv) ? pv : PropertyValue.Null);
-            value = new PropertyArray(list);
-            return true;
-        }
-        if (node is not JsonValue jv)
-        {
-            value = PropertyValue.Null; // JSON null（数组元素占位等）
-            return node is null;
-        }
-        if (jv.TryGetValue<bool>(out var b)) { value = b; return true; }
-        if (jv.TryGetValue<double>(out var d)) { value = d; return true; }
-        if (jv.TryGetValue<string>(out var s)) { value = s; return true; }
-        return false;
-    }
-
-    static JsonObject? ReadRoot()
+    static JObject? ReadRoot()
     {
         if (!File.Exists(FilePath))
             return null;
-        return JsonNode.Parse(File.ReadAllText(FilePath)) as JsonObject;
+        return JToken.Parse(File.ReadAllText(FilePath)) as JObject;
     }
 
     // SecretStore account（macOS 钥匙串账户名 / DPAPI 仅作文件内 blob）：含 packageId 确保跨包唯一。

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.SDK;
+using TuneLab.Utils;
 
 
 namespace TuneLab.Configs;
@@ -132,7 +133,7 @@ internal static class PresetConfigManager
                 ["type"] = preset.Voice.Type,
                 ["id"] = preset.Voice.ID,
             },
-            ["properties"] = ToJson(preset.Properties),
+            ["properties"] = PropertyJsonUtils.ToJson(preset.Properties),
             ["automations"] = automations,
         };
     }
@@ -147,7 +148,7 @@ internal static class PresetConfigManager
                 Type = json["voice"]?["type"]?.Value<string>() ?? string.Empty,
                 ID = json["voice"]?["id"]?.Value<string>() ?? string.Empty,
             },
-            Properties = json["properties"] is JObject properties ? FromPropertyObjectJson(properties) : PropertyObject.Empty,
+            Properties = json["properties"] is JObject properties ? PropertyJsonUtils.ToPropertyObject(properties) : PropertyObject.Empty,
         };
 
         if (json["automations"] is JObject automations)
@@ -162,55 +163,6 @@ internal static class PresetConfigManager
         return preset;
     }
 
-    static PropertyObject FromPropertyObjectJson(JObject json)
-    {
-        var map = new Map<string, PropertyValue>();
-        foreach (var property in json.Properties())
-        {
-            switch (property.Value.Type)
-            {
-                case JTokenType.Boolean:
-                    map.Add(property.Name, property.Value.Value<bool>());
-                    break;
-                case JTokenType.Integer:
-                case JTokenType.Float:
-                    map.Add(property.Name, property.Value.Value<double>());
-                    break;
-                case JTokenType.String:
-                    map.Add(property.Name, property.Value.Value<string>() ?? string.Empty);
-                    break;
-                case JTokenType.Object:
-                    map.Add(property.Name, FromPropertyObjectJson((JObject)property.Value));
-                    break;
-            }
-        }
-        return new PropertyObject(map);
-    }
-
-    static JObject ToJson(PropertyObject properties)
-    {
-        var json = new JObject();
-        foreach (var property in properties.Map)
-        {
-            if (property.Value.ToObject(out var propertyObject))
-            {
-                json.Add(property.Key, ToJson(propertyObject));
-            }
-            else if (property.Value.ToBool(out var boolValue))
-            {
-                json.Add(property.Key, boolValue);
-            }
-            else if (property.Value.ToDouble(out var doubleValue))
-            {
-                json.Add(property.Key, doubleValue);
-            }
-            else if (property.Value.ToString(out var stringValue))
-            {
-                json.Add(property.Key, stringValue);
-            }
-        }
-        return json;
-    }
 }
 
 internal class PartPreset

@@ -7,6 +7,11 @@ namespace TuneLab.Foundation;
 //   number/boolean 存进 mNumber（double，bool 编码为 0/1），string/object 存进 mReference（本就是引用、零额外装箱），
 //   null/multiple 哨兵仅由 mType 标签表达、不占引用槽。读取标量（ToDouble/ToBool）直接取字段，无拆箱。
 // 公开 ABI 与旧实现（object mValue + System.Type）完全一致：Type/To*/Is*/Equals/Create/隐式转换签名不变。
+// 【新增类型臂检查单】给本类型加新值种类（新 PropertyType + Create/To*/隐式转换 + 三个 switch）时，
+// 必须同步全部序列化站点——它们是刻意收敛后的仅有两处，漏一处即静默丢数据：
+//   ① PropertyJsonUtils（宿主 JSON 唯一共用转换：TLP JSON / part preset / 扩展设置共用）
+//   ② TuneLabProjectCbor.ReadPropertyValue/WritePropertyValue（TLP 二进制）
+// 另有语义站点：PropertyObjectExtensions.Merge（多选三态合并）与属性面板控件分发。
 public readonly struct PropertyValue : IEquatable<PropertyValue>
 {
     public static implicit operator PropertyValue(bool value)
