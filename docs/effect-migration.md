@@ -479,7 +479,7 @@ Adapter 对**冷路径**（Format I/O、property panel）开销可忽略。
 
 承 §三.7 蓝图（SDK.Effect 占位）+ §三.10/§三.12（SDK 分层）+ §三.15（双向穿越）。本话题把 effect 从占位落成完整功能，`TuneLab.sln`（Debug/Release）+ `legacy/Legacy.slnx`（Release）均 **0 错误**；零 effect 的既有工程行为不变（FinalizeChain 直接取 voice 输出）。
 
-**定位（先讨论达成共识）**：effect 面向**耗时长的离线模型**（如 SVC 换声），**不是实时 VST**（reverb/EQ 等留后续）。决定了任务式异步 + 整段 `MonoAudio` 进出的形状。
+**定位（先讨论达成共识）**：effect 面向**耗时长的离线模型**（如 SVC 换声），**不是实时 VST**（reverb/EQ 等留后续）。决定了任务式异步 + 整段 `MonoAudio` 进出的形状。**（多声道在案，死线 = SDK 随发布冻结前）**：实现随第一个真实消费者（effect 挂 audio part / 立体声 instrument）立项，发布前须把三段措辞钉进音频面契约注释与插件文档——① 寻址以**帧**计（账本区间同；与声道数无关，宿主存储可分页、段总容量不受单数组上限约束）；② span 布局 = 按 ChannelCount **交织**、写入**整帧原子**；③ **恒单声道承诺**：未声明多声道能力的 effect 引擎永远只收单声道段（多声道素材宿主逐声道适配/下混），多声道为声明式选入的加性扩展（`ChannelCount` DIM 默认 1 + `CreateAudioSegment` 新增**重载**、绝不给现有方法加默认参数）；生产侧（voice/instrument）调新重载即自描述选入、无需能力面。
 
 **SDK.Effect 形状（最小冻结面）**：`IEffectEngine`（`PropertyConfig: ObjectConfig` + `AutomationConfigs` + `Init(enginePath, out error)` + `Destroy` + `CreateSynthesisTask(input, output)`）；`IEffectSynthesisInput`（`MonoAudio Audio` + `PropertyObject Properties` + `TryGetAutomation`）；`IEffectSynthesisOutput`（`MonoAudio Audio` sink，**塌缩**——不再 `: ISynthesisOutput`）；`IEffectSynthesisTask`（`Complete`/`Progress`/`Error` + `Start`/`Stop`，一次性处理器）；`[EffectEngine("type")]`。**dirty/缓存全归宿主编排器，SDK 不含 DirtyEvent**（比 effect 分支更小）；输出仅音频（pitch/automation 回写推迟）。**（终局形态更新：参数回显已落地——`IEffectSynthesisProcessor.SynthesizedParameters` 按轨 id 发布分段折线，与 `GetSynthesizedParameterConfigs` 对齐、宿主按 key 拼接各段；音频之外的回显不再是空缺。）**
 
