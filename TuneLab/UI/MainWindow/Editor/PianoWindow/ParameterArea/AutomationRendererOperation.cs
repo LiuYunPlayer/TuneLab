@@ -379,7 +379,7 @@ internal partial class AutomationRenderer
                         break;
 
                     var pconfig = Part.GetEffectivePiecewiseAutomationConfig(activeAutomation.Value);
-                    var pcolor = Color.Parse(pconfig.Color);
+                    var pcolor = ColorUtils.ParseOrFallback(pconfig.Color);
                     foreach (var group in piecewise.AnchorGroups)
                     {
                         foreach (var point in group)
@@ -406,7 +406,7 @@ internal partial class AutomationRenderer
                     break;
 
                 var config = Part.GetEffectiveAutomationConfig(activeAutomation.Value);
-                var color = Color.Parse(config.Color);
+                var color = ColorUtils.ParseOrFallback(config.Color);
                 foreach (var point in automation.Points)
                 {
                     double tick = Part.Pos.Value + point.Pos;

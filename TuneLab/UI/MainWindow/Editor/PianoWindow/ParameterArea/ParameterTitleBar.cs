@@ -167,7 +167,7 @@ internal class ParameterTitleBar : LayerPanel
                     elems.Add(new(ElemKind.Label, default, labelText, default));
                 }
             }
-            elems.Add(new(ElemKind.Chip, key, kvp.Value.DisplayText, Color.Parse(kvp.Value.Config.Color)));
+            elems.Add(new(ElemKind.Chip, key, kvp.Value.DisplayText, ColorUtils.ParseOrFallback(kvp.Value.Config.Color)));
         }
         return elems;
     }

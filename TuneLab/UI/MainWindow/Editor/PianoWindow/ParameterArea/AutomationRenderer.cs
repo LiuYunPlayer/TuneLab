@@ -210,7 +210,7 @@ internal partial class AutomationRenderer : View
         void DrawNoteLane(AutomationKey automationID, bool isActive)
         {
             var entry = Part.GetNoteLaneEntry(automationID);
-            var color = Color.Parse(entry.Color);
+            var color = ColorUtils.ParseOrFallback(entry.Color);
             var lineBrush = color.ToBrush();
             var fillBrush = color.Opacity(0.25).ToBrush();
             double minVisibleTick = TickAxis.MinVisibleTick;
@@ -247,7 +247,7 @@ internal partial class AutomationRenderer : View
             if (!entry.Resolved)
                 return;   // 未解析占位（合成音素未产出）：tab 在场但无段可画、量程未知
 
-            var color = Color.Parse(entry.Color);
+            var color = ColorUtils.ParseOrFallback(entry.Color);
             var lineBrush = color.ToBrush();
             var fillBrush = color.Opacity(0.25).ToBrush();
             var tempoManager = Part.TempoManager;
@@ -309,7 +309,7 @@ internal partial class AutomationRenderer : View
                 points[i] = new(xs[i], values[i]);
             }
 
-            context.DrawCurve(points, Color.Parse(config.Color), lineWidth);
+            context.DrawCurve(points, ColorUtils.ParseOrFallback(config.Color), lineWidth);
         }
 
         void DrawPiecewise(AutomationKey automationID)
@@ -326,7 +326,7 @@ internal partial class AutomationRenderer : View
                 var ys = new double[n];
                 for (int i = 0; i < n; i++)
                     ys[i] = double.IsNaN(values[i]) ? double.NaN : ValueToY(values[i], min, max);
-                DrawBrokenCurve(ys, Color.Parse(config.Color), lineWidth);
+                DrawBrokenCurve(ys, ColorUtils.ParseOrFallback(config.Color), lineWidth);
             }
         }
 
@@ -455,7 +455,7 @@ internal partial class AutomationRenderer : View
                     points[i] = new(vxs[i], values[i]);
                 }
 
-                context.DrawCurve(points, Color.Parse(colorStr).Opacity(0.5), lineWidth);
+                context.DrawCurve(points, ColorUtils.ParseOrFallback(colorStr).Opacity(0.5), lineWidth);
             }
 
             if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
@@ -510,7 +510,7 @@ internal partial class AutomationRenderer : View
                 continue;
 
             var config = kvp.Value.Config;
-            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, Color.Parse(config.Color));
+            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, ColorUtils.ParseOrFallback(config.Color));
         }
     }
 

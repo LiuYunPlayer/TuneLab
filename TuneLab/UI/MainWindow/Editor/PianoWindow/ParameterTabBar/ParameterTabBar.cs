@@ -133,7 +133,7 @@ internal class ParameterTabBar : Panel
             var key = makeKey(kvp.Key.Id);
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(Color.Parse(kvp.Value.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
+                button = new ParameterButton(ColorUtils.ParseOrFallback(kvp.Value.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
                 // lane 按钮右键可就地解钉——与侧栏属性行右键对称；也是「引擎不再声明该属性」时死 tab 的唯一移除口
@@ -159,7 +159,7 @@ internal class ParameterTabBar : Panel
             else
             {
                 // 解钉后重钉可能分配到不同轨色（也可能切语言换 DisplayText）：缓存按钮就地对齐。
-                button.Color = Color.Parse(kvp.Value.Color);
+                button.Color = ColorUtils.ParseOrFallback(kvp.Value.Color);
                 button.Text = kvp.Key.DisplayText ?? kvp.Key.Id;
             }
             mAutomationButtons.Add(key, button);
@@ -183,7 +183,7 @@ internal class ParameterTabBar : Panel
             var key = effectIndex < 0 ? AutomationKey.Voice(kvp.Key.Id) : AutomationKey.Effect(effectIndex, kvp.Key.Id);
             if (!mCacheParameterButtons.TryGetValue(key, out var button))
             {
-                button = new ParameterButton(Color.Parse(config.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
+                button = new ParameterButton(ColorUtils.ParseOrFallback(config.Color), kvp.Key.DisplayText ?? kvp.Key.Id) { Margin = new(6, 0) };
                 var captured = key;
                 button.StateChangeAsked += (state) => StateChangeAsked?.Invoke(captured, state);
                 mCacheParameterButtons.Add(key, button);
