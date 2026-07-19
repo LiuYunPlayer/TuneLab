@@ -372,6 +372,9 @@
 "Script is empty." = "스크립트가 비어 있습니다."
 "Host error: " = "호스트 오류: "
 
+[ComboBoxController]
+"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "저장된 값 \"{0}\"이(가) 현재 옵션에 없습니다.\n플러그인이 처리 방식을 결정합니다(보통 기본값으로 처리).\n옵션을 선택하면 덮어씁니다."
+
 [SliderController]
 "Randomize" = "무작위화"
 

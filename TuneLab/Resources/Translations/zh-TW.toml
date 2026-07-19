@@ -377,6 +377,9 @@
 "Script is empty." = "腳本為空。"
 "Host error: " = "宿主錯誤： "
 
+[ComboBoxController]
+"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "儲存的值\"{0}\"不在目前選項中。\n擴充功能將自行決定如何處理它（通常按預設處理）。\n選擇一個選項即可覆蓋該值。"
+
 [SliderController]
 "Randomize" = "隨機化"
 

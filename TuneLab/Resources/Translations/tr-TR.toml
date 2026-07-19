@@ -372,6 +372,9 @@
 "Script is empty." = "Betik boş."
 "Host error: " = "Ana bilgisayar hatası: "
 
+[ComboBoxController]
+"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "Kayıtlı değer \"{0}\" mevcut seçenekler arasında değil.\nEklenti bunu nasıl işleyeceğine kendisi karar verir (genellikle varsayılan olarak).\nÜzerine yazmak için bir seçenek seçin."
+
 [SliderController]
 "Randomize" = "Rastgeleleştir"
 

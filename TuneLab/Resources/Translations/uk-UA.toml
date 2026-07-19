@@ -372,6 +372,9 @@
 "Script is empty." = "Скрипт порожній."
 "Host error: " = "Помилка хоста: "
 
+[ComboBoxController]
+"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "Збережене значення \"{0}\" відсутнє серед поточних варіантів.\nПлагін сам вирішує, як його обробити (зазвичай як типове).\nВиберіть варіант, щоб перезаписати його."
+
 [SliderController]
 "Randomize" = "Випадкове значення"
 

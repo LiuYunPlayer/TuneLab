@@ -372,6 +372,9 @@
 "Script is empty." = "Το Script είναι κενό."
 "Host error: " = "Σφάλμα host: "
 
+[ComboBoxController]
+"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "Η αποθηκευμένη τιμή \"{0}\" δεν βρίσκεται στις τρέχουσες επιλογές.\nΤο πρόσθετο αποφασίζει πώς θα τη χειριστεί (συνήθως ως προεπιλογή).\nΕπιλέξτε μια επιλογή για να την αντικαταστήσετε."
+
 [SliderController]
 "Randomize" = "Τυχαιοποίηση"
 

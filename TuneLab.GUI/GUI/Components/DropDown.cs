@@ -46,9 +46,22 @@ internal class DropDown : Panel
             Foreground = Style.LIGHT_WHITE.ToBrush(),
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         };
+        // 回退徽标（默认隐藏）：显示内容并非所存真实值时点亮（如存值不在选项内、按默认项呈现），
+        // 提示「此处有隐情，悬浮看详情」——徽标居右贴箭头，不打扰主文本。
+        mMarker = new TextBlock()
+        {
+            Text = "⚠",
+            FontSize = 11,
+            Margin = new(6, 0, 0, 0),
+            Foreground = Style.SYNTHESIS_DEGRADED.ToBrush(),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            IsVisible = false,
+        };
         var dock = new DockPanel() { LastChildFill = true, Margin = new(10, 0) };
         DockPanel.SetDock(arrow, Dock.Right);
+        DockPanel.SetDock(mMarker, Dock.Right);
         dock.Children.Add(arrow);
+        dock.Children.Add(mMarker);
         dock.Children.Add(mLabel);
 
         mFace = new Border()
@@ -78,6 +91,13 @@ internal class DropDown : Panel
     }
 
     public string? PlaceholderText { get => mPlaceholderText; set { mPlaceholderText = value; RefreshLabel(); } }
+
+    // placeholder 专属前景色（null = 常规文字色）。选中真实叶子时恒用常规色，本色只作用于占位态——
+    // 供"占位文本承载异常语义"的场景（如 ComboBox 值不在选项内时以警示色呈现字面量）。
+    public IBrush? PlaceholderForeground { get => mPlaceholderForeground; set { mPlaceholderForeground = value; RefreshLabel(); } }
+
+    // 警示徽标开关：见 mMarker 注释。由值控制器按显示状态管理（每次 Display 都显式设置，不自清）。
+    public bool WarningMarker { get => mMarker.IsVisible; set => mMarker.IsVisible = value; }
 
     // 触发面背景（默认 Style.BACK）。当宿主背景与之同色、下拉会糊进背景时可覆盖以形成对比
     // （如安装器把语言下拉放在深色内容区上，覆盖成 Style.INTERFACE 让其像一个可见控件）。
@@ -301,7 +321,9 @@ internal class DropDown : Panel
 
     void RefreshLabel()
     {
-        mLabel.Text = (uint)mSelectedIndex < (uint)mLeaves.Count ? mLeaves[mSelectedIndex].Text : (mPlaceholderText ?? string.Empty);
+        bool selected = (uint)mSelectedIndex < (uint)mLeaves.Count;
+        mLabel.Text = selected ? mLeaves[mSelectedIndex].Text : (mPlaceholderText ?? string.Empty);
+        mLabel.Foreground = selected ? Style.LIGHT_WHITE.ToBrush() : (mPlaceholderForeground ?? Style.LIGHT_WHITE.ToBrush());
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -344,6 +366,8 @@ internal class DropDown : Panel
     readonly Popup mPopup;
     Popup? mOpenSub;
     string? mPlaceholderText;
+    IBrush? mPlaceholderForeground;
+    readonly TextBlock mMarker;
     IReadOnlyList<DropDownItem> mTopItems = [];
     readonly List<DropDownItem> mLeaves = new();
     int mSelectedIndex = -1;

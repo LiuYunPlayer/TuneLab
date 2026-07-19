@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
+using ToolTip = Avalonia.Controls.ToolTip;
+using TuneLab.I18N;
+using TuneLab.Utils;
 
 namespace TuneLab.GUI.Controllers;
 
@@ -47,11 +50,32 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         if (index >= 0)
         {
             SelectedIndex = index;
+            PlaceholderForeground = null;
+            WarningMarker = false;
+            ToolTip.SetTip(this, null);
         }
         else
         {
-            // 值不在选项内：显默认项文本（命中默认值时）或值字面量作占位，不真正选中任何项。
-            PlaceholderText = value.Equals(mConfig.DefaultOption.Value) ? mConfig.DefaultOption.ShowText() : (value.ToString() ?? string.Empty);
+            // 值不在选项内（不真正选中任何项——保持 -1 才能让点选任意项都发出选中、写进数据）：
+            // 命中默认值时按默认项文本等价呈现（无差异不示警）；其余以警示色如实显示原值字面量 + 徽标。
+            // 不显示成默认项、也不标「不可用」——「未知值如何生效」只有插件知道（按默认 / 认识旧值按原义 / 近似降级），
+            // 宿主替它宣称任何一种都可能撒谎；数据与喂入同样保留原值不动，重选才是唯一的覆盖路径。
+            bool isDefault = value.Equals(mConfig.DefaultOption.Value);
+            if (isDefault)
+            {
+                PlaceholderText = mConfig.DefaultOption.ShowText();
+                PlaceholderForeground = null;
+                WarningMarker = false;
+                ToolTip.SetTip(this, null);
+            }
+            else
+            {
+                string literal = value.ToString() ?? string.Empty;
+                PlaceholderText = literal;
+                PlaceholderForeground = Style.SYNTHESIS_DEGRADED.ToBrush();
+                WarningMarker = true;
+                this.SetupToolTip(string.Format("Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it.".Tr(this), literal));
+            }
             SelectedIndex = -1;
         }
         mAcceptSelectionChanged = true;
@@ -62,6 +86,9 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         mValue = PropertyValue.Null;
         mAcceptSelectionChanged = false;
         PlaceholderText = string.Empty;
+        PlaceholderForeground = null;
+        WarningMarker = false;
+        ToolTip.SetTip(this, null);
         SelectedIndex = -1;
         mAcceptSelectionChanged = true;
     }
@@ -71,6 +98,9 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         mValue = PropertyValue.Null;
         mAcceptSelectionChanged = false;
         PlaceholderText = "(Multiple)";
+        PlaceholderForeground = null;
+        WarningMarker = false;
+        ToolTip.SetTip(this, null);
         SelectedIndex = -1;
         mAcceptSelectionChanged = true;
     }

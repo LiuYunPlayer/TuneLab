@@ -372,6 +372,9 @@
 "Script is empty." = "スクリプトが空です。"
 "Host error: " = "ホストエラー： "
 
+[ComboBoxController]
+"Stored value \"{0}\" is not among the current options.\nThe plugin decides how to treat it (usually as default).\nSelect an option to overwrite it." = "保存された値 \"{0}\" は現在の選択肢にありません。\nプラグイン側で処理方法が決定されます（通常はデフォルトとして扱われます）。\n選択肢を選ぶと上書きされます。"
+
 [SliderController]
 "Randomize" = "ランダム化"
 
