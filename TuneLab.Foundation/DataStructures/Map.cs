@@ -10,11 +10,13 @@ public class Map<TKey, TValue> : IMap<TKey, TValue> where TKey : notnull
 {
     public static readonly IReadOnlyMap<TKey, TValue> Empty = EmptyMap<TKey, TValue>.Instance;
 
+    // 索引器 set = upsert（存在则替换、否则新增），是替换已有键的唯一入口；Add 遇重复键抛（见下）。
     public TValue this[TKey key] { get => mDictionary[key]; set => mDictionary[key] = value; }
     public IReadOnlyCollection<TKey> Keys => mDictionary.Keys;
     public IReadOnlyCollection<TValue> Values => mDictionary.Values;
     public int Count => mDictionary.Count;
 
+    // 重复键抛 ArgumentException（Dictionary 语义，与 OrderedMap.Add 对齐）。替换用索引器 this[key] = value。
     public void Add(TKey key, TValue value)
     {
         mDictionary.Add(key, value);

@@ -10,6 +10,8 @@ public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue> where TKey : n
 {
     public int Count => mKeys.Count;
 
+    // 索引器 set = upsert：键已存在则原位替换值（保持既有次序位置），否则追加末尾。
+    // 「替换已有键」的唯一入口——Add/Insert 遇重复键一律抛（Dictionary 语义，见 Add）。
     public TValue this[TKey key]
     {
         get => mMap[key];
@@ -26,20 +28,18 @@ public class OrderedMap<TKey, TValue> : IOrderedMap<TKey, TValue> where TKey : n
     public IReadOnlyList<TValue> Values => new ValueCollection(this);
     public OrderedMap() { }
 
+    // 重复键抛 ArgumentException（Dictionary / Map.Add 语义，全程对齐 .NET）——mMap.Add 先行，
+    // 抛出时 mKeys 未动，无半更新。要替换已有键的值用索引器 this[key] = value（原位保序）。
     public void Add(TKey key, TValue value)
     {
-        if (mMap.ContainsKey(key))
-            Remove(key);
-
         mMap.Add(key, value);
         mKeys.Add(key);
     }
 
+    // 重复键抛（与 Add 对齐）：既杜绝旧实现「键已存在且旧位置 < index 时落点前移一位」的未定义行为，
+    // 也让 Add/Insert 语义一致。
     public void Insert(int index, TKey key, TValue value)
     {
-        if (mMap.ContainsKey(key))
-            Remove(key);
-
         mMap.Add(key, value);
         mKeys.Insert(index, key);
     }

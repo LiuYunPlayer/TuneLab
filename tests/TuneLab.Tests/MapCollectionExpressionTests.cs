@@ -84,13 +84,24 @@ public class MapCollectionExpressionTests
     }
 
     [Fact]
-    public void DuplicateKey_OrderedMap_Overwrites()
+    public void DuplicateKey_OrderedMap_Throws()
     {
-        // OrderedMap.Add 为覆盖语义：重复 key 取后值，并移到序尾。
-        OrderedMap<string, int> map = [new ReadOnlyKeyValuePair<string, int>("a", 1), new ReadOnlyKeyValuePair<string, int>("b", 2), new ReadOnlyKeyValuePair<string, int>("a", 3)];
+        // OrderedMap.Add 与 Map.Add 对齐（Dictionary 语义）：重复 key 抛错，不再静默覆盖 / 挪位。
+        Assert.Throws<ArgumentException>(() =>
+        {
+            OrderedMap<string, int> _ = [new ReadOnlyKeyValuePair<string, int>("a", 1), new ReadOnlyKeyValuePair<string, int>("b", 2), new ReadOnlyKeyValuePair<string, int>("a", 3)];
+        });
+    }
+
+    [Fact]
+    public void OrderedMap_Indexer_ReplacesInPlace()
+    {
+        // 替换已有键的唯一入口 = 索引器：原位替换值、次序位置不变（区别于 Add 追加末尾）。
+        OrderedMap<string, int> map = [new ReadOnlyKeyValuePair<string, int>("a", 1), new ReadOnlyKeyValuePair<string, int>("b", 2)];
+        map["a"] = 3;
 
         Assert.Equal(2, map.Count);
         Assert.Equal(3, map["a"]);
-        Assert.Equal(new[] { "b", "a" }, map.Keys.ToArray());
+        Assert.Equal(new[] { "a", "b" }, map.Keys.ToArray());
     }
 }
