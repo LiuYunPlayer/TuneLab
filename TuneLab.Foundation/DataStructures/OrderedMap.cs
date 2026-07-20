@@ -161,3 +161,26 @@ public static class OrderedMapBuilder
         return map;
     }
 }
+
+// 真不可变空有序 map：IReadOnlyOrderedMapBuilder 空集合的进程级单例。独立类型（非 OrderedMap 子类）——
+// 故 (OrderedMap<K,V>)Empty 下转型抛 InvalidCastException 而非静默拿到可变实例。无任何写入面。
+sealed class EmptyOrderedMap<TKey, TValue> : IReadOnlyOrderedMap<TKey, TValue> where TKey : notnull
+{
+    public static readonly EmptyOrderedMap<TKey, TValue> Instance = new();
+    EmptyOrderedMap() { }
+
+    public int Count => 0;
+    public TValue this[TKey key] => throw new KeyNotFoundException();
+    public IReadOnlyList<TKey> Keys => Array.Empty<TKey>();
+    public IReadOnlyList<TValue> Values => Array.Empty<TValue>();
+    public bool ContainsKey(TKey key) => false;
+    public TValue? GetValue(TKey key, out bool success) { success = false; return default; }
+
+    IReadOnlyCollection<TKey> IReadOnlyMap<TKey, TValue>.Keys => Array.Empty<TKey>();
+    IReadOnlyCollection<TValue> IReadOnlyMap<TKey, TValue>.Values => Array.Empty<TValue>();
+    IReadOnlyKeyValuePair<TKey, TValue> IReadOnlyList<IReadOnlyKeyValuePair<TKey, TValue>>.this[int index]
+        => throw new ArgumentOutOfRangeException(nameof(index));
+
+    public IEnumerator<IReadOnlyKeyValuePair<TKey, TValue>> GetEnumerator() { yield break; }
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}

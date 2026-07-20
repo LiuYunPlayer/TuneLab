@@ -27,16 +27,11 @@ public static class IReadOnlyOrderedMapBuilder
     public static IReadOnlyOrderedMap<TKey, TValue> Create<TKey, TValue>(ReadOnlySpan<IReadOnlyKeyValuePair<TKey, TValue>> values) where TKey : notnull
     {
         if (values.IsEmpty)
-            return EmptyOrderedMap<TKey, TValue>.Value;
+            return EmptyOrderedMap<TKey, TValue>.Instance;
 
         var map = new OrderedMap<TKey, TValue>();
         foreach (var kvp in values)
             map.Add(kvp.Key, kvp.Value);
         return map;
-    }
-
-    static class EmptyOrderedMap<TKey, TValue> where TKey : notnull
-    {
-        public static readonly IReadOnlyOrderedMap<TKey, TValue> Value = new OrderedMap<TKey, TValue>();
     }
 }

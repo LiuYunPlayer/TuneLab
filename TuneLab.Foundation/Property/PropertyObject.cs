@@ -17,7 +17,9 @@ public sealed class PropertyObject : IEquatable<PropertyObject>
         {
             copy.Add(kvp.Key, kvp.Value);
         }
-        mMap = copy;
+        // 空对象共用真不可变空 map：Empty 是进程级共享单例，若底层持可变 Map，
+        // 经 .Map 下转型改写即污染全体默认值。空态下不留任何可变面。
+        mMap = copy.Count == 0 ? Map<string, PropertyValue>.Empty : copy;
     }
 
     public IReadOnlyMap<string, PropertyValue> Map => mMap;
@@ -108,5 +110,5 @@ public sealed class PropertyObject : IEquatable<PropertyObject>
         return hash;
     }
 
-    readonly Map<string, PropertyValue> mMap;
+    readonly IReadOnlyMap<string, PropertyValue> mMap;
 }
