@@ -14,17 +14,17 @@ namespace TuneLab.SDK;
 // List<string>）不会逐元素隐式转换，调用方就地 .Select(o => (ComboBoxItem)o).ToList() 即可。
 public struct ComboBoxItem(PropertyValue value, string? displayText = null) : IEquatable<ComboBoxItem>
 {
-    public PropertyValue Value { get; set; } = value;
-    public string? DisplayText { get; set; } = displayText;
+    public PropertyValue Value { get; init; } = value;
+    public string? DisplayText { get; init; } = displayText;
     // 非 null = 分组项（本身不可选，展开为二级子菜单）；子项各自带值/显示文本、可再嵌套。仅经分组构造函数设置。
     // 与 Value 语义互斥（叶子有值无子项、分组有子项无值），故不混入叶子主构造函数的可选参数。
     // 允许空列表：表示"分组存在但暂无子项"（如引擎已加载但无音源），渲染为空子菜单、不可选。
-    public IReadOnlyList<ComboBoxItem>? SubItems { get; set; } = null;
+    public IReadOnlyList<ComboBoxItem>? SubItems { get; init; } = null;
     public readonly bool IsGroup => SubItems is not null;
     // 分隔线项：不可选、不计入选中；DisplayText 为可选居中标签（null/空 = 纯线）。
     // private set：唯一构造路径是 Separator() 工厂，外部初始化器不能把普通项标成分隔线（避免矛盾态）。
     // internal：分隔线是 config 内部/宿主关切，插件只经 ComboBoxConfig.AppendSeparator 造、不直接读判（经 InternalsVisibleTo 暴露给宿主渲染器）。
-    internal bool IsSeparator { get; private set; } = false;
+    internal bool IsSeparator { get; private init; } = false;
 
     // 分组构造：显示文本 + 子项（空列表 = 空分组）；本身不可选，Value 取 Null（不参与选中/反查）。
     // 收 IEnumerable 便于调用方直接传 .Select(...) 结果，内部物化为 IReadOnlyList（需多次索引/读取，不可留惰性序列）。
