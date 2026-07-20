@@ -14,7 +14,7 @@ internal static class DataInfoJsonUtils
     public static JObject ToJson(SoundSourceInfo source) => new()
     {
         ["type"] = source.Type,
-        ["id"] = source.ID,
+        ["id"] = source.Id,
         ["kind"] = source.Kind == SourceKind.Instrument ? "instrument" : "voice",
     };
 
@@ -22,7 +22,7 @@ internal static class DataInfoJsonUtils
     public static SoundSourceInfo ToSoundSourceInfo(JToken? json) => new()
     {
         Type = (string?)json?["type"] ?? string.Empty,
-        ID = (string?)json?["id"] ?? string.Empty,
+        Id = (string?)json?["id"] ?? string.Empty,
         Kind = (string?)json?["kind"] == "instrument" ? SourceKind.Instrument : SourceKind.Voice,
     };
 

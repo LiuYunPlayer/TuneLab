@@ -13,12 +13,12 @@ public class DataInfoJsonUtilsTests
     [Fact]
     public void SoundSource_Roundtrip_PreservesInstrumentKind()
     {
-        var source = new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = "engine", ID = "bank" };
+        var source = new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = "engine", Id = "bank" };
         var restored = DataInfoJsonUtils.ToSoundSourceInfo(DataInfoJsonUtils.ToJson(source));
 
         Assert.Equal(SourceKind.Instrument, restored.Kind);
         Assert.Equal("engine", restored.Type);
-        Assert.Equal("bank", restored.ID);
+        Assert.Equal("bank", restored.Id);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class DataInfoJsonUtilsTests
 
         Assert.Equal(SourceKind.Voice, restored.Kind);
         Assert.Equal(string.Empty, restored.Type);
-        Assert.Equal(string.Empty, restored.ID);
+        Assert.Equal(string.Empty, restored.Id);
     }
 
     [Fact]

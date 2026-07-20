@@ -56,7 +56,7 @@ internal class SoundSource : DataObject, ISoundSource
         {
             Kind = mKind,
             Type = mType,
-            ID = mID
+            Id = mID
         };
     }
 
@@ -143,7 +143,7 @@ internal class SoundSource : DataObject, ISoundSource
     {
         mKind = info.Kind;
         mType = info.Type;
-        mID = info.ID;
+        mID = info.Id;
     }
 
     class ModifyCommand(SoundSource source, SoundSourceInfo before, SoundSourceInfo after) : ICommand

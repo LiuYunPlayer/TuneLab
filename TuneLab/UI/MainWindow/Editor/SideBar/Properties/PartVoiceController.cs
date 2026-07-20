@@ -245,7 +245,7 @@ internal class PartVoiceController : StackPanel
         foreach (var part in mParts)
             part.BeginMergeDirty();
         foreach (var part in mParts)
-            part.SoundSource.SetInfo(new SoundSourceInfo() { Kind = kind, Type = type, ID = id });
+            part.SoundSource.SetInfo(new SoundSourceInfo() { Kind = kind, Type = type, Id = id });
         foreach (var part in mParts)
             part.EndMergeDirty();
         if (kind == SourceKind.Voice)

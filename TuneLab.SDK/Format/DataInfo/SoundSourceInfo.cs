@@ -9,10 +9,10 @@ public enum SourceKind
 }
 
 // part 音源的序列化身份（取代旧 VoiceInfo，单字段承载种类 + 引擎身份）：
-// Kind 区分 voice / instrument，Type 是引擎注册身份 id（跨包可重名），ID 是该引擎下的具体音源 id。
+// Kind 区分 voice / instrument，Type 是引擎注册身份 id（跨包可重名），Id 是该引擎下的具体音源 id。
 public class SoundSourceInfo
 {
     public SourceKind Kind { get; set; } = SourceKind.Voice;
     public string Type { get; set; } = string.Empty;
-    public string ID { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 }

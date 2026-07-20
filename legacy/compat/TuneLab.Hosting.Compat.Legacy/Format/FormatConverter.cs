@@ -219,8 +219,8 @@ internal static class FormatConverter
 
     // ── VoiceInfo（legacy，仅 voice）↔ SoundSourceInfo（new）──
     // legacy 格式只有 voice：old→new 种类恒 Voice；new→old 丢弃 Kind（instrument part 无法回灌 legacy 格式）。
-    public static New.SoundSourceInfo ToSoundSource(this Old.VoiceInfo o) => new() { Kind = New.SourceKind.Voice, Type = o.Type, ID = o.ID };
-    public static Old.VoiceInfo ToLegacy(this New.SoundSourceInfo n) => new() { Type = n.Type, ID = n.ID };
+    public static New.SoundSourceInfo ToSoundSource(this Old.VoiceInfo o) => new() { Kind = New.SourceKind.Voice, Type = o.Type, Id = o.ID };
+    public static Old.VoiceInfo ToLegacy(this New.SoundSourceInfo n) => new() { Type = n.Type, ID = n.Id };
 
     // ── AutomationInfo ──
     public static New.AutomationInfo ToV1(this Old.AutomationInfo o) => new()

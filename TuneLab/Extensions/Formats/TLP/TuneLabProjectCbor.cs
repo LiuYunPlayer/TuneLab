@@ -403,7 +403,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     midiPartInfo.SoundSource.Type = reader.ReadTextString();
                     break;
                 case "id":
-                    midiPartInfo.SoundSource.ID = reader.ReadTextString();
+                    midiPartInfo.SoundSource.Id = reader.ReadTextString();
                     break;
                 case "kind":
                     // 缺省（旧工程无此键）= Voice，经 MidiPartInfo.SoundSource 默认值兜底。
@@ -1000,7 +1000,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         writer.WriteTextString("type");
         writer.WriteTextString(midiPart.SoundSource.Type);
         writer.WriteTextString("id");
-        writer.WriteTextString(midiPart.SoundSource.ID);
+        writer.WriteTextString(midiPart.SoundSource.Id);
         writer.WriteTextString("kind");
         writer.WriteTextString(midiPart.SoundSource.Kind == SourceKind.Instrument ? "instrument" : "voice");
         writer.WriteEndMap();

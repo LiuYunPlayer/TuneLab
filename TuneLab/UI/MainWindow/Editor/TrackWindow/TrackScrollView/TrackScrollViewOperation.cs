@@ -273,7 +273,7 @@ internal partial class TrackScrollView
                                                 {
                                                     if (part is MidiPart midiPart)
                                                     {
-                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = type, ID = id });
+                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Type = type, Id = id });
                                                     }
                                                 }
                                                 RecentSoundSourceManager.PushVoice(type, id);
@@ -334,7 +334,7 @@ internal partial class TrackScrollView
                                                 {
                                                     if (part is MidiPart midiPart)
                                                     {
-                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = type, ID = id });
+                                                        midiPart.SoundSource.SetInfo(new SoundSourceInfo() { Kind = SourceKind.Instrument, Type = type, Id = id });
                                                     }
                                                 }
                                                 RecentSoundSourceManager.PushInstrument(type, id);
