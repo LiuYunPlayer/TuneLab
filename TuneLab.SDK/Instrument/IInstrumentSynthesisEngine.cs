@@ -8,6 +8,8 @@ namespace TuneLab.SDK;
 //
 // 与 voice 的 IVoiceSynthesisEngine 同构，差异仅命名（VoiceSourceInfo → InstrumentSourceInfo，声明上下文携带
 // InstrumentId），且无歌词 / 音素相关声明（instrument 无此系统）。
+//
+// 加性约定（插件实现面）：将来在本面新增成员一律用默认接口方法（DIM）给兜底体，使增补不破已装插件。
 public interface IInstrumentSynthesisEngine
 {
     // 音源目录（菜单 / 选择器用，无需创建会话即可读）。契约：必须立即返回、不得阻塞——宿主与 UI 同步读取。
@@ -23,7 +25,7 @@ public interface IInstrumentSynthesisEngine
 
     // —— 声明（该音源暴露什么）：纯函数式获取，不依赖会话实例 ——
     // 全为当前 part 真值的纯函数（同输入同输出、无副作用、轻量）：宿主在值 commit 时按当前值重算并 diff 到 UI，
-    // 故面板 / 轨集合可随参数显隐。声明面收**调用级只读活视图**（IInstrumentPart*，instrument 专属、与 voice 持平行副本）——
+    // 故面板 / 轨集合可随参数显隐。声明面收**调用级只读活视图**（IInstrumentSynthesisPartView，instrument 专属、与 voice 持平行副本）——
     // 选哪个音源由 context.Parts[i].InstrumentId 给。仅数据线程同步调用、只读不订阅。
 
     // 自动化轨配置（part 级）：连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），

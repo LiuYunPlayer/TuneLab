@@ -5,6 +5,8 @@ namespace TuneLab.SDK;
 // 每"引擎类型"一个：加载模型、列声库目录、创建合成会话。
 // 有状态插件（跨调用持有昂贵常驻状态，如模型）才有 Init/Destroy；
 // Init 是懒调用（首次用到才调），宿主也可主动预热。
+//
+// 加性约定（插件实现面）：将来在本面新增成员一律用默认接口方法（DIM）给兜底体，使增补不破已装插件。
 public interface IVoiceSynthesisEngine
 {
     // 声库目录（菜单/选择器用，无需创建会话即可读）。属性名与值类型 VoiceSourceInfo 对齐。
@@ -22,7 +24,7 @@ public interface IVoiceSynthesisEngine
 
     // —— 声明（该声源暴露什么）：纯函数式获取，不依赖会话实例 ——
     // 全为当前 part 真值的纯函数（同输入同输出、无副作用、轻量）：宿主在值 commit 时按当前值重算并 diff 到 UI，
-    // 故面板/轨集合可随参数显隐（如某模式开关才暴露的轨）。声明面收**调用级只读活视图**（IVoicePart*，voice 专属、
+    // 故面板/轨集合可随参数显隐（如某模式开关才暴露的轨）。声明面收**调用级只读活视图**（IVoiceSynthesisPartView，voice 专属、
     // 与 instrument 持平行副本）——引擎可读 part 当前真值（含非属性字段：note 时间/音高/歌词、已声明自动化曲线、
     // note 集合）决定 schema。选哪个声库由 context.Parts[i].VoiceId 给。仅数据线程同步调用、只读不订阅。
     // 静态声明的插件忽略 context 返回固定值即可。

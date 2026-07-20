@@ -17,6 +17,8 @@ namespace TuneLab.SDK;
 //
 // 线程纪律：Process 的同步前缀（数据线程）读 context——经 Input.Read 把所需区间拷出到自有缓冲
 // + 预采自动化/参数值；之后 offload 到 worker，worker 只读同步前缀物化的自有拷贝（合成永不回碰宿主活数据）。
+//
+// 加性约定（插件实现面）：将来在本面新增成员一律用默认接口方法（DIM）给兜底体，使增补不破已装插件。
 public interface IEffectSynthesisSession : IDisposable
 {
     // (重)处理本段。**电平语义，非边沿语义**：契约是「让输出与当前输入一致」，不是「应用某次变更」——

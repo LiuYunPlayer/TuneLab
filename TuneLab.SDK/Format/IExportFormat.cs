@@ -8,6 +8,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.SDK;
 
+// 加性约定（插件实现面）：将来在本面新增成员一律用默认接口方法（DIM）给兜底体，使增补不破已装插件。
 public interface IExportFormat
 {
     // 把工程序列化写入宿主提供的 output 流。宿主拥有并负责 output 的生命周期（创建、定位、关闭）——

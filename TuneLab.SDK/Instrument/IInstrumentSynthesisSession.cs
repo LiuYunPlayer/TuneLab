@@ -4,7 +4,7 @@ namespace TuneLab.SDK;
 
 // 一次 part 合成的有状态会话：声明 + 调度 + 产物 + 状态全在此——instrument 专属面。
 // 厚插件原则：分片、调度状态、音频缓冲、合成进度、失效（dirty）判定全由插件托管；宿主只推变更流
-//（经 IInstrumentContext）、驱动调度、读产物展示。
+//（经 IInstrumentSynthesisContext）、驱动调度、读产物展示。
 //
 // 生命周期：绑定一个 part，活到 part 被删除（Dispose）；换音源时宿主丢弃旧会话、重建新会话。
 //

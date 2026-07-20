@@ -7,6 +7,8 @@ namespace TuneLab.SDK;
 // SynthesizedParameter 回显、合成状态带与调度闸门）。
 // 面向耗时较长的离线 effect 模型（如 SVC 换声），对一段已合成音频做整段变换。
 // 一个引擎实例对应一种效果器类型；宿主为工程里每个「effect 实例 × 音频段」创建一个持久处理器驱动它。
+//
+// 加性约定（插件实现面）：将来在本面新增成员一律用默认接口方法（DIM）给兜底体，使增补不破已装插件。
 public interface IEffectSynthesisEngine
 {
     // 参数面板配置：声明该效果器暴露给用户的可编辑参数（渲染为属性面板）。config 是当前参数值的纯函数——

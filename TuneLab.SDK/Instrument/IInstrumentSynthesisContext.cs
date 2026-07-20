@@ -19,7 +19,7 @@ public interface IInstrumentSynthesisContext
     // 故烘入 context、CreateSession 不再单列 instrumentId。
     string InstrumentId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走 First/Last、
-    // 邻居导航走 note.Next/Last；支持 WhenAny（成员增删自动接线）。
+    // 邻居导航走 note.Next/Previous；支持 WhenAny（成员增删自动接线）。
     //
     // 排序契约（全序、确定性）：StartTime 升序 → 同起点 EndTime 降序（长 note 在前）→ 再同则保持宿主插入序。
     // 【note 可重叠且宿主不去重叠】——instrument 引擎原味消费重叠几何（和弦 / 多声部），自行决定叠加发声。

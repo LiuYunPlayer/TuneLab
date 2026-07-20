@@ -25,7 +25,7 @@ public interface IVoiceSynthesisContext
     // 故烘入 context、CreateSession 不再单列 voiceId。会话面本就是会话级生命周期，带身份不引入额外耦合。
     string VoiceId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
-    // First/Last、邻居导航走 note.Next/Last；支持 WhenAny（成员增删自动接线）。
+    // First/Last、邻居导航走 note.Next/Previous；支持 WhenAny（成员增删自动接线）。
     //
     // 排序契约（全序、确定性）：StartTime 升序 → 同起点 EndTime 降序（长 note 在前）→
     // 再同则保持宿主插入序。note 可重叠（和弦）——序列直传原始可重叠 note，"后盖前"等

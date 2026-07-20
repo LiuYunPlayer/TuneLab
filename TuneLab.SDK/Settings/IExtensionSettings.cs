@@ -12,6 +12,8 @@ namespace TuneLab.SDK;
 //
 // 探测式接入：宿主对每个已注册能力做 `x is IExtensionSettings` 判定，实现了才显示其设置面板——故无设置的
 // 能力不必实现，零负担、对既有能力接口零破坏。
+//
+// 加性约定（插件实现面）：将来在本面新增成员一律用默认接口方法（DIM）给兜底体，使增补不破已装插件。
 public interface IExtensionSettings
 {
     // 声明设置 schema（复用通用控件配置词汇 ObjectConfig）。宿主据此渲染面板。
@@ -24,7 +26,7 @@ public interface IExtensionSettings
     ObjectConfig GetSettingsConfig(IExtensionSettingsContext context);
 
     // 宿主把持久化的设置值回喂给实现者：加载完成后灌一次（早于任何 Init/会话），用户在设置窗口保存后再灌一次。
-    // 实现者自存这些值、自行用于 Init/CreateSession/CreateSession；设置变更对已在运行实例的影响（是否需重建
+    // 实现者自存这些值、自行用于 Init/CreateSession；设置变更对已在运行实例的影响（是否需重建
     // 会话/处理器）由实现者自理。读不到的字段按自身默认 fallback。
     void ApplySettings(PropertyObject settings);
 }
