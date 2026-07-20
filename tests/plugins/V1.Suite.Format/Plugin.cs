@@ -24,12 +24,13 @@ public sealed class SuiteImportFormat : IImportFormat
 
 public sealed class SuiteExportFormat : IExportFormat
 {
-    public Stream Serialize(ProjectInfo info)
+    public void Serialize(Stream output, ProjectInfo info)
     {
         var sb = new StringBuilder();
         sb.AppendLine(SuiteCommon.Label("export"));
         foreach (var track in info.Tracks)
             sb.AppendLine($"track: {track.Name}");
-        return new MemoryStream(Encoding.UTF8.GetBytes(sb.ToString()));
+        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        output.Write(bytes, 0, bytes.Length);
     }
 }

@@ -10,5 +10,8 @@ namespace TuneLab.SDK;
 
 public interface IExportFormat
 {
-    Stream Serialize(ProjectInfo info);
+    // 把工程序列化写入宿主提供的 output 流。宿主拥有并负责 output 的生命周期（创建、定位、关闭）——
+    // 插件只从当前位置顺序写入，不得 Dispose / Close / Seek / 重置 Position。与 IImportFormat.Deserialize
+    // 对称（宿主给流、插件读/写），省去插件全量缓冲进 MemoryStream 再返回、以及流所有权/Position 的歧义。
+    void Serialize(Stream output, ProjectInfo info);
 }

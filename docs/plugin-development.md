@@ -172,12 +172,11 @@ public class MyFormatImporter : IImportFormat   // listed in classes; the host c
 
 public class MyFormatExporter : IExportFormat   // listed in classes; the host claims it as exporter via IExportFormat
 {
-    public Stream Serialize(ProjectInfo info)
+    public void Serialize(Stream output, ProjectInfo info)
     {
-        var stream = new MemoryStream();
-        // ... write info into the stream ...
-        stream.Position = 0;
-        return stream;
+        // Write info into the host-provided stream. The host owns output's lifecycle
+        // (create/position/close); do not Dispose/Close/Seek/reset Position — just write.
+        // ... write info into output ...
     }
 }
 ```

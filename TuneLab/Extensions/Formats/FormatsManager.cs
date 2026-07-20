@@ -136,7 +136,12 @@ internal static class FormatsManager
             }
 
             IExportFormat exportFormat = provider.ExportFactory.Invoke();
-            stream = exportFormat.Serialize(info);
+            // 缓冲进 MemoryStream 再交调用方（其 CopyTo 目标文件）：保留"失败不落半截文件"的原子写语义——
+            // 序列化抛错时目标文件尚未开写。插件只管往宿主给的流里写（见 IExportFormat.Serialize 契约）。
+            var buffer = new MemoryStream();
+            exportFormat.Serialize(buffer, info);
+            buffer.Position = 0;
+            stream = buffer;
             return true;
         }
         catch (Exception e)

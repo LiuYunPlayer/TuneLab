@@ -298,7 +298,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         }
     }
 
-    public Stream Serialize(ProjectInfo projectInfo)
+    public void Serialize(Stream output, ProjectInfo projectInfo)
     {
         var project = new JObject();
         project.Add("version", CURRENT_VERSION);
@@ -478,7 +478,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         exportConfig.Add("masterExportChannels", projectInfo.ExportConfig.MasterExportChannels);
         project.Add("exportConfig", exportConfig);
 
-        return new MemoryStream(Encoding.UTF8.GetBytes(project.ToString(Formatting.None)));
+        var bytes = Encoding.UTF8.GetBytes(project.ToString(Formatting.None));
+        output.Write(bytes, 0, bytes.Length);
     }
 
     // v<1 legacy 单音素数组按位置降级分双列表（与 legacy 引擎回显同一套）：中点 < 音符头（start+end<0）的连续前缀 = 引导；

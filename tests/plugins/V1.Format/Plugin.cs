@@ -45,7 +45,7 @@ public sealed class TestImportFormat : IImportFormat
 
 public sealed class TestExportFormat : IExportFormat
 {
-    public Stream Serialize(ProjectInfo info)
+    public void Serialize(Stream output, ProjectInfo info)
     {
         var dto = new ProjectDto();
         foreach (var t in info.Tempos)
@@ -67,7 +67,7 @@ public sealed class TestExportFormat : IExportFormat
         }
 
         var bytes = JsonSerializer.SerializeToUtf8Bytes(dto, new JsonSerializerOptions { WriteIndented = true });
-        return new MemoryStream(bytes);
+        output.Write(bytes, 0, bytes.Length);
     }
 }
 

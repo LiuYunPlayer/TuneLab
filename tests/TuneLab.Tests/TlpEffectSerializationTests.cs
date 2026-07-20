@@ -96,7 +96,8 @@ public class TlpEffectSerializationTests
     public void Json_RoundTrip_PreservesEffects()
     {
         var format = new TuneLabProject();
-        using var stream = format.Serialize(SampleProject());
+        using var stream = new MemoryStream();
+        format.Serialize(stream, SampleProject());
         stream.Position = 0;
         AssertRoundTrip(format.Deserialize(stream));
     }
@@ -105,7 +106,8 @@ public class TlpEffectSerializationTests
     public void Cbor_RoundTrip_PreservesEffects()
     {
         var format = new TuneLabProjectCbor();
-        using var stream = format.Serialize(SampleProject());
+        using var stream = new MemoryStream();
+        format.Serialize(stream, SampleProject());
         stream.Position = 0;
         AssertRoundTrip(format.Deserialize(stream));
     }
@@ -123,7 +125,8 @@ public class TlpEffectSerializationTests
         {
             var import = (IImportFormat)format;
             var export = (IExportFormat)format;
-            using var stream = export.Serialize(project);
+            using var stream = new MemoryStream();
+            export.Serialize(stream, project);
             stream.Position = 0;
             var roundtrip = import.Deserialize(stream);
             var rtPart = Assert.IsType<MidiPartInfo>(roundtrip.Tracks[0].Parts[0]);

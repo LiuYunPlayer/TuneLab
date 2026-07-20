@@ -54,7 +54,7 @@
 ### Format 接口（命名空间 `TuneLab.SDK`）
 ```csharp
 public interface IImportFormat { ProjectInfo Deserialize(Stream stream); }
-public interface IExportFormat { Stream Serialize(ProjectInfo info); }
+public interface IExportFormat { void Serialize(Stream output, ProjectInfo info); }  // 宿主给流、插件写入（勿 Dispose/Seek）
 ```
 - 扩展名与实现类在 manifest：`{ "type":"format", "extension":"ext", "classes":["Ns.Importer","Ns.Exporter"], "assembly":"X.dll" }`（`extension` 不带点；`classes` 里至少有一个实现 `IImportFormat` 或 `IExportFormat`，可一类同实现两者）。
 - 工程模型在 `TuneLab.SDK`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。实现类需无参构造函数。
@@ -295,12 +295,10 @@ public class MyFormatImporter : IImportFormat
 
 public class MyFormatExporter : IExportFormat
 {
-    public Stream Serialize(ProjectInfo info)
+    public void Serialize(Stream output, ProjectInfo info)
     {
-        var stream = new MemoryStream();
-        // TODO: 把 info 写进 stream
-        stream.Position = 0;
-        return stream;
+        // 宿主拥有 output 生命周期，插件只顺序写入、不得 Dispose/Close/Seek/重置 Position。
+        // TODO: 把 info 写进 output
     }
 }
 ```

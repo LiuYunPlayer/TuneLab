@@ -24,6 +24,9 @@ public sealed class RouteImport : IImportFormat
 // 导出写一行标记 exportedBy=B——活导出实现是哪个包，导出文件内容即见分晓（验证 import/export 可各选不同包）。
 public sealed class RouteExport : IExportFormat
 {
-    public Stream Serialize(ProjectInfo info)
-        => new MemoryStream(Encoding.UTF8.GetBytes("exportedBy=B\n"));
+    public void Serialize(Stream output, ProjectInfo info)
+    {
+        var bytes = Encoding.UTF8.GetBytes("exportedBy=B\n");
+        output.Write(bytes, 0, bytes.Length);
+    }
 }

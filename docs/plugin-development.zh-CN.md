@@ -172,12 +172,11 @@ public class MyFormatImporter : IImportFormat   // 列进 classes，宿主按 II
 
 public class MyFormatExporter : IExportFormat   // 列进 classes，宿主按 IExportFormat 认领为导出
 {
-    public Stream Serialize(ProjectInfo info)
+    public void Serialize(Stream output, ProjectInfo info)
     {
-        var stream = new MemoryStream();
-        // ... 把 info 写进 stream ...
-        stream.Position = 0;
-        return stream;
+        // 把 info 写进宿主提供的 output 流。宿主拥有 output 生命周期（创建/定位/关闭），
+        // 插件只顺序写入、不得 Dispose/Close/Seek/重置 Position。
+        // ... 把 info 写进 output ...
     }
 }
 ```

@@ -29,11 +29,12 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         return ReadProject(reader);
     }
 
-    public Stream Serialize(ProjectInfo projectInfo)
+    public void Serialize(Stream output, ProjectInfo projectInfo)
     {
         var writer = new CborWriter();
         WriteProject(writer, projectInfo);
-        return new MemoryStream(writer.Encode());
+        var bytes = writer.Encode();
+        output.Write(bytes, 0, bytes.Length);
     }
 
     #region Read Methods
