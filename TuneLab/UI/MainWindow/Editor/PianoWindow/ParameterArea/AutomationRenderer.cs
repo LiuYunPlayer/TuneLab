@@ -201,7 +201,13 @@ internal partial class AutomationRenderer : View
             else if (Part.IsEffectiveAutomation(automationID))
                 DrawContinuous(automationID);
             else if (Part.IsEffectivePiecewiseAutomation(automationID))
-                DrawPiecewise(automationID);
+            {
+                // 二值区间轨（分段 + 退化量程）渲染为满高色带，而非折线（值轴无意义、presence 即开关）。
+                if (Part.GetEffectivePiecewiseAutomationConfig(automationID).IsBand())
+                    DrawBand(automationID, isActive);
+                else
+                    DrawPiecewise(automationID);
+            }
         }
 
         // note lane：每个 note 一段——顶部实色横线是值指示（与分段轨的段视觉同族），active 时其下再垫半透明柱，
@@ -320,6 +326,37 @@ internal partial class AutomationRenderer : View
             }
         }
 
+        // 二值区间色带：对每段"开"区间（分段轨 presence，逐像素采样非 NaN 的连续段）填满高色块，不画曲线。
+        // 值轴被旁路（min==max，无高度概念）——区间边界即段的锚点跨度，由用户精确拖出。active 加深不透明度。
+        void DrawBand(AutomationKey automationID, bool isActive)
+        {
+            var config = Part.GetEffectivePiecewiseAutomationConfig(automationID);
+            var data = Part.GetEffectivePiecewiseAutomation(automationID);
+            if (data == null)
+                return;
+
+            var fillBrush = ColorUtils.ParseOrFallback(config.Color).Opacity(isActive ? 0.42 : 0.22).ToBrush();
+            double[] values = data.GetValues(ticks);
+            int runStart = -1;
+            void Flush(int endExclusive)
+            {
+                if (runStart < 0)
+                    return;
+                double left = xs[runStart];
+                double right = xs[endExclusive - 1] + step;   // 每个采样覆盖 step 宽
+                context.FillRectangle(fillBrush, new Rect(left, 0, right - left, Bounds.Height));
+                runStart = -1;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                if (double.IsNaN(values[i]))
+                    Flush(i);
+                else if (runStart < 0)
+                    runStart = i;
+            }
+            Flush(n);
+        }
+
         // 在 NaN 处断开的折线：把连续非 NaN 段各自成段绘制（分段轨段间空、跨段不连线）。
         void DrawBrokenCurve(double[] ys, Color color, double width)
         {
@@ -401,6 +438,9 @@ internal partial class AutomationRenderer : View
             colorStr = config.Color;
         }
 
+        // 二值区间轨无值轴：跳过上下界标签（min==max 两端同值、显示无意义）。
+        bool activeBand = activePiecewise && Part.GetEffectivePiecewiseAutomationConfig(active).IsBand();
+
         // vibrato 叠加层与"拖拽关联颤音"提示：连续轨（voice 与 effect 皆可关联颤音）绘制；分段轨无 automation-vibrato 概念。
         // 主曲线（DrawContinuous）画含 vibrato 的终值，这里在颤音覆盖区叠画不含 vibrato 的基线（半透明 ghost）。
         if (activeContinuous)
@@ -460,7 +500,8 @@ internal partial class AutomationRenderer : View
         }
 
         // 上下界处显示：优先用描述文本（MaxLabel/MinLabel，插件自译），否则按 Format 格式化数值（缺省两位小数带符号）。
-        if (boundsKnown)
+        // band 轨无值轴、跳过。
+        if (boundsKnown && !activeBand)
         {
             string BoundText(double value) => numberFormat is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
             context.DrawString(maxLabel ?? BoundText(scale.ToValue(1)), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);

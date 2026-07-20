@@ -62,6 +62,7 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         map.Add(("Bend", "Bend"), mBendConfig);
         map.Add(("Semitone", "Semitone (Int)"), mSemitoneConfig);
         map.Add(("LogFreq", "LogFreq (Hz)"), mLogFreqConfig);
+        map.Add(("Gate", "Gate (Band)"), mGateConfig);
         return map;
     }
 
@@ -98,6 +99,9 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         .WithFormat(NumberFormat.Custom(
             v => v.ToString("0") + " Hz",
             text => double.TryParse(text.Replace("Hz", "").Trim(), out var r) ? r : (double?)null));
+    // 二值区间轨（band）：分段（Create 默认 NaN）+ 退化量程 min==max ⇒ 宿主渲染为满高开关色带。
+    // presence（非 NaN）= 开、gap = 关；值轴无意义、不参与。插件消费侧一句 !double.IsNaN(v) 即开关判定。
+    static readonly AutomationConfig mGateConfig = AutomationConfig.Create(0, 0).WithColor("#E58AC9");
     // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
     {
