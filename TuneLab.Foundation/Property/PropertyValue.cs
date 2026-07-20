@@ -188,7 +188,8 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     public bool ToInt(out int result)
     {
         bool success = ToDouble(out var d);
-        result = (int)d;
+        // 四舍五入而非截断，与 PropertyObject.GetInt 统一（同一值 2.7 两处都得 3、不再一处 2 一处 3）。
+        result = (int)Math.Round(d);
         return success;
     }
 
