@@ -380,7 +380,7 @@ The context is implemented by the host, is session-scoped (dies with the session
 ```csharp
 public interface IVoiceSynthesisContext
 {
-    IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }   // linked list: consume in enumeration order, First/Last, note.Next/Last neighbor navigation; WhenAny auto-wires member add/remove
+    IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }   // linked list: consume in enumeration order, First/Last, note.Next/Previous neighbor navigation; WhenAny auto-wires member add/remove
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }   // get the editable tracks you declared (TryGetValue / enumerate)
     ISynthesisAutomation Pitch { get; }            // absolute pitch constraint (piecewise: has value = pinned, NaN = free), see §5.6
@@ -458,7 +458,7 @@ What `VoiceSynthesisSnapshot` carries (all immutable values, cross-thread safe; 
 ```csharp
 public sealed class VoiceSynthesisSnapshot
 {
-    IReadOnlyList<VoiceSynthesisNoteSnapshot> Notes { get; }   // index-aligned with the notes passed in; navigate neighbors by index (no Next/Last)
+    IReadOnlyList<VoiceSynthesisNoteSnapshot> Notes { get; }   // index-aligned with the notes passed in; navigate neighbors by index (no Next/Previous)
     SynthesisAutomationSnapshot Pitch { get; }            // absolute pitch constraint (frozen evaluator)
     SynthesisAutomationSnapshot PitchDeviation { get; }   // additive deviation (frozen evaluator)
     PropertyObject PartProperties { get; }                // part parameter value copy

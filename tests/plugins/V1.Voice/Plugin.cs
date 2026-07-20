@@ -153,7 +153,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         var cur = note;
         while (true)
         {
-            var prev = cur.Last;
+            var prev = cur.Previous;
             if (prev == null)
                 return false;                              // 链跑出开头、无内容 note → 孤儿
             if (prev.EndTime.Value < cur.StartTime.Value)

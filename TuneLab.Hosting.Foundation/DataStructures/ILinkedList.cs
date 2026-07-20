@@ -6,7 +6,7 @@ public interface ILinkedList<T> : IReadOnlyLinkedList<T> where T : class, ILinke
 {
     void AddFirst(T item);
     void AddLast(T item);
-    void InsertAfter(T last, T item);
+    void InsertAfter(T previous, T item);
     void InsertBefore(T next, T item);
     bool Remove(T item);
     void Clear();

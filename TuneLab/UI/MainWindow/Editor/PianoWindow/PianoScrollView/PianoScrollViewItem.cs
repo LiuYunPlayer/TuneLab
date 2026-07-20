@@ -48,7 +48,7 @@ internal partial class PianoScrollView
             double x = PianoScrollView.TickAxis.Tick2X(Note.GlobalStartPos());
             double left = x - 4;
             double right = x + 4;
-            var last = Note.Last;
+            var last = Note.Previous;
             if (last != null && last.Pitch.Value == Note.Pitch.Value)
             {
                 double lastX = PianoScrollView.TickAxis.Tick2X(last.GlobalEndPos());
@@ -374,7 +374,7 @@ internal partial class PianoScrollView
             var cur = Note;
             while (true)
             {
-                var prev = cur.Last;
+                var prev = cur.Previous;
                 if (prev == null || prev.EndPos() < cur.StartPos() - 1e-6)
                     return false;
 

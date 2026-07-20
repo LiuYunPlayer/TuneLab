@@ -81,7 +81,7 @@ public class SortedDataObjectLinkedList<T> : DataObject, ISortedDataObjectLinked
             return;
 
         var node = (ILinkedNode<T>)item;
-        bool inOrder = (node.Last == null || mIsInOrder(node.Last, item))
+        bool inOrder = (node.Previous == null || mIsInOrder(node.Previous, item))
                     && (node.Next == null || mIsInOrder(item, node.Next));
         if (inOrder)
             return;

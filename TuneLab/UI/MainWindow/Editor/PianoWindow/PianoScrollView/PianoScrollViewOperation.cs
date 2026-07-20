@@ -189,7 +189,7 @@ internal partial class PianoScrollView
                     {
                         // 与上个 note 相接（重叠/相邻，含延音符）→ 共享边界：联动移上个 note 尾；否则只移本 note 头。
                         var sn = waveformNoteStartResizeItem.Note;
-                        var prev = sn.Last;
+                        var prev = sn.Previous;
                         INote? coupled = prev != null && prev.EndPos() >= sn.StartPos() - 1e-6 ? prev : null;
                         // 手势跟随插件判定（IsEffectiveContinuation）：source 认哪种记号是延音，合并手势就出现在哪。
                         // 判定是插件通知延音的唯一通道、宿主照单全收——不叠加钉死等额外合取（钉死在延续 note 上
@@ -464,15 +464,15 @@ internal partial class PianoScrollView
                                             });
                                             menu.Items.Add(menuItem);
                                         }
-                                        if (note.Last != null && Part.Notes.Last != null)
+                                        if (note.Previous != null && Part.Notes.Last != null)
                                         {
                                             var menuItem = new MenuItem().SetName("Move Lyrics Backward".Tr(TC.Menu)).SetAction(() =>
                                             {
                                                 Part.BeginMergeDirty();
                                                 var it = Part.Notes.Last;
-                                                while (it != note && it.Last != null)
+                                                while (it != note && it.Previous != null)
                                                 {
-                                                    var last = it.Last;
+                                                    var last = it.Previous;
                                                     it.Lyric.Set(last.Lyric.Value);
                                                     it = last;
                                                 }
@@ -2047,9 +2047,9 @@ internal partial class PianoScrollView
             if (mCoupledPrev == null && PianoScrollView.Part.SoundSource.Kind == SourceKind.Voice)
             {
                 var note = mNote;
-                while (note.Last != null)
+                while (note.Previous != null)
                 {
-                    note = note.Last;
+                    note = note.Previous;
                     if (note.StartPos() >= startTick)
                         (remove ??= new()).Add(note);
                     else if (note.EndPos() > startTick)

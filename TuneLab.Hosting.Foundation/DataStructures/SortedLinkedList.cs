@@ -48,9 +48,9 @@ public sealed class SortedLinkedList<T> : ISortedLinkedList<T> where T : class, 
         else
         {
             T next = mCursor!;
-            while (next.Last != null && !mIsInOrder(next.Last, item))
+            while (next.Previous != null && !mIsInOrder(next.Previous, item))
             {
-                next = next.Last;
+                next = next.Previous;
             }
 
             mList.InsertBefore(next, item);

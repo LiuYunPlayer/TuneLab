@@ -16,7 +16,7 @@ namespace TuneLab.Data
         public ITempoManager TempoManager => Track.TempoManager;
         public ITimeSignatureManager TimeSignatureManager => Track.TimeSignatureManager;
         public IPart? Next => ((ILinkedNode<IPart>)this).Next;
-        public IPart? Last => ((ILinkedNode<IPart>)this).Last;
+        public IPart? Previous => ((ILinkedNode<IPart>)this).Previous;
         public abstract IDataProperty<string> Name { get; }
         public abstract IDataProperty<double> Pos { get; }
         public abstract IDataProperty<double> StartOffset { get; }
@@ -53,7 +53,7 @@ namespace TuneLab.Data
         int IAudioSource.SampleCount => SampleCount();
 
         IPart? ILinkedNode<IPart>.Next { get; set; }
-        IPart? ILinkedNode<IPart>.Last { get; set; }
+        IPart? ILinkedNode<IPart>.Previous { get; set; }
         ILinkedList<IPart>? ILinkedNode<IPart>.LinkedList { get; set; }
 
         protected readonly ActionEvent mDurationChanged = new();

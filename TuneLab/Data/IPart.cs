@@ -13,7 +13,7 @@ internal interface IPart : IReadOnlyDataObject<PartInfo>, ITimeline, IDuration, 
 {
     ITrack Track { get; set; }
     new IPart? Next { get; }
-    new IPart? Last { get; }
+    new IPart? Previous { get; }
     IDataProperty<string> Name { get; }
     // part 几何锚点模型：Pos = 锚点（内容原点），StartOffset/EndOffset = 起点/终点相对锚点的有符号偏移。
     // 三个原始字段各对应一个原子操作：移动改 Pos、拖左边缘改 StartOffset、拖右边缘改 EndOffset；

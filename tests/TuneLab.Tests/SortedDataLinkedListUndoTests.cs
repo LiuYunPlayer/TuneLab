@@ -16,7 +16,7 @@ public class SortedDataLinkedListUndoTests
     sealed class Item : DataObject, ILinkedNode<Item>
     {
         public Item? Next { get; set; }
-        public Item? Last { get; set; }
+        public Item? Previous { get; set; }
         public ILinkedList<Item>? LinkedList { get; set; }
         public readonly DataStruct<int> Pos = new();
 

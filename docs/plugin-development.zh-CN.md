@@ -380,7 +380,7 @@ context 由宿主实现、会话级（随会话死）、**仅数据线程访问*
 ```csharp
 public interface IVoiceSynthesisContext
 {
-    IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }   // 链表：枚举顺序消费、First/Last、note.Next/Last 邻居导航；WhenAny 自动接线成员增删
+    IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }   // 链表：枚举顺序消费、First/Last、note.Next/Previous 邻居导航；WhenAny 自动接线成员增删
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }   // 取你声明过的可编辑轨（TryGetValue / 枚举）
     ISynthesisAutomation Pitch { get; }            // 绝对音高约束（分段：有值=钉死、NaN=自由），见 §5.6
@@ -458,7 +458,7 @@ VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, dou
 ```csharp
 public sealed class VoiceSynthesisSnapshot
 {
-    IReadOnlyList<VoiceSynthesisNoteSnapshot> Notes { get; }   // 与递入 notes 索引对齐；邻居按索引导航（不带 Next/Last）
+    IReadOnlyList<VoiceSynthesisNoteSnapshot> Notes { get; }   // 与递入 notes 索引对齐；邻居按索引导航（不带 Next/Previous）
     SynthesisAutomationSnapshot Pitch { get; }            // 绝对音高约束（冻结求值器）
     SynthesisAutomationSnapshot PitchDeviation { get; }   // 加性偏差（冻结求值器）
     PropertyObject PartProperties { get; }                // part 参数值拷

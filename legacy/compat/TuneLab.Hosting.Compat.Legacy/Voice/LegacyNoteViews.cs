@@ -59,7 +59,7 @@ internal sealed class LiveNoteView(
     public VVoice.IVoiceSynthesisNote Origin => origin;
 
     public LVoice.ISynthesisNote? Next => origin.Next is { } next ? cache.Wrap(next) : null;
-    public LVoice.ISynthesisNote? Last => origin.Last is { } last ? cache.Wrap(last) : null;
+    public LVoice.ISynthesisNote? Last => origin.Previous is { } previous ? cache.Wrap(previous) : null;
     public double StartTime => origin.StartTime.Value;
     // 后盖前钳位：尾巴不越过下一 note 起点（无下一 note 即整段保留）。
     public double EndTime => Math.Min(origin.EndTime.Value, origin.Next is { } next ? next.StartTime.Value : double.PositiveInfinity);

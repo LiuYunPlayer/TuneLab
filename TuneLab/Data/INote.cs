@@ -19,7 +19,7 @@ internal readonly record struct DisplayPhoneme(string Symbol, double StartTime, 
 internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote>
 {
     new INote? Next { get; }
-    new INote? Last { get; }
+    new INote? Previous { get; }
     IMidiPart Part { get; }
     IDataProperty<double> Pos { get; }
     IDataProperty<double> Dur { get; }
@@ -190,9 +190,9 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     // 含合成邻居（非仅钉死）——显示侧防御性去重叠须把合成音素也当作推挤参与方。
     private INote? PrevContentNeighbor()
     {
-        INote? p = Last;
+        INote? p = Previous;
         while (p != null && p.IsEffectiveContinuation())
-            p = p.Last;
+            p = p.Previous;
         return p != null && HasPhonemeContent(p) ? p : null;
     }
 
@@ -224,11 +224,11 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     private bool PrevNeighborUnresolved()
     {
         double reachStart = StartTime;
-        INote? prev = Last;
+        INote? prev = Previous;
         while (prev != null && prev.IsEffectiveContinuation())
         {
             reachStart = prev.StartTime;
-            prev = prev.Last;
+            prev = prev.Previous;
         }
         return prev != null && !HasPhonemeContent(prev) && prev.EndTime >= reachStart;
     }

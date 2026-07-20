@@ -84,7 +84,7 @@ IReadOnlyNotifiableProperty<double> StartTime   // 全局秒
 IReadOnlyNotifiableProperty<double> EndTime      // note 满末（Pos+Dur 换算秒），不钳位
 IReadOnlyNotifiableProperty<int>    Pitch
 IReadOnlyNotifiablePropertyObject   Properties
-IInstrumentSynthesisNote? Next / Last                     // 邻居链（数据线程分片导航）
+IInstrumentSynthesisNote? Next / Previous                 // 邻居链（数据线程分片导航）
 ```
 
 - 与 `IVoiceSynthesisNote` 的差异：**`EndTime` 是满末、不钳位**（这是分水岭）；**无 `Lyric`、无 `Phonemes`**。

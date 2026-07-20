@@ -76,7 +76,7 @@ public interface IVoiceSynthesisContext
 {
     string VoiceId { get; }   // 选定声库（IVoiceSynthesisEngine.VoiceSourceInfos 的 key）；context 生命内不可变，换库重建
     // 链表形态（无索引承诺——宿主数据层即双向链表，可索引是插件不需要的承诺）：
-    // 顺序消费用枚举、头尾 O(1) 走 First/Last、邻居导航走 note.Next/Last；支持 WhenAny。
+    // 顺序消费用枚举、头尾 O(1) 走 First/Last、邻居导航走 note.Next/Previous；支持 WhenAny。
     IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }
     PropertyObject PartProperties { get; }                    // 可订阅
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }   // 全部已声明轨（可点取 TryGetValue / 可枚举）
@@ -283,7 +283,7 @@ public sealed class VoiceSynthesisSnapshot
 }
 ```
 
-**快照 note 不带邻居链**（接口最小化）：`Notes` 有序列表与 `GetSnapshot` 递入的 notes 索引对齐已含全部邻接信息，协同发音按索引取邻居即可。活视图 `IVoiceSynthesisNote` 的 `Next/Last` 保留——事件 handler 内只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是分片决策的真实便利。
+**快照 note 不带邻居链**（接口最小化）：`Notes` 有序列表与 `GetSnapshot` 递入的 notes 索引对齐已含全部邻接信息，协同发音按索引取邻居即可。活视图 `IVoiceSynthesisNote` 的 `Next/Previous` 保留——事件 handler 内只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是分片决策的真实便利。
 
 **peek→commit 原子性**：两者在同一调度 tick 内、同在数据线程同步衔接，期间无编辑可插入——commit 时插件重算分块（确定性分片）必得 peek 报出的同一块；`GetSnapshot` 默认把全部已声明轨按区间开窗物化（bulk 拷亚毫秒级），将来有压力再加可选 keys 白名单，不动接口面。原"半透明 token + downcast 取私货 + 不跨 tick 缓存"一组约定随 segment 纯值化整体消失；原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
 

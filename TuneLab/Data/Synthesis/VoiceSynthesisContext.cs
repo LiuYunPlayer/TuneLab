@@ -474,7 +474,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public IVoiceSynthesisNote? Next => mContext.ProxyOf(mNote.Next);
-        public IVoiceSynthesisNote? Last => mContext.ProxyOf(mNote.Last);
+        public IVoiceSynthesisNote? Previous => mContext.ProxyOf(mNote.Previous);
 
         public VoiceNoteProxy(VoiceSynthesisContext context, INote note)
         {

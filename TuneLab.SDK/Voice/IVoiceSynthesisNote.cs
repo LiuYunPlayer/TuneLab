@@ -32,5 +32,5 @@ public interface IVoiceSynthesisNote
     // 只有 note 自身引用、无列表索引上下文，O(1) 邻居导航是真实便利；
     // 合成须在快照（snapshot.Notes 有序列表按索引）上导航，不回活对象。
     IVoiceSynthesisNote? Next { get; }
-    IVoiceSynthesisNote? Last { get; }
+    IVoiceSynthesisNote? Previous { get; }
 }

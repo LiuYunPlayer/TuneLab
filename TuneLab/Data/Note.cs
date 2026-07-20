@@ -12,7 +12,7 @@ internal class Note : DataObject, INote
     public IActionEvent SelectionChanged => mSelectionChanged;
     public IMidiPart Part => mPart;
     public INote? Next => ((ILinkedNode<INote>)this).Next;
-    public INote? Last => ((ILinkedNode<INote>)this).Last;
+    public INote? Previous => ((ILinkedNode<INote>)this).Previous;
     public DataStruct<double> Pos { get; }
     public DataStruct<double> Dur { get; }
     public DataStruct<int> Pitch { get; }
@@ -43,7 +43,7 @@ internal class Note : DataObject, INote
     IDataProperty<double> INote.BodyOffset => BodyOffset;
 
     INote? ILinkedNode<INote>.Next { get; set; } = null;
-    INote? ILinkedNode<INote>.Last { get; set; } = null;
+    INote? ILinkedNode<INote>.Previous { get; set; } = null;
     ILinkedList<INote>? ILinkedNode<INote>.LinkedList { get; set; }
 
     public Note(IMidiPart part, NoteInfo info)

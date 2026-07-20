@@ -23,5 +23,5 @@ public interface IInstrumentSynthesisNote
     // 邻居链（仅数据线程的分片决策 live 导航；合成须在快照按索引导航，不回活对象）。
     // 注：instrument 序列可重叠，邻居按排序契约（StartTime 升序…）取，不代表"前一个发音结束"。
     IInstrumentSynthesisNote? Next { get; }
-    IInstrumentSynthesisNote? Last { get; }
+    IInstrumentSynthesisNote? Previous { get; }
 }

@@ -1690,7 +1690,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             {
                 var x = TickAxis.Tick2X(mInputLyricNote.GlobalStartPos());
                 var y = PitchAxis.Pitch2Y(mInputLyricNote.Pitch.Value);
-                var note = e.HasModifiers(ModifierKeys.Shift) ? mInputLyricNote.Last : mInputLyricNote.Next;
+                var note = e.HasModifiers(ModifierKeys.Shift) ? mInputLyricNote.Previous : mInputLyricNote.Next;
                 mLyricInput.Unfocus();
                 if (note != null)
                 {

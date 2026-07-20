@@ -33,26 +33,26 @@ public sealed class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<
         if (!Contains(item))
             return false;
 
-        var last = item.Last;
+        var previous = item.Previous;
         var next = item.Next;
-        item.Last = null;
+        item.Previous = null;
         item.Next = null;
         item.LinkedList = null;
-        if (last == null)
+        if (previous == null)
         {
             mFirst = next;
         }
         else
         {
-            last.Next = next;
+            previous.Next = next;
         }
         if (next == null)
         {
-            mLast = last;
+            mLast = previous;
         }
         else
         {
-            next.Last = last;
+            next.Previous = previous;
         }
         mCount--;
 
@@ -63,7 +63,7 @@ public sealed class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<
     {
         foreach (var item in this)
         {
-            item.Last = null;
+            item.Previous = null;
             item.Next = null;
             item.LinkedList = null;
         }
@@ -77,20 +77,20 @@ public sealed class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<
         return item.LinkedList == this;
     }
 
-    public void InsertAfter(T last, T item)
+    public void InsertAfter(T previous, T item)
     {
-        Debug.Assert(Contains(last), "Anchor item does not belong to this linked list.");
+        Debug.Assert(Contains(previous), "Anchor item does not belong to this linked list.");
         Debug.Assert(item.LinkedList == null, "Item already belongs to a linked list; re-inserting would corrupt the structure of both lists.");
 
-        if (last == mLast)
+        if (previous == mLast)
             mLast = item;
 
-        item.Last = last;
-        item.Next = last.Next;
-        last.Next = item;
+        item.Previous = previous;
+        item.Next = previous.Next;
+        previous.Next = item;
         if (item.Next != null)
         {
-            item.Next.Last = item;
+            item.Next.Previous = item;
         }
 
         item.LinkedList = this;
@@ -105,12 +105,12 @@ public sealed class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<
         if (next == mFirst)
             mFirst = item;
 
-        item.Last = next.Last;
+        item.Previous = next.Previous;
         item.Next = next;
-        next.Last = item;
-        if (item.Last != null)
+        next.Previous = item;
+        if (item.Previous != null)
         {
-            item.Last.Next = item;
+            item.Previous.Next = item;
         }
 
         item.LinkedList = this;
@@ -133,9 +133,9 @@ public sealed class LinkedList<T> : ILinkedList<T> where T : class, ILinkedNode<
         var current = mLast;
         while (current != null)
         {
-            var last = current.Last;
+            var previous = current.Previous;
             yield return current;
-            current = last;
+            current = previous;
         }
     }
 

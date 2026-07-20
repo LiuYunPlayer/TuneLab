@@ -373,7 +373,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         public IReadOnlyNotifiablePropertyObject Properties => mProperties;
 
         public IInstrumentSynthesisNote? Next => mContext.ProxyOf(mNote.Next);
-        public IInstrumentSynthesisNote? Last => mContext.ProxyOf(mNote.Last);
+        public IInstrumentSynthesisNote? Previous => mContext.ProxyOf(mNote.Previous);
 
         public InstrumentNoteProxy(InstrumentSynthesisContext context, INote note)
         {
