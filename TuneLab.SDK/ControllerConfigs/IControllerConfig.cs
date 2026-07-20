@@ -8,8 +8,11 @@ public interface IControllerConfig
 {
 }
 
-// 有默认值的 config（preset 重置、按默认值统一处理等通用逻辑按此消费）。
-// 是否实现本接口同时在类型上区分"有无默认基线"（如连续型 AutomationConfig 实现、分段型不实现）。
+// 自带默认值的「叶子」config：config 家族默认值递归（恢复默认 / 应用 preset / seed 新元素）的基例——
+// 实现本接口 = 该 config 自持一个 DefaultValue、直接取用；复合 config（Object/Array/List/ExtensibleObject）
+// 刻意不实现，其默认值改由递归拼装子成员得出。故本接口划的是「叶子 vs 复合」，与「有无默认基线」无关。
+// 注意 DefaultValue 可能是哨兵值：AutomationConfig 恒实现本接口，但分段轨的 DefaultValue 为 NaN 表「无基线」
+// （见 AutomationConfig.IsPiecewise）——做基线物化 / 重置的消费方须按具体 config 解释该值，不得把 NaN 当真默认写回。
 public interface IValueConfig : IControllerConfig
 {
     PropertyValue DefaultValue { get; }

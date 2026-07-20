@@ -57,5 +57,8 @@ public sealed class AutomationConfig : IValueConfig<double>
     public AutomationConfig WithMaxLabel(string label) { var c = Clone(); c.MaxLabel = label; return c; }
     public AutomationConfig WithRandomizable(bool value = true) { var c = Clone(); c.Randomizable = value; return c; }
 
+    // 恒实现 IValueConfig（叶子 config），但分段轨此处返回 NaN 表「无基线」——消费方须先判 IsPiecewise，
+    // 不得把 NaN 当真默认值写回（见 IValueConfig 注释）。automation 不流经属性面板 / preset 的 GetDefaultValue 通道，
+    // 故现实无踩坑点；此约束是给未来经 is IValueConfig 做通用基线逻辑的消费方钉死的契约。
     PropertyValue IValueConfig.DefaultValue => PropertyValue.Create(DefaultValue);
 }
