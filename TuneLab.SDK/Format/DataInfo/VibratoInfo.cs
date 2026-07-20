@@ -9,11 +9,16 @@ namespace TuneLab.SDK;
 
 public class VibratoInfo
 {
+    // 位置 / 时长，单位 = tick（PPQ 480），相对所属 part 的锚点（PartInfo.Pos）。
     public double Pos { get; set; }
     public double Dur { get; set; }
+    // 颤动频率，单位 = Hz（每秒周期数）。
     public double Frequency { get; set; }
+    // 初相位，单位 = π（归一化：实际弧度 = Phase × π）。
     public double Phase { get; set; }
+    // 峰值幅度，单位随目标自动化轨（音高轨为半音）；对各轨的实际影响量见 AffectedAutomations / AffectedEffectAutomations。
     public double Amplitude { get; set; }
+    // 起振 / 收束时长，单位 = 秒。
     public double Attack { get; set; }
     public double Release { get; set; }
     public Map<string, double> AffectedAutomations { get; set; } = new();
