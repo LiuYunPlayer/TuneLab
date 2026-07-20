@@ -34,14 +34,13 @@ internal partial class AutomationRenderer
     {
         public required IAutomation Automation { get; set; }
         public required AnchorPoint AnchorPoint { get; set; }
-        public required double MinValue { get; set; }
-        public required double MaxValue { get; set; }
+        public required TuneLab.SDK.INormalizedScale Scale { get; set; }
         public required Color Color { get; set; }
 
         public Point Position()
         {
             double value = AnchorPoint.Value + Automation.DefaultValue.Value;
-            return AutomationRenderer.TickAndValueToPoint(AnchorPoint.Pos, value, MinValue, MaxValue);
+            return AutomationRenderer.TickAndValueToPoint(AnchorPoint.Pos, value, Scale);
         }
 
         public override bool Raycast(Point point)

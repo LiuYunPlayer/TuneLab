@@ -231,7 +231,7 @@ internal partial class AutomationRenderer : View
                     right = left + 1;
 
                 note.Properties.GetValue(automationID.Id, laneDefault).ToDouble(out double value);
-                double y = ValueToY(value, entry.MinValue, entry.MaxValue);
+                double y = ValueToY(value, entry.Scale);
                 if (isActive)
                     context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
                 context.FillRectangle(lineBrush, new Rect(left, Math.Max(0, y - topLineWidth / 2), right - left, topLineWidth));
@@ -280,7 +280,7 @@ internal partial class AutomationRenderer : View
                     double value = entry.DefaultValue;
                     if (pinned && i < note.Phonemes.Count && note.Phonemes[i].HasProperties)
                         note.Phonemes[i].Properties.GetValue(automationID.Id, laneDefault).ToDouble(out value);
-                    double y = ValueToY(value, entry.MinValue, entry.MaxValue);
+                    double y = ValueToY(value, entry.Scale);
                     if (isActive)
                         context.FillRectangle(fillBrush, new Rect(left, y, right - left, Bounds.Height - y));
                     context.FillRectangle(lineBrush, new Rect(left, Math.Max(0, y - topLineWidth / 2), right - left, topLineWidth));
@@ -291,22 +291,14 @@ internal partial class AutomationRenderer : View
         void DrawContinuous(AutomationKey automationID)
         {
             var config = Part.GetEffectiveAutomationConfig(automationID);
-            double min = config.MinValue;
-            double max = config.MaxValue;
-            double range = max - min;
-            double r = Bounds.Height / range;
 
             double[] values = Part.GetFinalAutomationValues(ticks, automationID);
 
-            for (int i = 0; i < values.Length; i++)
-            {
-                values[i] = (max - values[i].Limit(min, max)) * r;
-            }
-
+            // 采样值过标度投影（离散轨落格 ⇒ 曲线呈阶梯，与插件读到的量化值一致；线性轨仅钳位、无视觉改变）。
             var points = new Point[n];
             for (int i = 0; i < n; i++)
             {
-                points[i] = new(xs[i], values[i]);
+                points[i] = new(xs[i], ValueToY(config.Scale.Project(values[i]), config.Scale));
             }
 
             context.DrawCurve(points, ColorUtils.ParseOrFallback(config.Color), lineWidth);
@@ -315,8 +307,6 @@ internal partial class AutomationRenderer : View
         void DrawPiecewise(AutomationKey automationID)
         {
             var config = Part.GetEffectivePiecewiseAutomationConfig(automationID);
-            double min = config.MinValue;
-            double max = config.MaxValue;
 
             // 已画的可编辑曲线（数据对象按需创建——未编辑过则无数据、只画回显）。段间取值 NaN → 断开。
             var data = Part.GetEffectivePiecewiseAutomation(automationID);
@@ -325,7 +315,7 @@ internal partial class AutomationRenderer : View
                 double[] values = data.GetValues(ticks);
                 var ys = new double[n];
                 for (int i = 0; i < n; i++)
-                    ys[i] = double.IsNaN(values[i]) ? double.NaN : ValueToY(values[i], min, max);
+                    ys[i] = double.IsNaN(values[i]) ? double.NaN : ValueToY(config.Scale.Project(values[i]), config.Scale);
                 DrawBrokenCurve(ys, ColorUtils.ParseOrFallback(config.Color), lineWidth);
             }
         }
@@ -382,9 +372,9 @@ internal partial class AutomationRenderer : View
 
         double minVisibleTick = TickAxis.MinVisibleTick;
         double maxVisibleTick = TickAxis.MaxVisibleTick;
-        // 量程与显示口径按来源取：automation 走 config、属性 lane 走 entry——两者同带 Min/MaxLabel 描述文本
+        // 值轴与显示口径按来源取：automation 走 config、属性 lane 走 entry——两者同带标度与 Min/MaxLabel 描述文本
         //（lane 的 label 来自 SliderConfig 声明，与滑条两端显示同源）。
-        double min, max;
+        SDK.INormalizedScale scale;
         SDK.INumberFormat? numberFormat;
         string? minLabel, maxLabel;
         string colorStr;
@@ -392,8 +382,7 @@ internal partial class AutomationRenderer : View
         if (activeNoteLane || activePhonemeLane)
         {
             var entry = activeNoteLane ? Part.GetNoteLaneEntry(active) : Part.GetPhonemeLaneEntry(active);
-            min = entry.MinValue;
-            max = entry.MaxValue;
+            scale = entry.Scale;
             numberFormat = entry.Format;
             minLabel = entry.MinLabel;
             maxLabel = entry.MaxLabel;
@@ -405,8 +394,7 @@ internal partial class AutomationRenderer : View
             var config = activeContinuous
                 ? Part.GetEffectiveAutomationConfig(active)
                 : Part.GetEffectivePiecewiseAutomationConfig(active);
-            min = config.MinValue;
-            max = config.MaxValue;
+            scale = config.Scale;
             numberFormat = config.Format;
             minLabel = config.MinLabel;
             maxLabel = config.MaxLabel;
@@ -439,20 +427,12 @@ internal partial class AutomationRenderer : View
                     vticks[i] = TickAxis.X2Tick(vxs[i]) - pos;
                 }
 
-                double range = max - min;
-                double r = Bounds.Height / range;
-
                 double[] values = Part.GetEffectiveAutomationValues(vticks, active);
-
-                for (int i = 0; i < values.Length; i++)
-                {
-                    values[i] = (max - values[i].Limit(min, max)) * r;
-                }
 
                 var points = new Point[vxs.Length];
                 for (int i = 0; i < vxs.Length; i++)
                 {
-                    points[i] = new(vxs[i], values[i]);
+                    points[i] = new(vxs[i], ValueToY(scale.Project(values[i]), scale));
                 }
 
                 context.DrawCurve(points, ColorUtils.ParseOrFallback(colorStr).Opacity(0.5), lineWidth);
@@ -483,8 +463,8 @@ internal partial class AutomationRenderer : View
         if (boundsKnown)
         {
             string BoundText(double value) => numberFormat is { } f ? f.Format(value) : value.ToString("+0.00;-0.00");
-            context.DrawString(maxLabel ?? BoundText(max), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
-            context.DrawString(minLabel ?? BoundText(min), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+            context.DrawString(maxLabel ?? BoundText(scale.ToValue(1)), new Point(8, 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
+            context.DrawString(minLabel ?? BoundText(scale.ToValue(0)), new Point(8, Bounds.Height - 12), Style.LIGHT_WHITE.ToBrush(), 12, Alignment.LeftCenter);
         }
     }
 
@@ -510,12 +490,12 @@ internal partial class AutomationRenderer : View
                 continue;
 
             var config = kvp.Value.Config;
-            DrawReadbackArea(context, parameter.Segments, config.MinValue, config.MaxValue, ColorUtils.ParseOrFallback(config.Color));
+            DrawReadbackArea(context, parameter.Segments, config.Scale, ColorUtils.ParseOrFallback(config.Color));
         }
     }
 
     // 一条回显轨：各分段（按段交付，段间空、跨段不连线）各自绘制为独立填充面积（仅面积、无描边）。
-    void DrawReadbackArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, double min, double max, Color color)
+    void DrawReadbackArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, SDK.INormalizedScale scale, Color color)
     {
         var tempoManager = Part!.TempoManager;
         double minVisibleTick = TickAxis.MinVisibleTick;
@@ -551,7 +531,7 @@ internal partial class AutomationRenderer : View
             var ys = segment.LinearInterpolation(times);
             var points = new Point[count];
             for (int i = 0; i < count; i++)
-                points[i] = new(i + startX, ValueToY(ys[i], min, max));
+                points[i] = new(i + startX, ValueToY(scale.Project(ys[i]), scale));
 
             context.FillCurveArea(points, baselineY, fillBrush);
         }
@@ -594,28 +574,39 @@ internal partial class AutomationRenderer : View
         }
     }
 
-    public Point TickAndValueToPoint(double tick, double value, double min, double max)
+    public Point TickAndValueToPoint(double tick, double value, SDK.INormalizedScale scale)
     {
         double partPos = Part?.Pos.Value ?? 0;
-        return new(TickAxis.Tick2X(partPos + tick), ValueToY(value, min, max));
+        return new(TickAxis.Tick2X(partPos + tick), ValueToY(value, scale));
     }
 
-    public double ValueToY(double value, double min, double max)
+    // 值轴换算全部经 config 的标度（INormalizedScale）：y ↔ 归一化位置是纯线性（顶=1、底=0），
+    // 归一化 ↔ 值归标度——非线性轴/吸附标度（如整数轨）由此对绘制与显示同时生效。
+    // 吸附标度约定「ToValue 吸附、ToNormalized 连续逆」，故显示定位不因吸附跳变。
+    public double ValueToY(double value, SDK.INormalizedScale scale)
     {
-        double range = max - min;
-        if (range == 0)
-            return Bounds.Height / 2;
-
-        return (max - value.Limit(min, max)) * (Bounds.Height / range);
+        return NormalizedToY(scale.ToNormalized(value));
     }
 
-    public double YToValue(double y, double min, double max)
+    public double YToValue(double y, SDK.INormalizedScale scale)
+    {
+        return scale.ToValue(YToNormalized(y));
+    }
+
+    // y ↔ 归一化位置（[0,1]，钳到量程内——鼠标可拖出视图边界）。选区等纯几何比较直接在归一化域进行，
+    // 不过标度取值（避免吸附标度使选区边界跳格）。
+    public double YToNormalized(double y)
     {
         double height = Bounds.Height;
         if (height == 0)
-            return min;
+            return 0;
 
-        return (max - (y / height) * (max - min)).Limit(min, max);
+        return (1 - y / height).Limit(0, 1);
+    }
+
+    public double NormalizedToY(double normalized)
+    {
+        return (1 - normalized.Limit(0, 1)) * Bounds.Height;
     }
 
     public bool HasSelectedAnchors()
@@ -797,7 +788,7 @@ internal partial class AutomationRenderer : View
         if (selectedAnchor == null)
             return false;
 
-        var selectedPosition = TickAndValueToPoint(selectedAnchor.Pos, selectedAnchor.Value + activeAutomation.DefaultValue.Value, activeConfig.MinValue, activeConfig.MaxValue);
+        var selectedPosition = TickAndValueToPoint(selectedAnchor.Pos, selectedAnchor.Value + activeAutomation.DefaultValue.Value, activeConfig.Scale);
         if (selectedPosition.X < 0 || selectedPosition.X > Bounds.Width || selectedPosition.Y < 0 || selectedPosition.Y > Bounds.Height)
             return false;
 

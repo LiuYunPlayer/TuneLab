@@ -94,10 +94,11 @@ internal static class VoiceSynthesisSnapshotFactory
             IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
                 ? AutomationSnapshot.Capture(automation, relStart, relEnd)
                 : new ConstantAutomationEvaluator(kvp.Value.DefaultValue);
-            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new FrozenFinalAutomationEvaluator(
+            // 最外层套标度量化（vibrato/envelope 之后）：离散 scale ⇒ 插件读到的最终值处处落格；线性 scale 仅钳位。
+            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new ScaleQuantizingEvaluator(new FrozenFinalAutomationEvaluator(
                 baseEvaluator,
                 SelectVibratos(vibratoCaptures, key),
-                envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) });
+                envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false), kvp.Value.Scale) });
         }
 
         return new VoiceSynthesisSnapshot

@@ -30,6 +30,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mVoiceInfos.Add("v1-carol", new VoiceSourceInfo { Name = "Carol (V1 Test)", Description = "Test voice Carol", Portrait = new FileImageResource(animatedPortrait) });
         // 量程端点描述文本（验证 SliderConfig Min/MaxLabel：滑条两端 + 上参数面板后 lane 上下界同源显示）。
         mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1).WithMinLabel("Relaxed").WithMaxLabel("Tense"));
+        // 整数滑条（验证吸附标度经属性 lane 全链路：侧栏滑条吸附 + 钉上参数面板后拖写同吸附整数格）。
+        mNoteProperties.Add(("steps", "Steps (Int)"), SliderConfig.Integer(0, 0, 8));
         // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。只设一端，验证单端显示。
         mPhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1).WithMaxLabel("Strong"));
         // 无界数值框（验证 DraggableNumberBox/DraggableNumberBoxConfig）：横拖擦写、双击键入、无上下界、Shift 精调。
@@ -58,6 +60,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
                 map.Add(kvp.Key, kvp.Value);
         }
         map.Add(("Bend", "Bend"), mBendConfig);
+        map.Add(("Semitone", "Semitone (Int)"), mSemitoneConfig);
+        map.Add(("LogFreq", "LogFreq (Hz)"), mLogFreqConfig);
         return map;
     }
 
@@ -81,6 +85,19 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     readonly OrderedMap<PropertyKey, IControllerConfig> mPhonemeProperties = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
     static readonly AutomationConfig mBendConfig = AutomationConfig.Create(-100, 100).WithColor("#73C2E5");
+    // 整数吸附标度连续轨（Create(INormalizedScale) 重载）：验证参数区绘制/拖锚点/双击键入锚点值全走标度吸附。
+    static readonly AutomationConfig mSemitoneConfig = AutomationConfig.Create(NormalizedScale.Integer(-12, 12))
+        .WithDefault(0).WithColor("#A5E573").WithFormat(NumberFormat.Decimals(0));
+    // 对数轴（自定义 Custom 标度）连续轨：验证非线性标度全链路。频率 20..20000 Hz 几何插值——
+    // value = 20·1000ⁿ（n∈[0,1]），故 Y 等距 = 频率等比、拖到中点约 632Hz。连续标度：投影退化为纯范围钳位。
+    static readonly AutomationConfig mLogFreqConfig = AutomationConfig.Create(
+            NormalizedScale.Custom(
+                n => 20.0 * Math.Pow(1000.0, n),
+                v => Math.Log(v / 20.0) / Math.Log(1000.0)))
+        .WithDefault(440).WithColor("#73E5C2")
+        .WithFormat(NumberFormat.Custom(
+            v => v.ToString("0") + " Hz",
+            text => double.TryParse(text.Replace("Hz", "").Trim(), out var r) ? r : (double?)null));
     // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
     {

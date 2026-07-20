@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -48,6 +49,20 @@ internal sealed class ConstantAutomationEvaluator(double value) : IAutomationEva
     {
         double[] values = new double[times.Count];
         values.Fill(value);
+        return values;
+    }
+}
+
+// 标度量化装饰器：把内层求值器的最终输出投影到 config 标度的可表示集（离散标度落格 + 范围钳位；NaN 透传）。
+// 包在链最外层（vibrato/envelope 叠加之后）——保证插件读到的最终值处处落格，即"离散 scale ⇒ 量化信号"的数据层强制。
+// 线性标度下投影 = 纯范围钳位（无格点、无视觉/数值改变，除越界值被钳回）。
+internal sealed class ScaleQuantizingEvaluator(IAutomationEvaluator inner, INormalizedScale scale) : IAutomationEvaluator
+{
+    public double[] Evaluate(IReadOnlyList<double> times)
+    {
+        var values = inner.Evaluate(times);
+        for (int i = 0; i < values.Length; i++)
+            values[i] = scale.Project(values[i]);
         return values;
     }
 }

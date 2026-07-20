@@ -46,7 +46,8 @@ internal static class InstrumentSynthesisSnapshotFactory
             IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
                 ? AutomationSnapshot.Capture(automation, relStart, relEnd)
                 : new ConstantEvaluator(kvp.Value.DefaultValue);
-            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new SecondToTickEvaluator(baseEvaluator, partPos, timesToTicks) });
+            // 最外层套标度量化：离散 scale ⇒ 插件读到的最终值处处落格；线性 scale 仅钳位。instrument 无 vibrato 叠加。
+            automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new ScaleQuantizingEvaluator(new SecondToTickEvaluator(baseEvaluator, partPos, timesToTicks), kvp.Value.Scale) });
         }
 
         return new InstrumentSynthesisSnapshot

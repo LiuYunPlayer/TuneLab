@@ -303,6 +303,7 @@ readonly ObjectConfig mNoteConfig = new()
 
 - **读值**：合成时从 `VoiceSynthesisNoteSnapshot.Properties`（`PropertyObject` 值拷）读，用 `GetDouble(key, default)` / `GetBool` / `GetInt` / `GetString` / `GetEnum<T>`。**稀疏存储**——只有用户改过的字段才在里面；读不到就用你声明的默认值（`PropertyObject` 的 `Get*` 第二参数就是 fallback，传与声明一致的默认值即可）。
 - **`AutomationConfig`**：`DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color`（如 `"#E5A573"`） / `Randomizable`（默认值面板的滑条右侧加随机入口，宜用于连续轨）。**`DefaultValue = double.NaN` ⇒ 分段轨**（无默认基线、段间断开，如 pitch 类、bend）；实数 ⇒ 连续轨（处处有值、有基线，如 growl）。回显轨恒为分段形（`DefaultValue = NaN`）。
+- **值轴标度**：`AutomationConfig.Create(minValue, maxValue)` 是线性轴；`Create(INormalizedScale)` 重载可传自定义标度（与 `SliderConfig.Create` 对偶）——如 `NormalizedScale.Integer(min, max)` 让该轨成为整数轨，或自实现对数轴等。**离散标度 ⇒ 信号处处落格**：宿主不止在写入时吸附锚点，还在**求值与渲染**时把 Hermite 连续输出投影回标度（曲线呈阶梯、`Evaluate` 返回的最终值即落格），所以**引擎无需自行取整**、也覆盖 load/preset/回喂等一切编辑路径。线性标度下投影 = 纯范围钳位（越界值钳回 `[min,max]`）。
 - **条件声明 + 孤儿数据**：轨集合可随参数显隐（如某开关勾选才暴露 Growl 轨）。轨从声明里消失后，宿主**保留其已画曲线（隐藏不删、不参与合成）**，参数回退使该轨复现即原样恢复——你不必担心条件轨切换会丢用户数据。
 
 > ⚠️ **自动化参数名避开宿主保留名**：`GetAutomationConfigs` 的键会和宿主内置自动化合并展示，与内置项**重名会被内置项占用、你的参数显示不出**。已知保留名：**`Volume`**、**`VibratoEnvelope`**。请用自己的独特名（如 `Breathiness` / `Growl` / 加前缀）。

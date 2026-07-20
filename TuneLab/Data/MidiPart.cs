@@ -259,7 +259,7 @@ internal class MidiPart : Part, IMidiPart
                     if (previousPhonemeLanes != null && previousPhonemeLanes.TryGetValue(id, out var previous))
                         mPhonemeLaneConfigs.Add(id, previous with { Color = color });
                     else
-                        mPhonemeLaneConfigs.Add(id, new LaneEntry(0, 1, 0, null, null, null, color, Resolved: false));
+                        mPhonemeLaneConfigs.Add(id, new LaneEntry(NormalizedScale.Linear(0, 1), 0, null, null, null, color, Resolved: false));
                 }
             }
         }

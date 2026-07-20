@@ -14,7 +14,7 @@ using TuneLab.Configs;
 namespace TuneLab.UI;
 
 // 参数区分段轨（IPiecewiseAutomation）的编辑操作：镜像 pitch 的分段编辑（绘制/擦除/锚点选/移/删/插），
-// 值轴用 config 的 MinValue/MaxValue 映射到 Bounds.Height（不像 pitch 用 PitchAxis）。
+// 值轴用 config 的标度（INormalizedScale）映射到 Bounds.Height（不像 pitch 用 PitchAxis）。
 // 分段轨无默认基线：锚点 Value 即绝对值（区别于连续轨存"值减默认"）。复用现有 State 值，Move/Up 按 IsOperating 分派。
 internal partial class AutomationRenderer
 {
@@ -52,14 +52,14 @@ internal partial class AutomationRenderer
             case MouseButtonType.PrimaryButton:
                 if (item is PiecewiseAnchorItem anchorItem)
                 {
-                    mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.Automation, anchorItem.AnchorPoint, anchorItem.MinValue, anchorItem.MaxValue);
+                    mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.Automation, anchorItem.AnchorPoint, anchorItem.Scale);
                 }
                 else if (e.IsDoubleClick)
                 {
                     if (Part == null || !TryGetActivePiecewise(out var automation, out var config, true))
                         break;
 
-                    var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, YToValue(e.Position.Y, config.MinValue, config.MaxValue)) { IsSelected = true };
+                    var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part.Pos.Value, YToValue(e.Position.Y, config.Scale)) { IsSelected = true };
                     automation.InsertPoint(anchor);
                     var inserted = automation.AnchorGroups.SelectMany(group => group).FirstOrDefault(point => point.Pos == anchor.Pos);
                     if (inserted == null)
@@ -67,7 +67,7 @@ internal partial class AutomationRenderer
 
                     automation.DeselectAllAnchors();
                     inserted.Select();
-                    mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, automation, inserted, config.MinValue, config.MaxValue, true);
+                    mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, automation, inserted, config.Scale, true);
                 }
                 else
                 {
@@ -97,13 +97,12 @@ internal partial class AutomationRenderer
     {
         public required IPiecewiseAutomation Automation { get; set; }
         public required AnchorPoint AnchorPoint { get; set; }
-        public required double MinValue { get; set; }
-        public required double MaxValue { get; set; }
+        public required INormalizedScale Scale { get; set; }
         public required Color Color { get; set; }
 
         public Avalonia.Point Position()
         {
-            return AutomationRenderer.TickAndValueToPoint(AnchorPoint.Pos, AnchorPoint.Value, MinValue, MaxValue);
+            return AutomationRenderer.TickAndValueToPoint(AnchorPoint.Pos, AnchorPoint.Value, Scale);
         }
 
         public override bool Raycast(Avalonia.Point point)
@@ -137,12 +136,11 @@ internal partial class AutomationRenderer
             if (!AutomationRenderer.TryGetActivePiecewise(out mAutomation, out var config, true))
                 return;
 
-            mMin = config.MinValue;
-            mMax = config.MaxValue;
+            mScale = config.Scale;
             State = State.Drawing;
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = mAutomation.Head;
-            mDownValue = AutomationRenderer.YToValue(mousePosition.Y, mMin, mMax);   // 锁定按下时的 y，供定值绘制
+            mDownValue = AutomationRenderer.YToValue(mousePosition.Y, mScale);   // 锁定按下时的 y，供定值绘制
             mPointLines.Add([ToTickAndValue(mousePosition, constantValue)]);
             mAutomation.AddLine(mPointLines[0], Settings.ParameterBoundaryExtension);
         }
@@ -202,13 +200,12 @@ internal partial class AutomationRenderer
 
         Point ToTickAndValue(Avalonia.Point mousePosition, bool constantValue)
         {
-            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(mousePosition.Y, mMin, mMax);
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(mousePosition.Y, mScale);
             return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - AutomationRenderer.Part!.Pos.Value, value);
         }
 
         IPiecewiseAutomation? mAutomation;
-        double mMin;
-        double mMax;
+        INormalizedScale mScale = null!;
         double mDownValue;   // 定值绘制锁定的值（按下时捕获）
         bool mDirection;
         Head mHead;
@@ -325,7 +322,7 @@ internal partial class AutomationRenderer
     {
         public bool IsOperating => State == State.AnchorMoving && mAnchor != null;
 
-        public void Down(Avalonia.Point point, bool ctrl, IPiecewiseAutomation automation, AnchorPoint anchor, double minValue, double maxValue, bool keepChangeWithoutMove = false)
+        public void Down(Avalonia.Point point, bool ctrl, IPiecewiseAutomation automation, AnchorPoint anchor, INormalizedScale scale, bool keepChangeWithoutMove = false)
         {
             if (AutomationRenderer.Part == null)
                 return;
@@ -335,8 +332,7 @@ internal partial class AutomationRenderer
             mCtrl = ctrl;
             mIsSelected = anchor.IsSelected;
             mKeepChangeWithoutMove = keepChangeWithoutMove;
-            mMin = minValue;
-            mMax = maxValue;
+            mScale = scale;
             if (!mCtrl && !mIsSelected)
                 mAutomation.DeselectAllAnchors();
             anchor.Select();
@@ -345,7 +341,7 @@ internal partial class AutomationRenderer
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = AutomationRenderer.Part.Head;
             mXOffset = point.X - AutomationRenderer.TickAxis.Tick2X(AutomationRenderer.Part.Pos.Value + anchor.Pos);
-            mYOffset = point.Y - AutomationRenderer.ValueToY(anchor.Value, mMin, mMax);
+            mYOffset = point.Y - AutomationRenderer.ValueToY(anchor.Value, mScale);
             AutomationRenderer.InvalidateVisual();
         }
 
@@ -357,7 +353,7 @@ internal partial class AutomationRenderer
 
             double pos = AutomationRenderer.TickAxis.X2Tick(point.X - mXOffset) - part.Pos.Value;
             double posOffset = pos - mAnchor.Pos;
-            double value = AutomationRenderer.YToValue(point.Y - mYOffset, mMin, mMax);
+            double value = AutomationRenderer.YToValue(point.Y - mYOffset, mScale);
             double valueOffset = value - mAnchor.Value;
 
             mMoved = true;
@@ -407,11 +403,12 @@ internal partial class AutomationRenderer
         bool mKeepChangeWithoutMove = false;
         double mXOffset;
         double mYOffset;
-        double mMin;
-        double mMax;
+        INormalizedScale mScale = null!;
         Head mHead;
     }
 
+    // 选区值轴比较在归一化域进行（同连续轨 AnchorSelectOperation）：纯几何操作不过标度取值，
+    // 吸附标度下选框边界才不跳格；锚点值经 ToNormalized（连续逆）落到同一域比较——所见即所选。
     class PiecewiseAnchorSelectOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
         public bool IsOperating => State == State.AnchorSelecting && mAutomation != null;
@@ -425,10 +422,9 @@ internal partial class AutomationRenderer
                 return;
 
             State = State.AnchorSelecting;
-            mMinValue = config.MinValue;
-            mMaxValue = config.MaxValue;
+            mScale = config.Scale;
             mDownTick = AutomationRenderer.TickAxis.X2Tick(point.X) - AutomationRenderer.Part!.Pos.Value;
-            mDownValue = AutomationRenderer.YToValue(point.Y, mMinValue, mMaxValue);
+            mDownNormalized = AutomationRenderer.YToNormalized(point.Y);
             if (ctrl)
                 mSelectedItems = AllAnchors().Where(a => a.IsSelected).ToList();
             Move(point);
@@ -440,7 +436,7 @@ internal partial class AutomationRenderer
                 return;
 
             mTick = AutomationRenderer.TickAxis.X2Tick(point.X) - AutomationRenderer.Part!.Pos.Value;
-            mValue = AutomationRenderer.YToValue(point.Y, mMinValue, mMaxValue);
+            mNormalized = AutomationRenderer.YToNormalized(point.Y);
             mAutomation.DeselectAllAnchors();
             if (mSelectedItems != null)
             {
@@ -450,11 +446,12 @@ internal partial class AutomationRenderer
 
             double minTick = Math.Min(mTick, mDownTick);
             double maxTick = Math.Max(mTick, mDownTick);
-            double minValue = Math.Min(mValue, mDownValue);
-            double maxValue = Math.Max(mValue, mDownValue);
+            double minNormalized = Math.Min(mNormalized, mDownNormalized);
+            double maxNormalized = Math.Max(mNormalized, mDownNormalized);
             foreach (var anchor in AllAnchors())
             {
-                if (anchor.Pos >= minTick && anchor.Pos <= maxTick && anchor.Value >= minValue && anchor.Value <= maxValue)
+                double normalized = mScale.ToNormalized(anchor.Value);
+                if (anchor.Pos >= minTick && anchor.Pos <= maxTick && normalized >= minNormalized && normalized <= maxNormalized)
                     anchor.Select();
             }
 
@@ -479,12 +476,10 @@ internal partial class AutomationRenderer
 
             double minTick = Math.Min(mTick, mDownTick);
             double maxTick = Math.Max(mTick, mDownTick);
-            double minValue = Math.Min(mValue, mDownValue);
-            double maxValue = Math.Max(mValue, mDownValue);
             double left = AutomationRenderer.TickAxis.Tick2X(AutomationRenderer.Part!.Pos.Value + minTick);
             double right = AutomationRenderer.TickAxis.Tick2X(AutomationRenderer.Part.Pos.Value + maxTick);
-            double top = AutomationRenderer.ValueToY(maxValue, mMinValue, mMaxValue);
-            double bottom = AutomationRenderer.ValueToY(minValue, mMinValue, mMaxValue);
+            double top = AutomationRenderer.NormalizedToY(Math.Max(mNormalized, mDownNormalized));
+            double bottom = AutomationRenderer.NormalizedToY(Math.Min(mNormalized, mDownNormalized));
             return new Avalonia.Rect(left, top, right - left, bottom - top);
         }
 
@@ -492,11 +487,10 @@ internal partial class AutomationRenderer
 
         IPiecewiseAutomation? mAutomation;
         IReadOnlyCollection<AnchorPoint>? mSelectedItems;
-        double mMinValue;
-        double mMaxValue;
+        INormalizedScale mScale = null!;
         double mDownTick;
-        double mDownValue;
+        double mDownNormalized;
         double mTick;
-        double mValue;
+        double mNormalized;
     }
 }

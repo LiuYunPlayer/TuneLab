@@ -12,7 +12,9 @@ public sealed class AutomationConfig : IValueConfig<double>
     // 默认 NaN = 分段轨；经 WithDefault 给实数 → 连续轨。
     public double DefaultValue { get; private set; } = double.NaN;
 
-    // 值轴标度——自动化上下界即 slider 两端，与滑条共用 INormalizedScale。当前只经线性工厂构造（渲染器按线性算）。
+    // 值轴标度——自动化上下界即 slider 两端，与滑条共用 INormalizedScale。参数区绘制/渲染与合成求值均经标度投影：
+    // 离散标度（如 NormalizedScale.Integer）使信号处处落格——不止写入吸附，宿主在求值/渲染时把 Hermite 连续输出
+    // 投影回标度（曲线呈阶梯、插件读到的最终值即落格），故引擎无需自行取整。线性标度下投影 = 纯范围钳位。
     public INormalizedScale Scale { get; private set; } = null!;
 
     // 轨曲线渲染色（hex）。不设给中性默认——但同一面板多轨应各设其色以免撞色。
@@ -41,6 +43,10 @@ public sealed class AutomationConfig : IValueConfig<double>
     // 量程即必需项；默认分段（NaN 基线），按需 WithDefault 转连续。
     public static AutomationConfig Create(double minValue, double maxValue)
         => new() { Scale = NormalizedScale.Linear(minValue, maxValue) };
+
+    // 自定义标度入口（整数吸附/对数轴等；约定单调递增）。与 SliderConfig.Create 对偶。
+    public static AutomationConfig Create(INormalizedScale scale)
+        => new() { Scale = scale };
 
     // 设默认基线 → 连续轨（传 NaN 仍为分段）。
     public AutomationConfig WithDefault(double value) { var c = Clone(); c.DefaultValue = value; return c; }

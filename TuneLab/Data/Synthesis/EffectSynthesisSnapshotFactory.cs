@@ -74,10 +74,11 @@ internal static class EffectSynthesisSnapshotFactory
                     : new ConstantAutomationEvaluator(kvp.Value.DefaultValue);
                 vibratos = SelectVibratos(vibratoCaptures, key);
             }
+            // 最外层套标度量化（vibrato/envelope 之后）：离散 scale ⇒ 插件读到的最终值处处落格；线性 scale 仅钳位。
             automations.Add(key, new SynthesisAutomationSnapshot
             {
-                Evaluator = new FrozenFinalAutomationEvaluator(
-                    baseEvaluator, vibratos, envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false),
+                Evaluator = new ScaleQuantizingEvaluator(new FrozenFinalAutomationEvaluator(
+                    baseEvaluator, vibratos, envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false), kvp.Value.Scale),
             });
         }
 

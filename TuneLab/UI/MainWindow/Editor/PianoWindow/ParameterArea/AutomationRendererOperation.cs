@@ -77,14 +77,14 @@ internal partial class AutomationRenderer
                         case MouseButtonType.PrimaryButton:
                             if (item is AutomationAnchorItem anchorItem)
                             {
-                                mAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.Automation, anchorItem.AnchorPoint, anchorItem.MinValue, anchorItem.MaxValue);
+                                mAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.Automation, anchorItem.AnchorPoint, anchorItem.Scale);
                             }
                             else if (e.IsDoubleClick)
                             {
                                 if (!TryGetActiveAutomation(out var automation, out var config, true))
                                     break;
 
-                                var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - automation.Part.Pos.Value, YToValue(e.Position.Y, config.MinValue, config.MaxValue)) { IsSelected = true };
+                                var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - automation.Part.Pos.Value, YToValue(e.Position.Y, config.Scale)) { IsSelected = true };
                                 automation.InsertPoint(anchor);
                                 var insertedAnchor = automation.Points.FirstOrDefault(point => point.Pos == anchor.Pos);
                                 if (insertedAnchor == null)
@@ -92,7 +92,7 @@ internal partial class AutomationRenderer
 
                                 automation.Points.DeselectAllItems();
                                 insertedAnchor.Select();
-                                mAnchorMoveOperation.Down(e.Position, ctrl, automation, insertedAnchor, config.MinValue, config.MaxValue, true);
+                                mAnchorMoveOperation.Down(e.Position, ctrl, automation, insertedAnchor, config.Scale, true);
                             }
                             else
                             {
@@ -392,8 +392,7 @@ internal partial class AutomationRenderer
                             {
                                 Automation = piecewise,
                                 AnchorPoint = point,
-                                MinValue = pconfig.MinValue,
-                                MaxValue = pconfig.MaxValue,
+                                Scale = pconfig.Scale,
                                 Color = pcolor,
                             });
                         }
@@ -420,8 +419,7 @@ internal partial class AutomationRenderer
                     {
                         Automation = automation,
                         AnchorPoint = point,
-                        MinValue = config.MinValue,
-                        MaxValue = config.MaxValue,
+                        Scale = config.Scale,
                         Color = color,
                     });
                 }
@@ -495,7 +493,7 @@ internal partial class AutomationRenderer
             mEntry = part.GetNoteLaneEntry(key.Value);
             part.BeginMergeDirty();
             mHead = part.Head;
-            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.Scale);
             mLastX = position.X;
             Apply(position, constantValue);
         }
@@ -522,7 +520,7 @@ internal partial class AutomationRenderer
 
         void Apply(Avalonia.Point position, bool constantValue)
         {
-            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.Scale);
             double tick0 = AutomationRenderer.TickAxis.X2Tick(Math.Min(mLastX, position.X));
             double tick1 = AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X));
             mLastX = position.X;
@@ -655,7 +653,7 @@ internal partial class AutomationRenderer
             mId = key.Value.Id;
             part.BeginMergeDirty();
             mHead = part.Head;
-            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            mDownValue = AutomationRenderer.YToValue(position.Y, mEntry.Scale);
             mLastX = position.X;
             Apply(position, constantValue);
         }
@@ -682,7 +680,7 @@ internal partial class AutomationRenderer
 
         void Apply(Avalonia.Point position, bool constantValue)
         {
-            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.MinValue, mEntry.MaxValue);
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(position.Y, mEntry.Scale);
             var tempoManager = mPart!.TempoManager;
             double sec0 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Min(mLastX, position.X))));
             double sec1 = tempoManager.GetTime(Math.Max(0, AutomationRenderer.TickAxis.X2Tick(Math.Max(mLastX, position.X))));
@@ -916,9 +914,8 @@ internal partial class AutomationRenderer
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = mAutomation.Head;
             var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationKey.Value);
-            mMin = config.MinValue;
-            mMax = config.MaxValue;
-            mDownValue = mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin);   // 锁定按下时的 y，供定值绘制
+            mScale = config.Scale;
+            mDownValue = AutomationRenderer.YToValue(mousePosition.Y, mScale);   // 锁定按下时的 y，供定值绘制
 
             mPointLines.Add([ToTickAndValue(mousePosition, constantValue)]);
             mAutomation.AddLine(mPointLines[0], Settings.ParameterBoundaryExtension);
@@ -986,13 +983,12 @@ internal partial class AutomationRenderer
 
         TuneLab.Foundation.Point ToTickAndValue(Avalonia.Point mousePosition, bool constantValue)
         {
-            double value = constantValue ? mDownValue : mMax - (mousePosition.Y / AutomationRenderer.Bounds.Height) * (mMax - mMin);
+            double value = constantValue ? mDownValue : AutomationRenderer.YToValue(mousePosition.Y, mScale);
             return new(AutomationRenderer.TickAxis.X2Tick(mousePosition.X) - mAutomation!.Part.Pos.Value, value);
         }
 
         IAutomation? mAutomation = null;
-        double mMax;
-        double mMin;
+        SDK.INormalizedScale mScale = null!;
         double mDownValue;   // 定值绘制锁定的值（按下时捕获）
         bool mDirection;
         Head mHead;
@@ -1067,6 +1063,8 @@ internal partial class AutomationRenderer
 
     readonly ClearOperation mClearOperation;
 
+    // 选区（框选锚点）的值轴比较在归一化域进行：纯几何操作不过标度取值，吸附标度下选框边界才不跳格；
+    // 锚点值经 ToNormalized（连续逆）落到同一域比较，视觉包含即选中——所见即所选。
     class AnchorSelectOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
         // 须同时判 mAutomation：分段轨选区操作也用 State.AnchorSelecting，靠 mAutomation 区分是否本（连续）操作在跑。
@@ -1081,11 +1079,10 @@ internal partial class AutomationRenderer
                 return;
 
             State = State.AnchorSelecting;
-            mMinValue = config.MinValue;
-            mMaxValue = config.MaxValue;
+            mScale = config.Scale;
             mDefaultValue = mAutomation.DefaultValue.Value;
             mDownTick = AutomationRenderer.TickAxis.X2Tick(point.X) - mAutomation.Part.Pos.Value;
-            mDownValue = AutomationRenderer.YToValue(point.Y, mMinValue, mMaxValue);
+            mDownNormalized = AutomationRenderer.YToNormalized(point.Y);
             if (ctrl)
             {
                 mSelectedItems = mAutomation.Points.AllSelectedItems();
@@ -1099,7 +1096,7 @@ internal partial class AutomationRenderer
                 return;
 
             mTick = AutomationRenderer.TickAxis.X2Tick(point.X) - mAutomation.Part.Pos.Value;
-            mValue = AutomationRenderer.YToValue(point.Y, mMinValue, mMaxValue);
+            mNormalized = AutomationRenderer.YToNormalized(point.Y);
             mAutomation.Points.DeselectAllItems();
             if (mSelectedItems != null)
             {
@@ -1109,12 +1106,12 @@ internal partial class AutomationRenderer
 
             double minTick = Math.Min(mTick, mDownTick);
             double maxTick = Math.Max(mTick, mDownTick);
-            double minValue = Math.Min(mValue, mDownValue);
-            double maxValue = Math.Max(mValue, mDownValue);
+            double minNormalized = Math.Min(mNormalized, mDownNormalized);
+            double maxNormalized = Math.Max(mNormalized, mDownNormalized);
             foreach (var pointItem in mAutomation.Points)
             {
-                double value = pointItem.Value + mDefaultValue;
-                if (pointItem.Pos >= minTick && pointItem.Pos <= maxTick && value >= minValue && value <= maxValue)
+                double normalized = mScale.ToNormalized(pointItem.Value + mDefaultValue);
+                if (pointItem.Pos >= minTick && pointItem.Pos <= maxTick && normalized >= minNormalized && normalized <= maxNormalized)
                     pointItem.Select();
             }
 
@@ -1141,24 +1138,21 @@ internal partial class AutomationRenderer
 
             double minTick = Math.Min(mTick, mDownTick);
             double maxTick = Math.Max(mTick, mDownTick);
-            double minValue = Math.Min(mValue, mDownValue);
-            double maxValue = Math.Max(mValue, mDownValue);
             double left = AutomationRenderer.TickAxis.Tick2X(mAutomation.Part.Pos.Value + minTick);
             double right = AutomationRenderer.TickAxis.Tick2X(mAutomation.Part.Pos.Value + maxTick);
-            double top = AutomationRenderer.ValueToY(maxValue, mMinValue, mMaxValue);
-            double bottom = AutomationRenderer.ValueToY(minValue, mMinValue, mMaxValue);
+            double top = AutomationRenderer.NormalizedToY(Math.Max(mNormalized, mDownNormalized));
+            double bottom = AutomationRenderer.NormalizedToY(Math.Min(mNormalized, mDownNormalized));
             return new Rect(left, top, right - left, bottom - top);
         }
 
         IAutomation? mAutomation;
         IReadOnlyCollection<AnchorPoint>? mSelectedItems;
-        double mMinValue;
-        double mMaxValue;
+        SDK.INormalizedScale mScale = null!;
         double mDefaultValue;
         double mDownTick;
-        double mDownValue;
+        double mDownNormalized;
         double mTick;
-        double mValue;
+        double mNormalized;
     }
 
     readonly AnchorSelectOperation mAnchorSelectOperation;
@@ -1227,7 +1221,7 @@ internal partial class AutomationRenderer
 
     class AnchorMoveOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
-        public void Down(Avalonia.Point point, bool ctrl, IAutomation automation, AnchorPoint anchor, double minValue, double maxValue, bool keepChangeWithoutMove = false)
+        public void Down(Avalonia.Point point, bool ctrl, IAutomation automation, AnchorPoint anchor, SDK.INormalizedScale scale, bool keepChangeWithoutMove = false)
         {
             if (AutomationRenderer.Part == null)
                 return;
@@ -1237,8 +1231,7 @@ internal partial class AutomationRenderer
             mCtrl = ctrl;
             mIsSelected = anchor.IsSelected;
             mKeepChangeWithoutMove = keepChangeWithoutMove;
-            mMin = minValue;
-            mMax = maxValue;
+            mScale = scale;
             if (!mCtrl && !mIsSelected)
             {
                 mAutomation.Points.DeselectAllItems();
@@ -1249,7 +1242,7 @@ internal partial class AutomationRenderer
             AutomationRenderer.Part.BeginMergeDirty();
             mHead = AutomationRenderer.Part.Head;
             mXOffset = point.X - AutomationRenderer.TickAxis.Tick2X(AutomationRenderer.Part.Pos.Value + anchor.Pos);
-            mYOffset = point.Y - AutomationRenderer.ValueToY(anchor.Value + automation.DefaultValue.Value, mMin, mMax);
+            mYOffset = point.Y - AutomationRenderer.ValueToY(anchor.Value + automation.DefaultValue.Value, mScale);
             AutomationRenderer.UpdateAnchorValueInput();
             AutomationRenderer.InvalidateVisual();
         }
@@ -1262,7 +1255,7 @@ internal partial class AutomationRenderer
 
             double pos = AutomationRenderer.TickAxis.X2Tick(point.X - mXOffset) - part.Pos.Value;
             double posOffset = pos - mAnchor.Pos;
-            double value = AutomationRenderer.YToValue(point.Y - mYOffset, mMin, mMax);
+            double value = AutomationRenderer.YToValue(point.Y - mYOffset, mScale);
             double valueOffset = value - (mAnchor.Value + mAutomation.DefaultValue.Value);
 
             mMoved = true;
@@ -1319,8 +1312,7 @@ internal partial class AutomationRenderer
         bool mKeepChangeWithoutMove = false;
         double mXOffset;
         double mYOffset;
-        double mMin;
-        double mMax;
+        SDK.INormalizedScale mScale = null!;
         Head mHead;
     }
 
