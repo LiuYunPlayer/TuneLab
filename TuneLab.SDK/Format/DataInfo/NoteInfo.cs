@@ -24,8 +24,8 @@ public class NoteInfo
     // 注意与 Pos/Dur 的 tick 不同——音素域一律用秒（同 PhonemeInfo.Duration）。仅在有音素时有意义；默认 0（元音起手 / 无钉死）。
     public double BodyOffset { get; set; }
 
-    // 全序列只读视图 = LeadingPhonemes ++ BodyPhonemes（时间序）；供只读消费者用（每次拼接）。
-    public IReadOnlyList<PhonemeInfo> Phonemes => LeadingPhonemes.Concat(BodyPhonemes).ToList();
+    // 全序列 = LeadingPhonemes 后接 BodyPhonemes（时间序）。刻意不设计算属性：DTO 上的派生属性会被反射式
+    // 序列化器（如 System.Text.Json）当数据写出、与两个源列表重复。消费方直接 LeadingPhonemes.Concat(BodyPhonemes) 即可。
 }
 
 public static class NoteInfoExtension
