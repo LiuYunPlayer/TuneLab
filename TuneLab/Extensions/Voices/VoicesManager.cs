@@ -80,13 +80,13 @@ internal static class VoicesManager
     }
 
     // 声库目录元数据（无需创建会话）；引擎不可用或 id 未知返回 false。
-    public static bool TryGetVoiceInfo(string type, string id, out VoiceSourceInfo info)
+    public static bool TryGetVoiceInfo(string type, string id, [MaybeNullWhen(false)] out VoiceSourceInfo info)
     {
         var engine = GetInitedEngine(type);
         if (engine != null && engine.VoiceSourceInfos.TryGetValue(id, out info))
             return true;
 
-        info = default;
+        info = null;
         return false;
     }
 

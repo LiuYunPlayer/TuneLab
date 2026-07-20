@@ -78,13 +78,13 @@ internal static class InstrumentsManager
     }
 
     // 音源目录元数据（无需创建会话）；引擎不可用或 id 未知返回 false。
-    public static bool TryGetInstrumentInfo(string type, string id, out InstrumentSourceInfo info)
+    public static bool TryGetInstrumentInfo(string type, string id, [MaybeNullWhen(false)] out InstrumentSourceInfo info)
     {
         var engine = GetInitedEngine(type);
         if (engine != null && engine.InstrumentSourceInfos.TryGetValue(id, out info))
             return true;
 
-        info = default;
+        info = null;
         return false;
     }
 
