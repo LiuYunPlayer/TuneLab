@@ -147,6 +147,36 @@ public class NotifiableSubscriptionTests
         Assert.Equal(1, list.ItemAddedSubscriberCount);
     }
 
+    // 同一 handler 对同一 WhenAnyItem 重复订阅：账本 mWires 须按次堆叠（对齐 mDownstreams 的 List 容忍重复、
+    // 原生事件"订 N 次触发 N 次"），退订对称、全退订后无悬挂转发器。曾因覆盖式记账致后订抹掉先订的转发器记录，
+    // 全退订后仍有一份转发器悬在成员事件上（泄漏 + 退订后回调）。
+    [Fact]
+    public void WhenAnyItem_DuplicateHandler_SubscribeUnsubscribeSymmetric_NoLeak()
+    {
+        var list = new FakeNotifiableList<NotifiableProperty<double>>();
+        var a = new NotifiableProperty<double>(0);
+        list.Add(a);
+
+        int fired = 0;
+        Action<NotifiableProperty<double>> onChanged = _ => fired++;
+        var aggregate = list.WhenAnyItem(p => ((IReadOnlyNotifiableProperty<double>)p).Modified);
+
+        aggregate.Subscribe(onChanged);
+        aggregate.Subscribe(onChanged);                     // 同一 handler 订两次
+
+        a.Value = 1;
+        Assert.Equal(2, fired);                             // 两份接线各触发一次
+
+        aggregate.Unsubscribe(onChanged);                   // 退一次 → 剩一份
+        a.Value = 2;
+        Assert.Equal(3, fired);                             // 仍触发一次
+
+        aggregate.Unsubscribe(onChanged);                   // 退第二次 → 全清
+        Assert.Equal(0, list.ItemAddedSubscriberCount);     // source 接线归零
+        a.Value = 3;
+        Assert.Equal(3, fired);                             // 全退订后静默——无悬挂转发器再回调
+    }
+
     [Fact]
     public void WhenAny_RefCounts_SourceSubscription_NoEagerNoLeak()
     {

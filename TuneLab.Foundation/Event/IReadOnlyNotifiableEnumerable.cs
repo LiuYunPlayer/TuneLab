@@ -108,20 +108,26 @@ public static class IReadOnlyNotifiableEnumerableExtension
                 actionEvent.Subscribe(Forward);
                 subscriptions.Add((actionEvent, Forward));
             }
-            mWires[(item, handler)] = subscriptions;
+            // 同一 (item, handler) 可被 wire 多次——下游把同一 handler 重复订阅（mDownstreams 是 List、容忍重复，
+            // 与原生事件"订两次触发两次"一致）。每次的转发器身份不同，故按次堆叠留存、退订时逐次弹出精确摘除；
+            // 若覆盖式记账则后一次会抹掉前一次的转发器记录，致其永不退订（泄漏 + 全退订后仍回调）。
+            if (!mWires.TryGetValue((item, handler), out var stack))
+                mWires[(item, handler)] = stack = new();
+            stack.Push(subscriptions);
         }
 
         protected override void UnwireItem(T item, Action<T> handler)
         {
-            if (mWires.Remove((item, handler), out var subscriptions))
-            {
-                foreach (var (actionEvent, forward) in subscriptions)
-                    actionEvent.Unsubscribe(forward);
-            }
+            if (!mWires.TryGetValue((item, handler), out var stack) || stack.Count == 0)
+                return;
+            foreach (var (actionEvent, forward) in stack.Pop())
+                actionEvent.Unsubscribe(forward);
+            if (stack.Count == 0)
+                mWires.Remove((item, handler));
         }
 
         readonly Func<T, IEvent<Action>>[] mSelectors;
-        readonly Dictionary<(T, Action<T>), List<(IEvent<Action> Event, Action Forward)>> mWires = new();
+        readonly Dictionary<(T, Action<T>), Stack<List<(IEvent<Action> Event, Action Forward)>>> mWires = new();
     }
 
     // 跟随集合任一成员的某个事件：成员增删时自动接上/退订，使用者只订一次。
