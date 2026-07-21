@@ -92,8 +92,9 @@ public sealed class ComboBoxConfig : IValueConfig
 
     // 空起手，配合 Append 链式拼装。
     public static ComboBoxConfig Create() => new();
-    // 一次给全列表的便捷路。
-    public static ComboBoxConfig Create(IReadOnlyList<ComboBoxItem> options) => new() { Items = options };
+    // 一次给全列表的便捷路。构造即拷贝（[.. options]）：与调用方构造后对原 list 的改动无关，
+    // 且与 Append 链路的 [.. Items, …] 写法一致（Items 恒为 config 自持的独立数组）。
+    public static ComboBoxConfig Create(IReadOnlyList<ComboBoxItem> options) => new() { Items = [.. options] };
 
     public ComboBoxConfig Append(ComboBoxItem option) { var c = Clone(); c.Items = [.. Items, option]; return c; }
     public ComboBoxConfig Append(IEnumerable<ComboBoxItem> options) { var c = Clone(); c.Items = [.. Items, .. options]; return c; }
