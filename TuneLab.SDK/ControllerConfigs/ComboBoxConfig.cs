@@ -20,7 +20,6 @@ public struct ComboBoxItem(PropertyValue value, string? displayText = null) : IE
     // 与 Value 语义互斥（叶子有值无子项、分组有子项无值），故不混入叶子主构造函数的可选参数。
     // 允许空列表：表示"分组存在但暂无子项"（如引擎已加载但无音源），渲染为空子菜单、不可选。
     public IReadOnlyList<ComboBoxItem>? SubItems { get; init; } = null;
-    public readonly bool IsGroup => SubItems is not null;
     // 分隔线项：不可选、不计入选中；DisplayText 为可选居中标签（null/空 = 纯线）。
     // private set：唯一构造路径是 Separator() 工厂，外部初始化器不能把普通项标成分隔线（避免矛盾态）。
     // internal：分隔线是 config 内部/宿主关切，插件只经 ComboBoxConfig.AppendSeparator 造、不直接读判（经 InternalsVisibleTo 暴露给宿主渲染器）。
@@ -35,9 +34,6 @@ public struct ComboBoxItem(PropertyValue value, string? displayText = null) : IE
 
     // 分隔线（可带居中标签）：分段用。internal——插件经 ComboBoxConfig.AppendSeparator 造分隔线，不直接手搓。
     internal static ComboBoxItem Separator(string? label = null) => new(PropertyValue.Null, label) { IsSeparator = true };
-
-    // 显示文本：优先 DisplayText，缺省回退到值的字面量。
-    public readonly string ShowText() => DisplayText ?? Value.ToString() ?? string.Empty;
 
     public static implicit operator ComboBoxItem(PropertyValue value) => new(value);
     public static implicit operator ComboBoxItem(bool value) => new(PropertyValue.Create(value));

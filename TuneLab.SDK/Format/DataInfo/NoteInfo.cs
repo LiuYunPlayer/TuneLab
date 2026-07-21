@@ -21,17 +21,5 @@ public class NoteInfo
 
     // 全序列 = LeadingPhonemes 后接 BodyPhonemes（时间序）。刻意不设计算属性：DTO 上的派生属性会被反射式
     // 序列化器（如 System.Text.Json）当数据写出、与两个源列表重复。消费方直接 LeadingPhonemes.Concat(BodyPhonemes) 即可。
-}
-
-public static class NoteInfoExtension
-{
-    public static double StartPos(this NoteInfo info)
-    {
-        return info.Pos;
-    }
-
-    public static double EndPos(this NoteInfo info)
-    {
-        return info.Pos + info.Dur;
-    }
+    // 同理不设 EndPos/StartPos 之类的位置投影——末位 = Pos + Dur，消费方就地相加即可。
 }

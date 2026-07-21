@@ -346,11 +346,11 @@ public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesis
 ```
 
 - **required、不是默认接口方法**：`GetPhonemePropertyConfigs` 与 `GetNotePropertyConfig` / `GetPartPropertyConfig` 一样**必须实现**。不声明音素属性的引擎直接 `return [];`（空 map）即可。
-- **复用 note 声明上下文**：不再有独立的 phoneme context——phoneme 声明上下文与 note 声明上下文本就等价，故直接收 `IVoiceSynthesisNotePropertyContext`（即 note 面板那套 `{ Part; IReadOnlyList<IVoiceSynthesisNoteView> Notes }`），每个 `IVoiceSynthesisNoteView` 现带 `Phonemes`。
+- **复用 note 声明上下文**：不再有独立的 phoneme context——phoneme 声明上下文与 note 声明上下文本就等价，故直接收 `IVoiceSynthesisNotePropertyContext`（即 note 面板那套 `{ Part; IReadOnlyList<IVoiceSynthesisNoteView> Notes }`），每个 `IVoiceSynthesisNoteView` 带音素双列表 `LeadingPhonemes` / `BodyPhonemes`。
 - **按核相对 slot 键控**：键 = 音素的核相对坐标 `slot = 下标 − LeadingPhonemes.Count`（0 = 核、<0 = 引导辅音、>0 = 核后），即音素在 note 内的**角色**；值 = 该角色在整个选区上的 schema。schema 授给角色而非单个音素——多选 note 时宿主把各 note 同 slot 的音素并到一行、共用这套 schema；单选时 slot 与逐音素一一对应、表达力无损。**空 map = 所有音素均无属性**；缺席的 slot = 该角色无属性（宿主按无属性处理，不报错）——键控自描述，不存在「长度须精确对齐」的位置契约。
 - **多选合并归引擎（契约同 `GetNotePropertyConfig`）**：schema 依赖当前属性值时，自行对同 slot 各成员值做三态合并再条件化——`context.Notes.Select(n => n.PhonemeAt(slot)?.Properties)` 取非空者 `Merge()`。宿主只按 slot 合并**值**、从不合并 schema。
 - **`PhonemeSlots` 口径助手（SDK 共享纯函数，引擎与宿主同用一份、永不漂移）**：`note.PhonemeAt(slot)`（该位音素，无则 null）、`notes.UnionSlots()`（选区 slot 全集，升序连续区间）；核下标即 `LeadingPhonemes.Count`（表达式自明，不另设 API）。
-- **`IVoiceSynthesisNoteView.Phonemes`**：该 note 的有序音素（前置辅音 → 核 → 后辅音；音素在 note 内的位置 = 此列表索引），元素为 `IVoiceSynthesisPhonemeView`。
+- **`IVoiceSynthesisNoteView.LeadingPhonemes` / `BodyPhonemes`**：该 note 的音素双列表（引导辅音；核 + 尾辅音），时间序，元素为 `IVoiceSynthesisPhonemeView`。全序列 = `LeadingPhonemes` ++ `BodyPhonemes`（前置辅音 → 核 → 后辅音），音素在 note 内的位置 = 此拼接串的索引。视图上**刻意不设**合并 `Phonemes` 投影——自行拼接，或用上面的 `PhonemeSlots` 助手（跨两列表索引）。
 - **`IVoiceSynthesisPhonemeView`**（声明面读音素当前值）：`string Symbol` / `double Duration` / `double StretchWeight` / `PropertyObject Properties`（该音素属性当前值快照）。引导/主体归属由 note 视图的 `LeadingPhonemes` / `BodyPhonemes` 列表成员（+ `double BodyOffset`）给、不落每音素。可据这些当前值 + slot 进一步条件化 schema。
 - schema 仍用同一套控件配置词汇搭（`SliderConfig` / `ComboBoxConfig` / `CheckBoxConfig` / `TextBoxConfig`，容器 `ObjectConfig`），与 note 属性写法一致。
 

@@ -54,8 +54,6 @@ TuneLab.SDK.ComboBoxItem.ComboBoxItem(string! displayText, System.Collections.Ge
 TuneLab.SDK.ComboBoxItem.DisplayText.get -> string?
 TuneLab.SDK.ComboBoxItem.DisplayText.init -> void
 TuneLab.SDK.ComboBoxItem.Equals(TuneLab.SDK.ComboBoxItem other) -> bool
-TuneLab.SDK.ComboBoxItem.IsGroup.get -> bool
-TuneLab.SDK.ComboBoxItem.ShowText() -> string!
 TuneLab.SDK.ComboBoxItem.SubItems.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.ComboBoxItem>?
 TuneLab.SDK.ComboBoxItem.SubItems.init -> void
 TuneLab.SDK.ComboBoxItem.Value.get -> TuneLab.Foundation.PropertyValue
@@ -277,7 +275,6 @@ TuneLab.SDK.IVoiceSynthesisNoteView.BodyPhonemes.get -> System.Collections.Gener
 TuneLab.SDK.IVoiceSynthesisNoteView.EndTime.get -> double
 TuneLab.SDK.IVoiceSynthesisNoteView.LeadingPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisPhonemeView!>!
 TuneLab.SDK.IVoiceSynthesisNoteView.Lyric.get -> string!
-TuneLab.SDK.IVoiceSynthesisNoteView.Phonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisPhonemeView!>!
 TuneLab.SDK.IVoiceSynthesisNoteView.Pitch.get -> int
 TuneLab.SDK.IVoiceSynthesisNoteView.Properties.get -> TuneLab.Foundation.PropertyObject!
 TuneLab.SDK.IVoiceSynthesisNoteView.StartTime.get -> double
@@ -376,7 +373,6 @@ TuneLab.SDK.NoteInfo.Pronunciation.get -> string!
 TuneLab.SDK.NoteInfo.Pronunciation.set -> void
 TuneLab.SDK.NoteInfo.Properties.get -> TuneLab.Foundation.PropertyObject!
 TuneLab.SDK.NoteInfo.Properties.set -> void
-TuneLab.SDK.NoteInfoExtension
 TuneLab.SDK.NumberFormat
 TuneLab.SDK.ObjectConfig
 TuneLab.SDK.ObjectConfig.Properties.get -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.IControllerConfig!>!
@@ -412,7 +408,6 @@ TuneLab.SDK.PhonemeLayoutNote.FillStart.get -> double
 TuneLab.SDK.PhonemeLayoutNote.FillStart.init -> void
 TuneLab.SDK.PhonemeLayoutNote.LeadingPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>!
 TuneLab.SDK.PhonemeLayoutNote.LeadingPhonemes.init -> void
-TuneLab.SDK.PhonemeLayoutNote.PhonemeCount.get -> int
 TuneLab.SDK.PhonemeLayoutNote.PhonemeLayoutNote() -> void
 TuneLab.SDK.PhonemeSlots
 TuneLab.SDK.PhonemeTiming
@@ -657,8 +652,6 @@ static TuneLab.SDK.NormalizedScale.Floor(TuneLab.SDK.INormalizedScale! scale) ->
 static TuneLab.SDK.NormalizedScale.Integer(double min, double max) -> TuneLab.SDK.INormalizedScale!
 static TuneLab.SDK.NormalizedScale.Linear(double min, double max) -> TuneLab.SDK.INormalizedScale!
 static TuneLab.SDK.NormalizedScale.Rounded(TuneLab.SDK.INormalizedScale! scale) -> TuneLab.SDK.INormalizedScale!
-static TuneLab.SDK.NoteInfoExtension.EndPos(this TuneLab.SDK.NoteInfo! info) -> double
-static TuneLab.SDK.NoteInfoExtension.StartPos(this TuneLab.SDK.NoteInfo! info) -> double
 static TuneLab.SDK.NumberFormat.Custom(System.Func<double, string!>! format, System.Func<string!, double?>! parse) -> TuneLab.SDK.INumberFormat!
 static TuneLab.SDK.NumberFormat.Decimals(int digits) -> TuneLab.SDK.INumberFormat!
 static TuneLab.SDK.ObjectConfig.Create(TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.IControllerConfig!>! properties) -> TuneLab.SDK.ObjectConfig!

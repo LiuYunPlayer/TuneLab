@@ -112,8 +112,8 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         {
             if (option.IsSeparator)
                 items.Add(new DropDownItem() { Text = option.DisplayText ?? string.Empty, IsSeparator = true });
-            else if (option.IsGroup)
-                items.Add(new DropDownItem() { Text = option.ShowText(), Children = BuildItems(option.SubItems!) });
+            else if (option.SubItems is not null)
+                items.Add(new DropDownItem() { Text = option.ShowText(), Children = BuildItems(option.SubItems) });
             else
                 items.Add(new DropDownItem() { Text = option.ShowText(), Tag = option.Value });
         }
@@ -127,8 +127,8 @@ internal class ComboBoxController : DropDown, IDataValueController<PropertyValue
         {
             if (option.IsSeparator)
                 continue;
-            else if (option.IsGroup)
-                CollectLeaves(option.SubItems!, leaves);
+            else if (option.SubItems is not null)
+                CollectLeaves(option.SubItems, leaves);
             else
                 leaves.Add(option);
         }

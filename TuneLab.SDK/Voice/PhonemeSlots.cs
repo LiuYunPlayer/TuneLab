@@ -12,12 +12,18 @@ namespace TuneLab.SDK;
 public static class PhonemeSlots
 {
     // 该 note 在 slot 处的音素；该位无音素（slot 越界）→ null。多选合并的成员选取即此。
-    // 核（slot 0）在全序列 Phonemes 里的下标 = LeadingPhonemes.Count（表达式自明，不另设转发 API）。
+    // 全序列 = 引导 ++ 主体：核（slot 0）= 主体首音素，全序列下标 = LeadingPhonemes.Count。就地跨两列表索引，不物化合并串。
     public static IVoiceSynthesisPhonemeView? PhonemeAt(this IVoiceSynthesisNoteView note, int slot)
     {
-        int index = slot + note.LeadingPhonemes.Count;
-        var phonemes = note.Phonemes;
-        return index >= 0 && index < phonemes.Count ? phonemes[index] : null;
+        var leading = note.LeadingPhonemes;
+        int index = slot + leading.Count;
+        if (index < 0)
+            return null;
+        if (index < leading.Count)
+            return leading[index];
+        index -= leading.Count;
+        var body = note.BodyPhonemes;
+        return index < body.Count ? body[index] : null;
     }
 
     // 选区 slot 全集（升序连续区间；全部 note 无音素 → 空）。引擎逐 slot 授 schema 的标准遍历。
@@ -26,10 +32,10 @@ public static class PhonemeSlots
         int min = int.MaxValue, max = int.MinValue;
         foreach (var note in notes)
         {
-            int count = note.Phonemes.Count;
+            int lead = note.LeadingPhonemes.Count;
+            int count = lead + note.BodyPhonemes.Count;
             if (count == 0)
                 continue;
-            int lead = note.LeadingPhonemes.Count;
             if (-lead < min) min = -lead;
             if (count - 1 - lead > max) max = count - 1 - lead;
         }

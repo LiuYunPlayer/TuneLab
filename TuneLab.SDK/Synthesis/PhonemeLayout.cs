@@ -27,9 +27,6 @@ public readonly struct PhonemeLayoutNote
     // 头切分（供跨 note 压缩）与本分类正交：切点恒是 note 头（FillStart），头落在哪个音素内由 junction 摆放后位置与
     // FillStart 直接比较得出（noteStart − junction = −BodyOffset，精确、严格比较无容差）；被切音素**未必**= 结合线那个。
     public double BodyOffset { get; init; }
-
-    // 全序列音素数（引导 + 主体）。
-    public int PhonemeCount => (LeadingPhonemes?.Count ?? 0) + (BodyPhonemes?.Count ?? 0);
 }
 
 // 一个音素去重叠后的真实时间区间（绝对秒）。Resolve 的返回元素。
@@ -205,10 +202,14 @@ public static class PhonemeLayout
     // 故严格比较无需容差（note 级去重叠是前置步骤，喂进来的 note 不交叠 → 相接即相等、有空隙即 FillEnd < FillStart）。
     static bool Connected(IReadOnlyList<PhonemeLayoutNote> notes, int i)
     {
-        if (notes[i].PhonemeCount == 0 || notes[i + 1].PhonemeCount == 0)
+        if (PhonemeCount(notes[i]) == 0 || PhonemeCount(notes[i + 1]) == 0)
             return false;
         return notes[i].FillEnd >= notes[i + 1].FillStart;
     }
+
+    // 全序列音素数（引导 + 主体）——Resolve 内部判空用，非公开投影。
+    static int PhonemeCount(in PhonemeLayoutNote note)
+        => (note.LeadingPhonemes?.Count ?? 0) + (note.BodyPhonemes?.Count ?? 0);
 
     // 一个 note 以 junction 为原点单次摆放、按 note 头切成拍前 / 跨拍 / 拍后的中间结果。索引 = 全序列（引导 ++ 主体）。
     readonly struct NoteSplit

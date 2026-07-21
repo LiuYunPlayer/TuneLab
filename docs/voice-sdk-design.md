@@ -471,7 +471,7 @@ public interface IVoiceSynthesisEngine   // 续（声明面）
 public static class PhonemeSlots { /* PhonemeAt / UnionSlots 扩展；核下标即 LeadingPhonemes.Count，不另设转发 API */ }
 
 // 音素只读值视图（声明面）：几何当前值 + per-phoneme 属性值快照（多选合并三态归插件）。
-// 挂在 IVoiceSynthesisNoteView.Phonemes 上（见 §8 声明面值视图）。
+// 挂在 IVoiceSynthesisNoteView 的 LeadingPhonemes/BodyPhonemes 双列表上（见 §8 声明面值视图）。
 public interface IVoiceSynthesisPhonemeView
 {
     string Symbol { get; }

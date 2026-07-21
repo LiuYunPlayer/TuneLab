@@ -91,8 +91,6 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
         public IReadOnlyList<IVoiceSynthesisPhonemeView> BodyPhonemes => note.HasPinnedPhonemes
             ? note.BodyPhonemes.Select(p => new PartPhoneme(p)).ToList()
             : (note.SynthesizedSyllable?.BodyPhonemes.Select(p => new PartPhoneme(p)).ToList() ?? []);
-        // 全序列视图 = 引导 ++ 主体（音素属性 schema 声明按此串对齐）。
-        public IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes => [.. LeadingPhonemes, .. BodyPhonemes];
     }
 
     // part 数据音素的只读值视图（声明面，voice 专属）：几何当前值 + per-phoneme 属性值快照。
