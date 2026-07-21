@@ -24,7 +24,7 @@ internal sealed class DropDownItem
     public bool IsGroup => Children is not null;
 }
 
-// 自造下拉控件（弃用原生 ComboBox）：触发面（文字 + ▾）+ 自管 Popup 菜单，支持二级子菜单。
+// 自造下拉控件（弃用原生 ComboBox）：触发面（文字 + ▾）+ 自管 Popup 菜单，支持任意层级子菜单。
 // 选中以"展平叶子序"的 SelectedIndex 表达（与原 ComboBox 契约一致），显示文本 = 选中叶子文本，否则 PlaceholderText。
 // 弹层为自绘行（复用 FlyoutMenuRow 同款 hover 风格），未来可在菜单顶部加搜索框过滤。
 internal class DropDown : Panel
@@ -81,7 +81,7 @@ internal class DropDown : Panel
         };
         mPopup.Closed += (_, _) =>
         {
-            CloseSubMenu();
+            CloseFrom(0);   // 收起整条子菜单链（各层子菜单是独立 Popup 窗口，须逐个关）
             mJustClosed = true;   // light-dismiss 命中触发面时随后的 Press 不重开 → toggle
             Dispatcher.UIThread.Post(() => mJustClosed = false, DispatcherPriority.Input);
         };
@@ -155,17 +155,19 @@ internal class DropDown : Panel
 
     public void Open()
     {
-        mPopup.Child = BuildMenu(mTopItems, Bounds.Width, root: true);
+        CloseFrom(0);   // 清空可能残留的链（防御：正常已在 Closed 里清过）
+        mPopup.Child = BuildMenu(mTopItems, Bounds.Width, depth: 0);
         mPopup.IsOpen = true;
     }
 
     // width > 0：固定菜单宽度（根菜单 = 触发面宽，与本体对齐）；<= 0：随内容（子菜单）。
-    // root：是否顶层菜单。顶层行 enter 时收起已展开的兄弟子菜单；子菜单内的行不收，否则指针移进子菜单即把自己关掉（浮不过去）。
-    Control BuildMenu(IReadOnlyList<DropDownItem> items, double width, bool root)
+    // depth：本菜单在子菜单链中的层深（根 = 0，其子菜单 = 1…）。行按此深度管理「本层已展开的子菜单」，
+    // 故移进子菜单是进入更深一层、不动本层及祖先，任意层级都不会把自己关掉（浮得过去）。
+    Control BuildMenu(IReadOnlyList<DropDownItem> items, double width, int depth)
     {
         var stack = new StackPanel() { Orientation = Orientation.Vertical };
         foreach (var item in items)
-            stack.Children.Add(BuildRow(item, root));
+            stack.Children.Add(BuildRow(item, depth));
 
         var scroll = new ScrollViewer()
         {
@@ -200,7 +202,7 @@ internal class DropDown : Panel
         return border;
     }
 
-    Control BuildRow(DropDownItem item, bool root)
+    Control BuildRow(DropDownItem item, int depth)
     {
         if (item.IsSeparator)
             return BuildSeparator(item.Text);
@@ -240,6 +242,7 @@ internal class DropDown : Panel
         {
             // 分组行：子 Popup 建在主菜单内容树内（与行同根），故 PlacementTarget=row 定位正常、可悬浮到侧边。
             // 负 HorizontalOffset 让子菜单与父菜单轻微重叠（仿右键菜单），消除指针横移时中途踩空隙导致收起。
+            // 子菜单是更深一层（depth+1），拥有自己的展开状态，故其内的行不会误关本行这层。
             var subPopup = new Popup()
             {
                 PlacementTarget = row,
@@ -247,17 +250,11 @@ internal class DropDown : Panel
                 HorizontalOffset = -6,
                 VerticalOffset = -5,
                 IsLightDismissEnabled = false,
-                Child = BuildMenu(item.Children!, 0, root: false),
+                Child = BuildMenu(item.Children!, 0, depth + 1),
             };
-            void OpenThis()
-            {
-                if (!ReferenceEquals(mOpenSub, subPopup))
-                    CloseSubMenu();
-                mOpenSub = subPopup;
-                subPopup.IsOpen = true;
-            }
-            row.PointerEntered += (_, _) => OpenThis();
-            row.PointerReleased += (_, e) => { e.Handled = true; OpenThis(); };
+            // 悬停 / 点击本组：收起本层其余已展开的兄弟子菜单（及更深残留），再展开自己。
+            row.PointerEntered += (_, _) => OpenAt(depth, subPopup);
+            row.PointerReleased += (_, e) => { e.Handled = true; OpenAt(depth, subPopup); };
 
             var host = new Panel();
             host.Children.Add(row);
@@ -265,9 +262,8 @@ internal class DropDown : Panel
             return host;
         }
 
-        // 顶层的叶子/空分组行：enter 时收起兄弟子菜单（子菜单内的行不收，否则移进子菜单会把自己关掉 → 浮不过去）。
-        if (root)
-            row.PointerEntered += (_, _) => CloseSubMenu();
+        // 叶子 / 空分组行：enter 时收起本层已展开的子菜单（含更深层）。任意层级同理——只动本层及更深、不碰祖先。
+        row.PointerEntered += (_, _) => CloseFrom(depth);
 
         // 叶子可选；空分组 no-op（不挂选择）。
         if (!item.IsGroup)
@@ -296,17 +292,31 @@ internal class DropDown : Panel
         return grid;
     }
 
-    void CloseSubMenu()
+    // 子菜单链：mChain[d] = 从「层深 d 的菜单」展开出的那个子 Popup（每层至多一个，因为每层只停留在一个菜单里）。
+    // 收起层深 >= depth 的全部子菜单（本层已展开的兄弟 + 其下所有更深层）。逆序关，逐个 IsOpen=false（各是独立 Popup 窗口）。
+    void CloseFrom(int depth)
     {
-        if (mOpenSub == null)
-            return;
-        mOpenSub.IsOpen = false;
-        mOpenSub = null;
+        for (int i = mChain.Count - 1; i >= depth; i--)
+        {
+            mChain[i].IsOpen = false;
+            mChain.RemoveAt(i);
+        }
+    }
+
+    // 在层深 depth 展开子菜单 sub：先收起本层原有兄弟（及更深），再压入本层。
+    // 能悬到 depth 层的行，其祖先链 [0..depth-1] 必在展开态，故 CloseFrom 后 mChain.Count 恰为 depth。
+    void OpenAt(int depth, Popup sub)
+    {
+        CloseFrom(depth);
+        if (mChain.Count != depth)
+            return;   // 祖先链意外不完整（不应发生）——防御性跳过，不制造错位
+        mChain.Add(sub);
+        sub.IsOpen = true;
     }
 
     void Select(DropDownItem leaf)
     {
-        CloseSubMenu();
+        CloseFrom(0);
         mPopup.IsOpen = false;
         int index = mLeaves.IndexOf(leaf);
         if (index < 0 || index == mSelectedIndex)
@@ -364,7 +374,7 @@ internal class DropDown : Panel
     readonly TextBlock mLabel;
     readonly Border mFace;
     readonly Popup mPopup;
-    Popup? mOpenSub;
+    readonly List<Popup> mChain = new();   // 当前展开的子菜单链（按层深索引，见 CloseFrom/OpenAt）
     string? mPlaceholderText;
     IBrush? mPlaceholderForeground;
     readonly TextBlock mMarker;
