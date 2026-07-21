@@ -432,11 +432,13 @@ internal static class ExtensionManager
                 EffectManager.RegisterEngine(packageId, ext.engine, displayName, (IEffectSynthesisEngine)ector!.Invoke(null));
                 return true;
 
+            // agent-model 刻意不开放外部扫描（2.0）：模型适配器是宿主内部模块（TuneLab/Agent/Contracts），
+            // 新适配走 PR 进宿主、经 AgentModelManager.LoadBuiltIn 注册（贡献指南 docs/agent-model-adapters.md）。
+            // 显式 case 报自解释错误——不从 IsCodeKind 摘除，免得声明 agent-model 的包被当资源类静默吞掉。
+            // 理由与将来开放为插件点的先决整改见 IAgentModelEngine 头注释。
             case "agent-model":
-                if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
-                if (!TryScanCtor<IAgentModelEngine>(assembly, candidates, out var actor, out error)) return false;
-                AgentModelManager.RegisterEngine(packageId, ext.engine, displayName, (IAgentModelEngine)actor!.Invoke(null));
-                return true;
+                error = "agent-model is host-internal in 2.0 (model adapters are contributed via PR), not open to external extensions";
+                return false;
 
             case "format":
                 return RegisterFormatEntry(packageId, ext, assembly, candidates, displayName, out error);

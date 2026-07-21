@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TuneLab.SDK;
+namespace TuneLab.Agent;
 
 // 一次 agent 会话：持有到某个模型的连接（含用户配置的端点/密钥/模型名等），驱动多轮对话。
 // 与 effect 的 IEffectSynthesisSession 同位——由引擎用"用户确定后的 properties"创建，宿主在会话存活期间复用。

@@ -41,8 +41,8 @@
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `type` | ✅ | 类别：`format` / `voice` / `instrument` / `effect` / `agent-model` / 资源类 |
-| `engine` | voice/instrument/effect/agent-model ✅ | 引擎类型 **id**（唯一身份，如 `"MyEngine"`）。**不可变**——它会写进工程文件，改了旧工程会失配。绝不本地化。 |
+| `type` | ✅ | 类别：`format` / `voice` / `instrument` / `effect` / 资源类（agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR） |
+| `engine` | voice/instrument/effect ✅ | 引擎类型 **id**（唯一身份，如 `"MyEngine"`）。**不可变**——它会写进工程文件，改了旧工程会失配。绝不本地化。 |
 | `extension` | format ✅ | 文件扩展名 **id**（不带点，如 `"myfmt"`）。同属不可变身份。 |
 | `name` | | **显示名**（UI 展示用），可与身份 id 不同、可翻译。省略则 UI 退回显示身份 id。 |
 | `localizations` | | 按语言翻译 `name`，如 `{ "zh-CN": { "name": "增益" } }`。缺当前语言则回退基础 `name`。 |
@@ -57,7 +57,6 @@
 | `voice` | `IVoiceSynthesisEngine`（首个命中者注册为引擎） |
 | `instrument` | `IInstrumentSynthesisEngine`（首个命中者注册为引擎） |
 | `effect` | `IEffectSynthesisEngine` |
-| `agent-model` | `IAgentModelEngine` |
 | `format` | `IImportFormat`（→ 注册导入）+ `IExportFormat`（→ 注册导出），各扫一遍、**至少命中其一**；同一个类可同时实现两者 |
 
 > 所以一种类型可以需要**多个入口类**（如 format 的导入类 + 导出类），数组天然承载；只导入/只导出的格式就只放对应那一个类。每个候选类需有**无参构造函数**。

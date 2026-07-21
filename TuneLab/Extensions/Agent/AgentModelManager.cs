@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using TuneLab.Agent;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
 using TuneLab.SDK;

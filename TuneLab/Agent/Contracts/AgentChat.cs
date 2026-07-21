@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 
-namespace TuneLab.SDK;
+namespace TuneLab.Agent;
 
-// agent 与模型之间的对话协议 DTO。放在 SDK 中，使第三方模型适配插件能直接消费/产出这些类型。
-// 第一版刻意保持最小：非流式、工具调用以原始 JSON 参数串传递（适配器内部翻译成各家协议字段）。
+// agent 与模型之间的对话协议 DTO（宿主内部模块协议，2.0 刻意不进 SDK——理由与整改 checklist 见
+// IAgentModelEngine 头注释）。刻意保持最小：工具调用以原始 JSON 参数串传递（适配器内部翻译成各家协议字段）。
 
 // 一条消息的角色。Tool 表示工具执行结果（须带 ToolCallId 回指）；Assistant 消息可携带 ToolCalls。
 public enum AgentRole

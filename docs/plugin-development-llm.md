@@ -7,7 +7,7 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `extension`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectSynthesisEngine`（对整段音频做离线变换）、agent-model 找 `IAgentModelEngine`，+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `extension`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectSynthesisEngine`（对整段音频做离线变换），+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
@@ -28,12 +28,12 @@
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
-- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | `"agent-model"` | 资源类（如 `"voicebank"`）。
-- `engine` (string, voice/instrument/effect/agent-model **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
+- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。（agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR。）
+- `engine` (string, voice/instrument/effect **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
 - `extension` (string, format **必填**) — 文件扩展名 **id**（不带点；同属不可变身份）。
 - `name` (string, 选填) — **显示名**（UI 用，可与 id 不同、可翻译）；省略则 UI 退回显示 id。
 - `localizations` (object, 选填) — 翻译 `name`，如 `{ "zh-CN": { "name": "增益" } }`。
-- `classes` (string[], 含代码**必填**) — **入口候选类全名数组**。宿主把数组里的类都扫一遍，按本 `type` 所需接口逐个匹配、命中即注册：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine` / agent-model→`IAgentModelEngine`（首个命中者）；format→`IImportFormat`(注册导入)+`IExportFormat`(注册导出)，各扫一遍、至少命中其一，同一类可同实现两接口。无需精确登记哪个类干哪件事——列上候选、宿主按接口认领。每个候选类需无参构造函数。
+- `classes` (string[], 含代码**必填**) — **入口候选类全名数组**。宿主把数组里的类都扫一遍，按本 `type` 所需接口逐个匹配、命中即注册：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine`（首个命中者）；format→`IImportFormat`(注册导入)+`IExportFormat`(注册导出)，各扫一遍、至少命中其一，同一类可同实现两接口。无需精确登记哪个类干哪件事——列上候选、宿主按接口认领。每个候选类需无参构造函数。
 - `assembly` (string, 含代码**必填**) — 含上述候选类的单个程序集（相对包根，所有候选类同居此程序集）；资源包不写。
 - `platforms` (string[], 选填) — 如 `["win","osx","linux"]` 或 `["win-x64"]`；空=全平台。
 - **身份 id vs 显示名**：`engine`/`extension` 是身份（注册键 + 序列化引用，不可变）；`name`/`localizations` 仅 UI 展示、可改可译。

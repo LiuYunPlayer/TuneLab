@@ -41,8 +41,8 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 
 | Field | Required | Description |
 |---|---|---|
-| `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / `agent-model` / resource type |
-| `engine` | ✅ for voice/instrument/effect/agent-model | The engine type **id** (unique identity, e.g. `"MyEngine"`). **Immutable** — it is written into project files, so changing it makes old projects mismatch. Never localize it. |
+| `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / resource type (agent-model is not open to external extensions: model adapters are a host-internal module; new adapters go in via PR) |
+| `engine` | ✅ for voice/instrument/effect | The engine type **id** (unique identity, e.g. `"MyEngine"`). **Immutable** — it is written into project files, so changing it makes old projects mismatch. Never localize it. |
 | `extension` | ✅ for format | The file extension **id** (no dot, e.g. `"myfmt"`). Also an immutable identity. |
 | `name` | | The **display name** (for UI), which may differ from the identity id and may be translated. If omitted, the UI falls back to showing the identity id. |
 | `localizations` | | Per-language translations of `name`, e.g. `{ "zh-CN": { "name": "增益" } }`. If the current language is missing, it falls back to the base `name`. |
@@ -57,7 +57,6 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 | `voice` | `IVoiceSynthesisEngine` (the first hit is registered as the engine) |
 | `instrument` | `IInstrumentSynthesisEngine` (the first hit is registered as the engine) |
 | `effect` | `IEffectSynthesisEngine` |
-| `agent-model` | `IAgentModelEngine` |
 | `format` | `IImportFormat` (→ registers import) + `IExportFormat` (→ registers export), each scanned, **at least one must hit**; one class may implement both |
 
 > So a single type can require **multiple entry classes** (e.g. a format's importer + exporter), which the array carries naturally; an import-only/export-only format just lists the one corresponding class. Each candidate class needs a **parameterless constructor**.

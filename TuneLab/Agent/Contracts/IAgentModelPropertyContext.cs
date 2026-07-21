@@ -1,6 +1,6 @@
 using TuneLab.Foundation;
 
-namespace TuneLab.SDK;
+namespace TuneLab.Agent;
 
 // 模型引擎参数面板 config 求值上下文（注入式只读），与 IEffectSynthesisPropertyContext 同形。
 // 承载用户在设置界面"已填过的稀疏值"（如已选的端点类型），引擎据此返回当前应呈现的 ObjectConfig

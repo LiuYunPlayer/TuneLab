@@ -16,11 +16,12 @@ namespace TuneLab.Extensions;
 //   engine/extension —— **不可变身份**（注册键 + 工程序列化引用），改了会让旧工程失配，绝不本地化。
 //   name/localizations —— **显示名**（仅 UI 展示），可按语言翻译；缺省回退到身份 id。
 //
-//   type       —— 必填，类别（决定派给哪个 manager）：format / voice / effect / agent-model / 资源类。
-//   engine     —— voice/effect/agent-model 的引擎类型 id。
+//   type       —— 必填，类别（决定派给哪个 manager）：format / voice / instrument / effect / 资源类。
+//                （agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR，见 ExtensionManager 注释。）
+//   engine     —— voice/instrument/effect 的引擎类型 id。
 //   extension  —— format 的文件扩展名（不带点）。
 //   classes    —— **入口候选类清单**（全名数组）：宿主把数组里的类都扫一遍，按本 type 所需接口逐个匹配、命中即注册
-//                （voice→IVoiceSynthesisEngine / effect→IEffectSynthesisEngine / agent-model→IAgentModelEngine / format→IImportFormat+IExportFormat）。
+//                （voice→IVoiceSynthesisEngine / effect→IEffectSynthesisEngine / format→IImportFormat+IExportFormat）。
 //                 因 manifest 只是"方便宿主加载的描述"，无需精确指明哪个类干哪件事——把候选都列上、宿主按接口认领。
 //                 一种类型可需多个入口类（如 format 的导入类 + 导出类），数组天然承载。
 //   assembly   —— 含上述实现类的程序集（相对包文件夹的路径）；资源类省略。所有候选类同居此程序集。
