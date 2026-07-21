@@ -382,7 +382,7 @@ internal partial class PianoScrollView
                                         }
                                         // 仅当选中音符里有「可锁而未锁」的（有合成音素、无钉死音素）才提供「锁定音素」——
                                         // 把合成产物固定为用户数据（与拖音素边界时的隐式锁定同源，见 INote.LockPhonemes）。
-                                        if (Part.Notes.AllSelectedItems().Any(n => !n.HasPinnedPhonemes && n.SynthesizedSyllable is { } s && s.Phonemes.Count > 0))
+                                        if (Part.Notes.AllSelectedItems().Any(n => !n.HasPinnedPhonemes && n.SynthesizedSyllable.PhonemeCount() > 0))
                                         {
                                             var menuItem = new MenuItem().SetName("Lock Phonemes".Tr(TC.Menu)).SetAction(() =>
                                             {

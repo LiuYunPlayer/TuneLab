@@ -124,7 +124,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
                 leading = notes[i].LeadingPhonemes.Select(Descriptor).ToArray();
                 body = notes[i].BodyPhonemes.Select(Descriptor).ToArray();
                 bodyOffset = notes[i].BodyOffset;
-                emit[i] = notes[i].Phonemes.Select(Descriptor).ToArray();
+                emit[i] = [.. leading, .. body];   // 扁平合并序 = 引导 ++ 主体（SDK 不再供 Phonemes，消费方自拼）
             }
             else if (baselineEcho != null && baselineEcho[i] is { } echo && (echo.LeadingPhonemes.Count > 0 || echo.BodyPhonemes.Count > 0))
             {
@@ -132,7 +132,7 @@ internal sealed class SnapshotNoteView : LVoice.ISynthesisNote
                 leading = echo.LeadingPhonemes;
                 body = echo.BodyPhonemes;
                 bodyOffset = echo.BodyOffset;
-                emit[i] = echo.Phonemes;
+                emit[i] = [.. leading, .. body];   // 同上：扁平合并序自拼
             }
             // else：基线 pass 全部 note，或真实 pass 中无缓存的未钉死 note → 喂空（leading/body 已空、emit[i] 留 null）。
 

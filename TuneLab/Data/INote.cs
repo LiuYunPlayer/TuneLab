@@ -69,7 +69,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             bool pinned = HasPinnedPhonemes;
             var syllable = SynthesizedSyllable;
             var pinnedPhonemes = pinned ? Phonemes : null;                    // 全序列（引导 ++ 主体）
-            var synthPhonemes = pinned ? null : syllable?.Phonemes;
+            var synthPhonemes = pinned ? null : syllable.AllPhonemes();
             int leadingCount = pinned ? LeadingPhonemes.Count : (syllable?.LeadingPhonemes.Count ?? 0);
             int n = pinned ? pinnedPhonemes!.Count : (synthPhonemes?.Count ?? 0);
             if (n == 0)
@@ -111,7 +111,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
     //（"非乘客邻居有没有数据可依"）。
     private static bool HasPhonemeContent(INote x)
     {
-        return x.HasPinnedPhonemes || (x.SynthesizedSyllable is { } s && s.Phonemes.Count > 0);
+        return x.HasPinnedPhonemes || x.SynthesizedSyllable.PhonemeCount() > 0;
     }
 
     // 本 note 钉死音素的核填充终点绝对秒（元音前向铺过乘客 melisma，不封顶、不压缩）：
@@ -169,7 +169,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             body = bodyArr;
             bodyOffset = double.IsNaN(bodyOffsetOverride) ? note.BodyOffset.Value : bodyOffsetOverride;
         }
-        else if (note.SynthesizedSyllable is { } syl && syl.Phonemes.Count > 0)
+        else if (note.SynthesizedSyllable is { } syl && syl.PhonemeCount() > 0)
         {
             leading = syl.LeadingPhonemes;
             body = syl.BodyPhonemes;
@@ -773,7 +773,7 @@ internal static class INoteExtension
         if (note.HasPinnedPhonemes)
             return;
 
-        if (note.SynthesizedSyllable is not { } syllable || syllable.Phonemes.Count == 0)
+        if (note.SynthesizedSyllable is not { } syllable || syllable.PhonemeCount() == 0)
             return;
 
         // 锁定 = 把合成产物固定为用户数据：按引导 / 主体双列表分别存各音素的【时长 + 权重】（位置由布局派生、不存），

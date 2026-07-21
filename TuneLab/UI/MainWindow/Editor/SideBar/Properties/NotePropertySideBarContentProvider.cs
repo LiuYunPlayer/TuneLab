@@ -210,7 +210,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             int lead = PhonemeLeadCount(note);
             if (note.HasPinnedPhonemes)
                 return "P" + string.Join("|", note.Phonemes.Select((p, i) => p.Symbol.Value + (i < lead ? "<" : ">")));
-            return "S" + (note.SynthesizedSyllable is { } s ? string.Join("|", s.Phonemes.Select((p, i) => p.Symbol + (i < lead ? "<" : ">"))) : "");
+            return "S" + (note.SynthesizedSyllable is { } s ? string.Join("|", s.AllPhonemes().Select((p, i) => p.Symbol + (i < lead ? "<" : ">"))) : "");
         }));
     }
 
@@ -270,7 +270,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         foreach (var note in mPart.Notes.AllSelectedItems())
         {
             bool pinned = note.HasPinnedPhonemes;
-            int count = pinned ? note.PhonemeCount : (note.SynthesizedSyllable?.Phonemes.Count ?? 0);
+            int count = pinned ? note.PhonemeCount : note.SynthesizedSyllable.PhonemeCount();
             var cfgs = new ObjectConfig?[count];
             for (int i = 0; i < count; i++)
             {
@@ -309,7 +309,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             bool isLead = a < 0;
 
             // 符号（可编、扇出）：各成员符号全等显该符号、否则 (...)。双击编辑，提交即对各成员 LockPhonemes + set Symbol 成一个撤销步。
-            var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedSyllable!.Value.Phonemes[m.Index].Symbol).Distinct().ToList();
+            var symbols = members.Select(m => m.Note.Pinned ? m.Note.Note.Phonemes[m.Index].Symbol.Value : m.Note.Note.SynthesizedSyllable.AllPhonemes()[m.Index].Symbol).Distinct().ToList();
             string displayed = symbols.Count == 1 ? symbols[0] : "(...)";
             var symbolField = BuildSymbolCell(displayed, members);
 
@@ -470,7 +470,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
         // 数据通知，钢琴窗据 Notes.Phonemes.Modified 实时重绘）；每帧先取 box.Value 再 DiscardTo(head) 后扇出写回；松手 Commit
         //（无改 Discard 连带回滚锁定）成一个撤销步。编辑期 mPhonemeScheduler.Suspended 抑制面板重建。锁定提交后转全钉死 → 重建走上面绑定路径。
         double ReadOf((PhonemeNoteInfo Note, int Index) m)
-            => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedSyllable!.Value.Phonemes[m.Index]);
+            => m.Note.Pinned ? field(m.Note.Note.Phonemes[m.Index]).Value : synthValue(m.Note.Note.SynthesizedSyllable.AllPhonemes()[m.Index]);
         void Refresh()
         {
             var vals = members.Select(ReadOf).Distinct().ToList();

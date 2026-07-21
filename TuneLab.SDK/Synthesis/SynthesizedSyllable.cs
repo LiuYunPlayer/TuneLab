@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 
 namespace TuneLab.SDK;
 
@@ -21,8 +20,8 @@ public readonly struct SynthesizedSyllable
     public IReadOnlyList<SynthesizedPhoneme> BodyPhonemes { get; }
     public double BodyOffset { get; }
 
-    // 只读全序列视图 = LeadingPhonemes ++ BodyPhonemes（时间序）。供「要全部、按时间序」的消费者用（不可变、每次拼接）。
-    public IReadOnlyList<SynthesizedPhoneme> Phonemes => LeadingPhonemes.Concat(BodyPhonemes).ToList();
+    // 扁平合并序（Leading ++ Body）不入 SDK 面：那是宿主扁平索引寻址的私事，需要时宿主侧自行拼（见宿主
+    // SynthesizedSyllableExtensions）。本类型只承载结构化真相（双列表 + BodyOffset）。
 
     public SynthesizedSyllable(IReadOnlyList<SynthesizedPhoneme> leadingPhonemes, IReadOnlyList<SynthesizedPhoneme> bodyPhonemes, double bodyOffset)
     {

@@ -448,14 +448,16 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 故块内快照自判与 live 判定等价（块首即 "-" 时链头必不在别的块 → 孤儿）。
         bool IsCont(int index)
         {
+            // 有无钉死音素 = 双列表任一非空（SDK 不供扁平 Phonemes，消费方从结构化列表自数）。
+            static bool HasPinned(VoiceSynthesisNoteSnapshot n) => n.LeadingPhonemes.Count > 0 || n.BodyPhonemes.Count > 0;
             var it = notes[index];
-            if (it.Lyric != "-" || it.Phonemes.Count > 0)
+            if (it.Lyric != "-" || HasPinned(it))
                 return false;
             for (int i = index; i > 0; i--)
             {
                 if (notes[i - 1].EndTime < notes[i].StartTime)
                     return false;                          // 空隙断链 → 孤儿（严格比较：边界同源 tick 换算，相接即精确相等）
-                if (notes[i - 1].Lyric != "-" || notes[i - 1].Phonemes.Count > 0)
+                if (notes[i - 1].Lyric != "-" || HasPinned(notes[i - 1]))
                     return true;                           // 回溯到链头 → 生效延续
             }
             return false;                                  // 触底无链头 → 孤儿

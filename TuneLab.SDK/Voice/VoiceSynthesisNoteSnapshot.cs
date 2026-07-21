@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using TuneLab.Foundation;
 
 namespace TuneLab.SDK;
@@ -26,8 +25,6 @@ public sealed class VoiceSynthesisNoteSnapshot
     // 非钉死（引擎 G2P）note 两列表皆空。分类即列表成员（抗抖、跨拍可显式归属）。
     public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> LeadingPhonemes { get; init; }
     public required IReadOnlyList<VoiceSynthesisPhonemeSnapshot> BodyPhonemes { get; init; }
-    // 全序列只读视图 = LeadingPhonemes ++ BodyPhonemes（时间序）；供「要全部」的消费者用（每次拼接、不可变）。
-    public IReadOnlyList<VoiceSynthesisPhonemeSnapshot> Phonemes => LeadingPhonemes.Concat(BodyPhonemes).ToList();
     // 主体起点（= 两列表结合线）相对 note 头的有符号偏移：junction = noteStart + BodyOffset（左负右正）。
     // 加性字段（非 required、默认 0）：无钉死音素或元音起手时 = 0。
     public double BodyOffset { get; init; }
