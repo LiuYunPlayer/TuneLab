@@ -248,8 +248,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             var body = new List<VVoice.SynthesizedPhoneme>();
             for (int i = 0; i < count; i++)
             {
-                var d = items[i];
-                d.StretchWeight = i == leadCount ? 1 : 0;         // ② 首个拍后音素 = 弹性核 w=1，其余 w=0
+                var d = items[i] with { StretchWeight = i == leadCount ? 1 : 0 };   // ② 首个拍后音素 = 弹性核 w=1，其余 w=0
                 if (i < leadCount) leading.Add(d); else body.Add(d);
             }
             // junction（结合线）= 主体首起点（其原始绝对起点）。BodyOffset = junction − note 头（有符号、不吸头）。

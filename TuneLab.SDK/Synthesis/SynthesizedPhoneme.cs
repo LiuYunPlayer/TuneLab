@@ -14,20 +14,24 @@ namespace TuneLab.SDK;
 // 想自管音频摆放（交叉淡入等）的引擎可不调，仍按本描述符自由放置、错位非致命。
 //
 // 粒度为整 note：IVoiceSynthesisNote.Phonemes 列表非空 = 全部音素用户钉死（引擎遵守约束）；为空 = 引擎从 Lyric 做 G2P + 全自由定时。
-public struct SynthesizedPhoneme
+//
+// 形态 = readonly struct + init 属性（合成域值 DTO 的房规默认）：值语义 + 不可变 + 对象初始化器 ergonomics
+// 与裸公开字段等同，但成员经属性访问器（get_X）稳定 ABI 面暴露——冻结后仍可把某成员的 backing 演进为
+// 带校验 / 计算的属性而不破 ABI（裸字段则永久锁死）。构造点一律 new SynthesizedPhoneme { Symbol = …, … }。
+public readonly struct SynthesizedPhoneme
 {
-    public string Symbol;
+    public string Symbol { get; init; }
 
     // 标称时长（秒）：辅音(StretchWeight=0)为其固定长；核 / 元音(StretchWeight>0)为其原长——布局按缩放比
     // len/d = r^w 分配（r 由可用空间守恒定）：单核时原长被抵消（恒填满核空间）；多核时原长定彼此基准比例。
-    public double Duration;
+    public double Duration { get; init; }
 
     // 伸缩权重：0 = 刚性辅音（长度固定、不参与伸缩）；>0 = 可伸核 / 元音，缩放比 len/d = r^w——
     // w 即「对数缩放敏感度」：同权重 ⇒ 同缩放比（等比保形），w 越大伸缩越剧烈，w=2 是 w=1 的平方。
     // 用户锁定音素时随时长一并固定为用户数据。全 w=0（含未设、默认零）时宿主退化为按原长整体等比缩放，无除零。
-    public double StretchWeight;
+    public double StretchWeight { get; init; }
 
-    public override readonly string ToString()
+    public override string ToString()
     {
         return $"{{{Symbol}: {Duration}s w={StretchWeight}}}";
     }
