@@ -1,0 +1,304 @@
+#nullable enable
+TuneLab.Foundation.ActionEvent
+TuneLab.Foundation.ActionEvent.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent.Invoke() -> void
+TuneLab.Foundation.ActionEvent.Subscribe(System.Action! action) -> void
+TuneLab.Foundation.ActionEvent.Unsubscribe(System.Action! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>.Invoke(T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>.Subscribe(System.Action<T1, T2, T3, T4, T5, T6, T7, T8>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>.Unsubscribe(System.Action<T1, T2, T3, T4, T5, T6, T7, T8>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>.Invoke(T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>.Subscribe(System.Action<T1, T2, T3, T4, T5, T6, T7>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>.Unsubscribe(System.Action<T1, T2, T3, T4, T5, T6, T7>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>.Invoke(T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>.Subscribe(System.Action<T1, T2, T3, T4, T5, T6>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>.Unsubscribe(System.Action<T1, T2, T3, T4, T5, T6>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>.Invoke(T1 t1, T2 t2, T3 t3, T4 t4, T5 t5) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>.Subscribe(System.Action<T1, T2, T3, T4, T5>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>.Unsubscribe(System.Action<T1, T2, T3, T4, T5>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>.Invoke(T1 t1, T2 t2, T3 t3, T4 t4) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>.Subscribe(System.Action<T1, T2, T3, T4>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>.Unsubscribe(System.Action<T1, T2, T3, T4>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3>
+TuneLab.Foundation.ActionEvent<T1, T2, T3>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3>.Invoke(T1 t1, T2 t2, T3 t3) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3>.Subscribe(System.Action<T1, T2, T3>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2, T3>.Unsubscribe(System.Action<T1, T2, T3>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2>
+TuneLab.Foundation.ActionEvent<T1, T2>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T1, T2>.Invoke(T1 t1, T2 t2) -> void
+TuneLab.Foundation.ActionEvent<T1, T2>.Subscribe(System.Action<T1, T2>! action) -> void
+TuneLab.Foundation.ActionEvent<T1, T2>.Unsubscribe(System.Action<T1, T2>! action) -> void
+TuneLab.Foundation.ActionEvent<T>
+TuneLab.Foundation.ActionEvent<T>.ActionEvent() -> void
+TuneLab.Foundation.ActionEvent<T>.Invoke(T t) -> void
+TuneLab.Foundation.ActionEvent<T>.Subscribe(System.Action<T>! action) -> void
+TuneLab.Foundation.ActionEvent<T>.Unsubscribe(System.Action<T>! action) -> void
+TuneLab.Foundation.DisposableManager
+TuneLab.Foundation.DisposableManager.Add(System.IDisposable! disposable) -> void
+TuneLab.Foundation.DisposableManager.DisposableManager() -> void
+TuneLab.Foundation.DisposableManager.DisposeAll() -> void
+TuneLab.Foundation.DisposableManager.Remove(System.IDisposable! disposable) -> void
+TuneLab.Foundation.FileImageResource
+TuneLab.Foundation.FileImageResource.FileImageResource(string! path) -> void
+TuneLab.Foundation.FileImageResource.Path.get -> string!
+TuneLab.Foundation.IActionEvent
+TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>
+TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6, T7>
+TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6>
+TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5>
+TuneLab.Foundation.IActionEvent<T1, T2, T3, T4>
+TuneLab.Foundation.IActionEvent<T1, T2, T3>
+TuneLab.Foundation.IActionEvent<T1, T2>
+TuneLab.Foundation.IActionEvent<T>
+TuneLab.Foundation.IEvent<TEvent>
+TuneLab.Foundation.IEvent<TEvent>.Subscribe(TEvent invokable) -> void
+TuneLab.Foundation.IEvent<TEvent>.Unsubscribe(TEvent invokable) -> void
+TuneLab.Foundation.IEventExtensions
+TuneLab.Foundation.IMap<TKey, TValue>
+TuneLab.Foundation.IMap<TKey, TValue>.Add(TKey key, TValue value) -> void
+TuneLab.Foundation.IMap<TKey, TValue>.Clear() -> void
+TuneLab.Foundation.IMap<TKey, TValue>.Remove(TKey key) -> bool
+TuneLab.Foundation.IMap<TKey, TValue>.this[TKey key].get -> TValue
+TuneLab.Foundation.IMap<TKey, TValue>.this[TKey key].set -> void
+TuneLab.Foundation.IOrderedMap<TKey, TValue>
+TuneLab.Foundation.IOrderedMap<TKey, TValue>.Insert(int index, TKey key, TValue value) -> void
+TuneLab.Foundation.IOrderedMap<TKey, TValue>.RemoveAt(int index) -> void
+TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>
+TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>.Key.get -> TKey
+TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>.Value.get -> TValue
+TuneLab.Foundation.IReadOnlyMap<TKey, TValue>
+TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.ContainsKey(TKey key) -> bool
+TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.GetValue(TKey key, out bool success) -> TValue?
+TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.Keys.get -> System.Collections.Generic.IReadOnlyCollection<TKey>!
+TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.Values.get -> System.Collections.Generic.IReadOnlyCollection<TValue>!
+TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.this[TKey key].get -> TValue
+TuneLab.Foundation.IReadOnlyMapBuilder
+TuneLab.Foundation.IReadOnlyMapExtension
+TuneLab.Foundation.IReadOnlyNotifiable
+TuneLab.Foundation.IReadOnlyNotifiable.Modified.get -> TuneLab.Foundation.IActionEvent!
+TuneLab.Foundation.IReadOnlyNotifiable.WillModify.get -> TuneLab.Foundation.IActionEvent!
+TuneLab.Foundation.IReadOnlyNotifiableCollection<T>
+TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>
+TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.ItemAdded.get -> TuneLab.Foundation.IActionEvent<T>!
+TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.ItemRemoved.get -> TuneLab.Foundation.IActionEvent<T>!
+TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.Items.get -> System.Collections.Generic.IEnumerable<T>!
+TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.MembershipModified.get -> TuneLab.Foundation.IActionEvent!
+TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension
+TuneLab.Foundation.IReadOnlyNotifiableLinkedList<T>
+TuneLab.Foundation.IReadOnlyNotifiableLinkedList<T>.First.get -> T?
+TuneLab.Foundation.IReadOnlyNotifiableLinkedList<T>.Last.get -> T?
+TuneLab.Foundation.IReadOnlyNotifiableList<T>
+TuneLab.Foundation.IReadOnlyNotifiableProperty<T>
+TuneLab.Foundation.IReadOnlyNotifiableProperty<T>.Value.get -> T
+TuneLab.Foundation.IReadOnlyNotifiablePropertyObject
+TuneLab.Foundation.IReadOnlyNotifiablePropertyObject.GetValue(string! key, TuneLab.Foundation.PropertyValue defaultValue) -> TuneLab.Foundation.PropertyValue
+TuneLab.Foundation.IReadOnlyNotifiablePropertyObject.Object(string! key) -> TuneLab.Foundation.IReadOnlyNotifiablePropertyObject!
+TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension
+TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>
+TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>.Keys.get -> System.Collections.Generic.IReadOnlyList<TKey>!
+TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>.Values.get -> System.Collections.Generic.IReadOnlyList<TValue>!
+TuneLab.Foundation.IReadOnlyOrderedMapBuilder
+TuneLab.Foundation.IReadOnlyOrderedMapExtension
+TuneLab.Foundation.ISubscriber<T, TFunction>
+TuneLab.Foundation.ISubscriber<T, TFunction>.Subscribe(T observable, TFunction action) -> void
+TuneLab.Foundation.ISubscriber<T, TFunction>.Unsubscribe(T observable, TFunction action) -> void
+TuneLab.Foundation.ImageResource
+TuneLab.Foundation.Map<TKey, TValue>
+TuneLab.Foundation.Map<TKey, TValue>.Add(TKey key, TValue value) -> void
+TuneLab.Foundation.Map<TKey, TValue>.Clear() -> void
+TuneLab.Foundation.Map<TKey, TValue>.ContainsKey(TKey key) -> bool
+TuneLab.Foundation.Map<TKey, TValue>.Count.get -> int
+TuneLab.Foundation.Map<TKey, TValue>.GetEnumerator() -> System.Collections.Generic.IEnumerator<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!>!
+TuneLab.Foundation.Map<TKey, TValue>.GetValue(TKey key, out bool success) -> TValue?
+TuneLab.Foundation.Map<TKey, TValue>.Keys.get -> System.Collections.Generic.IReadOnlyCollection<TKey>!
+TuneLab.Foundation.Map<TKey, TValue>.Map() -> void
+TuneLab.Foundation.Map<TKey, TValue>.Remove(TKey key) -> bool
+TuneLab.Foundation.Map<TKey, TValue>.Values.get -> System.Collections.Generic.IReadOnlyCollection<TValue>!
+TuneLab.Foundation.Map<TKey, TValue>.this[TKey key].get -> TValue
+TuneLab.Foundation.Map<TKey, TValue>.this[TKey key].set -> void
+TuneLab.Foundation.MapBuilder
+TuneLab.Foundation.OrderedMap<TKey, TValue>
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Add(TKey key, TValue value) -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.At(int index) -> TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>!
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Clear() -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.ContainsKey(TKey key) -> bool
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Count.get -> int
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator.Current.get -> TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator.Dispose() -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator.Enumerator() -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator.Enumerator(TuneLab.Foundation.OrderedMap<TKey, TValue>! map) -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator.MoveNext() -> bool
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator.Reset() -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.GetEnumerator() -> TuneLab.Foundation.OrderedMap<TKey, TValue>.Enumerator
+TuneLab.Foundation.OrderedMap<TKey, TValue>.GetValue(TKey key, out bool success) -> TValue?
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Insert(int index, TKey key, TValue value) -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.KeyAt(int index) -> TKey
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Keys.get -> System.Collections.Generic.IReadOnlyList<TKey>!
+TuneLab.Foundation.OrderedMap<TKey, TValue>.OrderedMap() -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Remove(TKey key) -> bool
+TuneLab.Foundation.OrderedMap<TKey, TValue>.RemoveAt(int index) -> void
+TuneLab.Foundation.OrderedMap<TKey, TValue>.ValueAt(int index) -> TValue
+TuneLab.Foundation.OrderedMap<TKey, TValue>.Values.get -> System.Collections.Generic.IReadOnlyList<TValue>!
+TuneLab.Foundation.OrderedMap<TKey, TValue>.this[TKey key].get -> TValue
+TuneLab.Foundation.OrderedMap<TKey, TValue>.this[TKey key].set -> void
+TuneLab.Foundation.OrderedMapBuilder
+TuneLab.Foundation.Point
+TuneLab.Foundation.Point.Equals(TuneLab.Foundation.Point other) -> bool
+TuneLab.Foundation.Point.Point() -> void
+TuneLab.Foundation.Point.Point(double x, double y) -> void
+TuneLab.Foundation.Point.X -> double
+TuneLab.Foundation.Point.Y -> double
+TuneLab.Foundation.PropertyArray
+TuneLab.Foundation.PropertyArray.Count.get -> int
+TuneLab.Foundation.PropertyArray.Equals(TuneLab.Foundation.PropertyArray? other) -> bool
+TuneLab.Foundation.PropertyArray.GetEnumerator() -> System.Collections.Generic.IEnumerator<TuneLab.Foundation.PropertyValue>!
+TuneLab.Foundation.PropertyArray.PropertyArray(System.Collections.Generic.IEnumerable<TuneLab.Foundation.PropertyValue>! values) -> void
+TuneLab.Foundation.PropertyArray.PropertyArray(System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.PropertyValue>! values) -> void
+TuneLab.Foundation.PropertyArray.this[int index].get -> TuneLab.Foundation.PropertyValue
+TuneLab.Foundation.PropertyObject
+TuneLab.Foundation.PropertyObject.Equals(TuneLab.Foundation.PropertyObject? other) -> bool
+TuneLab.Foundation.PropertyObject.GetBoolean(string! key, bool defaultValue = false) -> bool
+TuneLab.Foundation.PropertyObject.GetDouble(string! key, double defaultValue = 0) -> double
+TuneLab.Foundation.PropertyObject.GetObject(string! key) -> TuneLab.Foundation.PropertyObject!
+TuneLab.Foundation.PropertyObject.GetObject(string! key, TuneLab.Foundation.PropertyObject! defaultValue) -> TuneLab.Foundation.PropertyObject!
+TuneLab.Foundation.PropertyObject.GetString(string! key, string! defaultValue = "") -> string!
+TuneLab.Foundation.PropertyObject.GetValue<T>(string! key, T defaultValue) -> T
+TuneLab.Foundation.PropertyObject.Map.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>!
+TuneLab.Foundation.PropertyObject.PropertyObject(TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.Foundation.PropertyValue>! map) -> void
+TuneLab.Foundation.PropertyObjectExtensions
+TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.Array = 4 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.Boolean = 1 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.Multiple = 6 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.Null = 0 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.Number = 2 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.Object = 5 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyType.String = 3 -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyValue
+TuneLab.Foundation.PropertyValue.Equals(TuneLab.Foundation.PropertyValue other) -> bool
+TuneLab.Foundation.PropertyValue.IsArray() -> bool
+TuneLab.Foundation.PropertyValue.IsBoolean() -> bool
+TuneLab.Foundation.PropertyValue.IsDouble() -> bool
+TuneLab.Foundation.PropertyValue.IsMultiple() -> bool
+TuneLab.Foundation.PropertyValue.IsNull() -> bool
+TuneLab.Foundation.PropertyValue.IsObject() -> bool
+TuneLab.Foundation.PropertyValue.IsString() -> bool
+TuneLab.Foundation.PropertyValue.PropertyValue() -> void
+TuneLab.Foundation.PropertyValue.To<T>(out T result) -> bool
+TuneLab.Foundation.PropertyValue.ToArray(out TuneLab.Foundation.PropertyArray! result) -> bool
+TuneLab.Foundation.PropertyValue.ToBoolean(out bool result) -> bool
+TuneLab.Foundation.PropertyValue.ToDouble(out double result) -> bool
+TuneLab.Foundation.PropertyValue.ToObject(out TuneLab.Foundation.PropertyObject! result) -> bool
+TuneLab.Foundation.PropertyValue.ToString(out string! result) -> bool
+TuneLab.Foundation.PropertyValue.Type.get -> TuneLab.Foundation.PropertyType
+TuneLab.Foundation.PropertyValue.TypeEquals(TuneLab.Foundation.PropertyValue other) -> bool
+TuneLab.Foundation.PropertyValue.TypeIs<T>() -> bool
+TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>
+TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>.Key.get -> TKey
+TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>.ReadOnlyKeyValuePair(System.Collections.Generic.KeyValuePair<TKey, TValue> pair) -> void
+TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>.ReadOnlyKeyValuePair(TKey key, TValue value) -> void
+TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>.Value.get -> TValue
+override TuneLab.Foundation.Point.Equals(object? obj) -> bool
+override TuneLab.Foundation.Point.GetHashCode() -> int
+override TuneLab.Foundation.Point.ToString() -> string!
+override TuneLab.Foundation.PropertyArray.Equals(object? obj) -> bool
+override TuneLab.Foundation.PropertyArray.GetHashCode() -> int
+override TuneLab.Foundation.PropertyArray.ToString() -> string!
+override TuneLab.Foundation.PropertyObject.Equals(object? obj) -> bool
+override TuneLab.Foundation.PropertyObject.GetHashCode() -> int
+override TuneLab.Foundation.PropertyValue.Equals(object? obj) -> bool
+override TuneLab.Foundation.PropertyValue.GetHashCode() -> int
+override TuneLab.Foundation.PropertyValue.ToString() -> string?
+static TuneLab.Foundation.ActionEvent.implicit operator System.Action!(TuneLab.Foundation.ActionEvent! e) -> System.Action!
+static TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>.implicit operator System.Action<T1, T2, T3, T4, T5, T6, T7, T8>!(TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>! e) -> System.Action<T1, T2, T3, T4, T5, T6, T7, T8>!
+static TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>.implicit operator System.Action<T1, T2, T3, T4, T5, T6, T7>!(TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>! e) -> System.Action<T1, T2, T3, T4, T5, T6, T7>!
+static TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>.implicit operator System.Action<T1, T2, T3, T4, T5, T6>!(TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>! e) -> System.Action<T1, T2, T3, T4, T5, T6>!
+static TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>.implicit operator System.Action<T1, T2, T3, T4, T5>!(TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>! e) -> System.Action<T1, T2, T3, T4, T5>!
+static TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>.implicit operator System.Action<T1, T2, T3, T4>!(TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>! e) -> System.Action<T1, T2, T3, T4>!
+static TuneLab.Foundation.ActionEvent<T1, T2, T3>.implicit operator System.Action<T1, T2, T3>!(TuneLab.Foundation.ActionEvent<T1, T2, T3>! e) -> System.Action<T1, T2, T3>!
+static TuneLab.Foundation.ActionEvent<T1, T2>.implicit operator System.Action<T1, T2>!(TuneLab.Foundation.ActionEvent<T1, T2>! e) -> System.Action<T1, T2>!
+static TuneLab.Foundation.ActionEvent<T>.implicit operator System.Action<T>!(TuneLab.Foundation.ActionEvent<T>! e) -> System.Action<T>!
+static TuneLab.Foundation.DisposableManager.operator +(TuneLab.Foundation.DisposableManager! manager, System.IDisposable! disposable) -> TuneLab.Foundation.DisposableManager!
+static TuneLab.Foundation.DisposableManager.operator -(TuneLab.Foundation.DisposableManager! manager, System.IDisposable! disposable) -> TuneLab.Foundation.DisposableManager!
+static TuneLab.Foundation.IEventExtensions.Merge(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action!>!>! sources) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2, T3, T4, T5, T6, T7, T8>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5, T6, T7, T8>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2, T3, T4, T5, T6, T7>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5, T6, T7>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6, T7>!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2, T3, T4, T5, T6>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5, T6>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6>!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2, T3, T4, T5>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5>!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2, T3, T4>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4>!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2, T3>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2, T3>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2, T3>!
+static TuneLab.Foundation.IEventExtensions.Merge<T1, T2>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T1, T2>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T1, T2>!
+static TuneLab.Foundation.IEventExtensions.Merge<T>(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.IEvent<System.Action<T>!>!>! sources) -> TuneLab.Foundation.IActionEvent<T>!
+static TuneLab.Foundation.IEventExtensions.Subscribe<TEvent>(this TuneLab.Foundation.IEvent<TEvent>! e, TEvent invokable, TuneLab.Foundation.DisposableManager? context = null) -> void
+static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3, T4, T5, T6, T7, T8>(this TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5, T6, T7, T8>!>! source, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5, T6 value6, T7 value7, T8 value8) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3, T4, T5, T6, T7>(this TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5, T6, T7>!>! source, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5, T6 value6, T7 value7) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3, T4, T5, T6>(this TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5, T6>!>! source, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5, T6 value6) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3, T4, T5>(this TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4, T5>!>! source, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3, T4>(this TuneLab.Foundation.IEvent<System.Action<T1, T2, T3, T4>!>! source, T1 value1, T2 value2, T3 value3, T4 value4) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3>(this TuneLab.Foundation.IEvent<System.Action<T1, T2, T3>!>! source, T1 value1, T2 value2, T3 value3) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T1, T2>(this TuneLab.Foundation.IEvent<System.Action<T1, T2>!>! source, T1 value1, T2 value2) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IEventExtensions.When<T>(this TuneLab.Foundation.IEvent<System.Action<T>!>! source, T value) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IReadOnlyMapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.IReadOnlyMap<TKey, TValue>!
+static TuneLab.Foundation.IReadOnlyMapExtension.ToMap<TKey, TValue>(this TuneLab.Foundation.IReadOnlyMap<TKey, TValue>! map) -> TuneLab.Foundation.Map<TKey, TValue>!
+static TuneLab.Foundation.IReadOnlyMapExtension.TryGetValue<TKey, TValue>(this TuneLab.Foundation.IReadOnlyMap<TKey, TValue>! map, TKey key, out TValue value) -> bool
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Action<T, TEvent>! subscribe, System.Action<T, TEvent>! unsubscribe) -> TuneLab.Foundation.IEvent<TEvent>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, TuneLab.Foundation.IEvent<TEvent>!>! selector) -> TuneLab.Foundation.IEvent<TEvent>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, TuneLab.Foundation.ISubscriber<T, TEvent>! subscriber) -> TuneLab.Foundation.IEvent<TEvent>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, params System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>![]! eventSelectors) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAnyItem<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, params System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>![]! eventSelectors) -> TuneLab.Foundation.IActionEvent<T>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.Where<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, TuneLab.Foundation.IReadOnlyNotifiableProperty<bool>!>! predicateProperty) -> TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.Where<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, bool>! predicate, System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>! predicateChanged) -> TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.BooleanField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, bool defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<bool>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.DoubleField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, double defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<double>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.StringField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, string! defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<string!>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.ValueField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, TuneLab.Foundation.PropertyValue defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<TuneLab.Foundation.PropertyValue>!
+static TuneLab.Foundation.IReadOnlyOrderedMapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>!
+static TuneLab.Foundation.IReadOnlyOrderedMapExtension.KeyAt<TKey, TValue>(this TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>! map, int index) -> TKey
+static TuneLab.Foundation.IReadOnlyOrderedMapExtension.ValueAt<TKey, TValue>(this TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>! map, int index) -> TValue
+static TuneLab.Foundation.MapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.Map<TKey, TValue>!
+static TuneLab.Foundation.OrderedMapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.OrderedMap<TKey, TValue>!
+static TuneLab.Foundation.Point.operator !=(TuneLab.Foundation.Point p1, TuneLab.Foundation.Point p2) -> bool
+static TuneLab.Foundation.Point.operator +(TuneLab.Foundation.Point p1, TuneLab.Foundation.Point p2) -> TuneLab.Foundation.Point
+static TuneLab.Foundation.Point.operator -(TuneLab.Foundation.Point p1, TuneLab.Foundation.Point p2) -> TuneLab.Foundation.Point
+static TuneLab.Foundation.Point.operator ==(TuneLab.Foundation.Point p1, TuneLab.Foundation.Point p2) -> bool
+static TuneLab.Foundation.PropertyObjectExtensions.Merge(this System.Collections.Generic.IEnumerable<TuneLab.Foundation.PropertyObject!>! snapshots) -> TuneLab.Foundation.PropertyObject!
+static TuneLab.Foundation.PropertyValue.Create(TuneLab.Foundation.PropertyArray! value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.Create(TuneLab.Foundation.PropertyObject! value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.Create(TuneLab.Foundation.PropertyValue value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.Create(bool value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.Create(double value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.Create(string! value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.implicit operator TuneLab.Foundation.PropertyValue(TuneLab.Foundation.PropertyArray! value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.implicit operator TuneLab.Foundation.PropertyValue(TuneLab.Foundation.PropertyObject! value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.implicit operator TuneLab.Foundation.PropertyValue(bool value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.implicit operator TuneLab.Foundation.PropertyValue(double value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.implicit operator TuneLab.Foundation.PropertyValue(string! value) -> TuneLab.Foundation.PropertyValue
+static TuneLab.Foundation.PropertyValue.operator !=(TuneLab.Foundation.PropertyValue left, TuneLab.Foundation.PropertyValue right) -> bool
+static TuneLab.Foundation.PropertyValue.operator ==(TuneLab.Foundation.PropertyValue left, TuneLab.Foundation.PropertyValue right) -> bool
+static TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>.implicit operator TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>!(System.Collections.Generic.KeyValuePair<TKey, TValue> pair) -> TuneLab.Foundation.ReadOnlyKeyValuePair<TKey, TValue>!
+static readonly TuneLab.Foundation.ActionEvent.Empty -> TuneLab.Foundation.IActionEvent!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6, T7>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6, T7>!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5, T6>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5, T6>!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2, T3, T4, T5>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4, T5>!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2, T3, T4>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2, T3, T4>!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2, T3>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2, T3>!
+static readonly TuneLab.Foundation.ActionEvent<T1, T2>.Empty -> TuneLab.Foundation.IActionEvent<T1, T2>!
+static readonly TuneLab.Foundation.ActionEvent<T>.Empty -> TuneLab.Foundation.IActionEvent<T>!
+static readonly TuneLab.Foundation.Map<TKey, TValue>.Empty -> TuneLab.Foundation.IReadOnlyMap<TKey, TValue>!
+static readonly TuneLab.Foundation.PropertyArray.Empty -> TuneLab.Foundation.PropertyArray!
+static readonly TuneLab.Foundation.PropertyObject.Empty -> TuneLab.Foundation.PropertyObject!
+static readonly TuneLab.Foundation.PropertyValue.Multiple -> TuneLab.Foundation.PropertyValue
+static readonly TuneLab.Foundation.PropertyValue.Null -> TuneLab.Foundation.PropertyValue

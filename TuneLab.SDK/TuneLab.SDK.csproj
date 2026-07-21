@@ -13,7 +13,17 @@
          真实发行版本走 FileVersion/InformationalVersion（BCL 同款惯例：System.Runtime 的 AssemblyVersion
          恒 major.0.0.0 不随 patch 动）。 -->
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <!-- public API 冻结门禁（PublicApiAnalyzers）：本程序集全部 public 符号申报在 PublicAPI.Shipped.txt
+         （= 2.0 冻结基线，发布后删行/改行即 breaking、须明知故犯留痕）；此后加性新增申报进
+         PublicAPI.Unshipped.txt（IDE 灯泡 Add to public API / dotnet format analyzers 自动写入），
+         发布下个版本时整体挪进 Shipped 并同步提升 ExtensionManager.SdkVersion。
+         RS0016(未申报新 API)/RS0017(已申报 API 消失) 提为 error——不改清单编译不过，冻结是机械校验。 -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;RS0024;RS0025</WarningsAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TuneLab.Foundation\TuneLab.Foundation.csproj" />

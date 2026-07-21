@@ -7,7 +7,13 @@
     <!-- AssemblyVersion = 程序集绑定身份，2.x 全生命周期【永不再动】（与 TuneLab.SDK 同钉，理由详见其 csproj 注释：
          切断 Version 派生链，防发行版本号跳动使已编译插件在旧宿主上绑定失败；真实版本走 FileVersion/InformationalVersion）。 -->
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <!-- public API 冻结门禁：与 TuneLab.SDK 同款（运营约定详见其 csproj 注释）。 -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017;RS0024;RS0025</WarningsAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" PrivateAssets="all" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- 订阅组合子的实现细节（ActionSubscriber/SelectorSubscriber 等 internal）对宿主可见，
