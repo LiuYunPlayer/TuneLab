@@ -214,8 +214,9 @@ internal class MidiPart : Part, IMidiPart
 
     // lane 集合 = 钉选（含轨色）∩ 当前属性 config 的有界数值条目（呈现序 = config 声明序）。
     // config 用「全 part note」口径求值——不能随选区闪（选区归侧栏面板管）；无钉选时零开销短路。
-    // phoneme scope：逐音素 config 可异构，lane 条目按【首见声明】取量程口径（同 id 后续音素的异构量程不另开 lane）；
-    // instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme 的 instrument 场景本就不存在）。
+    // phoneme scope：逐 slot config 可异构（核 / 辅音各一套），lane 条目按【首见声明】取量程口径（同 id 后续 slot 的
+    // 异构量程不另开 lane）；instrument 无音素（GetPhonemePropertyConfigs 恒空）→ 走真空分支出占位 tab（钉过 phoneme
+    // 的 instrument 场景本就不存在）。
     void RebuildPinnedLaneConfigs()
     {
         OrderedMap<PropertyKey, LaneEntry>? previousPhonemeLanes = null;
@@ -244,9 +245,10 @@ internal class MidiPart : Part, IMidiPart
             if (configs.Count > 0)
             {
                 // 有音素声明面：正常求交集，未声明的钉选自然缺席（引擎条件隐藏语义，同条件自动化轨）。
-                foreach (var config in configs)
+                // slot 升序遍历（=引导→核→核后的时间序）：map 无序，「首见声明」须有确定口径。
+                foreach (int slot in configs.Keys.Order())
                 {
-                    foreach (var kvp in config.Properties)
+                    foreach (var kvp in configs[slot].Properties)
                         TryAddLaneEntry(mPhonemeLaneConfigs, pinnedPhoneme, kvp.Key, kvp.Value);
                 }
             }

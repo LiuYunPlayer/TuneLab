@@ -32,10 +32,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1).WithMinLabel("Relaxed").WithMaxLabel("Tense"));
         // 整数滑条（验证吸附标度经属性 lane 全链路：侧栏滑条吸附 + 钉上参数面板后拖写同吸附整数格）。
         mNoteProperties.Add(("steps", "Steps (Int)"), SliderConfig.Integer(0, 0, 8));
-        // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。只设一端，验证单端显示。
-        mPhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1).WithMaxLabel("Strong"));
+        // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。按核相对角色两套：
+        // 核（slot 0，元音）= accent + offset；引导 / 核后辅音 = 仅 offset——验证按 slot 差异化 schema 全链路。
+        mCorePhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1).WithMaxLabel("Strong"));
         // 无界数值框（验证 DraggableNumberBox/DraggableNumberBoxConfig）：横拖擦写、双击键入、无上下界、Shift 精调。
-        mPhonemeProperties.Add(("offset", "Offset (ms)"), DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1)));
+        var offset = DraggableNumberBoxConfig.Create(0).WithSensitivity(0.5).WithFormat(NumberFormat.Decimals(1));
+        mCorePhonemeProperties.Add(("offset", "Offset (ms)"), offset);
+        mConsonantPhonemeProperties.Add(("offset", "Offset (ms)"), offset);
         // 条件自动化轨开关（part 级）：勾选才暴露 Growl 轨——验证轨集合 = f(part 参数值)，
         // 取消勾选时 Growl 已画曲线由宿主保留隐藏、重新勾选即原样恢复。
         mPartProperties.Add(("growl_enabled", "Enable Growl"), CheckBoxConfig.Create(true));
@@ -71,19 +74,25 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => ObjectConfig.Create(mNoteProperties);
-    // 音素属性声明（复用 note 上下文；返回与"各 note 音素扁平展开"对齐的 config 列表）：本参照实现给每个音素都暴露 accent 轨；
-    // 据音素位置（note 内索引）/ 符号 / IsLead 条件化各异 schema 可在此扩展。
-    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
+    // 音素属性声明（复用 note 上下文）：按核相对 slot 键控授 schema——核（slot 0）= accent + offset、
+    // 辅音（slot ≠ 0）= 仅 offset，验证按角色差异化。slot 遍历用 SDK 共享口径 PhonemeSlots.UnionSlots；
+    // schema 若依赖当前属性值，在此对同 slot 各成员值做三态 Merge（同 GetNotePropertyConfig 契约）再条件化。
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
     {
-        var config = ObjectConfig.Create(mPhonemeProperties);
-        return context.Notes.SelectMany(n => n.Phonemes).Select(_ => config).ToList();
+        var core = ObjectConfig.Create(mCorePhonemeProperties);
+        var consonant = ObjectConfig.Create(mConsonantPhonemeProperties);
+        var map = new Map<int, ObjectConfig>();
+        foreach (int slot in context.Notes.UnionSlots())
+            map.Add(slot, slot == 0 ? core : consonant);
+        return map;
     }
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mGrowlConfigs = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mPartProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
-    readonly OrderedMap<PropertyKey, IControllerConfig> mPhonemeProperties = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mCorePhonemeProperties = new();
+    readonly OrderedMap<PropertyKey, IControllerConfig> mConsonantPhonemeProperties = new();
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
     static readonly AutomationConfig mBendConfig = AutomationConfig.Create(-100, 100).WithColor("#73C2E5");
     // 整数吸附标度连续轨（Create(INormalizedScale) 重载）：验证参数区绘制/拖锚点/双击键入锚点值全走标度吸附。

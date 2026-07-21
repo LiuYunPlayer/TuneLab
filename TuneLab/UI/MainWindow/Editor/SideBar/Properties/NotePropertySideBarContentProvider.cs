@@ -248,7 +248,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
     // 每个有音素的 slot 出一行：符号列（可编、扇出）+（引擎声明了属性时）属性控制器。任一选中 note 有音素即显示面板。
     // 引擎自定义属性仍 pay-as-you-go：未声明则不物化、右侧无控制器，但符号列照常可编。
     // 一个选中 note 的音素声明信息：显示音素（钉死则 IPhoneme、否则合成）+ 逐音素 config + 核位置（leadCount）。
-    readonly record struct PhonemeNoteInfo(INote Note, bool Pinned, int Count, int LeadCount, ObjectConfig?[] Configs);
+    readonly record struct PhonemeNoteInfo(INote Note, bool Pinned, int Count, int LeadCount);
 
     // 音素面板结构级 flush：整面板重建。编辑中抑制由 mPhonemeScheduler.Suspended 承担（保留脏位，提交复位时补排）。
     void RefreshPhonemeControllerNow()
@@ -262,23 +262,16 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             return;
         }
 
-        // 一次成批求 config（复用 note 声明上下文）：与各 note 显示音素扁平展开索引对齐，拆回各 note 的逐音素 config。
-        // 同时算各 note 的核位置 leadCount（首个 IsLead=false 的下标；无非 lead 则 = count）。
-        var configs = mPart.SoundSource.GetPhonemePropertyConfigs(BuildNoteContext());
-        int flat = 0;
+        // 音素属性 schema：引擎按核相对 slot 键控授出（键 = 位置 − leadCount，口径见 SDK PhonemeSlots）。
+        // 多选合并归引擎（同 GetNotePropertyConfig 契约）——宿主不再拆分 / 挑代表 config，只按 slot 点查 + 并值。
+        var slotConfigs = mPart.SoundSource.GetPhonemePropertyConfigs(BuildNoteContext());
         var perNote = new List<PhonemeNoteInfo>();
         foreach (var note in mPart.Notes.AllSelectedItems())
         {
             bool pinned = note.HasPinnedPhonemes;
             int count = pinned ? note.PhonemeCount : note.SynthesizedSyllable.PhonemeCount();
-            var cfgs = new ObjectConfig?[count];
-            for (int i = 0; i < count; i++)
-            {
-                cfgs[i] = flat < configs.Count ? configs[flat] : null;
-                flat++;
-            }
             int leadCount = PhonemeLeadCount(note);   // 核位置：引导音素个数（结构化列表长度）
-            perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount, cfgs));
+            perNote.Add(new PhonemeNoteInfo(note, pinned, count, leadCount));
             // 钉死/清除音素结构变化 → 重建（即便当前无行也订阅，使后续钉死/清除刷新面板）。两列表各订一次。
             note.LeadingPhonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
             note.BodyPhonemes.MembershipModified.Subscribe(mPhonemeScheduler.InvalidateStructure, mPhonemeSub);
@@ -313,12 +306,14 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             string displayed = symbols.Count == 1 ? symbols[0] : "(...)";
             var symbolField = BuildSymbolCell(displayed, members);
 
-            // 引擎声明了属性的成员才建属性控制器（其余成员只有符号列 + 右键增删）。
-            var propMembers = members.Where(m => m.Note.Configs[m.Index] is { } c && c.Properties.Count > 0).ToList();
+            // 引擎为该 slot 声明了属性才建属性控制器（其余 slot 只有符号列 + 右键增删）。schema 属 slot、
+            // 选区共用——引擎已按 slot 做多选合并（契约），宿主不挑代表、成员全体同绑这一套。
+            var slotConfig = slotConfigs.GetValue(a, out bool hasConfig);
+            var propMembers = hasConfig && slotConfig!.Properties.Count > 0 ? members : [];
             Control? controller = null;
             if (propMembers.Count > 0)
             {
-                var config = propMembers[0].Note.Configs[propMembers[0].Index]!;   // 代表 config（首个有属性成员）
+                var config = slotConfig!;
                 var poc = new PropertyObjectController() { ShowSeparators = false };   // 分界由行单元统一拥有（见下），控制器不再自吐尾随分隔
                 // 属性行右键 = 钉选项（phoneme scope）+ 既有 slot 动作（拆分/删除）——属性行的右键被本钩子接管后
                 // 不再冒泡到行容器的 ContextMenu，故把 slot 项并进来，避免"点在属性上就丢拆分/删除"。

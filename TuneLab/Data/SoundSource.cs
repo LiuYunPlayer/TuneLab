@@ -38,8 +38,8 @@ internal class SoundSource : DataObject, ISoundSource
             ? VoicesManager.GetNotePropertyConfig(mType, context)
             : InstrumentsManager.GetNotePropertyConfig(mType, context);
 
-    // 音素属性：voice 专属，复用 note 上下文；instrument 无音素 → 恒空列表。
-    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(NotePropertyContext context)
+    // 音素属性：voice 专属，复用 note 上下文；instrument 无音素 → 恒空 map。
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(NotePropertyContext context)
         => mKind == SourceKind.Voice
             ? VoicesManager.GetPhonemePropertyConfigs(mType, context)
             : [];

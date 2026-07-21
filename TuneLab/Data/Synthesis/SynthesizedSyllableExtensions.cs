@@ -4,8 +4,7 @@ using TuneLab.SDK;
 namespace TuneLab.Data;
 
 // SynthesizedSyllable 的扁平投影（宿主侧）：SDK 类型只承载结构化真相（LeadingPhonemes/BodyPhonemes 双列表），
-// 扁平合并序仅宿主的扁平索引寻址模型需要（音素 slot / GetPhonemePropertyConfigs 扁平对齐 / 显示遍历），
-// 故不入 SDK 面、落在此。
+// 扁平合并序仅宿主的扁平索引寻址模型需要（音素面板行遍历 / 显示遍历），故不入 SDK 面、落在此。
 //
 // 值与 nullable 各一重载（扩展 receiver 不做 T→T? 隐式转换，故不能只留 nullable 版）：nullable 版吸掉
 // null 调用点、值版顺带 null-safe 处理 default(struct) 的空双列表，皆返回空 / 0。

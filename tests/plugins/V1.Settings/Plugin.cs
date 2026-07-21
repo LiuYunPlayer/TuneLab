@@ -48,7 +48,7 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyAutomations;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => sEmptyConfig;
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => sEmptyConfig;
-    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     // 设置 schema：普通文本（模型路径）+ 密钥（API Key：掩码显示 + 加密落盘）+ 一个开关。
     // 动态演示：勾选「使用 GPU」后才暴露「GPU 设备」字段（据 context 当前值条件显隐）。

@@ -25,6 +25,7 @@ internal interface ISoundSource : IDataObject<SoundSourceInfo>
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> SynthesizedParameterConfigs { get; }
     ObjectConfig GetPartPropertyConfig(PartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(NotePropertyContext context);
-    // 音素属性声明（voice 专属；复用 note 声明上下文，返回与"各 note 音素扁平展开"对齐的 config 列表；instrument 恒空——无音素）。
-    IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(NotePropertyContext context);
+    // 音素属性声明（voice 专属；复用 note 声明上下文，返回按核相对 slot 键控的 schema map，口径见 SDK PhonemeSlots；
+    // instrument 恒空——无音素）。
+    IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(NotePropertyContext context);
 }

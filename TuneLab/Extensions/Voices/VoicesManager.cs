@@ -125,7 +125,7 @@ internal static class VoicesManager
     public static ObjectConfig GetNotePropertyConfig(string type, IVoiceSynthesisNotePropertyContext context)
         => Declare(type, context.Part.VoiceId, e => e.GetNotePropertyConfig(context));
 
-    public static IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(string type, IVoiceSynthesisNotePropertyContext context)
+    public static IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(string type, IVoiceSynthesisNotePropertyContext context)
         => Declare(type, context.Part.VoiceId, e => e.GetPhonemePropertyConfigs(context));
 
     // 路由 / 校验用声库 id：多选 part 取首个（phase A 各调用点恒单 part；跨引擎多选由上游不调声明拦下）。

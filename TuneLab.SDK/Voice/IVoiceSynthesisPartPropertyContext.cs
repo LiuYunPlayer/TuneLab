@@ -51,7 +51,8 @@ public interface IVoiceSynthesisNoteView
     IReadOnlyList<IVoiceSynthesisPhonemeView> LeadingPhonemes { get; }
     IReadOnlyList<IVoiceSynthesisPhonemeView> BodyPhonemes { get; }
     // 该 note 的有序音素全序列视图 = LeadingPhonemes ++ BodyPhonemes（时间序）；位置 = 索引。
-    // 音素属性声明（GetPhonemePropertyConfigs）即吃这串（顺序须与宿主音素面板对齐口径一致）。
+    // 核相对 slot 坐标（音素属性声明 GetPhonemePropertyConfigs 的键）由 PhonemeSlots 从这串派生
+    //（slot = 下标 − LeadingPhonemes.Count），引擎与宿主共用同一口径。
     IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes { get; }
 }
 

@@ -77,7 +77,7 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
     }
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
         => context.Part.VoiceId == "suite-conditional" ? ConditionalNoteConfig(context) : ObjectConfig.Create(mSuiteNoteProperties);
-    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     // 条件 note 面板：note config = f(context)，随当前值动态变化——① 显隐/换控件（mode=Advanced 多出字段）；
     // ② 控件参数随值变（pick 选项 = letters 逐字符）；③ 动态数量控件（letters 每个唯一字符派生一个滑条）。

@@ -312,63 +312,47 @@ readonly ObjectConfig mNoteConfig = new()
 
 #### Phoneme properties (`GetPhonemePropertyConfigs`)
 
-Beyond notes, the engine can also declare user-editable custom properties on **phonemes** — parallel to `GetNotePropertyConfig`, but both the declaration side and the value-reading side drop down to a single phoneme. Typical use cases: attaching an "articulation strength" slider to a vowel, or a set of switches to a consonant.
+Beyond notes, the engine can also declare user-editable custom properties on **phonemes** — parallel to `GetNotePropertyConfig`, but both the declaration side and the value-reading side drop down to a single phoneme. Typical use cases: attaching an "articulation strength" slider to the vowel (nucleus), or a different set of properties to consonants.
 
 ```csharp
 // per-phoneme property declaration (required, must be implemented just like GetNotePropertyConfig):
 // **reuses the note declaration context IVoiceSynthesisNotePropertyContext** (there is no separate phoneme context) —
-// each IVoiceSynthesisNoteView now carries Phonemes (that note's ordered phonemes). Return a config list [index-aligned]
-// with the [flattened expansion] of "the phonemes of each selected note" (order = context.Notes order × each note's Phonemes order),
-// where list[k] = the schema of the k-th flattened phoneme.
-public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
+// each IVoiceSynthesisNoteView now carries Phonemes (that note's ordered phonemes). Return a schema map **keyed by
+// nucleus-relative slot**: key = slot (0 = nucleus, <0 = leading consonants (closer to the nucleus = closer to −1), >0 = post-nucleus),
+// value = the schema of that slot (that "role") across the whole selection.
+public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
 {
-    // An engine that declares no phoneme properties simply returns an empty list.
-    return context.Notes
-        .SelectMany(note => note.Phonemes.Select((ph, i) => ConfigForPhonemeAt(note, note.Phonemes, i)))  // may be conditioned on position / neighbors / note
-        .ToList();
+    var map = new Map<int, ObjectConfig>();
+    foreach (int slot in context.Notes.UnionSlots())               // SDK PhonemeSlots helper: the selection's slot universe (ascending)
+        map.Add(slot, slot == 0 ? VowelConfig : ConsonantConfig);  // differentiated by role: nucleus vs consonants
+    return map;
 }
 ```
 
-- **Required, not a default interface method**: `GetPhonemePropertyConfigs`, like `GetNotePropertyConfig` / `GetPartPropertyConfig`, **must be implemented**. An engine that declares no phoneme properties just does `return Array.Empty<ObjectConfig>();` (or returns an empty list).
+- **Required, not a default interface method**: `GetPhonemePropertyConfigs`, like `GetNotePropertyConfig` / `GetPartPropertyConfig`, **must be implemented**. An engine that declares no phoneme properties just does `return [];` (an empty map).
 - **Reuses the note declaration context**: there is no longer a separate phoneme context — the phoneme declaration context is inherently equivalent to the note declaration context, so it directly takes `IVoiceSynthesisNotePropertyContext` (the same `{ Part; IReadOnlyList<IVoiceSynthesisNoteView> Notes }` as the note panel), and each `IVoiceSynthesisNoteView` now carries `Phonemes`.
-- **Return the flattened expansion, index-aligned**: return a config list **index-aligned** with the **flattened expansion** of "the phonemes of each selected note" — flattened order = `context.Notes` order × each note's `Phonemes` order, and `list[k]` is exactly the schema of the k-th flattened phoneme. **An empty list = no phoneme has any properties**; otherwise the list length **must equal the total number of flattened phonemes**. One call gets the phoneme schemas of all selected notes, **naturally supporting multi-note selection**, without building a context per phoneme or per note.
-- **The schema may be conditioned on position**: because you get the whole phoneme string in a batch, the schema may give different controls based on **the phoneme's position within its note (= its index in that note's `Phonemes`) / neighbors / note info** — for example returning different configs for a leading consonant vs the nucleus (vowel) vs a trailing consonant, or adjusting by note pitch/lyric.
+- **Keyed by nucleus-relative slot**: key = the phoneme's nucleus-relative coordinate `slot = index − LeadingPhonemes.Count` (0 = nucleus, <0 = leading consonants, >0 = post-nucleus), i.e. the phoneme's **role** within its note; value = that role's schema across the whole selection. The schema is granted to a role, not an individual phoneme — with multiple notes selected, the host merges each note's phoneme at the same slot into one row sharing that schema; with a single note selected, slots map one-to-one to phonemes with no loss of expressiveness. **An empty map = no phoneme has any properties**; a missing slot = that role has no properties (the host treats it as property-less, no error) — keys are self-describing, there is no positional "length must match exactly" contract.
+- **Multi-select merging belongs to the engine (same contract as `GetNotePropertyConfig`)**: when the schema depends on current property values, merge the values of the members at the same slot yourself (three-state) before conditioning — `context.Notes.Select(n => n.PhonemeAt(slot)?.Properties)`, take the non-nulls and `Merge()`. The host only merges **values** per slot, never schemas.
+- **The `PhonemeSlots` helper (shared pure functions in the SDK; engine and host use the same single source, so they can never drift)**: `note.PhonemeAt(slot)` (the phoneme at that slot, null if absent), `notes.UnionSlots()` (the selection's slot universe, an ascending contiguous range); the nucleus index is simply `LeadingPhonemes.Count` (self-evident expression, no forwarding API).
 - **`IVoiceSynthesisNoteView.Phonemes`**: that note's ordered phonemes (leading consonant → nucleus → trailing consonant; a phoneme's position within the note = its index in this list), with elements of type `IVoiceSynthesisPhonemeView`.
-- **`IVoiceSynthesisPhonemeView`** (reads the phoneme's current values on the declaration side): `string Symbol` / `double Duration` / `double StretchWeight` / `PropertyObject Properties` (a snapshot of that phoneme's current property values). Leading/body attribution is the note view's `LeadingPhonemes` / `BodyPhonemes` list membership (+ `double BodyOffset`), not a per-phoneme flag. You may condition the schema further based on these current values + position.
+- **`IVoiceSynthesisPhonemeView`** (reads the phoneme's current values on the declaration side): `string Symbol` / `double Duration` / `double StretchWeight` / `PropertyObject Properties` (a snapshot of that phoneme's current property values). Leading/body attribution is the note view's `LeadingPhonemes` / `BodyPhonemes` list membership (+ `double BodyOffset`), not a per-phoneme flag. You may condition the schema further based on these current values + slot.
 - The schema still uses the same control-config vocabulary (`SliderConfig` / `ComboBoxConfig` / `CheckBoxConfig` / `TextBoxConfig`, container `ObjectConfig`), written the same way as note properties.
-
-```csharp
-// Example: the nucleus (vowel, StretchWeight > 0) gets an "articulation strength", consonants get no properties (return an empty ObjectConfig).
-static readonly ObjectConfig VowelConfig = new()
-{
-    Properties = new OrderedMap<string, IControllerConfig>
-    {
-        { "stress", SliderConfig.Linear(0, 0, 1) },
-    },
-};
-static readonly ObjectConfig NoneConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
-
-static ObjectConfig ConfigForPhonemeAt(IVoiceSynthesisNoteView note, IReadOnlyList<IVoiceSynthesisPhonemeView> phonemes, int i)
-    => phonemes[i].StretchWeight > 0 ? VowelConfig : NoneConfig;
-```
 
 - **Reading values at synthesis time**: read from the snapshot — `VoiceSynthesisNoteSnapshot` exposes `LeadingPhonemes` / `BodyPhonemes` (each `IReadOnlyList<VoiceSynthesisPhonemeSnapshot>`) + `double BodyOffset`, each item `{ string Symbol; double Duration; double StretchWeight; PropertyObject Properties }`. The geometry fields (`Symbol`/`Duration`/`StretchWeight`) are read directly flat (leading/body attribution is the list membership); when feeding `PhonemeLayout.Resolve` rebuild a `SynthesizedPhoneme` from the fields (see §5.7). `Properties` is that phoneme's frozen property values (unset = `PropertyObject.Empty`), read with `GetDouble(key, default)` etc., stored sparsely, falling back to the declared default when not found.
 
 ```csharp
-foreach (var ph in note.Phonemes)             // note is a VoiceSynthesisNoteSnapshot
+foreach (var ph in note.LeadingPhonemes.Concat(note.BodyPhonemes))   // note is a VoiceSynthesisNoteSnapshot (no merged Phonemes property on the snapshot; consumers concatenate)
 {
     string symbol = ph.Symbol;                // geometry fields read directly flat
     double stress = ph.Properties.GetDouble("stress", 0);  // per-phoneme property value
 }
 ```
 
-> ⚠️ **Contract change**: previously the elements of `snapshot note.Phonemes` were bare `SynthesizedPhoneme`; they are now `VoiceSynthesisPhonemeSnapshot` (geometry flat + `Properties`). In existing code that iterates snapshot phonemes, read the geometry fields directly as `ph.Xxx` (flat, e.g. `ph.Symbol`).
-
 **Semantic points:**
 
 - Properties are only meaningful on **pinned phonemes** (user data); phonemes produced by the engine's automatic G2P have no properties.
-- The input live view `IVoiceSynthesisNote.Phonemes` is still `IReadOnlyList<SynthesizedPhoneme>` (**without properties**, see §5.3 / §5.7); properties only appear in the synthesis snapshot (`VoiceSynthesisPhonemeSnapshot.Properties`).
-- **Editing UI**: the sidebar phoneme-property panel is done — **one row per phoneme** (a symbol label + that phoneme's own controllers), calling `GetPhonemePropertyConfigs` in batch for the selected notes to obtain configs. Still to be done is a phoneme **selection model** (a phoneme currently has no `ISelectable` selection state); until the selection model is complete, the host uses all phonemes of the selected notes as the panel scope.
+- The pinned phonemes of the input live view (`IVoiceSynthesisNote.LeadingPhonemes` / `BodyPhonemes`) carry **no properties** (see §5.3 / §5.7); properties only appear in the synthesis snapshot (`VoiceSynthesisPhonemeSnapshot.Properties`).
+- **Editing UI**: the sidebar phoneme-property panel is done — **one row per slot** (a symbol label + that slot's controllers); with multiple notes selected, each note's phoneme at the same slot merges into that row (three-state values, edits fan out). Still to be done is a phoneme **selection model** (a phoneme currently has no `ISelectable` selection state); until the selection model is complete, the host uses all phonemes of the selected notes as the panel scope.
 
 ### 5.3 Input live view `IVoiceSynthesisContext` and `IVoiceSynthesisNote`
 
@@ -650,7 +634,7 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 | `IVoiceSynthesisEngine.Init/Destroy` | — | load/release resident state (models); throw on failure |
 | `IVoiceSynthesisEngine.CreateSession` | data thread | build one session per part |
 | `IVoiceSynthesisEngine.GetPartPropertyConfig`/`GetNotePropertyConfig` | data thread | property panel (pure function of voiceId + current values, may show/hide conditionally) |
-| `IVoiceSynthesisEngine.GetPhonemePropertyConfigs` | data thread | per-phoneme property panel (required; takes `IVoiceSynthesisNotePropertyContext`, returns a config list index-aligned with the flattened expansion of the selected notes' phonemes, empty list = no properties) |
+| `IVoiceSynthesisEngine.GetPhonemePropertyConfigs` | data thread | per-phoneme property panel (required; takes `IVoiceSynthesisNotePropertyContext`, returns a schema map keyed by nucleus-relative slot (PhonemeSlots), empty map = no properties, multi-select merging belongs to the engine) |
 | `IVoiceSynthesisEngine.GetAutomationConfigs` | data thread | editable automation track set (NaN ⇒ piecewise; avoid reserved names) |
 | `IVoiceSynthesisEngine.GetSynthesizedParameterConfigs` | data thread | read-only readback track declarations (always piecewise) |
 | `IVoiceSynthesisSession.DefaultLyric` | data thread | default lyric for a new note (a session-level runtime value) |

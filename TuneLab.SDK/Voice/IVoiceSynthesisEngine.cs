@@ -44,10 +44,15 @@ public interface IVoiceSynthesisEngine
     ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context);
 
-    // per-phoneme 自定义属性声明（required；逐音素求值）：复用 note 声明上下文（`IVoiceSynthesisNotePropertyContext`——
-    // 其 NoteView 现带 `Phonemes`），返回与"选中各 note 的音素**扁平展开**（context.Notes 顺序 × 各 note 的 Phonemes 顺序）"
-    // **索引对齐**的 config 列表（list[k] = 第 k 个扁平音素的 schema）。故 schema 可依音素在 note 内的位置 / 邻居 / note 信息
-    // 条件化（如首辅音 vs 核），且天然支持多选 note。**返回空列表 = 所有音素均无属性**；否则长度须 = 扁平音素总数。
+    // per-phoneme 自定义属性声明（required）：复用 note 声明上下文。返回**按核相对 slot 键控**的 schema map——
+    // 键 = slot（0 = 核、<0 = 引导辅音（越近核越接近 −1）、>0 = 核后），即音素在 note 内的「角色」坐标
+    //（口径 = PhonemeSlots：slot = 音素下标 − LeadingPhonemes.Count，宿主对齐 / 面板合并同此一份）；
+    // 值 = 该 slot 在**整个选区**上的 schema。schema 授给角色而非单个音素：多选 note 时同 slot 各成员共用之，
+    // 故可按角色差异化（核=元音 schema、辅音 slot 另一套）；单选时 slot 与逐音素一一对应、表达力无损。
+    // 多选合并归引擎（契约同 GetNotePropertyConfig）：schema 依赖当前属性值时，自行合并同 slot 各成员值
+    //（context.Notes.Select(n => n.PhonemeAt(slot)?.Properties) 三态 Merge）决定混合态呈现；宿主只按 slot 合并值、
+    // 从不合并 schema。**空 map = 所有音素均无属性**；缺席的 slot = 该角色无属性（宿主按无属性处理，不报错）。
     // 值回灌到钉死音素（合成时经 VoiceSynthesisPhonemeSnapshot.Properties 读取）。属性只存在于钉死音素上（用户数据）。
-    IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
+    // 普通 map 而非 OrderedMap：slot 键自带数值全序（呈现恒按 slot 升序、宿主点查），声明序无人消费、不入契约。
+    IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
 }

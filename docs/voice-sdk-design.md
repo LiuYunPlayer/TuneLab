@@ -42,8 +42,8 @@ public interface IVoiceSynthesisEngine
     IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context);
     ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context);
     ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context);
-    // per-phoneme 自定义属性（required；复用 note 声明上下文，返回与 context.Notes 各 note 音素扁平展开索引对齐的 config 列表，见 §6 音素属性）
-    IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
+    // per-phoneme 自定义属性（required；复用 note 声明上下文，返回按核相对 slot 键控的 schema map（口径=PhonemeSlots），见 §6 音素属性）
+    IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
 }
 ```
 
@@ -451,14 +451,21 @@ public interface IVoiceSynthesisEngine   // 续（声明面）
 {
     // per-phoneme 自定义属性声明（required，与 GetNotePropertyConfig / GetPartPropertyConfig 一样必须实现）。
     // **复用 note 声明上下文 IVoiceSynthesisNotePropertyContext**（不再有独立 phoneme context）：每个
-    // IVoiceSynthesisNoteView 现带 Phonemes（该 note 的有序音素）。返回与「选中各 note 的音素**扁平展开**」
-    // **索引对齐**的 config 列表——扁平顺序 = context.Notes 顺序 × 各 note 的 Phonemes 顺序；
-    // list[k] = 第 k 个扁平音素的 schema。schema 可依**音素在 note 内的位置（= 该 note Phonemes 索引）/
-    // 邻居 / note 信息**条件化（如首辅音 vs 核 vs 尾辅音给不同控件）。
-    // **返回空列表 = 所有音素均无属性**（不声明音素属性的引擎直接返回空列表）；否则长度须 = 扁平音素总数。
-    // 一次调用即拿全部选中 note 的音素 schema，天然支持多选 note。
-    IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
+    // IVoiceSynthesisNoteView 现带 Phonemes（该 note 的有序音素）。返回**按核相对 slot 键控**的 schema map——
+    // 键 = slot（0 = 核、<0 = 引导辅音（越近核越接近 −1）、>0 = 核后；口径 = PhonemeSlots：
+    // slot = 音素下标 − LeadingPhonemes.Count），即音素在 note 内的「角色」；值 = 该角色在**整个选区**上的 schema。
+    // schema 授给角色而非单个音素：多选 note 时宿主把各 note 同 slot 音素并到一行、共用该 schema（值三态合并、编辑扇出）；
+    // 单选时 slot 与逐音素一一对应、表达力无损。**多选合并归引擎**（契约同 GetNotePropertyConfig）：schema 依赖当前
+    // 属性值时自行对同 slot 各成员值三态 Merge（context.Notes.Select(n => n.PhonemeAt(slot)?.Properties) 非空者 Merge）
+    // 再条件化；宿主只按 slot 合并值、从不合并 schema。**空 map = 所有音素均无属性**（不声明的引擎直接 return []）；
+    // 缺席 slot = 该角色无属性——键控自描述，无「长度须精确对齐」的位置契约。
+    IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
 }
+
+// slot 口径助手（SDK 共享纯函数，PhonemeLayout 同款先例——引擎与宿主同用一份、永不漂移）：
+// note.PhonemeAt(slot)（该位音素，无则 null）、
+// notes.UnionSlots()（选区 slot 全集：升序连续区间——每个非空 note 的 slot 域必贴核（含 −1 或 0），并集恒连续）。
+public static class PhonemeSlots { /* PhonemeAt / UnionSlots 扩展；核下标即 LeadingPhonemes.Count，不另设转发 API */ }
 
 // 音素只读值视图（声明面）：几何当前值 + per-phoneme 属性值快照（多选合并三态归插件）。
 // 挂在 IVoiceSynthesisNoteView.Phonemes 上（见 §8 声明面值视图）。
@@ -488,7 +495,7 @@ public readonly struct VoiceSynthesisPhonemeSnapshot
 }
 ```
 
-`VoiceSynthesisNoteSnapshot.Phonemes` 的元素类型即为 `VoiceSynthesisPhonemeSnapshot`（几何描述符 + 属性值拷），见 §3.5 / §4。
+`VoiceSynthesisNoteSnapshot` 两列表（`LeadingPhonemes` / `BodyPhonemes`）的元素类型即为 `VoiceSynthesisPhonemeSnapshot`（几何描述符 + 属性值拷；快照不设合并 `Phonemes` 属性，消费方需要全序列时自拼），见 §3.5 / §4。
 
 **语义要点**：
 
@@ -496,10 +503,10 @@ public readonly struct VoiceSynthesisPhonemeSnapshot
 - **真相源在数据层实体**：宿主 `IPhoneme`（`: IDataObject<PhonemeInfo>`，原有 Duration/Symbol/StretchWeight/IsLead）**加 `DataPropertyObject Properties`**，与 `INote.Properties` 完全平行——身份 / 持久 / undo / merge 全由数据层既有机制承担。`VoiceSynthesisPhonemeSnapshot.Properties` / `IVoiceSynthesisPhonemeView.Properties` 是它的冻 / 读投影。
 - **pay-as-you-go（轻量）**：数据层 `IPhoneme.Properties` 是 **lazy**——首次写才物化 `DataPropertyObject`，未编辑过的音素零开销；只读消费（快照 / 三态合并）走 `HasProperties` 闸门避免无谓物化；持久层 `PhonemeInfo.Properties` 空则为 `null`、不序列化。**空容器 ≡ 无属性**。
 - **活视图侧不变**：`IVoiceSynthesisNote` 的 `LeadingPhonemes` / `BodyPhonemes` 仍是几何列表（不带属性）——引擎在合成时经快照 `VoiceSynthesisPhonemeSnapshot.Properties` 读属性，活视图侧无须改面。
-- **引擎声明 schema**：`GetPhonemePropertyConfigs` 复用 note 声明上下文 `IVoiceSynthesisNotePropertyContext`（每个 `IVoiceSynthesisNoteView` 带 `Phonemes`），返回与「选中各 note 的音素扁平展开」（顺序 = `context.Notes` × 各 note `Phonemes`）索引对齐的 schema 列表（条件式，可依音素在 note 内的位置 / 邻居 / note 信息 / part / voice 给不同控件，如对首辅音、核、尾辅音返回不同配置；空列表 = 所有音素无属性）；每个 phoneme 的 `Properties` 存值，宿主渲染时三态合并 + keyed-diff。phoneme 声明上下文与 note 声明上下文本就等价，故复用同一接口、不重复造类型。
+- **引擎声明 schema**：`GetPhonemePropertyConfigs` 复用 note 声明上下文 `IVoiceSynthesisNotePropertyContext`（每个 `IVoiceSynthesisNoteView` 带 `Phonemes`），返回**按核相对 slot 键控**的 schema map（键 = slot：0 = 核、<0 = 引导、>0 = 核后，即音素角色；值 = 该角色在整个选区上的 schema；可依角色 / note 信息 / part / voice 差异化，如核 vs 辅音两套；空 map = 所有音素无属性、缺席 slot = 该角色无属性）；多选合并归引擎（schema 依赖当前值时对同 slot 各成员值三态 Merge 再条件化，同 `GetNotePropertyConfig` 契约），每个 phoneme 的 `Properties` 存值、宿主按 slot 三态合并值 + keyed-diff 渲染。slot 口径 = SDK 共享纯函数 `PhonemeSlots`。phoneme 声明上下文与 note 声明上下文本就等价，故复用同一接口、不重复造类型。
 - **曲线类不进属性**：per-phoneme 的音高 / 能量曲线本质是**时间轴参数**，走回显 / automation 通道（§7），不做成音素属性。
 - **voice-only**：instrument 无音素系统，不涉及。
-- **编辑 UI**：侧栏音素属性面板已落地——**逐音素一行**（符号标签 + 该音素自己的控制器），按选中 note 成批调 `GetPhonemePropertyConfigs` 求 config，三态合并 + keyed-diff 渲染。仍待做的是音素的**选中模型**（当前音素无 `ISelectable` 选中态）；在选中模型补齐前，宿主以选中 note 的全体音素为面板范围。
+- **编辑 UI**：侧栏音素属性面板已落地——**逐 slot 一行**（符号标签 + 该 slot 的控制器），多选 note 时各 note 同 slot 音素并到同一行（schema 即引擎授给该 slot 的那套、值三态合并、编辑扇出）。仍待做的是音素的**选中模型**（当前音素无 `ISelectable` 选中态）；在选中模型补齐前，宿主以选中 note 的全体音素为面板范围。
 
 ---
 
@@ -593,7 +600,7 @@ public class AutomationConfig : IValueConfig<double>
       PropertyObject PartProperties { get; }                     // part 属性值快照
       IReadOnlyMap<string, IAutomationEvaluator> Automations { get; }  // 读已声明轨当前曲线（秒轴）；可点取 TryGetValue / 可枚举
   }
-  public interface IVoiceSynthesisNoteView { double StartTime { get; } double EndTime { get; } int Pitch { get; } string Lyric { get; } PropertyObject Properties { get; } IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes { get; } }  // Phonemes = 该 note 的有序音素（前置辅音→核→后辅音；位置=索引），供 GetPhonemePropertyConfigs 用（见 §6）
+  public interface IVoiceSynthesisNoteView { double StartTime { get; } double EndTime { get; } int Pitch { get; } string Lyric { get; } PropertyObject Properties { get; } IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes { get; } }  // Phonemes = 该 note 的有序音素（前置辅音→核→后辅音；位置=索引）；核相对 slot 由 PhonemeSlots 派生、供 GetPhonemePropertyConfigs 用（见 §6）
 
   // 两个声明壳（抗迭代）——取代旧 IVoice/IInstrument × Part/Note 的快照形态
   public interface IVoiceSynthesisPartPropertyContext { IReadOnlyList<IVoiceSynthesisPartView> Parts { get; } }                                   // 多选 part
@@ -607,9 +614,9 @@ public class AutomationConfig : IValueConfig<double>
       ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context);
       // note / phoneme 级（单 part、多选其下成员）；VoiceId + part 当前值从 context.Part 取。
       ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context);
-      // phoneme 级（required）：**复用 note 声明上下文**（每个 NoteView 带 Phonemes），返回与「选中各 note
-      // 的音素扁平展开」（context.Notes × 各 note Phonemes）索引对齐的 config 列表（空列表=无属性；见 §6 音素属性）。
-      IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
+      // phoneme 级（required）：**复用 note 声明上下文**（每个 NoteView 带 Phonemes），返回按核相对 slot 键控的
+      // schema map（键=slot：0=核、<0=引导、>0=核后，口径=PhonemeSlots；空 map=无属性；多选合并归引擎；见 §6 音素属性）。
+      IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context);
   }
   // IInstrumentSynthesisEngine 收对应的 IInstrumentPart* 平行副本。
 
@@ -660,12 +667,12 @@ public class AutomationConfig : IValueConfig<double>
 
 *— 阶段一 SDK 契约 + 数据 + 持久 + 快照* —— **已落地**
 - ✅ SDK：新增 `VoiceSynthesisPhonemeSnapshot`（`TuneLab.SDK/Voice/`）；`VoiceSynthesisNoteSnapshot.Phonemes` 元素类型从 `SynthesizedPhoneme` 改为 `VoiceSynthesisPhonemeSnapshot`（契约变更）。活视图 `IVoiceSynthesisNote.Phonemes` 仍为几何列表（不带属性）。
-- ✅ SDK 声明面：`IVoiceSynthesisEngine.GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext) : IReadOnlyList<ObjectConfig>` **required**（复用 note 声明上下文，返回与「选中各 note 的音素扁平展开」索引对齐的 config 列表，空列表=所有音素无属性）；新增 `IVoiceSynthesisPhonemeView` 并在 `IVoiceSynthesisNoteView` 上挂 `Phonemes`（该 note 的有序音素序列，位置 = `Phonemes` 索引）——不再有独立 phoneme context。
+- ✅ SDK 声明面：`IVoiceSynthesisEngine.GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext)` **required**（复用 note 声明上下文）；新增 `IVoiceSynthesisPhonemeView` 并在 `IVoiceSynthesisNoteView` 上挂 `Phonemes`（该 note 的有序音素序列，位置 = `Phonemes` 索引）——不再有独立 phoneme context。（初版返回「扁平展开索引对齐的 config 列表」；**后修订为按核相对 slot 键控的 `IReadOnlyMap<int, ObjectConfig>`**——扁平位置契约有全局漂移脆弱、且逐音素 schema 与宿主按 slot 的多选合并粒度错位（宿主被迫挑「代表 config」= 合并 schema，违反「宿主只并值」），改 slot 键控后合并单元 = 交付单元、多选合并归引擎，见 §6。）
 - ✅ 数据层：`IPhoneme` 加 `DataPropertyObject Properties` + `HasProperties` 闸门（**lazy 物化**，未编辑零开销）；`PhonemeInfo` 加属性序列化槽（空 = `null`、不序列化）。
 - ✅ 产物回填：`SynthesizedPhonemes` 区分 `null`（未参与合成）/`[]`（已合成无音素）——`WriteBackPhonemes` 按此分流。
 
 *— 阶段二 编辑 UI*
-- ✅ 侧栏音素属性面板已落地：**逐音素一行**（符号标签 + 该音素自己的控制器），按选中 note 成批调 `GetPhonemePropertyConfigs` 求 config，三态合并 + keyed-diff 渲染。
+- ✅ 侧栏音素属性面板已落地：**逐 slot 一行**（符号标签 + 该 slot 的控制器），多选 note 同 slot 并行，schema 取引擎按 slot 授出的那套、值三态合并 + keyed-diff 渲染。
 - ⏳ 待做：音素的"选中"模型（当前音素无 `ISelectable` 选中态）+ 挂波形 / 卷帘的音素直接编辑入口。在选中模型补齐前，宿主以选中 note 的全体音素为面板范围。
 
 *阶段 C — 回显可编辑（约定，可独立）*

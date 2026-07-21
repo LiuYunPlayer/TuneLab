@@ -49,7 +49,7 @@ internal sealed class VoiceEngineAdapter(LVoice.IVoiceEngine legacy, string engi
         => VVoice.ObjectConfig.Create(Decl(SourceIdOf(context)).PartProperties);
     public VVoice.ObjectConfig GetNotePropertyConfig(VVoice.IVoiceSynthesisNotePropertyContext context)
         => VVoice.ObjectConfig.Create(Decl(context.Part.VoiceId).NoteProperties);
-    public IReadOnlyList<VVoice.ObjectConfig> GetPhonemePropertyConfigs(VVoice.IVoiceSynthesisNotePropertyContext context) => [];
+    public PStruct.IReadOnlyMap<int, VVoice.ObjectConfig> GetPhonemePropertyConfigs(VVoice.IVoiceSynthesisNotePropertyContext context) => [];
 
     static string SourceIdOf(VVoice.IVoiceSynthesisPartPropertyContext context) => context.Parts.Count > 0 ? context.Parts[0].VoiceId : string.Empty;
 

@@ -70,7 +70,7 @@ public sealed class I18NVoiceEngine : IVoiceSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => sEmptyConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => ObjectConfig.Create(mNoteProperties);
-    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     readonly OrderedMap<string, VoiceSourceInfo> mVoiceInfos = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();

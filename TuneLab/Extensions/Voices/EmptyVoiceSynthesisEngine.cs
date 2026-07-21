@@ -29,7 +29,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mEmptyConfig;
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => mEmptyConfig;
-    public IReadOnlyList<ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
+    public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context) => [];
 
     class EmptySession : IVoiceSynthesisSession
     {
