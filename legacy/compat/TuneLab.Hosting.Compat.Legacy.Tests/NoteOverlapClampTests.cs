@@ -122,7 +122,7 @@ public class NoteOverlapClampTests
         public IReadOnlyNotifiableProperty<double> BodyOffset { get; } = new Const<double>(0);
         public IReadOnlyNotifiablePropertyObject Properties => null!; // 钳位路径不触及
         public IVoiceSynthesisNote? Next { get; set; }
-        public IVoiceSynthesisNote? Last { get; set; }
+        public IVoiceSynthesisNote? Previous { get; set; }
     }
 
     sealed class Const<T>(T value) : IReadOnlyNotifiableProperty<T>
