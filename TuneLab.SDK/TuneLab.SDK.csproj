@@ -4,6 +4,15 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- AssemblyVersion = 程序集绑定身份，2.x 全生命周期【永不再动】——显式声明即切断 Version→AssemblyVersion
+         的默认派生链，使发布流程设 /p:Version 或 <Version>（更新 FileVersion/InformationalVersion 是正当需求）
+         不会连带改动它。插件编译时把所引用 SDK 的这个数字烧进引用记录，运行时实际版本 < 请求即 FileLoadException：
+         数字一动，「新编译插件 × 未升级宿主」整个组合无辜全灭（与 ABI 真实兼容无关、发生在任何 API 调用之前）。
+         钉死后绑定层永远放行；「插件真用了新 API × 老宿主」的唯一合法拒绝由 manifest sdk-version 门（另一条
+         版本轴：SDK API 面演进计数，ExtensionManager.SdkVersion，与本数字刻意不同、勿对齐）在加载前人话拒绝。
+         真实发行版本走 FileVersion/InformationalVersion（BCL 同款惯例：System.Runtime 的 AssemblyVersion
+         恒 major.0.0.0 不随 patch 动）。 -->
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
