@@ -56,10 +56,15 @@ public static class IEventExtensions
     public static IActionEvent<T1, T2, T3, T4, T5, T6, T7> Merge<T1, T2, T3, T4, T5, T6, T7>(this IEnumerable<IEvent<Action<T1, T2, T3, T4, T5, T6, T7>>> sources) => new MergedActionEvent<T1, T2, T3, T4, T5, T6, T7>(sources);
     public static IActionEvent<T1, T2, T3, T4, T5, T6, T7, T8> Merge<T1, T2, T3, T4, T5, T6, T7, T8>(this IEnumerable<IEvent<Action<T1, T2, T3, T4, T5, T6, T7, T8>>> sources) => new MergedActionEvent<T1, T2, T3, T4, T5, T6, T7, T8>(sources);
 
-    class MergedEvent<TEvent>(IEnumerable<IEvent<TEvent>> sources) : IEvent<TEvent>
+    // Merge 取的是一批固定源的快照：构造时 ToArray 固化，Subscribe/Unsubscribe 枚举同一批源。若持惰性 enumerable
+    // （如调用方传的 LINQ 查询）两次枚举结果不同 → 订阅一批、退订另一批，摘不干净而泄漏。
+    // 需要「动态成员、增删自动接线」的语义用 IReadOnlyNotifiableEnumerable.WhenAny/WhenAnyItem，不要往 Merge 塞惰性查询。
+    class MergedEvent<TEvent> : IEvent<TEvent>
     {
-        public void Subscribe(TEvent invokable) { foreach (var source in sources) source.Subscribe(invokable); }
-        public void Unsubscribe(TEvent invokable) { foreach (var source in sources) source.Unsubscribe(invokable); }
+        public MergedEvent(IEnumerable<IEvent<TEvent>> sources) => mSources = sources.ToArray();
+        public void Subscribe(TEvent invokable) { foreach (var source in mSources) source.Subscribe(invokable); }
+        public void Unsubscribe(TEvent invokable) { foreach (var source in mSources) source.Unsubscribe(invokable); }
+        readonly IEvent<TEvent>[] mSources;
     }
 
     sealed class MergedActionEvent(IEnumerable<IEvent<Action>> sources) : MergedEvent<Action>(sources), IActionEvent { }
