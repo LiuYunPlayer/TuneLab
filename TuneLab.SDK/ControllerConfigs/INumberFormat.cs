@@ -19,10 +19,13 @@ public static class NumberFormat
 
     sealed class DecimalsFormat(int digits) : INumberFormat
     {
+        // 恒用 InvariantCulture（小数点恒为句点）：值本质是数据（double，持久层按句点存），显示 / 解析须确定性、
+        // 可往返；用 CurrentCulture 会随机器区域出逗号小数点，且解析时把句点当千位分隔误读（如逗号区 "3.14"→314）。
+        // 需本地化显示的走 Custom 逃生口自造。要本地化数字请勿复用本便利实现。
         readonly string mFormat = "F" + Math.Max(0, digits);
-        public string Format(double value) => value.ToString(mFormat, CultureInfo.CurrentCulture);
+        public string Format(double value) => value.ToString(mFormat, CultureInfo.InvariantCulture);
         public double? Parse(string text)
-            => double.TryParse(text, NumberStyles.Any, CultureInfo.CurrentCulture, out var v) ? v : null;
+            => double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;
     }
 
     sealed class CustomFormat(Func<double, string> format, Func<string, double?> parse) : INumberFormat
