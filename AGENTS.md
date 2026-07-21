@@ -4,7 +4,16 @@
 
 - Build: `dotnet build TuneLab.sln -c Debug`
 - Tests: `dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj` and `dotnet test legacy/compat/TuneLab.Hosting.Compat.Legacy.Tests/TuneLab.Hosting.Compat.Legacy.Tests.csproj`
-- Sample plugins under `tests/plugins/*/` are NOT in the solution — build them individually after changing any SDK surface.
+- Sample plugins under `tests/plugins/*/` are NOT in the solution — build them individually after
+  changing any SDK surface. After an SDK-surface change, redeploying them takes **three steps**, not
+  one — skipping the last two leaves the running app loading a stale binary (symptom:
+  `MissingMethodException` for an SDK member that was renamed/removed):
+  1. **Build** with `-t:Rebuild` (plain `dotnet build` may judge a plugin "up to date" and skip it,
+     re-deploying the old dll). Each csproj's `OutputPath` writes into `tests/packages/<slug>/`.
+  2. **Pack**: `pwsh tests/pack-tlx.ps1` → bundles `tests/packages/*` into `tests/tlx/*.tlx`.
+  3. **Install**: `pwsh tests/install-tlx.ps1 [names...]` → extracts each `.tlx` into
+     `%APPDATA%\TuneLab\Extensions\<manifest-name>\`, which is where the app actually loads from.
+     **TuneLab must be closed** first — a running instance locks the extension dlls.
 
 ## ⚠️ Frozen public ABI: TuneLab.SDK & TuneLab.Foundation
 
