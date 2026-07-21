@@ -33,7 +33,7 @@ public interface IRawValueProperty
 
 public static class IDataPropertyObjectExtension
 {
-    public static IDataProperty<double> NumberField(this IDataPropertyObject dataObject, string key, double defaultValue)
+    public static IDataProperty<double> DoubleField(this IDataPropertyObject dataObject, string key, double defaultValue)
     {
         return new PropertyField<double>(dataObject, key, PropertyValue.Create(defaultValue),
             v => v.ToDouble(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
@@ -45,10 +45,10 @@ public static class IDataPropertyObjectExtension
             v => v.ToString(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
-    public static IDataProperty<bool> BoolField(this IDataPropertyObject dataObject, string key, bool defaultValue)
+    public static IDataProperty<bool> BooleanField(this IDataPropertyObject dataObject, string key, bool defaultValue)
     {
         return new PropertyField<bool>(dataObject, key, PropertyValue.Create(defaultValue),
-            v => v.ToBool(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
+            v => v.ToBoolean(out var value) ? value : defaultValue, value => PropertyValue.Create(value));
     }
 
     // 裸值字段：读写都是未 coerce 的 PropertyValue（identity 适配器），供值类型不定的控件（如 option 可为任意基础类型的

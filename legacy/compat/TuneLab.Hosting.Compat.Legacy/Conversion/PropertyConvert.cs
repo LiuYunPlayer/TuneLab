@@ -36,7 +36,7 @@ internal static class PropertyConvert
 
     public static LProp.PropertyValue ToLegacy(this PProp.PropertyValue neo)
     {
-        if (neo.ToBool(out var b)) return b;
+        if (neo.ToBoolean(out var b)) return b;
         if (neo.ToDouble(out var d)) return d;
         if (neo.ToString(out var s)) return s ?? string.Empty;
         if (neo.ToObject(out var o)) return LProp.PropertyValue.Create(o.ToLegacy());

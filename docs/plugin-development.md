@@ -300,7 +300,7 @@ readonly ObjectConfig mNoteConfig = new()
 };
 ```
 
-- **Reading values**: at synthesis time, read from `VoiceSynthesisNoteSnapshot.Properties` (a `PropertyObject` value copy) using `GetDouble(key, default)` / `GetBool` / `GetInt` / `GetString` / `GetEnum<T>`. **Sparse storage** — only fields the user has changed are present; if not found use the default you declared (`PropertyObject`'s `Get*` second argument is the fallback; pass the same default as declared).
+- **Reading values**: at synthesis time, read from `VoiceSynthesisNoteSnapshot.Properties` (a `PropertyObject` value copy) using `GetDouble(key, default)` / `GetBoolean` / `GetString`. **Sparse storage** — only fields the user has changed are present; if not found use the default you declared (`PropertyObject`'s `Get*` second argument is the fallback; pass the same default as declared).
 - **`AutomationConfig`**: `DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color` (e.g. `"#E5A573"`) / `Randomizable` (adds a random entry to the right of the default-value panel's slider, best for continuous tracks). **`DefaultValue = double.NaN` ⇒ a piecewise track** (no default baseline, disconnected between segments, e.g. pitch-like, bend); a real number ⇒ a continuous track (has a value everywhere, has a baseline, e.g. growl). Readback tracks are always piecewise (`DefaultValue = NaN`).
 - **Value-axis scale**: `AutomationConfig.Create(minValue, maxValue)` is a linear axis; the `Create(INormalizedScale)` overload takes a custom scale (mirroring `SliderConfig.Create`) — e.g. `NormalizedScale.Integer(min, max)` makes it an integer track, or implement your own log axis etc. **A discrete scale ⇒ the signal lands on the grid everywhere**: beyond snapping anchors on write, the host projects the continuous Hermite output back onto the scale at **evaluation and rendering** time (the curve renders as a staircase, and `Evaluate` returns already-gridded final values), so the **engine need not round** and every edit path (load / preset / fed-back data) is covered. On a linear scale the projection is pure range-clamping (out-of-range values clamped to `[min,max]`).
 - **Binary interval track (band / toggle)**: for an on/off interval track (e.g. a breathiness switch, section mute), declare a **piecewise track with a degenerate range** — `AutomationConfig.Create(v, v)` (`Create` defaults to `DefaultValue=NaN` ⇒ piecewise; `min==max` ⇒ no value axis). The host recognizes this form and renders it as a **full-height toggle band** (segment = on-interval highlighted, gap = off/blank) instead of a curve, with interaction switched to horizontal drag = paint on / right-drag = paint off (vertical ignored, there is no height). Consumption is pure segment presence: `!double.IsNaN(evaluator.Evaluate(t)[i])` means "on"; the value inside a segment is irrelevant and need not be read. Interval boundaries = the segment's anchor span, dragged precisely by the user.
@@ -844,7 +844,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
         props.Add(("api_key", "API Key"), TextBoxConfig.Create().WithPassword()); // secret: masked display + encrypted storage
         props.Add(("use_gpu", "Use GPU"), CheckBoxConfig.Create(false));
         // Dynamic/conditional items: decide show/hide based on already-filled values (e.g. expose the device field only when GPU is checked).
-        if (context.Settings.GetBool("use_gpu", false))
+        if (context.Settings.GetBoolean("use_gpu", false))
             props.Add(("gpu_device", "GPU Device"), TextBoxConfig.Create(""));
         return ObjectConfig.Create(props);
     }
@@ -855,7 +855,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
     {
         mModelPath = settings.GetString("model_path", "");
         mApiKey    = settings.GetString("api_key", "");
-        mUseGpu    = settings.GetBool("use_gpu", false);
+        mUseGpu    = settings.GetBoolean("use_gpu", false);
         // Then use these values in Init / CreateSession / CreateSession.
     }
 

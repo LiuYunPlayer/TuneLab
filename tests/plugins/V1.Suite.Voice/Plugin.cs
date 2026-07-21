@@ -97,7 +97,7 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
         map.Add("pick", ComboBoxConfig.Create(options.Select(o => (ComboBoxItem)o).ToList()));
 
         // ② 沿链：part 的 fromPart 勾选 → note 多出 partGain 字段（演示 part 值 commit 触发 note 面板重算）
-        if (context.Part.PartProperties.GetBool("fromPart", false))
+        if (context.Part.PartProperties.GetBoolean("fromPart", false))
             map.Add("partGain", SliderConfig.Linear(0, 0, 100));
 
         // ① mode=Advanced → 多出字段（显隐 / 换控件）

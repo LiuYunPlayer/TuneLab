@@ -45,7 +45,7 @@ public sealed class PropertyObject : IEquatable<PropertyObject>
         return GetValue(key, defaultValue);
     }
 
-    public bool GetBool(string key, bool defaultValue = false)
+    public bool GetBoolean(string key, bool defaultValue = false)
     {
         return GetValue(key, defaultValue);
     }
@@ -60,16 +60,6 @@ public sealed class PropertyObject : IEquatable<PropertyObject>
         return GetValue(key, defaultValue);
     }
 
-    public int GetInt(string key, int defaultValue = 0)
-    {
-        return (int)Math.Round(GetDouble(key, defaultValue));
-    }
-
-    public T GetEnum<T>(string key, T defaultValue = default) where T : struct, Enum
-    {
-        var name = GetValue(key, string.Empty);
-        return Enum.TryParse<T>(name, out var result) ? result : defaultValue;
-    }
 
     // 深相等性：同键集 + 每个 PropertyValue 深比较，支撑 undo 去重。
     public bool Equals(PropertyObject? other)

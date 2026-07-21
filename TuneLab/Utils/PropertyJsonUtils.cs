@@ -42,7 +42,7 @@ internal static class PropertyJsonUtils
             return ToJson(propertyObject);
         if (value.ToArray(out var propertyArray))
             return ToJson(propertyArray);
-        if (value.ToBool(out var boolValue))
+        if (value.ToBoolean(out var boolValue))
             return new JValue(boolValue);
         if (value.ToDouble(out var doubleValue))
             return new JValue(doubleValue);

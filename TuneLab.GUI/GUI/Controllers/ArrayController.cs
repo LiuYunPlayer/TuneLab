@@ -332,7 +332,7 @@ internal abstract class ElementWidget : IDisposable
         {
             mController = new SliderController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             Apply(config);
-            mController.BindDataProperty(dataObject.NumberField(token, config.DefaultValue), s);
+            mController.BindDataProperty(dataObject.DoubleField(token, config.DefaultValue), s);
         }
 
         void Apply(SliderConfig config)
@@ -408,7 +408,7 @@ internal abstract class ElementWidget : IDisposable
         public CheckElement(IDataPropertyObject dataObject, string token, CheckBoxConfig config)
         {
             mController = new CheckBox { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-            mController.BindDataProperty(dataObject.BoolField(token, config.DefaultValue), s);
+            mController.BindDataProperty(dataObject.BooleanField(token, config.DefaultValue), s);
         }
 
         public override Control View => mController;

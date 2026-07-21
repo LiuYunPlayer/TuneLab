@@ -17,7 +17,7 @@ public interface IReadOnlyNotifiablePropertyObject : IReadOnlyNotifiable
 
 public static class IReadOnlyNotifiablePropertyObjectExtension
 {
-    public static IReadOnlyNotifiableProperty<double> NumberField(this IReadOnlyNotifiablePropertyObject propertyObject, string key, double defaultValue)
+    public static IReadOnlyNotifiableProperty<double> DoubleField(this IReadOnlyNotifiablePropertyObject propertyObject, string key, double defaultValue)
     {
         return new ReadOnlyPropertyField<double>(propertyObject, key, PropertyValue.Create(defaultValue),
             v => v.ToDouble(out var value) ? value : defaultValue);
@@ -29,10 +29,10 @@ public static class IReadOnlyNotifiablePropertyObjectExtension
             v => v.ToString(out var value) ? value : defaultValue);
     }
 
-    public static IReadOnlyNotifiableProperty<bool> BoolField(this IReadOnlyNotifiablePropertyObject propertyObject, string key, bool defaultValue)
+    public static IReadOnlyNotifiableProperty<bool> BooleanField(this IReadOnlyNotifiablePropertyObject propertyObject, string key, bool defaultValue)
     {
         return new ReadOnlyPropertyField<bool>(propertyObject, key, PropertyValue.Create(defaultValue),
-            v => v.ToBool(out var value) ? value : defaultValue);
+            v => v.ToBoolean(out var value) ? value : defaultValue);
     }
 
     // 裸值字段：读未 coerce 的 PropertyValue，供值类型不定的消费方自行判型。

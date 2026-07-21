@@ -272,7 +272,7 @@ internal class PropertyObjectController : StackPanel
 
             // 先绑定（初次刷新即把真实值写入），Relayout 才加入可视树——否则池复用的控件会以残留旧值/旧量程
             // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
-            mController.BindDataProperty(parent.DataObject.NumberField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s);
         }
 
         void Apply(SliderConfig config)
@@ -324,7 +324,7 @@ internal class PropertyObjectController : StackPanel
 
             Apply(config);
             AttachContextMenu(mDockPanel, key, () => mConfig);
-            mController.BindDataProperty(parent.DataObject.NumberField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s);
         }
 
         void Apply(DraggableNumberBoxConfig config)
@@ -528,7 +528,7 @@ internal class PropertyObjectController : StackPanel
             mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
             mDockPanel.Children.Add(mTitle);
 
-            mController.BindDataProperty(parent.DataObject.BoolField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.BooleanField(key.Id, config.DefaultValue), s);
         }
 
         public override Type ConfigType => typeof(CheckBoxConfig);

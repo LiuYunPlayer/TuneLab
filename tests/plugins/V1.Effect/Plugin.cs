@@ -28,7 +28,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
         bool envEnabled = context.Effects.Count > 0;
         foreach (var view in context.Effects)
-            envEnabled &= view.Properties.GetBool("env_enabled", true);
+            envEnabled &= view.Properties.GetBoolean("env_enabled", true);
         if (envEnabled)
         {
             foreach (var kvp in mAutomations)

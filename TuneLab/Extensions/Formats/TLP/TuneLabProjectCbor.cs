@@ -1303,7 +1303,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             WritePropertyObject(writer, propertyObject);
         else if (value.ToArray(out var propertyArray))
             WritePropertyArray(writer, propertyArray);
-        else if (value.ToBool(out var boolValue))
+        else if (value.ToBoolean(out var boolValue))
             writer.WriteBoolean(boolValue);
         else if (value.ToDouble(out var doubleValue))
             writer.WriteDouble(doubleValue);

@@ -5,7 +5,7 @@ namespace TuneLab.Foundation;
 
 // 单一 box 的值模型。内部用「类型标签 + 字段联合」存储，避免标量装箱：
 //   number/boolean 存进 mNumber（double，bool 编码为 0/1），string/object 存进 mReference（本就是引用、零额外装箱），
-//   null/multiple 哨兵仅由 mType 标签表达、不占引用槽。读取标量（ToDouble/ToBool）直接取字段，无拆箱。
+//   null/multiple 哨兵仅由 mType 标签表达、不占引用槽。读取标量（ToDouble/ToBoolean）直接取字段，无拆箱。
 // 公开 ABI 与旧实现（object mValue + System.Type）完全一致：Type/To*/Is*/Equals/Create/隐式转换签名不变。
 // 【新增类型臂检查单】给本类型加新值种类（新 PropertyType + Create/To*/隐式转换 + 三个 switch）时，
 // 必须同步全部序列化站点——它们是刻意收敛后的仅有两处，漏一处即静默丢数据：
@@ -99,7 +99,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
         return mType == PropertyType.Multiple;
     }
 
-    public bool IsBool()
+    public bool IsBoolean()
     {
         return TypeIs<bool>();
     }
@@ -125,7 +125,7 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
     }
 
     // 标量直读字段、无拆箱。
-    public bool ToBool(out bool result)
+    public bool ToBoolean(out bool result)
     {
         if (mType == PropertyType.Boolean)
         {
@@ -183,14 +183,6 @@ public readonly struct PropertyValue : IEquatable<PropertyValue>
 
         result = null;
         return false;
-    }
-
-    public bool ToInt(out int result)
-    {
-        bool success = ToDouble(out var d);
-        // 四舍五入而非截断，与 PropertyObject.GetInt 统一（同一值 2.7 两处都得 3、不再一处 2 一处 3）。
-        result = (int)Math.Round(d);
-        return success;
     }
 
     // 泛型读取：仅匹配确切存储类型。number/boolean 分支需装箱以返回 T（罕用的泛型路径；

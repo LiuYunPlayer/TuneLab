@@ -58,7 +58,7 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
         props.Add(("model_path", L.Tr("Model Path")), TextBoxConfig.Create(string.Empty));
         props.Add(("api_key", L.Tr("API Key")), TextBoxConfig.Create(string.Empty).WithPassword());
         props.Add(("use_gpu", L.Tr("Use GPU")), CheckBoxConfig.Create(false));
-        if (context.Settings.GetBool("use_gpu", false))
+        if (context.Settings.GetBoolean("use_gpu", false))
             props.Add(("gpu_device", L.Tr("GPU Device")), TextBoxConfig.Create(string.Empty));
         return ObjectConfig.Create(props);
     }
@@ -68,7 +68,7 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
     {
         var path = settings.GetString("model_path", string.Empty);
         var hasKey = !string.IsNullOrEmpty(settings.GetString("api_key", string.Empty));
-        var gpu = settings.GetBool("use_gpu", false);
+        var gpu = settings.GetBoolean("use_gpu", false);
         TuneLabContext.Global.GetLogger().Info(string.Format(
             "[V1.Settings] ApplySettings: model_path='{0}', api_key={1}, use_gpu={2}",
             path, hasKey ? "<set>" : "<empty>", gpu));
