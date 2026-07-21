@@ -301,6 +301,27 @@ internal partial class TrackScrollView
                                                 }
                                             }
 
+                                            // 递归把布局节点建成 MenuItem 子项：叶子→可选项（悬垂 id 跳过）；组→带子菜单的项。covered 记录已引用 id。
+                                            void AddVoiceNodes(ItemCollection target, string type, IReadOnlyList<VoiceSourceLayoutItem> nodes, HashSet<string> covered)
+                                            {
+                                                foreach (var node in nodes)
+                                                {
+                                                    if (node is VoiceSourceLayoutVoice leaf)
+                                                    {
+                                                        covered.Add(leaf.VoiceId);
+                                                        if (!VoicesManager.TryGetVoiceInfo(type, leaf.VoiceId, out var info))
+                                                            continue;
+                                                        target.Add(new MenuItem().SetName(info.Name).SetAction(() => ApplyVoice(type, leaf.VoiceId)));
+                                                    }
+                                                    else if (node is VoiceSourceLayoutGroup group)
+                                                    {
+                                                        var groupItem = new MenuItem() { Header = group.Name };
+                                                        AddVoiceNodes(groupItem.Items, type, group.Items, covered);
+                                                        target.Add(groupItem);
+                                                    }
+                                                }
+                                            }
+
                                             var allEngines = VoicesManager.GetAllVoiceEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
@@ -310,14 +331,13 @@ internal partial class TrackScrollView
                                                     continue;
 
                                                 var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In".Tr(TC.Menu) : VoicesManager.GetDisplayName(type) };
+                                                // 按引擎布局折成嵌套子菜单；未被布局引用的 id 在该引擎顶层按 map 序兜底补出（空布局 ⇒ 全平铺）。
+                                                var covered = new HashSet<string>();
+                                                AddVoiceNodes(engine.Items, type, VoicesManager.GetVoiceLayout(type), covered);
+                                                foreach (var info in infos)
                                                 {
-                                                    foreach (var info in infos)
-                                                    {
-                                                        var voice = new MenuItem().
-                                                            SetName(info.Value.Name).
-                                                            SetAction(() => ApplyVoice(type, info.Key));
-                                                        engine.Items.Add(voice);
-                                                    }
+                                                    if (!covered.Contains(info.Key))
+                                                        engine.Items.Add(new MenuItem().SetName(info.Value.Name).SetAction(() => ApplyVoice(type, info.Key)));
                                                 }
                                                 menuItem.Items.Add(engine);
                                             }
@@ -362,6 +382,27 @@ internal partial class TrackScrollView
                                                 }
                                             }
 
+                                            // 与 voice 同构：递归把布局节点建成 MenuItem 子项，covered 记录已引用 id。
+                                            void AddInstrumentNodes(ItemCollection target, string type, IReadOnlyList<InstrumentSourceLayoutItem> nodes, HashSet<string> covered)
+                                            {
+                                                foreach (var node in nodes)
+                                                {
+                                                    if (node is InstrumentSourceLayoutInstrument leaf)
+                                                    {
+                                                        covered.Add(leaf.InstrumentId);
+                                                        if (!InstrumentsManager.TryGetInstrumentInfo(type, leaf.InstrumentId, out var info))
+                                                            continue;
+                                                        target.Add(new MenuItem().SetName(info.Name).SetAction(() => ApplyInstrument(type, leaf.InstrumentId)));
+                                                    }
+                                                    else if (node is InstrumentSourceLayoutGroup group)
+                                                    {
+                                                        var groupItem = new MenuItem() { Header = group.Name };
+                                                        AddInstrumentNodes(groupItem.Items, type, group.Items, covered);
+                                                        target.Add(groupItem);
+                                                    }
+                                                }
+                                            }
+
                                             var allEngines = InstrumentsManager.GetAllInstrumentEngines();
                                             for (int i = 0; i < allEngines.Count; i++)
                                             {
@@ -371,14 +412,13 @@ internal partial class TrackScrollView
                                                     continue;
 
                                                 var engine = new MenuItem() { Header = string.IsNullOrEmpty(type) ? "Built-In".Tr(TC.Menu) : InstrumentsManager.GetDisplayName(type) };
+                                                // 按引擎布局折成嵌套子菜单；未被布局引用的 id 在该引擎顶层按 map 序兜底补出（空布局 ⇒ 全平铺）。
+                                                var covered = new HashSet<string>();
+                                                AddInstrumentNodes(engine.Items, type, InstrumentsManager.GetInstrumentLayout(type), covered);
+                                                foreach (var info in infos)
                                                 {
-                                                    foreach (var info in infos)
-                                                    {
-                                                        var instrument = new MenuItem().
-                                                            SetName(info.Value.Name).
-                                                            SetAction(() => ApplyInstrument(type, info.Key));
-                                                        engine.Items.Add(instrument);
-                                                    }
+                                                    if (!covered.Contains(info.Key))
+                                                        engine.Items.Add(new MenuItem().SetName(info.Value.Name).SetAction(() => ApplyInstrument(type, info.Key)));
                                                 }
                                                 menuItem.Items.Add(engine);
                                             }

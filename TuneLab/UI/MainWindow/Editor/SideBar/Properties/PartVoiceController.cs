@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using TuneLab.Configs;
@@ -21,6 +20,8 @@ namespace TuneLab.UI;
 //   顶部 = 当前引擎的各音源（快速在当前引擎内切）；
 //   ──Voices── 带字分隔线下 = 其余各 voice 引擎（二级子菜单列其音源）；
 //   ──Instruments── 带字分隔线下 = 各 instrument 引擎（二级子菜单）。
+// voice / instrument 引擎的音源均按其 Voice/InstrumentSourceLayout（有序分组树）折成嵌套子菜单——
+// 声库/音色多时不再平铺；未被布局引用的 id 在该引擎顶层按 map 序兜底补出（空布局 = 全平铺 = 旧行为）。
 // 引擎只要加载正常(infos!=null)就展示（哪怕无音源=空子菜单，点引擎头无效，传达"引擎在、缺音源"的信息）。
 // 选项值用"在 mEntries 表里的下标"编码（避开任意 type/id 字符串拼接），选中后按下标查回 (Kind,Type,ID)。
 // 仅在单选或同引擎多选时由 provider 展示（current 引擎须一致；voice 可不同显 "-"）。
@@ -144,13 +145,13 @@ internal class PartVoiceController : StackPanel
     }
 
     // 当前引擎的各音源（便于直接在本引擎内切换 / 高亮）；带字分隔线＝引擎名。引擎无音源则整段省略（不留空字头）。
+    // voice 引擎按其布局折成分组子菜单（几百声库时顶部也不再平铺）；instrument 引擎平铺。
     void AddCurrentEngineSection(List<ComboBoxItem> options, SourceKind kind, string type)
     {
-        if (!TryEnumerateSources(kind, type, out var sources) || sources.Count == 0)
+        if (!TryBuildEngineItems(kind, type, out var items) || items.Count == 0)
             return;
         options.Add(ComboBoxItem.Separator(EngineName(kind, type)));
-        foreach (var src in sources)
-            options.Add(Leaf(kind, type, src));
+        options.AddRange(items);
     }
 
     // 某一类(kind)的各引擎做成二级子菜单分组（排除当前引擎，其音源已在顶部；混引擎 currentKind=null 时不排除）；
@@ -162,10 +163,9 @@ internal class PartVoiceController : StackPanel
         {
             if (currentKind == kind && type == currentType)
                 continue;
-            if (!TryEnumerateSources(kind, type, out var sources))
+            if (!TryBuildEngineItems(kind, type, out var items))
                 continue;
-            var leaves = sources.Select(src => Leaf(kind, type, src)).ToList();
-            groups.Add(new ComboBoxItem(EngineName(kind, type), leaves));
+            groups.Add(new ComboBoxItem(EngineName(kind, type), items));
         }
         if (groups.Count == 0)
             return;
@@ -203,27 +203,80 @@ internal class PartVoiceController : StackPanel
         return false;
     }
 
-    // 列某引擎的音源；infos==null（引擎未加载/不可用）返回 false 表示该引擎应跳过；非 null 但空则返回空列表（空子菜单）。
-    static bool TryEnumerateSources(SourceKind kind, string type, out List<Source> sources)
+    // 构建某引擎在下拉里的子项列表（叶子登记进 mEntries、value=下标）；infos==null（引擎未加载/不可用）返回 false 整引擎跳过。
+    // voice / instrument 同构：按各自布局（Voice/InstrumentSourceLayout）折成有序分组树，未被布局引用的 id
+    // 在顶层按 map 序兜底补出（空布局 ⇒ 全在此 ⇒ 平铺 = 不分组的旧行为）。
+    bool TryBuildEngineItems(SourceKind kind, string type, out List<ComboBoxItem> items)
     {
-        sources = new List<Source>();
+        items = new List<ComboBoxItem>();
+        var covered = new HashSet<string>();
         if (kind == SourceKind.Voice)
         {
             var infos = VoicesManager.GetAllVoiceInfos(type);
             if (infos == null)
                 return false;
+            foreach (var node in VoicesManager.GetVoiceLayout(type))
+                if (BuildVoiceNode(type, node, infos, covered) is ComboBoxItem item)
+                    items.Add(item);
             foreach (var kvp in infos)
-                sources.Add(new Source(kvp.Key, kvp.Value.Name));
+                if (!covered.Contains(kvp.Key))
+                    items.Add(Leaf(SourceKind.Voice, type, new Source(kvp.Key, kvp.Value.Name)));
         }
         else
         {
             var infos = InstrumentsManager.GetAllInstrumentInfos(type);
             if (infos == null)
                 return false;
+            foreach (var node in InstrumentsManager.GetInstrumentLayout(type))
+                if (BuildInstrumentNode(type, node, infos, covered) is ComboBoxItem item)
+                    items.Add(item);
             foreach (var kvp in infos)
-                sources.Add(new Source(kvp.Key, kvp.Value.Name));
+                if (!covered.Contains(kvp.Key))
+                    items.Add(Leaf(SourceKind.Instrument, type, new Source(kvp.Key, kvp.Value.Name)));
         }
         return true;
+    }
+
+    // 递归把一个布局节点转成菜单项：叶子 → 登记的音源项（悬垂 id 返回 null 跳过）；组 → 带字子菜单（递归子节点）。
+    // 覆盖集记录布局引用过的 id（含悬垂）供上层兜底扣减。voice / instrument 各一份（布局类型按 kind 拆、不共享）。
+    ComboBoxItem? BuildVoiceNode(string type, VoiceSourceLayoutItem node, IReadOnlyOrderedMap<string, VoiceSourceInfo> infos, HashSet<string> covered)
+    {
+        switch (node)
+        {
+            case VoiceSourceLayoutVoice leaf:
+                covered.Add(leaf.VoiceId);
+                if (!infos.TryGetValue(leaf.VoiceId, out var info))
+                    return null;
+                return Leaf(SourceKind.Voice, type, new Source(leaf.VoiceId, info.Name));
+            case VoiceSourceLayoutGroup group:
+                var children = new List<ComboBoxItem>();
+                foreach (var child in group.Items)
+                    if (BuildVoiceNode(type, child, infos, covered) is ComboBoxItem item)
+                        children.Add(item);
+                return new ComboBoxItem(group.Name, children);
+            default:
+                return null;
+        }
+    }
+
+    ComboBoxItem? BuildInstrumentNode(string type, InstrumentSourceLayoutItem node, IReadOnlyOrderedMap<string, InstrumentSourceInfo> infos, HashSet<string> covered)
+    {
+        switch (node)
+        {
+            case InstrumentSourceLayoutInstrument leaf:
+                covered.Add(leaf.InstrumentId);
+                if (!infos.TryGetValue(leaf.InstrumentId, out var info))
+                    return null;
+                return Leaf(SourceKind.Instrument, type, new Source(leaf.InstrumentId, info.Name));
+            case InstrumentSourceLayoutGroup group:
+                var children = new List<ComboBoxItem>();
+                foreach (var child in group.Items)
+                    if (BuildInstrumentNode(type, child, infos, covered) is ComboBoxItem item)
+                        children.Add(item);
+                return new ComboBoxItem(group.Name, children);
+            default:
+                return null;
+        }
     }
 
     void OnVoiceCommitted()

@@ -16,6 +16,11 @@ public interface IInstrumentSynthesisEngine
     // 实现应在 Init 期间扫描并缓存、get 仅返回缓存引用。
     IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos { get; }
 
+    // 音源选择器的呈现布局（有序分组树，供菜单/选择器分组用，无需建会话即可读）。与 voice 的 VoiceSourceLayout 同构。
+    // 与 InstrumentSourceInfos 同契约：必须立即返回、不得阻塞。叶子引用 InstrumentSourceInfos 的键；宿主对未被布局
+    // 引用到的 id 在顶层按 map 序兜底补出、对悬垂 id 跳过。DIM 默认 []：无布局 = 全部音源平铺（等价于不分组）。
+    IReadOnlyList<InstrumentSourceLayoutItem> InstrumentSourceLayout => [];
+
     // 无参、失败抛异常：宿主在调用边界 catch。不传安装路径——插件 DLL 经 Assembly.Location 即可自定位包目录。
     void Init();
     void Destroy();

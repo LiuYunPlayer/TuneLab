@@ -66,6 +66,7 @@ public interface IExportFormat { void Serialize(Stream output, ProjectInfo info)
 ```csharp
 public interface IVoiceSynthesisEngine {
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos { get; }   // 声库目录；须立即返回不阻塞（Init 期缓存）
+    IReadOnlyList<VoiceSourceLayoutItem> VoiceSourceLayout => [];            // 选择器分组树（可选,DIM []=平铺）；节点=Voice(id)|Group(name,items),可交织/嵌套；未覆盖 id 宿主顶层兜底
     void Init();                                          // 无参；包目录经 Assembly.Location 自定位；失败抛异常
     void Destroy();
     IVoiceSynthesisSession CreateSession(string voiceId, IVoiceSynthesisContext context);   // 每 part 一个会话；context 随会话同生死
@@ -167,7 +168,7 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 - **无歌词/音素**：`IInstrumentSynthesisNote` 无 `Lyric`/`Phonemes`；会话无 `DefaultLyric`、不产 `SynthesizedPhonemes`。
 - **无 pitch 曲线、产物仅音频**：`IInstrumentSynthesisContext` 无 `Pitch`/`PitchDeviation`（纯按 note 整数 `Pitch` 发声）；会话不产 `SynthesizedPitch`。仍可声明 automation 轨 + `SynthesizedParameters` 回显。
 - 接口：`IInstrumentSynthesisEngine`（`InstrumentSourceInfos` 按 id 键的音色目录 + `Init/Destroy/CreateSession` + 声明四函数）/ `IInstrumentSynthesisSession`（`GetNextSegment`/`SynthesizeNext`/`SynthesizedParameters`/`GetStatus` + 两事件）/ `IInstrumentSynthesisContext`（`Notes`/`PartProperties`/`Automations`/`GetSnapshot`/`CreateAudioSegment`/`Committed`）/ `IInstrumentSynthesisNote`/`InstrumentSynthesisSnapshot`/`InstrumentSynthesisNoteSnapshot`/`InstrumentSourceInfo`/`IInstrumentSynthesisPartPropertyContext`/`IInstrumentSynthesisNotePropertyContext`。失效自管同 voice（无 `Pitch`/`PitchDeviation` 订阅、无音素/歌词字段订阅）。
-- 容器式发布（一引擎多音色，如 Kontakt）：`Init()` 扫已装资源包填 `InstrumentSourceInfos`，`InstrumentId` 选具体乐器；一插件一乐器 = 单条目。
+- 容器式发布（一引擎多音色，如 Kontakt）：`Init()` 扫已装资源包填 `InstrumentSourceInfos`，`InstrumentId` 选具体乐器；一插件一乐器 = 单条目。音色多时实现 `InstrumentSourceLayout`（与 `VoiceSourceLayout` 同构）分组，否则平铺。
 - 参考实现 `tests/plugins/V1.Instrument`（sine/square 两音色、多声部叠加）；完整契约见 `docs/instrument-sdk-design.md`。
 
 ### Effect 接口（命名空间 `TuneLab.SDK`）

@@ -30,6 +30,9 @@ public interface IVoiceSynthesisEngine
 {
     // 声库目录（菜单/选择器用，无需创建会话即可读）
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos { get; }
+    // 选择器呈现布局（有序分组树；可选，DIM []=平铺）。节点 = Voice(id) | Group(name, items)，同层可交织、可嵌套；
+    // 叶子引 VoiceSourceInfos 的键、显示名由宿主取，组名插件自本地化；未被引用的 id 宿主在顶层按 map 序兜底补出。见 §8
+    IReadOnlyList<VoiceSourceLayoutItem> VoiceSourceLayout => [];
 
     void Init();      // 见 §2
     void Destroy();
@@ -556,6 +559,22 @@ public class AutomationConfig : IValueConfig<double>
   ```
   `Portrait` 是格式无关的资源引用：封闭层次（构造器 private protected，变体仅 SDK 内新增），变体按数据形态分型（v1 仅 `FileImageResource` 路径变体——可指向图像文件或序列帧目录）、保持可序列化数据形态；动图（GIF/APNG）是宿主解码能力不进类型，Live2D/Spine 等富动态为独立特性。运行时会变的图像走目录变更信号（将来 `IVoiceSynthesisEngine` 加性事件），资源对象本身恒为不可变值。
   宿主渲染：钢琴窗按当前 part 音源声库解析 `Portrait`，把图（静态 / 动图当前帧）画在网格之后、音符之前（音符盖其上仍清晰）。**立绘优先于全局背景图**——当前声库有立绘则画立绘（背景图让位、且其动图定时器停表省 CPU），无立绘才画全局背景图。两者**同样靠右贴住、按高度填满钢琴窗等比缩放，并同套 `BackgroundImageOpacity` 不透明度**（仅来源与优先级不同，几何 / 透明度一致）。两者还**共用同一帧播放器**（`ImagePlayer`）：解码走 Skia（`SKCodec`），**静态图**（png/jpg/静态 webp…）= 单帧无定时器；**动图**（animated webp / gif / apng）= 多帧 + 逐帧时长，`DispatcherTimer` 按帧时长推进、控件挂上视觉树才播（不可见不空转）——故全局背景图也支持动图。仅解码指向**单个图像文件**的路径（立绘走 `FileImageResource` 路径变体）；序列帧目录 / 其余变体 / WebM 等视频容器走兜底（不显示）。换 part / 换引擎 / 换声库即重解析（按路径去重，不重复加载）。`instrument` 同理走 `InstrumentSourceInfo.Portrait`。
+
+- **选择器分组布局**在 `IVoiceSynthesisEngine.VoiceSourceLayout`（可选，DIM `[]`）：几百声库时把选择器下拉折成嵌套子菜单，而非一长条平铺。
+
+  ```csharp
+  public abstract class VoiceSourceLayoutItem            // 封闭层级：仅下面两态，宿主穷举匹配
+  {
+      public static VoiceSourceLayoutItem Voice(string voiceId);                                 // 叶子工厂
+      public static VoiceSourceLayoutItem Group(string name, IReadOnlyList<VoiceSourceLayoutItem> items);  // 组工厂
+  }
+  public sealed class VoiceSourceLayoutVoice : VoiceSourceLayoutItem { public required string VoiceId; }
+  public sealed class VoiceSourceLayoutGroup : VoiceSourceLayoutItem { public required string Name; public IReadOnlyList<VoiceSourceLayoutItem> Items; }
+  ```
+
+  **与 `VoiceSourceInfos` 分工（身份 vs 呈现）**：`VoiceSourceInfos`（`id→info` 扁平有序 map）是**身份权威**——会话校验、`TryGetVoiceInfo`、工程序列化引用、最近列表全靠它，**不动**；`VoiceSourceLayout` 是**平行的呈现层**，只管「怎么摆」。叶子只引用 id（不复制 info），显示名由宿主从 map 取 `VoiceSourceInfo.Name`；组名由插件按当前语言产出（同 `VoiceSourceInfo.Name`）。同层可任意**交织**裸声库与子组、可多级嵌套。
+  **未覆盖兜底**：map 里存在、但未被布局任何一层引用到的 id，宿主在该引擎顶层按 **map 序**补出——故**空布局 = 全部平铺（= 不分组的旧行为）**，是 DIM 默认与兜底合一的同一条规则；插件只想把少数声库归组、其余不管也成立。悬垂 id（引用了不在 map 的 id）宿主容错跳过。
+  **为何挂 info 平行、而非 per-info 路径**：分组要有**独立顺序**（层内即 `List` 序，引擎说了算，不靠成员连续性反推）、**零冗余**（不在每条 info 上重复路径串）、**宿主不反推树**（直接递归遍历）；身份 map 不受影响，是纯加性成员（DIM 兜底，旧插件 / legacy 天然平铺）。
 
 - **声明在引擎、不在会话**：声明（轨集合 / 属性面板 / 回显轨）是当前 part/note/phoneme 值的纯函数、不碰任何合成
   运行时状态，故全留 `IVoiceSynthesisEngine`（一处、规整）。**会话只保留 `DefaultLyric`**（创建后才取用的运行时值）。

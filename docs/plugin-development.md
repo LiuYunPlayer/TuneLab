@@ -223,6 +223,26 @@ public class MyVoiceEngine : IVoiceSynthesisEngine    // engine id is declared i
     // Correct approach: scan voicebanks and cache during Init; here just return the cached reference. Lazy loading (scanning disk on first get) would stall the UI.
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
+    // Presentation layout for the voicebank picker (an ordered group tree): with hundreds of banks, folds the
+    // dropdown into nested submenus instead of one long flat list. Parallel to VoiceSourceInfos — the layout only
+    // governs "how they are arranged"; identity/lookup/project references still go through that id→info map.
+    // Leaves reference ids (VoiceSourceLayoutItem.Voice), the host takes their display names from the map; group
+    // names (VoiceSourceLayoutItem.Group) you localize yourself (like VoiceSourceInfo.Name). Bare voices and
+    // subgroups may interleave freely at any level, nested to any depth. Ids not referenced anywhere in the layout
+    // are appended by the host at top level in map order (so full coverage is not required); not overriding this
+    // member = everything flat (= no grouping).
+    public IReadOnlyList<VoiceSourceLayoutItem> VoiceSourceLayout =>
+    [
+        VoiceSourceLayoutItem.Voice("solo-a"),                     // bare top-level voice (interleaved with groups)
+        VoiceSourceLayoutItem.Group("Japanese", [                  // a group (name already localized)
+            VoiceSourceLayoutItem.Voice("jp-f1"),
+            VoiceSourceLayoutItem.Group("Dialects", [              // nest subgroups as deep as you like
+                VoiceSourceLayoutItem.Voice("jp-kansai"),
+            ]),
+        ]),
+        // any remaining unlisted banks → the host appends them at top level
+    ];
+
     // Parameterless, throws on failure: the host catches at the call boundary (responsibility attribution is by capture point, not exception type).
     // No install path is passed in — locate your package directory yourself via typeof(MyVoiceEngine).Assembly.Location (see §5.10).
     // Init is called lazily (on first use); the host may also warm it up proactively. Only "holding expensive resident state across calls" (e.g. loading a model) needs Init/Destroy.
@@ -630,6 +650,7 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 | Member | Thread | Responsibility |
 |---|---|---|
 | `IVoiceSynthesisEngine.VoiceSourceInfos` | any (synchronous read) | voicebank catalog; **must return immediately, never block** (cached during Init) |
+| `IVoiceSynthesisEngine.VoiceSourceLayout` | any (synchronous read) | picker grouping tree (optional, DIM `[]`=flat); leaves reference ids, unlisted ids appended by host at top level |
 | `IVoiceSynthesisEngine.Init/Destroy` | — | load/release resident state (models); throw on failure |
 | `IVoiceSynthesisEngine.CreateSession` | data thread | build one session per part |
 | `IVoiceSynthesisEngine.GetPartPropertyConfig`/`GetNotePropertyConfig` | data thread | property panel (pure function of voiceId + current values, may show/hide conditionally) |
@@ -794,7 +815,7 @@ An instrument is a **polyphonic sound source** (synth / sampler / chord source).
 
 Manifest entry: `{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "classes": ["My.Ns.MyInstrumentEngine"], "assembly": "MyInstrument.dll" }`.
 
-The sound-source catalog is the same shape as voice: `IInstrumentSynthesisEngine.InstrumentSourceInfos` (keyed by id). **One plugin, one instrument** = a single entry; a **container form** (e.g. Kontakt: one engine hosting multiple external resource-package instruments) scans the installed resource packages in `Init()` and fills multiple entries, with `InstrumentId` selecting the specific instrument — the host's unified flat picker presents them as usual.
+The sound-source catalog is the same shape as voice: `IInstrumentSynthesisEngine.InstrumentSourceInfos` (keyed by id). **One plugin, one instrument** = a single entry; a **container form** (e.g. Kontakt: one engine hosting multiple external resource-package instruments) scans the installed resource packages in `Init()` and fills multiple entries, with `InstrumentId` selecting the specific instrument. When there are many, implement `InstrumentSourceLayout` (isomorphic to voice's `VoiceSourceLayout`) to fold the picker into nested submenus; leave it unimplemented for a flat list.
 
 > For the full interface contract and design rationale see [instrument-sdk-design.md](instrument-sdk-design.md); for a minimal reference implementation (one engine hosting sine/square timbres, polyphonic additive synthesis) see `tests/plugins/V1.Instrument`.
 

@@ -14,6 +14,11 @@ public interface IVoiceSynthesisEngine
     // 缓存声库、get 仅返回缓存引用；惰性加载（首次 get 才扫盘）者自负阻塞 UI 之责。
     IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos { get; }
 
+    // 声库选择器的呈现布局（有序分组树，供菜单/选择器分组用，无需建会话即可读）。与 VoiceSourceInfos 同契约：
+    // 必须立即返回、不得阻塞。叶子引用 VoiceSourceInfos 的键；宿主对未被布局引用到的 id 在顶层按 map 序兜底补出、
+    // 对悬垂 id 跳过。DIM 默认 []：无布局 = 全部声库平铺（等价于不分组），故只想分组的引擎才需覆盖本成员。
+    IReadOnlyList<VoiceSourceLayoutItem> VoiceSourceLayout => [];
+
     // 无参、失败抛异常：宿主在调用边界 catch，责任归属靠捕获点判定（从插件调用边界出来的就是插件侧责任）。
     // 不传安装路径——插件 DLL 经 Assembly.Location 即可自定位包目录。
     void Init();

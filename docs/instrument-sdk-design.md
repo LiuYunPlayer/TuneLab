@@ -124,6 +124,7 @@ IActionEvent StatusChanged { get; }
 
 ```
 IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos
+IReadOnlyList<InstrumentSourceLayoutItem> InstrumentSourceLayout => []   // 选择器分组树（可选,DIM []=平铺）；节点=Instrument(id)|Group(name,items),可交织/嵌套；未覆盖 id 宿主顶层兜底
 void Init() / void Destroy()
 IInstrumentSynthesisSession CreateSession(string instrumentId, IInstrumentSynthesisContext context)
 IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IInstrumentSynthesisPartPropertyContext context)

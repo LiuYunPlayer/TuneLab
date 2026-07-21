@@ -77,6 +77,13 @@ internal static class InstrumentsManager
         return engine.InstrumentSourceInfos;
     }
 
+    // 音源呈现布局（有序分组树）；引擎不可用返回空列表（宿主据此平铺兜底 = 不分组）。
+    public static IReadOnlyList<InstrumentSourceLayoutItem> GetInstrumentLayout(string type)
+    {
+        var engine = GetInitedEngine(type);
+        return engine?.InstrumentSourceLayout ?? [];
+    }
+
     // 音源目录元数据（无需创建会话）；引擎不可用或 id 未知返回 false。
     public static bool TryGetInstrumentInfo(string type, string id, [MaybeNullWhen(false)] out InstrumentSourceInfo info)
     {

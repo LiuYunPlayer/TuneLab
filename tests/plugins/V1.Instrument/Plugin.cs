@@ -17,6 +17,17 @@ public sealed class TestInstrumentEngine : IInstrumentSynthesisEngine
 {
     public IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos => mInfos;
 
+    // 音源呈现布局（验证分组下拉全链路，与 voice 同构）：sine 归进一个组，square 故意不列入
+    // → 验证宿主对未覆盖 id 的顶层兜底（按 map 序补出）。
+    public IReadOnlyList<InstrumentSourceLayoutItem> InstrumentSourceLayout =>
+    [
+        InstrumentSourceLayoutItem.Group("Synths (V1 Test)",
+        [
+            InstrumentSourceLayoutItem.Instrument("sine"),
+        ]),
+        // square 未列入 → 宿主兜底补在本引擎顶层
+    ];
+
     public void Init()
     {
         // 两个音色：演示「一个引擎 = 容器，多个音色按 id 选」（容器式发布的退化最小例）。

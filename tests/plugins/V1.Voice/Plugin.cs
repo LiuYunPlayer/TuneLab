@@ -18,6 +18,21 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 {
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
+    // 声库呈现布局（验证分组下拉全链路）：顶层裸声库(Alice)与分组同层交织、组内嵌套子组(Carol)，
+    // v1-bob 故意不列入 → 验证宿主对未覆盖 id 的顶层兜底（按 map 序补出）。
+    public IReadOnlyList<VoiceSourceLayoutItem> VoiceSourceLayout =>
+    [
+        VoiceSourceLayoutItem.Voice("v1-alice"),                              // 顶层裸声库（与下方组交织）
+        VoiceSourceLayoutItem.Group("Group A (V1 Test)",
+        [
+            VoiceSourceLayoutItem.Group("Nested (V1 Test)",
+            [
+                VoiceSourceLayoutItem.Voice("v1-carol"),                      // 嵌套子组里的声库
+            ]),
+        ]),
+        // v1-bob 未列入 → 宿主兜底补在本引擎顶层
+    ];
+
     public void Init()
     {
         // 立绘路径按包目录拼出（DLL 经 Assembly.Location 自定位）。三态各覆盖一条路径：

@@ -1,1 +1,29 @@
 #nullable enable
+TuneLab.SDK.IInstrumentSynthesisEngine.InstrumentSourceLayout.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>!
+TuneLab.SDK.InstrumentSourceLayoutGroup
+TuneLab.SDK.InstrumentSourceLayoutGroup.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>!
+TuneLab.SDK.InstrumentSourceLayoutGroup.Items.init -> void
+TuneLab.SDK.InstrumentSourceLayoutGroup.Name.get -> string!
+TuneLab.SDK.InstrumentSourceLayoutGroup.Name.init -> void
+TuneLab.SDK.InstrumentSourceLayoutGroup.InstrumentSourceLayoutGroup() -> void
+TuneLab.SDK.InstrumentSourceLayoutInstrument
+TuneLab.SDK.InstrumentSourceLayoutInstrument.InstrumentId.get -> string!
+TuneLab.SDK.InstrumentSourceLayoutInstrument.InstrumentId.init -> void
+TuneLab.SDK.InstrumentSourceLayoutInstrument.InstrumentSourceLayoutInstrument() -> void
+TuneLab.SDK.InstrumentSourceLayoutItem
+static TuneLab.SDK.InstrumentSourceLayoutItem.Group(string! name, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>! items) -> TuneLab.SDK.InstrumentSourceLayoutItem!
+static TuneLab.SDK.InstrumentSourceLayoutItem.Instrument(string! instrumentId) -> TuneLab.SDK.InstrumentSourceLayoutItem!
+TuneLab.SDK.IVoiceSynthesisEngine.VoiceSourceLayout.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>!
+TuneLab.SDK.VoiceSourceLayoutGroup
+TuneLab.SDK.VoiceSourceLayoutGroup.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>!
+TuneLab.SDK.VoiceSourceLayoutGroup.Items.init -> void
+TuneLab.SDK.VoiceSourceLayoutGroup.Name.get -> string!
+TuneLab.SDK.VoiceSourceLayoutGroup.Name.init -> void
+TuneLab.SDK.VoiceSourceLayoutGroup.VoiceSourceLayoutGroup() -> void
+TuneLab.SDK.VoiceSourceLayoutItem
+TuneLab.SDK.VoiceSourceLayoutVoice
+TuneLab.SDK.VoiceSourceLayoutVoice.VoiceId.get -> string!
+TuneLab.SDK.VoiceSourceLayoutVoice.VoiceId.init -> void
+TuneLab.SDK.VoiceSourceLayoutVoice.VoiceSourceLayoutVoice() -> void
+static TuneLab.SDK.VoiceSourceLayoutItem.Group(string! name, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>! items) -> TuneLab.SDK.VoiceSourceLayoutItem!
+static TuneLab.SDK.VoiceSourceLayoutItem.Voice(string! voiceId) -> TuneLab.SDK.VoiceSourceLayoutItem!
