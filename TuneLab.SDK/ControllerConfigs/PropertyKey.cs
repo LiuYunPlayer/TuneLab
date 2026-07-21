@@ -14,8 +14,10 @@ public readonly struct PropertyKey(string id, string? displayText = null) : IEqu
 
     public bool Equals(PropertyKey other) => Id == other.Id;
     public override bool Equals(object? obj) => obj is PropertyKey other && Equals(other);
-    public override int GetHashCode() => Id.GetHashCode();
-    public override string ToString() => DisplayText ?? Id;
+    // default(PropertyKey) 的 Id 为 null：哈希取 0、ToString 退空串——作字典键 / 打印时稳健，不 NRE、不返回 null。
+    // Equals 已 null-safe（string == 处理 null），default 相等自反、哈希一致。
+    public override int GetHashCode() => Id?.GetHashCode() ?? 0;
+    public override string ToString() => DisplayText ?? Id ?? string.Empty;
 
     public static implicit operator PropertyKey(string id) => new(id);
     public static implicit operator PropertyKey((string id, string? displayText) entry) => new(entry.id, entry.displayText);
