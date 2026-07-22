@@ -126,8 +126,8 @@ TuneLab.SDK.IAudioSegment.Commit() -> void
 TuneLab.SDK.IAudioSegment.Resize(long sampleOffset, int sampleCount) -> void
 TuneLab.SDK.IAudioSegment.Write(int offset, System.ReadOnlySpan<float> samples) -> void
 TuneLab.SDK.IAutomationEvaluator
-TuneLab.SDK.IAutomationEvaluator.Evaluate(System.Collections.Generic.IReadOnlyList<double>! times, System.Span<double> results) -> void
-TuneLab.SDK.IAutomationEvaluatorExtension
+TuneLab.SDK.IAutomationEvaluator.Evaluate(System.Collections.Generic.IReadOnlyList<double>! positions, System.Span<double> results) -> void
+TuneLab.SDK.IAutomationEvaluatorExtensions
 TuneLab.SDK.IControllerConfig
 TuneLab.SDK.IDragResponse
 TuneLab.SDK.IDragResponse.Apply(double startValue, TuneLab.Foundation.Point delta) -> double
@@ -620,7 +620,7 @@ override TuneLab.SDK.PropertyKey.GetHashCode() -> int
 override TuneLab.SDK.PropertyKey.ToString() -> string!
 override TuneLab.SDK.SynthesizedPhoneme.ToString() -> string!
 static TuneLab.SDK.ArrayConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IControllerConfig!>! elements) -> TuneLab.SDK.ArrayConfig!
-static TuneLab.SDK.IAutomationEvaluatorExtension.Evaluate(this TuneLab.SDK.IAutomationEvaluator! evaluator, System.Collections.Generic.IReadOnlyList<double>! times) -> double[]!
+static TuneLab.SDK.IAutomationEvaluatorExtensions.Evaluate(this TuneLab.SDK.IAutomationEvaluator! evaluator, System.Collections.Generic.IReadOnlyList<double>! positions) -> double[]!
 static TuneLab.SDK.AutomationConfig.Create(TuneLab.SDK.INormalizedScale! scale) -> TuneLab.SDK.AutomationConfig!
 static TuneLab.SDK.AutomationConfig.Create(double minValue, double maxValue) -> TuneLab.SDK.AutomationConfig!
 static TuneLab.SDK.CheckBoxConfig.Create(bool defaultValue = false) -> TuneLab.SDK.CheckBoxConfig!

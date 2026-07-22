@@ -204,7 +204,7 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 
 #### `IAutomationEvaluator.Evaluate(points)` 是传输无关接缝
 
-接口 `void Evaluate(IReadOnlyList<double> points, Span<double> results)`：插件递一列时间点 + 输出缓冲（调用方掌控分配、便于热路径复用同一 scratch），实现写入各点值；想要旧式「返一个新数组」用扩展 `IAutomationEvaluatorExtension.Evaluate(points)`。背后实现按 transport 换——进程内直读冻结点插值；跨进程（基于 v1 接口做，本就有牺牲项）在快照序列化时把求值器物化为离散点（细节缓后）。插值算法永远单一权威地留在宿主侧，插件不需要懂插值。
+接口 `void Evaluate(IReadOnlyList<double> positions, Span<double> results)`：插件递一列查询位置（一维）+ 输出缓冲（调用方掌控分配、便于热路径复用同一 scratch），实现写入各点值；想要旧式「返一个新数组」用扩展 `IAutomationEvaluatorExtensions.Evaluate(positions)`。背后实现按 transport 换——进程内直读冻结点插值；跨进程（基于 v1 接口做，本就有牺牲项）在快照序列化时把求值器物化为离散点（细节缓后）。插值算法永远单一权威地留在宿主侧，插件不需要懂插值。
 
 #### 安全发布与唯一纪律
 
