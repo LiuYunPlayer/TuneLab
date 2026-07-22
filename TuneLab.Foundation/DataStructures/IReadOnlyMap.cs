@@ -15,7 +15,7 @@ public interface IReadOnlyMap<TKey, out TValue> : IReadOnlyCollection<IReadOnlyK
     TValue? GetValue(TKey key, out bool success);
 }
 
-public static class IReadOnlyMapExtension
+public static class IReadOnlyMapExtensions
 {
     public static bool TryGetValue<TKey, TValue>(this IReadOnlyMap<TKey, TValue> map, TKey key, [MaybeNullWhen(false)] out TValue value) where TKey : notnull
     {

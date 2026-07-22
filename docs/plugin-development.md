@@ -608,7 +608,7 @@ Correct incremental re-synthesis = "cheap dirty-marking + closing off the heavy 
 
 ```csharp
 // Wire up at construction (data thread)
-mNotesSub = NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);  // auto-covers member add/remove
+mNotesSub = context.Notes.WhenAny(SubscribeNote, UnsubscribeNote);  // auto-covers member add/remove
 context.Notes.ItemAdded   += _ => mNeedResegment = true;
 context.Notes.ItemRemoved += _ => mNeedResegment = true;
 context.PartProperties.Modified += MarkAllDirty;

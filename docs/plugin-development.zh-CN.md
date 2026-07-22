@@ -611,7 +611,7 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 
 ```csharp
 // 构造时接线（数据线程）
-mNotesSub = NotifiableExtensions.WhenAny(context.Notes, SubscribeNote, UnsubscribeNote);  // 自动覆盖成员增删
+mNotesSub = context.Notes.WhenAny(SubscribeNote, UnsubscribeNote);  // 自动覆盖成员增删
 context.Notes.ItemAdded   += _ => mNeedResegment = true;
 context.Notes.ItemRemoved += _ => mNeedResegment = true;
 context.PartProperties.Modified += MarkAllDirty;

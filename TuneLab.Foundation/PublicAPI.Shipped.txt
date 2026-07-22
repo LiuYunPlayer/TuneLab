@@ -84,7 +84,7 @@ TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.Keys.get -> System.Collections.Gen
 TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.Values.get -> System.Collections.Generic.IReadOnlyCollection<TValue>!
 TuneLab.Foundation.IReadOnlyMap<TKey, TValue>.this[TKey key].get -> TValue
 TuneLab.Foundation.IReadOnlyMapBuilder
-TuneLab.Foundation.IReadOnlyMapExtension
+TuneLab.Foundation.IReadOnlyMapExtensions
 TuneLab.Foundation.IReadOnlyNotifiable
 TuneLab.Foundation.IReadOnlyNotifiable.Modified.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.Foundation.IReadOnlyNotifiable.WillModify.get -> TuneLab.Foundation.IActionEvent!
@@ -94,7 +94,7 @@ TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.ItemAdded.get -> TuneLab.Fou
 TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.ItemRemoved.get -> TuneLab.Foundation.IActionEvent<T>!
 TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.Items.get -> System.Collections.Generic.IEnumerable<T>!
 TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>.MembershipModified.get -> TuneLab.Foundation.IActionEvent!
-TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension
+TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions
 TuneLab.Foundation.IReadOnlyNotifiableLinkedList<T>
 TuneLab.Foundation.IReadOnlyNotifiableLinkedList<T>.First.get -> T?
 TuneLab.Foundation.IReadOnlyNotifiableLinkedList<T>.Last.get -> T?
@@ -104,12 +104,12 @@ TuneLab.Foundation.IReadOnlyNotifiableProperty<T>.Value.get -> T
 TuneLab.Foundation.IReadOnlyNotifiablePropertyObject
 TuneLab.Foundation.IReadOnlyNotifiablePropertyObject.GetValue(string! key, TuneLab.Foundation.PropertyValue defaultValue) -> TuneLab.Foundation.PropertyValue
 TuneLab.Foundation.IReadOnlyNotifiablePropertyObject.Object(string! key) -> TuneLab.Foundation.IReadOnlyNotifiablePropertyObject!
-TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension
+TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtensions
 TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>
 TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>.Keys.get -> System.Collections.Generic.IReadOnlyList<TKey>!
 TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>.Values.get -> System.Collections.Generic.IReadOnlyList<TValue>!
 TuneLab.Foundation.IReadOnlyOrderedMapBuilder
-TuneLab.Foundation.IReadOnlyOrderedMapExtension
+TuneLab.Foundation.IReadOnlyOrderedMapExtensions
 TuneLab.Foundation.ISubscriber<T, TFunction>
 TuneLab.Foundation.ISubscriber<T, TFunction>.Subscribe(T observable, TFunction action) -> void
 TuneLab.Foundation.ISubscriber<T, TFunction>.Unsubscribe(T observable, TFunction action) -> void
@@ -251,22 +251,22 @@ static TuneLab.Foundation.IEventExtensions.When<T1, T2, T3>(this TuneLab.Foundat
 static TuneLab.Foundation.IEventExtensions.When<T1, T2>(this TuneLab.Foundation.IEvent<System.Action<T1, T2>!>! source, T1 value1, T2 value2) -> TuneLab.Foundation.IActionEvent!
 static TuneLab.Foundation.IEventExtensions.When<T>(this TuneLab.Foundation.IEvent<System.Action<T>!>! source, T value) -> TuneLab.Foundation.IActionEvent!
 static TuneLab.Foundation.IReadOnlyMapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.IReadOnlyMap<TKey, TValue>!
-static TuneLab.Foundation.IReadOnlyMapExtension.ToMap<TKey, TValue>(this TuneLab.Foundation.IReadOnlyMap<TKey, TValue>! map) -> TuneLab.Foundation.Map<TKey, TValue>!
-static TuneLab.Foundation.IReadOnlyMapExtension.TryGetValue<TKey, TValue>(this TuneLab.Foundation.IReadOnlyMap<TKey, TValue>! map, TKey key, out TValue value) -> bool
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Action<T, TEvent>! subscribe, System.Action<T, TEvent>! unsubscribe) -> TuneLab.Foundation.IEvent<TEvent>!
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, TuneLab.Foundation.IEvent<TEvent>!>! selector) -> TuneLab.Foundation.IEvent<TEvent>!
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, TuneLab.Foundation.ISubscriber<T, TEvent>! subscriber) -> TuneLab.Foundation.IEvent<TEvent>!
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAny<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, params System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>![]! eventSelectors) -> TuneLab.Foundation.IActionEvent!
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.WhenAnyItem<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, params System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>![]! eventSelectors) -> TuneLab.Foundation.IActionEvent<T>!
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.Where<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, TuneLab.Foundation.IReadOnlyNotifiableProperty<bool>!>! predicateProperty) -> TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>!
-static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtension.Where<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, bool>! predicate, System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>! predicateChanged) -> TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>!
-static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.BooleanField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, bool defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<bool>!
-static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.DoubleField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, double defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<double>!
-static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.StringField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, string! defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<string!>!
-static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtension.ValueField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, TuneLab.Foundation.PropertyValue defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<TuneLab.Foundation.PropertyValue>!
+static TuneLab.Foundation.IReadOnlyMapExtensions.ToMap<TKey, TValue>(this TuneLab.Foundation.IReadOnlyMap<TKey, TValue>! map) -> TuneLab.Foundation.Map<TKey, TValue>!
+static TuneLab.Foundation.IReadOnlyMapExtensions.TryGetValue<TKey, TValue>(this TuneLab.Foundation.IReadOnlyMap<TKey, TValue>! map, TKey key, out TValue value) -> bool
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Action<T, TEvent>! subscribe, System.Action<T, TEvent>! unsubscribe) -> TuneLab.Foundation.IEvent<TEvent>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, TuneLab.Foundation.IEvent<TEvent>!>! selector) -> TuneLab.Foundation.IEvent<TEvent>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.WhenAny<T, TEvent>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, TuneLab.Foundation.ISubscriber<T, TEvent>! subscriber) -> TuneLab.Foundation.IEvent<TEvent>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.WhenAny<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, params System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>![]! eventSelectors) -> TuneLab.Foundation.IActionEvent!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.WhenAnyItem<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, params System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>![]! eventSelectors) -> TuneLab.Foundation.IActionEvent<T>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.Where<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, TuneLab.Foundation.IReadOnlyNotifiableProperty<bool>!>! predicateProperty) -> TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>!
+static TuneLab.Foundation.IReadOnlyNotifiableEnumerableExtensions.Where<T>(this TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>! source, System.Func<T, bool>! predicate, System.Func<T, TuneLab.Foundation.IEvent<System.Action!>!>! predicateChanged) -> TuneLab.Foundation.IReadOnlyNotifiableEnumerable<T>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtensions.BooleanField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, bool defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<bool>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtensions.DoubleField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, double defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<double>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtensions.StringField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, string! defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<string!>!
+static TuneLab.Foundation.IReadOnlyNotifiablePropertyObjectExtensions.ValueField(this TuneLab.Foundation.IReadOnlyNotifiablePropertyObject! propertyObject, string! key, TuneLab.Foundation.PropertyValue defaultValue) -> TuneLab.Foundation.IReadOnlyNotifiableProperty<TuneLab.Foundation.PropertyValue>!
 static TuneLab.Foundation.IReadOnlyOrderedMapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>!
-static TuneLab.Foundation.IReadOnlyOrderedMapExtension.KeyAt<TKey, TValue>(this TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>! map, int index) -> TKey
-static TuneLab.Foundation.IReadOnlyOrderedMapExtension.ValueAt<TKey, TValue>(this TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>! map, int index) -> TValue
+static TuneLab.Foundation.IReadOnlyOrderedMapExtensions.KeyAt<TKey, TValue>(this TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>! map, int index) -> TKey
+static TuneLab.Foundation.IReadOnlyOrderedMapExtensions.ValueAt<TKey, TValue>(this TuneLab.Foundation.IReadOnlyOrderedMap<TKey, TValue>! map, int index) -> TValue
 static TuneLab.Foundation.MapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.Map<TKey, TValue>!
 static TuneLab.Foundation.OrderedMapBuilder.Create<TKey, TValue>(System.ReadOnlySpan<TuneLab.Foundation.IReadOnlyKeyValuePair<TKey, TValue>!> values) -> TuneLab.Foundation.OrderedMap<TKey, TValue>!
 static TuneLab.Foundation.Point.operator !=(TuneLab.Foundation.Point p1, TuneLab.Foundation.Point p2) -> bool

@@ -12,7 +12,7 @@ public interface IReadOnlyOrderedMap<TKey, out TValue> : IReadOnlyMap<TKey, TVal
     new IReadOnlyList<TValue> Values { get; }
 }
 
-public static class IReadOnlyOrderedMapExtension
+public static class IReadOnlyOrderedMapExtensions
 {
     // KeyAt/ValueAt 是 Keys/Values 索引访问的派生便利，不进接口契约。
     public static TKey KeyAt<TKey, TValue>(this IReadOnlyOrderedMap<TKey, TValue> map, int index) where TKey : notnull

@@ -21,7 +21,7 @@ public interface IReadOnlyNotifiableEnumerable<out T>
     IEnumerable<T> Items { get; }
 }
 
-public static class IReadOnlyNotifiableEnumerableExtension
+public static class IReadOnlyNotifiableEnumerableExtensions
 {
     // WhenAny 的「带成员标识」形态：任一成员的任一指定事件触发 → 通知时携带该成员（Action<T>）。
     // 成员增删自动接线/退订。与无参 WhenAny 互补：WhenAny 聚合成一个共享触发器、handler 不知道是谁；

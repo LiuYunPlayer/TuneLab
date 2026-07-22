@@ -15,7 +15,7 @@ public interface IReadOnlyNotifiablePropertyObject : IReadOnlyNotifiable
     PropertyValue GetValue(string key, PropertyValue defaultValue);
 }
 
-public static class IReadOnlyNotifiablePropertyObjectExtension
+public static class IReadOnlyNotifiablePropertyObjectExtensions
 {
     public static IReadOnlyNotifiableProperty<double> DoubleField(this IReadOnlyNotifiablePropertyObject propertyObject, string key, double defaultValue)
     {
