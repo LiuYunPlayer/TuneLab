@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using TuneLab.Data.Synthesis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -55,21 +57,27 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
     // part 不在 0 时整体偏移）→ 连续轨读终值（基线/默认 + vibrato 投影）、分段轨读曲线（无曲线处 NaN）。
     sealed class Evaluator(IMidiPart part, string key, bool piecewise) : IAutomationEvaluator
     {
-        public double[] Evaluate(IReadOnlyList<double> times)
+        public void Evaluate(IReadOnlyList<double> times, Span<double> results)
         {
+            SynthesisEvaluatorDebug.AssertAscending(times);
+
             double pos = part.Pos.Value;
             var ticks = new double[times.Count];
             for (int i = 0; i < times.Count; i++)
                 ticks[i] = part.TempoManager.GetTick(times[i]) - pos;
 
             if (!piecewise)
-                return part.GetFinalAutomationValues(ticks, key);
+            {
+                part.GetFinalAutomationValues(ticks, key).CopyTo(results);
+                return;
+            }
 
             if (part.PiecewiseAutomations.TryGetValue(key, out var automation))
-                return automation.GetValues(ticks);
-            var values = new double[times.Count];
-            values.Fill(double.NaN);
-            return values;
+            {
+                automation.GetValues(ticks).CopyTo(results);
+                return;
+            }
+            results.Fill(double.NaN);
         }
     }
 

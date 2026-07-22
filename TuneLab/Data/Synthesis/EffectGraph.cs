@@ -1267,8 +1267,10 @@ internal sealed class EffectGraph : IDisposable
         public IActionEvent<double, double> RangeModified => mRangeModified;
         readonly ActionEvent<double, double> mRangeModified = new();
 
-        public double[] Evaluate(IReadOnlyList<double> times)
+        public void Evaluate(IReadOnlyList<double> times, Span<double> results)
         {
+            SynthesisEvaluatorDebug.AssertAscending(times);
+
             double pos = part.Pos.Value;
             var ticks = part.TempoManager.GetTicks(times);
             for (int i = 0; i < ticks.Length; i++)
@@ -1276,8 +1278,9 @@ internal sealed class EffectGraph : IDisposable
 
             int index = ((IMidiPart)part).Effects.IndexOf(effect);
             if (index < 0)
-                return effect.GetAutomationValues(ticks, automationID);
-            return ((IMidiPart)part).GetFinalAutomationValues(ticks, AutomationKey.Effect(index, automationID));
+                effect.GetAutomationValues(ticks, automationID).CopyTo(results);
+            else
+                ((IMidiPart)part).GetFinalAutomationValues(ticks, AutomationKey.Effect(index, automationID)).CopyTo(results);
         }
 
         internal void NotifyRangeModified(double startSecond, double endSecond)

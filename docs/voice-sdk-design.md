@@ -204,7 +204,7 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 
 #### `IAutomationEvaluator.Evaluate(points)` 是传输无关接缝
 
-接口 `double[] Evaluate(IReadOnlyList<double> points)`：插件递一列时间点、拿回一列值。背后实现按 transport 换——进程内直读冻结点插值；跨进程（基于 v1 接口做，本就有牺牲项）在快照序列化时把求值器物化为离散点（细节缓后）。插值算法永远单一权威地留在宿主侧，插件不需要懂插值。
+接口 `void Evaluate(IReadOnlyList<double> points, Span<double> results)`：插件递一列时间点 + 输出缓冲（调用方掌控分配、便于热路径复用同一 scratch），实现写入各点值；想要旧式「返一个新数组」用扩展 `IAutomationEvaluatorExtension.Evaluate(points)`。背后实现按 transport 换——进程内直读冻结点插值；跨进程（基于 v1 接口做，本就有牺牲项）在快照序列化时把求值器物化为离散点（细节缓后）。插值算法永远单一权威地留在宿主侧，插件不需要懂插值。
 
 #### 安全发布与唯一纪律
 
@@ -533,7 +533,7 @@ public class AutomationConfig : IValueConfig<double>
 - **合并记**：连续/分段本是同一伞概念下的两形态，分段 = "无默认基线的 automation"。把"无基线"用 `DefaultValue = NaN` 表达（与本 SDK 既有 **NaN 表空**求值约定同源），二者收成一个类 + 一个 `GetAutomationConfigs` 方法（删去 `PiecewiseAutomationConfig` 与两处 `GetPiecewiseAutomationConfigs`）。收益：作者在**一张有序 map 里自由穿插**两种轨、声明序即呈现序；`GetAutomation*` 不分家。**宿主侧仍保留两种数据类型**（`IAutomation` / `IPiecewiseAutomation`）+ 两序列化槽，按 `IsPiecewise` 物化到对应 map、kind 在路由处现解析。`IValueConfig.DefaultValue` 的多态消费只在属性控件家族（与 automation 无关），故 automation 这边唯一需特判 NaN 的消费方是默认值侧栏 `AutomationDefaultsController`（分段轨不显默认基线行）。
 - **不再 `AutomationConfig : SliderConfig`**：具体类继承在冻结 ABI 上是陷阱（SliderConfig 一迭代，AutomationConfig 被迫跟随；且"automation 是一种 slider"是 category error）。UI 复用 slider 控件是宿主侧渲染选择，读各自的 `MinValue/MaxValue(/DefaultValue)` 即可，不需类型继承。原则：**冻结面上解耦 > DRY**。
 - **统一命名根 `Automation`**（不用业务词 `Expression`，也不用纯结构词 `Curve`）：求值器 `IAutomationEvaluator` 已把"Automation"锚定为"按时间求值"的伞概念，且 `IAutomation` 本就把曲线几何操作收在该名下。故 host 数据层 `IPiecewiseCurve / PiecewiseCurve` 改名为 `IPiecewiseAutomation / PiecewiseAutomation`，pitch 直接 typed 为 `IPiecewiseAutomation`，删 `PitchAutomation.cs` 空壳。（求值器原名 `IAutomationValueGetter.GetValue`，后正名 `IAutomationEvaluator.Evaluate`——"ValueGetter/Getter"非 .NET 惯用后缀，且 "sample" 一词在本 SDK 已被 PCM 音频占用。）
-- **求值器统一、NaN 表空**：连续型与分段型共用 `IAutomationEvaluator.Evaluate(times) → double[]`（查询轴 = 全局秒）；连续型永不返回 NaN，分段型段间返回 NaN（IEEE 标准"非数"，DSP 惯用，且现有 pitch 求值与 ACE 都这么做）。
+- **求值器统一、NaN 表空**：连续型与分段型共用 `IAutomationEvaluator.Evaluate(times, results)`（查询轴 = 全局秒；写入调用方缓冲，旧式返数组走扩展）；连续型永不返回 NaN，分段型段间返回 NaN（IEEE 标准"非数"，DSP 惯用，且现有 pitch 求值与 ACE 都这么做）。
 
 ### 回显轨 ⇄ 可编辑轨：同 key 由宿主接管可编辑（零新 API）
 

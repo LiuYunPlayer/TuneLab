@@ -132,7 +132,7 @@ public readonly struct VoiceSynthesisPhonemeSnapshot {     // 合成快照里一
     // 引导/主体归属由所属列表给（VoiceSynthesisNoteSnapshot.LeadingPhonemes/BodyPhonemes + BodyOffset），不落每音素标志
 }
 public sealed class SynthesisAutomationSnapshot { IAutomationEvaluator Evaluator { get; } }
-public interface IAutomationEvaluator { double[] Evaluate(IReadOnlyList<double> times); }  // times=全局秒；插值在宿主侧；连续轨永不NaN、分段轨段间NaN
+public interface IAutomationEvaluator { void Evaluate(IReadOnlyList<double> times, Span<double> results); }  // times=全局秒（须非降序）；调用方备 results 缓冲（与 times 等长、写入）；旧式返数组用扩展 evaluator.Evaluate(times)。插值在宿主侧；连续轨永不NaN、分段轨段间NaN
 
 // 音素描述符：进/出同型、方向无关；只报时长，位置/去重叠/melisma 全归宿主派生（引擎报绝对位置会让相接判据失真）。
 public struct SynthesizedPhoneme {

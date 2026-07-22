@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using TuneLab.Data.Synthesis;
 using TuneLab.Foundation;
@@ -29,7 +30,7 @@ internal sealed class AutomationSnapshot : IAutomationEvaluator
     }
 
     // 查询点须升序（查询轴 = 锚点所在的 part 相对 tick 轴）。
-    public double[] Evaluate(IReadOnlyList<double> points)
+    public void Evaluate(IReadOnlyList<double> points, Span<double> results)
     {
         SynthesisEvaluatorDebug.AssertAscending(points);
         SynthesisEvaluatorDebug.AssertWithinWindow(points, Start, End);
@@ -39,12 +40,12 @@ internal sealed class AutomationSnapshot : IAutomationEvaluator
         if (mDefaultValue != 0)
         {
             for (int i = 0; i < values.Length; i++)
-            {
-                values[i] += mDefaultValue;
-            }
+                results[i] = values[i] + mDefaultValue;
         }
-
-        return values;
+        else
+        {
+            values.CopyTo(results);
+        }
     }
 
     readonly Point[] mPoints;

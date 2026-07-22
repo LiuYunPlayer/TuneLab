@@ -1,5 +1,6 @@
 using TuneLab.Data;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 using Xunit;
 
 namespace TuneLab.Tests;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TuneLab.Data.Synthesis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Extensions.Effect;
@@ -174,8 +175,10 @@ internal class Effect : DataObject, IEffect
             // vibrato 投影，槽位现场解析）、分段轨读曲线（无曲线处 NaN）。
             sealed class Evaluator(Effect effect, string key, bool piecewise) : IAutomationEvaluator
             {
-                public double[] Evaluate(IReadOnlyList<double> times)
+                public void Evaluate(IReadOnlyList<double> times, Span<double> results)
                 {
+                    SynthesisEvaluatorDebug.AssertAscending(times);
+
                     var part = effect.mPart;
                     double pos = part.Pos.Value;
                     var ticks = new double[times.Count];
@@ -186,15 +189,18 @@ internal class Effect : DataObject, IEffect
                     {
                         int index = ((IMidiPart)part).Effects.IndexOf(effect);
                         if (index < 0)
-                            return effect.GetAutomationValues(ticks, key);
-                        return ((IMidiPart)part).GetFinalAutomationValues(ticks, AutomationKey.Effect(index, key));
+                            effect.GetAutomationValues(ticks, key).CopyTo(results);
+                        else
+                            ((IMidiPart)part).GetFinalAutomationValues(ticks, AutomationKey.Effect(index, key)).CopyTo(results);
+                        return;
                     }
 
                     if (effect.mPiecewiseAutomations.TryGetValue(key, out var automation))
-                        return automation.GetValues(ticks);
-                    var values = new double[times.Count];
-                    values.Fill(double.NaN);
-                    return values;
+                    {
+                        automation.GetValues(ticks).CopyTo(results);
+                        return;
+                    }
+                    results.Fill(double.NaN);
                 }
             }
         }

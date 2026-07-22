@@ -73,7 +73,7 @@ internal static class VoiceSynthesisSnapshotFactory
         if (part.Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var envelope))
         {
             var envelopeSnapshot = AutomationSnapshot.Capture(envelope, relStart, relEnd);
-            envelopeSampler = envelopeSnapshot.Evaluate;
+            envelopeSampler = ticks => envelopeSnapshot.Evaluate(ticks);
         }
 
         // —— 音高双通道：Pitch = 纯用户绘制曲线开窗快照（NaN=自由）；

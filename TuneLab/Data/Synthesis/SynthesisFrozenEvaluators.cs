@@ -18,7 +18,7 @@ internal sealed class FrozenFinalAutomationEvaluator(
     Func<IReadOnlyList<double>, double[]> timesToTicks,
     bool skipNaN) : IAutomationEvaluator
 {
-    public double[] Evaluate(IReadOnlyList<double> times)
+    public void Evaluate(IReadOnlyList<double> times, Span<double> results)
     {
         double[] globalTicks = timesToTicks(times);
         double[] ticks = new double[times.Count];
@@ -27,29 +27,26 @@ internal sealed class FrozenFinalAutomationEvaluator(
             ticks[i] = globalTicks[i] - partPos;
         }
 
-        var values = baseEvaluator.Evaluate(ticks);
+        baseEvaluator.Evaluate(ticks, results);
         if (vibratos.Count == 0)
-            return values;
+            return;
 
         var deviation = VibratoMath.GetDeviation(vibratos, ticks, envelopeSampler, partPos, tickToTime);
-        for (int i = 0; i < values.Length; i++)
+        for (int i = 0; i < results.Length; i++)
         {
-            if (skipNaN && double.IsNaN(values[i]))
+            if (skipNaN && double.IsNaN(results[i]))
                 continue;
 
-            values[i] += deviation[i];
+            results[i] += deviation[i];
         }
-        return values;
     }
 }
 
 internal sealed class ConstantAutomationEvaluator(double value) : IAutomationEvaluator
 {
-    public double[] Evaluate(IReadOnlyList<double> times)
+    public void Evaluate(IReadOnlyList<double> times, Span<double> results)
     {
-        double[] values = new double[times.Count];
-        values.Fill(value);
-        return values;
+        results.Fill(value);
     }
 }
 
@@ -58,11 +55,10 @@ internal sealed class ConstantAutomationEvaluator(double value) : IAutomationEva
 // 线性标度下投影 = 纯范围钳位（无格点、无视觉/数值改变，除越界值被钳回）。
 internal sealed class ScaleQuantizingEvaluator(IAutomationEvaluator inner, INormalizedScale scale) : IAutomationEvaluator
 {
-    public double[] Evaluate(IReadOnlyList<double> times)
+    public void Evaluate(IReadOnlyList<double> times, Span<double> results)
     {
-        var values = inner.Evaluate(times);
-        for (int i = 0; i < values.Length; i++)
-            values[i] = scale.Project(values[i]);
-        return values;
+        inner.Evaluate(times, results);
+        for (int i = 0; i < results.Length; i++)
+            results[i] = scale.Project(results[i]);
     }
 }

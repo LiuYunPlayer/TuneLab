@@ -64,7 +64,7 @@ internal static class InstrumentSynthesisSnapshotFactory
         double partPos,
         Func<IReadOnlyList<double>, double[]> timesToTicks) : IAutomationEvaluator
     {
-        public double[] Evaluate(IReadOnlyList<double> times)
+        public void Evaluate(IReadOnlyList<double> times, Span<double> results)
         {
             double[] globalTicks = timesToTicks(times);
             double[] ticks = new double[times.Count];
@@ -72,17 +72,15 @@ internal static class InstrumentSynthesisSnapshotFactory
             {
                 ticks[i] = globalTicks[i] - partPos;
             }
-            return baseEvaluator.Evaluate(ticks);
+            baseEvaluator.Evaluate(ticks, results);
         }
     }
 
     sealed class ConstantEvaluator(double value) : IAutomationEvaluator
     {
-        public double[] Evaluate(IReadOnlyList<double> times)
+        public void Evaluate(IReadOnlyList<double> times, Span<double> results)
         {
-            double[] values = new double[times.Count];
-            values.Fill(value);
-            return values;
+            results.Fill(value);
         }
     }
 }

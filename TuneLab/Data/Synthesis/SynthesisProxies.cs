@@ -128,10 +128,11 @@ internal sealed class AutomationProxy(ISynthesisForwarder forwarder, Func<IReadO
     readonly ActionEvent<double, double> mRangeModified = new();
 
     // 查询轴 = 全局秒：全局秒 → part 相对 tick → 喂数据层 sampler。
-    public double[] Evaluate(IReadOnlyList<double> times)
+    public void Evaluate(IReadOnlyList<double> times, Span<double> results)
     {
         forwarder.AssertThread();
-        return sampler(forwarder.ToRelativeTicks(times));
+        SynthesisEvaluatorDebug.AssertAscending(times);
+        sampler(forwarder.ToRelativeTicks(times)).CopyTo(results);
     }
 
     internal void NotifyRangeModified(double startSecond, double endSecond)

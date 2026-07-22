@@ -624,15 +624,22 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     // 老 IAutomationValueGetter 与 V1 IAutomationEvaluator 同为秒轴，仅类型不同，直接转调。
     sealed class EvaluatorGetterAdapter(VBase.IAutomationEvaluator evaluator) : LVoice.IAutomationValueGetter
     {
-        public double[] GetValue(IReadOnlyList<double> times) => evaluator.Evaluate(times);
+        public double[] GetValue(IReadOnlyList<double> times)
+        {
+            var results = new double[times.Count];
+            evaluator.Evaluate(times, results);
+            return results;
+        }
     }
 
     sealed class ComposedFinalPitchGetter(VVoice.VoiceSynthesisSnapshot snapshot) : LVoice.IAutomationValueGetter
     {
         public double[] GetValue(IReadOnlyList<double> times)
         {
-            var values = snapshot.Pitch.Evaluator.Evaluate(times);
-            var deviation = snapshot.PitchDeviation.Evaluator.Evaluate(times);
+            var values = new double[times.Count];
+            snapshot.Pitch.Evaluator.Evaluate(times, values);
+            var deviation = new double[times.Count];
+            snapshot.PitchDeviation.Evaluator.Evaluate(times, deviation);
             for (int i = 0; i < values.Length; i++)
             {
                 if (!double.IsNaN(values[i]))

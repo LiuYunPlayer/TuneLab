@@ -50,7 +50,7 @@ internal static class EffectSynthesisSnapshotFactory
         if (vibratoCaptures.Count > 0 && part.Automations.TryGetValue(ConstantDefine.VibratoEnvelopeID, out var envelope))
         {
             var envelopeSnapshot = AutomationSnapshot.Capture(envelope, relStart, relEnd);
-            envelopeSampler = envelopeSnapshot.Evaluate;
+            envelopeSampler = ticks => envelopeSnapshot.Evaluate(ticks);
         }
 
         // 全部已声明轨按区间开窗物化（连续无数据 → 默认值常量；分段无数据 → NaN 常量）。
