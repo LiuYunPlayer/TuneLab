@@ -252,13 +252,13 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
             mSegment?.Dispose();
             mSegment = mContext.CreateAudioSegment((long)(blockStart * kSampleRate), sampleCount, kSampleRate);
             mSegment.Commit();   // 静音输出：宿主缓冲零初始化，无需 Write
-            var phonemes = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
+            var phonemes = new Map<string, SynthesizedSyllable>();
             for (int i = 0; i < notes.Count; i++)
             {
                 var note = notes[i];
                 double noteStart = note.StartTime;
                 double noteEnd = note.EndTime;
-                phonemes.Add(origins[i], new SynthesizedSyllable([], new List<SynthesizedPhoneme>   // 索引对齐：产物归属回活 note（map 键）
+                phonemes.Add(note.Id, new SynthesizedSyllable([], new List<SynthesizedPhoneme>   // 键 = 快照 note 运行期 id（零活引用）
                 {
                     new() { Symbol = note.Lyric, Duration = noteEnd - noteStart, StretchWeight = noteEnd - noteStart },
                 }, 0));   // 无引导、单核主体、元音起手 → BodyOffset 0
@@ -278,7 +278,7 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; } = new Map<string, SynthesizedParameter>();
-    public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes => mPhonemes;
+    public IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes => mPhonemes;
 
     public IReadOnlyList<SynthesisStatusSegment> Status => BuildStatus();
 
@@ -341,5 +341,5 @@ public sealed class SingleBlockSession : IVoiceSynthesisSession
     IAudioSegment? mSegment;
     double mBlockStart;
     double mBlockEnd;
-    IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> mPhonemes = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
+    IReadOnlyMap<string, SynthesizedSyllable> mPhonemes = new Map<string, SynthesizedSyllable>();
 }

@@ -217,6 +217,12 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
 
     internal VoiceNoteProxy? ProxyOf(INote? note) => note == null ? null : mNotes.ProxyOf(note);
 
+    // note 运行期身份发号（会话内单调计数器转 string、不持久）：每个 VoiceNoteProxy 建时取一个，供 SynthesizedPhonemes
+    // 产物键。会话内稳定即够（产物随会话重算）；仅数据线程调用，无需并发保护。SDK 面是 string——将来若需持久 note uuid，
+    // 此处换成产出持久 id 即可、不动 SDK。
+    internal string NextNoteId() => (mNextNoteId++).ToString();
+    int mNextNoteId;
+
     static void Guarded(Action action)
     {
         try
@@ -464,6 +470,9 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     {
         public INote Source => mNote;
 
+        // 会话内运行期身份（建时向 context 领号，恒定不变）：产物 SynthesizedPhonemes 按此键、宿主回填按此反查。
+        public string Id { get; }
+
         public IReadOnlyNotifiableProperty<double> StartTime { get; }
         public IReadOnlyNotifiableProperty<double> EndTime { get; }
         public IReadOnlyNotifiableProperty<int> Pitch { get; }
@@ -480,6 +489,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         {
             mContext = context;
             mNote = note;
+            Id = context.NextNoteId();
             var part = context.mPart;
             // source 只含 note 自身字段（note 在 part 内编辑）；part.Pos/tempo 变化走 session 重建，
             // getter 读 part.Pos.Value 当前值即可（session 生命周期内稳定）。

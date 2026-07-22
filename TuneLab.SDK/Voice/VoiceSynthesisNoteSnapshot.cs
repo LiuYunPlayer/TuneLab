@@ -12,6 +12,10 @@ namespace TuneLab.SDK;
 // 纯加性（新字段带默认值、不标 required，不破构造签名）。
 public sealed class VoiceSynthesisNoteSnapshot
 {
+    // 归属身份（宿主发号的会话内运行期不透明 token）：与活视图 IVoiceSynthesisNote.Id 同值，worker 只从快照读它
+    // 当 SynthesizedPhonemes 键（零活引用）。加性字段（非 required、宿主恒设、默认空串占位）。
+    public string Id { get; init; } = string.Empty;
+
     public required double StartTime { get; init; }
     // EndTime = 有效末（宿主去重叠后盖前钳到下一 note 起点，单声部音频口径，可重叠的尾巴已截）。
     // 宿主独占音素布局（定位 / 跨 note 压缩 / melisma），插件只该见有效末——不再暴露 note 满末。

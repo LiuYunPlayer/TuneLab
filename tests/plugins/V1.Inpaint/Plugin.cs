@@ -170,7 +170,7 @@ public sealed class InpaintSession : IVoiceSynthesisSession
     // —— 产物：本引擎聚焦音频与段身份，其余产物面恒空 ——
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;
-    public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes => sEmptyPhonemes;
+    public IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes => sEmptyPhonemes;
 
     // 状态声称（inpainting 粒度）：整个内容范围声称 Synthesized 垫底，脏区/失败区/在渲区各自叠报——
     // 宿主按 z 序分层（声称完成 < Pending < 活动），重叠即正确呈现，无需自行做区间减法。
@@ -465,7 +465,7 @@ public sealed class InpaintSession : IVoiceSynthesisSession
     const int kReleaseSamples = (int)(0.012 * kSampleRate);
 
     static readonly IReadOnlyMap<string, SynthesizedParameter> sEmptyParameters = new Map<string, SynthesizedParameter>();
-    static readonly IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> sEmptyPhonemes = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
+    static readonly IReadOnlyMap<string, SynthesizedSyllable> sEmptyPhonemes = new Map<string, SynthesizedSyllable>();
 
     readonly IVoiceSynthesisContext mContext;
     readonly DisposableManager mSubscriptions = new();

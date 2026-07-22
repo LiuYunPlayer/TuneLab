@@ -113,6 +113,8 @@ public class NoteOverlapClampTests
 
     sealed class FakeNote(double start, double end) : IVoiceSynthesisNote
     {
+        public string Id { get; } = System.Threading.Interlocked.Increment(ref sNextId).ToString();
+        static int sNextId;
         public IReadOnlyNotifiableProperty<double> StartTime { get; } = new Const<double>(start);
         public IReadOnlyNotifiableProperty<double> EndTime { get; } = new Const<double>(end);
         public IReadOnlyNotifiableProperty<int> Pitch { get; } = new Const<int>(60);

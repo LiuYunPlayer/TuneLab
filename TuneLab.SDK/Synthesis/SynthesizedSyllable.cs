@@ -3,7 +3,8 @@ using System.Collections.Generic;
 namespace TuneLab.SDK;
 
 // 一个归属 note 的合成音节：分类做成引擎声明的结构化双列表（引导音素 + 主体音素），几何收进一个有符号 BodyOffset。
-// 一 note ≈ 一音节，本类型即该音节的音素布局。IVoiceSynthesisSession.SynthesizedPhonemes map 的值型——方向无关地对齐
+// 一 note ≈ 一音节，本类型即该音节的音素布局。IVoiceSynthesisSession.SynthesizedPhonemes map 的值型（键为归属 note
+// 的运行期身份 IVoiceSynthesisNote.Id）——方向无关地对齐
 // 钉死输入侧的「LeadingPhonemes / BodyPhonemes / BodyOffset」形。音素只报标称几何（SynthesizedPhoneme：时长 / 权重）。
 //
 // · LeadingPhonemes：引导音素（核前的前置辅音），时间序。

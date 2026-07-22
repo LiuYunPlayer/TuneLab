@@ -38,6 +38,7 @@ internal static class VoiceSynthesisSnapshotFactory
 
             notes.Add(new VoiceSynthesisNoteSnapshot
             {
+                Id = proxy.Id,                                  // 运行期身份镜像：worker 从快照读它当 SynthesizedPhonemes 键
                 StartTime = note.StartTime.Value,               // 全局秒（note proxy 已换算）
                 EndTime = note.EndTime.Value,                   // 有效末（去重叠，单声部音频口径；宿主独占音素布局）
                 Pitch = note.Pitch.Value,

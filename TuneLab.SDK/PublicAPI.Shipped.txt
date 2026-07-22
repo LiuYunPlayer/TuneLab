@@ -300,7 +300,6 @@ TuneLab.SDK.IVoiceSynthesisSession.StatusChanged.get -> TuneLab.Foundation.IActi
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizeNext(double startTime, double endTime, System.Threading.CancellationToken cancellation = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedParameters.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedParameter!>!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedParametersChanged.get -> TuneLab.Foundation.IActionEvent!
-TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemes.get -> TuneLab.Foundation.IReadOnlyMap<TuneLab.SDK.IVoiceSynthesisNote!, TuneLab.SDK.SynthesizedSyllable>!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemesChanged.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPitch.get -> TuneLab.SDK.SynthesizedPitch!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPitchChanged.get -> TuneLab.Foundation.IActionEvent!

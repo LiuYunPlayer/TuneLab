@@ -11,6 +11,12 @@ namespace TuneLab.SDK;
 // 读到新秒值；边界 Modified 只在 note 自身编辑时触发。tick 是宿主乐谱内部表示、不外露。
 public interface IVoiceSynthesisNote
 {
+    // 会话内运行期稳定身份（宿主发号的不透明 token、不持久）：合成产物 SynthesizedPhonemes 按此键回指归属 note，
+    // 免把活 note 引用引入值产物 / worker。不可变（一个会话内恒定，故非 notifiable）；镜像到
+    // VoiceSynthesisNoteSnapshot.Id 供 worker 读。用 string 而非专用类型：将来若需给 note 持久 uuid，宿主把此值
+    // 从会话计数器换成持久 uuid（Guid 本即 string）即可，SDK 面不变。当前语义 = 仅一次会话内稳定、唯一、可作 map 键。
+    string Id { get; }
+
     IReadOnlyNotifiableProperty<double> StartTime { get; }
     IReadOnlyNotifiableProperty<double> EndTime { get; }
     IReadOnlyNotifiableProperty<int> Pitch { get; }

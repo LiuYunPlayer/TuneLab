@@ -86,10 +86,12 @@ public interface IVoiceSynthesisSession : IDisposable
     // 回显曲线数据（按轨 id 键、与音频/音高同一秒时间系）：key 与 GetSynthesizedParameterConfigs 对齐，
     // 仅承载曲线数据本身（轨形态/色由 config 给）；每条为具名富类型 SynthesizedParameter（分段折线）。
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
-    // 合成音素（按归属 note 键，每 note 一个 SynthesizedSyllable = 引导/主体双列表 + BodyOffset，只报标称几何——
-    // 定位 / 去重叠归宿主）。引擎自行托管失效——脏 / 合成中的块不应在此报告其 note 的音素（宿主据此留白）。时长模型下
-    // 无主音素无锚不可定位、故无「无主音素」契约（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载）。
-    IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; }
+    // 合成音素（按归属 note 的运行期 id 键，每 note 一个 SynthesizedSyllable = 引导/主体双列表 + BodyOffset，只报
+    // 标称几何——定位 / 去重叠归宿主）。键 = note 身份 token（IVoiceSynthesisNote.Id，宿主发号、不持久）：引擎从
+    // snapshot.Notes[i].Id 取，worker 零活引用（产物族一律值键，杜绝把活 note 引入值产物）；宿主按 note 当前 id 反查回填。
+    // 引擎自行托管失效——脏 / 合成中的块不应在此报告其 note 的音素（宿主据此留白）。时长模型下无主音素无锚不可定位、故无
+    //「无主音素」契约（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载）。
+    IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes { get; }
 
     // —— 状态 / 按段报错（统一时间线）——
     IReadOnlyList<SynthesisStatusSegment> Status { get; }

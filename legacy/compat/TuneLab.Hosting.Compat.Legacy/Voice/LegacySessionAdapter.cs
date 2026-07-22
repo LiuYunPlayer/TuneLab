@@ -142,7 +142,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             // —— 真实 pass：钉死 note 用用户值、未钉死 note 用基线缓存 → 全显式时间线（无引擎当场自预测、无接缝 Sil、音频==显示）——
             var echo = new VVoice.SynthesizedSyllable?[piece.Notes.Count];
             for (int i = 0; i < piece.Notes.Count; i++)
-                echo[i] = piece.BaselineEcho!.TryGetValue(piece.Notes[i], out var syllable) ? syllable : null;
+                echo[i] = piece.BaselineEcho!.TryGetValue(piece.Notes[i].Id, out var syllable) ? syllable : null;
             var views = SnapshotNoteView.CreateChain(snapshot.Notes, piece.Notes, echo);
             var real = await RunPass(new SnapshotSynthesisData(snapshot, views), progressPiece: piece, cancellation);
             if (real.Cancelled)
@@ -217,10 +217,10 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     // sub-frame 错位被帧量化成整帧 Sil）。两条修正（老引擎无权重概念，宿主补足使布局像真人嗓）：
     //   ① **至少一个拍后音素**：若按中点判完全归引导（无主体），把**最后一个引导**挪进主体，保证有核可填满音符。
     //   ② **首个拍后音素 w=1**（弹性核、填满音符到满末）；其余音素 w=0（刚性、固定长）。
-    static PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> BuildEcho(
+    static PStruct.Map<string, VVoice.SynthesizedSyllable> BuildEcho(
         LVoice.SynthesisResult result, IReadOnlyList<SnapshotNoteView> views)
     {
-        var echo = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
+        var echo = new PStruct.Map<string, VVoice.SynthesizedSyllable>();
         foreach (var kv in result.SynthesizedPhonemes)
         {
             if (kv.Key is not SnapshotNoteView view)
@@ -253,7 +253,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             }
             // junction（结合线）= 主体首起点（其原始绝对起点）。BodyOffset = junction − note 头（有符号、不吸头）。
             double bodyOffset = starts[leadCount] - view.StartTime;
-            echo.Add(view.Origin, new VVoice.SynthesizedSyllable(leading, body, bodyOffset));
+            echo.Add(view.Origin.Id, new VVoice.SynthesizedSyllable(leading, body, bodyOffset));
         }
         return echo;
     }
@@ -276,11 +276,11 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
 
     public PStruct.IReadOnlyMap<string, VVoice.SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
-    public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> SynthesizedPhonemes
+    public PStruct.IReadOnlyMap<string, VVoice.SynthesizedSyllable> SynthesizedPhonemes
     {
         get
         {
-            var result = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
+            var result = new PStruct.Map<string, VVoice.SynthesizedSyllable>();
             foreach (var piece in mPieces)
             {
                 foreach (var kvp in piece.Phonemes)   // 块间 note 不相交，直接并入
@@ -532,7 +532,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         //   · 钉死 note → 宿主用其钉死 Phonemes（忽略此项），此处报的自然预测无害；
         //   · 只认可复现的自然预测缓存、与真实 pass 的瞬态帧量化无关 → 关闭重开一致。
         // 延音判定恒 false（见 IsContinuation——老模型无乘客机制），故所有回显走宿主普通内容显示。
-        piece.Phonemes = piece.BaselineEcho ?? new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
+        piece.Phonemes = piece.BaselineEcho ?? new PStruct.Map<string, VVoice.SynthesizedSyllable>();
 
         NotifyStatusChanged();
     }
@@ -587,13 +587,13 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         public LVoice.SynthesisResult? Result;
         public VVoice.IAudioSegment? Segment;
         public IReadOnlyList<IReadOnlyList<PStruct.Point>> PitchLines = [];
-        public PStruct.IReadOnlyMap<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable> Phonemes = new PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>();
+        public PStruct.IReadOnlyMap<string, VVoice.SynthesizedSyllable> Phonemes = new PStruct.Map<string, VVoice.SynthesizedSyllable>();
 
         // 基线自然预测（no-pin 跑一遍得到、按内在数据有效）：喂引擎时未钉死 note 用它，宿主显示也上报它作
         // SynthesizedSyllable（两处同一份原始描述符 → 音频==显示）。默认待建（BaselineDirty=true / null）；
         // 内在脏才作废、渲染脏（钉死/automation）保留 → 编辑期稳定、关闭重开重跑得同一份 → 结果确定。
         public bool BaselineDirty = true;
-        public PStruct.Map<VVoice.IVoiceSynthesisNote, VVoice.SynthesizedSyllable>? BaselineEcho;
+        public PStruct.Map<string, VVoice.SynthesizedSyllable>? BaselineEcho;
     }
 
     // 老 ISynthesisData：全部读冻结快照（worker 线程安全）。

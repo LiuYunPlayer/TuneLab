@@ -241,7 +241,7 @@ public sealed class TestSession : IVoiceSynthesisSession
 
         try
         {
-            var rendered = await Task.Run(() => Render(snapshot, piece.Notes, report, cancellation), CancellationToken.None);
+            var rendered = await Task.Run(() => Render(snapshot, report, cancellation), CancellationToken.None);
             if (rendered != null && mPieces.Contains(piece))
             {
                 // 段握柄：每次完成丢旧建新（一握柄 = 一次渲染）；写入整段后 Commit 把冻结音频交宿主驱动 effect。
@@ -294,11 +294,11 @@ public sealed class TestSession : IVoiceSynthesisSession
     // 合成音素：仅在「音素几何未失效」（PhonemesStale=false）时报告。分级失效——音素几何只被**上游**（时长 / 歌词 /
     // 结构）变动清掉；同级（锁定音素）/ 下游（音高 / 参数 / 音频）变动**不**清音素，故锁定音素、改音高、画曲线时音素照常
     // 显示、不留白。不看 Dirty / Synthesizing：音素未失效时即便该块正重渲音频，旧音素仍有效、持续显示。
-    public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes
+    public IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes
     {
         get
         {
-            var result = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
+            var result = new Map<string, SynthesizedSyllable>();
             foreach (var piece in mPieces)
             {
                 if (piece.PhonemesStale || piece.Failed || piece.Segment == null)
@@ -363,17 +363,17 @@ public sealed class TestSession : IVoiceSynthesisSession
         mPieces.Clear();
     }
 
-    // —— 合成（worker 线程，只读冻结快照；产物归属经 segment.Notes 索引对齐回活 note）——
-    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> Phonemes, List<Point> EnergyReadback);
+    // —— 合成（worker 线程，只读冻结快照；产物归属经 snapshot.Notes[i].Id 键，零活引用）——
+    sealed record RenderResult(float[] Audio, double StartTime, IReadOnlyMap<string, SynthesizedSyllable> Phonemes, List<Point> EnergyReadback);
 
-    static RenderResult? Render(VoiceSynthesisSnapshot snapshot, IReadOnlyList<IVoiceSynthesisNote> origins,
+    static RenderResult? Render(VoiceSynthesisSnapshot snapshot,
         IProgress<double>? progress, CancellationToken cancellation)
     {
         var notes = snapshot.Notes;
         if (notes.Count == 0)
         {
             progress?.Report(1);
-            return new RenderResult([], 0, new Map<IVoiceSynthesisNote, SynthesizedSyllable>(), []);
+            return new RenderResult([], 0, new Map<string, SynthesizedSyllable>(), []);
         }
 
         // 模拟合成耗时：分步等待并上报进度（取消即中途退出，产物保持上一版）。期间宿主显示该块「合成中」、
@@ -541,7 +541,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         }
 
         // 参考预测：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map（位置 / 压缩交宿主）。
-        var phonemes = RefLayout.Build(snapshot, predicted, origins, notePreutter);
+        var phonemes = RefLayout.Build(snapshot, predicted, notePreutter);
 
         // 参数回显（energy）：本参照实现产出一条「引擎实际施加的 energy」分段曲线，与音频/音高同一秒时间系，
         // 供宿主作只读回显轨绘制。此处用一条确定性正弦波形（10..90，落在 energy 的 0..100 域内）驱动回显路径。
@@ -685,7 +685,7 @@ public sealed class TestSession : IVoiceSynthesisSession
         public string? Error;
         public double Progress;
         public IAudioSegment? Segment;
-        public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> Phonemes = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
+        public IReadOnlyMap<string, SynthesizedSyllable> Phonemes = new Map<string, SynthesizedSyllable>();
         public IReadOnlyList<Point> EnergyReadback = [];
     }
 
@@ -718,7 +718,7 @@ static class RefLayout
     }
 
     // 主入口：钉死 note 报钉死时长、自由 note 报预测时长，按归属 note 键成 map。位置 / 压缩 / 相接判定交宿主。
-    public static IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyList<IVoiceSynthesisNote> origins, IReadOnlyDictionary<int, double>? preutterOverride = null)
+    public static IReadOnlyMap<string, SynthesizedSyllable> Build(VoiceSynthesisSnapshot snapshot, IReadOnlyList<Pred> predicted, IReadOnlyDictionary<int, double>? preutterOverride = null)
     {
         var byNote = new Dictionary<int, List<Pred>>();
         foreach (var p in predicted)
@@ -730,7 +730,7 @@ static class RefLayout
 
         static SynthesizedPhoneme Ph(string symbol, double dur, double w) => new() { Symbol = symbol, Duration = dur, StretchWeight = w };
 
-        var result = new Map<IVoiceSynthesisNote, SynthesizedSyllable>();
+        var result = new Map<string, SynthesizedSyllable>();
         for (int ni = 0; ni < snapshot.Notes.Count; ni++)
         {
             var note = snapshot.Notes[ni];
@@ -761,7 +761,7 @@ static class RefLayout
                 continue;
             }
             if (leading.Count > 0 || body.Count > 0)
-                result.Add(origins[ni], new SynthesizedSyllable(leading, body, bodyOffset));
+                result.Add(snapshot.Notes[ni].Id, new SynthesizedSyllable(leading, body, bodyOffset));
         }
         return result;
     }
