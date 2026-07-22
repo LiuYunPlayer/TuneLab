@@ -12,7 +12,7 @@ namespace TuneLab.SDK;
 //（与 JSON number 一致）。注意：不另设 IReadOnlyList<基础类型> 的便捷构造器——否则集合表达式字面量会与本 list 构造器
 // 在「string-list vs ComboBoxItem-list」间产生重载二义（C# 12 判不出更优、直接报错）。已建好的 typed 变量（如
 // List<string>）不会逐元素隐式转换，调用方就地 .Select(o => (ComboBoxItem)o).ToList() 即可。
-public struct ComboBoxItem(PropertyValue value, string? displayText = null) : IEquatable<ComboBoxItem>
+public readonly struct ComboBoxItem(PropertyValue value, string? displayText = null) : IEquatable<ComboBoxItem>
 {
     public PropertyValue Value { get; init; } = value;
     public string? DisplayText { get; init; } = displayText;
