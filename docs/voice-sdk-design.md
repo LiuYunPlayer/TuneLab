@@ -175,14 +175,14 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 
 ### 3.5 隔离模型与合成快照（线程，及未来进程）
 
-合成跑在 worker 线程、宿主改数据在 UI 线程；且**引擎未来可能整体移入独立进程**（插件崩溃不连累宿主）。线程隔离（现在）与进程隔离（将来）用**同一个原语**解决——**dump / 不可变快照**——故本设计一套到底，v2 只换传输（线程交接 → 序列化 + IPC），不重设计。
+合成跑在 worker 线程、宿主改数据在 UI 线程——**线程隔离是硬要求**，本设计的不可变快照原语为它而生。宿主级进程隔离（引擎整体移入独立进程、崩溃不连累宿主）是**未承诺的可能性、非硬目标**：真实引擎多已自行做进程隔离（自把重推理 offload 到子进程），宿主再套一层 out-of-process 收益有限，故不作承诺。快照仍触底为可序列化值树、把这扇门低成本留着（`Point` blittable、产物族一律值键无活引用——音素产物按 string 身份 token 键、见 §6），但**不为一个不承诺的未来付额外设计税**。若将来真要拆进程，同一快照原语只换传输（线程交接 → 序列化 + IPC）、不重设计——但那是若非必。
 
 **定调：数据层维持 UI 线程单写、不加锁、不做 COW；隔离靠快照、不靠同步。** worker（将来 worker 进程）**永不碰活对象**，只读一份在 UI 线程捕获的不可变快照。
 
 #### 两个视图
 
 - **活视图**（context，UI 线程，可订阅）：仅用于"有变化 → 重排"。插件订阅回调、`GetNextPendingSynthesisRange`、重分片都在这条数据线程上跑，可 live 全量访问宿主数据。
-- **合成快照**（worker 线程 / worker 进程，不可变）：派发时捕获、对快照合成（含沿邻居链导航）。
+- **合成快照**（worker 线程、将来若拆进程则 worker 进程，不可变）：派发时捕获、对快照合成（含沿邻居链导航）。
 
 #### 捕获时机与线程（快照由插件主动拉取）
 
@@ -313,7 +313,7 @@ public interface IVoiceSynthesisSession   // 续
     // —— 曲线类产物 ——
     SynthesizedPitch SynthesizedPitch { get; }                                          // 具名富类型 { Segments }，见 §6
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }           // 富类型，与 effect 同形
-    IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; } // 按归属 note 键，每 note 一组 VoicePhoneme（只报几何），见 §6
+    IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes { get; }              // 按归属 note 身份 (IVoiceSynthesisNote.Id) 键，每 note 一个 SynthesizedSyllable（只报几何），见 §6
 
     // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
     IReadOnlyList<SynthesisStatusSegment> Status { get; }
@@ -410,15 +410,15 @@ public readonly struct SynthesizedSyllable
 - **留白门控**：某侧有「相接、非乘客、却尚无音素数据」的邻居（正在合成 / 待合成）时，本 note 边界未决，宿主一并留白待邻居就绪，避免数据到达后跳变。
 - **乘客（延续）= 引擎判定为延续的 note**：被前一音节元音铺过（melisma）、透明。**延续与否由引擎判定、宿主照单全收且判定优先级最高**——会话方法 `IVoiceSynthesisSession.IsContinuation(note)`——**必须实现、刻意无默认体**：判定与合成行为是一对绑定承诺，任何默认体都替实现的合成许诺它未必做到的语义（`"-"` 铺末默认对不做 melisma 的引擎撒谎、恒 false 默认掩盖做了 melisma 却忘实现的引擎），沉默继承即静默分叉；不做延音语义的引擎如实 `=> false`。参考语义（编辑器 `"-"` 约定；宿主自营零引擎 `EmptyVoiceSynthesisEngine` 以同一语义实现自己的判定，故无声源 part 也按此显示——判定无真空）：`"-"` 记号 ∧ 经不断裂相接链回溯到内容 note（严格比较）∧ 本 note 无钉死音素，孤儿 = false。音素布局的第一步就是延音判定：判定为延续的 note 其音素数据（钉死 / 回显）**根本不被读取**——宿主不叠加任何合取（原宿主链回溯已退役），编辑期同步求值并按 part 级数据变更缓存失效——显示骨架合成前即终态且恒稳定（硬 WYSIWYG），引擎的自定义记号自动获得布局与手势支持。判定语义**完全归引擎自有**（链 / 相接 / 记号，含"小间距视为相接"这类策略），SDK 刻意不提供判定助手——判定绑定合成行为，实现须完全吃透语义才敢用，黑盒积木结构性无用（完整参考实现见样例插件 V1.Voice，十行链回溯）。**绑定性**：判定为延续的 note 不得回传音素（区段发音全挂链头 note）；违约回传落账但被忽略不显示（兜底），音频与显示的分叉属引擎自身矛盾。**无回喂标志**：live/快照面都不再有 `IsContinuation` 字段（回喂只会是引擎自己的输出，冗余）；快照窗口可能裁掉链头，引擎要把身份带进 worker 就在 `SynthesizeNext` 同步前缀对 live note 自判、随自有快照冻结。**钉死音素是判定输入而非宿主强制条件**：默认语义选择钉死排除，自定义判定可自由决定钉死地位——宿主照单尊重（判定为延续的 note 显示透明，即使带钉死）。legacy compat 适配器判定恒 false（老模型无乘客机制，忠实降级）。设计推导全程见 `continuation-contract-draft.md`。
 
-### 输出（engine→host，合成时返回）：按归属 note 键的 map
+### 输出（engine→host，合成时返回）：按归属 note 身份键的 map
 
 ```csharp
-IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; }
+IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes { get; }
 ```
 
 - **按归属 note 键**（而非扁平时间线 + 出身字段）：描述符不报绝对位置，**无主音素无锚不可定位、也落不进 note 失效链，故砍掉「无主音素（Note=null）」契约**——`SynthesizedPhoneme` 不带 `Note` 字段，归属全由 map 键表达。辅音入侵上一 note 尾巴这类越界，由宿主派生位置时自然产生。（breath 等将来用「归属 note 的前置 / 后置音素」或专属事件通道承载。）
-- **键怎么填**：用递给 `GetSnapshot` 的活 note 列表（`origins`）按快照索引对齐回取（`snapshot.Notes[i]` ↔ `origins[i]`）。键仅作身份 token，合成中不得读其属性。脏 / 合成中的块不在 map 里报告其 note 的音素（宿主据此留白）。
-- **回填直拷**：宿主 `WriteBackPhonemes` 按键直接拷到对应 note（免归组）。
+- **键怎么填**：键 = 归属 note 的运行期身份 `IVoiceSynthesisNote.Id`（宿主发号的不透明 string token、不持久、会话内稳定）。引擎从 `snapshot.Notes[i].Id` 直接取键——worker 零活引用（产物族一律值键，杜绝把活 note 引入值产物 / worker；旧方案曾用活 note 引用作键，逼引擎跨 offload 边界抓活对象、且键类型泄漏可变可订阅面可被误读，已废弃）。用 `string` 而非专用类型：将来若需给 note 持久 uuid，宿主把此值从会话计数器换成持久 id 即可、SDK 面不变。脏 / 合成中的块不在 map 里报告其 note 的音素（宿主据此留白）。
+- **回填反查**：宿主 `WriteBackPhonemes` 按每 note 当前 id 反查、直拷到对应 note（免归组）。
 - **null vs 空（语义区分，宿主回填面）**：宿主 note 上的 `SynthesizedPhonemes` 字段——`null` = **该 note 未参与合成**（未决、留白）；`[]`（空非 null）= **已合成、该 note 确无音素**（终态）。两者本质不同（前者待定、后者已定），回填时按此分流（`WriteBackPhonemes`：参与合成的 note 即使无音素也写 `[]`，仅未参与者写 `null`），下游显示 / 触发逻辑可据此区分"还没出"与"出了就是空"。
 
 ### 伸缩、锁定与 preview
