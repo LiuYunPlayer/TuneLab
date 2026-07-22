@@ -86,7 +86,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
         }
 
         // 同步瞬时处理，不自报状态（空声称 → 宿主按调度事实兜底呈现，验证兜底路径）。
-        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
+        public IReadOnlyList<SynthesisStatusSegment> Status => EmptyStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
@@ -281,7 +281,7 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
 
     sealed class ReverseSession(IEffectSynthesisContext context) : IEffectSynthesisSession
     {
-        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
+        public IReadOnlyList<SynthesisStatusSegment> Status => EmptyStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
@@ -365,7 +365,7 @@ public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
 
         // 声称时间线：处理中发布一条 Synthesizing 段（重算窗范围 + 进度）；完成/取消清空（事实层接管）。
         // 发布 = 换引用（不可变数组）、任意线程 Invoke StatusChanged——宿主 marshal 后拉取。
-        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mStatus;
+        public IReadOnlyList<SynthesisStatusSegment> Status => mStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
@@ -560,7 +560,7 @@ public sealed class FailEffectEngine : IEffectSynthesisEngine
 
     sealed class FailSession(IEffectSynthesisContext context) : IEffectSynthesisSession
     {
-        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => EmptyStatus;
+        public IReadOnlyList<SynthesisStatusSegment> Status => EmptyStatus;
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 

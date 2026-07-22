@@ -51,7 +51,7 @@ public interface IVoiceSynthesisContext
     // 插件自由圈定，返回的 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。
     // 仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用；一次合成可按需拉多份
     // （如音素级小窗 + 音频级大窗）。物化/版本缓存/记账留在宿主实现内。
-    VoiceSynthesisSnapshot GetSnapshot(IEnumerable<IVoiceSynthesisNote> notes, double startTime, double endTime);
+    VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime);
 
     // 音频产物的宿主分配工厂：插件合成产出音频时申请一个段握柄，写入、Commit() 标完成，
     // 重分片（或改长度/位置）时 Dispose() 释放重建。宿主据此持有段登记表、驱动下游 effect 链按段

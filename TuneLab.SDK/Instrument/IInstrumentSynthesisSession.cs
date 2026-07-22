@@ -18,12 +18,12 @@ public interface IInstrumentSynthesisSession : IDisposable
 {
     // —— 调度（宿主驱动逐步合成；与 voice 逐字同构）——
     // peek：窗内"下一块待合成"的纯值边界，无副作用；只在会话空闲时被问。null = 窗内无待合成。
-    SynthesisRange? GetNextSegment(double startTime, double endTime);
+    SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime);
 
     // commit：合成宿主选中的这一块。入参是与选中它的那次 peek【完全相同】的窗口（秒）——插件按同一窗口
     // 确定性重导出 notelist。插件在同步前缀经 IInstrumentSynthesisContext.GetSnapshot 拉取快照，之后才 offload。
-    // await 返回 = 槽位释放。返回纯 Task、无 outcome（取消不抛、错误经 GetStatus 看、是否还有待合成经
-    // GetNextSegment 看）。
+    // await 返回 = 槽位释放。返回纯 Task、无 outcome（取消不抛、错误经 Status 看、是否还有待合成经
+    // GetNextPendingSynthesisRange 看）。
     Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default);
 
     // —— 音频产物 ——
@@ -35,11 +35,11 @@ public interface IInstrumentSynthesisSession : IDisposable
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }
 
     // —— 状态 / 按段报错（统一时间线）——
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();
+    IReadOnlyList<SynthesisStatusSegment> Status { get; }
 
     // —— 更新信号（按产物分离；只在对应产物真正变化时 fire）——
     // 音频产物不在此列——经 IAudioSegment.Commit 自有通道驱动。出方向事件允许任意线程触发，宿主负责 marshal。
     IActionEvent SynthesizedParametersChanged { get; }
-    // 状态 / 进度（GetStatus）变化——通常最高频（进度条逐 tick），不触及产物。
+    // 状态 / 进度（Status）变化——通常最高频（进度条逐 tick），不触及产物。
     IActionEvent StatusChanged { get; }
 }

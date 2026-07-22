@@ -189,7 +189,7 @@ public sealed class TestSession : IVoiceSynthesisSession
     }
 
     // —— 调度：窗内第一个脏块的纯值边界（peek 廉价）——
-    public SynthesisRange? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime)
     {
         return FindNextDirtyPiece(startTime, endTime) is { } piece
             ? new SynthesisRange(piece.StartTime, piece.EndTime)
@@ -310,7 +310,9 @@ public sealed class TestSession : IVoiceSynthesisSession
         }
     }
 
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus()
+    public IReadOnlyList<SynthesisStatusSegment> Status => BuildStatus();
+
+    IReadOnlyList<SynthesisStatusSegment> BuildStatus()
     {
         var result = new List<SynthesisStatusSegment>(mPieces.Count);
         foreach (var piece in mPieces)

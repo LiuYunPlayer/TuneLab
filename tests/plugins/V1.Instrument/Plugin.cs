@@ -68,7 +68,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
         mNeedResegment = true;
     }
 
-    public SynthesisRange? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime)
         => FindNextDirtyPiece(startTime, endTime) is { } piece
             ? new SynthesisRange(piece.StartTime, piece.EndTime)
             : null;
@@ -131,7 +131,9 @@ public sealed class TestSession : IInstrumentSynthesisSession
     // instrument 仅产音频 + 可选参数回显；本参照不声明回显轨，故恒空。
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mEmptyReadback;
 
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus()
+    public IReadOnlyList<SynthesisStatusSegment> Status => BuildStatus();
+
+    IReadOnlyList<SynthesisStatusSegment> BuildStatus()
     {
         var result = new List<SynthesisStatusSegment>(mPieces.Count);
         foreach (var piece in mPieces)

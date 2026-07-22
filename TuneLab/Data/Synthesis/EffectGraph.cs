@@ -79,7 +79,7 @@ internal sealed class EffectGraph : IDisposable
                 if (!(node.Pending || node.Running || node.Removed))
                     continue;
 
-                var claims = node.Session?.GetStatus();
+                var claims = node.Session?.Status;
                 if (claims == null || claims.Count == 0)
                 {
                     // 兜底：调度事实（该节点在跑/待跑）→ 输入范围整段合成中、无进度。

@@ -72,7 +72,7 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     public bool IsContinuation(VVoice.IVoiceSynthesisNote note) => false;
 
     // —— 调度 ——
-    public VVoice.SynthesisRange? GetNextSegment(double startTime, double endTime)
+    public VVoice.SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime)
     {
         return FindNextDirtyPiece(startTime, endTime) is { } piece
             ? new VVoice.SynthesisRange(piece.StartTime, piece.EndTime)
@@ -291,7 +291,9 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     }
 
     // —— 状态：每块一段，统一平铺 ——
-    public IReadOnlyList<VVoice.SynthesisStatusSegment> GetStatus()
+    public IReadOnlyList<VVoice.SynthesisStatusSegment> Status => BuildStatus();
+
+    IReadOnlyList<VVoice.SynthesisStatusSegment> BuildStatus()
     {
         var result = new List<VVoice.SynthesisStatusSegment>(mPieces.Count);
         foreach (var piece in mPieces)

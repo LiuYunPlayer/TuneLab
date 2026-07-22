@@ -40,14 +40,14 @@ internal sealed class SilentSession : IVoiceSynthesisSession
     // 本引擎无延音语义（每个 note 都是内容），如实恒 false——判定与合成行为成对，不做 melisma 就不声称。
     public bool IsContinuation(IVoiceSynthesisNote note) => false;
 
-    public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
+    public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime) => null;
     public Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default) => Task.CompletedTask;
 
     public SynthesizedPitch SynthesizedPitch => new() { Segments = [] };
     public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => sEmptyParameters;
     public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes => sEmptyPhonemes;
 
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus() => Array.Empty<SynthesisStatusSegment>();
+    public IReadOnlyList<SynthesisStatusSegment> Status => Array.Empty<SynthesisStatusSegment>();
     public IActionEvent SynthesizedPhonemesChanged => ActionEvent.Empty;
     public IActionEvent SynthesizedParametersChanged => ActionEvent.Empty;
     public IActionEvent SynthesizedPitchChanged => ActionEvent.Empty;

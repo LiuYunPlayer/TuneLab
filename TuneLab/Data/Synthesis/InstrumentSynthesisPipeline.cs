@@ -35,7 +35,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
     {
         var layers = new List<SynthesisDisplaySegment>();
         var effectActive = new List<SynthesisDisplaySegment>();
-        var claims = mSession.GetStatus();
+        var claims = mSession.Status;
         SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.ClaimedDone);
         mEffectGraph.CollectDisplaySegments(layers, effectActive);
         SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.Pending);
@@ -84,11 +84,11 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
 
         try
         {
-            return mSession.GetNextSegment(startTime, endTime);
+            return mSession.GetNextPendingSynthesisRange(startTime, endTime);
         }
         catch (Exception ex)
         {
-            Log.ErrorAttributed("Instrument GetNextSegment failed", ex);
+            Log.ErrorAttributed("Instrument GetNextPendingSynthesisRange failed", ex);
             return null;
         }
     }

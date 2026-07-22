@@ -33,7 +33,7 @@ internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
 
     class EmptySession : IInstrumentSynthesisSession
     {
-        public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
+        public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime) => null;
 
         public Task SynthesizeNext(double startTime, double endTime,
             CancellationToken cancellation = default)
@@ -43,7 +43,7 @@ internal class EmptyInstrumentSynthesisEngine : IInstrumentSynthesisEngine
 
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
-        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
+        public IReadOnlyList<SynthesisStatusSegment> Status => [];
         public IActionEvent SynthesizedParametersChanged => ActionEvent.Empty;
         public IActionEvent StatusChanged => ActionEvent.Empty;
 

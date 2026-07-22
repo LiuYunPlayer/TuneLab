@@ -73,7 +73,7 @@ instrument 加 pitch 不碰 voice，voice 加成员也不碰 instrument，各自
 
 ## 2. 顶层接口（instrument 专属面）
 
-> 调度（`GetNextSegment` / `SynthesizeNext`）、音频交付（`CreateAudioSegment` / `IAudioSegment`）、
+> 调度（`GetNextPendingSynthesisRange` / `SynthesizeNext`）、音频交付（`CreateAudioSegment` / `IAudioSegment`）、
 > 隔离与快照模型、automation 双语义与 Config 家族——与 voice **完全同构**，见
 > [voice-sdk-design.md §3.5 / §4 / §7 / §8](voice-sdk-design.md)。下面只列与 voice 的差异。
 
@@ -109,10 +109,10 @@ IActionEvent Committed { get; }
 ### 2.3 `IInstrumentSynthesisSession : IDisposable`（砍语音产物）
 
 ```
-SynthesisRange? GetNextSegment(double startTime, double endTime)
+SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime)
 Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default)
 IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters   // 参数回显（引擎声明才有）
-IReadOnlyList<SynthesisStatusSegment> GetStatus()
+IReadOnlyList<SynthesisStatusSegment> Status
 IActionEvent SynthesizedParametersChanged { get; }
 IActionEvent StatusChanged { get; }
 ```
@@ -151,7 +151,7 @@ ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext conte
 以下机制 instrument 与 voice **逐字相同**，直接套用 voice 文档，不另设计：
 
 - **引擎生命周期与错误**：`Init`（懒）/ `Destroy`，失败抛异常、宿主在调用边界 catch。
-- **调度**：宿主驱动逐步合成，`peek`（`GetNextSegment`）+ `commit`（`SynthesizeNext`）同窗口确定性
+- **调度**：宿主驱动逐步合成，`peek`（`GetNextPendingSynthesisRange`）+ `commit`（`SynthesizeNext`）同窗口确定性
   重导出，并发槽位账本管控。见 voice §4。
 - **隔离与快照**：活视图仅数据线程；合成只读 `InstrumentSynthesisSnapshot`（不可变值树，构造 happens-before
   offload）。见 voice §3.5。

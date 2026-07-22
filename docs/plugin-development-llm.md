@@ -82,13 +82,13 @@ public interface IVoiceSynthesisEngine {
 public interface IVoiceSynthesisSession : IDisposable {
     string DefaultLyric { get; }   // 新建 note 默认歌词（会话级运行时取值；声明类 config 全在引擎上）
     // 调度（宿主驱动逐步合成）：peek 窗内下一待合成块（纯值边界、无副作用、null=窗内无待合成）→ 宿主调 SynthesizeNext 合成该块。
-    SynthesisRange? GetNextSegment(double startTime, double endTime);  // 返回纯调度提示 SynthesisRange
+    SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime);  // 返回纯调度提示 SynthesisRange
     Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default);  // 入参=选中它那次 peek 的同一窗口（按它确定性重导出同一块，非回灌 SynthesisRange）；纯 Task：取消正常返回不抛 OCE；错误抛异常
     // 产物（数据线程发布、发布即不可变、StatusChanged 单一刷新信号）：
     SynthesizedPitch SynthesizedPitch { get; }                                 // 具名富类型 { Segments }；空=new(){Segments=[]}
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }  // 回显曲线数据，key 对齐 GetSynthesizedParameterConfigs
     IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; }  // 值=SynthesizedSyllable{LeadingPhonemes,BodyPhonemes,BodyOffset}；按归属 note 键（origins[i]）；只报时长、无绝对位置；无主音素无契约
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();                         // 按段状态/进度/报错
+    IReadOnlyList<SynthesisStatusSegment> Status { get; }                         // 按段状态/进度/报错
     IActionEvent StatusChanged { get; }                                       // 产物/状态有更新（任意线程触发，宿主 marshal）
 }
 public interface IVoiceSynthesisContext {        // 会话级输入活视图（宿主实现、随会话死、仅数据线程访问）
@@ -167,7 +167,7 @@ public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> S
 - **note 满末、不去重叠**：`IInstrumentSynthesisNote.EndTime`/`InstrumentSynthesisNoteSnapshot.EndTime` = `Pos+Dur`（宿主不钳到下一 note）；`Notes` 直传原始可重叠 note（和弦/多声部），引擎自行叠加混音（每个 note 按其 `Pitch` 各发一段、求和）。
 - **无歌词/音素**：`IInstrumentSynthesisNote` 无 `Lyric`/`Phonemes`；会话无 `DefaultLyric`、不产 `SynthesizedPhonemes`。
 - **无 pitch 曲线、产物仅音频**：`IInstrumentSynthesisContext` 无 `Pitch`/`PitchDeviation`（纯按 note 整数 `Pitch` 发声）；会话不产 `SynthesizedPitch`。仍可声明 automation 轨 + `SynthesizedParameters` 回显。
-- 接口：`IInstrumentSynthesisEngine`（`InstrumentSourceInfos` 按 id 键的音色目录 + `Init/Destroy/CreateSession` + 声明四函数）/ `IInstrumentSynthesisSession`（`GetNextSegment`/`SynthesizeNext`/`SynthesizedParameters`/`GetStatus` + 两事件）/ `IInstrumentSynthesisContext`（`Notes`/`PartProperties`/`Automations`/`GetSnapshot`/`CreateAudioSegment`/`Committed`）/ `IInstrumentSynthesisNote`/`InstrumentSynthesisSnapshot`/`InstrumentSynthesisNoteSnapshot`/`InstrumentSourceInfo`/`IInstrumentSynthesisPartPropertyContext`/`IInstrumentSynthesisNotePropertyContext`。失效自管同 voice（无 `Pitch`/`PitchDeviation` 订阅、无音素/歌词字段订阅）。
+- 接口：`IInstrumentSynthesisEngine`（`InstrumentSourceInfos` 按 id 键的音色目录 + `Init/Destroy/CreateSession` + 声明四函数）/ `IInstrumentSynthesisSession`（`GetNextPendingSynthesisRange`/`SynthesizeNext`/`SynthesizedParameters`/`Status` + 两事件）/ `IInstrumentSynthesisContext`（`Notes`/`PartProperties`/`Automations`/`GetSnapshot`/`CreateAudioSegment`/`Committed`）/ `IInstrumentSynthesisNote`/`InstrumentSynthesisSnapshot`/`InstrumentSynthesisNoteSnapshot`/`InstrumentSourceInfo`/`IInstrumentSynthesisPartPropertyContext`/`IInstrumentSynthesisNotePropertyContext`。失效自管同 voice（无 `Pitch`/`PitchDeviation` 订阅、无音素/歌词字段订阅）。
 - 容器式发布（一引擎多音色，如 Kontakt）：`Init()` 扫已装资源包填 `InstrumentSourceInfos`，`InstrumentId` 选具体乐器；一插件一乐器 = 单条目。音色多时实现 `InstrumentSourceLayout`（与 `VoiceSourceLayout` 同构）分组，否则平铺。
 - 参考实现 `tests/plugins/V1.Instrument`（sine/square 两音色、多声部叠加）；完整契约见 `docs/instrument-sdk-design.md`。
 
@@ -191,8 +191,8 @@ public interface IEffectSynthesisSession : IDisposable {
     Task Process(CancellationToken cancellation = default);
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }   // 本段回显曲线数据，key 对齐 GetSynthesizedParameterConfigs；数据线程发布、宿主只读；无回显返回空 map
     IActionEvent SynthesizedParametersChanged { get; }    // 回显有更新（与 voice 会话对称、与 StatusChanged 信号分离；任意线程触发宿主 marshal；仅 Process 收尾发布的引擎可不触发——宿主收尾兜底重聚合）
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();    // 状态声称时间线（与 voice 同词汇；全局秒、主语=本会话自己的产物、不受输入几何约束）。Synthesizing 段带 Progress；Synthesized 段是"声称完成"（宿主呈现为非最终软色，最终绿只来自链尾音频事实）。不报返回空列表=宿主按调度事实兜底
-    IActionEvent StatusChanged { get; }                   // 声称有更新：允许任意线程触发（worker 就地报）；宿主 marshal 后拉 GetStatus。引擎宜自持粒度（如每整数百分比一报）
+    IReadOnlyList<SynthesisStatusSegment> Status { get; }    // 状态声称时间线（与 voice 同词汇；全局秒、主语=本会话自己的产物、不受输入几何约束）。Synthesizing 段带 Progress；Synthesized 段是"声称完成"（宿主呈现为非最终软色，最终绿只来自链尾音频事实）。不报返回空列表=宿主按调度事实兜底
+    IActionEvent StatusChanged { get; }                   // 声称有更新：允许任意线程触发（worker 就地报）；宿主 marshal 后拉 Status。引擎宜自持粒度（如每整数百分比一报）
 }
 public interface IEffectSynthesisContext {        // 本段输入上下文（宿主实现、随会话死、仅数据线程访问）
     IEffectSynthesisAudio Input { get; }                  // 输入音频面（上游 voice 输出或前一 effect 输出，整段不可分割）；Process 被调到即已就绪（无「已提交」脉冲）

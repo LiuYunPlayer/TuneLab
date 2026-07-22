@@ -72,7 +72,7 @@ public sealed class InpaintSession : IVoiceSynthesisSession
 
     // —— 调度：窗内第一个脏区间（扩到相交 note 全域）的纯值边界；无内容可渲但几何漂移待收口时
     //    也返回非空驱动一次 dispatch（纯裁剪的空提交在 SynthesizeNext 里完成）——
-    public SynthesisRange? GetNextSegment(double startTime, double endTime)
+    public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime)
     {
         if (FindWindow(startTime, endTime) is { } window)
             return new SynthesisRange(window.Start, window.End);
@@ -174,7 +174,9 @@ public sealed class InpaintSession : IVoiceSynthesisSession
 
     // 状态声称（inpainting 粒度）：整个内容范围声称 Synthesized 垫底，脏区/失败区/在渲区各自叠报——
     // 宿主按 z 序分层（声称完成 < Pending < 活动），重叠即正确呈现，无需自行做区间减法。
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus()
+    public IReadOnlyList<SynthesisStatusSegment> Status => BuildStatus();
+
+    IReadOnlyList<SynthesisStatusSegment> BuildStatus()
     {
         var result = new List<SynthesisStatusSegment>();
         if (!TryGetContentSpan(out double contentStart, out double contentEnd))

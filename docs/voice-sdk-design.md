@@ -181,12 +181,12 @@ tick↔秒换算仍由宿主内部的 `ITiming`（`LiveTiming` 活实现 / `Temp
 
 #### 两个视图
 
-- **活视图**（context，UI 线程，可订阅）：仅用于"有变化 → 重排"。插件订阅回调、`GetNextSegment`、重分片都在这条数据线程上跑，可 live 全量访问宿主数据。
+- **活视图**（context，UI 线程，可订阅）：仅用于"有变化 → 重排"。插件订阅回调、`GetNextPendingSynthesisRange`、重分片都在这条数据线程上跑，可 live 全量访问宿主数据。
 - **合成快照**（worker 线程 / worker 进程，不可变）：派发时捕获、对快照合成（含沿邻居链导航）。
 
 #### 捕获时机与线程（快照由插件主动拉取）
 
-- **`GetNextSegment`**：数据线程上的**廉价 peek**，live 全量访问——插件基于完整 part 做分片决策，只报出纯值秒边界（`SynthesisRange` struct，纯调度提示）；peek 常被多会话 speculative 地叫、多数不中选，不做任何捕获。
+- **`GetNextPendingSynthesisRange`**：数据线程上的**廉价 peek**，live 全量访问——插件基于完整 part 做分片决策，只报出纯值秒边界（`SynthesisRange` struct，纯调度提示）；peek 常被多会话 speculative 地叫、多数不中选，不做任何捕获。
 - **`SynthesizeNext` 同步前缀**：仍在数据线程，入参是选中它的那次 peek 的**同一窗口** `(startTime, endTime)`（而非把 `SynthesisRange` 回灌），插件按同一窗口**重算分块**（确定性分片 + peek→commit 同调度 tick 无编辑 ⇒ 与 peek 同结果），随后经 **`context.GetSnapshot(notes, startTick, endTick)` 主动拉取**所需快照——notes 与开窗区间由插件按本次合成需要自由圈定，一次合成可按需拉多份（如音素级小窗 + 音频级大窗）；**之后**才 offload 到 worker（进程内）/ 序列化送进程（v2）。
 - 拉取式替代早期"segment 携带捕获声明、宿主代为物化递入"的形态：声明本就是插件需求的间接表达，直接调用消除一层间接；物化/版本缓存/记账仍收在宿主的 GetSnapshot 实现内，`GetSnapshot` 入口带数据线程断言（§3.2 防线 ②）兜住"offload 后才拉"的违例。
 
@@ -208,7 +208,7 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 
 #### 安全发布与唯一纪律
 
-- 快照**不可变、只写一次**（构造，单线程）；构造 happens-before worker 启动（task 派发 / 序列化送出提供内存屏障）。此后只读。**宿主从不修改一份已发布的快照**——数据变了走活视图 → 插件标脏 → 下次 `GetNextSegment` 出新段 → 捕获**一份全新快照**。**替换，而非同步**，故无共享可变状态、无需锁。
+- 快照**不可变、只写一次**（构造，单线程）；构造 happens-before worker 启动（task 派发 / 序列化送出提供内存屏障）。此后只读。**宿主从不修改一份已发布的快照**——数据变了走活视图 → 插件标脏 → 下次 `GetNextPendingSynthesisRange` 出新段 → 捕获**一份全新快照**。**替换，而非同步**，故无共享可变状态、无需锁。
 - **唯一纪律**：深拷必须**触底到值类型**，快照里不许漏进任何 live `NotifiableProperty`/`DataObject` 引用。用纯 record（物理上拿不到事件接线）从类型上杜绝；跨进程下更被双重强制——漏了根本序列化不过去。
 
 #### 为何不加锁、不做 COW
@@ -242,7 +242,7 @@ automation **开窗**只取该段区间的原始锚点，不是整条曲线整 p
 
 宿主掌握全局视图（播放线 + 所有 part 位置），故由宿主驱动"逐步合成"；插件只在被调用时干活、干完即停等下一次。模型仿 ACE 的 `findNextNeedSynthesisContext`。
 
-- **一个会话同时只合成一块**；并行发生在**不同 part 的不同会话**之间。`GetNextSegment` 只在会话空闲时被问。
+- **一个会话同时只合成一块**；并行发生在**不同 part 的不同会话**之间。`GetNextPendingSynthesisRange` 只在会话空闲时被问。
 - **并发上限**由宿主设置（账本式，可运行时改：调大则填满空槽、调小则停派新的等 drain，必要时发 token 抢占）。
 
 ```csharp
@@ -250,9 +250,9 @@ public interface IVoiceSynthesisSession
 {
     // —— 调度 ——
     // peek：窗内"下一块待合成"的纯值边界，无副作用
-    SynthesisRange? GetNextSegment(double startTime, double endTime);
+    SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime);
 
-    // commit：入参为选中它的那次 peek 的【同一窗口】（而非把 GetNextSegment 自报的 SynthesisRange 回灌）——
+    // commit：入参为选中它的那次 peek 的【同一窗口】（而非把 GetNextPendingSynthesisRange 自报的 SynthesisRange 回灌）——
     // 插件按同一窗口确定性重导出同一块、经 context.GetSnapshot 拉取所需快照后 offload；
     // await 返回 = 槽位释放、宿主重排。进度不在此传入——经状态带 + StatusChanged 上报。
     Task SynthesizeNext(double startTime, double endTime,
@@ -262,7 +262,7 @@ public interface IVoiceSynthesisSession
     void Dispose();
 }
 
-// GetNextSegment 的返回：插件报给宿主的"下一块大致区间"纯值边界（readonly struct），宿主只用它排播放线
+// GetNextPendingSynthesisRange 的返回：插件报给宿主的"下一块大致区间"纯值边界（readonly struct），宿主只用它排播放线
 // 就近优先级。不精确、不承载 notelist——精确 notelist 由插件在 SynthesizeNext 里按同一窗口确定性重导出
 // （或 peek 时自缓存于会话字段），故它不入 SynthesizeNext 入参。命名改自旧 SynthesisSegment（"段"已被
 // IAudioSegment / SynthesisStatusSegment 占用，避免三义）。
@@ -291,7 +291,7 @@ public sealed class VoiceSynthesisSnapshot
 **peek→commit 原子性**：两者在同一调度 tick 内、同在数据线程同步衔接，期间无编辑可插入——commit 时插件重算分块（确定性分片）必得 peek 报出的同一块；`GetSnapshot` 默认把全部已声明轨按区间开窗物化（bulk 拷亚毫秒级），将来有压力再加可选 keys 白名单，不动接口面。原"半透明 token + downcast 取私货 + 不跨 tick 缓存"一组约定随 segment 纯值化整体消失；原 `IVoiceSource.Segment<T>` 外露分片函数取消（分片内化进会话）。
 
 **`SynthesizeNext` 语义**：
-- 返回纯 `Task`、无 outcome 枚举——状态全托管插件，宿主不关心"为何完成"（真完成/被取消/失败都一样），完成即重排、靠 `GetStatus` 看错误、靠 `GetNextSegment` 看是否还有待合成。done/pending/errored 三种处置在插件内部。
+- 返回纯 `Task`、无 outcome 枚举——状态全托管插件，宿主不关心"为何完成"（真完成/被取消/失败都一样），完成即重排、靠 `Status` 看错误、靠 `GetNextPendingSynthesisRange` 看是否还有待合成。done/pending/errored 三种处置在插件内部。
 - **槽位在 `await` 真正返回时才释放、不在"请求取消"时**：取消是尽力请求，不可中止的插件把这块跑完才返回——资源始终封顶在并发上限内，不会出现"取消了还在偷耗资源、宿主却以为空了又派新的"。
 - 取消正常返回（不抛 `OperationCanceledException`）：取消是正常调度结局，抛异常会逼每个 await 套 try-catch。
 
@@ -299,7 +299,7 @@ public sealed class VoiceSynthesisSnapshot
 
 ## 5. 产物与状态
 
-更新靠**单一信号** `StatusChanged`，宿主收到直接刷新；状态段（`GetStatus`）充当 UI 状态带，曲线类产物 pull 读取。**音频产物走另一条通道**——插件向宿主申请的**音频段握柄** `IAudioSegment`。
+更新靠**单一信号** `StatusChanged`，宿主收到直接刷新；状态段（`Status`）充当 UI 状态带，曲线类产物 pull 读取。**音频产物走另一条通道**——插件向宿主申请的**音频段握柄** `IAudioSegment`。
 
 为何音频单独走段握柄而非 `ReadAudio` 扁平 pull：下游 effect 链（离线整段模型，如 SVC 换声，整段重过很贵）要能**按段增量重渲染**——voice 改了哪段，只有那段重新过 effect 链，而不是 voice 产物一变就整 part 重跑。把 voice 本就内部持有的分片，提升成宿主持有的一等握柄，段即 effect 的失效/重渲染单元。
 
@@ -316,7 +316,7 @@ public interface IVoiceSynthesisSession   // 续
     IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; } // 按归属 note 键，每 note 一组 VoicePhoneme（只报几何），见 §6
 
     // —— 状态 / 按段报错（UI 状态带，与音频段解耦）——
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();
+    IReadOnlyList<SynthesisStatusSegment> Status { get; }
     IActionEvent StatusChanged { get; }   // 单一刷新信号
 }
 
@@ -663,7 +663,7 @@ public class AutomationConfig : IValueConfig<double>
 - **note 快照值**（StartTime/EndTime、Pitch、Lyric、`VoiceSynthesisPhonemeSnapshot[]`、Properties 值拷；有序列表索引对齐、不带邻居链）；automation 按无变形开窗规则（见 §3.5）取原始锚点。
 - **tempo 快照**（`ITiming` 的冻结实现；`ITiming` 接口与实现家族同居宿主 `TuneLab.Data.Timing`，不在插件 SDK 面）。
 - 可选：automation 切片**版本缓存**（按"曲线版本 + 区间"缓存不可变副本，`RangeModified` 命中才作废/重拷）。
-- 契约钉死：`GetNextSegment` = 数据线程上廉价 peek（live 全量、定分片，报纯值边界）；`SynthesizeNext` 同步前缀在数据线程重算分块、经 `context.GetSnapshot` 拉取快照，再 offload。
+- 契约钉死：`GetNextPendingSynthesisRange` = 数据线程上廉价 peek（live 全量、定分片，报纯值边界）；`SynthesizeNext` 同步前缀在数据线程重算分块、经 `context.GetSnapshot` 拉取快照，再 offload。
 - 前向兼容进程拆分：快照构造为自包含可序列化值树、曲线点用 blittable `Point`；不做真正的 IPC/共享内存（v2）。
 
 **实现阶段的清理项**
@@ -805,8 +805,8 @@ public interface IEffectSynthesisSession : IDisposable
     Task Process(CancellationToken cancellation = default);
 
     IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters { get; }   // 本段回显曲线
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();   // 状态声称时间线（与 voice 同词汇；声称层，Synthesized=声称完成软色）
-    IActionEvent StatusChanged { get; }                  // 任意线程触发，宿主 marshal 后拉 GetStatus
+    IReadOnlyList<SynthesisStatusSegment> Status { get; }   // 状态声称时间线（与 voice 同词汇；声称层，Synthesized=声称完成软色）
+    IActionEvent StatusChanged { get; }                  // 任意线程触发，宿主 marshal 后拉 Status
 }
 ```
 

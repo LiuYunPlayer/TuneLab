@@ -204,7 +204,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
 - **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / readback tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
 - **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks are the host's internal score representation and are **never exposed** to the plugin. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
 - **Two views + thread discipline (the most important pitfall)**:
-  - **Live view** (`IVoiceSynthesisContext` and its `IVoiceSynthesisNote` / `ISynthesisAutomation`): subscribable, **accessible only on the data thread**. Used for "receive change notifications → mark dirty", "`GetNextSegment` chunking decisions", and "the `SynthesizeNext` synchronous prefix pulling a snapshot".
+  - **Live view** (`IVoiceSynthesisContext` and its `IVoiceSynthesisNote` / `ISynthesisAutomation`): subscribable, **accessible only on the data thread**. Used for "receive change notifications → mark dirty", "`GetNextPendingSynthesisRange` chunking decisions", and "the `SynthesizeNext` synchronous prefix pulling a snapshot".
   - **Frozen snapshot** (`VoiceSynthesisSnapshot` and the `*Snapshot` family, `IAutomationEvaluator`): immutable, event-free, **cross-thread safe**. Background workers **only read snapshots** and never touch any live-view object.
   - Naming is the discipline: live views (`IVoiceSynthesisContext` / `IVoiceSynthesisNote` / `ISynthesisAutomation`) are data-thread only; `*Snapshot` = frozen (cross-thread). **Violating this is the most common and hardest-to-debug bug in voice plugins** (a worker thread reading a live note → data races with the editing thread). During development the host asserts the data thread at live-view entry points, so cross-thread access throws immediately to help you locate it.
 
@@ -397,21 +397,21 @@ public interface IVoiceSynthesisContext
 
 **`IVoiceSynthesisNote` fields** are all subscribable properties (`IReadOnlyNotifiableProperty<T>`, with `Value` / `WillModify` / `Modified`): `StartTime`/`EndTime` (global seconds), `Pitch` (`int` semitones), `Lyric` (`string`), `Phonemes` (`IReadOnlyList<SynthesizedPhoneme>`, see §5.7), `Properties` (keyed per-note parameters). There is also a `Next`/`Last` neighbor chain — **for data-thread chunking decisions only** (inside an event handler you have only the note's own reference, no list index); at synthesis time you must navigate neighbors by index over the snapshot's ordered list and never touch live notes again.
 
-### 5.4 Scheduling: `GetNextSegment` (peek) and `SynthesizeNext` (commit)
+### 5.4 Scheduling: `GetNextPendingSynthesisRange` (peek) and `SynthesizeNext` (commit)
 
 The host owns the global playback line and **drives step-by-step synthesis**: first peek the boundary of "the next block to synthesize" within the window, then commit synthesizing that block.
 
 ```csharp
 // peek: the pure-value second boundary of the next block to synthesize within the window, [no side effects]. null = nothing to synthesize in the window.
 // Executes cheaply on the data thread (it will be asked speculatively by multiple sessions, most not chosen — don't do heavy work or capture here).
-public SynthesisRange? GetNextSegment(double startTime, double endTime)
+public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime)
 {
     // Make a [deterministic] chunking decision based on the full part, returning the next dirty block [start,end].
     // Determinism is key: at commit time the chunking is recomputed over the same window and must produce the same block as this peek.
     return FindNextDirtyPiece(startTime, endTime) is { } p ? new SynthesisRange(p.StartTime, p.EndTime) : null;
 }
 
-// The commit argument = the [same window] as the peek that selected it (not the SynthesisRange that GetNextSegment reported).
+// The commit argument = the [same window] as the peek that selected it (not the SynthesisRange that GetNextPendingSynthesisRange reported).
 public async Task SynthesizeNext(double startTime, double endTime, CancellationToken cancellation = default)
 {
     // —— Synchronous prefix (still on the data thread): recompute chunking over the same window + pin down this block's notes + GetSnapshot to materialize a snapshot ——
@@ -581,7 +581,7 @@ public interface IAudioSegment : IDisposable   // Dispose() = delete this segmen
 - Writing/committing/releasing are **all on the data thread** (after the worker renders, write in the continuation marshaled back to the data thread).
 - **Silent segments**: the host buffer is zero-initialized, so after `CreateAudioSegment` just `Commit()` directly, no `Write` needed.
 
-**The status band `SynthesisStatusSegment`** (returned by `GetStatus()`, used by the host to color/progress/report errors):
+**The status band `SynthesisStatusSegment`** (returned by `Status`, used by the host to color/progress/report errors):
 
 ```csharp
 public struct SynthesisStatusSegment
@@ -658,11 +658,11 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 | `IVoiceSynthesisEngine.GetAutomationConfigs` | data thread | editable automation track set (NaN ⇒ piecewise; avoid reserved names) |
 | `IVoiceSynthesisEngine.GetSynthesizedParameterConfigs` | data thread | read-only readback track declarations (always piecewise) |
 | `IVoiceSynthesisSession.DefaultLyric` | data thread | default lyric for a new note (a session-level runtime value) |
-| `GetNextSegment` | data thread | peek the next dirty block boundary (no side effects, deterministic) |
+| `GetNextPendingSynthesisRange` | data thread | peek the next dirty block boundary (no side effects, deterministic) |
 | `SynthesizeNext` | synchronous prefix = data thread; then worker | pull snapshot → offload render → publish back on the data thread |
 | `GetSnapshot` | **synchronous prefix only** | materialize an immutable snapshot (pin notes + window) |
 | `CreateAudioSegment` / `IAudioSegment.Write/Commit` | data thread | request and write an audio segment; Commit is the gate to the effect |
-| `SynthesizedPitch/Parameters/Phonemes`, `GetStatus` | published on the data thread, readable cross-thread | products; publication = immutable |
+| `SynthesizedPitch/Parameters/Phonemes`, `Status` | published on the data thread, readable cross-thread | products; publication = immutable |
 | `StatusChanged` | fired from any thread, host marshals | the only refresh signal |
 | `Dispose` | data thread | unsubscribe, release models and segment handles |
 
@@ -730,8 +730,8 @@ class MyEffectProcessor : IEffectSynthesisSession
     // product -- not bounded by the input geometry). A Synthesizing segment carries Progress; a Synthesized segment is a
     // "claimed done" (shown as a non-final soft color -- final green only ever comes from actual chain-tail audio).
     // Return an empty list to let the host render a default from scheduling facts. StatusChanged may fire from any thread
-    // (report in place from the worker); the host marshals before pulling GetStatus.
-    public IReadOnlyList<SynthesisStatusSegment> GetStatus() => mStatus;
+    // (report in place from the worker); the host marshals before pulling Status.
+    public IReadOnlyList<SynthesisStatusSegment> Status => mStatus;
     public IActionEvent StatusChanged => mStatusChanged;
     readonly ActionEvent mStatusChanged = new();
 
@@ -794,7 +794,7 @@ Key points:
 - **Thick session, host-owned invalidation**: `CreateSession(context)` builds a **session** for "this effect × this upstream segment" (the same family of persistent stateful entity as a voice session -- holds live views, keeps caches across `Process` calls, publishes claims and readback; the scope difference is expressed by the context binding); the host `Dispose`s it on segment destruction / effect deletion / re-segmentation / sample-rate change. The host schedules conservatively on scoped signals (it performs the automation-range/segment intersection generically — an edit in another segment's interval never wakes this node); parameter-dependency and value-level dedup are the engine's optional early-out inside `Process` (return without re-committing → downstream skipped).
 - **The input is an indivisible whole segment**: `context.Input` (`IEffectSynthesisAudio`) exposes `SampleOffset/Count/Rate` + `Read(offset, span)` (copy-out; the host storage layout is an implementation detail). There is no "committed" pulse -- being called into `Process` means the input is ready (scheduling is the host's job). `Input.RangeModified(start, count)` is the content-change **ledger** (optional; `start` is an **absolute sample position** -- content is pinned to the absolute axis, so ranges accumulated before an upstream `Resize` need no rebasing): cache-savvy engines accumulate ranges, narrow the recompute window from the ledger (`Read`/recompute/write back only the changed region -- O(changed) work; see the Slow Gain reference implementation for the full pattern), and clear the ledger only after a successful commit of their own output (cancellation refunds it). The ledger is **complete and faithful to trims**: an upstream `Resize` reports its geometric symmetric difference (a trimmed-away region went "from something to nothing" on the absolute axis, and it was context feeding the neighboring output), so ranges may lie outside the current extent; **the recompute scope is the session's own decision** -- after collecting the ledger, expand by your own context margin (so new content joins up with old) and intersect with the extent; a pointwise engine decides zero (just `Resize` its output to follow and commit empty). Only a genuinely change-free commit is silent; whole-segment reports appear only on forced invalidation (first snapshot / project sample-rate change).
 - **Output via handles, registry semantics**: `context.CreateAudioSegment(offset, count, rate)` — segmentation of the product is free (**1-to-N is legal**: e.g. a silence **splitter** that re-establishes segment granularity so every downstream effect gets per-segment incrementality and parallelism for free); each output segment lives independently and each committed one feeds a downstream node. The input side stays single-segment (the consumption unit is the host's invalidation/scheduling/identity granularity). The only hard rule: **do not redistribute the time axis** (automation/readback and the part display share the global-seconds axis); slight geometry differences (frame padding, added tails) are fine. The sample rate travels with the segment (when it differs from the project rate the host wraps a resample). **Geometry changes carry two distinct intents**: a semantic overhaul goes through `Dispose`+`Create` (downstream identity rebuilds); a content-continuous extension/trim goes through **`Resize(offset, count)`** (identity preserved, downstream caches survive -- intersecting content is kept aligned by absolute position, new regions are zeroed, the segment drops to uncommitted and is re-`Commit`ted after the new regions are written).
-- **Status claims (optional)**: publish a status timeline via `GetStatus()` (immutable list swap) and fire `StatusChanged` (any thread) -- a Synthesizing segment with `Progress` renders as a vertical fill on the strip; Synthesized segments are "claimed done" (soft, non-final). An engine that reports nothing gets a host default derived from scheduling facts.
+- **Status claims (optional)**: publish a status timeline via `Status` (immutable list swap) and fire `StatusChanged` (any thread) -- a Synthesizing segment with `Progress` renders as a vertical fill on the strip; Synthesized segments are "claimed done" (soft, non-final). An engine that reports nothing gets a host default derived from scheduling facts.
 - **Readback tracks (optional)**: the read-only curves the engine produces are declared via `GetSynthesizedParameterConfigs` + carried per-segment via `IEffectSynthesisSession.SynthesizedParameters` (the host stitches the segments of the same effect by key). Read-only, non-editable, not in the data layer, not serialized; isomorphic to voice readback, shown/hidden by source in the parameter-area title bar.
 - **Conditional declaration**: `GetPropertyConfig` / `GetAutomationConfigs` / `GetSynthesizedParameterConfigs` are pure functions of the current parameter values (same input → same output, no side effects, lightweight), recomputed on parameter commit — so controls/tracks may show/hide with parameters. After a track disappears from the declaration the host **keeps its already-drawn curve** (hidden, not deleted), restored as-is when the parameter rolls back.
 - **Effect chain**: multiple effects may hang on one MidiPart, **serial** in declaration order — the previous output is the next input; at the chain tail the segments are mixed by absolute time. Chain order, bypass, and add/remove are managed by the user in the property panel.

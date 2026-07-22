@@ -57,7 +57,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
             }
         }
 
-        public SynthesisRange? GetNextSegment(double startTime, double endTime) => null;
+        public SynthesisRange? GetNextPendingSynthesisRange(double startTime, double endTime) => null;
 
         public Task SynthesizeNext(double startTime, double endTime,
             CancellationToken cancellation = default)
@@ -69,7 +69,7 @@ internal class EmptyVoiceSynthesisEngine : IVoiceSynthesisEngine
         public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
         public IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes => mSynthesizedPhonemes;
 
-        public IReadOnlyList<SynthesisStatusSegment> GetStatus() => [];
+        public IReadOnlyList<SynthesisStatusSegment> Status => [];
         public IActionEvent SynthesizedPhonemesChanged => ActionEvent.Empty;
         public IActionEvent SynthesizedParametersChanged => ActionEvent.Empty;
         public IActionEvent SynthesizedPitchChanged => ActionEvent.Empty;

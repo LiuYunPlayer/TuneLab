@@ -40,7 +40,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     {
         var layers = new List<SynthesisDisplaySegment>();
         var effectActive = new List<SynthesisDisplaySegment>();
-        var claims = mSession.GetStatus();
+        var claims = mSession.Status;
         SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.ClaimedDone);
         mEffectGraph.CollectDisplaySegments(layers, effectActive);
         SynthesisDisplayLayers.AppendSessionClaims(layers, claims, SessionClaimLayer.Pending);
@@ -100,11 +100,11 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
 
         try
         {
-            return mSession.GetNextSegment(startTime, endTime);
+            return mSession.GetNextPendingSynthesisRange(startTime, endTime);
         }
         catch (Exception ex)
         {
-            Log.ErrorAttributed("GetNextSegment failed", ex);
+            Log.ErrorAttributed("GetNextPendingSynthesisRange failed", ex);
             return null;
         }
     }

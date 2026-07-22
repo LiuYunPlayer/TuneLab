@@ -72,7 +72,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：物化/版本缓存/记账收在宿主一处。
     // [startTime, endTime] 为全局秒开窗区间，物化器内部经 tempo 快照换算到 tick 找锚点。
-    public VoiceSynthesisSnapshot GetSnapshot(IEnumerable<IVoiceSynthesisNote> notes, double startTime, double endTime)
+    public VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
         return VoiceSynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);

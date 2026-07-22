@@ -50,7 +50,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     }
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：满末口径、无双音高通道。
-    public InstrumentSynthesisSnapshot GetSnapshot(IEnumerable<IInstrumentSynthesisNote> notes, double startTime, double endTime)
+    public InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime)
     {
         AssertDataThread();
         return InstrumentSynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);

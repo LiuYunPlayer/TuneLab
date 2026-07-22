@@ -43,15 +43,15 @@ public interface IEffectSynthesisSession : IDisposable
     // 归位后本就重聚合一次（兜底时机）；中途/收尾之外的更新则必须触发，否则宿主无从知晓。
     IActionEvent SynthesizedParametersChanged { get; }
 
-    // 本会话的状态声称时间线（与 voice 会话 GetStatus 同一词汇；范围 = 全局秒、主语 = 本会话
+    // 本会话的状态声称时间线（与 voice 会话 Status 同一词汇；范围 = 全局秒、主语 = 本会话
     // 自己的产物——不受输入几何约束，加尾类引擎照实报自己输出的范围）。宿主把它作为状态带的
     // 声称层绘制：Synthesizing 段经 Progress 字段报进度；Synthesized 段是"声称完成"（呈现为
     // 非最终的软色，最终绿只来自链尾音频事实）。不报状态的引擎返回空列表——宿主按调度事实
     // 兜底呈现（处理中 = 输入范围整段合成中、无进度）。
     // 线程契约：返回已发布的不可变列表（换引用发布）；宿主在数据线程调用。
-    IReadOnlyList<SynthesisStatusSegment> GetStatus();
+    IReadOnlyList<SynthesisStatusSegment> Status { get; }
 
-    // 状态声称有更新：允许任意线程触发（worker 推理中就地报），宿主 marshal 回数据线程再拉 GetStatus。
+    // 状态声称有更新：允许任意线程触发（worker 推理中就地报），宿主 marshal 回数据线程再拉 Status。
     // 高频触发无害（重绘幂等自节流），但引擎宜自持粒度（如每整数百分比一报）。
     IActionEvent StatusChanged { get; }
 }
