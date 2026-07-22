@@ -1,5 +1,9 @@
 # TuneLab — notes for AI coding assistants
 
+## ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in docs/PLANS.md) from design to implementation.
+
 ## Build & test
 
 - Build: `dotnet build TuneLab.sln -c Debug`
