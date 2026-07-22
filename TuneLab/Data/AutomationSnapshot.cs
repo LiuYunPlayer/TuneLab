@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TuneLab.Data.Synthesis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -30,6 +31,9 @@ internal sealed class AutomationSnapshot : IAutomationEvaluator
     // 查询点须升序（查询轴 = 锚点所在的 part 相对 tick 轴）。
     public double[] Evaluate(IReadOnlyList<double> points)
     {
+        SynthesisEvaluatorDebug.AssertAscending(points);
+        SynthesisEvaluatorDebug.AssertWithinWindow(points, Start, End);
+
         var values = mPoints.MonotonicHermiteInterpolation(points);
 
         if (mDefaultValue != 0)

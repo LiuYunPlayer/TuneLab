@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TuneLab.Data.Synthesis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -42,6 +43,9 @@ internal sealed class PiecewiseAutomationSnapshot : IAutomationEvaluator
     // 查询点须升序（查询轴 = 锚点所在的 part 相对 tick 轴）。组覆盖范围按切片首末锚点判定——在声明区间内与活曲线的组边界判定等价。
     public double[] Evaluate(IReadOnlyList<double> points)
     {
+        SynthesisEvaluatorDebug.AssertAscending(points);
+        SynthesisEvaluatorDebug.AssertWithinWindow(points, Start, End);
+
         double[] values = new double[points.Count];
         values.Fill(double.NaN);
 
