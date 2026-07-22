@@ -221,11 +221,8 @@ public sealed class TestSession : IVoiceSynthesisSession
         if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
-        // 同步前缀（数据线程）拉取快照：notes 即本块全集，曲线开窗按 note 范围。
-        var snapshot = mContext.GetSnapshot(
-            piece.Notes,
-            piece.Notes[0].StartTime.Value,
-            piece.Notes[^1].EndTime.Value);
+        // 同步前缀（数据线程）拉取快照：notes 即本块全集；automation/pitch 宿主全量冻结（不开窗）。
+        var snapshot = mContext.GetSnapshot(piece.Notes);
 
         piece.Dirty = false; // 合成期间到达的新变更会重新标脏，完成后自然重排
         piece.Synthesizing = true;

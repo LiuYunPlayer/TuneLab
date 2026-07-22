@@ -102,12 +102,9 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
         if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
-        // 同步前缀拉取快照：automation 开窗按 note 范围外扩固定秒余量（老引擎常对块边界外略作采样）。两 pass 共用同一份。
-        const double windowMarginSeconds = 0.5;
-        var snapshot = mContext.GetSnapshot(
-            piece.Notes,
-            piece.Notes.First().StartTime.Value - windowMarginSeconds,
-            piece.Notes.Last().EndTime.Value + windowMarginSeconds);
+        // 同步前缀拉取快照：automation 由宿主全量冻结（不开窗），老引擎对块边界外的采样天然被覆盖，
+        // 无需再外扩固定余量。两 pass 共用同一份。
+        var snapshot = mContext.GetSnapshot(piece.Notes);
 
         // 开始即清脏：合成期间到达的新变更会重新标脏，完成后自然重排（替换，而非同步）。
         piece.Dirty = false;

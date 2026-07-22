@@ -18,16 +18,18 @@ internal static class VoiceSynthesisSnapshotFactory
 {
     // 须在数据线程调用。notes 须为本 part 当前 context 的 note 代理；
     // 快照 Notes 与递入 notes 索引对齐（产物归属契约）。[startTime, endTime] 为全局秒开窗区间。
-    public static VoiceSynthesisSnapshot Capture(MidiPart part, IEnumerable<IVoiceSynthesisNote> sourceNotes, double startTime, double endTime)
+    public static VoiceSynthesisSnapshot Capture(MidiPart part, IEnumerable<IVoiceSynthesisNote> sourceNotes)
     {
         double partPos = part.Pos.Value;
 
-        // —— tempo 快照（不可变，零拷贝共享）：秒↔tick 换算 + 开窗到 part 相对 tick ——
+        // —— tempo 快照（不可变，零拷贝共享）：秒↔tick 换算（查询点用；不再用于开窗）——
         var timing = part.TempoManager.CreateSnapshot();
         Func<double, double> tickToTime = timing.ToSecond;
         Func<IReadOnlyList<double>, double[]> timesToTicks = timing.ToTicks;
-        double relStart = timing.ToTick(startTime) - partPos;
-        double relEnd = timing.ToTick(endTime) - partPos;
+        // 全量冻结、不开窗（见 IVoiceSynthesisContext.GetSnapshot）：±∞ 相对 tick 覆盖整条——AnchorWindow.Slice
+        // 取全锚点、vibrato 全纳入。直接赋 ±∞（不对其做 tempo 换算，避免 NaN）；worker 按查询点插值、越界端钳夹。
+        double relStart = double.NegativeInfinity;
+        double relEnd = double.PositiveInfinity;
 
         // —— note 值树（经代理接口读值，全部触底到值类型；列表顺序即递入声明顺序）——
         var notes = new List<VoiceSynthesisNoteSnapshot>();

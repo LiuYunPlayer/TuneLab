@@ -49,11 +49,11 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         automationMap.ItemRemoved.Subscribe(UnwireAutomation, s);
     }
 
-    // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：满末口径、无双音高通道。
-    public InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime)
+    // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：满末口径、无双音高通道；automation 全量冻结（不开窗）。
+    public InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes)
     {
         AssertDataThread();
-        return InstrumentSynthesisSnapshotFactory.Capture(mPart, notes, startTime, endTime);
+        return InstrumentSynthesisSnapshotFactory.Capture(mPart, notes);
     }
 
     public IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate)

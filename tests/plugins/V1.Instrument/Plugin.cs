@@ -94,9 +94,8 @@ public sealed class TestSession : IInstrumentSynthesisSession
         if (FindNextDirtyPiece(startTime, endTime) is not { } piece)
             return;
 
-        // 同步前缀（数据线程）拉取快照：notes 即本块全集（满末、可重叠）。automation 开窗按块范围。
-        double windowEnd = piece.Notes.Max(n => n.EndTime.Value);
-        var snapshot = mContext.GetSnapshot(piece.Notes, piece.Notes[0].StartTime.Value, windowEnd);
+        // 同步前缀（数据线程）拉取快照：notes 即本块全集（满末、可重叠）。automation 宿主全量冻结（不开窗）。
+        var snapshot = mContext.GetSnapshot(piece.Notes);
 
         piece.Dirty = false;
         piece.Synthesizing = true;

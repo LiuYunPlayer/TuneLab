@@ -6,8 +6,9 @@ namespace TuneLab.Data.Synthesis;
 // 合成域 IAutomationEvaluator 契约的 DEBUG 守卫：把两处「静默取错值」变成开发期立即失败。
 // Release 经 [Conditional("DEBUG")] 在调用点整体剔除（含实参求值）、零开销——正合 Render 热路径。
 // ① 查询点须非降序：插值用只进不退的前进游标（见 MathUtility.LinearInterpolation），乱序会取到游标已越过的错值。
-// ② 查询点须落在快照冻结窗口 [start,end] 内：窗外无一致性保证。典型成因是插件在 dur 模型之前 GetSnapshot、
-//    尚不知辅音时长，低估了所需采样范围——契约上应保守传大窗（冻的是控制点、请求大方也便宜）。
+// ② 查询点须落在快照冻结窗口 [start,end] 内：窗外无一致性保证。voice/instrument 已改全量冻结（GetSnapshot 不
+//    开窗、以 ±∞ 物化 → 本断言对其恒真、不触发）；本断言现服务 effect——其 GetSnapshot(start,end) 的窗可正确圈定
+//    （段范围 ± 引擎自知的上下文窗），低估即在此响亮失败（提示放宽传入的窗以覆盖全部采样点）。
 internal static class SynthesisEvaluatorDebug
 {
     [Conditional("DEBUG")]
@@ -23,6 +24,10 @@ internal static class SynthesisEvaluatorDebug
     public static void AssertWithinWindow(IReadOnlyList<double> points, double start, double end)
     {
         if (points.Count == 0)
+            return;
+
+        // 无窗（全量冻结：voice/instrument 传 ±∞）→ 无边界可越，跳过；本断言只对 effect 的有限窗有意义。
+        if (double.IsInfinity(start) || double.IsInfinity(end))
             return;
 
         const double tolerance = 1e-3;   // 只吸收秒→tick 换算的浮点边界噪声；真实的窗口低估会偏差整段辅音时长、远超此值

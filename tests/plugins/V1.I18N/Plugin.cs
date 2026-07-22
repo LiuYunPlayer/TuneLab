@@ -114,10 +114,7 @@ public sealed class I18NSession : IVoiceSynthesisSession
 
         // 同步前缀拉取快照（单块 = 整 part note 全集）。
         var origins = mContext.Notes.ToList();
-        var snapshot = mContext.GetSnapshot(
-            origins,
-            origins[0].StartTime.Value,
-            origins[^1].EndTime.Value);
+        var snapshot = mContext.GetSnapshot(origins);
 
         mDirty = false;
         mSynthesizing = true;

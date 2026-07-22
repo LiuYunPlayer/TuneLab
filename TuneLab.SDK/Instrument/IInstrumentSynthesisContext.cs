@@ -31,9 +31,10 @@ public interface IInstrumentSynthesisContext
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }
 
     // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同邻居，插件自由圈定，
-    // 返回的 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。
-    // 仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用。
-    InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes, double startTime, double endTime);
+    // 返回的 snapshot.Notes 与之索引对齐）。仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用。
+    // automation 一律**全量冻结、不开窗**（与 voice 同判例）：真实采样范围依赖 offload 后才知的渲染细节，
+    // 同步前缀无从正确圈窗；全量冻原始控制点（廉价），worker 按查询点插值、越界端与活曲线一致地钳夹。
+    InstrumentSynthesisSnapshot GetSnapshot(IReadOnlyList<IInstrumentSynthesisNote> notes);
 
     // 音频产物的宿主分配工厂：插件产出音频时申请段握柄，写入、Commit() 标完成，重分片时 Dispose() 释放重建。
     // 宿主据此持有段登记表、驱动下游 effect 链按段重渲染。仅数据线程调用；sampleOffset = 全局起始采样位置

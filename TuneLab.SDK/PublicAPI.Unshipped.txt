@@ -31,3 +31,5 @@ TuneLab.SDK.IVoiceSynthesisNote.Id.get -> string!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemes.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedSyllable!>!
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.get -> string!
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.init -> void
+TuneLab.SDK.IVoiceSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisNote!>! notes) -> TuneLab.SDK.VoiceSynthesisSnapshot!
+TuneLab.SDK.IInstrumentSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IInstrumentSynthesisNote!>! notes) -> TuneLab.SDK.InstrumentSynthesisSnapshot!

@@ -113,9 +113,9 @@ public sealed class InpaintSession : IVoiceSynthesisSession
             return;
         }
 
-        // 快照：窗内相交 note 全集（FindWindow 已扩到相交 note 全域，note 不会被窗口截半）。
+        // 快照：窗内相交 note 全集（FindWindow 已扩到相交 note 全域，note 不会被窗口截半）；automation 全量冻结。
         var notes = mContext.Notes.Where(n => n.StartTime.Value < window.End && n.EndTime.Value > window.Start).ToList();
-        var snapshot = mContext.GetSnapshot(notes, window.Start, window.End);
+        var snapshot = mContext.GetSnapshot(notes);
 
         ConsumeDirty(window.Start, window.End);   // 渲染期间到达的新变更会重新登记、完成后自然重排
         ClearFailed(window.Start, window.End);

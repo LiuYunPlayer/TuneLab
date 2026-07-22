@@ -47,11 +47,13 @@ public interface IVoiceSynthesisContext
     ISynthesisAutomation Pitch { get; }
     ISynthesisAutomation PitchDeviation { get; }
 
-    // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同发音邻居，
-    // 插件自由圈定，返回的 snapshot.Notes 与之索引对齐）；[startTime, endTime] = 曲线开窗区间（秒）。
-    // 仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用；一次合成可按需拉多份
-    // （如音素级小窗 + 音频级大窗）。物化/版本缓存/记账留在宿主实现内。
-    VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime);
+    // 物化合成快照（插件主动拉取）：notes = 本次合成需要的 note（段内 + 协同发音邻居，插件自由圈定，
+    // 返回的 snapshot.Notes 与之索引对齐）。仅数据线程、仅 SynthesizeNext 的同步前缀（offload 之前）调用。
+    // automation / pitch 一律**全量冻结、不开窗**：真实采样范围依赖音素时长，而时长在 offload 后的合成阶段
+    // 才知，同步前缀无从正确圈窗（圈窄了则 padding / 前置辅音的采样点落在窗外取到错值）；全量冻的是原始
+    // 控制点（锚点，廉价——4 分钟稠密 pitch 约几十万字节、亚毫秒，远小于一次推理），worker 按任意查询点
+    // 插值、越界端与活曲线一致地钳夹。物化 / 版本缓存 / 记账留在宿主实现内。
+    VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes);
 
     // 音频产物的宿主分配工厂：插件合成产出音频时申请一个段握柄，写入、Commit() 标完成，
     // 重分片（或改长度/位置）时 Dispose() 释放重建。宿主据此持有段登记表、驱动下游 effect 链按段

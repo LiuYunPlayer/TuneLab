@@ -174,7 +174,6 @@ TuneLab.SDK.IInstrumentSynthesisContext
 TuneLab.SDK.IInstrumentSynthesisContext.Automations.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisAutomation!>!
 TuneLab.SDK.IInstrumentSynthesisContext.Committed.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IInstrumentSynthesisContext.CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate) -> TuneLab.SDK.IAudioSegment!
-TuneLab.SDK.IInstrumentSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IInstrumentSynthesisNote!>! notes, double startTime, double endTime) -> TuneLab.SDK.InstrumentSynthesisSnapshot!
 TuneLab.SDK.IInstrumentSynthesisContext.InstrumentId.get -> string!
 TuneLab.SDK.IInstrumentSynthesisContext.Notes.get -> TuneLab.Foundation.IReadOnlyNotifiableLinkedList<TuneLab.SDK.IInstrumentSynthesisNote!>!
 TuneLab.SDK.IInstrumentSynthesisContext.PartProperties.get -> TuneLab.Foundation.IReadOnlyNotifiablePropertyObject!
@@ -240,7 +239,6 @@ TuneLab.SDK.IVoiceSynthesisContext
 TuneLab.SDK.IVoiceSynthesisContext.Automations.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisAutomation!>!
 TuneLab.SDK.IVoiceSynthesisContext.Committed.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IVoiceSynthesisContext.CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate) -> TuneLab.SDK.IAudioSegment!
-TuneLab.SDK.IVoiceSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisNote!>! notes, double startTime, double endTime) -> TuneLab.SDK.VoiceSynthesisSnapshot!
 TuneLab.SDK.IVoiceSynthesisContext.Notes.get -> TuneLab.Foundation.IReadOnlyNotifiableLinkedList<TuneLab.SDK.IVoiceSynthesisNote!>!
 TuneLab.SDK.IVoiceSynthesisContext.PartProperties.get -> TuneLab.Foundation.IReadOnlyNotifiablePropertyObject!
 TuneLab.SDK.IVoiceSynthesisContext.Pitch.get -> TuneLab.SDK.ISynthesisAutomation!
