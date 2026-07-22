@@ -15,7 +15,12 @@ namespace TuneLab.SDK;
 // 分类为结构化双列表（而非从几何派生）：抗帧抖动、跨拍音素可显式归属（跨拍辅音归 leading、跨拍元音归 body，
 // 几何相同分类相反）、结构上拼不出交替洞。定位 / 跨 note 去重叠 / melisma 全由宿主按 BodyOffset + 几何锚点解析
 // （引擎不报绝对位置，见 PhonemeLayout）。空列表合法（纯 body 的元音起手 / 纯 leading 的边角）。
-public readonly struct SynthesizedSyllable
+//
+// 形态 = sealed class（区别于叶描述符 SynthesizedPhoneme 的 readonly struct）：本类型是 SynthesizedPhonemes map 的
+// **值型**，`map.TryGetValue(id, out var s)` 未命中即产 default——若为 struct，default 会是"两列表为 null 的结构体"
+// （违背非空声明、外部插件读列表即 NRE）；作 class 则 default 是 null 对象，配合 IReadOnlyMap.TryGetValue 的
+// [MaybeNullWhen(false)] 让编译器在"不查 bool 就用 out"时告警——把陷阱前移到编译期。构造经 ctor 保证两列表非空。
+public sealed class SynthesizedSyllable
 {
     public IReadOnlyList<SynthesizedPhoneme> LeadingPhonemes { get; }
     public IReadOnlyList<SynthesizedPhoneme> BodyPhonemes { get; }

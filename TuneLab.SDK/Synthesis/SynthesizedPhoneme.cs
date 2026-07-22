@@ -18,6 +18,11 @@ namespace TuneLab.SDK;
 // 形态 = readonly struct + init 属性（合成域值 DTO 的房规默认）：值语义 + 不可变 + 对象初始化器 ergonomics
 // 与裸公开字段等同，但成员经属性访问器（get_X）稳定 ABI 面暴露——冻结后仍可把某成员的 backing 演进为
 // 带校验 / 计算的属性而不破 ABI（裸字段则永久锁死）。构造点一律 new SynthesizedPhoneme { Symbol = …, … }。
+//
+// 注意：`default(SynthesizedPhoneme)` / `new SynthesizedPhoneme[n]` 零填内存、不经构造器，Symbol 会是 null
+// （违背非空声明）——**default 非有效实例，务必经初始化器/赋值构造**。本类型是列表里的叶描述符、非 map 值型，
+// 无 TryGetValue-miss 这类外部可达的 default 路径，故不为此加防御 getter；若将来 default 变得外部可达，按上段
+// 的 backing 演进路给 Symbol 加 `?? ""` 兜底即可，零 ABI 代价。
 public readonly struct SynthesizedPhoneme
 {
     public string Symbol { get; init; }

@@ -28,6 +28,6 @@ TuneLab.SDK.VoiceSourceLayoutVoice.VoiceSourceLayoutVoice() -> void
 static TuneLab.SDK.VoiceSourceLayoutItem.Group(string! name, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>! items) -> TuneLab.SDK.VoiceSourceLayoutItem!
 static TuneLab.SDK.VoiceSourceLayoutItem.Voice(string! voiceId) -> TuneLab.SDK.VoiceSourceLayoutItem!
 TuneLab.SDK.IVoiceSynthesisNote.Id.get -> string!
-TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemes.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedSyllable>!
+TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemes.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedSyllable!>!
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.get -> string!
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.init -> void

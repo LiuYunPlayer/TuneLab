@@ -503,7 +503,6 @@ TuneLab.SDK.SynthesizedSyllable
 TuneLab.SDK.SynthesizedSyllable.BodyOffset.get -> double
 TuneLab.SDK.SynthesizedSyllable.BodyPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>!
 TuneLab.SDK.SynthesizedSyllable.LeadingPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>!
-TuneLab.SDK.SynthesizedSyllable.SynthesizedSyllable() -> void
 TuneLab.SDK.SynthesizedSyllable.SynthesizedSyllable(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>! leadingPhonemes, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>! bodyPhonemes, double bodyOffset) -> void
 TuneLab.SDK.TempoInfo
 TuneLab.SDK.TempoInfo.Bpm.get -> double
