@@ -29,6 +29,7 @@ public interface IDataObject : IReadOnlyNotifiable
     // 委托到撤销根（DataDocument），用于在另一处 UI 操作中途时拒绝发起脚本/批量提交，避免吞掉它的未提交改动。
     bool Pushable();
     bool Commit();
+    bool Commit(string description, string? detail = null);
     bool Discard();
     bool DiscardTo(Head head);
     bool Undo();
@@ -48,6 +49,7 @@ public interface IDataObject : IReadOnlyNotifiable
         public void EndMergeNotify() => dataObject.EndMergeNotify();
         public bool Pushable() => dataObject.Pushable();
         public bool Commit() => dataObject.Commit();
+        public bool Commit(string description, string? detail = null) => dataObject.Commit(description, detail);
         public bool Discard() => dataObject.Discard();
         public bool DiscardTo(Head head) => dataObject.DiscardTo(head);
         public bool Undo() => dataObject.Undo();

@@ -136,7 +136,7 @@ internal class EffectsController : StackPanel
         try
         {
             mutate();
-            mParts[0].Commit();   // 全 part 共享同一文档撤销栈：一次提交归一个撤销单元
+            mParts[0].Commit("Edit Effects");   // 全 part 共享同一文档撤销栈：一次提交归一个撤销单元
         }
         finally
         {

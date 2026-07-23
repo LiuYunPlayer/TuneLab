@@ -281,7 +281,7 @@ internal partial class TimelineView : View
         if (newBpm != mInputBpmTempo.Bpm)
         {
             Timeline.TempoManager.SetBpm(mInputBpmTempo, newBpm);
-            mInputBpmTempo.Commit();
+            mInputBpmTempo.Commit("Edit Tempo");
         }
 
         mBpmInput.IsVisible = false;
@@ -307,7 +307,7 @@ internal partial class TimelineView : View
         if (numerator != mInputMeterTimeSignature.Numerator || denominator != mInputMeterTimeSignature.Denominator)
         {
             Timeline.TimeSignatureManager.SetMeter(mInputMeterTimeSignature, numerator, denominator);
-            mInputMeterTimeSignature.Commit();
+            mInputMeterTimeSignature.Commit("Edit Time Signature");
         }
 
         mMeterInput.IsVisible = false;

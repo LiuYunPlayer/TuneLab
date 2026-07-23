@@ -106,7 +106,7 @@ internal partial class LyricInput : Window
             note.Pronunciation.Set(current.Pronunciation);
         }
 
-        mNotes.First().Commit();
+        mNotes.First().Commit("Change Lyric");
         Close();
     }
 

@@ -31,16 +31,18 @@ internal sealed class ExtensibleObjectController : StackPanel
         Children.Add(mAddButton);
     }
 
-    public void Bind(IDataPropertyObject dataObject)
+    public void Bind(IDataPropertyObject dataObject, string? detail = null)
     {
         ResetRows();
         mDataObject = dataObject;
+        mDetail = detail;
     }
 
     public void Unbind()
     {
         ResetRows();
         mDataObject = null;
+        mDetail = null;
     }
 
     public void Apply(ExtensibleObjectConfig config)
@@ -164,7 +166,8 @@ internal sealed class ExtensibleObjectController : StackPanel
         if (mDataObject == null)
             return;
         mDataObject.SetValue(addable.Key.Id, addable.Template.GetDefaultValue());
-        mDataObject.Commit();
+        var detail = addable.Key.DisplayText ?? addable.Key.Id;
+        mDataObject.Commit("Add Property", string.IsNullOrWhiteSpace(detail) ? mDetail : detail);
     }
 
     // 删键 = 移除该键（presence 翻回 absent），提交。
@@ -172,8 +175,9 @@ internal sealed class ExtensibleObjectController : StackPanel
     {
         if (mDataObject == null)
             return;
+        var detail = mRowsByKey.TryGetValue(id, out var row) ? row.Detail : id;
         mDataObject.RemoveValue(id);
-        mDataObject.Commit();
+        mDataObject.Commit("Delete Property", string.IsNullOrWhiteSpace(detail) ? mDetail : detail);
     }
 
     void ResetRows()
@@ -187,6 +191,7 @@ internal sealed class ExtensibleObjectController : StackPanel
     }
 
     IDataPropertyObject? mDataObject;
+    string? mDetail;
     IReadOnlyList<AddableKey> mAddableElements = [];
     HashSet<string> mPresentKeys = new();
     readonly StackPanel mRowsPanel = new() { Orientation = Orientation.Vertical };
@@ -200,11 +205,13 @@ sealed class KeyedRow : IDisposable
 {
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
+    public string Detail { get; private set; }
 
     public KeyedRow(IDataPropertyObject dataObject, PropertyKey key, IControllerConfig config, Action onDelete)
     {
-        mWidget = ElementWidget.Create(dataObject, key.Id, config);
-        mTitle = ArrayControlsFactory.MakeRowTitle(key.DisplayText ?? key.Id);
+        Detail = key.DisplayText ?? key.Id;
+        mWidget = ElementWidget.Create(dataObject, key.Id, config, Detail);
+        mTitle = ArrayControlsFactory.MakeRowTitle(Detail);
 
         var content = new StackPanel { Orientation = Orientation.Vertical };
         content.Children.Add(mTitle);
@@ -228,7 +235,8 @@ sealed class KeyedRow : IDisposable
 
     public void Update(PropertyKey key, IControllerConfig config)
     {
-        mTitle.Content = key.DisplayText ?? key.Id;   // 语言切换等仅 DisplayText 变：重贴标签、不重建
+        Detail = key.DisplayText ?? key.Id;
+        mTitle.Content = Detail;
         mWidget.Update(config);
     }
 

@@ -385,7 +385,7 @@ internal partial class TrackScrollView : View
                 track.InsertPart(part);
             }
         }
-        Project.Commit();
+        Project.Commit("Paste");
     }
 
     public bool CanPaste => !mPartClipboard.IsEmpty();
@@ -401,15 +401,19 @@ internal partial class TrackScrollView : View
         if (Project == null)
             return;
 
+        int deletedCount = 0;
+        string? detail = null;
         foreach (var track in Project.Tracks)
         {
             var selectedParts = track.Parts.AllSelectedItems();
             foreach (var part in selectedParts)
             {
+                deletedCount++;
+                detail = deletedCount == 1 ? part.Name.Value : null;
                 track.RemovePart(part);
             }
         }
-        Project.Commit();
+        Project.Commit(deletedCount == 1 ? "Delete Part" : "Delete Parts", detail);
     }
 
     public void DeleteTrackAt(int trackIndex)
@@ -417,8 +421,9 @@ internal partial class TrackScrollView : View
         if (Project == null)
             return;
 
+        var trackName = Project.Tracks[trackIndex].Name.Value;
         Project.RemoveTrackAt(trackIndex);
-        Project.Commit();
+        Project.Commit("Delete Track", trackName);
     }
 
     public async void ImportAudioAt(double pos, int trackIndex)
@@ -463,7 +468,7 @@ internal partial class TrackScrollView : View
         {
             track.Name.Set(name);
         }
-        project.Commit();
+        project.Commit("Import Audio", name);
     }
 
 
@@ -639,7 +644,7 @@ internal partial class TrackScrollView : View
             srcTrackInfo.Parts=parts;
             dstProject.AddTrack(srcTrackInfo);
         }
-        dstProject.Commit();
+        dstProject.Commit("Import Track", Path.GetFileName(path));
     }
 
     public void EnterInputPartName(IPart part, int trackIndex)
@@ -672,7 +677,7 @@ internal partial class TrackScrollView : View
         if (!string.IsNullOrEmpty(newLyric) && newLyric != mInputNamePart.Name.Value)
         {
             mInputNamePart.Name.Set(newLyric);
-            mInputNamePart.Commit();
+            mInputNamePart.Commit("Rename Part", newLyric);
         }
 
         mNameInput.IsVisible = false;
@@ -847,7 +852,7 @@ internal partial class TrackScrollView : View
             foreach (var leftover in leftovers)
                 track.InsertPart(track.CreatePart(leftover));
         }
-        Project.Commit();
+        Project.Commit("Merge");
     }
 
     // 把任意 part 裁到绝对 tick 区间 [start, end] 得到只含该段的 PartInfo（闸刀切分/复制的共用原语）：
@@ -946,7 +951,7 @@ internal partial class TrackScrollView : View
                     track.InsertPart(track.CreatePart(leftover));
             }
         }
-        Project.Commit();
+        Project.Commit("Delete Selection");
     }
 
     // 剪切选区（闸刀）= 复制裁到选区的片段 + 删除选区内片段（保留区外）。

@@ -226,7 +226,7 @@ internal static class ScriptToolMenu
         }
 
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, () => TranslationManager.CurrentLanguage.Value, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None); }
+        try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, () => TranslationManager.CurrentLanguage.Value, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, tool.DisplayName); }
         catch (Exception ex)
         {
             _ = anchor.ShowMessage("Script".Tr(TC.Menu), "Host error:".Tr(TC.Dialog) + " " + ex.Message);

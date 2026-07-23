@@ -12,6 +12,7 @@ internal enum SideBarTab
     Extensions,
     PartProperties,
     NoteProperties,
+    History,
     Export,
     Agent,
     Script,

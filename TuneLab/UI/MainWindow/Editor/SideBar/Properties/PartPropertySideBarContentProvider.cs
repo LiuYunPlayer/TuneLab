@@ -391,7 +391,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         }
         foreach (var part in mParts)
             part.EndMergeDirty();
-        mParts[0].Commit();
+        mParts[0].Commit("Edit Properties", presetName);
     }
 
     // 单 part 的应用（config 按该 part 自身音源现算：apply 可能正在改音源，须 per-part 单元素 context）。

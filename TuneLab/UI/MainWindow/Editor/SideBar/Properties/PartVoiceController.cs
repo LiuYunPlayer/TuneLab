@@ -305,7 +305,8 @@ internal class PartVoiceController : StackPanel
             RecentSoundSourceManager.PushVoice(type, id);
         else
             RecentSoundSourceManager.PushInstrument(type, id);
-        mParts[0].Commit();
+        TryGetSourceName(kind, type, id, out var detail);
+        mParts[0].Commit(kind == SourceKind.Voice ? "Set Voice" : "Set Instrument", string.IsNullOrEmpty(detail) ? null : detail);
     }
 
     readonly ComboBoxController mVoiceController = new();

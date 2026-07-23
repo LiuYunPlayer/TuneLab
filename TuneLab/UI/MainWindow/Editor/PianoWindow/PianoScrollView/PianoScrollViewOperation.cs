@@ -204,7 +204,7 @@ internal partial class PianoScrollView
                             part.MoveNote(coupled, () => coupled.Dur.Set(end - coupled.Pos.Value));
                             part.RemoveNote(sn);
                             part.EndMergeDirty();
-                            part.Commit();
+                            part.Commit("Merge");
                         }
                         else
                         {
@@ -278,7 +278,7 @@ internal partial class PianoScrollView
                                                 var menuItem = new MenuItem().SetName(pronunciation).SetAction(() =>
                                                 {
                                                     note.Pronunciation.Set(pronunciation);
-                                                    note.Commit();
+                                                    note.Commit("Edit Properties");
                                                 });
                                                 menu.Items.Add(menuItem);
                                             }
@@ -294,7 +294,7 @@ internal partial class PianoScrollView
                                             if (!alt) pos = GetQuantizedTick(pos);
                                             var note = Part.CreateNote(new NoteInfo() { Pos = pos - Part.Pos.Value, Dur = QuantizedCellTicks(), Pitch = pitch, Lyric = Part.SoundSource.DefaultLyric });
                                             Part.InsertNote(note);
-                                            mNoteEndResizeOperation.Down(TickAxis.Tick2X(note.GlobalEndPos()), note);
+                                            mNoteEndResizeOperation.Down(TickAxis.Tick2X(note.GlobalEndPos()), note, created: true);
                                         }
                                         else
                                         {
@@ -327,7 +327,7 @@ internal partial class PianoScrollView
                                             var menuItem = new MenuItem().SetName("Split".Tr(TC.Menu)).SetAction(() =>
                                             {
                                                 note.SplitAt(splitPos);
-                                                Part.Commit();
+                                                Part.Commit("Split");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -376,7 +376,7 @@ internal partial class PianoScrollView
                                                     Part.InsertNote(note);
                                                 }
                                                 Part.EndMergeDirty();
-                                                Part.Commit();
+                                                Part.Commit("Split by Phonemes");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -398,7 +398,7 @@ internal partial class PianoScrollView
                                                 }
                                                 Part.EndMergeDirty();
                                                 if (changed)
-                                                    Part.Commit();
+                                                    Part.Commit("Lock Phonemes");
                                                 else
                                                     Part.Discard();
                                             });
@@ -421,7 +421,7 @@ internal partial class PianoScrollView
                                                 }
                                                 Part.EndMergeDirty();
                                                 if (changed)
-                                                    Part.Commit();
+                                                    Part.Commit("Clear Locked Phonemes");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -460,7 +460,7 @@ internal partial class PianoScrollView
                                                     it = next;
                                                 }
                                                 Part.EndMergeDirty();
-                                                Part.Commit();
+                                                Part.Commit("Move Lyrics Forward");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -478,7 +478,7 @@ internal partial class PianoScrollView
                                                 }
                                                 note.Lyric.Set("-");
                                                 Part.EndMergeDirty();
-                                                Part.Commit();
+                                                Part.Commit("Move Lyrics Backward");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -490,7 +490,7 @@ internal partial class PianoScrollView
                                             var menuItem = new MenuItem().SetName("Remove Overlaps".Tr(TC.Menu)).SetAction(() =>
                                             {
                                                 if (Part.RemoveOverlaps(Part.Notes.AllSelectedItems()))
-                                                    Part.Commit();
+                                                    Part.Commit("Remove Overlaps");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -1649,7 +1649,7 @@ internal partial class PianoScrollView
             {
                 PianoScrollView.Part.Pitch.AddLine(line.Simplify(5, 2), Settings.ParameterBoundaryExtension);
             }
-            PianoScrollView.Part.Pitch.Commit();
+            PianoScrollView.Part.Pitch.Commit("Draw Pitch");
             mPointLines.Clear();
         }
 
@@ -1716,7 +1716,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.Pitch.DiscardTo(mHead);
             PianoScrollView.Part.Pitch.Clear(mStart, mEnd);
             PianoScrollView.Part.EndMergeDirty();
-            PianoScrollView.Part.Pitch.Commit();
+            PianoScrollView.Part.Pitch.Commit("Erase Pitch");
         }
 
         double mStart;
@@ -1775,7 +1775,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.DiscardTo(mHead);
             PianoScrollView.Part.LockPitch(mStart, mEnd, Settings.ParameterBoundaryExtension);
             PianoScrollView.Part.EndMergeDirty();
-            PianoScrollView.Part.Commit();
+            PianoScrollView.Part.Commit("Draw Pitch");
         }
 
         double mStart;
@@ -1943,7 +1943,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.EndMergeDirty();
             if (mMoved)
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Move Notes");
             }
             else
             {
@@ -2098,7 +2098,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Resize Notes");
             }
             mNote = null;
             mCoupledPrev = null;
@@ -2116,7 +2116,7 @@ internal partial class PianoScrollView
     class NoteEndResizeOperation(PianoScrollView pianoScrollView) : Operation(pianoScrollView)
     {
         // freeform（波形带入口）：吸附反转——默认自由、Alt 吸附网格；note 矩形入口保持默认吸附、Alt 自由。
-        public void Down(double x, INote note, bool freeform = false)
+        public void Down(double x, INote note, bool freeform = false, bool created = false)
         {
             if (PianoScrollView.Part == null)
                 return;
@@ -2126,6 +2126,7 @@ internal partial class PianoScrollView
             mHead = PianoScrollView.Part.Head;
             mNote = note;
             mFreeform = freeform;
+            mCreated = created;
             double end = PianoScrollView.TickAxis.Tick2X(mNote.GlobalEndPos());
             mOffset = x - end;
         }
@@ -2199,7 +2200,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit(mCreated ? "Add Note" : "Resize Notes");
             }
             mNote = null;
         }
@@ -2207,6 +2208,7 @@ internal partial class PianoScrollView
         double mOffset;
         INote? mNote;
         bool mFreeform;
+        bool mCreated;
         Head mHead;
     }
 
@@ -2246,6 +2248,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.BeginMergeDirty();
             mHead = PianoScrollView.Part.Head;
             mVibrato = vibrato;
+            mCreated = false;
             double start = PianoScrollView.TickAxis.Tick2X(mVibrato.GlobalStartPos());
             mOffset = x - start;
             mAmplitudeDownPitch = null;
@@ -2261,6 +2264,7 @@ internal partial class PianoScrollView
             if (mVibrato == null)
                 return;
 
+            mCreated = true;
             mAmplitudeDownPitch = PianoScrollView.PitchAxis.Y2Pitch(y);
             mBaseAmplitude = mVibrato.Amplitude;
         }
@@ -2321,7 +2325,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit(mCreated ? "Add Vibrato" : "Edit Vibrato");
             }
             mVibrato = null;
             mAmplitudeDownPitch = null;
@@ -2334,6 +2338,7 @@ internal partial class PianoScrollView
         double mBaseAmplitude;
         VibratoItem? mItem;
         Vibrato? mVibrato;
+        bool mCreated;
         Head mHead;
     }
 
@@ -2400,7 +2405,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Edit Vibrato");
             }
             mVibrato = null;
             mItem = null;
@@ -2465,7 +2470,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Edit Vibrato");
             }
             mVibratos = null;
             PianoScrollView.mOperatingVibratoItem = null;
@@ -2531,7 +2536,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Edit Vibrato");
             }
             mVibratos = null;
             PianoScrollView.mOperatingVibratoItem = null;
@@ -2618,7 +2623,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Edit Vibrato");
             }
             mVibratos = null;
             PianoScrollView.mOperatingVibratoItem = null;
@@ -2681,7 +2686,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                mPart.Commit();
+                mPart.Commit("Edit Vibrato");
             }
             mVibratos = null;
             mPart = null;
@@ -2744,7 +2749,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                mPart.Commit();
+                mPart.Commit("Edit Vibrato");
             }
             mVibratos = null;
             mPart = null;
@@ -2829,7 +2834,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.EndMergeDirty();
             if (mMoved)
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Edit Vibrato");
             }
             else
             {
@@ -2922,7 +2927,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.Pitch.DiscardTo(mHead);
             PianoScrollView.Part.Pitch.DeletePoints(mStart, mEnd);
             PianoScrollView.Part.EndMergeDirty();
-            PianoScrollView.Part.Pitch.Commit();
+            PianoScrollView.Part.Pitch.Commit("Erase Pitch");
         }
 
         double mStart;
@@ -2987,7 +2992,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.EndMergeDirty();
             if (mMoved)
             {
-                PianoScrollView.Part.Commit();
+                PianoScrollView.Part.Commit("Draw Pitch");
             }
             else
             {
@@ -3105,7 +3110,7 @@ internal partial class PianoScrollView
             }
             else
             {
-                mNote.Part.Commit();
+                mNote.Part.Commit("Edit Properties");
             }
 
             mNote = null;

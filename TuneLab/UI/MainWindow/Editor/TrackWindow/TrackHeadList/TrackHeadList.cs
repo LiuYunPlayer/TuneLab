@@ -158,7 +158,7 @@ internal class TrackHeadList : LayerPanel
                 project.RemoveTrack(tr);
             for (int k = 0; k < tracks.Count; k++)
                 project.InsertTrack(targets[k], tracks[k]);
-            project.Commit();
+            project.Commit(tracks.Count == 1 ? "Move Track" : "Move Tracks", tracks.Count == 1 ? tracks[0].Name.Value : null);
         }
 
         public void CancelTrackHeadDrag()
@@ -229,7 +229,7 @@ internal class TrackHeadList : LayerPanel
                     return;
 
                 project.NewTrack();
-                project.Commit();
+                project.Commit("Add Track", project.Tracks[project.Tracks.Count - 1].Name.Value);
             }
 
             public override void Render(DrawingContext context)

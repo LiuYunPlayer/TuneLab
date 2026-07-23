@@ -31,9 +31,16 @@ public abstract class DataObject : IDataObject
         return new MergeScope(this);
     }
 
+    protected IDisposable MergeNotifyWithoutCommand()
+    {
+        ChangeNotifyFlag(1);
+        return new DirectMergeScope(this);
+    }
+
     // 委托到撤销根；无父（游离/根本身另行 override）默认可申请。
     public virtual bool Pushable() => mParent?.Pushable() ?? true;
     public virtual bool Commit() => mParent?.Commit() ?? false;
+    public virtual bool Commit(string description, string? detail = null) => mParent?.Commit(description, detail) ?? false;
     public virtual bool Discard() => mParent?.Discard() ?? false;
     public virtual bool DiscardTo(Head head) => mParent?.DiscardTo(head) ?? false;
     public virtual bool Undo() => mParent?.Undo() ?? false;
@@ -164,6 +171,11 @@ public abstract class DataObject : IDataObject
     class MergeScope(DataObject dataObject) : IDisposable
     {
         public void Dispose() => dataObject.EndMergeNotify();
+    }
+
+    class DirectMergeScope(DataObject dataObject) : IDisposable
+    {
+        public void Dispose() => dataObject.CloseMergeScope();
     }
 
     DataObject? mParent = null;

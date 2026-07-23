@@ -93,7 +93,7 @@ internal partial class TrackScrollView
                                         if (File.Exists(path))
                                         {
                                             audioPart.Path.Set(path);
-                                            audioPart.Commit();
+                                            audioPart.Commit("Import Audio", Path.GetFileName(path));
                                         }
                                     }
                                     else
@@ -138,7 +138,7 @@ internal partial class TrackScrollView
                                     var pos = GetQuantizedTick(TickAxis.X2Tick(e.Position.X));
                                     var part = track.CreatePart(new MidiPartInfo() { Name = "Part".Tr(TC.Document) + "_" + (track.Project.PartsCount() + 1), Pos = pos, EndOffset = QuantizedCellTicks(), SoundSource = RecentSoundSourceManager.DefaultVoiceSoundSource() });
                                     track.InsertPart(part);
-                                    mPartEndResizeOperation.Down(TickAxis.Tick2X(part.EndPos), part, track);
+                                    mPartEndResizeOperation.Down(TickAxis.Tick2X(part.EndPos), part, track, created: true);
                                 }
                                 else
                                 {
@@ -232,7 +232,7 @@ internal partial class TrackScrollView
                                                     track.RemovePart(part);
                                                     track.InsertPart(track.CreatePart(leftInfo));
                                                     track.InsertPart(track.CreatePart(rightInfo));
-                                                    track.Commit();
+                                                    track.Commit("Split", part.Name.Value);
                                                 });
                                                 menu.Items.Add(menuItem);
                                             }
@@ -257,7 +257,7 @@ internal partial class TrackScrollView
                                                         var newPartInfo = IMidiPartExtension.MergePartInfos(oldPartInfos);
                                                         foreach(var oldPart in oldParts) track.RemovePart(oldPart);
                                                         track.InsertPart(track.CreatePart(newPartInfo));
-                                                        track.Commit();
+                                                        track.Commit("Merge");
                                                     });
                                                     menu.Items.Add(menuItem);
                                                 }
@@ -277,7 +277,8 @@ internal partial class TrackScrollView
                                                     }
                                                 }
                                                 RecentSoundSourceManager.PushVoice(type, id);
-                                                Project.Commit();
+                                                var detail = VoicesManager.TryGetVoiceInfo(type, id, out var info) ? info.Name : id;
+                                                Project.Commit("Set Voice", detail);
                                             }
 
                                             // 最近栏：列最近使用的 voice，选项写「引擎名 - voice 名」，身份失效（卸载/改 id）的项跳过。
@@ -358,7 +359,8 @@ internal partial class TrackScrollView
                                                     }
                                                 }
                                                 RecentSoundSourceManager.PushInstrument(type, id);
-                                                Project.Commit();
+                                                var detail = InstrumentsManager.TryGetInstrumentInfo(type, id, out var info) ? info.Name : id;
+                                                Project.Commit("Set Instrument", detail);
                                             }
 
                                             // 最近栏：列最近使用的 instrument，选项写「引擎名 - instrument 名」，身份失效（卸载/改 id）的项跳过。
@@ -434,7 +436,7 @@ internal partial class TrackScrollView
                                                         changed |= selectedMidiPart.RemoveOverlaps(selectedMidiPart.Notes);
                                                 }
                                                 if (changed)
-                                                    Project.Commit();
+                                                    Project.Commit("Remove Overlaps");
                                             });
                                             menu.Items.Add(menuItem);
                                         }
@@ -1113,7 +1115,8 @@ internal partial class TrackScrollView
             }
             if (mMoved)
             {
-                TrackScrollView.Project.Commit();
+                int movedCount = mMoveParts.Sum(group => group.parts.Count);
+                TrackScrollView.Project.Commit(movedCount == 1 ? "Move Part" : "Move Parts", movedCount == 1 ? mPart.Name.Value : null);
             }
             else
             {
@@ -1165,11 +1168,12 @@ internal partial class TrackScrollView
 
     class PartEndResizeOperation(TrackScrollView trackScrollView) : Operation(trackScrollView)
     {
-        public void Down(double x, IPart part, ITrack track)
+        public void Down(double x, IPart part, ITrack track, bool created = false)
         {
             State = State.PartEndResizing;
             mPart = part;
             mTrack = track;
+            mDescription = created ? "Add Part" : "Resize Part";
             double end = TrackScrollView.TickAxis.Tick2X(mPart.EndPos());
             mOffset = x - end;
             mHead = mPart.Head;
@@ -1201,13 +1205,14 @@ internal partial class TrackScrollView
             if (mPart == null)
                 return;
 
-            mPart.Commit();
+            mPart.Commit(mDescription, mPart.Name.Value);
             mPart = null;
             mTrack = null;
         }
 
         Head mHead;
         double mOffset;
+        string mDescription = "Resize Part";
         IPart? mPart;
         ITrack? mTrack;
     }
@@ -1254,7 +1259,7 @@ internal partial class TrackScrollView
             if (mPart == null)
                 return;
 
-            mPart.Commit();
+            mPart.Commit("Resize Part", mPart.Name.Value);
             mPart = null;
             mTrack = null;
         }
@@ -1336,7 +1341,8 @@ internal partial class TrackScrollView
                 track.InsertPart(part);
                 trackIndex++;
             }
-            TrackScrollView.Project.Commit();
+            var detail = mPreImportAudioInfos.Count == 1 ? mPreImportAudioInfos[0].name : null;
+            TrackScrollView.Project.Commit("Import Audio", detail);
             mPreImportAudioInfos.Clear();
         }
 

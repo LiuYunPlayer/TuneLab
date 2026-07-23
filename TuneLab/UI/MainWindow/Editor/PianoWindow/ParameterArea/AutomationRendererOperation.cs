@@ -132,7 +132,7 @@ internal partial class AutomationRenderer
                                 {
                                     vibrato.RemoveAssociation(automationKey.Value);
                                 }
-                                Part.Commit();
+                                Part.Commit("Edit Vibrato");
                             }
                             else
                             {
@@ -512,7 +512,7 @@ internal partial class AutomationRenderer
                 return;
 
             mPart!.EndMergeDirty();
-            mPart.Commit();
+            mPart.Commit("Edit Properties");
             mPart = null;
             mValues.Clear();
             State = State.None;
@@ -597,7 +597,7 @@ internal partial class AutomationRenderer
                 return;
 
             mPart!.EndMergeDirty();
-            mPart.Commit();
+            mPart.Commit("Edit Properties");
             mPart = null;
             State = State.None;
         }
@@ -672,7 +672,7 @@ internal partial class AutomationRenderer
                 return;
 
             mPart!.EndMergeDirty();
-            mPart.Commit();
+            mPart.Commit("Edit Properties");
             mPart = null;
             mTargets.Clear();
             State = State.None;
@@ -766,7 +766,7 @@ internal partial class AutomationRenderer
                 return;
 
             mPart!.EndMergeDirty();
-            mPart.Commit();
+            mPart.Commit("Edit Properties");
             mPart = null;
             State = State.None;
         }
@@ -975,7 +975,7 @@ internal partial class AutomationRenderer
                 mAutomation.AddLine(line.Simplify(5, 2), Settings.ParameterBoundaryExtension);
             }
             AutomationRenderer.Part.EndMergeDirty();
-            mAutomation.Commit();
+            mAutomation.Commit("Edit Automation");
             mAutomation = null;
             mPointLines.Clear();
             State = State.None;
@@ -1050,7 +1050,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             mAutomation.Clear(mStart, mEnd, Settings.ParameterBoundaryExtension);
             AutomationRenderer.Part.EndMergeDirty();
-            mAutomation.Commit();
+            mAutomation.Commit("Edit Automation");
             mAutomation = null;
             State = State.None;
         }
@@ -1204,7 +1204,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             mAutomation.DeletePoints(mStart, mEnd);
             AutomationRenderer.Part.EndMergeDirty();
-            mAutomation.Commit();
+            mAutomation.Commit("Edit Automation");
             mAutomation = null;
             State = State.None;
             AutomationRenderer.UpdateAnchorValueInput();
@@ -1277,7 +1277,7 @@ internal partial class AutomationRenderer
             AutomationRenderer.Part.EndMergeDirty();
             if (mMoved || mKeepChangeWithoutMove)
             {
-                AutomationRenderer.Part.Commit();
+                AutomationRenderer.Part.Commit("Edit Automation");
             }
             else
             {
@@ -1390,7 +1390,7 @@ internal partial class AutomationRenderer
             }
             else
             {
-                AutomationRenderer.Part.Commit();
+                AutomationRenderer.Part.Commit("Edit Vibrato");
             }
             mVibratos = null;
         }

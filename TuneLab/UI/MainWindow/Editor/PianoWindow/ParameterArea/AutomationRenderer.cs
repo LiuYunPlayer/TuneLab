@@ -702,7 +702,7 @@ internal partial class AutomationRenderer : View
             return;
         }
 
-        Part.Commit();
+        Part.Commit("Edit Automation");
         InvalidateVisual();
         UpdateAnchorValueInput();
     }
@@ -780,7 +780,7 @@ internal partial class AutomationRenderer : View
         part.BeginMergeDirty();
         automation.MoveSelectedPoints(0, valueOffset);
         part.EndMergeDirty();
-        part.Commit();
+        part.Commit("Edit Automation");
         InvalidateVisual();
         UpdateAnchorValueInput();
     }

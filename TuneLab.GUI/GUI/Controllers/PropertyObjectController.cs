@@ -272,7 +272,7 @@ internal class PropertyObjectController : StackPanel
 
             // 先绑定（初次刷新即把真实值写入），Relayout 才加入可视树——否则池复用的控件会以残留旧值/旧量程
             // 先布局渲染一帧，thumb 随后才跳到正确位置（初次选中音符时可见的瞬间挪动）。
-            mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s, detail: key.DisplayText ?? key.Id);
         }
 
         void Apply(SliderConfig config)
@@ -324,7 +324,7 @@ internal class PropertyObjectController : StackPanel
 
             Apply(config);
             AttachContextMenu(mDockPanel, key, () => mConfig);
-            mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.DoubleField(key.Id, config.DefaultValue), s, detail: key.DisplayText ?? key.Id);
         }
 
         void Apply(DraggableNumberBoxConfig config)
@@ -366,7 +366,7 @@ internal class PropertyObjectController : StackPanel
             mController.Margin = new(24, 12);
             mController.IsPassword = config.IsPassword;
 
-            mController.BindDataProperty(parent.DataObject.StringField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.StringField(key.Id, config.DefaultValue), s, detail: key.DisplayText ?? key.Id);
         }
 
         public override Type ConfigType => typeof(TextBoxConfig);
@@ -389,6 +389,7 @@ internal class PropertyObjectController : StackPanel
         public ComboBoxCreator(PropertyObjectController parent, PropertyKey key, ComboBoxConfig config) : base(parent)
         {
             mKey = key.Id;
+            mDetail = key.DisplayText ?? key.Id;
             mConfig = config;
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
 
@@ -404,7 +405,7 @@ internal class PropertyObjectController : StackPanel
         {
             mController.SetConfig(config);
             // 绑裸 PropertyValue 字段：option 值可为任意基础类型，存进数据的就是该值本身（非显示文本）。
-            mController.BindDataProperty(Parent.DataObject.ValueField(mKey, config.DefaultOption.Value), s);
+            mController.BindDataProperty(Parent.DataObject.ValueField(mKey, config.DefaultOption.Value), s, detail: mDetail);
         }
 
         public override Type ConfigType => typeof(ComboBoxConfig);
@@ -430,6 +431,7 @@ internal class PropertyObjectController : StackPanel
         }
 
         readonly string mKey;
+        readonly string mDetail;
         readonly Label mTitle;
         readonly ComboBoxController mController;
         ComboBoxConfig mConfig;
@@ -442,7 +444,7 @@ internal class PropertyObjectController : StackPanel
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
             mController = new ArrayController();
-            mController.Bind(parent.DataObject.Array(key.Id));
+            mController.Bind(parent.DataObject.Array(key.Id), key.DisplayText ?? key.Id);
             mController.Apply(config);
         }
 
@@ -467,7 +469,7 @@ internal class PropertyObjectController : StackPanel
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
             mController = new ListController();
-            mController.Bind(parent.DataObject.Array(key.Id));
+            mController.Bind(parent.DataObject.Array(key.Id), key.DisplayText ?? key.Id);
             mController.Apply(config);
         }
 
@@ -494,7 +496,7 @@ internal class PropertyObjectController : StackPanel
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
             mController = new ExtensibleObjectController();
-            mController.Bind(parent.DataObject.Object(key.Id));
+            mController.Bind(parent.DataObject.Object(key.Id), key.DisplayText ?? key.Id);
             mController.Apply(config);
         }
 
@@ -528,7 +530,7 @@ internal class PropertyObjectController : StackPanel
             mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
             mDockPanel.Children.Add(mTitle);
 
-            mController.BindDataProperty(parent.DataObject.BooleanField(key.Id, config.DefaultValue), s);
+            mController.BindDataProperty(parent.DataObject.BooleanField(key.Id, config.DefaultValue), s, detail: key.DisplayText ?? key.Id);
         }
 
         public override Type ConfigType => typeof(CheckBoxConfig);

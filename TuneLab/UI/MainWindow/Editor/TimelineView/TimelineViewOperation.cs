@@ -89,7 +89,7 @@ internal partial class TimelineView
                                     var menuItem = new MenuItem().SetName("Delete Tempo".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         Timeline.TempoManager.RemoveTempoAt(tempoItem.TempoIndex);
-                                        Timeline.TempoManager.Project.Commit();
+                                        Timeline.TempoManager.Project.Commit("Delete Tempo");
                                     });
                                     menu.Items.Add(menuItem);
                                 }
@@ -110,7 +110,7 @@ internal partial class TimelineView
                                     var menuItem = new MenuItem().SetName("Delete Time Signature".Tr(TC.Menu)).SetAction(() =>
                                     {
                                         Timeline.TimeSignatureManager.RemoveTimeSignatureAt(timeSignatureItem.TimeSignatureIndex);
-                                        Timeline.TimeSignatureManager.Project.Commit();
+                                        Timeline.TimeSignatureManager.Project.Commit("Delete Time Signature");
                                     });
                                     menu.Items.Add(menuItem);
                                 }
@@ -127,7 +127,7 @@ internal partial class TimelineView
                                         var meterStatus = Timeline.TimeSignatureManager.GetMeterStatus(pos);
                                         var timesignature = meterStatus.TimeSignature;
                                         Timeline.TimeSignatureManager.AddTimeSignature((int)meterStatus.BarIndex, timesignature.Numerator, timesignature.Denominator);
-                                        Timeline.TimeSignatureManager.Project.Commit();
+                                        Timeline.TimeSignatureManager.Project.Commit("Add Time Signature");
                                     });
                                     menu.Items.Add(menuItem);
                                 }
@@ -136,7 +136,7 @@ internal partial class TimelineView
                                     {
                                         var bpm = Timeline.TempoManager.GetBpmAt(pos);
                                         Timeline.TempoManager.AddTempo(pos, bpm);
-                                        Timeline.TempoManager.Project.Commit();
+                                        Timeline.TempoManager.Project.Commit("Add Tempo");
                                     });
                                     menu.Items.Add(menuItem);
                                 }
@@ -388,7 +388,7 @@ internal partial class TimelineView
             }
             else
             {
-                mTempoItem.TempoManager.Commit();
+                mTempoItem.TempoManager.Commit("Edit Tempo");
             }
 
             TimelineView.InvalidateVisual();
@@ -450,7 +450,7 @@ internal partial class TimelineView
             }
             else
             {
-                mTimeSignatureItem.TimeSignatureManager.Commit();
+                mTimeSignatureItem.TimeSignatureManager.Commit("Edit Time Signature");
             }
 
             TimelineView.InvalidateVisual();
