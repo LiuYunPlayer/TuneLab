@@ -104,6 +104,7 @@ public class MultipleDataPropertyObject : IDataPropertyObject
     public void EndMergeNotify() { foreach (var dataObject in mDataObjects) dataObject.EndMergeNotify(); }
     public bool Pushable() => mRoot?.Pushable() ?? true;
     public bool Commit() => mRoot?.Commit() ?? false;
+    public bool Commit(string description, string? detail = null) => mRoot?.Commit(description, detail) ?? false;
     public bool Discard() => mRoot?.Discard() ?? false;
     public bool DiscardTo(Head head) => mRoot?.DiscardTo(head) ?? false;
     public bool Undo() => mRoot?.Undo() ?? false;

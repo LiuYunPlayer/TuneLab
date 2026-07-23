@@ -28,6 +28,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
     {
         mParts = parts;
         mKey = key;
+        mDetail = keyName;
         mConfig = config;
         Orientation = Orientation.Vertical;
 
@@ -111,7 +112,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
         foreach (var part in mParts)
             part.EndMergeDirty();
         if (mParts.Count > 0)
-            mParts[0].Commit();
+            mParts[0].Commit("Edit Automation", mDetail);
     }
 
     // 退出通知 merge（幂等）：仅在已进入时 EndMergeNotify，避免无配对多发 / merge 计数泄漏（含编辑中途被释放的兜底）。
@@ -132,6 +133,7 @@ internal sealed class AutomationDefaultRow : StackPanel, IDisposable
 
     readonly IReadOnlyList<IMidiPart> mParts;
     readonly AutomationKey mKey;
+    readonly string mDetail;
     readonly AutomationConfig mConfig;
     readonly SliderController mSlider;
     Head mHead;

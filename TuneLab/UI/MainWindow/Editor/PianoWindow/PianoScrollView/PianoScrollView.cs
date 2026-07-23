@@ -1474,7 +1474,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 Part.PasteAt(new ParameterClipboard { Pitch = [], Automations = mParameterClipboard.Automations }, pos, Settings.ParameterBoundaryExtension);
                 break;
         }
-        Part.Commit();
+        Part.Commit(kind switch
+        {
+            RegionDataKind.Notes => "Paste Notes",
+            RegionDataKind.Vibratos => "Paste Vibratos",
+            RegionDataKind.Pitch => "Paste Pitch",
+            RegionDataKind.Automations => "Paste Automations",
+            _ => "Paste",
+        });
     }
 
     // 删除选区内指定类型（kind=null 全部；不清区本身）。Pitch/Automations 各自拆出（= ClearParameters 的拆分），支持粒度删/剪。
@@ -1495,7 +1502,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (kind is null or RegionDataKind.Automations)
             foreach (var automation in Part.Automations.Values)
                 automation.Clear(s, e, Settings.ParameterBoundaryExtension);
-        Part.Commit();
+        Part.Commit(kind switch
+        {
+            RegionDataKind.Notes => "Delete Notes",
+            RegionDataKind.Vibratos => "Delete Vibratos",
+            RegionDataKind.Pitch => "Erase Pitch",
+            RegionDataKind.Automations => "Edit Automation",
+            _ => "Delete Selection",
+        });
     }
 
     // 剪切选区内指定类型 = 复制 + 删除（同一 kind）。
@@ -1587,7 +1601,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             any = true;
         }
         if (any)
-            Part.Commit();
+            Part.Commit("Paste");
     }
 
     public void Cut()
@@ -1613,15 +1627,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
         {
             case PianoTool.Note:
                 Part.DeleteAllSelectedNotes();
-                Part.Commit();
+                Part.Commit("Delete Notes");
                 break;
             case PianoTool.Vibrato:
                 Part.DeleteAllSelectedVibratos();
-                Part.Commit();
+                Part.Commit("Delete Vibratos");
                 break;
             case PianoTool.Anchor:
                 Part.Pitch.DeleteAllSelectedAnchors();
-                Part.Commit();
+                Part.Commit("Erase Pitch");
                 break;
             default:
                 break;
@@ -1646,7 +1660,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
             note.Pitch.Set(note.Pitch.Value + offset);
         }
         Part.EndMergeDirty();
-        Part.Commit();
+        Part.Commit("Transpose Notes");
     }
 
     public void OctaveUp()
@@ -1715,7 +1729,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
         if (!string.IsNullOrEmpty(newLyric) && newLyric != mInputLyricNote.Lyric.Value)
         {
             mInputLyricNote.Lyric.Set(newLyric);
-            mInputLyricNote.Commit();
+            mInputLyricNote.Commit("Change Lyric", newLyric);
         }
 
         mLyricInput.IsVisible = false;
@@ -1810,7 +1824,7 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 }));
             }
         }
-        note.Commit();
+        note.Commit("Edit Properties");
     }
 
     Rect PhonemeInputRect()

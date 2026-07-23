@@ -192,7 +192,7 @@ internal partial class AutomationRenderer
             foreach (var line in mPointLines)
                 mAutomation.AddLine(line.Simplify(5, 2), Settings.ParameterBoundaryExtension);
             AutomationRenderer.Part.EndMergeDirty();
-            mAutomation.Commit();
+            mAutomation.Commit("Edit Automation");
             mAutomation = null;
             mPointLines.Clear();
             State = State.None;
@@ -254,7 +254,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             mAutomation.Clear(mStart, mEnd);
             AutomationRenderer.Part.EndMergeDirty();
-            mAutomation.Commit();
+            mAutomation.Commit("Edit Automation");
             mAutomation = null;
             State = State.None;
         }
@@ -307,7 +307,7 @@ internal partial class AutomationRenderer
             mAutomation.DiscardTo(mHead);
             mAutomation.DeletePoints(mStart, mEnd);
             AutomationRenderer.Part.EndMergeDirty();
-            mAutomation.Commit();
+            mAutomation.Commit("Edit Automation");
             mAutomation = null;
             State = State.None;
         }
@@ -371,7 +371,7 @@ internal partial class AutomationRenderer
             AutomationRenderer.Part.EndMergeDirty();
             if (mMoved || mKeepChangeWithoutMove)
             {
-                AutomationRenderer.Part.Commit();
+                AutomationRenderer.Part.Commit("Edit Automation");
             }
             else
             {

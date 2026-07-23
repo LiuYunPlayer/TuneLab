@@ -134,7 +134,7 @@ public partial class MainWindow : Window
                     return;
 
                 mEditor.Project.SetInfo(info);
-                mEditor.Project.Commit();
+                mEditor.Project.Commit("Recover Project", fileName);
                 foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
                 {
                     if (part is MidiPart midiPart)

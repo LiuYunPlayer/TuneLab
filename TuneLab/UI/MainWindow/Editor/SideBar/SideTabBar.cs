@@ -42,6 +42,7 @@ internal class SideTabBar : ListView
 
         AddTab(SideBarTab.PartProperties, "Part".Tr(this), Assets.Part);
         AddTab(SideBarTab.NoteProperties, "Note".Tr(this), Assets.Note);
+        AddTab(SideBarTab.History, "History".Tr(TC.Menu), Assets.History);
         AddTab(SideBarTab.Agent, "Agent".Tr(this), Assets.Agent);
         AddTab(SideBarTab.Script, "Script".Tr(this), Assets.Script);
         AddTab(SideBarTab.Extensions, "Extensions".Tr(this), Assets.Extensions);

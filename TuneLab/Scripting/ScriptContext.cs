@@ -31,6 +31,7 @@ internal sealed class ScriptContext
     readonly Func<string?>? mLanguage;
     readonly Func<ScriptSelection?>? mSelection;
     readonly Func<ScriptPianoSelection?>? mPianoSelection;
+    readonly string? mHistoryDetail;
     readonly Head mStartHead;   // 运行前的撤销锚点（构造时即捕获，早于任何 merge 括号/改动）；出错回退至此
     // 本次运行能否写：构造时取一次 Pushable()。脚本同步跑、运行期用户无法插入新操作，故此值全程不变——
     // 守卫只在"首次写入"时检查它（EnsureWritable），从而只读脚本即便在用户操作中途也畅通，只拦写。
@@ -46,7 +47,7 @@ internal sealed class ScriptContext
     readonly HashSet<IMidiPart> mBracketed = new();
     int mChanges;   // 发生的改动计数（>0 才 Commit）
 
-    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection)
+    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, string? historyDetail = null)
     {
         mProject = project;
         mCurrentPart = currentPart;
@@ -54,6 +55,7 @@ internal sealed class ScriptContext
         mLanguage = language;
         mSelection = selection;
         mPianoSelection = pianoSelection;
+        mHistoryDetail = historyDetail;
         mStartHead = project.Head;
         mWritable = project.Pushable();
     }
@@ -104,7 +106,7 @@ internal sealed class ScriptContext
         mBracketed.Clear();
         if (!rollback && mChanges > 0)
         {
-            mProject.Commit();
+            mProject.Commit("Run Script", mHistoryDetail);
             return true;
         }
         mProject.DiscardTo(mStartHead);

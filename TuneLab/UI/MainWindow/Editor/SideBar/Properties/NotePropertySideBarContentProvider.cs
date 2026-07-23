@@ -456,7 +456,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             IDataProperty<double> data = props.Count == 1
                 ? props[0]
                 : new MultipleDataProperty<double>(props, config.DefaultValue, v => PropertyValue.Create(v));
-            box.BindDataProperty(data, mPhonemeSub);
+            box.BindDataProperty(data, mPhonemeSub, detail: tooltip);
             return box;
         }
 
@@ -521,7 +521,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             if (head == editHead)
                 mPart.Discard();
             else
-                mPart.Commit();
+                mPart.Commit("Edit Properties", tooltip);
             // 复位抑制（编辑期被扣下的脏位自动补排），并显式标结构脏：提交后锁定成立，本 slot 转全钉死绑定路径。
             mPhonemeScheduler.Suspended = false;
             mPhonemeScheduler.InvalidateStructure();
@@ -568,7 +568,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 list.Insert(local + 1, Phoneme.Create(info));
             }
             mPart.EndMergeDirty();
-            mPart.Commit();
+            mPart.Commit("Split Phoneme");
         }));
 
         // 删除：删该位音素；删空则该 note 回到合成音素口径（空钉死列表 ≡ 合成）。
@@ -588,7 +588,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
                 }
             }
             mPart.EndMergeDirty();
-            mPart.Commit();
+            mPart.Commit("Delete Phoneme");
         }));
 
         return items;
@@ -607,7 +607,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             if (idx < note.PhonemeCount)
                 note.Phonemes[idx].Symbol.Set(symbol);
         }
-        mPart.Commit();
+        mPart.Commit("Edit Properties");
     }
 
     void PinAndApply(IReadOnlyList<(INote Note, int Index, DataPropertyObject Buffer)> members)
@@ -620,7 +620,7 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             if (idx < note.PhonemeCount)
                 note.Phonemes[idx].Properties.SetInfo(buf.GetInfo());
         }
-        mPart.Commit();
+        mPart.Commit("Edit Properties");
     }
 
     readonly StackPanel mNoteContent = new() { Orientation = Orientation.Vertical };

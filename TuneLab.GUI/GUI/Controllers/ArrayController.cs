@@ -27,16 +27,18 @@ internal abstract class ArrayControllerBase : StackPanel
     }
 
     // 绑定到（新的）数组数据外观；切换数据时清空旧行（复用的 widget 仍绑在旧 token 上）。
-    public void Bind(IDataPropertyArray array)
+    public void Bind(IDataPropertyArray array, string? detail = null)
     {
         ResetRows();
         mArray = array;
+        mDetail = detail;
     }
 
     public void Unbind()
     {
         ResetRows();
         mArray = null;
+        mDetail = null;
     }
 
     protected virtual bool Deletable => false;
@@ -66,7 +68,7 @@ internal abstract class ArrayControllerBase : StackPanel
             return;
 
         mArray.RemoveAt(index);
-        mArray.Commit();
+        mArray.Commit("Delete List Item", mDetail);
     }
 
     // 行的删除回调（Deletable 时非 null）：真实行按 token、seed 行按位置。
@@ -131,7 +133,7 @@ internal abstract class ArrayControllerBase : StackPanel
             }
             else
             {
-                nextByKey.Add(key, new ElementRow(host, key, cfg, onDelete));
+                nextByKey.Add(key, new ElementRow(host, key, cfg, mDetail, onDelete));
                 structureChanged = true; // 新建（含同 key 换类型 / seed 位物化为真实位）
             }
             nextOrder.Add(key);
@@ -195,6 +197,8 @@ internal abstract class ArrayControllerBase : StackPanel
     }
 
     protected IDataPropertyArray? mArray;
+    protected string? Detail => mDetail;
+    string? mDetail;
     IReadOnlyList<IControllerConfig> mElements = [];   // 当前各元素 config（用于 seed 物化默认值）
     readonly StackPanel mRowsPanel = new() { Orientation = Orientation.Vertical };
     Dictionary<string, ElementRow> mRowsByKey = new();
@@ -254,7 +258,7 @@ internal sealed class ListController : ArrayControllerBase
     {
         MaterializeSeed();   // 先把当前展示的 seed 行物化为真实元素，再追加——否则其余 seed 行会塌掉
         Array.Add(addable.Template.GetDefaultValue());
-        Array.Commit();
+        Array.Commit("Add List Item", Detail);
     }
 
     readonly Button mAddButton;
@@ -268,10 +272,10 @@ sealed class ElementRow : IDisposable
     public Control Root => mRoot;
     public Type ConfigType => mWidget.ConfigType;
 
-    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, Action? onDelete)
+    public ElementRow(IDataPropertyObject host, string bindKey, IControllerConfig config, string? detail, Action? onDelete)
     {
         // host = 现存位的数组外观（bindKey = token）或越界位的 SeedPositionView（bindKey 仅作行身份、视图按 position 寻址）。
-        mWidget = ElementWidget.Create(host, bindKey, config);
+        mWidget = ElementWidget.Create(host, bindKey, config, detail);
 
         mRoot = new LayerPanel { Background = Brushes.Transparent, Margin = new(24, 6, 24, 6) };
         mRoot.Children.Add(mWidget.View);   // 底层：控件填满整行
@@ -313,26 +317,26 @@ internal abstract class ElementWidget : IDisposable
 
     protected readonly DisposableManager s = new();
 
-    public static ElementWidget Create(IDataPropertyObject dataObject, string token, IControllerConfig config) => config switch
+    public static ElementWidget Create(IDataPropertyObject dataObject, string token, IControllerConfig config, string? detail = null) => config switch
     {
-        SliderConfig c => new SliderElement(dataObject, token, c),
-        TextBoxConfig c => new TextElement(dataObject, token, c),
-        ComboBoxConfig c => new ComboElement(dataObject, token, c),
-        CheckBoxConfig c => new CheckElement(dataObject, token, c),
+        SliderConfig c => new SliderElement(dataObject, token, c, detail),
+        TextBoxConfig c => new TextElement(dataObject, token, c, detail),
+        ComboBoxConfig c => new ComboElement(dataObject, token, c, detail),
+        CheckBoxConfig c => new CheckElement(dataObject, token, c, detail),
         ObjectConfig c => new ObjectElement(dataObject, token, c),
-        ArrayConfig c => new NestedArrayElement(dataObject, token, c),
-        ListConfig c => new NestedListElement(dataObject, token, c),
-        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c),
+        ArrayConfig c => new NestedArrayElement(dataObject, token, c, detail),
+        ListConfig c => new NestedListElement(dataObject, token, c, detail),
+        ExtensibleObjectConfig c => new NestedExtensibleObjectElement(dataObject, token, c, detail),
         _ => new UnknownElement(config),
     };
 
     sealed class SliderElement : ElementWidget
     {
-        public SliderElement(IDataPropertyObject dataObject, string token, SliderConfig config)
+        public SliderElement(IDataPropertyObject dataObject, string token, SliderConfig config, string? detail)
         {
             mController = new SliderController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             Apply(config);
-            mController.BindDataProperty(dataObject.DoubleField(token, config.DefaultValue), s);
+            mController.BindDataProperty(dataObject.DoubleField(token, config.DefaultValue), s, detail: detail);
         }
 
         void Apply(SliderConfig config)
@@ -352,10 +356,10 @@ internal abstract class ElementWidget : IDisposable
 
     sealed class TextElement : ElementWidget
     {
-        public TextElement(IDataPropertyObject dataObject, string token, TextBoxConfig config)
+        public TextElement(IDataPropertyObject dataObject, string token, TextBoxConfig config, string? detail)
         {
             mController = new SingleLineTextController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, IsPassword = config.IsPassword };
-            mController.BindDataProperty(dataObject.StringField(token, config.DefaultValue), s);
+            mController.BindDataProperty(dataObject.StringField(token, config.DefaultValue), s, detail: detail);
         }
 
         public override Control View => mController;
@@ -367,10 +371,11 @@ internal abstract class ElementWidget : IDisposable
 
     sealed class ComboElement : ElementWidget
     {
-        public ComboElement(IDataPropertyObject dataObject, string token, ComboBoxConfig config)
+        public ComboElement(IDataPropertyObject dataObject, string token, ComboBoxConfig config, string? detail)
         {
             mDataObject = dataObject;
             mToken = token;
+            mDetail = detail;
             mConfig = config;
             mController = new ComboBoxController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
             BindWith(config);
@@ -380,7 +385,7 @@ internal abstract class ElementWidget : IDisposable
         void BindWith(ComboBoxConfig config)
         {
             mController.SetConfig(config);
-            mController.BindDataProperty(mDataObject.ValueField(mToken, config.DefaultOption.Value), s);
+            mController.BindDataProperty(mDataObject.ValueField(mToken, config.DefaultOption.Value), s, detail: mDetail);
         }
 
         public override Control View => mController;
@@ -399,16 +404,17 @@ internal abstract class ElementWidget : IDisposable
 
         readonly IDataPropertyObject mDataObject;
         readonly string mToken;
+        readonly string? mDetail;
         readonly ComboBoxController mController;
         ComboBoxConfig mConfig;
     }
 
     sealed class CheckElement : ElementWidget
     {
-        public CheckElement(IDataPropertyObject dataObject, string token, CheckBoxConfig config)
+        public CheckElement(IDataPropertyObject dataObject, string token, CheckBoxConfig config, string? detail)
         {
             mController = new CheckBox { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-            mController.BindDataProperty(dataObject.BooleanField(token, config.DefaultValue), s);
+            mController.BindDataProperty(dataObject.BooleanField(token, config.DefaultValue), s, detail: detail);
         }
 
         public override Control View => mController;
@@ -442,9 +448,9 @@ internal abstract class ElementWidget : IDisposable
     // 数组套数组元素：嵌 ArrayController/ListController，导航进 dataObject.Array(token)。
     sealed class NestedArrayElement : ElementWidget
     {
-        public NestedArrayElement(IDataPropertyObject dataObject, string token, ArrayConfig config)
+        public NestedArrayElement(IDataPropertyObject dataObject, string token, ArrayConfig config, string? detail)
         {
-            mController.Bind(dataObject.Array(token));
+            mController.Bind(dataObject.Array(token), detail);
             mController.Apply(config);
         }
 
@@ -462,9 +468,9 @@ internal abstract class ElementWidget : IDisposable
 
     sealed class NestedListElement : ElementWidget
     {
-        public NestedListElement(IDataPropertyObject dataObject, string token, ListConfig config)
+        public NestedListElement(IDataPropertyObject dataObject, string token, ListConfig config, string? detail)
         {
-            mController.Bind(dataObject.Array(token));
+            mController.Bind(dataObject.Array(token), detail);
             mController.Apply(config);
         }
 
@@ -483,9 +489,9 @@ internal abstract class ElementWidget : IDisposable
     // 数组套变长键控对象元素：嵌 ExtensibleObjectController，导航进 dataObject.Object(token)。
     sealed class NestedExtensibleObjectElement : ElementWidget
     {
-        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config)
+        public NestedExtensibleObjectElement(IDataPropertyObject dataObject, string token, ExtensibleObjectConfig config, string? detail)
         {
-            mController.Bind(dataObject.Object(token));
+            mController.Bind(dataObject.Object(token), detail);
             mController.Apply(config);
         }
 
@@ -532,6 +538,7 @@ abstract class ForwardingDataObject(IDataObject inner) : IDataObject
     public void EndMergeNotify() => inner.EndMergeNotify();
     public bool Pushable() => inner.Pushable();
     public bool Commit() => inner.Commit();
+    public bool Commit(string description, string? detail = null) => inner.Commit(description, detail);
     public bool Discard() => inner.Discard();
     public bool DiscardTo(Head head) => inner.DiscardTo(head);
     public bool Undo() => inner.Undo();

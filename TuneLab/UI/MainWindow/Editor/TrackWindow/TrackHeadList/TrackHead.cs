@@ -36,7 +36,7 @@ internal class TrackHead : DockPanel
 {
     public TrackHead()
     {
-        mName.Bind(mTrackHolder.Select(track => track.Name), s);
+        mName.Bind(mTrackHolder.Select(track => track.Name), s, "Rename Track");
         mGainSlider.SetRange(-24, 6);
         mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).Bind(mTrackHolder.Select(track => track.Gain), s);
         mPanSlider.SetRange(-1, 1);
@@ -146,7 +146,7 @@ internal class TrackHead : DockPanel
 
                 project.RemoveTrackAt(index);
                 project.InsertTrack(index - 1, track);
-                project.Commit();
+                project.Commit("Move Track", track.Name.Value);
             });
             menu.Items.Add(menuItem);
             menu.Opening += (s, e) =>
@@ -177,7 +177,7 @@ internal class TrackHead : DockPanel
 
                 project.RemoveTrackAt(index);
                 project.InsertTrack(index + 1, track);
-                project.Commit();
+                project.Commit("Move Track", track.Name.Value);
             });
             menu.Items.Add(menuItem);
             menu.Opening += (s, e) =>
@@ -218,7 +218,7 @@ internal class TrackHead : DockPanel
                             return;
 
                         Track.Color.Set(((Color)colorItem.Tag).ToString());
-                        Track.Color.Commit();
+                        Track.Color.Commit("Set Track Color", Track.Name.Value);
                     });
                     menuItem.Items.Add(colorItem);
                 }
@@ -233,7 +233,7 @@ internal class TrackHead : DockPanel
                     return;
 
                 track.AsRefer.Set(!track.AsRefer.GetInfo());
-                track.AsRefer.Commit();
+                track.AsRefer.Commit(track.AsRefer.GetInfo() ? "Visible as Refer" : "Hidden as Refer", track.Name.Value);
             });
             menu.Items.Add(menuItem);
             menu.Opening += (s, e) =>
@@ -251,8 +251,9 @@ internal class TrackHead : DockPanel
                     return;
 
                 var project = Track.Project;
+                var trackName = Track.Name.Value;
                 project.RemoveTrack(Track);
-                project.Commit();
+                project.Commit("Delete Track", trackName);
             });
             menu.Items.Add(menuItem);
         }
@@ -419,7 +420,7 @@ internal class TrackHead : DockPanel
         {
             project.RemoveTrackAt(index);
             project.InsertTrack(newIndex, track);
-            project.Commit();
+            project.Commit("Move Track", track.Name.Value);
         }
     }
 

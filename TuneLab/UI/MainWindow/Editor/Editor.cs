@@ -59,6 +59,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; } = new NotifiableProperty<PlayScrollTarget>(UI.PlayScrollTarget.None);
     public Editor()
     {
+        mHistorySideBarContentProvider = new(mDocument);
         Background = Style.BACK.ToBrush();
         Focusable = true;
         IsTabStop = false;
@@ -201,14 +202,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
         mRightSideTabBar.SelectedTab.Modified.Subscribe(() =>
         {
+            var selectedTab = mRightSideTabBar.SelectedTab.Value;
+            mHistorySideBarContentProvider.SetActive(selectedTab == SideBarTab.History);
             mRightSideBar.IsVisible = true;
-            switch (mRightSideTabBar.SelectedTab.Value)
+            switch (selectedTab)
             {
                 case SideBarTab.PartProperties:
                     mRightSideBar.SetContent(SideBarTab.PartProperties, mPartPropertySideBarContentProvider.Content);
                     break;
                 case SideBarTab.NoteProperties:
                     mRightSideBar.SetContent(SideBarTab.NoteProperties, mNotePropertySideBarContentProvider.Content);
+                    break;
+                case SideBarTab.History:
+                    mRightSideBar.SetFullContent(SideBarTab.History, mHistorySideBarContentProvider.Icon, mHistorySideBarContentProvider.Name, mHistorySideBarContentProvider.Root);
                     break;
                 case SideBarTab.Extensions:
                     mExtensionSideBarContentProvider.RefreshExtensions();
@@ -1051,7 +1057,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return;
 
         project.NewTrack();
-        project.Commit();
+        project.Commit("Add Track", project.Tracks[project.Tracks.Count - 1].Name.Value);
     }
 
     public void ImportAudio()
@@ -1573,6 +1579,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
     readonly AgentSideBarContentProvider mAgentSideBarContentProvider = new();
     readonly ScriptSideBarContentProvider mScriptSideBarContentProvider = new();
+    readonly HistorySideBarContentProvider mHistorySideBarContentProvider;
 
     readonly PlayheadForProject mPlayhead;
 
