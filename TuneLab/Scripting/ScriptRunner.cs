@@ -5,9 +5,11 @@ using System.Threading;
 using Jint;
 using Jint.Native;
 using Jint.Native.Function;
+using Jint.Native.Object;
 using Jint.Runtime.Interop;
 using TuneLab.Data;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 
 namespace TuneLab.Scripting;
 
@@ -39,7 +41,7 @@ internal static class ScriptRunner
     // 沙箱化引擎工厂（运行与元数据枚举共用）：不开 CLR；限递归/语句数/内存/超时；camelCase→PascalCase。
     internal static Engine CreateEngine(ScriptLimits limits, CancellationToken cancellationToken)
     {
-        return new Engine(options =>
+        var engine = new Engine(options =>
         {
             options.LimitRecursion(64);
             options.MaxStatements(limits.MaxStatements);
@@ -50,9 +52,14 @@ internal static class ScriptRunner
             // 让 JS 的 camelCase 成员名匹配 C# 的 PascalCase（tl.addNote → AddNote、note.pos → Pos、tl.language → Language）。
             options.SetTypeResolver(new TypeResolver { MemberNameComparer = StringComparer.OrdinalIgnoreCase });
         });
+        // config 构造门面（SliderConfig/ComboBoxConfig/… + NormalizedScale/NumberFormat）为脚本全局，供 getInputConfig 造入参 schema。
+        // 无上下文、纯构造，对不用入参的脚本/元数据枚举无害。
+        ScriptConfigs.Register(engine);
+        return engine;
     }
 
-    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken)
+    // inputs：工具脚本（定义了 getScriptInfo）的入参值，作为对象传给 main(inputs)；普通脚本与无入参脚本传空对象即忽略。
+    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null)
     {
         // 写守卫不在入口、而下沉到首次写入（ScriptContext.EnsureWritable）：只读脚本即便在用户操作中途也畅通，只拦写。
         var context = new ScriptContext(project, currentPart, quantization, language, selection, pianoSelection);
@@ -80,8 +87,9 @@ internal static class ScriptRunner
             var completion = engine.Evaluate(code);
             if (engine.GetValue("getScriptInfo") is Function)
             {
-                // 工具脚本：动作在 main()。其返回值（若有）作为结果文本。
-                var mainResult = engine.Invoke("main");
+                // 工具脚本：动作在 main(inputs)。其返回值（若有）作为结果文本。
+                var inputsJs = ScriptConfigs.ToJsObject(engine, inputs ?? PropertyObject.Empty);
+                var mainResult = engine.Invoke("main", inputsJs);
                 if (mainResult is not null && !mainResult.IsUndefined() && !mainResult.IsNull())
                     resultText = Format(mainResult);
             }
@@ -113,6 +121,43 @@ internal static class ScriptRunner
         // 收口：成功且有改动 → 提交成一个可撤销单位；出错/取消/无改动 → 原子回退到跑脚本前的干净状态。
         bool committed = context.Finish(rollback: error != null);
         return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount, blocked);
+    }
+
+    // 取脚本的入参 config：eval 顶层 → 若定义了 getInputConfig 则以 {values: currentValues} 为上下文调用、把返回的
+    // "键→config 句柄" map 拼成 ObjectConfig。currentValues 让条件式入参随已填值重算（响应式），getInputConfig 里亦可读
+    // tl.selectedNotes() 等工程上下文。返回 (Config, Error)：
+    //  · Config!=null            → 该脚本有入参；
+    //  · Config==null,Error==null → 无 getInputConfig（无入参脚本）；
+    //  · Error!=null             → getInputConfig eval/调用/解析失败（消息回报调用方）。
+    // getInputConfig 约定无副作用；任何误改在 finally 原子回退（写守卫在首次写入兜底，只读天然畅通）。
+    public static (ObjectConfig? Config, string? Error) GetInputConfig(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, string code, PropertyObject currentValues, CancellationToken cancellationToken)
+    {
+        var context = new ScriptContext(project, currentPart, quantization, language, selection, pianoSelection);
+        try
+        {
+            var engine = CreateEngine(ScriptLimits.Interactive, cancellationToken);
+            engine.SetValue("tl", new ScriptApp(context));
+            engine.SetValue("print", (Action<JsValue>)(_ => { }));
+            engine.SetValue("log", (Action<JsValue>)(_ => { }));
+            engine.Execute("globalThis.console = { log: print, info: print, warn: print, error: print, debug: print };");
+
+            engine.Execute(code);   // 顶层：约定只定义函数、无副作用
+            if (engine.GetValue("getInputConfig") is not Function)
+                return (null, null);   // 无入参脚本
+
+            var ctx = new JsObject(engine);
+            ctx.Set("values", ScriptConfigs.ToJsObject(engine, currentValues));
+            var result = engine.Invoke("getInputConfig", ctx);
+            return (ScriptConfigs.BuildInputConfig(result), null);
+        }
+        catch (Exception ex)
+        {
+            return (null, ex.Message);
+        }
+        finally
+        {
+            context.Finish(rollback: true);
+        }
     }
 
     internal static string Format(JsValue v)

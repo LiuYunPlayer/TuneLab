@@ -93,6 +93,23 @@ internal static class ScriptApiReference
         "  id (optional): a STABLE keybinding/settings anchor, independent of the filename — set it once, never change it after publishing, so renaming/reinstalling keeps the user's shortcut. Chars: A-Z a-z 0-9 . _ -. Omit it and the filename is the id (renaming then drops the binding).\n" +
         "  defaultGesture (optional): a suggested shortcut like 'mod+shift+k' (mod = Cmd on macOS / Ctrl on Windows; or write ctrl/cmd/alt/shift literally). Applied only if that key is free in the script's area; it NEVER overrides a built-in. Users can rebind in Settings.\n" +
         "  main() runs as ONE undoable change; on any error EVERYTHING rolls back. A script WITHOUT getScriptInfo is a plain run-once script (Script side panel only, never in menus).\n" +
+        "\n" +
+        "INPUTS (optional) — to prompt the user for parameters before the tool runs, define getInputConfig; the host renders a form from it and passes the filled values to main(inputs):\n" +
+        "  function getInputConfig(ctx) { return { semitones: SliderConfig.integer(12, -24, 24), harmony: CheckBoxConfig.create(true) }; }\n" +
+        "  function main(inputs) { for (const n of tl.currentPart().selectedNotes()) n.pitch += inputs.semitones; }\n" +
+        "  · Returns a MAP of input-name -> a config built with the builders below (NOT plain data). The key is the field's label.\n" +
+        "  · ctx.values = the values entered so far, and it is SPARSE: only keys the user actually changed are present; a key not yet set reads `undefined`. So in getInputConfig ALWAYS default it: `const mode = ctx.values.mode ?? 'transpose'`. getInputConfig is re-run on every change, so branch on ctx.values to add/remove fields (conditional inputs). You may also read tl.currentPart()/selectedNotes() etc. here as context. It MUST be side-effect-free (declaration only; do the work in main).\n" +
+        "  · main's `inputs` is the opposite — FULL: every field you declared is present (the user's value, or its config default). Read them directly, no presence check.\n" +
+        "  Config builders (names mirror the C# config classes; methods are camelCase). ComboBox default is the VALUE, not an index:\n" +
+        "    SliderConfig.linear(default, min, max) / SliderConfig.integer(default, min, max)   [.withFormat(NumberFormat.decimals(n))]\n" +
+        "    DraggableNumberBoxConfig.create(default) / .integer(default)   [.withMin(x) / .withMax(x) / .withRange(a,b) / .withStep(s)]\n" +
+        "    ComboBoxConfig.create(['a','b']) or .create()   [.append(x) / .appendSeparator() / .withDefault('a')]\n" +
+        "    CheckBoxConfig.create(false)      TextBoxConfig.create('')   [.withPassword()]\n" +
+        "  A tool WITHOUT getInputConfig just runs main() with no dialog (main may ignore its argument).\n" +
+        "  EXAMPLE tool with inputs — 'Transpose' asking for the interval:\n" +
+        "    function getScriptInfo() { return { name: 'Transpose', context: 'note' }; }\n" +
+        "    function getInputConfig(ctx) { return { semitones: SliderConfig.integer(12, -24, 24) }; }\n" +
+        "    function main(inputs) { for (const n of tl.currentPart().selectedNotes()) n.pitch += inputs.semitones; }\n" +
         "  EXAMPLE tool — 'Add Third Harmony' on selected notes:\n" +
         "    function getScriptInfo() { return { name: tl.language === 'zh-CN' ? '加三度和声' : 'Add Third Harmony', context: 'note' }; }\n" +
         "    function main() { const p = tl.currentPart(); for (const n of p.selectedNotes()) p.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 4, lyric: n.lyric }); }";

@@ -47,6 +47,7 @@ internal static class ScriptArgs
     public static string? AsStrOrNull(JsValue v) => v is null || v.IsUndefined() || v.IsNull() ? null : (v.IsString() ? v.AsString() : v.ToString());
     public static double? AsNumOrNull(JsValue v) => v is not null && v.IsNumber() ? v.AsNumber() : null;
     public static int? AsIntOrNull(JsValue v) => AsNumOrNull(v) is { } d ? (int)Math.Round(d) : null;
+    public static bool? AsBoolOrNull(JsValue v) => v is not null && v.IsBoolean() ? v.AsBoolean() : null;
 
     // points = [{tick, value}]（绝对 tick / 参数绝对值）。返回 (X=tick, Y=value) 的点列表（未排序）。
     public static List<Point> ReadPoints(JsValue points)

@@ -289,15 +289,36 @@ internal sealed class ScriptSideBarContentProvider
         return b;
     }
 
-    void Run()
+    // async void：即席脚本若定义了 getInputConfig，先弹响应式入参窗（与菜单/快捷键一致）。即席代码无稳定 id，故弹窗但不持久化上次值。
+    async void Run()
     {
         var project = mProject;
         if (project == null) { mOutputBox.Text = "No project is open.".Tr(this); return; }
         string code = mCodeBox.Text ?? "";
         if (string.IsNullOrWhiteSpace(code)) { mOutputBox.Text = "Script is empty.".Tr(this); return; }
 
+        Func<string?> lang = () => TranslationManager.CurrentLanguage.Value;
+        PropertyObject? inputs = null;
+        var (schema, schemaError) = ScriptRunner.GetInputConfig(project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, code, PropertyObject.Empty, CancellationToken.None);
+        if (schemaError != null) { mOutputBox.Text = "✗ getInputConfig error: " + schemaError; return; }
+        if (schema != null)
+        {
+            var owner = TopLevel.GetTopLevel(mCodeBox) as Window;
+            if (owner != null)
+            {
+                var window = new ScriptInputWindow("Script".Tr(this), schema,
+                    vals => ScriptRunner.GetInputConfig(mProject ?? project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, code, vals, CancellationToken.None),
+                    PropertyObject.Empty);
+                var picked = await window.ShowDialog<PropertyObject?>(owner);
+                if (picked == null) return;   // 取消
+                // 供 main 的全量入参：以 picked 现算 schema 补默认（即席脚本无持久化，不存稀疏）。
+                var (finalSchema, _) = ScriptRunner.GetInputConfig(mProject ?? project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, code, picked, CancellationToken.None);
+                inputs = finalSchema != null ? ScriptConfigs.FillDefaults(finalSchema, picked) : picked;
+            }
+        }
+
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, () => TranslationManager.CurrentLanguage.Value, mSelection, mPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None); }
+        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs); }
         catch (Exception ex) { mOutputBox.Text = "Host error: ".Tr(this) + ex.Message; return; }
 
         var sb = new System.Text.StringBuilder();

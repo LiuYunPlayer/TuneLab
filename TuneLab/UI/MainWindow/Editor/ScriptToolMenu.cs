@@ -7,8 +7,10 @@ using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.I18N;
+using TuneLab.Configs;
 using TuneLab.Input;
 using TuneLab.Scripting;
+using TuneLab.SDK;
 using TuneLab.Utils;
 using KeyBinding = TuneLab.GUI.Input.KeyBinding;
 
@@ -212,7 +214,10 @@ internal static class ScriptToolMenu
         return item;
     }
 
-    static void Run(ScriptToolInfo tool, Control anchor)
+    static Func<string?> Lang => () => TranslationManager.CurrentLanguage.Value;
+
+    // async void：由菜单/快捷键的 UI 事件触发，需 await 入参窗的 ShowDialog。
+    static async void Run(ScriptToolInfo tool, Control anchor)
     {
         var project = sProject?.Invoke();
         if (project == null) return;
@@ -225,8 +230,40 @@ internal static class ScriptToolMenu
             return;
         }
 
+        // 入参：脚本定义了 getInputConfig 则弹响应式入参窗；否则直接跑。初值 = 该脚本上次输入（无则空 = 各字段默认）。
+        PropertyObject? inputs = null;
+        string scriptId = IsValidDeclaredId(tool.DeclaredId) ? tool.DeclaredId! : tool.ScriptName;
+        var initialValues = ScriptInputMemory.Load(scriptId);
+        var (schema, schemaError) = ScriptRunner.GetInputConfig(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, code, initialValues, CancellationToken.None);
+        if (schemaError != null)
+        {
+            _ = anchor.ShowMessage("Script".Tr(TC.Menu), "getInputConfig error:".Tr(TC.Dialog) + " " + schemaError);
+            return;
+        }
+        if (schema != null)
+        {
+            var owner = TopLevel.GetTopLevel(anchor) as Window;
+            if (owner != null)
+            {
+                var window = new ScriptInputWindow(tool.DisplayName, schema,
+                    vals => ScriptRunner.GetInputConfig(sProject?.Invoke() ?? project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, code, vals, CancellationToken.None),
+                    initialValues);
+                var picked = await window.ShowDialog<PropertyObject?>(owner);
+                if (picked == null)
+                    return;   // 用户取消
+                ScriptInputMemory.Save(scriptId, picked);   // 记住本次输入（稀疏，只存改过的键），下次开窗回填
+                // 供 main 的全量入参：以 picked 现算 schema（条件字段依 picked），补默认；只作用于运行入参、不回存。
+                var (finalSchema, _) = ScriptRunner.GetInputConfig(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, code, picked, CancellationToken.None);
+                inputs = finalSchema != null ? ScriptConfigs.FillDefaults(finalSchema, picked) : picked;
+            }
+            else
+            {
+                inputs = ScriptConfigs.FillDefaults(schema, initialValues);   // 无宿主窗兜底：用上次/默认补齐
+            }
+        }
+
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, () => TranslationManager.CurrentLanguage.Value, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None); }
+        try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs); }
         catch (Exception ex)
         {
             _ = anchor.ShowMessage("Script".Tr(TC.Menu), "Host error:".Tr(TC.Dialog) + " " + ex.Message);
