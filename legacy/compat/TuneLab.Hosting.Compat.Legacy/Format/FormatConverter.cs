@@ -15,45 +15,19 @@ namespace TuneLab.Hosting.Compat.Legacy.Format;
 internal static class FormatConverter
 {
     // ── ProjectInfo ──
+    // V1(TuneLab.SDK) 已把 editor/export 移出通用交换契约（宿主私有元数据）；legacy 侧 ProjectInfo 仍保留 EditorInfo/ExportConfig，
+    // 跨代转换时如实丢弃（交换格式不携带 app 私有元数据，符合"降级为知情差异"预期）。
     public static New.ProjectInfo ToV1(this Old.ProjectInfo o) => new()
     {
-        EditorInfo = o.EditorInfo.ToV1(),
         Tempos = o.Tempos.Select(ToV1).ToList(),
         TimeSignatures = o.TimeSignatures.Select(ToV1).ToList(),
         Tracks = o.Tracks.Select(ToV1).ToList(),
-        ExportConfig = o.ExportConfig.ToV1(),
     };
     public static Old.ProjectInfo ToLegacy(this New.ProjectInfo n) => new()
     {
-        EditorInfo = n.EditorInfo.ToLegacy(),
         Tempos = n.Tempos.Select(ToLegacy).ToList(),
         TimeSignatures = n.TimeSignatures.Select(ToLegacy).ToList(),
         Tracks = n.Tracks.Select(ToLegacy).ToList(),
-        ExportConfig = n.ExportConfig.ToLegacy(),
-    };
-
-    // ── EditorInfo ──
-    public static New.EditorInfo ToV1(this Old.EditorInfo o) => new() { PlayheadPos = o.PlayheadPos };
-    public static Old.EditorInfo ToLegacy(this New.EditorInfo n) => new() { PlayheadPos = n.PlayheadPos };
-
-    // ── ExportConfigInfo ──
-    public static New.ExportConfigInfo ToV1(this Old.ExportConfigInfo o) => new()
-    {
-        ExportPath = o.ExportPath,
-        FileName = o.FileName,
-        SampleRate = o.SampleRate,
-        BitDepth = o.BitDepth,
-        MasterExportEnabled = o.MasterExportEnabled,
-        MasterExportChannels = o.MasterExportChannels,
-    };
-    public static Old.ExportConfigInfo ToLegacy(this New.ExportConfigInfo n) => new()
-    {
-        ExportPath = n.ExportPath,
-        FileName = n.FileName,
-        SampleRate = n.SampleRate,
-        BitDepth = n.BitDepth,
-        MasterExportEnabled = n.MasterExportEnabled,
-        MasterExportChannels = n.MasterExportChannels,
     };
 
     // ── TempoInfo ──

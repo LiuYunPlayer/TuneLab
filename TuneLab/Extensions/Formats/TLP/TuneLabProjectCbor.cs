@@ -9,7 +9,7 @@ using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Formats.TLP;
 
-internal class TuneLabProjectCbor : IImportFormat, IExportFormat
+internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProjectFormat
 {
     // v0 = 唯一发布过的 legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1 = 当前 2.0.0（part 几何锚点 Pos+StartOffset+EndOffset、
     // 音素结构化双列表 leadingPhonemes/bodyPhonemes + bodyOffset）。2.0.0 未发布，dev 期间的中间 bump 不占发布版本号——折叠回 v1；
@@ -19,30 +19,42 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
     // 读取期工程版本（ReadProject 起始重置为 0=legacy；version 字段恒先于 tracks 写出，故 note/音素读到时已就位）。
     int mReadVersion;
 
-    public ProjectInfo Deserialize(Stream streamToRead)
+    // 通用 musical 入口：走 native 逻辑但只取 musical 段（交换格式不携带 app 私有元数据）。
+    public ProjectInfo Deserialize(Stream streamToRead) => DeserializeNative(streamToRead).Project;
+
+    public NativeProjectFile DeserializeNative(Stream streamToRead)
     {
+        var file = new NativeProjectFile();
+
         using var memoryStream = new MemoryStream();
         streamToRead.CopyTo(memoryStream);
         var bytes = memoryStream.ToArray();
 
         var reader = new CborReader(bytes);
-        return ReadProject(reader);
+        ReadProject(reader, file);
+        return file;
     }
 
+    // 通用 musical 出口：用默认空 editor/export 写（交换格式不携带 app 私有元数据）。
     public void Serialize(Stream output, ProjectInfo projectInfo)
+        => SerializeNative(output, new NativeProjectFile { Project = projectInfo });
+
+    public void SerializeNative(Stream output, NativeProjectFile file)
     {
         var writer = new CborWriter();
-        WriteProject(writer, projectInfo);
+        WriteProject(writer, file);
         var bytes = writer.Encode();
         output.Write(bytes, 0, bytes.Length);
     }
 
     #region Read Methods
 
-    private ProjectInfo ReadProject(CborReader reader)
+    private void ReadProject(CborReader reader, NativeProjectFile file)
     {
         mReadVersion = 0;   // 缺省 legacy；version 字段写在最前，notes 之前必已读到
-        var projectInfo = new ProjectInfo();
+        var projectInfo = file.Project;
+        var editor = file.Editor;
+        var export = file.Export;
 
         reader.ReadStartMap();
         while (reader.PeekState() != CborReaderState.EndMap)
@@ -57,7 +69,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     mReadVersion = version;
                     break;
                 case "editorInfo":
-                    ReadEditorInfo(reader, projectInfo.EditorInfo);
+                    ReadEditorInfo(reader, editor);
                     break;
                 case "tempos":
                     ReadTempos(reader, projectInfo.Tempos);
@@ -69,7 +81,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
                     ReadTracks(reader, projectInfo.Tracks);
                     break;
                 case "exportConfig":
-                    ReadExportConfig(reader, projectInfo.ExportConfig);
+                    ReadExportConfig(reader, export);
                     break;
                 default:
                     reader.SkipValue();
@@ -77,8 +89,6 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
             }
         }
         reader.ReadEndMap();
-
-        return projectInfo;
     }
 
     private void ReadEditorInfo(CborReader reader, EditorInfo editorInfo)
@@ -819,15 +829,16 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
 
     #region Write Methods
 
-    private void WriteProject(CborWriter writer, ProjectInfo projectInfo)
+    private void WriteProject(CborWriter writer, NativeProjectFile file)
     {
+        var projectInfo = file.Project;
         writer.WriteStartMap(null); // indefinite-length map
 
         writer.WriteTextString("version");
         writer.WriteInt32(CURRENT_VERSION);
 
         writer.WriteTextString("editorInfo");
-        WriteEditorInfo(writer, projectInfo.EditorInfo);
+        WriteEditorInfo(writer, file.Editor);
 
         writer.WriteTextString("tempos");
         WriteTempos(writer, projectInfo.Tempos);
@@ -839,7 +850,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat
         WriteTracks(writer, projectInfo.Tracks);
 
         writer.WriteTextString("exportConfig");
-        WriteExportConfig(writer, projectInfo.ExportConfig);
+        WriteExportConfig(writer, file.Export);
 
         writer.WriteEndMap();
     }

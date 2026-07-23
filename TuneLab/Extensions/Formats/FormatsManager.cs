@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using TuneLab.Extensions;
+using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -140,6 +141,74 @@ internal static class FormatsManager
             // 序列化抛错时目标文件尚未开写。插件只管往宿主给的流里写（见 IExportFormat.Serialize 契约）。
             var buffer = new MemoryStream();
             exportFormat.Serialize(buffer, info);
+            buffer.Position = 0;
+            stream = buffer;
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return false;
+        }
+    }
+
+    // native-aware 打开：装载完整 NativeProjectFile（musical 工程 + 宿主私有 editor/export 元数据）。
+    // importer 实现 INativeProjectFormat（native .tlp/.tlpx）时走 native 路径；否则（foreign）退化为普通 Deserialize，
+    // 把 ProjectInfo 包进 NativeProjectFile（Editor/Export 默认）。
+    // 【异名不重载】：out 参数类型不参与重载决议，若与 musical Deserialize 同名会让 `out var` 调用点二义，故独立命名。
+    public static bool DeserializeNative(string filePath, [NotNullWhen(true)] out NativeProjectFile? file, [NotNullWhen(false)] out string? error)
+    {
+        file = null;
+        error = null;
+
+        try
+        {
+            var fileInfo = new FileInfo(filePath);
+
+            var format = fileInfo.Extension.TrimStart('.');
+            var provider = ActiveImporter(format);
+            if (provider?.ImportFactory == null)
+            {
+                throw new Exception(string.Format("Format {0} is not support!", format));
+            }
+
+            using var stream = File.OpenRead(filePath);
+            IImportFormat importFormat = provider.ImportFactory.Invoke();
+            file = importFormat is INativeProjectFormat native
+                ? native.DeserializeNative(stream)
+                : new NativeProjectFile { Project = importFormat.Deserialize(stream) };
+            return true;
+        }
+        catch (Exception e)
+        {
+            error = e.Message;
+            return false;
+        }
+    }
+
+    // native-aware 保存：把宿主私有的 editor/export 元数据随 musical 工程一并写出。exporter 实现
+    // INativeProjectFormat（native .tlp/.tlpx）时走 native 路径；否则（foreign）委托到 musical
+    // Serialize(file.Project, ...)——musical Serialize 因此成为 foreign 的兜底实现（非死代码）。
+    public static bool SerializeNative(NativeProjectFile file, string format, [NotNullWhen(true)] out Stream? stream, [NotNullWhen(false)] out string? error)
+    {
+        stream = null;
+        error = null;
+
+        try
+        {
+            var provider = ActiveExporter(format);
+            if (provider?.ExportFactory == null)
+            {
+                throw new Exception(string.Format("Format {0} is not support!", format));
+            }
+
+            IExportFormat exportFormat = provider.ExportFactory.Invoke();
+            if (exportFormat is not INativeProjectFormat native)
+                return Serialize(file.Project, format, out stream, out error);
+
+            // 与 musical 重载同：缓冲进 MemoryStream 保原子写语义（失败不落半截文件）。
+            var buffer = new MemoryStream();
+            native.SerializeNative(buffer, file);
             buffer.Position = 0;
             stream = buffer;
             return true;

@@ -76,10 +76,6 @@ TuneLab.SDK.DraggableNumberBoxConfig.WithRange(double min, double max) -> TuneLa
 TuneLab.SDK.DraggableNumberBoxConfig.WithResponse(TuneLab.SDK.IDragResponse! response) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithSensitivity(double sensitivity) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithStep(double step) -> TuneLab.SDK.DraggableNumberBoxConfig!
-TuneLab.SDK.EditorInfo
-TuneLab.SDK.EditorInfo.EditorInfo() -> void
-TuneLab.SDK.EditorInfo.PlayheadPos.get -> double
-TuneLab.SDK.EditorInfo.PlayheadPos.set -> void
 TuneLab.SDK.EffectInfo
 TuneLab.SDK.EffectInfo.Automations.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.AutomationInfo!>!
 TuneLab.SDK.EffectInfo.Automations.set -> void
@@ -100,24 +96,6 @@ TuneLab.SDK.EffectSynthesisSnapshot.Automations.init -> void
 TuneLab.SDK.EffectSynthesisSnapshot.EffectSynthesisSnapshot() -> void
 TuneLab.SDK.EffectSynthesisSnapshot.Properties.get -> TuneLab.Foundation.PropertyObject!
 TuneLab.SDK.EffectSynthesisSnapshot.Properties.init -> void
-TuneLab.SDK.ExportConfigInfo
-TuneLab.SDK.ExportConfigInfo.BitDepth.get -> int
-TuneLab.SDK.ExportConfigInfo.BitDepth.set -> void
-TuneLab.SDK.ExportConfigInfo.Bitrate.get -> int
-TuneLab.SDK.ExportConfigInfo.Bitrate.set -> void
-TuneLab.SDK.ExportConfigInfo.ExportConfigInfo() -> void
-TuneLab.SDK.ExportConfigInfo.ExportPath.get -> string!
-TuneLab.SDK.ExportConfigInfo.ExportPath.set -> void
-TuneLab.SDK.ExportConfigInfo.FileName.get -> string!
-TuneLab.SDK.ExportConfigInfo.FileName.set -> void
-TuneLab.SDK.ExportConfigInfo.Format.get -> string!
-TuneLab.SDK.ExportConfigInfo.Format.set -> void
-TuneLab.SDK.ExportConfigInfo.MasterExportChannels.get -> int
-TuneLab.SDK.ExportConfigInfo.MasterExportChannels.set -> void
-TuneLab.SDK.ExportConfigInfo.MasterExportEnabled.get -> bool
-TuneLab.SDK.ExportConfigInfo.MasterExportEnabled.set -> void
-TuneLab.SDK.ExportConfigInfo.SampleRate.get -> int
-TuneLab.SDK.ExportConfigInfo.SampleRate.set -> void
 TuneLab.SDK.ExtensibleObjectConfig
 TuneLab.SDK.ExtensibleObjectConfig.AddableElements.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.AddableKey>!
 TuneLab.SDK.ExtensibleObjectConfig.Properties.get -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.IControllerConfig!>!
@@ -416,10 +394,6 @@ TuneLab.SDK.PhonemeTiming.PhonemeTiming() -> void
 TuneLab.SDK.PhonemeTiming.PhonemeTiming(double start, double end) -> void
 TuneLab.SDK.PhonemeTiming.Start.get -> double
 TuneLab.SDK.ProjectInfo
-TuneLab.SDK.ProjectInfo.EditorInfo.get -> TuneLab.SDK.EditorInfo!
-TuneLab.SDK.ProjectInfo.EditorInfo.set -> void
-TuneLab.SDK.ProjectInfo.ExportConfig.get -> TuneLab.SDK.ExportConfigInfo!
-TuneLab.SDK.ProjectInfo.ExportConfig.set -> void
 TuneLab.SDK.ProjectInfo.ProjectInfo() -> void
 TuneLab.SDK.ProjectInfo.Tempos.get -> System.Collections.Generic.List<TuneLab.SDK.TempoInfo!>!
 TuneLab.SDK.ProjectInfo.Tempos.set -> void

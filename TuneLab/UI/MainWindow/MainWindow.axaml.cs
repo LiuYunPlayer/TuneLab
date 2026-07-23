@@ -117,7 +117,8 @@ public partial class MainWindow : Window
             modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal);
             modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
             {
-                if (!FormatsManager.Deserialize(path, out var info, out var error))
+                // 崩溃恢复打开的是完整 native 工程（autosave .tlp/.tlpx）：走 native 路径恢复 editor/export 元数据。
+                if (!FormatsManager.DeserializeNative(path, out var file, out var error))
                 {
                     Log.Error("Open file error: " + error);
                     return;
@@ -133,7 +134,9 @@ public partial class MainWindow : Window
                 if (mEditor.Project == null)
                     return;
 
-                mEditor.Project.SetInfo(info);
+                mEditor.Project.SetInfo(file.Project);
+                mEditor.Project.SetExportConfig(file.Export);
+                mEditor.Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
                 mEditor.Project.Commit();
                 foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
                 {

@@ -14,20 +14,27 @@ using TuneLab.Utils;
 
 namespace TuneLab.Extensions.Formats.TLP;
 
-internal class TuneLabProject : IImportFormat, IExportFormat
+internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectFormat
 {
     // v0 = 唯一发布过的 legacy 1.x（几何存 dur、老音素 startTime/endTime）；v1 = 当前 2.0.0（part 几何锚点 Pos+StartOffset+EndOffset、
     // 音素结构化双列表 leadingPhonemes/bodyPhonemes + bodyOffset）。2.0.0 未发布，dev 期间的中间 bump 不占发布版本号——折叠回 v1；
     // legacy 判据几何与音素统一为 version<1（仅 v0）。
     // internal：part preset 文件（Presets.json）与本格式共用叶子序列化（DataInfoJsonUtils），版本号同号跟随。
     internal const int CURRENT_VERSION = 1;
-    public ProjectInfo Deserialize(Stream streamToRead)
+
+    // 通用 musical 入口：走 native 逻辑但只取 musical 段（交换格式不携带 app 私有元数据）。
+    public ProjectInfo Deserialize(Stream streamToRead) => DeserializeNative(streamToRead).Project;
+
+    public NativeProjectFile DeserializeNative(Stream streamToRead)
     {
+        // JSON 格式不存 playhead：editor 段恒默认（与历史行为一致）。export 段从 exportConfig 块填充。
+        var file = new NativeProjectFile();
+        var export = file.Export;
         using (StreamReader reader = new StreamReader(streamToRead, Encoding.UTF8))
         {
             string content = reader.ReadToEnd();
 
-            var projectInfo = new ProjectInfo();
+            var projectInfo = file.Project;
             JObject? project = JsonConvert.DeserializeObject<JObject>(content);
             if (project == null)
                 throw new Exception("Json deserialization failed!");
@@ -277,29 +284,36 @@ internal class TuneLabProject : IImportFormat, IExportFormat
             if (project.TryGetValue("exportConfig", out var exportConfig) && exportConfig is JObject exportConfigObj)
             {
                 if (exportConfigObj.TryGetValue("exportPath", out var exportPath))
-                    projectInfo.ExportConfig.ExportPath = (string)exportPath;
+                    export.ExportPath = (string)exportPath;
                 if (exportConfigObj.TryGetValue("fileName", out var fileName))
-                    projectInfo.ExportConfig.FileName = (string)fileName;
+                    export.FileName = (string)fileName;
                 if (exportConfigObj.TryGetValue("format", out var format))
-                    projectInfo.ExportConfig.Format = (string)format;
+                    export.Format = (string)format;
                 if (exportConfigObj.TryGetValue("sampleRate", out var sampleRate))
-                    projectInfo.ExportConfig.SampleRate = (int)sampleRate;
+                    export.SampleRate = (int)sampleRate;
                 if (exportConfigObj.TryGetValue("bitDepth", out var bitDepth))
-                    projectInfo.ExportConfig.BitDepth = (int)bitDepth;
+                    export.BitDepth = (int)bitDepth;
                 if (exportConfigObj.TryGetValue("bitrate", out var bitrate))
-                    projectInfo.ExportConfig.Bitrate = (int)bitrate;
+                    export.Bitrate = (int)bitrate;
                 if (exportConfigObj.TryGetValue("masterExportEnabled", out var masterExportEnabled))
-                    projectInfo.ExportConfig.MasterExportEnabled = (bool)masterExportEnabled;
+                    export.MasterExportEnabled = (bool)masterExportEnabled;
                 if (exportConfigObj.TryGetValue("masterExportChannels", out var masterExportChannels))
-                    projectInfo.ExportConfig.MasterExportChannels = (int)masterExportChannels;
+                    export.MasterExportChannels = (int)masterExportChannels;
             }
 
-            return projectInfo;
+            return file;
         }
     }
 
+    // 通用 musical 出口：用默认空 editor/export 写（交换格式不携带 app 私有元数据）。
     public void Serialize(Stream output, ProjectInfo projectInfo)
+        => SerializeNative(output, new NativeProjectFile { Project = projectInfo });
+
+    public void SerializeNative(Stream output, NativeProjectFile file)
     {
+        // JSON 格式历史上不写 playhead：file.Editor 被忽略（行为保持）。
+        var projectInfo = file.Project;
+        var export = file.Export;
         var project = new JObject();
         project.Add("version", CURRENT_VERSION);
 
@@ -468,14 +482,14 @@ internal class TuneLabProject : IImportFormat, IExportFormat
         project.Add("tracks", tracks);
 
         var exportConfig = new JObject();
-        exportConfig.Add("exportPath", projectInfo.ExportConfig.ExportPath);
-        exportConfig.Add("fileName", projectInfo.ExportConfig.FileName);
-        exportConfig.Add("format", projectInfo.ExportConfig.Format);
-        exportConfig.Add("sampleRate", projectInfo.ExportConfig.SampleRate);
-        exportConfig.Add("bitDepth", projectInfo.ExportConfig.BitDepth);
-        exportConfig.Add("bitrate", projectInfo.ExportConfig.Bitrate);
-        exportConfig.Add("masterExportEnabled", projectInfo.ExportConfig.MasterExportEnabled);
-        exportConfig.Add("masterExportChannels", projectInfo.ExportConfig.MasterExportChannels);
+        exportConfig.Add("exportPath", export.ExportPath);
+        exportConfig.Add("fileName", export.FileName);
+        exportConfig.Add("format", export.Format);
+        exportConfig.Add("sampleRate", export.SampleRate);
+        exportConfig.Add("bitDepth", export.BitDepth);
+        exportConfig.Add("bitrate", export.Bitrate);
+        exportConfig.Add("masterExportEnabled", export.MasterExportEnabled);
+        exportConfig.Add("masterExportChannels", export.MasterExportChannels);
         project.Add("exportConfig", exportConfig);
 
         var bytes = Encoding.UTF8.GetBytes(project.ToString(Formatting.None));

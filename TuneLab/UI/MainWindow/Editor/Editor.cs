@@ -39,6 +39,7 @@ using System.Reactive.Joins;
 using System.Runtime.InteropServices;
 
 using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Extensions.Voices;
 namespace TuneLab.UI;
 
@@ -610,7 +611,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (mDocument.Project == null || mDocument.IsSaved || mAutoSaveHead == mDocument.Head)
             return;
 
-        var projectInfo = GetProjectInfoForSave();
+        var file = new NativeProjectFile
+        {
+            Project = mDocument.Project.GetInfo(),
+            Editor = new EditorInfo { PlayheadPos = Playhead.Pos },
+            Export = mDocument.Project.GetExportConfig(),
+        };
 
         try
         {
@@ -620,7 +626,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
             await Task.Run(() =>
             {
-                if (!FormatsManager.Serialize(projectInfo, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
+                if (!FormatsManager.SerializeNative(file, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
                 {
                     Log.Error("Save file error: " + error);
                     return;
@@ -720,14 +726,16 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     void LoadProject(string path)
     {
-        if (!FormatsManager.Deserialize(path, out var info, out var error))
+        if (!FormatsManager.DeserializeNative(path, out var file, out var error))
         {
             Log.Error("Deserialize file error: " + error);
             return;
         }
 
-        mDocument.SetProject(CreateProject(info), path);
-        RestorePlayhead(info);
+        var project = CreateProject(file.Project);
+        project.SetExportConfig(file.Export);
+        mDocument.SetProject(project, path);
+        Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
         RecentFilesManager.AddFile(path);
     }
 
@@ -844,7 +852,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (path == null)
             return;
 
-        if (!FormatsManager.Serialize(mDocument.Project.GetInfo(), extension, out var stream, out var error))
+        var projectFile = new NativeProjectFile
+        {
+            Project = mDocument.Project.GetInfo(),
+            Editor = new EditorInfo { PlayheadPos = Playhead.Pos },
+            Export = mDocument.Project.GetExportConfig(),
+        };
+        if (!FormatsManager.SerializeNative(projectFile, extension, out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
             return;
@@ -862,7 +876,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (mDocument.Project == null)
             return;
 
-        if (!FormatsManager.Serialize(GetProjectInfoForSave(), ConstantDefine.DefaultProjectExtension, out var stream, out var error))
+        var file = new NativeProjectFile
+        {
+            Project = mDocument.Project.GetInfo(),
+            Editor = new EditorInfo { PlayheadPos = Playhead.Pos },
+            Export = mDocument.Project.GetExportConfig(),
+        };
+        if (!FormatsManager.SerializeNative(file, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
             return;
@@ -883,22 +903,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             Log.Debug("Write file error: " + ex);
         }
-    }
-
-    ProjectInfo GetProjectInfoForSave()
-    {
-        var project = mDocument.Project;
-        if (project == null)
-            return new();
-
-        var projectInfo = project.GetInfo();
-        projectInfo.EditorInfo.PlayheadPos = Playhead.Pos;
-        return projectInfo;
-    }
-
-    void RestorePlayhead(ProjectInfo info)
-    {
-        Playhead.Pos = Math.Max(0, info.EditorInfo.PlayheadPos);
     }
 
     public async void ExportMix()
