@@ -260,7 +260,26 @@ internal class NAudioCodec : IAudioCodec
             }
             if (tag == "RIFF")
             {
-                return new WaveFileReader(path);
+                var reader = new WaveFileReader(path);
+                // WAVE_FORMAT_EXTENSIBLE（0xFFFE，常见于 24-bit / 32-float 录音导出）：ToSampleProvider 不认此编码、
+                // 会抛 "Unsupported source encoding"。其样本本就是标准 PCM / IEEE float，仅外层封装不同——规范化到底层
+                // 子格式即可正常解。把数据拷进内存流、关掉文件 reader（避免句柄泄漏 / 文件占用）再以标准格式包装。
+                var standard = ToStandardFormatIfExtensible(reader.WaveFormat);
+                if (standard != null)
+                {
+                    // 按 blockAlign 对齐分块拷贝（WaveFileReader.Read 要求整块，默认 CopyTo 的缓冲非其倍数会抛
+                    // "Must read complete blocks"）；拷进内存后关掉文件 reader（避免句柄泄漏），以标准格式包装。
+                    int blockAlign = Math.Max(1, reader.WaveFormat.BlockAlign);
+                    var ms = new MemoryStream();
+                    var copyBuffer = new byte[blockAlign * 16384];
+                    int read;
+                    while ((read = reader.Read(copyBuffer, 0, copyBuffer.Length)) > 0)
+                        ms.Write(copyBuffer, 0, read);
+                    reader.Dispose();
+                    ms.Position = 0;
+                    return new RawSourceWaveStream(ms, standard);
+                }
+                return reader;
             }
             if (ext == ".mp3")
             {
@@ -280,6 +299,24 @@ internal class NAudioCodec : IAudioCodec
             }
 
             return new AudioFileReader(path);
+        }
+
+        // 若 WaveFormat 是 WAVE_FORMAT_EXTENSIBLE，返回其规范化的标准格式（PCM / IEEE float），否则 null。
+        // NAudio 视具体路径把 extensible 解析成 WaveFormatExtensible 或 WaveFormatExtraData 两种运行时类型，都要认。
+        static WaveFormat? ToStandardFormatIfExtensible(WaveFormat waveFormat)
+        {
+            if (waveFormat.Encoding != WaveFormatEncoding.Extensible)
+                return null;
+            if (waveFormat is WaveFormatExtensible extensible)
+                return extensible.ToStandardWaveFormat();
+            // WaveFormatExtraData：extension 布局 = validBits(2) + channelMask(4) + SubFormat GUID(16)；
+            // GUID 前 2 字节（偏移 6）= 格式码（1 = PCM，3 = IEEE float）。缺省按 PCM。
+            int subFormatCode = 1;
+            if (waveFormat is WaveFormatExtraData extra && extra.ExtraData.Length >= 8)
+                subFormatCode = extra.ExtraData[6] | (extra.ExtraData[7] << 8);
+            return subFormatCode == 3
+                ? WaveFormat.CreateIeeeFloatWaveFormat(waveFormat.SampleRate, waveFormat.Channels)
+                : new WaveFormat(waveFormat.SampleRate, waveFormat.BitsPerSample, waveFormat.Channels);
         }
 
         readonly WaveStream mWaveStream;
