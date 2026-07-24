@@ -71,6 +71,85 @@ internal static class ConfigText
             : d.ToString(CultureInfo.InvariantCulture);
 }
 
+// 参数 schema 分组文本化：把引擎声明的一组 config（静态属性 ObjectConfig / 自动化轨 map / 音素 slot map）
+// 逐条列成文本。effect 与 voice/instrument 的声明方法返回这几种同型结构，故收在一处共用。
+// get 用委托传入（而非直接传结果）：插件求值可能抛错，就地 try/catch 标注该组失败、不拖垮整体回报。
+internal static class SchemaText
+{
+    // ObjectConfig 组（静态属性）→ 逐字段名(+标签)/类型/默认。返回条数（0 = 空组，调用方据总数判「无参数」）。
+    public static int AppendProperties(StringBuilder sb, string heading, Func<ObjectConfig> get)
+    {
+        ObjectConfig config;
+        try { config = get(); }
+        catch (Exception ex) { sb.Append('\n').Append(heading).Append(": (engine failed to declare — ").Append(ex.Message).Append(')'); return 0; }
+
+        int count = config.Properties.Count;
+        if (count == 0) return 0;
+        sb.Append('\n').Append(heading).Append(" (").Append(count).Append("):");
+        AppendObjectFields(sb, "\n- ", config);
+        return count;
+    }
+
+    // 自动化轨组（PropertyKey→AutomationConfig）→ 逐轨名(+标签)/范围/默认或分段。返回条数。
+    public static int AppendAutomations(StringBuilder sb, string heading, Func<IReadOnlyOrderedMap<PropertyKey, AutomationConfig>> get)
+    {
+        IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs;
+        try { configs = get(); }
+        catch (Exception ex) { sb.Append('\n').Append(heading).Append(": (engine failed to declare — ").Append(ex.Message).Append(')'); return 0; }
+
+        int count = configs.Count;
+        if (count == 0) return 0;
+        sb.Append('\n').Append(heading).Append(" (").Append(count).Append("):");
+        foreach (var kvp in configs)
+        {
+            sb.Append("\n- ").Append(kvp.Key.Id);
+            AppendLabel(sb, kvp.Key);
+            sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
+        }
+        return count;
+    }
+
+    // 音素属性组（slot→ObjectConfig，voice 专有）→ 按 slot 角色分小节，各列该 slot 的字段。返回 slot 数。
+    // slot 口径：0 = 核心元音、<0 = 引导辅音、>0 = 核后（见 IVoiceSynthesisEngine 音素声明「schema 授给角色而非单个音素」）。
+    public static int AppendPhonemes(StringBuilder sb, string heading, Func<IReadOnlyMap<int, ObjectConfig>> get)
+    {
+        IReadOnlyMap<int, ObjectConfig> configs;
+        try { configs = get(); }
+        catch (Exception ex) { sb.Append('\n').Append(heading).Append(": (engine failed to declare — ").Append(ex.Message).Append(')'); return 0; }
+
+        int count = configs.Count;
+        if (count == 0) return 0;
+        sb.Append('\n').Append(heading).Append(" (").Append(count).Append(" slot role(s)):");
+        foreach (var kvp in configs)
+        {
+            int slot = kvp.Key;
+            string role = slot == 0 ? "core vowel (slot 0)" : slot < 0 ? "leading consonant (slot " + slot + ")" : "post-core (slot " + slot + ")";
+            sb.Append("\n  ").Append(role).Append(':');
+            AppendObjectFields(sb, "\n    - ", kvp.Value);
+        }
+        return count;
+    }
+
+    // ObjectConfig 逐字段（bullet 定缩进）：名(+标签)/类型/默认。属性组与音素 slot 组共用。
+    static void AppendObjectFields(StringBuilder sb, string bullet, ObjectConfig config)
+    {
+        foreach (var kvp in config.Properties)
+        {
+            sb.Append(bullet).Append(kvp.Key.Id);
+            AppendLabel(sb, kvp.Key);
+            sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
+            if (kvp.Value is IValueConfig leaf)
+                sb.Append(". default ").Append(ConfigText.FormatValue(leaf.DefaultValue));
+        }
+    }
+
+    static void AppendLabel(StringBuilder sb, PropertyKey key)
+    {
+        if (!string.IsNullOrEmpty(key.DisplayText) && key.DisplayText != key.Id)
+            sb.Append(" (\"").Append(key.DisplayText).Append("\")");
+    }
+}
+
 // 引擎目录列表：把某类引擎（voice / instrument / effect）的身份 id / 显示名 / 提供包列成文本。三类的注册表
 // API 同型（GetAll*Engines / GetDisplayName / GetProviders），故列表格式收在一处。不触发 Init（只读注册表）。
 internal static class EngineCatalog

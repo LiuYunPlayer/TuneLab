@@ -74,57 +74,15 @@ internal sealed class ListEffectsTool : IAgentTool
         var sb = new StringBuilder();
         sb.Append(string.Format("Effect engine \"{0}\" (type={1}):", EffectManager.GetDisplayName(type), type));
 
-        // 三类参数各自 try/catch：插件求值抛错不拖垮整个回报（如实标注该组不可用）。
+        // 三类参数各自 try/catch（在 SchemaText 内）：插件求值抛错不拖垮整个回报（如实标注该组不可用）。
         int total = 0;
-        total += AppendProperties(sb, "Static properties", () => engine.GetPropertyConfig(ctx));
-        total += AppendAutomations(sb, "Automation parameters (editable tracks)", () => engine.GetAutomationConfigs(ctx));
-        total += AppendAutomations(sb, "Read-only readback tracks", () => engine.GetSynthesizedParameterConfigs(ctx));
+        total += SchemaText.AppendProperties(sb, "Static properties", () => engine.GetPropertyConfig(ctx));
+        total += SchemaText.AppendAutomations(sb, "Automation parameters (editable tracks)", () => engine.GetAutomationConfigs(ctx));
+        total += SchemaText.AppendAutomations(sb, "Read-only readback tracks", () => engine.GetSynthesizedParameterConfigs(ctx));
 
         if (total == 0)
             sb.Append("\nThis effect exposes no parameters (or none at default values).");
         return sb.ToString();
-    }
-
-    // 静态属性组（ObjectConfig）：逐字段名(+标签)/类型/范围/默认。返回条数。
-    static int AppendProperties(StringBuilder sb, string heading, Func<ObjectConfig> get)
-    {
-        ObjectConfig config;
-        try { config = get(); }
-        catch (Exception ex) { sb.Append("\n").Append(heading).Append(": (engine failed to declare — ").Append(ex.Message).Append(')'); return 0; }
-
-        int count = config.Properties.Count;
-        if (count == 0) return 0;
-        sb.Append("\n").Append(heading).Append(" (").Append(count).Append("):");
-        foreach (var kvp in config.Properties)
-        {
-            sb.Append("\n- ").Append(kvp.Key.Id);
-            if (!string.IsNullOrEmpty(kvp.Key.DisplayText) && kvp.Key.DisplayText != kvp.Key.Id)
-                sb.Append(" (\"").Append(kvp.Key.DisplayText).Append("\")");
-            sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
-            if (kvp.Value is IValueConfig leaf)
-                sb.Append(". default ").Append(ConfigText.FormatValue(leaf.DefaultValue));
-        }
-        return count;
-    }
-
-    // 自动化轨组（PropertyKey→AutomationConfig）：逐轨名(+标签)/范围/默认或分段。返回条数。
-    static int AppendAutomations(StringBuilder sb, string heading, Func<IReadOnlyOrderedMap<PropertyKey, AutomationConfig>> get)
-    {
-        IReadOnlyOrderedMap<PropertyKey, AutomationConfig> configs;
-        try { configs = get(); }
-        catch (Exception ex) { sb.Append("\n").Append(heading).Append(": (engine failed to declare — ").Append(ex.Message).Append(')'); return 0; }
-
-        int count = configs.Count;
-        if (count == 0) return 0;
-        sb.Append("\n").Append(heading).Append(" (").Append(count).Append("):");
-        foreach (var kvp in configs)
-        {
-            sb.Append("\n- ").Append(kvp.Key.Id);
-            if (!string.IsNullOrEmpty(kvp.Key.DisplayText) && kvp.Key.DisplayText != kvp.Key.Id)
-                sb.Append(" (\"").Append(kvp.Key.DisplayText).Append("\")");
-            sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
-        }
-        return count;
     }
 
     // part-free 的声明面 context：一个空视图（无改过的值 → 各参数取引擎默认；无曲线数据）。宿主自带的
