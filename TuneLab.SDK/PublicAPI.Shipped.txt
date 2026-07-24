@@ -84,7 +84,7 @@ TuneLab.SDK.EffectInfo.Id.get -> string!
 TuneLab.SDK.EffectInfo.Id.set -> void
 TuneLab.SDK.EffectInfo.IsEnabled.get -> bool
 TuneLab.SDK.EffectInfo.IsEnabled.set -> void
-TuneLab.SDK.EffectInfo.PiecewiseAutomations.get -> TuneLab.Foundation.Map<string!, System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!>!
+TuneLab.SDK.EffectInfo.PiecewiseAutomations.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.PiecewiseAutomationInfo!>!
 TuneLab.SDK.EffectInfo.PiecewiseAutomations.set -> void
 TuneLab.SDK.EffectInfo.Properties.get -> TuneLab.Foundation.PropertyObject!
 TuneLab.SDK.EffectInfo.Properties.set -> void
@@ -318,9 +318,9 @@ TuneLab.SDK.MidiPartInfo.Gain.set -> void
 TuneLab.SDK.MidiPartInfo.MidiPartInfo() -> void
 TuneLab.SDK.MidiPartInfo.Notes.get -> System.Collections.Generic.List<TuneLab.SDK.NoteInfo!>!
 TuneLab.SDK.MidiPartInfo.Notes.set -> void
-TuneLab.SDK.MidiPartInfo.PiecewiseAutomations.get -> TuneLab.Foundation.Map<string!, System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!>!
+TuneLab.SDK.MidiPartInfo.PiecewiseAutomations.get -> TuneLab.Foundation.Map<string!, TuneLab.SDK.PiecewiseAutomationInfo!>!
 TuneLab.SDK.MidiPartInfo.PiecewiseAutomations.set -> void
-TuneLab.SDK.MidiPartInfo.Pitch.get -> System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!
+TuneLab.SDK.MidiPartInfo.Pitch.get -> TuneLab.SDK.PitchInfo!
 TuneLab.SDK.MidiPartInfo.Pitch.set -> void
 TuneLab.SDK.MidiPartInfo.Properties.get -> TuneLab.Foundation.PropertyObject!
 TuneLab.SDK.MidiPartInfo.Properties.set -> void

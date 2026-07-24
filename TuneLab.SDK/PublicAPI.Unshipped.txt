@@ -33,3 +33,11 @@ TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.get -> string!
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.init -> void
 TuneLab.SDK.IVoiceSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisNote!>! notes) -> TuneLab.SDK.VoiceSynthesisSnapshot!
 TuneLab.SDK.IInstrumentSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IInstrumentSynthesisNote!>! notes) -> TuneLab.SDK.InstrumentSynthesisSnapshot!
+TuneLab.SDK.PiecewiseAutomationInfo
+TuneLab.SDK.PiecewiseAutomationInfo.PiecewiseAutomationInfo() -> void
+TuneLab.SDK.PiecewiseAutomationInfo.Segments.get -> System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!
+TuneLab.SDK.PiecewiseAutomationInfo.Segments.set -> void
+TuneLab.SDK.PitchInfo
+TuneLab.SDK.PitchInfo.PitchInfo() -> void
+TuneLab.SDK.PitchInfo.Segments.get -> System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!
+TuneLab.SDK.PitchInfo.Segments.set -> void

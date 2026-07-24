@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TuneLab.Data;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 using Xunit;
 
 namespace TuneLab.Tests;
@@ -10,29 +11,29 @@ namespace TuneLab.Tests;
 // 覆盖：多轨多段往返全等、空往返、序列化层整存（不依赖任何 config——孤儿保留的底层保证）。
 public class PiecewiseAutomationSerializationTests
 {
-    static Map<string, List<List<Point>>> SampleInfo()
+    static Map<string, PiecewiseAutomationInfo> SampleInfo()
     {
-        var info = new Map<string, List<List<Point>>>();
-        info.Add("Bend", new List<List<Point>>
+        var info = new Map<string, PiecewiseAutomationInfo>();
+        info.Add("Bend", new PiecewiseAutomationInfo { Segments = new List<List<Point>>
         {
             new() { new(0, 10), new(120, 90), new(240, -30) },
             new() { new(480, 0), new(600, 50) },
-        });
-        info.Add("Formant", new List<List<Point>>
+        } });
+        info.Add("Formant", new PiecewiseAutomationInfo { Segments = new List<List<Point>>
         {
             new() { new(50, -100), new(300, 100) },
-        });
+        } });
         return info;
     }
 
-    static void AssertSameShape(IReadOnlyMap<string, List<List<Point>>> a, IReadOnlyMap<string, List<List<Point>>> b)
+    static void AssertSameShape(IReadOnlyMap<string, PiecewiseAutomationInfo> a, IReadOnlyMap<string, PiecewiseAutomationInfo> b)
     {
         Assert.Equal(a.Count, b.Count);
         foreach (var kvp in a)
         {
             Assert.True(b.ContainsKey(kvp.Key));
-            var ga = kvp.Value;
-            var gb = b[kvp.Key];
+            var ga = kvp.Value.Segments;
+            var gb = b[kvp.Key].Segments;
             Assert.Equal(ga.Count, gb.Count);
             for (int s = 0; s < ga.Count; s++)
             {
@@ -59,7 +60,7 @@ public class PiecewiseAutomationSerializationTests
     [Fact]
     public void RoundTrip_Empty_StaysEmpty()
     {
-        var info = new Map<string, List<List<Point>>>();
+        var info = new Map<string, PiecewiseAutomationInfo>();
         var map = new DataObjectMap<string, IPiecewiseAutomation>();
         map.SetInfo(info.ToPiecewiseAutomations());
         Assert.Empty(map.PiecewiseAutomationsToInfo());

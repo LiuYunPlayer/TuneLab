@@ -602,11 +602,11 @@ internal partial class TrackScrollView : View
                     {
                         var midiPartInfo = (MidiPartInfo)partInfo;
                         //SyncPitchTick
-                        for (var i = 0; i < midiPartInfo.Pitch.Count; i++)
+                        for (var i = 0; i < midiPartInfo.Pitch.Segments.Count; i++)
                         {
-                            for (var j = 0; j < midiPartInfo.Pitch[i].Count; j++)
+                            for (var j = 0; j < midiPartInfo.Pitch.Segments[i].Count; j++)
                             {
-                                midiPartInfo.Pitch[i][j] = new TuneLab.Foundation.Point() { X = SyncTick(midiPartInfo.Pitch[i][j].X), Y = midiPartInfo.Pitch[i][j].Y };
+                                midiPartInfo.Pitch.Segments[i][j] = new TuneLab.Foundation.Point() { X = SyncTick(midiPartInfo.Pitch.Segments[i][j].X), Y = midiPartInfo.Pitch.Segments[i][j].Y };
                             }
                         }
                         //SyncNoteTick

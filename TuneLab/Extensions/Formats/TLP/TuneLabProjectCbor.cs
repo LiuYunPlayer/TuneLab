@@ -338,7 +338,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                         break;
                     case "pitch":
                         if (midiPartInfo != null)
-                            ReadPitch(reader, midiPartInfo.Pitch);
+                            ReadPitch(reader, midiPartInfo.Pitch.Segments);
                         else
                             reader.SkipValue();
                         break;
@@ -715,7 +715,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
     }
 
     // 分段轨 map（轨 id → 折线段集，同 Pitch 形）：part 级声明分段轨与 effect 级共用。
-    private void ReadPiecewiseAutomations(CborReader reader, Map<string, List<List<Point>>> map)
+    private void ReadPiecewiseAutomations(CborReader reader, Map<string, PiecewiseAutomationInfo> map)
     {
         reader.ReadStartMap();
         while (reader.PeekState() != CborReaderState.EndMap)
@@ -723,7 +723,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
             var key = reader.ReadTextString();
             var lines = new List<List<Point>>();
             ReadPitch(reader, lines);
-            map.Add(key, lines);
+            map.Add(key, new PiecewiseAutomationInfo { Segments = lines });
         }
         reader.ReadEndMap();
     }
@@ -1024,7 +1024,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
         WriteNotes(writer, midiPart.Notes);
 
         writer.WriteTextString("pitch");
-        WritePitch(writer, midiPart.Pitch);
+        WritePitch(writer, midiPart.Pitch.Segments);
 
         writer.WriteTextString("vibratos");
         WriteVibratos(writer, midiPart.Vibratos);
@@ -1048,13 +1048,13 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
         writer.WriteEndMap();
     }
 
-    private void WritePiecewiseAutomations(CborWriter writer, Map<string, List<List<Point>>> map)
+    private void WritePiecewiseAutomations(CborWriter writer, Map<string, PiecewiseAutomationInfo> map)
     {
         writer.WriteStartMap(null);
         foreach (var kvp in map)
         {
             writer.WriteTextString(kvp.Key);
-            WritePitch(writer, kvp.Value);
+            WritePitch(writer, kvp.Value.Segments);
         }
         writer.WriteEndMap();
     }
