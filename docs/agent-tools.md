@@ -2,7 +2,7 @@
 
 TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理念：单一动作面（CodeAct）**——编辑工程一律由模型写 JavaScript 经 `run_script` 表达（对象式 `tl` API），读取只保留一个"定向总览"，其余读取也走脚本。曾经的细粒度读写工具（`transpose_notes`/`apply_edits`/`get_part_notes`…）与其门面 `IAgentProjectEditor` 已全部退役——同一件事多条路只会降模型选择准确率、堆 prompt。本文面向维护者，也作为编写工具描述（喂模型）时的一致性参考。
 
-## 工具全集（7 个）
+## 工具全集（9 个）
 
 两个面：**操作工程** + **管理脚本库**。
 
@@ -12,15 +12,20 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `run_script` | 操作 | 写一段 JS（对象式 `tl`）做任意读/算/改，整段 = 一个可撤销单位、出错原子回退。 |
 | `get_script_api` | 操作 | `run_script` 的按需文档（渐进式披露）：完整 `tl` API + 句柄/tick/收口规则 + 工具脚本约定。写第一段脚本前调一次。 |
 | `save_script` | 库 | 把功能写成**工具脚本**(定义 getScriptInfo+main)存库 → 自动注册进菜单复用。只存不执行；声明了 getScriptInfo 则先预校验。 |
-| `list_scripts` | 库 | 列库内脚本，标出工具(+context)/普通。 |
+| `list_scripts` | 库 | 列库内脚本，标出工具(+context)/普通，并标注哪些**带入参**(定义了 getInputConfig)。 |
 | `read_script` | 库 | 读某脚本源码（编辑前）。 |
 | `delete_script` | 库 | 删某脚本（同时从菜单移除）。 |
+| `get_script_inputs` | 库 | 读某脚本的入参 schema（逐字段名/类型/默认/范围·选项）+ 用户**上次输入值**。只读（只 eval getInputConfig，无副作用）。run_saved_script 前调。 |
+| `run_saved_script` | 库 | 按库名跑已存脚本（= 替用户按那个菜单项），`inputs` 可省：给了覆盖在上次值上再补默认，没给用上次/默认。走 run_script 同一授权闸门。 |
 
 ```
 模型 ──tool call(JSON)──► IAgentTool 实现
         ├─ get_project_overview ───────────────► IProject（直接读）
-        ├─ run_script ──► ScriptRunner ──► Jint + 对象式 API（根 tl + 轨/part/note 句柄）──► IProject
+        ├─ run_script ─────────┐
+        │                      ├─► ScriptWriteExecutor（授权闸门/预览/收口）──► ScriptRunner ──► Jint + 对象式 API ──► IProject
+        ├─ run_saved_script ───┘         （run_saved_script 先按名读库源码 + 解析入参再进闸门）
         ├─ get_script_api ─────────────────────► ScriptApiReference.Text
+        ├─ get_script_inputs ──────────────────► ScriptRunner.GetInputConfig + ScriptInputMemory（只读）
         └─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
 ```
 
@@ -73,6 +78,17 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_scripts`** / **`read_script(name)`** / **`delete_script(name)`**：列出(标工具+context/plain) / 读源码 / 删除。
 
 工具脚本约定（喂 LLM 全文在 `ScriptApiReference.cs` 的 "TOOL SCRIPTS" 节）：顶层**只定义函数、无副作用**；`getScriptInfo()` 返回 `{name, category?, author?, version?, context}`（`name` 里读 `tl.language` 本地化）；`main()` 是动作。`context` = `global`（顶部 Scripts 菜单，按 category 分组）/ `note`（钢琴命中音符，目标 `selectedNotes()`）/ `partContent`（钢琴空白，目标 `currentPart()`）/ `part`（编排命中 part，目标 `selectedParts()`）/ `track`（轨道头，目标 `selectedTracks()`）/ `trackContent`（编排空白泳道，目标 `selectedTracks()`）。注册/菜单注入由 `TuneLab.Scripting.ScriptTools` + `TuneLab.UI.ScriptToolMenu` 完成（设计见 `docs/script-tools-design.md`）。
+
+### 脚本闭环：读参数 + 代跑（`get_script_inputs` / `run_saved_script`）
+
+存库的工具脚本可定义 `getInputConfig`（运行前向用户征集参数，见 `script-inputs-and-action-surface.md`）。这让 agent 能**读某脚本要哪些参数、再按名代跑一次**，无需重写代码：
+
+- **`get_script_inputs(name)`**（只读）：eval 顶层 + 调 `getInputConfig`（约定无副作用，误改原子回退），把 `ObjectConfig` 逐字段文本化——名(+标签)、类型/范围/选项、默认值、以及该脚本的**用户上次输入值**（`ScriptInputMemory`）。无 `getInputConfig` 的脚本回报"无入参"。
+- **`run_saved_script(name, inputs?)`**（写）：按名读库源码运行。入参解析 = **用户上次值 ← agent 给的 `inputs` 覆盖（稀疏叠加）**，再按当刻 `getInputConfig` 重算 schema 补默认成全量喂 `main`。`inputs` 可整省（用上次/默认）。走 **run_script 同一授权闸门**（`ScriptWriteExecutor`）。
+- **参数来源政策**：agent 代跑**不回写** `ScriptInputMemory`——用户手动运行的"上次值"是用户意图，agent 的选择留在其对话历史里，不污染它。
+- **稳定 id**：入参记忆键 = `ScriptTools.StableId`（声明 id 合法则用之，否则文件名，与快捷键锚点同一套），UI 侧 `ScriptToolMenu` 与 agent 侧共用同一派生，重命名/重装不丢。
+
+`run_script`（内联）与 `run_saved_script`（命名）到了写这一步是同一件事——都经 `ScriptWriteExecutor` 过分级授权 + 预览 + 写守卫 wait-retry + 结果回报（单一动作面 SSOT）；二者只在"代码/入参从哪来"不同。
 
 ## 维护
 

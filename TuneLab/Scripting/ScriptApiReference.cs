@@ -106,6 +106,7 @@ internal static class ScriptApiReference
         "    ComboBoxConfig.create(['a','b']) or .create()   [.append(x) / .appendSeparator() / .withDefault('a')]\n" +
         "    CheckBoxConfig.create(false)      TextBoxConfig.create('')   [.withPassword()]\n" +
         "  A tool WITHOUT getInputConfig just runs main() with no dialog (main may ignore its argument).\n" +
+        "  Once saved, a tool with inputs can be re-run later WITHOUT rewriting it: call get_script_inputs(name) to see its fields (and the user's last values), then run_saved_script(name, inputs?) to run it.\n" +
         "  EXAMPLE tool with inputs — 'Transpose' asking for the interval:\n" +
         "    function getScriptInfo() { return { name: 'Transpose', context: 'note' }; }\n" +
         "    function getInputConfig(ctx) { return { semitones: SliderConfig.integer(12, -24, 24) }; }\n" +

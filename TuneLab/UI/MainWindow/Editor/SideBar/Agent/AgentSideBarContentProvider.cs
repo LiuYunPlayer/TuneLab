@@ -100,21 +100,31 @@ internal sealed class AgentSideBarContentProvider
     {
         mProject = project;
         // 单一动作面（CodeAct）：编辑工程一律走 run_script（对象式 `tl` API），读取只留一个定向总览，其余读取也走脚本。
-        // 另有脚本库管理工具，让 agent 把功能沉淀成可注册进菜单的复用工具。
-        mTools = project != null
-            ? new List<IAgentTool>
+        // 另有脚本库管理工具，让 agent 把功能沉淀成可注册进菜单的复用工具，并能读参数/代跑已存脚本（闭环）。
+        if (project != null)
+        {
+            Func<string?> lang = () => TranslationManager.CurrentLanguage.Value;
+            // run_script 与 run_saved_script 共用同一写执行器（授权闸门 / 预览 / 收口）——单一动作面 SSOT。
+            var writeExecutor = new ScriptWriteExecutor(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider, RequestScriptAuthorizationAsync);
+            mTools = new List<IAgentTool>
             {
                 // 操作工程：定向（看） + 脚本（改/算/细读）
                 new GetProjectOverviewTool(project),
-                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider, mPianoSelectionProvider, RequestScriptAuthorizationAsync),
+                new RunScriptTool(writeExecutor),
                 new GetScriptApiTool(),
-                // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用。
-                new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
-                new ListScriptsTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
+                // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用；读参数 / 代跑（闭环）。
+                new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang),
+                new ListScriptsTool(project, mCurrentPartProvider, mQuantizationProvider, lang),
                 new ReadScriptTool(),
                 new DeleteScriptTool(),
-            }
-            : [];
+                new GetScriptInputsTool(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
+                new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
+            };
+        }
+        else
+        {
+            mTools = [];
+        }
         // 工具随新工程重建；但对话历史不清——与 TryConnect(换模型)/重启(RestoreSession)一致：从已记录会话重建完整续聊
         // 历史（ReconstructHistory 含工具调用/结果），下次发送时新 runner 带它 + 新工具重建。空会话(无 Session)本无历史可留。
         foreach (var c in mContexts)

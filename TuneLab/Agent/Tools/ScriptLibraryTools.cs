@@ -87,8 +87,9 @@ internal sealed class ListScriptsTool(IProject project, Func<IMidiPart?>? curren
     public string Name => "list_scripts";
 
     public string Description =>
-        "List the user's saved scripts in the library, marking each as a menu tool (with its display name and which menu/context) or a plain script. " +
-        "Use before editing a script or to avoid name clashes.";
+        "List the user's saved scripts in the library, marking each as a menu tool (with its display name and which menu/context) or a plain script, " +
+        "and flagging those that take inputs. Use before editing a script, running one with run_saved_script, or to avoid name clashes. " +
+        "For a script marked (takes inputs), call get_script_inputs to see its parameters before run_saved_script.";
 
     public string ParametersJsonSchema => """
         { "type": "object", "properties": {}, "additionalProperties": false }
@@ -106,7 +107,11 @@ internal sealed class ListScriptsTool(IProject project, Func<IMidiPart?>? curren
         {
             sb.Append("\n- ").Append(n);
             if (tools.TryGetValue(n, out var t))
+            {
                 sb.Append(string.Format("  [tool \"{0}\", context={1}]", t.DisplayName, t.Context.ToString().ToLowerInvariant()));
+                if (t.HasInputs)
+                    sb.Append(" (takes inputs)");
+            }
             else
                 sb.Append("  [plain]");
         }
