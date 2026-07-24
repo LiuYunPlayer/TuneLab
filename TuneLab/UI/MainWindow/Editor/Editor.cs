@@ -351,12 +351,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // 域 = 功能身份，不随分发作用域走（见 docs/keybinding-system.md §1.1）：transport 而非 editor.playback。
         // 显示名沿用工具栏（FunctionBar）既有措辞，与 Go to Start / Go to End 按钮一致。
         Keymap.Register(new() { Id = "transport.play", DisplayName = () => "Play/Pause".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Space), Execute = ChangePlayState });
-        Keymap.Register(new() { Id = "transport.gotoStart", DisplayName = () => "Go to Start".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Home), Execute = GotoStart });
-        Keymap.Register(new() { Id = "transport.gotoEnd", DisplayName = () => "Go to End".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.End), Execute = GotoEnd });
+        Keymap.Register(new() { Id = "transport.gotoStart", DisplayName = () => "Go to Start".Tr("FunctionBar"), Scope = KeyScope.Editor, DefaultGesture = new(Key.Home), Execute = GotoStart });
+        Keymap.Register(new() { Id = "transport.gotoEnd", DisplayName = () => "Go to End".Tr("FunctionBar"), Scope = KeyScope.Editor, DefaultGesture = new(Key.End), Execute = GotoEnd });
         Keymap.Register(new() { Id = "part.reopenLast", DisplayName = () => "Reopen Last Part".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.Tab, KeyBinding.PrimaryModifier), Execute = ReopenLastPart });
 
         // 域 = view（显示层开关）。参数面板折叠/恢复与拖到最低等价；在 Editor 分发以便钢琴窗/编排区焦点下均可触发。
         Keymap.Register(new() { Id = "view.toggleParameterPanel", DisplayName = () => "Toggle Parameter Panel".Tr(TC.Menu), Scope = KeyScope.Editor, DefaultGesture = new(Key.P, KeyBinding.PrimaryModifier), Execute = () => mPianoWindow.ToggleParameterPanel() });
+
+        // 参数同步模式是编辑行为开关，但需要在钢琴窗/编排区焦点下都能切换，因此放在 Editor 作用域。
+        Keymap.Register(new() { Id = "edit.toggleParameterSyncMode", DisplayName = () => "Parameter Sync Mode".Tr("SettingsWindow"), Scope = KeyScope.Editor, DefaultGesture = new(Key.S, KeyModifiers.Alt), Execute = ToggleParameterSyncMode });
 
         // 显示名沿用工具栏（FunctionBar）既有措辞，复用其翻译、与工具栏保持一致。
         RegisterToolCommand("tool.note", "Note Tool", Key.D1, UI.PianoTool.Note);
@@ -364,6 +367,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         RegisterToolCommand("tool.anchor", "Anchor Tool", Key.D3, UI.PianoTool.Anchor);
         RegisterToolCommand("tool.lock", "Pitch Locking Brush", Key.D4, UI.PianoTool.Lock);
         RegisterToolCommand("tool.vibrato", "Vibrato Tool", Key.D5, UI.PianoTool.Vibrato);
+    }
+
+    void ToggleParameterSyncMode()
+    {
+        Settings.ParameterSyncMode.Value = !Settings.ParameterSyncMode.Value;
     }
 
     void RegisterToolCommand(string id, string name, Key key, PianoTool tool)
