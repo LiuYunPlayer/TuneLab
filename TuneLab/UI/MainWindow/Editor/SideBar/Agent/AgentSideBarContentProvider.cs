@@ -113,12 +113,17 @@ internal sealed class AgentSideBarContentProvider
                 new RunScriptTool(writeExecutor),
                 new GetScriptApiTool(),
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用；读参数 / 代跑（闭环）。
-                new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang),
+                // save(覆盖已存)/delete 是外部文件的破坏性改动 → 过授权闸门（RequestScriptAuthorizationAsync，同工程写）。
+                new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang, RequestScriptAuthorizationAsync),
                 new ListScriptsTool(project, mCurrentPartProvider, mQuantizationProvider, lang),
                 new ReadScriptTool(),
-                new DeleteScriptTool(),
+                new DeleteScriptTool(RequestScriptAuthorizationAsync),
                 new GetScriptInputsTool(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
+                // 环境感知（只读）：枚举插件/readme、枚举音源目录——让 agent 看见宿主装了什么、有哪些音源可推荐。
+                new ListExtensionsTool(),
+                new GetExtensionReadmeTool(),
+                new ListSoundSourcesTool(),
             };
         }
         else
@@ -1862,13 +1867,13 @@ internal sealed class AgentSideBarContentProvider
 
     // RunScriptTool 的 confirm 回调：在触发这一轮的对话视图里渲染升级卡片、等用户裁决。
     // 目标会话经 mRunningContext（AsyncLocal，OnSend 埋入）定位——共享工具据此找到正确的那一轮，即便它在后台。
-    Task<ScriptAuthDecision> RequestScriptAuthorizationAsync(int changeCount, CancellationToken cancellationToken)
+    Task<ScriptAuthDecision> RequestScriptAuthorizationAsync(AgentAuthorizationRequest request, CancellationToken cancellationToken)
     {
         var ctx = mRunningContext.Value ?? mActive;
         var tcs = new TaskCompletionSource<ScriptAuthDecision>();
         void Build()
         {
-            var card = BuildAuthRequestCard(changeCount, tcs);
+            var card = BuildAuthRequestCard(request, tcs);
             if (ctx.CurrentTurn != null)
                 ctx.CurrentTurn.Append(card); // 插进本轮步骤流，与工具步骤同序
             else
@@ -1883,11 +1888,17 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 卡片：说明 + 三按钮（应用本次/始终允许/拒绝）；裁决后隐藏按钮、留一行结果。"始终允许"顺带切档到 Auto。
-    Control BuildAuthRequestCard(int changeCount, TaskCompletionSource<ScriptAuthDecision> tcs)
+    // 文案按写请求种类分：工程编辑=改动数；脚本库删/覆盖=点名脚本 + 不可撤销提示（外部文件、历史记录管理器救不回）。
+    Control BuildAuthRequestCard(AgentAuthorizationRequest request, TaskCompletionSource<ScriptAuthDecision> tcs)
     {
         var message = new SelectableTextBlock()
         {
-            Text = string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), changeCount),
+            Text = request.Kind switch
+            {
+                AgentWriteKind.ScriptDelete => string.Format("The agent wants to delete the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
+                AgentWriteKind.ScriptOverwrite => string.Format("The agent wants to overwrite the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
+                _ => string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), request.Count),
+            },
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Foreground = Colors.White.ToBrush(),

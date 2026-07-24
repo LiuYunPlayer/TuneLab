@@ -2,9 +2,15 @@
 
 TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理念：单一动作面（CodeAct）**——编辑工程一律由模型写 JavaScript 经 `run_script` 表达（对象式 `tl` API），读取只保留一个"定向总览"，其余读取也走脚本。曾经的细粒度读写工具（`transpose_notes`/`apply_edits`/`get_part_notes`…）与其门面 `IAgentProjectEditor` 已全部退役——同一件事多条路只会降模型选择准确率、堆 prompt。本文面向维护者，也作为编写工具描述（喂模型）时的一致性参考。
 
-## 工具全集（9 个）
+**归属判据（脚本面 vs 工具面）——按「谁需要」分**：分界不是"读/写"（`tl` 本就有大量读，如 `part.notes()`），而是**"这是不是用户会要的能力"**：
+- **用户会要的能力**（工程编辑、可复用命令、快捷键、未来 MCP）→ 走 `tl` 脚本动作面。它同时是用户的脚本面与 agent 的写路径，故"帮用户写脚本+绑快捷键"和"agent 顺手做一件事"是同一件事。
+- **只有 agent 自身推理需要、用户不会去脚本化的**（枚举环境、读元数据/schema/readme、定位总览）→ 加薄只读 `IAgentTool`。
+- **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
+- **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-两个面：**操作工程** + **管理脚本库**。
+## 工具全集（12 个）
+
+三个面：**操作工程** + **管理脚本库** + **环境感知（只读）**。
 
 | 工具 | 面 | 作用 |
 |---|---|---|
@@ -17,6 +23,9 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `delete_script` | 库 | 删某脚本（同时从菜单移除）。 |
 | `get_script_inputs` | 库 | 读某脚本的入参 schema（逐字段名/类型/默认/范围·选项）+ 用户**上次输入值**。只读（只 eval getInputConfig，无副作用）。run_saved_script 前调。 |
 | `run_saved_script` | 库 | 按库名跑已存脚本（= 替用户按那个菜单项），`inputs` 可省：给了覆盖在上次值上再补默认，没给用上次/默认。走 run_script 同一授权闸门。 |
+| `list_extensions` | 感知 | 列用户已装扩展：名/id/版本/作者/类别(format/voice/instrument/effect/agent-model)/加载状态/有无 readme。直接读 `ExtensionManager.LoadResults`。 |
+| `get_extension_readme` | 感知 | 按 id 或名读某扩展 README（markdown 原文，按语言解析、上限截断）。按需拉取（渐进式披露）。 |
+| `list_sound_sources` | 感知 | 分层枚举音源：不给 `engine` → 列引擎(type id/显示名/提供包，不 Init)；给 `engine` → 列该引擎音源(id/名/描述，仅 Init 它)。`kind` 可选过滤。 |
 
 ```
 模型 ──tool call(JSON)──► IAgentTool 实现
@@ -26,7 +35,9 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ run_saved_script ───┘         （run_saved_script 先按名读库源码 + 解析入参再进闸门）
         ├─ get_script_api ─────────────────────► ScriptApiReference.Text
         ├─ get_script_inputs ──────────────────► ScriptRunner.GetInputConfig + ScriptInputMemory（只读）
-        └─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
+        ├─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
+        ├─ list_extensions / get_extension_readme ─► ExtensionManager.LoadResults / ExtensionReadme（只读）
+        └─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读，给 engine 才 Init）
 ```
 
 - **IAgentTool**（`TuneLab/Agent/IAgentTool.cs`）：工具对模型的声明（名称/描述/参数 JSON Schema）+ 执行入口。实现薄：解析参数 JSON、干活、把结果/错误格式化回灌。
@@ -74,8 +85,10 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 
 `run_script` 是"现在做一次"；用户要**可复用的功能/命令**（"加个菜单项做……"、"给我做个工具……"）时，模型应把它写成**工具脚本**存库——库里定义了 `getScriptInfo()` 的脚本即"工具"，按 `context` 自动注册进菜单，用户日后点菜单复用：
 
-- **`save_script(name, code)`**：存（新建/覆盖）到库（`%APPDATA%/TuneLab/Scripts`）。**只持久化、不执行**。若 `code` 声明了 `getScriptInfo` 先**预校验**（沙箱 eval 顶层 + 调 `getScriptInfo`，复用 `ScriptTools.InspectSource`，改动原子回退）——失败不保存、回灌错误；成功回报注册到哪个菜单。无 `getScriptInfo` 则存为普通一次性脚本（仅 Script 侧栏）。
-- **`list_scripts`** / **`read_script(name)`** / **`delete_script(name)`**：列出(标工具+context/plain) / 读源码 / 删除。
+- **`save_script(name, code)`**：存（新建/覆盖）到库（`%APPDATA%/TuneLab/Scripts`）。**只持久化、不执行**。若 `code` 声明了 `getScriptInfo` 先**预校验**（沙箱 eval 顶层 + 调 `getScriptInfo`，复用 `ScriptTools.InspectSource`，改动原子回退，**先于授权**——不为坏脚本弹卡片）——失败不保存、回灌错误；成功回报注册到哪个菜单。无 `getScriptInfo` 则存为普通一次性脚本（仅 Script 侧栏）。**覆盖已存脚本**是破坏用户外部文件 → 过授权闸门（见下）；新建是加性、不拦。
+- **`list_scripts`** / **`read_script(name)`** / **`delete_script(name)`**：列出(标工具+context/带入参/plain) / 读源码 / 删除。**`delete_script` 恒过授权闸门**（删外部文件不可撤销）。
+
+**破坏性外部文件操作的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件**，故 `delete_script`（恒）与 `save_script` 覆盖已存（仅覆盖）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（文件操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite），卡片按种类出不同文案。只读工具（含环境感知三件）永不过闸门。
 
 工具脚本约定（喂 LLM 全文在 `ScriptApiReference.cs` 的 "TOOL SCRIPTS" 节）：顶层**只定义函数、无副作用**；`getScriptInfo()` 返回 `{name, category?, author?, version?, context}`（`name` 里读 `tl.language` 本地化）；`main()` 是动作。`context` = `global`（顶部 Scripts 菜单，按 category 分组）/ `note`（钢琴命中音符，目标 `selectedNotes()`）/ `partContent`（钢琴空白，目标 `currentPart()`）/ `part`（编排命中 part，目标 `selectedParts()`）/ `track`（轨道头，目标 `selectedTracks()`）/ `trackContent`（编排空白泳道，目标 `selectedTracks()`）。注册/菜单注入由 `TuneLab.Scripting.ScriptTools` + `TuneLab.UI.ScriptToolMenu` 完成（设计见 `docs/script-tools-design.md`）。
 
@@ -89,6 +102,16 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **稳定 id**：入参记忆键 = `ScriptTools.StableId`（声明 id 合法则用之，否则文件名，与快捷键锚点同一套），UI 侧 `ScriptToolMenu` 与 agent 侧共用同一派生，重命名/重装不丢。
 
 `run_script`（内联）与 `run_saved_script`（命名）到了写这一步是同一件事——都经 `ScriptWriteExecutor` 过分级授权 + 预览 + 写守卫 wait-retry + 结果回报（单一动作面 SSOT）；二者只在"代码/入参从哪来"不同。
+
+## 环境感知（只读工具，让 agent 看见宿主装了什么）
+
+编辑面只让 agent 改工程，但要「推荐插件/音源、指导用户在哪用某能力」，agent 得先**看见宿主环境**。这几个是纯只读环境查询——按架构原则（单一动作面）**只有只读环境查询才新增薄 IAgentTool**，写仍走 `run_script`：
+
+- **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），逐条列名/id/版本/作者/类别/加载状态/错误/有无 readme。是「诉求 3」的地基。
+- **`get_extension_readme(name)`**：按 id 或名匹配 `ExtensionLoadResult`，`ExtensionReadme.Resolve(dir, lang)` 解析 `README.<lang>.md → README.md` 得路径 → `File.ReadAllText`。readme 可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。
+- **`list_sound_sources(kind?, engine?)`**：分两层避免一次性 Init 全部引擎——不给 `engine` 用 `GetAllVoiceEngines/GetProviders/GetDisplayName`（不 Init）列引擎；给 `engine` 用 `GetAllVoiceInfos/GetAllInstrumentInfos`（**仅 Init 该引擎**）列其音源。是「诉求 5」的地基。音源枚举会跑插件代码，故在 **UI 线程**（`Dispatcher.UIThread.InvokeAsync`）执行，对齐宿主其余引擎操作。空引擎 `type=""`（无音源回退）在列表里跳过。
+
+「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；「切换 part 音源」是写操作、属后续写通道切片。这些只读工具都不落 undo、不受分级授权闸门约束。
 
 ## 维护
 

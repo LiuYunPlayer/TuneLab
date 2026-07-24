@@ -20,7 +20,7 @@ namespace TuneLab.Agent;
 //  · Confirm        预览 → 宿主内联升级卡片让用户裁决 → 应用本次/始终允许(切自动) 才重跑落地、拒绝则不动。
 // confirm 是宿主注入的升级卡片回调（changeCount → 裁决）：宿主把卡片渲进触发这一轮的对话视图。
 // 无回调时 Confirm 保守地不落地。"始终允许"的档位切换由宿主在回调内部完成（本执行器只据裁决决定是否落地）。
-internal sealed class ScriptWriteExecutor(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, Func<int, CancellationToken, Task<ScriptAuthDecision>>? confirm = null)
+internal sealed class ScriptWriteExecutor(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null)
 {
     // 写守卫被拦时（用户正操作）的最长等待与轮询间隔：脚本会原子回退、整段安全重跑，故等用户松手后自动落地。
     const int MaxWaitMs = 3000;
@@ -67,7 +67,7 @@ internal sealed class ScriptWriteExecutor(IProject project, Func<IMidiPart?>? cu
             if (confirm == null)
                 return string.Format("Confirmation is required (Confirm mode) but no UI is available to ask, so the {0} edit(s) were NOT applied. Ask the user to apply manually or switch authorization to Auto.", pv.Changes);
 
-            var decision = await confirm(pv.Changes, cancellationToken);
+            var decision = await confirm(new AgentAuthorizationRequest(AgentWriteKind.ProjectEdit, pv.Changes, null), cancellationToken);
             if (decision == ScriptAuthDecision.Reject)
                 return string.Format("The user reviewed the {0} proposed edit(s) and chose NOT to apply them. Nothing was changed.", pv.Changes);
 

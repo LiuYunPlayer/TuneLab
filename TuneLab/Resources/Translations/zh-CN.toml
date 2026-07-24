@@ -354,6 +354,8 @@
 "Stopped" = "已停止"
 "Submit" = "确认"
 "The agent wants to apply {0} change(s) to the project." = "Agent 想对工程应用 {0} 处改动。"
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "Agent 想删除已保存的脚本“{0}”。此操作无法撤销。"
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Agent 想覆盖已保存的脚本“{0}”。此操作无法撤销。"
 "Tips" = "提示"
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "本轮共 {0} 次模型调用（工具往返会重复前缀）\n输入 {1:N0} · 输出 {2:N0}\n最后一次调用上下文约 {3:N0} tokens"
 "Type a message..." = "输入消息…"
