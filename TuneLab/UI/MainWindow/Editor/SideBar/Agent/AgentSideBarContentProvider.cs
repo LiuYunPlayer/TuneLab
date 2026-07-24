@@ -120,10 +120,11 @@ internal sealed class AgentSideBarContentProvider
                 new DeleteScriptTool(RequestScriptAuthorizationAsync),
                 new GetScriptInputsTool(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
-                // 环境感知（只读）：枚举插件/readme、枚举音源目录——让 agent 看见宿主装了什么、有哪些音源可推荐。
+                // 环境感知（只读）：枚举插件/readme、音源目录、effect 引擎+参数——让 agent 看见宿主装了什么、可推荐什么。
                 new ListExtensionsTool(),
                 new GetExtensionReadmeTool(),
                 new ListSoundSourcesTool(),
+                new ListEffectsTool(),
             };
         }
         else

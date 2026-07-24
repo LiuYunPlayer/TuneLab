@@ -8,7 +8,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-## 工具全集（12 个）
+## 工具全集（13 个）
 
 三个面：**操作工程** + **管理脚本库** + **环境感知（只读）**。
 
@@ -26,6 +26,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `list_extensions` | 感知 | 列用户已装扩展：名/id/版本/作者/类别(format/voice/instrument/effect/agent-model)/加载状态/有无 readme。直接读 `ExtensionManager.LoadResults`。 |
 | `get_extension_readme` | 感知 | 按 id 或名读某扩展 README（markdown 原文，按语言解析、上限截断）。按需拉取（渐进式披露）。 |
 | `list_sound_sources` | 感知 | 分层枚举音源：不给 `engine` → 列引擎(type id/显示名/提供包，不 Init)；给 `engine` → 列该引擎音源(id/名/描述，仅 Init 它)。`kind` 可选过滤。 |
+| `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
 
 ```
 模型 ──tool call(JSON)──► IAgentTool 实现
@@ -37,8 +38,10 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ get_script_inputs ──────────────────► ScriptRunner.GetInputConfig + ScriptInputMemory（只读）
         ├─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
         ├─ list_extensions / get_extension_readme ─► ExtensionManager.LoadResults / ExtensionReadme（只读）
-        └─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读，给 engine 才 Init）
+        ├─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读，给 engine 才 Init）
+        └─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
 ```
+（列引擎/config 文本化的共享格式在 `AgentToolFormat.cs`：`EngineCatalog.AppendEngineList` 三类引擎共用、`ConfigText.Describe/FormatValue` 各 config 类型一致措辞，也复用进脚本入参 `SavedScriptSupport`。）
 
 - **IAgentTool**（`TuneLab/Agent/IAgentTool.cs`）：工具对模型的声明（名称/描述/参数 JSON Schema）+ 执行入口。实现薄：解析参数 JSON、干活、把结果/错误格式化回灌。
 - **AgentRunner**（`TuneLab/Agent/AgentRunner.cs`）：provider 无关的多轮工具循环，只依赖 `IAgentModelSession`。模型适配器是宿主内部模块（不开放为插件类型），接入新 LLM 提供方见 [agent-model-adapters.md](agent-model-adapters.md)。
@@ -110,8 +113,9 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），逐条列名/id/版本/作者/类别/加载状态/错误/有无 readme。是「诉求 3」的地基。
 - **`get_extension_readme(name)`**：按 id 或名匹配 `ExtensionLoadResult`，`ExtensionReadme.Resolve(dir, lang)` 解析 `README.<lang>.md → README.md` 得路径 → `File.ReadAllText`。readme 可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。
 - **`list_sound_sources(kind?, engine?)`**：分两层避免一次性 Init 全部引擎——不给 `engine` 用 `GetAllVoiceEngines/GetProviders/GetDisplayName`（不 Init）列引擎；给 `engine` 用 `GetAllVoiceInfos/GetAllInstrumentInfos`（**仅 Init 该引擎**）列其音源。是「诉求 5」的地基。音源枚举会跑插件代码，故在 **UI 线程**（`Dispatcher.UIThread.InvokeAsync`）执行，对齐宿主其余引擎操作。空引擎 `type=""`（无音源回退）在列表里跳过。
+- **`list_effects(engine?)`**：`EffectManager` 严格镜像音源管理器（`GetAllEffectEngines/GetProviders/GetDisplayName/GetInitedEngine`），故列引擎层与音源同格式（共用 `EngineCatalog`）。与音源不同——effect **无「音源目录」**（一个引擎 = 一种效果器类型），第二层列的是**参数 schema**：给 `engine` 时 `GetInitedEngine`（**仅 Init 它**）→ 传一个 **part-free 的空 `IEffectSynthesisPropertyContext`**（空 `IEffectSynthesisView`：无改过的值 → 各参数取引擎默认）→ 调引擎三个纯函数声明方法 `GetPropertyConfig`（静态属性 `ObjectConfig`）/`GetAutomationConfigs`（可编辑自动化轨）/`GetSynthesizedParameterConfigs`（只读回显轨），逐参数输出类型/范围/默认。是「诉求 6」的地基。要点：宿主自带的 `EffectPropertyContext` 绑 part 且 private，不可复用，故 Agent 层自建极简空 context；effect 无内建引擎（全来自插件）；条件化 schema 只能拿「默认值版」（静态枚举固有上限）；读 schema 必须 Init 引擎（跑插件代码）→ UI 线程。
 
-「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；「切换 part 音源」是写操作、属后续写通道切片。这些只读工具都不落 undo、不受分级授权闸门约束。
+「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；「切换 part 音源」「读写 part 的 effect 链」都是写操作、属后续写通道切片（届时 tl 侧也需按名解析音源/effect 的查找，与这些推荐工具两道门并存）。这些只读工具都不落 undo、不受分级授权闸门约束。
 
 ## 维护
 

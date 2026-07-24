@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using TuneLab.Extensions;
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
@@ -64,38 +63,18 @@ internal sealed class ListSoundSourcesTool : IAgentTool
             engine != null ? ListEngineSources(engine, wantVoice, wantInstr) : ListEngines(wantVoice, wantInstr));
     }
 
-    // 列引擎（不 Init）：type id / 显示名 / 提供包。空引擎 type="" 是无音源回退，跳过。
+    // 列引擎（不 Init）：type id / 显示名 / 提供包（共用 EngineCatalog，与 effect 同格式）。
     static string ListEngines(bool wantVoice, bool wantInstr)
     {
         var sb = new StringBuilder();
         if (wantVoice)
-            AppendEngineList(sb, "Voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetDisplayName, VoicesManager.GetProviders);
+            EngineCatalog.AppendEngineList(sb, "Voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetDisplayName, VoicesManager.GetProviders);
         if (wantInstr)
-            AppendEngineList(sb, "Instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetDisplayName, InstrumentsManager.GetProviders);
+            EngineCatalog.AppendEngineList(sb, "Instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetDisplayName, InstrumentsManager.GetProviders);
         if (sb.Length == 0)
             return "No sound-source engines are available.";
         sb.Append("\nPass engine=<type id> to list an engine's individual sources.");
         return sb.ToString();
-    }
-
-    static void AppendEngineList(StringBuilder sb, string kindLabel, IReadOnlyList<string> engines, Func<string, string> displayName, Func<string, IReadOnlyList<(string PackageId, string DisplayName)>> providers)
-    {
-        var real = engines.Where(t => !string.IsNullOrEmpty(t)).ToList();
-        if (sb.Length > 0) sb.Append('\n');
-        sb.Append(kindLabel).Append(" engines (").Append(real.Count).Append("):");
-        if (real.Count == 0)
-            sb.Append("\n  (none)");
-        foreach (var type in real)
-        {
-            var pkgs = providers(type);
-            string pkgLabel = pkgs.Count switch
-            {
-                0 => "unknown",
-                1 => ExtensionManager.GetPackageName(pkgs[0].PackageId),
-                _ => "multiple: " + string.Join(", ", pkgs.Select(p => ExtensionManager.GetPackageName(p.PackageId))),
-            };
-            sb.Append("\n- \"").Append(displayName(type)).Append("\" [type=").Append(type).Append(", package=").Append(pkgLabel).Append("]");
-        }
     }
 
     // 列某引擎的音源（Init 该引擎）：id / 名 / 描述。

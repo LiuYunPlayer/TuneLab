@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -177,64 +176,13 @@ internal static class SavedScriptSupport
             sb.Append("\n- ").Append(key.Id);
             if (!string.IsNullOrEmpty(key.DisplayText) && key.DisplayText != key.Id)
                 sb.Append(" (\"").Append(key.DisplayText).Append("\")");
-            sb.Append(": ").Append(DescribeConfig(kvp.Value));
+            sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
 
             if (kvp.Value is IValueConfig leaf)
-                sb.Append(". default ").Append(FormatValue(leaf.DefaultValue));
+                sb.Append(". default ").Append(ConfigText.FormatValue(leaf.DefaultValue));
             if (lastValues.Map.TryGetValue(key.Id, out var last) && !last.IsNull())
-                sb.Append(". last used: ").Append(FormatValue(last));
+                sb.Append(". last used: ").Append(ConfigText.FormatValue(last));
         }
         return sb.ToString();
     }
-
-    static string DescribeConfig(IControllerConfig config) => config switch
-    {
-        SliderConfig s => string.Format("number in [{0}, {1}]", FormatNum(s.Scale.ToValue(0)), FormatNum(s.Scale.ToValue(1))),
-        DraggableNumberBoxConfig d => "number" + RangeHint(d),
-        ComboBoxConfig c => "one of " + Options(c),
-        CheckBoxConfig => "boolean (true/false)",
-        TextBoxConfig t => t.IsPassword ? "text (masked)" : "text",
-        ObjectConfig => "object (grouped fields)",
-        _ => "value",
-    };
-
-    static string RangeHint(DraggableNumberBoxConfig d)
-    {
-        var parts = new StringBuilder();
-        if (d.Min is { } min) parts.Append(", min ").Append(FormatNum(min));
-        if (d.Max is { } max) parts.Append(", max ").Append(FormatNum(max));
-        if (d.Step is { } step) parts.Append(", step ").Append(FormatNum(step));
-        return parts.ToString();
-    }
-
-    static string Options(ComboBoxConfig c)
-    {
-        var sb = new StringBuilder("[");
-        bool first = true;
-        foreach (var item in c.Items)
-        {
-            if (item.SubItems != null || item.Value.IsNull())
-                continue;   // 跳过分组标题 / 分隔线（值为空）
-            if (!first) sb.Append(", ");
-            first = false;
-            sb.Append(FormatValue(item.Value));
-            if (!string.IsNullOrEmpty(item.DisplayText) && item.DisplayText != FormatValue(item.Value))
-                sb.Append(" (\"").Append(item.DisplayText).Append("\")");
-        }
-        return sb.Append(']').ToString();
-    }
-
-    static string FormatValue(PropertyValue v)
-    {
-        if (v.IsNull()) return "(none)";
-        if (v.ToBoolean(out var b)) return b ? "true" : "false";
-        if (v.ToDouble(out var d)) return FormatNum(d);
-        if (v.ToString(out var s)) return "\"" + s + "\"";
-        return "(none)";
-    }
-
-    static string FormatNum(double d)
-        => d == Math.Floor(d) && !double.IsInfinity(d)
-            ? ((long)d).ToString(CultureInfo.InvariantCulture)
-            : d.ToString(CultureInfo.InvariantCulture);
 }
