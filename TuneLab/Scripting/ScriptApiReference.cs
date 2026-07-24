@@ -105,6 +105,7 @@ internal static class ScriptApiReference
         "    DraggableNumberBoxConfig.create(default) / .integer(default)   [.withMin(x) / .withMax(x) / .withRange(a,b) / .withStep(s)]\n" +
         "    ComboBoxConfig.create(['a','b']) or .create()   [.append(x) / .appendSeparator() / .withDefault('a')]\n" +
         "    CheckBoxConfig.create(false)      TextBoxConfig.create('')   [.withPassword()]\n" +
+        "  Advanced (log/exp axes, units): SliderConfig.create(default, NormalizedScale.custom(p=>value, value=>p)) — two inverse JS functions on 0..1; .withFormat(NumberFormat.custom(v=>string, s=>number|null)) — parse returns null on failure. These run live while the input form is open (keep them pure & cheap; errors degrade gracefully, they never throw into the UI).\n" +
         "  A tool WITHOUT getInputConfig just runs main() with no dialog (main may ignore its argument).\n" +
         "  Once saved, a tool with inputs can be re-run later WITHOUT rewriting it: call get_script_inputs(name) to see its fields (and the user's last values), then run_saved_script(name, inputs?) to run it.\n" +
         "  EXAMPLE tool with inputs — 'Transpose' asking for the interval:\n" +

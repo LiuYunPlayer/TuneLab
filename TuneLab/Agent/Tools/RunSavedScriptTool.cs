@@ -60,15 +60,17 @@ internal sealed class GetScriptInputsTool(IProject project, Func<IMidiPart?>? cu
         var lastValues = ScriptInputMemory.Load(scriptId);
 
         // getInputConfig 读工程上下文（选中音符等），在 UI 线程求值；误改在 GetInputConfig 内原子回退。
-        var (schema, error) = await Dispatcher.UIThread.InvokeAsync(() =>
-            ScriptRunner.GetInputConfig(project, currentPart, quantization, language, selection, pianoSelection, code, lastValues, cancellationToken));
-
-        if (error != null)
-            return string.Format("Error: getInputConfig failed to evaluate for \"{0}\" — {1}", name, error);
-        if (schema == null)
-            return string.Format("Script \"{0}\" takes no inputs. Run it with run_saved_script and no `inputs`.", name);
-
-        return SavedScriptSupport.DescribeSchema(name, schema, lastValues);
+        // DescribeSchema 也在 UI 线程内完成——自定义 scale/format 的 config 会回调 Jint 引擎（.Scale.ToValue / .Format），
+        // 而 Jint 引擎非线程安全、须在其创建线程（UI）调用；built-in config 纯 C# 无此约束，一并放里无碍。
+        return await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var (schema, error) = ScriptRunner.GetInputConfig(project, currentPart, quantization, language, selection, pianoSelection, code, lastValues, cancellationToken);
+            if (error != null)
+                return string.Format("Error: getInputConfig failed to evaluate for \"{0}\" — {1}", name, error);
+            if (schema == null)
+                return string.Format("Script \"{0}\" takes no inputs. Run it with run_saved_script and no `inputs`.", name);
+            return SavedScriptSupport.DescribeSchema(name, schema, lastValues);
+        });
     }
 }
 
