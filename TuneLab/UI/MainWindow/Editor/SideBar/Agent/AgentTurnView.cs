@@ -129,9 +129,34 @@ internal sealed class AgentTurnView
             return;
         if (mDirty)
             RenderLive();
+        // 该段（一次完整返回）定稿 → 其后附一个纯文字「复制」，复制本段原文 markdown（与脚注 Copy 同款样式）。
+        // 实时与重载都经 SealText，故两条路都自动带上分段复制。
+        var raw = mRawText.ToString();
+        int idx = mContent.Children.IndexOf(mLiveControl);
+        if (idx >= 0 && !string.IsNullOrWhiteSpace(raw))
+            mContent.Children.Insert(idx + 1, SegmentCopy(raw));
         mLiveControl = null;
         mDirty = false;
         mRawText.Clear();
+    }
+
+    // 分段「复制」纯文字按钮（右对齐、无底色、灰→hover 白）：复制本段原文。
+    // 右对齐锚在助手容器的【定宽】右边缘（= 内容列宽、随侧栏走），与文字长短无关、不跳动；成功与报错的复制落在同一右边缘（统一按钮）。
+    Control SegmentCopy(string raw)
+    {
+        var copy = new TextBlock
+        {
+            Text = "Copy".Tr(this),
+            FontSize = 11,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Margin = new(0, 2, 0, 2),
+        };
+        copy.PointerEntered += (_, _) => copy.Foreground = Colors.White.ToBrush();
+        copy.PointerExited += (_, _) => copy.Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush();
+        copy.PointerPressed += (_, e) => { e.Handled = true; _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(raw); };
+        return copy;
     }
 
     // 封口当前思考段：定稿其文本、结束「思考中」状态。思考块本身保留在内容区（可折叠回看）。

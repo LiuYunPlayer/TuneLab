@@ -46,6 +46,29 @@ internal sealed class AgentRunner
             mMessages.AddRange(history);
     }
 
+    // 本轮（进行中/最近一轮）已构建的有序轨迹。失败/取消时 SendAsync/RetryAsync 抛异常、结果拿不到，
+    // OnSend 据此持久化"半截过程"供显示（重载==实时）。
+    public IReadOnlyList<AgentTurnMessage> CurrentTrajectory => mCurrentTrajectory ?? (IReadOnlyList<AgentTurnMessage>)[];
+    List<AgentTurnMessage>? mCurrentTrajectory;
+
+    // 从尾部移除"未闭合"的一轮：末尾 assistant 发起了 tool_call 但缺配对 tool 结果（取消卡在工具中途会产生），
+    // 连同其已有的部分结果一并移除——避免悬空 tool_call 喂模型被端点拒。用户消息与已完成（配对）轮完整保留。
+    // 失败单位是"一次模型回复"而非整条用户消息：错误/取消只砍这截悬空尾巴，用户消息留在上下文，可经重试按钮续跑。
+    public void TrimDanglingToolCalls()
+    {
+        int i = mMessages.Count - 1;
+        var resultIds = new HashSet<string>();
+        while (i >= 0 && mMessages[i].Role == AgentRole.Tool)
+        {
+            if (mMessages[i].ToolCallId is { } id)
+                resultIds.Add(id);
+            i--;
+        }
+        if (i >= 0 && mMessages[i].Role == AgentRole.Assistant && mMessages[i].ToolCalls is { Count: > 0 } calls
+            && !calls.All(c => resultIds.Contains(c.Id)))
+            mMessages.RemoveRange(i, mMessages.Count - i);
+    }
+
     // 处理一条用户消息，返回模型的最终文本回复 + 本轮 token 用量。对话历史在多次调用间累积（保持上下文）。
     // 一次用户输入内可能有多次模型调用（工具往返），用量为这些调用的合计；任一调用返回了 usage 即非 null。
     // progress：进度事件回调（可空）——文本增量(AgentTextDelta)透传自会话流式，工具开始/完成(AgentToolStarted/Finished)
@@ -70,6 +93,17 @@ internal sealed class AgentRunner
             mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = userInput });
         }
 
+        return await RunTurnAsync(progress, cancellationToken, takePending);
+    }
+
+    // 重试：不追加用户消息，直接对当前上下文（末尾即待重试的那条用户消息 + 已完成轮）续跑。供失败轮的重试按钮用——
+    // 从而"重载后也能手动重试之前失败的轮"，且不必靠复述消息（复述会让模型看到两句话）。
+    public Task<AgentTurnResult> RetryAsync(IProgress<AgentEvent>? progress, CancellationToken cancellationToken, Func<string?>? takePending = null)
+        => RunTurnAsync(progress, cancellationToken, takePending);
+
+    // 一轮的核心循环（发送与重试共用）：不负责追加用户消息，只对当前 mMessages 续跑模型 + 工具往返。
+    async Task<AgentTurnResult> RunTurnAsync(IProgress<AgentEvent>? progress, CancellationToken cancellationToken, Func<string?>? takePending)
+    {
         int prompt = 0, completion = 0, total = 0;
         bool hasUsage = false;
         AgentTokenUsage? TurnUsage() => hasUsage
@@ -93,6 +127,7 @@ internal sealed class AgentRunner
         var narration = new List<string>();
         // 本轮新增的有序全量轨迹（assistant + tool），供宿主落盘 + 重建分步视图。
         var trajectory = new List<AgentTurnMessage>();
+        mCurrentTrajectory = trajectory; // 抛异常时结果拿不到，故同引用暴露给 OnSend 落"半截过程"（见 CurrentTrajectory）
 
         // 轮边界软插话：取尽 pending 文本，逐条作为 user 消息注入 mMessages + trajectory，并发事件供 UI 行内渲染。
         // 仅在安全边界调用（无未配对 tool_call），返回是否注入了至少一条（用于重置回合预算）。

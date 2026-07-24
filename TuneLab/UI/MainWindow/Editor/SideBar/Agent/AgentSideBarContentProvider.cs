@@ -67,12 +67,14 @@ internal sealed class AgentSideBarContentProvider
         // 选择变更经数据对象 Modified 驱动（用户改 combo → 写入 mProviderData → 通知）。
         mProviderData.Modified.Subscribe(OnEngineSelectionChanged);
 
-        // agent 写操作授权级别（live-persist：改即写 Settings 并存盘，与 ExtensionRouting 同属即时生效的用户选择）。
-        mAuthData = new DataPropertyObject(new DataDocument());
-        mAuthData.SetValue(AuthKey, PropertyValue.Create(Settings.AgentAuthorization.Value));
-        mAuthData.Commit();
-        mAuthController.SetConfig(BuildAuthConfig(), mAuthData);
-        mAuthData.Modified.Subscribe(OnAuthorizationChanged);
+        // agent 写授权胶囊在对话页 header（见 BuildChatView），即时生效、不经"确认"（授权本就是即时偏好）。
+        // 订阅 Settings 本体 → 无论改动来自胶囊还是升级卡片（Confirm 里的"始终允许"）胶囊都实时同步。
+        Settings.AgentAuthorization.Modified.Subscribe(RefreshAuthPill);
+        RefreshAuthPill();
+        // 设置面板 dirty 追踪：字段编辑 / provider 切换即置脏、标题显 *；× 时据此弹「应用/忽略」。
+        // 订阅置于 ctor 初始 provider 载入之后，故初始化不误标脏（且每次进面板还会重置）。
+        mSettings.Modified.Subscribe(RecomputeSettingsDirty);
+        mProviderData.Modified.Subscribe(RecomputeSettingsDirty);
 
         // 之前 Submit 过（app Settings 记了 provider）才打开即静默自动接入，直接可聊天；否则首次发送再引导去设置。
         if (hadSaved && TryConnect(savedEngine, out _))
@@ -104,7 +106,7 @@ internal sealed class AgentSideBarContentProvider
             {
                 // 操作工程：定向（看） + 脚本（改/算/细读）
                 new GetProjectOverviewTool(project),
-                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider, mPianoSelectionProvider, () => mRoot),
+                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider, mPianoSelectionProvider, RequestScriptAuthorizationAsync),
                 new GetScriptApiTool(),
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用。
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
@@ -170,6 +172,30 @@ internal sealed class AgentSideBarContentProvider
         settingsButton.Clicked += ShowSettings;
         DockPanel.SetDock(settingsButton, Dock.Right);
         header.Children.Add(settingsButton);
+
+        // agent 写授权胶囊：显示当前档位短名 + ▾，点开三选一、即时生效。放 ⚙ 左侧（右侧后加的 dock item 更靠左）。
+        var caret = new TextBlock() { Text = "▾", FontSize = 9, Margin = new(4, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush() };
+        var pillInner = new StackPanel() { Orientation = Orientation.Horizontal };
+        pillInner.Children.Add(mAuthLabel);
+        pillInner.Children.Add(caret);
+        mAuthButton = new Border()
+        {
+            CornerRadius = new(10),
+            Padding = new(8, 2),
+            Margin = new(0, 0, 2, 0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Background = Style.INTERFACE.ToBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = pillInner,
+        };
+        mAuthButton.PointerEntered += (_, _) => mAuthButton.Background = Style.LIGHT_WHITE.Opacity(0.12).ToBrush();
+        mAuthButton.PointerExited += (_, _) => mAuthButton.Background = Style.INTERFACE.ToBrush();
+        mAuthButton.PointerPressed += (_, e) => { e.Handled = true; OpenAuthMenu(); };
+        DockPanel.SetDock(mAuthButton, Dock.Right);
+        header.Children.Add(mAuthButton);
+        mAuthFlyout = new Flyout() { Placement = PlacementMode.BottomEdgeAlignedRight };
+        mAuthFlyout.FlyoutPresenterClasses.Add("agent-menu");
+        RefreshAuthPill();
 
         mTitleLabel.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
         mTitleLabel.Margin = new(4, 0);
@@ -385,11 +411,17 @@ internal sealed class AgentSideBarContentProvider
         return list;
     }
 
-    // ListView 用无限宽测量子项，子项必须靠 MaxWidth 才会换行。助手容器（去气泡）用近整宽、用户气泡/系统提示留对侧空白。
+    // ListView 用无限宽测量子项，子项必须靠显式宽度才会换行。助手容器（去气泡）用【定宽】撑满内容列（文字换行 + 复制右对齐都锚
+    // 这条随侧栏走的右边缘）；用户气泡/系统提示用 MaxWidth 按内容收缩、留对侧空白。随对话区 resize 更新（见 Bounds 订阅）。
     void ApplyBubbleWidths(ListView list)
     {
         foreach (var c in list.Content.Children)
-            c.MaxWidth = (c.Tag as string) == "assistant" ? mContentMaxWidth : mBubbleMaxWidth;
+        {
+            if ((c.Tag as string) == "assistant")
+                c.Width = mContentMaxWidth;
+            else
+                c.MaxWidth = mBubbleMaxWidth;
+        }
     }
 
     void OnMenuButtonClicked()
@@ -635,23 +667,37 @@ internal sealed class AgentSideBarContentProvider
         int i = 0;
         while (i < msgs.Count)
         {
+            ChatTurnMessage? turnStart = null;
             if (IsTurnStart(msgs[i]))
             {
-                AppendUserMessage(ctx, msgs[i].Text, LoadAttachmentBytes(session.Id, msgs[i]));
+                turnStart = msgs[i];
+                AppendUserMessage(ctx, turnStart.Text, LoadAttachmentBytes(session.Id, turnStart));
                 i++;
             }
             // 收集到下条"常规"user 之前的助手/工具/插话消息，重放成一条分步视图。容错：轨迹首条若非 user（异常文件），落单消息也独立成组。
             int start = i;
             while (i < msgs.Count && !IsTurnStart(msgs[i]))
                 i++;
+            bool failed = turnStart != null && !string.IsNullOrEmpty(turnStart.Outcome);
             if (i > start)
-                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i));
+                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i, aborted: failed));
+            // 收场态：出错轮 → 可重试/复制的错误条目（重试仅给最后一轮，其上下文才对得上）；取消轮 → 灰字"已停止"。
+            if (failed && turnStart!.Outcome == ChatTurnMessage.OutcomeError)
+                ctx.View.Content.Children.Add(BuildErrorEntry(ctx, turnStart, turnStart.ErrorText, allowRetry: i >= msgs.Count));
+            else if (failed)
+                ctx.View.Content.Children.Add(AssistantContainer(OutcomeNotice(turnStart!)));
         }
     }
 
+    // 取消/出错轮的末尾状态行：取消渲灰字"已停止"，出错渲红字"Error: 原因"（与实时 catch 路径同措辞）。
+    Control OutcomeNotice(ChatTurnMessage turnStart)
+        => turnStart.Outcome == ChatTurnMessage.OutcomeError
+            ? NoticeLine("Error: " + (turnStart.ErrorText ?? string.Empty), Colors.IndianRed.ToBrush())
+            : NoticeLine("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
+
     // 把 [start, end) 区间的助手/工具记录重放进一个 AgentTurnView，重建分步视图（与实时同路径），包进助手容器返回。
     // 重放顺序即存储顺序：每条 assistant 先思考、再正文、再它的工具调用(started)；随后的 tool 记录给出对应结果(finished)。
-    Control BuildReplayedTurn(List<ChatTurnMessage> msgs, int start, int end)
+    Control BuildReplayedTurn(List<ChatTurnMessage> msgs, int start, int end, bool aborted = false)
     {
         var turn = new AgentTurnView();
         var narration = new List<string>();
@@ -693,11 +739,15 @@ internal sealed class AgentSideBarContentProvider
             }
         }
         turn.Seal();
+        if (aborted)
+            turn.MarkPendingAborted(); // 失败/取消轮：未完成的工具步标为中止（与实时 catch 一致）
         turn.EndThinking(); // 重载即已完成，移除"生成中"指示
         if (turn.IsEmpty)
             return AssistantContainer(BubbleText("(no text reply)", Colors.White.ToBrush()));
         var usage = hasUsage ? new AgentTokenUsage { PromptTokens = prompt, CompletionTokens = completion, TotalTokens = total } : null;
-        turn.Append(BuildFooter(string.Join("\n\n", narration), usage, calls, lastContext));
+        // 失败/取消轮不显脚注——与实时一致（实时 catch 不 BuildFooter，只接结局行）。
+        if (!aborted)
+            turn.Append(BuildFooter(usage, calls, lastContext));
         return AssistantContainer(turn.Root);
     }
 
@@ -705,20 +755,32 @@ internal sealed class AgentSideBarContentProvider
     // ——模型续聊时带上之前调了哪些工具、得到什么结果的上下文，不再失忆。思考(reasoning)不回发（它是输出而非输入）。
     // 旧版纯文本文件无 tool 记录、assistant 也无 ToolCalls，本映射自然降级为纯 user/assistant 文本。
     // 供加载会话、以及聊天中途换模型重连时复用——后者据此让新模型带上完整当前上下文。
+    //
+    // 失败/取消轮的用户消息与已完成轮都保留进上下文（与实时 mMessages 一致，失败单位是"一次模型回复"而非整条用户消息，
+    // 故不再整轮跳过）——只滤掉"悬空 tool_call"：发起了调用却无配对结果的（取消卡在工具中途会产生），避免端点拒未配对调用。
     static List<AgentMessage> ReconstructHistory(ChatSession session)
     {
+        var msgs = session.Messages;
+        var resultIds = new HashSet<string>();
+        foreach (var m in msgs)
+            if (m.Role == "tool" && !string.IsNullOrEmpty(m.ToolCallId))
+                resultIds.Add(m.ToolCallId!);
+
         var history = new List<AgentMessage>();
-        foreach (var m in session.Messages)
+        foreach (var m in msgs)
         {
             switch (m.Role)
             {
                 case "assistant":
+                    var calls = m.ToolCalls?.Where(c => resultIds.Contains(c.Id)).ToList(); // 只留有配对结果的调用（滤悬空）
+                    if (string.IsNullOrEmpty(m.Text) && (calls == null || calls.Count == 0))
+                        continue; // 调用全悬空被滤空、又无正文 → 整条 assistant 丢弃
                     history.Add(new AgentMessage
                     {
                         Role = AgentRole.Assistant,
                         Content = string.IsNullOrEmpty(m.Text) ? null : m.Text,
-                        ToolCalls = m.ToolCalls is { Count: > 0 }
-                            ? m.ToolCalls.Select(c => new AgentToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList()
+                        ToolCalls = calls is { Count: > 0 }
+                            ? calls.Select(c => new AgentToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList()
                             : null,
                     });
                     break;
@@ -765,42 +827,77 @@ internal sealed class AgentSideBarContentProvider
         return result;
     }
 
-    // 一轮成功回复后记入该会话并落盘（取消/出错的轮不记）。新会话首轮顺带触发自动标题。
-    // ctx 是发起本轮时捕获的会话——即便用户中途已切到别的会话，也只写它、不串会话。
-    // 存全量：用户输入 + runner 返回的有序轨迹（助手回复含思考/工具调用/用量、工具结果含错误标记）原样落盘——
-    // 重载即可完整重建分步视图、并把含工具往返的上下文回灌续聊。assistantText 是合并叙述，仅用于自动标题。
-    void RecordTurn(SessionContext ctx, string userText, IReadOnlyList<ChatAttachment>? userAttachments, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory)
+    // persist-on-send：用户消息在【发送时】即建会话并落盘（不等整轮回复）——支撑并行会话（发 A→切 B→回 A）与崩溃韧性；
+    // "首次发送才建会话"也天然跳过从未用过的空 New Chat。返回本轮"锚"= 该用户消息，供轮终态回写 Outcome。
+    // ctx 是发起本轮时捕获的会话——即便用户中途切走也只写它、不串会话。
+    ChatTurnMessage BeginTurn(SessionContext ctx, string userText, IReadOnlyList<ChatAttachment>? userAttachments)
     {
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         bool isNew = ctx.Session == null;
         ctx.Session ??= new ChatSession { CreatedAtUnix = ctx.CreatedAtUnix }; // 沿用上下文建立时刻，落盘前后排序位置一致
         var session = ctx.Session;
-        session.SchemaVersion = 1; // 本轮起以全量轨迹格式落盘
-        // 用户消息（带附件则附 ChatAttachment，含原始字节 → Save 落 blob、清单只引用）。
-        session.Messages.Add(new ChatTurnMessage { Role = "user", Text = userText, Attachments = userAttachments is { Count: > 0 } ? userAttachments.ToList() : null });
-        foreach (var m in trajectory)
-            session.Messages.Add(ToStored(m));
+        session.SchemaVersion = 1;
+        // 用户消息（带附件则附 ChatAttachment，含原始字节 → Save 落 blob、清单只引用）即为本轮锚。
+        var anchor = new ChatTurnMessage { Role = "user", Text = userText, Attachments = userAttachments is { Count: > 0 } ? userAttachments.ToList() : null };
+        session.Messages.Add(anchor);
         session.UpdatedAtUnix = now;
-
-        if (isNew && ctx.TitleManual && !string.IsNullOrWhiteSpace(ctx.Title))
+        if (isNew)
         {
-            // 用户已手动命名 → 直接用它，不占位截断、不触发自动标题。
-            session.Title = ctx.Title;
-            AgentSessionStore.Save(session);
-        }
-        else if (isNew)
-        {
-            session.Title = Truncate(userText, 30); // 先用首条截断占位，确保列表立刻有可读名
+            // 首轮占位标题即时可读（手动名优先，否则首条截断）；LLM 自动标题推迟到本轮成功完成再覆盖。
+            session.Title = ctx.TitleManual && !string.IsNullOrWhiteSpace(ctx.Title) ? ctx.Title : Truncate(userText, 30);
             ctx.Title = session.Title;
             if (ctx == mActive)
                 SetTitle(session.Title);
-            AgentSessionStore.Save(session);
-            _ = GenerateTitleAsync(ctx, userText, assistantText); // 随后用 LLM 总结覆盖
         }
-        else
-        {
-            AgentSessionStore.Save(session);
-        }
+        AgentSessionStore.Save(session);
+        return anchor;
+    }
+
+    // 本轮成功完成：把 runner 返回的有序轨迹（助手回复含思考/工具调用/用量、工具结果含错误标记）追加落盘——
+    // 用户消息已在 BeginTurn 写入，故这里只补助手侧。首轮（非手动命名）顺带用 LLM 总结覆盖占位标题。
+    void CompleteTurn(SessionContext ctx, string userText, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory, bool isNewSession)
+    {
+        var session = ctx.Session;
+        if (session == null)
+            return; // 理论不达：BeginTurn 已建会话
+        foreach (var m in trajectory)
+            session.Messages.Add(ToStored(m));
+        session.UpdatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        AgentSessionStore.Save(session);
+        if (isNewSession && !ctx.TitleManual)
+            _ = GenerateTitleAsync(ctx, userText, assistantText);
+    }
+
+    // 重试成功：清除该轮的失败结局、把本次续跑轨迹追加落盘（用户消息与之前已完成轮已在库中）。
+    // 该轮就此变回正常成功轮——重载不再显示错误/重试。
+    void ResolveTurn(SessionContext ctx, ChatTurnMessage anchor, IReadOnlyList<AgentTurnMessage> trajectory)
+    {
+        anchor.Outcome = null;
+        anchor.ErrorText = null;
+        var session = ctx.Session;
+        if (session == null)
+            return;
+        foreach (var m in trajectory)
+            session.Messages.Add(ToStored(m));
+        session.UpdatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        AgentSessionStore.Save(session);
+    }
+
+    // 轮终态为取消/出错：回写锚消息的结局，并把失败前已构建的"半截过程"（partialTrajectory）也落盘——供重载如实重放，
+    // 做到显示 重载==实时。context 重建（ReconstructHistory）据锚的 Outcome 整轮跳过（半截过程也一并跳过、不喂模型），
+    // 故半截里即便有悬空 tool_call 也不会喂给模型；UI 重载则渲染半截过程 + "已停止/失败+原因"——真相保留。
+    void MarkTurnOutcome(SessionContext ctx, ChatTurnMessage anchor, string outcome, string? errorText, IReadOnlyList<AgentTurnMessage>? partialTrajectory = null)
+    {
+        anchor.Outcome = outcome;
+        anchor.ErrorText = errorText;
+        if (ctx.Session == null)
+            return;
+        // 半截过程接在锚之后落盘（失败轮此前只写了锚，故顺序正确）。
+        if (partialTrajectory is { Count: > 0 })
+            foreach (var m in partialTrajectory)
+                ctx.Session.Messages.Add(ToStored(m));
+        ctx.Session.UpdatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        AgentSessionStore.Save(ctx.Session);
     }
 
     // 把 runner 的一条轨迹消息转成落盘记录（助手带思考/工具调用/用量，工具带结果/错误标记）。
@@ -814,7 +911,7 @@ internal sealed class AgentSideBarContentProvider
                 ToolCallId = m.ToolCallId,
                 IsError = m.IsError,
             };
-        // 轨迹里的 user = 轮边界插话（常规首条用户消息由 RecordTurn 另行写入、不经轨迹）。标记 Interjected 以便重载时行内重放。
+        // 轨迹里的 user = 轮边界插话（常规首条用户消息由 BeginTurn 在发送时另行写入、不经轨迹）。标记 Interjected 以便重载时行内重放。
         if (m.Role == AgentRole.User)
             return new ChatTurnMessage { Role = "user", Text = m.Content ?? string.Empty, Interjected = true };
         return new ChatTurnMessage
@@ -965,19 +1062,49 @@ internal sealed class AgentSideBarContentProvider
         mPendingImages.Clear();
         RebuildAttachmentStrip();
         AppendUserMessage(ctx, text, images.Select(i => i.Data).ToList());
+        // 附件 → ChatAttachment（含原始字节，Save 落 blob、清单只引用）。
+        var attachments = images.Count > 0
+            ? images.Select(i => new ChatAttachment { Hash = AgentSessionStore.ComputeHash(i.Data), MediaType = i.MediaType, Data = i.Data }).ToList()
+            : null;
+        // persist-on-send：用户消息发送即落盘（不等回复），拿到本轮锚以便终态回写结局。
+        bool isNewSession = ctx.Session == null;
+        var anchor = BeginTurn(ctx, text, attachments);
+        ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
+        var parts = images.Count > 0 ? images.Select(i => AgentContentPart.OfImage(i.Data, i.MediaType)).ToList() : null;
+        await RunTurnAsync(ctx, anchor,
+            (progress, ct, takePending) => ctx.Runner!.SendAsync(text, progress, ct, parts, takePending),
+            reply => CompleteTurn(ctx, text, reply.Text, reply.Trajectory, isNewSession));
+    }
+
+    // 失败轮的重试：不重发消息，对当前上下文（末尾即那条用户消息 + 已完成轮）续跑；移除错误条目，结果就地续上。
+    // 仅错误轮给（见 BuildErrorEntry）。重载后 runner 为空则据 SeedHistory 重建（其末尾正是待重试的用户消息 + 已完成轮）。
+    async void OnRetry(SessionContext ctx, ChatTurnMessage anchor, Control errorEntry)
+    {
+        if (ctx.Busy || mSession == null)
+            return;
+        ctx.View.Content.Children.Remove(errorEntry);
+        ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
+        await RunTurnAsync(ctx, anchor,
+            (progress, ct, takePending) => ctx.Runner!.RetryAsync(progress, ct, takePending),
+            reply => ResolveTurn(ctx, anchor, reply.Trajectory));
+    }
+
+    // 跑一轮的可视化脚手架（发送与重试共用）：占位气泡 → 分步渲染 → 成功/取消/出错收尾 + 落盘。
+    // runnerCall：实际调用 runner（SendAsync 或 RetryAsync）；onSuccess：成功后的持久化（CompleteTurn / ResolveTurn）。
+    async Task RunTurnAsync(SessionContext ctx, ChatTurnMessage anchor,
+        Func<IProgress<AgentEvent>, CancellationToken, Func<string?>, Task<AgentTurnResult>> runnerCall,
+        Action<AgentTurnResult> onSuccess)
+    {
         var bubble = AddAssistantBubble(ctx); // 响应期占位气泡（动态等待指示）
         var cts = new CancellationTokenSource();
         ctx.Cts = cts;
         SetBusy(ctx, true);
 
-        // 分步渲染：把 runner 的进度事件（流式文本增量 / 工具开始·完成）按序铺进气泡，全程可见模型在说什么、调了哪个工具、结果如何。
-        // 首个事件到达前保持等待动画（ThinkingDots），到达即把气泡内容换成分步视图。各轮叙述各自成段保留——不再被最终文本整体替换。
-        // 气泡属于 ctx.View，即便用户切走（视图离屏）流式仍写进它，切回即见进度；滚动只在该会话可见时执行。
+        // 分步渲染：把 runner 的进度事件按序铺进气泡，全程可见模型在说什么、调了哪个工具、结果如何。气泡属于 ctx.View，
+        // 即便用户切走（视图离屏）流式仍写进它，切回即见进度；滚动只在该会话可见时执行。
         var turn = new AgentTurnView();
         bool swapped = false;
         void EnsureSwapped() { if (!swapped) { bubble.Child = turn.Root; swapped = true; } }
-        // Progress<T> 在创建处（UI 线程）的同步上下文上派发，事件按 runner 发出顺序 FIFO 到达——文本与工具步骤的先后关系正确。
-        // 每次模型调用返回的用量事件顺带实时刷新右下角 Context/Session 状态行（不必等整轮结束）。
         void Handle(AgentEvent e)
         {
             if (e is AgentRoundUsage g)
@@ -989,9 +1116,9 @@ internal sealed class AgentSideBarContentProvider
 
         try
         {
-            ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
-            var parts = images.Count > 0 ? images.Select(i => AgentContentPart.OfImage(i.Data, i.MediaType)).ToList() : null;
-            // 轮边界软插话钩子：runner 到安全边界取本会话累积的 pending 文本注入续跑（在 UI 线程同步执行，消费即清 chip）。
+            ctx.CurrentTurn = turn;      // 升级卡片渲进本轮步骤流（见 RequestScriptAuthorizationAsync）
+            mRunningContext.Value = ctx; // 顺 await 链流进共享工具，让其定位到"触发这一轮"的会话
+            // 轮边界软插话钩子：runner 到安全边界取本会话累积的 pending 文本注入续跑（UI 线程同步执行，消费即清 chip）。
             string? TakePending()
             {
                 var p = ctx.PendingText;
@@ -1002,46 +1129,47 @@ internal sealed class AgentSideBarContentProvider
                     RefreshPendingChip();
                 return p;
             }
-            var reply = await ctx.Runner.SendAsync(text, new Progress<AgentEvent>(Handle), cts.Token, parts, TakePending);
+            var reply = await runnerCall(new Progress<AgentEvent>(Handle), cts.Token, TakePending);
             turn.Seal();
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
             {
                 var (calls, lastCtx) = TurnBreakdown(reply.Trajectory);
-                turn.Append(BuildFooter(reply.Text, reply.Usage, calls, lastCtx));
+                turn.Append(BuildFooter(reply.Usage, calls, lastCtx));
             }
-            var attachments = images.Count > 0
-                ? images.Select(i => new ChatAttachment { Hash = AgentSessionStore.ComputeHash(i.Data), MediaType = i.MediaType, Data = i.Data }).ToList()
-                : null;
-            RecordTurn(ctx, text, attachments, reply.Text, reply.Trajectory);
-            // token 口径已在生成过程中由 AgentRoundUsage 逐次累加（见 AccumulateRoundTokens），此处不再整轮累加，避免重复计。
+            onSuccess(reply);
+            // token 口径已在生成过程中由 AgentRoundUsage 逐次累加（见 AccumulateRoundTokens），此处不再整轮累加。
         }
         catch (OperationCanceledException)
         {
-            // 用户主动停止：保留已渲染的分步内容 + 末尾灰字 Stopped，并把仍在运行的工具块标记中止，不当错误（红字）。
+            // 用户主动停止：保留已渲染的分步内容 + 末尾灰字 Stopped，把仍在运行的工具块标记中止，不当错误（红字）。
             turn.Seal();
             turn.MarkPendingAborted();
             EnsureSwapped();
             turn.Append(NoticeLine("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
+            MarkTurnOutcome(ctx, anchor, ChatTurnMessage.OutcomeCancelled, null, ctx.Runner?.CurrentTrajectory);
+            ctx.Runner?.TrimDanglingToolCalls(); // 只砍悬空尾巴；用户消息 + 已完成轮留在上下文
         }
         catch (Exception ex)
         {
-            // 中途报错同样保留已渲染的分步内容，错误作末尾红字，不丢已输出有效内容。
+            // 中途报错：保留已渲染的分步内容，错误另起可重试/复制的条目（不丢已输出有效内容）。
             turn.Seal();
             turn.MarkPendingAborted();
             EnsureSwapped();
-            turn.Append(NoticeLine("Error: " + ex.Message, Colors.IndianRed.ToBrush()));
+            MarkTurnOutcome(ctx, anchor, ChatTurnMessage.OutcomeError, ex.Message, ctx.Runner?.CurrentTrajectory);
+            ctx.Runner?.TrimDanglingToolCalls(); // 只砍悬空尾巴；用户消息 + 已完成轮留在上下文，可经重试按钮续跑
+            ctx.View.Content.Children.Add(BuildErrorEntry(ctx, anchor, ex.Message, allowRetry: true));
         }
         finally
         {
             turn.EndThinking(); // 生成结束（成功/停止/出错）：移除底部"生成中"三点动画
+            ctx.CurrentTurn = null;
             cts.Dispose();
             if (ctx.Cts == cts) // 仅清掉本轮自己的取消源（该会话期间不会有并发的第二轮）
                 ctx.Cts = null;
             SetBusy(ctx, false);
-            // 运行已结束仍有未消费插话（仅取消/出错路径可能：用户在被取消的那次模型调用期间打了字）：不丢失——
-            // 可见会话则召回到输入框，否则直接清掉（其目标运行已终止）。
+            // 运行已结束仍有未消费插话（仅取消/出错路径可能）：可见会话召回输入框，否则清掉（其目标运行已终止）。
             if (!string.IsNullOrEmpty(ctx.PendingText))
             {
                 if (ctx == mActive)
@@ -1497,14 +1625,14 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 助手消息容器：取消气泡（无底色、满宽左对齐）——窄侧栏里把横向空间全留给回复内容，对标 ChatGPT/Claude 弱化回复气泡。
-    // Tag="assistant" 让宽度自适应订阅跳过它（不给它套 MaxWidth），区别于用户气泡。
+    // 用【显式定宽】撑满内容列（= mContentMaxWidth，随侧栏走）：文字在容器内换行、复制按钮在容器内右对齐，都锚这条统一右边缘，
+    // 不随文字长短跳动（若改用 MaxWidth 会按内容收缩、右对齐就锚在离散的文字宽度上）。ListView 无限宽测量下 Stretch 不生效，故给定宽。
     Border AssistantContainer(Control content) => new()
     {
         Tag = "assistant",
         Background = Brushes.Transparent,
         Margin = new(12, 4),
-        // ListView 无限宽测量：靠 MaxWidth 约束才会换行（Stretch 在无限宽下不起作用）。创建即设近整宽，首个 Bounds 事件前也能换行。
-        MaxWidth = mContentMaxWidth,
+        Width = mContentMaxWidth,
         HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
         Child = content,
     };
@@ -1526,35 +1654,13 @@ internal sealed class AgentSideBarContentProvider
     static SelectableTextBlock BubbleText(string text, IBrush foreground)
         => new() { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = foreground, FontSize = 12 };
 
-    // 助手消息：Markdig 解析 + 自渲染（ChatMarkdownRenderer，零依赖、文本可选中）+ 脚注（复制原文 + 本轮 token 用量）。
-    // 供加载已存会话时渲染整条助手文本；新消息走 AgentTurnView 分步渲染、末尾单独追加 BuildFooter。
-    Control AssistantContent(string markdown, AgentTokenUsage? usage)
-        => new StackPanel { Orientation = Orientation.Vertical, Children = { ChatMarkdownRenderer.Render(markdown), BuildFooter(markdown, usage) } };
-
-    // 脚注一行：token 用量靠左（带单位，hover 看明细）、Copy 靠右（复制 markdownToCopy 原文；端点未返回 usage 则只有 Copy）。
+    // 脚注一行：token 用量（带单位，hover 看明细）。复制已下放到每段返回（见 AgentTurnView 分段 Copy），脚注不再重复放 Copy。
     // usage = 本轮各次模型调用的合计（工具往返会重复前缀，故多次调用时远大于单轮上下文）。modelCalls=本轮模型调用次数、
     // lastContextTokens=末次调用的输入+输出（≈状态行 Context）。多次调用时脚注标注 "· N calls" 并在 tooltip 里和 Context 桥接，
-    // 消解"脚注合计 vs 状态行 Context 对不上"的疑惑。
-    Control BuildFooter(string markdownToCopy, AgentTokenUsage? usage, int modelCalls = 1, int lastContextTokens = 0)
+    // 消解"脚注合计 vs 状态行 Context 对不上"的疑惑。端点未返回 usage 则脚注为空行。
+    Control BuildFooter(AgentTokenUsage? usage, int modelCalls = 1, int lastContextTokens = 0)
     {
-        var copy = new TextBlock
-        {
-            Text = "Copy".Tr(this),
-            FontSize = 11,
-            Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush(),
-            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
-        };
-        copy.PointerEntered += (_, _) => copy.Foreground = Colors.White.ToBrush();
-        copy.PointerExited += (_, _) => copy.Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush();
-        copy.PointerPressed += (_, e) =>
-        {
-            e.Handled = true;
-            _ = TopLevel.GetTopLevel(copy)?.Clipboard?.SetTextAsync(markdownToCopy);
-        };
-
         var footer = new DockPanel { LastChildFill = false, Margin = new(0, 4, 0, 0) };
-        DockPanel.SetDock(copy, Dock.Right);
-        footer.Children.Add(copy);
         if (usage != null)
         {
             bool multi = modelCalls > 1;
@@ -1645,16 +1751,17 @@ internal sealed class AgentSideBarContentProvider
     void BuildSettingsView()
     {
         var header = new DockPanel() { Height = 32, LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
-        // 返回键放右上角，与对话页 ⚙ 同位置；无底色、icon hover 变色。
+        // 返回键放右上角，与对话页 ⚙ 同位置；无底色、icon hover 变色。有未应用改动时点它弹「应用/忽略」。
         var back = IconButton(Assets.WindowClose, Style.LIGHT_WHITE.Opacity(0.6), Colors.White);
-        back.Clicked += ShowChat;
+        back.Clicked += OnSettingsBack;
         DockPanel.SetDock(back, Dock.Right);
         header.Children.Add(back);
-        header.Children.Add(new Label() { Content = "Model Settings".Tr(this), FontSize = 12, Margin = new(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush() });
+        // 标题存字段：有未应用改动时右上角补 *（同窗口标题栏惯例，见 RefreshSettingsDirtyMark）。
+        mSettingsTitleLabel.Content = "Model Settings".Tr(this);
+        header.Children.Add(mSettingsTitleLabel);
 
         var content = new StackPanel() { Orientation = Orientation.Vertical };
-        // 授权级别置顶（一般 agent 行为，非某 provider 专属）；Model Provider 选择 + 引擎属性面板随后。
-        content.Children.Add(mAuthController);
+        // 授权已移到对话页 header 胶囊（即时生效）；本面板只剩「连接类设置」，全部统一为「确认才生效」，dirty 追踪无一例外。
         // Model Provider 选择 + 引擎属性面板都用 PropertyObjectController（同 INTERFACE 块、同 label/margin 样式），连成统一面板。
         content.Children.Add(mProviderController);
         content.Children.Add(mPropertiesController);
@@ -1688,25 +1795,273 @@ internal sealed class AgentSideBarContentProvider
         return ObjectConfig.Create(props);
     }
 
-    // 授权级别单项 config：值 = 枚举名，显示 = 本地化文案。
-    ObjectConfig BuildAuthConfig()
+    // ───────────────── 授权胶囊（对话页 header） ─────────────────
+
+    // 当前授权档位的短名（胶囊显示用；完整描述见 flyout 行）。
+    string AuthShortName(AgentAuthorization level) => level switch
     {
-        var options = new List<ComboBoxItem>
-        {
-            new(PropertyValue.Create("ReadOnlyAdvice"), "Read-only (advise, never apply)".Tr(this)),
-            new(PropertyValue.Create("Confirm"), "Confirm each change".Tr(this)),
-            new(PropertyValue.Create("Auto"), "Apply automatically".Tr(this)),
-        };
-        var props = new OrderedMap<PropertyKey, IControllerConfig>();
-        props.Add((AuthKey, "Agent authorization".Tr(this)), ComboBoxConfig.Create(options).WithDefault(PropertyValue.Create("Confirm")));
-        return ObjectConfig.Create(props);
+        AgentAuthorization.ReadOnlyAdvice => "Read-only".Tr(this),
+        AgentAuthorization.Auto => "Auto".Tr(this),
+        _ => "Confirm".Tr(this),
+    };
+
+    // 胶囊短名随 Settings.AgentAuthorization 刷新（订阅在 ctor；胶囊/升级卡片任一改动都经此同步）。
+    void RefreshAuthPill()
+    {
+        var level = AgentAuthorizationExtensions.ParseOrDefault(Settings.AgentAuthorization.Value);
+        mAuthLabel.Text = AuthShortName(level);
+        ToolTip.SetTip(mAuthButton, "Agent authorization".Tr(this));
     }
 
-    void OnAuthorizationChanged()
+    // 点开胶囊：三选一 flyout，当前项打勾，选中即生效。
+    void OpenAuthMenu()
     {
-        var level = mAuthData.GetValue(AuthKey, PropertyValue.Create("Confirm")).ToString() ?? "Confirm";
-        Settings.AgentAuthorization.Value = level;
+        var current = AgentAuthorizationExtensions.ParseOrDefault(Settings.AgentAuthorization.Value);
+        var stack = new StackPanel() { Orientation = Orientation.Vertical, MinWidth = 200 };
+        stack.Children.Add(BuildAuthRow(AgentAuthorization.ReadOnlyAdvice, "Read-only (advise, never apply)".Tr(this), current));
+        stack.Children.Add(BuildAuthRow(AgentAuthorization.Confirm, "Confirm each change".Tr(this), current));
+        stack.Children.Add(BuildAuthRow(AgentAuthorization.Auto, "Apply automatically".Tr(this), current));
+        mAuthFlyout.Content = stack;
+        mAuthFlyout.ShowAt(mAuthButton);
+    }
+
+    // flyout 一行：左侧勾（当前项）+ 描述文本；hover 高亮；点击即设并关闭。
+    Control BuildAuthRow(AgentAuthorization level, string text, AgentAuthorization current)
+    {
+        var check = new TextBlock() { Text = level == current ? "✓" : string.Empty, Width = 16, FontSize = 11, Foreground = Style.BUTTON_PRIMARY.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        var title = new TextBlock() { Text = text, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Colors.White.ToBrush() };
+        var dock = new DockPanel();
+        DockPanel.SetDock(check, Dock.Left);
+        dock.Children.Add(check);
+        dock.Children.Add(title);
+        var row = new Border() { Padding = new(10, 6), CornerRadius = new(4), Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand), Child = dock };
+        row.PointerEntered += (_, _) => row.Background = Style.LIGHT_WHITE.Opacity(0.08).ToBrush();
+        row.PointerExited += (_, _) => row.Background = Brushes.Transparent;
+        row.PointerPressed += (_, e) => { e.Handled = true; SetAuthorization(level); mAuthFlyout.Hide(); };
+        return row;
+    }
+
+    // 设授权档位并即时存盘（胶囊短名经 Settings 订阅刷新）。供胶囊与升级卡片"始终允许"共用。
+    void SetAuthorization(AgentAuthorization level)
+    {
+        Settings.AgentAuthorization.Value = level.ToString();
         Settings.Save(PathManager.SettingsFilePath);
+    }
+
+    // ───────────────── 升级卡片（Confirm 档：agent 要写时的内联裁决） ─────────────────
+
+    // RunScriptTool 的 confirm 回调：在触发这一轮的对话视图里渲染升级卡片、等用户裁决。
+    // 目标会话经 mRunningContext（AsyncLocal，OnSend 埋入）定位——共享工具据此找到正确的那一轮，即便它在后台。
+    Task<ScriptAuthDecision> RequestScriptAuthorizationAsync(int changeCount, CancellationToken cancellationToken)
+    {
+        var ctx = mRunningContext.Value ?? mActive;
+        var tcs = new TaskCompletionSource<ScriptAuthDecision>();
+        void Build()
+        {
+            var card = BuildAuthRequestCard(changeCount, tcs);
+            if (ctx.CurrentTurn != null)
+                ctx.CurrentTurn.Append(card); // 插进本轮步骤流，与工具步骤同序
+            else
+                ctx.View.Content.Children.Add(card);
+            ScrollToEnd(ctx);
+        }
+        if (Dispatcher.UIThread.CheckAccess()) Build();
+        else Dispatcher.UIThread.Post(Build);
+        // 轮被取消（用户点停）→ 裁决按拒绝收尾（卡片经 tcs 续接切到"已停止"）。
+        cancellationToken.Register(() => tcs.TrySetResult(ScriptAuthDecision.Reject));
+        return tcs.Task;
+    }
+
+    // 卡片：说明 + 三按钮（应用本次/始终允许/拒绝）；裁决后隐藏按钮、留一行结果。"始终允许"顺带切档到 Auto。
+    Control BuildAuthRequestCard(int changeCount, TaskCompletionSource<ScriptAuthDecision> tcs)
+    {
+        var message = new SelectableTextBlock()
+        {
+            Text = string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), changeCount),
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Colors.White.ToBrush(),
+        };
+        // 水平按钮排：用按内容自适应的 Border 按钮（TuneLab.GUI Button 是自绘 Component、不自量宽，水平摆会塌成 0 宽）。
+        // 右对齐——操作按钮靠右、与左对齐的说明文字形成左右呼应，不再"全左对齐"。
+        var buttons = new StackPanel() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new(0, 10, 0, 0), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+        var panel = new StackPanel() { Orientation = Orientation.Vertical };
+        panel.Children.Add(message);
+        panel.Children.Add(buttons);
+        var card = new Border()
+        {
+            CornerRadius = new(6),
+            Padding = new(10, 8),
+            Margin = new(0, 6, 0, 2),
+            Background = Style.INTERFACE.ToBrush(),
+            BorderBrush = Style.BUTTON_PRIMARY.Opacity(0.5).ToBrush(),
+            BorderThickness = new(1),
+            Child = panel,
+        };
+
+        bool settled = false;
+        // 裁决后的结果行：右对齐，落在按钮原位置，与卡片布局呼应。
+        void AddOutcome(string label, IBrush color)
+        {
+            var line = NoticeLine(label, color);
+            line.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+            line.Padding = new(0, 0, 4, 0); // 斜体末字右侧斜出留白，避免右对齐时被 TextBlock 边界裁掉
+            panel.Children.Add(line);
+        }
+        void Settle(ScriptAuthDecision decision, string label, IBrush color)
+        {
+            if (settled)
+                return;
+            settled = true;
+            buttons.IsVisible = false;
+            AddOutcome(label, color);
+            tcs.TrySetResult(decision);
+        }
+        var muted = Style.LIGHT_WHITE.Opacity(0.6).ToBrush();
+        buttons.Children.Add(CardButton("Apply".Tr(this), primary: true, () => Settle(ScriptAuthDecision.ApplyOnce, "Applied".Tr(this), muted)));
+        buttons.Children.Add(CardButton("Always allow".Tr(this), primary: false, () => { SetAuthorization(AgentAuthorization.Auto); Settle(ScriptAuthDecision.ApplyAlways, "Applied · auto-apply on".Tr(this), muted); }));
+        buttons.Children.Add(CardButton("Reject".Tr(this), primary: false, () => Settle(ScriptAuthDecision.Reject, "Rejected".Tr(this), muted)));
+        // 因取消先行 resolve（点停）→ 卡片切到"已停止"，不留可点按钮。
+        tcs.Task.ContinueWith(_ =>
+        {
+            void Finish()
+            {
+                if (settled)
+                    return;
+                settled = true;
+                buttons.IsVisible = false;
+                AddOutcome("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
+            }
+            if (Dispatcher.UIThread.CheckAccess()) Finish();
+            else Dispatcher.UIThread.Post(Finish);
+        }, TaskContinuationOptions.ExecuteSynchronously);
+
+        return card;
+    }
+
+    // 出错条目：红字原因 + [复制] +（末轮才有）[重试]。作为 ctx.View 的独立子项（非塞进 turn 内），便于重试时整块移除、结果就地续上。
+    Control BuildErrorEntry(SessionContext ctx, ChatTurnMessage anchor, string? errorText, bool allowRetry)
+    {
+        var panel = new StackPanel() { Orientation = Orientation.Vertical };
+        panel.Children.Add(NoticeLine("Error: " + (errorText ?? string.Empty), Colors.IndianRed.ToBrush()));
+        var container = AssistantContainer(panel);
+        // 右对齐：复制落在与普通消息分段复制同一条右边缘（统一按钮）；重试作为报错轮附加按钮排其左。
+        var row = new StackPanel() { Orientation = Orientation.Horizontal, Spacing = 14, Margin = new(0, 4, 0, 0), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+        if (allowRetry)
+            row.Children.Add(TextButton("Retry".Tr(this), () => OnRetry(ctx, anchor, container)));
+        row.Children.Add(TextButton("Copy".Tr(this), () => _ = CopyErrorAsync(errorText ?? string.Empty)));
+        panel.Children.Add(row);
+        return container;
+    }
+
+    async Task CopyErrorAsync(string text)
+    {
+        var clipboard = TopLevel.GetTopLevel(mRoot)?.Clipboard;
+        if (clipboard != null)
+            await clipboard.SetTextAsync(text);
+    }
+
+    // 纯文字按钮（无底色、灰→hover 白）：与脚注 / 分段 Copy 同款样式，用于错误条目的 复制 / 重试等。
+    TextBlock TextButton(string text, Action onClick)
+    {
+        var t = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand),
+        };
+        t.PointerEntered += (_, _) => t.Foreground = Colors.White.ToBrush();
+        t.PointerExited += (_, _) => t.Foreground = Style.LIGHT_WHITE.Opacity(0.45).ToBrush();
+        t.PointerPressed += (_, e) => { e.Handled = true; onClick(); };
+        return t;
+    }
+
+    // 升级卡片的小按钮：按内容自适应的 Border（含文字 + padding + hover）。主按钮用主色，次按钮在深色卡片上用半透明白以保对比。
+    Border CardButton(string text, bool primary, Action onClick)
+    {
+        var label = new TextBlock() { Text = text, FontSize = 12, Foreground = Colors.White.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+        var baseColor = primary ? Style.BUTTON_PRIMARY : Style.LIGHT_WHITE.Opacity(0.1);
+        var hoverColor = primary ? Style.BUTTON_PRIMARY_HOVER : Style.LIGHT_WHITE.Opacity(0.2);
+        var b = new Border()
+        {
+            CornerRadius = new(4),
+            Padding = new(12, 5),
+            Background = baseColor.ToBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = label,
+        };
+        b.PointerEntered += (_, _) => b.Background = hoverColor.ToBrush();
+        b.PointerExited += (_, _) => b.Background = baseColor.ToBrush();
+        b.PointerPressed += (_, e) => { e.Handled = true; onClick(); };
+        return b;
+    }
+
+    // ───────────────── 设置面板 dirty 追踪 / 返回 ─────────────────
+
+    // 字段编辑 / provider 切换后重算脏态：与进入面板时的快照【值比对】（PropertyObject 深相等），
+    // 故改一个值再改回去、数据一致时不算脏。mSuppressDirty 期间的程序化写入（如还原快照）不参与。
+    void RecomputeSettingsDirty()
+    {
+        if (mSuppressDirty || mSettingsSnapshot == null)
+            return;
+        bool dirty = CurrentEngineType() != mProviderSnapshot || !mSettings.GetInfo().Equals(mSettingsSnapshot);
+        if (dirty == mSettingsDirty)
+            return;
+        mSettingsDirty = dirty;
+        RefreshSettingsDirtyMark();
+    }
+
+    void RefreshSettingsDirtyMark()
+        => mSettingsTitleLabel.Content = "Model Settings".Tr(this) + (mSettingsDirty ? " *" : string.Empty);
+
+    // × 返回：无改动直接回对话；有改动弹「应用/忽略」——应用=连接并落盘（失败留在设置页报错），忽略=还原到进入前再回对话。
+    async void OnSettingsBack()
+    {
+        if (!mSettingsDirty)
+        {
+            ShowChat();
+            return;
+        }
+        bool apply = await mRoot.ShowConfirm(
+            "Model Settings".Tr(this),
+            "You have unapplied changes. Apply them?".Tr(this),
+            "Apply".Tr(this),
+            "Ignore".Tr(this));
+        if (apply)
+            OnSubmit(); // 成功则内部 ShowChat + 提示已连接；失败则留在设置页显示报错、dirty 与 * 保留
+        else
+        {
+            RestoreSettingsSnapshot();
+            ShowChat();
+        }
+    }
+
+    // 还原到进入设置面板前的状态：重载快照 provider 的已存设置（覆盖用户的未确认编辑）。
+    // 依据不变量——每次退出面板都「应用(写盘)」或「忽略(还原)」，故进入时内存态恒等于盘上态，重载盘即回到进入态。
+    void RestoreSettingsSnapshot()
+    {
+        mSuppressDirty = true;
+        try
+        {
+            var type = mProviderSnapshot;
+            if (!string.IsNullOrEmpty(type))
+            {
+                if (type != CurrentEngineType())
+                {
+                    mProviderData.SetValue(EngineKey, PropertyValue.Create(type)); // 触发 OnEngineSelectionChanged 载入其盘上设置
+                    mProviderData.Commit();
+                }
+                else
+                {
+                    LoadProviderSettings(type); // provider 未变，直接从盘重载覆盖未确认编辑
+                    RefreshEnginePropertyPanel(type);
+                }
+            }
+        }
+        finally { mSuppressDirty = false; }
+        mSettingsDirty = false;
+        RefreshSettingsDirtyMark();
     }
 
     string CurrentEngineType() => mProviderData.GetValue(EngineKey, PropertyValue.Create(string.Empty)).ToString() ?? string.Empty;
@@ -1742,6 +2097,8 @@ internal sealed class AgentSideBarContentProvider
         if (TryConnect(type, out var error))
         {
             SaveSettings(type);
+            mSettingsDirty = false; // 已应用落盘：清脏（离开前顺带把 * 去掉）
+            RefreshSettingsDirtyMark();
             ShowChat();
             AppendMessage(mActive, "system", ConnectedNotice());
         }
@@ -1766,7 +2123,7 @@ internal sealed class AgentSideBarContentProvider
         {
             mSession?.Dispose();
             mSession = engine.CreateSession(mSettings.GetInfo());
-            // 聊天中途换模型不丢上下文：每个会话据其已记录对话（RecordTurn 实时维护）重建续聊历史，下次发送时新 runner 带它重建。
+            // 聊天中途换模型不丢上下文：每个会话据其已记录对话（发送即落盘、逐轮维护）重建续聊历史，下次发送时新 runner 带它重建。
             foreach (var c in mContexts)
             {
                 if (c.Session != null)
@@ -1823,6 +2180,11 @@ internal sealed class AgentSideBarContentProvider
 
     void ShowSettings()
     {
+        // 进入面板：快照当前 provider + 全部字段值（还原基准 + 脏态比对基准）、清 dirty/*（此后编辑与快照不同才算脏）。
+        mProviderSnapshot = CurrentEngineType();
+        mSettingsSnapshot = mSettings.GetInfo();
+        mSettingsDirty = false;
+        RefreshSettingsDirtyMark();
         mRoot.Children.Clear();
         mRoot.Children.Add(mSettingsView);
     }
@@ -1895,9 +2257,16 @@ internal sealed class AgentSideBarContentProvider
     };
     readonly PropertyObjectController mProviderController = new(); // provider 选择（单项 combo），复用属性面板样式
     readonly PropertyObjectController mPropertiesController = new();
-    readonly PropertyObjectController mAuthController = new();      // agent 写操作授权级别（单项 combo，live-persist）
-    DataPropertyObject mAuthData = null!;                           // ctor 内初始化
-    const string AuthKey = "authorization";
+    // agent 写授权胶囊（对话页 header，即时生效）：胶囊按钮 + 短名标签 + 三选一 flyout。
+    readonly TextBlock mAuthLabel = new() { FontSize = 11, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.Opacity(0.85).ToBrush() };
+    Border mAuthButton = null!;
+    Flyout mAuthFlyout = null!;
+    // 设置面板标题（有未应用改动时补 *）+ dirty 状态。
+    readonly Label mSettingsTitleLabel = new() { FontSize = 12, Margin = new(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush() };
+    bool mSettingsDirty;
+    bool mSuppressDirty;         // 程序化写入（还原快照）期间不置脏
+    string mProviderSnapshot = string.Empty; // 进入面板时的 provider（× 忽略时的还原基准 + 脏态比对基准）
+    PropertyObject? mSettingsSnapshot;       // 进入面板时的全部字段值（脏态与快照【值比对】：改回原值即不脏）
     readonly Label mStatusLabel = new() { FontSize = 11, Margin = new(24, 0, 24, 12), Foreground = Colors.IndianRed.ToBrush() };
     TuneLab.GUI.Components.Button mSendButton = null!;
     TuneLab.GUI.Components.Button mStopButton = null!;
@@ -1933,6 +2302,7 @@ internal sealed class AgentSideBarContentProvider
         public readonly ScrollBar Scrollbar;    // 绑该 View 竖轴的浮层滚动条，与 View 一同放进 mMessagesHost（覆盖层、只手柄可点）
         public ChatSession? Session;             // 落盘模型（null=尚未落盘的新对话，首轮成功后建立）
         public AgentRunner? Runner;              // 该会话的对话主循环（持有累积的对话历史）
+        public AgentTurnView? CurrentTurn;       // 本轮的分步视图（在跑时非空）：升级卡片插入它以与工具步骤同序
         public CancellationTokenSource? Cts;     // 该会话当前在飞请求的取消源（停止键 / 删除该会话时触发）
         public List<AgentMessage>? SeedHistory;  // 加载已存会话 / 中途换模型后用于重建 runner 的历史（仅对话文本）
         public bool Busy;                        // 该会话是否有在飞请求（决定切到它时显示发送键还是停止键）
@@ -1951,4 +2321,6 @@ internal sealed class AgentSideBarContentProvider
 
     readonly List<SessionContext> mContexts = new(); // 所有打开中的会话（含后台在跑的、未落盘的新对话）
     SessionContext mActive = null!;                  // 当前可见会话（构造期立即建立首个空白会话）
+    // 当前正在跑的会话：OnSend 在 SendAsync 前埋入，顺 await 链流进共享工具，供升级卡片定位到"触发这一轮"的视图。
+    readonly AsyncLocal<SessionContext?> mRunningContext = new();
 }

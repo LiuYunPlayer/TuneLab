@@ -16,3 +16,9 @@ internal static class AgentAuthorizationExtensions
     public static AgentAuthorization ParseOrDefault(string? value)
         => Enum.TryParse<AgentAuthorization>(value, out var level) ? level : AgentAuthorization.Confirm;
 }
+
+// Confirm 档下、agent 要写时的用户裁决（内联升级卡片返回）：
+//  · ApplyOnce   本次落地，档位不变；
+//  · ApplyAlways 本次落地，并把授权切到 Auto（此后不再逐次问）；
+//  · Reject      不落地。
+internal enum ScriptAuthDecision { ApplyOnce, ApplyAlways, Reject }

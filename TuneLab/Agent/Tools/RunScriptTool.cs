@@ -7,9 +7,7 @@ using Avalonia.Threading;
 using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Foundation;
-using TuneLab.I18N;
 using TuneLab.Scripting;
-using TuneLab.Utils;
 
 namespace TuneLab.Agent;
 
@@ -22,9 +20,10 @@ namespace TuneLab.Agent;
 // 分级授权（Settings.AgentAuthorization，见 docs §3）：本工具是 agent 的写口，故授权闸门作用于此——
 //  · Auto         直接提交（原行为）；
 //  · ReadOnlyAdvice 跑一遍预览、一律回退、只回报"会改什么"，从不落地；
-//  · Confirm      预览 → 宿主模态让用户确认 → 确认才重跑落地、取消则不动。
-// owner 提供确认模态的宿主窗（宿主注入 () => 侧栏根）；无窗时 Confirm 保守地不落地。
-internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, Func<Avalonia.Visual?>? owner = null) : IAgentTool
+//  · Confirm      预览 → 宿主内联升级卡片让用户裁决 → 应用本次/始终允许(切自动) 才重跑落地、拒绝则不动。
+// confirm 是宿主注入的升级卡片回调（changeCount → 裁决）：宿主把卡片渲进触发这一轮的对话视图。
+// 无回调时 Confirm 保守地不落地。"始终允许"的档位切换由宿主在回调内部完成（本工具只据裁决决定是否落地）。
+internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, Func<int, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "run_script";
 
@@ -102,21 +101,19 @@ internal sealed class RunScriptTool(IProject project, Func<IMidiPart?>? currentP
                     "Authorization is READ-ONLY (advice mode): the script ran and WOULD apply {0} edit(s), but NOTHING was changed. " +
                     "Explain the plan to the user; to actually apply it, ask them to set agent authorization to Confirm or Auto, or run the script manually.", pv.Changes), pv);
 
-            // Confirm：宿主模态确认。
-            var visual = owner?.Invoke();
-            if (visual == null)
-                return string.Format("Confirmation is required (Confirm mode) but no window is available to show it, so the {0} edit(s) were NOT applied. Ask the user to apply manually or switch authorization to Auto.", pv.Changes);
+            // Confirm：宿主内联升级卡片裁决。
+            if (confirm == null)
+                return string.Format("Confirmation is required (Confirm mode) but no UI is available to ask, so the {0} edit(s) were NOT applied. Ask the user to apply manually or switch authorization to Auto.", pv.Changes);
 
-            bool confirmed = await Dispatcher.UIThread.InvokeAsync(() =>
-                visual.ShowConfirm(
-                    "Agent".Tr(TC.Dialog),
-                    string.Format("Apply the agent's {0} change(s) to the project?".Tr(TC.Dialog), pv.Changes),
-                    "Apply".Tr(TC.Dialog),
-                    "Cancel".Tr(TC.Dialog)));
-            if (!confirmed)
+            var decision = await confirm(pv.Changes, cancellationToken);
+            if (decision == ScriptAuthDecision.Reject)
                 return string.Format("The user reviewed the {0} proposed edit(s) and chose NOT to apply them. Nothing was changed.", pv.Changes);
 
-            return Describe(await RunOnUi(preview: false));
+            var applied = Describe(await RunOnUi(preview: false));
+            // 始终允许：宿主已把授权切到 Auto——告知模型，后续写将不再逐次询问。
+            return decision == ScriptAuthDecision.ApplyAlways
+                ? "(The user switched authorization to auto-apply; your later edits will apply without asking.)\n" + applied
+                : applied;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return "Error: " + ex.Message; }
