@@ -67,6 +67,13 @@ internal sealed class AgentSideBarContentProvider
         // 选择变更经数据对象 Modified 驱动（用户改 combo → 写入 mProviderData → 通知）。
         mProviderData.Modified.Subscribe(OnEngineSelectionChanged);
 
+        // agent 写操作授权级别（live-persist：改即写 Settings 并存盘，与 ExtensionRouting 同属即时生效的用户选择）。
+        mAuthData = new DataPropertyObject(new DataDocument());
+        mAuthData.SetValue(AuthKey, PropertyValue.Create(Settings.AgentAuthorization.Value));
+        mAuthData.Commit();
+        mAuthController.SetConfig(BuildAuthConfig(), mAuthData);
+        mAuthData.Modified.Subscribe(OnAuthorizationChanged);
+
         // 之前 Submit 过（app Settings 记了 provider）才打开即静默自动接入，直接可聊天；否则首次发送再引导去设置。
         if (hadSaved && TryConnect(savedEngine, out _))
             AppendMessage(mActive, "system", ConnectedNotice()); // 启动即提示连到哪个模型
@@ -86,7 +93,7 @@ internal sealed class AgentSideBarContentProvider
         mSettings.Commit();
     }
 
-    // 工程切换时由 Editor 调用：重建 Facade 与工具（runner 下次发送时按新工具重建，历史重置）。
+    // 工程切换时由 Editor 调用（OnProjectChanged）：只把工具重绑到新工程；对话历史是会话的属性、与工程正交，不清空。
     public void SetProject(IProject? project)
     {
         mProject = project;
@@ -97,7 +104,7 @@ internal sealed class AgentSideBarContentProvider
             {
                 // 操作工程：定向（看） + 脚本（改/算/细读）
                 new GetProjectOverviewTool(project),
-                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider, mPianoSelectionProvider),
+                new RunScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value, mSelectionProvider, mPianoSelectionProvider, () => mRoot),
                 new GetScriptApiTool(),
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用。
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, () => TranslationManager.CurrentLanguage.Value),
@@ -106,9 +113,14 @@ internal sealed class AgentSideBarContentProvider
                 new DeleteScriptTool(),
             }
             : [];
-        // 工具随新工程重建：各会话下次发送时按新工具重建 runner（对话历史经 SeedHistory / 会话消息保留）。
+        // 工具随新工程重建；但对话历史不清——与 TryConnect(换模型)/重启(RestoreSession)一致：从已记录会话重建完整续聊
+        // 历史（ReconstructHistory 含工具调用/结果），下次发送时新 runner 带它 + 新工具重建。空会话(无 Session)本无历史可留。
         foreach (var c in mContexts)
+        {
+            if (c.Session != null)
+                c.SeedHistory = ReconstructHistory(c.Session);
             c.Runner = null;
+        }
     }
 
     // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。
@@ -1641,6 +1653,8 @@ internal sealed class AgentSideBarContentProvider
         header.Children.Add(new Label() { Content = "Model Settings".Tr(this), FontSize = 12, Margin = new(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Foreground = Style.LIGHT_WHITE.ToBrush() });
 
         var content = new StackPanel() { Orientation = Orientation.Vertical };
+        // 授权级别置顶（一般 agent 行为，非某 provider 专属）；Model Provider 选择 + 引擎属性面板随后。
+        content.Children.Add(mAuthController);
         // Model Provider 选择 + 引擎属性面板都用 PropertyObjectController（同 INTERFACE 块、同 label/margin 样式），连成统一面板。
         content.Children.Add(mProviderController);
         content.Children.Add(mPropertiesController);
@@ -1672,6 +1686,27 @@ internal sealed class AgentSideBarContentProvider
         var props = new OrderedMap<PropertyKey, IControllerConfig>();
         props.Add((EngineKey, "Model Provider".Tr(this)), ComboBoxConfig.Create(mEngineOptions));
         return ObjectConfig.Create(props);
+    }
+
+    // 授权级别单项 config：值 = 枚举名，显示 = 本地化文案。
+    ObjectConfig BuildAuthConfig()
+    {
+        var options = new List<ComboBoxItem>
+        {
+            new(PropertyValue.Create("ReadOnlyAdvice"), "Read-only (advise, never apply)".Tr(this)),
+            new(PropertyValue.Create("Confirm"), "Confirm each change".Tr(this)),
+            new(PropertyValue.Create("Auto"), "Apply automatically".Tr(this)),
+        };
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add((AuthKey, "Agent authorization".Tr(this)), ComboBoxConfig.Create(options).WithDefault(PropertyValue.Create("Confirm")));
+        return ObjectConfig.Create(props);
+    }
+
+    void OnAuthorizationChanged()
+    {
+        var level = mAuthData.GetValue(AuthKey, PropertyValue.Create("Confirm")).ToString() ?? "Confirm";
+        Settings.AgentAuthorization.Value = level;
+        Settings.Save(PathManager.SettingsFilePath);
     }
 
     string CurrentEngineType() => mProviderData.GetValue(EngineKey, PropertyValue.Create(string.Empty)).ToString() ?? string.Empty;
@@ -1860,6 +1895,9 @@ internal sealed class AgentSideBarContentProvider
     };
     readonly PropertyObjectController mProviderController = new(); // provider 选择（单项 combo），复用属性面板样式
     readonly PropertyObjectController mPropertiesController = new();
+    readonly PropertyObjectController mAuthController = new();      // agent 写操作授权级别（单项 combo，live-persist）
+    DataPropertyObject mAuthData = null!;                           // ctor 内初始化
+    const string AuthKey = "authorization";
     readonly Label mStatusLabel = new() { FontSize = 11, Margin = new(24, 0, 24, 12), Foreground = Colors.IndianRed.ToBrush() };
     TuneLab.GUI.Components.Button mSendButton = null!;
     TuneLab.GUI.Components.Button mStopButton = null!;

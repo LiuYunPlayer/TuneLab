@@ -31,6 +31,7 @@ internal static class Settings
     public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
     public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
     public static NotifiableProperty<string> AgentModelProvider { get; } = DefaultSettings.AgentModelProvider;
+    public static NotifiableProperty<string> AgentAuthorization { get; } = DefaultSettings.AgentAuthorization;
     // 扩展冲突消解的用户选择（routeKey → packageId）；非通知型（改后须重启生效，与切语言一致），存取经 ExtensionRouting。
     public static Dictionary<string, string> ExtensionRouting { get; private set; } = new();
 
@@ -69,6 +70,7 @@ internal static class Settings
         AudioDevice.Value = settingsFile.AudioDevice;
         TrackHueChangeRate.Value = settingsFile.TrackHueChangeRate;
         AgentModelProvider.Value = settingsFile.AgentModelProvider;
+        AgentAuthorization.Value = settingsFile.AgentAuthorization;
         ExtensionRouting = settingsFile.ExtensionRouting ?? new();
     }
 
@@ -96,6 +98,7 @@ internal static class Settings
                 AudioDevice = AudioDevice,
                 TrackHueChangeRate = TrackHueChangeRate,
                 AgentModelProvider = AgentModelProvider,
+                AgentAuthorization = AgentAuthorization,
                 ExtensionRouting = ExtensionRouting
             }, JsonSerializerOptions);
 

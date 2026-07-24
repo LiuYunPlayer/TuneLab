@@ -59,7 +59,9 @@ internal static class ScriptRunner
     }
 
     // inputs：工具脚本（定义了 getScriptInfo）的入参值，作为对象传给 main(inputs)；普通脚本与无入参脚本传空对象即忽略。
-    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null)
+    // preview=true：无论成功与否都原子回退（不落地），但 ScriptRunResult.Changes 仍报"本会改动的数量"——供分级授权的
+    // 只读建议/需确认预览用（跑一遍看会改什么、干净回退）。见 docs §3。
+    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null, bool preview = false)
     {
         // 写守卫不在入口、而下沉到首次写入（ScriptContext.EnsureWritable）：只读脚本即便在用户操作中途也畅通，只拦写。
         var context = new ScriptContext(project, currentPart, quantization, language, selection, pianoSelection);
@@ -119,7 +121,8 @@ internal static class ScriptRunner
         }
 
         // 收口：成功且有改动 → 提交成一个可撤销单位；出错/取消/无改动 → 原子回退到跑脚本前的干净状态。
-        bool committed = context.Finish(rollback: error != null);
+        // preview 时无论如何都回退（只看会改什么、不落地）；ChangeCount 仍如实报本会改动数。
+        bool committed = context.Finish(rollback: error != null || preview);
         return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount, blocked);
     }
 

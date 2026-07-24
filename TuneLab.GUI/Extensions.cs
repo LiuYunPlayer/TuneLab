@@ -296,6 +296,20 @@ internal static class Extensions
         await dialog.ShowDialog(visual.Window());
     }
 
+    // 确认对话框：主按钮（confirmText）返回 true，取消按钮返回 false。主按钮末加、Opened 时聚焦（回车即确认）。
+    public static async Task<bool> ShowConfirm(this Avalonia.Visual visual, string title, string message, string confirmText, string cancelText)
+    {
+        var dialog = new Dialog();
+        dialog.SetTitle(title);
+        dialog.SetMessage(message);
+        bool confirmed = false;
+        dialog.AddButton(cancelText, Dialog.ButtonType.Normal);
+        var confirm = dialog.AddButton(confirmText, Dialog.ButtonType.Primary);
+        confirm.Clicked += () => confirmed = true;
+        await dialog.ShowDialog(visual.Window());
+        return confirmed;
+    }
+
     public static async Task<IReadOnlyList<string>> OpenFiles(this Avalonia.Visual visual, FilePickerOpenOptions options)
     {
         options.AllowMultiple = true;
