@@ -203,6 +203,25 @@ internal class AudioPart : Part, IAudioPart
     protected override int SampleRate => AudioEngine.SampleRate.Value;
     public int ChannelCount => mWaveforms.Length;
 
+    // 位置无关：mAudioData 是解码后的整段文件内容（工程采样率、index 0 = 文件起点），不含 HeadSkip/裁剪/Pos。
+    public int SourceSampleCount => mAudioData?.Count ?? 0;
+
+    public void ReadSource(int channel, int offset, Span<float> destination)
+    {
+        var data = mAudioData;
+        for (int i = 0; i < destination.Length; i++)
+        {
+            int idx = offset + i;
+            if (data == null || idx < 0 || idx >= data.Count)
+            {
+                destination[i] = 0;
+                continue;
+            }
+            // v1 音频源为 mono/stereo：声道 0 取左、其余取右。
+            destination[i] = channel == 0 ? data.GetLeft(idx) : data.GetRight(idx);
+        }
+    }
+
     Waveform[] mWaveforms = [];
     IAudioData? mAudioData;
 

@@ -1,4 +1,93 @@
 #nullable enable
+TuneLab.SDK.DerivationProgress
+TuneLab.SDK.DerivationProgress.DerivationProgress() -> void
+TuneLab.SDK.DerivationProgress.Message.get -> string?
+TuneLab.SDK.DerivationProgress.Message.init -> void
+TuneLab.SDK.DerivationProgress.Progress.get -> double
+TuneLab.SDK.DerivationProgress.Progress.init -> void
+TuneLab.SDK.DerivedAudioPart
+TuneLab.SDK.DerivedAudioPart.DerivedAudioPart() -> void
+TuneLab.SDK.DerivedMidiPart
+TuneLab.SDK.DerivedMidiPart.DerivedMidiPart() -> void
+TuneLab.SDK.DerivedMidiPart.Notes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedNote!>!
+TuneLab.SDK.DerivedMidiPart.Notes.init -> void
+TuneLab.SDK.DerivedMidiPart.Pitch.get -> TuneLab.SDK.DerivedPitch!
+TuneLab.SDK.DerivedMidiPart.Pitch.init -> void
+TuneLab.SDK.DerivedNote
+TuneLab.SDK.DerivedNote.BodyOffset.get -> double
+TuneLab.SDK.DerivedNote.BodyOffset.init -> void
+TuneLab.SDK.DerivedNote.BodyPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedPhoneme!>!
+TuneLab.SDK.DerivedNote.BodyPhonemes.init -> void
+TuneLab.SDK.DerivedNote.DerivedNote() -> void
+TuneLab.SDK.DerivedNote.EndTime.get -> double
+TuneLab.SDK.DerivedNote.EndTime.init -> void
+TuneLab.SDK.DerivedNote.LeadingPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedPhoneme!>!
+TuneLab.SDK.DerivedNote.LeadingPhonemes.init -> void
+TuneLab.SDK.DerivedNote.Lyric.get -> string!
+TuneLab.SDK.DerivedNote.Lyric.init -> void
+TuneLab.SDK.DerivedNote.Pitch.get -> int
+TuneLab.SDK.DerivedNote.Pitch.init -> void
+TuneLab.SDK.DerivedNote.StartTime.get -> double
+TuneLab.SDK.DerivedNote.StartTime.init -> void
+TuneLab.SDK.DerivedPart
+TuneLab.SDK.DerivedPart.DerivedPart() -> void
+TuneLab.SDK.DerivedPart.EndTime.get -> double
+TuneLab.SDK.DerivedPart.EndTime.init -> void
+TuneLab.SDK.DerivedPart.StartTime.get -> double
+TuneLab.SDK.DerivedPart.StartTime.init -> void
+TuneLab.SDK.DerivedPhoneme
+TuneLab.SDK.DerivedPhoneme.DerivedPhoneme() -> void
+TuneLab.SDK.DerivedPhoneme.Duration.get -> double
+TuneLab.SDK.DerivedPhoneme.Duration.init -> void
+TuneLab.SDK.DerivedPhoneme.StretchWeight.get -> double
+TuneLab.SDK.DerivedPhoneme.StretchWeight.init -> void
+TuneLab.SDK.DerivedPhoneme.Symbol.get -> string!
+TuneLab.SDK.DerivedPhoneme.Symbol.init -> void
+TuneLab.SDK.DerivedPitch
+TuneLab.SDK.DerivedPitch.DerivedPitch() -> void
+TuneLab.SDK.DerivedPitch.Segments.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<TuneLab.Foundation.Point>!>!
+TuneLab.SDK.DerivedPitch.Segments.init -> void
+TuneLab.SDK.DerivedResult
+TuneLab.SDK.DerivedResult.DerivedResult() -> void
+TuneLab.SDK.DerivedResult.Tempos.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedTempo!>!
+TuneLab.SDK.DerivedResult.Tempos.init -> void
+TuneLab.SDK.DerivedResult.TimeSignatures.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedTimeSignature!>!
+TuneLab.SDK.DerivedResult.TimeSignatures.init -> void
+TuneLab.SDK.DerivedResult.Tracks.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedTrack!>!
+TuneLab.SDK.DerivedResult.Tracks.init -> void
+TuneLab.SDK.DerivedTempo
+TuneLab.SDK.DerivedTempo.Bpm.get -> double
+TuneLab.SDK.DerivedTempo.Bpm.init -> void
+TuneLab.SDK.DerivedTempo.DerivedTempo() -> void
+TuneLab.SDK.DerivedTempo.Time.get -> double
+TuneLab.SDK.DerivedTempo.Time.init -> void
+TuneLab.SDK.DerivedTimeSignature
+TuneLab.SDK.DerivedTimeSignature.Denominator.get -> int
+TuneLab.SDK.DerivedTimeSignature.Denominator.init -> void
+TuneLab.SDK.DerivedTimeSignature.DerivedTimeSignature() -> void
+TuneLab.SDK.DerivedTimeSignature.Numerator.get -> int
+TuneLab.SDK.DerivedTimeSignature.Numerator.init -> void
+TuneLab.SDK.DerivedTimeSignature.Time.get -> double
+TuneLab.SDK.DerivedTimeSignature.Time.init -> void
+TuneLab.SDK.DerivedTrack
+TuneLab.SDK.DerivedTrack.DerivedTrack() -> void
+TuneLab.SDK.DerivedTrack.Name.get -> string!
+TuneLab.SDK.DerivedTrack.Name.init -> void
+TuneLab.SDK.DerivedTrack.Parts.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.DerivedPart!>!
+TuneLab.SDK.DerivedTrack.Parts.init -> void
+TuneLab.SDK.IAudioDerivationContext
+TuneLab.SDK.IAudioDerivationContext.Properties.get -> TuneLab.Foundation.PropertyObject!
+TuneLab.SDK.IAudioDerivationEngine
+TuneLab.SDK.IAudioDerivationEngine.Derive(TuneLab.SDK.IAudioDerivationInput! input, System.IProgress<TuneLab.SDK.DerivationProgress>! progress, System.Threading.CancellationToken cancellation = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<TuneLab.SDK.DerivedResult?>!
+TuneLab.SDK.IAudioDerivationEngine.Destroy() -> void
+TuneLab.SDK.IAudioDerivationEngine.GetPropertyConfig(TuneLab.SDK.IAudioDerivationContext! context) -> TuneLab.SDK.ObjectConfig!
+TuneLab.SDK.IAudioDerivationEngine.Init() -> void
+TuneLab.SDK.IAudioDerivationInput
+TuneLab.SDK.IAudioDerivationInput.ChannelCount.get -> int
+TuneLab.SDK.IAudioDerivationInput.Properties.get -> TuneLab.Foundation.PropertyObject!
+TuneLab.SDK.IAudioDerivationInput.Read(int channel, long offset, System.Span<float> destination) -> void
+TuneLab.SDK.IAudioDerivationInput.SampleCount.get -> long
+TuneLab.SDK.IAudioDerivationInput.SampleRate.get -> int
 TuneLab.SDK.IInstrumentSynthesisEngine.InstrumentSourceLayout.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>!
 TuneLab.SDK.InstrumentSourceLayoutGroup
 TuneLab.SDK.InstrumentSourceLayoutGroup.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>!

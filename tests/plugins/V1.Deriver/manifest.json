@@ -1,0 +1,11 @@
+{
+  "id": "com.tunelab.test.v1deriver",
+  "name": "V1 Test Deriver",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "V1 deriver 测试：自相关 pitch→note 转写引擎，从音频 part 一次性派生音符 + 音高曲线的新 MIDI part，验证 deriver 提交/缓存/待应用/落地 undo 全链路。",
+  "sdk-version": "1.0",
+  "extensions": [
+    { "type": "deriver", "engine": "TLTestPitchToMidi", "name": "Transcribe to MIDI", "classes": ["TuneLab.TestPlugins.V1Deriver.AutocorrelationDeriverEngine"], "assembly": "V1.Deriver.dll" }
+  ]
+}

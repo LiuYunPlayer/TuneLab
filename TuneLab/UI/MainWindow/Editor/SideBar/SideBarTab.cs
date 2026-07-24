@@ -15,4 +15,5 @@ internal enum SideBarTab
     Export,
     Agent,
     Script,
+    Derivation,
 }

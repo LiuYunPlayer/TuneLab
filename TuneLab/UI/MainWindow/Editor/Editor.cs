@@ -227,6 +227,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     mScriptSideBarContentProvider.SetProject(Project);
                     mRightSideBar.SetFullContent(SideBarTab.Script, mScriptSideBarContentProvider.Icon, mScriptSideBarContentProvider.Name, mScriptSideBarContentProvider.Root);
                     break;
+                case SideBarTab.Derivation:
+                    mDerivationSideBarContentProvider.SetProject(Project);
+                    mRightSideBar.SetFullContent(SideBarTab.Derivation, mDerivationSideBarContentProvider.Icon, mDerivationSideBarContentProvider.Name, mDerivationSideBarContentProvider.Root);
+                    break;
                 default:
                     mRightSideBar.IsVisible = false;
                     break;
@@ -1577,6 +1581,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly ExportSideBarContentProvider mExportSideBarContentProvider = new();
     readonly AgentSideBarContentProvider mAgentSideBarContentProvider = new();
     readonly ScriptSideBarContentProvider mScriptSideBarContentProvider = new();
+    readonly DerivationSideBarContentProvider mDerivationSideBarContentProvider = new();
 
     readonly PlayheadForProject mPlayhead;
 

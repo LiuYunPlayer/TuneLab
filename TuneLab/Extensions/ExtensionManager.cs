@@ -15,6 +15,7 @@ using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Effect;
+using TuneLab.Extensions.Derivers;
 using TuneLab.Extensions.Agent;
 namespace TuneLab.Extensions;
 
@@ -44,6 +45,16 @@ internal static class ExtensionManager
             if (r.Id == packageId)
                 return string.IsNullOrEmpty(r.Name) ? packageId : r.Name;
         return string.IsNullOrEmpty(packageId) ? "Legacy" : packageId;
+    }
+
+    // 包 id → manifest 声明的版本号（供 deriver 缓存键的模型版本位；见 AudioDerivationCacheManager）。
+    // 内建 / 查不到回退 "0"。发布即变、作者不漏 bump——旧模型算出的缓存结果不被误服用。
+    public static string PackageVersion(string packageId)
+    {
+        foreach (var r in mLoadResults)
+            if (r.Id == packageId)
+                return r.Version;
+        return "0";
     }
 
     // Compat.Legacy 接入点：设置后接管 Legacy 包加载，返回 true 表示已处理。
@@ -76,6 +87,7 @@ internal static class ExtensionManager
         VoicesManager.Destroy();
         InstrumentsManager.Destroy();
         EffectManager.Destroy();
+        DeriversManager.Destroy();
         AgentModelManager.Destroy();
     }
 
@@ -384,7 +396,7 @@ internal static class ExtensionManager
         return File.Exists(full) ? full : null;
     }
 
-    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "instrument" or "effect" or "agent-model";
+    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "instrument" or "effect" or "deriver" or "agent-model";
 
     // legacy 包的稳定包 id（无 V1 manifest id 时）：用目录名——每个安装唯一、跨会话稳定，
     // 供冲突消解区分多个 legacy 包并反查显示名。LegacyCompatLoader 注册与 LoadResult.Id 须用同一值。
@@ -430,6 +442,12 @@ internal static class ExtensionManager
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
                 if (!TryScanCtor<IEffectSynthesisEngine>(assembly, candidates, out var ector, out error)) return false;
                 EffectManager.RegisterEngine(packageId, ext.engine, displayName, (IEffectSynthesisEngine)ector!.Invoke(null));
+                return true;
+
+            case "deriver":
+                if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
+                if (!TryScanCtor<IAudioDerivationEngine>(assembly, candidates, out var dctor, out error)) return false;
+                DeriversManager.RegisterEngine(packageId, ext.engine, displayName, (IAudioDerivationEngine)dctor!.Invoke(null));
                 return true;
 
             // agent-model 刻意不开放外部扫描（2.0）：模型适配器是宿主内部模块（TuneLab/Agent/Contracts），

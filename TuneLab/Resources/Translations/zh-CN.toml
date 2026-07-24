@@ -94,6 +94,13 @@
 "Drag to associate the vibrato" = "拖拽以关联颤音"
 
 [Dialog]
+"Will produce" = "将产出"
+"Derive" = "派生"
+"Notes" = "音符"
+"Automations" = "自动化"
+"Tempo" = "速度"
+"Time Signature" = "拍号"
+"Audio" = "音频"
 "OK" = "确认"
 "Cancel" = "取消"
 "Yes" = "是"
@@ -223,8 +230,16 @@
 "Part" = "片段"
 "Track" = "轨道"
 "Waveform" = "波形"
+"Derived" = "派生"
 
 [Menu]
+"Derivation" = "派生"
+"No derivation tasks." = "暂无派生任务。"
+"Ready to apply" = "待应用"
+"Apply" = "应用"
+"Failed" = "失败"
+"Running" = "运行中"
+"Apply detected tempo / time signature" = "同时套用检测到的速度 / 拍号"
 "Full Screen" = "全屏"
 "Toggle Parameter Panel" = "显示/隐藏参数面板"
 "Select All" = "全选"

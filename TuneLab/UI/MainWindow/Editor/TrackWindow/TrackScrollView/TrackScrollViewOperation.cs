@@ -23,6 +23,7 @@ using Splat;
 
 using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Instruments;
+using TuneLab.Extensions.Derivers;
 namespace TuneLab.UI;
 
 internal partial class TrackScrollView
@@ -437,6 +438,37 @@ internal partial class TrackScrollView
                                                     Project.Commit();
                                             });
                                             menu.Items.Add(menuItem);
+                                        }
+                                    }
+                                    // 音频 part 专属：派生（deriver）——顶层只放一个「派生」子菜单，展开列各引擎（任务文案），
+                                    // 保持 part 右键顶层干净、与核心项不混、装再多插件也 scale。没装任何 deriver 就整个不出现。
+                                    if (part is IAudioPart audioPart)
+                                    {
+                                        var engineIds = DeriversManager.GetAllDeriverEngines();
+                                        if (engineIds.Count > 0)
+                                        {
+                                            var deriveMenu = new MenuItem().SetName("Derive".Tr(TC.Menu));
+                                            foreach (var engineId in engineIds)
+                                            {
+                                                var id = engineId;
+                                                var displayName = DeriversManager.GetDisplayName(id);
+                                                deriveMenu.Items.Add(new MenuItem().SetName(displayName + "…").SetAction(async () =>
+                                                {
+                                                    if (audioPart.SourceSampleCount <= 0)
+                                                    {
+                                                        Log.Warning("Audio part has no samples to derive.");
+                                                        return;
+                                                    }
+                                                    // 参数对话框收 run-inputs（引擎参数，反应式：随当前值重算）；取消即止。
+                                                    var dialog = new DerivationDialog(displayName, id);
+                                                    var properties = await dialog.ShowDialog<PropertyObject?>(this.Window());
+                                                    if (properties == null)
+                                                        return;
+                                                    // 提交任务：数据线程冻结源音频快照（位置无关）+ 与源解耦、工程零改动；完成后进「待应用」。裁剪/落点是 apply-side。
+                                                    DerivationTaskManager.Submit(audioPart, id, displayName, displayName, properties);
+                                                }));
+                                            }
+                                            menu.Items.Add(deriveMenu);
                                         }
                                     }
                                     {
