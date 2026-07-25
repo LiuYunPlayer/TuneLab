@@ -59,7 +59,9 @@ internal static class MidiUtility
                 else if (e is TextEvent le && le.MetaEventType == MetaEventType.Lyric)
                 {
                     if (le.MetaEventType == MetaEventType.Lyric)
-                        lyrics.Add(toTuneLabTick(le.AbsoluteTime), Encoding.UTF8.GetString(le.Data));
+                        // 容错畸形 MIDI：同一 tick 可能有多个 Lyric 事件（Dictionary.Add 会抛「duplicate key」）。
+                        // 用 TryAdd 取先到、忽略后续重复——歌词按 tick 查回音符（见下），一个 tick 只需一条。
+                        lyrics.TryAdd(toTuneLabTick(le.AbsoluteTime), Encoding.UTF8.GetString(le.Data));
                     else if (le.MetaEventType == MetaEventType.SequenceTrackName)
                         part.Name = Encoding.UTF8.GetString(le.Data);
                 }
