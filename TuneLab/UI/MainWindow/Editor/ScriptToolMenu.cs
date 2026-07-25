@@ -99,7 +99,7 @@ internal static class ScriptToolMenu
         var tools = Discover();
 
         // 候选 id 令牌：声明 id 合法用之，否则文件名。同候选被多脚本占用则全部回落文件名。
-        string Candidate(ScriptToolInfo t) => IsValidDeclaredId(t.DeclaredId) ? t.DeclaredId! : t.ScriptName;
+        string Candidate(ScriptToolInfo t) => ScriptTools.StableId(t);
         var candidateCount = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var t in tools)
             candidateCount[Candidate(t)] = candidateCount.GetValueOrDefault(Candidate(t)) + 1;
@@ -107,7 +107,7 @@ internal static class ScriptToolMenu
         var finalIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var tool in tools)
         {
-            if (tool.DeclaredId != null && !IsValidDeclaredId(tool.DeclaredId))
+            if (tool.DeclaredId != null && !ScriptTools.IsValidDeclaredId(tool.DeclaredId))
                 Log.Warning(string.Format("Script \"{0}\": invalid declared id \"{1}\" (allowed chars: A-Z a-z 0-9 . _ -); using filename as keybinding id.", tool.ScriptName, tool.DeclaredId));
 
             var candidate = Candidate(tool);
@@ -147,17 +147,6 @@ internal static class ScriptToolMenu
         ScriptToolContext.Part or ScriptToolContext.Track or ScriptToolContext.TrackContent or ScriptToolContext.TrackSelection => KeyScope.TrackWindow,
         _ => KeyScope.Editor,   // Global：编辑器内哪都可达
     };
-
-    // 稳定 id 字符集：ASCII 字母数字 + . _ -（禁 : / + / 空白——它们是前缀/修饰/序列化分隔符）。空或含非法字符即无效。
-    static bool IsValidDeclaredId(string? id)
-    {
-        if (string.IsNullOrEmpty(id))
-            return false;
-        foreach (var c in id)
-            if (!(char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-'))
-                return false;
-        return true;
-    }
 
     // 解析脚本声明的默认手势：令牌串（允许 mod+/primary+ → 本平台主命令键）。原样采用——撞键不在此丢弃，
     // 交给分发的注册序取胜（内建恒胜、不被夺）+ 设置页持久冲突警示（§6、§9）。仅解析失败时忽略并告知。
@@ -232,7 +221,7 @@ internal static class ScriptToolMenu
 
         // 入参：脚本定义了 getInputConfig 则弹响应式入参窗；否则直接跑。初值 = 该脚本上次输入（无则空 = 各字段默认）。
         PropertyObject? inputs = null;
-        string scriptId = IsValidDeclaredId(tool.DeclaredId) ? tool.DeclaredId! : tool.ScriptName;
+        string scriptId = ScriptTools.StableId(tool);
         var initialValues = ScriptInputMemory.Load(scriptId);
         var (schema, schemaError) = ScriptRunner.GetInputConfig(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, code, initialValues, CancellationToken.None);
         if (schemaError != null)

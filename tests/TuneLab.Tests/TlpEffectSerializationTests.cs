@@ -29,11 +29,11 @@ public class TlpEffectSerializationTests
             DefaultValue = 1.0,
             Points = new List<Point> { new(0, 1), new(480, 1.5), new(960, 0.5) },
         });
-        effect.PiecewiseAutomations.Add("formant", new List<List<Point>>
+        effect.PiecewiseAutomations.Add("formant", new PiecewiseAutomationInfo { Segments = new List<List<Point>>
         {
             new() { new(0, -20), new(240, 40) },
             new() { new(480, 10) },
-        });
+        } });
 
         var second = new EffectInfo { Type = "TLTestReverse" };   // 默认启用、空参数：验证最小形态
 
@@ -46,10 +46,10 @@ public class TlpEffectSerializationTests
         };
         part.Effects.Add(effect);
         part.Effects.Add(second);
-        part.PiecewiseAutomations.Add("Bend", new List<List<Point>>
+        part.PiecewiseAutomations.Add("Bend", new PiecewiseAutomationInfo { Segments = new List<List<Point>>
         {
             new() { new(10, 5), new(20, -5) },
-        });
+        } });
 
         var track = new TrackInfo { Name = "t" };
         track.Parts.Add(part);
@@ -79,7 +79,7 @@ public class TlpEffectSerializationTests
         Assert.Equal(480, env.Points[1].X);
         Assert.Equal(1.5, env.Points[1].Y);
 
-        var formant = effect.PiecewiseAutomations["formant"];
+        var formant = effect.PiecewiseAutomations["formant"].Segments;
         Assert.Equal(2, formant.Count);
         Assert.Equal(40, formant[0][1].Y);
 
@@ -88,7 +88,7 @@ public class TlpEffectSerializationTests
         Assert.True(second.IsEnabled);
         Assert.Empty(second.Automations);
 
-        var bend = part.PiecewiseAutomations["Bend"];
+        var bend = part.PiecewiseAutomations["Bend"].Segments;
         Assert.Equal(-5, Assert.Single(bend)[1].Y);
     }
 

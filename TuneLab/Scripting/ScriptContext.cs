@@ -41,6 +41,7 @@ internal sealed class ScriptContext
     readonly Dictionary<IPart, ScriptPart> mParts = new();
     readonly Dictionary<ITrack, ScriptTrack> mTracks = new();
     readonly Dictionary<Vibrato, ScriptVibrato> mVibratos = new();
+    readonly Dictionary<IEffect, ScriptEffect> mEffects = new();
 
     // 已开 merge 括号的 midi part；Finish() 时统一收口。
     readonly HashSet<IMidiPart> mBracketed = new();
@@ -113,9 +114,24 @@ internal sealed class ScriptContext
 
     internal int ChangeCount => mChanges;
 
+    // 【探测沙箱专用】把目前累积的写刷给合成管线：关闭所有已开的 merge 括号，让延迟的音符/曲线通知
+    // 同步扇出、IsSynthesisBatching 归假，合成管线据此看到最新音符并开始 prep。与 Finish 不同——它不
+    // 结束本次运行：之后若再写入会重新开括号（EnsureBracket），可在同一段脚本里"改一批→合成→再改→再合成"。
+    // 不 Commit（沙箱工程是可丢弃的，undo 分组无意义）；括号 Begin/End 仍成对入未提交栈，形态与正常运行一致。
+    internal void FlushForSynthesis()
+    {
+        foreach (var part in mBracketed)
+        {
+            part.Notes.EndMergeNotify();
+            part.EndMergeDirty();
+        }
+        mBracketed.Clear();
+    }
+
     // ── 句柄工厂（按引用缓存以保持句柄身份） ──
     internal ScriptNote WrapNote(INote note) => mNotes.TryGetValue(note, out var h) ? h : mNotes[note] = new ScriptNote(this, note);
     internal ScriptPart WrapPart(IPart part) => mParts.TryGetValue(part, out var h) ? h : mParts[part] = new ScriptPart(this, part);
     internal ScriptTrack WrapTrack(ITrack track) => mTracks.TryGetValue(track, out var h) ? h : mTracks[track] = new ScriptTrack(this, track);
     internal ScriptVibrato WrapVibrato(Vibrato vibrato) => mVibratos.TryGetValue(vibrato, out var h) ? h : mVibratos[vibrato] = new ScriptVibrato(this, vibrato);
+    internal ScriptEffect WrapEffect(IEffect effect) => mEffects.TryGetValue(effect, out var h) ? h : mEffects[effect] = new ScriptEffect(this, effect);
 }

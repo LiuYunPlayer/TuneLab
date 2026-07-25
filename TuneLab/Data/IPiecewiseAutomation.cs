@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
+using TuneLab.SDK;
 
 namespace TuneLab.Data;
 
@@ -120,23 +121,23 @@ internal static class IPiecewiseAutomationExtension
 
     // 分段轨 map 序列化（与 pitch 同形 List<List<Point>>，区别于连续轨的 AutomationInfo）。孤儿数据保留隐藏：
     // 按 map 现有内容整存（不因当前声明收缩裁剪），与连续轨 Automations 的整存策略一致。
-    public static Map<string, List<List<Point>>> PiecewiseAutomationsToInfo(this IReadOnlyDataObjectMap<string, IPiecewiseAutomation> map)
+    public static Map<string, PiecewiseAutomationInfo> PiecewiseAutomationsToInfo(this IReadOnlyDataObjectMap<string, IPiecewiseAutomation> map)
     {
-        var info = new Map<string, List<List<Point>>>();
+        var info = new Map<string, PiecewiseAutomationInfo>();
         foreach (var kvp in map)
         {
-            info.Add(kvp.Key, kvp.Value.GetInfo());
+            info.Add(kvp.Key, new PiecewiseAutomationInfo { Segments = kvp.Value.GetInfo() });
         }
         return info;
     }
 
-    public static Map<string, IPiecewiseAutomation> ToPiecewiseAutomations(this IReadOnlyMap<string, List<List<Point>>> info)
+    public static Map<string, IPiecewiseAutomation> ToPiecewiseAutomations(this IReadOnlyMap<string, PiecewiseAutomationInfo> info)
     {
         var map = new Map<string, IPiecewiseAutomation>();
         foreach (var kvp in info)
         {
             var automation = new PiecewiseAutomation();
-            automation.SetInfo(kvp.Value);
+            automation.SetInfo(kvp.Value.Segments);
             map.Add(kvp.Key, automation);
         }
         return map;

@@ -148,7 +148,8 @@ function main(inputs) {                                    // 带参；无 getIn
 **自定义回调的唯一接线要点**：这些回调**不在 `main()` 里触发**，而在**入参窗存续期间、UI 线程、每次拖滑块/重绘/编辑文本时**被调。
 故持有 JS 闭包的引擎须**活到关窗**（不能 `getInputConfig` 返回即 dispose），入参窗会话 retain 之；作用域天然有界（对话框级、跑完即弃，
 逐拖拽调解释器可接受——不同于常驻属性面板的 config 会有持续回调性能顾虑）；`Custom` format 的 `Parse` 返回 `null`=解析失败须如实拒绝，与 C# 一致。
-落地顺序：第 1/2 层随本切片；第 3 层（自定义回调 + 上述引擎存续接线）作紧随其后的小增量。
+
+**✅ 第 3 层已落地**（`ScriptConfigs` 的 `JsNormalizedScale`/`JsNumberFormat` + facade `.custom`）。**引擎存续采「引用链保活」而非显式 retain**：适配器持 `Engine` 引用、config 被控件树引用 → 引擎随之保活；关窗 config 失引即一并 GC。**无需手动重置约束**：实测 `Engine.Invoke` 每次自重置超时/语句数约束（不跨调用累积），故长开窗反复回调安全。**线程亲和**：Jint 引擎非线程安全，回调须在其创建线程调用——交互路径引擎建/调都在 UI 线程；agent 的 `get_script_inputs` 把 schema 求值 **+ 文本化（会触发自定义 `ToValue`/`Format`）** 一并放进一次 `Dispatcher.UIThread.InvokeAsync`。回调抛错/返非法值一律降级（scale→NaN、format→不变式字面量、parse→null），绝不冒泡崩 UI。落地顺序：第 1/2 层与第 3 层均已完成。
 
 ### 2.3 运行时序（入参窗一次会话）——复用属性面板的重算-diff 通路
 
@@ -260,7 +261,7 @@ effect 链读写、设置读写、快捷键绑定、切音源等后续能力，�
 1. **`ScriptInvocation` + `ScriptEngine.Invoke`**：统一四步管线；三入口（`ScriptToolMenu.Run`、`RunScriptTool`、侧栏）改为构造 invocation 后经它。
 2. **`getInputConfig` 支持**：`ScriptRunner`/`ScriptTools` 增"取 `getInputConfig` schema（带 `ctx.values`，无副作用回退）"能力；`main` 改带参调用。
 3. **config 构造 API 门面**（宿主侧，§2.2）：为各冻结 config 类建薄 JS 门面（同名全局 + 工厂 + 流式 `With`/`Append`），`getInputConfig` 返回的 config map → `ObjectConfig`。含 `NormalizedScale`/`NumberFormat` 内置工厂门面（第 1/2 层）。
-   - 3b. **自定义 `scale`/`format` 回调**（第 3 层，紧随其后）：`.custom(jsFunc, jsFunc)` → 接口适配器；入参窗会话**retain 引擎至关窗**、回调走 UI 线程（§2.2 标度与格式小节）。
+   - 3b. ✅**已落地** 自定义 `scale`/`format` 回调（第 3 层）：`.custom(jsFunc, jsFunc)` → `JsNormalizedScale`/`JsNumberFormat` 适配器；引擎经引用链保活至关窗、回调走 UI 线程、Invoke 自重置约束、抛错降级（§2.2 标度与格式小节）。
 4. **响应式入参窗**：复用属性面板的重算-diff 组件，接 `getInputConfig` 数据源 + 「重置到默认」按钮。
 5. **入参持久化**：独立 JSON（§2.6），键=脚本稳定 id。
 6. **分级授权**：`Settings.AgentAuthorizationLevel` + 设置窗 UI；`ScriptRunner.Run` 增提交策略；`Confirm` 的预览+重跑；破坏性识别。

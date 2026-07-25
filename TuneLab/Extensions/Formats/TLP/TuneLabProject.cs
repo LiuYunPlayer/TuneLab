@@ -178,7 +178,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                                     flag = !flag;
                                 }
 
-                                midiPartInfo.Pitch.Add(line);
+                                midiPartInfo.Pitch.Segments.Add(line);
                             }
                         }
 
@@ -400,7 +400,7 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                     part.Add("automations", DataInfoJsonUtils.ToJson(midiPartInfo.Automations));
 
                     var pitch = new JArray();
-                    foreach (var lineInfo in midiPartInfo.Pitch)
+                    foreach (var lineInfo in midiPartInfo.Pitch.Segments)
                     {
                         var values = new JArray();
                         foreach (var pointInfo in lineInfo)
@@ -574,10 +574,10 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
         return lines;
     }
 
-    static void ReadJsonPiecewiseAutomations(JToken token, Map<string, List<List<Point>>> map)
+    static void ReadJsonPiecewiseAutomations(JToken token, Map<string, PiecewiseAutomationInfo> map)
     {
         foreach (JProperty property in token.Children())
-            map.Add(property.Name, ReadJsonLines(property.Value));
+            map.Add(property.Name, new PiecewiseAutomationInfo { Segments = ReadJsonLines(property.Value) });
     }
 
     static JArray LinesToJson(List<List<Point>> lines)
@@ -596,11 +596,11 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
         return array;
     }
 
-    static JObject PiecewiseAutomationsToJson(Map<string, List<List<Point>>> map)
+    static JObject PiecewiseAutomationsToJson(Map<string, PiecewiseAutomationInfo> map)
     {
         var piecewise = new JObject();
         foreach (var kvp in map)
-            piecewise.Add(kvp.Key, LinesToJson(kvp.Value));
+            piecewise.Add(kvp.Key, LinesToJson(kvp.Value.Segments));
         return piecewise;
     }
 

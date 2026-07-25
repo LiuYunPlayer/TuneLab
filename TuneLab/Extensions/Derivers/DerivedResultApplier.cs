@@ -109,10 +109,13 @@ internal static class DerivedResultApplier
                         BodyPhonemes = ClonePhonemes(x.Note.BodyPhonemes),
                         BodyOffset = x.Note.BodyOffset,
                     }).ToList();
-                info.Pitch = midi.Pitch.Segments
-                    .Select(seg => seg.Where(pt => pt.X >= winStart && pt.X <= winEnd).Select(pt => new Point(Tick(pt.X) - posTick, pt.Y)).ToList())
-                    .Where(seg => seg.Count >= 2)
-                    .ToList();
+                info.Pitch = new PitchInfo
+                {
+                    Segments = midi.Pitch.Segments
+                        .Select(seg => seg.Where(pt => pt.X >= winStart && pt.X <= winEnd).Select(pt => new Point(Tick(pt.X) - posTick, pt.Y)).ToList())
+                        .Where(seg => seg.Count >= 2)
+                        .ToList(),
+                };
                 info.EndOffset = ComputeMidiEndOffset(info);
                 return info;
             }
@@ -133,7 +136,7 @@ internal static class DerivedResultApplier
         double end = 0;
         foreach (var note in info.Notes)
             end = Math.Max(end, note.Pos + note.Dur);
-        foreach (var seg in info.Pitch)
+        foreach (var seg in info.Pitch.Segments)
             foreach (var pt in seg)
                 end = Math.Max(end, pt.X);
         return end;

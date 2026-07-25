@@ -796,7 +796,7 @@ internal class MidiPart : Part, IMidiPart
             Effects = mEffects.GetInfo().ToInfo(),
             Automations = mAutomations.GetInfo().ToInfo(),
             PiecewiseAutomations = mPiecewiseAutomations.PiecewiseAutomationsToInfo(),
-            Pitch = mPitchLine.GetInfo(),
+            Pitch = new PitchInfo { Segments = mPitchLine.GetInfo() },
             Vibratos = mVibratos.GetInfo().ToInfo(),
             SoundSource = mSource.GetInfo(),
             Properties = Properties.GetInfo(),
@@ -816,7 +816,7 @@ internal class MidiPart : Part, IMidiPart
         mVibratos.SetInfo(info.Vibratos.Convert(CreateVibrato).ToArray());
         mAutomations.SetInfo(info.Automations.Convert(CreateAutomation).ToMap());
         mPiecewiseAutomations.SetInfo(info.PiecewiseAutomations.ToPiecewiseAutomations());
-        mPitchLine.SetInfo(info.Pitch);
+        mPitchLine.SetInfo(info.Pitch.Segments);
         mSource.SetInfo(info.SoundSource);
         Properties.SetInfo(info.Properties);
     }

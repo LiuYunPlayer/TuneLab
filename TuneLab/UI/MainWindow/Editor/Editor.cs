@@ -220,7 +220,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     mRightSideBar.SetContent(SideBarTab.Export, mExportSideBarContentProvider.Content);
                     break;
                 case SideBarTab.Agent:
-                    mAgentSideBarContentProvider.SetProject(Project);
+                    // 不在此调 SetProject：工程由 OnProjectChanged 统一维护（换工程才重建工具+重置会话）。
+                    // tab 反复选中是冗余调用，会白白清空 agent 对话上下文，故只显示内容。
                     mRightSideBar.SetFullContent(SideBarTab.Agent, mAgentSideBarContentProvider.Icon, mAgentSideBarContentProvider.Name, mAgentSideBarContentProvider.Root);
                     break;
                 case SideBarTab.Script:

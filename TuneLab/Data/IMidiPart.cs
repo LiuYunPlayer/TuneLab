@@ -639,7 +639,7 @@ internal static class IMidiPartExtension
                 if (item.Pos >= nextPartPos) break;
                 ret.Vibratos.Add(item);
             }
-            foreach (var item in curPart.Pitch)
+            foreach (var item in curPart.Pitch.Segments)
             {
                 List<TuneLab.Foundation.Point> line= new List<TuneLab.Foundation.Point>();
                 foreach (var point in item)
@@ -649,7 +649,7 @@ internal static class IMidiPartExtension
                     if (X >= nextPartPos) break;
                     line.Add(new TuneLab.Foundation.Point(X, point.Y));
                 }
-                ret.Pitch.Add(line);
+                ret.Pitch.Segments.Add(line);
             }
             foreach (var kvp in curPart.Automations)
             {
@@ -686,7 +686,7 @@ internal static class IMidiPartExtension
             Name = part.Name.GetInfo(),
             SoundSource = part.SoundSource.GetInfo(),
             Properties = part.Properties.GetInfo(),
-            Pitch = parameters.Pitch,
+            Pitch = new PitchInfo { Segments = parameters.Pitch },
             Notes = notes,
             Vibratos = vibratos,
             Automations = automations

@@ -53,6 +53,7 @@
 | `project.tracks()` | `[track]` | 所有轨道句柄。 |
 | `project.addTrack(name?)` | `track` | 在末尾新建一条轨，返回其句柄。 |
 | `project.removeTrack(track)` | — | 删除一条轨。 |
+| `project.importTracks(path)` | `[track]` | 从文件导入**全部**轨、加法式并进当前工程，返回新加入的轨句柄。`path` = 本地文件路径；格式为 `tlp`/`tlpx`/`mid`/`midi` + 已装的格式插件。各轨含其 part/音符/音源/effect/自动化（音源未装则优雅降级为空源，同 UI 导入）。**时基**：保留当前工程的速度/拍号，各轨按**原始 tick** 落位（对齐小节、不做时基重映射）——最可预期的加法式默认；时基对齐 / 导入文件速度等模式未来可加。文件不存在/格式不支持/解析失败则报错（整脚本回退）。 |
 | `project.tempos()` | `[{bpm, tick}]` | 所有速度标记。 |
 | `project.timeSignatures()` | `[{numerator, denominator, bar}]` | 所有拍号标记（bar 为 1-based 小节号）。 |
 | `project.setTempo(bpm, atTick?)` | — | 设速度；`atTick` 省略则改 tick 0 的基础速度，该处已有标记则改、否则新增。 |
@@ -80,6 +81,7 @@
 | 方法 | 返回 | 说明 |
 |---|---|---|
 | `part.soundSource()` | `{type, id, name, kind, defaultLyric}` | 本 part 的声源信息（只读快照）；`kind` 为 `"voice"` 或 `"instrument"`。仅 MIDI part。 |
+| `part.setSoundSource({kind, type, id})` | — | 切换本 part 的音源（`kind` = `"voice"`（默认）或 `"instrument"`；`type`/`id` 取自 `list_sound_sources`）。未知音源会报错而非静默清空；`type`+`id` 皆空则清成无音源。仅 MIDI part。 |
 | `part.notes()` | `[note]` | 本 MIDI part 的所有音符句柄。 |
 | `part.selectedNotes()` | `[note]` | 钢琴窗中当前选中的音符（无选中返回空数组）。 |
 | `part.notesInRange(startTick, endTick)` | `[note]` | 绝对 tick `[start, end)` 内（按起点判定）的音符。 |
@@ -95,17 +97,45 @@
 | `part.vibratos()` | `[vibrato]` | 本 part 的所有颤音句柄。 |
 | `part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?})` | `vibrato` | 新增颤音（叠加在音高曲线之上，默认 6Hz / 1 半音），返回其句柄。 |
 | `part.removeVibrato(vibrato)` | — | 从本 part 删除一个颤音。 |
+| `part.effects()` | `[effect]` | 本 part 的串行效果链（按处理顺序）。 |
+| `part.addEffect(type)` | `effect` | 在链尾追加一个 `type` 类型的效果器（`type` 为 `list_effects` 里的引擎 id）；未知类型报错。返回其句柄。 |
+| `part.removeEffect(effect)` | — | 从链中删除一个效果器。 |
+| `part.moveEffect(effect, index)` | — | 把某效果器移到链中的第 `index`（0-based）位。 |
+| `part.getProperty(key)` | 值 | 音源（voice/instrument）声明的某 per-part 参数当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_sound_sources`。 |
+| `part.setProperty(key, value)` | — | 写一个声明的 per-part 参数（`value` = `number`/`boolean`/`string`）。 |
 | `part.set({name?, startPos?, endPos?})` | — | 一次改多个字段（改名/移动/缩放）。 |
 
 ---
 
 ## `note`（音符）
 
-**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`；**只读**：`pitchName`（如 `"C4"`）。
+**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasPinnedPhonemes`（bool）。`pronunciation` 是 voice 的 G2P 发音覆盖——非空则强制该发音，空串回到按歌词自动派生。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动钉死音素）。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
-| `note.set({pos?, dur?, pitch?, lyric?})` | — | 一次改多个字段（改 pos/dur 只重排一次）。 |
+| `note.set({pos?, dur?, pitch?, lyric?, pronunciation?})` | — | 一次改多个字段（改 pos/dur 只重排一次）。 |
+| `note.getProperty(key)` | 值 | 音源声明的某 per-note 参数当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_sound_sources`。 |
+| `note.setProperty(key, value)` | — | 写一个声明的 per-note 参数（`value` = `number`/`boolean`/`string`）。 |
+| `note.phonemes()` | `[phoneme]` | 该 note 的音素（引导 ++ 主体，时间序）；未合成前为空。仅 voice part。 |
+| `note.addPhoneme({symbol, duration?, stretchWeight?, leading?})` | `phoneme` | 追加一个音素到引导（`leading: true`）或主体（默认）列表；自动钉死。`duration` 秒（默认 0），`stretchWeight` 0 = 刚性辅音 / >0 = 可伸元音。 |
+| `note.removePhoneme(phoneme)` | — | 删除一个音素；自动钉死。 |
+| `note.pinPhonemes()` | — | 把合成音素固定为可编辑用户数据（幂等；一般首次音素写入时自动发生）。 |
+| `note.clearPhonemes()` | — | 清除钉死音素、回到合成产物口径。 |
+
+音素在你编辑前来自引擎（只读）；**首次写入会自动钉死**成可编辑数据（与侧栏面板首次编辑音素完全一致）。
+
+---
+
+## `phoneme`（音素）
+
+`note.phonemes()` 里的一项。**字段**——只读：`leading`（bool；引导 = 核前前置辅音，主体 = 核 + 尾辅音）；可读写：`symbol`、`duration`（秒）、`stretchWeight`（0 = 刚性辅音，>0 = 可伸元音，其时长为派生填充量、布局时忽略）。写任一字段都会自动钉死该 note 的音素。
+
+音素句柄按**位置**定址：增删音素会改变其后音素的下标，结构变更后请重新 `note.phonemes()`。
+
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `phoneme.getProperty(key)` | 值 | voice 声明的某 per-phoneme 参数当前值（`number`/`boolean`/`string`），未设或该 note 尚未钉死则 `null`。键、取值范围见 `list_sound_sources` 的音素 slot。 |
+| `phoneme.setProperty(key, value)` | — | 写一个声明的 per-phoneme 参数（`value` = `number`/`boolean`/`string`）；自动钉死。 |
 
 ---
 
@@ -116,6 +146,23 @@
 | 方法 | 返回 | 说明 |
 |---|---|---|
 | `vibrato.set({pos?, dur?, frequency?, amplitude?, phase?, attack?, release?})` | — | 一次改多个字段。 |
+
+---
+
+## `effect`（效果器）
+
+`part.effects()` 里的一项。**字段**——可读写：`isEnabled`（bool；`false` = 旁路）；**只读**：`type`（引擎 id）、`name`（显示名）、`id`（实例稳定 id）、`index`（链中 0-based 位置）。
+
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `effect.getProperty(key)` | 值 | 某参数的当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_effects`。 |
+| `effect.setProperty(key, value)` | — | 写一个参数（`value` = `number`/`boolean`/`string`）。 |
+| `effect.automationIds()` | `[string]` | 本 effect 引擎声明的可自动化参数 id（见 `list_effects`）。 |
+| `effect.sampleAutomation(id, startTick, endTick, samples)` | `[number]` | 等距采样本 effect 某自动化曲线；`NaN` = 该处无曲线。 |
+| `effect.setAutomation(id, startTick, endTick, points, defaultValue?)` | — | 清空 `[start, end)` 再落线（作用于本 effect）；`points = [{tick, value}]`，value = 参数绝对值；轨不存在按需创建，`defaultValue` 可选。形状同 `part.setAutomation`，只是作用域是本 effect。 |
+| `effect.clearAutomation(id, startTick, endTick)` | — | 清空本 effect 某自动化曲线的一段。 |
+
+effect 自动化与 part（voice）自动化**逐一平行**——同样的绝对 tick `points` 与绝对值语义，只是目标从 voice 换成链中某 effect。
 
 ---
 

@@ -82,7 +82,7 @@ internal static class FormatConverter
         SoundSource = o.Voice.ToSoundSource(),
         Notes = o.Notes.Select(ToV1).ToList(),
         Automations = o.Automations.ToV1Map(a => a.ToV1()),
-        Pitch = o.Pitch.Select(p => p.ToV1()).ToList(),
+        Pitch = new New.PitchInfo { Segments = o.Pitch.Select(p => p.ToV1()).ToList() },
         Vibratos = o.Vibratos.Select(ToV1).ToList(),
         Properties = o.Properties.ToV1(),
     };
@@ -92,7 +92,7 @@ internal static class FormatConverter
         Voice = n.SoundSource.ToLegacy(),
         Notes = n.Notes.Select(ToLegacy).ToList(),
         Automations = n.Automations.ToLegacyMap(a => a.ToLegacy()),
-        Pitch = n.Pitch.Select(p => p.ToLegacy()).ToList(),
+        Pitch = n.Pitch.Segments.Select(p => p.ToLegacy()).ToList(),
         Vibratos = n.Vibratos.Select(ToLegacy).ToList(),
         Properties = n.Properties.ToLegacy(),
     };

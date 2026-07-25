@@ -25,7 +25,8 @@ internal sealed record ScriptToolInfo(
     string? Version,
     ScriptToolContext Context,
     string? DeclaredId = null,
-    string? DefaultGesture = null);
+    string? DefaultGesture = null,
+    bool HasInputs = false);   // 定义了 getInputConfig（运行前向用户/agent 征集入参）。用于菜单/列表标注、agent 决定是否先读 schema。
 
 // 脚本工具枚举器：扫描脚本库，逐个在沙箱里 eval 顶层 + 调 getScriptInfo 收元数据。只有定义了 getScriptInfo 的脚本
 // 才算"工具"、参与菜单注册；普通脚本（没有 getScriptInfo）不在此列。按 (文件 mtime, 语言) 缓存，避免每次重复 eval
@@ -68,6 +69,25 @@ internal static class ScriptTools
     // 让外部（如 Scripts 目录变化）强制下次重新枚举。
     public static void InvalidateCache() => mCache.Clear();
 
+    // 脚本的【稳定 id】：声明 id（getScriptInfo.id）合法则用之，否则回落文件名。快捷键绑定锚点与入参记忆键
+    // （ScriptInputMemory）同用这一套 id，故重命名/重装不丢用户绑定与上次输入。规则见 docs/keybinding-system.md §6。
+    // 供 UI 侧（ScriptToolMenu）、agent 侧（run_saved_script/get_script_inputs）共用，避免各自派生走样。
+    public static string StableId(string scriptName, string? declaredId)
+        => IsValidDeclaredId(declaredId) ? declaredId! : scriptName;
+
+    public static string StableId(ScriptToolInfo info) => StableId(info.ScriptName, info.DeclaredId);
+
+    // 稳定 id 字符集：ASCII 字母数字 + . _ -（禁 : / + / 空白——它们是前缀/修饰/序列化分隔符）。空或含非法字符即无效。
+    public static bool IsValidDeclaredId(string? id)
+    {
+        if (string.IsNullOrEmpty(id))
+            return false;
+        foreach (var c in id)
+            if (!(char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-'))
+                return false;
+        return true;
+    }
+
     static ScriptToolInfo? TryReadInfo(string name, IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language)
     {
         string code;
@@ -106,6 +126,8 @@ internal static class ScriptTools
             var infoVal = engine.Invoke("getScriptInfo");
             var o = ScriptArgs.Obj(infoVal, "getScriptInfo() result");
             string display = ScriptArgs.OptStr(o, "name") is { Length: > 0 } n ? n : scriptName;
+            // 同一次 eval 顺带探测 getInputConfig 是否声明（只判在场、不调用——调用要工程上下文，那是运行/读 schema 时的事）。
+            bool hasInputs = engine.GetValue("getInputConfig") is Function;
             return (new ScriptToolInfo(
                 ScriptName: scriptName,
                 DisplayName: display,
@@ -114,7 +136,8 @@ internal static class ScriptTools
                 Version: ScriptArgs.OptStr(o, "version"),
                 Context: ParseContext(ScriptArgs.OptStr(o, "context")),
                 DeclaredId: ScriptArgs.OptStr(o, "id"),
-                DefaultGesture: ScriptArgs.OptStr(o, "defaultGesture")), null);
+                DefaultGesture: ScriptArgs.OptStr(o, "defaultGesture"),
+                HasInputs: hasInputs), null);
         }
         catch (Exception ex)
         {

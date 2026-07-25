@@ -3,6 +3,7 @@ using System.Linq;
 using Jint.Native;
 using TuneLab.Audio;
 using TuneLab.Data;
+using TuneLab.Extensions.Formats;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -80,7 +81,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
 {
     public ScriptTrack[] Tracks() => ctx.Project.Tracks.Select(ctx.WrapTrack).ToArray();
 
-    public ScriptTrack AddTrack(JsValue name)
+    public ScriptTrack AddTrack(JsValue? name = null)
     {
         ctx.EnsureWritable();
         ctx.Project.AddTrack(new TrackInfo { Name = ScriptArgs.AsStrOrNull(name) ?? "Track" });
@@ -97,13 +98,37 @@ internal sealed class ScriptProject(ScriptContext ctx)
         ctx.Bump();
     }
 
+    // 从文件导入其【全部轨】、加法式并进当前工程，返回新加入的轨句柄（可据此增删/改）。
+    // path = 本地文件绝对路径；格式由扩展名决定（内建 tlp/tlpx/mid/midi + 已装的格式插件）。导入含各轨的 part/音符/
+    // 音源/effect/自动化（音源未装则优雅降级为空源，同 UI 导入）。
+    // 时基：**保留当前工程的速度/拍号**，各轨按其【原始 tick】落位（=按小节对齐，不做时基重映射）——这是最可预期的加法式
+    // 默认；「按当前速度时间对齐」「导入文件速度」等模式暂不做（未来可加 options 参数）。
+    // 只读入文件、加法式写工程（整段脚本一个可撤销单位）；文件不存在/格式不支持/解析失败【报错】、整脚本原子回退。
+    public ScriptTrack[] ImportTracks(string path)
+    {
+        if (string.IsNullOrEmpty(path)) throw new ScriptApiException("import path is required.");
+        ctx.EnsureWritable();
+        if (!FormatsManager.Deserialize(path, out var info, out var error))
+            throw new ScriptApiException(string.Format("cannot import \"{0}\": {1}", path, error));
+        int preCount = ctx.Project.Tracks.Count;
+        foreach (var trackInfo in info.Tracks)
+        {
+            ctx.Project.AddTrack(trackInfo);
+            ctx.Bump();
+        }
+        var added = new ScriptTrack[ctx.Project.Tracks.Count - preCount];
+        for (int i = 0; i < added.Length; i++)
+            added[i] = ctx.WrapTrack(ctx.Project.Tracks[preCount + i]);
+        return added;
+    }
+
     public ScriptTempo[] Tempos()
         => ctx.Project.TempoManager.Tempos.Select(t => new ScriptTempo(t.Bpm, t.Pos)).ToArray();
 
     public ScriptTimeSignature[] TimeSignatures()
         => ctx.Project.TimeSignatureManager.TimeSignatures.Select(s => new ScriptTimeSignature(s.Numerator, s.Denominator, s.BarIndex + 1)).ToArray();
 
-    public void SetTempo(double bpm, JsValue atTick)
+    public void SetTempo(double bpm, JsValue? atTick = null)
     {
         if (bpm <= 0) throw new ScriptApiException("bpm must be positive.");
         ctx.EnsureWritable();
@@ -117,7 +142,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
         ctx.Bump();
     }
 
-    public void SetTimeSignature(int numerator, int denominator, JsValue atBar)
+    public void SetTimeSignature(int numerator, int denominator, JsValue? atBar = null)
     {
         if (numerator < 1 || denominator < 1) throw new ScriptApiException("numerator/denominator must be >= 1.");
         ctx.EnsureWritable();

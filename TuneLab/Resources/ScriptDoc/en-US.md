@@ -53,6 +53,7 @@ The project's data: tracks, tempo, time signatures.
 | `project.tracks()` | `[track]` | All track handles. |
 | `project.addTrack(name?)` | `track` | Append a new track, returns its handle. |
 | `project.removeTrack(track)` | — | Remove a track. |
+| `project.importTracks(path)` | `[track]` | Import **all** tracks from a file into this project (additive), returning the newly added track handles. `path` is a local file path; formats are `tlp`/`tlpx`/`mid`/`midi` plus any installed format plugins. Each track brings its parts/notes/sound source/effects/automation (a missing sound source degrades to none, as in the UI). **Tempo:** the project's current tempo/time-signature is kept and tracks land at their **raw ticks** (bar-aligned, no time-remap) — the predictable additive default; tempo-align / import-tempo modes may come later. A missing/unsupported/unparseable file throws (and the whole script rolls back). |
 | `project.tempos()` | `[{bpm, tick}]` | All tempo markers. |
 | `project.timeSignatures()` | `[{numerator, denominator, bar}]` | All time-signature markers (bar is 1-based). |
 | `project.setTempo(bpm, atTick?)` | — | Set tempo; if `atTick` is omitted, sets the base tempo at tick 0 (edits an existing marker there, else adds one). |
@@ -80,6 +81,7 @@ The project's data: tracks, tempo, time signatures.
 | Method | Returns | Notes |
 |---|---|---|
 | `part.soundSource()` | `{type, id, name, kind, defaultLyric}` | The part's sound source info (read-only snapshot); `kind` is `"voice"` or `"instrument"`. MIDI parts only. |
+| `part.setSoundSource({kind, type, id})` | — | Switch the part's sound source (`kind` = `"voice"` (default) or `"instrument"`; `type`/`id` from `list_sound_sources`). An unknown source errors rather than silently clearing; empty `type`+`id` clears it to no source. MIDI parts only. |
 | `part.notes()` | `[note]` | All note handles in this MIDI part. |
 | `part.selectedNotes()` | `[note]` | Notes currently selected in the piano editor (empty if none). |
 | `part.notesInRange(startTick, endTick)` | `[note]` | Notes within absolute ticks `[start, end)` (by note start). |
@@ -95,17 +97,45 @@ The project's data: tracks, tempo, time signatures.
 | `part.vibratos()` | `[vibrato]` | All vibrato handles in this part. |
 | `part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?})` | `vibrato` | Add a vibrato (overlaid on the pitch curve; defaults 6Hz / 1 semitone), returns its handle. |
 | `part.removeVibrato(vibrato)` | — | Remove a vibrato from this part. |
+| `part.effects()` | `[effect]` | The serial effect chain on this part, in processing order. |
+| `part.addEffect(type)` | `effect` | Append an effect of `type` (an effect engine id from `list_effects`) to the chain end; unknown type errors. Returns its handle. |
+| `part.removeEffect(effect)` | — | Remove an effect from the chain. |
+| `part.moveEffect(effect, index)` | — | Move an effect to a 0-based position in the chain. |
+| `part.getProperty(key)` | value | The current value of one voice/instrument-declared per-part parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_sound_sources`. |
+| `part.setProperty(key, value)` | — | Set one declared per-part parameter (`value` = `number`/`boolean`/`string`). |
 | `part.set({name?, startPos?, endPos?})` | — | Assign several fields at once (rename / move / resize). |
 
 ---
 
 ## `note`
 
-**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`; **read-only**: `pitchName` (e.g. `"C4"`).
+**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasPinnedPhonemes` (bool). `pronunciation` is a voice G2P override — set it to force a pronunciation; an empty string reverts to deriving it from the lyric. `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-pins).
 
 | Method | Returns | Notes |
 |---|---|---|
-| `note.set({pos?, dur?, pitch?, lyric?})` | — | Assign several fields at once (re-sorts only once when pos/dur change). |
+| `note.set({pos?, dur?, pitch?, lyric?, pronunciation?})` | — | Assign several fields at once (re-sorts only once when pos/dur change). |
+| `note.getProperty(key)` | value | The current value of one voice/instrument-declared per-note parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_sound_sources`. |
+| `note.setProperty(key, value)` | — | Set one declared per-note parameter (`value` = `number`/`boolean`/`string`). |
+| `note.phonemes()` | `[phoneme]` | The note's phonemes (leading ++ body, in time order); empty until the note has been synthesized. Voice parts only. |
+| `note.addPhoneme({symbol, duration?, stretchWeight?, leading?})` | `phoneme` | Append a phoneme to the leading (`leading: true`) or body (default) list; auto-pins. `duration` in seconds (default 0), `stretchWeight` 0 = rigid consonant / >0 = stretchable vowel. |
+| `note.removePhoneme(phoneme)` | — | Remove a phoneme; auto-pins. |
+| `note.pinPhonemes()` | — | Fix the synthesized phonemes as editable user data (idempotent; usually automatic on the first phoneme write). |
+| `note.clearPhonemes()` | — | Drop pinned phonemes and revert to the synthesized ones. |
+
+Phonemes come from the engine (read-only) until you edit them; the first write **auto-pins** them into editable data (exactly like the sidebar's first phoneme edit).
+
+---
+
+## `phoneme`
+
+An item in `note.phonemes()`. **Fields** — read-only: `leading` (bool; leading = pre-vowel consonants, body = vowel+coda); read/write: `symbol`, `duration` (seconds), `stretchWeight` (0 = rigid consonant, >0 = stretchable vowel — its duration is a derived fill, ignored by layout). Writing any field auto-pins the note's phonemes.
+
+A phoneme handle is **positional**: its list index shifts when phonemes are added or removed, so re-fetch `note.phonemes()` after a structural change.
+
+| Method | Returns | Notes |
+|---|---|---|
+| `phoneme.getProperty(key)` | value | The current value of one voice-declared per-phoneme parameter (`number`/`boolean`/`string`), or `null` if unset or the note is not yet pinned. Keys/ranges come from the phoneme slots in `list_sound_sources`. |
+| `phoneme.setProperty(key, value)` | — | Set one declared per-phoneme parameter (`value` = `number`/`boolean`/`string`); auto-pins. |
 
 ---
 
@@ -116,6 +146,23 @@ The project's data: tracks, tempo, time signatures.
 | Method | Returns | Notes |
 |---|---|---|
 | `vibrato.set({pos?, dur?, frequency?, amplitude?, phase?, attack?, release?})` | — | Assign several fields at once. |
+
+---
+
+## `effect`
+
+An item in `part.effects()`. **Fields** — read/write: `isEnabled` (bool; `false` = bypass); **read-only**: `type` (engine id), `name` (display name), `id` (stable instance id), `index` (0-based position in the chain).
+
+| Method | Returns | Notes |
+|---|---|---|
+| `effect.getProperty(key)` | value | The current value of one parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_effects`. |
+| `effect.setProperty(key, value)` | — | Set one parameter (`value` = `number`/`boolean`/`string`). |
+| `effect.automationIds()` | `[string]` | The automatable parameter ids declared by this effect's engine (see `list_effects`). |
+| `effect.sampleAutomation(id, startTick, endTick, samples)` | `[number]` | Evenly sample one of this effect's automation curves; `NaN` = no curve there. |
+| `effect.setAutomation(id, startTick, endTick, points, defaultValue?)` | — | Clear `[start, end)` then lay a curve on this effect; `points = [{tick, value}]`, value = absolute parameter value; created on demand, `defaultValue` optional. Same shape as `part.setAutomation`, but scoped to this effect. |
+| `effect.clearAutomation(id, startTick, endTick)` | — | Clear a span of one of this effect's automation curves. |
+
+Effect automation mirrors part (voice) automation exactly — same absolute-tick `points` and value semantics — only the target differs (an effect in the chain rather than the voice).
 
 ---
 

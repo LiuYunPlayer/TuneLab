@@ -2,8 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Jint;
 using Jint.Native;
 using TuneLab.Data;
+using TuneLab.Extensions.Effect;
+using TuneLab.Extensions.Instruments;
+using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -34,9 +38,11 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     public double Dur { get => N.Dur.Value; set => Apply(dur: value); }
     public int Pitch { get => N.Pitch.Value; set => Apply(pitch: value); }          // MIDI 0..127
     public string Lyric { get => N.Lyric.Value; set => Apply(lyric: value ?? string.Empty); }
+    // 发音覆盖（voice 专属）：非空则强制该 note 用此发音（G2P 输入），空串 = 回到按歌词自动派生。
+    public string Pronunciation { get => N.Pronunciation.Value; set => Apply(pronunciation: value ?? string.Empty); }
     public string PitchName => MusicTheory.PitchName(N.Pitch.Value);                 // 只读，如 "C4"
 
-    // 批量原子改：{pos?, dur?, pitch?, lyric?}（改 pos/dur 只重排一次）。
+    // 批量原子改：{pos?, dur?, pitch?, lyric?, pronunciation?}（改 pos/dur 只重排一次）。
     public void Set(JsValue props)
     {
         var o = ScriptArgs.Obj(props, "props");
@@ -44,11 +50,12 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
             pitch: ScriptArgs.OptInt(o, "pitch"),
             absPos: ScriptArgs.OptNum(o, "pos"),
             dur: ScriptArgs.OptNum(o, "dur"),
-            lyric: ScriptArgs.OptStr(o, "lyric"));
+            lyric: ScriptArgs.OptStr(o, "lyric"),
+            pronunciation: ScriptArgs.OptStr(o, "pronunciation"));
     }
 
     // 单字段属性 setter 与 Set() 共用：改 pos/dur 经 MoveNote 摘除-重插维持有序（通知合并由数据层收口）。
-    void Apply(int? pitch = null, double? absPos = null, double? dur = null, string? lyric = null)
+    void Apply(int? pitch = null, double? absPos = null, double? dur = null, string? lyric = null, string? pronunciation = null)
     {
         var n = N;
         var midi = n.Part;
@@ -61,13 +68,184 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
             if (dur is { } d2) n.Dur.Set(d2);
             if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
             if (lyric != null) n.Lyric.Set(lyric);
+            if (pronunciation != null) n.Pronunciation.Set(pronunciation);
         });
         ctx.Bump();
     }
 
+    // ── note 级自定义属性（voice/instrument 声明的 per-note 参数；schema 见 list_sound_sources 的 note 级 config） ──
+    // 值存在 note.Properties 容器里、只在音源声明了该键时有意义。与 effect 的 getProperty/setProperty 同范式。
+
+    // 读一个 note 属性当前值（number / boolean / string）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 note schema）。
+    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(N.Properties, key);
+
+    // 写一个 note 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 note schema。
+    public void SetProperty(string key, JsValue value)
+    {
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("note property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "note property");
+        ctx.EnsureBracket(N.Part);
+        N.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
+    // ── 音素（voice 专属；引导 / 主体双列表 + BodyOffset） ──
+    // 未编辑过的 note 音素是【引擎回填的合成产物】（只读、合成后才有）；一旦编辑即【钉死】成用户数据（可增删改）。
+    // 脚本侧：读随时可用（钉死读真数据、否则读合成快照）；写自动先钉死（物化合成产物为可编辑数据，与侧栏面板首次
+    // 编辑一致）——故 agent 直接改音素即可、无需手动 pin。音素句柄按【位置】(引导/主体 + 列表内下标) 定址、跨钉死稳定，
+    // 但增删会改变其后下标：结构变更后请重新 note.phonemes()。
+
+    // 是否已钉死（有用户固定的音素数据）；false = 用合成产物（G2P 派生）。
+    public bool HasPinnedPhonemes => N.HasPinnedPhonemes;
+
+    // 引导 / 主体结合线相对 note 头的有符号偏移（秒；junction = noteStart + bodyOffset）。写自动钉死。
+    public double BodyOffset { get => N.BodyOffset.Value; set { EnsurePinnedForEdit(); N.BodyOffset.Set(value); ctx.Bump(); } }
+
+    // 全序列音素句柄（引导 ++ 主体，时间序）。合成 / 钉死态皆可读；无音素（未合成的空 note）返回空数组。
+    public ScriptPhoneme[] Phonemes()
+    {
+        var n = N;
+        if (n.HasPinnedPhonemes)
+            return BuildPhonemeHandles(n.LeadingPhonemes.Count, n.BodyPhonemes.Count);
+        var syl = n.SynthesizedSyllable;
+        return syl is null ? [] : BuildPhonemeHandles(syl.LeadingPhonemes.Count, syl.BodyPhonemes.Count);
+    }
+
+    ScriptPhoneme[] BuildPhonemeHandles(int leadingCount, int bodyCount)
+    {
+        var result = new ScriptPhoneme[leadingCount + bodyCount];
+        for (int i = 0; i < leadingCount; i++) result[i] = new ScriptPhoneme(ctx, this, true, i);
+        for (int i = 0; i < bodyCount; i++) result[leadingCount + i] = new ScriptPhoneme(ctx, this, false, i);
+        return result;
+    }
+
+    // 显式把合成产物固定为可编辑数据（幂等；无合成音素时 no-op）。写操作会自动调用，一般无需手动 pin。
+    public void PinPhonemes() { EnsurePinnedForEdit(); ctx.Bump(); }
+
+    // 清除钉死音素、回到合成产物口径（清空双列表）。
+    public void ClearPhonemes() { ctx.EnsureBracket(N.Part); N.ClearLockedPhonemes(); ctx.Bump(); }
+
+    // info: {symbol, duration?(秒,默认0), stretchWeight?(默认0=刚性辅音), leading?(默认 false=主体)}。
+    // 自动钉死后追加到引导 / 主体列表末，返回句柄。stretchWeight>0 = 可伸元音（时长为派生填充量、布局时忽略）。
+    public ScriptPhoneme AddPhoneme(JsValue info)
+    {
+        var n = N;
+        var o = ScriptArgs.Obj(info, "info");
+        string symbol = ScriptArgs.OptStr(o, "symbol") ?? throw new ScriptApiException("field \"symbol\" is required.");
+        double dur = ScriptArgs.OptNum(o, "duration") ?? 0;
+        double weight = ScriptArgs.OptNum(o, "stretchWeight") ?? 0;
+        bool leading = ScriptArgs.OptBool(o, "leading") ?? false;
+        EnsurePinnedForEdit();
+        var list = leading ? n.LeadingPhonemes : n.BodyPhonemes;
+        list.Add(Phoneme.Create(new PhonemeInfo { Symbol = symbol, Duration = Math.Max(0, dur), StretchWeight = Math.Max(0, weight) }));
+        ctx.Bump();
+        return new ScriptPhoneme(ctx, this, leading, list.Count - 1);
+    }
+
+    public void RemovePhoneme(ScriptPhoneme phoneme)
+    {
+        if (phoneme == null || phoneme.Removed) throw new ScriptApiException("expected a live phoneme handle (from note.phonemes()/note.addPhoneme()).");
+        var n = N;
+        EnsurePinnedForEdit();
+        var list = phoneme.IsLeading ? n.LeadingPhonemes : n.BodyPhonemes;
+        if (phoneme.LocalIndex < 0 || phoneme.LocalIndex >= list.Count)
+            throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        list.RemoveAt(phoneme.LocalIndex);
+        phoneme.Removed = true;
+        ctx.Bump();
+    }
+
+    // 首次音素写入的钉死守卫（供本 note 音素写方法 + 音素句柄共用）：开 merge 括号 + 物化合成产物成钉死数据（幂等）。
+    internal void EnsurePinnedForEdit()
+    {
+        var n = N;
+        ctx.EnsureBracket(n.Part);
+        n.LockPhonemes();
+    }
+
+    // 供音素句柄解析底层音素（带 removed 校验）。
+    internal INote Require() => N;
+
     public override string ToString()
         => string.Format(CultureInfo.InvariantCulture, "Note(pos={0:0}, dur={1:0}, pitch={2}/{3}, lyric=\"{4}\")",
             Pos, Dur, Pitch, PitchName, Lyric);
+}
+
+// 一个音素句柄（挂在某 note 的引导 / 主体列表上）。按【位置】(引导/主体 + 列表内下标) 定址，跨钉死稳定；
+// 结构增删（addPhoneme/removePhoneme）会改变其后音素下标，变更后请重新 note.phonemes()。
+// 读随时可用（钉死→真数据 / 合成→只读快照）；写自动先钉死（EnsurePinnedForEdit），故 agent 直接改即可。
+internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isLeading, int localIndex)
+{
+    internal bool Removed { get; set; }
+    internal bool IsLeading => isLeading;
+    internal int LocalIndex => localIndex;
+
+    // 引导（核前前置辅音）= true / 主体（核 + 尾辅音）= false。只读结构分类。
+    public bool Leading => isLeading;
+    public string Symbol { get => Read(p => p.Symbol.Value, s => s.Symbol); set => Write(symbol: value ?? string.Empty); }
+    public double Duration { get => Read(p => p.Duration.Value, s => s.Duration); set => Write(duration: value); }   // 秒
+    public double StretchWeight { get => Read(p => p.StretchWeight.Value, s => s.StretchWeight); set => Write(weight: value); }  // 0=刚性辅音 / >0=可伸元音
+
+    // 钉死态的真 IPhoneme（可写）；合成态返回 null（走快照读）。越界返回 null。
+    IPhoneme? PinnedPhoneme()
+    {
+        var n = note.Require();
+        if (!n.HasPinnedPhonemes) return null;
+        var list = isLeading ? n.LeadingPhonemes : n.BodyPhonemes;
+        return localIndex >= 0 && localIndex < list.Count ? list[localIndex] : null;
+    }
+
+    // 合成快照（未钉死时读）。越界 / 无合成产物返回 null。
+    SynthesizedPhoneme? SynthPhoneme()
+    {
+        var syl = note.Require().SynthesizedSyllable;
+        if (syl is null) return null;
+        var list = isLeading ? syl.LeadingPhonemes : syl.BodyPhonemes;
+        return localIndex >= 0 && localIndex < list.Count ? list[localIndex] : null;
+    }
+
+    T Read<T>(Func<IPhoneme, T> fromPinned, Func<SynthesizedPhoneme, T> fromSynth)
+    {
+        if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
+        if (PinnedPhoneme() is { } p) return fromPinned(p);
+        if (SynthPhoneme() is { } s) return fromSynth(s);
+        throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+    }
+
+    void Write(string? symbol = null, double? duration = null, double? weight = null)
+    {
+        if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
+        note.EnsurePinnedForEdit();
+        var p = PinnedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        if (symbol != null) p.Symbol.Set(symbol);
+        if (duration is { } d) p.Duration.Set(Math.Max(0, d));
+        if (weight is { } w) p.StretchWeight.Set(Math.Max(0, w));
+        ctx.Bump();
+    }
+
+    // 音素级自定义属性（voice 声明的 per-phoneme 参数；schema 见 list_sound_sources 的音素 slot config）。
+    // 读：未钉死 / 无属性容器返回 null（属性只在钉死后作为可编辑数据存在）。写：自动钉死。
+    public object? GetProperty(string key)
+    {
+        var p = PinnedPhoneme();
+        return p == null || !p.HasProperties ? null : ScriptArgs.ReadScalarProperty(p.Properties, key);
+    }
+
+    public void SetProperty(string key, JsValue value)
+    {
+        if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("phoneme property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "phoneme property");
+        note.EnsurePinnedForEdit();
+        var p = PinnedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        p.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
+    public override string ToString()
+        => string.Format(CultureInfo.InvariantCulture, "Phoneme(\"{0}\", {1}, dur={2:0.###}s, weight={3:0.##})",
+            Read(p => p.Symbol.Value, s => s.Symbol), isLeading ? "leading" : "body",
+            Read(p => p.Duration.Value, s => s.Duration), Read(p => p.StretchWeight.Value, s => s.StretchWeight));
 }
 
 // 一个 part 句柄（midi 或 audio）。音符/曲线/颤音只对 midi part 有效。
@@ -90,6 +268,37 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     {
         var v = Midi.SoundSource;
         return new ScriptSoundSource(v.Type, v.ID, v.Name, v.DefaultLyric, v.Kind == SourceKind.Voice ? "voice" : "instrument");
+    }
+
+    // 切换本 part 的音源（写；重建合成管线）。info = {kind:"voice"|"instrument"(默认 voice), type, id}——
+    // type/id 取自 list_sound_sources / sandbox.voices()。未知音源【报错】而非静默回退空源（诉求：显式而非假成功）；
+    // 允许 type/id 皆空以清成「空声源」（无音源 part）。与只读 soundSource() 对偶。
+    public void SetSoundSource(JsValue info)
+    {
+        var midi = Midi;
+        var o = ScriptArgs.Obj(info, "info");
+        string kindStr = ScriptArgs.OptStr(o, "kind") ?? "voice";
+        string type = ScriptArgs.OptStr(o, "type") ?? string.Empty;
+        string id = ScriptArgs.OptStr(o, "id") ?? string.Empty;
+
+        SourceKind kind;
+        if (string.Equals(kindStr, "voice", StringComparison.OrdinalIgnoreCase)) kind = SourceKind.Voice;
+        else if (string.Equals(kindStr, "instrument", StringComparison.OrdinalIgnoreCase)) kind = SourceKind.Instrument;
+        else throw new ScriptApiException("kind must be \"voice\" or \"instrument\".");
+
+        // 非空音源校验存在（空 = 清成空声源，合法、跳过校验）。校验会惰性 Init 该引擎。
+        if (!(string.IsNullOrEmpty(type) && string.IsNullOrEmpty(id)))
+        {
+            bool exists = kind == SourceKind.Voice
+                ? VoicesManager.TryGetVoiceInfo(type, id, out _)
+                : InstrumentsManager.TryGetInstrumentInfo(type, id, out _);
+            if (!exists)
+                throw new ScriptApiException(string.Format("no {0} source with type=\"{1}\" id=\"{2}\"; use list_sound_sources (or sandbox.voices()) to find valid type/id.", kindStr, type, id));
+        }
+
+        ctx.EnsureWritable();
+        midi.SoundSource.SetInfo(new SoundSourceInfo { Kind = kind, Type = type, Id = id });
+        ctx.Bump();
     }
 
     // ── 音符 ──
@@ -178,7 +387,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     }
 
     // 覆盖写自动化曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=参数绝对值；轨不存在按需创建，defaultValue 可选。
-    public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue defaultValue)
+    public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue? defaultValue = null)
     {
         var midi = Midi;
         double rel = midi.Pos.Value;
@@ -202,8 +411,8 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.Bump();
     }
 
-    // 等距采样 tick 序列（part 相对），供 samplePitch/sampleAutomation 共用。
-    static double[] SampleTicks(IMidiPart midi, double startTick, double endTick, int samples)
+    // 等距采样 tick 序列（part 相对），供 samplePitch/sampleAutomation 及 effect 自动化采样共用。
+    internal static double[] SampleTicks(IMidiPart midi, double startTick, double endTick, int samples)
     {
         if (samples < 2) samples = 2;
         if (samples > 1000) samples = 1000;
@@ -251,6 +460,65 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.EnsureBracket(midi);
         midi.RemoveVibrato(vibrato.Vibrato);
         vibrato.Removed = true;
+        ctx.Bump();
+    }
+
+    // ── 效果器链（串行处理链，挂在本 midi part 上；顺序即数组下标 0-based） ──
+
+    // 本 part 的效果器链（按处理顺序）。
+    public ScriptEffect[] Effects() => Midi.Effects.Select(ctx.WrapEffect).ToArray();
+
+    // 在链尾追加一个指定类型的效果器（type 取自 list_effects 的引擎 type id）。未知类型报错。
+    public ScriptEffect AddEffect(string type)
+    {
+        var midi = Midi;
+        if (string.IsNullOrEmpty(type))
+            throw new ScriptApiException("effect type is required (an engine type id from list_effects).");
+        if (!EffectManager.GetAllEffectEngines().Contains(type))
+            throw new ScriptApiException(string.Format("no effect engine with type \"{0}\"; use list_effects to find valid type ids.", type));
+        ctx.EnsureWritable();
+        var effect = midi.CreateEffect(new EffectInfo { Type = type });
+        midi.InsertEffect(midi.Effects.Count, effect);
+        ctx.Bump();
+        return ctx.WrapEffect(effect);
+    }
+
+    public void RemoveEffect(ScriptEffect effect)
+    {
+        if (effect == null || effect.Removed) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
+        var midi = Midi;
+        ctx.EnsureWritable();
+        midi.RemoveEffect(effect.Effect);
+        effect.Removed = true;
+        ctx.Bump();
+    }
+
+    // 把某效果器移到链中的 index 位（0-based；越界钳到 [0, count-1]）——摘除重插维持串行顺序。
+    public void MoveEffect(ScriptEffect effect, int index)
+    {
+        if (effect == null || effect.Removed) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
+        var midi = Midi;
+        ctx.EnsureWritable();
+        int target = Math.Clamp(index, 0, Math.Max(0, midi.Effects.Count - 1));
+        midi.RemoveEffect(effect.Effect);
+        midi.InsertEffect(target, effect.Effect);
+        ctx.Bump();
+    }
+
+    // ── part 级自定义属性（voice/instrument 声明的 per-part 参数；schema 见 list_sound_sources 的 part 级 config） ──
+    // 值存在 part.Properties 容器里、只在音源声明了该键时有意义。与 note/effect 的 getProperty/setProperty 同范式。
+
+    // 读一个 part 属性当前值（number / boolean / string）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 part schema）。
+    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(Midi.Properties, key);
+
+    // 写一个 part 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 part schema。
+    public void SetProperty(string key, JsValue value)
+    {
+        var midi = Midi;
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("part property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "part property");
+        ctx.EnsureBracket(midi);
+        midi.Properties.SetValue(key, pv);
         ctx.Bump();
     }
 
@@ -414,6 +682,100 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
     public override string ToString()
         => string.Format(CultureInfo.InvariantCulture, "Vibrato(pos={0:0}, dur={1:0}, freq={2:0.##}Hz, amp={3:0.##})",
             Pos, Dur, Frequency, Amplitude);
+}
+
+// 一个效果器句柄（挂在 midi part 的串行效果链上）。type 不可变（换类型 = 删了重加）。
+internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
+{
+    internal IEffect Effect { get; } = effect;
+    internal bool Removed { get; set; }
+
+    IEffect E => Removed ? throw new ScriptApiException("this effect handle was removed and is no longer valid.") : Effect;
+
+    public string Type => E.Type;                                  // 引擎 type id（不可变）
+    public string Name => EffectManager.GetDisplayName(E.Type);    // 显示名（只读）
+    public string Id => E.Id;                                      // 实例稳定 id（本 part 链内唯一）
+    public int Index                                              // 在链中的 0-based 位置
+    {
+        get
+        {
+            var list = E.Part.Effects;
+            for (int i = 0; i < list.Count; i++)
+                if (ReferenceEquals(list[i], E)) return i;
+            return -1;
+        }
+    }
+    // bypass 开关：false = 旁路（不处理）。可读写标量字段。
+    public bool IsEnabled
+    {
+        get => E.IsEnabled.Value;
+        set { ctx.EnsureWritable(); E.IsEnabled.Set(value); ctx.Bump(); }
+    }
+
+    // 读一个参数的当前值（number / boolean / string）；未设返回 null（默认值与可用键见 list_effects 的参数 schema）。
+    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(E.Properties, key);
+
+    // 写一个参数（值须是 number / boolean / string）。键/取值范围见 list_effects。
+    public void SetProperty(string key, JsValue value)
+    {
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("effect property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "effect property");
+        ctx.EnsureWritable();
+        E.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
+    // ── 本 effect 的参数自动化曲线（对齐 C# IEffect.Automations，与 part 级 automation 逐一平行；曲线在 part 相对
+    // tick 空间，读写口径同 part.sampleAutomation/setAutomation）。可编辑轨 id 由引擎声明（见 list_effects 的参数 schema）。 ──
+
+    public string[] AutomationIds() => E.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
+
+    // 在绝对 tick 区间 [startTick, endTick] 上等距采样本 effect 某自动化曲线。NaN = 该处无曲线。
+    public double[] SampleAutomation(string id, double startTick, double endTick, int samples)
+    {
+        var effect = E;
+        if (!effect.AutomationConfigs.ContainsKey(id))
+            throw new ScriptApiException(string.Format("unknown effect automation \"{0}\"; use one of effect.automationIds().", id));
+        return effect.GetAutomationValues(ScriptPart.SampleTicks(effect.Part, startTick, endTick, samples), id);
+    }
+
+    // 覆盖写本 effect 某自动化曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=参数绝对值；轨不存在按需创建，defaultValue 可选。
+    public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue? defaultValue = null)
+    {
+        var effect = E;
+        double rel = effect.Part.Pos.Value;
+        var pts = ScriptArgs.ReadPoints(points);
+        ctx.EnsureBracket(effect.Part);
+        var automation = GetOrAddAutomation(effect, id);
+        if (ScriptArgs.AsNumOrNull(defaultValue) is { } dv) automation.DefaultValue.Set(dv);
+        automation.Clear(startTick - rel, endTick - rel, 0);
+        if (pts.Count > 0)
+            automation.AddLine(pts.OrderBy(p => p.X).Select(p => new AnchorPoint(p.X - rel, p.Y)).ToList(), 0);
+        ctx.Bump();
+    }
+
+    public void ClearAutomation(string id, double startTick, double endTick)
+    {
+        var effect = E;
+        double rel = effect.Part.Pos.Value;
+        ctx.EnsureBracket(effect.Part);
+        if (effect.Automations.TryGetValue(id, out var automation))
+            automation.Clear(startTick - rel, endTick - rel, 0);
+        ctx.Bump();
+    }
+
+    static IAutomation GetOrAddAutomation(IEffect effect, string id)
+    {
+        if (effect.Automations.TryGetValue(id, out var existing))
+            return existing;
+        var created = effect.AddAutomation(id);
+        if (created == null)
+            throw new ScriptApiException(string.Format("automation \"{0}\" is not available on this effect (not declared by its engine).", id));
+        return created;
+    }
+
+    public override string ToString()
+        => string.Format(CultureInfo.InvariantCulture, "Effect(\"{0}\", type={1}, index={2}, enabled={3})", Name, Type, Index, IsEnabled);
 }
 
 // 一个 part 的声源信息（只读快照）。kind = "voice" | "instrument"。

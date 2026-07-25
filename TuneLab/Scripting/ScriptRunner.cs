@@ -47,7 +47,14 @@ internal static class ScriptRunner
             options.MaxStatements(limits.MaxStatements);
             if (limits.Timeout is { } timeout)
                 options.TimeoutInterval(timeout);
-            options.LimitMemory(64L * 1024 * 1024);
+            // 内存上限：Jint 用 GC.GetAllocatedBytesForCurrentThread() 量【本线程的累计分配流量】（非留存、非 JS 堆），
+            // 故脚本同步调的宿主 C# 代码（如 importTracks 反序列化 + 建数据对象、批量改音符各记一条撤销命令）的分配【也计入】。
+            // 因此这【不是】JS 对象内存上限，而是「整段运行在这条线程上的分配预算」——纯 OOM 兜底。故意【单值、不按触发源分档】：
+            //  ① 合法的分配量取决于「干多少活」（导入体量 / 改多少音符），与谁触发无关，分档只会误伤 agent 的正当批量活；
+            //  ② 防跑飞【循环】本是 MaxStatements/Timeout 的职责（内存管不了不分配的死循环）；
+            //  ③ 量的是流量非留存，低上限并不能有意义降低真实 OOM 风险（可回收垃圾会被 GC 收掉），只会更早掐死大批量脚本。
+            // 放宽到 1GB 给正当批量活留足头寸（真 OOM 的无限留存循环仍会被它兜住，且远早于耗尽机器内存）。
+            options.LimitMemory(1024L * 1024 * 1024);
             options.CancellationToken(cancellationToken);
             // 让 JS 的 camelCase 成员名匹配 C# 的 PascalCase（tl.addNote → AddNote、note.pos → Pos、tl.language → Language）。
             options.SetTypeResolver(new TypeResolver { MemberNameComparer = StringComparer.OrdinalIgnoreCase });
@@ -59,7 +66,9 @@ internal static class ScriptRunner
     }
 
     // inputs：工具脚本（定义了 getScriptInfo）的入参值，作为对象传给 main(inputs)；普通脚本与无入参脚本传空对象即忽略。
-    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null)
+    // preview=true：无论成功与否都原子回退（不落地），但 ScriptRunResult.Changes 仍报"本会改动的数量"——供分级授权的
+    // 只读建议/需确认预览用（跑一遍看会改什么、干净回退）。见 docs §3。
+    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null, bool preview = false)
     {
         // 写守卫不在入口、而下沉到首次写入（ScriptContext.EnsureWritable）：只读脚本即便在用户操作中途也畅通，只拦写。
         var context = new ScriptContext(project, currentPart, quantization, language, selection, pianoSelection);
@@ -119,7 +128,8 @@ internal static class ScriptRunner
         }
 
         // 收口：成功且有改动 → 提交成一个可撤销单位；出错/取消/无改动 → 原子回退到跑脚本前的干净状态。
-        bool committed = context.Finish(rollback: error != null);
+        // preview 时无论如何都回退（只看会改什么、不落地）；ChangeCount 仍如实报本会改动数。
+        bool committed = context.Finish(rollback: error != null || preview);
         return new ScriptRunResult(error == null, error, output.ToString(), resultText, committed, context.ChangeCount, blocked);
     }
 
