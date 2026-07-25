@@ -640,7 +640,7 @@ internal sealed class AgentSideBarContentProvider
         RefreshSendControls();
         RefreshPendingChip(); // chip 跟随可见会话切换（pending 是 per-session 的）
         RefreshTokenStatus();
-        ScrollToEnd(ctx);
+        ScrollToEnd(ctx, force: true);   // 切到某会话：无条件展示其最新内容
     }
 
     // 发送/停止键反映当前会话忙碌态：忙→停止键，闲→发送键。切换会话、忙碌态变化时刷新。
@@ -1223,7 +1223,7 @@ internal sealed class AgentSideBarContentProvider
     {
         var content = images.Count > 0 ? BuildUserContent(text, images) : (Control)BubbleText(text, Colors.White.ToBrush());
         ctx.View.Content.Children.Add(Bubble(content, mine: true));
-        ScrollToEnd(ctx);
+        ScrollToEnd(ctx, force: true);   // 用户刚发送：无条件滚到底展示自己的消息
     }
 
     // 用户气泡内容：每张图片一个受限尺寸的 Image（圆角），其下接文本（若有）。
@@ -1716,12 +1716,25 @@ internal sealed class AgentSideBarContentProvider
     };
 
     // 自动滚到底：大值经轴内 clamp 到底部（动画轴；轮滚自带顺滑动画）。仅当该会话可见时滚动——离屏会话滚动无意义。
-    void ScrollToEnd(SessionContext ctx)
+    // 滚到底。force=false（默认，流式增量/新块用）：仅当用户【本就贴着底部】才跟随——若用户已上翻查看前文，
+    // 不把滚动条强拉回底（否则边输出边往上看会被每个增量不断打断）。检查在新内容布局刷新之前同步进行，故此刻
+    // ViewOffset/ContentLength 反映"新内容加入前"的位置，正好判定用户是否在跟随。force=true（切会话/用户发送）：无条件到底。
+    void ScrollToEnd(SessionContext ctx, bool force = false)
     {
         if (ctx != mActive)
             return;
+        if (!force)
+        {
+            var axis = ctx.View.VerticalAxis;
+            double max = Math.Max(0, axis.ContentLength - axis.ViewLength);
+            if (axis.ViewOffset < max - AutoFollowSlack)   // 用户已上翻 → 不跟随
+                return;
+        }
         Dispatcher.UIThread.Post(() => ctx.View.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);
     }
+
+    // 判定"贴底"的容差（约一行高）：略低于底也仍算在跟随，避免流式布局抖动误判为"用户上翻"。
+    const double AutoFollowSlack = 24;
 
     // 标记某会话的忙碌态（输入框始终可用，由 ctx.Busy 拦该会话内回车重复发送）。若它是当前可见会话，同步发送/停止键。
     void SetBusy(SessionContext ctx, bool busy)
