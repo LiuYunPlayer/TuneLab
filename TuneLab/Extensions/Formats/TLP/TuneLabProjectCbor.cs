@@ -4,6 +4,8 @@ using System.Formats.Cbor;
 using System.IO;
 using System.Linq;
 using System.Text;
+using TuneLab.Data;
+using TuneLab.Extensions.Derivers;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -283,7 +285,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
 
             // We need to read all values, so let's use a temporary storage
             MidiPartInfo? midiPartInfo = null;
-            AudioPartInfo? audioPartInfo = null;
+            NativeAudioPartInfo? audioPartInfo = null;   // 宿主内部子类：承接派生记录账本
 
             while (reader.PeekState() != CborReaderState.EndMap)
             {
@@ -295,7 +297,7 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                         if (type == "midi")
                             midiPartInfo = new MidiPartInfo();
                         else if (type == "audio")
-                            audioPartInfo = new AudioPartInfo();
+                            audioPartInfo = new NativeAudioPartInfo();
                         break;
                     case "name":
                         name = reader.ReadTextString();
@@ -369,6 +371,12 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
                     case "path":
                         if (audioPartInfo != null)
                             audioPartInfo.Path = reader.ReadTextString();
+                        else
+                            reader.SkipValue();
+                        break;
+                    case "derivationRecords":
+                        if (audioPartInfo != null)
+                            ReadDerivationRecords(reader, audioPartInfo.DerivationRecords);
                         else
                             reader.SkipValue();
                         break;
@@ -1114,7 +1122,59 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
         writer.WriteTextString("path");
         writer.WriteTextString(audioPart.Path);
 
+        // 空集合不落键（多数音频 part 无派生记录）。
+        if (audioPart is NativeAudioPartInfo native && native.DerivationRecords.Count > 0)
+        {
+            writer.WriteTextString("derivationRecords");
+            WriteDerivationRecords(writer, native.DerivationRecords);
+        }
+
         writer.WriteEndMap();
+    }
+
+    // 派生记录账本（宿主内部、仅 native 格式）：按缓存 key 键的 map，每条 = 引擎 / 参数 / 启动时刻 / 标签。
+    private void WriteDerivationRecords(CborWriter writer, Map<string, DerivationRecordInfo> records)
+    {
+        writer.WriteStartMap(null);
+        foreach (var kvp in records)
+        {
+            writer.WriteTextString(kvp.Key);
+            var r = kvp.Value;
+            writer.WriteStartMap(null);
+            writer.WriteTextString("engineId"); writer.WriteTextString(r.EngineId);
+            writer.WriteTextString("engineDisplayName"); writer.WriteTextString(r.EngineDisplayName);
+            writer.WriteTextString("parameters"); WritePropertyObject(writer, r.Parameters);
+            writer.WriteTextString("startTimestamp"); writer.WriteDouble(r.StartTimestamp);
+            writer.WriteTextString("label"); writer.WriteTextString(r.Label);
+            writer.WriteEndMap();
+        }
+        writer.WriteEndMap();
+    }
+
+    private void ReadDerivationRecords(CborReader reader, Map<string, DerivationRecordInfo> records)
+    {
+        reader.ReadStartMap();
+        while (reader.PeekState() != CborReaderState.EndMap)
+        {
+            var key = reader.ReadTextString();
+            var r = new DerivationRecordInfo();
+            reader.ReadStartMap();
+            while (reader.PeekState() != CborReaderState.EndMap)
+            {
+                switch (reader.ReadTextString())
+                {
+                    case "engineId": r.EngineId = reader.ReadTextString(); break;
+                    case "engineDisplayName": r.EngineDisplayName = reader.ReadTextString(); break;
+                    case "parameters": r.Parameters = ReadPropertyObject(reader); break;
+                    case "startTimestamp": r.StartTimestamp = reader.ReadDouble(); break;
+                    case "label": r.Label = reader.ReadTextString(); break;
+                    default: reader.SkipValue(); break;
+                }
+            }
+            reader.ReadEndMap();
+            records.Add(key, r);
+        }
+        reader.ReadEndMap();
     }
 
     private void WriteNotes(CborWriter writer, List<NoteInfo> notes)

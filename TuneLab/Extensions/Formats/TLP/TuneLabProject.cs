@@ -8,6 +8,8 @@ using Avalonia.Controls.Shapes;
 using DynamicData;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using TuneLab.Data;
+using TuneLab.Extensions.Derivers;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Utils;
@@ -249,9 +251,13 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                     }
                     else if (type == "audio")
                     {
-                        var audioPartInfo = new AudioPartInfo();
+                        // 造宿主内部子类，好承接派生记录账本（缺键 = 空账本）。
+                        var audioPartInfo = new NativeAudioPartInfo();
 
                         audioPartInfo.Path = (string)part["path"];
+
+                        if (part.TryGetValue("derivationRecords", out var derivationRecords))
+                            ReadJsonDerivationRecords(derivationRecords, audioPartInfo.DerivationRecords);
 
                         partInfo = audioPartInfo;
                     }
@@ -471,6 +477,9 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
                 {
                     part.Add("type", "audio");
                     part.Add("path", audioPartInfo.Path);
+                    // 空集合不落键（多数音频 part 无派生记录）。
+                    if (audioPartInfo is NativeAudioPartInfo nativeAudioPartInfo && nativeAudioPartInfo.DerivationRecords.Count > 0)
+                        part.Add("derivationRecords", DerivationRecordsToJson(nativeAudioPartInfo.DerivationRecords));
                 }
 
                 parts.Add(part);
@@ -598,4 +607,39 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
     // PropertyObject ↔ JSON 走全仓唯一共用转换（含 PropertyArray 臂），语义与 CBOR 版对齐。
     static PropertyObject FromJson(JToken? jToken) => PropertyJsonUtils.ToPropertyObject(jToken);
     static JObject ToJson(PropertyObject properties) => PropertyJsonUtils.ToJson(properties);
+
+    // 派生记录账本（宿主内部、仅 native 格式）：按缓存 key 键，值 = 溯源信息（引擎 / 参数 / 启动时刻 / 标签）。
+    static JObject DerivationRecordsToJson(Map<string, DerivationRecordInfo> records)
+    {
+        var obj = new JObject();
+        foreach (var kvp in records)
+        {
+            var r = kvp.Value;
+            obj.Add(kvp.Key, new JObject
+            {
+                ["engineId"] = r.EngineId,
+                ["engineDisplayName"] = r.EngineDisplayName,
+                ["parameters"] = ToJson(r.Parameters),
+                ["startTimestamp"] = r.StartTimestamp,
+                ["label"] = r.Label,
+            });
+        }
+        return obj;
+    }
+
+    static void ReadJsonDerivationRecords(JToken token, Map<string, DerivationRecordInfo> records)
+    {
+        foreach (JProperty property in token.Children())
+        {
+            var o = property.Value;
+            records.Add(property.Name, new DerivationRecordInfo
+            {
+                EngineId = (string?)o["engineId"] ?? string.Empty,
+                EngineDisplayName = (string?)o["engineDisplayName"] ?? string.Empty,
+                Parameters = FromJson(o["parameters"]),
+                StartTimestamp = (double?)o["startTimestamp"] ?? 0,
+                Label = (string?)o["label"] ?? string.Empty,
+            });
+        }
+    }
 }

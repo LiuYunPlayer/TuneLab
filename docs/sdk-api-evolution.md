@@ -83,6 +83,20 @@ DIM 默认体的语义责任：默认体必须是**可长期成立的兜底行�
 
 复合对象构造时**拷入自持**传入集合（`[.. x]`），值语义由构造保证、不靠调用方纪律（PropertyObject / 复合 config 已统一）；事件 `Merge` 家族构造时固化源快照（动态成员走 `WhenAny`/`WhenAnyItem`）。
 
+### 序列化 DTO 不 sealed：宿主扩展逃生舱（子类 vs 组合）
+
+`Format/DataInfo/*` 的序列化 DTO 全族（`ProjectInfo` / `TrackInfo` / `PartInfo`(抽象基) / `MidiPartInfo` / `AudioPartInfo` / `NoteInfo` / `EffectInfo` / `AutomationInfo` / …）**一律不标 `sealed`**。这是宿主的扩展逃生舱；且 sealed 与否随发布冻死，故立为受保护约定：
+
+- **给 DataInfo DTO 补 `sealed` = 破坏性、禁止。** 运行时值类型（9 个 config / 各 `*Snapshot` / `Derived*` / `VoiceSourceInfo`·`InstrumentSourceInfo` / SourceLayout 项）保持 `sealed`——它们从不进工程序列化树、不适用此逃生舱，两族天然对齐。
+- 宿主给某类 part/track 挂 **native-only 的持久数据**（如派生记录账本）时，两种手法按情形选：
+
+| 情形 | 手法 | 为什么 |
+|---|---|---|
+| 数据要穿过**宿主不拥有元素类型的公共类型化集合**（逐 part 于 `List<PartInfo>` 等） | **宿主内部子类** DTO（如 `NativeAudioPartInfo : AudioPartInfo`） | 随集合多态流转；共位 = 免费身份（无需 part id，位置索引会脆）。native 序列化器 downcast 读写，通用格式插件只见基类而无视之（非 native 导出自然丢弃，正确） |
+| 数据在**顶层 / 容器由宿主自己造** | **组合**成显式信封（如 `NativeProjectFile { ProjectInfo; EditorInfo; ExportConfigInfo }`） | 两者皆可时优先：has-a 比假 is-a 诚实、多消费者各取一块可分离、无多态需求时继承买不到东西 |
+
+判据一句话：**必须冒充公共集合的元素 → 子类（被逼）；否则 → 组合**（聚合体"含有 DTO + 兄弟数据"、你自己造容器）。
+
 ## 3. 枚举：加成员是加性，但要未知值容忍
 
 SDK 公开枚举（`PropertyType` / `SynthesisSegmentStatus` / `DragAxis` 等）加成员对**产出方**是加性；对**消费方**（switch 的一侧）是半破坏——已编译代码遇未知值行为未定义。规矩：

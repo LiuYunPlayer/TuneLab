@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Audio;
+using TuneLab.Extensions.Derivers;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -52,13 +53,20 @@ internal class AudioPart : Part, IAudioPart
             }
         }
 
-        return new()
+        // 返回宿主内部子类 NativeAudioPartInfo：携带派生记录账本随 part 多态流转（仅 native 格式持久化、
+        // 通用格式插件只见基类 AudioPartInfo 而无视之）。记录是普通【非撤销】集合，不入回退栈。
+        var records = new Map<string, DerivationRecordInfo>();
+        foreach (var kvp in mDerivationRecords)
+            records.Add(kvp.Key, kvp.Value);
+
+        return new NativeAudioPartInfo()
         {
             Name = Name,
             Pos = Pos,
             StartOffset = StartOffset,
             EndOffset = EndOffset,
-            Path = path
+            Path = path,
+            DerivationRecords = records,
         };
     }
 
@@ -70,6 +78,32 @@ internal class AudioPart : Part, IAudioPart
         StartOffset.SetInfo(info.StartOffset);
         EndOffset.SetInfo(info.EndOffset);
         Path.SetInfo(info.Path);
+
+        // 派生记录账本经 native 子类流转；普通集合直接重置（非命令、不进回退栈）。通用格式产出的基类 info 无此字段 => 空。
+        mDerivationRecords.Clear();
+        if (info is NativeAudioPartInfo native)
+            foreach (var kvp in native.DerivationRecords)
+                mDerivationRecords.Add(kvp.Key, kvp.Value);
+        mDerivationRecordsChanged.Invoke();
+    }
+
+    // ── 派生记录账本（普通【非撤销】集合，键 = 内容寻址缓存 key）──
+    // 增删不进回退栈（派生是与音乐编辑正交的后台作业，见 undo 对称原则）；缓存共享，删记录只移除引用、不删缓存文件。
+    public IReadOnlyMap<string, DerivationRecordInfo> DerivationRecords => mDerivationRecords;
+    public IActionEvent DerivationRecordsChanged => mDerivationRecordsChanged;
+
+    // 提交时按缓存 key 落记录（已存在同 key = 同一次派生的幂等重触发，覆盖刷新）。
+    public void AddDerivationRecord(string cacheKey, DerivationRecordInfo info)
+    {
+        mDerivationRecords[cacheKey] = info;
+        mDerivationRecordsChanged.Invoke();
+    }
+
+    // 删记录 = 只移除本引用（缓存内容寻址、跨 part/工程共享，绝不删缓存文件）。
+    public void RemoveDerivationRecord(string cacheKey)
+    {
+        if (mDerivationRecords.Remove(cacheKey))
+            mDerivationRecordsChanged.Invoke();
     }
 
     public override IAudioData GetAudioData(int offset, int count)
@@ -226,4 +260,6 @@ internal class AudioPart : Part, IAudioPart
     IAudioData? mAudioData;
 
     readonly ActionEvent mAudioChanged = new();
+    readonly Map<string, DerivationRecordInfo> mDerivationRecords = new();
+    readonly ActionEvent mDerivationRecordsChanged = new();
 }
