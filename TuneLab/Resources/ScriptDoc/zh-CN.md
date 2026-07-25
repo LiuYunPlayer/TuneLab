@@ -80,6 +80,7 @@
 | 方法 | 返回 | 说明 |
 |---|---|---|
 | `part.soundSource()` | `{type, id, name, kind, defaultLyric}` | 本 part 的声源信息（只读快照）；`kind` 为 `"voice"` 或 `"instrument"`。仅 MIDI part。 |
+| `part.setSoundSource({kind, type, id})` | — | 切换本 part 的音源（`kind` = `"voice"`（默认）或 `"instrument"`；`type`/`id` 取自 `list_sound_sources`）。未知音源会报错而非静默清空；`type`+`id` 皆空则清成无音源。仅 MIDI part。 |
 | `part.notes()` | `[note]` | 本 MIDI part 的所有音符句柄。 |
 | `part.selectedNotes()` | `[note]` | 钢琴窗中当前选中的音符（无选中返回空数组）。 |
 | `part.notesInRange(startTick, endTick)` | `[note]` | 绝对 tick `[start, end)` 内（按起点判定）的音符。 |

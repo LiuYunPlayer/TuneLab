@@ -80,6 +80,7 @@ The project's data: tracks, tempo, time signatures.
 | Method | Returns | Notes |
 |---|---|---|
 | `part.soundSource()` | `{type, id, name, kind, defaultLyric}` | The part's sound source info (read-only snapshot); `kind` is `"voice"` or `"instrument"`. MIDI parts only. |
+| `part.setSoundSource({kind, type, id})` | — | Switch the part's sound source (`kind` = `"voice"` (default) or `"instrument"`; `type`/`id` from `list_sound_sources`). An unknown source errors rather than silently clearing; empty `type`+`id` clears it to no source. MIDI parts only. |
 | `part.notes()` | `[note]` | All note handles in this MIDI part. |
 | `part.selectedNotes()` | `[note]` | Notes currently selected in the piano editor (empty if none). |
 | `part.notesInRange(startTick, endTick)` | `[note]` | Notes within absolute ticks `[start, end)` (by note start). |

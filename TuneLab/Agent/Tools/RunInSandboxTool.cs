@@ -23,13 +23,13 @@ internal sealed class RunInSandboxTool : IAgentTool
         "produces (which only exist after you synthesize a note that has a real voice and a valid lyric; list_sound_sources says as much and defers them here). " +
         "This project is brand-new and discarded when the script returns: it is NOT the user's project, so edits here touch no user data and need no authorization — experiment freely. " +
         "Build the scene with the same `tl` object as run_script (tl.currentProject().addTrack(), track.addPart({startPos,endPos}), part.addNote({pos,dur,pitch,lyric}) …); " +
-        "call get_script_api once if you don't know the tl API. Plus a `sandbox` global for synthesis:\n" +
+        "call get_script_api once if you don't know the tl API. Attach a voice with the normal tl write `part.setSoundSource({kind:'voice', type, id})`. " +
+        "Plus a `sandbox` global for synthesis (only meaningful here — it drives synthesis on a headless pump):\n" +
         "  • sandbox.voices() → [{type,id,name}] of installed voice sources (this loads engines).\n" +
-        "  • sandbox.setVoice(part, type, id) → attach a voice to a midi part (from sandbox.voices()).\n" +
         "  • sandbox.synthesize(part, {timeoutMs?, maxDispatches?}) → run offline synthesis and WAIT; returns {done, dispatches, ms, timedOut}.\n" +
         "  • sandbox.syllable(note) → the synthesized phonemes: {leading:[{symbol,duration,stretchWeight}], body:[...], bodyOffset, symbols:[...]} or null if not synthesized.\n" +
         "Synthesis is heavy — do the WHOLE probe (build → synthesize → read → summarize) in ONE script; print(...) your findings and return a short conclusion. " +
-        "Typical order: pick a voice from sandbox.voices(); add a track and a part; sandbox.setVoice(part, ...); THEN add a note with a valid lyric; " +
+        "Typical order: pick a voice from sandbox.voices(); add a track and a part; part.setSoundSource({kind:'voice', type, id}); THEN add a note with a valid lyric; " +
         "sandbox.synthesize(part); read sandbox.syllable(note).symbols.";
 
     public string ParametersJsonSchema => """

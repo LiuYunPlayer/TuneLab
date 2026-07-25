@@ -142,15 +142,7 @@ internal sealed class SandboxApi(ScriptContext context, PumpableSynchronizationC
         return list.ToArray();
     }
 
-    // 把某 midi part 的音源设为一个 voice（type=引擎 type id，id=该引擎下的音源 id；取自 sandbox.voices()）。
-    // 触发重建合成管线（换真引擎会话）。这是写、但沙箱工程可丢弃、不过授权闸门。
-    public void SetVoice(ScriptPart part, string type, string id)
-    {
-        var midi = MidiOf(part, "setVoice");
-        context.EnsureWritable();
-        midi.SoundSource.SetInfo(new SoundSourceInfo { Kind = SourceKind.Voice, Type = type ?? "", Id = id ?? "" });
-        context.Bump();
-    }
+    // 挂音源用正常 tl 写原语 `part.setSoundSource({kind,type,id})`（真实编辑器/沙箱通用，含存在校验），沙箱不再另开 setVoice。
 
     // 触发该 part 的离线合成并【同步等待】完成（在本沙箱线程手动泵驱动循环，仿 Editor.SynthesisNext）。
     // opts（可选）：{timeoutMs?(默认30000,1000~120000), maxDispatches?(默认64,1~512)}。返回 {done, dispatches, ms, timedOut}。
@@ -159,7 +151,7 @@ internal sealed class SandboxApi(ScriptContext context, PumpableSynchronizationC
     {
         var midi = MidiOf(part, "synthesize");
         var pipeline = midi.SynthesisPipeline
-            ?? throw new ScriptApiException("this part has no synthesis pipeline; call sandbox.setVoice(part, type, id) first.");
+            ?? throw new ScriptApiException("this part has no synthesis pipeline; attach a voice with part.setSoundSource({kind:'voice', type, id}) first.");
 
         int timeoutMs = 30000, maxDispatches = 64;
         if (opts is not null && !opts.IsUndefined() && !opts.IsNull())

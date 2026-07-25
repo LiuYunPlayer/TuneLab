@@ -43,6 +43,7 @@ internal static class ScriptApiReference
         "part\n" +
         "  fields (read/write):  name, startPos, endPos    field (read-only): type (\"midi\"/\"audio\")   // startPos/endPos = the part's visible span in absolute ticks; setting startPos moves the whole part (content follows), setting endPos resizes the right edge\n" +
         "  part.soundSource()                       {type, id, name, kind, defaultLyric}   (sound source snapshot; kind=\"voice\"|\"instrument\")\n" +
+        "  part.setSoundSource({kind, type, id})    switch the part's sound source (kind=\"voice\"(default)|\"instrument\"; type/id from list_sound_sources); unknown source errors; empty type+id clears to none\n" +
         "  part.notes()                             [note]\n" +
         "  part.selectedNotes()                     [note]   (currently selected in the piano editor)\n" +
         "  part.notesInRange(start, end)            [note]   (absolute ticks, [start,end), by note start)\n" +

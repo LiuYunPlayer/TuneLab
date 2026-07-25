@@ -8,9 +8,9 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-## 工具全集（13 个）
+## 工具全集（14 个）
 
-三个面：**操作工程** + **管理脚本库** + **环境感知（只读）**。
+三个面：**操作工程** + **管理脚本库** + **环境感知（只读）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
 
 | 工具 | 面 | 作用 |
 |---|---|---|
@@ -27,6 +27,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `get_extension_readme` | 感知 | 按 id 或名读某扩展 README（markdown 原文，按语言解析、上限截断）。按需拉取（渐进式披露）。 |
 | `list_sound_sources` | 感知 | 三层钻取：不给 `engine` → 列引擎(不 Init)；给 `engine` → 列该引擎音源(id/名/描述)；给 `engine`+`source` → 读该音源参数 schema(part/note/自动化/音素级，各带类型/范围/默认)。后两层仅 Init 该引擎。`kind` 可选过滤。 |
 | `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
+| `run_in_sandbox` | 探测 | 在一个**可丢弃无头工程**里跑 JS（同一 `tl` 面 + `sandbox` 全局），够到静态读够不着的东西（尤其**真实音素**：挂真音源+合法歌词+触发合成后才存在）。写入不碰用户数据、**不过授权闸门**。见下「探测沙箱」节。 |
 
 ```
 模型 ──tool call(JSON)──► IAgentTool 实现
@@ -39,7 +40,8 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
         ├─ list_extensions / get_extension_readme ─► ExtensionManager.LoadResults / ExtensionReadme（只读）
         ├─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读；给 engine 才 Init；给 engine+source 合成 context 求参数 schema）
-        └─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
+        ├─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
+        └─ run_in_sandbox ─────────────────────► SandboxHost（专用线程 + 可泵 SyncContext + 可丢弃 IProject；tl + sandbox 全局；不过授权闸门）
 ```
 （共享格式在 `AgentToolFormat.cs`：`EngineCatalog.AppendEngineList` 三类引擎列表共用；`ConfigText.Describe/FormatValue` 各 config 类型一致措辞（复用进脚本入参 `SavedScriptSupport`）；`SchemaText.AppendProperties/AppendAutomations/AppendPhonemes` 把引擎声明的参数组文本化，effect 与音源参数 schema 共用。）
 
@@ -78,7 +80,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 | `tl`（编辑器） | `tl.ppq`、`tl.language`、`tl.currentProject()`、`tl.currentPart()`、`tl.selectedParts()`、`tl.playhead()`、`tl.snap(tick)` |
 | `project`（`tl.currentProject()`） | `tracks()`、`addTrack(name?)`、`removeTrack(track)`、`tempos()`、`timeSignatures()`、`setTempo(bpm,atTick?)`、`setTimeSignature(num,den,atBar?)` |
 | `track` | 字段(读写) `name/isMute/isSolo/gain(dB)/pan`；`parts()`、`addPart({startPos,endPos,name?})`、`removePart(part)`、`set({...})` |
-| `part` | 字段(读写) `name/startPos/endPos`(可见窗口绝对 tick；写 startPos 平移整段、写 endPos 缩放右边缘)、(只读) `type`；`soundSource()→{type,id,name,kind,defaultLyric}`、`notes()`、`selectedNotes()`、`notesInRange(s,e)`、`addNote({pos,dur,pitch,lyric?})`、`removeNote(note)`、`samplePitch(s,e,n)`、`setPitchLine(s,e,pts)`、`clearPitch(s,e)`、`automationIds()`、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`、`vibratos()`、`addVibrato({...})`、`removeVibrato(vib)`、`set({...})` |
+| `part` | 字段(读写) `name/startPos/endPos`(可见窗口绝对 tick；写 startPos 平移整段、写 endPos 缩放右边缘)、(只读) `type`；`soundSource()→{type,id,name,kind,defaultLyric}`、`setSoundSource({kind,type,id})`(切音源；未知报错、空清源)、`notes()`、`selectedNotes()`、`notesInRange(s,e)`、`addNote({pos,dur,pitch,lyric?})`、`removeNote(note)`、`samplePitch(s,e,n)`、`setPitchLine(s,e,pts)`、`clearPitch(s,e)`、`automationIds()`、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`、`vibratos()`、`addVibrato({...})`、`removeVibrato(vib)`、`set({...})` |
 | `note` | 字段(读写) `pos/dur/pitch/lyric`、(只读) `pitchName`；`note.set({...})` |
 | `vibrato` | 字段(读写) `pos/dur/frequency/amplitude/phase/attack/release`；`vibrato.set({...})` |
 
@@ -113,10 +115,24 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），逐条列名/id/版本/作者/类别/加载状态/错误/有无 readme。是「诉求 3」的地基。
 - **`get_extension_readme(name)`**：按 id 或名匹配 `ExtensionLoadResult`，`ExtensionReadme.Resolve(dir, lang)` 解析 `README.<lang>.md → README.md` 得路径 → `File.ReadAllText`。readme 可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。
 - **`list_sound_sources(kind?, engine?, source?)`**：三层钻取避免一次性 Init 全部引擎——不给 `engine` 用 `GetAllVoiceEngines/GetProviders/GetDisplayName`（不 Init）列引擎；给 `engine` 用 `GetAllVoiceInfos/GetAllInstrumentInfos`（**仅 Init 该引擎**）列其音源；给 `engine`+`source` 读该音源**参数 schema**（诉求 4/5 的地基）。音源枚举/schema 求值跑插件代码，故在 **UI 线程**执行；空引擎 `type=""` 在列表里跳过。
-  - **音源参数 schema（第三层，A4）**：config 是 **voiceId 的函数**（不同音源可声明不同参数），且 `VoicesManager.Declare` 对**未知 id 静默回退空引擎**给出误导性空 schema——故必须按「引擎 + 真实音源 id」读、先 `TryGetVoiceInfo` 校验 source 存在。`VoicesManager`/`InstrumentsManager` 的 `Get*Config` 是 public（但 `GetInitedEngine` 是 private，故走 manager 方法而非直取引擎，与 effect 不同）。用 Agent 层自建的 **part-free 合成 context**（真 `VoiceId` + 空 `Notes`/`PartProperties`/`Automations`，见 `SoundSourceInfoTools` 的 `StaticVoicePartContext` 等）纯静态调 5 个（voice）/4 个（instrument，无音素/歌词）声明方法。schema 是**默认值版**（条件化 schema 只呈现默认分支，同 effect 上限）。**phoneme 是静态读的天花板**：其 slot 来自 note 里**真实音素**（数据驱动），空 note 恒空——除非引擎恰好静态声明了 slot schema，否则如实标注"需合成后才可见"、**不造假 note**（phoneme 的真发现留给未来「探测沙箱」支柱：agent 在可丢弃工程里挂源/造合法歌词/触发合成/读回显）。
+  - **音源参数 schema（第三层，A4）**：config 是 **voiceId 的函数**（不同音源可声明不同参数），且 `VoicesManager.Declare` 对**未知 id 静默回退空引擎**给出误导性空 schema——故必须按「引擎 + 真实音源 id」读、先 `TryGetVoiceInfo` 校验 source 存在。`VoicesManager`/`InstrumentsManager` 的 `Get*Config` 是 public（但 `GetInitedEngine` 是 private，故走 manager 方法而非直取引擎，与 effect 不同）。用 Agent 层自建的 **part-free 合成 context**（真 `VoiceId` + 空 `Notes`/`PartProperties`/`Automations`，见 `SoundSourceInfoTools` 的 `StaticVoicePartContext` 等）纯静态调 5 个（voice）/4 个（instrument，无音素/歌词）声明方法。schema 是**默认值版**（条件化 schema 只呈现默认分支，同 effect 上限）。**phoneme 是静态读的天花板**：其 slot 来自 note 里**真实音素**（数据驱动），空 note 恒空——除非引擎恰好静态声明了 slot schema，否则如实标注"需合成后才可见"、**不造假 note**（phoneme 的真发现走「探测沙箱」`run_in_sandbox`，见下节：agent 在可丢弃工程里挂源/造合法歌词/触发合成/读回显）。
 - **`list_effects(engine?)`**：`EffectManager` 严格镜像音源管理器（`GetAllEffectEngines/GetProviders/GetDisplayName/GetInitedEngine`），故列引擎层与音源同格式（共用 `EngineCatalog`）。与音源不同——effect **无「音源目录」**（一个引擎 = 一种效果器类型），第二层列的是**参数 schema**：给 `engine` 时 `GetInitedEngine`（**仅 Init 它**）→ 传一个 **part-free 的空 `IEffectSynthesisPropertyContext`**（空 `IEffectSynthesisView`：无改过的值 → 各参数取引擎默认）→ 调引擎三个纯函数声明方法 `GetPropertyConfig`（静态属性 `ObjectConfig`）/`GetAutomationConfigs`（可编辑自动化轨）/`GetSynthesizedParameterConfigs`（只读回显轨），逐参数输出类型/范围/默认。是「诉求 6」的地基。要点：宿主自带的 `EffectPropertyContext` 绑 part 且 private，不可复用，故 Agent 层自建极简空 context；effect 无内建引擎（全来自插件）；条件化 schema 只能拿「默认值版」（静态枚举固有上限）；读 schema 必须 Init 引擎（跑插件代码）→ UI 线程。
 
-「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；「切换 part 音源」「读写 part 的 effect 链」都是写操作、属后续写通道切片（届时 tl 侧也需按名解析音源/effect 的查找，与这些推荐工具两道门并存）。这些只读工具都不落 undo、不受分级授权闸门约束。
+「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；**「切换 part 音源」已落地**为写原语 `part.setSoundSource({kind,type,id})`（过分级授权闸门、含存在校验，见 run_script 面）；「读写 part 的 effect 链」仍是后续写通道切片。这些只读工具都不落 undo、不受分级授权闸门约束。
+
+## 探测沙箱（`run_in_sandbox`）
+
+静态读 schema 有天花板：空 context 只能拿默认分支，**条件化 schema**（参数 X 仅当 Y=某值才现）与**数据驱动 schema**（phoneme slot 来自真实音素）静态永远够不着。解法 = 给一段脚本一个**可丢弃的无头 `IProject`**，用同一 `tl` 面随便改，再**真触发合成、读回显**拿到只有合成后才存在的真相。与 A1–A4 静态读**互补非替代**（静态读=便宜前几级秒回；沙箱=够不着时的重武器）。
+
+- **入口**：`run_in_sandbox(code)`。工程是全新、隔离、跑完即弃的——与用户工程无关，故写入**不碰用户数据、不过授权闸门**，可放开试。
+- **实现**（`TuneLab/Scripting/SandboxHost.cs`）：整个生命周期跑在一条**专用后台线程**上，装一个**可泵的 `SynchronizationContext`**（`PumpableSynchronizationContext`：`Post`/`DrainAll`/`WaitForWork`）。合成是异步的（`VoiceSynthesisPipeline` 的 session 事件与 `Dispatch` 的 await 续体都经建管线时的 `SynchronizationContext.Current` marshal 回来）——编辑器那条数据线程=UI 线程（Dispatcher 自动泵），无头沙箱没有窗口故自带上下文**手动泵**，仿 `Editor.SynthesisNext` 的 peek/dispatch 驱动循环但零 UI 依赖。不能在 UI 线程上跑（同步阻塞的 `synthesize()` 会与其自身的 marshal 续体自死锁），故专用线程。
+- **脚本面**：注入正常 `tl`（造场景：`addTrack`/`addPart`/`setSoundSource`/`addNote`…）+ 一个 `sandbox` 全局补「合成相关」的那半（**只沙箱有意义**，故不进正常 `tl` 句柄面）：
+  - `sandbox.voices()` → `[{type,id,name}]`（如实镜像 `VoicesManager`，含内建空引擎；会惰性 Init 引擎、跑插件代码）。
+  - `sandbox.synthesize(part, {timeoutMs?, maxDispatches?})` → 触发离线合成并**同步等待**（手动泵驱动循环），返回 `{done, dispatches, ms, timedOut}`。自带超时 + 派发次数预算。
+  - `sandbox.syllable(note)` → 合成回显音素 `{leading:[{symbol,duration,stretchWeight}], body:[...], bodyOffset, symbols:[...]}` 或 null。读的是 `note.SynthesizedSyllable`（与钢琴窗音素显示同源）。
+- **收口**：`ScriptContext.FlushForSynthesis()` 关 merge 括号让管线看到刚加的音符并 prep（否则 `IsSynthesisBatching` 抑制、通知未扇出）。跑完拆场景（换空工程触发旧工程 Detach+Dispose）。
+- **成本护栏**：合成很重（引擎加载模型耗时数秒）→ 工具描述强制**一段脚本一次探完**（迭代/中间数据留脚本内、不进上下文）；`synthesize` 超时 + `maxDispatches` 预算；结果精炼（symbols 而非原始 dump）。
+- **挂音源用正常 tl 写** `part.setSoundSource(...)`（真实编辑器/沙箱通用、含存在校验），沙箱不另开专用 setter。
 
 ## 工具输出上限（中央兜底 + 分层）
 

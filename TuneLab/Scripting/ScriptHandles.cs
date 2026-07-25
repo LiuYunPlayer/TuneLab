@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Linq;
 using Jint.Native;
 using TuneLab.Data;
+using TuneLab.Extensions.Instruments;
+using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -90,6 +92,37 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     {
         var v = Midi.SoundSource;
         return new ScriptSoundSource(v.Type, v.ID, v.Name, v.DefaultLyric, v.Kind == SourceKind.Voice ? "voice" : "instrument");
+    }
+
+    // 切换本 part 的音源（写；重建合成管线）。info = {kind:"voice"|"instrument"(默认 voice), type, id}——
+    // type/id 取自 list_sound_sources / sandbox.voices()。未知音源【报错】而非静默回退空源（诉求：显式而非假成功）；
+    // 允许 type/id 皆空以清成「空声源」（无音源 part）。与只读 soundSource() 对偶。
+    public void SetSoundSource(JsValue info)
+    {
+        var midi = Midi;
+        var o = ScriptArgs.Obj(info, "info");
+        string kindStr = ScriptArgs.OptStr(o, "kind") ?? "voice";
+        string type = ScriptArgs.OptStr(o, "type") ?? string.Empty;
+        string id = ScriptArgs.OptStr(o, "id") ?? string.Empty;
+
+        SourceKind kind;
+        if (string.Equals(kindStr, "voice", StringComparison.OrdinalIgnoreCase)) kind = SourceKind.Voice;
+        else if (string.Equals(kindStr, "instrument", StringComparison.OrdinalIgnoreCase)) kind = SourceKind.Instrument;
+        else throw new ScriptApiException("kind must be \"voice\" or \"instrument\".");
+
+        // 非空音源校验存在（空 = 清成空声源，合法、跳过校验）。校验会惰性 Init 该引擎。
+        if (!(string.IsNullOrEmpty(type) && string.IsNullOrEmpty(id)))
+        {
+            bool exists = kind == SourceKind.Voice
+                ? VoicesManager.TryGetVoiceInfo(type, id, out _)
+                : InstrumentsManager.TryGetInstrumentInfo(type, id, out _);
+            if (!exists)
+                throw new ScriptApiException(string.Format("no {0} source with type=\"{1}\" id=\"{2}\"; use list_sound_sources (or sandbox.voices()) to find valid type/id.", kindStr, type, id));
+        }
+
+        ctx.EnsureWritable();
+        midi.SoundSource.SetInfo(new SoundSourceInfo { Kind = kind, Type = type, Id = id });
+        ctx.Bump();
     }
 
     // ── 音符 ──

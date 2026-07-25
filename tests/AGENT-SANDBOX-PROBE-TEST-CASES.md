@@ -16,7 +16,7 @@
 ## 1. 全链路合成探测（核心桩）
 
 让 agent 用 `run_in_sandbox` 跑一段脚本：`sandbox.voices()` 取一个真实音源 → `tl.currentProject().addTrack()`
-+ `track.addPart({startPos:0,endPos:1920})` → `sandbox.setVoice(part, type, id)` → `part.addNote({pos:0,dur:480,pitch:60,lyric:"la"})`
++ `track.addPart({startPos:0,endPos:1920})` → `part.setSoundSource({kind:"voice", type, id})` → `part.addNote({pos:0,dur:480,pitch:60,lyric:"la"})`
 → `sandbox.synthesize(part)` → `sandbox.syllable(note)`。
 
 **期望**：
@@ -68,6 +68,20 @@ part.setAutomation("Volume", 0, 480, [{tick:0,value:0}, {tick:480,value:1}]);  /
 
 **期望**：全部正常执行、返回 `"ok"`，**不**报「No public methods with the specified arguments were found」。
 （修法=给这 4 处可选参补 C# 默认值；Jint 对缺失尾参不自动补 undefined，只有形参带默认值才允许省略。）
+
+## 5b. part.setSoundSource（B 支柱：切换音源，真实 tl 写原语）
+
+`setSoundSource` 是**正常 tl 写**（真实编辑器 / 沙箱通用），不再是沙箱专属。在**真实工程**里经 `run_script`（或
+沙箱里）验证：
+
+1. **切换到合法音源**：`part.setSoundSource({kind:"voice", type, id})`（type/id 取自 list_sound_sources）——
+   **期望**：part 音源切换、`part.soundSource()` 反映新值；合成管线重建（真实工程里编辑器自动重合成）；一个可撤销单位。
+2. **未知音源报错**：`part.setSoundSource({kind:"voice", type:"nope", id:"nope"})` ——
+   **期望**：报错「no voice source with type=… id=…; use list_sound_sources…」，**不**静默回退空源。
+3. **kind 默认 voice / 非法 kind**：省 kind 按 voice 处理；`kind:"xxx"` → 报错「kind must be "voice" or "instrument"」。
+4. **清空**：`part.setSoundSource({type:"", id:""})` ——**期望**清成空声源（无音源 part），不报错。
+5. **授权闸门**：在真实工程经 agent 的 `run_script` 调用时，与其它工程写一样过分级授权（Confirm 档弹卡片、
+   ReadOnlyAdvice 只报不改）——它是普通工程写、非沙箱。
 
 ## 6. 必填参缺失仍如实报错（预期行为，非缺陷）
 
