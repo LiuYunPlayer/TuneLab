@@ -1794,9 +1794,10 @@ internal sealed class AgentSideBarContentProvider
         var scroll = new ScrollViewer()
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,   // 原生条隐藏，改挂统一浮层滚动条
             Content = content,
         };
+        mSettingsScrollBars = new OverlayScrollBars(scroll, horizontal: false, vertical: true);   // 存字段防 GC
 
         DockPanel.SetDock(header, Dock.Top);
         mSettingsView.Children.Add(header);
@@ -2315,6 +2316,7 @@ internal sealed class AgentSideBarContentProvider
     Func<ScriptSelection?>? mSelectionProvider;
     Func<ScriptPianoSelection?>? mPianoSelectionProvider;
     IReadOnlyList<IAgentTool> mTools = [];
+    OverlayScrollBars? mSettingsScrollBars;   // 设置区浮层滚动条（存引用防 GC）
     IAgentModelSession? mSession;
 
     // ───────────────── 多会话并行 ─────────────────

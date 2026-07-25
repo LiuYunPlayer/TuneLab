@@ -10,6 +10,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using TuneLab.Agent;
 using TuneLab.GUI;
+using TuneLab.GUI.Components;
 using TuneLab.I18N;
 using TuneLab.Utils;
 using ScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility;
@@ -320,10 +321,11 @@ internal sealed class AgentTurnView
                 MaxHeight = 240,
                 Margin = new(0, 6, 0, 0),
                 IsVisible = false,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,   // 原生条隐藏，改挂统一浮层滚动条
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Content = mDetails,
             };
+            mDetailsScrollBars = new OverlayScrollBars(mDetailsScroll, horizontal: false, vertical: true);   // 存字段防 GC
 
             var panel = new StackPanel { Orientation = Orientation.Vertical, Children = { header, mDetailsScroll } };
             mBorder = new Border
@@ -392,6 +394,7 @@ internal sealed class AgentTurnView
         readonly TextBlock mChevron;
         readonly StackPanel mDetails;
         readonly ScrollViewer mDetailsScroll;
+        readonly OverlayScrollBars mDetailsScrollBars;
         bool mExpanded;
     }
 
@@ -544,10 +547,11 @@ internal sealed class AgentTurnView
                 MaxHeight = 240,
                 Margin = new(0, 6, 0, 0),
                 IsVisible = false,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,   // 原生条隐藏，改挂统一浮层滚动条
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Content = quote,
             };
+            mBodyScrollBars = new OverlayScrollBars(mBodyScroll, horizontal: false, vertical: true);   // 存字段防 GC
 
             var panel = new StackPanel { Orientation = Orientation.Vertical, Children = { header, mBodyScroll } };
             mBorder = new Border
@@ -606,6 +610,7 @@ internal sealed class AgentTurnView
         readonly TextBlock mPreview;
         readonly SelectableTextBlock mBody;
         readonly ScrollViewer mBodyScroll;
+        readonly OverlayScrollBars mBodyScrollBars;
         bool mExpanded;
     }
 }
