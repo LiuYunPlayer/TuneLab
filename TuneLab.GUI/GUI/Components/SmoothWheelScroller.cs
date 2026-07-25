@@ -47,6 +47,14 @@ internal sealed class SmoothWheelScroller
             ? mTarget
             : (horizontal ? sv.Offset.X : sv.Offset.Y);
         double delta = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
+
+        // 边界放行（嵌套滚动链）：内容虽可滚，但已在滚轮方向的端点还继续滚 → 不消费，让事件冒泡给
+        // 外层容器接管，用户无需把鼠标移出内层滚动区。delta>0=向上(趋 0)、delta<0=向下(趋 max)。
+        // （原先此处对任何 max>0 都无条件 Handled，导致内层滚到底后外层滚不动——见工具块嵌套问题。）
+        const double edge = 0.5;
+        if ((delta > 0 && curBase <= edge) || (delta < 0 && curBase >= max - edge))
+            return;
+
         mTarget = Math.Clamp(curBase - delta * WheelStep, 0, max);
         mHorizontal = horizontal;
         mLastMs = double.NaN;
