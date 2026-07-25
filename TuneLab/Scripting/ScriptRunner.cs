@@ -47,7 +47,14 @@ internal static class ScriptRunner
             options.MaxStatements(limits.MaxStatements);
             if (limits.Timeout is { } timeout)
                 options.TimeoutInterval(timeout);
-            options.LimitMemory(64L * 1024 * 1024);
+            // 内存上限：Jint 用 GC.GetAllocatedBytesForCurrentThread() 量【本线程的累计分配流量】（非留存、非 JS 堆），
+            // 故脚本同步调的宿主 C# 代码（如 importTracks 反序列化 + 建数据对象、批量改音符各记一条撤销命令）的分配【也计入】。
+            // 因此这【不是】JS 对象内存上限，而是「整段运行在这条线程上的分配预算」——纯 OOM 兜底。故意【单值、不按触发源分档】：
+            //  ① 合法的分配量取决于「干多少活」（导入体量 / 改多少音符），与谁触发无关，分档只会误伤 agent 的正当批量活；
+            //  ② 防跑飞【循环】本是 MaxStatements/Timeout 的职责（内存管不了不分配的死循环）；
+            //  ③ 量的是流量非留存，低上限并不能有意义降低真实 OOM 风险（可回收垃圾会被 GC 收掉），只会更早掐死大批量脚本。
+            // 放宽到 1GB 给正当批量活留足头寸（真 OOM 的无限留存循环仍会被它兜住，且远早于耗尽机器内存）。
+            options.LimitMemory(1024L * 1024 * 1024);
             options.CancellationToken(cancellationToken);
             // 让 JS 的 camelCase 成员名匹配 C# 的 PascalCase（tl.addNote → AddNote、note.pos → Pos、tl.language → Language）。
             options.SetTypeResolver(new TypeResolver { MemberNameComparer = StringComparer.OrdinalIgnoreCase });
