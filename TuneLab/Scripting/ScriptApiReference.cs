@@ -57,6 +57,10 @@ internal static class ScriptApiReference
         "  part.setAutomation(id, start, end, points, defaultValue?)    part.clearAutomation(id, start, end)   // value=absolute parameter value, created on demand\n" +
         "  part.vibratos()                          [vibrato]\n" +
         "  part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?}) -> vibrato    part.removeVibrato(vibrato)\n" +
+        "  // EFFECTS (serial effect chain on this part; order = array index, 0-based):\n" +
+        "  part.effects()                           [effect]\n" +
+        "  part.addEffect(type) -> effect           part.removeEffect(effect)   // type = an effect engine id from list_effects; appended to the chain end\n" +
+        "  part.moveEffect(effect, index)           move an effect to a 0-based position in the chain\n" +
         "  part.set({name?, startPos?, endPos?})\n" +
         "\n" +
         "note\n" +
@@ -66,6 +70,11 @@ internal static class ScriptApiReference
         "vibrato\n" +
         "  fields (read/write):  pos, dur, frequency, amplitude, phase, attack, release    // pos/dur in ticks, frequency Hz, amplitude semitones\n" +
         "  vibrato.set({pos?, dur?, frequency?, amplitude?, phase?, attack?, release?})\n" +
+        "\n" +
+        "effect  (an item in part.effects())\n" +
+        "  field (read/write):  isEnabled (bool; false = bypass)      read-only: type, name, id, index\n" +
+        "  effect.getProperty(key)                  current value (number/boolean/string), or null if unset (defaults & keys/ranges: list_effects)\n" +
+        "  effect.setProperty(key, value)           set one parameter (value = number/boolean/string)\n" +
         "\n" +
         "print(x) / console.log(x) -> debugging output (returned to you / shown in the panel).\n" +
         "Notes live inside a MIDI part; to write a melody from scratch, tl.currentProject().addTrack() (or pick one), track.addPart({...}), then part.addNote into the returned part.\n" +

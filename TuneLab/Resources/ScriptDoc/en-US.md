@@ -96,6 +96,10 @@ The project's data: tracks, tempo, time signatures.
 | `part.vibratos()` | `[vibrato]` | All vibrato handles in this part. |
 | `part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?})` | `vibrato` | Add a vibrato (overlaid on the pitch curve; defaults 6Hz / 1 semitone), returns its handle. |
 | `part.removeVibrato(vibrato)` | — | Remove a vibrato from this part. |
+| `part.effects()` | `[effect]` | The serial effect chain on this part, in processing order. |
+| `part.addEffect(type)` | `effect` | Append an effect of `type` (an effect engine id from `list_effects`) to the chain end; unknown type errors. Returns its handle. |
+| `part.removeEffect(effect)` | — | Remove an effect from the chain. |
+| `part.moveEffect(effect, index)` | — | Move an effect to a 0-based position in the chain. |
 | `part.set({name?, startPos?, endPos?})` | — | Assign several fields at once (rename / move / resize). |
 
 ---
@@ -117,6 +121,17 @@ The project's data: tracks, tempo, time signatures.
 | Method | Returns | Notes |
 |---|---|---|
 | `vibrato.set({pos?, dur?, frequency?, amplitude?, phase?, attack?, release?})` | — | Assign several fields at once. |
+
+---
+
+## `effect`
+
+An item in `part.effects()`. **Fields** — read/write: `isEnabled` (bool; `false` = bypass); **read-only**: `type` (engine id), `name` (display name), `id` (stable instance id), `index` (0-based position in the chain).
+
+| Method | Returns | Notes |
+|---|---|---|
+| `effect.getProperty(key)` | value | The current value of one parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_effects`. |
+| `effect.setProperty(key, value)` | — | Set one parameter (`value` = `number`/`boolean`/`string`). |
 
 ---
 

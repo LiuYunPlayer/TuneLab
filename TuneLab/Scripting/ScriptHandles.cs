@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Jint;
 using Jint.Native;
 using TuneLab.Data;
+using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
@@ -287,6 +289,48 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.Bump();
     }
 
+    // ── 效果器链（串行处理链，挂在本 midi part 上；顺序即数组下标 0-based） ──
+
+    // 本 part 的效果器链（按处理顺序）。
+    public ScriptEffect[] Effects() => Midi.Effects.Select(ctx.WrapEffect).ToArray();
+
+    // 在链尾追加一个指定类型的效果器（type 取自 list_effects 的引擎 type id）。未知类型报错。
+    public ScriptEffect AddEffect(string type)
+    {
+        var midi = Midi;
+        if (string.IsNullOrEmpty(type))
+            throw new ScriptApiException("effect type is required (an engine type id from list_effects).");
+        if (!EffectManager.GetAllEffectEngines().Contains(type))
+            throw new ScriptApiException(string.Format("no effect engine with type \"{0}\"; use list_effects to find valid type ids.", type));
+        ctx.EnsureWritable();
+        var effect = midi.CreateEffect(new EffectInfo { Type = type });
+        midi.InsertEffect(midi.Effects.Count, effect);
+        ctx.Bump();
+        return ctx.WrapEffect(effect);
+    }
+
+    public void RemoveEffect(ScriptEffect effect)
+    {
+        if (effect == null || effect.Removed) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
+        var midi = Midi;
+        ctx.EnsureWritable();
+        midi.RemoveEffect(effect.Effect);
+        effect.Removed = true;
+        ctx.Bump();
+    }
+
+    // 把某效果器移到链中的 index 位（0-based；越界钳到 [0, count-1]）——摘除重插维持串行顺序。
+    public void MoveEffect(ScriptEffect effect, int index)
+    {
+        if (effect == null || effect.Removed) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
+        var midi = Midi;
+        ctx.EnsureWritable();
+        int target = Math.Clamp(index, 0, Math.Max(0, midi.Effects.Count - 1));
+        midi.RemoveEffect(effect.Effect);
+        midi.InsertEffect(target, effect.Effect);
+        ctx.Bump();
+    }
+
     // ── part 自身 ──
 
     public void Set(JsValue props)
@@ -447,6 +491,65 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
     public override string ToString()
         => string.Format(CultureInfo.InvariantCulture, "Vibrato(pos={0:0}, dur={1:0}, freq={2:0.##}Hz, amp={3:0.##})",
             Pos, Dur, Frequency, Amplitude);
+}
+
+// 一个效果器句柄（挂在 midi part 的串行效果链上）。type 不可变（换类型 = 删了重加）。
+internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
+{
+    internal IEffect Effect { get; } = effect;
+    internal bool Removed { get; set; }
+
+    IEffect E => Removed ? throw new ScriptApiException("this effect handle was removed and is no longer valid.") : Effect;
+
+    public string Type => E.Type;                                  // 引擎 type id（不可变）
+    public string Name => EffectManager.GetDisplayName(E.Type);    // 显示名（只读）
+    public string Id => E.Id;                                      // 实例稳定 id（本 part 链内唯一）
+    public int Index                                              // 在链中的 0-based 位置
+    {
+        get
+        {
+            var list = E.Part.Effects;
+            for (int i = 0; i < list.Count; i++)
+                if (ReferenceEquals(list[i], E)) return i;
+            return -1;
+        }
+    }
+    // bypass 开关：false = 旁路（不处理）。可读写标量字段。
+    public bool IsEnabled
+    {
+        get => E.IsEnabled.Value;
+        set { ctx.EnsureWritable(); E.IsEnabled.Set(value); ctx.Bump(); }
+    }
+
+    // 读一个参数的当前值（number / boolean / string）；未设返回 null（默认值与可用键见 list_effects 的参数 schema）。
+    // 用 out-success 重载读【裸值】：另一个 GetValue(key, default) 会拿 default 当类型门（存值类型与 default 不符即退回
+    // default），值类型不定时会误伤——这里要的是"存了什么就读什么"。
+    public object? GetProperty(string key)
+    {
+        var raw = E.Properties.GetValue(key, out bool success);
+        if (!success || raw.IsNull() || raw.IsMultiple()) return null;
+        if (raw.ToBoolean(out var b)) return b;
+        if (raw.ToDouble(out var d)) return d;
+        if (raw.ToString(out var s)) return s;
+        return null;
+    }
+
+    // 写一个参数（值须是 number / boolean / string）。键/取值范围见 list_effects。
+    public void SetProperty(string key, JsValue value)
+    {
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("effect property key is required.");
+        PropertyValue pv;
+        if (value.IsBoolean()) pv = PropertyValue.Create(value.AsBoolean());
+        else if (value.IsNumber()) pv = PropertyValue.Create(value.AsNumber());
+        else if (value.IsString()) pv = PropertyValue.Create(value.AsString());
+        else throw new ScriptApiException("effect property value must be a number, boolean, or string.");
+        ctx.EnsureWritable();
+        E.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
+    public override string ToString()
+        => string.Format(CultureInfo.InvariantCulture, "Effect(\"{0}\", type={1}, index={2}, enabled={3})", Name, Type, Index, IsEnabled);
 }
 
 // 一个 part 的声源信息（只读快照）。kind = "voice" | "instrument"。

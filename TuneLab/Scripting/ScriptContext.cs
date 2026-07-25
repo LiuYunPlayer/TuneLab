@@ -41,6 +41,7 @@ internal sealed class ScriptContext
     readonly Dictionary<IPart, ScriptPart> mParts = new();
     readonly Dictionary<ITrack, ScriptTrack> mTracks = new();
     readonly Dictionary<Vibrato, ScriptVibrato> mVibratos = new();
+    readonly Dictionary<IEffect, ScriptEffect> mEffects = new();
 
     // 已开 merge 括号的 midi part；Finish() 时统一收口。
     readonly HashSet<IMidiPart> mBracketed = new();
@@ -132,4 +133,5 @@ internal sealed class ScriptContext
     internal ScriptPart WrapPart(IPart part) => mParts.TryGetValue(part, out var h) ? h : mParts[part] = new ScriptPart(this, part);
     internal ScriptTrack WrapTrack(ITrack track) => mTracks.TryGetValue(track, out var h) ? h : mTracks[track] = new ScriptTrack(this, track);
     internal ScriptVibrato WrapVibrato(Vibrato vibrato) => mVibratos.TryGetValue(vibrato, out var h) ? h : mVibratos[vibrato] = new ScriptVibrato(this, vibrato);
+    internal ScriptEffect WrapEffect(IEffect effect) => mEffects.TryGetValue(effect, out var h) ? h : mEffects[effect] = new ScriptEffect(this, effect);
 }

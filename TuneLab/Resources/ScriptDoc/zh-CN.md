@@ -96,6 +96,10 @@
 | `part.vibratos()` | `[vibrato]` | 本 part 的所有颤音句柄。 |
 | `part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?})` | `vibrato` | 新增颤音（叠加在音高曲线之上，默认 6Hz / 1 半音），返回其句柄。 |
 | `part.removeVibrato(vibrato)` | — | 从本 part 删除一个颤音。 |
+| `part.effects()` | `[effect]` | 本 part 的串行效果链（按处理顺序）。 |
+| `part.addEffect(type)` | `effect` | 在链尾追加一个 `type` 类型的效果器（`type` 为 `list_effects` 里的引擎 id）；未知类型报错。返回其句柄。 |
+| `part.removeEffect(effect)` | — | 从链中删除一个效果器。 |
+| `part.moveEffect(effect, index)` | — | 把某效果器移到链中的第 `index`（0-based）位。 |
 | `part.set({name?, startPos?, endPos?})` | — | 一次改多个字段（改名/移动/缩放）。 |
 
 ---
@@ -117,6 +121,17 @@
 | 方法 | 返回 | 说明 |
 |---|---|---|
 | `vibrato.set({pos?, dur?, frequency?, amplitude?, phase?, attack?, release?})` | — | 一次改多个字段。 |
+
+---
+
+## `effect`（效果器）
+
+`part.effects()` 里的一项。**字段**——可读写：`isEnabled`（bool；`false` = 旁路）；**只读**：`type`（引擎 id）、`name`（显示名）、`id`（实例稳定 id）、`index`（链中 0-based 位置）。
+
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `effect.getProperty(key)` | 值 | 某参数的当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_effects`。 |
+| `effect.setProperty(key, value)` | — | 写一个参数（`value` = `number`/`boolean`/`string`）。 |
 
 ---
 
