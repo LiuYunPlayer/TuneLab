@@ -53,6 +53,7 @@ The project's data: tracks, tempo, time signatures.
 | `project.tracks()` | `[track]` | All track handles. |
 | `project.addTrack(name?)` | `track` | Append a new track, returns its handle. |
 | `project.removeTrack(track)` | — | Remove a track. |
+| `project.importTracks(path)` | `[track]` | Import **all** tracks from a file into this project (additive), returning the newly added track handles. `path` is a local file path; formats are `tlp`/`tlpx`/`mid`/`midi` plus any installed format plugins. Each track brings its parts/notes/sound source/effects/automation (a missing sound source degrades to none, as in the UI). **Tempo:** the project's current tempo/time-signature is kept and tracks land at their **raw ticks** (bar-aligned, no time-remap) — the predictable additive default; tempo-align / import-tempo modes may come later. A missing/unsupported/unparseable file throws (and the whole script rolls back). |
 | `project.tempos()` | `[{bpm, tick}]` | All tempo markers. |
 | `project.timeSignatures()` | `[{numerator, denominator, bar}]` | All time-signature markers (bar is 1-based). |
 | `project.setTempo(bpm, atTick?)` | — | Set tempo; if `atTick` is omitted, sets the base tempo at tick 0 (edits an existing marker there, else adds one). |

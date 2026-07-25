@@ -53,6 +53,7 @@
 | `project.tracks()` | `[track]` | 所有轨道句柄。 |
 | `project.addTrack(name?)` | `track` | 在末尾新建一条轨，返回其句柄。 |
 | `project.removeTrack(track)` | — | 删除一条轨。 |
+| `project.importTracks(path)` | `[track]` | 从文件导入**全部**轨、加法式并进当前工程，返回新加入的轨句柄。`path` = 本地文件路径；格式为 `tlp`/`tlpx`/`mid`/`midi` + 已装的格式插件。各轨含其 part/音符/音源/effect/自动化（音源未装则优雅降级为空源，同 UI 导入）。**时基**：保留当前工程的速度/拍号，各轨按**原始 tick** 落位（对齐小节、不做时基重映射）——最可预期的加法式默认；时基对齐 / 导入文件速度等模式未来可加。文件不存在/格式不支持/解析失败则报错（整脚本回退）。 |
 | `project.tempos()` | `[{bpm, tick}]` | 所有速度标记。 |
 | `project.timeSignatures()` | `[{numerator, denominator, bar}]` | 所有拍号标记（bar 为 1-based 小节号）。 |
 | `project.setTempo(bpm, atTick?)` | — | 设速度；`atTick` 省略则改 tick 0 的基础速度，该处已有标记则改、否则新增。 |

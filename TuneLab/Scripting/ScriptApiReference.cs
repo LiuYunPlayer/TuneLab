@@ -30,6 +30,7 @@ internal static class ScriptApiReference
         "project  (tl.currentProject())\n" +
         "  project.tracks()                         [track]\n" +
         "  project.addTrack(name?) -> track         project.removeTrack(track)\n" +
+        "  project.importTracks(path) -> [track]    import ALL tracks from a file into this project (additive; keeps current tempo, tracks at raw ticks). path = local file path; formats: tlp/tlpx/mid/midi + installed format plugins. Missing/unsupported/parse error throws. Returns the newly added track handles.\n" +
         "  project.tempos()                         [{bpm, tick}]\n" +
         "  project.timeSignatures()                 [{numerator, denominator, bar}]\n" +
         "  project.setTempo(bpm, atTick?)           project.setTimeSignature(numerator, denominator, atBar?)   // atBar is 1-based\n" +
