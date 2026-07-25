@@ -411,8 +411,8 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.Bump();
     }
 
-    // 等距采样 tick 序列（part 相对），供 samplePitch/sampleAutomation 共用。
-    static double[] SampleTicks(IMidiPart midi, double startTick, double endTick, int samples)
+    // 等距采样 tick 序列（part 相对），供 samplePitch/sampleAutomation 及 effect 自动化采样共用。
+    internal static double[] SampleTicks(IMidiPart midi, double startTick, double endTick, int samples)
     {
         if (samples < 2) samples = 2;
         if (samples > 1000) samples = 1000;
@@ -723,6 +723,55 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
         ctx.EnsureWritable();
         E.Properties.SetValue(key, pv);
         ctx.Bump();
+    }
+
+    // ── 本 effect 的参数自动化曲线（对齐 C# IEffect.Automations，与 part 级 automation 逐一平行；曲线在 part 相对
+    // tick 空间，读写口径同 part.sampleAutomation/setAutomation）。可编辑轨 id 由引擎声明（见 list_effects 的参数 schema）。 ──
+
+    public string[] AutomationIds() => E.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
+
+    // 在绝对 tick 区间 [startTick, endTick] 上等距采样本 effect 某自动化曲线。NaN = 该处无曲线。
+    public double[] SampleAutomation(string id, double startTick, double endTick, int samples)
+    {
+        var effect = E;
+        if (!effect.AutomationConfigs.ContainsKey(id))
+            throw new ScriptApiException(string.Format("unknown effect automation \"{0}\"; use one of effect.automationIds().", id));
+        return effect.GetAutomationValues(ScriptPart.SampleTicks(effect.Part, startTick, endTick, samples), id);
+    }
+
+    // 覆盖写本 effect 某自动化曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=参数绝对值；轨不存在按需创建，defaultValue 可选。
+    public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue? defaultValue = null)
+    {
+        var effect = E;
+        double rel = effect.Part.Pos.Value;
+        var pts = ScriptArgs.ReadPoints(points);
+        ctx.EnsureBracket(effect.Part);
+        var automation = GetOrAddAutomation(effect, id);
+        if (ScriptArgs.AsNumOrNull(defaultValue) is { } dv) automation.DefaultValue.Set(dv);
+        automation.Clear(startTick - rel, endTick - rel, 0);
+        if (pts.Count > 0)
+            automation.AddLine(pts.OrderBy(p => p.X).Select(p => new AnchorPoint(p.X - rel, p.Y)).ToList(), 0);
+        ctx.Bump();
+    }
+
+    public void ClearAutomation(string id, double startTick, double endTick)
+    {
+        var effect = E;
+        double rel = effect.Part.Pos.Value;
+        ctx.EnsureBracket(effect.Part);
+        if (effect.Automations.TryGetValue(id, out var automation))
+            automation.Clear(startTick - rel, endTick - rel, 0);
+        ctx.Bump();
+    }
+
+    static IAutomation GetOrAddAutomation(IEffect effect, string id)
+    {
+        if (effect.Automations.TryGetValue(id, out var existing))
+            return existing;
+        var created = effect.AddAutomation(id);
+        if (created == null)
+            throw new ScriptApiException(string.Format("automation \"{0}\" is not available on this effect (not declared by its engine).", id));
+        return created;
     }
 
     public override string ToString()

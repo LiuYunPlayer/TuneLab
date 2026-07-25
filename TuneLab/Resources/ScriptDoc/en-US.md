@@ -156,6 +156,12 @@ An item in `part.effects()`. **Fields** — read/write: `isEnabled` (bool; `fals
 |---|---|---|
 | `effect.getProperty(key)` | value | The current value of one parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_effects`. |
 | `effect.setProperty(key, value)` | — | Set one parameter (`value` = `number`/`boolean`/`string`). |
+| `effect.automationIds()` | `[string]` | The automatable parameter ids declared by this effect's engine (see `list_effects`). |
+| `effect.sampleAutomation(id, startTick, endTick, samples)` | `[number]` | Evenly sample one of this effect's automation curves; `NaN` = no curve there. |
+| `effect.setAutomation(id, startTick, endTick, points, defaultValue?)` | — | Clear `[start, end)` then lay a curve on this effect; `points = [{tick, value}]`, value = absolute parameter value; created on demand, `defaultValue` optional. Same shape as `part.setAutomation`, but scoped to this effect. |
+| `effect.clearAutomation(id, startTick, endTick)` | — | Clear a span of one of this effect's automation curves. |
+
+Effect automation mirrors part (voice) automation exactly — same absolute-tick `points` and value semantics — only the target differs (an effect in the chain rather than the voice).
 
 ---
 

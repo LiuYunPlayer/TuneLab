@@ -156,6 +156,12 @@
 |---|---|---|
 | `effect.getProperty(key)` | 值 | 某参数的当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_effects`。 |
 | `effect.setProperty(key, value)` | — | 写一个参数（`value` = `number`/`boolean`/`string`）。 |
+| `effect.automationIds()` | `[string]` | 本 effect 引擎声明的可自动化参数 id（见 `list_effects`）。 |
+| `effect.sampleAutomation(id, startTick, endTick, samples)` | `[number]` | 等距采样本 effect 某自动化曲线；`NaN` = 该处无曲线。 |
+| `effect.setAutomation(id, startTick, endTick, points, defaultValue?)` | — | 清空 `[start, end)` 再落线（作用于本 effect）；`points = [{tick, value}]`，value = 参数绝对值；轨不存在按需创建，`defaultValue` 可选。形状同 `part.setAutomation`，只是作用域是本 effect。 |
+| `effect.clearAutomation(id, startTick, endTick)` | — | 清空本 effect 某自动化曲线的一段。 |
+
+effect 自动化与 part（voice）自动化**逐一平行**——同样的绝对 tick `points` 与绝对值语义，只是目标从 voice 换成链中某 effect。
 
 ---
 

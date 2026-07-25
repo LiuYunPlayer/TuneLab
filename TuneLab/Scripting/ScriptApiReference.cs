@@ -90,6 +90,10 @@ internal static class ScriptApiReference
         "  field (read/write):  isEnabled (bool; false = bypass)      read-only: type, name, id, index\n" +
         "  effect.getProperty(key)                  current value (number/boolean/string), or null if unset (defaults & keys/ranges: list_effects)\n" +
         "  effect.setProperty(key, value)           set one parameter (value = number/boolean/string)\n" +
+        "  // this effect's PARAMETER AUTOMATION curves (same shape as part automation; absolute-tick points):\n" +
+        "  effect.automationIds()                   [string]   (automatable param ids declared by the effect engine; see list_effects)\n" +
+        "  effect.sampleAutomation(id, start, end, samples)   [number]   (NaN = no curve there)\n" +
+        "  effect.setAutomation(id, start, end, points, defaultValue?)    effect.clearAutomation(id, start, end)   // points=[{tick,value}], value=absolute param value, created on demand\n" +
         "\n" +
         "print(x) / console.log(x) -> debugging output (returned to you / shown in the panel).\n" +
         "Notes live inside a MIDI part; to write a melody from scratch, tl.currentProject().addTrack() (or pick one), track.addPart({...}), then part.addNote into the returned part.\n" +
