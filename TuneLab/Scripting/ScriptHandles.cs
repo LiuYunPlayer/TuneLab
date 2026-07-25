@@ -38,9 +38,11 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     public double Dur { get => N.Dur.Value; set => Apply(dur: value); }
     public int Pitch { get => N.Pitch.Value; set => Apply(pitch: value); }          // MIDI 0..127
     public string Lyric { get => N.Lyric.Value; set => Apply(lyric: value ?? string.Empty); }
+    // 发音覆盖（voice 专属）：非空则强制该 note 用此发音（G2P 输入），空串 = 回到按歌词自动派生。
+    public string Pronunciation { get => N.Pronunciation.Value; set => Apply(pronunciation: value ?? string.Empty); }
     public string PitchName => MusicTheory.PitchName(N.Pitch.Value);                 // 只读，如 "C4"
 
-    // 批量原子改：{pos?, dur?, pitch?, lyric?}（改 pos/dur 只重排一次）。
+    // 批量原子改：{pos?, dur?, pitch?, lyric?, pronunciation?}（改 pos/dur 只重排一次）。
     public void Set(JsValue props)
     {
         var o = ScriptArgs.Obj(props, "props");
@@ -48,11 +50,12 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
             pitch: ScriptArgs.OptInt(o, "pitch"),
             absPos: ScriptArgs.OptNum(o, "pos"),
             dur: ScriptArgs.OptNum(o, "dur"),
-            lyric: ScriptArgs.OptStr(o, "lyric"));
+            lyric: ScriptArgs.OptStr(o, "lyric"),
+            pronunciation: ScriptArgs.OptStr(o, "pronunciation"));
     }
 
     // 单字段属性 setter 与 Set() 共用：改 pos/dur 经 MoveNote 摘除-重插维持有序（通知合并由数据层收口）。
-    void Apply(int? pitch = null, double? absPos = null, double? dur = null, string? lyric = null)
+    void Apply(int? pitch = null, double? absPos = null, double? dur = null, string? lyric = null, string? pronunciation = null)
     {
         var n = N;
         var midi = n.Part;
@@ -65,13 +68,184 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
             if (dur is { } d2) n.Dur.Set(d2);
             if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
             if (lyric != null) n.Lyric.Set(lyric);
+            if (pronunciation != null) n.Pronunciation.Set(pronunciation);
         });
         ctx.Bump();
     }
 
+    // ── note 级自定义属性（voice/instrument 声明的 per-note 参数；schema 见 list_sound_sources 的 note 级 config） ──
+    // 值存在 note.Properties 容器里、只在音源声明了该键时有意义。与 effect 的 getProperty/setProperty 同范式。
+
+    // 读一个 note 属性当前值（number / boolean / string）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 note schema）。
+    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(N.Properties, key);
+
+    // 写一个 note 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 note schema。
+    public void SetProperty(string key, JsValue value)
+    {
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("note property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "note property");
+        ctx.EnsureBracket(N.Part);
+        N.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
+    // ── 音素（voice 专属；引导 / 主体双列表 + BodyOffset） ──
+    // 未编辑过的 note 音素是【引擎回填的合成产物】（只读、合成后才有）；一旦编辑即【钉死】成用户数据（可增删改）。
+    // 脚本侧：读随时可用（钉死读真数据、否则读合成快照）；写自动先钉死（物化合成产物为可编辑数据，与侧栏面板首次
+    // 编辑一致）——故 agent 直接改音素即可、无需手动 pin。音素句柄按【位置】(引导/主体 + 列表内下标) 定址、跨钉死稳定，
+    // 但增删会改变其后下标：结构变更后请重新 note.phonemes()。
+
+    // 是否已钉死（有用户固定的音素数据）；false = 用合成产物（G2P 派生）。
+    public bool HasPinnedPhonemes => N.HasPinnedPhonemes;
+
+    // 引导 / 主体结合线相对 note 头的有符号偏移（秒；junction = noteStart + bodyOffset）。写自动钉死。
+    public double BodyOffset { get => N.BodyOffset.Value; set { EnsurePinnedForEdit(); N.BodyOffset.Set(value); ctx.Bump(); } }
+
+    // 全序列音素句柄（引导 ++ 主体，时间序）。合成 / 钉死态皆可读；无音素（未合成的空 note）返回空数组。
+    public ScriptPhoneme[] Phonemes()
+    {
+        var n = N;
+        if (n.HasPinnedPhonemes)
+            return BuildPhonemeHandles(n.LeadingPhonemes.Count, n.BodyPhonemes.Count);
+        var syl = n.SynthesizedSyllable;
+        return syl is null ? [] : BuildPhonemeHandles(syl.LeadingPhonemes.Count, syl.BodyPhonemes.Count);
+    }
+
+    ScriptPhoneme[] BuildPhonemeHandles(int leadingCount, int bodyCount)
+    {
+        var result = new ScriptPhoneme[leadingCount + bodyCount];
+        for (int i = 0; i < leadingCount; i++) result[i] = new ScriptPhoneme(ctx, this, true, i);
+        for (int i = 0; i < bodyCount; i++) result[leadingCount + i] = new ScriptPhoneme(ctx, this, false, i);
+        return result;
+    }
+
+    // 显式把合成产物固定为可编辑数据（幂等；无合成音素时 no-op）。写操作会自动调用，一般无需手动 pin。
+    public void PinPhonemes() { EnsurePinnedForEdit(); ctx.Bump(); }
+
+    // 清除钉死音素、回到合成产物口径（清空双列表）。
+    public void ClearPhonemes() { ctx.EnsureBracket(N.Part); N.ClearLockedPhonemes(); ctx.Bump(); }
+
+    // info: {symbol, duration?(秒,默认0), stretchWeight?(默认0=刚性辅音), leading?(默认 false=主体)}。
+    // 自动钉死后追加到引导 / 主体列表末，返回句柄。stretchWeight>0 = 可伸元音（时长为派生填充量、布局时忽略）。
+    public ScriptPhoneme AddPhoneme(JsValue info)
+    {
+        var n = N;
+        var o = ScriptArgs.Obj(info, "info");
+        string symbol = ScriptArgs.OptStr(o, "symbol") ?? throw new ScriptApiException("field \"symbol\" is required.");
+        double dur = ScriptArgs.OptNum(o, "duration") ?? 0;
+        double weight = ScriptArgs.OptNum(o, "stretchWeight") ?? 0;
+        bool leading = ScriptArgs.OptBool(o, "leading") ?? false;
+        EnsurePinnedForEdit();
+        var list = leading ? n.LeadingPhonemes : n.BodyPhonemes;
+        list.Add(Phoneme.Create(new PhonemeInfo { Symbol = symbol, Duration = Math.Max(0, dur), StretchWeight = Math.Max(0, weight) }));
+        ctx.Bump();
+        return new ScriptPhoneme(ctx, this, leading, list.Count - 1);
+    }
+
+    public void RemovePhoneme(ScriptPhoneme phoneme)
+    {
+        if (phoneme == null || phoneme.Removed) throw new ScriptApiException("expected a live phoneme handle (from note.phonemes()/note.addPhoneme()).");
+        var n = N;
+        EnsurePinnedForEdit();
+        var list = phoneme.IsLeading ? n.LeadingPhonemes : n.BodyPhonemes;
+        if (phoneme.LocalIndex < 0 || phoneme.LocalIndex >= list.Count)
+            throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        list.RemoveAt(phoneme.LocalIndex);
+        phoneme.Removed = true;
+        ctx.Bump();
+    }
+
+    // 首次音素写入的钉死守卫（供本 note 音素写方法 + 音素句柄共用）：开 merge 括号 + 物化合成产物成钉死数据（幂等）。
+    internal void EnsurePinnedForEdit()
+    {
+        var n = N;
+        ctx.EnsureBracket(n.Part);
+        n.LockPhonemes();
+    }
+
+    // 供音素句柄解析底层音素（带 removed 校验）。
+    internal INote Require() => N;
+
     public override string ToString()
         => string.Format(CultureInfo.InvariantCulture, "Note(pos={0:0}, dur={1:0}, pitch={2}/{3}, lyric=\"{4}\")",
             Pos, Dur, Pitch, PitchName, Lyric);
+}
+
+// 一个音素句柄（挂在某 note 的引导 / 主体列表上）。按【位置】(引导/主体 + 列表内下标) 定址，跨钉死稳定；
+// 结构增删（addPhoneme/removePhoneme）会改变其后音素下标，变更后请重新 note.phonemes()。
+// 读随时可用（钉死→真数据 / 合成→只读快照）；写自动先钉死（EnsurePinnedForEdit），故 agent 直接改即可。
+internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isLeading, int localIndex)
+{
+    internal bool Removed { get; set; }
+    internal bool IsLeading => isLeading;
+    internal int LocalIndex => localIndex;
+
+    // 引导（核前前置辅音）= true / 主体（核 + 尾辅音）= false。只读结构分类。
+    public bool Leading => isLeading;
+    public string Symbol { get => Read(p => p.Symbol.Value, s => s.Symbol); set => Write(symbol: value ?? string.Empty); }
+    public double Duration { get => Read(p => p.Duration.Value, s => s.Duration); set => Write(duration: value); }   // 秒
+    public double StretchWeight { get => Read(p => p.StretchWeight.Value, s => s.StretchWeight); set => Write(weight: value); }  // 0=刚性辅音 / >0=可伸元音
+
+    // 钉死态的真 IPhoneme（可写）；合成态返回 null（走快照读）。越界返回 null。
+    IPhoneme? PinnedPhoneme()
+    {
+        var n = note.Require();
+        if (!n.HasPinnedPhonemes) return null;
+        var list = isLeading ? n.LeadingPhonemes : n.BodyPhonemes;
+        return localIndex >= 0 && localIndex < list.Count ? list[localIndex] : null;
+    }
+
+    // 合成快照（未钉死时读）。越界 / 无合成产物返回 null。
+    SynthesizedPhoneme? SynthPhoneme()
+    {
+        var syl = note.Require().SynthesizedSyllable;
+        if (syl is null) return null;
+        var list = isLeading ? syl.LeadingPhonemes : syl.BodyPhonemes;
+        return localIndex >= 0 && localIndex < list.Count ? list[localIndex] : null;
+    }
+
+    T Read<T>(Func<IPhoneme, T> fromPinned, Func<SynthesizedPhoneme, T> fromSynth)
+    {
+        if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
+        if (PinnedPhoneme() is { } p) return fromPinned(p);
+        if (SynthPhoneme() is { } s) return fromSynth(s);
+        throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+    }
+
+    void Write(string? symbol = null, double? duration = null, double? weight = null)
+    {
+        if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
+        note.EnsurePinnedForEdit();
+        var p = PinnedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        if (symbol != null) p.Symbol.Set(symbol);
+        if (duration is { } d) p.Duration.Set(Math.Max(0, d));
+        if (weight is { } w) p.StretchWeight.Set(Math.Max(0, w));
+        ctx.Bump();
+    }
+
+    // 音素级自定义属性（voice 声明的 per-phoneme 参数；schema 见 list_sound_sources 的音素 slot config）。
+    // 读：未钉死 / 无属性容器返回 null（属性只在钉死后作为可编辑数据存在）。写：自动钉死。
+    public object? GetProperty(string key)
+    {
+        var p = PinnedPhoneme();
+        return p == null || !p.HasProperties ? null : ScriptArgs.ReadScalarProperty(p.Properties, key);
+    }
+
+    public void SetProperty(string key, JsValue value)
+    {
+        if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("phoneme property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "phoneme property");
+        note.EnsurePinnedForEdit();
+        var p = PinnedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        p.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
+    public override string ToString()
+        => string.Format(CultureInfo.InvariantCulture, "Phoneme(\"{0}\", {1}, dur={2:0.###}s, weight={3:0.##})",
+            Read(p => p.Symbol.Value, s => s.Symbol), isLeading ? "leading" : "body",
+            Read(p => p.Duration.Value, s => s.Duration), Read(p => p.StretchWeight.Value, s => s.StretchWeight));
 }
 
 // 一个 part 句柄（midi 或 audio）。音符/曲线/颤音只对 midi part 有效。
@@ -331,6 +505,23 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         ctx.Bump();
     }
 
+    // ── part 级自定义属性（voice/instrument 声明的 per-part 参数；schema 见 list_sound_sources 的 part 级 config） ──
+    // 值存在 part.Properties 容器里、只在音源声明了该键时有意义。与 note/effect 的 getProperty/setProperty 同范式。
+
+    // 读一个 part 属性当前值（number / boolean / string）；未设返回 null（默认值 / 可用键见 list_sound_sources 的 part schema）。
+    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(Midi.Properties, key);
+
+    // 写一个 part 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 part schema。
+    public void SetProperty(string key, JsValue value)
+    {
+        var midi = Midi;
+        if (string.IsNullOrEmpty(key)) throw new ScriptApiException("part property key is required.");
+        var pv = ScriptArgs.ToScalarProperty(value, "part property");
+        ctx.EnsureBracket(midi);
+        midi.Properties.SetValue(key, pv);
+        ctx.Bump();
+    }
+
     // ── part 自身 ──
 
     public void Set(JsValue props)
@@ -522,27 +713,13 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
     }
 
     // 读一个参数的当前值（number / boolean / string）；未设返回 null（默认值与可用键见 list_effects 的参数 schema）。
-    // 用 out-success 重载读【裸值】：另一个 GetValue(key, default) 会拿 default 当类型门（存值类型与 default 不符即退回
-    // default），值类型不定时会误伤——这里要的是"存了什么就读什么"。
-    public object? GetProperty(string key)
-    {
-        var raw = E.Properties.GetValue(key, out bool success);
-        if (!success || raw.IsNull() || raw.IsMultiple()) return null;
-        if (raw.ToBoolean(out var b)) return b;
-        if (raw.ToDouble(out var d)) return d;
-        if (raw.ToString(out var s)) return s;
-        return null;
-    }
+    public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(E.Properties, key);
 
     // 写一个参数（值须是 number / boolean / string）。键/取值范围见 list_effects。
     public void SetProperty(string key, JsValue value)
     {
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("effect property key is required.");
-        PropertyValue pv;
-        if (value.IsBoolean()) pv = PropertyValue.Create(value.AsBoolean());
-        else if (value.IsNumber()) pv = PropertyValue.Create(value.AsNumber());
-        else if (value.IsString()) pv = PropertyValue.Create(value.AsString());
-        else throw new ScriptApiException("effect property value must be a number, boolean, or string.");
+        var pv = ScriptArgs.ToScalarProperty(value, "effect property");
         ctx.EnsureWritable();
         E.Properties.SetValue(key, pv);
         ctx.Bump();

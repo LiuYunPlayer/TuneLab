@@ -100,17 +100,41 @@ The project's data: tracks, tempo, time signatures.
 | `part.addEffect(type)` | `effect` | Append an effect of `type` (an effect engine id from `list_effects`) to the chain end; unknown type errors. Returns its handle. |
 | `part.removeEffect(effect)` | — | Remove an effect from the chain. |
 | `part.moveEffect(effect, index)` | — | Move an effect to a 0-based position in the chain. |
+| `part.getProperty(key)` | value | The current value of one voice/instrument-declared per-part parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_sound_sources`. |
+| `part.setProperty(key, value)` | — | Set one declared per-part parameter (`value` = `number`/`boolean`/`string`). |
 | `part.set({name?, startPos?, endPos?})` | — | Assign several fields at once (rename / move / resize). |
 
 ---
 
 ## `note`
 
-**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`; **read-only**: `pitchName` (e.g. `"C4"`).
+**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasPinnedPhonemes` (bool). `pronunciation` is a voice G2P override — set it to force a pronunciation; an empty string reverts to deriving it from the lyric. `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-pins).
 
 | Method | Returns | Notes |
 |---|---|---|
-| `note.set({pos?, dur?, pitch?, lyric?})` | — | Assign several fields at once (re-sorts only once when pos/dur change). |
+| `note.set({pos?, dur?, pitch?, lyric?, pronunciation?})` | — | Assign several fields at once (re-sorts only once when pos/dur change). |
+| `note.getProperty(key)` | value | The current value of one voice/instrument-declared per-note parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_sound_sources`. |
+| `note.setProperty(key, value)` | — | Set one declared per-note parameter (`value` = `number`/`boolean`/`string`). |
+| `note.phonemes()` | `[phoneme]` | The note's phonemes (leading ++ body, in time order); empty until the note has been synthesized. Voice parts only. |
+| `note.addPhoneme({symbol, duration?, stretchWeight?, leading?})` | `phoneme` | Append a phoneme to the leading (`leading: true`) or body (default) list; auto-pins. `duration` in seconds (default 0), `stretchWeight` 0 = rigid consonant / >0 = stretchable vowel. |
+| `note.removePhoneme(phoneme)` | — | Remove a phoneme; auto-pins. |
+| `note.pinPhonemes()` | — | Fix the synthesized phonemes as editable user data (idempotent; usually automatic on the first phoneme write). |
+| `note.clearPhonemes()` | — | Drop pinned phonemes and revert to the synthesized ones. |
+
+Phonemes come from the engine (read-only) until you edit them; the first write **auto-pins** them into editable data (exactly like the sidebar's first phoneme edit).
+
+---
+
+## `phoneme`
+
+An item in `note.phonemes()`. **Fields** — read-only: `leading` (bool; leading = pre-vowel consonants, body = vowel+coda); read/write: `symbol`, `duration` (seconds), `stretchWeight` (0 = rigid consonant, >0 = stretchable vowel — its duration is a derived fill, ignored by layout). Writing any field auto-pins the note's phonemes.
+
+A phoneme handle is **positional**: its list index shifts when phonemes are added or removed, so re-fetch `note.phonemes()` after a structural change.
+
+| Method | Returns | Notes |
+|---|---|---|
+| `phoneme.getProperty(key)` | value | The current value of one voice-declared per-phoneme parameter (`number`/`boolean`/`string`), or `null` if unset or the note is not yet pinned. Keys/ranges come from the phoneme slots in `list_sound_sources`. |
+| `phoneme.setProperty(key, value)` | — | Set one declared per-phoneme parameter (`value` = `number`/`boolean`/`string`); auto-pins. |
 
 ---
 

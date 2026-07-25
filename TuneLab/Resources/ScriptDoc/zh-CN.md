@@ -100,17 +100,41 @@
 | `part.addEffect(type)` | `effect` | 在链尾追加一个 `type` 类型的效果器（`type` 为 `list_effects` 里的引擎 id）；未知类型报错。返回其句柄。 |
 | `part.removeEffect(effect)` | — | 从链中删除一个效果器。 |
 | `part.moveEffect(effect, index)` | — | 把某效果器移到链中的第 `index`（0-based）位。 |
+| `part.getProperty(key)` | 值 | 音源（voice/instrument）声明的某 per-part 参数当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_sound_sources`。 |
+| `part.setProperty(key, value)` | — | 写一个声明的 per-part 参数（`value` = `number`/`boolean`/`string`）。 |
 | `part.set({name?, startPos?, endPos?})` | — | 一次改多个字段（改名/移动/缩放）。 |
 
 ---
 
 ## `note`（音符）
 
-**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`；**只读**：`pitchName`（如 `"C4"`）。
+**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasPinnedPhonemes`（bool）。`pronunciation` 是 voice 的 G2P 发音覆盖——非空则强制该发音，空串回到按歌词自动派生。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动钉死音素）。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
-| `note.set({pos?, dur?, pitch?, lyric?})` | — | 一次改多个字段（改 pos/dur 只重排一次）。 |
+| `note.set({pos?, dur?, pitch?, lyric?, pronunciation?})` | — | 一次改多个字段（改 pos/dur 只重排一次）。 |
+| `note.getProperty(key)` | 值 | 音源声明的某 per-note 参数当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_sound_sources`。 |
+| `note.setProperty(key, value)` | — | 写一个声明的 per-note 参数（`value` = `number`/`boolean`/`string`）。 |
+| `note.phonemes()` | `[phoneme]` | 该 note 的音素（引导 ++ 主体，时间序）；未合成前为空。仅 voice part。 |
+| `note.addPhoneme({symbol, duration?, stretchWeight?, leading?})` | `phoneme` | 追加一个音素到引导（`leading: true`）或主体（默认）列表；自动钉死。`duration` 秒（默认 0），`stretchWeight` 0 = 刚性辅音 / >0 = 可伸元音。 |
+| `note.removePhoneme(phoneme)` | — | 删除一个音素；自动钉死。 |
+| `note.pinPhonemes()` | — | 把合成音素固定为可编辑用户数据（幂等；一般首次音素写入时自动发生）。 |
+| `note.clearPhonemes()` | — | 清除钉死音素、回到合成产物口径。 |
+
+音素在你编辑前来自引擎（只读）；**首次写入会自动钉死**成可编辑数据（与侧栏面板首次编辑音素完全一致）。
+
+---
+
+## `phoneme`（音素）
+
+`note.phonemes()` 里的一项。**字段**——只读：`leading`（bool；引导 = 核前前置辅音，主体 = 核 + 尾辅音）；可读写：`symbol`、`duration`（秒）、`stretchWeight`（0 = 刚性辅音，>0 = 可伸元音，其时长为派生填充量、布局时忽略）。写任一字段都会自动钉死该 note 的音素。
+
+音素句柄按**位置**定址：增删音素会改变其后音素的下标，结构变更后请重新 `note.phonemes()`。
+
+| 方法 | 返回 | 说明 |
+|---|---|---|
+| `phoneme.getProperty(key)` | 值 | voice 声明的某 per-phoneme 参数当前值（`number`/`boolean`/`string`），未设或该 note 尚未钉死则 `null`。键、取值范围见 `list_sound_sources` 的音素 slot。 |
+| `phoneme.setProperty(key, value)` | — | 写一个声明的 per-phoneme 参数（`value` = `number`/`boolean`/`string`）；自动钉死。 |
 
 ---
 

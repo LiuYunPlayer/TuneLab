@@ -61,11 +61,26 @@ internal static class ScriptApiReference
         "  part.effects()                           [effect]\n" +
         "  part.addEffect(type) -> effect           part.removeEffect(effect)   // type = an effect engine id from list_effects; appended to the chain end\n" +
         "  part.moveEffect(effect, index)           move an effect to a 0-based position in the chain\n" +
+        "  // PART PROPERTIES (voice/instrument-declared per-part params; keys/ranges from list_sound_sources):\n" +
+        "  part.getProperty(key)                    current value (number/boolean/string), or null if unset\n" +
+        "  part.setProperty(key, value)             set one declared part param (value = number/boolean/string)\n" +
         "  part.set({name?, startPos?, endPos?})\n" +
         "\n" +
         "note\n" +
-        "  fields (read/write):  pos, dur, pitch, lyric             field (read-only): pitchName  (e.g. \"C4\")\n" +
-        "  note.set({pos?, dur?, pitch?, lyric?})   // assign several fields at once (one re-sort)\n" +
+        "  fields (read/write):  pos, dur, pitch, lyric, pronunciation      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = a voice G2P override; empty string = derive from lyric\n" +
+        "  note.set({pos?, dur?, pitch?, lyric?, pronunciation?})   // assign several fields at once (one re-sort)\n" +
+        "  // NOTE PROPERTIES (voice/instrument-declared per-note params; keys/ranges from list_sound_sources):\n" +
+        "  note.getProperty(key)  / note.setProperty(key, value)    current value or null / set one declared note param (number/boolean/string)\n" +
+        "  // PHONEMES (voice only; leading = pre-vowel consonants, body = vowel+coda). Read anytime; the FIRST write auto-pins (fixes the synthesized phonemes into editable data, like the sidebar's first edit):\n" +
+        "  note.phonemes()                          [phoneme]   (leading ++ body, time order; empty until the note has been synthesized)\n" +
+        "  field (read-only): hasPinnedPhonemes (bool)      field (read/write): bodyOffset (seconds; leading/body junction offset from note start; writing auto-pins)\n" +
+        "  note.addPhoneme({symbol, duration?, stretchWeight?, leading?}) -> phoneme    note.removePhoneme(phoneme)   // appended to leading (leading:true) or body list; auto-pins\n" +
+        "  note.pinPhonemes()  / note.clearPhonemes()   // pin = fix synthesized phonemes as editable (usually automatic); clear = drop pinned phonemes, revert to synthesized\n" +
+        "\n" +
+        "phoneme  (an item in note.phonemes(); positional — its list index shifts when phonemes are added/removed, so re-fetch note.phonemes() after a structural change)\n" +
+        "  field (read-only): leading (bool)      fields (read/write): symbol, duration (seconds), stretchWeight (0 = rigid consonant, >0 = stretchable vowel)   // writing any field auto-pins the note's phonemes\n" +
+        "  phoneme.getProperty(key)                 current value (number/boolean/string), or null if unset or not yet pinned (keys/ranges from list_sound_sources phoneme slots)\n" +
+        "  phoneme.setProperty(key, value)          set one declared phoneme param (auto-pins)\n" +
         "\n" +
         "vibrato\n" +
         "  fields (read/write):  pos, dur, frequency, amplitude, phase, attack, release    // pos/dur in ticks, frequency Hz, amplitude semitones\n" +
