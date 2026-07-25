@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
+using TuneLab.Extensions.Derivers;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -33,4 +34,12 @@ internal interface IAudioPart : IPart, IDataObject<AudioPartInfo>
     int SourceSampleCount { get; }
     // 从解码内容的 [offset, offset+destination.Length) 拷出某声道到调用方缓冲；越界补静音。offset 以文件样本 0 为原点。
     void ReadSource(int channel, int offset, Span<float> destination);
+
+    // —— 派生记录账本（普通【非撤销】集合，键 = 内容寻址缓存 key）——
+    // 宿主内部概念，仅 native 格式经 NativeAudioPartInfo 持久化；增删不进回退栈（见 undo 对称原则）。
+    // 删记录只移除本引用（缓存内容寻址、跨 part/工程共享），绝不删缓存文件。
+    IReadOnlyMap<string, DerivationRecordInfo> DerivationRecords { get; }
+    IActionEvent DerivationRecordsChanged { get; }
+    void AddDerivationRecord(string cacheKey, DerivationRecordInfo info);
+    void RemoveDerivationRecord(string cacheKey);
 }

@@ -22,6 +22,7 @@ internal class SettingsFile
     public int AutoSaveMaxCount { get; set; } = 5;
     public int BufferSize { get; set; } = 1024;
     public int MaxParallelSynthesisTasks { get; set; } = 0;   // 合成/效果器并行任务数上限；<=0 = 按核数自动
+    public int MaxParallelDerivationTasks { get; set; } = 1;   // 派生（deriver）并发任务数上限；<1 视为 1（派生模型昂贵，默认串行）
     public int SampleRate { get; set; } = 44100;
     public string AudioDriver { get; set; } = string.Empty;
     public string AudioDevice { get; set; } = string.Empty;

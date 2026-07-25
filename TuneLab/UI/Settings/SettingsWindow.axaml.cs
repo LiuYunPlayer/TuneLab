@@ -312,6 +312,23 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(panel);
         }
 
+        // Max Parallel Derivation Tasks（派生并发任务数上限；派生模型昂贵，默认 1 串行）
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInteger = true };
+                slider.SetRange(1, 8);
+                slider.SetDefaultValue(Settings.DefaultSettings.MaxParallelDerivationTasks);
+                slider.Bind(Settings.MaxParallelDerivationTasks, false, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "Max Parallel Derivation Tasks".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+
         return listView;
     }
 

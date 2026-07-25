@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -16,9 +16,12 @@ using HorizontalAlignment = Avalonia.Layout.HorizontalAlignment;
 
 namespace TuneLab.UI;
 
-// 中央派生任务面板（权威面）：列出全部派生任务（运行中 / 待应用 / 失败），逐条 status + 动作
-//（运行中→取消；待应用→应用 / 丢弃；失败→丢弃）。位置无关，天然扛住多任务 / part 移动 / part 删除。
-// 数据源 = DerivationTaskManager（会话态、不持久）；订阅其 Changed 重建行。
+// 派生记录面板（记录模型）：列出工程内各音频 part 的持久派生记录，逐条按状态呈现 + 动作。
+// 一条记录的状态由「是否有在飞任务」+「缓存是否命中」共同解析：
+//   排队 / 运行中 / 失败（有在飞任务）· 可应用（无任务且缓存命中）· 已失效（无任务且缓存缺失，源在可重跑）。
+// 数据源 = 各 part 的持久记录账本（DerivationRecords）+ DerivationTaskManager 的在飞任务；订阅 Manager.Changed 重建。
+//
+// 【过渡形态】：stage③ 将重设计为「一级按 part 分组、组内按 StartTimestamp 排、删除『This cannot be undone』」的记录管理器。
 internal sealed class DerivationSideBarContentProvider
 {
     public IImage Icon => Assets.AutoPage.GetImage(Style.LIGHT_WHITE);
@@ -37,60 +40,94 @@ internal sealed class DerivationSideBarContentProvider
         Rebuild();
     }
 
-    public void SetProject(IProject? project) => mProject = project;
+    public void SetProject(IProject? project)
+    {
+        mProject = project;
+        Rebuild();
+    }
 
     void Rebuild()
     {
         mList.Children.Clear();
-        if (DerivationTaskManager.Tasks.Count == 0)
+
+        // 在飞任务按 (源, 缓存键) 索引，供记录解析其运行时态。
+        var liveTasks = new Dictionary<(IAudioPart, string), DerivationTask>();
+        foreach (var task in DerivationTaskManager.Tasks)
+            liveTasks[(task.Source, task.CacheKey)] = task;
+
+        int rows = 0;
+        if (mProject != null)
+        {
+            foreach (var track in mProject.Tracks)
+                foreach (var part in track.Parts)
+                {
+                    if (part is not IAudioPart audioPart)
+                        continue;
+                    foreach (var kvp in audioPart.DerivationRecords)
+                    {
+                        liveTasks.TryGetValue((audioPart, kvp.Key), out var task);
+                        mList.Children.Add(BuildRow(audioPart, kvp.Key, kvp.Value, task));
+                        rows++;
+                    }
+                }
+        }
+
+        if (rows == 0)
         {
             mList.Children.Add(new TextBlock
             {
-                Text = "No derivation tasks.".Tr(TC.Menu),
+                Text = "No derivation records.".Tr(TC.Menu),
                 Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
                 FontSize = 12,
                 Margin = new(0, 8, 0, 0),
             });
-            return;
         }
-
-        // 快照迭代：动作会修改任务列表（应用/丢弃移除条目）。
-        foreach (var task in System.Linq.Enumerable.ToArray(DerivationTaskManager.Tasks))
-            mList.Children.Add(BuildRow(task));
     }
 
-    Control BuildRow(DerivationTask task)
+    Control BuildRow(IAudioPart source, string cacheKey, DerivationRecordInfo record, DerivationTask? task)
     {
         var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6, Margin = new(10) };
-        panel.Children.Add(new TextBlock { Text = task.TaskLabel, Foreground = Style.TEXT_LIGHT.ToBrush(), FontSize = 13, FontWeight = FontWeight.Bold });
+        var title = string.IsNullOrEmpty(record.Label) ? record.EngineDisplayName : record.Label;
+        panel.Children.Add(new TextBlock { Text = title, Foreground = Style.TEXT_LIGHT.ToBrush(), FontSize = 13, FontWeight = FontWeight.Bold });
 
-        switch (task.State)
+        if (task != null)
         {
-            case DerivationTaskState.Running:
-                panel.Children.Add(StatusText(FormatRunning(task)));
-                panel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 1, Value = task.Progress, Height = 4 });
-                panel.Children.Add(Actions((("Cancel".Tr(TC.Dialog), false, () => DerivationTaskManager.Cancel(task)))));
-                break;
-
-            case DerivationTaskState.PendingApply:
+            switch (task.State)
             {
-                panel.Children.Add(StatusText("Ready to apply".Tr(TC.Menu)));
-                CheckBox? tempoCheck = null;
-                if (task.Result is { } r && (r.Tempos is { Count: > 0 } || r.TimeSignatures is { Count: > 0 }))
-                {
-                    tempoCheck = new CheckBox { Content = "Apply detected tempo / time signature".Tr(TC.Menu), Foreground = Style.LIGHT_WHITE.ToBrush(), FontSize = 11 };
-                    panel.Children.Add(tempoCheck);
-                }
-                panel.Children.Add(Actions(
-                    ("Apply".Tr(TC.Menu), true, () => ApplyTask(task, tempoCheck?.IsChecked == true)),
-                    ("Discard".Tr(TC.Menu), false, () => DerivationTaskManager.Discard(task))));
-                break;
+                case DerivationTaskState.Queued:
+                    panel.Children.Add(StatusText("Queued".Tr(TC.Menu)));
+                    panel.Children.Add(Actions(("Cancel".Tr(TC.Dialog), false, () => DerivationTaskManager.Cancel(task))));
+                    break;
+                case DerivationTaskState.Running:
+                    panel.Children.Add(StatusText(FormatRunning(task)));
+                    panel.Children.Add(new ProgressBar { Minimum = 0, Maximum = 1, Value = task.Progress, Height = 4 });
+                    panel.Children.Add(Actions(("Cancel".Tr(TC.Dialog), false, () => DerivationTaskManager.Cancel(task))));
+                    break;
+                case DerivationTaskState.Failed:
+                    panel.Children.Add(StatusText("Failed".Tr(TC.Menu) + ": " + (task.Message ?? ""), error: true));
+                    panel.Children.Add(Actions(
+                        // 先消解该失败任务再重跑，避免同 (源, 键) 残留失败任务与新任务并存。
+                        ("Retry".Tr(TC.Menu), true, () => { DerivationTaskManager.DiscardFailed(task); ReRun(source, record); }),
+                        ("Dismiss".Tr(TC.Menu), false, () => DerivationTaskManager.DiscardFailed(task))));
+                    break;
             }
-
-            case DerivationTaskState.Failed:
-                panel.Children.Add(StatusText((("Failed".Tr(TC.Menu)) + ": " + (task.Message ?? "")), error: true));
-                panel.Children.Add(Actions((("Discard".Tr(TC.Menu), false, () => DerivationTaskManager.Discard(task)))));
-                break;
+        }
+        else if (AudioDerivationCacheManager.Contains(cacheKey))
+        {
+            panel.Children.Add(StatusText("Ready to apply".Tr(TC.Menu)));
+            var tempoCheck = new CheckBox { Content = "Apply detected tempo / time signature".Tr(TC.Menu), Foreground = Style.LIGHT_WHITE.ToBrush(), FontSize = 11 };
+            panel.Children.Add(tempoCheck);
+            panel.Children.Add(Actions(
+                ("Apply".Tr(TC.Menu), true, () => ApplyRecord(source, cacheKey, tempoCheck.IsChecked == true)),
+                ("Delete".Tr(TC.Menu), false, () => DerivationTaskManager.DeleteRecord(source, cacheKey))));
+        }
+        else
+        {
+            // 缓存缺失（换机 / 淘汰 / 未跑完就存了工程）：已失效，源在可重跑。
+            panel.Children.Add(StatusText("Cache unavailable (invalidated)".Tr(TC.Menu)));
+            panel.Children.Add(Actions(
+                ("Re-run".Tr(TC.Menu), true, () => ReRun(source, record)),
+                ("Delete".Tr(TC.Menu), false, () => DerivationTaskManager.DeleteRecord(source, cacheKey))));
         }
 
         return new Border
@@ -101,7 +138,7 @@ internal sealed class DerivationSideBarContentProvider
         };
     }
 
-    void ApplyTask(DerivationTask task, bool applyTimeline)
+    void ApplyRecord(IAudioPart source, string cacheKey, bool applyTimeline)
     {
         if (mProject == null)
             return;
@@ -110,10 +147,20 @@ internal sealed class DerivationSideBarContentProvider
             ApplyDetectedTempo = applyTimeline,
             ApplyDetectedTimeSignature = applyTimeline,
         };
-        int newTracks = DerivationTaskManager.Apply(task, mProject, options);
-        if (newTracks == 0 && (task.Result?.Tempos == null && task.Result?.TimeSignatures == null))
+        var result = DerivationTaskManager.Apply(source, cacheKey, mProject, options);
+        if (!result.CacheAvailable)
+        {
+            Log.Warning("Derivation cache unavailable at apply time (invalidated); re-run required.");
+            Rebuild();   // 缓存刚被淘汰 => 该条转「已失效」，刷新面板
+        }
+        else if (result.NewTrackCount == 0)
+        {
             Log.Warning("Derivation produced no landable material (no-op).");
+        }
     }
+
+    void ReRun(IAudioPart source, DerivationRecordInfo record)
+        => DerivationTaskManager.Submit(source, record.EngineId, record.EngineDisplayName, record.Label, record.Parameters);
 
     static TextBlock StatusText(string text, bool error = false) => new()
     {
@@ -125,13 +172,11 @@ internal sealed class DerivationSideBarContentProvider
 
     static string FormatRunning(DerivationTask task)
     {
-        var text = "Running".Tr(TC.Menu);
-        if (!string.IsNullOrEmpty(task.Message))
-            text = task.Message!;
+        var text = string.IsNullOrEmpty(task.Message) ? "Running".Tr(TC.Menu) : task.Message!;
         return text + string.Format(" ({0}%)", (int)(task.Progress * 100));
     }
 
-    static Control Actions(params (string Text, bool Primary, Action OnClick)[] buttons)
+    static Control Actions(params (string Text, bool Primary, System.Action OnClick)[] buttons)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
         foreach (var (text, primary, onClick) in buttons)

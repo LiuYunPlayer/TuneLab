@@ -26,6 +26,7 @@ internal static class Settings
     public static NotifiableProperty<int> AutoSaveMaxCount { get; } = DefaultSettings.AutoSaveMaxCount;
     public static NotifiableProperty<int> BufferSize { get; } = DefaultSettings.BufferSize;
     public static NotifiableProperty<int> MaxParallelSynthesisTasks { get; } = DefaultSettings.MaxParallelSynthesisTasks;
+    public static NotifiableProperty<int> MaxParallelDerivationTasks { get; } = DefaultSettings.MaxParallelDerivationTasks;
     public static NotifiableProperty<int> SampleRate { get; } = DefaultSettings.SampleRate;
     public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
     public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
@@ -64,6 +65,7 @@ internal static class Settings
         AutoSaveMaxCount.Value = settingsFile.AutoSaveMaxCount;
         BufferSize.Value = settingsFile.BufferSize;
         MaxParallelSynthesisTasks.Value = settingsFile.MaxParallelSynthesisTasks;
+        MaxParallelDerivationTasks.Value = settingsFile.MaxParallelDerivationTasks;
         SampleRate.Value = settingsFile.SampleRate;
         AudioDriver.Value = settingsFile.AudioDriver;
         AudioDevice.Value = settingsFile.AudioDevice;
@@ -91,6 +93,7 @@ internal static class Settings
                 AutoSaveMaxCount = AutoSaveMaxCount,
                 BufferSize = BufferSize,
                 MaxParallelSynthesisTasks = MaxParallelSynthesisTasks,
+                MaxParallelDerivationTasks = MaxParallelDerivationTasks,
                 SampleRate = SampleRate,
                 AudioDriver = AudioDriver,
                 AudioDevice = AudioDevice,

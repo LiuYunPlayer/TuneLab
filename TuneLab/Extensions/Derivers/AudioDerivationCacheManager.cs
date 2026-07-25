@@ -34,6 +34,10 @@ internal static class AudioDerivationCacheManager
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
+    // 廉价存在性探测（不反序列化）：提交时判缓存是否已命中，用于跳过跑模型。读坏文件仍算「存在」——
+    // 由 TryGet/Apply 侧按未命中优雅降级；此处只回答「有没有这个键的文件」。
+    public static bool Contains(string key) => File.Exists(FilePath(key));
+
     // 命中即返回反序列化结果（并 touch 访问时间供 LRU）；未命中 / 读坏返回 false（读坏当未命中、下次重算覆盖）。
     public static bool TryGet(string key, out DerivedResult result)
     {
