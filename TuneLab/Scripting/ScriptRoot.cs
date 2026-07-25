@@ -80,7 +80,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
 {
     public ScriptTrack[] Tracks() => ctx.Project.Tracks.Select(ctx.WrapTrack).ToArray();
 
-    public ScriptTrack AddTrack(JsValue name)
+    public ScriptTrack AddTrack(JsValue? name = null)
     {
         ctx.EnsureWritable();
         ctx.Project.AddTrack(new TrackInfo { Name = ScriptArgs.AsStrOrNull(name) ?? "Track" });
@@ -103,7 +103,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
     public ScriptTimeSignature[] TimeSignatures()
         => ctx.Project.TimeSignatureManager.TimeSignatures.Select(s => new ScriptTimeSignature(s.Numerator, s.Denominator, s.BarIndex + 1)).ToArray();
 
-    public void SetTempo(double bpm, JsValue atTick)
+    public void SetTempo(double bpm, JsValue? atTick = null)
     {
         if (bpm <= 0) throw new ScriptApiException("bpm must be positive.");
         ctx.EnsureWritable();
@@ -117,7 +117,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
         ctx.Bump();
     }
 
-    public void SetTimeSignature(int numerator, int denominator, JsValue atBar)
+    public void SetTimeSignature(int numerator, int denominator, JsValue? atBar = null)
     {
         if (numerator < 1 || denominator < 1) throw new ScriptApiException("numerator/denominator must be >= 1.");
         ctx.EnsureWritable();

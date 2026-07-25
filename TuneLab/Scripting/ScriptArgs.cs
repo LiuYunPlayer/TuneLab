@@ -44,10 +44,12 @@ internal static class ScriptArgs
         return v.IsString() ? v.AsString() : v.ToString();
     }
 
-    public static string? AsStrOrNull(JsValue v) => v is null || v.IsUndefined() || v.IsNull() ? null : (v.IsString() ? v.AsString() : v.ToString());
-    public static double? AsNumOrNull(JsValue v) => v is not null && v.IsNumber() ? v.AsNumber() : null;
-    public static int? AsIntOrNull(JsValue v) => AsNumOrNull(v) is { } d ? (int)Math.Round(d) : null;
-    public static bool? AsBoolOrNull(JsValue v) => v is not null && v.IsBoolean() ? v.AsBoolean() : null;
+    // 接受可空 JsValue：可选脚本参数在 C# 签名里写成 `JsValue? x = null`（Jint 对缺失尾参不自动补 undefined、
+    // 只有形参带默认值才允许省略——见 ScriptArgs 各可选参用法），省略即传 CLR-null，这里同 undefined/null 处理。
+    public static string? AsStrOrNull(JsValue? v) => v is null || v.IsUndefined() || v.IsNull() ? null : (v.IsString() ? v.AsString() : v.ToString());
+    public static double? AsNumOrNull(JsValue? v) => v is not null && v.IsNumber() ? v.AsNumber() : null;
+    public static int? AsIntOrNull(JsValue? v) => AsNumOrNull(v) is { } d ? (int)Math.Round(d) : null;
+    public static bool? AsBoolOrNull(JsValue? v) => v is not null && v.IsBoolean() ? v.AsBoolean() : null;
 
     // points = [{tick, value}]（绝对 tick / 参数绝对值）。返回 (X=tick, Y=value) 的点列表（未排序）。
     public static List<Point> ReadPoints(JsValue points)

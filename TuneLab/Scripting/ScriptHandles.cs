@@ -178,7 +178,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     }
 
     // 覆盖写自动化曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=参数绝对值；轨不存在按需创建，defaultValue 可选。
-    public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue defaultValue)
+    public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue? defaultValue = null)
     {
         var midi = Midi;
         double rel = midi.Pos.Value;

@@ -125,6 +125,9 @@ internal sealed class AgentSideBarContentProvider
                 new GetExtensionReadmeTool(),
                 new ListSoundSourcesTool(),
                 new ListEffectsTool(),
+                // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
+                // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。
+                new RunInSandboxTool(),
             };
         }
         else
