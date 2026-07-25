@@ -43,6 +43,7 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         TickAxis PianoTickAxis { get; }
         PitchAxis PianoPitchAxis { get; }
         void SwitchEditingPart(IPart? part);
+        void OpenDerivationForPart(IAudioPart part);
         INotifiableProperty<PlayScrollTarget> PlayScrollTarget { get; }
     }
 
@@ -110,6 +111,11 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     public void SwitchEditingPart(IPart part)
     {
         mDependency.SwitchEditingPart(part);
+    }
+
+    public void OpenDerivationForPart(IAudioPart part)
+    {
+        mDependency.OpenDerivationForPart(part);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)

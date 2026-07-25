@@ -14,6 +14,7 @@ using TuneLab.Data;
 using TuneLab.SDK;
 using TuneLab.Utils;
 using TuneLab.I18N;
+using TuneLab.Extensions.Derivers;
 
 using Point = Avalonia.Point;
 
@@ -72,6 +73,18 @@ internal partial class TrackScrollView
             double bottom = view.TrackVerticalAxis.GetBottom(TrackIndex);
             double left = Math.Max(view.TickAxis.Tick2X(part.StartPos()), -8);
             double right = Math.Min(view.TickAxis.Tick2X(part.EndPos()), view.Bounds.Width + 8);
+
+            // 派生角标一次性求出（供标题右裁 + 后续绘制共用）：仅音频 part、有记录时。
+            bool hasBadge = false;
+            int badgeCount = 0;
+            var badgeStatus = DerivationRecordStatus.Invalidated;
+            double badgeProgress = -1;
+            Rect badgeRect = default;
+            if (part is IAudioPart badgeAudioPart && DerivationTaskManager.TryGetPartBadge(badgeAudioPart, out badgeCount, out badgeStatus, out badgeProgress))
+            {
+                hasBadge = true;
+                badgeRect = DerivationBadgeRect(view, part, TrackIndex);
+            }
 
             var trackColor = track.GetColor();
             // 选中→白色内描边（不叠白罩——会与编排区范围选区的白叠加层撞）；
@@ -133,9 +146,11 @@ internal partial class TrackScrollView
             }
             else if (part is AudioPart audioPart)
             {
-                using (context.PushClip(titleRect))
+                // 标题右缘让位派生角标（有角标时裁到角标左缘 − 4px），避免长文件名钻到角标下面。
+                var audioTitleRect = hasBadge ? titleRect.WithWidth(Math.Max(0, badgeRect.Left - 4 - titleRect.Left)) : titleRect;
+                using (context.PushClip(audioTitleRect))
                 {
-                    context.DrawString($"{audioPart.Name}[{audioPart.Path}]", titleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
+                    context.DrawString($"{audioPart.Name}[{audioPart.Path}]", audioTitleRect, titleBrush, 12, Alignment.LeftCenter, Alignment.LeftCenter);
                 }
 
                 var statusRect = contentRect.Adjusted(Math.Max(0, -contentRect.Left) + 8, 0, -8, 0);
@@ -228,6 +243,13 @@ internal partial class TrackScrollView
                 context.DrawRectangle(null, new Pen(Style.WHITE.ToBrush(), 2), partRect.Inflate(-1), 4, 4);
             }
 
+            // 派生记录角标（仅音频 part、有记录时，早先已一次性求出）：标题栏右上角、主导态着色；
+            // 点击（命中在 DerivationBadgeItem）= 选中该 part + 打开 Derivation 侧栏并滚到其组（不自带 flyout）。
+            if (hasBadge)
+            {
+                DrawDerivationBadge(context, badgeRect, badgeCount, badgeStatus, badgeProgress);
+            }
+
             // 编辑维度：在标题栏右上角放一枚醒目的 ✏️ 图标（斜放，更像“在写”），明确“正在编辑此 part”。
             // 钳到视野内：横向锚到 part 右缘与视口右缘的较小者，故 part 滑出右侧时图标仍贴在视口右沿可见。
             if (isEditingPart)
@@ -269,6 +291,84 @@ internal partial class TrackScrollView
                 using (context.PushTransform(rotate))
                     context.DrawString("✏️", center, titleBrush, iconSize, Alignment.Center);
             }
+        }
+    }
+
+    // 派生角标几何（音频 part 标题栏右上角固定 32×16 小圆角标：派生图标 + 数量）：Render 与命中共用同一算式、保证一致。
+    // 右缘留 10px（避开 part 右缘 ±8 的裁剪手柄命中区）；窄 part 退到可见左缘 + 4px、不画出框外。
+    static Rect DerivationBadgeRect(TrackScrollView view, IPart part, int trackIndex)
+    {
+        double top = view.TrackVerticalAxis.GetTop(trackIndex);
+        double left = Math.Max(view.TickAxis.Tick2X(part.StartPos()), -8);
+        double partRight = view.TickAxis.Tick2X(part.EndPos());
+        const double w = 32, h = 12, rightPad = 10, leftPad = 4, scrollReserve = 12;
+        // 徽标右缘 = min(part 右缘 − 手柄留白, 视口右缘 − 纵向滚动条预留)：part 尾在视野内贴其右缘、尾在视野外贴视口
+        // 右沿但避开右侧自动滚动条（thumb 8 + 边距 2 ≈ 10，留 12）。
+        double badgeRight = Math.Min(partRight - rightPad, view.Bounds.Width - scrollReserve);
+        double bx = Math.Max(badgeRight - w, left + leftPad);
+        double by = top + (16 - h) / 2;   // 标题栏 16、徽标 12 => 上下各留 2px（避开选中 part 的 2px 白描边）
+        return new Rect(bx, by, w, h);
+    }
+
+    // 按前景色缓存的派生图标 SvgImage（GetImage 内含 LoadFromSvg 解析、昂贵；徽标在进度 tick 时重绘，必须缓存）。
+    static readonly Dictionary<uint, IImage> sDeriveIcons = new();
+    static IImage DeriveIcon(Color color)
+    {
+        uint key = color.ToUInt32();
+        if (!sDeriveIcons.TryGetValue(key, out var image))
+            sDeriveIcons[key] = image = Assets.Derive.GetImage(color);
+        return image;
+    }
+
+    // 徽标背景即「完成度」语义：
+    //   · 有任务进行中 => 亮色底填到平均进度（已完成段亮 + 未完成段暗），前景白；
+    //   · 无在飞任务且可应用（= 完成态）=> 整块亮色底（满进度），前景白；
+    //   · 其余（失败/已失效/仅排队）=> 暗底 + 状态色前景（失败红 / 已失效暗 / 白）。
+    // 不用主题色当"轨道色"那种大面积撞色场景——徽标是叠在标题栏上的小 chip，亮底面积小、且是明确的完成语义。
+    static void DrawDerivationBadge(DrawingContext context, Rect rect, int count, DerivationRecordStatus dominant, double runningProgress)
+    {
+        bool inProgress = runningProgress >= 0;
+        bool completed = !inProgress && dominant == DerivationRecordStatus.Applicable;
+
+        using (context.PushClip(new RoundedRect(rect, 2)))
+        {
+            context.FillRectangle(Style.BACK.Opacity(0.85).ToBrush(), rect);   // 暗底（未完成段 / 非完成态）
+            if (inProgress)
+            {
+                double p = Math.Clamp(runningProgress, 0, 1);
+                if (p > 0)
+                    context.FillRectangle(Style.HIGH_LIGHT.ToBrush(), new Rect(rect.X, rect.Y, rect.Width * p, rect.Height));
+            }
+            else if (completed)
+            {
+                context.FillRectangle(Style.HIGH_LIGHT.ToBrush(), rect);   // 完成态：满亮底
+            }
+        }
+
+        var content = (inProgress || completed) ? Colors.White : dominant switch
+        {
+            DerivationRecordStatus.Failed => Style.SYNTHESIS_FAILED,
+            DerivationRecordStatus.Invalidated => Style.LIGHT_WHITE.Opacity(0.5),
+            _ => Colors.White,   // Queued
+        };
+
+        const double iconSize = 10;
+        var iconRect = new Rect(rect.X + 3, rect.Y + (rect.Height - iconSize) / 2, iconSize, iconSize);
+        context.DrawImage(DeriveIcon(content), iconRect);
+
+        var numCenter = new Point((iconRect.Right + rect.Right - 3) / 2, rect.Center.Y);
+        context.DrawString(count > 9 ? "9+" : count.ToString(), numCenter, content.ToBrush(), 9, Alignment.Center);
+    }
+
+    // 派生角标命中区（音频 part、有记录时才注册）：点击 = 打开 Derivation 面板并定位到该 part 的组。
+    class DerivationBadgeItem(TrackScrollView trackScrollView) : TrackScrollViewItem(trackScrollView)
+    {
+        public IPart Part = null!;
+        public int TrackIndex;
+
+        public override bool Raycast(Avalonia.Point point)
+        {
+            return DerivationBadgeRect(TrackScrollView, Part, TrackIndex).Contains(point);
         }
     }
 

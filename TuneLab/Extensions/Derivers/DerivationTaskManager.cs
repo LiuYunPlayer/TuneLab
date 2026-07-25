@@ -25,6 +25,95 @@ internal static class DerivationTaskManager
     // 任务列表 / 任一任务状态变化（面板据此重建）。记录账本的增删另经各 part 的 DerivationRecordsChanged。
     public static IActionEvent Changed => mChanged;
 
+    // ── 侧栏 tab 提示点（全局「有可处理 / 新」）──
+    // 亮起判据 = 本会话有未查看的新完成（派生刚跑完、变可应用）或有失败任务待处理。打开 Derivation tab 即清「未查看」。
+    // 运行中 / 排队不计入（还没得处理）；旧会话遗留的可应用记录也不计入（非「新」）——与徽标各司其职（徽标才逐 part 常驻指示）。
+    public static bool HasActionable
+    {
+        get
+        {
+            if (mUnseenCompletion)
+                return true;
+            foreach (var task in mTasks)
+                if (task.State == DerivationTaskState.Failed)
+                    return true;
+            return false;
+        }
+    }
+
+    // 打开 Derivation tab 时调用：清「未查看的新完成」标志（失败任务另有其常驻性，须显式处理才消）。
+    public static void NotifyTabOpened()
+    {
+        if (mUnseenCompletion)
+        {
+            mUnseenCompletion = false;
+            mChanged.Invoke();
+        }
+    }
+
+    // 解析一条记录的呈现状态（徽标 / 侧栏共用）：有在飞任务则取其态（排队 / 运行中 / 失败）；
+    // 否则缓存命中 = 可应用，缺失 = 已失效（源在可重跑）。out task 供调用方取进度 / 消息。
+    public static DerivationRecordStatus ResolveStatus(IAudioPart source, string cacheKey, out DerivationTask? task)
+    {
+        task = FindTask(source, cacheKey);
+        if (task != null)
+            return task.State switch
+            {
+                DerivationTaskState.Queued => DerivationRecordStatus.Queued,
+                DerivationTaskState.Running => DerivationRecordStatus.Running,
+                _ => DerivationRecordStatus.Failed,
+            };
+        return AudioDerivationCacheManager.Contains(cacheKey) ? DerivationRecordStatus.Applicable : DerivationRecordStatus.Invalidated;
+    }
+
+    // on-part 徽标的聚合态（读 part 记录账本 + 在飞任务 + 缓存，无持久 alloc）：记录数（全部记录）+ 主导态（定色）
+    // + 批次进度。主导优先级：失败 > 可应用 > 运行中 > 排队 > 已失效（越需用户注意越优先）。
+    //
+    // runningProgress（进度填充分数）= 【当前波次批次进度】= (本波已完成数 + Σ运行中进度) / 本波总任务数；无活动波次 => -1。
+    // 波次（Wave，逐 part）：提交时 Total++；波内单任务完成不减分母、只把它计入 Done；直到该 part 在飞任务全清才整波归零。
+    //   => 一波多任务 = 一条平滑 0→1（完成不回跳），分母不含历史已完成记录（不被挤压），全清后徽标转「完成态满亮底」。
+    public static bool TryGetPartBadge(IAudioPart part, out int count, out DerivationRecordStatus dominant, out double runningProgress)
+    {
+        count = 0;
+        dominant = DerivationRecordStatus.Invalidated;
+        int best = int.MaxValue;
+        double runningSum = 0;
+        foreach (var kvp in part.DerivationRecords)
+        {
+            count++;
+            var status = ResolveStatus(part, kvp.Key, out var task);
+            if (status == DerivationRecordStatus.Running && task != null)
+                runningSum += task.Progress;
+            int rank = DominanceRank(status);
+            if (rank < best)
+            {
+                best = rank;
+                dominant = status;
+            }
+        }
+        runningProgress = mWaves.TryGetValue(part, out var wave) && wave.Total > 0
+            ? (wave.Done + runningSum) / wave.Total
+            : -1;
+        return count > 0;
+    }
+
+    static int DominanceRank(DerivationRecordStatus status) => status switch
+    {
+        DerivationRecordStatus.Failed => 0,
+        DerivationRecordStatus.Applicable => 1,
+        DerivationRecordStatus.Running => 2,
+        DerivationRecordStatus.Queued => 3,
+        _ => 4,   // Invalidated
+    };
+
+    static DerivationTask? FindTask(IAudioPart source, string cacheKey)
+    {
+        foreach (var task in mTasks)
+            if (ReferenceEquals(task.Source, source) && task.CacheKey == cacheKey)
+                return task;
+        return null;
+    }
+
     // 当前并发上限：设置 <1 视为 1（派生默认串行）。
     static int Cap
     {
@@ -70,6 +159,7 @@ internal static class DerivationTaskManager
             SyncContext = SynchronizationContext.Current,
         };
         mTasks.Add(task);
+        WaveAdd(source);   // 计入本 part 当前波次
         mChanged.Invoke();
         PumpQueue();
     }
@@ -135,6 +225,7 @@ internal static class DerivationTaskManager
             case DerivationTaskState.Queued:
                 task.Input = null;
                 mTasks.Remove(task);
+                WaveDrop(task.Source);
                 task.Source.RemoveDerivationRecord(task.CacheKey);
                 mChanged.Invoke();
                 break;
@@ -163,10 +254,13 @@ internal static class DerivationTaskManager
             var task = mTasks[i];
             if (ReferenceEquals(task.Source, source) && task.CacheKey == cacheKey)
             {
+                bool wasQueued = task.State == DerivationTaskState.Queued;
                 if (task.State == DerivationTaskState.Running)
-                    task.Cancellation.Cancel();
+                    task.Cancellation.Cancel();   // 波次扣除留给其 OnCompleted（result==null）
                 task.Input = null;
                 mTasks.RemoveAt(i);
+                if (wasQueued)
+                    WaveDrop(source);             // 排队任务无 OnCompleted，移除后就地扣除（失败态已在失败时扣过）
             }
         }
         source.RemoveDerivationRecord(cacheKey);
@@ -212,6 +306,7 @@ internal static class DerivationTaskManager
             task.State = DerivationTaskState.Failed;
             task.Message = error.Message;
             Log.ErrorAttributed(string.Format("Deriver engine {0} derive failed", task.EngineId), error);
+            WaveDrop(task.Source);   // 失败不再期待完成，从波次扣除（失败任务留 mTasks 供查看/重试，但不占进度分母）
             // 记录已持久存在（提交时落）；缓存缺失 => 呈现「已失效」。失败任务留在会话列表供查看 / 重触发。
             mChanged.Invoke();
             PumpQueue();
@@ -222,6 +317,7 @@ internal static class DerivationTaskManager
         {
             // 取消：移除任务 + 移除记录（用户显式放弃、与提交对称）。
             mTasks.Remove(task);
+            WaveDrop(task.Source);
             task.Source.RemoveDerivationRecord(task.CacheKey);
             mChanged.Invoke();
             PumpQueue();
@@ -231,6 +327,8 @@ internal static class DerivationTaskManager
         // 成功：只写缓存；记录已存在 => 变为可应用。任务功成身退（记录 + 缓存承载之）。
         AudioDerivationCacheManager.Put(task.CacheKey, result);
         mTasks.Remove(task);
+        WaveDone(task.Source);      // 计入本波已完成（波内不减分母；全清才整波归零）
+        mUnseenCompletion = true;   // 新完成、待用户查看 => tab 圆点亮起（打开 tab 即清）
         mChanged.Invoke();
         PumpQueue();
     }
@@ -243,9 +341,59 @@ internal static class DerivationTaskManager
             action();
     }
 
+    // ── 逐 part 批次波次（会话态，仅供徽标进度分母；不持久）──
+    // Total = 本波累计提交（会跑模型的）任务数，Done = 本波已成功完成数。取消/失败从 Total 扣除（不再期待其完成）。
+    sealed class Wave { public int Total; public int Done; }
+    static readonly Dictionary<IAudioPart, Wave> mWaves = new();
+
+    static bool HasInflight(IAudioPart part)
+    {
+        foreach (var task in mTasks)
+            if (ReferenceEquals(task.Source, part) && task.State is DerivationTaskState.Running or DerivationTaskState.Queued)
+                return true;
+        return false;
+    }
+
+    static void WaveAdd(IAudioPart part)
+    {
+        if (!mWaves.TryGetValue(part, out var wave))
+            mWaves[part] = wave = new Wave();
+        wave.Total++;
+    }
+
+    static void WaveDone(IAudioPart part)
+    {
+        if (!mWaves.TryGetValue(part, out var wave))
+            return;
+        wave.Done++;
+        if (!HasInflight(part))
+            mWaves.Remove(part);   // 整波清空 => 归零（徽标转完成态满亮底）
+    }
+
+    // 取消 / 失败：该任务不再期待完成，从波次预期里扣除；扣到不再有在飞任务即整波归零。
+    static void WaveDrop(IAudioPart part)
+    {
+        if (!mWaves.TryGetValue(part, out var wave))
+            return;
+        wave.Total--;
+        if (wave.Total <= wave.Done || !HasInflight(part))
+            mWaves.Remove(part);
+    }
+
     static int mRunningCount;
+    static bool mUnseenCompletion;
     static readonly List<DerivationTask> mTasks = new();
     static readonly ActionEvent mChanged = new();
+}
+
+// 一条派生记录的呈现状态（徽标 / 侧栏共用）：在飞三态（排队 / 运行中 / 失败）+ 落地二态（可应用 / 已失效）。
+internal enum DerivationRecordStatus
+{
+    Queued,       // 有在飞任务、等空槽
+    Running,      // 有在飞任务、跑 Derive 中
+    Failed,       // 有在飞任务、Derive 出错（记录仍在、可重跑）
+    Applicable,   // 无在飞任务、缓存命中 => 可应用
+    Invalidated,  // 无在飞任务、缓存缺失 => 已失效（源在可重跑）
 }
 
 // 应用一条记录的结局：CacheAvailable=false => 缓存缺失（已失效）；否则 NewTrackCount = 落地新轨数。

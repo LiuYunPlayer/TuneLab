@@ -77,6 +77,13 @@ internal partial class TrackScrollView
 
                             bool ctrl = e.KeyModifiers == ModifierKeys.Ctrl;
                             var item = ItemAt(e.Position);
+                            // 派生角标：选中该 part + 打开 Derivation 面板并滚到其组（不参与选中/移动/重命名）。
+                            if (item is DerivationBadgeItem badgeItem)
+                            {
+                                if (badgeItem.Part is IAudioPart badgeAudioPart)
+                                    mDependency.OpenDerivationForPart(badgeAudioPart);
+                                break;
+                            }
                             if (item is PartItem partItem)
                             {
                                 var part = partItem.Part;
@@ -731,6 +738,9 @@ internal partial class TrackScrollView
 
             items.Add(new PartItem(this) { Part = part, TrackIndex = trackIndex });
             items.Add(new PartNameItem(this) { Part = part, TrackIndex = trackIndex });
+            // 派生角标命中区在 part 体之后加 → 反向遍历时优先命中标题右上角那一小块（点它跳转 Derivation 面板、不落到选中/重命名）。
+            if (part is IAudioPart badgeAudioPart && badgeAudioPart.DerivationRecords.Count > 0)
+                items.Add(new DerivationBadgeItem(this) { Part = part, TrackIndex = trackIndex });
         }
 
         // 左边缘手柄：按可见起点裁剪可见性（parts 按 StartPos 升序）。放在 part 体之后 → ItemAt 反向遍历时优先命中。

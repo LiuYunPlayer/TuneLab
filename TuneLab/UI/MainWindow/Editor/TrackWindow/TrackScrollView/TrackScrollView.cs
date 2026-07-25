@@ -22,6 +22,7 @@ using TuneLab.Utils;
 using TuneLab.I18N;
 
 using TuneLab.Extensions.Formats;
+using TuneLab.Extensions.Derivers;
 using Point = Avalonia.Point;
 
 namespace TuneLab.UI;
@@ -42,6 +43,8 @@ internal partial class TrackScrollView : View
         IHolder<IProject> ProjectHolder { get; }
         IHolder<IPart> EditingPart { get; }
         void SwitchEditingPart(IPart part);
+        // 派生角标点击：选中该音频 part + 打开 Derivation 侧栏并滚到其记录组。
+        void OpenDerivationForPart(IAudioPart part);
     }
 
     public State OperationState => mState;
@@ -81,6 +84,7 @@ internal partial class TrackScrollView : View
         mDependency.ProjectHolder.Modified.Subscribe(ClearSelection, s);   // 切工程清掉范围选区（纯编辑器态、不跨工程）
         mDependency.ProjectHolder.When(project => project.Modified).Subscribe(Update, s);
         mDependency.EditingPart.Modified.Subscribe(InvalidateVisual, s);
+        DerivationTaskManager.Changed.Subscribe(InvalidateVisual, s);   // 派生任务 / 记录态变化 → 重绘 on-part 角标
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part.SelectionChanged))).Subscribe(InvalidateVisual, s);
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is AudioPart audioPart ? audioPart.AudioChanged : new ActionEvent()))).Subscribe(InvalidateVisual, s); // TODO: 支持一下可空类型的event
         mDependency.ProjectHolder.When(project => project.Tracks.WhenAny(track => track.Parts.WhenAny(part => part is AudioPart audioPart ? audioPart.Status.Modified : new ActionEvent()))).Subscribe(InvalidateVisual, s);

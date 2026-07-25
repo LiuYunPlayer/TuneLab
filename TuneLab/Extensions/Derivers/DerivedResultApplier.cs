@@ -43,6 +43,8 @@ internal static class DerivedResultApplier
             foreach (var track in result.Tracks)
             {
                 var info = BuildTrackInfo(project, track, anchorSeconds, cropStart, cropEnd, project.Tracks.Count + newTrackCount);
+                if (info.Parts.Count == 0)
+                    continue;   // 空轨（无 part / part 全裁出窗）不落地，避免"空应用一条轨"
                 project.AddTrack(info);
                 var newTrack = project.Tracks[project.Tracks.Count - 1];
                 if (targetIndex < project.Tracks.Count - 1)

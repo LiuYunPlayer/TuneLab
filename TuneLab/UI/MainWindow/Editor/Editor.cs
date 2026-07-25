@@ -296,6 +296,16 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         }
     }
 
+    // 派生角标点击：选中该音频 part（清其他选择）+ 打开 Derivation 侧栏并滚到其记录组。
+    // ScrollToPart 须待 SetFullContent → Rebuild 后的布局完成，故经 Dispatcher.Post 延后一拍。
+    public void OpenDerivationForPart(IAudioPart part)
+    {
+        Project?.Tracks.SelectMany(track => track.Parts).DeselectAllItems();
+        part.Select();
+        mRightSideTabBar.SelectedTab.Value = SideBarTab.Derivation;
+        Dispatcher.UIThread.Post(() => mDerivationSideBarContentProvider.ScrollToPart(part));
+    }
+
     // 焦点感知地把目标 part 集下发给 Part 侧栏；合并一拍内的多次触发（框选时每个 part 的 SelectionChanged 都触发）。
     void UpdatePartPanelTarget()
     {
