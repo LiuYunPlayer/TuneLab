@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TuneLab.Configs;
 using TuneLab.SDK;
 
 namespace TuneLab.Agent;
@@ -205,6 +206,10 @@ internal sealed class AgentRunner
                     isError = true;
                 }
 
+                // 中央兜底：任何工具（含未来新工具）单次结果超上限即截断，防淹没上下文。上限宽默认、可在设置调（见 Settings）。
+                // 在此唯一入口 clamp，故展示(progress)与回灌(mMessages/trajectory)一致。
+                result = ClampToolResult(result);
+
                 progress?.Report(new AgentToolFinished(call.Id, call.Name, result, isError));
                 mMessages.Add(new AgentMessage
                 {
@@ -255,6 +260,18 @@ internal sealed class AgentRunner
     sealed class SyncProgress<T>(Action<T> handler) : IProgress<T>
     {
         public void Report(T value) => handler(value);
+    }
+
+    // 中央工具结果上限：单次结果超上限即截断（保留头部 + 明确标记 + 收窄指引），防淹没上下文。
+    // 上限宽默认、可在设置调（Settings.AgentMaxToolResultChars；<=0 = 不限）。普通结果远小于此、不受影响，只拦畸形超量。
+    static string ClampToolResult(string result)
+    {
+        int cap = Settings.AgentMaxToolResultChars.Value;
+        if (cap <= 0 || result.Length <= cap)
+            return result;
+        return result.Substring(0, cap) + string.Format(
+            "\n\n[... tool result truncated: {0} of {1} characters shown. If this is a list, narrow your query (a filter/engine/source argument) or ask for a smaller subset; if it's one large item, request a specific part. This limit is configurable in Settings.]",
+            cap, result.Length);
     }
 
     readonly IAgentModelSession mSession;

@@ -118,6 +118,14 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 
 「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；「切换 part 音源」「读写 part 的 effect 链」都是写操作、属后续写通道切片（届时 tl 侧也需按名解析音源/effect 的查找，与这些推荐工具两道门并存）。这些只读工具都不落 undo、不受分级授权闸门约束。
 
+## 工具输出上限（中央兜底 + 分层）
+
+防"某工具单次输出淹没上下文"，分两层：
+
+- **中央硬上限（兜底，覆盖全部现有+未来工具）**：`AgentRunner` 在工具结果进上下文的**唯一入口**（`ClampToolResult`，紧接 `ExecuteAsync` 之后）统一截断——超 `Settings.AgentMaxToolResultChars`（**宽默认 40000 字符 ≈ 1 万 token；可在设置窗「常规」页调**；`<=0`=不限）即保留头部 + 明确标记 + 收窄指引。**在此一处 clamp，故展示(progress)与回灌(mMessages/trajectory)一致**。设宽默认的用意：普通机器十几个音源/结果远小于此、**体验不受影响**，只拦成百上千的畸形案例。
+- **各工具自带的更贴心上限（在中央之下，作友好提示）**：`get_extension_readme` 20000 字符截断；`list_sound_sources` 音源列表 300 条 + "refine" 提示；`run_script`/`run_saved_script` 脚本 `print/log` 输出 16KB（`ScriptRunner.MaxOutput`）。
+- **设计取舍（业界通用套路的选型）**：可收窄的 list（有 `kind/engine/source` 参数）→ 收窄提示；原子读（一个脚本/一篇 readme）→ 截断（无可收窄，未来可补 offset/limit 分页）；脚本返回值 → 让脚本**在脚本内**先蒸馏（CodeAct：迭代与压缩都不进上下文）。纯"拒绝+让模型收窄"不作默认——原子读无从收窄、且开头够用时截断更省往返。
+
 ## 维护
 
 - **新增/改脚本 API（≈ 给 agent 加能力）**：在对应句柄类或根（`ScriptApp`/`ScriptProject`/`ScriptHandles`）加 public 成员——标量字段用可读写属性（getter 实时读；setter 内 `ctx.EnsureBracket(midi)` + 改 + `ctx.Bump()`），查询/动作用方法（返回句柄经 `ctx.WrapXxx` 缓存保身份）。增删挂父、不自行 `Commit`、绝对 tick。新成员 PascalCase（脚本里写 camelCase）。收口服务（`EnsureBracket`/`Bump`/`WrapXxx`/`Project`）是 `ScriptContext` 的 internal 成员，只暴露 public 给脚本。

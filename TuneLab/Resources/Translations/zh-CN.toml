@@ -57,6 +57,7 @@
 "Format" = "格式"
 "Import" = "导入"
 "Max Parallel Synthesis Tasks (0 = auto)" = "最大并行合成任务数（0 = 自动）"
+"AI Agent max tool result (characters)" = "AI Agent 单次工具结果上限（字符）"
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "多个包提供了相同的扩展。请选择要使用的一个。改动将在重启后生效。"
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "没有冲突的扩展。（当多个包提供相同的引擎 id 或文件格式时，冲突会显示在此处。）"
 "Voice" = "声源"

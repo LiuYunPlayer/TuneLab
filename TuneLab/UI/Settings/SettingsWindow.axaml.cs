@@ -312,6 +312,23 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(panel);
         }
 
+        // Agent Max Tool Result（单次工具结果回灌 AI Agent 的字符数上限，中央兜底；宽默认，只拦畸形超量）
+        {
+            var panel = new DockPanel() { Margin = new(24, 12) };
+            {
+                var slider = new SliderController() { Width = 180, IsInteger = true };
+                slider.SetRange(0, 200000);   // 0 = 不限（数值标签可直接键入精确值，如 0 / 2000 便于测试与收紧）
+                slider.SetDefaultValue(Settings.DefaultSettings.AgentMaxToolResultChars);
+                slider.Bind(Settings.AgentMaxToolResultChars, false, s);
+                panel.AddDock(slider, Dock.Right);
+            }
+            {
+                var name = new TextBlock() { Text = "AI Agent max tool result (characters)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                panel.AddDock(name);
+            }
+            listView.Content.Children.Add(panel);
+        }
+
         return listView;
     }
 

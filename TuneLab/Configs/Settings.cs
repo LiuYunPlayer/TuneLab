@@ -32,6 +32,7 @@ internal static class Settings
     public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
     public static NotifiableProperty<string> AgentModelProvider { get; } = DefaultSettings.AgentModelProvider;
     public static NotifiableProperty<string> AgentAuthorization { get; } = DefaultSettings.AgentAuthorization;
+    public static NotifiableProperty<int> AgentMaxToolResultChars { get; } = DefaultSettings.AgentMaxToolResultChars;
     // 扩展冲突消解的用户选择（routeKey → packageId）；非通知型（改后须重启生效，与切语言一致），存取经 ExtensionRouting。
     public static Dictionary<string, string> ExtensionRouting { get; private set; } = new();
 
@@ -71,6 +72,7 @@ internal static class Settings
         TrackHueChangeRate.Value = settingsFile.TrackHueChangeRate;
         AgentModelProvider.Value = settingsFile.AgentModelProvider;
         AgentAuthorization.Value = settingsFile.AgentAuthorization;
+        AgentMaxToolResultChars.Value = settingsFile.AgentMaxToolResultChars;
         ExtensionRouting = settingsFile.ExtensionRouting ?? new();
     }
 
@@ -99,6 +101,7 @@ internal static class Settings
                 TrackHueChangeRate = TrackHueChangeRate,
                 AgentModelProvider = AgentModelProvider,
                 AgentAuthorization = AgentAuthorization,
+                AgentMaxToolResultChars = AgentMaxToolResultChars,
                 ExtensionRouting = ExtensionRouting
             }, JsonSerializerOptions);
 
