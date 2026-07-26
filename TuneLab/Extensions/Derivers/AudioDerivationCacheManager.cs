@@ -19,12 +19,12 @@ namespace TuneLab.Extensions.Derivers;
 // + 参数 hash。喂的是整段源音频（位置无关），故移动 / 裁剪 part 都不改键、必命中；裁剪是 apply-side、不进键。
 // 模型版本位取 manifest version：发布即变，令旧模型结果不被误服用（代价 over-invalidate，但缓存可弃）。
 //
-// 形态：每个键一个 <key>.json（符号产物体积小）。淘汰：有界 + 按访问时间 LRU（缓存可弃，淘汰不损正确性）。
+// 形态：每个键一个 <key>.json（符号产物体积小）。
+// 【v1 不做自动淘汰】：产物 KB 级、磁盘无压力，按条数淘汰只会悄悄丢用户仍想要的结果（且无 UI 不可控）；要回收让用户
+// 自行删 DerivationCache 目录。待落地音频产出型派生器（产物 MB 级）再引入按大小上限的 LRU（届时恢复访问时间维护）。
 // 线程：查表 / 写表在数据线程；文件 IO 短暂、无并发写同键。
 internal static class AudioDerivationCacheManager
 {
-    const int MaxEntries = 200;
-
     // 由 run-inputs 身份算缓存键。paramsJson 用与工程/扩展设置同一套 PropertyObject→JSON 转换，稳定可复现。
     public static string ComputeKey(string contentHash, string engineId, string manifestVersion, PropertyObject properties)
     {
@@ -38,7 +38,7 @@ internal static class AudioDerivationCacheManager
     // 由 TryGet/Apply 侧按未命中优雅降级；此处只回答「有没有这个键的文件」。
     public static bool Contains(string key) => File.Exists(FilePath(key));
 
-    // 命中即返回反序列化结果（并 touch 访问时间供 LRU）；未命中 / 读坏返回 false（读坏当未命中、下次重算覆盖）。
+    // 命中即返回反序列化结果；未命中 / 读坏返回 false（读坏当未命中、下次重算覆盖）。
     public static bool TryGet(string key, out DerivedResult result)
     {
         result = null!;
@@ -48,7 +48,6 @@ internal static class AudioDerivationCacheManager
             if (!File.Exists(path))
                 return false;
             result = ReadResult(JObject.Parse(File.ReadAllText(path)));
-            try { File.SetLastAccessTimeUtc(path, DateTime.UtcNow); } catch { /* touch 失败不影响命中 */ }
             return true;
         }
         catch (Exception ex)
@@ -58,14 +57,13 @@ internal static class AudioDerivationCacheManager
         }
     }
 
-    // 写入结果（写一次不可变、同键同内容）。失败仅记日志（缓存可弃、不影响落地）。
+    // 写入结果（写一次不可变、同键同内容）。失败仅记日志（缓存可弃、不影响落地）。不自动淘汰（见类注释）。
     public static void Put(string key, DerivedResult result)
     {
         try
         {
             PathManager.MakeSureExist(PathManager.DerivationCacheFolder);
             File.WriteAllText(FilePath(key), WriteResult(result).ToString(Formatting.None));
-            TrimToCapacity();
         }
         catch (Exception ex)
         {
@@ -74,20 +72,6 @@ internal static class AudioDerivationCacheManager
     }
 
     static string FilePath(string key) => Path.Combine(PathManager.DerivationCacheFolder, key + ".json");
-
-    static void TrimToCapacity()
-    {
-        var dir = new DirectoryInfo(PathManager.DerivationCacheFolder);
-        if (!dir.Exists)
-            return;
-        var files = dir.GetFiles("*.json");
-        if (files.Length <= MaxEntries)
-            return;
-        foreach (var file in files.OrderBy(f => f.LastAccessTimeUtc).Take(files.Length - MaxEntries))
-        {
-            try { file.Delete(); } catch { /* 淘汰失败无害，下次再修剪 */ }
-        }
-    }
 
     // ── 序列化：DerivedResult ↔ JSON（手写 JToken，同 PropertyJsonUtils/DataInfoJsonUtils 风格）──
     // null 列表 = 「不产」→ 省键；读回缺键即 null，忠实往返。Point → [x, y]。part 多态用 "kind" 判别位。
