@@ -78,10 +78,10 @@ internal partial class SettingsWindow : Window
         // Create tab pages
         var tabPages = new List<TabPageInfo>
         {
-            new("General", Assets.General, CreateGeneralPage),
-            new("Audio", Assets.Audio, CreateAudioPage),
-            new("Appearance", Assets.Appearance, CreateAppearancePage),
-            new("Editing", Assets.Editing, CreateEditorPage),
+            new("General", Assets.General, () => CreateTabPage(SettingTab.General)),
+            new("Audio", Assets.Audio, () => CreateTabPage(SettingTab.Audio)),
+            new("Appearance", Assets.Appearance, () => CreateTabPage(SettingTab.Appearance)),
+            new("Editing", Assets.Editing, () => CreateTabPage(SettingTab.Editing)),
             new("Keybindings", Assets.Keyboard, () => new KeymapSettingsPage(this)),
             new("Extensions", Assets.Extensions, CreateExtensionsPage),
             new("Extension Routing", Assets.ExtensionRouting, CreateRoutingPage),
@@ -241,310 +241,130 @@ internal partial class SettingsWindow : Window
         mSelectedIndex = index;
     }
 
-    private Control CreateGeneralPage()
+    // 按注册表条目自动生成一个设置页：遍历该 tab 的条目、每条一行（路径类两行）。行序 = SettingsRegistry.All 序（= 窗口顺序源）。
+    private Control CreateTabPage(SettingTab tab)
     {
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
-
-        // Language
+        foreach (var item in SettingsRegistry.All)
         {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(ComboBoxConfig.Create(TranslationManager.Languages.Select(o => new ComboBoxItem(o, TranslationManager.GetDisplayName(o))).ToList()));
-                comboBox.Bind(Settings.Language, false, s);
-                panel.AddDock(comboBox, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Language".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
+            if (item.Tab == tab)
+                listView.Content.Children.Add(BuildRow(item));
         }
-
-        // Auto Save Interval
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = true };
-                slider.SetRange(10, 60);
-                slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveInterval);
-                slider.Bind(Settings.AutoSaveInterval, false, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Auto Save Interval (second)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Auto Save Max Count
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = true };
-                slider.SetRange(1, 20);
-                slider.SetDefaultValue(Settings.DefaultSettings.AutoSaveMaxCount);
-                slider.Bind(Settings.AutoSaveMaxCount, false, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Auto Save Max Count".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Max Parallel Synthesis Tasks（合成/效果器并行任务数上限；0 = 按 CPU 核数自动）
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = true };
-                slider.SetRange(0, 32);
-                slider.SetDefaultValue(Settings.DefaultSettings.MaxParallelSynthesisTasks);
-                slider.Bind(Settings.MaxParallelSynthesisTasks, false, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Max Parallel Synthesis Tasks (0 = auto)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Agent Max Tool Result（单次工具结果回灌 AI Agent 的字符数上限，中央兜底；宽默认，只拦畸形超量）
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = true };
-                slider.SetRange(0, 200000);   // 0 = 不限（数值标签可直接键入精确值，如 0 / 2000 便于测试与收紧）
-                slider.SetDefaultValue(Settings.DefaultSettings.AgentMaxToolResultChars);
-                slider.Bind(Settings.AgentMaxToolResultChars, false, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "AI Agent max tool result (characters)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
         return listView;
     }
 
-    private Control CreateAudioPage()
+    // 一行设置：路径类 = 标签行 + 全宽 PathInput；其余 = [标签 | 控件] 单行。控件双向绑到条目的 NotifiableProperty。
+    private Control BuildRow(SettingItem item)
     {
-        var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
-
-        // Master Gain
+        if (item.FilePatterns != null)
         {
-            var panel = new DockPanel() { Margin = new(24, 12) };
+            var wrap = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Vertical };
+            wrap.Children.Add(new TextBlock() { Text = item.Label.Tr(this) + ": ", Margin = new(24, 12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            var picker = new PathInput()
             {
-                var slider = new SliderController() { Width = 180, IsInteger = false };
-                slider.SetRange(-24, 24);
-                slider.SetDefaultValue(Settings.DefaultSettings.MasterGain);
-                slider.Bind(Settings.MasterGain, true, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Master Gain (dB)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
+                Margin = new(24, 12),
+                Options = new FilePickerOpenOptions() { FileTypeFilter = [new FilePickerFileType(item.FilePickerName ?? "File") { Patterns = item.FilePatterns }] },
+            };
+            picker.Bind(((SettingItem<string>)item).Property, false, s);
+            wrap.Children.Add(picker);
+            return wrap;
         }
 
-        // Audio Driver
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(ComboBoxConfig.Create(AudioEngine.GetAllDrivers().Select(o => (ComboBoxItem)o).ToList()));
-                comboBox.Bind(Settings.AudioDriver, false, s);
-                comboBox.Display(AudioEngine.CurrentDriver.Value);
-                panel.AddDock(comboBox, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Audio Driver".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Audio Device
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var comboBox = new ComboBoxController() { Width = 300 };
-                comboBox.SetConfig(ComboBoxConfig.Create(AudioEngine.GetAllDevices().Select(o => (ComboBoxItem)o).ToList()));
-                comboBox.Bind(Settings.AudioDevice, false, s);
-                comboBox.Display(AudioEngine.CurrentDevice.Value);
-                panel.AddDock(comboBox, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Audio Device".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Sample Rate
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(ComboBoxConfig.Create(["32000", "44100", "48000", "96000", "192000"]));
-                comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.SampleRate, false, s);
-                comboBox.Display(AudioEngine.SampleRate.Value.ToString());
-                panel.AddDock(comboBox, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Sample Rate".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Buffer Size
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(ComboBoxConfig.Create(["64", "128", "256", "512", "1024", "2048", "4096", "8192"]));
-                comboBox.Select(int.Parse, (int value) => { return value.ToString(); }).Bind(Settings.BufferSize, false, s);
-                comboBox.Display(AudioEngine.BufferSize.Value.ToString());
-                panel.AddDock(comboBox, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Buffer Size".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Piano Key Samples
-        {
-            var name = new TextBlock() { Margin = new(24, 12), Text = "Piano Key Samples".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-            listView.Content.Children.Add(name);
-        }
-        {
-            // 优先指向 SoundFont（.sf2）文件作为预览音源；仍兼容旧的「逐键 WAV 文件夹」路径（手填即可）。
-            var soundFontType = new FilePickerFileType("SoundFont") { Patterns = ["*.sf2"] };
-            var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [soundFontType] } };
-            controller.Bind(Settings.PianoKeySamplesPath, false, s);
-            listView.Content.Children.Add(controller);
-        }
-
-        return listView;
+        var panel = new DockPanel() { Margin = new(24, 12) };
+        panel.AddDock(BuildControl(item), Dock.Right);
+        panel.AddDock(new TextBlock() { Text = item.Label.Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+        return panel;
     }
 
-    private Control CreateAppearancePage()
+    // 按条目的值类型 + config 建对应控件并双向绑到其 NotifiableProperty（ImmediateApply 走 syncWhileModifying）。
+    private Control BuildControl(SettingItem item)
     {
-        var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
-
-        // 界面字体：空值 = 系统默认（Inter + 平台脚本回退链）；其余为本机已装字体家族名。改后须重启（字体在启动时装配）。
+        switch (item)
         {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var options = new List<ComboBoxItem> { new(PropertyValue.Create(string.Empty), "System Default".Tr(this)) };
-                options.AddRange(FontManager.Current.SystemFonts
-                    .Select(f => f.Name).Distinct().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
-                    .Select(n => (ComboBoxItem)n));
-                var comboBox = new ComboBoxController() { Width = 180 };
-                comboBox.SetConfig(ComboBoxConfig.Create(options));
-                comboBox.Bind(Settings.InterfaceFontFamily, false, s);
-                panel.AddDock(comboBox, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Interface Font".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // 全局背景图：路径 + 不透明度。不透明度同时作用于声库立绘（立绘优先于背景图显示），与路径解耦、单列一行；
-        // 按用户意愿标签仍按背景图措辞（不强调立绘 / 背景之分）。
-        {
-            var name = new TextBlock() { Text = "Custom Background Image".Tr(this) + ": ", Margin = new(24, 12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-            listView.Content.Children.Add(name);
-        }
-        {
-            var controller = new PathInput() { Margin = new(24, 12), Options = new FilePickerOpenOptions() { FileTypeFilter = [FilePickerFileTypes.ImageAll] } };
-            controller.Bind(Settings.BackgroundImagePath, false, s);
-            listView.Content.Children.Add(controller);
-        }
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = false };
-                slider.SetRange(0, 1);
-                slider.SetDefaultValue(Settings.DefaultSettings.BackgroundImageOpacity);
-                slider.Bind(Settings.BackgroundImageOpacity, true, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Background Image Opacity".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Track Hue Change Rate
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = true };
-                slider.SetRange(-720, 720);
-                slider.SetDefaultValue(Settings.DefaultSettings.TrackHueChangeRate);
-                slider.Bind(Settings.TrackHueChangeRate, true, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Track Hue Change Rate (degree/second)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        return listView;
-    }
-
-    private Control CreateEditorPage()
-    {
-        var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };
-
-        // Parameter Boundary Extension
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
-            {
-                var slider = new SliderController() { Width = 180, IsInteger = true };
-                slider.SetRange(1, 60);
-                slider.SetDefaultValue(Settings.DefaultSettings.ParameterBoundaryExtension);
-                slider.Bind(Settings.ParameterBoundaryExtension, false, s);
-                panel.AddDock(slider, Dock.Right);
-            }
-            {
-                var name = new TextBlock() { Text = "Parameter Boundary Extension (tick)".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
-            }
-            listView.Content.Children.Add(panel);
-        }
-
-        // Parameter Sync Mode
-        {
-            var panel = new DockPanel() { Margin = new(24, 12) };
+            case SettingItem<bool> b:
             {
                 var checkBox = new GUI.Components.CheckBox();
-                checkBox.Bind(Settings.ParameterSyncMode, false, s);
-                panel.AddDock(checkBox, Dock.Right);
+                checkBox.Bind(b.Property, false, s);
+                return checkBox;
             }
+            case SettingItem<double> d when item.Config is SliderConfig sc:
             {
-                var name = new TextBlock() { Text = "Parameter Sync Mode".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-                panel.AddDock(name);
+                var slider = new SliderController() { Width = 180, IsInteger = IsIntegerScale(sc.Scale) };
+                slider.SetRange(sc.Scale.ToValue(0), sc.Scale.ToValue(1));
+                slider.SetDefaultValue(d.DefaultValue);
+                slider.Bind(d.Property, item.ImmediateApply, s);
+                return slider;
             }
-            listView.Content.Children.Add(panel);
+            case SettingItem<int> i when item.Config is SliderConfig sc:
+            {
+                var slider = new SliderController() { Width = 180, IsInteger = true };
+                slider.SetRange(sc.Scale.ToValue(0), sc.Scale.ToValue(1));
+                slider.SetDefaultValue(i.DefaultValue);
+                slider.Bind(i.Property, item.ImmediateApply, s);
+                return slider;
+            }
+            case SettingItem<int> i when item.Config is ComboBoxConfig cc:   // SampleRate / BufferSize（字符串项 ↔ int）
+            {
+                var comboBox = new ComboBoxController() { Width = 180 };
+                comboBox.SetConfig(cc);
+                comboBox.Select(int.Parse, (int value) => value.ToString()).Bind(i.Property, false, s);
+                if (EngineDisplayFor(item.Key) is { } dv)
+                    comboBox.Display(dv);
+                return comboBox;
+            }
+            case SettingItem<string> str when item.Config is ComboBoxConfig cc:   // Language / 字体 / 音频驱动·设备
+            {
+                var comboBox = new ComboBoxController() { Width = (item.Key is "AudioDriver" or "AudioDevice") ? 300 : 180 };
+                comboBox.SetConfig(ComboBoxConfig.Create(DynamicOptionsFor(item.Key) ?? cc.Items));
+                comboBox.Bind(str.Property, false, s);
+                if (EngineDisplayFor(item.Key) is { } dv)
+                    comboBox.Display(dv);
+                return comboBox;
+            }
+            default:
+                return new TextBlock() { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };   // 4 个 tab 内不出现的组合，防御性占位
         }
+    }
 
-        return listView;
+    // 运行时选项（config 静态选项之外按需现取）：语言 / 系统字体 / 音频驱动·设备。其余返回 null，用 config 自带项。
+    private IReadOnlyList<ComboBoxItem>? DynamicOptionsFor(string key) => key switch
+    {
+        "Language" => TranslationManager.Languages.Select(o => new ComboBoxItem(o, TranslationManager.GetDisplayName(o))).ToList(),
+        "InterfaceFontFamily" => BuildFontOptions(),
+        "AudioDriver" => AudioEngine.GetAllDrivers().Select(o => (ComboBoxItem)o).ToList(),
+        "AudioDevice" => AudioEngine.GetAllDevices().Select(o => (ComboBoxItem)o).ToList(),
+        _ => null,
+    };
+
+    private List<ComboBoxItem> BuildFontOptions()
+    {
+        var options = new List<ComboBoxItem> { new(PropertyValue.Create(string.Empty), "System Default".Tr(this)) };
+        options.AddRange(FontManager.Current.SystemFonts
+            .Select(f => f.Name).Distinct().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
+            .Select(n => (ComboBoxItem)n));
+        return options;
+    }
+
+    // 部分音频下拉在绑定后额外显示 AudioEngine 的实时值（设置值可能与引擎当前值不同）。其余返回 null。
+    private static PropertyValue? EngineDisplayFor(string key) => key switch
+    {
+        "AudioDriver" => PropertyValue.Create(AudioEngine.CurrentDriver.Value),
+        "AudioDevice" => PropertyValue.Create(AudioEngine.CurrentDevice.Value),
+        "SampleRate" => PropertyValue.Create(AudioEngine.SampleRate.Value.ToString()),
+        "BufferSize" => PropertyValue.Create(AudioEngine.BufferSize.Value.ToString()),
+        _ => (PropertyValue?)null,
+    };
+
+    // 判定滑条是否整数标度（Integer=Rounded(Linear)、私有类型不可判型）：采样几个归一化位，全整即整数标度。
+    private static bool IsIntegerScale(INormalizedScale scale)
+    {
+        foreach (var t in new[] { 0.13, 0.37, 0.61, 0.89 })
+        {
+            var v = scale.ToValue(t);
+            if (Math.Abs(v - Math.Round(v)) > 1e-9)
+                return false;
+        }
+        return true;
     }
 
     // 「扩展」页：枚举声明了 IExtensionSettings 的 extension（effect/voice…；agent 自有侧边栏设置不在此），

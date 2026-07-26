@@ -128,13 +128,21 @@ internal static class SettingsRegistry
     public static readonly SettingItem<string> AgentAuthorization = Str("AgentAuthorization", null,
         "AI Agent Authorization", ComboBoxConfig.Create([new ComboBoxItem((PropertyValue)"ReadOnlyAdvice", "ReadOnlyAdvice"), new ComboBoxItem((PropertyValue)"Confirm", "Confirm"), new ComboBoxItem((PropertyValue)"Auto", "Auto")]), D.AgentAuthorization);
 
-    // 全部条目（声明顺序 = 磁盘写出顺序，与旧 SettingsFile 字段序对齐以最小化 diff）。
+    // 全部条目——顺序 = 【设置窗行序】（tab 分组、组内重要项在前），是单一受控顺序源：
+    // 设置窗 All.Where(Tab==tab) 渲染、agent list_settings 同序。末尾是仅存储的孤儿设置（无 tab、不渲染）。
+    // 磁盘 JSON 键随此顺序写出（分组排列）——键顺序无语义、按键名加载，不影响兼容。
     public static readonly IReadOnlyList<SettingItem> All =
     [
-        Language, InterfaceFontFamily, AutoScrollTarget, MasterGain, BackgroundImagePath, BackgroundImageOpacity,
-        ParameterBoundaryExtension, ParameterSyncMode, PianoKeySamplesPath, AutoSaveInterval, AutoSaveMaxCount,
-        BufferSize, MaxParallelSynthesisTasks, SampleRate, AudioDriver, AudioDevice, TrackHueChangeRate,
-        AgentModelProvider, AgentAuthorization, AgentMaxToolResultChars,
+        // General
+        Language, AutoSaveInterval, AutoSaveMaxCount, MaxParallelSynthesisTasks, AgentMaxToolResultChars,
+        // Audio
+        MasterGain, AudioDriver, AudioDevice, SampleRate, BufferSize, PianoKeySamplesPath,
+        // Appearance
+        InterfaceFontFamily, BackgroundImagePath, BackgroundImageOpacity, TrackHueChangeRate,
+        // Editing
+        ParameterBoundaryExtension, ParameterSyncMode,
+        // 仅存储（无设置窗行）
+        AutoScrollTarget, AgentModelProvider, AgentAuthorization,
     ];
 
     // ── 工厂 + 转换器 ──
@@ -167,12 +175,13 @@ internal static class SettingsRegistry
             fromPv: v => v.ToBoolean(out var b) ? (true, b) : (false, def),
             read: ReadBool, write: v => JsonValue.Create(v));
 
-    // 数值选择框（值即整数、显示同）：供 SampleRate / BufferSize。
+    // 数值选择框（供 SampleRate / BufferSize）：项的【值】是数字的字符串形（如 "44100"），
+    // 设置窗绑定时经 .Select(int.Parse, i=>i.ToString()) 桥到 int 属性（与旧窗口一致）。
     static ComboBoxConfig IntCombo(int def, params int[] options)
     {
         var items = new List<ComboBoxItem>(options.Length);
         foreach (var o in options)
-            items.Add(new ComboBoxItem(PropertyValue.Create((double)o), o.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            items.Add((ComboBoxItem)o.ToString(System.Globalization.CultureInfo.InvariantCulture));
         return ComboBoxConfig.Create(items);
     }
 
