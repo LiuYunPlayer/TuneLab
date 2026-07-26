@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
 using TuneLab.SDK;
@@ -69,6 +70,63 @@ internal static class ConfigText
         => d == Math.Floor(d) && !double.IsInfinity(d)
             ? ((long)d).ToString(CultureInfo.InvariantCulture)
             : d.ToString(CultureInfo.InvariantCulture);
+}
+
+// 模型给的标量实参（JSON）与 PropertyValue 之间的口径统一：一律先化成【无引号字面量】再比对/报错。
+// 模型常把数字写成字符串（或反之），故所有"按声明校验值"的工具（set_setting / set_extension_setting…）都
+// 走这里，判据一致。
+internal static class JsonScalar
+{
+    // JSON 值 → 无引号字面量（数字/布尔/字符串统一成文本，供比对与报错）。
+    public static string Text(JsonElement raw) => raw.ValueKind switch
+    {
+        JsonValueKind.String => raw.GetString() ?? "",
+        JsonValueKind.Number => ConfigText.FormatNum(raw.GetDouble()),
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        _ => raw.GetRawText(),
+    };
+
+    // PropertyValue → 无引号字面量（下拉成员比对口径）：数字用不变文化紧凑形、布尔小写、文本原样。
+    public static string Literal(PropertyValue v)
+    {
+        if (v.ToBoolean(out var b)) return b ? "true" : "false";
+        if (v.ToDouble(out var d)) return ConfigText.FormatNum(d);
+        return v.ToString(out var s) ? s : "";
+    }
+
+    public static bool TryNumber(JsonElement raw, out double value)
+    {
+        if (raw.ValueKind == JsonValueKind.Number)
+        {
+            value = raw.GetDouble();
+            return true;
+        }
+        return double.TryParse(Text(raw), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    public static bool TryNumber(PropertyValue v, out double value)
+    {
+        if (v.ToDouble(out value))
+            return true;
+        return v.ToString(out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    // JSON 布尔（含 "true"/"false"/1/0 的宽容写法）；不是布尔则 false。
+    public static bool TryBoolean(JsonElement raw, out bool value)
+    {
+        switch (raw.ValueKind)
+        {
+            case JsonValueKind.True: value = true; return true;
+            case JsonValueKind.False: value = false; return true;
+        }
+        var text = Text(raw);
+        if (bool.TryParse(text, out value)) return true;
+        if (text == "1") { value = true; return true; }
+        if (text == "0") { value = false; return true; }
+        value = false;
+        return false;
+    }
 }
 
 // 参数 schema 分组文本化：把引擎声明的一组 config（静态属性 ObjectConfig / 自动化轨 map / 音素 slot map）
@@ -155,8 +213,11 @@ internal static class SchemaText
 internal static class EngineCatalog
 {
     // 追加 "<Kind> engines (N):" + 逐条 "\"显示名\" [type=<id>, package=<包>]"。空引擎 type=""（voice/instrument 的
-    // 无音源回退）跳过；effect 无空引擎、该步为 no-op。多包提供同 type 显 "multiple: a, b"。
-    public static void AppendEngineList(StringBuilder sb, string kindLabel, IReadOnlyList<string> engines, Func<string, string> displayName, Func<string, IReadOnlyList<(string PackageId, string DisplayName)>> providers)
+    // 无音源回退）跳过；effect 无空引擎、该步为 no-op。
+    // 多包提供同一 type 时【必须点明谁在生效】——否则 agent 只看到 "multiple: a, b"，判不出用户那个包是不是被顶替，
+    // 排障会给出"装好了、应该能用"的误导结论。routeKind = 路由身份的 kind（"voice"/"instrument"/"effect"），
+    // 与 ExtensionRouting.RouteKey 同一口径（活实现的解析规则也直接复用它，不另立判据）。
+    public static void AppendEngineList(StringBuilder sb, string kindLabel, string routeKind, IReadOnlyList<string> engines, Func<string, string> displayName, Func<string, IReadOnlyList<(string PackageId, string DisplayName)>> providers)
     {
         var real = new List<string>();
         foreach (var t in engines)
@@ -177,10 +238,17 @@ internal static class EngineCatalog
                 pkgLabel = ExtensionManager.GetPackageName(pkgs[0].PackageId);
             else
             {
-                var names = new List<string>();
+                // 冲突身份：按用户选择 / 确定性默认解析出活实现，如实标出被顶替者（排障要的就是这一句）。
+                var ids = new List<string>();
                 foreach (var p in pkgs)
-                    names.Add(ExtensionManager.GetPackageName(p.PackageId));
-                pkgLabel = "multiple: " + string.Join(", ", names);
+                    ids.Add(p.PackageId);
+                var active = ExtensionRouting.ResolveActivePackageId(ExtensionRouting.RouteKey(routeKind, type), ids);
+                var shadowed = new List<string>();
+                foreach (var p in pkgs)
+                    if (p.PackageId != active)
+                        shadowed.Add(ExtensionManager.GetPackageName(p.PackageId));
+                pkgLabel = string.Format("{0} (ACTIVE) — shadowed: {1}; routing conflict, see list_extension_routing",
+                    ExtensionManager.GetPackageName(active ?? ""), string.Join(", ", shadowed));
             }
             sb.Append("\n- \"").Append(displayName(type)).Append("\" [type=").Append(type).Append(", package=").Append(pkgLabel).Append("]");
         }

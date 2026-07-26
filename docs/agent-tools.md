@@ -1,4 +1,4 @@
-# Agent 工具集设计
+﻿# Agent 工具集设计
 
 TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理念：单一动作面（CodeAct）**——编辑工程一律由模型写 JavaScript 经 `run_script` 表达（对象式 `tl` API），读取只保留一个"定向总览"，其余读取也走脚本。曾经的细粒度读写工具（`transpose_notes`/`apply_edits`/`get_part_notes`…）与其门面 `IAgentProjectEditor` 已全部退役——同一件事多条路只会降模型选择准确率、堆 prompt。本文面向维护者，也作为编写工具描述（喂模型）时的一致性参考。
 
@@ -8,9 +8,9 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-## 工具全集（16 个）
+## 工具全集（22 个）
 
-三个面：**操作工程** + **管理脚本库** + **环境感知（只读为主，含设置助手的一个写口）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
+三个面：**操作工程** + **管理脚本库** + **环境感知（只读为主，含设置/快捷键助手的写口）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
 
 | 工具 | 面 | 作用 |
 |---|---|---|
@@ -29,6 +29,12 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
 | `list_settings` | 感知 | 列宿主应用设置（设置窗那些）：键/标签(含本地化)/所在页/允许值(类型·范围·选项)/当前值/默认值/是否需重启/agent 可否改。用于「在哪调怎么调」与 set_setting 前置。直接读 `SettingsRegistry`。 |
 | `set_setting` | 感知(写) | 按键改一项应用设置 + 落盘。值按该条目声明校验（范围/下拉成员/布尔/路径存在）；**过授权闸门**（改用户应用配置、非工程数据、历史记录救不回）；部分项声明为 agent 不可写。 |
+| `list_keybindings` | 感知 | 列可绑定命令：id/本地化名/作用域/生效手势(存储令牌+显示形)/是默认还是用户改过/同域冲突，附手势语法。直接读 `Keymap`。 |
+| `set_keybinding` | 感知(写) | 改一条绑定：绑手势 / `gesture:""` 解绑 / `reset:true` 恢复默认。同域冲突默认拒绝（要 `replaceConflict:true` 才夺键并解除原命令）；**过授权闸门**；即时生效无需重启。 |
+| `list_extension_routing` | 感知 | 列被多包争用的扩展身份：各候选包 / 当前生效 / 是用户选定还是默认规则。**排障用**（"插件不生效"常是被顶替，非没装好）。读 `ExtensionRouting.GetConflicts`。 |
+| `set_extension_routing` | 感知(写) | 为某争用身份选定提供包（空=清除回默认规则）。**过授权闸门**；即时落盘但**重启后生效**。 |
+| `list_extension_settings` | 感知 | 列哪些扩展声明了**自己的设置**（设置窗「扩展」页），给定一个则列其字段：键/标签/类型·范围·选项/默认/当前值。**密钥字段只报 (set)/(not set)、绝不回灌明文**。schema 取自插件 `GetSettingsConfig`。 |
+| `set_extension_setting` | 感知(写) | 改某扩展一个设置字段 + 落盘 + `ApplyOne` 立即回喂。按字段 config 校验；**密钥字段一律拒写**；**过授权闸门**。 |
 | `run_in_sandbox` | 探测 | 在一个**可丢弃无头工程**里跑 JS（同一 `tl` 面 + `sandbox` 全局），够到静态读够不着的东西（尤其**真实音素**：挂真音源+合法歌词+触发合成后才存在）。写入不碰用户数据、**不过授权闸门**。见下「探测沙箱」节。 |
 
 ```
@@ -45,6 +51,12 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
         ├─ list_settings ──────────────────────► SettingsRegistry（只读；声明即枚举源）
         ├─ set_setting ────────────────────────► ToolAuthorization ──► SettingItem.TrySetValue + Settings.Save
+        ├─ list_keybindings ───────────────────► Keymap（只读：Commands/Effective/HasOverride/SameScopeConflictPeers）
+        ├─ set_keybinding ─────────────────────► ToolAuthorization ──► Keymap.Rebind / ResetToDefault（自带落盘 + Changed 广播）
+        ├─ list_extension_routing ─────────────► ExtensionRouting.GetConflicts / GetSelected（只读）
+        ├─ set_extension_routing ──────────────► ToolAuthorization ──► ExtensionRouting.SetSelected（落盘，重启生效）
+        ├─ list_extension_settings ─────────────► ExtensionSettingsManager.GetEntries + 插件 GetSettingsConfig（只读；密钥只报有无）
+        ├─ set_extension_setting ──────────────► ToolAuthorization ──► ExtensionSettingsStore.Save + ExtensionSettingsManager.ApplyOne
         └─ run_in_sandbox ─────────────────────► SandboxHost（专用线程 + 可泵 SyncContext + 可丢弃 IProject；tl + sandbox 全局；不过授权闸门）
 ```
 （共享格式在 `AgentToolFormat.cs`：`EngineCatalog.AppendEngineList` 三类引擎列表共用；`ConfigText.Describe/FormatValue` 各 config 类型一致措辞（复用进脚本入参 `SavedScriptSupport`）；`SchemaText.AppendProperties/AppendAutomations/AppendPhonemes` 把引擎声明的参数组文本化，effect 与音源参数 schema 共用。）
@@ -99,7 +111,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`save_script(name, code)`**：存（新建/覆盖）到库（`%APPDATA%/TuneLab/Scripts`）。**只持久化、不执行**。若 `code` 声明了 `getScriptInfo` 先**预校验**（沙箱 eval 顶层 + 调 `getScriptInfo`，复用 `ScriptTools.InspectSource`，改动原子回退，**先于授权**——不为坏脚本弹卡片）——失败不保存、回灌错误；成功回报注册到哪个菜单。无 `getScriptInfo` 则存为普通一次性脚本（仅 Script 侧栏）。**覆盖已存脚本**是破坏用户外部文件 → 过授权闸门（见下）；新建是加性、不拦。
 - **`list_scripts`** / **`read_script(name)`** / **`delete_script(name)`**：列出(标工具+context/带入参/plain) / 读源码 / 删除。**`delete_script` 恒过授权闸门**（删外部文件不可撤销）。
 
-**工程之外的写的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件与应用配置**，故 `delete_script`（恒）、`save_script` 覆盖已存（仅覆盖）、`set_setting`（恒）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（这些操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite / SettingChange，后者带 `NewValue` 供文案点名新值），卡片按种类出不同文案（改设置的卡片显示**本地化行标**、模型侧才用键）。只读工具（含环境感知的枚举件）永不过闸门。
+**工程之外的写的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件与应用配置**，故 `delete_script`（恒）、`save_script` 覆盖已存（仅覆盖）、`set_setting`（恒）、`set_keybinding`（恒）、`set_extension_routing`（恒）、`set_extension_setting`（恒）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（这些操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite / SettingChange / KeybindingChange / RoutingChange / ExtensionSettingChange；`NewValue` 供文案点名新值、`SecondaryTarget` 点名顺带受影响的对象[当前只有夺键时被解绑的那个命令]），卡片按种类出不同文案（改设置/改快捷键的卡片显示**本地化行标/命令名**、模型侧才用键与 id）。只读工具（含环境感知的枚举件）永不过闸门。
 
 工具脚本约定（喂 LLM 全文在 `ScriptApiReference.cs` 的 "TOOL SCRIPTS" 节）：顶层**只定义函数、无副作用**；`getScriptInfo()` 返回 `{name, category?, author?, version?, context}`（`name` 里读 `tl.language` 本地化）；`main()` 是动作。`context` = `global`（顶部 Scripts 菜单，按 category 分组）/ `note`（钢琴命中音符，目标 `selectedNotes()`）/ `partContent`（钢琴空白，目标 `currentPart()`）/ `part`（编排命中 part，目标 `selectedParts()`）/ `track`（轨道头，目标 `selectedTracks()`）/ `trackContent`（编排空白泳道，目标 `selectedTracks()`）。注册/菜单注入由 `TuneLab.Scripting.ScriptTools` + `TuneLab.UI.ScriptToolMenu` 完成（设计见 `docs/script-tools-design.md`）。
 
@@ -134,7 +146,36 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_settings`**（只读）：逐条列键、英文标签 + 本地化标签、**所在页**（→ agent 能用用户的语言说"在设置 > 外观 里的「界面字体」"，这就是"告诉在哪调"的出口）、允许值、当前值、默认值、重启标记、是否 agent 可写、描述。选项过多（系统字体数百项）时截断并标注总数；`SettingItem<int>` 的下拉项（采样率/缓冲区）在注册表里存的是数字的**字符串**形，呈现给模型时还原成数字。
 - **`set_setting(key, value)`**（写）：按键改一项 + `Settings.Save`。**校验一律按条目声明**（滑条范围 / 下拉成员 / 布尔 / 路径必须存在），不设第二套判据；模型把数字写成字符串（或反之）都能吃（按条目值类型归一化，下拉成员比对用无引号字面量）。值与当前相同 → 直接回报"已经是该值"、**不弹卡片**。改完若 `RestartRequired` 则提示要重启。
 - **agent 不可写的项（`AgentWritable = false`）**：① **授权档位 `AgentAuthorization` 本身**——防自我提权，只能用户在 agent 面板头部改；② **活值由别处 UI 拥有、只单向落盘的项**（`AgentModelProvider` 由 agent 面板设置拥有、`AutoScrollTarget` 由视图菜单拥有）——agent 写文件既不即时生效又会被那处 UI 覆盖，改了只会误导。这些项的 `Description` 写明"归谁管"，好让 agent 转告用户去哪改。
-- **边界**：这里只有**宿主应用设置**。工程/轨/part 的属性走 `run_script`，插件参数走 `list_sound_sources` / `list_effects` + 脚本写口，扩展自己的设置走扩展设置系统（设置窗「扩展」页，agent 未通）。快捷键同样未通（属后续快捷键专项）。
+- **边界**：这里只有**宿主应用设置**（`Settings.json` 那 20 项）。工程/轨/part 的属性走 `run_script`，插件参数走 `list_sound_sources` / `list_effects` + 脚本写口，扩展自己的设置走扩展设置系统（设置窗「扩展」页，agent 未通）。**快捷键另有专门一对工具**（见下）。
+
+### 快捷键（`list_keybindings` / `set_keybinding`）
+
+同一范式（一个数据源 `Keymap` + 一个闸门），并补上诉求 1 的最后一环——「帮我做个功能**并绑个快捷键**」现在能一路做完：`save_script` 存下的工具脚本由脚本目录监视器同步成命令 `script:<稳定 id>`（`ScriptToolMenu.SyncKeyCommands`），agent 随即可给它绑键。
+
+- **`list_keybindings(query?)`**（只读）：逐条给 id、本地化命令名、**作用域**、生效手势（`ctrl+z` 存储令牌 + `Ctrl+Z` 用户字形，前者供模型再喂回来、后者供 agent 对用户复述）、是默认还是用户改过（并给出默认值）、**同域冲突**标注。顺序 = `Keymap.OrderOf`（首次注册序，与设置页一致）。`query` 过滤同设置页搜索框（匹配 id 或名）。头部固定说明**手势语法**与**作用域语义**。
+- **`set_keybinding(id, gesture?/reset?/replaceConflict?)`**（写）：`gesture` 绑定（`""` 解绑、`reset:true` 恢复默认）。解析走 `KeyCodec.TryParseDeclaration`（额外收 `mod+`/`primary+` 别名 → 本平台主命令键，落盘仍是物理修饰）；无效手势/不可绑键回灌语法说明让模型自纠；与当前生效手势相同则"什么都没做"、不弹卡。落地用 `Keymap.Rebind`/`ResetToDefault`（**自带落盘 + `Changed` 广播**，菜单与设置页即时刷新，无需重启）。
+- **冲突口径（与 `Keymap` 一致，不另立判据）**：**同作用域**同手势才是冲突（只有一个生效：注册序最小者胜、内建恒胜）；**跨作用域**同手势不是冲突（按焦点解析、内层遮蔽外层），但绑定后如实告知，免得用户以为某个"失灵"。同域冲突时 `set_keybinding` **默认拒绝**并点名占用者，要 `replaceConflict: true` 才夺键——**这才对应设置页录制时那句「已被 X 占用，是否改绑」的用户确认**，且夺键会解除原命令绑定，故授权卡片用 `SecondaryTarget` 额外点名它（知情同意）。
+- **边界**：一命令至多一手势（v1 模型，见 `docs/keybinding-system.md`）；「录制式」输入是 UI 的事，agent 只走令牌串。
+
+### 扩展路由 = 排障能力（`list_extension_routing` / `set_extension_routing` + 两处如实标注）
+
+扩展身份 id **跨包可重名**，冲突包全部加载、由路由选出活实现（见 `ExtensionRouting`）。对 agent 来说这**首先不是配置项而是排障线索**：用户问"我装的某插件怎么不生效"，真相常常是它被另一个包顶替了。**关键在于：不标注就会主动误导**——`status=Loaded` 是真的（确实加载成功），"被路由掉"是另一根轴。故本切片一半是给既有工具补如实标注：
+
+- **`EngineCatalog.AppendEngineList`**（voice/instrument/effect 三类引擎列表共用）：多包提供同一 type 时，从 `multiple: A, B` 改为 **`A (ACTIVE) — shadowed: B`**（活实现直接用 `ExtensionRouting.ResolveActivePackageId` 解析，不另立判据）。
+- **`list_extensions`** 每条补一行：本包提供的争用身份是 `ACTIVE` 还是 `SHADOWED: "X" provides it instead, so THIS package's implementation is loaded but never used`。
+- **`list_extension_routing`**（只读）：无冲突时**明说"没有任何身份被争用、没有东西被顶替"**并把排查引向别处（加载错误 / 能力枚举）；有冲突则逐行给 `kind:identity`、各候选包（含 packageId）、当前生效者、以及那是**用户选定**还是**默认规则**（内建优先、否则包 id 序最小）。
+- **`set_extension_routing(kind, identity, packageId?)`**（写）：只接受**确实争用**的身份（非争用直接报错，免得写进无意义选择）；packageId 必须是该身份的候选之一；空 = 清除选择并如实告知会回落到谁；与当前选择相同则"什么都没做"。过闸门（`AgentWriteKind.RoutingChange`），**回报必须说"重启后生效"**（`SetSelected` 即时落盘，但解析发生在加载期），卡片文案也带这句。
+- **系统提示钉住排障链**：`list_extensions`（状态/错误/是否被顶替）→ `list_extension_routing`（有争用才需要）→ `list_sound_sources`/`list_effects`（能力真的在不在），**明确要求不许停在第一步**。
+
+### 扩展自己的设置（`list_extension_settings` / `set_extension_setting`）
+
+设置窗「扩展」页那些——由插件经 `IExtensionSettings` 声明、存 `ExtensionSettings.json`（两级分桶 `root[packageId][kind:extensionId]`）。与宿主应用设置那对工具同范式，差别在**判据只能来自插件的声明**（扩展字段没有静态类型，`GetSettingsConfig` 就是唯一真源，且它是**当前值的函数**、字段可动态显隐）：
+
+- **`list_extension_settings(extension?, packageId?)`**（只读）：不给 `extension` → 列哪些扩展声明了设置（`kind:extensionId`、显示名、来源包、字段数）；给了 → 逐字段列键(+标签)/类型·范围·选项/当前值/默认值，未设过的如实标 `(unset, so the default applies)`。同一 id 跨包并存时**不猜**，要求传 `packageId` 消歧。
+- **`set_extension_setting(extension, key, value, packageId?)`**（写）：按字段 config 校验（`ConfigText` 出措辞，`JsonScalar` 统一数字/字符串宽容口径），过闸门（`AgentWriteKind.ExtensionSettingChange`），落地路径**与设置窗关页时逐字一致**：读全量已存值 → 改一格 → **按改后值重算的 schema** 取密钥集（动态面板下密钥字段可能显隐，避免漏标/误标）→ `ExtensionSettingsStore.Save` → `ExtensionSettingsManager.ApplyOne` 立即回喂。回报提醒"引擎可能只在下次启动时读取"。
+- **密钥政策（用户 2026-07-26 定）：只读不回灌 + 禁写**。声明为 `TextBoxConfig.IsPassword` 的字段（API key / 许可证，走 DPAPI/钥匙串）：`list` 只报 `currently SET` / `NOT set`、**绝不把明文放进模型上下文**；`set` 一律拒绝并引导用户自己去设置窗填。理由=把用户密钥经模型上下文送去第三方服务，风险与收益完全不成比例。注意**保存时密钥仍被完整保留**（Load 解密 → Save 重新加密，与设置窗同一往返），拒写只拦 agent 这一路。
+- **边界**：`agent-model` 的 provider 设置也存在同一文件里，但它的 UI 在 agent 侧栏、不进设置窗扩展页，故 `ExtensionSettingsManager.GetEntries()` 不含它 → 这对工具也看不到它（刻意：agent 不配置自己的模型连接，见 `AgentModelProvider` 的 `AgentWritable=false`）。
+- **顺手修的宿主漏洞**：`GetEntries()` 此前只收 effect + voice，**漏了 instrument**（其管理器同样有不触发 Init 的 `GetExtensionSettings`）——声明了设置的 instrument 插件既不在设置窗渲染、也拿不到 `ApplyPersisted` 回喂。已补一行 `Collect(…, "instrument", …)`，故本对工具与设置窗扩展页同时受益（新增 `instrument:` 桶键，此前从未写过任何值，无迁移问题）。
 
 ## 探测沙箱（`run_in_sandbox`）
 

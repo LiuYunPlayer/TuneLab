@@ -377,6 +377,17 @@ HotKey 分发，阶段 1 暂不迁移（留待阶段 2 菜单统一），其余�
   菜单标注随之刷新）。
 - 顶部：搜索框 + 「全部重置默认」（带确认弹窗）。
 
+### 8.1 第二个消费者：agent 面（`list_keybindings` / `set_keybinding`）
+
+内置 AI Agent 也读写同一个 `Keymap`（[KeybindingTools.cs](../TuneLab/Agent/Tools/KeybindingTools.cs)，设计见
+[agent-tools.md](agent-tools.md)）——**判据不另立**：手势解析用 `KeyCodec.TryParseDeclaration`（收 `mod+` 别名、落盘仍物理修饰，§1.2/§6.2）、
+冲突用 `FindConflict` / `SameScopeConflictPeers`、落地用 `Rebind` / `ResetToDefault`。故**改 `Keymap` 语义时有两个消费者**（设置页 + agent 工具）。
+
+两处刻意的对应关系：
+- 回灌模型的手势用**存储令牌**（`ctrl+z`，模型可原样再喂回来）+ **显示字形**（`Ctrl+Z`，供 agent 对用户复述）两形并给。
+- **同域冲突默认拒绝**、要 `replaceConflict: true` 才夺键 —— 对应 §9① 录制时那句「已被 X 占用，是否改绑」的用户确认；
+  夺键同样先 `Rebind(oldId, null)`，且授权卡片会额外点名被解绑的那个命令。跨域共用（§9 黄）不阻止、只如实告知。
+
 ---
 
 ## 9. 冲突处理：预防 + 持久检测展示（确定性取胜、不隐藏）

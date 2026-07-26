@@ -13,8 +13,22 @@ namespace TuneLab.TestPlugins.V1Instrument;
 // 用于验证：instrument 注册、音色目录、CreateSession、满末 note（不去重叠）、重叠 note 混音、分块状态带、
 // 增量重合成、effect 链对 instrument 输出生效。无歌词 / 音素 / pitch 曲线（instrument v1 纯按 note pitch 发声）。
 
-public sealed class TestInstrumentEngine : IInstrumentSynthesisEngine
+public sealed class TestInstrumentEngine : IInstrumentSynthesisEngine, IExtensionSettings
 {
+    // 扩展级设置（IExtensionSettings）：instrument 与 voice/effect 平行也该有——本夹具据此验证宿主确实把
+    // instrument 类也收进「设置 > 扩展」页与 ApplyPersisted 回喂（曾漏收）。一个普通字段够用，不参与合成。
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+    {
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add(("tuning_hz", "Tuning (Hz)"), SliderConfig.Linear(440, 415, 466));
+        return ObjectConfig.Create(props);
+    }
+
+    // 回喂可观测点：打日志供测试核对"重启后引擎确实收到了持久化的值"。
+    public void ApplySettings(PropertyObject settings)
+        => TuneLabContext.Global.GetLogger().Info(string.Format(
+            "[V1.Instrument] ApplySettings: tuning_hz={0}", settings.GetDouble("tuning_hz", 440)));
+
     public IReadOnlyOrderedMap<string, InstrumentSourceInfo> InstrumentSourceInfos => mInfos;
 
     // 音源呈现布局（验证分组下拉全链路，与 voice 同构）：sine 归进一个组，square 故意不列入

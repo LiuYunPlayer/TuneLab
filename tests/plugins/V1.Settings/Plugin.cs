@@ -22,6 +22,10 @@ static class L
             ["API Key"] = "API 密钥",
             ["Use GPU"] = "使用 GPU",
             ["GPU Device"] = "GPU 设备",
+            ["Threads"] = "线程数",
+            ["Precision"] = "精度",
+            ["Advanced"] = "高级",
+            ["Verbose Log"] = "详细日志",
         },
     };
 
@@ -60,6 +64,12 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
         props.Add(("use_gpu", L.Tr("Use GPU")), CheckBoxConfig.Create(false));
         if (context.Settings.GetBoolean("use_gpu", false))
             props.Add(("gpu_device", L.Tr("GPU Device")), TextBoxConfig.Create(string.Empty));
+        // 各控件类型各来一个，覆盖「按声明校验取值」的全部分支（范围 / 下拉成员 / 分组不可直接设）：
+        props.Add(("threads", L.Tr("Threads")), SliderConfig.Integer(4, 1, 16));
+        props.Add(("precision", L.Tr("Precision")), ComboBoxConfig.Create(["fp32", "fp16", "int8"]));
+        var advanced = new OrderedMap<PropertyKey, IControllerConfig>();
+        advanced.Add(("verbose", L.Tr("Verbose Log")), CheckBoxConfig.Create(false));
+        props.Add(("advanced", L.Tr("Advanced")), ObjectConfig.Create(advanced));
         return ObjectConfig.Create(props);
     }
 

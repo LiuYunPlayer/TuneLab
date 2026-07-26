@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using TuneLab.Extensions.Effect;
+using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
 using TuneLab.SDK;
@@ -19,7 +20,7 @@ internal static class ExtensionSettingsManager
         public string ExtensionKey => Kind + ":" + ExtensionId;
     }
 
-    // 枚举所有声明了设置的 extension。顺序：effect 在前、voice 在后，各按注册序。
+    // 枚举所有声明了设置的 extension。顺序：effect / voice / instrument，各按注册序（新类别追加在后，不动既有次序）。
     // 【按包枚举】同一身份 id 跨包可有多个实现（冲突消解后均加载），各包实现各有独立设置桶——逐 (packageId, id) 对收集，
     // 而非只取活实现：设置页要让用户为每个已装实现配置（即便它当前不是该身份的活实现）。
     public static IReadOnlyList<Entry> GetEntries()
@@ -27,6 +28,9 @@ internal static class ExtensionSettingsManager
         var entries = new List<Entry>();
         Collect(entries, "effect", EffectManager.GetAllEffectEngines(), EffectManager.GetProviders, EffectManager.GetExtensionSettings);
         Collect(entries, "voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetProviders, VoicesManager.GetExtensionSettings);
+        // instrument 是与 voice 平行的插件类型、其管理器同样有 GetExtensionSettings（不触发 Init），此前漏收
+        // ——导致声明了设置的 instrument 插件既不在设置窗渲染、也拿不到 ApplyPersisted 回喂。
+        Collect(entries, "instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetProviders, InstrumentsManager.GetExtensionSettings);
         return entries;
     }
 

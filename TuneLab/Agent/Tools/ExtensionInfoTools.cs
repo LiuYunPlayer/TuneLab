@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -21,8 +22,9 @@ internal sealed class ListExtensionsTool : IAgentTool
 
     public string Description =>
         "List the TuneLab extensions (plugins) the user has installed: each one's name, id, version, author, kind(s) " +
-        "(format / voice / instrument / effect / agent-model), load status, and whether it ships a README. " +
-        "Use to know what the user has installed and to guide them. For a plugin's full README (features/usage), call get_extension_readme with its id or name.";
+        "(format / voice / instrument / effect / agent-model), load status, whether it ships a README, and whether any identity it provides is SHADOWED by another package. " +
+        "Use to know what the user has installed and to guide them. For a plugin's full README (features/usage), call get_extension_readme with its id or name. " +
+        "When troubleshooting \"plugin X doesn't work\": status=Loaded only means it loaded — check the shadowed note here (and list_extension_routing), then confirm the capability itself shows up in list_sound_sources / list_effects.";
 
     public string ParametersJsonSchema => """
         { "type": "object", "properties": {}, "additionalProperties": false }
@@ -50,10 +52,34 @@ internal sealed class ListExtensionsTool : IAgentTool
                 sb.Append("  by ").Append(r.Author);
             if (!string.IsNullOrEmpty(r.Error))
                 sb.Append("\n    note: ").Append(r.Error);
+            AppendRouting(sb, r.Id);
             if (ExtensionReadme.Resolve(r.DirectoryPath, lang) != null)
                 sb.Append("\n    README available — call get_extension_readme(\"").Append(id == "(legacy, no id)" ? r.Name : id).Append("\").");
         }
         return Task.FromResult(sb.ToString());
+    }
+
+    // 该包提供的身份里，凡与别的包撞车的都如实标出「本包是生效者还是被顶替者」。
+    // 这是排障的关键一句：status=Loaded 是真的（确实加载了），但"被路由掉"是另一根轴——缺了它，
+    // agent 只会说"插件装好了、应该能用"。
+    static void AppendRouting(StringBuilder sb, string? packageId)
+    {
+        if (string.IsNullOrEmpty(packageId))
+            return;
+        foreach (var row in ExtensionRouting.GetConflicts())
+        {
+            if (!row.Options.Any(o => o.PackageId == packageId))
+                continue;
+            bool active = row.ActivePackageId == packageId;
+            sb.Append("\n    provides ").Append(row.Kind).Append(':').Append(row.Identity);
+            if (active)
+                sb.Append(" — ACTIVE (also provided by ")
+                  .Append(string.Join(", ", row.Options.Where(o => o.PackageId != packageId).Select(o => "\"" + ExtensionManager.GetPackageName(o.PackageId) + "\"")))
+                  .Append(", which is/are shadowed).");
+            else
+                sb.Append(" — SHADOWED: \"").Append(ExtensionManager.GetPackageName(row.ActivePackageId))
+                  .Append("\" provides it instead, so THIS package's implementation is loaded but never used. See list_extension_routing / set_extension_routing.");
+        }
     }
 }
 

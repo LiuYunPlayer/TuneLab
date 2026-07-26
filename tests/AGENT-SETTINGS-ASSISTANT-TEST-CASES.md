@@ -10,7 +10,7 @@ settings.json round-trip、设置窗四页自动生成的全部行），也不�
 
 ## 前置
 
-- `dotnet build TuneLab.sln -c Debug` 通过（宿主内置能力，**不涉及插件、无需 pack/install tlx**）。
+- 构建启动：`./run.ps1`（宿主内置能力，**不涉及插件、无需 pack/install tlx**）。
 - 打开 TuneLab，Agent 侧栏已连模型。授权档位在**对话页 header 的文字胶囊**上切换（ReadOnlyAdvice / Confirm / Auto）。
 - 建议先备份 `%APPDATA%\TuneLab\Configs\Settings.json`（本组会真改设置并落盘）。
 - 用例里的"设置窗"= 菜单打开的设置窗口；**Keybindings / Extensions / Extension Routing 三页不在本次范围**。
@@ -161,8 +161,9 @@ Confirm 档下卡片出现时点停止（发送键位置的停止键）。**期�
 
 问「怎么改快捷键 / 某插件的参数 / 这个 part 的音源」。
 
-**期望**：agent 不拿 `set_setting` 硬套——快捷键答"设置窗 > 快捷键页"（未通工具、如实说不能代改）、
-插件参数走 `list_effects` / `list_sound_sources` + 脚本、part 音源走 `run_script` 的 `part.setSoundSource`。
+**期望**：agent 不拿 `set_setting` 硬套——快捷键走**另一对专门工具** `list_keybindings` / `set_keybinding`
+（见 `AGENT-KEYBINDING-TEST-CASES.md`）、插件参数走 `list_effects` / `list_sound_sources` + 脚本、
+part 音源走 `run_script` 的 `part.setSoundSource`。
 
 ## 回归清单（快速过）
 

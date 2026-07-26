@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -78,9 +78,9 @@ internal sealed class ListSoundSourcesTool : IAgentTool
     {
         var sb = new StringBuilder();
         if (wantVoice)
-            EngineCatalog.AppendEngineList(sb, "Voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetDisplayName, VoicesManager.GetProviders);
+            EngineCatalog.AppendEngineList(sb, "Voice", "voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetDisplayName, VoicesManager.GetProviders);
         if (wantInstr)
-            EngineCatalog.AppendEngineList(sb, "Instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetDisplayName, InstrumentsManager.GetProviders);
+            EngineCatalog.AppendEngineList(sb, "Instrument", "instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetDisplayName, InstrumentsManager.GetProviders);
         if (sb.Length == 0)
             return "No sound-source engines are available.";
         sb.Append("\nPass engine=<type id> to list an engine's individual sources.");

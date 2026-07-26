@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -129,6 +129,15 @@ internal sealed class AgentSideBarContentProvider
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
                 new ListSettingsTool(),
                 new SetSettingTool(RequestScriptAuthorizationAsync),
+                // 快捷键（D 支柱）：查/改绑/冲突。改绑同样过闸门；与 save_script 合起来闭环"写个功能 + 绑个键"。
+                new ListKeybindingsTool(),
+                new SetKeybindingTool(RequestScriptAuthorizationAsync),
+                // 扩展路由：主要用于排障（「我的插件怎么不生效」→ 其实是身份被别的包顶替了），改选同样过闸门。
+                new ListExtensionRoutingTool(),
+                new SetExtensionRoutingTool(RequestScriptAuthorizationAsync),
+                // 扩展自己的设置（设置窗「扩展」页）：读 schema+当前值 / 改一格。密钥字段只报有无、禁读禁写。
+                new ListExtensionSettingsTool(),
+                new SetExtensionSettingTool(RequestScriptAuthorizationAsync),
                 // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
                 // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。
                 new RunInSandboxTool(),
@@ -1935,6 +1944,14 @@ internal sealed class AgentSideBarContentProvider
                 AgentWriteKind.ScriptDelete => string.Format("The agent wants to delete the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
                 AgentWriteKind.ScriptOverwrite => string.Format("The agent wants to overwrite the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
                 AgentWriteKind.SettingChange => string.Format("The agent wants to change the setting \"{0}\" to {1}.".Tr(this), SettingDisplayLabel(request.Target), request.NewValue),
+                // 快捷键：绑/解绑两句；夺键时再补一句点名被解绑的命令（知情同意）。命令名用本地化显示名，模型侧才用 id。
+                AgentWriteKind.KeybindingChange => (string.IsNullOrEmpty(request.NewValue)
+                        ? string.Format("The agent wants to remove the shortcut for \"{0}\".".Tr(this), KeybindingText.LabelOf(request.Target ?? ""))
+                        : string.Format("The agent wants to set the shortcut for \"{0}\" to {1}.".Tr(this), KeybindingText.LabelOf(request.Target ?? ""), request.NewValue))
+                    + (string.IsNullOrEmpty(request.SecondaryTarget) ? "" :
+                        " " + string.Format("This also unbinds the shortcut of \"{0}\".".Tr(this), request.SecondaryTarget)),
+                AgentWriteKind.RoutingChange => string.Format("The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart).".Tr(this), request.Target, request.NewValue),
+                AgentWriteKind.ExtensionSettingChange => string.Format("The agent wants to change the extension setting \"{0}\" to {1}.".Tr(this), request.Target, request.NewValue),
                 _ => string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), request.Count),
             },
             FontSize = 12,
@@ -2283,7 +2300,9 @@ internal sealed class AgentSideBarContentProvider
         "Vibrato is overlaid additively on the pitch line: when drawing a pitch line and adding vibrato over the same span, draw ONE continuous pitch line over the whole span and add vibrato on top (part.addVibrato) — never split the pitch line where the vibrato is; and do NOT use VibratoEnvelope to create vibrato (it only scales an existing one). " +
         "ALWAYS narrate in natural language what each script does, and why, before or after running it, so the user follows your actions without reading code. " +
         "When the user wants a REUSABLE feature they can run again from a menu (\"add a menu item that …\", \"make me a tool to …\"), or a one-off they would clearly want repeatedly, author a script tool — define getScriptInfo() + main() (see get_script_api) — and save it with save_script; it registers into the matching menu (top Scripts, or the note / part / piano-blank right-click) for one-click reuse. Use list_scripts / read_script / delete_script to manage them. " +
+        "If they also want a keyboard shortcut for it — or for any command — call list_keybindings to find a free gesture, then set_keybinding; a saved script's command id is \"script:<its id>\". " +
         "For questions about TuneLab's own settings (\"where do I change …\", \"how do I set …\"), call list_settings and tell the user the Settings page and row label in their language; call set_setting only when they want YOU to change it for them. " +
+        "When a plugin \"doesn't work\", diagnose in this order and do NOT stop at the first step: list_extensions (load status + error + whether one of its identities is SHADOWED by another package — loaded is not the same as used), then list_extension_routing if anything is contested, then list_sound_sources / list_effects to confirm the capability itself is there. " +
         "Earlier tool results are stale snapshots (the user or your own edits may have changed things); re-read with get_project_overview or a script before relying on current counts or values.";
 
     readonly Panel mRoot = new();

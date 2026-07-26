@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,8 +10,21 @@ namespace TuneLab.TestPlugins.VoiceConflictB;
 // 冲突消解夹具 B（voice）：引擎 id TLConflictVoice（与包 A 同身份、不同包 id）。
 // 极简引擎：暴露一个声源，名字标注「Package B」——活实现是哪个包，Set Voice 菜单里的声源名即见分晓。
 // 会话不产音频（合成静音）：路由/分组测试只需能区分活实现，不需要真实合成。
-public sealed class ConflictVoiceEngine : IVoiceSynthesisEngine
+public sealed class ConflictVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 {
+    // 扩展级设置：两个包用【同一个引擎 id】各声明一份设置 —— 供验证宿主/agent 在「同 id 跨包并存」时
+    // 必须按 packageId 消歧（不许猜）。字段值标注包名，一眼看出读写落在哪个包的桶里。
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+    {
+        var props = new OrderedMap<PropertyKey, IControllerConfig>();
+        props.Add(("variant", "Variant (Package B)"), TextBoxConfig.Create("b"));
+        return ObjectConfig.Create(props);
+    }
+
+    public void ApplySettings(PropertyObject settings)
+        => TuneLabContext.Global.GetLogger().Info(string.Format(
+            "[VoiceConflict.B] ApplySettings: variant='{0}'", settings.GetString("variant", string.Empty)));
+
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
     public void Init()

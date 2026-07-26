@@ -28,11 +28,15 @@ internal enum ScriptAuthDecision { ApplyOnce, ApplyAlways, Reject }
 
 // agent 一次写请求的种类——决定升级卡片/回报文案。ProjectEdit=工程编辑（走预览-回退，Count=改动数）；
 // ScriptDelete/ScriptOverwrite=脚本库【外部文件】的破坏性改动（无预览，Target=脚本名）。历史记录管理器只保工程
-// 数据、保不了外部文件，故后者也必须过同一授权闸门。SettingChange=改宿主设置（Target=设置键、NewValue=新值文本）：
-// 不是工程数据、历史记录同样救不回，且是"改用户的应用配置"，故与前者同闸门、同样无预览。
-internal enum AgentWriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange }
+// 数据、保不了外部文件，故后者也必须过同一授权闸门。SettingChange=改宿主设置（Target=设置键、NewValue=新值文本）、
+// KeybindingChange=改快捷键（Target=命令 id、NewValue=新手势字形，空=解绑；SecondaryTarget=被夺键而解绑的另一命令）、
+// RoutingChange=改扩展路由（Target="kind:identity"、NewValue=选中的包显示名）、
+// ExtensionSettingChange=改某扩展自己的设置（Target="扩展名 → 字段键"、NewValue=新值文本）：
+// 都不是工程数据、历史记录同样救不回，且是"改用户的应用配置"，故与前者同闸门、同样无预览。
+internal enum AgentWriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange }
 
-internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, int Count, string? Target, string? NewValue = null)
+// SecondaryTarget=本次改动【顺带影响的另一个对象】（当前只有夺键：被解除绑定的那个命令），供卡片给出知情同意。
+internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, int Count, string? Target, string? NewValue = null, string? SecondaryTarget = null)
 {
     // 回灌模型的动作短语（英文，嵌进"I did NOT {0}"等句）。
     public string ActionPhrase() => Kind switch
@@ -40,6 +44,11 @@ internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, i
         AgentWriteKind.ScriptDelete => string.Format("delete the saved script \"{0}\"", Target),
         AgentWriteKind.ScriptOverwrite => string.Format("overwrite the existing saved script \"{0}\"", Target),
         AgentWriteKind.SettingChange => string.Format("change the setting \"{0}\" to {1}", Target, NewValue),
+        AgentWriteKind.KeybindingChange => string.IsNullOrEmpty(NewValue)
+            ? string.Format("remove the shortcut for the command \"{0}\"", Target)
+            : string.Format("set the shortcut for the command \"{0}\" to {1}", Target, NewValue),
+        AgentWriteKind.RoutingChange => string.Format("make \"{1}\" the provider of \"{0}\"", Target, NewValue),
+        AgentWriteKind.ExtensionSettingChange => string.Format("change the extension setting \"{0}\" to {1}", Target, NewValue),
         _ => string.Format("apply {0} change(s) to the project", Count),
     };
 }

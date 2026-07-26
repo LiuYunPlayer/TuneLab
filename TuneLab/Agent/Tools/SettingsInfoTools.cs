@@ -204,13 +204,9 @@ internal static class SettingsText
         {
             case SettingItem<bool>:
             {
-                if (raw.ValueKind == JsonValueKind.True) return (PropertyValue.Create(true), null);
-                if (raw.ValueKind == JsonValueKind.False) return (PropertyValue.Create(false), null);
-                var text = Text(raw);
-                if (bool.TryParse(text, out var b)) return (PropertyValue.Create(b), null);
-                if (text == "1") return (PropertyValue.Create(true), null);
-                if (text == "0") return (PropertyValue.Create(false), null);
-                return (default, string.Format("the setting \"{0}\" is a boolean; got {1}.", item.Key, Text(raw)));
+                if (JsonScalar.TryBoolean(raw, out var b))
+                    return (PropertyValue.Create(b), null);
+                return (default, string.Format("the setting \"{0}\" is a boolean; got {1}.", item.Key, JsonScalar.Text(raw)));
             }
             case SettingItem<int> when Options(item) is { } options:
                 return FromOptions(item, raw, options, numeric: true);
@@ -218,8 +214,8 @@ internal static class SettingsText
                 return FromOptions(item, raw, options, numeric: false);
             case SettingItem<int> or SettingItem<double>:
             {
-                if (!TryNumber(raw, out var d))
-                    return (default, string.Format("the setting \"{0}\" is a number; got {1}.", item.Key, Text(raw)));
+                if (!JsonScalar.TryNumber(raw, out var d))
+                    return (default, string.Format("the setting \"{0}\" is a number; got {1}.", item.Key, JsonScalar.Text(raw)));
                 if (item.Config is SliderConfig s)
                 {
                     double min = s.Scale.ToValue(0), max = s.Scale.ToValue(1);
@@ -235,7 +231,7 @@ internal static class SettingsText
             {
                 if (raw.ValueKind == JsonValueKind.True || raw.ValueKind == JsonValueKind.False)
                     return (default, string.Format("the setting \"{0}\" is text; got a boolean.", item.Key));
-                var text = Text(raw);
+                var text = JsonScalar.Text(raw);
                 // 路径类设置（FilePatterns 非空）：空串 = 清除；非空必须真实存在，否则那项功能会静默失效。
                 if (item.FilePatterns != null && text.Length > 0 && !File.Exists(text))
                     return (default, string.Format("the file \"{0}\" does not exist. \"{1}\" needs an existing file path (pattern {2}), or \"\" to clear it.",
@@ -250,21 +246,21 @@ internal static class SettingsText
     // 下拉：按无引号字面量比对（模型给 44100 或 "44100" 都行；字符串项大小写不符时归到正规写法）。
     static (PropertyValue Value, string? Error) FromOptions(SettingItem item, JsonElement raw, IReadOnlyList<ComboBoxItem> options, bool numeric)
     {
-        var given = Text(raw);
+        var given = JsonScalar.Text(raw);
         foreach (var pass in new[] { StringComparison.Ordinal, StringComparison.OrdinalIgnoreCase })
         {
             foreach (var o in options)
             {
                 if (o.SubItems != null || o.Value.IsNull())
                     continue;
-                if (!string.Equals(Literal(o.Value), given, pass))
+                if (!string.Equals(JsonScalar.Literal(o.Value), given, pass))
                     continue;
                 // 值类型决定落进条目的 PropertyValue 形态：int 条目要数字（TrySetValue 走 ToDouble），string 条目要文本。
                 if (!numeric)
                     return (o.Value, null);
-                return TryNumber(o.Value, out var d)
+                return JsonScalar.TryNumber(o.Value, out var d)
                     ? (PropertyValue.Create(d), null)
-                    : (default, string.Format("the option {0} of \"{1}\" is not a number.", Literal(o.Value), item.Key));
+                    : (default, string.Format("the option {0} of \"{1}\" is not a number.", JsonScalar.Literal(o.Value), item.Key));
             }
         }
         var listed = options.Count <= MaxListedOptions ? options : options.Take(MaxListedOptions).ToList();
@@ -274,38 +270,4 @@ internal static class SettingsText
             options.Count <= MaxListedOptions ? "" : string.Format(" (first {0} of {1})", MaxListedOptions, options.Count)));
     }
 
-    // 无引号字面量（下拉比对口径）：数字用不变文化的紧凑形、布尔小写、文本原样。
-    static string Literal(PropertyValue v)
-    {
-        if (v.ToBoolean(out var b)) return b ? "true" : "false";
-        if (v.ToDouble(out var d)) return ConfigText.FormatNum(d);
-        return v.ToString(out var s) ? s : "";
-    }
-
-    // JSON 值 → 无引号字面量（数字/布尔/字符串统一成文本，供比对与报错）。
-    static string Text(JsonElement raw) => raw.ValueKind switch
-    {
-        JsonValueKind.String => raw.GetString() ?? "",
-        JsonValueKind.Number => ConfigText.FormatNum(raw.GetDouble()),
-        JsonValueKind.True => "true",
-        JsonValueKind.False => "false",
-        _ => raw.GetRawText(),
-    };
-
-    static bool TryNumber(JsonElement raw, out double value)
-    {
-        if (raw.ValueKind == JsonValueKind.Number)
-        {
-            value = raw.GetDouble();
-            return true;
-        }
-        return double.TryParse(Text(raw), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-    }
-
-    static bool TryNumber(PropertyValue v, out double value)
-    {
-        if (v.ToDouble(out value))
-            return true;
-        return v.ToString(out var s) && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-    }
 }

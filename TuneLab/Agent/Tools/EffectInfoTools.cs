@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
@@ -55,7 +55,7 @@ internal sealed class ListEffectsTool : IAgentTool
             return "No effect engines are installed. Effects come from plugins (there are no built-in effect engines).";
 
         var sb = new StringBuilder();
-        EngineCatalog.AppendEngineList(sb, "Effect", EffectManager.GetAllEffectEngines(), EffectManager.GetDisplayName, EffectManager.GetProviders);
+        EngineCatalog.AppendEngineList(sb, "Effect", "effect", EffectManager.GetAllEffectEngines(), EffectManager.GetDisplayName, EffectManager.GetProviders);
         sb.Append("\nPass engine=<type id> to see an engine's parameters.");
         return sb.ToString();
     }
