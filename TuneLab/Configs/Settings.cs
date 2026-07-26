@@ -1,109 +1,78 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Reflection.Metadata;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
+using System.Text.Json.Nodes;
 using TuneLab.Foundation;
 
 namespace TuneLab.Configs;
 
+// 宿主设置：值 holder + 元数据 + 磁盘读写全部声明在 SettingsRegistry（单一真源）。本类只做两件事：
+//  ① 对外暴露既有的 Settings.Xxx 访问器（委托到注册表条目的 NotifiableProperty，消费者零改动）；
+//  ② Init/Save 遍历注册表读写 settings.json（键/类型/顺序与旧格式一致，逐字段兼容）。
+// ExtensionRouting 是非通知型扁平映射（改后须重启，走 ExtensionRouting 模块），随本文件读写、不入注册表。
 internal static class Settings
 {
+    // 默认值来源（单一默认源；阶段②重写设置窗后可并入注册表）。
     public static readonly SettingsFile DefaultSettings = new();
-    public static NotifiableProperty<string> Language { get; } = DefaultSettings.Language;
-    public static NotifiableProperty<string> InterfaceFontFamily { get; } = DefaultSettings.InterfaceFontFamily;
-    public static NotifiableProperty<string> AutoScrollTarget { get; } = DefaultSettings.AutoScrollTarget;
-    public static NotifiableProperty<double> MasterGain { get; } = DefaultSettings.MasterGain;
-    public static NotifiableProperty<string> BackgroundImagePath { get; } = DefaultSettings.BackgroundImagePath;
-    public static NotifiableProperty<double> BackgroundImageOpacity { get; } = DefaultSettings.BackgroundImageOpacity;
-    public static NotifiableProperty<double> ParameterBoundaryExtension { get; } = DefaultSettings.ParameterBoundaryExtension;
-    public static NotifiableProperty<bool> ParameterSyncMode { get; } = new(DefaultSettings.ParameterSyncMode);
-    public static NotifiableProperty<string> PianoKeySamplesPath { get; } = DefaultSettings.PianoKeySamplesPath;
-    public static NotifiableProperty<int> AutoSaveInterval { get; } = DefaultSettings.AutoSaveInterval;
-    public static NotifiableProperty<int> AutoSaveMaxCount { get; } = DefaultSettings.AutoSaveMaxCount;
-    public static NotifiableProperty<int> BufferSize { get; } = DefaultSettings.BufferSize;
-    public static NotifiableProperty<int> MaxParallelSynthesisTasks { get; } = DefaultSettings.MaxParallelSynthesisTasks;
-    public static NotifiableProperty<int> SampleRate { get; } = DefaultSettings.SampleRate;
-    public static NotifiableProperty<string> AudioDriver { get; } = DefaultSettings.AudioDriver;
-    public static NotifiableProperty<string> AudioDevice { get; } = DefaultSettings.AudioDevice;
-    public static NotifiableProperty<double> TrackHueChangeRate { get; } = DefaultSettings.TrackHueChangeRate;
-    public static NotifiableProperty<string> AgentModelProvider { get; } = DefaultSettings.AgentModelProvider;
-    public static NotifiableProperty<string> AgentAuthorization { get; } = DefaultSettings.AgentAuthorization;
-    public static NotifiableProperty<int> AgentMaxToolResultChars { get; } = DefaultSettings.AgentMaxToolResultChars;
+
+    public static NotifiableProperty<string> Language => SettingsRegistry.Language.Property;
+    public static NotifiableProperty<string> InterfaceFontFamily => SettingsRegistry.InterfaceFontFamily.Property;
+    public static NotifiableProperty<string> AutoScrollTarget => SettingsRegistry.AutoScrollTarget.Property;
+    public static NotifiableProperty<double> MasterGain => SettingsRegistry.MasterGain.Property;
+    public static NotifiableProperty<string> BackgroundImagePath => SettingsRegistry.BackgroundImagePath.Property;
+    public static NotifiableProperty<double> BackgroundImageOpacity => SettingsRegistry.BackgroundImageOpacity.Property;
+    public static NotifiableProperty<double> ParameterBoundaryExtension => SettingsRegistry.ParameterBoundaryExtension.Property;
+    public static NotifiableProperty<bool> ParameterSyncMode => SettingsRegistry.ParameterSyncMode.Property;
+    public static NotifiableProperty<string> PianoKeySamplesPath => SettingsRegistry.PianoKeySamplesPath.Property;
+    public static NotifiableProperty<int> AutoSaveInterval => SettingsRegistry.AutoSaveInterval.Property;
+    public static NotifiableProperty<int> AutoSaveMaxCount => SettingsRegistry.AutoSaveMaxCount.Property;
+    public static NotifiableProperty<int> BufferSize => SettingsRegistry.BufferSize.Property;
+    public static NotifiableProperty<int> MaxParallelSynthesisTasks => SettingsRegistry.MaxParallelSynthesisTasks.Property;
+    public static NotifiableProperty<int> SampleRate => SettingsRegistry.SampleRate.Property;
+    public static NotifiableProperty<string> AudioDriver => SettingsRegistry.AudioDriver.Property;
+    public static NotifiableProperty<string> AudioDevice => SettingsRegistry.AudioDevice.Property;
+    public static NotifiableProperty<double> TrackHueChangeRate => SettingsRegistry.TrackHueChangeRate.Property;
+    public static NotifiableProperty<string> AgentModelProvider => SettingsRegistry.AgentModelProvider.Property;
+    public static NotifiableProperty<string> AgentAuthorization => SettingsRegistry.AgentAuthorization.Property;
+    public static NotifiableProperty<int> AgentMaxToolResultChars => SettingsRegistry.AgentMaxToolResultChars.Property;
     // 扩展冲突消解的用户选择（routeKey → packageId）；非通知型（改后须重启生效，与切语言一致），存取经 ExtensionRouting。
     public static Dictionary<string, string> ExtensionRouting { get; private set; } = new();
 
     public static void Init(string path)
     {
-        SettingsFile? settingsFile = null;
+        JsonObject? json = null;
         if (File.Exists(path))
         {
             try
             {
-                settingsFile = JsonSerializer.Deserialize<SettingsFile>(File.OpenRead(path));
+                json = JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
             }
             catch (Exception ex)
             {
                 Log.Error("Failed to deserialize settings: " + ex);
             }
         }
+        json ??= new JsonObject();
 
-        settingsFile ??= DefaultSettings;
+        foreach (var item in SettingsRegistry.All)
+            item.Load(json);
 
-        Language.Value = settingsFile.Language;
-        InterfaceFontFamily.Value = settingsFile.InterfaceFontFamily;
-        AutoScrollTarget.Value = settingsFile.AutoScrollTarget;
-        MasterGain.Value = settingsFile.MasterGain;
-        BackgroundImagePath.Value = settingsFile.BackgroundImagePath;
-        BackgroundImageOpacity.Value = settingsFile.BackgroundImageOpacity;
-        ParameterBoundaryExtension.Value = settingsFile.ParameterBoundaryExtension;
-        ParameterSyncMode.Value = settingsFile.ParameterSyncMode;
-        PianoKeySamplesPath.Value = settingsFile.PianoKeySamplesPath;
-        AutoSaveInterval.Value = settingsFile.AutoSaveInterval;
-        AutoSaveMaxCount.Value = settingsFile.AutoSaveMaxCount;
-        BufferSize.Value = settingsFile.BufferSize;
-        MaxParallelSynthesisTasks.Value = settingsFile.MaxParallelSynthesisTasks;
-        SampleRate.Value = settingsFile.SampleRate;
-        AudioDriver.Value = settingsFile.AudioDriver;
-        AudioDevice.Value = settingsFile.AudioDevice;
-        TrackHueChangeRate.Value = settingsFile.TrackHueChangeRate;
-        AgentModelProvider.Value = settingsFile.AgentModelProvider;
-        AgentAuthorization.Value = settingsFile.AgentAuthorization;
-        AgentMaxToolResultChars.Value = settingsFile.AgentMaxToolResultChars;
-        ExtensionRouting = settingsFile.ExtensionRouting ?? new();
+        ExtensionRouting = ReadRouting(json);
     }
 
     public static void Save(string path)
     {
         try
         {
-            var content = JsonSerializer.Serialize(new SettingsFile()
-            {
-                Language = Language,
-                InterfaceFontFamily = InterfaceFontFamily,
-                AutoScrollTarget = AutoScrollTarget,
-                MasterGain = MasterGain,
-                BackgroundImagePath = BackgroundImagePath,
-                BackgroundImageOpacity = BackgroundImageOpacity,
-                ParameterBoundaryExtension = ParameterBoundaryExtension,
-                ParameterSyncMode = ParameterSyncMode.Value,
-                PianoKeySamplesPath = PianoKeySamplesPath,
-                AutoSaveInterval = AutoSaveInterval,
-                AutoSaveMaxCount = AutoSaveMaxCount,
-                BufferSize = BufferSize,
-                MaxParallelSynthesisTasks = MaxParallelSynthesisTasks,
-                SampleRate = SampleRate,
-                AudioDriver = AudioDriver,
-                AudioDevice = AudioDevice,
-                TrackHueChangeRate = TrackHueChangeRate,
-                AgentModelProvider = AgentModelProvider,
-                AgentAuthorization = AgentAuthorization,
-                AgentMaxToolResultChars = AgentMaxToolResultChars,
-                ExtensionRouting = ExtensionRouting
-            }, JsonSerializerOptions);
+            var json = new JsonObject();
+            foreach (var item in SettingsRegistry.All)
+                item.Save(json);
+
+            var routing = new JsonObject();
+            foreach (var kv in ExtensionRouting)
+                routing[kv.Key] = JsonValue.Create(kv.Value);
+            json["ExtensionRouting"] = routing;
 
             var folder = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(folder))
@@ -111,7 +80,7 @@ internal static class Settings
                 Directory.CreateDirectory(folder);
             }
 
-            File.WriteAllText(path, content);
+            File.WriteAllText(path, json.ToJsonString(JsonSerializerOptions));
         }
         catch (Exception ex)
         {
@@ -119,5 +88,23 @@ internal static class Settings
         }
     }
 
-    static readonly JsonSerializerOptions JsonSerializerOptions = new JsonSerializerOptions() { WriteIndented = true };
+    static Dictionary<string, string> ReadRouting(JsonObject json)
+    {
+        var result = new Dictionary<string, string>();
+        if (json.TryGetPropertyValue("ExtensionRouting", out var node) && node is JsonObject obj)
+        {
+            foreach (var kv in obj)
+            {
+                try
+                {
+                    if (kv.Value is not null)
+                        result[kv.Key] = kv.Value.GetValue<string>();
+                }
+                catch { }
+            }
+        }
+        return result;
+    }
+
+    static readonly JsonSerializerOptions JsonSerializerOptions = new() { WriteIndented = true };
 }
