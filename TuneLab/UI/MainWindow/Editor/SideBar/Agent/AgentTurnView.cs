@@ -310,7 +310,7 @@ internal sealed class AgentTurnView
             header.Children.Add(nameBlock);
             header.Children.Add(mChevron);
             header.Children.Add(preview); // 填充
-            header.PointerPressed += (_, _) => Toggle();
+            header.PointerPressed += (_, e) => { if (e.GetCurrentPoint(header).Properties.IsLeftButtonPressed) Toggle(); };   // 仅左键展开/收起（右键/中键不触发）
 
             // 详情区（默认收起）：完整参数 + 结果文本。
             mDetails = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
@@ -525,7 +525,7 @@ internal sealed class AgentTurnView
             header.Children.Add(mLabel);
             header.Children.Add(mChevron);
             header.Children.Add(mPreview); // 填充
-            header.PointerPressed += (_, _) => SetExpanded(!mExpanded);
+            header.PointerPressed += (_, e) => { if (e.GetCurrentPoint(header).Properties.IsLeftButtonPressed) SetExpanded(!mExpanded); };   // 仅左键展开/收起（右键/中键不触发）
 
             // 思考正文：斜体、更灰；包在"引用式"左竖线 + 缩进容器里，明确是头部之下的从属内容、与正文回复区分。
             mBody = new SelectableTextBlock
