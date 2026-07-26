@@ -1179,7 +1179,12 @@ internal sealed class AgentSideBarContentProvider
             // 中途报错：保留已渲染的分步内容，错误另起可重试/复制的条目（不丢已输出有效内容）。
             turn.Seal();
             turn.MarkPendingAborted();
-            EnsureSwapped();
+            // 本轮一字未出（如首次请求就失败/被风控挡下）→ 撤掉占位气泡，否则留一个空容器占一行；
+            // 每次重试失败都会再攒一个。重载路径本就只在有消息时才建轮视图（RebuildHistoryView 的 i > start），此处对齐它。
+            if (turn.IsEmpty)
+                ctx.View.Content.Children.Remove(bubble);
+            else
+                EnsureSwapped();
             MarkTurnOutcome(ctx, anchor, ChatTurnMessage.OutcomeError, ex.Message, ctx.Runner?.CurrentTrajectory);
             ctx.Runner?.TrimDanglingToolCalls(); // 只砍悬空尾巴；用户消息 + 已完成轮留在上下文，可经重试按钮续跑
             ctx.View.Content.Children.Add(BuildErrorEntry(ctx, anchor, ex.Message, allowRetry: true));
