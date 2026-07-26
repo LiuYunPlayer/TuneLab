@@ -14,7 +14,11 @@ public sealed class AutomationConfig : IValueConfig<double>
 
     // 值轴标度——自动化上下界即 slider 两端，与滑条共用 INormalizedScale。参数区绘制/渲染与合成求值均经标度投影：
     // 离散标度（如 NormalizedScale.Integer）使信号处处落格——不止写入吸附，宿主在求值/渲染时把 Hermite 连续输出
-    // 投影回标度（曲线呈阶梯、插件读到的最终值即落格），故引擎无需自行取整。线性标度下投影 = 纯范围钳位。
+    // 投影回标度（曲线呈阶梯、插件读到的最终值即落格），故引擎无需自行取整。
+    // 标度定义值轴形状与格点，不是值域保证：宿主不把求值结果钳进 [MinValue, MaxValue]（钳位无法兑现——标度单调
+    // 只是约定，非单调时端点不是极值），越界值（量程变更后的旧工程 / preset / 引擎回喂）会原样传给 Evaluate，
+    // 引擎须按自身需求校验。宿主的落笔本身不越界（拖拽/锚点输入钳在量程内），但值模型是加性的——锚点存相对
+    // DefaultValue 的偏移、vibrato 偏移叠加到轨上，故用户改默认值或让 vibrato 影响该轨后，合成结果同样会出界。
     public INormalizedScale Scale { get; private set; } = null!;
 
     // 轨曲线渲染色（hex）。不设给中性默认——但同一面板多轨应各设其色以免撞色。

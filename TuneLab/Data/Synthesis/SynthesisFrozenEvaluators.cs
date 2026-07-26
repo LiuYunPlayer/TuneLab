@@ -50,9 +50,12 @@ internal sealed class ConstantAutomationEvaluator(double value) : IAutomationEva
     }
 }
 
-// 标度量化装饰器：把内层求值器的最终输出投影到 config 标度的可表示集（离散标度落格 + 范围钳位；NaN 透传）。
+// 标度量化装饰器：把内层求值器的最终输出投影到 config 标度的可表示集（离散标度落格；NaN 透传）。
 // 包在链最外层（vibrato/envelope 叠加之后）——保证插件读到的最终值处处落格，即"离散 scale ⇒ 量化信号"的数据层强制。
-// 线性标度下投影 = 纯范围钳位（无格点、无视觉/数值改变，除越界值被钳回）。
+// 只量化、不钳值域：越界值照原样喂给插件，由引擎按自身需求校验——理由见 ScaleExtensions.Project。越界来源既有
+// 存量数据（量程变更后的旧工程 / preset / 插件回喂），也有本链自身的加性合成：锚点存相对 DefaultValue 的偏移
+// （用户改默认值即整批平移，见 AutomationSnapshot）、内层 vibrato deviation 也是加性叠加。
+// 连续标度下投影为恒等，仅余 ULP 级浮点扰动。
 internal sealed class ScaleQuantizingEvaluator(IAutomationEvaluator inner, INormalizedScale scale) : IAutomationEvaluator
 {
     public void Evaluate(IReadOnlyList<double> times, Span<double> results)
