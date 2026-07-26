@@ -259,7 +259,7 @@ internal partial class SettingsWindow : Window
         if (item.FilePatterns != null)
         {
             var wrap = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Vertical };
-            wrap.Children.Add(new TextBlock() { Text = item.Label.Tr(this) + ": ", Margin = new(24, 12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            wrap.Children.Add(new TextBlock() { Text = item.DisplayLabel + ": ", Margin = new(24, 12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
             var picker = new PathInput()
             {
                 Margin = new(24, 12),
@@ -272,7 +272,7 @@ internal partial class SettingsWindow : Window
 
         var panel = new DockPanel() { Margin = new(24, 12) };
         panel.AddDock(BuildControl(item), Dock.Right);
-        panel.AddDock(new TextBlock() { Text = item.Label.Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+        panel.AddDock(new TextBlock() { Text = item.DisplayLabel + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
         return panel;
     }
 
@@ -315,7 +315,7 @@ internal partial class SettingsWindow : Window
             case SettingItem<string> str when item.Config is ComboBoxConfig cc:   // Language / 字体 / 音频驱动·设备
             {
                 var comboBox = new ComboBoxController() { Width = (item.Key is "AudioDriver" or "AudioDevice") ? 300 : 180 };
-                comboBox.SetConfig(ComboBoxConfig.Create(DynamicOptionsFor(item.Key) ?? cc.Items));
+                comboBox.SetConfig(ComboBoxConfig.Create(item.DynamicOptions?.Invoke() ?? cc.Items));
                 comboBox.Bind(str.Property, false, s);
                 if (EngineDisplayFor(item.Key) is { } dv)
                     comboBox.Display(dv);
@@ -324,25 +324,6 @@ internal partial class SettingsWindow : Window
             default:
                 return new TextBlock() { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };   // 4 个 tab 内不出现的组合，防御性占位
         }
-    }
-
-    // 运行时选项（config 静态选项之外按需现取）：语言 / 系统字体 / 音频驱动·设备。其余返回 null，用 config 自带项。
-    private IReadOnlyList<ComboBoxItem>? DynamicOptionsFor(string key) => key switch
-    {
-        "Language" => TranslationManager.Languages.Select(o => new ComboBoxItem(o, TranslationManager.GetDisplayName(o))).ToList(),
-        "InterfaceFontFamily" => BuildFontOptions(),
-        "AudioDriver" => AudioEngine.GetAllDrivers().Select(o => (ComboBoxItem)o).ToList(),
-        "AudioDevice" => AudioEngine.GetAllDevices().Select(o => (ComboBoxItem)o).ToList(),
-        _ => null,
-    };
-
-    private List<ComboBoxItem> BuildFontOptions()
-    {
-        var options = new List<ComboBoxItem> { new(PropertyValue.Create(string.Empty), "System Default".Tr(this)) };
-        options.AddRange(FontManager.Current.SystemFonts
-            .Select(f => f.Name).Distinct().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
-            .Select(n => (ComboBoxItem)n));
-        return options;
     }
 
     // 部分音频下拉在绑定后额外显示 AudioEngine 的实时值（设置值可能与引擎当前值不同）。其余返回 null。

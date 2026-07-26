@@ -355,6 +355,7 @@
 "Stopped" = "已停止"
 "Submit" = "确认"
 "The agent wants to apply {0} change(s) to the project." = "Agent 想对工程应用 {0} 处改动。"
+"The agent wants to change the setting \"{0}\" to {1}." = "Agent 想把设置「{0}」改为 {1}。"
 "The agent wants to delete the saved script \"{0}\". This can't be undone." = "Agent 想删除已保存的脚本“{0}”。此操作无法撤销。"
 "The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Agent 想覆盖已保存的脚本“{0}”。此操作无法撤销。"
 "Tips" = "提示"

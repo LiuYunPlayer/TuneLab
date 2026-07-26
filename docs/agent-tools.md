@@ -8,9 +8,9 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-## 工具全集（14 个）
+## 工具全集（16 个）
 
-三个面：**操作工程** + **管理脚本库** + **环境感知（只读）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
+三个面：**操作工程** + **管理脚本库** + **环境感知（只读为主，含设置助手的一个写口）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
 
 | 工具 | 面 | 作用 |
 |---|---|---|
@@ -27,6 +27,8 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `get_extension_readme` | 感知 | 按 id 或名读某扩展 README（markdown 原文，按语言解析、上限截断）。按需拉取（渐进式披露）。 |
 | `list_sound_sources` | 感知 | 三层钻取：不给 `engine` → 列引擎(不 Init)；给 `engine` → 列该引擎音源(id/名/描述)；给 `engine`+`source` → 读该音源参数 schema(part/note/自动化/音素级，各带类型/范围/默认)。后两层仅 Init 该引擎。`kind` 可选过滤。 |
 | `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
+| `list_settings` | 感知 | 列宿主应用设置（设置窗那些）：键/标签(含本地化)/所在页/允许值(类型·范围·选项)/当前值/默认值/是否需重启/agent 可否改。用于「在哪调怎么调」与 set_setting 前置。直接读 `SettingsRegistry`。 |
+| `set_setting` | 感知(写) | 按键改一项应用设置 + 落盘。值按该条目声明校验（范围/下拉成员/布尔/路径存在）；**过授权闸门**（改用户应用配置、非工程数据、历史记录救不回）；部分项声明为 agent 不可写。 |
 | `run_in_sandbox` | 探测 | 在一个**可丢弃无头工程**里跑 JS（同一 `tl` 面 + `sandbox` 全局），够到静态读够不着的东西（尤其**真实音素**：挂真音源+合法歌词+触发合成后才存在）。写入不碰用户数据、**不过授权闸门**。见下「探测沙箱」节。 |
 
 ```
@@ -41,6 +43,8 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ list_extensions / get_extension_readme ─► ExtensionManager.LoadResults / ExtensionReadme（只读）
         ├─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读；给 engine 才 Init；给 engine+source 合成 context 求参数 schema）
         ├─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
+        ├─ list_settings ──────────────────────► SettingsRegistry（只读；声明即枚举源）
+        ├─ set_setting ────────────────────────► ToolAuthorization ──► SettingItem.TrySetValue + Settings.Save
         └─ run_in_sandbox ─────────────────────► SandboxHost（专用线程 + 可泵 SyncContext + 可丢弃 IProject；tl + sandbox 全局；不过授权闸门）
 ```
 （共享格式在 `AgentToolFormat.cs`：`EngineCatalog.AppendEngineList` 三类引擎列表共用；`ConfigText.Describe/FormatValue` 各 config 类型一致措辞（复用进脚本入参 `SavedScriptSupport`）；`SchemaText.AppendProperties/AppendAutomations/AppendPhonemes` 把引擎声明的参数组文本化，effect 与音源参数 schema 共用。）
@@ -95,7 +99,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`save_script(name, code)`**：存（新建/覆盖）到库（`%APPDATA%/TuneLab/Scripts`）。**只持久化、不执行**。若 `code` 声明了 `getScriptInfo` 先**预校验**（沙箱 eval 顶层 + 调 `getScriptInfo`，复用 `ScriptTools.InspectSource`，改动原子回退，**先于授权**——不为坏脚本弹卡片）——失败不保存、回灌错误；成功回报注册到哪个菜单。无 `getScriptInfo` 则存为普通一次性脚本（仅 Script 侧栏）。**覆盖已存脚本**是破坏用户外部文件 → 过授权闸门（见下）；新建是加性、不拦。
 - **`list_scripts`** / **`read_script(name)`** / **`delete_script(name)`**：列出(标工具+context/带入参/plain) / 读源码 / 删除。**`delete_script` 恒过授权闸门**（删外部文件不可撤销）。
 
-**破坏性外部文件操作的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件**，故 `delete_script`（恒）与 `save_script` 覆盖已存（仅覆盖）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（文件操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite），卡片按种类出不同文案。只读工具（含环境感知三件）永不过闸门。
+**工程之外的写的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件与应用配置**，故 `delete_script`（恒）、`save_script` 覆盖已存（仅覆盖）、`set_setting`（恒）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（这些操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite / SettingChange，后者带 `NewValue` 供文案点名新值），卡片按种类出不同文案（改设置的卡片显示**本地化行标**、模型侧才用键）。只读工具（含环境感知的枚举件）永不过闸门。
 
 工具脚本约定（喂 LLM 全文在 `ScriptApiReference.cs` 的 "TOOL SCRIPTS" 节）：顶层**只定义函数、无副作用**；`getScriptInfo()` 返回 `{name, category?, author?, version?, context}`（`name` 里读 `tl.language` 本地化）；`main()` 是动作。`context` = `global`（顶部 Scripts 菜单，按 category 分组）/ `note`（钢琴命中音符，目标 `selectedNotes()`）/ `partContent`（钢琴空白，目标 `currentPart()`）/ `part`（编排命中 part，目标 `selectedParts()`）/ `track`（轨道头，目标 `selectedTracks()`）/ `trackContent`（编排空白泳道，目标 `selectedTracks()`）。注册/菜单注入由 `TuneLab.Scripting.ScriptTools` + `TuneLab.UI.ScriptToolMenu` 完成（设计见 `docs/script-tools-design.md`）。
 
@@ -110,9 +114,9 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 
 `run_script`（内联）与 `run_saved_script`（命名）到了写这一步是同一件事——都经 `ScriptWriteExecutor` 过分级授权 + 预览 + 写守卫 wait-retry + 结果回报（单一动作面 SSOT）；二者只在"代码/入参从哪来"不同。
 
-## 环境感知（只读工具，让 agent 看见宿主装了什么）
+## 环境感知（让 agent 看见宿主装了什么）
 
-编辑面只让 agent 改工程，但要「推荐插件/音源、指导用户在哪用某能力」，agent 得先**看见宿主环境**。这几个是纯只读环境查询——按架构原则（单一动作面）**只有只读环境查询才新增薄 IAgentTool**，写仍走 `run_script`：
+编辑面只让 agent 改工程，但要「推荐插件/音源、指导用户在哪用某能力」，agent 得先**看见宿主环境**。这几件除 `set_setting` 外都是纯只读查询——按架构原则（单一动作面）**工程状态的修改恒走 `run_script`，绝不另开工程写工具**；`set_setting` 改的是**宿主应用配置**（不是工程状态、没有也不该有 `tl` 面），故是工具面的一个写口，并自带授权闸门：
 
 - **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），逐条列名/id/版本/作者/类别/加载状态/错误/有无 readme。是「诉求 3」的地基。
 - **`get_extension_readme(name)`**：按 id 或名匹配 `ExtensionLoadResult`，`ExtensionReadme.Resolve(dir, lang)` 解析 `README.<lang>.md → README.md` 得路径 → `File.ReadAllText`。readme 可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。
@@ -121,6 +125,16 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_effects(engine?)`**：`EffectManager` 严格镜像音源管理器（`GetAllEffectEngines/GetProviders/GetDisplayName/GetInitedEngine`），故列引擎层与音源同格式（共用 `EngineCatalog`）。与音源不同——effect **无「音源目录」**（一个引擎 = 一种效果器类型），第二层列的是**参数 schema**：给 `engine` 时 `GetInitedEngine`（**仅 Init 它**）→ 传一个 **part-free 的空 `IEffectSynthesisPropertyContext`**（空 `IEffectSynthesisView`：无改过的值 → 各参数取引擎默认）→ 调引擎三个纯函数声明方法 `GetPropertyConfig`（静态属性 `ObjectConfig`）/`GetAutomationConfigs`（可编辑自动化轨）/`GetSynthesizedParameterConfigs`（只读回显轨），逐参数输出类型/范围/默认。是「诉求 6」的地基。要点：宿主自带的 `EffectPropertyContext` 绑 part 且 private，不可复用，故 Agent 层自建极简空 context；effect 无内建引擎（全来自插件）；条件化 schema 只能拿「默认值版」（静态枚举固有上限）；读 schema 必须 Init 引擎（跑插件代码）→ UI 线程。
 
 「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；**「切换 part 音源」已落地**为写原语 `part.setSoundSource({kind,type,id})`（过分级授权闸门、含存在校验，见 run_script 面）；**「读写 part 的 effect 链」也已落地**=`part.effects()/addEffect(type)/removeEffect/moveEffect` + `effect` 句柄（`isEnabled` bypass、`getProperty/setProperty` 改参；类型/参数 schema 仍从 `list_effects` 读，两道门并存）。**「voice/instrument 的 part/note/phoneme 参数改写」也已落地**=`part.getProperty/setProperty`、`note.pronunciation`、`note.getProperty/setProperty`、音素 `note.phonemes()/addPhoneme/removePhoneme/pinPhonemes/clearPhonemes` + `phoneme` 句柄（`symbol/duration/stretchWeight` + `getProperty/setProperty`）——schema 从 `list_sound_sources` 读；音素合成态只读、首次写自动钉死（LockPhonemes）。**effect 的时间轴自动化曲线读写也已落地**=`effect.automationIds()/sampleAutomation/setAutomation/clearAutomation`（对齐 C# `IEffect.Automations`，与 part 级 automation 逐一平行、同 part 相对 tick 空间与绝对值语义，采样复用 `ScriptPart.SampleTicks`；只是目标从 voice 换成链中某 effect）。注：apply_edits 层的只读 `get_parameter`/`IsEffectiveAutomation` 仍只认 voice 级、未走 effect 路由（脚本面已覆盖，工具面要扩再补）。**「导入」也已落地**=`project.importTracks(path)`（从文件导入全部轨、加法式并进当前工程、保留当前时基/原始 tick 落位、返回新轨句柄；格式 tlp/tlpx/mid/midi+插件；只读入文件+加法式写工程、一个可撤销单位、失败原子回退）；**导出**（写外部文件、更像用户动作+过外部文件授权闸门）暂缓、单独 scope。这些只读工具都不落 undo、不受分级授权闸门约束。
+
+### 设置助手（`list_settings` / `set_setting`）
+
+「想调某个设置 → 告诉我在哪调怎么调，或者直接帮我调」是同一个能力的两档，故两件工具共用一个数据源与一个闸门：
+
+- **数据源 = `SettingsRegistry`（唯一）**：设置的键/标签/所在页/控件 config（范围·选项·默认）/重启标记/描述/agent 可否写全声明在那里，设置窗与这两件工具都从它派生，**不存在第二份表**。运行时选项（语言 / 系统字体 / 音频驱动·设备）也挂在声明上（`SettingItem.DynamicOptions`），设置窗与 agent 取到的候选一致。
+- **`list_settings`**（只读）：逐条列键、英文标签 + 本地化标签、**所在页**（→ agent 能用用户的语言说"在设置 > 外观 里的「界面字体」"，这就是"告诉在哪调"的出口）、允许值、当前值、默认值、重启标记、是否 agent 可写、描述。选项过多（系统字体数百项）时截断并标注总数；`SettingItem<int>` 的下拉项（采样率/缓冲区）在注册表里存的是数字的**字符串**形，呈现给模型时还原成数字。
+- **`set_setting(key, value)`**（写）：按键改一项 + `Settings.Save`。**校验一律按条目声明**（滑条范围 / 下拉成员 / 布尔 / 路径必须存在），不设第二套判据；模型把数字写成字符串（或反之）都能吃（按条目值类型归一化，下拉成员比对用无引号字面量）。值与当前相同 → 直接回报"已经是该值"、**不弹卡片**。改完若 `RestartRequired` 则提示要重启。
+- **agent 不可写的项（`AgentWritable = false`）**：① **授权档位 `AgentAuthorization` 本身**——防自我提权，只能用户在 agent 面板头部改；② **活值由别处 UI 拥有、只单向落盘的项**（`AgentModelProvider` 由 agent 面板设置拥有、`AutoScrollTarget` 由视图菜单拥有）——agent 写文件既不即时生效又会被那处 UI 覆盖，改了只会误导。这些项的 `Description` 写明"归谁管"，好让 agent 转告用户去哪改。
+- **边界**：这里只有**宿主应用设置**。工程/轨/part 的属性走 `run_script`，插件参数走 `list_sound_sources` / `list_effects` + 脚本写口，扩展自己的设置走扩展设置系统（设置窗「扩展」页，agent 未通）。快捷键同样未通（属后续快捷键专项）。
 
 ## 探测沙箱（`run_in_sandbox`）
 

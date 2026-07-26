@@ -28,22 +28,24 @@ internal enum ScriptAuthDecision { ApplyOnce, ApplyAlways, Reject }
 
 // agent 一次写请求的种类——决定升级卡片/回报文案。ProjectEdit=工程编辑（走预览-回退，Count=改动数）；
 // ScriptDelete/ScriptOverwrite=脚本库【外部文件】的破坏性改动（无预览，Target=脚本名）。历史记录管理器只保工程
-// 数据、保不了外部文件，故后者也必须过同一授权闸门。
-internal enum AgentWriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite }
+// 数据、保不了外部文件，故后者也必须过同一授权闸门。SettingChange=改宿主设置（Target=设置键、NewValue=新值文本）：
+// 不是工程数据、历史记录同样救不回，且是"改用户的应用配置"，故与前者同闸门、同样无预览。
+internal enum AgentWriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange }
 
-internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, int Count, string? Target)
+internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, int Count, string? Target, string? NewValue = null)
 {
     // 回灌模型的动作短语（英文，嵌进"I did NOT {0}"等句）。
     public string ActionPhrase() => Kind switch
     {
         AgentWriteKind.ScriptDelete => string.Format("delete the saved script \"{0}\"", Target),
         AgentWriteKind.ScriptOverwrite => string.Format("overwrite the existing saved script \"{0}\"", Target),
+        AgentWriteKind.SettingChange => string.Format("change the setting \"{0}\" to {1}", Target, NewValue),
         _ => string.Format("apply {0} change(s) to the project", Count),
     };
 }
 
-// 破坏性【外部文件】操作（删/覆盖脚本库文件）的授权闸门。与工程写共用 Settings.AgentAuthorization + 同一确认卡片，
-// 但【无预览-回退】——文件操作不能像脚本那样试运行再回退，故直接按档决定做/问/不做。
+// 工程之外的写（删/覆盖脚本库文件、改宿主设置）的授权闸门。与工程写共用 Settings.AgentAuthorization + 同一确认卡片，
+// 但【无预览-回退】——这些操作不能像脚本那样试运行再回退，故直接按档决定做/问/不做。
 //  · Auto           直接做；
 //  · ReadOnlyAdvice 不做、只回报会做什么 + 提示手动或提权；
 //  · Confirm        经 confirm 卡片裁决：应用本次/始终允许(切 Auto) 才做、拒绝不做；无 UI 回调则保守不做。

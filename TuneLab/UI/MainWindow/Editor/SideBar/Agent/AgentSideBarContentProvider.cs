@@ -125,6 +125,10 @@ internal sealed class AgentSideBarContentProvider
                 new GetExtensionReadmeTool(),
                 new ListSoundSourcesTool(),
                 new ListEffectsTool(),
+                // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，
+                // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
+                new ListSettingsTool(),
+                new SetSettingTool(RequestScriptAuthorizationAsync),
                 // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
                 // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。
                 new RunInSandboxTool(),
@@ -1906,7 +1910,17 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 卡片：说明 + 三按钮（应用本次/始终允许/拒绝）；裁决后隐藏按钮、留一行结果。"始终允许"顺带切档到 Auto。
-    // 文案按写请求种类分：工程编辑=改动数；脚本库删/覆盖=点名脚本 + 不可撤销提示（外部文件、历史记录管理器救不回）。
+    // 文案按写请求种类分：工程编辑=改动数；脚本库删/覆盖=点名脚本 + 不可撤销提示（外部文件、历史记录管理器救不回）；
+    // 改设置=点名那一项（用户看见的是【本地化行标】，模型侧才用键，故这里按键回查注册表标签）。
+    // 设置键 → 用户看见的本地化行标（找不到则退回键本身，如注册表条目已改名）。
+    static string SettingDisplayLabel(string? key)
+    {
+        foreach (var item in SettingsRegistry.All)
+            if (item.Key == key)
+                return item.DisplayLabel;
+        return key ?? "";
+    }
+
     Control BuildAuthRequestCard(AgentAuthorizationRequest request, TaskCompletionSource<ScriptAuthDecision> tcs)
     {
         var message = new SelectableTextBlock()
@@ -1915,6 +1929,7 @@ internal sealed class AgentSideBarContentProvider
             {
                 AgentWriteKind.ScriptDelete => string.Format("The agent wants to delete the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
                 AgentWriteKind.ScriptOverwrite => string.Format("The agent wants to overwrite the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
+                AgentWriteKind.SettingChange => string.Format("The agent wants to change the setting \"{0}\" to {1}.".Tr(this), SettingDisplayLabel(request.Target), request.NewValue),
                 _ => string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), request.Count),
             },
             FontSize = 12,
@@ -2263,6 +2278,7 @@ internal sealed class AgentSideBarContentProvider
         "Vibrato is overlaid additively on the pitch line: when drawing a pitch line and adding vibrato over the same span, draw ONE continuous pitch line over the whole span and add vibrato on top (part.addVibrato) — never split the pitch line where the vibrato is; and do NOT use VibratoEnvelope to create vibrato (it only scales an existing one). " +
         "ALWAYS narrate in natural language what each script does, and why, before or after running it, so the user follows your actions without reading code. " +
         "When the user wants a REUSABLE feature they can run again from a menu (\"add a menu item that …\", \"make me a tool to …\"), or a one-off they would clearly want repeatedly, author a script tool — define getScriptInfo() + main() (see get_script_api) — and save it with save_script; it registers into the matching menu (top Scripts, or the note / part / piano-blank right-click) for one-click reuse. Use list_scripts / read_script / delete_script to manage them. " +
+        "For questions about TuneLab's own settings (\"where do I change …\", \"how do I set …\"), call list_settings and tell the user the Settings page and row label in their language; call set_setting only when they want YOU to change it for them. " +
         "Earlier tool results are stale snapshots (the user or your own edits may have changed things); re-read with get_project_overview or a script before relying on current counts or values.";
 
     readonly Panel mRoot = new();
