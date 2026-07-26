@@ -186,6 +186,13 @@ internal sealed class AgentRunner
             {
                 // 模型已给出无工具的答复（本是收尾点）：若用户此刻有插话，吃掉它、重置回合预算、续跑把插话也答掉；否则真正结束。
                 if (DrainPending()) { rounds = 0; continue; }
+                // 但「没有工具调用」不等于「说完了」：finish_reason=length 表示这段回复是被 Max Tokens 硬截断的
+                // （话没说完、该调的工具也没调），静默收尾就成了用户看到的"说一句我来…然后没了"。作失败结局抛出：
+                // 已生成的正文留在轨迹里照常显示，末尾给出原因 + [重试]（重试对现有上下文续跑 = 让它接着说）。
+                if (string.Equals(reply.FinishReason, "length", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception(
+                        "The model's reply was cut off by Max Tokens (finish_reason: length), so this turn is incomplete. " +
+                        "Raise the Max Tokens setting (0 = no limit) or press Retry to let it continue.");
                 return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage(), trajectory);
             }
 

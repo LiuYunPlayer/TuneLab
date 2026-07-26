@@ -326,6 +326,8 @@
 "Read-only (advise, never apply)" = "只读（仅建议，绝不应用）"
 "Confirm" = "确认"
 "Confirm each change" = "每次改动需确认"
+"Apply once" = "应用本次"
+"(retried)" = "（已重试）"
 "Applied" = "已应用"
 "Applied · auto-apply on" = "已应用 · 已切自动"
 "Apply" = "应用"

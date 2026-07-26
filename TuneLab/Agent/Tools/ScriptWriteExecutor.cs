@@ -72,10 +72,11 @@ internal sealed class ScriptWriteExecutor(IProject project, Func<IMidiPart?>? cu
                 return string.Format("The user reviewed the {0} proposed edit(s) and chose NOT to apply them. Nothing was changed.", pv.Changes);
 
             var applied = Describe(await RunOnUi(preview: false));
-            // 始终允许：宿主已把授权切到 Auto——告知模型，后续写将不再逐次询问。
+            // 两种同意都要如实点明"用户被问过并同意了"——否则 ApplyOnce 的回报与 Auto 档一字不差，模型无从
+            // 知道确认发生过、也判不出当前档位（实测表现为反复追问"是不是弹了卡片"）。
             return decision == ScriptAuthDecision.ApplyAlways
-                ? "(The user switched authorization to auto-apply; your later edits will apply without asking.)\n" + applied
-                : applied;
+                ? "(The user was asked to confirm, approved it, and switched authorization to auto-apply; your later edits will apply without asking.)\n" + applied
+                : "(The user was asked to confirm and approved these edits; authorization stays at Confirm, so your next edit will ask again.)\n" + applied;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return "Error: " + ex.Message; }

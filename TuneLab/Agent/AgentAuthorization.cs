@@ -80,8 +80,10 @@ internal static class ToolAuthorization
         var decision = await confirm(request, cancellationToken);
         if (decision == ScriptAuthDecision.Reject)
             return (false, string.Format("The user chose NOT to allow it, so I did NOT {0}.", request.ActionPhrase()));
+        // 前缀必须把「确认这件事本身发生过」说出来：否则 ApplyOnce 的回报与 Auto 档一字不差，模型无从知道
+        // 用户被问过、也判不出自己现在是哪个档位 —— 实测表现为反复追问"是不是弹了卡片"。
         return (true, decision == ScriptAuthDecision.ApplyAlways
-            ? "(The user switched authorization to auto-apply; later actions won't ask.)\n"
-            : "");
+            ? "(The user was asked to confirm, approved it, and switched authorization to auto-apply; later actions won't ask.)\n"
+            : "(The user was asked to confirm and approved this one; authorization stays at Confirm, so the next action will ask again.)\n");
     }
 }

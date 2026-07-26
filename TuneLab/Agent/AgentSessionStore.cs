@@ -38,17 +38,23 @@ internal sealed class ChatTurnMessage
     public const string OutcomeCancelled = "cancelled";  // 用户点停：无助手回复、只留标记的用户消息
     public const string OutcomeError = "error";          // 技术失败：原因见 ErrorText
 
-    public string Role { get; set; } = "user";  // "user" | "assistant" | "tool"
+    // 带内的错误痕迹（非协议角色）：一次模型回复失败就记一条，位置即"当时发生错误的地方"。
+    // 永不删除——重试成功只清锚上的 Outcome（该轮不再是失败态），这条留着说明历史里那段半截内容为何半截。
+    // 绝不喂模型（ReconstructHistory 跳过），也不参与 tool_call 配对。
+    public const string RoleError = "error";
+
+    public string Role { get; set; } = "user";  // "user" | "assistant" | "tool" | RoleError
     // 文本内容：user=输入，assistant=正文回复，tool=结果。沿用旧字段名 Text 保持向后兼容（旧文件可原样反序列化）。
     public string Text { get; set; } = string.Empty;
     public List<ChatAttachment>? Attachments { get; set; }  // 仅 user：图片等多模态附件（引用 blob）
     public string? Reasoning { get; set; }              // 仅 assistant：思考通道全文（v1+）
     public List<ChatToolCall>? ToolCalls { get; set; }  // 仅 assistant：本次请求的工具调用（v1+）
     public string? ToolCallId { get; set; }             // 仅 tool：回指 ToolCalls[].Id（v1+）
-    public bool IsError { get; set; }                   // 仅 tool：结果是否为错误（v1+）
+    public bool IsError { get; set; }                   // tool：结果是否为错误（v1+）；RoleError 恒 true
     public bool Interjected { get; set; }               // 仅 user：是否为生成过程中的轮边界插话（v1+，重载时行内重放而非另起一轮）
-    // 仅 user(轮锚)：本轮结局（OutcomeCancelled/OutcomeError；缺省=正常完成）。持久化在发送时即写用户消息、结局在轮终态回写；
-    // 加法式字段，旧文件无此键即 null（正常轮）。context 重建据此整轮跳过（避免悬空 tool_call / 半截轮），UI 重载则渲染"已停止/失败"。
+    // 仅 user(轮锚)：本轮【当前】结局（OutcomeCancelled/OutcomeError；缺省=正常完成）。发送时即写用户消息、结局在轮终态回写；
+    // 重试成功即清回 null（该轮变正常轮、不再给重试按钮），历史真相另由带内 RoleError 记录保留。
+    // 加法式字段，旧文件无此键即 null（正常轮）。UI 重载据此渲染"已停止/失败+重试按钮"。
     public string? Outcome { get; set; }
     public string? ErrorText { get; set; }              // 仅 Outcome==OutcomeError：技术失败原因（重载渲染 + 回报用，不回灌模型）
     // 助手轮的 token 用量（端点返回才有；用户/工具轮恒空）。

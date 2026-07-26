@@ -186,6 +186,7 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             Reasoning = reasoningSb.Length > 0 ? reasoningSb.ToString() : null,
             ToolCalls = toolCalls,
             Usage = usage,
+            FinishReason = finishReason,   // 正文非空时也要带出去：length=被 Max Tokens 截断，宿主要如实告知而非静默收尾
         };
     }
 
@@ -327,7 +328,12 @@ internal sealed class OpenAICompatibleSession : IAgentModelSession
             }
         }
 
-        return new AgentModelReply { Content = content, Reasoning = reasoning, ToolCalls = toolCalls, Usage = ParseUsage(doc.RootElement) };
+        // 非流式路径同样带出 finish_reason（口径与流式一致）。
+        string? finishReason = doc.RootElement.GetProperty("choices")[0].TryGetProperty("finish_reason", out var fr) && fr.ValueKind == JsonValueKind.String
+            ? fr.GetString()
+            : null;
+
+        return new AgentModelReply { Content = content, Reasoning = reasoning, ToolCalls = toolCalls, Usage = ParseUsage(doc.RootElement), FinishReason = finishReason };
     }
 
     // OpenAI 协议 usage：{ prompt_tokens, completion_tokens, total_tokens }。缺失则返回 null（不是所有端点都返回）。

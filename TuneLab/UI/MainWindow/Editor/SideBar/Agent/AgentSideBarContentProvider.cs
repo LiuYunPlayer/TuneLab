@@ -1,4 +1,4 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -637,6 +637,9 @@ internal sealed class AgentSideBarContentProvider
             Title = "New Chat".Tr(this),
             CreatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         };
+        // 自动跟随的开关由「用户是否主动移动过视野」决定（见 OnMessagesAxisChanged），不靠每次流式增量去量位置——
+        // 量位置那套会被布局时序（内容刚长高、轴还没更新）骗过去，一旦误判就永久停止跟随。
+        ctx.View.VerticalAxis.AxisChanged += () => OnMessagesAxisChanged(ctx);
         mContexts.Add(ctx);
         return ctx;
     }
@@ -712,7 +715,9 @@ internal sealed class AgentSideBarContentProvider
                 i++;
             bool failed = turnStart != null && !string.IsNullOrEmpty(turnStart.Outcome);
             if (i > start)
-                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i, aborted: failed));
+                // 仍处于失败态的轮：末尾那条带内错误记录由下面的 BuildErrorEntry 渲染（带重试按钮），
+                // 组内不再重复渲染它；已被重试掉的历史错误则照位置行内呈现（留痕）。
+                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i, aborted: failed, skipTrailingError: failed));
             // 收场态：出错轮 → 可重试/复制的错误条目（重试仅给最后一轮，其上下文才对得上）；取消轮 → 灰字"已停止"。
             if (failed && turnStart!.Outcome == ChatTurnMessage.OutcomeError)
                 ctx.View.Content.Children.Add(BuildErrorEntry(ctx, turnStart, turnStart.ErrorText, allowRetry: i >= msgs.Count));
@@ -729,8 +734,11 @@ internal sealed class AgentSideBarContentProvider
 
     // 把 [start, end) 区间的助手/工具记录重放进一个 AgentTurnView，重建分步视图（与实时同路径），包进助手容器返回。
     // 重放顺序即存储顺序：每条 assistant 先思考、再正文、再它的工具调用(started)；随后的 tool 记录给出对应结果(finished)。
-    Control BuildReplayedTurn(List<ChatTurnMessage> msgs, int start, int end, bool aborted = false)
+    Control BuildReplayedTurn(List<ChatTurnMessage> msgs, int start, int end, bool aborted = false, bool skipTrailingError = false)
     {
+        // 仍失败的轮：末尾那条错误记录归 BuildErrorEntry（带重试），此处跳过以免重复。
+        if (skipTrailingError && end - 1 >= start && msgs[end - 1].Role == ChatTurnMessage.RoleError)
+            end--;
         var turn = new AgentTurnView();
         var narration = new List<string>();
         int prompt = 0, completion = 0, total = 0;
@@ -747,6 +755,12 @@ internal sealed class AgentSideBarContentProvider
             if (m.Role == "user") // 组内 user = 轮边界插话：行内重放成用户小气泡（与实时同路径）
             {
                 turn.Apply(new AgentUserInterjection(m.Text));
+                continue;
+            }
+            if (m.Role == ChatTurnMessage.RoleError) // 带内错误痕迹（已被重试掉的那次失败）：原位留痕、暗色不抢戏
+            {
+                turn.SealText();   // 先把当前文本段定稿，错误行才落在它之后（保持真实先后）
+                turn.Append(RetiredErrorLine(m.Text));
                 continue;
             }
             // assistant
@@ -819,6 +833,8 @@ internal sealed class AgentSideBarContentProvider
                 case "tool":
                     history.Add(new AgentMessage { Role = AgentRole.Tool, ToolCallId = m.ToolCallId, Content = m.Text });
                     break;
+                case ChatTurnMessage.RoleError:
+                    continue;   // 带内错误痕迹只给用户看（宿主自己的报错文本，非模型说过的话），绝不喂回模型
                 default:
                     history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text, Parts = BuildHistoryParts(session.Id, m) });
                     break;
@@ -916,8 +932,8 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 轮终态为取消/出错：回写锚消息的结局，并把失败前已构建的"半截过程"（partialTrajectory）也落盘——供重载如实重放，
-    // 做到显示 重载==实时。context 重建（ReconstructHistory）据锚的 Outcome 整轮跳过（半截过程也一并跳过、不喂模型），
-    // 故半截里即便有悬空 tool_call 也不会喂给模型；UI 重载则渲染半截过程 + "已停止/失败+原因"——真相保留。
+    // 做到显示 重载==实时。上下文重建（ReconstructHistory）只砍悬空 tool_call 尾巴、其余照喂（失败单位=单次模型回复，
+    // 用户消息与已完成轮永远留在上下文）；UI 重载则渲染半截过程 + "已停止/失败+原因"——真相保留。
     void MarkTurnOutcome(SessionContext ctx, ChatTurnMessage anchor, string outcome, string? errorText, IReadOnlyList<AgentTurnMessage>? partialTrajectory = null)
     {
         anchor.Outcome = outcome;
@@ -928,6 +944,11 @@ internal sealed class AgentSideBarContentProvider
         if (partialTrajectory is { Count: > 0 })
             foreach (var m in partialTrajectory)
                 ctx.Session.Messages.Add(ToStored(m));
+        // 出错另记一条【在带内】的错误记录：它才是"这里当时发生了什么"的位置正确的痕迹。锚上的 Outcome 是
+        // "本轮当前是否处于失败态"（重试成功即清），而这条记录永不删——否则重试成功后历史里只剩下半截内容、
+        // 没有任何线索说明它为何半截（= 隐藏真实轨迹）。role="error" 不喂模型（ReconstructHistory 跳过）。
+        if (outcome == ChatTurnMessage.OutcomeError)
+            ctx.Session.Messages.Add(new ChatTurnMessage { Role = ChatTurnMessage.RoleError, Text = errorText ?? string.Empty, IsError = true });
         ctx.Session.UpdatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         AgentSessionStore.Save(ctx.Session);
     }
@@ -1093,6 +1114,10 @@ internal sealed class AgentSideBarContentProvider
         mInput.Text = string.Empty;
         mPendingImages.Clear();
         RebuildAttachmentStrip();
+        // 新消息一发出，之前那次失败就不再是对话末尾 → 收掉它的[重试]（留红字痕迹本身）。
+        // 否则那颗按钮点下去会变成"从末尾再续一轮"：结果落在底部、历史归属还会错位（重载路径本就只给最后一轮）。
+        ctx.RetireLiveErrorEntry?.Invoke();
+        ctx.RetireLiveErrorEntry = null;
         AppendUserMessage(ctx, text, images.Select(i => i.Data).ToList());
         // 附件 → ChatAttachment（含原始字节，Save 落 blob、清单只引用）。
         var attachments = images.Count > 0
@@ -1108,13 +1133,14 @@ internal sealed class AgentSideBarContentProvider
             reply => CompleteTurn(ctx, text, reply.Text, reply.Trajectory, isNewSession));
     }
 
-    // 失败轮的重试：不重发消息，对当前上下文（末尾即那条用户消息 + 已完成轮）续跑；移除错误条目，结果就地续上。
+    // 失败轮的重试：不重发消息，对当前上下文（末尾即那条用户消息 + 已完成轮）续跑；错误条目就地降级留痕，结果续在其后。
     // 仅错误轮给（见 BuildErrorEntry）。重载后 runner 为空则据 SeedHistory 重建（其末尾正是待重试的用户消息 + 已完成轮）。
-    async void OnRetry(SessionContext ctx, ChatTurnMessage anchor, Control errorEntry)
+    async void OnRetry(SessionContext ctx, ChatTurnMessage anchor, Action retireErrorEntry)
     {
         if (ctx.Busy || mSession == null)
             return;
-        ctx.View.Content.Children.Remove(errorEntry);
+        retireErrorEntry();               // 降级为「（已重试）」留痕行
+        ctx.RetireLiveErrorEntry = null;  // 这条已收，别再被后续 OnSend 收第二次
         ctx.Runner ??= new AgentRunner(mSession, mTools, SystemPrompt, ctx.SeedHistory);
         await RunTurnAsync(ctx, anchor,
             (progress, ct, takePending) => ctx.Runner!.RetryAsync(progress, ct, takePending),
@@ -1739,19 +1765,45 @@ internal sealed class AgentSideBarContentProvider
     // ViewOffset/ContentLength 反映"新内容加入前"的位置，正好判定用户是否在跟随。force=true（切会话/用户发送）：无条件到底。
     void ScrollToEnd(SessionContext ctx, bool force = false)
     {
+        if (force)
+            ctx.AutoFollow = true;
+        else if (!ctx.AutoFollow)
+            return;      // 用户正在上面看别的 → 不抢他的视野
         if (ctx != mActive)
-            return;
-        if (!force)
-        {
-            var axis = ctx.View.VerticalAxis;
-            double max = Math.Max(0, axis.ContentLength - axis.ViewLength);
-            if (axis.ViewOffset < max - AutoFollowSlack)   // 用户已上翻 → 不跟随
-                return;
-        }
-        Dispatcher.UIThread.Post(() => ctx.View.VerticalAxis.ViewOffset = 1e9, DispatcherPriority.Background);
+            return;      // 离屏会话不滚（切回时按需处理）；但上面的 AutoFollow 语义仍要维护
+        // 两次推进：内容可能在本帧之后才长高（markdown 块重建 / 图片测量），只滚一次会停在旧底部。
+        Dispatcher.UIThread.Post(() => Stick(ctx), DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => Stick(ctx), DispatcherPriority.Loaded);
     }
 
-    // 判定"贴底"的容差（约一行高）：略低于底也仍算在跟随，避免流式布局抖动误判为"用户上翻"。
+    // 贴底（只在仍处于跟随态时执行；ViewOffset 会被轴钳到 max）。
+    void Stick(SessionContext ctx)
+    {
+        if (ctx == mActive && ctx.AutoFollow)
+            ctx.View.VerticalAxis.ViewOffset = 1e9;
+    }
+
+    // 消息区竖轴变化：据此维护"是否仍在跟随底部"。判据是【谁动了视野】而非【当前离底多远】：
+    //  · 到底 → 恢复跟随（含我们自己滚到底、用户手动拖回底）；
+    //  · 只有 offset 变了（内容长度、视野高度都没变）且不在底部 → 是用户滚轮/拖手柄把视野移开了 → 停止跟随；
+    //  · 内容长高 / 视野尺寸变化引起的"离底"不算用户操作（流式输出与拖宽侧栏都属此类），不停跟随。
+    void OnMessagesAxisChanged(SessionContext ctx)
+    {
+        var axis = ctx.View.VerticalAxis;
+        double offset = axis.ViewOffset, content = axis.ContentLength, view = axis.ViewLength;
+        bool offsetMoved = Math.Abs(offset - ctx.LastViewOffset) > 0.5;
+        bool geometryChanged = Math.Abs(content - ctx.LastContentLength) > 0.5 || Math.Abs(view - ctx.LastViewLength) > 0.5;
+        ctx.LastViewOffset = offset;
+        ctx.LastContentLength = content;
+        ctx.LastViewLength = view;
+
+        if (offset >= Math.Max(0, content - view) - AutoFollowSlack)
+            ctx.AutoFollow = true;
+        else if (offsetMoved && !geometryChanged)
+            ctx.AutoFollow = false;
+    }
+
+    // 判定"贴底"的容差（约一行高）：略低于底也算回到底部，恢复跟随。
     const double AutoFollowSlack = 24;
 
     // 标记某会话的忙碌态（输入框始终可用，由 ctx.Busy 拦该会话内回车重复发送）。若它是当前可见会话，同步发送/停止键。
@@ -1994,7 +2046,8 @@ internal sealed class AgentSideBarContentProvider
             tcs.TrySetResult(decision);
         }
         var muted = Style.LIGHT_WHITE.Opacity(0.6).ToBrush();
-        buttons.Children.Add(CardButton("Apply".Tr(this), primary: true, () => Settle(ScriptAuthDecision.ApplyOnce, "Applied".Tr(this), muted)));
+        // "应用本次"（非"应用"）：与右侧"始终允许"对照才说得清——本次落地、档位不变、下次仍问。
+        buttons.Children.Add(CardButton("Apply once".Tr(this), primary: true, () => Settle(ScriptAuthDecision.ApplyOnce, "Applied".Tr(this), muted)));
         buttons.Children.Add(CardButton("Always allow".Tr(this), primary: false, () => { SetAuthorization(AgentAuthorization.Auto); Settle(ScriptAuthDecision.ApplyAlways, "Applied · auto-apply on".Tr(this), muted); }));
         buttons.Children.Add(CardButton("Reject".Tr(this), primary: false, () => Settle(ScriptAuthDecision.Reject, "Rejected".Tr(this), muted)));
         // 因取消先行 resolve（点停）→ 卡片切到"已停止"，不留可点按钮。
@@ -2015,20 +2068,50 @@ internal sealed class AgentSideBarContentProvider
         return card;
     }
 
-    // 出错条目：红字原因 + [复制] +（末轮才有）[重试]。作为 ctx.View 的独立子项（非塞进 turn 内），便于重试时整块移除、结果就地续上。
+    // 出错条目：红字原因 + [复制] +（末轮才有）[重试]。作为 ctx.View 的独立子项（非塞进 turn 内），便于重试时就地降级、结果续在其后。
+    // 重试开始不再【删掉】它：那等于抹掉"这里曾经失败过"的痕迹（而半截内容还留着、变得无从解释）。改为
+    // 降级成留痕行（与重载时的呈现一致 → 显示 重载==实时）。
+    // 【重试的有效期】只到"那次失败仍是对话末尾"为止：RetryAsync 是对当前上下文续跑，一旦用户又发了消息、
+    // 末尾已换人，点它就不再是"重试那次"而是"从末尾再续一轮"（结果落在底部、历史归属还会错位）。故新一轮开始时
+    // 由 RetireLiveErrorEntry 收掉按钮——与重载路径 allowRetry: i >= msgs.Count（只给最后一轮）同一口径。
     Control BuildErrorEntry(SessionContext ctx, ChatTurnMessage anchor, string? errorText, bool allowRetry)
     {
         var panel = new StackPanel() { Orientation = Orientation.Vertical };
-        panel.Children.Add(NoticeLine("Error: " + (errorText ?? string.Empty), Colors.IndianRed.ToBrush()));
+        var notice = NoticeLine("Error: " + (errorText ?? string.Empty), Colors.IndianRed.ToBrush());
+        panel.Children.Add(notice);
         var container = AssistantContainer(panel);
         // 右对齐：复制落在与普通消息分段复制同一条右边缘（统一按钮）；重试作为报错轮附加按钮排其左。
         var row = new StackPanel() { Orientation = Orientation.Horizontal, Spacing = 14, Margin = new(0, 4, 0, 0), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+        // retried=true（用户点了重试）→ 暗色 +「（已重试）」；false（对话已往下走、这次失败没被重试）→ 只收按钮、
+        // 文字与配色不动（与重载时 allowRetry=false 的呈现一字不差）。
+        bool retiredAlready = false;
+        void Retire(bool retried)
+        {
+            if (retiredAlready)
+                return;
+            retiredAlready = true;
+            row.IsVisible = false;
+            if (retried)
+            {
+                notice.Text = RetiredErrorText(errorText ?? string.Empty);
+                notice.Foreground = RetiredErrorBrush;
+            }
+        }
         if (allowRetry)
-            row.Children.Add(TextButton("Retry".Tr(this), () => OnRetry(ctx, anchor, container)));
+        {
+            row.Children.Add(TextButton("Retry".Tr(this), () => OnRetry(ctx, anchor, () => Retire(retried: true))));
+            ctx.RetireLiveErrorEntry?.Invoke();          // 同一会话若还挂着更早的可重试条目，先收掉它
+            ctx.RetireLiveErrorEntry = () => Retire(retried: false);
+        }
         row.Children.Add(TextButton("Copy".Tr(this), () => _ = CopyErrorAsync(errorText ?? string.Empty)));
         panel.Children.Add(row);
         return container;
     }
+
+    // 已被重试掉的那次失败：原位留痕的暗色一行（重载路径与实时降级共用同一措辞与配色）。
+    Control RetiredErrorLine(string errorText) => NoticeLine(RetiredErrorText(errorText), RetiredErrorBrush);
+    string RetiredErrorText(string errorText) => "Error: " + errorText + " " + "(retried)".Tr(this);
+    static IBrush RetiredErrorBrush => Colors.IndianRed.Opacity(0.55).ToBrush();
 
     async Task CopyErrorAsync(string text)
     {
@@ -2299,6 +2382,8 @@ internal sealed class AgentSideBarContentProvider
         "Editor state lives on `tl`: tl.currentPart() resolves \"this/the current part\", tl.selectedNotes()/tl.selectedParts() are the user's selection, tl.playhead() is \"here\". The grid is not where the playhead is — snap target ticks with tl.snap(...) when placing notes on the beat. " +
         "Vibrato is overlaid additively on the pitch line: when drawing a pitch line and adding vibrato over the same span, draw ONE continuous pitch line over the whole span and add vibrato on top (part.addVibrato) — never split the pitch line where the vibrato is; and do NOT use VibratoEnvelope to create vibrato (it only scales an existing one). " +
         "ALWAYS narrate in natural language what each script does, and why, before or after running it, so the user follows your actions without reading code. " +
+        "NEVER announce an action and then stop: if you say you will do something, do it in the SAME reply by calling the tool — a reply that only promises leaves the user waiting and having to nudge you. " +
+        "Writes may be gated by the user's authorization setting: every tool result states plainly whether it applied, was refused, or was approved by the user in a confirmation card. Trust that text — never ask the user whether a dialog appeared or whether your change went through. " +
         "When the user wants a REUSABLE feature they can run again from a menu (\"add a menu item that …\", \"make me a tool to …\"), or a one-off they would clearly want repeatedly, author a script tool — define getScriptInfo() + main() (see get_script_api) — and save it with save_script; it registers into the matching menu (top Scripts, or the note / part / piano-blank right-click) for one-click reuse. Use list_scripts / read_script / delete_script to manage them. " +
         "If they also want a keyboard shortcut for it — or for any command — call list_keybindings to find a free gesture, then set_keybinding; a saved script's command id is \"script:<its id>\". " +
         "For questions about TuneLab's own settings (\"where do I change …\", \"how do I set …\"), call list_settings and tell the user the Settings page and row label in their language; call set_setting only when they want YOU to change it for them. " +
@@ -2392,6 +2477,13 @@ internal sealed class AgentSideBarContentProvider
         public string Title = "New Chat";        // 该会话标题（切到它时写入头部标签）
         public bool TitleManual;                 // 标题是否被用户手动改过：true 则不再被自动标题覆盖
         public long CreatedAtUnix;               // 会话建立时刻（本地新建=当时；加载已存=其原始创建时刻）。菜单按它降序排，位置稳定、新会话在顶
+        // 自动跟随底部的状态（per-session）：AutoFollow 只由"用户是否主动移动视野"翻转（见 OnMessagesAxisChanged），
+        // 三个 Last* 是上次轴通知的快照，用来区分"用户滚了"与"内容长高/视野改尺寸"。
+        public bool AutoFollow = true;
+        public double LastViewOffset, LastContentLength, LastViewLength;
+        // 当前挂着[重试]按钮的那条错误条目的"收按钮"回调（只可能有一条：恒为对话末尾那次失败）。
+        // 新一轮开始（用户又发消息 / 点了重试）即调用它——重试只在"那次失败仍是末尾"时才有意义。
+        public Action? RetireLiveErrorEntry;
         public SessionContext(ListView view)
         {
             View = view;

@@ -96,4 +96,8 @@ public sealed class AgentModelReply
     public string? Reasoning { get; init; }
     public IReadOnlyList<AgentToolCall> ToolCalls { get; init; } = [];
     public AgentTokenUsage? Usage { get; init; }
+    // 本次回复的终止原因（provider 原文，OpenAI 系：stop / length / tool_calls / content_filter；未知或未给 = null）。
+    // 宿主据此区分「模型说完了」与「被截断/被拦下」——尤其 length：正文非空但话没说完（常见于 Max Tokens 设小），
+    // 若不上报就表现为"说了一句我来…然后无声结束"。适配器给不出时留 null，宿主按"正常结束"处理。
+    public string? FinishReason { get; init; }
 }

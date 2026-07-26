@@ -70,6 +70,11 @@ internal class ScrollView : Panel
         var contentWidth = mIsFitWidth ? finalSize.Width : contentSize.Width;
         var contentHeight = mIsFitHeight ? finalSize.Height : contentSize.Height;
         mContent.Value?.Arrange(new(-mHorizontalAxis.ViewOffset, -mVerticalAxis.ViewOffset, contentWidth, contentHeight));
+        // 就地把"刚安排下去的内容尺寸"同步进轴（值相同则 setter 直接返回、不会触发多余重排）。
+        // 不能只依赖内容控件的 SizeChanged：那是内容 Bounds 变化后的回调，内容被持续追加时（如流式文本）
+        // 轴会晚一帧甚至收不到通知，滚动条手柄与"贴底"判定都会用到过期的 ContentLength。这里与 SizeChanged
+        // 报的是同一个值（都是安排尺寸），只是更及时。
+        OnContentSizeChanged(new Size(contentWidth, contentHeight));
         return finalSize;
     }
 
