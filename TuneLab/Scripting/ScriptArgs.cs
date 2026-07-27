@@ -44,6 +44,33 @@ internal static class ScriptArgs
         return v.IsString() ? v.AsString() : v.ToString();
     }
 
+    // 选项袋 / info 里的一个【句柄】字段（如 track.insertPart 的目标）。Jint 把注入的 CLR 对象包成
+    // ObjectWrapper，ToObject() 取回原实例；传了但类型不对要明确报错，而不是静默当没传（那会让脚本以为
+    // 默认行为生效）。
+    public static T? OptHandle<T>(ObjectInstance o, string name, string expected) where T : class
+    {
+        if (!Has(o, name, out var v)) return null;
+        return v.ToObject() as T
+            ?? throw new ScriptApiException(string.Format("field \"{0}\" must be {1}.", name, expected));
+    }
+
+    // JS 数组 → List<T>（逐元素经 readItem）。用 length + 下标读而不是 IsArray()：类数组对象（含脚本
+    // 自造的 {length, 0, 1…}）一样收，与既有 ReadPoints 口径一致。
+    public static List<T> ReadArray<T>(JsValue value, string what, Func<JsValue, T> readItem)
+    {
+        if (value is null || !value.IsObject())
+            throw new ScriptApiException(string.Format("{0} must be an array.", what));
+        var o = value.AsObject();
+        var lenVal = o.Get("length");
+        if (!lenVal.IsNumber())
+            throw new ScriptApiException(string.Format("{0} must be an array.", what));
+        int len = (int)lenVal.AsNumber();
+        var list = new List<T>(Math.Max(0, len));
+        for (int i = 0; i < len; i++)
+            list.Add(readItem(o.Get(i.ToString(CultureInfo.InvariantCulture))));
+        return list;
+    }
+
     // 接受可空 JsValue：可选脚本参数在 C# 签名里写成 `JsValue? x = null`（Jint 对缺失尾参不自动补 undefined、
     // 只有形参带默认值才允许省略——见 ScriptArgs 各可选参用法），省略即传 CLR-null，这里同 undefined/null 处理。
     public static string? AsStrOrNull(JsValue? v) => v is null || v.IsUndefined() || v.IsNull() ? null : (v.IsString() ? v.AsString() : v.ToString());
@@ -75,18 +102,9 @@ internal static class ScriptArgs
 
     // points = [{tick, value}]（绝对 tick / 参数绝对值）。返回 (X=tick, Y=value) 的点列表（未排序）。
     public static List<Point> ReadPoints(JsValue points)
-    {
-        var o = Obj(points, "points");
-        var lenVal = o.Get("length");
-        if (!lenVal.IsNumber())
-            throw new ScriptApiException("points must be an array of {tick, value}.");
-        int len = (int)lenVal.AsNumber();
-        var list = new List<Point>(len);
-        for (int i = 0; i < len; i++)
+        => ReadArray(points, "points (an array of {tick, value})", v =>
         {
-            var p = Obj(o.Get(i.ToString(CultureInfo.InvariantCulture)), "point");
-            list.Add(new Point(ReqNum(p, "tick"), ReqNum(p, "value")));
-        }
-        return list;
-    }
+            var p = Obj(v, "point");
+            return new Point(ReqNum(p, "tick"), ReqNum(p, "value"));
+        });
 }

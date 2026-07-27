@@ -17,7 +17,7 @@ effect 链增删排（`AGENT-*` / 见 part.effects 那批）。
 
 ## 1. automationIds 读取
 
-给某 part 加一个 V1.Effect（`const fx = part.addEffect("<V1.Effect type>")`），跑 `print(fx.automationIds())`。
+给某 part 加一个 V1.Effect（`const fx = part.addEffect({ type: "<V1.Effect type>" })`），跑 `print(fx.automationIds())`。
 
 **期望**：列出该 effect 引擎声明的可自动化参数 id——含 `formant`；`gain_env` 在 env_enabled（默认 true）时也在列。
 与 `list_effects` 报的该引擎参数 schema 一致。

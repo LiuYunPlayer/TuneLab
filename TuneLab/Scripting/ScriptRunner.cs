@@ -80,6 +80,7 @@ internal static class ScriptRunner
         try
         {
             var engine = CreateEngine(limits, cancellationToken);
+            context.AttachEngine(engine);   // 句柄的 getInfo() 靠它产出普通 JS 对象/数组
 
             void Print(JsValue v)
             {
@@ -146,6 +147,7 @@ internal static class ScriptRunner
         try
         {
             var engine = CreateEngine(ScriptLimits.Interactive, cancellationToken);
+            context.AttachEngine(engine);
             engine.SetValue("tl", new ScriptApp(context));
             engine.SetValue("print", (Action<JsValue>)(_ => { }));
             engine.SetValue("log", (Action<JsValue>)(_ => { }));

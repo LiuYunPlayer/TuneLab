@@ -17,7 +17,7 @@ function main() {
   if (!sel) { print('no piano range selection'); return; }
   const part = tl.currentPart();
   if (!part) return;
-  const notes = part.notesInRange(sel.startTick, sel.endTick);
+  const notes = part.notes().filter(n => n.pos >= sel.startTick && n.pos < sel.endTick);
   for (const note of notes) note.pitch += 1;
   print('nudged ' + notes.length + ' note(s) in ticks ' + sel.startTick + '..' + sel.endTick);
 }

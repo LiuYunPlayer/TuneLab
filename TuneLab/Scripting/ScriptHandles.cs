@@ -13,16 +13,33 @@ using TuneLab.SDK;
 
 namespace TuneLab.Scripting;
 
-// 脚本面向的「句柄」（对象式 API 的核心）：每个句柄包装一个数据层对象（轨/part/note/vibrato），向脚本暴露
+// 脚本面向的「句柄」（对象式 API 的核心）：每个句柄包装一个数据层对象（轨/part/note/vibrato/effect），向脚本暴露
 //  · 可读写的【标量字段】（裸属性，如 note.pos / note.pitch）——读即实时读底层，写经宿主收口；
 //  · 查询/创建/删除/计算的【方法】（带括号，如 part.notes() / track.addPart() / part.removeNote()）。
 // 心智模型：裸属性 = 单个标量字段；带括号 = 一次查询或动作。
 //
 // 增删一律【挂父】：父建子（project.addTrack / track.addPart / part.addNote / part.addVibrato）、父删子
-// （project.removeTrack / track.removePart / part.removeNote / part.removeVibrato）——与 SV 一致，且对 LLM 对称、
+// （project.removeTrack / track.removePart / part.removeNote / part.removeVibrato）——对 LLM 对称、
 // 不会照"增在父"脑补出不存在的 API。句柄持有回宿主（ScriptContext）的引用，写操作经它统一收口（merge 括号 +
 // 改动计数 + 整段脚本末尾一次 Commit）；句柄本身不 Commit。句柄是【临时】的：仅当次运行有效、不可写死、不跨次
-// 运行（数据层对象无持久 id，重启即失效）；被删除后再用会报错。
+// 运行（数据层对象无持久 id，重启即失效）。
+//
+// ── 三段式与两条落地路 ──
+// 数据层的创建一律：Info（纯数据，改它不进撤销栈）→ CreateX(info)（建游离实体）→ InsertX(entity)（入树，
+// 这一步才进回退栈）。脚本面据此给出两条【语义不同、都必需】的路：
+//   · addX(info[, index])   = 复制 / 新建（新身份），中间物是纯数据 info，可落地任意多次；
+//   · insertX(entity[, i])  = 移动（保持对象身份），中间物是游离实体，只能落地一次（一个对象一个父）。
+// 调序 / 跨轨迁移必须走后者：note / 曲线 / effect 都挂在那个对象身上，undo 栈记录的也是它；走 info 路重建
+// 出来的是另一个对象（新身份，且 remove+add 两条命令而非一次移动）。info 的读出侧是各句柄的 getInfo()。
+//
+// ── 句柄两态：在树上 / 游离 ──
+// removeX 只是把子对象从父容器【摘出】，不销毁——句柄随之转入【游离】态：仍可读、仍可 getInfo()、仍可插回
+// （保持身份）。「删除」就是「摘出后不插回」，一个机制覆盖两种用法。游离态【不可写】：数据层纪律是未 Attach
+// 的对象其属性 Set 不记录命令，改了回退也回不掉（静默漂移），故写入一律在写 accessor 处拦下并指路"先插回"。
+// 每个句柄因此有两个 accessor：读用的（两态都放行）与写用的（游离即报错）。
+//
+// 跨父迁移只对 part 成立（IPart.Track 可改）；note / vibrato / effect 的所属 part 在数据层由构造决定、
+// 不可改，故它们的 insertX 只接受"插回原父"，跨父请走 info 路（other.addX(x.getInfo())）。
 //
 // 坐标铁律：对外位置/时长一律【绝对（全局）tick】——note/vibrato.pos 已加回所属 part 起点，落库时减回。音高 = MIDI。
 
@@ -30,45 +47,56 @@ namespace TuneLab.Scripting;
 internal sealed class ScriptNote(ScriptContext ctx, INote note)
 {
     internal INote Note { get; } = note;
-    internal bool Removed { get; set; }
+    // 已从所属 part 摘出（游离）：可读可插回，不可写。
+    internal bool Detached { get; set; }
 
-    INote N => Removed ? throw new ScriptApiException("this note handle was removed and is no longer valid.") : Note;
+    // 读 accessor（在树上 / 游离都放行）。
+    INote N => Note;
+    // 写 accessor（游离态拒绝，见类头「句柄两态」）。
+    INote W => Detached
+        ? throw new ScriptApiException("this note is detached (it was removed from its part) and can't be modified; insert it back with part.insertNote(note) first, or build a new one from note.getInfo().")
+        : Note;
 
-    public double Pos { get => N.GlobalStartPos(); set => Apply(absPos: value); }   // 绝对 tick
-    public double Dur { get => N.Dur.Value; set => Apply(dur: value); }
-    public int Pitch { get => N.Pitch.Value; set => Apply(pitch: value); }          // MIDI 0..127
-    public string Lyric { get => N.Lyric.Value; set => Apply(lyric: value ?? string.Empty); }
+    public double Pos { get => N.GlobalStartPos(); set => Move(absPos: value); }   // 绝对 tick
+    public double Dur { get => N.Dur.Value; set => Move(dur: value); }
+    // 以下均【非排序键】：直接 Set，不套 MoveNote——NoteList 只按 StartPos/EndPos 排序，让非键字段白走
+    // 一次摘除-重插是纯浪费（还多一条无意义的结构变更通知）。
+    public int Pitch
+    {
+        get => N.Pitch.Value;
+        set { var n = W; ctx.EnsureBracket(n.Part); n.Pitch.Set(Math.Clamp(value, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH)); ctx.Bump(); }
+    }
+    public string Lyric
+    {
+        get => N.Lyric.Value;
+        set { var n = W; ctx.EnsureBracket(n.Part); n.Lyric.Set(value ?? string.Empty); ctx.Bump(); }
+    }
     // 发音覆盖（voice 专属）：非空则强制该 note 用此发音（G2P 输入），空串 = 回到按歌词自动派生。
-    public string Pronunciation { get => N.Pronunciation.Value; set => Apply(pronunciation: value ?? string.Empty); }
+    public string Pronunciation
+    {
+        get => N.Pronunciation.Value;
+        set { var n = W; ctx.EnsureBracket(n.Part); n.Pronunciation.Set(value ?? string.Empty); ctx.Bump(); }
+    }
     public string PitchName => MusicTheory.PitchName(N.Pitch.Value);                 // 只读，如 "C4"
 
-    // 批量原子改：{pos?, dur?, pitch?, lyric?, pronunciation?}（改 pos/dur 只重排一次）。
-    public void Set(JsValue props)
-    {
-        var o = ScriptArgs.Obj(props, "props");
-        Apply(
-            pitch: ScriptArgs.OptInt(o, "pitch"),
-            absPos: ScriptArgs.OptNum(o, "pos"),
-            dur: ScriptArgs.OptNum(o, "dur"),
-            lyric: ScriptArgs.OptStr(o, "lyric"),
-            pronunciation: ScriptArgs.OptStr(o, "pronunciation"));
-    }
+    // 本 note 的完整快照（纯数据 JS 对象；改它不动工程）。喂 part.addNote(info) 即复制出一个新 note。
+    public JsValue GetInfo() => ScriptInfo.ToJs(ctx.Engine, N.GetInfo(), N.Part.Pos.Value);
 
-    // 单字段属性 setter 与 Set() 共用：改 pos/dur 经 MoveNote 摘除-重插维持有序（通知合并由数据层收口）。
-    void Apply(int? pitch = null, double? absPos = null, double? dur = null, string? lyric = null, string? pronunciation = null)
+    // 所属 part（对齐 C# INote.Part；只读，且数据层就不可改——音符归属它被创建时的那个 part）。
+    public ScriptPart Part() => ctx.WrapPart(N.Part);
+
+    // 排序键（pos/dur）经 MoveNote 摘除-重插维持有序（通知合并由数据层收口）。
+    void Move(double? absPos = null, double? dur = null)
     {
-        var n = N;
+        var n = W;
         var midi = n.Part;
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
         ctx.EnsureBracket(midi);
         double? relPos = absPos is { } ap ? ap - midi.Pos.Value : null;
         midi.MoveNote(n, () =>
         {
-            if (relPos is { } p2) n.Pos.Set(p2);
-            if (dur is { } d2) n.Dur.Set(d2);
-            if (pitch is { } pit) n.Pitch.Set(Math.Clamp(pit, MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH));
-            if (lyric != null) n.Lyric.Set(lyric);
-            if (pronunciation != null) n.Pronunciation.Set(pronunciation);
+            if (relPos is { } p) n.Pos.Set(p);
+            if (dur is { } d) n.Dur.Set(d);
         });
         ctx.Bump();
     }
@@ -84,8 +112,9 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     {
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("note property key is required.");
         var pv = ScriptArgs.ToScalarProperty(value, "note property");
-        ctx.EnsureBracket(N.Part);
-        N.Properties.SetValue(key, pv);
+        var n = W;
+        ctx.EnsureBracket(n.Part);
+        n.Properties.SetValue(key, pv);
         ctx.Bump();
     }
 
@@ -99,7 +128,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     public bool HasPinnedPhonemes => N.HasPinnedPhonemes;
 
     // 引导 / 主体结合线相对 note 头的有符号偏移（秒；junction = noteStart + bodyOffset）。写自动钉死。
-    public double BodyOffset { get => N.BodyOffset.Value; set { EnsurePinnedForEdit(); N.BodyOffset.Set(value); ctx.Bump(); } }
+    public double BodyOffset { get => N.BodyOffset.Value; set { EnsurePinnedForEdit(); W.BodyOffset.Set(value); ctx.Bump(); } }
 
     // 全序列音素句柄（引导 ++ 主体，时间序）。合成 / 钉死态皆可读；无音素（未合成的空 note）返回空数组。
     public ScriptPhoneme[] Phonemes()
@@ -123,31 +152,35 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     public void PinPhonemes() { EnsurePinnedForEdit(); ctx.Bump(); }
 
     // 清除钉死音素、回到合成产物口径（清空双列表）。
-    public void ClearPhonemes() { ctx.EnsureBracket(N.Part); N.ClearLockedPhonemes(); ctx.Bump(); }
+    public void ClearPhonemes() { var n = W; ctx.EnsureBracket(n.Part); n.ClearLockedPhonemes(); ctx.Bump(); }
 
-    // info: {symbol, duration?(秒,默认0), stretchWeight?(默认0=刚性辅音), leading?(默认 false=主体)}。
-    // 自动钉死后追加到引导 / 主体列表末，返回句柄。stretchWeight>0 = 可伸元音（时长为派生填充量、布局时忽略）。
-    public ScriptPhoneme AddPhoneme(JsValue info)
+    // 追加一个音素到【引导】列表末（核前前置辅音）。info: {symbol, duration?(秒), stretchWeight?, properties?}。
+    // 引导 / 主体在数据层是两个独立列表，故这里是两个方法而非一个布尔参数——那个"默认进哪个列表"的假想值
+    // 也随之消失（写入方必须明说往哪个容器加）。自动钉死后追加，返回句柄。
+    public ScriptPhoneme AddLeadingPhoneme(JsValue info) => AddPhonemeTo(true, info);
+
+    // 追加一个音素到【主体】列表末（核 + 尾辅音）。参数同 addLeadingPhoneme。
+    public ScriptPhoneme AddBodyPhoneme(JsValue info) => AddPhonemeTo(false, info);
+
+    ScriptPhoneme AddPhonemeTo(bool leading, JsValue info)
     {
-        var n = N;
-        var o = ScriptArgs.Obj(info, "info");
-        string symbol = ScriptArgs.OptStr(o, "symbol") ?? throw new ScriptApiException("field \"symbol\" is required.");
-        double dur = ScriptArgs.OptNum(o, "duration") ?? 0;
-        double weight = ScriptArgs.OptNum(o, "stretchWeight") ?? 0;
-        bool leading = ScriptArgs.OptBool(o, "leading") ?? false;
+        var phonemeInfo = ScriptInfo.ReadPhonemeInfo(info);
         EnsurePinnedForEdit();
-        var list = leading ? n.LeadingPhonemes : n.BodyPhonemes;
-        list.Add(Phoneme.Create(new PhonemeInfo { Symbol = symbol, Duration = Math.Max(0, dur), StretchWeight = Math.Max(0, weight) }));
+        var list = leading ? W.LeadingPhonemes : W.BodyPhonemes;
+        list.Add(Phoneme.Create(phonemeInfo));
         ctx.Bump();
         return new ScriptPhoneme(ctx, this, leading, list.Count - 1);
     }
 
+    // 从所在列表里删掉一个音素。音素句柄按位置定址，故删除后其后音素下标前移——请重新 note.phonemes()。
+    // 音素在数据层没有父指针（列表成员即其唯一归属、无游离态可言），跨 note 搬运走 info 路：
+    // other.addBodyPhoneme(ph.getInfo()) 再 note.removePhoneme(ph)。
     public void RemovePhoneme(ScriptPhoneme phoneme)
     {
-        if (phoneme == null || phoneme.Removed) throw new ScriptApiException("expected a live phoneme handle (from note.phonemes()/note.addPhoneme()).");
-        var n = N;
+        if (phoneme == null || phoneme.Removed)
+            throw new ScriptApiException("expected a live phoneme handle (from note.phonemes()/note.addLeadingPhoneme()/note.addBodyPhoneme()).");
         EnsurePinnedForEdit();
-        var list = phoneme.IsLeading ? n.LeadingPhonemes : n.BodyPhonemes;
+        var list = phoneme.IsLeading ? W.LeadingPhonemes : W.BodyPhonemes;
         if (phoneme.LocalIndex < 0 || phoneme.LocalIndex >= list.Count)
             throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
         list.RemoveAt(phoneme.LocalIndex);
@@ -158,12 +191,12 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     // 首次音素写入的钉死守卫（供本 note 音素写方法 + 音素句柄共用）：开 merge 括号 + 物化合成产物成钉死数据（幂等）。
     internal void EnsurePinnedForEdit()
     {
-        var n = N;
+        var n = W;
         ctx.EnsureBracket(n.Part);
         n.LockPhonemes();
     }
 
-    // 供音素句柄解析底层音素（带 removed 校验）。
+    // 供音素句柄解析底层音素（读向，游离态放行）。
     internal INote Require() => N;
 
     public override string ToString()
@@ -172,7 +205,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
 }
 
 // 一个音素句柄（挂在某 note 的引导 / 主体列表上）。按【位置】(引导/主体 + 列表内下标) 定址，跨钉死稳定；
-// 结构增删（addPhoneme/removePhoneme）会改变其后音素下标，变更后请重新 note.phonemes()。
+// 结构增删（addLeadingPhoneme/addBodyPhoneme/removePhoneme）会改变其后音素下标，变更后请重新 note.phonemes()。
 // 读随时可用（钉死→真数据 / 合成→只读快照）；写自动先钉死（EnsurePinnedForEdit），故 agent 直接改即可。
 internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isLeading, int localIndex)
 {
@@ -185,6 +218,15 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
     public string Symbol { get => Read(p => p.Symbol.Value, s => s.Symbol); set => Write(symbol: value ?? string.Empty); }
     public double Duration { get => Read(p => p.Duration.Value, s => s.Duration); set => Write(duration: value); }   // 秒
     public double StretchWeight { get => Read(p => p.StretchWeight.Value, s => s.StretchWeight); set => Write(weight: value); }  // 0=刚性辅音 / >0=可伸元音
+
+    // 本音素的完整快照（纯数据）。合成态（未钉死）也能读——那时 properties 为 null（合成产物无属性容器）。
+    public JsValue GetInfo()
+    {
+        if (PinnedPhoneme() is { } p)
+            return ScriptInfo.ToJs(ctx.Engine, p.GetInfo());
+        var s = SynthPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        return ScriptInfo.ToJs(ctx.Engine, new PhonemeInfo { Symbol = s.Symbol, Duration = s.Duration, StretchWeight = s.StretchWeight });
+    }
 
     // 钉死态的真 IPhoneme（可写）；合成态返回 null（走快照读）。越界返回 null。
     IPhoneme? PinnedPhoneme()
@@ -252,16 +294,62 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
 internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 {
     internal IPart Part { get; } = part;
-    internal bool Removed { get; set; }
+    // 已从所属轨摘出（游离）：可读可插回（含插到【另一条轨】＝跨轨迁移），不可写。
+    internal bool Detached { get; set; }
 
-    IPart P => Removed ? throw new ScriptApiException("this part handle was removed and is no longer valid.") : Part;
+    IPart P => Part;
+    IPart W => Detached
+        ? throw new ScriptApiException("this part is detached (it was removed from its track) and can't be modified; insert it back with track.insertPart(part) first, or build a new one from part.getInfo().")
+        : Part;
     IMidiPart Midi => P is IMidiPart m ? m : throw new ScriptApiException("this part is not a MIDI part; notes/curves require a MIDI part.");
+    IMidiPart MidiW => W is IMidiPart m ? m : throw new ScriptApiException("this part is not a MIDI part; notes/curves require a MIDI part.");
 
-    public string Name { get => P.Name.Value; set => Apply(name: value); }
-    // 只暴露 part 的真实几何（可见窗口的绝对 tick 起止），不暴露内部锚点/偏移三元组。
-    public double StartPos { get => P.StartPos(); set => Apply(startPos: value); }   // 绝对 tick（可见起点）
-    public double EndPos { get => P.EndPos(); set => Apply(endPos: value); }         // 绝对 tick（可见终点）
+    public string Name
+    {
+        get => P.Name.Value;
+        // 【非排序键】：PartList 只按 StartPos/EndPos 排序，改名不必走 MovePart。
+        set { var p = W; ctx.EnsureWritable(); p.Name.Set(value ?? string.Empty); ctx.Bump(); }
+    }
+
+    // ── part 几何：三个【原始字段】可写、三个【派生量】只读，与数据层同形 ──
+    // pos = 锚点在全局时间线上的位置，同时是 part 内一切内容（note / 曲线 / 颤音）的坐标原点；
+    // startOffset / endOffset = 起点 / 终点相对锚点的有符号偏移。起点 = pos + startOffset，终点 = pos + endOffset。
+    // 三个原始字段各对应一个原子操作：移动整段改 pos（内容跟随、长度不变）、拖左边缘改 startOffset
+    // （>0 前向裁剪 / <0 前向扩展）、拖右边缘改 endOffset。裁剪只改偏移、不重排内容。
+    public double Pos { get => P.Pos.Value; set => Move(pos: value); }                     // 绝对 tick（锚点）
+    public double StartOffset { get => P.StartOffset.Value; set => Move(startOffset: value); }
+    public double EndOffset { get => P.EndOffset.Value; set => Move(endOffset: value); }
+    public double StartPos => P.StartPos();   // 只读派生 = pos + startOffset
+    public double EndPos => P.EndPos();       // 只读派生 = pos + endOffset
+    public double Dur => P.Dur;               // 只读派生 = endOffset - startOffset
     public string Type => P is IMidiPart ? "midi" : "audio";
+
+    // 本 part 的完整快照（纯数据 JS 对象，含音源 / 音符 / 曲线 / 颤音 / effect 链 / 两级属性 / 音素）。
+    // 喂 track.addPart(info) 即整段复制——保真由数据层的序列化路径保证，本方法一个字段都不碰。
+    public JsValue GetInfo() => ScriptInfo.ToJs(ctx.Engine, P.GetInfo());
+
+    // 所属轨（对齐 C# IPart.Track；只读——换父要走 track.removePart + 另一轨.insertPart，直接改归属会让
+    // 对象声称属于新轨却仍留在旧轨的链表里）。游离期返回它摘出前那条轨。
+    public ScriptTrack Track() => ctx.WrapTrack(P.Track);
+
+    // 排序键（pos / startOffset / endOffset 都参与 PartList 的 StartPos/EndPos 排序）经 MovePart 摘除-重插维序。
+    void Move(double? pos = null, double? startOffset = null, double? endOffset = null)
+    {
+        var p = W;
+        double nextPos = pos ?? p.Pos.Value;
+        double nextStart = startOffset ?? p.StartOffset.Value;
+        double nextEnd = endOffset ?? p.EndOffset.Value;
+        if (nextPos + nextStart < 0) throw new ScriptApiException("a part's start (pos + startOffset) must be >= 0.");
+        if (nextEnd <= nextStart) throw new ScriptApiException("a part's endOffset must be greater than its startOffset.");
+        ctx.EnsureWritable();
+        p.Track.MovePart(p, () =>
+        {
+            if (pos is { } v1) p.Pos.Set(v1);
+            if (startOffset is { } v2) p.StartOffset.Set(v2);
+            if (endOffset is { } v3) p.EndOffset.Set(v3);
+        });
+        ctx.Bump();
+    }
 
     // 本 part 的声源信息（只读快照）。仅 midi part。kind 区分 voice / instrument。
     public ScriptSoundSource SoundSource()
@@ -271,34 +359,34 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     }
 
     // 切换本 part 的音源（写；重建合成管线）。info = {kind:"voice"|"instrument"(默认 voice), type, id}——
-    // type/id 取自 list_sound_sources / sandbox.voices()。未知音源【报错】而非静默回退空源（诉求：显式而非假成功）；
-    // 允许 type/id 皆空以清成「空声源」（无音源 part）。与只读 soundSource() 对偶。
+    // type/id 取自 list_sound_sources / sandbox.voices()。这是"按名字指定一个引擎"的显式意图，故【校验存在性】：
+    // 未知音源报错而非静默回退空源（诉求：显式而非假成功）；允许 type/id 皆空以清成「空声源」（无音源 part）。
+    // 注：info 路（track.addPart 里嵌套的 soundSource）刻意【不】校验——那条路要能忠实搬运孤儿数据
+    // （引擎卸载后工程照样能开、复制照样保真）。与只读 soundSource() 对偶。
     public void SetSoundSource(JsValue info)
     {
-        var midi = Midi;
-        var o = ScriptArgs.Obj(info, "info");
-        string kindStr = ScriptArgs.OptStr(o, "kind") ?? "voice";
-        string type = ScriptArgs.OptStr(o, "type") ?? string.Empty;
-        string id = ScriptArgs.OptStr(o, "id") ?? string.Empty;
-
-        SourceKind kind;
-        if (string.Equals(kindStr, "voice", StringComparison.OrdinalIgnoreCase)) kind = SourceKind.Voice;
-        else if (string.Equals(kindStr, "instrument", StringComparison.OrdinalIgnoreCase)) kind = SourceKind.Instrument;
-        else throw new ScriptApiException("kind must be \"voice\" or \"instrument\".");
-
-        // 非空音源校验存在（空 = 清成空声源，合法、跳过校验）。校验会惰性 Init 该引擎。
-        if (!(string.IsNullOrEmpty(type) && string.IsNullOrEmpty(id)))
+        var midi = MidiW;
+        var source = ScriptInfo.ReadSoundSourceInfo(info);
+        if (!(string.IsNullOrEmpty(source.Type) && string.IsNullOrEmpty(source.Id)))
         {
-            bool exists = kind == SourceKind.Voice
-                ? VoicesManager.TryGetVoiceInfo(type, id, out _)
-                : InstrumentsManager.TryGetInstrumentInfo(type, id, out _);
+            bool exists = source.Kind == SourceKind.Voice
+                ? VoicesManager.TryGetVoiceInfo(source.Type, source.Id, out _)
+                : InstrumentsManager.TryGetInstrumentInfo(source.Type, source.Id, out _);
             if (!exists)
-                throw new ScriptApiException(string.Format("no {0} source with type=\"{1}\" id=\"{2}\"; use list_sound_sources (or sandbox.voices()) to find valid type/id.", kindStr, type, id));
+                throw new ScriptApiException(string.Format("no {0} source with type=\"{1}\" id=\"{2}\"; use list_sound_sources (or sandbox.voices()) to find valid type/id.",
+                    source.Kind == SourceKind.Voice ? "voice" : "instrument", source.Type, source.Id));
         }
 
         ctx.EnsureWritable();
-        midi.SoundSource.SetInfo(new SoundSourceInfo { Kind = kind, Type = type, Id = id });
+        midi.SoundSource.SetInfo(source);
         ctx.Bump();
+    }
+
+    // part 级增益（dB，0 = 不增不减）。与轨级 gain 平行、两者叠加。
+    public double Gain
+    {
+        get => Midi.Gain.Value;
+        set { var midi = MidiW; ctx.EnsureBracket(midi); midi.Gain.Set(value); ctx.Bump(); }
     }
 
     // ── 音符 ──
@@ -308,40 +396,45 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // 钢琴窗里用户当前选中的音符；无选中返回空数组。
     public ScriptNote[] SelectedNotes() => Midi.Notes.AllSelectedItems().Select(ctx.WrapNote).ToArray();
 
-    // 绝对 tick 区间 [startTick, endTick) 内（按起点判定）的音符。
-    public ScriptNote[] NotesInRange(double startTick, double endTick)
-    {
-        var midi = Midi;
-        double pos = midi.Pos.Value;
-        return midi.Notes
-            .Where(n => n.Pos.Value + pos >= startTick && n.Pos.Value + pos < endTick)
-            .Select(ctx.WrapNote).ToArray();
-    }
-
-    // info: {pos, dur, pitch, lyric?}。pos 绝对 tick。
+    // 按完整 note info 新建一个音符并插入（新身份，同一份 info 可落地任意多次）。
+    // info: {pos, dur, pitch, lyric?, pronunciation?, properties?, leadingPhonemes?, bodyPhonemes?, bodyOffset?}，pos 绝对 tick。
     public ScriptNote AddNote(JsValue info)
     {
-        var midi = Midi;
-        var o = ScriptArgs.Obj(info, "info");
-        double pos = ScriptArgs.ReqNum(o, "pos");
-        double dur = ScriptArgs.ReqNum(o, "dur");
-        int pitch = Math.Clamp(ScriptArgs.ReqInt(o, "pitch"), MusicTheory.MIN_PITCH, MusicTheory.MAX_PITCH);
-        if (dur <= 0) throw new ScriptApiException("dur must be positive.");
+        var midi = MidiW;
+        var noteInfo = ScriptInfo.ReadNoteInfo(info, midi.Pos.Value);
         ctx.EnsureBracket(midi);
-        var note = midi.CreateNote(new NoteInfo { Pos = pos - midi.Pos.Value, Dur = dur, Pitch = pitch, Lyric = ScriptArgs.OptStr(o, "lyric") ?? string.Empty });
+        var note = midi.CreateNote(noteInfo);
         midi.InsertNote(note);
         ctx.Bump();
         return ctx.WrapNote(note);
     }
 
-    public void RemoveNote(ScriptNote note)
+    // 把一个【游离】音符插回本 part（保持对象身份，与 addNote 的"新建"相对）。
+    // note 的所属 part 在数据层由构造决定、不可改，故只能插回原 part；跨 part 搬运走 info 路。
+    public void InsertNote(ScriptNote note)
     {
-        if (note == null || note.Removed) throw new ScriptApiException("expected a live note handle (from part.notes()/part.addNote()).");
-        var midi = Midi;
+        var midi = MidiW;
+        if (note == null) throw new ScriptApiException("expected a note handle.");
+        if (!note.Detached) throw new ScriptApiException("this note is already on a part; remove it first (part.removeNote(note)).");
+        if (!ReferenceEquals(note.Note.Part, midi))
+            throw new ScriptApiException("a note belongs to the part it was created on and can't be moved to another part; use otherPart.addNote(note.getInfo()) instead.");
+        ctx.EnsureBracket(midi);
+        midi.InsertNote(note.Note);
+        note.Detached = false;
+        ctx.Bump();
+    }
+
+    // 把音符从本 part 摘出，返回它的（现在游离的）句柄：不插回 = 删除，插回 = 移动。
+    public ScriptNote RemoveNote(ScriptNote note)
+    {
+        var midi = MidiW;
+        if (note == null || note.Detached) throw new ScriptApiException("expected a live note handle (from part.notes()/part.addNote()).");
+        if (!ReferenceEquals(note.Note.Part, midi)) throw new ScriptApiException("this note is not on this part.");
         ctx.EnsureBracket(midi);
         midi.RemoveNote(note.Note);
-        note.Removed = true;
+        note.Detached = true;
         ctx.Bump();
+        return note;
     }
 
     // ── 音高曲线（pitch，独立显眼，对齐 C# midi.Pitch） ──
@@ -353,7 +446,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // 覆盖写音高曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=绝对 MIDI 音高（可含小数）。
     public void SetPitchLine(double startTick, double endTick, JsValue points)
     {
-        var midi = Midi;
+        var midi = MidiW;
         double rel = midi.Pos.Value;
         var pts = ScriptArgs.ReadPoints(points);
         ctx.EnsureBracket(midi);
@@ -365,7 +458,7 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 
     public void ClearPitch(double startTick, double endTick)
     {
-        var midi = Midi;
+        var midi = MidiW;
         double rel = midi.Pos.Value;
         ctx.EnsureBracket(midi);
         midi.Pitch.Clear(startTick - rel, endTick - rel);
@@ -374,8 +467,10 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 
     // ── 自动化曲线（automation，对齐 C# midi.Automations；不含 pitch） ──
 
-    // 可编辑的自动化轨 id 列表（voice 声明，如 "Volume"；不含 pitch）。
-    public string[] AutomationIds() => Midi.SoundSource.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
+    // 可编辑的【连续】自动化轨 id 列表（音源声明，如 "Volume"；有默认基线）。分段轨（无基线、段间关断）
+    // 不在此列，见 piecewiseAutomationIds()——两族曲线读写口径不同，混在一张表里会让"取到的 id 用起来报错"。
+    public string[] AutomationIds()
+        => Midi.SoundSource.AutomationConfigs.Where(kvp => !kvp.Value.IsPiecewise).Select(kvp => kvp.Key.Id).ToArray();
 
     // 在绝对 tick 区间 [startTick, endTick] 上等距采样某自动化曲线。NaN = 该处无曲线。
     public double[] SampleAutomation(string id, double startTick, double endTick, int samples)
@@ -389,11 +484,12 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // 覆盖写自动化曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=参数绝对值；轨不存在按需创建，defaultValue 可选。
     public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue? defaultValue = null)
     {
-        var midi = Midi;
+        var midi = MidiW;
         double rel = midi.Pos.Value;
         var pts = ScriptArgs.ReadPoints(points);
         ctx.EnsureBracket(midi);
-        var automation = GetOrAddAutomation(midi, id);
+        var automation = midi.AddAutomation(id)
+            ?? throw new ScriptApiException(string.Format("automation \"{0}\" is not available on this part (not declared by its sound source); use one of part.automationIds().", id));
         if (ScriptArgs.AsNumOrNull(defaultValue) is { } dv) automation.DefaultValue.Set(dv);
         automation.Clear(startTick - rel, endTick - rel, 0);
         if (pts.Count > 0)
@@ -403,11 +499,53 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 
     public void ClearAutomation(string id, double startTick, double endTick)
     {
-        var midi = Midi;
+        var midi = MidiW;
         double rel = midi.Pos.Value;
         ctx.EnsureBracket(midi);
         if (midi.Automations.TryGetValue(id, out var automation))
             automation.Clear(startTick - rel, endTick - rel, 0);
+        ctx.Bump();
+    }
+
+    // ── 分段自动化曲线（piecewise，对齐 C# midi.PiecewiseAutomations）──
+    // 与连续轨的区别：没有默认基线，段与段之间是【关断】（无值）。pitch 就是这一族里的一条专属常驻通道，
+    // 故这组方法与 samplePitch/setPitchLine/clearPitch 逐一同形。
+
+    public string[] PiecewiseAutomationIds()
+        => Midi.SoundSource.AutomationConfigs.Where(kvp => kvp.Value.IsPiecewise).Select(kvp => kvp.Key.Id).ToArray();
+
+    public double[] SamplePiecewiseAutomation(string id, double startTick, double endTick, int samples)
+    {
+        var midi = Midi;
+        // 判据与 piecewiseAutomationIds() 同一处（音源声明里 IsPiecewise 的轨）；IMidiPart 上没有按 plain id
+        // 的分段轨判定扩展，故就地查 config。
+        if (!(midi.SoundSource.AutomationConfigs.TryGetValue(id, out var config) && config.IsPiecewise))
+            throw new ScriptApiException(string.Format("unknown piecewise automation \"{0}\"; use one of part.piecewiseAutomationIds().", id));
+        var ticks = SampleTicks(midi, startTick, endTick, samples);
+        return midi.PiecewiseAutomations.TryGetValue(id, out var automation) ? automation.GetValues(ticks) : new double[ticks.Length];
+    }
+
+    public void SetPiecewiseAutomationLine(string id, double startTick, double endTick, JsValue points)
+    {
+        var midi = MidiW;
+        double rel = midi.Pos.Value;
+        var pts = ScriptArgs.ReadPoints(points);
+        ctx.EnsureBracket(midi);
+        var automation = midi.AddPiecewiseAutomation(id)
+            ?? throw new ScriptApiException(string.Format("piecewise automation \"{0}\" is not available on this part (not declared by its sound source); use one of part.piecewiseAutomationIds().", id));
+        automation.Clear(startTick - rel, endTick - rel);
+        if (pts.Count > 0)
+            automation.AddLine(pts.OrderBy(p => p.X).Select(p => new AnchorPoint(p.X - rel, p.Y)).ToList(), 0);
+        ctx.Bump();
+    }
+
+    public void ClearPiecewiseAutomation(string id, double startTick, double endTick)
+    {
+        var midi = MidiW;
+        double rel = midi.Pos.Value;
+        ctx.EnsureBracket(midi);
+        if (midi.PiecewiseAutomations.TryGetValue(id, out var automation))
+            automation.Clear(startTick - rel, endTick - rel);
         ctx.Bump();
     }
 
@@ -429,38 +567,44 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 
     public ScriptVibrato[] Vibratos() => Midi.Vibratos.Select(ctx.WrapVibrato).ToArray();
 
-    // info: {pos, dur, frequency?, amplitude?, phase?, attack?, release?}。pos 绝对 tick；叠加在音高曲线之上。
+    // 按完整 vibrato info 新建一个颤音并插入。pos 绝对 tick；叠加在音高曲线之上。
+    // info: {pos, dur, frequency?(6), amplitude?(1), phase?(0), attack?(0.2), release?(0.2),
+    //        affectedAutomations?{轨id:振幅}, affectedEffectAutomations?{effect id:{轨id:振幅}}}。
     public ScriptVibrato AddVibrato(JsValue info)
     {
-        var midi = Midi;
-        var o = ScriptArgs.Obj(info, "info");
-        double pos = ScriptArgs.ReqNum(o, "pos");
-        double dur = ScriptArgs.ReqNum(o, "dur");
-        if (dur <= 0) throw new ScriptApiException("dur must be positive.");
+        var midi = MidiW;
+        var vibratoInfo = ScriptInfo.ReadVibratoInfo(info, midi.Pos.Value);
         ctx.EnsureBracket(midi);
-        var vibrato = midi.CreateVibrato(new VibratoInfo
-        {
-            Pos = pos - midi.Pos.Value,
-            Dur = dur,
-            Frequency = ScriptArgs.OptNum(o, "frequency") ?? 6,
-            Amplitude = ScriptArgs.OptNum(o, "amplitude") ?? 1,
-            Phase = ScriptArgs.OptNum(o, "phase") ?? 0,
-            Attack = ScriptArgs.OptNum(o, "attack") ?? 0.2,
-            Release = ScriptArgs.OptNum(o, "release") ?? 0.2,
-        });
+        var vibrato = midi.CreateVibrato(vibratoInfo);
         midi.InsertVibrato(vibrato);
         ctx.Bump();
         return ctx.WrapVibrato(vibrato);
     }
 
-    public void RemoveVibrato(ScriptVibrato vibrato)
+    // 把一个【游离】颤音插回本 part（保持身份）。同 note：颤音的所属 part 由构造决定、不可改。
+    public void InsertVibrato(ScriptVibrato vibrato)
     {
-        if (vibrato == null || vibrato.Removed) throw new ScriptApiException("expected a live vibrato handle (from part.vibratos()/part.addVibrato()).");
-        var midi = Midi;
+        var midi = MidiW;
+        if (vibrato == null) throw new ScriptApiException("expected a vibrato handle.");
+        if (!vibrato.Detached) throw new ScriptApiException("this vibrato is already on a part; remove it first (part.removeVibrato(vibrato)).");
+        if (!ReferenceEquals(vibrato.Vibrato.Part, midi))
+            throw new ScriptApiException("a vibrato belongs to the part it was created on and can't be moved to another part; use otherPart.addVibrato(vibrato.getInfo()) instead.");
+        ctx.EnsureBracket(midi);
+        midi.InsertVibrato(vibrato.Vibrato);
+        vibrato.Detached = false;
+        ctx.Bump();
+    }
+
+    public ScriptVibrato RemoveVibrato(ScriptVibrato vibrato)
+    {
+        var midi = MidiW;
+        if (vibrato == null || vibrato.Detached) throw new ScriptApiException("expected a live vibrato handle (from part.vibratos()/part.addVibrato()).");
+        if (!ReferenceEquals(vibrato.Vibrato.Part, midi)) throw new ScriptApiException("this vibrato is not on this part.");
         ctx.EnsureBracket(midi);
         midi.RemoveVibrato(vibrato.Vibrato);
-        vibrato.Removed = true;
+        vibrato.Detached = true;
         ctx.Bump();
+        return vibrato;
     }
 
     // ── 效果器链（串行处理链，挂在本 midi part 上；顺序即数组下标 0-based） ──
@@ -468,42 +612,73 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // 本 part 的效果器链（按处理顺序）。
     public ScriptEffect[] Effects() => Midi.Effects.Select(ctx.WrapEffect).ToArray();
 
-    // 在链尾追加一个指定类型的效果器（type 取自 list_effects 的引擎 type id）。未知类型报错。
-    public ScriptEffect AddEffect(string type)
+    // 按完整 effect info 新建一个效果器并插入链中 index 位（省略 index = 链尾；越界钳到合法范围）。
+    // info: {type, isEnabled?, properties?, automations?, piecewiseAutomations?, id?}。
+    // type 是"按名字指定一个引擎"的显式意图，故【校验存在性】（未知类型报错）；嵌套在 part info 里的
+    // effects 走 info 路、不校验（要能忠实搬运引擎已卸载的孤儿数据）。
+    public ScriptEffect AddEffect(JsValue info, JsValue? index = null)
     {
-        var midi = Midi;
-        if (string.IsNullOrEmpty(type))
-            throw new ScriptApiException("effect type is required (an engine type id from list_effects).");
-        if (!EffectManager.GetAllEffectEngines().Contains(type))
-            throw new ScriptApiException(string.Format("no effect engine with type \"{0}\"; use list_effects to find valid type ids.", type));
+        var midi = MidiW;
+        var effectInfo = ScriptInfo.ReadEffectInfo(info, midi.Pos.Value);
+        if (string.IsNullOrEmpty(effectInfo.Type))
+            throw new ScriptApiException("effect info field \"type\" is required (an engine type id from list_effects).");
+        if (!EffectManager.GetAllEffectEngines().Contains(effectInfo.Type))
+            throw new ScriptApiException(string.Format("no effect engine with type \"{0}\"; use list_effects to find valid type ids.", effectInfo.Type));
+        // id 在【本 part 链内】必须唯一（颤音影响表按它做外键）。复制同一条链里的 effect 会带来重复 id，
+        // 清空即让宿主发新号——与 EffectInfo.Id 的约定一致（"克隆进同一条链须显式清空"）。
+        if (!string.IsNullOrEmpty(effectInfo.Id) && midi.Effects.Any(e => e.Id == effectInfo.Id))
+            effectInfo.Id = string.Empty;
         ctx.EnsureWritable();
-        var effect = midi.CreateEffect(new EffectInfo { Type = type });
-        midi.InsertEffect(midi.Effects.Count, effect);
+        var effect = midi.CreateEffect(effectInfo);
+        midi.InsertEffect(ClampEffectIndex(midi, index), effect);
         ctx.Bump();
         return ctx.WrapEffect(effect);
     }
 
-    public void RemoveEffect(ScriptEffect effect)
+    // 把一个【游离】效果器插回链中 index 位（保持身份，故其自动化曲线与颤音影响表的引用都还连着）。
+    public void InsertEffect(ScriptEffect effect, JsValue? index = null)
     {
-        if (effect == null || effect.Removed) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
-        var midi = Midi;
+        var midi = MidiW;
+        if (effect == null) throw new ScriptApiException("expected an effect handle.");
+        if (!effect.Detached) throw new ScriptApiException("this effect is already on a chain; remove it first (part.removeEffect(effect)).");
+        if (!ReferenceEquals(effect.Effect.Part, midi))
+            throw new ScriptApiException("an effect belongs to the part it was created on and can't be moved to another part; use otherPart.addEffect(effect.getInfo()) instead.");
         ctx.EnsureWritable();
-        midi.RemoveEffect(effect.Effect);
-        effect.Removed = true;
+        midi.InsertEffect(ClampEffectIndex(midi, index), effect.Effect);
+        effect.Detached = false;
         ctx.Bump();
     }
 
+    public ScriptEffect RemoveEffect(ScriptEffect effect)
+    {
+        var midi = MidiW;
+        if (effect == null || effect.Detached) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
+        if (!ReferenceEquals(effect.Effect.Part, midi)) throw new ScriptApiException("this effect is not on this part.");
+        ctx.EnsureWritable();
+        midi.RemoveEffect(effect.Effect);
+        effect.Detached = true;
+        ctx.Bump();
+        return effect;
+    }
+
     // 把某效果器移到链中的 index 位（0-based；越界钳到 [0, count-1]）——摘除重插维持串行顺序。
+    // C# 侧无 MoveEffect，但这属"移动同一个对象"（EffectInfo.Id 是实例稳定身份，remove + add(info) 会换身份），
+    // 故封装保留：一步完成、不让脚本自己拼摘除重插。
     public void MoveEffect(ScriptEffect effect, int index)
     {
-        if (effect == null || effect.Removed) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
-        var midi = Midi;
+        var midi = MidiW;
+        if (effect == null || effect.Detached) throw new ScriptApiException("expected a live effect handle (from part.effects()/part.addEffect()).");
+        if (!ReferenceEquals(effect.Effect.Part, midi)) throw new ScriptApiException("this effect is not on this part.");
         ctx.EnsureWritable();
         int target = Math.Clamp(index, 0, Math.Max(0, midi.Effects.Count - 1));
         midi.RemoveEffect(effect.Effect);
         midi.InsertEffect(target, effect.Effect);
         ctx.Bump();
     }
+
+    // 省略 index = 追加到链尾；给了就钳到 [0, count]（count = 追加）。
+    static int ClampEffectIndex(IMidiPart midi, JsValue? index)
+        => ScriptArgs.AsIntOrNull(index) is { } i ? Math.Clamp(i, 0, midi.Effects.Count) : midi.Effects.Count;
 
     // ── part 级自定义属性（voice/instrument 声明的 per-part 参数；schema 见 list_sound_sources 的 part 级 config） ──
     // 值存在 part.Properties 容器里、只在音源声明了该键时有意义。与 note/effect 的 getProperty/setProperty 同范式。
@@ -514,48 +689,12 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     // 写一个 part 属性（值须是 number / boolean / string）。键 / 取值范围见 list_sound_sources 的 part schema。
     public void SetProperty(string key, JsValue value)
     {
-        var midi = Midi;
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("part property key is required.");
         var pv = ScriptArgs.ToScalarProperty(value, "part property");
+        var midi = MidiW;
         ctx.EnsureBracket(midi);
         midi.Properties.SetValue(key, pv);
         ctx.Bump();
-    }
-
-    // ── part 自身 ──
-
-    public void Set(JsValue props)
-    {
-        var o = ScriptArgs.Obj(props, "props");
-        Apply(ScriptArgs.OptStr(o, "name"), ScriptArgs.OptNum(o, "startPos"), ScriptArgs.OptNum(o, "endPos"));
-    }
-
-    // 单字段属性 setter 与 Set() 共用：改 startPos/endPos 经 MovePart 摘除-重插维持轨内有序。
-    // startPos = 移动整段（平移锚点、内容跟随、长度不变）；endPos = 缩放右边缘（移末端、内容不动）。
-    void Apply(string? name = null, double? startPos = null, double? endPos = null)
-    {
-        var p = P;
-        if (startPos is { } vs && vs < 0) throw new ScriptApiException("startPos must be >= 0.");
-        if (endPos is { } ve && ve <= (startPos ?? p.StartPos())) throw new ScriptApiException("endPos must be greater than startPos.");
-        ctx.EnsureWritable();
-        p.Track.MovePart(p, () =>
-        {
-            if (name != null) p.Name.Set(name);
-            // 先移动（若给了 startPos）再缩放右边缘（endPos 用移动后的锚点换算）。
-            if (startPos is { } s) p.Pos.Set(p.Pos.Value + (s - p.StartPos()));
-            if (endPos is { } e) p.EndOffset.Set(e - p.Pos.Value);
-        });
-        ctx.Bump();
-    }
-
-    IAutomation GetOrAddAutomation(IMidiPart part, string id)
-    {
-        if (part.Automations.TryGetValue(id, out var existing))
-            return existing;
-        var created = part.AddAutomation(id);
-        if (created == null)
-            throw new ScriptApiException(string.Format("automation \"{0}\" is not available on this part (not declared by its voice).", id));
-        return created;
     }
 
     public override string ToString()
@@ -567,61 +706,98 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
 {
     internal ITrack Track { get; } = track;
-    internal bool Removed { get; set; }
+    // 已从工程摘出（游离）：可读可插回，不可写。
+    internal bool Detached { get; set; }
 
-    ITrack T => Removed ? throw new ScriptApiException("this track handle was removed and is no longer valid.") : Track;
+    ITrack T => Track;
+    ITrack W => Detached
+        ? throw new ScriptApiException("this track is detached (it was removed from the project) and can't be modified; insert it back with project.insertTrack(track) first, or build a new one from track.getInfo().")
+        : Track;
 
-    public string Name { get => T.Name.Value; set => Apply(name: value); }
-    public bool IsMute { get => T.IsMute.Value; set => Apply(mute: value); }
-    public bool IsSolo { get => T.IsSolo.Value; set => Apply(solo: value); }
-    public double Gain { get => T.Gain.Value; set => Apply(gain: value); }   // dB（0 = 原始电平）
-    public double Pan { get => T.Pan.Value; set => Apply(pan: value); }
+    public string Name { get => T.Name.Value; set => Set(t => t.Name.Set(value ?? string.Empty)); }
+    public bool IsMute { get => T.IsMute.Value; set => Set(t => t.IsMute.Set(value)); }
+    public bool IsSolo { get => T.IsSolo.Value; set => Set(t => t.IsSolo.Set(value)); }
+    public double Gain { get => T.Gain.Value; set => Set(t => t.Gain.Set(value)); }   // dB（0 = 原始电平）
+    public double Pan { get => T.Pan.Value; set => Set(t => t.Pan.Set(Math.Clamp(value, -1, 1))); }
+    // 是否可被其它音源当作参考音轨（合成时"听见"这条轨）。
+    public bool AsRefer { get => T.AsRefer.Value; set => Set(t => t.AsRefer.Set(value)); }
+    // 轨色（十六进制串，如 "#FF8800"；空串 = 用主题默认色）。
+    public string Color { get => T.Color.Value; set => Set(t => t.Color.Set(value ?? string.Empty)); }
+
+    // ── 逐轨导出设置（与工程级的 project.exportPath 等同族） ──
+    // 【设置项、不入撤销栈】：与导出侧栏里勾选一致，改完按 Ctrl+Z 不会退回；但脚本出错 / preview 会还原
+    // （ScriptContext 写前留底）。故它们也【不在】track.getInfo() 里——复制一条轨不带导出开关。
+    public bool ExportEnabled { get => T.ExportEnabled; set => SetExport(t => t.ExportEnabled = value); }
+    public int ExportChannels { get => T.ExportChannels; set => SetExport(t => t.ExportChannels = RequireChannels(value, "exportChannels")); }
+
+    void SetExport(Action<ITrack> mutate)
+    {
+        var t = W;
+        ctx.EnsureWritable();
+        ctx.CaptureTrackExport(t);   // 首次写入时留底，供出错 / preview 还原
+        mutate(t);
+        ctx.Bump();
+    }
+
+    internal static int RequireChannels(int value, string what)
+        => value is 1 or 2 ? value : throw new ScriptApiException(string.Format("{0} must be 1 (mono) or 2 (stereo).", what));
+
+    // 轨没有排序键（project.tracks() 是按下标的有序表，位置由 insertTrack 的 index 决定），故所有字段直接 Set。
+    void Set(Action<ITrack> mutate)
+    {
+        var t = W;
+        ctx.EnsureWritable();
+        mutate(t);
+        ctx.Bump();
+    }
+
+    // 本轨的完整快照（纯数据 JS 对象，含全部 part 及各 part 的所有维度）。喂 project.addTrack(info) 即整轨复制。
+    public JsValue GetInfo() => ScriptInfo.ToJs(ctx.Engine, T.GetInfo());
 
     public ScriptPart[] Parts() => T.Parts.Select(ctx.WrapPart).ToArray();
 
-    // info: {startPos, endPos, name?}。在本轨新建空 midi part（绝对 tick 的可见起止）。
+    // 按完整 part info 在本轨新建一个 part 并插入（新身份，同一份 info 可落地任意多次）。
+    // info: {type?("midi"|"audio")，name?, pos?, startOffset?, endOffset, …}——几何见 part 的 pos/startOffset/endOffset。
+    // midi 型还可给 gain / soundSource / notes / vibratos / effects / automations / piecewiseAutomations / pitch / properties；
+    // audio 型给 path。PartList 按起点自排，故无 index 参数（位置由 pos 决定）。
     public ScriptPart AddPart(JsValue info)
     {
-        var t = T;
-        var o = ScriptArgs.Obj(info, "info");
-        double startPos = ScriptArgs.ReqNum(o, "startPos");
-        double endPos = ScriptArgs.ReqNum(o, "endPos");
-        if (startPos < 0) throw new ScriptApiException("startPos must be >= 0.");
-        if (endPos <= startPos) throw new ScriptApiException("endPos must be greater than startPos.");
+        var t = W;
+        var partInfo = ScriptInfo.ReadPartInfo(info);
+        if (partInfo.Pos + partInfo.StartOffset < 0) throw new ScriptApiException("a part's start (pos + startOffset) must be >= 0.");
         ctx.EnsureWritable();
-        // 新建 part 锚点落在起点、无前向裁剪（StartOffset=0），可见窗口 = [startPos, endPos]。
-        var part = t.CreatePart(new MidiPartInfo { Name = ScriptArgs.OptStr(o, "name") ?? "Part", Pos = startPos, EndOffset = endPos - startPos });
+        var part = t.CreatePart(partInfo);
         t.InsertPart(part);
         ctx.Bump();
         return ctx.WrapPart(part);
     }
 
-    public void RemovePart(ScriptPart part)
+    // 把一个【游离】part 插入本轨（保持对象身份）。目标轨可以【不是】它原来那条——这就是跨轨迁移，也是
+    // part 上挂的音源 / 音符 / 曲线 / effect / 音素整体搬家而不换身份（undo 记的是同一个对象）的唯一路径。
+    public void InsertPart(ScriptPart part)
     {
-        if (part == null || part.Removed) throw new ScriptApiException("expected a live part handle (from track.parts()/track.addPart()).");
+        var t = W;
+        if (part == null) throw new ScriptApiException("expected a part handle.");
+        if (!part.Detached) throw new ScriptApiException("this part is already on a track; remove it first (track.removePart(part)).");
         ctx.EnsureWritable();
-        T.RemovePart(part.Part);
-        part.Removed = true;
+        // 换父不必手动改 part.Track：集合的 ItemAdded 会置它（Track.cs 里 mParts.ItemAdded 订阅了
+        // part.Track = this + Activate()）。撤销时另一条轨的 ItemAdded 同样会把它置回去，故这一路无需额外记录。
+        t.InsertPart(part.Part);
+        part.Detached = false;
         ctx.Bump();
     }
 
-    public void Set(JsValue props)
+    // 把 part 从本轨摘出，返回它的（现在游离的）句柄：不插回 = 删除，插到别的轨 = 跨轨迁移。
+    public ScriptPart RemovePart(ScriptPart part)
     {
-        var o = ScriptArgs.Obj(props, "props");
-        Apply(ScriptArgs.OptStr(o, "name"), ScriptArgs.OptBool(o, "isMute"), ScriptArgs.OptBool(o, "isSolo"),
-            ScriptArgs.OptNum(o, "gain"), ScriptArgs.OptNum(o, "pan"));
-    }
-
-    void Apply(string? name = null, bool? mute = null, bool? solo = null, double? gain = null, double? pan = null)
-    {
-        var t = T;
+        var t = W;
+        if (part == null || part.Detached) throw new ScriptApiException("expected a live part handle (from track.parts()/track.addPart()).");
+        if (!ReferenceEquals(part.Part.Track, t)) throw new ScriptApiException("this part is not on this track.");
         ctx.EnsureWritable();
-        if (name != null) t.Name.Set(name);
-        if (mute is { } m) t.IsMute.Set(m);
-        if (solo is { } s) t.IsSolo.Set(s);
-        if (gain is { } g) t.Gain.Set(g);
-        if (pan is { } p) t.Pan.Set(Math.Clamp(p, -1, 1));
+        t.RemovePart(part.Part);
+        part.Detached = true;
         ctx.Bump();
+        return part;
     }
 
     public override string ToString()
@@ -632,36 +808,41 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
 internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
 {
     internal Vibrato Vibrato { get; } = vibrato;
-    internal bool Removed { get; set; }
+    // 已从所属 part 摘出（游离）：可读可插回，不可写。
+    internal bool Detached { get; set; }
 
-    Vibrato V => Removed ? throw new ScriptApiException("this vibrato handle was removed and is no longer valid.") : Vibrato;
+    Vibrato V => Vibrato;
+    Vibrato W => Detached
+        ? throw new ScriptApiException("this vibrato is detached (it was removed from its part) and can't be modified; insert it back with part.insertVibrato(vibrato) first, or build a new one from vibrato.getInfo().")
+        : Vibrato;
 
-    public double Pos { get => V.GlobalStartPos(); set => Apply(absPos: value); }   // 绝对 tick
-    public double Dur { get => V.Dur.Value; set => Apply(dur: value); }
-    public double Frequency { get => V.Frequency.Value; set => Apply(frequency: value); }   // Hz
-    public double Amplitude { get => V.Amplitude.Value; set => Apply(amplitude: value); }   // 半音
-    public double Phase { get => V.Phase.Value; set => Apply(phase: value); }
-    public double Attack { get => V.Attack.Value; set => Apply(attack: value); }            // 秒
-    public double Release { get => V.Release.Value; set => Apply(release: value); }          // 秒
+    public double Pos { get => V.GlobalStartPos(); set => Move(absPos: value); }   // 绝对 tick
+    public double Dur { get => V.Dur.Value; set => Move(dur: value); }
+    // 以下均【非排序键】（VibratoList 只按 Pos↑ / 同 Pos 时 Dur↓ 排序）：直接 Set，不套 MoveVibrato。
+    public double Frequency { get => V.Frequency.Value; set => Set(v => v.Frequency.Set(value)); }   // Hz
+    public double Amplitude { get => V.Amplitude.Value; set => Set(v => v.Amplitude.Set(value)); }   // 半音
+    public double Phase { get => V.Phase.Value; set => Set(v => v.Phase.Set(value)); }               // 单位 = π
+    public double Attack { get => V.Attack.Value; set => Set(v => v.Attack.Set(value)); }            // 秒
+    public double Release { get => V.Release.Value; set => Set(v => v.Release.Set(value)); }         // 秒
 
-    public void Set(JsValue props)
+    // 本颤音的完整快照（纯数据，含两张影响表）。喂 part.addVibrato(info) 即复制出一个新颤音。
+    public JsValue GetInfo() => ScriptInfo.ToJs(ctx.Engine, V.GetInfo(), V.Part.Pos.Value);
+
+    // 所属 part（对齐 C# Vibrato.Part；只读，数据层不可改）。
+    public ScriptPart Part() => ctx.WrapPart(V.Part);
+
+    void Set(Action<Vibrato> mutate)
     {
-        var o = ScriptArgs.Obj(props, "props");
-        Apply(
-            absPos: ScriptArgs.OptNum(o, "pos"),
-            dur: ScriptArgs.OptNum(o, "dur"),
-            frequency: ScriptArgs.OptNum(o, "frequency"),
-            amplitude: ScriptArgs.OptNum(o, "amplitude"),
-            phase: ScriptArgs.OptNum(o, "phase"),
-            attack: ScriptArgs.OptNum(o, "attack"),
-            release: ScriptArgs.OptNum(o, "release"));
+        var v = W;
+        ctx.EnsureBracket(v.Part);
+        mutate(v);
+        ctx.Bump();
     }
 
-    // 改 pos/dur 经 MoveVibrato 摘除-重插维持列表有序（与 note/part 一致，通知合并由数据层收口）。
-    void Apply(double? absPos = null, double? dur = null, double? frequency = null, double? amplitude = null,
-        double? phase = null, double? attack = null, double? release = null)
+    // 排序键（pos/dur）经 MoveVibrato 摘除-重插维持列表有序。
+    void Move(double? absPos = null, double? dur = null)
     {
-        var v = V;
+        var v = W;
         var midi = v.Part;
         if (dur is { } vd && vd <= 0) throw new ScriptApiException("dur must be positive.");
         ctx.EnsureBracket(midi);
@@ -670,13 +851,37 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
         {
             if (relPos is { } p) v.Pos.Set(p);
             if (dur is { } d) v.Dur.Set(d);
-            if (frequency is { } f) v.Frequency.Set(f);
-            if (amplitude is { } a) v.Amplitude.Set(a);
-            if (phase is { } ph) v.Phase.Set(ph);
-            if (attack is { } at) v.Attack.Set(at);
-            if (release is { } re) v.Release.Set(re);
         });
         ctx.Bump();
+    }
+
+    // ── 影响表：本颤音把振幅施加到哪些参数轨上（对齐 C# Vibrato.AffectedAutomations /
+    //    AffectedEffectAutomations 两张平行表，两个命名空间互不相扰） ──
+
+    // 音源级轨的影响表快照：{ 轨 id: 振幅 }。
+    public JsValue AffectedAutomations() => ScriptInfo.AmplitudesToJs(ctx.Engine, V.AffectedAutomations);
+
+    // effect 级轨的影响表快照：{ effect 实例 id: { 轨 id: 振幅 } }。外层键是 effect.id（实例稳定身份、
+    // 不是链内位置），故重排效果链不会打乱这张表；effect 被删则留孤儿条目，undo 恢复同 id 即自然重连。
+    public JsValue AffectedEffectAutomations() => ScriptInfo.EffectAmplitudesToJs(ctx.Engine, V.AffectedEffectAutomations);
+
+    // 写一条轨的影响振幅（无关联即建立关联）。effect 省略 = 音源级轨；给了 effect 句柄 = 该 effect 的轨
+    // （effect 须与本颤音同属一个 part）。
+    public void SetAmplitude(string id, double amplitude, ScriptEffect? effect = null)
+        => Set(v => v.SetAmplitude(ResolveKey(id, effect), amplitude));
+
+    // 解除一条轨的关联（与 setAmplitude 对偶）。
+    public void RemoveAmplitude(string id, ScriptEffect? effect = null)
+        => Set(v => v.RemoveAssociation(ResolveKey(id, effect)));
+
+    AutomationKey ResolveKey(string id, ScriptEffect? effect)
+    {
+        if (string.IsNullOrEmpty(id)) throw new ScriptApiException("an automation id is required.");
+        if (effect == null) return AutomationKey.Voice(id);
+        if (effect.Detached) throw new ScriptApiException("expected a live effect handle (from part.effects()).");
+        if (!ReferenceEquals(effect.Effect.Part, V.Part))
+            throw new ScriptApiException("the effect must be on the same part as this vibrato.");
+        return AutomationKey.Effect(effect.Index, id);
     }
 
     public override string ToString()
@@ -688,14 +893,18 @@ internal sealed class ScriptVibrato(ScriptContext ctx, Vibrato vibrato)
 internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
 {
     internal IEffect Effect { get; } = effect;
-    internal bool Removed { get; set; }
+    // 已从效果链摘出（游离）：可读可插回，不可写。
+    internal bool Detached { get; set; }
 
-    IEffect E => Removed ? throw new ScriptApiException("this effect handle was removed and is no longer valid.") : Effect;
+    IEffect E => Effect;
+    IEffect W => Detached
+        ? throw new ScriptApiException("this effect is detached (it was removed from its chain) and can't be modified; insert it back with part.insertEffect(effect) first, or build a new one from effect.getInfo().")
+        : Effect;
 
     public string Type => E.Type;                                  // 引擎 type id（不可变）
     public string Name => EffectManager.GetDisplayName(E.Type);    // 显示名（只读）
     public string Id => E.Id;                                      // 实例稳定 id（本 part 链内唯一）
-    public int Index                                              // 在链中的 0-based 位置
+    public int Index                                              // 在链中的 0-based 位置（游离时 -1）
     {
         get
         {
@@ -709,8 +918,15 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
     public bool IsEnabled
     {
         get => E.IsEnabled.Value;
-        set { ctx.EnsureWritable(); E.IsEnabled.Set(value); ctx.Bump(); }
+        set { var e = W; ctx.EnsureWritable(); e.IsEnabled.Set(value); ctx.Bump(); }
     }
+
+    // 本效果器的完整快照（纯数据，含参数与自动化曲线）。喂 part.addEffect(info) 即复制出一个新实例
+    // （落到同一条链时 id 会重新发号，避免与源撞身份）。
+    public JsValue GetInfo() => ScriptInfo.ToJs(ctx.Engine, E.GetInfo(), E.Part.Pos.Value);
+
+    // 所属 part（对齐 C# IEffect.Part；只读，数据层不可改）。
+    public ScriptPart Part() => ctx.WrapPart(E.Part);
 
     // 读一个参数的当前值（number / boolean / string）；未设返回 null（默认值与可用键见 list_effects 的参数 schema）。
     public object? GetProperty(string key) => ScriptArgs.ReadScalarProperty(E.Properties, key);
@@ -720,21 +936,23 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
     {
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("effect property key is required.");
         var pv = ScriptArgs.ToScalarProperty(value, "effect property");
+        var e = W;
         ctx.EnsureWritable();
-        E.Properties.SetValue(key, pv);
+        e.Properties.SetValue(key, pv);
         ctx.Bump();
     }
 
-    // ── 本 effect 的参数自动化曲线（对齐 C# IEffect.Automations，与 part 级 automation 逐一平行；曲线在 part 相对
-    // tick 空间，读写口径同 part.sampleAutomation/setAutomation）。可编辑轨 id 由引擎声明（见 list_effects 的参数 schema）。 ──
+    // ── 本 effect 的参数自动化曲线（对齐 C# IEffect.Automations / PiecewiseAutomations，与 part 级逐一平行；
+    // 曲线在 part 相对 tick 空间，读写口径同 part.sampleAutomation/setAutomation）。可编辑轨 id 由引擎声明。 ──
 
-    public string[] AutomationIds() => E.AutomationConfigs.Keys.Select(k => k.Id).ToArray();
+    public string[] AutomationIds()
+        => E.AutomationConfigs.Where(kvp => !kvp.Value.IsPiecewise).Select(kvp => kvp.Key.Id).ToArray();
 
     // 在绝对 tick 区间 [startTick, endTick] 上等距采样本 effect 某自动化曲线。NaN = 该处无曲线。
     public double[] SampleAutomation(string id, double startTick, double endTick, int samples)
     {
         var effect = E;
-        if (!effect.AutomationConfigs.ContainsKey(id))
+        if (!effect.AutomationConfigs.TryGetValue(id, out var config) || config.IsPiecewise)
             throw new ScriptApiException(string.Format("unknown effect automation \"{0}\"; use one of effect.automationIds().", id));
         return effect.GetAutomationValues(ScriptPart.SampleTicks(effect.Part, startTick, endTick, samples), id);
     }
@@ -742,11 +960,12 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
     // 覆盖写本 effect 某自动化曲线：清空 [startTick,endTick) 再落线。points=[{tick,value}]，value=参数绝对值；轨不存在按需创建，defaultValue 可选。
     public void SetAutomation(string id, double startTick, double endTick, JsValue points, JsValue? defaultValue = null)
     {
-        var effect = E;
+        var effect = W;
         double rel = effect.Part.Pos.Value;
         var pts = ScriptArgs.ReadPoints(points);
         ctx.EnsureBracket(effect.Part);
-        var automation = GetOrAddAutomation(effect, id);
+        var automation = effect.AddAutomation(id)
+            ?? throw new ScriptApiException(string.Format("automation \"{0}\" is not available on this effect (not declared by its engine); use one of effect.automationIds().", id));
         if (ScriptArgs.AsNumOrNull(defaultValue) is { } dv) automation.DefaultValue.Set(dv);
         automation.Clear(startTick - rel, endTick - rel, 0);
         if (pts.Count > 0)
@@ -756,7 +975,7 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
 
     public void ClearAutomation(string id, double startTick, double endTick)
     {
-        var effect = E;
+        var effect = W;
         double rel = effect.Part.Pos.Value;
         ctx.EnsureBracket(effect.Part);
         if (effect.Automations.TryGetValue(id, out var automation))
@@ -764,14 +983,42 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
         ctx.Bump();
     }
 
-    static IAutomation GetOrAddAutomation(IEffect effect, string id)
+    // ── 本 effect 的分段自动化曲线（无默认基线、段间关断；与 part 级 piecewise 一族同形） ──
+
+    public string[] PiecewiseAutomationIds()
+        => E.AutomationConfigs.Where(kvp => kvp.Value.IsPiecewise).Select(kvp => kvp.Key.Id).ToArray();
+
+    public double[] SamplePiecewiseAutomation(string id, double startTick, double endTick, int samples)
     {
-        if (effect.Automations.TryGetValue(id, out var existing))
-            return existing;
-        var created = effect.AddAutomation(id);
-        if (created == null)
-            throw new ScriptApiException(string.Format("automation \"{0}\" is not available on this effect (not declared by its engine).", id));
-        return created;
+        var effect = E;
+        if (!effect.AutomationConfigs.TryGetValue(id, out var config) || !config.IsPiecewise)
+            throw new ScriptApiException(string.Format("unknown effect piecewise automation \"{0}\"; use one of effect.piecewiseAutomationIds().", id));
+        var ticks = ScriptPart.SampleTicks(effect.Part, startTick, endTick, samples);
+        return effect.PiecewiseAutomations.TryGetValue(id, out var automation) ? automation.GetValues(ticks) : new double[ticks.Length];
+    }
+
+    public void SetPiecewiseAutomationLine(string id, double startTick, double endTick, JsValue points)
+    {
+        var effect = W;
+        double rel = effect.Part.Pos.Value;
+        var pts = ScriptArgs.ReadPoints(points);
+        ctx.EnsureBracket(effect.Part);
+        var automation = effect.AddPiecewiseAutomation(id)
+            ?? throw new ScriptApiException(string.Format("piecewise automation \"{0}\" is not available on this effect (not declared by its engine); use one of effect.piecewiseAutomationIds().", id));
+        automation.Clear(startTick - rel, endTick - rel);
+        if (pts.Count > 0)
+            automation.AddLine(pts.OrderBy(p => p.X).Select(p => new AnchorPoint(p.X - rel, p.Y)).ToList(), 0);
+        ctx.Bump();
+    }
+
+    public void ClearPiecewiseAutomation(string id, double startTick, double endTick)
+    {
+        var effect = W;
+        double rel = effect.Part.Pos.Value;
+        ctx.EnsureBracket(effect.Part);
+        if (effect.PiecewiseAutomations.TryGetValue(id, out var automation))
+            automation.Clear(startTick - rel, endTick - rel);
+        ctx.Bump();
     }
 
     public override string ToString()
@@ -836,4 +1083,3 @@ internal sealed class ScriptPianoSelection(double startTick, double endTick)
     public double EndTick { get; } = endTick;
     public override string ToString() => string.Format(CultureInfo.InvariantCulture, "PianoSelection(ticks {0:0}..{1:0})", StartTick, EndTick);
 }
-

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using Jint;
 using TuneLab.Data;
+using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Foundation;
 
 namespace TuneLab.Scripting;
@@ -68,6 +70,12 @@ internal sealed class ScriptContext
 
     // ── 给根对象（ScriptApp / ScriptProject）读的底层入口 ──
     internal IProject Project => mProject;
+
+    // 本次运行的 JS 引擎。句柄的 getInfo() 要产出【普通 JS 对象/数组】（脚本能 for-of / 下标 / JSON.stringify），
+    // 构造它们需要引擎实例，故由宿主建好引擎后回填一次。只在 info 读出方向用到。
+    internal Engine Engine => mEngine ?? throw new ScriptApiException("the script engine is not available in this context.");
+    internal void AttachEngine(Engine engine) => mEngine = engine;
+    Engine? mEngine;
     internal IMidiPart? CurrentMidiPart => mCurrentPart?.Invoke();
     internal IQuantization? Quantization => mQuantization?.Invoke();
     // 编排区范围选区快照（编辑器态）；无源或无选区时 null。脚本侧暴露为 tl.trackSelection()。
@@ -76,6 +84,36 @@ internal sealed class ScriptContext
     internal ScriptPianoSelection? PianoSelection => mPianoSelection?.Invoke();
     // 当前界面语言文化码（如 "zh-CN"）；脚本经 tl.language 读，用于本地化显示名/对话框文案。无源时空串。
     internal string Language => mLanguage?.Invoke() ?? "";
+
+    // ── 非撤销设置项的回退保险（当前唯一用户：导出设置） ──
+    // 导出配置（工程级 8 项 + 逐轨 2 项）在数据层是【普通属性】、写它不产生命令，故 DiscardTo 管不着它。
+    // 但脚本面的两条承诺必须成立：**出错原子回退** 与 **preview「只看不落地」**。于是这里做【写前快照 +
+    // 回退恢复】：改过才记（首次写入时捕获原值），Finish(rollback:true) 时逐一还原。
+    // 成功提交则【不】还原——导出设置刻意不入撤销栈，与在导出侧栏里改它们的行为一致（改完按 Ctrl+Z 不会
+    // 把导出路径退回去）。这条区别写进了手册。
+    internal void CaptureExportConfig() => mExportBackup ??= mProject.GetExportConfig();
+
+    internal void CaptureTrackExport(ITrack track)
+    {
+        if (!mTrackExportBackup.ContainsKey(track))
+            mTrackExportBackup[track] = (track.ExportEnabled, track.ExportChannels);
+    }
+
+    void RestoreNonUndoableSettings()
+    {
+        if (mExportBackup is { } backup)
+            mProject.SetExportConfig(backup);
+        foreach (var kvp in mTrackExportBackup)
+        {
+            kvp.Key.ExportEnabled = kvp.Value.Enabled;
+            kvp.Key.ExportChannels = kvp.Value.Channels;
+        }
+        mExportBackup = null;
+        mTrackExportBackup.Clear();
+    }
+
+    ExportConfigInfo? mExportBackup;
+    readonly Dictionary<ITrack, (bool Enabled, int Channels)> mTrackExportBackup = new();
 
     // ── 写收口 ──
     internal void Bump() => mChanges++;
@@ -106,9 +144,12 @@ internal sealed class ScriptContext
         if (!rollback && mChanges > 0)
         {
             mProject.Commit();
+            mExportBackup = null;   // 提交即坐实：设置项不入撤销栈，无需也不该还原
+            mTrackExportBackup.Clear();
             return true;
         }
         mProject.DiscardTo(mStartHead);
+        RestoreNonUndoableSettings();   // 命令栈之外的写（导出设置）由本类自己还原
         return false;
     }
 

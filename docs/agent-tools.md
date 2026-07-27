@@ -70,7 +70,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 ## 寻址与单位约定
 
 - **`get_project_overview` 用 1-based 序号**（"第 1 轨"即首轨，贴合用户认知）展示轨道。这是模型与用户对话里指代轨道的口径。
-- **脚本（`tl` API）用句柄 + 绝对 tick**：集合方法（`part.notes()` 等）返回临时句柄数组，按引用施改、无 1-based 编号；位置/时长一律**绝对（全局）tick**（`tl.ppq` 取 PPQ=480），音高 MIDI。句柄仅当次运行有效（数据层对象无持久 id），脚本源码不得内嵌句柄字面量。坐标换算在各句柄内（落数据减 part 锚点 Pos、读时加回；part 只对脚本暴露 `startPos`/`endPos` 真实几何、不暴露锚点），脚本作者不碰。
+- **脚本（`tl` API）用句柄 + 绝对 tick**：集合方法（`part.notes()` 等）返回临时句柄数组，按引用施改、无 1-based 编号；位置/时长一律**绝对（全局）tick**（`tl.ppq` 取 PPQ=480），音高 MIDI。句柄仅当次运行有效（数据层对象无持久 id），脚本源码不得内嵌句柄字面量。坐标换算在各句柄内（落数据减 part 锚点 `pos`、读时加回），脚本作者不碰。part 自身的几何按数据层原形暴露：可写的三原始字段 `pos`/`startOffset`/`endOffset` + 只读派生 `startPos`/`endPos`/`dur`——`pos` 既是锚点也是内容坐标原点，故改它就是"平移整段、内容跟随"。
 - **每次写 = 一个可撤销单位**：`run_script` 整段、`save_script` 保存的工具脚本每次 `main()` 运行，都是一个 `Commit`；出错则 `DiscardTo(startHead)` 原子回退（工程不变）。收口纪律见下与 `docs/script-tools-design.md`。
 
 ## run_script：脚本逃生口（= 唯一编辑面）
@@ -96,15 +96,32 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 | 宿主 | 成员（裸属性 = 可读写标量字段；带括号 = 查询/动作。增删一律挂父，无 `x.remove()`） |
 |---|---|
 | `tl`（编辑器） | `tl.ppq`、`tl.language`、`tl.currentProject()`、`tl.currentPart()`、`tl.selectedParts()`、`tl.playhead()`、`tl.snap(tick)` |
-| `project`（`tl.currentProject()`） | `tracks()`、`addTrack(name?)`、`removeTrack(track)`、`importTracks(path)→[track]`(从文件导入全部轨、加法式并进、保留当前时基/原始 tick、返回新轨；格式 tlp/tlpx/mid/midi+插件)、`tempos()`、`timeSignatures()`、`setTempo(bpm,atTick?)`、`setTimeSignature(num,den,atBar?)` |
-| `track` | 字段(读写) `name/isMute/isSolo/gain(dB)/pan`；`parts()`、`addPart({startPos,endPos,name?})`、`removePart(part)`、`set({...})` |
-| `part` | 字段(读写) `name/startPos/endPos`(可见窗口绝对 tick；写 startPos 平移整段、写 endPos 缩放右边缘)、(只读) `type`；`soundSource()→{type,id,name,kind,defaultLyric}`、`setSoundSource({kind,type,id})`(切音源；未知报错、空清源)、`effects()`、`addEffect(type)`、`removeEffect(effect)`、`moveEffect(effect,index)`(效果链增删排)、`getProperty(key)→值\|null`、`setProperty(key,value)`(per-part 声明参数，键/范围见 list_sound_sources)、`notes()`、`selectedNotes()`、`notesInRange(s,e)`、`addNote({pos,dur,pitch,lyric?})`、`removeNote(note)`、`samplePitch(s,e,n)`、`setPitchLine(s,e,pts)`、`clearPitch(s,e)`、`automationIds()`、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`、`vibratos()`、`addVibrato({...})`、`removeVibrato(vib)`、`set({...})` |
-| `note` | 字段(读写) `pos/dur/pitch/lyric/pronunciation`(发音覆盖，空串=按歌词派生)、(只读) `pitchName/hasPinnedPhonemes`、(读写) `bodyOffset`(秒，写自动钉死)；`note.set({...pronunciation?})`、`getProperty(key)→值\|null`、`setProperty(key,value)`(per-note 声明参数，见 list_sound_sources)、`phonemes()→[phoneme]`、`addPhoneme({symbol,duration?,stretchWeight?,leading?})`、`removePhoneme(ph)`、`pinPhonemes()`、`clearPhonemes()`(音素只读来自引擎，首次写自动钉死) |
-| `phoneme`（`note.phonemes()` 的一项，voice 专属） | 字段(只读) `leading`(bool)、(读写) `symbol/duration(秒)/stretchWeight`(0=刚性辅音/>0=可伸元音，写任一自动钉死)；`getProperty(key)→值\|null`、`setProperty(key,value)`(per-phoneme 声明参数，键见 list_sound_sources 音素 slot)。**按位置定址**：增删改变其后下标，结构变更后重取 `note.phonemes()` |
-| `vibrato` | 字段(读写) `pos/dur/frequency/amplitude/phase/attack/release`；`vibrato.set({...})` |
-| `effect`（`part.effects()` 的一项） | 字段(读写) `isEnabled`(false=旁路)、(只读) `type/name/id/index`(链中 0-based 位)；`getProperty(key)→值\|null`、`setProperty(key,value)`(number/bool/string，键/范围见 list_effects)；`automationIds()`、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`(本 effect 参数自动化曲线，形状同 part 级) |
+| `project`（`tl.currentProject()`） | 字段(读写，**导出设置**) `exportPath/exportFileName/exportFormat(wav|mp3|flac|ogg)/exportSampleRate/exportBitDepth/exportBitrate/masterExportEnabled/masterExportChannels`；`tracks()`、`addTrack(info?,index?)`、`insertTrack(track,index?)`、`removeTrack(track)→track`、`importTracks(path)→[track]`(从文件导入全部轨、加法式并进、保留当前时基/原始 tick、返回新轨；格式 tlp/tlpx/mid/midi+插件)、`tempos()`、`timeSignatures()`、`setTempo(bpm,atTick?)`、`setTimeSignature(num,den,atBar?)`、`removeTempo(atTick)`、`removeTimeSignature(atBar)`(该处无标记则报错；首个标记 = 基准速度/拍号，不可删) |
+| `track` | 字段(读写) `name/isMute/isSolo/gain(dB)/pan/asRefer/color`、(读写，**导出设置**) `exportEnabled/exportChannels(1\|2)`；`getInfo()`(不含导出开关，见下)、`parts()`、`addPart(info)`、`insertPart(part)`(**可跨轨** = 迁移)、`removePart(part)→part` |
+| `part` | 几何(读写) `pos`(锚点绝对 tick，也是内容坐标原点 → 赋值即平移整段)、`startOffset`、`endOffset`；(只读派生) `startPos/endPos/dur`；其它(读写) `name/gain`(dB,part 级)、(只读) `type`；`getInfo()`、`track()→track`(向上取所属轨，只读)、`soundSource()→{type,id,name,kind,defaultLyric}`、`setSoundSource({kind,type,id})`(切音源；未知报错、空清源)、`effects()`、`addEffect(info,index?)`、`insertEffect(effect,index?)`、`removeEffect(effect)→effect`、`moveEffect(effect,index)`(效果链增删排)、`getProperty(key)→值\|null`、`setProperty(key,value)`(per-part 声明参数，键/范围见 list_sound_sources)、`notes()`、`selectedNotes()`、`addNote(info)`、`insertNote(note)`、`removeNote(note)→note`、`samplePitch(s,e,n)`、`setPitchLine(s,e,pts)`、`clearPitch(s,e)`、`automationIds()`(连续轨)、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`、`piecewiseAutomationIds()`(分段轨)、`samplePiecewiseAutomation(id,s,e,n)`、`setPiecewiseAutomationLine(id,s,e,pts)`、`clearPiecewiseAutomation(id,s,e)`、`vibratos()`、`addVibrato(info)`、`insertVibrato(vib)`、`removeVibrato(vib)→vibrato` |
+| `note` | 字段(读写) `pos/dur/pitch/lyric/pronunciation`(发音覆盖，空串=按歌词派生)、(只读) `pitchName/hasPinnedPhonemes`、(读写) `bodyOffset`(秒，写自动钉死)；`getInfo()`、`part()→part`(向上取所属 part，只读；`vibrato.part()`/`effect.part()` 同理)、`getProperty(key)→值\|null`、`setProperty(key,value)`(per-note 声明参数，见 list_sound_sources)、`phonemes()→[phoneme]`、`addLeadingPhoneme(info)`、`addBodyPhoneme(info)`(引导/主体是两个独立列表，故两个方法)、`removePhoneme(ph)`、`pinPhonemes()`、`clearPhonemes()`(音素只读来自引擎，首次写自动钉死) |
+| `phoneme`（`note.phonemes()` 的一项，voice 专属） | 字段(只读) `leading`(bool)、(读写) `symbol/duration(秒)/stretchWeight`(0=刚性辅音/>0=可伸元音，写任一自动钉死)；`getInfo()`、`getProperty(key)→值\|null`、`setProperty(key,value)`(per-phoneme 声明参数，键见 list_sound_sources 音素 slot)。**按位置定址**：增删改变其后下标，结构变更后重取 `note.phonemes()` |
+| `vibrato` | 字段(读写) `pos/dur/frequency/amplitude/phase/attack/release`；`getInfo()`、`affectedAutomations()→{轨id:振幅}`、`affectedEffectAutomations()→{effect id:{轨id:振幅}}`、`setAmplitude(id,amp,effect?)`、`removeAmplitude(id,effect?)`(影响表：本颤音把振幅施加到哪些参数轨；省略 effect = 音源级轨) |
+| `effect`（`part.effects()` 的一项） | 字段(读写) `isEnabled`(false=旁路)、(只读) `type/name/id/index`(链中 0-based 位)；`getInfo()`、`getProperty(key)→值\|null`、`setProperty(key,value)`(number/bool/string，键/范围见 list_effects)；`automationIds()`、`sampleAutomation(id,s,e,n)`、`setAutomation(id,s,e,pts,default?)`、`clearAutomation(id,s,e)`、`piecewiseAutomationIds()`、`samplePiecewiseAutomation(id,s,e,n)`、`setPiecewiseAutomationLine(id,s,e,pts)`、`clearPiecewiseAutomation(id,s,e)`(本 effect 的参数自动化曲线，形状同 part 级) |
+
+**导出设置是「设置项」、不入撤销栈**：`project.export*` / `masterExport*` 与 `track.exportEnabled/exportChannels` 在数据层是普通属性、写它不产生命令，故 `Ctrl+Z` 不会把导出路径退回去（与在导出侧栏里改它们一致）。但「整段脚本原子」仍成立——**出错或 preview 时由 `ScriptContext` 写前留底、回退时还原**。归属理由按本文开头的判据：「跑一段脚本把导出各项设成我的预设」是**用户会要的可复用命令**（还会绑快捷键），故在脚本面；而**真正写出音频文件**是另一件事，仍走 `export_project` 工具。它们刻意**不进 `track.getInfo()`**——设置项不属于"轨的内容"，复制一条轨不带导出开关。
 
 裸属性实时读底层、改完即见新值。**pitch 与 automation 分开**（pitch 对齐 C# `midi.Pitch`；automation 对齐 `midi.Automations`，不含 pitch）。`points` 形如 `[{tick,value}]`。JS camelCase 经 Jint 大小写不敏感映射到 C# PascalCase（含可写属性赋值）。
+
+#### info 层（复制的正解）与游离句柄（移动的正解）
+
+脚本面的形状与数据层的**三段式**对齐：`Info`（纯数据，改它不进撤销栈）→ `CreateX(info)`（建游离实体）→ `InsertX(entity)`（入树，这步才进回退栈）。于是有两条**语义不同、都必需**的落地路：
+
+| 路径 | 语义 | 中间物 | 能落地几次 |
+|---|---|---|---|
+| `addX(info[, index])` | **复制 / 新建**（新身份） | info（纯数据，随便改） | 任意多次 |
+| `insertX(entity[, index])` | **移动**（保持身份） | 游离实体（只读） | 一次（一个对象一个父） |
+
+- **每个句柄都有 `getInfo()`**，产出**普通 JS 对象**（嵌套：part 的 info 带着音源/音符/音高线/各条自动化/颤音/effect 链/两级属性/音素）；每个父的 `addX(info)` 收同一形状。故「复制这一轨」= `project.addTrack(t.getInfo())`，**一个字段都不用手搬**——这是它替代逐字段重建的唯一原因：逐字段搬必然漏，而漏了还会以为复制成功了（静默丢保真）。
+- **契约独立于 SDK DTO**：脚本面 schema 是自己的（camelCase + 绝对 tick），由 `ScriptInfo.cs` 显式桥接到 `TuneLab.SDK` 的 `*Info`。SDK DTO 是 `PublicAPI.Shipped.txt` 守着的冻结 ABI、且用锚点三元组 + PascalCase，直接暴露会让脚本面变成 ABI 的一部分。
+- **`removeX` 返回游离句柄**：对象仍活着、仍可读（`getInfo()` 照用），只是没有父。「删除」= 摘出后不插回；「移动」= 摘出后 `insertX`。游离态**不可写**（数据层纪律：未 Attach 的对象属性 Set 不记录命令，改了回退不掉），写入在 accessor 处拦下并指路"先插回"。
+- **只有 part 能换父**（`IPart.Track` 可写）：`track.removePart(p)` + `另一轨.insertPart(p)` = 跨轨迁移。note/颤音/effect 的所属 part 在数据层由构造决定，`insertX` 只能插回原父，跨父走 info 路。
+- **校验的位置**：info 阶段零校验（纯数据随便乱来），**落地那刻**才校验，且只校验内部不变式（`dur>0`、pitch 值域、part 类型判别）。**存在性校验只在"按名字指定一个引擎"的显式入口**（`part.setSoundSource`、`part.addEffect` 的顶层 `type`）；嵌在 info 树里的 `soundSource`/`effects` 刻意不校验——那条路要能忠实搬运孤儿数据（引擎卸载后工程照样能开、复制照样保真）。
 
 ## 脚本库管理工具（让 agent 造"可复用工具"）
 

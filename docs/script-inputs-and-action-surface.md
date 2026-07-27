@@ -14,6 +14,10 @@
   构造沙箱 Jint 引擎、注入动作面 `tl`（`ScriptApp`）、跑，**整段 = 一个可撤销单位**。
 - **收口**：`ScriptContext.Finish(rollback)`——成功且有改动 → `Commit()` 成一个撤销单位；出错/取消/无改动 → 原子回退。
   当前 `ScriptRunner` 里写死 `Finish(rollback: error != null)`（成功即自动提交）。
+  回退分两层：`DiscardTo(startHead)` 退掉命令栈里的工程数据改动，外加**非撤销设置项的写前留底还原**
+  （目前唯一用户 = 导出设置：数据层是普通属性、写它不产生命令，故 `Finish` 自己留底并在回退时逐一还原——
+  见 `CaptureExportConfig` / `CaptureTrackExport` / `RestoreNonUndoableSettings`）。成功提交则不还原：
+  设置项刻意不入撤销栈，与在导出侧栏里改它们一致。
 - **写守卫**：**在首次写入时**（`ScriptContext.EnsureWritable`）检查，不在入口。只读脚本即便在用户操作中途也畅通；
   写被拦时抛 `ScriptBlockedException`，`ScriptRunResult.Blocked=true`，调用方可等 `Pushable` 恢复后整段重跑（`run_script` 已做 3s 轮询重试）。
 - **双模式**：脚本定义了 `getScriptInfo` → eval 顶层后调 `main()`（工具）；否则整段脚本体即动作。

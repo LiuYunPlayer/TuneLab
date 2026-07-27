@@ -96,7 +96,7 @@ tl.currentProject().tracks()[0].addPart({ startPos: 0 });   // 缺必填 endPos
 
 - **普通 run_script 不受影响**：既有内联脚本在三档授权下行为不变（预览 / 确认 / 直提交、blocked wait-retry、
   出错整段回退）——沙箱是独立执行路径，不经 ScriptWriteExecutor。
-- **可选参补默认值不改语义**：带全参调用（`addTrack("x")` / `setTempo(120, 480)` / `setAutomation(..., 0.5)`）
+- **可选参补默认值不改语义**：带全参调用（`addTrack({name:"x"}, 0)` / `setTempo(120, 480)` / `setAutomation(..., 0.5)`）
   行为与修改前一致；只是**额外允许**省略。
 - **As\*OrNull 辅助改收 `JsValue?`**：其它调用点（各句柄 Set/Opt\* 路径）不受影响，null 与 undefined 同等处理。
 - **合成回显读取路径**：沙箱 `syllable(note)` 读的是 `note.SynthesizedSyllable`（与钢琴窗音素显示同源），

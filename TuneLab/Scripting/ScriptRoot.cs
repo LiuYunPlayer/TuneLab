@@ -1,5 +1,7 @@
 using System;
+using System.Globalization;
 using System.Linq;
+using Jint;
 using Jint.Native;
 using TuneLab.Audio;
 using TuneLab.Data;
@@ -76,26 +78,111 @@ internal sealed class ScriptApp
 }
 
 // `tl.currentProject()` 返回的工程对象：承载工程级数据——轨、速度、拍号。对称 C# 的 IProject。
-// 创建挂父（project.addTrack / track.addPart / part.addNote），删除一律 x.remove()。
+// 增删一律挂父（project.addTrack/removeTrack、track.addPart/removePart、part.addNote/removeNote）——没有 x.remove()。
 internal sealed class ScriptProject(ScriptContext ctx)
 {
     public ScriptTrack[] Tracks() => ctx.Project.Tracks.Select(ctx.WrapTrack).ToArray();
 
-    public ScriptTrack AddTrack(JsValue? name = null)
+    // ── 导出设置（工程级；对齐 IProject 的 8 个属性） ──
+    // 「跑一段脚本把导出各项设成我的预设」是用户会要的可复用命令（还会想绑快捷键），故按归属判据落在脚本面
+    // （见 docs/agent-tools.md）。**这些是设置项、不入撤销栈**：与在导出侧栏里改它们一致，改完按 Ctrl+Z 不会
+    // 退回。但脚本仍保证「出错 / preview 不落地」——由 ScriptContext 做写前快照 + 回退恢复。
+    public string ExportPath { get => ctx.Project.ExportPath; set => SetExport(p => p.ExportPath = value ?? string.Empty); }
+    public string ExportFileName { get => ctx.Project.ExportFileName; set => SetExport(p => p.ExportFileName = value ?? string.Empty); }
+
+    // 音频格式 id："wav" | "mp3" | "flac" | "ogg"。未知值报错（而非静默回退 wav）——按名字指定一个东西时要显式。
+    public string ExportFormat
     {
-        ctx.EnsureWritable();
-        ctx.Project.AddTrack(new TrackInfo { Name = ScriptArgs.AsStrOrNull(name) ?? "Track" });
-        ctx.Bump();
-        return ctx.WrapTrack(ctx.Project.Tracks[ctx.Project.Tracks.Count - 1]);
+        get => ctx.Project.ExportFormat;
+        set
+        {
+            if (!AudioExportFormatExtensions.TryParseId(value, out _))
+                throw new ScriptApiException(string.Format("unknown export format \"{0}\"; use one of {1}.",
+                    value, string.Join(", ", AudioExportFormatExtensions.AllIds)));
+            SetExport(p => p.ExportFormat = value);
+        }
     }
 
-    public void RemoveTrack(ScriptTrack track)
+    public int ExportSampleRate
     {
-        if (track == null || track.Removed) throw new ScriptApiException("expected a live track handle (from project.tracks()/project.addTrack()).");
+        get => ctx.Project.ExportSampleRate;
+        set { RequirePositive(value, "exportSampleRate"); SetExport(p => p.ExportSampleRate = value); }
+    }
+
+    // 无损格式（wav/flac）的位深；有损格式忽略它。
+    public int ExportBitDepth
+    {
+        get => ctx.Project.ExportBitDepth;
+        set { RequirePositive(value, "exportBitDepth"); SetExport(p => p.ExportBitDepth = value); }
+    }
+
+    // 有损格式（mp3/ogg）的目标码率 kbps；无损格式忽略它。
+    public int ExportBitrate
+    {
+        get => ctx.Project.ExportBitrate;
+        set { RequirePositive(value, "exportBitrate"); SetExport(p => p.ExportBitrate = value); }
+    }
+
+    // 是否导出总输出（母线）；各轨单独的开关在 track.exportEnabled 上。
+    public bool MasterExportEnabled { get => ctx.Project.MasterExportEnabled; set => SetExport(p => p.MasterExportEnabled = value); }
+    public int MasterExportChannels { get => ctx.Project.MasterExportChannels; set => SetExport(p => p.MasterExportChannels = ScriptTrack.RequireChannels(value, "masterExportChannels")); }
+
+    void SetExport(Action<IProject> mutate)
+    {
+        ctx.EnsureWritable();
+        ctx.CaptureExportConfig();   // 首次写入时留底，供出错 / preview 还原
+        mutate(ctx.Project);
+        ctx.Bump();
+    }
+
+    static void RequirePositive(int value, string what)
+    {
+        if (value <= 0) throw new ScriptApiException(string.Format("{0} must be positive.", what));
+    }
+
+    // 按完整 track info 新建一条轨并插到 index 位（省略 index = 追加到末尾；越界钳到合法范围）。
+    // info: {name?, gain?, pan?, mute?, solo?, asRefer?, color?, parts?}——省略即用各字段的存储默认值
+    // （如 name 为空串），宿主不替调用方假想。导出开关刻意不在 info 里（设置项、非"轨的内容"），见 track.exportEnabled。
+    // parts 里可嵌完整的 part 树，故 project.addTrack(other.getInfo()) 就是整轨复制。
+    public ScriptTrack AddTrack(JsValue? info = null, JsValue? index = null)
+    {
+        var trackInfo = info is null || info.IsUndefined() || info.IsNull()
+            ? new TrackInfo()
+            : ScriptInfo.ReadTrackInfo(info);
+        ctx.EnsureWritable();
+        var track = ctx.Project.CreateTrack(trackInfo);
+        ctx.Project.InsertTrack(ClampTrackIndex(index), track);
+        ctx.Bump();
+        return ctx.WrapTrack(track);
+    }
+
+    // 把一条【游离】轨插回 index 位（保持对象身份，故其全部 part 与 undo 记录都还连着）。
+    public void InsertTrack(ScriptTrack track, JsValue? index = null)
+    {
+        if (track == null) throw new ScriptApiException("expected a track handle.");
+        if (!track.Detached) throw new ScriptApiException("this track is already in the project; remove it first (project.removeTrack(track)).");
+        ctx.EnsureWritable();
+        ctx.Project.InsertTrack(ClampTrackIndex(index), track.Track);
+        track.Detached = false;
+        ctx.Bump();
+    }
+
+    // 把轨从工程摘出，返回它的（现在游离的）句柄：不插回 = 删除，插回别的位置 = 调序。
+    public ScriptTrack RemoveTrack(ScriptTrack track)
+    {
+        if (track == null || track.Detached) throw new ScriptApiException("expected a live track handle (from project.tracks()/project.addTrack()).");
         ctx.EnsureWritable();
         ctx.Project.RemoveTrack(track.Track);
-        track.Removed = true;
+        track.Detached = true;
         ctx.Bump();
+        return track;
+    }
+
+    // 省略 index = 追加到末尾；给了就钳到 [0, count]（count = 追加）。
+    int ClampTrackIndex(JsValue? index)
+    {
+        int count = ctx.Project.Tracks.Count;
+        return ScriptArgs.AsIntOrNull(index) is { } i ? Math.Clamp(i, 0, count) : count;
     }
 
     // 从文件导入其【全部轨】、加法式并进当前工程，返回新加入的轨句柄（可据此增删/改）。
@@ -134,9 +221,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
         ctx.EnsureWritable();
         double tick = ScriptArgs.AsNumOrNull(atTick) ?? 0;
         var manager = ctx.Project.TempoManager;
-        int existing = -1;
-        for (int i = 0; i < manager.Tempos.Count; i++)
-            if (Math.Abs(manager.Tempos[i].Pos - tick) < 0.5) { existing = i; break; }
+        int existing = FindTempo(tick);
         if (existing >= 0) manager.SetBpm(existing, bpm);
         else manager.AddTempo(tick, bpm);
         ctx.Bump();
@@ -149,11 +234,54 @@ internal sealed class ScriptProject(ScriptContext ctx)
         int barIndex = (ScriptArgs.AsIntOrNull(atBar) ?? 1) - 1;   // 1-based 小节号 → 0-based index
         if (barIndex < 0) throw new ScriptApiException("atBar must be >= 1.");
         var manager = ctx.Project.TimeSignatureManager;
-        int existing = -1;
-        for (int i = 0; i < manager.TimeSignatures.Count; i++)
-            if (manager.TimeSignatures[i].BarIndex == barIndex) { existing = i; break; }
+        int existing = FindTimeSignature(barIndex);
         if (existing >= 0) manager.SetMeter(existing, numerator, denominator);
         else manager.AddTimeSignature(barIndex, numerator, denominator);
         ctx.Bump();
+    }
+
+    // 删掉 atTick 处的速度标记（setTempo 的对偶）。该处没有标记就报错而不是静默 no-op（假成功会让脚本
+    // 以为删掉了）。工程起点那一个是基准速度、【不可删】——与时间轴右键菜单同一条规矩。
+    public void RemoveTempo(double atTick)
+    {
+        ctx.EnsureWritable();
+        int index = FindTempo(atTick);
+        if (index < 0)
+            throw new ScriptApiException(string.Format(CultureInfo.InvariantCulture, "there is no tempo marker at tick {0:0}; see project.tempos().", atTick));
+        if (index == 0)
+            throw new ScriptApiException("the first tempo marker is the project's base tempo and can't be removed; change it with setTempo instead.");
+        ctx.Project.TempoManager.RemoveTempoAt(index);
+        ctx.Bump();
+    }
+
+    // 删掉第 atBar 小节（1-based）处的拍号标记（setTimeSignature 的对偶）。规矩同 removeTempo。
+    public void RemoveTimeSignature(int atBar)
+    {
+        ctx.EnsureWritable();
+        if (atBar < 1) throw new ScriptApiException("atBar must be >= 1.");
+        int index = FindTimeSignature(atBar - 1);
+        if (index < 0)
+            throw new ScriptApiException(string.Format(CultureInfo.InvariantCulture, "there is no time signature marker at bar {0}; see project.timeSignatures().", atBar));
+        if (index == 0)
+            throw new ScriptApiException("the first time signature is the project's base meter and can't be removed; change it with setTimeSignature instead.");
+        ctx.Project.TimeSignatureManager.RemoveTimeSignatureAt(index);
+        ctx.Bump();
+    }
+
+    // 标记的定址：速度按 tick 就近（半 tick 内即同一处，与 setTempo 的"该处已有则改"同判据），拍号按小节号精确。
+    int FindTempo(double tick)
+    {
+        var tempos = ctx.Project.TempoManager.Tempos;
+        for (int i = 0; i < tempos.Count; i++)
+            if (Math.Abs(tempos[i].Pos - tick) < 0.5) return i;
+        return -1;
+    }
+
+    int FindTimeSignature(int barIndex)
+    {
+        var signatures = ctx.Project.TimeSignatureManager.TimeSignatures;
+        for (int i = 0; i < signatures.Count; i++)
+            if (signatures[i].BarIndex == barIndex) return i;
+        return -1;
     }
 }

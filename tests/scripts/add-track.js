@@ -11,6 +11,6 @@ function getScriptInfo() {
 }
 
 function main() {
-  const t = tl.currentProject().addTrack('Script Track');
+  const t = tl.currentProject().addTrack({ name: 'Script Track' });
   print('added track: ' + t.name);
 }

@@ -30,7 +30,7 @@
 **期望**：
 - 脚本作为**一个可撤销单位**落库；该音符发音被强制为所设值，重合成后音素/音频按新发音走（可在钢琴窗音素带核对）；
 - 再设 `n.pronunciation = ""` → 回到按歌词自动派生（音素回到默认 G2P 结果）；
-- `note.set({pronunciation:"..."})` 与单字段赋值等效。
+- 单字段赋值是唯一写法（批量入口 `note.set({...})` 已随对称性整改删除）。
 
 ## 2. part 级声明参数 getProperty/setProperty
 
@@ -70,8 +70,9 @@
 
 ## 6. 音素增删 + bodyOffset
 
-对某音符跑：`n.addPhoneme({symbol:"<x>", duration:0.05, leading:true})`（前置辅音）、
-`n.addPhoneme({symbol:"<y>", stretchWeight:1})`（主体元音）；再 `n.removePhoneme(<某句柄>)`；再读 / 写 `n.bodyOffset`。
+对某音符跑：`n.addLeadingPhoneme({symbol:"<x>", duration:0.05})`（前置辅音）、
+`n.addBodyPhoneme({symbol:"<y>", stretchWeight:1})`（主体元音）；再 `n.removePhoneme(<某句柄>)`；再读 / 写 `n.bodyOffset`。
+（引导 / 主体是两个独立列表，故是两个方法——原先那个 `leading:` 布尔参数已删。）
 
 **期望**：
 - add 后 `n.phonemes()` 多出对应项、归到正确列表（leading/body）；返回的句柄可继续读写；
@@ -90,7 +91,7 @@
 ## 8. voice-only 边界（instrument）
 
 把某 part 切到 **instrument** 音源（`part.setSoundSource({kind:"instrument", ...})`）。对其音符跑 `n.phonemes()`、
-`n.addPhoneme(...)`、读 `n.pronunciation`。再对该 part / note 试 instrument **声明的** part/note 参数 getProperty/setProperty。
+`n.addBodyPhoneme(...)`、读 `n.pronunciation`。再对该 part / note 试 instrument **声明的** part/note 参数 getProperty/setProperty。
 
 **期望**：
 - instrument 无音素概念：`n.phonemes()` 返回空、音素编辑对其无意义（addPhoneme 技术上会建钉死数据但引擎不消费——

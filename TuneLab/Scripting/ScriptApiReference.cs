@@ -15,6 +15,26 @@ internal static class ScriptApiReference
         "Positions/durations are ABSOLUTE ticks (tl.ppq = ticks per quarter). Pitch = MIDI number (60=C4). The whole run is ONE undoable change (you never call commit).\n" +
         "A handle is an opaque reference to one object: no id, valid only this run — get it via a read, never write a handle literal. Assigning a field or calling a write method takes effect immediately and folds into the single commit.\n" +
         "\n" +
+        "*** INFO OBJECTS — how to copy anything, and how to create with full control ***\n" +
+        "Every handle has getInfo() -> a PLAIN JS object holding EVERYTHING about it (nested: a part info carries its sound source, notes, pitch line, automation curves, vibratos, effect chain, properties, phonemes...).\n" +
+        "Every parent has addX(info) which takes that same shape back. So:\n" +
+        "  · COPY (full fidelity, nothing lost):   track.addPart(otherPart.getInfo())   project.addTrack(otherTrack.getInfo())   part.addNote(n.getInfo())\n" +
+        "  · CREATE with any field set:            part.addNote({pos, dur, pitch, lyric, pronunciation, properties, bodyPhonemes})\n" +
+        "An info is PURE DATA — mutate it freely before adding (no undo entry, no side effect), and add the same info as many times as you like (each add makes a NEW object).\n" +
+        "NEVER hand-copy an object field by field to \"duplicate\" it — you will silently drop the sound source, curves, effects, properties and phonemes. Use getInfo() -> addX().\n" +
+        "Omitted info fields fall back to the stored default (e.g. name -> empty string), not to something invented for you.\n" +
+        "!! TO PLACE A COPY SOMEWHERE ELSE, MOVE THE HANDLE, NOT THE INFO: `const c = t.addPart(p.getInfo()); c.pos += 1920;`\n" +
+        "   Every tick in an info is ABSOLUTE — including the notes/curve points nested inside a part info. So bumping `info.pos` alone slides the part's WINDOW while its content stays at the old absolute ticks (the content ends up outside the window). Assigning `part.pos` on the handle is the operation that moves a part and its content together.\n" +
+        "\n" +
+        "*** MOVE vs COPY (removeX returns a DETACHED handle) ***\n" +
+        "removeX(child) detaches the child and RETURNS its handle; the object is still alive and READABLE (getInfo() works) — it just has no parent.\n" +
+        "removeX is the only one that hands something back (like the DOM's parent.removeChild(child)), so a move is one expression: b.insertPart(a.removePart(p)). insertX returns nothing — echoing back the handle you just passed in carries no information.\n" +
+        "Removing a child that is NOT this parent's child THROWS (a programming error, not a query) — there is no boolean 'was it there' result.\n" +
+        "  · delete = remove and don't put it back.\n" +
+        "  · move   = remove, then insertX(child) — SAME object, so its notes/curves/effects/phonemes travel with it and undo sees one move.\n" +
+        "A detached handle is READ-ONLY: writing a field throws and tells you to insert it back first.\n" +
+        "Only a part can change parent: track.removePart(p) then otherTrack.insertPart(p) moves it ACROSS TRACKS. A note/vibrato/effect belongs to the part it was created on — insertX only puts it back on that same part; to get one onto another part use otherPart.addX(x.getInfo()).\n" +
+        "\n" +
         "tl  (the editor)\n" +
         "  tl.ppq                                   ticks per quarter note (scalar property)\n" +
         "  tl.language                              current UI culture code, e.g. \"zh-CN\"/\"en-US\" (for localized text)\n" +
@@ -29,83 +49,131 @@ internal static class ScriptApiReference
         "\n" +
         "project  (tl.currentProject())\n" +
         "  project.tracks()                         [track]\n" +
-        "  project.addTrack(name?) -> track         project.removeTrack(track)\n" +
+        "  project.addTrack(info?, index?) -> track  new track from a track info (omit info for an empty one); index = 0-based slot, omitted = append\n" +
+        "  project.insertTrack(track, index?)       put a DETACHED track back (this is how you reorder)\n" +
+        "  project.removeTrack(track) -> track       detach it and hand the handle back\n" +
         "  project.importTracks(path) -> [track]    import ALL tracks from a file into this project (additive; keeps current tempo, tracks at raw ticks). path = local file path; formats: tlp/tlpx/mid/midi + installed format plugins. Missing/unsupported/parse error throws. Returns the newly added track handles.\n" +
         "  project.tempos()                         [{bpm, tick}]\n" +
         "  project.timeSignatures()                 [{numerator, denominator, bar}]\n" +
         "  project.setTempo(bpm, atTick?)           project.setTimeSignature(numerator, denominator, atBar?)   // atBar is 1-based\n" +
+        "  project.removeTempo(atTick)              project.removeTimeSignature(atBar)   // throws if no marker is there; the FIRST marker is the project's base tempo/meter and can't be removed (change it with setTempo/setTimeSignature)\n" +
+        "  // EXPORT SETTINGS (read/write fields; per-track switches live on the track handle):\n" +
+        "  project.exportPath, project.exportFileName, project.exportFormat (\"wav\"|\"mp3\"|\"flac\"|\"ogg\"), project.exportSampleRate, project.exportBitDepth (wav/flac), project.exportBitrate (mp3/ogg, kbps), project.masterExportEnabled, project.masterExportChannels\n" +
+        "  These are SETTINGS, not project data: assigning them does NOT go on the undo stack (Ctrl+Z won't put the old export path back), exactly like changing them in the export panel. A failed or previewed run still restores them, so \"the whole run is atomic\" still holds. Writing the audio file itself is the export_project tool, not this.\n" +
         "\n" +
         "track\n" +
-        "  fields (read/write):  name, isMute, isSolo, gain, pan       // gain is in dB (0 = unity); pan in [-1,1]\n" +
+        "  fields (read/write):  name, isMute, isSolo, gain, pan, asRefer, color   // gain in dB (0 = unity); pan in [-1,1]; asRefer = other sound sources may hear this track; color = hex like \"#FF8800\" (empty = theme default)\n" +
+        "  export settings (read/write):  exportEnabled, exportChannels (1 = mono, 2 = stereo)   // SETTINGS, not project data — see the note under `project`\n" +
+        "  track.getInfo()                          {name, gain, pan, mute, solo, asRefer, color, parts:[part info]}   // the export switches are deliberately NOT in here (they are settings, not part of the track's content), so a copied track gets the defaults\n" +
         "  track.parts()                            [part]\n" +
-        "  track.addPart({startPos, endPos, name?}) -> part    track.removePart(part)\n" +
-        "  track.set({name?, isMute?, isSolo?, gain?, pan?})   // assign several fields at once\n" +
+        "  track.addPart(info) -> part              new part from a part info (fields below)\n" +
+        "  track.insertPart(part)                   put a DETACHED part on this track — the track may be a DIFFERENT one, which is how you MOVE a part across tracks\n" +
+        "  track.removePart(part) -> part           detach it and hand the handle back\n" +
         "\n" +
         "part\n" +
-        "  fields (read/write):  name, startPos, endPos    field (read-only): type (\"midi\"/\"audio\")   // startPos/endPos = the part's visible span in absolute ticks; setting startPos moves the whole part (content follows), setting endPos resizes the right edge\n" +
+        "  GEOMETRY — three RAW fields (read/write) plus three DERIVED ones (read-only), same model as the data layer:\n" +
+        "    pos          the anchor's absolute tick — AND the origin every bit of content (notes/curves/vibratos) is measured from, so assigning pos MOVES the whole part (content follows, length unchanged)\n" +
+        "    startOffset  left edge relative to the anchor (>0 trims the front, <0 extends it)\n" +
+        "    endOffset    right edge relative to the anchor\n" +
+        "    startPos = pos + startOffset,   endPos = pos + endOffset,   dur = endOffset - startOffset      (read-only)\n" +
+        "    -> an empty part covering ticks 1920..3840 is  track.addPart({pos: 1920, endOffset: 1920})\n" +
+        "  other fields (read/write):  name, gain (dB, part-level, adds to the track's)    field (read-only): type (\"midi\"/\"audio\")\n" +
+        "  part.getInfo()                           {type, name, pos, startOffset, endOffset, gain, soundSource, notes, vibratos, effects, automations, piecewiseAutomations, pitch, properties}; an audio part instead has {type:\"audio\", …, path}\n" +
+        "  part.track()                             the track this part is on (read-only; to change it, removePart + insertPart on the other track)\n" +
         "  part.soundSource()                       {type, id, name, kind, defaultLyric}   (sound source snapshot; kind=\"voice\"|\"instrument\")\n" +
         "  part.setSoundSource({kind, type, id})    switch the part's sound source (kind=\"voice\"(default)|\"instrument\"; type/id from list_sound_sources); unknown source errors; empty type+id clears to none\n" +
         "  part.notes()                             [note]\n" +
         "  part.selectedNotes()                     [note]   (currently selected in the piano editor)\n" +
-        "  part.notesInRange(start, end)            [note]   (absolute ticks, [start,end), by note start)\n" +
-        "  part.addNote({pos, dur, pitch, lyric?}) -> note    part.removeNote(note)\n" +
+        "  part.addNote(info) -> note                info = {pos, dur, pitch, lyric?, pronunciation?, properties?, leadingPhonemes?, bodyPhonemes?, bodyOffset?}\n" +
+        "  part.insertNote(note)                     part.removeNote(note) -> note\n" +
         "  // PITCH (its own curve, MIDI scale):\n" +
         "  part.samplePitch(start, end, samples)    [number]\n" +
         "  part.setPitchLine(start, end, points)    part.clearPitch(start, end)        // points=[{tick,value}], value=absolute MIDI pitch\n" +
-        "  // AUTOMATION (voice-declared params like \"Volume\"; pitch is NOT one of these):\n" +
+        "  // AUTOMATION — CONTINUOUS curves (sound-source-declared params like \"Volume\"; they have a baseline default value; pitch is NOT one of these):\n" +
         "  part.automationIds()                     [string]\n" +
         "  part.sampleAutomation(id, start, end, samples)   [number]   (NaN = no curve there)\n" +
         "  part.setAutomation(id, start, end, points, defaultValue?)    part.clearAutomation(id, start, end)   // value=absolute parameter value, created on demand\n" +
+        "  // AUTOMATION — PIECEWISE curves (no baseline: gaps between segments mean \"no value\", exactly like the pitch line). Separate id list because the two families read/write differently:\n" +
+        "  part.piecewiseAutomationIds()            [string]\n" +
+        "  part.samplePiecewiseAutomation(id, start, end, samples)   [number]\n" +
+        "  part.setPiecewiseAutomationLine(id, start, end, points)   part.clearPiecewiseAutomation(id, start, end)\n" +
         "  part.vibratos()                          [vibrato]\n" +
-        "  part.addVibrato({pos, dur, frequency?, amplitude?, phase?, attack?, release?}) -> vibrato    part.removeVibrato(vibrato)\n" +
+        "  part.addVibrato(info) -> vibrato          info = {pos, dur, frequency?, amplitude?, phase?, attack?, release?, affectedAutomations?, affectedEffectAutomations?}\n" +
+        "  part.insertVibrato(vibrato)                part.removeVibrato(vibrato) -> vibrato\n" +
         "  // EFFECTS (serial effect chain on this part; order = array index, 0-based):\n" +
         "  part.effects()                           [effect]\n" +
-        "  part.addEffect(type) -> effect           part.removeEffect(effect)   // type = an effect engine id from list_effects; appended to the chain end\n" +
+        "  part.addEffect(info, index?) -> effect    info.type = an effect engine id from list_effects (required, must exist); index omitted = append to the chain end\n" +
+        "  part.insertEffect(effect, index?)               part.removeEffect(effect) -> effect\n" +
         "  part.moveEffect(effect, index)           move an effect to a 0-based position in the chain\n" +
         "  // PART PROPERTIES (voice/instrument-declared per-part params; keys/ranges from list_sound_sources):\n" +
         "  part.getProperty(key)                    current value (number/boolean/string), or null if unset\n" +
         "  part.setProperty(key, value)             set one declared part param (value = number/boolean/string)\n" +
-        "  part.set({name?, startPos?, endPos?})\n" +
         "\n" +
         "note\n" +
         "  fields (read/write):  pos, dur, pitch, lyric, pronunciation      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = a voice G2P override; empty string = derive from lyric\n" +
-        "  note.set({pos?, dur?, pitch?, lyric?, pronunciation?})   // assign several fields at once (one re-sort)\n" +
+        "  note.getInfo()                           {pos, dur, pitch, lyric, pronunciation, properties, leadingPhonemes, bodyPhonemes, bodyOffset}\n" +
+        "  note.part()                              the part this note is on (read-only)      // vibrato.part() and effect.part() exist too\n" +
         "  // NOTE PROPERTIES (voice/instrument-declared per-note params; keys/ranges from list_sound_sources):\n" +
         "  note.getProperty(key)  / note.setProperty(key, value)    current value or null / set one declared note param (number/boolean/string)\n" +
-        "  // PHONEMES (voice only; leading = pre-vowel consonants, body = vowel+coda). Read anytime; the FIRST write auto-pins (fixes the synthesized phonemes into editable data, like the sidebar's first edit):\n" +
+        "  // PHONEMES (voice only). TWO SEPARATE LISTS: leading = pre-vowel consonants, body = vowel+coda. Read anytime; the FIRST write auto-pins (fixes the synthesized phonemes into editable data, like the sidebar's first edit):\n" +
         "  note.phonemes()                          [phoneme]   (leading ++ body, time order; empty until the note has been synthesized)\n" +
         "  field (read-only): hasPinnedPhonemes (bool)      field (read/write): bodyOffset (seconds; leading/body junction offset from note start; writing auto-pins)\n" +
-        "  note.addPhoneme({symbol, duration?, stretchWeight?, leading?}) -> phoneme    note.removePhoneme(phoneme)   // appended to leading (leading:true) or body list; auto-pins\n" +
+        "  note.addLeadingPhoneme(info) -> phoneme   note.addBodyPhoneme(info) -> phoneme    // info = {symbol, duration?, stretchWeight?, properties?}; appended to that list; auto-pins\n" +
+        "  note.removePhoneme(phoneme)               // phonemes have no parent pointer, so to get one onto another note use otherNote.addBodyPhoneme(ph.getInfo()) then removePhoneme\n" +
         "  note.pinPhonemes()  / note.clearPhonemes()   // pin = fix synthesized phonemes as editable (usually automatic); clear = drop pinned phonemes, revert to synthesized\n" +
         "\n" +
         "phoneme  (an item in note.phonemes(); positional — its list index shifts when phonemes are added/removed, so re-fetch note.phonemes() after a structural change)\n" +
         "  field (read-only): leading (bool)      fields (read/write): symbol, duration (seconds), stretchWeight (0 = rigid consonant, >0 = stretchable vowel)   // writing any field auto-pins the note's phonemes\n" +
+        "  phoneme.getInfo()                        {symbol, duration, stretchWeight, properties}   (properties is null while not pinned)\n" +
         "  phoneme.getProperty(key)                 current value (number/boolean/string), or null if unset or not yet pinned (keys/ranges from list_sound_sources phoneme slots)\n" +
         "  phoneme.setProperty(key, value)          set one declared phoneme param (auto-pins)\n" +
         "\n" +
         "vibrato\n" +
-        "  fields (read/write):  pos, dur, frequency, amplitude, phase, attack, release    // pos/dur in ticks, frequency Hz, amplitude semitones\n" +
-        "  vibrato.set({pos?, dur?, frequency?, amplitude?, phase?, attack?, release?})\n" +
+        "  fields (read/write):  pos, dur, frequency, amplitude, phase, attack, release    // pos/dur in ticks, frequency Hz, amplitude semitones, phase in units of PI, attack/release seconds\n" +
+        "  vibrato.getInfo()                        {pos, dur, frequency, amplitude, phase, attack, release, affectedAutomations, affectedEffectAutomations}\n" +
+        "  // WHICH parameter tracks this vibrato modulates, and by how much:\n" +
+        "  vibrato.affectedAutomations()            {automationId: amplitude}                 (sound-source-level tracks)\n" +
+        "  vibrato.affectedEffectAutomations()      {effectId: {automationId: amplitude}}     (effect-level tracks, outer key = effect.id)\n" +
+        "  vibrato.setAmplitude(id, amplitude, effect?)     vibrato.removeAmplitude(id, effect?)   // pass an effect handle (same part) to target that effect's track instead of the sound source's\n" +
         "\n" +
         "effect  (an item in part.effects())\n" +
         "  field (read/write):  isEnabled (bool; false = bypass)      read-only: type, name, id, index\n" +
+        "  effect.getInfo()                         {id, type, isEnabled, automations, piecewiseAutomations, properties}\n" +
         "  effect.getProperty(key)                  current value (number/boolean/string), or null if unset (defaults & keys/ranges: list_effects)\n" +
         "  effect.setProperty(key, value)           set one parameter (value = number/boolean/string)\n" +
         "  // this effect's PARAMETER AUTOMATION curves (same shape as part automation; absolute-tick points):\n" +
         "  effect.automationIds()                   [string]   (automatable param ids declared by the effect engine; see list_effects)\n" +
         "  effect.sampleAutomation(id, start, end, samples)   [number]   (NaN = no curve there)\n" +
         "  effect.setAutomation(id, start, end, points, defaultValue?)    effect.clearAutomation(id, start, end)   // points=[{tick,value}], value=absolute param value, created on demand\n" +
+        "  effect.piecewiseAutomationIds()          [string]\n" +
+        "  effect.samplePiecewiseAutomation(id, start, end, samples)   [number]\n" +
+        "  effect.setPiecewiseAutomationLine(id, start, end, points)   effect.clearPiecewiseAutomation(id, start, end)\n" +
         "\n" +
         "print(x) / console.log(x) -> debugging output (returned to you / shown in the panel).\n" +
-        "Notes live inside a MIDI part; to write a melody from scratch, tl.currentProject().addTrack() (or pick one), track.addPart({...}), then part.addNote into the returned part.\n" +
+        "Notes live inside a MIDI part; to write a melody from scratch, tl.currentProject().addTrack() (or pick one), track.addPart({pos, endOffset}), then part.addNote into the returned part.\n" +
         "If the script throws, EVERYTHING rolls back (the project is left unchanged) and the error is returned, so fix the script and re-run rather than patching from a half-applied state.\n" +
         "\n" +
         "EXAMPLE — raise every note in the current part an octave and add a harmony a third above:\n" +
         "  const part = tl.currentPart();\n" +
         "  for (const n of part.notes()) {\n" +
-        "    part.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 4, lyric: n.lyric });   // third above\n" +
-        "    n.pitch += 12;                                                                  // original up an octave\n" +
+        "    const info = n.getInfo();          // full copy of the note (properties, phonemes and all)\n" +
+        "    info.pitch += 4;                   // an info is pure data — edit it freely\n" +
+        "    part.addNote(info);                // third above\n" +
+        "    n.pitch += 12;                     // original up an octave\n" +
         "  }\n" +
+        "\n" +
+        "EXAMPLE — duplicate the first track and transpose the copy up an octave:\n" +
+        "  const project = tl.currentProject();\n" +
+        "  const info = project.tracks()[0].getInfo();   // EVERYTHING: sound source, curves, effects, properties, phonemes\n" +
+        "  info.name = 'Harmony +8';\n" +
+        "  const copy = project.addTrack(info);\n" +
+        "  for (const p of copy.parts()) for (const n of p.notes()) n.pitch += 12;\n" +
+        "\n" +
+        "EXAMPLE — move a part to another track, keeping everything (a MOVE, not a copy):\n" +
+        "  const [a, b] = tl.currentProject().tracks();\n" +
+        "  const p = a.parts()[0];\n" +
+        "  a.removePart(p);                     // p is now detached: readable, not writable\n" +
+        "  b.insertPart(p);                     // same object, now on track b\n" +
         "\n" +
         "TOOL SCRIPTS (for save_script) — register a REUSABLE menu tool the user can click again later. Define two top-level functions; the top level must have NO side effects (it is evaluated just to read metadata):\n" +
         "  function getScriptInfo() { return { name, category, author, version, context, id?, defaultGesture? }; }   // metadata only; read tl.language here to localize `name`\n" +
