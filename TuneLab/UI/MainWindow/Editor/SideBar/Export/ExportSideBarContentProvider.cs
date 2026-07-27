@@ -226,13 +226,8 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         mBitrateGroup.IsVisible = lossy;
     }
 
-    static AudioExportFormat ParseFormat(string id) => id switch
-    {
-        "mp3" => AudioExportFormat.Mp3,
-        "flac" => AudioExportFormat.Flac,
-        "ogg" => AudioExportFormat.Ogg,
-        _ => AudioExportFormat.Wav,
-    };
+    // 解析口径与脚本面共用一份（AudioExportFormatExtensions）：宽容版，坏值回退 wav、不拦住用户。
+    static AudioExportFormat ParseFormat(string id) => AudioExportFormatExtensions.ParseId(id);
 
     public void SetProject(IProject? project)
     {
@@ -585,7 +580,8 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     IProject? mProject;
     bool mIsLoading;
 
-    static readonly string[] FormatIds = ["wav", "mp3", "flac", "ogg"];
+    // 下拉顺序即此顺序；id 取值本身是共用的那张表。
+    static readonly string[] FormatIds = AudioExportFormatExtensions.AllIds;
     static readonly string[] FormatLabels = ["WAV", "MP3", "FLAC", "OGG"];
     static readonly int[] SampleRates = [32000, 44100, 48000, 88200, 96000];
     static readonly int[] BitDepths = [16, 24, 32];
