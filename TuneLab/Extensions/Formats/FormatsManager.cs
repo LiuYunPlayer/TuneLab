@@ -24,7 +24,9 @@ internal static class FormatsManager
         RegisterImporter(pkg, "tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
         RegisterExporter(pkg, "tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
         RegisterImporter(pkg, "mid", "MIDI", () => new Midi.MidiWithExtension_mid());
+        RegisterExporter(pkg, "mid", "MIDI", () => new Midi.MidiWithExtension_mid());
         RegisterImporter(pkg, "midi", "MIDI", () => new Midi.MidiWithExtension_midi());
+        RegisterExporter(pkg, "midi", "MIDI", () => new Midi.MidiWithExtension_midi());
     }
 
     // 工厂注册导入器：内建（LoadBuiltIn）、V1（ExtensionManager 按 manifest class 实例化）、

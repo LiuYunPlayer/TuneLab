@@ -17,7 +17,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `get_project_overview` | 操作 | 唯一只读"定向"：PPQ、tempo、拍号、各轨(1-based 编号/名/静音独奏/增益声像/part 数/音符数)。直接读 `IProject`，不经门面。 |
 | `run_script` | 操作 | 写一段 JS（对象式 `tl`）做任意读/算/改，整段 = 一个可撤销单位、出错原子回退。 |
 | `get_script_api` | 操作 | `run_script` 的按需文档（渐进式披露）：完整 `tl` API + 句柄/tick/收口规则 + 工具脚本约定。写第一段脚本前调一次。 |
-| `export_project` | 操作 | 把当前工程写成一个文件（`importTracks` 的对偶）。格式由扩展名定（tlp/tlpx 全保真 + 已装格式插件）。**恒过授权闸门**（路径任意 = 能写用户磁盘任何地方）；**不是"保存"**（不改工程保存路径、不清未保存态）；**不能导出音频**。 |
+| `export_project` | 操作 | 把当前工程写成一个文件（`importTracks` 的对偶）。格式由扩展名定（tlp/tlpx 全保真；mid/midi 内置但只承载 musical 部分；再加已装格式插件）。**恒过授权闸门**（路径任意 = 能写用户磁盘任何地方）；**不是"保存"**（不改工程保存路径、不清未保存态）；**不能导出音频**。 |
 | `save_script` | 库 | 把功能写成**工具脚本**(定义 getScriptInfo+main)存库 → 自动注册进菜单复用。只存不执行；声明了 getScriptInfo 则先预校验。 |
 | `list_scripts` | 库 | 列库内脚本，标出工具(+context)/普通，并标注哪些**带入参**(定义了 getInputConfig)。 |
 | `read_script` | 库 | 读某脚本源码（编辑前）。 |

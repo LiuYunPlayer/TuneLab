@@ -27,19 +27,23 @@
 - **标题栏的未保存标记仍在**、`文件 > 最近打开` 里**没有** a.tlpx（语义 2）；
 - 用 TuneLab 打开 a.tlpx：音符/音源/effect/自动化/音素全保真，**播放头落在导出那刻的位置**。
 
-## 2. 导出 .mid → **应当如实报「不支持」**（内置 MIDI 是只读的）
+## 2. 导出 .mid → **现在应当成功**（MIDI 导出已实现，本条期望已反转）
+
+> ⚠️ 这一条的期望**变了**。此前内置 MIDI 只实现 `IImportFormat`（能读不能写），本条原本验的是"如实报不支持"。
+> MIDI 导出实现后，`.mid`/`.midi` 已注册 exporter，故现在验的是 **foreign 导出路径本身**。
 
 导出到 `<空文件夹>\a.mid`。
 
-**期望**：**报错**「`.mid` 没有任何已装格式提供导出」+ 列出真正支持的扩展名（默认环境 = `.tlp`/`.tlpx`）；
-**不产生文件**、不弹授权卡片。
+**期望**：**成功**并弹授权卡片（同其它格式，路径任意 → 恒过闸门）；产出的 `.mid` 能被 TuneLab 重新导入，
+且 `SerializeNative` 内部自动降级到纯 musical `Serialize`（不报"不支持 native"之类的错）。
 
-**这不是缺陷，是事实**：内置 MIDI 格式只实现了 `IImportFormat`（`Midi.cs` 里没有 `Serialize`），
-`LoadBuiltIn()` 也只 `RegisterImporter`——**能导入、不能导出**。所以 `importTracks` 读得进 mid、`export_project` 写不出 mid，
-这个不对称是宿主的真实现状。核对办法：菜单「导出为」里同样只有 tlp/tlpx（它就是从 `GetAllExportFormats()` 生成的）。
+**能带回来的**（往返保真，已有单元测试 `MidiExportTests` 逐项封条）：tempo map、拍号（含非 4/4）、
+音符位置/时长/音高、**歌词（含中文）**、轨名。
 
-**若装了提供 foreign 导出的格式插件**，再验一次 foreign 路径：导出成功且 `SerializeNative` 内部自动降级到纯 musical
-`Serialize`（不报"不支持 native"之类的错）。
+**如实丢掉的**（MIDI 格式固有落差，不是缺陷）：音源、自动化曲线、音高偏差、颤音、音素、effect 链、增益，
+以及 audio part（MIDI 无音频轨的位置）。回报里不应声称这些被保留。
+
+核对办法：菜单「导出为」里现在应能看到 mid/midi（它就是从 `GetAllExportFormats()` 生成的）。
 
 ## 3. 覆盖已存文件 → 另一档文案
 
