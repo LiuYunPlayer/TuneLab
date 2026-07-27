@@ -20,8 +20,14 @@ internal interface IProject : IDataObject<ProjectInfo>, ITimeline, IDisposable
     int ExportBitrate { get; set; }
     bool MasterExportEnabled { get; set; }
     int MasterExportChannels { get; set; }
+    // 与 ITrack.CreatePart / IMidiPart.CreateNote 同形的「建游离实体」入口：AddTrack(info) 是它 + 追加到末尾
+    // 的合体，故要「在指定位置按 info 新建」只能经这里再 InsertTrack。
+    ITrack CreateTrack(TrackInfo info);
     void AddTrack(TrackInfo info);
-    void RemoveTrack(ITrack track);
+    // 按 .NET 集合惯例：Remove(item) 返回"它原本在不在里面"，RemoveAt(index) 无返回。
+    // （其余四个 RemoveX——ITrack.RemovePart / IMidiPart.RemoveNote·RemoveEffect·RemoveVibrato——本就是 bool，
+    //  这里曾是唯一偏离：底层 DataObjectList.Remove 就返回 bool，只是被这层吞掉了。）
+    bool RemoveTrack(ITrack track);
     void RemoveTrackAt(int index);
     void InsertTrack(int index, ITrack track);
 }

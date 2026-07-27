@@ -53,10 +53,12 @@ internal class TempoManager : DataObject, ITempoManager
         return result;
     }
 
+    // 越界抛而非静默 no-op（与 IProject.RemoveTrackAt 同一条理由）：按下标寻址时"下标非法"是编程错误，
+    // 宽容只会把 bug 藏起来——调用方既无返回值也无异常，无从得知什么都没发生。
     public void RemoveTempoAt(int index)
     {
         if ((uint)index >= Tempos.Count)
-            return;
+            throw new ArgumentOutOfRangeException(nameof(index));
 
         mTempos.RemoveAt(index);
     }

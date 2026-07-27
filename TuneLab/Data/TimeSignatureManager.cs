@@ -56,10 +56,11 @@ internal class TimeSignatureManager : DataObject, ITimeSignatureManager
         return result;
     }
 
+    // 越界抛而非静默 no-op（与 IProject.RemoveTrackAt 同一条理由）。
     public void RemoveTimeSignatureAt(int index)
     {
         if (index < 0 || index >= mTimeSignatures.Count)
-            return;
+            throw new ArgumentOutOfRangeException(nameof(index));
 
         BeginMergeNotify();
         mTimeSignatures.RemoveAt(index);

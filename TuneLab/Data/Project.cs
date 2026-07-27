@@ -74,31 +74,37 @@ internal class Project : DataObject, IProject
         mTracks.Add(CreateTrack(info));
     }
 
-    public void RemoveTrack(ITrack track)
+    public bool RemoveTrack(ITrack track)
     {
-        mTracks.Remove(track);
+        return mTracks.Remove(track);
     }
 
+    // 越界抛而非静默 no-op：按 .NET 惯例，按下标寻址的成员里"下标非法"是编程错误而非正常情形——
+    // 这也正是 RemoveAt 无返回值的前提（Remove(item) 才需要 bool 表达"它原本在不在"）。
+    // 宽容版会把 bug 藏起来：调用方既拿不到返回值、也收不到异常，彻底无从得知什么都没发生。
     public void RemoveTrackAt(int trackIndex)
     {
         if ((uint)trackIndex >= mTracks.Count)
-            return;
+            throw new ArgumentOutOfRangeException(nameof(trackIndex));
 
         mTracks.RemoveAt(trackIndex);
     }
 
+    // 插入的合法下标含末位（== Count 即追加）。
     public void InsertTrack(int trackIndex, ITrack track)
     {
         if ((uint)trackIndex > mTracks.Count)
-            return;
+            throw new ArgumentOutOfRangeException(nameof(trackIndex));
 
         mTracks.Insert(trackIndex, track);
     }
 
-    Track CreateTrack(TrackInfo info)
+    public Track CreateTrack(TrackInfo info)
     {
         return new Track(this, info);
     }
+
+    ITrack IProject.CreateTrack(TrackInfo info) => CreateTrack(info);
 
     void OnTrackAdded(ITrack track)
     {
