@@ -33,7 +33,10 @@ internal enum ScriptAuthDecision { ApplyOnce, ApplyAlways, Reject }
 // RoutingChange=改扩展路由（Target="kind:identity"、NewValue=选中的包显示名）、
 // ExtensionSettingChange=改某扩展自己的设置（Target="扩展名 → 字段键"、NewValue=新值文本）：
 // 都不是工程数据、历史记录同样救不回，且是"改用户的应用配置"，故与前者同闸门、同样无预览。
-internal enum AgentWriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange }
+// ProjectExport/ProjectExportOverwrite=把工程导出成文件（Target=落地绝对路径、NewValue=格式显示名）：
+// 与脚本库不同，导出路径是【任意的】——agent 能往用户磁盘任何地方写，故【恒】过闸门（不像 save_script 只有覆盖才拦）；
+// 落到已存路径会替换那个文件、历史记录救不回，故单列 Overwrite 一档让卡片把"替换"说出来（同 ScriptOverwrite 的分档理由）。
+internal enum AgentWriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite }
 
 // SecondaryTarget=本次改动【顺带影响的另一个对象】（当前只有夺键：被解除绑定的那个命令），供卡片给出知情同意。
 internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, int Count, string? Target, string? NewValue = null, string? SecondaryTarget = null)
@@ -49,6 +52,8 @@ internal readonly record struct AgentAuthorizationRequest(AgentWriteKind Kind, i
             : string.Format("set the shortcut for the command \"{0}\" to {1}", Target, NewValue),
         AgentWriteKind.RoutingChange => string.Format("make \"{1}\" the provider of \"{0}\"", Target, NewValue),
         AgentWriteKind.ExtensionSettingChange => string.Format("change the extension setting \"{0}\" to {1}", Target, NewValue),
+        AgentWriteKind.ProjectExport => string.Format("export the project as {1} to \"{0}\"", Target, NewValue),
+        AgentWriteKind.ProjectExportOverwrite => string.Format("export the project as {1} to \"{0}\", replacing the file already there", Target, NewValue),
         _ => string.Format("apply {0} change(s) to the project", Count),
     };
 }

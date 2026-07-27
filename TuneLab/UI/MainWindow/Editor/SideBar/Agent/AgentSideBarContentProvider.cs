@@ -112,6 +112,9 @@ internal sealed class AgentSideBarContentProvider
                 new GetProjectOverviewTool(project),
                 new RunScriptTool(writeExecutor),
                 new GetScriptApiTool(),
+                // 导出 = importTracks 的对偶。不改工程状态（故不进 tl 面，同 save/delete_script 循例），但写用户磁盘上
+                // 任意路径 → 恒过授权闸门。只做工程/MIDI 等格式文件，音频导出是用户的人在环决定、不给 agent。
+                new ExportProjectTool(project, RequestScriptAuthorizationAsync),
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用；读参数 / 代跑（闭环）。
                 // save(覆盖已存)/delete 是外部文件的破坏性改动 → 过授权闸门（RequestScriptAuthorizationAsync，同工程写）。
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang, RequestScriptAuthorizationAsync),
@@ -2004,6 +2007,11 @@ internal sealed class AgentSideBarContentProvider
                         " " + string.Format("This also unbinds the shortcut of \"{0}\".".Tr(this), request.SecondaryTarget)),
                 AgentWriteKind.RoutingChange => string.Format("The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart).".Tr(this), request.Target, request.NewValue),
                 AgentWriteKind.ExtensionSettingChange => string.Format("The agent wants to change the extension setting \"{0}\" to {1}.".Tr(this), request.Target, request.NewValue),
+                // 导出：卡片必须摆出【完整落地路径】——路径是任意的，用户只有看到它才能判断这一下写到哪。
+                // 覆盖另起一句，别把"替换掉已有文件"混在同一句里说轻了。
+                AgentWriteKind.ProjectExport => string.Format("The agent wants to export the project as {1} to:\n{0}".Tr(this), request.Target, request.NewValue),
+                AgentWriteKind.ProjectExportOverwrite => string.Format("The agent wants to export the project as {1} to:\n{0}".Tr(this), request.Target, request.NewValue)
+                    + "\n" + "A file already exists there and will be replaced. This can't be undone.".Tr(this),
                 _ => string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), request.Count),
             },
             FontSize = 12,
@@ -2387,6 +2395,10 @@ internal sealed class AgentSideBarContentProvider
         "When the user wants a REUSABLE feature they can run again from a menu (\"add a menu item that …\", \"make me a tool to …\"), or a one-off they would clearly want repeatedly, author a script tool — define getScriptInfo() + main() (see get_script_api) — and save it with save_script; it registers into the matching menu (top Scripts, or the note / part / piano-blank right-click) for one-click reuse. Use list_scripts / read_script / delete_script to manage them. " +
         "If they also want a keyboard shortcut for it — or for any command — call list_keybindings to find a free gesture, then set_keybinding; a saved script's command id is \"script:<its id>\". " +
         "For questions about TuneLab's own settings (\"where do I change …\", \"how do I set …\"), call list_settings and tell the user the Settings page and row label in their language; call set_setting only when they want YOU to change it for them. " +
+        // 导出：两条最容易误导用户的边界写死在提示里——①导出不是保存（说错会让用户以为工程已存盘）；②音频导出是人在环
+        // 决定（渲染要锁界面几分钟），agent 不代按，只把用户领到导出面板。
+        "To write the project out to a file (project/MIDI formats) use export_project — but it exports a COPY: never tell the user you \"saved\" their project, since their save file and unsaved changes are untouched. " +
+        "You CANNOT export audio (wav/mp3/flac/ogg): rendering locks the UI for as long as it takes, so that call is the user's to make — point them at the Export side panel and, if useful, get the settings ready first instead of trying to do it yourself. " +
         "When a plugin \"doesn't work\", diagnose in this order and do NOT stop at the first step: list_extensions (load status + error + whether one of its identities is SHADOWED by another package — loaded is not the same as used), then list_extension_routing if anything is contested, then list_sound_sources / list_effects to confirm the capability itself is there. " +
         "Earlier tool results are stale snapshots (the user or your own edits may have changed things); re-read with get_project_overview or a script before relying on current counts or values.";
 

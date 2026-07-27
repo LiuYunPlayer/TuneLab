@@ -61,35 +61,6 @@ internal class Project : DataObject, IProject
         return info;
     }
 
-    // Project 的 8 个 Export*/MasterExport* 属性是导出状态的真源；以下两个宿主内部辅助在它们与 native 格式的
-    // 宿主内部 ExportConfigInfo 之间互转（供 open/save 编排用；不经 SDK 公共面）。
-    internal ExportConfigInfo GetExportConfig() => new()
-    {
-        ExportPath = ExportPath,
-        FileName = ExportFileName,
-        Format = ExportFormat,
-        SampleRate = ExportSampleRate,
-        BitDepth = ExportBitDepth,
-        Bitrate = ExportBitrate,
-        MasterExportEnabled = MasterExportEnabled,
-        MasterExportChannels = MasterExportChannels,
-    };
-
-    internal void SetExportConfig(ExportConfigInfo config)
-    {
-        if (config == null)
-            return;
-
-        ExportPath = config.ExportPath;
-        ExportFileName = config.FileName;
-        ExportFormat = string.IsNullOrEmpty(config.Format) ? "wav" : config.Format;
-        ExportSampleRate = config.SampleRate;
-        ExportBitDepth = config.BitDepth;
-        ExportBitrate = config.Bitrate;
-        MasterExportEnabled = config.MasterExportEnabled;
-        MasterExportChannels = config.MasterExportChannels;
-    }
-
     public void SetInfo(ProjectInfo info)
     {
         using var _ = MergeNotify();

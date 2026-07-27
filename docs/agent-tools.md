@@ -8,7 +8,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-## 工具全集（22 个）
+## 工具全集（23 个）
 
 三个面：**操作工程** + **管理脚本库** + **环境感知（只读为主，含设置/快捷键助手的写口）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
 
@@ -17,6 +17,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `get_project_overview` | 操作 | 唯一只读"定向"：PPQ、tempo、拍号、各轨(1-based 编号/名/静音独奏/增益声像/part 数/音符数)。直接读 `IProject`，不经门面。 |
 | `run_script` | 操作 | 写一段 JS（对象式 `tl`）做任意读/算/改，整段 = 一个可撤销单位、出错原子回退。 |
 | `get_script_api` | 操作 | `run_script` 的按需文档（渐进式披露）：完整 `tl` API + 句柄/tick/收口规则 + 工具脚本约定。写第一段脚本前调一次。 |
+| `export_project` | 操作 | 把当前工程写成一个文件（`importTracks` 的对偶）。格式由扩展名定（tlp/tlpx 全保真 + 已装格式插件）。**恒过授权闸门**（路径任意 = 能写用户磁盘任何地方）；**不是"保存"**（不改工程保存路径、不清未保存态）；**不能导出音频**。 |
 | `save_script` | 库 | 把功能写成**工具脚本**(定义 getScriptInfo+main)存库 → 自动注册进菜单复用。只存不执行；声明了 getScriptInfo 则先预校验。 |
 | `list_scripts` | 库 | 列库内脚本，标出工具(+context)/普通，并标注哪些**带入参**(定义了 getInputConfig)。 |
 | `read_script` | 库 | 读某脚本源码（编辑前）。 |
@@ -44,6 +45,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         │                      ├─► ScriptWriteExecutor（授权闸门/预览/收口）──► ScriptRunner ──► Jint + 对象式 API ──► IProject
         ├─ run_saved_script ───┘         （run_saved_script 先按名读库源码 + 解析入参再进闸门）
         ├─ get_script_api ─────────────────────► ScriptApiReference.Text
+        ├─ export_project ─────────────────────► FormatsManager.SerializeNative ──► ToolAuthorization ──► FileStream（序列化先于闸门：失败不打扰用户）
         ├─ get_script_inputs ──────────────────► ScriptRunner.GetInputConfig + ScriptInputMemory（只读）
         ├─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
         ├─ list_extensions / get_extension_readme ─► ExtensionManager.LoadResults / ExtensionReadme（只读）
@@ -136,7 +138,19 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
   - **音源参数 schema（第三层，A4）**：config 是 **voiceId 的函数**（不同音源可声明不同参数），且 `VoicesManager.Declare` 对**未知 id 静默回退空引擎**给出误导性空 schema——故必须按「引擎 + 真实音源 id」读、先 `TryGetVoiceInfo` 校验 source 存在。`VoicesManager`/`InstrumentsManager` 的 `Get*Config` 是 public（但 `GetInitedEngine` 是 private，故走 manager 方法而非直取引擎，与 effect 不同）。用 Agent 层自建的 **part-free 合成 context**（真 `VoiceId` + 空 `Notes`/`PartProperties`/`Automations`，见 `SoundSourceInfoTools` 的 `StaticVoicePartContext` 等）纯静态调 5 个（voice）/4 个（instrument，无音素/歌词）声明方法。schema 是**默认值版**（条件化 schema 只呈现默认分支，同 effect 上限）。**phoneme 是静态读的天花板**：其 slot 来自 note 里**真实音素**（数据驱动），空 note 恒空——除非引擎恰好静态声明了 slot schema，否则如实标注"需合成后才可见"、**不造假 note**（phoneme 的真发现走「探测沙箱」`run_in_sandbox`，见下节：agent 在可丢弃工程里挂源/造合法歌词/触发合成/读回显）。
 - **`list_effects(engine?)`**：`EffectManager` 严格镜像音源管理器（`GetAllEffectEngines/GetProviders/GetDisplayName/GetInitedEngine`），故列引擎层与音源同格式（共用 `EngineCatalog`）。与音源不同——effect **无「音源目录」**（一个引擎 = 一种效果器类型），第二层列的是**参数 schema**：给 `engine` 时 `GetInitedEngine`（**仅 Init 它**）→ 传一个 **part-free 的空 `IEffectSynthesisPropertyContext`**（空 `IEffectSynthesisView`：无改过的值 → 各参数取引擎默认）→ 调引擎三个纯函数声明方法 `GetPropertyConfig`（静态属性 `ObjectConfig`）/`GetAutomationConfigs`（可编辑自动化轨）/`GetSynthesizedParameterConfigs`（只读回显轨），逐参数输出类型/范围/默认。是「诉求 6」的地基。要点：宿主自带的 `EffectPropertyContext` 绑 part 且 private，不可复用，故 Agent 层自建极简空 context；effect 无内建引擎（全来自插件）；条件化 schema 只能拿「默认值版」（静态枚举固有上限）；读 schema 必须 Init 引擎（跑插件代码）→ UI 线程。
 
-「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；**「切换 part 音源」已落地**为写原语 `part.setSoundSource({kind,type,id})`（过分级授权闸门、含存在校验，见 run_script 面）；**「读写 part 的 effect 链」也已落地**=`part.effects()/addEffect(type)/removeEffect/moveEffect` + `effect` 句柄（`isEnabled` bypass、`getProperty/setProperty` 改参；类型/参数 schema 仍从 `list_effects` 读，两道门并存）。**「voice/instrument 的 part/note/phoneme 参数改写」也已落地**=`part.getProperty/setProperty`、`note.pronunciation`、`note.getProperty/setProperty`、音素 `note.phonemes()/addPhoneme/removePhoneme/pinPhonemes/clearPhonemes` + `phoneme` 句柄（`symbol/duration/stretchWeight` + `getProperty/setProperty`）——schema 从 `list_sound_sources` 读；音素合成态只读、首次写自动钉死（LockPhonemes）。**effect 的时间轴自动化曲线读写也已落地**=`effect.automationIds()/sampleAutomation/setAutomation/clearAutomation`（对齐 C# `IEffect.Automations`，与 part 级 automation 逐一平行、同 part 相对 tick 空间与绝对值语义，采样复用 `ScriptPart.SampleTicks`；只是目标从 voice 换成链中某 effect）。注：apply_edits 层的只读 `get_parameter`/`IsEffectiveAutomation` 仍只认 voice 级、未走 effect 路由（脚本面已覆盖，工具面要扩再补）。**「导入」也已落地**=`project.importTracks(path)`（从文件导入全部轨、加法式并进当前工程、保留当前时基/原始 tick 落位、返回新轨句柄；格式 tlp/tlpx/mid/midi+插件；只读入文件+加法式写工程、一个可撤销单位、失败原子回退）；**导出**（写外部文件、更像用户动作+过外部文件授权闸门）暂缓、单独 scope。这些只读工具都不落 undo、不受分级授权闸门约束。
+「当前 part 用哪个音源」不在这些工具里，走 `run_script` 的 `part.soundSource()`（只读快照）；**「切换 part 音源」已落地**为写原语 `part.setSoundSource({kind,type,id})`（过分级授权闸门、含存在校验，见 run_script 面）；**「读写 part 的 effect 链」也已落地**=`part.effects()/addEffect(type)/removeEffect/moveEffect` + `effect` 句柄（`isEnabled` bypass、`getProperty/setProperty` 改参；类型/参数 schema 仍从 `list_effects` 读，两道门并存）。**「voice/instrument 的 part/note/phoneme 参数改写」也已落地**=`part.getProperty/setProperty`、`note.pronunciation`、`note.getProperty/setProperty`、音素 `note.phonemes()/addPhoneme/removePhoneme/pinPhonemes/clearPhonemes` + `phoneme` 句柄（`symbol/duration/stretchWeight` + `getProperty/setProperty`）——schema 从 `list_sound_sources` 读；音素合成态只读、首次写自动钉死（LockPhonemes）。**effect 的时间轴自动化曲线读写也已落地**=`effect.automationIds()/sampleAutomation/setAutomation/clearAutomation`（对齐 C# `IEffect.Automations`，与 part 级 automation 逐一平行、同 part 相对 tick 空间与绝对值语义，采样复用 `ScriptPart.SampleTicks`；只是目标从 voice 换成链中某 effect）。注：apply_edits 层的只读 `get_parameter`/`IsEffectiveAutomation` 仍只认 voice 级、未走 effect 路由（脚本面已覆盖，工具面要扩再补）。**「导入」也已落地**=`project.importTracks(path)`（从文件导入全部轨、加法式并进当前工程、保留当前时基/原始 tick 落位、返回新轨句柄；格式 tlp/tlpx/mid/midi+插件；只读入文件+加法式写工程、一个可撤销单位、失败原子回退）；**「导出」也已落地**，但在**工具面**=`export_project`（见下节，写外部文件、不改工程状态）。这些只读工具都不落 undo、不受分级授权闸门约束。
+
+### 导出（`export_project`）
+
+`importTracks` 的对偶：那个读入文件，这个写出文件。
+
+- **为什么在工具面而不是 `tl` 脚本原语**（与"工程编辑恒走 `run_script`"的护栏不冲突）：护栏约束的是**工程状态的修改**，而导出**不改工程状态一分一毫**——它与 `save_script`/`delete_script`（同样写外部文件、同样不碰工程数据）同类，那两件本来就在工具面，故这是**循例而非例外**。另有一条硬理由：授权闸门是 async（要等用户点确认卡片），而脚本经 Jint **同步**跑在 UI 线程，中途阻塞等卡片会**自死锁**。
+  将来若用户真需要在脚本里导出（如"每轨各存一个 midi"），再加 `tl` 原语并配**延迟写**机制（脚本内只登记意图 → 脚本成功结束后统一过闸门执行 → 脚本出错则一并丢弃、文件从未写），与本工具加性并存。
+- **恒过闸门**（`AgentWriteKind.ProjectExport` / `ProjectExportOverwrite`）：与 `save_script`「新建不拦、只拦覆盖」不同——导出的 **path 是任意的**，agent 能往用户磁盘任何地方写，故每次都问。落到已存路径单列 `Overwrite` 一档，让卡片**另起一句**说"会替换现有文件"（别混在同一句里说轻了）；卡片必须摆出**完整落地路径**，那是用户判断"这一下写到哪"的唯一依据。
+- **序列化先于授权**：`FormatsManager.SerializeNative` 本就缓冲进 `MemoryStream`（原子写语义——失败时目标文件尚未开写），故先序列化、失败直接报错，不为一个注定失败的请求白弹一次卡片（同 `save_script` 把 `getScriptInfo` 预校验放在授权之前）。
+- **native / foreign 统一走 `SerializeNative`**：`.tlp/.tlpx` 带上 `EditorInfo`(播放头) + `ExportConfigInfo` 保真；`.mid` 等 foreign 由它内部自动降级到纯 musical `Serialize`。与「另存为」同一条路径。`ExportConfigInfo` 的互转已从 `Project` 实例方法提为 `IProjectExtension.GetExportConfig/SetExportConfig` 扩展方法（只读写 `IProject` 已有的 8 个 `Export*` 属性），故持 `IProject` 的本工具与 Editor 复用**同一份映射**，不各自重拼——多一份重拼就多一处漏字段的机会。
+- **「导出 ≠ 保存」**（真实的误导风险，工具描述里明文钉住）：不改变工程保存到哪个文件、不清除未保存改动、不进最近文件列表（那是用户主动"另存"的痕迹，agent 导一份副本不该污染）。回报里也复述一遍，免得 agent 跟用户说"已帮你保存"。
+- **不能导出音频**（wav/mp3/flac/ogg）——这不是能力缺口，是**人在环决定**。音频渲染期间界面必须锁住，根因是**渲染要求数据全程不变**（不是 UI 偷懒），这与"agent 边导出边继续干活"根本矛盾（它下一步很可能就改工程）；且"要不要现在把机器占住几分钟"该由用户定，同[播放/试听不给 agent]的裁定，音频导出比发声更侵入。正解是 agent 备好参数、最后一下由用户按。
 
 ### 设置助手（`list_settings` / `set_setting`）
 
