@@ -273,6 +273,16 @@ internal partial class TimelineView : View
         if (Timeline == null)
             return;
 
+        // 输入框开着期间这个标记可能已从集合里消失（例如撤销撤掉了它的添加）：放弃本次编辑，别拿一个
+        // 游离对象去写——成员资格该由发起方在这里确认，不该让数据层为此宽容（对象版 SetBpm 对非成员会
+        // 断言，按下标的重载越界即抛）。收起输入框再退出，否则输入态卡死、用户再也进不来。
+        if (Timeline.TempoManager.Tempos.IndexOf(mInputBpmTempo) < 0)
+        {
+            mBpmInput.IsVisible = false;
+            mInputBpmTempo = null;
+            return;
+        }
+
         if (!double.TryParse(mBpmInput.Text, out var newBpm))
         {
             newBpm = mInputBpmTempo.Bpm;
@@ -295,6 +305,14 @@ internal partial class TimelineView : View
 
         if (Timeline == null)
             return;
+
+        // 同 OnBpmInputComplete：编辑期间该拍号可能已被撤销掉，放弃本次编辑并收起输入框。
+        if (Timeline.TimeSignatureManager.TimeSignatures.IndexOf(mInputMeterTimeSignature) < 0)
+        {
+            mMeterInput.IsVisible = false;
+            mInputMeterTimeSignature = null;
+            return;
+        }
 
         var numbers = mMeterInput.Text.Split('/');
         if (numbers.Length != 2 || !int.TryParse(numbers[0], out var numerator) || !int.TryParse(numbers[1], out var denominator))

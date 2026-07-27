@@ -17,14 +17,26 @@ internal interface ITimeSignatureManager : IDataObject<List<TimeSignatureInfo>>
 
 internal static class ITimeSignatureManagerExtension
 {
+    // 对象版（归属由集合判定）：非成员是编程错误，照 ITrack.RemovePart 的范式——DEBUG 期就地暴露、
+    // Release 宽容 no-op。IndexOf 的 -1 绝不透传给按下标的重载（那层越界即抛，且原因会误报成"下标越界"）。
     public static void RemoveTimeSignature(this ITimeSignatureManager manager, ITimeSignature timeSignature)
     {
-        manager.RemoveTimeSignatureAt(manager.TimeSignatures.IndexOf(timeSignature));
+        int index = manager.TimeSignatures.IndexOf(timeSignature);
+        System.Diagnostics.Debug.Assert(index >= 0, "RemoveTimeSignature: time signature does not belong to this manager.");
+        if (index < 0)
+            return;
+
+        manager.RemoveTimeSignatureAt(index);
     }
 
     public static void SetMeter(this ITimeSignatureManager manager, ITimeSignature timeSignature, int numerator, int denominator)
     {
-        manager.SetMeter(manager.TimeSignatures.IndexOf(timeSignature), numerator, denominator);
+        int index = manager.TimeSignatures.IndexOf(timeSignature);
+        System.Diagnostics.Debug.Assert(index >= 0, "SetMeter: time signature does not belong to this manager.");
+        if (index < 0)
+            return;
+
+        manager.SetMeter(index, numerator, denominator);
     }
 
     public static MeterStatus[] GetMeterStatus(this ITimeSignatureManager manager, IReadOnlyList<double> ticks)

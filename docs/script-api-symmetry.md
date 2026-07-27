@@ -380,13 +380,23 @@ part 类型判别），不做有序性校验。
    `TimeSignatureManager.RemoveTimeSignatureAt`，外加 `Project.InsertTrack` 的越界 guard）。
    `RemoveAt` 之所以能没有返回值，前提正是**越界会抛**；既不抛又不返回等于"半个惯例"——调用方彻底无从
    得知什么都没发生，宽容只把 bug 藏起来。已一律改为 `throw new ArgumentOutOfRangeException`。
-   （现有调用点全在 UI 且下标取自集合自身，其中两处 `for (i = Count-1; i > 0; i--)` 的循环下标恒合法，故行为无碍。）
 3. **`insertX` 的返回值**：脚本面曾让五个 `insertX` 返回句柄，无 C# 依据（C# 侧五个 `Insert*` 全为 `void`）
    且买不到能力，已删——见上"游离实体"一节。
 
-**仍待决定**（同一形状、未在本轮动）：`TempoManager.SetBpm(index, bpm)` 与
-`TimeSignatureManager.SetMeter(index, …)` 也是按下标寻址 + 越界静默 `return`。按第 2 条的判据它们该一并改抛
-（.NET 里 `list[i] = x` 越界即抛），但那超出了本轮获批的范围，故留在这里等定夺。
+**第 4 条（后一刀补齐）**：`TempoManager.SetBpm(index, bpm)` 与 `TimeSignatureManager.SetMeter(index, …)`
+同为按下标寻址 + 越界静默 `return`，按第 2 条判据已一并改抛（.NET 里 `list[i] = x` 越界即抛）。
+
+这一刀顺带纠正了第 2 条原先的一句错话——「现有调用点全在 UI 且下标取自集合自身，故行为无碍」**不准确**：
+四个**对象版扩展方法**（`ITempoManagerExtension.RemoveTempo`/`SetBpm`、`ITimeSignatureManagerExtension`
+的对应两个）是 `XxxAt(list.IndexOf(obj))` 的形状，**`IndexOf` 找不到时返回 -1**，会把 -1 透传到已改抛的
+下标层——且异常原因会被误报成"下标越界"，而真实原因是"这东西不属于本 manager"。故：
+
+- 四个对象版一律先取 `index`、`Debug.Assert(index >= 0, …)` 后守卫 `return`，**-1 绝不透传**。
+  这是照 `ITrack.RemovePart` / `IMidiPart.RemoveNote` 的既有范式（非成员是编程错误 → DEBUG 期就地暴露、
+  Release 宽容 no-op），不为此另立一套抛异常的规矩。
+- 唯一的对象版调用点 `TimelineView.OnBpmInputComplete` / `OnMeterInputComplete` 补成员检查：bpm/拍号
+  输入框开着期间那个标记可能已被**撤销**撤掉（`mInputBpmTempo` 持的是编辑开始时抓住的对象引用，而原先
+  只判 `!= null`），此时放弃本次编辑并收起输入框。成员资格由发起方确认，不靠数据层宽容兜着。
 
 ## 落地后的校验位置（实施记录）
 

@@ -63,10 +63,11 @@ internal class TempoManager : DataObject, ITempoManager
         mTempos.RemoveAt(index);
     }
 
+    // 越界抛（同 RemoveTempoAt）：与 list[i] = x 一致——按下标写入时"下标非法"是编程错误。
     public void SetBpm(int index, double bpm)
     {
         if ((uint)index >= Tempos.Count)
-            return;
+            throw new ArgumentOutOfRangeException(nameof(index));
 
         mTempos[index].Bpm.Set(bpm);
     }

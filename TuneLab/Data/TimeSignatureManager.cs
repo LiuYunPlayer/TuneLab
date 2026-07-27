@@ -68,10 +68,11 @@ internal class TimeSignatureManager : DataObject, ITimeSignatureManager
         EndMergeNotify();
     }
 
+    // 越界抛（同 RemoveTimeSignatureAt）：与 list[i] = x 一致——按下标写入时"下标非法"是编程错误。
     public void SetMeter(int index, int numerator, int denominator)
     {
         if (index < 0 || index >= TimeSignatures.Count)
-            return;
+            throw new ArgumentOutOfRangeException(nameof(index));
 
         BeginMergeNotify();
         mTimeSignatures[index].Numerator.Set(numerator);
