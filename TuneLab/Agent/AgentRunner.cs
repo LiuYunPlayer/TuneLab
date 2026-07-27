@@ -32,8 +32,12 @@ internal sealed class AgentTurnMessage
 // 直到模型不再请求工具，返回最终自然语言回复。provider 无关——只依赖 IAgentModelSession 抽象。
 internal sealed class AgentRunner
 {
-    // 单轮用户输入内允许的工具调用回合上限，防止模型陷入工具循环。
-    const int MaxToolRounds = 25;
+    // 失控防护（runaway guard）：单轮用户输入内允许的工具调用回合数硬上限。刻意设在高位——它不参与正常流程判断。
+    // 全自动流程本就该一直跑下去，回合数与"是否卡住"无关：健康的长任务（逐个跑几十个用例）与病态死循环，
+    // 在这个量上无从区分。正常长跑的真实终点是【上下文窗口】——每轮重发全历史、上下文单调增长，撞满即由端点
+    // 报错，走失败结局如实留痕（错误文本含 provider 原样响应体，说明是 prompt 过长）。
+    // 叫停靠 cancellationToken（用户随时可停），不靠数到 N 自己停。
+    const int MaxToolRounds = 1000;
 
     // history：加载已存会话时回填的先前对话（用户/助手文本），追加在 system prompt 之后，让续聊带上下文。
     public AgentRunner(IAgentModelSession session, IReadOnlyList<IAgentTool> tools, string? systemPrompt = null, IEnumerable<AgentMessage>? history = null)
@@ -255,12 +259,10 @@ internal sealed class AgentRunner
         });
         if (!string.IsNullOrEmpty(wrapUp.Content))
             narration.Add(wrapUp.Content);
-        return new AgentTurnResult(
-            narration.Count > 0
-                ? string.Join("\n\n", narration)
-                : string.Format("Stopped after {0} tool-call rounds.", MaxToolRounds),
-            TurnUsage(),
-            trajectory);
+        // 如实留痕：撞上限这件事必须无条件出现在回复里。原先它挂在"连一句话都没产出"的兜底分支上，而实际撞限时
+        // 前面各轮几乎必有文本，那句提示因此永不生效——用户看到的是安静收场，只能误判成模型自己停了。
+        narration.Add(string.Format("[Stopped: hit the {0}-round runaway guard. What's above is what got done.]", MaxToolRounds));
+        return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage(), trajectory);
     }
 
     // 同步转发的 IProgress：不经 SynchronizationContext 异步 Post，调用线程直转——保证文本增量与工具事件按发出顺序到达 UI sink。
