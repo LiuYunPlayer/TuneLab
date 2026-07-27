@@ -71,7 +71,8 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
             var tracks = project["tracks"].ToArray();
             foreach (JObject track in tracks)
             {
-                var trackInfo = new TrackInfo()
+                // native 路径读成宿主内部子类：逐轨导出开关是 app 私有状态，不上 SDK 公共 TrackInfo。
+                var trackInfo = new TuneLab.Data.NativeTrackInfo()
                 {
                     Name = (string)track["name"],
                     Gain = (double)track["gain"],
@@ -351,8 +352,11 @@ internal class TuneLabProject : IImportFormat, IExportFormat, INativeProjectForm
             track.Add("solo", trackInfo.Solo);
             track.Add("color", trackInfo.Color);
             track.Add("asRefer", trackInfo.AsRefer);
-            track.Add("exportEnabled", trackInfo.ExportEnabled);
-            track.Add("exportChannels", trackInfo.ExportChannels);
+            // 逐轨导出开关只有宿主内部子类才带（通用格式插件产出的基类 info 没有）；缺则写默认值，
+            // 磁盘键位不变。
+            var trackExport = trackInfo as TuneLab.Data.NativeTrackInfo ?? new TuneLab.Data.NativeTrackInfo();
+            track.Add("exportEnabled", trackExport.ExportEnabled);
+            track.Add("exportChannels", trackExport.ExportChannels);
 
             var parts = new JArray();
             foreach (var partInfo in trackInfo.Parts)

@@ -176,7 +176,8 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
         reader.ReadStartArray();
         while (reader.PeekState() != CborReaderState.EndArray)
         {
-            var trackInfo = new TrackInfo();
+            // native 路径读成宿主内部子类：逐轨导出开关是 app 私有状态，不上 SDK 公共 TrackInfo。
+            var trackInfo = new TuneLab.Data.NativeTrackInfo();
             reader.ReadStartMap();
             while (reader.PeekState() != CborReaderState.EndMap)
             {
@@ -923,11 +924,13 @@ internal class TuneLabProjectCbor : IImportFormat, IExportFormat, INativeProject
             writer.WriteTextString("asRefer");
             writer.WriteBoolean(track.AsRefer);
 
+            // 逐轨导出开关只有宿主内部子类才带（通用格式插件产出的基类 info 没有）；缺则写默认值，磁盘键位不变。
+            var trackExport = track as TuneLab.Data.NativeTrackInfo ?? new TuneLab.Data.NativeTrackInfo();
             writer.WriteTextString("exportEnabled");
-            writer.WriteBoolean(track.ExportEnabled);
+            writer.WriteBoolean(trackExport.ExportEnabled);
 
             writer.WriteTextString("exportChannels");
-            writer.WriteInt32(track.ExportChannels);
+            writer.WriteInt32(trackExport.ExportChannels);
 
             writer.WriteTextString("parts");
             WriteParts(writer, track.Parts);

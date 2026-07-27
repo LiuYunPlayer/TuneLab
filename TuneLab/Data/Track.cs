@@ -115,9 +115,11 @@ internal class Track : DataObject, ITrack
         }
     }
 
+    // 产出宿主内部子类：逐轨导出开关不在 SDK 的 TrackInfo 上（app 私有、非 musical），靠子类随
+    // ProjectInfo.Tracks 多态流转；通用格式插件只见基类而无视之。
     public TrackInfo GetInfo()
     {
-        return new()
+        return new NativeTrackInfo()
         {
             Name = Name,
             Mute = IsMute,
@@ -142,8 +144,11 @@ internal class Track : DataObject, ITrack
         Pan.SetInfo(info.Pan);
         Color.SetInfo(info.Color);
         AsRefer.SetInfo(info.AsRefer);
-        ExportEnabled = info.ExportEnabled;
-        ExportChannels = info.ExportChannels;
+        // 基类（通用格式插件产出的 musical-only info）不带导出开关 → 落回默认值，默认值只在
+        // NativeTrackInfo 一处定义，不在这里重写一份。
+        var native = info as NativeTrackInfo ?? new NativeTrackInfo();
+        ExportEnabled = native.ExportEnabled;
+        ExportChannels = native.ExportChannels;
         mParts.SetInfo(info.Parts.Convert(CreatePart).ToArray());
     }
 

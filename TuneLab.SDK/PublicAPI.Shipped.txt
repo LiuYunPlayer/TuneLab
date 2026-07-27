@@ -499,10 +499,6 @@ TuneLab.SDK.TrackInfo.AsRefer.get -> bool
 TuneLab.SDK.TrackInfo.AsRefer.set -> void
 TuneLab.SDK.TrackInfo.Color.get -> string!
 TuneLab.SDK.TrackInfo.Color.set -> void
-TuneLab.SDK.TrackInfo.ExportChannels.get -> int
-TuneLab.SDK.TrackInfo.ExportChannels.set -> void
-TuneLab.SDK.TrackInfo.ExportEnabled.get -> bool
-TuneLab.SDK.TrackInfo.ExportEnabled.set -> void
 TuneLab.SDK.TrackInfo.Gain.get -> double
 TuneLab.SDK.TrackInfo.Gain.set -> void
 TuneLab.SDK.TrackInfo.Mute.get -> bool

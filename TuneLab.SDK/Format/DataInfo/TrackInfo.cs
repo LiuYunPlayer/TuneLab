@@ -11,7 +11,7 @@ public class TrackInfo
     public bool Solo { get; set; } = false;
     public bool AsRefer { get; set; } = true;
     public string Color { get; set; } = string.Empty;
-    public bool ExportEnabled { get; set; } = false;
-    public int ExportChannels { get; set; } = 1; // 1 = mono, 2 = stereo
     public List<PartInfo> Parts { get; set; } = new();
+    // 注：逐轨的导出开关（是否导出该轨 / 单声道还是立体声）不在此——它属 app 私有的导出配置、非 musical
+    // 交换内容，与工程级的导出路径/采样率等一并留在宿主内部（见宿主的 NativeTrackInfo 子类）。
 }

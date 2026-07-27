@@ -17,6 +17,8 @@ internal static class FormatConverter
     // ── ProjectInfo ──
     // V1(TuneLab.SDK) 已把 editor/export 移出通用交换契约（宿主私有元数据）；legacy 侧 ProjectInfo 仍保留 EditorInfo/ExportConfig，
     // 跨代转换时如实丢弃（交换格式不携带 app 私有元数据，符合"降级为知情差异"预期）。
+    // 逐轨的导出开关（Old.TrackInfo.ExportEnabled/ExportChannels）同属此列，一并如实丢弃：V1 侧它们已内部化到
+    // 宿主的 NativeTrackInfo，legacy 格式插件本就不该往宿主私有导出状态里写值。
     public static New.ProjectInfo ToV1(this Old.ProjectInfo o) => new()
     {
         Tempos = o.Tempos.Select(ToV1).ToList(),
@@ -49,14 +51,12 @@ internal static class FormatConverter
     {
         Name = o.Name, Gain = o.Gain, Pan = o.Pan, Mute = o.Mute, Solo = o.Solo,
         AsRefer = o.AsRefer, Color = o.Color,
-        ExportEnabled = o.ExportEnabled, ExportChannels = o.ExportChannels,
         Parts = o.Parts.Select(ToV1).ToList(),
     };
     public static Old.TrackInfo ToLegacy(this New.TrackInfo n) => new()
     {
         Name = n.Name, Gain = n.Gain, Pan = n.Pan, Mute = n.Mute, Solo = n.Solo,
         AsRefer = n.AsRefer, Color = n.Color,
-        ExportEnabled = n.ExportEnabled, ExportChannels = n.ExportChannels,
         Parts = n.Parts.Select(ToLegacy).ToList(),
     };
 
