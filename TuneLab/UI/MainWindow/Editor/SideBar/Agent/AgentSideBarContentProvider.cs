@@ -179,9 +179,18 @@ internal sealed class AgentSideBarContentProvider
             .AddContent(new()
             {
                 Item = new IconItem() { Icon = Assets.Menu },
-                // 无底色，反馈全落图标：展开恒亮白；收起恒灰（hover/press 不变色，回退到 Color）。
+                // 无底色，反馈全落图标。三态刻意留出区分：收起 0.5 → hover/press 0.8 → 展开纯白。
+                // hover 不给纯白（虽与 ⚙ 的 0.6→白 不完全一致）——本按钮多一个「展开」状态维度，
+                // 若 hover 也是纯白，悬浮时看起来就和已展开一样、无从分辨。展开态已是纯白，故不再给 hover 色。
+                // press 与 hover 同值：不设 PressedColor 会在按下时回退到 Color(0.5)，于是点击途中
+                // hover(0.8) → 按下变暗(0.5) → 松开转纯白，中间那下变暗是突兀的闪烁。
                 CheckedColorSet = new() { Color = Colors.White },
-                UncheckedColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) },
+                UncheckedColorSet = new()
+                {
+                    Color = Style.LIGHT_WHITE.Opacity(0.5),
+                    HoveredColor = Style.LIGHT_WHITE.Opacity(0.8),
+                    PressedColor = Style.LIGHT_WHITE.Opacity(0.8),
+                },
             });
         menuToggle.AllowSwitch += () => false;
         menuToggle.Clicked += OnMenuButtonClicked;
