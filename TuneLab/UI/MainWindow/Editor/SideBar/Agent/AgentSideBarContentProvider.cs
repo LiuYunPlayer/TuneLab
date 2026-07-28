@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Agent;
@@ -144,6 +145,9 @@ internal sealed class AgentSideBarContentProvider
                 // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
                 // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。
                 new RunInSandboxTool(),
+                // 问用户：在【本轮之内】等到答案再继续，免得把任务切成两轮、丢掉已有进展。不改工程状态、
+                // 纯为 agent 自身决策服务，故归工具面（也因为等卡片必须 async，脚本同步跑在 UI 线程会自死锁）。
+                new AskUserQuestionTool(RequestUserAnswerAsync),
             };
         }
         else
@@ -792,6 +796,16 @@ internal sealed class AgentSideBarContentProvider
         int prompt = 0, completion = 0, total = 0;
         bool hasUsage = false;
         int calls = 0, lastContext = 0;   // 脚注消歧：模型调用次数 + 末次上下文（与状态行 Context 同口径）
+        // 预扫一遍备好 id→结果：问用户那次调用除了照常重放工具块，还要在其后补一个只读问答块
+        //（问题+勾选+补充），与实时"工具块 + 卡片"的呈现对齐。工具块本身照旧——它保留参数/结果原文，
+        // 排查时有用；问答块负责把内容读得懂。遍历到 assistant 的 tool_call 时结果还没扫到，故先备表。
+        var toolResults = new Dictionary<string, string>();
+        for (int k = start; k < end; k++)
+        {
+            var m = msgs[k];
+            if (m.Role == "tool" && !string.IsNullOrEmpty(m.ToolCallId))
+                toolResults[m.ToolCallId!] = m.Text;
+        }
         for (int k = start; k < end; k++)
         {
             var m = msgs[k];
@@ -827,7 +841,14 @@ internal sealed class AgentSideBarContentProvider
             }
             if (m.ToolCalls != null)
                 foreach (var call in m.ToolCalls)
+                {
                     turn.Apply(new AgentToolStarted(call.Id, call.Name, call.ArgumentsJson));
+                    // 问用户：工具块之后【再】补一个只读问答块，与实时"工具块 + 卡片"的呈现对齐。
+                    // 无配对结果 = 问了没等到回答，块内标"未回答"。
+                    if (call.Name == AskUserQuestionTool.ToolName)
+                        turn.Append(BuildRecordedQuestionBlock(call.ArgumentsJson,
+                            call.Id != null && toolResults.TryGetValue(call.Id, out var r) ? r : null));
+                }
             if (m.TotalTokens.HasValue)
             {
                 hasUsage = true;
@@ -2074,11 +2095,347 @@ internal sealed class AgentSideBarContentProvider
                 ctx.View.Content.Children.Add(card);
             ScrollToEnd(ctx);
         }
-        if (Dispatcher.UIThread.CheckAccess()) Build();
-        else Dispatcher.UIThread.Post(Build);
+        // 同 RequestUserAnswerAsync：总是排队，别直接建。工具块经 Progress<AgentEvent> 异步 Post，
+        // 而本回调在 UI 线程同步跑——直接建会让卡片落在它所属的那次工具调用【上方】。
+        Dispatcher.UIThread.Post(Build);
         // 轮被取消（用户点停）→ 裁决按拒绝收尾（卡片经 tcs 续接切到"已停止"）。
         cancellationToken.Register(() => tcs.TrySetResult(ScriptAuthDecision.Reject));
         return tcs.Task;
+    }
+
+    // ask_user_question 的回调：在触发这一轮的对话视图里渲染问答卡片、等用户回答。
+    // 目标会话定位同升级卡片（mRunningContext）；不设超时——卡片一直挂着，直到用户回答或点停。
+    Task<AgentUserAnswer> RequestUserAnswerAsync(AgentUserQuestion question, CancellationToken cancellationToken)
+    {
+        var ctx = mRunningContext.Value ?? mActive;
+        var tcs = new TaskCompletionSource<AgentUserAnswer>();
+        void Build()
+        {
+            var card = BuildQuestionCard(question, tcs);
+            if (ctx.CurrentTurn != null)
+                ctx.CurrentTurn.Append(card);   // 插进本轮步骤流，与工具步骤同序
+            else
+                ctx.View.Content.Children.Add(card);
+            ScrollToEnd(ctx);
+        }
+        // 【总是排队渲染，不走 CheckAccess 直接建】：工具块由 AgentToolStarted 事件渲染，而那条事件走
+        // Progress<AgentEvent> 异步 Post 到 UI 线程；本回调却是在 UI 线程上同步执行的。直接建会抢在
+        // 工具块之前落地，卡片就跑到"它自己那次调用"的上方去了。Post 让它排在已入队的工具事件之后。
+        Dispatcher.UIThread.Post(Build);
+        // 轮被取消（用户点停）→ 取消这次等待。刻意不是"返回空答案"：那会让模型以为用户回答了个空，
+        // 而事实是这次调用没有结果。抛取消后它成为悬空调用、被如实记作"结果未知"（同其它工具）。
+        cancellationToken.Register(() => tcs.TrySetCanceled());
+        return tcs.Task;
+    }
+
+    // 问答卡片的外壳：实时卡片与重载重建【共用】，否则两边的圆角/底色/边框迟早漂移（重载那次就漏了整层框）。
+    Border QuestionCardShell(Control content) => new()
+    {
+        CornerRadius = new(6),
+        Padding = new(10, 8),
+        Margin = new(0, 6, 0, 2),
+        Background = Style.INTERFACE.ToBrush(),
+        BorderBrush = Style.BUTTON_PRIMARY.Opacity(0.5).ToBrush(),
+        BorderThickness = new(1),
+        Child = content,
+    };
+
+    // 只读的问答留痕：问题 + 选项（打勾但不可点，未选的标签压暗）+ 补充文本 +（未回答时）一行说明。
+    // 【实时与重载共用这一个函数】——用户一提交就把交互卡片的内容换成它，重开会话时按记录重建也调它，
+    // 两边因此长得一模一样（不必再担心"显示 重载==实时"在这里破功）。
+    Control QuestionBlockContent(string question, IReadOnlyList<string> options, bool multiple, IReadOnlyList<string> selected, string? text, bool answered)
+    {
+        var panel = new StackPanel() { Orientation = Orientation.Vertical };
+        panel.Children.Add(new SelectableTextBlock()
+        {
+            Text = question,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Colors.White.ToBrush(),
+        });
+        if (options.Count > 0)
+        {
+            var list = new StackPanel() { Orientation = Orientation.Vertical, Spacing = 2, Margin = new(0, 8, 0, 0) };
+            foreach (var option in options)
+            {
+                bool on = selected.Contains(option);
+                Toggle box = multiple
+                    ? new TuneLab.GUI.Components.CheckBox()
+                    : new TuneLab.GUI.Components.RadioButton();
+                box.Display(on);
+                box.IsHitTestVisible = false;   // 留痕不可改
+                box.Margin = new(0, 0, 8, 0);
+                box.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+                var row = new DockPanel() { LastChildFill = true, Margin = new(2, 4) };
+                DockPanel.SetDock(box, Dock.Left);
+                row.Children.Add(box);
+                row.Children.Add(new SelectableTextBlock()
+                {
+                    Text = option,
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    // 没选中的压暗：一眼看出选了哪个，不必逐个去看勾。
+                    Foreground = (on ? Colors.White : Style.LIGHT_WHITE.Opacity(0.45)).ToBrush(),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                });
+                list.Children.Add(row);
+            }
+            panel.Children.Add(list);
+        }
+        if (!string.IsNullOrEmpty(text))
+        {
+            // 有选项时这段是"补充"，没选项时它本身就是回答——故前缀分开。
+            var prefix = options.Count > 0 ? "Added: ".Tr(this) : string.Empty;
+            panel.Children.Add(new SelectableTextBlock()
+            {
+                Text = prefix + text,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Colors.White.ToBrush(),
+                Margin = new(0, 8, 0, 0),
+            });
+        }
+        // 未回答（问了但那一轮被打断）：明说一句，否则"全都没勾"会被读成"用户明确一个都没选"。
+        if (!answered)
+        {
+            var line = NoticeLine("Not answered".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
+            line.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+            line.Padding = new(0, 0, 4, 0);
+            line.Margin = new(0, 6, 0, 0);
+            panel.Children.Add(line);
+        }
+        return panel;
+    }
+
+    // 把 ask_user_question 的一次调用（参数 + 结果）还原成只读问答块。结果为 null = 问了但没等到回答。
+    Control BuildRecordedQuestionBlock(string? argumentsJson, string? result)
+    {
+        string question = string.Empty;
+        var options = new List<string>();
+        bool multiple = false;
+        try
+        {
+            using var doc = JsonDocument.Parse(argumentsJson ?? "{}");
+            var root = doc.RootElement;
+            question = root.GetString("question") ?? string.Empty;
+            if (root.TryGetProperty("options", out var opts) && opts.ValueKind == JsonValueKind.Array)
+                foreach (var o in opts.EnumerateArray())
+                {
+                    var label = ((o.ValueKind == JsonValueKind.String ? o.GetString() : o.ToString()) ?? string.Empty).Trim();
+                    if (label.Length > 0 && !options.Contains(label))
+                        options.Add(label);
+                }
+            if (root.TryGetProperty("multiple", out var m) && (m.ValueKind == JsonValueKind.True || m.ValueKind == JsonValueKind.False))
+                multiple = m.GetBoolean();
+        }
+        catch { /* 参数坏了也要能显示：问题留空、当作无选项处理 */ }
+
+        var (selected, text) = ParseQuestionResult(result);
+        // 与实时同一层外壳：重载看到的框、底色、圆角都要一模一样。
+        return QuestionCardShell(QuestionBlockContent(question, options, multiple, selected, text, answered: result != null));
+    }
+
+    // 反解工具回报（格式由 AskUserQuestionTool 生成，逐行、无逗号拼接，故不存在"选项名含逗号"的歧义）：
+    //   Selected:\n- a\n- b        选中项各占一行、以 "- " 起头
+    //   No option was selected. / Selected: none — … / No options were offered.
+    //   末段可选 "Additional input: …" 或 "Input: …"——【其后全部内容都是文本】（它可能自带换行，故固定放最后）。
+    static (List<string> Selected, string? Text) ParseQuestionResult(string? result)
+    {
+        var selected = new List<string>();
+        if (string.IsNullOrEmpty(result))
+            return (selected, null);
+
+        string? text = null;
+        int i = 0;
+        while (i < result.Length)
+        {
+            int lineEnd = result.IndexOf('\n', i);
+            if (lineEnd < 0)
+                lineEnd = result.Length;
+            var line = result[i..lineEnd].TrimEnd('\r');
+            foreach (var marker in QuestionTextMarkers)
+            {
+                int at = line.IndexOf(marker, StringComparison.Ordinal);
+                if (at < 0)
+                    continue;
+
+                // 标记之后（含本行剩余）全部是用户文本，原样取走。
+                text = result[(i + at + marker.Length)..].Trim();
+                return (selected, text.Length > 0 ? text : null);
+            }
+            if (line.StartsWith("- ", StringComparison.Ordinal))
+                selected.Add(line[2..].Trim());
+            i = lineEnd + 1;
+        }
+        return (selected, text);
+    }
+
+    static readonly string[] QuestionTextMarkers = ["Additional input: ", "Input: "];
+
+    // 问答卡片：问题 + 选项（单选 RadioButton / 多选 CheckBox）+ 自由文本框 + [提交]。
+    // 选项与文本框【各自独立】：可以只选、只写、或两者都有；故提交条件是"至少有一样"。
+    // 互斥按仓库范式做（同 FunctionBar 的钢琴工具 / ParameterTabBar 的参数 tab）：点击只改"当前选中集合"，
+    // 再回头统一刷新全部按钮的显示——控件自己不知道同伴是谁。
+    Control BuildQuestionCard(AgentUserQuestion question, TaskCompletionSource<AgentUserAnswer> tcs)
+    {
+        var panel = new StackPanel() { Orientation = Orientation.Vertical };
+        panel.Children.Add(new SelectableTextBlock()
+        {
+            Text = question.Question,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Colors.White.ToBrush(),
+        });
+
+        var selected = new List<string>();
+        var refreshers = new List<Action>();
+        void Refresh() { foreach (var r in refreshers) r(); }
+        // 回答（或取消）后整块换成只读留痕（见 Seal）。settled 声明在选项之前，因为下面每行的点击处理要读它
+        // ——虽然换掉整块后旧控件已离开视觉树、收不到事件，这道守卫仍留着防御"提交与替换之间又被点一下"。
+        bool settled = false;
+
+        if (question.Options.Count > 0)
+        {
+            var list = new StackPanel() { Orientation = Orientation.Vertical, Spacing = 2, Margin = new(0, 8, 0, 0) };
+            foreach (var option in question.Options)
+            {
+                var captured = option;
+                // 单选圆点 / 多选方框——让"能选几个"一眼可辨。两者都不接 AllowSwitch：本卡片允许一个都不选。
+                // 全限定：Avalonia 也有同名 CheckBox/RadioButton，这里要的是自绘的 TuneLab.GUI.Components 版。
+                Toggle box = question.Multiple
+                    ? new TuneLab.GUI.Components.CheckBox()
+                    : new TuneLab.GUI.Components.RadioButton();
+                var label = new TextBlock()
+                {
+                    Text = captured,
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Colors.White.ToBrush(),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                };
+                var row = new DockPanel() { LastChildFill = true };
+                box.Margin = new(0, 0, 8, 0);
+                box.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+                DockPanel.SetDock(box, Dock.Left);
+                row.Children.Add(box);
+                row.Children.Add(label);
+                // 整行可点：16px 的方框在窄侧栏里是个太小的靶子，点文字也应生效。
+                var hit = new Border()
+                {
+                    Padding = new(2, 4),
+                    CornerRadius = new(4),
+                    Background = Brushes.Transparent,
+                    Cursor = new Cursor(StandardCursorType.Hand),
+                    Child = row,
+                };
+                void Toggle_()
+                {
+                    if (settled)
+                        return;    // 已回答/已停止：选中态是留痕，不许再动
+
+                    bool nowOn = !selected.Contains(captured);
+                    if (!question.Multiple)
+                        selected.Clear();          // 单选：改的是"当前选中"这一份状态，不是去命令别的按钮
+                    if (nowOn)
+                        selected.Add(captured);
+                    else
+                        selected.Remove(captured);
+                    Refresh();
+                }
+                hit.PointerEntered += (_, _) => { if (!settled) hit.Background = Style.LIGHT_WHITE.Opacity(0.06).ToBrush(); };
+                hit.PointerExited += (_, _) => hit.Background = Brushes.Transparent;
+                hit.PointerPressed += (_, e) => { e.Handled = true; Toggle_(); };
+                refreshers.Add(() => box.Display(selected.Contains(captured)));
+                list.Children.Add(hit);
+            }
+            panel.Children.Add(list);
+        }
+
+        // 自由文本：始终给——用户永远要能表达"你的选项都不对"。
+        var input = new MultilineTextInput()
+        {
+            MaxHeight = 96,
+            Padding = new(6, 6, ScrollBar.ReservedThickness, 6),
+            AutoGrow = true,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            Margin = new(0, 8, 0, 0),
+            Watermark = question.Options.Count > 0
+                ? "Add anything else (optional)".Tr(this)
+                : "Type your answer".Tr(this),
+        };
+        panel.Children.Add(input);
+
+        var buttons = new StackPanel() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new(0, 10, 0, 0), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+        panel.Children.Add(buttons);
+        var card = QuestionCardShell(panel);
+
+        // 定格：整块交互面【换成只读留痕块】——与重开会话后重建的是同一个函数，两边长得一模一样。
+        // 换掉而不是"逐个禁用"：旧控件离开视觉树后再也收不到事件，不必担心哪里漏封一处又能改了。
+        void Seal(IReadOnlyList<string> answeredOptions, string? answeredText, bool answered)
+        {
+            settled = true;
+            card.Child = QuestionBlockContent(question.Question, question.Options, question.Multiple, answeredOptions, answeredText, answered);
+        }
+        void Submit()
+        {
+            if (settled || !CanSubmit())
+                return;
+
+            var text = (input.Text ?? string.Empty).Trim();
+            var picked = selected.ToList();
+            Seal(picked, text.Length > 0 ? text : null, answered: true);
+            tcs.TrySetResult(new AgentUserAnswer(picked, text.Length > 0 ? text : null));
+        }
+        // 空答（既没选也没写）对 agent 没有信息量，等于让它白等一场 → 按钮【置灰不可点】。
+        // 刻意不做成"能点但没反应"：那让人以为界面卡了，而置灰一眼就看出"还差点东西"。
+        //
+        // 【多选例外】多选时"一个都不选"本身就是答案（"这几条轨都要处理吗" → 一条都不要），故恒可提交；
+        // 单选的"未选"才是没回答。回报会明说是"明确没选"而非"没回答"，免得模型把这两种情形读混。
+        bool CanSubmit() => question.Multiple || selected.Count > 0 || (input.Text ?? string.Empty).Trim().Length > 0;
+
+        // 提交按钮自造（不复用无状态的 CardButton）：它要随"有没有内容"实时切换可用态。
+        // 串用 "Submit answer" 而非 "Submit"：后者已被设置面板的确认按钮占用（同 section 同键会互相覆盖，语义也不同）。
+        var submitLabel = new TextBlock()
+        {
+            Text = "Submit answer".Tr(this),
+            FontSize = 12,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+        };
+        var submitButton = new Border() { CornerRadius = new(4), Padding = new(12, 5), Child = submitLabel };
+        void SyncSubmitState()
+        {
+            bool on = CanSubmit();
+            submitButton.Background = (on ? Style.BUTTON_PRIMARY : Style.LIGHT_WHITE.Opacity(0.08)).ToBrush();
+            submitLabel.Foreground = (on ? Colors.White : Style.LIGHT_WHITE.Opacity(0.35)).ToBrush();
+            submitButton.Cursor = new Cursor(on ? StandardCursorType.Hand : StandardCursorType.Arrow);
+        }
+        submitButton.PointerEntered += (_, _) => { if (CanSubmit()) submitButton.Background = Style.BUTTON_PRIMARY_HOVER.ToBrush(); };
+        submitButton.PointerExited += (_, _) => SyncSubmitState();
+        submitButton.PointerPressed += (_, e) => { e.Handled = true; Submit(); };
+        buttons.Children.Add(submitButton);
+        // 把按钮态并入 refreshers：Refresh() 因此是"重刷全部显示"的唯一入口——选项一变（Toggle_ 里调它）
+        // 按钮可用态跟着重算，不必另铺一条刷新路径。文本框改动同样触发它（只选/只写/两者都有都算有内容）。
+        refreshers.Add(SyncSubmitState);
+        input.TextChanged.Subscribe(Refresh);
+        Refresh();
+
+        // 取消先行（点停）→ 同样定格，但标成【未回答】：当时勾了什么并没提交，不是答案，
+        // 显示成"选了 X"会误导。这与重载时遇到悬空调用（问了没结果）的呈现是同一个。
+        tcs.Task.ContinueWith(_ =>
+        {
+            void Finish()
+            {
+                if (settled)
+                    return;
+
+                Seal([], null, answered: false);
+            }
+            if (Dispatcher.UIThread.CheckAccess()) Finish();
+            else Dispatcher.UIThread.Post(Finish);
+        }, TaskContinuationOptions.ExecuteSynchronously);
+
+        return card;
     }
 
     // 卡片：说明 + 三按钮（应用本次/始终允许/拒绝）；裁决后隐藏按钮、留一行结果。"始终允许"顺带切档到 Auto。

@@ -18,9 +18,10 @@ internal class RadioButton : Toggle, IDataValueController<bool>
     {
         Width = 16;
         Height = 16;
-        AddContent(new() { Item = new IconItem() { Icon = Assets.RadioFrame }, UncheckedColorSet = new() { Color = Colors.White } });
-        // 16×16 上 CornerRadius=8 即整圆，故高亮底不需要额外图标资源。
-        AddContent(new() { Item = new BorderItem() { CornerRadius = 8 }, CheckedColorSet = new() { Color = Style.HIGH_LIGHT } });
-        AddContent(new() { Item = new IconItem() { Icon = Assets.RadioDot }, CheckedColorSet = new() { Color = Colors.White } });
+        // 圆框【恒为白】（ColorSet 同时设 Checked/Unchecked），选中时中间多一个【彩色】圆点。
+        // 这是 radio 的通用观感；反过来做成"整圆填主色 + 白记号"是 CheckBox 那一路的样式，用在单选上会认错。
+        AddContent(new() { Item = new IconItem() { Icon = Assets.RadioFrame }, ColorSet = new() { Color = Colors.White } });
+        // 点用主按钮那个蓝（BUTTON_PRIMARY，#6060C0）——与卡片里的主按钮同一强调色，观感统一。
+        AddContent(new() { Item = new IconItem() { Icon = Assets.RadioDot }, CheckedColorSet = new() { Color = Style.BUTTON_PRIMARY } });
     }
 }
