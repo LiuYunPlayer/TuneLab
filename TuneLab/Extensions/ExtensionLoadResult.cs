@@ -21,7 +21,7 @@ internal enum ExtensionLoadStatus
 // 「这个包里有什么」——加载成败由 ExtensionLoadResult 的 Status/Error 汇总承载，两者各司其职。
 // Legacy 包无 manifest 条目（能力靠盲扫发现），故其 Entries 恒空。
 internal sealed record ExtensionEntryInfo(
-    string Kind,                // 类别：format / voice / instrument / effect / agent-model，或资源类的自定 type
+    string Kind,                // 类别 = manifest 声明的 type 原样：format / voice / instrument / effect，或资源类的自定 type
     // 该条目占的能力位身份：engine 类恰好一个（engine id）；format 是它认的全部后缀（一个格式可有多个别名，
     // 各自独立路由）；资源类为空。多身份共用本条目的显示名与说明。
     IReadOnlyList<string> Identities,

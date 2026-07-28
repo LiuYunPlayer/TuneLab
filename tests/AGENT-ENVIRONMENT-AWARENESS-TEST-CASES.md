@@ -14,7 +14,7 @@
 ## 1. list_extensions
 
 1. 让 agent 调 `list_extensions`。
-2. **期望**：逐条列出已装扩展，每条含 名/`id`/`v版本`/`Generation`(V1|Legacy)/`status`(Loaded|PartiallyLoaded|Skipped|Failed)/`kinds`(format/voice/instrument/effect/agent-model)/作者；有包级 description 的显在下一行；加载失败/跳过的条目带 `note:`(错误原因)；V1 包逐条目列 `provides <kind>:<身份清单> "显示名"`，声明了 introduction 的附 `[introduction available — call get_extension_introduction("kind:identity")]`。
+2. **期望**：逐条列出已装扩展，每条含 名/`id`/`v版本`/`Generation`(V1|Legacy)/`status`(Loaded|PartiallyLoaded|Skipped|Failed)/`kinds`(format/voice/instrument/effect 或资源类 type)/作者；有包级 description 的显在下一行；加载失败/跳过的条目带 `note:`(错误原因)；V1 包逐条目列 `provides <kind>:<身份清单> "显示名"`，声明了 introduction 的附 `[introduction available — call get_extension_introduction("kind:identity")]`。
 3. legacy 扩展（无 id）**期望**显 `id=(legacy, no id)`；因无 manifest 条目故无 `provides` 行，但它参与的 routing 冲突仍按包列出（不因改版丢失）。
 4. 无任何扩展 → **期望**回报"only its built-in capabilities"，不报错。
 

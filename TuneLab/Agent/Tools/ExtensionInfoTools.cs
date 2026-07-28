@@ -25,7 +25,7 @@ internal sealed class ListExtensionsTool : IAgentTool
 
     public string Description =>
         "List the TuneLab extensions (plugins) the user has installed: each one's name, id, version, author, kind(s) " +
-        "(format / voice / instrument / effect / agent-model), load status, its package-level description, and — per capability it provides — " +
+        "(format / voice / instrument / effect, or a resource type), load status, its package-level description, and — per capability it provides — " +
         "that capability's identity, whether an introduction can be fetched, and whether it is SHADOWED by another package. " +
         "Use to know what the user has installed and to guide them. For one capability's full introduction, call get_extension_introduction. " +
         "When troubleshooting \"plugin X doesn't work\": status=Loaded only means it loaded — check the shadowed note here (and list_extension_routing), then confirm the capability itself shows up in list_sound_sources / list_effects.";
