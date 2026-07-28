@@ -56,7 +56,7 @@ internal sealed class ListExtensionRoutingTool : IAgentTool
                   .Append('"').Append(ExtensionManager.GetPackageName(option.PackageId)).Append("\" [packageId=").Append(option.PackageId).Append(']');
             }
         }
-        sb.Append("\n(kind = voice / instrument / effect / agent-model / format-import / format-export.)");
+        sb.Append("\n(kind = voice / instrument / effect / format-import / format-export.)");
         return sb.ToString();
     }
 }
@@ -76,7 +76,7 @@ internal sealed class SetExtensionRoutingTool(Func<AgentAuthorizationRequest, Ca
         {
           "type": "object",
           "properties": {
-            "kind": { "type": "string", "description": "Identity kind exactly as listed: voice / instrument / effect / agent-model / format-import / format-export." },
+            "kind": { "type": "string", "description": "Identity kind exactly as listed: voice / instrument / effect / format-import / format-export." },
             "identity": { "type": "string", "description": "The contested identity id (engine type id, or file extension for formats), as listed by list_extension_routing." },
             "packageId": { "type": "string", "description": "The packageId to use, exactly as listed for that identity. Empty/omitted = clear the choice and use the default rule." }
           },

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Configs;
-using TuneLab.Extensions.Agent;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Voices;
@@ -74,14 +73,17 @@ internal static class ExtensionRouting
     // 一行冲突身份：kind+identity 定位（routeKey 用于读写选择），options 是各包候选，activePackageId 是当前生效项。
     public readonly record struct RouteRow(string Kind, string Identity, string RouteKey, IReadOnlyList<RouteOption> Options, string ActivePackageId);
 
-    // 全部冲突行（按 kind 顺序：voice / effect / agent-model / format-import / format-export，各按身份注册序）。
+    // 全部冲突行（按 kind 顺序：voice / instrument / effect / format-import / format-export，各按身份注册序）。
     public static IReadOnlyList<RouteRow> GetConflicts()
     {
         var rows = new List<RouteRow>();
         Collect(rows, "voice", VoicesManager.GetAllVoiceEngines(), VoicesManager.GetProviders);
         Collect(rows, "instrument", InstrumentsManager.GetAllInstrumentEngines(), InstrumentsManager.GetProviders);
         Collect(rows, "effect", EffectManager.GetAllEffectEngines(), EffectManager.GetProviders);
-        Collect(rows, "agent-model", AgentModelManager.GetAllAgentModelEngines(), AgentModelManager.GetProviders);
+        // 【agent-model 不在此列】冲突消解存在的理由是"多个互不知情的第三方包实现了同一身份"，
+        // 而模型适配器不开放为插件类型、全部编进宿主：同一份源码里两个适配器撞同一个 type id 是宿主
+        // 自己的编码错误，该在注册处报出来，不该摆到用户面前让他"选一个"。
+        // （voice/instrument/effect/format 的内建实现仍参与——它们会与第三方包撞身份，那才需要裁决。）
         Collect(rows, "format-import", FormatsManager.GetAllImportFormats(), FormatsManager.GetImportProviders);
         Collect(rows, "format-export", FormatsManager.GetAllExportFormats(), FormatsManager.GetExportProviders);
         return rows;

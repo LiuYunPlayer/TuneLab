@@ -515,7 +515,7 @@ internal partial class SettingsWindow : Window
         // 两个包提供同一 instrument 身份时分组标题会落到 _ 兜底、显示未翻译的小写裸 kind。
         "instrument" => "Instrument".Tr(this),
         "effect" => "Effect".Tr(this),
-        "agent-model" => "Agent Model".Tr(this),
+        // 无 agent-model 分支：模型适配器全是内建、一个 type 只有一个实现，从不进冲突矩阵（见 ExtensionRouting）。
         "format-import" or "format-export" => "Format".Tr(this),
         _ => kind,
     };

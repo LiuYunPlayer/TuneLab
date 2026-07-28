@@ -28,10 +28,12 @@ internal static class AgentModelManager
                     state.Engine.Destroy();
     }
 
-    // 由 ExtensionManager（V1 manifest 驱动）实例化后注册引擎。type 跨包可重名：不同包同 type 均并存（用户在矩阵选活实现），
-    // 同包同 type 只留首个（包内重复属打包错误，warn 后忽略）。
+    // 注册一个模型适配器。【唯一调用方是 LoadBuiltIn】——适配器不开放为插件类型，新适配走 PR 编进宿主
+    // （ExtensionManager 遇到 manifest 声明的 agent-model 直接报错，不会走到这里）。
+    // 故一个 type 只会有一个实现：同 type 被注册两次是宿主自己的编码错误（两个内建适配器撞了 id），
+    // 报错并只留首个——【不】把它当"多包争身份"扔进冲突消解矩阵让用户选，那是给互不知情的第三方包用的。
     // type 是不可变身份 id；displayName 仅供 UI 展示、可本地化。
-    // packageId 是来源插件包的反向域名 id（内建为 (built-in)）——身份组按它区分各包实现，并供 provider 设置按包分桶。
+    // packageId 恒为内建包 id，保留它是因为 provider 设置按 (包, kind:id) 分桶时要用。
     public static void RegisterEngine(string packageId, string type, string displayName, IAgentModelEngine engine)
     {
         if (!mEngines.TryGetValue(type, out var list))
@@ -39,21 +41,15 @@ internal static class AgentModelManager
             list = new List<AgentModelEngineStatus>();
             mEngines.Add(type, list);
         }
-        if (list.Any(s => s.PackageId == packageId))
+        if (list.Count > 0)
         {
-            Log.Warning(string.Format("Agent model engine '{0}' already registered by package '{1}', duplicate ignored.", type, packageId));
+            Log.Error(string.Format("Agent model engine '{0}' is already registered; duplicate ignored (two built-in adapters share this type id).", type));
             return;
         }
         list.Add(new AgentModelEngineStatus(engine, displayName, packageId));
     }
 
     public static IReadOnlyList<string> GetAllAgentModelEngines() => mEngines.Keys;
-
-    // 某身份的全部提供者（packageId + 显示名，按注册序）——供「插件路由」矩阵枚举。
-    public static IReadOnlyList<(string PackageId, string DisplayName)> GetProviders(string type)
-        => mEngines.TryGetValue(type, out var list)
-            ? list.Select(s => (s.PackageId, s.DisplayName)).ToArray()
-            : Array.Empty<(string, string)>();
 
     // UI 展示名（活实现的本地化名；注册时按当前语言定）；未注册回退到 id 本身。
     public static string GetDisplayName(string type)
@@ -86,11 +82,11 @@ internal static class AgentModelManager
         return engine.IsInited ? engine.Engine : null;
     }
 
-    // 该身份在多包冲突中的活实现状态（用户选中且已装 → 用它；否则内建优先；再否则 packageId 序最小）。
+    // 该 type 的引擎状态。【不经 ExtensionRouting】：适配器不开放为插件类型、全部编进宿主，故一个 type
+    // 永远只有一个实现——没有"多个互不知情的包争同一身份"这回事，也就无需用户裁决。
+    // 同 type 被注册两次是宿主自己的编码错误，由 RegisterEngine 处报错并只留首个。
     static AgentModelEngineStatus? ActiveStatus(string type)
-        => mEngines.TryGetValue(type, out var list)
-            ? ExtensionRouting.ResolveActive(ExtensionRouting.RouteKey("agent-model", type), list, s => s.PackageId)
-            : null;
+        => mEngines.TryGetValue(type, out var list) && list.Count > 0 ? list[0] : null;
 
     class AgentModelEngineStatus
     {
