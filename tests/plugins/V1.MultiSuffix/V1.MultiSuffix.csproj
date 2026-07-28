@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 测试插件（V1 / voice）。引用当前 V1 SDK，Private=false 不打进包。输出落 tests/packages/v1-voice/。 -->
+  <!-- 测试插件（V1 / format，同一格式两个后缀别名）。引用当前 V1 SDK，Private=false 不打进包。
+       输出落 tests/packages/v1-multisuffix/。 -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-voice\</OutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-multisuffix\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
@@ -17,12 +18,8 @@
 
   <ItemGroup>
     <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 详情页素材：manifest 声明的 introduction（测详情窗渲染 + localizations 语言覆盖 + 相对图片按包目录解析）。 -->
+    <!-- 两个条目共享的唯一一份 introduction（测详情窗按文件路径去重 → 只显一页）。 -->
     <Content Include="Introduction.md" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Introduction.zh-CN.md" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 立绘资源（随包发布，引擎按包目录拼绝对路径喂 FileImageResource）：静态 webp + 动态 webp 各一。 -->
-    <Content Include="portrait.webp" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="portrait-anim.webp" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

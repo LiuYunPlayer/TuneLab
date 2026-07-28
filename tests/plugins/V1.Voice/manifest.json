@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "author": "TuneLab Tests",
   "description": "V1 voice 测试引擎：2 个声库，合成正弦音 + 按 note 键的 phonemes。",
+  "introduction": "Introduction.md",
+  "localizations": {
+    "zh-CN": {
+      "introduction": "Introduction.zh-CN.md"
+    }
+  },
   "sdk-version": "1.0",
   "type": "voice",
   "engine": "TLTestVoiceV1",

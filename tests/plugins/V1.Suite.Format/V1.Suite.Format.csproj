@@ -19,6 +19,9 @@
 
   <ItemGroup>
     <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 两个条目各自的 introduction（测详情窗按条目分 tab：一包多插件时每条目一页）。 -->
+    <Content Include="Introduction.Format.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Introduction.Voice.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

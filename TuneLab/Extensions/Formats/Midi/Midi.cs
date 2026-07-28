@@ -10,20 +10,9 @@ using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Formats.Midi;
 
-internal class MidiWithExtension_mid : IImportFormat, IExportFormat
-{
-    public ProjectInfo Deserialize(Stream stream)
-    {
-        return MidiUtility.Deserialize(stream);
-    }
-
-    public void Serialize(Stream output, ProjectInfo info)
-    {
-        MidiUtility.Serialize(output, info);
-    }
-}
-
-internal class MidiWithExtension_midi : IImportFormat, IExportFormat
+// 一个格式、两个后缀别名（.mid / .midi）：由 FormatsManager.LoadBuiltIn 逐后缀注册同一个类，
+// 无需按后缀各造一个类（那是扩展名还标在代码 attribute 上的年代留下的形态）。
+internal class MidiFormat : IImportFormat, IExportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
     {

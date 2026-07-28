@@ -1,28 +1,31 @@
 # Agent 环境感知（只读）测试用例
 
-覆盖 A 支柱首切片：让 agent 枚举宿主已装扩展、读 readme、枚举音源目录。三个只读工具
-`list_extensions` / `get_extension_readme` / `list_sound_sources`。只测本切片，不复测编辑面/脚本库。
+覆盖 A 支柱首切片：让 agent 枚举宿主已装扩展、读能力介绍、枚举音源目录。三个只读工具
+`list_extensions` / `get_extension_introduction` / `list_sound_sources`。只测本切片，不复测编辑面/脚本库。
+
+> 条目级 `introduction` 与详情窗分 tab 等新增行为另见 `EXTENSION-INTRODUCTION-TEST-CASES.md`；本文件只保证这三个工具的基础形态不回退。
 
 ## 前置
 
 - Agent 侧栏已连模型；打开任意工程。
-- 环境里至少装一个 V1 扩展（有 manifest.json + 最好带 README.md）和/或有 legacy 扩展；至少一个已加载的 voice 或 instrument 引擎（含内建）。
+- 环境里至少装一个 V1 扩展（有 manifest.json + 最好在 manifest 里声明了 `introduction`）和/或有 legacy 扩展；至少一个已加载的 voice 或 instrument 引擎（含内建）。
 - 若环境干净（无外部扩展），用例 1/2 验证"空/仅内建"分支也算通过。
 
 ## 1. list_extensions
 
 1. 让 agent 调 `list_extensions`。
-2. **期望**：逐条列出已装扩展，每条含 名/`id`/`v版本`/`Generation`(V1|Legacy)/`status`(Loaded|PartiallyLoaded|Skipped|Failed)/`kinds`(format/voice/instrument/effect/agent-model)/作者；加载失败/跳过的条目带 `note:`(错误原因)；带 README 的条目提示可调 `get_extension_readme(...)`。
-3. legacy 扩展（无 id）**期望**显 `id=(legacy, no id)`，且 readme 提示用其名而非空 id。
+2. **期望**：逐条列出已装扩展，每条含 名/`id`/`v版本`/`Generation`(V1|Legacy)/`status`(Loaded|PartiallyLoaded|Skipped|Failed)/`kinds`(format/voice/instrument/effect/agent-model)/作者；有包级 description 的显在下一行；加载失败/跳过的条目带 `note:`(错误原因)；V1 包逐条目列 `provides <kind>:<身份清单> "显示名"`，声明了 introduction 的附 `[introduction available — call get_extension_introduction("kind:identity")]`。
+3. legacy 扩展（无 id）**期望**显 `id=(legacy, no id)`；因无 manifest 条目故无 `provides` 行，但它参与的 routing 冲突仍按包列出（不因改版丢失）。
 4. 无任何扩展 → **期望**回报"only its built-in capabilities"，不报错。
 
-## 2. get_extension_readme
+## 2. get_extension_introduction
 
-1. 对用例 1 里某带 README 的扩展，`get_extension_readme("<id>")` → **期望**返回该 README 的 markdown 原文（按当前语言解析 `README.<lang>.md`，无则回退 `README.md`）。
-2. 用**显示名**代替 id 调 → **期望**同样命中（匹配 id 优先、其次名，大小写不敏感）。
-3. 对无 README 的扩展调 → **期望**"has no README file."。
-4. 对不存在的名字调 → **期望**"no installed extension matches ... call list_extensions"。
-5. 超长 README（>2 万字符）→ **期望**截断并注明剩余字符数，不淹没上下文。
+1. 对用例 1 里某声明了 introduction 的能力，`get_extension_introduction("<kind>:<identity>")` → **期望**返回该 markdown 原文，并点明文本出自插件作者、非宿主保证。
+2. 用**裸 identity**（如 `"TLTestVoiceV1"`、`"mid"`）或该条目**显示名**调 → **期望**同样命中（大小写不敏感）。
+3. 对没写 `introduction` 的能力调 → **期望**明说"ships no introduction"，并把**包级** description 作降级参考给出、同时标明它讲的是整个包而非这个能力；连包级 description 也没有则明说两者都无。**不得**改去读包里的 README 充数。
+4. 对不存在的名字调 → **期望**"no installed capability matches ... call list_extensions"。
+5. 同一 identity 被两个包提供时不带 `packageId` 调 → **期望**报歧义并列出候选（各自 packageId）；带 `packageId` 再调 → 命中那一个。
+6. 超长介绍（>2 万字符）→ **期望**截断并注明剩余字符数，不淹没上下文。
 
 ## 3. list_sound_sources —— 引擎层（不给 engine）
 

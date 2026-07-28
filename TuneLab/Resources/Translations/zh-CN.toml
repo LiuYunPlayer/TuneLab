@@ -61,6 +61,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "多个包提供了相同的扩展。请选择要使用的一个。改动将在重启后生效。"
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "没有冲突的扩展。（当多个包提供相同的引擎 id 或文件格式时，冲突会显示在此处。）"
 "Voice" = "声源"
+"Instrument" = "乐器"
 "Extension Routing" = "扩展路由"
 
 [FunctionBar]
@@ -153,6 +154,7 @@
 "Pending Uninstall" = "待卸载"
 "Settings" = "设置"
 "Open in External Editor" = "用外部编辑器打开"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "这是一个旧版（legacy）扩展。它不提供 manifest 元数据，TuneLab 是靠扫描发现它的能力的——因此没有作者提供的文档可展示。"
 "This extension has no documentation." = "该扩展暂无文档。"
 "{0} extension(s) installed" = "已安装 {0} 个扩展"
 "{0} of {1} extension(s)" = "共 {1} 个扩展，显示 {0} 个"

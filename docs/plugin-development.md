@@ -33,7 +33,7 @@ Package level (top level):
 | `name` | ✅ | Display name |
 | `version` | | Package version (semver), defaults to `1.0.0` |
 | `author` | | Author (shown in the extensions sidebar) |
-| `description` | | One-line summary (shown in the extensions sidebar) |
+| `description` | | One line about **the package as a whole** (shown in the extensions sidebar tooltip and the detail window header). What an individual capability is belongs in that entry's own `introduction` — this line never stands in for it. |
 | `icon` | | An icon at a path relative to the package; bitmap (`.png`/`.jpg` etc.) or vector (`.svg`) both work. **Shown as-is** — the sidebar does not add a background or clip rounded corners, so rounding/transparency/padding are all up to you (draw rounded corners into the icon if you want them). A **square** icon (e.g. 64×64 or larger) is recommended. If omitted, the sidebar uses the name's first letter over a dark rounded square as a placeholder. |
 | `sdk-version` | ✅ for plugins with code | The SDK version you compiled against (e.g. `"1.0"`). TuneLab uses it for a compatibility check: a plugin requiring a higher version than the host provides is skipped. Resource packages may omit it. |
 
@@ -43,9 +43,10 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 |---|---|---|
 | `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / resource type (agent-model is not open to external extensions: model adapters are a host-internal module; new adapters go in via PR) |
 | `engine` | ✅ for voice/instrument/effect | The engine type **id** (unique identity, e.g. `"MyEngine"`). **Immutable** — it is written into project files, so changing it makes old projects mismatch. Never localize it. |
-| `extension` | ✅ for format | The file extension **id** (no dot, e.g. `"myfmt"`). Also an immutable identity. |
+| `suffixes` | ✅ for format | The **file suffixes** this format accepts (no dot, e.g. `["mid", "midi"]`). One entry = one format: extra suffixes are its **aliases**, sharing this entry's implementation class and all of its text — but registration and routing stay **per suffix** (another package can take over just one of them). Two genuinely different formats → two entries. Each suffix is an immutable identity. |
 | `name` | | The **display name** (for UI), which may differ from the identity id and may be translated. If omitted, the UI falls back to showing the identity id. |
-| `localizations` | | Per-language translations of `name`, e.g. `{ "zh-CN": { "name": "增益" } }`. If the current language is missing, it falls back to the base `name`. |
+| `introduction` | | A path relative to the package pointing at a markdown **introduction** (what it does, how to get started, what to watch out for). The host renders it in the extension detail window; the agent fetches it on demand via `get_extension_introduction`. |
+| `localizations` | | Per-language overrides of `name` / `introduction`, e.g. `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`. Missing entries fall back to the base value. Language variants of `introduction` go **here** (each language may point at a different filename); there is **no** implicit `<base>.<lang>.md` filename convention. |
 | `classes` | ✅ when it contains code | The **entry candidate class list** (an array of full-name strings, e.g. `["My.Ns.MyVoiceEngine"]`). The host **scans every class** in the array and matches each against the interfaces required by this `type`, registering on a hit (see below). The manifest is only "a description that helps the host load"; you **need not** pin down which class does which job — list all candidates and let the host claim by interface. |
 | `assembly` | ✅ when it contains code | The assembly (a single path relative to the package folder) containing the candidate classes above. All candidate classes live in this assembly. Resource packages omit it. |
 | `platforms` | | Platform filter, e.g. `["win", "osx", "linux"]` or with architecture `["win-x64"]`. Empty = all platforms. |
@@ -61,9 +62,15 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 
 > So a single type can require **multiple entry classes** (e.g. a format's importer + exporter), which the array carries naturally; an import-only/export-only format just lists the one corresponding class. Each candidate class needs a **parameterless constructor**.
 >
-> **Identity id vs display name are separate**: `engine`/`extension` are immutable identities (registration key + project-serialization reference); `name`/`localizations` are for UI display only and may be renamed/translated freely.
+> **Identity id vs display name are separate**: `engine`/`suffixes` are immutable identities (registration key + project-serialization reference); `name`/`localizations` are for UI display only and may be renamed/translated freely.
 >
-> When one assembly has multiple engines/formats, list them one by one in `extensions[]` (same `assembly`, each with its own `engine`/`extension` + `classes`).
+> **`introduction` is entry-level, and it is the only description you need to write.** The one-line summary an AI needs is distilled by the AI itself from this text — you are not asked to write a separate line for it, since you cannot know what the model is looking for and would most likely end up writing marketing copy. For a multi-capability package, write one per entry.
+>
+> **What happens if you ship none**: the host will *not* pass the package-level `description` off as this capability's. The agent is told the capability has no introduction of its own, plus the package's self-description **explicitly labelled as a fallback** — and warned that the sentence describes the whole package (which may hold other capabilities) rather than this one. So an AI ends up knowing nothing about your plugin beyond its name, and will not recommend it on its own.
+>
+> **A README is not metadata**: the host only reads the `introduction` declared in the manifest. A `README.md` inside your package is the file you keep for people browsing your repository (build steps, license, contributing) — the host neither reads nor displays it. The two have different audiences, so they need not (and should not) be the same file.
+>
+> When one assembly has multiple engines/formats, list them one by one in `extensions[]` (same `assembly`, each with its own `engine`/`suffixes` + `classes`).
 
 ### 2.2 Single plugin (most common)
 
@@ -78,13 +85,16 @@ Just write the plugin-level fields at the top level; no array needed:
   "description": "Import/export .myfmt files",
   "sdk-version": "1.0",
   "type": "format",
-  "extension": "myfmt",
+  "suffixes": ["myfmt"],
+  "introduction": "Introduction.md",
   "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
   "assembly": "MyFormat.dll"
 }
 ```
 
 > In the shorthand form there is only one top-level `name`: it is **both** the package name and the display name of the single engine/format (`localizations` is shared the same way). If you want the package name and the engine's display name to differ, use the `extensions[]` form below and give the entry its own `name`.
+>
+> `introduction` sits at the top level here for the same reason — with a single entry, the package *is* that capability. In the `extensions[]` form it belongs to each entry; writing it at the top level then has no effect, because a package has no introduction of its own.
 
 ### 2.3 Multiple plugins in one package
 
@@ -97,13 +107,15 @@ Use the `extensions[]` array, where each element is one independent plugin's met
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format", "extension": "exfmt", "classes": ["Example.Format.Importer", "Example.Format.Exporter"], "assembly": "Example.Format.dll" },
-    { "type": "voice",  "engine": "ExEngine", "classes": ["Example.Voice.ExVoiceEngine"], "assembly": "Example.Voice.dll", "platforms": ["win"] }
+    { "type": "format", "suffixes": ["exfmt"], "introduction": "Introduction.Format.md", "classes": ["Example.Format.Importer", "Example.Format.Exporter"], "assembly": "Example.Format.dll" },
+    { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "classes": ["Example.Voice.ExVoiceEngine"], "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
 ```
 
 > `Example.Format.dll` and `Example.Voice.dll` can both reference the same `Example.Common.dll` (placed in the package), which only needs to be distributed once.
+>
+> Each entry carries its **own** `introduction`, so the detail window shows one tab per entry and the agent can describe each capability accurately. The top-level `description` stays about the package as a whole.
 >
 > Rule: when `extensions[]` is present it takes precedence, and the top-level identity fields (`type`/`engine`/`classes`/…) are ignored.
 
@@ -152,7 +164,7 @@ Rules:
 
 ## 4. Writing a Format Plugin
 
-Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file extension and implementing classes go in `manifest.json` (`extension` + `classes` + `assembly`); you **no longer declare them via attributes** in code. The importer and exporter can be two classes (both listed in `classes`) or a single class implementing both interfaces.
+Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file suffixes and implementing classes go in `manifest.json` (`suffixes` + `classes` + `assembly`); you **no longer declare them via attributes** in code. The importer and exporter can be two classes (both listed in `classes`) or a single class implementing both interfaces.
 
 ```csharp
 using System.IO;
@@ -183,12 +195,12 @@ public class MyFormatExporter : IExportFormat   // listed in classes; the host c
 The corresponding manifest entry:
 
 ```json
-{ "type": "format", "extension": "myfmt", "name": "My Format",
+{ "type": "format", "suffixes": ["myfmt"], "name": "My Format",
   "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
   "assembly": "MyFormat.dll" }
 ```
 
-> `extension` is the immutable identity (routing + serialization); `name` is an optional display name (add `localizations` for translations).
+> Each entry in `suffixes` is an immutable identity (routing + serialization); `name` is an optional display name (add `localizations` for translations). Declaring several suffixes in one entry means "one format, several aliases" — they share the class and the text, yet each remains separately routable.
 
 The project model (`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…) is defined in `TuneLab.SDK`.
 

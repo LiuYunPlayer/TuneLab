@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Mehrere Pakete stellen dieselbe Erweiterung bereit. Wähle aus, welche verwendet werden soll. Änderungen werden nach dem Neustart übernommen."
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Keine widersprüchlichen Erweiterungen. (Konflikte erscheinen hier, wenn mehrere Pakete dieselbe Engine-ID oder dasselbe Dateiformat bereitstellen.)"
 "Voice" = "Stimme"
+"Instrument" = "Instrument"
 "Extension Routing" = "Erweiterungs-Routing"
 
 [FunctionBar]

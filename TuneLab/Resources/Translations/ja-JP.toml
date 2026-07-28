@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "複数のパッケージが同じ拡張機能を提供しています。使用するものを選択してください。変更は再起動後に適用されます。"
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "競合する拡張機能はありません。（複数のパッケージが同じエンジンIDまたはファイルフォーマットを提供している場合に、ここに競合が表示されます。）"
 "Voice" = "ボイス"
+"Instrument" = "インストゥルメント"
 "Extension Routing" = "拡張機能のルーティング"
 
 [FunctionBar]

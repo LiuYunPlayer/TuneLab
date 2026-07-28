@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Πολλά πακέτα παρέχουν την ίδια επέκταση. Επιλέξτε ποιο θα χρησιμοποιηθεί. Οι αλλαγές εφαρμόζονται μετά την επανεκκίνηση."
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Καμία διένεξη επεκτάσεων. (Οι διενέξεις εμφανίζονται εδώ όταν πολλά πακέτα παρέχουν το ίδιο engine id ή μορφή αρχείου.)"
 "Voice" = "Φωνή"
+"Instrument" = "Όργανο"
 "Extension Routing" = "Δρομολόγηση Επεκτάσεων"
 
 [FunctionBar]

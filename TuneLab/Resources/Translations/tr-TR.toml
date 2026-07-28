@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Birden fazla paket aynı uzantıyı sağlıyor. Hangisinin kullanılacağını seçin. Değişiklikler yeniden başlatmadan sonra uygulanır."
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Çakışan uzantı yok. (Birden fazla paket aynı motor kimliğini veya dosya formatını sağladığında çakışmalar burada görünür.)"
 "Voice" = "Ses"
+"Instrument" = "Enstrüman"
 "Extension Routing" = "Uzantı Yönlendirme"
 
 [FunctionBar]

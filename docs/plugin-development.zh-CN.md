@@ -33,7 +33,7 @@
 | `name` | ✅ | 展示名 |
 | `version` | | 包版本（semver），默认 `1.0.0` |
 | `author` | | 作者（展示在扩展侧边栏） |
-| `description` | | 一句话简介（展示在扩展侧边栏） |
+| `description` | | 一句话讲**整个包**（展示在扩展侧边栏的悬浮 tooltip 与详情窗头部）。具体某个能力是什么，写在该条目自己的 `introduction` 里；这句绝不顶替它。 |
 | `icon` | | 包内相对路径的图标，位图（`.png`/`.jpg` 等）或矢量（`.svg`）均可。**原样展示**——侧边栏不给它加背景、不裁圆角，所以圆角/透明/留白都由你自定（想要圆角就自己画进图标）。建议提供**方形**图标（如 64×64 及以上）。省略则侧边栏用名称首字母 + 深色圆角方块占位。 |
 | `sdk-version` | 含代码插件时✅ | 你编译时使用的 SDK 版本（如 `"1.0"`）。TuneLab 据此做兼容校验：插件要求的版本高于宿主提供的版本则被跳过。资源包可省略。 |
 
@@ -43,9 +43,10 @@
 |---|---|---|
 | `type` | ✅ | 类别：`format` / `voice` / `instrument` / `effect` / 资源类（agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR） |
 | `engine` | voice/instrument/effect ✅ | 引擎类型 **id**（唯一身份，如 `"MyEngine"`）。**不可变**——它会写进工程文件，改了旧工程会失配。绝不本地化。 |
-| `extension` | format ✅ | 文件扩展名 **id**（不带点，如 `"myfmt"`）。同属不可变身份。 |
+| `suffixes` | format ✅ | 该格式认的**文件后缀清单**（不带点，如 `["mid", "midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类与全部说明；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。每个后缀各自是不可变身份。 |
 | `name` | | **显示名**（UI 展示用），可与身份 id 不同、可翻译。省略则 UI 退回显示身份 id。 |
-| `localizations` | | 按语言翻译 `name`，如 `{ "zh-CN": { "name": "增益" } }`。缺当前语言则回退基础 `name`。 |
+| `introduction` | | 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。 |
+| `localizations` | | 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。缺当前语言则回退基础值。`introduction` 的语言变体就走**这里**（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。 |
 | `classes` | 含代码时✅ | **入口候选类清单**（全名字符串数组，如 `["My.Ns.MyVoiceEngine"]`）。宿主把数组里的类**都扫一遍**，按本 `type` 所需接口逐个匹配、命中即注册（见下）。manifest 只是"方便宿主加载的描述"，**无需精确指明哪个类干哪件事**——把候选都列上、宿主按接口认领。 |
 | `assembly` | 含代码时✅ | 含上述候选类的程序集（相对包文件夹的路径，单个）。所有候选类同居此程序集。资源包省略。 |
 | `platforms` | | 平台过滤，如 `["win", "osx", "linux"]` 或带架构 `["win-x64"]`。留空 = 全平台。 |
@@ -61,9 +62,15 @@
 
 > 所以一种类型可以需要**多个入口类**（如 format 的导入类 + 导出类），数组天然承载；只导入/只导出的格式就只放对应那一个类。每个候选类需有**无参构造函数**。
 >
-> **身份 id 与显示名分离**：`engine`/`extension` 是不可变身份（注册键 + 工程序列化引用）；`name`/`localizations` 仅供 UI 展示、可随意改名翻译。
+> **身份 id 与显示名分离**：`engine`/`suffixes` 是不可变身份（注册键 + 工程序列化引用）；`name`/`localizations` 仅供 UI 展示、可随意改名翻译。
 >
-> 一个程序集里有多个引擎/格式时，在 `extensions[]` 里逐条列出（同 `assembly`、各自 `engine`/`extension` + `classes`）。
+> **`introduction` 是条目级、也是你唯一需要写的说明**：AI 要的"一句话摘要"由它自己从这份全文提炼，不必你另写一行——你不清楚模型在找什么，写出来多半成了产品文案。多能力包请给每个条目各写一份。
+>
+> **不写的后果**：宿主【不会】拿包级 `description` 冒充它。agent 只会被告知"该能力没有自己的介绍"，外加一句**明确标注为降级参考**的包级自述，并被提醒那讲的是整个包（可能还涵盖包里别的能力）、不等于这个能力。于是 AI 对你插件的了解仅止于一个名字，也就不会主动推荐它。
+>
+> **README 不是元数据**：宿主只认 manifest 声明的 `introduction`。包里的 `README.md` 是你留给仓库读者的文件（build 步骤、license、贡献指南），宿主不读、不展示——两者受众不同，不必也不该复用同一份。
+>
+> 一个程序集里有多个引擎/格式时，在 `extensions[]` 里逐条列出（同 `assembly`、各自 `engine`/`suffixes` + `classes`）。
 
 ### 2.2 单插件（最常见）
 
@@ -78,13 +85,16 @@
   "description": "Import/export .myfmt files",
   "sdk-version": "1.0",
   "type": "format",
-  "extension": "myfmt",
+  "suffixes": ["myfmt"],
+  "introduction": "Introduction.md",
   "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
   "assembly": "MyFormat.dll"
 }
 ```
 
 > 简写形态下顶层只有一个 `name`：它**同时**是包名与这唯一引擎/格式的显示名（`localizations` 同理共用）。若要让包名与引擎显示名各不相同，改用下面的 `extensions[]` 形态、给条目单独写 `name`。
+>
+> `introduction` 写在顶层同理——只有一个条目时，包就是那个能力。改用 `extensions[]` 形态后它属于各条目，此时写在顶层无效：包本身没有 introduction 这回事。
 
 ### 2.3 一包多插件
 
@@ -97,13 +107,15 @@
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format", "extension": "exfmt", "classes": ["Example.Format.Importer", "Example.Format.Exporter"], "assembly": "Example.Format.dll" },
-    { "type": "voice",  "engine": "ExEngine", "classes": ["Example.Voice.ExVoiceEngine"], "assembly": "Example.Voice.dll", "platforms": ["win"] }
+    { "type": "format", "suffixes": ["exfmt"], "introduction": "Introduction.Format.md", "classes": ["Example.Format.Importer", "Example.Format.Exporter"], "assembly": "Example.Format.dll" },
+    { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "classes": ["Example.Voice.ExVoiceEngine"], "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
 ```
 
 > `Example.Format.dll`、`Example.Voice.dll` 可以共同引用同一个 `Example.Common.dll`（放进包里），它只需分发一份。
+>
+> 每个条目各带**自己的** `introduction`，于是详情窗按条目分 tab、agent 也能准确描述每个能力。顶层 `description` 仍然只讲整个包。
 >
 > 规则：有 `extensions[]` 时以它为准，顶层的身份字段（`type`/`engine`/`classes`/…）被忽略。
 
@@ -152,7 +164,7 @@
 
 ## 4. 编写 Format 插件
 
-实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出）。需要**无参构造函数**。文件扩展名与实现类写在 `manifest.json`（`extension` + `classes` + `assembly`），代码里**不再用 attribute 声明**。导入类与导出类可以是两个类（都列进 `classes`），也可以是同一个类同时实现两个接口。
+实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出）。需要**无参构造函数**。文件后缀与实现类写在 `manifest.json`（`suffixes` + `classes` + `assembly`），代码里**不再用 attribute 声明**。导入类与导出类可以是两个类（都列进 `classes`），也可以是同一个类同时实现两个接口。
 
 ```csharp
 using System.IO;
@@ -183,12 +195,12 @@ public class MyFormatExporter : IExportFormat   // 列进 classes，宿主按 IE
 对应的 manifest 条目：
 
 ```json
-{ "type": "format", "extension": "myfmt", "name": "My Format",
+{ "type": "format", "suffixes": ["myfmt"], "name": "My Format",
   "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
   "assembly": "MyFormat.dll" }
 ```
 
-> `extension` 是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。
+> `suffixes` 里每个后缀各自是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。一个条目写多个后缀 = 「同一格式的多个别名」：共用实现类与说明，但仍各自可被独立路由。
 
 工程模型（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）定义在 `TuneLab.SDK`。
 

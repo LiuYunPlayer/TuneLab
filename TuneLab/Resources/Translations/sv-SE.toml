@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Flera paket tillhandahåller samma tillägg. Välj vilket som ska användas. Ändringar tillämpas efter omstart."
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Inga tillägg i konflikt. (Konflikter visas här när flera paket tillhandahåller samma motor-id eller filformat.)"
 "Voice" = "Röst"
+"Instrument" = "Instrument"
 "Extension Routing" = "Tilläggsrouting"
 
 [FunctionBar]

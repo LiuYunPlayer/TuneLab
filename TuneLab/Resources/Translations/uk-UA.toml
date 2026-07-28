@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Кілька пакетів надають одне й те саме розширення. Виберіть, яке використовувати. Зміни застосовуються після перезапуску."
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Немає конфліктних розширень. (Конфлікти з'являються тут, коли кілька пакетів надають той самий id рушія або формат файлу.)"
 "Voice" = "Голос"
+"Instrument" = "Інструмент"
 "Extension Routing" = "Маршрутизація розширень"
 
 [FunctionBar]

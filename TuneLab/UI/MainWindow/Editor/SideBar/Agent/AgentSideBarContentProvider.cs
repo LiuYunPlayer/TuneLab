@@ -126,7 +126,7 @@ internal sealed class AgentSideBarContentProvider
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 // 环境感知（只读）：枚举插件/readme、音源目录、effect 引擎+参数——让 agent 看见宿主装了什么、可推荐什么。
                 new ListExtensionsTool(),
-                new GetExtensionReadmeTool(),
+                new GetExtensionIntroductionTool(),
                 new ListSoundSourcesTool(),
                 new ListEffectsTool(),
                 // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，

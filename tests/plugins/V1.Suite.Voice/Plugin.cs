@@ -11,8 +11,30 @@ namespace TuneLab.TestPlugins.Suite.Voice;
 
 // 一包多插件之 voice：2 个声库（名取自共享 Common）。会话取单块最简模式——整 part 一块、
 // 任何变更全量标脏（设计许可的最懒失效策略），合成产出静音 + phoneme（合成保真已由 V1.Voice 覆盖）。
-public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine
+//
+// 另外它【实现了 IExtensionSettings】而同包的 format 条目没有——用来验证详情窗的设置齿轮是【按能力位归属】的：
+// 切到 Suite Voice 那一页才出现齿轮，切到 Suite Format 页则没有；点它应直接定位到本引擎的设置区。
+public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 {
+    // 设置 schema（够简单即可，全控件覆盖已由 V1.Settings 承担）：一个开关 + 一个滑杆。
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
+    {
+        var props = new OrderedMap<PropertyKey, IControllerConfig>
+        {
+            { ("suite_mute", "Silent Output"), CheckBoxConfig.Create(true) },
+            { ("suite_gain", "Gain"), SliderConfig.Linear(1, 0, 2) },
+        };
+        return ObjectConfig.Create(props);
+    }
+
+    // 回喂可观测点：确认宿主把持久值送到了【本条目】的桶（而非同包 format 条目）。
+    public void ApplySettings(PropertyObject settings)
+    {
+        TuneLabContext.Global.GetLogger().Info(string.Format(
+            "[V1.Suite.Voice] ApplySettings: suite_mute={0}, suite_gain={1}",
+            settings.GetBoolean("suite_mute", true), settings.GetDouble("suite_gain", 1)));
+    }
+
     public IReadOnlyOrderedMap<string, VoiceSourceInfo> VoiceSourceInfos => mVoiceInfos;
 
     public void Init()

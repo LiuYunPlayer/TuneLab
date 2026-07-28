@@ -23,16 +23,15 @@ internal class ExtensionItemView : Border
     public event Action? UninstallRequested;
     public event Action? CancelUninstallRequested;
     // 点整张卡片（避开卸载按钮/菜单等已 Handled 的热区）打开详情窗。
+    // 卡片上没有设置入口——设置是 per 能力位的，由详情窗各 tab 自己承载（见构造函数里作者行的注释）。
     public event Action? OpenDetailRequested;
-    // 点卡片上的齿轮（无文字）→ 打开设置窗对应插件位置。仅在插件声明了扩展设置时显示。
-    public event Action? OpenSettingsRequested;
     public string ExtensionName { get; }
     public string ExtensionVersion { get; }
     public string ExtensionType { get; }
     public string ExtensionPath { get; }
     public bool IsPendingUninstall { get; private set; }
 
-    public ExtensionItemView(string name, string version, IReadOnlyList<string> types, string author, string description, string? iconPath, string extensionPath, ExtensionLoadStatus status, string? error, bool hasSettings)
+    public ExtensionItemView(string name, string version, IReadOnlyList<string> types, string author, string description, string? iconPath, string extensionPath, ExtensionLoadStatus status, string? error)
     {
         ExtensionName = name;
         ExtensionVersion = version;
@@ -65,49 +64,35 @@ internal class ExtensionItemView : Border
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
         };
 
-        // 作者行（小字，过长截断）+ 右侧设置齿轮（无文字，仅在插件声明了扩展设置时）同一行：作者左、齿轮右。
-        // 有作者或有设置任一即建此行；位于版本(上)与卸载(下)之间。
-        // 用 DockPanel（齿轮 Dock.Right + 图标 Dock.Left + 文字填充）：填充的文字受限于剩余宽度，省略号才生效。
+        // 作者行（小字，过长截断）。
+        // 【卡片上不再有设置齿轮】：扩展设置是 per 能力位的（一个包里两个引擎各存一份），而卡片是包级视图——
+        // 包内多个条目都有设置时，一个齿轮只能跳到"首个"，等于拿包级控件冒充某个具体能力的入口。
+        // 设置入口改由详情窗各 tab 自己承载（准确对应那一个能力位）；要总览全部则走设置窗「扩展」页。
+        // 用 DockPanel（图标 Dock.Left + 文字填充）：填充的文字受限于剩余宽度，省略号才生效。
         Control? authorRow = null;
-        if (!string.IsNullOrWhiteSpace(author) || hasSettings)
+        if (!string.IsNullOrWhiteSpace(author))
         {
             const double authorIconSize = 12;   // 配 11px 作者小字的视觉尺寸
-            // 行高不固定：由最高子项（齿轮 16）决定，图标/文字在其中居中；无齿轮时回到小字自然高。
             var authorDock = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
 
-            // 齿轮先 Dock.Right（图标化、透明底白色，hover 变亮——仿编辑器底部设置按钮）。
-            if (hasSettings)
+            authorDock.AddDock(new Image
             {
-                // IconItem 按「图标原生尺寸(24) × Scale」居中绘制；Scale=16/24 → 图标 16px，与 16px 按钮同大。
-                var gear = new TuneLab.GUI.Components.Button { Width = 16, Height = 16, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }
-                    .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 16.0 / 24.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
-                gear.Clicked += () => OpenSettingsRequested?.Invoke();
-                // 吞掉齿轮上的 Tapped，避免点齿轮时冒泡触发卡片开详情。
-                gear.AddHandler(Gestures.TappedEvent, (_, e) => e.Handled = true);
-                authorDock.AddDock(gear, Dock.Right);
-            }
-
-            if (!string.IsNullOrWhiteSpace(author))
+                Source = Assets.Author.GetImage(Style.LIGHT_WHITE.Opacity(0.6)),
+                Width = authorIconSize,
+                Height = authorIconSize,
+                Margin = new Thickness(0, 0, 4, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            }, Dock.Left);
+            // 文字最后加 = 填充中间（LastChildFill），受限剩余宽 → 省略号生效。
+            authorDock.AddDock(new TextBlock
             {
-                authorDock.AddDock(new Image
-                {
-                    Source = Assets.Author.GetImage(Style.LIGHT_WHITE.Opacity(0.6)),
-                    Width = authorIconSize,
-                    Height = authorIconSize,
-                    Margin = new Thickness(0, 0, 4, 0),
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                }, Dock.Left);
-                // 文字最后加 = 填充中间（LastChildFill），受限剩余宽 → 省略号生效。
-                authorDock.AddDock(new TextBlock
-                {
-                    Text = author,
-                    FontSize = 11,
-                    Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    TextWrapping = TextWrapping.NoWrap,
-                });
-            }
+                Text = author,
+                FontSize = 11,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+            });
             authorRow = authorDock;
         }
 

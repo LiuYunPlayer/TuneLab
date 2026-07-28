@@ -42,7 +42,7 @@
 
 ## 回归检查（不应被破坏）
 
-- **读类工具不受闸门**：`read_script`/`list_scripts`/`list_extensions`/`get_extension_readme`/`list_sound_sources`/`get_script_inputs`/`get_project_overview` 在任何授权档都直接返回，**从不弹卡片**。
+- **读类工具不受闸门**：`read_script`/`list_scripts`/`list_extensions`/`get_extension_introduction`/`list_sound_sources`/`get_script_inputs`/`get_project_overview` 在任何授权档都直接返回，**从不弹卡片**。
 - **工程写授权不变**：run_script / run_saved_script 的预览-回退 + 三档行为与本次改动前一致（confirm 回调签名换成 `AgentAuthorizationRequest` 但 ProjectEdit 分支语义不变）。
 - **取消（点停）**：删/覆盖卡片未裁决时点停 → 卡片切"Stopped"、按拒绝收尾、文件不动。
 - **无 UI 兜底**：若无确认回调（理论上非侧栏路径），Confirm 档下删/覆盖保守地不做、回报未做。

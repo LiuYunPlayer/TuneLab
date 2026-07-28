@@ -27,9 +27,13 @@ internal partial class SettingsWindow : Window
     public SettingsWindow() : this(null) { }
 
     // focusExtensionPackageId：非空且该包声明了扩展设置时，开窗即切到「扩展」tab 并滚动到该插件区（详情窗齿轮用）。
-    public SettingsWindow(string? focusExtensionPackageId)
+    // focusExtensionKey：可选，进一步定到【具体能力位】（形如 "voice:MyEngine"，即 Entry.ExtensionKey）——
+    //   设置是 per 能力实现者的，一个包可有多个各存一份；详情窗齿轮已按 tab 归属某个能力，故要能精确落到它。
+    //   省略则退回"该包首个有设置的条目"（旧行为）。
+    public SettingsWindow(string? focusExtensionPackageId, string? focusExtensionKey = null)
     {
         mFocusExtensionPackageId = focusExtensionPackageId;
+        mFocusExtensionKey = focusExtensionKey;
         InitializeComponent();
         Focusable = true;
         CanResize = false;
@@ -378,7 +382,10 @@ internal partial class SettingsWindow : Window
             listView.Content.Children.Add(title);
 
             // 记下待定位插件的标题控件 + 所在 ListView，供开窗后滚动到位。
-            if (!string.IsNullOrEmpty(mFocusExtensionPackageId) && entry.PackageId == mFocusExtensionPackageId)
+            // 给了 focusExtensionKey 就精确匹配该能力位，否则匹配到该包首个条目（先到先得，故加 == null 守卫）。
+            if (!string.IsNullOrEmpty(mFocusExtensionPackageId) && entry.PackageId == mFocusExtensionPackageId
+                && (string.IsNullOrEmpty(mFocusExtensionKey) || entry.ExtensionKey == mFocusExtensionKey)
+                && mFocusEntryControl == null)
             {
                 mFocusListView = listView;
                 mFocusEntryControl = title;
@@ -504,6 +511,9 @@ internal partial class SettingsWindow : Window
     private string RouteGroupLabel(string kind) => kind switch
     {
         "voice" => "Voice".Tr(this),
+        // instrument 是与 voice 平行的插件类型、ExtensionRouting.GetConflicts 同样收集它——此前漏了这一支，
+        // 两个包提供同一 instrument 身份时分组标题会落到 _ 兜底、显示未翻译的小写裸 kind。
+        "instrument" => "Instrument".Tr(this),
         "effect" => "Effect".Tr(this),
         "agent-model" => "Agent Model".Tr(this),
         "format-import" or "format-export" => "Format".Tr(this),
@@ -582,6 +592,8 @@ internal partial class SettingsWindow : Window
     private int mSelectedIndex = -1;
     // 详情窗齿轮请求定位到某插件设置：捕获其标题控件 + 所在 ListView，开窗后滚到位。
     private readonly string? mFocusExtensionPackageId;
+    // 目标能力位的桶键（"kind:extensionId"）；为空表示只定位到包。
+    private readonly string? mFocusExtensionKey;
     private ListView? mFocusListView;
     private Control? mFocusEntryControl;
     private readonly DisposableManager s = new();

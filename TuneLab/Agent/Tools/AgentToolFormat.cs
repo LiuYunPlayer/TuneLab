@@ -232,10 +232,14 @@ internal static class EngineCatalog
         {
             var pkgs = providers(type);
             string pkgLabel;
+            string? activePackageId = null;   // 生效实现所属包——摘要要取【它】那份（见下）
             if (pkgs.Count == 0)
                 pkgLabel = "unknown";
             else if (pkgs.Count == 1)
-                pkgLabel = ExtensionManager.GetPackageName(pkgs[0].PackageId);
+            {
+                activePackageId = pkgs[0].PackageId;
+                pkgLabel = ExtensionManager.GetPackageName(activePackageId);
+            }
             else
             {
                 // 冲突身份：按用户选择 / 确定性默认解析出活实现，如实标出被顶替者（排障要的就是这一句）。
@@ -243,6 +247,7 @@ internal static class EngineCatalog
                 foreach (var p in pkgs)
                     ids.Add(p.PackageId);
                 var active = ExtensionRouting.ResolveActivePackageId(ExtensionRouting.RouteKey(routeKind, type), ids);
+                activePackageId = active;
                 var shadowed = new List<string>();
                 foreach (var p in pkgs)
                     if (p.PackageId != active)
@@ -251,6 +256,15 @@ internal static class EngineCatalog
                     ExtensionManager.GetPackageName(active ?? ""), string.Join(", ", shadowed));
             }
             sb.Append("\n- \"").Append(displayName(type)).Append("\" [type=").Append(type).Append(", package=").Append(pkgLabel).Append("]");
+
+            // 这个引擎本身没有一句话摘要可给——摘要要由你从它的 introduction 自行提炼（call
+            // get_extension_introduction）。这里退一步给出【所属包的自述】并明确标注它是降级参考：
+            // 那句话讲的是整个包（可能还涵盖包里别的能力），不等于这个引擎的描述，别当成它的能力转述给用户。
+            var packageDescription = ExtensionManager.GetPackageDescription(activePackageId);
+            if (!string.IsNullOrWhiteSpace(packageDescription))
+                sb.Append("\n    (no summary of its own; its package describes itself as \"")
+                  .Append(packageDescription)
+                  .Append("\" — package-level, may cover other capabilities too. For this engine specifically, call get_extension_introduction.)");
         }
     }
 }

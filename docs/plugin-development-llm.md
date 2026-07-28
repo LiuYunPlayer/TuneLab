@@ -7,7 +7,7 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `extension`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectSynthesisEngine`（对整段音频做离线变换），+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `suffixes`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectSynthesisEngine`（对整段音频做离线变换），+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
@@ -23,25 +23,29 @@
 - `id` (string, **必填**) — 唯一标识，反向域名。**有 id ⇒ V1**。
 - `name` (string, **必填**) — 展示名。
 - `version` (string) — semver，默认 `"1.0.0"`。
-- `author` (string)、`description` (string) — 展示在扩展侧边栏：`author` 显示在卡片上，`description` 在卡片悬浮 tooltip 里。
+- `author` (string)、`description` (string) — 展示在扩展侧边栏：`author` 显示在卡片上，`description` 在卡片悬浮 tooltip 里（详情窗头部也有）。`description` 讲的是**整个包**；具体某个能力是什么，写在该条目自己的 `introduction` 里；这句绝不顶替它。
 - `icon` (string, 选填) — 包内相对路径的图标，位图（`.png`/`.jpg` 等）或矢量（`.svg`）均可，在侧边栏卡片**原样展示**（宿主不加背景/不裁圆角，圆角与透明由图标自定）；建议方形（≥64×64）。省略则用名称首字母占位。
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
 - `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。（agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR。）
 - `engine` (string, voice/instrument/effect **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
-- `extension` (string, format **必填**) — 文件扩展名 **id**（不带点；同属不可变身份）。
+- `suffixes` (string[], format **必填**) — 该格式认的**文件后缀清单**（不带点，如 `["mid","midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类与全部说明；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。
 - `name` (string, 选填) — **显示名**（UI 用，可与 id 不同、可翻译）；省略则 UI 退回显示 id。
-- `localizations` (object, 选填) — 翻译 `name`，如 `{ "zh-CN": { "name": "增益" } }`。
+- `introduction` (string, 选填) — 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。
+- `localizations` (object, 选填) — 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。`introduction` 的语言变体就走这里（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。
 - `classes` (string[], 含代码**必填**) — **入口候选类全名数组**。宿主把数组里的类都扫一遍，按本 `type` 所需接口逐个匹配、命中即注册：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine`（首个命中者）；format→`IImportFormat`(注册导入)+`IExportFormat`(注册导出)，各扫一遍、至少命中其一，同一类可同实现两接口。无需精确登记哪个类干哪件事——列上候选、宿主按接口认领。每个候选类需无参构造函数。
 - `assembly` (string, 含代码**必填**) — 含上述候选类的单个程序集（相对包根，所有候选类同居此程序集）；资源包不写。
 - `platforms` (string[], 选填) — 如 `["win","osx","linux"]` 或 `["win-x64"]`；空=全平台。
-- **身份 id vs 显示名**：`engine`/`extension` 是身份（注册键 + 序列化引用，不可变）；`name`/`localizations` 仅 UI 展示、可改可译。
+- **身份 id vs 显示名**：`engine`/`suffixes` 是身份（注册键 + 序列化引用，不可变）；`name`/`localizations` 仅 UI 展示、可改可译。
+- **`introduction` 是条目级、也是你唯一需要写的说明**：AI 要的"一句话摘要"由它自己从这份全文提炼，不必你另写一行（你不清楚模型要什么，写出来多半成了产品文案）。多能力包请给每个条目各写一份。
+- **不写 introduction 的后果**：宿主【不会】拿包级 `description` 冒充它。agent 只会看到"该能力没有自己的介绍"，外加一句**明确标注为降级参考**的包级自述——并被告知那讲的是整个包、不等于这个能力。于是 AI 对你插件的了解仅止于一个名字，也就不会主动推荐它。
+- **README 不是元数据**：宿主只认 manifest 声明的 `introduction`。包里的 `README.md` 是你留给仓库读者的文件（build 步骤、license、贡献指南），宿主不读、不展示——两者受众不同，不必也不该复用同一份。
 
 规则：
 - 有 `extensions[]` → 以它为准，顶层身份字段忽略。
 - 无 `extensions[]`（简写）→ 顶层身份字段即那唯一插件；此时顶层 `name`/`localizations` **同时**是包名与该条目显示名（共用，**不要写两个 `name`**——同对象重复键会互相覆盖）。要让包名与条目显示名各不相同，改用 `extensions[]`、给条目单独写 `name`。
-- 一个程序集多引擎/格式 → `extensions[]` 逐条列（同 `assembly`、各自 `engine`/`extension` + `classes`）。
+- 一个程序集多引擎/格式 → `extensions[]` 逐条列（同 `assembly`、各自 `engine`/`suffixes` + `classes`）。
 - 身份在 manifest 单一真相，代码里**不写 attribute**；宿主扫 `classes` 候选类、按本 `type` 所需接口认领并实例化，不反射扫描。
 - 无 `id` 的 manifest（或无文件）= **Legacy**，不要按此生成新插件。
 
@@ -56,7 +60,7 @@
 public interface IImportFormat { ProjectInfo Deserialize(Stream stream); }
 public interface IExportFormat { void Serialize(Stream output, ProjectInfo info); }  // 宿主给流、插件写入（勿 Dispose/Seek）
 ```
-- 扩展名与实现类在 manifest：`{ "type":"format", "extension":"ext", "classes":["Ns.Importer","Ns.Exporter"], "assembly":"X.dll" }`（`extension` 不带点；`classes` 里至少有一个实现 `IImportFormat` 或 `IExportFormat`，可一类同实现两者）。
+- 扩展名与实现类在 manifest：`{ "type":"format", "suffixes":["ext"], "classes":["Ns.Importer","Ns.Exporter"], "assembly":"X.dll" }`（`suffixes` 不带点；`classes` 里至少有一个实现 `IImportFormat` 或 `IExportFormat`，可一类同实现两者）。
 - 工程模型在 `TuneLab.SDK`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。实现类需无参构造函数。
 
 ### Voice 接口（命名空间 `TuneLab.SDK`）
@@ -257,7 +261,8 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
   "version": "1.0.0",
   "sdk-version": "1.0",
   "type": "format",
-  "extension": "myfmt",
+  "suffixes": ["myfmt"],
+  "introduction": "Introduction.md",
   "classes": ["Example.MyFormat.MyFormatImporter", "Example.MyFormat.MyFormatExporter"],
   "assembly": "MyFormat.dll"
 }

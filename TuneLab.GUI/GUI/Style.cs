@@ -29,6 +29,10 @@ internal static class Style
     public static readonly Color BUTTON_PRIMARY_HOVER = new(255, 127, 127, 255);
     public static readonly Color BUTTON_NORMAL_HOVER = new(255, 85, 92, 153);
 
+    // 自绘标题栏的关闭键：悬浮红底 + 按下更深，随系统窗口关闭键的惯例（红底白叉）。
+    public static readonly Color CLOSE_HOVER = new(255, 232, 17, 35);
+    public static readonly Color CLOSE_PRESSED = new(255, 197, 15, 31);
+
     public static readonly Color AMP_NORMAL = new(255, 102, 255, 51);
     public static readonly Color AMP_DELAY = new((int)(0.5 * 255), 102, 255, 51);
     public static readonly Color AMP_WARN = new(255, 255, 214, 51);

@@ -126,17 +126,14 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     {
         // 直接消费 ExtensionManager 的结构化加载结果，不再重复解析 manifest.json
         // 或靠字符串匹配猜类型——类型/名称/版本/代际都来自真实加载结果。
-        // 声明了扩展设置的包 id 集合（决定卡片/详情窗是否显示齿轮）。一次取用、逐项判成员即可。
-        var settingsPackages = ExtensionSettingsManager.GetEntries().Select(e => e.PackageId).ToHashSet();
-
+        // 卡片上不再有设置齿轮（设置是 per 能力位的，包级卡片无从代表其中某一个），故这里也不必查设置声明；
+        // 设置入口在详情窗各 tab 内，见 BuildDetailPages 的 SettingsKey。
         foreach (var result in ExtensionManager.LoadResults)
         {
-            bool hasSettings = !string.IsNullOrEmpty(result.Id) && settingsPackages.Contains(result.Id);
-            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.Error, hasSettings);
+            var itemView = new ExtensionItemView(result.Name, result.Version, DisplayTypes(result), result.Author, result.Description, result.IconPath, result.DirectoryPath, result.Status, result.Error);
             itemView.UninstallRequested += () => OnUninstallExtension(itemView);
             itemView.CancelUninstallRequested += () => OnCancelUninstall(itemView);
             itemView.OpenDetailRequested += () => OnOpenDetail(result);
-            itemView.OpenSettingsRequested += () => OnOpenSettings(result);
             if (ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath))
                 itemView.MarkPendingUninstall();
             mAllExtensions.Add(itemView);
@@ -196,46 +193,92 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             mDetailWindow.SetUninstallPending(ExtensionManager.PendingUninstalls.Contains(dirPath));
     }
 
-    // 打开设置窗并定位到该插件的扩展设置区（详情窗齿轮触发）。
-    private void OnOpenSettings(ExtensionLoadResult result)
+    // 打开设置窗并精确定位到某个【能力位】的设置区（详情窗某个 tab 的齿轮触发）。
+    // extensionKey 形如 "voice:MyEngine"，由该 tab 对应的条目算出——设置是 per 能力位的，故不做"落到该包
+    // 首个有设置的条目"这类猜测（卡片上原来那个包级齿轮已因此移除）。
+    private void OnOpenSettings(ExtensionLoadResult result, string extensionKey)
     {
-        var settings = new SettingsWindow(result.Id);
+        var settings = new SettingsWindow(result.Id, extensionKey);
         if (TopLevel.GetTopLevel(mContentPanel) is Avalonia.Controls.Window owner)
             settings.Show(owner);
         else
             settings.Show();
     }
 
-    // 打开扩展详情窗：按当前语言解析包级 README（无则显占位），弹出可缩放详情窗。
+    // 详情窗正文的分页：**逐 manifest 条目恒一页**，不做任何合并、也不按"有没有内容"过滤。
+    //
+    // 不合并：声明的单位就是条目（一个格式的多个后缀别名写在同一条目里，见 ExtensionInfo.suffixes），
+    //   故不会出现两个条目指同一份文档，也就不需要"按文件去重"那种事后补救（那样两条目 name 不同时无从取舍）。
+    // 不过滤：tab 一栏如实回答"这个包提供哪些能力位、各自是什么"。没写文档的条目照样占一页（显占位），
+    //   否则用户看不到它的存在；也只有恒生成，才有地方承载该条目的齿轮（及后续的启用/禁用开关）。
+    private static List<ExtensionDetailPage> BuildDetailPages(ExtensionLoadResult result)
+    {
+        var pages = new List<ExtensionDetailPage>();
+
+        // 本包各能力位的设置桶键；齿轮按 (包 id, kind:identity) 精确归属到条目。
+        var settingsKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(result.Id))
+        {
+            foreach (var e in ExtensionSettingsManager.GetEntries())
+                if (e.PackageId == result.Id)
+                    settingsKeys.Add(e.ExtensionKey);
+        }
+
+        foreach (var entry in result.Entries)
+        {
+            // 多身份条目（多后缀 format）取首个命中的桶——设置桶目前是 per 能力位的，format 也还没接进设置系统；
+            // 真接进来时应改成 per 条目一桶（否则同一格式的几个后缀会各存一份设置）。
+            string? settingsKey = null;
+            foreach (var id in entry.Identities)
+            {
+                var key = entry.Kind + ":" + id;
+                if (settingsKeys.Contains(key)) { settingsKey = key; break; }
+            }
+
+            string? markdown = null;
+            if (!string.IsNullOrEmpty(entry.IntroductionPath))
+            {
+                try { markdown = File.ReadAllText(entry.IntroductionPath); }
+                catch { /* 读取失败按无文档处理 */ }
+            }
+
+            pages.Add(new ExtensionDetailPage
+            {
+                Title = string.IsNullOrEmpty(entry.DisplayName) ? result.Name : entry.DisplayName,
+                Kind = Capitalize(entry.Kind),
+                // format 条目的身份就是文件后缀：如实列在页里，否则用户只看到一个名字、不知道它管哪些文件。
+                Identities = entry.Identities,
+                IdentitiesAreFileSuffixes = entry.Kind == "format",
+                Markdown = markdown,
+                FilePath = entry.IntroductionPath,
+                SettingsKey = settingsKey,
+            });
+        }
+
+        return pages;
+    }
+
+    // 打开扩展详情窗：正文按包内各条目分页渲染其 introduction（都没写则显占位），弹出可缩放详情窗。
     // 单窗：再次打开先关旧窗，避免堆叠。
     private void OnOpenDetail(ExtensionLoadResult result)
     {
         try
         {
-            var readmePath = ExtensionReadme.Resolve(result.DirectoryPath, TranslationManager.CurrentLanguage.Value);
-            string? markdown = null;
-            if (readmePath != null)
-            {
-                try { markdown = File.ReadAllText(readmePath); }
-                catch { /* 读取失败按无文档处理 */ }
-            }
-
-            // 该插件是否声明了扩展设置（决定详情窗是否显示齿轮）：按包 id 匹配设置条目。
-            bool hasSettings = !string.IsNullOrEmpty(result.Id)
-                && ExtensionSettingsManager.GetEntries().Any(e => e.PackageId == result.Id);
+            // 齿轮已随各页归属到具体能力位（BuildDetailPages 逐条目挂 SettingsKey），故此处不再算包级 hasSettings。
+            var pages = BuildDetailPages(result);
 
             var info = new ExtensionDetailInfo
             {
                 Name = result.Name,
                 Version = result.Version,
                 Author = result.Author,
-                Summary = result.Description,
+                Description = result.Description,
                 IconPath = result.IconPath,
+                // 类别徽标只在无条目页时用得上（legacy / manifest 坏包）；有 tab 的包由各 tab 自带徽标。
                 Types = DisplayTypes(result),
                 PackageDir = result.DirectoryPath,
-                ReadmeMarkdown = markdown,
-                ReadmePath = readmePath,
-                HasSettings = hasSettings,
+                Pages = pages,
+                IsLegacy = result.Generation == ExtensionGeneration.Legacy,
                 IsPendingUninstall = ExtensionManager.PendingUninstalls.Contains(result.DirectoryPath),
             };
 
@@ -243,8 +286,9 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             var win = new ExtensionDetailWindow(info);
             mDetailWindowPath = result.DirectoryPath;
             win.Closed += (_, _) => { if (ReferenceEquals(mDetailWindow, win)) { mDetailWindow = null; mDetailWindowPath = null; } };
-            // 齿轮 → 打开设置窗并定位到该插件；Uninstall/Cancel → 复用卡片的卸载/撤销流程（含确认对话框 + 待卸载标记）。
-            win.SettingsRequested += () => OnOpenSettings(result);
+            // 齿轮 → 打开设置窗并定位到【当前页那个能力位】的设置区；Uninstall/Cancel → 复用卡片的卸载/撤销流程
+            // （含确认对话框 + 待卸载标记）。
+            win.SettingsRequested += key => OnOpenSettings(result, key);
             win.UninstallRequested += () =>
             {
                 var itemView = mAllExtensions.FirstOrDefault(v => v.ExtensionPath == result.DirectoryPath);

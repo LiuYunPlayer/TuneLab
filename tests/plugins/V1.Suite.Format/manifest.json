@@ -8,8 +8,9 @@
   "extensions": [
     {
       "type": "format",
-      "extension": "tlsuite",
+      "suffixes": ["tlsuite"],
       "name": "Suite Format",
+      "introduction": "Introduction.Format.md",
       "classes": ["TuneLab.TestPlugins.Suite.Format.SuiteImportFormat", "TuneLab.TestPlugins.Suite.Format.SuiteExportFormat"],
       "assembly": "V1.Suite.Format.dll"
     },
@@ -17,6 +18,7 @@
       "type": "voice",
       "engine": "TLSuiteVoice",
       "name": "Suite Voice",
+      "introduction": "Introduction.Voice.md",
       "classes": ["TuneLab.TestPlugins.Suite.Voice.SuiteVoiceEngine"],
       "assembly": "V1.Suite.Voice.dll"
     }

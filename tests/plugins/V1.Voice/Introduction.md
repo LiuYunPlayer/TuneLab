@@ -15,7 +15,7 @@ Before this voice can be used, a little setup is needed:
 3. Type lyrics — each note gets its phonemes.
 
 - [x] Manifest loaded
-- [x] README rendered
+- [x] Introduction rendered
 - [ ] Voice bank configured
 
 ## Parameters
@@ -28,8 +28,8 @@ Before this voice can be used, a little setup is needed:
 
 ## Notes
 
-> This is a blockquote. The README content is entirely author-defined —
-> the host only discovers the file, picks the language variant, and renders it.
+> This is a blockquote. The introduction content is entirely author-defined — the host only
+> resolves the path declared in the manifest (per-language via localizations) and renders it.
 
 ```csharp
 var engine = new TestVoiceEngine();

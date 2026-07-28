@@ -60,6 +60,7 @@
 "Multiple packages provide the same extension. Choose which one to use. Changes apply after restart." = "Meerdere pakketten bieden dezelfde extensie. Kies welke u wilt gebruiken. Wijzigingen worden toegepast na herstart."
 "No conflicting extensions. (Conflicts appear here when multiple packages provide the same engine id or file format.)" = "Geen conflicterende extensies. (Conflicten verschijnen hier wanneer meerdere pakketten dezelfde engine-id of hetzelfde bestandsformaat bieden.)"
 "Voice" = "Stem"
+"Instrument" = "Instrument"
 "Extension Routing" = "Extensie-routing"
 
 [FunctionBar]

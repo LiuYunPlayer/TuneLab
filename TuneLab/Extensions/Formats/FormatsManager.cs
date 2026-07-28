@@ -23,10 +23,14 @@ internal static class FormatsManager
         RegisterExporter(pkg, "tlp", "TuneLab Project", () => new TLP.TuneLabProject());
         RegisterImporter(pkg, "tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
         RegisterExporter(pkg, "tlpx", "TuneLab Project (CBOR)", () => new TLP.TuneLabProjectCbor());
-        RegisterImporter(pkg, "mid", "MIDI", () => new Midi.MidiWithExtension_mid());
-        RegisterExporter(pkg, "mid", "MIDI", () => new Midi.MidiWithExtension_mid());
-        RegisterImporter(pkg, "midi", "MIDI", () => new Midi.MidiWithExtension_midi());
-        RegisterExporter(pkg, "midi", "MIDI", () => new Midi.MidiWithExtension_midi());
+        // mid / midi 是同一格式的两个后缀别名：逐后缀注册（各自仍可被独立路由），但共用同一个实现类。
+        // 早年扩展名靠代码 attribute 标注、一个类只能标一个后缀，才不得不造 MidiWithExtension_mid/_midi
+        // 那样的双胞胎类；V1 起后缀由 manifest（内建则由此处）给出，那个约束早已不存在。
+        foreach (var suffix in new[] { "mid", "midi" })
+        {
+            RegisterImporter(pkg, suffix, "MIDI", () => new Midi.MidiFormat());
+            RegisterExporter(pkg, suffix, "MIDI", () => new Midi.MidiFormat());
+        }
     }
 
     // 工厂注册导入器：内建（LoadBuiltIn）、V1（ExtensionManager 按 manifest class 实例化）、

@@ -1,10 +1,10 @@
-﻿# Agent 工具集设计
+# Agent 工具集设计
 
 TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理念：单一动作面（CodeAct）**——编辑工程一律由模型写 JavaScript 经 `run_script` 表达（对象式 `tl` API），读取只保留一个"定向总览"，其余读取也走脚本。曾经的细粒度读写工具（`transpose_notes`/`apply_edits`/`get_part_notes`…）与其门面 `IAgentProjectEditor` 已全部退役——同一件事多条路只会降模型选择准确率、堆 prompt。本文面向维护者，也作为编写工具描述（喂模型）时的一致性参考。
 
 **归属判据（脚本面 vs 工具面）——按「谁需要」分**：分界不是"读/写"（`tl` 本就有大量读，如 `part.notes()`），而是**"这是不是用户会要的能力"**：
 - **用户会要的能力**（工程编辑、可复用命令、快捷键、未来 MCP）→ 走 `tl` 脚本动作面。它同时是用户的脚本面与 agent 的写路径，故"帮用户写脚本+绑快捷键"和"agent 顺手做一件事"是同一件事。
-- **只有 agent 自身推理需要、用户不会去脚本化的**（枚举环境、读元数据/schema/readme、定位总览）→ 加薄只读 `IAgentTool`。
+- **只有 agent 自身推理需要、用户不会去脚本化的**（枚举环境、读元数据/schema/introduction、定位总览）→ 加薄只读 `IAgentTool`。
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
@@ -24,8 +24,8 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `delete_script` | 库 | 删某脚本（同时从菜单移除）。 |
 | `get_script_inputs` | 库 | 读某脚本的入参 schema（逐字段名/类型/默认/范围·选项）+ 用户**上次输入值**。只读（只 eval getInputConfig，无副作用）。run_saved_script 前调。 |
 | `run_saved_script` | 库 | 按库名跑已存脚本（= 替用户按那个菜单项），`inputs` 可省：给了覆盖在上次值上再补默认，没给用上次/默认。走 run_script 同一授权闸门。 |
-| `list_extensions` | 感知 | 列用户已装扩展：名/id/版本/作者/类别(format/voice/instrument/effect/agent-model)/加载状态/有无 readme。直接读 `ExtensionManager.LoadResults`。 |
-| `get_extension_readme` | 感知 | 按 id 或名读某扩展 README（markdown 原文，按语言解析、上限截断）。按需拉取（渐进式披露）。 |
+| `list_extensions` | 感知 | 列用户已装扩展：包级(名/id/版本/作者/类别/加载状态/包描述) + 逐能力位(身份/作者摘要/有无 introduction/冲突态)。直接读 `ExtensionManager.LoadResults`。 |
+| `get_extension_introduction` | 感知 | 读**某个能力位**的 introduction（作者写的 markdown，manifest 声明路径、上限截断）；没写则**标注式降级**给包级 description 并声明它是二手参考；同身份跨包时要 `packageId` 消歧。按需拉取（渐进式披露）。 |
 | `list_sound_sources` | 感知 | 三层钻取：不给 `engine` → 列引擎(不 Init)；给 `engine` → 列该引擎音源(id/名/描述)；给 `engine`+`source` → 读该音源参数 schema(part/note/自动化/音素级，各带类型/范围/默认)。后两层仅 Init 该引擎。`kind` 可选过滤。 |
 | `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
 | `list_settings` | 感知 | 列宿主应用设置（设置窗那些）：键/标签(含本地化)/所在页/允许值(类型·范围·选项)/当前值/默认值/是否需重启/agent 可否改。用于「在哪调怎么调」与 set_setting 前置。直接读 `SettingsRegistry`。 |
@@ -49,7 +49,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ export_project ─────────────────────► FormatsManager.SerializeNative ──► ToolAuthorization ──► FileStream（序列化先于闸门：失败不打扰用户）
         ├─ get_script_inputs ──────────────────► ScriptRunner.GetInputConfig + ScriptInputMemory（只读）
         ├─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
-        ├─ list_extensions / get_extension_readme ─► ExtensionManager.LoadResults / ExtensionReadme（只读）
+        ├─ list_extensions / get_extension_introduction ─► ExtensionManager.LoadResults（含逐条目 Entries，只读）
         ├─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读；给 engine 才 Init；给 engine+source 合成 context 求参数 schema）
         ├─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
         ├─ list_settings ──────────────────────► SettingsRegistry（只读；声明即枚举源）
@@ -150,8 +150,8 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 
 编辑面只让 agent 改工程，但要「推荐插件/音源、指导用户在哪用某能力」，agent 得先**看见宿主环境**。这几件除 `set_setting` 外都是纯只读查询——按架构原则（单一动作面）**工程状态的修改恒走 `run_script`，绝不另开工程写工具**；`set_setting` 改的是**宿主应用配置**（不是工程状态、没有也不该有 `tl` 面），故是工具面的一个写口，并自带授权闸门：
 
-- **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），逐条列名/id/版本/作者/类别/加载状态/错误/有无 readme。是「诉求 3」的地基。
-- **`get_extension_readme(name)`**：按 id 或名匹配 `ExtensionLoadResult`，`ExtensionReadme.Resolve(dir, lang)` 解析 `README.<lang>.md → README.md` 得路径 → `File.ReadAllText`。readme 可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。
+- **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），按包一条列名/id/版本/作者/类别/加载状态/错误/包级 description，并内嵌逐 **能力位** 行（`kind:identity` 身份清单、显示名、有无 introduction、routing 冲突态）。两层粒度各有其用：**包**承载排障与管理事实（加载状态/sdk 门/卸载单位/routing 的选择值也是包 id），**能力位**才是推荐与使用时真正引用的东西。是「诉求 3」的地基。
+- **`get_extension_introduction(capability, packageId?)`**：在各包 `Entries` 里按 `kind:identity` / 裸 identity / 显示名匹配条目 → 读其 `IntroductionPath`（加载期已按 manifest 声明 + `localizations` 语言覆盖解析成绝对路径）→ `File.ReadAllText`。**粒度是能力位而非包**（一个包多个能力各有各的介绍）；同身份跨包并存时**不猜**、列候选要求传 `packageId`（同 `list_extension_settings` 的规矩）。介绍可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。**宿主只认 manifest 声明的 introduction**：包里的 README 是作者面向仓库读者的自留文件，不再当元数据；回报里点明该文本出自作者、非宿主保证。
 - **`list_sound_sources(kind?, engine?, source?)`**：三层钻取避免一次性 Init 全部引擎——不给 `engine` 用 `GetAllVoiceEngines/GetProviders/GetDisplayName`（不 Init）列引擎；给 `engine` 用 `GetAllVoiceInfos/GetAllInstrumentInfos`（**仅 Init 该引擎**）列其音源；给 `engine`+`source` 读该音源**参数 schema**（诉求 4/5 的地基）。音源枚举/schema 求值跑插件代码，故在 **UI 线程**执行；空引擎 `type=""` 在列表里跳过。
   - **音源参数 schema（第三层，A4）**：config 是 **voiceId 的函数**（不同音源可声明不同参数），且 `VoicesManager.Declare` 对**未知 id 静默回退空引擎**给出误导性空 schema——故必须按「引擎 + 真实音源 id」读、先 `TryGetVoiceInfo` 校验 source 存在。`VoicesManager`/`InstrumentsManager` 的 `Get*Config` 是 public（但 `GetInitedEngine` 是 private，故走 manager 方法而非直取引擎，与 effect 不同）。用 Agent 层自建的 **part-free 合成 context**（真 `VoiceId` + 空 `Notes`/`PartProperties`/`Automations`，见 `SoundSourceInfoTools` 的 `StaticVoicePartContext` 等）纯静态调 5 个（voice）/4 个（instrument，无音素/歌词）声明方法。schema 是**默认值版**（条件化 schema 只呈现默认分支，同 effect 上限）。**phoneme 是静态读的天花板**：其 slot 来自 note 里**真实音素**（数据驱动），空 note 恒空——除非引擎恰好静态声明了 slot schema，否则如实标注"需合成后才可见"、**不造假 note**（phoneme 的真发现走「探测沙箱」`run_in_sandbox`，见下节：agent 在可丢弃工程里挂源/造合法歌词/触发合成/读回显）。
 - **`list_effects(engine?)`**：`EffectManager` 严格镜像音源管理器（`GetAllEffectEngines/GetProviders/GetDisplayName/GetInitedEngine`），故列引擎层与音源同格式（共用 `EngineCatalog`）。与音源不同——effect **无「音源目录」**（一个引擎 = 一种效果器类型），第二层列的是**参数 schema**：给 `engine` 时 `GetInitedEngine`（**仅 Init 它**）→ 传一个 **part-free 的空 `IEffectSynthesisPropertyContext`**（空 `IEffectSynthesisView`：无改过的值 → 各参数取引擎默认）→ 调引擎三个纯函数声明方法 `GetPropertyConfig`（静态属性 `ObjectConfig`）/`GetAutomationConfigs`（可编辑自动化轨）/`GetSynthesizedParameterConfigs`（只读回显轨），逐参数输出类型/范围/默认。是「诉求 6」的地基。要点：宿主自带的 `EffectPropertyContext` 绑 part 且 private，不可复用，故 Agent 层自建极简空 context；effect 无内建引擎（全来自插件）；条件化 schema 只能拿「默认值版」（静态枚举固有上限）；读 schema 必须 Init 引擎（跑插件代码）→ UI 线程。
@@ -259,8 +259,8 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 防"某工具单次输出淹没上下文"，分两层：
 
 - **中央硬上限（兜底，覆盖全部现有+未来工具）**：`AgentRunner` 在工具结果进上下文的**唯一入口**（`ClampToolResult`，紧接 `ExecuteAsync` 之后）统一截断——超 `Settings.AgentMaxToolResultChars`（**宽默认 40000 字符 ≈ 1 万 token；可在设置窗「常规」页调**；`<=0`=不限）即保留头部 + 明确标记 + 收窄指引。**在此一处 clamp，故展示(progress)与回灌(mMessages/trajectory)一致**。设宽默认的用意：普通机器十几个音源/结果远小于此、**体验不受影响**，只拦成百上千的畸形案例。
-- **各工具自带的更贴心上限（在中央之下，作友好提示）**：`get_extension_readme` 20000 字符截断；`list_sound_sources` 音源列表 300 条 + "refine" 提示；`run_script`/`run_saved_script` 脚本 `print/log` 输出 16KB（`ScriptRunner.MaxOutput`）。
-- **设计取舍（业界通用套路的选型）**：可收窄的 list（有 `kind/engine/source` 参数）→ 收窄提示；原子读（一个脚本/一篇 readme）→ 截断（无可收窄，未来可补 offset/limit 分页）；脚本返回值 → 让脚本**在脚本内**先蒸馏（CodeAct：迭代与压缩都不进上下文）。纯"拒绝+让模型收窄"不作默认——原子读无从收窄、且开头够用时截断更省往返。
+- **各工具自带的更贴心上限（在中央之下，作友好提示）**：`get_extension_introduction` 20000 字符截断；`list_sound_sources` 音源列表 300 条 + "refine" 提示；`run_script`/`run_saved_script` 脚本 `print/log` 输出 16KB（`ScriptRunner.MaxOutput`）。
+- **设计取舍（业界通用套路的选型）**：可收窄的 list（有 `kind/engine/source` 参数）→ 收窄提示；原子读（一个脚本/一篇介绍）→ 截断（无可收窄，未来可补 offset/limit 分页）；脚本返回值 → 让脚本**在脚本内**先蒸馏（CodeAct：迭代与压缩都不进上下文）。纯"拒绝+让模型收窄"不作默认——原子读无从收窄、且开头够用时截断更省往返。
 
 ## 维护
 

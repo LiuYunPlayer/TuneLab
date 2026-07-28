@@ -46,6 +46,19 @@ internal static class ExtensionManager
         return string.IsNullOrEmpty(packageId) ? "Legacy" : packageId;
     }
 
+    // 某包的一句话自述（manifest 顶层 description）。仅供 agent 在【拿不到能力位自己的介绍时】作
+    // 标注式降级参考——调用方必须点明"这是包级自述、可能涵盖包里别的能力"，不得当成该能力的描述。
+    // 内建能力无 LoadResult，返回 null。
+    public static string? GetPackageDescription(string? packageId)
+    {
+        if (string.IsNullOrEmpty(packageId))
+            return null;
+        foreach (var r in mLoadResults)
+            if (r.Id == packageId)
+                return string.IsNullOrWhiteSpace(r.Description) ? null : r.Description;
+        return null;
+    }
+
     // Compat.Legacy 接入点：设置后接管 Legacy 包加载，返回 true 表示已处理。
     // 第三参 typeSink 由 hook 在注册成功时回填真实类别（"format"/"voice"），供 sidebar
     // 展示精确类型而非笼统 "Legacy"——hook 在 Compat 内部才知道老插件实际实现了哪些接口。
@@ -159,6 +172,16 @@ internal static class ExtensionManager
 
         foreach (var ext in description.EffectiveExtensions)
         {
+            var kind = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
+
+            // 声明即入列：不论后续是否注册成功（平台不匹配 / 程序集缺失 / 入口类未命中），都如实反映
+            // 「这个包里声明了什么」——供详情窗逐条目渲染 introduction、agent 逐条目列能力与摘要。
+            result.Entries.Add(new ExtensionEntryInfo(
+                kind,
+                EntryIdentities(ext, kind),
+                ext.LocalizedName(lang),
+                ExtensionIntroduction.Resolve(path, ext, lang)));
+
             if (!ext.IsPlatformAvailable())
             {
                 skipped++;
@@ -166,13 +189,27 @@ internal static class ExtensionManager
                 continue;
             }
 
-            var kind = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
             if (!string.IsNullOrEmpty(kind) && !result.Types.Contains(kind))
                 result.Types.Add(kind);
 
             // 资源类（无代码）：登记即可，不加载程序集（由对应引擎运行时去发现目录内资源）。
             if (!IsCodeKind(kind))
             {
+                // 但【声明了代码】的未知 type 不是资源包，而是本宿主还不支持的插件类型（如只在别的分支/
+                // 更高版本存在的 kind）。资源类 type 是开放集，宿主无从区分二者——除了这个判据：资源包
+                // 不写 assembly/classes。缺了它就会把这种包静默登记成 loaded，侧栏显示"已加载"而其代码
+                // 一行没跑，比报错更误导。故如实报跳过。
+                if (!string.IsNullOrEmpty(ext.assembly) || ext.CandidateClasses.Length > 0)
+                {
+                    skipped++;
+                    var unsupported = string.Format(
+                        "unsupported extension type '{0}': the entry declares code (assembly/classes) but this host has no such plugin kind",
+                        string.IsNullOrEmpty(kind) ? "(empty)" : kind);
+                    reasons.Add(unsupported);
+                    Log.Warning(string.Format("Extension {0}: {1}", description.name, unsupported));
+                    continue;
+                }
+
                 loaded++;
                 continue;
             }
@@ -390,11 +427,24 @@ internal static class ExtensionManager
     // 供冲突消解区分多个 legacy 包并反查显示名。LegacyCompatLoader 注册与 LoadResult.Id 须用同一值。
     public static string LegacyPackageId(string packageDir) => Path.GetFileName(packageDir);
 
-    // 条目身份标签（用于日志/错误前缀）：format 以扩展名、引擎类以 engine id 标识。
+    // 条目占的能力位身份清单：format 是它认的全部后缀（一个格式可有多个别名）、其余代码类是单个 engine id；
+    // 资源类不占能力位故为空。值与 ExtensionRouting 的 identity 同口径，供 agent 按 kind:identity 定位条目。
+    // 注意 kind 这一维并非一一对应：routing 把 format 细分成 format-import / format-export 两条可路由身份，
+    // 故一个 N 后缀的 format 条目对应 2×N 个能力位，它们共享该条目唯一一份 introduction。
+    static string[] EntryIdentities(ExtensionInfo ext, string kind)
+        => kind == "format" ? ext.EffectiveSuffixes
+        : IsCodeKind(kind) ? (string.IsNullOrEmpty(ext.engine) ? [] : [ext.engine])
+        : [];
+
+    // 条目身份标签（用于日志/错误前缀）：format 列出全部后缀、引擎类用 engine id。
     static string IdentityLabel(ExtensionInfo ext, string kind)
-        => kind == "format"
-            ? string.Format("format '{0}'", ext.extension ?? "?")
-            : string.Format("{0} '{1}'", kind, ext.engine ?? "?");
+    {
+        if (kind != "format")
+            return string.Format("{0} '{1}'", kind, ext.engine ?? "?");
+
+        var suffixes = ext.EffectiveSuffixes;
+        return string.Format("format '{0}'", suffixes.Length > 0 ? string.Join("/", suffixes) : "?");
+    }
 
     // 条目声明的单个程序集（相对包目录）；未声明或文件不存在返回 null（调用方按失败处理）。
     static string? ResolveAssemblyFile(string path, ExtensionInfo ext)
@@ -449,26 +499,28 @@ internal static class ExtensionManager
 
     // format 条目：扫候选类认领 IImportFormat / IExportFormat（各可缺其一，至少一个）。工厂延迟实例化（与旧行为一致），
     // 但类型/构造在加载期即扫描校验。同一个类可同时实现两接口（则导入导出都注册它）。
+    // 一个条目 = 一个格式，可认多个后缀别名：【逐后缀注册】，故各后缀在 routing 里仍是独立可选的能力位，
+    // 而实现类与说明只声明一次（不必为 mid/midi 之类的别名复制条目或造双胞胎类）。
     static bool RegisterFormatEntry(string packageId, ExtensionInfo ext, Assembly assembly, string[] candidates, string displayName, out string? error)
     {
-        if (string.IsNullOrEmpty(ext.extension)) { error = "missing 'extension'"; return false; }
+        var suffixes = ext.EffectiveSuffixes;
+        if (suffixes.Length == 0) { error = "missing 'suffixes'"; return false; }
         if (candidates.Length == 0) { error = "no entry 'classes' declared"; return false; }
 
-        bool any = false;
-        if (TryScanCtor<IImportFormat>(assembly, candidates, out var ictor, out _))
-        {
-            FormatsManager.RegisterImporter(packageId, ext.extension, displayName, () => (IImportFormat)ictor!.Invoke(null));
-            any = true;
-        }
-        if (TryScanCtor<IExportFormat>(assembly, candidates, out var ector, out _))
-        {
-            FormatsManager.RegisterExporter(packageId, ext.extension, displayName, () => (IExportFormat)ector!.Invoke(null));
-            any = true;
-        }
-        if (!any)
+        bool hasImport = TryScanCtor<IImportFormat>(assembly, candidates, out var ictor, out _);
+        bool hasExport = TryScanCtor<IExportFormat>(assembly, candidates, out var ector, out _);
+        if (!hasImport && !hasExport)
         {
             error = string.Format("no class implementing IImportFormat or IExportFormat among [{0}]", string.Join(", ", candidates));
             return false;
+        }
+
+        foreach (var suffix in suffixes)
+        {
+            if (hasImport)
+                FormatsManager.RegisterImporter(packageId, suffix, displayName, () => (IImportFormat)ictor!.Invoke(null));
+            if (hasExport)
+                FormatsManager.RegisterExporter(packageId, suffix, displayName, () => (IExportFormat)ector!.Invoke(null));
         }
         error = null;
         return true;
