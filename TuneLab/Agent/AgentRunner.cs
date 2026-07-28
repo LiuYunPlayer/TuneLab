@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Configs;
@@ -26,6 +27,10 @@ internal sealed class AgentTurnMessage
     public string? ToolCallId { get; init; }                     // 仅 Tool：回指对应 AgentToolCall.Id
     public bool IsError { get; init; }                           // 仅 Tool：结果是否为错误（UI 状态色）
     public AgentTokenUsage? Usage { get; init; }                 // 仅 Assistant：本次模型调用的 token 用量
+    // 仅 Assistant：这条回复【没说完就被中止】（用户点停 / 技术失败发生在流式途中），Content 是已收到的半截文本。
+    // 它进轨迹（落盘 + 显示，故重载看得见当时说到哪），但【不喂回模型】——见 ReconstructHistory：那次回复作废，
+    // 不该让模型以为自己说过这些话（半截话往里塞，续聊时它会当成自己的既有表态）。
+    public bool Stopped { get; init; }
 }
 
 // agent 主循环：把对话历史 + 工具声明发给模型会话，循环执行模型请求的工具并把结果回灌，
@@ -55,6 +60,14 @@ internal sealed class AgentRunner
     // OnSend 据此持久化"半截过程"供显示（重载==实时）。
     public IReadOnlyList<AgentTurnMessage> CurrentTrajectory => mCurrentTrajectory ?? (IReadOnlyList<AgentTurnMessage>)[];
     List<AgentTurnMessage>? mCurrentTrajectory;
+
+    // 轨迹刚追加了一条记录。宿主据此增量落盘，使进程在下一步消失（意外关闭 / 崩溃 / 其它）时，已发生的调用不随内存一起没掉——
+    // 否则一句话触发的长任务被打断后，会话里只剩用户那一句，既看不出它干到哪、续跑时模型也会因看不见自己做过什么而从头再来。
+    //
+    // 【必须同步】不走 progress 事件通道：那条通道是 Progress<AgentEvent>（异步 Post 到 UI 线程），而工具在 UI 线程同步执行，
+    // 事件排进队列后要等当前工作项让出才被处理——进程若在这个间隙里消失，落盘就没发生，恰好在最需要它的时候失效。
+    // 同步回调把间隙消除，成本相同。宿主自己按"已落盘水位"取增量，故这里不带数据（避免事件与轨迹两份真相）。
+    public Action? TrajectoryAppended { get; set; }
 
     // 从尾部移除"未闭合"的一轮：末尾 assistant 发起了 tool_call 但缺配对 tool 结果（取消卡在工具中途会产生），
     // 连同其已有的部分结果一并移除——避免悬空 tool_call 喂模型被端点拒。用户消息与已完成（配对）轮完整保留。
@@ -124,15 +137,50 @@ internal sealed class AgentRunner
             total += x.TotalTokens;
         }
 
+        // 流式增量【边转发边累积】：转发供 UI 实时渲染，累积供"中途被中止"时把已说出的半截留进轨迹。
+        // 不累积的话，那段文字只存在于界面上——上下文里没有、磁盘上也没有，重开会话就凭空消失（而灰字"已停止"还在，
+        // 等于告诉用户"这里停过"却不给看停在哪），"显示 重载==实时"就破了。
+        var partialText = new StringBuilder();
+        var partialReasoning = new StringBuilder();
         // 把会话的字符串文本增量同步包装成 AgentTextDelta 事件转发——与下面的工具事件走同一通道，保证到达 UI 的先后顺序。
-        IProgress<string>? deltaSink = progress == null ? null : new SyncProgress<string>(d => progress.Report(new AgentTextDelta(d)));
+        IProgress<string> deltaSink = new SyncProgress<string>(d =>
+        {
+            partialText.Append(d);
+            progress?.Report(new AgentTextDelta(d));
+        });
         // 推理模型的「思考」增量走独立的 AgentReasoningDelta 通道（与正文分流，仍经同一 progress 保持 FIFO 顺序）。
-        IProgress<string>? reasoningSink = progress == null ? null : new SyncProgress<string>(d => progress.Report(new AgentReasoningDelta(d)));
+        IProgress<string> reasoningSink = new SyncProgress<string>(d =>
+        {
+            partialReasoning.Append(d);
+            progress?.Report(new AgentReasoningDelta(d));
+        });
+
         // 各轮助手自然语言，合并为本轮最终文本：根治「多轮叙述只剩最后一轮」——首轮先说后调工具的叙述不再被丢弃。
         var narration = new List<string>();
         // 本轮新增的有序全量轨迹（assistant + tool），供宿主落盘 + 重建分步视图。
         var trajectory = new List<AgentTurnMessage>();
         mCurrentTrajectory = trajectory; // 抛异常时结果拿不到，故同引用暴露给 OnSend 落"半截过程"（见 CurrentTrajectory）
+
+        // 一次模型调用被中止（取消 / 技术失败）时，把已收到的半截文本作为一条 Stopped 记录留进轨迹，然后异常照抛。
+        // 只进 trajectory、不进 mMessages：前者是给宿主落盘与显示的真相，后者是喂模型的上下文——这次回复既已作废，
+        // 就不该让模型以为自己说过这些（半截话塞回去，续聊时它会当成自己的既有表态）。
+        // 落盘后由 ReconstructHistory 按 Stopped 跳过，两边口径因此一致。
+        void KeepPartialReply()
+        {
+            if (partialText.Length == 0 && partialReasoning.Length == 0)
+                return;
+
+            trajectory.Add(new AgentTurnMessage
+            {
+                Role = AgentRole.Assistant,
+                Content = partialText.ToString(),
+                Reasoning = partialReasoning.Length > 0 ? partialReasoning.ToString() : null,
+                Stopped = true,
+            });
+            partialText.Clear();
+            partialReasoning.Clear();
+            TrajectoryAppended?.Invoke();
+        }
 
         // 轮边界软插话：取尽 pending 文本，逐条作为 user 消息注入 mMessages + trajectory，并发事件供 UI 行内渲染。
         // 仅在安全边界调用（无未配对 tool_call），返回是否注入了至少一条（用于重置回合预算）。
@@ -145,6 +193,7 @@ internal sealed class AgentRunner
             {
                 mMessages.Add(new AgentMessage { Role = AgentRole.User, Content = pending });
                 trajectory.Add(new AgentTurnMessage { Role = AgentRole.User, Content = pending });
+                TrajectoryAppended?.Invoke();
                 progress?.Report(new AgentUserInterjection(pending));
                 any = true;
             }
@@ -155,12 +204,24 @@ internal sealed class AgentRunner
         while (rounds < MaxToolRounds)
         {
             rounds++;
-            var reply = await mSession.SendAsync(
-                new AgentModelRequest { Messages = mMessages, Tools = mToolSchemas },
-                deltaSink,
-                reasoningSink,
-                cancellationToken);
+            AgentModelReply reply;
+            try
+            {
+                reply = await mSession.SendAsync(
+                    new AgentModelRequest { Messages = mMessages, Tools = mToolSchemas },
+                    deltaSink,
+                    reasoningSink,
+                    cancellationToken);
+            }
+            catch
+            {
+                KeepPartialReply();   // 已说出的半截留进轨迹（不进上下文），异常照抛给宿主收尾
+                throw;
+            }
 
+            // 完整返回：累积器里的内容已由 reply.Content 完整承载，清掉以免下一次调用被中止时把它一并算进半截。
+            partialText.Clear();
+            partialReasoning.Clear();
             Accumulate(reply.Usage);
 
             var toolCalls = reply.ToolCalls.Count > 0 ? reply.ToolCalls : null;
@@ -178,6 +239,9 @@ internal sealed class AgentRunner
                 ToolCalls = toolCalls,
                 Usage = reply.Usage,
             });
+            // 先落"要调什么"、再落各自结果（见下）：中途消失就留下悬空 tool_call，其字面意思正是
+            // "发起了这个调用、结果不明"——宿主无从判断它成没成，不编造任何一种。
+            TrajectoryAppended?.Invoke();
 
             if (!string.IsNullOrEmpty(reply.Content))
                 narration.Add(reply.Content);
@@ -235,6 +299,7 @@ internal sealed class AgentRunner
                     Content = result,
                     IsError = isError,
                 });
+                TrajectoryAppended?.Invoke();
             }
 
             // 本轮所有 tool 结果均已配对回灌——安全边界：吃掉用户插话注入续跑（有则重置回合预算）。
@@ -243,11 +308,22 @@ internal sealed class AgentRunner
         }
 
         // 撞上限：再请求一次但不给工具，逼模型用已有进展给出收尾文本——好过整轮作废、空手而归。
-        var wrapUp = await mSession.SendAsync(
-            new AgentModelRequest { Messages = mMessages, Tools = [] },
-            deltaSink,
-            reasoningSink,
-            cancellationToken);
+        AgentModelReply wrapUp;
+        try
+        {
+            wrapUp = await mSession.SendAsync(
+                new AgentModelRequest { Messages = mMessages, Tools = [] },
+                deltaSink,
+                reasoningSink,
+                cancellationToken);
+        }
+        catch
+        {
+            KeepPartialReply();
+            throw;
+        }
+        partialText.Clear();
+        partialReasoning.Clear();
         Accumulate(wrapUp.Usage);
         mMessages.Add(new AgentMessage { Role = AgentRole.Assistant, Content = wrapUp.Content });
         trajectory.Add(new AgentTurnMessage
@@ -257,6 +333,7 @@ internal sealed class AgentRunner
             Reasoning = wrapUp.Reasoning,
             Usage = wrapUp.Usage,
         });
+        TrajectoryAppended?.Invoke();
         if (!string.IsNullOrEmpty(wrapUp.Content))
             narration.Add(wrapUp.Content);
         // 如实留痕：撞上限这件事必须无条件出现在回复里。原先它挂在"连一句话都没产出"的兜底分支上，而实际撞限时

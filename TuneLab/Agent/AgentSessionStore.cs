@@ -52,6 +52,11 @@ internal sealed class ChatTurnMessage
     public string? ToolCallId { get; set; }             // 仅 tool：回指 ToolCalls[].Id（v1+）
     public bool IsError { get; set; }                   // tool：结果是否为错误（v1+）；RoleError 恒 true
     public bool Interjected { get; set; }               // 仅 user：是否为生成过程中的轮边界插话（v1+，重载时行内重放而非另起一轮）
+    // 仅 assistant：这条回复没说完就被中止（用户点停 / 技术失败发生在流式途中），Text 是已收到的半截文本。
+    // 落盘是为了让重载看得见"当时说到哪"（否则界面上有、磁盘上没有，重开就凭空消失）；但【不喂回模型】——
+    // ReconstructHistory 按此跳过：那次回复已作废，不该让模型把半截话当成自己的既有表态。
+    // 加法式字段，旧文件无此键即 false。
+    public bool Stopped { get; set; }
     // 仅 user(轮锚)：本轮【当前】结局（OutcomeCancelled/OutcomeError；缺省=正常完成）。发送时即写用户消息、结局在轮终态回写；
     // 重试成功即清回 null（该轮变正常轮、不再给重试按钮），历史真相另由带内 RoleError 记录保留。
     // 加法式字段，旧文件无此键即 null（正常轮）。UI 重载据此渲染"已停止/失败+重试按钮"。

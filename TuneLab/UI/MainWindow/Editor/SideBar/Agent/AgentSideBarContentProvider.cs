@@ -534,7 +534,13 @@ internal sealed class AgentSideBarContentProvider
         ctx.Cts?.Cancel();
         mContexts.Remove(ctx);
         if (ctx.Session != null)
+        {
             AgentSessionStore.Delete(ctx.Session.Id);
+            // 断掉这个 ctx 的落盘能力。Cancel 只发信号、不等待：在飞那一轮的收尾代码（catch 里的 MarkTurnOutcome，
+            // 以及生成期间每次工具完成就跑的 FlushTrajectory）稍后才执行，那时若 Session 还挂着，就会把刚删掉的
+            // 文件重新写回磁盘——会话"复活"。各落盘路径都有 Session == null 的守卫，置空即一并生效。
+            ctx.Session = null;
+        }
         if (ctx == mActive)
             NewChat();
     }
@@ -726,16 +732,45 @@ internal sealed class AgentSideBarContentProvider
             while (i < msgs.Count && !IsTurnStart(msgs[i]))
                 i++;
             bool failed = turnStart != null && !string.IsNullOrEmpty(turnStart.Outcome);
+            // 中断态：锚是常规用户消息、Outcome 空着（没有任何收尾代码写过它）、且这一轮没有正常收尾。
+            // 它是【推断】出来的而非记录下来的——进程若被强行结束，没有一行代码来得及跑，
+            // 为它加个 Outcome 常量也永远不会有人去写。
+            bool interrupted = turnStart != null && !failed && !IsTurnComplete(msgs, start, i);
             if (i > start)
                 // 仍处于失败态的轮：末尾那条带内错误记录由下面的 BuildErrorEntry 渲染（带重试按钮），
                 // 组内不再重复渲染它；已被重试掉的历史错误则照位置行内呈现（留痕）。
-                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i, aborted: failed, skipTrailingError: failed));
+                ctx.View.Content.Children.Add(BuildReplayedTurn(msgs, start, i, aborted: failed || interrupted, skipTrailingError: failed));
             // 收场态：出错轮 → 可重试/复制的错误条目（重试仅给最后一轮，其上下文才对得上）；取消轮 → 灰字"已停止"。
             if (failed && turnStart!.Outcome == ChatTurnMessage.OutcomeError)
                 ctx.View.Content.Children.Add(BuildErrorEntry(ctx, turnStart, turnStart.ErrorText, allowRetry: i >= msgs.Count));
             else if (failed)
                 ctx.View.Content.Children.Add(AssistantContainer(OutcomeNotice(turnStart!)));
+            else if (interrupted)
+                // [继续] 只给末轮，与 BuildErrorEntry 的 allowRetry 同一口径：RetryAsync 是对【当前上下文】续跑，
+                // 非末轮点它就不是"接上那一轮"，结果会落到底部、归属错位。
+                ctx.View.Content.Children.Add(BuildInterruptedEntry(ctx, turnStart!, allowContinue: i >= msgs.Count));
         }
+    }
+
+    // 该轮是否【正常收尾】。判据 = 最后一条是"不带工具调用的 assistant 回复"——runner 正是在模型给出无工具的
+    // 答复时才返回，那条就是本轮的终点。中断（进程消失）则会停在别处：带 tool_calls 的 assistant（工具还没跑完
+    // 或结果没来得及落）、一条 tool 结果（下一次模型调用没回来）、或者区间空空如也（首次模型调用就没回来）。
+    //
+    // 不能改用"区间里有没有 assistant"来判：轨迹现在是边跑边落的（见 FlushTrajectory），中断轮往往已经落下
+    // 一大串 assistant/tool，那种判法会把它们全当成正常轮。
+    static bool IsTurnComplete(List<ChatTurnMessage> msgs, int start, int end)
+    {
+        for (int j = end - 1; j >= start; j--)
+        {
+            var m = msgs[j];
+            if (m.Role == ChatTurnMessage.RoleError)
+                continue;   // 带内错误痕迹是宿主写的、不是模型说的话，不参与收尾判定
+
+            // Stopped 的半截回复不算收尾（它恰恰是"没说完"的那条）。当前它只会与 Outcome 一同出现、走不到这里，
+            // 但判据该自洽：别让"没说完"被读成"说完了"。
+            return m.Role == "assistant" && !m.Stopped && (m.ToolCalls == null || m.ToolCalls.Count == 0);
+        }
+        return false;
     }
 
     // 取消/出错轮的末尾状态行：取消渲灰字"已停止"，出错渲红字"Error: 原因"（与实时 catch 路径同措辞）。
@@ -830,9 +865,14 @@ internal sealed class AgentSideBarContentProvider
             switch (m.Role)
             {
                 case "assistant":
-                    var calls = m.ToolCalls?.Where(c => resultIds.Contains(c.Id)).ToList(); // 只留有配对结果的调用（滤悬空）
+                    // 被中止的半截回复只给用户看，不喂回模型：那次回复已作废（用户点停 / 技术失败），
+                    // 把半截话塞回上下文会让模型当成自己的既有表态。它在 UI 重放里照常显示（见 BuildReplayedTurn）。
+                    if (m.Stopped)
+                        continue;
+
+                    var calls = m.ToolCalls;
                     if (string.IsNullOrEmpty(m.Text) && (calls == null || calls.Count == 0))
-                        continue; // 调用全悬空被滤空、又无正文 → 整条 assistant 丢弃
+                        continue;
                     history.Add(new AgentMessage
                     {
                         Role = AgentRole.Assistant,
@@ -841,6 +881,22 @@ internal sealed class AgentSideBarContentProvider
                             ? calls.Select(c => new AgentToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList()
                             : null,
                     });
+                    // 悬空的调用（发起了却没有配对结果——会话在工具执行途中中断）补一条【结果未知】的合成结果。
+                    // 不能直接滤掉那次调用：模型会因此完全不知道自己调过它，续跑时很可能【再调一次】——对
+                    // export_project / set_setting / set_keybinding 这类不可撤销的外部副作用，那就是重复施加。
+                    // 也不能编成"成功"或"失败"：宿主根本无从判断（工具可能已完成副作用只是没来得及返回，也可能刚进去就死了）。
+                    // 如实说"不知道"，模型自会先查证再动手。合成结果同时满足协议——tool_call 必须有配对结果，否则端点拒收。
+                    if (calls is { Count: > 0 })
+                        foreach (var c in calls)
+                            if (!resultIds.Contains(c.Id))
+                                history.Add(new AgentMessage
+                                {
+                                    Role = AgentRole.Tool,
+                                    ToolCallId = c.Id,
+                                    Content = "The result of this call was never recorded — the run was interrupted before it returned. "
+                                        + "It may have completed, partially completed, or not run at all. Verify the current state before retrying it, "
+                                        + "especially if it writes files or changes settings.",
+                                });
                     break;
                 case "tool":
                     history.Add(new AgentMessage { Role = AgentRole.Tool, ToolCallId = m.ToolCallId, Content = m.Text });
@@ -913,34 +969,46 @@ internal sealed class AgentSideBarContentProvider
         return anchor;
     }
 
-    // 本轮成功完成：把 runner 返回的有序轨迹（助手回复含思考/工具调用/用量、工具结果含错误标记）追加落盘——
-    // 用户消息已在 BeginTurn 写入，故这里只补助手侧。首轮（非手动命名）顺带用 LLM 总结覆盖占位标题。
-    void CompleteTurn(SessionContext ctx, string userText, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory, bool isNewSession)
+    // 轨迹增量落盘：把本轮轨迹里【水位之后】的记录补进会话并存盘，然后推进水位。
+    // 由 runner 的 TrajectoryAppended 同步回调驱动（每追加一条即落一次），使进程在下一步消失时，已发生的调用不随内存一起没掉。
+    // 幂等：无新增即不写盘。轮终态的三条路径也走它，故"边跑边落"与"轮末补齐"共用同一段逻辑、天然不重复。
+    void FlushTrajectory(SessionContext ctx, IReadOnlyList<AgentTurnMessage> trajectory)
     {
         var session = ctx.Session;
         if (session == null)
             return; // 理论不达：BeginTurn 已建会话
-        foreach (var m in trajectory)
-            session.Messages.Add(ToStored(m));
+
+        if (ctx.PersistedTurnMessages >= trajectory.Count)
+            return;
+
+        for (int i = ctx.PersistedTurnMessages; i < trajectory.Count; i++)
+            session.Messages.Add(ToStored(trajectory[i]));
+        ctx.PersistedTurnMessages = trajectory.Count;
         session.UpdatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         AgentSessionStore.Save(session);
+    }
+
+    // 本轮成功完成：补齐轨迹中尚未落盘的尾部（生成期间已逐条落过，这里通常只剩最后一两条）。
+    // 用户消息已在 BeginTurn 写入，故这里只补助手侧。首轮（非手动命名）顺带用 LLM 总结覆盖占位标题。
+    void CompleteTurn(SessionContext ctx, string userText, string assistantText, IReadOnlyList<AgentTurnMessage> trajectory, bool isNewSession)
+    {
+        FlushTrajectory(ctx, trajectory);
         if (isNewSession && !ctx.TitleManual)
             _ = GenerateTitleAsync(ctx, userText, assistantText);
     }
 
-    // 重试成功：清除该轮的失败结局、把本次续跑轨迹追加落盘（用户消息与之前已完成轮已在库中）。
+    // 重试成功：清除该轮的失败结局、补齐本次续跑轨迹（用户消息与之前已完成轮已在库中）。
     // 该轮就此变回正常成功轮——重载不再显示错误/重试。
     void ResolveTurn(SessionContext ctx, ChatTurnMessage anchor, IReadOnlyList<AgentTurnMessage> trajectory)
     {
         anchor.Outcome = null;
         anchor.ErrorText = null;
-        var session = ctx.Session;
-        if (session == null)
+        if (ctx.Session == null)
             return;
-        foreach (var m in trajectory)
-            session.Messages.Add(ToStored(m));
-        session.UpdatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        AgentSessionStore.Save(session);
+        FlushTrajectory(ctx, trajectory);
+        // Outcome 的清除本身也要落盘。生成期间轨迹已逐条落过时 Flush 不写盘（这是常态），故无条件再存一次——
+        // 否则重试成功后重开，那一轮又变回失败态。
+        AgentSessionStore.Save(ctx.Session);
     }
 
     // 轮终态为取消/出错：回写锚消息的结局，并把失败前已构建的"半截过程"（partialTrajectory）也落盘——供重载如实重放，
@@ -952,10 +1020,9 @@ internal sealed class AgentSideBarContentProvider
         anchor.ErrorText = errorText;
         if (ctx.Session == null)
             return;
-        // 半截过程接在锚之后落盘（失败轮此前只写了锚，故顺序正确）。
-        if (partialTrajectory is { Count: > 0 })
-            foreach (var m in partialTrajectory)
-                ctx.Session.Messages.Add(ToStored(m));
+        // 补齐半截过程中尚未落盘的尾部（生成期间已逐条落过，故这里走水位、不重复写已有的那些）。
+        if (partialTrajectory != null)
+            FlushTrajectory(ctx, partialTrajectory);
         // 出错另记一条【在带内】的错误记录：它才是"这里当时发生了什么"的位置正确的痕迹。锚上的 Outcome 是
         // "本轮当前是否处于失败态"（重试成功即清），而这条记录永不删——否则重试成功后历史里只剩下半截内容、
         // 没有任何线索说明它为何半截（= 隐藏真实轨迹）。role="error" 不喂模型（ReconstructHistory 跳过）。
@@ -985,6 +1052,7 @@ internal sealed class AgentSideBarContentProvider
             Text = m.Content ?? string.Empty,
             Reasoning = m.Reasoning,
             ToolCalls = m.ToolCalls?.Select(c => new ChatToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList(),
+            Stopped = m.Stopped,
             PromptTokens = m.Usage?.PromptTokens,
             CompletionTokens = m.Usage?.CompletionTokens,
             TotalTokens = m.Usage?.TotalTokens,
@@ -1018,6 +1086,10 @@ internal sealed class AgentSideBarContentProvider
             if (string.IsNullOrEmpty(title))
                 return;
             if (ctx.TitleManual) // 生成期间用户已手动改名 → 不覆盖
+                return;
+            // 标题请求是一次网络往返（数秒），期间会话可能已被删除——那时 ctx.Session 已置空，而这里的局部 session
+            // 还持着旧对象，照写就会让删掉的会话复活。比对同一性而非仅判 null：会话被换掉也同样不该写。
+            if (ctx.Session != session)
                 return;
             session.Title = title;
             ctx.Title = title;
@@ -1169,6 +1241,12 @@ internal sealed class AgentSideBarContentProvider
         var cts = new CancellationTokenSource();
         ctx.Cts = cts;
         SetBusy(ctx, true);
+        // 新一轮：runner 的 trajectory 是新建的列表，水位随之归零。
+        ctx.PersistedTurnMessages = 0;
+        // 边跑边落：runner 每往轨迹追加一条即【同步】回调，把它补进会话文件。这样进程在下一步消失（意外关闭 /
+        // 崩溃 / 其它）时，已发生的调用不会随内存一起没掉——否则一句话触发的长任务被打断后，会话里只剩用户那一句。
+        if (ctx.Runner != null)
+            ctx.Runner.TrajectoryAppended = () => FlushTrajectory(ctx, ctx.Runner!.CurrentTrajectory);
 
         // 分步渲染：把 runner 的进度事件按序铺进气泡，全程可见模型在说什么、调了哪个工具、结果如何。气泡属于 ctx.View，
         // 即便用户切走（视图离屏）流式仍写进它，切回即见进度；滚动只在该会话可见时执行。
@@ -2125,6 +2203,39 @@ internal sealed class AgentSideBarContentProvider
         return container;
     }
 
+    // 中断轮的收场条目：中性提示 +（末轮才有）[继续]。刻意不是红字——没有技术错误可报，只是这一轮没等到答复，
+    // 故与"已停止"同一档灰。[继续] 直接走 OnRetry → RetryAsync：不追加用户消息、对当前上下文续跑，正是此处所需。
+    // 没有它用户只能再发一条消息，而那会让上下文里出现两条连续 user（等于自己把话说了两遍）。
+    Control BuildInterruptedEntry(SessionContext ctx, ChatTurnMessage anchor, bool allowContinue)
+    {
+        var panel = new StackPanel() { Orientation = Orientation.Vertical };
+        // 不写原因：可能是意外关闭、崩溃，也可能是别的什么——宿主无从知道（强杀时没有一行收尾代码跑得了），
+        // 所以只陈述"这一轮没跑完"这个能确定的事实。
+        panel.Children.Add(NoticeLine("No reply came back for this message — the turn didn't finish.".Tr(this),
+            Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
+        var container = AssistantContainer(panel);
+        if (allowContinue)
+        {
+            var row = new StackPanel() { Orientation = Orientation.Horizontal, Spacing = 14, Margin = new(0, 4, 0, 0), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+            bool retiredAlready = false;
+            void Retire()
+            {
+                if (retiredAlready)
+                    return;
+
+                retiredAlready = true;
+                row.IsVisible = false;   // 提示行留着（真相不抹），只收掉按钮
+            }
+            row.Children.Add(TextButton("Continue".Tr(this), () => OnRetry(ctx, anchor, Retire)));
+            // 与错误条目共用这把"新一轮开始就收掉旧按钮"的钩子：用户若直接发新消息，这个 [继续] 也应失效
+            //（那时末尾已换人，续跑的语义不再成立）。
+            ctx.RetireLiveErrorEntry?.Invoke();
+            ctx.RetireLiveErrorEntry = Retire;
+            panel.Children.Add(row);
+        }
+        return container;
+    }
+
     // 已被重试掉的那次失败：原位留痕的暗色一行（重载路径与实时降级共用同一措辞与配色）。
     Control RetiredErrorLine(string errorText) => NoticeLine(RetiredErrorText(errorText), RetiredErrorBrush);
     string RetiredErrorText(string errorText) => "Error: " + errorText + " " + "(retried)".Tr(this);
@@ -2491,6 +2602,10 @@ internal sealed class AgentSideBarContentProvider
         public AgentTurnView? CurrentTurn;       // 本轮的分步视图（在跑时非空）：升级卡片插入它以与工具步骤同序
         public CancellationTokenSource? Cts;     // 该会话当前在飞请求的取消源（停止键 / 删除该会话时触发）
         public List<AgentMessage>? SeedHistory;  // 加载已存会话 / 中途换模型后用于重建 runner 的历史（仅对话文本）
+        // 本轮轨迹【已落盘】到第几条（runner 的 CurrentTrajectory 下标）。轨迹每追加一条即增量落盘（见 FlushTrajectory），
+        // 故轮终态的三条路径（CompleteTurn / ResolveTurn / MarkTurnOutcome）只能补写水位之后的部分，否则会重复。
+        // 每轮开始归 0（trajectory 是每轮新建的列表）。
+        public int PersistedTurnMessages;
         public bool Busy;                        // 该会话是否有在飞请求（决定切到它时显示发送键还是停止键）
         public string? PendingText;              // 生成期间用户累积的"轮边界插话"待发缓冲（runner 到边界吃掉）；仅忙碌态非空，绑定本会话那次运行
         public long CumulativeTokens;            // 会话累计 token（每轮 total 之和，含工具往返重复前缀；状态行用）
