@@ -203,7 +203,8 @@ internal static class ExtensionManager
                 {
                     skipped++;
                     var unsupported = string.Format(
-                        "unsupported extension type '{0}': the entry declares code (assembly/classes) but this host has no such plugin kind",
+                        "unsupported extension type '{0}': the entry declares code (assembly/classes) but this host has no such plugin kind"
+                        + " (supported: format / voice / instrument / effect; see docs/plugin-development.md)",
                         string.IsNullOrEmpty(kind) ? "(empty)" : kind);
                     reasons.Add(unsupported);
                     Log.Warning(string.Format("Extension {0}: {1}", description.name, unsupported));
@@ -421,7 +422,10 @@ internal static class ExtensionManager
         return File.Exists(full) ? full : null;
     }
 
-    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "instrument" or "effect" or "agent-model";
+    // 宿主开放给插件、且需要加载程序集的类别。
+    // 【不含 agent-model】：它不是插件类型（模型适配器编进宿主、走 PR），故声明它的包会落进
+    // 「未知 kind + 声明了代码」那条通用分支、报 unsupported 跳过——不需要为它单开一个 case。
+    static bool IsCodeKind(string kind) => kind is "format" or "voice" or "instrument" or "effect";
 
     // legacy 包的稳定包 id（无 V1 manifest id 时）：用目录名——每个安装唯一、跨会话稳定，
     // 供冲突消解区分多个 legacy 包并反查显示名。LegacyCompatLoader 注册与 LoadResult.Id 须用同一值。
@@ -481,14 +485,6 @@ internal static class ExtensionManager
                 if (!TryScanCtor<IEffectSynthesisEngine>(assembly, candidates, out var ector, out error)) return false;
                 EffectManager.RegisterEngine(packageId, ext.engine, displayName, (IEffectSynthesisEngine)ector!.Invoke(null));
                 return true;
-
-            // agent-model 刻意不开放外部扫描，且【没有开放计划】：模型适配器是宿主内部模块
-            // （TuneLab/Agent/Contracts），新适配走 PR 进宿主、经 AgentModelManager.LoadBuiltIn 注册
-            //（贡献指南 docs/agent-model-adapters.md）。理由（结构性、不随版本缓解）见 IAgentModelEngine 头注释。
-            // 显式 case 报自解释错误——不从 IsCodeKind 摘除，免得声明 agent-model 的包被当资源类静默吞掉。
-            case "agent-model":
-                error = "agent-model is a host-internal module (model adapters are contributed via PR), not a plugin type";
-                return false;
 
             case "format":
                 return RegisterFormatEntry(packageId, ext, assembly, candidates, displayName, out error);
