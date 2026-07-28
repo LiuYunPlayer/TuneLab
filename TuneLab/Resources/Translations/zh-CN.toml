@@ -355,6 +355,7 @@
 "Reject" = "拒绝"
 "Retry" = "重试"
 "Continue" = "继续"
+"(continued)" = "（已继续）"
 "No reply came back for this message — the turn didn't finish." = "这条消息没有等到回复——本轮未能完成。"
 "Stopped" = "已停止"
 "Submit" = "确认"

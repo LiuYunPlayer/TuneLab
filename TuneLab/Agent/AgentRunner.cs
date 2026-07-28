@@ -14,7 +14,10 @@ namespace TuneLab.Agent;
 //  · Usage ——本轮（含工具往返多次模型调用）的 token 用量合计（端点未返回则为 null）。
 //  · Trajectory ——本轮新增的有序全量消息镜像（assistant 含思考/工具调用/本次用量，tool 含结果/错误标记），
 //    供宿主原样落盘并据此重建分步视图、回灌续聊上下文，使「重载 == 实时」。
-internal readonly record struct AgentTurnResult(string Text, AgentTokenUsage? Usage, IReadOnlyList<AgentTurnMessage> Trajectory);
+//  · StopNotice ——本轮被宿主自己的护栏截断时的说明（当前只有失控防护一种），非模型输出。
+//    宿主据此渲一行提示并落一条 notice 记录；为空则本轮是自然收尾。刻意不塞进 Text——Text 只供复制/标题/脚注，
+//    既不参与实时渲染也不落盘，往那里写提示等于写了没人看（这正是它上一版没生效的原因）。
+internal readonly record struct AgentTurnResult(string Text, AgentTokenUsage? Usage, IReadOnlyList<AgentTurnMessage> Trajectory, string? StopNotice = null);
 
 // 本轮新增的一条轨迹消息（assistant 或 tool）：镜像 SDK 的 AgentMessage，并附宿主侧的思考全文 / 本次用量 / 错误标记。
 // 这些扩展字段不在 AgentMessage 上（思考是输出不回发、用量是按调用计、错误标记是 UI 用），故另立宿主类型承载。
@@ -69,10 +72,21 @@ internal sealed class AgentRunner
     // 同步回调把间隙消除，成本相同。宿主自己按"已落盘水位"取增量，故这里不带数据（避免事件与轨迹两份真相）。
     public Action? TrajectoryAppended { get; set; }
 
-    // 从尾部移除"未闭合"的一轮：末尾 assistant 发起了 tool_call 但缺配对 tool 结果（取消卡在工具中途会产生），
-    // 连同其已有的部分结果一并移除——避免悬空 tool_call 喂模型被端点拒。用户消息与已完成（配对）轮完整保留。
-    // 失败单位是"一次模型回复"而非整条用户消息：错误/取消只砍这截悬空尾巴，用户消息留在上下文，可经重试按钮续跑。
-    public void TrimDanglingToolCalls()
+    // 悬空 tool_call 的合成结果。实时上下文（CloseDanglingToolCalls）与重载重建（ReconstructHistory）共用这一份——
+    // 两条路径给模型的话必须一字不差，否则"重开前"与"重开后"的续跑行为又会分家。
+    public const string DanglingToolResult =
+        "The result of this call was never recorded — the run was interrupted before it returned. "
+        + "It may have completed, partially completed, or not run at all. Verify the current state before retrying it, "
+        + "especially if it writes files or changes settings.";
+
+    // 给"未闭合"的 tool_call 补一条【结果未知】的合成结果：末尾 assistant 发起了调用却缺配对的 tool 结果
+    //（取消落在工具执行中或两次调用之间都会产生）。协议要求每个 tool_call 必须有配对结果，否则端点拒收——
+    // 但这里【补】而不是【删】：删掉那次调用，模型就完全不知道自己调过它，续跑时很可能再调一次，对
+    // export_project / set_setting / set_keybinding 这类不可撤销的外部副作用就是重复施加。也不编成"成功"
+    // 或"失败"：工具可能已完成副作用只是没来得及返回，也可能刚进去就死了，宿主无从判断。如实说不知道。
+    // 顺带比旧行为更忠实一点：同一条 assistant 若发起 3 个调用而只有 1 个拿到结果，旧行为连那 1 个真结果
+    // 一起删掉，现在保留真结果、只给另外两个补未知。
+    public void CloseDanglingToolCalls()
     {
         int i = mMessages.Count - 1;
         var resultIds = new HashSet<string>();
@@ -82,9 +96,12 @@ internal sealed class AgentRunner
                 resultIds.Add(id);
             i--;
         }
-        if (i >= 0 && mMessages[i].Role == AgentRole.Assistant && mMessages[i].ToolCalls is { Count: > 0 } calls
-            && !calls.All(c => resultIds.Contains(c.Id)))
-            mMessages.RemoveRange(i, mMessages.Count - i);
+        if (i < 0 || mMessages[i].Role != AgentRole.Assistant || mMessages[i].ToolCalls is not { Count: > 0 } calls)
+            return;
+
+        foreach (var c in calls)
+            if (!resultIds.Contains(c.Id))
+                mMessages.Add(new AgentMessage { Role = AgentRole.Tool, ToolCallId = c.Id, Content = DanglingToolResult });
     }
 
     // 处理一条用户消息，返回模型的最终文本回复 + 本轮 token 用量。对话历史在多次调用间累积（保持上下文）。
@@ -273,6 +290,11 @@ internal sealed class AgentRunner
                 if (mTools.TryGetValue(call.Name, out var tool))
                 {
                     try { result = await tool.ExecuteAsync(call.ArgumentsJson, cancellationToken); isError = false; }
+                    // 用户点停不是工具错误：原先它被下面那个 catch 一并吞成 "Error: The operation was canceled." 记进
+                    // 上下文与界面——把用户的停止动作说成工具失败，而且让"点停"的表现分裂（停在工具间隙 → 悬空/结果未知，
+                    // 停在执行中 → 记成 error）。这里放它穿出去，交给外层按取消收尾，那次调用便统一成悬空（结果未知）。
+                    // when 限定只放行【我们这个 token】的取消；工具因自身原因抛 OperationCanceled 仍按错误处理。
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                     catch (System.Exception ex) { result = "Error: " + ex.Message; isError = true; }
                 }
                 else
@@ -336,10 +358,10 @@ internal sealed class AgentRunner
         TrajectoryAppended?.Invoke();
         if (!string.IsNullOrEmpty(wrapUp.Content))
             narration.Add(wrapUp.Content);
-        // 如实留痕：撞上限这件事必须无条件出现在回复里。原先它挂在"连一句话都没产出"的兜底分支上，而实际撞限时
-        // 前面各轮几乎必有文本，那句提示因此永不生效——用户看到的是安静收场，只能误判成模型自己停了。
-        narration.Add(string.Format("[Stopped: hit the {0}-round runaway guard. What's above is what got done.]", MaxToolRounds));
-        return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage(), trajectory);
+        // 如实留痕：撞上限这件事经 StopNotice 交给宿主渲染 + 落盘，用户因此看得见"这里被护栏截断了"。
+        // （前两版都没真正生效：先是挂在"连一句话都没产出"的兜底分支上永不执行，后是塞进 Text 而 Text 既不渲染也不落盘。）
+        return new AgentTurnResult(string.Join("\n\n", narration), TurnUsage(), trajectory,
+            string.Format("Stopped after {0} tool-call rounds (runaway guard). What's above is what got done.", MaxToolRounds));
     }
 
     // 同步转发的 IProgress：不经 SynchronizationContext 异步 Post，调用线程直转——保证文本增量与工具事件按发出顺序到达 UI sink。

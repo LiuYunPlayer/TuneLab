@@ -763,8 +763,9 @@ internal sealed class AgentSideBarContentProvider
         for (int j = end - 1; j >= start; j--)
         {
             var m = msgs[j];
-            if (m.Role == ChatTurnMessage.RoleError)
-                continue;   // 带内错误痕迹是宿主写的、不是模型说的话，不参与收尾判定
+            if (m.Role == ChatTurnMessage.RoleError || m.Role == ChatTurnMessage.RoleNotice)
+                continue;   // 带内错误痕迹 / 护栏提示都是宿主写的、不是模型说的话，不参与收尾判定
+                            // （护栏提示恰好落在撞上限那轮的末尾，漏掉这一支会把那轮误判成中断）
 
             // Stopped 的半截回复不算收尾（它恰恰是"没说完"的那条）。当前它只会与 Outcome 一同出现、走不到这里，
             // 但判据该自洽：别让"没说完"被读成"说完了"。
@@ -808,6 +809,12 @@ internal sealed class AgentSideBarContentProvider
             {
                 turn.SealText();   // 先把当前文本段定稿，错误行才落在它之后（保持真实先后）
                 turn.Append(RetiredErrorLine(m.Text));
+                continue;
+            }
+            if (m.Role == ChatTurnMessage.RoleNotice) // 宿主护栏提示（如撞失控防护上限）：中性灰字，与实时同措辞
+            {
+                turn.SealText();
+                turn.Append(NoticeLine(m.Text, Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
                 continue;
             }
             // assistant
@@ -881,11 +888,8 @@ internal sealed class AgentSideBarContentProvider
                             ? calls.Select(c => new AgentToolCall { Id = c.Id, Name = c.Name, ArgumentsJson = c.ArgumentsJson }).ToList()
                             : null,
                     });
-                    // 悬空的调用（发起了却没有配对结果——会话在工具执行途中中断）补一条【结果未知】的合成结果。
-                    // 不能直接滤掉那次调用：模型会因此完全不知道自己调过它，续跑时很可能【再调一次】——对
-                    // export_project / set_setting / set_keybinding 这类不可撤销的外部副作用，那就是重复施加。
-                    // 也不能编成"成功"或"失败"：宿主根本无从判断（工具可能已完成副作用只是没来得及返回，也可能刚进去就死了）。
-                    // 如实说"不知道"，模型自会先查证再动手。合成结果同时满足协议——tool_call 必须有配对结果，否则端点拒收。
+                    // 悬空的调用（发起了却没有配对结果）补一条【结果未知】的合成结果，文案与实时路径共用同一常量
+                    // （见 AgentRunner.CloseDanglingToolCalls）——两条路径给模型的话一字不差，续跑行为才不会分家。
                     if (calls is { Count: > 0 })
                         foreach (var c in calls)
                             if (!resultIds.Contains(c.Id))
@@ -893,16 +897,15 @@ internal sealed class AgentSideBarContentProvider
                                 {
                                     Role = AgentRole.Tool,
                                     ToolCallId = c.Id,
-                                    Content = "The result of this call was never recorded — the run was interrupted before it returned. "
-                                        + "It may have completed, partially completed, or not run at all. Verify the current state before retrying it, "
-                                        + "especially if it writes files or changes settings.",
+                                    Content = AgentRunner.DanglingToolResult,
                                 });
                     break;
                 case "tool":
                     history.Add(new AgentMessage { Role = AgentRole.Tool, ToolCallId = m.ToolCallId, Content = m.Text });
                     break;
                 case ChatTurnMessage.RoleError:
-                    continue;   // 带内错误痕迹只给用户看（宿主自己的报错文本，非模型说过的话），绝不喂回模型
+                case ChatTurnMessage.RoleNotice:
+                    continue;   // 带内错误痕迹 / 宿主护栏提示都只给用户看（非模型说过的话），绝不喂回模型
                 default:
                     history.Add(new AgentMessage { Role = AgentRole.User, Content = m.Text, Parts = BuildHistoryParts(session.Id, m) });
                     break;
@@ -1279,6 +1282,13 @@ internal sealed class AgentSideBarContentProvider
             }
             var reply = await runnerCall(new Progress<AgentEvent>(Handle), cts.Token, TakePending);
             turn.Seal();
+            // 宿主护栏截断了本轮（当前只有失控防护）：渲一行中性提示并落一条 notice 记录，别让它安静收场——
+            // 那会让用户误判成模型自己停了。提示排在脚注之前（脚注是本轮的收尾统计）。
+            if (!string.IsNullOrEmpty(reply.StopNotice))
+            {
+                EnsureSwapped();
+                turn.Append(NoticeLine(reply.StopNotice, Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
+            }
             if (turn.IsEmpty)
                 bubble.Child = BubbleText("(no text reply)", Colors.White.ToBrush());
             else
@@ -1287,6 +1297,11 @@ internal sealed class AgentSideBarContentProvider
                 turn.Append(BuildFooter(reply.Usage, calls, lastCtx));
             }
             onSuccess(reply);
+            if (!string.IsNullOrEmpty(reply.StopNotice) && ctx.Session != null)
+            {
+                ctx.Session.Messages.Add(new ChatTurnMessage { Role = ChatTurnMessage.RoleNotice, Text = reply.StopNotice });
+                AgentSessionStore.Save(ctx.Session);
+            }
             // token 口径已在生成过程中由 AgentRoundUsage 逐次累加（见 AccumulateRoundTokens），此处不再整轮累加。
         }
         catch (OperationCanceledException)
@@ -1297,7 +1312,8 @@ internal sealed class AgentSideBarContentProvider
             EnsureSwapped();
             turn.Append(NoticeLine("Stopped".Tr(this), Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
             MarkTurnOutcome(ctx, anchor, ChatTurnMessage.OutcomeCancelled, null, ctx.Runner?.CurrentTrajectory);
-            ctx.Runner?.TrimDanglingToolCalls(); // 只砍悬空尾巴；用户消息 + 已完成轮留在上下文
+            // 悬空调用补"结果未知"（不删）——与重载重建同一处置，故"重开前继续"与"重开后继续"行为一致
+            ctx.Runner?.CloseDanglingToolCalls();
         }
         catch (Exception ex)
         {
@@ -1311,7 +1327,7 @@ internal sealed class AgentSideBarContentProvider
             else
                 EnsureSwapped();
             MarkTurnOutcome(ctx, anchor, ChatTurnMessage.OutcomeError, ex.Message, ctx.Runner?.CurrentTrajectory);
-            ctx.Runner?.TrimDanglingToolCalls(); // 只砍悬空尾巴；用户消息 + 已完成轮留在上下文，可经重试按钮续跑
+            ctx.Runner?.CloseDanglingToolCalls(); // 悬空调用补"结果未知"；用户消息 + 已完成轮留在上下文，可经重试按钮续跑
             ctx.View.Content.Children.Add(BuildErrorEntry(ctx, anchor, ex.Message, allowRetry: true));
         }
         finally
@@ -2211,30 +2227,51 @@ internal sealed class AgentSideBarContentProvider
         var panel = new StackPanel() { Orientation = Orientation.Vertical };
         // 不写原因：可能是意外关闭、崩溃，也可能是别的什么——宿主无从知道（强杀时没有一行收尾代码跑得了），
         // 所以只陈述"这一轮没跑完"这个能确定的事实。
-        panel.Children.Add(NoticeLine("No reply came back for this message — the turn didn't finish.".Tr(this),
-            Style.LIGHT_WHITE.Opacity(0.5).ToBrush()));
+        var notice = NoticeLine(InterruptedText(), Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
+        panel.Children.Add(notice);
         var container = AssistantContainer(panel);
         if (allowContinue)
         {
             var row = new StackPanel() { Orientation = Orientation.Horizontal, Spacing = 14, Margin = new(0, 4, 0, 0), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
             bool retiredAlready = false;
-            void Retire()
+            void Retire(bool continued)
             {
                 if (retiredAlready)
                     return;
 
                 retiredAlready = true;
                 row.IsVisible = false;   // 提示行留着（真相不抹），只收掉按钮
+                if (!continued)
+                    return;             // 对话自己往下走了：只收按钮，措辞不动（同 BuildErrorEntry 的 retried:false）
+
+                // 点了[继续]：就地把提示降级成留痕（加"（已继续）"，与错误条目的"（已重试）"同一处置），
+                // 并落一条 notice 记录。后者是必须的——续跑成功后这一轮就有了正常收尾，而本行提示是【推断】
+                // 出来的（见 IsTurnComplete），重开时便不再成立、整行凭空消失，历史里就再没有线索说明中间
+                // 为何断过。这与 RoleError"永不删"是同一条理由。落点即此刻轨迹末尾 = 真实的中断处，
+                // 续跑的新内容自然排在它之后；即便续跑又失败，这条也依然如实（那里确实断过）。
+                notice.Text = ContinuedText();
+                if (ctx.Session == null)
+                    return;
+
+                ctx.Session.Messages.Add(new ChatTurnMessage { Role = ChatTurnMessage.RoleNotice, Text = ContinuedText() });
+                AgentSessionStore.Save(ctx.Session);
             }
-            row.Children.Add(TextButton("Continue".Tr(this), () => OnRetry(ctx, anchor, Retire)));
+            row.Children.Add(TextButton("Continue".Tr(this), () => OnRetry(ctx, anchor, () => Retire(continued: true))));
             // 与错误条目共用这把"新一轮开始就收掉旧按钮"的钩子：用户若直接发新消息，这个 [继续] 也应失效
             //（那时末尾已换人，续跑的语义不再成立）。
             ctx.RetireLiveErrorEntry?.Invoke();
-            ctx.RetireLiveErrorEntry = Retire;
+            ctx.RetireLiveErrorEntry = () => Retire(continued: false);
             panel.Children.Add(row);
         }
         return container;
     }
+
+    // 中断提示的两种措辞（实时降级与重载渲染共用，故两处一字不差）：
+    //  · 未处理 —— 推断出来的当前态，配 [继续] 按钮；
+    //  · 已继续 —— 点过 [继续] 后的留痕，同时作为一条 notice 记录落盘，重开仍可见。
+    // 只改措辞不改配色：灰字本就不扎眼，后缀已足以表明它是历史（红字错误才需要额外调暗）。
+    string InterruptedText() => "No reply came back for this message — the turn didn't finish.".Tr(this);
+    string ContinuedText() => InterruptedText() + " " + "(continued)".Tr(this);
 
     // 已被重试掉的那次失败：原位留痕的暗色一行（重载路径与实时降级共用同一措辞与配色）。
     Control RetiredErrorLine(string errorText) => NoticeLine(RetiredErrorText(errorText), RetiredErrorBrush);

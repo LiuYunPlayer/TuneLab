@@ -43,6 +43,10 @@ internal sealed class ChatTurnMessage
     // 绝不喂模型（ReconstructHistory 跳过），也不参与 tool_call 配对。
     public const string RoleError = "error";
 
+    // 带内的宿主提示（非协议角色、非错误）：宿主自己的护栏动作留痕，当前只有"撞失控防护上限被截断"一种。
+    // 与 RoleError 同样只给用户看、绝不喂模型；区别是它不是失败，UI 渲中性灰字而非红字。
+    public const string RoleNotice = "notice";
+
     public string Role { get; set; } = "user";  // "user" | "assistant" | "tool" | RoleError
     // 文本内容：user=输入，assistant=正文回复，tool=结果。沿用旧字段名 Text 保持向后兼容（旧文件可原样反序列化）。
     public string Text { get; set; } = string.Empty;
