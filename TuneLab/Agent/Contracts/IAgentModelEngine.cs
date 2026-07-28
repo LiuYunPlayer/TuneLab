@@ -7,11 +7,15 @@ namespace TuneLab.Agent;
 // （如"OpenAI 兼容端点"）；用户在设置界面填好该引擎声明的 properties（端点、密钥、模型名等）后，
 // 宿主用这些值创建一个 IAgentModelSession 开始工作。与 IEffectSynthesisEngine 同范式（声明参数 + 懒加载 + 创建会话）。
 //
-// 【宿主内部模块接口，2.0 刻意不进 SDK】LLM 协议面追赶外部世界的快速演进（多模态/流式工具调用/
-// reasoning/缓存计量…），冻进插件 ABI 会让最活跃的功能区背上最重的兼容枷锁；且适配器天然少
-// （协议高度收敛）、小（纯 HTTP+JSON 翻译）、无私有资产——新增 model 适配走 PR 进宿主，迭代自由。
-// 将来若开放为插件点（纯加性：类型回 SDK + 打开外部扫描），先决整改见 issue #147 item 27 的 checklist
-//（SendAsync 重载阶梯收敛为 callbacks 聚合、TokenUsage int→long、枚举未知值容忍契约、DIM 政策头等）。
+// 【宿主内部模块接口，刻意不进 SDK；没有开放计划】理由是结构性的、不随版本缓解：LLM 协议面在追赶
+// 外部世界的快速演进（多模态/流式工具调用/reasoning/缓存计量…），冻进插件 ABI 等于让最活跃的功能区
+// 背上最重的兼容枷锁——而这种演进只会更快，不会安定下来；同时适配器天然少（协议高度收敛）、小
+// （纯 HTTP+JSON 翻译）、无私有资产，本就不需要插件化那套隔离与分发，新增适配走 PR 进宿主更自由。
+// 故不要把这里当"暂缓开放"读：它是对这类模块该在哪一侧的判断，不是阶段性妥协。
+//
+// 假如哪天推翻上述判断真要开放为插件点（纯加性：类型回 SDK + 打开外部扫描），先决整改见 issue #147
+// item 27 的 checklist（SendAsync 重载阶梯收敛为 callbacks 聚合、TokenUsage int→long、枚举未知值容忍
+// 契约、DIM 政策头等）——那份清单只是"先决条件"，不构成路线图。
 public interface IAgentModelEngine
 {
     // 参数面板配置：声明该适配器暴露给用户的可编辑配置（端点 URL、API Key、模型名、温度等），

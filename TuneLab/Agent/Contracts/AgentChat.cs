@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace TuneLab.Agent;
 
-// agent 与模型之间的对话协议 DTO（宿主内部模块协议，2.0 刻意不进 SDK——理由与整改 checklist 见
+// agent 与模型之间的对话协议 DTO（宿主内部模块协议，刻意不进 SDK、无开放计划——理由与先决整改见
 // IAgentModelEngine 头注释）。刻意保持最小：工具调用以原始 JSON 参数串传递（适配器内部翻译成各家协议字段）。
 
 // 一条消息的角色。Tool 表示工具执行结果（须带 ToolCallId 回指）；Assistant 消息可携带 ToolCalls。
