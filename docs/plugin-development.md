@@ -41,7 +41,7 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 
 | Field | Required | Description |
 |---|---|---|
-| `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / resource type (agent-model is not open to external extensions: model adapters are a host-internal module; new adapters go in via PR) |
+| `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / a resource type. A type this host does not know, that nevertheless declares `assembly`/`classes`, is reported as an unsupported plugin type and skipped. |
 | `engine` | ✅ for voice/instrument/effect | The engine type **id** (unique identity, e.g. `"MyEngine"`). **Immutable** — it is written into project files, so changing it makes old projects mismatch. Never localize it. |
 | `suffixes` | ✅ for format | The **file suffixes** this format accepts (no dot, e.g. `["mid", "midi"]`). One entry = one format: extra suffixes are its **aliases**, sharing this entry's implementation class and all of its text — but registration and routing stay **per suffix** (another package can take over just one of them). Two genuinely different formats → two entries. Each suffix is an immutable identity. |
 | `name` | | The **display name** (for UI), which may differ from the identity id and may be translated. If omitted, the UI falls back to showing the identity id. |

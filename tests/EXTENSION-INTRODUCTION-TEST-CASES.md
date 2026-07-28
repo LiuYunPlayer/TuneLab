@@ -114,9 +114,9 @@
 3. 正文**期望**是 legacy 专属说明（大意：这是旧版扩展，不提供 manifest 元数据、宿主靠扫描发现其能力，故没有作者文档），**不是**泛泛的"该扩展暂无文档"——后者会让人以为作者偷懒没写。
 4. 图标**期望**保持 56px 下限、不被压扁（legacy 信息列常常只有"名 + 版本"一排）。
 
-**未知类型的代码插件**（本宿主不支持的 `type`，如别的分支才有的 `deriver`）：
+**未知类型的代码插件**（本宿主不支持的 `type`）——用一个**刻意不存在**的 kind 作夹具，别拿真实/在建的插件类型当例子，那样它一转正用例就失效了：
 
-5. 装一个 `"type": "deriver"` 且声明了 `assembly`/`classes` 的包 → **期望**侧栏显示 `Skipped`，`note:` 写明 `unsupported extension type 'deriver'`。
+5. 把任一 V1 样例包已安装目录的 manifest `type` 改成 `"no-such-kind"`（保留其 `assembly`/`classes`）→ **期望**侧栏显示 `Skipped`，`note:` 写明 `unsupported extension type 'no-such-kind'` 并列出受支持类别与文档指引。
 6. **不得**再被静默当资源包登记成"已加载"——那样代码一行没跑却显示成功，比报错更误导。
 7. 真资源包（`"type": "voicebank"` 等，**不写** assembly/classes）→ **期望**照旧正常登记为已加载。
 

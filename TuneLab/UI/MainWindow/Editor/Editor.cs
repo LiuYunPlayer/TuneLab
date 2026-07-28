@@ -1165,7 +1165,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // （见 App.OnFrameworkInitializationCompleted），让新装的声源引擎无需重启即可用。
         // Init 失败与安装成败是两回事（插件已装好，是初始化出错），故不并入安装汇总——
         // 单独弹窗报错，语义与启动时的 Init 失败提示一致。
-        // 其余类别（instrument/effect/agent-model）本就惰性、首次使用时 Init，无需在此急切化。
+        // 其余插件类别（instrument/effect）本就惰性、首次使用时 Init，无需在此急切化。
         List<string> initFailed = [];
         if (succeeded.Count > 0)
         {

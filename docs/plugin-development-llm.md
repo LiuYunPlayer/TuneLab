@@ -28,7 +28,7 @@
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
-- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。（agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR。）
+- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。宿主不认识的 type 若还声明了 `assembly`/`classes`，会被判为「本宿主不支持的插件类型」而跳过。
 - `engine` (string, voice/instrument/effect **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
 - `suffixes` (string[], format **必填**) — 该格式认的**文件后缀清单**（不带点，如 `["mid","midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类与全部说明；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。
 - `name` (string, 选填) — **显示名**（UI 用，可与 id 不同、可翻译）；省略则 UI 退回显示 id。

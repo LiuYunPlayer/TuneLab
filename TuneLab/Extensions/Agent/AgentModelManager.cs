@@ -28,8 +28,9 @@ internal static class AgentModelManager
                     state.Engine.Destroy();
     }
 
-    // 注册一个模型适配器。【唯一调用方是 LoadBuiltIn】——适配器不开放为插件类型，新适配走 PR 编进宿主
-    // （ExtensionManager 遇到 manifest 声明的 agent-model 直接报错，不会走到这里）。
+    // 注册一个模型适配器。【唯一调用方是 LoadBuiltIn】——适配器不开放为插件类型，新适配走 PR 编进宿主。
+    // 插件那条路走不到这里：manifest 声明的 agent-model 对 ExtensionManager 就是个不认识的 type，
+    // 与任何未知 kind 一样被判为「本宿主不支持的插件类型」跳过。
     // 故一个 type 只会有一个实现：同 type 被注册两次是宿主自己的编码错误（两个内建适配器撞了 id），
     // 报错并只留首个——【不】把它当"多包争身份"扔进冲突消解矩阵让用户选，那是给互不知情的第三方包用的。
     // type 是不可变身份 id；displayName 仅供 UI 展示、可本地化。

@@ -37,5 +37,5 @@
 ## 注意
 
 - Submit **连接失败不落盘**（与原行为一致：先连通才保存）。要测持久化需一组能连通的凭据。
-- 多 provider「各记一份设置」目前内建只有一个 provider，无法直接对比；待有第二个 agent-model 插件时再验证切换记忆。
+- 多 provider「各记一份设置」目前内建只有一个 provider，无法直接对比；待宿主内建第二个模型适配器（走 PR 加入，agent-model 不是插件类型）时再验证切换记忆。
 - agent 设置**不**出现在「设置」窗口的「扩展」分页（它在 agent 侧边栏；扩展页只列实现 IExtensionSettings 的 voice/effect 等）。

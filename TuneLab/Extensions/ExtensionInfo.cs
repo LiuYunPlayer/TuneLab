@@ -36,7 +36,8 @@ namespace TuneLab.Extensions;
 //   单插件简写（省略 extensions[]）下 introduction 写在顶层即该唯一条目的（与 name 同理）；多插件包
 //   在顶层写它无效——包没有 introduction 概念，宿主只从 extensions[] 各条目取。
 //   type       —— 必填，类别（决定派给哪个 manager）：format / voice / instrument / effect / 资源类。
-//                （agent-model 不开放外部扩展：模型适配器是宿主内部模块，新适配走 PR，见 ExtensionManager 注释。）
+//                宿主不认识的 type 若还声明了 assembly/classes，判为「本宿主不支持的插件类型」跳过
+//                （见 ExtensionManager 的资源类分支）——不静默当资源包吞掉。
 //   engine     —— voice/instrument/effect 的引擎类型 id。
 //   suffixes   —— format 认的文件后缀清单（不带点）。一个条目 = 一个格式，可有多个后缀别名
 //                （如 ["mid","midi"]），它们共用这一条目的实现类与全部说明。

@@ -83,8 +83,8 @@ internal sealed class AgentSideBarContentProvider
 
     }
 
-    // 载入某 provider 已落盘的设置（含解密密钥）进 mSettings。各 provider 各记一份
-    //（按来源包分桶 packageId → "agent-model:<id>"，避免不同包同 id provider 设置串味）。
+    // 载入某 provider 已落盘的设置（含解密密钥）进 mSettings。各 provider 各记一份——沿用通用
+    // ExtensionSettingsStore 的两级键 packageId → "agent-model:<id>"（适配器全是内建，故外层恒是内建包桶）。
     void LoadProviderSettings(string type)
     {
         var engine = AgentModelManager.GetInitedEngine(type);
@@ -2822,7 +2822,8 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 持久化当前 provider 的设置（按 IsPassword 标出密钥交存储层加密），并把选中的 provider 记进 app Settings。
-    // 走通用 ExtensionSettingsStore，按来源包分桶 packageId → "agent-model:<id>"，每 provider 各一份。
+    // 走通用 ExtensionSettingsStore 的两级键 packageId → "agent-model:<id>"，每 provider 各一份
+    //（适配器全是内建，故外层恒是内建包桶）。
     void SaveSettings(string type)
     {
         var engine = AgentModelManager.GetInitedEngine(type);
