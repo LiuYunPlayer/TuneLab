@@ -7,6 +7,7 @@ using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TuneLab.Extensions;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.I18N;
@@ -31,6 +32,11 @@ internal sealed class ExtensionDetailPage
     // 该条目自己的扩展设置桶键（"kind:extensionId"）；非空才在本页显示齿轮。
     // 设置是 per 能力实现者的，所以齿轮归属【页】而非包——一个包里 voice 与 effect 各有各的设置。
     public string? SettingsKey;
+    // manifest 原样的 type（小写）。Kind 是首字母大写的**展示**串，而启停键要与加载期同口径，
+    // 故另存一份原值——用展示串去拼键会写出一个永远命不中的键。
+    public string EntryKind = string.Empty;
+    // 本条目能否单独启停：资源类无身份、无法成键，只能随整包关（见 ExtensionActivation.CanDisableEntry）。
+    public bool CanDisable;
 }
 
 // 一个扩展详情的展示数据：包级元数据（manifest 顶层）+ 逐条目的 introduction 页。
@@ -48,6 +54,8 @@ internal sealed class ExtensionDetailInfo
     // 的去重并集）。侧栏卡片上的徽标始终保留——那里没有 tab。
     public IReadOnlyList<string> Types = [];
     public required string PackageDir;             // introduction 里相对图片解析的 baseDir
+    // 启停键的前半（V1 = manifest id，legacy = 目录名）。为空则本窗不提供启停开关。
+    public string? PackageId;
     // 逐 manifest 条目一页。**空 = 这个包没有 manifest 条目**：legacy 包（能力由兼容层盲扫发现）或
     // manifest 解析失败的包。此时不显 tab 条（无条目可分），正文按 Generation 给出对应说明。
     public IReadOnlyList<ExtensionDetailPage> Pages = [];
@@ -66,9 +74,12 @@ internal sealed class ExtensionDetailWindow : Window
     public event Action<string>? SettingsRequested;
     public event Action? UninstallRequested;
     public event Action? CancelUninstallRequested;
+    // 本窗改了启停（包级或条目级，选择已落盘）。provider 据此同步侧栏卡片与「需重启」提示。
+    public event Action? ActivationChanged;
 
     public ExtensionDetailWindow(ExtensionDetailInfo info)
     {
+        mPackageId = info.PackageId;
         ExtendClientAreaChromeHints = Avalonia.Platform.ExtendClientAreaChromeHints.NoChrome;
         ExtendClientAreaToDecorationsHint = true;
         ExtendClientAreaTitleBarHeightHint = 40;
@@ -264,8 +275,60 @@ internal sealed class ExtensionDetailWindow : Window
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
         };
 
-        // header 只放【包级】操作。条目级的两个（打开当前页的 introduction 文件、当前能力位的设置）
-        // 挪到 tab 条右端——那一行本就是"当前条目"的上下文（见 BuildTabBar）。
+        // header 只放【包级】操作。条目级的三个（启停本条目、打开当前页的 introduction 文件、当前能力位的
+        // 设置）挪到 tab 条右端——那一行本就是"当前条目"的上下文（见 BuildTabBar）。
+
+        // 顶：包级启停开关 +（存的选择与本次运行不符时的）需重启提示。
+        // 整包关掉时连程序集都不加载，是真能省启动时间的那一档；legacy 包与 manifest 坏包更是只有这一档
+        // 可关（它们没有条目）。
+        if (!string.IsNullOrEmpty(info.PackageId))
+        {
+            var topRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            };
+
+            mRestartHint = new TextBlock
+            {
+                Text = "Restart Required".Tr(TC.Dialog),
+                FontSize = 11,
+                Foreground = Style.LIGHT_WHITE.Opacity(0.6).ToBrush(),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                IsVisible = false,
+            };
+            topRow.Children.Add(mRestartHint);
+
+            mPackageStateText = new TextBlock
+            {
+                FontSize = 12,
+                Foreground = Style.LIGHT_WHITE.ToBrush(),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+            topRow.Children.Add(mPackageStateText);
+
+            var packageId = info.PackageId;
+            // 开关显示【存下来的选择】而非本次运行的状态；不一致由 SetRestartRequired 亮提示，
+            // 而不是让开关自己回弹装作没改。形制与侧栏卡片共用一个工厂（关=灰、开=高亮）。
+            mPackageSwitch = CreateActivationSwitch(
+                !ExtensionActivation.IsPackageDisabled(packageId),
+                "Enable or disable this extension. Takes effect after restarting TuneLab.".Tr(TC.Dialog));
+            mPackageSwitch.ValueCommitted.Subscribe(() =>
+            {
+                ExtensionActivation.SetPackageEnabled(packageId, mPackageSwitch.Value);
+                SyncPackageStateText();
+                // 整包关掉后，条目开关无从单独操作——就地重建当前页的操作区反映这一点。
+                if (mCurrentPage != null)
+                    SyncPageActions(mCurrentPage);
+                ActivationChanged?.Invoke();
+            });
+            topRow.Children.Add(mPackageSwitch);
+            SyncPackageStateText();
+
+            col.AddDock(topRow, Dock.Top);
+        }
 
         // 底：卸载。header 只放【包级】操作——设置是 per 能力实现者的，故齿轮挪到各页内（见 BuildPageContent）。
         var bottomRow = new StackPanel
@@ -346,6 +409,41 @@ internal sealed class ExtensionDetailWindow : Window
         };
         SetUninstallPending(pending);
         return mUninstallBtn;
+    }
+
+    // 启停开关的统一形制（本窗的包级与条目级两处共用；侧栏卡片刻意不放开关，见 ExtensionItemView）。
+    // 关掉时 pill 变灰（`UncheckedHighlightColor`）：`Switch` 原本是给"两选一"用的（两半各有图标、
+    // 各代表一个有意义的选项），而启停是 on/off 且不放图标——不换色的话两态就只差 pill 在左还是在右，
+    // 太容易读反。
+    static Switch CreateActivationSwitch(bool enabled, string tooltip)
+    {
+        var sw = new Switch
+        {
+            Width = 36,
+            Height = 18,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            UncheckedHighlightColor = Style.LIGHT_WHITE.Opacity(0.35),
+        };
+        sw.OffToolTip = sw.OnToolTip = tooltip;
+        sw.Display(enabled);
+        return sw;
+    }
+
+    // 开关旁的字面状态（Enabled / Disabled）：光看拨到哪一侧不足以让人确信，写出来最省心。
+    void SyncPackageStateText()
+    {
+        if (mPackageStateText == null || mPackageSwitch == null)
+            return;
+        bool enabled = mPackageSwitch.Value;
+        mPackageStateText.Text = enabled ? "Enabled".Tr(TC.Dialog) : "Disabled".Tr(TC.Dialog);
+        mPackageStateText.Foreground = (enabled ? Style.LIGHT_WHITE : Style.LIGHT_WHITE.Opacity(0.5)).ToBrush();
+    }
+
+    // 由 provider 调用：亮/灭「需重启」提示（存下来的启停选择 ≠ 本次运行的实际状态）。
+    public void SetRestartRequired(bool required)
+    {
+        if (mRestartHint != null)
+            mRestartHint.IsVisible = required;
     }
 
     // 由 provider 在卸载确认/取消后调用，跨视图同步卸载按钮态（Uninstall ↔ Pending Uninstall）。
@@ -546,14 +644,40 @@ internal sealed class ExtensionDetailWindow : Window
         SyncPageActions(pages[index]);
     }
 
-    // tab 条右端的【当前条目】操作：设置齿轮（该能力位声明了 IExtensionSettings 才有）+ 打开本页的
-    // introduction 文件（该页有文件才有）。两者都随 tab 切换重建。
+    // tab 条右端的【当前条目】操作：本条目的启停开关 + 设置齿轮（该能力位声明了 IExtensionSettings 才有）
+    // + 打开本页的 introduction 文件（该页有文件才有）。三者都随 tab 切换重建。
     void SyncPageActions(ExtensionDetailPage page)
     {
         if (mPageActions == null)
             return;
 
+        mCurrentPage = page;
         mPageActions.Children.Clear();
+
+        // 条目级启停：一包多能力时只关坏的那个（如 suite 包里 effect 崩了、voice 还想留着）。
+        if (page.CanDisable && !string.IsNullOrEmpty(mPackageId))
+        {
+            bool packageOff = ExtensionActivation.IsPackageDisabled(mPackageId);
+            var sw = CreateActivationSwitch(
+                !packageOff && !ExtensionActivation.IsEntryDisabledSelf(mPackageId, page.EntryKind, page.Identities),
+                packageOff
+                    // 整包已关：条目开关不该假装可用。锁死并说明原因——比让它可拨、拨完却毫无效果诚实。
+                    ? "The whole extension is disabled, so its capabilities cannot be turned on individually.".Tr(TC.Dialog)
+                    : "Enable or disable this capability. Takes effect after restarting TuneLab.".Tr(TC.Dialog));
+            if (packageOff)
+            {
+                sw.AllowSwitch += () => false;
+            }
+            else
+            {
+                sw.ValueCommitted.Subscribe(() =>
+                {
+                    ExtensionActivation.SetEntryEnabled(mPackageId, page.EntryKind, page.Identities, sw.Value);
+                    ActivationChanged?.Invoke();
+                });
+            }
+            mPageActions.Children.Add(sw);
+        }
 
         if (!string.IsNullOrEmpty(page.SettingsKey))
         {
@@ -611,7 +735,12 @@ internal sealed class ExtensionDetailWindow : Window
     Border? mUninstallBtn;
     TextBlock? mUninstallText;
     bool mPendingUninstall;
-    StackPanel? mPageActions;   // tab 条右端：当前条目的设置齿轮 + 打开其 introduction 文件
+    StackPanel? mPageActions;   // tab 条右端：当前条目的启停开关 + 设置齿轮 + 打开其 introduction 文件
+    ExtensionDetailPage? mCurrentPage;   // 当前页（包级开关拨动后要据此重建条目操作区）
+    readonly string? mPackageId;         // 启停键的前半；为空则本窗不提供启停开关
+    Switch? mPackageSwitch;
+    TextBlock? mPackageStateText;
+    TextBlock? mRestartHint;
     readonly List<(TextBlock Text, Border Accent)> mTabs = [];
     readonly Dictionary<int, Control> mPageContents = [];
     int mSelectedPage = -1;

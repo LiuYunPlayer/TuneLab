@@ -907,6 +907,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 - **安装**：在 TuneLab 里把 `.tlx` 拖进窗口，或用扩展侧边栏的「Install Extension」。安装即解压到扩展目录并**立即加载**（无需重启）。
 - **扩展目录**：`%AppData%/TuneLab/Extensions/<包名>/`（Windows）。侧边栏「Open Extensions Folder」可直接打开。
 - **卸载**：扩展侧边栏每个条目的「Uninstall」。卸载在**编辑器关闭后**由独立的 `ExtensionInstaller` 完成（释放文件锁后删除），可选择「立即重启」生效。
+- **禁用（不卸载）**：在扩展侧边栏点开某个包的详情窗——header 上有一个开关可关掉**整个包**，每个 tab 上还有一个可只关**那一个条目**（于是"voice 好用、effect 崩了"的包能留下好用的那一半）。被禁的条目根本不会注册，被禁的包连加载都不加载，侧栏卡片会显示「已禁用」徽标。两者都**重启后生效**。自测时插件"没加载"，先看一眼这个开关再去查 bug。
 
 ---
 
@@ -915,6 +916,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 TuneLab 加载每个包时：**发现** → 读 `manifest.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、**扫 `classes` 候选类按本 `type` 所需接口认领并实例化注册**（不再反射扫 attribute）。
 
 - 任何一步失败都**优雅降级**：只跳过出问题的插件/条目，**不会让主程序崩溃**，并在扩展侧边栏与日志里反映加载状态。
+- **用户的禁用开关先于上述一切校验**：被用户关掉的包（或单个条目）不校验、不加载、不注册——侧边栏报 `Disabled` 而非报错。它声明的条目照样列出来，用户才有地方把它重新打开。
 - `sdk-version` 高于宿主 → 该包被跳过并提示。
 - `platforms` 不含当前平台 → 该插件被跳过。
 - 条目级校验失败（`assembly` 找不到、`classes` 里没有任何类实现该 `type` 所需接口、命中类缺无参构造）→ **只这一条目失败**，原因写进侧边栏 tooltip；同包其余条目照常加载（部分加载）。

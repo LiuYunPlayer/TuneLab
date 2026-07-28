@@ -139,6 +139,9 @@ internal sealed class AgentSideBarContentProvider
                 // 扩展路由：主要用于排障（「我的插件怎么不生效」→ 其实是身份被别的包顶替了），改选同样过闸门。
                 new ListExtensionRoutingTool(),
                 new SetExtensionRoutingTool(RequestScriptAuthorizationAsync),
+                // 扩展启停：把某个包（或包内某个能力）关掉但不卸载。与路由是两根轴——路由在多个实现里挑一个，
+                // 启停决定某份实现要不要参与加载（对没有竞争者的独苗同样适用）。读面在 list_extensions。
+                new SetExtensionEnabledTool(RequestScriptAuthorizationAsync),
                 // 扩展自己的设置（设置窗「扩展」页）：读 schema+当前值 / 改一格。密钥字段只报有无、禁读禁写。
                 new ListExtensionSettingsTool(),
                 new SetExtensionSettingTool(RequestScriptAuthorizationAsync),
@@ -2467,6 +2470,15 @@ internal sealed class AgentSideBarContentProvider
                         " " + string.Format("This also unbinds the shortcut of \"{0}\".".Tr(this), request.SecondaryTarget)),
                 AgentWriteKind.RoutingChange => string.Format("The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart).".Tr(this), request.Target, request.NewValue),
                 AgentWriteKind.ExtensionSettingChange => string.Format("The agent wants to change the extension setting \"{0}\" to {1}.".Tr(this), request.Target, request.NewValue),
+                // 启停：整包与单个能力两种口径，开与关又各一句——四句都写全，不拿"设为 enable/disable"这种
+                // 机器味的通用句糊过去（关掉一个能力等于让它从本次运行里消失，用户得一眼看懂关的是什么）。
+                AgentWriteKind.ExtensionActivationChange => string.IsNullOrEmpty(request.SecondaryTarget)
+                    ? (request.NewValue == "enable"
+                        ? string.Format("The agent wants to enable the extension \"{0}\" (takes effect after a restart).".Tr(this), request.Target)
+                        : string.Format("The agent wants to disable the extension \"{0}\" (takes effect after a restart).".Tr(this), request.Target))
+                    : (request.NewValue == "enable"
+                        ? string.Format("The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart).".Tr(this), request.Target, request.SecondaryTarget)
+                        : string.Format("The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart).".Tr(this), request.Target, request.SecondaryTarget)),
                 // 导出：卡片必须摆出【完整落地路径】——路径是任意的，用户只有看到它才能判断这一下写到哪。
                 // 覆盖另起一句，别把"替换掉已有文件"混在同一句里说轻了。
                 AgentWriteKind.ProjectExport => string.Format("The agent wants to export the project as {1} to:\n{0}".Tr(this), request.Target, request.NewValue),

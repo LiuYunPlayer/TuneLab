@@ -8,7 +8,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 - **护栏**：一切**工程状态的修改**天然属"用户会要的"，恒走 `tl`，绝不因"只 agent 需要"另开专用工程写工具——否则碎掉单一撤销单位 + 授权闸门 + 模型动作词汇。
 - **SSOT 约束的是执行面、不是工具数**：多道工具门可以（`run_script` 内联、`run_saved_script` 按名），只要都汇进同一受闸门执行面（`ScriptWriteExecutor` → `ScriptContext` 那次 `Commit`）。库管理工具（`save/list/read/delete_script`）不改工程状态、也非 `tl` 可脚本，故为工具。
 
-## 工具全集（23 个）
+## 工具全集（25 个）
 
 三个面：**操作工程** + **管理脚本库** + **环境感知（只读为主，含设置/快捷键助手的写口）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
 
@@ -24,7 +24,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `delete_script` | 库 | 删某脚本（同时从菜单移除）。 |
 | `get_script_inputs` | 库 | 读某脚本的入参 schema（逐字段名/类型/默认/范围·选项）+ 用户**上次输入值**。只读（只 eval getInputConfig，无副作用）。run_saved_script 前调。 |
 | `run_saved_script` | 库 | 按库名跑已存脚本（= 替用户按那个菜单项），`inputs` 可省：给了覆盖在上次值上再补默认，没给用上次/默认。走 run_script 同一授权闸门。 |
-| `list_extensions` | 感知 | 列用户已装扩展：包级(名/id/版本/作者/类别/加载状态/包描述) + 逐能力位(身份/作者摘要/有无 introduction/冲突态)。直接读 `ExtensionManager.LoadResults`。 |
+| `list_extensions` | 感知 | 列用户已装扩展：包级(名/id/版本/作者/类别/加载状态/包描述) + 逐能力位(身份/作者摘要/有无 introduction/**本次结局 DISABLED·FAILED·SKIPPED**/冲突态)。直接读 `ExtensionManager.LoadResults`。 |
 | `get_extension_introduction` | 感知 | 读**某个能力位**的 introduction（作者写的 markdown，manifest 声明路径、上限截断）；没写则**标注式降级**给包级 description 并声明它是二手参考；同身份跨包时要 `packageId` 消歧。按需拉取（渐进式披露）。 |
 | `list_sound_sources` | 感知 | 三层钻取：不给 `engine` → 列引擎(不 Init)；给 `engine` → 列该引擎音源(id/名/描述)；给 `engine`+`source` → 读该音源参数 schema(part/note/自动化/音素级，各带类型/范围/默认)。后两层仅 Init 该引擎。`kind` 可选过滤。 |
 | `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
@@ -34,6 +34,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `set_keybinding` | 感知(写) | 改一条绑定：绑手势 / `gesture:""` 解绑 / `reset:true` 恢复默认。同域冲突默认拒绝（要 `replaceConflict:true` 才夺键并解除原命令）；**过授权闸门**；即时生效无需重启。 |
 | `list_extension_routing` | 感知 | 列被多包争用的扩展身份：各候选包 / 当前生效 / 是用户选定还是默认规则。**排障用**（"插件不生效"常是被顶替，非没装好）。读 `ExtensionRouting.GetConflicts`。 |
 | `set_extension_routing` | 感知(写) | 为某争用身份选定提供包（空=清除回默认规则）。**过授权闸门**；即时落盘但**重启后生效**。 |
+| `set_extension_enabled` | 感知(写) | 把某个已装包（或包内某一个能力位）**关掉但不卸载**；`capability` 省略=整包。**过授权闸门**；即时落盘但**重启后生效**。读面在 `list_extensions` 的 DISABLED 注记。 |
 | `list_extension_settings` | 感知 | 列哪些扩展声明了**自己的设置**（设置窗「扩展」页），给定一个则列其字段：键/标签/类型·范围·选项/默认/当前值。**密钥字段只报 (set)/(not set)、绝不回灌明文**。schema 取自插件 `GetSettingsConfig`。 |
 | `set_extension_setting` | 感知(写) | 改某扩展一个设置字段 + 落盘 + `ApplyOne` 立即回喂。按字段 config 校验；**密钥字段一律拒写**；**过授权闸门**。 |
 | `run_in_sandbox` | 探测 | 在一个**可丢弃无头工程**里跑 JS（同一 `tl` 面 + `sandbox` 全局），够到静态读够不着的东西（尤其**真实音素**：挂真音源+合法歌词+触发合成后才存在）。写入不碰用户数据、**不过授权闸门**。见下「探测沙箱」节。 |
@@ -58,6 +59,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ set_keybinding ─────────────────────► ToolAuthorization ──► Keymap.Rebind / ResetToDefault（自带落盘 + Changed 广播）
         ├─ list_extension_routing ─────────────► ExtensionRouting.GetConflicts / GetSelected（只读）
         ├─ set_extension_routing ──────────────► ToolAuthorization ──► ExtensionRouting.SetSelected（落盘，重启生效）
+        ├─ set_extension_enabled ──────────────► ToolAuthorization ──► ExtensionActivation.SetPackageEnabled / SetEntryEnabled（落盘，重启生效）
         ├─ list_extension_settings ─────────────► ExtensionSettingsManager.GetEntries + 插件 GetSettingsConfig（只读；密钥只报有无）
         ├─ set_extension_setting ──────────────► ToolAuthorization ──► ExtensionSettingsStore.Save + ExtensionSettingsManager.ApplyOne
         └─ run_in_sandbox ─────────────────────► SandboxHost（专用线程 + 可泵 SyncContext + 可丢弃 IProject；tl + sandbox 全局；不过授权闸门）
@@ -131,7 +133,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`save_script(name, code)`**：存（新建/覆盖）到库（`%APPDATA%/TuneLab/Scripts`）。**只持久化、不执行**。若 `code` 声明了 `getScriptInfo` 先**预校验**（沙箱 eval 顶层 + 调 `getScriptInfo`，复用 `ScriptTools.InspectSource`，改动原子回退，**先于授权**——不为坏脚本弹卡片）——失败不保存、回灌错误；成功回报注册到哪个菜单。无 `getScriptInfo` 则存为普通一次性脚本（仅 Script 侧栏）。**覆盖已存脚本**是破坏用户外部文件 → 过授权闸门（见下）；新建是加性、不拦。
 - **`list_scripts`** / **`read_script(name)`** / **`delete_script(name)`**：列出(标工具+context/带入参/plain) / 读源码 / 删除。**`delete_script` 恒过授权闸门**（删外部文件不可撤销）。
 
-**工程之外的写的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件与应用配置**，故 `delete_script`（恒）、`save_script` 覆盖已存（仅覆盖）、`set_setting`（恒）、`set_keybinding`（恒）、`set_extension_routing`（恒）、`set_extension_setting`（恒）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（这些操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite / SettingChange / KeybindingChange / RoutingChange / ExtensionSettingChange；`NewValue` 供文案点名新值、`SecondaryTarget` 点名顺带受影响的对象[当前只有夺键时被解绑的那个命令]），卡片按种类出不同文案（改设置/改快捷键的卡片显示**本地化行标/命令名**、模型侧才用键与 id）。只读工具（含环境感知的枚举件）永不过闸门。
+**工程之外的写的授权（`ToolAuthorization`）**：历史记录管理器只保工程数据、**保不了外部文件与应用配置**，故 `delete_script`（恒）、`save_script` 覆盖已存（仅覆盖）、`set_setting`（恒）、`set_keybinding`（恒）、`set_extension_routing`（恒）、`set_extension_setting`（恒）、`set_extension_enabled`（恒）也走 `Settings.AgentAuthorization` + 同一确认卡片。与工程写的区别是**无预览-回退**（这些操作不能试运行）：`Auto` 直接做；`ReadOnlyAdvice` 不做、只回报会做什么 + 提示手动/提权；`Confirm` 经卡片裁决（应用本次/始终允许切 Auto/拒绝）。确认回调统一为 `Func<AgentAuthorizationRequest, …>`（`AgentWriteKind` = ProjectEdit / ScriptDelete / ScriptOverwrite / SettingChange / KeybindingChange / RoutingChange / ExtensionSettingChange / ProjectExport(+Overwrite) / ExtensionActivationChange；`NewValue` 供文案点名新值、`SecondaryTarget` 是定位/说明本次改动所需的第二个对象[夺键时=被顺带解绑的那个命令；启停单个能力时=它所属的包名]），卡片按种类出不同文案（改设置/改快捷键的卡片显示**本地化行标/命令名**、模型侧才用键与 id）。只读工具（含环境感知的枚举件）永不过闸门。
 
 工具脚本约定（喂 LLM 全文在 `ScriptApiReference.cs` 的 "TOOL SCRIPTS" 节）：顶层**只定义函数、无副作用**；`getScriptInfo()` 返回 `{name, category?, author?, version?, context}`（`name` 里读 `tl.language` 本地化）；`main()` 是动作。`context` = `global`（顶部 Scripts 菜单，按 category 分组）/ `note`（钢琴命中音符，目标 `selectedNotes()`）/ `partContent`（钢琴空白，目标 `currentPart()`）/ `part`（编排命中 part，目标 `selectedParts()`）/ `track`（轨道头，目标 `selectedTracks()`）/ `trackContent`（编排空白泳道，目标 `selectedTracks()`）。注册/菜单注入由 `TuneLab.Scripting.ScriptTools` + `TuneLab.UI.ScriptToolMenu` 完成（设计见 `docs/script-tools-design.md`）。
 
@@ -198,6 +200,18 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_extension_routing`**（只读）：无冲突时**明说"没有任何身份被争用、没有东西被顶替"**并把排查引向别处（加载错误 / 能力枚举）；有冲突则逐行给 `kind:identity`、各候选包（含 packageId）、当前生效者、以及那是**用户选定**还是**默认规则**（内建优先、否则包 id 序最小）。
 - **`set_extension_routing(kind, identity, packageId?)`**（写）：只接受**确实争用**的身份（非争用直接报错，免得写进无意义选择）；packageId 必须是该身份的候选之一；空 = 清除选择并如实告知会回落到谁；与当前选择相同则"什么都没做"。过闸门（`AgentWriteKind.RoutingChange`），**回报必须说"重启后生效"**（`SetSelected` 即时落盘，但解析发生在加载期），卡片文案也带这句。
 - **系统提示钉住排障链**：`list_extensions`（状态/错误/是否被顶替）→ `list_extension_routing`（有争用才需要）→ `list_sound_sources`/`list_effects`（能力真的在不在），**明确要求不许停在第一步**。
+
+### 扩展启停（`set_extension_enabled` + `list_extensions` 的结局注记）
+
+"关掉但不卸载"——插件老报错、或加载慢又不常用时的正解。存取在 `ExtensionActivation`（独立 JSON `Configs/ExtensionActivation.json`，形状 `packageId → 被禁 entryKey 列表`，`"*"` = 整包），UI 全在扩展详情窗（header 的包级开关 + 各 tab 的条目级开关）；侧栏卡片**只展示状态**（「已禁用」+「需重启」徽标），刻意不放开关——卡片就那么点高，右栏已有版本徽标与卸载键，再塞开关不是挨着卸载"邀请误点"、就是把右栏挤成三层堆叠。**不进 Settings.json**（`ExtensionRouting.json` 同理）：Settings 只承「宿主固定的设置集合」——同一份发给任何用户都成立；而这两份的键与值都是"这台机器上装了哪些包"的函数，换台机器整份都无意义，属用户使用留下的痕迹，与 `ParameterPinning` / `RecentSoundSourceManager` / `ExtensionSettings.json` 同类。判据是**数据是否与用户环境绑定**，不是它有没有设置窗 UI（路由有一整页 UI，照样得搬出去）。
+
+- **与路由是两根轴，别混**：路由回答"同一身份有多个实现时用谁"，启停回答"这份实现要不要参与加载"——后者对**没有任何竞争者的独苗**同样成立，而路由对独苗无话可说（它只列冲突行）。故 agent 排障时两件都要看：被顶替（routing）与被关掉（activation）的表象都是"装了却没用上"，处方却完全不同。
+- **两级粒度**：省略 `capability` = 整包（**legacy 包与 manifest 坏包只有这一档**，它们没有条目可禁；且整包关掉时连程序集都不加载，是真能省启动时间的那一档）；给 `capability`（`kind:identity`）= 只关包里那一个能力，其余照常工作。多后缀 format 条目的几个身份共用同一份实现，**一起开关**（写入时逐身份各存一条，判定时任一命中即算禁用——作者日后增删后缀不会让用户的禁用悄悄失效）。
+- **`list_extensions` 的两处如实标注**（缺了就会主动误导，同 routing 的道理）：整包被关时包级 `status=Disabled` 外另起一行说明"装了但被关，本次运行它的能力一个都不存在"；逐能力位行补 `[DISABLED by the user]` / `[FAILED to load: …]` / `[SKIPPED: …]`——**包级状态是汇总，答不了"这个包里到底哪一个能力没起来"**，而那正是用户要问的粒度。这也是 `ExtensionEntryInfo.Status` 这个条目级状态存在的理由。
+- **`set_extension_enabled(packageId, enabled, capability?)`**（写）：过闸门（`AgentWriteKind.ExtensionActivationChange`，卡片按"整包/单能力 × 开/关"四句分别措辞）。整包已关时，单个能力**既不能单独开**（如实要求先开整包）**也无需再关**（已经是关的）——不写一个看不出效果的选择。与当前状态相同则"什么都没做"、不弹卡。回报必须说**重启后生效**，且关的那次要补一句"在那之前它这一轮仍然可用"。
+- **禁用发生在注册之前**：被禁的条目根本不进各 manager，于是 routing 矩阵、扩展设置页、`list_sound_sources`/`list_effects` 自然都看不到它——**无需在每个下游各写一遍过滤**。副作用之一：被禁条目在详情窗里没有设置齿轮（它没有实例可配置），重新启用并重启后自会回来。
+- **工具描述里钉住后果**：关掉 = 下次启动它彻底不存在，工程里引用它的部分（用那个音源的 part、那个格式的文件）会解析不到——`set_extension_enabled` 的描述要求 agent 先把这句告诉用户再动手。
+- **键会自己清理**（`ExtensionActivation.PruneUnknown`，加载全部包之后按"已装全集"跑一次）：卸载不会回来收拾自己的禁用键，留着就会埋雷——日后重装同一个包会**静默地装完就是关的**。语义 = 包没了，对它的选择也就没了；再装回来算新装、默认启用。
 
 ### 扩展自己的设置（`list_extension_settings` / `set_extension_setting`）
 

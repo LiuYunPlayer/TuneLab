@@ -83,8 +83,10 @@ class Program
         EditorState.Init(PathManager.EditorStateFilePath);
         RecentSoundSourceManager.Init(PathManager.RecentSoundSourcesFilePath);
         ParameterPinning.Init(PathManager.ParameterPinsFilePath);
-        // 须早于 ExtensionManager.LoadExtensions：注册期就要查这份表解析活实现。
+        // 两者都须早于 ExtensionManager.LoadExtensions：加载期每个包/条目要查启停表决定加不加载，
+        // 注册期要查路由表解析活实现。
         TuneLab.Extensions.ExtensionRouting.Init(PathManager.ExtensionRoutingFilePath);
+        TuneLab.Extensions.ExtensionActivation.Init(PathManager.ExtensionActivationFilePath);
         TuneLab.Input.Keymap.Init(PathManager.KeybindingsFilePath);
 
         // init translation

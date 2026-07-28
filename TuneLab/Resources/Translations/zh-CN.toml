@@ -182,6 +182,12 @@
 "Installed: " = "已安装："
 "Partial" = "部分"
 "Skipped" = "已跳过"
+"Disabled" = "已禁用"
+"Enabled" = "已启用"
+"Restart Required" = "需重启"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "启用或禁用该扩展。重启 TuneLab 后生效。"
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "启用或禁用该能力。重启 TuneLab 后生效。"
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "整个扩展已被禁用，其中的单个能力无法单独启用。"
 
 [Property]
 "Properties" = "属性"
@@ -372,6 +378,10 @@
 "The agent wants to delete the saved script \"{0}\". This can't be undone." = "Agent 想删除已保存的脚本“{0}”。此操作无法撤销。"
 "The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Agent 想覆盖已保存的脚本“{0}”。此操作无法撤销。"
 "The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "Agent 想让「{1}」成为「{0}」的提供包（重启后生效）。"
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "Agent 想启用扩展「{0}」（重启后生效）。"
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "Agent 想禁用扩展「{0}」（重启后生效）。"
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Agent 想启用「{1}」的「{0}」能力（重启后生效）。"
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Agent 想禁用「{1}」的「{0}」能力（重启后生效）。"
 "The agent wants to remove the shortcut for \"{0}\"." = "Agent 想解除「{0}」的快捷键绑定。"
 "The agent wants to set the shortcut for \"{0}\" to {1}." = "Agent 想把「{0}」的快捷键设为 {1}。"
 "This also unbinds the shortcut of \"{0}\"." = "这会同时解除「{0}」的快捷键绑定。"

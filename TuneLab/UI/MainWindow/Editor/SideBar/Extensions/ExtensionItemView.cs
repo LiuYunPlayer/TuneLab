@@ -39,7 +39,8 @@ internal class ExtensionItemView : Border
         ExtensionPath = extensionPath;
 
         // Skipped / Failed 下不展示类别徽标——加载失败的包没有"生效的类别"可言，只保留状态徽标。
-        bool showTypeBadge = status is ExtensionLoadStatus.Loaded or ExtensionLoadStatus.PartiallyLoaded;
+        // Disabled 例外：它不是故障，那个包依然"是个 voice 插件"，只是用户把它关了——徽标照留才认得出。
+        bool showTypeBadge = status is ExtensionLoadStatus.Loaded or ExtensionLoadStatus.PartiallyLoaded or ExtensionLoadStatus.Disabled;
 
         Background = Style.INTERFACE.ToBrush();
         Padding = new Thickness(12, 10);
@@ -65,9 +66,13 @@ internal class ExtensionItemView : Border
         };
 
         // 作者行（小字，过长截断）。
-        // 【卡片上不再有设置齿轮】：扩展设置是 per 能力位的（一个包里两个引擎各存一份），而卡片是包级视图——
+        // 【卡片上不放启停开关】：卡片只有 100px 上下的高度，右栏已有版本徽标与卸载键——再塞一个开关，
+        // 挨着卸载是"两个同尺寸小控件并排、邀请误点"，摆到中间又让右栏变成三层堆叠，两种都挤。
+        // 启停是低频操作，开关收进详情窗（header 的包级 + 各 tab 的条目级）即可；卡片只**如实展示状态**：
+        // 运行态由状态徽标承载（含「已禁用」），存的选择与运行态不一致时另亮「需重启」。
+        // 【卡片上也没有设置齿轮】：扩展设置是 per 能力位的（一个包里两个引擎各存一份），而卡片是包级视图——
         // 包内多个条目都有设置时，一个齿轮只能跳到"首个"，等于拿包级控件冒充某个具体能力的入口。
-        // 设置入口改由详情窗各 tab 自己承载（准确对应那一个能力位）；要总览全部则走设置窗「扩展」页。
+        // 设置入口同样由详情窗各 tab 自己承载（准确对应那一个能力位）；要总览全部则走设置窗「扩展」页。
         // 用 DockPanel（图标 Dock.Left + 文字填充）：填充的文字受限于剩余宽度，省略号才生效。
         Control? authorRow = null;
         if (!string.IsNullOrWhiteSpace(author))
@@ -96,7 +101,8 @@ internal class ExtensionItemView : Border
             authorRow = authorDock;
         }
 
-        // 底行：类别徽标（每种 type 各一枚）+（非 Loaded 时）状态徽标（左）+ 卸载按钮（右）。
+        // 底行：类别徽标（每种 type 各一枚）+（非 Loaded 时）状态徽标 +（启停选择与本次运行不符时）需重启徽标（左）
+        //      + 卸载按钮（右）。启停开关不在这一行——理由见上面中间行的注释。
         var bottomRow = new DockPanel();
         {
             // 卸载按钮固定在右下角。
@@ -138,8 +144,7 @@ internal class ExtensionItemView : Border
             // 后者 Handled 拦不住前者冒泡），故在按钮处 handle 掉 Tapped，避免点卸载/齿轮时又弹详情。
             mUninstallBtn.AddHandler(Gestures.TappedEvent, (_, e) => e.Handled = true);
 
-            // 类别徽标：每种 type 单独一枚（而非逗号拼进一枚）。
-            // Skipped/Failed 不渲染类别、只渲染状态徽标（showTypeBadge 已据此判定）。
+            // 类别徽标：每种 type 单独一枚（而非逗号拼进一枚）。渲染与否见 showTypeBadge 处的判定与理由。
             var tagPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -183,7 +188,21 @@ internal class ExtensionItemView : Border
                 if (!string.IsNullOrEmpty(error))
                     ToolTip.SetTip(statusBadge, error);
                 tagPanel.Children.Add(statusBadge);
+                firstTag = false;
             }
+            // 「需重启」徽标：存下来的启停选择与本次运行的实际状态不一致时亮起。缺了它，用户拨完开关
+            // 会以为已经生效——已注册的能力撤不回、程序集也卸不掉，唯一诚实的做法是明说要重启。
+            mRestartBadge = new Border
+            {
+                Background = new SolidColorBrush(RestartHintColor, 0.18),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 2),
+                Margin = firstTag ? new Thickness(0) : new Thickness(6, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                IsVisible = false,
+                Child = new TextBlock { Text = "Restart Required".Tr(TC.Dialog), FontSize = 11, Foreground = new SolidColorBrush(RestartHintColor) },
+            };
+            tagPanel.Children.Add(mRestartBadge);
             bottomRow.AddDock(tagPanel);
         }
 
@@ -350,8 +369,19 @@ internal class ExtensionItemView : Border
         ExtensionLoadStatus.Failed => ("Failed".Tr(TC.Dialog), Color.Parse("#E5737C")),
         ExtensionLoadStatus.Skipped => ("Skipped".Tr(TC.Dialog), Color.Parse("#E5C573")),
         ExtensionLoadStatus.PartiallyLoaded => ("Partial".Tr(TC.Dialog), Color.Parse("#E5A573")),
+        // 中性灰：Disabled 是用户自己的选择，不是告警——不与故障/跳过共用暖色。
+        ExtensionLoadStatus.Disabled => ("Disabled".Tr(TC.Dialog), Color.Parse("#9AA0A6")),
         _ => (string.Empty, Colors.Transparent),
     };
+
+    private static readonly Color RestartHintColor = Color.Parse("#73A9E5");
+
+    // 亮/灭「需重启」徽标（由 provider 比对"存下来的选择"与"本次运行的实际状态"后调用）。
+    public void SetRestartRequired(bool required)
+    {
+        if (mRestartBadge != null)
+            mRestartBadge.IsVisible = required;
+    }
 
     public void MarkPendingUninstall()
     {
@@ -380,4 +410,5 @@ internal class ExtensionItemView : Border
 
     readonly Border mUninstallBtn;
     readonly TextBlock mUninstallBtnText;
+    readonly Border? mRestartBadge;   // 「需重启」徽标（存的启停选择 ≠ 本次运行状态时可见）
 }

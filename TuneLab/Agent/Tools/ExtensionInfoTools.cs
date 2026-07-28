@@ -26,8 +26,10 @@ internal sealed class ListExtensionsTool : IAgentTool
     public string Description =>
         "List the TuneLab extensions (plugins) the user has installed: each one's name, id, version, author, kind(s) " +
         "(format / voice / instrument / effect, or a resource type), load status, its package-level description, and — per capability it provides — " +
-        "that capability's identity, whether an introduction can be fetched, and whether it is SHADOWED by another package. " +
+        "that capability's identity, whether it is DISABLED / failed to load, whether an introduction can be fetched, and whether it is SHADOWED by another package. " +
         "Use to know what the user has installed and to guide them. For one capability's full introduction, call get_extension_introduction. " +
+        "Never claim a capability is available without checking these per-capability notes: an installed package can be switched off by the user (see set_extension_enabled), " +
+        "and a single package can have one capability working and another one off or broken. " +
         "When troubleshooting \"plugin X doesn't work\": status=Loaded only means it loaded — check the shadowed note here (and list_extension_routing), then confirm the capability itself shows up in list_sound_sources / list_effects.";
 
     public string ParametersJsonSchema => """
@@ -53,6 +55,11 @@ internal sealed class ListExtensionsTool : IAgentTool
               .Append("]  kinds: ").Append(types);
             if (!string.IsNullOrEmpty(r.Author))
                 sb.Append("  by ").Append(r.Author);
+            // 整包被用户关掉：这不是故障，但后果是"装了 ≠ 能用"。不说清楚，模型会照着 kinds 那一行
+            // 向用户保证一个本次运行根本没注册的能力。
+            if (r.Status == ExtensionLoadStatus.Disabled)
+                sb.Append("\n    DISABLED by the user — installed but switched off, so NONE of its capabilities exist in this session."
+                        + " Re-enable it in the Extensions sidebar or with set_extension_enabled (takes effect after a restart).");
             // 包级 description：讲【整个包】。各能力位自己的一句话在下面的 provides 行里，两者不互相顶替。
             if (!string.IsNullOrEmpty(r.Description))
                 sb.Append("\n    ").Append(r.Description);
@@ -70,6 +77,9 @@ internal sealed class ListExtensionsTool : IAgentTool
                         sb.Append(':').Append(string.Join(",", e.Identities));
                     if (!string.IsNullOrEmpty(e.DisplayName))
                         sb.Append(" \"").Append(e.DisplayName).Append('"');
+                    // 逐条目结局：包级 status 是汇总，一个包完全可以"一个能力好好的、另一个被关掉或坏了"。
+                    // 整包被禁时逐条目也标一遍——模型常只读到自己关心的那一行。
+                    AppendEntryStatus(sb, e, r.Status == ExtensionLoadStatus.Disabled);
                     if (!string.IsNullOrEmpty(e.IntroductionPath) && e.Identities.Count > 0)
                         sb.Append("  [introduction available — call get_extension_introduction(\"")
                           .Append(e.Kind).Append(':').Append(e.Identities[0]).Append("\")]");
@@ -84,6 +94,25 @@ internal sealed class ListExtensionsTool : IAgentTool
             }
         }
         return Task.FromResult(sb.ToString());
+    }
+
+    // 单个条目的结局注记（接在 provides 行末）。Registered 不写——正常态无需噪音。
+    static void AppendEntryStatus(StringBuilder sb, ExtensionEntryInfo entry, bool packageDisabled)
+    {
+        switch (entry.Status)
+        {
+            case ExtensionEntryStatus.Disabled:
+                sb.Append(packageDisabled
+                    ? "  [NOT AVAILABLE: the whole package is disabled]"
+                    : "  [DISABLED by the user: this capability alone is switched off (the rest of the package still works). Re-enable with set_extension_enabled; needs a restart]");
+                break;
+            case ExtensionEntryStatus.Failed:
+                sb.Append("  [FAILED to load: ").Append(entry.Error ?? "unknown error").Append(" — this capability does NOT exist in this session]");
+                break;
+            case ExtensionEntryStatus.Skipped:
+                sb.Append("  [SKIPPED: ").Append(entry.Error ?? "unknown reason").Append(" — this capability does NOT exist in this session]");
+                break;
+        }
     }
 
     // 某能力位的冲突注记（挂在该 provides 行之下）。format 在 routing 里细分成 format-import / format-export

@@ -176,6 +176,12 @@
 "Installed: " = "已安裝："
 "Partial" = "部分"
 "Skipped" = "已略過"
+"Disabled" = "已停用"
+"Enabled" = "已啟用"
+"Restart Required" = "需重新啟動"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "啟用或停用該擴充功能。重新啟動 TuneLab 後生效。"
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "啟用或停用該功能。重新啟動 TuneLab 後生效。"
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "整個擴充功能已停用，其中的個別功能無法單獨啟用。"
 
 [Property]
 "Properties" = "屬性"

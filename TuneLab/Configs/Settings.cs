@@ -12,8 +12,8 @@ namespace TuneLab.Configs;
 //  ② Init/Save 遍历注册表读写 settings.json（键/类型/顺序与旧格式一致，逐字段兼容）。
 // 【边界】本文件只承「宿主固定的设置集合」——同一份配置发给任何用户都成立。凡与**用户环境**绑定的
 // （装了哪些扩展、用过哪些音源、往参数面板钉了什么）都不在此列：那是使用痕迹，各自独立 JSON
-// （ExtensionRouting.json / ExtensionSettings.json / ParameterPins.json / RecentSoundSources.json）。
-// 判据是"这份数据换台机器还成不成立"，不是"它有没有设置窗 UI"。
+// （ExtensionRouting.json / ExtensionActivation.json / ExtensionSettings.json / ParameterPins.json /
+//  RecentSoundSources.json）。判据是"这份数据换台机器还成不成立"，不是"它有没有设置窗 UI"。
 internal static class Settings
 {
     // 默认值来源（单一默认源；阶段②重写设置窗后可并入注册表）。

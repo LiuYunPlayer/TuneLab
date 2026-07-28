@@ -905,6 +905,7 @@ The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionS
 - **Installation**: in TuneLab, drag the `.tlx` into the window, or use "Install Extension" in the extensions sidebar. Installing extracts it to the extension directory and **loads it immediately** (no restart needed).
 - **Extension directory**: `%AppData%/TuneLab/Extensions/<package name>/` (Windows). "Open Extensions Folder" in the sidebar opens it directly.
 - **Uninstallation**: "Uninstall" on each item in the extensions sidebar. Uninstallation is completed **after the editor closes** by a standalone `ExtensionInstaller` (deleting after file locks are released), with an option to "restart now" to take effect.
+- **Disabling (without uninstalling)**: open a package's detail window from the extensions sidebar — its header has a switch that turns the **whole package** off, and each tab has one that turns off **that entry alone** (so a package whose voice works and whose effect is broken can keep the working half). A disabled entry is never registered, and a disabled package is not even loaded; the sidebar card then shows a `Disabled` badge. Both take effect **after a restart**. Keep this in mind when your plugin "doesn't load" during testing — check the switch before hunting for a bug.
 
 ---
 
@@ -913,6 +914,7 @@ The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionS
 When TuneLab loads each package: **discover** → read `manifest.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **scanning the `classes` candidates to claim by the interfaces required by this `type` and instantiate & register** (no longer reflecting over attributes).
 
 - Any step's failure **degrades gracefully**: only the problematic plugin/entry is skipped, **the host never crashes**, and the loading status is reflected in the extensions sidebar and the log.
+- **The user's disable switch comes first, before every check above**: a package (or a single entry) the user has switched off is not validated, not loaded, and not registered — the sidebar reports it as `Disabled`, never as an error. Its declared entries are still listed, so the user has somewhere to switch it back on.
 - `sdk-version` higher than the host → that package is skipped with a notice.
 - `platforms` not including the current platform → that plugin is skipped.
 - Entry-level validation failure (`assembly` not found, no class in `classes` implements the interface required by this `type`, the hit class lacks a parameterless constructor) → **only that entry fails**, with the reason written into the sidebar tooltip; the rest of the package's entries load as usual (partial loading).

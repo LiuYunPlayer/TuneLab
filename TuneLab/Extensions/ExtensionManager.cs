@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -80,6 +81,10 @@ internal static class ExtensionManager
             Load(dir);
         }
 
+        // 发现完全部已装包后，清掉指向"已不在的包"的启停键（卸载不会回来收拾自己的键，留着会让日后重装
+        // 静默地装完就是关的）。须在此处而非各 Load 内——判据是【全集】。
+        ExtensionActivation.PruneUnknown(mLoadResults.Select(r => r.Id));
+
         // 全部能力注册完毕后，把已落盘的扩展设置回喂给声明了 IExtensionSettings 的 extension（早于任何 Init/会话）。
         ExtensionSettingsManager.ApplyPersisted();
     }
@@ -146,6 +151,25 @@ internal static class ExtensionManager
         };
         mLoadResults.Add(result);
 
+        // ── 用户启停门（早于一切校验）：整包被关 ⇒ 什么都不做，连 sdk-version 都不判——它没被尝试，
+        // 报"SDK 不兼容"只会误导。但仍【如实列出声明了什么】：详情窗逐条目一页的规则要靠 Entries 生成
+        // tab，用户得有地方把它重新打开。──
+        if (ExtensionActivation.IsPackageDisabled(description.id))
+        {
+            foreach (var ext in description.EffectiveExtensions)
+            {
+                var disabledKind = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
+                var disabledEntry = MakeEntry(path, ext, disabledKind, lang);
+                disabledEntry.Status = ExtensionEntryStatus.Disabled;
+                result.Entries.Add(disabledEntry);
+                // 类别徽标照留：被关掉的包依然"是个 voice 插件"，只是本次没加载——比只剩一个 Disabled 徽标好认。
+                if (!string.IsNullOrEmpty(disabledKind) && !result.Types.Contains(disabledKind))
+                    result.Types.Add(disabledKind);
+            }
+            result.Status = ExtensionLoadStatus.Disabled;
+            return;
+        }
+
         // ── 校验：sdk-version 兼容门（代码包声明；资源包可省略）──
         if (!string.IsNullOrEmpty(description.sdkVersion))
         {
@@ -167,7 +191,7 @@ internal static class ExtensionManager
 
         // ── 加载：per-folder ALC，遍历归一化后的各 extension ──
         PluginLoadContext? alc = null;
-        int loaded = 0, failed = 0, skipped = 0;
+        int loaded = 0, failed = 0, skipped = 0, disabled = 0;
         var reasons = new List<string>();
 
         foreach (var ext in description.EffectiveExtensions)
@@ -176,16 +200,30 @@ internal static class ExtensionManager
 
             // 声明即入列：不论后续是否注册成功（平台不匹配 / 程序集缺失 / 入口类未命中），都如实反映
             // 「这个包里声明了什么」——供详情窗逐条目渲染 introduction、agent 逐条目列能力与摘要。
-            result.Entries.Add(new ExtensionEntryInfo(
-                kind,
-                EntryIdentities(ext, kind),
-                ext.LocalizedName(lang),
-                ExtensionIntroduction.Resolve(path, ext, lang)));
+            // 结局逐支回填进 entry.Status：包级 Status 只是汇总，说不清是哪一个能力没起来。
+            var entry = MakeEntry(path, ext, kind, lang);
+            result.Entries.Add(entry);
+
+            // 用户启停门先于一切校验：被关掉的条目根本没被尝试，不该因平台/程序集问题去报错。
+            // （整包被禁已在前面短路，走到这里只可能是条目自己被关。）跳过注册即达成目的——
+            // 它不进各 manager，于是 routing 矩阵、扩展设置页、音源选择器都自然看不到它。
+            if (ExtensionActivation.IsEntryDisabledSelf(description.id, kind, entry.Identities))
+            {
+                disabled++;
+                entry.Status = ExtensionEntryStatus.Disabled;
+                if (!string.IsNullOrEmpty(kind) && !result.Types.Contains(kind))
+                    result.Types.Add(kind);
+                reasons.Add(string.Format("{0}: disabled by the user", IdentityLabel(ext, kind)));
+                continue;
+            }
 
             if (!ext.IsPlatformAvailable())
             {
                 skipped++;
-                reasons.Add(string.Format("{0}: platform not available", string.IsNullOrEmpty(ext.type) ? "extension" : ext.type));
+                var platformReason = string.Format("{0}: platform not available", string.IsNullOrEmpty(ext.type) ? "extension" : ext.type);
+                entry.Status = ExtensionEntryStatus.Skipped;
+                entry.Error = platformReason;
+                reasons.Add(platformReason);
                 continue;
             }
 
@@ -206,6 +244,8 @@ internal static class ExtensionManager
                         "unsupported extension type '{0}': the entry declares code (assembly/classes) but this host has no such plugin kind"
                         + " (supported: format / voice / instrument / effect; see docs/plugin-development.md)",
                         string.IsNullOrEmpty(kind) ? "(empty)" : kind);
+                    entry.Status = ExtensionEntryStatus.Skipped;
+                    entry.Error = unsupported;
                     reasons.Add(unsupported);
                     Log.Warning(string.Format("Extension {0}: {1}", description.name, unsupported));
                     continue;
@@ -223,6 +263,8 @@ internal static class ExtensionManager
                 {
                     failed++;
                     var reason = string.Format("{0}: assembly '{1}' not found", IdentityLabel(ext, kind), ext.assembly ?? "(unspecified)");
+                    entry.Status = ExtensionEntryStatus.Failed;
+                    entry.Error = reason;
                     reasons.Add(reason);
                     Log.Warning(string.Format("Extension {0}: {1}", description.name, reason));
                     continue;
@@ -234,6 +276,8 @@ internal static class ExtensionManager
                 {
                     failed++;
                     var reason = string.Format("{0}: built against an incompatible SDK ({1} no longer exists)", IdentityLabel(ext, kind), abiMissing);
+                    entry.Status = ExtensionEntryStatus.Failed;
+                    entry.Error = reason;
                     reasons.Add(reason);
                     Log.Warning(string.Format("Extension {0}: {1}", description.name, reason));
                     continue;
@@ -250,6 +294,8 @@ internal static class ExtensionManager
                 else
                 {
                     failed++;
+                    entry.Status = ExtensionEntryStatus.Failed;
+                    entry.Error = error;
                     reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), error));
                     Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), error));
                 }
@@ -257,15 +303,20 @@ internal static class ExtensionManager
             catch (Exception ex)
             {
                 failed++;
+                entry.Status = ExtensionEntryStatus.Failed;
+                entry.Error = ex.Message;
                 reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), ex.Message));
                 Log.Error(string.Format("Extension {0}: failed to load {1}: {2}", description.name, IdentityLabel(ext, kind), ex));
             }
         }
 
         if (loaded > 0)
-            result.Status = (failed == 0 && skipped == 0) ? ExtensionLoadStatus.Loaded : ExtensionLoadStatus.PartiallyLoaded;
+            result.Status = (failed == 0 && skipped == 0 && disabled == 0) ? ExtensionLoadStatus.Loaded : ExtensionLoadStatus.PartiallyLoaded;
+        else if (failed > 0)
+            result.Status = ExtensionLoadStatus.Failed;
         else
-            result.Status = failed > 0 ? ExtensionLoadStatus.Failed : ExtensionLoadStatus.Skipped;
+            // 一个条目都没起来：若是用户自己全关掉的，那不是故障——报 Disabled（徽标与措辞都不同）。
+            result.Status = disabled > 0 ? ExtensionLoadStatus.Disabled : ExtensionLoadStatus.Skipped;
 
         // 失败/跳过原因填入 Error（供侧边栏 tooltip 展示）；sdk-version 等已提前设置过的不覆盖。
         if (result.Status != ExtensionLoadStatus.Loaded
@@ -374,6 +425,14 @@ internal static class ExtensionManager
         };
         mLoadResults.Add(result);
 
+        // 用户启停门：legacy 包没有 manifest 条目可禁，**包级开关是它唯一的关闭方式**——而"这个老插件
+        // 老崩、又还不想卸"恰恰最常发生在这一档。早于平台过滤与 compat hook：被关掉的包不该再跑任何代码。
+        if (ExtensionActivation.IsPackageDisabled(result.Id))
+        {
+            result.Status = ExtensionLoadStatus.Disabled;
+            return;
+        }
+
         // 平台过滤（老 schema 也支持 platforms）。
         if (description != null && !description.IsPlatformAvailable())
         {
@@ -439,6 +498,10 @@ internal static class ExtensionManager
         => kind == "format" ? ext.EffectiveSuffixes
         : IsCodeKind(kind) ? (string.IsNullOrEmpty(ext.engine) ? [] : [ext.engine])
         : [];
+
+    // 由 manifest 条目造展示/agent 侧的条目信息（状态由调用方按结局回填）。
+    static ExtensionEntryInfo MakeEntry(string path, ExtensionInfo ext, string kind, string lang)
+        => new(kind, EntryIdentities(ext, kind), ext.LocalizedName(lang), ExtensionIntroduction.Resolve(path, ext, lang));
 
     // 条目身份标签（用于日志/错误前缀）：format 列出全部后缀、引擎类用 engine id。
     static string IdentityLabel(ExtensionInfo ext, string kind)
