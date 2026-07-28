@@ -465,7 +465,8 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
             OnIcon = Assets.Stereo,
             OffToolTip = "Mono".Tr(TC.Dialog),
             OnToolTip = "Stereo".Tr(TC.Dialog),
-            HighlightColor = Style.HIGH_LIGHT,
+            // 不设 UncheckedHighlightColor：这是【两选一】开关，两半都是有意义的选项（靠图标区分），
+            // 把一侧调暗会谎称它是"关"。（HighlightColor 也无需设——默认就是 HIGH_LIGHT。）
             Width = 52,
             Height = 16,
         };

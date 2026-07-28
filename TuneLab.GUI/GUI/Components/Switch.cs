@@ -34,7 +34,15 @@ internal class Switch : Toggle, IDataValueController<bool>
     /// <summary>Background (capsule) color.</summary>
     public Color BackColor { get => mBackColor; set { mBackColor = value; InvalidateVisual(); } }
     /// <summary>Moving highlight pill color.</summary>
-    public Color HighlightColor { get => mHighlightColor; set { mHighlightColor = value; InvalidateVisual(); } }
+    public Color HighlightColor { get => mHighlightColor; set { mHighlightColor = value; SnapPillColor(); } }
+    /// <summary>
+    /// Highlight pill color while unchecked. Null (the default) = use <see cref="HighlightColor"/> on both sides,
+    /// which is what a **two-choice** switch wants: there both halves are meaningful options told apart by their
+    /// icons, so dimming one side would falsely imply it is "off".
+    /// Set it for an **on/off** switch — above all an icon-less one, whose two states would otherwise differ only
+    /// by which side the pill sits on, and are far too easy to read backwards.
+    /// </summary>
+    public Color? UncheckedHighlightColor { get => mUncheckedHighlightColor; set { mUncheckedHighlightColor = value; SnapPillColor(); } }
     /// <summary>Color used for the icon on the currently selected side.</summary>
     public Color ActiveIconColor { get => mActiveIconColor; set { mActiveIconColor = value; SnapIconColors(); } }
     /// <summary>Color used for the icon on the non-selected side.</summary>
@@ -55,10 +63,12 @@ internal class Switch : Toggle, IDataValueController<bool>
         mPosition = new AnimationValue { Value = TargetPosition() };
         mOnColor = new AnimationColor { Value = TargetOnColor() };
         mOffColor = new AnimationColor { Value = TargetOffColor() };
+        mPillColor = new AnimationColor { Value = TargetPillColor() };
 
         mPosition.ValueChanged += InvalidateVisual;
         mOnColor.ValueChanged += InvalidateVisual;
         mOffColor.ValueChanged += InvalidateVisual;
+        mPillColor.ValueChanged += InvalidateVisual;
 
         // Trigger animations whenever the checked state flips (via click or IsChecked setter).
         Switched.Subscribe(OnSwitched);
@@ -75,6 +85,7 @@ internal class Switch : Toggle, IDataValueController<bool>
         mPosition.SetTo(TargetPosition(), 0);
         mOnColor.SetTo(TargetOnColor(), 0);
         mOffColor.SetTo(TargetOffColor(), 0);
+        mPillColor.SetTo(TargetPillColor(), 0);
         InvalidateVisual();
     }
 
@@ -99,7 +110,7 @@ internal class Switch : Toggle, IDataValueController<bool>
             var hx = rect.X + padding + mPosition.Value * halfWidth;
             var hy = rect.Y + padding;
             var hRadius = hh / 2.0;
-            context.DrawRectangle(mHighlightColor.ToBrush(), null, new Rect(hx, hy, hw, hh), hRadius, hRadius);
+            context.DrawRectangle(mPillColor.Value.ToBrush(), null, new Rect(hx, hy, hw, hh), hRadius, hRadius);
         }
 
         // 3) Icons on top: OffIcon centered in the left half, OnIcon centered in the right half.
@@ -112,6 +123,8 @@ internal class Switch : Toggle, IDataValueController<bool>
         mPosition.SetTo(TargetPosition(), AnimationMillisec, AnimationCurve.QuadOut);
         mOnColor.SetTo(TargetOnColor(), AnimationMillisec, AnimationCurve.QuadOut);
         mOffColor.SetTo(TargetOffColor(), AnimationMillisec, AnimationCurve.QuadOut);
+        // Fades along with the slide (rather than snapping mid-travel) whenever the two sides differ in color.
+        mPillColor.SetTo(TargetPillColor(), AnimationMillisec, AnimationCurve.QuadOut);
     }
 
     void SnapIconColors()
@@ -121,9 +134,16 @@ internal class Switch : Toggle, IDataValueController<bool>
         InvalidateVisual();
     }
 
+    void SnapPillColor()
+    {
+        mPillColor.SetTo(TargetPillColor(), 0);
+        InvalidateVisual();
+    }
+
     double TargetPosition() => IsChecked ? 1.0 : 0.0;
     Color TargetOnColor() => IsChecked ? mActiveIconColor : mInactiveIconColor;
     Color TargetOffColor() => IsChecked ? mInactiveIconColor : mActiveIconColor;
+    Color TargetPillColor() => IsChecked ? mHighlightColor : mUncheckedHighlightColor ?? mHighlightColor;
 
     // --- Per-half tooltip logic --------------------------------------------------
     // When either OffToolTip or OnToolTip is set, we swap the tooltip text on the
@@ -186,10 +206,12 @@ internal class Switch : Toggle, IDataValueController<bool>
     string? mOffToolTip;
     Color mBackColor = Style.BACK;
     Color mHighlightColor = Style.HIGH_LIGHT;
+    Color? mUncheckedHighlightColor;
     Color mActiveIconColor = Style.WHITE;
     Color mInactiveIconColor = Style.LIGHT_WHITE.Opacity(0.5);
 
     readonly AnimationValue mPosition;
     readonly AnimationColor mOnColor;
     readonly AnimationColor mOffColor;
+    readonly AnimationColor mPillColor;
 }
