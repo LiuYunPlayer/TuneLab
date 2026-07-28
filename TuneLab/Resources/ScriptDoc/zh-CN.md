@@ -330,6 +330,132 @@ for (const n of part.notes()) if (n.pitch < 36) part.removeNote(n);
 
 ---
 
+## 工具脚本 —— 存进库、进菜单、绑快捷键
+
+上面那些是**一次性脚本**：写完点 Run 就跑，用完即弃。给脚本加一个 `getScriptInfo()`，它就变成**工具**——存进脚本库后出现在菜单里、可以绑快捷键、可以反复用。
+
+```js
+function getScriptInfo() {
+  return { name: "加三度和声", context: "note" };
+}
+function main() {                      // 动作写在 main 里，body 与一次性脚本一模一样
+  const p = tl.currentPart();
+  for (const n of p.selectedNotes())
+    p.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 4, lyric: n.lyric });
+}
+```
+
+- **没有 `getScriptInfo` 的脚本**只属于 Script 侧栏，永远不进菜单。
+- **`main()` 整体是一个可撤销单位**，中途出错则全部回退（与一次性脚本同一规则）。
+- 工具名想跟随界面语言，用 `tl.language` 分支：`name: tl.language === 'zh-CN' ? '加三度和声' : 'Add Third Harmony'`。
+
+### `getScriptInfo()` 的字段
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `name` | ✔ | 菜单里显示的名字。 |
+| `context` | | 决定它**出现在哪、作用于什么**，同时决定快捷键在哪个区域生效。默认 `'global'`。见下表。 |
+| `id` | | **稳定锚点**，用于记住用户绑的快捷键与设置。可用 `A-Z a-z 0-9 . _ -`。**发布后就别再改**；不写则用文件名当 id——那样一改名，用户绑的快捷键就丢了。 |
+| `defaultGesture` | | 建议快捷键，如 `'mod+shift+k'`（`mod` = macOS 的 Cmd / Windows 的 Ctrl，也可直接写 `ctrl`/`cmd`/`alt`/`shift`）。**只在该键位空闲时生效，绝不顶掉内置快捷键**；用户可在设置里改绑。 |
+
+`context` 的取值：
+
+| `context` | 出现在哪 | 作用对象 |
+|---|---|---|
+| `'global'` | 顶部 Scripts 菜单 | `tl.currentPart()` 或整个工程 |
+| `'note'` | 钢琴窗里**右键音符** | `tl.currentPart().selectedNotes()`（被右键的音符必在选中里） |
+| `'partContent'` | 钢琴窗**空白处**右键 | `tl.currentPart()` 的内容 |
+| `'pianoSelection'` | 钢琴窗**右键范围选区** | `tl.pianoSelection()`（一段 tick 带；无选区时为 `null`） |
+| `'part'` | 编排区**右键 part** | `tl.selectedParts()`（可能多个） |
+| `'track'` | **右键轨头** | `tl.selectedTracks()`（可能多个） |
+| `'trackContent'` | 编排区某轨的**空白泳道**右键 | `tl.selectedTracks()` |
+| `'trackSelection'` | 编排区**右键范围选区** | `tl.trackSelection()`（tick × 轨道；无选区时为 `null`） |
+
+快捷键的生效区域跟着 context 走：`piano*` 只在钢琴窗触发，编排区的几个只在编排区，`global` 在编辑器任何地方都行。**用快捷键触发时没有"被右键的那个"**，作用对象就是**当前选中**——所以 `main()` 应该在选中为空时什么都不做。
+
+### `getInputConfig(ctx)` —— 运行前弹表单问参数
+
+再加一个 `getInputConfig`，宿主会在跑 `main` 之前弹一个表单，把填好的值交给 `main(inputs)`：
+
+```js
+function getScriptInfo() { return { name: "移调", context: "note" }; }
+function getInputConfig(ctx) {
+  return { semitones: SliderConfig.integer(12, -24, 24) };   // 键 = 字段标签
+}
+function main(inputs) {
+  for (const n of tl.currentPart().selectedNotes()) n.pitch += inputs.semitones;
+}
+```
+
+返回值是一个 **`键 → config` 的 map**（不是普通数据），键就是字段在表单里的标签，值用下面的构造器造。
+
+**两个口径别搞混**（最容易踩的一条）：
+
+| | 内容 |
+|---|---|
+| `getInputConfig` 的 `ctx.values` | **稀疏**——只含用户**改过**的键，没动过的读到 `undefined`。所以这里取值**永远要兜默认**：`const mode = ctx.values.mode ?? 'transpose'` |
+| `main` 的 `inputs` | **全量**——你声明过的每个字段都在（用户填的值，或该 config 的默认值）。直接读，不必判断存在性 |
+
+**条件字段**：`getInputConfig` 在**每次改值后都会重新调用**，所以直接按 `ctx.values` 分支增删字段即可：
+
+```js
+function getInputConfig(ctx) {
+  const mode = ctx.values.mode ?? 'transpose';
+  const cfg = { mode: ComboBoxConfig.create(['transpose', 'setPitch']) };
+  if (mode === 'transpose') cfg.semitones = SliderConfig.integer(12, -24, 24);
+  else                      cfg.targetPitch = SliderConfig.integer(60, 0, 127);
+  return cfg;
+}
+```
+
+**无副作用铁律**：`getInputConfig` 会被反复调用（开窗时 + 每次改值），**只许声明、不许动手**——所有实际改动都放进 `main`。在这里读工程作为依据是可以的（`tl.currentPart()`、`selectedNotes()` 等），改工程不行。
+
+### 输入控件构造器
+
+方法名与控件类型对应，`withX(...)` 返回新的 config，可以链式接。
+
+| 构造器 | 说明 |
+|---|---|
+| `SliderConfig.linear(默认, min, max)` | 滑条（连续） |
+| `SliderConfig.integer(默认, min, max)` | 滑条（整数） |
+| `SliderConfig.create(默认, scale)` | 自定义标度的滑条，`scale` 见下 |
+| ↳ `.withFormat(fmt)` `.withMinLabel(s)` `.withMaxLabel(s)` `.withRandomizable()` | 数值显示格式 / 两端文字标签 / 允许随机化 |
+| `DraggableNumberBoxConfig.create(默认?)` `.integer(默认?)` | 可拖拽数字框 |
+| ↳ `.withMin(x)` `.withMax(x)` `.withRange(a,b)` `.withStep(s)` `.withSensitivity(s)` `.withFormat(fmt)` | 范围 / 步进 / 拖拽灵敏度 / 格式 |
+| `ComboBoxConfig.create(['a','b'])` 或 `.create()` | 下拉。**默认值给的是「值」本身，不是下标** |
+| ↳ `.append(x)` `.appendSeparator(标签?)` `.withDefault('a')` | 追加项 / 分隔线 / 指定默认值 |
+| `CheckBoxConfig.create(默认?)` | 勾选框 |
+| `TextBoxConfig.create(默认?)` | 文本框 |
+| ↳ `.withPassword()` | 密码样式（内容打码） |
+
+**标度与格式**（`SliderConfig.create` / `.withFormat` 的参数）：
+
+| | 说明 |
+|---|---|
+| `NormalizedScale.linear(min, max)` `.integer(min, max)` | 线性 / 整数标度 |
+| `NormalizedScale.rounded(s)` `.floor(s)` `.ceil(s)` | 在已有标度上取整 |
+| `NormalizedScale.custom(p => 值, 值 => p)` | **自定义标度**：两个互逆函数，`p` 是 0..1 的位置——用来做对数/指数轴 |
+| `NumberFormat.decimals(n)` | 固定小数位 |
+| `NumberFormat.custom(v => 字符串, s => 数字或 null)` | **自定义显示/解析**，带单位时用它；解析失败返回 `null` |
+
+自定义的这两个函数在表单打开期间**实时被调用**，所以要保持纯粹且轻量。它们出错或返回非法值时会安全降级，不会把异常抛进界面。
+
+```js
+// 频率滑条：20Hz–20kHz 用对数轴，显示带单位
+function getInputConfig(ctx) {
+  return {
+    freq: SliderConfig.create(1000, NormalizedScale.custom(
+        p => 20 * Math.pow(1000, p),               // 0..1 → 20..20000
+        v => Math.log(v / 20) / Math.log(1000)))   // 反过来
+      .withFormat(NumberFormat.custom(
+        v => v >= 1000 ? (v / 1000).toFixed(2) + " kHz" : v.toFixed(0) + " Hz",
+        s => { const m = /^([\d.]+)\s*k?/i.exec(s.trim()); return m ? parseFloat(m[1]) * (/k/i.test(s) ? 1000 : 1) : null; }))
+  };
+}
+```
+
+---
+
 ## 注意事项
 
 - **句柄不可写死、不可跨运行。** 永远当场取、立即用。

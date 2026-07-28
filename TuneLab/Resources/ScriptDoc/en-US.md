@@ -335,6 +335,132 @@ for (const n of part.notes()) if (n.pitch < 36) part.removeNote(n);
 
 ---
 
+## Tool scripts — save them, put them in menus, bind shortcuts
+
+Everything above is a **run-once script**: hit Run and you're done. Add a `getScriptInfo()` and the script becomes a **tool** — once saved to your script library it shows up in menus, can be bound to a shortcut, and can be reused.
+
+```js
+function getScriptInfo() {
+  return { name: "Add Third Harmony", context: "note" };
+}
+function main() {                      // the action; the body is exactly like a run-once script
+  const p = tl.currentPart();
+  for (const n of p.selectedNotes())
+    p.addNote({ pos: n.pos, dur: n.dur, pitch: n.pitch + 4, lyric: n.lyric });
+}
+```
+
+- A script **without `getScriptInfo`** belongs to the Script side panel only and never appears in menus.
+- **`main()` as a whole is one undoable change**; on any error everything rolls back (same rule as a run-once script).
+- To follow the UI language, branch on `tl.language`: `name: tl.language === 'zh-CN' ? '加三度和声' : 'Add Third Harmony'`.
+
+### Fields of `getScriptInfo()`
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | ✔ | The name shown in menus. |
+| `context` | | Decides **where it appears and what it targets**, and also which area its shortcut is active in. Defaults to `'global'`. See the table below. |
+| `id` | | A **stable anchor** for remembering the user's shortcut and settings. Allowed chars: `A-Z a-z 0-9 . _ -`. **Never change it after publishing**; omit it and the filename becomes the id — renaming then drops the user's binding. |
+| `defaultGesture` | | A suggested shortcut such as `'mod+shift+k'` (`mod` = Cmd on macOS / Ctrl on Windows; you may also write `ctrl`/`cmd`/`alt`/`shift`). Applied **only if that key is free, and it never overrides a built-in**; users can rebind it in Settings. |
+
+Values for `context`:
+
+| `context` | Where it appears | Target |
+|---|---|---|
+| `'global'` | Top Scripts menu | `tl.currentPart()` or the whole project |
+| `'note'` | Piano roll, **right-click on a note** | `tl.currentPart().selectedNotes()` (the clicked note is always selected) |
+| `'partContent'` | Piano roll, right-click on **blank space** | the content of `tl.currentPart()` |
+| `'pianoSelection'` | Piano roll, **right-click on the range selection** | `tl.pianoSelection()` (a tick band; `null` when there is none) |
+| `'part'` | Arrangement, **right-click on a part** | `tl.selectedParts()` (possibly several) |
+| `'track'` | **Right-click on a track header** | `tl.selectedTracks()` (possibly several) |
+| `'trackContent'` | Arrangement, right-click on a track's **blank lane** | `tl.selectedTracks()` |
+| `'trackSelection'` | Arrangement, **right-click on the range selection** | `tl.trackSelection()` (tick × track; `null` when there is none) |
+
+The shortcut's active area follows the context: `piano*` fires only in the piano roll, the arrangement ones only in the arrangement, `global` anywhere in the editor. **When triggered by a shortcut there is no "the one you right-clicked"** — the target is simply the current selection, so `main()` should do nothing when the selection is empty.
+
+### `getInputConfig(ctx)` — ask for parameters before running
+
+Add a `getInputConfig` and the host shows a form before running `main`, then hands the filled values to `main(inputs)`:
+
+```js
+function getScriptInfo() { return { name: "Transpose", context: "note" }; }
+function getInputConfig(ctx) {
+  return { semitones: SliderConfig.integer(12, -24, 24) };   // key = the field's label
+}
+function main(inputs) {
+  for (const n of tl.currentPart().selectedNotes()) n.pitch += inputs.semitones;
+}
+```
+
+It returns a **map of `key → config`** (not plain data). The key is the field's label in the form; build the value with the constructors below.
+
+**Don't mix up the two conventions** (the easiest thing to get wrong):
+
+| | Content |
+|---|---|
+| `ctx.values` in `getInputConfig` | **Sparse** — only keys the user actually **changed** are present; untouched ones read `undefined`. So always supply a fallback here: `const mode = ctx.values.mode ?? 'transpose'` |
+| `inputs` in `main` | **Complete** — every field you declared is present (the user's value, or that config's default). Read it directly, no presence check needed |
+
+**Conditional fields**: `getInputConfig` is **re-run after every change**, so just branch on `ctx.values` to add or drop fields:
+
+```js
+function getInputConfig(ctx) {
+  const mode = ctx.values.mode ?? 'transpose';
+  const cfg = { mode: ComboBoxConfig.create(['transpose', 'setPitch']) };
+  if (mode === 'transpose') cfg.semitones = SliderConfig.integer(12, -24, 24);
+  else                      cfg.targetPitch = SliderConfig.integer(60, 0, 127);
+  return cfg;
+}
+```
+
+**Side-effect-free rule**: `getInputConfig` is called repeatedly (when the form opens and on every change), so it may only **declare** — never act. All real edits belong in `main`. Reading the project as context is fine here (`tl.currentPart()`, `selectedNotes()`, …); changing it is not.
+
+### Input control constructors
+
+Method names mirror the control types; each `withX(...)` returns a new config, so they chain.
+
+| Constructor | Meaning |
+|---|---|
+| `SliderConfig.linear(default, min, max)` | Slider (continuous) |
+| `SliderConfig.integer(default, min, max)` | Slider (integer) |
+| `SliderConfig.create(default, scale)` | Slider with a custom scale — see below |
+| ↳ `.withFormat(fmt)` `.withMinLabel(s)` `.withMaxLabel(s)` `.withRandomizable()` | Number formatting / end labels / allow randomizing |
+| `DraggableNumberBoxConfig.create(default?)` `.integer(default?)` | Draggable number box |
+| ↳ `.withMin(x)` `.withMax(x)` `.withRange(a,b)` `.withStep(s)` `.withSensitivity(s)` `.withFormat(fmt)` | Range / step / drag sensitivity / format |
+| `ComboBoxConfig.create(['a','b'])` or `.create()` | Dropdown. **The default is the VALUE itself, not an index** |
+| ↳ `.append(x)` `.appendSeparator(label?)` `.withDefault('a')` | Add an item / a separator / set the default |
+| `CheckBoxConfig.create(default?)` | Check box |
+| `TextBoxConfig.create(default?)` | Text box |
+| ↳ `.withPassword()` | Password style (content masked) |
+
+**Scales and formats** (arguments of `SliderConfig.create` / `.withFormat`):
+
+| | Meaning |
+|---|---|
+| `NormalizedScale.linear(min, max)` `.integer(min, max)` | Linear / integer scale |
+| `NormalizedScale.rounded(s)` `.floor(s)` `.ceil(s)` | Round an existing scale |
+| `NormalizedScale.custom(p => value, value => p)` | **Custom scale**: two inverse functions where `p` is a 0..1 position — this is how you get a log/exp axis |
+| `NumberFormat.decimals(n)` | Fixed decimal places |
+| `NumberFormat.custom(v => string, s => number or null)` | **Custom display/parse**, e.g. for units; return `null` when parsing fails |
+
+Those custom functions are called **live** while the form is open, so keep them pure and cheap. If one throws or returns something invalid it degrades safely — it never throws into the UI.
+
+```js
+// Frequency slider: 20Hz–20kHz on a log axis, displayed with units
+function getInputConfig(ctx) {
+  return {
+    freq: SliderConfig.create(1000, NormalizedScale.custom(
+        p => 20 * Math.pow(1000, p),                // 0..1 -> 20..20000
+        v => Math.log(v / 20) / Math.log(1000)))    // and back
+      .withFormat(NumberFormat.custom(
+        v => v >= 1000 ? (v / 1000).toFixed(2) + " kHz" : v.toFixed(0) + " Hz",
+        s => { const m = /^([\d.]+)\s*k?/i.exec(s.trim()); return m ? parseFloat(m[1]) * (/k/i.test(s) ? 1000 : 1) : null; }))
+  };
+}
+```
+
+---
+
 ## Notes
 
 - **Handles can't be hard-coded or reused across runs.** Always get one and use it on the spot.

@@ -175,17 +175,24 @@ function main(inputs) {                                    // 带参；无 getIn
 - 无 `getInputConfig`（或声明为空）→ 传空对象；旧脚本 `main()` 不接参数即忽略 → **向后兼容**。
 - 普通脚本（无 `getScriptInfo`，整段即动作）路径不变。
 
-**入参值是【稀疏】的，且 `getInputConfig` 的 `ctx.values` 与 `main` 的 `inputs` 同形**——两者都**只含用户改过的键**（未改的键读到 `undefined`）。这刻意与 voice/instrument 插件读 `PropertyObject` 的契约**同构**：
+**两个口径不同，别混**（本段已按实现校正——早期设计曾定"两者都稀疏、脚本自补默认"，后来实现改成给 `main` 补齐全量，
+理由见末条。以本段为准）：
 
-- **存储即用户意图**：只存改过的键（稀疏）；未改键不写入、不 materialize。持久化（§2.6）同样只存稀疏值，故未改字段永远跟随 config 当前默认、不被冻结。
-- **默认值的两个角色分离**：config 的 `DefaultValue` 只管**显示（控件未设时显示它）与「重置到默认」**；**消费时**（`main` 用值 / `getInputConfig` 里按已填值分支）由**脚本自己 `?? 默认`**，正如插件 `props.GetValue(key, 默认)` 自带默认。宿主**不**替脚本 materialize 默认进 `inputs`——那会造成与插件的不对称，并冻结默认。
-- **推荐写法**：默认写成共享常量，同时喂给 config（显示）与读值处（消费），二者不漂移：
-  ```js
-  const DEF = { semitones: 12 };
-  function getInputConfig(ctx) { return { semitones: SliderConfig.integer(DEF.semitones, -24, 24) }; }
-  function main(inputs) { const s = inputs.semitones ?? DEF.semitones; /* … */ }
-  ```
-- **为何脚本能这样、而插件不能被宿主喂默认**：插件的 config context 是**多选编辑态**、合成却**与选中无关**，逐 note 喂默认得逐 note 重算 config，错误；脚本是**一次性运行、context 当刻固定**，本可全量，但为与插件同构、且避免 `getInputConfig↔main` 形不一致（全量需拿上一版 schema 默认回填 `ctx.values`，引入定点迭代），统一采**都稀疏 + 脚本自补**。
+| | 形状 | 消费写法 |
+|---|---|---|
+| `getInputConfig` 的 `ctx.values` | **稀疏**——只含用户改过的键，未改的读到 `undefined` | 必须兜默认：`ctx.values.mode ?? 'transpose'` |
+| `main` 的 `inputs` | **全量**——声明过的每个字段都在（用户值或该 config 的 `DefaultValue`） | 直接读，无需 `??` |
+
+- **存储仍是稀疏的**：`ScriptInputMemory.Save` 只存改过的键，故未改字段永远跟随 config 当前默认、不被冻结
+  （§2.6 的持久化语义不变）。**全量只发生在"喂给 `main` 的那一刻"**——`ScriptConfigs.FillDefaults(schema, values)`，
+  且**不回存**。三条运行路径都走它：`ScriptToolMenu`、`ScriptSideBarContentProvider`、agent 的 `RunSavedScriptTool`。
+- **补默认用的是"当刻现算的 schema"**：以用户填完的值再调一次 `getInputConfig` 得到最终 schema（条件字段依已填值
+  而定），再按它补默认——否则条件分支里刚出现的字段拿不到自己的默认值。
+- **为什么给 `main` 补而不让脚本自补**：`getInputConfig` 那侧无法补——它正是"schema 尚未定型"的地方（要拿上一版
+  schema 的默认回填 `ctx.values` 才能全量，会引入定点迭代），所以它只能稀疏；而 `main` 这侧 schema 已定型，
+  宿主补齐是确定性的。让 `main` 也稀疏则等于把同一份默认值在 config 与脚本里各写一遍，两处必然漂移。
+  与 voice/instrument 插件读 `PropertyObject` 的差异是**有意的**：插件的 config context 是多选编辑态、合成
+  与选中无关，逐 note 补默认要逐 note 重算 config（错误）；脚本是一次性运行、context 当刻固定，补得起。
 
 ### 2.5 三入口取值策略
 
