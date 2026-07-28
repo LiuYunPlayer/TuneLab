@@ -193,7 +193,7 @@ ObjectConfig GetNotePropertyConfig(IInstrumentSynthesisNotePropertyContext conte
 - **注册**：扩展 manifest 新增 `kind="instrument"`；`ExtensionManager.RegisterEntry` 加 `case "instrument"`，
   `IsCodeKind` 纳入；新增 `InstrumentsManager`（镜像 `VoicesManager`：内建空引擎回退、多包并存、惰性 Init）。
 - **冲突路由**：`ExtensionRouting` 新增 `"instrument"` 行（`RouteKey("instrument", type)`），
-  多包同 type 并存、用户在「Extension Routing」矩阵选活实现，选择存 `Settings.json`。
+  多包同 type 并存、用户在「Extension Routing」矩阵选活实现，选择存 `Configs/ExtensionRouting.json`。
 - **数据层挂载**：`MidiPart` 音源为 voice **XOR** instrument——持有「音源种类 + 对应 Info」的判别联合，
   序列化按种类分支（不引入统一 `IMidiPartSource` 抽象：两者声明面不同，强抽象反而漏抽象）。
 - **合成管线**：`InstrumentSynthesisPipeline` 复用 `EffectGraph` 与音频段机器，仅去掉音素回填那条产物分支。

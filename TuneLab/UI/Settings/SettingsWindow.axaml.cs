@@ -414,7 +414,8 @@ internal partial class SettingsWindow : Window
 
     // 「Extension Routing」页：当同一身份（voice/effect/agent 引擎 id、format 扩展名）被多个扩展包提供时，
     // 列出冲突行让用户选用哪个包的实现。行=身份、右侧下拉=各候选包；只列有冲突(>1 提供者)的身份。
-    // 选择即写 ExtensionRouting（即时落盘进 app Settings.json，不走「扩展」页的批量落盘）；重启后生效（与切语言一致）。
+    // 选择即写 ExtensionRouting（即时落盘进 Configs/ExtensionRouting.json，不走「扩展」页的批量落盘、
+    // 也不在 Settings.json 里——那份只承与用户环境无关的宿主设置）；重启后生效（与切语言一致）。
     private Control CreateRoutingPage()
     {
         var listView = new ListView() { Orientation = Avalonia.Layout.Orientation.Vertical, FitWidth = true };

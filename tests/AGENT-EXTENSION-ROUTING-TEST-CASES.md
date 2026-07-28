@@ -23,7 +23,7 @@
 故直接开测即可，不用手搓副本包。其余前置：
 - 构建启动：`./run.ps1`（默认 Rebuild + 启动、自动关旧实例）。**本切片无 SDK 改动**，插件无需重新 pack/install。
 - Agent 侧栏已连模型；授权档位在对话页 header 胶囊上切。
-- 备份 `%APPDATA%\TuneLab\Configs\Settings.json`（路由选择存在其中的 `ExtensionRouting` 字典里）。
+- 备份 `%APPDATA%\TuneLab\Configs\ExtensionRouting.json`（路由选择存在这个独立文件里，不在 Settings.json）。
 - 对照基准：设置窗「扩展路由」页应能看到上述几行（本切片不改那页，只是 agent 侧要与它口径一致）。
 - A 组（"无冲突时"）在本机**测不到**——夹具在装。要测就把上述两对夹具临时移出 Extensions 目录再启动，
   或**如实记为未覆盖**。
@@ -69,14 +69,14 @@ agent 的结论**必须**是"它被另一个包顶替了"而不是"装好了应�
 「那就用《Voice Conflict B》那个」（即当前被顶替的那个）。
 
 **期望**：`set_extension_routing("voice", "<id>", "com.tunelab.test.voiceconflict.b")` → 成功，回报**明确要求重启**；
-`Settings.json` 的 `ExtensionRouting` 出现该键。**重启后**再问一次：`list_extension_routing` 显示 ACTIVE 已切换、
+`ExtensionRouting.json` 里出现该键。**重启后**再问一次：`list_extension_routing` 显示 ACTIVE 已切换、
 且标注为"用户选定"；`list_sound_sources` 的 ACTIVE 也跟着变；设置窗「扩展路由」页那行的选择同步。
 
 ### C2. 清除选择回默认
 
 「还是恢复默认吧」（packageId 省略或空串）。
 
-**期望**：成功，并**如实告知清除后按默认规则会落到谁**；`Settings.json` 里该键被删除；重启后确实回到默认。
+**期望**：成功，并**如实告知清除后按默认规则会落到谁**；`ExtensionRouting.json` 里该键被删除；重启后确实回到默认。
 
 ### C3. 幂等
 

@@ -9,7 +9,8 @@
 - 活实现解析顺序：① 用户在「Extension Routing」矩阵选中且该包已装 → 用它；② 否则**内建(built-in)优先**；③ 再否则 **packageId 序最小**。
 - 工程文件**只引身份 id（扩展名）**、不存包 id；加载时按上面解析。选中包缺失 → 回退到该身份任一已装提供者（同默认策略）。
 - format 的 **import / export 各算一条可路由身份**，可分别选不同包。
-- 选择存进 **app `Settings.json` 的 `ExtensionRouting`**（`"kind:identity" → packageId`），改后**重启生效**（与切语言一致）。
+- 选择存进 **独立文件 `Configs/ExtensionRouting.json`**（`"kind:identity" → packageId` 的扁平映射），改后**重启生效**（与切语言一致）。
+  **不在 Settings.json 里**：那份只承与用户环境无关的宿主设置，而路由的键值都是"这台机器装了哪些包"的函数。
 
 ---
 
@@ -85,10 +86,10 @@
 
 **预期**：导入走 A（轨名 Package A）、导出文件内容为 **`exportedBy=B`**——import 与 export 的活实现互不影响、可各选不同包。
 
-### TC6 — 选择持久化进 Settings.json
-1. 完成 TC5 的选择后，打开 `%本机配置目录%/Configs/Settings.json`（与 ExtensionSettings.json 同目录）。
+### TC6 — 选择持久化进 ExtensionRouting.json
+1. 完成 TC5 的选择后，打开 `%本机配置目录%/Configs/ExtensionRouting.json`（与 ExtensionSettings.json 同目录）。
 
-**预期**：存在 `"ExtensionRouting"` 对象，含形如
+**预期**：该文件的根对象含形如
 `"format-import:tlroute": "com.tunelab.test.routeconflict.a"` 与
 `"format-export:tlroute": "com.tunelab.test.routeconflict.b"` 的条目。
 重开应用后矩阵下拉仍显示上次选择（选择不丢）。

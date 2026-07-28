@@ -19,6 +19,8 @@ internal static class PathManager
     public static string EditorStateFilePath => Path.Combine(ConfigsFolder, "EditorState.json");
     public static string RecentSoundSourcesFilePath => Path.Combine(ConfigsFolder, "RecentSoundSources.json");
     public static string ParameterPinsFilePath => Path.Combine(ConfigsFolder, "ParameterPins.json");
+    // 与用户环境绑定的扩展数据各存各的（同 ExtensionSettings.json，都不进 Settings.json）：
+    public static string ExtensionRoutingFilePath => Path.Combine(ConfigsFolder, "ExtensionRouting.json");
     public static string KeybindingsFilePath => Path.Combine(ConfigsFolder, "Keybindings.json");
     public static string ScriptInputsFilePath => Path.Combine(ConfigsFolder, "ScriptInputs.json");
     public static string ExtensionsFolder => Path.Combine(TuneLabFolder, "Extensions");
