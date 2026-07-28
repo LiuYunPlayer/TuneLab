@@ -22,6 +22,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.IO.Pipes;
 
+using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
 namespace TuneLab;
 
@@ -68,9 +69,13 @@ public partial class App : Application
                 LegacyCompatLoader.Wire();
                 ExtensionManager.LoadExtensions();
 
-                // 声库引擎须在 MainWindow 构建前初始化：MainWindow 构造时会新建默认工程，
-                // 其 part 立即 Activate 并构建合成管线，此刻引擎若未 Init 则会回落到空会话且无回建路径（起动即无声）。
-                // （同时也让 Set Voice 右键菜单更快弹出。）
+                // 音源引擎（voice 与 instrument）须在 MainWindow 构建前初始化：MainWindow 构造时会新建默认
+                // 工程，其 part 立即 Activate 并构建合成管线，此刻引擎若未 Init 则会回落到空会话且无回建
+                // 路径（起动即无声）。（同时也让「设置音源」右键菜单更快弹出。）
+                //
+                // instrument 与 voice 在这件事上【同构】：两者都挂在 MidiPart 上作音源（XOR 二选一）、
+                // 都要在菜单里列出自己的音源目录，所以两者都得急切 Init——只 Init voice 会让 instrument part
+                // 起动无声、菜单也慢。effect 不在此列且不该在：它没有音源目录，按 part 用到才 Init 是对的。
                 foreach (var engine in VoicesManager.GetAllVoiceEngines())
                 {
                     try
@@ -82,6 +87,21 @@ public partial class App : Application
                         var dialog = new Dialog();
                         dialog.SetTitle("Error");
                         dialog.SetMessage(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
+                        dialog.AddButton("OK", Dialog.ButtonType.Primary);
+                        dialog.Show();
+                    }
+                }
+                foreach (var engine in InstrumentsManager.GetAllInstrumentEngines())
+                {
+                    try
+                    {
+                        InstrumentsManager.InitEngine(engine);
+                    }
+                    catch (Exception ex)
+                    {
+                        var dialog = new Dialog();
+                        dialog.SetTitle("Error");
+                        dialog.SetMessage(string.Format("Instrument engine [{0}] failed to init:\n{1}", engine, ex.Message));
                         dialog.AddButton("OK", Dialog.ButtonType.Primary);
                         dialog.Show();
                     }

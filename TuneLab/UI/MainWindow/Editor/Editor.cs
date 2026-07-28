@@ -40,6 +40,7 @@ using System.Runtime.InteropServices;
 
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Formats.TLP;
+using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
 namespace TuneLab.UI;
 
@@ -1161,11 +1162,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             }
         }
 
-        // 刚 Load 的引擎此刻只完成「注册」尚未 Init。补做启动时对 voice 引擎的急切 Init
-        // （见 App.OnFrameworkInitializationCompleted），让新装的声源引擎无需重启即可用。
+        // 刚 Load 的引擎此刻只完成「注册」尚未 Init。补做启动时对【音源引擎】的急切 Init
+        // （见 App.OnFrameworkInitializationCompleted），让新装的音源引擎无需重启即可用。
         // Init 失败与安装成败是两回事（插件已装好，是初始化出错），故不并入安装汇总——
         // 单独弹窗报错，语义与启动时的 Init 失败提示一致。
-        // 其余插件类别（instrument/effect）本就惰性、首次使用时 Init，无需在此急切化。
+        // voice 与 instrument 都要做（两者同为 MidiPart 的音源、都有音源目录要露出）；effect 不做也不该做
+        // ——它没有音源目录，按 part 用到才 Init 是对的。两处急切 Init 须保持同一集合，别只加一边。
         List<string> initFailed = [];
         if (succeeded.Count > 0)
         {
@@ -1179,6 +1181,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 catch (Exception ex)
                 {
                     initFailed.Add(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
+                }
+            }
+            foreach (var engine in InstrumentsManager.GetAllInstrumentEngines())
+            {
+                try
+                {
+                    InstrumentsManager.InitEngine(engine); // 已 Init 的引擎为空操作
+                }
+                catch (Exception ex)
+                {
+                    initFailed.Add(string.Format("Instrument engine [{0}] failed to init:\n{1}", engine, ex.Message));
                 }
             }
         }
