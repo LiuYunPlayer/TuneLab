@@ -1277,32 +1277,37 @@ internal partial class PianoScrollView : View, IPianoScrollView
     }
 
     // 解析当前 part 音源声库的立绘并缓存（按路径去重，避免每次重绘重载）；无立绘 / 文件不存在则清空。
+    // 编辑 part 短暂缺席时刻意不卸载已解码的立绘：拖动 part 时数据层每步都先 Remove 再 Insert，编辑 part
+    // 随之被置空又复位（见 Editor 对 ItemRemoved / ItemAdded 的复位）。缺席期本控件根本不画立绘（OnRender
+    // 在 Part == null 处早退），跟着卸载只会让每个拖动步把整张动图逐帧重解码一遍——动图立绘下拖动会明显卡。
     void LoadPortrait()
     {
-        string? path = ResolvePortraitPath();
-        if (path == mPortraitPath)
-            return;
+        string? path = Part == null ? mPortraitPath : ResolvePortraitPath();
+        if (path != mPortraitPath)
+        {
+            mPortraitPath = path;
+            mPortrait?.Dispose();
+            mPortrait = path != null ? ImagePlayer.Load(path) : null;
+            if (mPortrait != null)
+                mPortrait.FrameChanged += InvalidateVisual;
 
-        mPortraitPath = path;
-        mPortrait?.Dispose();
-        mPortrait = path != null ? ImagePlayer.Load(path) : null;
-        if (mPortrait != null)
-            mPortrait.FrameChanged += InvalidateVisual;
+            InvalidateVisual();
+        }
 
         UpdateImagePlayback();
-        InvalidateVisual();
     }
 
     // 立绘优先：只让「实际要画的那张图」（有立绘则立绘、否则背景图）的动图定时器在跑——被盖掉的那张停表省 CPU；
-    // 控件未挂上视觉树（不可见）时两者都停。静态图无定时器，Start/Stop 皆空操作。
+    // 控件未挂上视觉树、或无编辑 part（此时 OnRender 早退、什么装饰图都不画）时两者都停：动图每帧都要
+    // 触发整个钢琴窗重绘，画不出来还空转最不值。静态图无定时器，Start/Stop 皆空操作。
     void UpdateImagePlayback()
     {
-        bool attached = this.GetVisualRoot() != null;
+        bool drawable = this.GetVisualRoot() != null && Part != null;
         var active = mPortrait ?? mBackground;
         if (mPortrait != null)
             mBackground?.Stop();   // 背景图被立绘盖掉
 
-        if (attached)
+        if (drawable)
             active?.Start();
         else
         {
