@@ -11,8 +11,8 @@ internal static class PathManager
 {
     public static string AppDataFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
     public static string TuneLabFolder => Path.Combine(AppDataFolder, "TuneLab");
+    // History 子目录由 AutoSaveStore 自己拥有（它按对复制与轮换），不在此另立一个会与之重复的定义。
     public static string AutoSaveFolder => Path.Combine(TuneLabFolder, "AutoSave");
-    public static string AutoSaveHistoryFolder => Path.Combine(AutoSaveFolder, "History");
     public static string LogsFolder => Path.Combine(TuneLabFolder, "Logs");
     public static string ConfigsFolder => Path.Combine(TuneLabFolder, "Configs");
     public static string SettingsFilePath => Path.Combine(ConfigsFolder, "Settings.json");

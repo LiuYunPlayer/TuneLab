@@ -106,51 +106,63 @@ public partial class MainWindow : Window
 
     protected override async void OnOpened(EventArgs e)
     {
-        // 崩溃检测
-        var path = Directory.GetFiles(PathManager.AutoSaveFolder)
-            .FirstOrDefault(file => Path.GetExtension(file) == ".tlp" || Path.GetExtension(file) == "." + ConstantDefine.DefaultProjectExtension);
-        if (path != null)
+        // 崩溃检测：哨兵即自动保存文件本身，存在即上次异常退出（正常退出 / 保存时会清除）。
+        var record = mEditor.AutoSaveStore.FindLatest();
+        if (record == null)
+            return;
+
+        // 展示名与原工程路径来自 sidecar 元数据，不再按固定长度切文件名前缀（那种切法格式一变就错位）。
+        // 三种情形分开处理：
+        //  · 无元数据（缺失 / 配对校验不通过）→ 只有自动保存的文件名可用；且拿不到原路径，相对音频引用
+        //    因此无法解析——那是"未保存工程没有基准目录"的必然结果，如实降级。
+        //  · 元数据里名字为空 → 工程从未保存过。元数据里刻意不存本地化文本，故按【当前】语言渲染，
+        //    这样换过界面语言之后恢复出来的名字也是对的。
+        //  · 否则用元数据里那个语言无关的文件名。
+        var displayName =
+            record.Meta == null ? Path.GetFileName(record.FilePath) :
+            string.IsNullOrEmpty(record.Meta.ProjectName) ? "Untitled Project".Tr(TC.Document) :
+            record.Meta.ProjectName;
+
+        var modal = new Dialog();
+        modal.SetTitle("Tips".Tr(TC.Dialog));
+        // 指明是哪个工程：只说"上次崩溃了"会让用户必须先恢复出来才知道它指什么，平时开好几个工程时尤其如此。
+        // 名字与路径是数据、不是文案，所以这里不引入新的待译串。原路径在"工程从未保存过"时本就没有，此时只给名字。
+        var message = "Program crashed last time. Open auto-backup file?".Tr(TC.Dialog) + "\n\n" + displayName;
+        if (!string.IsNullOrEmpty(record.Meta?.OriginalPath))
+            message += "\n" + record.Meta!.OriginalPath;
+        modal.SetMessage(message);
+        modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal);
+        modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
         {
-            var modal = new Dialog();
-            modal.SetTitle("Tips".Tr(TC.Dialog));
-            modal.SetMessage("Program crashed last time. Open auto-backup file?".Tr(TC.Dialog));
-            modal.AddButton("No".Tr(TC.Dialog), ButtonType.Normal);
-            modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
+            // 崩溃恢复打开的是完整 native 工程（autosave .tlp/.tlpx）：走 native 路径恢复 editor/export 元数据。
+            if (!FormatsManager.DeserializeNative(record.FilePath, out var file, out var error))
             {
-                // 崩溃恢复打开的是完整 native 工程（autosave .tlp/.tlpx）：走 native 路径恢复 editor/export 元数据。
-                if (!FormatsManager.DeserializeNative(path, out var file, out var error))
-                {
-                    Log.Error("Open file error: " + error);
-                    return;
-                }
+                Log.Error("Open file error: " + error);
+                return;
+            }
 
-                var fileName = Path.GetFileName(path);
-                var timeSpan = "yyyy-MM-dd_hh-mm-ss_";
-                if (fileName.Length > timeSpan.Length)
-                {
-                    fileName = fileName[timeSpan.Length..];
-                }
-                mEditor.Document.SetSavePath(fileName);
-                if (mEditor.Project == null)
-                    return;
+            // 必须先于 SetInfo：恢复出来的工程【保持未保存态】但要带上基准目录，而随后 SetInfo 新建出来的
+            // 音频 part 是靠 ProjectDocument 的 ItemAdded 订阅拿到基准目录的，此刻它必须已经就位。
+            mEditor.Document.SetRecovered(displayName, record.Meta?.OriginalPath);
+            if (mEditor.Project == null)
+                return;
 
-                mEditor.Project.SetInfo(file.Project);
-                mEditor.Project.SetExportConfig(file.Export);
-                mEditor.Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
-                mEditor.Project.Commit();
-                foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
+            mEditor.Project.SetInfo(file.Project);
+            mEditor.Project.SetExportConfig(file.Export);
+            mEditor.Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
+            mEditor.Project.Commit();
+            foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
+            {
+                if (part is MidiPart midiPart)
                 {
-                    if (part is MidiPart midiPart)
-                    {
-                        mEditor.SwitchEditingPart(midiPart);
-                        break;
-                    }
+                    mEditor.SwitchEditingPart(midiPart);
+                    break;
                 }
+            }
 
-            };
-            modal.Topmost = true;
-            await modal.ShowDialog(this);
-        }
+        };
+        modal.Topmost = true;
+        await modal.ShowDialog(this);
     }
 
     private void AttachWindowStateHandler()

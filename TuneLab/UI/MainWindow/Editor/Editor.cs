@@ -264,11 +264,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mFunctionBar.QuantizationChanged.Subscribe(mPianoWindow.Quantization.Set);
         mFunctionBar.QuantizationChanged.Subscribe(mTrackWindow.Quantization.Set);
         mDocument.StatusChanged += () => { mUndoMenuItem.IsEnabled = mDocument.Undoable(); mRedoMenuItem.IsEnabled = mDocument.Redoable(); };
+        // 「存回原位」只在崩溃恢复态可见。ProjectNameChanged 覆盖了所有会改变这个状态的时机
+        //（SetRecovered 令其可见、SetSavePath / SetProject 令其消失）。
+        mDocument.ProjectNameChanged.Subscribe(() =>
+        {
+            if (mSaveRecoveredMenuItem != null)
+                mSaveRecoveredMenuItem.IsVisible = !string.IsNullOrEmpty(mDocument.RecoveredOriginalPath);
+        }, s);
         mAutoSaveTimer.Tick += (s, e) => { AutoSave(); };
         Settings.AutoSaveInterval.Modified.Subscribe(() => mAutoSaveTimer.Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval), s);
         PlayScrollTarget.Modified.Subscribe(() => Settings.AutoScrollTarget.Value = PlayScrollTarget.Value.ToString(), s);
         PathManager.MakeSureExist(PathManager.AutoSaveFolder);
-        PathManager.MakeSureExist(PathManager.AutoSaveHistoryFolder);
         RecentFilesManager.Init();
 
         NewProject();
@@ -601,11 +607,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     public void ClearAutoSaveFile()
     {
         mAutoSaveHead = default;
-        // Only clear the crash-detection files in AutoSaveFolder (not subdirectories)
-        foreach (var file in Directory.GetFiles(PathManager.AutoSaveFolder))
-        {
-            File.Delete(file);
-        }
+        AutoSaveStore.ClearSentinel();
     }
 
     async void AutoSave()
@@ -620,12 +622,18 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             Export = mDocument.Project.GetExportConfig(),
         };
 
+        // 数据属性只在主线程读：文件名、原工程路径、轮换上限都先取出来再进后台。
+        // 恢复出来的工程没有保存路径，但它当时的原路径仍是有意义的基准来源，要继续传下去，
+        // 否则从"恢复态"再崩一次就彻底丢掉了原位置。
+        var originalPath = string.IsNullOrEmpty(mDocument.Path) ? mDocument.RecoveredOriginalPath : mDocument.Path;
+        // 展示名取【语言无关】的文件名，绝不用 mDocument.Name——工程未命名时它是本地化后的"未命名工程"，
+        // 持久化下去会让换语言后的恢复显示旧语言的名字，还会把非 ASCII 文本带进文件名。
+        // 工程从未保存过则留空，由恢复侧按【当前】语言渲染。
+        var projectName = string.IsNullOrEmpty(originalPath) ? string.Empty : Path.GetFileName(originalPath);
+        var maxCount = Settings.AutoSaveMaxCount.Value;
+
         try
         {
-            var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss_");
-            var fileName = timestamp + Path.GetFileNameWithoutExtension(mDocument.Name) + "." + ConstantDefine.DefaultProjectExtension;
-            var autoSavePath = Path.Combine(PathManager.AutoSaveFolder, fileName);
-
             await Task.Run(() =>
             {
                 if (!FormatsManager.SerializeNative(file, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
@@ -634,55 +642,48 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                     return;
                 }
 
-                // Write the auto-save file for crash detection
-                using (FileStream fileStream = new FileStream(autoSavePath, FileMode.Create))
+                using (stream)
                 {
-                    stream.CopyTo(fileStream);
-                }
-
-                // Delete previous crash-detection files (keep only the latest)
-                foreach (var file in Directory.GetFiles(PathManager.AutoSaveFolder))
-                {
-                    if (file != autoSavePath)
-                        File.Delete(file);
-                }
-
-                // Copy to history folder for multi-version backup
-                try
-                {
-                    PathManager.MakeSureExist(PathManager.AutoSaveHistoryFolder);
-                    var historyPath = Path.Combine(PathManager.AutoSaveHistoryFolder, fileName);
-                    File.Copy(autoSavePath, historyPath, true);
-
-                    // Rotate history files: delete oldest if exceeding max count
-                    var maxCount = Settings.AutoSaveMaxCount.Value;
-                    var historyFiles = Directory.GetFiles(PathManager.AutoSaveHistoryFolder)
-                        .Select(f => new FileInfo(f))
-                        .OrderByDescending(f => f.CreationTime)
-                        .ToList();
-
-                    if (historyFiles.Count > maxCount)
-                    {
-                        foreach (var oldFile in historyFiles.Skip(maxCount))
-                        {
-                            oldFile.Delete();
-                            Log.Debug("Deleted old auto-save history file: " + oldFile.FullName);
-                        }
-                    }
-                }
-                catch (Exception historyEx)
-                {
-                    Log.Error("Failed to manage auto-save history: " + historyEx);
+                    AutoSaveStore.Write(stream.CopyTo, projectName, originalPath, maxCount);
                 }
             });
 
             mAutoSaveHead = mDocument.Head;
-            Log.Debug("Project auto saved: " + autoSavePath);
+            Log.Debug("Project auto saved");
         }
         catch (Exception ex)
         {
             Log.Debug("Write file error: " + ex);
         }
+    }
+
+    // 把崩溃恢复出来的工程写回它原来的位置。恢复态刻意不绑原路径（一次 Ctrl+S 不该用崩溃时的中间状态
+    // 覆盖原文件），所以这是个必须由用户显式发起、且要确认的破坏性动作。
+    public async void SaveRecoveredToOriginal()
+    {
+        var originalPath = mDocument.RecoveredOriginalPath;
+        if (string.IsNullOrEmpty(originalPath))
+            return;
+
+        var modal = new Dialog();
+        modal.SetTitle("Tips".Tr(TC.Dialog));
+        // 目标完整路径必须显示出来：这是覆盖用户文件的动作，让他看得见指向的是不是自己那一份。
+        modal.SetMessage("Replace this file with the recovered content?".Tr(TC.Dialog) + "\n" + originalPath);
+        modal.AddButton("Cancel".Tr(TC.Dialog), ButtonType.Normal);
+        modal.AddButton("Replace".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
+        {
+            // 落地那刻重查：确认期间原文件可能已被移走 / 删除，此时不该凭空新建一个。
+            if (!File.Exists(originalPath))
+            {
+                Log.Error("The original file no longer exists: " + originalPath);
+                return;
+            }
+
+            SaveToFile(originalPath);
+            RecentFilesManager.AddFile(originalPath);
+        };
+        modal.Topmost = true;
+        await modal.ShowDialog(this.Window());
     }
 
     void NewProject()
@@ -1357,6 +1358,13 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
+                // 只在"当前工程来自崩溃恢复、且原文件仍在"时出现（用 IsVisible 而非置灰：一个常年灰着的项
+                // 只是杂物）。可见性随工程名变化刷新，见构造函数里的订阅。
+                mSaveRecoveredMenuItem = new MenuItem().SetTrName("Save to Original Location").SetAction(SaveRecoveredToOriginal);
+                mSaveRecoveredMenuItem.IsVisible = false;
+                menuBarItem.Items.Add(mSaveRecoveredMenuItem);
+            }
+            {
                 var menuItem = new MenuItem().SetTrName("Add Track").SetAction(AddTrack);
                 menuBarItem.Items.Add(menuItem);
             }
@@ -1445,6 +1453,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     MenuItem mUndoMenuItem;
     MenuItem mRedoMenuItem;
+    MenuItem? mSaveRecoveredMenuItem;
     public MenuItem mRecentFilesMenu;
 
     // 顶部 Scripts 菜单的重建钩子 + 脚本目录监视器（用户增删改脚本时提前重建菜单，避免边打开边改）。
@@ -1557,6 +1566,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     Timer? mTimer;
     readonly DispatcherTimer mAutoSaveTimer = new() { Interval = new TimeSpan(0, 0, Settings.AutoSaveInterval) };
     Head mAutoSaveHead;
+    // 自动保存的落盘容器（哨兵 + History + 元数据 sidecar）。落点作为构造参数传入，将来换目录不必改这里。
+    public AutoSaveStore AutoSaveStore { get; } = new(PathManager.AutoSaveFolder);
 
     IPart? mEditingPart = null;
     IPart? mDetachedEditingPart = null;   // 轨道被临时摘除（如重排）期间暂存的在编 part，待其轨道重新插入时复位
