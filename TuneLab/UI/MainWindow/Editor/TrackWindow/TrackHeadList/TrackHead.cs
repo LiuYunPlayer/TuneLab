@@ -50,18 +50,16 @@ internal class TrackHead : DockPanel
             .AddContent(new() { Item = new IconItem() { Icon = Assets.S }, CheckedColorSet = new() { Color = Colors.White }, UncheckedColorSet = new() { Color = Style.LIGHT_WHITE } });
         mSoloToggle.Bind(mTrackHolder.Select(track => track.IsSolo), s);
         mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
-        this.AddDock(mSelectionStrip, Dock.Left);
-        var leftArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
+        // 强调条贴在朝向内容区的那条缝上（轨道头整列在左侧，故为右缘），与左端的色块拉开、不糊成两条彩带。
+        this.AddDock(mSelectionStrip, Dock.Right);
+        // 色块序号标签占左端，其后才是电平表。
+        mIndexPanel.Children.Add(mIndexLabel);
+        this.AddDock(mIndexPanel, Dock.Left);
+        var meterArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
         {
-            leftArea.AddDock(mAmplitudeViewer);
+            meterArea.AddDock(mAmplitudeViewer);
         }
-        this.AddDock(leftArea, Dock.Left);
-        var rightArea = new DockPanel() { Margin = new(0, 0, 0, 0) };
-        {
-            mIndexPanel.Children.Add(mIndexLabel);
-            rightArea.AddDock(mIndexPanel);
-        }
-        this.AddDock(rightArea, Dock.Right);
+        this.AddDock(meterArea, Dock.Left);
         var topArea = new DockPanel() { Margin = new(12, 12, 12, 0) };
         {
             topArea.AddDock(mSoloToggle, Dock.Right);
@@ -272,7 +270,7 @@ internal class TrackHead : DockPanel
         s.DisposeAll();
     }
 
-    // 选中态：整行底色提亮 + 左缘强调条（强调条常驻 3px，仅切换颜色，避免选中时布局抖动）。
+    // 选中态：整行底色提亮 + 右缘强调条（强调条常驻 3px，仅切换颜色，避免选中时布局抖动）。
     void UpdateSelectionVisual()
     {
         bool selected = Track != null && Track.IsSelected;
