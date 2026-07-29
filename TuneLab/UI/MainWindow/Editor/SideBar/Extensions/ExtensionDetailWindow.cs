@@ -227,9 +227,6 @@ internal sealed class ExtensionDetailWindow : Window
     const double IconSideMin = 56;
     const double IconSideMax = 96;
 
-    // tab 条一格滚轮的横向位移（px）。取值约等于一个短标签宽度：滚一下换掉一个标签，既不迟钝也不会窜过头。
-    const double TabWheelStep = 60;
-
     Control BuildSquareIcon(ExtensionDetailInfo info, Control infoColumn)
     {
         var inner = ExtensionItemView.CreateIconVisual(info.IconPath, info.Name, 72);
@@ -599,8 +596,9 @@ internal sealed class ExtensionDetailWindow : Window
         // 它们随 tab 切换而变，放这里既不多占一行、也不会像原来那样让正文顶部左半边空着。
         //
         // 【滚而不显条】横一道滚动条会把本来只有一行的 tab 条视觉上切成两层，比"看不出能滚"更伤观感。
-        // 代价是可滚动性没有视觉提示，故下面显式接管滚轮：普通滚轮只给 Delta.Y，而 ScrollViewer 只拿
-        // Delta.X 做横向位移——不接管的话隐藏了条就等于彻底滚不动了。
+        // 代价是可滚动性没有视觉提示，故挂上仓里统一的平滑滚轮（指数缓动，与下拉/输入框等处同一手感）。
+        // horizontalOnly：本条只有横轴可滚，普通滚轮就该驱动它——否则 SmoothWheelScroller 会去看纵轴、
+        // 发现无可滚内容而放行，隐藏了条就等于彻底滚不动。
         var tabs = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
@@ -608,17 +606,7 @@ internal sealed class ExtensionDetailWindow : Window
             Background = Brushes.Transparent,
             Content = row,
         };
-        tabs.PointerWheelChanged += (_, e) =>
-        {
-            var max = Math.Max(0, tabs.Extent.Width - tabs.Viewport.Width);
-            if (max <= 0)
-                return;   // 没超宽就别吞掉滚轮，留给外层
-
-            // 横向滚轮 / 触控板横扫优先；没有横向分量时用纵向的（滚轮上 = 向左，与纵向"上=向前"同向）。
-            var delta = e.Delta.X != 0 ? e.Delta.X : e.Delta.Y;
-            tabs.Offset = new Vector(Math.Clamp(tabs.Offset.X - delta * TabWheelStep, 0, max), 0);
-            e.Handled = true;
-        };
+        mTabWheel = new SmoothWheelScroller(tabs, () => tabs, allowHorizontal: true, horizontalOnly: true);
 
         mPageActions = new StackPanel
         {
@@ -759,6 +747,7 @@ internal sealed class ExtensionDetailWindow : Window
     Switch? mPackageSwitch;
     TextBlock? mPackageStateText;
     TextBlock? mRestartHint;
+    SmoothWheelScroller? mTabWheel;      // tab 条的平滑横向滚轮（宿主持有它的事件处理器，此处只为可读）
     readonly List<(TextBlock Text, Border Accent)> mTabs = [];
     readonly Dictionary<int, Control> mPageContents = [];
     int mSelectedPage = -1;

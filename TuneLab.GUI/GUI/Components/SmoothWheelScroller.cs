@@ -13,10 +13,15 @@ namespace TuneLab.GUI.Components;
 // shift+滚轮走横向（须 allowHorizontal）、否则纵向；无可滚内容则放行冒泡让外层容器接管。
 internal sealed class SmoothWheelScroller
 {
-    public SmoothWheelScroller(Control host, Func<ScrollViewer?> scrollViewer, bool allowHorizontal = false)
+    // horizontalOnly：宿主**只有横轴**可滚（如一行 tab 条）。此时普通滚轮就驱动横轴，不必按 shift。
+    // 不给这个开关的话，纵轴无可滚内容会让事件直接放行——横向条就完全滚不动了。
+    // 做成显式 opt-in 而非"纵轴滚不动就自动转横轴"：后者会让既有调用方（如只有横向内容的文本框）
+    // 悄悄改变行为，而这里是宿主自己清楚"我就是一根横条"。
+    public SmoothWheelScroller(Control host, Func<ScrollViewer?> scrollViewer, bool allowHorizontal = false, bool horizontalOnly = false)
     {
         mScrollViewer = scrollViewer;
         mAllowHorizontal = allowHorizontal;
+        mHorizontalOnly = horizontalOnly;
         mAnimation = new WheelAnimation(this);
         host.AddHandler(InputElement.PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
     }
@@ -36,7 +41,7 @@ internal sealed class SmoothWheelScroller
                 return;
         }
 
-        bool horizontal = (e.KeyModifiers & KeyModifiers.Shift) != 0 && mAllowHorizontal;
+        bool horizontal = mHorizontalOnly || ((e.KeyModifiers & KeyModifiers.Shift) != 0 && mAllowHorizontal);
         double max = horizontal
             ? Math.Max(0, sv.Extent.Width - sv.Viewport.Width)
             : Math.Max(0, sv.Extent.Height - sv.Viewport.Height);
@@ -99,6 +104,7 @@ internal sealed class SmoothWheelScroller
 
     readonly Func<ScrollViewer?> mScrollViewer;
     readonly bool mAllowHorizontal;
+    readonly bool mHorizontalOnly;
     readonly WheelAnimation mAnimation;
     bool mAnimating;
     bool mHorizontal;
