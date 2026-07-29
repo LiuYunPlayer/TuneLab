@@ -7,7 +7,7 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `classes`（候选类全名数组）列出入口类，宿主按本 `type` 所需接口扫描认领——format 找 `IImportFormat`/`IExportFormat`（导入/导出类，可两类可一类同实现两接口）+ 身份 `suffixes`；voice 找 `IVoiceSynthesisEngine`、effect 找 `IEffectSynthesisEngine`（对整段音频做离线变换），+ 身份 `engine`。所有入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `class`（**唯一**入口类全名）指明实现类，宿主校验它实现了本 `type` 所需接口、不匹配即加载错误（不猜、不扫候选）——`format` 要一个类同实现 `IImportFormat`+`IExportFormat`、`format-import` 要 `IImportFormat`、`format-export` 要 `IExportFormat`，三者身份都是 `suffixes`；voice 要 `IVoiceSynthesisEngine`、instrument 要 `IInstrumentSynthesisEngine`、effect 要 `IEffectSynthesisEngine`（对整段音频做离线变换），身份是 `engine`。入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
@@ -28,14 +28,15 @@
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
-- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。宿主不认识的 type 若还声明了 `assembly`/`classes`，会被判为「本宿主不支持的插件类型」而跳过。
+- `type` (string, **必填**) — `"format"` | `"format-import"` | `"format-export"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。
 - `engine` (string, voice/instrument/effect **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
-- `suffixes` (string[], format **必填**) — 该格式认的**文件后缀清单**（不带点，如 `["mid","midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类与全部说明；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。
+- `suffixes` (string[], format 三型 **必填**) — 该格式认的**文件后缀清单**（不带点，如 `["mid","midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类、全部说明与那一份设置；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。
+- `import-suffixes` / `export-suffixes` (string[], 可选) — **仅 `type:"format"`**。`suffixes` 的**非空真子集**，收窄某一侧（「读 .mid/.midi、只写 .midi」）。省略 = 认全部；`[]` 非法（那用单向 type）；`suffixes` 里两个方向都不认的死后缀 = 加载错误。**不进设置桶键**（放宽/收窄不换桶）。
 - `name` (string, 选填) — **显示名**（UI 用，可与 id 不同、可翻译）；省略则 UI 退回显示 id。
 - `introduction` (string, 选填) — 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。
 - `localizations` (object, 选填) — 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。`introduction` 的语言变体就走这里（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。
-- `classes` (string[], 含代码**必填**) — **入口候选类全名数组**。宿主把数组里的类都扫一遍，按本 `type` 所需接口逐个匹配、命中即注册：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine`（首个命中者）；format→`IImportFormat`(注册导入)+`IExportFormat`(注册导出)，各扫一遍、至少命中其一，同一类可同实现两接口。无需精确登记哪个类干哪件事——列上候选、宿主按接口认领。每个候选类需无参构造函数。
-- `assembly` (string, 含代码**必填**) — 含上述候选类的单个程序集（相对包根，所有候选类同居此程序集）；资源包不写。
+- `class` (string, 含代码**必填**) — 本条目**唯一**入口类的全名。宿主只校验、不扫描：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine` / `format-import`→`IImportFormat` / `format-export`→`IExportFormat` / `format`→**两者兼备**（一个类同时实现两接口，写两个类是加载错误）。需无参构造函数。**一个条目 = 一个实现类 = 一份 introduction = 一份扩展设置**。
+- `assembly` (string, 含代码**必填**) — 含该入口类的单个程序集（相对包根）；资源包不写。
 - `platforms` (string[], 选填) — 如 `["win","osx","linux"]` 或 `["win-x64"]`；空=全平台。
 - **身份 id vs 显示名**：`engine`/`suffixes` 是身份（注册键 + 序列化引用，不可变）；`name`/`localizations` 仅 UI 展示、可改可译。
 - **`introduction` 是条目级、也是你唯一需要写的说明**：AI 要的"一句话摘要"由它自己从这份全文提炼，不必你另写一行（你不清楚模型要什么，写出来多半成了产品文案）。多能力包请给每个条目各写一份。
@@ -45,8 +46,8 @@
 规则：
 - 有 `extensions[]` → 以它为准，顶层身份字段忽略。
 - 无 `extensions[]`（简写）→ 顶层身份字段即那唯一插件；此时顶层 `name`/`localizations` **同时**是包名与该条目显示名（共用，**不要写两个 `name`**——同对象重复键会互相覆盖）。要让包名与条目显示名各不相同，改用 `extensions[]`、给条目单独写 `name`。
-- 一个程序集多引擎/格式 → `extensions[]` 逐条列（同 `assembly`、各自 `engine`/`suffixes` + `classes`）。
-- 身份在 manifest 单一真相，代码里**不写 attribute**；宿主扫 `classes` 候选类、按本 `type` 所需接口认领并实例化，不反射扫描。
+- 一个程序集多引擎/格式 → `extensions[]` 逐条列（同 `assembly`、各自 `engine`/`suffixes` + `class`）。
+- 身份在 manifest 单一真相，代码里**不写 attribute**；宿主校验 `class` 实现了本 `type` 所需接口后实例化，不扫描、不推断。
 - 无 `id` 的 manifest（或无文件）= **Legacy**，不要按此生成新插件。
 
 ### 工程配置
@@ -60,7 +61,7 @@
 public interface IImportFormat { ProjectInfo Deserialize(Stream stream); }
 public interface IExportFormat { void Serialize(Stream output, ProjectInfo info); }  // 宿主给流、插件写入（勿 Dispose/Seek）
 ```
-- 扩展名与实现类在 manifest：`{ "type":"format", "suffixes":["ext"], "classes":["Ns.Importer","Ns.Exporter"], "assembly":"X.dll" }`（`suffixes` 不带点；`classes` 里至少有一个实现 `IImportFormat` 或 `IExportFormat`，可一类同实现两者）。
+- 扩展名与实现类在 manifest。**一个类既读又写** → `{ "type":"format", "suffixes":["ext"], "class":"Ns.MyFormat", "assembly":"X.dll" }`（一个条目、一份说明、一个设置桶）。**两个类** → 拆成两个条目 `{"type":"format-import","class":"Ns.Importer",…}` + `{"type":"format-export","class":"Ns.Exporter",…}`（各自的说明与设置桶）。后缀不对称不是拆写理由，用 `export-suffixes`。
 - 工程模型在 `TuneLab.SDK`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。实现类需无参构造函数。
 
 ### Voice 接口（命名空间 `TuneLab.SDK`）
@@ -151,7 +152,7 @@ public struct VoiceSourceInfo { string Name; string Description; ImageResource? 
 public sealed class SynthesizedPitch { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }      // 音高回显：分段折线，段内 Point=(秒,半音)；与 SynthesizedParameter 有意不共类型
 public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }  // 回显曲线：分段折线，段内 Point=(秒,值)，段间断开
 ```
-- 引擎 id 与实现类在 manifest：`{ "type":"voice", "engine":"id", "classes":["Ns.MyVoiceEngine"], "assembly":"X.dll" }`（`engine` 唯一；宿主在 `classes` 找实现 `IVoiceSynthesisEngine` 的类）。实现类需无参构造函数。
+- 引擎 id 与实现类在 manifest：`{ "type":"voice", "engine":"id", "class":"Ns.MyVoiceEngine", "assembly":"X.dll" }`（`engine` 唯一；宿主校验 `class` 实现 `IVoiceSynthesisEngine`）。实现类需无参构造函数。
 - 声明在引擎（gap：declaration timing）：5 个 GetConfig 在 `IVoiceSynthesisEngine` 上、是 `f(voiceId, 选中成员当前值)` 纯函数（含 `GetPhonemePropertyConfigs`，**全部 required、均须实现**）。`IVoiceSynthesisPartPropertyContext { string VoiceId; IReadOnlyList<PropertyObject> PartProperties }`（part 面板，可多选 part；多声库经 `VoiceId` 分流）。`IVoiceSynthesisNotePropertyContext`**独立不继承** `{ string VoiceId; PropertyObject PartProperties; IReadOnlyList<PropertyObject> NoteProperties }`——note 必属单 part 故 PartProperties 单数、NoteProperties 是各选中 note 列表。phoneme 属性**复用 note 声明上下文**（不再有独立 phoneme context）：`GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext) : IReadOnlyMap<int, ObjectConfig>`——音素序列挂到 note 值视图上，`IVoiceSynthesisNoteView` 带 `IReadOnlyList<IVoiceSynthesisPhonemeView> Phonemes`（该 note 的有序音素：前置辅音→核→后辅音，位置=索引）。返回**按核相对 slot 键控**的 schema map（键=slot：0=核、<0=引导、>0=核后，即音素角色；值=该角色在整个选区上的 schema；空 map=所有音素无属性、缺席 slot=该角色无属性——键控自描述、无位置对齐契约），schema 授给角色、可按核 vs 辅音差异化；多选合并归引擎（schema 依赖当前值时对同 slot 各成员值三态 Merge 再条件化，同 GetNotePropertyConfig 契约）、宿主只按 slot 并值；slot 口径与助手（`PhonemeAt`/`UnionSlots`；核下标即 `LeadingPhonemes.Count`）= SDK 共享纯函数 `PhonemeSlots`，引擎与宿主同用一份；phoneme 声明上下文与 note 声明上下文本就等价、复用同一接口不重复造类型。`IVoiceSynthesisPhonemeView { string Symbol; double Duration; double StretchWeight; PropertyObject Properties }`（引导/主体归属由 note 视图 `LeadingPhonemes`/`BodyPhonemes` 列表成员给、非每音素标志）。列表成员不在乎多选就 `context.NoteProperties.Merge()`（`PropertyObjectExtensions` 扩展方法@`TuneLab.Foundation`）还原成单个三态 `PropertyObject` 按单选写；要逐成员真值就遍历列表。voiceId 进 context 使 voice 的 context 与 effect 的 `IEffectSynthesisPropertyContext`（无对等物）永久分叉。**会话构造期即可订阅自己声明的轨**：宿主在建会话前已据引擎声明填好轨集合，故构造期 `context.Automations` 已含你声明过的轨（`TryGetValue`/枚举）；漏订则该轨绘制后不触发重渲。
 - 调度语义：一会话同时只合成一块；并行发生在不同 part 的不同会话间，并发上限由宿主管控。取消是正常调度结局（不抛 `OperationCanceledException`）；`await` 真正返回才释放槽位。
 - 线程纪律：context（Notes/属性/automation）、`GetSnapshot`、`CreateAudioSegment` 仅可在 `SynthesizeNext` **同步前缀**（数据线程）读/调；之后 offload 只读已物化的 `VoiceSynthesisSnapshot`（不可变、可跨线程）。产物与 `CreateAudioSegment` 写入/Commit 在数据线程。
@@ -217,7 +218,7 @@ public interface IEffectSynthesisView {                   // 单个 effect 实�
 }
 public interface IEffectSynthesisPropertyContext { IReadOnlyList<IEffectSynthesisView> Effects { get; } }   // 声明求值上下文（多选壳：多选 part 时对应槽位各实例一个视图，单选=1；config 是选区纯函数，三态合并归引擎 .Merge()）
 ```
-- 引擎 id 与实现类在 manifest：`{ "type":"effect", "engine":"id", "classes":["Ns.MyEffectEngine"], "assembly":"X.dll" }`（`engine` 唯一；宿主在 `classes` 找实现 `IEffectSynthesisEngine` 的类）。实现类需无参构造函数。
+- 引擎 id 与实现类在 manifest：`{ "type":"effect", "engine":"id", "class":"Ns.MyEffectEngine", "assembly":"X.dll" }`（`engine` 唯一；宿主校验 `class` 实现 `IEffectSynthesisEngine`）。实现类需无参构造函数。
 - 失效判定权归宿主：宿主按作用域信号（本段输入重 Commit / 本 effect 参数 settled 变更 / 自动化变更区间与本段相交）保守调度 `Process`；会话零上报义务。`Process` 是电平语义（让输出与当前输入一致）；缓存型引擎自比缓存早退、不重 Commit 即跳过下游。颗粒事件保留为可选缓存提示，最简引擎零订阅。
 - 输出经握柄、登记表语义：`context.CreateAudioSegment(offset,count,rate)` 申请段，`Write`+`Commit`，各段独立生灭；**1→N 合法**（如按静音切分的 splitter，为下游重建段粒度）；输入面恒单段。红线：**不得重新分布时间轴**（automation/回显与 part 显示共全局秒轴）；几何微差（补边、加尾）合法。
 - 一个 MidiPart 上多个 effect 按声明顺序串行，上一个输出是下一个输入；链尾各段按绝对时间混音。启用/顺序由用户管理。
@@ -239,6 +240,7 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 - 密钥：`TextBoxConfig { IsPassword = true }` → 宿主掩码显示 + 安全落盘（Win=DPAPI 密文就地 / macOS=钥匙串；无安全存储则**不保存该字段、绝不明文**+告警；官方支持 Win/macOS）。值类型仍是普通 string。
 - 读值：`settings.GetString(key, default)` / `GetDouble` / `GetBoolean(key, default)`。读不到按默认 fallback。
 - `DisplayText` 由插件自译（按 `TuneLabContext.Global.Language`）；manifest **不**声明设置（纯代码）。
+- **format 条目**（`IImportFormat`/`IExportFormat` 之外再实现本接口）：单位是【条目】不是后缀——多后缀别名共**一行**、值只存**一份**（路由仍逐后缀，是另一根轴）；`import/export-suffixes` 也不劈开它。**两份实现两份设置**：写成 `format-import`+`format-export` 时各是一个条目、各一个桶、各一份 schema（这正是 `format` 要求同一个类的理由）。format 注册的是**工厂**（每次导入/导出现 new），故 ①`ApplySettings` **每造一个实例响一次**（就在构造之后、`Deserialize`/`Serialize` 之前），不是"设置变了"的通知，要轻；②宿主会多造一个**探测实例**只为问 schema（不参与导入导出）→ 无参构造函数保持轻量；③桶键 = `<type>:<全部后缀按声明序用 | 拼接>`（`format:mid|midi`、`format-export:midi`），增/删/重排任一后缀即**换桶且不迁移旧值**（回默认、密钥要重填）——后缀清单发布前定死；改**方向子集不换桶**。
 - 控件配置类型（值配置构造函数均已封、只走静态工厂）：`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）、`CheckBoxConfig.Create(default)`、`ComboBoxConfig.Create(options)`（`.WithDefault(option)`）、`SliderConfig`（`SliderConfig.Linear(default,min,max)` 连续 / `SliderConfig.Integer(default,min,max)` 整数 / `SliderConfig.Create(default, INormalizedScale)` 自定义标度；流式 `.WithFormat(INumberFormat)`、`.WithRandomizable()` 声明可随机（宿主在右侧给随机入口）、`.WithMinLabel(text)`/`.WithMaxLabel(text)` 量程端点描述文本（滑条两端 + 参数面板上下界，插件自译、可只设一端，同 `AutomationConfig` 语义））；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
 
 ### 常见错误（避免）
@@ -263,7 +265,7 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
   "type": "format",
   "suffixes": ["myfmt"],
   "introduction": "Introduction.md",
-  "classes": ["Example.MyFormat.MyFormatImporter", "Example.MyFormat.MyFormatExporter"],
+  "class": "Example.MyFormat.MyFormat",
   "assembly": "MyFormat.dll"
 }
 ```
@@ -282,14 +284,14 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 </Project>
 ```
 
-`MyFormat.cs`（类全名要列进 manifest 的 `classes`；宿主按 `IImportFormat`/`IExportFormat` 接口认领；不写 attribute）：
+`MyFormat.cs`（类全名写进 manifest 的 `class`；`type:"format"` 要求它同时实现 `IImportFormat` 与 `IExportFormat`；不写 attribute）：
 ```csharp
 using System.IO;
 using TuneLab.SDK;
 
 namespace Example.MyFormat;
 
-public class MyFormatImporter : IImportFormat
+public class MyFormat : IImportFormat, IExportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
     {
@@ -297,10 +299,7 @@ public class MyFormatImporter : IImportFormat
         // TODO: 解析 stream 填充 project
         return project;
     }
-}
 
-public class MyFormatExporter : IExportFormat
-{
     public void Serialize(Stream output, ProjectInfo info)
     {
         // 宿主拥有 output 生命周期，插件只顺序写入、不得 Dispose/Close/Seek/重置 Position。
@@ -308,3 +307,5 @@ public class MyFormatExporter : IExportFormat
     }
 }
 ```
+
+> 若导入与导出是**两个类**，就不能用 `type:"format"`——改成 `format-import` + `format-export` 两个条目，各写各的 `class`，它们各有独立的 introduction 与扩展设置桶。

@@ -41,26 +41,33 @@
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `type` | ✅ | 类别：`format` / `voice` / `instrument` / `effect` / 资源类。宿主不认识的 type 若还声明了 `assembly`/`classes`，会被判为「本宿主不支持的插件类型」而跳过。 |
+| `type` | ✅ | 类别：`format` / `format-import` / `format-export` / `voice` / `instrument` / `effect` / 资源类。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。 |
 | `engine` | voice/instrument/effect ✅ | 引擎类型 **id**（唯一身份，如 `"MyEngine"`）。**不可变**——它会写进工程文件，改了旧工程会失配。绝不本地化。 |
-| `suffixes` | format ✅ | 该格式认的**文件后缀清单**（不带点，如 `["mid", "midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类与全部说明；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。每个后缀各自是不可变身份。 |
+| `suffixes` | format 三型 ✅ | 该格式认的**文件后缀清单**（不带点，如 `["mid", "midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类、全部说明与那一份设置；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。每个后缀各自是不可变身份。 |
+| `import-suffixes` / `export-suffixes` | | **仅 `type: "format"` 可用**。`suffixes` 的**非空真子集**，用于收窄某一侧——即「`.mid` 和 `.midi` 都能读、只写 `.midi`」那种形状。省略 = 该方向认全部 `suffixes`。空数组非法：那意思是"这个方向不存在"，那是单向 type 的活。 |
 | `name` | | **显示名**（UI 展示用），可与身份 id 不同、可翻译。省略则 UI 退回显示身份 id。 |
 | `introduction` | | 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。 |
 | `localizations` | | 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。缺当前语言则回退基础值。`introduction` 的语言变体就走**这里**（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。 |
-| `classes` | 含代码时✅ | **入口候选类清单**（全名字符串数组，如 `["My.Ns.MyVoiceEngine"]`）。宿主把数组里的类**都扫一遍**，按本 `type` 所需接口逐个匹配、命中即注册（见下）。manifest 只是"方便宿主加载的描述"，**无需精确指明哪个类干哪件事**——把候选都列上、宿主按接口认领。 |
-| `assembly` | 含代码时✅ | 含上述候选类的程序集（相对包文件夹的路径，单个）。所有候选类同居此程序集。资源包省略。 |
+| `class` | 含代码时✅ | 本条目那**唯一一个入口类**的全名（如 `"My.Ns.MyVoiceEngine"`）。宿主校验它实现了本 `type` 所需的接口（见下）、且有**无参构造函数**；不满足即加载错误。 |
+| `assembly` | 含代码时✅ | 含该类的程序集（相对包文件夹的路径，单个）。资源包省略。 |
 | `platforms` | | 平台过滤，如 `["win", "osx", "linux"]` 或带架构 `["win-x64"]`。留空 = 全平台。 |
 
-**`classes` 的接口认领规则**（宿主按 `type` 决定要找哪些接口）：
+**各 `type` 对 `class` 的要求：**
 
-| `type` | 宿主在 `classes` 里找的接口 |
+| `type` | 入口类必须实现 |
 |---|---|
-| `voice` | `IVoiceSynthesisEngine`（首个命中者注册为引擎） |
-| `instrument` | `IInstrumentSynthesisEngine`（首个命中者注册为引擎） |
+| `voice` | `IVoiceSynthesisEngine` |
+| `instrument` | `IInstrumentSynthesisEngine` |
 | `effect` | `IEffectSynthesisEngine` |
-| `format` | `IImportFormat`（→ 注册导入）+ `IExportFormat`（→ 注册导出），各扫一遍、**至少命中其一**；同一个类可同时实现两者 |
+| `format-import` | `IImportFormat` |
+| `format-export` | `IExportFormat` |
+| `format` | `IImportFormat` **与** `IExportFormat` 两者——同一个类兼做读写 |
 
-> 所以一种类型可以需要**多个入口类**（如 format 的导入类 + 导出类），数组天然承载；只导入/只导出的格式就只放对应那一个类。每个候选类需有**无参构造函数**。
+> **一个条目 = 一个实现类 = 一份 introduction = 一份设置。** 这是同一件事的三个侧面，所以各自只声明一次。宿主不猜哪个类干哪件事：manifest 写什么就是什么，不匹配即加载错误，不做静默降级。
+>
+> **`format` 与拆写形态怎么选。** 同一个类既读又写 → 写 `format`：一份实现，于是一个名字、一份 introduction、一个设置桶。两个方向确实是**两份实现**（两个类）→ 写成 `format-import` + `format-export` 两个条目，各有各的名字、introduction 与设置。这不是写法偏好：它决定了用户看到几份东西。**后缀清单不对称不是拆写的理由**——那用 `import-suffixes` / `export-suffixes`，仍是一个条目。
+>
+> 路由一直是逐后缀 × 逐方向的（`format-import:<后缀>` / `format-export:<后缀>`），所以一个 `format` 条目照样占着它每个后缀的两个方向，用户也照样能让别的包只接管某个后缀的导出。
 >
 > **身份 id 与显示名分离**：`engine`/`suffixes` 是不可变身份（注册键 + 工程序列化引用）；`name`/`localizations` 仅供 UI 展示、可随意改名翻译。
 >
@@ -70,7 +77,7 @@
 >
 > **README 不是元数据**：宿主只认 manifest 声明的 `introduction`。包里的 `README.md` 是你留给仓库读者的文件（build 步骤、license、贡献指南），宿主不读、不展示——两者受众不同，不必也不该复用同一份。
 >
-> 一个程序集里有多个引擎/格式时，在 `extensions[]` 里逐条列出（同 `assembly`、各自 `engine`/`suffixes` + `classes`）。
+> 一个程序集里有多个引擎/格式时，在 `extensions[]` 里逐条列出（同 `assembly`、各自 `engine`/`suffixes` + `class`）。
 
 ### 2.2 单插件（最常见）
 
@@ -87,7 +94,7 @@
   "type": "format",
   "suffixes": ["myfmt"],
   "introduction": "Introduction.md",
-  "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
+  "class": "My.Ns.MyFormat",
   "assembly": "MyFormat.dll"
 }
 ```
@@ -107,8 +114,9 @@
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format", "suffixes": ["exfmt"], "introduction": "Introduction.Format.md", "classes": ["Example.Format.Importer", "Example.Format.Exporter"], "assembly": "Example.Format.dll" },
-    { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "classes": ["Example.Voice.ExVoiceEngine"], "assembly": "Example.Voice.dll", "platforms": ["win"] }
+    { "type": "format-import", "suffixes": ["exfmt"], "name": "Example Format (Import)", "introduction": "Introduction.Import.md", "class": "Example.Format.Importer", "assembly": "Example.Format.dll" },
+    { "type": "format-export", "suffixes": ["exfmt"], "name": "Example Format (Export)", "introduction": "Introduction.Export.md", "class": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
+    { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "class": "Example.Voice.ExVoiceEngine", "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
 ```
@@ -117,11 +125,11 @@
 >
 > 每个条目各带**自己的** `introduction`，于是详情窗按条目分 tab、agent 也能准确描述每个能力。顶层 `description` 仍然只讲整个包。
 >
-> 规则：有 `extensions[]` 时以它为准，顶层的身份字段（`type`/`engine`/`classes`/…）被忽略。
+> 规则：有 `extensions[]` 时以它为准，顶层的身份字段（`type`/`engine`/`class`/…）被忽略。
 
 ### 2.4 资源包（无代码）
 
-省略 `assembly`/`classes` 等代码字段，只用 `type` 声明用途。TuneLab 只登记它、不加载代码，由对应引擎在运行时去发现包内资源：
+省略 `assembly`/`class` 等代码字段，只用 `type` 声明用途。TuneLab 只登记它、不加载代码，由对应引擎在运行时去发现包内资源：
 
 ```json
 {
@@ -164,13 +172,36 @@
 
 ## 4. 编写 Format 插件
 
-实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出）。需要**无参构造函数**。文件后缀与实现类写在 `manifest.json`（`suffixes` + `classes` + `assembly`），代码里**不再用 attribute 声明**。导入类与导出类可以是两个类（都列进 `classes`），也可以是同一个类同时实现两个接口。
+实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出）。需要**无参构造函数**。文件后缀与实现类写在 `manifest.json`（`suffixes` + `class` + `assembly`），代码里**不再用 attribute 声明**。
+
+### 4.1 一个类还是两个类：`type` 跟着它走
+
+你的格式是一个类还是两个类，决定了怎么声明——而这个决定用户看得见：
+
+```json
+// 一个类既读又写 → 一个条目。一个名字、一份 introduction、【一个】设置桶。
+{ "type": "format", "suffixes": ["myfmt"], "name": "My Format",
+  "class": "My.Ns.MyFormat", "assembly": "MyFormat.dll" }
+```
+
+```json
+// 两个类 → 两个条目。各有各的名字、introduction 与设置。
+"extensions": [
+  { "type": "format-import", "suffixes": ["myfmt"], "name": "My Format (Import)",
+    "class": "My.Ns.MyFormatImporter", "assembly": "MyFormat.dll" },
+  { "type": "format-export", "suffixes": ["myfmt"], "name": "My Format (Export)",
+    "class": "My.Ns.MyFormatExporter", "assembly": "MyFormat.dll" }
+]
+```
+
+`format` **要求那一个类同时实现两个接口**。一个条目只声明一个 `class`，所以"导入类与导出类是两个类"根本没法写成 `format` 条目——那种情况就是拆写形态。（硬写会在加载期报 `class 'X' does not implement IExportFormat`。）只支持一个方向就用对应的单向 type。
 
 ```csharp
 using System.IO;
 using TuneLab.SDK;
 
-public class MyFormatImporter : IImportFormat   // 列进 classes，宿主按 IImportFormat 认领为导入
+// 紧凑形态：一个类，两个接口。
+public class MyFormat : IImportFormat, IExportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
     {
@@ -179,10 +210,7 @@ public class MyFormatImporter : IImportFormat   // 列进 classes，宿主按 II
         // ... 填充 project ...
         return project;
     }
-}
 
-public class MyFormatExporter : IExportFormat   // 列进 classes，宿主按 IExportFormat 认领为导出
-{
     public void Serialize(Stream output, ProjectInfo info)
     {
         // 把 info 写进宿主提供的 output 流。宿主拥有 output 生命周期（创建/定位/关闭），
@@ -192,13 +220,22 @@ public class MyFormatExporter : IExportFormat   // 列进 classes，宿主按 IE
 }
 ```
 
-对应的 manifest 条目：
+### 4.2 后缀别名，以及只收窄一侧
+
+一个条目写多个后缀 = 「同一格式的多个别名」：共用实现类、说明与设置，但仍各自可被独立路由。每个后缀各自是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。
+
+**读得宽、只写一种规范后缀**是带别名的格式的常态。就地收窄，不要为此拆条目：
 
 ```json
-{ "type": "format", "suffixes": ["myfmt"], "name": "My Format",
-  "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
-  "assembly": "MyFormat.dll" }
+{ "type": "format", "suffixes": ["mid", "midi"], "export-suffixes": ["midi"],
+  "class": "My.Ns.MidiFormat", "assembly": "MyMidi.dll" }
 ```
+
+导入菜单里 `.mid` 与 `.midi` 都在，导出菜单里只有 `.midi`。`import-suffixes` 是反方向的同一件事（少见得多——能写的格式通常也能读）。
+
+两者都是 `suffixes` 的**非空真子集**：认全部就省略，**永远不要**用 `[]` 表达"没有这个方向"，那是 `format-import` / `format-export` 的活。`suffixes` 里每个后缀至少要在一个方向上活下来；两个方向都不认的后缀是加载错误——它什么都不注册，却仍算作这个条目身份的一部分。
+
+> 仅仅因为后缀清单不对称就把一个类的格式拆成两个条目，代价是两份一切——详情窗两个 tab、设置页两行、两个桶——而实现只有一份。方向子集就是为免掉这笔账而存在的。
 
 > `suffixes` 里每个后缀各自是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。一个条目写多个后缀 = 「同一格式的多个别名」：共用实现类与说明，但仍各自可被独立路由。
 
@@ -212,7 +249,7 @@ voice 是**歌声合成引擎**（如 SVS 模型）。本章按「先建立心�
 
 ### 5.0 心智模型（先读这一节）
 
-- **会话托管厚模型**：你实现 `IVoiceSynthesisEngine`（每种引擎类型一个，需无参构造函数；引擎 id 写在 `manifest.json` 的 `engine`，实现类列进 `classes`，宿主按 `IVoiceSynthesisEngine` 接口认领）。宿主为工程里**每条 MidiPart** 调一次 `CreateSession` 建一个 `IVoiceSynthesisSession`。**合成的全部状态由会话自己托管**——分块、调度状态、音频缓冲、合成进度、失效（dirty）判定全在你这边。理由：失效依赖图（如「音素时长 → 音高 → 音频」的分级管线，改自动化只需重渲音频而不必重算音素）只有引擎自己懂，宿主无从复制。宿主只做三件事：把工程数据的变更流推给你、驱动调度、读你的产物来展示。
+- **会话托管厚模型**：你实现 `IVoiceSynthesisEngine`（每种引擎类型一个，需无参构造函数；引擎 id 写在 `manifest.json` 的 `engine`，实现类写在 `class`，宿主校验它实现 `IVoiceSynthesisEngine`）。宿主为工程里**每条 MidiPart** 调一次 `CreateSession` 建一个 `IVoiceSynthesisSession`。**合成的全部状态由会话自己托管**——分块、调度状态、音频缓冲、合成进度、失效（dirty）判定全在你这边。理由：失效依赖图（如「音素时长 → 音高 → 音频」的分级管线，改自动化只需重渲音频而不必重算音素）只有引擎自己懂，宿主无从复制。宿主只做三件事：把工程数据的变更流推给你、驱动调度、读你的产物来展示。
 - **声明 vs 执行分层**：会话对外有两类职责——*声明*（这个声源暴露哪些自动化轨/回显轨/属性面板、默认歌词）与*执行*（合成）。声明全部是「当前 part/note 参数值的纯函数」，宿主在参数 commit 时重算并 diff 到 UI（详见 §5.2）。
 - **插件侧时间量一律全局秒**：note 边界、曲线查询点、开窗区间、状态段范围、音频段对齐——**全部是秒**（`double`）。tick 只是宿主乐谱内部表示、**绝不外露**给插件。全局 0 秒 = 采样点 0。tempo 变化（及 part 平移）不需要你显式处理，也**没有增量通知**：宿主直接整体重建会话（旧会话 `Dispose`、新 context 新会话），新会话读到的就是新秒值——正确实现 `Dispose` 即天然正确（§5.9）。
 - **两视图 + 线程纪律（最重要的坑）**：
@@ -220,7 +257,7 @@ voice 是**歌声合成引擎**（如 SVS 模型）。本章按「先建立心�
   - **冻结快照**（`VoiceSynthesisSnapshot` 及 `*Snapshot` 家族、`IAutomationEvaluator`）：不可变、无事件、**可跨线程**。后台 worker **只读快照**，永不回碰任何活视图对象。
   - 命名即纪律：活视图（`IVoiceSynthesisContext` / `IVoiceSynthesisNote` / `ISynthesisAutomation`）仅数据线程；`*Snapshot` = 冻结物（可跨线程）。**违反这条是 voice 插件最常见、最难查的 bug**（worker 线程读活 note → 与编辑线程数据竞争）。开发期宿主会在活视图入口做数据线程断言，跨线程访问会直接抛异常帮你定位。
 
-manifest 条目：`{ "type": "voice", "engine": "MyEngine", "name": "My Engine", "classes": ["My.Ns.MyVoiceEngine"], "assembly": "MyVoice.dll" }`（`engine` 是不可变身份、会写进工程文件，改了旧工程会失配；`name` 可选显示名、可加 `localizations` 翻译；宿主在 `classes` 里找实现 `IVoiceSynthesisEngine` 的类）。
+manifest 条目：`{ "type": "voice", "engine": "MyEngine", "name": "My Engine", "class": "My.Ns.MyVoiceEngine", "assembly": "MyVoice.dll" }`（`engine` 是不可变身份、会写进工程文件，改了旧工程会失配；`name` 可选显示名、可加 `localizations` 翻译；宿主校验 `class` 实现了 `IVoiceSynthesisEngine`）。
 
 ### 5.1 `IVoiceSynthesisEngine`：引擎生命周期与声库目录
 
@@ -688,9 +725,9 @@ voice 引擎常依赖原生运行时（ONNX Runtime 等）、模型权重、发�
 
 效果器（effect）对**已合成的整段音频**做变换。它面向**耗时较长的离线模型**（如 SVC 换声、神经音色转换），不是实时的 VST 式效果器。
 
-实现 `IEffectSynthesisEngine`。需要**无参构造函数**。效果器 id 写在 `manifest.json` 的 `engine`，实现类列进 `classes`（宿主按 `IEffectSynthesisEngine` 接口认领，不再用 attribute）。引擎是每种效果器类型一个；宿主为工程里每条「effect 实例 × 上游音频段」创建一个**持久厚处理器** `IEffectSynthesisSession` 驱动它。处理器持有自己那一段的上下文 `IEffectSynthesisContext`；**失效判定与调度归宿主**（作用域信号保守标脏），处理器被调到 `Process` 就按当前真相干活（电平语义），跨调用复用内部缓存、自比缓存早退去重——「厚」在常驻缓存与私有重算图，不在失效上报。
+实现 `IEffectSynthesisEngine`。需要**无参构造函数**。效果器 id 写在 `manifest.json` 的 `engine`，实现类写在 `class`（宿主校验它实现 `IEffectSynthesisEngine`，不再用 attribute）。引擎是每种效果器类型一个；宿主为工程里每条「effect 实例 × 上游音频段」创建一个**持久厚处理器** `IEffectSynthesisSession` 驱动它。处理器持有自己那一段的上下文 `IEffectSynthesisContext`；**失效判定与调度归宿主**（作用域信号保守标脏），处理器被调到 `Process` 就按当前真相干活（电平语义），跨调用复用内部缓存、自比缓存早退去重——「厚」在常驻缓存与私有重算图，不在失效上报。
 
-manifest 条目：`{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "classes": ["My.Ns.MyEffectEngine"], "assembly": "MyEffect.dll" }`（`engine` 是不可变身份；`name` 可选显示名、可加 `localizations` 翻译；宿主在 `classes` 里找实现 `IEffectSynthesisEngine` 的类）。
+manifest 条目：`{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "class": "My.Ns.MyEffectEngine", "assembly": "MyEffect.dll" }`（`engine` 是不可变身份；`name` 可选显示名、可加 `localizations` 翻译；宿主校验 `class` 实现了 `IEffectSynthesisEngine`）。
 
 ```csharp
 using TuneLab.Foundation;
@@ -828,7 +865,7 @@ Instrument 是**多声部音源**（合成器 / 采样器 / 和弦音源）。�
 - **无歌词 / 无音素**：`IInstrumentSynthesisNote` 没有 `Lyric` / `Phonemes`；会话没有 `DefaultLyric`、不产 `SynthesizedPhonemes`。
 - **无 pitch 曲线、产物仅音频**：`IInstrumentSynthesisContext` 没有 `Pitch` / `PitchDeviation`（v1 纯按 note 整数 `Pitch` 发声）；会话不产 `SynthesizedPitch`。仍可声明 automation 轨与 `SynthesizedParameters` 回显（引擎不声明即无）。
 
-manifest 条目：`{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "classes": ["My.Ns.MyInstrumentEngine"], "assembly": "MyInstrument.dll" }`。
+manifest 条目：`{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "class": "My.Ns.MyInstrumentEngine", "assembly": "MyInstrument.dll" }`。
 
 音源目录与 voice 同形：`IInstrumentSynthesisEngine.InstrumentSourceInfos`（按 id 键）。**一插件一乐器** = 单条目；**容器式**（如 Kontakt：一个引擎挂多个外置资源包乐器）在 `Init()` 扫描已装资源包、填多条目，`InstrumentId` 选具体乐器。音色多时可实现 `InstrumentSourceLayout`（与 voice 的 `VoiceSourceLayout` 同构）把选择器折成嵌套子菜单；不实现则平铺。
 
@@ -846,7 +883,7 @@ manifest 条目：`{ "type": "instrument", "engine": "MyInstrument", "name": "My
 >
 > 粒度是 **per extension**（一个 voice/effect 能力一份），不是 per 安装包（ExtensionPackage 可含多个 extension，各自独立设置）。
 
-### 7.1 接入方式
+### 8.1 接入方式
 
 设置是 **opt-in** 的：让你的能力实现类**额外实现** `IExtensionSettings` 即可，无设置的扩展不必理会。宿主对每个已注册能力做 `x is IExtensionSettings` 探测，实现了才显示其设置面板。
 
@@ -882,7 +919,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 }
 ```
 
-### 7.2 要点
+### 8.2 要点
 
 - **密钥字段**：用 `TextBoxConfig { IsPassword = true }` 标出。宿主据此掩码显示，并按平台安全落盘：Windows 用 DPAPI 把密文就地存进配置文件（仅原用户原机可解）；macOS 存进钥匙串（Keychain）、配置文件只留空串。**无安全存储可用时不保存该密钥字段（绝不明文）并告警**。官方支持 Windows / macOS。
 - **schema 须 Init 前可达**：`GetSettingsConfig` 不得依赖 `Init` 后才有的状态——用户得先在设置面板填好（如模型路径）你才 `Init`。把它当纯函数写（同输入同输出、无副作用、轻量）。
@@ -891,13 +928,36 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 - **本地化**：设置项 `DisplayText` 由你自译（与属性面板同范式，按 `TuneLabContext.Global.Language` 出文案），宿主不参与查表。
 - **manifest 无需声明**：设置 schema 纯走代码（`GetSettingsConfig`），`manifest.json` 不掺和。
 
-### 7.3 用户在哪里改
+### 8.3 用户在哪里改
 
 「设置」窗口（顶部菜单进入）→「扩展」分页：每个声明了设置的扩展一段「显示名 + 设置面板」。编辑在**关闭窗口 / 切走分页**时统一落盘并回喂。
 
 > agent 模型引擎有自己的侧边栏设置入口，不在「扩展」分页里。
 
 相关接口在 `TuneLab.SDK`：`IExtensionSettings` / `IExtensionSettingsContext`（+ 控件配置 `ObjectConfig` / `TextBoxConfig` / `CheckBoxConfig` / `ComboBoxConfig` / `SliderConfig`）。
+
+### 8.4 format 扩展：单位是条目，不是后缀
+
+format 条目接入方式相同——在 `IImportFormat` / `IExportFormat` 之外再实现 `IExtensionSettings`。与引擎有两点不同，根源是 format 注册的是**工厂**（每次导入、每次导出宿主都现造一个实例），而不是一个长驻实例：
+
+- **一个条目一份设置**。一个条目可以认多个后缀别名（`"suffixes": ["mid", "midi"]`），但设置属于那一份实现，所以「扩展」页里它只占**一行**、值也只存**一份**，绝不会逐后缀各存一份。方向子集也不会把它劈开：`export-suffixes` 收窄的是注册什么，不是实现是谁。
+- **两份实现两份设置**。写成 `format-import` + `format-export` 时，两个类是两个条目，各拿一个独立的桶、各有自己的 schema。这正是 `format` 坚持"同一个类"的理由：两个类挤在一个条目里只有一个桶，两份 schema 必有一份无处安放。
+- **`ApplySettings` 每次导入/导出都会被调用**，就在实例创建之后——工厂造出来的实例只有这一个时机能拿到设置。因此它要轻，也**不要**把它当成「设置变了」的通知：它是每造一个实例响一次，不是每改一次设置响一次。
+- **宿主会多造一个探测实例**来问你的 schema（没有长驻实例可问）。它不参与任何导入导出。请保持无参构造函数轻量（别在里面加载模型、读文件）——反正每次导入导出也都会走一遍构造函数。
+- **改 `suffixes` 等于换一份新设置**。桶键是 `<type>:<全部后缀按声明序拼接>`——`format:mid|midi`、`format-export:midi`。所以增、删、重排任一后缀都会落到另一个桶，且宿主**不迁移**旧值：条目回到默认值，用户此前填的（含密钥）要重填。发布前把后缀清单定下来；日后真要改，就当作一次用户可见的重置来对待。改**方向子集**则**不会**换桶——多支持写出一个后缀，凭什么清空用户已填的配置。
+
+```csharp
+public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings
+{
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context) { /* 同 §8.1 */ }
+
+    // 宿主刚造出这个实例就调用，早于对它的 Deserialize/Serialize。
+    public void ApplySettings(PropertyObject settings) => mEncoding = settings.GetString("encoding", "utf-8");
+
+    public ProjectInfo Deserialize(Stream stream) { /* 这里 mEncoding 已经填好了 */ }
+    public void Serialize(Stream output, ProjectInfo info) { /* 这里也是 */ }
+}
+```
 
 ---
 
@@ -913,13 +973,13 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 
 ## 10. 加载与校验行为
 
-TuneLab 加载每个包时：**发现** → 读 `manifest.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、**扫 `classes` 候选类按本 `type` 所需接口认领并实例化注册**（不再反射扫 attribute）。
+TuneLab 加载每个包时：**发现** → 读 `manifest.json` **判代际**（有 `id` = V1）→ **校验**（sdk-version 兼容？平台匹配？）→ 为包建一个 **per-folder ALC** → 逐条按 `assembly` 加载、**校验声明的 `class` 实现了本 `type` 所需接口后实例化注册**（不再反射扫 attribute）。
 
 - 任何一步失败都**优雅降级**：只跳过出问题的插件/条目，**不会让主程序崩溃**，并在扩展侧边栏与日志里反映加载状态。
 - **用户的禁用开关先于上述一切校验**：被用户关掉的包（或单个条目）不校验、不加载、不注册——侧边栏报 `Disabled` 而非报错。它声明的条目照样列出来，用户才有地方把它重新打开。
 - `sdk-version` 高于宿主 → 该包被跳过并提示。
 - `platforms` 不含当前平台 → 该插件被跳过。
-- 条目级校验失败（`assembly` 找不到、`classes` 里没有任何类实现该 `type` 所需接口、命中类缺无参构造）→ **只这一条目失败**，原因写进侧边栏 tooltip；同包其余条目照常加载（部分加载）。
+- 条目级校验失败（`assembly` 找不到、声明的 `class` 不存在或未实现该 `type` 所需接口、缺无参构造）→ **只这一条目失败**，原因写进侧边栏 tooltip；同包其余条目照常加载（部分加载）。
 
 ---
 

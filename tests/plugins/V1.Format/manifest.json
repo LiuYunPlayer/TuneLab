@@ -3,10 +3,24 @@
   "name": "V1 Test Format",
   "version": "1.0.0",
   "author": "TuneLab Tests",
-  "description": "V1 format 测试插件：导入/导出 .tltest，验证新接口 + DataInfo 往返。",
+  "description": "V1 format 测试插件：导入/导出 .tltest，验证新接口 + DataInfo 往返。导入与导出是两个独立条目——两个实现类、两份说明、两份各自独立的扩展设置。",
   "sdk-version": "1.0",
-  "type": "format",
-  "suffixes": ["tltest"],
-  "classes": ["TuneLab.TestPlugins.V1Format.TestImportFormat", "TuneLab.TestPlugins.V1Format.TestExportFormat"],
-  "assembly": "V1.Format.dll"
+  "extensions": [
+    {
+      "type": "format-import",
+      "suffixes": ["tltest"],
+      "name": "V1 Test Format (Import)",
+      "introduction": "Introduction.Import.md",
+      "class": "TuneLab.TestPlugins.V1Format.TestImportFormat",
+      "assembly": "V1.Format.dll"
+    },
+    {
+      "type": "format-export",
+      "suffixes": ["tltest"],
+      "name": "V1 Test Format (Export)",
+      "introduction": "Introduction.Export.md",
+      "class": "TuneLab.TestPlugins.V1Format.TestExportFormat",
+      "assembly": "V1.Format.dll"
+    }
+  ]
 }

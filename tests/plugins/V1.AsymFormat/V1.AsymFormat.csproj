@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 测试插件（V1 / format）。引用当前 V1 SDK，Private=false 不打进包（宿主提供，见 plugin-development.md）。
-       输出直接落 tests/packages/v1-format/（dll + manifest.json），供拖进 App 或拷进扩展目录测试。 -->
+  <!-- 测试插件（V1 / format，紧凑形态 + 方向子集）：读 .asym/.asymx、只写 .asymx。
+       引用当前 V1 SDK，Private=false 不打进包。输出落 tests/packages/v1-asymformat/。 -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-format\</OutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\packages\v1-asymformat\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
@@ -18,9 +18,7 @@
 
   <ItemGroup>
     <Content Include="manifest.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- 拆写形态：导入与导出各是一个条目，各有自己的一份 introduction（详情窗两个 tab）。 -->
-    <Content Include="Introduction.Import.md" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Introduction.Export.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Introduction.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

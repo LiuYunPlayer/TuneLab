@@ -50,7 +50,7 @@
 
 1. 开 **V1 Test Suite** 详情窗 → 切到 **Suite Voice** tab。
 2. **期望** tab 条右端从左到右是：条目开关、Settings 齿轮、Open in External Editor。
-3. 关掉该开关（**只关这个条目**），切到 **Suite Format** tab → **期望**它的开关仍是开。
+3. 关掉该开关（**只关这个条目**），切到 **Suite Format (Import)** tab → **期望**它的开关仍是开。（`.tlsuite` 的导入与导出现在是两个条目、两个 tab。）
 4. 重启后再看该包：
    - 卡片状态徽标 = **部分**（一个条目起来了、一个被关），tooltip 里能读到 `voice 'TLSuiteVoice': disabled by the user`。
    - `.tlsuite` 文件仍能导入导出；`TLSuiteVoice` 声库在「设置音源」里**已消失**。

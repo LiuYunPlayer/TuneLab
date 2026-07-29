@@ -1,0 +1,14 @@
+{
+  "id": "com.tunelab.test.v1asymformat",
+  "name": "V1 Asymmetric Format",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "方向不对称的紧凑形态：一个类、一个条目，读 .asym 与 .asymx，只写 .asymx（模拟「.mid/.midi 都能读、只写一种」）。",
+  "introduction": "Introduction.md",
+  "sdk-version": "1.0",
+  "type": "format",
+  "suffixes": ["asym", "asymx"],
+  "export-suffixes": ["asymx"],
+  "class": "TuneLab.TestPlugins.V1AsymFormat.AsymFormat",
+  "assembly": "V1.AsymFormat.dll"
+}

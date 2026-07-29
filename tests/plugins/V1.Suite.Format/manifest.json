@@ -7,11 +7,19 @@
   "sdk-version": "1.0",
   "extensions": [
     {
-      "type": "format",
+      "type": "format-import",
       "suffixes": ["tlsuite"],
-      "name": "Suite Format",
+      "name": "Suite Format (Import)",
       "introduction": "Introduction.Format.md",
-      "classes": ["TuneLab.TestPlugins.Suite.Format.SuiteImportFormat", "TuneLab.TestPlugins.Suite.Format.SuiteExportFormat"],
+      "class": "TuneLab.TestPlugins.Suite.Format.SuiteImportFormat",
+      "assembly": "V1.Suite.Format.dll"
+    },
+    {
+      "type": "format-export",
+      "suffixes": ["tlsuite"],
+      "name": "Suite Format (Export)",
+      "introduction": "Introduction.Format.md",
+      "class": "TuneLab.TestPlugins.Suite.Format.SuiteExportFormat",
       "assembly": "V1.Suite.Format.dll"
     },
     {
@@ -19,7 +27,7 @@
       "engine": "TLSuiteVoice",
       "name": "Suite Voice",
       "introduction": "Introduction.Voice.md",
-      "classes": ["TuneLab.TestPlugins.Suite.Voice.SuiteVoiceEngine"],
+      "class": "TuneLab.TestPlugins.Suite.Voice.SuiteVoiceEngine",
       "assembly": "V1.Suite.Voice.dll"
     }
   ]

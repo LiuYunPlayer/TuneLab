@@ -41,27 +41,35 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 
 | Field | Required | Description |
 |---|---|---|
-| `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / a resource type. A type this host does not know, that nevertheless declares `assembly`/`classes`, is reported as an unsupported plugin type and skipped. |
+| `type` | ✅ | Category: `format` / `format-import` / `format-export` / `voice` / `instrument` / `effect` / a resource type. A type this host does not know, that nevertheless declares `assembly`/`class`, is reported as an unsupported plugin type and skipped. |
 | `engine` | ✅ for voice/instrument/effect | The engine type **id** (unique identity, e.g. `"MyEngine"`). **Immutable** — it is written into project files, so changing it makes old projects mismatch. Never localize it. |
-| `suffixes` | ✅ for format | The **file suffixes** this format accepts (no dot, e.g. `["mid", "midi"]`). One entry = one format: extra suffixes are its **aliases**, sharing this entry's implementation class and all of its text — but registration and routing stay **per suffix** (another package can take over just one of them). Two genuinely different formats → two entries. Each suffix is an immutable identity. |
+| `suffixes` | ✅ for the format types | The **file suffixes** this format accepts (no dot, e.g. `["mid", "midi"]`). One entry = one format: extra suffixes are its **aliases**, sharing this entry's implementation class, all of its text and its settings — but registration and routing stay **per suffix** (another package can take over just one of them). Two genuinely different formats → two entries. Each suffix is an immutable identity. |
+| `import-suffixes` / `export-suffixes` | | **Only on `type: "format"`.** A **non-empty proper subset** of `suffixes`, narrowing one direction — the "read `.mid` and `.midi`, write only `.midi`" shape. Omit to accept all of `suffixes` in that direction. An empty array is rejected: that means "this direction does not exist", which is what the single-direction types are for. |
 | `name` | | The **display name** (for UI), which may differ from the identity id and may be translated. If omitted, the UI falls back to showing the identity id. |
 | `introduction` | | A path relative to the package pointing at a markdown **introduction** (what it does, how to get started, what to watch out for). The host renders it in the extension detail window; the agent fetches it on demand via `get_extension_introduction`. |
 | `localizations` | | Per-language overrides of `name` / `introduction`, e.g. `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`. Missing entries fall back to the base value. Language variants of `introduction` go **here** (each language may point at a different filename); there is **no** implicit `<base>.<lang>.md` filename convention. |
-| `classes` | ✅ when it contains code | The **entry candidate class list** (an array of full-name strings, e.g. `["My.Ns.MyVoiceEngine"]`). The host **scans every class** in the array and matches each against the interfaces required by this `type`, registering on a hit (see below). The manifest is only "a description that helps the host load"; you **need not** pin down which class does which job — list all candidates and let the host claim by interface. |
-| `assembly` | ✅ when it contains code | The assembly (a single path relative to the package folder) containing the candidate classes above. All candidate classes live in this assembly. Resource packages omit it. |
+| `class` | ✅ when it contains code | The full name of **the one entry class** for this entry (e.g. `"My.Ns.MyVoiceEngine"`). The host verifies it implements the interface this `type` requires (see below) and has a **parameterless constructor**; anything else is a load error. |
+| `assembly` | ✅ when it contains code | The assembly (a single path relative to the package folder) containing that class. Resource packages omit it. |
 | `platforms` | | Platform filter, e.g. `["win", "osx", "linux"]` or with architecture `["win-x64"]`. Empty = all platforms. |
 
-**Interface-claim rules for `classes`** (the host decides which interfaces to look for based on `type`):
+**What each `type` requires of `class`:**
 
-| `type` | Interfaces the host looks for in `classes` |
+| `type` | The entry class must implement |
 |---|---|
-| `voice` | `IVoiceSynthesisEngine` (the first hit is registered as the engine) |
-| `instrument` | `IInstrumentSynthesisEngine` (the first hit is registered as the engine) |
+| `voice` | `IVoiceSynthesisEngine` |
+| `instrument` | `IInstrumentSynthesisEngine` |
 | `effect` | `IEffectSynthesisEngine` |
-| `format` | `IImportFormat` (→ registers import) + `IExportFormat` (→ registers export), each scanned, **at least one must hit**; one class may implement both |
+| `format-import` | `IImportFormat` |
+| `format-export` | `IExportFormat` |
+| `format` | **both** `IImportFormat` and `IExportFormat` — one class doing both |
 
-> So a single type can require **multiple entry classes** (e.g. a format's importer + exporter), which the array carries naturally; an import-only/export-only format just lists the one corresponding class. Each candidate class needs a **parameterless constructor**.
+> **One entry = one implementation class = one introduction = one set of settings.** These are the same thing seen from three angles, so each is declared exactly once. The host never guesses which class plays which role: what the manifest says is what it is, and a mismatch is a load error rather than a silent downgrade.
 >
+> **Choosing between `format` and the split pair.** Write `format` when a single class reads and writes the format — one implementation, so one name, one introduction, one settings bucket. Write `format-import` + `format-export` as two entries when the two directions are genuinely **two implementations** (two classes), which then each get their own name, introduction and settings. The choice is not cosmetic: it decides how many of everything the user sees. Suffix lists that differ per direction are *not* a reason to split — use `import-suffixes` / `export-suffixes` and stay one entry.
+>
+> Routing has always been per suffix *and* per direction (`format-import:<suffix>` / `format-export:<suffix>`), so a `format` entry still occupies both directions of every suffix it claims, and a user can still let another package take over just the export of one suffix.
+>
+
 > **Identity id vs display name are separate**: `engine`/`suffixes` are immutable identities (registration key + project-serialization reference); `name`/`localizations` are for UI display only and may be renamed/translated freely.
 >
 > **`introduction` is entry-level, and it is the only description you need to write.** The one-line summary an AI needs is distilled by the AI itself from this text — you are not asked to write a separate line for it, since you cannot know what the model is looking for and would most likely end up writing marketing copy. For a multi-capability package, write one per entry.
@@ -70,7 +78,7 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 >
 > **A README is not metadata**: the host only reads the `introduction` declared in the manifest. A `README.md` inside your package is the file you keep for people browsing your repository (build steps, license, contributing) — the host neither reads nor displays it. The two have different audiences, so they need not (and should not) be the same file.
 >
-> When one assembly has multiple engines/formats, list them one by one in `extensions[]` (same `assembly`, each with its own `engine`/`suffixes` + `classes`).
+> When one assembly has multiple engines/formats, list them one by one in `extensions[]` (same `assembly`, each with its own `engine`/`suffixes` + `class`).
 
 ### 2.2 Single plugin (most common)
 
@@ -87,7 +95,7 @@ Just write the plugin-level fields at the top level; no array needed:
   "type": "format",
   "suffixes": ["myfmt"],
   "introduction": "Introduction.md",
-  "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
+  "class": "My.Ns.MyFormat",
   "assembly": "MyFormat.dll"
 }
 ```
@@ -107,8 +115,9 @@ Use the `extensions[]` array, where each element is one independent plugin's met
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format", "suffixes": ["exfmt"], "introduction": "Introduction.Format.md", "classes": ["Example.Format.Importer", "Example.Format.Exporter"], "assembly": "Example.Format.dll" },
-    { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "classes": ["Example.Voice.ExVoiceEngine"], "assembly": "Example.Voice.dll", "platforms": ["win"] }
+    { "type": "format-import", "suffixes": ["exfmt"], "name": "Example Format (Import)", "introduction": "Introduction.Import.md", "class": "Example.Format.Importer", "assembly": "Example.Format.dll" },
+    { "type": "format-export", "suffixes": ["exfmt"], "name": "Example Format (Export)", "introduction": "Introduction.Export.md", "class": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
+    { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "class": "Example.Voice.ExVoiceEngine", "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
 ```
@@ -117,11 +126,11 @@ Use the `extensions[]` array, where each element is one independent plugin's met
 >
 > Each entry carries its **own** `introduction`, so the detail window shows one tab per entry and the agent can describe each capability accurately. The top-level `description` stays about the package as a whole.
 >
-> Rule: when `extensions[]` is present it takes precedence, and the top-level identity fields (`type`/`engine`/`classes`/…) are ignored.
+> Rule: when `extensions[]` is present it takes precedence, and the top-level identity fields (`type`/`engine`/`class`/…) are ignored.
 
 ### 2.4 Resource package (no code)
 
-Omit the code fields (`assembly`/`classes` etc.) and use only `type` to declare its purpose. TuneLab merely registers it and does not load code; the corresponding engine discovers the in-package resources at runtime:
+Omit the code fields (`assembly`/`class` etc.) and use only `type` to declare its purpose. TuneLab merely registers it and does not load code; the corresponding engine discovers the in-package resources at runtime:
 
 ```json
 {
@@ -164,13 +173,36 @@ Rules:
 
 ## 4. Writing a Format Plugin
 
-Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file suffixes and implementing classes go in `manifest.json` (`suffixes` + `classes` + `assembly`); you **no longer declare them via attributes** in code. The importer and exporter can be two classes (both listed in `classes`) or a single class implementing both interfaces.
+Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file suffixes and the implementing class go in `manifest.json` (`suffixes` + `class` + `assembly`); you **no longer declare them via attributes** in code.
+
+### 4.1 One class or two: pick the matching `type`
+
+Whether your format is one class or two decides how you declare it, and that decision is visible to the user:
+
+```json
+// One class reads and writes → one entry. One name, one introduction, ONE settings bucket.
+{ "type": "format", "suffixes": ["myfmt"], "name": "My Format",
+  "class": "My.Ns.MyFormat", "assembly": "MyFormat.dll" }
+```
+
+```json
+// Two classes → two entries. Each gets its own name, introduction and settings.
+"extensions": [
+  { "type": "format-import", "suffixes": ["myfmt"], "name": "My Format (Import)",
+    "class": "My.Ns.MyFormatImporter", "assembly": "MyFormat.dll" },
+  { "type": "format-export", "suffixes": ["myfmt"], "name": "My Format (Export)",
+    "class": "My.Ns.MyFormatExporter", "assembly": "MyFormat.dll" }
+]
+```
+
+`format` **requires that one class to implement both interfaces**. Since an entry declares exactly one `class`, an importer and an exporter that are different classes simply cannot be a `format` entry — declare them as the split pair instead. (Trying anyway fails at load with `class 'X' does not implement IExportFormat`.) If you only support one direction, use the matching single-direction type.
 
 ```csharp
 using System.IO;
 using TuneLab.SDK;
 
-public class MyFormatImporter : IImportFormat   // listed in classes; the host claims it as importer via IImportFormat
+// The `format` form: one class, both interfaces.
+public class MyFormat : IImportFormat, IExportFormat
 {
     public ProjectInfo Deserialize(Stream stream)
     {
@@ -179,10 +211,7 @@ public class MyFormatImporter : IImportFormat   // listed in classes; the host c
         // ... populate project ...
         return project;
     }
-}
 
-public class MyFormatExporter : IExportFormat   // listed in classes; the host claims it as exporter via IExportFormat
-{
     public void Serialize(Stream output, ProjectInfo info)
     {
         // Write info into the host-provided stream. The host owns output's lifecycle
@@ -192,15 +221,22 @@ public class MyFormatExporter : IExportFormat   // listed in classes; the host c
 }
 ```
 
-The corresponding manifest entry:
+### 4.2 Suffix aliases, and narrowing one direction
+
+Several suffixes in one entry means "one format, several aliases" — they share the class, the text and the settings, yet each remains separately routable. Each is an immutable identity (routing + serialization); `name` is an optional display name (add `localizations` for translations).
+
+Reading liberally while writing one canonical extension is the normal shape for a format with aliases. Narrow the direction in place rather than splitting the entry:
 
 ```json
-{ "type": "format", "suffixes": ["myfmt"], "name": "My Format",
-  "classes": ["My.Ns.MyFormatImporter", "My.Ns.MyFormatExporter"],
-  "assembly": "MyFormat.dll" }
+{ "type": "format", "suffixes": ["mid", "midi"], "export-suffixes": ["midi"],
+  "class": "My.Ns.MidiFormat", "assembly": "MyMidi.dll" }
 ```
 
-> Each entry in `suffixes` is an immutable identity (routing + serialization); `name` is an optional display name (add `localizations` for translations). Declaring several suffixes in one entry means "one format, several aliases" — they share the class and the text, yet each remains separately routable.
+Import offers both `.mid` and `.midi`; export offers only `.midi`. `import-suffixes` works the same way in the other direction (far rarer — a format you can write is normally one you can also read).
+
+Both are **non-empty proper subsets** of `suffixes`: omit them to accept everything, and never write `[]` to mean "no such direction" — that is what `format-import` / `format-export` are for. Every suffix in `suffixes` must survive in at least one direction; one that survives in neither is a load error, since it would register nothing while still counting as part of the entry's identity.
+
+> Splitting a one-class format into two entries just because the suffix lists differ costs you two of everything — two detail-window tabs, two settings rows, two buckets — for one implementation. That is why the subsets exist.
 
 The project model (`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…) is defined in `TuneLab.SDK`.
 
@@ -212,7 +248,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
 
 ### 5.0 Mental model (read this section first)
 
-- **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `manifest.json`'s `engine`, the implementing class is listed in `classes`, and the host claims it via the `IVoiceSynthesisEngine` interface). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
+- **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `manifest.json`'s `engine` and the implementing class in `class`, which the host verifies implements `IVoiceSynthesisEngine`). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
 - **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / readback tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
 - **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks are the host's internal score representation and are **never exposed** to the plugin. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
 - **Two views + thread discipline (the most important pitfall)**:
@@ -220,7 +256,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
   - **Frozen snapshot** (`VoiceSynthesisSnapshot` and the `*Snapshot` family, `IAutomationEvaluator`): immutable, event-free, **cross-thread safe**. Background workers **only read snapshots** and never touch any live-view object.
   - Naming is the discipline: live views (`IVoiceSynthesisContext` / `IVoiceSynthesisNote` / `ISynthesisAutomation`) are data-thread only; `*Snapshot` = frozen (cross-thread). **Violating this is the most common and hardest-to-debug bug in voice plugins** (a worker thread reading a live note → data races with the editing thread). During development the host asserts the data thread at live-view entry points, so cross-thread access throws immediately to help you locate it.
 
-Manifest entry: `{ "type": "voice", "engine": "MyEngine", "name": "My Engine", "classes": ["My.Ns.MyVoiceEngine"], "assembly": "MyVoice.dll" }` (`engine` is the immutable identity written into project files, so changing it makes old projects mismatch; `name` is an optional display name that can be translated via `localizations`; the host looks in `classes` for a class implementing `IVoiceSynthesisEngine`).
+Manifest entry: `{ "type": "voice", "engine": "MyEngine", "name": "My Engine", "class": "My.Ns.MyVoiceEngine", "assembly": "MyVoice.dll" }` (`engine` is the immutable identity written into project files, so changing it makes old projects mismatch; `name` is an optional display name that can be translated via `localizations`; the host verifies `class` implements `IVoiceSynthesisEngine`).
 
 ### 5.1 `IVoiceSynthesisEngine`: engine lifecycle and voicebank catalog
 
@@ -685,9 +721,9 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 
 An effect transforms **already-synthesized whole-segment audio**. It targets **relatively slow offline models** (e.g. SVC voice conversion, neural timbre conversion), not real-time VST-style effects.
 
-Implement `IEffectSynthesisEngine`. A **parameterless constructor** is required. The effect id goes in `manifest.json`'s `engine`, and the implementing class is listed in `classes` (the host claims it via the `IEffectSynthesisEngine` interface, no longer using attributes). There is one engine per effect type; the host creates a **persistent thick processor** `IEffectSynthesisSession` per "effect instance × upstream audio segment" in the project to drive it. The processor holds its own segment's context `IEffectSynthesisContext`, **subscribes itself, and manages invalidation and reprocessing itself** — the engine-private invalidation graph (which parameter / which automation segment marks dirty and triggers which internal recomputes) lives inside the processor, which the host cannot replicate, hence a thick model.
+Implement `IEffectSynthesisEngine`. A **parameterless constructor** is required. The effect id goes in `manifest.json`'s `engine`, and the implementing class in `class` (the host verifies it implements `IEffectSynthesisEngine`, no longer using attributes). There is one engine per effect type; the host creates a **persistent thick processor** `IEffectSynthesisSession` per "effect instance × upstream audio segment" in the project to drive it. The processor holds its own segment's context `IEffectSynthesisContext`, **subscribes itself, and manages invalidation and reprocessing itself** — the engine-private invalidation graph (which parameter / which automation segment marks dirty and triggers which internal recomputes) lives inside the processor, which the host cannot replicate, hence a thick model.
 
-Manifest entry: `{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "classes": ["My.Ns.MyEffectEngine"], "assembly": "MyEffect.dll" }` (`engine` is the immutable identity; `name` is an optional display name that can be translated via `localizations`; the host looks in `classes` for a class implementing `IEffectSynthesisEngine`).
+Manifest entry: `{ "type": "effect", "engine": "MyEffect", "name": "My Effect", "class": "My.Ns.MyEffectEngine", "assembly": "MyEffect.dll" }` (`engine` is the immutable identity; `name` is an optional display name that can be translated via `localizations`; the host verifies `class` implements `IEffectSynthesisEngine`).
 
 ```csharp
 using TuneLab.Foundation;
@@ -826,7 +862,7 @@ An instrument is a **polyphonic sound source** (synth / sampler / chord source).
 - **No lyrics / no phonemes**: `IInstrumentSynthesisNote` has no `Lyric` / `Phonemes`; the session has no `DefaultLyric` and produces no `SynthesizedPhonemes`.
 - **No pitch curve, product is audio only**: `IInstrumentSynthesisContext` has no `Pitch` / `PitchDeviation` (v1 voices purely by the note's integer `Pitch`); the session produces no `SynthesizedPitch`. It may still declare automation tracks and `SynthesizedParameters` readback (none if the engine declares none).
 
-Manifest entry: `{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "classes": ["My.Ns.MyInstrumentEngine"], "assembly": "MyInstrument.dll" }`.
+Manifest entry: `{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "class": "My.Ns.MyInstrumentEngine", "assembly": "MyInstrument.dll" }`.
 
 The sound-source catalog is the same shape as voice: `IInstrumentSynthesisEngine.InstrumentSourceInfos` (keyed by id). **One plugin, one instrument** = a single entry; a **container form** (e.g. Kontakt: one engine hosting multiple external resource-package instruments) scans the installed resource packages in `Init()` and fills multiple entries, with `InstrumentId` selecting the specific instrument. When there are many, implement `InstrumentSourceLayout` (isomorphic to voice's `VoiceSourceLayout`) to fold the picker into nested submenus; leave it unimplemented for a flat list.
 
@@ -897,6 +933,29 @@ The "Settings" window (entered from the top menu) → "Extensions" tab: one "dis
 
 The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionSettingsContext` (+ the control configs `ObjectConfig` / `TextBoxConfig` / `CheckBoxConfig` / `ComboBoxConfig` / `SliderConfig`).
 
+### 8.4 Format extensions: the unit is the entry, not the suffix
+
+A format entry plugs in the same way — implement `IExtensionSettings` alongside `IImportFormat` / `IExportFormat`. Two things differ from an engine, because a format is registered as a **factory** (the host creates a fresh instance for every import and export) rather than as one long-lived instance:
+
+- **One entry, one set of settings.** An entry may claim several suffix aliases (`"suffixes": ["mid", "midi"]`), but the settings belong to the implementation, so the Extensions page shows **one** row for the entry and stores **one** set of values — never one per suffix. Direction subsets do not split it either: `export-suffixes` narrows what gets registered, not who the implementation is.
+- **Two implementations, two sets of settings.** Declared as `format-import` + `format-export`, the two classes are two entries and get two independent buckets, each with its own schema. This is the reason `format` insists on a single class: with two classes under one entry there would be one bucket and one of the two schemas would have nowhere to live.
+- **`ApplySettings` runs on every import/export**, right after the instance is created — that is the only moment a factory-made instance can be handed its settings. Keep it cheap, and do not treat it as a "settings changed" notification: it fires once per created instance, not once per edit.
+- **The host creates one extra probe instance** to ask for your schema, since there is no long-lived instance to ask. It never imports or exports anything. Keep your parameterless constructor light (no model loading, no file I/O) — that is good practice anyway, since the constructor also runs for every import and export.
+- **Changing `suffixes` starts a fresh set of values.** The bucket is keyed by `<type>:<all suffixes, in declaration order>` — `format:mid|midi`, `format-export:midi`. Adding, removing or reordering a suffix therefore produces a different bucket, and the host does **not** migrate the old values: the entry starts at its defaults and the user re-enters anything they had set, secrets included. Settle the suffix list before shipping and treat a later change as a user-visible reset. Changing a *direction subset* does **not** move the bucket — widening what you can write should not wipe what the user configured.
+
+```csharp
+public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings
+{
+    public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context) { /* as in §8.1 */ }
+
+    // Called right after the host creates this instance, before Deserialize/Serialize is invoked on it.
+    public void ApplySettings(PropertyObject settings) => mEncoding = settings.GetString("encoding", "utf-8");
+
+    public ProjectInfo Deserialize(Stream stream) { /* mEncoding is already filled in here */ }
+    public void Serialize(Stream output, ProjectInfo info) { /* and here */ }
+}
+```
+
 ---
 
 ## 9. Packaging, Installation, Uninstallation
@@ -911,13 +970,13 @@ The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionS
 
 ## 10. Loading and Validation Behavior
 
-When TuneLab loads each package: **discover** → read `manifest.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **scanning the `classes` candidates to claim by the interfaces required by this `type` and instantiate & register** (no longer reflecting over attributes).
+When TuneLab loads each package: **discover** → read `manifest.json` and **judge the generation** (has `id` = V1) → **validate** (sdk-version compatible? platform matches?) → build a **per-folder ALC** for the package → load each `assembly` in turn, **verifying the declared `class` implements what this `type` requires, then instantiating & registering it** (no longer reflecting over attributes).
 
 - Any step's failure **degrades gracefully**: only the problematic plugin/entry is skipped, **the host never crashes**, and the loading status is reflected in the extensions sidebar and the log.
 - **The user's disable switch comes first, before every check above**: a package (or a single entry) the user has switched off is not validated, not loaded, and not registered — the sidebar reports it as `Disabled`, never as an error. Its declared entries are still listed, so the user has somewhere to switch it back on.
 - `sdk-version` higher than the host → that package is skipped with a notice.
 - `platforms` not including the current platform → that plugin is skipped.
-- Entry-level validation failure (`assembly` not found, no class in `classes` implements the interface required by this `type`, the hit class lacks a parameterless constructor) → **only that entry fails**, with the reason written into the sidebar tooltip; the rest of the package's entries load as usual (partial loading).
+- Entry-level validation failure (`assembly` not found, the declared `class` missing or not implementing what this `type` requires, or lacking a parameterless constructor) → **only that entry fails**, with the reason written into the sidebar tooltip; the rest of the package's entries load as usual (partial loading).
 
 ---
 

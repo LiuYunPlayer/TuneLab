@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/plugins/">
     <Project Path="plugins/Conflict.A/Conflict.A.csproj" />
+    <Project Path="plugins/V1.AsymFormat/V1.AsymFormat.csproj" />
+    <Project Path="plugins/V1.MultiSuffix/V1.MultiSuffix.csproj" />
     <Project Path="plugins/Conflict.B/Conflict.B.csproj" />
     <Project Path="plugins/Conflict.Helper.V1/Conflict.Helper.V1.csproj" />
     <Project Path="plugins/Conflict.Helper.V2/Conflict.Helper.V2.csproj" />

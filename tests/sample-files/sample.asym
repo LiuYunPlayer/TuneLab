@@ -1,0 +1,2 @@
+V1.AsymFormat 的导入器忽略文件内容，只按扩展名路由。
+.asym 可以导入但**不能**导出——该条目用 export-suffixes 把写出侧收窄到了 .asymx。

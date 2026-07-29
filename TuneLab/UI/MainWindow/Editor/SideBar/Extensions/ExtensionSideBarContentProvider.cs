@@ -173,10 +173,17 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     private static IReadOnlyList<string> DisplayTypes(ExtensionLoadResult result)
     {
         if (result.Types.Count > 0)
-            return result.Types.Select(Capitalize).ToList();
+            return result.Types.Select(BadgeLabel).Distinct().ToList();
 
         return [result.Generation == ExtensionGeneration.Legacy ? "Legacy" : "Extension"];
     }
+
+    // 徽标文本：format 三型合并成一枚 **Format**。
+    // 徽标回答的是"这是个什么类型的插件"，而"能读还是能写"是**条目粒度**的事实——一个既导入又导出的包
+    // 会挂出两枚只差方向的徽标，占掉整行却没多说什么。方向要在详情窗每个 tab 旁边点明（那里两个 tab 并排、
+    // 名字只差括号里一个词，不标方向反而分不清），见 ExtensionDetailPage.Kind。
+    private static string BadgeLabel(string kind)
+        => FormatsManager.IsFormatKind(kind) ? "Format" : Capitalize(kind);
 
     private static string Capitalize(string s)
         => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
@@ -256,16 +263,9 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
 
         foreach (var entry in result.Entries)
         {
-            // 多身份条目（多后缀 format）取首个命中的桶——设置桶目前是 per 能力位的，format 也还没接进设置系统；
-            // 真接进来时应改成 per 条目一桶（否则同一格式的几个后缀会各存一份设置）。
             // 被禁用的条目不会注册，故也不在 GetEntries 里 → 本页没有齿轮。这是实情：它这次没加载，
             // 没有实例可配置；重新启用并重启后齿轮自会回来。
-            string? settingsKey = null;
-            foreach (var id in entry.Identities)
-            {
-                var key = entry.Kind + ":" + id;
-                if (settingsKeys.Contains(key)) { settingsKey = key; break; }
-            }
+            var settingsKey = SettingsKeyOf(entry, settingsKeys);
 
             string? markdown = null;
             if (!string.IsNullOrEmpty(entry.IntroductionPath))
@@ -282,7 +282,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
                 CanDisable = ExtensionActivation.CanDisableEntry(result.Id, entry.Kind, entry.Identities),
                 // format 条目的身份就是文件后缀：如实列在页里，否则用户只看到一个名字、不知道它管哪些文件。
                 Identities = entry.Identities,
-                IdentitiesAreFileSuffixes = entry.Kind == "format",
+                IdentitiesAreFileSuffixes = FormatsManager.IsFormatKind(entry.Kind),
                 Markdown = markdown,
                 FilePath = entry.IntroductionPath,
                 SettingsKey = settingsKey,
@@ -290,6 +290,29 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
         }
 
         return pages;
+    }
+
+    // 条目 → 它的设置桶键（没有设置则 null）。
+    // engine 类是 1:1，身份即桶键；format 三型是【多后缀共一份实现、也就共一个桶】，键取全部后缀按声明序拼接
+    // （与 FormatsManager.EntryId 同口径）——逐后缀去查会全部落空，多后缀 format 的齿轮就没了。
+    private static string? SettingsKeyOf(ExtensionEntryInfo entry, HashSet<string> settingsKeys)
+    {
+        if (entry.Identities.Count == 0)
+            return null;
+
+        if (FormatsManager.IsFormatKind(entry.Kind))
+        {
+            var key = entry.Kind + ":" + FormatsManager.EntryId(entry.Identities);
+            return settingsKeys.Contains(key) ? key : null;
+        }
+
+        foreach (var id in entry.Identities)
+        {
+            var key = entry.Kind + ":" + id;
+            if (settingsKeys.Contains(key))
+                return key;
+        }
+        return null;
     }
 
     // 打开扩展详情窗：正文按包内各条目分页渲染其 introduction（都没写则显占位），弹出可缩放详情窗。

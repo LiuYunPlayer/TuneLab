@@ -13,13 +13,18 @@
 2. `pwsh tests/pack-tlx.ps1`
 3. `pwsh tests/install-tlx.ps1 v1-voice v1-suite v1-format v1-multisuffix`
 
+> ⚠️ **后续变更影响本文**：format 已拆成 `format` / `format-import` / `format-export` 三型，且一个条目
+> 只声明**一个**入口类（`class` 标量）。于是 V1 Test Format 与 Suite Format 这两个"一条目两个类"的夹具
+> 各变成了**两个条目 = 两个 tab**，下表已按新形态更新；§3 与 §4 的 tab 数与标签名也随之变化。
+> 新形态本身的验收见 [EXTENSION-FORMAT-SETTINGS-TEST-CASES.md](EXTENSION-FORMAT-SETTINGS-TEST-CASES.md)。
+
 四个样例各覆盖一种形态：
 
 | 包（侧栏显示名） | 形态 | 期望 |
 |---|---|---|
 | **V1 Test Voice** | 单插件简写，顶层 `introduction`，`localizations` 给 zh-CN 覆盖它 | 一个 tab |
-| **V1 Test Suite** | 一包两条目（format `tlsuite` + voice `TLSuiteVoice`），各自 introduction；**只有 voice 条目声明了扩展设置** | 两个 tab，齿轮只在 voice 页 |
-| **V1 Test Format** | **不写** `introduction`、也无设置 | 一个 tab，列出 `.tltest` + 无文档占位 |
+| **V1 Test Suite** | 一包**三**条目（`tlsuite` 的 format-import + format-export 两个条目 + voice `TLSuiteVoice`），各自 introduction；**只有 voice 条目声明了扩展设置** | 三个 tab，齿轮只在 voice 页 |
+| **V1 Test Format** | 拆写形态：`.tltest` 的 format-import + format-export 两个条目、两个类，各写 introduction、各带扩展设置 | 两个 tab，两页都有齿轮 |
 | **V1 Test Multi-Suffix** | **一个** format 条目 + `"suffixes": ["mtest","mtst"]`，共用一个类与一份 introduction | 一个 tab，页内列出两个后缀 |
 | （voice/instrument/effect 条目） | 身份是 engine id | 页内**不列**身份——那是内部注册键，对使用无意义 |
 

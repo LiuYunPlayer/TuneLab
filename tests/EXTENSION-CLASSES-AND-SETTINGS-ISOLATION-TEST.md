@@ -31,6 +31,13 @@
 
 ## A. classes 入口协议
 
+> ⚠️ **本组已被后续变更取代，不要再按它测。** `classes` 候选数组已退回标量 `class`：一个条目只声明
+> **一个**入口类，宿主只校验它实现了本 `type` 所需接口、不再扫描认领。同时 format 拆成
+> `format` / `format-import` / `format-export` 三型，A3、A8 描述的「一个 format 条目容纳导入类 + 导出类」
+> 已不成立（那正是数组存在的唯一理由，故一并退役）。
+> 新口径与验收见 [EXTENSION-FORMAT-SETTINGS-TEST-CASES.md](EXTENSION-FORMAT-SETTINGS-TEST-CASES.md)。
+> **B 组（扩展设置按包分桶）不受影响，仍然有效。**
+
 > 全部用现有夹具即可，无需新建。重点：换成 `classes` 后**加载/注册行为与改造前完全一致**。
 
 - **A1 voice 单类认领**：装 V1.Voice → 扩展侧栏显示 Loaded；新建 voice part 选 V1 Test Voice，声库列出 Alice/Bob，能合成正弦。

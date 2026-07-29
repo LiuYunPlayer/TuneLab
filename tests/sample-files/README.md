@@ -12,6 +12,8 @@
 | `sample.tlm1` | `legacy-multi` | 忽略内容、出固定样例 | 轨名 `legacy-multi #1` |
 | `sample.tlm2` | `legacy-multi` | 忽略内容、出固定样例 | 轨名 `legacy-multi #2` |
 | `sample.tlnoasm` | `v1-no-assemblies` | 忽略内容、出固定样例 | 轨名含 `scanned (no assemblies declared)` |
+| `sample.mtest` / `sample.mtst` | `v1-multisuffix` | 忽略内容、出固定样例 | 轨名与 note 个数**取自该条目的扩展设置**（默认「Multi Suffix Track」+2 note）；两个后缀结果相同（共用一个设置桶） |
+| `sample.asym` / `sample.asymx` | `v1-asymformat` | 忽略内容、出固定样例 | 轨「Asym Track」+2 note；两个后缀导入结果相同，但**只有 `.asymx` 能导出**（`export-suffixes` 收窄了写出侧） |
 
 **往返(round-trip)测试**：用 `sample.tltest` / `sample.tloldfmt` 导入后，再「导出」回同扩展名 → 重新导入 → 轨/note(pos/dur/pitch/lyric) 应一致。
 

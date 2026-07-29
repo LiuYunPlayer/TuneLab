@@ -7,6 +7,6 @@
   "sdk-version": "1.0",
   "type": "instrument",
   "engine": "TLTestInstrumentV1",
-  "classes": ["TuneLab.TestPlugins.V1Instrument.TestInstrumentEngine"],
+  "class": "TuneLab.TestPlugins.V1Instrument.TestInstrumentEngine",
   "assembly": "V1.Instrument.dll"
 }

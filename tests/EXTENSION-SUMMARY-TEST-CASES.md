@@ -19,7 +19,7 @@
 |---|---|
 | **V1 Test Voice** | 基本回路；`localizations` 指定了 zh-CN 版 introduction → 测语言分开 |
 | **V1 Test Multi-Suffix** | 一条目两后缀共用一份说明 → 共用一条摘要 |
-| **V1 Test Format** | **不写** introduction → 不生成、也不该报错 |
+| **V1 Test Format** | ~~**不写** introduction → 不生成、也不该报错~~ ——**已变**：它现在是拆写形态（format-import + format-export 两个条目），两个条目**各写了** introduction，故各生成一条摘要。要测「不写 introduction」这一支，改用 `V1 Missing-Assembly` 之类没写的夹具，或临时把某条目的 `introduction` 去掉 |
 | **V1 Test Suite** | 一包两条目，各有各的 introduction → 两条独立摘要 |
 
 **什么要重启、什么不用**——判据是"这东西在加载期定死，还是每次调用现算"：
@@ -89,7 +89,7 @@
 
 ## 6. 没有 introduction 的能力位：不生成、不报错
 
-1. 在 `list_extensions` 的输出里找 **V1 Test Format**（作者没写 introduction）。
+1. 在 `list_extensions` 的输出里找一个**没写 introduction** 的能力位（V1 Test Format 已改为拆写形态、两个条目都写了说明，不再适用；可用 V1 Missing-Assembly，或临时去掉某条目的 `introduction`）。
 2. **期望**：那一行**没有摘要行、也没有 `[full text: …]` 提示**，更没有报错；它照常显示身份、显示名与状态。
    绝不能拿包级 description 冒充这个能力的摘要——那会造出一条无源的"事实"（包级自述可能涵盖包里别的能力）。
 

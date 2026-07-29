@@ -49,8 +49,19 @@ internal static class LegacyCompatLoader
                 // Legacy 包无 V1 反向域名 id（有 id 即走 V1 路径），故用目录名当包 id（与 LoadLegacy 的 LoadResult.Id 同源）——
                 // 供冲突消解区分多个 legacy 包、并反查真实包名；其适配器不实现 IExtensionSettings、无设置桶受影响。
                 var legacyPackageId = ExtensionManager.LegacyPackageId(path);
-                Action<string, IImportFormat> addImporter = (ext, format) => { FormatsManager.RegisterImporter(legacyPackageId, ext, ext, () => format); AddType(typeSink, "format"); };
-                Action<string, IExportFormat> addExporter = (ext, format) => { FormatsManager.RegisterExporter(legacyPackageId, ext, ext, () => format); AddType(typeSink, "format"); };
+                // 老插件逐扩展名各注册一次、导入导出分开推来，故每个扩展名各成一个**单向**条目
+                // （老 schema 从来没有"一个条目双向"的概念，硬并成紧凑形态反而是我们替它编的）。
+                // declaresSettings 恒 false：老 SDK 里没有 IExtensionSettings 这回事。
+                Action<string, IImportFormat> addImporter = (ext, format) =>
+                {
+                    FormatsManager.RegisterFormat(legacyPackageId, FormatsManager.KindImport, [ext], ext, ([ext], () => format), null, false);
+                    AddType(typeSink, FormatsManager.KindImport);
+                };
+                Action<string, IExportFormat> addExporter = (ext, format) =>
+                {
+                    FormatsManager.RegisterFormat(legacyPackageId, FormatsManager.KindExport, [ext], ext, null, ([ext], () => format), false);
+                    AddType(typeSink, FormatsManager.KindExport);
+                };
                 // enginePath 由 compat 侧的引擎适配器自持（老引擎 Init 需要包路径，新引擎面 Init 无参）。
                 Action<string, IVoiceSynthesisEngine, string> addVoiceEngine = (type, engine, enginePath) => { VoicesManager.RegisterEngine(legacyPackageId, type, type, engine); AddType(typeSink, "voice"); };
 

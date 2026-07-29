@@ -3,11 +3,11 @@
   "name": "V1 Test Multi-Suffix",
   "version": "1.0.0",
   "author": "TuneLab Tests",
-  "description": "一个格式、两个后缀别名（.mtest / .mtst）：单条目声明多 suffix，共用一份实现类与说明（模拟 .mid/.midi）。",
+  "description": "一个格式、两个后缀别名（.mtest / .mtst）：单条目声明多 suffix，共用一份实现类、说明与扩展设置（模拟 .mid/.midi）。",
   "introduction": "Introduction.md",
   "sdk-version": "1.0",
   "type": "format",
   "suffixes": ["mtest", "mtst"],
-  "classes": ["TuneLab.TestPlugins.V1MultiSuffix.MultiSuffixFormat"],
+  "class": "TuneLab.TestPlugins.V1MultiSuffix.MultiSuffixFormat",
   "assembly": "V1.MultiSuffix.dll"
 }

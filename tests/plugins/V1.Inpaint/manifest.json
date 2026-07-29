@@ -7,6 +7,6 @@
   "sdk-version": "1.0",
   "type": "voice",
   "engine": "TLTestInpaintV1",
-  "classes": ["TuneLab.TestPlugins.V1Inpaint.InpaintVoiceEngine"],
+  "class": "TuneLab.TestPlugins.V1Inpaint.InpaintVoiceEngine",
   "assembly": "V1.Inpaint.dll"
 }

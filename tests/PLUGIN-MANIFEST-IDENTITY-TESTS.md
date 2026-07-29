@@ -52,7 +52,7 @@ powershell -File tests/pack-tlx.ps1          # → tests/tlx/*.tlx
 
 - 引擎/格式的 `engine`/`extension` 是**不可变身份**：写进工程文件、用于注册与路由，改名会让旧工程失配。
 - `name`(+`localizations`) 仅供 UI 展示，可改可译，不影响已存工程。
-- 抽查：v1-effect 选择器显示 **Gain/Reverse**（`extensions[]` 条目各自的 `name`），但保存工程后在文件里能看到 effect type 为 `TLTestGain`/`TLTestReverse`；v1-format 文件类型显示包名 **V1 Test Format**，扩展名仍是 `.tltest`。
+- 抽查：v1-effect 选择器显示 **Gain/Reverse**（`extensions[]` 条目各自的 `name`），但保存工程后在文件里能看到 effect type 为 `TLTestGain`/`TLTestReverse`；v1-format 的文件类型显示**条目名**——导入对话框里是 **V1 Test Format (Import)**、导出里是 **(Export)**（它已拆成两个条目，各有各的 `name`），扩展名仍是 `.tltest`。
 - 内建：openai-compatible 模型在 agent 下拉显示 **OpenAI Compatible**（id 仍 `openai-compatible`）；内建格式显示 **TuneLab Project / MIDI / VOCALOID Project** 等友好名。
 - 安装汇总弹窗（拖入 .tlx 后）按**包名**列出，不是引擎名。
 

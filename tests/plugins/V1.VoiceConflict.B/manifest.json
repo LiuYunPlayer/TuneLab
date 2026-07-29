@@ -7,6 +7,6 @@
   "sdk-version": "1.0",
   "type": "voice",
   "engine": "TLConflictVoice",
-  "classes": ["TuneLab.TestPlugins.VoiceConflictB.ConflictVoiceEngine"],
+  "class": "TuneLab.TestPlugins.VoiceConflictB.ConflictVoiceEngine",
   "assembly": "V1.VoiceConflict.B.dll"
 }

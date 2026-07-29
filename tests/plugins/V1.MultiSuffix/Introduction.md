@@ -15,3 +15,10 @@ accepts are listed above this text, since a format's display name rarely reveals
 `.mtst` each get their own Import and Export row, so another package can take over just one of
 them. The host picks an implementation by suffix when opening a file, and declaring the aliases
 together does not narrow that.
+
+**Settings follow the format, not the suffix.** This entry declares extension settings (a track
+name, a note count and a secret licence key). Open **Settings → Extensions**: there is exactly
+**one** row for it, not one per suffix — one implementation class, one set of values. Change the
+track name, then import a `.mtest` or a `.mtst` file: the imported track carries the new name,
+which is how you can tell the settings reached the instance the host creates for that import.
+
