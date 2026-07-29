@@ -227,6 +227,9 @@ internal sealed class ExtensionDetailWindow : Window
     const double IconSideMin = 56;
     const double IconSideMax = 96;
 
+    // tab 条一格滚轮的横向位移（px）。取值约等于一个短标签宽度：滚一下换掉一个标签，既不迟钝也不会窜过头。
+    const double TabWheelStep = 60;
+
     Control BuildSquareIcon(ExtensionDetailInfo info, Control infoColumn)
     {
         var inner = ExtensionItemView.CreateIconVisual(info.IconPath, info.Name, 72);
@@ -594,12 +597,27 @@ internal sealed class ExtensionDetailWindow : Window
 
         // 标签区可横向滚（标签多到超宽时仍保持"一行"形态）；右端固定放【当前条目】的操作按钮——
         // 它们随 tab 切换而变，放这里既不多占一行、也不会像原来那样让正文顶部左半边空着。
+        //
+        // 【滚而不显条】横一道滚动条会把本来只有一行的 tab 条视觉上切成两层，比"看不出能滚"更伤观感。
+        // 代价是可滚动性没有视觉提示，故下面显式接管滚轮：普通滚轮只给 Delta.Y，而 ScrollViewer 只拿
+        // Delta.X 做横向位移——不接管的话隐藏了条就等于彻底滚不动了。
         var tabs = new ScrollViewer
         {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Background = Brushes.Transparent,
             Content = row,
+        };
+        tabs.PointerWheelChanged += (_, e) =>
+        {
+            var max = Math.Max(0, tabs.Extent.Width - tabs.Viewport.Width);
+            if (max <= 0)
+                return;   // 没超宽就别吞掉滚轮，留给外层
+
+            // 横向滚轮 / 触控板横扫优先；没有横向分量时用纵向的（滚轮上 = 向左，与纵向"上=向前"同向）。
+            var delta = e.Delta.X != 0 ? e.Delta.X : e.Delta.Y;
+            tabs.Offset = new Vector(Math.Clamp(tabs.Offset.X - delta * TabWheelStep, 0, max), 0);
+            e.Handled = true;
         };
 
         mPageActions = new StackPanel

@@ -74,7 +74,17 @@ internal sealed class KeymapSettingsPage : DockPanel
         // ScrollView 是 Panel，无背景则自身不可命中——滚轮只在命中的子控件（有文字处）上触发。
         // 透明背景让整个视口可命中，空白处也能滚动。
         mListView.Background = Brushes.Transparent;
-        this.AddDock(mListView);
+
+        // 与设置窗其余页一致：贴边叠一条滚动条（只有手柄参与命中、其余穿透，内容不超一屏时自己不画）。
+        // 右 Margin 避开本窗口的缩放边框带——ExtendClientAreaToDecorationsHint 让那圈系统边框落在客户区内部，
+        // 其指针事件进不了视觉树；不内缩的话手柄外侧大半点不动（详见 SettingsWindow.WithScrollBar）。
+        var listArea = new Panel();
+        listArea.Children.Add(mListView);
+        listArea.Children.Add(new ScrollBar(mListView.VerticalAxis, Avalonia.Layout.Orientation.Vertical)
+        {
+            Margin = new Thickness(0, 0, SettingsWindow.WindowEdgeInset, 0),
+        });
+        this.AddDock(listArea);
 
         // 录制期在页级隧道阶段抢先捕获按键：先于任一子控件（含 Button 的空格/回车激活、Window 的 Esc 关窗）。
         AddHandler(KeyDownEvent, OnRecordingKeyDown, RoutingStrategies.Tunnel);

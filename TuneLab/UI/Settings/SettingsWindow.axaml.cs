@@ -245,6 +245,43 @@ internal partial class SettingsWindow : Window
         mSelectedIndex = index;
     }
 
+    // 把一页的列表包成「可滚列表 + 贴边滚动条」。设置窗每一页都该经它返回。
+    //
+    // ① Background 设透明是**必需**的，不是装饰：ListView 底层的 ScrollView 是个 Panel，而 Avalonia 里
+    //    `Background = null` 的 Panel **整块区域不参与命中测试**。于是只有落在子控件上的滚轮才会冒泡到
+    //    ScrollView，标题右侧那种没有子控件的空白处根本收不到事件、滚不动。透明 ≠ null，透明可命中。
+    //    只在需要处设、**不下沉到 ScrollView**：那是共享原语，命中策略该由使用处定；一刀切会把"指针穿透
+    //    滚动容器"这个能力从底层锁死。
+    // ② ScrollBar 绑 ScrollView 暴露的 VerticalAxis 即可用，且它只有**手柄**参与命中（ICustomHitTest），
+    //    故直接铺满叠在列表上也不抢内容事件；内容不超一屏时它自己不画（TryGetThumb 返回 false）。
+    // ③ 右 Margin 是**必需**的，不是留白：本窗口开了 ExtendClientAreaToDecorationsHint，客户区延伸进装饰区，
+    //    最外侧那圈缩放边框带落在客户区内部、其指针事件被系统拿去缩放窗口，根本进不了视觉树。手柄默认贴着
+    //    右边缘画，外侧大半就泡在那条带子里、点不动。用 Margin 而非改 ScrollBar 的 EdgeMargin：绘制与命中
+    //    都从 Bounds.Width 推，缩 Bounds 会让两者**一起**内移、不会重新错开。
+    private static Control WithScrollBar(ListView listView)
+    {
+        listView.Background = Brushes.Transparent;
+
+        var panel = new Panel();
+        panel.Children.Add(listView);
+        panel.Children.Add(new GUI.Components.ScrollBar(listView.VerticalAxis, Avalonia.Layout.Orientation.Vertical)
+        {
+            Margin = new Thickness(0, 0, WindowEdgeInset, 0),
+        });
+        return panel;
+    }
+
+    // 让贴边元素避开窗口缩放边框带的内缩量（本窗口各页共用，KeymapSettingsPage 也取这里）。
+    //
+    // 【本值越大，滚动条越靠左】它是右 Margin：变大 = 右侧留白变多 = 手柄内移。
+    //
+    // 手柄右缘距页面右边界的实际净空 = 本值 + ScrollBar 自己的 EdgeMargin(2)，当前 = 8，正是 Windows
+    // 缩放边框带的教科书宽度（SM_CXSIZEFRAME + SM_CXPADDEDBORDER）。实测那条死区约 6px（内缩为 0 时
+    // 手柄左半可点、右半不可），故功能下界是本值 ≥ 4；取 6 在观感与余量之间。
+    // Windows 边框宽度随 DPI 浮动，但它是**物理**像素、而这里是逻辑像素，缩放越高对应的逻辑宽度越小，
+    // 故 100% 缩放是最坏情形。
+    internal const double WindowEdgeInset = 6;
+
     // 按注册表条目自动生成一个设置页：遍历该 tab 的条目、每条一行（路径类两行）。行序 = SettingsRegistry.All 序（= 窗口顺序源）。
     private Control CreateTabPage(SettingTab tab)
     {
@@ -254,7 +291,7 @@ internal partial class SettingsWindow : Window
             if (item.Tab == tab)
                 listView.Content.Children.Add(BuildRow(item));
         }
-        return listView;
+        return WithScrollBar(listView);
     }
 
     // 一行设置：路径类 = 标签行 + 全宽 PathInput；其余 = [标签 | 控件] 单行。控件双向绑到条目的 NotifiableProperty。
@@ -367,7 +404,7 @@ internal partial class SettingsWindow : Window
                 Margin = new Thickness(24, 16),
                 Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
             });
-            return listView;
+            return WithScrollBar(listView);
         }
 
         foreach (var entry in entries)
@@ -409,7 +446,7 @@ internal partial class SettingsWindow : Window
 
             mExtensionPages.Add(new ExtensionPage(entry, data, controller, ctx, refresh));
         }
-        return listView;
+        return WithScrollBar(listView);
     }
 
     // 「Extension Routing」页：当同一身份（voice/effect/agent 引擎 id、format 扩展名）被多个扩展包提供时，
@@ -430,7 +467,7 @@ internal partial class SettingsWindow : Window
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = Style.LIGHT_WHITE.Opacity(0.5).ToBrush(),
             });
-            return listView;
+            return WithScrollBar(listView);
         }
 
         listView.Content.Children.Add(new TextBlock
@@ -496,7 +533,7 @@ internal partial class SettingsWindow : Window
             }
             listView.Content.Children.Add(panel);
         }
-        return listView;
+        return WithScrollBar(listView);
     }
 
     // 下拉项文本：候选【包名】（来自 manifest），附包 id 消歧（同名/本地化时）。内建显示 "Built-In"。
