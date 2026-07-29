@@ -125,7 +125,9 @@ internal sealed class AgentSideBarContentProvider
                 new GetScriptInputsTool(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 // 环境感知（只读）：枚举插件/readme、音源目录、effect 引擎+参数——让 agent 看见宿主装了什么、可推荐什么。
-                new ListExtensionsTool(),
+                // 逐能力位的一句话摘要由宿主在返回前补齐（短文档直接用作者原话，长文档才发一次旁路请求、
+                // 按内容哈希缓存），故不额外开工具；要作者全文仍走 get_extension_introduction。
+                new ListExtensionsTool(SendSideRequestAsync),
                 new GetExtensionIntroductionTool(),
                 new ListSoundSourcesTool(),
                 new ListEffectsTool(),
@@ -1086,6 +1088,18 @@ internal sealed class AgentSideBarContentProvider
         };
     }
 
+    // 扩展摘要补齐用的旁路请求：与自动标题同一形态——**自包含的一次性调用**，不带工具声明、不带对话
+    // 历史、不带主循环的系统提示，只是复用同一个 provider 连接（session 对象逐次调用无共享可变状态，
+    // 主循环正 await 工具时并发调它是安全的）。未连模型 → 返回 null，补齐闸据此整体跳过。
+    async Task<string?> SendSideRequestAsync(IReadOnlyList<AgentMessage> messages, CancellationToken cancellationToken)
+    {
+        var session_model = mSession;
+        if (session_model == null)
+            return null;
+        var reply = await session_model.SendAsync(new AgentModelRequest { Messages = messages }, cancellationToken);
+        return reply.Content;
+    }
+
     // 自动标题：用模型把首轮总结成几字标题，覆盖占位的首条截断。失败/未连接则保留占位（已是首条截断）。
     async Task GenerateTitleAsync(SessionContext ctx, string userText, string assistantText)
     {
@@ -1106,6 +1120,10 @@ internal sealed class AgentSideBarContentProvider
             var reply = await session_model.SendAsync(request, CancellationToken.None);
             // 防线：模型没遵守"只回简短标题"——回了一大段、或把工具结果/数据当回复 dump（曾致标题=一长串内容或 {"音轨名称":...} JSON）→
             // 丢弃，保留占位（首条用户消息截断，已是可读标题）。真·6 词标题远短于 60 字、也不会以 { [ 开头。
+            // 【已知未防的一类】前言型客套话（"好的，标题：音符编辑"）够短、也不以 { 开头，会原样存进去。
+            // 至今未实际发生（起标题是被训练得极熟的短指令，且 user 消息里没有长文档诱它进入讲解语气），
+            // 且标题用户可见、一键可改名，故暂不处理。真遇到时对策现成：照 ExtensionSummaryFiller 的
+            // `SUMMARY:` 标记协议做一个 `TITLE:`——只取标记之后的内容，没标记就整条丢弃。
             var raw = (reply.Content ?? string.Empty).Trim();
             if (raw.Length == 0 || raw.Length > 60 || raw[0] == '{' || raw[0] == '[')
                 return;

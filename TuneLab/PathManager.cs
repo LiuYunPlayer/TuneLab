@@ -22,6 +22,8 @@ internal static class PathManager
     // 与用户环境绑定的扩展数据各存各的（同 ExtensionSettings.json，都不进 Settings.json）：
     public static string ExtensionRoutingFilePath => Path.Combine(ConfigsFolder, "ExtensionRouting.json");
     public static string ExtensionActivationFilePath => Path.Combine(ConfigsFolder, "ExtensionActivation.json");
+    // 能力位摘要缓存（宿主从作者的 introduction 备好、供 agent 读；派生数据非用户可调项，键是内容哈希）。
+    public static string ExtensionSummariesFilePath => Path.Combine(ConfigsFolder, "ExtensionSummaries.json");
     public static string KeybindingsFilePath => Path.Combine(ConfigsFolder, "Keybindings.json");
     public static string ScriptInputsFilePath => Path.Combine(ConfigsFolder, "ScriptInputs.json");
     public static string ExtensionsFolder => Path.Combine(TuneLabFolder, "Extensions");

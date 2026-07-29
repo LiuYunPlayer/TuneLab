@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -111,21 +110,22 @@ internal sealed class SetExtensionEnabledTool(Func<AgentAuthorizationRequest, Ca
             return new ActivationPlan(null, null, package.Name, null, null, []);
         }
 
-        // ── 包内某个条目 ──"kind:identity" / 裸身份 / 显示名 三种写法都认（与 get_extension_introduction 同口径）。
-        var matches = package.Entries.Where(e => Matches(e, capability)).ToArray();
-        if (matches.Length == 0)
+        // ── 包内某个条目 ──"kind:identity" / 裸身份 / 显示名 三种写法都认；匹配规则与
+        // get_extension_introduction 共用一份（见 ExtensionCapabilityLookup）。
+        // 这里已按 packageId 锁定了包，故只需在包内消歧。
+        var matches = ExtensionCapabilityLookup.Find(capability, package.Id ?? string.Empty);
+        if (matches.Count == 0)
         {
             var provided = package.Entries.Where(e => e.Identities.Count > 0)
                 .Select(e => e.Kind + ":" + string.Join(",", e.Identities)).ToArray();
             return Fail(string.Format("Error: \"{0}\" is not a capability of \"{1}\". It provides: {2}.",
                 capability, package.Name, provided.Length == 0 ? "(nothing switchable)" : string.Join(", ", provided)));
         }
-        if (matches.Length > 1)
+        if (matches.Count > 1)
             return Fail(string.Format("Error: \"{0}\" matches {1} capabilities of \"{2}\" ({3}). Use the exact \"kind:identity\" form.",
-                capability, matches.Length, package.Name,
-                string.Join(", ", matches.Select(m => m.Kind + ":" + string.Join(",", m.Identities)))));
+                capability, matches.Count, package.Name, string.Join(", ", matches.Select(m => m.Label))));
 
-        var entry = matches[0];
+        var entry = matches[0].Entry;
         if (!ExtensionActivation.CanDisableEntry(package.Id, entry.Kind, entry.Identities))
             return Fail(string.Format("Error: \"{0}\" has no switchable identity (resource entries are not registered individually). Switch the whole package instead: call again without \"capability\".", capability));
 
@@ -141,20 +141,6 @@ internal sealed class SetExtensionEnabledTool(Func<AgentAuthorizationRequest, Ca
             return NoChange(string.Format("\"{0}\" of \"{1}\" is already {2}. Nothing changed.", label, package.Name, enabled ? "enabled" : "disabled"));
 
         return new ActivationPlan(null, null, label, package.Name, entry.Kind, entry.Identities);
-    }
-
-    // 多身份条目（多后缀 format）的任一身份命中即算命中——它们共用同一份实现，本就一起开关。
-    static bool Matches(ExtensionEntryInfo entry, string query)
-    {
-        if (string.Equals(entry.DisplayName, query, StringComparison.OrdinalIgnoreCase))
-            return true;
-        foreach (var id in entry.Identities)
-        {
-            if (string.Equals(entry.Kind + ":" + id, query, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(id, query, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        return false;
     }
 
     static ActivationPlan Fail(string error) => new(error, null, "", null, null, []);

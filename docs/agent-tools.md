@@ -24,7 +24,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 | `delete_script` | 库 | 删某脚本（同时从菜单移除）。 |
 | `get_script_inputs` | 库 | 读某脚本的入参 schema（逐字段名/类型/默认/范围·选项）+ 用户**上次输入值**。只读（只 eval getInputConfig，无副作用）。run_saved_script 前调。 |
 | `run_saved_script` | 库 | 按库名跑已存脚本（= 替用户按那个菜单项），`inputs` 可省：给了覆盖在上次值上再补默认，没给用上次/默认。走 run_script 同一授权闸门。 |
-| `list_extensions` | 感知 | 列用户已装扩展：包级(名/id/版本/作者/类别/加载状态/包描述) + 逐能力位(身份/作者摘要/有无 introduction/**本次结局 DISABLED·FAILED·SKIPPED**/冲突态)。直接读 `ExtensionManager.LoadResults`。 |
+| `list_extensions` | 感知 | 列用户已装扩展：包级(名/id/版本/作者/类别/加载状态/包描述) + 逐能力位(身份/**一句话摘要**/**本次结局 DISABLED·FAILED·SKIPPED**/冲突态)。返回前补齐缺的摘要（**短文档直接用作者原话，长文档才调一次模型**、按内容哈希缓存），补不完如实回报。 |
 | `get_extension_introduction` | 感知 | 读**某个能力位**的 introduction（作者写的 markdown，manifest 声明路径、上限截断）；没写则**标注式降级**给包级 description 并声明它是二手参考；同身份跨包时要 `packageId` 消歧。按需拉取（渐进式披露）。 |
 | `list_sound_sources` | 感知 | 三层钻取：不给 `engine` → 列引擎(不 Init)；给 `engine` → 列该引擎音源(id/名/描述)；给 `engine`+`source` → 读该音源参数 schema(part/note/自动化/音素级，各带类型/范围/默认)。后两层仅 Init 该引擎。`kind` 可选过滤。 |
 | `list_effects` | 感知 | 分层枚举效果器：不给 `engine` → 列 effect 引擎(不 Init)；给 `engine` → 用 part-free 空 context 纯静态读其参数 schema(静态属性 + 自动化轨，各带类型/范围/默认，仅 Init 它)。 |
@@ -51,6 +51,7 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
         ├─ get_script_inputs ──────────────────► ScriptRunner.GetInputConfig + ScriptInputMemory（只读）
         ├─ save/list/read/delete_script ───────► ScriptLibrary / ScriptTools
         ├─ list_extensions / get_extension_introduction ─► ExtensionManager.LoadResults（含逐条目 Entries，只读）
+        │        └─ 返回前：ExtensionSummaryFiller（短文档原话直采 / 长文档串行+预算旁路请求）──► ExtensionSummaryCache（内容寻址）
         ├─ list_sound_sources ─────────────────► VoicesManager / InstrumentsManager（只读；给 engine 才 Init；给 engine+source 合成 context 求参数 schema）
         ├─ list_effects ───────────────────────► EffectManager（只读，给 engine 才 Init + 空 context 求 schema）
         ├─ list_settings ──────────────────────► SettingsRegistry（只读；声明即枚举源）
@@ -153,7 +154,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 编辑面只让 agent 改工程，但要「推荐插件/音源、指导用户在哪用某能力」，agent 得先**看见宿主环境**。这几件除 `set_setting` 外都是纯只读查询——按架构原则（单一动作面）**工程状态的修改恒走 `run_script`，绝不另开工程写工具**；`set_setting` 改的是**宿主应用配置**（不是工程状态、没有也不该有 `tl` 面），故是工具面的一个写口，并自带授权闸门：
 
 - **`list_extensions`**：读 `ExtensionManager.LoadResults`（已本地化摊平的结构化加载结果），按包一条列名/id/版本/作者/类别/加载状态/错误/包级 description，并内嵌逐 **能力位** 行（`kind:identity` 身份清单、显示名、有无 introduction、routing 冲突态）。两层粒度各有其用：**包**承载排障与管理事实（加载状态/sdk 门/卸载单位/routing 的选择值也是包 id），**能力位**才是推荐与使用时真正引用的东西。是「诉求 3」的地基。
-- **`get_extension_introduction(capability, packageId?)`**：在各包 `Entries` 里按 `kind:identity` / 裸 identity / 显示名匹配条目 → 读其 `IntroductionPath`（加载期已按 manifest 声明 + `localizations` 语言覆盖解析成绝对路径）→ `File.ReadAllText`。**粒度是能力位而非包**（一个包多个能力各有各的介绍）；同身份跨包并存时**不猜**、列候选要求传 `packageId`（同 `list_extension_settings` 的规矩）。介绍可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。**宿主只认 manifest 声明的 introduction**：包里的 README 是作者面向仓库读者的自留文件，不再当元数据；回报里点明该文本出自作者、非宿主保证。
+- **`get_extension_introduction(capability, packageId?)`**：在各包 `Entries` 里按 `kind:identity` / 裸 identity / 显示名匹配条目（三种写法的匹配与消歧收口在 `ExtensionCapabilityLookup`，与 `set_extension_enabled` 共用一份——它们认的写法必须完全一致，那是对模型的契约，一处多认一种、另一处不认，模型就会在工具间来回试错） → 读其 `IntroductionPath`（加载期已按 manifest 声明 + `localizations` 语言覆盖解析成绝对路径）→ `File.ReadAllText`。**粒度是能力位而非包**（一个包多个能力各有各的介绍）；同身份跨包并存时**不猜**、列候选要求传 `packageId`（同 `list_extension_settings` 的规矩）。介绍可能很长 → 独立按需工具（渐进式披露，同 `get_script_api`），回灌上限 2 万字符截断。**宿主只认 manifest 声明的 introduction**：包里的 README 是作者面向仓库读者的自留文件，不再当元数据；回报里点明该文本出自作者、非宿主保证。
 - **`list_sound_sources(kind?, engine?, source?)`**：三层钻取避免一次性 Init 全部引擎——不给 `engine` 用 `GetAllVoiceEngines/GetProviders/GetDisplayName`（不 Init）列引擎；给 `engine` 用 `GetAllVoiceInfos/GetAllInstrumentInfos`（**仅 Init 该引擎**）列其音源；给 `engine`+`source` 读该音源**参数 schema**（诉求 4/5 的地基）。音源枚举/schema 求值跑插件代码，故在 **UI 线程**执行；空引擎 `type=""` 在列表里跳过。
   - **音源参数 schema（第三层，A4）**：config 是 **voiceId 的函数**（不同音源可声明不同参数），且 `VoicesManager.Declare` 对**未知 id 静默回退空引擎**给出误导性空 schema——故必须按「引擎 + 真实音源 id」读、先 `TryGetVoiceInfo` 校验 source 存在。`VoicesManager`/`InstrumentsManager` 的 `Get*Config` 是 public（但 `GetInitedEngine` 是 private，故走 manager 方法而非直取引擎，与 effect 不同）。用 Agent 层自建的 **part-free 合成 context**（真 `VoiceId` + 空 `Notes`/`PartProperties`/`Automations`，见 `SoundSourceInfoTools` 的 `StaticVoicePartContext` 等）纯静态调 5 个（voice）/4 个（instrument，无音素/歌词）声明方法。schema 是**默认值版**（条件化 schema 只呈现默认分支，同 effect 上限）。**phoneme 是静态读的天花板**：其 slot 来自 note 里**真实音素**（数据驱动），空 note 恒空——除非引擎恰好静态声明了 slot schema，否则如实标注"需合成后才可见"、**不造假 note**（phoneme 的真发现走「探测沙箱」`run_in_sandbox`，见下节：agent 在可丢弃工程里挂源/造合法歌词/触发合成/读回显）。
 - **`list_effects(engine?)`**：`EffectManager` 严格镜像音源管理器（`GetAllEffectEngines/GetProviders/GetDisplayName/GetInitedEngine`），故列引擎层与音源同格式（共用 `EngineCatalog`）。与音源不同——effect **无「音源目录」**（一个引擎 = 一种效果器类型），第二层列的是**参数 schema**：给 `engine` 时 `GetInitedEngine`（**仅 Init 它**）→ 传一个 **part-free 的空 `IEffectSynthesisPropertyContext`**（空 `IEffectSynthesisView`：无改过的值 → 各参数取引擎默认）→ 调引擎三个纯函数声明方法 `GetPropertyConfig`（静态属性 `ObjectConfig`）/`GetAutomationConfigs`（可编辑自动化轨）/`GetSynthesizedParameterConfigs`（只读回显轨），逐参数输出类型/范围/默认。是「诉求 6」的地基。要点：宿主自带的 `EffectPropertyContext` 绑 part 且 private，不可复用，故 Agent 层自建极简空 context；effect 无内建引擎（全来自插件）；条件化 schema 只能拿「默认值版」（静态枚举固有上限）；读 schema 必须 Init 引擎（跑插件代码）→ UI 线程。
@@ -200,6 +201,21 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 - **`list_extension_routing`**（只读）：无冲突时**明说"没有任何身份被争用、没有东西被顶替"**并把排查引向别处（加载错误 / 能力枚举）；有冲突则逐行给 `kind:identity`、各候选包（含 packageId）、当前生效者、以及那是**用户选定**还是**默认规则**（内建优先、否则包 id 序最小）。
 - **`set_extension_routing(kind, identity, packageId?)`**（写）：只接受**确实争用**的身份（非争用直接报错，免得写进无意义选择）；packageId 必须是该身份的候选之一；空 = 清除选择并如实告知会回落到谁；与当前选择相同则"什么都没做"。过闸门（`AgentWriteKind.RoutingChange`），**回报必须说"重启后生效"**（`SetSelected` 即时落盘，但解析发生在加载期），卡片文案也带这句。
 - **系统提示钉住排障链**：`list_extensions`（状态/错误/是否被顶替）→ `list_extension_routing`（有争用才需要）→ `list_sound_sources`/`list_effects`（能力真的在不在），**明确要求不许停在第一步**。
+
+### 能力位摘要（`list_extensions` 内联补齐）
+
+作者只写 introduction 全文，**刻意没有 summary 字段**（作者不知道模型要什么，写出来多半是产品文案）。代价是模型每要"扫一眼这台机器上都有什么能力"，就得逐个把全文拉进上下文（每份上限 2 万字符）——装十几个插件时这一步比它真正要做的事还贵。故 `list_extensions` **返回前把缺的摘要补齐**，逐能力位带一行；要作者原文仍走 `get_extension_introduction`。对 agent 而言 summary 就是能力位自带的属性，它感知不到生成过程、也没有对应的工具。
+
+- **短文档直接用作者原话，不调模型**：introduction 归一化（去 markdown 标题/列表标记、折叠空白）后 ≤600 字符时，它本身就是一句话说明——再转述一遍既费钱又只会更差（转述必然丢信息，还引入编造的可能）。这类条目标 `Verbatim`，呈现时说 **(author's own words)** 而非 "TuneLab's paraphrase"：**出处比转述强，不该一律标成转述**。实测这一条能消掉大多数请求，真正要调模型的只剩长文档。
+- **内容寻址**：键 = introduction **文件内容**的哈希（前 16 字节 hex）。三个好处白得：① 插件更新换了文案 → 哈希变 → **自动失效**（一份过期摘要比没有摘要更糟，模型会照着它向用户断言）；② 语言变体天然分开（`localizations` 让不同语言指向不同文件）；③ 多后缀 format 条目共用一份说明 → 共用一条摘要，卸载重装也照样命中。代价是文件不可读，故另存 `Label` 字段纯供人排查、**永不参与查找**。
+- **存 `Configs/ExtensionSummaries.json`**：与用户环境绑定 **且** 是派生缓存，两条都指向不进 Settings.json。懒加载，照 `ScriptInputMemory` 范式。写入时顺带清掉指向"当前已装扩展里不存在的 introduction"的条目；**一条 live 都没有时不清**——那通常意味着扩展还没加载完，照做会把整份缓存抹掉。
+- **`SUMMARY:` 标记协议**（防"我来帮你总结："）：要求模型的回复**最后一行**恰为 `SUMMARY: <一句话>`，宿主只取最后一个标记之后的内容，**没有标记就整条丢弃**。只在 prompt 里写 `no preamble` 挡不住——`Sure, here is a one-line summary.` 这种客套话长度合规、也不以 `{` 开头，会一路混进缓存被后来的每个会话读到。取**最后一个**标记是因为模型偶尔会先复述一遍格式要求。
+- **宁可没有也不要错的，且绝不截断**：超 600 字符（离谱输出的兜底，不参与塑形）、以 `{`/`[` 开头、或答 `NONE`（模型自判这份文档没什么可总结的）→ 丢弃不缓存。截出来的半句话，agent 之后每次读到都会困惑，而用户与开发者都不知情。
+- **串行 + 60 秒预算，补不完如实回报**：一次可能要补十几条，并发很容易撞上 provider 的频率限制，一旦 429 整批白跑。超预算就停手，末尾附一句"N 条没做完，让用户稍后再问一次"，对应条目写 `(not summarized yet …)`——**不静默给半份**，模型得知道自己拿到的是不是全的。单份失败不拖累其余、也不做负缓存。
+- **不合批**（曾考虑拼几份进一次请求以减少往返，否掉了）：① **串味**——同时喂多个同类插件（措辞高度相似），模型很容易把 A 的特性写进 B 的摘要，而这种错"看起来完全合理"，是最难被发现的一类；② 失败从丢一条变成**丢一批**（合批要结构化输出，稍有偏差整批解析失败）；③ 长输入本身降质，靠后的几份明显更笼统；④ 省的只是往返、不是 token，而限流已由串行解决。何况有了"短文档直采"之后，真需要调模型的恰恰是长文档——最不该合批的那种。
+- **喂入口径**与 `get_extension_introduction` 一致（复用它的 `MaxIntroductionChars`）——绝不用比 agent 自己能看到的更少的信息去总结；两处各设一个数，早晚漂移成"摘要是从半份文档提炼的"而没人察觉。
+- **两版被否掉的形态**：① 给 agent 一个 `set_extension_summary` 让它读完写回——依赖它记得调，且为产出一句话得先把全文拉进它的上下文，而这一步的全部目的恰恰是让它不必读全文；② 拆成独立的 `get_extension_summary` 工具——"扫一眼全部"要么退化成 N 次工具往返（每次都要重发完整上下文 + 全部工具声明，比内联贵得多），要么就是把 `list_extensions` 抄一遍。
+- **不进 UI**：详情窗渲染的是作者写的全文。把自动生成的句子摆到用户面前，等于让宿主替作者背书一段他没写过的话。
 
 ### 扩展启停（`set_extension_enabled` + `list_extensions` 的结局注记）
 

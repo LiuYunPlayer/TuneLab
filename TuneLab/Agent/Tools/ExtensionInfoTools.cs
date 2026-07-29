@@ -18,16 +18,19 @@ namespace TuneLab.Agent;
 // routing 的选择值也是包 id），**能力位**才是 agent 推荐与使用时真正引用的东西（引擎 id / 文件后缀）。
 // 故 list_extensions 按包一条、内嵌逐能力位行；而 list_sound_sources / list_effects 是纯能力位视角。
 
-// list_extensions：枚举全部已装扩展 + 每条包级元数据 + 逐能力位（身份/摘要/有无 introduction/冲突态）。
-internal sealed class ListExtensionsTool : IAgentTool
+// list_extensions：枚举全部已装扩展 + 每条包级元数据 + 逐能力位（身份/一句话摘要/本次结局/冲突态）。
+// 渲染前先把缺的摘要补齐（见 ExtensionSummaryFiller）：**短文档直接用作者原话、长文档才调一次模型**，
+// 故对 agent 而言 summary 就是能力位自带的属性，它感知不到生成过程、也没有对应的工具。
+// 摘要只是索引；要作者原文仍走 get_extension_introduction（渐进式披露的下一级）。
+internal sealed class ListExtensionsTool(ExtensionSummaryFiller.Summarizer? summarize = null) : IAgentTool
 {
     public string Name => "list_extensions";
 
     public string Description =>
         "List the TuneLab extensions (plugins) the user has installed: each one's name, id, version, author, kind(s) " +
         "(format / voice / instrument / effect, or a resource type), load status, its package-level description, and — per capability it provides — " +
-        "that capability's identity, whether it is DISABLED / failed to load, whether an introduction can be fetched, and whether it is SHADOWED by another package. " +
-        "Use to know what the user has installed and to guide them. For one capability's full introduction, call get_extension_introduction. " +
+        "that capability's identity, whether it is DISABLED / failed to load, a one-line summary of what it does, and whether it is SHADOWED by another package. " +
+        "Use to know what the user has installed and to guide them. The summaries are an index — for the author's full text on one capability, call get_extension_introduction. " +
         "Never claim a capability is available without checking these per-capability notes: an installed package can be switched off by the user (see set_extension_enabled), " +
         "and a single package can have one capability working and another one off or broken. " +
         "When troubleshooting \"plugin X doesn't work\": status=Loaded only means it loaded — check the shadowed note here (and list_extension_routing), then confirm the capability itself shows up in list_sound_sources / list_effects.";
@@ -36,11 +39,23 @@ internal sealed class ListExtensionsTool : IAgentTool
         { "type": "object", "properties": {}, "additionalProperties": false }
         """;
 
-    public Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
+    public async Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
     {
         var results = ExtensionManager.LoadResults;
         if (results.Count == 0)
-            return Task.FromResult("No extensions are installed. TuneLab is running with only its built-in capabilities.");
+            return "No extensions are installed. TuneLab is running with only its built-in capabilities.";
+
+        // 渲染前补齐缺的摘要。绝大多数条目走"短文档直接用原话"零成本；只有长文档才各花一次模型调用，
+        // 且按内容哈希缓存 → 一份文档一辈子一次。补不完的如实回报在末尾，让模型转告用户稍后再问一次。
+        var paths = new List<string>();
+        foreach (var package in results)
+            foreach (var entry in package.Entries)
+                if (!string.IsNullOrEmpty(entry.IntroductionPath))
+                    paths.Add(entry.IntroductionPath!);
+        var (_, missingSummaries) = await ExtensionSummaryFiller.FillAsync(summarize, paths, cancellationToken);
+        // 补齐之后读一次快照，下面逐条查（别对每个条目都读一遍盘——那既浪费，也会让同一份清单里
+        // 前后几条读到文件的不同版本）。
+        var summaries = ExtensionSummaryCache.Read();
 
         var sb = new StringBuilder();
         sb.Append(results.Count).Append(" extension(s) installed:");
@@ -81,8 +96,20 @@ internal sealed class ListExtensionsTool : IAgentTool
                     // 整包被禁时逐条目也标一遍——模型常只读到自己关心的那一行。
                     AppendEntryStatus(sb, e, r.Status == ExtensionLoadStatus.Disabled);
                     if (!string.IsNullOrEmpty(e.IntroductionPath) && e.Identities.Count > 0)
-                        sb.Append("  [introduction available — call get_extension_introduction(\"")
+                        sb.Append("  [full text: get_extension_introduction(\"")
                           .Append(e.Kind).Append(':').Append(e.Identities[0]).Append("\")]");
+                    // 一句话摘要。**出处照实分两种**：短文档直接用了作者原话，长文档才是 TuneLab 的转述——
+                    // 后者不该被当成作者的官方说法转述给用户。
+                    var summary = summaries.Get(ExtensionSummaryCache.ContentKey(e.IntroductionPath));
+                    if (summary != null)
+                    {
+                        sb.Append(summary.Verbatim
+                            ? "\n        (author's own words)"
+                            : "\n        (TuneLab's condensation of the author's introduction, not their wording)");
+                        AppendIndented(sb, summary.Summary);
+                    }
+                    else if (!string.IsNullOrEmpty(e.IntroductionPath))
+                        sb.Append("\n        (not summarized yet — see the note at the end)");
                     foreach (var identity in e.Identities)
                         AppendEntryRouting(sb, r.Id, e.Kind, identity);
                 }
@@ -93,7 +120,21 @@ internal sealed class ListExtensionsTool : IAgentTool
                 AppendRouting(sb, r.Id);
             }
         }
-        return Task.FromResult(sb.ToString());
+        // 补不完就如实说，别让模型以为"没摘要 = 这插件没东西可说"。
+        if (missingSummaries > 0)
+            sb.Append("\n\nNote: ").Append(missingSummaries)
+              .Append(" capability(ies) could not be summarized this time (a summarization request failed, or the time budget ran out). ")
+              .Append("Their entries say so above. Everything else here is complete and correct — tell the user they can ask again in a moment to fill those in; the ones already done are cached and cost nothing.");
+        return sb.ToString();
+    }
+
+    // 摘要正文按行缩进后附上。**刻意不把换行拍平**：作者（或模型）用列表/表格分点列出的关键信息，
+    // 那结构本身就是信息——拍成一行会丢掉"这是几个并列项"、以及表格里名与值的对应。缩进既留住结构，
+    // 又让"一条摘要到哪儿结束"在这份逐条目清单里保持清楚。
+    static void AppendIndented(StringBuilder sb, string text)
+    {
+        foreach (var line in text.Split('\n'))
+            sb.Append("\n          ").Append(line.TrimEnd());
     }
 
     // 单个条目的结局注记（接在 provides 行末）。Registered 不写——正常态无需噪音。
@@ -197,7 +238,9 @@ internal sealed class GetExtensionIntroductionTool : IAgentTool
         """;
 
     // 回灌上限（防超长文档淹没上下文）；超出截断并注明。
-    const int MaxIntroductionChars = 20000;
+    // internal：摘要补齐也按这个口径喂模型——**绝不用比 agent 自己能看到的更少的信息去总结**，
+    // 两处若各设一个数，早晚漂移成"摘要是从半份文档提炼的"而没人察觉。
+    internal const int MaxIntroductionChars = 20000;
 
     public Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
     {
@@ -214,41 +257,13 @@ internal sealed class GetExtensionIntroductionTool : IAgentTool
         if (query.Length == 0)
             return Task.FromResult("Error: \"capability\" is empty.");
 
-        // 逐包逐条目收集匹配项：kind:identity 全形 / 裸 identity / 显示名，三种写法都认。
-        var matches = new List<(ExtensionLoadResult Package, ExtensionEntryInfo Entry)>();
-        foreach (var r in ExtensionManager.LoadResults)
-        {
-            if (packageId.Length > 0 && !string.Equals(r.Id, packageId, StringComparison.OrdinalIgnoreCase))
-                continue;
-            foreach (var e in r.Entries)
-            {
-                // 多身份条目（format 的后缀别名）：任一身份命中即算这个条目——它们共享同一份介绍。
-                bool hit = string.Equals(e.DisplayName, query, StringComparison.OrdinalIgnoreCase);
-                foreach (var id in e.Identities)
-                {
-                    if (string.Equals(e.Kind + ":" + id, query, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(id, query, StringComparison.OrdinalIgnoreCase))
-                        hit = true;
-                }
-                if (hit)
-                    matches.Add((r, e));
-            }
-        }
-
+        // 三种写法（kind:identity / 裸 identity / 显示名）的匹配与消歧走共用查找——它与
+        // set_extension_enabled 必须认同一套写法，见 ExtensionCapabilityLookup。
+        var matches = ExtensionCapabilityLookup.Find(query, packageId);
         if (matches.Count == 0)
-            return Task.FromResult("Error: no installed capability matches \"" + query + "\". Call list_extensions to see what each package provides.");
-
-        // 同一身份跨包并存时不猜（与 list_extension_settings 同规矩）：列出候选，要求用 packageId 指定。
+            return Task.FromResult(ExtensionCapabilityLookup.NotFoundError(query));
         if (matches.Count > 1)
-        {
-            var sb = new StringBuilder();
-            sb.Append("\"").Append(query).Append("\" is ambiguous — ").Append(matches.Count).Append(" capabilities match. Call again with packageId:");
-            foreach (var (pkg, entry) in matches)
-                sb.Append("\n- ").Append(entry.Kind).Append(':').Append(string.Join(",", entry.Identities))
-                  .Append(" \"").Append(entry.DisplayName).Append("\" — packageId=")
-                  .Append(string.IsNullOrEmpty(pkg.Id) ? "(legacy, no id)" : pkg.Id);
-            return Task.FromResult(sb.ToString());
-        }
+            return Task.FromResult(ExtensionCapabilityLookup.AmbiguousError(query, matches));
 
         var (package, match) = matches[0];
         var label = string.Format("{0}:{1} (\"{2}\", from package \"{3}\")",
