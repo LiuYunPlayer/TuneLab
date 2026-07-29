@@ -7,16 +7,16 @@
   "sdk-version": "1.0",
   "extensions": [
     {
-      "type": "format-import",
-      "suffixes": ["tlsuite"],
+      "type": "format",
+      "import-suffixes": ["tlsuite"],
       "name": "Suite Format (Import)",
       "introduction": "Introduction.Format.md",
       "class": "TuneLab.TestPlugins.Suite.Format.SuiteImportFormat",
       "assembly": "V1.Suite.Format.dll"
     },
     {
-      "type": "format-export",
-      "suffixes": ["tlsuite"],
+      "type": "format",
+      "export-suffixes": ["tlsuite"],
       "name": "Suite Format (Export)",
       "introduction": "Introduction.Format.md",
       "class": "TuneLab.TestPlugins.Suite.Format.SuiteExportFormat",

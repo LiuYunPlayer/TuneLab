@@ -60,15 +60,21 @@ internal static class FormatsManager
     //  且不可能跨包串味——外层还有 packageId 分桶——故不为这个概率写校验。）
     const char SuffixSeparator = '|';
 
-    // 条目的三种 type（= 桶键前段、启停键前段）。与 manifest 的 type、ExtensionRouting 的 routeKey kind 同名同义
-    // ——作者写的、宿主路由用的、设置分桶用的是同一套词汇，不需要在几套命名之间翻译。
+    // 条目的三种 kind（= 桶键前段、启停键前段），与 ExtensionRouting 的 routeKey kind 同名同义。
+    // 【它是推出来的，不是作者写的】manifest 的 type 恒为 "format"，方向由填了哪几个后缀字段决定
+    // （见 DeriveKind）。作者只回答"能读哪些、能写哪些"，宿主据此定它占哪些能力位、落哪个桶。
     public const string KindBoth = "format";
     public const string KindImport = "format-import";
     public const string KindExport = "format-export";
 
-    // 三型的共同判据。凡按"这个条目的身份是不是文件后缀"分支处都用它，而不是逐个比 KindBoth
+    // 三者的共同判据。凡按"这个条目的身份是不是文件后缀"分支处都用它，而不是逐个比 KindBoth
     // ——漏一个就会让单向条目的身份退化成空，能力位、启停、详情窗齿轮一起失联。
     public static bool IsFormatKind(string kind) => kind is KindBoth or KindImport or KindExport;
+
+    // 由"有没有这个方向"推出 kind。纯 manifest 文本的函数（哪几个后缀字段非空），不看类实现了什么接口
+    // ——否则给类补个接口就会悄悄换掉它的桶、清空用户设置。
+    public static string DeriveKind(bool hasImport, bool hasExport)
+        => hasImport && hasExport ? KindBoth : hasImport ? KindImport : KindExport;
 
     // 注册一个 format 条目：内建（LoadBuiltIn）、V1（ExtensionManager 按 manifest 条目）、
     // Compat.Legacy（经 LegacyLoadHook → LegacyCompatLoader 包装老插件）三条路径共用。
@@ -82,10 +88,10 @@ internal static class FormatsManager
     public static void RegisterFormat(string packageId, string kind, IReadOnlyList<string> suffixes, string displayName,
         (IReadOnlyList<string> Suffixes, Func<IImportFormat> Factory)? import,
         (IReadOnlyList<string> Suffixes, Func<IExportFormat> Factory)? export,
-        bool declaresSettings)
+        bool declaresSettings, string className = "")
     {
         var entry = GetOrAddEntry(packageId, kind, EntryId(suffixes), displayName,
-            import?.Factory, export?.Factory, declaresSettings);
+            import?.Factory, export?.Factory, declaresSettings, className);
 
         // 工厂在这里【包一层】：new 出来立即回喂已落盘设置（见 FormatEntry.Configure）。
         // 一处覆盖全部调用点——四个 (De)Serialize 入口都经工厂，不必各自记得调。
@@ -322,8 +328,29 @@ internal static class FormatsManager
         return result;
     }
 
+    // 同包内是否已有【同一个实现类】的 format 条目、且后缀有交集。
+    // 这是「一个条目 = 一个实现类 = 一份设置」这条主张的守卫：把同一个类拆进两个条目，就等于让一份实现
+    // 拿两份设置、两份说明、两个详情窗 tab——而作者想表达的"某后缀只读不写"本来就该用 import-suffixes /
+    // export-suffixes 在**一个**条目里说。不拦的话这条路会一直通着，等于我们默许了自己不祝福的写法。
+    // 后缀不相交则放行：同一个通用实现类服务两种彼此无关的格式，各自一份设置是合理的。
+    public static string? FindConflictingEntry(string packageId, string className, IReadOnlyList<string> suffixes)
+    {
+        if (string.IsNullOrEmpty(className))
+            return null;
+
+        foreach (var existing in mEntries)
+        {
+            if (existing.PackageId != packageId || existing.ClassName != className)
+                continue;
+            foreach (var suffix in suffixes)
+                if (existing.Suffixes.Contains(suffix))
+                    return existing.EntryId;
+        }
+        return null;
+    }
+
     static FormatEntry GetOrAddEntry(string packageId, string kind, string entryId, string displayName,
-        Func<IImportFormat>? importFactory, Func<IExportFormat>? exportFactory, bool declaresSettings)
+        Func<IImportFormat>? importFactory, Func<IExportFormat>? exportFactory, bool declaresSettings, string className)
     {
         foreach (var existing in mEntries)
         {
@@ -341,7 +368,7 @@ internal static class FormatsManager
             existing.Absorb(importFactory, exportFactory, declaresSettings);
             return existing;
         }
-        var entry = new FormatEntry(packageId, kind, entryId, displayName, importFactory, exportFactory, declaresSettings);
+        var entry = new FormatEntry(packageId, kind, entryId, displayName, importFactory, exportFactory, declaresSettings, className);
         mEntries.Add(entry);
         return entry;
     }
@@ -349,12 +376,18 @@ internal static class FormatsManager
     // 一个 format 条目：一个包的一个格式实现（可认多个后缀别名），是**扩展设置的单位**——
     // 一份实现类只该有一份设置，逐后缀分桶会把同一份值存 N 遍、设置窗也会出现 N 行一模一样的东西。
     sealed class FormatEntry(string packageId, string kind, string entryId, string displayName,
-        Func<IImportFormat>? importFactory, Func<IExportFormat>? exportFactory, bool declaresSettings)
+        Func<IImportFormat>? importFactory, Func<IExportFormat>? exportFactory, bool declaresSettings, string className)
     {
         public string PackageId => packageId;
         public string Kind => kind;
         public string EntryId => entryId;
         public string DisplayName => displayName;
+
+        // 实现类全名（内建/legacy 为空）：供「同一个类别拆进两个条目」的守卫比对，见 FindConflictingEntry。
+        public string ClassName => className;
+
+        // 本条目的身份集（EntryId 的组成部分，拆开供守卫比对后缀交集）。
+        public IReadOnlyList<string> Suffixes => entryId.Split(SuffixSeparator);
 
         public void Absorb(Func<IImportFormat>? import, Func<IExportFormat>? export, bool settings)
         {

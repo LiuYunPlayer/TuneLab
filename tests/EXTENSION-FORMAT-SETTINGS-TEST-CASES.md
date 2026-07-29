@@ -11,33 +11,36 @@
 - **schema** 由一个惰性长驻**探测实例**回答（`GetSettingsConfig` 按 SDK 契约是纯函数、Init 前可调、只依赖传入的 context，故与"哪一个实例"无关）。探测实例不参与任何导入导出。
 - **取值**在工厂 `new` 完**立即** `ApplySettings`，包在注册处一处覆盖全部调用点——四个 `(De)Serialize` 入口都经工厂。
 
-## 二、manifest 拆 type：`format` / `format-import` / `format-export`
+## 二、方向由后缀字段决定，`type` 恒为 `format`
 
-`format-import` / `format-export` 早就是路由 kind（`ExtensionRouting`、agent 工具的 kind 枚举、设置窗分组都在用），**只有 manifest 的 `type` 把两者捏在一起**，再由宿主在注册层展开。本轮让声明面追上这个早已存在的身份空间：
+作者只回答一个问题：**这个格式能读哪些后缀、能写哪些后缀**。
 
-| `type` | 语义 | 桶键 |
+| 写法 | 含义 | 推出的 kind / 桶键 |
 |---|---|---|
-| `format` | **紧凑形态**：一个类兼做读写 = 一个条目 = 一份说明 = **一个**设置桶 | `format:<后缀拼接>` |
-| `format-import` | 单向条目，独立的实现/说明/设置 | `format-import:<后缀拼接>` |
-| `format-export` | 同上 | `format-export:<后缀拼接>` |
+| `suffixes: [a,b]` | 两个方向都认 a、b 的**简写** | `format:a\|b` |
+| `import-suffixes: [a,b]` + `export-suffixes: [b]` | 读两种、只写一种，仍是**一个**条目 | `format:a\|b` |
+| 只写 `import-suffixes: [a]` | **没声明的方向就是不存在** | `format-import:a` |
+| 只写 `export-suffixes: [a]` | 同上 | `format-export:a` |
 
-**写法即语义**：合写 = 一份实现一份设置；拆写 = 两份实现各自独立。`format` **不是**"写两个条目的语法糖"。
+`format-import` / `format-export` 仍是宿主内部的 kind（路由键、启停键、桶键前段都用它），但那是**推出来**的，作者从不书写。方向进 `type` 会让同一件事说两遍、还得判断"什么时候用哪个"，故不进。
 
-配套：`import-suffixes` / `export-suffixes`（仅 `format` 可用，`suffixes` 的非空真子集）就地收窄某一侧——「读 `.mid` 和 `.midi`、只写 `.midi`」这种别名不对称，**不该**靠拆条目解决（那会把一份实现劈成两份说明两份设置）。方向子集**不进桶键**。
+`suffixes` 与两个方向字段**互斥**（同时写是加载错误），至少一个方向非空。旧设计里那些"非空真子集 / 子集必须 ⊆ suffixes / 不许有死后缀"的校验随之全部作废——**混用带来的坑，不混用就没有**。
 
-**方向从推断变契约**：过去方向靠"扫到哪个接口"反推，现在由 `type` 声明，类没实现声明的方向即**加载错误**。于是桶键成了 manifest 文本的纯函数——给类补个接口不会悄悄换桶、清空用户设置。
+**方向从推断变契约**：过去靠"扫到哪个接口"反推，现在类必须实现所声明的每个方向，缺了即**加载错误**。于是桶键成了 manifest 文本的纯函数——给类补个接口不会悄悄换桶、清空用户设置。
 
 ## 三、入口类 `classes` 数组 → `class` 标量
 
-数组存在的唯一理由是"让一个 format 条目容纳导入类 + 导出类"，方向拆型后这个理由消失。而"宿主扫候选挑一个"本身就与"方向是声明不是推断"相悖，故一并收敛成：**一个条目 = 一个实现类 = 一份 introduction = 一份设置**，manifest 说什么就是什么，不匹配即报错。
+数组存在的唯一理由是"让一个 format 条目容纳导入类 + 导出类"。但"宿主扫候选挑一个"与"方向是声明不是推断"相悖，且两个类共用一个桶必然牺牲其中一份 schema。故收敛成：**一个条目 = 一个实现类 = 一份 introduction = 一份设置**，两份实现就写两个条目。
+
+配套一条守卫：**同一个 `class` 不得出现在同包内两个后缀相交的条目里**（加载错误）。否则"一份实现装成两份、领两份东西"这条路一直通着，等于默许了我们自己不祝福的写法。后缀不相交则放行——同一个通用类服务两种无关格式，各自一份设置是合理的。
 
 ## 桶键口径
 
-`<type>:<全部后缀按 manifest 声明序拼接>`，分隔符 **`|`**（如 `format:mid|midi`）。
+`<推出的 kind>:<两方向后缀并集按声明序拼接>`，分隔符 **`|`**（如 `format:mid|midi`、`format-export:midi`）。
 
 选 `|` 是因为它是 **Windows 文件名禁用字符**——能在 Windows 上存在的文件，扩展名不可能含它，于是拼接天然单射，不需要转义、也不需要向"扩展名"这个不属于我们的命名空间强加规矩。同一条原理早已在用：键的 `kind:identity` 靠 `:` 也是禁用字符才一直没出事。macOS/Linux 允许 `|`，故这条保证是 Windows 侧的；真撞上也只是**同一个包内**两个条目共用一份设置（外层还有 packageId 分桶，不可能跨包串味），故不为这个概率写校验。
 
-**换桶不迁移**：`suffixes` 一变即全新桶，旧值原样残留但不再读取。改方向子集**不换桶**。
+**换桶不迁移**：后缀一变即全新桶，旧值原样残留但不再读取。
 
 ---
 
@@ -57,13 +60,13 @@
 
 ### 涉及夹具与 **UI 显示名**（设置窗/侧栏里找的是显示名，不是后缀或类名）
 
-| 夹具 | 形态 | UI 显示名 | 桶键 |
+| 夹具 | manifest 写法 | UI 显示名 | 桶键 |
 |---|---|---|---|
-| **V1.MultiSuffix** | 紧凑形态，一个类，带设置 | V1 Test Multi-Suffix | `format:mtest\|mtst` |
-| **V1.Format** | **拆写形态**，两个类，**各带设置** | V1 Test Format (Import) / (Export) | `format-import:tltest` / `format-export:tltest` |
-| **V1.AsymFormat** | 紧凑形态 + `export-suffixes`，无设置 | V1 Asymmetric Format | 无（未声明设置） |
-| **V1.Suite.Format** | 拆写形态，无设置 | Suite Format (Import) / (Export) | 无 |
-| Conflict.A / B | 单向 `format-import`，无设置 | ALC Conflict A / B | 无 |
+| **V1.MultiSuffix** | `suffixes: [mtest, mtst]`，一个类，带设置 | V1 Test Multi-Suffix | `format:mtest\|mtst` |
+| **V1.Format** | **两个类 → 两个条目**，一个只写 `import-suffixes`、一个只写 `export-suffixes`，**各带设置** | V1 Test Format (Import) / (Export) | `format-import:tltest` / `format-export:tltest` |
+| **V1.AsymFormat** | `import-suffixes: [asym, asymx]` + `export-suffixes: [asymx]`，一个类，无设置 | V1 Asymmetric Format | 无（未声明设置） |
+| **V1.Suite.Format** | 两个类 → 两个条目，无设置 | Suite Format (Import) / (Export) | 无 |
+| Conflict.A / B | 只写 `import-suffixes`，无设置 | ALC Conflict A / B | 无 |
 | V1.Settings | voice 引擎带设置（不回归对照组） | V1 引擎设置演示 | `voice:TLSettingsDemo` |
 
 ### 设置字段
@@ -89,10 +92,10 @@
 
 ## A. 桶：一个条目一份设置
 
-- **A1 紧凑形态只有一行**：设置窗 →「扩展」页 → **V1 Test Multi-Suffix** 只占 **一行**（不是 `.mtest` 一行、`.mtst` 一行），三个字段齐全。
+- **A1 双向条目只有一行**：设置窗 →「扩展」页 → **V1 Test Multi-Suffix** 只占 **一行**（不是 `.mtest` 一行、`.mtst` 一行），三个字段齐全。
 - **A2 落盘只有一个键**：改点值 → 关窗 → 看 `ExtensionSettings.json`：`com.tunelab.test.v1multisuffix` 桶下**只有** `"format:mtest|mtst"` 一个键。
   - 反例（不该看到）：`"format:mtest"` 与 `"format:mtst"` 两个键内容重复。
-- **A3 拆写形态是两行两桶**：**V1 Test Format (Import)** 与 **(Export)** 各占一行，字段各不相同。落盘后 `com.tunelab.test.v1format` 桶下有 `"format-import:tltest"` 与 `"format-export:tltest"` **两个**键，各存各的字段。
+- **A3 两个类是两行两桶**：**V1 Test Format (Import)** 与 **(Export)** 各占一行，字段各不相同。落盘后 `com.tunelab.test.v1format` 桶下有 `"format-import:tltest"` 与 `"format-export:tltest"` **两个**键，各存各的字段。
   - **重点**：这正是拆写的意义——两份实现各自可配置。合写形态下不可能做到（只有一个桶）。
 - **A4 两个桶互不串味**：把 Import 的 `fallback_track_name` 改成 `Renamed`，Export 的 `indent` 关掉 → 两个 JSON 桶各自只含自己的键，没有对方的字段。
 - **A5 无设置的 format 不出现**：V1 Asymmetric Format、Suite Format、ALC Conflict A/B 都**不在**「扩展」页——设置是 opt-in 的。
@@ -101,43 +104,44 @@
 
 ## B. 回喂：现 new 的实例确实拿到了设置
 
-- **B1 紧凑形态，改轨名 → 导入**：Track Name 改 `Renamed By Settings` → 保存 → 导入 `sample.mtest` → 新轨名为它。
+- **B1 双向条目，改轨名 → 导入**：Track Name 改 `Renamed By Settings` → 保存 → 导入 `sample.mtest` → 新轨名为它。
 - **B2 同一份设置作用于另一个后缀**：紧接着导入 `sample.mtst` → 轨名相同。两个后缀共用一个桶。
 - **B3 note 个数**：Note Count 改 `5` → 导入 `sample.mtest` → part 里 **5 个 note**。
-- **B4 拆写形态，导入侧**：V1 Test Format (Import) 的 Fallback Track Name 改成 `Import Side` → 导入一个**空的** `.tltest`（新建空文件改后缀即可）→ 轨名为 `Import Side`。
-- **B5 拆写形态，导出侧**：V1 Test Format (Export) 的 Indent Output **关掉** → 导出 `.tltest` → 用文本编辑器打开：JSON **挤成一行**；打开重新导出对比多行版本。
+- **B4 两条目，导入侧**：V1 Test Format (Import) 的 Fallback Track Name 改成 `Import Side` → 导入一个**空的** `.tltest`（新建空文件改后缀即可）→ 轨名为 `Import Side`。
+- **B5 两条目，导出侧**：V1 Test Format (Export) 的 Indent Output **关掉** → 导出 `.tltest` → 用文本编辑器打开：JSON **挤成一行**；打开重新导出对比多行版本。
   - **重点**：导入侧那份设置对导出毫无影响，反之亦然。
 - **B6 导出摘要带设置**：V1 Test Multi-Suffix 导出 `.mtest` → 文件形如 `multi-suffix test export; tracks=N; track_name=…; note_count=…; licence=<set>`，密钥只写 `<set>`/`<empty>`。
 - **B7 日志：每造一个实例响一次**：`[V1.MultiSuffix] ApplySettings: …` / `[V1.Format/import] …` / `[V1.Format/export] …` 应在 ① 启动加载后各一条（宿主 `ApplyPersisted` 灌给探测实例）；② **每次导入**一条；③ **每次导出**一条。
   - **重点**：它是"每造一个实例响一次"，不是"每改一次设置响一次"——这是 format 与引擎的核心差异，文档也是这么承诺的。
 - **B8 立即生效、无需重启**：改完直接导入即生效。
 
-## C. 方向子集（`export-suffixes`）
+## C. 方向由后缀字段决定
 
-- **C1 菜单不对称**：装着 V1.AsymFormat → **导入**菜单里 `.asym` 与 `.asymx` 都在；**导出**菜单里**只有** `.asymx`。
+- **C1 菜单不对称**：装着 V1.AsymFormat（`import-suffixes: [asym, asymx]` + `export-suffixes: [asymx]`）→ **导入**菜单里 `.asym` 与 `.asymx` 都在；**导出**菜单里**只有** `.asymx`。
 - **C2 两个后缀都能导入**：`sample.asym` 与 `sample.asymx` 都能导入，产出相同（轨名 `Asym Track`、2 个 note）。
-- **C3 路由页粒度**：设置窗「Extension Routing」→ 若无别的包提供这些后缀则该页无冲突行（正常）。要看粒度用 `.tlroute`（见 E5）。
-- **C4 负向：空子集**（手工造）：关闭 TuneLab，把已装 V1.AsymFormat 的 manifest 改成 `"export-suffixes": []` → 重开 → 该条目 **Failed**，tooltip 指出空数组非法、要单向请用 `format-import`/`format-export`。改回即恢复。
-- **C5 负向：子集越界**（手工造）：改成 `"export-suffixes": ["nope"]` → Failed，tooltip 指出它不在 `suffixes` 里。
-- **C6 负向：死后缀**（手工造）：改成 `"suffixes": ["asym","asymx","dead"], "export-suffixes": ["asymx"], "import-suffixes": ["asym","asymx"]` → Failed，tooltip 指出 `dead` 两个方向都不认、什么都不会注册。
-- **C7 子集不换桶**（可选，需要一个带设置的紧凑格式）：给 V1.MultiSuffix 临时加 `"export-suffixes": ["mtst"]` → 重启 → 设置**原样还在**（桶键仍是 `format:mtest|mtst`），导出菜单只剩 `.mtst`。改回后设置依旧在。
+- **C3 单向条目**：Conflict.A / B 只写了 `import-suffixes` → 导入菜单有 `.tlconfa` / `.tlconfb`，**导出菜单里没有**。
+  - **重点**：没声明的方向就是不存在——不需要空数组去"剥夺"。
+- **C4 路由页粒度**：设置窗「Extension Routing」→ 无别的包提供这些后缀时该页无冲突行（正常）。要看粒度用 `.tlroute`（见 E5）。
 
-## D. 拆 type 与单类契约的负向用例
+## D. 负向用例
 
 > 都靠手工改**已装**的 manifest 造，测完改回。改前关闭 TuneLab。
 
-- **D1 `format` 要求同一个类双接口**：把 V1.Format 的两个条目并成一个 `"type": "format"` 条目、`class` 填导入类 → 该条目 **Failed**，tooltip 形如 `class '…TestImportFormat' does not implement IExportFormat`。
-  - **重点**：`class` 是标量，所以"两个类塞进一个 format 条目"根本无法表达——这个形态在语法层就没了，不需要额外规则去禁。
-- **D2 声明的方向类没实现**：把 V1.Format 的 Import 条目 `type` 改成 `format-export` → Failed，同样是 `does not implement IExportFormat`。
+- **D1 `suffixes` 与方向字段混写**：给 V1.MultiSuffix 加一行 `"import-suffixes": ["mtest"]`（它已有 `suffixes`）→ 该条目 **Failed**，tooltip 指出 `suffixes` 是两个方向的简写、二者只能选一种写法。
+- **D2 一个后缀都没有**：把 V1.AsymFormat 的两个方向字段都删掉 → Failed，tooltip 指出要给 `suffixes` 或至少一个方向字段。
+- **D3 声明的方向类没实现**：给 V1.Format 的 Import 条目加 `"export-suffixes": ["tltest"]`（它的类只实现 `IImportFormat`）→ Failed，tooltip 形如 `class '…TestImportFormat' does not implement IExportFormat`。
   - **重点**：过去这会**静默降级**成"只注册导入"（方向靠扫接口反推），现在是显式错误。
-- **D3 单向 type 用方向子集**：给 Conflict.A（`format-import`）加 `"export-suffixes": ["tlconfa"]` → Failed，tooltip 指出方向子集仅 `format` 可用。
-- **D4 `class` 找不到 / 不实现接口**：把某 voice 夹具的 `class` 改成不存在的类名 → Failed，tooltip 形如 `class 'X' not found in the declared assembly`；改成一个存在但不实现引擎接口的类 → `class 'X' does not implement IVoiceSynthesisEngine`。
-  - **重点**：错误消息现在指名道姓，不再是"[A, B, C] 里没有实现 X 的"。
+- **D4 同一个类拆进两个后缀相交的条目**：把 V1.AsymFormat 改成两个条目、都填同一个 `class`（一个 `import-suffixes: ["asym","asymx"]`、一个 `export-suffixes: ["asymx"]`）→ 第二个条目 **Failed**，tooltip 指出该类已被本包另一个后缀相交的条目声明、一份实现必须是一个条目，并提示改用方向字段。
+  - **重点**：这正是"一份实现装成两份、领两份设置"那条路，被显式堵上。
+  - 反向核对：把两个条目的后缀改成**互不相交**（如一个 `asym`、一个 `zzz`）→ 两个都加载成功（同一个通用类服务两种无关格式是合理的）。
+- **D5 `class` 找不到 / 不实现接口**：把某 voice 夹具的 `class` 改成不存在的类名 → Failed，`class 'X' not found in the declared assembly`；改成一个存在但不实现引擎接口的类 → `class 'X' does not implement IVoiceSynthesisEngine`。
+  - **重点**：错误消息指名道姓，不再是"[A, B, C] 里没有实现 X 的"。
+- **D6 退役的 type**：把某夹具的 `"type"` 改成 `"format-import"` → 该条目按**本宿主不支持的插件类型**跳过（方向不再进 type）。
 
 ## E. 不回归（本轮重构了注册路径与全部夹具 manifest，这几条必看）
 
 - **E1 内建工程格式**：`.tlp` / `.tlpx` 新建→保存→重开，工程内容完好。
-- **E2 内建 MIDI**：导入一个 `.mid`；导出 `.mid` 与 `.midi` 都在菜单里、都能导出并被读回。内建 MIDI 仍是紧凑形态双向、两个后缀对称。
+- **E2 内建 MIDI**：导入一个 `.mid`；导出 `.mid` 与 `.midi` 都在菜单里、都能导出并被读回。内建 MIDI 仍是双向、两个后缀对称（用 suffixes 简写）。
 - **E3 V1 拆写 format 往返**：导入 `sample.tltest`（真解析：轨「tltest sample (parsed)」、bpm 128、5 note）→ 导出 `.tltest` → 再导入，轨/note 一致。
 - **E4 Legacy format**：导入 `sample.tloldfmt` 仍走 Compat 真解析（轨「tloldfmt sample (parsed)」、bpm 90、3 note）；导出方向也在。
   - **重点**：legacy 的 importer / exporter 是分两次推来的，本轮改成各自注册成 `format-import` / `format-export` 条目——两个方向都得在。

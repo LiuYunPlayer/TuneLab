@@ -13,7 +13,7 @@
 2. `pwsh tests/pack-tlx.ps1`
 3. `pwsh tests/install-tlx.ps1 v1-voice v1-suite v1-format v1-multisuffix`
 
-> ⚠️ **后续变更影响本文**：format 已拆成 `format` / `format-import` / `format-export` 三型，且一个条目
+> ⚠️ **后续变更影响本文**：format 的方向改由后缀字段决定（两个类必须写成两个条目），且一个条目
 > 只声明**一个**入口类（`class` 标量）。于是 V1 Test Format 与 Suite Format 这两个"一条目两个类"的夹具
 > 各变成了**两个条目 = 两个 tab**，下表已按新形态更新；§3 与 §4 的 tab 数与标签名也随之变化。
 > 新形态本身的验收见 [EXTENSION-FORMAT-SETTINGS-TEST-CASES.md](EXTENSION-FORMAT-SETTINGS-TEST-CASES.md)。
@@ -23,8 +23,8 @@
 | 包（侧栏显示名） | 形态 | 期望 |
 |---|---|---|
 | **V1 Test Voice** | 单插件简写，顶层 `introduction`，`localizations` 给 zh-CN 覆盖它 | 一个 tab |
-| **V1 Test Suite** | 一包**三**条目（`tlsuite` 的 format-import + format-export 两个条目 + voice `TLSuiteVoice`），各自 introduction；**只有 voice 条目声明了扩展设置** | 三个 tab，齿轮只在 voice 页 |
-| **V1 Test Format** | 拆写形态：`.tltest` 的 format-import + format-export 两个条目、两个类，各写 introduction、各带扩展设置 | 两个 tab，两页都有齿轮 |
+| **V1 Test Suite** | 一包**三**条目（`tlsuite` 的导入条目 + 导出条目 + voice `TLSuiteVoice`），各自 introduction；**只有 voice 条目声明了扩展设置** | 三个 tab，齿轮只在 voice 页 |
+| **V1 Test Format** | 两个类 → 两个条目（`.tltest` 的导入与导出），各写 introduction、各带扩展设置 | 两个 tab，两页都有齿轮 |
 | **V1 Test Multi-Suffix** | **一个** format 条目 + `"suffixes": ["mtest","mtst"]`，共用一个类与一份 introduction | 一个 tab，页内列出两个后缀 |
 | （voice/instrument/effect 条目） | 身份是 engine id | 页内**不列**身份——那是内部注册键，对使用无意义 |
 
@@ -45,7 +45,7 @@
 ## 3. 多条目包：一条目一个 tab
 
 1. 开 **V1 Test Suite** 详情窗。
-2. **期望**：两个标签 `Suite Format`（徽标 Format）与 `Suite Voice`（徽标 Voice）；选中项**只靠颜色 + 底部高亮条**区分，**不加粗**（加粗会改变文字宽度、切 tab 时整条会抖）。
+2. **期望**：三个标签 `Suite Format (Import)`、`Suite Format (Export)`（徽标 Format）与 `Suite Voice`（徽标 Voice）——`.tlsuite` 的导入与导出由两个类实现，故是两个条目；选中项**只靠颜色 + 底部高亮条**区分，**不加粗**（加粗会改变文字宽度、切 tab 时整条会抖）。
 3. 标签文字与类别徽标**竖直居中**对齐（不是徽标贴底）。
 4. 切 tab → 正文换成对应条目的 introduction，滚动位置归零。
 5. 切 tab 后 tab 条右端的「Open in External Editor」目标随之变（`Introduction.Format.md` / `Introduction.Voice.md`）。
@@ -101,7 +101,7 @@
 用 **V1 Test Suite**（voice 条目实现了 `IExtensionSettings`，同包 format 条目没有）。
 
 1. 开详情窗，切到 **Suite Voice** 页 → **期望** **tab 条右端**出现「Settings」齿轮（与「Open in External Editor」并排；它们都是当前条目的操作，故不在 header、也不独占正文一行）。
-2. 切到 **Suite Format** 页 → **期望**齿轮**消失**（该能力位没有设置），「Open in External Editor」仍在。
+2. 切到 **Suite Format (Import)** 或 **(Export)** 页 → **期望**齿轮**消失**（这两个能力位没有设置），「Open in External Editor」仍在。
 3. header 右侧**只剩**「Uninstall」——卸载是包级操作，留在 header；设置是能力位级的，跟着 tab 走。
 4. 在 voice 页点齿轮 → **期望**设置窗打开、切到「扩展」页并滚动到 **Suite Voice** 那一段（不是同包别的条目、也不是列表顶部）。
 5. 改一个值后关窗 → 日志应出现 `[V1.Suite.Voice] ApplySettings: ...`，确认值落到了**本条目**的桶。
@@ -135,5 +135,5 @@
 ## 12. format 条目的导入/导出共享一份说明
 
 1. 对 `tlsuite`（同时实现导入与导出）调 `get_extension_introduction("format:tlsuite")`。
-2. **期望**返回那一份介绍——同一后缀的导入与导出在 routing 层面是两个能力位（`format-import:tlsuite` / `format-export:tlsuite`，可各自选不同包），但 manifest 只有一个条目，故只有一份 introduction、详情窗只有一个 tab。
-3. 设置窗「Extension Routing」里该格式仍显示 Import / Export 两行（各自可选包）——两处口径的差异是刻意的，不是 bug。
+2. ⚠️ **本节前提已变**：`tlsuite` 的导入与导出是**两个类**，故现在是**两个条目**、两份 introduction（虽然指向同一个文件）、详情窗两个 tab。要测"一个条目共享一份说明"改用 **V1 Test Multi-Suffix**（一个类、`suffixes` 两个别名，见 §4）。
+3. 设置窗「Extension Routing」里该格式仍显示 Import / Export 两行（各自可选包）——路由粒度与条目粒度本就是两根轴。

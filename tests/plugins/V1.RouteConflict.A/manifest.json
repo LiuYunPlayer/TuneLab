@@ -6,7 +6,7 @@
   "description": "冲突消解夹具 A：与包 B 同声明扩展名 .tlroute（import+export）。导入产出轨名标注「Package A」，导出写 exportedBy=A。导入与导出是两个类，故写成两个条目。",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format-import", "suffixes": ["tlroute"], "name": "Route Conflict A (Import)", "class": "TuneLab.TestPlugins.RouteConflictA.RouteImport", "assembly": "V1.RouteConflict.A.dll" },
-    { "type": "format-export", "suffixes": ["tlroute"], "name": "Route Conflict A (Export)", "class": "TuneLab.TestPlugins.RouteConflictA.RouteExport", "assembly": "V1.RouteConflict.A.dll" }
+    { "type": "format", "import-suffixes": ["tlroute"], "name": "Route Conflict A (Import)", "class": "TuneLab.TestPlugins.RouteConflictA.RouteImport", "assembly": "V1.RouteConflict.A.dll" },
+    { "type": "format", "export-suffixes": ["tlroute"], "name": "Route Conflict A (Export)", "class": "TuneLab.TestPlugins.RouteConflictA.RouteExport", "assembly": "V1.RouteConflict.A.dll" }
   ]
 }

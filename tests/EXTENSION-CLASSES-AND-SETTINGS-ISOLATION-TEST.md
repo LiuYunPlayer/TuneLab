@@ -32,9 +32,9 @@
 ## A. classes 入口协议
 
 > ⚠️ **本组已被后续变更取代，不要再按它测。** `classes` 候选数组已退回标量 `class`：一个条目只声明
-> **一个**入口类，宿主只校验它实现了本 `type` 所需接口、不再扫描认领。同时 format 拆成
-> `format` / `format-import` / `format-export` 三型，A3、A8 描述的「一个 format 条目容纳导入类 + 导出类」
-> 已不成立（那正是数组存在的唯一理由，故一并退役）。
+> **一个**入口类，宿主只校验它实现了该条目声明的一切、不再扫描认领。同时 format 的方向改由后缀字段
+> （`suffixes` / `import-suffixes` / `export-suffixes`）决定，于是 A3、A8 描述的「一个 format 条目容纳
+> 导入类 + 导出类」已不成立——那正是候选数组存在的唯一理由，故一并退役，两个类现在必须写成两个条目。
 > 新口径与验收见 [EXTENSION-FORMAT-SETTINGS-TEST-CASES.md](EXTENSION-FORMAT-SETTINGS-TEST-CASES.md)。
 > **B 组（扩展设置按包分桶）不受影响，仍然有效。**
 

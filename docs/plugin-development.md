@@ -41,33 +41,33 @@ Plugin level (describing "what this package provides"). **Identity is inlined in
 
 | Field | Required | Description |
 |---|---|---|
-| `type` | ✅ | Category: `format` / `format-import` / `format-export` / `voice` / `instrument` / `effect` / a resource type. A type this host does not know, that nevertheless declares `assembly`/`class`, is reported as an unsupported plugin type and skipped. |
+| `type` | ✅ | Category: `format` / `voice` / `instrument` / `effect` / a resource type. A type this host does not know, that nevertheless declares `assembly`/`class`, is reported as an unsupported plugin type and skipped. |
 | `engine` | ✅ for voice/instrument/effect | The engine type **id** (unique identity, e.g. `"MyEngine"`). **Immutable** — it is written into project files, so changing it makes old projects mismatch. Never localize it. |
-| `suffixes` | ✅ for the format types | The **file suffixes** this format accepts (no dot, e.g. `["mid", "midi"]`). One entry = one format: extra suffixes are its **aliases**, sharing this entry's implementation class, all of its text and its settings — but registration and routing stay **per suffix** (another package can take over just one of them). Two genuinely different formats → two entries. Each suffix is an immutable identity. |
-| `import-suffixes` / `export-suffixes` | | **Only on `type: "format"`.** A **non-empty proper subset** of `suffixes`, narrowing one direction — the "read `.mid` and `.midi`, write only `.midi`" shape. Omit to accept all of `suffixes` in that direction. An empty array is rejected: that means "this direction does not exist", which is what the single-direction types are for. |
+| `suffixes` | for format | Shorthand for "both directions accept these **file suffixes**" (no dot, e.g. `["mid", "midi"]`), i.e. exactly the same as setting `import-suffixes` and `export-suffixes` to this value. |
+| `import-suffixes` / `export-suffixes` | for format | The suffixes each direction accepts. **A direction you do not declare does not exist** — that is how an import-only or export-only format is written. Asymmetric aliases go here too: `"import-suffixes": ["mid","midi"], "export-suffixes": ["midi"]` reads two and writes one, still as **one** entry. Mutually exclusive with `suffixes`; at least one direction must be non-empty. |
 | `name` | | The **display name** (for UI), which may differ from the identity id and may be translated. If omitted, the UI falls back to showing the identity id. |
 | `introduction` | | A path relative to the package pointing at a markdown **introduction** (what it does, how to get started, what to watch out for). The host renders it in the extension detail window; the agent fetches it on demand via `get_extension_introduction`. |
 | `localizations` | | Per-language overrides of `name` / `introduction`, e.g. `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`. Missing entries fall back to the base value. Language variants of `introduction` go **here** (each language may point at a different filename); there is **no** implicit `<base>.<lang>.md` filename convention. |
-| `class` | ✅ when it contains code | The full name of **the one entry class** for this entry (e.g. `"My.Ns.MyVoiceEngine"`). The host verifies it implements the interface this `type` requires (see below) and has a **parameterless constructor**; anything else is a load error. |
+| `class` | ✅ when it contains code | The full name of **the one entry class** for this entry (e.g. `"My.Ns.MyVoiceEngine"`). The host verifies it implements what this entry declares (see below) and has a **parameterless constructor**; anything else is a load error. |
 | `assembly` | ✅ when it contains code | The assembly (a single path relative to the package folder) containing that class. Resource packages omit it. |
 | `platforms` | | Platform filter, e.g. `["win", "osx", "linux"]` or with architecture `["win-x64"]`. Empty = all platforms. |
 
-**What each `type` requires of `class`:**
+**What the entry class must implement:**
 
-| `type` | The entry class must implement |
+| Entry | The entry class must implement |
 |---|---|
 | `voice` | `IVoiceSynthesisEngine` |
 | `instrument` | `IInstrumentSynthesisEngine` |
 | `effect` | `IEffectSynthesisEngine` |
-| `format-import` | `IImportFormat` |
-| `format-export` | `IExportFormat` |
-| `format` | **both** `IImportFormat` and `IExportFormat` — one class doing both |
+| `format` with import suffixes | `IImportFormat` |
+| `format` with export suffixes | `IExportFormat` |
+| `format` with both | both interfaces — one class doing both |
 
-> **One entry = one implementation class = one introduction = one set of settings.** These are the same thing seen from three angles, so each is declared exactly once. The host never guesses which class plays which role: what the manifest says is what it is, and a mismatch is a load error rather than a silent downgrade.
+> **One entry = one implementation class = one introduction = one set of settings.** These are the same thing seen from three angles, so each is declared exactly once. Two implementations → two entries. The host never guesses: what the manifest says is what it is, and a mismatch is a load error rather than a silent downgrade. **The same class may not appear in two entries whose suffixes overlap** — that would be one implementation pretending to be two, collecting two of everything.
 >
-> **Choosing between `format` and the split pair.** Write `format` when a single class reads and writes the format — one implementation, so one name, one introduction, one settings bucket. Write `format-import` + `format-export` as two entries when the two directions are genuinely **two implementations** (two classes), which then each get their own name, introduction and settings. The choice is not cosmetic: it decides how many of everything the user sees. Suffix lists that differ per direction are *not* a reason to split — use `import-suffixes` / `export-suffixes` and stay one entry.
+> **Direction is not part of `type`.** It is fully expressed by which suffix fields you fill, so `type` stays a single value for every format. Internally the host still distinguishes `format-import` / `format-export` capability slots — routing has always been per suffix *and* per direction, so a user can let another package take over just the export of one suffix — but those are **derived** from your suffix fields; you never write them.
 >
-> Routing has always been per suffix *and* per direction (`format-import:<suffix>` / `format-export:<suffix>`), so a `format` entry still occupies both directions of every suffix it claims, and a user can still let another package take over just the export of one suffix.
+> **Extra suffixes are aliases**, sharing the entry's implementation class, all of its text and its settings — yet registration and routing stay per suffix, so another package can take over just one of them. Each suffix is an immutable identity. Two genuinely different formats → two entries.
 >
 
 > **Identity id vs display name are separate**: `engine`/`suffixes` are immutable identities (registration key + project-serialization reference); `name`/`localizations` are for UI display only and may be renamed/translated freely.
@@ -115,8 +115,8 @@ Use the `extensions[]` array, where each element is one independent plugin's met
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format-import", "suffixes": ["exfmt"], "name": "Example Format (Import)", "introduction": "Introduction.Import.md", "class": "Example.Format.Importer", "assembly": "Example.Format.dll" },
-    { "type": "format-export", "suffixes": ["exfmt"], "name": "Example Format (Export)", "introduction": "Introduction.Export.md", "class": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
+    { "type": "format", "import-suffixes": ["exfmt"], "name": "Example Format (Import)", "introduction": "Introduction.Import.md", "class": "Example.Format.Importer", "assembly": "Example.Format.dll" },
+    { "type": "format", "export-suffixes": ["exfmt"], "name": "Example Format (Export)", "introduction": "Introduction.Export.md", "class": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
     { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "class": "Example.Voice.ExVoiceEngine", "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
@@ -175,27 +175,46 @@ Rules:
 
 Implement `IImportFormat` (import) and/or `IExportFormat` (export). A **parameterless constructor** is required. The file suffixes and the implementing class go in `manifest.json` (`suffixes` + `class` + `assembly`); you **no longer declare them via attributes** in code.
 
-### 4.1 One class or two: pick the matching `type`
+### 4.1 Declaring what you read and what you write
 
-Whether your format is one class or two decides how you declare it, and that decision is visible to the user:
+You answer one question: which suffixes can this format **read**, and which can it **write**. Direction follows from that — there is nothing else to choose.
 
 ```json
-// One class reads and writes → one entry. One name, one introduction, ONE settings bucket.
+// Reads and writes the same suffixes → `suffixes` is the shorthand for both.
 { "type": "format", "suffixes": ["myfmt"], "name": "My Format",
   "class": "My.Ns.MyFormat", "assembly": "MyFormat.dll" }
 ```
 
 ```json
-// Two classes → two entries. Each gets its own name, introduction and settings.
+// Reads two, writes one. Still ONE entry: one name, one introduction, ONE settings bucket.
+{ "type": "format", "import-suffixes": ["mid", "midi"], "export-suffixes": ["midi"],
+  "class": "My.Ns.MidiFormat", "assembly": "MyMidi.dll" }
+```
+
+```json
+// Import only — the direction you don't declare doesn't exist.
+{ "type": "format", "import-suffixes": ["myfmt"], "name": "My Format",
+  "class": "My.Ns.MyFormatImporter", "assembly": "MyFormat.dll" }
+```
+
+The class must implement whatever the entry declares: import suffixes require `IImportFormat`, export suffixes require `IExportFormat`, both require both. A mismatch fails at load with `class 'X' does not implement IExportFormat` — the host will not quietly drop the direction you asked for.
+
+### 4.2 Two classes means two entries
+
+If your importer and exporter are genuinely **different classes**, they are two entries — an entry has exactly one `class`:
+
+```json
 "extensions": [
-  { "type": "format-import", "suffixes": ["myfmt"], "name": "My Format (Import)",
+  { "type": "format", "import-suffixes": ["myfmt"], "name": "My Format (Import)",
     "class": "My.Ns.MyFormatImporter", "assembly": "MyFormat.dll" },
-  { "type": "format-export", "suffixes": ["myfmt"], "name": "My Format (Export)",
+  { "type": "format", "export-suffixes": ["myfmt"], "name": "My Format (Export)",
     "class": "My.Ns.MyFormatExporter", "assembly": "MyFormat.dll" }
 ]
 ```
 
-`format` **requires that one class to implement both interfaces**. Since an entry declares exactly one `class`, an importer and an exporter that are different classes simply cannot be a `format` entry — declare them as the split pair instead. (Trying anyway fails at load with `class 'X' does not implement IExportFormat`.) If you only support one direction, use the matching single-direction type.
+They then get their own name, introduction and **their own settings** — which is the point: two implementations with different options have nowhere to put them otherwise.
+
+Do **not** split a single class this way to express asymmetric suffixes: writing the same `class` in two entries with overlapping suffixes is a load error. One implementation is one entry; use `import-suffixes` / `export-suffixes` on it, as in §4.1. (Splitting would cost two detail-window tabs, two settings rows and two buckets for one implementation.)
 
 ```csharp
 using System.IO;
@@ -221,22 +240,11 @@ public class MyFormat : IImportFormat, IExportFormat
 }
 ```
 
-### 4.2 Suffix aliases, and narrowing one direction
+### 4.3 Suffix aliases
 
-Several suffixes in one entry means "one format, several aliases" — they share the class, the text and the settings, yet each remains separately routable. Each is an immutable identity (routing + serialization); `name` is an optional display name (add `localizations` for translations).
+Several suffixes in one direction means "one format, several aliases" — they share the class, the text and the settings, yet each remains separately routable. Each is an immutable identity (routing + serialization); `name` is an optional display name (add `localizations` for translations).
 
-Reading liberally while writing one canonical extension is the normal shape for a format with aliases. Narrow the direction in place rather than splitting the entry:
-
-```json
-{ "type": "format", "suffixes": ["mid", "midi"], "export-suffixes": ["midi"],
-  "class": "My.Ns.MidiFormat", "assembly": "MyMidi.dll" }
-```
-
-Import offers both `.mid` and `.midi`; export offers only `.midi`. `import-suffixes` works the same way in the other direction (far rarer — a format you can write is normally one you can also read).
-
-Both are **non-empty proper subsets** of `suffixes`: omit them to accept everything, and never write `[]` to mean "no such direction" — that is what `format-import` / `format-export` are for. Every suffix in `suffixes` must survive in at least one direction; one that survives in neither is a load error, since it would register nothing while still counting as part of the entry's identity.
-
-> Splitting a one-class format into two entries just because the suffix lists differ costs you two of everything — two detail-window tabs, two settings rows, two buckets — for one implementation. That is why the subsets exist.
+Reading liberally while writing one canonical extension is the normal shape for a format with aliases — that is the second example in §4.1, and it stays one entry.
 
 The project model (`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…) is defined in `TuneLab.SDK`.
 
@@ -938,10 +946,10 @@ The related interfaces are in `TuneLab.SDK`: `IExtensionSettings` / `IExtensionS
 A format entry plugs in the same way — implement `IExtensionSettings` alongside `IImportFormat` / `IExportFormat`. Two things differ from an engine, because a format is registered as a **factory** (the host creates a fresh instance for every import and export) rather than as one long-lived instance:
 
 - **One entry, one set of settings.** An entry may claim several suffix aliases (`"suffixes": ["mid", "midi"]`), but the settings belong to the implementation, so the Extensions page shows **one** row for the entry and stores **one** set of values — never one per suffix. Direction subsets do not split it either: `export-suffixes` narrows what gets registered, not who the implementation is.
-- **Two implementations, two sets of settings.** Declared as `format-import` + `format-export`, the two classes are two entries and get two independent buckets, each with its own schema. This is the reason `format` insists on a single class: with two classes under one entry there would be one bucket and one of the two schemas would have nowhere to live.
+- **Two implementations, two sets of settings.** An importer class and an exporter class are two entries (§4.2), so they get two independent buckets, each with its own schema. That is the point of the split: with two classes under one entry there would be one bucket and one of the two schemas would have nowhere to live.
 - **`ApplySettings` runs on every import/export**, right after the instance is created — that is the only moment a factory-made instance can be handed its settings. Keep it cheap, and do not treat it as a "settings changed" notification: it fires once per created instance, not once per edit.
 - **The host creates one extra probe instance** to ask for your schema, since there is no long-lived instance to ask. It never imports or exports anything. Keep your parameterless constructor light (no model loading, no file I/O) — that is good practice anyway, since the constructor also runs for every import and export.
-- **Changing `suffixes` starts a fresh set of values.** The bucket is keyed by `<type>:<all suffixes, in declaration order>` — `format:mid|midi`, `format-export:midi`. Adding, removing or reordering a suffix therefore produces a different bucket, and the host does **not** migrate the old values: the entry starts at its defaults and the user re-enters anything they had set, secrets included. Settle the suffix list before shipping and treat a later change as a user-visible reset. Changing a *direction subset* does **not** move the bucket — widening what you can write should not wipe what the user configured.
+- **Changing the suffixes starts a fresh set of values.** The bucket is keyed by the entry's directions and its suffixes — `format:mid|midi` for a two-way entry, `format-export:midi` for an export-only one. Adding, removing or reordering a suffix therefore produces a different bucket, and the host does **not** migrate the old values: the entry starts at its defaults and the user re-enters anything they had set, secrets included. Settle the suffix lists before shipping and treat a later change as a user-visible reset.
 
 ```csharp
 public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings

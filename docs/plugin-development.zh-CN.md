@@ -1,4 +1,4 @@
-# TuneLab 插件开发指南
+﻿# TuneLab 插件开发指南
 
 > 适用于 TuneLab 新版扩展系统（V1）。本文介绍如何编写、打包、发布一个 TuneLab 插件。
 > 老插件（Legacy）的兼容说明见文末「附录：Legacy 插件」。
@@ -41,33 +41,33 @@
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `type` | ✅ | 类别：`format` / `format-import` / `format-export` / `voice` / `instrument` / `effect` / 资源类。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。 |
+| `type` | ✅ | 类别：`format` / `voice` / `instrument` / `effect` / 资源类。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。 |
 | `engine` | voice/instrument/effect ✅ | 引擎类型 **id**（唯一身份，如 `"MyEngine"`）。**不可变**——它会写进工程文件，改了旧工程会失配。绝不本地化。 |
-| `suffixes` | format 三型 ✅ | 该格式认的**文件后缀清单**（不带点，如 `["mid", "midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类、全部说明与那一份设置；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。每个后缀各自是不可变身份。 |
-| `import-suffixes` / `export-suffixes` | | **仅 `type: "format"` 可用**。`suffixes` 的**非空真子集**，用于收窄某一侧——即「`.mid` 和 `.midi` 都能读、只写 `.midi`」那种形状。省略 = 该方向认全部 `suffixes`。空数组非法：那意思是"这个方向不存在"，那是单向 type 的活。 |
+| `suffixes` | format | 「两个方向都认这些**文件后缀**」的简写（不带点，如 `["mid", "midi"]`），等价于把 `import-suffixes` 与 `export-suffixes` 同时设成这个值。 |
+| `import-suffixes` / `export-suffixes` | format | 各方向认的后缀。**没声明的方向就是不存在**——只导入或只导出的格式就这么写。别名不对称也在这里表达：`"import-suffixes": ["mid","midi"], "export-suffixes": ["midi"]` = 读两种、只写一种，仍是**一个**条目。与 `suffixes` 互斥；至少一个方向非空。 |
 | `name` | | **显示名**（UI 展示用），可与身份 id 不同、可翻译。省略则 UI 退回显示身份 id。 |
 | `introduction` | | 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。 |
 | `localizations` | | 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。缺当前语言则回退基础值。`introduction` 的语言变体就走**这里**（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。 |
-| `class` | 含代码时✅ | 本条目那**唯一一个入口类**的全名（如 `"My.Ns.MyVoiceEngine"`）。宿主校验它实现了本 `type` 所需的接口（见下）、且有**无参构造函数**；不满足即加载错误。 |
+| `class` | 含代码时✅ | 本条目那**唯一一个入口类**的全名（如 `"My.Ns.MyVoiceEngine"`）。宿主校验它实现了本条目所声明的一切（见下）、且有**无参构造函数**；不满足即加载错误。 |
 | `assembly` | 含代码时✅ | 含该类的程序集（相对包文件夹的路径，单个）。资源包省略。 |
 | `platforms` | | 平台过滤，如 `["win", "osx", "linux"]` 或带架构 `["win-x64"]`。留空 = 全平台。 |
 
-**各 `type` 对 `class` 的要求：**
+**入口类必须实现什么：**
 
-| `type` | 入口类必须实现 |
+| 条目 | 入口类必须实现 |
 |---|---|
 | `voice` | `IVoiceSynthesisEngine` |
 | `instrument` | `IInstrumentSynthesisEngine` |
 | `effect` | `IEffectSynthesisEngine` |
-| `format-import` | `IImportFormat` |
-| `format-export` | `IExportFormat` |
-| `format` | `IImportFormat` **与** `IExportFormat` 两者——同一个类兼做读写 |
+| `format`，声明了导入后缀 | `IImportFormat` |
+| `format`，声明了导出后缀 | `IExportFormat` |
+| `format`，两个方向都声明了 | 两个接口都要——同一个类兼做读写 |
 
-> **一个条目 = 一个实现类 = 一份 introduction = 一份设置。** 这是同一件事的三个侧面，所以各自只声明一次。宿主不猜哪个类干哪件事：manifest 写什么就是什么，不匹配即加载错误，不做静默降级。
+> **一个条目 = 一个实现类 = 一份 introduction = 一份设置。** 这是同一件事的三个侧面，所以各自只声明一次。两份实现就写两个条目。宿主不猜：manifest 写什么就是什么，不匹配即加载错误，不做静默降级。**同一个类不得出现在两个后缀相交的条目里**——那是一份实现假装成两份、领两份东西。
 >
-> **`format` 与拆写形态怎么选。** 同一个类既读又写 → 写 `format`：一份实现，于是一个名字、一份 introduction、一个设置桶。两个方向确实是**两份实现**（两个类）→ 写成 `format-import` + `format-export` 两个条目，各有各的名字、introduction 与设置。这不是写法偏好：它决定了用户看到几份东西。**后缀清单不对称不是拆写的理由**——那用 `import-suffixes` / `export-suffixes`，仍是一个条目。
+> **方向不进 `type`。** 它已由"你填了哪几个后缀字段"完整表达，故 `type` 对一切格式都是同一个值。宿主内部仍分 `format-import` / `format-export` 两种能力位——路由一直是逐后缀 × 逐方向的，用户照样能让别的包只接管某个后缀的导出——但那是从你的后缀字段**推出来**的，你从不书写。
 >
-> 路由一直是逐后缀 × 逐方向的（`format-import:<后缀>` / `format-export:<后缀>`），所以一个 `format` 条目照样占着它每个后缀的两个方向，用户也照样能让别的包只接管某个后缀的导出。
+> **多余的后缀是别名**：共用本条目的实现类、全部说明与那一份设置；但注册与路由仍逐后缀独立，别的包可以只接管其中一个。每个后缀各自是不可变身份。真的两种不同格式 → 写两个条目。
 >
 > **身份 id 与显示名分离**：`engine`/`suffixes` 是不可变身份（注册键 + 工程序列化引用）；`name`/`localizations` 仅供 UI 展示、可随意改名翻译。
 >
@@ -114,8 +114,8 @@
   "version": "2.0.0",
   "sdk-version": "1.0",
   "extensions": [
-    { "type": "format-import", "suffixes": ["exfmt"], "name": "Example Format (Import)", "introduction": "Introduction.Import.md", "class": "Example.Format.Importer", "assembly": "Example.Format.dll" },
-    { "type": "format-export", "suffixes": ["exfmt"], "name": "Example Format (Export)", "introduction": "Introduction.Export.md", "class": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
+    { "type": "format", "import-suffixes": ["exfmt"], "name": "Example Format (Import)", "introduction": "Introduction.Import.md", "class": "Example.Format.Importer", "assembly": "Example.Format.dll" },
+    { "type": "format", "export-suffixes": ["exfmt"], "name": "Example Format (Export)", "introduction": "Introduction.Export.md", "class": "Example.Format.Exporter", "assembly": "Example.Format.dll" },
     { "type": "voice",  "engine": "ExEngine", "introduction": "Introduction.Voice.md", "class": "Example.Voice.ExVoiceEngine", "assembly": "Example.Voice.dll", "platforms": ["win"] }
   ]
 }
@@ -174,27 +174,46 @@
 
 实现 `IImportFormat`（导入）和/或 `IExportFormat`（导出）。需要**无参构造函数**。文件后缀与实现类写在 `manifest.json`（`suffixes` + `class` + `assembly`），代码里**不再用 attribute 声明**。
 
-### 4.1 一个类还是两个类：`type` 跟着它走
+### 4.1 声明你能读什么、能写什么
 
-你的格式是一个类还是两个类，决定了怎么声明——而这个决定用户看得见：
+你只回答一个问题：这个格式能**读**哪些后缀、能**写**哪些后缀。方向由此而来，没有别的要选。
 
 ```json
-// 一个类既读又写 → 一个条目。一个名字、一份 introduction、【一个】设置桶。
+// 读写同一组后缀 → suffixes 就是两个方向的简写。
 { "type": "format", "suffixes": ["myfmt"], "name": "My Format",
   "class": "My.Ns.MyFormat", "assembly": "MyFormat.dll" }
 ```
 
 ```json
-// 两个类 → 两个条目。各有各的名字、introduction 与设置。
+// 读两种、只写一种。仍是【一个】条目：一个名字、一份 introduction、【一个】设置桶。
+{ "type": "format", "import-suffixes": ["mid", "midi"], "export-suffixes": ["midi"],
+  "class": "My.Ns.MidiFormat", "assembly": "MyMidi.dll" }
+```
+
+```json
+// 只导入——没声明的方向就是不存在。
+{ "type": "format", "import-suffixes": ["myfmt"], "name": "My Format",
+  "class": "My.Ns.MyFormatImporter", "assembly": "MyFormat.dll" }
+```
+
+入口类必须实现本条目声明的一切：有导入后缀就要 `IImportFormat`、有导出后缀就要 `IExportFormat`、两个都有就两个都要。不匹配会在加载期报 `class 'X' does not implement IExportFormat`——宿主不会悄悄把你要的方向抹掉。
+
+### 4.2 两个类就是两个条目
+
+如果导入器与导出器确实是**两个不同的类**，它们就是两个条目——一个条目只有一个 `class`：
+
+```json
 "extensions": [
-  { "type": "format-import", "suffixes": ["myfmt"], "name": "My Format (Import)",
+  { "type": "format", "import-suffixes": ["myfmt"], "name": "My Format (Import)",
     "class": "My.Ns.MyFormatImporter", "assembly": "MyFormat.dll" },
-  { "type": "format-export", "suffixes": ["myfmt"], "name": "My Format (Export)",
+  { "type": "format", "export-suffixes": ["myfmt"], "name": "My Format (Export)",
     "class": "My.Ns.MyFormatExporter", "assembly": "MyFormat.dll" }
 ]
 ```
 
-`format` **要求那一个类同时实现两个接口**。一个条目只声明一个 `class`，所以"导入类与导出类是两个类"根本没法写成 `format` 条目——那种情况就是拆写形态。（硬写会在加载期报 `class 'X' does not implement IExportFormat`。）只支持一个方向就用对应的单向 type。
+它们于是各有各的名字、introduction 与**各自的设置**——这正是拆开的意义：两份实现各有各的选项，不拆就没地方放。
+
+但**不要**用这种写法去表达同一个类的后缀不对称：把同一个 `class` 写进两个后缀相交的条目是**加载错误**。一份实现就是一个条目，用 §4.1 那样的 `import-suffixes` / `export-suffixes`。（拆开的代价是一份实现却要占两个详情窗 tab、两行设置、两个桶。）
 
 ```csharp
 using System.IO;
@@ -220,24 +239,11 @@ public class MyFormat : IImportFormat, IExportFormat
 }
 ```
 
-### 4.2 后缀别名，以及只收窄一侧
+### 4.3 后缀别名
 
-一个条目写多个后缀 = 「同一格式的多个别名」：共用实现类、说明与设置，但仍各自可被独立路由。每个后缀各自是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。
+同一方向里写多个后缀 = 「同一格式的多个别名」：共用实现类、说明与设置，但仍各自可被独立路由。每个后缀各自是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。
 
-**读得宽、只写一种规范后缀**是带别名的格式的常态。就地收窄，不要为此拆条目：
-
-```json
-{ "type": "format", "suffixes": ["mid", "midi"], "export-suffixes": ["midi"],
-  "class": "My.Ns.MidiFormat", "assembly": "MyMidi.dll" }
-```
-
-导入菜单里 `.mid` 与 `.midi` 都在，导出菜单里只有 `.midi`。`import-suffixes` 是反方向的同一件事（少见得多——能写的格式通常也能读）。
-
-两者都是 `suffixes` 的**非空真子集**：认全部就省略，**永远不要**用 `[]` 表达"没有这个方向"，那是 `format-import` / `format-export` 的活。`suffixes` 里每个后缀至少要在一个方向上活下来；两个方向都不认的后缀是加载错误——它什么都不注册，却仍算作这个条目身份的一部分。
-
-> 仅仅因为后缀清单不对称就把一个类的格式拆成两个条目，代价是两份一切——详情窗两个 tab、设置页两行、两个桶——而实现只有一份。方向子集就是为免掉这笔账而存在的。
-
-> `suffixes` 里每个后缀各自是不可变身份（路由 + 序列化）；`name` 是可选显示名（可加 `localizations` 翻译）。一个条目写多个后缀 = 「同一格式的多个别名」：共用实现类与说明，但仍各自可被独立路由。
+**读得宽、只写一种规范后缀**是带别名的格式的常态——那就是 §4.1 的第二个例子，仍是一个条目。
 
 工程模型（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）定义在 `TuneLab.SDK`。
 
@@ -941,10 +947,10 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 format 条目接入方式相同——在 `IImportFormat` / `IExportFormat` 之外再实现 `IExtensionSettings`。与引擎有两点不同，根源是 format 注册的是**工厂**（每次导入、每次导出宿主都现造一个实例），而不是一个长驻实例：
 
 - **一个条目一份设置**。一个条目可以认多个后缀别名（`"suffixes": ["mid", "midi"]`），但设置属于那一份实现，所以「扩展」页里它只占**一行**、值也只存**一份**，绝不会逐后缀各存一份。方向子集也不会把它劈开：`export-suffixes` 收窄的是注册什么，不是实现是谁。
-- **两份实现两份设置**。写成 `format-import` + `format-export` 时，两个类是两个条目，各拿一个独立的桶、各有自己的 schema。这正是 `format` 坚持"同一个类"的理由：两个类挤在一个条目里只有一个桶，两份 schema 必有一份无处安放。
+- **两份实现两份设置**。导入类与导出类是两个条目（§4.2），各拿一个独立的桶、各有自己的 schema。这正是拆开的意义：两个类挤在一个条目里只有一个桶，两份 schema 必有一份无处安放。
 - **`ApplySettings` 每次导入/导出都会被调用**，就在实例创建之后——工厂造出来的实例只有这一个时机能拿到设置。因此它要轻，也**不要**把它当成「设置变了」的通知：它是每造一个实例响一次，不是每改一次设置响一次。
 - **宿主会多造一个探测实例**来问你的 schema（没有长驻实例可问）。它不参与任何导入导出。请保持无参构造函数轻量（别在里面加载模型、读文件）——反正每次导入导出也都会走一遍构造函数。
-- **改 `suffixes` 等于换一份新设置**。桶键是 `<type>:<全部后缀按声明序拼接>`——`format:mid|midi`、`format-export:midi`。所以增、删、重排任一后缀都会落到另一个桶，且宿主**不迁移**旧值：条目回到默认值，用户此前填的（含密钥）要重填。发布前把后缀清单定下来；日后真要改，就当作一次用户可见的重置来对待。改**方向子集**则**不会**换桶——多支持写出一个后缀，凭什么清空用户已填的配置。
+- **改后缀等于换一份新设置**。桶键由条目的方向与后缀共同决定——双向条目是 `format:mid|midi`，只导出的是 `format-export:midi`。所以增、删、重排任一后缀都会落到另一个桶，且宿主**不迁移**旧值：条目回到默认值，用户此前填的（含密钥）要重填。发布前把后缀清单定下来；日后真要改，就当作一次用户可见的重置来对待。
 
 ```csharp
 public sealed class MyFormat : IImportFormat, IExportFormat, IExtensionSettings

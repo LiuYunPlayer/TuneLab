@@ -7,7 +7,7 @@
 
 ## 一句话提示语（复制给你的 AI 助手）
 
-> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `class`（**唯一**入口类全名）指明实现类，宿主校验它实现了本 `type` 所需接口、不匹配即加载错误（不猜、不扫候选）——`format` 要一个类同实现 `IImportFormat`+`IExportFormat`、`format-import` 要 `IImportFormat`、`format-export` 要 `IExportFormat`，三者身份都是 `suffixes`；voice 要 `IVoiceSynthesisEngine`、instrument 要 `IInstrumentSynthesisEngine`、effect 要 `IEffectSynthesisEngine`（对整段音频做离线变换），身份是 `engine`。入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
+> 你要为 TuneLab 编写一个 V1 插件。插件是一个文件夹，根目录必须有 `manifest.json`（其 `id` 字段是新版判别标志，必须有，用反向域名）。代码插件类库目标框架锁 `net8.0`，**只引用** `TuneLab.Foundation` 与 `TuneLab.SDK.*`（绝不引用 `TuneLab.Hosting.Foundation` 或主程序），且 SDK 程序集不随包分发（宿主共享）。**插件身份写在 manifest、不用 attribute**：每个能力条目用 `class`（**唯一**入口类全名）指明实现类，宿主校验它实现了本 `type` 所需接口、不匹配即加载错误（不猜、不扫候选）——`format` 的方向由后缀字段决定：声明了导入后缀就要 `IImportFormat`、导出后缀就要 `IExportFormat`、两个都声明就两个都要；voice 要 `IVoiceSynthesisEngine`、instrument 要 `IInstrumentSynthesisEngine`、effect 要 `IEffectSynthesisEngine`（对整段音频做离线变换），身份是 `engine`。入口类需有**无参构造函数**。每个能力条目还需 `type` 与 `assembly`（含这些类的程序集）；含代码时顶层 `sdk-version` 必填。严格按下方《事实清单》的 schema 与接口签名生成，不要臆造 API。
 
 ---
 
@@ -28,14 +28,15 @@
 - `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
-- `type` (string, **必填**) — `"format"` | `"format-import"` | `"format-export"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。
+- `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。**方向不进 type**：format 恒为一个值，读写各认哪些后缀由下面三个字段说。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。
 - `engine` (string, voice/instrument/effect **必填**) — 引擎类型 **id**（唯一、**不可变**、写进工程序列化，绝不本地化）。
-- `suffixes` (string[], format 三型 **必填**) — 该格式认的**文件后缀清单**（不带点，如 `["mid","midi"]`）。一个条目 = 一个格式：多个后缀是它的**别名**，共用本条目的实现类、全部说明与那一份设置；但注册与路由仍**逐后缀独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。
-- `import-suffixes` / `export-suffixes` (string[], 可选) — **仅 `type:"format"`**。`suffixes` 的**非空真子集**，收窄某一侧（「读 .mid/.midi、只写 .midi」）。省略 = 认全部；`[]` 非法（那用单向 type）；`suffixes` 里两个方向都不认的死后缀 = 加载错误。**不进设置桶键**（放宽/收窄不换桶）。
+- `suffixes` (string[], format) — 「两个方向都认这些后缀」的**简写**（不带点，如 `["mid","midi"]`），等价于 import-suffixes 与 export-suffixes 同时取此值。与下面两个**互斥**。
+- `import-suffixes` / `export-suffixes` (string[], format) — 各方向认的后缀。**没声明的方向就是不存在**（只导入/只导出就这么写）。不对称也在这写：`import-suffixes:["mid","midi"] + export-suffixes:["midi"]` = 读两种只写一种，仍是**一个**条目、一份实现、一个设置桶。至少一个方向非空。
+- 多个后缀是**别名**：共用本条目的实现类、全部说明与那一份设置；但注册与路由仍**逐(方向,后缀)独立**（用户可让别的包接管其中一个）。真的两种不同格式 → 写两个条目。
 - `name` (string, 选填) — **显示名**（UI 用，可与 id 不同、可翻译）；省略则 UI 退回显示 id。
 - `introduction` (string, 选填) — 包内相对路径，指向一份 markdown **介绍**（能干什么、怎么开始用、有什么坑）。宿主在扩展详情窗渲染它，agent 按需拉取（`get_extension_introduction`）。
 - `localizations` (object, 选填) — 按语言覆盖 `name` / `introduction`，如 `{ "zh-CN": { "name": "增益", "introduction": "Introduction.zh-CN.md" } }`。`introduction` 的语言变体就走这里（各语言可指不同文件名），**没有** `<base>.<lang>.md` 那种隐式后缀约定。
-- `class` (string, 含代码**必填**) — 本条目**唯一**入口类的全名。宿主只校验、不扫描：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine` / `format-import`→`IImportFormat` / `format-export`→`IExportFormat` / `format`→**两者兼备**（一个类同时实现两接口，写两个类是加载错误）。需无参构造函数。**一个条目 = 一个实现类 = 一份 introduction = 一份扩展设置**。
+- `class` (string, 含代码**必填**) — 本条目**唯一**入口类的全名。宿主只校验、不扫描：voice→`IVoiceSynthesisEngine` / instrument→`IInstrumentSynthesisEngine` / effect→`IEffectSynthesisEngine` / format→**它声明的每个方向所需的接口**。需无参构造函数。**一个条目 = 一个实现类 = 一份 introduction = 一份扩展设置**；两份实现写两个条目，且**同一个类不得出现在两个后缀相交的条目里**（加载错误）。
 - `assembly` (string, 含代码**必填**) — 含该入口类的单个程序集（相对包根）；资源包不写。
 - `platforms` (string[], 选填) — 如 `["win","osx","linux"]` 或 `["win-x64"]`；空=全平台。
 - **身份 id vs 显示名**：`engine`/`suffixes` 是身份（注册键 + 序列化引用，不可变）；`name`/`localizations` 仅 UI 展示、可改可译。
@@ -61,7 +62,7 @@
 public interface IImportFormat { ProjectInfo Deserialize(Stream stream); }
 public interface IExportFormat { void Serialize(Stream output, ProjectInfo info); }  // 宿主给流、插件写入（勿 Dispose/Seek）
 ```
-- 扩展名与实现类在 manifest。**一个类既读又写** → `{ "type":"format", "suffixes":["ext"], "class":"Ns.MyFormat", "assembly":"X.dll" }`（一个条目、一份说明、一个设置桶）。**两个类** → 拆成两个条目 `{"type":"format-import","class":"Ns.Importer",…}` + `{"type":"format-export","class":"Ns.Exporter",…}`（各自的说明与设置桶）。后缀不对称不是拆写理由，用 `export-suffixes`。
+- 扩展名与实现类在 manifest。**一个类**（无论读写还是单向）→ 一个条目：`{ "type":"format", "suffixes":["ext"], "class":"Ns.MyFormat", … }`；不对称就 `{ "import-suffixes":["mid","midi"], "export-suffixes":["midi"], … }`；只导入就只写 `import-suffixes`。**两个类** → 两个条目，各写各的 `class` 与方向后缀（各自的说明与设置桶）。后缀不对称**不是**拆条目的理由。
 - 工程模型在 `TuneLab.SDK`（`ProjectInfo`/`TrackInfo`/`PartInfo`/`NoteInfo`…）。实现类需无参构造函数。
 
 ### Voice 接口（命名空间 `TuneLab.SDK`）
@@ -240,7 +241,7 @@ public interface IExtensionSettingsContext { PropertyObject Settings { get; } } 
 - 密钥：`TextBoxConfig { IsPassword = true }` → 宿主掩码显示 + 安全落盘（Win=DPAPI 密文就地 / macOS=钥匙串；无安全存储则**不保存该字段、绝不明文**+告警；官方支持 Win/macOS）。值类型仍是普通 string。
 - 读值：`settings.GetString(key, default)` / `GetDouble` / `GetBoolean(key, default)`。读不到按默认 fallback。
 - `DisplayText` 由插件自译（按 `TuneLabContext.Global.Language`）；manifest **不**声明设置（纯代码）。
-- **format 条目**（`IImportFormat`/`IExportFormat` 之外再实现本接口）：单位是【条目】不是后缀——多后缀别名共**一行**、值只存**一份**（路由仍逐后缀，是另一根轴）；`import/export-suffixes` 也不劈开它。**两份实现两份设置**：写成 `format-import`+`format-export` 时各是一个条目、各一个桶、各一份 schema（这正是 `format` 要求同一个类的理由）。format 注册的是**工厂**（每次导入/导出现 new），故 ①`ApplySettings` **每造一个实例响一次**（就在构造之后、`Deserialize`/`Serialize` 之前），不是"设置变了"的通知，要轻；②宿主会多造一个**探测实例**只为问 schema（不参与导入导出）→ 无参构造函数保持轻量；③桶键 = `<type>:<全部后缀按声明序用 | 拼接>`（`format:mid|midi`、`format-export:midi`），增/删/重排任一后缀即**换桶且不迁移旧值**（回默认、密钥要重填）——后缀清单发布前定死；改**方向子集不换桶**。
+- **format 条目**（`IImportFormat`/`IExportFormat` 之外再实现本接口）：单位是【条目】不是后缀——多后缀别名共**一行**、值只存**一份**（路由仍逐(方向,后缀)，是另一根轴）；方向不对称也不劈开它。**两份实现两份设置**：两个类是两个条目、各一个桶、各一份 schema。format 注册的是**工厂**（每次导入/导出现 new），故 ①`ApplySettings` **每造一个实例响一次**（就在构造之后、`Deserialize`/`Serialize` 之前），不是"设置变了"的通知，要轻；②宿主会多造一个**探测实例**只为问 schema（不参与导入导出）→ 无参构造函数保持轻量；③桶键 = `<推出的kind>:<两方向后缀并集按声明序用 | 拼接>`（双向 `format:mid|midi`、只导出 `format-export:midi`），增/删/重排任一后缀即**换桶且不迁移旧值**（回默认、密钥要重填）——后缀清单发布前定死。
 - 控件配置类型（值配置构造函数均已封、只走静态工厂）：`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）、`CheckBoxConfig.Create(default)`、`ComboBoxConfig.Create(options)`（`.WithDefault(option)`）、`SliderConfig`（`SliderConfig.Linear(default,min,max)` 连续 / `SliderConfig.Integer(default,min,max)` 整数 / `SliderConfig.Create(default, INormalizedScale)` 自定义标度；流式 `.WithFormat(INumberFormat)`、`.WithRandomizable()` 声明可随机（宿主在右侧给随机入口）、`.WithMinLabel(text)`/`.WithMaxLabel(text)` 量程端点描述文本（滑条两端 + 参数面板上下界，插件自译、可只设一端，同 `AutomationConfig` 语义））；容器 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`。
 
 ### 常见错误（避免）
@@ -308,4 +309,4 @@ public class MyFormat : IImportFormat, IExportFormat
 }
 ```
 
-> 若导入与导出是**两个类**，就不能用 `type:"format"`——改成 `format-import` + `format-export` 两个条目，各写各的 `class`，它们各有独立的 introduction 与扩展设置桶。
+> 若导入与导出是**两个类**，就写两个条目（都是 `type:"format"`，一个只给 `import-suffixes`、一个只给 `export-suffixes`），各写各的 `class`；它们各有独立的 introduction 与扩展设置桶。

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -158,7 +158,7 @@ internal static class ExtensionManager
         {
             foreach (var ext in description.EffectiveExtensions)
             {
-                var disabledKind = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
+                var disabledKind = RuntimeKind(ext);
                 var disabledEntry = MakeEntry(path, ext, disabledKind, lang);
                 disabledEntry.Status = ExtensionEntryStatus.Disabled;
                 result.Entries.Add(disabledEntry);
@@ -196,7 +196,11 @@ internal static class ExtensionManager
 
         foreach (var ext in description.EffectiveExtensions)
         {
-            var kind = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
+            // type 是【作者写的】类别，kind 是【宿主内部的】能力位类别——format 的方向由后缀字段推出，
+            // 两者只在 format 上不同（见 RuntimeKind）。派发与"支不支持这个 type"看 type，
+            // 而能力位身份 / 启停键 / 设置桶键一律看 kind：它们必须与注册时用的那个一致。
+            var type = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
+            var kind = RuntimeKind(ext);
 
             // 声明即入列：不论后续是否注册成功（平台不匹配 / 程序集缺失 / 入口类未命中），都如实反映
             // 「这个包里声明了什么」——供详情窗逐条目渲染 introduction、agent 逐条目列能力与摘要。
@@ -231,7 +235,7 @@ internal static class ExtensionManager
                 result.Types.Add(kind);
 
             // 资源类（无代码）：登记即可，不加载程序集（由对应引擎运行时去发现目录内资源）。
-            if (!IsCodeKind(kind))
+            if (!IsCodeKind(type))
             {
                 // 但【声明了代码】的未知 type 不是资源包，而是本宿主还不支持的插件类型（如只在别的分支/
                 // 更高版本存在的 kind）。资源类 type 是开放集，宿主无从区分二者——除了这个判据：资源包
@@ -242,8 +246,8 @@ internal static class ExtensionManager
                     skipped++;
                     var unsupported = string.Format(
                         "unsupported extension type '{0}': the entry declares code (assembly/class) but this host has no such plugin kind"
-                        + " (supported: format / format-import / format-export / voice / instrument / effect; see docs/plugin-development.md)",
-                        string.IsNullOrEmpty(kind) ? "(empty)" : kind);
+                        + " (supported: format / voice / instrument / effect; see docs/plugin-development.md)",
+                        string.IsNullOrEmpty(type) ? "(empty)" : type);
                     entry.Status = ExtensionEntryStatus.Skipped;
                     entry.Error = unsupported;
                     reasons.Add(unsupported);
@@ -287,7 +291,7 @@ internal static class ExtensionManager
                 var assembly = alc.LoadFromAssemblyPath(assemblyFile);
 
                 // 按 manifest 声明的 class（命名空间.类名）精确取类型并实例化注册（不再反射扫 attribute）。
-                if (RegisterEntry(description.id ?? string.Empty, kind, ext, assembly, lang, out var error))
+                if (RegisterEntry(description.id ?? string.Empty, type, ext, assembly, lang, out var error))
                 {
                     loaded++;
                 }
@@ -484,19 +488,31 @@ internal static class ExtensionManager
     // 宿主开放给插件、且需要加载程序集的类别。
     // 【不含 agent-model】：它不是插件类型（模型适配器编进宿主、走 PR），故声明它的包会落进
     // 「未知 kind + 声明了代码」那条通用分支、报 unsupported 跳过——不需要为它单开一个 case。
-    static bool IsCodeKind(string kind) => FormatsManager.IsFormatKind(kind) || kind is "voice" or "instrument" or "effect";
+    // 宿主开放给插件、且需要加载程序集的【manifest type】。注意判的是作者写的 type，不是推出来的 kind
+    // ——format 恒为一个 type，方向不进 type（见 ExtensionInfo 头注释）。
+    static bool IsCodeKind(string type) => type is FormatsManager.KindBoth or "voice" or "instrument" or "effect";
+
+    // 条目在宿主内部的 kind：format 的方向由后缀字段推出，其余即 manifest type 原样。
+    // 【必须与注册时用的一致】能力位身份、启停键、设置桶键都以它为前段；两处算法分叉就会静默失联。
+    static string RuntimeKind(ExtensionInfo ext)
+    {
+        var type = (ext.type ?? string.Empty).Trim().ToLowerInvariant();
+        return type == FormatsManager.KindBoth
+            ? FormatsManager.DeriveKind(ext.EffectiveImportSuffixes.Length > 0, ext.EffectiveExportSuffixes.Length > 0)
+            : type;
+    }
 
     // legacy 包的稳定包 id（无 V1 manifest id 时）：用目录名——每个安装唯一、跨会话稳定，
     // 供冲突消解区分多个 legacy 包并反查显示名。LegacyCompatLoader 注册与 LoadResult.Id 须用同一值。
     public static string LegacyPackageId(string packageDir) => Path.GetFileName(packageDir);
 
-    // 条目占的能力位身份清单：format 三型是它认的全部后缀（一个格式可有多个别名）、其余代码类是单个 engine id；
+    // 条目占的能力位身份清单：format 是它认的全部后缀（两方向并集）、其余代码类是单个 engine id；
     // 资源类不占能力位故为空。值与 ExtensionRouting 的 identity 同口径，供 agent 按 kind:identity 定位条目。
-    // 注意 kind 这一维并非一一对应：紧凑形态 format 在 routing 里仍细分成 format-import / format-export 两条
-    // 可路由身份，故一个 N 后缀的 format 条目对应 2×N 个能力位，它们共享该条目唯一一份 introduction 与设置。
+    // 注意 kind 这一维并非一一对应：双向 format 在 routing 里仍细分成 format-import / format-export 两条
+    // 可路由身份，故一个 N 后缀的双向条目对应 2×N 个能力位，它们共享该条目唯一一份 introduction 与设置。
     static string[] EntryIdentities(ExtensionInfo ext, string kind)
-        => FormatsManager.IsFormatKind(kind) ? ext.EffectiveSuffixes
-        : IsCodeKind(kind) ? (string.IsNullOrEmpty(ext.engine) ? [] : [ext.engine])
+        => FormatsManager.IsFormatKind(kind) ? ext.EffectiveIdentitySuffixes
+        : kind is "voice" or "instrument" or "effect" ? (string.IsNullOrEmpty(ext.engine) ? [] : [ext.engine])
         : [];
 
     // 由 manifest 条目造展示/agent 侧的条目信息（状态由调用方按结局回填）。
@@ -509,7 +525,7 @@ internal static class ExtensionManager
         if (!FormatsManager.IsFormatKind(kind))
             return string.Format("{0} '{1}'", kind, ext.engine ?? "?");
 
-        var suffixes = ext.EffectiveSuffixes;
+        var suffixes = ext.EffectiveIdentitySuffixes;
         return string.Format("{0} '{1}'", kind, suffixes.Length > 0 ? string.Join("/", suffixes) : "?");
     }
 
@@ -525,11 +541,11 @@ internal static class ExtensionManager
     // 按类别把 manifest 条目实例化并注册到对应 manager。失败回 false + error（不抛，调用方计 failed）。
     // displayName 按当前语言从 manifest 取（与 id 分离、仅供 UI 展示）；缺省回退到身份 id。
     // packageId 是包 manifest 的反向域名 id，下传给 manager 供扩展设置按包分桶（避免不同包同 engine id 设置串味）。
-    static bool RegisterEntry(string packageId, string kind, ExtensionInfo ext, Assembly assembly, string lang, out string? error)
+    static bool RegisterEntry(string packageId, string type, ExtensionInfo ext, Assembly assembly, string lang, out string? error)
     {
         var displayName = ext.LocalizedName(lang);
         var className = ext.EffectiveClass;      // 入口类全名（唯一）；宿主只校验、不再扫描认领
-        switch (kind)
+        switch (type)
         {
             case "voice":
                 if (string.IsNullOrEmpty(ext.engine)) { error = "missing 'engine' id"; return false; }
@@ -550,110 +566,58 @@ internal static class ExtensionManager
                 return true;
 
             case FormatsManager.KindBoth:
-            case FormatsManager.KindImport:
-            case FormatsManager.KindExport:
-                return RegisterFormatEntry(packageId, kind, ext, assembly, className, displayName, out error);
+                return RegisterFormatEntry(packageId, ext, assembly, className, displayName, out error);
         }
         error = "unknown extension type";
         return false;
     }
 
-    // format 三型条目：一个条目 = 一个格式 = 一份实现 = 一份说明 = 一份扩展设置。
+    // format 条目：一个条目 = 一个格式 = 一份实现 = 一份说明 = 一份扩展设置。
     //
-    // 【方向是声明，不是推断】type 说要哪个方向，入口类就必须实现对应接口，缺了就是加载错误；
-    //   不再"扫到什么接口算什么方向"地静默降级（那会让扩展设置的桶键随代码改动漂移，见 ExtensionInfo 头注释）。
-    // 【紧凑形态 format 必须是同一个类实现两个接口】否则"一份实现一份设置"就不成立：两个类各自的
-    //   IExtensionSettings 无从消歧，只能牺牲一个。要两份实现就拆成 format-import + format-export 两个条目。
-    // 【后缀是路由单位，条目是声明单位】注册与路由逐后缀（各后缀仍是独立可选的能力位），而实现类、说明与
-    //   设置只声明一次——不必为 mid/midi 之类的别名复制条目或造双胞胎类。
+    // 【方向由后缀字段决定，不由接口反推】写了 import-suffixes（或简写 suffixes）就有导入方向，没写就没有；
+    //   入口类必须实现所声明的每个方向，缺了就是加载错误，不再"扫到什么接口算什么方向"地静默降级
+    //   ——那会让能力位与设置桶随代码改动漂移（见 ExtensionInfo 头注释）。
+    // 【后缀是路由单位，条目是声明单位】注册与路由逐 (方向, 后缀)（各自仍是独立可选的能力位），而实现类、
+    //   说明与设置只声明一次——不必为 mid/midi 之类的别名、或"读两种写一种"复制条目。
     // 工厂延迟实例化（与旧行为一致），但类型与构造在加载期即校验。
-    static bool RegisterFormatEntry(string packageId, string kind, ExtensionInfo ext, Assembly assembly, string className, string displayName, out string? error)
+    static bool RegisterFormatEntry(string packageId, ExtensionInfo ext, Assembly assembly, string className, string displayName, out string? error)
     {
-        var suffixes = ext.EffectiveSuffixes;
-        if (suffixes.Length == 0) { error = "missing 'suffixes'"; return false; }
+        if (!ext.ValidateSuffixDeclaration(out error))
+            return false;
 
-        bool wantsImport = kind is FormatsManager.KindBoth or FormatsManager.KindImport;
-        bool wantsExport = kind is FormatsManager.KindBoth or FormatsManager.KindExport;
+        var importSuffixes = ext.EffectiveImportSuffixes;
+        var exportSuffixes = ext.EffectiveExportSuffixes;
+        bool hasImport = importSuffixes.Length > 0;
+        bool hasExport = exportSuffixes.Length > 0;
 
         ConstructorInfo? ictor = null, ector = null;
-        if (wantsImport && !TryResolveCtor<IImportFormat>(assembly, className, out ictor, out error)) return false;
-        if (wantsExport && !TryResolveCtor<IExportFormat>(assembly, className, out ector, out error)) return false;
+        if (hasImport && !TryResolveCtor<IImportFormat>(assembly, className, out ictor, out error)) return false;
+        if (hasExport && !TryResolveCtor<IExportFormat>(assembly, className, out ector, out error)) return false;
 
-        if (!ResolveDirectionSuffixes(kind, ext, suffixes, out var importSuffixes, out var exportSuffixes, out error))
+        // 身份集 = 两方向并集；设置桶键与能力位身份都取它。
+        var identity = ext.EffectiveIdentitySuffixes;
+
+        // 同一个实现类不得被拆进两个后缀相交的条目（见 FormatsManager.FindConflictingEntry）。
+        var conflict = FormatsManager.FindConflictingEntry(packageId, className, identity);
+        if (conflict != null)
+        {
+            error = string.Format(
+                "class '{0}' is already declared by this package's format entry '{1}' with overlapping suffixes; one implementation must be one entry"
+                + " — declare per-direction suffixes ('import-suffixes' / 'export-suffixes') on that single entry instead of splitting it",
+                className, conflict);
             return false;
+        }
 
         // 是否声明了扩展设置：【静态判定】入口类实现了 IExtensionSettings 与否，不为探测而实例化
         // ——否则加载期就得把每个格式都 new 一遍，破坏工厂延迟实例化。
         var entryType = (ictor ?? ector)!.DeclaringType;
         bool declaresSettings = entryType != null && typeof(IExtensionSettings).IsAssignableFrom(entryType);
 
-        FormatsManager.RegisterFormat(packageId, kind, suffixes, displayName,
-            wantsImport ? (importSuffixes, () => (IImportFormat)ictor!.Invoke(null)) : null,
-            wantsExport ? (exportSuffixes, () => (IExportFormat)ector!.Invoke(null)) : null,
-            declaresSettings);
+        FormatsManager.RegisterFormat(packageId, FormatsManager.DeriveKind(hasImport, hasExport), identity, displayName,
+            hasImport ? (importSuffixes, () => (IImportFormat)ictor!.Invoke(null)) : null,
+            hasExport ? (exportSuffixes, () => (IExportFormat)ector!.Invoke(null)) : null,
+            declaresSettings, className);
         error = null;
-        return true;
-    }
-
-    // 两个方向各自认哪些后缀。仅 type=format 可用 import-suffixes / export-suffixes 收窄某一侧；
-    // 单向 type 的方向本就唯一，再给子集只会与 suffixes 重复表达，故禁用。
-    // 校验三条（都在把死后缀挡在拼键之外，见 FormatsManager.EntryId）：
-    //   ① 子集必须 ⊆ suffixes——写错一个后缀会悄悄多出一个能力位，而它不在身份集里；
-    //   ② 子集不得为空——空 = "这个方向不存在"，那该改用单向 type（同一件事两种写法会落进不同的设置桶）；
-    //   ③ suffixes 里不得有两个方向都不认的死后缀——它什么都不注册，却仍在参与拼键。
-    static bool ResolveDirectionSuffixes(string kind, ExtensionInfo ext, string[] suffixes,
-        out string[] importSuffixes, out string[] exportSuffixes, out string? error)
-    {
-        importSuffixes = exportSuffixes = suffixes;
-        error = null;
-
-        var declaredImport = ext.EffectiveImportSuffixes;
-        var declaredExport = ext.EffectiveExportSuffixes;
-
-        if (kind != FormatsManager.KindBoth)
-        {
-            if (declaredImport != null || declaredExport != null)
-            {
-                error = string.Format("'import-suffixes'/'export-suffixes' are only valid on type 'format'; a '{0}' entry has a single direction, so declare its suffixes in 'suffixes'", kind);
-                return false;
-            }
-            return true;
-        }
-
-        if (!TakeSubset(declaredImport, suffixes, "import-suffixes", ref importSuffixes, out error)) return false;
-        if (!TakeSubset(declaredExport, suffixes, "export-suffixes", ref exportSuffixes, out error)) return false;
-
-        foreach (var suffix in suffixes)
-        {
-            if (!importSuffixes.Contains(suffix) && !exportSuffixes.Contains(suffix))
-            {
-                error = string.Format("suffix '{0}' is in 'suffixes' but in neither 'import-suffixes' nor 'export-suffixes', so it would register nothing", suffix);
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static bool TakeSubset(string[]? declared, string[] suffixes, string field, ref string[] target, out string? error)
-    {
-        error = null;
-        if (declared == null)
-            return true;                                       // 省略 = 该方向认全部 suffixes
-
-        if (declared.Length == 0)
-        {
-            error = string.Format("'{0}' is empty; to declare a single-direction format use type 'format-import' or 'format-export' instead", field);
-            return false;
-        }
-        foreach (var suffix in declared)
-        {
-            if (!suffixes.Contains(suffix))
-            {
-                error = string.Format("'{0}' contains '{1}', which is not in 'suffixes'", field, suffix);
-                return false;
-            }
-        }
-        target = declared;
         return true;
     }
 

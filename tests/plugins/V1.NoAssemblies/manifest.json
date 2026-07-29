@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "负向用例：format 条目声明了 extension/classes 但故意漏 assembly → 加载器应优雅 Failed（不再有扫全文件夹兜底）。",
   "sdk-version": "1.0",
-  "type": "format-import",
-  "suffixes": ["tlnoasm"],
+  "type": "format",
+  "import-suffixes": ["tlnoasm"],
   "class": "TuneLab.TestPlugins.NoAssemblies.NoAssembliesImport"
 }
