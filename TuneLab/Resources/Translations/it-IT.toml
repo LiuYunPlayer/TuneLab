@@ -344,7 +344,7 @@
 "Discard" = "Scarta"
 "Edit" = "Modifica"
 "Engine '{0}' is unavailable." = "Il motore '{0}' non è disponibile."
-"Input {0:N0} · Output {1:N0}" = "Input {0:N0} · Output {1:N0}"
+"Input {0:N0} · Output {1:N0}" = "Ingresso {0:N0} · Uscita {1:N0}"
 "Model Provider" = "Provider del modello"
 "Model Settings" = "Impostazioni modello"
 "New Chat" = "Nuova chat"

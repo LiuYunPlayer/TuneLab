@@ -202,7 +202,7 @@
 "Gain" = "Gain"
 "Volume" = "Volym"
 "VibratoEnvelope" = "Vibrato-omslutning"
-"Pitch" = "Pitch"
+"Pitch" = "Tonhöjd"
 "Preset" = "Förinställning"
 "Preset Name" = "Namn på förinställning"
 "Save" = "Spara"
@@ -288,7 +288,7 @@
 "Cut Only" = "Klipp ut endast"
 "Delete Only" = "Ta bort endast"
 "Notes" = "Noter"
-"Pitch" = "Pitch"
+"Pitch" = "Tonhöjd"
 "Vibratos" = "Vibraton"
 "Automations" = "Automatiseringar"
 "Paste Notes" = "Klistra in noter"
@@ -445,7 +445,7 @@
 "API Key" = "API-nyckel"
 "Model" = "Modell"
 "Temperature" = "Temperatur"
-"Max Tokens (0=auto)" = "Max tokens (0=auto)"
+"Max Tokens (0=auto)" = "Max antal tokens (0=auto)"
 
 [SynthesisStatus]
 "Processing effect: {0} ({1}/{2})" = "Bearbetar effekt: {0} ({1}/{2})"
