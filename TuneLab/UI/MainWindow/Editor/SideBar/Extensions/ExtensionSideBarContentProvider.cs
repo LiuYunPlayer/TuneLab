@@ -234,11 +234,7 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
     // 首个有设置的条目"这类猜测（卡片上原来那个包级齿轮已因此移除）。
     private void OnOpenSettings(ExtensionLoadResult result, string extensionKey)
     {
-        var settings = new SettingsWindow(result.Id, extensionKey);
-        if (TopLevel.GetTopLevel(mContentPanel) is Avalonia.Controls.Window owner)
-            settings.Show(owner);
-        else
-            settings.Show();
+        SettingsWindow.Open(TopLevel.GetTopLevel(mContentPanel) as Avalonia.Controls.Window, result.Id, extensionKey);
     }
 
     // 详情窗正文的分页：**逐 manifest 条目恒一页**，不做任何合并、也不按"有没有内容"过滤。

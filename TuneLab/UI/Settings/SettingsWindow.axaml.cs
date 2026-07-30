@@ -24,6 +24,29 @@ namespace TuneLab.UI;
 
 internal partial class SettingsWindow : Window
 {
+    // 全局单窗：设置改动即时写进 Settings 单例、关窗才落盘，扩展页的编辑更是切 tab / 关窗时统一收口。
+    // 多开会让两份实例各持一份中途状态、互相覆盖对方的写入，故一律经此入口开窗——已开则置前。
+    public static void Open(Window? owner, string? focusExtensionPackageId = null, string? focusExtensionKey = null)
+    {
+        if (sInstance is { } opened)
+        {
+            // 已开着又点了某个能力位的齿轮：不新建，改让现有窗重新定位过去。
+            if (!string.IsNullOrEmpty(focusExtensionPackageId))
+                opened.FocusExtension(focusExtensionPackageId, focusExtensionKey);
+
+            opened.Activate();
+            return;
+        }
+
+        var window = new SettingsWindow(focusExtensionPackageId, focusExtensionKey);
+        sInstance = window;
+        window.Closed += (_, _) => { if (ReferenceEquals(sInstance, window)) sInstance = null; };
+        if (owner != null)
+            window.Show(owner);
+        else
+            window.Show();
+    }
+
     public SettingsWindow() : this(null) { }
 
     // focusExtensionPackageId：非空且该包声明了扩展设置时，开窗即切到「扩展」tab 并滚动到该插件区（详情窗齿轮用）。
@@ -113,6 +136,24 @@ internal partial class SettingsWindow : Window
             SelectTab(initialTab);
 
         // 「扩展」页构建时已捕获目标插件的标题控件；布局完成后把它滚到可视区顶部（尽力而为，失败不影响切页）。
+        if (mFocusListView != null && mFocusEntryControl != null)
+            Avalonia.Threading.Dispatcher.UIThread.Post(ScrollFocusIntoView, Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
+    // 已开着的窗改定位到另一个能力位（详情窗齿轮再次触发）：tab 内容在每次 SelectTab 时整体重建，
+    // 故只需换掉目标、清掉上一轮的捕获，再切一次「扩展」页——捕获与滚动沿用构造时那条路径。
+    private void FocusExtension(string packageId, string? extensionKey)
+    {
+        mFocusExtensionPackageId = packageId;
+        mFocusExtensionKey = extensionKey;
+        mFocusListView = null;
+        mFocusEntryControl = null;
+
+        int index = mTabPages.FindIndex(p => p.Name == "Extensions");
+        if (index < 0)
+            return;
+
+        SelectTab(index);
         if (mFocusListView != null && mFocusEntryControl != null)
             Avalonia.Threading.Dispatcher.UIThread.Post(ScrollFocusIntoView, Avalonia.Threading.DispatcherPriority.Loaded);
     }
@@ -629,12 +670,15 @@ internal partial class SettingsWindow : Window
     private readonly List<TabPageInfo> mTabPages = new();
     private int mSelectedIndex = -1;
     // 详情窗齿轮请求定位到某插件设置：捕获其标题控件 + 所在 ListView，开窗后滚到位。
-    private readonly string? mFocusExtensionPackageId;
+    // 非 readonly：窗已开着时再点别处的齿轮，经 FocusExtension 换目标重新定位（见 Open）。
+    private string? mFocusExtensionPackageId;
     // 目标能力位的桶键（"kind:extensionId"）；为空表示只定位到包。
-    private readonly string? mFocusExtensionKey;
+    private string? mFocusExtensionKey;
     private ListView? mFocusListView;
     private Control? mFocusEntryControl;
     private readonly DisposableManager s = new();
+    // 当前打开的唯一实例（UI 线程独占访问）；关窗时由 Closed 清空。
+    private static SettingsWindow? sInstance;
     // 当前「扩展」页各 extension 的实时编辑（切走/关窗时统一落盘后清空）。
     private readonly List<ExtensionPage> mExtensionPages = new();
 }

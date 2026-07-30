@@ -97,7 +97,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             var hoverBack = Colors.White.Opacity(0.05);
             var settingsButton = new GUI.Components.Button() { Width = 48, Height = 48 }
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 4.0 / 3.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
-            settingsButton.Clicked += () => new SettingsWindow().Show(this.Window());
+            settingsButton.Clicked += () => SettingsWindow.Open(this.Window());
             panel.AddDock(settingsButton, Dock.Bottom);
             panel.AddDock(mRightSideTabBar);
         }
