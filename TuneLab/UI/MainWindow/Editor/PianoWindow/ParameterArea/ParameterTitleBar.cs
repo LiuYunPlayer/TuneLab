@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TuneLab.Data;
+using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -163,7 +164,14 @@ internal class ParameterTitleBar : LayerPanel
                     elems.Add(new(ElemKind.Divider, default, DividerText, default));
                 if (key.IsEffect)
                 {
-                    string labelText = part != null && key.EffectIndex < part.Effects.Count ? part.Effects[key.EffectIndex].Type : "Effect";
+                    // 显示名走 EffectManager.GetDisplayName（manifest 声明名，缺失才回退 type id）——与"添加效果"
+                    // 菜单、侧栏 effect 块同一口径；直接显示 Type 会让同一个效果在两处显示成不同名字。
+                    string labelText = "Effect";
+                    if (part != null && key.EffectIndex < part.Effects.Count)
+                    {
+                        string type = part.Effects[key.EffectIndex].Type;
+                        labelText = string.IsNullOrEmpty(type) ? "(empty)" : EffectManager.GetDisplayName(type);
+                    }
                     elems.Add(new(ElemKind.Label, default, labelText, default));
                 }
             }

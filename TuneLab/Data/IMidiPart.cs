@@ -70,7 +70,9 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     double[] GetVibratoFallbackPitch(IReadOnlyList<double> ticks);
     // 悬浮添加颤音的预览虚线波（有效基线 + 待建颤音偏移）。
     double[] GetVibratoAddPreviewPitch(IReadOnlyList<double> ticks, VibratoInfo info);
-    void LockPitch(double start, double end, double extension);
+    // pitch 通道的颤音偏差（= 喂引擎的 PitchDeviation，各颤音按其 pitch 振幅汇总）。固定合成音高到 Pitch 时
+    // 必须减掉它——合成音高本已含偏差，原样写回会让重合成再叠一次（见 SynthesisLock）。查询点为 part-local tick。
+    double[] GetPitchVibratoDeviation(IReadOnlyList<double> ticks);
     double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID);
     double[] GetFinalAutomationValues(IReadOnlyList<double> ticks, string automationID);
     INote CreateNote(NoteInfo info);
@@ -158,6 +160,13 @@ internal static class IMidiPartExtension
             return entry;
 
         throw new ArgumentException(string.Format("Phoneme lane {0} is not effective!", key.Id));
+    }
+
+    // 取该 key 的 config，**不分 kind**（连续 / 分段同在一张声明 map）。与形态无关的消费方用它——如 vibrato
+    // 关联（振幅表按 key 存、两种形态都可关联，见 Vibrato.GetAmplitude）。lane 不在此列。
+    public static bool TryGetAutomationConfig(this IMidiPart part, AutomationKey key, out AutomationConfig config)
+    {
+        return TryGetSourceConfig(part, key, out config);
     }
 
     public static bool IsEffectiveAutomation(this IMidiPart part, AutomationKey key)
@@ -593,11 +602,17 @@ internal static class IMidiPartExtension
         }
     }
 
+    // 清 part 级自动化的锚点选中态（连续 + 分段两张 map）：分段轨的选中态同样参与渲染（选中环）与编辑判据
+    //（InsertPoint 的并组、MoveSelectedPoints），漏清会留下假的选中态。effect 的轨不在此列（既有口径）。
     public static void DeselectAllAutomationPoints(this IMidiPart part)
     {
         foreach (var automation in part.Automations.Values)
         {
             automation.Points.DeselectAllItems();
+        }
+        foreach (var piecewise in part.PiecewiseAutomations.Values)
+        {
+            piecewise.DeselectAllAnchors();
         }
     }
 

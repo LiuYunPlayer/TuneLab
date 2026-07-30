@@ -180,7 +180,7 @@ internal class FunctionBar : LayerPanel
                 AddButton(PianoTool.Note, Assets.Pointer, "Note Tool".Tr(this));
                 AddButton(PianoTool.Pitch, Assets.Pitch, "Pitch Pen".Tr(this));
                 AddButton(PianoTool.Anchor, Assets.Anchor, "Anchor Tool".Tr(this));
-                AddButton(PianoTool.Lock, Assets.Brush, "Pitch Locking Brush".Tr(this));
+                AddButton(PianoTool.Lock, Assets.Brush, "Locking Brush".Tr(this));
                 var vibratoToggle = AddButton(PianoTool.Vibrato, Assets.Vibrato, "Vibrato Tool".Tr(this));
                 // instrument 音源无颤音系统：编辑 instrument part 时直接隐藏颤音工具按钮
                 //（快捷键拦截与自动退回音符工具在 Editor 侧做）。

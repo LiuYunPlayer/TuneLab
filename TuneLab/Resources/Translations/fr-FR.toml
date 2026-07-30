@@ -73,7 +73,6 @@
 "Note Tool" = "Outil de Notes"
 "Pitch Pen" = "Tonalité (crayon)"
 "Anchor Tool" = "Outil d'Ancrage"
-"Pitch Locking Brush" = "Tonalité (Verrouiller)"
 "Vibrato Tool" = "Vibrato"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Outil de Notes"
 "Pitch Pen" = "Tonalité (crayon)"
 "Anchor Tool" = "Outil d'Ancrage"
-"Pitch Locking Brush" = "Tonalité (Verrouiller)"
 "Vibrato Tool" = "Vibrato"
 "Play/Pause" = "Jouer/Pause"
 "Go to Start" = "Aller au début"

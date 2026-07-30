@@ -73,7 +73,6 @@
 "Note Tool" = "Herramienta de notas"
 "Pitch Pen" = "Lápiz de tono"
 "Anchor Tool" = "Herramienta de anclaje"
-"Pitch Locking Brush" = "Pincel de bloqueo de tono"
 "Vibrato Tool" = "Herramienta de vibrato"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Herramienta de notas"
 "Pitch Pen" = "Lápiz de tono"
 "Anchor Tool" = "Herramienta de anclaje"
-"Pitch Locking Brush" = "Pincel de bloqueo de tono"
 "Vibrato Tool" = "Herramienta de vibrato"
 "Play/Pause" = "Reproducir/Pausa"
 "Go to Start" = "Ir al inicio"

@@ -50,6 +50,14 @@ internal partial class AutomationRenderer
         switch (e.MouseButtonType)
         {
             case MouseButtonType.PrimaryButton:
+                // 连线预览生效时，单击即按预览落笔（与 pitch 锚点同手感：选中某锚点 → 悬浮空白见预览线 → 单击接上）。
+                // 必须先于下面的分支：预览的落点可能正是某个锚点（悬浮组首/末时连接两组），不能被 AnchorMove 抢走。
+                if (mPiecewisePreviewItem?.OnDown is { } onDown)
+                {
+                    onDown.Invoke(e, ctrl);
+                    break;
+                }
+
                 if (item is PiecewiseAnchorItem anchorItem)
                 {
                     mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, anchorItem.Automation, anchorItem.AnchorPoint, anchorItem.Scale);
@@ -75,17 +83,137 @@ internal partial class AutomationRenderer
                 }
                 break;
             case MouseButtonType.SecondaryButton:
+                // 右键先取消该轨全部选中（空白处右键即"取消选中"，对齐 pitch 锚点工具），再按命中删点。
+                // 取消选中后必须重绘：选中环是绘制出来的，不刷新会留着假的选中态；连线预览也随选中态变化。
+                if (TryGetActivePiecewise(out var deselectTarget, out _, false))
+                    deselectTarget.DeselectAllAnchors();
                 if (item is PiecewiseAnchorItem deleteAnchorItem)
-                {
-                    deleteAnchorItem.Automation.DeselectAllAnchors();
                     deleteAnchorItem.Automation.DeletePoints([deleteAnchorItem.AnchorPoint]);
-                }
+                InvalidateVisual();
                 mPiecewiseAnchorDeleteOperation.Down(e.Position.X);
                 break;
             default:
                 break;
         }
     }
+
+    // 分段轨锚点工具的"连线预览"（镜像 pitch 的 PreviewAnchorGroupItem）：有选中锚点的组 + 鼠标悬浮位置 ⇒
+    // 在临时 PiecewiseAutomation 上试插一个点，画出"单击后线会怎么连"的白色预览；单击即在真数据上重放同一步。
+    // 没有它，分段轨上只有"双击插孤立点"可用——锚点工具在空轨上永远连不成线（双击的前半个单击会经框选清掉
+    // 选中态，而 InsertPoint 的并组判据正是"相邻组有选中锚点"）。
+    //
+    // 两种形态（与 pitch 一致）：
+    // · 悬浮空白：向左 / 右相邻组（其中有选中锚点的）伸出一段，单击 = 插点并入该组；
+    // · 悬浮某组的首 / 末锚点：若其外侧相邻组也有选中锚点，预览把两组接成一段，单击 = ConnectAnchorGroup。
+    void UpdatePiecewisePreview(IItemCollection items, IPiecewiseAutomation piecewise, AutomationConfig config)
+    {
+        if (Part == null || mState != State.None || !IsHover)
+            return;
+
+        var hoverAnchor = (HoverItem() as PiecewiseAnchorItem)?.AnchorPoint;
+        IAnchorGroup? hoverAnchorOnFirstGroup = null;
+        IAnchorGroup? hoverAnchorOnLastGroup = null;
+        int hoverAnchorGroupIndex = -1;
+        for (int i = 0; i < piecewise.AnchorGroups.Count; i++)
+        {
+            var anchorGroup = piecewise.AnchorGroups[i];
+            if (anchorGroup.IsEmpty())
+                continue;
+
+            if (anchorGroup.ConstFirst() == hoverAnchor)
+            {
+                hoverAnchorOnFirstGroup = anchorGroup;
+                hoverAnchorGroupIndex = i;
+            }
+            if (anchorGroup.ConstLast() == hoverAnchor)
+            {
+                hoverAnchorOnLastGroup = anchorGroup;
+                hoverAnchorGroupIndex = i;
+            }
+            if (hoverAnchorGroupIndex != -1)
+                break;
+        }
+
+        // 悬浮在某组的中间锚点上：那是纯拖拽目标，不给连线预览。
+        if (hoverAnchor != null && hoverAnchorOnFirstGroup == null && hoverAnchorOnLastGroup == null)
+            return;
+
+        double pos = TickAxis.X2Tick(MousePosition.X) - Part.Pos.Value;
+        var areaID = piecewise.GetAreaID(pos);
+        int[] previewIndex = hoverAnchor == null
+            ? areaID.IsInGroup ? [areaID.Index] : [areaID.LeftIndex, areaID.RightIndex]
+            : [.. (hoverAnchorOnFirstGroup == null ? Array.Empty<int>() : [hoverAnchorGroupIndex - 1]), hoverAnchorGroupIndex, .. (hoverAnchorOnLastGroup == null ? Array.Empty<int>() : [hoverAnchorGroupIndex + 1])];
+        var previewInfo = previewIndex
+            .Where(index => (uint)index < piecewise.AnchorGroups.Count)
+            .Select(index => piecewise.AnchorGroups[index])
+            .Where(anchorGroup => anchorGroup.HasSelectedItem() || anchorGroup == hoverAnchorOnFirstGroup || anchorGroup == hoverAnchorOnLastGroup)
+            .Select(anchorGroup => anchorGroup.GetInfo().Select(p => p.ToPoint()).ToList()).ToList();
+        if (previewInfo.Count == 0)
+            return;
+
+        var preview = new PiecewisePreviewItem(this) { PiecewiseAutomation = new PiecewiseAutomation(), Scale = config.Scale };
+        preview.PiecewiseAutomation.SetInfo(previewInfo);
+        if (hoverAnchor == null)
+        {
+            // 预览副本里把各组首点标选中，使临时 InsertPoint 走与真数据相同的并组分支。
+            foreach (var anchorGroup in preview.PiecewiseAutomation.AnchorGroups)
+                anchorGroup[0].Select();
+
+            double value = YToValue(MousePosition.Y, config.Scale);
+            preview.PiecewiseAutomation.InsertPoint(new AnchorPoint(pos, value));
+            preview.OnDown = (e, ctrl) =>
+            {
+                if (!TryGetActivePiecewise(out var target, out var targetConfig, true))
+                    return;
+
+                var anchor = new AnchorPoint(TickAxis.X2Tick(e.Position.X) - Part!.Pos.Value, YToValue(e.Position.Y, targetConfig.Scale)) { IsSelected = true };
+                target.InsertPoint(anchor);
+                target.DeselectAllAnchors();
+                anchor.Select();
+                mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, target, anchor, targetConfig.Scale, true);
+            };
+        }
+        else
+        {
+            // 先处理向后连接的，顺序不能乱（预览副本里 index 恒从 0 起算）！
+            if (hoverAnchorOnLastGroup != null)
+            {
+                preview.PiecewiseAutomation.ConnectAnchorGroup(0);
+                if (hoverAnchorGroupIndex + 1 < piecewise.AnchorGroups.Count && piecewise.AnchorGroups[hoverAnchorGroupIndex + 1].HasSelectedItem())
+                    preview.OnDown += (_, _) => piecewise.ConnectAnchorGroup(hoverAnchorGroupIndex);
+            }
+            if (hoverAnchorOnFirstGroup != null)
+            {
+                preview.PiecewiseAutomation.ConnectAnchorGroup(0);
+                if (hoverAnchorGroupIndex - 1 >= 0 && piecewise.AnchorGroups[hoverAnchorGroupIndex - 1].HasSelectedItem())
+                    preview.OnDown += (_, _) => piecewise.ConnectAnchorGroup(hoverAnchorGroupIndex - 1);
+            }
+            // 连接在此只改数据、不单独提交：一次按下抬起是**一个**用户动作，该是一个撤销单元。
+            // 提交由紧接的 AnchorMove.Up 统一做（它未拖动时只 DiscardTo(mHead) 撤自己的变更、保留连接，再 Commit）。
+            if (preview.OnDown != null)
+                preview.OnDown += (e, ctrl) => mPiecewiseAnchorMoveOperation.Down(e.Position, ctrl, piecewise, hoverAnchor, config.Scale);
+        }
+
+        mPiecewisePreviewItem = preview;
+        items.Add(preview);
+    }
+
+    class PiecewisePreviewItem(AutomationRenderer automationRenderer) : AutomationRenderItem(automationRenderer)
+    {
+        public required IPiecewiseAutomation PiecewiseAutomation { get; set; }
+        public required INormalizedScale Scale { get; set; }
+        public Action<MouseDownEventArgs, bool>? OnDown { get; set; }
+
+        // 纯视觉预览，不参与命中（命中仍归真锚点 / 空白）。
+        public override bool Raycast(Avalonia.Point point) => false;
+
+        public override void Render(DrawingContext context)
+        {
+            AutomationRenderer.DrawPiecewiseCurve(context, PiecewiseAutomation, Scale, Colors.White);
+        }
+    }
+
+    PiecewisePreviewItem? mPiecewisePreviewItem;
 
     readonly PiecewiseDrawOperation mPiecewiseDrawOperation;
     readonly PiecewiseClearOperation mPiecewiseClearOperation;
@@ -375,7 +503,11 @@ internal partial class AutomationRenderer
             }
             else
             {
-                AutomationRenderer.Part.Discard();
+                // 只撤**本操作**产生的变更（DiscardTo(mHead)），不是 Discard() 的"撤销全部未提交命令"——
+                // 同一次按下里可能有先行的离散动作（如预览落笔的 ConnectAnchorGroup），那属于用户这一下的意图，
+                // 不能被"没拖动"连坐撤掉。末尾照样 Commit：把先行动作收成**一个**撤销单元
+                //（纯点击无先行动作时无未提交命令，Commit 是 no-op、不产生空单元）。
+                AutomationRenderer.Part.DiscardTo(mHead);
                 if (mCtrl)
                 {
                     if (mIsSelected)
@@ -386,6 +518,7 @@ internal partial class AutomationRenderer
                     mAutomation.DeselectAllAnchors();
                     mAnchor.Select();
                 }
+                AutomationRenderer.Part.Commit();
             }
 
             mMoved = false;

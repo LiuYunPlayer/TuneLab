@@ -74,7 +74,7 @@
 "Note Tool" = "音符工具"
 "Pitch Pen" = "音高画笔"
 "Anchor Tool" = "锚点工具"
-"Pitch Locking Brush" = "音高锁定笔刷"
+"Locking Brush" = "固定笔刷"
 "Vibrato Tool" = "颤音工具"
 
 [TrackScrollView]
@@ -94,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "拖拽以关联颤音"
+"No value here, vibrato has no effect" = "此处无值，颤音不生效"
 
 [Dialog]
 "OK" = "确认"
@@ -247,7 +248,7 @@
 "Note Tool" = "音符工具"
 "Pitch Pen" = "音高画笔"
 "Anchor Tool" = "锚点工具"
-"Pitch Locking Brush" = "音高锁定笔刷"
+"Locking Brush" = "固定笔刷"
 "Vibrato Tool" = "颤音工具"
 "Play/Pause" = "播放/暂停"
 "Go to Start" = "跳到起点"

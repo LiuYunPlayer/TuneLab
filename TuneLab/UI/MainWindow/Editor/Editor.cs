@@ -370,7 +370,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         RegisterToolCommand("tool.note", "Note Tool", Key.D1, UI.PianoTool.Note);
         RegisterToolCommand("tool.pitch", "Pitch Pen", Key.D2, UI.PianoTool.Pitch);
         RegisterToolCommand("tool.anchor", "Anchor Tool", Key.D3, UI.PianoTool.Anchor);
-        RegisterToolCommand("tool.lock", "Pitch Locking Brush", Key.D4, UI.PianoTool.Lock);
+        // 显示名不带 Pitch：这支笔在音符区固定合成音高、在参数区固定配对回显，作用面不限于音高（见 SynthesisLock）。
+        RegisterToolCommand("tool.lock", "Locking Brush", Key.D4, UI.PianoTool.Lock);
         RegisterToolCommand("tool.vibrato", "Vibrato Tool", Key.D5, UI.PianoTool.Vibrato);
     }
 

@@ -73,7 +73,6 @@
 "Note Tool" = "Noten Tool"
 "Pitch Pen" = "Pitch Stift"
 "Anchor Tool" = "Anker Tool"
-"Pitch Locking Brush" = "Pitch Sperre Brush"
 "Vibrato Tool" = "Vibrato Tool"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Noten Tool"
 "Pitch Pen" = "Pitch Stift"
 "Anchor Tool" = "Anker Tool"
-"Pitch Locking Brush" = "Pitch Sperre Brush"
 "Vibrato Tool" = "Vibrato Tool"
 "Play/Pause" = "Abspielen/Pausieren"
 "Go to Start" = "Zum Anfang"

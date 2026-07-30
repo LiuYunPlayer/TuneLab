@@ -73,7 +73,6 @@
 "Note Tool" = "ノートツール"
 "Pitch Pen" = "ピッチツール"
 "Anchor Tool" = "アンカーツール"
-"Pitch Locking Brush" = "ピッチ固定ツール"
 "Vibrato Tool" = "ビブラートツール"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "ノートツール"
 "Pitch Pen" = "ピッチツール"
 "Anchor Tool" = "アンカーツール"
-"Pitch Locking Brush" = "ピッチ固定ツール"
 "Vibrato Tool" = "ビブラートツール"
 "Play/Pause" = "再生/一時停止"
 "Go to Start" = "先頭へ移動"

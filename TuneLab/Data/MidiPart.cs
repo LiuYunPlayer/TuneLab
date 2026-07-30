@@ -356,39 +356,10 @@ internal class MidiPart : Part, IMidiPart
     public void MoveVibrato(Vibrato vibrato, Action mutate) => mVibratos.Move(vibrato, mutate);
     public void MoveVibratos(IReadOnlyCollection<Vibrato> vibratos, Action mutate) => mVibratos.Move(vibratos, mutate);
 
-    public void LockPitch(double start, double end, double extension)
-    {
-        double startTime = TempoManager.GetTime(Pos + start);
-        double endTime = TempoManager.GetTime(Pos + end);
-        foreach (var pitchLine in SynthesizedPitch)
-        {
-            if (pitchLine.Count < 2)
-                continue;
+    // 固定合成音高到 Pitch 的实现已收敛到 SynthesisLock（与参数回显固定同一族：同一套秒→tick 换算、
+    // 边界插值裁剪、vibrato 扣减、简化口径），此处不再另有一份。
 
-            var pitchEndTime = pitchLine.Last().X;
-            if (pitchEndTime < startTime)
-                continue;
-
-            var pitchStartTime = pitchLine.First().X;
-            if (pitchStartTime > endTime)
-                break;
-
-            double pos = Pos;
-            var points = new List<Point>();
-            foreach (var point in pitchLine)
-            {
-                double time = point.X;
-                if (time < startTime)
-                    continue;
-
-                if (time > endTime)
-                    break;
-
-                points.Add(new(TempoManager.GetTick(time) - pos, point.Y));
-            }
-            mPitchLine.AddLine(points, extension);
-        }
-    }
+    public double[] GetPitchVibratoDeviation(IReadOnlyList<double> ticks) => GetVibratoDeviation(ticks);
 
     public double[] GetVibratoDeviation(IReadOnlyList<double> ticks, string automationID = "")
     {
@@ -426,8 +397,19 @@ internal class MidiPart : Part, IMidiPart
         return pitch;
     }
 
+    // 取值按【当前声明的形态】分派，而非"哪张 map 里有数据"：同一 key 换过形态（连续 ⇄ 分段）时两张 map
+    // 可能同时留有数据（孤儿保留策略），此时只有声明说得清该读哪一张。未声明的 key 仍按老路走
+    // （有数据即读、无数据则 GetEffectiveAutomationConfig 抛错），不为分段轨放宽。
     public double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID)
     {
+        if (SoundSource.AutomationConfigs.TryGetValue(automationID, out var declared) && declared.IsPiecewise)
+        {
+            // 分段轨：数据在另一张 map，未绘制处 NaN（= 无值，与 Pitch 同口径）。
+            return mPiecewiseAutomations.TryGetValue(automationID, out var piecewise)
+                ? piecewise.GetValues(ticks)
+                : NaNs(ticks.Count);
+        }
+
         double[] values;
         if (mAutomations.TryGetValue(automationID, out var automation))
         {
@@ -443,16 +425,32 @@ internal class MidiPart : Part, IMidiPart
         return values;
     }
 
+    // 终值 = 曲线值 + 该轨 vibrato 偏移。连续轨处处有值故处处叠加；**分段轨只在有值段内叠加**——
+    // NaN 段是"用户没给值、引擎自己定"，宿主没有基线可叠，如实不产生值（与 pitch 的自由区不同：pitch 的
+    // 自由区有引擎必然产生的载体、且宿主知道它大致落在音符音高上，故 pitch 走 PitchDeviation 单独传偏差；
+    // 参数轨的 NaN 区宿主连量级都不知道，不设平行偏差通道。要让颤音作用于模型输出区，先用固定笔刷把它
+    // 变成已画区——见 SynthesisLock）。与快照侧同口径（那边由 FrozenFinalAutomationEvaluator 的 skipNaN 承担）。
     public double[] GetFinalAutomationValues(IReadOnlyList<double> ticks, string automationID)
     {
+        bool isPiecewise = SoundSource.AutomationConfigs.TryGetValue(automationID, out var declared) && declared.IsPiecewise;
         var values = GetAutomationValues(ticks, automationID);
 
         var vibratos = GetVibratoDeviation(ticks, automationID);
         for (int i = 0; i < ticks.Count; i++)
         {
+            if (isPiecewise && double.IsNaN(values[i]))
+                continue;
+
             values[i] += vibratos[i];
         }
 
+        return values;
+    }
+
+    static double[] NaNs(int count)
+    {
+        var values = new double[count];
+        values.Fill(double.NaN);
         return values;
     }
 

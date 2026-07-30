@@ -27,6 +27,42 @@ internal partial class AutomationRenderer : View
     public TickAxis TickAxis => mDependency.TickAxis;
     public IMidiPart? Part => mDependency.PartHolder.Value;
     public bool IsOperating => mState != State.None;
+    // 当前活动（可编辑）轨：范围选区菜单在参数区弹出时据此定位固定目标（见 PianoScrollView.OpenRegionMenu）。
+    public AutomationKey? ActiveAutomation => mDependency.ActiveAutomation;
+
+    // 画任意分段曲线（锚点工具的连线预览用）：逐像素采样、NaN 处断开，与 OnRender 里的 DrawPiecewise 同口径，
+    // 但不依赖那边的闭包变量，故 Item.Render 可直接调。
+    public void DrawPiecewiseCurve(DrawingContext context, IPiecewiseAutomation automation, INormalizedScale scale, Color color, double width = 1)
+    {
+        if (Part == null)
+            return;
+
+        int n = (int)Math.Ceiling(Bounds.Width);
+        if (n <= 0)
+            return;
+
+        double pos = Part.Pos.Value;
+        var ticks = new double[n];
+        for (int i = 0; i < n; i++)
+            ticks[i] = TickAxis.X2Tick(i) - pos;
+
+        double[] values = automation.GetValues(ticks);
+        var run = new List<Point>();
+        void Flush()
+        {
+            if (run.Count >= 2)
+                context.DrawCurve(run.ToArray(), color, width);
+            run.Clear();
+        }
+        for (int i = 0; i < n; i++)
+        {
+            if (double.IsNaN(values[i]))
+                Flush();
+            else
+                run.Add(new Point(i, ValueToY(scale.Project(values[i]), scale)));
+        }
+        Flush();
+    }
 
     public interface IDependency
     {
@@ -58,6 +94,7 @@ internal partial class AutomationRenderer : View
         mAnchorDeleteOperation = new(this);
         mAnchorMoveOperation = new(this);
         mVibratoAmplitudeOperation = new(this);
+        mReadbackLockOperation = new(this);
 
         mPiecewiseDrawOperation = new(this);
         mPiecewiseClearOperation = new(this);
@@ -315,10 +352,11 @@ internal partial class AutomationRenderer : View
             var config = Part.GetEffectivePiecewiseAutomationConfig(automationID);
 
             // 已画的可编辑曲线（数据对象按需创建——未编辑过则无数据、只画回显）。段间取值 NaN → 断开。
+            // 画**最终值**（含该轨 vibrato 偏移，只在有值段内叠加）：与连续轨一致，所见即插件读到的值。
             var data = Part.GetEffectivePiecewiseAutomation(automationID);
             if (data != null)
             {
-                double[] values = data.GetValues(ticks);
+                double[] values = Part.GetFinalAutomationValues(ticks, automationID);
                 var ys = new double[n];
                 for (int i = 0; i < n; i++)
                     ys[i] = double.IsNaN(values[i]) ? double.NaN : ValueToY(config.Scale.Project(values[i]), config.Scale);
@@ -441,9 +479,34 @@ internal partial class AutomationRenderer : View
         // 二值区间轨无值轴：跳过上下界标签（min==max 两端同值、显示无意义）。
         bool activeBand = activePiecewise && Part.GetEffectivePiecewiseAutomationConfig(active).IsBand();
 
-        // vibrato 叠加层与"拖拽关联颤音"提示：连续轨（voice 与 effect 皆可关联颤音）绘制；分段轨无 automation-vibrato 概念。
-        // 主曲线（DrawContinuous）画含 vibrato 的终值，这里在颤音覆盖区叠画不含 vibrato 的基线（半透明 ghost）。
-        if (activeContinuous)
+        // 活动分段轨在给定全局 tick 区间内是否有任何值（= 有锚点组与之相交）。用于颤音"此处不生效"提示。
+        bool HasAnyValueIn(double globalStart, double globalEnd)
+        {
+            var data = Part.GetEffectivePiecewiseAutomation(active);
+            if (data == null)
+                return false;
+
+            double relStart = globalStart - pos;
+            double relEnd = globalEnd - pos;
+            foreach (var group in data.AnchorGroups)
+            {
+                if (group.End <= relStart)
+                    continue;
+
+                if (group.Start >= relEnd)
+                    break;
+
+                return true;
+            }
+            return false;
+        }
+
+        // vibrato 叠加层与"拖拽关联颤音"提示：连续轨与**分段轨**皆可关联颤音（振幅表按 key 存、与形态无关）。
+        // 主曲线画含 vibrato 的终值，这里在颤音覆盖区叠画不含 vibrato 的基线（半透明 ghost）。
+        // 分段轨的 ghost 在无值段断开——**这本身就是"此处颤音不生效"的可见化**：颤音只作用于有值段
+        //（NaN 段无基线可叠，见 GetFinalAutomationValues），没有 ghost 就是没有东西可叠。
+        // band 轨（退化量程）值轴无意义，ghost 与关联都无从表达，排除在外。
+        if (activeContinuous || (activePiecewise && !activeBand))
         {
             foreach (var vibrato in Part.Vibratos)
             {
@@ -469,22 +532,38 @@ internal partial class AutomationRenderer : View
 
                 double[] values = Part.GetEffectiveAutomationValues(vticks, active);
 
-                var points = new Point[vxs.Length];
+                // 逐段画：分段轨在 NaN 处断开（连续轨处处有值、等价于一条整线）。
+                var ghostColor = ColorUtils.ParseOrFallback(colorStr).Opacity(0.5);
+                var run = new List<Point>();
+                void FlushGhost()
+                {
+                    if (run.Count >= 2)
+                        context.DrawCurve(run.ToArray(), ghostColor, lineWidth);
+                    run.Clear();
+                }
                 for (int i = 0; i < vxs.Length; i++)
                 {
-                    points[i] = new(vxs[i], ValueToY(scale.Project(values[i]), scale));
+                    if (double.IsNaN(values[i]))
+                        FlushGhost();
+                    else
+                        run.Add(new(vxs[i], ValueToY(scale.Project(values[i]), scale)));
                 }
-
-                context.DrawCurve(points, ColorUtils.ParseOrFallback(colorStr).Opacity(0.5), lineWidth);
+                FlushGhost();
             }
 
             if (IsHover && ItemAt(MousePosition) is VibratoItem vibratoItem)
             {
-                if (!vibratoItem.Vibrato.IsAssociated(active))
+                var vibrato = vibratoItem.Vibrato;
+                double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
+                if (!vibrato.IsAssociated(active))
                 {
-                    var vibrato = vibratoItem.Vibrato;
-                    double x = TickAxis.Tick2X(vibrato.GlobalStartPos() + vibrato.Dur / 2);
                     context.DrawString("Drag to associate the vibrato".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
+                }
+                else if (activePiecewise && !HasAnyValueIn(vibrato.GlobalStartPos(), vibrato.GlobalEndPos()))
+                {
+                    // 已关联但该轨在颤音覆盖区内整段无值：颤音无处可叠，明说而不是静默无效
+                    //（替代路径：用固定笔刷把模型输出刷成已画值，见 SynthesisLock）。
+                    context.DrawString("No value here, vibrato has no effect".Tr(this), new Point(x, 8), Brushes.White, 12, Alignment.CenterTop);
                 }
             }
         }

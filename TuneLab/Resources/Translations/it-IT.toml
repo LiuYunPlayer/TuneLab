@@ -73,7 +73,6 @@
 "Note Tool" = "Strumento Nota"
 "Pitch Pen" = "Penna Intonazione"
 "Anchor Tool" = "Strumento Ancoraggio"
-"Pitch Locking Brush" = "Strumento Pennello intonazione"
 "Vibrato Tool" = "Strumento Vibrato"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Strumento Nota"
 "Pitch Pen" = "Penna Intonazione"
 "Anchor Tool" = "Strumento Ancoraggio"
-"Pitch Locking Brush" = "Strumento Pennello intonazione"
 "Vibrato Tool" = "Strumento Vibrato"
 "Play/Pause" = "Riproduci/Pausa"
 "Go to Start" = "Vai all'inizio"

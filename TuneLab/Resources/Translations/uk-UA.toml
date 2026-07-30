@@ -73,7 +73,6 @@
 "Note Tool" = "Інструмент нот"
 "Pitch Pen" = "Інструмент малювання пітча"
 "Anchor Tool" = "Інструмент якір"
-"Pitch Locking Brush" = "Кисть блокування пітча"
 "Vibrato Tool" = "Інструмент вібрато"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Інструмент нот"
 "Pitch Pen" = "Інструмент малювання пітча"
 "Anchor Tool" = "Інструмент якір"
-"Pitch Locking Brush" = "Кисть блокування пітча"
 "Vibrato Tool" = "Інструмент вібрато"
 "Play/Pause" = "Відтворити/Призупинити"
 "Go to Start" = "Перейти на початок"

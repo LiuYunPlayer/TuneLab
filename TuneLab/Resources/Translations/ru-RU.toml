@@ -73,7 +73,6 @@
 "Note Tool" = "Нота"
 "Pitch Pen" = "Нарисовать питч"
 "Anchor Tool" = "Якорь питча"
-"Pitch Locking Brush" = "Заблокировать питч"
 "Vibrato Tool" = "Вибрато"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Нота"
 "Pitch Pen" = "Нарисовать питч"
 "Anchor Tool" = "Якорь питча"
-"Pitch Locking Brush" = "Заблокировать питч"
 "Vibrato Tool" = "Вибрато"
 "Play/Pause" = "Воспроизвести/Остановить воспроизведение"
 "Go to Start" = "В начало"

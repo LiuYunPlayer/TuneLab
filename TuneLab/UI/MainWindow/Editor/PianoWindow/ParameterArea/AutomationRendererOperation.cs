@@ -5,11 +5,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using TuneLab.Animation;
 using TuneLab.Foundation;
 using TuneLab.GUI.Input;
 using TuneLab.Data;
+using TuneLab.I18N;
 using TuneLab.Utils;
 using TuneLab.SDK;
 using TuneLab.Configs;
@@ -100,12 +102,38 @@ internal partial class AutomationRenderer
                             }
                             break;
                         case MouseButtonType.SecondaryButton:
+                            // 右键先取消该轨全部选中（空白处右键即"取消选中"，对齐 pitch 锚点工具），再按命中删点。
+                            // 两者都要重绘 + 刷锚点值输入框——输入框显示的是"选中锚点的值"，选中态变了必须跟着刷。
+                            if (TryGetActiveAutomation(out var deselectTarget, out _, false))
+                                deselectTarget.Points.DeselectAllItems();
                             if (item is AutomationAnchorItem deleteAnchorItem)
-                            {
-                                deleteAnchorItem.Automation.Points.DeselectAllItems();
                                 deleteAnchorItem.Automation.DeletePoints([deleteAnchorItem.AnchorPoint]);
-                            }
+                            InvalidateVisual();
+                            RefreshAnchorValueInput();
                             mAnchorDeleteOperation.Down(e.Position.X);
+                            break;
+                        default:
+                            break;
+                    }
+                    break;
+                }
+
+                // 固定笔刷（Locking Brush）在参数区 = 把模型回显刷进活动轨，与它在音符区把合成音高刷进 Pitch
+                // 完全对称（同一份实现 SynthesisLock，见 PianoScrollView 的 PitchLockOperation）。
+                // 仅对有配对回显的轨有意义；无配对回显时不落任何动作（不退化成普通绘制笔——那会让"固定"名不副实）。
+                if (mDependency.PianoTool.Value == PianoTool.Lock)
+                {
+                    switch (e.MouseButtonType)
+                    {
+                        case MouseButtonType.PrimaryButton:
+                            mReadbackLockOperation.Down(e.Position.X);
+                            break;
+                        case MouseButtonType.SecondaryButton:
+                            // 右键擦除：与音符区固定笔的右键（PitchClear）对称。
+                            if (ActiveIsPiecewise())
+                                mPiecewiseClearOperation.Down(e.Position.X);
+                            else if (!ActiveIsNoteLane() && !ActiveIsPhonemeLane())
+                                mClearOperation.Down(e.Position.X);
                             break;
                         default:
                             break;
@@ -124,8 +152,8 @@ internal partial class AutomationRenderer
                                     break;
 
                                 var automationKey = mDependency.ActiveAutomation;
-                                // 双击解除关联：voice / effect 连续轨皆可（lane / 分段轨无关联概念）。
-                                if (automationKey == null || !Part.IsEffectiveAutomation(automationKey.Value))
+                                // 双击解除关联：voice / effect、连续 / 分段皆可（与关联手势同口径；lane 无关联概念）。
+                                if (automationKey == null || !Part.TryGetAutomationConfig(automationKey.Value, out _))
                                     break;
 
                                 foreach (var vibrato in Part.Vibratos.AllSelectedItems())
@@ -229,6 +257,9 @@ internal partial class AutomationRenderer
                 if (mNoteLaneClearOperation.IsOperating) mNoteLaneClearOperation.Move(e.Position.X);
                 else mPhonemeLaneClearOperation.Move(e.Position.X);
                 break;
+            case State.ReadbackLocking:
+                mReadbackLockOperation.Move(e.Position.X);
+                break;
             default:
                 if (shift)
                 {
@@ -315,6 +346,10 @@ internal partial class AutomationRenderer
                     else mPhonemeLaneClearOperation.Up();
                 }
                 break;
+            case State.ReadbackLocking:
+                if (e.MouseButtonType == MouseButtonType.PrimaryButton)
+                    mReadbackLockOperation.Up();
+                break;
             default:
                 break;
         }
@@ -343,6 +378,8 @@ internal partial class AutomationRenderer
 
     protected override void UpdateItems(IItemCollection items)
     {
+        // 预览项每轮重建：切工具 / 切轨 / 离开分段轨后必须失效，否则 OnMouseDown 会用到上一轮的陈旧预览。
+        mPiecewisePreviewItem = null;
         if (Part == null)
             return;
 
@@ -397,6 +434,8 @@ internal partial class AutomationRenderer
                             });
                         }
                     }
+                    // 连线预览（选中锚点 + 悬浮位置 ⇒ 单击接上）：与 pitch 锚点同手感，见 UpdatePiecewisePreview。
+                    UpdatePiecewisePreview(items, piecewise, pconfig);
                     break;
                 }
 
@@ -454,6 +493,79 @@ internal partial class AutomationRenderer
     {
         public AutomationRenderer AutomationRenderer => automationRenderer;
         public State State { get => AutomationRenderer.mState; set => AutomationRenderer.mState = value; }
+    }
+
+    // 固定笔刷在参数区：按 x 累积作用范围，把活动轨的配对回显按真实数值刷进该轨（笔刷式固定，见 SynthesisLock）。
+    // 与音符区的 PitchLockOperation 同构：拖动期逐帧 DiscardTo(head) 后按新范围整体重写，抬手一次 Commit
+    // ——故一笔 = 一次可撤销操作，而非一串增量。无配对回显的轨上不进入操作态（刷了不产生任何变更）。
+    class ReadbackLockOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    {
+        public bool IsOperating => State == State.ReadbackLocking;
+
+        public void Down(double x)
+        {
+            if (IsOperating)
+                return;
+
+            var part = AutomationRenderer.Part;
+            if (part == null || AutomationRenderer.ActiveAutomation is not { } key || !part.HasPairedReadback(key))
+                return;
+
+            mKey = key;
+            // 落笔即冻结回显产物：第一帧写入就会触发合成失效、引擎随即清掉该区回显，若后续帧再读实时产物
+            // 就会拿到空数据、整笔白刷（见 SynthesisLock.CaptureReadback）。
+            mSegments = part.CaptureReadback(mKey);
+            if (mSegments == null)
+                return;
+
+            State = State.ReadbackLocking;
+            part.BeginMergeDirty();
+            mHead = part.Head;
+            double tick = AutomationRenderer.TickAxis.X2Tick(x);
+            mStart = tick;
+            mEnd = tick;
+            part.WriteReadbackLock(mKey, mSegments, mStart, mEnd);
+        }
+
+        public void Move(double x)
+        {
+            if (!IsOperating)
+                return;
+
+            var part = AutomationRenderer.Part;
+            if (part == null)
+                return;
+
+            part.DiscardTo(mHead);
+            double tick = AutomationRenderer.TickAxis.X2Tick(x);
+            mStart = Math.Min(mStart, tick);
+            mEnd = Math.Max(mEnd, tick);
+            part.WriteReadbackLock(mKey, mSegments, mStart, mEnd);
+        }
+
+        public void Up()
+        {
+            if (!IsOperating)
+                return;
+
+            State = State.None;
+
+            var part = AutomationRenderer.Part;
+            if (part == null)
+                return;
+
+            part.DiscardTo(mHead);
+            part.WriteReadbackLock(mKey, mSegments, mStart, mEnd);
+            part.EndMergeDirty();
+            part.Commit();
+            mSegments = null;
+        }
+
+        AutomationKey mKey;
+        IReadOnlyList<IReadOnlyList<TuneLab.Foundation.Point>>? mSegments;
+        double mStart;
+        double mEnd;
+        Head mHead;
     }
 
     bool ActiveIsNoteLane()
@@ -1336,11 +1448,12 @@ internal partial class AutomationRenderer
                 return;
 
             var automationKey = AutomationRenderer.mDependency.ActiveAutomation;
-            // vibrato 振幅调节：voice 与 effect 连续自动化皆可（按 key 路由到各自影响表）。
+            // vibrato 振幅调节：voice / effect、连续 / **分段**皆可（振幅表按 key 存、与形态无关，见 Vibrato.GetAmplitude）。
+            // 分段轨上偏移只作用于有值段（NaN 段无基线可叠，见 GetFinalAutomationValues），关联本身不受限。
             if (automationKey == null)
                 return;
 
-            if (!AutomationRenderer.Part.IsEffectiveAutomation(automationKey.Value))
+            if (!AutomationRenderer.Part.TryGetAutomationConfig(automationKey.Value, out var config))
                 return;
 
             State = State.VibratoAmplitudeAdjusting;
@@ -1351,9 +1464,13 @@ internal partial class AutomationRenderer
             {
                 if (!vibrato.IsAssociated(mKey))
                     vibrato.SetAmplitude(mKey, 0);
+
+                // 落笔即把覆盖区的**空隙**固定成模型输出：颤音只作用于有值段，不先填基线就是拖了没反应。
+                // 只填空隙、绝不覆盖用户已画的值；无配对回显 / 连续轨 / 无空隙时是 no-op（见 SynthesisLock.LockReadbackGaps）。
+                AutomationRenderer.Part.LockReadbackGaps(mKey, vibrato.GlobalStartPos(), vibrato.GlobalEndPos());
             }
+            // mHead 在关联 + 固定之后取：拖动期的 DiscardTo(mHead) 只回退幅度调整，不会撤掉这两步。
             mHead = AutomationRenderer.Part.Head;
-            var config = AutomationRenderer.Part.GetEffectiveAutomationConfig(automationKey.Value);
             mMin = config.MinValue;
             mMax = config.MaxValue;
             mValue = ValueAt(y);
@@ -1409,6 +1526,7 @@ internal partial class AutomationRenderer
     }
 
     readonly VibratoAmplitudeOperation mVibratoAmplitudeOperation;
+    readonly ReadbackLockOperation mReadbackLockOperation;
 
     enum State
     {
@@ -1422,6 +1540,7 @@ internal partial class AutomationRenderer
         RegionSelecting,
         NoteLaneDrawing,
         NoteLaneClearing,
+        ReadbackLocking,
     }
 
     State mState = State.None;

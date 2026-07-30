@@ -73,7 +73,6 @@
 "Note Tool" = "Nota"
 "Pitch Pen" = "Pitch (Desenho)"
 "Anchor Tool" = "Pitch (Âncora)"
-"Pitch Locking Brush" = "Pitch (Pincel)"
 "Vibrato Tool" = "Vibrato"
 
 [TrackScrollView]
@@ -229,7 +228,6 @@
 "Note Tool" = "Nota"
 "Pitch Pen" = "Pitch (Desenho)"
 "Anchor Tool" = "Pitch (Âncora)"
-"Pitch Locking Brush" = "Pitch (Pincel)"
 "Vibrato Tool" = "Vibrato"
 "Play/Pause" = "Tocar/Parar"
 "Go to Start" = "Ir para o Início"

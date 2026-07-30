@@ -188,12 +188,20 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
     public void SetAutomationVisible(AutomationKey automation, bool isVisible)
     {
+        bool wasVisible = mVisibleAutomations.Contains(automation);
         mVisibleAutomations.Remove(automation);
 
         if (isVisible)
             mVisibleAutomations.Add(automation);
 
         VisibleAutomationChanged?.Invoke();
+
+        // 配对轨的单向联动：点亮可编辑轨（灭→亮的那一刻）⇒ 同 key 的回显轨一起亮。需求本身不对称——
+        // 只看回显是独立的合法用法（对着模型输出观察），而查看自己画的曲线时几乎总要参照模型输出。
+        // 故只带亮、不连带熄灭（否则会吞掉用户原本单独开着的回显），也不锁 chip（允许手动关掉）；
+        // 一次性带亮而非持续绑定，与固定"不自动同步"同一种克制。
+        if (isVisible && !wasVisible && ReadbackConfigs.ContainsKey(automation))
+            SetReadbackVisible(automation, true);
     }
 
     // —— 合成参数回显轨显隐（只读轨集合，按 AutomationKey 分源合并 voice + 各 effect；独立于可编辑轨的
