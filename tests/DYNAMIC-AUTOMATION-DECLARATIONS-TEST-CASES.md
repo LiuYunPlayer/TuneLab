@@ -18,7 +18,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 - 安装：把 `tests/tlx/v1-effect.tlx` + `tests/tlx/v1-voice.tlx` 拖进 TuneLab 窗口（或扩展侧栏 → Install Extension）。
 - 本次为测试新增的条件开关（UI 显示名）：
   - **声库 TestVoice**（v1-voice）：part 属性面板多了勾选框 **Enable Growl**（默认勾选）；勾选才暴露自动化轨 **Growl**。
-  - **效果器 TLTestGain**（v1-effect）：参数面板多了勾选框 **Show Gain Env**（默认勾选）；勾选才暴露自动化轨 **Gain Env**。
+  - **效果器 Gain**（v1-effect）：参数面板多了勾选框 **Show Gain Env**（默认勾选）；勾选才暴露自动化轨 **Gain Env**。
 - 两处"自动化轨"都同时出现在：**钢琴窗底部参数栏**的轨按钮 + **Properties 侧栏 → Automation** 默认值面板里那一行。两处都应随开关同步显隐。
 
 ---
@@ -48,7 +48,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 ## 二、effect 路径：effect 参数驱动条件轨
 
 ### 5. 开关显隐轨（effect 级）
-- 给 part 加效果器 **TLTestGain**。默认 **Show Gain Env** 勾选 → 参数栏与 Automation 面板能看到 **Gain Env** 轨。
+- 给 part 加效果器 **Gain**。默认 **Show Gain Env** 勾选 → 参数栏与 Automation 面板能看到 **Gain Env** 轨。
 - 取消勾选 **Show Gain Env** → **Gain Env** 轨从两处同时消失；重新勾选 → 重新出现。
 
 ### 6. 孤儿数据保留 + 音频跟随（核心）
@@ -57,14 +57,14 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 - 重新勾选 → **Gain Env 轨与曲线原样恢复，音频重新按曲线增益**。
 
 ### 7. 多 effect 互不串扰
-- 加两个 **TLTestGain**（链中两环）。只切其中一个的 **Show Gain Env** → 只有该 effect 的 **Gain Env** 行显隐，另一个不受影响（按 effect 索引分组、各自独立）。
+- 加两个 **Gain**（链中两环）。只切其中一个的 **Show Gain Env** → 只有该 effect 的 **Gain Env** 行显隐，另一个不受影响（按 effect 索引分组、各自独立）。
 
 ---
 
 ## 三、去抖与不回归
 
 ### 8. 无关参数 commit 不抖动轨栏
-- 拖动 **TLTestGain** 的 **gain** 滑块并松手（commit）→ 参数栏/Automation 面板的轨集合**不闪、不重建**（gain 不门控任何轨，签名未变 → 不触发刷新）。
+- 拖动 **Gain** 的 **gain** 滑块并松手（commit）→ 参数栏/Automation 面板的轨集合**不闪、不重建**（gain 不门控任何轨，签名未变 → 不触发刷新）。
 - 编辑 part 上不门控轨的其他属性同理。
 
 ### 9. 静态声明插件不回归

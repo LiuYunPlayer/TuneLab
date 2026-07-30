@@ -93,7 +93,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 ## 五、effect 链联动
 
 ### 14. 整 part 过链
-- Alice part 加 **TLTestGain**（见 EFFECT-TEST-CASES.md）→ 合成完成后链尾输出生效（gain=0 静音 / 2 更响）。
+- Alice part 加 **Gain**（见 EFFECT-TEST-CASES.md）→ 合成完成后链尾输出生效（gain=0 静音 / 2 更响）。
 - 编辑一个 note → 该块重合成后 effect 链**自动重跑**，无需手动操作。
 - 改 effect 参数 → 只重跑链（voice 不重合成，状态带保持绿色）。
 

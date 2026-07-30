@@ -19,7 +19,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 逐个拖进 TuneLab 窗口安装（或扩展侧边栏 → Install Extension）：
 - `v1-voice.tlx` —— 声库 **Alice (V1 Test)** / **Bob (V1 Test)**：按 note 间隙**分块**合成正弦（多段握柄主力夹具）。
 - `v1-suite.tlx` —— 声库 **Suite Voice (V1 Test)**：整 part **单块**、静音输出（单段握柄）。
-- `v1-effect.tlx` —— 真 effect 包，含 **TLTestGain**（参数 `gain` 0~2、默认 1）与 **TLTestReverse**（倒放）：验证段拼接后 effect 链仍生效。
+- `v1-effect.tlx` —— 真 effect 包，含 **Gain**（参数 `gain` 0~2、默认 1）与 **Reverse**（倒放）：验证段拼接后 effect 链仍生效。
 - `legacy-voice.tlx` —— 1.x 自包含声库，经 compat 层加载（compat 单段路径）。
 
 > 选声库 / 加 effect 的入口都用菜单/面板里的**显示名**（上面加粗的），不是插件 Type id。
@@ -65,20 +65,20 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 > 加 effect 入口：选中 MIDI part → 右侧 **Properties** 侧栏 **Effects** 面板 → Add。先确保 Alice 已能出声作基线。
 
 ### 7. Gain 各段独立过链
-- Alice 写两簇隔开的 note（两段），加 **TLTestGain**，`gain` 调到 2 → 两簇都明显变响；调到 0 → 静音。
+- Alice 写两簇隔开的 note（两段），加 **Gain**，`gain` 调到 2 → 两簇都明显变响；调到 0 → 静音。
 - 期望：每段各自过 gain、按时间拼接（gain 逐样本，结果与整段过等价）。
 
 ### 8. Reverse 逐段倒放（粒度 = voice 分块）
-- 写**三个隔开**的 note（间有间隙 → voice 分三块 → 三段），加 **TLTestReverse** → **每个音符各自倒放**（段内倒放），不是三个作为整体倒放。
+- 写**三个隔开**的 note（间有间隙 → voice 分三块 → 三段），加 **Reverse** → **每个音符各自倒放**（段内倒放），不是三个作为整体倒放。
 - 把三个 note **首尾相连**（无间隙 → voice 归一块 → 一段）→ reverse 是这三个**作为一段一起倒**。
 - 期望：逐段粒度由 voice 分块决定——隔开则逐段倒、相连则整段倒；段边界归 voice 分片。
 
 ### 9. 改一个音符只重过那一段（提交② 核心收益）
-- 三段隔开的 note 挂 **TLTestReverse**，全部合成完。改**中间**那个 note 的音高 → 只有中间段 voice 重合成 + **只有中间段重过 reverse**，另两段的 effect 输出**缓存复用、不重跑**。
+- 三段隔开的 note 挂 **Reverse**，全部合成完。改**中间**那个 note 的音高 → 只有中间段 voice 重合成 + **只有中间段重过 reverse**，另两段的 effect 输出**缓存复用、不重跑**。
 - 期望：编辑期 effect 不再整 part 重过；改一个音符的等待 ≈ 一段而非整条 part（SVC 类慢模型差异显著）。
 
 ### 10. effect 参数变化：各段从该级重跑（与 voice 段脏正交）
-- 链上加两级 **TLTestGain → TLTestReverse**，三段都合成完。改 `gain` 值 → 各段从 gain 级重跑（reverse 级随后重算），**voice 不重合成**。
+- 链上加两级 **Gain → Reverse**，三段都合成完。改 `gain` 值 → 各段从 gain 级重跑（reverse 级随后重算），**voice 不重合成**。
 - 期望：effect 参数脏 = 各段 stage 级增量（每段 cache 从该级起失效），与"改 note → 某段重合成"两个维度互不干扰。
 
 ---

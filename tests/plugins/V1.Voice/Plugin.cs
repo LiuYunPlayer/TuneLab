@@ -81,6 +81,10 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         map.Add(("Semitone", "Semitone (Int)"), mSemitoneConfig);
         map.Add(("LogFreq", "LogFreq (Hz)"), mLogFreqConfig);
         map.Add(("Gate", "Gate (Band)"), mGateConfig);
+        // 与回显轨配对的实参轨（同 Id "energy"、显示名不同）+ 不配对的偏差轨：验证「模型建议 + 用户覆盖」这组
+        // 分工——普通用户调偏差轨（Energy），重度用户切到实参轨（Energy (Actual)）在模型输出这条底上直接覆盖。
+        map.Add(("energy", "Energy (Actual)"), mEnergyActualConfig);
+        map.Add(("energy_offset", "Energy"), mEnergyOffsetConfig);
         return map;
     }
 
@@ -126,7 +130,13 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     // 二值区间轨（band）：分段（Create 默认 NaN）+ 退化量程 min==max ⇒ 宿主渲染为满高开关色带。
     // presence（非 NaN）= 开、gap = 关；值轴无意义、不参与。插件消费侧一句 !double.IsNaN(v) 即开关判定。
     static readonly AutomationConfig mGateConfig = AutomationConfig.Create(0, 0).WithColor("#E58AC9");
+    // 实参轨（与 energy 回显同 Id ⇒ 宿主识别为配对：点亮它即带亮回显、右键可把回显烘焙进来）。
+    // 分段形：非 NaN 段 = 用户覆盖，NaN 段 = 模型自算（消费见 Render 的 energy 段）。量程与回显一致（正常情形）。
+    static readonly AutomationConfig mEnergyActualConfig = AutomationConfig.Create(0, 100).WithColor("#E5B073");
+    // 偏差轨（独立 Id、不配对）：连续形、默认 0，语义 = 在最终 energy 上加减，给只想"这里响一点"的用法。
+    static readonly AutomationConfig mEnergyOffsetConfig = AutomationConfig.Create(-50, 50).WithDefault(0).WithColor("#B073E5");
     // 回显轨声明（恒在、只读）：分段形（DefaultValue = NaN），曲线数据经 SynthesizedParameters 的 "energy" key 承载。
+    // 显示名与同 Id 的实参轨刻意不同（"Energy" vs "Energy (Actual)"）：配对判据只认 Id，DisplayText 各自自由。
     static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
     {
         { ("energy", "Energy"), AutomationConfig.Create(0, 100).WithColor("#E573B0") },
@@ -159,6 +169,16 @@ public sealed class TestSession : IVoiceSynthesisSession
         // 故此处 context.Automations 已含自己声明的轨——参数绘制后的区间失效经此回调送达、触发重渲。
         if (context.Automations.TryGetValue("Growl", out var growl))
             growl.RangeModified.Subscribe(OnAutomationRangeModified);
+        // 分段轨同在 context.Automations（形态对插件透明，只是求值可能得 NaN）：Bend 参与合成，故同样订阅失效。
+        // 它是音高级输入（弯音改的是频率），失效走 pitch 那条——与 Growl 那种同级兄弟输入分级不同。
+        if (context.Automations.TryGetValue("Bend", out var bend))
+            bend.RangeModified.Subscribe(OnPitchRangeModified);
+        // energy 实参轨（与回显同 Id）与偏差轨：参数级输入——它们决定 energy 回显本身，故失效须连回显一起清
+        //（与 Growl 那种只影响音频的同级兄弟输入不同）。烘焙进实参轨后回显随之重算，即"覆盖自然回喂"。
+        if (context.Automations.TryGetValue("energy", out var energyActual))
+            energyActual.RangeModified.Subscribe(OnEnergyRangeModified);
+        if (context.Automations.TryGetValue("energy_offset", out var energyOffset))
+            energyOffset.RangeModified.Subscribe(OnEnergyRangeModified);
 
         mNeedResegment = true;
     }
@@ -420,9 +440,16 @@ public sealed class TestSession : IVoiceSynthesisSession
             }
             var pitchValues = snapshot.Pitch.Evaluator.Evaluate(controlTimes);
             var deviation = snapshot.PitchDeviation.Evaluator.Evaluate(controlTimes);
+            // 分段轨消费（参照实现）：Bend 与 Pitch 同形——绘制处有值、未绘制处 NaN，故 NaN 即"不弯"。
+            // 满偏 ±100 → ±2 半音，听得出来即可（这条轨的用处是验证宿主把可编辑分段轨真的送进了合成快照）。
+            var bend = snapshot.Automations.TryGetValue("Bend", out var bendTrack)
+                ? bendTrack.Evaluator.Evaluate(controlTimes)
+                : null;
             for (int c = 0; c < controlCount; c++)
             {
                 pitchValues[c] = (double.IsNaN(pitchValues[c]) ? note.Pitch : pitchValues[c]) + deviation[c];
+                if (bend != null && !double.IsNaN(bend[c]))
+                    pitchValues[c] += bend[c] / 100.0 * 2;
             }
 
             // attack/release 线性包络：note 边界处波形从 0 渐入/渐出，消除截断造成的爆音（"啪"声）。
@@ -541,14 +568,35 @@ public sealed class TestSession : IVoiceSynthesisSession
         var phonemes = RefLayout.Build(snapshot, predicted, notePreutter);
 
         // 参数回显（energy）：本参照实现产出一条「引擎实际施加的 energy」分段曲线，与音频/音高同一秒时间系，
-        // 供宿主作只读回显轨绘制。此处用一条确定性正弦波形（10..90，落在 energy 的 0..100 域内）驱动回显路径。
-        var energy = new List<Point>();
+        // 供宿主作只读回显轨绘制。模型自算部分用一条确定性正弦（10..90，落在 energy 的 0..100 域内）。
+        //
+        // 覆盖语义（V1 = 整段二选一，归引擎解释、不进冻结面）：同 Id 的实参轨 "energy" 非 NaN 段用用户值
+        //（用户手画的，或把本回显烘焙进去后再改的），NaN 段回退模型自算——用户覆盖由此自然回喂，
+        // 且回显如实反映"引擎实际用了什么"，故覆盖段的回显与实参轨重合（宿主端可据此肉眼验证回喂链路）。
+        // 末尾叠加不配对的偏差轨 "energy_offset"（连续、默认 0）：两个入口互不干扰。
         double duration = Math.Max(1e-6, endTime - startTime);
         int energyCount = Math.Max(2, (int)(duration * 20)); // 20Hz 采样
+        var energyTimes = new double[energyCount];
         for (int g = 0; g < energyCount; g++)
         {
-            double t = startTime + duration * g / (energyCount - 1);
-            double v = 50 + 40 * Math.Sin(2 * Math.PI * (t - startTime) / duration);
+            energyTimes[g] = startTime + duration * g / (energyCount - 1);
+        }
+        var energyActual = snapshot.Automations.TryGetValue("energy", out var energyTrack)
+            ? energyTrack.Evaluator.Evaluate(energyTimes)
+            : null;
+        var energyOffset = snapshot.Automations.TryGetValue("energy_offset", out var energyOffsetTrack)
+            ? energyOffsetTrack.Evaluator.Evaluate(energyTimes)
+            : null;
+        var energy = new List<Point>();
+        for (int g = 0; g < energyCount; g++)
+        {
+            double t = energyTimes[g];
+            double v = energyActual != null && !double.IsNaN(energyActual[g])
+                ? energyActual[g]
+                : 50 + 40 * Math.Sin(2 * Math.PI * (t - startTime) / duration);
+            if (energyOffset != null)
+                v += energyOffset[g];
+
             energy.Add(new Point(t, v));
         }
 
@@ -635,6 +683,9 @@ public sealed class TestSession : IVoiceSynthesisSession
 
     // 其他 automation 曲线（如 Growl）= 与参数同级的兄弟输入 → 仅重渲音频，不清任何回显。
     void OnAutomationRangeModified(double startTime, double endTime) => MarkRangeDirty(startTime, endTime, parametersStale: false);
+
+    // energy 实参轨 / 偏差轨 = 参数级输入（决定 energy 回显自身）→ 连回显一起清，重渲后回显反映新的用户覆盖。
+    void OnEnergyRangeModified(double startTime, double endTime) => MarkRangeDirty(startTime, endTime, parametersStale: true);
 
     void MarkRangeDirty(double startTime, double endTime, bool parametersStale)
     {

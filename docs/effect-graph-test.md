@@ -16,15 +16,15 @@
    （或扩展侧边栏 Install Extension）安装并即时加载。
 2. 任一 voice 源（能产出音频段即可），新建 MidiPart 画几个 note 让其合成出音频。
 3. 添加效果器的菜单/效果器条上显示的是引擎 **Type id**（无独立显示名）：
-   - **TLTestGain** —— 增益。参数面板有 `gain` 滑块（0~2，默认 1）+ `Show Gain Env` 勾选框；
+   - **Gain** —— 增益。参数面板有 `gain` 滑块（0~2，默认 1）+ `Show Gain Env` 勾选框；
      勾选时暴露连续自动化轨 `Gain Env`（gain_env）；恒有分段轨 `Formant`（formant，参照实现不消费）。
-   - **TLTestReverse** —— 倒放。无参数、无自动化。
+   - **Reverse** —— 倒放。无参数、无自动化。
 4. 日志在 `%APPDATA%/TuneLab/Logs/`，异常会落这里。
 
 ## 用例
 
 ### A. 单个 effect（基本通路）
-1. 给 part 加 **TLTestGain**。拖 `gain` 滑块 → 合成音频幅度随之变（波形/试听）。
+1. 给 part 加 **Gain**。拖 `gain` 滑块 → 合成音频幅度随之变（波形/试听）。
 2. `gain=0` → 静音；`gain=2` → 放大。每次改完参数应能听到/看到更新（无需重新合成 voice）。
 
 ### B. per-effect 时间轴自动化（gain_env）
@@ -35,7 +35,7 @@
    重新勾选 → 之前画的 gain_env 曲线**原样恢复**（孤儿数据保留）。
 
 ### C. 链串行与顺序
-1. 加 **TLTestGain** 再加 **TLTestReverse**（Gain→Reverse）：先增益后倒放。
+1. 加 **Gain** 再加 **Reverse**（Gain→Reverse）：先增益后倒放。
 2. 调换顺序（拖动重排为 Reverse→Gain）→ 输出随顺序改变、且正确（链结构变 = 图重排）。
 
 ### D. bypass / 增删 / 重排

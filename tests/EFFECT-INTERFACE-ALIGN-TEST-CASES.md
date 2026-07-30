@@ -14,7 +14,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 ```
 
 - 安装：把 `tests/tlx/v1-effect.tlx` 和一个声库包（如 `tests/tlx/v1-voice.tlx` 或 `tests/tlx/v1-suite.tlx`）拖进 TuneLab 窗口（或扩展侧边栏 → Install Extension）。
-- 测试 effect 引擎（UI 显示名）：**TLTestGain**（参数 `gain` 0~2 默认 1；自动化轨 **Gain Env** 默认 1；输出 = 输入 × gain × env(t)）与 **TLTestReverse**（无参数，倒放样本）。
+- 测试 effect 引擎（UI 显示名）：**Gain**（参数 `gain` 0~2 默认 1；自动化轨 **Gain Env** 默认 1；输出 = 输入 × gain × env(t)）与 **Reverse**（无参数，倒放样本）。
 - 操作入口：选一条 **MIDI part**，给它选好声库、写若干 note 并能正常合成出声（作为基线），右侧 **Properties** 侧栏的 **Effects** 面板加 effect。
 - 让段化可观察：写**两簇分开的 note**（中间留明显停顿），使 voice 产出**多个音频段**（段边界落停顿处）。
 
@@ -25,16 +25,16 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 > 这些是基础功能的快速回归：改造后应与改动前**完全一致**。
 
 ### 1. 加载与发现
-- 装 `v1-effect.tlx` → 扩展侧边栏 **Loaded**、类别 **effect**；Add Effect 菜单同时列出 **TLTestGain** 与 **TLTestReverse**。
+- 装 `v1-effect.tlx` → 扩展侧边栏 **Loaded**、类别 **effect**；Add Effect 菜单同时列出 **Gain** 与 **Reverse**。
 
 ### 2. 单 effect 参数生效
-- 加 **TLTestGain**：gain=1 听感不变；拖到 **0** 静音；拖到 **2** 明显更响。改 gain 后**自动重渲染**，无需额外操作。
+- 加 **Gain**：gain=1 听感不变；拖到 **0** 静音；拖到 **2** 明显更响。改 gain 后**自动重渲染**，无需额外操作。
 
 ### 3. bypass / 删除
 - 取消勾选启用 → 旁路（回到加 effect 前）；重新勾选 → 恢复。点 ✕ → 移除、音频回原始。
 
 ### 4. 链串联 + 重排
-- 加 **TLTestGain**(gain=0.5) + **TLTestReverse** → 既变小声又倒放；用 ↑/↓ 重排不报错、按新顺序重渲染。
+- 加 **Gain**(gain=0.5) + **Reverse** → 既变小声又倒放；用 ↑/↓ 重排不报错、按新顺序重渲染。
 
 ### 5. 自动化 Gain Env
 - 给 Gain 点亮 **Gain Env** 轨并编辑曲线（如前段画到 0、后段画到 2）→ 音频按曲线随时间增益变化（前段静音、后段更响）。

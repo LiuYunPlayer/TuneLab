@@ -12,7 +12,8 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 ```
 
 - 安装：把 `tests/tlx/v1-effect.tlx` 拖进 TuneLab 窗口（或扩展侧边栏 → Install Extension）。
-- 测试引擎：`v1-effect` 包含两个 effect —— **TLTestGain**（参数 `gain`，0~2，默认 1，输出 = 输入 × gain）与 **TLTestReverse**（无参数，倒放样本）。
+- 测试引擎：`v1-effect` 包含两个 effect —— **Gain**（参数 `gain`，0~2，默认 1，输出 = 输入 × gain）与 **Reverse**（无参数，倒放样本）。
+  UI 上一律按 manifest 的**显示名**（Gain / Reverse）；type id（`TLTestGain` / `TLTestReverse`）只出现在工程文件与 agent/脚本的引擎参数里。
 - 操作入口：选中一条 **MIDI part**，右侧 **Properties** 侧栏的 **Effects** 面板。先写几个 note 并能正常合成出声，作为加 effect 前的基线。
 
 ---
@@ -24,14 +25,14 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 - 卡片信息正常（名称 / 作者 / 版本 / 简介 tooltip）。
 
 ### 2. 引擎出现在 Add 菜单
-- 选中一条 MIDI part → Effects 面板点 **「+ Add Effect」** → 菜单同时列出 **TLTestGain** 与 **TLTestReverse**（一包两引擎都注册）。
+- 选中一条 MIDI part → Effects 面板点 **「+ Add Effect」** → 菜单同时列出 **Gain** 与 **Reverse**（一包两引擎都注册）。
 
 ---
 
 ## 二、单个 effect
 
 ### 3. 加 Gain，参数面板可见
-- Add → TLTestGain → 链中出现一行「TLTestGain」，下方参数面板出现 **gain 滑块**（默认 1）。
+- Add → Gain → 链中出现一行「Gain」，下方参数面板出现 **gain 滑块**（默认 1）。
 - gain=1 时播放 → 与未加 effect **听感一致**（×1 不改变）。
 
 ### 4. 参数生效 + 重算
@@ -51,14 +52,14 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 ## 三、效果链
 
 ### 7. 多个 effect 串联
-- 依次 Add **TLTestGain**（gain=0.5）和 **TLTestReverse** → 链显示两行，**按顺序串行**：先 ×0.5 再倒放。
+- 依次 Add **Gain**（gain=0.5）和 **Reverse** → 链显示两行，**按顺序串行**：先 ×0.5 再倒放。
 - 播放 → 音频既变小声、又倒放。
 
 ### 8. 重排
 - 用 effect 行的 **↑ / ↓** 调整顺序 → 链顺序随之改变，音频按新顺序重渲染（Gain→Reverse 与 Reverse→Gain 对幅度一致、但与各自 bypass 组合可区分；主要验证重排不报错、能重算）。
 
 ### 9. 一条 part 加同一引擎两次
-- Add 两个 **TLTestGain**（各 0.5） → 两级串联 = ×0.25（更小声），验证同类型可多实例、各自独立参数。
+- Add 两个 **Gain**（各 0.5） → 两级串联 = ×0.25（更小声），验证同类型可多实例、各自独立参数。
 
 ---
 
