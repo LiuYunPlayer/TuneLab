@@ -67,7 +67,7 @@ internal class Automation : DataObject, IAutomation
 
         double start = points[0].Pos - extend;
         double end = points[points.Count - 1].Pos + extend;
-        var dirty = AnchorDirtyRange.ContinuousTrack();
+        var dirty = AnchorDirtyRange.ContinuousTrack(mPoints);
         void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         dirty.Union(start, end);
@@ -83,8 +83,10 @@ internal class Automation : DataObject, IAutomation
 
             dirty.Touch(mPoints, i);
             mPoints.RemoveAt(i);
+            dirty.TouchGap(mPoints, i - 1);   // 后相位：合拢缝两侧的切线随邻居易主而变
         }
         AddPoints(points, dirty);
+        dirty.CloseTails(mPoints);
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }
@@ -128,11 +130,13 @@ internal class Automation : DataObject, IAutomation
 
             if (pointIndex >= 0 && mPoints[pointIndex].Pos == point.Pos)
             {
+                dirty.Touch(mPoints, pointIndex);   // 前相位：改写前的值与几何
                 mPoints[pointIndex] = point;
                 dirty.Touch(mPoints, pointIndex);
                 continue;
             }
 
+            dirty.TouchGap(mPoints, pointIndex);    // 前相位：落位缝两侧的切线将因新点插入而变
             mPoints.Insert(pointIndex + 1, point);
             dirty.Touch(mPoints, pointIndex + 1);
         }
@@ -140,10 +144,11 @@ internal class Automation : DataObject, IAutomation
 
     public void InsertPoint(AnchorPoint point)
     {
-        var dirty = AnchorDirtyRange.ContinuousTrack();
+        var dirty = AnchorDirtyRange.ContinuousTrack(mPoints);
         void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         AddPoints([point], dirty);
+        dirty.CloseTails(mPoints);
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }
@@ -153,7 +158,7 @@ internal class Automation : DataObject, IAutomation
         if (start > end)
             return;
 
-        var dirty = AnchorDirtyRange.ContinuousTrack();
+        var dirty = AnchorDirtyRange.ContinuousTrack(mPoints);
         bool hasDeletedPoint = false;
         void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         for (int i = mPoints.Count - 1; i >= 0; i--)
@@ -172,10 +177,12 @@ internal class Automation : DataObject, IAutomation
 
             dirty.Touch(mPoints, i);
             mPoints.RemoveAt(i);
+            dirty.TouchGap(mPoints, i - 1);   // 后相位：合拢缝
         }
 
         if (hasDeletedPoint)
         {
+            dirty.CloseTails(mPoints);
             NotifyRangeModified();
             Push(new RedoOnlyCommand(NotifyRangeModified));
         }
@@ -187,7 +194,7 @@ internal class Automation : DataObject, IAutomation
             return;
 
         var pointSet = points.ToHashSet();
-        var dirty = AnchorDirtyRange.ContinuousTrack();
+        var dirty = AnchorDirtyRange.ContinuousTrack(mPoints);
         bool hasDeletedPoint = false;
         void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         for (int i = mPoints.Count - 1; i >= 0; i--)
@@ -203,10 +210,12 @@ internal class Automation : DataObject, IAutomation
 
             dirty.Touch(mPoints, i);
             mPoints.RemoveAt(i);
+            dirty.TouchGap(mPoints, i - 1);   // 后相位：合拢缝
         }
 
         if (hasDeletedPoint)
         {
+            dirty.CloseTails(mPoints);
             NotifyRangeModified();
             Push(new RedoOnlyCommand(NotifyRangeModified));
         }
@@ -221,7 +230,7 @@ internal class Automation : DataObject, IAutomation
         if (selectedPoints.IsEmpty())
             return;
 
-        var dirty = AnchorDirtyRange.ContinuousTrack();
+        var dirty = AnchorDirtyRange.ContinuousTrack(mPoints);
         void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
 
@@ -234,9 +243,11 @@ internal class Automation : DataObject, IAutomation
 
             dirty.Touch(mPoints, i);
             mPoints.RemoveAt(i);
+            dirty.TouchGap(mPoints, i - 1);   // 后相位：合拢缝
         }
         AddPoints(selectedPoints.Select(point => new AnchorPoint(point.Pos + offsetPos, point.Value + offsetValue + defaultValue) { IsSelected = true }).ToList(), dirty);
 
+        dirty.CloseTails(mPoints);
         NotifyRangeModified();
         Push(new RedoOnlyCommand(NotifyRangeModified));
     }

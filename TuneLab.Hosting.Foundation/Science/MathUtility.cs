@@ -299,6 +299,14 @@ public static class MathUtility
         return (p2.Y - p1.Y) / (p2.X - p1.X);
     }
 
+    // Monotonic Hermite 下内部锚点的切线是否被钳为 0：两侧割线异号（局部极值）或有一侧为 0（平台端）。
+    // 切线钳零意味着该锚点与其外侧邻居解耦——邻居怎么动，经它的两段曲线都不变。锚点编辑的脏区
+    // 收窄以此为判据，故与插值共用同一真源（见 MonotonicHermiteSlopeCalculator），不在别处复刻规则。
+    public static bool MonotonicHermiteSlopeIsZero(double lastSlope, double nextSlope)
+    {
+        return lastSlope * nextSlope <= 0;
+    }
+
     public static Point PerpendicularFoot(Point p1, Point p2, Point p)
     {
         double a = p2.Y - p1.Y;

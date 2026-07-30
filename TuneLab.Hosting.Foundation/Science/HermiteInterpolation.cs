@@ -22,9 +22,8 @@ internal class MonotonicHermiteSlopeCalculator : IHermiteSlopeCalculator
         var point = points[index];
         var lastk = MathUtility.Slope(point, points[index - 1]);
         var nextk = MathUtility.Slope(point, points[index + 1]);
-        var kk = lastk * nextk;
 
-        return kk <= 0 ? 0 : 2 / (1 / lastk + 1 / nextk);
+        return MathUtility.MonotonicHermiteSlopeIsZero(lastk, nextk) ? 0 : 2 / (1 / lastk + 1 / nextk);
     }
 }
 
