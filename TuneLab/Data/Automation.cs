@@ -28,6 +28,12 @@ internal class Automation : DataObject, IAutomation
         SetInfo(info);
     }
 
+    // 相对值口径的曲线取值（锚点存的就是相对值，不叠 DefaultValue）。供构造新锚点用，见 AddLine。
+    double[] GetRelativeValues(IReadOnlyList<double> ticks)
+    {
+        return mPoints.Convert(p => p.ToPoint()).MonotonicHermiteInterpolation(ticks);
+    }
+
     public double[] GetValues(IReadOnlyList<double> ticks)
     {
         var values = mPoints.Convert(p => p.ToPoint()).MonotonicHermiteInterpolation(ticks);
@@ -71,8 +77,10 @@ internal class Automation : DataObject, IAutomation
         void NotifyRangeModified() => mRangeModified.Invoke(dirty.Start, dirty.End);
         Push(new UndoOnlyCommand(NotifyRangeModified));
         dirty.Union(start, end);
-        var y = GetValues([start, end]);
-        AddPoints([new(start, y[0]), new(end, y[1])], dirty);
+        // 封边点取编辑前曲线在该处的值，用相对值口径直取：绝对值要 +DefaultValue 再由 AddPoints
+        // −DefaultValue 换回来，这一趟往返足以把常数段的值抖出 1ulp，脏区的等值判定按精确值比较会因此落空。
+        var y = GetRelativeValues([start, end]);
+        AddPoints([new(start, y[0]), new(end, y[1])], dirty, valuesAreRelative: true);
         for (int i = mPoints.Count - 1; i >= 0; i--)
         {
             if (mPoints[i].Pos >= end)
@@ -106,9 +114,11 @@ internal class Automation : DataObject, IAutomation
         AddLine([new(start, defaultValue), new(end, defaultValue)], extend);
     }
 
-    void AddPoints(IReadOnlyList<AnchorPoint> points, AnchorDirtyRange dirty)
+    // valuesAreRelative：入参已是相对值（不含 DefaultValue），跳过换算——封边点等"取自当前曲线"的
+    // 构造走这条，免去一次 +DefaultValue/−DefaultValue 往返（见 AddLine）。
+    void AddPoints(IReadOnlyList<AnchorPoint> points, AnchorDirtyRange dirty, bool valuesAreRelative = false)
     {
-        double defaultValue = DefaultValue;
+        double defaultValue = valuesAreRelative ? 0 : DefaultValue;
         if (defaultValue != 0)
         {
             var ps = new AnchorPoint[points.Count];

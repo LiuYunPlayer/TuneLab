@@ -140,9 +140,9 @@ public class AnchorDirtyRangeTests
 
     // —— Automation（连续轨）编辑入口端到端 ——
 
-    static Automation MakeAutomation(out List<(double Start, double End)> ranges)
+    static Automation MakeAutomation(out List<(double Start, double End)> ranges, double defaultValue = 0)
     {
-        var automation = new Automation(null!, new AutomationInfo());
+        var automation = new Automation(null!, new AutomationInfo() { DefaultValue = defaultValue });
         var collected = new List<(double, double)>();
         automation.RangeModified.Subscribe((start, end) => collected.Add((start, end)));
         ranges = collected;
@@ -161,6 +161,79 @@ public class AnchorDirtyRangeTests
         var range = Assert.Single(ranges);
         Assert.Equal(990, range.Start);
         Assert.Equal(1210, range.End);
+    }
+
+    [Fact]
+    public void Touch_NeighborIsEqualValued_NarrowsToSelf()
+    {
+        // 等值相邻 ⇒ 两点之间恒为常数，本点怎么动都传不进去 ⇒ 该侧一寸都不脏，边界收回本点。
+        var anchors = MakeAnchors([(0, 3), (100, 3), (200, 3), (300, 8), (400, 9)]);
+        var dirty = AnchorDirtyRange.ContinuousTrack(anchors);
+        dirty.Touch(anchors, 2);
+        Assert.Equal(200, dirty.Start);   // 左邻 P1 与本点等值 ⇒ 收回自己
+        Assert.Equal(400, dirty.End);     // 右侧不等值、P3 切线非 0 ⇒ 仍外扩两个
+    }
+
+    [Fact]
+    public void AutomationAddLine_BetweenEqualValuedAnchors_ReportsOnlyStrokeRange()
+    {
+        // 回归：轨上只有两个等值锚点（水平线），在它们之间画一小段——两侧残留的仍是同值常数段，
+        // 一寸没变，脏区不该扩到那两个锚点之间的全部。
+        var automation = MakeAutomation(out var ranges);
+        automation.AddLine(MakeAnchors([(100, 0), (900, 0)]), 0);
+        ranges.Clear();
+
+        automation.AddLine(MakeAnchors([(400, 5), (500, 5)]), 10);
+
+        var range = Assert.Single(ranges);
+        Assert.Equal(390, range.Start);
+        Assert.Equal(510, range.End);
+    }
+
+    [Fact]
+    public void AutomationAddLine_BetweenEqualValuedAnchors_NonZeroConstant_ReportsOnlyStrokeRange()
+    {
+        // 同上，但常数非 0：封边点的值经 Hermite 插值算出（F1+F2 理论恒 1，浮点未必），
+        // 等值判定是精确比较，此例守着这条往返不掉精度。
+        var automation = MakeAutomation(out var ranges);
+        automation.AddLine(MakeAnchors([(100, 7.5), (900, 7.5)]), 0);
+        ranges.Clear();
+
+        automation.AddLine(MakeAnchors([(400, 5), (500, 5)]), 10);
+
+        var range = Assert.Single(ranges);
+        Assert.Equal(390, range.Start);
+        Assert.Equal(510, range.End);
+    }
+
+    [Fact]
+    public void AutomationAddLine_BetweenEqualValuedAnchors_NonZeroDefaultValue_ReportsOnlyStrokeRange()
+    {
+        // 第二处浮点噪声源：DefaultValue 非 0 时，封边点的值若走 +DefaultValue 再 −DefaultValue 的
+        // 往返就会抖出 1ulp。此例守着 AddLine 直取相对值这条路径。
+        var automation = MakeAutomation(out var ranges, defaultValue: 3.2);
+        automation.AddLine(MakeAnchors([(100, 7.5), (900, 7.5)]), 0);
+        ranges.Clear();
+
+        automation.AddLine(MakeAnchors([(400, 5), (500, 5)]), 10);
+
+        var range = Assert.Single(ranges);
+        Assert.Equal(390, range.Start);
+        Assert.Equal(510, range.End);
+    }
+
+    [Fact]
+    public void AutomationAddLine_BetweenDifferentValuedAnchors_StillExtends()
+    {
+        // 反向守卫：两锚点不等值 ⇒ 其间不是常数段，画一笔确实会改写邻段曲线，必须照常外扩。
+        var automation = MakeAutomation(out var ranges);
+        automation.AddLine(MakeAnchors([(100, 0), (900, 9)]), 0);
+        ranges.Clear();
+
+        automation.AddLine(MakeAnchors([(400, 5), (500, 5)]), 10);
+
+        var range = Assert.Single(ranges);
+        Assert.True(range.Start < 390, "Stroke between non-equal anchors must still dirty the neighbouring span.");
     }
 
     [Fact]

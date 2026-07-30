@@ -65,6 +65,15 @@ internal static class HermiteInterpolation
             next = points[pointIndex];
             nextDelta = slopeCalculator.SlopeAt(points, pointIndex);
 
+            // 两端等值且切线皆 0 ⇒ 该段数学上恒为这个常数。直接取值，不走基函数：F1+F2 理论恒等于 1、
+            // 浮点未必，硬算会把常数段算成 c±1ulp。下游按精确值判等（如锚点脏区的「等值相邻 ⇒ 常数段」
+            // 收窄），这点噪声足以让常数段判不出来。
+            if (last.Y == next.Y && lastDelta == 0 && nextDelta == 0)
+            {
+                ys[i] = last.Y;
+                continue;
+            }
+
             double delta1 = xs[i] - last.X;
             double delta2 = xs[i] - next.X;
             double T1 = delta1 / (next.X - last.X);

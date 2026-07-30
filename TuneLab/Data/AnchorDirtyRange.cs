@@ -12,6 +12,8 @@ namespace TuneLab.Data;
 ///
 /// 收窄（仅连续轨）：切线被钳为 0 的锚点（两侧割线异号 / 有一侧为 0 ⇒ 极值或平台端；端点亦恒 0）
 /// 与其外侧邻居解耦——P_i 怎么动它都还是 0，那一侧的外区间纹丝不动，于是只需外扩到该锚点为止。
+/// 更强的一档是**等值相邻**：两个等值锚点之间恒为常数（该侧割线为 0 ⇒ 两端切线皆钳零），
+/// 于是那一段连自己都不脏，边界收回本点——在等值的两点之间画一小段线不再波及两点之间的全部。
 /// 判据必须**变动前后都成立**，否则会漏掉"前非极值、后成极值"这类切线由非零变 0 的失效。实现上
 /// 不比较两个状态：每次入账各按当时几何判定，调用方在改动前后各入账一次，并集自然等价于
 /// 「前后都恒 0 才收窄」。收窄因此与相位纪律是一体的——未补齐相位的调用方必须走
@@ -45,9 +47,26 @@ internal class AnchorDirtyRange
     {
         Debug.Assert((uint)index < anchors.Count, "Touched anchor index out of range.");
         int last = anchors.Count - 1;
-        int left = mNarrow && SlopeIsZero(anchors, index - 1) ? index - 1 : index - 2;
-        int right = mNarrow && SlopeIsZero(anchors, index + 1) ? index + 1 : index + 2;
-        Union(anchors[Math.Max(left, 0)].Pos, anchors[Math.Min(right, last)].Pos);
+        Union(anchors[Math.Max(BoundIndex(anchors, index, -1), 0)].Pos,
+              anchors[Math.Min(BoundIndex(anchors, index, 1), last)].Pos);
+    }
+
+    // 该侧脏区边界落在哪个锚点上（step = ∓1）：
+    //   ① 邻居与本点**等值** ⇒ 两者之间是常数段——等值意味着该侧割线为 0，于是两端切线都被钳零，
+    //      段内恒等于该值，本点怎么动都传不进去 ⇒ 边界收回本点自己，那一段一寸都不脏。
+    //   ② 邻居切线恒 0（极值 / 平台端 / 端点）⇒ 与本点解耦，其外的区间不变 ⇒ 边界停在邻居。
+    //   ③ 否则邻居的切线随本点改变，其外一段跟着失效 ⇒ 再走一个。
+    // ①②都靠前后两相位取并兜底：判据只按当时几何成立，某一相位不满足就自动退回更宽的档位。
+    int BoundIndex(IReadOnlyList<AnchorPoint> anchors, int index, int step)
+    {
+        int neighbor = index + step;
+        if (!mNarrow || (uint)neighbor >= (uint)anchors.Count)
+            return index + 2 * step;
+
+        if (anchors[neighbor].Value == anchors[index].Value)
+            return index;
+
+        return SlopeIsZero(anchors, neighbor) ? neighbor : index + 2 * step;
     }
 
     /// 一处邻接关系变化（插入前的落位缝 / 删除后的合拢缝），index = 缝左侧锚点下标（−1 = 缝在首锚点之前）：
