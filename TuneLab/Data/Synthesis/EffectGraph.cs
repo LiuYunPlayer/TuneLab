@@ -1054,6 +1054,8 @@ internal sealed class EffectGraph : IDisposable
 
         void OnBatchEnd()
         {
+            // 先放行攒下的区间失效（它可能自己触发 MarkDirty），再收口 pending 脏标记。
+            FlushPendingRanges();
             if (!mPendingDirty)
                 return;
             mPendingDirty = false;
@@ -1103,8 +1105,12 @@ internal sealed class EffectGraph : IDisposable
         {
             mAutomationSubscriptions?.DisposeAll();
             mAutomationSubscriptions = new DisposableManager();
-            // 轨集合变（条件轨显隐）→ 重接 + 视为收口。
+            // 轨集合变（条件轨显隐、或用户第一笔画出数据对象）→ 重接 + 视为收口。两张数据 map 都要订：
+            // 分段轨（AutomationConfig.IsPiecewise）的数据存在 mEffect.PiecewiseAutomations，漏订会让
+            // 用户画/固定分段轨后不触发重新处理（快照读得到值，但没人通知该重算 —— 表现为改了没反应、
+            // 动一下别的参数才生效）。与 voice 侧 VoiceSynthesisContext.WirePiecewiseAutomation 对称。
             mEffect.Automations.MapModified.Subscribe(OnAutomationMapModified, mAutomationSubscriptions);
+            mEffect.PiecewiseAutomations.MapModified.Subscribe(OnAutomationMapModified, mAutomationSubscriptions);
             foreach (var kv in mEffect.Automations)
             {
                 string id = kv.Key;
@@ -1113,6 +1119,13 @@ internal sealed class EffectGraph : IDisposable
                 // 默认值平移 = 整轨全区间失效（与 voice 对称）。
                 kv.Value.DefaultValue.Modified.Subscribe(
                     () => NotifyAutomationRange(id, double.NegativeInfinity, double.PositiveInfinity), mAutomationSubscriptions);
+            }
+            // 分段轨无默认基线，故只订 RangeModified（无 DefaultValue 通道）。
+            foreach (var kv in mEffect.PiecewiseAutomations)
+            {
+                string id = kv.Key;
+                kv.Value.RangeModified.Subscribe(
+                    (relStart, relEnd) => NotifyAutomationRange(id, relStart, relEnd), mAutomationSubscriptions);
             }
         }
 
@@ -1208,7 +1221,35 @@ internal sealed class EffectGraph : IDisposable
 
         // part 相对 tick 区间 → 全局秒，注入对应轨代理的 RangeModified（插件缓存提示），
         // 并做宿主侧相交判定：变更区间与本段时间界相交才标脏（不相交的编辑不惊动本节点）。
+        // 区间失效转发：与 MarkDirty 同一纪律——批量括号内只累积 min/max 并集、不即时转发，BatchEnd 一次性放行
+        //（见 FlushPendingRanges）。否则拖动式编辑（画曲线 / 固定笔刷）逐帧转发会让引擎反复标脏，中间态本就
+        // 会被下一帧覆盖；固定笔刷更会被自己触发的失效清掉回显。累积用 part 相对 tick，转发时才换算成全局秒。
         void NotifyAutomationRange(string id, double relStartTick, double relEndTick)
+        {
+            if (mBatchSignal.IsBatching)
+            {
+                var current = mPendingRanges.TryGetValue(id, out var pending) ? pending : ((double, double)?)null;
+                mPendingRanges[id] = current is { } c
+                    ? (Math.Min(c.Item1, relStartTick), Math.Max(c.Item2, relEndTick))
+                    : (relStartTick, relEndTick);
+                return;
+            }
+
+            ForwardAutomationRange(id, relStartTick, relEndTick);
+        }
+
+        void FlushPendingRanges()
+        {
+            if (mPendingRanges.Count == 0)
+                return;
+
+            var pending = new List<KeyValuePair<string, (double Start, double End)>>(mPendingRanges);
+            mPendingRanges.Clear();
+            foreach (var kvp in pending)
+                ForwardAutomationRange(kvp.Key, kvp.Value.Start, kvp.Value.End);
+        }
+
+        void ForwardAutomationRange(string id, double relStartTick, double relEndTick)
         {
             double startSecond = RelTickToGlobalSecond(relStartTick);
             double endSecond = RelTickToGlobalSecond(relEndTick);
@@ -1238,6 +1279,7 @@ internal sealed class EffectGraph : IDisposable
                 subscriptions.DisposeAll();
             mVibratoSubscriptions.Clear();
             mVibratoAffectedIds.Clear();
+            mPendingRanges.Clear();   // 未转发的失效随节点丢弃
             mProperties.Dispose();
             mOutputs.Clear();
             mOutputUpstreams.Clear();
@@ -1250,6 +1292,8 @@ internal sealed class EffectGraph : IDisposable
         readonly LivePropertyObject mProperties;
         readonly Action mOnBatchEnd;
         bool mPendingDirty;
+        // 批量括号内攒下的区间失效（part 相对 tick，按轨 id 取并集），BatchEnd 时 flush。
+        readonly Dictionary<string, (double Start, double End)> mPendingRanges = new();
         readonly List<OutputSegment> mOutputs = new();
         readonly Dictionary<OutputSegment, UpstreamSegment> mOutputUpstreams = new();
         readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();

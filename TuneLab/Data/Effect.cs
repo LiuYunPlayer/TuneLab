@@ -81,8 +81,21 @@ internal class Effect : DataObject, IEffect
         return automation;
     }
 
+    // 取值按【当前声明的形态】分派（与 MidiPart.GetAutomationValues 同口径）：分段轨的数据在另一张 map
+    //（mPiecewiseAutomations），漏查它会落到下面的默认值分支、而分段轨的 DefaultValue 就是 NaN ⇒ 恒返回全 NaN，
+    // 曲线取不到值、画不出来也编辑不了。未声明的 key 仍按老路走（有数据即读、无数据给 0）。
     public double[] GetAutomationValues(IReadOnlyList<double> ticks, string automationID)
     {
+        if (AutomationConfigs.TryGetValue(automationID, out var declared) && declared.IsPiecewise)
+        {
+            if (mPiecewiseAutomations.TryGetValue(automationID, out var piecewise))
+                return piecewise.GetValues(ticks);
+
+            var nans = new double[ticks.Count];
+            nans.Fill(double.NaN);
+            return nans;
+        }
+
         if (mAutomations.TryGetValue(automationID, out var automation))
             return automation.GetValues(ticks);
 
@@ -195,9 +208,22 @@ internal class Effect : DataObject, IEffect
                         return;
                     }
 
+                    // 分段轨：曲线值 + 该轨 vibrato 偏移，但**只在有值段内叠加**（NaN 段无基线可叠，如实无值）。
+                    // 与 GetFinalAutomationValues / 快照侧 skipNaN 同口径。
                     if (effect.mPiecewiseAutomations.TryGetValue(key, out var automation))
                     {
-                        automation.GetValues(ticks).CopyTo(results);
+                        var values = automation.GetValues(ticks);
+                        int index = ((IMidiPart)part).Effects.IndexOf(effect);
+                        if (index >= 0)
+                        {
+                            var deviation = ((IMidiPart)part).GetVibratoDeviation(ticks, AutomationKey.Effect(index, key));
+                            for (int i = 0; i < values.Length; i++)
+                            {
+                                if (!double.IsNaN(values[i]))
+                                    values[i] += deviation[i];
+                            }
+                        }
+                        values.CopyTo(results);
                         return;
                     }
                     results.Fill(double.NaN);

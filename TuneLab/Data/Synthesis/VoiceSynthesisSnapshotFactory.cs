@@ -89,19 +89,32 @@ internal static class VoiceSynthesisSnapshotFactory
             SelectVibratos(vibratoCaptures, string.Empty),
             envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false) };
 
-        // —— automation：全部已声明轨按区间开窗物化（无数据对象的轨冻结为默认值常量）——
+        // —— automation：全部已声明轨按区间开窗物化（连续无数据 → 默认值常量；分段无数据 → NaN 常量）——
+        //    形态由声明（IsPiecewise）分派、数据在两张 map 里各存（与 Effect 侧同构）：分段轨的数据在
+        //    part.PiecewiseAutomations，漏读它会让插件声明的可编辑分段轨恒取到 NaN——用户画了也没效果。
         var automations = new Map<string, SynthesisAutomationSnapshot>();
         foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
             string key = kvp.Key.Id;
-            IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
-                ? AutomationSnapshot.Capture(automation, relStart, relEnd)
-                : new ConstantAutomationEvaluator(kvp.Value.DefaultValue);
+            IAutomationEvaluator baseEvaluator;
+            if (kvp.Value.IsPiecewise)
+            {
+                baseEvaluator = part.PiecewiseAutomations.TryGetValue(key, out var piecewise)
+                    ? PiecewiseAutomationSnapshot.Capture(piecewise, relStart, relEnd)
+                    : new ConstantAutomationEvaluator(double.NaN);
+            }
+            else
+            {
+                baseEvaluator = part.Automations.TryGetValue(key, out var automation)
+                    ? AutomationSnapshot.Capture(automation, relStart, relEnd)
+                    : new ConstantAutomationEvaluator(kvp.Value.DefaultValue);
+            }
+            // vibrato 两种形态都叠（振幅表按 key 存、与形态无关），差别只在 NaN 处：分段轨的 NaN 段是"用户没给值"，
+            // 宿主无基线可叠 ⇒ skipNaN 跳过（与 live 的 GetFinalAutomationValues 同口径）；连续轨处处有值、恒叠。
             // 最外层套标度量化（vibrato/envelope 之后）：离散 scale ⇒ 插件读到的最终值处处落格；线性 scale 仅钳位。
             automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new ScaleQuantizingEvaluator(new FrozenFinalAutomationEvaluator(
-                baseEvaluator,
-                SelectVibratos(vibratoCaptures, key),
-                envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false), kvp.Value.Scale) });
+                baseEvaluator, SelectVibratos(vibratoCaptures, key),
+                envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: kvp.Value.IsPiecewise), kvp.Value.Scale) });
         }
 
         return new VoiceSynthesisSnapshot

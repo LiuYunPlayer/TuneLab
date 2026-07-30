@@ -47,6 +47,16 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         var automationMap = (IReadOnlyDataMap<string, IAutomation>)part.Automations;
         automationMap.ItemAdded.Subscribe(WireAutomation, s);
         automationMap.ItemRemoved.Subscribe(UnwireAutomation, s);
+
+        // 分段轨同理（乐器声明的可编辑分段曲线，数据在另一张 map）：数据对象按需创建（用户第一笔才 Add），
+        // 故与连续轨一样必须订 ItemAdded。与 voice 侧 VoiceSynthesisContext 对称。
+        foreach (var kvp in part.PiecewiseAutomations)
+        {
+            WirePiecewiseAutomation(kvp.Key, kvp.Value);
+        }
+        var piecewiseMap = (IReadOnlyDataMap<string, IPiecewiseAutomation>)part.PiecewiseAutomations;
+        piecewiseMap.ItemAdded.Subscribe(WirePiecewiseAutomation, s);
+        piecewiseMap.ItemRemoved.Subscribe(UnwirePiecewiseAutomation, s);
     }
 
     // 快照物化（插件在 SynthesizeNext 同步前缀主动拉取）：满末口径、无双音高通道；automation 全量冻结（不开窗）。
@@ -126,6 +136,12 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             kvp.Value.DisposeAll();
         }
         mAutomationSubscriptions.Clear();
+        foreach (var kvp in mPiecewiseSubscriptions)
+        {
+            kvp.Value.DisposeAll();
+        }
+        mPiecewiseSubscriptions.Clear();
+        mPendingAutomationRanges.Clear();   // 未转发的失效随会话丢弃（新会话从零重算）
         mNotes.Dispose();
         mPartProperties.Dispose();
         mAudioSegments.Clear();
@@ -190,7 +206,28 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         }
     }
 
-    void OnBatchEnd() => Guarded(mCommitted.Invoke);
+    // 批量收口：先 flush 攒下的区间失效，再发 Committed——引擎在 Committed 里做重活，须先拿到失效标记。
+    void OnBatchEnd()
+    {
+        FlushPendingRanges();
+        Guarded(mCommitted.Invoke);
+    }
+
+    // 区间失效的批量缓冲（与 voice 侧同口径，理由见 VoiceSynthesisContext.FlushPendingRanges）：批量括号内
+    // 只累积 min/max 并集、不即时转发，避免拖动式编辑逐帧标脏。累积用 part 相对 tick，转发时才换算成全局秒。
+    void FlushPendingRanges()
+    {
+        if (mPendingAutomationRanges.Count == 0)
+            return;
+
+        var pending = new List<KeyValuePair<string, (double Start, double End)>>(mPendingAutomationRanges);
+        mPendingAutomationRanges.Clear();
+        foreach (var kvp in pending)
+        {
+            if (mAutomationProxies.TryGetValue(kvp.Key, out var proxy))
+                proxy.NotifyRangeModified(ToGlobalSecond(kvp.Value.Start), ToGlobalSecond(kvp.Value.End));
+        }
+    }
 
     double ToGlobalSecond(double relTick)
     {
@@ -229,8 +266,39 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             subscriptions.DisposeAll();
     }
 
+    // 分段轨的区间失效接线：与连续轨同一个通知口（插件面只有一张 Automations，形态对它透明），但簿记另开
+    // 一张表——同一 key 可能在两张数据 map 里各有对象（换过形态后孤儿数据保留），共用一张表会让先接线的
+    // 那条把另一条挡在门外。无默认基线可订，故只订 RangeModified。
+    void WirePiecewiseAutomation(string key, IPiecewiseAutomation automation)
+    {
+        if (mPiecewiseSubscriptions.ContainsKey(key))
+            return;
+
+        var subscriptions = new DisposableManager();
+        automation.RangeModified.Subscribe((start, end) =>
+        {
+            NotifyAutomationRangeModified(key, start, end);
+        }, subscriptions);
+        mPiecewiseSubscriptions.Add(key, subscriptions);
+    }
+
+    void UnwirePiecewiseAutomation(string key, IPiecewiseAutomation automation)
+    {
+        if (mPiecewiseSubscriptions.Remove(key, out var subscriptions))
+            subscriptions.DisposeAll();
+    }
+
     void NotifyAutomationRangeModified(string key, double relStart, double relEnd)
     {
+        if (mBatchSignal.IsBatching)
+        {
+            var current = mPendingAutomationRanges.TryGetValue(key, out var pending) ? pending : ((double, double)?)null;
+            mPendingAutomationRanges[key] = current is { } c
+                ? (Math.Min(c.Item1, relStart), Math.Max(c.Item2, relEnd))
+                : (relStart, relEnd);
+            return;
+        }
+
         if (mAutomationProxies.TryGetValue(key, out var proxy))
             proxy.NotifyRangeModified(ToGlobalSecond(relStart), ToGlobalSecond(relEnd));
     }
@@ -244,6 +312,9 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     readonly PropertyObjectGuard mPartProperties;
     readonly Dictionary<string, AutomationProxy> mAutomationProxies = new();
     readonly Dictionary<string, DisposableManager> mAutomationSubscriptions = new();
+    readonly Dictionary<string, DisposableManager> mPiecewiseSubscriptions = new();
+    // 批量括号内攒下的区间失效（part 相对 tick，按轨 key 取并集），BatchEnd 时 flush。
+    readonly Dictionary<string, (double Start, double End)> mPendingAutomationRanges = new();
     readonly DisposableManager s = new();
     readonly List<AudioSegment> mAudioSegments = new();
     bool mDisposed;

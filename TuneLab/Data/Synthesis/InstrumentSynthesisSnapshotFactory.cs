@@ -39,14 +39,26 @@ internal static class InstrumentSynthesisSnapshotFactory
             });
         }
 
-        // automation：已声明轨按区间开窗物化（原始曲线、无 vibrato；无数据对象的轨冻结为默认值常量）。
+        // automation：已声明轨按区间开窗物化（原始曲线、无 vibrato；连续无数据 → 默认值常量、分段无数据 → NaN 常量）。
+        // 形态由声明（IsPiecewise）分派、数据在两张 map 里各存（与 voice / effect 侧同构）：分段轨的数据在
+        // part.PiecewiseAutomations，漏读它会让插件声明的可编辑分段轨恒取到 NaN——用户画了也没效果。
         var automations = new Map<string, SynthesisAutomationSnapshot>();
         foreach (var kvp in part.SoundSource.AutomationConfigs)
         {
             string key = kvp.Key.Id;
-            IAutomationEvaluator baseEvaluator = part.Automations.TryGetValue(key, out var automation)
-                ? AutomationSnapshot.Capture(automation, relStart, relEnd)
-                : new ConstantEvaluator(kvp.Value.DefaultValue);
+            IAutomationEvaluator baseEvaluator;
+            if (kvp.Value.IsPiecewise)
+            {
+                baseEvaluator = part.PiecewiseAutomations.TryGetValue(key, out var piecewise)
+                    ? PiecewiseAutomationSnapshot.Capture(piecewise, relStart, relEnd)
+                    : new ConstantEvaluator(double.NaN);
+            }
+            else
+            {
+                baseEvaluator = part.Automations.TryGetValue(key, out var automation)
+                    ? AutomationSnapshot.Capture(automation, relStart, relEnd)
+                    : new ConstantEvaluator(kvp.Value.DefaultValue);
+            }
             // 最外层套标度量化：离散 scale ⇒ 插件读到的最终值处处落格；线性 scale 仅钳位。instrument 无 vibrato 叠加。
             automations.Add(key, new SynthesisAutomationSnapshot { Evaluator = new ScaleQuantizingEvaluator(new SecondToTickEvaluator(baseEvaluator, partPos, timesToTicks), kvp.Value.Scale) });
         }

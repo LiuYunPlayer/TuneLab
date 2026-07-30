@@ -59,26 +59,26 @@ internal static class EffectSynthesisSnapshotFactory
         {
             string key = kvp.Key.Id;
             IAutomationEvaluator baseEvaluator;
-            IReadOnlyList<VibratoMath.VibratoData> vibratos;
             if (kvp.Value.IsPiecewise)
             {
                 baseEvaluator = effect.PiecewiseAutomations.TryGetValue(key, out var piecewise)
                     ? PiecewiseAutomationSnapshot.Capture(piecewise, relStart, relEnd)
                     : new ConstantAutomationEvaluator(double.NaN);
-                vibratos = Array.Empty<VibratoMath.VibratoData>();   // 分段轨无 automation-vibrato 概念
             }
             else
             {
                 baseEvaluator = effect.Automations.TryGetValue(key, out var automation)
                     ? AutomationSnapshot.Capture(automation, relStart, relEnd)
                     : new ConstantAutomationEvaluator(kvp.Value.DefaultValue);
-                vibratos = SelectVibratos(vibratoCaptures, key);
             }
+            // vibrato 两种形态都叠（振幅表按 key 存、与形态无关），差别只在 NaN 处：分段轨的 NaN 段无基线可叠 ⇒
+            // skipNaN 跳过（与 voice 侧及 live 的 GetFinalAutomationValues 同口径）；连续轨处处有值、恒叠。
             // 最外层套标度量化（vibrato/envelope 之后）：离散 scale ⇒ 插件读到的最终值处处落格；线性 scale 仅钳位。
             automations.Add(key, new SynthesisAutomationSnapshot
             {
                 Evaluator = new ScaleQuantizingEvaluator(new FrozenFinalAutomationEvaluator(
-                    baseEvaluator, vibratos, envelopeSampler, partPos, tickToTime, timesToTicks, skipNaN: false), kvp.Value.Scale),
+                    baseEvaluator, SelectVibratos(vibratoCaptures, key), envelopeSampler, partPos, tickToTime, timesToTicks,
+                    skipNaN: kvp.Value.IsPiecewise), kvp.Value.Scale),
             });
         }
 
