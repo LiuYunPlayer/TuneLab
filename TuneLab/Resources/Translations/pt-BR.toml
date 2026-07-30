@@ -62,6 +62,7 @@
 "Voice" = "Voz"
 "Instrument" = "Instrumento"
 "Extension Routing" = "Roteamento de extensões"
+"AI Agent max tool result (characters)" = "Resultado máximo da ferramenta do Agent (caracteres)"
 
 [FunctionBar]
 "Play" = "Tocar"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Pitch (Desenho)"
 "Anchor Tool" = "Pitch (Âncora)"
 "Vibrato Tool" = "Vibrato"
+"Locking Brush" = "Pincel de fixação"
 
 [TrackScrollView]
 "Loading..." = "Carregando..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Arraste para associar o vibrato"
+"No value here, vibrato has no effect" = "Nenhum valor aqui, o vibrato não tem efeito"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Instalado: "
 "Partial" = "Parcial"
 "Skipped" = "Ignorado"
+"Reset to Default" = "Redefinir para o padrão"
+"getInputConfig error:" = "Erro de getInputConfig:"
+"Agent" = "Agent"
+"Apply" = "Aplicar"
+"Apply the agent's {0} change(s) to the project?" = "Aplicar as {0} alteração(ões) do agent ao projeto?"
+"Settings" = "Opções"
+"Open in External Editor" = "Abrir em editor externo"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Esta é uma extensão legacy. Ela não fornece metadados de manifest, então o TuneLab descobre seus recursos por varredura — não há documentação fornecida pelo autor."
+"This extension has no documentation." = "Esta extensão não tem documentação."
+"{0} extension(s) installed" = "{0} extensão(ões) instalada(s)"
+"{0} of {1} extension(s)" = "{0} de {1} extensão(ões)"
+"Disabled" = "Desativada"
+"Enabled" = "Ativada"
+"Restart Required" = "Requer reiniciar"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Ativar ou desativar esta extensão. Entra em vigor após reiniciar o TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Ativar ou desativar este recurso. Entra em vigor após reiniciar o TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "A extensão inteira está desativada, então seus recursos não podem ser ativados individualmente."
 
 [Property]
 "Properties" = "Propriedades"
@@ -308,6 +328,7 @@
 "Recent" = "Recentes"
 "Set Instrument" = "Definir Instrumento"
 "About TuneLab" = "Sobre o TuneLab"
+"Locking Brush" = "Pincel de fixação"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Total de {0} chamadas ao modelo neste turno (idas e voltas de ferramentas repetem o prefixo)\nEntrada {1:N0} · Saída {2:N0}\nContexto da última chamada ~{3:N0} tokens"
 "Type a message..." = "Digite uma mensagem..."
 "Untitled" = "Sem Título"
+"Agent authorization" = "Autorização do agent"
+"Always allow" = "Permitir sempre"
+"Read-only" = "Somente leitura"
+"Read-only (advise, never apply)" = "Somente leitura (aconselha, nunca aplica)"
+"Confirm" = "Confirmar"
+"Confirm each change" = "Confirmar cada alteração"
+"Apply once" = "Aplicar esta vez"
+"(retried)" = "(tentado novamente)"
+"Applied" = "Aplicado"
+"Applied · auto-apply on" = "Aplicado · aplicação automática ativada"
+"Apply" = "Aplicar"
+"Apply automatically" = "Aplicar automaticamente"
+"Auto" = "Automático"
+"Ignore" = "Ignorar"
+"Reject" = "Recusar"
+"Retry" = "Tentar novamente"
+"Continue" = "Continuar"
+"Submit answer" = "Enviar resposta"
+"Added: " = "Complemento: "
+"Not answered" = "Sem resposta"
+"Add anything else (optional)" = "Acrescente algo mais (opcional)"
+"Type your answer" = "Digite sua resposta"
+"(continued)" = "(continuado)"
+"No reply came back for this message — the turn didn't finish." = "Nenhuma resposta chegou para esta mensagem — o turno não foi concluído."
+"The agent wants to apply {0} change(s) to the project." = "O agent quer aplicar {0} alteração(ões) ao projeto."
+"The agent wants to change the setting \"{0}\" to {1}." = "O agent quer mudar a opção “{0}” para {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "O agent quer mudar a opção de extensão “{0}” para {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "O agent quer excluir o script salvo “{0}”. Isso não pode ser desfeito."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "O agent quer sobrescrever o script salvo “{0}”. Isso não pode ser desfeito."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "O agent quer que “{1}” seja o pacote que fornece “{0}” (entra em vigor após reiniciar)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "O agent quer ativar a extensão “{0}” (entra em vigor após reiniciar)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "O agent quer desativar a extensão “{0}” (entra em vigor após reiniciar)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "O agent quer ativar o recurso “{0}” de “{1}” (entra em vigor após reiniciar)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "O agent quer desativar o recurso “{0}” de “{1}” (entra em vigor após reiniciar)."
+"The agent wants to remove the shortcut for \"{0}\"." = "O agent quer remover o atalho de “{0}”."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "O agent quer definir o atalho de “{0}” como {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Isso também removerá o atalho de “{0}”."
+"You have unapplied changes. Apply them?" = "Há alterações não aplicadas. Aplicá-las?"
 
 [AgentTurnView]
 "Stopped" = "Parado"
 "Arguments" = "Argumentos"
 "Thinking…" = "Pensando…"
+"Copy" = "Copiar"
 
 [ToolStep]
 "Error" = "Erro"

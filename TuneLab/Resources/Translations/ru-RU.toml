@@ -62,6 +62,7 @@
 "Voice" = "Голос"
 "Instrument" = "Инструмент"
 "Extension Routing" = "Маршрутизация расширений"
+"AI Agent max tool result (characters)" = "Максимальный результат инструмента ИИ-агента (символов)"
 
 [FunctionBar]
 "Play" = "Воспроизвести"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Нарисовать питч"
 "Anchor Tool" = "Якорь питча"
 "Vibrato Tool" = "Вибрато"
+"Locking Brush" = "Кисть фиксации"
 
 [TrackScrollView]
 "Loading..." = "Загрузка..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Перетащите для связки вибрато"
+"No value here, vibrato has no effect" = "Здесь нет значения, вибрато не действует"
 
 [Dialog]
 "OK" = "ОК"
@@ -171,6 +174,23 @@
 "Installed: " = "Установлено: "
 "Partial" = "Частично"
 "Skipped" = "Пропущено"
+"Reset to Default" = "Сбросить до умолчания"
+"getInputConfig error:" = "Ошибка getInputConfig:"
+"Agent" = "Агент"
+"Apply" = "Применить"
+"Apply the agent's {0} change(s) to the project?" = "Применить {0} изменений агента к проекту?"
+"Settings" = "Настройки"
+"Open in External Editor" = "Открыть во внешнем редакторе"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Это устаревшее (legacy) расширение. Оно не содержит метаданных manifest, поэтому TuneLab определяет его возможности сканированием — документации от автора нет."
+"This extension has no documentation." = "У этого расширения нет документации."
+"{0} extension(s) installed" = "Установлено расширений: {0}"
+"{0} of {1} extension(s)" = "{0} из {1} расширений"
+"Disabled" = "Отключено"
+"Enabled" = "Включено"
+"Restart Required" = "Требуется перезапуск"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Включить или отключить это расширение. Вступит в силу после перезапуска TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Включить или отключить эту возможность. Вступит в силу после перезапуска TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "Всё расширение отключено, поэтому его возможности нельзя включить по отдельности."
 
 [Property]
 "Properties" = "Характеристики"
@@ -308,6 +328,7 @@
 "Recent" = "Недавние"
 "Set Instrument" = "Поставить инструмент"
 "About TuneLab" = "О TuneLab"
+"Locking Brush" = "Кисть фиксации"
 
 [AgentSideBarContentProvider]
 "Agent" = "Агент"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Всего вызовов модели за ход: {0} (обращения к инструментам повторяют префикс)\nВвод {1:N0} · Вывод {2:N0}\nКонтекст последнего вызова ~{3:N0} токенов"
 "Type a message..." = "Введите сообщение..."
 "Untitled" = "Без названия"
+"Agent authorization" = "Права агента"
+"Always allow" = "Всегда разрешать"
+"Read-only" = "Только чтение"
+"Read-only (advise, never apply)" = "Только чтение (советует, никогда не применяет)"
+"Confirm" = "Подтверждать"
+"Confirm each change" = "Подтверждать каждое изменение"
+"Apply once" = "Применить на этот раз"
+"(retried)" = "(повторено)"
+"Applied" = "Применено"
+"Applied · auto-apply on" = "Применено · автоприменение включено"
+"Apply" = "Применить"
+"Apply automatically" = "Применять автоматически"
+"Auto" = "Автоматически"
+"Ignore" = "Игнорировать"
+"Reject" = "Отклонить"
+"Retry" = "Повторить"
+"Continue" = "Продолжить"
+"Submit answer" = "Отправить ответ"
+"Added: " = "Дополнение: "
+"Not answered" = "Без ответа"
+"Add anything else (optional)" = "Добавьте что-нибудь ещё (необязательно)"
+"Type your answer" = "Введите свой ответ"
+"(continued)" = "(продолжено)"
+"No reply came back for this message — the turn didn't finish." = "На это сообщение не пришло ответа — раунд не был завершён."
+"The agent wants to apply {0} change(s) to the project." = "Агент хочет применить {0} изменений к проекту."
+"The agent wants to change the setting \"{0}\" to {1}." = "Агент хочет изменить настройку «{0}» на {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "Агент хочет изменить настройку расширения «{0}» на {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "Агент хочет удалить сохранённый скрипт «{0}». Это действие нельзя отменить."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Агент хочет перезаписать сохранённый скрипт «{0}». Это действие нельзя отменить."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "Агент хочет, чтобы «{1}» стал пакетом, предоставляющим «{0}» (вступит в силу после перезапуска)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "Агент хочет включить расширение «{0}» (вступит в силу после перезапуска)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "Агент хочет отключить расширение «{0}» (вступит в силу после перезапуска)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Агент хочет включить возможность «{0}» у «{1}» (вступит в силу после перезапуска)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Агент хочет отключить возможность «{0}» у «{1}» (вступит в силу после перезапуска)."
+"The agent wants to remove the shortcut for \"{0}\"." = "Агент хочет удалить сочетание клавиш для «{0}»."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "Агент хочет задать сочетание клавиш для «{0}»: {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Это также снимет сочетание клавиш с «{0}»."
+"You have unapplied changes. Apply them?" = "Есть непримененные изменения. Применить их?"
 
 [AgentTurnView]
 "Stopped" = "Остановлено"
 "Arguments" = "Аргументы"
 "Thinking…" = "Размышление…"
+"Copy" = "Копировать"
 
 [ToolStep]
 "Error" = "Ошибка"

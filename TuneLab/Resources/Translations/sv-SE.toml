@@ -62,6 +62,7 @@
 "Voice" = "Röst"
 "Instrument" = "Instrument"
 "Extension Routing" = "Tilläggsrouting"
+"AI Agent max tool result (characters)" = "Max. verktygsresultat för AI-agenten (tecken)"
 
 [FunctionBar]
 "Play" = "Spela"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Pitch-penna"
 "Anchor Tool" = "Förankringsverktyg"
 "Vibrato Tool" = "Vibratoverktyg"
+"Locking Brush" = "Låspensel"
 
 [TrackScrollView]
 "Loading..." = "Läser in..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Dra för att associera vibratot "
+"No value here, vibrato has no effect" = "Inget värde här, vibratot har ingen effekt"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Installerade: "
 "Partial" = "Delvis"
 "Skipped" = "Hoppade över"
+"Reset to Default" = "Återställ till standard"
+"getInputConfig error:" = "getInputConfig-fel:"
+"Agent" = "Agent"
+"Apply" = "Tillämpa"
+"Apply the agent's {0} change(s) to the project?" = "Tillämpa agentens {0} ändring(ar) på projektet?"
+"Settings" = "Inställningar"
+"Open in External Editor" = "Öppna i extern redigerare"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Detta är ett legacy-tillägg. Det levererar inga manifest-metadata, så TuneLab upptäcker dess funktioner genom skanning – det finns ingen dokumentation från upphovspersonen att visa."
+"This extension has no documentation." = "Detta tillägg har ingen dokumentation."
+"{0} extension(s) installed" = "{0} tillägg installerade"
+"{0} of {1} extension(s)" = "{0} av {1} tillägg"
+"Disabled" = "Inaktiverat"
+"Enabled" = "Aktiverat"
+"Restart Required" = "Omstart krävs"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Aktivera eller inaktivera detta tillägg. Börjar gälla efter omstart av TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Aktivera eller inaktivera denna funktion. Börjar gälla efter omstart av TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "Hela tillägget är inaktiverat, så dess funktioner kan inte slås på var för sig."
 
 [Property]
 "Properties" = "Egenskaper"
@@ -308,6 +328,7 @@
 "Recent" = "Senaste"
 "Set Instrument" = "Välj instrument"
 "About TuneLab" = "Om TuneLab"
+"Locking Brush" = "Låspensel"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Totalt {0} modellanrop denna omgång (verktygsanrop upprepar prefixet)\nIndata {1:N0} · Utdata {2:N0}\nSenaste anropets kontext ~{3:N0} tokens"
 "Type a message..." = "Skriv ett meddelande..."
 "Untitled" = "Namnlös"
+"Agent authorization" = "Agentens behörighet"
+"Always allow" = "Tillåt alltid"
+"Read-only" = "Endast läsning"
+"Read-only (advise, never apply)" = "Endast läsning (ger råd, tillämpar aldrig)"
+"Confirm" = "Bekräfta"
+"Confirm each change" = "Bekräfta varje ändring"
+"Apply once" = "Tillämpa den här gången"
+"(retried)" = "(försökte igen)"
+"Applied" = "Tillämpad"
+"Applied · auto-apply on" = "Tillämpad · automatisk tillämpning på"
+"Apply" = "Tillämpa"
+"Apply automatically" = "Tillämpa automatiskt"
+"Auto" = "Automatiskt"
+"Ignore" = "Ignorera"
+"Reject" = "Avvisa"
+"Retry" = "Försök igen"
+"Continue" = "Fortsätt"
+"Submit answer" = "Skicka svar"
+"Added: " = "Tillagt: "
+"Not answered" = "Inget svar"
+"Add anything else (optional)" = "Lägg till något mer (valfritt)"
+"Type your answer" = "Skriv ditt svar"
+"(continued)" = "(fortsatt)"
+"No reply came back for this message — the turn didn't finish." = "Inget svar kom tillbaka på det här meddelandet – varvet slutfördes inte."
+"The agent wants to apply {0} change(s) to the project." = "Agenten vill tillämpa {0} ändring(ar) på projektet."
+"The agent wants to change the setting \"{0}\" to {1}." = "Agenten vill ändra inställningen ”{0}” till {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "Agenten vill ändra tilläggsinställningen ”{0}” till {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "Agenten vill ta bort det sparade skriptet ”{0}”. Det går inte att ångra."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Agenten vill skriva över det sparade skriptet ”{0}”. Det går inte att ångra."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "Agenten vill att ”{1}” ska vara paketet som tillhandahåller ”{0}” (börjar gälla efter en omstart)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "Agenten vill aktivera tillägget ”{0}” (börjar gälla efter en omstart)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "Agenten vill inaktivera tillägget ”{0}” (börjar gälla efter en omstart)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Agenten vill aktivera funktionen ”{0}” i ”{1}” (börjar gälla efter en omstart)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Agenten vill inaktivera funktionen ”{0}” i ”{1}” (börjar gälla efter en omstart)."
+"The agent wants to remove the shortcut for \"{0}\"." = "Agenten vill ta bort kortkommandot för ”{0}”."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "Agenten vill ställa in kortkommandot för ”{0}” till {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Detta tar även bort kortkommandot för ”{0}”."
+"You have unapplied changes. Apply them?" = "Du har ändringar som inte tillämpats. Vill du tillämpa dem?"
 
 [AgentTurnView]
 "Stopped" = "Stoppad"
 "Arguments" = "Argument"
 "Thinking…" = "Tänker…"
+"Copy" = "Kopiera"
 
 [ToolStep]
 "Error" = "Fel"

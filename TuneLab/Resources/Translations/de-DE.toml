@@ -62,6 +62,7 @@
 "Voice" = "Stimme"
 "Instrument" = "Instrument"
 "Extension Routing" = "Erweiterungs-Routing"
+"AI Agent max tool result (characters)" = "Max. Werkzeugergebnis des AI Agents (Zeichen)"
 
 [FunctionBar]
 "Play" = "Abspielen"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Pitch Stift"
 "Anchor Tool" = "Anker Tool"
 "Vibrato Tool" = "Vibrato Tool"
+"Locking Brush" = "Fixierpinsel"
 
 [TrackScrollView]
 "Loading..." = "Wird geladen..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Ziehen um Vibrato zu assoziieren"
+"No value here, vibrato has no effect" = "Hier gibt es keinen Wert, das Vibrato hat keine Wirkung"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Installiert: "
 "Partial" = "Teilweise"
 "Skipped" = "Übersprungen"
+"Reset to Default" = "Auf Standard zurücksetzen"
+"getInputConfig error:" = "getInputConfig-Fehler:"
+"Agent" = "Agent"
+"Apply" = "Anwenden"
+"Apply the agent's {0} change(s) to the project?" = "Die {0} Änderung(en) des Agents auf das Projekt anwenden?"
+"Settings" = "Einstellungen"
+"Open in External Editor" = "In externem Editor öffnen"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Dies ist eine Legacy-Erweiterung. Sie liefert keine Manifest-Metadaten, daher erkennt TuneLab ihre Funktionen durch Scannen – es gibt keine vom Autor bereitgestellte Dokumentation."
+"This extension has no documentation." = "Diese Erweiterung hat keine Dokumentation."
+"{0} extension(s) installed" = "{0} Erweiterung(en) installiert"
+"{0} of {1} extension(s)" = "{0} von {1} Erweiterung(en)"
+"Disabled" = "Deaktiviert"
+"Enabled" = "Aktiviert"
+"Restart Required" = "Neustart erforderlich"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Diese Erweiterung aktivieren oder deaktivieren. Wird nach einem Neustart von TuneLab wirksam."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Diese Funktion aktivieren oder deaktivieren. Wird nach einem Neustart von TuneLab wirksam."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "Die gesamte Erweiterung ist deaktiviert, daher können ihre Funktionen nicht einzeln aktiviert werden."
 
 [Property]
 "Properties" = "Eigenschaften"
@@ -308,6 +328,7 @@
 "Recent" = "Zuletzt verwendet"
 "Set Instrument" = "Instrument setzen"
 "About TuneLab" = "Über TuneLab"
+"Locking Brush" = "Fixierpinsel"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Insgesamt {0} Modellaufrufe in dieser Runde (Werkzeug-Roundtrips wiederholen das Präfix)\nEingabe {1:N0} · Ausgabe {2:N0}\nKontext des letzten Aufrufs ~{3:N0} Tokens"
 "Type a message..." = "Nachricht eingeben..."
 "Untitled" = "Unbenannt"
+"Agent authorization" = "Agent-Berechtigung"
+"Always allow" = "Immer erlauben"
+"Read-only" = "Nur lesen"
+"Read-only (advise, never apply)" = "Nur lesen (nur Vorschläge, nie anwenden)"
+"Confirm" = "Bestätigen"
+"Confirm each change" = "Jede Änderung bestätigen"
+"Apply once" = "Diesmal anwenden"
+"(retried)" = "(erneut versucht)"
+"Applied" = "Angewendet"
+"Applied · auto-apply on" = "Angewendet · automatisches Anwenden aktiv"
+"Apply" = "Anwenden"
+"Apply automatically" = "Automatisch anwenden"
+"Auto" = "Automatisch"
+"Ignore" = "Ignorieren"
+"Reject" = "Ablehnen"
+"Retry" = "Wiederholen"
+"Continue" = "Fortsetzen"
+"Submit answer" = "Antwort senden"
+"Added: " = "Ergänzung: "
+"Not answered" = "Nicht beantwortet"
+"Add anything else (optional)" = "Weitere Anmerkungen (optional)"
+"Type your answer" = "Antwort eingeben"
+"(continued)" = "(fortgesetzt)"
+"No reply came back for this message — the turn didn't finish." = "Auf diese Nachricht kam keine Antwort – die Runde wurde nicht abgeschlossen."
+"The agent wants to apply {0} change(s) to the project." = "Der Agent möchte {0} Änderung(en) auf das Projekt anwenden."
+"The agent wants to change the setting \"{0}\" to {1}." = "Der Agent möchte die Einstellung „{0}“ auf {1} ändern."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "Der Agent möchte die Erweiterungseinstellung „{0}“ auf {1} ändern."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "Der Agent möchte das gespeicherte Skript „{0}“ löschen. Das kann nicht rückgängig gemacht werden."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Der Agent möchte das gespeicherte Skript „{0}“ überschreiben. Das kann nicht rückgängig gemacht werden."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "Der Agent möchte „{1}“ als das Paket festlegen, das „{0}“ bereitstellt (wird nach einem Neustart wirksam)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "Der Agent möchte die Erweiterung „{0}“ aktivieren (wird nach einem Neustart wirksam)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "Der Agent möchte die Erweiterung „{0}“ deaktivieren (wird nach einem Neustart wirksam)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Der Agent möchte die Funktion „{0}“ von „{1}“ aktivieren (wird nach einem Neustart wirksam)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Der Agent möchte die Funktion „{0}“ von „{1}“ deaktivieren (wird nach einem Neustart wirksam)."
+"The agent wants to remove the shortcut for \"{0}\"." = "Der Agent möchte das Tastenkürzel für „{0}“ entfernen."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "Der Agent möchte das Tastenkürzel für „{0}“ auf {1} setzen."
+"This also unbinds the shortcut of \"{0}\"." = "Dadurch wird auch das Tastenkürzel von „{0}“ aufgehoben."
+"You have unapplied changes. Apply them?" = "Es gibt nicht angewendete Änderungen. Anwenden?"
 
 [AgentTurnView]
 "Stopped" = "Gestoppt"
 "Arguments" = "Argumente"
 "Thinking…" = "Denkt nach…"
+"Copy" = "Kopieren"
 
 [ToolStep]
 "Error" = "Fehler"

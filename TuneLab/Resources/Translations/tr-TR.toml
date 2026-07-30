@@ -62,6 +62,7 @@
 "Voice" = "Ses"
 "Instrument" = "Enstrüman"
 "Extension Routing" = "Uzantı Yönlendirme"
+"AI Agent max tool result (characters)" = "AI aracısı araç sonucu üst sınırı (karakter)"
 
 [FunctionBar]
 "Play" = "Oynat"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Perde Kalemi"
 "Anchor Tool" = "Bağlama Aracı"
 "Vibrato Tool" = "Vibrato Aracı"
+"Locking Brush" = "Sabitleme fırçası"
 
 [TrackScrollView]
 "Loading..." = "Yükleniyor..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Vibratoyu bağlamak için sürükleyin."
+"No value here, vibrato has no effect" = "Burada değer yok, vibrato etkili olmuyor"
 
 [Dialog]
 "OK" = "Tamam"
@@ -171,6 +174,23 @@
 "Installed: " = "Yüklendi: "
 "Partial" = "Kısmi"
 "Skipped" = "Atlandı"
+"Reset to Default" = "Varsayılana sıfırla"
+"getInputConfig error:" = "getInputConfig hatası:"
+"Agent" = "Aracı"
+"Apply" = "Uygula"
+"Apply the agent's {0} change(s) to the project?" = "Aracının {0} değişikliği projeye uygulansın mı?"
+"Settings" = "Ayarlar"
+"Open in External Editor" = "Harici düzenleyicide aç"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Bu eski (legacy) bir uzantıdır. Manifest üst verisi sunmadığı için TuneLab yeteneklerini tarayarak buluyor — yazarın sağladığı bir belge yok."
+"This extension has no documentation." = "Bu uzantının belgesi yok."
+"{0} extension(s) installed" = "{0} uzantı kurulu"
+"{0} of {1} extension(s)" = "{1} uzantıdan {0} tanesi"
+"Disabled" = "Devre dışı"
+"Enabled" = "Etkin"
+"Restart Required" = "Yeniden başlatma gerekli"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Bu uzantıyı etkinleştirin veya devre dışı bırakın. TuneLab yeniden başlatıldıktan sonra geçerli olur."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Bu yeteneği etkinleştirin veya devre dışı bırakın. TuneLab yeniden başlatıldıktan sonra geçerli olur."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "Uzantının tamamı devre dışı olduğundan yetenekleri tek tek açılamaz."
 
 [Property]
 "Properties" = "Özellikler"
@@ -308,6 +328,7 @@
 "Recent" = "Son Kullanılanlar"
 "Set Instrument" = "Enstrüman Ayarla"
 "About TuneLab" = "TuneLab Hakkında"
+"Locking Brush" = "Sabitleme fırçası"
 
 [AgentSideBarContentProvider]
 "Agent" = "Aracı"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Bu turda toplam {0} model çağrısı (araç gidiş-dönüşleri ön eki tekrarlar)\nGirdi {1:N0} · Çıktı {2:N0}\nSon çağrı bağlamı ~{3:N0} token"
 "Type a message..." = "Bir mesaj yazın..."
 "Untitled" = "İsimsiz"
+"Agent authorization" = "Aracı yetkisi"
+"Always allow" = "Her zaman izin ver"
+"Read-only" = "Salt okunur"
+"Read-only (advise, never apply)" = "Salt okunur (önerir, asla uygulamaz)"
+"Confirm" = "Onayla"
+"Confirm each change" = "Her değişikliği onayla"
+"Apply once" = "Bu seferlik uygula"
+"(retried)" = "(yeniden denendi)"
+"Applied" = "Uygulandı"
+"Applied · auto-apply on" = "Uygulandı · otomatik uygulama açık"
+"Apply" = "Uygula"
+"Apply automatically" = "Otomatik uygula"
+"Auto" = "Otomatik"
+"Ignore" = "Yok Say"
+"Reject" = "Reddet"
+"Retry" = "Yeniden dene"
+"Continue" = "Devam et"
+"Submit answer" = "Yanıtı gönder"
+"Added: " = "Ek: "
+"Not answered" = "Yanıtlanmadı"
+"Add anything else (optional)" = "Eklemek istediğiniz başka bir şey (isteğe bağlı)"
+"Type your answer" = "Yanıtınızı yazın"
+"(continued)" = "(devam edildi)"
+"No reply came back for this message — the turn didn't finish." = "Bu mesaja yanıt gelmedi — tur tamamlanmadı."
+"The agent wants to apply {0} change(s) to the project." = "Aracı projeye {0} değişiklik uygulamak istiyor."
+"The agent wants to change the setting \"{0}\" to {1}." = "Aracı “{0}” ayarını {1} olarak değiştirmek istiyor."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "Aracı “{0}” uzantı ayarını {1} olarak değiştirmek istiyor."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "Aracı kaydedilmiş “{0}” betiğini silmek istiyor. Bu işlem geri alınamaz."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Aracı kaydedilmiş “{0}” betiğinin üzerine yazmak istiyor. Bu işlem geri alınamaz."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "Aracı “{0}” işlevini sağlayan paketin “{1}” olmasını istiyor (yeniden başlatıldıktan sonra geçerli olur)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "Aracı “{0}” uzantısını etkinleştirmek istiyor (yeniden başlatıldıktan sonra geçerli olur)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "Aracı “{0}” uzantısını devre dışı bırakmak istiyor (yeniden başlatıldıktan sonra geçerli olur)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Aracı “{1}” uzantısının “{0}” yeteneğini etkinleştirmek istiyor (yeniden başlatıldıktan sonra geçerli olur)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Aracı “{1}” uzantısının “{0}” yeteneğini devre dışı bırakmak istiyor (yeniden başlatıldıktan sonra geçerli olur)."
+"The agent wants to remove the shortcut for \"{0}\"." = "Aracı “{0}” kısayolunu kaldırmak istiyor."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "Aracı “{0}” kısayolunu {1} olarak ayarlamak istiyor."
+"This also unbinds the shortcut of \"{0}\"." = "Bu, “{0}” kısayolunu da kaldırır."
+"You have unapplied changes. Apply them?" = "Uygulanmamış değişiklikler var. Uygulansın mı?"
 
 [AgentTurnView]
 "Stopped" = "Durduruldu"
 "Arguments" = "Bağımsız Değişkenler"
 "Thinking…" = "Düşünüyor…"
+"Copy" = "Kopyala"
 
 [ToolStep]
 "Error" = "Hata"

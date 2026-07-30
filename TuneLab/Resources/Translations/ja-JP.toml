@@ -62,6 +62,7 @@
 "Voice" = "ボイス"
 "Instrument" = "インストゥルメント"
 "Extension Routing" = "拡張機能のルーティング"
+"AI Agent max tool result (characters)" = "AI Agent のツール結果の上限（文字数）"
 
 [FunctionBar]
 "Play" = "再生"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "ピッチツール"
 "Anchor Tool" = "アンカーツール"
 "Vibrato Tool" = "ビブラートツール"
+"Locking Brush" = "固定ブラシ"
 
 [TrackScrollView]
 "Loading..." = "読み込み中..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "ドラッグしてビブラートを適用"
+"No value here, vibrato has no effect" = "ここには値がないため、ビブラートは効果がありません"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "インストール済み： "
 "Partial" = "一部"
 "Skipped" = "スキップ"
+"Reset to Default" = "デフォルトに戻す"
+"getInputConfig error:" = "getInputConfig エラー："
+"Agent" = "エージェント"
+"Apply" = "適用"
+"Apply the agent's {0} change(s) to the project?" = "エージェントによる {0} 件の変更をプロジェクトに適用しますか？"
+"Settings" = "設定"
+"Open in External Editor" = "外部エディタで開く"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "これはレガシー拡張機能です。manifest のメタデータを持たないため、TuneLab はスキャンで機能を検出しています——作者が提供するドキュメントはありません。"
+"This extension has no documentation." = "この拡張機能にはドキュメントがありません。"
+"{0} extension(s) installed" = "{0} 個の拡張機能がインストール済み"
+"{0} of {1} extension(s)" = "{1} 個中 {0} 個の拡張機能"
+"Disabled" = "無効"
+"Enabled" = "有効"
+"Restart Required" = "再起動が必要"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "この拡張機能を有効／無効にします。TuneLab を再起動すると反映されます。"
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "この機能を有効／無効にします。TuneLab を再起動すると反映されます。"
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "拡張機能全体が無効になっているため、その機能を個別に有効にはできません。"
 
 [Property]
 "Properties" = "プロパティ"
@@ -308,6 +328,7 @@
 "Recent" = "最近"
 "Set Instrument" = "インストゥルメントを設定"
 "About TuneLab" = "TuneLabについて"
+"Locking Brush" = "固定ブラシ"
 
 [AgentSideBarContentProvider]
 "Agent" = "エージェント"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "このターンで合計{0}回のモデル呼び出し（ツールの往復ごとにプレフィックスが繰り返されます）\n入力 {1:N0} · 出力 {2:N0}\n最後の呼び出しのコンテキスト 約{3:N0}トークン"
 "Type a message..." = "メッセージを入力..."
 "Untitled" = "無題"
+"Agent authorization" = "エージェントの権限"
+"Always allow" = "常に許可"
+"Read-only" = "読み取り専用"
+"Read-only (advise, never apply)" = "読み取り専用（提案のみ、適用しない）"
+"Confirm" = "確認"
+"Confirm each change" = "変更ごとに確認"
+"Apply once" = "今回のみ適用"
+"(retried)" = "（再試行済み）"
+"Applied" = "適用済み"
+"Applied · auto-apply on" = "適用済み · 自動適用に切り替え"
+"Apply" = "適用"
+"Apply automatically" = "自動的に適用"
+"Auto" = "自動"
+"Ignore" = "無視"
+"Reject" = "拒否"
+"Retry" = "再試行"
+"Continue" = "続ける"
+"Submit answer" = "回答を送信"
+"Added: " = "補足："
+"Not answered" = "未回答"
+"Add anything else (optional)" = "補足があれば入力（任意）"
+"Type your answer" = "回答を入力"
+"(continued)" = "（続行済み）"
+"No reply came back for this message — the turn didn't finish." = "このメッセージには返信がありませんでした——このターンは完了しませんでした。"
+"The agent wants to apply {0} change(s) to the project." = "エージェントがプロジェクトに {0} 件の変更を適用しようとしています。"
+"The agent wants to change the setting \"{0}\" to {1}." = "エージェントが設定「{0}」を {1} に変更しようとしています。"
+"The agent wants to change the extension setting \"{0}\" to {1}." = "エージェントが拡張機能の設定「{0}」を {1} に変更しようとしています。"
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "エージェントが保存済みスクリプト「{0}」を削除しようとしています。この操作は取り消せません。"
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "エージェントが保存済みスクリプト「{0}」を上書きしようとしています。この操作は取り消せません。"
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "エージェントは「{0}」を提供するパッケージを「{1}」にしようとしています（再起動後に反映）。"
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "エージェントが拡張機能「{0}」を有効にしようとしています（再起動後に反映）。"
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "エージェントが拡張機能「{0}」を無効にしようとしています（再起動後に反映）。"
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "エージェントが「{1}」の「{0}」機能を有効にしようとしています（再起動後に反映）。"
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "エージェントが「{1}」の「{0}」機能を無効にしようとしています（再起動後に反映）。"
+"The agent wants to remove the shortcut for \"{0}\"." = "エージェントが「{0}」のショートカットを解除しようとしています。"
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "エージェントが「{0}」のショートカットを {1} に設定しようとしています。"
+"This also unbinds the shortcut of \"{0}\"." = "これにより「{0}」のショートカットも解除されます。"
+"You have unapplied changes. Apply them?" = "未適用の変更があります。適用しますか？"
 
 [AgentTurnView]
 "Stopped" = "停止しました"
 "Arguments" = "引数"
 "Thinking…" = "思考中…"
+"Copy" = "コピー"
 
 [ToolStep]
 "Error" = "エラー"

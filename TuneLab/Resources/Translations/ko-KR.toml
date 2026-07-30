@@ -62,6 +62,7 @@
 "Voice" = "보이스"
 "Instrument" = "인스트루먼트"
 "Extension Routing" = "확장 라우팅"
+"AI Agent max tool result (characters)" = "AI 에이전트 도구 결과 최대 길이(글자 수)"
 
 [FunctionBar]
 "Play" = "재생"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "피치 툴"
 "Anchor Tool" = "앵커 툴"
 "Vibrato Tool" = "비브라토 툴"
+"Locking Brush" = "고정 브러시"
 
 [TrackScrollView]
 "Loading..." = "불러오는 중..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "드래그 하여 비브라토 적용"
+"No value here, vibrato has no effect" = "여기에는 값이 없어 비브라토가 적용되지 않습니다"
 
 [Dialog]
 "OK" = "확인"
@@ -171,6 +174,23 @@
 "Installed: " = "설치됨: "
 "Partial" = "부분 완료"
 "Skipped" = "건너뜀"
+"Reset to Default" = "기본값으로 초기화"
+"getInputConfig error:" = "getInputConfig 오류:"
+"Agent" = "에이전트"
+"Apply" = "적용"
+"Apply the agent's {0} change(s) to the project?" = "에이전트의 변경 {0}건을 프로젝트에 적용할까요?"
+"Settings" = "설정"
+"Open in External Editor" = "외부 편집기로 열기"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "레거시 확장입니다. manifest 메타데이터를 제공하지 않아 TuneLab이 스캔으로 기능을 찾아냅니다 — 제작자가 제공한 문서가 없습니다."
+"This extension has no documentation." = "이 확장에는 문서가 없습니다."
+"{0} extension(s) installed" = "확장 {0}개 설치됨"
+"{0} of {1} extension(s)" = "확장 {1}개 중 {0}개"
+"Disabled" = "사용 안 함"
+"Enabled" = "사용 중"
+"Restart Required" = "재시작 필요"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "이 확장을 사용하거나 사용 안 함으로 설정합니다. TuneLab을 재시작한 후에 적용됩니다."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "이 기능을 사용하거나 사용 안 함으로 설정합니다. TuneLab을 재시작한 후에 적용됩니다."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "확장 전체가 사용 안 함 상태이므로 개별 기능을 켤 수 없습니다."
 
 [Property]
 "Properties" = "프로퍼티"
@@ -308,6 +328,7 @@
 "Recent" = "최근"
 "Set Instrument" = "악기 설정"
 "About TuneLab" = "TuneLab 정보"
+"Locking Brush" = "고정 브러시"
 
 [AgentSideBarContentProvider]
 "Agent" = "에이전트"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "이번 턴에서 모델 호출 총 {0}회 (도구 왕복은 접두어를 반복함)\n입력 {1:N0} · 출력 {2:N0}\n마지막 호출 컨텍스트 ~{3:N0} 토큰"
 "Type a message..." = "메시지를 입력하세요..."
 "Untitled" = "제목 없음"
+"Agent authorization" = "에이전트 권한"
+"Always allow" = "항상 허용"
+"Read-only" = "읽기 전용"
+"Read-only (advise, never apply)" = "읽기 전용(제안만 하고 적용하지 않음)"
+"Confirm" = "확인"
+"Confirm each change" = "변경마다 확인"
+"Apply once" = "이번만 적용"
+"(retried)" = "(재시도됨)"
+"Applied" = "적용됨"
+"Applied · auto-apply on" = "적용됨 · 자동 적용으로 전환"
+"Apply" = "적용"
+"Apply automatically" = "자동으로 적용"
+"Auto" = "자동"
+"Ignore" = "무시"
+"Reject" = "거부"
+"Retry" = "재시도"
+"Continue" = "계속"
+"Submit answer" = "답변 제출"
+"Added: " = "추가: "
+"Not answered" = "답변하지 않음"
+"Add anything else (optional)" = "덧붙일 내용(선택 사항)"
+"Type your answer" = "답변을 입력하세요"
+"(continued)" = "(계속됨)"
+"No reply came back for this message — the turn didn't finish." = "이 메시지에는 응답이 오지 않았습니다 — 이번 차례가 완료되지 않았습니다."
+"The agent wants to apply {0} change(s) to the project." = "에이전트가 프로젝트에 변경 {0}건을 적용하려고 합니다."
+"The agent wants to change the setting \"{0}\" to {1}." = "에이전트가 설정 “{0}”을 {1}(으)로 변경하려고 합니다."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "에이전트가 확장 설정 “{0}”을 {1}(으)로 변경하려고 합니다."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "에이전트가 저장된 스크립트 “{0}”을 삭제하려고 합니다. 이 작업은 되돌릴 수 없습니다."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "에이전트가 저장된 스크립트 “{0}”을 덮어쓰려고 합니다. 이 작업은 되돌릴 수 없습니다."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "에이전트가 “{1}”을 “{0}”의 제공 패키지로 지정하려고 합니다(재시작 후 적용)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "에이전트가 확장 “{0}”을 사용하도록 설정하려고 합니다(재시작 후 적용)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "에이전트가 확장 “{0}”을 사용 안 함으로 설정하려고 합니다(재시작 후 적용)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "에이전트가 “{1}”의 “{0}” 기능을 사용하도록 설정하려고 합니다(재시작 후 적용)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "에이전트가 “{1}”의 “{0}” 기능을 사용 안 함으로 설정하려고 합니다(재시작 후 적용)."
+"The agent wants to remove the shortcut for \"{0}\"." = "에이전트가 “{0}”의 단축키를 해제하려고 합니다."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "에이전트가 “{0}”의 단축키를 {1}(으)로 설정하려고 합니다."
+"This also unbinds the shortcut of \"{0}\"." = "이렇게 하면 “{0}”의 단축키도 함께 해제됩니다."
+"You have unapplied changes. Apply them?" = "적용하지 않은 변경이 있습니다. 적용할까요?"
 
 [AgentTurnView]
 "Stopped" = "중지됨"
 "Arguments" = "인수"
 "Thinking…" = "생각하는 중…"
+"Copy" = "복사"
 
 [ToolStep]
 "Error" = "오류"

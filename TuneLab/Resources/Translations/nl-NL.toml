@@ -62,6 +62,7 @@
 "Voice" = "Stem"
 "Instrument" = "Instrument"
 "Extension Routing" = "Extensie-routing"
+"AI Agent max tool result (characters)" = "Max. gereedschapsresultaat van de AI Agent (tekens)"
 
 [FunctionBar]
 "Play" = "afspelen"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Pitch Pen"
 "Anchor Tool" = "Anchor Tool"
 "Vibrato Tool" = "Vibrato Tool"
+"Locking Brush" = "Vastzetpenseel"
 
 [TrackScrollView]
 "Loading..." = "Laden..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Slepen om het vibrato te koppelen"
+"No value here, vibrato has no effect" = "Hier is geen waarde, vibrato heeft geen effect"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Geïnstalleerd: "
 "Partial" = "Gedeeltelijk"
 "Skipped" = "Overgeslagen"
+"Reset to Default" = "Terugzetten naar standaard"
+"getInputConfig error:" = "getInputConfig-fout:"
+"Agent" = "Agent"
+"Apply" = "Toepassen"
+"Apply the agent's {0} change(s) to the project?" = "De {0} wijziging(en) van de agent op het project toepassen?"
+"Settings" = "Instellingen"
+"Open in External Editor" = "Openen in externe editor"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Dit is een legacy-extensie. Ze levert geen manifest-metadata, dus TuneLab ontdekt haar mogelijkheden door te scannen — er is geen door de auteur meegeleverde documentatie."
+"This extension has no documentation." = "Deze extensie heeft geen documentatie."
+"{0} extension(s) installed" = "{0} extensie(s) geïnstalleerd"
+"{0} of {1} extension(s)" = "{0} van {1} extensie(s)"
+"Disabled" = "Uitgeschakeld"
+"Enabled" = "Ingeschakeld"
+"Restart Required" = "Herstart vereist"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Deze extensie in- of uitschakelen. Wordt van kracht na het herstarten van TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Deze mogelijkheid in- of uitschakelen. Wordt van kracht na het herstarten van TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "De hele extensie is uitgeschakeld, dus haar mogelijkheden kunnen niet afzonderlijk worden aangezet."
 
 [Property]
 "Properties" = "Eigenschappen"
@@ -308,6 +328,7 @@
 "Recent" = "Recent"
 "Set Instrument" = "Instrument instellen"
 "About TuneLab" = "Over TuneLab"
+"Locking Brush" = "Vastzetpenseel"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Totaal van {0} modelaanroepen deze beurt (tool-heen-en-weer herhaalt de prefix)\nInvoer {1:N0} · Uitvoer {2:N0}\nContext laatste aanroep ~{3:N0} tokens"
 "Type a message..." = "Typ een bericht..."
 "Untitled" = "Naamloos"
+"Agent authorization" = "Agentmachtiging"
+"Always allow" = "Altijd toestaan"
+"Read-only" = "Alleen lezen"
+"Read-only (advise, never apply)" = "Alleen lezen (adviseert, past nooit toe)"
+"Confirm" = "Bevestigen"
+"Confirm each change" = "Elke wijziging bevestigen"
+"Apply once" = "Deze keer toepassen"
+"(retried)" = "(opnieuw geprobeerd)"
+"Applied" = "Toegepast"
+"Applied · auto-apply on" = "Toegepast · automatisch toepassen aan"
+"Apply" = "Toepassen"
+"Apply automatically" = "Automatisch toepassen"
+"Auto" = "Automatisch"
+"Ignore" = "Negeren"
+"Reject" = "Weigeren"
+"Retry" = "Opnieuw proberen"
+"Continue" = "Doorgaan"
+"Submit answer" = "Antwoord verzenden"
+"Added: " = "Aanvulling: "
+"Not answered" = "Niet geantwoord"
+"Add anything else (optional)" = "Voeg nog iets toe (optioneel)"
+"Type your answer" = "Typ je antwoord"
+"(continued)" = "(voortgezet)"
+"No reply came back for this message — the turn didn't finish." = "Er kwam geen antwoord op dit bericht — de ronde is niet afgerond."
+"The agent wants to apply {0} change(s) to the project." = "De agent wil {0} wijziging(en) op het project toepassen."
+"The agent wants to change the setting \"{0}\" to {1}." = "De agent wil de instelling '{0}' wijzigen naar {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "De agent wil de extensie-instelling '{0}' wijzigen naar {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "De agent wil het opgeslagen script '{0}' verwijderen. Dit kan niet ongedaan worden gemaakt."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "De agent wil het opgeslagen script '{0}' overschrijven. Dit kan niet ongedaan worden gemaakt."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "De agent wil dat '{1}' het pakket wordt dat '{0}' levert (wordt van kracht na een herstart)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "De agent wil de extensie '{0}' inschakelen (wordt van kracht na een herstart)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "De agent wil de extensie '{0}' uitschakelen (wordt van kracht na een herstart)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "De agent wil de mogelijkheid '{0}' van '{1}' inschakelen (wordt van kracht na een herstart)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "De agent wil de mogelijkheid '{0}' van '{1}' uitschakelen (wordt van kracht na een herstart)."
+"The agent wants to remove the shortcut for \"{0}\"." = "De agent wil de sneltoets voor '{0}' verwijderen."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "De agent wil de sneltoets voor '{0}' instellen op {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Hiermee wordt ook de sneltoets van '{0}' losgekoppeld."
+"You have unapplied changes. Apply them?" = "Je hebt niet-toegepaste wijzigingen. Toepassen?"
 
 [AgentTurnView]
 "Stopped" = "Gestopt"
 "Arguments" = "Argumenten"
 "Thinking…" = "Denken…"
+"Copy" = "Copy"
 
 [ToolStep]
 "Error" = "Error"

@@ -62,6 +62,7 @@
 "Voice" = "Voz"
 "Instrument" = "Instrumento"
 "Extension Routing" = "Enrutamiento de extensiones"
+"AI Agent max tool result (characters)" = "Resultado máximo de herramienta del Agente (caracteres)"
 
 [FunctionBar]
 "Play" = "Reproducir"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Lápiz de tono"
 "Anchor Tool" = "Herramienta de anclaje"
 "Vibrato Tool" = "Herramienta de vibrato"
+"Locking Brush" = "Pincel de fijación"
 
 [TrackScrollView]
 "Loading..." = "Cargando..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Arrastra para asociar el vibrato"
+"No value here, vibrato has no effect" = "Aquí no hay valor, el vibrato no tiene efecto"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Instalado: "
 "Partial" = "Parcial"
 "Skipped" = "Omitido"
+"Reset to Default" = "Restablecer a predeterminado"
+"getInputConfig error:" = "Error de getInputConfig:"
+"Agent" = "Agente"
+"Apply" = "Aplicar"
+"Apply the agent's {0} change(s) to the project?" = "¿Aplicar los {0} cambio(s) del agente al proyecto?"
+"Settings" = "Configuraciones"
+"Open in External Editor" = "Abrir en editor externo"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Esta es una extensión legacy. No incluye metadatos de manifest, por lo que TuneLab descubre sus capacidades escaneando: no hay documentación proporcionada por el autor."
+"This extension has no documentation." = "Esta extensión no tiene documentación."
+"{0} extension(s) installed" = "{0} extensión(es) instalada(s)"
+"{0} of {1} extension(s)" = "{0} de {1} extensión(es)"
+"Disabled" = "Deshabilitada"
+"Enabled" = "Habilitada"
+"Restart Required" = "Requiere reiniciar"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Habilitar o deshabilitar esta extensión. Se aplica después de reiniciar TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Habilitar o deshabilitar esta capacidad. Se aplica después de reiniciar TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "La extensión completa está deshabilitada, por lo que sus capacidades no se pueden activar individualmente."
 
 [Property]
 "Properties" = "Propiedades"
@@ -308,6 +328,7 @@
 "Recent" = "Recientes"
 "Set Instrument" = "Establecer instrumento"
 "About TuneLab" = "Acerca de TuneLab"
+"Locking Brush" = "Pincel de fijación"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agente"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Total de {0} llamadas al modelo en este turno (las idas y vueltas de herramientas repiten el prefijo)\nEntrada {1:N0} · Salida {2:N0}\nContexto de la última llamada ~{3:N0} tokens"
 "Type a message..." = "Escribe un mensaje..."
 "Untitled" = "Sin título"
+"Agent authorization" = "Autorización del agente"
+"Always allow" = "Permitir siempre"
+"Read-only" = "Solo lectura"
+"Read-only (advise, never apply)" = "Solo lectura (aconseja, nunca aplica)"
+"Confirm" = "Confirmar"
+"Confirm each change" = "Confirmar cada cambio"
+"Apply once" = "Aplicar esta vez"
+"(retried)" = "(reintentado)"
+"Applied" = "Aplicado"
+"Applied · auto-apply on" = "Aplicado · aplicación automática activada"
+"Apply" = "Aplicar"
+"Apply automatically" = "Aplicar automáticamente"
+"Auto" = "Automático"
+"Ignore" = "Ignorar"
+"Reject" = "Rechazar"
+"Retry" = "Reintentar"
+"Continue" = "Continuar"
+"Submit answer" = "Enviar respuesta"
+"Added: " = "Añadido: "
+"Not answered" = "Sin responder"
+"Add anything else (optional)" = "Agrega algo más (opcional)"
+"Type your answer" = "Escribe tu respuesta"
+"(continued)" = "(continuado)"
+"No reply came back for this message — the turn didn't finish." = "No llegó ninguna respuesta para este mensaje: el turno no se completó."
+"The agent wants to apply {0} change(s) to the project." = "El agente quiere aplicar {0} cambio(s) al proyecto."
+"The agent wants to change the setting \"{0}\" to {1}." = "El agente quiere cambiar la configuración «{0}» a {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "El agente quiere cambiar la configuración de extensión «{0}» a {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "El agente quiere eliminar el script guardado «{0}». Esto no se puede deshacer."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "El agente quiere sobrescribir el script guardado «{0}». Esto no se puede deshacer."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "El agente quiere que «{1}» sea el paquete que provee «{0}» (se aplica después de reiniciar)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "El agente quiere habilitar la extensión «{0}» (se aplica después de reiniciar)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "El agente quiere deshabilitar la extensión «{0}» (se aplica después de reiniciar)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "El agente quiere habilitar la capacidad «{0}» de «{1}» (se aplica después de reiniciar)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "El agente quiere deshabilitar la capacidad «{0}» de «{1}» (se aplica después de reiniciar)."
+"The agent wants to remove the shortcut for \"{0}\"." = "El agente quiere quitar el atajo de «{0}»."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "El agente quiere establecer el atajo de «{0}» en {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Esto también desasignará el atajo de «{0}»."
+"You have unapplied changes. Apply them?" = "Tienes cambios sin aplicar. ¿Aplicarlos?"
 
 [AgentTurnView]
 "Stopped" = "Detenido"
 "Arguments" = "Argumentos"
 "Thinking…" = "Pensando…"
+"Copy" = "Copiar"
 
 [ToolStep]
 "Error" = "Error"

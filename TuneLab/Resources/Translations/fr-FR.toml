@@ -62,6 +62,7 @@
 "Voice" = "Voix"
 "Instrument" = "Instrument"
 "Extension Routing" = "Routage des extensions"
+"AI Agent max tool result (characters)" = "Résultat d'outil maximal de l'Agent (caractères)"
 
 [FunctionBar]
 "Play" = "Jouer"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Tonalité (crayon)"
 "Anchor Tool" = "Outil d'Ancrage"
 "Vibrato Tool" = "Vibrato"
+"Locking Brush" = "Pinceau de verrouillage"
 
 [TrackScrollView]
 "Loading..." = "Chargement..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Faites glisser pour associer le vibrato"
+"No value here, vibrato has no effect" = "Aucune valeur ici, le vibrato n'a aucun effet"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Installé : "
 "Partial" = "Partiel"
 "Skipped" = "Ignoré"
+"Reset to Default" = "Réinitialiser par défaut"
+"getInputConfig error:" = "Erreur getInputConfig :"
+"Agent" = "Agent"
+"Apply" = "Appliquer"
+"Apply the agent's {0} change(s) to the project?" = "Appliquer les {0} modification(s) de l'agent au projet ?"
+"Settings" = "Paramètres"
+"Open in External Editor" = "Ouvrir dans un éditeur externe"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Il s'agit d'une extension legacy. Elle ne fournit aucune métadonnée de manifest, TuneLab détecte donc ses fonctionnalités par analyse — aucune documentation fournie par l'auteur n'est disponible."
+"This extension has no documentation." = "Cette extension n'a pas de documentation."
+"{0} extension(s) installed" = "{0} extension(s) installée(s)"
+"{0} of {1} extension(s)" = "{0} extension(s) sur {1}"
+"Disabled" = "Désactivée"
+"Enabled" = "Activée"
+"Restart Required" = "Redémarrage requis"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Activer ou désactiver cette extension. Prend effet après le redémarrage de TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Activer ou désactiver cette fonctionnalité. Prend effet après le redémarrage de TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "L'extension entière est désactivée, ses fonctionnalités ne peuvent donc pas être activées individuellement."
 
 [Property]
 "Properties" = "Propriétés"
@@ -308,6 +328,7 @@
 "Recent" = "Récent"
 "Set Instrument" = "Choisir l'instrument"
 "About TuneLab" = "À propos de TuneLab"
+"Locking Brush" = "Pinceau de verrouillage"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Total de {0} appels au modèle ce tour (les allers-retours d'outils répètent le préfixe)\nEntrée {1:N0} · Sortie {2:N0}\nContexte du dernier appel ~{3:N0} jetons"
 "Type a message..." = "Saisissez un message..."
 "Untitled" = "Sans titre"
+"Agent authorization" = "Autorisation de l'agent"
+"Always allow" = "Toujours autoriser"
+"Read-only" = "Lecture seule"
+"Read-only (advise, never apply)" = "Lecture seule (conseille, n'applique jamais)"
+"Confirm" = "Confirmer"
+"Confirm each change" = "Confirmer chaque modification"
+"Apply once" = "Appliquer cette fois"
+"(retried)" = "(réessayé)"
+"Applied" = "Appliqué"
+"Applied · auto-apply on" = "Appliqué · application automatique activée"
+"Apply" = "Appliquer"
+"Apply automatically" = "Appliquer automatiquement"
+"Auto" = "Automatique"
+"Ignore" = "Ignorer"
+"Reject" = "Refuser"
+"Retry" = "Réessayer"
+"Continue" = "Continuer"
+"Submit answer" = "Envoyer la réponse"
+"Added: " = "Ajout : "
+"Not answered" = "Sans réponse"
+"Add anything else (optional)" = "Ajouter autre chose (facultatif)"
+"Type your answer" = "Saisissez votre réponse"
+"(continued)" = "(poursuivi)"
+"No reply came back for this message — the turn didn't finish." = "Aucune réponse n'est revenue pour ce message — le tour ne s'est pas terminé."
+"The agent wants to apply {0} change(s) to the project." = "L'agent veut appliquer {0} modification(s) au projet."
+"The agent wants to change the setting \"{0}\" to {1}." = "L'agent veut changer le paramètre « {0} » en {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "L'agent veut changer le paramètre d'extension « {0} » en {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "L'agent veut supprimer le script enregistré « {0} ». Cette action est irréversible."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "L'agent veut écraser le script enregistré « {0} ». Cette action est irréversible."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "L'agent veut que « {1} » soit le paquet qui fournit « {0} » (prend effet après un redémarrage)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "L'agent veut activer l'extension « {0} » (prend effet après un redémarrage)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "L'agent veut désactiver l'extension « {0} » (prend effet après un redémarrage)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "L'agent veut activer la fonctionnalité « {0} » de « {1} » (prend effet après un redémarrage)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "L'agent veut désactiver la fonctionnalité « {0} » de « {1} » (prend effet après un redémarrage)."
+"The agent wants to remove the shortcut for \"{0}\"." = "L'agent veut supprimer le raccourci de « {0} »."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "L'agent veut définir le raccourci de « {0} » sur {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Cela supprimera aussi le raccourci de « {0} »."
+"You have unapplied changes. Apply them?" = "Vous avez des modifications non appliquées. Les appliquer ?"
 
 [AgentTurnView]
 "Stopped" = "Arrêté"
 "Arguments" = "Arguments"
 "Thinking…" = "Réflexion…"
+"Copy" = "Copier"
 
 [ToolStep]
 "Error" = "Erreur"

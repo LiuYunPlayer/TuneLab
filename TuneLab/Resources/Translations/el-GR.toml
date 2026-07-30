@@ -62,6 +62,7 @@
 "Voice" = "Φωνή"
 "Instrument" = "Όργανο"
 "Extension Routing" = "Δρομολόγηση Επεκτάσεων"
+"AI Agent max tool result (characters)" = "Μέγιστο αποτέλεσμα εργαλείου του AI Agent (χαρακτήρες)"
 
 [FunctionBar]
 "Play" = "Αναπαραγωγή"
@@ -74,6 +75,7 @@
 "Pitch Pen" = "Ύψος Φωνής (σε Εργαλείο Στυλού)"
 "Anchor Tool" = "Εργαλείο Άγκυρας"
 "Vibrato Tool" = "Εργαλείο Βιμπράτο"
+"Locking Brush" = "Πινέλο σταθεροποίησης"
 
 [TrackScrollView]
 "Loading..." = "Φόρτωση..."
@@ -92,6 +94,7 @@
 
 [AutomationRenderer]
 "Drag to associate the vibrato" = "Σύρετε το πεδίο για να συνδυάσετε το βιμπράτο"
+"No value here, vibrato has no effect" = "Δεν υπάρχει τιμή εδώ, το vibrato δεν έχει αποτέλεσμα"
 
 [Dialog]
 "OK" = "OK"
@@ -171,6 +174,23 @@
 "Installed: " = "Εγκαταστάθηκε: "
 "Partial" = "Μερικώς"
 "Skipped" = "Παραλείφθηκε"
+"Reset to Default" = "Επαναφορά στις προεπιλογές"
+"getInputConfig error:" = "Σφάλμα getInputConfig:"
+"Agent" = "Agent"
+"Apply" = "Εφαρμογή"
+"Apply the agent's {0} change(s) to the project?" = "Να εφαρμοστούν οι {0} αλλαγές του agent στο έργο;"
+"Settings" = "Ρυθμίσεις"
+"Open in External Editor" = "Άνοιγμα σε εξωτερικό επεξεργαστή"
+"This is a legacy extension. It ships no manifest metadata, so TuneLab discovers its capabilities by scanning — there is no author-provided documentation to show." = "Αυτή είναι μια legacy επέκταση. Δεν παρέχει μεταδεδομένα manifest, οπότε το TuneLab ανακαλύπτει τις δυνατότητές της με σάρωση — δεν υπάρχει τεκμηρίωση από τον δημιουργό."
+"This extension has no documentation." = "Αυτή η επέκταση δεν έχει τεκμηρίωση."
+"{0} extension(s) installed" = "{0} επεκτάσεις εγκατεστημένες"
+"{0} of {1} extension(s)" = "{0} από {1} επεκτάσεις"
+"Disabled" = "Απενεργοποιημένη"
+"Enabled" = "Ενεργοποιημένη"
+"Restart Required" = "Απαιτείται επανεκκίνηση"
+"Enable or disable this extension. Takes effect after restarting TuneLab." = "Ενεργοποιήστε ή απενεργοποιήστε αυτή την επέκταση. Ισχύει μετά την επανεκκίνηση του TuneLab."
+"Enable or disable this capability. Takes effect after restarting TuneLab." = "Ενεργοποιήστε ή απενεργοποιήστε αυτή τη δυνατότητα. Ισχύει μετά την επανεκκίνηση του TuneLab."
+"The whole extension is disabled, so its capabilities cannot be turned on individually." = "Ολόκληρη η επέκταση είναι απενεργοποιημένη, γι' αυτό οι δυνατότητές της δεν μπορούν να ενεργοποιηθούν ξεχωριστά."
 
 [Property]
 "Properties" = "Ιδιότητες"
@@ -308,6 +328,7 @@
 "Recent" = "Πρόσφατα"
 "Set Instrument" = "Επιλογή Οργάνου"
 "About TuneLab" = "Σχετικά με το TuneLab"
+"Locking Brush" = "Πινέλο σταθεροποίησης"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"
@@ -335,11 +356,50 @@
 "Total of {0} model calls this turn (tool round-trips repeat the prefix)\nInput {1:N0} · Output {2:N0}\nLast call context ~{3:N0} tokens" = "Σύνολο {0} κλήσεων μοντέλου σε αυτόν τον γύρο (οι κλήσεις εργαλείων επαναλαμβάνουν το πρόθεμα)\nΕίσοδος {1:N0} · Έξοδος {2:N0}\nΠλαίσιο τελευταίας κλήσης ~{3:N0} tokens"
 "Type a message..." = "Πληκτρολογήστε ένα μήνυμα..."
 "Untitled" = "Χωρίς Τίτλο"
+"Agent authorization" = "Εξουσιοδότηση agent"
+"Always allow" = "Να επιτρέπεται πάντα"
+"Read-only" = "Μόνο ανάγνωση"
+"Read-only (advise, never apply)" = "Μόνο ανάγνωση (προτείνει, δεν εφαρμόζει ποτέ)"
+"Confirm" = "Επιβεβαίωση"
+"Confirm each change" = "Επιβεβαίωση κάθε αλλαγής"
+"Apply once" = "Εφαρμογή αυτή τη φορά"
+"(retried)" = "(επαναλήφθηκε)"
+"Applied" = "Εφαρμόστηκε"
+"Applied · auto-apply on" = "Εφαρμόστηκε · αυτόματη εφαρμογή ενεργή"
+"Apply" = "Εφαρμογή"
+"Apply automatically" = "Αυτόματη εφαρμογή"
+"Auto" = "Αυτόματο"
+"Ignore" = "Παράβλεψη"
+"Reject" = "Απόρριψη"
+"Retry" = "Επανάληψη"
+"Continue" = "Συνέχεια"
+"Submit answer" = "Υποβολή απάντησης"
+"Added: " = "Προσθήκη: "
+"Not answered" = "Χωρίς απάντηση"
+"Add anything else (optional)" = "Προσθέστε οτιδήποτε άλλο (προαιρετικό)"
+"Type your answer" = "Γράψτε την απάντησή σας"
+"(continued)" = "(συνεχίστηκε)"
+"No reply came back for this message — the turn didn't finish." = "Δεν ήρθε απάντηση για αυτό το μήνυμα — ο κύκλος δεν ολοκληρώθηκε."
+"The agent wants to apply {0} change(s) to the project." = "Ο agent θέλει να εφαρμόσει {0} αλλαγές στο έργο."
+"The agent wants to change the setting \"{0}\" to {1}." = "Ο agent θέλει να αλλάξει τη ρύθμιση «{0}» σε {1}."
+"The agent wants to change the extension setting \"{0}\" to {1}." = "Ο agent θέλει να αλλάξει τη ρύθμιση επέκτασης «{0}» σε {1}."
+"The agent wants to delete the saved script \"{0}\". This can't be undone." = "Ο agent θέλει να διαγράψει το αποθηκευμένο script «{0}». Αυτό δεν μπορεί να αναιρεθεί."
+"The agent wants to overwrite the saved script \"{0}\". This can't be undone." = "Ο agent θέλει να αντικαταστήσει το αποθηκευμένο script «{0}». Αυτό δεν μπορεί να αναιρεθεί."
+"The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart)." = "Ο agent θέλει το «{1}» να είναι το πακέτο που παρέχει το «{0}» (ισχύει μετά από επανεκκίνηση)."
+"The agent wants to enable the extension \"{0}\" (takes effect after a restart)." = "Ο agent θέλει να ενεργοποιήσει την επέκταση «{0}» (ισχύει μετά από επανεκκίνηση)."
+"The agent wants to disable the extension \"{0}\" (takes effect after a restart)." = "Ο agent θέλει να απενεργοποιήσει την επέκταση «{0}» (ισχύει μετά από επανεκκίνηση)."
+"The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Ο agent θέλει να ενεργοποιήσει τη δυνατότητα «{0}» του «{1}» (ισχύει μετά από επανεκκίνηση)."
+"The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart)." = "Ο agent θέλει να απενεργοποιήσει τη δυνατότητα «{0}» του «{1}» (ισχύει μετά από επανεκκίνηση)."
+"The agent wants to remove the shortcut for \"{0}\"." = "Ο agent θέλει να αφαιρέσει τη συντόμευση για «{0}»."
+"The agent wants to set the shortcut for \"{0}\" to {1}." = "Ο agent θέλει να ορίσει τη συντόμευση για «{0}» σε {1}."
+"This also unbinds the shortcut of \"{0}\"." = "Αυτό θα αφαιρέσει και τη συντόμευση του «{0}»."
+"You have unapplied changes. Apply them?" = "Έχετε αλλαγές που δεν εφαρμόστηκαν. Να εφαρμοστούν;"
 
 [AgentTurnView]
 "Stopped" = "Διακόπηκε"
 "Arguments" = "Ορίσματα"
 "Thinking…" = "Σκέφτεται…"
+"Copy" = "Αντιγραφή (Copy)"
 
 [ToolStep]
 "Error" = "Σφάλμα"
