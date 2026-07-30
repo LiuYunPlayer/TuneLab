@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "Automatisch opslaan (seconde)"
 "Parameter Boundary Extension (tick)" = "Parameter Grensuitbreiding（Tick）"
 "Parameter Sync Mode" = "Parametersynchronisatiemodus"
+"Auto Generate Pronunciation" = "Uitspraak automatisch genereren"
 "Track Hue Change Rate (degree/second)" = "Track-kleurtoonveranderingssnelheid (graden/seconde)"
 "General" = "Algemeen"
 "Audio" = "Audio"

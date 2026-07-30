@@ -110,7 +110,7 @@ internal static class ScriptApiReference
         "  part.setProperty(key, value)             set one declared part param (value = number/boolean/string)\n" +
         "\n" +
         "note\n" +
-        "  fields (read/write):  pos, dur, pitch, lyric, pronunciation      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = a voice G2P override; empty string = derive from lyric\n" +
+        "  fields (read/write):  pos, dur, pitch, lyric, pronunciation      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = an explicit voice pronunciation override; empty = the lyric text itself reaches the engine, which does its own G2P\n" +
         "  note.getInfo()                           {pos, dur, pitch, lyric, pronunciation, properties, leadingPhonemes, bodyPhonemes, bodyOffset}\n" +
         "  note.part()                              the part this note is on (read-only)      // vibrato.part() and effect.part() exist too\n" +
         "  // NOTE PROPERTIES (voice/instrument-declared per-note params; keys/ranges from list_sound_sources):\n" +

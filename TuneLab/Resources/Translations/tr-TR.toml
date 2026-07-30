@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "Otomatik Kaydetme Aralığı (saniye)"
 "Parameter Boundary Extension (tick)" = "Parametre Sınırı Genişletme (Tick)"
 "Parameter Sync Mode" = "Parametre Eşitleme Modu"
+"Auto Generate Pronunciation" = "Telaffuzu otomatik oluştur"
 "Track Hue Change Rate (degree/second)" = "Parça Renk Tonu Değişim Hızı (derece/saniye)"
 "General" = "Genel"
 "Audio" = "Ses"

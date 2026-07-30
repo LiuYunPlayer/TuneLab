@@ -124,7 +124,7 @@ public sealed class VoiceSynthesisSnapshot {                    // context.GetSn
 }
 public sealed class VoiceSynthesisNoteSnapshot {                // 触底值类型、无活引用
     double StartTime { get; } double EndTime { get; }      // 全局秒
-    int Pitch { get; } string Lyric { get; }
+    int Pitch { get; } string Lyric { get; }   // Lyric = 歌词原文 或 用户显式发音覆盖；宿主不归一到单一音系（汉字可能原样到达），G2P 归引擎
     // 无延音字段（live/快照都没有）：延音判定权完整归引擎（IVoiceSynthesisSession.IsContinuation，见下"延音判定"行）；快照域需要身份就在同步前缀对 live note 自判后随自有快照冻结
     IReadOnlyList<VoiceSynthesisPhonemeSnapshot> LeadingPhonemes { get; } BodyPhonemes { get; }  // 钉死音素双列表（引导/主体）；非钉死(G2P)note 皆空。元素=带属性的 VoiceSynthesisPhonemeSnapshot。Phonemes=Leading++Body 只读视图
     double BodyOffset { get; }                             // 主体起点(结合线)相对 note 头的有符号偏移；junction=noteStart+BodyOffset

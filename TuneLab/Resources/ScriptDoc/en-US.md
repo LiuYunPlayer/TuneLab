@@ -204,7 +204,7 @@ So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endO
 
 ## `note`
 
-**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasPinnedPhonemes` (bool). `pronunciation` is a voice G2P override — set it to force a pronunciation; an empty string reverts to deriving it from the lyric. `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-pins).
+**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasPinnedPhonemes` (bool). `pronunciation` is an explicit voice pronunciation override — set it to force a pronunciation; an empty string means no override, so the lyric text itself reaches the engine and the engine does its own G2P. (Whether entering a lyric auto-fills this field with editor G2P is the `AutoGeneratePronunciation` setting.) `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-pins).
 
 | Method | Returns | Notes |
 |---|---|---|

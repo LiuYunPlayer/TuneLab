@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "自動保存の間隔（秒）"
 "Parameter Boundary Extension (tick)" = "パラメータ境界の拡張（Tick）"
 "Parameter Sync Mode" = "パラメータ同期モード"
+"Auto Generate Pronunciation" = "発音を自動生成"
 "Track Hue Change Rate (degree/second)" = "トラック色相の変化率（度/秒）"
 "General" = "一般"
 "Audio" = "オーディオ"

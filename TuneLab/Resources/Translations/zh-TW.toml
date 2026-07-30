@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "自動儲存間隔（秒）"
 "Parameter Boundary Extension (tick)" = "參數邊界擴展（tick）"
 "Parameter Sync Mode" = "參數同步模式"
+"Auto Generate Pronunciation" = "自動產生發音"
 "Track Hue Change Rate (degree/second)" = "軌道色相變化速率（度/秒）"
 "General" = "一般"
 "Audio" = "音訊"

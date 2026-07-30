@@ -3,6 +3,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using System.Collections.Generic;
 using System.Linq;
+using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.GUI;
 using TuneLab.GUI.Components;
@@ -103,7 +104,10 @@ internal partial class LyricInput : Window
             if (current.Lyric == "-")
                 continue;
 
-            note.Pronunciation.Set(current.Pronunciation);
+            // 编辑器层 G2P 关闭时不写发音覆盖（Lyric.Set 已清空它），原文直达引擎。
+            // 开启时才用 Split 的批量转换结果覆盖——它带上下文，比 Lyric.Set 里的单字首选更准。
+            if (Settings.AutoGeneratePronunciation.Value)
+                note.Pronunciation.Set(current.Pronunciation);
         }
 
         mNotes.First().Commit();

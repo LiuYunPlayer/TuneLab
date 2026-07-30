@@ -17,6 +17,9 @@ internal class SettingsFile
     public double BackgroundImageOpacity { get; set; } = 0.5;
     public double ParameterBoundaryExtension { get; set; } = 5;
     public bool ParameterSyncMode { get; set; } = false;
+    // 录入歌词时由编辑器做 G2P（汉字→拼音 / 假名→罗马音）填进 note 的发音字段。
+    // true（默认）= 保持既有行为；false = 歌词原文直达引擎，由引擎自行 G2P（方言等非拼音音系的前提）。
+    public bool AutoGeneratePronunciation { get; set; } = true;
     public string PianoKeySamplesPath { get; set; } = string.Empty;
     public int AutoSaveInterval { get; set; } = 10;
     public int AutoSaveMaxCount { get; set; } = 5;

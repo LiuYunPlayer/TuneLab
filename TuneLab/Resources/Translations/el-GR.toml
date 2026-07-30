@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "Διάστημα Αυτόματης Αποθήκευσης (ανα Δευτερoλέπτου)"
 "Parameter Boundary Extension (tick)" = "Επέκταση Ορίων Παραμέτρων (ανα Tick)"
 "Parameter Sync Mode" = "Λειτουργία Συγχρονισμού Παραμέτρων"
+"Auto Generate Pronunciation" = "Αυτόματη δημιουργία προφοράς"
 "Track Hue Change Rate (degree/second)" = "Ρυθμός Aλλαγής Aπόχρωσης Κομματιού（ανα Βαφμού/Δευτερoλέπτου）"
 "General" = "Γενικά"
 "Audio" = "Ήχος"

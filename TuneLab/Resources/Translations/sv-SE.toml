@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "Autosparningsinterval (sekunder)"
 "Parameter Boundary Extension (tick)" = "Förlängning av parametergränsen (tick)"
 "Parameter Sync Mode" = "Parametersynkläge"
+"Auto Generate Pronunciation" = "Generera uttal automatiskt"
 "Track Hue Change Rate (degree/second)" = "Ändringshastighet för spårnyans (grader/sekund)"
 "General" = "Allmänt"
 "Audio" = "Ljud"

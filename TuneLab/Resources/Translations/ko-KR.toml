@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "자동 저장 간격（초）"
 "Parameter Boundary Extension (tick)" = "파라미터 경계 확장 (Tick)"
 "Parameter Sync Mode" = "파라미터 동기화 모드"
+"Auto Generate Pronunciation" = "발음 자동 생성"
 "Track Hue Change Rate (degree/second)" = "트랙 색조 변화 속도 (도/초)"
 "General" = "일반"
 "Audio" = "오디오"

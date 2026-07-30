@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.Utils;
 using TuneLab.SDK;
@@ -807,11 +806,13 @@ internal static class INoteExtension
         return globalIndex < lc ? (note.LeadingPhonemes, globalIndex) : (note.BodyPhonemes, globalIndex - lc);
     }
 
+    // 发音覆盖口径（喂引擎 / note 上的发音显示共用）= **只看数据**：非空 Pronunciation 是显式写下的覆盖
+    // （用户手选，或 AutoGeneratePronunciation 开启时录入歌词那一刻编辑器 G2P 填的），null = 无覆盖
+    // → 歌词原文直达引擎，由引擎按自身音系 G2P（方言等非拼音音系的前提）。
+    // 刻意不再拿 note.Pronunciations（编辑器拼音候选表）首项兜底：那是读取期的第二层猜测，会让编辑器
+    // G2P 关掉后依然喂出拼音，且使"工程里存的空发音"与"猜一个拼音"无从区分。
     public static string? FinalPronunciation(this INote note)
     {
-        if (!string.IsNullOrEmpty(note.Pronunciation.Value))
-            return note.Pronunciation.Value;
-
-        return note.Pronunciations.FirstOrDefault();
+        return string.IsNullOrEmpty(note.Pronunciation.Value) ? null : note.Pronunciation.Value;
     }
 }

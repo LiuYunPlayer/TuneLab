@@ -134,6 +134,12 @@ internal static class SettingsRegistry
         "Parameter Boundary Extension (tick)", SliderConfig.Integer(D.ParameterBoundaryExtension, 1, 60), D.ParameterBoundaryExtension);
     public static readonly SettingItem<bool> ParameterSyncMode = Bool("ParameterSyncMode", SettingTab.Editing,
         "Parameter Sync Mode", CheckBoxConfig.Create(D.ParameterSyncMode), D.ParameterSyncMode);
+    // 编辑器层 G2P 的总闸（只作用于**录入歌词那一刻**的写入，不参与读取——见 Note.DataLyric.Set）。
+    public static readonly SettingItem<bool> AutoGeneratePronunciation = Bool("AutoGeneratePronunciation", SettingTab.Editing,
+        "Auto Generate Pronunciation", CheckBoxConfig.Create(D.AutoGeneratePronunciation), D.AutoGeneratePronunciation,
+        description: "When entering lyrics, let the editor run G2P (Han characters to pinyin, kana to romaji) and fill the note's pronunciation field. " +
+            "Turn it off to send the lyric text itself to the voice engine, so the engine can do its own G2P (required for dialects and other non-pinyin phonologies). " +
+            "It only affects lyrics entered from then on; pronunciations already stored in the project are kept either way.");
 
     // ── 仅存储（无设置窗行；由别处设定，但仍随本注册表读写磁盘、可被 agent 枚举） ──
     // 三者的【活值都由别处的 UI 拥有】（视图菜单 / agent 侧栏），只单向落盘：agent 写文件既不即时生效、又会被那处 UI
@@ -160,7 +166,7 @@ internal static class SettingsRegistry
         // Appearance
         InterfaceFontFamily, BackgroundImagePath, BackgroundImageOpacity, TrackHueChangeRate,
         // Editing
-        ParameterBoundaryExtension, ParameterSyncMode,
+        ParameterBoundaryExtension, ParameterSyncMode, AutoGeneratePronunciation,
         // 仅存储（无设置窗行）
         AutoScrollTarget, AgentModelProvider, AgentAuthorization,
     ];
@@ -193,11 +199,13 @@ internal static class SettingsRegistry
             read: ReadDbl, write: v => JsonValue.Create(v))
         { ImmediateApply = immediate };
 
-    static SettingItem<bool> Bool(string key, SettingTab? tab, string label, IControllerConfig config, bool def)
+    static SettingItem<bool> Bool(string key, SettingTab? tab, string label, IControllerConfig config, bool def,
+        string? description = null)
         => new(key, tab, label, config, def,
             toPv: v => PropertyValue.Create(v),
             fromPv: v => v.ToBoolean(out var b) ? (true, b) : (false, def),
-            read: ReadBool, write: v => JsonValue.Create(v));
+            read: ReadBool, write: v => JsonValue.Create(v))
+        { Description = description };
 
     // 数值选择框（供 SampleRate / BufferSize）：项的【值】是数字的字符串形（如 "44100"），
     // 设置窗绑定时经 .Select(int.Parse, i=>i.ToString()) 桥到 int 属性（与旧窗口一致）。

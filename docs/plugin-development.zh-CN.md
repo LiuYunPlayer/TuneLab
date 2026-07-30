@@ -448,7 +448,7 @@ public interface IVoiceSynthesisContext
 
 **`Notes` 排序与重叠**：全序确定性——`StartTime` 升序 → 同起点 `EndTime` 降序（长 note 在前）→ 再同则保持插入序。note **可以重叠**（和弦）：序列原味直传可重叠 note，「后盖前」等去重叠是**你的责任**（单声部插件按需截断，和弦插件原味消费重叠）。
 
-**`IVoiceSynthesisNote` 字段**全是可订阅属性（`IReadOnlyNotifiableProperty<T>`，有 `Value` / `WillModify` / `Modified`）：`StartTime`/`EndTime`（全局秒）、`Pitch`（`int` 半音）、`Lyric`（`string`）、`Phonemes`（`IReadOnlyList<SynthesizedPhoneme>`，见 §5.7）、`Properties`（keyed per-note 参数）。还有 `Next`/`Last` 邻居链——**仅供数据线程的分片决策用**（事件 handler 里只有 note 自身引用、无列表索引）；合成时必须在快照的有序列表上按索引导航邻居，不要回碰活 note。
+**`IVoiceSynthesisNote` 字段**全是可订阅属性（`IReadOnlyNotifiableProperty<T>`，有 `Value` / `WillModify` / `Modified`）：`StartTime`/`EndTime`（全局秒）、`Pitch`（`int` 半音）、`Lyric`（`string`——该 note 要唱的文本：用户输入的歌词原文，或用户设定的显式发音覆盖。**宿主不把它归一到任何单一音系**，汉字可能原样到达；G2P 归你的引擎——正是这一点让引擎能照方言或其它非拼音音系发音）、`Phonemes`（`IReadOnlyList<SynthesizedPhoneme>`，见 §5.7）、`Properties`（keyed per-note 参数）。还有 `Next`/`Last` 邻居链——**仅供数据线程的分片决策用**（事件 handler 里只有 note 自身引用、无列表索引）；合成时必须在快照的有序列表上按索引导航邻居，不要回碰活 note。
 
 ### 5.4 调度：`GetNextPendingSynthesisRange`（peek）与 `SynthesizeNext`（commit）
 

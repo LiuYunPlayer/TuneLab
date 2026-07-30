@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "Intervalle d'Auto Sauvegarde"
 "Parameter Boundary Extension (tick)" = "Limite de Paramètre (tick)"
 "Parameter Sync Mode" = "Mode de synchronisation des paramètres"
+"Auto Generate Pronunciation" = "Générer automatiquement la prononciation"
 "Track Hue Change Rate (degree/second)" = "Vitesse de variation de teinte des pistes (degré/seconde)"
 "General" = "Général"
 "Audio" = "Audio"

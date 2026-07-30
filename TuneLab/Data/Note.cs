@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.Utils;
@@ -111,7 +112,11 @@ internal class Note : DataObject, INote
             base.Set(value);
             mNote.LeadingPhonemes.Clear();
             mNote.BodyPhonemes.Clear();
-            mNote.Pronunciation.Set(LyricUtils.GetPreferredPronunciation(Value));
+            // 改歌词一律清掉旧发音覆盖（覆盖是"给这个字指定的读音"，字换了就不再成立）。
+            // 编辑器层 G2P 只在开关开启时补填：拼音 / 罗马音是**一种**音系的猜测，方言等其它音系下它是错的，
+            // 故关闭时把原文留给引擎自己 G2P（喂插件的口径见 INoteExtension.FinalPronunciation）。
+            // 判据挂在这里而非各 UI 入口：所有写歌词的路径（录词框 / 单 note 输入 / 脚本 / agent）由此统一。
+            mNote.Pronunciation.Set(Settings.AutoGeneratePronunciation.Value ? LyricUtils.GetPreferredPronunciation(Value) : string.Empty);
         }
 
         readonly Note mNote;

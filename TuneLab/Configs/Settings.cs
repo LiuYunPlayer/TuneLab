@@ -27,6 +27,7 @@ internal static class Settings
     public static NotifiableProperty<double> BackgroundImageOpacity => SettingsRegistry.BackgroundImageOpacity.Property;
     public static NotifiableProperty<double> ParameterBoundaryExtension => SettingsRegistry.ParameterBoundaryExtension.Property;
     public static NotifiableProperty<bool> ParameterSyncMode => SettingsRegistry.ParameterSyncMode.Property;
+    public static NotifiableProperty<bool> AutoGeneratePronunciation => SettingsRegistry.AutoGeneratePronunciation.Property;
     public static NotifiableProperty<string> PianoKeySamplesPath => SettingsRegistry.PianoKeySamplesPath.Property;
     public static NotifiableProperty<int> AutoSaveInterval => SettingsRegistry.AutoSaveInterval.Property;
     public static NotifiableProperty<int> AutoSaveMaxCount => SettingsRegistry.AutoSaveMaxCount.Property;

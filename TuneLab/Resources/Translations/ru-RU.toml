@@ -43,6 +43,7 @@
 "Auto Save Interval (second)" = "Интервал автосохранения (секунды)"
 "Parameter Boundary Extension (tick)" = "Расширение границ параметров (тики)"
 "Parameter Sync Mode" = "Режим синхронизации параметров"
+"Auto Generate Pronunciation" = "Автоматически создавать произношение"
 "Track Hue Change Rate (degree/second)" = "Скорость изменения оттенка дорожки (градусы/секунда)"
 "General" = "Общие"
 "Audio" = "Аудио"

@@ -200,7 +200,7 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 
 ## `note`（音符）
 
-**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasPinnedPhonemes`（bool）。`pronunciation` 是 voice 的 G2P 发音覆盖——非空则强制该发音，空串回到按歌词自动派生。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动钉死音素）。
+**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasPinnedPhonemes`（bool）。`pronunciation` 是 voice 的显式发音覆盖——非空则强制该发音，空串 = 无覆盖，歌词原文直达引擎、由引擎自行 G2P（录入歌词时是否自动填入编辑器 G2P 结果，取决于 `AutoGeneratePronunciation` 设置）。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动钉死音素）。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
