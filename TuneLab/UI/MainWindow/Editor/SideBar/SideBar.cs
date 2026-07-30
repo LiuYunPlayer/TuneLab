@@ -26,6 +26,9 @@ internal class SideBar : DockPanel
     {
         Focusable = true;
         IsTabStop = false;
+        // 与内容区的分隔线：画成比背景更暗一档而非露底色——编排区/钢琴窗的空白与侧栏空白同为 BACK，
+        // 靠露底色的缝在那些段会与两侧糊在一起。跟着侧栏走，故宽度随拖拽变化也始终贴在左缘。
+        this.AddDock(new Border() { Width = 1, Background = Style.DARK.ToBrush() }, Dock.Left);
         var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
         {
             mIcon = new Image() { Width = 24, Height = 24, Margin = new(24, 12, 16, 12) };

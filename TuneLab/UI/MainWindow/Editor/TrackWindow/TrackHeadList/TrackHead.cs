@@ -52,14 +52,15 @@ internal class TrackHead : DockPanel
         mIndexLabel.EndInput.Subscribe(() => { if (Track == null) return; if (!int.TryParse(mIndexLabel.Text, out int newIndex)) mIndexLabel.Text = mTrackIndex.ToString(); newIndex = newIndex.Limit(1, Track.Project.Tracks.Count()); newIndex--; MoveToIndex(newIndex); });
         // 强调条贴在朝向内容区的那条缝上（轨道头整列在左侧，故为右缘），与左端的色块拉开、不糊成两条彩带。
         this.AddDock(mSelectionStrip, Dock.Right);
-        // 色块序号标签占左端，其后才是电平表。
+        // 色块序号标签占左端。
         mIndexPanel.Children.Add(mIndexLabel);
         this.AddDock(mIndexPanel, Dock.Left);
-        var meterArea = new DockPanel() { Margin = new(6, 2, 0, 3) };
+        // 电平表贴右缘（强调条内侧），与内容区之间的间隙由 topArea/bottomArea 的右 margin 提供。
+        var meterArea = new DockPanel() { Margin = new(0, 2, 6, 3) };
         {
             meterArea.AddDock(mAmplitudeViewer);
         }
-        this.AddDock(meterArea, Dock.Left);
+        this.AddDock(meterArea, Dock.Right);
         var topArea = new DockPanel() { Margin = new(12, 12, 12, 0) };
         {
             topArea.AddDock(mSoloToggle, Dock.Right);

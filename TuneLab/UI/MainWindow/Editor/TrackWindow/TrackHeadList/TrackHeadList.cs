@@ -266,10 +266,17 @@ internal class TrackHeadList : LayerPanel
 
         public override void Render(DrawingContext context)
         {
-            context.FillRectangle(Style.INTERFACE.ToBrush(), this.Rect());
+            // 底色分两层：整层先铺空区色（末轨之下、含新建按钮那一槽），再把轨道占用的区间盖回 INTERFACE，
+            // 于是「有轨道」与「没轨道」的地方自然分色，无需逐轨绘制。
+            context.FillRectangle(Style.BACK.ToBrush(), this.Rect());
             var project = mTrackHeadList.mDependency.ProjectHolder.Value;
             if (project == null)
                 return;
+
+            double occupiedTop = Math.Max(0, TrackVerticalAxis.GetTop(0));
+            double occupiedBottom = Math.Min(Bounds.Height, TrackVerticalAxis.GetTop(project.Tracks.Count));
+            if (occupiedBottom > occupiedTop)
+                context.FillRectangle(Style.INTERFACE.ToBrush(), new(0, occupiedTop, Bounds.Width, occupiedBottom - occupiedTop));
 
             for (int i = 0; i < project.Tracks.Count; i++)
             {

@@ -54,11 +54,14 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
         mTickAxis = new();
         mTrackVerticalAxis = new(this);
 
-        // 轨道头列在左（与钢琴窗的琴键列同侧）；1px 右外边距露出底色作与内容区的分隔线。
-        mTrackHeadList = new(this) { Width = 232, Margin = new(0, 0, 1, 0) };
+        // 轨道头列在左（与钢琴窗的琴键列同侧）。
+        mTrackHeadList = new(this) { Width = 232 };
         var headArea = new DockPanel();
         {
-            var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), Margin = new(0, 0, 1, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+            // 与内容区的分隔线：画成比背景更暗一档而非露底色——末轨之下的空区与编排区底色同为 BACK，
+            // 靠露底色的缝在那一段会与两侧糊在一起。整列贯穿（含标题栏），先于其他子级停靠。
+            headArea.AddDock(new Border() { Width = 1, Background = Style.DARK.ToBrush() }, Dock.Right);
+            var title = new DockPanel() { Height = 48, Background = Style.INTERFACE.ToBrush(), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
             {
                 var icon = new Image() { Source = Assets.Track.GetImage(Style.LIGHT_WHITE), Width = 24, Height = 24, Margin = new(16, 12, 12, 12) };
                 title.AddDock(icon, Dock.Left);

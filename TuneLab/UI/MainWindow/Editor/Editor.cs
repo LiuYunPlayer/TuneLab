@@ -88,10 +88,12 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
-        mRightSideBar = new() { Width = 320, Margin = new(1, 0, 0, 0) };
+        mRightSideBar = new() { Width = 320 };   // 左缘分隔线由 SideBar 自己画（见其构造）
 
-        var panel = new DockPanel() { Background = Style.INTERFACE.ToBrush(), Margin = new(1, 0, 0, 0) };
+        var panel = new DockPanel() { Background = Style.INTERFACE.ToBrush() };
         {
+            // 页签竖条的左缘分隔线：侧栏收起时它直接挨着内容区，同样不能靠露底色的缝分界。
+            panel.AddDock(new Border() { Width = 1, Background = Style.DARK.ToBrush() }, Dock.Left);
             var hoverBack = Colors.White.Opacity(0.05);
             var settingsButton = new GUI.Components.Button() { Width = 48, Height = 48 }
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 4.0 / 3.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
