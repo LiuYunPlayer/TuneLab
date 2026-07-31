@@ -155,6 +155,7 @@
 "Track" = "Доріжка"
 "Export failed: \n" = "Помилка експорту: \n"
 "The file failed to open because it does not exist." = "Не вдалося відкрити файл, оскільки він не існує."
+"Failed to open the file:" = "Не вдалося відкрити файл:"
 "Update Available" = "Доступне оновлення"
 "Version" = "Версія"
 "Public Date" = "Дата виходу"

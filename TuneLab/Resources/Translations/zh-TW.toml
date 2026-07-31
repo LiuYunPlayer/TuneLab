@@ -161,6 +161,7 @@
 "Track" = "軌道"
 "Export failed: \n" = "無法匯出： \n"
 "The file failed to open because it does not exist." = "無法打開，目標檔案不存在。"
+"Failed to open the file:" = "開啟檔案失敗："
 "Update Available" = "有新版本可用"
 "Version" = "版本號"
 "Public Date" = "發布時間"

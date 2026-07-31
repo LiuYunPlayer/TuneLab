@@ -155,6 +155,7 @@
 "Track" = "Parça"
 "Export failed: \n" = "Dışa aktarma başarısız: \n"
 "The file failed to open because it does not exist." = "Dosya mevcut olmadığı için açılamadı."
+"Failed to open the file:" = "Dosya açılamadı:"
 "Update Available" = "Güncelleme Mevcut"
 "Version" = "Sürüm"
 "Public Date" = "Yayın Tarihi"

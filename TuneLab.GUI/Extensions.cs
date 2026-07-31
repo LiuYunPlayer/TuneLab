@@ -296,6 +296,33 @@ internal static class Extensions
         await dialog.ShowDialog(visual.Window());
     }
 
+    // 打开/导入文件失败的统一提示（工程、崩溃恢复的自动备份、导入轨道的源文件共用）。
+    // 底层错误原文可能来自第三方格式插件，是数据不是文案，故原样附上不翻译；
+    // 路径单独占一行——用户来回开好几个文件时，只有它能说清失败的是哪一个。
+    public static async Task ShowFileOpenError(this Avalonia.Visual visual, string path, string? error)
+    {
+        var message = "Failed to open the file:".Tr(TC.Dialog) + "\n\n" + path;
+        if (!string.IsNullOrEmpty(error))
+            message += "\n\n" + error;
+
+        var title = "Error".Tr(TC.Dialog);
+
+        // 文件关联双击 / 命令行参数打开走的是主窗口 Show **之前**那一段：此刻没有可依附的窗口，
+        // ShowDialog 会抛（在 fire-and-forget 的 Task 里还会被静静吞掉，提示就又没了）。
+        // 退化为无主非模态窗——Dialog 自身 Topmost，随后主窗口显示出来也压不住它。
+        if (TopLevel.GetTopLevel(visual) is not Window owner || !owner.IsVisible)
+        {
+            var dialog = new Dialog();
+            dialog.SetTitle(title);
+            dialog.SetMessage(message);
+            dialog.AddButton("OK", Dialog.ButtonType.Primary);
+            dialog.Show();
+            return;
+        }
+
+        await owner.ShowMessage(title, message);
+    }
+
     // 确认对话框：主按钮（confirmText）返回 true，取消按钮返回 false。主按钮末加、Opened 时聚焦（回车即确认）。
     public static async Task<bool> ShowConfirm(this Avalonia.Visual visual, string title, string message, string confirmText, string cancelText)
     {

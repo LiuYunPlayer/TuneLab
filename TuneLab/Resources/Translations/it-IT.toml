@@ -155,6 +155,7 @@
 "Track" = "Traccia"
 "Export failed: \n" = "Esportazione fallita: \n"
 "The file failed to open because it does not exist." = "Impossibile aprire il file perché non esiste."
+"Failed to open the file:" = "Impossibile aprire il file:"
 "Update Available" = "Aggiornamento disponibile"
 "Version" = "Versione"
 "Public Date" = "Data di pubblicazione"

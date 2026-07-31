@@ -155,6 +155,7 @@
 "Track" = "Spur"
 "Export failed: \n" = "Exportieren fehlgeschlagen :(: \n"
 "The file failed to open because it does not exist." = "Das öffnen der Datei ist fehlgeschlagen weil sie nicht existiert."
+"Failed to open the file:" = "Die Datei konnte nicht geöffnet werden:"
 "Update Available" = "Update Verfügbar!"
 "Version" = "Version"
 "Public Date" = "Veröffentlichtes Datum"

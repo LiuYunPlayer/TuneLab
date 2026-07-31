@@ -155,6 +155,7 @@
 "Track" = "Дорожка"
 "Export failed: \n" = "Экспорт дал сбой: \n"
 "The file failed to open because it does not exist." = "Не удалось открыть файл, так как он не существует."
+"Failed to open the file:" = "Не удалось открыть файл:"
 "Update Available" = "Доступно обновление"
 "Version" = "Версия"
 "Public Date" = "Дата выпуска"

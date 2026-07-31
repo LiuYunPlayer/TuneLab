@@ -500,6 +500,7 @@ internal partial class TrackScrollView : View
         if (!FormatsManager.Deserialize(path, out var srcProjectInfo, out var error))
         {
             Log.Error("Open file error: " + error);
+            await this.ShowFileOpenError(path, error);
             return;
         }
         //SelectOne

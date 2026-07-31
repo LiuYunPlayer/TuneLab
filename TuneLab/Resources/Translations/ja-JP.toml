@@ -155,6 +155,7 @@
 "Track" = "トラック"
 "Export failed: \n" = "エクスポートに失敗しました：\n"
 "The file failed to open because it does not exist." = "ファイルが存在しないため、開けませんでした。"
+"Failed to open the file:" = "ファイルを開けませんでした:"
 "Update Available" = "アップデートがあります"
 "Version" = "バージョン"
 "Public Date" = "公開日"

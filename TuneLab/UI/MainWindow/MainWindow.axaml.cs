@@ -135,31 +135,40 @@ public partial class MainWindow : Window
         modal.AddButton("OK".Tr(TC.Dialog), ButtonType.Primary).Clicked += () =>
         {
             // 崩溃恢复打开的是完整 native 工程（autosave .tlp/.tlpx）：走 native 路径恢复 editor/export 元数据。
+            // 失败要弹窗：用户刚点了“恢复”，静默回到空工程会让人以为备份是空的，其实备份文件还在原地。
             if (!FormatsManager.DeserializeNative(record.FilePath, out var file, out var error))
             {
                 Log.Error("Open file error: " + error);
+                _ = this.ShowFileOpenError(record.FilePath, error);
                 return;
             }
 
-            // 必须先于 SetInfo：恢复出来的工程【保持未保存态】但要带上基准目录，而随后 SetInfo 新建出来的
-            // 音频 part 是靠 ProjectDocument 的 ItemAdded 订阅拿到基准目录的，此刻它必须已经就位。
-            mEditor.Document.SetRecovered(displayName, record.Meta?.OriginalPath);
-            if (mEditor.Project == null)
-                return;
-
-            mEditor.Project.SetInfo(file.Project);
-            mEditor.Project.SetExportConfig(file.Export);
-            mEditor.Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
-            mEditor.Project.Commit();
-            foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
+            try
             {
-                if (part is MidiPart midiPart)
+                // 必须先于 SetInfo：恢复出来的工程【保持未保存态】但要带上基准目录，而随后 SetInfo 新建出来的
+                // 音频 part 是靠 ProjectDocument 的 ItemAdded 订阅拿到基准目录的，此刻它必须已经就位。
+                mEditor.Document.SetRecovered(displayName, record.Meta?.OriginalPath);
+                if (mEditor.Project == null)
+                    return;
+
+                mEditor.Project.SetInfo(file.Project);
+                mEditor.Project.SetExportConfig(file.Export);
+                mEditor.Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
+                mEditor.Project.Commit();
+                foreach (var part in mEditor.Project.Tracks.SelectMany(track => track.Parts))
                 {
-                    mEditor.SwitchEditingPart(midiPart);
-                    break;
+                    if (part is MidiPart midiPart)
+                    {
+                        mEditor.SwitchEditingPart(midiPart);
+                        break;
+                    }
                 }
             }
-
+            catch (Exception ex)
+            {
+                Log.Error("Recover project error: " + ex);
+                _ = this.ShowFileOpenError(record.FilePath, ex.Message);
+            }
         };
         modal.Topmost = true;
         await modal.ShowDialog(this);

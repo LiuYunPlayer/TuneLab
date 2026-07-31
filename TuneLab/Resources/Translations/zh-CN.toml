@@ -166,6 +166,7 @@
 "Track" = "轨道"
 "Export failed: \n" = "导出失败： \n"
 "The file failed to open because it does not exist." = "打开失败，目标文件不存在。"
+"Failed to open the file:" = "打开文件失败："
 "Update Available" = "新版本可用"
 "Version" = "版本号"
 "Public Date" = "发布时间"

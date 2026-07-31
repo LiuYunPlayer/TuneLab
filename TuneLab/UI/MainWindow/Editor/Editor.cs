@@ -730,18 +730,33 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         await modal.ShowDialog(this.Window());
     }
 
+    // 打开失败必须弹窗告知：只 Log 的话用户点了菜单没有任何反应，看到的仍是原来的工程，
+    // 分不清“没打开”和“打开的是个空工程”，只有翻日志才知道发生过什么。
+    // 两段都要接：反序列化（格式不支持 / 文件损坏）与装配工程（数据非法、引用不到的音源等）。
+    // 后者原先完全没有兜底——异常直接抛穿 UI 线程，比静默更糟。
     void LoadProject(string path)
     {
         if (!FormatsManager.DeserializeNative(path, out var file, out var error))
         {
             Log.Error("Deserialize file error: " + error);
+            _ = this.ShowFileOpenError(path, error);
             return;
         }
 
-        var project = CreateProject(file.Project);
-        project.SetExportConfig(file.Export);
-        mDocument.SetProject(project, path);
-        Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
+        try
+        {
+            var project = CreateProject(file.Project);
+            project.SetExportConfig(file.Export);
+            mDocument.SetProject(project, path);
+            Playhead.Pos = Math.Max(0, file.Editor.PlayheadPos);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Load project error: " + ex);
+            _ = this.ShowFileOpenError(path, ex.Message);
+            return;
+        }
+
         RecentFilesManager.AddFile(path);
     }
 
