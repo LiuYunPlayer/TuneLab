@@ -25,6 +25,11 @@
 
 	<ItemGroup>
 	  <Content Include="Assets\TuneLab.ico" />
+	  <!-- 文件类型图标（.tlpx / .tlp / .tlx）：shell 的 DefaultIcon 指向安装目录里的这几个 ico
+	       文件，所以必须真的随发布落地（故 CopyToOutputDirectory）；App 内不加载它们，
+	       从 Avalonia 资源里剔除免得白白编进程序集。生成器见 tools/icons/。 -->
+	  <AvaloniaResource Remove="Assets\FileIcons\**" />
+	  <Content Include="Assets\FileIcons\*.ico" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 	<ItemGroup>

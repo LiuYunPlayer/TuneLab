@@ -234,7 +234,7 @@ public partial class MainWindow : Window
         Control r1, r2, r3, r4;
         (mDesktopShortcut, r1) = MakeOption("Create a desktop shortcut", true);
         (mStartMenuShortcut, r2) = MakeOption("Create a Start Menu shortcut", true);
-        (mFileAssoc, r3) = MakeOption("Associate .tlp / .tlpx project files with TuneLab", true);
+        (mFileAssoc, r3) = MakeOption("Associate TuneLab file types (.tlpx / .tlp / .tlx)", true);
         OptionsBox.Children.Add(r1);
         OptionsBox.Children.Add(r2);
         OptionsBox.Children.Add(r3);

@@ -455,3 +455,7 @@ $RECYCLE.BIN/
 
 # Extensions Projects
 /[Ee]xtensions/
+
+# Python 工具脚本（tools/icons）的字节码缓存
+__pycache__/
+*.pyc

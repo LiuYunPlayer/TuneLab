@@ -158,7 +158,15 @@ public partial class App : Application
 
     public void HandleArg(string arg)
     {
-        mMainWindow?.Editor.OpenProjectByPath(arg);
+        if (mMainWindow == null)
+            return;
+
+        // 按扩展名分流：.tlx 是扩展包而不是工程，当工程打开只会报「打开失败」。
+        // 这条路同时服务命令行、双击关联文件、以及第二个实例转发过来的参数。
+        if (Path.GetExtension(arg).Equals(".tlx", StringComparison.OrdinalIgnoreCase))
+            mMainWindow.Editor.InstallExtensions([arg]);
+        else
+            mMainWindow.Editor.OpenProjectByPath(arg);
     }
 
     MainWindow? mMainWindow = null;
