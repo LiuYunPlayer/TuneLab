@@ -86,9 +86,11 @@ internal class ScrollView : Panel
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
+        // 横向分量（触控板双指横滑 / 倾斜滚轮）恒走横轴；shift 则把纵滚也折进横轴、此时不再纵移。
+        // 不能像原先那样 shift 时把两轴互换——横滑本就是横向意图，换轴会让 shift+横滑去滚纵轴。
         bool shift = (e.KeyModifiers & KeyModifiers.Shift) != 0;
-        var deltaX = shift ? e.Delta.Y : e.Delta.X;
-        var deltaY = shift ? e.Delta.X : e.Delta.Y;
+        var deltaX = e.Delta.X + (shift ? e.Delta.Y : 0);
+        var deltaY = shift ? 0 : e.Delta.Y;
         if (deltaX != 0) mHorizontalAxis.AnimateMove(deltaX * 70);
         if (deltaY != 0) mVerticalAxis.AnimateMove(deltaY * 70);
     }

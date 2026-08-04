@@ -1504,6 +1504,11 @@ internal sealed class AgentSideBarContentProvider
         backdrop.PointerWheelChanged += (_, e) =>
         {
             e.Handled = true;
+            // 触控板双指横滑（横向分量占优）在预览里没有对应动作，直接吃掉：不忽略的话 Delta.Y==0 会落进
+            // 下面的三元判断被当成"向下滚"、横滑一下图就缩小一档。
+            if (Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y))
+                return;
+
             var s0 = scale.ScaleX;
             var s1 = Math.Clamp(s0 * (e.Delta.Y > 0 ? 1.15 : 1 / 1.15), MinScale, MaxScale);
             if (s1 == s0)

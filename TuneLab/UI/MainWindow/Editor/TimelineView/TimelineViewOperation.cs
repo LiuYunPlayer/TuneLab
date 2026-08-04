@@ -19,6 +19,14 @@ internal partial class TimelineView
 {
     protected override void OnScroll(WheelEventArgs e)
     {
+        // 触控板双指横滑 / 倾斜滚轮：横向分量占优即判为横滑手势，直接平移时间轴并吃掉整个事件——
+        // 不把残余纵向分量喂给下面的逻辑，否则斜着滑会顺带缩放。倍率与 shift+滚轮的横移一致。
+        if (Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y))
+        {
+            TickAxis.AnimateMove(240 * e.Delta.X);
+            return;
+        }
+
         switch (e.KeyModifiers)
         {
             case ModifierKeys.Shift:
