@@ -2,6 +2,7 @@ using DynamicData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
@@ -90,8 +91,9 @@ internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
     void MoveVibrato(Vibrato vibrato, Action mutate);
     void MoveVibratos(IReadOnlyCollection<Vibrato> vibratos, Action mutate);
     // 批量变更括号（含 undo/redo 重放）：插件把重活延迟到括号收口。
-    void BeginMergeDirty();
-    void EndMergeDirty();
+    // 可选参数由编译器填调用点（诊断用，见 BatchSignal）——调用方一律照常写 BeginMergeDirty()。
+    void BeginMergeDirty([CallerFilePath] string? file = null, [CallerLineNumber] int line = 0, [CallerMemberName] string? member = null);
+    void EndMergeDirty([CallerFilePath] string? file = null, [CallerLineNumber] int line = 0, [CallerMemberName] string? member = null);
 }
 
 internal static class IMidiPartExtension

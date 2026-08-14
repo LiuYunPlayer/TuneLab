@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using TuneLab.Audio;
@@ -555,14 +556,17 @@ internal class MidiPart : Part, IMidiPart
     }
 
     // 批量变更括号（undo/redo 重放时同样成对触发）：让插件把重活（如重分片）延迟到 BatchEnd。
-    public void BeginMergeDirty()
+    // 调用点信息随括号带进 BatchSignal：括号跨鼠标手势，漏配平会让该 part 永久停摆且不抛异常，
+    // 留下开启者才能在日志里直接点名（见 BatchSignal 的诊断面）。
+    public void BeginMergeDirty([CallerFilePath] string? file = null, [CallerLineNumber] int line = 0, [CallerMemberName] string? member = null)
     {
-        PushAndDo(new Command(mSynthesisBatch.Begin, mSynthesisBatch.End));
+        PushAndDo(new Command(() => mSynthesisBatch.Begin(file, line, member), mSynthesisBatch.End));
     }
 
-    public void EndMergeDirty()
+    // 撤销这一步 = 重新开括号，故逆动作同样带调用点（撤销重放时括号也要能追溯到出处）。
+    public void EndMergeDirty([CallerFilePath] string? file = null, [CallerLineNumber] int line = 0, [CallerMemberName] string? member = null)
     {
-        PushAndDo(new Command(mSynthesisBatch.End, mSynthesisBatch.Begin));
+        PushAndDo(new Command(mSynthesisBatch.End, () => mSynthesisBatch.Begin(file, line, member)));
     }
 
     public override void Activate()
@@ -623,6 +627,9 @@ internal class MidiPart : Part, IMidiPart
 
     void RebuildSynthesisPipeline()
     {
+        // 生命周期留痕：重建会把会话连同其分块一起换新，新会话在被 peek 或收到 Committed 之前没有任何块
+        // （状态带因此为空）。「条整个消失」的现场要能对上是哪次重建造成的，故记一行。
+        Log.Debug($"Rebuilding synthesis pipeline for part at {Pos.Value} (source {mSource.Type}/{mSource.ID}).");
         mTimebaseRebuildPending = false;   // 任何一次重建都满足挂起的时基重建诉求（见 OnTimebaseModified）
         DisposeSynthesisPipeline();
         // 【顺序不变量，勿调换】先填声明、后建会话：mSource.AutomationConfigs 是物化缓存（详见 Voice.AutomationConfigs），

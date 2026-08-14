@@ -93,6 +93,33 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         }
     }
 
+    // 诊断行：与 voice 管线同形（见 ISynthesisPipeline.DescribeSchedulingState）。
+    public string DescribeSchedulingState(double windowStart, double windowEnd)
+    {
+        double partStart = mPart.TempoManager.GetTime(mPart.StartPos);
+        double partEnd = mPart.TempoManager.GetTime(mPart.EndPos);
+        double clampedStart = windowStart, clampedEnd = windowEnd;
+        ClampToPart(ref clampedStart, ref clampedEnd);
+
+        string clamped = clampedEnd <= clampedStart ? "(empty window)" : Describe(TryPeek(clampedStart, clampedEnd));
+        string unclamped = Describe(TryPeek(double.MinValue, double.MaxValue));
+        double busySeconds = mIsBusy ? (Environment.TickCount64 - mBusySince) / 1000.0 : 0;
+
+        return $"busy={mIsBusy}({busySeconds:F1}s) batching={mPart.IsSynthesisBatching}(depth {mPart.SynthesisBatch.Depth}"
+            + $", {mPart.SynthesisBatch.OpenSeconds:F1}s, opened by {mPart.SynthesisBatch.OpenedBy ?? "-"})"
+            + $" part=[{partStart:F2},{partEnd:F2}] window=[{windowStart:F2},{windowEnd:F2}]"
+            + $" peek(clamped)={clamped} peek(unclamped)={unclamped}";
+
+        SynthesisRange? TryPeek(double start, double end)
+        {
+            try { return mSession.GetNextPendingSynthesisRange(start, end); }
+            catch { return null; }
+        }
+
+        static string Describe(SynthesisRange? range)
+            => range is { } r ? $"[{r.StartTime:F2},{r.EndTime:F2}]" : "null";
+    }
+
     public async void Dispatch(double startTime, double endTime)
     {
         if (mIsBusy || mDisposed)
@@ -101,6 +128,7 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
         ClampToPart(ref startTime, ref endTime);
 
         mIsBusy = true;
+        mBusySince = Environment.TickCount64;
         try
         {
             await mSession.SynthesizeNext(startTime, endTime, mCancellation.Token);
@@ -192,5 +220,6 @@ internal sealed class InstrumentSynthesisPipeline : ISynthesisPipeline
     readonly EffectGraph mEffectGraph;
 
     bool mIsBusy;
+    long mBusySince;   // 诊断：进入在飞态的时刻（Environment.TickCount64）
     bool mDisposed;
 }

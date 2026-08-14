@@ -38,6 +38,11 @@ internal interface ISynthesisPipeline : IDisposable
     SynthesisRange? PeekNext(double startTime, double endTime);
     void Dispatch(double startTime, double endTime);
 
+    // 诊断：调度器发现「某 part 明明有待办却一直没被派活」时调用，产出一行可读的现场。
+    // 存在的理由是这类故障**不抛异常**——管线卡在在飞态、会话自报与可派活不一致、part 界把块裁在窗外，
+    // 三者症状相同（条不动），只有把各自的量同时打出来才能当场分辨。仅异常路径调用，正常调度零开销。
+    string DescribeSchedulingState(double windowStart, double windowEnd);
+
     // —— effect 失效入口（数据线程；由 MidiPart 转发）——
     void OnEffectChainStructureChanged();
     void OnSampleRateChanged();

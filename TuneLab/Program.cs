@@ -35,6 +35,9 @@ class Program
         // init logger
         Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
         Log.Info("Version: " + AppInfo.Version);
+        // 构建标识：版本号在一个版本的整个开发/测试期里不变，光看它无法判断用户跑的是哪次构建
+        // （排查时收到日志的第一件事就是确认这个）。用主程序集的 mtime 做唯一标识。
+        Log.Info("Build: " + BuildStamp());
 
         // 异步缓冲日志需在退出 / 崩溃时刷盘，否则丢失未落盘日志。崩溃时顺带记下异常（自动归因到肇事插件）。
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Log.Shutdown();
@@ -151,5 +154,19 @@ class Program
         foreach (var name in PreferredCjk(language)) ordered.Add(name);
         foreach (var name in families) if (!ordered.Contains(name)) ordered.Add(name);
         return ordered.Select(name => new FontFallback() { FontFamily = name }).ToArray();
+    }
+
+    // 主程序集的 mtime（UTC）——同一版本号下唯一标识一次构建。取不到时不影响启动。
+    static string BuildStamp()
+    {
+        try
+        {
+            string path = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            return path.Length > 0 ? File.GetLastWriteTimeUtc(path).ToString("yyyy-MM-dd HH:mm:ss") + "Z" : "unknown";
+        }
+        catch
+        {
+            return "unknown";
+        }
     }
 }

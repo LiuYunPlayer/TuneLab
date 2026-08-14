@@ -112,6 +112,54 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     // commit：与 peek 在同一调度 tick 内同步衔接；入参为选中它的那次 peek 的同一窗口（宿主据 ahead/behind
     // 回传），插件按同一窗口确定性重导出同一块。快照由插件在 SynthesizeNext 的同步前缀经
     // context.GetSnapshot 自行拉取。await 返回 = 槽位释放。
+    // 诊断行：把「为什么没派活」的四种可能各自的量一次打全（见接口注释）。
+    public string DescribeSchedulingState(double windowStart, double windowEnd)
+    {
+        double partStart = mPart.TempoManager.GetTime(mPart.StartPos);
+        double partEnd = mPart.TempoManager.GetTime(mPart.EndPos);
+        double clampedStart = windowStart, clampedEnd = windowEnd;
+        ClampToPart(ref clampedStart, ref clampedEnd);
+
+        string clamped = clampedEnd <= clampedStart ? "(empty window)" : Describe(TryPeek(clampedStart, clampedEnd));
+        // 不裁窗再问一次：这一问有值而裁窗后没有 ⇒ 块落在 part 界外，被宿主的裁窗挡掉（会话仍会报它 Pending）。
+        string unclamped = Describe(TryPeek(double.MinValue, double.MaxValue));
+
+        int pending = 0, synthesizing = 0, failed = 0, done = 0;
+        try
+        {
+            foreach (var claim in mSession.Status)
+            {
+                switch (claim.Status)
+                {
+                    case SynthesisSegmentStatus.Pending: pending++; break;
+                    case SynthesisSegmentStatus.Synthesizing: synthesizing++; break;
+                    case SynthesisSegmentStatus.Failed: failed++; break;
+                    default: done++; break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            return $"status query failed: {ex.Message}";
+        }
+
+        double busySeconds = mIsBusy ? (Environment.TickCount64 - mBusySince) / 1000.0 : 0;
+        return $"busy={mIsBusy}({busySeconds:F1}s) batching={mPart.IsSynthesisBatching}(depth {mPart.SynthesisBatch.Depth}"
+            + $", {mPart.SynthesisBatch.OpenSeconds:F1}s, opened by {mPart.SynthesisBatch.OpenedBy ?? "-"})"
+            + $" part=[{partStart:F2},{partEnd:F2}] window=[{windowStart:F2},{windowEnd:F2}]"
+            + $" peek(clamped)={clamped} peek(unclamped)={unclamped}"
+            + $" claims: {pending} pending / {synthesizing} synthesizing / {failed} failed / {done} done";
+
+        SynthesisRange? TryPeek(double start, double end)
+        {
+            try { return mSession.GetNextPendingSynthesisRange(start, end); }
+            catch { return null; }
+        }
+
+        static string Describe(SynthesisRange? range)
+            => range is { } r ? $"[{r.StartTime:F2},{r.EndTime:F2}]" : "null";
+    }
+
     public async void Dispatch(double startTime, double endTime)
     {
         if (mIsBusy || mDisposed)
@@ -120,6 +168,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
         ClampToPart(ref startTime, ref endTime);   // 与 peek 同一裁窗，确保重导出命中同一块
 
         mIsBusy = true;
+        mBusySince = Environment.TickCount64;
         try
         {
             await mSession.SynthesizeNext(startTime, endTime, mCancellation.Token);
@@ -255,5 +304,6 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     readonly EffectGraph mEffectGraph;
 
     bool mIsBusy;
+    long mBusySince;   // 诊断：进入在飞态的时刻（Environment.TickCount64），用来报「忙了多久」
     bool mDisposed;
 }

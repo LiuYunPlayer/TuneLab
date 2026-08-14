@@ -596,6 +596,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             if (best == null)
                 break;
 
+            mDispatchedThisTick.Add(best);   // 诊断：本轮真的派出去了，其停滞计时重置
+
             // 回传选中它的那次 peek 的同一窗口（ahead = [currentTime, +∞)，behind = (-∞, currentTime]），
             // 而非 bestSegment 自身——插件据此确定性重导出 peek 报出的同一块。
             if (bestIsAhead)
@@ -605,7 +607,100 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             idle.Remove(best);
             busy++;
         }
+
+        ReportStalledParts(currentTime, busy, limit);
     }
+
+    // 卡死诊断：某个 part 状态带上明明有「待合成 / 合成中」，却持续没有任何进展——这类故障**不抛异常**
+    // （管线卡在在飞态、批量括号漏配平让调度器跳过、part 界把块裁在窗外、会话自报与可派活不一致），
+    // 症状全都是「条不动」，光看日志分不出是哪一种。这里在每个调度 tick 判定，同一个 part 最多每
+    // StallReportIntervalMs 打一行，把四者各自的量一次打全（见 ISynthesisPipeline.DescribeSchedulingState）。
+    // 正常情况下永不触发：只要有派活或没有待办就重置计时。
+    void ReportStalledParts(double currentTime, int busy, int limit)
+    {
+        if (Project == null)
+        {
+            mDispatchedThisTick.Clear();
+            return;
+        }
+
+        long now = Environment.TickCount64;
+        // 扫描本身每秒最多一次：调度 tick 是 50ms，逐 tick 给每个 part 建状态带列表会让诊断自己变成负担。
+        // 代价只是停滞判定的时间分辨率降到 1 秒，而报告阈值是 10 秒，绰绰有余。
+        // 被节流掉的 tick **不清**已派活集合：否则这一秒内派出去的活会被忘掉，扫描时误报成停滞。
+        if (now - mLastStallScan < StallScanIntervalMs)
+            return;
+        mLastStallScan = now;
+        mSeenParts.Clear();
+        foreach (var track in Project.Tracks)
+        {
+            foreach (var part in track.Parts)
+            {
+                if (part is not MidiPart midiPart)
+                    continue;
+
+                mSeenParts.Add(midiPart);
+                var pipeline = midiPart.SynthesisPipeline;
+                if (pipeline == null)
+                {
+                    // 管线为 null = 状态带整条消失且永不合成（重建路径抛异常就会留下这个状态），故单列。
+                    ReportStall(midiPart, now, busy, limit, "pipeline is null (no status strip, never synthesizes)");
+                    continue;
+                }
+
+                bool hasWork = false;
+                foreach (var segment in pipeline.GetStatus())
+                {
+                    if (segment.State is SynthesisDisplayState.Pending or SynthesisDisplayState.Synthesizing)
+                    {
+                        hasWork = true;
+                        break;
+                    }
+                }
+
+                if (!hasWork || mDispatchedThisTick.Contains(pipeline))
+                {
+                    mStallSince.Remove(midiPart);
+                    continue;
+                }
+
+                ReportStall(midiPart, now, busy, limit, pipeline.DescribeSchedulingState(currentTime, double.MaxValue));
+            }
+        }
+
+        mDispatchedThisTick.Clear();
+        if (mStallSince.Count > mSeenParts.Count)
+        {
+            // part 被删除后清掉其记录（诊断字典不该拖住已消失的 part）
+            foreach (var stale in mStallSince.Keys.Where(p => !mSeenParts.Contains(p)).ToList())
+                mStallSince.Remove(stale);
+        }
+    }
+
+    void ReportStall(MidiPart part, long now, int busy, int limit, string detail)
+    {
+        if (!mStallSince.TryGetValue(part, out var state))
+        {
+            mStallSince[part] = (now, 0);
+            return;   // 首次发现只记时刻：绝大多数「这一轮没派活」是正常的（并发已满 / 刚提交）
+        }
+
+        double stalledSeconds = (now - state.Since) / 1000.0;
+        if (stalledSeconds < StallReportThresholdSeconds || now - state.LastReport < StallReportIntervalMs)
+            return;
+
+        mStallSince[part] = (state.Since, now);
+        Log.Warning($"Part at {part.Pos.Value} has pending synthesis but nothing was dispatched for {stalledSeconds:F1}s."
+            + $" slots={busy}/{limit} {detail}");
+    }
+
+    const double StallReportThresholdSeconds = 10;
+    const long StallReportIntervalMs = 30000;
+    const long StallScanIntervalMs = 1000;
+    long mLastStallScan;
+    readonly HashSet<ISynthesisPipeline> mDispatchedThisTick = new();
+    readonly HashSet<MidiPart> mSeenParts = new();
+    readonly Dictionary<MidiPart, (long Since, long LastReport)> mStallSince = new();
 
     public void ClearAutoSaveFile()
     {
