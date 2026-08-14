@@ -349,17 +349,17 @@ else {
 ```js
 const p = tl.currentPart();
 const n = p.notes()[0];
-print("钉死状态: " + n.hasPinnedPhonemes + "、音素 " + n.phonemes().length + " 个");
+print("钉死状态: " + n.hasLockedPhonemes + "、音素 " + n.phonemes().length + " 个");
 print("音素: " + JSON.stringify(n.phonemes().map(ph => ({ symbol: ph.symbol, leading: ph.leading }))));
 const lead = n.addLeadingPhoneme({ symbol: "t", duration: 0.05 });
 const body = n.addBodyPhoneme({ symbol: "a", stretchWeight: 1 });
 print("加了引导 t + 主体 a 后:");
 print("  " + JSON.stringify(n.phonemes().map(ph => ({ symbol: ph.symbol, leading: ph.leading }))));
 print("  新引导音素 info: " + JSON.stringify(lead.getInfo()));
-print("  钉死状态（写入应自动钉死）: " + n.hasPinnedPhonemes);
+print("  钉死状态（写入应自动钉死）: " + n.hasLockedPhonemes);
 ```
 
-**期望**：`t` 进 **leading**（`leading: true`）、`a` 进 **body**（`leading: false`）；写入后 `hasPinnedPhonemes`
+**期望**：`t` 进 **leading**（`leading: true`）、`a` 进 **body**（`leading: false`）；写入后 `hasLockedPhonemes`
 变 `true`；音素带 / 侧栏音素面板应显示新加的两个音素。**没有 `addPhoneme` 这个方法了**（见用例 17）。
 
 ---

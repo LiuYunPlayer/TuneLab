@@ -22,7 +22,7 @@
 2. **期望**：`Effect engine "..." (type=...):`，其下按组列出（有哪组取决于引擎声明）：
    - `Static properties (N):` 逐条 `<参数 id>(+标签): <类型/范围/选项>. default <值>`（number in [min,max] / one of [...] / boolean / text 等）。
    - `Automation parameters (editable tracks) (M):` 逐条 `<轨 id>: automation track, range [min, max], default <值>` 或 `…, piecewise (no baseline)`（分段轨）。
-   - `Read-only readback tracks (K):`（若引擎有回显轨，如 loudness）同上格式。
+   - `Read-only synthesized parameter tracks (K):`（若引擎有回显轨，如 loudness）同上格式。
 3. **仅 Init 该引擎**（不 Init 其它）。schema 是"默认值版"（空 context → 各参数取引擎默认）——条件化 schema 只呈现默认分支，属预期上限。
 4. 引擎存在但加载失败（`GetInitedEngine` 返 null）→ **期望** `could not be loaded, so its parameters are unavailable.`，不崩。
 5. 引擎某组声明方法抛异常 → **期望**该组标 `(engine failed to declare — <msg>)`，其余组照常输出（不整体失败）。

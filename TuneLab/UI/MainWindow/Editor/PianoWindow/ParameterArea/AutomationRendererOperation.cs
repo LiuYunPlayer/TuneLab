@@ -134,7 +134,7 @@ internal partial class AutomationRenderer
                     switch (e.MouseButtonType)
                     {
                         case MouseButtonType.PrimaryButton:
-                            mReadbackLockOperation.Down(e.Position.X);
+                            mSynthesizedParameterLockOperation.Down(e.Position.X);
                             break;
                         case MouseButtonType.SecondaryButton:
                             // 右键擦除：与音符区固定笔的右键（PitchClear）对称。
@@ -265,8 +265,8 @@ internal partial class AutomationRenderer
                 if (mNoteLaneClearOperation.IsOperating) mNoteLaneClearOperation.Move(e.Position.X);
                 else mPhonemeLaneClearOperation.Move(e.Position.X);
                 break;
-            case State.ReadbackLocking:
-                mReadbackLockOperation.Move(e.Position.X);
+            case State.SynthesizedParameterLocking:
+                mSynthesizedParameterLockOperation.Move(e.Position.X);
                 break;
             default:
                 if (shift)
@@ -354,9 +354,9 @@ internal partial class AutomationRenderer
                     else mPhonemeLaneClearOperation.Up();
                 }
                 break;
-            case State.ReadbackLocking:
+            case State.SynthesizedParameterLocking:
                 if (e.MouseButtonType == MouseButtonType.PrimaryButton)
-                    mReadbackLockOperation.Up();
+                    mSynthesizedParameterLockOperation.Up();
                 break;
             default:
                 break;
@@ -506,9 +506,9 @@ internal partial class AutomationRenderer
     // 固定笔刷在参数区：按 x 累积作用范围，把活动轨的配对回显按真实数值刷进该轨（笔刷式固定，见 SynthesisLock）。
     // 与音符区的 PitchLockOperation 同构：拖动期逐帧 DiscardTo(head) 后按新范围整体重写，抬手一次 Commit
     // ——故一笔 = 一次可撤销操作，而非一串增量。无配对回显的轨上不进入操作态（刷了不产生任何变更）。
-    class ReadbackLockOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
+    class SynthesizedParameterLockOperation(AutomationRenderer automationRenderer) : Operation(automationRenderer)
     {
-        public bool IsOperating => State == State.ReadbackLocking;
+        public bool IsOperating => State == State.SynthesizedParameterLocking;
 
         public void Down(double x)
         {
@@ -516,23 +516,23 @@ internal partial class AutomationRenderer
                 return;
 
             var part = AutomationRenderer.Part;
-            if (part == null || AutomationRenderer.ActiveAutomation is not { } key || !part.HasPairedReadback(key))
+            if (part == null || AutomationRenderer.ActiveAutomation is not { } key || !part.HasPairedSynthesizedParameter(key))
                 return;
 
             mKey = key;
             // 落笔即冻结回显产物：第一帧写入就会触发合成失效、引擎随即清掉该区回显，若后续帧再读实时产物
-            // 就会拿到空数据、整笔白刷（见 SynthesisLock.CaptureReadback）。
-            mSegments = part.CaptureReadback(mKey);
+            // 就会拿到空数据、整笔白刷（见 SynthesisLock.CaptureSynthesizedParameter）。
+            mSegments = part.CaptureSynthesizedParameter(mKey);
             if (mSegments == null)
                 return;
 
-            State = State.ReadbackLocking;
+            State = State.SynthesizedParameterLocking;
             part.BeginMergeDirty();
             mHead = part.Head;
             double tick = AutomationRenderer.TickAxis.X2Tick(x);
             mStart = tick;
             mEnd = tick;
-            part.WriteReadbackLock(mKey, mSegments, mStart, mEnd);
+            part.WriteSynthesizedParameterLock(mKey, mSegments, mStart, mEnd);
         }
 
         public void Move(double x)
@@ -548,7 +548,7 @@ internal partial class AutomationRenderer
             double tick = AutomationRenderer.TickAxis.X2Tick(x);
             mStart = Math.Min(mStart, tick);
             mEnd = Math.Max(mEnd, tick);
-            part.WriteReadbackLock(mKey, mSegments, mStart, mEnd);
+            part.WriteSynthesizedParameterLock(mKey, mSegments, mStart, mEnd);
         }
 
         public void Up()
@@ -563,7 +563,7 @@ internal partial class AutomationRenderer
                 return;
 
             part.DiscardTo(mHead);
-            part.WriteReadbackLock(mKey, mSegments, mStart, mEnd);
+            part.WriteSynthesizedParameterLock(mKey, mSegments, mStart, mEnd);
             part.EndMergeDirty();
             part.Commit();
             mSegments = null;
@@ -1474,8 +1474,8 @@ internal partial class AutomationRenderer
                     vibrato.SetAmplitude(mKey, 0);
 
                 // 落笔即把覆盖区的**空隙**固定成模型输出：颤音只作用于有值段，不先填基线就是拖了没反应。
-                // 只填空隙、绝不覆盖用户已画的值；无配对回显 / 连续轨 / 无空隙时是 no-op（见 SynthesisLock.LockReadbackGaps）。
-                AutomationRenderer.Part.LockReadbackGaps(mKey, vibrato.GlobalStartPos(), vibrato.GlobalEndPos());
+                // 只填空隙、绝不覆盖用户已画的值；无配对回显 / 连续轨 / 无空隙时是 no-op（见 SynthesisLock.LockSynthesizedParameterGaps）。
+                AutomationRenderer.Part.LockSynthesizedParameterGaps(mKey, vibrato.GlobalStartPos(), vibrato.GlobalEndPos());
             }
             // mHead 在关联 + 固定之后取：拖动期的 DiscardTo(mHead) 只回退幅度调整，不会撤掉这两步。
             mHead = AutomationRenderer.Part.Head;
@@ -1534,7 +1534,7 @@ internal partial class AutomationRenderer
     }
 
     readonly VibratoAmplitudeOperation mVibratoAmplitudeOperation;
-    readonly ReadbackLockOperation mReadbackLockOperation;
+    readonly SynthesizedParameterLockOperation mSynthesizedParameterLockOperation;
 
     enum State
     {
@@ -1548,7 +1548,7 @@ internal partial class AutomationRenderer
         RegionSelecting,
         NoteLaneDrawing,
         NoteLaneClearing,
-        ReadbackLocking,
+        SynthesizedParameterLocking,
     }
 
     State mState = State.None;

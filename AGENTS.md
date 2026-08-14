@@ -44,6 +44,8 @@ shipping new API.
 
 - Code comments may be written in Chinese; log messages, assertions and exception messages
   are English.
+- One concept, one word: check `docs/naming-glossary.md` before naming a new API or writing docs,
+  and add a row there whenever you resolve a synonym pair.
 - Do not extract csproj settings into `Directory.Build.props` — the SDK-layer csproj files
   are part of the public contract and stay self-contained.
 - `agent-model` is a host-internal module (not a plugin type); new LLM adapters go in via

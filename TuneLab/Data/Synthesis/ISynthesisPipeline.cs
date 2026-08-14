@@ -19,7 +19,7 @@ internal interface ISynthesisPipeline : IDisposable
     // 即便当前无消费者也对外暴露：让未来接线天然连到精确信号，而非默认接到 StatusChanged 浪费性能（多余重建 / 重绘）。
     // 合成音素已回填 note。voice-only 才有意义；instrument 无音素、永不触发。
     event Action? PhonemesChanged;
-    // 合成参数回显（readback）曲线更新。voice / instrument 均可触发。
+    // 合成参数回显（synthesized parameters）曲线更新。voice / instrument 均可触发。
     event Action? ParametersChanged;
     // 合成音高回显更新。voice-only；instrument 无音高回显、永不触发。
     event Action? PitchChanged;

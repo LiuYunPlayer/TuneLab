@@ -119,18 +119,20 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     }
 
     // ── 音素（voice 专属；引导 / 主体双列表 + BodyOffset） ──
-    // 未编辑过的 note 音素是【引擎回填的合成产物】（只读、合成后才有）；一旦编辑即【钉死】成用户数据（可增删改）。
-    // 脚本侧：读随时可用（钉死读真数据、否则读合成快照）；写自动先钉死（物化合成产物为可编辑数据，与侧栏面板首次
-    // 编辑一致）——故 agent 直接改音素即可、无需手动 pin。音素句柄按【位置】(引导/主体 + 列表内下标) 定址、跨钉死稳定，
+    // 未编辑过的 note 音素是【引擎回填的合成产物】（只读、合成后才有）；一旦编辑即【固定】成用户数据（可增删改）。
+    // 这与曲线侧的 lockPitch / lockAutomation 是同一个范式（引擎产物只读、用户数据可写、固定是唯一显式桥），
+    // 故脚本面同用 lock 一个动词——数据层的中文注释在音素侧沿用"钉死"，指的是同一件事。
+    // 脚本侧：读随时可用（固定后读真数据、否则读合成快照）；写自动先固定（物化合成产物为可编辑数据，与侧栏面板首次
+    // 编辑一致）——故 agent 直接改音素即可、无需手动 lock。音素句柄按【位置】(引导/主体 + 列表内下标) 定址、跨固定稳定，
     // 但增删会改变其后下标：结构变更后请重新 note.phonemes()。
 
-    // 是否已钉死（有用户固定的音素数据）；false = 用合成产物（G2P 派生）。
-    public bool HasPinnedPhonemes => N.HasPinnedPhonemes;
+    // 是否已固定（有归用户的音素数据）；false = 用合成产物（G2P 派生）。
+    public bool HasLockedPhonemes => N.HasPinnedPhonemes;
 
-    // 引导 / 主体结合线相对 note 头的有符号偏移（秒；junction = noteStart + bodyOffset）。写自动钉死。
-    public double BodyOffset { get => N.BodyOffset.Value; set { EnsurePinnedForEdit(); W.BodyOffset.Set(value); ctx.Bump(); } }
+    // 引导 / 主体结合线相对 note 头的有符号偏移（秒；junction = noteStart + bodyOffset）。写自动固定。
+    public double BodyOffset { get => N.BodyOffset.Value; set { EnsureLockedForEdit(); W.BodyOffset.Set(value); ctx.Bump(); } }
 
-    // 全序列音素句柄（引导 ++ 主体，时间序）。合成 / 钉死态皆可读；无音素（未合成的空 note）返回空数组。
+    // 全序列音素句柄（引导 ++ 主体，时间序）。合成 / 固定态皆可读；无音素（未合成的空 note）返回空数组。
     public ScriptPhoneme[] Phonemes()
     {
         var n = N;
@@ -148,15 +150,16 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
         return result;
     }
 
-    // 显式把合成产物固定为可编辑数据（幂等；无合成音素时 no-op）。写操作会自动调用，一般无需手动 pin。
-    public void PinPhonemes() { EnsurePinnedForEdit(); ctx.Bump(); }
+    // 显式把合成产物固定为可编辑数据（幂等；无合成音素时 no-op）。写操作会自动调用，一般无需手动 lock。
+    // 与 part.lockPitch / lockAutomation 同名同义，只是作用面是本 note 的音素。
+    public void LockPhonemes() { EnsureLockedForEdit(); ctx.Bump(); }
 
-    // 清除钉死音素、回到合成产物口径（清空双列表）。
+    // 清除固定音素、回到合成产物口径（清空双列表）。与曲线侧的 clearPitch / clearAutomation 对位。
     public void ClearPhonemes() { var n = W; ctx.EnsureBracket(n.Part); n.ClearLockedPhonemes(); ctx.Bump(); }
 
     // 追加一个音素到【引导】列表末（核前前置辅音）。info: {symbol, duration?(秒), stretchWeight?, properties?}。
     // 引导 / 主体在数据层是两个独立列表，故这里是两个方法而非一个布尔参数——那个"默认进哪个列表"的假想值
-    // 也随之消失（写入方必须明说往哪个容器加）。自动钉死后追加，返回句柄。
+    // 也随之消失（写入方必须明说往哪个容器加）。自动固定后追加，返回句柄。
     public ScriptPhoneme AddLeadingPhoneme(JsValue info) => AddPhonemeTo(true, info);
 
     // 追加一个音素到【主体】列表末（核 + 尾辅音）。参数同 addLeadingPhoneme。
@@ -165,7 +168,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     ScriptPhoneme AddPhonemeTo(bool leading, JsValue info)
     {
         var phonemeInfo = ScriptInfo.ReadPhonemeInfo(info);
-        EnsurePinnedForEdit();
+        EnsureLockedForEdit();
         var list = leading ? W.LeadingPhonemes : W.BodyPhonemes;
         list.Add(Phoneme.Create(phonemeInfo));
         ctx.Bump();
@@ -179,7 +182,7 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
     {
         if (phoneme == null || phoneme.Removed)
             throw new ScriptApiException("expected a live phoneme handle (from note.phonemes()/note.addLeadingPhoneme()/note.addBodyPhoneme()).");
-        EnsurePinnedForEdit();
+        EnsureLockedForEdit();
         var list = phoneme.IsLeading ? W.LeadingPhonemes : W.BodyPhonemes;
         if (phoneme.LocalIndex < 0 || phoneme.LocalIndex >= list.Count)
             throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
@@ -188,8 +191,8 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
         ctx.Bump();
     }
 
-    // 首次音素写入的钉死守卫（供本 note 音素写方法 + 音素句柄共用）：开 merge 括号 + 物化合成产物成钉死数据（幂等）。
-    internal void EnsurePinnedForEdit()
+    // 首次音素写入的固定守卫（供本 note 音素写方法 + 音素句柄共用）：开 merge 括号 + 物化合成产物成固定数据（幂等）。
+    internal void EnsureLockedForEdit()
     {
         var n = W;
         ctx.EnsureBracket(n.Part);
@@ -204,9 +207,9 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
             Pos, Dur, Pitch, PitchName, Lyric);
 }
 
-// 一个音素句柄（挂在某 note 的引导 / 主体列表上）。按【位置】(引导/主体 + 列表内下标) 定址，跨钉死稳定；
+// 一个音素句柄（挂在某 note 的引导 / 主体列表上）。按【位置】(引导/主体 + 列表内下标) 定址，跨固定稳定；
 // 结构增删（addLeadingPhoneme/addBodyPhoneme/removePhoneme）会改变其后音素下标，变更后请重新 note.phonemes()。
-// 读随时可用（钉死→真数据 / 合成→只读快照）；写自动先钉死（EnsurePinnedForEdit），故 agent 直接改即可。
+// 读随时可用（固定→真数据 / 合成→只读快照）；写自动先固定（EnsureLockedForEdit），故 agent 直接改即可。
 internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isLeading, int localIndex)
 {
     internal bool Removed { get; set; }
@@ -219,17 +222,17 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
     public double Duration { get => Read(p => p.Duration.Value, s => s.Duration); set => Write(duration: value); }   // 秒
     public double StretchWeight { get => Read(p => p.StretchWeight.Value, s => s.StretchWeight); set => Write(weight: value); }  // 0=刚性辅音 / >0=可伸元音
 
-    // 本音素的完整快照（纯数据）。合成态（未钉死）也能读——那时 properties 为 null（合成产物无属性容器）。
+    // 本音素的完整快照（纯数据）。合成态（未固定）也能读——那时 properties 为 null（合成产物无属性容器）。
     public JsValue GetInfo()
     {
-        if (PinnedPhoneme() is { } p)
+        if (LockedPhoneme() is { } p)
             return ScriptInfo.ToJs(ctx.Engine, p.GetInfo());
         var s = SynthPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
         return ScriptInfo.ToJs(ctx.Engine, new PhonemeInfo { Symbol = s.Symbol, Duration = s.Duration, StretchWeight = s.StretchWeight });
     }
 
-    // 钉死态的真 IPhoneme（可写）；合成态返回 null（走快照读）。越界返回 null。
-    IPhoneme? PinnedPhoneme()
+    // 固定态的真 IPhoneme（可写）；合成态返回 null（走快照读）。越界返回 null。
+    IPhoneme? LockedPhoneme()
     {
         var n = note.Require();
         if (!n.HasPinnedPhonemes) return null;
@@ -237,7 +240,7 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
         return localIndex >= 0 && localIndex < list.Count ? list[localIndex] : null;
     }
 
-    // 合成快照（未钉死时读）。越界 / 无合成产物返回 null。
+    // 合成快照（未固定时读）。越界 / 无合成产物返回 null。
     SynthesizedPhoneme? SynthPhoneme()
     {
         var syl = note.Require().SynthesizedSyllable;
@@ -246,10 +249,10 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
         return localIndex >= 0 && localIndex < list.Count ? list[localIndex] : null;
     }
 
-    T Read<T>(Func<IPhoneme, T> fromPinned, Func<SynthesizedPhoneme, T> fromSynth)
+    T Read<T>(Func<IPhoneme, T> fromLocked, Func<SynthesizedPhoneme, T> fromSynth)
     {
         if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
-        if (PinnedPhoneme() is { } p) return fromPinned(p);
+        if (LockedPhoneme() is { } p) return fromLocked(p);
         if (SynthPhoneme() is { } s) return fromSynth(s);
         throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
     }
@@ -257,8 +260,8 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
     void Write(string? symbol = null, double? duration = null, double? weight = null)
     {
         if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
-        note.EnsurePinnedForEdit();
-        var p = PinnedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        note.EnsureLockedForEdit();
+        var p = LockedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
         if (symbol != null) p.Symbol.Set(symbol);
         if (duration is { } d) p.Duration.Set(Math.Max(0, d));
         if (weight is { } w) p.StretchWeight.Set(Math.Max(0, w));
@@ -266,10 +269,10 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
     }
 
     // 音素级自定义属性（voice 声明的 per-phoneme 参数；schema 见 list_sound_sources 的音素 slot config）。
-    // 读：未钉死 / 无属性容器返回 null（属性只在钉死后作为可编辑数据存在）。写：自动钉死。
+    // 读：未固定 / 无属性容器返回 null（属性只在固定后作为可编辑数据存在）。写：自动固定。
     public object? GetProperty(string key)
     {
-        var p = PinnedPhoneme();
+        var p = LockedPhoneme();
         return p == null || !p.HasProperties ? null : ScriptArgs.ReadScalarProperty(p.Properties, key);
     }
 
@@ -278,8 +281,8 @@ internal sealed class ScriptPhoneme(ScriptContext ctx, ScriptNote note, bool isL
         if (Removed) throw new ScriptApiException("this phoneme handle was removed and is no longer valid.");
         if (string.IsNullOrEmpty(key)) throw new ScriptApiException("phoneme property key is required.");
         var pv = ScriptArgs.ToScalarProperty(value, "phoneme property");
-        note.EnsurePinnedForEdit();
-        var p = PinnedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
+        note.EnsureLockedForEdit();
+        var p = LockedPhoneme() ?? throw new ScriptApiException("this phoneme is no longer present (structure changed); re-fetch note.phonemes().");
         p.Properties.SetValue(key, pv);
         ctx.Bump();
     }
@@ -547,6 +550,81 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
         if (midi.PiecewiseAutomations.TryGetValue(id, out var automation))
             automation.Clear(startTick - rel, endTick - rel);
         ctx.Bump();
+    }
+
+    // ── 固定（lock）：把只读的合成产物写成归用户的可编辑曲线（与工具栏那支固定笔刷同一份实现，见 SynthesisLock） ──
+    //
+    // 引擎产物恒只读、用户编辑恒落数据层，固定是二者之间唯一的显式桥：固定后那段数据归用户、可继续改、
+    // 引擎不再覆盖它。这是"抓住模型这根线只改中间一段"的落地手段——没有它，脚本在未覆盖段落笔就是从空白起步、
+    // 模型细节全丢。刻意是**一次性动作**、不做持续同步（自动跟随会形成 覆盖→重合成→合成参数变→再写入 的反馈环）。
+    //
+    // 两个区间参数【要么都给、要么都不给】：都不给 = 整条 part（SynthesisLock 的 ±∞ 全轨口径）。只给一个
+    // 无从推断另一头，故报错而不是替脚本瞎猜一个默认边界。
+    //
+    // 返回值是【有没有真的固定到东西】：产物为空（该段还没合成过）时是 no-op 并返回 false，而不是假装成功——
+    // 脚本/agent 那边没人盯着屏幕看结果，静默 no-op 会被当成已固定。用法错误（未知 id / 无配对合成参数）另走报错。
+
+    // 把合成音高固定进本 part 的 pitch 曲线。false = 该区间没有合成音高产物（通常是还没合成过）。
+    public bool LockPitch(JsValue? startTick = null, JsValue? endTick = null)
+    {
+        var midi = MidiW;
+        var (start, end) = ReadLockRange(startTick, endTick);
+        ctx.EnsureBracket(midi);
+        // 与笔刷同序：先冻结产物引用再写（写入即触发合成失效，引擎可能随即清掉产物）。
+        if (!midi.WriteSynthesizedPitchLock(midi.CaptureSynthesizedPitch(), start, end))
+            return false;
+
+        ctx.Bump();
+        return true;
+    }
+
+    // 把某条参数轨的【合成参数】固定进同 id 的可编辑轨（连续 / 分段轨由数据层按声明自动分派，脚本不必区分）。
+    // false = 该区间没有合成参数产物（通常是还没合成过）。
+    public bool LockAutomation(string id, JsValue? startTick = null, JsValue? endTick = null)
+    {
+        var midi = MidiW;
+        var key = AutomationKey.Voice(id);
+        RequirePairedSynthesizedParameter(midi, key, id, "part.automationIds() / part.piecewiseAutomationIds()");
+        var (start, end) = ReadLockRange(startTick, endTick);
+        ctx.EnsureBracket(midi);
+        if (!midi.WriteSynthesizedParameterLock(key, midi.CaptureSynthesizedParameter(key), start, end))
+            return false;
+
+        ctx.Bump();
+        return true;
+    }
+
+    // 该轨有没有【配对合成参数】——即音源除了这条可编辑轨，还发布了同 id 的合成参数。没有配对就没有模型输出可固定。
+    // 供脚本先问后做（lockAutomation 对无配对轨是报错，那会让整段脚本回退）。
+    public bool HasSynthesizedParameter(string id) => Midi.HasPairedSynthesizedParameter(AutomationKey.Voice(id));
+
+    // 可选区间 → 全局 tick 对（两参同在同缺，见上）。
+    internal static (double Start, double End) ReadLockRange(JsValue? startTick, JsValue? endTick)
+    {
+        double? start = ScriptArgs.AsNumOrNull(startTick);
+        double? end = ScriptArgs.AsNumOrNull(endTick);
+        if (start == null && end == null)
+            return (SynthesisLock.WholeTrackStart, SynthesisLock.WholeTrackEnd);
+
+        if (start == null || end == null)
+            throw new ScriptApiException("pass BOTH startTick and endTick to lock a range, or neither to lock the whole part.");
+
+        if (end.Value <= start.Value)
+            throw new ScriptApiException("endTick must be greater than startTick.");
+
+        return (start.Value, end.Value);
+    }
+
+    // 固定前的两道判据（part / effect 共用，只有文案里的 id 清单入口不同）：① 该 id 得是本载体上一条可编辑轨；
+    // ② 引擎得声明了同 id 的合成参数轨。两者都是用法错误、报错指路，与"有轨有配对但还没合成"（返回 false）分开。
+    internal static void RequirePairedSynthesizedParameter(IMidiPart midi, AutomationKey key, string id, string idsHint)
+    {
+        if (!midi.IsEffectiveAutomation(key) && !midi.IsEffectivePiecewiseAutomation(key))
+            throw new ScriptApiException(string.Format("unknown automation \"{0}\"; use one of {1}.", id, idsHint));
+
+        if (!midi.HasPairedSynthesizedParameter(key))
+            throw new ScriptApiException(string.Format(
+                "automation \"{0}\" has no paired synthesized parameter: its engine publishes no synthesized parameter with that id, so there is no model output to lock. Check hasSynthesizedParameter(\"{0}\") first.", id));
     }
 
     // 等距采样 tick 序列（part 相对），供 samplePitch/sampleAutomation 及 effect 自动化采样共用。
@@ -1019,6 +1097,31 @@ internal sealed class ScriptEffect(ScriptContext ctx, IEffect effect)
         if (effect.PiecewiseAutomations.TryGetValue(id, out var automation))
             automation.Clear(startTick - rel, endTick - rel);
         ctx.Bump();
+    }
+
+    // ── 固定：把本 effect 某条轨的合成参数固定进同 id 的可编辑轨（口径同 part.lockAutomation，作用域是本 effect） ──
+
+    public bool LockAutomation(string id, JsValue? startTick = null, JsValue? endTick = null)
+    {
+        var effect = W;
+        var part = effect.Part;
+        var key = AutomationKey.Effect(Index, id);
+        ScriptPart.RequirePairedSynthesizedParameter(part, key, id, "effect.automationIds() / effect.piecewiseAutomationIds()");
+        var (start, end) = ScriptPart.ReadLockRange(startTick, endTick);
+        ctx.EnsureBracket(part);
+        if (!part.WriteSynthesizedParameterLock(key, part.CaptureSynthesizedParameter(key), start, end))
+            return false;
+
+        ctx.Bump();
+        return true;
+    }
+
+    // 同 part.hasSynthesizedParameter，作用域是本 effect。游离期恒 false——链上没有位置就没有合成参数（effect 的合成参数按【链中下标】
+    // 定址，见 AutomationKey.Effect），此时连 key 都构不出来。
+    public bool HasSynthesizedParameter(string id)
+    {
+        int index = Index;
+        return index >= 0 && E.Part.HasPairedSynthesizedParameter(AutomationKey.Effect(index, id));
     }
 
     public override string ToString()

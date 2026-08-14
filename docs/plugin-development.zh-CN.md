@@ -308,7 +308,7 @@ public class MyVoiceEngine : IVoiceSynthesisEngine    // engine id 在 manifest 
 
     // —— 声明面（属性面板 / 自动化轨）：见 §5.2，全在引擎上、不依赖会话实例 ——
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mPartConfig;
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => mNoteConfig;
 
@@ -346,7 +346,7 @@ mVoiceInfos.Add(voiceId, new VoiceSourceInfo { Name = "Alice", Description = "..
 // 自动化轨集合（part 级）：连续轨与分段轨同在一张有序 map，声明序即呈现序。voiceId 选哪个声库经 context.VoiceId。
 public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
 // 只读回显轨声明（引擎产出、不可编辑的曲线，如 energy）。无回显返回空 map。
-public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
+public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
 // part 级属性面板（只依赖 part 自身稀疏值 + context.VoiceId）。
 public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mPartConfig;
 // note 级属性面板（依赖 part 设置 + 选中 note 的合并值）。
@@ -748,7 +748,7 @@ public class MyEffectEngine : IEffectSynthesisEngine   // engine id 在 manifest
 
     // 合成参数回显轨声明（只读、独立于可编辑自动化轨）：处理产出的只读曲线（如 loudness）暴露为一等只读轨，
     // 分段形（DefaultValue=NaN）、自带 DisplayText/Min/Max/Color。无回显的引擎返回空 map 即可。
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mSynthesizedParameterConfigs;
 
     // 无参：包目录经 Assembly.Location 自定位（无需宿主递路径）。失败直接抛异常，宿主在调用边界 catch → passthrough 降级。
     public void Init() { /* ... 加载模型 ... */ }
@@ -765,7 +765,7 @@ public class MyEffectEngine : IEffectSynthesisEngine   // engine id 在 manifest
         },
     };
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
-    readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
+    readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new()
     {
         { ("loudness", "Loudness"), AutomationConfig.Create(0, 2).WithColor("#00B0FF") },
     };
@@ -794,7 +794,7 @@ class MyEffectProcessor : IEffectSynthesisSession
     readonly ActionEvent mStatusChanged = new();
 
     // 本段回显曲线（key 与 GetSynthesizedParameterConfigs 对齐）：数据线程发布、宿主只读、收尾随产物一并重读。无回显返回空 map。
-    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
     public Task Process(CancellationToken cancellation = default)
     {
@@ -827,7 +827,7 @@ class MyEffectProcessor : IEffectSynthesisSession
         outSegment.Commit();
 
         // 回显：与输出同步在数据线程换引用（此例 Process 全同步，直接换即可）。
-        mReadback = BuildLoudness(dst, rate, offset);
+        mSynthesizedParameters = BuildLoudness(dst, rate, offset);
         return Task.CompletedTask;                      // 错误抛异常（宿主 catch → passthrough），此处不吞
     }
 
@@ -843,7 +843,7 @@ class MyEffectProcessor : IEffectSynthesisSession
     readonly IEffectSynthesisContext mContext;
     bool mDirty;
     IReadOnlyList<SynthesisStatusSegment> mStatus = [];   // 发布 = 换引用（原子）
-    IReadOnlyMap<string, SynthesizedParameter> mReadback = new Map<string, SynthesizedParameter>();
+    IReadOnlyMap<string, SynthesizedParameter> mSynthesizedParameters = new Map<string, SynthesizedParameter>();
 }
 ```
 

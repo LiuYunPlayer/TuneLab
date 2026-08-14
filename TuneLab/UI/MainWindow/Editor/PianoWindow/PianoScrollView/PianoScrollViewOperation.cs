@@ -2319,7 +2319,7 @@ internal partial class PianoScrollView
 
             // 区间刚变过 ⇒ 按**新**区间补基线，且必须每帧重算：本帧开头的 DiscardTo(mHead) 已把上一帧的固定撤掉。
             // 拖动期反复写入不会自毁——区间失效已纳入批量括号、此时不转发给引擎，回显不会被清（见 VoiceSynthesisContext）。
-            PianoScrollView.Part.LockAssociatedReadbackGaps(mVibrato);
+            PianoScrollView.Part.LockAssociatedSynthesizedParameterGaps(mVibrato);
         }
 
         public void Up()
@@ -2401,7 +2401,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.EndMergeDirty();
 
             // 区间刚变过 ⇒ 按新区间补基线，每帧重算（本帧开头的 DiscardTo 已撤掉上一帧的固定）。
-            PianoScrollView.Part.LockAssociatedReadbackGaps(mVibrato);
+            PianoScrollView.Part.LockAssociatedSynthesizedParameterGaps(mVibrato);
         }
 
         public void Up()
@@ -2452,9 +2452,9 @@ internal partial class PianoScrollView
             PianoScrollView.Part.BeginMergeDirty();
             // 碰颤音就补基线：给每个被拖颤音**已关联的**分段轨把覆盖区空隙固定成模型输出（幂等、只填空隙、
             // 不覆盖已画值）。区间在本操作里不变，故只需一次；放在 mHead **之前**，Move 的 DiscardTo(mHead)
-            // 才不会把它撤掉。见 SynthesisLock.LockAssociatedReadbackGaps。
+            // 才不会把它撤掉。见 SynthesisLock.LockAssociatedSynthesizedParameterGaps。
             foreach (var vibrato in vibratos)
-                PianoScrollView.Part.LockAssociatedReadbackGaps(vibrato);
+                PianoScrollView.Part.LockAssociatedSynthesizedParameterGaps(vibrato);
             mHead = PianoScrollView.Part.Head;
             mVibratos = vibratos;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
@@ -2522,9 +2522,9 @@ internal partial class PianoScrollView
             PianoScrollView.Part.BeginMergeDirty();
             // 碰颤音就补基线：给每个被拖颤音**已关联的**分段轨把覆盖区空隙固定成模型输出（幂等、只填空隙、
             // 不覆盖已画值）。区间在本操作里不变，故只需一次；放在 mHead **之前**，Move 的 DiscardTo(mHead)
-            // 才不会把它撤掉。见 SynthesisLock.LockAssociatedReadbackGaps。
+            // 才不会把它撤掉。见 SynthesisLock.LockAssociatedSynthesizedParameterGaps。
             foreach (var vibrato in vibratos)
-                PianoScrollView.Part.LockAssociatedReadbackGaps(vibrato);
+                PianoScrollView.Part.LockAssociatedSynthesizedParameterGaps(vibrato);
             mHead = PianoScrollView.Part.Head;
             mVibratos = vibratos;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
@@ -2593,7 +2593,7 @@ internal partial class PianoScrollView
             PianoScrollView.Part.BeginMergeDirty();
             // 补基线（同 VibratoAmplitudeOperation.Down 的理由）：放在 mHead 之前，不被 Move 的 DiscardTo 撤掉。
             foreach (var vibrato in vibratos)
-                PianoScrollView.Part.LockAssociatedReadbackGaps(vibrato);
+                PianoScrollView.Part.LockAssociatedSynthesizedParameterGaps(vibrato);
             mHead = PianoScrollView.Part.Head;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
@@ -2681,7 +2681,7 @@ internal partial class PianoScrollView
             mPart.BeginMergeDirty();
             // 补基线（同 VibratoAmplitudeOperation.Down 的理由）：放在 mHead 之前，不被 Move 的 DiscardTo 撤掉。
             foreach (var vibrato in vibratos)
-                mPart.LockAssociatedReadbackGaps(vibrato);
+                mPart.LockAssociatedSynthesizedParameterGaps(vibrato);
             mHead = mPart.Head;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
@@ -2747,7 +2747,7 @@ internal partial class PianoScrollView
             mPart.BeginMergeDirty();
             // 补基线（同 VibratoAmplitudeOperation.Down 的理由）：放在 mHead 之前，不被 Move 的 DiscardTo 撤掉。
             foreach (var vibrato in vibratos)
-                mPart.LockAssociatedReadbackGaps(vibrato);
+                mPart.LockAssociatedSynthesizedParameterGaps(vibrato);
             mHead = mPart.Head;
             PianoScrollView.mOperatingVibratoItem = vibratoItem;
             mVibratos = vibratos;
@@ -2859,7 +2859,7 @@ internal partial class PianoScrollView
             // 位置刚变过 ⇒ 按新区间补基线，每帧重算（上一帧的固定已被本帧开头的 DiscardTo 撤掉）。
             // 旧位置固定下来的曲线是用户数据，移动颤音不删它——如实保留。
             foreach (var vibrato in mMoveVibratos)
-                part.LockAssociatedReadbackGaps(vibrato);
+                part.LockAssociatedSynthesizedParameterGaps(vibrato);
         }
 
         public void Up()

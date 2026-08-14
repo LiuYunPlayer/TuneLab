@@ -30,12 +30,12 @@ internal class ParameterTitleBar : LayerPanel
 
     public interface IDependency
     {
-        event Action? ReadbackVisibilityChanged;
+        event Action? SynthesizedParameterVisibilityChanged;
         IHolder<IMidiPart> PartHolder { get; }
         // 回显轨声明按 AutomationKey 分源（voice / 各 effect），按源序排列（voice 在前、各 effect 按 index）。
-        IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs { get; }
-        bool IsReadbackVisible(AutomationKey key);
-        void SetReadbackVisible(AutomationKey key, bool isVisible);
+        IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> SynthesizedParameterConfigs { get; }
+        bool IsSynthesizedParameterVisible(AutomationKey key);
+        void SetSynthesizedParameterVisible(AutomationKey key, bool isVisible);
         // 波形带显隐（左对齐开关）：与回显轨显隐相互独立。
         IActionEvent WaveformVisibleChanged { get; }
         bool IsWaveformVisible { get; }
@@ -67,7 +67,7 @@ internal class ParameterTitleBar : LayerPanel
         }
         Children.Add(content);
 
-        mDependency.ReadbackVisibilityChanged += SyncChipStates;
+        mDependency.SynthesizedParameterVisibilityChanged += SyncChipStates;
         mDependency.WaveformVisibleChanged.Subscribe(() => mWaveformToggle.Display(mDependency.IsWaveformVisible), s);
         mDependency.PartHolder.Modified.Subscribe(RebuildChips, s);
         // 换声源 → 回显轨声明随之变，按钮组要立即重建（否则显示的还是旧声源的轨）。
@@ -85,7 +85,7 @@ internal class ParameterTitleBar : LayerPanel
     ~ParameterTitleBar()
     {
         s.DisposeAll();
-        mDependency.ReadbackVisibilityChanged -= SyncChipStates;
+        mDependency.SynthesizedParameterVisibilityChanged -= SyncChipStates;
     }
 
     // 重建回显 chip 行（右对齐，按源分组、按声明序左→右排）：每组前置一个源标签（"Voice" / effect 的 Type），
@@ -123,8 +123,8 @@ internal class ParameterTitleBar : LayerPanel
                 var toggle = CreateToggle(GUI.Assets.Eye, EyeWidth, e.Text, e.Color);
                 toggle.Margin = new Thickness(gap, 0, 0, 0);
                 var key = e.Key;
-                toggle.Switched.Subscribe(() => mDependency.SetReadbackVisible(key, toggle.IsChecked));
-                toggle.Display(mDependency.IsReadbackVisible(key));
+                toggle.Switched.Subscribe(() => mDependency.SetSynthesizedParameterVisible(key, toggle.IsChecked));
+                toggle.Display(mDependency.IsSynthesizedParameterVisible(key));
                 mChipToggles.Add(key, toggle);
                 mChipsPanel.Children.Add(toggle);
             }
@@ -148,7 +148,7 @@ internal class ParameterTitleBar : LayerPanel
     List<Elem> BuildElems()
     {
         var elems = new List<Elem>();
-        var configs = mDependency.ReadbackConfigs;
+        var configs = mDependency.SynthesizedParameterConfigs;
         if (configs.Count == 0)
             return elems;
 
@@ -183,7 +183,7 @@ internal class ParameterTitleBar : LayerPanel
     void SyncChipStates()
     {
         foreach (var (key, toggle) in mChipToggles)
-            toggle.Display(mDependency.IsReadbackVisible(key));
+            toggle.Display(mDependency.IsSynthesizedParameterVisible(key));
     }
 
     // 图标 + 文字显隐开关的统一构造：命中区两侧比可视内容各宽 ChipHitPadding（内容经 Offset 内缩）、垂直吃满栏高。

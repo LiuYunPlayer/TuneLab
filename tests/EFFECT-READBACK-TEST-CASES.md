@@ -91,6 +91,8 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 
 ### 11. 只读、不可激活
 - effect 回显轨**不在底部 tabbar**、不能设为激活编辑轨；对着蓝色面积做绘制/擦除/拖锚点 → **无任何效果**。
+  （注：Gain 后来另加了一条与 loudness **同 id 的可编辑实参轨** **Loudness (Actual)**（绿色，在 tabbar 里），
+  用于测脚本面的固定，见 `SCRIPT-LOCK-TEST-CASES.md`。别把它与这条蓝色只读轨混淆——蓝色的仍不在 tabbar。）
 
 ### 12. 无 effect / 旧工程不回归
 - part 不挂任何 effect：标题栏与改动前一致（只有 voice 回显分组，或无回显则无按钮）。

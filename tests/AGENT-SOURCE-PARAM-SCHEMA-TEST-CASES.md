@@ -15,7 +15,7 @@
 2. **期望**：`Parameters for voice source "<名>" (S) in engine "<显示名>" (type=E):`，其下按引擎声明列出（有哪组取决于引擎）：
    - `Part properties (N):` 逐字段 `<id>(+标签): <类型/范围/选项>. default <值>`。
    - `Part automation tracks (editable) (M):` 逐轨 `<id>: automation track, range [min,max], default <值>`（或 `piecewise (no baseline)`）。
-   - `Read-only readback tracks (K):`（若有回显轨）。
+   - `Read-only synthesized parameter tracks (K):`（若有回显轨）。
    - `Note properties (P):`（note 级属性，空选中→默认版）。
    - `Phoneme properties`：**多数引擎（含 DiffSinger）此处不会有内容**——phoneme schema 的 slot 来自 note 里真实音素（数据驱动），空 note 拿不到。**期望**如实标注 `Phoneme properties: not available from this static read — this engine declares them per actual phoneme, so they only appear once a note with a real lyric is synthesized ...`，而**非**造假 note 硬凑。只有恰好静态声明 slot schema 的引擎才会列出 `core vowel (slot 0)` 等小节。
    - 末尾附注 `(Schema is at default values; ... Editing these is not yet scriptable.)`。
@@ -25,7 +25,7 @@
 ## 2. instrument 音源参数 schema
 
 1. 对某 instrument 引擎+音源调 `list_sound_sources({"engine":"E","source":"S"})`。
-2. **期望**：同 voice 但**无 Phoneme 组**（instrument 无音素/歌词），其余 part/note/automation/readback 组照常。
+2. **期望**：同 voice 但**无 Phoneme 组**（instrument 无音素/歌词），其余 part/note/automation/synthesized parameters 组照常。
 
 ## 3. voiceId 依赖 / 未知 id 保护（关键）
 

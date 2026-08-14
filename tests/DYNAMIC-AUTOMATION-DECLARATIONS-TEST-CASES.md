@@ -19,6 +19,7 @@ powershell -File tests/pack-tlx.ps1          # 打成 tests/tlx/*.tlx
 - 本次为测试新增的条件开关（UI 显示名）：
   - **声库 TestVoice**（v1-voice）：part 属性面板多了勾选框 **Enable Growl**（默认勾选）；勾选才暴露自动化轨 **Growl**。
   - **效果器 Gain**（v1-effect）：参数面板多了勾选框 **Show Gain Env**（默认勾选）；勾选才暴露自动化轨 **Gain Env**。
+    （**Formant** 与 **Loudness (Actual)** 是恒在的轨，不受该勾选框影响。）
 - 两处"自动化轨"都同时出现在：**钢琴窗底部参数栏**的轨按钮 + **Properties 侧栏 → Automation** 默认值面板里那一行。两处都应随开关同步显隐。
 
 ---

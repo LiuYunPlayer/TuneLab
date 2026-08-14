@@ -23,7 +23,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 {
     public event Action? ActiveAutomationChanged;
     public event Action? VisibleAutomationChanged;
-    public event Action? ReadbackVisibilityChanged;
+    public event Action? SynthesizedParameterVisibilityChanged;
     public IActionEvent WaveformBottomChanged => mWaveformBottomChanged;
     public IActionEvent WaveformVisibleChanged => mWaveformVisibleChanged;
     public IActionEvent ParameterPanelVisibilityChanged => mParameterPanelVisibilityChanged;
@@ -200,20 +200,20 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         // 只看回显是独立的合法用法（对着模型输出观察），而查看自己画的曲线时几乎总要参照模型输出。
         // 故只带亮、不连带熄灭（否则会吞掉用户原本单独开着的回显），也不锁 chip（允许手动关掉）；
         // 一次性带亮而非持续绑定，与固定"不自动同步"同一种克制。
-        if (isVisible && !wasVisible && ReadbackConfigs.ContainsKey(automation))
-            SetReadbackVisible(automation, true);
+        if (isVisible && !wasVisible && SynthesizedParameterConfigs.ContainsKey(automation))
+            SetSynthesizedParameterVisible(automation, true);
     }
 
     // —— 合成参数回显轨显隐（只读轨集合，按 AutomationKey 分源合并 voice + 各 effect；独立于可编辑轨的
     //    Visible/Active 机制；显隐由参数区标题栏管控）——
     // 每次按源现合并（轨集合随参数 commit 涌现、规模小、不在热路径）：voice 声明 → AutomationKey.Voice，
     // 各 effect 声明 → AutomationKey.Effect(index)。
-    public IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs
+    public IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> SynthesizedParameterConfigs
     {
         get
         {
             if (Part == null)
-                return sEmptyReadbackConfigs;
+                return sEmptySynthesizedParameterConfigs;
 
             var result = new OrderedMap<AutomationKey, AutomationConfigEntry>();
             foreach (var kvp in Part.SoundSource.SynthesizedParameterConfigs)
@@ -236,13 +236,13 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         mWaveformVisibleChanged.Invoke();
     }
 
-    public bool IsReadbackVisible(AutomationKey key) => mVisibleReadbacks.Contains(key);
+    public bool IsSynthesizedParameterVisible(AutomationKey key) => mVisibleSynthesizedParameters.Contains(key);
 
-    public void SetReadbackVisible(AutomationKey key, bool isVisible)
+    public void SetSynthesizedParameterVisible(AutomationKey key, bool isVisible)
     {
-        bool changed = isVisible ? mVisibleReadbacks.Add(key) : mVisibleReadbacks.Remove(key);
+        bool changed = isVisible ? mVisibleSynthesizedParameters.Add(key) : mVisibleSynthesizedParameters.Remove(key);
         if (changed)
-            ReadbackVisibilityChanged?.Invoke();
+            SynthesizedParameterVisibilityChanged?.Invoke();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -406,8 +406,8 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
     AutomationKey? mActiveAutomation;
     readonly List<AutomationKey> mVisibleAutomations = new();
     // 回显轨显隐集合（按轨 id；默认隐藏，用户经标题栏 chip 点亮）。
-    readonly HashSet<AutomationKey> mVisibleReadbacks = new();
-    static readonly OrderedMap<AutomationKey, AutomationConfigEntry> sEmptyReadbackConfigs = new();
+    readonly HashSet<AutomationKey> mVisibleSynthesizedParameters = new();
+    static readonly OrderedMap<AutomationKey, AutomationConfigEntry> sEmptySynthesizedParameterConfigs = new();
 
     readonly ActionEvent mWaveformBottomChanged = new();
     readonly ActionEvent mWaveformVisibleChanged = new();

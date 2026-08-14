@@ -188,6 +188,9 @@ So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endO
 | `part.samplePiecewiseAutomation(id, startTick, endTick, samples)` | `[number]` | Evenly sample a piecewise track. |
 | `part.setPiecewiseAutomationLine(id, startTick, endTick, points)` | — | Clear `[start, end)` then lay a piecewise curve (same shape as `setPitchLine`). |
 | `part.clearPiecewiseAutomation(id, startTick, endTick)` | — | Clear a span of a piecewise curve. |
+| `part.lockPitch(startTick?, endTick?)` | `bool` | **Lock the synthesized pitch**: write the engine's pitch output, at its real values, into this part's pitch curve (the same thing the lock brush does in the editor). The range arguments come in a **pair — pass both or neither** (neither = the whole part). |
+| `part.lockAutomation(id, startTick?, endTick?)` | `bool` | **Lock a synthesized parameter**: write that track's engine-produced curve into the editable track with the same id (continuous vs piecewise is dispatched for you from the declaration). An unknown id, or a track with no paired synthesized parameter, **throws** (which rolls the whole run back) — call `hasSynthesizedParameter(id)` first if unsure. |
+| `part.hasSynthesizedParameter(id)` | `bool` | Whether that track has a **paired synthesized parameter** — i.e. besides the editable track, the sound source also publishes a synthesized parameter with the same id. No pairing, nothing to lock. |
 | `part.vibratos()` | `[vibrato]` | All vibrato handles in this part. |
 | `part.addVibrato(info)` | `vibrato` | Add a vibrato from a vibrato info (overlaid on the pitch curve): `{pos, dur, frequency?(6), amplitude?(1), phase?(0), attack?(0.2), release?(0.2), affectedAutomations?, affectedEffectAutomations?}`. Returns its handle. |
 | `part.insertVibrato(vibrato)` | — | Put a **detached** vibrato back on this part (identity preserved). Like notes, it can't change parent. |
@@ -200,11 +203,28 @@ So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endO
 | `part.getProperty(key)` | value | The current value of one voice/instrument-declared per-part parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_sound_sources`. |
 | `part.setProperty(key, value)` | — | Set one declared per-part parameter (`value` = `number`/`boolean`/`string`). |
 
+### About locking (`lockPitch` / `lockAutomation`)
+
+Engine output is always **read-only** and user edits always land in the data layer; locking is the one explicit bridge between them — once locked, that stretch of data is **yours**: keep editing it, and the engine no longer overwrites it. It is how you keep the model's line and change only part of it: without it, drawing over an uncovered stretch starts from blank and every detail the model produced is lost.
+
+The return value says **whether anything was actually locked**: `false` means there was no output in that range (usually: it hasn't been synthesized yet) — a no-op, not an error, so **check it** rather than assuming success. Values are written as-is and are *not* clamped to the target track's range (clamping would silently alter data).
+
+Locking is deliberately a **one-shot action**, never a live link: re-synthesizing later does not update what you locked (auto-following would form a cover → re-synthesize → the synthesized parameter changes → write again feedback loop, and would mix engine results into the undo stack). It is the same paradigm as `note.lockPhonemes` on the phoneme side (engine output read-only, user data writable, locking the one explicit bridge), which is why the script surface uses the one verb *lock* for both.
+
+```js
+// Lock this part's model pitch into an editable curve, plus any parameter track that has a synthesized parameter
+const p = tl.currentPart();
+if (!p.lockPitch()) print('no synthesized pitch to lock yet — synthesize first');
+for (const id of p.automationIds()) {
+  if (p.hasSynthesizedParameter(id)) p.lockAutomation(id);
+}
+```
+
 ---
 
 ## `note`
 
-**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasPinnedPhonemes` (bool). `pronunciation` is an explicit voice pronunciation override — set it to force a pronunciation; an empty string means no override, so the lyric text itself reaches the engine and the engine does its own G2P. (Whether entering a lyric auto-fills this field with editor G2P is the `AutoGeneratePronunciation` setting.) `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-pins).
+**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasLockedPhonemes` (bool). `pronunciation` is an explicit voice pronunciation override — set it to force a pronunciation; an empty string means no override, so the lyric text itself reaches the engine and the engine does its own G2P. (Whether entering a lyric auto-fills this field with editor G2P is the `AutoGeneratePronunciation` setting.) `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-locks).
 
 | Method | Returns | Notes |
 |---|---|---|
@@ -213,27 +233,27 @@ So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endO
 | `note.getProperty(key)` | value | The current value of one voice/instrument-declared per-note parameter (`number`/`boolean`/`string`), or `null` if unset. Keys, ranges and defaults come from `list_sound_sources`. |
 | `note.setProperty(key, value)` | — | Set one declared per-note parameter (`value` = `number`/`boolean`/`string`). |
 | `note.phonemes()` | `[phoneme]` | The note's phonemes (leading ++ body, in time order); empty until the note has been synthesized. Voice parts only. |
-| `note.addLeadingPhoneme(info)` | `phoneme` | Append a phoneme to the **leading** list (pre-vowel consonants); auto-pins. `info = {symbol, duration?(seconds, default 0), stretchWeight?(default 0), properties?}`, where `stretchWeight` 0 = rigid consonant / >0 = stretchable vowel. |
+| `note.addLeadingPhoneme(info)` | `phoneme` | Append a phoneme to the **leading** list (pre-vowel consonants); auto-locks. `info = {symbol, duration?(seconds, default 0), stretchWeight?(default 0), properties?}`, where `stretchWeight` 0 = rigid consonant / >0 = stretchable vowel. |
 | `note.addBodyPhoneme(info)` | `phoneme` | Append a phoneme to the **body** list (vowel + coda); same argument. |
-| `note.removePhoneme(phoneme)` | — | Remove a phoneme; auto-pins. Phonemes have no parent pointer in the data layer, so to get one onto another note go through an info: `otherNote.addBodyPhoneme(ph.getInfo())` then `removePhoneme(ph)`. |
-| `note.pinPhonemes()` | — | Fix the synthesized phonemes as editable user data (idempotent; usually automatic on the first phoneme write). |
-| `note.clearPhonemes()` | — | Drop pinned phonemes and revert to the synthesized ones. |
+| `note.removePhoneme(phoneme)` | — | Remove a phoneme; auto-locks. Phonemes have no parent pointer in the data layer, so to get one onto another note go through an info: `otherNote.addBodyPhoneme(ph.getInfo())` then `removePhoneme(ph)`. |
+| `note.lockPhonemes()` | — | Fix the synthesized phonemes as editable user data (idempotent; usually automatic on the first phoneme write). Same verb and same meaning as `part.lockPitch` / `lockAutomation`, scoped to this note's phonemes. |
+| `note.clearPhonemes()` | — | Drop the locked phonemes and revert to the synthesized ones (the counterpart of `clearPitch` / `clearAutomation` on the curve side). |
 
-Phonemes come from the engine (read-only) until you edit them; the first write **auto-pins** them into editable data (exactly like the sidebar's first phoneme edit).
+Phonemes come from the engine (read-only) until you edit them; the first write **auto-locks** them into editable data (exactly like the sidebar's first phoneme edit).
 
 ---
 
 ## `phoneme`
 
-An item in `note.phonemes()`. **Fields** — read-only: `leading` (bool; leading = pre-vowel consonants, body = vowel+coda); read/write: `symbol`, `duration` (seconds), `stretchWeight` (0 = rigid consonant, >0 = stretchable vowel — its duration is a derived fill, ignored by layout). Writing any field auto-pins the note's phonemes.
+An item in `note.phonemes()`. **Fields** — read-only: `leading` (bool; leading = pre-vowel consonants, body = vowel+coda); read/write: `symbol`, `duration` (seconds), `stretchWeight` (0 = rigid consonant, >0 = stretchable vowel — its duration is a derived fill, ignored by layout). Writing any field auto-locks the note's phonemes.
 
 A phoneme handle is **positional**: its list index shifts when phonemes are added or removed, so re-fetch `note.phonemes()` after a structural change.
 
 | Method | Returns | Notes |
 |---|---|---|
-| `phoneme.getInfo()` | info | A full snapshot of this phoneme (pure data): `{symbol, duration, stretchWeight, properties}` (`properties` is `null` while the note isn't pinned). |
-| `phoneme.getProperty(key)` | value | The current value of one voice-declared per-phoneme parameter (`number`/`boolean`/`string`), or `null` if unset or the note is not yet pinned. Keys/ranges come from the phoneme slots in `list_sound_sources`. |
-| `phoneme.setProperty(key, value)` | — | Set one declared per-phoneme parameter (`value` = `number`/`boolean`/`string`); auto-pins. |
+| `phoneme.getInfo()` | info | A full snapshot of this phoneme (pure data): `{symbol, duration, stretchWeight, properties}` (`properties` is `null` while the note isn't locked). |
+| `phoneme.getProperty(key)` | value | The current value of one voice-declared per-phoneme parameter (`number`/`boolean`/`string`), or `null` if unset or the note is not yet locked. Keys/ranges come from the phoneme slots in `list_sound_sources`. |
+| `phoneme.setProperty(key, value)` | — | Set one declared per-phoneme parameter (`value` = `number`/`boolean`/`string`); auto-locks. |
 
 ---
 
@@ -267,6 +287,8 @@ An item in `part.effects()`. **Fields** — read/write: `isEnabled` (bool; `fals
 | `effect.piecewiseAutomationIds()` | `[string]` | The **piecewise** parameter track ids declared by this effect's engine (no baseline, gaps between segments). |
 | `effect.samplePiecewiseAutomation(id, startTick, endTick, samples)` | `[number]` | Evenly sample one of this effect's piecewise tracks. |
 | `effect.setPiecewiseAutomationLine(id, startTick, endTick, points)` | — | Clear `[start, end)` then lay a piecewise curve. |
+| `effect.lockAutomation(id, startTick?, endTick?)` | `bool` | Lock one of this effect's synthesized parameters (exactly `part.lockAutomation`, scoped to this effect). |
+| `effect.hasSynthesizedParameter(id)` | `bool` | Whether that track of this effect has a paired synthesized parameter. Always `false` while detached (synthesized parameters are addressed by chain index, and a detached effect has no place in the chain). |
 | `effect.clearPiecewiseAutomation(id, startTick, endTick)` | — | Clear a span of one of this effect's piecewise curves. |
 
 Effect automation mirrors part-level automation exactly — same absolute-tick `points` and value semantics, same split into continuous and piecewise families — only the target differs (an effect in the chain rather than the sound source).

@@ -97,6 +97,11 @@ internal static class ScriptApiReference
         "  part.piecewiseAutomationIds()            [string]\n" +
         "  part.samplePiecewiseAutomation(id, start, end, samples)   [number]\n" +
         "  part.setPiecewiseAutomationLine(id, start, end, points)   part.clearPiecewiseAutomation(id, start, end)\n" +
+        "  // LOCK — freeze the engine's READ-ONLY output into your own editable curve (the same thing the lock brush does in the editor). Once locked, that data is YOURS: keep editing it, the engine no longer overwrites it. This is how you keep the model's line and only change part of it — without it you'd be drawing from blank and losing every detail the model produced.\n" +
+        "  part.lockPitch(start?, end?)             -> bool   synthesized pitch -> the pitch curve\n" +
+        "  part.lockAutomation(id, start?, end?)    -> bool   that track's synthesized parameter -> the editable track with the SAME id (continuous vs piecewise is handled for you)\n" +
+        "  part.hasSynthesizedParameter(id)                     bool      does the sound source publish a synthesized parameter with this id? only such a track has anything to lock\n" +
+        "  Ranges are optional but come in PAIRS: pass BOTH start and end, or NEITHER (= the whole part). The returned bool is DID IT ACTUALLY LOCK ANYTHING — false means there was no synthesis output in that range (usually: not synthesized yet), a no-op rather than an error, so check it instead of assuming success. An unknown id, or a track with no paired synthesized parameter, THROWS (which rolls the whole run back) — call hasSynthesizedParameter(id) first if unsure. Locking is ONE-SHOT, not a live link: later re-synthesis does not update what you locked.\n" +
         "  part.vibratos()                          [vibrato]\n" +
         "  part.addVibrato(info) -> vibrato          info = {pos, dur, frequency?, amplitude?, phase?, attack?, release?, affectedAutomations?, affectedEffectAutomations?}\n" +
         "  part.insertVibrato(vibrato)                part.removeVibrato(vibrato) -> vibrato\n" +
@@ -115,18 +120,18 @@ internal static class ScriptApiReference
         "  note.part()                              the part this note is on (read-only)      // vibrato.part() and effect.part() exist too\n" +
         "  // NOTE PROPERTIES (voice/instrument-declared per-note params; keys/ranges from list_sound_sources):\n" +
         "  note.getProperty(key)  / note.setProperty(key, value)    current value or null / set one declared note param (number/boolean/string)\n" +
-        "  // PHONEMES (voice only). TWO SEPARATE LISTS: leading = pre-vowel consonants, body = vowel+coda. Read anytime; the FIRST write auto-pins (fixes the synthesized phonemes into editable data, like the sidebar's first edit):\n" +
+        "  // PHONEMES (voice only). TWO SEPARATE LISTS: leading = pre-vowel consonants, body = vowel+coda. Read anytime; the FIRST write auto-locks (fixes the synthesized phonemes into editable data, like the sidebar's first edit) — SAME verb as part.lockPitch/lockAutomation, same idea applied to phonemes:\n" +
         "  note.phonemes()                          [phoneme]   (leading ++ body, time order; empty until the note has been synthesized)\n" +
-        "  field (read-only): hasPinnedPhonemes (bool)      field (read/write): bodyOffset (seconds; leading/body junction offset from note start; writing auto-pins)\n" +
-        "  note.addLeadingPhoneme(info) -> phoneme   note.addBodyPhoneme(info) -> phoneme    // info = {symbol, duration?, stretchWeight?, properties?}; appended to that list; auto-pins\n" +
+        "  field (read-only): hasLockedPhonemes (bool)      field (read/write): bodyOffset (seconds; leading/body junction offset from note start; writing auto-locks)\n" +
+        "  note.addLeadingPhoneme(info) -> phoneme   note.addBodyPhoneme(info) -> phoneme    // info = {symbol, duration?, stretchWeight?, properties?}; appended to that list; auto-locks\n" +
         "  note.removePhoneme(phoneme)               // phonemes have no parent pointer, so to get one onto another note use otherNote.addBodyPhoneme(ph.getInfo()) then removePhoneme\n" +
-        "  note.pinPhonemes()  / note.clearPhonemes()   // pin = fix synthesized phonemes as editable (usually automatic); clear = drop pinned phonemes, revert to synthesized\n" +
+        "  note.lockPhonemes()  / note.clearPhonemes()   // lock = fix the synthesized phonemes as editable data (usually automatic); clear = drop them and revert to synthesized\n" +
         "\n" +
         "phoneme  (an item in note.phonemes(); positional — its list index shifts when phonemes are added/removed, so re-fetch note.phonemes() after a structural change)\n" +
-        "  field (read-only): leading (bool)      fields (read/write): symbol, duration (seconds), stretchWeight (0 = rigid consonant, >0 = stretchable vowel)   // writing any field auto-pins the note's phonemes\n" +
-        "  phoneme.getInfo()                        {symbol, duration, stretchWeight, properties}   (properties is null while not pinned)\n" +
-        "  phoneme.getProperty(key)                 current value (number/boolean/string), or null if unset or not yet pinned (keys/ranges from list_sound_sources phoneme slots)\n" +
-        "  phoneme.setProperty(key, value)          set one declared phoneme param (auto-pins)\n" +
+        "  field (read-only): leading (bool)      fields (read/write): symbol, duration (seconds), stretchWeight (0 = rigid consonant, >0 = stretchable vowel)   // writing any field auto-locks the note's phonemes\n" +
+        "  phoneme.getInfo()                        {symbol, duration, stretchWeight, properties}   (properties is null while not locked)\n" +
+        "  phoneme.getProperty(key)                 current value (number/boolean/string), or null if unset or not yet locked (keys/ranges from list_sound_sources phoneme slots)\n" +
+        "  phoneme.setProperty(key, value)          set one declared phoneme param (auto-locks)\n" +
         "\n" +
         "vibrato\n" +
         "  fields (read/write):  pos, dur, frequency, amplitude, phase, attack, release    // pos/dur in ticks, frequency Hz, amplitude semitones, phase in units of PI, attack/release seconds\n" +
@@ -148,6 +153,7 @@ internal static class ScriptApiReference
         "  effect.piecewiseAutomationIds()          [string]\n" +
         "  effect.samplePiecewiseAutomation(id, start, end, samples)   [number]\n" +
         "  effect.setPiecewiseAutomationLine(id, start, end, points)   effect.clearPiecewiseAutomation(id, start, end)\n" +
+        "  effect.lockAutomation(id, start?, end?) -> bool    effect.hasSynthesizedParameter(id) -> bool   // exactly part.lockAutomation/hasSynthesizedParameter, scoped to this effect's own tracks\n" +
         "\n" +
         "print(x) / console.log(x) -> debugging output (returned to you / shown in the panel).\n" +
         "Notes live inside a MIDI part; to write a melody from scratch, tl.currentProject().addTrack() (or pick one), track.addPart({pos, endOffset}), then part.addNote into the returned part.\n" +

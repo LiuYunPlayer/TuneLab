@@ -142,7 +142,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
     }
 
     // instrument 仅产音频 + 可选参数回显；本参照不声明回显轨，故恒空。
-    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mEmptyReadback;
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mEmptySynthesizedParameters;
 
     public IReadOnlyList<SynthesisStatusSegment> Status => BuildStatus();
 
@@ -333,7 +333,7 @@ public sealed class TestSession : IInstrumentSynthesisSession
     const int kAttackSamples = (int)(0.008 * kSampleRate);
     const int kReleaseSamples = (int)(0.012 * kSampleRate);
 
-    static readonly Map<string, SynthesizedParameter> mEmptyReadback = new();
+    static readonly Map<string, SynthesizedParameter> mEmptySynthesizedParameters = new();
 
     readonly IInstrumentSynthesisContext mContext;
     readonly bool mSquare;

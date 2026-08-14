@@ -184,6 +184,9 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `part.samplePiecewiseAutomation(id, startTick, endTick, samples)` | `[number]` | 等距采样某分段轨。 |
 | `part.setPiecewiseAutomationLine(id, startTick, endTick, points)` | — | 清空 `[start, end)` 再落一条分段曲线（形状同 `setPitchLine`）。 |
 | `part.clearPiecewiseAutomation(id, startTick, endTick)` | — | 清空一段分段曲线。 |
+| `part.lockPitch(startTick?, endTick?)` | `bool` | **固定合成音高**：把引擎输出的音高按真实数值写成本 part 的音高曲线（与工具栏那支固定笔刷同一件事）。区间两参**要么都给、要么都不给**（都不给 = 整条 part）。 |
+| `part.lockAutomation(id, startTick?, endTick?)` | `bool` | **固定合成参数**：把该轨的引擎产物写成同 id 的可编辑轨（连续轨 / 分段轨由数据层按声明自动分派）。id 未知、或该轨没有配对合成参数都会**报错**（整段脚本随之回退），拿不准先问 `hasSynthesizedParameter(id)`。 |
+| `part.hasSynthesizedParameter(id)` | `bool` | 该轨有没有**配对合成参数**——即音源除了这条可编辑轨，还发布了同 id 的合成参数。没有配对就没有模型输出可固定。 |
 | `part.vibratos()` | `[vibrato]` | 本 part 的所有颤音句柄。 |
 | `part.addVibrato(info)` | `vibrato` | 按 vibrato info 新增颤音（叠加在音高曲线之上）：`{pos, dur, frequency?(6), amplitude?(1), phase?(0), attack?(0.2), release?(0.2), affectedAutomations?, affectedEffectAutomations?}`，返回其句柄。 |
 | `part.insertVibrato(vibrato)` | — | 把一个**游离**颤音插回本 part（保持身份）。同音符：不能换父。 |
@@ -196,11 +199,28 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `part.getProperty(key)` | 值 | 音源（voice/instrument）声明的某 per-part 参数当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_sound_sources`。 |
 | `part.setProperty(key, value)` | — | 写一个声明的 per-part 参数（`value` = `number`/`boolean`/`string`）。 |
 
+### 关于固定（`lockPitch` / `lockAutomation`）
+
+引擎产物恒**只读**，用户编辑恒落在数据层；固定是二者之间唯一的显式桥——固定后那段数据**归你**，可以继续改，引擎不再覆盖它。它是"抓住模型这根线、只改中间一段"的落地手段：没有它，在未覆盖的段落上落笔就是从空白起步，模型给出的细节全丢。
+
+返回值是**有没有真的固定到东西**：`false` 表示该区间没有产物（通常是还没合成过），是 no-op 而不是错误——所以要**看返回值**，别默认它成功了。值按真实数值写入、不按目标轨量程钳位（钳位会静默改数据）。
+
+固定刻意是**一次性动作**、不做持续同步：之后重新合成不会更新你固定下来的那段（自动跟随会形成 覆盖 → 重合成 → 合成参数变 → 再写入 的反馈环，并把引擎结果混进撤销栈）。它与音素侧的 `note.lockPhonemes` 是**同一个范式**（引擎产物只读、用户数据可写、固定是唯一显式桥），故脚本面同用一个动词 lock。
+
+```js
+// 把当前 part 的模型音高整条固定成可编辑曲线；某条参数轨有合成参数就一并固定
+const p = tl.currentPart();
+if (!p.lockPitch()) print('该 part 还没有合成音高可固定——先合成一遍');
+for (const id of p.automationIds()) {
+  if (p.hasSynthesizedParameter(id)) p.lockAutomation(id);
+}
+```
+
 ---
 
 ## `note`（音符）
 
-**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasPinnedPhonemes`（bool）。`pronunciation` 是 voice 的显式发音覆盖——非空则强制该发音，空串 = 无覆盖，歌词原文直达引擎、由引擎自行 G2P（录入歌词时是否自动填入编辑器 G2P 结果，取决于 `AutoGeneratePronunciation` 设置）。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动钉死音素）。
+**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasLockedPhonemes`（bool）。`pronunciation` 是 voice 的显式发音覆盖——非空则强制该发音，空串 = 无覆盖，歌词原文直达引擎、由引擎自行 G2P（录入歌词时是否自动填入编辑器 G2P 结果，取决于 `AutoGeneratePronunciation` 设置）。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动固定音素）。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
@@ -209,27 +229,27 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `note.getProperty(key)` | 值 | 音源声明的某 per-note 参数当前值（`number`/`boolean`/`string`），未设则 `null`。键、取值范围与默认值见 `list_sound_sources`。 |
 | `note.setProperty(key, value)` | — | 写一个声明的 per-note 参数（`value` = `number`/`boolean`/`string`）。 |
 | `note.phonemes()` | `[phoneme]` | 该 note 的音素（引导 ++ 主体，时间序）；未合成前为空。仅 voice part。 |
-| `note.addLeadingPhoneme(info)` | `phoneme` | 追加一个音素到**引导**列表末（核前前置辅音）；自动钉死。`info = {symbol, duration?(秒,默认0), stretchWeight?(默认0), properties?}`，`stretchWeight` 0 = 刚性辅音 / >0 = 可伸元音。 |
+| `note.addLeadingPhoneme(info)` | `phoneme` | 追加一个音素到**引导**列表末（核前前置辅音）；自动固定。`info = {symbol, duration?(秒,默认0), stretchWeight?(默认0), properties?}`，`stretchWeight` 0 = 刚性辅音 / >0 = 可伸元音。 |
 | `note.addBodyPhoneme(info)` | `phoneme` | 追加一个音素到**主体**列表末（核 + 尾辅音）；参数同上。 |
-| `note.removePhoneme(phoneme)` | — | 删除一个音素；自动钉死。音素在数据层没有父指针，故跨 note 搬运走 info 路：`另一个note.addBodyPhoneme(ph.getInfo())` 再 `removePhoneme(ph)`。 |
-| `note.pinPhonemes()` | — | 把合成音素固定为可编辑用户数据（幂等；一般首次音素写入时自动发生）。 |
-| `note.clearPhonemes()` | — | 清除钉死音素、回到合成产物口径。 |
+| `note.removePhoneme(phoneme)` | — | 删除一个音素；自动固定。音素在数据层没有父指针，故跨 note 搬运走 info 路：`另一个note.addBodyPhoneme(ph.getInfo())` 再 `removePhoneme(ph)`。 |
+| `note.lockPhonemes()` | — | 把合成音素固定为可编辑用户数据（幂等；一般首次音素写入时自动发生）。与 `part.lockPitch` / `lockAutomation` 同名同义，作用面是本 note 的音素。 |
+| `note.clearPhonemes()` | — | 清除固定音素、回到合成产物口径（与曲线侧的 `clearPitch` / `clearAutomation` 对位）。 |
 
-音素在你编辑前来自引擎（只读）；**首次写入会自动钉死**成可编辑数据（与侧栏面板首次编辑音素完全一致）。
+音素在你编辑前来自引擎（只读）；**首次写入会自动固定**成可编辑数据（与侧栏面板首次编辑音素完全一致）。
 
 ---
 
 ## `phoneme`（音素）
 
-`note.phonemes()` 里的一项。**字段**——只读：`leading`（bool；引导 = 核前前置辅音，主体 = 核 + 尾辅音）；可读写：`symbol`、`duration`（秒）、`stretchWeight`（0 = 刚性辅音，>0 = 可伸元音，其时长为派生填充量、布局时忽略）。写任一字段都会自动钉死该 note 的音素。
+`note.phonemes()` 里的一项。**字段**——只读：`leading`（bool；引导 = 核前前置辅音，主体 = 核 + 尾辅音）；可读写：`symbol`、`duration`（秒）、`stretchWeight`（0 = 刚性辅音，>0 = 可伸元音，其时长为派生填充量、布局时忽略）。写任一字段都会自动固定该 note 的音素。
 
 音素句柄按**位置**定址：增删音素会改变其后音素的下标，结构变更后请重新 `note.phonemes()`。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
-| `phoneme.getInfo()` | info | 本音素完整快照（纯数据）：`{symbol, duration, stretchWeight, properties}`（未钉死时 `properties` 为 `null`）。 |
-| `phoneme.getProperty(key)` | 值 | voice 声明的某 per-phoneme 参数当前值（`number`/`boolean`/`string`），未设或该 note 尚未钉死则 `null`。键、取值范围见 `list_sound_sources` 的音素 slot。 |
-| `phoneme.setProperty(key, value)` | — | 写一个声明的 per-phoneme 参数（`value` = `number`/`boolean`/`string`）；自动钉死。 |
+| `phoneme.getInfo()` | info | 本音素完整快照（纯数据）：`{symbol, duration, stretchWeight, properties}`（未固定时 `properties` 为 `null`）。 |
+| `phoneme.getProperty(key)` | 值 | voice 声明的某 per-phoneme 参数当前值（`number`/`boolean`/`string`），未设或该 note 尚未固定则 `null`。键、取值范围见 `list_sound_sources` 的音素 slot。 |
+| `phoneme.setProperty(key, value)` | — | 写一个声明的 per-phoneme 参数（`value` = `number`/`boolean`/`string`）；自动固定。 |
 
 ---
 
@@ -263,6 +283,8 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `effect.piecewiseAutomationIds()` | `[string]` | 本 effect 引擎声明的**分段**参数轨 id（无基线、段间关断）。 |
 | `effect.samplePiecewiseAutomation(id, startTick, endTick, samples)` | `[number]` | 等距采样本 effect 某分段轨。 |
 | `effect.setPiecewiseAutomationLine(id, startTick, endTick, points)` | — | 清空 `[start, end)` 再落一条分段曲线。 |
+| `effect.lockAutomation(id, startTick?, endTick?)` | `bool` | 固定本 effect 某条轨的合成参数（口径完全同 `part.lockAutomation`，只是作用域是本 effect）。 |
+| `effect.hasSynthesizedParameter(id)` | `bool` | 本 effect 该轨有没有配对合成参数。游离期恒 `false`（合成参数按链中下标定址，不在链上就无从定址）。 |
 | `effect.clearPiecewiseAutomation(id, startTick, endTick)` | — | 清空本 effect 某分段曲线的一段。 |
 
 effect 自动化与 part 级自动化**逐一平行**——同样的绝对 tick `points` 与绝对值语义、同样分连续/分段两族，只是目标从音源换成链中某 effect。

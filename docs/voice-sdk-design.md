@@ -539,7 +539,7 @@ public class AutomationConfig : IValueConfig<double>
 
 回显轨（`GetSynthesizedParameterConfigs`，只读）与可编辑轨（`GetAutomationConfigs`）都由引擎声明、都按同一 key 命名空间（数据侧 `SynthesizedParameters` / `Automations` 同为 `string` 键）。**约定：引擎对同一 `PropertyKey.Id` 同时声明一条可编辑轨 + 一条回显轨 ⇒ 宿主识别为"模型建议 + 用户覆盖"同一参数**。这是某些引擎"希望回显参数能调"的落地形态——回显产物**恒只读**（真相源在引擎的失效依赖图里），用户编辑**恒落在数据层 automation**（undo / 持久 / merge 全走既有机制），二者之间只有一条显式桥（固定）。给产物开写回通道被否：那要让宿主替引擎持久化缓存、让合成结果进 undo 栈，四个问题（重合成是否冲掉手改 / 存不存工程 / undo 归属 / 标脏是否保留）全都无解；`SynthesizedPitch` ⇄ 用户 `Pitch` 早已是同一分工的先例。
 
-- **配对判据只认 `Id`，`DisplayText` 各自自由**（`PropertyKey` 相等性本就只认 `Id`，`DisplayText` 是注解）。这是刻意保留的自由度，有真实用例：引擎可以同时给「张力」（偏差轨，普通用户调）+「张力（实参）」（与回显同 Id 的绝对轨，重度用户调）+「张力」（回显轨，名字对齐用户认知的物理量）。**故不把两处声明合并成一个方法**——合并只有一个 `DisplayText` 槽，装不下这种命名分层（曾评估过 `AutomationConfig.HasReadback` 一处声明方案，因此出局）。
+- **配对判据只认 `Id`，`DisplayText` 各自自由**（`PropertyKey` 相等性本就只认 `Id`，`DisplayText` 是注解）。这是刻意保留的自由度，有真实用例：引擎可以同时给「张力」（偏差轨，普通用户调）+「张力（实参）」（与回显同 Id 的绝对轨，重度用户调）+「张力」（回显轨，名字对齐用户认知的物理量）。**故不把两处声明合并成一个方法**——合并只有一个 `DisplayText` 槽，装不下这种命名分层（曾评估过 `AutomationConfig.HasSynthesizedParameter` 一处声明方案，因此出局）。
 - **量程不作任何要求**：两条轨各按自己的 `Scale` 投影绘制（参数区本就是多轨叠画在同一矩形、各自归一化）。声明不一致 = 显示错位，作者一眼可见、自己去改；宿主不做"以谁为准"的裁决（那会让另一条的 `Scale` 成为声明了却被无视的僵尸字段），也不警告、不钳位——与"求值不钳量程、越界如实"同一条哲学。将来若真出现量程不一致有意义的用例（宽域观测 vs 窄域微调），设计天然支持。
 - **覆盖语义（V1：整段二选一）**：用户画过的段用覆盖值、没画的段回退模型建议。分段轨的 NaN 天然表达"未覆盖"，故引擎读可编辑轨即可，**用户覆盖自然回喂**，无需任何"提权"新接口；具体怎么读归引擎（不进冻结面）。相对偏移 / 混合是将来的加性演进——或者干脆另开一条不配对的偏差轨（`V1.Voice` 的 `energy` / `energy_offset` 就是这组分工的参照实现）。
 - **显隐单向联动**：点亮可编辑轨（灭→亮的那一刻）⇒ 同 key 回显轨一起亮。需求本身不对称——只看回显是独立的合法用法（对着模型输出观察，不关心自己画的），而查看自己画的曲线时几乎总要参照模型输出。故**只带亮、不连带熄灭**（否则吞掉用户原本单独开着的回显）、**不锁 chip**（允许手动关）、**一次性带亮而非持续绑定**。回显因此保留自己的独立 chip 与显示名，不并入编辑轨 lane——渲染上本就无须改动：图层序已是「可见轨 → 暗罩 → 回显 → 选区 → 活动轨」，"回显在你正在画的那条轨之下作底"天然成立。
@@ -549,7 +549,7 @@ public class AutomationConfig : IValueConfig<double>
 - **颤音对参数轨的语义：只作用于已画段**（与 pitch 刻意不同，2026-07-30 定案）。关联表 `Vibrato.AffectedAutomations` 按 key 存、与形态无关，故**连续轨与分段轨都可关联**；差别只在 NaN 处——分段轨的 NaN 段是"用户没给值、引擎自己定"，宿主没有基线可叠，如实不产生值（`FrozenFinalAutomationEvaluator` 的 `skipNaN` 承担，live 侧 `GetFinalAutomationValues` 同口径）。
   **为什么不给参数轨也开 `PitchDeviation` 式的平行偏差通道**：pitch 的自由区有引擎**必然产生**的载体，而且宿主知道它大致落在音符音高上（`GetVibratoFallbackPitch` 正是靠这个画预期虚线），所以"把偏差单独传过去让引擎自己加"是可预期的；参数轨的 NaN 区，引擎输出什么量级宿主完全不知道，偏差传过去用户看不到任何可预期的结果。代价一侧也不对等：同语义要求 `ISynthesisAutomation` / `SynthesisAutomationSnapshot` 每条轨都配 deviation、**所有**引擎的消费面都改成 resolve+叠加，而换来的只是一个辅助用法。
   **替代路径**（这条要一起讲清，否则看着像功能缺失）：想让颤音作用于模型输出区，**先用固定笔刷把那段模型输出刷成已画值**，颤音自然叠上去——叠加基准是看得见的那条线，结果可预期。参数区的颤音右键给了「固定此区间的模型输出」，一步到位。
-  **编辑颤音即补基线**（`SynthesisLock.LockAssociatedReadbackGaps`，2026-07-30）：碰颤音的任何属性时，都先把它**已关联的每条分段轨**在覆盖区内的**空隙**固定成模型输出——颤音只作用于有值段，不先补基线就是"拖了没反应"。硬边界是**只填空隙、绝不覆盖用户已画的值**（否则一关联颤音就把手画曲线抹成模型输出）；连续轨处处有值故是 no-op，pitch 走双通道无需补。
+  **编辑颤音即补基线**（`SynthesisLock.LockAssociatedSynthesizedParameterGaps`，2026-07-30）：碰颤音的任何属性时，都先把它**已关联的每条分段轨**在覆盖区内的**空隙**固定成模型输出——颤音只作用于有值段，不先补基线就是"拖了没反应"。硬边界是**只填空隙、绝不覆盖用户已画的值**（否则一关联颤音就把手画曲线抹成模型输出）；连续轨处处有值故是 no-op，pitch 走双通道无需补。
   时机分两类：**区间不变的属性**（幅度 / 频率 / 相位 / attack / release、以及参数区的关联振幅拖拽）在**落笔**时补一次，且必须放在 `mHead` 之前——否则被 `Move` 的 `DiscardTo(mHead)` 撤掉；**改变区间的**（移动 / 两端缩放）在**每帧 `Move` 之后**按新区间重算，因为本帧开头的 `DiscardTo` 已把上一帧的固定撤掉，松手只负责 `Commit`。拖动期反复写入不会自毁，靠的是区间失效已纳入批量括号（拖动期不转发给引擎、回显不被清）——这两件事是配套的。
   **可见化**：颤音覆盖区内的 ghost 基线在无值段断开（没有 ghost 就是没有东西可叠）；已关联但整段无值时，悬浮提示直接说「此处无值，颤音不生效」，不静默。
   **注意 pitch 侧不回退**：`PitchDeviation` 不只为 vibrato 而设，它是宿主侧**所有加性表现层**的汇流口（§3.1 已点名 humanize 等）——那类偏差同样必须作用于自由区，回退会把这个扩展位一起关掉。
@@ -714,7 +714,7 @@ public class AutomationConfig : IValueConfig<double>
 - ✅ **vibrato 扣减（致命 bug 修复）**：产物含 vibrato 偏移，原样写回用户曲线会让重合成再叠一次 ⇒ 每固定一次颤音幅度翻一圈。写入前逐点扣掉该轨偏移（pitch 走 `GetPitchVibratoDeviation`、连续轨走 `GetVibratoDeviation(key)`、分段轨不参与故不扣），使固定**幂等**；扣减在简化之前，锚点数远少于对含颤音的震荡曲线简化。
 - ✅ **区间失效纳入批量括号**（宿主机制，2026-07-30）：`part.BeginMergeDirty/EndMergeDirty` 括号内**不再即时转发**区间失效，按通道 / 轨 key 累积 min-max 并集，`BatchEnd` 时各发一次（voice / instrument context + `EffectGraph` 三处；effect 侧的 `MarkDirty` 本就是这个模式，本次把区间转发也纳入）。收口顺序 = **先 flush 失效、再发 `Committed`**（引擎在 `Committed` 里做重活，须先拿到失效标记）。
   动因是固定笔刷的自毁：笔刷第一帧写入 → 触发失效 → 引擎清掉该区回显 → 后续帧读不到产物 → 整笔白刷。通用收益更大——所有拖动式编辑（画 pitch / 拖锚点 / 刷固定）在拖动期不再逐帧标脏，中间态本来就会被下一帧覆盖。这也让 `MergeDirty` 名副其实：既合并通知次数，也合并失效区间。
-  笔刷侧另有一重防御：落笔时**冻结产物引用**（`CaptureReadback` / `CaptureSynthesizedPitch`），整笔基于同一份写入——产物按契约「发布即不可变、变化时换引用」，持旧引用安全。即便某引擎因别的原因清了回显也不受影响。
+  笔刷侧另有一重防御：落笔时**冻结产物引用**（`CaptureSynthesizedParameter` / `CaptureSynthesizedPitch`），整笔基于同一份写入——产物按契约「发布即不可变、变化时换引用」，持旧引用安全。即便某引擎因别的原因清了回显也不受影响。
 - ✅ **`AnchorMove.Up` 的回退口径：`Discard()` → `DiscardTo(mHead)` + 收口 `Commit`**（参数区分段轨与 pitch 两处）。原来「未拖动就松手」走 `Part.Discard()` = 撤销**全部**未提交命令，会把同一次按下里**先行的离散动作**（预览落笔的 `ConnectAnchorGroup` / `InsertPoint`）一起连坐撤掉——表现为「点击组端点连接两组，点了不动就连不上」。改成只撤本操作自己的变更、末尾统一 `Commit`：一次按下抬起 = **一个**撤销单元（不是 Connect 一个、Move 一个，那会要求用户撤两次），纯点击无先行动作时 `Commit` 是 no-op、不产生空单元。
 - ✅ 连带补齐分段轨与 pitch 的编辑能力对等：固定笔刷在参数区不再退化成普通画笔；锚点工具补上**连线预览 + 单击接上**（此前分段轨只能双击插孤立点——`InsertPoint` 的并组分支要求"相邻组有选中锚点"，而双击的前半个单击会经框选清掉选中，故那条分支在分段轨上是死代码）。
 - ✅ 夹具 `V1.Voice`：`energy` 实参轨（与回显同 Id、显示名 "Energy (Actual)"）+ `energy_offset` 偏差轨，合成端按「非 NaN 用用户值、NaN 回退自算」消费，验证覆盖回喂链路。用例见 `tests/READBACK-PAIRING-LOCK-TEST-CASES.md`。
@@ -760,7 +760,7 @@ public class AutomationConfig : IValueConfig<double>
   （回显是分段形、`DefaultValue=NaN`；context 驱动、可预声明 ⇒ 合成前 key 即存在、显隐不抖），`SynthesizedParameters` 退回只承载曲线数据（按同一批 key）。
   宿主把这些 key 作**可显隐的只读轨**（独立 key 如 `energy`、自带 Min/Max/Color/DisplayText）：在 `Voice.SynthesizedParameterConfigs` 并行材料化（镜像 `RebuildAutomationConfigs`，
   随 part 参数 commit 重算、纳入聚合签名）；UI 侧独立于可编辑轨的 `AutomationKey`/`VisibleAutomations`/tabbar 机制——
-  `PianoWindow` 持 `mVisibleReadbacks` + `SetReadbackVisible/IsReadbackVisible/ReadbackVisibilityChanged`，显隐 chip 放参数区**标题栏**
+  `PianoWindow` 持 `mVisibleSynthesizedParameters` + `SetSynthesizedParameterVisible/IsSynthesizedParameterVisible/SynthesizedParameterVisibilityChanged`，显隐 chip 放参数区**标题栏**
   （`ParameterTitleBar` 由哑色条升级成细工具条：chip 命中切显隐、空白区仍拖拽改高），`AutomationRenderer` 在可编辑轨之上、活动轨之下把回显轨绘成
   **曲线与底部基线围成的半透明积分面积**（用各自 config 色，分段 NaN 断开），只读、不可激活、不可编辑。去掉了"叠加到同名编辑轨"逻辑。
   线程契约（数据线程发布、发布即不可变、StatusChanged 单一刷新）已补进三个曲线产物成员注释。
@@ -873,7 +873,7 @@ public sealed class SynthesizedParameter
 effect 引擎与 voice 一样能暴露**一等只读回显轨**，端到端打通：
 - **SDK producer 面**（冻结面加性扩展）：`IEffectSynthesisEngine.GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext) → IReadOnlyOrderedMap<string, AutomationConfig>` 声明回显轨（live 纯函数 of 当前参数，镜像 `GetAutomationConfigs`）；`IEffectSynthesisSession.SynthesizedParameters → IReadOnlyMap<string, SynthesizedParameter>` 承载**本段**曲线数据（线程契约同音频产物：数据线程发布、宿主只读，无新事件——宿主在 `Process` 收尾随 `SynthesizedSegments` 一并重读）。
 - **宿主聚合**：`EffectGraph` 把同一 `IEffect` 的各段 processor 回显按 key 拼接（段按起始秒升序），经 `MidiPart.GetEffectSynthesizedParameters(effect)` 暴露。
-- **UI 按源统一**：标识复用 `AutomationKey`（voice 与 effect+index 区分源）；`PianoWindow.mVisibleReadbacks` 升 `HashSet<AutomationKey>`、`ReadbackConfigs` 合并 voice + 各 effect（`AutomationKey` 键）；`ParameterTitleBar` chip 按源分组（每组前置 `Voice`/effect Type 源标签）；复用 `AutomationRenderer.DrawReadbackArea`。
+- **UI 按源统一**：标识复用 `AutomationKey`（voice 与 effect+index 区分源）；`PianoWindow.mVisibleSynthesizedParameters` 升 `HashSet<AutomationKey>`、`SynthesizedParameterConfigs` 合并 voice + 各 effect（`AutomationKey` 键）；`ParameterTitleBar` chip 按源分组（每组前置 `Voice`/effect Type 源标签）；复用 `AutomationRenderer.DrawSynthesizedParameterArea`。
 - 夹具 `V1.Effect` 的 `TLTestGain` 真产一条 `loudness` 回显（输出按窗 RMS），`TLTestReverse` 无回显。
 
 ### 10.8 分阶段落地

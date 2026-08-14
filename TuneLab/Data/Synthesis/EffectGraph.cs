@@ -51,7 +51,7 @@ internal sealed class EffectGraph : IDisposable
     // 某个 effect 的回显曲线（聚合其所有「effect × 段」节点 processor 的 SynthesizedParameters、按 key 拼接 Segments）。
     // 无该 effect 或无回显时返回空 map。原子换引用、跨线程读安全。
     public IReadOnlyMap<string, SynthesizedParameter> GetSynthesizedParameters(IEffect effect)
-        => mEffectReadbacks.TryGetValue(effect, out var map) ? map : EmptyReadback;
+        => mEffectSynthesizedParameters.TryGetValue(effect, out var map) ? map : EmptySynthesizedParameters;
 
     // 仍有在飞 Process（用于管线延迟销毁：voice/effect 都归后才销毁会话与图）。
     public bool IsBusy => mRunningCount > 0;
@@ -370,7 +370,7 @@ internal sealed class EffectGraph : IDisposable
         }
 
         BuildSynthesizedSegments(tail);
-        BuildEffectReadbacks();
+        BuildEffectSynthesizedParameters();
     }
 
     // 在并发上限内派发 Pending 就绪节点（按播放线就近）；满则登记待空槽重 pump。
@@ -619,7 +619,7 @@ internal sealed class EffectGraph : IDisposable
         {
             if (mDisposed || node.Removed)
                 return;
-            BuildEffectReadbacks();
+            BuildEffectSynthesizedParameters();
             mOnChanged();
         }, null);
     }
@@ -646,15 +646,15 @@ internal sealed class EffectGraph : IDisposable
 
     // 各 effect 回显聚合：遍历有 processor 的存活节点，按其 Effect 归组、按 key 把各段 Segments 拼起来，
     // 段按起始秒升序（满足 SynthesizedParameter「按时间升序」契约——节点字典无序，拼接后须排）。
-    void BuildEffectReadbacks()
+    void BuildEffectSynthesizedParameters()
     {
         Dictionary<IEffect, Dictionary<string, List<IReadOnlyList<Point>>>>? acc = null;
         foreach (var node in mNodes.Values)
         {
             if (node.Removed || node.Session == null)
                 continue;
-            var readback = node.Session.SynthesizedParameters;
-            if (readback.Count == 0)
+            var synthesizedParameters = node.Session.SynthesizedParameters;
+            if (synthesizedParameters.Count == 0)
                 continue;
 
             acc ??= new();
@@ -663,7 +663,7 @@ internal sealed class EffectGraph : IDisposable
                 perEffect = new();
                 acc.Add(node.Effect, perEffect);
             }
-            foreach (var kv in readback)
+            foreach (var kv in synthesizedParameters)
             {
                 if (kv.Value.Segments.Count == 0)
                     continue;
@@ -678,7 +678,7 @@ internal sealed class EffectGraph : IDisposable
 
         if (acc == null)
         {
-            mEffectReadbacks = EmptyEffectReadbacks;
+            mEffectSynthesizedParameters = EmptyEffectSynthesizedParameters;
             return;
         }
 
@@ -693,7 +693,7 @@ internal sealed class EffectGraph : IDisposable
             }
             result.Add(effect, map);
         }
-        mEffectReadbacks = result;
+        mEffectSynthesizedParameters = result;
     }
 
     static double FirstX(IReadOnlyList<Point> segment) => segment.Count > 0 ? segment[0].X : double.PositiveInfinity;
@@ -740,9 +740,9 @@ internal sealed class EffectGraph : IDisposable
     const string TrContext = "SynthesisStatus";
 
     SynthesizedSegment[] mSynthesizedSegments = [];
-    IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> mEffectReadbacks = EmptyEffectReadbacks;
-    static readonly IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> EmptyEffectReadbacks = new Map<IEffect, IReadOnlyMap<string, SynthesizedParameter>>();
-    static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+    IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> mEffectSynthesizedParameters = EmptyEffectSynthesizedParameters;
+    static readonly IReadOnlyMap<IEffect, IReadOnlyMap<string, SynthesizedParameter>> EmptyEffectSynthesizedParameters = new Map<IEffect, IReadOnlyMap<string, SynthesizedParameter>>();
+    static readonly IReadOnlyMap<string, SynthesizedParameter> EmptySynthesizedParameters = new Map<string, SynthesizedParameter>();
     int mRunningCount;
     bool mInSchedule;
     bool mDirty;

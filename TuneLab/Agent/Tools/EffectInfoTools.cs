@@ -78,7 +78,7 @@ internal sealed class ListEffectsTool : IAgentTool
         int total = 0;
         total += SchemaText.AppendProperties(sb, "Static properties", () => engine.GetPropertyConfig(ctx));
         total += SchemaText.AppendAutomations(sb, "Automation parameters (editable tracks)", () => engine.GetAutomationConfigs(ctx));
-        total += SchemaText.AppendAutomations(sb, "Read-only readback tracks", () => engine.GetSynthesizedParameterConfigs(ctx));
+        total += SchemaText.AppendAutomations(sb, "Read-only synthesized parameter tracks", () => engine.GetSynthesizedParameterConfigs(ctx));
 
         if (total == 0)
             sb.Append("\nThis effect exposes no parameters (or none at default values).");

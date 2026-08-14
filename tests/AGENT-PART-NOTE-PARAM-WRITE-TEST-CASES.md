@@ -5,7 +5,7 @@
 
 - **第一层**：`part.getProperty/setProperty`、`note.pronunciation`、`note.getProperty/setProperty`——音源声明的
   per-part / per-note 标量参数 + 发音覆盖。
-- **第二层**：`note.phonemes()`、`note.addPhoneme/removePhoneme/pinPhonemes/clearPhonemes`、`note.bodyOffset` +
+- **第二层**：`note.phonemes()`、`note.addPhoneme/removePhoneme/lockPhonemes/clearPhonemes`、`note.bodyOffset` +
   `phoneme` 句柄（`symbol/duration/stretchWeight` + `getProperty/setProperty`）——音素读 + 编辑（合成态只读、首次写自动钉死）。
 
 只测本切片受影响范围。**不复测**既有 run_script/脚本库/环境感知（`SCRIPT-TOOLS-TEST-CASES.md`、
@@ -59,10 +59,10 @@
 
 ## 5. 音素编辑：合成态首次写自动钉死
 
-对一个**合成态**（`n.hasPinnedPhonemes === false`）音符，跑：取 `const ps = n.phonemes()`，改 `ps[0].symbol = "<另一合法符号>"`。
+对一个**合成态**（`n.hasLockedPhonemes === false`）音符，跑：取 `const ps = n.phonemes()`，改 `ps[0].symbol = "<另一合法符号>"`。
 
 **期望**：
-- 写入前该音符 `hasPinnedPhonemes` 为 `false`，写入后变 `true`（自动 `LockPhonemes` 物化——与侧栏面板首次编辑
+- 写入前该音符 `hasLockedPhonemes` 为 `false`，写入后变 `true`（自动 `LockPhonemes` 物化——与侧栏面板首次编辑
   音素一致）；
 - `ps[0]` 句柄写后仍解析到正确音素（钉死后按 `(leading, localIndex)` 映射到新 IPhoneme），符号已改；
 - 整段脚本 = **一个撤销单位**：Ctrl+Z 一步既撤销符号改动、又撤销钉死（回到合成态）；

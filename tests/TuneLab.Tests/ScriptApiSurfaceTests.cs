@@ -389,6 +389,61 @@ public class ScriptApiSurfaceTests
         Assert.Contains("disjoint=true", output);
     }
 
+    // ── 固定（lock）：没有产物时如实返回 false，用法错误则报错 ──
+    // 「有产物时固定出正确的曲线」依赖真实引擎的回显，留给人工用例；这里封的是【无产物 / 用法错】这两条
+    // 自动可验的边界——尤其是 no-op 必须可被脚本看见（agent 那边没人盯着屏幕，静默成功最坑）。
+
+    [Fact]
+    public void LockingWithoutSynthesisOutputReturnsFalseInsteadOfPretendingToSucceed()
+    {
+        var document = SampleDocument();
+        var result = ScriptRunner.Run(document.Project!, null, null, null, null, null, ScriptLimits.Interactive, """
+            const p = tl.currentProject().tracks()[0].parts()[0];
+            print("locked=" + p.lockPitch());
+            """, CancellationToken.None);
+        Assert.True(result.Ok, result.Error);
+        Assert.Contains("locked=false", result.Output);
+        // 什么都没写 ⇒ 不该留下一个空的撤销步骤
+        Assert.False(result.Committed);
+    }
+
+    [Theory]
+    [InlineData("p.lockPitch(0);", "BOTH startTick and endTick")]
+    [InlineData("p.lockPitch(undefined, 1920);", "BOTH startTick and endTick")]
+    [InlineData("p.lockPitch(960, 960);", "endTick must be greater")]
+    [InlineData("p.lockAutomation('nope');", "unknown automation")]
+    public void LockArgumentsAreValidated(string code, string expected)
+    {
+        var error = RunExpectingError(SampleDocument().Project!,
+            "const p = tl.currentProject().tracks()[0].parts()[0];\n" + code);
+        Assert.Contains(expected, error);
+    }
+
+    // 音素侧与曲线侧同一个动词：`lock`。这里只验名字在（无合成产物时是 no-op），语义由音素那套用例覆盖。
+    [Fact]
+    public void PhonemesUseTheSameLockVerbAsCurves()
+    {
+        var (output, _) = Run(SampleDocument().Project!, """
+            const n = tl.currentProject().tracks()[0].parts()[0].notes()[0];
+            print("before=" + n.hasLockedPhonemes);
+            n.lockPhonemes();                       // 无合成音素 ⇒ no-op
+            print("after=" + n.hasLockedPhonemes + " phonemes=" + n.phonemes().length);
+            """);
+        Assert.Contains("before=false", output);
+        Assert.Contains("after=false phonemes=0", output);
+    }
+
+    // 先问后做：没有配对回显的轨（这里连轨都没有，音源为空）不必靠"试着 lock 然后整段回退"来发现。
+    [Fact]
+    public void HasSynthesizedParameterAnswersWithoutThrowing()
+    {
+        var (output, _) = Run(SampleDocument().Project!, """
+            const p = tl.currentProject().tracks()[0].parts()[0];
+            print("hasSynthesizedParameter=" + p.hasSynthesizedParameter("Volume"));
+            """);
+        Assert.Contains("hasSynthesizedParameter=false", output);
+    }
+
     // ── 速度 / 拍号标记的删除 ──
 
     [Fact]
@@ -542,6 +597,8 @@ public class ScriptApiSurfaceTests
     [InlineData("tl.currentProject().tracks()[0].parts()[0].notesInRange(0, 480);")]
     [InlineData("tl.currentProject().tracks()[0].parts()[0].notes()[0].set({ pitch: 60 });")]
     [InlineData("tl.currentProject().tracks()[0].parts()[0].notes()[0].addPhoneme({ symbol: 'a' });")]
+    // 音素侧曾叫 pinPhonemes；脚本面统一到 lock 后旧名必须真的消失（留着就是同一件事两个名字）。
+    [InlineData("tl.currentProject().tracks()[0].parts()[0].notes()[0].pinPhonemes();")]
     public void RemovedSugarIsGone(string code)
     {
         var error = RunExpectingError(SampleDocument().Project!, code);

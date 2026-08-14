@@ -152,7 +152,7 @@ internal sealed class ListSoundSourcesTool : IAgentTool
             int total = 0;
             total += SchemaText.AppendProperties(sb, "Part properties", () => VoicesManager.GetPartPropertyConfig(engine, partCtx));
             total += SchemaText.AppendAutomations(sb, "Part automation tracks (editable)", () => VoicesManager.GetAutomationConfigs(engine, partCtx));
-            total += SchemaText.AppendAutomations(sb, "Read-only readback tracks", () => VoicesManager.GetSynthesizedParameterConfigs(engine, partCtx));
+            total += SchemaText.AppendAutomations(sb, "Read-only synthesized parameter tracks", () => VoicesManager.GetSynthesizedParameterConfigs(engine, partCtx));
             total += SchemaText.AppendProperties(sb, "Note properties", () => VoicesManager.GetNotePropertyConfig(engine, noteCtx));
             // phoneme schema 是【数据驱动】的（slot 来自 note 里真实音素）——空 note 拿不到。若引擎恰好静态声明了 slot
             // schema 则照列；否则如实说明它需合成后才可见（不造假 note），phoneme 的真发现留给未来「探测沙箱」。
@@ -173,7 +173,7 @@ internal sealed class ListSoundSourcesTool : IAgentTool
             int total = 0;
             total += SchemaText.AppendProperties(sb, "Part properties", () => InstrumentsManager.GetPartPropertyConfig(engine, partCtx));
             total += SchemaText.AppendAutomations(sb, "Part automation tracks (editable)", () => InstrumentsManager.GetAutomationConfigs(engine, partCtx));
-            total += SchemaText.AppendAutomations(sb, "Read-only readback tracks", () => InstrumentsManager.GetSynthesizedParameterConfigs(engine, partCtx));
+            total += SchemaText.AppendAutomations(sb, "Read-only synthesized parameter tracks", () => InstrumentsManager.GetSynthesizedParameterConfigs(engine, partCtx));
             total += SchemaText.AppendProperties(sb, "Note properties", () => InstrumentsManager.GetNotePropertyConfig(engine, noteCtx));
             return Finish(sb, total);
         }

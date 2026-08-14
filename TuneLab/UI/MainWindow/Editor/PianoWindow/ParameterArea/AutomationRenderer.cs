@@ -69,7 +69,7 @@ internal partial class AutomationRenderer : View
         event Action? ActiveAutomationChanged;
         event Action? VisibleAutomationChanged;
         // 合成参数回显轨显隐变化（只读轨集合，独立于可编辑轨的 Visible/Active 机制）。
-        event Action? ReadbackVisibilityChanged;
+        event Action? SynthesizedParameterVisibilityChanged;
         IHolder<IMidiPart> PartHolder { get; }
         PianoScrollView PianoScrollView { get; }
         TickAxis TickAxis { get; }
@@ -77,8 +77,8 @@ internal partial class AutomationRenderer : View
         bool IsAutomationVisible(AutomationKey automation);
         IReadOnlyList<AutomationKey> VisibleAutomations { get; }
         // 回显轨声明（按 AutomationKey 分源：voice / 各 effect，只读）：曲线数据经 Part 按同一批 key 承载。
-        IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> ReadbackConfigs { get; }
-        bool IsReadbackVisible(AutomationKey key);
+        IReadOnlyOrderedMap<AutomationKey, AutomationConfigEntry> SynthesizedParameterConfigs { get; }
+        bool IsSynthesizedParameterVisible(AutomationKey key);
         INotifiableProperty<PianoTool> PianoTool { get; }
     }
 
@@ -94,7 +94,7 @@ internal partial class AutomationRenderer : View
         mAnchorDeleteOperation = new(this);
         mAnchorMoveOperation = new(this);
         mVibratoAmplitudeOperation = new(this);
-        mReadbackLockOperation = new(this);
+        mSynthesizedParameterLockOperation = new(this);
 
         mPiecewiseDrawOperation = new(this);
         mPiecewiseClearOperation = new(this);
@@ -169,7 +169,7 @@ internal partial class AutomationRenderer : View
         mDependency.ActiveAutomationChanged += InvalidateVisual;
         mDependency.ActiveAutomationChanged += UpdateAnchorValueInput;
         mDependency.VisibleAutomationChanged += InvalidateVisual;
-        mDependency.ReadbackVisibilityChanged += InvalidateVisual;
+        mDependency.SynthesizedParameterVisibilityChanged += InvalidateVisual;
         mDependency.TickAxis.AxisChanged += Update;
         mDependency.TickAxis.AxisChanged += UpdateAnchorValueInput;
         mDependency.PianoScrollView.RegionSelectionChanged += InvalidateVisual;   // 范围选区变化（任一区拖/清）→ 参数区重绘同一条 tick 带
@@ -182,7 +182,7 @@ internal partial class AutomationRenderer : View
         mDependency.ActiveAutomationChanged -= InvalidateVisual;
         mDependency.ActiveAutomationChanged -= UpdateAnchorValueInput;
         mDependency.VisibleAutomationChanged -= InvalidateVisual;
-        mDependency.ReadbackVisibilityChanged -= InvalidateVisual;
+        mDependency.SynthesizedParameterVisibilityChanged -= InvalidateVisual;
         mDependency.TickAxis.AxisChanged -= Update;
         mDependency.TickAxis.AxisChanged -= UpdateAnchorValueInput;
         mAnchorValueInput.GotFocus -= OnAnchorValueInputGotFocus;
@@ -430,7 +430,7 @@ internal partial class AutomationRenderer : View
         context.FillRectangle(Colors.Black.Opacity(0.25).ToBrush(), this.Rect());
 
         // 合成参数回显轨（只读）：在可编辑轨之上、活动轨之下绘制为半透明积分面积。可独立显隐（标题栏管控）。
-        DrawReadbackParameters(context);
+        DrawSynthesizedParameters(context);
 
         DrawRegionSelection(context);
 
@@ -591,15 +591,15 @@ internal partial class AutomationRenderer : View
     // 合成参数回显轨（只读，voice 级一等轨）：遍历声明的回显轨，对每条可见轨用 Part.SynthesizedParameters
     // 的同名曲线绘制为半透明积分面积（曲线与底部基线围成的填充区），用各自 config 色——区别于可编辑轨的细线。
     // 显隐由宿主标题栏管控（不入分源 tabbar）；回显恒只读、不可编辑。effect 无参数回显（输出仅音频）。
-    void DrawReadbackParameters(DrawingContext context)
+    void DrawSynthesizedParameters(DrawingContext context)
     {
         if (Part == null)
             return;
 
-        foreach (var kvp in mDependency.ReadbackConfigs)
+        foreach (var kvp in mDependency.SynthesizedParameterConfigs)
         {
             AutomationKey key = kvp.Key;
-            if (!mDependency.IsReadbackVisible(key))
+            if (!mDependency.IsSynthesizedParameterVisible(key))
                 continue;
 
             // 按源取曲线数据：effect 走该 effect 的聚合回显，voice 走 part 自身回显。
@@ -610,12 +610,12 @@ internal partial class AutomationRenderer : View
                 continue;
 
             var config = kvp.Value.Config;
-            DrawReadbackArea(context, parameter.Segments, config.Scale, ColorUtils.ParseOrFallback(config.Color));
+            DrawSynthesizedParameterArea(context, parameter.Segments, config.Scale, ColorUtils.ParseOrFallback(config.Color));
         }
     }
 
     // 一条回显轨：各分段（按段交付，段间空、跨段不连线）各自绘制为独立填充面积（仅面积、无描边）。
-    void DrawReadbackArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, SDK.INormalizedScale scale, Color color)
+    void DrawSynthesizedParameterArea(DrawingContext context, IReadOnlyList<IReadOnlyList<Foundation.Point>> segments, SDK.INormalizedScale scale, Color color)
     {
         var tempoManager = Part!.TempoManager;
         double minVisibleTick = TickAxis.MinVisibleTick;

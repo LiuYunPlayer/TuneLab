@@ -257,7 +257,7 @@ A voice is a **singing synthesis engine** (e.g. an SVS model). This chapter is o
 ### 5.0 Mental model (read this section first)
 
 - **Session-hosted thick model**: You implement `IVoiceSynthesisEngine` (one per engine type, parameterless constructor required; the engine id goes in `manifest.json`'s `engine` and the implementing class in `class`, which the host verifies implements `IVoiceSynthesisEngine`). The host calls `CreateSession` once **per MidiPart** in the project to build an `IVoiceSynthesisSession`. **All synthesis state is hosted by the session itself** — chunking, scheduling state, audio buffers, synthesis progress, and dirty (invalidation) decisions are all on your side. The reason: the invalidation dependency graph (e.g. the tiered pipeline "phoneme duration → pitch → audio", where changing an automation only requires re-rendering audio and not recomputing phonemes) is understood only by the engine; the host cannot replicate it. The host does only three things: push the change stream of project data to you, drive scheduling, and read your products to display them.
-- **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / readback tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
+- **Declaration vs execution layering**: The session has two kinds of outward responsibilities — *declaration* (which automation tracks / synthesized parameter tracks / property panels / default lyric this sound source exposes) and *execution* (synthesis). Declaration is entirely a **pure function of the current part/note parameter values**; the host recomputes it on parameter commit and diffs it to the UI (see §5.2).
 - **All time quantities on the plugin side are global seconds**: note boundaries, curve query points, windowing intervals, status-segment ranges, audio-segment alignment — **all are seconds** (`double`). Ticks are the host's internal score representation and are **never exposed** to the plugin. Global time 0s = sample 0. Tempo changes (and part shifts) do not need explicit handling on your side, and there is **no incremental notification**: the host simply rebuilds the whole session (old session `Dispose`d, a new session with a new context), and the new session reads the new second values — implement `Dispose` correctly and it is naturally correct (§5.9).
 - **Two views + thread discipline (the most important pitfall)**:
   - **Live view** (`IVoiceSynthesisContext` and its `IVoiceSynthesisNote` / `ISynthesisAutomation`): subscribable, **accessible only on the data thread**. Used for "receive change notifications → mark dirty", "`GetNextPendingSynthesisRange` chunking decisions", and "the `SynthesizeNext` synchronous prefix pulling a snapshot".
@@ -312,7 +312,7 @@ public class MyVoiceEngine : IVoiceSynthesisEngine    // engine id is declared i
 
     // —— Declaration side (property panels / automation tracks): see §5.2, all on the engine, independent of session instances ——
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mPartConfig;
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => mNoteConfig;
 
@@ -349,8 +349,8 @@ The four declaration-side methods are **on `IVoiceSynthesisEngine`** (not on the
 ```csharp
 // Automation track set (part level): continuous tracks and piecewise tracks share one ordered map, declaration order = presentation order. context.VoiceId selects which voicebank.
 public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
-// Read-only readback track declarations (engine-produced, non-editable curves such as energy). Return an empty map if there is no readback.
-public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mReadbackConfigs;
+// Read-only synthesized parameter track declarations (engine-produced, non-editable curves such as energy). Return an empty map if there are none.
+public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
 // Part-level property panel (depends only on the part's own sparse values + context.VoiceId).
 public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mPartConfig;
 // Note-level property panel (depends on part settings + the merged values of the selected notes).
@@ -376,7 +376,7 @@ readonly ObjectConfig mNoteConfig = new()
 ```
 
 - **Reading values**: at synthesis time, read from `VoiceSynthesisNoteSnapshot.Properties` (a `PropertyObject` value copy) using `GetDouble(key, default)` / `GetBoolean` / `GetString`. **Sparse storage** — only fields the user has changed are present; if not found use the default you declared (`PropertyObject`'s `Get*` second argument is the fallback; pass the same default as declared).
-- **`AutomationConfig`**: `DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color` (e.g. `"#E5A573"`) / `Randomizable` (adds a random entry to the right of the default-value panel's slider, best for continuous tracks). **`DefaultValue = double.NaN` ⇒ a piecewise track** (no default baseline, disconnected between segments, e.g. pitch-like, bend); a real number ⇒ a continuous track (has a value everywhere, has a baseline, e.g. growl). Readback tracks are always piecewise (`DefaultValue = NaN`).
+- **`AutomationConfig`**: `DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color` (e.g. `"#E5A573"`) / `Randomizable` (adds a random entry to the right of the default-value panel's slider, best for continuous tracks). **`DefaultValue = double.NaN` ⇒ a piecewise track** (no default baseline, disconnected between segments, e.g. pitch-like, bend); a real number ⇒ a continuous track (has a value everywhere, has a baseline, e.g. growl). Synthesized parameter tracks are always piecewise (`DefaultValue = NaN`).
 - **Value-axis scale**: `AutomationConfig.Create(minValue, maxValue)` is a linear axis; the `Create(INormalizedScale)` overload takes a custom scale (mirroring `SliderConfig.Create`) — e.g. `NormalizedScale.Integer(min, max)` makes it an integer track, or implement your own log axis etc. **A discrete scale ⇒ the signal lands on the grid everywhere**: beyond snapping anchors on write, the host projects the continuous Hermite output back onto the scale at **evaluation and rendering** time (the curve renders as a staircase, and `Evaluate` returns already-gridded final values), so the **engine need not round** and every edit path (load / preset / fed-back data) is covered. On a continuous scale the projection is the identity (up to ULP-level float round-trip noise — do not rely on values being passed through bit-for-bit).
   **The scale defines the shape and grid of the value axis, not a value-range guarantee.** The host does *not* clamp evaluated values into `[MinValue, MaxValue]` — that guarantee cannot be honoured, since monotonicity is only a documented convention (`INormalizedScale` is a public interface and `NormalizedScale.Custom` takes arbitrary lambdas), and for a non-monotonic scale the endpoints are not the extremes, so clamping would neither land inside the range the engine has in mind nor leave legitimate values intact. Out-of-range values do reach `Evaluate` — the realistic sources are projects saved before you changed a track's range, presets carried over from another source, and values your own engine fed back — so **validate in the engine to whatever degree your algorithm needs** (array indices, table lookups and divisors are the ones that bite). The host's **strokes** themselves stay in range (dragging and anchor entry are both clamped to the range), but the value model is **additive**, so ordinary use goes out of range too: anchors store an offset relative to `DefaultValue` (the user later moves the default-value slider ⇒ the whole set of anchors shifts out of range when evaluated), and vibrato deviation is likewise added on top of the track (a curve sitting near the upper bound ⇒ out of range once vibrato affects that track). Both are deliberate consequences of the additive model, not defects. The parameter panel clips its drawing to the pane, so an out-of-range anchor renders flush against the boundary.
 - **Binary interval track (band / toggle)**: for an on/off interval track (e.g. a breathiness switch, section mute), declare a **piecewise track with a degenerate range** — `AutomationConfig.Create(v, v)` (`Create` defaults to `DefaultValue=NaN` ⇒ piecewise; `min==max` ⇒ no value axis). The host recognizes this form and renders it as a **full-height toggle band** (segment = on-interval highlighted, gap = off/blank) instead of a curve, with interaction switched to horizontal drag = paint on / right-drag = paint off (vertical ignored, there is no height). Consumption is pure segment presence: `!double.IsNaN(evaluator.Evaluate(t)[i])` means "on"; the value inside a segment is irrelevant and need not be read. Interval boundaries = the segment's anchor span, dragged precisely by the user.
@@ -569,7 +569,7 @@ for (int c = 0; c < controlCount; c++)
 
 - **`times` are global seconds**, in the same time system as audio/phonemes. Batch `Evaluate` is far more efficient than per-point calls — accumulate a batch and call once.
 - **`Evaluate` never requires you to understand interpolation**: a continuous track never returns NaN; a piecewise track returns NaN between segments (use it to decide "free/pinned").
-- The pitch readback you **produce** goes through `SynthesizedPitch` (the named rich type `SynthesizedPitch { IReadOnlyList<IReadOnlyList<Point>> Segments }`, a piecewise polyline, `Point = (global second, semitone)`), for the host to draw the readback line on the pitch track. Empty = `new() { Segments = [] }`. Other acoustic quantities (e.g. energy) go through readback tracks (§5.2 + §5.8).
+- The synthesized pitch you **produce** goes through `SynthesizedPitch` (the named rich type `SynthesizedPitch { IReadOnlyList<IReadOnlyList<Point>> Segments }`, a piecewise polyline, `Point = (global second, semitone)`), for the host to draw the synthesized pitch line on the pitch track. Empty = `new() { Segments = [] }`. Other acoustic quantities (e.g. energy) go through synthesized parameter tracks (§5.2 + §5.8).
 
 ### 5.7 Phoneme I/O: `SynthesizedPhoneme` (same type read-in / output)
 
@@ -651,9 +651,9 @@ public struct SynthesisStatusSegment
 ```
 
 - The status segments and audio segments are **decoupled**: the former is the UI status band, the latter is the effect invalidation unit; the two partitions may differ and the host does not assume alignment.
-- **`StatusChanged` is the only refresh signal**: whenever the product (audio/pitch/readback/phonemes) or the status has any update, fire it, and the host re-reads and re-draws on receipt. Outbound events may be fired from any thread and the host marshals — but your product fields must swap references on the data thread (swapping references = immutable publication).
+- **`StatusChanged` is the only refresh signal**: whenever the product (audio/pitch/synthesized parameters/phonemes) or the status has any update, fire it, and the host re-reads and re-draws on receipt. Outbound events may be fired from any thread and the host marshals — but your product fields must swap references on the data thread (swapping references = immutable publication).
 
-**Readback track data** goes through `SynthesizedParameters` (`IReadOnlyMap<string, SynthesizedParameter>`, keys aligned with `GetSynthesizedParameterConfigs`):
+**Synthesized parameter track data** goes through `SynthesizedParameters` (`IReadOnlyMap<string, SynthesizedParameter>`, keys aligned with `GetSynthesizedParameterConfigs`):
 
 ```csharp
 public sealed class SynthesizedParameter { IReadOnlyList<IReadOnlyList<Point>> Segments { get; } }  // piecewise polyline, in-segment Point=(second,value), disconnected between segments
@@ -713,7 +713,7 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 | `IVoiceSynthesisEngine.GetPartPropertyConfig`/`GetNotePropertyConfig` | data thread | property panel (pure function of voiceId + current values, may show/hide conditionally) |
 | `IVoiceSynthesisEngine.GetPhonemePropertyConfigs` | data thread | per-phoneme property panel (required; takes `IVoiceSynthesisNotePropertyContext`, returns a schema map keyed by nucleus-relative slot (PhonemeSlots), empty map = no properties, multi-select merging belongs to the engine) |
 | `IVoiceSynthesisEngine.GetAutomationConfigs` | data thread | editable automation track set (NaN ⇒ piecewise; avoid reserved names) |
-| `IVoiceSynthesisEngine.GetSynthesizedParameterConfigs` | data thread | read-only readback track declarations (always piecewise) |
+| `IVoiceSynthesisEngine.GetSynthesizedParameterConfigs` | data thread | read-only synthesized parameter track declarations (always piecewise) |
 | `IVoiceSynthesisSession.DefaultLyric` | data thread | default lyric for a new note (a session-level runtime value) |
 | `GetNextPendingSynthesisRange` | data thread | peek the next dirty block boundary (no side effects, deterministic) |
 | `SynthesizeNext` | synchronous prefix = data thread; then worker | pull snapshot → offload render → publish back on the data thread |
@@ -739,14 +739,14 @@ using TuneLab.SDK;
 
 public class MyEffectEngine : IEffectSynthesisEngine   // engine id is declared in the manifest's "engine"
 {
-    // Property panel / automation tracks / readback tracks: all pure functions of the current parameter values (context.Properties) — the host recomputes on parameter commit
+    // Property panel / automation tracks / synthesized parameter tracks: all pure functions of the current parameter values (context.Properties) — the host recomputes on parameter commit
     // and diffs to the UI, so controls/tracks may show/hide with parameters (conditional declaration). A static one ignores context and returns fixed values (as below).
     public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mPropertyConfig;
     public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mAutomationConfigs;
 
-    // Synthesized-parameter readback track declarations (read-only, independent of editable automation tracks): the read-only curves the processing produces (e.g. loudness) are exposed as first-class read-only tracks,
-    // piecewise (DefaultValue=NaN), with their own DisplayText/Min/Max/Color. An engine with no readback returns an empty map.
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
+    // Synthesized-parameter synthesized parameter track declarations (read-only, independent of editable automation tracks): the read-only curves the processing produces (e.g. loudness) are exposed as first-class read-only tracks,
+    // piecewise (DefaultValue=NaN), with their own DisplayText/Min/Max/Color. An engine with no synthesized parameters returns an empty map.
+    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mSynthesizedParameterConfigs;
 
     // Parameterless: the package directory is self-located via Assembly.Location (no host-passed path). On failure just throw; the host catches at the call boundary → passthrough degradation.
     public void Init() { /* ... load the model ... */ }
@@ -763,7 +763,7 @@ public class MyEffectEngine : IEffectSynthesisEngine   // engine id is declared 
         },
     };
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
-    readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new()
+    readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new()
     {
         { ("loudness", "Loudness"), AutomationConfig.Create(0, 2).WithColor("#00B0FF") },
     };
@@ -792,8 +792,8 @@ class MyEffectProcessor : IEffectSynthesisSession
     public IActionEvent StatusChanged => mStatusChanged;
     readonly ActionEvent mStatusChanged = new();
 
-    // This segment's readback curves (keys aligned with GetSynthesizedParameterConfigs): published on the data thread, host read-only, re-read along with the product on wrap-up. Return an empty map if there is no readback.
-    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
+    // This segment's synthesized parameter curves (keys aligned with GetSynthesizedParameterConfigs): published on the data thread, host read-only, re-read along with the product on wrap-up. Return an empty map if there are none.
+    public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
 
     public Task Process(CancellationToken cancellation = default)
     {
@@ -825,8 +825,8 @@ class MyEffectProcessor : IEffectSynthesisSession
         outSegment.Write(0, dst);
         outSegment.Commit();
 
-        // Readback: swap references on the data thread in sync with the output (in this example Process is fully synchronous, so swap directly).
-        mReadback = BuildLoudness(dst, rate, offset);
+        // Synthesized parameters: swap references on the data thread in sync with the output (in this example Process is fully synchronous, so swap directly).
+        mSynthesizedParameters = BuildLoudness(dst, rate, offset);
         return Task.CompletedTask;                      // errors throw (host catches → passthrough); don't swallow here
     }
 
@@ -842,17 +842,17 @@ class MyEffectProcessor : IEffectSynthesisSession
     readonly IEffectSynthesisContext mContext;
     bool mDirty;
     IReadOnlyList<SynthesisStatusSegment> mStatus = [];   // publish by swapping the reference (atomic)
-    IReadOnlyMap<string, SynthesizedParameter> mReadback = new Map<string, SynthesizedParameter>();
+    IReadOnlyMap<string, SynthesizedParameter> mSynthesizedParameters = new Map<string, SynthesizedParameter>();
 }
 ```
 
 Key points:
 
-- **Thick session, host-owned invalidation**: `CreateSession(context)` builds a **session** for "this effect × this upstream segment" (the same family of persistent stateful entity as a voice session -- holds live views, keeps caches across `Process` calls, publishes claims and readback; the scope difference is expressed by the context binding); the host `Dispose`s it on segment destruction / effect deletion / re-segmentation / sample-rate change. The host schedules conservatively on scoped signals (it performs the automation-range/segment intersection generically — an edit in another segment's interval never wakes this node); parameter-dependency and value-level dedup are the engine's optional early-out inside `Process` (return without re-committing → downstream skipped).
+- **Thick session, host-owned invalidation**: `CreateSession(context)` builds a **session** for "this effect × this upstream segment" (the same family of persistent stateful entity as a voice session -- holds live views, keeps caches across `Process` calls, publishes claims and synthesized parameters; the scope difference is expressed by the context binding); the host `Dispose`s it on segment destruction / effect deletion / re-segmentation / sample-rate change. The host schedules conservatively on scoped signals (it performs the automation-range/segment intersection generically — an edit in another segment's interval never wakes this node); parameter-dependency and value-level dedup are the engine's optional early-out inside `Process` (return without re-committing → downstream skipped).
 - **The input is an indivisible whole segment**: `context.Input` (`IEffectSynthesisAudio`) exposes `SampleOffset/Count/Rate` + `Read(offset, span)` (copy-out; the host storage layout is an implementation detail). There is no "committed" pulse -- being called into `Process` means the input is ready (scheduling is the host's job). `Input.RangeModified(start, count)` is the content-change **ledger** (optional; `start` is an **absolute sample position** -- content is pinned to the absolute axis, so ranges accumulated before an upstream `Resize` need no rebasing): cache-savvy engines accumulate ranges, narrow the recompute window from the ledger (`Read`/recompute/write back only the changed region -- O(changed) work; see the Slow Gain reference implementation for the full pattern), and clear the ledger only after a successful commit of their own output (cancellation refunds it). The ledger is **complete and faithful to trims**: an upstream `Resize` reports its geometric symmetric difference (a trimmed-away region went "from something to nothing" on the absolute axis, and it was context feeding the neighboring output), so ranges may lie outside the current extent; **the recompute scope is the session's own decision** -- after collecting the ledger, expand by your own context margin (so new content joins up with old) and intersect with the extent; a pointwise engine decides zero (just `Resize` its output to follow and commit empty). Only a genuinely change-free commit is silent; whole-segment reports appear only on forced invalidation (first snapshot / project sample-rate change).
-- **Output via handles, registry semantics**: `context.CreateAudioSegment(offset, count, rate)` — segmentation of the product is free (**1-to-N is legal**: e.g. a silence **splitter** that re-establishes segment granularity so every downstream effect gets per-segment incrementality and parallelism for free); each output segment lives independently and each committed one feeds a downstream node. The input side stays single-segment (the consumption unit is the host's invalidation/scheduling/identity granularity). The only hard rule: **do not redistribute the time axis** (automation/readback and the part display share the global-seconds axis); slight geometry differences (frame padding, added tails) are fine. The sample rate travels with the segment (when it differs from the project rate the host wraps a resample). **Geometry changes carry two distinct intents**: a semantic overhaul goes through `Dispose`+`Create` (downstream identity rebuilds); a content-continuous extension/trim goes through **`Resize(offset, count)`** (identity preserved, downstream caches survive -- intersecting content is kept aligned by absolute position, new regions are zeroed, the segment drops to uncommitted and is re-`Commit`ted after the new regions are written).
+- **Output via handles, registry semantics**: `context.CreateAudioSegment(offset, count, rate)` — segmentation of the product is free (**1-to-N is legal**: e.g. a silence **splitter** that re-establishes segment granularity so every downstream effect gets per-segment incrementality and parallelism for free); each output segment lives independently and each committed one feeds a downstream node. The input side stays single-segment (the consumption unit is the host's invalidation/scheduling/identity granularity). The only hard rule: **do not redistribute the time axis** (automation/synthesized parameters and the part display share the global-seconds axis); slight geometry differences (frame padding, added tails) are fine. The sample rate travels with the segment (when it differs from the project rate the host wraps a resample). **Geometry changes carry two distinct intents**: a semantic overhaul goes through `Dispose`+`Create` (downstream identity rebuilds); a content-continuous extension/trim goes through **`Resize(offset, count)`** (identity preserved, downstream caches survive -- intersecting content is kept aligned by absolute position, new regions are zeroed, the segment drops to uncommitted and is re-`Commit`ted after the new regions are written).
 - **Status claims (optional)**: publish a status timeline via `Status` (immutable list swap) and fire `StatusChanged` (any thread) -- a Synthesizing segment with `Progress` renders as a vertical fill on the strip; Synthesized segments are "claimed done" (soft, non-final). An engine that reports nothing gets a host default derived from scheduling facts.
-- **Readback tracks (optional)**: the read-only curves the engine produces are declared via `GetSynthesizedParameterConfigs` + carried per-segment via `IEffectSynthesisSession.SynthesizedParameters` (the host stitches the segments of the same effect by key). Read-only, non-editable, not in the data layer, not serialized; isomorphic to voice readback, shown/hidden by source in the parameter-area title bar.
+- **Synthesized parameter tracks (optional)**: the read-only curves the engine produces are declared via `GetSynthesizedParameterConfigs` + carried per-segment via `IEffectSynthesisSession.SynthesizedParameters` (the host stitches the segments of the same effect by key). Read-only, non-editable, not in the data layer, not serialized; isomorphic to voice synthesized parameters, shown/hidden by source in the parameter-area title bar.
 - **Conditional declaration**: `GetPropertyConfig` / `GetAutomationConfigs` / `GetSynthesizedParameterConfigs` are pure functions of the current parameter values (same input → same output, no side effects, lightweight), recomputed on parameter commit — so controls/tracks may show/hide with parameters. After a track disappears from the declaration the host **keeps its already-drawn curve** (hidden, not deleted), restored as-is when the parameter rolls back.
 - **Effect chain**: multiple effects may hang on one MidiPart, **serial** in declaration order — the previous output is the next input; at the chain tail the segments are mixed by absolute time. Chain order, bypass, and add/remove are managed by the user in the property panel.
 - **Graceful degradation / cancellation on failure**: when an exception is thrown the host treats that segment as passthrough, without interrupting playback; cancellation is requested via `cancellation` and returns normally (**do not** throw `OperationCanceledException`), and the scheduling slot is released only when the `await` actually returns.
@@ -868,7 +868,7 @@ An instrument is a **polyphonic sound source** (synth / sampler / chord source).
 
 - **Notes go to full end, no de-overlap**: `IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` is the note's full end (`Pos+Dur`), and the host does **not** clamp it to the next note's start. `Notes` passes through the original overlappable notes (chords / polyphony), and the engine superimposes voicing itself (the reference implementation adds one waveform segment per note's pitch and mixes by sum).
 - **No lyrics / no phonemes**: `IInstrumentSynthesisNote` has no `Lyric` / `Phonemes`; the session has no `DefaultLyric` and produces no `SynthesizedPhonemes`.
-- **No pitch curve, product is audio only**: `IInstrumentSynthesisContext` has no `Pitch` / `PitchDeviation` (v1 voices purely by the note's integer `Pitch`); the session produces no `SynthesizedPitch`. It may still declare automation tracks and `SynthesizedParameters` readback (none if the engine declares none).
+- **No pitch curve, product is audio only**: `IInstrumentSynthesisContext` has no `Pitch` / `PitchDeviation` (v1 voices purely by the note's integer `Pitch`); the session produces no `SynthesizedPitch`. It may still declare automation tracks and `SynthesizedParameters` synthesized parameters (none if the engine declares none).
 
 Manifest entry: `{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "class": "My.Ns.MyInstrumentEngine", "assembly": "MyInstrument.dll" }`.
 
@@ -876,7 +876,7 @@ The sound-source catalog is the same shape as voice: `IInstrumentSynthesisEngine
 
 > For the full interface contract and design rationale see [instrument-sdk-design.md](instrument-sdk-design.md); for a minimal reference implementation (one engine hosting sine/square timbres, polyphonic additive synthesis) see `tests/plugins/V1.Instrument`.
 
-The related interfaces are all in `TuneLab.SDK`: `IInstrumentSynthesisEngine` / `IInstrumentSynthesisSession` / `IInstrumentSynthesisContext` / `IInstrumentSynthesisNote` / `InstrumentSynthesisSnapshot` / `InstrumentSynthesisNoteSnapshot` / `InstrumentSourceInfo` / `IInstrumentSynthesisPartPropertyContext` / `IInstrumentSynthesisNotePropertyContext` (the leaf types like audio / automation / status / readback are shared with voice).
+The related interfaces are all in `TuneLab.SDK`: `IInstrumentSynthesisEngine` / `IInstrumentSynthesisSession` / `IInstrumentSynthesisContext` / `IInstrumentSynthesisNote` / `InstrumentSynthesisSnapshot` / `InstrumentSynthesisNoteSnapshot` / `InstrumentSourceInfo` / `IInstrumentSynthesisPartPropertyContext` / `IInstrumentSynthesisNotePropertyContext` (the leaf types like audio / automation / status / synthesized parameters are shared with voice).
 
 ---
 

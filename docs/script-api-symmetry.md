@@ -314,7 +314,17 @@ index 决定），故全部直接 `Set`。
   属"移动"范畴，保留。
 - `project.setTempo(bpm, atTick?)` / `setTimeSignature(...)` —— 「该处已有标记则改、否则新增」的封装，
   对应 `TempoManager.SetBpm` / `AddTempo` 两个方法。保留。
-- `note.pinPhonemes()` → `LockPhonemes()`；`note.clearPhonemes()` → `ClearLockedPhonemes()`。一对一，保留。
+- `note.lockPhonemes()` → `LockPhonemes()`；`note.clearPhonemes()` → `ClearLockedPhonemes()`。一对一，保留。
+  （曾叫 `pinPhonemes`——脚本面后来把曲线侧的固定也暴露成动作，同一范式两个动词会让模型猜出 `lockPhonemes`/
+  `pinPitch` 这类不存在的名字，故统一到 `lock`；状态字段同步为 `hasLockedPhonemes`。数据层的 `HasPinnedPhonemes`
+  与中文"钉死"未动，那是宿主内部用词、不在动作面上。）
+- `part.lockPitch()` / `part.lockAutomation(id)` / `effect.lockAutomation(id)` → `SynthesisLock` 的
+  `CaptureSynthesizedPitch` + `WriteSynthesizedPitchLock` / `CaptureSynthesizedParameter` + `WriteSynthesizedParameterLock`。
+  两步是**同一个动作的必然分解**（先冻结产物引用再写：写入即触发合成失效，引擎可能随即清掉回显），
+  笔刷式 UI 因为要逐帧重写才拆成两个方法，脚本一次调用两步都走。与音素侧的 `lockPhonemes` 同族（同一个动词、同一个范式）。
+  区间可省（= 整轨，用 `SynthesisLock.WholeTrackStart/End`），配套只读判据 `hasSynthesizedParameter(id)`
+  = `HasPairedSynthesizedParameter`。返回 `bool` 是**新增的显式性**，非数据层原有：产物为空时 UI 用户看得见白刷，
+  脚本调用方看不见，故把 no-op 如实回报（用法错误仍走 throw，两者分开）。
 - `part.setSoundSource({kind, type, id})` → `SoundSource.SetInfo(SoundSourceInfo)`。**参数就是该 info 的全部字段**，
   已经是"吃完整 info"的形状；额外的存在性校验（未知音源报错而非静默回退空源）属必要守卫。保留。
 

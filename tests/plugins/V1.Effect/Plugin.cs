@@ -35,12 +35,18 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
                 map.Add(kvp.Key, kvp.Value);
         }
         map.Add(("formant", "Formant"), mFormantConfig);
+        // 与 loudness 合成参数【同 Id】的实参轨 ⇒ 宿主识别为配对（effect 侧的"模型建议 + 用户覆盖"）。
+        // 刻意做成**连续轨**（有基线、处处有值）：voice 侧的 energy 配对是分段轨，两边合起来才把固定的
+        // 两条分支（分段 / 连续，见 SynthesisLock.WriteSynthesizedParameterLock）都盖到。量程与合成参数一致。
+        // DSP **不消费**它（同 formant）：固定的验证不依赖消费——写进去的就是当次产物值，重合成后 loudness
+        // 由输出音频重新算出、不受该轨影响，故固定后两条线保持重合，正是要看的结果。
+        map.Add(("loudness", "Loudness (Actual)"), mLoudnessActualConfig);
         return map;
     }
 
     // 回显轨声明（只读、分段形 DefaultValue=NaN）：处理产出的 loudness 包络回显，曲线数据经
     // GainSession.SynthesizedParameters 的 "loudness" key 承载。验证 effect 回显端到端与 voice 同构。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mSynthesizedParameterConfigs;
 
     public void Init() { }
     public void Destroy() { }
@@ -61,7 +67,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
         return map;
     }
 
-    static OrderedMap<PropertyKey, AutomationConfig> BuildReadbackConfigs()
+    static OrderedMap<PropertyKey, AutomationConfig> BuildSynthesizedParameterConfigs()
     {
         var map = new OrderedMap<PropertyKey, AutomationConfig>();
         map.Add(("loudness", "Loudness"), AutomationConfig.Create(0.0, 2.0).WithColor("#00B0FF"));
@@ -70,8 +76,11 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
 
     static readonly ObjectConfig mConfig = BuildConfig();
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = BuildAutomations();
-    static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = BuildReadbackConfigs();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = BuildSynthesizedParameterConfigs();
     static readonly AutomationConfig mFormantConfig = AutomationConfig.Create(-100, 100).WithColor("#00C2A8");
+    // 实参轨：连续形（默认 1.0 = 不增不减），量程同 loudness 合成参数；显示名与合成参数分层（"(Actual)"），
+    // 验证"配对只认 Id、DisplayText 各自自由"。
+    static readonly AutomationConfig mLoudnessActualConfig = AutomationConfig.Create(0.0, 2.0).WithColor("#7BC67B").WithDefault(1.0);
 
     // output = input * gain * gainEnv(t)。缓存型会话示范：订阅颗粒事件（可选信息源）维护差分缓存，
     // Process 里按脏只重算受影响内容；调度归宿主（被调到才干活、无关变化早退不重 Commit → 下游被跳过）。
@@ -91,7 +100,7 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
         readonly ActionEvent mStatusChanged = new();
 
         // 本段 loudness 回显（与输出同步重算）；输出无变化时沿用上轮。线程同输出：Process 在数据线程同步发布。
-        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mReadback;
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => mSynthesizedParameters;
         public IActionEvent SynthesizedParametersChanged => mParametersChanged;
         readonly ActionEvent mParametersChanged = new();
 
@@ -146,16 +155,16 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
 
             CommitOutput(offset, count, rate, dst);
             mOutput = dst;
-            mReadback = BuildReadback(dst, rate, segStart);
+            mSynthesizedParameters = BuildSynthesizedParameters(dst, rate, segStart);
             mParametersChanged.Invoke();   // 回显发布即触发（本引擎同步收尾发布，兜底重聚合也会覆盖；示范契约姿势）
             return Task.CompletedTask;   // 错误经抛异常报告（宿主 catch → passthrough），此处不吞异常。
         }
 
         // loudness 回显：对输出按 ~20ms 窗算 RMS，得一条 (全局秒, 值) 折线（单段）。空段 → 空 map。
-        static IReadOnlyMap<string, SynthesizedParameter> BuildReadback(float[] samples, int rate, double segStart)
+        static IReadOnlyMap<string, SynthesizedParameter> BuildSynthesizedParameters(float[] samples, int rate, double segStart)
         {
             if (samples.Length == 0 || rate <= 0)
-                return EmptyReadback;
+                return EmptySynthesizedParameters;
 
             int window = Math.Max(1, rate / 50);
             var points = new List<Point>();
@@ -255,9 +264,9 @@ public sealed class GainEffectEngine : IEffectSynthesisEngine
         double[]? mEnv;          // 缓存的逐采样 gain_env 取值
         double mGain = 1.0;      // 缓存的 gain 标量
         float[]? mOutput;        // 缓存的输出 buffer（无关变化时不重 Commit）
-        IReadOnlyMap<string, SynthesizedParameter> mReadback = EmptyReadback;
+        IReadOnlyMap<string, SynthesizedParameter> mSynthesizedParameters = EmptySynthesizedParameters;
 
-        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptySynthesizedParameters = new Map<string, SynthesizedParameter>();
         static readonly SynthesisStatusSegment[] EmptyStatus = [];
     }
 }
@@ -270,14 +279,14 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
     public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mConfig;
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mAutomations;
     // 无回显（仅倒放音频）：返回空声明。
-    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mReadbackConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mSynthesizedParameterConfigs;
     public void Init() { }
     public void Destroy() { }
     public IEffectSynthesisSession CreateSession(IEffectSynthesisContext context) => new ReverseSession(context);
 
     static readonly ObjectConfig mConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
     static readonly OrderedMap<PropertyKey, AutomationConfig> mAutomations = new();
-    static readonly OrderedMap<PropertyKey, AutomationConfig> mReadbackConfigs = new();
+    static readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new();
 
     sealed class ReverseSession(IEffectSynthesisContext context) : IEffectSynthesisSession
     {
@@ -286,7 +295,7 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
         readonly ActionEvent mStatusChanged = new();
 
         // 无回显：恒空 map、信号永不触发。
-        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptySynthesizedParameters;
         public IActionEvent SynthesizedParametersChanged => mParametersChanged;
         readonly ActionEvent mParametersChanged = new();
 
@@ -333,7 +342,7 @@ public sealed class ReverseEffectEngine : IEffectSynthesisEngine
         int mOutCount;
         int mOutRate;
 
-        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptySynthesizedParameters = new Map<string, SynthesizedParameter>();
         static readonly SynthesisStatusSegment[] EmptyStatus = [];
     }
 }
@@ -369,7 +378,7 @@ public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
-        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptySynthesizedParameters;
         public IActionEvent SynthesizedParametersChanged => mParametersChanged;
         readonly ActionEvent mParametersChanged = new();
 
@@ -539,7 +548,7 @@ public sealed class SlowGainEffectEngine : IEffectSynthesisEngine
 
         SynthesisStatusSegment[] mStatus = EmptyStatus;   // 发布 = 换引用（引用赋值原子，宿主跨线程读安全）
 
-        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptySynthesizedParameters = new Map<string, SynthesizedParameter>();
         static readonly SynthesisStatusSegment[] EmptyStatus = [];
     }
 }
@@ -564,7 +573,7 @@ public sealed class FailEffectEngine : IEffectSynthesisEngine
         public IActionEvent StatusChanged => mStatusChanged;
         readonly ActionEvent mStatusChanged = new();
 
-        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptyReadback;
+        public IReadOnlyMap<string, SynthesizedParameter> SynthesizedParameters => EmptySynthesizedParameters;
         public IActionEvent SynthesizedParametersChanged => mParametersChanged;
         readonly ActionEvent mParametersChanged = new();
 
@@ -576,7 +585,7 @@ public sealed class FailEffectEngine : IEffectSynthesisEngine
 
         public void Dispose() { }
 
-        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptyReadback = new Map<string, SynthesizedParameter>();
+        static readonly IReadOnlyMap<string, SynthesizedParameter> EmptySynthesizedParameters = new Map<string, SynthesizedParameter>();
         static readonly SynthesisStatusSegment[] EmptyStatus = [];
     }
 }
