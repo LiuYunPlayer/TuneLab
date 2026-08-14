@@ -172,6 +172,19 @@ internal class DraggableNumberBox : Container, IDataValueController<double>
         }
     }
 
+    // 在 [MinValue,MaxValue] 内按均匀分布重取值，按一个撤销步提交（WillChange→Set→Committed，同键入路径）。
+    // 只有双有界才有均匀分布可取，故无界侧存在时不动值（宿主也不给随机入口）。取到的值仍过 ChangeValue，
+    // 即照常吸附 Step、钳回边界——与拖动/键入落到同一套值处理。
+    public void Randomize()
+    {
+        if (MinValue is not double min || MaxValue is not double max)
+            return;
+
+        mValueWillChange.Invoke();
+        ChangeValue(min + Random.Shared.NextDouble() * (max - min));
+        mValueCommitted.Invoke();
+    }
+
     void EnterEdit()
     {
         mTextInput.Display(double.IsNaN(mValue) ? string.Empty : mFormat.Format(mValue));

@@ -442,6 +442,9 @@
 [SliderController]
 "Randomize" = "Casuale"
 
+[DraggableNumberBox]
+"Randomize" = "Casuale"
+
 [OpenAICompatibleEngine]
 "Base URL" = "URL di base"
 "API Key" = "Chiave API"

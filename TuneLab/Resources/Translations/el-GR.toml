@@ -442,6 +442,9 @@
 [SliderController]
 "Randomize" = "Τυχαιοποίηση"
 
+[DraggableNumberBox]
+"Randomize" = "Τυχαιοποίηση"
+
 [OpenAICompatibleEngine]
 "Base URL" = "Βασικό URL"
 "API Key" = "Κλειδί API"

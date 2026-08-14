@@ -160,6 +160,7 @@ internal static class ScriptConfigs
         public ScriptDraggableNumberBoxConfig WithStep(double step) => new(config.WithStep(step));
         public ScriptDraggableNumberBoxConfig WithSensitivity(double sensitivity) => new(config.WithSensitivity(sensitivity));
         public ScriptDraggableNumberBoxConfig WithFormat(ScriptNumberFormat format) => new(config.WithFormat(format.Inner));
+        public ScriptDraggableNumberBoxConfig WithRandomizable(JsValue value) => new(config.WithRandomizable(ScriptArgs.AsBoolOrNull(value) ?? true));
     }
 
     internal sealed class ScriptComboBoxConfig(ComboBoxConfig config) : IScriptConfig

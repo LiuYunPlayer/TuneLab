@@ -41,3 +41,5 @@ TuneLab.SDK.PitchInfo
 TuneLab.SDK.PitchInfo.PitchInfo() -> void
 TuneLab.SDK.PitchInfo.Segments.get -> System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!
 TuneLab.SDK.PitchInfo.Segments.set -> void
+TuneLab.SDK.DraggableNumberBoxConfig.Randomizable.get -> bool
+TuneLab.SDK.DraggableNumberBoxConfig.WithRandomizable(bool value = true) -> TuneLab.SDK.DraggableNumberBoxConfig!

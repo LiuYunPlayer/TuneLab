@@ -426,7 +426,7 @@ Method names mirror the control types; each `withX(...)` returns a new config, s
 | `SliderConfig.create(default, scale)` | Slider with a custom scale — see below |
 | ↳ `.withFormat(fmt)` `.withMinLabel(s)` `.withMaxLabel(s)` `.withRandomizable()` | Number formatting / end labels / allow randomizing |
 | `DraggableNumberBoxConfig.create(default?)` `.integer(default?)` | Draggable number box |
-| ↳ `.withMin(x)` `.withMax(x)` `.withRange(a,b)` `.withStep(s)` `.withSensitivity(s)` `.withFormat(fmt)` | Range / step / drag sensitivity / format |
+| ↳ `.withMin(x)` `.withMax(x)` `.withRange(a,b)` `.withStep(s)` `.withSensitivity(s)` `.withFormat(fmt)` `.withRandomizable()` | Range / step / drag sensitivity / format / allow randomizing (needs both bounds) |
 | `ComboBoxConfig.create(['a','b'])` or `.create()` | Dropdown. **The default is the VALUE itself, not an index** |
 | ↳ `.append(x)` `.appendSeparator(label?)` `.withDefault('a')` | Add an item / a separator / set the default |
 | `CheckBoxConfig.create(default?)` | Check box |

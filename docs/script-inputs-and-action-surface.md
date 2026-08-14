@@ -119,7 +119,7 @@ function main(inputs) {                                    // 带参；无 getIn
 | 脚本全局 | 同构于 C# 类 | 工厂 | 流式修饰 |
 |---|---|---|---|
 | `SliderConfig` | `SliderConfig` | `.linear(default,min,max)` / `.integer(default,min,max)` / `.create(default, scale)` | `.withFormat(...)` / `.withRandomizable()` / `.withMinLabel(s)` / `.withMaxLabel(s)` |
-| `DraggableNumberBoxConfig` | 同名 | `.create(default)` / `.integer(default)` | `.withMin(x)` / `.withMax(x)` / `.withRange(a,b)` / `.withStep(s)` / `.withFormat(...)` / `.withSensitivity(k)` |
+| `DraggableNumberBoxConfig` | 同名 | `.create(default)` / `.integer(default)` | `.withMin(x)` / `.withMax(x)` / `.withRange(a,b)` / `.withStep(s)` / `.withFormat(...)` / `.withSensitivity(k)` / `.withRandomizable()`（须双有界） |
 | `ComboBoxConfig` | 同名 | `.create()` / `.create(options)` | `.append(item)` / `.appendSeparator(label?)` / `.withDefault(value)` |
 | `CheckBoxConfig` | 同名 | `.create(default=false)` | — |
 | `TextBoxConfig` | 同名 | `.create(default="")` | `.withPassword()` |

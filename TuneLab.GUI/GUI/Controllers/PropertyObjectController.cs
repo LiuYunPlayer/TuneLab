@@ -6,7 +6,9 @@ using System.Linq;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
+using TuneLab.I18N;
 using TuneLab.Utils;
+using Button = TuneLab.GUI.Components.Button;
 
 namespace TuneLab.GUI.Controllers;
 
@@ -314,9 +316,23 @@ internal class PropertyObjectController : StackPanel
             mDockPanel = ObjectPoolManager.Get<DockPanel>();
             mDockPanel.Background = Avalonia.Media.Brushes.Transparent;   // 空白区可命中，右键菜单整行可触
 
-            mController = new DraggableNumberBox() { Width = 80, Margin = new(24, 8) };
-            mDockPanel.Children.Add(mController);
-            DockPanel.SetDock(mController, Dock.Right);
+            mController = new DraggableNumberBox() { Width = 80 };
+
+            // 量程内随机取值的按钮（默认隐藏，由 config.Randomizable 开启，见 Apply）：同 slider 放在最右侧。
+            // 翻译上下文写成控件名（而非本嵌套 creator 的类名），使按钮日后换宿主也不改词条。
+            mRandomButton = new Button() { Width = 24, Height = 24, Margin = new(4, 0, 0, 0), IsVisible = false };
+            mRandomButton
+                .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = Style.LIGHT_WHITE.Opacity(0.1), PressedColor = Style.LIGHT_WHITE.Opacity(0.16) } })
+                .AddContent(new() { Item = new IconItem() { Icon = Assets.Dice, Scale = 0.7 }, ColorSet = new() { Color = Style.LIGHT_WHITE } });
+            mRandomButton.Clicked += mController.Randomize;
+            mRandomButton.SetupToolTip("Randomize".Tr("DraggableNumberBox"));
+
+            // 数值框与随机按钮同列靠右（外边距挂在列上）：按钮隐藏时该列宽度即数值框宽度，与无按钮时的行布局逐像素一致。
+            var valueColumn = new StackPanel() { Orientation = Orientation.Horizontal, Margin = new(24, 8), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            valueColumn.Children.Add(mController);
+            valueColumn.Children.Add(mRandomButton);
+            mDockPanel.Children.Add(valueColumn);
+            DockPanel.SetDock(valueColumn, Dock.Right);
 
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 40);
             mTitle.VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center;
@@ -336,6 +352,8 @@ internal class PropertyObjectController : StackPanel
             mController.Step = config.Step;
             mController.NumberFormat = config.Format;
             mController.DefaultValue = config.DefaultValue;
+            // 随机入口只在双有界时给：无界侧上没有均匀分布可取（见 DraggableNumberBox.Randomize）。
+            mRandomButton.IsVisible = config.Randomizable && config.Min.HasValue && config.Max.HasValue;
         }
 
         public override Type ConfigType => typeof(DraggableNumberBoxConfig);
@@ -353,6 +371,7 @@ internal class PropertyObjectController : StackPanel
         readonly Label mTitle;
         readonly DockPanel mDockPanel;
         readonly DraggableNumberBox mController;
+        readonly Button mRandomButton;
         DraggableNumberBoxConfig mConfig = null!;   // Apply 于构造期必先行
     }
 

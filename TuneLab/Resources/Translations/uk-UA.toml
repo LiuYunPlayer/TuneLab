@@ -442,6 +442,9 @@
 [SliderController]
 "Randomize" = "Випадкове значення"
 
+[DraggableNumberBox]
+"Randomize" = "Випадкове значення"
+
 [OpenAICompatibleEngine]
 "Base URL" = "Базовий URL"
 "API Key" = "Ключ API"

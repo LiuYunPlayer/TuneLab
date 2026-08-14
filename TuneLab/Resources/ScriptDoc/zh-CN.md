@@ -421,7 +421,7 @@ function getInputConfig(ctx) {
 | `SliderConfig.create(默认, scale)` | 自定义标度的滑条，`scale` 见下 |
 | ↳ `.withFormat(fmt)` `.withMinLabel(s)` `.withMaxLabel(s)` `.withRandomizable()` | 数值显示格式 / 两端文字标签 / 允许随机化 |
 | `DraggableNumberBoxConfig.create(默认?)` `.integer(默认?)` | 可拖拽数字框 |
-| ↳ `.withMin(x)` `.withMax(x)` `.withRange(a,b)` `.withStep(s)` `.withSensitivity(s)` `.withFormat(fmt)` | 范围 / 步进 / 拖拽灵敏度 / 格式 |
+| ↳ `.withMin(x)` `.withMax(x)` `.withRange(a,b)` `.withStep(s)` `.withSensitivity(s)` `.withFormat(fmt)` `.withRandomizable()` | 范围 / 步进 / 拖拽灵敏度 / 格式 / 允许随机化（须双有界） |
 | `ComboBoxConfig.create(['a','b'])` 或 `.create()` | 下拉。**默认值给的是「值」本身，不是下标** |
 | ↳ `.append(x)` `.appendSeparator(标签?)` `.withDefault('a')` | 追加项 / 分隔线 / 指定默认值 |
 | `CheckBoxConfig.create(默认?)` | 勾选框 |

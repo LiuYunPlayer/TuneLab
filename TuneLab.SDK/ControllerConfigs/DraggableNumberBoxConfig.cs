@@ -22,6 +22,10 @@ public sealed class DraggableNumberBoxConfig : IValueConfig<double>
     // 数值显示/回读。默认 2 位小数；Integer 工厂改为 0 位。
     public INumberFormat Format { get; private set; } = NumberFormat.Decimals(2);
 
+    // 可随机：宿主在数值框右侧给随机入口，点击后在 [Min,Max] 内按均匀分布重取值（如随机种子）。
+    // 仅**双有界**（Min 与 Max 皆设）时生效——无界侧上没有均匀分布可取，缺任一侧宿主不给该入口。
+    public bool Randomizable { get; private set; }
+
     private DraggableNumberBoxConfig() { }
     DraggableNumberBoxConfig Clone() => (DraggableNumberBoxConfig)MemberwiseClone();
 
@@ -44,6 +48,9 @@ public sealed class DraggableNumberBoxConfig : IValueConfig<double>
 
     public DraggableNumberBoxConfig WithStep(double step) { var c = Clone(); c.Step = step; return c; }
     public DraggableNumberBoxConfig WithFormat(INumberFormat format) { var c = Clone(); c.Format = format; return c; }
+
+    // 声明可随机（同 SliderConfig）。须配合 WithRange / WithMin+WithMax——单侧或无界时宿主不给随机入口。
+    public DraggableNumberBoxConfig WithRandomizable(bool value = true) { var c = Clone(); c.Randomizable = value; return c; }
 
     PropertyValue IValueConfig.DefaultValue => PropertyValue.Create(DefaultValue);
 }

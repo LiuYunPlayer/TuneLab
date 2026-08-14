@@ -47,6 +47,10 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
         mNoteProperties.Add("tension", SliderConfig.Linear(0, -1, 1).WithMinLabel("Relaxed").WithMaxLabel("Tense"));
         // 整数滑条（验证吸附标度经属性 lane 全链路：侧栏滑条吸附 + 钉上参数面板后拖写同吸附整数格）。
         mNoteProperties.Add(("steps", "Steps (Int)"), SliderConfig.Integer(0, 0, 8));
+        // 可随机的数值框（验证 DraggableNumberBoxConfig.WithRandomizable）：右侧骰子按钮，点击在 [0,9999] 内均匀重取并吸附整数。
+        mNoteProperties.Add(("seed", "Seed (Random)"), DraggableNumberBoxConfig.Integer(0).WithRange(0, 9999).WithRandomizable());
+        // 负例：声明可随机但只有单侧界 → 宿主不给随机入口（无界侧上没有均匀分布可取）。
+        mNoteProperties.Add(("half_open", "Half Open (No Dice)"), DraggableNumberBoxConfig.Create(0).WithMin(0).WithRandomizable());
         // per-phoneme 属性声明（验证音素属性链路：声明→侧栏面板→编辑→持久→快照读取）。按核相对角色两套：
         // 核（slot 0，元音）= accent + offset；引导 / 核后辅音 = 仅 offset——验证按 slot 差异化 schema 全链路。
         mCorePhonemeProperties.Add("accent", SliderConfig.Linear(0, 0, 1).WithMaxLabel("Strong"));

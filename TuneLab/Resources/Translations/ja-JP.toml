@@ -442,6 +442,9 @@
 [SliderController]
 "Randomize" = "ランダム化"
 
+[DraggableNumberBox]
+"Randomize" = "ランダム化"
+
 [OpenAICompatibleEngine]
 "Base URL" = "ベース URL"
 "API Key" = "API キー"
