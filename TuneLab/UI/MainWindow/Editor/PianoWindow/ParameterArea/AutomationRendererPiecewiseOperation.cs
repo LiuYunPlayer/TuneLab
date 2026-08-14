@@ -496,17 +496,17 @@ internal partial class AutomationRenderer
             if (mAnchor == null || mAutomation == null || AutomationRenderer.Part == null)
                 return;
 
-            AutomationRenderer.Part.EndMergeDirty();
-            if (mMoved || mKeepChangeWithoutMove)
-            {
-                AutomationRenderer.Part.Commit();
-            }
-            else
+            if (!mMoved && !mKeepChangeWithoutMove)
             {
                 // 只撤**本操作**产生的变更（DiscardTo(mHead)），不是 Discard() 的"撤销全部未提交命令"——
                 // 同一次按下里可能有先行的离散动作（如预览落笔的 ConnectAnchorGroup），那属于用户这一下的意图，
-                // 不能被"没拖动"连坐撤掉。末尾照样 Commit：把先行动作收成**一个**撤销单元
-                //（纯点击无先行动作时无未提交命令，Commit 是 no-op、不产生空单元）。
+                // 不能被"没拖动"连坐撤掉。
+                //
+                // 【顺序不变量，勿调换】DiscardTo 必须在 EndMergeDirty **之前**：mHead 取在 BeginMergeDirty
+                // 之后（见 Down），若先 End 再 DiscardTo，那条 End 命令本身会被撤掉——其逆动作是 Begin，
+                // 括号因此被重新打开且再无人关闭。后果是静默失效而非崩溃：该 part 的曲线变更全被批量缓冲
+                // 吞掉、调度器永久跳过它（"画完一笔就再也不渲染"）。同一陷阱见 PianoScrollViewOperation
+                // 的音高锚点移动。
                 AutomationRenderer.Part.DiscardTo(mHead);
                 if (mCtrl)
                 {
@@ -518,8 +518,10 @@ internal partial class AutomationRenderer
                     mAutomation.DeselectAllAnchors();
                     mAnchor.Select();
                 }
-                AutomationRenderer.Part.Commit();
             }
+            // 末尾照样 Commit：把先行动作收成**一个**撤销单元（纯点击无先行动作时 Commit 是 no-op）。
+            AutomationRenderer.Part.EndMergeDirty();
+            AutomationRenderer.Part.Commit();
 
             mMoved = false;
             mKeepChangeWithoutMove = false;

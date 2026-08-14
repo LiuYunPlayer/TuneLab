@@ -3030,17 +3030,17 @@ internal partial class PianoScrollView
             if (PianoScrollView.Part == null)
                 return;
 
-            PianoScrollView.Part.EndMergeDirty();
-            if (mMoved)
-            {
-                PianoScrollView.Part.Commit();
-            }
-            else
+            if (!mMoved)
             {
                 // 只撤**本操作**产生的变更，不是 Discard() 的"撤销全部未提交命令"：同一次按下里可能有先行的
                 // 离散动作（预览落笔的 ConnectAnchorGroup / InsertPoint），那属于用户这一下的意图，不能被
-                // "没拖动"连坐撤掉。末尾照样 Commit，把这一次按下抬起收成**一个**撤销单元
-                //（纯点击无先行动作时无未提交命令，Commit 为 no-op）。
+                // "没拖动"连坐撤掉。
+                //
+                // 【顺序不变量，勿调换】DiscardTo 必须在 EndMergeDirty **之前**：mHead 取在 BeginMergeDirty
+                // 之后（见 Down），若先 End 再 DiscardTo，被撤掉的未提交命令里就包含那条 End 命令本身
+                // —— 它的逆动作是 Begin，于是括号被重新打开且再无人关闭。后果不是崩溃而是静默失效：
+                // 该 part 的曲线变更从此全被批量缓冲吞掉（插件收不到、不标脏），且调度器永久跳过它，
+                // 表现为"画完一笔就再也不渲染"，只有重开工程或剪切粘贴才能恢复。
                 PianoScrollView.Part.DiscardTo(mHead);
                 if (mCtrl)
                 {
@@ -3054,8 +3054,10 @@ internal partial class PianoScrollView
                     PianoScrollView.Part.Pitch.DeselectAllAnchors();
                     mAnchor.Select();
                 }
-                PianoScrollView.Part.Commit();
             }
+            // 末尾照样 Commit，把这一次按下抬起收成**一个**撤销单元（纯点击无先行动作时 Commit 为 no-op）。
+            PianoScrollView.Part.EndMergeDirty();
+            PianoScrollView.Part.Commit();
             mMoved = false;
             mAnchor = null;
         }
