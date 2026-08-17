@@ -30,6 +30,11 @@
 	       从 Avalonia 资源里剔除免得白白编进程序集。生成器见 tools/icons/。 -->
 	  <AvaloniaResource Remove="Assets\FileIcons\**" />
 	  <Content Include="Assets\FileIcons\*.ico" CopyToOutputDirectory="PreserveNewest" />
+	  <!-- 许可文本随安装目录落地：分发二进制就得带着自家 MIT 与各第三方组件的声明
+	       （其中 LAME / CUETools 是 LGPL，声明是分发义务而非可选）。About 窗的
+	       Licenses 按钮直接打开安装目录里的这份 THIRD-PARTY-NOTICES.txt，故必须真的到位。 -->
+	  <Content Include="..\LICENSE.txt" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+	  <Content Include="..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 	<ItemGroup>

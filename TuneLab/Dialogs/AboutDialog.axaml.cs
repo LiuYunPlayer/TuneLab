@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -50,6 +52,9 @@ internal partial class AboutDialog : Window
         // 链接（点击只打开网页、不关闭窗口）
         AddLink(linksPanel, "Forum", "https://forum.tunelab.app");
         AddLink(linksPanel, "GitHub", "https://github.com/LiuYunPlayer/TuneLab");
+        // 第三方许可声明：打开安装目录里那份，离线可看（csproj 的 Content 保证它随发布落地）。
+        AddEntry(linksPanel, "Licenses".Tr(TC.Dialog), () => ProcessHelper.OpenFile(
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "THIRD-PARTY-NOTICES.txt")));
 
         // 拖动窗口——点在标题栏内的按钮上时不拖，避免吞掉按钮点击。
         titleBar.PointerPressed += (_, e) =>
@@ -60,12 +65,14 @@ internal partial class AboutDialog : Window
         };
     }
 
-    static void AddLink(StackPanel panel, string text, string url)
+    static void AddLink(StackPanel panel, string text, string url) => AddEntry(panel, text, () => ProcessHelper.OpenUrl(url));
+
+    static void AddEntry(StackPanel panel, string text, Action onClick)
     {
         var b = new Button { Height = 32, MinWidth = 84 };
         b.AddContent(new() { Item = new BorderItem() { CornerRadius = 6 }, ColorSet = new() { Color = Style.BUTTON_NORMAL, HoveredColor = Style.BUTTON_NORMAL_HOVER } });
         b.AddContent(new() { Item = new TextItem() { Text = text }, ColorSet = new() { Color = Style.LIGHT_WHITE } });
-        b.Clicked += () => ProcessHelper.OpenUrl(url);
+        b.Clicked += () => onClick();
         panel.Children.Add(b);
     }
 }
