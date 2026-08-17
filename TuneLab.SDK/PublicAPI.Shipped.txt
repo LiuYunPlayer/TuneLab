@@ -67,11 +67,13 @@ TuneLab.SDK.DraggableNumberBoxConfig.DefaultValue.get -> double
 TuneLab.SDK.DraggableNumberBoxConfig.Format.get -> TuneLab.SDK.INumberFormat!
 TuneLab.SDK.DraggableNumberBoxConfig.Max.get -> double?
 TuneLab.SDK.DraggableNumberBoxConfig.Min.get -> double?
+TuneLab.SDK.DraggableNumberBoxConfig.Randomizable.get -> bool
 TuneLab.SDK.DraggableNumberBoxConfig.Response.get -> TuneLab.SDK.IDragResponse!
 TuneLab.SDK.DraggableNumberBoxConfig.Step.get -> double?
 TuneLab.SDK.DraggableNumberBoxConfig.WithFormat(TuneLab.SDK.INumberFormat! format) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithMax(double max) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithMin(double min) -> TuneLab.SDK.DraggableNumberBoxConfig!
+TuneLab.SDK.DraggableNumberBoxConfig.WithRandomizable(bool value = true) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithRange(double min, double max) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithResponse(TuneLab.SDK.IDragResponse! response) -> TuneLab.SDK.DraggableNumberBoxConfig!
 TuneLab.SDK.DraggableNumberBoxConfig.WithSensitivity(double sensitivity) -> TuneLab.SDK.DraggableNumberBoxConfig!
@@ -131,8 +133,8 @@ TuneLab.SDK.IEffectSynthesisEngine.Init() -> void
 TuneLab.SDK.IEffectSynthesisPropertyContext
 TuneLab.SDK.IEffectSynthesisPropertyContext.Effects.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IEffectSynthesisView!>!
 TuneLab.SDK.IEffectSynthesisSession
-TuneLab.SDK.IEffectSynthesisSession.Status.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesisStatusSegment>!
 TuneLab.SDK.IEffectSynthesisSession.Process(System.Threading.CancellationToken cancellation = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+TuneLab.SDK.IEffectSynthesisSession.Status.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesisStatusSegment>!
 TuneLab.SDK.IEffectSynthesisSession.StatusChanged.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IEffectSynthesisSession.SynthesizedParameters.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedParameter!>!
 TuneLab.SDK.IEffectSynthesisSession.SynthesizedParametersChanged.get -> TuneLab.Foundation.IActionEvent!
@@ -152,6 +154,7 @@ TuneLab.SDK.IInstrumentSynthesisContext
 TuneLab.SDK.IInstrumentSynthesisContext.Automations.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisAutomation!>!
 TuneLab.SDK.IInstrumentSynthesisContext.Committed.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IInstrumentSynthesisContext.CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate) -> TuneLab.SDK.IAudioSegment!
+TuneLab.SDK.IInstrumentSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IInstrumentSynthesisNote!>! notes) -> TuneLab.SDK.InstrumentSynthesisSnapshot!
 TuneLab.SDK.IInstrumentSynthesisContext.InstrumentId.get -> string!
 TuneLab.SDK.IInstrumentSynthesisContext.Notes.get -> TuneLab.Foundation.IReadOnlyNotifiableLinkedList<TuneLab.SDK.IInstrumentSynthesisNote!>!
 TuneLab.SDK.IInstrumentSynthesisContext.PartProperties.get -> TuneLab.Foundation.IReadOnlyNotifiablePropertyObject!
@@ -164,6 +167,7 @@ TuneLab.SDK.IInstrumentSynthesisEngine.GetPartPropertyConfig(TuneLab.SDK.IInstru
 TuneLab.SDK.IInstrumentSynthesisEngine.GetSynthesizedParameterConfigs(TuneLab.SDK.IInstrumentSynthesisPartPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.AutomationConfig!>!
 TuneLab.SDK.IInstrumentSynthesisEngine.Init() -> void
 TuneLab.SDK.IInstrumentSynthesisEngine.InstrumentSourceInfos.get -> TuneLab.Foundation.IReadOnlyOrderedMap<string!, TuneLab.SDK.InstrumentSourceInfo!>!
+TuneLab.SDK.IInstrumentSynthesisEngine.InstrumentSourceLayout.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>!
 TuneLab.SDK.IInstrumentSynthesisNote
 TuneLab.SDK.IInstrumentSynthesisNote.EndTime.get -> TuneLab.Foundation.IReadOnlyNotifiableProperty<double>!
 TuneLab.SDK.IInstrumentSynthesisNote.Next.get -> TuneLab.SDK.IInstrumentSynthesisNote?
@@ -217,6 +221,7 @@ TuneLab.SDK.IVoiceSynthesisContext
 TuneLab.SDK.IVoiceSynthesisContext.Automations.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.ISynthesisAutomation!>!
 TuneLab.SDK.IVoiceSynthesisContext.Committed.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IVoiceSynthesisContext.CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate) -> TuneLab.SDK.IAudioSegment!
+TuneLab.SDK.IVoiceSynthesisContext.GetSnapshot(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisNote!>! notes) -> TuneLab.SDK.VoiceSynthesisSnapshot!
 TuneLab.SDK.IVoiceSynthesisContext.Notes.get -> TuneLab.Foundation.IReadOnlyNotifiableLinkedList<TuneLab.SDK.IVoiceSynthesisNote!>!
 TuneLab.SDK.IVoiceSynthesisContext.PartProperties.get -> TuneLab.Foundation.IReadOnlyNotifiablePropertyObject!
 TuneLab.SDK.IVoiceSynthesisContext.Pitch.get -> TuneLab.SDK.ISynthesisAutomation!
@@ -232,10 +237,12 @@ TuneLab.SDK.IVoiceSynthesisEngine.GetPhonemePropertyConfigs(TuneLab.SDK.IVoiceSy
 TuneLab.SDK.IVoiceSynthesisEngine.GetSynthesizedParameterConfigs(TuneLab.SDK.IVoiceSynthesisPartPropertyContext! context) -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.AutomationConfig!>!
 TuneLab.SDK.IVoiceSynthesisEngine.Init() -> void
 TuneLab.SDK.IVoiceSynthesisEngine.VoiceSourceInfos.get -> TuneLab.Foundation.IReadOnlyOrderedMap<string!, TuneLab.SDK.VoiceSourceInfo!>!
+TuneLab.SDK.IVoiceSynthesisEngine.VoiceSourceLayout.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>!
 TuneLab.SDK.IVoiceSynthesisNote
 TuneLab.SDK.IVoiceSynthesisNote.BodyOffset.get -> TuneLab.Foundation.IReadOnlyNotifiableProperty<double>!
 TuneLab.SDK.IVoiceSynthesisNote.BodyPhonemes.get -> TuneLab.Foundation.IReadOnlyNotifiableProperty<System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>!>!
 TuneLab.SDK.IVoiceSynthesisNote.EndTime.get -> TuneLab.Foundation.IReadOnlyNotifiableProperty<double>!
+TuneLab.SDK.IVoiceSynthesisNote.Id.get -> string!
 TuneLab.SDK.IVoiceSynthesisNote.LeadingPhonemes.get -> TuneLab.Foundation.IReadOnlyNotifiableProperty<System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesizedPhoneme>!>!
 TuneLab.SDK.IVoiceSynthesisNote.Lyric.get -> TuneLab.Foundation.IReadOnlyNotifiableProperty<string!>!
 TuneLab.SDK.IVoiceSynthesisNote.Next.get -> TuneLab.SDK.IVoiceSynthesisNote?
@@ -270,12 +277,13 @@ TuneLab.SDK.IVoiceSynthesisPhonemeView.Symbol.get -> string!
 TuneLab.SDK.IVoiceSynthesisSession
 TuneLab.SDK.IVoiceSynthesisSession.DefaultLyric.get -> string!
 TuneLab.SDK.IVoiceSynthesisSession.GetNextPendingSynthesisRange(double startTime, double endTime) -> TuneLab.SDK.SynthesisRange?
-TuneLab.SDK.IVoiceSynthesisSession.Status.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesisStatusSegment>!
 TuneLab.SDK.IVoiceSynthesisSession.IsContinuation(TuneLab.SDK.IVoiceSynthesisNote! note) -> bool
+TuneLab.SDK.IVoiceSynthesisSession.Status.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.SynthesisStatusSegment>!
 TuneLab.SDK.IVoiceSynthesisSession.StatusChanged.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizeNext(double startTime, double endTime, System.Threading.CancellationToken cancellation = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedParameters.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedParameter!>!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedParametersChanged.get -> TuneLab.Foundation.IActionEvent!
+TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemes.get -> TuneLab.Foundation.IReadOnlyMap<string!, TuneLab.SDK.SynthesizedSyllable!>!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPhonemesChanged.get -> TuneLab.Foundation.IActionEvent!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPitch.get -> TuneLab.SDK.SynthesizedPitch!
 TuneLab.SDK.IVoiceSynthesisSession.SynthesizedPitchChanged.get -> TuneLab.Foundation.IActionEvent!
@@ -287,6 +295,17 @@ TuneLab.SDK.InstrumentSourceInfo.Name.get -> string!
 TuneLab.SDK.InstrumentSourceInfo.Name.init -> void
 TuneLab.SDK.InstrumentSourceInfo.Portrait.get -> TuneLab.Foundation.ImageResource?
 TuneLab.SDK.InstrumentSourceInfo.Portrait.init -> void
+TuneLab.SDK.InstrumentSourceLayoutGroup
+TuneLab.SDK.InstrumentSourceLayoutGroup.InstrumentSourceLayoutGroup() -> void
+TuneLab.SDK.InstrumentSourceLayoutGroup.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>!
+TuneLab.SDK.InstrumentSourceLayoutGroup.Items.init -> void
+TuneLab.SDK.InstrumentSourceLayoutGroup.Name.get -> string!
+TuneLab.SDK.InstrumentSourceLayoutGroup.Name.init -> void
+TuneLab.SDK.InstrumentSourceLayoutInstrument
+TuneLab.SDK.InstrumentSourceLayoutInstrument.InstrumentId.get -> string!
+TuneLab.SDK.InstrumentSourceLayoutInstrument.InstrumentId.init -> void
+TuneLab.SDK.InstrumentSourceLayoutInstrument.InstrumentSourceLayoutInstrument() -> void
+TuneLab.SDK.InstrumentSourceLayoutItem
 TuneLab.SDK.InstrumentSynthesisNoteSnapshot
 TuneLab.SDK.InstrumentSynthesisNoteSnapshot.EndTime.get -> double
 TuneLab.SDK.InstrumentSynthesisNoteSnapshot.EndTime.init -> void
@@ -393,6 +412,14 @@ TuneLab.SDK.PhonemeTiming.End.get -> double
 TuneLab.SDK.PhonemeTiming.PhonemeTiming() -> void
 TuneLab.SDK.PhonemeTiming.PhonemeTiming(double start, double end) -> void
 TuneLab.SDK.PhonemeTiming.Start.get -> double
+TuneLab.SDK.PiecewiseAutomationInfo
+TuneLab.SDK.PiecewiseAutomationInfo.PiecewiseAutomationInfo() -> void
+TuneLab.SDK.PiecewiseAutomationInfo.Segments.get -> System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!
+TuneLab.SDK.PiecewiseAutomationInfo.Segments.set -> void
+TuneLab.SDK.PitchInfo
+TuneLab.SDK.PitchInfo.PitchInfo() -> void
+TuneLab.SDK.PitchInfo.Segments.get -> System.Collections.Generic.List<System.Collections.Generic.List<TuneLab.Foundation.Point>!>!
+TuneLab.SDK.PitchInfo.Segments.set -> void
 TuneLab.SDK.ProjectInfo
 TuneLab.SDK.ProjectInfo.ProjectInfo() -> void
 TuneLab.SDK.ProjectInfo.Tempos.get -> System.Collections.Generic.List<TuneLab.SDK.TempoInfo!>!
@@ -541,6 +568,17 @@ TuneLab.SDK.VoiceSourceInfo.Name.init -> void
 TuneLab.SDK.VoiceSourceInfo.Portrait.get -> TuneLab.Foundation.ImageResource?
 TuneLab.SDK.VoiceSourceInfo.Portrait.init -> void
 TuneLab.SDK.VoiceSourceInfo.VoiceSourceInfo() -> void
+TuneLab.SDK.VoiceSourceLayoutGroup
+TuneLab.SDK.VoiceSourceLayoutGroup.Items.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>!
+TuneLab.SDK.VoiceSourceLayoutGroup.Items.init -> void
+TuneLab.SDK.VoiceSourceLayoutGroup.Name.get -> string!
+TuneLab.SDK.VoiceSourceLayoutGroup.Name.init -> void
+TuneLab.SDK.VoiceSourceLayoutGroup.VoiceSourceLayoutGroup() -> void
+TuneLab.SDK.VoiceSourceLayoutItem
+TuneLab.SDK.VoiceSourceLayoutVoice
+TuneLab.SDK.VoiceSourceLayoutVoice.VoiceId.get -> string!
+TuneLab.SDK.VoiceSourceLayoutVoice.VoiceId.init -> void
+TuneLab.SDK.VoiceSourceLayoutVoice.VoiceSourceLayoutVoice() -> void
 TuneLab.SDK.VoiceSynthesisNoteSnapshot
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.BodyOffset.get -> double
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.BodyOffset.init -> void
@@ -548,6 +586,8 @@ TuneLab.SDK.VoiceSynthesisNoteSnapshot.BodyPhonemes.get -> System.Collections.Ge
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.BodyPhonemes.init -> void
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.EndTime.get -> double
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.EndTime.init -> void
+TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.get -> string!
+TuneLab.SDK.VoiceSynthesisNoteSnapshot.Id.init -> void
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.LeadingPhonemes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSynthesisPhonemeSnapshot>!
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.LeadingPhonemes.init -> void
 TuneLab.SDK.VoiceSynthesisNoteSnapshot.Lyric.get -> string!
@@ -586,7 +626,6 @@ override TuneLab.SDK.PropertyKey.GetHashCode() -> int
 override TuneLab.SDK.PropertyKey.ToString() -> string!
 override TuneLab.SDK.SynthesizedPhoneme.ToString() -> string!
 static TuneLab.SDK.ArrayConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IControllerConfig!>! elements) -> TuneLab.SDK.ArrayConfig!
-static TuneLab.SDK.IAutomationEvaluatorExtensions.Evaluate(this TuneLab.SDK.IAutomationEvaluator! evaluator, System.Collections.Generic.IReadOnlyList<double>! positions) -> double[]!
 static TuneLab.SDK.AutomationConfig.Create(TuneLab.SDK.INormalizedScale! scale) -> TuneLab.SDK.AutomationConfig!
 static TuneLab.SDK.AutomationConfig.Create(double minValue, double maxValue) -> TuneLab.SDK.AutomationConfig!
 static TuneLab.SDK.CheckBoxConfig.Create(bool defaultValue = false) -> TuneLab.SDK.CheckBoxConfig!
@@ -613,6 +652,9 @@ static TuneLab.SDK.DragResponse.Linear(double sensitivity, TuneLab.SDK.DragAxis 
 static TuneLab.SDK.DraggableNumberBoxConfig.Create(double defaultValue = 0) -> TuneLab.SDK.DraggableNumberBoxConfig!
 static TuneLab.SDK.DraggableNumberBoxConfig.Integer(double defaultValue = 0) -> TuneLab.SDK.DraggableNumberBoxConfig!
 static TuneLab.SDK.ExtensibleObjectConfig.Create(TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.IControllerConfig!>! properties, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.AddableKey>! addableElements) -> TuneLab.SDK.ExtensibleObjectConfig!
+static TuneLab.SDK.IAutomationEvaluatorExtensions.Evaluate(this TuneLab.SDK.IAutomationEvaluator! evaluator, System.Collections.Generic.IReadOnlyList<double>! positions) -> double[]!
+static TuneLab.SDK.InstrumentSourceLayoutItem.Group(string! name, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.InstrumentSourceLayoutItem!>! items) -> TuneLab.SDK.InstrumentSourceLayoutItem!
+static TuneLab.SDK.InstrumentSourceLayoutItem.Instrument(string! instrumentId) -> TuneLab.SDK.InstrumentSourceLayoutItem!
 static TuneLab.SDK.ListConfig.Create(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IControllerConfig!>! elements, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.AddableElement>! addableElements) -> TuneLab.SDK.ListConfig!
 static TuneLab.SDK.NormalizedScale.Ceil(TuneLab.SDK.INormalizedScale! scale) -> TuneLab.SDK.INormalizedScale!
 static TuneLab.SDK.NormalizedScale.Custom(System.Func<double, double>! toValue, System.Func<double, double>! toNormalized) -> TuneLab.SDK.INormalizedScale!
@@ -633,3 +675,5 @@ static TuneLab.SDK.SliderConfig.Integer(double defaultValue, double minValue, do
 static TuneLab.SDK.SliderConfig.Linear(double defaultValue, double minValue, double maxValue) -> TuneLab.SDK.SliderConfig!
 static TuneLab.SDK.TextBoxConfig.Create(string! defaultValue = "") -> TuneLab.SDK.TextBoxConfig!
 static TuneLab.SDK.TuneLabContext.Global.get -> TuneLab.SDK.ITuneLabContext!
+static TuneLab.SDK.VoiceSourceLayoutItem.Group(string! name, System.Collections.Generic.IReadOnlyList<TuneLab.SDK.VoiceSourceLayoutItem!>! items) -> TuneLab.SDK.VoiceSourceLayoutItem!
+static TuneLab.SDK.VoiceSourceLayoutItem.Voice(string! voiceId) -> TuneLab.SDK.VoiceSourceLayoutItem!
