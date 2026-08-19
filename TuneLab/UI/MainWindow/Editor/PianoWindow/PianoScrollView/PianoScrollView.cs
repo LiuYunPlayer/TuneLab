@@ -1197,13 +1197,15 @@ internal partial class PianoScrollView : View, IPianoScrollView
                 break;
 
             // 画每个音素的开头线；末线（末音素的结尾）只交给「真正会画开头线的接管者」——沿相接链向后跳过
-            // 无显示音素的乘客（melisma 被铺过的延音符），落到第一个有显示音素的相接 note：有 → 该边界由它的
-            // 开头线接管、本 note 不画（再画会在相接处叠线）；无（链到头 / 空隙断链 / 邻居无内容）→ 自己画，
-            // 否则 melisma 的有效末（= 链末乘客的尾）会悬空无线。endOwner = 链末 note = 上半区尾杆的属主，
-            // 供末线 hover 与尾杆联动。
+            // **乘客**（melisma 被铺过的延音符，其显示音素恒空），落到第一个非乘客的相接 note：它有显示音素
+            // → 该边界由它的开头线接管、本 note 不画（再画会在相接处叠线）；无（链到头 / 空隙断链 / 邻居无
+            // 显示音素）→ 自己画，否则 melisma 的有效末（= 链末乘客的尾）会悬空无线。endOwner = 链末 note
+            // = 上半区尾杆的属主，供末线 hover 与尾杆联动。
+            // 跳过判据是**乘客身份**而非"显示音素为空"：非乘客的空 note（引擎明确答"无音素" / 尚待合成）
+            // 没有谁的元音铺过它，本 note 的末线必须由自己画在自己音素的结尾上，不能顺延到它后面去。
             var endOwner = note;
             var takeover = note.Next;
-            while (takeover != null && takeover.StartPos() <= endOwner.EndPos() + 1e-6 && takeover.DisplayPhonemes.IsEmpty())
+            while (takeover != null && takeover.StartPos() <= endOwner.EndPos() + 1e-6 && takeover.IsEffectiveContinuation())
             {
                 endOwner = takeover;
                 takeover = takeover.Next;

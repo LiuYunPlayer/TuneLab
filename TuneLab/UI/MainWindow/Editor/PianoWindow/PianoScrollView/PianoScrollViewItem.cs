@@ -363,13 +363,17 @@ internal partial class PianoScrollView
             return point.Y >= PianoScrollView.WaveformTop && point.Y <= bottom && point.X >= x - 8 && point.X <= x + 8;
         }
 
-        // 尾杆的下探判定与头杆不同：自己有显示音素之外，作为被铺乘客（display 空）时若沿相接链回溯存在
-        // 有显示音素的 note，其元音正铺到本 note 尾（FillEnd 对齐有效末）——下半区在此画的正是那条末线
-        //（见 DrawWaveform 的 endOwner），故也全带高可拖。
+        // 尾杆的下探判定与头杆不同：自己有显示音素之外，作为被铺**乘客**时若沿相接链回溯存在有显示音素的
+        // note，其元音正铺到本 note 尾（FillEnd 对齐有效末）——下半区在此画的正是那条末线（见 DrawWaveform
+        // 的 endOwner），故也全带高可拖。回溯与绘制同判据：只跨乘客，落到非乘客的空 note（引擎明确答"无音素"
+        // / 尚待合成）即断——没有谁的元音铺过它，下半区也就没有属于它的末线。
         bool ReachesPhonemeLane()
         {
             if (!Note.DisplayPhonemes.IsEmpty())
                 return true;
+
+            if (!Note.IsEffectiveContinuation())
+                return false;
 
             var cur = Note;
             while (true)
@@ -380,6 +384,9 @@ internal partial class PianoScrollView
 
                 if (!prev.DisplayPhonemes.IsEmpty())
                     return true;
+
+                if (!prev.IsEffectiveContinuation())
+                    return false;
 
                 cur = prev;
             }

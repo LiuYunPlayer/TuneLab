@@ -214,7 +214,8 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
     // sub-frame 错位被帧量化成整帧 Sil）。两条修正（老引擎无权重概念，宿主补足使布局像真人嗓）：
     //   ① **至少一个拍后音素**：若按中点判完全归引导（无主体），把**最后一个引导**挪进主体，保证有核可填满音符。
     //   ② **首个拍后音素 w=1**（弹性核、填满音符到满末）；其余音素 w=0（刚性、固定长）。
-    static PStruct.Map<string, VVoice.SynthesizedSyllable> BuildEcho(
+    // internal（非 private）：三态转达是本层对宿主显示门控的承诺，由 EmptyPhonemeEchoTests 直接钉。
+    internal static PStruct.Map<string, VVoice.SynthesizedSyllable> BuildEcho(
         LVoice.SynthesisResult result, IReadOnlyList<SnapshotNoteView> views)
     {
         var echo = new PStruct.Map<string, VVoice.SynthesizedSyllable>();
@@ -232,7 +233,14 @@ internal sealed class LegacySessionAdapter : VVoice.IVoiceSynthesisSession
             }
             int count = items.Count;
             if (count == 0)
+            {
+                // 老引擎**点了名、答案是"没有音素"**（老 SynthesizedPhonemes 字典里键在、值是空数组——如
+                // 老引擎对延音符 note 的处理）：如实转达成零音素音节，与"根本没提这个 note"（不写键 = 脏 /
+                // 合成中，宿主留白）区分开。丢掉这条会让一个明确空的 note 被当成待合成，把相邻 note 一起
+                // 拖进显示门控留白。老宿主同样分这两态（键不在 → 画 note 级占位格；值为空 → 该格什么都不画）。
+                echo.Add(view.Origin.Id, new VVoice.SynthesizedSyllable([], [], 0));
                 continue;
+            }
 
             int leadCount = 0;                                    // 中点 < note 头的连续前缀 = 引导
             for (int i = 0; i < count; i++)

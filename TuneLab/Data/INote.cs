@@ -105,12 +105,25 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         }
     }
 
-    // note 是否承载音素数据（钉死或合成）——布局意义上的"有几何可铺"。它不是乘客判据（乘客身份
-    // = IsEffectiveContinuation，插件判定的唯一通道、宿主照单全收），只用于显示门控终判
-    //（"非乘客邻居有没有数据可依"）。
+    // note 是否承载音素几何——布局意义上的"有几何可铺"，用于挑 3-note 布局窗口的内容邻居
+    //（零音素的 note 推挤不到任何人、入窗无意义）。它不是乘客判据（乘客身份 = IsEffectiveContinuation，
+    // 插件判定的唯一通道、宿主照单全收）。
     private static bool HasPhonemeContent(INote x)
     {
         return x.HasPinnedPhonemes || x.SynthesizedSyllable.PhonemeCount() > 0;
+    }
+
+    // 引擎对本 note 的音素**表没表态**——显示门控的终判。回显产物是三态（见
+    // IVoiceSynthesisSession.SynthesizedPhonemes）：
+    //   · 钉死                        → 用户数据即答案；
+    //   · 回填了音节（含零音素音节）  → 引擎点了名，答案可以是"这个 note 没有音素"（老引擎的延音符即此形态）；
+    //   · SynthesizedSyllable == null → 引擎根本没提这个 note = 该块脏 / 合成中，答案还没到。
+    // 前两态都让邻居的布局边界确定、可以照铺；只有第三态是真正的"未决"，才该让邻居一并留白等数据。
+    // 用"有没有几何"（HasPhonemeContent）当门控判据会把"明确无音素"误当"还没合成"，让一个空 note
+    // 连累相邻 note 一起留白。
+    private static bool HasPhonemeAnswer(INote x)
+    {
+        return x.HasPinnedPhonemes || x.SynthesizedSyllable != null;
     }
 
     // 本 note 钉死音素的核填充终点绝对秒（元音前向铺过乘客 melisma，不封顶、不压缩）：
@@ -203,9 +216,9 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         return p != null && HasPhonemeContent(p) ? p : null;
     }
 
-    // 显示门控判据（见 DisplayPhonemes）：某侧是否存在「相接、非乘客、却无音素内容」的邻居 → 本 note 布局未决。
+    // 显示门控判据（见 DisplayPhonemes）：某侧是否存在「相接、非乘客、且引擎尚未表态」的邻居 → 本 note 布局未决。
     // 向前/向后跨过相接的延音符乘客（透明，由本 note 元音铺过），落在中断点 note：
-    // 内容 note → 已决；不相接 / 末尾 → 无依赖；非乘客且无音素且相接 → 未决（邻居待合成，本 note 须等其音素）。
+    // 已表态（有几何 / 明确零音素）→ 已决；不相接 / 末尾 → 无依赖；非乘客且未表态且相接 → 未决（邻居待合成，本 note 须等其音素）。
     private bool NextNeighborUnresolved()
     {
         double fillEnd = this.EffectiveEndTime();   // 本 note 有效末（向前铺过乘客，同 ForwardFillEnd 口径）
@@ -217,7 +230,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
         }
         // 终判仍看相接：这是布局依赖的几何前提（不相接的邻居音素推挤不到本 note），非延音判定。
         // 严格比较无容差：边界同源于 tick 经确定性换算的秒，相接即精确相等（PhonemeLayout.Connected 同论证）。
-        return next != null && !HasPhonemeContent(next) && next.StartTime <= fillEnd;
+        return next != null && !HasPhonemeAnswer(next) && next.StartTime <= fillEnd;
     }
 
     private bool PrevNeighborUnresolved()
@@ -229,7 +242,7 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
             reachStart = prev.StartTime;
             prev = prev.Previous;
         }
-        return prev != null && !HasPhonemeContent(prev) && prev.EndTime >= reachStart;
+        return prev != null && !HasPhonemeAnswer(prev) && prev.EndTime >= reachStart;
     }
 
     // 3-note 窗口（前/后最近**有内容**邻居 + 本，含合成邻居）喂全局布局，返回本 note 与前内容邻居的解析边界

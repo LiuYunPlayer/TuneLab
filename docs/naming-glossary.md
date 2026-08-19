@@ -30,8 +30,9 @@
 | 引擎发布的只读音素 | `SynthesizedPhoneme` / `SynthesizedSyllable` | 合成音素 | — |
 | **上位概念**：引擎产物被显示出来这件事（涵盖音素 / 音高 / 参数三种） | —（无符号，勿造） | 回显 | 不得用"回显"指代 `SynthesizedParameter` 这一具体族 |
 | 合成机器类（会话 / 上下文 / 引擎 / 快照） | `VoiceSynthesis*` / `InstrumentSynthesis*` 中缀 | — | 见 `sdk-api-evolution.md` 的命名约定 |
+| 引擎对某 note 的音素**表没表态**（"没有音素"也是答案） | `HasPhonemeAnswer`（宿主数据层，显示门控判据） | 表态 | 别拿 `HasPhonemeContent` 当它用 |
 
-### 两条边界的说明
+### 三条边界的说明
 
 **`lock` vs `pin`**：数据层的动作一直叫 `LockPhonemes`，UI 叫"固定笔刷"，只有状态属性 `HasPinnedPhonemes`
 和早期脚本面用了 `pin`。脚本面是模型的操作台，同一范式在那里出现两个动词最伤，故统一到 `lock`
@@ -45,3 +46,11 @@
 
 中文保留"回显"仅因它是好用的**上位词**：音素留白→回显、音高回显、参数回显都说得通。真正指那族只读参数轨时
 写"合成参数轨"。
+
+**`HasPhonemeAnswer` vs `HasPhonemeContent`**（`INote`，刻意并存的两个近义判据，别互相替换）：
+`HasPhonemeContent` = **有没有音素几何**（钉死列表非空，或回填音节的音素数 > 0），用于挑 3-note 布局窗口的
+内容邻居——零音素的 note 推挤不到任何人，入窗无意义。`HasPhonemeAnswer` = **引擎表没表态**（钉死，或
+`SynthesizedSyllable != null`，哪怕它零音素），用于显示门控——引擎回了"这个 note 没有音素"就是终态答案，
+邻居的布局边界已确定、该照常显示；只有引擎**根本没提**这个 note（脏 / 合成中）才是真的未决、邻居才跟着留白。
+拿 `HasPhonemeContent` 当门控判据用，就会把"明确无音素"误判成"还没合成"，让一个空 note 连累相邻 note 一起
+消失（老引擎的延音符正是这个形态）。三态语义见 `IVoiceSynthesisSession.SynthesizedPhonemes` 的契约注释。

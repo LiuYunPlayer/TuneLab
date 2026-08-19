@@ -268,7 +268,10 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     }
 
     // 合成音素回填到 note（UI 音素显示消费面）：产物已按归属 note 的运行期 id 键，直拷到对应 note（免归组）。
-    // 键是 VoiceSynthesisNoteId（宿主发号）；按每 note 当前代理的 Id 反查落回宿主 note；未在产物中的 note 置空（留白）。
+    // 键是 VoiceSynthesisNoteId（宿主发号）；按每 note 当前代理的 Id 反查落回宿主 note。
+    // **键在与否即语义**（三态，见 IVoiceSynthesisSession.SynthesizedPhonemes）：键在 → 引擎已表态、原样落账
+    //（哪怕音节零音素——那是"这个 note 没有音素"这个明确答案，不是"还没合成"）；键不在 → 引擎没提这个
+    // note（脏 / 合成中）→ 置 null，显示门控据此留白。故此处**不得**再按音素数过滤，那会把前者折叠进后者。
     // 回显**如实落账、不做任何校验丢弃**：数据忠实存储，但显示是否读取由延音判定裁决（判定优先级
     // 最高——判定为延续的 note 其音素根本不被读取，违约回显即被忽略、兜底零成本）。回填对引擎世代
     // 零感知：legacy 适配器判定恒 false（老模型无乘客机制），其占位回显自然走普通内容显示。
@@ -280,7 +283,7 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
             foreach (var note in mPart.Notes)
             {
                 var proxy = mContext.ProxyOf(note);
-                if (proxy != null && map.TryGetValue(proxy.Id, out var syllable) && syllable.PhonemeCount() > 0)
+                if (proxy != null && map.TryGetValue(proxy.Id, out var syllable))
                     note.SynthesizedSyllable = syllable;
                 else
                     note.SynthesizedSyllable = null;
