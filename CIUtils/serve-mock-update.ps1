@@ -34,7 +34,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Write-Host "==> Packing installer $Version…" -ForegroundColor Cyan
 & (Join-Path $PSScriptRoot 'pack-installer.ps1') -Version $Version -Configuration $Configuration | Out-Host
 
-$installer = Join-Path $repoRoot "TuneLab.Setup\bin\installer\TuneLab-Setup-$Version-win-x64.exe"
+$installer = Join-Path $repoRoot "TuneLab.Setup\bin\installer\TuneLab-Setup-win-x64-v$Version.exe"
 if (-not (Test-Path $installer)) { throw "Installer not found: $installer" }
 $installerName  = Split-Path $installer -Leaf
 $installerBytes = [System.IO.File]::ReadAllBytes($installer)
