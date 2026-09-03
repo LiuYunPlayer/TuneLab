@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation;
 
-public class Command(Action redo, Action undo) : ICommand
+// 默认实现：一对 redo/undo 委托，两支都有动作。只需单支的用 UndoOnlyCommand / RedoOnlyCommand。
+public class DataCommand(Action redo, Action undo) : IDataCommand
 {
     public void Redo()
     {

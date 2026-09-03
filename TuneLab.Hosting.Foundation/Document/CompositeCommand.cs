@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation;
 
-internal class CompositeCommand : ICommand
+internal class CompositeCommand : IDataCommand
 {
-    public CompositeCommand(IReadOnlyList<ICommand> commands)
+    public CompositeCommand(IReadOnlyList<IDataCommand> commands)
     {
         foreach (var command in commands)
         {
@@ -32,5 +32,5 @@ internal class CompositeCommand : ICommand
         }
     }
 
-    List<ICommand> mCommands = new();
+    List<IDataCommand> mCommands = new();
 }

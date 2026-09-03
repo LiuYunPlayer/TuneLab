@@ -87,7 +87,7 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
 
     // undo/redo 按记录的前驱锚点精确复位（走 Reinsert），而非有序重插：复合撤销时元素排序键可能尚未回滚
     // （如"改键+重排"逆序回放，重排先于改键被撤），此刻只能按结构位置还原，否则会落到错误的有序槽位。
-    class InsertCommand(SortedDataLinkedList<T> dataLinkedList, T item, T? previous) : ICommand
+    class InsertCommand(SortedDataLinkedList<T> dataLinkedList, T item, T? previous) : IDataCommand
     {
         public void Redo()
         {
@@ -104,7 +104,7 @@ internal class SortedDataLinkedList<T> : DataObject, ISortedDataLinkedList<T> wh
         }
     }
 
-    class RemoveCommand(SortedDataLinkedList<T> dataLinkedList, T item, T? previous) : ICommand
+    class RemoveCommand(SortedDataLinkedList<T> dataLinkedList, T item, T? previous) : IDataCommand
     {
         public void Redo()
         {

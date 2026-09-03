@@ -137,7 +137,7 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         return value;
     }
 
-    class AddCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue value) : ICommand
+    class AddCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue value) : IDataCommand
     {
         public void Redo()
         {
@@ -154,7 +154,7 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         }
     }
 
-    class RemoveCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue value) : ICommand
+    class RemoveCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue value) : IDataCommand
     {
         public void Redo()
         {
@@ -171,7 +171,7 @@ public class DataMap<TKey, TValue>(IDataObject? parent = null) : DataObject(pare
         }
     }
 
-    class ModifiedCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue before, TValue after) : ICommand
+    class ModifiedCommand(DataMap<TKey, TValue> dataMap, TKey key, TValue before, TValue after) : IDataCommand
     {
         public void Redo()
         {

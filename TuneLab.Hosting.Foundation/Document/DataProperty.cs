@@ -50,7 +50,7 @@ public abstract class DataProperty<T>(DataObject? parent = null) : DataObject(pa
         Notify();
     }
 
-    class ModifyCommand(DataProperty<T> property, T before, T after) : ICommand
+    class ModifyCommand(DataProperty<T> property, T before, T after) : IDataCommand
     {
         public void Redo() => property.SetValueAndNotify(after);
         public void Undo() => property.SetValueAndNotify(before);

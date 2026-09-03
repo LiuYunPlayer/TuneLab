@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation;
 
-public class RedoOnlyCommand(Action redo) : ICommand
+public class RedoOnlyCommand(Action redo) : IDataCommand
 {
     public void Redo()
     {

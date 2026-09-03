@@ -105,7 +105,7 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
         AddRange(items);
     }
 
-    class InsertCommand(DataList<T> dataList, int index, T item) : ICommand
+    class InsertCommand(DataList<T> dataList, int index, T item) : IDataCommand
     {
         public void Redo()
         {
@@ -122,7 +122,7 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
         }
     }
 
-    class RemoveCommand(DataList<T> dataList, int index, T item) : ICommand
+    class RemoveCommand(DataList<T> dataList, int index, T item) : IDataCommand
     {
         public void Redo()
         {
@@ -139,7 +139,7 @@ public class DataList<T>(IDataObject? parent = null) : DataObject(parent), IData
         }
     }
 
-    class ReplaceCommand(DataList<T> dataList, int index, T before, T after) : ICommand
+    class ReplaceCommand(DataList<T> dataList, int index, T before, T after) : IDataCommand
     {
         public void Redo()
         {

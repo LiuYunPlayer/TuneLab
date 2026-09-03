@@ -146,7 +146,7 @@ internal class SoundSource : DataObject, ISoundSource
         mID = info.Id;
     }
 
-    class ModifyCommand(SoundSource source, SoundSourceInfo before, SoundSourceInfo after) : ICommand
+    class ModifyCommand(SoundSource source, SoundSourceInfo before, SoundSourceInfo after) : IDataCommand
     {
         public void Redo() { source.WriteInfo(after); source.Notify(); }
         public void Undo() { source.WriteInfo(before); source.Notify(); }

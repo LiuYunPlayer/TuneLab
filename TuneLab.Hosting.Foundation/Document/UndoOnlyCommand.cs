@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TuneLab.Foundation;
 
-public class UndoOnlyCommand(Action undo) : ICommand
+public class UndoOnlyCommand(Action undo) : IDataCommand
 {
     public void Redo()
     {

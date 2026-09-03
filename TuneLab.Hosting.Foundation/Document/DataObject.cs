@@ -44,9 +44,9 @@ public abstract class DataObject : IDataObject
     public void BeginMergeNotify() => PushAndDo(new BeginMergeNotifyCommand(this));
     public void EndMergeNotify() => PushAndDo(new EndMergeNotifyCommand(this));
 
-    protected virtual void Push(ICommand command) => mParent?.Push(command);
+    protected virtual void Push(IDataCommand command) => mParent?.Push(command);
 
-    protected void PushAndDo(ICommand command)
+    protected void PushAndDo(IDataCommand command)
     {
         command.Redo();
         Push(command);
@@ -149,13 +149,13 @@ public abstract class DataObject : IDataObject
         mParent?.NotifySettledUp();
     }
 
-    class BeginMergeNotifyCommand(DataObject dataObject) : ICommand
+    class BeginMergeNotifyCommand(DataObject dataObject) : IDataCommand
     {
         public void Redo() => dataObject.ChangeNotifyFlag(1);
         public void Undo() => dataObject.CloseMergeScope();
     }
 
-    class EndMergeNotifyCommand(DataObject dataObject) : ICommand
+    class EndMergeNotifyCommand(DataObject dataObject) : IDataCommand
     {
         public void Redo() => dataObject.CloseMergeScope();
         public void Undo() => dataObject.ChangeNotifyFlag(1);

@@ -121,13 +121,13 @@ public class DataDocument : DataObject
         return true;
     }
 
-    protected override void Push(ICommand command)
+    protected override void Push(IDataCommand command)
     {
         mUncommitedCommands.Add(command);
         StatusChanged?.Invoke();
     }
 
-    readonly Stack<ICommand> mCommitedCommands = new();
-    readonly Stack<ICommand> mRedoCommands = new();
-    readonly List<ICommand> mUncommitedCommands = new();
+    readonly Stack<IDataCommand> mCommitedCommands = new();
+    readonly Stack<IDataCommand> mRedoCommands = new();
+    readonly List<IDataCommand> mUncommitedCommands = new();
 }

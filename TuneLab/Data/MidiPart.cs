@@ -560,13 +560,13 @@ internal class MidiPart : Part, IMidiPart
     // 留下开启者才能在日志里直接点名（见 BatchSignal 的诊断面）。
     public void BeginMergeDirty([CallerFilePath] string? file = null, [CallerLineNumber] int line = 0, [CallerMemberName] string? member = null)
     {
-        PushAndDo(new Command(() => mSynthesisBatch.Begin(file, line, member), mSynthesisBatch.End));
+        PushAndDo(new DataCommand(() => mSynthesisBatch.Begin(file, line, member), mSynthesisBatch.End));
     }
 
     // 撤销这一步 = 重新开括号，故逆动作同样带调用点（撤销重放时括号也要能追溯到出处）。
     public void EndMergeDirty([CallerFilePath] string? file = null, [CallerLineNumber] int line = 0, [CallerMemberName] string? member = null)
     {
-        PushAndDo(new Command(mSynthesisBatch.End, () => mSynthesisBatch.Begin(file, line, member)));
+        PushAndDo(new DataCommand(mSynthesisBatch.End, () => mSynthesisBatch.Begin(file, line, member)));
     }
 
     public override void Activate()
