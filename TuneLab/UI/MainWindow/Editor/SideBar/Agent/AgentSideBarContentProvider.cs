@@ -141,8 +141,8 @@ internal sealed class AgentSideBarContentProvider
                 // 扩展启停：把某个包（或包内某个能力）关掉但不卸载。与路由是两根轴——路由在多个实现里挑一个，
                 // 启停决定某份实现要不要参与加载（对没有竞争者的独苗同样适用）。读面在 list_extensions。
                 new SetExtensionEnabledTool(RequestScriptAuthorizationAsync),
-                // 扩展自己的设置（设置窗「扩展」页）：读 schema+当前值 / 改一格。密钥字段只报有无、禁读禁写。
-                new ListExtensionSettingsTool(),
+                // 扩展自己的设置（设置窗「扩展」页）：改一格（读面已搬成命令 `extension settings`）。
+                // 密钥字段只报有无、禁读禁写。
                 new SetExtensionSettingTool(RequestScriptAuthorizationAsync),
                 // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
                 // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。

@@ -25,6 +25,7 @@ internal static class CommandRegistry
         new EffectListCommand(),
         new ExtensionRoutingCommand(),
         new ExtensionIntroductionCommand(),
+        new ExtensionSettingsCommand(),
     };
 
     public static bool TryGet(string path, out ICommand command)

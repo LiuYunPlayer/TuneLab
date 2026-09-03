@@ -140,6 +140,15 @@ internal readonly record struct CommandError(string Code, string Message, JsonNo
 **唯一例外是 error message**：错误的上下文太杂，模板化会丢信息，handler 直接组合 `Message` 字符串。
 现有工具里那些精心调过的引导语（例如 set_setting 那句"no setting with key … Call list_settings to
 see the exact keys"）原样保留——它们本来就是给模型看的、实测调过的。
+`Message` 本身**不带 `"Error: "` 前缀**：前缀由入口加（agent 入口加，CLI 打 stderr 时不该冗余）。
+共用的查找/校验助手同样只给裸 message，故仍留在 agent 侧的那半条命令自己补前缀。
+
+**什么算失败**：判据是"这次调用还有没有产物"，不是"有没有坏事发生"。调用方的用法错误（未知 id、
+缺参、写法歧义）→ `Error`；环境的坏消息（某个引擎加载不上、手册没随包、结果超量被截断）→ 仍走
+**成功路径**，把它作为事实标进 `Data`、由 `Render` 如实说出——否则 agent 侧会凭空多出一个
+`"Error: "` 前缀，等于改了行为。同一件坏事在两种模式下会落到两边：`extension settings` 列清单时
+某个扩展声明设置抛错，那是清单里的一格局部事实（其余条目照常列出）→ 成功 + 逐条标注；而单问
+那一个扩展时同样的抛错让整条命令没有产物 → `Error`（CLI 也该为此非零退出）。
 
 ### 3.3 上下文
 
