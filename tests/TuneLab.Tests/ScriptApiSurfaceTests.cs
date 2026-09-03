@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using TuneLab.Data;
@@ -19,10 +19,11 @@ public class ScriptApiSurfaceTests
 {
     // 建 MidiPart 就会构造 SoundSource，而它要向 VoicesManager 求声明 config —— 那条路以「空引擎」兜底
     // （`GetInitedEngine(string.Empty)!`），空引擎又只在内建加载时注册。无 UI 的测试进程里没人加载过，
-    // 故这里补上；幂等（RegisterEngine 同 id 重注册无副作用），静态构造里跑一次即可。
+    // 故这里补上。经共享 helper 而非直接 LoadBuiltIn：重复注册本身无副作用，但注册表并发写不安全，
+    // 而 xUnit 并行跑多个 test class（见 TestVoices）。
     static ScriptApiSurfaceTests()
     {
-        TuneLab.Extensions.Voices.VoicesManager.LoadBuiltIn();
+        TestVoices.EnsureBuiltIn();
     }
 
     // 跑一段脚本，返回 (输出, 结果文本)；断言它没出错。
