@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Agent;
+using TuneLab.Commands;
 using TuneLab.Configs;
 using TuneLab.Data;
 using TuneLab.Extensions;
@@ -107,10 +108,13 @@ internal sealed class AgentSideBarContentProvider
             Func<string?> lang = () => TranslationManager.CurrentLanguage.Value;
             // run_script 与 run_saved_script 共用同一写执行器（授权闸门 / 预览 / 收口）——单一动作面 SSOT。
             var writeExecutor = new ScriptWriteExecutor(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider, RequestScriptAuthorizationAsync);
-            mTools = new List<IAgentTool>
+            var tools = new List<IAgentTool>();
+            // 已搬进命令面的：从注册表合成——末端动作只有一份，内置 agent / CLI / MCP / headless 共用
+            // （见 docs/command-surface.md）。搬家逐条进行：注册表加一条、下面的手写列表删一条。
+            tools.AddRange(CommandRegistry.All.Select(c => new CommandTool(c, CurrentCommandContext)));
+            tools.AddRange(new IAgentTool[]
             {
-                // 操作工程：定向（看） + 脚本（改/算/细读）
-                new GetProjectOverviewTool(project),
+                // 操作工程：定向（看）已搬成命令 `project status`；脚本（改/算/细读）仍在此
                 new RunScriptTool(writeExecutor),
                 new GetScriptApiTool(),
                 // 导出 = importTracks 的对偶。不改工程状态（故不进 tl 面，同 save/delete_script 循例），但写用户磁盘上
@@ -156,7 +160,8 @@ internal sealed class AgentSideBarContentProvider
                 // 用户手册（随包、与软件同版本）：回答「怎么操作 / 在哪儿」时的依据。按需取节，不常驻 prompt。
                 // 与 list_settings / list_keybindings 分工：那两个报此刻这台机器上的值，手册讲功能本身怎么用。
                 new GetManualTool(),
-            };
+            });
+            mTools = tools;
         }
         else
         {
@@ -171,6 +176,14 @@ internal sealed class AgentSideBarContentProvider
             c.Runner = null;
         }
     }
+
+    // 命令面的执行环境。取【访问器】而非快照：命令实例无状态、注册表是静态的，工程/语言切换无须重建工具。
+    // 成员随搬家按需增长——搬 edit 命令时加授权策略、搬脚本类命令时加编辑器态（见 docs/command-surface.md §5）。
+    CommandContext CurrentCommandContext() => new()
+    {
+        Project = mProject,
+        Language = () => TranslationManager.CurrentLanguage.Value,
+    };
 
     // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。
     public void SetCurrentPartProvider(Func<IMidiPart?> provider) => mCurrentPartProvider = provider;
