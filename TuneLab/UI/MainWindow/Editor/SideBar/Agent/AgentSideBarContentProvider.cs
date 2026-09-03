@@ -138,7 +138,6 @@ internal sealed class AgentSideBarContentProvider
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
                 new SetSettingTool(RequestScriptAuthorizationAsync),
                 // 快捷键（D 支柱）：查/改绑/冲突。改绑同样过闸门；与 save_script 合起来闭环"写个功能 + 绑个键"。
-                new ListKeybindingsTool(),
                 new SetKeybindingTool(RequestScriptAuthorizationAsync),
                 // 扩展路由：主要用于排障（「我的插件怎么不生效」→ 其实是身份被别的包顶替了），改选同样过闸门。
                 new ListExtensionRoutingTool(),

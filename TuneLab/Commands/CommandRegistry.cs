@@ -20,6 +20,7 @@ internal static class CommandRegistry
         new DocsScriptApiCommand(),
         new DocsManualCommand(),
         new SettingListCommand(),
+        new KeybindingListCommand(),
     };
 
     public static bool TryGet(string path, out ICommand command)

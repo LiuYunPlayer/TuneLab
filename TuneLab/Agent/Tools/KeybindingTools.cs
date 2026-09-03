@@ -12,81 +12,12 @@ using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 
-// 快捷键能力（D 支柱 / 诉求 1 的最后一环）。两件工具直接读写宿主的 Keymap——命令表、生效手势、冲突判定、
-// 落盘广播都在那里，这里不复制任何一份判据：
-//  · list_keybindings 只读枚举（含手势语法说明 + 冲突标注，让 agent 能【教用户自己改】）；
-//  · set_keybinding   改一条绑定（绑/解绑/恢复默认），过 ToolAuthorization 闸门。
+// 快捷键能力的【写】那一半，尚未搬进命令面（读那一半已是 `keybinding list`，见
+// TuneLab/Commands/Handlers/KeybindingCommands.cs）。直接读写宿主的 Keymap——命令表、生效手势、
+// 冲突判定、落盘广播都在那里，这里不复制任何一份判据；手势的文本口径来自共享的 KeybindingText。
+//
 // 与脚本库闭环：save_script 存下的工具脚本会注册成命令 id `script:<稳定 id>`（由脚本目录监视器同步，见
 // ScriptToolMenu.SyncKeyCommands），故「帮我写个功能并绑个快捷键」现在能一路做完。
-
-// 列出全部可绑定命令：id / 本地化名 / 作用域 / 生效手势（存储令牌 + 显示形）/ 是默认还是用户改过 / 同域冲突。
-internal sealed class ListKeybindingsTool : IAgentTool
-{
-    public string Name => "list_keybindings";
-
-    public string Description =>
-        "List TuneLab's bindable commands and their keyboard shortcuts: command id, label, area (scope), the effective gesture, whether it is the default or the user's own override, and any conflict. " +
-        "Use it to answer \"what is the shortcut for X\" / \"how do I rebind X\" (the Settings window's Keybindings page has a search box — point the user at it), to find a free gesture before set_keybinding, and to check whether a gesture is already taken. " +
-        "Scripts saved with save_script appear here as command id \"script:<id>\", so a saved script can be given a shortcut. Read-only.";
-
-    public string ParametersJsonSchema => """
-        {
-          "type": "object",
-          "properties": {
-            "query": { "type": "string", "description": "Optional filter: matches the command id or its label (same as the Keybindings page's search box)." }
-          },
-          "additionalProperties": false
-        }
-        """;
-
-    public async Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
-    {
-        string? query;
-        try { using var doc = JsonDocument.Parse(argumentsJson); query = doc.RootElement.GetStringOrNull("query"); }
-        catch (Exception ex) { return "Error: invalid arguments — " + ex.Message; }
-
-        // 命令的 DisplayName 是取译文的闭包、且脚本命令的注册随菜单/监视器在 UI 线程发生 → 整段在 UI 线程读，取一致快照。
-        return await Dispatcher.UIThread.InvokeAsync(() => Describe(query));
-    }
-
-    static string Describe(string? query)
-    {
-        var all = Keymap.Commands.OrderBy(c => Keymap.OrderOf(c.Id)).ToList();
-        if (all.Count == 0)
-            return "No bindable commands are registered yet.";
-
-        query = (query ?? "").Trim();
-        var shown = query.Length == 0
-            ? all
-            : all.Where(c => c.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
-                          || c.DisplayName().Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToList();
-
-        var sb = new StringBuilder();
-        sb.Append(all.Count).Append(" bindable command(s)");
-        if (query.Length != 0)
-            sb.Append(", ").Append(shown.Count).Append(" matching \"").Append(query).Append('"');
-        sb.Append(". Change one with set_keybinding(id, gesture).");
-        sb.Append("\nThe user changes these themselves in the Settings window's Keybindings page (it has a search box and a per-row reset).");
-        sb.Append('\n').Append(KeybindingText.GestureSyntax);
-        sb.Append("\nAreas (scopes): Global (anywhere), Editor, TrackWindow (arrangement), PianoWindow (piano roll). ")
-          .Append("The SAME gesture in DIFFERENT areas is not a conflict — both stay bound and the focused area wins. Two commands in the SAME area is a conflict (only one fires).");
-        sb.Append("\nFormat: <id> \"<label>\" [area]: <gesture token> (<as shown to the user>)");
-
-        if (shown.Count == 0)
-            sb.Append("\n(no command matches — try a shorter query, or call without one)");
-        foreach (var cmd in shown)
-        {
-            sb.Append("\n- ").Append(cmd.Id).Append(" \"").Append(cmd.DisplayName()).Append("\" [").Append(cmd.Scope).Append("]: ");
-            var effective = Keymap.Effective(cmd.Id);
-            sb.Append(effective is { } g ? KeybindingText.Gesture(g) : "(unbound)");
-            sb.Append(Keymap.HasOverride(cmd.Id)
-                ? ", changed by the user (default " + (cmd.DefaultGesture is { } d ? KeybindingText.Gesture(d) : "none") + ")"
-                : cmd.DefaultGesture == null ? ", no default" : ", default");
-            KeybindingText.AppendConflicts(sb, cmd.Id, "\n    ");
-        }
-        return sb.ToString();
-    }
-}
 
 // 改一条绑定：绑手势 / 解绑（gesture="" ）/ 恢复默认（reset=true）。改用户的应用配置 → 过 ToolAuthorization 闸门。
 // 同域冲突默认【拒绝】，要 replaceConflict:true 才夺键（并解除原命令的绑定）——与设置页录制时"已被占用，是否改绑"
@@ -259,49 +190,3 @@ internal sealed class SetKeybindingTool(Func<AgentAuthorizationRequest, Cancella
 }
 
 // 快捷键的文本化 + 跨域/冲突查询。两工具共用，判据全来自 Keymap / KeyCodec。
-internal static class KeybindingText
-{
-    // 喂模型的手势语法（存储令牌口径，与 KeyCodec 的表一致；出错时也回灌这段让模型自纠）。
-    public const string GestureSyntax =
-        "Gesture syntax: optional modifiers \"ctrl+\" \"alt+\" \"shift+\" \"cmd+\" (in that order; \"mod+\" = Ctrl on Windows/Linux, Cmd on macOS) followed by ONE key token — " +
-        "a-z, 0-9, f1-f24, up/down/left/right, space, enter, tab, esc, backspace, delete, insert, home, end, pageup, pagedown, " +
-        "minus, equal, comma, period, slash, backquote, bracketleft, bracketright, backslash, semicolon, quote, num0-num9, numadd, numsubtract, nummultiply, numdivide, numdecimal. " +
-        "Example: \"ctrl+shift+p\".";
-
-    // "<存储令牌> (<用户看到的字形>)"：前者供模型再喂回来，后者供 agent 对用户复述。
-    public static string Gesture(KeyBinding binding)
-    {
-        var token = KeyCodec.Serialize(binding);
-        var display = KeyCodec.ToDisplay(binding);
-        return token == null ? display : token + " (" + display + ")";
-    }
-
-    public static string LabelOf(string id) => Keymap.TryGet(id, out var cmd) ? cmd.DisplayName() : id;
-
-    // 同域同手势的其它命令（真冲突，只有一个生效：注册序最小者胜，内建恒胜）。
-    public static void AppendConflicts(StringBuilder sb, string id, string prefix)
-    {
-        var peers = Keymap.SameScopeConflictPeers(id);
-        if (peers.Count == 0)
-            return;
-        sb.Append(prefix).Append("CONFLICT: the same area also binds this gesture to ")
-          .Append(string.Join(", ", peers.Select(p => "\"" + LabelOf(p) + "\" (" + p + ")")))
-          .Append(" — only one of them fires (the built-in / earliest registered wins). Rebind one of them to fix it.");
-    }
-
-    // 同手势但不同作用域的其它命令：跨域共用、非冲突（内层遮蔽外层，按焦点解析）。
-    public static IReadOnlyList<KeyCommand> OtherScopeUsers(string id, KeyBinding binding)
-    {
-        if (!Keymap.TryGet(id, out var self))
-            return [];
-        var list = new List<KeyCommand>();
-        foreach (var cmd in Keymap.Commands)
-        {
-            if (cmd.Id == id || cmd.Scope == self.Scope)
-                continue;
-            if (Keymap.Effective(cmd.Id) is { } g && g.Equals(binding))
-                list.Add(cmd);
-        }
-        return list;
-    }
-}
