@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
+using TuneLab.Commands.Handlers;
 
 namespace TuneLab.Agent;
 
@@ -118,9 +119,9 @@ internal static class ExtensionSummaryFiller
         try
         {
             // 与 agent 自己能看到的正文同一口径（含超长时的截断标记）——绝不用更少的信息去总结。
-            if (text.Length > GetExtensionIntroductionTool.MaxIntroductionChars)
-                text = text.Substring(0, GetExtensionIntroductionTool.MaxIntroductionChars)
-                     + "\n\n… (introduction truncated; " + (text.Length - GetExtensionIntroductionTool.MaxIntroductionChars) + " more characters)";
+            if (text.Length > ExtensionIntroductionCommand.MaxIntroductionChars)
+                text = text.Substring(0, ExtensionIntroductionCommand.MaxIntroductionChars)
+                     + "\n\n… (introduction truncated; " + (text.Length - ExtensionIntroductionCommand.MaxIntroductionChars) + " more characters)";
 
             var reply = await summarize(BuildMessages(text), cancellationToken);
             var summary = Extract(reply);

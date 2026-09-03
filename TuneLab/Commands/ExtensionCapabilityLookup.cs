@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using TuneLab.Extensions;
 
-namespace TuneLab.Agent;
+namespace TuneLab.Commands;
 
 // 「一句话定位某个能力位」的共用查找：agent 侧多个工具都要把模型给的一个串落到具体的
 // (包, manifest 条目) 上，而它们认的写法必须**完全一致**——那是对模型的契约，一处多认一种写法、
@@ -66,5 +66,5 @@ internal static class ExtensionCapabilityLookup
     }
 
     public static string NotFoundError(string query)
-        => "Error: no installed capability matches \"" + query + "\". Call list_extensions to see what each package provides.";
+        => "no installed capability matches \"" + query + "\". Call list_extensions to see what each package provides.";
 }

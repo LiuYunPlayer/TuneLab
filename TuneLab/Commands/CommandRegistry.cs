@@ -23,6 +23,8 @@ internal static class CommandRegistry
         new KeybindingListCommand(),
         new SoundSourceListCommand(),
         new EffectListCommand(),
+        new ExtensionRoutingCommand(),
+        new ExtensionIntroductionCommand(),
     };
 
     public static bool TryGet(string path, out ICommand command)

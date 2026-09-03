@@ -131,14 +131,12 @@ internal sealed class AgentSideBarContentProvider
                 // 逐能力位的一句话摘要由宿主在返回前补齐（短文档直接用作者原话，长文档才发一次旁路请求、
                 // 按内容哈希缓存），故不额外开工具；要作者全文仍走 get_extension_introduction。
                 new ListExtensionsTool(SendSideRequestAsync),
-                new GetExtensionIntroductionTool(),
                 // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
                 new SetSettingTool(RequestScriptAuthorizationAsync),
                 // 快捷键（D 支柱）：查/改绑/冲突。改绑同样过闸门；与 save_script 合起来闭环"写个功能 + 绑个键"。
                 new SetKeybindingTool(RequestScriptAuthorizationAsync),
                 // 扩展路由：主要用于排障（「我的插件怎么不生效」→ 其实是身份被别的包顶替了），改选同样过闸门。
-                new ListExtensionRoutingTool(),
                 new SetExtensionRoutingTool(RequestScriptAuthorizationAsync),
                 // 扩展启停：把某个包（或包内某个能力）关掉但不卸载。与路由是两根轴——路由在多个实现里挑一个，
                 // 启停决定某份实现要不要参与加载（对没有竞争者的独苗同样适用）。读面在 list_extensions。
