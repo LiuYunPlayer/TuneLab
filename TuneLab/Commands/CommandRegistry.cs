@@ -21,6 +21,8 @@ internal static class CommandRegistry
         new DocsManualCommand(),
         new SettingListCommand(),
         new KeybindingListCommand(),
+        new SoundSourceListCommand(),
+        new EffectListCommand(),
     };
 
     public static bool TryGet(string path, out ICommand command)

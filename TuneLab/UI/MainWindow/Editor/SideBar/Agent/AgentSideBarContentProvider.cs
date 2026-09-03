@@ -132,8 +132,6 @@ internal sealed class AgentSideBarContentProvider
                 // 按内容哈希缓存），故不额外开工具；要作者全文仍走 get_extension_introduction。
                 new ListExtensionsTool(SendSideRequestAsync),
                 new GetExtensionIntroductionTool(),
-                new ListSoundSourcesTool(),
-                new ListEffectsTool(),
                 // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
                 new SetSettingTool(RequestScriptAuthorizationAsync),

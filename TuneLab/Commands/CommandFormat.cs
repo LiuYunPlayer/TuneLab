@@ -237,59 +237,97 @@ internal static class SchemaText
     }
 }
 
-// 引擎目录列表：把某类引擎（voice / instrument / effect）的身份 id / 显示名 / 提供包列成文本。三类的注册表
-// API 同型（GetAll*Engines / GetDisplayName / GetProviders），故列表格式收在一处。不触发 Init（只读注册表）。
+// 引擎目录：把某类引擎（voice / instrument / effect）的身份 id / 显示名 / 提供包收成结构化清单，并按同一
+// 格式渲染成文本。三类的注册表 API 同型（GetAll*Engines / GetDisplayName / GetProviders），故收在一处。
+// 不触发 Init（只读注册表）。
+//
+// 分成 Collect（取事实）+ AppendEngineList（渲染）两半：引擎的身份、生效包、被顶替的包都是【事实字段】，
+// CI 与 --json 的消费者要枚举和断言的正是它们；渲染只从这些字段拼，故文本与结构化结果不会漂移。
 internal static class EngineCatalog
 {
-    // 追加 "<Kind> engines (N):" + 逐条 "\"显示名\" [type=<id>, package=<包>]"。空引擎 type=""（voice/instrument 的
-    // 无音源回退）跳过；effect 无空引擎、该步为 no-op。
-    // 多包提供同一 type 时【必须点明谁在生效】——否则 agent 只看到 "multiple: a, b"，判不出用户那个包是不是被顶替，
-    // 排障会给出"装好了、应该能用"的误导结论。routeKind = 路由身份的 kind（"voice"/"instrument"/"effect"），
+    // 逐引擎的目录信息。空引擎 type=""（voice/instrument 的无音源回退）跳过；effect 无空引擎、该步为 no-op。
+    // 多包提供同一 type 时【必须点明谁在生效】——否则调用方只看到"有多个提供者"，判不出用户那个包是不是被
+    // 顶替，排障会给出"装好了、应该能用"的误导结论。routeKind = 路由身份的 kind（"voice"/"instrument"/"effect"），
     // 与 ExtensionRouting.RouteKey 同一口径（活实现的解析规则也直接复用它，不另立判据）。
-    public static void AppendEngineList(StringBuilder sb, string kindLabel, string routeKind, IReadOnlyList<string> engines, Func<string, string> displayName, Func<string, IReadOnlyList<(string PackageId, string DisplayName)>> providers)
+    public static JsonArray Collect(string routeKind, IReadOnlyList<string> engines, Func<string, string> displayName, Func<string, IReadOnlyList<(string PackageId, string DisplayName)>> providers)
     {
-        var real = new List<string>();
-        foreach (var t in engines)
-            if (!string.IsNullOrEmpty(t))
-                real.Add(t);
-
-        if (sb.Length > 0) sb.Append('\n');
-        sb.Append(kindLabel).Append(" engines (").Append(real.Count).Append("):");
-        if (real.Count == 0)
-            sb.Append("\n  (none)");
-        foreach (var type in real)
+        var array = new JsonArray();
+        foreach (var type in engines)
         {
+            if (string.IsNullOrEmpty(type))
+                continue;
+
             var pkgs = providers(type);
-            string pkgLabel;
-            string? activePackageId = null;   // 生效实现所属包——摘要要取【它】那份（见下）
+            string? activePackageId = null;   // 生效实现所属包——包自述要取【它】那份（见下）
+            string activePackage;
+            var shadowed = new JsonArray();
+
             if (pkgs.Count == 0)
-                pkgLabel = "unknown";
+                activePackage = "unknown";
             else if (pkgs.Count == 1)
             {
                 activePackageId = pkgs[0].PackageId;
-                pkgLabel = ExtensionManager.GetPackageName(activePackageId);
+                activePackage = ExtensionManager.GetPackageName(activePackageId);
             }
             else
             {
-                // 冲突身份：按用户选择 / 确定性默认解析出活实现，如实标出被顶替者（排障要的就是这一句）。
+                // 冲突身份：按用户选择 / 确定性默认解析出活实现，如实记下被顶替者（排障要的就是这个）。
                 var ids = new List<string>();
                 foreach (var p in pkgs)
                     ids.Add(p.PackageId);
-                var active = ExtensionRouting.ResolveActivePackageId(ExtensionRouting.RouteKey(routeKind, type), ids);
-                activePackageId = active;
-                var shadowed = new List<string>();
+                activePackageId = ExtensionRouting.ResolveActivePackageId(ExtensionRouting.RouteKey(routeKind, type), ids);
+                activePackage = ExtensionManager.GetPackageName(activePackageId ?? "");
                 foreach (var p in pkgs)
-                    if (p.PackageId != active)
+                    if (p.PackageId != activePackageId)
                         shadowed.Add(ExtensionManager.GetPackageName(p.PackageId));
-                pkgLabel = string.Format("{0} (ACTIVE) — shadowed: {1}; routing conflict, see list_extension_routing",
-                    ExtensionManager.GetPackageName(active ?? ""), string.Join(", ", shadowed));
             }
-            sb.Append("\n- \"").Append(displayName(type)).Append("\" [type=").Append(type).Append(", package=").Append(pkgLabel).Append("]");
 
-            // 这个引擎本身没有一句话摘要可给——摘要要由你从它的 introduction 自行提炼（call
+            var packageDescription = ExtensionManager.GetPackageDescription(activePackageId);
+            array.Add(new JsonObject
+            {
+                ["type"] = type,
+                ["displayName"] = displayName(type),
+                ["activePackage"] = activePackage,
+                ["activePackageId"] = activePackageId,
+                ["shadowed"] = shadowed,   // 非空 = 路由冲突，这些包提供同一身份但被顶替
+                ["packageDescription"] = string.IsNullOrWhiteSpace(packageDescription) ? null : packageDescription,
+            });
+        }
+        return array;
+    }
+
+    // 追加 "<Kind> engines (N):" + 逐条 "\"显示名\" [type=<id>, package=<包>]"。
+    public static void AppendEngineList(StringBuilder sb, string kindLabel, JsonArray engines)
+    {
+        if (sb.Length > 0) sb.Append('\n');
+        sb.Append(kindLabel).Append(" engines (").Append(engines.Count).Append("):");
+        if (engines.Count == 0)
+            sb.Append("\n  (none)");
+
+        foreach (var node in engines)
+        {
+            var engine = node!.AsObject();
+            var shadowed = engine["shadowed"]!.AsArray();
+            var activePackage = engine["activePackage"]!.GetValue<string>();
+
+            string pkgLabel = activePackage;
+            if (shadowed.Count > 0)
+            {
+                var names = new List<string>();
+                foreach (var s in shadowed)
+                    names.Add(s!.GetValue<string>());
+                pkgLabel = string.Format("{0} (ACTIVE) — shadowed: {1}; routing conflict, see list_extension_routing",
+                    activePackage, string.Join(", ", names));
+            }
+
+            sb.Append("\n- \"").Append(engine["displayName"]!.GetValue<string>())
+              .Append("\" [type=").Append(engine["type"]!.GetValue<string>())
+              .Append(", package=").Append(pkgLabel).Append("]");
+
+            // 这个引擎本身没有一句话摘要可给——摘要要由调用方从它的 introduction 自行提炼（call
             // get_extension_introduction）。这里退一步给出【所属包的自述】并明确标注它是降级参考：
             // 那句话讲的是整个包（可能还涵盖包里别的能力），不等于这个引擎的描述，别当成它的能力转述给用户。
-            var packageDescription = ExtensionManager.GetPackageDescription(activePackageId);
+            var packageDescription = engine["packageDescription"]?.GetValue<string>();
             if (!string.IsNullOrWhiteSpace(packageDescription))
                 sb.Append("\n    (no summary of its own; its package describes itself as \"")
                   .Append(packageDescription)
