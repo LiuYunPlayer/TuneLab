@@ -136,7 +136,6 @@ internal sealed class AgentSideBarContentProvider
                 new ListEffectsTool(),
                 // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
-                new ListSettingsTool(),
                 new SetSettingTool(RequestScriptAuthorizationAsync),
                 // 快捷键（D 支柱）：查/改绑/冲突。改绑同样过闸门；与 save_script 合起来闭环"写个功能 + 绑个键"。
                 new ListKeybindingsTool(),
@@ -179,6 +178,7 @@ internal sealed class AgentSideBarContentProvider
     {
         Project = mProject,
         Language = () => TranslationManager.CurrentLanguage.Value,
+        MainThread = UiThreadDispatcher.Instance,
     };
 
     // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。

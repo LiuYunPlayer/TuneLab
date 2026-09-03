@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
-namespace TuneLab.Agent;
+namespace TuneLab.Commands;
 
 // 环境感知只读工具共用的文本化助手：把 SDK 的 config 家族 + 引擎目录转成回灌模型的可读文本。
 // 收在一处，让音源(SoundSourceInfoTools) / 插件 / effect(EffectInfoTools) / 脚本入参(SavedScriptSupport)
@@ -70,6 +71,34 @@ internal static class ConfigText
         => d == Math.Floor(d) && !double.IsInfinity(d)
             ? ((long)d).ToString(CultureInfo.InvariantCulture)
             : d.ToString(CultureInfo.InvariantCulture);
+
+    // 结构化结果里的标量 → 同一套字面量口径。命令的 Data 存【原始值】（number/bool/string，那才是
+    // --json 消费者要的），渲染时经这里化回文本，故文本形态只有上面那一处定义、不会与 Data 漂移。
+    public static string FormatValue(JsonNode? node) => FormatValue(ToPropertyValue(node));
+
+    // PropertyValue → 结构化结果里的原始标量（与 ToPropertyValue 对偶；判型顺序与 FormatValue 一致）。
+    public static JsonNode? ToJson(PropertyValue v)
+    {
+        if (v.IsNull()) return null;
+        if (v.ToBoolean(out var b)) return b;
+        if (v.ToDouble(out var d)) return d;
+        if (v.ToString(out var s)) return s;
+        return null;
+    }
+
+    public static PropertyValue ToPropertyValue(JsonNode? node) => node?.GetValueKind() switch
+    {
+        JsonValueKind.True => PropertyValue.Create(true),
+        JsonValueKind.False => PropertyValue.Create(false),
+        // 经 ToJsonString 走一遍而不是 GetValue<double>()：JsonValue 保留装进去的那个 CLR 类型，
+        // 入口给的数字可能是 int / long / decimal / JsonElement，直接要 double 会抛
+        // InvalidOperationException（"a value of type Int32 cannot be converted to Double"）。
+        JsonValueKind.Number => double.TryParse(node.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+            ? PropertyValue.Create(d)
+            : default,
+        JsonValueKind.String => PropertyValue.Create(node.GetValue<string>()),
+        _ => default,   // 缺失 / JSON null → 空值，渲染成 "(none)"
+    };
 }
 
 // 模型给的标量实参（JSON）与 PropertyValue 之间的口径统一：一律先化成【无引号字面量】再比对/报错。

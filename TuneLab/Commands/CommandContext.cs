@@ -18,4 +18,8 @@ internal sealed class CommandContext
 
     // 界面语言（本地化标签、给用户看的措辞按它取）。实时读取而非快照——用户随时可改。
     public Func<string?> Language { get; init; } = () => null;
+
+    // 把活儿送上宿主主线程的调度器（数据层改动、引擎/字体枚举都要求在那儿跑）。入口注入：
+    // 有界面的进程给 UiThreadDispatcher，headless 给泵驱动的等价物。null = 就地执行（无 UI 的测试进程）。
+    public IMainThreadDispatcher? MainThread { get; init; }
 }

@@ -19,6 +19,7 @@ internal static class CommandRegistry
         new ProjectStatusCommand(),
         new DocsScriptApiCommand(),
         new DocsManualCommand(),
+        new SettingListCommand(),
     };
 
     public static bool TryGet(string path, out ICommand command)
