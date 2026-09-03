@@ -116,7 +116,6 @@ internal sealed class AgentSideBarContentProvider
             {
                 // 操作工程：定向（看）已搬成命令 `project status`；脚本（改/算/细读）仍在此
                 new RunScriptTool(writeExecutor),
-                new GetScriptApiTool(),
                 // 导出 = importTracks 的对偶。不改工程状态（故不进 tl 面，同 save/delete_script 循例），但写用户磁盘上
                 // 任意路径 → 恒过授权闸门。只做工程/MIDI 等格式文件，音频导出是用户的人在环决定、不给 agent。
                 new ExportProjectTool(project, RequestScriptAuthorizationAsync),
@@ -157,9 +156,6 @@ internal sealed class AgentSideBarContentProvider
                 // 问用户：在【本轮之内】等到答案再继续，免得把任务切成两轮、丢掉已有进展。不改工程状态、
                 // 纯为 agent 自身决策服务，故归工具面（也因为等卡片必须 async，脚本同步跑在 UI 线程会自死锁）。
                 new AskUserQuestionTool(RequestUserAnswerAsync),
-                // 用户手册（随包、与软件同版本）：回答「怎么操作 / 在哪儿」时的依据。按需取节，不常驻 prompt。
-                // 与 list_settings / list_keybindings 分工：那两个报此刻这台机器上的值，手册讲功能本身怎么用。
-                new GetManualTool(),
             });
             mTools = tools;
         }

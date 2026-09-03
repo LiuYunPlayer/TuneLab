@@ -178,6 +178,12 @@ internal sealed class CommandContext
 `list_settings` / `list_keybindings` / `list_sound_sources` / `list_effects` / `list_extension_*`
 的 `Data` 是数组，字段就是现在文本里那些列。
 
+**一处例外：文档类命令（`docs *`）的 `Data` 以文本为主。** 它们的产物本来就是文本——把 markdown
+章节拆成 JSON 不增加任何信息，反而要在 `Render` 里复制一份格式化逻辑、与 `ManualLibrary.BuildToc()`
+漂移。故 `Data` 给 `{ text, 元数据 }`（语言、是否 fallback 版、mode、命中与否），只有手册检索的命中
+列表结构化——它的源头 `ManualLibrary.Search` 本就是三元组。判据是"这个产物的事实形态是什么"，
+不是"read 命令一律拆成字段"。
+
 ### 4.2 write 命令的 Data 只回"改了什么"
 
 不需要为 `set_setting` 设计丰满的结构，`{key, oldValue, newValue}` 这一小组就够 CI 断言。
