@@ -2,15 +2,16 @@ using System;
 using System.Globalization;
 using System.Text.Json;
 
-namespace TuneLab.Agent;
+namespace TuneLab.Commands;
 
-// agent 工具解析模型给出的参数 JSON 的小助手：把"取必需/可选字段"收成一处，缺字段时抛带字段名的清晰错误
-// （会被 AgentRunner 转成给模型的错误文本，供其自行纠正）。
+// 命令解析入口给的参数 JSON 的小助手：把"取必需/可选字段"收成一处，缺字段时抛带字段名的清晰错误
+// （agent 入口把它转成给模型的错误文本供其自纠；CLI 打 stderr；MCP 放进 isError 结果）。
 //
 // 容错：不少模型/endpoint 会把数字写成 JSON 字符串（"1"）、把整数写成小数（1.0）、或给可选字段塞 null。
-// 故这里对 number/string 互转、整数四舍五入、null/空串当缺省做强制兼容——配合工具 schema 把数字字段放宽为
+// 故这里对 number/string 互转、整数四舍五入、null/空串当缺省做强制兼容——配合命令 schema 把数字字段放宽为
 // 接受 string、可选字段接受 null（endpoint 的严格校验才放行），两端合起来让弱模型也能稳定调用。
-internal static class ToolJson
+// 这些容错对 CLI（flag 全是字符串）同样有用，故住在命令面而非 agent 层。
+internal static class CommandJson
 {
     public static JsonElement Require(this JsonElement obj, string name)
     {

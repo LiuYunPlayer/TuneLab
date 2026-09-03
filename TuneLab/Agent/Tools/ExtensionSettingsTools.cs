@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using TuneLab.Extensions;
 using TuneLab.Foundation;
 using TuneLab.SDK;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

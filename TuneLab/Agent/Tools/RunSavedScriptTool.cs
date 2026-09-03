@@ -11,6 +11,7 @@ using TuneLab.Foundation;
 using TuneLab.Scripting;
 using TuneLab.SDK;
 using TuneLab.Utils;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

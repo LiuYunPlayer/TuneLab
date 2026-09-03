@@ -6,9 +6,9 @@ namespace TuneLab.Commands;
 // 一次命令调用的参数：入口把 JSON 原样交进来（agent 给模型产的 arguments、CLI 把 flag 拼成对象、
 // MCP 给 arguments 字段），handler 从这里取字段。
 //
-// 取字段的容错（数字/字符串互转、整数四舍五入、null 当缺省）目前住在 TuneLab/Agent/Tools/ToolJson.cs，
-// 那些容错是为「弱模型也能稳定调用」加的、对 CLI/MCP 同样有用；搬第一条带参数的命令时把它移到本命名空间
-// （方向才对：命令面不该依赖 agent 层）。`project status` 无参数，故此步不动它。
+// 取字段用 CommandJson 的扩展方法（`args.Json.GetStringOrNull("section")`）：数字/字符串互转、
+// 整数四舍五入、null/空串当缺省等容错都在那里。那些容错原本是为「弱模型也能稳定调用」加的，
+// 对 CLI（flag 全是字符串）同样有用，故与本类同住命令面。
 internal readonly record struct CommandArgs(JsonElement Json)
 {
     static readonly JsonElement EmptyObject = JsonDocument.Parse("{}").RootElement.Clone();

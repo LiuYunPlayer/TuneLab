@@ -8,6 +8,7 @@ using TuneLab.Audio;
 using TuneLab.Data;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Formats.TLP;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

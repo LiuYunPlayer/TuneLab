@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Data;
 using TuneLab.Scripting;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

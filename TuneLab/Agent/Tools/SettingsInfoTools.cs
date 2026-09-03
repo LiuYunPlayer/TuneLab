@@ -12,6 +12,7 @@ using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.I18N;
 using TuneLab.SDK;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

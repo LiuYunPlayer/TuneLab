@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using TuneLab.GUI.Input;
 using TuneLab.Input;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

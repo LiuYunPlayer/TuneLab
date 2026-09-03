@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using TuneLab.Extensions;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

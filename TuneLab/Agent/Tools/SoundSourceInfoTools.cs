@@ -10,6 +10,7 @@ using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
 using TuneLab.Foundation;
 using TuneLab.SDK;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

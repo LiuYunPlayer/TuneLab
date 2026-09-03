@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using TuneLab.Extensions.Effect;
 using TuneLab.Foundation;
 using TuneLab.SDK;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 

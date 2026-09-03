@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Extensions;
+using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 
