@@ -39,18 +39,25 @@ namespace TuneLab.Headless;
 // TuneLab，两个进程会各写各的同一份配置。
 internal static class HeadlessHost
 {
-    // 拆场景的时限。超了就撇下那条（后台）线程收工——见下面 Run 里的理由。
-    const int TeardownGraceMs = 5000;
+    // 拆场景久久不完时，隔这么久在 stderr 上点一句。**这不是时限**——什么都不会被放弃，
+    // 只是不让进程静默地停在那儿。
+    const int TeardownNoticeMs = 5000;
 
     // 起一个无头宿主，把 body 跑完再拆掉。body 拿到的 CommandContext 只在那条专用线程上有效，
     // 故 body 自己也跑在那条线程上（它的 await 续体由驱动循环泵回来）。
     public static T Run<T>(HeadlessOptions options, Func<CommandContext, Task<T>> body)
     {
-        var outcome = new Outcome<T>();
+        T result = default!;
+        Exception? error = null;
+        // body 跑完、正要开始拆场景时置位。只为把"body 慢"与"拆场景卡住"分开——不然那句提示会
+        // 冤枉一次正常的长合成。
+        using var bodyDone = new ManualResetEventSlim(false);
+
         var thread = new Thread(() =>
         {
-            try { RunOnThread(options, body, outcome); }
-            catch (Exception ex) { outcome.Error = ex; outcome.Ready.Set(); }
+            try { result = RunOnThread(options, body, bodyDone); }
+            catch (Exception ex) { error = ex; }
+            finally { bodyDone.Set(); }   // 幂等；RunOnThread 没走到它那句时（装载工程就抛了）由这里兜住
         })
         {
             IsBackground = true,
@@ -58,26 +65,26 @@ internal static class HeadlessHost
         };
         thread.Start();
 
-        // 【结果一出来就算跑完，拆场景只等一小会儿】结果早已产出，而拆场景要跑第三方插件的 Destroy——
-        // 那是别人的代码，可以永远不返回：实测某 legacy voice 引擎的 Init 起了一个对本机后端的请求，
-        // 后端没起时它永不完成，而它的 Destroy() 又阻塞等 Init 完成，一个引擎就把整个进程扣住了。
-        // 无人值守的跑批挂死是最坏的结果（CI 里表现为一个永远不结束的 job），故给它一个上限，
-        // 超时就记一笔、撇下那条后台线程收工（进程退出时它随之消失）。
-        outcome.Ready.Wait();
-        if (!thread.Join(TeardownGraceMs))
+        // 【不给插件的 Destroy 设时限】收尾跑的是第三方代码，而合理的收尾本来就可能很慢（刷缓存、
+        // 等子进程干净退出）。宿主无从分辨"慢"与"卡"，切断反而会坏在插件自己的数据上，且那种损坏是
+        // 静默的——比挂住更糟。故一直等。
+        // 能做也该做的是【让卡住这件事可见】：等久了在 stderr 上点一句，至于卡在谁身上，
+        // VoicesManager/InstrumentsManager 的 Destroy 会逐引擎写进日志。
+        bodyDone.Wait();
+        if (!thread.Join(TeardownNoticeMs))
         {
-            Log.Warning("Headless teardown did not finish in time; leaving it behind. Some extension's Destroy() is stuck.");
-            options.Report?.Invoke("an extension did not shut down in time; exiting anyway.");
-            Log.Shutdown();   // 幂等：正常收尾时 Teardown 已经调过
+            options.Report?.Invoke("an extension is taking a long time to shut down; still waiting for it. "
+                + "The log says which one (" + PathManager.LogFilePath + ").");
+            thread.Join();
         }
 
         // 原样抛回调用方（保留类型与消息）：装载工程失败之类的事该由入口决定怎么报，不在这里翻译。
-        if (outcome.Error != null)
-            throw outcome.Error;
-        return outcome.Result;
+        if (error != null)
+            throw error;
+        return result;
     }
 
-    static void RunOnThread<T>(HeadlessOptions options, Func<CommandContext, Task<T>> body, Outcome<T> outcome)
+    static T RunOnThread<T>(HeadlessOptions options, Func<CommandContext, Task<T>> body, ManualResetEventSlim bodyDone)
     {
         var pump = new PumpableSynchronizationContext();
         SynchronizationContext.SetSynchronizationContext(pump);
@@ -126,18 +133,12 @@ internal static class HeadlessHost
                 pump.WaitForWork(TimeSpan.FromMilliseconds(20));
             }
             pump.DrainAll();
-            outcome.Result = task.GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            // 【必须在 finally 置位 Ready 之前记下】否则调用方可能拿着一个空结果先走，而异常还没写进信箱。
-            outcome.Error = ex;
+            return task.GetAwaiter().GetResult();
         }
         finally
         {
             HostCommandContext.Provider = null;
-            // 结果（或异常）已经定了，先放调用方走，再拆场景——拆不动时它不必陪着挂着。
-            outcome.Ready.Set();
+            bodyDone.Set();   // 从这里起再慢就是拆场景慢，不是 body 慢
             Teardown(document, pump);
         }
     }
@@ -209,14 +210,6 @@ internal static class HeadlessHost
 
         Log.Shutdown();
     }
-}
-
-// 一趟 headless 的结果信箱。结果与"拆完了没有"是两件事，故分开：Ready 一置位调用方就能收工。
-internal sealed class Outcome<T>
-{
-    public T Result = default!;
-    public Exception? Error;
-    public readonly ManualResetEventSlim Ready = new(false);
 }
 
 // 起一个无头宿主要交代的三件事。

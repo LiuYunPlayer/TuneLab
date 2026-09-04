@@ -16,12 +16,23 @@ internal static class VoicesManager
         RegisterEngine(ExtensionManager.BuiltInPackageId, string.Empty, string.Empty, new EmptyVoiceSynthesisEngine());
     }
 
+    // 【逐引擎点名再调】Destroy 是插件代码，宿主不给它设时限（合理的收尾也可能很慢，而切断会坏在
+    // 插件自己的数据上）。代价是它卡住时进程就停在这儿——那就必须先把"正在等谁"写下来，否则那是一次
+    // 无从下手的静默挂起。实测确有引擎的 Destroy 阻塞等一个永不完成的 Init，只有这行日志能指认它。
+    // 抛错也逐个接住：一个引擎收不了尾，不该带走其余引擎的收尾（应用退出时这条尤其要紧）。
     public static void Destroy()
     {
-        foreach (var list in mVoiceEngines.Values)
-            foreach (var engine in list)
-                if (engine.IsInited)
-                    engine.Engine.Destroy();
+        foreach (var type in mVoiceEngines.Keys)
+        {
+            foreach (var engine in mVoiceEngines[type])
+            {
+                if (!engine.IsInited)
+                    continue;
+                Log.Info(string.Format("Destroying voice engine [{0}] from package [{1}]...", type, engine.PackageId));
+                try { engine.Engine.Destroy(); }
+                catch (Exception ex) { Log.ErrorAttributed(string.Format("Voice engine [{0}] failed to destroy", type), ex); }
+            }
+        }
     }
 
     // 由 ExtensionManager（V1 manifest 驱动）实例化后、或 Compat.Legacy（经 LegacyLoadHook → LegacyCompatLoader）
