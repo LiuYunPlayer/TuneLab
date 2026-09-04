@@ -30,7 +30,9 @@ internal sealed class EffectListCommand : ICommand
     public string Documentation =>
         "List the audio effect engines installed in TuneLab. WITHOUT `engine`: lists the effect engines (their type id, display name, providing package). " +
         "WITH `engine`=<type id>: lists that engine's parameters — static properties and automation tracks — each with its type, range and default. " +
-        "Read-only, for recommending or explaining effects. (Effects are exposed by plugins; there are no built-in effect engines. Reading/editing a part's effect chain is not yet scriptable.)";
+        "Read-only, for recommending or explaining effects. (Effects are exposed by plugins; there are no built-in effect engines. " +
+        "A part's own effect chain is read and edited in run_script: part.effects() / part.addEffect({type}) / part.removeEffect(e), " +
+        "and each effect's parameters with effect.setProperty / effect.setAutomation. Call get_script_api for the exact signatures.)";
 
     public string ParametersJsonSchema => """
         {

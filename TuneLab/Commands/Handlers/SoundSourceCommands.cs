@@ -35,7 +35,8 @@ internal sealed class SoundSourceListCommand : ICommand
         "(type id, display name, providing package). WITH `engine`=<type id>: lists that engine's individual SOURCES (each source's id, name, description). " +
         "WITH `engine` AND `source`=<source id>: lists that source's PARAMETERS (part/note/automation/phoneme, each with type, range and default). " +
         "Optional `kind`='voice'|'instrument' filters engine listing. Read-only — use to recommend/identify sources and understand their parameters. " +
-        "(The source the current part uses is read via run_script: part.soundSource(). Changing a source or its parameters is not yet scriptable.)";
+        "(Acting on any of this happens in run_script: read a part's source with part.soundSource(), switch it with part.setSoundSource({kind, type, id}) using the type/id listed here, " +
+        "and set the parameters listed here with part.setProperty / note.setProperty / part.setAutomation. Call get_script_api for the exact signatures.)";
 
     public string ParametersJsonSchema => """
         {
@@ -281,8 +282,9 @@ internal sealed class SoundSourceListCommand : ICommand
                 sb.Append(obj["schemaText"]!.GetValue<string>());
                 if (obj["parameterCount"]!.GetValue<int>() == 0)
                     sb.Append("\nThis source exposes no custom parameters (at default values).");
-                // 静态枚举固有上限：条件化 schema 只呈现默认分支；改这些参数目前也不可脚本化。
-                sb.Append("\n(Schema is at default values; some engines reveal more parameters once specific values are set. Editing these is not yet scriptable.)");
+                // 静态枚举的固有上限：条件化 schema 只呈现默认分支（够不着的那部分要靠沙箱造真场景才现形）。
+                sb.Append("\n(Schema is at default values; some engines reveal more parameters once specific values are set — run_in_sandbox can build a real scene to see the rest. " +
+                    "Set these with setProperty / setAutomation in run_script.)");
                 return sb.ToString();
             }
         }

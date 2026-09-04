@@ -196,8 +196,8 @@ public class SourceAndEffectListCommandTests
             "Parameters for voice source \"女中音\" (alto) in engine \"声库引擎\" (type=v1.voice):",
             "Part properties (1):",
             "- tension: number in [0, 1]. default 0.5",
-            "(Schema is at default values; some engines reveal more parameters once specific values are set."
-                + " Editing these is not yet scriptable.)",
+            "(Schema is at default values; some engines reveal more parameters once specific values are set"
+                + " — run_in_sandbox can build a real scene to see the rest. Set these with setProperty / setAutomation in run_script.)",
         ]), text);
     }
 
