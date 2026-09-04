@@ -1,7 +1,7 @@
 # 命令面 —— 一份末端动作，多个入口（设计）
 
 > **目标形状**：TuneLab 的每个可被外部驱动的动作只实现一次（"末端动作"），
-> 上面接多个入口——内置 agent、CLI、MCP server、CI 里的无界面进程——都调同一份。
+> 上面接多个入口——内置 agent、CLI、MCP server、CI 里的无头进程——都调同一份。
 >
 > 本文承接 [agent-tools.md](agent-tools.md)（现有 26 个工具及其归属判据）与
 > [script-inputs-and-action-surface.md](script-inputs-and-action-surface.md)（统一动作面 / 分级授权）。
@@ -363,21 +363,82 @@ headless = **不开窗口、不建音频设备，但插件加载了、工程在�
 
 复用已有的两处机制：
 
-- 启动：`Program.InitCoreServices()` + `ConfigureAppCommon(AppBuilder.Configure<App>().UseHeadless(...))`
-  —— ScreenshotBot 走的就是这条路，与真实启动同一份初始化，因此"headless 下的行为"和用户看到的一致。
+- 启动：`Program.InitCoreServices()` —— 与真实启动同一份初始化（配置/翻译/路由/启停/键位/插件上下文），
+  因此"headless 下的行为"和用户看到的一致。
 - 合成：`PumpableSynchronizationContext` + 驱动循环 —— 沙箱已证明非 UI 线程上泵 SyncContext、
   真引擎 Init/CreateSession/合成、读回真实音素全部成立。
 
 headless 特有的三件事：
 
 1. **没有编辑器态**（§5.2）——依赖它的命令必须显式传参。
-2. **没人点卡片**（§5.1）——授权必须显式给，缺则拒绝 Edit。
+2. **没人点卡片**（§5.1）——授权必须显式给。策略为 null 时一条 Edit 都不做（且说清是"没配授权"）；
+   CLI 走的是另一条同样诚实的路：声明 confirm 但 `canAsk=false`，于是命令回报"需要确认但这里没法问"（§8.2）。
 3. **数据目录应当可隔离**——CI 里跑要用 `TUNELAB_DATA_DIR` 指向临时沙盒，
    否则会读写开发机/CI 机上真实的用户数据目录（设置、插件、脚本库全在那儿）。
    ScreenshotBot 已经这么做了，直接沿用。
 
 **唯一真正的新工程量**：headless 不加载 UI 层任何东西，但有些 handler 需要 `Dispatcher.UIThread`
 （`ScriptWriteExecutor` 就是），headless 下要给它一个可泵的等价物。其余都是既有机制的拼装。
+
+### 8.1 已落地（`TuneLab/Headless/HeadlessHost.cs`）
+
+一条专用线程装上可泵的 `SynchronizationContext`，在它上面依次：`InitCoreServices()` →
+`AudioUtils.Init(codec)`（**解码器不是播放设备**，音频 part 要靠它读 wav/mp3）→ `LegacyCompatLoader.Wire()`
+→ `ExtensionManager.LoadExtensions()` → 音源引擎急切 `Init`（须早于挂工程，否则 part 一 Activate 就回落到
+空会话且无回建路径）→ 建 `ProjectDocument` 并挂工程 → 组出 `CommandContext`（`EditorState` / `SideModel`
+为 null，`MainThread` = `PumpDispatcher`）→ 装上 `HostCommandContext.Provider` → 跑调用方给的 body，
+其 await 续体由驱动循环泵回来。收尾换一个空工程触发 Detach/Dispose，短暂续泵让在飞的销毁落地。
+
+**反转了原计划里的"起 Avalonia headless 平台"**：那条路（ScreenshotBot 走的）会把 Skia / 字体 / 平台
+一整套拉起来，只为一个我们并不需要的窗口系统。实地核对的结果是不必：`UI/` 与 `GUI/` 之外全仓库只有
+`UiThreadDispatcher` 碰 `Dispatcher.UIThread`（那正是 §5 抽掉的那一样），扩展管理器与音源管理器零 Avalonia
+依赖，`AudioEngine` 里数据层真正用到的（`SampleRate`、`AudioGraph.AddTrack`）都是静态量、不 `Init()` 也成立。
+故只装真正需要的那几样。留下的风险是某个第三方插件在 `Init` 里碰 Avalonia——真撞上时升级只动这一个文件。
+
+**工程从哪来**：`--project <file>` 给了就照"打开"那条路装载（`DeserializeNative` + native 元数据），
+没给就新建空工程。刻意**不补轨道颜色**（编辑器打开时会补一个呈现层默认色）——headless 不呈现，
+补了反而会把呈现层的默认写进随后导出的文件里。
+
+**`ExtensionManager.LaunchPendingUninstalls()` 刻意不跑**：那是给用户装卸扩展收尾的，
+无人值守的进程不该替他执行。
+
+**日志不回声到控制台**（`FileLogger` 加了 `echoToConsole`）：这个进程的 stdout 属于命令结果，
+`--json` 的输出必须能直接喂给解析器。
+
+**legacy 兼容层要单独搬一次**：主程序把 `TuneLab.Hosting.Compat.Legacy.dll` 散拷进自己的输出目录
+（不是 `Content`），故不会随 `ProjectReference` 流到 `TuneLab.Cli`。不补这一步，同一台机器同一个数据目录下，
+命令行看到的扩展面会与应用不同——那种差异排查起来极难。
+
+### 8.2 CLI 的 headless 与批量
+
+- `tunelab --headless <group> <verb> …` 单条；`tunelab [--headless] --commands <file|->` 一串。
+- **批量是同一个进程、同一个工程**：后一条看得见前一条的编辑。一条一进程做不到这件事
+  （进程一退工程就没了），而"开工程 → 跑脚本改 → 导出 → 断言"正是 CI 要的形状。
+- 首条失败即止并非零退出：让后面的命令在一个已经不对的状态上接着跑，只会把"哪一步坏了"埋掉。
+- 回声（`$ project status`）打 stderr、结果打 stdout，故 `--json` 时 stdout 仍是一串干净的 JSON。
+- 一行的切词：空白分隔、双引号成组、组内 `""` 表示一个字面双引号。**不用反斜杠转义**——这些行里
+  最常出现的就是 Windows 路径。
+- 数据目录仍是 `PathManager.TuneLabFolder`；CI 用 `TUNELAB_DATA_DIR` 隔离。
+
+**顺带修掉的两处②期的话不算数**（都属于"入口说了假话"，不是新功能）：
+
+1. **`canAsk`**（execute 的新参数，布尔，缺省 true）。声明 `confirm` 说的是"要问"，`canAsk` 说的才是
+   "问得着"——非交互的 shell 里两者不同。缺了它，命令会把"根本没法问"说成"用户拒绝了"，而当时并没有
+   任何用户被问过。补上后走的是早就写好的 `cannot_ask` 那支（"Confirmation is required … but no UI is
+   available to ask"）。CLI 另在 stderr 上先说一次，免得 CI 里的人以为写生效了。
+2. **`[a] always` 现在真的不再问**。裁决切档"由策略实现方自己完成"，而桥那侧的策略只活一次调用——
+   记住这件事的只能是客户端：`AuthorizationState` 一旦被抬到 auto，此后每次 execute 都声明 auto。
+   单条命令时这件事看不出来（进程随即退出），批量时才露馅。
+
+### 8.3 CI 用例：`tests/headless/smoke.ps1`
+
+`pwsh tests/headless/smoke.ps1`。临时 `TUNELAB_DATA_DIR` 沙盒 + stdin 一律重定向到空文件
+（那正是 CI 里的样子，也让它在开发机的交互终端里跑出同样的结果、不会停在确认提示上）。
+八组断言：离线 help / 无授权时读照跑写不落地且**说清是问不着而非被拒** / 给了 `--yes` 整串跑通且后一条
+看得见前一条 / 装载刚导出的工程 / `--json` 的 stdout 干净可解析 / 命令失败退 1 / 用法错退 2 /
+工程打不开时一条命令都不跑。
+
+（暂不新增跑它的 workflow——本仓目前没有任何跑测试的 CI，那是另一个决定。）
 
 ---
 
@@ -404,6 +465,7 @@ headless 特有的三件事：
 `CommandRegistry`，不连宿主）；参数按该命令的 schema 逐个校验并转型，认不出的参数名报用法错而不是
 静默忽略；`--json` 打 `Data`、默认打渲染文本；`--yes` / `--dry-run` / 默认 stdin 交互确认；
 退出码 0/1/2/3 如约。连不上时区分"桥没开"与"宿主已退出但凭据文件还在"——两者的下一步不同。
+`--headless`（§8.1）与 `--commands`（§8.2）也已落地：同一份解析、同一份授权语义，只是命令送去的地方不同。
 
 **程序集名不能叫 `tunelab`**：它会与被引用的 `TuneLab.dll` 在同一输出目录里同名（Windows 不区分
 大小写）而互相覆盖。命令名 `tunelab` 是安装期的事——装包时给 `TuneLab.Cli.exe` 落一个 `tunelab`
@@ -437,6 +499,7 @@ headless 特有的三件事：
 | **②** | 管道 bridge + 凭据文件 + 设置开关 + CLI（全部 read 命令 + 少数 edit） | 开发者能从终端驱动运行中的 TuneLab |
 | | **已完成**：桥与 CLI 都在（见 §7 / §9.2 的落地小节）。命令不分 read/edit 地全部可用——闸门按连接声明的档位走，故 edit 不需要另开名单 | |
 | **③** | headless + CI 用例 | CI 里无人值守跑一串命令并断言 |
+| | **已完成**：`HeadlessHost` + CLI 的 `--headless` / `--project` / `--commands` + `tests/headless/smoke.ps1`（见 §8.1–8.3）。反转了"起 Avalonia headless 平台"的原计划，理由记在 §8.1 | |
 | **④** | MCP server 壳 | 外部客户端连上，用已有订阅额度驱动 |
 
 ①是大头且用户不可见；②开始有实感。**不建议把①②合并推进**——①的验证靠"内置 agent 行为不变"，

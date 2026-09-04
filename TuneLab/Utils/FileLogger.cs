@@ -11,8 +11,11 @@ namespace TuneLab.Utils;
 // 关停（Dispose）时排空队列 + 末次刷盘，避免丢日志；进程退出 / 崩溃 / 硬杀早退由 Program 调 Log.Shutdown() 兜底。
 internal class FileLogger : ILogSink, IDisposable
 {
-    public FileLogger(string path)
+    // echoToConsole：默认回声到控制台（从终端起的桌面进程靠它看日志）。无头宿主要关掉——
+    // 那个进程的 stdout 是【命令结果】，日志混进去会把 --json 的输出弄成非法 JSON。
+    public FileLogger(string path, bool echoToConsole = true)
     {
+        mEchoToConsole = echoToConsole;
         PathManager.MakeSureExist(Path.GetDirectoryName(path)!);
         mStreamWriter = new StreamWriter(path) { AutoFlush = false };
         mWorker = new Thread(ProcessQueue) { IsBackground = true, Name = "FileLogger" };
@@ -34,7 +37,8 @@ internal class FileLogger : ILogSink, IDisposable
             foreach (var message in mQueue.GetConsumingEnumerable())
             {
                 System.Diagnostics.Debug.WriteLine(message);
-                Console.WriteLine(message);
+                if (mEchoToConsole)
+                    Console.WriteLine(message);
                 mStreamWriter.WriteLine(message);
                 // 队列排空即刷盘（稀疏日志逐行落盘）；持续突发时也至少每 FlushIntervalMs 刷一次——
                 // 把「硬崩溃丢失未刷盘日志」的窗口限制在该间隔内，同时避免突发逐行刷盘拖垮后台。
@@ -67,6 +71,7 @@ internal class FileLogger : ILogSink, IDisposable
     }
 
     const int FlushIntervalMs = 50;
+    readonly bool mEchoToConsole;
     int mShutdown;
     readonly StreamWriter mStreamWriter;
     readonly BlockingCollection<string> mQueue = new(new ConcurrentQueue<string>());

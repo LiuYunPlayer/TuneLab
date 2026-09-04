@@ -19,7 +19,7 @@ internal enum CommandKind
 // 一条【末端动作】：路径 + 参数 schema + 文档 + handler。
 //
 // 它不含任何入口特有的东西——不知道模型、不知道终端、不知道 UI。环境一律经 CommandContext 注入，
-// 因此同一条命令可以被内置 agent、CLI、MCP server、CI 里的无界面进程调用（见 docs/command-surface.md）。
+// 因此同一条命令可以被内置 agent、CLI、MCP server、CI 里的无头进程调用（见 docs/command-surface.md）。
 //
 // 实现无状态：工程与环境都从 ctx 走，故注册表可以是静态的、不随工程切换重建。
 internal interface ICommand

@@ -145,7 +145,8 @@ internal sealed class BridgeSession(Stream stream, string token)
         //  · 没有旁路模型——模型在用户的 agent 会话里，替外部调用方花它的额度是不该做的事（§5.3 的降级由命令自己处理）。
         var ctx = HostCommandContext.Current with
         {
-            Authorization = new BridgeAuthorizationPolicy(parameters["authorization"]?.GetValue<string>(), this),
+            Authorization = new BridgeAuthorizationPolicy(
+                parameters["authorization"]?.GetValue<string>(), parameters["canAsk"]?.GetValue<bool>() ?? true, this),
             SideModel = null,
         };
 
@@ -219,9 +220,12 @@ internal sealed class BridgeSession(Stream stream, string token)
 
 // 这次调用的授权档位由客户端声明：`--yes` 全放开 / 默认交互确认 / `--dry-run` 等价只读建议
 // （docs/command-surface.md §5.1）。流程与措辞不在这里——它们在命令面，故 CLI 与侧栏说的是同一套话。
-internal sealed class BridgeAuthorizationPolicy(string? declared, BridgeSession session) : IAuthorizationPolicy
+internal sealed class BridgeAuthorizationPolicy(string? declared, bool canAsk, BridgeSession session) : IAuthorizationPolicy
 {
     // 缺省按最保守的一档：没说清就当"要问"。客户端若没打算答，那次 Edit 会如实回报"没法问"而不是悄悄做掉。
+    //
+    // 【档位切换不在这里】ApplyAlways 意味着"此后不再问"，而这个策略只活一次调用——记住这件事的是
+    // 客户端：它每次 execute 都重新声明档位，被抬到 auto 之后就一直声明 auto。
     public AuthorizationMode Mode => declared switch
     {
         BridgeProtocol.AuthAuto => AuthorizationMode.Auto,
@@ -229,8 +233,8 @@ internal sealed class BridgeAuthorizationPolicy(string? declared, BridgeSession 
         _ => AuthorizationMode.Confirm,
     };
 
-    // 声明了 confirm 就意味着客户端会答那个请求（CLI 用 stdin 问用户）。
-    public bool CanAsk => Mode == AuthorizationMode.Confirm;
+    // 声明了 confirm 就意味着客户端【想】问；canAsk 说明它此刻【问得着】（非交互的 shell 里问不着）。
+    public bool CanAsk => canAsk && Mode == AuthorizationMode.Confirm;
 
     public Task<AuthorizationDecision> AskAsync(AuthorizationRequest request, CancellationToken cancellationToken)
         => session.AskAsync(request, cancellationToken);

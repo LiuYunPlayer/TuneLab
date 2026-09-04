@@ -31,6 +31,7 @@
 | **上位概念**：引擎产物被显示出来这件事（涵盖音素 / 音高 / 参数三种） | —（无符号，勿造） | 回显 | 不得用"回显"指代 `SynthesizedParameter` 这一具体族 |
 | 合成机器类（会话 / 上下文 / 引擎 / 快照） | `VoiceSynthesis*` / `InstrumentSynthesis*` 中缀 | — | 见 `sdk-api-evolution.md` 的命名约定 |
 | 引擎对某 note 的音素**表没表态**（"没有音素"也是答案） | `HasPhonemeAnswer`（宿主数据层，显示门控判据） | 表态 | 别拿 `HasPhonemeContent` 当它用 |
+| 不开窗口、只跑宿主逻辑的进程 / 工程 | `headless`（`HeadlessHost` / CLI 的 `--headless` / 探测沙箱的可丢弃工程） | 无头 | 「无界面」「无窗口」（`TuneLab.Setup` 的"无界面安装"是另一回事——静默安装，不在此列） |
 
 ### 三条边界的说明
 

@@ -34,6 +34,9 @@ internal static class BridgeProtocol
     public const string MethodAuthorizationConfirm = "authorization/confirm";
 
     // 这次连接的授权档位（客户端在每次 execute 里声明；缺省按最保守的 confirm 处理）。
+    // 与档位并列的还有 execute 参数 "canAsk"（布尔，缺省 true）：声明了 confirm 就说明"要问"，
+    // canAsk 才说明"问得着"——非交互的 shell 里两者不同。缺了它，命令会把"根本没法问"说成
+    // "用户拒绝了"，而当时并没有任何用户被问过。
     public const string AuthAuto = "auto";
     public const string AuthConfirm = "confirm";
     public const string AuthReadOnly = "readonly";

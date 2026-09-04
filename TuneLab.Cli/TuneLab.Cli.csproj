@@ -17,7 +17,24 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>TuneLab.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TuneLab\TuneLab.csproj" />
   </ItemGroup>
+
+  <!-- Legacy 兼容层：主程序把它拷进【自己的】输出目录（见 TuneLab.csproj 的 CopyLegacyCompat），
+       那是散拷不是 Content，故不会随 ProjectReference 流到这里。不补这一步，headless 模式下
+       legacy 插件会被整体跳过——同一台机器、同一个数据目录，命令行看到的扩展面却与应用不同，
+       而那种差异排查起来极难。主程序的 BuildLegacyCompat 已经保证产物就绪，这里只负责搬。 -->
+  <Target Name="CopyLegacyCompatToCli" AfterTargets="Build">
+    <ItemGroup>
+      <CliLegacyCompatBinary Include="$(MSBuildThisFileDirectory)..\legacy\compat\TuneLab.Hosting.Compat.Legacy\bin\$(Configuration)\net8.0\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CliLegacyCompatBinary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
