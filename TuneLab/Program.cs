@@ -26,12 +26,6 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // 开发环境（VS Code 集成终端/agent shell 等）会给子进程注入 NoDefaultCurrentDirectoryInExePath=1，
-        // 置位后 cmd 不再从工作目录解析可执行文件，会破坏经 cmd 相对路径拉起辅助进程的插件
-        // （子进程环境继承自宿主）。清掉它，让任意启动方式下插件子进程环境与桌面双击启动一致；
-        // 只影响本进程及子进程，不改系统设置。
-        Environment.SetEnvironmentVariable("NoDefaultCurrentDirectoryInExePath", null);
-
         // init logger
         Log.SetupLogger(new FileLogger(PathManager.LogFilePath));
         Log.Info("Version: " + AppInfo.Version);
@@ -93,9 +87,22 @@ class Program
         Log.Shutdown();
     }
 
-    // Main 与截图工具共用的初始化：配置、翻译、插件上下文。须早于任何 Avalonia/插件调用。
+    // 各宿主入口共用的初始化：进程环境、配置、翻译、插件上下文。须早于任何 Avalonia/插件调用。
+    // 调用方 = 本文件的 Main、截图工具（tools/ScreenshotBot）、无头宿主（TuneLab/Headless）——
+    // 走同一条路才保证「插件在哪种启动方式下都一样」。
     internal static void InitCoreServices()
     {
+        // 开发环境（VS Code 集成终端/agent shell 等）会给子进程注入 NoDefaultCurrentDirectoryInExePath=1，
+        // 置位后 cmd 不再从工作目录解析可执行文件，会破坏经 cmd 相对路径拉起辅助进程的插件
+        // （子进程环境继承自宿主）。清掉它，让任意启动方式下插件子进程环境与桌面双击启动一致；
+        // 只影响本进程及子进程，不改系统设置。
+        //
+        // 【为什么在这里而不是 Main】漏掉它的后果既隐蔽又致命：辅助进程静默起不来，插件的 Init
+        // 于是永远等不到回答，而它的 Destroy() 又阻塞等 Init——整个进程挂死，日志上却什么都看不出来。
+        // 无头宿主曾因为只调 InitCoreServices、没抄 Main 这一行而正好踩中。故归到这条共用路上，
+        // 让"起一个宿主进程"这件事只有一处定义。
+        Environment.SetEnvironmentVariable("NoDefaultCurrentDirectoryInExePath", null);
+
         // init setting
         Settings.Init(PathManager.SettingsFilePath);
         EditorState.Init(PathManager.EditorStateFilePath);
