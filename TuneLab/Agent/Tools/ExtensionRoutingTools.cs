@@ -17,7 +17,7 @@ namespace TuneLab.Agent;
 
 // 为某个冲突身份选定提供包（或清除回默认规则）。存进 app 设置的 ExtensionRouting 映射、即时落盘，但**要重启才生效**
 // （工程只引身份 id，解析发生在加载期）。改用户的应用配置 → 过授权闸门。
-internal sealed class SetExtensionRoutingTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class SetExtensionRoutingTool(Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "set_extension_routing";
 
@@ -63,7 +63,7 @@ internal sealed class SetExtensionRoutingTool(Func<AgentAuthorizationRequest, Ca
             return plan.NoOp;
 
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(AgentWriteKind.RoutingChange, 0, plan.RouteLabel, plan.TargetLabel), confirm, cancellationToken);
+            new AuthorizationRequest(WriteKind.RoutingChange, 0, plan.RouteLabel, plan.TargetLabel), confirm, cancellationToken);
         if (!proceed)
             return message;
 

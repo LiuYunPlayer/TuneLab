@@ -14,7 +14,7 @@ namespace TuneLab.Agent;
 // 与 set_extension_routing 对称：同属"改用户的应用配置、即时落盘、重启后生效"，故复用同一授权闸门与话术。
 // 两者答的不是一个问题——routing 在多个实现里挑一个，启停决定某份实现要不要参与加载（独苗同样适用）。
 // 判据全来自 ExtensionActivation 与 ExtensionManager.LoadResults，这里不复制任何一份状态。
-internal sealed class SetExtensionEnabledTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class SetExtensionEnabledTool(Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "set_extension_enabled";
 
@@ -65,7 +65,7 @@ internal sealed class SetExtensionEnabledTool(Func<AgentAuthorizationRequest, Ca
             return plan.NoOp;
 
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(AgentWriteKind.ExtensionActivationChange, 0,
+            new AuthorizationRequest(WriteKind.ExtensionActivationChange, 0,
                 plan.Target, enabled ? "enable" : "disable", plan.SecondaryTarget), confirm, cancellationToken);
         if (!proceed)
             return message;

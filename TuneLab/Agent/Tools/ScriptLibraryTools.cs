@@ -16,7 +16,7 @@ namespace TuneLab.Agent;
 // 与 run_script（运行一次）互补：要"可复用的功能/命令"用 save_script，要"现在做一次"用 run_script。
 
 // 保存（新建或覆盖）一个脚本到库。覆盖已存脚本 = 破坏用户外部文件（历史管理器救不回）→ 过授权闸门；新建不拦。
-internal sealed class SaveScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class SaveScriptTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "save_script";
 
@@ -65,7 +65,7 @@ internal sealed class SaveScriptTool(IProject project, Func<IMidiPart?>? current
         if (existed)
         {
             var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-                new AgentAuthorizationRequest(AgentWriteKind.ScriptOverwrite, 0, name), confirm, cancellationToken);
+                new AuthorizationRequest(WriteKind.ScriptOverwrite, 0, name), confirm, cancellationToken);
             if (!proceed)
                 return message;
             prefix = message;
@@ -95,7 +95,7 @@ internal sealed class SaveScriptTool(IProject project, Func<IMidiPart?>? current
 }
 
 // 删除库内脚本（同时从菜单移除）。删文件 = 破坏用户外部产物（历史管理器救不回）→ 恒过授权闸门。
-internal sealed class DeleteScriptTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class DeleteScriptTool(Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "delete_script";
 
@@ -124,7 +124,7 @@ internal sealed class DeleteScriptTool(Func<AgentAuthorizationRequest, Cancellat
 
         // 删除是破坏性外部文件操作 → 过授权闸门（Auto 直删 / Confirm 卡片裁决 / ReadOnly 不删+建议）。
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(AgentWriteKind.ScriptDelete, 0, name), confirm, cancellationToken);
+            new AuthorizationRequest(WriteKind.ScriptDelete, 0, name), confirm, cancellationToken);
         if (!proceed)
             return message;
 

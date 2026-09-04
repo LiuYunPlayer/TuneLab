@@ -20,7 +20,7 @@ namespace TuneLab.Agent;
 //
 // 【密钥政策（用户 2026-07-26 定）】：声明为 IsPassword 的字段（API key / 许可证等）一律拒写，让 agent
 // 引导用户自己去设置窗填。理由：把用户密钥经模型上下文送去第三方服务，风险与收益完全不成比例。
-internal sealed class SetExtensionSettingTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class SetExtensionSettingTool(Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "set_extension_setting";
 
@@ -69,7 +69,7 @@ internal sealed class SetExtensionSettingTool(Func<AgentAuthorizationRequest, Ca
             return plan.NoOp;
 
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(AgentWriteKind.ExtensionSettingChange, 0, plan.Target, ConfigText.FormatValue(plan.Value)), confirm, cancellationToken);
+            new AuthorizationRequest(WriteKind.ExtensionSettingChange, 0, plan.Target, ConfigText.FormatValue(plan.Value)), confirm, cancellationToken);
         if (!proceed)
             return message;
 

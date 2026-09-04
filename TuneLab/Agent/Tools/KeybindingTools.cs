@@ -22,7 +22,7 @@ namespace TuneLab.Agent;
 // 改一条绑定：绑手势 / 解绑（gesture="" ）/ 恢复默认（reset=true）。改用户的应用配置 → 过 ToolAuthorization 闸门。
 // 同域冲突默认【拒绝】，要 replaceConflict:true 才夺键（并解除原命令的绑定）——与设置页录制时"已被占用，是否改绑"
 // 那道确认等价，不让 agent 悄悄抢走别的命令的键。
-internal sealed class SetKeybindingTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class SetKeybindingTool(Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "set_keybinding";
 
@@ -74,7 +74,7 @@ internal sealed class SetKeybindingTool(Func<AgentAuthorizationRequest, Cancella
             return plan.NoOp;
 
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(AgentWriteKind.KeybindingChange, 0, resolvedId, plan.NewGestureText, plan.ConflictLabel), confirm, cancellationToken);
+            new AuthorizationRequest(WriteKind.KeybindingChange, 0, resolvedId, plan.NewGestureText, plan.ConflictLabel), confirm, cancellationToken);
         if (!proceed)
             return message;
 

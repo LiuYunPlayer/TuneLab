@@ -24,7 +24,7 @@ namespace TuneLab.Agent;
 // 【只做工程/MIDI 等格式文件，不做音频导出】：音频导出要跑完整合成+混音+编码，期间界面必须锁住（根因是渲染要求
 // 数据全程不变，不是 UI 偷懒）——那与"agent 边导出边继续干活"根本矛盾，且"要不要现在把机器占住几分钟"是用户的
 // 人在环决定，同播放/试听的裁定。故音频导出的正解是 agent 备好参数、最后一下由用户按，不在本工具里。
-internal sealed class ExportProjectTool(IProject project, Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class ExportProjectTool(IProject project, Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "export_project";
 
@@ -95,8 +95,8 @@ internal sealed class ExportProjectTool(IProject project, Func<AgentAuthorizatio
         var displayName = FormatsManager.GetDisplayName(format);
         // 恒过闸门：导出路径是任意的（能写到用户磁盘任何地方），且历史记录管理器只保工程数据、救不回外部文件。
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(
-                overwrite ? AgentWriteKind.ProjectExportOverwrite : AgentWriteKind.ProjectExport,
+            new AuthorizationRequest(
+                overwrite ? WriteKind.ProjectExportOverwrite : WriteKind.ProjectExport,
                 0, fullPath, displayName),
             confirm, cancellationToken);
         if (!proceed)

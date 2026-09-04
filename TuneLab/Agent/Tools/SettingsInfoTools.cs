@@ -22,7 +22,7 @@ namespace TuneLab.Agent;
 // 值校验一律按条目声明的 config（滑条范围 / 下拉成员 / 布尔 / 路径存在性），判据来自共享的 SettingsText。
 
 // 改一项设置 + 落盘。写用户的应用配置（非工程数据、历史记录管理器救不回）→ 过 ToolAuthorization 闸门。
-internal sealed class SetSettingTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
+internal sealed class SetSettingTool(Func<AuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
     public string Name => "set_setting";
 
@@ -74,7 +74,7 @@ internal sealed class SetSettingTool(Func<AgentAuthorizationRequest, Cancellatio
 
         // 改用户的应用配置 → 过授权闸门（Auto 直接改 / Confirm 卡片裁决 / ReadOnlyAdvice 不改+建议）。无预览-回退。
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(
-            new AgentAuthorizationRequest(AgentWriteKind.SettingChange, 0, item.Key, ConfigText.FormatValue(value)), confirm, cancellationToken);
+            new AuthorizationRequest(WriteKind.SettingChange, 0, item.Key, ConfigText.FormatValue(value)), confirm, cancellationToken);
         if (!proceed)
             return message;
 

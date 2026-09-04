@@ -6,8 +6,6 @@ namespace TuneLab.Commands;
 // 入口注入的一切「环境」。handler 只从这里取，不碰静态单例、不碰 Dispatcher——这是同一条命令能同时
 // 服务侧栏 agent、CLI（attach / headless）、MCP 的前提。
 //
-// 成员按需增长（每一步只加当步真正要用的，见 docs/command-surface.md §5）：
-//  · 搬 edit 命令时加 Authorization（按入口注入的授权策略）。
 internal sealed class CommandContext
 {
     // 当前工程。可为 null（宿主还没开工程 / headless 尚未载入）——需要工程的命令自己检查并如实报错，
@@ -16,6 +14,10 @@ internal sealed class CommandContext
 
     // 界面语言（本地化标签、给用户看的措辞按它取）。实时读取而非快照——用户随时可改。
     public Func<string?> Language { get; init; } = () => null;
+
+    // 授权策略（可选）：Edit 命令落地前一律先问它。**null = 这个入口没配授权 → 一条 Edit 都不做**
+    // （见 AuthorizationExtensions.Authorize）——headless/CI 必须显式给，静默放开是不能接受的默认值。
+    public IAuthorizationPolicy? Authorization { get; init; }
 
     // 编辑器态（可选）：当前 part / 量化 / 选区。侧栏 agent 有；headless 没有（null），依赖它的命令
     // 按"用户什么也没选"处理或要求显式传参，不猜（见 IEditorStateAccess）。
