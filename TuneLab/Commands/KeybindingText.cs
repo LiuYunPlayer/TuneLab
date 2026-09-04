@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Nodes;
 using TuneLab.GUI.Input;
 using TuneLab.Input;
 
@@ -24,14 +25,23 @@ internal static class KeybindingText
 
     public static string LabelOf(string id) => Keymap.TryGet(id, out var cmd) ? cmd.DisplayName() : id;
 
-    // 同域同手势的其它命令（真冲突，只有一个生效：注册序最小者胜，内建恒胜）。
-    public static void AppendConflicts(StringBuilder sb, string id, string prefix)
+    // 同域同手势的其它命令（真冲突，只有一个生效：注册序最小者胜，内建恒胜）——取事实那一步用。
+    public static JsonArray ConflictPeers(string id)
     {
-        var peers = Keymap.SameScopeConflictPeers(id);
-        if (peers.Count == 0)
+        var conflicts = new JsonArray();
+        foreach (var peer in Keymap.SameScopeConflictPeers(id))
+            conflicts.Add(new JsonObject { ["id"] = peer, ["label"] = LabelOf(peer) });
+        return conflicts;
+    }
+
+    // 冲突那句话的唯一定义：`keybinding list` 与 `keybinding set` 都用它，故两处措辞不可能分裂。
+    // 参数取【结构化结果里的 peers】而非现查 Keymap——渲染是纯函数，事实在取事实那步就定下了。
+    public static void AppendConflicts(StringBuilder sb, JsonArray conflicts, string prefix)
+    {
+        if (conflicts.Count == 0)
             return;
         sb.Append(prefix).Append("CONFLICT: the same area also binds this gesture to ")
-          .Append(string.Join(", ", peers.Select(p => "\"" + LabelOf(p) + "\" (" + p + ")")))
+          .Append(string.Join(", ", conflicts.Select(c => "\"" + c!["label"]!.GetValue<string>() + "\" (" + c["id"]!.GetValue<string>() + ")")))
           .Append(" — only one of them fires (the built-in / earliest registered wins). Rebind one of them to fix it.");
     }
 

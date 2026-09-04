@@ -25,6 +25,7 @@ internal static class CommandRegistry
         new SettingListCommand(),
         new SettingSetCommand(),
         new KeybindingListCommand(),
+        new KeybindingSetCommand(),
         new SoundSourceListCommand(),
         new EffectListCommand(),
         new ExtensionListCommand(),

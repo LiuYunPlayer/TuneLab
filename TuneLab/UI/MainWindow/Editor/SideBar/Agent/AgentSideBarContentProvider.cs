@@ -124,8 +124,6 @@ internal sealed class AgentSideBarContentProvider
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang, RequestScriptAuthorizationAsync),
                 new DeleteScriptTool(RequestScriptAuthorizationAsync),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
-                // 快捷键（D 支柱）：查/改绑/冲突。改绑同样过闸门；与 save_script 合起来闭环"写个功能 + 绑个键"。
-                new SetKeybindingTool(RequestScriptAuthorizationAsync),
                 // 扩展路由：主要用于排障（「我的插件怎么不生效」→ 其实是身份被别的包顶替了），改选同样过闸门。
                 new SetExtensionRoutingTool(RequestScriptAuthorizationAsync),
                 // 扩展启停：把某个包（或包内某个能力）关掉但不卸载。与路由是两根轴——路由在多个实现里挑一个，

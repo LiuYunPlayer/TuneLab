@@ -55,9 +55,7 @@ internal sealed class KeybindingListCommand : ICommand
         var commands = new JsonArray();
         foreach (var cmd in shown)
         {
-            var conflicts = new JsonArray();
-            foreach (var peer in Keymap.SameScopeConflictPeers(cmd.Id))
-                conflicts.Add(new JsonObject { ["id"] = peer, ["label"] = KeybindingText.LabelOf(peer) });
+            var conflicts = KeybindingText.ConflictPeers(cmd.Id);
 
             commands.Add(new JsonObject
             {
@@ -127,12 +125,7 @@ internal sealed class KeybindingListCommand : ICommand
                 ? ", changed by the user (default " + (defaultText ?? "none") + ")"
                 : defaultText == null ? ", no default" : ", default");
 
-            var conflicts = cmd["conflicts"]!.AsArray();
-            if (conflicts.Count > 0)
-                sb.Append("\n    ").Append("CONFLICT: the same area also binds this gesture to ")
-                  .Append(string.Join(", ", conflicts.Select(c =>
-                      "\"" + c!["label"]!.GetValue<string>() + "\" (" + c["id"]!.GetValue<string>() + ")")))
-                  .Append(" — only one of them fires (the built-in / earliest registered wins). Rebind one of them to fix it.");
+            KeybindingText.AppendConflicts(sb, cmd["conflicts"]!.AsArray(), "\n    ");
         }
         return sb.ToString();
     }
@@ -142,4 +135,255 @@ internal sealed class KeybindingListCommand : ICommand
         => gesture is not JsonObject g
             ? null
             : KeybindingText.Gesture(g["token"]?.GetValue<string>(), g["display"]!.GetValue<string>());
+}
+
+// 快捷键的写那一半：绑手势 / 解绑（gesture=""）/ 恢复默认（reset=true）。改用户的应用配置 → 过入口的
+// 授权策略。同域冲突默认【拒绝】，要 replaceConflict:true 才夺键（并解除原命令的绑定）——与设置页录制时
+// "已被占用，是否改绑"那道确认等价，不让调用方悄悄抢走别的命令的键。
+//
+// 判据全在 Keymap（命令表、生效手势、冲突判定、落盘广播），这里不复制任何一份；手势文本口径来自
+// 与 `keybinding list` 共用的 KeybindingText。
+internal sealed class KeybindingSetCommand : ICommand
+{
+    public string Path => "keybinding set";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "set_keybinding";
+
+    public string Brief => "Bind, unbind or reset one command's shortcut";
+
+    public string Documentation =>
+        "Bind, unbind or reset ONE command's keyboard shortcut (get the command id and a free gesture from list_keybindings first). Takes effect immediately and is saved. " +
+        "Pass `gesture` to bind it, `gesture` as \"\" to unbind, or `reset` = true to restore that command's default. " +
+        "If the gesture is already used by another command in the SAME area the call is refused and names that command — pick another gesture, or pass replaceConflict = true to take it over (which unbinds the other command). " +
+        "This changes the user's configuration and is not part of the project's undo history, so it needs the user's authorization; if it is refused, tell the user to change it in the Settings window's Keybindings page.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "description": "Command id exactly as listed by list_keybindings (e.g. \"edit.undo\", \"script:my-tool\")." },
+            "gesture": { "type": "string", "description": "The new gesture, e.g. \"ctrl+shift+p\" (\"mod+\" = Ctrl on Windows/Linux, Cmd on macOS). Empty string unbinds the command. Omit when using reset." },
+            "reset": { "type": "boolean", "description": "True = restore this command's default shortcut (ignores gesture)." },
+            "replaceConflict": { "type": "boolean", "description": "True = if another command in the same area already uses this gesture, unbind that one and take the gesture. Default false (the call is refused instead)." }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var given = (args.Json.GetString("id") ?? "").Trim();
+        var gesture = args.Json.GetStringOrNull("gesture");
+        bool reset = args.Json.GetBoolOrNull("reset") ?? false;
+        bool replaceConflict = args.Json.GetBoolOrNull("replaceConflict") ?? false;
+
+        // 命令表在主线程被增删（脚本命令随菜单/文件监视器同步），故 id 归一 + 计划 + 后续写都在主线程取一致快照。
+        var (id, plan) = await ctx.OnMainThread(() =>
+        {
+            var rid = ResolveId(given);
+            return (rid, Plan(rid, gesture, reset, replaceConflict));
+        });
+        if (plan.Error is { } error)
+            return CommandResult.Fail(error.Code, error.Message);
+        if (plan.NoOp is { } noOp)
+            return CommandResult.Ok(noOp);
+
+        var (proceed, message) = await ctx.Authorize(
+            new AuthorizationRequest(WriteKind.KeybindingChange, 0, id, plan.NewGestureText, plan.ConflictLabel), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject
+            {
+                ["id"] = id,
+                ["label"] = plan.Label,
+                ["outcome"] = "refused",
+                ["action"] = plan.Action,
+                ["note"] = message,
+            });
+
+        return CommandResult.Ok(await ctx.OnMainThread(() => Apply(id, plan, message)));
+    }
+
+    // 命令 id 归一：精确匹配优先，否则忽略大小写找一条（调用方常把 id 大小写写错，没必要为此失败）；都不中则原样返回、由 Plan 报错。
+    static string ResolveId(string id)
+    {
+        if (id.Length == 0 || Keymap.TryGet(id, out _))
+            return id;
+        foreach (var cmd in Keymap.Commands)
+            if (string.Equals(cmd.Id, id, StringComparison.OrdinalIgnoreCase))
+                return cmd.Id;
+        return id;
+    }
+
+    // 一次改动的计划（在主线程一次算出）：要写什么、准不准夺键、以及给闸门/回报的文案。
+    readonly record struct ChangePlan(CommandError? Error, JsonObject? NoOp, string Label, string Action, bool Reset, KeyBinding? Binding, string NewGestureText, bool Replace, string? ConflictLabel);
+
+    static ChangePlan Fail(string code, string message) => new(new CommandError(code, message), null, "", "", false, null, "", false, null);
+
+    static ChangePlan Unchanged(string id, string label, string action, JsonNode? gesture) => new(null, new JsonObject
+    {
+        ["id"] = id,
+        ["label"] = label,
+        ["outcome"] = "unchanged",
+        ["action"] = action,
+        ["gesture"] = gesture,
+    }, label, action, false, null, "", false, null);
+
+    static ChangePlan Plan(string id, string? gesture, bool reset, bool replaceConflict)
+    {
+        if (id.Length == 0)
+            return Fail("empty_id", "\"id\" is empty. Call list_keybindings to see command ids.");
+        if (!Keymap.TryGet(id, out var cmd))
+            return Fail("unknown_id", string.Format(
+                "no bindable command with id \"{0}\". Call list_keybindings to see the ids. (A script saved with save_script becomes \"script:<its id>\" once the app has picked the file up — list again if it is not there yet.)", id));
+
+        var label = cmd.DisplayName();
+        var effective = Keymap.Effective(id);
+
+        if (reset)
+        {
+            if (!Keymap.HasOverride(id))
+                return Unchanged(id, label, "reset", GestureNode(effective));
+            return new ChangePlan(null, null, label, "reset", true, cmd.DefaultGesture,
+                cmd.DefaultGesture is { } d ? KeyCodec.ToDisplay(d) : "", false, null);
+        }
+
+        // gesture 缺省或空串 = 解绑（与设置页的"解绑"等价；显式 override 成 null，不回落默认）。
+        if (string.IsNullOrWhiteSpace(gesture))
+        {
+            if (effective == null)
+                return Unchanged(id, label, "unbind", null);
+            return new ChangePlan(null, null, label, "unbind", false, null, "", false, null);
+        }
+
+        // 声明式解析：额外接受 "mod+"/"primary+" 别名（解析成本平台的主命令键），落盘仍是物理修饰。
+        if (!KeyCodec.TryParseDeclaration(gesture, out var binding))
+            return Fail("invalid_gesture", string.Format("\"{0}\" is not a valid gesture. {1}", gesture, KeybindingText.GestureSyntax));
+        if (!KeyCodec.IsSupported(binding.Key))
+            return Fail("unsupported_key", string.Format("that key cannot be bound. {0}", KeybindingText.GestureSyntax));
+
+        if (effective is { } cur && cur.Equals(binding))
+            return Unchanged(id, label, "bind", GestureNode(binding));
+
+        var conflictId = Keymap.FindConflict(id, binding);
+        if (conflictId != null && !replaceConflict)
+            return Fail("conflict", string.Format(
+                "{0} is already used by \"{1}\" (id {2}) in the same area ({3}), so nothing changed. Pick a free gesture (list_keybindings shows what is taken), or call again with replaceConflict = true to take it over — that unbinds \"{1}\".",
+                KeybindingText.Gesture(binding), KeybindingText.LabelOf(conflictId), conflictId, cmd.Scope));
+
+        return new ChangePlan(null, null, label, "bind", false, binding, KeyCodec.ToDisplay(binding), replaceConflict,
+            conflictId == null ? null : KeybindingText.LabelOf(conflictId));
+    }
+
+    // 落地（主线程）：Keymap.Rebind/ResetToDefault 自带落盘 + Changed 广播（菜单与设置页即时刷新）。
+    static JsonNode Apply(string id, ChangePlan plan, string note)
+    {
+        var data = new JsonObject
+        {
+            ["id"] = id,
+            ["label"] = KeybindingText.LabelOf(id),
+            ["outcome"] = "applied",
+            ["action"] = plan.Action,
+            ["note"] = string.IsNullOrEmpty(note) ? null : note,
+        };
+
+        if (plan.Reset)
+        {
+            Keymap.ResetToDefault(id);
+            data["gesture"] = GestureNode(Keymap.Effective(id));
+        }
+        else if (plan.Binding is not { } binding)
+        {
+            Keymap.Rebind(id, null);
+        }
+        else
+        {
+            // 冲突按【落地这一刻】重查：闸门在等用户裁决期间，用户可能已在设置页自己改了绑定。
+            // 计划期无冲突而此刻有 → 未获夺键许可，宁可什么都不做（绝不悄悄抢走别的命令的键）。
+            var conflictId = Keymap.FindConflict(id, binding);
+            if (conflictId != null && !plan.Replace)
+            {
+                data["outcome"] = "taken_meanwhile";
+                data["gesture"] = GestureNode(binding);
+                data["conflict"] = new JsonObject { ["id"] = conflictId, ["label"] = KeybindingText.LabelOf(conflictId) };
+                return data;
+            }
+            if (conflictId != null)
+                Keymap.Rebind(conflictId, null);   // 夺键：先解除原命令（与设置页确认后的行为一致）
+            Keymap.Rebind(id, binding);
+            data["gesture"] = GestureNode(binding);
+            data["replaced"] = conflictId == null ? null
+                : new JsonObject { ["id"] = conflictId, ["label"] = KeybindingText.LabelOf(conflictId) };
+            // 跨域同手势不是冲突（聚焦哪层哪层生效），但如实告知，免得用户以为某个"失灵"。
+            data["otherScopeUsers"] = new JsonArray(KeybindingText.OtherScopeUsers(id, binding)
+                .Select(c => (JsonNode?)c.DisplayName()).ToArray());
+        }
+
+        // 改完之后这条命令还剩什么同域冲突（夺键后通常为空，但同域可能不止两个）。
+        data["conflicts"] = KeybindingText.ConflictPeers(id);
+        return data;
+    }
+
+    // 手势的结构化形：token（可序列化写法）与 display（给人看的字形）两个字段，复合形渲染时再拼。
+    static JsonNode? GestureNode(KeyBinding? binding) => binding is not { } b ? null : new JsonObject
+    {
+        ["token"] = KeyCodec.Serialize(b),
+        ["display"] = KeyCodec.ToDisplay(b),
+    };
+
+    static string? GestureText(JsonNode? gesture)
+        => gesture is not JsonObject g ? null
+            : KeybindingText.Gesture(g["token"]?.GetValue<string>(), g["display"]!.GetValue<string>());
+
+    // 措辞与搬家前逐字一致。
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var label = obj["label"]!.GetValue<string>();
+        var action = obj["action"]!.GetValue<string>();
+        var gesture = GestureText(obj["gesture"]);
+
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "unchanged":
+                return action switch
+                {
+                    "reset" => string.Format("\"{0}\" is already at its default shortcut ({1}). Nothing changed.", label, gesture ?? "none"),
+                    "unbind" => string.Format("\"{0}\" has no shortcut already. Nothing changed.", label),
+                    _ => string.Format("\"{0}\" is already bound to {1}. Nothing changed.", label, gesture),
+                };
+
+            case "refused":
+                return obj["note"]!.GetValue<string>();   // 闸门给的原话
+
+            case "taken_meanwhile":
+            {
+                var conflict = obj["conflict"]!.AsObject();
+                return string.Format("Nothing changed: {0} got taken by \"{1}\" (id {2}) while waiting for the user. Pick another gesture, or call again with replaceConflict = true.",
+                    gesture, conflict["label"]!.GetValue<string>(), conflict["id"]!.GetValue<string>());
+            }
+        }
+
+        var sb = new StringBuilder(obj["note"]?.GetValue<string>() ?? string.Empty);
+        if (action == "reset")
+            sb.Append(string.Format("Reset \"{0}\" to its default shortcut: {1}.", label, gesture ?? "no shortcut"));
+        else if (action == "unbind")
+            sb.Append(string.Format("Removed the shortcut for \"{0}\".", label));
+        else
+        {
+            sb.Append(string.Format("Bound \"{0}\" to {1}.", label, gesture));
+            if (obj["replaced"] is JsonObject replaced)
+                sb.Append(string.Format(" \"{0}\" (id {1}) lost that shortcut and is now unbound — tell the user.",
+                    replaced["label"]!.GetValue<string>(), replaced["id"]!.GetValue<string>()));
+            var others = obj["otherScopeUsers"]!.AsArray();
+            if (others.Count > 0)
+                sb.Append(string.Format(" Note: {0} also use(s) this gesture in another area — both stay active, the focused area wins.",
+                    string.Join(", ", others.Select(c => "\"" + c!.GetValue<string>() + "\""))));
+        }
+        sb.Append(" Saved; it works right away (no restart).");
+        KeybindingText.AppendConflicts(sb, obj["conflicts"]!.AsArray(), " ");
+        return sb.ToString();
+    }
 }
