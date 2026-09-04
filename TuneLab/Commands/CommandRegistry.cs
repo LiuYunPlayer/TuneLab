@@ -23,6 +23,7 @@ internal static class CommandRegistry
         new KeybindingListCommand(),
         new SoundSourceListCommand(),
         new EffectListCommand(),
+        new ExtensionListCommand(),
         new ExtensionRoutingCommand(),
         new ExtensionIntroductionCommand(),
         new ExtensionSettingsCommand(),

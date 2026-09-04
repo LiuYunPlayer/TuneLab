@@ -8,11 +8,15 @@ using TuneLab.Extensions;
 using TuneLab.Foundation;
 using TuneLab.Commands.Handlers;
 
-namespace TuneLab.Agent;
+namespace TuneLab.Commands;
 
 // 能力位摘要的生成：把一份 introduction 变成一句话，写进内容寻址缓存（ExtensionSummaryCache）。
-// 由 list_extensions 在渲染前调用——缺哪几条就补哪几条，补完再返回，故对 agent 而言 summary 就是
+// 由 `extension list` 在渲染前调用——缺哪几条就补哪几条，补完再返回，故对 agent 而言 summary 就是
 // 能力位自带的一个属性，它感知不到生成过程（也就没有对应的工具）。
+//
+// 【没有模型的入口照跑不误】CLI / MCP / headless 拿不到模型（ctx.SideModel == null）：短文档那条路
+//   本就不调模型，照常出摘要；长文档则缓存命中就用、未命中留空并如实标注。命令不因此禁用——
+//   枚举扩展是外部入口最常用的读之一（见 docs/command-surface.md §5.3）。
 //
 // 【短文档直接采用作者原话，不调模型】introduction 归一化后已经足够短（≤ MaxSummaryChars）时，它本身
 //   就是一句话说明——再让模型转述一遍既费钱又只会更差（转述必然丢信息，还引入编造的可能）。
@@ -31,9 +35,6 @@ namespace TuneLab.Agent;
 //   就整批白跑。串行 + 预算，超了如实回报还剩多少，让模型转告用户"稍后再问一次"。
 internal static class ExtensionSummaryFiller
 {
-    // 「把这组消息发给当前模型，回我正文」。由 agent 侧栏提供（它持有会话）。
-    public delegate Task<string?> Summarizer(IReadOnlyList<AgentMessage> messages, CancellationToken cancellationToken);
-
     // 单次调用内的生成预算。超了就停手并如实报还剩多少——**不静默给半份**：模型得知道自己拿到的
     // 是不是全的，才谈得上转告用户"待会儿再问一次"。
     const int BudgetMilliseconds = 60000;
@@ -45,7 +46,7 @@ internal static class ExtensionSummaryFiller
 
     // 逐个补齐这些 introduction 的摘要（已有缓存的跳过）。返回 (本次新增数, 仍缺失数)。
     public static async Task<(int Filled, int Remaining)> FillAsync(
-        Summarizer? summarize, IReadOnlyList<string> introductionPaths, CancellationToken cancellationToken)
+        ISideModelAccess? model, IReadOnlyList<string> introductionPaths, CancellationToken cancellationToken)
     {
         // 读一次快照再逐条查（别对每条都读一遍盘）。按内容键去重：两个条目指向同一份文案
         // （同一文档被两个包分发）时只该做一次。
@@ -84,12 +85,12 @@ internal static class ExtensionSummaryFiller
             }
 
             // ② 长文档才交给模型；没连模型 / 超预算 / 被取消 → 留着下次
-            if (summarize == null || cancellationToken.IsCancellationRequested || clock.ElapsedMilliseconds >= BudgetMilliseconds)
+            if (model == null || cancellationToken.IsCancellationRequested || clock.ElapsedMilliseconds >= BudgetMilliseconds)
             {
                 remaining++;
                 continue;
             }
-            if (await FillOneAsync(summarize, path, text, cancellationToken))
+            if (await FillOneAsync(model, path, text, cancellationToken))
                 filled++;
             else
                 remaining++;
@@ -114,7 +115,7 @@ internal static class ExtensionSummaryFiller
         return text.Length > 0 && text.Length <= ExtensionSummaryCache.MaxSummaryChars ? text : null;
     }
 
-    static async Task<bool> FillOneAsync(Summarizer summarize, string path, string text, CancellationToken cancellationToken)
+    static async Task<bool> FillOneAsync(ISideModelAccess model, string path, string text, CancellationToken cancellationToken)
     {
         try
         {
@@ -123,7 +124,7 @@ internal static class ExtensionSummaryFiller
                 text = text.Substring(0, ExtensionIntroductionCommand.MaxIntroductionChars)
                      + "\n\n… (introduction truncated; " + (text.Length - ExtensionIntroductionCommand.MaxIntroductionChars) + " more characters)";
 
-            var reply = await summarize(BuildMessages(text), cancellationToken);
+            var reply = await model.AskAsync(SystemPrompt, text, cancellationToken);
             var summary = Extract(reply);
             if (summary == null)
                 return false;
@@ -148,26 +149,19 @@ internal static class ExtensionSummaryFiller
     //   "一个声源插件"反而会让它误判、进而白读全文——所以宁可多几句，把参数名、限制、前置条件留住。
     // 【不给硬性字数，只给预算】把字数写死常换来"数着字写"的生硬句子；说明预算与用途，让它自己权衡。
     // 【要求标记收尾】见 Marker：让客套话有地方去，我们只取标记之后那段。
-    static IReadOnlyList<AgentMessage> BuildMessages(string introduction) =>
-    [
-        new AgentMessage
-        {
-            Role = AgentRole.System,
-            Content = "You condense the documentation of ONE capability of a music editor plugin into an index entry that another AI assistant will read.\n"
-                    + "That assistant uses your text to judge whether this capability can solve a user's problem, and only then goes and reads the full document. "
-                    + "So keep the load-bearing facts: what it does, what it is for, the capabilities/parameters it exposes (names and defaults if given), "
-                    + "and any requirement or limitation that would rule it in or out. Drop marketing, examples, code, install boilerplate and repetition. "
-                    + "A few compact sentences are fine — being vague to be short is the one real failure here; do not exceed about "
-                    + ExtensionSummaryCache.MaxSummaryChars + " characters.\n"
-                    + "Write in the same language as the document. Short lines listing parameters or requirements are welcome where that is clearer than prose "
-                    + "(the reader is another model — structure helps it); just keep it plain, with no headings, images, code or links.\n"
-                    + "End your reply with:\n"
-                    + Marker + " <the entry>\n"
-                    + "Nothing after it. Anything you write before that marker is ignored. "
-                    + "If the document says too little to be worth an entry, end with exactly: " + Marker + " NONE",
-        },
-        new AgentMessage { Role = AgentRole.User, Content = introduction },
-    ];
+    static string SystemPrompt =>
+        "You condense the documentation of ONE capability of a music editor plugin into an index entry that another AI assistant will read.\n"
+      + "That assistant uses your text to judge whether this capability can solve a user's problem, and only then goes and reads the full document. "
+      + "So keep the load-bearing facts: what it does, what it is for, the capabilities/parameters it exposes (names and defaults if given), "
+      + "and any requirement or limitation that would rule it in or out. Drop marketing, examples, code, install boilerplate and repetition. "
+      + "A few compact sentences are fine — being vague to be short is the one real failure here; do not exceed about "
+      + ExtensionSummaryCache.MaxSummaryChars + " characters.\n"
+      + "Write in the same language as the document. Short lines listing parameters or requirements are welcome where that is clearer than prose "
+      + "(the reader is another model — structure helps it); just keep it plain, with no headings, images, code or links.\n"
+      + "End your reply with:\n"
+      + Marker + " <the entry>\n"
+      + "Nothing after it. Anything you write before that marker is ignored. "
+      + "If the document says too little to be worth an entry, end with exactly: " + Marker + " NONE";
 
     // 取标记之后的一句话并过防线。宁可没有摘要也不要一句错的——它会被后来的会话当作事实读到。
     // 【只丢弃、绝不截断】截出来的半句话，agent 之后每次读到都会困惑，而用户和开发者都不知情。
@@ -181,7 +175,7 @@ internal static class ExtensionSummaryFiller
         if (at < 0)
             return null;   // 没按格式来 → 整条丢弃，客套话/长篇大论都在此被挡下
 
-        // 不拍平换行：模型若用短行分点列出关键信息，那结构本身就是信息（呈现处按行缩进，见 list_extensions）。
+        // 不拍平换行：模型若用短行分点列出关键信息，那结构本身就是信息（呈现处按行缩进，见 `extension list`）。
         var text = raw.Substring(at + Marker.Length).Replace("\r", string.Empty).Trim();
         text = text.Trim('"', '\'', '“', '”', '「', '」', ' ');
         // 用宽于预算的 RejectOverChars 判，别拿告诉模型的那个数当拒收线——见其注释（1020 被永远丢弃的坑）。

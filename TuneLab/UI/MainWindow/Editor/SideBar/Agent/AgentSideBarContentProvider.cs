@@ -127,10 +127,6 @@ internal sealed class AgentSideBarContentProvider
                 new DeleteScriptTool(RequestScriptAuthorizationAsync),
                 new GetScriptInputsTool(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
-                // 环境感知（只读）：枚举插件/readme、音源目录、effect 引擎+参数——让 agent 看见宿主装了什么、可推荐什么。
-                // 逐能力位的一句话摘要由宿主在返回前补齐（短文档直接用作者原话，长文档才发一次旁路请求、
-                // 按内容哈希缓存），故不额外开工具；要作者全文仍走 get_extension_introduction。
-                new ListExtensionsTool(SendSideRequestAsync),
                 // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
                 new SetSettingTool(RequestScriptAuthorizationAsync),
@@ -173,6 +169,8 @@ internal sealed class AgentSideBarContentProvider
     {
         Project = mProject,
         Language = () => TranslationManager.CurrentLanguage.Value,
+        // 旁路模型：`extension list` 补能力位摘要用（其余入口没有模型，那边按 §5.3 降级）。
+        SideModel = new SideModelAccess(SendSideRequestAsync),
         MainThread = UiThreadDispatcher.Instance,
     };
 
