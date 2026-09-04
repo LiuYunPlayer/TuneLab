@@ -42,6 +42,7 @@ using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
+using TuneLab.Commands;
 namespace TuneLab.UI;
 
 internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDependency, FunctionBar.IDependency
@@ -76,10 +77,15 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mPianoWindow = new(this);// { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom };
         mFunctionBar = new(this);
         // agent 经此实时读取"当前编辑 part"（用户说"当前/这个 part"时解析序号）与当前量化（吸附网格）。
-        mAgentSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
-        mAgentSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
-        mAgentSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);
-        mAgentSideBarContentProvider.SetPianoSelectionProvider(CurrentPianoScriptSelection);
+        // 宿主内每个入口（侧栏 agent、命令桥 / CLI attach）共用的执行环境：同一个工程、同一个编辑器态。
+        // 用户开着界面让外部 agent 干活时，"当前 part"的自然含义就是他正在看的那个（docs/command-surface.md §5.2）。
+        HostCommandContext.Provider = () => new CommandContext
+        {
+            Project = Project,
+            Language = () => TranslationManager.CurrentLanguage.Value,
+            EditorState = new EditorStateAccess(() => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection),
+            MainThread = UiThreadDispatcher.Instance,
+        };
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
         mScriptSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mScriptSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);

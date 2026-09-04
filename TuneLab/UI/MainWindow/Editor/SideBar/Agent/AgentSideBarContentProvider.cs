@@ -131,27 +131,15 @@ internal sealed class AgentSideBarContentProvider
         }
     }
 
-    // 命令面的执行环境。取【访问器】而非快照：命令实例无状态、注册表是静态的，工程/语言切换无须重建工具。
-    // 侧栏这个入口四样都给得出；其它入口给不出的那几样按 §5 各自降级（headless 没有编辑器态、
-    // CLI/MCP 没有模型、没配授权就一条 Edit 都不做）。
-    CommandContext CurrentCommandContext() => new()
+    // 命令面的执行环境 = 宿主那份共同的（工程 / 语言 / 编辑器态 / 主线程，见 HostCommandContext）
+    // + 侧栏这个入口特有的两样。取【访问器】而非快照：命令实例无状态、注册表是静态的，工程切换无须重建工具。
+    CommandContext CurrentCommandContext() => HostCommandContext.Current with
     {
-        Project = mProject,
-        Language = () => TranslationManager.CurrentLanguage.Value,
-        // 授权策略：Edit 命令的闸门（与尚未搬家的 agent 工具同一份判据，见 AgentAuthorizationPolicy）。
+        // 授权策略：Edit 命令的闸门——用户的授权档位 + Confirm 档的内联卡片。
         Authorization = new AgentAuthorizationPolicy(RequestScriptAuthorizationAsync),
-        // 编辑器态：脚本类命令 eval getScriptInfo / getInputConfig 时要读"用户此刻在看什么"。
-        EditorState = new EditorStateAccess(mCurrentPartProvider, mQuantizationProvider, mSelectionProvider, mPianoSelectionProvider),
-        // 旁路模型：`extension list` 补能力位摘要用（其余入口没有模型，那边按 §5.3 降级）。
+        // 旁路模型：`extension list` 补能力位摘要用。这是【唯一】有模型的入口，其余按 §5.3 降级。
         SideModel = new SideModelAccess(SendSideRequestAsync),
-        MainThread = UiThreadDispatcher.Instance,
     };
-
-    // 由 Editor 注入一次：实时读取钢琴窗当前编辑的 midi part / 当前量化（用户切 part / 改量化即变，故存访问器而非快照）。
-    public void SetCurrentPartProvider(Func<IMidiPart?> provider) => mCurrentPartProvider = provider;
-    public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantizationProvider = provider;
-    public void SetSelectionProvider(Func<ScriptSelection?> provider) => mSelectionProvider = provider;
-    public void SetPianoSelectionProvider(Func<ScriptPianoSelection?> provider) => mPianoSelectionProvider = provider;
 
     // ───────────────── 聊天视图 ─────────────────
 
@@ -2864,10 +2852,6 @@ internal sealed class AgentSideBarContentProvider
     IReadOnlyList<ComboBoxItem> mEngineOptions = [];
     const string EngineKey = "provider";
     IProject? mProject;
-    Func<IMidiPart?>? mCurrentPartProvider;
-    Func<IQuantization?>? mQuantizationProvider;
-    Func<ScriptSelection?>? mSelectionProvider;
-    Func<ScriptPianoSelection?>? mPianoSelectionProvider;
     IReadOnlyList<IAgentTool> mTools = [];
     OverlayScrollBars? mSettingsScrollBars;   // 设置区浮层滚动条（存引用防 GC）
     IAgentModelSession? mSession;

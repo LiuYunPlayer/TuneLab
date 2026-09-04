@@ -6,7 +6,7 @@ namespace TuneLab.Commands;
 // 入口注入的一切「环境」。handler 只从这里取，不碰静态单例、不碰 Dispatcher——这是同一条命令能同时
 // 服务侧栏 agent、CLI（attach / headless）、MCP 的前提。
 //
-internal sealed class CommandContext
+internal sealed record CommandContext
 {
     // 当前工程。可为 null（宿主还没开工程 / headless 尚未载入）——需要工程的命令自己检查并如实报错，
     // 好过让命令从工具面消失：后者让调用方连"为什么没有"都问不到。
