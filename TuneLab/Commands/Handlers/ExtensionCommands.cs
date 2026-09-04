@@ -524,3 +524,329 @@ internal sealed class ExtensionIntroductionCommand : ICommand
         return string.Format("Introduction for {0}, as written by the plugin author:\n\n{1}", label, text);
     }
 }
+
+// 扩展冲突消解的写那一半：为某个冲突身份选定提供包（或清除回默认规则）。存进 app 设置的
+// ExtensionRouting 映射、即时落盘，但**要重启才生效**（工程只引身份 id，解析发生在加载期）。
+// 改用户的应用配置 → 过入口的授权策略。判据全来自 ExtensionRouting，这里不复制任何一份。
+internal sealed class ExtensionSetRoutingCommand : ICommand
+{
+    public string Path => "extension set-routing";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "set_extension_routing";
+
+    public string Brief => "Choose which package provides a contested identity";
+
+    public string Documentation =>
+        "Choose WHICH installed package provides a contested extension identity (see list_extension_routing for the identities and candidate packageIds) — i.e. un-shadow the package the user actually wants. " +
+        "Omit `packageId` (or pass \"\") to clear the choice and fall back to the default rule. " +
+        "The choice is saved immediately but only takes effect after TuneLab restarts, so always tell the user to restart. Needs the user's authorization; if refused, point them at the Settings window's \"Extension Routing\" page.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "kind": { "type": "string", "description": "Identity kind exactly as listed: voice / instrument / effect / format-import / format-export." },
+            "identity": { "type": "string", "description": "The contested identity id (engine type id, or file extension for formats), as listed by list_extension_routing." },
+            "packageId": { "type": "string", "description": "The packageId to use, exactly as listed for that identity. Empty/omitted = clear the choice and use the default rule." }
+          },
+          "required": ["kind", "identity"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var kind = (args.Json.GetString("kind") ?? "").Trim();
+        var identity = (args.Json.GetString("identity") ?? "").Trim();
+        var packageId = (args.Json.GetStringOrNull("packageId") ?? "").Trim();
+
+        var plan = await ctx.OnMainThread(() => Plan(kind, identity, packageId));
+        if (plan.Error is { } error)
+            return CommandResult.Fail(error.Code, error.Message);
+        if (plan.NoOp is { } noOp)
+            return CommandResult.Ok(noOp);
+
+        var (proceed, message) = await ctx.Authorize(
+            new AuthorizationRequest(WriteKind.RoutingChange, 0, plan.RouteLabel, plan.TargetLabel), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject
+            {
+                ["route"] = plan.RouteLabel,
+                ["outcome"] = "refused",
+                ["cleared"] = string.IsNullOrEmpty(plan.PackageId),
+                ["target"] = plan.TargetLabel,
+                ["note"] = message,
+            });
+
+        await ctx.OnMainThread(() => { ExtensionRouting.SetSelected(plan.RouteKey!, plan.PackageId); return 0; });
+        return CommandResult.Ok(new JsonObject
+        {
+            ["route"] = plan.RouteLabel,
+            ["outcome"] = "applied",
+            ["cleared"] = string.IsNullOrEmpty(plan.PackageId),
+            ["packageId"] = string.IsNullOrEmpty(plan.PackageId) ? null : plan.PackageId,
+            ["target"] = plan.TargetLabel,
+            ["note"] = string.IsNullOrEmpty(message) ? null : message,
+        });
+    }
+
+    readonly record struct RoutePlan(CommandError? Error, JsonObject? NoOp, string? RouteKey, string RouteLabel, string? PackageId, string TargetLabel);
+
+    static RoutePlan Fail(string code, string message) => new(new CommandError(code, message), null, null, "", null, "");
+
+    static RoutePlan Unchanged(string route, bool cleared, string target) => new(null, new JsonObject
+    {
+        ["route"] = route,
+        ["outcome"] = "unchanged",
+        ["cleared"] = cleared,
+        ["target"] = target,
+    }, null, route, null, target);
+
+    static RoutePlan Plan(string kind, string identity, string packageId)
+    {
+        var rows = ExtensionRouting.GetConflicts();
+        if (rows.Count == 0)
+            return Fail("no_conflicts", "no extension identity is contested right now, so there is nothing to route. Call list_extension_routing (and check list_extensions for load errors instead).");
+
+        var row = rows.FirstOrDefault(r => string.Equals(r.Kind, kind, StringComparison.OrdinalIgnoreCase)
+                                       && string.Equals(r.Identity, identity, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrEmpty(row.RouteKey))
+            return Fail("not_contested", string.Format(
+                "\"{0}:{1}\" is not a contested identity (only contested ones can be routed). Call list_extension_routing to see the exact kind + identity pairs.", kind, identity));
+
+        var routeLabel = row.Kind + ":" + row.Identity;
+
+        // 清除选择 → 回默认规则；已无选择则什么都不做。
+        if (packageId.Length == 0)
+        {
+            if (ExtensionRouting.GetSelected(row.RouteKey) == null)
+                return Unchanged(routeLabel, true, ExtensionManager.GetPackageName(row.ActivePackageId));
+            // 清除后的活实现按默认规则重算（内建优先，否则包 id 序最小）——如实告知会落到谁。
+            // 传一个空 routeKey：注册表里的键恒为 "kind:identity"，空键必然无用户选择，故解析必走默认分支。
+            var fallback = ExtensionRouting.ResolveActivePackageId("", row.Options.Select(o => o.PackageId).ToArray()) ?? "";
+            return new RoutePlan(null, null, row.RouteKey, routeLabel, "", ExtensionManager.GetPackageName(fallback));
+        }
+
+        var option = row.Options.FirstOrDefault(o => string.Equals(o.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrEmpty(option.PackageId))
+            return Fail("not_a_candidate", string.Format(
+                "\"{0}\" does not provide \"{1}\". Its candidates are: {2}. (Use the packageId exactly as listed by list_extension_routing.)",
+                packageId, routeLabel, string.Join(", ", row.Options.Select(o => o.PackageId))));
+
+        if (ExtensionRouting.GetSelected(row.RouteKey) == option.PackageId)
+            return Unchanged(routeLabel, false, ExtensionManager.GetPackageName(option.PackageId));
+
+        return new RoutePlan(null, null, row.RouteKey, routeLabel, option.PackageId, ExtensionManager.GetPackageName(option.PackageId));
+    }
+
+    // 措辞与搬家前逐字一致。
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var route = obj["route"]!.GetValue<string>();
+        var target = obj["target"]?.GetValue<string>() ?? "";
+        bool cleared = obj["cleared"]!.GetValue<bool>();
+
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "unchanged":
+                return cleared
+                    ? string.Format("\"{0}\" already has no explicit choice (it uses the default rule, currently \"{1}\"). Nothing changed.", route, target)
+                    : string.Format("\"{0}\" is already set to \"{1}\". Nothing changed.", route, target);
+            case "refused":
+                return obj["note"]!.GetValue<string>();
+            default:
+                return (obj["note"]?.GetValue<string>() ?? string.Empty) + string.Format(
+                    "{0} for {1}. Saved, but it only takes effect after TuneLab restarts — tell the user to restart, then verify with list_extension_routing.",
+                    cleared
+                        ? string.Format("Cleared the package choice (back to the default rule, which currently resolves to \"{0}\")", target)
+                        : string.Format("Selected \"{0}\"", target),
+                    route);
+        }
+    }
+}
+
+// 扩展启停：把某个包（或包内某个能力）关掉但不卸载。与 `extension set-routing` 对称——同属"改用户的
+// 应用配置、即时落盘、重启后生效"，故同一授权闸门、同一话术；但两者答的不是一个问题：routing 在多个
+// 实现里挑一个，启停决定某份实现要不要参与加载（没有竞争者的独苗同样适用）。
+// 判据全来自 ExtensionActivation 与 ExtensionManager.LoadResults，这里不复制任何一份状态。
+internal sealed class ExtensionEnableCommand : ICommand
+{
+    public string Path => "extension enable";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "set_extension_enabled";
+
+    public string Brief => "Switch an extension (or one capability) on or off";
+
+    public string Documentation =>
+        "Turn an installed extension — or ONE capability inside it — on or off, without uninstalling anything. " +
+        "Use it when a plugin misbehaves, is slow to load, or the user simply wants it out of the way but kept installed. " +
+        "Omit `capability` to switch the whole package; pass it (\"kind:identity\" as shown by list_extensions, e.g. \"voice:my.engine\" or \"format:mid\") to switch just that one capability and leave the rest of the package working. " +
+        "Disabling means the capability is not registered at all next launch: anything referring to it (a project using that voice, a file of that format) will stop resolving — say so before you do it. " +
+        "The choice is saved immediately but only takes effect after TuneLab restarts, so always tell the user to restart. " +
+        "Needs the user's authorization; if refused, point them at the Extensions sidebar: opening a package's detail window shows the same switches — one for the package in its header, one per capability on that capability's tab.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "packageId": { "type": "string", "description": "The installed package's id exactly as listed by list_extensions (legacy packages use their folder name)." },
+            "enabled": { "type": "boolean", "description": "true = enable, false = disable." },
+            "capability": { "type": "string", "description": "Optional: \"kind:identity\" of ONE capability in that package (e.g. \"voice:my.engine\"). A bare identity or the capability's display name is accepted too. Omit to switch the whole package." }
+          },
+          "required": ["packageId", "enabled"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var packageId = (args.Json.GetString("packageId") ?? "").Trim();
+        var capability = (args.Json.GetStringOrNull("capability") ?? "").Trim();
+        // 缺省/无法判读一律当"没说清"报错——启停是二选一的破坏性动作，猜一个默认值不可接受。
+        if (args.Json.GetBoolOrNull("enabled") is not { } enabled)
+            return CommandResult.Fail("missing_enabled", "\"enabled\" must be true or false.");
+
+        // 查询 LoadResults 与注册表侧的状态一律回主线程（与其余扩展类命令一致）。
+        var plan = await ctx.OnMainThread(() => Plan(packageId, capability, enabled));
+        if (plan.Error is { } error)
+            return CommandResult.Fail(error.Code, error.Message);
+        if (plan.NoOp is { } noOp)
+            return CommandResult.Ok(noOp);
+
+        var (proceed, message) = await ctx.Authorize(
+            new AuthorizationRequest(WriteKind.ExtensionActivationChange, 0,
+                plan.Target, enabled ? "enable" : "disable", plan.SecondaryTarget), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(Result(plan, enabled, "refused", message));
+
+        await ctx.OnMainThread(() =>
+        {
+            if (plan.EntryKind == null)
+                ExtensionActivation.SetPackageEnabled(packageId, enabled);
+            else
+                ExtensionActivation.SetEntryEnabled(packageId, plan.EntryKind, plan.Identities, enabled);
+            return 0;
+        });
+
+        return CommandResult.Ok(Result(plan, enabled, "applied", message));
+    }
+
+    static JsonNode Result(ActivationPlan plan, bool enabled, string outcome, string? note) => new JsonObject
+    {
+        ["target"] = plan.Target,
+        ["secondaryTarget"] = plan.SecondaryTarget,
+        ["scope"] = plan.EntryKind == null ? "package" : "capability",
+        ["enabled"] = enabled,
+        ["outcome"] = outcome,
+        ["note"] = string.IsNullOrEmpty(note) ? null : note,
+    };
+
+    // EntryKind=null 表示整包；否则是条目级（Identities 为该条目的全部身份，多后缀 format 一并写入）。
+    readonly record struct ActivationPlan(CommandError? Error, JsonObject? NoOp, string Target, string? SecondaryTarget, string? EntryKind, IReadOnlyList<string> Identities);
+
+    static ActivationPlan Fail(string code, string message) => new(new CommandError(code, message), null, "", null, null, []);
+
+    // 什么都不改的四种情形，各有各的下一步（开整包 / 无需动作），故理由进 Data 而不是拍成一句话。
+    static ActivationPlan NoChange(string reason, string target, string? secondary, bool enabled, bool entryLevel) => new(null, new JsonObject
+    {
+        ["target"] = target,
+        ["secondaryTarget"] = secondary,
+        ["scope"] = entryLevel ? "capability" : "package",
+        ["enabled"] = enabled,
+        ["outcome"] = "unchanged",
+        ["reason"] = reason,
+    }, "", null, null, []);
+
+    static ActivationPlan Plan(string packageId, string capability, bool enabled)
+    {
+        if (packageId.Length == 0)
+            return Fail("empty_package_id", "\"packageId\" is empty. Call list_extensions and use the id exactly as listed.");
+
+        var package = ExtensionManager.LoadResults.FirstOrDefault(r => string.Equals(r.Id, packageId, StringComparison.OrdinalIgnoreCase));
+        if (package == null)
+        {
+            var known = ExtensionManager.LoadResults.Where(r => !string.IsNullOrEmpty(r.Id)).Select(r => r.Id).ToArray();
+            return Fail("unknown_package", string.Format("no installed package has id \"{0}\". Installed ids: {1}.",
+                packageId, known.Length == 0 ? "(none)" : string.Join(", ", known)));
+        }
+
+        // ── 整包 ──
+        if (capability.Length == 0)
+        {
+            if (ExtensionActivation.IsPackageDisabled(package.Id) == !enabled)
+                return NoChange("package_already", package.Name, null, enabled, false);
+            return new ActivationPlan(null, null, package.Name, null, null, []);
+        }
+
+        // ── 包内某个条目 ──"kind:identity" / 裸身份 / 显示名 三种写法都认；匹配规则与
+        // `extension introduction` 共用一份（见 ExtensionCapabilityLookup）。
+        // 这里已按 packageId 锁定了包，故只需在包内消歧。
+        var matches = ExtensionCapabilityLookup.Find(capability, package.Id ?? string.Empty);
+        if (matches.Count == 0)
+        {
+            var provided = package.Entries.Where(e => e.Identities.Count > 0)
+                .Select(e => e.Kind + ":" + string.Join(",", e.Identities)).ToArray();
+            return Fail("not_a_capability", string.Format("\"{0}\" is not a capability of \"{1}\". It provides: {2}.",
+                capability, package.Name, provided.Length == 0 ? "(nothing switchable)" : string.Join(", ", provided)));
+        }
+        if (matches.Count > 1)
+            return Fail("ambiguous", string.Format("\"{0}\" matches {1} capabilities of \"{2}\" ({3}). Use the exact \"kind:identity\" form.",
+                capability, matches.Count, package.Name, string.Join(", ", matches.Select(m => m.Label))));
+
+        var entry = matches[0].Entry;
+        if (!ExtensionActivation.CanDisableEntry(package.Id, entry.Kind, entry.Identities))
+            return Fail("not_switchable", string.Format(
+                "\"{0}\" has no switchable identity (resource entries are not registered individually). Switch the whole package instead: call again without \"capability\".", capability));
+
+        var label = entry.Kind + ":" + string.Join(",", entry.Identities);
+
+        // 整包已关时，单个能力的开关无从谈起——如实说清该先开整包，而不是写下一个看不出效果的选择。
+        if (ExtensionActivation.IsPackageDisabled(package.Id))
+            return NoChange(enabled ? "package_disabled_cannot_enable" : "package_disabled_already_off", label, package.Name, enabled, true);
+
+        if (ExtensionActivation.IsEntryDisabledSelf(package.Id, entry.Kind, entry.Identities) == !enabled)
+            return NoChange("capability_already", label, package.Name, enabled, true);
+
+        return new ActivationPlan(null, null, label, package.Name, entry.Kind, entry.Identities);
+    }
+
+    // 措辞与搬家前逐字一致。
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var target = obj["target"]!.GetValue<string>();
+        var secondary = obj["secondaryTarget"]?.GetValue<string>();
+        bool enabled = obj["enabled"]!.GetValue<bool>();
+
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "unchanged":
+                return obj["reason"]!.GetValue<string>() switch
+                {
+                    "package_already" => string.Format("The extension \"{0}\" is already {1}. Nothing changed.", target, enabled ? "enabled" : "disabled"),
+                    "package_disabled_cannot_enable" => string.Format(
+                        "The whole extension \"{0}\" is disabled, so \"{1}\" cannot be enabled on its own. Enable the package first (call again without \"capability\").", secondary, target),
+                    "package_disabled_already_off" => string.Format(
+                        "\"{0}\" is already off, because the whole extension \"{1}\" is disabled. Nothing changed.", target, secondary),
+                    _ => string.Format("\"{0}\" of \"{1}\" is already {2}. Nothing changed.", target, secondary, enabled ? "enabled" : "disabled"),
+                };
+
+            case "refused":
+                return obj["note"]!.GetValue<string>();
+
+            default:
+                return (obj["note"]?.GetValue<string>() ?? string.Empty) + string.Format(
+                    "{0} {1}. Saved, but it only takes effect after TuneLab restarts — tell the user to restart, then verify with list_extensions.{2}",
+                    enabled ? "Enabled" : "Disabled",
+                    obj["scope"]!.GetValue<string>() == "package"
+                        ? string.Format("the extension \"{0}\"", target)
+                        : string.Format("the \"{0}\" capability of \"{1}\"", target, secondary),
+                    enabled ? "" : " Until then it stays loaded and usable this session.");
+        }
+    }
+}

@@ -30,8 +30,11 @@ internal static class CommandRegistry
         new EffectListCommand(),
         new ExtensionListCommand(),
         new ExtensionRoutingCommand(),
+        new ExtensionSetRoutingCommand(),
         new ExtensionIntroductionCommand(),
         new ExtensionSettingsCommand(),
+        new ExtensionSetSettingCommand(),
+        new ExtensionEnableCommand(),
     };
 
     public static bool TryGet(string path, out ICommand command)
