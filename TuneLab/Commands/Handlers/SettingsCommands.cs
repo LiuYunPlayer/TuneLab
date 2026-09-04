@@ -21,7 +21,7 @@ internal sealed class SettingListCommand : ICommand
     public CommandKind Kind => CommandKind.Read;
     public string AgentToolName => "list_settings";
 
-    public string Brief => "List app settings with page, allowed values, current and default";
+    public string Brief => "List app settings with page, allowed values, defaults";
 
     public string Documentation =>
         "List TuneLab's application settings (the Settings window): each one's key, label, which page it lives on, allowed type/range/options, current value and default. " +
