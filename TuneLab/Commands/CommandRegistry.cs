@@ -17,9 +17,12 @@ internal static class CommandRegistry
     public static IReadOnlyList<ICommand> All { get; } = new ICommand[]
     {
         new ProjectStatusCommand(),
+        new ProjectExportCommand(),
         new ScriptListCommand(),
         new ScriptReadCommand(),
         new ScriptInputsCommand(),
+        new ScriptSaveCommand(),
+        new ScriptDeleteCommand(),
         new DocsScriptApiCommand(),
         new DocsManualCommand(),
         new SettingListCommand(),

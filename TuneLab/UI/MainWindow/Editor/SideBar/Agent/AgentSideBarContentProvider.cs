@@ -116,13 +116,6 @@ internal sealed class AgentSideBarContentProvider
             {
                 // 操作工程：定向（看）已搬成命令 `project status`；脚本（改/算/细读）仍在此
                 new RunScriptTool(writeExecutor),
-                // 导出 = importTracks 的对偶。不改工程状态（故不进 tl 面，同 save/delete_script 循例），但写用户磁盘上
-                // 任意路径 → 恒过授权闸门。只做工程/MIDI 等格式文件，音频导出是用户的人在环决定、不给 agent。
-                new ExportProjectTool(project, RequestScriptAuthorizationAsync),
-                // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用；读参数 / 代跑（闭环）。
-                // save(覆盖已存)/delete 是外部文件的破坏性改动 → 过授权闸门（RequestScriptAuthorizationAsync，同工程写）。
-                new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang, RequestScriptAuthorizationAsync),
-                new DeleteScriptTool(RequestScriptAuthorizationAsync),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
                 // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。

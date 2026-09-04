@@ -233,3 +233,166 @@ internal sealed class ScriptInputsCommand : ICommand
             : string.Format("Script \"{0}\" takes no inputs. Run it with run_saved_script and no `inputs`.", obj["name"]!.GetValue<string>());
     }
 }
+
+// 保存（新建或覆盖）一个脚本到库：让调用方把用户描述的功能写成一个【工具脚本】（定义 getScriptInfo + main）
+// 存进脚本库，即自动注册进对应菜单（global / note / part / partContent…），用户日后直接点菜单复用。
+// 保存只持久化源码、不执行（安全）；保存前先预校验 getScriptInfo 可解析，并回报注册到了哪个菜单。
+//
+// 覆盖已存脚本 = 破坏用户外部文件（历史管理器救不回）→ 过闸门；新建是加性、不拦。
+internal sealed class ScriptSaveCommand : ICommand
+{
+    public string Path => "script save";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "save_script";
+
+    public string Brief => "Save a reusable script into the library (and its menu)";
+
+    public string Documentation =>
+        "Save a REUSABLE script tool into the user's script library so it appears in TuneLab's menus for one-click reuse later. " +
+        "Use this when the user wants a feature/command they can run again (\"add a menu item/button that …\", \"make me a tool to …\"), instead of run_script which runs once. " +
+        "To become a menu tool the script must define getScriptInfo() (name/category/context) and main() — call get_script_api for the exact convention and which menu each context maps to. " +
+        "Saving does NOT run the script. If a script with the same name exists, OVERWRITING it needs the user's authorization (it replaces their file, which can't be undone) — the result tells you what happened. " +
+        "A script without getScriptInfo is saved as a plain run-once script (Script side panel only).";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "description": "Library name = file name without .js; reused as the identifier. Pick a short stable slug." },
+            "code": { "type": "string", "description": "Full JavaScript source. Define getScriptInfo() + main() to make it a menu tool (see get_script_api)." }
+          },
+          "required": ["name", "code"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var name = ScriptLibrary.SanitizeName((args.Json.GetString("name") ?? "").Trim());
+        var code = args.Json.GetString("code") ?? "";
+        if (string.IsNullOrWhiteSpace(name))
+            return CommandResult.Fail("empty_name", "\"name\" is empty or has no valid characters.");
+        if (string.IsNullOrWhiteSpace(code))
+            return CommandResult.Fail("empty_code", "\"code\" is empty.");
+        if (ctx.Project is not { } project)
+            return CommandResult.Fail("no_project",
+                "no project is open, so the script cannot be checked before saving (getScriptInfo is evaluated against a project). Open a project and call again.");
+
+        // 预校验：若声明了 getScriptInfo，先确认它能 eval 出元数据，避免保存破损的工具脚本
+        // （且先于授权，不为坏脚本打扰用户）。eval 脚本 → 与 `script list` 同在主线程。
+        var (info, error) = await ctx.OnMainThread(() => ScriptTools.InspectSource(name, code, project,
+            ScriptContextAccess.CurrentPart(ctx), ScriptContextAccess.Quantization(ctx), ctx.Language));
+        if (error != null)
+            return CommandResult.Fail("bad_script_info", "getScriptInfo failed to evaluate — " + error + "\nFix the script and call save_script again. Nothing was saved.");
+
+        bool existed = ScriptLibrary.Exists(name);
+        string note = "";
+        if (existed)
+        {
+            var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(WriteKind.ScriptOverwrite, 0, name), cancellationToken);
+            if (!proceed)
+                return CommandResult.Ok(new JsonObject { ["name"] = name, ["outcome"] = "refused", ["existed"] = true, ["note"] = message });
+            note = message;
+        }
+
+        try { ScriptLibrary.Save(name, code); }
+        catch (Exception ex) { return CommandResult.Fail("save_failed", "failed to save — " + ex.Message); }
+
+        return CommandResult.Ok(new JsonObject
+        {
+            ["name"] = name,
+            ["outcome"] = "applied",
+            ["existed"] = existed,
+            ["tool"] = info == null ? null : new JsonObject
+            {
+                ["displayName"] = info.DisplayName,
+                ["context"] = info.Context.ToString(),
+            },
+            ["note"] = string.IsNullOrEmpty(note) ? null : note,
+        });
+    }
+
+    // 措辞与搬家前逐字一致。
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+        if (obj["outcome"]!.GetValue<string>() == "refused")
+            return obj["note"]!.GetValue<string>();
+
+        var sb = new StringBuilder(obj["note"]?.GetValue<string>() ?? string.Empty);
+        sb.Append(obj["existed"]!.GetValue<bool>() ? "Updated" : "Saved")
+          .Append(" script \"").Append(obj["name"]!.GetValue<string>()).Append("\". ");
+        if (obj["tool"] is JsonObject tool)
+            sb.Append(string.Format("Registered as menu tool \"{0}\" in {1}.",
+                tool["displayName"]!.GetValue<string>(), ContextLabel(tool["context"]!.GetValue<string>())));
+        else
+            sb.Append("It has no getScriptInfo(), so it is a plain run-once script (Script side panel only; not in menus).");
+        return sb.ToString();
+    }
+
+    static string ContextLabel(string context) => context switch
+    {
+        nameof(ScriptToolContext.Note) => "the piano-roll note right-click menu",
+        nameof(ScriptToolContext.Part) => "the arrangement part right-click menu",
+        nameof(ScriptToolContext.PartContent) => "the piano-roll blank right-click menu",
+        nameof(ScriptToolContext.Track) => "the track-header right-click menu",
+        nameof(ScriptToolContext.TrackContent) => "the arrangement blank-lane right-click menu",
+        _ => "the top Scripts menu",
+    };
+}
+
+// 删除库内脚本（同时从菜单移除）。删文件 = 破坏用户外部产物（历史管理器救不回）→ 恒过闸门。
+internal sealed class ScriptDeleteCommand : ICommand
+{
+    public string Path => "script delete";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "delete_script";
+
+    public string Brief => "Delete a saved script from the library";
+
+    public string Documentation =>
+        "Delete a saved script from the library by name (also removes it from the menus). " +
+        "This deletes the user's file and CANNOT be undone, so it needs the user's authorization — the result tells you whether it was deleted.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": { "name": { "type": "string", "description": "Library name (without .js)." } },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var name = ScriptLibrary.SanitizeName((args.Json.GetString("name") ?? "").Trim());
+        if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
+            return CommandResult.Fail("not_found", SavedScriptSupport.NotFound(name));
+
+        // 删除是破坏性外部文件操作 → 过闸门（放开就直删 / 要确认就问 / 只读档不删+建议）。
+        var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(WriteKind.ScriptDelete, 0, name), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject { ["name"] = name, ["outcome"] = "refused", ["note"] = message });
+
+        try { ScriptLibrary.Delete(name); }
+        catch (Exception ex) { return CommandResult.Fail("delete_failed", ex.Message); }
+
+        return CommandResult.Ok(new JsonObject
+        {
+            ["name"] = name,
+            ["outcome"] = "applied",
+            ["note"] = string.IsNullOrEmpty(message) ? null : message,
+        });
+    }
+
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+        var note = obj["note"]?.GetValue<string>() ?? string.Empty;
+        return obj["outcome"]!.GetValue<string>() == "refused"
+            ? note
+            : note + "Deleted script \"" + obj["name"]!.GetValue<string>() + "\".";
+    }
+}
