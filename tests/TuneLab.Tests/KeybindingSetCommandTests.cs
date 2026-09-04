@@ -21,6 +21,32 @@ public class KeybindingSetCommandTests
 
     static string Render(JsonObject data) => Command.Render(data, CommandArgs.Empty);
 
+    // 「坐在编辑器里」的语境。id 写错之类的错误只有在有命令目录时才谈得上，故那些用例要显式给一个
+    // 编辑器态——四个访问器全给 null 就够（这条命令一个都不读，它只是在场与否的判据）。
+    sealed class StubEditorState : IEditorStateAccess
+    {
+        public TuneLab.Data.IMidiPart? CurrentPart => null;
+        public TuneLab.Data.IQuantization? Quantization => null;
+        public TuneLab.Scripting.ScriptSelection? Selection => null;
+        public TuneLab.Scripting.ScriptPianoSelection? PianoSelection => null;
+    }
+
+    static CommandContext WithEditor() => new() { EditorState = new StubEditorState() };
+
+    // 没有编辑器的进程里按 id 找不到是【必然】的。照常报"没有这个 id"会让调用方以为自己名字写错了
+    // 而反复试——那是把结构性缺席说成拼写错误。故先如实失败（测试进程本身就没有编辑器，天然是这个场景）。
+    [Fact]
+    public void FailsPlainlyWhenThereIsNoEditorInThisProcess()
+    {
+        var result = Command.ExecuteAsync(
+            CommandArgs.Parse("""{"id": "edit.undo", "gesture": "ctrl+alt+u"}"""),
+            new CommandContext(), CancellationToken.None).GetAwaiter().GetResult();
+
+        Assert.True(result.IsError);
+        Assert.Equal("no_editor", result.Error!.Value.Code);
+        Assert.StartsWith("No editor is present in this process", result.Error!.Value.Message);
+    }
+
     // ── 不用改的三种
 
     [Fact]
@@ -219,7 +245,7 @@ public class KeybindingSetCommandTests
     [Fact]
     public void EmptyIdPointsAtTheList()
     {
-        var result = Command.ExecuteAsync(CommandArgs.Parse("""{"id":"  "}"""), new CommandContext(), CancellationToken.None)
+        var result = Command.ExecuteAsync(CommandArgs.Parse("""{"id":"  "}"""), WithEditor(), CancellationToken.None)
             .GetAwaiter().GetResult();
 
         Assert.True(result.IsError);
@@ -229,7 +255,7 @@ public class KeybindingSetCommandTests
     [Fact]
     public void UnknownCommandIdExplainsHowScriptCommandsAppear()
     {
-        var result = Command.ExecuteAsync(CommandArgs.Parse("""{"id":"no.such.command","gesture":"ctrl+q"}"""), new CommandContext(), CancellationToken.None)
+        var result = Command.ExecuteAsync(CommandArgs.Parse("""{"id":"no.such.command","gesture":"ctrl+q"}"""), WithEditor(), CancellationToken.None)
             .GetAwaiter().GetResult();
 
         Assert.True(result.IsError);

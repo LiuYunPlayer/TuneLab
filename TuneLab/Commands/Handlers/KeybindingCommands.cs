@@ -41,10 +41,13 @@ internal sealed class KeybindingListCommand : ICommand
     public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
     {
         var query = (args.Json.GetStringOrNull("query") ?? "").Trim();
-        return CommandResult.Ok(await ctx.OnMainThread(() => BuildData(query)));
+        // 空表有两种截然不同的成因，回话必须分开（同"没配授权"与"用户拒绝"要分开是同一条道理）：
+        // 真的一条都没注册（等一等也许就有），还是【这个进程根本没有编辑器】（等多久都不会有）。
+        // 后者的判据现成：EditorState 为 null 就是"没有编辑器态"（见 IEditorStateAccess）。
+        return CommandResult.Ok(await ctx.OnMainThread(() => BuildData(query, ctx.EditorState != null)));
     }
 
-    static JsonNode BuildData(string query)
+    static JsonNode BuildData(string query, bool hasEditor)
     {
         var all = Keymap.Commands.OrderBy(c => Keymap.OrderOf(c.Id)).ToList();
         var shown = query.Length == 0
@@ -72,6 +75,7 @@ internal sealed class KeybindingListCommand : ICommand
         return new JsonObject
         {
             ["total"] = all.Count,                                  // 全部可绑定命令数（不受 query 影响）
+            ["hasEditor"] = hasEditor,                              // false = 这个进程没有编辑器，故 total 恒为 0
             ["query"] = query.Length == 0 ? null : query,
             ["commands"] = commands,
         };
@@ -85,7 +89,8 @@ internal sealed class KeybindingListCommand : ICommand
             ["display"] = KeyCodec.ToDisplay(b),
         };
 
-    // 措辞与搬家前逐字一致（换行同样是 "\n"）。
+    // 措辞与搬家前逐字一致（换行同样是 "\n"）。唯一的例外是"没有编辑器"那句：搬家前不存在这种情形
+    // （工具只活在开着界面的宿主里），是命令面多出入口之后才有的新事实，故是新增而非改写。
     public string Render(JsonNode? data, CommandArgs args)
     {
         if (data is not JsonObject obj)
@@ -93,7 +98,9 @@ internal sealed class KeybindingListCommand : ICommand
 
         int total = obj["total"]!.GetValue<int>();
         if (total == 0)
-            return "No bindable commands are registered yet.";
+            return obj["hasEditor"]?.GetValue<bool>() == false
+                ? "No editor is present in this process, so there are no bindable commands: the command catalog is declared by the editor window as it builds, and shortcuts only mean anything where there are keys to press. Run this against a running TuneLab instead."
+                : "No bindable commands are registered yet.";
 
         var query = obj["query"]?.GetValue<string>() ?? "";
         var shown = obj["commands"]!.AsArray();
@@ -179,10 +186,11 @@ internal sealed class KeybindingSetCommand : ICommand
         bool replaceConflict = args.Json.GetBoolOrNull("replaceConflict") ?? false;
 
         // 命令表在主线程被增删（脚本命令随菜单/文件监视器同步），故 id 归一 + 计划 + 后续写都在主线程取一致快照。
+        bool hasEditor = ctx.EditorState != null;
         var (id, plan) = await ctx.OnMainThread(() =>
         {
             var rid = ResolveId(given);
-            return (rid, Plan(rid, gesture, reset, replaceConflict));
+            return (rid, Plan(rid, gesture, reset, replaceConflict, hasEditor));
         });
         if (plan.Error is { } error)
             return CommandResult.Fail(error.Code, error.Message);
@@ -229,13 +237,18 @@ internal sealed class KeybindingSetCommand : ICommand
         ["gesture"] = gesture,
     }, label, action, false, null, "", false, null);
 
-    static ChangePlan Plan(string id, string? gesture, bool reset, bool replaceConflict)
+    // hasEditor：这个进程有没有编辑器（判据见 keybinding list）。没有编辑器时命令目录必然是空的，
+    // 于是按 id 找不到是【结构性缺席】而不是拼写错误——照常报"没有这个 id"会让调用方以为自己写错了名字
+    // 而反复试。空 id 不在此列：那是调用方的笔误，有没有编辑器都一样。
+    static ChangePlan Plan(string id, string? gesture, bool reset, bool replaceConflict, bool hasEditor)
     {
         if (id.Length == 0)
             return Fail("empty_id", "\"id\" is empty. Call list_keybindings to see command ids.");
         if (!Keymap.TryGet(id, out var cmd))
-            return Fail("unknown_id", string.Format(
-                "no bindable command with id \"{0}\". Call list_keybindings to see the ids. (A script saved with save_script becomes \"script:<its id>\" once the app has picked the file up — list again if it is not there yet.)", id));
+            return hasEditor
+                ? Fail("unknown_id", string.Format(
+                    "no bindable command with id \"{0}\". Call list_keybindings to see the ids. (A script saved with save_script becomes \"script:<its id>\" once the app has picked the file up — list again if it is not there yet.)", id))
+                : Fail("no_editor", "No editor is present in this process, so there are no bindable commands: the command catalog is declared by the editor window as it builds, and shortcuts only mean anything where there are keys to press. Run this against a running TuneLab instead.");
 
         var label = cmd.DisplayName();
         var effective = Keymap.Effective(id);

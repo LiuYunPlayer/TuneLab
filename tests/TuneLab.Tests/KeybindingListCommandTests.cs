@@ -115,6 +115,17 @@ public class KeybindingListCommandTests
             new KeybindingListCommand().Render(data, CommandArgs.Empty));
     }
 
+    // 空表的两种成因不能说成同一句：真的一条没注册（等等也许就有）vs 这个进程根本没有编辑器
+    // （等多久都不会有）。后者是命令面多出 headless 入口之后才有的新事实，说错了会让调用方
+    // 白等或反复重试。判据取现成的 EditorState 是否为 null。
+    [Fact]
+    public void RenderSaysWhyWhenThereIsNoEditorInThisProcess()
+    {
+        var data = new JsonObject { ["total"] = 0, ["hasEditor"] = false, ["query"] = null, ["commands"] = new JsonArray() };
+        Assert.StartsWith("No editor is present in this process",
+            new KeybindingListCommand().Render(data, CommandArgs.Empty));
+    }
+
     // 未初始化 Keymap 的进程（CI / headless）里不该抛，而应如实回报空注册表。
     [Fact]
     public void DoesNotThrowWhenTheKeymapWasNeverInitialised()
