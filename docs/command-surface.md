@@ -342,6 +342,19 @@ internal interface IEditorStateAccess
   不能让 agent 自己打开自己的远程通道。
 - **一次一个连接够用**（外部 agent 是串行的）。并发连接的隔离留到有需求再说。
 
+**已落地**（`TuneLab/Bridge/`）：`BridgeProtocol`（帧 + JSON-RPC 常量，宿主与 CLI 共用同一份定义）、
+`BridgeCredentials`（`Configs/CommandBridge.json`：管道名 + 每次开桥现生成的 token + pid）、
+`BridgeSession`（握手 / `commands/list` / `command/execute` / 反向的 `authorization/confirm`）、
+`CommandBridge`（设置开关的订阅 + 接受循环）。开关是 `SettingsRegistry.CommandBridgeEnabled`，
+默认关、`AgentWritable=false`。
+
+两处实现上的要点，改这块代码前先知道：
+
+- **读循环不能等命令跑完**。Edit 命令会反过来问客户端"这次做不做"，而那个回答正是从同一条连接上读回来的
+  ——在读循环里 `await` 命令，就是在等一条自己不去读的消息（写这条时真踩了一次，测试里表现为超时）。
+  故命令在独立任务上跑，写口上锁。
+- **答得含糊一律当拒绝**。授权这件事上，缺字段/写错的回答不能算同意。
+
 ---
 
 ## 8. headless
@@ -387,6 +400,15 @@ headless 特有的三件事：
   宿主全套的情况下自省——注册表是纯声明，满足这条。
 - `--headless` 切到 §8 那条路。
 
+**已落地**（`TuneLab.Cli/`，程序集 `TuneLab.Cli`）：命令树 / 单条命令的 `--help` 全部离线（直接读
+`CommandRegistry`，不连宿主）；参数按该命令的 schema 逐个校验并转型，认不出的参数名报用法错而不是
+静默忽略；`--json` 打 `Data`、默认打渲染文本；`--yes` / `--dry-run` / 默认 stdin 交互确认；
+退出码 0/1/2/3 如约。连不上时区分"桥没开"与"宿主已退出但凭据文件还在"——两者的下一步不同。
+
+**程序集名不能叫 `tunelab`**：它会与被引用的 `TuneLab.dll` 在同一输出目录里同名（Windows 不区分
+大小写）而互相覆盖。命令名 `tunelab` 是安装期的事——装包时给 `TuneLab.Cli.exe` 落一个 `tunelab`
+入口即可。
+
 ### 9.3 MCP server
 
 - **stdio 独立进程**，不由宿主 spawn。理由：宿主没开时，server 仍然活着并能**在对话里**
@@ -413,6 +435,7 @@ headless 特有的三件事：
 | **①** | `CommandRegistry` + 契约 + 26 个 handler 搬家（结果形状按 §4 切）+ 内置 agent 改成合成消费者 | 内置 agent 实测与现在等价（回归现有测试文档） |
 | | **已完成**：25 条命令全部进注册表，`TuneLab/Agent/Tools/` 只剩 `AskUserQuestionTool`（按 §5.4 是入口能力，不进命令树）。四类入口依赖的抽象都已落地：`IAuthorizationPolicy`（§5.1）、`IEditorStateAccess`（§5.2）、`ISideModelAccess`（§5.3） | |
 | **②** | 管道 bridge + 凭据文件 + 设置开关 + CLI（全部 read 命令 + 少数 edit） | 开发者能从终端驱动运行中的 TuneLab |
+| | **已完成**：桥与 CLI 都在（见 §7 / §9.2 的落地小节）。命令不分 read/edit 地全部可用——闸门按连接声明的档位走，故 edit 不需要另开名单 | |
 | **③** | headless + CI 用例 | CI 里无人值守跑一串命令并断言 |
 | **④** | MCP server 壳 | 外部客户端连上，用已有订阅额度驱动 |
 

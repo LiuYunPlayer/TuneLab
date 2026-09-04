@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- tunelab 命令行：从终端（或 CI）驱动运行中的 TuneLab，跑的是与 AI Agent 面板同一份命令。
+       引用 TuneLab 是为了【离线也能列出命令树】——CommandRegistry 是纯声明，不启动宿主也自省得出，
+       故 help 与参数校验都不需要连上宿主（见 docs/command-surface.md §9.2）。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- 程序集名【不能】叫 tunelab：它会与被引用的 TuneLab.dll 在同一输出目录里同名（Windows 文件名
+         不区分大小写），互相覆盖。设计文档里的命令名 `tunelab` 是【安装期】的事——装包时给
+         TuneLab.Cli.exe 落一个 tunelab 的入口（.cmd / 符号链接）即可，与程序集名无关。 -->
+    <AssemblyName>TuneLab.Cli</AssemblyName>
+    <RootNamespace>TuneLab.Cli</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TuneLab\TuneLab.csproj" />
+  </ItemGroup>
+
+</Project>

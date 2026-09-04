@@ -35,4 +35,7 @@ internal class SettingsFile
     // 单次工具结果回灌模型的字符数上限（中央兜底，防某工具输出淹没上下文）。默认设宽（普通机器十几个音源/结果远小于此，
     // 不受影响；只拦成百上千的畸形案例）；<=0 = 不限。见 AgentRunner 的 clamp。
     public int AgentMaxToolResultChars { get; set; } = 40000;
+    // 命令桥（本机的外部进程经命名管道驱动这个 TuneLab，见 docs/command-surface.md §7）。默认关：
+    // 它是一条对外的控制通道，开不开必须是用户的明示选择。
+    public bool CommandBridgeEnabled { get; set; } = false;
 }

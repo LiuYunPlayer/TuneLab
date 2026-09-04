@@ -25,6 +25,10 @@
 		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
 			<_Parameter1>TuneLab.ScreenshotBot</_Parameter1>
 		</AssemblyAttribute>
+		<!-- 命令行（TuneLab.Cli）：命令注册表与线上协议都在这里，故需内部可见。 -->
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+			<_Parameter1>TuneLab.Cli</_Parameter1>
+		</AssemblyAttribute>
 	</ItemGroup>
 
 	<ItemGroup>

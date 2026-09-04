@@ -141,6 +141,15 @@ internal static class SettingsRegistry
             "Turn it off to send the lyric text itself to the voice engine, so the engine can do its own G2P (required for dialects and other non-pinyin phonologies). " +
             "It only affects lyrics entered from then on; pronunciations already stored in the project are kept either way.");
 
+    // 命令桥：让本机的外部进程（CLI / MCP server）驱动这个 TuneLab。默认关。
+    // 【agent 不可写】——不能让 agent 自己打开自己的远程通道；这是与授权档位同一类的防自我提权。
+    public static readonly SettingItem<bool> CommandBridgeEnabled = Bool("CommandBridgeEnabled", SettingTab.General,
+        "Command Bridge (let external tools drive TuneLab)", CheckBoxConfig.Create(D.CommandBridgeEnabled), D.CommandBridgeEnabled,
+        description: "When on, TuneLab listens on a local named pipe so external tools (the tunelab CLI, an MCP server) can run the same commands the AI Agent panel uses. " +
+            "It is local-only and gated by a credentials file in the user's config folder, which is written when this is turned on and deleted when it is turned off. " +
+            "Only the user can switch it — the agent must never open its own remote channel.",
+        agentWritable: false);
+
     // ── 仅存储（无设置窗行；由别处设定，但仍随本注册表读写磁盘、可被 agent 枚举） ──
     // 三者的【活值都由别处的 UI 拥有】（视图菜单 / agent 侧栏），只单向落盘：agent 写文件既不即时生效、又会被那处 UI
     // 覆盖，改了只会误导 → 一律 agentWritable: false（授权档位另有防自我提权的理由）。Description 供 agent 转告用户去哪改。
@@ -160,7 +169,7 @@ internal static class SettingsRegistry
     public static readonly IReadOnlyList<SettingItem> All =
     [
         // General
-        Language, AutoSaveInterval, AutoSaveMaxCount, MaxParallelSynthesisTasks, AgentMaxToolResultChars,
+        Language, AutoSaveInterval, AutoSaveMaxCount, MaxParallelSynthesisTasks, AgentMaxToolResultChars, CommandBridgeEnabled,
         // Audio
         MasterGain, AudioDriver, AudioDevice, SampleRate, BufferSize, PianoKeySamplesPath,
         // Appearance
@@ -200,12 +209,12 @@ internal static class SettingsRegistry
         { ImmediateApply = immediate };
 
     static SettingItem<bool> Bool(string key, SettingTab? tab, string label, IControllerConfig config, bool def,
-        string? description = null)
+        string? description = null, bool agentWritable = true)
         => new(key, tab, label, config, def,
             toPv: v => PropertyValue.Create(v),
             fromPv: v => v.ToBoolean(out var b) ? (true, b) : (false, def),
             read: ReadBool, write: v => JsonValue.Create(v))
-        { Description = description };
+        { Description = description, AgentWritable = agentWritable };
 
     // 数值选择框（供 SampleRate / BufferSize）：项的【值】是数字的字符串形（如 "44100"），
     // 设置窗绑定时经 .Select(int.Parse, i=>i.ToString()) 桥到 int 属性（与旧窗口一致）。

@@ -40,6 +40,7 @@ internal static class Settings
     public static NotifiableProperty<string> AgentModelProvider => SettingsRegistry.AgentModelProvider.Property;
     public static NotifiableProperty<string> AgentAuthorization => SettingsRegistry.AgentAuthorization.Property;
     public static NotifiableProperty<int> AgentMaxToolResultChars => SettingsRegistry.AgentMaxToolResultChars.Property;
+    public static NotifiableProperty<bool> CommandBridgeEnabled => SettingsRegistry.CommandBridgeEnabled.Property;
 
     public static void Init(string path)
     {

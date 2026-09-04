@@ -24,6 +24,7 @@ using System.IO.Pipes;
 
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Voices;
+using TuneLab.Bridge;
 namespace TuneLab;
 
 public partial class App : Application
@@ -109,6 +110,10 @@ public partial class App : Application
 
                 mMainWindow = new MainWindow();
                 desktop.MainWindow = mMainWindow;
+
+                // 命令桥（默认关，用户在设置里开）：本机的外部进程经命名管道驱动这个实例，跑的是与
+                // AI Agent 面板同一份命令。放在主窗口之后——编辑器在构造时才把宿主执行环境装上。
+                CommandBridge.Init();
 
                 // 检测启动参数
                 var args = Environment.GetCommandLineArgs();
