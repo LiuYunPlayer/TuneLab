@@ -1,12 +1,16 @@
 using System;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using TuneLab.Configs;
 using TuneLab.Data;
+using TuneLab.Foundation;
 using TuneLab.Scripting;
+using TuneLab.Utils;
 
 namespace TuneLab.Commands.Handlers;
 
@@ -17,23 +21,6 @@ namespace TuneLab.Commands.Handlers;
 // 而那些函数会读"用户此刻在看什么"——按当前 part 或选中范围给默认值是脚本作者的常规写法。
 // 故这两条经 ctx.EditorState 取（见 IEditorStateAccess）；headless 下它为 null，脚本读到的就是"没有"，
 // 与用户没选任何东西时一致——不猜一个 part 出来。
-internal static class ScriptContextAccess
-{
-    // 命令面的编辑器态 → 脚本层要的那几个委托。脚本层的签名是既有的（宿主菜单也在用同一套），
-    // 这里只做形状适配，不复制任何判据。
-    public static Func<IMidiPart?>? CurrentPart(CommandContext ctx)
-        => ctx.EditorState is { } s ? () => s.CurrentPart : null;
-
-    public static Func<IQuantization?>? Quantization(CommandContext ctx)
-        => ctx.EditorState is { } s ? () => s.Quantization : null;
-
-    public static Func<ScriptSelection?>? Selection(CommandContext ctx)
-        => ctx.EditorState is { } s ? () => s.Selection : null;
-
-    public static Func<ScriptPianoSelection?>? PianoSelection(CommandContext ctx)
-        => ctx.EditorState is { } s ? () => s.PianoSelection : null;
-}
-
 // 列出库内全部脚本，标出哪些是菜单工具（显示名 + 挂载 context）、哪些是普通脚本。
 internal sealed class ScriptListCommand : ICommand
 {
@@ -66,7 +53,7 @@ internal sealed class ScriptListCommand : ICommand
 
         // Discover 会 eval 脚本、读工程，且与宿主菜单共用一份静态缓存 → 与菜单同在主线程上跑。
         var tools = await ctx.OnMainThread(() => ScriptTools
-            .Discover(project, ScriptContextAccess.CurrentPart(ctx), ScriptContextAccess.Quantization(ctx), ctx.Language)
+            .Discover(project, ctx.CurrentPart(), ctx.Quantization(), ctx.Language)
             .ToDictionary(t => t.ScriptName));
 
         var scripts = new JsonArray();
@@ -192,8 +179,8 @@ internal sealed class ScriptInputsCommand : ICommand
         try { code = ScriptLibrary.Read(name); }
         catch (Exception ex) { return CommandResult.Fail("read_failed", ex.Message); }
 
-        var currentPart = ScriptContextAccess.CurrentPart(ctx);
-        var quantization = ScriptContextAccess.Quantization(ctx);
+        var currentPart = ctx.CurrentPart();
+        var quantization = ctx.Quantization();
         var (scriptId, hasInputs) = SavedScriptSupport.Inspect(name, code, project, currentPart, quantization, ctx.Language);
         if (!hasInputs)
             return CommandResult.Ok(NoInputs(name));
@@ -206,7 +193,7 @@ internal sealed class ScriptInputsCommand : ICommand
         return await ctx.OnMainThread(() =>
         {
             var (schema, error) = ScriptRunner.GetInputConfig(project, currentPart, quantization, ctx.Language,
-                ScriptContextAccess.Selection(ctx), ScriptContextAccess.PianoSelection(ctx), code, lastValues, cancellationToken);
+                ctx.Selection(), ctx.PianoSelection(), code, lastValues, cancellationToken);
             if (error != null)
                 return CommandResult.Fail("eval_failed", string.Format("getInputConfig failed to evaluate for \"{0}\" — {1}", name, error));
             if (schema == null)
@@ -281,7 +268,7 @@ internal sealed class ScriptSaveCommand : ICommand
         // 预校验：若声明了 getScriptInfo，先确认它能 eval 出元数据，避免保存破损的工具脚本
         // （且先于授权，不为坏脚本打扰用户）。eval 脚本 → 与 `script list` 同在主线程。
         var (info, error) = await ctx.OnMainThread(() => ScriptTools.InspectSource(name, code, project,
-            ScriptContextAccess.CurrentPart(ctx), ScriptContextAccess.Quantization(ctx), ctx.Language));
+            ctx.CurrentPart(), ctx.Quantization(), ctx.Language));
         if (error != null)
             return CommandResult.Fail("bad_script_info", "getScriptInfo failed to evaluate — " + error + "\nFix the script and call save_script again. Nothing was saved.");
 
@@ -395,4 +382,135 @@ internal sealed class ScriptDeleteCommand : ICommand
             ? note
             : note + "Deleted script \"" + obj["name"]!.GetValue<string>() + "\".";
     }
+}
+
+// 逃生口命令：让调用方写一段 JavaScript 表达复杂/批量/带循环条件的工程编辑（音乐编辑高度契合，
+// 如"5-8 小节每音符升八度再加三度和声"=一个循环，一轮搞定、省下几十次往返）。
+//
+// 命令本身很薄：取 code，交给共享的写执行器（ScriptWriteExecutor）过闸门后运行。
+// 脚本引擎、动作面 API、沙箱、整段=一次 Commit 的收口都在脚本模块里（TuneLab.Scripting）；
+// 分级授权 + 预览 + 写守卫 wait-retry 在执行器里——与 `script run-saved` 共用同一写路径（单一动作面 SSOT）。
+internal sealed class ScriptRunCommand : ICommand
+{
+    public string Path => "script run";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "run_script";
+
+    public string Brief => "Run a JavaScript program that edits the project";
+
+    public string Documentation =>
+        "Run a short JavaScript program to edit the project via the global `tl` object. Use this for complex, bulk, computed, or conditional edits " +
+        "that would otherwise take many tool calls — e.g. \"for every note in bars 5-8, raise it an octave and add a harmony a third above\" is one loop. " +
+        "The whole script runs as ONE undoable change. " +
+        "BEFORE writing your first script in a conversation, call get_script_api once to load the full API, the handle/tick rules, and examples — do not guess method names. " +
+        "Key rules: object-style — `tl` is the project, while tracks/parts/notes are handles with read/write fields (n.pitch += 1) and methods (part.notes(), note.remove()); " +
+        "collection methods return plain arrays (for-of/index, not a linked list); positions are absolute ticks; pitch is MIDI; print(x) emits debug output. " +
+        "NOTE: depending on the user's authorization setting your edits may be applied only after the user confirms, or not applied at all (read-only) — the result message tells you what happened; relay it, don't assume the edit landed.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string", "description": "JavaScript source to run. Use the `tl` global to read/edit the project and print(...) for debugging output." }
+          },
+          "required": ["code"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var code = args.Json.GetString("code") ?? "";
+        if (string.IsNullOrWhiteSpace(code))
+            return CommandResult.Fail("empty_code", "\"code\" is empty.");
+        if (ctx.Project is not { } project)
+            return CommandResult.Fail("no_project", "no project is open, so there is nothing to edit.");
+
+        // 内联脚本无入参（inputs=null）；命名脚本的入参路径在 `script run-saved`。共用同一授权闸门与收口。
+        return await ScriptWriteExecutor.RunAsync(ctx, project, code, inputs: null, cancellationToken);
+    }
+
+    public string Render(JsonNode? data, CommandArgs args) => ScriptWriteExecutor.Render(data);
+}
+
+// 按库名读源码运行；inputs 可省——给了就覆盖在用户上次值之上再补默认，没给则用上次/默认。
+// 走与 `script run` 相同的授权闸门。政策：代跑【不回写】用户的 ScriptInputMemory 上次值
+// （用户上次值是用户的意图，调用方的选择留在它自己的历史里，不污染用户手动运行的记忆）。
+internal sealed class ScriptRunSavedCommand : ICommand
+{
+    public string Path => "script run-saved";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "run_saved_script";
+
+    public string Brief => "Run a saved script from the library by name";
+
+    public string Documentation =>
+        "Run a script already saved in the user's library, by name — like pressing its menu item for the user. " +
+        "Use this to reuse a tool the user (or you) saved earlier instead of rewriting it with run_script. " +
+        "`inputs` is optional: pass a map of input-name -> value for the fields you want to set (call get_script_inputs first to see them); " +
+        "any field you omit falls back to the user's last value, else the config default. Omit `inputs` entirely to run with last/default values. " +
+        "Runs as ONE undoable change through the SAME authorization gate as run_script (may be applied only after the user confirms, or not at all in read-only) — relay the result, don't assume it landed. " +
+        "Your inputs are NOT saved as the user's last values.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "description": "Library name of the script to run (without .js)." },
+            "inputs": { "type": "object", "description": "Optional map of input-name -> value overriding the user's last values. Omit to use last/default values." }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var name = ScriptLibrary.SanitizeName((args.Json.GetString("name") ?? "").Trim());
+        if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
+            return CommandResult.Fail("not_found", SavedScriptSupport.NotFound(name));
+        if (ctx.Project is not { } project)
+            return CommandResult.Fail("no_project", "no project is open, so there is nothing to edit.");
+
+        PropertyObject? givenInputs = null;
+        if (args.Json.TryGetProperty("inputs", out var inp) && inp.ValueKind == JsonValueKind.Object)
+            givenInputs = PropertyJsonUtils.ToPropertyObject(JObject.Parse(inp.GetRawText()));
+
+        string code;
+        try { code = ScriptLibrary.Read(name); }
+        catch (Exception ex) { return CommandResult.Fail("read_failed", ex.Message); }
+
+        var currentPart = ctx.CurrentPart();
+        var quantization = ctx.Quantization();
+        var (scriptId, hasInputs) = SavedScriptSupport.Inspect(name, code, project, currentPart, quantization, ctx.Language);
+
+        PropertyObject? inputs = null;
+        // 非入参脚本（无 getInputConfig）：脚本忽略入参，直接跑，不去 eval getInputConfig（普通脚本那样做会跑其脚本体）。
+        // 误传的 inputs 无害地不生效。
+        if (hasInputs)
+        {
+            var lastValues = ScriptInputMemory.Load(scriptId);
+
+            // 入参 = 用户上次值 ← 调用方给的覆盖（稀疏叠加）。schema 依合并后的值现算（条件字段随之定），
+            // 再补默认成全量喂 main。
+            var merged = new Map<string, PropertyValue>();
+            foreach (var kv in lastValues.Map)
+                merged[kv.Key] = kv.Value;
+            if (givenInputs != null)
+                foreach (var kv in givenInputs.Map)
+                    merged[kv.Key] = kv.Value;
+            var mergedValues = new PropertyObject(merged);
+
+            var (schema, error) = await ctx.OnMainThread(() =>
+                ScriptRunner.GetInputConfig(project, currentPart, quantization, ctx.Language, ctx.Selection(), ctx.PianoSelection(), code, mergedValues, cancellationToken));
+            if (error != null)
+                return CommandResult.Fail("eval_failed", string.Format("getInputConfig failed to evaluate for \"{0}\" — {1}", name, error));
+            if (schema != null)
+                inputs = ScriptConfigs.FillDefaults(schema, mergedValues);
+        }
+
+        return await ScriptWriteExecutor.RunAsync(ctx, project, code, inputs, cancellationToken);
+    }
+
+    public string Render(JsonNode? data, CommandArgs args) => ScriptWriteExecutor.Render(data);
 }

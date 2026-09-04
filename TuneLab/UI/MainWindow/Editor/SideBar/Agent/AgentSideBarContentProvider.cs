@@ -105,18 +105,12 @@ internal sealed class AgentSideBarContentProvider
         // 另有脚本库管理工具，让 agent 把功能沉淀成可注册进菜单的复用工具，并能读参数/代跑已存脚本（闭环）。
         if (project != null)
         {
-            Func<string?> lang = () => TranslationManager.CurrentLanguage.Value;
-            // run_script 与 run_saved_script 共用同一写执行器（授权闸门 / 预览 / 收口）——单一动作面 SSOT。
-            var writeExecutor = new ScriptWriteExecutor(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider, RequestScriptAuthorizationAsync);
             var tools = new List<IAgentTool>();
             // 已搬进命令面的：从注册表合成——末端动作只有一份，内置 agent / CLI / MCP / headless 共用
             // （见 docs/command-surface.md）。搬家逐条进行：注册表加一条、下面的手写列表删一条。
             tools.AddRange(CommandRegistry.All.Select(c => new CommandTool(c, CurrentCommandContext)));
             tools.AddRange(new IAgentTool[]
             {
-                // 操作工程：定向（看）已搬成命令 `project status`；脚本（改/算/细读）仍在此
-                new RunScriptTool(writeExecutor),
-                new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
                 // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。
                 new RunInSandboxTool(),
@@ -1970,10 +1964,10 @@ internal sealed class AgentSideBarContentProvider
 
     // RunScriptTool 的 confirm 回调：在触发这一轮的对话视图里渲染升级卡片、等用户裁决。
     // 目标会话经 mRunningContext（AsyncLocal，OnSend 埋入）定位——共享工具据此找到正确的那一轮，即便它在后台。
-    Task<ScriptAuthDecision> RequestScriptAuthorizationAsync(AuthorizationRequest request, CancellationToken cancellationToken)
+    Task<AuthorizationDecision> RequestScriptAuthorizationAsync(AuthorizationRequest request, CancellationToken cancellationToken)
     {
         var ctx = mRunningContext.Value ?? mActive;
-        var tcs = new TaskCompletionSource<ScriptAuthDecision>();
+        var tcs = new TaskCompletionSource<AuthorizationDecision>();
         void Build()
         {
             var card = BuildAuthRequestCard(request, tcs);
@@ -1987,7 +1981,7 @@ internal sealed class AgentSideBarContentProvider
         // 而本回调在 UI 线程同步跑——直接建会让卡片落在它所属的那次工具调用【上方】。
         Dispatcher.UIThread.Post(Build);
         // 轮被取消（用户点停）→ 裁决按拒绝收尾（卡片经 tcs 续接切到"已停止"）。
-        cancellationToken.Register(() => tcs.TrySetResult(ScriptAuthDecision.Reject));
+        cancellationToken.Register(() => tcs.TrySetResult(AuthorizationDecision.Reject));
         return tcs.Task;
     }
 
@@ -2338,7 +2332,7 @@ internal sealed class AgentSideBarContentProvider
         return key ?? "";
     }
 
-    Control BuildAuthRequestCard(AuthorizationRequest request, TaskCompletionSource<ScriptAuthDecision> tcs)
+    Control BuildAuthRequestCard(AuthorizationRequest request, TaskCompletionSource<AuthorizationDecision> tcs)
     {
         var message = new SelectableTextBlock()
         {
@@ -2401,7 +2395,7 @@ internal sealed class AgentSideBarContentProvider
             line.Padding = new(0, 0, 4, 0); // 斜体末字右侧斜出留白，避免右对齐时被 TextBlock 边界裁掉
             panel.Children.Add(line);
         }
-        void Settle(ScriptAuthDecision decision, string label, IBrush color)
+        void Settle(AuthorizationDecision decision, string label, IBrush color)
         {
             if (settled)
                 return;
@@ -2412,9 +2406,9 @@ internal sealed class AgentSideBarContentProvider
         }
         var muted = Style.LIGHT_WHITE.Opacity(0.6).ToBrush();
         // "应用本次"（非"应用"）：与右侧"始终允许"对照才说得清——本次落地、档位不变、下次仍问。
-        buttons.Children.Add(CardButton("Apply once".Tr(this), primary: true, () => Settle(ScriptAuthDecision.ApplyOnce, "Applied".Tr(this), muted)));
-        buttons.Children.Add(CardButton("Always allow".Tr(this), primary: false, () => { SetAuthorization(AgentAuthorization.Auto); Settle(ScriptAuthDecision.ApplyAlways, "Applied · auto-apply on".Tr(this), muted); }));
-        buttons.Children.Add(CardButton("Reject".Tr(this), primary: false, () => Settle(ScriptAuthDecision.Reject, "Rejected".Tr(this), muted)));
+        buttons.Children.Add(CardButton("Apply once".Tr(this), primary: true, () => Settle(AuthorizationDecision.ApplyOnce, "Applied".Tr(this), muted)));
+        buttons.Children.Add(CardButton("Always allow".Tr(this), primary: false, () => { SetAuthorization(AgentAuthorization.Auto); Settle(AuthorizationDecision.ApplyAlways, "Applied · auto-apply on".Tr(this), muted); }));
+        buttons.Children.Add(CardButton("Reject".Tr(this), primary: false, () => Settle(AuthorizationDecision.Reject, "Rejected".Tr(this), muted)));
         // 因取消先行 resolve（点停）→ 卡片切到"已停止"，不留可点按钮。
         tcs.Task.ContinueWith(_ =>
         {

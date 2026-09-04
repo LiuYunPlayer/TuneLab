@@ -18,11 +18,22 @@ public class SettingSetCommandTests
 {
     static readonly SettingSetCommand Command = new();
 
-    // 永远拒绝的策略：用来验证"拒绝"这条路，且保证测试不会真去改开发机的设置。
-    sealed class RefusingPolicy(string message) : IAuthorizationPolicy
+    // 两个不会落地的策略：既验证"没通过"这条路，也保证测试不会真去改开发机的设置。
+    // 说辞不由它们给——那是命令面 IAuthorizationPolicy 的默认流程的事，这里正是要验那一份。
+    sealed class ReadOnlyPolicy : IAuthorizationPolicy
     {
-        public Task<(bool Proceed, string Message)> AuthorizeAsync(AuthorizationRequest request, CancellationToken cancellationToken)
-            => Task.FromResult((false, message + request.ActionPhrase()));
+        public AuthorizationMode Mode => AuthorizationMode.ReadOnlyAdvice;
+        public bool CanAsk => false;
+        public Task<AuthorizationDecision> AskAsync(AuthorizationRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(AuthorizationDecision.Reject);
+    }
+
+    sealed class RejectingPolicy : IAuthorizationPolicy
+    {
+        public AuthorizationMode Mode => AuthorizationMode.Confirm;
+        public bool CanAsk => true;
+        public Task<AuthorizationDecision> AskAsync(AuthorizationRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(AuthorizationDecision.Reject);
     }
 
     static CommandResult Run(string argumentsJson, CommandContext? ctx = null)
@@ -87,15 +98,32 @@ public class SettingSetCommandTests
         int other = (int)current == 10 ? 11 : 10;
 
         var result = Run("""{"key":"AutoSaveInterval","value":""" + other + "}",
-            new CommandContext { Authorization = new RefusingPolicy("The user chose NOT to allow it, so I did NOT ") });   // 闸门原话以 ActionPhrase() 收尾（句号在真实策略的格式串里）
+            new CommandContext { Authorization = new RejectingPolicy() });
 
         Assert.False(result.IsError);
         Assert.Equal("refused", result.Data!["outcome"]!.GetValue<string>());
-        Assert.Equal("The user chose NOT to allow it, so I did NOT change the setting \"AutoSaveInterval\" to " + other,
+        Assert.Equal("The user chose NOT to allow it, so I did NOT change the setting \"AutoSaveInterval\" to " + other + ".",
             Command.Render(result.Data, CommandArgs.Empty));
         // 没落地：值还是原来的。
         item.GetValue().ToDouble(out var after);
         Assert.Equal(current, after);
+    }
+
+    // 只读建议档：不改，只说会改什么 + 怎么才能真改。
+    [Fact]
+    public void ReadOnlyModeExplainsHowToActuallyApplyIt()
+    {
+        var item = SettingsRegistry.All.First(i => i.Key == "AutoSaveInterval");
+        item.GetValue().ToDouble(out var current);
+        int other = (int)current == 10 ? 11 : 10;
+
+        var result = Run("""{"key":"AutoSaveInterval","value":""" + other + "}",
+            new CommandContext { Authorization = new ReadOnlyPolicy() });
+
+        Assert.False(result.IsError);
+        Assert.Equal("Authorization is READ-ONLY (advice mode): I did NOT change the setting \"AutoSaveInterval\" to " + other
+            + ". Do it yourself, or raise agent authorization to Confirm or Auto.",
+            Command.Render(result.Data, CommandArgs.Empty));
     }
 
     // 入口没给策略（headless/CI 忘了配）→ 一条 Edit 都不做，且不能说成"用户拒绝了"。

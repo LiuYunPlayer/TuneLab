@@ -23,6 +23,8 @@ internal static class CommandRegistry
         new ScriptInputsCommand(),
         new ScriptSaveCommand(),
         new ScriptDeleteCommand(),
+        new ScriptRunCommand(),
+        new ScriptRunSavedCommand(),
         new DocsScriptApiCommand(),
         new DocsManualCommand(),
         new SettingListCommand(),

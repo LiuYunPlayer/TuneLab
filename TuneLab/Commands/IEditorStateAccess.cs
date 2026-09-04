@@ -1,3 +1,4 @@
+using System;
 using TuneLab.Data;
 using TuneLab.Scripting;
 
@@ -22,4 +23,21 @@ internal interface IEditorStateAccess
     IQuantization? Quantization { get; }
     ScriptSelection? Selection { get; }
     ScriptPianoSelection? PianoSelection { get; }
+}
+
+internal static class EditorStateExtensions
+{
+    // 命令面的编辑器态 → 脚本层要的那几个委托。脚本层的签名是既有的（宿主菜单也在用同一套），
+    // 这里只做形状适配，不复制任何判据。没有编辑器态（headless）时给 null，脚本读到的就是"没有"。
+    public static Func<IMidiPart?>? CurrentPart(this CommandContext ctx)
+        => ctx.EditorState is { } s ? () => s.CurrentPart : null;
+
+    public static Func<IQuantization?>? Quantization(this CommandContext ctx)
+        => ctx.EditorState is { } s ? () => s.Quantization : null;
+
+    public static Func<ScriptSelection?>? Selection(this CommandContext ctx)
+        => ctx.EditorState is { } s ? () => s.Selection : null;
+
+    public static Func<ScriptPianoSelection?>? PianoSelection(this CommandContext ctx)
+        => ctx.EditorState is { } s ? () => s.PianoSelection : null;
 }
