@@ -15,64 +15,10 @@ using TuneLab.Commands;
 
 namespace TuneLab.Agent;
 
-// E1「全能 agent 闭环」的两件工具：读某命名脚本的入参 schema/上次值（只读）+ 按名跑它（写，可省入参）。
-// 与 save/list/read/delete_script 一起构成脚本库闭环——agent 帮用户写好工具脚本存库后，日后能自己读参数、代跑一次，
-// 无需重写代码。写路径与 run_script 共用 ScriptWriteExecutor（同一授权闸门 / 收口）。
-
-// get_script_inputs：返回某脚本的入参 schema（名/类型/默认/范围·选项）+ 用户上次输入值。只读，不跑脚本动作
-// （只 eval 顶层调 getInputConfig，约定无副作用、误改原子回退）。让 agent 在 run_saved_script 前知道要填哪些参数。
-internal sealed class GetScriptInputsTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection) : IAgentTool
-{
-    public string Name => "get_script_inputs";
-
-    public string Description =>
-        "Return the input schema of a saved script (each field's name, type, default, range/options) plus the user's LAST entered values. " +
-        "Call this before run_saved_script when list_scripts marks a script as taking inputs, so you know what to pass. " +
-        "A script that takes no inputs reports so — just run it with run_saved_script and no inputs.";
-
-    public string ParametersJsonSchema => """
-        {
-          "type": "object",
-          "properties": { "name": { "type": "string", "description": "Library name of the script (without .js)." } },
-          "required": ["name"],
-          "additionalProperties": false
-        }
-        """;
-
-    public async Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
-    {
-        string name;
-        try { using var doc = JsonDocument.Parse(argumentsJson); name = doc.RootElement.GetString("name"); }
-        catch (Exception ex) { return "Error: invalid arguments — " + ex.Message; }
-
-        name = ScriptLibrary.SanitizeName((name ?? "").Trim());
-        if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
-            return "Error: no script named \"" + name + "\". Call list_scripts to see available names.";
-
-        string code;
-        try { code = ScriptLibrary.Read(name); }
-        catch (Exception ex) { return "Error: " + ex.Message; }
-
-        var (scriptId, hasInputs) = SavedScriptSupport.Inspect(name, code, project, currentPart, quantization, language);
-        if (!hasInputs)
-            return string.Format("Script \"{0}\" takes no inputs. Run it with run_saved_script and no `inputs`.", name);
-
-        var lastValues = ScriptInputMemory.Load(scriptId);
-
-        // getInputConfig 读工程上下文（选中音符等），在 UI 线程求值；误改在 GetInputConfig 内原子回退。
-        // DescribeSchema 也在 UI 线程内完成——自定义 scale/format 的 config 会回调 Jint 引擎（.Scale.ToValue / .Format），
-        // 而 Jint 引擎非线程安全、须在其创建线程（UI）调用；built-in config 纯 C# 无此约束，一并放里无碍。
-        return await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            var (schema, error) = ScriptRunner.GetInputConfig(project, currentPart, quantization, language, selection, pianoSelection, code, lastValues, cancellationToken);
-            if (error != null)
-                return string.Format("Error: getInputConfig failed to evaluate for \"{0}\" — {1}", name, error);
-            if (schema == null)
-                return string.Format("Script \"{0}\" takes no inputs. Run it with run_saved_script and no `inputs`.", name);
-            return SavedScriptSupport.DescribeSchema(name, schema, lastValues);
-        });
-    }
-}
+// E1「全能 agent 闭环」的写那一件：按名跑库里的脚本（可省入参）。读那半边（入参 schema/上次值）已搬进
+// 命令面（`script inputs`），两边共用 SavedScriptSupport 的字段口径。
+// 与 save/delete_script 及命令面的 script 读命令一起构成脚本库闭环——agent 帮用户写好工具脚本存库后，
+// 日后能自己读参数、代跑一次，无需重写代码。写路径与 run_script 共用 ScriptWriteExecutor（同一授权闸门 / 收口）。
 
 // run_saved_script：按库名读源码运行；inputs 可省——agent 给了就覆盖在用户上次值之上再补默认，没给则用上次/默认。
 // 走与 run_script 相同的授权闸门（ScriptWriteExecutor）。政策：agent 跑【不回写】用户的 ScriptInputMemory 上次值
@@ -116,7 +62,7 @@ internal sealed class RunSavedScriptTool(ScriptWriteExecutor executor, IProject 
 
         name = ScriptLibrary.SanitizeName((name ?? "").Trim());
         if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
-            return "Error: no script named \"" + name + "\". Call list_scripts to see available names.";
+            return "Error: " + SavedScriptSupport.NotFound(name);
 
         string code;
         try { code = ScriptLibrary.Read(name); }
@@ -150,40 +96,5 @@ internal sealed class RunSavedScriptTool(ScriptWriteExecutor executor, IProject 
 
         // 政策：agent 代跑不回写 ScriptInputMemory（用户上次值是用户意图，agent 选择留在其对话历史）。
         return await executor.RunWithAuthorizationAsync(code, inputs, cancellationToken);
-    }
-}
-
-// run_saved_script / get_script_inputs 共用的小助手：稳定 id 解析 + 入参 schema 文本化。
-internal static class SavedScriptSupport
-{
-    // 一次 eval 取回脚本身份：稳定 id（= 入参记忆键，与快捷键锚点同一套；声明 id 合法用之否则文件名）+ 是否带入参
-    // （定义了 getInputConfig）。非工具脚本（无 getScriptInfo）→ id=文件名、hasInputs=false（其入参运行期被忽略）。
-    public static (string ScriptId, bool HasInputs) Inspect(string name, string code, IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language)
-    {
-        var (info, _) = ScriptTools.InspectSource(name, code, project, currentPart, quantization, language);
-        return info != null ? (ScriptTools.StableId(info), info.HasInputs) : (name, false);
-    }
-
-    // 入参 schema + 上次值 → 给模型的可读文本。逐字段列：名(+标签)、类型/范围/选项、默认、上次用值。
-    public static string DescribeSchema(string name, ObjectConfig schema, PropertyObject lastValues)
-    {
-        var sb = new StringBuilder();
-        int count = schema.Properties.Count;
-        sb.Append(string.Format("Inputs for script \"{0}\" ({1} field(s)). Pass any subset as `inputs` to run_saved_script; ", name, count));
-        sb.Append("omitted fields fall back to the last value shown (else the default). Values you pass are not saved as the user's last values.");
-        foreach (var kvp in schema.Properties)
-        {
-            var key = kvp.Key;
-            sb.Append("\n- ").Append(key.Id);
-            if (!string.IsNullOrEmpty(key.DisplayText) && key.DisplayText != key.Id)
-                sb.Append(" (\"").Append(key.DisplayText).Append("\")");
-            sb.Append(": ").Append(ConfigText.Describe(kvp.Value));
-
-            if (kvp.Value is IValueConfig leaf)
-                sb.Append(". default ").Append(ConfigText.FormatValue(leaf.DefaultValue));
-            if (lastValues.Map.TryGetValue(key.Id, out var last) && !last.IsNull())
-                sb.Append(". last used: ").Append(ConfigText.FormatValue(last));
-        }
-        return sb.ToString();
     }
 }

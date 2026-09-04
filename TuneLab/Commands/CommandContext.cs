@@ -7,8 +7,7 @@ namespace TuneLab.Commands;
 // 服务侧栏 agent、CLI（attach / headless）、MCP 的前提。
 //
 // 成员按需增长（每一步只加当步真正要用的，见 docs/command-surface.md §5）：
-//  · 搬 edit 命令时加 Authorization（按入口注入的授权策略）；
-//  · 搬脚本类命令时加 EditorState（当前 part / 量化 / 选区）。
+//  · 搬 edit 命令时加 Authorization（按入口注入的授权策略）。
 internal sealed class CommandContext
 {
     // 当前工程。可为 null（宿主还没开工程 / headless 尚未载入）——需要工程的命令自己检查并如实报错，
@@ -17,6 +16,10 @@ internal sealed class CommandContext
 
     // 界面语言（本地化标签、给用户看的措辞按它取）。实时读取而非快照——用户随时可改。
     public Func<string?> Language { get; init; } = () => null;
+
+    // 编辑器态（可选）：当前 part / 量化 / 选区。侧栏 agent 有；headless 没有（null），依赖它的命令
+    // 按"用户什么也没选"处理或要求显式传参，不猜（见 IEditorStateAccess）。
+    public IEditorStateAccess? EditorState { get; init; }
 
     // 旁路模型（可选）：`extension list` 补能力位摘要时要发一次一次性请求。**只有内置 agent 入口有**，
     // CLI / MCP / headless 一律 null——用到它的命令按 §5.3 降级（缓存能用就用、用不上如实标注），

@@ -94,74 +94,6 @@ internal sealed class SaveScriptTool(IProject project, Func<IMidiPart?>? current
     };
 }
 
-// 列出库内全部脚本，标出哪些是菜单工具（显示名 + 挂载 context）、哪些是普通脚本。
-internal sealed class ListScriptsTool(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language) : IAgentTool
-{
-    public string Name => "list_scripts";
-
-    public string Description =>
-        "List the user's saved scripts in the library, marking each as a menu tool (with its display name and which menu/context) or a plain script, " +
-        "and flagging those that take inputs. Use before editing a script, running one with run_saved_script, or to avoid name clashes. " +
-        "For a script marked (takes inputs), call get_script_inputs to see its parameters before run_saved_script.";
-
-    public string ParametersJsonSchema => """
-        { "type": "object", "properties": {}, "additionalProperties": false }
-        """;
-
-    public Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
-    {
-        var names = ScriptLibrary.List();
-        if (names.Count == 0) return Task.FromResult("The script library is empty.");
-
-        var tools = ScriptTools.Discover(project, currentPart, quantization, language).ToDictionary(t => t.ScriptName);
-        var sb = new StringBuilder();
-        sb.Append(names.Count).Append(" script(s):");
-        foreach (var n in names)
-        {
-            sb.Append("\n- ").Append(n);
-            if (tools.TryGetValue(n, out var t))
-            {
-                sb.Append(string.Format("  [tool \"{0}\", context={1}]", t.DisplayName, t.Context.ToString().ToLowerInvariant()));
-                if (t.HasInputs)
-                    sb.Append(" (takes inputs)");
-            }
-            else
-                sb.Append("  [plain]");
-        }
-        return Task.FromResult(sb.ToString());
-    }
-}
-
-// 读出某脚本的完整源码（编辑前用）。
-internal sealed class ReadScriptTool : IAgentTool
-{
-    public string Name => "read_script";
-
-    public string Description => "Return the full source of a saved script by its library name. Use before editing an existing script.";
-
-    public string ParametersJsonSchema => """
-        {
-          "type": "object",
-          "properties": { "name": { "type": "string", "description": "Library name (without .js)." } },
-          "required": ["name"],
-          "additionalProperties": false
-        }
-        """;
-
-    public Task<string> ExecuteAsync(string argumentsJson, CancellationToken cancellationToken)
-    {
-        string name;
-        try { using var doc = JsonDocument.Parse(argumentsJson); name = doc.RootElement.GetString("name"); }
-        catch (Exception ex) { return Task.FromResult("Error: invalid arguments — " + ex.Message); }
-
-        name = ScriptLibrary.SanitizeName((name ?? "").Trim());
-        if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
-            return Task.FromResult("Error: no script named \"" + name + "\". Call list_scripts to see available names.");
-        try { return Task.FromResult(ScriptLibrary.Read(name)); }
-        catch (Exception ex) { return Task.FromResult("Error: " + ex.Message); }
-    }
-}
-
 // 删除库内脚本（同时从菜单移除）。删文件 = 破坏用户外部产物（历史管理器救不回）→ 恒过授权闸门。
 internal sealed class DeleteScriptTool(Func<AgentAuthorizationRequest, CancellationToken, Task<ScriptAuthDecision>>? confirm = null) : IAgentTool
 {
@@ -188,7 +120,7 @@ internal sealed class DeleteScriptTool(Func<AgentAuthorizationRequest, Cancellat
 
         name = ScriptLibrary.SanitizeName((name ?? "").Trim());
         if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
-            return "Error: no script named \"" + name + "\". Call list_scripts to see available names.";
+            return "Error: " + SavedScriptSupport.NotFound(name);
 
         // 删除是破坏性外部文件操作 → 过授权闸门（Auto 直删 / Confirm 卡片裁决 / ReadOnly 不删+建议）。
         var (proceed, message) = await ToolAuthorization.AuthorizeAsync(

@@ -122,10 +122,7 @@ internal sealed class AgentSideBarContentProvider
                 // 脚本库管理：把用户想要的功能写成工具脚本存库 → 自动进菜单复用；读参数 / 代跑（闭环）。
                 // save(覆盖已存)/delete 是外部文件的破坏性改动 → 过授权闸门（RequestScriptAuthorizationAsync，同工程写）。
                 new SaveScriptTool(project, mCurrentPartProvider, mQuantizationProvider, lang, RequestScriptAuthorizationAsync),
-                new ListScriptsTool(project, mCurrentPartProvider, mQuantizationProvider, lang),
-                new ReadScriptTool(),
                 new DeleteScriptTool(RequestScriptAuthorizationAsync),
-                new GetScriptInputsTool(project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 new RunSavedScriptTool(writeExecutor, project, mCurrentPartProvider, mQuantizationProvider, lang, mSelectionProvider, mPianoSelectionProvider),
                 // 设置助手（诉求 2）：只读枚举（含"在哪一页哪一行"，可教用户自己改） + 按键改一项（过授权闸门，
                 // 与工程写/脚本文件同一档位；改宿主设置不是工程数据、历史记录救不回）。
@@ -169,6 +166,8 @@ internal sealed class AgentSideBarContentProvider
     {
         Project = mProject,
         Language = () => TranslationManager.CurrentLanguage.Value,
+        // 编辑器态：脚本类命令 eval getScriptInfo / getInputConfig 时要读"用户此刻在看什么"。
+        EditorState = new EditorStateAccess(mCurrentPartProvider, mQuantizationProvider, mSelectionProvider, mPianoSelectionProvider),
         // 旁路模型：`extension list` 补能力位摘要用（其余入口没有模型，那边按 §5.3 降级）。
         SideModel = new SideModelAccess(SendSideRequestAsync),
         MainThread = UiThreadDispatcher.Instance,
