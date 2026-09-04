@@ -65,6 +65,7 @@
 "Instrument" = "인스트루먼트"
 "Extension Routing" = "확장 라우팅"
 "AI Agent max tool result (characters)" = "AI 에이전트 도구 결과 최대 길이(글자 수)"
+"Command Bridge (let external tools drive TuneLab)" = "명령 브리지（외부 도구가 TuneLab을 제어하도록 허용）"
 
 [FunctionBar]
 "Play" = "재생"

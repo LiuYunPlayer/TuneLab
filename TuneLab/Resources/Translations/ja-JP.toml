@@ -65,6 +65,7 @@
 "Instrument" = "インストゥルメント"
 "Extension Routing" = "拡張機能のルーティング"
 "AI Agent max tool result (characters)" = "AI Agent のツール結果の上限（文字数）"
+"Command Bridge (let external tools drive TuneLab)" = "コマンドブリッジ（外部ツールから TuneLab を操作できるようにする）"
 
 [FunctionBar]
 "Play" = "再生"

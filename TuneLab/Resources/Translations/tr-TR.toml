@@ -65,6 +65,7 @@
 "Instrument" = "Enstrüman"
 "Extension Routing" = "Uzantı Yönlendirme"
 "AI Agent max tool result (characters)" = "AI aracısı araç sonucu üst sınırı (karakter)"
+"Command Bridge (let external tools drive TuneLab)" = "Komut köprüsü (harici araçların TuneLab'i yönetmesine izin ver)"
 
 [FunctionBar]
 "Play" = "Oynat"

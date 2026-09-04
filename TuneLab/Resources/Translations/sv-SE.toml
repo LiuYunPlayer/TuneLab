@@ -65,6 +65,7 @@
 "Instrument" = "Instrument"
 "Extension Routing" = "Tilläggsrouting"
 "AI Agent max tool result (characters)" = "Max. verktygsresultat för AI-agenten (tecken)"
+"Command Bridge (let external tools drive TuneLab)" = "Kommandobrygga (låt externa verktyg styra TuneLab)"
 
 [FunctionBar]
 "Play" = "Spela"

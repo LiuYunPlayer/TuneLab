@@ -65,6 +65,7 @@
 "Instrument" = "Strumento"
 "Extension Routing" = "Instradamento estensioni"
 "AI Agent max tool result (characters)" = "Risultato massimo dello strumento dell'Agent (caratteri)"
+"Command Bridge (let external tools drive TuneLab)" = "Ponte comandi (consenti a strumenti esterni di controllare TuneLab)"
 
 [FunctionBar]
 "Play" = "Riproduci"

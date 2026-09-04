@@ -65,6 +65,7 @@
 "Voice" = "声源"
 "Instrument" = "乐器"
 "Extension Routing" = "扩展路由"
+"Command Bridge (let external tools drive TuneLab)" = "命令桥（允许外部工具驱动 TuneLab）"
 
 [FunctionBar]
 "Play" = "播放"

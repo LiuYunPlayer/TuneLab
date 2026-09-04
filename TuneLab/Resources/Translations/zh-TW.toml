@@ -65,6 +65,7 @@
 "Instrument" = "樂器"
 "Extension Routing" = "擴充功能路由"
 "AI Agent max tool result (characters)" = "AI 助手單次工具結果上限（字元）"
+"Command Bridge (let external tools drive TuneLab)" = "命令橋（允許外部工具驅動 TuneLab）"
 
 [FunctionBar]
 "Play" = "播放"

@@ -65,6 +65,7 @@
 "Instrument" = "Інструмент"
 "Extension Routing" = "Маршрутизація розширень"
 "AI Agent max tool result (characters)" = "Максимальний результат інструмента ШІ-агента (символів)"
+"Command Bridge (let external tools drive TuneLab)" = "Командний міст (дозволити зовнішнім інструментам керувати TuneLab)"
 
 [FunctionBar]
 "Play" = "Відтворити"
