@@ -5,6 +5,8 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Configs;
+using TuneLab.Foundation;
+using TuneLab.I18N;
 
 namespace TuneLab.Commands.Handlers;
 
@@ -110,4 +112,116 @@ internal sealed class SettingListCommand : ICommand
     // 页名同理：本地化与原名一致时不重复。
     static string Qualified(string name, string? localized)
         => localized == null || localized == name ? name : name + " (\"" + localized + "\")";
+}
+
+// 设置助手的写那一半：改一项设置 + 落盘。写用户的应用配置（非工程数据、历史记录管理器救不回）
+// → 恒过入口的授权策略（见 §5.1）。值校验一律按条目声明的 config，判据与 `setting list` 共用 SettingsText。
+//
+// **这是第一条 edit 命令**，两处形状对后续九条都成立：
+//  · 【授权的三种结局都走成功路径】"用户拒绝"/"只读档"/"这个入口没配授权"都不是命令的故障，而是它
+//    如实汇报的结果（applied=false + 原文）。套成 CommandError 会给 agent 侧的回报凭空加一个
+//    "Error: " 前缀——搬家前没有，而且会让模型把"用户不让"读成"我调错了"。
+//  · 【Data 只回"改了什么"】{key, old, new, outcome}，够 CI 断言；人类文本沿用原措辞。
+internal sealed class SettingSetCommand : ICommand
+{
+    public string Path => "setting set";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "set_setting";
+
+    public string Brief => "Change one application setting and save it";
+
+    public string Documentation =>
+        "Change ONE of TuneLab's application settings by key (get keys and allowed values from list_settings first) and save it to the user's settings file. " +
+        "The value is validated against that setting's declared type/range/options, so an out-of-range or unknown value changes nothing and reports the allowed values. " +
+        "This edits the user's app configuration and is NOT part of the project's undo history, so it needs the user's authorization: depending on their authorization level it may be applied, asked about, or refused — " +
+        "if it is refused, tell the user which Settings page and row to change themselves (list_settings gives both). A few settings are not agent-writable (e.g. the agent's own authorization level).";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string", "description": "The setting's key exactly as listed by list_settings (e.g. \"MasterGain\")." },
+            "value": { "type": ["string", "number", "boolean"], "description": "The new value, matching the setting's declared type/range/options. Numbers may be given as numbers or numeric strings." }
+          },
+          "required": ["key", "value"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var key = (args.Json.GetString("key") ?? "").Trim();
+        var raw = args.Json.Require("value").Clone();
+
+        var item = SettingsRegistry.All.FirstOrDefault(i => string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (item == null)
+            return CommandResult.Fail("unknown_key", string.Format("no setting with key \"{0}\". Call list_settings to see the exact keys.", key));
+        if (!item.AgentWritable)
+            return CommandResult.Fail("not_writable", string.Format(
+                "the setting \"{0}\" cannot be changed by the agent — only the user can. {1}Tell the user where to change it themselves.",
+                item.Key, string.IsNullOrEmpty(item.Description) ? "" : item.Description + " "));
+
+        // 校验按条目声明的 config 做（选项枚举可能跑引擎/字体枚举 → 主线程）。
+        var (value, error) = await ctx.OnMainThread(() => SettingsText.Normalize(item, raw));
+        if (error != null)
+            return CommandResult.Fail("invalid_value", error);
+
+        var old = item.GetValue();
+        if (value.Equals(old))
+            return CommandResult.Ok(Result(item, "unchanged", old, value, null));
+
+        // 改用户的应用配置 → 过闸门（Auto 直接改 / Confirm 卡片裁决 / 只读档不改+建议）。无预览-回退。
+        var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(WriteKind.SettingChange, 0, item.Key, ConfigText.FormatValue(value)), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(Result(item, "refused", old, value, message));
+
+        bool ok = await ctx.OnMainThread(() =>
+        {
+            if (!item.TrySetValue(value))
+                return false;
+            Settings.Save(PathManager.SettingsFilePath);
+            return true;
+        });
+        if (!ok)
+            return CommandResult.Fail("rejected", string.Format(
+                "the setting \"{0}\" rejected the value {1}. Nothing changed.", item.Key, ConfigText.FormatValue(value)));
+
+        return CommandResult.Ok(Result(item, "applied", old, item.GetValue(), message));
+    }
+
+    // note 一栏在 applied 时是授权前缀（"用户被问过并批准了"——那件事本身要说出来，否则 Confirm 档的
+    // 回报与 Auto 档一字不差），在 refused 时是不做的原因原文。
+    static JsonNode Result(SettingItem item, string outcome, PropertyValue old, PropertyValue value, string? note) => new JsonObject
+    {
+        ["key"] = item.Key,
+        ["outcome"] = outcome,
+        ["old"] = ConfigText.ToJson(old),
+        ["new"] = ConfigText.ToJson(value),
+        ["restartRequired"] = item.RestartRequired,
+        ["note"] = string.IsNullOrEmpty(note) ? null : note,
+    };
+
+    // 措辞与搬家前逐字一致。
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var key = obj["key"]!.GetValue<string>();
+        var note = obj["note"]?.GetValue<string>() ?? string.Empty;
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "unchanged":
+                return string.Format("The setting \"{0}\" is already {1}. Nothing changed.", key, ConfigText.FormatValue(obj["new"]));
+            case "refused":
+                return note;   // 闸门给的原话（"只读档"/"用户拒绝"/"这个入口没配授权"）
+            default:
+                var sb = new StringBuilder(note);
+                sb.Append(string.Format("Changed \"{0}\" from {1} to {2} and saved the settings file.",
+                    key, ConfigText.FormatValue(obj["old"]), ConfigText.FormatValue(obj["new"])));
+                if (obj["restartRequired"]!.GetValue<bool>())
+                    sb.Append(" It only takes full effect after the user restarts TuneLab — tell them so.");
+                return sb.ToString();
+        }
+    }
 }

@@ -23,6 +23,7 @@ internal static class CommandRegistry
         new DocsScriptApiCommand(),
         new DocsManualCommand(),
         new SettingListCommand(),
+        new SettingSetCommand(),
         new KeybindingListCommand(),
         new SoundSourceListCommand(),
         new EffectListCommand(),
