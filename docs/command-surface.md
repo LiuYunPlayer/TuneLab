@@ -411,6 +411,7 @@ headless 特有的三件事：
 |---|---|---|
 | **⓪** | 前置改名（§2）：数据层 `ICommand` / `Command` / `CompositeCommand` → `*UndoCommand`，腾出裸名 | 编译通过、既有测试全绿（纯改名，`Document/` 外只动 3 行） |
 | **①** | `CommandRegistry` + 契约 + 26 个 handler 搬家（结果形状按 §4 切）+ 内置 agent 改成合成消费者 | 内置 agent 实测与现在等价（回归现有测试文档） |
+| | **已完成**：25 条命令全部进注册表，`TuneLab/Agent/Tools/` 只剩 `AskUserQuestionTool`（按 §5.4 是入口能力，不进命令树）。四类入口依赖的抽象都已落地：`IAuthorizationPolicy`（§5.1）、`IEditorStateAccess`（§5.2）、`ISideModelAccess`（§5.3） | |
 | **②** | 管道 bridge + 凭据文件 + 设置开关 + CLI（全部 read 命令 + 少数 edit） | 开发者能从终端驱动运行中的 TuneLab |
 | **③** | headless + CI 用例 | CI 里无人值守跑一串命令并断言 |
 | **④** | MCP server 壳 | 外部客户端连上，用已有订阅额度驱动 |

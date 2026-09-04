@@ -101,21 +101,18 @@ internal sealed class AgentSideBarContentProvider
     public void SetProject(IProject? project)
     {
         mProject = project;
-        // 单一动作面（CodeAct）：编辑工程一律走 run_script（对象式 `tl` API），读取只留一个定向总览，其余读取也走脚本。
-        // 另有脚本库管理工具，让 agent 把功能沉淀成可注册进菜单的复用工具，并能读参数/代跑已存脚本（闭环）。
+        // 工具面 = 命令注册表（末端动作只有一份，内置 agent / CLI / MCP / headless 共用，见
+        // docs/command-surface.md）+ 唯一一件【入口能力】。单一动作面（CodeAct）没变：编辑工程一律走
+        // `script run` 的对象式 `tl` API，读取只留一个定向总览，其余读取也走脚本。
         if (project != null)
         {
             var tools = new List<IAgentTool>();
-            // 已搬进命令面的：从注册表合成——末端动作只有一份，内置 agent / CLI / MCP / headless 共用
-            // （见 docs/command-surface.md）。搬家逐条进行：注册表加一条、下面的手写列表删一条。
             tools.AddRange(CommandRegistry.All.Select(c => new CommandTool(c, CurrentCommandContext)));
             tools.AddRange(new IAgentTool[]
             {
-                // 探测沙箱（F 支柱）：可丢弃无头工程里造场景 + 真触发合成 + 读回显，够到静态读够不着的东西
-                // （尤其真实音素）。写入不碰用户数据、不需授权（工程跑完即弃）。
-                new RunInSandboxTool(),
-                // 问用户：在【本轮之内】等到答案再继续，免得把任务切成两轮、丢掉已有进展。不改工程状态、
-                // 纯为 agent 自身决策服务，故归工具面（也因为等卡片必须 async，脚本同步跑在 UI 线程会自死锁）。
+                // 问用户：在【本轮之内】等到答案再继续，免得把任务切成两轮、丢掉已有进展。它【不是末端动作】
+                // 而是入口能力（docs/command-surface.md §5.4）——外部入口未必问得了人，故不进命令树，
+                // 由支持它的入口自己挂上（也因为等卡片必须 async，脚本同步跑在 UI 线程会自死锁）。
                 new AskUserQuestionTool(RequestUserAnswerAsync),
             });
             mTools = tools;
@@ -135,7 +132,8 @@ internal sealed class AgentSideBarContentProvider
     }
 
     // 命令面的执行环境。取【访问器】而非快照：命令实例无状态、注册表是静态的，工程/语言切换无须重建工具。
-    // 成员随搬家按需增长——搬 edit 命令时加授权策略、搬脚本类命令时加编辑器态（见 docs/command-surface.md §5）。
+    // 侧栏这个入口四样都给得出；其它入口给不出的那几样按 §5 各自降级（headless 没有编辑器态、
+    // CLI/MCP 没有模型、没配授权就一条 Edit 都不做）。
     CommandContext CurrentCommandContext() => new()
     {
         Project = mProject,
