@@ -48,13 +48,21 @@ internal class ScrollView : Panel
         s.DisposeAll();
     }
 
+    // 【只有会滚的那个轴才按无限量】。可滚动的轴上，内容想多长就多长（滚动行程正是由此得来），故传无限；
+    // 而贴合轴（FitWidth/FitHeight）的内容尺寸恒等于视口尺寸——见 ArrangeOverride 里 contentWidth 取 finalSize——
+    // 在这种轴上传无限，量出来的就是一份与实际排布不符的尺寸：子元素以为自己要多宽有多宽，于是
+    //   · 长文本把整行撑出视口（`TextWrapping` 也因此从不生效，只能靠给每处显式 MaxWidth 绕）；
+    //   · TextBox 一类自带滚动的控件以为可视区无限大，光标移出可视区也不滚，后半段文字够不着。
+    // 传真实可用尺寸即可，这两件事都从根上消失。父级本身以无限量本控件时（少见）退化回原行为。
     protected override Size MeasureOverride(Size availableSize)
     {
-        availableSize = new Size(double.PositiveInfinity, double.PositiveInfinity);
+        var childSize = new Size(
+            mIsFitWidth ? availableSize.Width : double.PositiveInfinity,
+            mIsFitHeight ? availableSize.Height : double.PositiveInfinity);
 
         foreach (Control child in Children)
         {
-            child.Measure(availableSize);
+            child.Measure(childSize);
         }
 
         return new Size();
