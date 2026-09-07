@@ -1,10 +1,10 @@
 # 多行文本（`TextBoxConfig.WithMultiline`）· 测试用例
 
-> 范围：`TextBoxConfig` 新增的多行形态——插件声明 `.WithMultiline(可见行数)` 后，宿主把该字段渲染成多行框
+> 范围：`TextBoxConfig` 新增的多行形态——插件声明 `.WithMultiline(最多行数)` 后，宿主把该字段渲染成多行框
 > （`MultilineTextInput`，AvaloniaEdit 那个），值仍是**一个** string、换行在里面。
 > 只测这个形态带来的新行为：框的长相与滚动、三态（含多选占位）、单行↔多行的动态切换、掩码冲突的降级。
 >
-> **值链路已自动化**：`pwsh tests/headless/multiline-text.ps1`（15 项，全绿）覆盖了措辞（`multi-line text`）、
+> **值链路已自动化**：`pwsh tests/headless/multiline-text.ps1`（17 项，全绿）覆盖了措辞两支（封顶时带行数 / 0 = 不封顶不带）、
 > 换行穿过 JSON → PropertyValue → 脚本 `main` 的往返、默认值本身带换行、扩展设置那条入口。
 > 人工只需跑下面这几组——它们全是控件交互与界面绑定，没有自动化路径。
 
@@ -42,13 +42,15 @@
 
 ## C · 三态（多选时的占位）
 
-这一组需要一个**多选**面板。若手边没有声明多行属性的引擎，可跳过 C 组并在报告里注明——
-它测的是 `MultilineTextInput` 的 `DisplayMultiple`，本次改动新补的那一段。
+前置：`v1-suite.tlx` 已装好。新建工程 → voice 引擎选 **TLSuiteVoice** → 声库选 **`[v1-suite] Voice`**
+（基线声库，**不是** `Conditional`）→ 画几个音符。note 属性面板里的 **memo** 就是多行字段（最多 3 行），
+同面板的 `label`（单行）作对照。这组测的是 `MultilineTextInput` 的 `DisplayMultiple`。
 
-- [ ] 选中两个该属性值**不同**的对象 → 框内**正文为空**，只显示灰色占位 **`(Multiple)`**。
+- [ ] 给两个音符的 **memo** 填**不同**内容，再框选这两个 → 框内**正文为空**，只显示灰色占位 **`(Multiple)`**。
 - [ ] 此时点进框直接打字 → 从**空白**开始编辑（不会把 `(Multiple)` 这几个字面量编进去），
       提交后两个对象都写成新值。
-- [ ] 选中两个值**相同**的对象 → 正常显示那个值（不是 `(Multiple)`）。
+- [ ] 选中两个 memo **相同**的音符 → 正常显示那个值（不是 `(Multiple)`）。
+- [ ] 对照：同一组多选下，单行的 `label` 字段同样显示 `(Multiple)` 占位——两种控件的三态一致。
 
 ## D · 单行 ↔ 多行的动态切换
 

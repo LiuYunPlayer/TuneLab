@@ -197,6 +197,9 @@ public sealed class SuiteVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
         { "tension", SliderConfig.Linear(0, -1, 1) },
         { "accent", CheckBoxConfig.Create() },
         { "label", TextBoxConfig.Create() },
+        // 多行 note 属性：给"多选三态"用——两个 note 值不同时框内该显示 (Multiple) 占位而非空白。
+        // 最多 3 行（框贴内容长、再多则框内滚动）。
+        { "memo", TextBoxConfig.Create().WithMultiline(3) },
         { "style", ComboBoxConfig.Create(["Soft", "Normal", "Strong"]).WithDefault("Normal") },
         // 值/显示分离 + 任意基础类型：界面显示 Low/Mid/High，底层存的是 int 值 0/1/2（默认 Mid=1）。
         { "quality", ComboBoxConfig.Create(new ComboBoxItem[] { new(0, "Low"), new(1, "Mid"), new(2, "High") }).WithDefault(new ComboBoxItem(1, "Mid")) },
