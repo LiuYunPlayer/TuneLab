@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.Primitives;
@@ -50,7 +50,11 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         // 那是 TextArea 模板里的独立 TextBlock，行高/基线与正文 TextView 略不同（实测差约 0.5px），空框时与真实文字不同高。
         TextArea.TextView.BackgroundRenderers.Add(new PlaceholderRenderer(this));
 
-        base.TextChanged += (s, e) => mTextChanged.Invoke();
+        // 只有【用户输入】才对外发 ValueChanged。AvaloniaEdit 的 TextChanged 对程序化赋值同样触发，
+        // 而绑定管线把 ValueChanged 当成"用户在改"（DiscardTo + Set）——于是 Refresh() 回灌值时会在
+        // 提交流程中途重入绑定并抛异常（失焦提交 → 通知 → Refresh → set_Text → TextChanged → DiscardTo）。
+        // 单行的 TextInput 早就分开了这两件事（Display 走 base.Text，事件只在 OnKeyDown/OnTextInput 发），这里对齐它。
+        base.TextChanged += (s, e) => { if (!mProgrammaticWrite) mTextChanged.Invoke(); };
         // 焦点落在内部 TextArea 上：进入=开始编辑（ValueWillChange），退出=提交（ValueCommitted）。
         TextArea.GotFocus += (s, e) => mEnterInput.Invoke();
         TextArea.LostFocus += (s, e) => mEndInput.Invoke();
@@ -118,24 +122,35 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
     {
         if (TextArea.IsFocused)
             return;
-        Text = text ?? string.Empty;
+        SetTextSilently(text ?? string.Empty);
     }
 
     public void DisplayNull()
     {
         if (TextArea.IsFocused)
             return;
-        Text = string.Empty;
+        SetTextSilently(string.Empty);
     }
 
     public void DisplayMultiple()
     {
         if (TextArea.IsFocused)
             return;
-        Text = string.Empty;
+        SetTextSilently(string.Empty);
+    }
+
+    // 程序化写入：期间不对外发 ValueChanged（见构造函数里 TextChanged 那段注释）。
+    void SetTextSilently(string text)
+    {
+        if (Text == text)
+            return;
+        mProgrammaticWrite = true;
+        try { Text = text; }
+        finally { mProgrammaticWrite = false; }
     }
 
     bool mAutoGrow;
+    bool mProgrammaticWrite;
     string? mWatermark;
 
     readonly OverlayScrollBars mScrollBars;
