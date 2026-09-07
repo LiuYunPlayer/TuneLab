@@ -147,6 +147,9 @@ internal static class ScriptConfigs
     {
         public IControllerConfig Build() => config;
         public ScriptSliderConfig WithFormat(ScriptNumberFormat format) => new(config.WithFormat(format.Inner));
+        // 无参重载是必须的：Jint 按实参个数挑重载、不补缺省实参，只留 (JsValue) 那个的话
+        // 脚本里写 withRandomizable() 会抛「No public methods with the specified arguments were found」。
+        public ScriptSliderConfig WithRandomizable() => new(config.WithRandomizable());
         public ScriptSliderConfig WithRandomizable(JsValue value) => new(config.WithRandomizable(ScriptArgs.AsBoolOrNull(value) ?? true));
         public ScriptSliderConfig WithMinLabel(string label) => new(config.WithMinLabel(label));
         public ScriptSliderConfig WithMaxLabel(string label) => new(config.WithMaxLabel(label));
@@ -161,6 +164,9 @@ internal static class ScriptConfigs
         public ScriptDraggableNumberBoxConfig WithStep(double step) => new(config.WithStep(step));
         public ScriptDraggableNumberBoxConfig WithSensitivity(double sensitivity) => new(config.WithSensitivity(sensitivity));
         public ScriptDraggableNumberBoxConfig WithFormat(ScriptNumberFormat format) => new(config.WithFormat(format.Inner));
+        // 无参重载是必须的：Jint 按实参个数挑重载、不补缺省实参，只留 (JsValue) 那个的话
+        // 脚本里写 withRandomizable() 会抛「No public methods with the specified arguments were found」。
+        public ScriptDraggableNumberBoxConfig WithRandomizable() => new(config.WithRandomizable());
         public ScriptDraggableNumberBoxConfig WithRandomizable(JsValue value) => new(config.WithRandomizable(ScriptArgs.AsBoolOrNull(value) ?? true));
     }
 
@@ -168,6 +174,9 @@ internal static class ScriptConfigs
     {
         public IControllerConfig Build() => config;
         public ScriptComboBoxConfig Append(JsValue item) => new(config.Append(ToComboBoxItem(item)));
+        // 无参重载是必须的：Jint 按实参个数挑重载、不补缺省实参，只留 (JsValue) 那个的话
+        // 脚本里写 appendSeparator() 会抛「No public methods with the specified arguments were found」。
+        public ScriptComboBoxConfig AppendSeparator() => new(config.AppendSeparator());
         public ScriptComboBoxConfig AppendSeparator(JsValue label) => new(config.AppendSeparator(ScriptArgs.AsStrOrNull(label)));
         public ScriptComboBoxConfig WithDefault(JsValue value) => new(config.WithDefault(ToComboBoxItem(value)));
     }
@@ -180,6 +189,9 @@ internal static class ScriptConfigs
     internal sealed class ScriptTextBoxConfig(TextBoxConfig config) : IScriptConfig
     {
         public IControllerConfig Build() => config;
+        // 无参重载是必须的：Jint 按实参个数挑重载、不补缺省实参，只留 (JsValue) 那个的话
+        // 脚本里写 withPassword() 会抛「No public methods with the specified arguments were found」。
+        public ScriptTextBoxConfig WithPassword() => new(config.WithPassword());
         public ScriptTextBoxConfig WithPassword(JsValue value) => new(config.WithPassword(ScriptArgs.AsBoolOrNull(value) ?? true));
         // 行数缺省 0 = 不封顶（同 SDK 默认）；给了非数字按缺省处理，不为一个装饰性参数抛错。
         public ScriptTextBoxConfig WithMultiline() => new(config.WithMultiline());
