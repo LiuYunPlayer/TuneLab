@@ -49,6 +49,15 @@ jobs:
       working-directory: ${{github.workspace}}
       run: Move-Item -Path "TuneLab\bin\Release\net8.0\${{ matrix.runtime }}\publish" -Destination "workspace\"
     
+    # 命令行与主程序同目录发布：外部工具与 agent 靠它驱动 TuneLab，不随包发就等于没有。
+    # 单独发布一次（而不是指望上一步的解决方案发布把它摆在哪儿），故这条路径是确定的。
+    - name: Publish the command line into artifacts
+      shell: pwsh
+      working-directory: ${{github.workspace}}
+      run: |
+        dotnet publish TuneLab.Cli/TuneLab.Cli.csproj --configuration Release -r ${{ matrix.runtime }}
+        Copy-Item "TuneLab.Cli/bin/Release/net8.0/${{ matrix.runtime }}/publish/*" -Destination "workspace/" -Recurse -Force
+
     - name: Copy license to artifacts path
       shell: pwsh
       working-directory: ${{github.workspace}}

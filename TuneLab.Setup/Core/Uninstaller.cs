@@ -7,7 +7,7 @@ using System.Threading;
 namespace TuneLab.Setup.Core;
 
 /// <summary>
-/// 卸载：反注册关联与卸载表、删快捷方式、清目标目录。
+/// 卸载：反注册关联与卸载表、摘掉命令行入口、删快捷方式、清目标目录。
 /// 因卸载器自身位于目标目录内，无法边运行边删自己——先把自己复制到临时目录并从那里重启，
 /// 由临时副本删除整个安装目录。
 /// </summary>
@@ -36,6 +36,9 @@ internal static class Uninstaller
         // 到这里说明是从临时目录运行的副本，可安全删除安装目录。
         UninstallRegistry.Unregister();
         FileAssociation.Unregister();
+        // PATH 里那一项必须在删目录【之前】摘掉：目录删了而 PATH 还指着它，留下的是一条死路径
+        // ——它会跟着用户一辈子，且没人看得出是谁留的。
+        CommandLineEntry.Uninstall(installDir);
         RemoveShortcuts();
         DeleteInstallDir(installDir);
     }

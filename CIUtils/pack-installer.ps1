@@ -6,9 +6,10 @@
     架构（单份 Avalonia/Skia）：
       1) 框架依赖发布主程序 TuneLab      -> 暂存目录 stage\；
       2) 框架依赖发布向导 TuneLab.Setup  -> 同一 stage\（复用 app 已有的 Avalonia/Skia/GUI dll，不重复打包）；
-      3) 把 stage\（app + 向导）打成 zip 载荷；
-      4) 框架依赖单文件发布极小外层解压器 TuneLab.Setup.Stub -> stub exe（无 Avalonia）；
-      5) 拼接：stub exe + 载荷 zip + 24 字节 footer(magic8 + offset8LE + length8LE)
+      3) 框架依赖发布命令行 TuneLab.Cli  -> 同一 stage\（同上，只多出 TuneLab.Cli.exe 那几个文件）；
+      4) 把 stage\（app + 向导 + 命令行）打成 zip 载荷；
+      5) 框架依赖单文件发布极小外层解压器 TuneLab.Setup.Stub -> stub exe（无 Avalonia）；
+      6) 拼接：stub exe + 载荷 zip + 24 字节 footer(magic8 + offset8LE + length8LE)
          -> 最终 TuneLab-Setup-win-x64-v<version>.exe。
     运行时：外层 stub 读尾部 footer、解压 stage 到临时目录、运行其中的 TuneLab.Setup.exe 向导；
     向导从所在目录整体铺到安装目录（向导自身一并落地，成为卸载器/更新器）。
@@ -43,6 +44,7 @@ $magic    = 'TLSFX1'  # 之后补两个 NUL 凑满 8 字节
 
 $appProj   = Join-Path $repoRoot 'TuneLab\TuneLab.csproj'
 $setupProj = Join-Path $repoRoot 'TuneLab.Setup\TuneLab.Setup.csproj'
+$cliProj   = Join-Path $repoRoot 'TuneLab.Cli\TuneLab.Cli.csproj'
 $stubProj  = Join-Path $repoRoot 'TuneLab.Setup.Stub\TuneLab.Setup.Stub.csproj'
 
 # 版本号真源是 TuneLab.csproj 的 <Version>；未显式传 -Version 时从中读取。
@@ -72,18 +74,27 @@ $installerDir = Split-Path -Parent $OutputPath
 if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stageDir, $stubDir, $installerDir | Out-Null
 
-Write-Host "==> [1/5] Publishing TuneLab app (framework-dependent $runtime)…" -ForegroundColor Cyan
+Write-Host "==> [1/6] Publishing TuneLab app (framework-dependent $runtime)…" -ForegroundColor Cyan
 dotnet publish $appProj -c $Configuration -r $runtime --self-contained false `
     -p:Version=$Version -o $stageDir
 if ($LASTEXITCODE -ne 0) { throw "App publish failed." }
 
-Write-Host "==> [2/5] Publishing wizard into the same stage (shares Avalonia/Skia)…" -ForegroundColor Cyan
+Write-Host "==> [2/6] Publishing wizard into the same stage (shares Avalonia/Skia)…" -ForegroundColor Cyan
 dotnet publish $setupProj -c $Configuration -r $runtime --self-contained false `
     -p:Version=$Version -o $stageDir
 if ($LASTEXITCODE -ne 0) { throw "Wizard publish failed." }
 if (-not (Test-Path (Join-Path $stageDir 'TuneLab.Setup.exe'))) { throw "Wizard exe missing in stage." }
 
-Write-Host "==> [3/5] Zipping payload (app + wizard)…" -ForegroundColor Cyan
+# 命令行必须【随安装包一起装】：它是外部工具与 agent 驱动 TuneLab 的那条路，装不上就等于没有。
+# 与 app 同目录发布，故只多出 TuneLab.Cli.exe/dll/deps.json/runtimeconfig.json 几个文件；
+# 用户敲的 `tunelab` 是安装期落的转发入口（TuneLab.Setup 的 CommandLineEntry），与这里无关。
+Write-Host "==> [3/6] Publishing the command line into the same stage…" -ForegroundColor Cyan
+dotnet publish $cliProj -c $Configuration -r $runtime --self-contained false `
+    -p:Version=$Version -o $stageDir
+if ($LASTEXITCODE -ne 0) { throw "CLI publish failed." }
+if (-not (Test-Path (Join-Path $stageDir 'TuneLab.Cli.exe'))) { throw "CLI exe missing in stage." }
+
+Write-Host "==> [4/6] Zipping payload (app + wizard + command line)…" -ForegroundColor Cyan
 # 去掉调试符号：Release 安装包用不上 .pdb。
 Get-ChildItem $stageDir -Recurse -Filter *.pdb | Remove-Item -Force
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -92,14 +103,14 @@ if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 $zipLen = (Get-Item $zipPath).Length
 Write-Host ("    payload.zip = {0:N1} MB" -f ($zipLen / 1MB))
 
-Write-Host "==> [4/5] Publishing tiny extractor stub (single-file, no Avalonia)…" -ForegroundColor Cyan
+Write-Host "==> [5/6] Publishing tiny extractor stub (single-file, no Avalonia)…" -ForegroundColor Cyan
 dotnet publish $stubProj -c $Configuration -p:PublishSingleFile=true `
     -p:Version=$Version -o $stubDir
 if ($LASTEXITCODE -ne 0) { throw "Stub publish failed." }
 $stub = Join-Path $stubDir 'TuneLab.Setup.Stub.exe'
 if (-not (Test-Path $stub)) { throw "Stub exe not found: $stub" }
 
-Write-Host "==> [5/5] Assembling SFX installer…" -ForegroundColor Cyan
+Write-Host "==> [6/6] Assembling SFX installer…" -ForegroundColor Cyan
 if (Test-Path $OutputPath) { Remove-Item $OutputPath -Force }
 Copy-Item $stub $OutputPath -Force
 $stubLen = (Get-Item $OutputPath).Length   # = 载荷在最终文件中的起始偏移

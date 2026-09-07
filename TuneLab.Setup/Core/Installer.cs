@@ -50,6 +50,12 @@ internal sealed class Installer
 
             // 卸载器/更新器 TuneLab.Setup.exe 已随目录一并铺入安装目录，无需单独复制。
 
+            // 2) 命令行入口（安装目录下的 CommandLine\tunelab.cmd + 用户 PATH）。
+            //    不设开关：一个转发脚本 + PATH 里一项，卸载时都收回；而少了它，外部工具与 agent
+            //    就得让用户去翻安装目录抄路径——那是这条路上最容易劝退人的一步。
+            progress?.Report(new InstallStatus(0.88, "Installing the command line…"));
+            CommandLineEntry.Install(installDir, mOptions.IsUpdate);
+
             // 3-4) 快捷方式 + 文件关联：仅首次安装。更新模式跳过，保留用户当初的选择。
             if (!mOptions.IsUpdate)
             {
