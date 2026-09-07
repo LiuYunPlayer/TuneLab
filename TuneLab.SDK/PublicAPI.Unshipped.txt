@@ -19,3 +19,6 @@ TuneLab.SDK.PathPickerConfig.WithPickerTitle(string! title) -> TuneLab.SDK.PathP
 TuneLab.SDK.PathPickerTarget
 TuneLab.SDK.PathPickerTarget.File = 0 -> TuneLab.SDK.PathPickerTarget
 TuneLab.SDK.PathPickerTarget.Folder = 1 -> TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.TextBoxConfig.IsMultiline.get -> bool
+TuneLab.SDK.TextBoxConfig.MaxVisibleLines.get -> int
+TuneLab.SDK.TextBoxConfig.WithMultiline(int maxVisibleLines = 0) -> TuneLab.SDK.TextBoxConfig!

@@ -452,7 +452,7 @@ function getInputConfig(ctx) {
 | ↳ `.append(x)` `.appendSeparator(标签?)` `.withDefault('a')` | 追加项 / 分隔线 / 指定默认值 |
 | `CheckBoxConfig.create(默认?)` | 勾选框 |
 | `TextBoxConfig.create(默认?)` | 文本框 |
-| ↳ `.withPassword()` | 密码样式（内容打码） |
+| ↳ `.withPassword()` `.withMultiline(最多行数?)` | 密码样式（内容打码）/ 多行框——框贴着内容长、到 `最多行数` 封顶后框内滚动（缺省 `0` = 不封顶）。值仍是**一个**字符串、换行在里面 |
 | `PathPickerConfig.createFile(默认?)` `.createFolder(默认?)` | 路径选择：文本框 + 浏览按钮，点开系统的文件 / 文件夹对话框；值就是选中的路径字符串 |
 | ↳ `.appendFileType(名称, '*.exe')` 或 `.appendFileType(名称, ['*.wav','*.mp3'])` `.withPickerTitle(标题)` | 文件类型过滤（仅选文件时有效，多条就链式再加）/ 对话框标题 |
 

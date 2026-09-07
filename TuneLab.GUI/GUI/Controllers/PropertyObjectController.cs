@@ -375,32 +375,102 @@ internal class PropertyObjectController : StackPanel
         DraggableNumberBoxConfig mConfig = null!;   // Apply 于构造期必先行
     }
 
-    class SingleLineTextCreator : Creator
+    // 文本字段：单行框，或（IsMultiline）多行框。两者是【同一个 config 类型】的两种形态，故 reconcile 会
+    // 复用同一个 creator——但用的是两个不同控件。控件放进一个容器、Views 恒为该容器，切形态时只换容器里的
+    // 孩子：Views 不变 ⇒ 不必让 reconcile 知道这件事，也不触发整面板重排。
+    class TextCreator : Creator
     {
-        public SingleLineTextCreator(PropertyObjectController parent, PropertyKey key, TextBoxConfig config) : base(parent)
+        public TextCreator(PropertyObjectController parent, PropertyKey key, TextBoxConfig config) : base(parent)
         {
+            mKey = key;
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
-
-            mController = ObjectPoolManager.Get<SingleLineTextController>();
-            mController.Margin = new(24, 12);
-            mController.IsPassword = config.IsPassword;
-
-            mController.BindDataProperty(parent.DataObject.StringField(key.Id, config.DefaultValue), s);
+            mHost = ObjectPoolManager.Get<Panel>();
+            mHost.Margin = new(24, 12);
+            Build(config);
         }
 
         public override Type ConfigType => typeof(TextBoxConfig);
-        public override IEnumerable<Control> Views => [mTitle, mController];
-        public override void Update(IControllerConfig config) { mController.IsPassword = ((TextBoxConfig)config).IsPassword; }
+        public override IEnumerable<Control> Views => [mTitle, mHost];
+
+        public override void Update(IControllerConfig config)
+        {
+            var c = (TextBoxConfig)config;
+            if (IsMultiline(c) != mIsMultiline)
+            {
+                Teardown();
+                Build(c);
+                return;
+            }
+
+            if (mMultiline != null)
+                mMultiline.SetMaxVisibleLines(c.MaxVisibleLines);
+            else if (mSingleLine != null)
+                mSingleLine.IsPassword = c.IsPassword;
+        }
+
+        // 掩码只有单行有（多行框不支持逐字符掩码），两者同时声明时以掩码为准——静默降级插件作者看不见，故告警一次。
+        static bool IsMultiline(TextBoxConfig config)
+        {
+            if (!config.IsMultiline || !config.IsPassword)
+                return config.IsMultiline;
+            if (sWarnedPasswordMultiline)
+                return false;
+            sWarnedPasswordMultiline = true;
+            Log.Warning("TextBoxConfig declares both IsPassword and IsMultiline; masking has no multi-line form, so the field stays single-line.");
+            return false;
+        }
+
+        void Build(TextBoxConfig config)
+        {
+            mIsMultiline = IsMultiline(config);
+            var field = Parent.DataObject.StringField(mKey.Id, config.DefaultValue);
+            if (mIsMultiline)
+            {
+                // 不池化：AvaloniaEdit 控件自带文档与渲染层、状态面比单行大得多，复用要清的东西比省下的多。
+                mMultiline = new MultilineTextInput() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+                mMultiline.SetMaxVisibleLines(config.MaxVisibleLines);
+                mMultiline.BindDataProperty(field, mFieldScope);
+                mHost.Children.Add(mMultiline);
+            }
+            else
+            {
+                mSingleLine = ObjectPoolManager.Get<SingleLineTextController>();
+                mSingleLine.IsPassword = config.IsPassword;
+                mSingleLine.BindDataProperty(field, mFieldScope);
+                mHost.Children.Add(mSingleLine);
+            }
+        }
+
+        // 拆掉当前形态的控件：先断绑定（否则归池后仍在响应数据变化），再移出可视树。
+        void Teardown()
+        {
+            mFieldScope.DisposeAll();
+            mHost.Children.Clear();
+            if (mSingleLine != null)
+            {
+                ObjectPoolManager.Return(mSingleLine);
+                mSingleLine = null;
+            }
+            mMultiline = null;
+        }
 
         public override void Dispose()
         {
             base.Dispose();
-            ObjectPoolManager.Return(mController);
+            Teardown();
+            ObjectPoolManager.Return(mHost);
             ObjectPoolManager.Return(mTitle);
         }
 
+        readonly PropertyKey mKey;
         readonly Label mTitle;
-        readonly SingleLineTextController mController;
+        readonly Panel mHost;
+        readonly DisposableManager mFieldScope = new();   // 只管当前控件的绑定，换形态时单独回收
+        bool mIsMultiline;
+        SingleLineTextController? mSingleLine;
+        MultilineTextInput? mMultiline;
+
+        static bool sWarnedPasswordMultiline;
     }
 
     // 路径选择：文本框 + 浏览按钮。值仍是普通 string 字段，与 SingleLineTextCreator 同一绑定路径，
@@ -615,7 +685,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(ObjectConfig), (parent, key, config) => new ObjectCreator(parent, key, (ObjectConfig)config) },
         { typeof(SliderConfig), (parent, key, config) => new SliderCreator(parent, key, (SliderConfig)config) },
         { typeof(DraggableNumberBoxConfig), (parent, key, config) => new DraggableNumberBoxCreator(parent, key, (DraggableNumberBoxConfig)config) },
-        { typeof(TextBoxConfig), (parent, key, config) => new SingleLineTextCreator(parent, key, (TextBoxConfig)config) },
+        { typeof(TextBoxConfig), (parent, key, config) => new TextCreator(parent, key, (TextBoxConfig)config) },
         { typeof(PathPickerConfig), (parent, key, config) => new PathPickerCreator(parent, key, (PathPickerConfig)config) },
         { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },

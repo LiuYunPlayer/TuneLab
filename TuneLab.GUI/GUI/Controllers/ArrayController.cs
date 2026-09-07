@@ -351,19 +351,71 @@ internal abstract class ElementWidget : IDisposable
         readonly SliderController mController;
     }
 
+    // 单行 / 多行（IsMultiline）两种形态共用 TextBoxConfig，故与属性面板的 TextCreator 同款：控件装在容器里，
+    // View 恒为该容器，换形态只换容器里的孩子——否则 View 是构造期取一次的，reconcile 复用本件时换不掉。
     sealed class TextElement : ElementWidget
     {
         public TextElement(IDataPropertyObject dataObject, string token, TextBoxConfig config)
         {
-            mController = new SingleLineTextController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, IsPassword = config.IsPassword };
-            mController.BindDataProperty(dataObject.StringField(token, config.DefaultValue), s);
+            mDataObject = dataObject;
+            mToken = token;
+            Build(config);
         }
 
-        public override Control View => mController;
+        public override Control View => mHost;
         public override Type ConfigType => typeof(TextBoxConfig);
-        public override void Update(IControllerConfig config) => mController.IsPassword = ((TextBoxConfig)config).IsPassword;
 
-        readonly SingleLineTextController mController;
+        public override void Update(IControllerConfig config)
+        {
+            var c = (TextBoxConfig)config;
+            if (c.IsMultiline != mIsMultiline)
+            {
+                mFieldScope.DisposeAll();
+                mHost.Children.Clear();
+                Build(c);
+                return;
+            }
+
+            if (mMultiline != null)
+                mMultiline.SetMaxVisibleLines(c.MaxVisibleLines);
+            else if (mSingleLine != null)
+                mSingleLine.IsPassword = c.IsPassword;
+        }
+
+        void Build(TextBoxConfig config)
+        {
+            mIsMultiline = config.IsMultiline;
+            var field = mDataObject.StringField(mToken, config.DefaultValue);
+            if (mIsMultiline)
+            {
+                mSingleLine = null;
+                mMultiline = new MultilineTextInput { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+                mMultiline.SetMaxVisibleLines(config.MaxVisibleLines);
+                mMultiline.BindDataProperty(field, mFieldScope);
+                mHost.Children.Add(mMultiline);
+            }
+            else
+            {
+                mMultiline = null;
+                mSingleLine = new SingleLineTextController { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, IsPassword = config.IsPassword };
+                mSingleLine.BindDataProperty(field, mFieldScope);
+                mHost.Children.Add(mSingleLine);
+            }
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            mFieldScope.DisposeAll();
+        }
+
+        readonly IDataPropertyObject mDataObject;
+        readonly string mToken;
+        readonly Panel mHost = new();
+        readonly DisposableManager mFieldScope = new();
+        bool mIsMultiline;
+        SingleLineTextController? mSingleLine;
+        MultilineTextInput? mMultiline;
     }
 
     sealed class PathElement : ElementWidget

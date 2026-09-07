@@ -181,6 +181,10 @@ internal static class ScriptConfigs
     {
         public IControllerConfig Build() => config;
         public ScriptTextBoxConfig WithPassword(JsValue value) => new(config.WithPassword(ScriptArgs.AsBoolOrNull(value) ?? true));
+        // 行数缺省 0 = 不封顶（同 SDK 默认）；给了非数字按缺省处理，不为一个装饰性参数抛错。
+        public ScriptTextBoxConfig WithMultiline() => new(config.WithMultiline());
+        public ScriptTextBoxConfig WithMultiline(JsValue maxVisibleLines)
+            => new(config.WithMultiline(ScriptArgs.AsIntOrNull(maxVisibleLines) ?? 0));
     }
 
     internal sealed class ScriptPathPickerConfig(PathPickerConfig config) : IScriptConfig

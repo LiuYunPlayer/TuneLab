@@ -25,7 +25,10 @@ internal static class ConfigText
         DraggableNumberBoxConfig d => "number" + RangeHint(d),
         ComboBoxConfig c => "one of " + Options(c),
         CheckBoxConfig => "boolean (true/false)",
-        TextBoxConfig t => t.IsPassword ? "text (masked)" : "text",
+        // 多行要点明：模型据此才知道值里可以有换行（单行字段里塞 \n 是它常犯的错）。
+        TextBoxConfig t => t.IsPassword ? "text (masked)"
+            : t.IsMultiline ? (t.MaxVisibleLines > 0 ? string.Format("multi-line text (box shows up to {0} lines)", t.MaxVisibleLines) : "multi-line text")
+            : "text",
         PathPickerConfig f => f.Target == PathPickerTarget.Folder ? "folder path" : "file path" + PatternHint(f),
         AutomationConfig a => a.IsPiecewise
             ? string.Format("automation track, range [{0}, {1}], piecewise (no baseline)", FormatNum(a.MinValue), FormatNum(a.MaxValue))

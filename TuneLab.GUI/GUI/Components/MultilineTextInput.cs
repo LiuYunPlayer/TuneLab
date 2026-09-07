@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.Primitives;
@@ -14,8 +14,8 @@ namespace TuneLab.GUI.Components;
 // 多行文本输入控件：基于 AvaloniaEdit 的 TextEditor（自带 TextView 排版体系），供各处需要多行输入的场景复用
 // （歌词录入、Agent 输入框等）。相较自定义 TextInput（继承原生 TextBox）：TextBox 在 TextWrapping=Wrap 下有
 // 框架层选择重排 bug——从一个软换行的行首往前选，上一行末字会被拽到下一行；TextEditor 走独立排版，不受此累。
-// 实现 IDataValueController<string> 与 TextInput 同构，可直接接属性绑定管线（多行场景通常不作多选字段用，
-// 故 DisplayNull/DisplayMultiple 退化为清空）。
+// 实现 IDataValueController<string> 与 TextInput 同构，可直接接属性绑定管线，三态（有值/无值/多值）语义
+// 也与单行一致——TextBoxConfig 声明 IsMultiline 后，属性面板用它替下单行控件，多选扇出照样成立。
 internal class MultilineTextInput : TextEditor, IDataValueController<string>
 {
     public IActionEvent EnterInput => mEnterInput;
@@ -106,6 +106,9 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         if (!mAutoGrow)
             return;
 
+        // 行数上限先落成真实的 MaxHeight（行高取不到时按字号估，见 LineHeight）。
+        UpdateMaxHeightFromLines();
+
         // 框高紧贴内容：DocumentHeight（全部可视行排版总高，含软换行折叠）+ 上下对称内边距（调用方设的 Padding），无多余空隙 → 内容居中。
         var target = TextArea.TextView.DocumentHeight + Padding.Top + Padding.Bottom;
         var max = MaxHeight;
@@ -120,11 +123,48 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
             Height = target;
     }
 
+    // 行数上限：框贴着内容长（一行内容就一行高，不占着几行空白），到 maxLines 行封顶、其后框内滚动。
+    // 【是上限不是定高】——定高会让只有一行的字段白占四行；封顶后仍能滚，够得着后面的内容。
+    // lines <= 0 = 不封顶：框随内容一直长高（此时若调用方另设了 MaxHeight，仍按它封顶）。
+    // 走既有的 AutoGrow 那条路（Agent 输入框同款），只是把封顶值由行数算出来。
+    public void SetMaxVisibleLines(int lines)
+    {
+        mMaxVisibleLines = lines < 0 ? 0 : lines;
+        AutoGrow = true;
+        UpdateMaxHeightFromLines();
+        UpdateAutoHeight();
+    }
+
+    // 行数上限 → MaxHeight。写进【属性】而不是只在算高时本地夹一下：那样布局系统本身没有任何约束，
+    // 全靠我们每次把 Height 算对，漏一次框就长出去了（实测就是这么长出去的）。设成属性后，
+    // 即使某一帧没算高，测量/排布也会照 MaxHeight 封顶。0 = 不封顶，此时把属性还给调用方（可能自设了 MaxHeight）。
+    void UpdateMaxHeightFromLines()
+    {
+        if (mMaxVisibleLines <= 0)
+            return;
+        var max = LineHeight * mMaxVisibleLines + Padding.Top + Padding.Bottom;
+        if (double.IsNaN(MaxHeight) || double.IsInfinity(MaxHeight) || Math.Abs(MaxHeight - max) > 0.5)
+            MaxHeight = max;
+    }
+
+    // 一行的排版高度。优先问排版体系要，取不到就按字号估（实测本版 AvaloniaEdit 的 DefaultLineHeight
+    // 在我们调用的时机始终取不到值，故走的一直是估算这一支；而估值 = 字号 × 1.35 与排版体系算出来的行高
+    // 完全吻合——同一段文本 DocumentHeight 48.60 / 3 行 = 16.20 = 12 × 1.35，故估算安全）。
+    double LineHeight
+    {
+        get
+        {
+            var h = TextArea.TextView.DefaultLineHeight;
+            return double.IsNaN(h) || double.IsInfinity(h) || h <= 0 ? FontSize * 1.35 : h;
+        }
+    }
+
     // 编辑中（聚焦）不被外部刷新覆盖：语义同 TextInput.Display，避免多选扇出/他处刷新中途重置光标。
     public void Display(string text)
     {
         if (TextArea.IsFocused)
             return;
+        SetMultipleHint(null);
         SetTextSilently(text ?? string.Empty);
     }
 
@@ -132,13 +172,18 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
     {
         if (TextArea.IsFocused)
             return;
+        SetMultipleHint(null);
         SetTextSilently(string.Empty);
     }
 
+    // 多值：与单行 TextInput 同款——正文留空、只以占位符提示，聚焦即从空白起编，不会编辑到 "(Multiple)" 字面量。
+    // 但【不动调用方设的 Watermark】：那是这个框长期的提示语（如 Agent 输入框），不该被一次刷新擦掉，
+    // 故多值提示单独存一格，绘制时优先于 Watermark。
     public void DisplayMultiple()
     {
         if (TextArea.IsFocused)
             return;
+        SetMultipleHint("(Multiple)");
         SetTextSilently(string.Empty);
     }
 
@@ -152,9 +197,19 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
         finally { mProgrammaticWrite = false; }
     }
 
+    void SetMultipleHint(string? hint)
+    {
+        if (mMultipleHint == hint)
+            return;
+        mMultipleHint = hint;
+        TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+    }
+
     bool mAutoGrow;
     bool mProgrammaticWrite;
+    int mMaxVisibleLines;
     string? mWatermark;
+    string? mMultipleHint;
 
     readonly OverlayScrollBars mScrollBars;
 
@@ -170,13 +225,14 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
 
         public void Draw(TextView textView, DrawingContext drawingContext)
         {
-            if (string.IsNullOrEmpty(owner.mWatermark))
+            var placeholder = owner.mMultipleHint ?? owner.mWatermark;   // 多值提示优先于长期占位符
+            if (string.IsNullOrEmpty(placeholder))
                 return;
             if (textView.Document != null && textView.Document.TextLength > 0)
                 return;
 
             var typeface = new Typeface(owner.FontFamily, owner.FontStyle, owner.FontWeight);
-            var text = new FormattedText(owner.mWatermark, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            var text = new FormattedText(placeholder, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
                 typeface, owner.FontSize, Style.LIGHT_WHITE.Opacity(0.5).ToBrush());
             // 令占位符基线 = 正文首行基线（行顶下 DefaultBaseline）：FormattedText 从顶部绘制，其 Baseline 为顶到基线距。
             drawingContext.DrawText(text, new Avalonia.Point(0, textView.DefaultBaseline - text.Baseline));
