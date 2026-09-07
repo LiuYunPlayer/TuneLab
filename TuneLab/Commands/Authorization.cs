@@ -52,6 +52,17 @@ internal enum AuthorizationMode
     Auto,             // 全自动：直接落地
 }
 
+// 两个档位取更严的那一档。用处：入口自己声明的档位要被【用户设定】压顶（见 BridgeAuthorizationPolicy）。
+// 【不比较枚举数值】——那把"谁更严"押在成员的书写顺序上，将来插一档就可能静默改变判据，
+// 而这个判据错一次的后果是外部进程拿到了用户没给的权限。
+internal static class AuthorizationModes
+{
+    public static AuthorizationMode Stricter(AuthorizationMode a, AuthorizationMode b)
+        => a == AuthorizationMode.ReadOnlyAdvice || b == AuthorizationMode.ReadOnlyAdvice ? AuthorizationMode.ReadOnlyAdvice
+            : a == AuthorizationMode.Confirm || b == AuthorizationMode.Confirm ? AuthorizationMode.Confirm
+            : AuthorizationMode.Auto;
+}
+
 // Confirm 档下用户的裁决：ApplyOnce 本次落地；ApplyAlways 本次落地并把档位切到 Auto（此后不再逐次问）；
 // Reject 不落地。切档由策略实现方自己完成（命令只据裁决决定做不做，以及回报里怎么说）。
 internal enum AuthorizationDecision { ApplyOnce, ApplyAlways, Reject }
@@ -60,6 +71,8 @@ internal enum AuthorizationDecision { ApplyOnce, ApplyAlways, Reject }
 //  · 侧栏 agent —— 读 Settings.AgentAuthorization，Confirm 档弹内联卡片；
 //  · CLI（attach）—— --yes 全放开 / 默认走 stdin 交互确认（把 ActionPhrase() 打给用户）/ --dry-run 等价只读建议；
 //  · MCP —— 靠工具 annotation 让客户端自己问（批准 UI 在客户端，服务端再问一遍是双重询问且没有 UI 可用）；
+//    这两个都经命令桥进来，故声明什么档位都还要被【用户设定】压顶一次（BridgeAuthorizationPolicy）——
+//    外部进程不可能比用户给自家侧栏 agent 的权限更大；
 //  · headless / CI —— 必须显式给；没给就一条 Edit 都不做（见下面 CommandContext 的扩展）。
 //
 // 入口只答三个【原语】：档位、能不能问、问一次。两类写的完整流程与措辞都由命令面拼——

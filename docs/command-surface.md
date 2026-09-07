@@ -225,8 +225,19 @@ internal interface IAuthorizationPolicy
 |---|---|
 | 侧栏 agent | 现状：读 `Settings.AgentAuthorization`，Confirm 档弹内联卡片 |
 | CLI（attach） | `--yes` 全放开 / 默认走 stdin 交互确认（把 `ActionPhrase()` 打给用户）/ `--dry-run` 等价 `ReadOnlyAdvice` |
-| MCP | 靠工具 annotation 让客户端自己问（`readOnlyHint` / `destructiveHint`）；服务端侧默认放开，因为**批准 UI 在客户端**——服务端再问一遍是双重询问且没有 UI 可用 |
+| MCP | 靠工具 annotation 让客户端自己问（`readOnlyHint` / `destructiveHint`）；服务端侧不再问一遍，因为**批准 UI 在客户端**——服务端再问一遍是双重询问且没有 UI 可用 |
 | headless / CI | **必须显式**：`--yes` 或按维度配；没给就拒绝所有 Edit 命令并说明原因（不能静默放开） |
+
+**天花板：经桥进来的一律被 `Settings.AgentAuthorization` 压顶**（`AuthorizationModes.Stricter`）。
+上表后两行说的是"这个入口自己想要什么档位"，而实际档位 = 声明 ∧ 用户设定。理由：外部进程不该比用户
+给自家侧栏 agent 的权限更大——否则用户把面板设成只读建议时，自家 agent 一个字都改不了，任何本机进程
+声明 `auto` 却能随手改工程。压顶之后"桥开着"最坏的后果止于用户设的那一档：默认 Confirm 下，一个无声
+连上来的进程只会拿到"需要确认、而这里没法问"，写全部落空。
+
+副作用要在文案上说清：`--yes` 的语义从"照做"变成"在用户允许的范围内尽量做"。宿主在 `hello` 里回它
+当前的天花板，CLI 据此在 `--yes` 遇到更严的档位时先说一句实话（不说的话，CI 里只看到"没做"，会去
+怀疑命令本身）。**headless 不受天花板约束**：那是调用方自己的进程、自己打开的工程，碰不到用户此刻
+开着的会话（它能做的事，直接改文件也能做）。
 
 **与暂缓项的关系**：这件事和"授权按能力分维度"（工程编辑 / 应用配置 / 磁盘文件）是同一件事的两根轴。
 本期**只做入口维度**（每入口一个策略），能力维度仍按暂缓处理——但 `IAuthorizationPolicy` 的形状要
@@ -341,6 +352,10 @@ internal interface IEditorStateAccess
   （它是"换台机器还成不成立"意义上的真设置），并且**必须 `AgentWritable=false`**——
   不能让 agent 自己打开自己的远程通道。
 - **一次一个连接够用**（外部 agent 是串行的）。并发连接的隔离留到有需求再说。
+- **管道两头都加 `PipeOptions.CurrentUserOnly`**：宿主侧把 ACL 限到本用户（Unix 上落到 0700 的 socket
+  文件），客户端侧则在连之前认一下"对面是不是同一个用户的进程"——同机多用户下，别人放一个同名管道等着，
+  我们就会把命令（以及那次授权确认）发给它。凭据文件的权限仍是门槛，这一条只是让**连都连不上**比
+  "连上了但 token 不对"更早发生。
 
 **已落地**（`TuneLab/Bridge/`）：`BridgeProtocol`（帧 + JSON-RPC 常量，宿主与 CLI 共用同一份定义）、
 `BridgeCredentials`（`Configs/CommandBridge.json`：管道名 + 每次开桥现生成的 token + pid）、

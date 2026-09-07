@@ -74,8 +74,10 @@ internal static class CommandBridge
         {
             try
             {
+                // CurrentUserOnly：管道的 ACL 只放本用户（Unix 上落到 0700 的 socket 文件）。
+                // 纵深防御——门槛本来是凭据文件的文件权限，这一条让【连都连不上】比"连上了但 token 不对"更早发生。
                 using var pipe = new NamedPipeServerStream(credentials.PipeName, PipeDirection.InOut, 1,
-                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(cancellationToken);
                 Log.Info("Command bridge client connected");
                 await new BridgeSession(pipe, credentials.Token).RunAsync(cancellationToken);

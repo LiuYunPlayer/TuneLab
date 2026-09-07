@@ -7,6 +7,8 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 
+using TuneLab.Commands;
+
 namespace TuneLab.Bridge;
 
 // 命令桥的线上协议：**4 字节小端长度前缀 + 一条 UTF-8 的 JSON-RPC 2.0 报文**。
@@ -40,6 +42,14 @@ internal static class BridgeProtocol
     public const string AuthAuto = "auto";
     public const string AuthConfirm = "confirm";
     public const string AuthReadOnly = "readonly";
+
+    // 档位 → 线上字样。宿主用它在 hello 里回自己当前的【天花板】（用户设定），客户端据此把话说准。
+    public static string Wire(AuthorizationMode mode) => mode switch
+    {
+        AuthorizationMode.Auto => AuthAuto,
+        AuthorizationMode.ReadOnlyAdvice => AuthReadOnly,
+        _ => AuthConfirm,
+    };
 
     // 授权裁决（客户端答 authorization/confirm 用）。
     public const string DecisionOnce = "once";

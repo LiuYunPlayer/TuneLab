@@ -16,7 +16,8 @@ namespace TuneLab.Tests;
 // 三件必须守住的事：
 //  · 没握手/token 不对，一条命令都跑不了（这是"谁能连"的全部门槛）；
 //  · 命令树自省与注册表同源（CLI 的离线 --help、MCP 的 tools/list 都靠它）；
-//  · Edit 命令的授权按【这次连接声明的档位】走，且宿主问、客户端答那一趟真的能跑通。
+//  · Edit 命令的授权按【这次连接声明的档位】走，且宿主问、客户端答那一趟真的能跑通；
+//  · 声明的档位再被【用户设定】压顶——外部进程不能比用户给自家侧栏 agent 的权限更大。
 public class CommandBridgeTests
 {
     const string Token = "test-token";
@@ -217,6 +218,71 @@ public class CommandBridgeTests
         Assert.Contains("change the setting \"AutoSaveInterval\"", asked);
         Assert.Equal("refused", result["data"]!["outcome"]!.GetValue<string>());
         Assert.Contains("chose NOT to allow it", result["text"]!.GetValue<string>());
+    }
+
+    // ── 天花板（用户设定压顶客户端声明）
+
+    // 声明 auto 也越不过用户设的 Confirm：此处 canAsk=false（非交互的调用方），故只能如实落空。
+    // 少了这一压，本机任何进程只要声明 auto 就比侧栏 agent 权限更大。
+    [Fact]
+    public async Task DeclaredAutoIsCappedByTheUsersSetting()
+    {
+        using var ceiling = Ceiling("Confirm");
+        await using var h = await Harness.StartAsync();
+        await h.HelloAsync();
+
+        var result = Result(await h.CallAsync(BridgeProtocol.MethodCommandExecute, new JsonObject
+        {
+            ["path"] = "setting set",
+            ["arguments"] = new JsonObject { ["key"] = "AutoSaveInterval", ["value"] = OtherThanCurrent() },
+            ["authorization"] = BridgeProtocol.AuthAuto,
+            ["canAsk"] = false,
+        }));
+
+        Assert.Equal("refused", result["data"]!["outcome"]!.GetValue<string>());
+        Assert.Contains("no UI is available to ask", result["text"]!.GetValue<string>());
+    }
+
+    // 用户设成只读建议时，声明 auto 的外部调用一个字都改不了——与侧栏 agent 同一档待遇。
+    [Fact]
+    public async Task ReadOnlyCeilingRefusesEvenDeclaredAuto()
+    {
+        using var ceiling = Ceiling("ReadOnlyAdvice");
+        await using var h = await Harness.StartAsync();
+        await h.HelloAsync();
+
+        var result = Result(await h.CallAsync(BridgeProtocol.MethodCommandExecute, new JsonObject
+        {
+            ["path"] = "setting set",
+            ["arguments"] = new JsonObject { ["key"] = "AutoSaveInterval", ["value"] = OtherThanCurrent() },
+            ["authorization"] = BridgeProtocol.AuthAuto,
+        }));
+
+        Assert.Equal("refused", result["data"]!["outcome"]!.GetValue<string>());
+        Assert.Contains("READ-ONLY (advice mode)", result["text"]!.GetValue<string>());
+    }
+
+    // 握手里如实回天花板：CLI 据它说"--yes 也只能做到这一档"，不必自己去猜宿主的设置。
+    [Fact]
+    public async Task HelloReportsTheAuthorizationCeiling()
+    {
+        using var ceiling = Ceiling("ReadOnlyAdvice");
+        await using var h = await Harness.StartAsync();
+
+        Assert.Equal(BridgeProtocol.AuthReadOnly, Result(await h.HelloAsync())["authorization"]!.GetValue<string>());
+    }
+
+    // 天花板读的是进程级的那一份设置，故用完必须还原：同一个进程里跑着别的测试。
+    static IDisposable Ceiling(string value)
+    {
+        var previous = TuneLab.Configs.Settings.AgentAuthorization.Value;
+        TuneLab.Configs.Settings.AgentAuthorization.Value = value;
+        return new Restore(() => TuneLab.Configs.Settings.AgentAuthorization.Value = previous);
+    }
+
+    sealed class Restore(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
     }
 
     static int OtherThanCurrent()

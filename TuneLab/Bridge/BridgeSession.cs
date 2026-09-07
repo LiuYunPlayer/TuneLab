@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Foundation;
+using TuneLab.Agent;
 using TuneLab.Commands;
 
 namespace TuneLab.Bridge;
@@ -91,6 +92,9 @@ internal sealed class BridgeSession(Stream stream, string token)
                     {
                         ["version"] = BridgeProtocol.Version,
                         ["pid"] = Environment.ProcessId,
+                        // 用户此刻设定的授权天花板：客户端据它把自己的话说准（"--yes 也只能做到这一档"）。
+                        // 只是握手那一刻的快照——真正的判定每条命令现读一次设置，故这里不是判据、只是告知。
+                        ["authorization"] = BridgeProtocol.Wire(AgentAuthorizationExtensions.UserMode),
                     });
                 }
 
@@ -141,7 +145,7 @@ internal sealed class BridgeSession(Stream stream, string token)
             : CommandArgs.Empty;
 
         // 宿主那份共同的环境（同一个工程、同一个当前 part）+ 这个入口自己的两样：
-        //  · 授权按这次调用声明的档位（--yes / --dry-run / 交互确认，见 BridgeAuthorizationPolicy）；
+        //  · 授权按这次调用声明的档位（--yes / --dry-run / 交互确认），再被用户设定压顶（见 BridgeAuthorizationPolicy）；
         //  · 没有旁路模型——模型在用户的 agent 会话里，替外部调用方花它的额度是不该做的事（§5.3 的降级由命令自己处理）。
         var ctx = HostCommandContext.Current with
         {
@@ -219,14 +223,26 @@ internal sealed class BridgeSession(Stream stream, string token)
 }
 
 // 这次调用的授权档位由客户端声明：`--yes` 全放开 / 默认交互确认 / `--dry-run` 等价只读建议
-// （docs/command-surface.md §5.1）。流程与措辞不在这里——它们在命令面，故 CLI 与侧栏说的是同一套话。
+// （docs/command-surface.md §5.1），**再被用户设定压顶**。流程与措辞不在这里——它们在命令面，
+// 故 CLI 与侧栏说的是同一套话。
 internal sealed class BridgeAuthorizationPolicy(string? declared, bool canAsk, BridgeSession session) : IAuthorizationPolicy
 {
-    // 缺省按最保守的一档：没说清就当"要问"。客户端若没打算答，那次 Edit 会如实回报"没法问"而不是悄悄做掉。
+    // 【天花板】实际档位 = 客户端声明与用户设定取更严的一档。
+    //
+    // 少了这一压，本机任何进程只要声明 auto 就比侧栏 agent 权限更大——用户把面板设成只读建议时
+    // 自家 agent 一个字都改不了，外部却能随手改用户的工程，这是说不通的。压顶之后"桥开着"最坏的
+    // 后果止于用户设的那一档：默认 Confirm 下，一个无声连上来的进程只会拿到"需要确认、而这里没法问"，
+    // 写全部落空。
+    //
+    // 现读设置（不缓存）：用户在面板上调档位是即时生效的事，缓存等于让一条长连接一直用着旧档位。
+    public AuthorizationMode Mode => AuthorizationModes.Stricter(Declared, AgentAuthorizationExtensions.UserMode);
+
+    // 客户端这次声明的档位。缺省按最保守的一档：没说清就当"要问"。客户端若没打算答，那次 Edit 会
+    // 如实回报"没法问"而不是悄悄做掉。
     //
     // 【档位切换不在这里】ApplyAlways 意味着"此后不再问"，而这个策略只活一次调用——记住这件事的是
-    // 客户端：它每次 execute 都重新声明档位，被抬到 auto 之后就一直声明 auto。
-    public AuthorizationMode Mode => declared switch
+    // 客户端：它每次 execute 都重新声明档位，被抬到 auto 之后就一直声明 auto（但仍逐次过天花板）。
+    AuthorizationMode Declared => declared switch
     {
         BridgeProtocol.AuthAuto => AuthorizationMode.Auto,
         BridgeProtocol.AuthReadOnly => AuthorizationMode.ReadOnlyAdvice,
@@ -234,6 +250,7 @@ internal sealed class BridgeAuthorizationPolicy(string? declared, bool canAsk, B
     };
 
     // 声明了 confirm 就意味着客户端【想】问；canAsk 说明它此刻【问得着】（非交互的 shell 里问不着）。
+    // 被天花板压到 Confirm 的也照样要问——声明 auto 的客户端仍会收到那次确认请求，答不了就如实落空。
     public bool CanAsk => canAsk && Mode == AuthorizationMode.Confirm;
 
     public Task<AuthorizationDecision> AskAsync(AuthorizationRequest request, CancellationToken cancellationToken)

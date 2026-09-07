@@ -165,7 +165,10 @@ internal static class SettingsRegistry
         agentWritable: false, description: "Which model provider the AI agent last connected to. Owned by the AI Agent side panel's settings (switching there also reconnects).");
     public static readonly SettingItem<string> AgentAuthorization = Str("AgentAuthorization", null,
         "AI Agent Authorization", ComboBoxConfig.Create([new ComboBoxItem((PropertyValue)"ReadOnlyAdvice", "ReadOnlyAdvice"), new ComboBoxItem((PropertyValue)"Confirm", "Confirm"), new ComboBoxItem((PropertyValue)"Auto", "Auto")]), D.AgentAuthorization,
-        agentWritable: false, description: "How much the AI agent is allowed to change (ReadOnlyAdvice/Confirm/Auto). Only the user can change it, in the AI Agent panel header — the agent must never raise its own permissions.");
+        agentWritable: false, description: "How much an automated caller is allowed to change (ReadOnlyAdvice/Confirm/Auto). Only the user can change it, in the AI Agent panel header — the agent must never raise its own permissions. "
+            // 【也是命令桥的天花板】这一句是给 agent 转告用户的：外部工具"权限不够"时，要指的是这个档位，
+            // 而不是让人去反复开关命令桥（那个开关只管连不连得上）。
+            + "It is also the ceiling for the command bridge: an external tool (the tunelab CLI, an MCP server) never gets more than this, whatever it asks for.");
 
     // 全部条目——顺序 = 【设置窗行序】（tab 分组、组内重要项在前），是单一受控顺序源：
     // 设置窗 All.Where(Tab==tab) 渲染、agent list_settings 同序。末尾是仅存储的孤儿设置（无 tab、不渲染）。

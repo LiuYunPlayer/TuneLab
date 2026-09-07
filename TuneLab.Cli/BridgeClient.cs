@@ -14,6 +14,10 @@ internal sealed class BridgeClient(NamedPipeClientStream pipe) : IDisposable
 {
     int mNextId;
 
+    // 宿主在握手里回的【授权天花板】（用户在 TuneLab 里设的档位）。--yes 越不过它，故 CLI 据它说实话。
+    // null = 宿主没回这个字段（旧版本）：那就什么都别说，凭猜测发警告比不发更误导。
+    public string? Ceiling { get; private set; }
+
     // 连不上时【区分两种情形】：桥没开（去设置里开）与宿主已退出但凭据文件留着（去启动 TuneLab）。
     // 两者的下一步完全不同，混成一句"连不上"等于让用户自己去猜。
     public static async Task<(BridgeClient? Client, string? Error)> ConnectAsync(CancellationToken cancellationToken)
@@ -23,7 +27,9 @@ internal sealed class BridgeClient(NamedPipeClientStream pipe) : IDisposable
             return (null, "TuneLab's command bridge is not on. Start TuneLab and turn on \"Command Bridge\" in Settings → General."
                 + "\n(No credentials file at " + BridgeCredentials.FilePath + ".)");
 
-        var pipe = new NamedPipeClientStream(".", c.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        // CurrentUserOnly：连之前先认宿主是不是同一个用户的进程——同机多用户下，别人放一个同名管道
+        // 在那里等着，我们就会把命令（以及那次授权确认）发给它。
+        var pipe = new NamedPipeClientStream(".", c.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         try
         {
             await pipe.ConnectAsync(3000, cancellationToken);
@@ -43,6 +49,7 @@ internal sealed class BridgeClient(NamedPipeClientStream pipe) : IDisposable
             client.Dispose();
             return (null, hello.Error);
         }
+        client.Ceiling = (hello.Result as JsonObject)?["authorization"]?.GetValue<string>();
         return (client, null);
     }
 

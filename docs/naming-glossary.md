@@ -48,6 +48,12 @@
 中文保留"回显"仅因它是好用的**上位词**：音素留白→回显、音高回显、参数回显都说得通。真正指那族只读参数轨时
 写"合成参数轨"。
 
+**授权「天花板」= `ceiling`**（别写 `cap` / `limit` / 「上限」）：命令桥上，实际档位 = 客户端声明与
+`Settings.AgentAuthorization` 取更严的一档，那个用户设定就叫**天花板**（`AuthorizationModes.Stricter`
+是取更严那一档的判据）。英文面（CLI 提示、设置 description、模型看得到的一切）统一写 `ceiling`；
+`--yes` 之类的声明叫 `declared`。「上限」在这个仓库另有主人（`AgentMaxToolResultChars` 那类**数量**上限），
+两个概念共用一个词会让人以为档位也能调数值。
+
 **`HasPhonemeAnswer` vs `HasPhonemeContent`**（`INote`，刻意并存的两个近义判据，别互相替换）：
 `HasPhonemeContent` = **有没有音素几何**（钉死列表非空，或回填音节的音素数 > 0），用于挑 3-note 布局窗口的
 内容邻居——零音素的 note 推挤不到任何人，入窗无意义。`HasPhonemeAnswer` = **引擎表没表态**（钉死，或

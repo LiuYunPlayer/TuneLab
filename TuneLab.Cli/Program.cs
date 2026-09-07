@@ -128,6 +128,7 @@ internal static class Program
         return await WithRunner(options, cancellation.Token, async runner =>
         {
             WarnIfUnattended(command, authorization);
+            WarnIfCapped(command, authorization);
             var outcome = await runner.RunAsync(command, arguments, authorization, CanAsk, cancellation.Token);
             if (outcome.Failure != null)
             {
@@ -164,6 +165,7 @@ internal static class Program
 
             Console.Error.WriteLine("$ " + text);
             WarnIfUnattended(command, authorization);
+            WarnIfCapped(command, authorization);
 
             var outcome = await runner.RunAsync(command, arguments, authorization, CanAsk, cancellationToken);
             if (outcome.Failure != null)
@@ -219,7 +221,10 @@ internal static class Program
             return ExitNoHost;
         }
         using (client)
+        {
+            mCeiling = client.Ceiling;
             return await body(new BridgeRunner(client, authorization));
+        }
     }
 
     // 能不能就地问用户"这次写做不做"。管道/重定向进来的 stdin 上没人可问。
@@ -235,6 +240,24 @@ internal static class Program
         mWarnedUnattended = true;
         Console.Error.WriteLine("tunelab: stdin is not interactive, so nothing can be confirmed here — anything that writes will be reported but NOT applied.");
         Console.Error.WriteLine("tunelab: pass --yes to allow it, or --dry-run to only see what it would change.");
+    }
+
+    // attach 时宿主在握手里回它当前的授权天花板：--yes 越不过它。不说这一句的话，CI 里的人只看到
+    // "没做"，会去怀疑命令本身。整趟只说一次；headless 那条路没有天花板（那是调用方自己的进程、
+    // 自己打开的工程，不碰用户此刻开着的会话），故 mCeiling 保持 null。
+    static string? mCeiling;
+    static bool mWarnedCapped;
+    static void WarnIfCapped(ICommand command, string authorization)
+    {
+        if (mWarnedCapped || command.Kind != CommandKind.Edit || authorization != BridgeProtocol.AuthAuto)
+            return;
+        if (mCeiling == null || mCeiling == BridgeProtocol.AuthAuto)
+            return;
+        mWarnedCapped = true;
+        Console.Error.WriteLine(mCeiling == BridgeProtocol.AuthReadOnly
+            ? "tunelab: TuneLab's agent authorization is set to read-only advice, and that is the ceiling for --yes: writes are reported but NOT applied."
+            : "tunelab: TuneLab's agent authorization is set to confirm, and that is the ceiling for --yes: you are still asked before anything is applied.");
+        Console.Error.WriteLine("tunelab: only the user can raise it, in the AI Agent panel header inside TuneLab.");
     }
 
     // 解析这一条命令的参数：schema 说什么类型就转成什么类型（CLI 的 flag 全是字符串，而
@@ -415,6 +438,8 @@ internal static class Program
         Console.Out.WriteLine();
         Console.Out.WriteLine("Anything marked [edit] changes the user's data and needs authorization: you are asked here on stdin,");
         Console.Out.WriteLine("unless you pass --yes (do it) or --dry-run (only report what would change).");
+        Console.Out.WriteLine("--yes never gets more than the user's own authorization setting inside TuneLab: if that is set to confirm");
+        Console.Out.WriteLine("you are still asked, and if it is set to read-only advice nothing is applied at all.");
         Console.Out.WriteLine("Exit codes: 0 ok, 1 the command failed, 2 wrong usage, 3 TuneLab is not reachable.");
     }
 
