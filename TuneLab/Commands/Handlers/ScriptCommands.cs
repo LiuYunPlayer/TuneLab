@@ -466,15 +466,26 @@ internal sealed class ScriptRunSavedCommand : ICommand
 
     public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
     {
+        // 【参数形状先校验】排在"脚本存不存在"之前：形状错是调用方更根本的错，不该被存在性检查
+        // 掩盖（同 `setting set` 把路径合法性放在授权之前）。
+        PropertyObject? givenInputs = null;
+        if (args.Json.TryGetProperty("inputs", out var inp) && inp.ValueKind != JsonValueKind.Null)
+        {
+            // 【给了但不是对象就报错】以前这里是"不是对象就当没给"，于是一个写坏的 inputs 会让脚本拿
+            // 默认值照跑、回报仍是"跑成功了"——调用方（尤其是无人值守的跑批）无从知道自己传的值一个
+            // 都没生效。null 仍当"没给"：模型常拿 null 表示"不传"。
+            if (inp.ValueKind != JsonValueKind.Object)
+                return CommandResult.Fail("bad_inputs", string.Format(
+                    "\"inputs\" must be an object mapping input names to values (got {0}), so NOTHING was run. "
+                    + "Call get_script_inputs to see the fields.", inp.ValueKind.ToString().ToLowerInvariant()));
+            givenInputs = PropertyJsonUtils.ToPropertyObject(JObject.Parse(inp.GetRawText()));
+        }
+
         var name = ScriptLibrary.SanitizeName((args.Json.GetString("name") ?? "").Trim());
         if (string.IsNullOrWhiteSpace(name) || !ScriptLibrary.Exists(name))
             return CommandResult.Fail("not_found", SavedScriptSupport.NotFound(name));
         if (ctx.Project is not { } project)
             return CommandResult.Fail("no_project", "no project is open, so there is nothing to edit.");
-
-        PropertyObject? givenInputs = null;
-        if (args.Json.TryGetProperty("inputs", out var inp) && inp.ValueKind == JsonValueKind.Object)
-            givenInputs = PropertyJsonUtils.ToPropertyObject(JObject.Parse(inp.GetRawText()));
 
         string code;
         try { code = ScriptLibrary.Read(name); }
@@ -486,7 +497,7 @@ internal sealed class ScriptRunSavedCommand : ICommand
 
         PropertyObject? inputs = null;
         // 非入参脚本（无 getInputConfig）：脚本忽略入参，直接跑，不去 eval getInputConfig（普通脚本那样做会跑其脚本体）。
-        // 误传的 inputs 无害地不生效。
+        // 此时给了 inputs 也无处可用（脚本没声明任何字段），照跑。
         if (hasInputs)
         {
             var lastValues = ScriptInputMemory.Load(scriptId);

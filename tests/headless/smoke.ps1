@@ -126,6 +126,13 @@ try {
     $r = Invoke-Cli @("--headless", "setting", "set", "--nosuchparameter", "1")
     Check "exit 2" ($r.Code -eq 2) "exit $($r.Code)"
 
+    # object 参数收的是 JSON：解析不了必须当场报用法错。**不许降级成"当没给"**——那会让脚本拿默认值
+    # 照跑、回报还说"跑成功了"，于是无人值守的跑批"通过"了却什么都没测到（Windows 路径里的反斜杠被
+    # shell 吃掉一层就是这个形态，实测栽过一次）。
+    $r = Invoke-Cli @("--headless", "script", "run-saved", "--name", "whatever", "--inputs", '{"audio":"C:\tmp\a.wav"}')
+    Check "malformed JSON in an object parameter is a usage error" ($r.Code -eq 2) "exit $($r.Code)"
+    Check "and it points at the backslash trap" ($r.Err -match "backslash") $r.Err
+
     # ── 8. 打不开的工程：一条命令都还没跑就该停，且说清是哪个文件。
     Write-Host "8. a project that will not open"
     $r = Invoke-Cli @("--headless", "--project", (Join-Path $sandbox "nope.tlpx"), "project", "status")

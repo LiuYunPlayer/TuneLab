@@ -162,4 +162,33 @@ public class ScriptRunCommandsTests
         Assert.True(result.IsError);
         Assert.Equal("not_found", result.Error!.Value.Code);
     }
+
+    // 给了 inputs 但不是对象 —— 报错，不许无声忽略。
+    //
+    // 无声忽略是最坏的一种失败：脚本拿默认值照跑、回报还是"跑成功了"，调用方以为自己传的值生效了。
+    // 实测栽过一次：Windows 路径里的反斜杠被 shell 吃掉一层，JSON 就此不合法，于是整个 inputs 作废，
+    // 而那趟跑批"通过"了——测的却是默认值。命令行侧也在 Coerce 那里当场拦下（用法错，退出码 2）。
+    [Fact]
+    public void NonObjectInputsIsAnErrorNotASilentlyIgnoredValue()
+    {
+        var result = new ScriptRunSavedCommand()
+            .ExecuteAsync(CommandArgs.Parse("""{"name":"whatever","inputs":"{}"}"""), new CommandContext(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.True(result.IsError);
+        Assert.Equal("bad_inputs", result.Error!.Value.Code);
+        Assert.Contains("NOTHING was run", result.Error!.Value.Message);
+    }
+
+    // null 仍当"没给"（模型常拿 null 表示不传），故报的是脚本找不到而不是 inputs 形状错。
+    [Fact]
+    public void NullInputsCountsAsNotGiven()
+    {
+        var result = new ScriptRunSavedCommand()
+            .ExecuteAsync(CommandArgs.Parse("""{"name":"no-such-script-xyz","inputs":null}"""), new CommandContext(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.True(result.IsError);
+        Assert.Equal("not_found", result.Error!.Value.Code);
+    }
 }

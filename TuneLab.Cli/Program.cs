@@ -343,7 +343,10 @@ internal static class Program
                     return (arguments, authorization, json, "parameter \"" + name + "\" needs a value.");
             }
 
-            arguments[name] = Coerce(value, types);
+            var (coerced, coerceError) = Coerce(name, value, types);
+            if (coerceError != null)
+                return (arguments, authorization, json, coerceError);
+            arguments[name] = coerced;
         }
         return (arguments, authorization, json, null);
     }
@@ -357,19 +360,29 @@ internal static class Program
             : [type.GetString() ?? ""];
     }
 
-    static JsonNode? Coerce(string value, string[] types)
+    static (JsonNode? Value, string? Error) Coerce(string name, string value, string[] types)
     {
         if (types.Contains("boolean") && bool.TryParse(value, out var b))
-            return b;
+            return (b, null);
         if ((types.Contains("number") || types.Contains("integer")) && double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d))
-            return d;
+            return (d, null);
         if (types.Contains("object") || types.Contains("array"))
         {
             // 对象/数组参数（如 run-saved 的 inputs）直接收 JSON 文本。
-            try { return JsonNode.Parse(value); }
-            catch (JsonException) { /* 解析不了就按字符串送过去，让命令自己报它自己的错 */ }
+            //
+            // 【解析不了就是用法错】以前是"按字符串送过去，让命令自己报错"，而命令那边收到一个不是
+            // 对象的 inputs 只会无声地忽略它 —— 于是脚本拿默认值照跑、回报还是"跑成功了"。那是最坏的
+            // 一种失败：自动化测试会"通过"，测的却是默认值（实测正是这么栽的：Windows 路径里的反斜杠
+            // 被 shell 吃掉一层，JSON 就此不合法）。故在这里当场拦下，并把那个坑说出来。
+            try { return (JsonNode.Parse(value), null); }
+            catch (JsonException ex)
+            {
+                return (null, "\"" + name + "\" takes JSON, and this is not valid JSON — " + ex.Message
+                    + "\nOn Windows: a backslash inside a JSON string must be doubled (\"C:\\\\path\\\\x.wav\"), and your shell may"
+                    + " eat one level of that on top — forward slashes work everywhere and avoid the whole question.");
+            }
         }
-        return value;
+        return (value, null);
     }
 
     // 读命令清单：一行一条，空行与 # 开头的注释跳过（行号照原样留着，报错时指得准）。
