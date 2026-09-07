@@ -9,9 +9,12 @@ namespace TuneLab.Tests;
 // 真源，故这些约束破了，破的不是一处而是三处。
 public class CommandRegistryTests
 {
-    // 搬家前那 25 个工具名——它们【已经写进模型的系统提示与彼此的描述文本】（"Call list_settings to see
+    // 模型知道的全部工具名。它们【已经写进模型的系统提示与彼此的描述文本】（"Call list_settings to see
     // the exact keys"），改名等于让模型照着不存在的名字调用。故钉成常量清单：搬家不动它，将来真要改名
     // 也得连同各处描述一起改，改到这里报错为止。（ask_user_question 不在此列：它是入口能力、不进命令树。）
+    //
+    // 加一条新命令时【故意】要在这里补一行——那是一次对模型可见的表面变更，该由人认领而不是自动跟上。
+    // 前 25 个来自搬家（一个都不许动）；get_app_info 是搬家之后新加的第一条。
     static readonly string[] AgentToolNames =
     [
         "delete_script", "export_project", "get_extension_introduction", "get_manual", "get_project_overview",

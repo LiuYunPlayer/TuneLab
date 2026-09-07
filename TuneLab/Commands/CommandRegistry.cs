@@ -16,6 +16,7 @@ internal static class CommandRegistry
     // 声明序 = CLI 帮助与 MCP 描述里的呈现序，故按 group 分组、组内 read 在前。
     public static IReadOnlyList<ICommand> All { get; } = new ICommand[]
     {
+        new AppInfoCommand(),
         new ProjectStatusCommand(),
         new ProjectExportCommand(),
         new ScriptListCommand(),

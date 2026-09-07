@@ -292,6 +292,15 @@ internal interface IEditorStateAccess
 ### 6.1 group 划分
 
 9 个 group，noun-first：`project` `script` `docs` `extension` `source` `effect` `setting` `keybinding` `sandbox`
+（后加第 10 个：`app`，见下）
+
+**`app` group（搬家之后新加）**：`app info` 报的是**命令跑在哪个装置里**——版本与构建号、用户数据与
+日志在哪、有没有编辑器、出了问题去哪说。与 `project` 分开是因为工程是用户的文档，这里说的是那一份安装。
+它存在的理由是排障与反馈：外部 agent 查出问题后不该自己去提 issue（结论错了撤不回来），而要把证据交给
+用户由他决定——而"你这是哪一版"此前**没有任何命令答得出**。回报里同时给出那份证据清单（版本+构建号 /
+日志相关行 / `list_extensions` 输出 / 最小复现脚本），故三个入口看到的是同一份要求。
+刻意不含扩展清单、设置、工程信息（那是另外三条命令的事），也不含 legacy 兼容层状态
+（`extension list` 已逐包给出 Skipped 与原因）。
 
 **故意不塞进普通 group 的三样**（它们和原子命令不是一个物种）：
 

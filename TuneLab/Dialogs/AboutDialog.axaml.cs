@@ -50,8 +50,8 @@ internal partial class AboutDialog : Window
         closeSlot.Children.Add(close);
 
         // 链接（点击只打开网页、不关闭窗口）
-        AddLink(linksPanel, "Forum", "https://forum.tunelab.app");
-        AddLink(linksPanel, "GitHub", "https://github.com/LiuYunPlayer/TuneLab");
+        AddLink(linksPanel, "Forum", AppInfo.ForumUrl);
+        AddLink(linksPanel, "GitHub", AppInfo.GitHubUrl);
         // 第三方许可声明：打开安装目录里那份，离线可看（csproj 的 Content 保证它随发布落地）。
         AddEntry(linksPanel, "Licenses".Tr(TC.Dialog), () => ProcessHelper.OpenFile(
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "THIRD-PARTY-NOTICES.txt")));
