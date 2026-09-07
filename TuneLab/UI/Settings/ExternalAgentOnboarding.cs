@@ -88,8 +88,18 @@ internal static class ExternalAgentOnboarding
         sb.AppendLine("  change and rolls back entirely on error, so fix and re-run rather than patching halfway.");
         sb.AppendLine("- Anything marked [edit] needs my authorization: --yes does it as far as my own authorization");
         sb.AppendLine("  setting inside TuneLab allows, --dry-run only reports what it would change.");
+        // 【读工程的手段要明说】实测（一个只拿到这段话的陌生 agent）说这是最大的缺口：整段话都在讲"改"，
+        // 于是它得自己想出"只 print 的脚本 + --dry-run 就是读"。少了这一句，它的选择是猜一个不存在的
+        // dump 命令、或者拿 --yes 去跑一个只读脚本——后者正是我们最不想让它反射性做的事。
+        sb.AppendLine("- To LOOK at the project instead of changing it, run a script that only prints:");
+        sb.AppendLine("  `tunelab script run --dry-run --code \"print(...)\"` hands you the output and applies nothing.");
+        sb.AppendLine("  (`tunelab project status` alone is just a summary — it never shows you a single note.)");
         sb.AppendLine("- You cannot play or render audio, and you cannot export audio files — that is mine to press.");
         sb.AppendLine("  (Exporting the project file itself you can do, with my authorization.)");
+        // 【谁负责保存】命令面刻意没有 save（存到哪个文件、什么时候存是用户的决定），故必须告诉它这件事，
+        // 否则它做完就走，改动留在撤销栈里，用户下次打开才发现。
+        sb.AppendLine("- Saving is mine: there is no save command, so my edits live in the app's undo stack until I");
+        sb.AppendLine("  save the project myself. Tell me when you are done so I do it.");
         sb.AppendLine("- If a command says TuneLab is not reachable, show me exactly what it printed.");
         sb.AppendLine();
         // 记忆那一段：只让它记【门】，不让它记门后的东西。命令清单/参数/版本会随版本漂移，记住了
