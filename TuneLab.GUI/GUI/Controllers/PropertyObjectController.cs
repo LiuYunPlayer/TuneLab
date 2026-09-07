@@ -150,8 +150,14 @@ internal class PropertyObjectController : StackPanel
         protected Creator(PropertyObjectController parent)
         {
             Parent = parent;
+            // 【池化控件取出来不是干净的】Border 池同时供两种形状：本条横向分界线（只定高、横向拉满）与
+            // ObjectCreator 的竖向缩进线（只定宽、纵向拉满）。谁少写一个属性，就会继承上一个用户留下的值——
+            // 竖线归池后当分界线取出，会带着 Width=1，而"显式 Width + Stretch"在 Avalonia 里表现为居中，
+            // 于是整条线缩成面板中央一颗点（实测症状）。故两边都把自己依赖的属性写全，NaN = 交回自动。
             mSeparator = ObjectPoolManager.Get<Border>();
+            mSeparator.Width = double.NaN;
             mSeparator.Height = 1;
+            mSeparator.Margin = default;
             mSeparator.Background = Style.BACK.ToBrush();
         }
 
@@ -210,9 +216,11 @@ internal class PropertyObjectController : StackPanel
         {
             mTitle = CreateTitle(key.DisplayText ?? key.Id, 26);
 
+            // 竖向缩进线。同上：Height 也要显式交回自动，否则接手的是一条从分界线归池、带着 Height=1 的 Border。
             mBorder = ObjectPoolManager.Get<Border>();
             mBorder.Margin = new(23, 12, 0, 0);
             mBorder.Width = 1;
+            mBorder.Height = double.NaN;
             mBorder.Background = Style.BACK.ToBrush();
 
             mController = ObjectPoolManager.Get<PropertyObjectController>();
