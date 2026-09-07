@@ -19,6 +19,9 @@ static class L
         ["zh-CN"] = new()
         {
             ["Model Path"] = "模型路径",
+            ["Engine Executable"] = "引擎可执行文件",
+            ["Select the engine executable"] = "选择引擎可执行文件",
+            ["Voice Bank Folder"] = "音源库目录",
             ["API Key"] = "API 密钥",
             ["Use GPU"] = "使用 GPU",
             ["GPU Device"] = "GPU 设备",
@@ -60,6 +63,12 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
     {
         var props = new OrderedMap<PropertyKey, IControllerConfig>();
         props.Add(("model_path", L.Tr("Model Path")), TextBoxConfig.Create(string.Empty));
+        // 路径选择两种模式各一个：选文件（带类型过滤 + 自定义对话框标题）/ 选文件夹。
+        props.Add(("engine_path", L.Tr("Engine Executable")),
+            PathPickerConfig.CreateFile(string.Empty)
+                .AppendFileType(L.Tr("Engine Executable"), "*.exe", "*.bat")
+                .WithPickerTitle(L.Tr("Select the engine executable")));
+        props.Add(("voice_bank_dir", L.Tr("Voice Bank Folder")), PathPickerConfig.CreateFolder(string.Empty));
         props.Add(("api_key", L.Tr("API Key")), TextBoxConfig.Create(string.Empty).WithPassword());
         props.Add(("use_gpu", L.Tr("Use GPU")), CheckBoxConfig.Create(false));
         if (context.Settings.GetBoolean("use_gpu", false))
@@ -82,6 +91,9 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
         TuneLabContext.Global.GetLogger().Info(string.Format(
             "[V1.Settings] ApplySettings: model_path='{0}', api_key={1}, use_gpu={2}",
             path, hasKey ? "<set>" : "<empty>", gpu));
+        TuneLabContext.Global.GetLogger().Info(string.Format(
+            "[V1.Settings] ApplySettings: engine_path='{0}', voice_bank_dir='{1}'",
+            settings.GetString("engine_path", string.Empty), settings.GetString("voice_bank_dir", string.Empty)));
     }
 
     static readonly OrderedMap<string, VoiceSourceInfo> sEmpty = new();
