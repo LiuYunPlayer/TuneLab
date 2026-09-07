@@ -113,7 +113,10 @@ internal class MultilineTextInput : TextEditor, IDataValueController<string>
             target = max;   // 封顶：超出则内部滚动
 
         // 仅在明显变化时改高：置 Height 会触发重排、可能回灌 VisualLinesChanged，靠阈值收敛避免自激。
-        if (Math.Abs(Height - target) > 0.5)
+        // 【首次必须单独判 NaN】Height 未赋值时是 NaN，而任何与 NaN 的比较都是 false——只写阈值判断的话
+        // 这里一次都不会执行（实测：日志里 height 恒为 NaN），"框高紧贴内容"从来只是句空话，
+        // 真正在起作用的是 TextEditor 按内容测量的天然高度 + MaxHeight 封顶。
+        if (double.IsNaN(Height) || Math.Abs(Height - target) > 0.5)
             Height = target;
     }
 
