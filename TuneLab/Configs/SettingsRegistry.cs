@@ -147,7 +147,11 @@ internal static class SettingsRegistry
         "Command Bridge (let external tools drive TuneLab)", CheckBoxConfig.Create(D.CommandBridgeEnabled), D.CommandBridgeEnabled,
         description: "When on, TuneLab listens on a local named pipe so external tools (the tunelab CLI, an MCP server) can run the same commands the AI Agent panel uses. " +
             "It is local-only and gated by a credentials file in the user's config folder, which is written when this is turned on and deleted when it is turned off. " +
-            "Only the user can switch it — the agent must never open its own remote channel.",
+            "Only the user can switch it — the agent must never open its own remote channel. " +
+            // 【必须说清去哪点】用得上这句的人多半正卡在「外部工具连不上」上，而且很可能压根不知道有这个开关。
+            // 同族另外三条都点了名（见上面那条注释的约定），这条原先漏了。
+            "To get it turned on, tell the user to open Settings (the gear at the bottom-left of the window) → General and tick the \"Command Bridge\" checkbox; " +
+            "that label is translated in a localized UI, so describe it as the option about letting external tools drive TuneLab.",
         agentWritable: false);
 
     // ── 仅存储（无设置窗行；由别处设定，但仍随本注册表读写磁盘、可被 agent 枚举） ──
