@@ -32,19 +32,17 @@ public class ExternalAgentOnboardingTests
             Assert.Contains("no command line", text);
     }
 
-    // PATH 上那个名字来自安装器落的入口（TuneLab.Setup 的 CommandLineEntry）。便携解压的那份没有它，
-    // 故不能一律声称能敲 tunelab —— 敲不通的一句"also on PATH"会让 agent 怀疑是自己搞错了。
+    // 一期刻意不动用户的 PATH（命令行靠绝对路径就能跑，PATH 只是省几个字），故这段话【不许】
+    // 声称能直接敲 tunelab —— 敲不通的一句 "on PATH" 会让 agent 怀疑是自己搞错了。示例里仍写
+    // `tunelab`（短、可读），但必须同时把"它就是上面那个路径"说出来，别让读的人自己去推。
     [Fact]
-    public void OnlyClaimsThePathEntryWhenItIsReallyThere()
+    public void NeverPromisesThatTunelabIsOnPath()
     {
         using var bridge = new Bridge(true);
         var text = ExternalAgentOnboarding.Build();
 
-        bool claims = text.Contains("also on PATH");
-        bool exists = ExternalAgentOnboarding.ExecutablePath != null
-            && System.IO.File.Exists(System.IO.Path.Combine(
-                TuneLab.PathManager.ExcutableFolder, "CommandLine", "tunelab.cmd"));
-        Assert.Equal(exists, claims);
+        Assert.DoesNotContain("on PATH as", text);
+        Assert.Contains("it is not on PATH, so substitute it", text);
     }
 
     [Fact]

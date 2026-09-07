@@ -15,8 +15,6 @@ internal static class ProductInfo
     /// <summary>被装应用的主可执行文件名。</summary>
     public const string ExecutableName = "TuneLab.exe";
 
-    /// <summary>命令行可执行文件名（与主程序同目录，由 CommandLineEntry 落一个 tunelab 入口转发给它）。</summary>
-    public const string CommandLineExecutableName = "TuneLab.Cli.exe";
 
     /// <summary>写入卸载注册表的产品 id（HKCU Uninstall 子键名）。</summary>
     public const string UninstallKeyName = "TuneLab";

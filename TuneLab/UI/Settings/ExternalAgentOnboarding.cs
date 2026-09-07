@@ -36,11 +36,6 @@ internal static class ExternalAgentOnboarding
         }
     }
 
-    // 用户能不能直接敲 `tunelab`。安装器会在安装目录下落 CommandLine\tunelab.cmd 并把那个目录加进
-    // 用户 PATH（TuneLab.Setup.Core.CommandLineEntry —— 改那边的布局要连这里一起改）；
-    // 便携解压出来的那一份没有这一步，故不能一律声称 PATH 里有。
-    static bool OnPath => File.Exists(Path.Combine(PathManager.ExcutableFolder, "CommandLine", "tunelab.cmd"));
-
     /// <summary>
     /// 生成这一刻的接入说明。正文英文（读它的是模型），状态感知的那一段里嵌用户界面上的中文/本地化字样。
     /// </summary>
@@ -73,7 +68,10 @@ internal static class ExternalAgentOnboarding
         sb.AppendLine("TuneLab is a singing voice synthesis editor running on this machine. You can drive the");
         sb.AppendLine("project I currently have open through its command line.");
         sb.AppendLine();
-        sb.AppendLine("  Command:  " + exe + (OnPath ? "        (also on PATH as `tunelab`)" : ""));
+        // 【示例里写 `tunelab`，这里给出它是什么】命令行不在 PATH 上（一期刻意不动用户的 PATH），
+        // 故必须把这层替换明说。实测一个陌生 agent 自己就替对了，但那是它多想了一步——不该让它想。
+        sb.AppendLine("  Command:  " + exe);
+        sb.AppendLine("            (that path IS `tunelab` in every example below — it is not on PATH, so substitute it)");
         sb.AppendLine("  Verify:   tunelab project status");
         sb.AppendLine();
         sb.AppendLine("Start here:");

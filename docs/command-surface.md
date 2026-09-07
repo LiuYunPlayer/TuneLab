@@ -552,14 +552,19 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
 1. **随包发**：`CIUtils/pack-installer.ps1` 把 `TuneLab.Cli` 发进与 app 同一份 stage（只多出
    `TuneLab.Cli.exe` 那几个文件，Avalonia/Skia/TuneLab.dll 全共享）；`build-artifacts.yml` 同样把它
    拷进便携产物。
-2. **敲得着**：安装器在安装目录下落 `CommandLine\tunelab.cmd`（转发到 `TuneLab.Cli.exe`、原样传参、
-   带回退出码），并把**那个只有一个文件的目录**加进用户 PATH（`TuneLab.Setup.Core.CommandLineEntry`）。
-   **不把安装目录本身挂上 PATH**：那里躺着 Skia/NAudio 一堆原生 dll，而 PATH 参与 Windows 的 dll 搜索
-   ——挂上去会改变别的进程加载 dll 的结果，是能把不相干程序弄坏、且极难归因的一类副作用。
-   PATH 的读写走注册表且**不展开变量**（`DoNotExpandEnvironmentNames` + 保持 `REG_EXPAND_SZ`）：
-   经 `Environment.SetEnvironmentVariable` 写回会把用户 PATH 里的 `%USERPROFILE%` 烧成字面路径。
-   卸载先摘 PATH 再删目录（顺序反了就留下一条谁也看不出来源的死路径）。更新模式不动 PATH（同快捷方式），
-   除非这个入口是本次才出现的。
+2. **敲得着**：靠**绝对路径**。一期**刻意不做 PATH**——`tunelab` 在不在 PATH 上不是"能不能跑通"的
+   问题，只是"要不要多打一串路径"：实测一个只拿到接入说明的陌生 agent 全程用绝对路径跑完七条命令、
+   零失败（它自己就把示例里的 `tunelab` 替成了那个路径）。而改 PATH 是**动用户的环境**，代价一侧却是
+   实打实的：向导上要给选项、静默自更新时无人可问、卸载要摘干净、读写注册表要绕开变量展开，且必须
+   真装一次/卸一次才敢发。收益只是省几个字，故推到后续；接入说明改为把"示例里的 `tunelab` 就是这个
+   绝对路径"明写出来（`ExternalAgentOnboarding`）——实测那个 agent 自己推对了，但那是它多想一步，
+   不该让它想。
+   将来真要做，两条别丢：**不能把安装目录本身挂上 PATH**（那里躺着 Skia/NAudio 一堆原生 dll，而 PATH
+   参与 Windows 的 dll 搜索——挂上去会改变别的进程加载 dll 的结果，是能把不相干程序弄坏且极难归因的
+   副作用；正解是单独一个只放转发脚本的目录）；**读写 PATH 必须不展开变量**
+   （`DoNotExpandEnvironmentNames` + 保持 `REG_EXPAND_SZ`：经 `Environment.SetEnvironmentVariable`
+   写回会把用户 PATH 里的 `%USERPROFILE%` 烧成字面路径）。卸载要先摘 PATH 再删目录，否则留下一条
+   谁也看不出来源的死路径。
 3. **说得清**：设置窗「通用」页末尾一颗"复制接入说明"按钮，把外部 agent 要知道的东西一次给全
    （`ExternalAgentOnboarding`）。文案**在点下去那一刻生成**，因为里面有三样只有此刻才知道的事实：
    命令行的真实绝对路径（文件不在就明说这份安装没有命令行，绝不吐无效路径）、`tunelab` 到底能不能直接敲
