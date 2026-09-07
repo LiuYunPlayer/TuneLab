@@ -503,6 +503,15 @@ headless 这边等久了在 stderr 上点一句（**只是提示，什么都不�
 退出码 0/1/2/3 如约。连不上时区分"桥没开"与"宿主已退出但凭据文件还在"——两者的下一步不同。
 `--headless`（§8.1）与 `--commands`（§8.2）也已落地：同一份解析、同一份授权语义，只是命令送去的地方不同。
 
+**入口叫法：打印前把 agent 工具名换成自己的**。命令面的文本第一读者是模型，故引用别的动作时写的是
+agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Change one with `set_setting(key, value)`"）
+——那些名字在命令行里根本不存在，照原样打出去等于让人去调一条 `--help` 里查不到的命令。
+注册表给出对照表（`CommandRegistry.PathsByAgentToolName`），CLI 在**每个打印点**机械替换
+（`TuneLab.Cli.CommandText.ForCli`）：`list_settings` → `tunelab setting list`，调用式的参数表留着但
+加一个空格（`tunelab setting set (key, value)`），读成附注而不是函数调用。`--json` 的 `Data` 一个字
+不动——那是机器契约。不去改那 180 多处文案，是因为一处文案同时说两套叫法只会更差；机械替换让每个
+入口各自看到一致的名字，新加的命令自动跟上（`CliCommandLineTests` 有一条封条盯着"有没有漏"）。
+
 **程序集名不能叫 `tunelab`**：它会与被引用的 `TuneLab.dll` 在同一输出目录里同名（Windows 不区分
 大小写）而互相覆盖。命令名 `tunelab` 是安装期的事——装包时给 `TuneLab.Cli.exe` 落一个 `tunelab`
 入口即可。

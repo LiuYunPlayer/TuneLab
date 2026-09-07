@@ -43,6 +43,14 @@ internal static class CommandRegistry
         new ExtensionEnableCommand(),
     };
 
+    // agent 工具名 → 命令路径。命令面的文本是给模型写的，里面引用别的动作时用的是 agent 工具面上的
+    // 名字（"Call list_settings to see the exact keys"）——那些名字在命令行/MCP 上根本不存在。故各入口
+    // 打印文本前按这张表换成自己的叫法（CLI：TuneLab.Cli.CommandText）。
+    // 【表在这里、换名在入口】因为"换成什么样"是入口自己的事（CLI 是 "tunelab setting list"、
+    // MCP 是工具名 + subcommand），而"哪些名字要换"只能由注册表说。
+    public static IReadOnlyDictionary<string, string> PathsByAgentToolName { get; }
+        = All.ToDictionary(c => c.AgentToolName, c => c.Path);
+
     public static bool TryGet(string path, out ICommand command)
     {
         foreach (var c in All)

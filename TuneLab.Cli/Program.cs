@@ -132,7 +132,7 @@ internal static class Program
             var outcome = await runner.RunAsync(command, arguments, authorization, CanAsk, cancellation.Token);
             if (outcome.Failure != null)
             {
-                Console.Error.WriteLine(outcome.Failure);
+                Console.Error.WriteLine(CommandText.ForCli(outcome.Failure));
                 return ExitCommandFailed;
             }
             Print(outcome, json);
@@ -170,7 +170,7 @@ internal static class Program
             var outcome = await runner.RunAsync(command, arguments, authorization, CanAsk, cancellationToken);
             if (outcome.Failure != null)
             {
-                Console.Error.WriteLine("tunelab: line " + number + ": " + outcome.Failure);
+                Console.Error.WriteLine("tunelab: line " + number + ": " + CommandText.ForCli(outcome.Failure));
                 Console.Error.WriteLine(string.Format("tunelab: stopped at \"{0}\"; {1} command(s) ran before it.", path, ran));
                 return ExitCommandFailed;
             }
@@ -191,9 +191,10 @@ internal static class Program
     static void Print(CommandOutcome outcome, bool json)
     {
         if (json)
+            // 【Data 不换名】那是机器契约（CI 的断言、外部工具的解析都按它写），字段值不该随入口变形。
             Console.Out.WriteLine((outcome.Data ?? JsonValue.Create((object?)null))?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null");
         else
-            Console.Out.WriteLine(outcome.Text);
+            Console.Out.WriteLine(CommandText.ForCli(outcome.Text));
     }
 
     // 命令送去哪儿跑。headless 那条路整趟都在无头宿主的那条线程上（body 也是），故这里是同步等它跑完。
@@ -432,7 +433,7 @@ internal static class Program
                 continue;
             Console.Out.WriteLine(group);
             foreach (var command in CommandRegistry.All.Where(c => CommandRegistry.GroupOf(c) == group))
-                Console.Out.WriteLine("  " + command.Path.PadRight(26) + command.Brief
+                Console.Out.WriteLine("  " + command.Path.PadRight(26) + CommandText.ForCli(command.Brief)
                     + (command.Kind == CommandKind.Read ? "" : "  [" + command.Kind.ToString().ToLowerInvariant() + "]"));
         }
         Console.Out.WriteLine();
@@ -447,7 +448,7 @@ internal static class Program
     {
         Console.Out.WriteLine(command.Path + "  [" + command.Kind.ToString().ToLowerInvariant() + "]");
         Console.Out.WriteLine();
-        Console.Out.WriteLine(command.Documentation);
+        Console.Out.WriteLine(CommandText.ForCli(command.Documentation));
         Console.Out.WriteLine();
 
         using var schema = JsonDocument.Parse(command.ParametersJsonSchema);
@@ -467,7 +468,7 @@ internal static class Program
                 + " <" + string.Join("|", DeclaredTypes(property.Value)) + ">"
                 + (required.Contains(property.Name) ? "  (required)" : ""));
             if (property.Value.TryGetProperty("description", out var description))
-                Console.Out.WriteLine("      " + description.GetString());
+                Console.Out.WriteLine("      " + CommandText.ForCli(description.GetString() ?? ""));
         }
     }
 }

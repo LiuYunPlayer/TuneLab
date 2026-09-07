@@ -27,6 +27,38 @@ public class CliCommandLineTests
         }
     }
 
+    // ── 入口叫法：命令面的文本引用别的动作时用的是 agent 工具名，而命令行里【没有】那些名字
+
+    // 封条：CLI 打出去的任何说明里不许留下一个 agent 工具名。照原样打出去等于让读它的人去调一条
+    // 查不到、也补不全的命令。替换表由注册表给，故新加的命令自动跟上——这条测试盯的是"有没有漏"。
+    [Fact]
+    public void NoAgentToolNameSurvivesInWhatTheCliPrints()
+    {
+        var texts = CommandRegistry.All
+            .SelectMany(c => new[] { c.Brief, c.Documentation, c.ParametersJsonSchema })
+            // 最大的一份是脚本 API 参考（`docs script-api` 的正文），它引用工具名最多。
+            .Append(TuneLab.Scripting.ScriptApiReference.Text);
+
+        foreach (var text in texts)
+        {
+            var printed = CommandText.ForCli(text);
+            foreach (var name in CommandRegistry.PathsByAgentToolName.Keys)
+                Assert.DoesNotContain(name, printed);
+        }
+    }
+
+    [Fact]
+    public void ToolNamesBecomeTheCommandYouCanActuallyType()
+    {
+        Assert.Equal("Call tunelab setting list to see the keys.",
+            CommandText.ForCli("Call list_settings to see the keys."));
+        // 调用式的参数表留着（删掉会丢信息），但中间加一个空格，让它读成附注而不是函数调用。
+        Assert.Equal("Change one with tunelab setting set (key, value).",
+            CommandText.ForCli("Change one with set_setting(key, value)."));
+        // 只换整词：碰巧含有工具名的标识符不动。
+        Assert.Equal("xlist_settings", CommandText.ForCli("xlist_settings"));
+    }
+
     [Fact]
     public void BatchLineSplitsOnWhitespace()
     {
