@@ -103,7 +103,7 @@ internal static class ScriptApiReference
         "  part.hasSynthesizedParameter(id)                     bool      does the sound source publish a synthesized parameter with this id? only such a track has anything to lock\n" +
         "  Ranges are optional but come in PAIRS: pass BOTH start and end, or NEITHER (= the whole part). The returned bool is DID IT ACTUALLY LOCK ANYTHING — false means there was no synthesis output in that range (usually: not synthesized yet), a no-op rather than an error, so check it instead of assuming success. An unknown id, or a track with no paired synthesized parameter, THROWS (which rolls the whole run back) — call hasSynthesizedParameter(id) first if unsure. Locking is ONE-SHOT, not a live link: later re-synthesis does not update what you locked.\n" +
         "  part.vibratos()                          [vibrato]\n" +
-        "  part.addVibrato(info) -> vibrato          info = {pos, dur, frequency?, amplitude?, phase?, attack?, release?, affectedAutomations?, affectedEffectAutomations?}\n" +
+        "  part.addVibrato(info) -> vibrato          OVERLAID on the pitch curve (it modulates that curve, it does not replace it); info = {pos, dur, frequency?, amplitude?, phase?, attack?, release?, affectedAutomations?, affectedEffectAutomations?}\n" +
         "  part.insertVibrato(vibrato)                part.removeVibrato(vibrato) -> vibrato\n" +
         "  // EFFECTS (serial effect chain on this part; order = array index, 0-based):\n" +
         "  part.effects()                           [effect]\n" +
@@ -205,11 +205,11 @@ internal static class ScriptApiReference
         "  · ctx.values = the values entered so far, and it is SPARSE: only keys the user actually changed are present; a key not yet set reads `undefined`. So in getInputConfig ALWAYS default it: `const mode = ctx.values.mode ?? 'transpose'`. getInputConfig is re-run on every change, so branch on ctx.values to add/remove fields (conditional inputs). You may also read tl.currentPart()/selectedNotes() etc. here as context. It MUST be side-effect-free (declaration only; do the work in main).\n" +
         "  · main's `inputs` is the opposite — FULL: every field you declared is present (the user's value, or its config default). Read them directly, no presence check.\n" +
         "  Config builders (names mirror the C# config classes; methods are camelCase). ComboBox default is the VALUE, not an index:\n" +
-        "    SliderConfig.linear(default, min, max) / SliderConfig.integer(default, min, max)   [.withFormat(NumberFormat.decimals(n))]\n" +
-        "    DraggableNumberBoxConfig.create(default) / .integer(default)   [.withMin(x) / .withMax(x) / .withRange(a,b) / .withStep(s)]\n" +
+        "    SliderConfig.linear(default, min, max) / SliderConfig.integer(default, min, max)   [.withFormat(NumberFormat.decimals(n)) / .withMinLabel(s) / .withMaxLabel(s) / .withRandomizable()]\n" +
+        "    DraggableNumberBoxConfig.create(default) / .integer(default)   [.withMin(x) / .withMax(x) / .withRange(a,b) / .withStep(s) / .withSensitivity(s) / .withRandomizable() / .withFormat(fmt)]\n" +
         "    ComboBoxConfig.create(['a','b']) or .create()   [.append(x) / .appendSeparator() / .withDefault('a')]\n" +
         "    CheckBoxConfig.create(false)      TextBoxConfig.create('')   [.withPassword()]\n" +
-        "  Advanced (log/exp axes, units): SliderConfig.create(default, NormalizedScale.custom(p=>value, value=>p)) — two inverse JS functions on 0..1; .withFormat(NumberFormat.custom(v=>string, s=>number|null)) — parse returns null on failure. These run live while the input form is open (keep them pure & cheap; errors degrade gracefully, they never throw into the UI).\n" +
+        "  Advanced (log/exp axes, units): ready-made scales are NormalizedScale.linear(min, max) / .integer(min, max) plus the rounding wrappers NormalizedScale.rounded(scale) / .floor(scale) / .ceil(scale); for anything else SliderConfig.create(default, NormalizedScale.custom(p=>value, value=>p)) — two inverse JS functions on 0..1; .withFormat(NumberFormat.custom(v=>string, s=>number|null)) — parse returns null on failure. These run live while the input form is open (keep them pure & cheap; errors degrade gracefully, they never throw into the UI).\n" +
         "  A tool WITHOUT getInputConfig just runs main() with no dialog (main may ignore its argument).\n" +
         "  Once saved, a tool with inputs can be re-run later WITHOUT rewriting it: call get_script_inputs(name) to see its fields (and the user's last values), then run_saved_script(name, inputs?) to run it.\n" +
         "  EXAMPLE tool with inputs — 'Transpose' asking for the interval:\n" +
