@@ -131,6 +131,33 @@ try {
     $r = Invoke-Cli @("--headless", "--project", (Join-Path $sandbox "nope.tlpx"), "project", "status")
     Check "exit 1" ($r.Code -eq 1) "exit $($r.Code)"
     Check "names the file" ($r.Err -match "nope.tlpx") $r.Err
+
+    # ── 9. 零前提：docs 组既不连桥也不起无头宿主（沙盒里根本没有运行中的 TuneLab，也没给 --headless）。
+    #      这一条是"外部 agent 第一次接触"的入口：读不到说明书，它连自己能干什么都不知道。
+    Write-Host "9. docs answer with no host at all"
+    $r = Invoke-Cli @("docs", "script-api")
+    Check "exit 0" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
+    Check "the API reference came out" ($r.Out -match "tl.currentProject") $r.Out
+    Check "it never went looking for a host" (-not ($r.Err -match "command bridge")) $r.Err
+    $r = Invoke-Cli @("docs", "manual")
+    Check "the manual answers too" ($r.Code -eq 0 -and $r.Out.Length -gt 0) "exit $($r.Code) $($r.Err)"
+
+    # ── 10. --search：全命令帮助语料的正则检索，同样离线。
+    Write-Host "10. --search"
+    $r = Invoke-Cli @("--search", "phoneme")
+    Check "exit 0" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
+    Check "finds the command that mentions it" ($r.Out -match "source list") $r.Out
+    $r = Invoke-Cli @("--search", "zzzznosuchword")
+    Check "no match is not an error" ($r.Code -eq 0) "exit $($r.Code)"
+    Check "and says so" ($r.Out -match "No command's help matches") $r.Out
+
+    # ── 11. app info：报的是这个装置本身（排障要交的第一样东西）。
+    Write-Host "11. app info"
+    $r = Invoke-Cli @("--headless", "app", "info")
+    Check "exit 0" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
+    Check "names a version" ($r.Out -match "TuneLab \d+\.\d+") $r.Out
+    Check "points at the data dir and the log" ($r.Out -match "data directory" -and $r.Out -match "log file") $r.Out
+    Check "and says there is no editor here" ($r.Out -match "editor: no") $r.Out
 }
 finally {
     Remove-Item -Recurse -Force $sandbox -ErrorAction SilentlyContinue
