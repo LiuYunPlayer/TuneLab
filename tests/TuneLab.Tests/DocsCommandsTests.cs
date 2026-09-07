@@ -22,6 +22,15 @@ public class DocsCommandsTests
         return command.Render(result.Data, args);
     }
 
+    // 这两条【就地可答】：CLI 因此既不连桥也不起无头宿主（外部 agent 第一次接触时，读参考与查手册
+    // 零启动、零前提）。下面所有用例都是在空 CommandContext 上跑的，正是这条声明的凭据。
+    [Fact]
+    public void BothDocsCommandsAnswerWithoutAHost()
+    {
+        Assert.False(new DocsScriptApiCommand().NeedsHost);
+        Assert.False(new DocsManualCommand().NeedsHost);
+    }
+
     [Fact]
     public void ScriptApiReturnsTheReferenceTextVerbatim()
     {

@@ -22,6 +22,8 @@ internal sealed class DocsScriptApiCommand : ICommand
     public string Path => "docs script-api";
     public CommandKind Kind => CommandKind.Read;
     public string AgentToolName => "get_script_api";
+    // 正文是编译进来的常量，与工程、设置、扩展一概无关。
+    public bool NeedsHost => false;
 
     public string Brief => "Full `tl` API reference for script run";
 
@@ -54,6 +56,11 @@ internal sealed class DocsManualCommand : ICommand
     public string Path => "docs manual";
     public CommandKind Kind => CommandKind.Read;
     public string AgentToolName => "get_manual";
+    // 正文是随包的资源文件（Resources/Manual），就在可执行文件旁边。
+    // 【一处已知差异】哪一语言版由界面语言选（ManualLibrary）：就地答时那个值还没被宿主设过，
+    // 于是回退到进程的 UI 文化。回报的表头本来就点明"这是回退版本、照用户的语言回答"，故不误导；
+    // 真要与宿主一字不差，连桥问它。
+    public bool NeedsHost => false;
 
     public string Brief => "Look up the bundled user manual (toc / search / one chapter)";
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Bridge;
@@ -60,6 +61,16 @@ internal static class Program
             return ExitUsage;
         }
 
+        if (options.Search != null)
+        {
+            if (positional.Length > 0)
+            {
+                Console.Error.WriteLine("tunelab: --search looks through the command help; don't also name a command.");
+                return ExitUsage;
+            }
+            return PrintSearch(options.Search);
+        }
+
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
 
@@ -79,7 +90,7 @@ internal static class Program
                 return ExitUsage;
             }
 
-            return await WithRunner(options, cancellation.Token,
+            return await WithRunner(options, NeedsHost(lines), cancellation.Token,
                 runner => RunBatchAsync(runner, lines, options, cancellation.Token));
         }
 
@@ -125,7 +136,7 @@ internal static class Program
             return ExitUsage;
         }
 
-        return await WithRunner(options, cancellation.Token, async runner =>
+        return await WithRunner(options, command.NeedsHost, cancellation.Token, async runner =>
         {
             WarnIfUnattended(command, authorization);
             WarnIfCapped(command, authorization);
@@ -182,6 +193,21 @@ internal static class Program
         return ExitOk;
     }
 
+    // 这一趟要不要宿主：清单里只要有一条需要就要。认不出的行【当作需要】——那条行的用法错该由正常
+    // 那条路按行号报出来，不该在这里被"反正不用连"顺手咽掉。
+    static bool NeedsHost(IReadOnlyList<(int Number, string Text)> lines)
+    {
+        foreach (var (_, text) in lines)
+        {
+            var tokens = Tokenize(text, out var error);
+            if (error != null || tokens.Count < 2 || !CommandRegistry.TryGet(tokens[0] + " " + tokens[1], out var command))
+                return true;
+            if (command.NeedsHost)
+                return true;
+        }
+        return false;
+    }
+
     static int BatchUsageError(int number, string message)
     {
         Console.Error.WriteLine("tunelab: line " + number + ": " + message);
@@ -198,9 +224,14 @@ internal static class Program
     }
 
     // 命令送去哪儿跑。headless 那条路整趟都在无头宿主的那条线程上（body 也是），故这里是同步等它跑完。
-    static async Task<int> WithRunner(ProcessOptions options, CancellationToken cancellationToken, Func<ICommandRunner, Task<int>> body)
+    static async Task<int> WithRunner(ProcessOptions options, bool needsHost, CancellationToken cancellationToken, Func<ICommandRunner, Task<int>> body)
     {
         var authorization = new AuthorizationState();
+
+        // 这一趟一条命令都不需要宿主（只读 API 参考 / 查手册）→ 什么都不启动，也不要求 TuneLab 开着。
+        // 【连 --headless 也不起】起了也观察不到任何差别，只是白等一次插件加载；--project 同理无从生效。
+        if (!needsHost)
+            return await body(new LocalRunner());
 
         if (options.Headless)
         {
@@ -411,6 +442,62 @@ internal static class Program
         return tokens;
     }
 
+    // `--search`：把全部命令的帮助语料（Brief + 完整说明）过一遍正则。离线（注册表是纯声明），故
+    // 不连宿主也能用——"有没有一条命令能干这件事"是外部 agent 最先要问的问题，不该以启动为前提。
+    // 匹配到就给一段上下文而不是整篇说明：命令说明是长句，整篇打出来等于让人自己再找一遍。
+    static int PrintSearch(string pattern)
+    {
+        Regex regex;
+        try { regex = new Regex(pattern, RegexOptions.IgnoreCase); }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine("tunelab: --search takes a regular expression, and \"" + pattern + "\" is not one — " + ex.Message);
+            return ExitUsage;
+        }
+
+        var matched = new List<ICommand>();
+        var excerpts = new List<string>();
+        foreach (var command in CommandRegistry.All)
+        {
+            var brief = CommandText.ForCli(command.Brief);
+            var documentation = CommandText.ForCli(command.Documentation);
+            if (!regex.IsMatch(brief) && !regex.IsMatch(documentation))
+                continue;
+            matched.Add(command);
+            excerpts.Add(Excerpt(regex, documentation));
+        }
+
+        if (matched.Count == 0)
+        {
+            Console.Out.WriteLine("No command's help matches \"" + pattern + "\". Run \"tunelab --help\" for the whole command tree.");
+            return ExitOk;
+        }
+
+        Console.Out.WriteLine(string.Format("{0} command(s) whose help matches \"{1}\":", matched.Count, pattern));
+        Console.Out.WriteLine();
+        for (int i = 0; i < matched.Count; i++)
+        {
+            Console.Out.WriteLine(matched[i].Path.PadRight(26) + CommandText.ForCli(matched[i].Brief)
+                + (matched[i].Kind == CommandKind.Read ? "" : "  [" + matched[i].Kind.ToString().ToLowerInvariant() + "]"));
+            if (excerpts[i].Length > 0)
+                Console.Out.WriteLine("  " + excerpts[i]);
+        }
+        Console.Out.WriteLine();
+        Console.Out.WriteLine("Read one command in full with \"tunelab <group> <verb> --help\".");
+        return ExitOk;
+    }
+
+    // 命中处前后各一段。命令说明是不换行的长句，故按字符取窗口而不是按行。
+    static string Excerpt(Regex regex, string text)
+    {
+        var match = regex.Match(text);
+        if (!match.Success)
+            return string.Empty;
+        int start = Math.Max(0, match.Index - 60);
+        int end = Math.Min(text.Length, match.Index + match.Length + 60);
+        return (start > 0 ? "…" : "") + text[start..end].Replace('\n', ' ') + (end < text.Length ? "…" : "");
+    }
+
     static void PrintCommandTree(string? onlyGroup)
     {
         Console.Out.WriteLine("tunelab — drive TuneLab from the terminal.");
@@ -418,6 +505,7 @@ internal static class Program
         Console.Out.WriteLine("Usage: tunelab <group> <verb> [--name value ...] [--json] [--yes | --dry-run]");
         Console.Out.WriteLine("       tunelab <group> <verb> --help     what one command does and which parameters it takes");
         Console.Out.WriteLine("       tunelab --commands <file|->       run a list of commands (one per line, # comments) in one go");
+        Console.Out.WriteLine("       tunelab --search <regex>          which command mentions this? (searches every command's help)");
         Console.Out.WriteLine();
         Console.Out.WriteLine("By default the commands run in the TuneLab you have open. With --headless they run in a");
         Console.Out.WriteLine("windowless TuneLab started right here: extensions load and synthesis works, but there is no");
@@ -482,18 +570,19 @@ internal sealed record ProcessOptions
     public bool Headless { get; init; }
     public string? ProjectPath { get; init; }
     public string? CommandsFile { get; init; }
+    public string? Search { get; init; }
     public string Authorization { get; init; } = BridgeProtocol.AuthConfirm;
     public bool Json { get; init; }
 
     // CLI 自己占掉的参数名【全集】——进程级这三个，加上可以逐条覆盖的那几个（见 Program.ParseOptions）。
     // 命令的参数名不能与它们撞车：撞了就再也传不进去，且用户看不出为什么。CommandRegistryTests 有一条
     // 封条盯着，撞了当场红。改下面的 switch 时同步改这份清单。
-    public static readonly string[] Names = ["headless", "project", "commands", "json", "yes", "dry-run", "help"];
+    public static readonly string[] Names = ["headless", "project", "commands", "search", "json", "yes", "dry-run", "help"];
 
     public static (ProcessOptions Options, string[] Remaining, string? Error) Extract(string[] args)
     {
         bool headless = false, json = false;
-        string? projectPath = null, commandsFile = null, authorization = null;
+        string? projectPath = null, commandsFile = null, search = null, authorization = null;
         var rest = new List<string>();
 
         for (int i = 0; i < args.Length; i++)
@@ -533,6 +622,7 @@ internal sealed record ProcessOptions
                     continue;
                 case "project":
                 case "commands":
+                case "search":
                     if (value == null)
                     {
                         if (i + 1 >= args.Length || args[i + 1].StartsWith("--"))
@@ -541,8 +631,10 @@ internal sealed record ProcessOptions
                     }
                     if (name == "project")
                         projectPath = value;
-                    else
+                    else if (name == "commands")
                         commandsFile = value;
+                    else
+                        search = value;
                     continue;
                 default:
                     rest.Add(args[i]);
@@ -555,6 +647,7 @@ internal sealed record ProcessOptions
             Headless = headless,
             ProjectPath = projectPath,
             CommandsFile = commandsFile,
+            Search = search,
             Authorization = authorization ?? BridgeProtocol.AuthConfirm,
             Json = json,
         }, rest.ToArray(), null);

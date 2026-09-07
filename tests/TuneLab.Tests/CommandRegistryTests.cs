@@ -22,12 +22,25 @@ public class CommandRegistryTests
         "list_extensions", "list_keybindings", "list_scripts", "list_settings", "list_sound_sources",
         "read_script", "run_in_sandbox", "run_saved_script", "run_script", "save_script",
         "set_extension_enabled", "set_extension_routing", "set_extension_setting", "set_keybinding", "set_setting",
+        "get_app_info",
     ];
 
     [Fact]
     public void EveryToolNameTheModelKnowsStillResolvesToACommand()
     {
         Assert.Equal(AgentToolNames.OrderBy(n => n), CommandRegistry.All.Select(c => c.AgentToolName).OrderBy(n => n));
+    }
+
+    // 不需要宿主 = 答案只来自程序自带的东西（编译进来的常量、随包的资源），故各入口都能就地答。
+    // 那就必须是【只读】的：会写的命令要过宿主的闸门与授权策略，就地答等于把这两样绕过去。
+    [Fact]
+    public void OnlyReadCommandsCanAnswerWithoutAHost()
+    {
+        foreach (var command in CommandRegistry.All)
+        {
+            if (!command.NeedsHost)
+                Assert.Equal(CommandKind.Read, command.Kind);
+        }
     }
 
     [Fact]

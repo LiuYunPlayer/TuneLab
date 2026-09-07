@@ -42,6 +42,12 @@ internal interface ICommand
     // 且 get_ / list_ / set_ 前缀不是从路径机械可推的——覆盖掉可让模型侧对这次搬家零感知。
     string AgentToolName => Path.Replace(' ', '_');
 
+    // 这条命令要不要【宿主环境】（工程 / 编辑器 / 扩展 / 设置）。false = 答案只取决于程序自带的东西
+    // （编译进来的常量、随包的资源文件），故任何入口都能就地答：CLI 不必连桥、也不必起无头宿主。
+    // 这一条对"外部 agent 第一次接触"很要紧——读 API 参考、查手册这两件事因此零启动、零前提，
+    // 连 TuneLab 开着没开着都不影响。
+    bool NeedsHost => true;
+
     Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken);
 
     // 把结构化结果渲成人类/模型可读文本。渲染刻意不在 handler 里：同一份措辞因此同时出现在

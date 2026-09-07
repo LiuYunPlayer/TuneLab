@@ -60,11 +60,28 @@ internal sealed class BridgeRunner(BridgeClient client, AuthorizationState autho
 // 每条命令只在它之上派生自己那一档授权。
 internal sealed class HeadlessRunner(CommandContext baseContext, AuthorizationState authorization) : ICommandRunner
 {
-    public async Task<CommandOutcome> RunAsync(ICommand command, JsonObject arguments, string declared, bool canAsk, CancellationToken cancellationToken)
+    public Task<CommandOutcome> RunAsync(ICommand command, JsonObject arguments, string declared, bool canAsk, CancellationToken cancellationToken)
+        => InProcess.RunAsync(command, arguments,
+            baseContext with { Authorization = new LocalAuthorizationPolicy(authorization, declared, canAsk) }, cancellationToken);
+}
+
+// 无宿主：命令的答案只取决于程序自带的东西（ICommand.NeedsHost == false），故既不连桥也不起无头宿主。
+// 外部 agent 第一次接触 TuneLab 时读 API 参考、查手册就走这条路——零启动、零前提，TuneLab 开着没开着都行。
+//
+// 环境给的是【空的】CommandContext：不是凑合，而是这些命令本来就不看它。授权策略也不给——真有 Edit
+// 命令被误路由到这里，命令会如实说"这个入口没配授权"，而不是悄悄写点什么。
+internal sealed class LocalRunner : ICommandRunner
+{
+    public Task<CommandOutcome> RunAsync(ICommand command, JsonObject arguments, string declared, bool canAsk, CancellationToken cancellationToken)
+        => InProcess.RunAsync(command, arguments, new CommandContext(), cancellationToken);
+}
+
+// 本进程里跑一条命令并把结果整形。attach 那条路的对应逻辑在宿主侧（BridgeSession），故这里只有两个消费者。
+internal static class InProcess
+{
+    public static async Task<CommandOutcome> RunAsync(ICommand command, JsonObject arguments, CommandContext ctx, CancellationToken cancellationToken)
     {
         var args = CommandArgs.Parse(arguments.ToJsonString());
-        var ctx = baseContext with { Authorization = new LocalAuthorizationPolicy(authorization, declared, canAsk) };
-
         var result = await command.ExecuteAsync(args, ctx, cancellationToken);
         if (result.IsError)
             return new CommandOutcome(null, string.Empty, result.Error!.Value.Message);
