@@ -339,14 +339,14 @@ internal partial class SettingsWindow : Window
         return WithScrollBar(listView);
     }
 
-    // 一行设置：路径类 = 标签行 + 全宽 PathInput；其余 = [标签 | 控件] 单行。控件双向绑到条目的 NotifiableProperty。
+    // 一行设置：路径类 = 标签行 + 全宽 PathPicker；其余 = [标签 | 控件] 单行。控件双向绑到条目的 NotifiableProperty。
     private Control BuildRow(SettingItem item)
     {
         if (item.FilePatterns != null)
         {
             var wrap = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Vertical };
             wrap.Children.Add(new TextBlock() { Text = item.DisplayLabel + ": ", Margin = new(24, 12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
-            var picker = new PathInput()
+            var picker = new PathPicker()
             {
                 Margin = new(24, 12),
                 Options = new FilePickerOpenOptions() { FileTypeFilter = [new FilePickerFileType(item.FilePickerName ?? "File") { Patterns = item.FilePatterns }] },

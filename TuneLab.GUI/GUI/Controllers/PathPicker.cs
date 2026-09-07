@@ -12,7 +12,7 @@ using TuneLab.Utils;
 
 namespace TuneLab.GUI.Controllers;
 
-internal class PathInput : DockPanel, IDataValueController<string>
+internal class PathPicker : DockPanel, IDataValueController<string>
 {
     public PickerOptions Options { get; set; } = new FilePickerOpenOptions();
 
@@ -22,7 +22,7 @@ internal class PathInput : DockPanel, IDataValueController<string>
 
     public string Value => ((IValueController<string>)mTextInput).Value;
 
-    public PathInput()
+    public PathPicker()
     {
         var button = new Components.Button() { Width = 28, Height = 28, Margin = new(12, 0, 0, 0) }.
             AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { Color = Style.BACK } }).

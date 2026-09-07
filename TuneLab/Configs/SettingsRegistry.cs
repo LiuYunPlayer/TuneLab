@@ -30,7 +30,7 @@ internal abstract class SettingItem
     public string? Description { get; init; }   // 供 agent list_settings + 设置窗 tooltip
     public bool RestartRequired { get; init; }  // 改后需重启才完全生效（统一挂提示）
     public bool ImmediateApply { get; init; }   // 拖动即生效（对应旧 Bind 的 syncWhileModifying）
-    public string[]? FilePatterns { get; init; }         // 非空 → 设置窗用路径选择器（PathInput）而非普通控件
+    public string[]? FilePatterns { get; init; }         // 非空 → 设置窗用路径选择器（PathPicker）而非普通控件
     public string? FilePickerName { get; init; }         // 路径选择器的文件类型显示名
     public Func<IReadOnlyList<ComboBoxItem>>? DynamicOptions { get; init; }   // 运行时选项（音频驱动/设备、系统字体、语言）
     // agent 可否经 set_setting 改它。false = 只能用户自己在 UI 改（agent 只能读+建议）：

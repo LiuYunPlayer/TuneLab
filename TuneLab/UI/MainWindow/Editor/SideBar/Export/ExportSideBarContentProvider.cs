@@ -39,15 +39,15 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
 
         // --- Export Path (folder) ---
         AddSectionLabel("Export Path".Tr(TC.Dialog));
-        mPathInput = new PathInput
+        mPathPicker = new PathPicker
         {
             Options = new FolderPickerOpenOptions { Title = "Select Export Folder".Tr(TC.Dialog) },
             Height = 28,
             Margin = new Thickness(12, 0, 12, 8),
         };
-        mPathInput.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
-        mPathInput.ValueCommitted.Subscribe(SaveExportConfigToProject);
-        mContentPanel.Children.Add(mPathInput);
+        mPathPicker.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+        mPathPicker.ValueCommitted.Subscribe(SaveExportConfigToProject);
+        mContentPanel.Children.Add(mPathPicker);
 
         AddSeparator();
 
@@ -294,7 +294,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         {
             if (mProject == null)
             {
-                mPathInput.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+                mPathPicker.Display(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
                 mFileNameInput.Display("export");
                 mFormatDropDown.SelectedIndex = 0;
                 mSampleRateDropDown.SelectedIndex = Array.IndexOf(SampleRates, 44100);
@@ -304,7 +304,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
                 return;
             }
 
-            mPathInput.Display(!string.IsNullOrWhiteSpace(mProject.ExportPath)
+            mPathPicker.Display(!string.IsNullOrWhiteSpace(mProject.ExportPath)
                 ? mProject.ExportPath
                 : Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
             var fallbackName = Path.GetFileNameWithoutExtension(mDocument?.Name ?? "");
@@ -339,7 +339,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
         if (mIsLoading || mProject == null)
             return;
 
-        mProject.ExportPath = mPathInput.Value;
+        mProject.ExportPath = mPathPicker.Value;
         mProject.ExportFileName = mFileNameInput.Value;
         mProject.ExportFormat = FormatIds[Math.Max(0, mFormatDropDown.SelectedIndex)];
         mProject.ExportSampleRate = SampleRates[Math.Max(0, mSampleRateDropDown.SelectedIndex)];
@@ -358,7 +358,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     {
         SaveExportConfigToProject();
 
-        var exportPath = mPathInput.Value;
+        var exportPath = mPathPicker.Value;
         var fileName = mFileNameInput.Value;
 
         if (string.IsNullOrWhiteSpace(exportPath))
@@ -565,7 +565,7 @@ internal class ExportSideBarContentProvider : ISideBarContentProvider
     }
 
     readonly StackPanel mContentPanel = new();
-    readonly PathInput mPathInput;
+    readonly PathPicker mPathPicker;
     readonly SingleLineTextController mFileNameInput;
     readonly DropDown mRangeDropDown;
     readonly DropDown mFormatDropDown;
