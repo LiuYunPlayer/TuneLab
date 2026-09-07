@@ -403,6 +403,36 @@ internal class PropertyObjectController : StackPanel
         readonly SingleLineTextController mController;
     }
 
+    // 路径选择：文本框 + 浏览按钮。值仍是普通 string 字段，与 SingleLineTextCreator 同一绑定路径，
+    // 只多一个把选中路径写回文本框的按钮（PathPicker 内部经 Text setter 触发 will-change/changed/committed，故照常入撤销栈）。
+    class PathPickerCreator : Creator
+    {
+        public PathPickerCreator(PropertyObjectController parent, PropertyKey key, PathPickerConfig config) : base(parent)
+        {
+            mTitle = CreateTitle(key.DisplayText ?? key.Id, 30);
+
+            mController = ObjectPoolManager.Get<PathPicker>();
+            mController.Margin = new(24, 12);
+            mController.Apply(config);
+
+            mController.BindDataProperty(parent.DataObject.StringField(key.Id, config.DefaultValue), s);
+        }
+
+        public override Type ConfigType => typeof(PathPickerConfig);
+        public override IEnumerable<Control> Views => [mTitle, mController];
+        public override void Update(IControllerConfig config) => mController.Apply((PathPickerConfig)config);
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            ObjectPoolManager.Return(mController);
+            ObjectPoolManager.Return(mTitle);
+        }
+
+        readonly Label mTitle;
+        readonly PathPicker mController;
+    }
+
     class ComboBoxCreator : Creator
     {
         public ComboBoxCreator(PropertyObjectController parent, PropertyKey key, ComboBoxConfig config) : base(parent)
@@ -586,6 +616,7 @@ internal class PropertyObjectController : StackPanel
         { typeof(SliderConfig), (parent, key, config) => new SliderCreator(parent, key, (SliderConfig)config) },
         { typeof(DraggableNumberBoxConfig), (parent, key, config) => new DraggableNumberBoxCreator(parent, key, (DraggableNumberBoxConfig)config) },
         { typeof(TextBoxConfig), (parent, key, config) => new SingleLineTextCreator(parent, key, (TextBoxConfig)config) },
+        { typeof(PathPickerConfig), (parent, key, config) => new PathPickerCreator(parent, key, (PathPickerConfig)config) },
         { typeof(ComboBoxConfig), (parent, key, config) => new ComboBoxCreator(parent, key, (ComboBoxConfig)config) },
         { typeof(CheckBoxConfig), (parent, key, config) => new CheckBoxCreator(parent, key, (CheckBoxConfig)config) },
         { typeof(ArrayConfig), (parent, key, config) => new ArrayCreator(parent, key, (ArrayConfig)config) },

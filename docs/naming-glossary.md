@@ -32,6 +32,7 @@
 | 合成机器类（会话 / 上下文 / 引擎 / 快照） | `VoiceSynthesis*` / `InstrumentSynthesis*` 中缀 | — | 见 `sdk-api-evolution.md` 的命名约定 |
 | 引擎对某 note 的音素**表没表态**（"没有音素"也是答案） | `HasPhonemeAnswer`（宿主数据层，显示门控判据） | 表态 | 别拿 `HasPhonemeContent` 当它用 |
 | 不开窗口、只跑宿主逻辑的进程 / 工程 | `headless`（`HeadlessHost` / CLI 的 `--headless` / 探测沙箱的可丢弃工程） | 无头 | 「无界面」「无窗口」（`TuneLab.Setup` 的"无界面安装"是另一回事——静默安装，不在此列） |
+| 让用户挑一条路径（文件**或**文件夹）的控件及其声明 | `PathPicker`（GUI 控件）/ `PathPickerConfig`、`PathPickerTarget`（SDK） | 路径选择 | `PathInput`（旧控件名，已改名）；`FilePicker*`（不准确——同一个控件也选文件夹，Avalonia 那边 `FilePicker*` / `FolderPicker*` 才是分立两族） |
 
 ### 三条边界的说明
 

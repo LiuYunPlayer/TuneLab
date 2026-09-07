@@ -111,7 +111,9 @@ internal static class ExtensionSettingsText
                 return (default, string.Format("\"{0}\" is not an allowed value for \"{1}\": {2}.", given, key, ConfigText.Describe(combo)));
             }
 
+            // 路径也是文本：宿主不校验存不存在（合法与否只有插件知道，见 PathPickerConfig 注释），与手填文本同路。
             case TextBoxConfig:
+            case PathPickerConfig:
                 return raw.ValueKind is JsonValueKind.True or JsonValueKind.False
                     ? (default, string.Format("\"{0}\" is text; got a boolean.", key))
                     : (PropertyValue.Create(JsonScalar.Text(raw)), null);

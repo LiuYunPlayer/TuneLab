@@ -453,6 +453,8 @@ function getInputConfig(ctx) {
 | `CheckBoxConfig.create(默认?)` | 勾选框 |
 | `TextBoxConfig.create(默认?)` | 文本框 |
 | ↳ `.withPassword()` | 密码样式（内容打码） |
+| `PathPickerConfig.createFile(默认?)` `.createFolder(默认?)` | 路径选择：文本框 + 浏览按钮，点开系统的文件 / 文件夹对话框；值就是选中的路径字符串 |
+| ↳ `.appendFileType(名称, '*.exe')` 或 `.appendFileType(名称, ['*.wav','*.mp3'])` `.withPickerTitle(标题)` | 文件类型过滤（仅选文件时有效，多条就链式再加）/ 对话框标题 |
 
 **标度与格式**（`SliderConfig.create` / `.withFormat` 的参数）：
 

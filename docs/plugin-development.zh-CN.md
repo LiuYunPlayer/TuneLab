@@ -358,7 +358,7 @@ public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext con
 **note / part 属性约定（keyed `Properties`，这是 per-note/per-part 参数的唯一通道）**：
 
 - `IVoiceSynthesisNote` 的固定字段只有最小通用乐理量（`StartTime`/`EndTime`/`Pitch`/`Lyric`/`Phonemes`）。**所有 voice 专属的 per-note 参数（如张力、气声、性别）都走 `note.Properties`（keyed）**——加新参数 = 在 `GetNotePropertyConfig` 的 `ObjectConfig.Properties` 里加一个 key，不动接口固定面。part 级专属参数同理走 `GetPartPropertyConfig`。
-- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（构造函数已封，只走静态工厂：`SliderConfig.Linear(default, min, max)` 连续、`SliderConfig.Integer(default, min, max)` 整数、`SliderConfig.Create(default, scale)` 接自定义标度 `INormalizedScale`；流式 `.WithFormat(INumberFormat)` 定制数值显示/回读、`.WithRandomizable()` 声明可随机——宿主在右侧给随机入口、点一下在标度上按归一化均匀重取值，适合随机种子等场景；`.WithMinLabel(text)` / `.WithMaxLabel(text)` 给量程两端加描述文本（如 min="Soft"、max="Hard"，插件自译、可只设一端）——显示在滑条两端，该属性被用户钉到参数面板后同文本作上下界，与 `AutomationConfig` 的同名字段同一语义）、`ComboBoxConfig.Create(options)`（值/显示分离，可「界面中文/底层存枚举值」；`.WithDefault(option)` 指定默认选中，缺省取首项）、`CheckBoxConfig.Create(default)`、`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）；以上构造函数均已封、只走静态工厂。容器是 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`（复合型尚未工厂化）。
+- 面板用控件配置词汇搭（都在 `TuneLab.SDK`）：`SliderConfig`（构造函数已封，只走静态工厂：`SliderConfig.Linear(default, min, max)` 连续、`SliderConfig.Integer(default, min, max)` 整数、`SliderConfig.Create(default, scale)` 接自定义标度 `INormalizedScale`；流式 `.WithFormat(INumberFormat)` 定制数值显示/回读、`.WithRandomizable()` 声明可随机——宿主在右侧给随机入口、点一下在标度上按归一化均匀重取值，适合随机种子等场景；`.WithMinLabel(text)` / `.WithMaxLabel(text)` 给量程两端加描述文本（如 min="Soft"、max="Hard"，插件自译、可只设一端）——显示在滑条两端，该属性被用户钉到参数面板后同文本作上下界，与 `AutomationConfig` 的同名字段同一语义）、`ComboBoxConfig.Create(options)`（值/显示分离，可「界面中文/底层存枚举值」；`.WithDefault(option)` 指定默认选中，缺省取首项）、`CheckBoxConfig.Create(default)`、`TextBoxConfig.Create(default)`（`.WithPassword()` 掩码）、`PathPickerConfig.CreateFile(default)` / `PathPickerConfig.CreateFolder(default)`（路径选择：文本框 + 浏览按钮开系统选择器，值就是路径字符串——`.AppendFileType(名称, "*.exe")` 加类型过滤、`.WithPickerTitle(标题)` 定制对话框标题；宿主不校验路径存不存在，自己在 `ApplySettings`/`Init` 里校）；以上构造函数均已封、只走静态工厂。容器是 `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }`（复合型尚未工厂化）。
 
 ```csharp
 readonly ObjectConfig mNoteConfig = new()
@@ -408,7 +408,7 @@ public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesis
 - **`PhonemeSlots` 口径助手（SDK 共享纯函数，引擎与宿主同用一份、永不漂移）**：`note.PhonemeAt(slot)`（该位音素，无则 null）、`notes.UnionSlots()`（选区 slot 全集，升序连续区间）；核下标即 `LeadingPhonemes.Count`（表达式自明，不另设 API）。
 - **`IVoiceSynthesisNoteView.LeadingPhonemes` / `BodyPhonemes`**：该 note 的音素双列表（引导辅音；核 + 尾辅音），时间序，元素为 `IVoiceSynthesisPhonemeView`。全序列 = `LeadingPhonemes` ++ `BodyPhonemes`（前置辅音 → 核 → 后辅音），音素在 note 内的位置 = 此拼接串的索引。视图上**刻意不设**合并 `Phonemes` 投影——自行拼接，或用上面的 `PhonemeSlots` 助手（跨两列表索引）。
 - **`IVoiceSynthesisPhonemeView`**（声明面读音素当前值）：`string Symbol` / `double Duration` / `double StretchWeight` / `PropertyObject Properties`（该音素属性当前值快照）。引导/主体归属由 note 视图的 `LeadingPhonemes` / `BodyPhonemes` 列表成员（+ `double BodyOffset`）给、不落每音素。可据这些当前值 + slot 进一步条件化 schema。
-- schema 仍用同一套控件配置词汇搭（`SliderConfig` / `ComboBoxConfig` / `CheckBoxConfig` / `TextBoxConfig`，容器 `ObjectConfig`），与 note 属性写法一致。
+- schema 仍用同一套控件配置词汇搭（`SliderConfig` / `ComboBoxConfig` / `CheckBoxConfig` / `TextBoxConfig` / `PathPickerConfig`，容器 `ObjectConfig`），与 note 属性写法一致。
 
 - **合成时读值**：从快照读——`VoiceSynthesisNoteSnapshot` 暴露 `LeadingPhonemes` / `BodyPhonemes`（各 `IReadOnlyList<VoiceSynthesisPhonemeSnapshot>`）+ `double BodyOffset`，每项 `{ string Symbol; double Duration; double StretchWeight; PropertyObject Properties }`。几何字段（`Symbol`/`Duration`/`StretchWeight`）平铺直读（引导/主体归属即列表成员）；要喂 `PhonemeLayout.Resolve` 时按字段重建一个 `SynthesizedPhoneme`（见 §5.7）。`Properties` 是该音素属性的冻结值（未设 = `PropertyObject.Empty`），用 `GetDouble(key, default)` 等读，稀疏存储、读不到回退声明默认值。
 
@@ -701,7 +701,7 @@ voice 引擎常依赖原生运行时（ONNX Runtime 等）、模型权重、发�
 - **原生库的加载**：把原生 `.dll` 与你的托管 `.dll` 放在**同一目录**（包根），默认探测通常能直接 P/Invoke 到。若用 ONNX Runtime 这类带原生后端的 NuGet 包，让其原生库随包输出到包根即可；跨平台时按目标平台分别提供对应原生库，并在 manifest 用 `platforms` 过滤（如某声库只发 Windows）。
 - **大模型权重不要塞进 `.tlx`**：`.tlx` 是即装即载的安装包，几百 MB 的模型塞进去会让安装/加载很重。推荐两种形态：
   - **资源包分离**：模型作为独立的资源包（无代码，`type` 声明用途），引擎运行时去发现；或
-  - **走扩展设置让用户配模型路径**：引擎实现 `IExtensionSettings`，用 `TextBoxConfig` 暴露「模型目录」设置项，用户在「设置 → 扩展」填好路径，你在 `ApplySettings` 收下、`Init`/`CreateSession` 时从该路径加载（见 §8）。API key 等密钥用 `TextBoxConfig { IsPassword = true }`，宿主掩码显示 + 安全落盘。
+  - **走扩展设置让用户配模型路径**：引擎实现 `IExtensionSettings`，用 `PathPickerConfig.CreateFolder()` 暴露「模型目录」设置项（文本框 + 浏览按钮；指向可执行文件/单个文件时用 `CreateFile()` 配 `.AppendFileType(...)`），用户在「设置 → 扩展」选好路径，你在 `ApplySettings` 收下、`Init`/`CreateSession` 时从该路径加载（见 §8）。API key 等密钥用 `TextBoxConfig { IsPassword = true }`，宿主掩码显示 + 安全落盘。
 - **`Init` 里加载、失败抛异常**：模型/词典加载放 `Init`（或更懒，首次 `CreateSession` 时）。加载失败直接抛异常，宿主在调用边界 catch、把该插件标为加载失败并在侧边栏反映原因，不会崩溃主程序。
 
 ### 5.11 接口职责速查
@@ -902,7 +902,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
     public ObjectConfig GetSettingsConfig(IExtensionSettingsContext context)
     {
         var props = new OrderedMap<PropertyKey, IControllerConfig>();
-        props.Add(("model_path", "模型路径"), TextBoxConfig.Create(""));
+        props.Add(("model_path", "模型路径"), PathPickerConfig.CreateFolder(""));   // 路径选择（单个文件用 CreateFile）
         props.Add(("api_key", "API Key"), TextBoxConfig.Create().WithPassword()); // 密钥：掩码显示 + 加密落盘
         props.Add(("use_gpu", "使用 GPU"), CheckBoxConfig.Create(false));
         // 动态/条件项：据已填值决定显隐（如勾了 GPU 才暴露设备字段）。
@@ -940,7 +940,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 
 > agent 模型引擎有自己的侧边栏设置入口，不在「扩展」分页里。
 
-相关接口在 `TuneLab.SDK`：`IExtensionSettings` / `IExtensionSettingsContext`（+ 控件配置 `ObjectConfig` / `TextBoxConfig` / `CheckBoxConfig` / `ComboBoxConfig` / `SliderConfig`）。
+相关接口在 `TuneLab.SDK`：`IExtensionSettings` / `IExtensionSettingsContext`（+ 控件配置 `ObjectConfig` / `TextBoxConfig` / `PathPickerConfig` / `CheckBoxConfig` / `ComboBoxConfig` / `SliderConfig`）。
 
 ### 8.4 format 扩展：单位是条目，不是后缀
 

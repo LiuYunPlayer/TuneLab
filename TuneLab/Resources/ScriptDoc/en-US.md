@@ -458,6 +458,8 @@ Method names mirror the control types; each `withX(...)` returns a new config, s
 | `CheckBoxConfig.create(default?)` | Check box |
 | `TextBoxConfig.create(default?)` | Text box |
 | ↳ `.withPassword()` | Password style (content masked) |
+| `PathPickerConfig.createFile(default?)` `.createFolder(default?)` | Path picker: a text box plus a browse button that opens the system file / folder dialog. The value is the picked path, a plain string |
+| ↳ `.appendFileType(name, '*.exe')` or `.appendFileType(name, ['*.wav','*.mp3'])` `.withPickerTitle(text)` | File-type filter (file mode only; chain it for more than one) / dialog title |
 
 **Scales and formats** (arguments of `SliderConfig.create` / `.withFormat`):
 

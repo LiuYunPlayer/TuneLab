@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -25,12 +26,20 @@ internal static class ConfigText
         ComboBoxConfig c => "one of " + Options(c),
         CheckBoxConfig => "boolean (true/false)",
         TextBoxConfig t => t.IsPassword ? "text (masked)" : "text",
+        PathPickerConfig f => f.Target == PathPickerTarget.Folder ? "folder path" : "file path" + PatternHint(f),
         AutomationConfig a => a.IsPiecewise
             ? string.Format("automation track, range [{0}, {1}], piecewise (no baseline)", FormatNum(a.MinValue), FormatNum(a.MaxValue))
             : string.Format("automation track, range [{0}, {1}], default {2}", FormatNum(a.MinValue), FormatNum(a.MaxValue), FormatNum(a.DefaultValue)),
         ObjectConfig => "object (grouped fields)",
         _ => "value",
     };
+
+    // 文件选择器的类型提示："file path (*.exe, *.bat)"。无过滤器则不加括号。
+    static string PatternHint(PathPickerConfig f)
+    {
+        var patterns = f.FileTypes.SelectMany(t => t.Patterns).ToList();
+        return patterns.Count == 0 ? string.Empty : string.Format(" ({0})", string.Join(", ", patterns));
+    }
 
     static string RangeHint(DraggableNumberBoxConfig d)
     {

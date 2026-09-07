@@ -213,6 +213,7 @@ internal static class ScriptApiReference
         "    DraggableNumberBoxConfig.create(default) / .integer(default)   [.withMin(x) / .withMax(x) / .withRange(a,b) / .withStep(s) / .withSensitivity(s) / .withRandomizable() / .withFormat(fmt)]\n" +
         "    ComboBoxConfig.create(['a','b']) or .create()   [.append(x) / .appendSeparator() / .withDefault('a')]\n" +
         "    CheckBoxConfig.create(false)      TextBoxConfig.create('')   [.withPassword()]\n" +
+        "    PathPickerConfig.createFile('') / .createFolder('')   [.appendFileType('Audio', ['*.wav','*.mp3']) / .withPickerTitle('...')]   -> the value is the picked path (a string)\n" +
         "  Advanced (log/exp axes, units): ready-made scales are NormalizedScale.linear(min, max) / .integer(min, max) plus the rounding wrappers NormalizedScale.rounded(scale) / .floor(scale) / .ceil(scale); for anything else SliderConfig.create(default, NormalizedScale.custom(p=>value, value=>p)) — two inverse JS functions on 0..1; .withFormat(NumberFormat.custom(v=>string, s=>number|null)) — parse returns null on failure. These run live while the input form is open (keep them pure & cheap; errors degrade gracefully, they never throw into the UI).\n" +
         "  A tool WITHOUT getInputConfig just runs main() with no dialog (main may ignore its argument).\n" +
         "  Once saved, a tool with inputs can be re-run later WITHOUT rewriting it: call get_script_inputs(name) to see its fields (and the user's last values), then run_saved_script(name, inputs?) to run it.\n" +

@@ -37,6 +37,7 @@ internal static class ScriptConfigs
         engine.SetValue("ComboBoxConfig", new ComboBoxConfigFacade());
         engine.SetValue("CheckBoxConfig", new CheckBoxConfigFacade());
         engine.SetValue("TextBoxConfig", new TextBoxConfigFacade());
+        engine.SetValue("PathPickerConfig", new PathPickerConfigFacade());
         engine.SetValue("NormalizedScale", new NormalizedScaleFacade(engine));
         engine.SetValue("NumberFormat", new NumberFormatFacade(engine));
     }
@@ -57,7 +58,7 @@ internal static class ScriptConfigs
             var value = obj.Get(keyVal);
             if (value.ToObject() is not IScriptConfig handle)
                 throw new ScriptApiException(string.Format(
-                    "getInputConfig() field \"{0}\" is not a config; build it with SliderConfig/ComboBoxConfig/CheckBoxConfig/TextBoxConfig/DraggableNumberBoxConfig.", key));
+                    "getInputConfig() field \"{0}\" is not a config; build it with SliderConfig/ComboBoxConfig/CheckBoxConfig/TextBoxConfig/DraggableNumberBoxConfig/PathPickerConfig.", key));
             if (map.ContainsKey(key))
                 continue;   // 防御重复键（对象键本唯一）
             map.Add(key, handle.Build());
@@ -182,6 +183,33 @@ internal static class ScriptConfigs
         public ScriptTextBoxConfig WithPassword(JsValue value) => new(config.WithPassword(ScriptArgs.AsBoolOrNull(value) ?? true));
     }
 
+    internal sealed class ScriptPathPickerConfig(PathPickerConfig config) : IScriptConfig
+    {
+        public IControllerConfig Build() => config;
+        // patterns 收单个字符串或字符串数组：appendFileType('Audio', '*.wav') / appendFileType('Audio', ['*.wav', '*.mp3'])。
+        public ScriptPathPickerConfig AppendFileType(JsValue name, JsValue patterns)
+            => new(config.AppendFileType(ScriptArgs.AsStrOrNull(name) ?? "", ReadPatterns(patterns)));
+        public ScriptPathPickerConfig WithPickerTitle(JsValue title) => new(config.WithPickerTitle(ScriptArgs.AsStrOrNull(title) ?? ""));
+    }
+
+    static string[] ReadPatterns(JsValue patterns)
+    {
+        if (patterns is null || patterns.IsUndefined() || patterns.IsNull())
+            return [];
+        if (patterns.IsString())
+            return [patterns.AsString()];
+
+        var o = ScriptArgs.Obj(patterns, "patterns");
+        var lenVal = o.Get("length");
+        if (!lenVal.IsNumber())
+            throw new ScriptApiException("appendFileType patterns must be a string or an array of strings (e.g. '*.exe' or ['*.wav', '*.mp3']).");
+        int len = (int)lenVal.AsNumber();
+        var result = new string[len];
+        for (int i = 0; i < len; i++)
+            result[i] = ScriptArgs.AsStrOrNull(o.Get(i.ToString(CultureInfo.InvariantCulture))) ?? "";
+        return result;
+    }
+
     internal sealed class ScriptNormalizedScale(INormalizedScale scale)
     {
         public INormalizedScale Inner => scale;
@@ -267,6 +295,14 @@ internal static class ScriptConfigs
     {
         public ScriptTextBoxConfig Create() => new(TextBoxConfig.Create());
         public ScriptTextBoxConfig Create(JsValue defaultValue) => new(TextBoxConfig.Create(ScriptArgs.AsStrOrNull(defaultValue) ?? ""));
+    }
+
+    internal sealed class PathPickerConfigFacade
+    {
+        public ScriptPathPickerConfig CreateFile() => new(PathPickerConfig.CreateFile());
+        public ScriptPathPickerConfig CreateFile(JsValue defaultValue) => new(PathPickerConfig.CreateFile(ScriptArgs.AsStrOrNull(defaultValue) ?? ""));
+        public ScriptPathPickerConfig CreateFolder() => new(PathPickerConfig.CreateFolder());
+        public ScriptPathPickerConfig CreateFolder(JsValue defaultValue) => new(PathPickerConfig.CreateFolder(ScriptArgs.AsStrOrNull(defaultValue) ?? ""));
     }
 
     internal sealed class NormalizedScaleFacade(Engine engine)

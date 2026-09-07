@@ -1,1 +1,21 @@
 #nullable enable
+static TuneLab.SDK.PathPickerConfig.CreateFile(string! defaultValue = "") -> TuneLab.SDK.PathPickerConfig!
+static TuneLab.SDK.PathPickerConfig.CreateFolder(string! defaultValue = "") -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.FileTypeFilter
+TuneLab.SDK.FileTypeFilter.FileTypeFilter() -> void
+TuneLab.SDK.FileTypeFilter.FileTypeFilter(string! name, System.Collections.Generic.IReadOnlyList<string!>! patterns) -> void
+TuneLab.SDK.FileTypeFilter.Name.get -> string!
+TuneLab.SDK.FileTypeFilter.Name.init -> void
+TuneLab.SDK.FileTypeFilter.Patterns.get -> System.Collections.Generic.IReadOnlyList<string!>!
+TuneLab.SDK.FileTypeFilter.Patterns.init -> void
+TuneLab.SDK.PathPickerConfig
+TuneLab.SDK.PathPickerConfig.AppendFileType(string! name, params string![]! patterns) -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.PathPickerConfig.AppendFileType(TuneLab.SDK.FileTypeFilter fileType) -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.PathPickerConfig.DefaultValue.get -> string!
+TuneLab.SDK.PathPickerConfig.FileTypes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.FileTypeFilter>!
+TuneLab.SDK.PathPickerConfig.PickerTitle.get -> string?
+TuneLab.SDK.PathPickerConfig.Target.get -> TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.PathPickerConfig.WithPickerTitle(string! title) -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.PathPickerTarget.File = 0 -> TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.PathPickerTarget.Folder = 1 -> TuneLab.SDK.PathPickerTarget

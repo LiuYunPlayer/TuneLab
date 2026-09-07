@@ -317,6 +317,7 @@ internal abstract class ElementWidget : IDisposable
     {
         SliderConfig c => new SliderElement(dataObject, token, c),
         TextBoxConfig c => new TextElement(dataObject, token, c),
+        PathPickerConfig c => new PathElement(dataObject, token, c),
         ComboBoxConfig c => new ComboElement(dataObject, token, c),
         CheckBoxConfig c => new CheckElement(dataObject, token, c),
         ObjectConfig c => new ObjectElement(dataObject, token, c),
@@ -363,6 +364,22 @@ internal abstract class ElementWidget : IDisposable
         public override void Update(IControllerConfig config) => mController.IsPassword = ((TextBoxConfig)config).IsPassword;
 
         readonly SingleLineTextController mController;
+    }
+
+    sealed class PathElement : ElementWidget
+    {
+        public PathElement(IDataPropertyObject dataObject, string token, PathPickerConfig config)
+        {
+            mController = new PathPicker { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+            mController.Apply(config);
+            mController.BindDataProperty(dataObject.StringField(token, config.DefaultValue), s);
+        }
+
+        public override Control View => mController;
+        public override Type ConfigType => typeof(PathPickerConfig);
+        public override void Update(IControllerConfig config) => mController.Apply((PathPickerConfig)config);
+
+        readonly PathPicker mController;
     }
 
     sealed class ComboElement : ElementWidget
