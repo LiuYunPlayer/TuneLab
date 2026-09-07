@@ -67,7 +67,7 @@
 "AI Agent max tool result (characters)" = "Max. gereedschapsresultaat van de AI Agent (tekens)"
 "Command Bridge (let external tools drive TuneLab)" = "Opdrachtbrug (externe tools mogen TuneLab aansturen)"
 "Connect an external AI agent" = "Een externe AI-agent verbinden"
-"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Kopieert wat een externe agent nodig heeft om TuneLab te besturen: het echte pad van het commando op deze machine, wat hij wel en niet mag doen, en hoe hij jou om toestemming moet vragen. Plak het in je agent."
+"Copy these instructions into the AI agent you use, and it can drive TuneLab." = "Kopieer deze instructies naar de AI-agent die je gebruikt, dan kan die TuneLab besturen."
 "Copy instructions" = "Instructies kopiëren"
 "Copied." = "Gekopieerd."
 "Could not reach the clipboard." = "Kan het klembord niet bereiken."

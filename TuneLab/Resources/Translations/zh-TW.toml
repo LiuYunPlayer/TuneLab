@@ -67,7 +67,7 @@
 "AI Agent max tool result (characters)" = "AI 助手單次工具結果上限（字元）"
 "Command Bridge (let external tools drive TuneLab)" = "命令橋（允許外部工具驅動 TuneLab）"
 "Connect an external AI agent" = "接入外部 AI agent"
-"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "複製外部 agent 驅動 TuneLab 所需的一切：這台機器上指令的真實路徑、它能做與不能做什麼，以及它必須如何向你請求許可。貼進你的 agent 即可。"
+"Copy these instructions into the AI agent you use, and it can drive TuneLab." = "把這段說明複製給你使用的 AI agent，它就能驅動 TuneLab。"
 "Copy instructions" = "複製接入說明"
 "Copied." = "已複製。"
 "Could not reach the clipboard." = "無法存取剪貼簿。"

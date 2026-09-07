@@ -67,7 +67,7 @@
 "AI Agent max tool result (characters)" = "Максимальний результат інструмента ШІ-агента (символів)"
 "Command Bridge (let external tools drive TuneLab)" = "Командний міст (дозволити зовнішнім інструментам керувати TuneLab)"
 "Connect an external AI agent" = "Підключити зовнішнього ШІ-агента"
-"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Копіює все, що зовнішньому агенту потрібно для керування TuneLab: справжній шлях до команди на цьому комп’ютері, що йому можна й не можна, і як він має запитувати у вас дозвіл. Вставте це у свого агента."
+"Copy these instructions into the AI agent you use, and it can drive TuneLab." = "Скопіюйте цю інструкцію у свого ШІ-агента — і він зможе керувати TuneLab."
 "Copy instructions" = "Копіювати інструкції"
 "Copied." = "Скопійовано."
 "Could not reach the clipboard." = "Не вдалося отримати доступ до буфера обміну."

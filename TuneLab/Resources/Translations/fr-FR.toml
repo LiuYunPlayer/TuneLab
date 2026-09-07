@@ -67,7 +67,7 @@
 "AI Agent max tool result (characters)" = "Résultat d'outil maximal de l'Agent (caractères)"
 "Command Bridge (let external tools drive TuneLab)" = "Pont de commandes (autoriser des outils externes à piloter TuneLab)"
 "Connect an external AI agent" = "Connecter un agent IA externe"
-"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Copie ce dont un agent externe a besoin pour piloter TuneLab : le vrai chemin de la commande sur cette machine, ce qu'il peut et ne peut pas faire, et comment il doit vous demander l'autorisation. Collez-le dans votre agent."
+"Copy these instructions into the AI agent you use, and it can drive TuneLab." = "Copiez ces instructions dans l'agent IA que vous utilisez, et il pourra piloter TuneLab."
 "Copy instructions" = "Copier les instructions"
 "Copied." = "Copié."
 "Could not reach the clipboard." = "Impossible d'accéder au presse-papiers."

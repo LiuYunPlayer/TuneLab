@@ -67,7 +67,7 @@
 "Extension Routing" = "扩展路由"
 "Command Bridge (let external tools drive TuneLab)" = "命令桥（允许外部工具驱动 TuneLab）"
 "Connect an external AI agent" = "接入外部 AI agent"
-"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "复制外部 agent 驱动 TuneLab 所需的一切：这台机器上命令的真实路径、它能做与不能做什么、以及它必须如何向你请求许可。粘贴到你的 agent 里即可。"
+"Copy these instructions into the AI agent you use, and it can drive TuneLab." = "把这段说明复制给你使用的 AI agent，它就能驱动 TuneLab。"
 "Copy instructions" = "复制接入说明"
 "Copied." = "已复制。"
 "Could not reach the clipboard." = "无法访问剪贴板。"
