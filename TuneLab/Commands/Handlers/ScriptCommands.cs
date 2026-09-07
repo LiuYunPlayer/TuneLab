@@ -403,8 +403,10 @@ internal sealed class ScriptRunCommand : ICommand
         "that would otherwise take many tool calls — e.g. \"for every note in bars 5-8, raise it an octave and add a harmony a third above\" is one loop. " +
         "The whole script runs as ONE undoable change. " +
         "BEFORE writing your first script in a conversation, call get_script_api once to load the full API, the handle/tick rules, and examples — do not guess method names. " +
-        "Key rules: object-style — `tl` is the project, while tracks/parts/notes are handles with read/write fields (n.pitch += 1) and methods (part.notes(), note.remove()); " +
+        "Key rules: object-style — `tl` is the EDITOR and the project hangs off tl.currentProject(), while tracks/parts/notes are handles with read/write fields (n.pitch += 1) " +
+        "and methods (part.notes(), part.removeNote(n)) — create and delete ALWAYS hang off the parent, no handle has an x.remove(); " +
         "collection methods return plain arrays (for-of/index, not a linked list); positions are absolute ticks; pitch is MIDI; print(x) emits debug output. " +
+        "A script that only prints and changes nothing is also how you INSPECT the project below the summary level — it reports that it produced no changes, and you get your print output back. " +
         "NOTE: depending on the user's authorization setting your edits may be applied only after the user confirms, or not applied at all (read-only) — the result message tells you what happened; relay it, don't assume the edit landed.";
 
     public string ParametersJsonSchema => """
