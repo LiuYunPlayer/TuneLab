@@ -22,6 +22,7 @@ static class L
             ["Engine Executable"] = "引擎可执行文件",
             ["Select the engine executable"] = "选择引擎可执行文件",
             ["Voice Bank Folder"] = "音源库目录",
+            ["Startup Notes"] = "启动备注",
             ["API Key"] = "API 密钥",
             ["Use GPU"] = "使用 GPU",
             ["GPU Device"] = "GPU 设备",
@@ -69,6 +70,8 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
                 .AppendFileType(L.Tr("Engine Executable"), "*.exe", "*.bat")
                 .WithPickerTitle(L.Tr("Select the engine executable")));
         props.Add(("voice_bank_dir", L.Tr("Voice Bank Folder")), PathPickerConfig.CreateFolder(string.Empty));
+        // 多行文本：值仍是一个 string（换行在里面），框贴着内容长、最多 4 行、再多则框内滚动。
+        props.Add(("startup_notes", L.Tr("Startup Notes")), TextBoxConfig.Create(string.Empty).WithMultiline(4));
         props.Add(("api_key", L.Tr("API Key")), TextBoxConfig.Create(string.Empty).WithPassword());
         props.Add(("use_gpu", L.Tr("Use GPU")), CheckBoxConfig.Create(false));
         if (context.Settings.GetBoolean("use_gpu", false))
@@ -94,6 +97,10 @@ public sealed class SettingsVoiceEngine : IVoiceSynthesisEngine, IExtensionSetti
         TuneLabContext.Global.GetLogger().Info(string.Format(
             "[V1.Settings] ApplySettings: engine_path='{0}', voice_bank_dir='{1}'",
             settings.GetString("engine_path", string.Empty), settings.GetString("voice_bank_dir", string.Empty)));
+        // 换行改写成两字符的转义字面量再打：日志是逐行的，真换行会把一条拆成多条、看不出存进去的到底是什么。
+        TuneLabContext.Global.GetLogger().Info(string.Format(
+            "[V1.Settings] ApplySettings: startup_notes='{0}'",
+            settings.GetString("startup_notes", string.Empty).Replace("\r", string.Empty).Replace("\n", "\\n")));
     }
 
     static readonly OrderedMap<string, VoiceSourceInfo> sEmpty = new();
