@@ -18,12 +18,6 @@ namespace TuneLab.UI;
 // 恰好是"开了之后我该怎么告诉我的 agent"。为什么它不是一条"设置"：它没有值可存，只是一段动作。
 internal partial class SettingsWindow : Window
 {
-    // 本窗各页的内容都挂在 ScrollView 下，而它 **用无限宽量子元素**（ScrollView.MeasureOverride），
-    // 于是 TextWrapping.Wrap 在这里根本不会换行——文本按单行的自然宽度量出来，再被 Arrange 裁掉右边。
-    // 故换行必须自己给一个上界：窗宽 800 − 左侧导航 220 − 左右 24 − 滚动条内缩，留一点余量。
-    // （文案本身已短到一行放得下；这条上界是给译文长的语言兜底的。）
-    const double TextWidth = 520;
-
     Control BuildExternalAgentBlock()
     {
         var panel = new StackPanel { Orientation = Orientation.Vertical, Margin = new(24, 24, 24, 12) };
@@ -43,7 +37,8 @@ internal partial class SettingsWindow : Window
             Foreground = Style.LIGHT_WHITE.ToBrush(),
             Opacity = 0.6,
             FontSize = 12,
-            MaxWidth = TextWidth,
+            // 靠 Wrap 就够：ScrollView 的贴合轴按真实可用尺寸量子元素（见 ScrollView.MeasureOverride），
+            // 故这里不需要、也不该再给显式 MaxWidth——那是它按无限宽量子元素时代的绕法。
             TextWrapping = TextWrapping.Wrap,
             Margin = new(0, 0, 0, 10),
         });
