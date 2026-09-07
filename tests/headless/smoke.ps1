@@ -63,6 +63,13 @@ function Invoke-Cli([string[]]$CliArgs) {
     }
 }
 
+# 把一段 JSON 变成能安全穿过 Start-Process 的实参。
+#
+# 【必须过这一道】ArgumentList 拼出来的是**一行命令行**，CommandLineToArgvW 会把裸双引号剥掉，
+# 于是进程收到的是 {audio:C:\x} —— 那副样子和"真的传了个坏 JSON"一模一样，能让人查上十分钟
+# （实测有人栽过；命令行为此专门诊断"一个双引号都没有"这一支）。故所有 object/array 参数一律经此函数。
+function CliJson([string]$json) { return ($json -replace '"', '\"') }
+
 $exported = Join-Path $sandbox "smoke.tlpx"
 $commandList = Join-Path $sandbox "commands.txt"
 [IO.File]::WriteAllText($commandList, @"
@@ -127,11 +134,21 @@ try {
     Check "exit 2" ($r.Code -eq 2) "exit $($r.Code)"
 
     # object 参数收的是 JSON：解析不了必须当场报用法错。**不许降级成"当没给"**——那会让脚本拿默认值
-    # 照跑、回报还说"跑成功了"，于是无人值守的跑批"通过"了却什么都没测到（Windows 路径里的反斜杠被
-    # shell 吃掉一层就是这个形态，实测栽过一次）。
-    $r = Invoke-Cli @("--headless", "script", "run-saved", "--name", "whatever", "--inputs", '{"audio":"C:\tmp\a.wav"}')
-    Check "malformed JSON in an object parameter is a usage error" ($r.Code -eq 2) "exit $($r.Code)"
-    Check "and it points at the backslash trap" ($r.Err -match "backslash") $r.Err
+    # 照跑、回报还说"跑成功了"，于是无人值守的跑批"通过"了却什么都没测到（实测栽过一次）。
+    #
+    # 而"把 JSON 塞进 Windows 命令行"有【两个互不相干的坑】，两条错误消息必须分得开：
+    #   A 引号被外层 shell 剥掉（见 CliJson 的说明）——JSON 本身没错，是它没原样到进程里来；
+    #   B 引号活着，但路径里的反斜杠没在 JSON 里双写。
+    # 两支都退 2，所以【只断言退出码等于什么都没断言】：本组曾经就是这么假绿的——那时反斜杠提示是
+    # 无条件附在消息末尾的，于是无论传什么坏 JSON，"匹配到 backslash"这条都恒真。现在各认各自的那句话，
+    # 最后一条是【正对照】：转义 + 正斜杠必须解析通过、退到"没有这个脚本"，否则前两条的红绿都不可信。
+    $badJson = '{"audio":"C:\tmp\a.wav"}'
+    $r = Invoke-Cli @("--headless", "script", "run-saved", "--name", "whatever", "--inputs", $badJson)
+    Check "quotes eaten by the shell is diagnosed as exactly that" ($r.Code -eq 2 -and $r.Err -match "no double quotes in it at all") $r.Err
+    $r = Invoke-Cli @("--headless", "script", "run-saved", "--name", "whatever", "--inputs", (CliJson $badJson))
+    Check "quotes survived but the backslash did not: the backslash hint" ($r.Code -eq 2 -and $r.Err -match "invalid escapable character" -and $r.Err -match "backslash") $r.Err
+    $r = Invoke-Cli @("--headless", "script", "run-saved", "--name", "whatever", "--inputs", (CliJson '{"audio":"C:/tmp/a.wav"}'))
+    Check "control: escaped quotes + forward slashes really do parse" ($r.Code -eq 1 -and $r.Err -match "no script named") $r.Err
 
     # ── 8. 打不开的工程：一条命令都还没跑就该停，且说清是哪个文件。
     Write-Host "8. a project that will not open"

@@ -351,6 +351,9 @@ internal static class Program
         return (arguments, authorization, json, null);
     }
 
+    // 回显收到的实参：诊断"引号被吃了"必须让人看见【进程到手的到底是什么】。太长就截断。
+    static string Clip(string value) => value.Length <= 200 ? value : value[..200] + "…";
+
     static string[] DeclaredTypes(JsonElement declared)
     {
         if (!declared.TryGetProperty("type", out var type))
@@ -377,9 +380,24 @@ internal static class Program
             try { return (JsonNode.Parse(value), null); }
             catch (JsonException ex)
             {
+                // 【一个双引号都没有 = 外层 shell 把引号吃了】这一支必须单独说话。报"JSON 语法错、位置 1"
+                // 是把人往错方向指：JSON 本身没写错，是它没能原样到进程里来（PowerShell 的 Start-Process
+                // 把 ArgumentList 拼成一行命令行，CommandLineToArgvW 会剥掉裸双引号）。踩下去的样子与
+                // "真的传了个坏 JSON"一模一样，实测有人为此查了十分钟。回显收到的实参是关键证据。
+                if (!value.Contains('"'))
+                    return (null, "\"" + name + "\" takes JSON, but the value that reached me has no double quotes in it at all:"
+                        + "\n  " + Clip(value)
+                        + "\nThat is almost always the shell stripping them, not a mistake in your JSON. In PowerShell — including"
+                        + " Start-Process -ArgumentList, which builds one command line — escape them: --" + name + " '{\\\"key\\\":\\\"C:/x.wav\\\"}'."
+                        + "\n(The JSON parser said: " + ex.Message + ")");
+
+                // 反斜杠那一支只在【真有反斜杠】时提。无条件附在每条坏 JSON 后面的话，它就成了永真的
+                // 噪音——测试再也钉不住它（我们自己的 smoke 就因此假绿过：无论传什么坏 JSON 都能匹配上）。
                 return (null, "\"" + name + "\" takes JSON, and this is not valid JSON — " + ex.Message
-                    + "\nOn Windows: a backslash inside a JSON string must be doubled (\"C:\\\\path\\\\x.wav\"), and your shell may"
-                    + " eat one level of that on top — forward slashes work everywhere and avoid the whole question.");
+                    + (value.Contains('\\')
+                        ? "\nOn Windows: a backslash inside a JSON string must be doubled (\"C:\\\\path\\\\x.wav\"), and your shell"
+                          + " may eat one level of that on top — forward slashes work everywhere and avoid the whole question."
+                        : ""));
             }
         }
         return (value, null);
