@@ -21,7 +21,7 @@ The global object `tl` is the **editor**; the project data hangs off `tl.current
 - **Get a handle, use it right away.** A handle is an opaque reference to one object, with readable/writable scalar fields and methods, but no id.
   - Collection methods (`project.tracks()`, `track.parts()`, `part.notes()`, `part.vibratos()`) return a plain **array** — iterate with `for-of` or index, has `.length`; each call is a **new snapshot**, so store it in a variable if you use it more than once. It is **not** a linked list — no `.first` / `.next`.
   - A handle is **valid only for the current run** (objects have no persistent id and are lost when the app closes): **never write a handle literal** — always get it and use it on the spot. After `removeX` a handle stays readable (see "Move vs copy" below), it just can't be written.
-- **Coordinates are always absolute ticks.** All positions/durations are absolute (global) ticks (`tl.ppq` is ticks per quarter note, default 480) — the same coordinate system as the playhead and bars. You **never** do any conversion.
+- **Coordinates are always absolute ticks.** All positions/durations are absolute (global) ticks (`tl.ppq` is ticks per quarter note — a constant, 480) — the same coordinate system as the playhead and bars. You **never** do any conversion.
 - **Pitch is a MIDI number**, 60 = C4 (fractional values for cents).
 - **On error, everything rolls back.** If the script throws partway, all changes it made are undone (the project is left unchanged) and the error is returned — so you fix the script and re-run, never patching from a half-applied state.
 - **Debug output.** `print(x)` / `console.log(x)` is collected and shown in the output area below.
@@ -72,7 +72,7 @@ Editor-level entry points — a system constant, the current project, and the ed
 
 | Member | Returns | Notes |
 |---|---|---|
-| `tl.ppq` | number | Ticks per quarter note (default 480). |
+| `tl.ppq` | number | Ticks per **quarter note** — a constant (480), not a property of the project. A **beat** is not necessarily a quarter note: its length follows the time signature's denominator (4/4 → `ppq`, 6/8 → `ppq/2`), so read the meter from `project.timeSignatures()` rather than assuming. |
 | `tl.language` | string | The current UI culture code (e.g. `"zh-CN"` / `"en-US"`). Use it to return a localized tool name from `getScriptInfo`, or to localize dialog text in an action; unrelated to the project, readable even with none open. |
 | `tl.currentProject()` | `project` | The current project (your data entry point; see below). |
 | `tl.currentPart()` | `part \| null` | The MIDI part open in the piano editor. |
@@ -155,12 +155,16 @@ Same model as the data layer:
 
 | Field | Access | Meaning |
 |---|---|---|
-| `pos` | read/write | The anchor's absolute tick — **and the origin every bit of content (notes/curves/vibratos) is measured from**, so assigning `pos` **moves the whole part** (content follows, length unchanged). |
-| `startOffset` | read/write | Left edge relative to the anchor: `>0` trims the front, `<0` extends it. |
-| `endOffset` | read/write | Right edge relative to the anchor (dragging the right edge is exactly this). |
-| `startPos` | read-only | `= pos + startOffset` |
-| `endPos` | read-only | `= pos + endOffset` |
-| `dur` | read-only | `= endOffset - startOffset` |
+| `pos` | read/write | The **anchor**'s absolute tick. It is also the origin the part stores its content against *internally*, which is why assigning `pos` **moves the whole part** (content follows, length unchanged). You never do that arithmetic yourself — see the note below the table. |
+| `startOffset` | read/write | **Left edge** relative to the anchor: `>0` trims the front, `<0` extends it. Cropping moves the edge only; the content stays where it is. |
+| `endOffset` | read/write | **Right edge** relative to the anchor (dragging the right edge is exactly this). |
+| `startPos` | read-only | `= pos + startOffset` — the part's **first tick**. This is what "the beginning of the part" means: a note at the very start is `{pos: part.startPos, …}`. |
+| `endPos` | read-only | `= pos + endOffset` — the tick just **past** the part's last one (exclusive end). |
+| `dur` | read-only | `= endPos - startPos = endOffset - startOffset` |
+
+Content outside `[startPos, endPos)` still exists but is **cropped out** (not played, not shown) — that is what the two offsets are for.
+
+> **No relative ticks anywhere on the action surface.** Every tick you read or write on a note / vibrato / curve point is **absolute** (global timeline) and already includes the part's anchor. Never add `part.pos` to it, and never subtract it. `pos` being the storage origin is an internal fact; it shows up only as "moving the part carries its content along".
 
 So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endOffset: 1920 })`.
 

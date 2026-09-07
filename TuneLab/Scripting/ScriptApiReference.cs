@@ -12,7 +12,8 @@ internal static class ScriptApiReference
         "  · method with () = a query / create / delete / compute:  part.notes(),  track.addPart({...}),  part.removeNote(n)\n" +
         "Create and delete BOTH hang off the parent: project.addTrack/removeTrack, track.addPart/removePart, part.addNote/removeNote, part.addVibrato/removeVibrato. There is NO x.remove().\n" +
         "Collection methods (project.tracks(), part.notes()) return a plain ARRAY (for-of or index, has .length) — a NEW snapshot each call, so store it in a var; it is NOT a linked list (no .first/.next).\n" +
-        "Positions/durations are ABSOLUTE ticks (tl.ppq = ticks per quarter). Pitch = MIDI number (60=C4). The whole run is ONE undoable change (you never call commit).\n" +
+        "Positions/durations are ABSOLUTE ticks. Pitch = MIDI number (60=C4). The whole run is ONE undoable change (you never call commit).\n" +
+        "tl.ppq is a CONSTANT (480) = ticks per QUARTER NOTE, not per beat, and not a property of the project. How long a BEAT is depends on the time signature's denominator: 4/4 -> ppq, 6/8 -> ppq/2. Read the meter from project.timeSignatures() instead of assuming a beat is a quarter.\n" +
         "A handle is an opaque reference to one object: no id, valid only this run — get it via a read, never write a handle literal. Assigning a field or calling a write method takes effect immediately and folds into the single commit.\n" +
         "\n" +
         "*** INFO OBJECTS — how to copy anything, and how to create with full control ***\n" +
@@ -72,10 +73,13 @@ internal static class ScriptApiReference
         "\n" +
         "part\n" +
         "  GEOMETRY — three RAW fields (read/write) plus three DERIVED ones (read-only), same model as the data layer:\n" +
-        "    pos          the anchor's absolute tick — AND the origin every bit of content (notes/curves/vibratos) is measured from, so assigning pos MOVES the whole part (content follows, length unchanged)\n" +
-        "    startOffset  left edge relative to the anchor (>0 trims the front, <0 extends it)\n" +
-        "    endOffset    right edge relative to the anchor\n" +
-        "    startPos = pos + startOffset,   endPos = pos + endOffset,   dur = endOffset - startOffset      (read-only)\n" +
+        "    pos          the ANCHOR's absolute tick. It is also the origin the part stores its content against internally, which is why assigning pos MOVES the whole part (content follows, length unchanged). You never do that arithmetic yourself — see below.\n" +
+        "    startOffset  LEFT EDGE relative to the anchor (>0 trims the front, <0 extends it). Cropping moves the edge only; the content stays where it is.\n" +
+        "    endOffset    RIGHT EDGE relative to the anchor (dragging the right edge is exactly this).\n" +
+        "    startPos = pos + startOffset    the part's FIRST tick — this is what \"the beginning of the part\" means, so a note at the very start is {pos: part.startPos, ...}\n" +
+        "    endPos   = pos + endOffset      the tick just PAST the part's last one (exclusive end); dur = endPos - startPos = endOffset - startOffset      (all three read-only)\n" +
+        "    Content outside [startPos, endPos) still exists but is cropped out (not played, not shown) — that is what the two offsets are for.\n" +
+        "    NO RELATIVE TICKS anywhere on the action surface: every tick you read or write on a note / vibrato / curve point is ABSOLUTE (global timeline), already including the part's anchor. Never add part.pos to it, and never subtract it.\n" +
         "    -> an empty part covering ticks 1920..3840 is  track.addPart({pos: 1920, endOffset: 1920})\n" +
         "  other fields (read/write):  name, gain (dB, part-level, adds to the track's)    field (read-only): type (\"midi\"/\"audio\")\n" +
         "  part.getInfo()                           {type, name, pos, startOffset, endOffset, gain, soundSource, notes, vibratos, effects, automations, piecewiseAutomations, pitch, properties}; an audio part instead has {type:\"audio\", …, path}\n" +
