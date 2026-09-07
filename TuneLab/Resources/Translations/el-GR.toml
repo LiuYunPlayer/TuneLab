@@ -66,6 +66,11 @@
 "Extension Routing" = "Δρομολόγηση Επεκτάσεων"
 "AI Agent max tool result (characters)" = "Μέγιστο αποτέλεσμα εργαλείου του AI Agent (χαρακτήρες)"
 "Command Bridge (let external tools drive TuneLab)" = "Γέφυρα Εντολών (να επιτρέπεται σε εξωτερικά εργαλεία να χειρίζονται το TuneLab)"
+"Connect an external AI agent" = "Σύνδεση εξωτερικού πράκτορα AI"
+"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Αντιγράφει ό,τι χρειάζεται ένας εξωτερικός πράκτορας για να χειριστεί το TuneLab: την πραγματική διαδρομή της εντολής σε αυτόν τον υπολογιστή, τι επιτρέπεται και τι όχι, και πώς πρέπει να σου ζητά άδεια. Επικόλλησέ το στον πράκτορά σου."
+"Copy instructions" = "Αντιγραφή οδηγιών"
+"Copied." = "Αντιγράφηκε."
+"Could not reach the clipboard." = "Δεν ήταν δυνατή η πρόσβαση στο πρόχειρο."
 
 [FunctionBar]
 "Play" = "Αναπαραγωγή"

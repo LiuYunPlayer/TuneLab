@@ -533,6 +533,29 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
 大小写）而互相覆盖。命令名 `tunelab` 是安装期的事——装包时给 `TuneLab.Cli.exe` 落一个 `tunelab`
 入口即可。
 
+**发得出去才算有**（这三层缺一层，上面所有东西对用户就都不存在）：
+
+1. **随包发**：`CIUtils/pack-installer.ps1` 把 `TuneLab.Cli` 发进与 app 同一份 stage（只多出
+   `TuneLab.Cli.exe` 那几个文件，Avalonia/Skia/TuneLab.dll 全共享）；`build-artifacts.yml` 同样把它
+   拷进便携产物。
+2. **敲得着**：安装器在安装目录下落 `CommandLine\tunelab.cmd`（转发到 `TuneLab.Cli.exe`、原样传参、
+   带回退出码），并把**那个只有一个文件的目录**加进用户 PATH（`TuneLab.Setup.Core.CommandLineEntry`）。
+   **不把安装目录本身挂上 PATH**：那里躺着 Skia/NAudio 一堆原生 dll，而 PATH 参与 Windows 的 dll 搜索
+   ——挂上去会改变别的进程加载 dll 的结果，是能把不相干程序弄坏、且极难归因的一类副作用。
+   PATH 的读写走注册表且**不展开变量**（`DoNotExpandEnvironmentNames` + 保持 `REG_EXPAND_SZ`）：
+   经 `Environment.SetEnvironmentVariable` 写回会把用户 PATH 里的 `%USERPROFILE%` 烧成字面路径。
+   卸载先摘 PATH 再删目录（顺序反了就留下一条谁也看不出来源的死路径）。更新模式不动 PATH（同快捷方式），
+   除非这个入口是本次才出现的。
+3. **说得清**：设置窗「通用」页末尾一颗"复制接入说明"按钮，把外部 agent 要知道的东西一次给全
+   （`ExternalAgentOnboarding`）。文案**在点下去那一刻生成**，因为里面有三样只有此刻才知道的事实：
+   命令行的真实绝对路径（文件不在就明说这份安装没有命令行，绝不吐无效路径）、`tunelab` 到底能不能直接敲
+   （便携解压的那份没有 PATH 入口）、命令桥此刻开没开（没开就在最前面多一段"只有我能去开它"，且位置与
+   字样取**用户界面上看到的译文**）。口吻是用户在对他自己的 agent 说话——那段话是用户当自己的话贴出去的。
+   刻意**不复述**"连不上怎么办"：那句 `BridgeClient` 已经会说，且能分清"桥没开 / 宿主没跑 / 桥不应答"
+   三种情形；文案是主动快照、命令行的消息是被动兜底，抄一遍只会有一天与它对不上。
+   结尾要求 agent 只把**门**记进自己的记忆（有这道门、门在哪、四条铁律），并明确**不要**记命令清单、
+   参数与版本号——那些随版本漂移，记住了就会自信地调一条不存在的命令。
+
 ### 9.3 MCP server
 
 - **stdio 独立进程**，不由宿主 spawn。理由：宿主没开时，server 仍然活着并能**在对话里**

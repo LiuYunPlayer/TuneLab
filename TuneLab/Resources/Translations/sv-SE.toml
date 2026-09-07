@@ -66,6 +66,11 @@
 "Extension Routing" = "Tilläggsrouting"
 "AI Agent max tool result (characters)" = "Max. verktygsresultat för AI-agenten (tecken)"
 "Command Bridge (let external tools drive TuneLab)" = "Kommandobrygga (låt externa verktyg styra TuneLab)"
+"Connect an external AI agent" = "Anslut en extern AI-agent"
+"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Kopierar det en extern agent behöver för att styra TuneLab: kommandots riktiga sökväg på den här datorn, vad den får och inte får göra, och hur den måste be dig om tillåtelse. Klistra in det i din agent."
+"Copy instructions" = "Kopiera instruktioner"
+"Copied." = "Kopierat."
+"Could not reach the clipboard." = "Kunde inte nå urklipp."
 
 [FunctionBar]
 "Play" = "Spela"

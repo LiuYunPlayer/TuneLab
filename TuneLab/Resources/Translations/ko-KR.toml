@@ -66,6 +66,11 @@
 "Extension Routing" = "확장 라우팅"
 "AI Agent max tool result (characters)" = "AI 에이전트 도구 결과 최대 길이(글자 수)"
 "Command Bridge (let external tools drive TuneLab)" = "명령 브리지（외부 도구가 TuneLab을 제어하도록 허용）"
+"Connect an external AI agent" = "외부 AI 에이전트 연결"
+"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "외부 에이전트가 TuneLab을 제어하는 데 필요한 내용을 복사합니다: 이 컴퓨터에서 명령의 실제 경로, 할 수 있는 일과 할 수 없는 일, 그리고 허가를 요청하는 방법. 에이전트에 붙여 넣으세요."
+"Copy instructions" = "안내 복사"
+"Copied." = "복사했습니다."
+"Could not reach the clipboard." = "클립보드에 접근할 수 없습니다."
 
 [FunctionBar]
 "Play" = "재생"

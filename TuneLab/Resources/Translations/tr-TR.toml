@@ -66,6 +66,11 @@
 "Extension Routing" = "Uzantı Yönlendirme"
 "AI Agent max tool result (characters)" = "AI aracısı araç sonucu üst sınırı (karakter)"
 "Command Bridge (let external tools drive TuneLab)" = "Komut köprüsü (harici araçların TuneLab'i yönetmesine izin ver)"
+"Connect an external AI agent" = "Harici bir AI ajanı bağla"
+"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Harici bir ajanın TuneLab'i sürmek için ihtiyaç duyduğu her şeyi kopyalar: komutun bu makinedeki gerçek yolu, neyi yapabileceği ve yapamayacağı ve senden izni nasıl istemesi gerektiği. Ajanına yapıştır."
+"Copy instructions" = "Yönergeleri kopyala"
+"Copied." = "Kopyalandı."
+"Could not reach the clipboard." = "Panoya erişilemedi."
 
 [FunctionBar]
 "Play" = "Oynat"

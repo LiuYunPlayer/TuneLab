@@ -66,6 +66,11 @@
 "Extension Routing" = "Roteamento de extensões"
 "AI Agent max tool result (characters)" = "Resultado máximo da ferramenta do Agent (caracteres)"
 "Command Bridge (let external tools drive TuneLab)" = "Ponte de comandos (permitir que ferramentas externas controlem o TuneLab)"
+"Connect an external AI agent" = "Conectar um agente de IA externo"
+"Copy what an external agent needs to drive TuneLab: the command's real path on this machine, what it may and may not do, and how it must ask you for permission. Paste it into your agent." = "Copia o que um agente externo precisa para controlar o TuneLab: o caminho real do comando nesta máquina, o que ele pode e não pode fazer e como deve pedir sua permissão. Cole no seu agente."
+"Copy instructions" = "Copiar instruções"
+"Copied." = "Copiado."
+"Could not reach the clipboard." = "Não foi possível acessar a área de transferência."
 
 [FunctionBar]
 "Play" = "Tocar"

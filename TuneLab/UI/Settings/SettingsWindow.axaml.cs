@@ -332,6 +332,10 @@ internal partial class SettingsWindow : Window
             if (item.Tab == tab)
                 listView.Content.Children.Add(BuildRow(item));
         }
+        // 通用页末尾多一块自由排版的内容（不是一条"设置"——它没有值可存）：把外部 agent 接入的
+        // 门槛压到"点一下复制"。它挨着命令桥那个开关，正是用户在这一页会犯的疑问。
+        if (tab == SettingTab.General)
+            listView.Content.Children.Add(BuildExternalAgentBlock());
         return WithScrollBar(listView);
     }
 
