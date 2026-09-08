@@ -23,6 +23,10 @@ internal interface IEditorStateAccess
     IQuantization? Quantization { get; }
     ScriptSelection? Selection { get; }
     ScriptPianoSelection? PianoSelection { get; }
+
+    // 范围选区的**写**口（脚本面 tl.setTrackSelection 等）。读写刻意分立成"四个访问器 + 一个写口"：
+    // 读是纯取值、处处可调；写要落到具体那两个视图上，只有真有窗口的宿主给得出（headless 为 null）。
+    IScriptSelectionWriter? SelectionWriter { get; }
 }
 
 internal static class EditorStateExtensions
@@ -37,6 +41,9 @@ internal static class EditorStateExtensions
 
     public static Func<ScriptSelection?>? Selection(this CommandContext ctx)
         => ctx.EditorState is { } s ? () => s.Selection : null;
+
+    // 选区写口：没有编辑器态就是 null，脚本面据此如实报"这里没有编辑器"。
+    public static IScriptSelectionWriter? SelectionWriter(this CommandContext ctx) => ctx.EditorState?.SelectionWriter;
 
     public static Func<ScriptPianoSelection?>? PianoSelection(this CommandContext ctx)
         => ctx.EditorState is { } s ? () => s.PianoSelection : null;

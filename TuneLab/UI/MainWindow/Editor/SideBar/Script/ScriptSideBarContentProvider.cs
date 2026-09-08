@@ -38,6 +38,8 @@ internal sealed class ScriptSideBarContentProvider
     public void SetQuantizationProvider(Func<IQuantization?> provider) => mQuantization = provider;
     public void SetSelectionProvider(Func<ScriptSelection?> provider) => mSelection = provider;
     public void SetPianoSelectionProvider(Func<ScriptPianoSelection?> provider) => mPianoSelection = provider;
+    // 范围选区的写口（tl.setTrackSelection 等）：侧栏里跑的脚本与 agent / CLI 跑的是同一份能力。
+    public void SetSelectionWriter(IScriptSelectionWriter writer) => mSelectionWriter = writer;
 
     readonly DockPanel mRoot = new() { LastChildFill = true, Background = Style.INTERFACE.ToBrush() };
     readonly TextEditor mCodeBox;
@@ -52,6 +54,7 @@ internal sealed class ScriptSideBarContentProvider
     Func<IQuantization?>? mQuantization;
     Func<ScriptSelection?>? mSelection;
     Func<ScriptPianoSelection?>? mPianoSelection;
+    IScriptSelectionWriter? mSelectionWriter;
 
     // 脚本库管理：顶部一行 = 左侧脚本选择钮（点开下拉，列库内脚本、行内 ✕ 删除，仿 Agent 会话下拉）+ 右侧 ⋯ 菜单
     // （打开/导入/保存/另存/重命名，仿 Properties 的 preset ⋯ 收起范式）。脚本以 .js 文件存于 PathManager.ScriptsFolder，
@@ -318,7 +321,7 @@ internal sealed class ScriptSideBarContentProvider
         }
 
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs); }
+        try { result = ScriptRunner.Run(project, mCurrentPart, mQuantization, lang, mSelection, mPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs, selectionWriter: mSelectionWriter); }
         catch (Exception ex) { mOutputBox.Text = "Host error: ".Tr(this) + ex.Message; return; }
 
         var sb = new System.Text.StringBuilder();

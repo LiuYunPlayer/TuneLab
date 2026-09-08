@@ -60,6 +60,66 @@ internal sealed class ScriptApp
     // 与 selection()（编排区 tick×轨道）正交且独立并存：本接口只有时间维，脚本据其圈出当前 part 里"这段时间"批量处理。
     public ScriptPianoSelection? PianoSelection() => mContext.PianoSelection;
 
+    // ── 范围选区的写入（与上面那两条读对偶） ──
+    // 【为什么在 tl 上】选区是编辑器态、不入工程，与 currentPart() / playhead() 同族。
+    // 没有编辑器的进程（headless / 探测沙箱）里如实报错，而不是静默无效——后者会让脚本以为选上了。
+    // 写入与读取同一口径：轨道号 1-based 含两端、tick 绝对。区域会连带把落在里面的 part 与跨到的
+    // 轨道设为选中（与用户在编排区拖出选区完全一致，故编排区的复制/删除随后作用于它们）。
+    public void SetTrackSelection(double startTick, double endTick, int startTrackNumber, int endTrackNumber)
+    {
+        var writer = RequireSelectionWriter();
+        if (endTick <= startTick)
+            throw new ScriptApiException("endTick must be greater than startTick.");
+        if (startTrackNumber < 1 || endTrackNumber < startTrackNumber)
+            throw new ScriptApiException("track numbers are 1-based and endTrackNumber must be >= startTrackNumber.");
+        int count = mContext.Project.Tracks.Count;
+        if (endTrackNumber > count)
+            throw new ScriptApiException(string.Format("endTrackNumber {0} is past the last track (the project has {1}).", endTrackNumber, count));
+
+        mContext.EnsureWritable();
+        mContext.CaptureTrackSelection();
+        writer.SetTrackSelection(startTick, endTick, startTrackNumber, endTrackNumber);
+        mContext.Bump();
+    }
+
+    public void ClearTrackSelection()
+    {
+        var writer = RequireSelectionWriter();
+        mContext.EnsureWritable();
+        mContext.CaptureTrackSelection();
+        writer.ClearTrackSelection();
+        mContext.Bump();
+    }
+
+    // 钢琴窗的 tick 带：作用于当前打开的那个 part，故没开 part 时报错（没有可圈的地方）。
+    public void SetPianoSelection(double startTick, double endTick)
+    {
+        var writer = RequireSelectionWriter();
+        if (endTick <= startTick)
+            throw new ScriptApiException("endTick must be greater than startTick.");
+        if (mContext.CurrentMidiPart == null)
+            throw new ScriptApiException("no part is open in the piano roll, so there is no place to put a piano selection.");
+
+        mContext.EnsureWritable();
+        mContext.CapturePianoSelection();
+        writer.SetPianoSelection(startTick, endTick);
+        mContext.Bump();
+    }
+
+    public void ClearPianoSelection()
+    {
+        var writer = RequireSelectionWriter();
+        mContext.EnsureWritable();
+        mContext.CapturePianoSelection();
+        writer.ClearPianoSelection();
+        mContext.Bump();
+    }
+
+    IScriptSelectionWriter RequireSelectionWriter()
+        => mContext.SelectionWriter ?? throw new ScriptApiException(
+            "there is no editor in this process, so there is no range selection to set (this runs headless). "
+            + "Range selections are editor state: they exist only while a window is open.");
+
     public ScriptPlayhead Playhead()
     {
         double sec = AudioEngine.CurrentTime;
@@ -148,7 +208,7 @@ internal sealed class ScriptProject(ScriptContext ctx)
     {
         var trackInfo = info is null || info.IsUndefined() || info.IsNull()
             ? new TrackInfo()
-            : ScriptInfo.ReadTrackInfo(info);
+            : ScriptInfo.ReadTrackInfo(info, ctx.Project);
         ctx.EnsureWritable();
         var track = ctx.Project.CreateTrack(trackInfo);
         ctx.Project.InsertTrack(ClampTrackIndex(index), track);

@@ -68,10 +68,12 @@ internal static class ScriptRunner
     // inputs：工具脚本（定义了 getScriptInfo）的入参值，作为对象传给 main(inputs)；普通脚本与无入参脚本传空对象即忽略。
     // preview=true：无论成功与否都原子回退（不落地），但 ScriptRunResult.Changes 仍报"本会改动的数量"——供分级授权的
     // 只读建议/需确认预览用（跑一遍看会改什么、干净回退）。见 docs §3。
-    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null, bool preview = false)
+    // selectionWriter：范围选区的写口（tl.setTrackSelection 等）。**只有 Run 收它**——求 schema / 枚举
+    // 元数据那两条路只读，不该能改用户的选区。没有编辑器的进程传 null，那几个 tl 方法据此如实报错。
+    public static ScriptRunResult Run(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, ScriptLimits limits, string code, CancellationToken cancellationToken, PropertyObject? inputs = null, bool preview = false, IScriptSelectionWriter? selectionWriter = null)
     {
         // 写守卫不在入口、而下沉到首次写入（ScriptContext.EnsureWritable）：只读脚本即便在用户操作中途也畅通，只拦写。
-        var context = new ScriptContext(project, currentPart, quantization, language, selection, pianoSelection);
+        var context = new ScriptContext(project, currentPart, quantization, language, selection, pianoSelection, selectionWriter);
         var output = new StringBuilder();
         string? resultText = null;
         string? error = null;

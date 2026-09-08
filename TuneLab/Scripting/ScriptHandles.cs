@@ -77,6 +77,15 @@ internal sealed class ScriptNote(ScriptContext ctx, INote note)
         get => N.Pronunciation.Value;
         set { var n = W; ctx.EnsureBracket(n.Part); n.Pronunciation.Set(value ?? string.Empty); ctx.Bump(); }
     }
+    // 选中态（用户在界面上选中了它）。**编辑器态，不是工程数据**：不随工程保存、不入撤销栈
+    // （提交后按 Ctrl+Z 不会把"选中了什么"退回），但脚本出错 / preview 会还原（同导出设置，见 ScriptContext）。
+    // 用它把"我改了/我怀疑的这些"交到用户眼前——那是外部驱动最需要而从前只能读不能写的一件事。
+    public bool IsSelected
+    {
+        get => N.IsSelected;
+        set { var n = W; ctx.EnsureWritable(); ctx.CaptureSelection(n); n.IsSelected = value; ctx.Bump(); }
+    }
+
     public string PitchName => MusicTheory.PitchName(N.Pitch.Value);                 // 只读，如 "C4"
 
     // 本 note 的完整快照（纯数据 JS 对象；改它不动工程）。喂 part.addNote(info) 即复制出一个新 note。
@@ -327,6 +336,15 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
     public double Dur => P.Dur;               // 只读派生 = endOffset - startOffset
     public string Type => P is IMidiPart ? "midi" : "audio";
 
+    // 选中态（用户在界面上选中了它）。**编辑器态，不是工程数据**：不随工程保存、不入撤销栈
+    // （提交后按 Ctrl+Z 不会把"选中了什么"退回），但脚本出错 / preview 会还原（同导出设置，见 ScriptContext）。
+    // 用它把"我改了/我怀疑的这些"交到用户眼前——那是外部驱动最需要而从前只能读不能写的一件事。
+    public bool IsSelected
+    {
+        get => P.IsSelected;
+        set { var p = W; ctx.EnsureWritable(); ctx.CaptureSelection(p); p.IsSelected = value; ctx.Bump(); }
+    }
+
     // 本 part 的完整快照（纯数据 JS 对象，含音源 / 音符 / 曲线 / 颤音 / effect 链 / 两级属性 / 音素）。
     // 喂 track.addPart(info) 即整段复制——保真由数据层的序列化路径保证，本方法一个字段都不碰。
     public JsValue GetInfo() => ScriptInfo.ToJs(ctx.Engine, P.GetInfo());
@@ -398,6 +416,34 @@ internal sealed class ScriptPart(ScriptContext ctx, IPart part)
 
     // 钢琴窗里用户当前选中的音符；无选中返回空数组。
     public ScriptNote[] SelectedNotes() => Midi.Notes.AllSelectedItems().Select(ctx.WrapNote).ToArray();
+
+    // **只选这些音符**：本 part 内其余一律取消。传空数组 = 本 part 全不选。
+    // 【为什么除了 isSelected 还要这一条】"把这几个音符选给用户看"是外部最常要的形状，而逐个写
+    // isSelected 时脚本得自己先把其余取消——漏掉就变成"在用户原有的选中上又加了几个"，那不是它想说的话。
+    // 通知按集合合并（同界面的全选/全不选），故几百个音符也只惊动界面一次。
+    public void SelectNotes(JsValue notes)
+    {
+        var midi = MidiW;
+        var picked = ScriptArgs.ReadArray(notes, "notes", v => v.ToObject() as ScriptNote
+            ?? throw new ScriptApiException("selectNotes takes an array of note handles (e.g. part.notes() or part.selectedNotes())."));
+        foreach (var handle in picked)
+        {
+            if (handle.Note.Part != midi)
+                throw new ScriptApiException("selectNotes can only select notes of this part; that note belongs to another one.");
+        }
+
+        ctx.EnsureWritable();
+        midi.Notes.SelectionChanged.BeginMerge();
+        foreach (var note in midi.Notes)
+        {
+            ctx.CaptureSelection(note);
+            note.IsSelected = false;
+        }
+        foreach (var handle in picked)
+            handle.Note.IsSelected = true;
+        midi.Notes.SelectionChanged.EndMerge();
+        ctx.Bump();
+    }
 
     // 按完整 note info 新建一个音符并插入（新身份，同一份 info 可落地任意多次）。
     // info: {pos, dur, pitch, lyric?, pronunciation?, properties?, leadingPhonemes?, bodyPhonemes?, bodyOffset?}，pos 绝对 tick。
@@ -802,6 +848,15 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
     // 轨色（十六进制串，如 "#FF8800"；空串 = 用主题默认色）。
     public string Color { get => T.Color.Value; set => Set(t => t.Color.Set(value ?? string.Empty)); }
 
+    // 选中态（用户在界面上选中了它）。**编辑器态，不是工程数据**：不随工程保存、不入撤销栈
+    // （提交后按 Ctrl+Z 不会把"选中了什么"退回），但脚本出错 / preview 会还原（同导出设置，见 ScriptContext）。
+    // 用它把"我改了/我怀疑的这些"交到用户眼前——那是外部驱动最需要而从前只能读不能写的一件事。
+    public bool IsSelected
+    {
+        get => T.IsSelected;
+        set { var t = W; ctx.EnsureWritable(); ctx.CaptureSelection(t); t.IsSelected = value; ctx.Bump(); }
+    }
+
     // ── 逐轨导出设置（与工程级的 project.exportPath 等同族） ──
     // 【设置项、不入撤销栈】：与导出侧栏里勾选一致，改完按 Ctrl+Z 不会退回；但脚本出错 / preview 会还原
     // （ScriptContext 写前留底）。故它们也【不在】track.getInfo() 里——复制一条轨不带导出开关。
@@ -841,7 +896,7 @@ internal sealed class ScriptTrack(ScriptContext ctx, ITrack track)
     public ScriptPart AddPart(JsValue info)
     {
         var t = W;
-        var partInfo = ScriptInfo.ReadPartInfo(info);
+        var partInfo = ScriptInfo.ReadPartInfo(info, ctx.Project);
         if (partInfo.Pos + partInfo.StartOffset < 0) throw new ScriptApiException("a part's start (pos + startOffset) must be >= 0.");
         ctx.EnsureWritable();
         var part = t.CreatePart(partInfo);

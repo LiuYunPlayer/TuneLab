@@ -5,6 +5,7 @@ using Jint;
 using Jint.Native;
 using Jint.Native.Array;
 using Jint.Native.Object;
+using TuneLab.Audio;
 using TuneLab.Data;
 using TuneLab.Foundation;
 using TuneLab.SDK;
@@ -41,7 +42,7 @@ internal static class ScriptInfo
     // 而是"一次导出动作的参数"——它在数据层是普通属性、写它不入撤销栈，混进脚本面就会破掉脚本最值钱的性质
     // （整段脚本 = 一个可撤销单位；出错与 preview 原子回退）。agent 要改导出设置走【工具面】（export_project），
     // 那里不可撤销这件事能在授权闸门上让用户看见。故脚本复制一条轨时导出开关落默认值，不跟随源轨。
-    public static TrackInfo ReadTrackInfo(JsValue value)
+    public static TrackInfo ReadTrackInfo(JsValue value, IProject project)
     {
         var o = ScriptArgs.Obj(value, "track info");
         var info = new TrackInfo
@@ -55,12 +56,12 @@ internal static class ScriptInfo
             Color = ScriptArgs.OptStr(o, "color") ?? string.Empty,
         };
         if (ScriptArgs.Has(o, "parts", out var parts))
-            info.Parts = ScriptArgs.ReadArray(parts, "parts", ReadPartInfo);
+            info.Parts = ScriptArgs.ReadArray(parts, "parts", v => ReadPartInfo(v, project));
         return info;
     }
 
     // type 判别 midi / audio（缺省 midi）。PartInfo 是抽象类，两个子型字段不交叠，故必须先定型再读。
-    public static PartInfo ReadPartInfo(JsValue value)
+    public static PartInfo ReadPartInfo(JsValue value, IProject project)
     {
         var o = ScriptArgs.Obj(value, "part info");
         string type = ScriptArgs.OptStr(o, "type") ?? "midi";
@@ -76,6 +77,19 @@ internal static class ScriptInfo
         info.Pos = ScriptArgs.OptNum(o, "pos") ?? 0;
         info.StartOffset = ScriptArgs.OptNum(o, "startOffset") ?? 0;
         info.EndOffset = ScriptArgs.OptNum(o, "endOffset") ?? 0;
+        // 音频 part 没给 endOffset 时按【音频文件本身的时长】补——与界面「导入音频」算的是同一个量
+        // （秒 → tick 要过 pos 处的曲速）。少了这一步，脚本根本没法导入音频：它读不到文件时长，而
+        // 长度非正会被下面那条挡住，于是只能瞎猜一个长度。读不出时长（文件不在 / 格式不支持 / 本进程
+        // 没有解码器）就报错，而不是落一个空 part 让用户对着一段不响的音频找原因。
+        if (info is AudioPartInfo audioInfo && !ScriptArgs.Has(o, "endOffset", out _))
+        {
+            if (!AudioUtils.TryGetAudioInfo(audioInfo.Path, out var audio))
+                throw new ScriptApiException(string.Format(
+                    "cannot read the audio file \"{0}\", so the part's length is unknown. Check the path, or give an explicit endOffset.",
+                    audioInfo.Path));
+            double startTime = project.TempoManager.GetTime(info.Pos);
+            info.EndOffset = project.TempoManager.GetTick(startTime + audio.duration) - info.Pos;
+        }
         if (info.EndOffset <= info.StartOffset)
             throw new ScriptApiException("part info endOffset must be greater than startOffset (the part would have zero or negative length).");
         return info;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using TuneLab.Data;
@@ -725,5 +725,87 @@ public class ScriptApiSurfaceTests
         Assert.Contains("snapshotOrder=t2,t1", output);
         Assert.Contains("projectOrder=t1,t2", output);
         Assert.Equal("t1", project.Tracks[0].Name.Value);
+    }
+
+    // ── 选中写入（issue #150 的后续项：把“我改了哪些”交到用户眼前） ──
+
+    [Fact]
+    public void SelectNotesSelectsExactlyThoseAndDeselectsTheRest()
+    {
+        var project = (IProject)SampleDocument().Project!;
+        var (output, _) = Run(project, """
+            const part = tl.currentProject().tracks()[0].parts()[0];
+            const notes = part.notes();
+            notes[0].isSelected = true;
+            notes[1].isSelected = true;
+            print("byField=" + part.selectedNotes().length);
+            part.selectNotes([notes[2]]);
+            print("exactly=" + part.selectedNotes().map(n => n.lyric).join(","));
+            part.selectNotes([]);
+            print("cleared=" + part.selectedNotes().length);
+            """);
+        Assert.Contains("byField=2", output);
+        Assert.Contains("exactly=mi", output);
+        Assert.Contains("cleared=0", output);
+    }
+
+    // part / track 上的选中同理（编排区那一轴）。
+    [Fact]
+    public void PartAndTrackSelectionAreWritable()
+    {
+        var project = (IProject)SampleDocument().Project!;
+        var (output, _) = Run(project, """
+            const p = tl.currentProject();
+            p.tracks()[0].parts()[0].isSelected = true;
+            p.tracks()[1].isSelected = true;
+            print("parts=" + tl.selectedParts().length + " tracks=" + tl.selectedTracks().length);
+            """);
+        Assert.Contains("parts=1 tracks=1", output);
+        Assert.True(project.Tracks[0].Parts.First().IsSelected);
+        Assert.True(project.Tracks[1].IsSelected);
+    }
+
+    // 选中不入撤销栈，但**出错要还原**（同导出设置的写前留底）：
+    // 这条钩住“整段原子”的那半——跑到一半报错时，用户眼里的选中不应被改成一个中间态。
+    [Fact]
+    public void SelectionIsRestoredWhenTheRunFails()
+    {
+        var document = SampleDocument();
+        var project = (IProject)document.Project!;
+        var first = project.Tracks[0].Parts.First() as IMidiPart;
+        first!.Notes.First().Select();   // 用户原有的选中
+
+        var error = RunExpectingError(project, """
+            const part = tl.currentProject().tracks()[0].parts()[0];
+            part.selectNotes(part.notes());
+            throw new Error("boom");
+            """);
+        Assert.Contains("boom", error);
+        Assert.Equal(1, first.Notes.AllSelectedItems().Count);
+        Assert.True(first.Notes.First().IsSelected);
+    }
+
+    // 没有编辑器的进程（本测试就是）里，范围选区无处可写 → 如实报错，
+    // 而不是静默无效（那会让脚本以为选上了）。
+    [Fact]
+    public void RangeSelectionWritesSayThereIsNoEditorInsteadOfDoingNothing()
+    {
+        var project = (IProject)SampleDocument().Project!;
+        var error = RunExpectingError(project, "tl.setTrackSelection(0, 480, 1, 1);");
+        Assert.Contains("no editor in this process", error);
+    }
+
+    // 音频 part 不给 endOffset 时长度取文件时长；读不出来就**报错**而不是落一个
+    // 零长度的空 part——后者会让用户对着一段不响的音频找原因。（本测试进程没装解码器，
+    // 故任何路径都读不出时长——正好验这条错路径的措辞。）
+    [Fact]
+    public void AudioPartWithoutLengthSaysItCannotReadTheFile()
+    {
+        var project = (IProject)SampleDocument().Project!;
+        var error = RunExpectingError(project, """
+            tl.currentProject().tracks()[1].addPart({ type: "audio", path: "C:/nope/not-a-real.wav", pos: 0 });
+            """);
+        Assert.Contains("cannot read the audio file", error);
+        Assert.Contains("not-a-real.wav", error);
     }
 }

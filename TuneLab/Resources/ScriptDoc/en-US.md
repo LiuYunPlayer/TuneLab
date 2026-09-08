@@ -80,8 +80,19 @@ Editor-level entry points — a system constant, the current project, and the ed
 | `tl.selectedTracks()` | `[track]` | The currently selected tracks (multi-select); empty when none. Right-clicking a track header or an empty lane always selects that track, so this is the target entry point for `track` / `trackContent` tool scripts. |
 | `tl.trackSelection()` | `{startTick, endTick, startTrackNumber, endTrackNumber} \| null` | The arrangement **range selection** — a tick×track area dragged out in the arranger (Shift+drag); track numbers 1-based and contiguous; `null` when there is none. **Orthogonal** to `selectedParts`/`selectedNotes` (selected *objects*): it marks a *place*, not objects, so use it to bulk-process whatever falls inside. |
 | `tl.pianoSelection()` | `{startTick, endTick} \| null` | The piano-editor **range selection** — a tick band dragged out in the piano window (note area or parameter lane) via Shift+drag, within the current part and spanning all pitches; time-only (no track, no pitch); `null` when there is none. Coexists independently with `trackSelection()`; use it to bulk-process whatever falls in that time span of the current part. |
+| `tl.setTrackSelection(startTick, endTick, startTrackNumber, endTrackNumber)` | — | **Set** the arrangement range selection; track numbers 1-based and inclusive (the shape you read back). Like dragging one out by hand, it also selects the parts inside it and the tracks it spans. |
+| `tl.clearTrackSelection()` | — | Drop the arrangement range selection. |
+| `tl.setPianoSelection(startTick, endTick)` | — | **Set** the piano-editor range selection (a tick band in the part open there; **throws** if no part is open). |
+| `tl.clearPianoSelection()` | — | Drop the piano range selection. |
 | `tl.playhead()` | `{tick, seconds, bar, beat, playing}` | Playhead position (bar/beat are 1-based). |
 | `tl.snap(tick)` | number | Snap an absolute tick to the editor's grid. |
+
+> **Selection is editor state, not project data** — the two range selections above and the `isSelected` field on
+> `note` / `part` / `track` alike. Assigning it does **not** go on the undo stack (`Ctrl+Z` will not bring the old
+> selection back), exactly like clicking around in the editor; a **failed or previewed** run still restores it, so
+> "the whole run is atomic" still holds. Use it to put what you changed — or what you suspect — in front of the user.
+> A **headless** process has no editor, so the four setters above **throw** there (the `isSelected` fields still
+> work: those are flags on the data objects).
 
 ---
 
@@ -131,7 +142,7 @@ This family is on the script surface precisely so that "run a script that sets e
 
 ## `track`
 
-**Fields** (bare properties, read/write): `name`, `isMute`, `isSolo`, `gain` (in dB, 0 = unity), `pan` ([-1, 1]), `asRefer` (whether other sound sources may "hear" this track as a reference), `color` (hex string like `"#FF8800"`; empty = theme default).
+**Fields** (bare properties, read/write): `name`, `isMute`, `isSolo`, `gain` (in dB, 0 = unity), `pan` ([-1, 1]), `asRefer` (whether other sound sources may "hear" this track as a reference), `color` (hex string like `"#FF8800"`; empty = theme default), `isSelected` (selected in the UI — editor state, see the note under `tl`).
 
 **Export settings** (read/write): `exportEnabled` (include this track when exporting), `exportChannels` (1 = mono, 2 = stereo). These are **settings** — see the note in the `project` section: they do not go on the undo stack.
 
@@ -139,7 +150,7 @@ This family is on the script surface precisely so that "run a script that sets e
 |---|---|---|
 | `track.getInfo()` | info | A full snapshot of this track (pure data): `{name, gain, pan, mute, solo, asRefer, color, parts:[part info]}`. Feed it to `project.addTrack(info)` to duplicate the whole track. The export switches are **deliberately not included** — they are settings, not part of the track's content, so a duplicated track gets the defaults (copy them explicitly with `dst.exportEnabled = src.exportEnabled` if you want them carried over). |
 | `track.parts()` | `[part]` | All part handles on this track (sorted by start). |
-| `track.addPart(info)` | `part` | Create a part from a part info (geometry below, plus the midi/audio content fields), returns its handle. |
+| `track.addPart(info)` | `part` | Create a part from a part info (geometry below, plus the midi/audio content fields), returns its handle. **Audio:** `{type:"audio", path, pos}` is enough — leave `endOffset` out and the length comes from the audio file itself (the same number the UI computes when you import audio). An unreadable path **throws** instead of leaving a silent empty part. |
 | `track.insertPart(part)` | — | Put a **detached** part on this track — the track **may be a different one**, which is how you **move a part across tracks** (identity preserved, so its sound source/notes/curves/effects/phonemes travel with it). |
 | `track.removePart(part)` | `part` | Detach the part from this track and hand its (now detached) handle back: don't put it back = delete; put it on another track = move. |
 
@@ -168,7 +179,7 @@ Content outside `[startPos, endPos)` still exists but is **cropped out** (not pl
 
 So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endOffset: 1920 })`.
 
-**Other fields** (read/write): `name`, `gain` (dB, part-level, adds to the track's); **read-only**: `type` (`"midi"`/`"audio"`).
+**Other fields** (read/write): `name`, `gain` (dB, part-level, adds to the track's), `isSelected` (selected in the arrangement — editor state, see the note under `tl`); **read-only**: `type` (`"midi"`/`"audio"`).
 
 | Method | Returns | Notes |
 |---|---|---|
@@ -178,6 +189,7 @@ So "an empty part covering ticks 1920..3840" is `track.addPart({ pos: 1920, endO
 | `part.setSoundSource({kind, type, id})` | — | Switch the part's sound source (`kind` = `"voice"` (default) or `"instrument"`; `type`/`id` from `list_sound_sources`). An unknown source errors rather than silently clearing; empty `type`+`id` clears it to no source. MIDI parts only. |
 | `part.notes()` | `[note]` | All note handles in this MIDI part. |
 | `part.selectedNotes()` | `[note]` | Notes currently selected in the piano editor (empty if none). |
+| `part.selectNotes(notes)` | — | Select **exactly** these notes: everything else in this part gets deselected (`[]` = deselect all). Prefer it over assigning `note.isSelected` one by one — that leaves the user's previous selection in place, so yours only adds to it. The notes must belong to this part. |
 | `part.addNote(info)` | `note` | Add a note from a note info: `{pos, dur, pitch, lyric?, pronunciation?, properties?, leadingPhonemes?, bodyPhonemes?, bodyOffset?}` (pos absolute ticks, pitch MIDI). Returns its handle. |
 | `part.insertNote(note)` | — | Put a **detached** note back on this part (identity preserved). A note belongs to the part it was created on and can't change parent — for another part use `otherPart.addNote(n.getInfo())`. |
 | `part.removeNote(note)` | `note` | Detach the note from this part and hand its (now detached) handle back: don't put it back = delete. |
@@ -228,7 +240,7 @@ for (const id of p.automationIds()) {
 
 ## `note`
 
-**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`; **read-only**: `pitchName` (e.g. `"C4"`), `hasLockedPhonemes` (bool). `pronunciation` is an explicit voice pronunciation override — set it to force a pronunciation; an empty string means no override, so the lyric text itself reaches the engine and the engine does its own G2P. (Whether entering a lyric auto-fills this field with editor G2P is the `AutoGeneratePronunciation` setting.) `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-locks).
+**Fields** (bare properties, read/write): `pos`, `dur`, `pitch`, `lyric`, `pronunciation`, `isSelected` (selected in the piano editor — editor state, see the note under `tl`); **read-only**: `pitchName` (e.g. `"C4"`), `hasLockedPhonemes` (bool). `pronunciation` is an explicit voice pronunciation override — set it to force a pronunciation; an empty string means no override, so the lyric text itself reaches the engine and the engine does its own G2P. (Whether entering a lyric auto-fills this field with editor G2P is the `AutoGeneratePronunciation` setting.) `bodyOffset` (seconds) is read/write (the leading/body junction offset from the note start; writing it auto-locks).
 
 | Method | Returns | Notes |
 |---|---|---|

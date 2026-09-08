@@ -11,10 +11,12 @@ internal sealed class EditorStateAccess(
     Func<IMidiPart?>? currentPart,
     Func<IQuantization?>? quantization,
     Func<ScriptSelection?>? selection,
-    Func<ScriptPianoSelection?>? pianoSelection) : IEditorStateAccess
+    Func<ScriptPianoSelection?>? pianoSelection,
+    IScriptSelectionWriter? selectionWriter = null) : IEditorStateAccess
 {
     public IMidiPart? CurrentPart => currentPart?.Invoke();
     public IQuantization? Quantization => quantization?.Invoke();
     public ScriptSelection? Selection => selection?.Invoke();
     public ScriptPianoSelection? PianoSelection => pianoSelection?.Invoke();
+    public IScriptSelectionWriter? SelectionWriter => selectionWriter;
 }

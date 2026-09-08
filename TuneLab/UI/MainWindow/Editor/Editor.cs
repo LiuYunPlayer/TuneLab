@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -83,7 +83,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         {
             Project = Project,
             Language = () => TranslationManager.CurrentLanguage.Value,
-            EditorState = new EditorStateAccess(() => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection),
+            EditorState = new EditorStateAccess(() => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection, mSelectionWriter),
             // 界面此刻的状态（走带 / 工具 / 面板 / 焦点面）：`editor status` 与 `action run` 的回报读它。
             // 即发即忘的动作（播放是切换、选工具）靠它才不瞎（见 IEditorStatusAccess）。
             // 形参里有三个同型的 Func<bool>，故一律具名传：错位一个不会编译失败，只会让状态报反。
@@ -103,8 +103,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mScriptSideBarContentProvider.SetQuantizationProvider(() => mPianoWindow.Quantization);
         mScriptSideBarContentProvider.SetSelectionProvider(CurrentScriptSelection);
         mScriptSideBarContentProvider.SetPianoSelectionProvider(CurrentPianoScriptSelection);
+        mScriptSideBarContentProvider.SetSelectionWriter(mSelectionWriter);
         // 用户脚本工具菜单的访问器（顶部 Scripts 菜单 + 各右键菜单共用）：工程随新建/打开切换，故传访问器。
-        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection);
+        ScriptToolMenu.Init(() => Project, () => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection, mSelectionWriter);
         mTrackWindow = new(this);
         mRightSideTabBar = new();
         mRightSideBar = new() { Width = 320 };   // 左缘分隔线由 SideBar 自己画（见其构造）
@@ -588,7 +589,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     // （docs/command-surface.md §5.2：没有编辑器态时要求显式传参、不猜）。这批动词的正解是把**对象**说
     // 清楚——复制哪几个音符 / 哪几个 part、粘到哪个 part 的哪个 tick——那样连"哪个面"都不必问。而能表达
     // 对象引用的地方是脚本 API（那里 note / part 就是对象），不是只能传 id 的动作面。
-    // 脚本面今天缺的正是剪贴板读写与选区写入两样（issue #150 的后续项）；删除与改音高那边已经有了。
+    // 选区写入已经补上（tl.setTrackSelection / part.selectNotes / isSelected，issue #150 的后续项之一）；
+    // 剪贴板则**刻意不暴露**（宿主内部剪贴板不是系统剪贴板，见 docs/action-coverage.md §3），故这批动词
+    // 里只剩 copy/cut/paste 要么在脚本里按对象表达结果、要么请用户自己按键。
     string? EditSurfaceUnavailable()
     {
         if (mTrackWindow.IsKeyboardFocusWithin)
@@ -597,7 +600,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             return mPianoWindow.CanRunEditCommand ? null : "the piano roll is in the middle of an operation (something is being dragged), so it is not taking edit commands right now";
         return "neither the arrangement nor the piano roll has keyboard focus, so this action has nothing to act on — and keyboard focus goes away the moment TuneLab stops being the foreground window, which is the normal state while you drive it from outside. "
             + "These verbs mirror a keypress: they act on whatever is selected in the focused surface. From outside, say the objects explicitly instead — which notes, which parts, into which part at which tick — and that belongs in run_script (tl.*), which needs no focus. "
-            + "run_script can already delete and edit notes and parts; it has no clipboard or selection-writing API yet, so for copy/cut/paste/select-all specifically, ask the user to press the shortcut in TuneLab.";
+            + "run_script can already delete and edit notes and parts, and it can WRITE the selection (note/part/track isSelected, part.selectNotes, tl.setTrackSelection / setPianoSelection) — so \"select these for the user\" needs no focus either. "
+            + "What it deliberately has no API for is the clipboard itself: for copy/cut/paste specifically, either express the outcome as objects in run_script (read the note infos, add them where they should go) or ask the user to press the shortcut in TuneLab.";
     }
 
     // 剪贴板类命令按当前键盘焦点路由到对应编辑面：焦点在编排区→track 动作、在钢琴窗→piano 动作。
@@ -1923,6 +1927,25 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         var sel = mPianoWindow.PianoScrollView.CurrentRegionSelection;
         return sel is { } s ? new ScriptPianoSelection(s.StartTick, s.EndTick) : null;
     }
+
+    // 脚本面写范围选区的那道口子（tl.setTrackSelection 等）。**只做转发**：选区各归两个视图自己持有，
+    // 而只有 Editor 同时够得着它们。1-based 轨道号在这里换成视图的 0-based 行号——与上面读那两个方法
+    // 是同一处边界，故两个方向的口径不会分叉。
+    sealed class ScriptSelectionWriter(Editor editor) : IScriptSelectionWriter
+    {
+        public void SetTrackSelection(double startTick, double endTick, int startTrackNumber, int endTrackNumber)
+            => editor.mTrackWindow.TrackScrollView.SetSelection(new(startTick, endTick, startTrackNumber - 1, endTrackNumber - 1));
+
+        public void ClearTrackSelection() => editor.mTrackWindow.TrackScrollView.ClearSelection();
+
+        public void SetPianoSelection(double startTick, double endTick)
+            => editor.mPianoWindow.PianoScrollView.SetRegionSelection(startTick, endTick);
+
+        public void ClearPianoSelection() => editor.mPianoWindow.PianoScrollView.ClearRegionSelection();
+    }
+
+    // 建得早（三条脚本运行路径都要它），本身无状态、只在被调用时才碰视图。
+    readonly ScriptSelectionWriter mSelectionWriter;
 
     readonly FunctionBar mFunctionBar;
     readonly PianoWindow mPianoWindow;

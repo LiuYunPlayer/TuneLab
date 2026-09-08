@@ -37,14 +37,14 @@ internal static class ScriptWriteExecutor
         async Task<ScriptRunResult> Run(bool preview)
         {
             var r = await ctx.OnMainThread(() => ScriptRunner.Run(project, ctx.CurrentPart(), ctx.Quantization(), ctx.Language,
-                ctx.Selection(), ctx.PianoSelection(), ScriptLimits.Agent, code, cancellationToken, inputs, preview));
+                ctx.Selection(), ctx.PianoSelection(), ScriptLimits.Agent, code, cancellationToken, inputs, preview, ctx.SelectionWriter()));
             int waited = 0;
             while (r.Blocked && waited < MaxWaitMs && !cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(PollMs, cancellationToken);
                 waited += PollMs;
                 r = await ctx.OnMainThread(() => ScriptRunner.Run(project, ctx.CurrentPart(), ctx.Quantization(), ctx.Language,
-                    ctx.Selection(), ctx.PianoSelection(), ScriptLimits.Agent, code, cancellationToken, inputs, preview));
+                    ctx.Selection(), ctx.PianoSelection(), ScriptLimits.Agent, code, cancellationToken, inputs, preview, ctx.SelectionWriter()));
             }
             return r;
         }

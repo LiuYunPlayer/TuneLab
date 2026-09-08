@@ -45,6 +45,9 @@ internal static class ScriptApiReference
         "  tl.selectedTracks()                      [track]  (tracks selected in the track list)\n" +
         "  tl.trackSelection()                      {startTick, endTick, startTrackNumber, endTrackNumber} | null  (the arrangement RANGE selection: a tick×track area the user dragged out; track numbers 1-based, contiguous; null when none. ORTHOGONAL to selectedParts/selectedNotes — it marks a place, not objects, so use it to bulk-process whatever falls inside)\n" +
         "  tl.pianoSelection()                      {startTick, endTick} | null  (the piano-editor RANGE selection: a tick band the user dragged out inside the current part, spanning all pitches; null when none. Time-only — no track/pitch. Coexists independently with tl.trackSelection(); use it to bulk-process whatever falls in that time span of the current part)\n" +
+        "  tl.setTrackSelection(startTick, endTick, startTrackNumber, endTrackNumber)   SET the arrangement range selection (1-based track numbers, inclusive — same shape you read). It also selects the parts inside it and the tracks it spans, exactly like the user dragging one out\n" +
+        "  tl.clearTrackSelection()                 tl.setPianoSelection(startTick, endTick)     tl.clearPianoSelection()   // the piano one applies to the part open in the piano editor (throws if none is)\n" +
+        "  SELECTION IS EDITOR STATE, not project data — for the range selections above and for the isSelected field on note/part/track alike: assigning it does NOT go on the undo stack (Ctrl+Z won't bring the old selection back), though a failed or previewed run still restores it. Use it to put what you changed (or what you suspect) in front of the user. A headless process has no editor, so the four setters above THROW there (the isSelected fields still work — they are flags on the data).\n" +
         "  tl.playhead()                            {tick, seconds, bar, beat, playing}\n" +
         "  tl.snap(tick)                            tick snapped to the editor grid\n" +
         "\n" +
@@ -63,11 +66,11 @@ internal static class ScriptApiReference
         "  These are SETTINGS, not project data: assigning them does NOT go on the undo stack (Ctrl+Z won't put the old export path back), exactly like changing them in the export panel. A failed or previewed run still restores them, so \"the whole run is atomic\" still holds. Writing the audio file itself is the export_project tool, not this.\n" +
         "\n" +
         "track\n" +
-        "  fields (read/write):  name, isMute, isSolo, gain, pan, asRefer, color   // gain in dB (0 = unity); pan in [-1,1]; asRefer = other sound sources may hear this track; color = hex like \"#FF8800\" (empty = theme default)\n" +
+        "  fields (read/write):  name, isMute, isSolo, gain, pan, asRefer, color, isSelected   // gain in dB (0 = unity); pan in [-1,1]; asRefer = other sound sources may hear this track; color = hex like \"#FF8800\" (empty = theme default); isSelected = selected in the UI (editor state, see the note under tl)\n" +
         "  export settings (read/write):  exportEnabled, exportChannels (1 = mono, 2 = stereo)   // SETTINGS, not project data — see the note under `project`\n" +
         "  track.getInfo()                          {name, gain, pan, mute, solo, asRefer, color, parts:[part info]}   // the export switches are deliberately NOT in here (they are settings, not part of the track's content), so a copied track gets the defaults\n" +
         "  track.parts()                            [part]\n" +
-        "  track.addPart(info) -> part              new part from a part info (fields below)\n" +
+        "  track.addPart(info) -> part              new part from a part info (fields below). AUDIO: {type:\"audio\", path, pos} is enough — leave endOffset out and the length comes from the audio file itself (same as importing audio in the UI); an unreadable path throws instead of making a silent empty part\n" +
         "  track.insertPart(part)                   put a DETACHED part on this track — the track may be a DIFFERENT one, which is how you MOVE a part across tracks\n" +
         "  track.removePart(part) -> part           detach it and hand the handle back\n" +
         "\n" +
@@ -88,6 +91,7 @@ internal static class ScriptApiReference
         "  part.setSoundSource({kind, type, id})    switch the part's sound source (kind=\"voice\"(default)|\"instrument\"; type/id from list_sound_sources); unknown source errors; empty type+id clears to none\n" +
         "  part.notes()                             [note]\n" +
         "  part.selectedNotes()                     [note]   (currently selected in the piano editor)\n" +
+        "  part.selectNotes([note, ...])            select EXACTLY these (everything else in this part gets deselected; [] = deselect all). Prefer it over setting note.isSelected one by one — that leaves the user's previous selection in place and yours just adds to it\n" +
         "  part.addNote(info) -> note                info = {pos, dur, pitch, lyric?, pronunciation?, properties?, leadingPhonemes?, bodyPhonemes?, bodyOffset?}\n" +
         "  part.insertNote(note)                     part.removeNote(note) -> note\n" +
         "  // PITCH (its own curve, MIDI scale):\n" +
@@ -115,11 +119,12 @@ internal static class ScriptApiReference
         "  part.insertEffect(effect, index?)               part.removeEffect(effect) -> effect\n" +
         "  part.moveEffect(effect, index)           move an effect to a 0-based position in the chain\n" +
         "  // PART PROPERTIES (voice/instrument-declared per-part params; keys/ranges from list_sound_sources):\n" +
+        "  part.isSelected                          selected in the arrangement (read/write; editor state, see the note under tl)\n" +
         "  part.getProperty(key)                    current value (number/boolean/string), or null if unset\n" +
         "  part.setProperty(key, value)             set one declared part param (value = number/boolean/string)\n" +
         "\n" +
         "note\n" +
-        "  fields (read/write):  pos, dur, pitch, lyric, pronunciation      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = an explicit voice pronunciation override; empty = the lyric text itself reaches the engine, which does its own G2P\n" +
+        "  fields (read/write):  pos, dur, pitch, lyric, pronunciation, isSelected      field (read-only): pitchName  (e.g. \"C4\")   // pronunciation = an explicit voice pronunciation override; empty = the lyric text itself reaches the engine, which does its own G2P\n" +
         "  note.getInfo()                           {pos, dur, pitch, lyric, pronunciation, properties, leadingPhonemes, bodyPhonemes, bodyOffset}\n" +
         "  note.part()                              the part this note is on (read-only)      // vibrato.part() and effect.part() exist too\n" +
         "  // NOTE PROPERTIES (voice/instrument-declared per-note params; keys/ranges from list_sound_sources):\n" +

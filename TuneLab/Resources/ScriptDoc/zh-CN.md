@@ -79,8 +79,17 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `tl.selectedTracks()` | `[track]` | 当前选中的轨（支持多选）；无选中返回空数组。右键轨道头或空白泳道时该轨必被选中，故这是 `track` / `trackContent` 类工具脚本的目标入口。 |
 | `tl.trackSelection()` | `{startTick, endTick, startTrackNumber, endTrackNumber} \| null` | 编排区的**范围选区**——在编排区 Shift+拖 圈出的 tick×轨道矩形；轨道号 1-based、连续区间；无选区时为 `null`。与 `selectedParts`/`selectedNotes`（选中的**对象**）**正交**：它圈的是"一片地方"而非对象，用它批量处理落在区域里的东西。 |
 | `tl.pianoSelection()` | `{startTick, endTick} \| null` | 钢琴窗的**范围选区**——在钢琴窗（音符区或参数区）Shift+拖 圈出的 tick 带，限当前 part、贯穿全音高；只有时间维（无轨道、无音高）；无选区时为 `null`。与 `trackSelection()` 独立并存，用它批量处理当前 part 里落在这段时间内的东西。 |
+| `tl.setTrackSelection(startTick, endTick, startTrackNumber, endTrackNumber)` | — | **设置**编排区范围选区；轨道号 1-based、含两端（与读到的形状一致）。与用户手拖出选区一样，它会连带选中落在里面的 part 与跨到的轨道。 |
+| `tl.clearTrackSelection()` | — | 清掉编排区范围选区。 |
+| `tl.setPianoSelection(startTick, endTick)` | — | **设置**钢琴窗范围选区（当前打开 part 内的一段 tick 带；没开 part 时**报错**）。 |
+| `tl.clearPianoSelection()` | — | 清掉钢琴窗范围选区。 |
 | `tl.playhead()` | `{tick, seconds, bar, beat, playing}` | 播放线位置（bar/beat 为 1-based）。 |
 | `tl.snap(tick)` | number | 把绝对 tick 吸附到编辑器网格。 |
+
+> **选中是编辑器态、不是工程数据**——上面那两个范围选区，以及 `note` / `part` / `track` 上的 `isSelected` 都一样。
+> 写它**不入撤销栈**（`Ctrl+Z` 不会把上一次的选中退回），与你在编辑器里点点选选一致；但脚本**出错或 preview**
+> 时仍会还原，故"整段原子"依然成立。用它把"我改了什么 / 我怀疑什么"交到用户眼前。
+> **headless** 进程没有编辑器，故上面那四个 setter 在那里**报错**（`isSelected` 仍可用：那是数据对象上的标志）。
 
 ---
 
@@ -127,7 +136,7 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 
 ## `track`（轨）
 
-**字段**（裸属性，可读写）：`name`、`isMute`、`isSolo`、`gain`（单位 dB，0 = 原始电平）、`pan`（[-1, 1]）、`asRefer`（是否可被别的音源当参考音轨"听见"）、`color`（十六进制串如 `"#FF8800"`；空串 = 用主题默认色）。
+**字段**（裸属性，可读写）：`name`、`isMute`、`isSolo`、`gain`（单位 dB，0 = 原始电平）、`pan`（[-1, 1]）、`asRefer`（是否可被别的音源当参考音轨"听见"）、`color`（十六进制串如 `"#FF8800"`；空串 = 用主题默认色）、`isSelected`（界面上是否选中——编辑器态，见 `tl` 一节的说明）。
 
 **导出设置**（可读写）：`exportEnabled`（是否导出本轨）、`exportChannels`（1 = 单声道 / 2 = 立体声）。它们是**设置项**，见 `project` 一节的说明——不入撤销栈。
 
@@ -135,7 +144,7 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 |---|---|---|
 | `track.getInfo()` | info | 本轨完整快照（纯数据）：`{name, gain, pan, mute, solo, asRefer, color, parts:[part info]}`。喂 `project.addTrack(info)` 即整轨复制。**刻意不含导出开关**——那是设置项、不属于"轨的内容"，故复制出来的轨其导出开关落默认值（要跟随就显式 `dst.exportEnabled = src.exportEnabled`）。 |
 | `track.parts()` | `[part]` | 本轨所有 part 句柄（按起点排序）。 |
-| `track.addPart(info)` | `part` | 按 part info 在本轨新建一个 part（字段见下节几何 + midi/audio 各自的内容字段），返回其句柄。 |
+| `track.addPart(info)` | `part` | 按 part info 在本轨新建一个 part（字段见下节几何 + midi/audio 各自的内容字段），返回其句柄。**音频**：`{type:"audio", path, pos}` 就够了——不给 `endOffset` 时长度取**音频文件本身的时长**（与界面「导入音频」算的是同一个量）；路径读不出来时**报错**，而不是留下一个不响的空 part。 |
 | `track.insertPart(part)` | — | 把一条**游离** part 插入本轨——目标轨**可以不是它原来那条**，这就是**跨轨迁移**（保持对象身份，音源/音符/曲线/effect/音素整体搬家）。 |
 | `track.removePart(part)` | `part` | 把 part 从本轨摘出，返回其（现已游离的）句柄：不插回 = 删除，插到别的轨 = 移动。 |
 
@@ -164,7 +173,7 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 
 所以"建一个覆盖 tick 1920..3840 的空 part"写作 `track.addPart({ pos: 1920, endOffset: 1920 })`。
 
-**其它字段**（可读写）：`name`、`gain`（dB，part 级增益，与轨级 gain 叠加）；**只读**：`type`（`"midi"`/`"audio"`）。
+**其它字段**（可读写）：`name`、`gain`（dB，part 级增益，与轨级 gain 叠加）、`isSelected`（编排区里是否选中——编辑器态，见 `tl` 一节的说明）；**只读**：`type`（`"midi"`/`"audio"`）。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
@@ -174,6 +183,7 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 | `part.setSoundSource({kind, type, id})` | — | 切换本 part 的音源（`kind` = `"voice"`（默认）或 `"instrument"`；`type`/`id` 取自 `list_sound_sources`）。未知音源会报错而非静默清空；`type`+`id` 皆空则清成无音源。仅 MIDI part。 |
 | `part.notes()` | `[note]` | 本 MIDI part 的所有音符句柄。 |
 | `part.selectedNotes()` | `[note]` | 钢琴窗中当前选中的音符（无选中返回空数组）。 |
+| `part.selectNotes(notes)` | — | **只选这些**音符：本 part 内其余一律取消（传 `[]` = 全不选）。优先用它而不是逐个写 `note.isSelected`——后者会把用户原有的选中留在那儿，你选的只是"又加了几个"。音符必须属于本 part。 |
 | `part.addNote(info)` | `note` | 按 note info 新增音符：`{pos, dur, pitch, lyric?, pronunciation?, properties?, leadingPhonemes?, bodyPhonemes?, bodyOffset?}`（pos 绝对 tick，pitch 为 MIDI），返回其句柄。 |
 | `part.insertNote(note)` | — | 把一个**游离**音符插回本 part（保持身份）。音符归属它被创建时的 part、不能换父，跨 part 请用 `另一个part.addNote(n.getInfo())`。 |
 | `part.removeNote(note)` | `note` | 把音符从本 part 摘出，返回其（现已游离的）句柄：不插回 = 删除。 |
@@ -224,7 +234,7 @@ for (const id of p.automationIds()) {
 
 ## `note`（音符）
 
-**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`；**只读**：`pitchName`（如 `"C4"`）、`hasLockedPhonemes`（bool）。`pronunciation` 是 voice 的显式发音覆盖——非空则强制该发音，空串 = 无覆盖，歌词原文直达引擎、由引擎自行 G2P（录入歌词时是否自动填入编辑器 G2P 结果，取决于 `AutoGeneratePronunciation` 设置）。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动固定音素）。
+**字段**（裸属性，可读写）：`pos`、`dur`、`pitch`、`lyric`、`pronunciation`、`isSelected`（钢琴窗里是否选中——编辑器态，见 `tl` 一节的说明）；**只读**：`pitchName`（如 `"C4"`）、`hasLockedPhonemes`（bool）。`pronunciation` 是 voice 的显式发音覆盖——非空则强制该发音，空串 = 无覆盖，歌词原文直达引擎、由引擎自行 G2P（录入歌词时是否自动填入编辑器 G2P 结果，取决于 `AutoGeneratePronunciation` 设置）。`bodyOffset`（秒）可读写（引导/主体结合线相对 note 头的偏移；写会自动固定音素）。
 
 | 方法 | 返回 | 说明 |
 |---|---|---|

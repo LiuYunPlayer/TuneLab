@@ -24,13 +24,14 @@ public class KeybindingSetCommandTests
     static string Render(JsonObject data) => Command.Render(data, CommandArgs.Empty);
 
     // 「坐在编辑器里」的语境。id 写错之类的错误只有在有命令目录时才谈得上，故那些用例要显式给一个
-    // 编辑器态——四个访问器全给 null 就够（这条命令一个都不读，它只是在场与否的判据）。
+    // 编辑器态——四个访问器与选区写口全给 null 就够（这条命令一个都不读，它只是在场与否的判据）。
     sealed class StubEditorState : IEditorStateAccess
     {
         public TuneLab.Data.IMidiPart? CurrentPart => null;
         public TuneLab.Data.IQuantization? Quantization => null;
         public TuneLab.Scripting.ScriptSelection? Selection => null;
         public TuneLab.Scripting.ScriptPianoSelection? PianoSelection => null;
+        public TuneLab.Scripting.IScriptSelectionWriter? SelectionWriter => null;
     }
 
     static CommandContext WithEditor() => new() { EditorState = new StubEditorState() };

@@ -27,14 +27,16 @@ internal static class ScriptToolMenu
     static Func<IQuantization?>? sQuantization;
     static Func<ScriptSelection?>? sSelection;
     static Func<ScriptPianoSelection?>? sPianoSelection;
+    static IScriptSelectionWriter? sSelectionWriter;
 
-    public static void Init(Func<IProject?> project, Func<IMidiPart?> currentPart, Func<IQuantization?> quantization, Func<ScriptSelection?> selection, Func<ScriptPianoSelection?> pianoSelection)
+    public static void Init(Func<IProject?> project, Func<IMidiPart?> currentPart, Func<IQuantization?> quantization, Func<ScriptSelection?> selection, Func<ScriptPianoSelection?> pianoSelection, IScriptSelectionWriter selectionWriter)
     {
         sProject = project;
         sCurrentPart = currentPart;
         sQuantization = quantization;
         sSelection = selection;
         sPianoSelection = pianoSelection;
+        sSelectionWriter = selectionWriter;
     }
 
     static List<ScriptToolInfo> Discover()
@@ -263,7 +265,7 @@ internal static class ScriptToolMenu
         }
 
         ScriptRunResult result;
-        try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs); }
+        try { result = ScriptRunner.Run(project, sCurrentPart, sQuantization, Lang, sSelection, sPianoSelection, ScriptLimits.Interactive, code, CancellationToken.None, inputs, selectionWriter: sSelectionWriter); }
         catch (Exception ex)
         {
             _ = anchor.ShowMessage("Script".Tr(TC.Menu), "Host error:".Tr(TC.Dialog) + " " + ex.Message);

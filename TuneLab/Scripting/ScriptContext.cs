@@ -33,6 +33,7 @@ internal sealed class ScriptContext
     readonly Func<string?>? mLanguage;
     readonly Func<ScriptSelection?>? mSelection;
     readonly Func<ScriptPianoSelection?>? mPianoSelection;
+    readonly IScriptSelectionWriter? mSelectionWriter;
     readonly Head mStartHead;   // 运行前的撤销锚点（构造时即捕获，早于任何 merge 括号/改动）；出错回退至此
     // 本次运行能否写：构造时取一次 Pushable()。脚本同步跑、运行期用户无法插入新操作，故此值全程不变——
     // 守卫只在"首次写入"时检查它（EnsureWritable），从而只读脚本即便在用户操作中途也畅通，只拦写。
@@ -49,7 +50,7 @@ internal sealed class ScriptContext
     readonly HashSet<IMidiPart> mBracketed = new();
     int mChanges;   // 发生的改动计数（>0 才 Commit）
 
-    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection)
+    public ScriptContext(IProject project, Func<IMidiPart?>? currentPart, Func<IQuantization?>? quantization, Func<string?>? language, Func<ScriptSelection?>? selection, Func<ScriptPianoSelection?>? pianoSelection, IScriptSelectionWriter? selectionWriter = null)
     {
         mProject = project;
         mCurrentPart = currentPart;
@@ -57,6 +58,7 @@ internal sealed class ScriptContext
         mLanguage = language;
         mSelection = selection;
         mPianoSelection = pianoSelection;
+        mSelectionWriter = selectionWriter;
         mStartHead = project.Head;
         mWritable = project.Pushable();
     }
@@ -93,6 +95,34 @@ internal sealed class ScriptContext
     // 把导出路径退回去）。这条区别写进了手册。
     internal void CaptureExportConfig() => mExportBackup ??= mProject.GetExportConfig();
 
+    // 选中态（note / part / track 的 IsSelected）：与导出设置同族的非撤销项，故走同一条"改过才记、
+    // 回退才还原"的路。**逐对象留底**（只记本次真写过的那些），故 part.selectNotes 把其余取消也一并记上。
+    internal void CaptureSelection(ISelectable selectable)
+    {
+        if (!mSelectionBackup.ContainsKey(selectable))
+            mSelectionBackup[selectable] = selectable.IsSelected;
+    }
+
+    // 范围选区的写口（`tl.setTrackSelection` 等）。没有编辑器的进程里为 null——调用方据此如实报错。
+    internal IScriptSelectionWriter? SelectionWriter => mSelectionWriter;
+
+    // 两个范围选区各留一次底（首次写入时）。值本身可为 null（当时没有选区），故"记过了"用单独的标志。
+    internal void CaptureTrackSelection()
+    {
+        if (mTrackSelectionCaptured)
+            return;
+        mTrackSelectionCaptured = true;
+        mTrackSelectionBackup = TrackSelection;
+    }
+
+    internal void CapturePianoSelection()
+    {
+        if (mPianoSelectionCaptured)
+            return;
+        mPianoSelectionCaptured = true;
+        mPianoSelectionBackup = PianoSelection;
+    }
+
     internal void CaptureTrackExport(ITrack track)
     {
         if (!mTrackExportBackup.ContainsKey(track))
@@ -110,10 +140,42 @@ internal sealed class ScriptContext
         }
         mExportBackup = null;
         mTrackExportBackup.Clear();
+        RestoreSelection();
+    }
+
+    void RestoreSelection()
+    {
+        foreach (var kvp in mSelectionBackup)
+            kvp.Key.IsSelected = kvp.Value;
+        mSelectionBackup.Clear();
+
+        if (mTrackSelectionCaptured && mSelectionWriter is { } writer1)
+        {
+            if (mTrackSelectionBackup is { } s)
+                writer1.SetTrackSelection(s.StartTick, s.EndTick, s.StartTrackNumber, s.EndTrackNumber);
+            else
+                writer1.ClearTrackSelection();
+        }
+        if (mPianoSelectionCaptured && mSelectionWriter is { } writer2)
+        {
+            if (mPianoSelectionBackup is { } s)
+                writer2.SetPianoSelection(s.StartTick, s.EndTick);
+            else
+                writer2.ClearPianoSelection();
+        }
+        mTrackSelectionCaptured = false;
+        mPianoSelectionCaptured = false;
+        mTrackSelectionBackup = null;
+        mPianoSelectionBackup = null;
     }
 
     ExportConfigInfo? mExportBackup;
     readonly Dictionary<ITrack, (bool Enabled, int Channels)> mTrackExportBackup = new();
+    readonly Dictionary<ISelectable, bool> mSelectionBackup = new();
+    bool mTrackSelectionCaptured;
+    bool mPianoSelectionCaptured;
+    ScriptSelection? mTrackSelectionBackup;
+    ScriptPianoSelection? mPianoSelectionBackup;
 
     // ── 写收口 ──
     internal void Bump() => mChanges++;
@@ -146,6 +208,9 @@ internal sealed class ScriptContext
             mProject.Commit();
             mExportBackup = null;   // 提交即坐实：设置项不入撤销栈，无需也不该还原
             mTrackExportBackup.Clear();
+            mSelectionBackup.Clear();   // 选中态同理：提交后 Ctrl+Z 不该把"选中了什么"退回
+            mTrackSelectionCaptured = false;
+            mPianoSelectionCaptured = false;
             return true;
         }
         mProject.DiscardTo(mStartHead);
