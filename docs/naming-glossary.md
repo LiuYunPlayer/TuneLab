@@ -35,6 +35,8 @@
 | 让用户挑一条路径（文件**或**文件夹）的控件及其声明 | `PathPicker`（GUI 控件）/ `PathPickerConfig`、`PathPickerTarget`（SDK） | 路径选择 | `PathInput`（旧控件名，已改名）；`FilePicker*`（不准确——同一个控件也选文件夹，Avalonia 那边 `FilePicker*` / `FolderPicker*` 才是分立两族） |
 | 用户在界面上能做的**一次操作**，及其穷尽注册表 | `action`（`EditorAction` / `ActionRegistry` / `ActionKind` / 命令面的 `action list`、`action run`） | 动作 | 别用 `command` 指它（那个词归命令面）；`KeyCommand` 已改名 `KeyBindingEntry`（它现在只是"引用某动作的一条绑定"） |
 | 命令面上一条**外部可调条目**（CLI / agent 工具 / MCP 的同一个末端） | `command`（`ICommand` / `CommandRegistry` / `CommandKind`） | 命令 | 「末端动作」（已改口"末端命令"）；别用 `action` 指它 |
+| 吸附网格的档位（1/16、三连的 1/12…） | `quantization`（`IQuantization` / `QuantizationBase` / `QuantizationDivision` / 动作 id `quantization.*`） | 量化 | 符号面别写 `snap` / `grid`（模型可见的句子里可以用 "the snap grid" 作解释性同位语，如 `editor status` 那行；**符号与 id 一律 quantization**） |
+| 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebar` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
 
 ### 三条边界的说明
 
@@ -43,6 +45,12 @@
 一到，同一个工具面上 command 既指"一条可调命令"又指"一件能做的事"，模型必然猜出第三个名字。裁决：
 **command = 命令面的一条条目**（`action run` 自己就是一条 command），**action = 用户在界面上能做的一次操作**
 （`transport.play`）。`keybinding` 只管手势，措辞里的 command 已全部改成 action。
+
+**中文「动作面」目前指两样东西**（发现于 issue #150 二期，尚未收敛，**别再产出新用法**）：
+`agent-tools.md` / `script-inputs-and-action-surface.md` 里的"单一动作面"说的是**脚本面**（`tl`）——重点在
+"编辑工程只有这一条写通道"；而 issue #150 之后的"动作面"指的是 `ActionRegistry` 那一面（用户在界面上
+够得着的每一件事）。两者是**不同的轴**：前者管工程数据，后者管应用与编辑器自身的状态。新文档里：
+`tl` 那面写**脚本面**、`ActionRegistry` 那面写**动作面**；旧文档的措辞下次动到时顺手改。
 
 **`lock` vs `pin`**：数据层的动作一直叫 `LockPhonemes`，UI 叫"固定笔刷"，只有状态属性 `HasPinnedPhonemes`
 和早期脚本面用了 `pin`。脚本面是模型的操作台，同一范式在那里出现两个动词最伤，故统一到 `lock`

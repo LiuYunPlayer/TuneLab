@@ -88,15 +88,17 @@ public sealed class KeyBindingEntry
 
 | 域 | 含 | 例 |
 |---|---|---|
-| `file` | 工程生命周期 | new / open / save / saveAs / import / export |
+| `file` | 工程生命周期 | new / open / save / saveAs / saveToOriginal /（future: import / export） |
 | `edit` | 撤销重做 + 剪贴板通用动词 | undo / redo / copy / cut / paste / delete / selectAll |
-| `transport` | 走带控制（DAW 惯用语） | play（切换，display "Play/Pause"）/ gotoStart / gotoEnd /（future: stop / record / loop） |
-| `view` | 编辑器视图 | （future: zoom / 面板开关） |
+| `transport` | 走带控制（DAW 惯用语） | play（切换，display "Play/Pause"）/ start / pause（一对终态）/ gotoStart / gotoEnd /（future: record / loop） |
+| `view` | 编辑器视图 | toggleParameterPanel / toggleWaveform（缩放与滚动**刻意不收**，见 command-surface.md §11） |
 | `tool` | 编辑工具选择 | note / pitch / anchor / lock / vibrato |
 | `note` | 音符级操作 | transposeUp/Down / octaveUp/Down |
 | `part` | part 操作 | reopenLast /（future: split / merge …） |
 | `track` | 轨道操作 | （future: add / delete / mute …） |
-| `app` | 应用/窗口级、及无合适域的全局命令（兜底域） | fullscreen /（future: commandPalette / settings） |
+| `sidebar` | 右侧侧栏：开哪个面 / 收起 | showPart / showNote / showAgent / showScript / showExtensions / showExport / hide |
+| `quantization` | 吸附网格档位 | finer / coarser + 18 档终态（叶是分母字面量 `1_12`，由 基数×细分 算出；那 18 条只进动作注册表、不占手势） |
+| `app` | 应用/窗口级、及无合适域的全局命令（兜底域） | fullscreen / manual / settings / minimize / maximize / restoreWindow / openDataFolder / openLog / checkUpdates / about |
 
 > `pitch` **保留给音高曲线参数**，音符移调归 `note`（避免撞义）。
 > 第三方命令用**冒号前缀**与内置 `.` 域区分：脚本 `script:<ScriptName>`（见 §6）；插件（v2 预留）`ext:<包id>.<动作>`。
