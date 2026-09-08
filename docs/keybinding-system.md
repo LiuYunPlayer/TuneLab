@@ -13,8 +13,15 @@
   这些是**操作语义的一部分**（按住即改变进行中操作的行为），不是「命令」，重绑没有意义，也不进注册表。
 - **鼠标 / 滚轮绑定**、**和弦序列**（`Ctrl+K Ctrl+C` 式两击）、**绑定携带参数（args）**——均 v2，见 §10。
 
-> **判据**：一个按键行为是否是「命令」= 它是不是「一次按下触发一次可命名动作」。
+> **判据**：一个按键行为是否是「命令型按键」= 它是不是「一次按下触发一次可命名动作」。
 > 是 → 进注册表、可重绑；否（持续按住改变态、或鼠标手势的一部分）→ 不进。
+
+**与动作注册表的关系（issue #150）**：这里筛出来的是「值得占一个手势」的那批，而**穷尽面**是另一份
+注册表 [ActionRegistry](../TuneLab/Input/ActionRegistry.cs)——"用户在界面上够得着的每一件事"都在那里，
+命令面的 `action list` / `action run` 枚举与触发的是它。本系统只保留手势那一半（作用域 + 默认手势 +
+用户 override + 分发），条目**引用**动作 id。**「可绑」= 在 keymap 里有条目**，不另设布尔标记。
+两个集合的判据不同（筛选 vs 穷尽），合成一份就只能二选一地坏掉：要么设置页被几百条没人想绑的东西
+灌满，要么外部能触发的永远只有能绑键的那二十几条。
 
 ---
 
@@ -26,25 +33,40 @@
 本快捷键系统**不使用**它。）
 
 ```csharp
-// 一个手势 = 单键 + 物理修饰位（Avalonia KeyModifiers）。v1 一命令至多一手势。
+// 一个手势 = 单键 + 物理修饰位（Avalonia KeyModifiers）。v1 一动作至多一手势。
 public readonly record struct KeyBinding(Key Key, KeyModifiers Modifiers = KeyModifiers.None);
 
 public enum KeyScope { Global, Editor, TrackWindow, PianoWindow }
 
-public sealed class KeyCommand
+// 动作本体（穷尽面，TuneLab/Input/EditorAction.cs）：id / 显示名 / 后果分档 / 怎么跑 / 现在跑不跑得动。
+public sealed class EditorAction
 {
     public required string Id;                 // 稳定字符串 id，见 §1.1
     public required Func<string> DisplayName;  // 可翻译（.Tr）
-    public required KeyScope Scope;
-    public KeyBinding? DefaultGesture;         // null = 无默认手势（脚本命令）
+    public required ActionKind Kind;           // AppState / ProjectEdit / Destructive（授权分档）
     public required Action Execute;            // 场景差异在闭包内部按实时状态分支（保留"一键多义"UX）
+    public Func<string?>? Unavailable;         // 返回"为什么现在跑不动"；null = 无条件可用
+    public Func<bool>? Prompts;                // 这一刻触发会不会弹要人应答的模态
+    public string? RunElsewhere;               // 非 null = 不从命令面触发，这句话说该走哪条命令
+}
+
+// keymap 里的一条：引用一条动作，补上手势与分发作用域。有这条 = 那条动作「可绑」。
+public sealed class KeyBindingEntry
+{
+    public required string ActionId;
+    public required KeyScope Scope;
+    public KeyBinding? DefaultGesture;         // null = 无默认手势（脚本动作）
 }
 ```
 
 > **不设外部注入的 KeyContext。** 命令由拥有者（Editor/PianoWindow/MainWindow）注册，`Execute` 闭包
 > 捕获拥有者、**直接读实时状态**——「同一键的场景自适应」（Delete 删锚点/删音符、Ctrl+A 按工具全选、
 > 复制粘贴按范围选区）在闭包内部分支即可，无需把上下文从外部灌进来（单一消费者逻辑内联，不做 bind 糖）。
-> 可用性判定（CanExecute）同理留待有真实消费者（设置页/命令面板禁用态）时再补，v1 不引入。
+> 可用性判定当初留待"有真实消费者"再补，**现在有了**：命令面的 `action run` 从进程外触发，用户看不到
+> "按了没反应"，故判据必须能说出口——`EditorAction.Unavailable` 返回一句原因，`ActionRegistry.Execute`
+> 先问它再跑。判据因此只有一份，键盘、菜单、命令面三条路径的答案一致（原先散在各 `Execute` 里的守卫
+> 已上移）。能与菜单的 `IsEnabled` 同源就同源（撤销/重做共用 `ProjectDocument.Undoable()`）。
+> 手势命中仍然**吞键**（即使动作不可用）——与从前"守卫直接 return、键仍算处理过"逐字等价。
 
 > **实现注**：`KeyBinding` 与 `Avalonia.Input.KeyBinding` 撞名——同时 `using Avalonia.Input` 的文件用
 > `using KeyBinding = TuneLab.GUI.Input.KeyBinding;` 消歧（目标类型化 `new()` 处不受影响）。
@@ -59,7 +81,7 @@ public sealed class KeyCommand
 
 - 分发作用域（Global/Editor/Piano/Track，见 §3）**会变**——`copy` 就从 `piano`/`track` 域合并成了焦点路由的
   `edit.copy`。若当初把作用域写进 id（`piano.copy`），这次合并就得改 id、砸掉用户绑定。故作用域只留在
-  `KeyCommand.Scope` 运行期字段，**绝不进 id**。这也是 VSCode(`editor.action.*`)、Blender(`object.delete`) 的做法。
+  `KeyBindingEntry.Scope` 运行期字段，**绝不进 id**。这也是 VSCode(`editor.action.*`)、Blender(`object.delete`) 的做法。
 - **两级即够**：`域.动作`，不做二级域嵌套（`a.b.动作`）——目前无需要，拍平最可预测。
 
 **域集合（冻结的顶级 key）**：
@@ -180,14 +202,17 @@ Editor）兜底分发。
 ```csharp
 internal static class Keymap
 {
-    // 注册 / 注销：内置命令在启动期一次性 Register；脚本命令随脚本库变动动态增删（§6）。
-    public static void Register(KeyCommand command);
+    // 注册一条【可绑动作】：动作本体进 ActionRegistry，手势与作用域留在这里，两件事一次做完
+    // （故不会出现"注册了动作却忘了让它可绑"的半截状态）。只进穷尽面、不给手势的直接调
+    // ActionRegistry.Register。注销则两边一起消失（脚本没了，用户就够不着它了）。
+    public static void Register(EditorAction action, KeyScope scope, KeyBinding? defaultGesture = null);
     public static void Unregister(string id);
 
     // 生效手势 = 用户 override（若有）否则默认。
     public static KeyBinding? Effective(string id);
 
-    // 分发：在 scope 下按 e 的手势找命中命令并 Execute。命中返回 true（调用方据此置 e.Handled）。
+    // 分发：在 scope 下按 e 的手势找命中的绑定，交 ActionRegistry.Execute 触发那条动作
+    // （可用性判据在那里）。命中返回 true（调用方据此置 e.Handled）。
     public static bool TryHandle(KeyScope scope, KeyEventArgs e);
 
     // 重绑 / 解绑（gesture==null 解绑）；即时落盘（§7）。触发 Changed 事件供菜单/设置页刷新（§5）。
@@ -195,8 +220,7 @@ internal static class Keymap
     public static void ResetToDefault(string id);   // 移除 override
     public static void ResetAll();
 
-    // 首次注册序（设置页排序 + 撞键取胜依据：序小者胜）。
-    public static int OrderOf(string id);
+    // 首次注册序在 ActionRegistry.OrderOf（设置页排序 + 撞键取胜依据：序小者胜）——两处排序共用一份序。
 
     // 交互绑定时的单占用者检测（同 scope，供录制确认改派，§9①）。
     public static string? FindConflict(string id, KeyBinding binding);
@@ -204,7 +228,7 @@ internal static class Keymap
     public static IReadOnlyList<string> SameScopeConflictPeers(string id);
 
     public static event Action? Changed;             // 任何 override 变更后触发
-    public static IReadOnlyCollection<KeyCommand> Commands { get; }
+    public static IReadOnlyCollection<KeyBindingEntry> Bindings { get; }
 }
 ```
 
@@ -219,7 +243,7 @@ gesture) 撞车时索引取注册序最小者**（内建先注册故恒胜、不
 把手势硬编码进菜单，与 `OnKeyDown` 里另一份硬编码天然会漂移。改为：
 
 ```csharp
-public static MenuItem SetCommand(this MenuItem item, string commandId);
+public static MenuItem SetAction(this MenuItem item, string actionId);
 ```
 
 - 菜单**显示手势**实时取 `Keymap.Effective(commandId)`（无绑定则不显示手势）。
@@ -263,7 +287,7 @@ HotKey 分发，阶段 1 暂不迁移（留待阶段 2 菜单统一），其余�
 > **阶段 2 范围**：只迁移主菜单栏的 file/edit 项（`SetShortcut` 的 HotKey 双声明就此消除，file.* 改由
 > Editor.OnKeyDown 经 Keymap 分发，与 undo/redo 同路径）。右键菜单里那些 `SetInputGesture(Key.C, Ctrl)` 是
 > **纯显示提示**（无 HotKey、不造成双分发），且其动作是范围选区专属（`CopyRegion` 等，非 `piano.copy` 的
-> Execute），不宜直接套 `SetCommand`（会连动作一起换掉）。作为后续小项：这些右键菜单每次打开即重建，
+> Execute），不宜直接套 `SetAction`（会连动作一起换掉）。作为后续小项：这些右键菜单每次打开即重建，
 > 届时把 `InputGesture` 就地取 `Keymap.Effective("piano.copy")`（动作不变）即可让提示跟随重绑，无需订阅。
 
 > **迁移中的一处修正**：原 Editor.OnKeyDown 把 `D1..D6` 都当工具键，但只有 5 个工具（Note/Pitch/Anchor/
@@ -277,7 +301,7 @@ HotKey 分发，阶段 1 暂不迁移（留待阶段 2 菜单统一），其余�
 脚本工具由 [ScriptToolMenu](../TuneLab/UI/MainWindow/Editor/ScriptToolMenu.cs) **动态发现**（脚本库随时增删），
 每个工具的元数据来自 `getScriptInfo()`：显示名、`context`、以及快捷键相关的两个**可选**声明 `id` / `defaultGesture`
 （原始声明串由 [ScriptTools](../TuneLab/Scripting/ScriptTools.cs) 忠实透出，校验/解析归 UI 侧 `ScriptToolMenu`）。
-同步在 `SyncKeyCommands` 里做——每次先注销上轮全部脚本命令、再按当前脚本库干净重注册（令默认手势的"空槽"判定
+同步在 `SyncActions` 里做——每次先注销上轮全部脚本动作、再按当前脚本库干净重注册（令默认手势的"空槽"判定
 只对内建 + 本轮已处理脚本可见，先到先得可复现）。
 
 ### 6.1 稳定 id（绑定锚点）
@@ -325,7 +349,7 @@ HotKey 分发，阶段 1 暂不迁移（留待阶段 2 菜单统一），其余�
 
 ### 6.4 注册与孤儿保留
 
-- **动态注册**：随 Scripts 菜单重建（`Editor.Rebuild` → `SyncKeyCommands`；初次建菜单 + 工程就绪 + 脚本目录
+- **动态注册**：随 Scripts 菜单重建（`Editor.Rebuild` → `SyncActions`；初次建菜单 + 工程就绪 + 脚本目录
   文件监视器变更时触发）同步。
 - **孤儿 override 静默保留**：`Keybindings.json` 里指向当前不存在脚本的绑定，照
   [ParameterPinning](../TuneLab/Configs/ParameterPinning.cs)「缺键即不显示、不清理」的范式静默留着（缺 id 不进
@@ -425,6 +449,8 @@ DSL（过重）、纯 JSON 无 GUI（我们要设置页）、Ableton 的控件�
 下列 v2 特性的接口**现在就在 id 空间 / 存储里留好**，届时只加 UI/读取端，不改数据模型：
 
 - **命令面板**（Find Action）：对动态脚本命令的可发现性收益最大，是脚本纳入 v1 的天然延伸。
+  （**动作面已落地**：命令面的 `action list` / `action run` 已经能枚举与触发全部动作，issue #150。
+  界面上的命令面板是另一件事——同一份 `ActionRegistry` 再开一个 GUI 入口。）
 - **keymap 预设导入导出**：迁移场景（用户从别的软件来）。稳定 id + 差量存储已天然支持。
 - **绑定携带 args**：让一命令参数化服务多绑定（届时工具/移调可回收为「一命令 × 多 args」）。
 - **和弦序列**、**多手势 per 命令**、**鼠标绑定**。
@@ -436,7 +462,7 @@ DSL（过重）、纯 JSON 无 GUI（我们要设置页）、Ableton 的控件�
 1. **原语 + 注册表 + 分发器 + 存储**：定义 `KeyBinding/KeyScope/KeyContext/KeyCommand/Keymap`；
    把 §5 表中所有内置命令以「当前手势」注册为默认；各 `OnKeyDown` 改走 `Keymap.TryHandle`。
    **行为零变化**——先验证 parity。
-2. **菜单统一**：`SetCommand` 落地，菜单显示手势改从 `Keymap.Effective` 取，删双声明。
+2. **菜单统一**：`SetAction`（当时叫 SetCommand）落地，菜单显示手势改从 `Keymap.Effective` 取，删双声明。
 3. **脚本命令动态注册**：接 `mRebuildScriptsMenu`，孤儿 override 静默保留。
 4. **设置窗「快捷键」页**：列表 + 录制 + 冲突提示 + 重置。
 5. **文档 + 独立测试文档**：脚本命令专属开发说明；新建独立测试文档，只测本系统受影响范围

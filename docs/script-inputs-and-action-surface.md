@@ -24,7 +24,7 @@
 - **结果**：`ScriptRunResult { Ok, Error, Output, ResultText, Committed, Changes, Blocked }`。
 - **三个运行入口各自直接拼 `ScriptRunner.Run`**：菜单/快捷键（`ScriptToolMenu.Run`，`ScriptLimits.Interactive`）、
   agent（`RunScriptTool`，`ScriptLimits.Agent`）、侧栏手动。
-- **命令注册表**：`Keymap.Register/Rebind`，脚本命令 id=`script:<id或文件名>`，随脚本库同步（`ScriptToolMenu.SyncKeyCommands`）。
+- **动作注册表**：`ActionRegistry` + `Keymap.Register/Rebind`，脚本动作 id=`script:<id或文件名>`，随脚本库同步（`ScriptToolMenu.SyncActions`）。
 
 **范围声明**：本设计**全部是宿主内部改动**——`getInputConfig` 是脚本侧 JS 约定，描述对象 → `ObjectConfig` 的映射在宿主 TuneLab 层完成，
 复用现成的 SDK `ControllerConfigs` 类型（`SliderConfig`/`ComboBoxConfig`/…，不新增 SDK 公共面）。**不触碰冻结的 SDK/Foundation ABI**。

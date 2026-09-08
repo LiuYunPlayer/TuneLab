@@ -1,6 +1,6 @@
-# 命令面 —— 一份末端动作，多个入口（设计）
+# 命令面 —— 一份末端命令，多个入口（设计）
 
-> **目标形状**：TuneLab 的每个可被外部驱动的动作只实现一次（"末端动作"），
+> **目标形状**：TuneLab 的每个可被外部驱动的动作只实现一次（"末端命令"），
 > 上面接多个入口——内置 agent、CLI、MCP server、CI 里的无头进程——都调同一份。
 >
 > 本文承接 [agent-tools.md](agent-tools.md)（现有 26 个工具及其归属判据）与
@@ -15,7 +15,7 @@
 设置/快捷键/路由/扩展设置、探测沙箱。此刻要给外部 agent 开 CLI 和 MCP 两个入口，只有两条路：
 
 - **各自再实现一遍**：三份 handler，必然漂移，且每加一个能力要改三处。
-- **提出一层命令面**：末端动作一份，入口是薄适配器。
+- **提出一层命令面**：末端命令一份，入口是薄适配器。
 
 选后者。代价是一次**对用户不可见的重构**（现有 26 个工具要搬家），收益是此后每个新能力自动出现在
 所有入口上。不做这层，CLI 和 MCP 就是工具面原样抄两遍。
@@ -35,7 +35,7 @@
 | **闸门要 UI 回调** | `ToolAuthorization.AuthorizeAsync(request, confirm, ct)`，`confirm == null` 时保守不做 | 闸门要抽成**按入口注入的策略**。见 §5.1 |
 | **脚本类工具依赖编辑器态** | `mCurrentPartProvider` / `mQuantizationProvider` / `mSelectionProvider` / `mPianoSelectionProvider` | 外部调进来"当前 part"是什么？见 §5.2 |
 | **有一个工具会调模型** | `ListExtensionsTool(SendSideRequestAsync)` —— 补能力位摘要时发旁路请求 | 外部入口没有模型可调，要降级。见 §5.3 |
-| **有一个工具是对话内交互** | `AskUserQuestionTool(RequestUserAnswerAsync)` | 它不是末端动作，是**入口能力**。见 §5.4 |
+| **有一个工具是对话内交互** | `AskUserQuestionTool(RequestUserAnswerAsync)` | 它不是末端命令，是**入口能力**。见 §5.4 |
 | **已经有一个命名管道** | `App.axaml.cs:130` 开 `NamedPipeServerStream("TuneLab")`，`Program.cs:62` 客户端连它——单实例把命令行参数转发给运行中实例 | bridge **另开一个管道**，不要复用。见 §7 |
 | **headless 已有可工作的先例** | `tools/ScreenshotBot/Program.cs` 复用 `TuneLab.Program.InitCoreServices()` + `ConfigureAppCommon()` + `UseHeadless`，数据目录经 `TUNELAB_DATA_DIR` 隔离 | headless 不是新地基，是把它正式化。见 §8 |
 | **沙箱已证明无头合成成立** | `SandboxHost` + `PumpableSynchronizationContext`：无头造工程、挂真音源、离线合成、读回真实音素，全程不碰音频设备 | headless 下"跑完整合成再断言"可行 |
@@ -50,7 +50,7 @@
 | 层 | 符号 | 含义 |
 |---|---|---|
 | 数据层 | `ICommand` / `Command` / `CompositeCommand`（`TuneLab.Hosting.Foundation/Document/`，命名空间 `TuneLab.Foundation`） | 撤销栈里的一次可撤销突变 |
-| 输入层 | `KeyCommand`（`TuneLab/Input/KeyCommand.cs`） | 可绑快捷键的 UI 命令（带 `Execute` UI 委托） |
+| 输入层 | `KeyCommand`（`TuneLab/Input/KeyCommand.cs`；**issue #150 后已拆成** `EditorAction` + `KeyBindingEntry`） | 可绑快捷键的 UI 动作（带 `Execute` UI 委托） |
 
 `Operation` 也不能用——`AutomationRendererOperation.cs` 等处有几十个 UI 鼠标交互状态机类叫 `*Operation`。
 
@@ -58,19 +58,19 @@
 `CommandArgs` / `CommandContext` / `CommandKind`），数据层那一族**前置改名**。
 
 这不是"为腾地方而牺牲精确性"，而是**顺手修正一个既有的命名不精确**：那个 `ICommand` 的全部内容
-就是 `Undo()` / `Redo()` 两个方法——它讲的一直是撤销栈。而"能被入口调用的末端动作"才是 command
+就是 `Undo()` / `Redo()` 两个方法——它讲的一直是撤销栈。而"能被入口调用的末端命令"才是 command
 在 CLI/MCP 语境下的主流含义。
 
 接口改叫 `IDataCommand`——这是**归队而非另起名**：`Document/` 目录里的类名本来就是 `Data*` 一族
 （`IDataList` / `IDataMap` / `IDataObject` / `IDataProperty` / `DataDocument` / `DataObjectList` /
 `SortedDataLinkedList`），`ICommand` / `Command` 恰是少数没带前缀的。限定词取**所属层**，
-于是三个"命令"按层各就各位，与 `KeyCommand` 同范式：
+于是三个"命令"按层各就各位，与输入层那族同范式：
 
 | 符号 | 层 | 含义 |
 |---|---|---|
 | `IDataCommand` | 数据层 | 撤销栈条目：一次可撤销突变 |
-| `KeyCommand` | 输入层 | 可绑快捷键的 UI 命令 |
-| `ICommand` | 宿主入口层 | 末端动作（本文的命令面，占裸名） |
+| `EditorAction` / `KeyBindingEntry` | 输入层 | 一条**动作**，与引用它的一条可绑条目（issue #150 之前合为 `KeyCommand`） |
+| `ICommand` | 宿主入口层 | 末端命令（本文的命令面，占裸名） |
 
 **真冲突的只有 `ICommand` 一个**：`Command` / `CompositeCommand` / `UndoOnlyCommand` /
 `RedoOnlyCommand` 与命令面的 `CommandRegistry` / `CommandResult` / `CommandArgs` 都不重名。
@@ -108,7 +108,7 @@ Push 进撤销栈、参与回放的栈条目，后缀反映的就是这个身份
 ### 3.1 一条命令
 
 ```csharp
-// 一个末端动作：路径 + 参数 schema + 文档 + handler。不含任何入口特有的东西
+// 一个末端命令：路径 + 参数 schema + 文档 + handler。不含任何入口特有的东西
 // （不知道模型、不知道终端、不知道 UI）。
 internal interface ICommand
 {
@@ -285,6 +285,25 @@ internal interface IEditorStateAccess
 | MCP | 协议有 elicitation，但客户端支持面不齐——**先不做**，MCP 侧不暴露 |
 | headless | 不支持，暴露即错误 |
 
+### 5.5 编辑器动作 → 判据下沉，状态随回报走
+
+工程数据那一轴由脚本 API 覆盖，**应用与编辑器自身的状态**（切工具、开合侧栏、播放、缩放、吸附档位…）
+从前外部完全够不着。补法见 issue #150，三条要点：
+
+- **穷尽面是另一份注册表**。`ActionRegistry`（`TuneLab/Input/ActionRegistry.cs`）里是"用户够得着的每一件事"；
+  快捷键表 `Keymap` 只**引用**其中值得占一个手势的那批。两个集合的判据不同——快捷键是筛选，动作面是穷尽
+  ——拿筛选过的集合当穷尽面的真源，结果只会是"要么设置页被几百条没人想绑的东西灌满，要么命令面永远
+  停在那二十几条"。
+- **可用性判据下沉到动作上**。`EditorAction.Unavailable` 返回"为什么现在跑不动"，`ActionRegistry.Execute`
+  先问它再跑。从前这些守卫散在各个 `Execute` 闭包里（没工程就 return、没选中就 return），键盘路径下
+  "按了没反应"用户看得见，而外部触发看不见——那就会回报"已执行"而什么都没发生。
+- **状态读与触发同源**。`action run` 的回报直接带上执行后的编辑器状态（`editor status` 的同一份数据）：
+  动作里有一半是即发即忘的（`transport.play` 是切换，不是"开始播"），没有配套的状态读，这个动作面是瞎的。
+
+`action run` 作为命令恒声明 `CommandKind.Edit`（它可能写，这是唯一诚实的声明），**具体这一次要不要过闸门
+由被触发动作的 `ActionKind` 说**：`AppState` 不过（每次播放都弹确认卡片这个面就没法用了）、`ProjectEdit`
+与 `Destructive` 各占一档 `WriteKind`，措辞把"撤销栈救得回"与"救不回"分开说。
+
 ---
 
 ## 6. 命令树与迁移清单
@@ -292,7 +311,7 @@ internal interface IEditorStateAccess
 ### 6.1 group 划分
 
 9 个 group，noun-first：`project` `script` `docs` `extension` `source` `effect` `setting` `keybinding` `sandbox`
-（后加第 10 个：`app`，见下）
+（搬家之后又加了三个：`app`、`editor`、`action`，见下）
 
 **`app` group（搬家之后新加）**：`app info` 报的是**命令跑在哪个装置里**——版本与构建号、用户数据与
 日志在哪、有没有编辑器、出了问题去哪说。与 `project` 分开是因为工程是用户的文档，这里说的是那一份安装。
@@ -301,6 +320,15 @@ internal interface IEditorStateAccess
 日志相关行 / `list_extensions` 输出 / 最小复现脚本），故三个入口看到的是同一份要求。
 刻意不含扩展清单、设置、工程信息（那是另外三条命令的事），也不含 legacy 兼容层状态
 （`extension list` 已逐包给出 Skipped 与原因）。
+
+**`editor` group（issue #150）**：`editor status` 报**编辑器此刻的界面状态**——在播吗、播到哪、拿着哪支笔、
+参数面板开着没、键盘焦点在哪个编辑面、钢琴窗里开着哪个 part。与另外两条刻意不重叠：`app info` 说的是
+"命令跑在哪一份安装里"，`project status` 说的是用户的**文档**，这里说的是**会话**（不随工程保存，撤销栈里
+也没有它）。它存在的理由是动作面里有一半是即发即忘的，见 §5.5。
+
+**`action` group（issue #150）**：`action list` / `action run` —— 用户在编辑器窗口里能做的事，外部也够得着。
+一条 `action run --id` 而**不是**每个动作一条命令：动作面要穷尽（二期会有几百条），逐动作开命令会立刻
+把工具面撑爆，与脚本层收口工具爆炸是同一个道理。
 
 **故意不塞进普通 group 的三样**（它们和原子命令不是一个物种）：
 
@@ -613,11 +641,14 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
 
 ## 11. 明确不做
 
-- **通用"执行任意 `KeyCommand`"命令**。`Keymap` 每条都带 `Execute`，通用执行器会一口气把
-  已裁定不给 agent 的播放/传输/视野/工具切换全放回来，且那些 `Execute` 是 UI 委托、
-  依赖焦点/选中态、会弹模态框，结果不可预期。命令面是**精准开孔，不是开闸**。
-- **播放/试听**。已裁定：agent 只操作工程数据，播放是实时人在环动作。CLI/MCP 不改变这个判断。
-- **另存为**（选路径是人的决定）；**导出音频**（人在环决定）。
+- ~~**通用"执行任意 `KeyCommand`"命令**~~、~~**播放/试听**~~ —— **已反转（issue #150）**。原判据是
+  "那些 `Execute` 是 UI 委托、依赖焦点/选中态、会弹模态框，结果不可预期"，反转不是因为顾虑消失了，
+  而是三条顾虑各自有了对应的闸（§5.5）：后果分档决定过不过授权（不是"一口气全放回来"）、
+  `Unavailable` 判据把"依赖焦点/选中态"变成一句可回报的原因（不是空跑一趟）、`Prompts` 判据把会弹模态的
+  动作默认拒掉（要显式声明有人在场）。命令面的基调是**全面**：用户能做的事外部都该够得着，够不着的
+  地方要有说得出的理由。
+- **另存为 / 打开**：不禁止，但它们弹的是要人应答的模态，故 `action run` 默认拒绝、要 `allowPrompt`
+  显式说"用户就在机器前"。**导出音频**仍是人在环决定（`project export` 只导工程文件）。
 - **授权的能力维度拆分**（工程编辑/应用配置/磁盘文件）。本期只做入口维度，但形状要容得下它。
 - **MCP elicitation**（客户端支持面不齐）。
 - **并发多连接 / 多窗口寻址**。等有需求。

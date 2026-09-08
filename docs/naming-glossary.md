@@ -33,8 +33,16 @@
 | 引擎对某 note 的音素**表没表态**（"没有音素"也是答案） | `HasPhonemeAnswer`（宿主数据层，显示门控判据） | 表态 | 别拿 `HasPhonemeContent` 当它用 |
 | 不开窗口、只跑宿主逻辑的进程 / 工程 | `headless`（`HeadlessHost` / CLI 的 `--headless` / 探测沙箱的可丢弃工程） | 无头 | 「无界面」「无窗口」（`TuneLab.Setup` 的"无界面安装"是另一回事——静默安装，不在此列） |
 | 让用户挑一条路径（文件**或**文件夹）的控件及其声明 | `PathPicker`（GUI 控件）/ `PathPickerConfig`、`PathPickerTarget`（SDK） | 路径选择 | `PathInput`（旧控件名，已改名）；`FilePicker*`（不准确——同一个控件也选文件夹，Avalonia 那边 `FilePicker*` / `FolderPicker*` 才是分立两族） |
+| 用户在界面上能做的**一次操作**，及其穷尽注册表 | `action`（`EditorAction` / `ActionRegistry` / `ActionKind` / 命令面的 `action list`、`action run`） | 动作 | 别用 `command` 指它（那个词归命令面）；`KeyCommand` 已改名 `KeyBindingEntry`（它现在只是"引用某动作的一条绑定"） |
+| 命令面上一条**外部可调条目**（CLI / agent 工具 / MCP 的同一个末端） | `command`（`ICommand` / `CommandRegistry` / `CommandKind`） | 命令 | 「末端动作」（已改口"末端命令"）；别用 `action` 指它 |
 
 ### 三条边界的说明
+
+**`command` vs `action`**：命令面搬家时把裸名 `Command` 判给了命令面（撤销栈那族改叫 `*UndoCommand`，见
+`command-surface.md` §2），而快捷键系统那边一直把"用户能做的一件事"叫 `KeyCommand`。动作面（issue #150）
+一到，同一个工具面上 command 既指"一条可调命令"又指"一件能做的事"，模型必然猜出第三个名字。裁决：
+**command = 命令面的一条条目**（`action run` 自己就是一条 command），**action = 用户在界面上能做的一次操作**
+（`transport.play`）。`keybinding` 只管手势，措辞里的 command 已全部改成 action。
 
 **`lock` vs `pin`**：数据层的动作一直叫 `LockPhonemes`，UI 叫"固定笔刷"，只有状态属性 `HasPinnedPhonemes`
 和早期脚本面用了 `pin`。脚本面是模型的操作台，同一范式在那里出现两个动词最伤，故统一到 `lock`

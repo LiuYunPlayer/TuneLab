@@ -187,7 +187,7 @@ RunScriptTool (Agent 层，薄) ──► ScriptRunner ──► Jint 引擎 + �
 
 ### 快捷键（`list_keybindings` / `set_keybinding`）
 
-同一范式（一个数据源 `Keymap` + 一个闸门），并补上诉求 1 的最后一环——「帮我做个功能**并绑个快捷键**」现在能一路做完：`save_script` 存下的工具脚本由脚本目录监视器同步成命令 `script:<稳定 id>`（`ScriptToolMenu.SyncKeyCommands`），agent 随即可给它绑键。
+同一范式（一个数据源 `Keymap` + 一个闸门），并补上诉求 1 的最后一环——「帮我做个功能**并绑个快捷键**」现在能一路做完：`save_script` 存下的工具脚本由脚本目录监视器同步成动作 `script:<稳定 id>`（`ScriptToolMenu.SyncActions`），agent 随即可给它绑键。
 
 - **`list_keybindings(query?)`**（只读）：逐条给 id、本地化命令名、**作用域**、生效手势（`ctrl+z` 存储令牌 + `Ctrl+Z` 用户字形，前者供模型再喂回来、后者供 agent 对用户复述）、是默认还是用户改过（并给出默认值）、**同域冲突**标注。顺序 = `Keymap.OrderOf`（首次注册序，与设置页一致）。`query` 过滤同设置页搜索框（匹配 id 或名）。头部固定说明**手势语法**与**作用域语义**。
 - **`set_keybinding(id, gesture?/reset?/replaceConflict?)`**（写）：`gesture` 绑定（`""` 解绑、`reset:true` 恢复默认）。解析走 `KeyCodec.TryParseDeclaration`（额外收 `mod+`/`primary+` 别名 → 本平台主命令键，落盘仍是物理修饰）；无效手势/不可绑键回灌语法说明让模型自纠；与当前生效手势相同则"什么都没做"、不弹卡。落地用 `Keymap.Rebind`/`ResetToDefault`（**自带落盘 + `Changed` 广播**，菜单与设置页即时刷新，无需重启）。
