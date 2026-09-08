@@ -144,7 +144,7 @@ info 里没写的字段用**存储默认值**（例如 `name` 是空串），不
 |---|---|---|
 | `track.getInfo()` | info | 本轨完整快照（纯数据）：`{name, gain, pan, mute, solo, asRefer, color, parts:[part info]}`。喂 `project.addTrack(info)` 即整轨复制。**刻意不含导出开关**——那是设置项、不属于"轨的内容"，故复制出来的轨其导出开关落默认值（要跟随就显式 `dst.exportEnabled = src.exportEnabled`）。 |
 | `track.parts()` | `[part]` | 本轨所有 part 句柄（按起点排序）。 |
-| `track.addPart(info)` | `part` | 按 part info 在本轨新建一个 part（字段见下节几何 + midi/audio 各自的内容字段），返回其句柄。**音频**：`{type:"audio", path, pos}` 就够了——不给 `endOffset` 时长度取**音频文件本身的时长**（与界面「导入音频」算的是同一个量）；路径读不出来时**报错**，而不是留下一个不响的空 part。 |
+| `track.addPart(info)` | `part` | 按 part info 在本轨新建一个 part（字段见下节几何 + midi/audio 各自的内容字段），返回其句柄。**音频**：`{type:"audio", path, pos}` 就够了——不给 `endOffset` 时长度取**音频文件本身的时长**（与界面「导入音频」算的是同一个量），不给 `name` 则取文件名；路径读不出来时**报错**，而不是留下一个不响的空 part。 |
 | `track.insertPart(part)` | — | 把一条**游离** part 插入本轨——目标轨**可以不是它原来那条**，这就是**跨轨迁移**（保持对象身份，音源/音符/曲线/effect/音素整体搬家）。 |
 | `track.removePart(part)` | `part` | 把 part 从本轨摘出，返回其（现已游离的）句柄：不插回 = 删除，插到别的轨 = 移动。 |
 

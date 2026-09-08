@@ -16,7 +16,8 @@ namespace TuneLab.Commands.Handlers;
 //
 // 三条命令共用两条事实，都是宿主的硬约束、不是这里的设计选择：
 //  · **装可以立刻生效**：解压 + Load 就能把新能力注册进来，音源引擎再急切 Init 一次即可用；
-//  · **卸与重装必须等重启**：正在跑的进程锁着那些 dll。故卸载只是**标记**（重启时由外置安装器删掉），
+//  · **卸与重装必须等重启**：正在跑的进程锁着那些 dll。故卸载只是**标记**（正常关闭时由外置安装器删掉；
+//    标记只在内存里，强杀 / 崩溃会连标记一起丢——实测确认过，回报里说到了），
 //    而"已装同名包再装一次"这里直接拒绝——界面上那条路会重启整个应用，命令面不该替用户做这个决定。
 internal static class ExtensionLifecycle
 {
@@ -212,8 +213,8 @@ internal sealed class ExtensionUninstallCommand : ICommand
 
     public string Documentation =>
         "Uninstall an installed extension — the same thing the Uninstall button in the Extensions sidebar does. "
-        + "\nIT DOES NOT DELETE ANYTHING RIGHT AWAY: the running process holds the package's files open, so this only MARKS it, and the files are removed when TuneLab next restarts. "
-        + "Always tell the user that: until they restart, the extension keeps working. Undo the mark with cancel_extension_uninstall. "
+        + "\nIT DOES NOT DELETE ANYTHING RIGHT AWAY: the running process holds the package's files open, so this only MARKS it, and the files are removed when the user CLOSES TuneLab normally (an external helper does it on the way out). "
+        + "Always tell the user that: until they close it, the extension keeps working — and the mark lives in memory only, so a crash or a killed process loses it and the extension stays. Undo the mark with cancel_extension_uninstall. "
         + "\nAnything referring to that package stops resolving after the restart (a project using its voice, a file of its format) — say so before doing it. "
         + "If the user only wants it out of the way, set_extension_enabled turns it off (or just one capability) while keeping it installed. Needs the user's authorization.";
 
@@ -339,14 +340,15 @@ internal static class ExtensionUninstallMarking
                 return obj["note"]?.GetValue<string>() ?? string.Empty;
             case "unchanged":
                 return uninstall
-                    ? string.Format("\"{0}\" is already marked for uninstall; nothing to do. It goes away when TuneLab restarts.", name)
+                    ? string.Format("\"{0}\" is already marked for uninstall; nothing to do. It goes away when the user closes TuneLab.", name)
                     : string.Format("\"{0}\" is not marked for uninstall, so there was nothing to take back.", name);
             default:
                 var note = obj["note"]?.GetValue<string>() ?? string.Empty;
                 return note + (uninstall
                     ? string.Format(
-                        "Marked \"{0}\" for uninstall. IT IS STILL INSTALLED AND STILL WORKING until TuneLab restarts — the files are removed then, because this process is holding them open. "
-                        + "Tell the user to restart when they are ready; cancel_extension_uninstall takes the mark back.", name)
+                        "Marked \"{0}\" for uninstall. IT IS STILL INSTALLED AND STILL WORKING until the user closes TuneLab — the files are held open by this process, so they are removed on the way out. "
+                        + "Tell the user to close it when they are ready. The mark is in memory only: if the app is killed or crashes it is lost and the extension stays. "
+                        + "cancel_extension_uninstall takes the mark back.", name)
                     : string.Format("\"{0}\" will stay installed — the pending uninstall is off.", name));
         }
     }

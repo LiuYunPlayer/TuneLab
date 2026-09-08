@@ -81,6 +81,11 @@ internal static class ScriptInfo
         // （秒 → tick 要过 pos 处的曲速）。少了这一步，脚本根本没法导入音频：它读不到文件时长，而
         // 长度非正会被下面那条挡住，于是只能瞎猜一个长度。读不出时长（文件不在 / 格式不支持 / 本进程
         // 没有解码器）就报错，而不是落一个空 part 让用户对着一段不响的音频找原因。
+        // 名字同理：不给就用文件名（界面导入音频就是这么命名的）。否则编排区里会多出一段无名 part，
+        // 而用户看不出那是什么。midi part 没有这么一个天然的名字源，故只给 audio 补。
+        if (info is AudioPartInfo named && string.IsNullOrEmpty(info.Name) && !string.IsNullOrEmpty(named.Path))
+            info.Name = System.IO.Path.GetFileName(named.Path);
+
         if (info is AudioPartInfo audioInfo && !ScriptArgs.Has(o, "endOffset", out _))
         {
             if (!AudioUtils.TryGetAudioInfo(audioInfo.Path, out var audio))

@@ -70,7 +70,7 @@ internal static class ScriptApiReference
         "  export settings (read/write):  exportEnabled, exportChannels (1 = mono, 2 = stereo)   // SETTINGS, not project data — see the note under `project`\n" +
         "  track.getInfo()                          {name, gain, pan, mute, solo, asRefer, color, parts:[part info]}   // the export switches are deliberately NOT in here (they are settings, not part of the track's content), so a copied track gets the defaults\n" +
         "  track.parts()                            [part]\n" +
-        "  track.addPart(info) -> part              new part from a part info (fields below). AUDIO: {type:\"audio\", path, pos} is enough — leave endOffset out and the length comes from the audio file itself (same as importing audio in the UI); an unreadable path throws instead of making a silent empty part\n" +
+        "  track.addPart(info) -> part              new part from a part info (fields below). AUDIO: {type:\"audio\", path, pos} is enough — leave endOffset out and the length comes from the audio file itself, leave name out and it is the file name (same as importing audio in the UI); an unreadable path throws instead of making a silent empty part\n" +
         "  track.insertPart(part)                   put a DETACHED part on this track — the track may be a DIFFERENT one, which is how you MOVE a part across tracks\n" +
         "  track.removePart(part) -> part           detach it and hand the handle back\n" +
         "\n" +

@@ -808,4 +808,19 @@ public class ScriptApiSurfaceTests
         Assert.Contains("cannot read the audio file", error);
         Assert.Contains("not-a-real.wav", error);
     }
+
+    // 名字不给就取文件名（与界面导入音频一致）：否则编排区里多出一段无名 part，
+    // 用户看不出那是什么。本进程没装解码器，故给上 endOffset 绕开时长那一步。
+    [Fact]
+    public void AudioPartWithoutANameTakesTheFileName()
+    {
+        var project = (IProject)SampleDocument().Project!;
+        var (output, _) = Run(project, """
+            const t = tl.currentProject().tracks()[1];
+            const a = t.addPart({ type: "audio", path: "C:/music/take 3.wav", pos: 0, endOffset: 960 });
+            const b = t.addPart({ type: "audio", path: "C:/music/take 4.wav", pos: 1920, endOffset: 960, name: "mine" });
+            print("defaulted=" + a.name + " explicit=" + b.name);
+            """);
+        Assert.Contains("defaulted=take 3.wav explicit=mine", output);
+    }
 }
