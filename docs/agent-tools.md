@@ -1,4 +1,4 @@
-﻿# Agent 工具集设计
+# Agent 工具集设计
 
 TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理念：单一动作面（CodeAct）**——编辑工程一律由模型写 JavaScript 经 `run_script` 表达（对象式 `tl` API），读取只保留一个"定向总览"，其余读取也走脚本。曾经的细粒度读写工具（`transpose_notes`/`apply_edits`/`get_part_notes`…）与其门面 `IAgentProjectEditor` 已全部退役——同一件事多条路只会降模型选择准确率、堆 prompt。本文面向维护者，也作为编写工具描述（喂模型）时的一致性参考。
 
@@ -11,6 +11,12 @@ TuneLab 内置 AI Agent 通过"工具"读取与编辑当前工程。**核心理�
 ## 工具全集（26 个）
 
 三个面：**操作工程** + **管理脚本库** + **环境感知（只读为主，含设置/快捷键助手的写口）**（外加一个**探测沙箱** `run_in_sandbox`，可丢弃工程里探静态读够不着的东西）。
+
+> **这张表不是工具面的真源**（搬家之后不是了）：真源是 `CommandRegistry`，三个入口各自从它自省出自己的
+> 表面（agent 工具声明 / CLI 命令树 / MCP tools/list），见 `command-surface.md` §3.4。故搬家之后新加的命令
+> （`get_app_info`、`list_actions` / `run_action` / `get_editor_status`、`open_project`、
+> `install_extension` / `uninstall_extension` / `cancel_extension_uninstall` …）**不再逐条抄进这里**——
+> 抄一份就多一处会烂的地方。下表留作**架构与判据**的说明（哪一面、为什么在那一面、过不过闸门）。
 
 | 工具 | 面 | 作用 |
 |---|---|---|

@@ -31,8 +31,8 @@
 - **画布上的拖动与按住修饰键**：那是操作态，不是动作（`keybinding-system.md` §0 已划界）。外部的正解是
   带参数的终态动作（"把这个音符移到 X"），不是模拟一次拖拽。
 - **自绘的指针按钮**：用 `Border` + `PointerPressed` 手搓出来的按钮（今天只有一处：扩展条目的「卸载」）。
-  把 `PointerPressed` 纳入规则会把整片画布交互一起卷进来，得不偿失；这一处按 `pending:extension-lifecycle`
-  记在下面的后续项里。
+  把 `PointerPressed` 纳入规则会把整片画布交互一起卷进来，得不偿失；那一处的外部通道是
+  `extension uninstall` 命令（与它旁边那个「取消卸载」菜单项成对）。
 - **`.axaml` 里的 `Click="…"`**：今天是 0 处（界面全部代码构造）。真出现了，这条规则要补。
 
 设置窗里那些设置控件（音频驱动、缓冲区、字体…）也不在规则内：它们是 controller 绑到 `Settings` 上的，
@@ -58,6 +58,11 @@
   外部能做的是**把参数备好**——导出设置是工程数据，脚本面可写——最后一下由用户按。这与 `project export`
   拒绝干音频导出是同一条裁决（见 `ProjectExportCommand` 的注释），不要在动作面上绕过它。
 - **关闭应用**：未保存确认必须人来答；而且真关掉之后连回报都送不出去（命令桥随进程一起没了）。
+- **宿主内部剪贴板**（含"把用户刚复制的那份粘到别处"）：TuneLab 的剪贴板不是系统剪贴板，而是钢琴窗与
+  编排区**各自持有的一份 Info 列表**（音符 / 颤音 / 参数曲线 / part）。而"复制这几个音符、粘到那个 part 的
+  某个 tick"的**实质**，脚本面读写 info 早就能表达（读 `getInfo()`、往目标 `addNote(info)`）。真正缺的只是
+  与"用户手边刚复制的那份"互操作，为它把两个视图的内部字段升级成对外契约不值得——还要额外定清"读出来
+  是什么形状、粘贴走不走吸附与边界延展"。故这一族的裁决是 `script`：够得着的是结果，不是那个中间容器。
 - **视口（缩放、滚动、视图定位）**：曾被当成「明显的洞」，**否决**。滚轮缩放是以鼠标位置为轴心的连续
   手势（操作态，同上），而外部没有鼠标；更要紧的是视口不改变任何结果，只改变用户此刻在看什么。
   真正有用的那件事是「让用户看到我改了哪里」，它要的是一个 tick / 一个对象作参数——那是带参面的形状，
@@ -67,23 +72,22 @@
 
 ## 4 后续项（`pending:*` 的去处）
 
-每个桶就是一处「判据已经清楚、通道还没补」的地方。
+每个桶就是一处「判据已经清楚、通道还没补」的地方。**二期之后只剩两个**——剪贴板那 23 条改判成
+`script`（§3），另外三个桶各自补上了通道：选区写入进了脚本面（`isSelected` / `part.selectNotes` /
+`tl.setTrackSelection`），音频导入进了 `track.addPart`（不给 `endOffset` 就按文件时长），
+打开工程与扩展装卸各成了命令（`project open` / `extension install` / `uninstall` / `cancel-uninstall`）。
 
 | 桶 | 条数 | 该补在哪 |
 |---|---|---|
-| `pending:clipboard` | 23 | 脚本 API 补**剪贴板读写**与**选区写入**。这批动词（复制/剪切/粘贴、区域分类粘贴）要说清「复制哪些对象、粘到哪个 part 的哪个 tick」，那是脚本面的形状；`edit.copy/cut/paste/selectAll` 从命令面只在「用户正坐在 TuneLab 前」时可用，就是这个缺口的表现（issue #150 的后续项） |
-| `pending:selector-params` | 2 | 动作需要**选择器参数**：参数面板的回显轨显隐、参数栏钉选——成员随 part 的声源/效果器链而变（动态集），逐成员开 id 会爆。等 `run_action` 带参数（快捷键 v1 把「绑定携带参数」推到了 v2，见 keybinding-system.md §10） |
 | `pending:preset` | 5 | part preset 的外部面。设计已定、暂缓，要点钉在 issue #141 |
-| `pending:project-open` | 1 | 「打开某个工程 / 最近文件」要一个路径参数 → 一条 `project open` 命令的形状（`file.open` 只能弹选择器让人挑） |
-| `pending:extension-lifecycle` | 2 | 装 / 卸 / 撤销卸载。命令面今天只有 `extension enable`（启停） |
-| `pending:script-audio-import` | 2 | 导入音频轨。脚本面只有 `project.importTracks`（工程 / MIDI 等格式），还没有音频 |
+| `pending:selector-params` | 2 | 动作需要**选择器参数**：参数面板的回显轨显隐、参数栏钉选——成员随 part 的声源/效果器链而变（动态集），逐成员开 id 会爆。等 `run_action` 带参数（快捷键 v1 把「绑定携带参数」推到了 v2，见 keybinding-system.md §10） |
 
 ## 5 逐条认领
 
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**169 个入口**：`action` 24 · `command` 6 · `script` 49 · `pending` 35 · `dialog` 34 · `internal` 17 · `by-design` 4 · `todo` 0
+**169 个入口**：`action` 24 · `command` 9 · `script` 74 · `pending` 7 · `dialog` 34 · `internal` 17 · `by-design` 4 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -146,7 +150,7 @@
 | Save As | menu | `action:file.saveAs` |  |
 | Save to Original Location | menu | `action:file.saveToOriginal` |  |
 | Add Track | menu | `script` | project.addTrack |
-| Import Audio | menu | `pending:script-audio-import` | 导入音频轨是工程数据，但脚本面只有 project.importTracks（工程/MIDI 格式），还没有音频 |
+| Import Audio | menu | `script` | track.addPart({type:"audio", path, pos})——不给 endOffset 时长度取音频文件本身的时长 |
 | Import Track | menu | `script` | project.importTracks |
 | format | menu | `command:project export` | 「导出为<工程格式>」的每一项 = 一个扩展名；那条命令按扩展名选格式，故整族都够得着 |
 | Export Mix | menu | `by-design` | 音频导出刻意不从外部驱动（渲染期界面锁住数分钟、占不占机器是人在环决定；见 ProjectExportCommand 的同一条裁决） |
@@ -157,7 +161,7 @@
 | Open Log | menu | `action:app.openLog` |  |
 | Check for Updates... | menu | `action:app.checkUpdates` |  |
 | About TuneLab | menu | `action:app.about` |  |
-| mRecentFile.FileName | menu | `pending:project-open` | 最近文件是动态成员，且「打开哪个工程」要一个路径参数——那是一条带参命令的形状 |
+| mRecentFile.FileName | menu | `command:project open` | 「打开哪个工程」要一个路径参数，那是命令的形状（最近文件这一族本身是动态成员，但每一项都是「打开这个路径」） |
 
 #### TuneLab/UI/MainWindow/Editor/ScriptInputWindow.axaml.cs
 
@@ -201,25 +205,25 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| Copy Selection | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Cut Selection | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Copy Selection | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Cut Selection | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | Delete Selection | menu | `script` | 范围选区内的音符/参数：脚本面可读 tl.pianoSelection() 再删 |
-| Paste | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Paste Notes | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Paste Pitch | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Paste Vibratos | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Paste Automations | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Notes | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Pitch | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Vibratos | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Automations | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Paste | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Paste Notes | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Paste Pitch | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Paste Vibratos | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Paste Automations | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Notes | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Pitch | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Vibratos | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Automations | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | pronunciation | menu | `script` | note.pronunciation（发音候选） |
 | Split | menu | `script` | 拆分音符 |
 | Split by Phonemes | menu | `script` | 按音素拆分 |
 | Lock Phonemes | menu | `script` | part.lockPhonemes |
 | Clear Locked Phonemes | menu | `script` | 清固定音素 |
-| Copy | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Cut | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Copy | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Cut | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | Octave Up | menu | `action:note.octaveUp` |  |
 | Octave Down | menu | `action:note.octaveDown` |  |
 | Move Lyrics Forward | menu | `script` | 整段歌词前移一位 |
@@ -227,11 +231,11 @@
 | Input Lyrics | menu | `script` | 批量写歌词（note.lyric） |
 | Remove Overlaps | menu | `script` | 消重叠 |
 | Delete | menu | `script` | removeNote |
-| Paste#2 | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Copy#2 | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Cut#2 | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Paste#2 | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Copy#2 | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Cut#2 | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | Delete#2 | menu | `script` | 删参数区选中的锚点/曲线段 |
-| Paste#3 | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Paste#3 | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 
 #### TuneLab/UI/MainWindow/Editor/SideBar/NameInputDialog.axaml.cs
 
@@ -274,13 +278,13 @@
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | close | button | `dialog` | 详情窗的关闭 |
-| Cancel Uninstall | menu | `pending:extension-lifecycle` | 装/卸/撤销卸载：命令面只有 extension enable（启停） |
+| Cancel Uninstall | menu | `command:extension cancel-uninstall` | 装 / 卸 / 撤销卸载三条都有了（装可即时生效，卸与重装受 dll 占用所限只能等重启） |
 
 #### TuneLab/UI/MainWindow/Editor/SideBar/Extensions/ExtensionItemView.cs
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| Cancel Uninstall | menu | `pending:extension-lifecycle` | 同上 |
+| Cancel Uninstall | menu | `command:extension cancel-uninstall` | 同上 |
 
 #### TuneLab/UI/MainWindow/Editor/SideBar/Extensions/ExtensionSideBarContentProvider.cs
 
@@ -362,12 +366,12 @@
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | Merge | menu | `script` | 合并 part |
-| Copy Selection | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Cut Selection | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Copy Selection | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Cut Selection | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | Delete Selection | menu | `script` | 范围选区内的 part：脚本面可读 tl.trackSelection() 再删 |
-| Paste | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Copy | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
-| Cut | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Paste | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Copy | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
+| Cut | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | Rename | menu | `script` | part.name |
 | Split | menu | `script` | 拆分 part |
 | Merge#2 | menu | `script` | 合并 part |
@@ -377,9 +381,9 @@
 | info.Value.Name#2 | menu | `script` | 加效果器：part.addEffect |
 | Remove Overlaps | menu | `script` | 消重叠 |
 | Delete | menu | `script` | track.removePart |
-| Import Audio | menu | `pending:script-audio-import` | 同「文件 → 导入音频」 |
+| Import Audio | menu | `script` | 同「文件 → 导入音频」 |
 | Import Track | menu | `script` | project.importTracks |
-| Paste#2 | menu | `pending:clipboard` | 剪贴板动词：要说清「复制哪些对象、粘到哪里」，那是脚本 API 的形状——而 tl 还没有剪贴板读写与选区写入 |
+| Paste#2 | menu | `script` | 复制粘贴的**实质**（复制哪些对象、粘到哪个 part 的哪个 tick）脚本面读写 info 早就能表达；宿主内部剪贴板**刻意不暴露**（见 §3） |
 | Delete#2 | menu | `script` | track.removePart |
 
 #### TuneLab/UI/Manual/ManualWindow.cs
