@@ -71,6 +71,8 @@
 "Copy instructions" = "複製接入說明"
 "Copied." = "已複製。"
 "Could not reach the clipboard." = "無法存取剪貼簿。"
+"Sidebar" = "側欄"
+"Quantization" = "量化"
 
 [FunctionBar]
 "Play" = "播放"
@@ -343,6 +345,22 @@
 "Set Instrument" = "設定樂器"
 "About TuneLab" = "關於 TuneLab"
 "User Manual" = "使用手冊"
+"Part Panel" = "片段面板"
+"Note Panel" = "音符面板"
+"Agent Panel" = "助手面板"
+"Script Panel" = "腳本面板"
+"Extensions Panel" = "擴充功能面板"
+"Export Panel" = "匯出面板"
+"Hide Side Panel" = "隱藏側欄"
+"Minimize" = "最小化"
+"Maximize" = "最大化"
+"Restore Window" = "還原視窗"
+"Toggle Waveform" = "顯示/隱藏波形"
+"Finer Quantization" = "量化更細"
+"Coarser Quantization" = "量化更粗"
+"Play" = "播放"
+"Pause" = "暫停"
+"Settings" = "設定"
 
 [AgentSideBarContentProvider]
 "Agent" = "助手"

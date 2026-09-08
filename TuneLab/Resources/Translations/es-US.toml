@@ -71,6 +71,8 @@
 "Copy instructions" = "Copiar instrucciones"
 "Copied." = "Copiado."
 "Could not reach the clipboard." = "No se pudo acceder al portapapeles."
+"Sidebar" = "Panel lateral"
+"Quantization" = "Cuantización"
 
 [FunctionBar]
 "Play" = "Reproducir"
@@ -343,6 +345,22 @@
 "About TuneLab" = "Acerca de TuneLab"
 "Locking Brush" = "Pincel de fijación"
 "User Manual" = "Manual de usuario"
+"Part Panel" = "Panel Parte"
+"Note Panel" = "Panel Nota"
+"Agent Panel" = "Panel Agente"
+"Script Panel" = "Panel Script"
+"Extensions Panel" = "Panel Extensiones"
+"Export Panel" = "Panel Exportar"
+"Hide Side Panel" = "Ocultar panel lateral"
+"Minimize" = "Minimizar"
+"Maximize" = "Maximizar"
+"Restore Window" = "Restaurar ventana"
+"Toggle Waveform" = "Mostrar/ocultar forma de onda"
+"Finer Quantization" = "Cuantización más fina"
+"Coarser Quantization" = "Cuantización más gruesa"
+"Play" = "Reproducir"
+"Pause" = "Pausa"
+"Settings" = "Configuraciones"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agente"

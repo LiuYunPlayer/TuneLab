@@ -71,6 +71,8 @@
 "Copy instructions" = "Instructies kopiëren"
 "Copied." = "Gekopieerd."
 "Could not reach the clipboard." = "Kan het klembord niet bereiken."
+"Sidebar" = "Zijpaneel"
+"Quantization" = "Kwantisatie"
 
 [FunctionBar]
 "Play" = "afspelen"
@@ -343,6 +345,22 @@
 "About TuneLab" = "Over TuneLab"
 "Locking Brush" = "Vastzetpenseel"
 "User Manual" = "Gebruikershandleiding"
+"Part Panel" = "Part-paneel"
+"Note Panel" = "Noot-paneel"
+"Agent Panel" = "Agent-paneel"
+"Script Panel" = "Script-paneel"
+"Extensions Panel" = "Extensies-paneel"
+"Export Panel" = "Exporteren-paneel"
+"Hide Side Panel" = "Zijpaneel verbergen"
+"Minimize" = "Minimaliseren"
+"Maximize" = "Maximaliseren"
+"Restore Window" = "Venster herstellen"
+"Toggle Waveform" = "Golfvorm tonen/verbergen"
+"Finer Quantization" = "Fijnere kwantisatie"
+"Coarser Quantization" = "Grovere kwantisatie"
+"Play" = "afspelen"
+"Pause" = "pauzeren"
+"Settings" = "Instellingen"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"

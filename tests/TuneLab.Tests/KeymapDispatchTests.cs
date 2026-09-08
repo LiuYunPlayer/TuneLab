@@ -130,7 +130,7 @@ public class KeymapDispatchTests
         Assert.Equal(1, probe.Ran);
     }
 
-    // 菜单点击走的是同一个 ActionRegistry.Execute（KeymapMenuExtensions.SetAction），故不可用时
+    // 菜单点击走的是同一个 ActionRegistry.Execute（ActionBindings.SetAction），故不可用时
     // 菜单点了也不该执行——与键盘同一份判据。
     [Fact]
     public void MenuPathSharesTheSameAvailabilityJudgement()

@@ -64,7 +64,7 @@ public partial class MainWindow : Window
         var binimizeButton = new Button() { Width = 48, Height = 40 }
             .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
             .AddContent(new() { Item = new IconItem() { Icon = Assets.WindowMin }, ColorSet = new() { Color = Style.TEXT_LIGHT.Opacity(0.7) } });
-        binimizeButton.Clicked += () => WindowState = WindowState.Minimized;
+        binimizeButton.SetAction("app.minimize");
 
         maximizeButton = new Button() { Width = 48, Height = 40 }
            .AddContent(new() { Item = new BorderItem() { CornerRadius = 0 }, ColorSet = new() { HoveredColor = Colors.White.Opacity(0.2), PressedColor = Colors.White.Opacity(0.2) } })
@@ -348,6 +348,14 @@ public partial class MainWindow : Window
     // Global 作用域的内置动作（跨全窗口生效，由最外层 Window.KeyDown 兜底分发）。
     void RegisterActions()
     {
+        // 窗口状态的三条终态动作（标题栏那三个按钮与系统菜单里都够得着的那几件事）。
+        // 全部幂等，故不给 Unavailable："已经是最大化了" 不是失败，而是目标状态已达。
+        // 不占手势：系统自己就有一整套窗口管理快捷键，没必要再占一份。
+        ActionRegistry.Register(new() { Id = "app.minimize", DisplayName = () => "Minimize".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => WindowState = WindowState.Minimized });
+        ActionRegistry.Register(new() { Id = "app.maximize", DisplayName = () => "Maximize".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => WindowState = WindowState.Maximized });
+        // 还原也把全屏退回正常窗（三个非正常态只有一个出口，不必为全屏再开一条）。
+        ActionRegistry.Register(new() { Id = "app.restoreWindow", DisplayName = () => "Restore Window".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => WindowState = WindowState.Normal });
+
         Keymap.Register(new()
         {
             Id = "app.fullscreen",

@@ -14,6 +14,7 @@ using TuneLab.GUI;
 using TuneLab.GUI.Components;
 using TuneLab.GUI.Controllers;
 using TuneLab.I18N;
+using TuneLab.Input;
 using TuneLab.Utils;
 using static TuneLab.Foundation.MusicTheory;
 using ComboBoxItem = TuneLab.SDK.ComboBoxItem;   // 消歧：避开 Avalonia.Controls.ComboBoxItem
@@ -23,9 +24,6 @@ namespace TuneLab.UI;
 internal class FunctionBar : LayerPanel
 {
     public event Action<double>? Moved;
-    public event Action<bool>? CollapsePropertiesAsked;
-    public event Action? GotoStartAsked;
-    public event Action? GotoEndAsked;
 
     public INotifiableProperty<PlayScrollTarget> PlayScrollTarget => mDependency.PlayScrollTarget;
     public IActionEvent<QuantizationBase, QuantizationDivision> QuantizationChanged => mQuantizationChanged;
@@ -77,14 +75,16 @@ internal class FunctionBar : LayerPanel
                     .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.GotoStart }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                 SetupToolTip(gotoStartButton, "Go to Start".Tr(this));
-                gotoStartButton.Clicked += () => { GotoStartAsked?.Invoke(); };
+                // 两个跳转按钮只说自己触发哪条动作（而不是各自开一个事件让 Editor 转接）：
+                // 按钮、快捷键、命令面按下去的是同一件事，「没有工程时不可用」也只写在动作的判据里一处。
+                gotoStartButton.SetAction("transport.gotoStart");
                 audioControlPanel.Children.Add(gotoStartButton);
 
                 var gotoEndButton = new GUI.Components.Button() { Width = 36, Height = 36 }
                     .AddContent(new() { Item = new BorderItem() { CornerRadius = 4 }, ColorSet = new() { HoveredColor = hoverBack, PressedColor = hoverBack } })
                     .AddContent(new() { Item = new IconItem() { Icon = Assets.GotoEnd }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5) } });
                 SetupToolTip(gotoEndButton, "Go to End".Tr(this));
-                gotoEndButton.Clicked += () => { GotoEndAsked?.Invoke(); };
+                gotoEndButton.SetAction("transport.gotoEnd");
                 audioControlPanel.Children.Add(gotoEndButton);
 
                 // 时间码：播放头位置的绝对时间。tick→秒依赖 tempo，故除播放头移动外还需跟 tempo 修改与工程切换刷新。
@@ -128,28 +128,9 @@ internal class FunctionBar : LayerPanel
             {
                 var quantizationLabel = new TextBlock() { Text = "Quantization".Tr(this) + ": ", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
                 quantizationPanel.Children.Add(quantizationLabel);
-                var quantizationComboBox = new ComboBoxController() { Width = 96 };
-                (string option, QuantizationBase quantizationBase, QuantizationDivision quantizationDivision)[] options = 
-                [
-                    ("1/1", QuantizationBase.Base_1, QuantizationDivision.Division_1),
-                    ("1/2", QuantizationBase.Base_1, QuantizationDivision.Division_2),
-                    ("1/4", QuantizationBase.Base_1, QuantizationDivision.Division_4),
-                    ("1/8", QuantizationBase.Base_1, QuantizationDivision.Division_8),
-                    ("1/16", QuantizationBase.Base_1, QuantizationDivision.Division_16),
-                    ("1/32", QuantizationBase.Base_1, QuantizationDivision.Division_32),
-                    ("1/3", QuantizationBase.Base_3, QuantizationDivision.Division_1),
-                    ("1/6", QuantizationBase.Base_3, QuantizationDivision.Division_2),
-                    ("1/12", QuantizationBase.Base_3, QuantizationDivision.Division_4),
-                    ("1/24", QuantizationBase.Base_3, QuantizationDivision.Division_8),
-                    ("1/48", QuantizationBase.Base_3, QuantizationDivision.Division_16),
-                    ("1/96", QuantizationBase.Base_3, QuantizationDivision.Division_32),
-                    ("1/5", QuantizationBase.Base_5, QuantizationDivision.Division_1),
-                    ("1/10", QuantizationBase.Base_5, QuantizationDivision.Division_2),
-                    ("1/20", QuantizationBase.Base_5, QuantizationDivision.Division_4),
-                    ("1/40", QuantizationBase.Base_5, QuantizationDivision.Division_8),
-                    ("1/80", QuantizationBase.Base_5, QuantizationDivision.Division_16),
-                    ("1/160", QuantizationBase.Base_5, QuantizationDivision.Division_32),
-                ];
+                mQuantizationComboBox = new ComboBoxController() { Width = 96 };
+                var quantizationComboBox = mQuantizationComboBox;
+                var options = QuantizationOptions;
                 quantizationComboBox.SetConfig(ComboBoxConfig.Create(options.Select(option => (ComboBoxItem)option.option).ToList()).WithDefault(options[3].option));
                 quantizationComboBox.ValueCommitted.Subscribe(() => { var index = quantizationComboBox.Index; if ((uint)index >= options.Length) return; mQuantizationChanged.Invoke(options[index].quantizationBase, options[index].quantizationDivision); });
                 quantizationPanel.Children.Add(quantizationComboBox);
@@ -203,6 +184,44 @@ internal class FunctionBar : LayerPanel
         s.DisposeAll();
     }
 
+    // 量化下拉的 18 个选项（次序即下拉里的次序）。分母 = 基数×细分（1/12 = 三连的 1/4），
+    // quantization.* 动作的 id 与显示名用同一个算法算出（见 Editor.RegisterQuantizationAction）。
+    static readonly (string option, QuantizationBase quantizationBase, QuantizationDivision quantizationDivision)[] QuantizationOptions =
+    [
+        ("1/1", QuantizationBase.Base_1, QuantizationDivision.Division_1),
+        ("1/2", QuantizationBase.Base_1, QuantizationDivision.Division_2),
+        ("1/4", QuantizationBase.Base_1, QuantizationDivision.Division_4),
+        ("1/8", QuantizationBase.Base_1, QuantizationDivision.Division_8),
+        ("1/16", QuantizationBase.Base_1, QuantizationDivision.Division_16),
+        ("1/32", QuantizationBase.Base_1, QuantizationDivision.Division_32),
+        ("1/3", QuantizationBase.Base_3, QuantizationDivision.Division_1),
+        ("1/6", QuantizationBase.Base_3, QuantizationDivision.Division_2),
+        ("1/12", QuantizationBase.Base_3, QuantizationDivision.Division_4),
+        ("1/24", QuantizationBase.Base_3, QuantizationDivision.Division_8),
+        ("1/48", QuantizationBase.Base_3, QuantizationDivision.Division_16),
+        ("1/96", QuantizationBase.Base_3, QuantizationDivision.Division_32),
+        ("1/5", QuantizationBase.Base_5, QuantizationDivision.Division_1),
+        ("1/10", QuantizationBase.Base_5, QuantizationDivision.Division_2),
+        ("1/20", QuantizationBase.Base_5, QuantizationDivision.Division_4),
+        ("1/40", QuantizationBase.Base_5, QuantizationDivision.Division_8),
+        ("1/80", QuantizationBase.Base_5, QuantizationDivision.Division_16),
+        ("1/160", QuantizationBase.Base_5, QuantizationDivision.Division_32),
+    ];
+
+    // 从外面（quantization.* 动作）设量化：**下拉的显示与两个窗的量化必须一起动**。
+    // 这个下拉是该状态在界面上的唯一显示，只改窗会让它写着 1/8、实际按 1/16 吸附。
+    // Display 不会反过来发 ValueCommitted（见 ComboBoxController），故广播要自己补上、也不会双发。
+    // 不在选项表里的组合直接不理（外部传了个不存在的档位）。
+    public void SetQuantization(QuantizationBase quantizationBase, QuantizationDivision division)
+    {
+        int index = Array.FindIndex(QuantizationOptions, o => o.quantizationBase == quantizationBase && o.quantizationDivision == division);
+        if (index < 0)
+            return;
+
+        mQuantizationComboBox?.Display(QuantizationOptions[index].option);
+        mQuantizationChanged.Invoke(quantizationBase, division);
+    }
+
     class Mover : MovableComponent
     {
         public override void Render(DrawingContext context)
@@ -212,6 +231,8 @@ internal class FunctionBar : LayerPanel
     }
 
     readonly ActionEvent<QuantizationBase, QuantizationDivision> mQuantizationChanged = new();
+
+    ComboBoxController? mQuantizationComboBox;
 
     readonly DisposableManager s = new();
 

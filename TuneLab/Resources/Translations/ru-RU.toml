@@ -71,6 +71,8 @@
 "Copy instructions" = "Копировать инструкции"
 "Copied." = "Скопировано."
 "Could not reach the clipboard." = "Не удалось получить доступ к буферу обмена."
+"Sidebar" = "Боковая панель"
+"Quantization" = "Квантование"
 
 [FunctionBar]
 "Play" = "Воспроизвести"
@@ -343,6 +345,22 @@
 "About TuneLab" = "О TuneLab"
 "Locking Brush" = "Кисть фиксации"
 "User Manual" = "Руководство пользователя"
+"Part Panel" = "Панель «Часть»"
+"Note Panel" = "Панель «Нота»"
+"Agent Panel" = "Панель «Агент»"
+"Script Panel" = "Панель «Скрипт»"
+"Extensions Panel" = "Панель «Расширения»"
+"Export Panel" = "Панель «Экспорт»"
+"Hide Side Panel" = "Скрыть боковую панель"
+"Minimize" = "Свернуть"
+"Maximize" = "Развернуть"
+"Restore Window" = "Восстановить окно"
+"Toggle Waveform" = "Показать/скрыть волну"
+"Finer Quantization" = "Мельче квантование"
+"Coarser Quantization" = "Крупнее квантование"
+"Play" = "Воспроизвести"
+"Pause" = "Остановить воспроизведение"
+"Settings" = "Настройки"
 
 [AgentSideBarContentProvider]
 "Agent" = "Агент"

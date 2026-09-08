@@ -71,6 +71,8 @@
 "Copy instructions" = "안내 복사"
 "Copied." = "복사했습니다."
 "Could not reach the clipboard." = "클립보드에 접근할 수 없습니다."
+"Sidebar" = "사이드 패널"
+"Quantization" = "퀀타이즈"
 
 [FunctionBar]
 "Play" = "재생"
@@ -343,6 +345,22 @@
 "About TuneLab" = "TuneLab 정보"
 "Locking Brush" = "고정 브러시"
 "User Manual" = "사용자 설명서"
+"Part Panel" = "파트 패널"
+"Note Panel" = "노트 패널"
+"Agent Panel" = "에이전트 패널"
+"Script Panel" = "스크립트 패널"
+"Extensions Panel" = "확장 패널"
+"Export Panel" = "내보내기 패널"
+"Hide Side Panel" = "사이드 패널 숨기기"
+"Minimize" = "최소화"
+"Maximize" = "최대화"
+"Restore Window" = "창 복원"
+"Toggle Waveform" = "파형 표시 전환"
+"Finer Quantization" = "퀀타이즈 더 세밀하게"
+"Coarser Quantization" = "퀀타이즈 더 크게"
+"Play" = "재생"
+"Pause" = "일시정지"
+"Settings" = "설정"
 
 [AgentSideBarContentProvider]
 "Agent" = "에이전트"

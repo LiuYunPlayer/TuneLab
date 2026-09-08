@@ -35,8 +35,8 @@ internal sealed class KeymapSettingsPage : DockPanel
     static readonly (string Domain, string Label)[] DomainOrder =
     {
         ("file", "File"), ("edit", "Edit"), ("transport", "Transport"),
-        ("note", "Notes"), ("tool", "Tools"), ("part", "Part"),
-        ("track", "Track"), ("view", "View"), ("app", "App"), ("script", "Scripts"),
+        ("note", "Notes"), ("tool", "Tools"), ("quantization", "Quantization"), ("part", "Part"),
+        ("track", "Track"), ("view", "View"), ("sidebar", "Sidebar"), ("app", "App"), ("script", "Scripts"),
     };
 
     // 命令 id 的顶级域：script:Foo → "script"；note.octaveUp → "note"；无点的 id 兜底归 "app"（安全网，约定上不该出现）。

@@ -15,6 +15,8 @@ internal sealed class EditorStatusAccess(
     Func<double> endTime,
     Func<string> currentToolActionId,
     Func<bool> isParameterPanelVisible,
+    Func<bool> isWaveformVisible,
+    Func<string?> sidebarPanelActionId,
     Func<string?> focusedSurface) : IEditorStatusAccess
 {
     public bool IsPlaying => isPlaying();
@@ -23,5 +25,7 @@ internal sealed class EditorStatusAccess(
     public double EndTime => endTime();
     public string CurrentToolActionId => currentToolActionId();
     public bool IsParameterPanelVisible => isParameterPanelVisible();
+    public bool IsWaveformVisible => isWaveformVisible();
+    public string? SidebarPanelActionId => sidebarPanelActionId();
     public string? FocusedSurface => focusedSurface();
 }

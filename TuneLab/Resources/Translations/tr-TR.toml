@@ -71,6 +71,8 @@
 "Copy instructions" = "Yönergeleri kopyala"
 "Copied." = "Kopyalandı."
 "Could not reach the clipboard." = "Panoya erişilemedi."
+"Sidebar" = "Yan panel"
+"Quantization" = "Kuantizasyon"
 
 [FunctionBar]
 "Play" = "Oynat"
@@ -343,6 +345,22 @@
 "About TuneLab" = "TuneLab Hakkında"
 "Locking Brush" = "Sabitleme fırçası"
 "User Manual" = "Kullanım kılavuzu"
+"Part Panel" = "Bölümler paneli"
+"Note Panel" = "Nota paneli"
+"Agent Panel" = "Aracı paneli"
+"Script Panel" = "Betik paneli"
+"Extensions Panel" = "Uzantılar paneli"
+"Export Panel" = "Dışa Aktar paneli"
+"Hide Side Panel" = "Yan paneli gizle"
+"Minimize" = "Simge durumuna küçült"
+"Maximize" = "Ekranı kapla"
+"Restore Window" = "Pencereyi geri yükle"
+"Toggle Waveform" = "Dalga formunu göster/gizle"
+"Finer Quantization" = "Daha ince kuantizasyon"
+"Coarser Quantization" = "Daha kaba kuantizasyon"
+"Play" = "Oynat"
+"Pause" = "Duraklat"
+"Settings" = "Ayarlar"
 
 [AgentSideBarContentProvider]
 "Agent" = "Aracı"

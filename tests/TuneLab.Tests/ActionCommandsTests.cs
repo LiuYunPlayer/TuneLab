@@ -33,6 +33,8 @@ public class ActionCommandsTests
         public double EndTime => 131;
         public string CurrentToolActionId => "tool.pitch";
         public bool IsParameterPanelVisible => true;
+        public bool IsWaveformVisible => false;
+        public string? SidebarPanelActionId => "sidebar.showAgent";
         public string? FocusedSurface => "pianoRoll";
     }
 
@@ -372,7 +374,9 @@ public class ActionCommandsTests
         var text = status.Render(result.Data, CommandArgs.Empty);
 
         Assert.Contains("Stopped, playhead at 0:03.24 (tick 1536) of 2:11.00.", text);
-        Assert.Contains("Parameter panel: open.", text);
+        Assert.Contains("Parameter panel: open, waveform lane: hidden.", text);
+        // 侧栏报的是【动作 id】（同当前工具）；本进程没注册动作，故显示名回落成 id 本身。
+        Assert.Contains("Side panel: \"sidebar.showAgent\" (sidebar.showAgent).", text);
         Assert.Contains("Keyboard focus: the piano roll", text);
         Assert.Contains("No part is open in the piano roll.", text);
     }
@@ -410,5 +414,34 @@ public class ActionCommandsTests
         Assert.StartsWith("Playing, playhead at 0:00.00 of 0:00.00.", text);
         Assert.Contains("neither edit surface", text);
         Assert.Contains("until the user clicks into the arrangement or the piano roll", text);
+    }
+
+    // 量化报的分母要与工具栏下拉、与 `quantization.*` 那 18 档对得上。
+    // 【为何值得一条】三连档是基数 3 × 细分 4 = 1/12；照细分报成 "1/4 triplets" 时，界面上写的是
+    // 1/12、动作 id 叫 quantization.1_12，而状态说 1/4——外部无法把三者对上号（已修）。
+    [Fact]
+    public void EditorStatusReportsQuantizationTheWayTheToolbarAndTheActionIdsSpellIt()
+    {
+        var text = EditorStatusText.Render(new JsonObject
+        {
+            ["hasEditor"] = true,
+            ["playing"] = false,
+            ["playheadTime"] = 0,
+            ["playheadTick"] = 0,
+            ["endTime"] = 0,
+            ["tool"] = new JsonObject { ["id"] = "tool.note", ["label"] = "Note Tool" },
+            ["parameterPanelVisible"] = true,
+            ["focusedSurface"] = "pianoRoll",
+            ["currentPart"] = null,
+            ["quantization"] = new JsonObject
+            {
+                ["division"] = 4,
+                ["base"] = 3,
+                ["label"] = "1/12",
+                ["actionId"] = "quantization.1_12",
+            },
+        });
+
+        Assert.Contains("Quantization (the snap grid): 1/12 (triplets), i.e. quantization.1_12.", text);
     }
 }

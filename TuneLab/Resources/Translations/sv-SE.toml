@@ -71,6 +71,8 @@
 "Copy instructions" = "Kopiera instruktioner"
 "Copied." = "Kopierat."
 "Could not reach the clipboard." = "Kunde inte nå urklipp."
+"Sidebar" = "Sidopanel"
+"Quantization" = "Kvantisering"
 
 [FunctionBar]
 "Play" = "Spela"
@@ -343,6 +345,22 @@
 "About TuneLab" = "Om TuneLab"
 "Locking Brush" = "Låspensel"
 "User Manual" = "Användarhandbok"
+"Part Panel" = "Delpanel"
+"Note Panel" = "Notpanel"
+"Agent Panel" = "Agentpanel"
+"Script Panel" = "Skriptpanel"
+"Extensions Panel" = "Tilläggspanel"
+"Export Panel" = "Exportpanel"
+"Hide Side Panel" = "Dölj sidopanelen"
+"Minimize" = "Minimera"
+"Maximize" = "Maximera"
+"Restore Window" = "Återställ fönstret"
+"Toggle Waveform" = "Visa/dölj vågformen"
+"Finer Quantization" = "Finare kvantisering"
+"Coarser Quantization" = "Grövre kvantisering"
+"Play" = "Spela"
+"Pause" = "Pausa"
+"Settings" = "Inställningar"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"

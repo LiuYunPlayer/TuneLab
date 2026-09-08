@@ -28,6 +28,13 @@ internal interface IEditorStatusAccess
 
     bool IsParameterPanelVisible { get; }
 
+    // 波形带显隐（参数区标题栏那个开关）。
+    bool IsWaveformVisible { get; }
+
+    // 开着的侧栏面，用【动作 id】表示（sidebar.showAgent …）；null = 侧栏没开。
+    // 同 CurrentToolActionId：报 id 而不是页签名，调用方因此能把它与 `action list` 里的 show 动作对上。
+    string? SidebarPanelActionId { get; }
+
     // 键盘焦点落在哪个编辑面："arrangement" / "pianoRoll" / null（都不在）。剪贴板类动作作用的就是它，
     // 故这一条同时解释了那批动作此刻为什么可用或不可用。
     string? FocusedSurface { get; }

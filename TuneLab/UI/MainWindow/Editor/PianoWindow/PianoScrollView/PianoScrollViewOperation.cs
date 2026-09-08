@@ -14,6 +14,7 @@ using Avalonia.Input;
 using TuneLab.Utils;
 using TuneLab.I18N;
 using TuneLab.Configs;
+using TuneLab.Input;
 
 namespace TuneLab.UI;
 
@@ -446,11 +447,11 @@ internal partial class PianoScrollView
 
                                         menu.Items.Add(new Avalonia.Controls.Separator());
                                         {
-                                            var menuItem = new MenuItem().SetName("Octave Up".Tr(TC.Menu)).SetAction(OctaveUp);
+                                            var menuItem = new MenuItem().SetName("Octave Up".Tr(TC.Menu)).SetAction("note.octaveUp");
                                             menu.Items.Add(menuItem);
                                         }
                                         {
-                                            var menuItem = new MenuItem().SetName("Octave Down".Tr(TC.Menu)).SetAction(OctaveDown);
+                                            var menuItem = new MenuItem().SetName("Octave Down".Tr(TC.Menu)).SetAction("note.octaveDown");
                                             menu.Items.Add(menuItem);
                                         }
 

@@ -38,14 +38,26 @@ internal static class EditorStatusText
                 ["label"] = ActionRegistry.LabelOf(status.CurrentToolActionId),
             },
             ["parameterPanelVisible"] = status.IsParameterPanelVisible,
+            ["waveformVisible"] = status.IsWaveformVisible,
+            // 侧栏：null = 没开；开着时同时给 id 与显示名（同 tool）——渲染可能发生在命令桥另一端，
+            // 那里没有注册表可查。
+            ["sidebar"] = status.SidebarPanelActionId is not { } sidebar ? null : new JsonObject
+            {
+                ["id"] = sidebar,
+                ["label"] = ActionRegistry.LabelOf(sidebar),
+            },
             ["focusedSurface"] = status.FocusedSurface,
             // 当前 part 与量化取自 EditorState（脚本面读的也是这两个访问器），故 status、脚本、agent 说的
             // 是同一个"当前"。
             ["currentPart"] = CurrentPart(ctx),
+            // 量化同时报【动作 id】（同当前工具与侧栏）：调用方因此能把它与 `action list` 里那 18 档直接对上。
+            // 分母 = 基数×细分（3×4 = 1/12），与工具栏下拉上写的完全一致——报成 "1/4 三连" 会让外部对不上号。
             ["quantization"] = ctx.EditorState?.Quantization is not { } q ? null : new JsonObject
             {
                 ["division"] = (int)q.Division,
                 ["base"] = (int)q.Base,
+                ["label"] = "1/" + (int)q.Base * (int)q.Division,
+                ["actionId"] = "quantization.1_" + (int)q.Base * (int)q.Division,
             },
         };
     }
@@ -93,7 +105,15 @@ internal static class EditorStatusText
 
         var tool = data["tool"]!.AsObject();
         sb.Append("\nTool: \"").Append(tool["label"]!.GetValue<string>()).Append("\" (").Append(tool["id"]!.GetValue<string>()).Append(')');
-        sb.Append(". Parameter panel: ").Append(data["parameterPanelVisible"]!.GetValue<bool>() ? "open" : "closed").Append('.');
+        sb.Append(". Parameter panel: ").Append(data["parameterPanelVisible"]!.GetValue<bool>() ? "open" : "closed");
+        sb.Append(", waveform lane: ").Append(data["waveformVisible"]?.GetValue<bool>() == true ? "shown" : "hidden").Append('.');
+        // 侧栏单独一句：它是一个单槽（一次只开一个面），故报“开的是哪个”而不是逐面的开关。
+        sb.Append("\nSide panel: ");
+        if (data["sidebar"] is JsonObject sidebar)
+            sb.Append('"').Append(sidebar["label"]!.GetValue<string>()).Append("\" (").Append(sidebar["id"]!.GetValue<string>()).Append(')');
+        else
+            sb.Append("hidden");
+        sb.Append('.');
 
         // 焦点面单独说一句并给出后果：它决定剪贴板类动作作用在哪儿、以及它们此刻能不能用。
         sb.Append("\nKeyboard focus: ").Append(data["focusedSurface"]?.GetValue<string>() switch
@@ -118,9 +138,12 @@ internal static class EditorStatusText
 
         if (data["quantization"] is JsonObject q)
         {
-            sb.Append(string.Format(" Quantization (the snap grid): 1/{0}", q["division"]!.GetValue<int>()));
+            sb.Append(" Quantization (the snap grid): ").Append(q["label"]?.GetValue<string>() ?? ("1/" + q["division"]!.GetValue<int>()));
             int b = q["base"]!.GetValue<int>();
-            sb.Append(b switch { 3 => " triplets", 5 => " quintuplets", _ => "" }).Append('.');
+            sb.Append(b switch { 3 => " (triplets)", 5 => " (quintuplets)", _ => "" });
+            if (q["actionId"]?.GetValue<string>() is { } id)
+                sb.Append(", i.e. ").Append(id);
+            sb.Append('.');
         }
     }
 

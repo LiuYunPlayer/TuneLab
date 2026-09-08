@@ -71,6 +71,8 @@
 "Copy instructions" = "Αντιγραφή οδηγιών"
 "Copied." = "Αντιγράφηκε."
 "Could not reach the clipboard." = "Δεν ήταν δυνατή η πρόσβαση στο πρόχειρο."
+"Sidebar" = "Πλαϊνός πίνακας"
+"Quantization" = "Κβάντιση"
 
 [FunctionBar]
 "Play" = "Αναπαραγωγή"
@@ -343,6 +345,22 @@
 "About TuneLab" = "Σχετικά με το TuneLab"
 "Locking Brush" = "Πινέλο σταθεροποίησης"
 "User Manual" = "Εγχειρίδιο χρήσης"
+"Part Panel" = "Πίνακας Μέρος"
+"Note Panel" = "Πίνακας Νότα"
+"Agent Panel" = "Πίνακας Agent"
+"Script Panel" = "Πίνακας Script"
+"Extensions Panel" = "Πίνακας Επεκτάσεις"
+"Export Panel" = "Πίνακας Εξαγωγή"
+"Hide Side Panel" = "Απόκρυψη πλαϊνού πίνακα"
+"Minimize" = "Ελαχιστοποίηση"
+"Maximize" = "Μεγιστοποίηση"
+"Restore Window" = "Επαναφορά παραθύρου"
+"Toggle Waveform" = "Εμφάνιση/απόκρυψη κυματομορφής"
+"Finer Quantization" = "Λεπτομερέστερη κβάντιση"
+"Coarser Quantization" = "Χονδρότερη κβάντιση"
+"Play" = "Αναπαραγωγή"
+"Pause" = "Παύση"
+"Settings" = "Ρυθμίσεις"
 
 [AgentSideBarContentProvider]
 "Agent" = "Agent"

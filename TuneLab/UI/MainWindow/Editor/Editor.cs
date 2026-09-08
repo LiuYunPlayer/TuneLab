@@ -86,14 +86,17 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             EditorState = new EditorStateAccess(() => mPianoWindow.Part, () => mPianoWindow.Quantization, CurrentScriptSelection, CurrentPianoScriptSelection),
             // 界面此刻的状态（走带 / 工具 / 面板 / 焦点面）：`editor status` 与 `action run` 的回报读它。
             // 即发即忘的动作（播放是切换、选工具）靠它才不瞎（见 IEditorStatusAccess）。
+            // 形参里有三个同型的 Func<bool>，故一律具名传：错位一个不会编译失败，只会让状态报反。
             EditorStatus = new EditorStatusAccess(
-                () => AudioEngine.IsPlaying,
-                () => AudioEngine.CurrentTime,
-                () => Project?.TempoManager.GetTick(AudioEngine.CurrentTime),
-                () => AudioEngine.EndTime,
-                () => ToolActionId(mPianoWindow.PianoTool.Value),
-                () => mPianoWindow.IsParameterPanelVisible,
-                () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null),
+                isPlaying: () => AudioEngine.IsPlaying,
+                playheadTime: () => AudioEngine.CurrentTime,
+                playheadTick: () => Project?.TempoManager.GetTick(AudioEngine.CurrentTime),
+                endTime: () => AudioEngine.EndTime,
+                currentToolActionId: () => ToolActionId(mPianoWindow.PianoTool.Value),
+                isParameterPanelVisible: () => mPianoWindow.IsParameterPanelVisible,
+                isWaveformVisible: () => mPianoWindow.IsWaveformVisible,
+                sidebarPanelActionId: () => SidebarActionId(mRightSideTabBar.SelectedTab.Value),
+                focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null),
             MainThread = UiThreadDispatcher.Instance,
         };
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
@@ -113,7 +116,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             var hoverBack = Colors.White.Opacity(0.05);
             var settingsButton = new GUI.Components.Button() { Width = 48, Height = 48 }
             .AddContent(new() { Item = new IconItem() { Icon = Assets.Settings, Scale = 4.0 / 3.0 }, ColorSet = new() { Color = Style.LIGHT_WHITE.Opacity(0.5), HoveredColor = Colors.White, PressedColor = Colors.White } });
-            settingsButton.Clicked += () => SettingsWindow.Open(this.Window());
+            settingsButton.SetAction("app.settings");
             panel.AddDock(settingsButton, Dock.Bottom);
             panel.AddDock(mRightSideTabBar);
         }
@@ -192,9 +195,6 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             TrackWindowHeight = y;
             EditorState.TrackWindowHeight.Value = mTrackWindowHeight;
         };
-        mFunctionBar.CollapsePropertiesAsked += show => mRightSideBar.IsVisible = show;
-        mFunctionBar.GotoStartAsked += GotoStart;
-        mFunctionBar.GotoEndAsked += GotoEnd;
         ProjectHolder.WillModify.Subscribe(OnProjectWillChange, s);
         ProjectHolder.Modified.Subscribe(OnProjectChanged, s);
         // 在编 part 被摘除（移动/重排会先 Remove 再 Insert）时暂存到 mDetachedEditingPart——SwitchEditingPart(null)
@@ -408,6 +408,130 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // 显示名不带 Pitch：这支笔在音符区固定合成音高、在参数区固定配对回显，作用面不限于音高（见 SynthesisLock）。
         RegisterToolAction("tool.lock", "Locking Brush", Key.D4, UI.PianoTool.Lock);
         RegisterToolAction("tool.vibrato", "Vibrato Tool", Key.D5, UI.PianoTool.Vibrato);
+
+        // ── 走带：Space 那条是【切换】（与工具栏按钮、与人的心理模型一致），另加一对【终态】动作。
+        // 外部驱动不应为了"让它播"先问一次现在在不在播；两条都幂等，触发后的实情在回报的状态里
+        //（见 IEditorStatusAccess）。二者不占手势：Space 已经在那儿了。
+        ActionRegistry.Register(new() { Id = "transport.start", DisplayName = () => "Play".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = AudioEngine.Play });
+        ActionRegistry.Register(new() { Id = "transport.pause", DisplayName = () => "Pause".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = AudioEngine.Pause });
+
+        // ── 另两条走磁盘的文件动作（New/Open/Save/Save As 在本方法开头）。
+        // 「存回原位」平时在菜单里根本不出现（只在崩溃恢复态可见）：判据取同一个事实，故外部得到的是
+        // "现在没有可存回的原位置"，而不是静默什么都不做。它还要人确认覆盖，故 Prompts。
+        ActionRegistry.Register(new()
+        {
+            Id = "file.saveToOriginal",
+            DisplayName = () => "Save to Original Location".Tr(TC.Menu),
+            Kind = ActionKind.Destructive,
+            Unavailable = () => string.IsNullOrEmpty(mDocument.RecoveredOriginalPath)
+                ? "this project did not come from a crash recovery, so there is no original location to save it back to"
+                : null,
+            Prompts = () => true,
+            Execute = SaveRecoveredToOriginal,
+        });
+        // 【音频导出不进动作面】导出混音 / 导出单轨音频都不在这里，理由与 `project export`
+        // 拒绝干音频导出同一条（见 ProjectExportCommand）：渲染期界面必须锁住好几分钟，
+        // 而"要不要现在把机器占住"是用户的人在环决定。外部能做的是把参数备好（导出设置属于工程数据，
+        // 脚本面可写），最后一下由用户按。「导出为<工程格式>」则已有那条命令（它能传路径）。
+
+        // ── 应用与窗口。设置窗是非模态的（Show 而非 ShowDialog）：开着不挡别的动作，故不算 Prompts。
+        Keymap.Register(new() { Id = "app.settings", DisplayName = () => "Settings".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => SettingsWindow.Open(this.Window()) }, KeyScope.Global);
+        // 这两条会启动【用户机器上的外部程序】（文件管理器 / 日志的默认打开方式）。它们在 TuneLab 里
+        // 没有任何后果、也无需撤销，故仍是 AppState；"会弹出别的程序"这件事写在命令的文档里。
+        ActionRegistry.Register(new() { Id = "app.openDataFolder", DisplayName = () => "Open TuneLab Folder".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => ProcessHelper.OpenUrl(PathManager.TuneLabFolder) });
+        ActionRegistry.Register(new() { Id = "app.openLog", DisplayName = () => "Open Log".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => ProcessHelper.OpenFile(PathManager.LogFilePath) });
+        // 两条都停在要人应答的模态上：检查更新弹结果卡片（有更新时是那张更新框），关于框要人关掉。
+        ActionRegistry.Register(new() { Id = "app.checkUpdates", DisplayName = () => "Check for Updates...".Tr(TC.Menu), Kind = ActionKind.AppState, Prompts = () => true, Execute = () => CheckUpdate(false) });
+        ActionRegistry.Register(new() { Id = "app.about", DisplayName = () => "About TuneLab".Tr(TC.Menu), Kind = ActionKind.AppState, Prompts = () => true, Execute = ShowAbout });
+
+        // ── 侧栏页签：**show / hide 而不是 toggle**。
+        // 页签按钮自己是 toggle（点开、再点同一个就关，手快），但动作面给终态：外部驱动不必先读一次
+        // "现在开着哪个"才敢按，两次 show 同一个面的结果与一次相同。页签是单槽（一次只开一个面），
+        // 故 hide 不需要"关哪个"的选择器。
+        foreach (var panel in SidebarPanels)
+            RegisterSidebarAction(panel.Id, panel.Name, panel.Tab);
+        Keymap.Register(new() { Id = "sidebar.hide", DisplayName = () => "Hide Side Panel".Tr(TC.Menu), Kind = ActionKind.AppState, Execute = () => mRightSideTabBar.SelectedTab.Value = SideBarTab.None }, KeyScope.Editor);
+
+        // ── 视图：波形带（参数区标题栏最左那个开关；显隐是全局编辑器态，见 EditorState.WaveformVisible）。
+        // 钢琴窗没开 part 时整个窗都不显示，那个开关也就够不着 → 动作同样不可用。
+        Keymap.Register(new()
+        {
+            Id = "view.toggleWaveform",
+            DisplayName = () => "Toggle Waveform".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = () => mPianoWindow.Part == null ? "no part is open in the piano roll, so there is no waveform lane to show" : null,
+            Execute = () => mPianoWindow.SetWaveformVisible(!mPianoWindow.IsWaveformVisible),
+        }, KeyScope.Editor);
+
+        // ── 量化（吸附网格）：闭集 18 档，逐档一条终态动作——下拉里够得着的每一档外部都够得着（穷尽面的定义）。
+        // id 与显示名都由 基数×细分 算出（1/12 就是三连的 1/4：3×4），故这里不再抄一张与下拉并行的表。
+        foreach (var quantizationBase in QuantizationBases)
+            foreach (var division in QuantizationDivisions)
+                RegisterQuantizationAction(quantizationBase, division);
+        // 「更细 / 更粗」在同一基数段内上下走一格（1/8→1/16、1/12→1/24）：**只有这一对值得占手势**，
+        // 18 档终态不进 keymap——否则快捷键设置页被灌满，那正是两层注册表要避免的（见 EditorAction）。
+        Keymap.Register(new() { Id = "quantization.finer", DisplayName = () => "Finer Quantization".Tr(TC.Menu), Kind = ActionKind.AppState, Unavailable = () => QuantizationStepUnavailable(true), Execute = () => StepQuantization(true) }, KeyScope.Editor);
+        Keymap.Register(new() { Id = "quantization.coarser", DisplayName = () => "Coarser Quantization".Tr(TC.Menu), Kind = ActionKind.AppState, Unavailable = () => QuantizationStepUnavailable(false), Execute = () => StepQuantization(false) }, KeyScope.Editor);
+    }
+
+    // 下拉里那 18 档的两个轴：基数（1 = 二分、3 = 三连、5 = 五连）× 细分。次序与工具栏下拉一致，
+    // 故动作的注册序（= `action list` 的呈现序、也是设置页组内序）与用户在界面上看到的次序相同。
+    static readonly MusicTheory.QuantizationBase[] QuantizationBases = [MusicTheory.QuantizationBase.Base_1, MusicTheory.QuantizationBase.Base_3, MusicTheory.QuantizationBase.Base_5];
+    static readonly MusicTheory.QuantizationDivision[] QuantizationDivisions = [MusicTheory.QuantizationDivision.Division_1, MusicTheory.QuantizationDivision.Division_2, MusicTheory.QuantizationDivision.Division_4, MusicTheory.QuantizationDivision.Division_8, MusicTheory.QuantizationDivision.Division_16, MusicTheory.QuantizationDivision.Division_32];
+
+    // 侧栏六个面：页签 → 动作 id → 显示名。**注册与状态回报（SidebarActionId）共用这一份**，
+    // 故不会出现"动作加了、状态里还报不出来"那种半截状态。
+    static readonly (SideBarTab Tab, string Id, string Name)[] SidebarPanels =
+    [
+        (SideBarTab.PartProperties, "sidebar.showPart", "Part Panel"),
+        (SideBarTab.NoteProperties, "sidebar.showNote", "Note Panel"),
+        (SideBarTab.Agent, "sidebar.showAgent", "Agent Panel"),
+        (SideBarTab.Script, "sidebar.showScript", "Script Panel"),
+        (SideBarTab.Extensions, "sidebar.showExtensions", "Extensions Panel"),
+        (SideBarTab.Export, "sidebar.showExport", "Export Panel"),
+    ];
+
+    // 两件事一次做完：进穷尽面，并且可绑——但**不预占默认手势**（这几个面常有人想给个键，键位归用户）。
+    void RegisterSidebarAction(string id, string name, SideBarTab tab)
+    {
+        Keymap.Register(new()
+        {
+            Id = id,
+            DisplayName = () => name.Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Execute = () => mRightSideTabBar.SelectedTab.Value = tab,
+        }, KeyScope.Editor);
+    }
+
+    void RegisterQuantizationAction(MusicTheory.QuantizationBase quantizationBase, MusicTheory.QuantizationDivision division)
+    {
+        int denominator = (int)quantizationBase * (int)division;
+        ActionRegistry.Register(new()
+        {
+            Id = "quantization.1_" + denominator,
+            // 分数字面量不进翻译（"1/16" 在每种语言里都是 "1/16"）。
+            DisplayName = () => "1/" + denominator,
+            Kind = ActionKind.AppState,
+            Execute = () => mFunctionBar.SetQuantization(quantizationBase, division),
+        });
+    }
+
+    // 「更细 / 更粗」= 细分 ×2 / ÷2，**基数不动**：三连档里更细一格是 1/12→1/24，而不是跳去二分那一段。
+    void StepQuantization(bool finer)
+    {
+        var quantization = mPianoWindow.Quantization;
+        int division = (int)quantization.Division;
+        mFunctionBar.SetQuantization(quantization.Base, (MusicTheory.QuantizationDivision)(finer ? division * 2 : division / 2));
+    }
+
+    string? QuantizationStepUnavailable(bool finer)
+    {
+        int division = (int)mPianoWindow.Quantization.Division;
+        if (finer && division >= (int)MusicTheory.QuantizationDivision.Division_32)
+            return "the quantization is already at its finest division";
+        if (!finer && division <= (int)MusicTheory.QuantizationDivision.Division_1)
+            return "the quantization is already at its coarsest division";
+        return null;
     }
 
     void RegisterToolAction(string id, string name, Key key, PianoTool tool)
@@ -438,6 +562,16 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         UI.PianoTool.Lock => "tool.lock",
         _ => "tool.vibrato",
     };
+
+    // 开着的侧栏面报成【动作 id】（同 CurrentToolActionId 的理由：调用方能直接与 `action list`
+    // 里那六条 show 动作对上）。null = 侧栏此刻没开（SideBarTab.None）。
+    static string? SidebarActionId(SideBarTab tab)
+    {
+        foreach (var panel in SidebarPanels)
+            if (panel.Tab == tab)
+                return panel.Id;
+        return null;
+    }
 
     // 有没有可直接落地的工程路径。没有（新工程，或路径已失效 / 不是本家格式）时 save 自己转成 save-as、
     // 于是会弹文件选择器——SaveProject 与 file.save 的 Prompts 判据共用这一份。
@@ -1558,7 +1692,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             {
                 // 只在"当前工程来自崩溃恢复、且原文件仍在"时出现（用 IsVisible 而非置灰：一个常年灰着的项
                 // 只是杂物）。可见性随工程名变化刷新，见构造函数里的订阅。
-                mSaveRecoveredMenuItem = new MenuItem().SetTrName("Save to Original Location").SetAction(SaveRecoveredToOriginal);
+                mSaveRecoveredMenuItem = new MenuItem().SetTrName("Save to Original Location").SetAction("file.saveToOriginal");
                 mSaveRecoveredMenuItem.IsVisible = false;
                 menuBarItem.Items.Add(mSaveRecoveredMenuItem);
             }
@@ -1632,19 +1766,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetTrName("Open TuneLab Folder").SetAction(() => ProcessHelper.OpenUrl(PathManager.TuneLabFolder));
+                var menuItem = new MenuItem().SetTrName("Open TuneLab Folder").SetAction("app.openDataFolder");
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetTrName("Open Log").SetAction(() => ProcessHelper.OpenFile(PathManager.LogFilePath));
+                var menuItem = new MenuItem().SetTrName("Open Log").SetAction("app.openLog");
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetTrName("Check for Updates...").SetAction(() => CheckUpdate(false));
+                var menuItem = new MenuItem().SetTrName("Check for Updates...").SetAction("app.checkUpdates");
                 menuBarItem.Items.Add(menuItem);
             }
             {
-                var menuItem = new MenuItem().SetTrName("About TuneLab").SetAction(ShowAbout);
+                var menuItem = new MenuItem().SetTrName("About TuneLab").SetAction("app.about");
                 menuBarItem.Items.Add(menuItem);
             }
             menu.Items.Add(menuBarItem);

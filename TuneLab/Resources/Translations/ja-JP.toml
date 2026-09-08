@@ -71,6 +71,8 @@
 "Copy instructions" = "手順をコピー"
 "Copied." = "コピーしました。"
 "Could not reach the clipboard." = "クリップボードにアクセスできませんでした。"
+"Sidebar" = "サイドパネル"
+"Quantization" = "クオンタイズ"
 
 [FunctionBar]
 "Play" = "再生"
@@ -343,6 +345,22 @@
 "About TuneLab" = "TuneLabについて"
 "Locking Brush" = "固定ブラシ"
 "User Manual" = "ユーザーマニュアル"
+"Part Panel" = "パートパネル"
+"Note Panel" = "ノートパネル"
+"Agent Panel" = "エージェントパネル"
+"Script Panel" = "スクリプトパネル"
+"Extensions Panel" = "拡張機能パネル"
+"Export Panel" = "エクスポートパネル"
+"Hide Side Panel" = "サイドパネルを隠す"
+"Minimize" = "最小化"
+"Maximize" = "最大化"
+"Restore Window" = "ウィンドウを元のサイズに戻す"
+"Toggle Waveform" = "波形の表示切替"
+"Finer Quantization" = "クオンタイズを細かく"
+"Coarser Quantization" = "クオンタイズを粗く"
+"Play" = "再生"
+"Pause" = "一時停止"
+"Settings" = "設定"
 
 [AgentSideBarContentProvider]
 "Agent" = "エージェント"
