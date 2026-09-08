@@ -18,6 +18,7 @@ namespace TuneLab.Tests;
 //
 // ActionRegistry 是进程级静态表，测试进程里空着，故这里注册一批 "test." 前缀的假动作真跑一遍
 // ——这条链路（判据 → 闸 → 执行 → 回报状态）值得按真路径验，而不是只验渲染。
+[Collection("ActionRegistry")]   // ActionRegistry 是进程级静态表，与 KeymapDispatchTests 串行
 public class ActionCommandsTests
 {
     static readonly ActionRunCommand Run = new();

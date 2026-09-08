@@ -34,6 +34,8 @@
     <InternalsVisibleTo Include="TuneLab.Setup" />
     <!-- 文档截图工具（tools/ScreenshotBot）：读快捷键手势等 GUI 层类型。 -->
     <InternalsVisibleTo Include="TuneLab.ScreenshotBot" />
+    <!-- 测试：键盘分发的封条要构造手势（KeyBinding）喂给 Keymap.TryHandle。 -->
+    <InternalsVisibleTo Include="TuneLab.Tests" />
   </ItemGroup>
 
 </Project>
