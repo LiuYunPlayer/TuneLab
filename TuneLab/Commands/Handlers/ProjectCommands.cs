@@ -144,6 +144,124 @@ internal sealed class ProjectStatusCommand : ICommand
 // 【只做工程/MIDI 等格式文件，不做音频导出】：音频导出要跑完整合成+混音+编码，期间界面必须锁住（根因是渲染要求
 // 数据全程不变，不是 UI 偷懒）——那与"调用方边导出边继续干活"根本矛盾，且"要不要现在把机器占住几分钟"是用户的
 // 人在环决定，同播放/试听的裁定。故音频导出的正解是备好参数、最后一下由用户按，不在本命令里。
+// 打开一个工程文件，换掉用户此刻开着的那一份。覆盖率清单里 `pending:project-open` 那一条：
+// 「打开」与「最近文件」要的是**一个路径参数**，那是命令的形状——动作面只能弹个选择器让人自己挑
+// （`file.open`），而带路径的这件事必须是命令。
+//
+// 三道闸，顺序有意：
+//  ① 没有编辑器 → 这里做不到（headless 的工程在启动时就定了，见 IProjectFileAccess）；
+//  ② **有未保存的改动 → 直接拒绝**，在问用户之前。把没保存的活儿换掉是撤销栈救不回的事，不该只靠
+//     一次「要不要打开」的确认糊过去——用户在那张卡片上看到的是"打开哪个文件"，不是"丢掉你半小时的活儿"；
+//  ③ 路径不存在 / 格式不支持 → 报错，同样不打扰用户。
+// 过闸后恒过授权（ProjectOpen 档，措辞点明"关掉现在这份、撤销历史一并没了"）。
+internal sealed class ProjectOpenCommand : ICommand
+{
+    public string Path => "project open";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "open_project";
+
+    public string Brief => "Open a project file, replacing the one currently open";
+
+    public string Documentation =>
+        "Open a project FILE from disk into the running TuneLab, replacing the project the user has open right now (that project's undo history goes with it). "
+        + "The path is a local file path; the format comes from the extension — tlp/tlpx plus whatever the installed format plugins import (mid/midi and others). "
+        + "\nIt REFUSES, without bothering the user, when: there are unsaved changes in the current project (save first — run_action with \"file.save\", or ask the user to), the file does not exist, or nothing installed can read that extension. "
+        + "Otherwise it always asks for the user's authorization: this closes what they are working on. "
+        + "\nThere is no editor in a headless process, so this cannot work there — a headless run takes its project from --project at startup. "
+        + "To read the project that is open, use get_project_status; to write a copy to disk, export_project (that one does NOT change which file the user's project is saved to, this one does).";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Absolute local path of the project file to open, e.g. C:\\Users\\me\\song.tlpx." }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var given = (args.Json.GetString("path") ?? "").Trim().Trim('"');
+        if (given.Length == 0)
+            return CommandResult.Fail("empty_path", "\"path\" is required.");
+
+        if (ctx.ProjectFile is not { } file)
+            return CommandResult.Fail("no_editor",
+                "There is no editor in this process, so there is no document to swap. Opening a project replaces what the user is looking at — "
+                + "that only exists in a running TuneLab window (attach to one), and a headless run takes its project from --project at startup.");
+
+        string fullPath;
+        try { fullPath = System.IO.Path.GetFullPath(given); }
+        catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
+        if (!File.Exists(fullPath))
+            return CommandResult.Fail("missing_file", string.Format("there is no file at \"{0}\".", fullPath));
+
+        var format = System.IO.Path.GetExtension(fullPath).TrimStart('.').ToLowerInvariant();
+        var importable = FormatsManager.GetAllImportFormats();
+        if (!importable.Contains(format))
+            return CommandResult.Fail("unsupported_format", string.Format(
+                "nothing installed can read \".{0}\". Readable: {1}.", format,
+                importable.Count == 0 ? "(none)" : string.Join(", ", importable.Select(f => "." + f))));
+
+        // 未保存就到此为止（早于授权）：见类头 ②。
+        if (!file.IsSaved)
+            return CommandResult.Fail("unsaved_changes",
+                "the project currently open has unsaved changes, and opening another one would throw them away — the undo history cannot bring that back. "
+                + "Save it first (run_action with \"file.save\"), or ask the user to deal with it, then open again.");
+
+        var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(WriteKind.ProjectOpen, 0, fullPath), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject { ["path"] = fullPath, ["outcome"] = "refused", ["note"] = message });
+
+        // 落地那刻重查未保存：闸门等待期用户可能又动了工程（同 `keybinding set` 的"冲突在落地那刻重查"）。
+        return CommandResult.Ok(await ctx.OnMainThread(() =>
+        {
+            if (!file.IsSaved)
+                return new JsonObject { ["path"] = fullPath, ["outcome"] = "changed_meanwhile" };
+
+            if (file.Open(fullPath) is { } error)
+                return new JsonObject { ["path"] = fullPath, ["outcome"] = "failed", ["note"] = error };
+
+            var project = ctx.Project;
+            return new JsonObject
+            {
+                ["path"] = file.Path ?? fullPath,
+                ["outcome"] = "applied",
+                ["tracks"] = project?.Tracks.Count ?? 0,
+                ["note"] = string.IsNullOrEmpty(message) ? null : message,
+            };
+        }));
+    }
+
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var path = obj["path"]!.GetValue<string>();
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "refused":
+                return obj["note"]!.GetValue<string>();
+            case "changed_meanwhile":
+                return string.Format(
+                    "Nothing was opened: the user edited their project while the request was waiting for authorization, so it now has unsaved changes. "
+                    + "Save those first, then open \"{0}\" again.", path);
+            case "failed":
+                return string.Format("Could not open \"{0}\" — {1}. The project that was open is untouched.", path, obj["note"]?.GetValue<string>() ?? "unknown error");
+            default:
+                var sb = new StringBuilder();
+                if (obj["note"]?.GetValue<string>() is { Length: > 0 } note)
+                    sb.Append(note);
+                sb.Append(string.Format("Opened \"{0}\" ({1} track(s)). It is now the project every command and script sees.",
+                    path, obj["tracks"]?.GetValue<int>() ?? 0));
+                return sb.ToString();
+        }
+    }
+}
+
 internal sealed class ProjectExportCommand : ICommand
 {
     public string Path => "project export";

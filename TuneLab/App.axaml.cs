@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using System;
@@ -77,35 +77,15 @@ public partial class App : Application
                 // instrument 与 voice 在这件事上【同构】：两者都挂在 MidiPart 上作音源（XOR 二选一）、
                 // 都要在菜单里列出自己的音源目录，所以两者都得急切 Init——只 Init voice 会让 instrument part
                 // 起动无声、菜单也慢。effect 不在此列且不该在：它没有音源目录，按 part 用到才 Init 是对的。
-                foreach (var engine in VoicesManager.GetAllVoiceEngines())
+                // 失败只报不停；哪些引擎要急切 Init、以及为何必须在挂工程之前，
+                // 那条判据收在 SoundSourceEngines.InitAll（见那里），这里只管告诉眼前的用户。
+                foreach (var failure in SoundSourceEngines.InitAll())
                 {
-                    try
-                    {
-                        VoicesManager.InitEngine(engine);
-                    }
-                    catch (Exception ex)
-                    {
-                        var dialog = new Dialog();
-                        dialog.SetTitle("Error");
-                        dialog.SetMessage(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
-                        dialog.AddButton("OK", Dialog.ButtonType.Primary);
-                        dialog.Show();
-                    }
-                }
-                foreach (var engine in InstrumentsManager.GetAllInstrumentEngines())
-                {
-                    try
-                    {
-                        InstrumentsManager.InitEngine(engine);
-                    }
-                    catch (Exception ex)
-                    {
-                        var dialog = new Dialog();
-                        dialog.SetTitle("Error");
-                        dialog.SetMessage(string.Format("Instrument engine [{0}] failed to init:\n{1}", engine, ex.Message));
-                        dialog.AddButton("OK", Dialog.ButtonType.Primary);
-                        dialog.Show();
-                    }
+                    var dialog = new Dialog();
+                    dialog.SetTitle("Error");
+                    dialog.SetMessage(failure);
+                    dialog.AddButton("OK", Dialog.ButtonType.Primary);
+                    dialog.Show();
                 }
 
                 mMainWindow = new MainWindow();

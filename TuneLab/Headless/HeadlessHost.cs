@@ -164,29 +164,12 @@ internal static class HeadlessHost
         return (project, fullPath);
     }
 
-    // 音源引擎（voice 与 instrument）须在装载工程【之前】Init：工程一挂上，各 part 立即 Activate 并
-    // 构建合成管线，此刻引擎若未 Init 就会回落到空会话且无回建路径（起动即无声）。与 App 里那段同理同序。
-    // 失败只报不停：一个引擎坏掉不该让整趟无人值守的跑批停摆，其余音源照常可用。
+    // 音源引擎的急切 Init：判据与时机（工程挂上【之前】、voice+instrument、失败只报不停）收在
+    // SoundSourceEngines.InitAll 一处，这里只负责把失败打给无人值守的那一头。
     static void InitSoundSourceEngines(Action<string>? report)
     {
-        foreach (var engine in VoicesManager.GetAllVoiceEngines())
-        {
-            try { VoicesManager.InitEngine(engine); }
-            catch (Exception ex)
-            {
-                Log.ErrorAttributed(string.Format("Voice engine [{0}] failed to init", engine), ex);
-                report?.Invoke(string.Format("voice engine [{0}] failed to init: {1}", engine, ex.Message));
-            }
-        }
-        foreach (var engine in InstrumentsManager.GetAllInstrumentEngines())
-        {
-            try { InstrumentsManager.InitEngine(engine); }
-            catch (Exception ex)
-            {
-                Log.ErrorAttributed(string.Format("Instrument engine [{0}] failed to init", engine), ex);
-                report?.Invoke(string.Format("instrument engine [{0}] failed to init: {1}", engine, ex.Message));
-            }
-        }
+        foreach (var failure in SoundSourceEngines.InitAll())
+            report?.Invoke(failure);
     }
 
     // 拆场景：换一个空工程触发旧工程 Detach+Dispose（各 part Deactivate → 合成会话 Dispose）。

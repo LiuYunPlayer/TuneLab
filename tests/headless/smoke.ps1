@@ -197,6 +197,23 @@ try {
     $r = Invoke-Cli @("--headless", "editor", "status")
     Check "editor status exits 0" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
     Check "and reports no editor instead of inventing a state" ($r.Out -match "No editor is present in this process") $r.Out
+
+    # ── 13. issue #150 三期之后补的那两族命令，在无头下各自的实话：
+    #      · project open 要的是"用户此刻开着的那份文档"，无头里根本没有那个概念 → 拒绝，
+    #        且要指出去哪做（attach / --project），而不是报一个看不出所以的失败；
+    #      · extension install 反过来——它**不**需要编辑器（解压 + 加载而已），故坐到路径那一层才报错，
+    #        那正是"在无头里也真能装"的反面证据。
+    Write-Host "13. the follow-up commands are honest about what headless can and cannot do"
+    $r = Invoke-Cli @("--headless", "--yes", "project", "open", "--path", (Join-Path $sandbox "nope.tlpx"))
+    Check "project open exits 1" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and says there is no document to swap here" ($r.Err -match "no editor in this process") $r.Err
+    Check "and points at attach / --project" (($r.Err -match "attach") -and ($r.Err -match "--project")) $r.Err
+    $r = Invoke-Cli @("--headless", "--yes", "extension", "install", "--path", (Join-Path $sandbox "nope.tlx"))
+    Check "extension install exits 1" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and fails on the path, not on the missing editor" (($r.Err -match "there is no file at") -and -not ($r.Err -match "no editor")) $r.Err
+    $r = Invoke-Cli @("--headless", "--yes", "extension", "uninstall", "--packageId", "com.nobody.nothing")
+    Check "extension uninstall exits 1" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and points at what is installed" ($r.Err -match "Installed:") $r.Err
 }
 finally {
     Remove-Item -Recurse -Force $sandbox -ErrorAction SilentlyContinue

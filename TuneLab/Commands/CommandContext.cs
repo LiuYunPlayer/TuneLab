@@ -28,6 +28,9 @@ internal sealed record CommandContext
     // 动作面与状态读据此如实回答做不到（措辞见 EditorStatusText.NoEditor）。
     public IEditorStatusAccess? EditorStatus { get; init; }
 
+    // 换工程文件的能力（`project open`）。只有有窗口的宿主给得出——见 IProjectFileAccess。
+    public IProjectFileAccess? ProjectFile { get; init; }
+
     // 旁路模型（可选）：`extension list` 补能力位摘要时要发一次一次性请求。**只有内置 agent 入口有**，
     // CLI / MCP / headless 一律 null——用到它的命令按 §5.3 降级（缓存能用就用、用不上如实标注），
     // 不是消失。

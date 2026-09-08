@@ -23,6 +23,8 @@ public class CommandRegistryTests
         "read_script", "run_in_sandbox", "run_saved_script", "run_script", "save_script",
         "set_extension_enabled", "set_extension_routing", "set_extension_setting", "set_keybinding", "set_setting",
         "get_app_info", "list_actions", "run_action", "get_editor_status",
+        // issue #150 的后续项：清单上"外部还够不着"的那几个桶各自补的命令。
+        "open_project", "install_extension", "uninstall_extension", "cancel_extension_uninstall",
     ];
 
     [Fact]

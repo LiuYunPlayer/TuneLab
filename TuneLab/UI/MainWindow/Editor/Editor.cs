@@ -66,6 +66,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         Focusable = true;
         IsTabStop = false;
         mTrackWindowHeight = EditorState.TrackWindowHeight;
+        // 两个纯转发的宿主能力（脚本面写选区 / 换工程文件）：只存 this、不碰任何还没建好的东西，
+        // 故最先建——下面接线时它们必须已经在手（少了这一步，脚本面会拿到 null 并如实报"这里没有编辑器"，
+        // 而这里明明有）。
+        mSelectionWriter = new(this);
+        mProjectFileAccess = new(this);
 
         mPlayhead = new(this);
         if (Enum.TryParse<PlayScrollTarget>(Settings.AutoScrollTarget.Value, out var autoScrollTarget))
@@ -97,6 +102,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 isWaveformVisible: () => mPianoWindow.IsWaveformVisible,
                 sidebarPanelActionId: () => SidebarActionId(mRightSideTabBar.SelectedTab.Value),
                 focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null),
+            // 换工程要连带换撤销栈 / 播放头 / 钢琴窗里开着的 part，那些只有 Editor 管得了（见 IProjectFileAccess）。
+            ProjectFile = mProjectFileAccess,
             MainThread = UiThreadDispatcher.Instance,
         };
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
@@ -1043,11 +1050,19 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     // 后者原先完全没有兜底——异常直接抛穿 UI 线程，比静默更糟。
     void LoadProject(string path)
     {
+        if (TryLoadProject(path) is { } error)
+            _ = this.ShowFileOpenError(path, error);
+    }
+
+    // 装载的实心那一半：成功返回 null，失败返回**为什么**。
+    // 【为什么要这一层】界面路径要把原因弹给用户，而 `project open` 要把同一句原因放进命令的回报里——
+    // 两者是同一件事的两种出口，故装载只写一遍。日志两边都要，留在这里。
+    string? TryLoadProject(string path)
+    {
         if (!FormatsManager.DeserializeNative(path, out var file, out var error))
         {
             Log.Error("Deserialize file error: " + error);
-            _ = this.ShowFileOpenError(path, error);
-            return;
+            return error;
         }
 
         try
@@ -1060,11 +1075,11 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         catch (Exception ex)
         {
             Log.Error("Load project error: " + ex);
-            _ = this.ShowFileOpenError(path, ex.Message);
-            return;
+            return ex.Message;
         }
 
         RecentFilesManager.AddFile(path);
+        return null;
     }
 
     Project CreateProject(ProjectInfo info)
@@ -1498,28 +1513,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (succeeded.Count > 0)
         {
             ExtensionSettingsManager.ApplyPersisted(); // Init 前回喂已落盘设置（与启动同序）
-            foreach (var engine in VoicesManager.GetAllVoiceEngines())
-            {
-                try
-                {
-                    VoicesManager.InitEngine(engine); // 已 Init 的引擎为空操作
-                }
-                catch (Exception ex)
-                {
-                    initFailed.Add(string.Format("Voice engine [{0}] failed to init:\n{1}", engine, ex.Message));
-                }
-            }
-            foreach (var engine in InstrumentsManager.GetAllInstrumentEngines())
-            {
-                try
-                {
-                    InstrumentsManager.InitEngine(engine); // 已 Init 的引擎为空操作
-                }
-                catch (Exception ex)
-                {
-                    initFailed.Add(string.Format("Instrument engine [{0}] failed to init:\n{1}", engine, ex.Message));
-                }
-            }
+            // 与启动、headless、`extension install` 同一份判据（SoundSourceEngines.InitAll）。
+            initFailed.AddRange(SoundSourceEngines.InitAll());
         }
 
         // Auto-refresh the extension list in the sidebar
@@ -1928,6 +1923,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         return sel is { } s ? new ScriptPianoSelection(s.StartTick, s.EndTick) : null;
     }
 
+    // 换工程文件的能力（`project open`）。**只做转发**：未保存的判据、装载与错误措辞都在 Editor 里已有一份。
+    sealed class ProjectFileAccess(Editor editor) : IProjectFileAccess
+    {
+        public bool IsSaved => editor.mDocument.IsSaved;
+        public string? Path => editor.mDocument.Path;
+        public string? Open(string path) => editor.TryLoadProject(path);
+    }
+
     // 脚本面写范围选区的那道口子（tl.setTrackSelection 等）。**只做转发**：选区各归两个视图自己持有，
     // 而只有 Editor 同时够得着它们。1-based 轨道号在这里换成视图的 0-based 行号——与上面读那两个方法
     // 是同一处边界，故两个方向的口径不会分叉。
@@ -1946,6 +1949,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
 
     // 建得早（三条脚本运行路径都要它），本身无状态、只在被调用时才碰视图。
     readonly ScriptSelectionWriter mSelectionWriter;
+    readonly ProjectFileAccess mProjectFileAccess;
 
     readonly FunctionBar mFunctionBar;
     readonly PianoWindow mPianoWindow;

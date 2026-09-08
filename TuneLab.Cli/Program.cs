@@ -508,7 +508,7 @@ internal static class Program
         Console.Out.WriteLine();
         for (int i = 0; i < matched.Count; i++)
         {
-            Console.Out.WriteLine(matched[i].Path.PadRight(26) + CommandText.ForCli(matched[i].Brief)
+            Console.Out.WriteLine(matched[i].Path.PadRight(HelpColumnWidth) + CommandText.ForCli(matched[i].Brief)
                 + (matched[i].Kind == CommandKind.Read ? "" : "  [" + matched[i].Kind.ToString().ToLowerInvariant() + "]"));
             if (excerpts[i].Length > 0)
                 Console.Out.WriteLine("  " + excerpts[i]);
@@ -528,6 +528,10 @@ internal static class Program
         int end = Math.Min(text.Length, match.Index + match.Length + 60);
         return (start > 0 ? "…" : "") + text[start..end].Replace('\n', ' ') + (end < text.Length ? "…" : "");
     }
+
+    // 帮助里命令名那一列的宽度：按**最长命令名**算，别写死。
+    // （写死过一次 26，于是 `extension cancel-uninstall` 刚好 26 字——输出里它与描述黏成了一个词。）
+    static int HelpColumnWidth => CommandRegistry.All.Max(c => c.Path.Length) + 2;
 
     static void PrintCommandTree(string? onlyGroup)
     {
@@ -552,7 +556,7 @@ internal static class Program
                 continue;
             Console.Out.WriteLine(group);
             foreach (var command in CommandRegistry.All.Where(c => CommandRegistry.GroupOf(c) == group))
-                Console.Out.WriteLine("  " + command.Path.PadRight(26) + CommandText.ForCli(command.Brief)
+                Console.Out.WriteLine("  " + command.Path.PadRight(HelpColumnWidth) + CommandText.ForCli(command.Brief)
                     + (command.Kind == CommandKind.Read ? "" : "  [" + command.Kind.ToString().ToLowerInvariant() + "]"));
         }
         Console.Out.WriteLine();

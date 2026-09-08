@@ -19,6 +19,7 @@ internal static class CommandRegistry
         new AppInfoCommand(),
         new EditorStatusCommand(),
         new ProjectStatusCommand(),
+        new ProjectOpenCommand(),
         new ProjectExportCommand(),
         new ScriptListCommand(),
         new ScriptReadCommand(),
@@ -45,6 +46,9 @@ internal static class CommandRegistry
         new ExtensionSettingsCommand(),
         new ExtensionSetSettingCommand(),
         new ExtensionEnableCommand(),
+        new ExtensionInstallCommand(),
+        new ExtensionUninstallCommand(),
+        new ExtensionCancelUninstallCommand(),
     };
 
     // agent 工具名 → 命令路径。命令面的文本是给模型写的，里面引用别的动作时用的是 agent 工具面上的
