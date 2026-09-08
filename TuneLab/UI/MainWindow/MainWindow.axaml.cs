@@ -45,7 +45,7 @@ public partial class MainWindow : Window
         ApplySavedWindowPlacement();
 
         this.KeyDown += OnKeyDown;
-        RegisterKeyCommands();
+        RegisterActions();
 
 #if AVALONIA
         this.AttachDevTools();
@@ -345,21 +345,23 @@ public partial class MainWindow : Window
         args.Handled = Keymap.TryHandle(KeyScope.Global, args);
     }
 
-    // Global 作用域的内置快捷键命令（跨全窗口生效，由最外层 Window.KeyDown 兜底分发）。
-    void RegisterKeyCommands()
+    // Global 作用域的内置动作（跨全窗口生效，由最外层 Window.KeyDown 兜底分发）。
+    void RegisterActions()
     {
         Keymap.Register(new()
         {
             Id = "app.fullscreen",
             DisplayName = () => "Full Screen".Tr(TC.Menu),
-            Scope = KeyScope.Global,
-            // 按平台走原生约定：Windows=F11，Mac=⌃⌘F（物理 Control+Meta+F，改用物理修饰后可表达；见
-            // docs/keybinding-system.md §1.2）。若 macOS 自身截走 ⌃⌘F 做系统全屏，效果一致；用户仍可重绑。
-            DefaultGesture = OperatingSystem.IsMacOS()
-                ? new(Key.F, KeyModifiers.Control | KeyModifiers.Meta)
-                : new(Key.F11),
+            // 只改窗口自己的显示状态：不进撤销栈、不随工程走。
+            Kind = ActionKind.AppState,
             Execute = () => OnMenuFullScreen(this, new RoutedEventArgs()),
-        });
+        },
+        KeyScope.Global,
+        // 按平台走原生约定：Windows=F11，Mac=⌃⌘F（物理 Control+Meta+F，改用物理修饰后可表达；见
+        // docs/keybinding-system.md §1.2）。若 macOS 自身截走 ⌃⌘F 做系统全屏，效果一致；用户仍可重绑。
+        OperatingSystem.IsMacOS()
+            ? new(Key.F, KeyModifiers.Control | KeyModifiers.Meta)
+            : new(Key.F11));
     }
     
     void OnMenuFullScreen(object sender, RoutedEventArgs args) {

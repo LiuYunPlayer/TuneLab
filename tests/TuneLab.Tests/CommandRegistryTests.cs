@@ -14,7 +14,7 @@ public class CommandRegistryTests
     // 也得连同各处描述一起改，改到这里报错为止。（ask_user_question 不在此列：它是入口能力、不进命令树。）
     //
     // 加一条新命令时【故意】要在这里补一行——那是一次对模型可见的表面变更，该由人认领而不是自动跟上。
-    // 前 25 个来自搬家（一个都不许动）；get_app_info 是搬家之后新加的第一条。
+    // 前 25 个来自搬家（一个都不许动）；get_app_info 是搬家之后新加的第一条，动作面那三条（issue #150）随后。
     static readonly string[] AgentToolNames =
     [
         "delete_script", "export_project", "get_extension_introduction", "get_manual", "get_project_overview",
@@ -22,7 +22,7 @@ public class CommandRegistryTests
         "list_extensions", "list_keybindings", "list_scripts", "list_settings", "list_sound_sources",
         "read_script", "run_in_sandbox", "run_saved_script", "run_script", "save_script",
         "set_extension_enabled", "set_extension_routing", "set_extension_setting", "set_keybinding", "set_setting",
-        "get_app_info",
+        "get_app_info", "list_actions", "run_action", "get_editor_status",
     ];
 
     [Fact]

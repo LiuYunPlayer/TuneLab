@@ -16,7 +16,7 @@ internal enum CommandKind
     Sandbox,
 }
 
-// 一条【末端动作】：路径 + 参数 schema + 文档 + handler。
+// 一条【末端命令】：路径 + 参数 schema + 文档 + handler。
 //
 // 它不含任何入口特有的东西——不知道模型、不知道终端、不知道 UI。环境一律经 CommandContext 注入，
 // 因此同一条命令可以被内置 agent、CLI、MCP server、CI 里的无头进程调用（见 docs/command-surface.md）。

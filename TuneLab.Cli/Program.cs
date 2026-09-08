@@ -270,7 +270,7 @@ internal static class Program
         if (mWarnedUnattended || CanAsk || command.Kind != CommandKind.Edit || authorization != BridgeProtocol.AuthConfirm)
             return;
         mWarnedUnattended = true;
-        Console.Error.WriteLine("tunelab: stdin is not interactive, so nothing can be confirmed here — anything that writes will be reported but NOT applied.");
+        Console.Error.WriteLine("tunelab: stdin is not interactive, so nothing can be confirmed here — anything that needs the user's authorization will be reported but NOT applied.");
         Console.Error.WriteLine("tunelab: pass --yes to allow it, or --dry-run to only see what it would change.");
     }
 

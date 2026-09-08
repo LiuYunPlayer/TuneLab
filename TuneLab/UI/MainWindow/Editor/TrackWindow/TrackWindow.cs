@@ -139,7 +139,9 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     // 剪贴板类命令（复制/剪切/粘贴/删除/全选）是与钢琴窗共享的通用动作，注册在 Editor 域、由 Editor 按聚焦面
     // 路由到下列 *Selection 方法（不由本控件的 OnKeyDown 分发）。有范围选区时作用于选区（闸刀语义，与选区
     // 右键菜单一致）、否则作用于选中的整块 part。仅在无进行中操作时生效——原本由 OnKeyDown 前置守卫，此处自守。
-    bool CanRunEditCommand => TrackScrollView.OperationState == TrackScrollView.State.None;
+    // 公开是给 Editor 的动作可用性判据用（EditSurfaceUnavailable）：外部触发时"正拖着东西所以不收命令"
+    // 必须能说出来，不能静默吞掉。
+    public bool CanRunEditCommand => TrackScrollView.OperationState == TrackScrollView.State.None;
 
     public void CopySelection()
     {

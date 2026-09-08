@@ -166,7 +166,7 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
 
         ActiveAutomation = AutomationKey.Voice(ConstantDefine.PreCommonAutomationConfigs[0].Key.Id);
 
-        RegisterKeyCommands();
+        RegisterActions();
     }
 
     ~PianoWindow()
@@ -260,19 +260,23 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         e.Handled = Keymap.TryHandle(KeyScope.PianoWindow, e);
     }
 
-    // PianoWindow 作用域的内置快捷键命令（钢琴窗专属：移调 / 八度）。剪贴板类动词（复制/剪切/粘贴/删除/全选）
+    // PianoWindow 作用域的内置动作（钢琴窗专属：移调 / 八度）。剪贴板类动词（复制/剪切/粘贴/删除/全选）
     // 是与编排区共享的通用动作，注册在 Editor 域、由 Editor 按聚焦面路由到下列 *Selection 方法，不在此登记。
-    void RegisterKeyCommands()
+    void RegisterActions()
     {
         // 域 = 功能身份（note 音符级操作），非分发作用域（虽在 PianoWindow 分发）。见 docs/keybinding-system.md §1.1。
-        Keymap.Register(new() { Id = "note.octaveUp", DisplayName = () => "Octave Up".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Up, KeyModifiers.Shift), Execute = () => PianoScrollView.OctaveUp() });
-        Keymap.Register(new() { Id = "note.octaveDown", DisplayName = () => "Octave Down".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Down, KeyModifiers.Shift), Execute = () => PianoScrollView.OctaveDown() });
-        Keymap.Register(new() { Id = "note.transposeUp", DisplayName = () => "Semitone Up".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Up), Execute = () => PianoScrollView.ChangeKey(+1) });
-        Keymap.Register(new() { Id = "note.transposeDown", DisplayName = () => "Semitone Down".Tr(TC.Menu), Scope = KeyScope.PianoWindow, DefaultGesture = new(Key.Down), Execute = () => PianoScrollView.ChangeKey(-1) });
+        // 四条都改音符音高、进撤销栈 → ProjectEdit；可用性判据（有没有 part、选中了没有）与 ChangeKey
+        // 从前的内部守卫同一份，见 PianoScrollView.TransposeUnavailable。
+        Keymap.Register(new() { Id = "note.octaveUp", DisplayName = () => "Octave Up".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.OctaveUp() }, KeyScope.PianoWindow, new(Key.Up, KeyModifiers.Shift));
+        Keymap.Register(new() { Id = "note.octaveDown", DisplayName = () => "Octave Down".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.OctaveDown() }, KeyScope.PianoWindow, new(Key.Down, KeyModifiers.Shift));
+        Keymap.Register(new() { Id = "note.transposeUp", DisplayName = () => "Semitone Up".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.ChangeKey(+1) }, KeyScope.PianoWindow, new(Key.Up));
+        Keymap.Register(new() { Id = "note.transposeDown", DisplayName = () => "Semitone Down".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.ChangeKey(-1) }, KeyScope.PianoWindow, new(Key.Down));
     }
 
     // 剪贴板类命令仅在无进行中操作（拖动/缩放等）时生效——原本由 OnKeyDown 前置守卫，改由 Editor 路由后在此自守。
-    bool CanRunEditCommand => !mParameterContainer.AutomationRenderer.IsOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
+    // 公开是给 Editor 的动作可用性判据用（EditSurfaceUnavailable）：外部触发时"正拖着东西所以不收命令"
+    // 必须能说出来，不能静默吞掉。
+    public bool CanRunEditCommand => !mParameterContainer.AutomationRenderer.IsOperating && PianoScrollView.OperationState == PianoScrollView.State.None;
 
     public void CopySelection() { if (CanRunEditCommand) PianoScrollView.Copy(); }
     public void CutSelection() { if (CanRunEditCommand) PianoScrollView.Cut(); }

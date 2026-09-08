@@ -9,8 +9,9 @@ using TuneLab.Input;
 
 namespace TuneLab.Commands.Handlers;
 
-// 快捷键能力的读那一半。直接读宿主的 Keymap——命令表、生效手势、冲突判定都在那里，这里不复制任何一份
-// 判据；手势的文本口径来自共享的 KeybindingText。
+// 快捷键能力的读那一半：哪些【动作】可绑、绑的是什么手势。直接读宿主的 Keymap（可绑条目、生效手势、
+// 冲突判定都在那里），动作的显示名去 ActionRegistry 问，这里不复制任何一份判据；手势的文本口径来自
+// 共享的 KeybindingText。动作本身有哪些、能不能跑，是 `action list` 的事。
 //
 // 同时给出手势语法与"用户自己在哪改"，好让调用方能教用户动手而不只是代劳。
 internal sealed class KeybindingListCommand : ICommand
@@ -19,24 +20,24 @@ internal sealed class KeybindingListCommand : ICommand
     public CommandKind Kind => CommandKind.Read;
     public string AgentToolName => "list_keybindings";
 
-    public string Brief => "List bindable commands with their effective shortcuts";
+    public string Brief => "List bindable actions with their effective shortcuts";
 
     public string Documentation =>
-        "List TuneLab's bindable commands and their keyboard shortcuts: command id, label, area (scope), the effective gesture, whether it is the default or the user's own override, and any conflict. " +
+        "List TuneLab's bindable actions and their keyboard shortcuts: action id, label, area (scope), the effective gesture, whether it is the default or the user's own override, and any conflict. " +
         "Use it to answer \"what is the shortcut for X\" / \"how do I rebind X\" (the Settings window's Keybindings page has a search box — point the user at it), to find a free gesture before set_keybinding, and to check whether a gesture is already taken. " +
-        "Scripts saved with save_script appear here as command id \"script:<id>\", so a saved script can be given a shortcut. Read-only.";
+        "Scripts saved with save_script appear here as action id \"script:<id>\", so a saved script can be given a shortcut. Read-only.";
 
     public string ParametersJsonSchema => """
         {
           "type": "object",
           "properties": {
-            "query": { "type": "string", "description": "Optional filter: matches the command id or its label (same as the Keybindings page's search box)." }
+            "query": { "type": "string", "description": "Optional filter: matches the action id or its label (same as the Keybindings page's search box)." }
           },
           "additionalProperties": false
         }
         """;
 
-    // 命令的 DisplayName 是取译文的闭包，且脚本命令的注册随菜单/目录监视器在主线程发生 → 整段在主线程读，
+    // 动作的 DisplayName 是取译文的闭包，且脚本动作的注册随菜单/目录监视器在主线程发生 → 整段在主线程读，
     // 取一致快照。
     public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
     {
@@ -49,24 +50,24 @@ internal sealed class KeybindingListCommand : ICommand
 
     static JsonNode BuildData(string query, bool hasEditor)
     {
-        var all = Keymap.Commands.OrderBy(c => Keymap.OrderOf(c.Id)).ToList();
+        var all = Keymap.Bindings.OrderBy(c => ActionRegistry.OrderOf(c.ActionId)).ToList();
         var shown = query.Length == 0
             ? all
-            : all.Where(c => c.Id.Contains(query, StringComparison.OrdinalIgnoreCase)
+            : all.Where(c => c.ActionId.Contains(query, StringComparison.OrdinalIgnoreCase)
                           || c.DisplayName().Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToList();
 
-        var commands = new JsonArray();
+        var actions = new JsonArray();
         foreach (var cmd in shown)
         {
-            var conflicts = KeybindingText.ConflictPeers(cmd.Id);
+            var conflicts = KeybindingText.ConflictPeers(cmd.ActionId);
 
-            commands.Add(new JsonObject
+            actions.Add(new JsonObject
             {
-                ["id"] = cmd.Id,
+                ["id"] = cmd.ActionId,
                 ["label"] = cmd.DisplayName(),
                 ["scope"] = cmd.Scope.ToString(),
-                ["gesture"] = GestureNode(Keymap.Effective(cmd.Id)),    // null = 未绑定
-                ["hasOverride"] = Keymap.HasOverride(cmd.Id),
+                ["gesture"] = GestureNode(Keymap.Effective(cmd.ActionId)),    // null = 未绑定
+                ["hasOverride"] = Keymap.HasOverride(cmd.ActionId),
                 ["default"] = GestureNode(cmd.DefaultGesture),          // null = 无默认
                 ["conflicts"] = conflicts,
             });
@@ -74,10 +75,10 @@ internal sealed class KeybindingListCommand : ICommand
 
         return new JsonObject
         {
-            ["total"] = all.Count,                                  // 全部可绑定命令数（不受 query 影响）
+            ["total"] = all.Count,                                  // 全部可绑定动作数（不受 query 影响）
             ["hasEditor"] = hasEditor,                              // false = 这个进程没有编辑器，故 total 恒为 0
             ["query"] = query.Length == 0 ? null : query,
-            ["commands"] = commands,
+            ["actions"] = actions,
         };
     }
 
@@ -99,25 +100,25 @@ internal sealed class KeybindingListCommand : ICommand
         int total = obj["total"]!.GetValue<int>();
         if (total == 0)
             return obj["hasEditor"]?.GetValue<bool>() == false
-                ? "No editor is present in this process, so there are no bindable commands: the command catalog is declared by the editor window as it builds, and shortcuts only mean anything where there are keys to press. Run this against a running TuneLab instead."
-                : "No bindable commands are registered yet.";
+                ? "No editor is present in this process, so there are no bindable actions: the action catalog is declared by the editor window as it builds, and shortcuts only mean anything where there are keys to press. Run this against a running TuneLab instead."
+                : "No bindable actions are registered yet.";
 
         var query = obj["query"]?.GetValue<string>() ?? "";
-        var shown = obj["commands"]!.AsArray();
+        var shown = obj["actions"]!.AsArray();
 
         var sb = new StringBuilder();
-        sb.Append(total).Append(" bindable command(s)");
+        sb.Append(total).Append(" bindable action(s)");
         if (query.Length != 0)
             sb.Append(", ").Append(shown.Count).Append(" matching \"").Append(query).Append('"');
         sb.Append(". Change one with set_keybinding(id, gesture).");
         sb.Append("\nThe user changes these themselves in the Settings window's Keybindings page (it has a search box and a per-row reset).");
         sb.Append('\n').Append(KeybindingText.GestureSyntax);
         sb.Append("\nAreas (scopes): Global (anywhere), Editor, TrackWindow (arrangement), PianoWindow (piano roll). ")
-          .Append("The SAME gesture in DIFFERENT areas is not a conflict — both stay bound and the focused area wins. Two commands in the SAME area is a conflict (only one fires).");
+          .Append("The SAME gesture in DIFFERENT areas is not a conflict — both stay bound and the focused area wins. Two actions in the SAME area is a conflict (only one fires).");
         sb.Append("\nFormat: <id> \"<label>\" [area]: <gesture token> (<as shown to the user>)");
 
         if (shown.Count == 0)
-            sb.Append("\n(no command matches — try a shorter query, or call without one)");
+            sb.Append("\n(no action matches — try a shorter query, or call without one)");
 
         foreach (var node in shown)
         {
@@ -145,10 +146,10 @@ internal sealed class KeybindingListCommand : ICommand
 }
 
 // 快捷键的写那一半：绑手势 / 解绑（gesture=""）/ 恢复默认（reset=true）。改用户的应用配置 → 过入口的
-// 授权策略。同域冲突默认【拒绝】，要 replaceConflict:true 才夺键（并解除原命令的绑定）——与设置页录制时
-// "已被占用，是否改绑"那道确认等价，不让调用方悄悄抢走别的命令的键。
+// 授权策略。同域冲突默认【拒绝】，要 replaceConflict:true 才夺键（并解除原动作的绑定）——与设置页录制时
+// "已被占用，是否改绑"那道确认等价，不让调用方悄悄抢走别的动作的键。
 //
-// 判据全在 Keymap（命令表、生效手势、冲突判定、落盘广播），这里不复制任何一份；手势文本口径来自
+// 判据全在 Keymap（可绑条目、生效手势、冲突判定、落盘广播），这里不复制任何一份；手势文本口径来自
 // 与 `keybinding list` 共用的 KeybindingText。
 internal sealed class KeybindingSetCommand : ICommand
 {
@@ -156,22 +157,22 @@ internal sealed class KeybindingSetCommand : ICommand
     public CommandKind Kind => CommandKind.Edit;
     public string AgentToolName => "set_keybinding";
 
-    public string Brief => "Bind, unbind or reset one command's shortcut";
+    public string Brief => "Bind, unbind or reset one action's shortcut";
 
     public string Documentation =>
-        "Bind, unbind or reset ONE command's keyboard shortcut (get the command id and a free gesture from list_keybindings first). Takes effect immediately and is saved. " +
-        "Pass `gesture` to bind it, `gesture` as \"\" to unbind, or `reset` = true to restore that command's default. " +
-        "If the gesture is already used by another command in the SAME area the call is refused and names that command — pick another gesture, or pass replaceConflict = true to take it over (which unbinds the other command). " +
+        "Bind, unbind or reset ONE action's keyboard shortcut (get the action id and a free gesture from list_keybindings first). Takes effect immediately and is saved. " +
+        "Pass `gesture` to bind it, `gesture` as \"\" to unbind, or `reset` = true to restore that action's default. " +
+        "If the gesture is already used by another action in the SAME area the call is refused and names that action — pick another gesture, or pass replaceConflict = true to take it over (which unbinds the other action). " +
         "This changes the user's configuration and is not part of the project's undo history, so it needs the user's authorization; if it is refused, tell the user to change it in the Settings window's Keybindings page.";
 
     public string ParametersJsonSchema => """
         {
           "type": "object",
           "properties": {
-            "id": { "type": "string", "description": "Command id exactly as listed by list_keybindings (e.g. \"edit.undo\", \"script:my-tool\")." },
-            "gesture": { "type": "string", "description": "The new gesture, e.g. \"ctrl+shift+p\" (\"mod+\" = Ctrl on Windows/Linux, Cmd on macOS). Empty string unbinds the command. Omit when using reset." },
-            "reset": { "type": "boolean", "description": "True = restore this command's default shortcut (ignores gesture)." },
-            "replaceConflict": { "type": "boolean", "description": "True = if another command in the same area already uses this gesture, unbind that one and take the gesture. Default false (the call is refused instead)." }
+            "id": { "type": "string", "description": "Action id exactly as listed by list_keybindings (e.g. \"edit.undo\", \"script:my-tool\")." },
+            "gesture": { "type": "string", "description": "The new gesture, e.g. \"ctrl+shift+p\" (\"mod+\" = Ctrl on Windows/Linux, Cmd on macOS). Empty string unbinds the action. Omit when using reset." },
+            "reset": { "type": "boolean", "description": "True = restore this action's default shortcut (ignores gesture)." },
+            "replaceConflict": { "type": "boolean", "description": "True = if another action in the same area already uses this gesture, unbind that one and take the gesture. Default false (the call is refused instead)." }
           },
           "required": ["id"],
           "additionalProperties": false
@@ -212,14 +213,14 @@ internal sealed class KeybindingSetCommand : ICommand
         return CommandResult.Ok(await ctx.OnMainThread(() => Apply(id, plan, message)));
     }
 
-    // 命令 id 归一：精确匹配优先，否则忽略大小写找一条（调用方常把 id 大小写写错，没必要为此失败）；都不中则原样返回、由 Plan 报错。
+    // 动作 id 归一：精确匹配优先，否则忽略大小写找一条（调用方常把 id 大小写写错，没必要为此失败）；都不中则原样返回、由 Plan 报错。
     static string ResolveId(string id)
     {
         if (id.Length == 0 || Keymap.TryGet(id, out _))
             return id;
-        foreach (var cmd in Keymap.Commands)
-            if (string.Equals(cmd.Id, id, StringComparison.OrdinalIgnoreCase))
-                return cmd.Id;
+        foreach (var cmd in Keymap.Bindings)
+            if (string.Equals(cmd.ActionId, id, StringComparison.OrdinalIgnoreCase))
+                return cmd.ActionId;
         return id;
     }
 
@@ -237,18 +238,18 @@ internal sealed class KeybindingSetCommand : ICommand
         ["gesture"] = gesture,
     }, label, action, false, null, "", false, null);
 
-    // hasEditor：这个进程有没有编辑器（判据见 keybinding list）。没有编辑器时命令目录必然是空的，
+    // hasEditor：这个进程有没有编辑器（判据见 keybinding list）。没有编辑器时可绑动作表必然是空的，
     // 于是按 id 找不到是【结构性缺席】而不是拼写错误——照常报"没有这个 id"会让调用方以为自己写错了名字
     // 而反复试。空 id 不在此列：那是调用方的笔误，有没有编辑器都一样。
     static ChangePlan Plan(string id, string? gesture, bool reset, bool replaceConflict, bool hasEditor)
     {
         if (id.Length == 0)
-            return Fail("empty_id", "\"id\" is empty. Call list_keybindings to see command ids.");
+            return Fail("empty_id", "\"id\" is empty. Call list_keybindings to see action ids.");
         if (!Keymap.TryGet(id, out var cmd))
             return hasEditor
                 ? Fail("unknown_id", string.Format(
-                    "no bindable command with id \"{0}\". Call list_keybindings to see the ids. (A script saved with save_script becomes \"script:<its id>\" once the app has picked the file up — list again if it is not there yet.)", id))
-                : Fail("no_editor", "No editor is present in this process, so there are no bindable commands: the command catalog is declared by the editor window as it builds, and shortcuts only mean anything where there are keys to press. Run this against a running TuneLab instead.");
+                    "no bindable action with id \"{0}\". Call list_keybindings to see the ids. (A script saved with save_script becomes \"script:<its id>\" once the app has picked the file up — list again if it is not there yet.)", id))
+                : Fail("no_editor", "No editor is present in this process, so there are no bindable actions: the action catalog is declared by the editor window as it builds, and shortcuts only mean anything where there are keys to press. Run this against a running TuneLab instead.");
 
         var label = cmd.DisplayName();
         var effective = Keymap.Effective(id);
@@ -312,7 +313,7 @@ internal sealed class KeybindingSetCommand : ICommand
         else
         {
             // 冲突按【落地这一刻】重查：闸门在等用户裁决期间，用户可能已在设置页自己改了绑定。
-            // 计划期无冲突而此刻有 → 未获夺键许可，宁可什么都不做（绝不悄悄抢走别的命令的键）。
+            // 计划期无冲突而此刻有 → 未获夺键许可，宁可什么都不做（绝不悄悄抢走别的动作的键）。
             var conflictId = Keymap.FindConflict(id, binding);
             if (conflictId != null && !plan.Replace)
             {
@@ -322,7 +323,7 @@ internal sealed class KeybindingSetCommand : ICommand
                 return data;
             }
             if (conflictId != null)
-                Keymap.Rebind(conflictId, null);   // 夺键：先解除原命令（与设置页确认后的行为一致）
+                Keymap.Rebind(conflictId, null);   // 夺键：先解除原动作的绑定（与设置页确认后的行为一致）
             Keymap.Rebind(id, binding);
             data["gesture"] = GestureNode(binding);
             data["replaced"] = conflictId == null ? null
@@ -332,7 +333,7 @@ internal sealed class KeybindingSetCommand : ICommand
                 .Select(c => (JsonNode?)c.DisplayName()).ToArray());
         }
 
-        // 改完之后这条命令还剩什么同域冲突（夺键后通常为空，但同域可能不止两个）。
+        // 改完之后这条动作还剩什么同域冲突（夺键后通常为空，但同域可能不止两个）。
         data["conflicts"] = KeybindingText.ConflictPeers(id);
         return data;
     }

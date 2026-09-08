@@ -7,7 +7,7 @@ namespace TuneLab.Commands;
 // 一次需要授权的写的种类——决定确认卡片/回报文案。ProjectEdit=工程编辑（走预览-回退，Count=改动数）；
 // ScriptDelete/ScriptOverwrite=脚本库【外部文件】的破坏性改动（无预览，Target=脚本名）。历史记录管理器只保工程
 // 数据、保不了外部文件，故后者也必须过同一授权闸门。SettingChange=改宿主设置（Target=设置键、NewValue=新值文本）、
-// KeybindingChange=改快捷键（Target=命令 id、NewValue=新手势字形，空=解绑；SecondaryTarget=被夺键而解绑的另一命令）、
+// KeybindingChange=改快捷键（Target=动作 id、NewValue=新手势字形，空=解绑；SecondaryTarget=被夺键而解绑的另一动作）、
 // RoutingChange=改扩展路由（Target="kind:identity"、NewValue=选中的包显示名）、
 // ExtensionActivationChange=启停某扩展包或其中某个能力（整包时 Target=包名；针对单个能力时 Target="kind:identity"、
 //   SecondaryTarget=所属包名。NewValue 恒为动词 "enable"/"disable"，文案按它选句式）：
@@ -15,12 +15,17 @@ namespace TuneLab.Commands;
 //   故同样恒过闸门。
 // ExtensionSettingChange=改某扩展自己的设置（Target="扩展名 → 字段键"、NewValue=新值文本）：
 // 都不是工程数据、历史记录同样救不回，且是"改用户的应用配置"，故与前者同闸门、同样无预览。
+// EditorAction/EditorActionDestructive=从命令面触发一条编辑器动作（Target=动作显示名）：动作没法像脚本那样
+// 先跑一遍预览"会改多少"（它就是一次界面操作），故走一问一答而非预览-裁决。分两档的理由同 ProjectExport 的
+// 分档：进撤销栈的（剪贴板动词、移调）Ctrl+Z 能救回，而新建/打开/保存可能丢掉未保存的工作或改写磁盘上的
+// 文件——后果不同就必须让卡片说出不同的话。只改应用自身状态的动作（播放、切工具、开合面板）**不过闸门**，
+// 故这里没有它们的档：见 ActionKind.AppState。
 // ProjectExport/ProjectExportOverwrite=把工程导出成文件（Target=落地绝对路径、NewValue=格式显示名）：
 // 与脚本库不同，导出路径是【任意的】——调用方能往用户磁盘任何地方写，故【恒】过闸门（不像 save_script 只有覆盖才拦）；
 // 落到已存路径会替换那个文件、历史记录救不回，故单列 Overwrite 一档让卡片把"替换"说出来（同 ScriptOverwrite 的分档理由）。
-internal enum WriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite, ExtensionActivationChange }
+internal enum WriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite, ExtensionActivationChange, EditorAction, EditorActionDestructive }
 
-// SecondaryTarget=定位/说明本次改动所需的第二个对象：夺键时是【被顺带解绑的那个命令】（供卡片给出知情同意）；
+// SecondaryTarget=定位/说明本次改动所需的第二个对象：夺键时是【被顺带解绑的那个动作】（供卡片给出知情同意）；
 // 启停单个能力时是【它所属的包名】（同一 kind:identity 跨包可并存，不点名包就说不清关的是哪一份）。
 internal readonly record struct AuthorizationRequest(WriteKind Kind, int Count, string? Target, string? NewValue = null, string? SecondaryTarget = null)
 {
@@ -31,13 +36,16 @@ internal readonly record struct AuthorizationRequest(WriteKind Kind, int Count, 
         WriteKind.ScriptOverwrite => string.Format("overwrite the existing saved script \"{0}\"", Target),
         WriteKind.SettingChange => string.Format("change the setting \"{0}\" to {1}", Target, NewValue),
         WriteKind.KeybindingChange => string.IsNullOrEmpty(NewValue)
-            ? string.Format("remove the shortcut for the command \"{0}\"", Target)
-            : string.Format("set the shortcut for the command \"{0}\" to {1}", Target, NewValue),
+            ? string.Format("remove the shortcut for the action \"{0}\"", Target)
+            : string.Format("set the shortcut for the action \"{0}\" to {1}", Target, NewValue),
         WriteKind.RoutingChange => string.Format("make \"{1}\" the provider of \"{0}\"", Target, NewValue),
         WriteKind.ExtensionSettingChange => string.Format("change the extension setting \"{0}\" to {1}", Target, NewValue),
         WriteKind.ExtensionActivationChange => string.IsNullOrEmpty(SecondaryTarget)
             ? string.Format("{0} the extension \"{1}\"", NewValue, Target)
             : string.Format("{0} the \"{1}\" capability of \"{2}\"", NewValue, Target, SecondaryTarget),
+        WriteKind.EditorAction => string.Format("run the editor action \"{0}\" (it edits the project and goes into the undo history)", Target),
+        WriteKind.EditorActionDestructive => string.Format(
+            "run the editor action \"{0}\" (it can discard unsaved work or write files to disk, and the undo history cannot bring that back)", Target),
         WriteKind.ProjectExport => string.Format("export the project as {1} to \"{0}\"", Target, NewValue),
         WriteKind.ProjectExportOverwrite => string.Format("export the project as {1} to \"{0}\", replacing the file already there", Target, NewValue),
         _ => string.Format("apply {0} change(s) to the project", Count),

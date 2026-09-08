@@ -6,7 +6,9 @@ using Xunit;
 
 namespace TuneLab.Tests;
 
-// `keybinding set`（搬家前的 set_keybinding）的封条。落地那一步会真改用户的键位表，故除了两条不可能
+// `keybinding set`（搬家前的 set_keybinding）的封条。
+//
+// 措辞里的 "command" 已按术语表统一为 "action"（理由见 KeybindingListCommandTests 的说明）；其余逐字不动。落地那一步会真改用户的键位表，故除了两条不可能
 // 落地的错误路径外，全部用合成 Data 测渲染。
 //
 // 这条命令的措辞里有三处是【安全性质的】，不能被"顺手统一"掉：
@@ -260,7 +262,7 @@ public class KeybindingSetCommandTests
 
         Assert.True(result.IsError);
         Assert.Equal("unknown_id", result.Error!.Value.Code);
-        Assert.StartsWith("no bindable command with id \"no.such.command\".", result.Error!.Value.Message);
+        Assert.StartsWith("no bindable action with id \"no.such.command\".", result.Error!.Value.Message);
         Assert.Contains("becomes \"script:<its id>\"", result.Error!.Value.Message);
     }
 }

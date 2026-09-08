@@ -46,16 +46,16 @@ internal static class KeybindingText
     }
 
     // 同手势但不同作用域的其它命令：跨域共用、非冲突（内层遮蔽外层，按焦点解析）。
-    public static IReadOnlyList<KeyCommand> OtherScopeUsers(string id, KeyBinding binding)
+    public static IReadOnlyList<KeyBindingEntry> OtherScopeUsers(string id, KeyBinding binding)
     {
         if (!Keymap.TryGet(id, out var self))
             return [];
-        var list = new List<KeyCommand>();
-        foreach (var cmd in Keymap.Commands)
+        var list = new List<KeyBindingEntry>();
+        foreach (var cmd in Keymap.Bindings)
         {
-            if (cmd.Id == id || cmd.Scope == self.Scope)
+            if (cmd.ActionId == id || cmd.Scope == self.Scope)
                 continue;
-            if (Keymap.Effective(cmd.Id) is { } g && g.Equals(binding))
+            if (Keymap.Effective(cmd.ActionId) is { } g && g.Equals(binding))
                 list.Add(cmd);
         }
         return list;

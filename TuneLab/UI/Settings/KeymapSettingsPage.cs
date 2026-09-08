@@ -40,12 +40,12 @@ internal sealed class KeymapSettingsPage : DockPanel
     };
 
     // 命令 id 的顶级域：script:Foo → "script"；note.octaveUp → "note"；无点的 id 兜底归 "app"（安全网，约定上不该出现）。
-    static string DomainOf(KeyCommand cmd)
+    static string DomainOf(KeyBindingEntry cmd)
     {
-        if (cmd.Id.StartsWith("script:", StringComparison.Ordinal))
+        if (cmd.ActionId.StartsWith("script:", StringComparison.Ordinal))
             return "script";
-        int dot = cmd.Id.IndexOf('.');
-        return dot > 0 ? cmd.Id[..dot] : "app";
+        int dot = cmd.ActionId.IndexOf('.');
+        return dot > 0 ? cmd.ActionId[..dot] : "app";
     }
 
     public KeymapSettingsPage(Window owner)
@@ -148,16 +148,16 @@ internal sealed class KeymapSettingsPage : DockPanel
     }
 
     // 同手势但不同作用域的其它命令（跨域共用，非冲突）。self 须已注册（设置页显示的即注册命令）。
-    static IReadOnlyList<KeyCommand> OtherScopeUsers(string id, KeyBinding binding)
+    static IReadOnlyList<KeyBindingEntry> OtherScopeUsers(string id, KeyBinding binding)
     {
         if (!Keymap.TryGet(id, out var self))
-            return Array.Empty<KeyCommand>();
-        var list = new List<KeyCommand>();
-        foreach (var cmd in Keymap.Commands)
+            return Array.Empty<KeyBindingEntry>();
+        var list = new List<KeyBindingEntry>();
+        foreach (var cmd in Keymap.Bindings)
         {
-            if (cmd.Id == id || cmd.Scope == self.Scope)
+            if (cmd.ActionId == id || cmd.Scope == self.Scope)
                 continue;
-            if (Keymap.Effective(cmd.Id) is { } g && g.Equals(binding))
+            if (Keymap.Effective(cmd.ActionId) is { } g && g.Equals(binding))
                 list.Add(cmd);
         }
         return list;
@@ -167,18 +167,18 @@ internal sealed class KeymapSettingsPage : DockPanel
     {
         mListView.Content.Children.Clear();
 
-        bool Match(KeyCommand cmd)
+        bool Match(KeyBindingEntry cmd)
         {
             if (mSearch.Length == 0)
                 return true;
             return cmd.DisplayName().Contains(mSearch, StringComparison.CurrentCultureIgnoreCase)
-                || cmd.Id.Contains(mSearch, StringComparison.OrdinalIgnoreCase);
+                || cmd.ActionId.Contains(mSearch, StringComparison.OrdinalIgnoreCase);
         }
 
         // 按功能域分组，组内按首次注册序排（反映逻辑顺序而非字母序）。
-        var byDomain = Keymap.Commands.Where(Match)
+        var byDomain = Keymap.Bindings.Where(Match)
             .GroupBy(DomainOf)
-            .ToDictionary(g => g.Key, g => g.OrderBy(c => Keymap.OrderOf(c.Id)).ToList());
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => ActionRegistry.OrderOf(c.ActionId)).ToList());
 
         void EmitGroup(string domain, string label)
         {
@@ -219,7 +219,7 @@ internal sealed class KeymapSettingsPage : DockPanel
         });
     }
 
-    Control BuildRow(KeyCommand cmd)
+    Control BuildRow(KeyBindingEntry cmd)
     {
         var panel = new DockPanel() { Margin = new(36, 5, 24, 5) };
 
@@ -234,13 +234,13 @@ internal sealed class KeymapSettingsPage : DockPanel
         void PlaceCol(Control c, int col) { Grid.SetColumn(c, col); actions.Children.Add(c); }
 
         // 重置（仅在有 override 时）：回默认手势。
-        if (Keymap.HasOverride(cmd.Id))
-            PlaceCol(MakeGlyphButton("↺", "Reset to Default".Tr(mOwner), () => { Keymap.ResetToDefault(cmd.Id); Rebuild(); }), 0);
+        if (Keymap.HasOverride(cmd.ActionId))
+            PlaceCol(MakeGlyphButton("↺", "Reset to Default".Tr(mOwner), () => { Keymap.ResetToDefault(cmd.ActionId); Rebuild(); }), 0);
 
         // 清除（仅在当前有绑定时）：解绑。
-        var effective = Keymap.Effective(cmd.Id);
+        var effective = Keymap.Effective(cmd.ActionId);
         if (effective != null)
-            PlaceCol(MakeGlyphButton("✕", "Clear".Tr(mOwner), () => { Keymap.Rebind(cmd.Id, null); Rebuild(); }), 1);
+            PlaceCol(MakeGlyphButton("✕", "Clear".Tr(mOwner), () => { Keymap.Rebind(cmd.ActionId, null); Rebuild(); }), 1);
 
         // 持久冲突展示（不止绑定当时），用彩色 ⚠（嵌芯片、文字前）+ 同色手势文字编码，原因挂芯片 tooltip：
         // 同域撞键=红（须消解，来自手改 JSON / 多脚本同默认等）；跨域共用=黄（焦点共存、非错误）。见 §9。
@@ -248,23 +248,23 @@ internal sealed class KeymapSettingsPage : DockPanel
         string? chipTip = null;
         if (effective != null)
         {
-            var peers = Keymap.SameScopeConflictPeers(cmd.Id);
+            var peers = Keymap.SameScopeConflictPeers(cmd.ActionId);
             if (peers.Count > 0)
             {
                 // 冲突双方【都】警示（用户对各方有同等修改权，应综合判断而非被诱导只改败者）。稳定决胜者=同组注册序
                 // 最小者（分发生效者），tooltip 各自点明"当前谁生效"，把完整信息交用户权衡。见 docs/keybinding-system.md §9。
-                string winner = cmd.Id;
+                string winner = cmd.ActionId;
                 foreach (var p in peers)
-                    if (Keymap.OrderOf(p) < Keymap.OrderOf(winner)) winner = p;
+                    if (ActionRegistry.OrderOf(p) < ActionRegistry.OrderOf(winner)) winner = p;
                 var peerNames = string.Join("、", peers.Select(NameOf));
                 chipColor = WarnBrush;
-                chipTip = winner == cmd.Id
+                chipTip = winner == cmd.ActionId
                     ? string.Format("Conflicts with {0} in the same area; this one currently takes effect.".Tr(mOwner), peerNames)
                     : string.Format("Conflicts with {0} in the same area; \"{1}\" currently takes effect.".Tr(mOwner), peerNames, NameOf(winner));
             }
             else
             {
-                var others = OtherScopeUsers(cmd.Id, effective.Value);
+                var others = OtherScopeUsers(cmd.ActionId, effective.Value);
                 if (others.Count > 0)
                 {
                     chipColor = ShareBrush;
@@ -291,10 +291,10 @@ internal sealed class KeymapSettingsPage : DockPanel
 
     // 手势芯片：显示当前手势（或「未绑定」），点击进入录制态。conflictBorder!=null 时描该色边（红=同域冲突/
     // 黄=跨域共用），并挂 tip 说明；录制态恒以高亮边覆盖。冲突用手势【文字】上色（比描边更醒目、直指冲突的绑定本身）。
-    Border MakeGestureChip(KeyCommand cmd, IBrush? conflictColor = null, string? tip = null)
+    Border MakeGestureChip(KeyBindingEntry cmd, IBrush? conflictColor = null, string? tip = null)
     {
-        bool recording = mRecordingId == cmd.Id;
-        var effective = Keymap.Effective(cmd.Id);
+        bool recording = mRecordingId == cmd.ActionId;
+        var effective = Keymap.Effective(cmd.ActionId);
         var normalFore = (effective == null && !recording ? Style.LIGHT_WHITE.Opacity(0.4) : Style.TEXT_LIGHT).ToBrush();
         // 有冲突且非录制、且当前确有手势时 → ⚠ 前缀 + 文字整体染冲突色（红/黄）；否则常规色。
         bool showConflict = conflictColor != null && !recording && effective != null;
@@ -327,7 +327,7 @@ internal sealed class KeymapSettingsPage : DockPanel
         {
             if (mRecordingId != null)
                 return;
-            mRecordingId = cmd.Id;
+            mRecordingId = cmd.ActionId;
             text.Text = "Press keys…".Tr(mOwner);
             border.BorderBrush = Style.HIGH_LIGHT.ToBrush();
             border.Focus();   // 使随后按键沿隧道经本页，触发 OnRecordingKeyDown
@@ -335,7 +335,7 @@ internal sealed class KeymapSettingsPage : DockPanel
         // 失焦即视为取消（例如点了别处）：仅当仍在录制本行时复位。
         border.LostFocus += (s, e) =>
         {
-            if (mRecordingId == cmd.Id)
+            if (mRecordingId == cmd.ActionId)
             {
                 mRecordingId = null;
                 Rebuild();

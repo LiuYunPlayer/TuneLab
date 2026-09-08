@@ -17,6 +17,7 @@ internal static class CommandRegistry
     public static IReadOnlyList<ICommand> All { get; } = new ICommand[]
     {
         new AppInfoCommand(),
+        new EditorStatusCommand(),
         new ProjectStatusCommand(),
         new ProjectExportCommand(),
         new ScriptListCommand(),
@@ -33,6 +34,8 @@ internal static class CommandRegistry
         new SettingSetCommand(),
         new KeybindingListCommand(),
         new KeybindingSetCommand(),
+        new ActionListCommand(),
+        new ActionRunCommand(),
         new SoundSourceListCommand(),
         new EffectListCommand(),
         new ExtensionListCommand(),

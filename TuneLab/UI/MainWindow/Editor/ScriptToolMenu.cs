@@ -75,10 +75,10 @@ internal static class ScriptToolMenu
         return items;
     }
 
-    // 已注册的脚本命令 id 集（用于增删同步）。
-    static readonly HashSet<string> sRegisteredCommandIds = new();
+    // 已注册的脚本动作 id 集（用于增删同步）。
+    static readonly HashSet<string> sRegisteredActionIds = new();
 
-    // 把脚本库里全部工具脚本同步为可绑定命令。随 Scripts 菜单重建调用。id/默认手势/作用域的解析规则见
+    // 把脚本库里全部工具脚本同步为可绑定动作。随 Scripts 菜单重建调用。id/默认手势/作用域的解析规则见
     // docs/keybinding-system.md §6：
     //  · id = script:<稳定 id>（getScriptInfo.id 合法时）否则 script:<文件名>；同一 id 被多脚本声明则各自忠实
     //    降级回文件名（文件名由文件系统保证唯一）。稳定 id 让重命名/重装不丢用户绑定。
@@ -87,13 +87,13 @@ internal static class ScriptToolMenu
     //  · 声明的默认手势原样采用（不再"空槽才落"）；若撞了同作用域的内建/别的脚本，不静默丢弃也不夺键——分发按
     //    注册序确定生效者（内建恒胜），冲突由设置页持久警示（Keymap.SameScopeConflictPeers）交用户消解。
     //  · 消失脚本的用户 override 由 Keymap 静默保留（缺 id 即不进分发索引），脚本回归即复活。
-    public static void SyncKeyCommands(Control anchor)
+    public static void SyncActions(Control anchor)
     {
-        // 干净重来：先注销上轮全部脚本命令，令本轮"空槽"判定只对内建 + 本轮已处理脚本可见（先到先得可复现）。
+        // 干净重来：先注销上轮全部脚本动作，令本轮"空槽"判定只对内建 + 本轮已处理脚本可见（先到先得可复现）。
         // 用户 override 存在 Keymap 内、与注册独立，注销不丢。
-        foreach (var id in sRegisteredCommandIds)
+        foreach (var id in sRegisteredActionIds)
             Keymap.Unregister(id);
-        sRegisteredCommandIds.Clear();
+        sRegisteredActionIds.Clear();
 
         // List() 为确定序（OrdinalIgnoreCase），保证默认手势"先到先得"消解可复现。
         var tools = Discover();
@@ -130,11 +130,22 @@ internal static class ScriptToolMenu
             {
                 Id = id,
                 DisplayName = () => tool.DisplayName,
-                Scope = ScopeFor(tool.Context),
-                DefaultGesture = ResolveDefaultGesture(tool),
+                // 脚本能改工程数据，一整段是一个可撤销单位（ScriptRunner）→ ProjectEdit。
+                Kind = ActionKind.ProjectEdit,
+                // 声明了 getInputConfig 的脚本先弹入参窗，那是要人应答的模态。这里不去求值判断有没有
+                // （那要跑一遍脚本），一律按会弹算——保守的那一边不会把界面卡住。
+                Prompts = () => true,
+                // 脚本工具【不从动作面触发】：`script run-saved` 早就在做这件事，还能传参数、走预览-回退闸门。
+                // 动作面再开一条无参入口就是第二套写通道，两边语义迟早漂移。它仍留在注册表里（用户在菜单上
+                // 够得着，也仍可绑手势），只是外部要跑它得走那条命令。
+                RunElsewhere = string.Format(
+                    "this is a script tool; run it with run_saved_script (name \"{0}\"), which takes the script's own parameters and goes through the preview-and-rollback gate",
+                    tool.ScriptName),
                 Execute = () => Run(tool, anchor),
-            });
-            sRegisteredCommandIds.Add(id);
+            },
+            ScopeFor(tool.Context),
+            ResolveDefaultGesture(tool));
+            sRegisteredActionIds.Add(id);
         }
     }
 

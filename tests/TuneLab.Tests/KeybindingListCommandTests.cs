@@ -8,6 +8,11 @@ namespace TuneLab.Tests;
 
 // `keybinding list`（搬家前的 list_keybindings）的封条。
 //
+// 【2026-09 一处有意的措辞变更】"command" 一律改成 "action"：动作面（`action list` / `action run`）一到，
+// 同一个工具面上 command 既指命令面的一条命令、又指用户能做的一件事，模型必然猜错。按术语表收敛之后
+// keybinding 只管【手势】，动作叫 action（docs/naming-glossary.md）。结构化结果里的数组也从 commands
+// 改名 actions。除此之外的措辞仍与搬家前逐字一致。
+//
 // Render 用合成 Data 测，一次覆盖真实 Keymap 里未必同时凑齐的组合：已绑定/未绑定、用户改过/用默认/
 // 没有默认、有冲突/无冲突、有 query/无 query、注册表为空。
 public class KeybindingListCommandTests
@@ -17,7 +22,7 @@ public class KeybindingListCommandTests
         KeybindingText.GestureSyntax,
         "Areas (scopes): Global (anywhere), Editor, TrackWindow (arrangement), PianoWindow (piano roll). "
             + "The SAME gesture in DIFFERENT areas is not a conflict — both stay bound and the focused area wins."
-            + " Two commands in the SAME area is a conflict (only one fires).",
+            + " Two actions in the SAME area is a conflict (only one fires).",
         "Format: <id> \"<label>\" [area]: <gesture token> (<as shown to the user>)",
     ]);
 
@@ -28,7 +33,7 @@ public class KeybindingListCommandTests
         {
             ["total"] = 7,
             ["query"] = "note",
-            ["commands"] = new JsonArray
+            ["actions"] = new JsonArray
             {
                 // 用户改过绑定 + 有默认 + 同域冲突
                 new JsonObject
@@ -59,7 +64,7 @@ public class KeybindingListCommandTests
         };
 
         Assert.Equal(string.Join("\n", [
-            "7 bindable command(s), 2 matching \"note\". Change one with set_keybinding(id, gesture).",
+            "7 bindable action(s), 2 matching \"note\". Change one with set_keybinding(id, gesture).",
             Preamble,
             "- edit.undo \"撤销\" [Global]: ctrl+z (Ctrl+Z), changed by the user (default ctrl+shift+z (Ctrl+Shift+Z))",
             "    CONFLICT: the same area also binds this gesture to \"我的脚本\" (script:foo)"
@@ -76,7 +81,7 @@ public class KeybindingListCommandTests
         {
             ["total"] = 1,
             ["query"] = null,
-            ["commands"] = new JsonArray
+            ["actions"] = new JsonArray
             {
                 new JsonObject
                 {
@@ -92,26 +97,26 @@ public class KeybindingListCommandTests
         };
 
         var text = new KeybindingListCommand().Render(data, CommandArgs.Empty);
-        Assert.StartsWith("1 bindable command(s). Change one with set_keybinding(id, gesture).", text);
+        Assert.StartsWith("1 bindable action(s). Change one with set_keybinding(id, gesture).", text);
         Assert.EndsWith("- edit.copy \"Copy\" [Editor]: ctrl+c (Ctrl+C), default", text);
     }
 
     [Fact]
     public void RenderSaysSoWhenNothingMatchesTheQuery()
     {
-        var data = new JsonObject { ["total"] = 7, ["query"] = "zzz", ["commands"] = new JsonArray() };
+        var data = new JsonObject { ["total"] = 7, ["query"] = "zzz", ["actions"] = new JsonArray() };
         var text = new KeybindingListCommand().Render(data, CommandArgs.Empty);
 
-        Assert.StartsWith("7 bindable command(s), 0 matching \"zzz\".", text);
-        Assert.EndsWith("\n(no command matches — try a shorter query, or call without one)", text);
+        Assert.StartsWith("7 bindable action(s), 0 matching \"zzz\".", text);
+        Assert.EndsWith("\n(no action matches — try a shorter query, or call without one)", text);
     }
 
     // 注册表为空时整条回报换成一句话（搬家前就是这个特例）。
     [Fact]
     public void RenderReportsAnEmptyRegistryInOneLine()
     {
-        var data = new JsonObject { ["total"] = 0, ["query"] = null, ["commands"] = new JsonArray() };
-        Assert.Equal("No bindable commands are registered yet.",
+        var data = new JsonObject { ["total"] = 0, ["query"] = null, ["actions"] = new JsonArray() };
+        Assert.Equal("No bindable actions are registered yet.",
             new KeybindingListCommand().Render(data, CommandArgs.Empty));
     }
 
@@ -121,7 +126,7 @@ public class KeybindingListCommandTests
     [Fact]
     public void RenderSaysWhyWhenThereIsNoEditorInThisProcess()
     {
-        var data = new JsonObject { ["total"] = 0, ["hasEditor"] = false, ["query"] = null, ["commands"] = new JsonArray() };
+        var data = new JsonObject { ["total"] = 0, ["hasEditor"] = false, ["query"] = null, ["actions"] = new JsonArray() };
         Assert.StartsWith("No editor is present in this process",
             new KeybindingListCommand().Render(data, CommandArgs.Empty));
     }
@@ -135,7 +140,7 @@ public class KeybindingListCommandTests
             .GetAwaiter().GetResult();
 
         Assert.False(result.IsError, result.Error?.Message);
-        Assert.NotNull(result.Data!["commands"]);
+        Assert.NotNull(result.Data!["actions"]);
         Assert.False(string.IsNullOrEmpty(command.Render(result.Data, CommandArgs.Empty)));
     }
 }

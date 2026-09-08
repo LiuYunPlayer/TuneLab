@@ -182,6 +182,21 @@ try {
     Check "names a version" ($r.Out -match "TuneLab \d+\.\d+") $r.Out
     Check "points at the data dir and the log" ($r.Out -match "data directory" -and $r.Out -match "log file") $r.Out
     Check "and says there is no editor here" ($r.Out -match "editor: no") $r.Out
+
+    # ── 12. 动作面（issue #150）：这里【没有编辑器】，故三条都必须如实说做不到。
+    #      要点是别把"这个进程永远不会有动作"说成"暂时还没有"——后者会让调用方一直重试；
+    #      也别让 run 报成"没有这个 id"，那是把结构性缺席说成拼写错误。
+    Write-Host "12. the action surface admits it cannot work without an editor"
+    $r = Invoke-Cli @("--headless", "action", "list")
+    Check "list exits 0 (an empty catalog is not an error)" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
+    Check "and says why it is empty" ($r.Out -match "No editor is present in this process") $r.Out
+    $r = Invoke-Cli @("--headless", "--yes", "action", "run", "--id", "transport.play")
+    Check "run exits 1" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "blames the missing editor, not the id" ($r.Err -match "No editor is present in this process" -and -not ($r.Err -match "no action with id")) $r.Err
+    Check "and points at attaching to a running TuneLab" ($r.Err -match "attach") $r.Err
+    $r = Invoke-Cli @("--headless", "editor", "status")
+    Check "editor status exits 0" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
+    Check "and reports no editor instead of inventing a state" ($r.Out -match "No editor is present in this process") $r.Out
 }
 finally {
     Remove-Item -Recurse -Force $sandbox -ErrorAction SilentlyContinue

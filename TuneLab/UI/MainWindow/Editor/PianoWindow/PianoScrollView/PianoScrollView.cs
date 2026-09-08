@@ -1635,17 +1635,22 @@ internal partial class PianoScrollView : View, IPianoScrollView
         }
     }
 
+    // 移调此刻做不做得了：null = 做得了，否则是【为什么不行】的一句英文。动作注册表（note.transpose* /
+    // note.octave*）与 ChangeKey 自己共用这一份判据——外部触发因此拿到的是原因，而不是一个没发生的"已执行"。
+    public string? TransposeUnavailable()
+        => Part == null ? "no part is open in the piano roll"
+            : Part.Notes.AllSelectedItems().IsEmpty() ? "no notes are selected in the piano roll"
+            : null;
+
     public void ChangeKey(int offset)
     {
-        if (Part == null)
+        if (TransposeUnavailable() != null)
             return;
 
         if (offset == 0)
             return;
 
-        var selectedNotes = Part.Notes.AllSelectedItems();
-        if (selectedNotes.IsEmpty())
-            return;
+        var selectedNotes = Part!.Notes.AllSelectedItems();
 
         Part.BeginMergeDirty();
         foreach (var note in selectedNotes)

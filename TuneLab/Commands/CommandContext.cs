@@ -23,6 +23,11 @@ internal sealed record CommandContext
     // 按"用户什么也没选"处理或要求显式传参，不猜（见 IEditorStateAccess）。
     public IEditorStateAccess? EditorState { get; init; }
 
+    // 编辑器此刻的界面状态（可选）：在播吗 / 播到哪 / 拿着哪支笔 / 面板开着没 / 焦点在哪个编辑面。
+    // 与 EditorState 分立的理由见 IEditorStatusAccess。有编辑器的进程才有；null = 这里没有编辑器，
+    // 动作面与状态读据此如实回答做不到（措辞见 EditorStatusText.NoEditor）。
+    public IEditorStatusAccess? EditorStatus { get; init; }
+
     // 旁路模型（可选）：`extension list` 补能力位摘要时要发一次一次性请求。**只有内置 agent 入口有**，
     // CLI / MCP / headless 一律 null——用到它的命令按 §5.3 降级（缓存能用就用、用不上如实标注），
     // 不是消失。
