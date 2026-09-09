@@ -63,6 +63,28 @@ function Invoke-Cli([string[]]$CliArgs) {
     }
 }
 
+# 跑一次 `tunelab mcp`，把一串 MCP 请求从 stdin 喂进去，把 stdout 的每行响应解析回来。
+# MCP 的 stdio 传输就是"一条报文一行 JSON"，故这里不需要任何客户端库——CI 要验的是我们这一侧
+# 说的话对不对，不是别人的实现。
+function Invoke-Mcp([string[]]$Requests) {
+    $inFile = Join-Path $sandbox "mcp-in.jsonl"
+    $outFile = Join-Path $sandbox "mcp-out.jsonl"
+    $errFile = Join-Path $sandbox "mcp-err.txt"
+    [IO.File]::WriteAllText($inFile, ($Requests -join "`n") + "`n")
+
+    $process = Start-Process -FilePath $cli -ArgumentList @("mcp") -NoNewWindow -Wait -PassThru `
+        -RedirectStandardOutput $outFile -RedirectStandardError $errFile -RedirectStandardInput $inFile
+    $responses = @()
+    foreach ($line in [IO.File]::ReadAllLines($outFile)) {
+        if ($line.Trim()) { $responses += ($line | ConvertFrom-Json) }
+    }
+    return [pscustomobject]@{
+        Code      = $process.ExitCode
+        Responses = $responses
+        Err       = [IO.File]::ReadAllText($errFile)
+    }
+}
+
 # 把一段 JSON 变成能安全穿过 Start-Process 的实参。
 #
 # 【必须过这一道】ArgumentList 拼出来的是**一行命令行**，CommandLineToArgvW 会把裸双引号剥掉，
@@ -214,6 +236,52 @@ try {
     $r = Invoke-Cli @("--headless", "--yes", "extension", "uninstall", "--packageId", "com.nobody.nothing")
     Check "extension uninstall exits 1" ($r.Code -eq 1) "exit $($r.Code)"
     Check "and points at what is installed" ($r.Err -match "Installed:") $r.Err
+
+    # ── MCP：这一段【刻意不开 TuneLab】。那正是这个 server 的存在理由——宿主没开时它仍然活着，
+    #    还能列出全部能力，并在对话里说清"请先启动 TuneLab"，而不是从工具列表里静默消失。
+    Write-Host "14. the MCP server serves the same command surface, with or without TuneLab running"
+    $r = Invoke-Mcp @(
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}',
+        '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+        '{"jsonrpc":"2.0","id":2,"method":"tools/list"}',
+        '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tunelab_help","arguments":{"command":"project export"}}}',
+        '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"docs_read","arguments":{"subcommand":"manual","arguments":{}}}}',
+        '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"project_read","arguments":{"subcommand":"status","arguments":{}}}}',
+        '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"setting_read","arguments":{"subcommand":"nope","arguments":{}}}}',
+        '{"jsonrpc":"2.0","id":7,"method":"resources/list"}'
+    )
+    Check "the server exits cleanly when the client goes away" ($r.Code -eq 0) "exit $($r.Code); $($r.Err)"
+    Check "one response per request (notifications get none)" ($r.Responses.Count -eq 7) "$($r.Responses.Count) response(s)"
+
+    $init = $r.Responses | Where-Object { $_.id -eq 1 }
+    Check "initialize answers in the version the client asked for" ($init.result.protocolVersion -eq "2024-11-05") $init.result.protocolVersion
+    Check "and tells the client how this surface is organized" ($init.result.instructions -match "subcommand") $init.result.instructions
+
+    $tools = ($r.Responses | Where-Object { $_.id -eq 2 }).result.tools
+    Check "listing the tools does not need TuneLab" ($tools.Count -ge 15) "$($tools.Count) tool(s)"
+    $names = $tools | ForEach-Object { $_.name }
+    Check "grouped per subject and kind" (($names -contains "project_read") -and ($names -contains "project_edit") -and ($names -contains "tunelab_help")) ($names -join ", ")
+    $edit = $tools | Where-Object { $_.name -eq "project_edit" }
+    $read = $tools | Where-Object { $_.name -eq "project_read" }
+    Check "annotations say which ones change things" ($edit.annotations.destructiveHint -eq $true -and $read.annotations.readOnlyHint -eq $true) "edit=$($edit.annotations | ConvertTo-Json -Compress) read=$($read.annotations | ConvertTo-Json -Compress)"
+    Check "the listing carries a summary, not the whole manual" ($read.description -match "PPQ, tempo" -and -not ($read.description -match "PPQ and the tempo map")) $read.description
+
+    $help = ($r.Responses | Where-Object { $_.id -eq 3 }).result
+    Check "the help gives the full manual" ($help.isError -eq $false -and $help.content[0].text -match "NOT 'save'") $help.content[0].text
+    Check "and says which tool and subcommand to call" ($help.content[0].text -match 'project_edit with subcommand "export"') $help.content[0].text
+
+    $manual = ($r.Responses | Where-Object { $_.id -eq 4 }).result
+    Check "the docs answer without TuneLab running" ($manual.isError -eq $false -and $manual.content[0].text -match "Chapters") $manual.content[0].text
+
+    $status = ($r.Responses | Where-Object { $_.id -eq 5 }).result
+    Check "a command that needs TuneLab says so instead of failing silently" ($status.isError -eq $true) ($status | ConvertTo-Json -Compress)
+    Check "and points at the bridge switch" ($status.content[0].text -match "Command Bridge") $status.content[0].text
+
+    $unknown = ($r.Responses | Where-Object { $_.id -eq 6 }).result
+    Check "an unknown subcommand lists the ones there are" ($unknown.isError -eq $true -and $unknown.content[0].text -match "It takes: list") $unknown.content[0].text
+
+    $protocol = $r.Responses | Where-Object { $_.id -eq 7 }
+    Check "an unimplemented method is a protocol error, not a tool result" ($protocol.error.code -eq -32601) ($protocol | ConvertTo-Json -Compress)
 }
 finally {
     Remove-Item -Recurse -Force $sandbox -ErrorAction SilentlyContinue

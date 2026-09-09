@@ -679,6 +679,38 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
 - **为什么不折成单个 invoke_command**：那样 `tools/list` 只剩一个不透明的洞，
   agent 不预先知道就发现不了能力；且安全标注退化成"一律按最坏情况标"，客户端的批准 UI 失去意义。
 
+**已落地**（`tunelab mcp`，`TuneLab.Cli/Mcp/`）。照上面的形状做，另有六处是动手时才定的：
+
+- **住在命令行里，不是又一个二进制**。`tunelab mcp` 接管 stdin/stdout 作协议通道。理由是它要的东西
+  （`BridgeClient`、runner、参数校验、文本换名）都已经在那儿，而命令行本身随发布产物一起分发
+  （`build-artifacts` 把它 publish 进同一个目录）。客户端那侧的配置就是
+  `{ "command": "<...>/TuneLab.Cli.exe", "args": ["mcp"] }`。仍然满足"独立进程、不由宿主 spawn"：
+  `tools/list` 由 `CommandRegistry` 就地自省，**列能力不需要 TuneLab 开着**；真要执行才连桥，连不上时
+  回的是"请先启动 TuneLab / 去设置里开桥"这句话本身（作为工具结果，不是从工具列表里消失）。
+- **19 个工具**：12 个 group × 各自有的类别 = 18，加一个 `tunelab_help`。后缀是 `read` / `edit` / `run`
+  ——`sandbox` 那条既非只读也不碰用户数据，压进任何一边都会让安全标注说谎（见 `CommandKind`），故它
+  自成一个后缀 `sandbox_run`。
+- **`tools/list` 带 Brief，全文按需**。33 条命令的 `Documentation` 合起来 24K 字符，全塞进去等于每次会话
+  先吃掉几千 token——正是"按 group 合成"想省下的那部分。故摘要进列表、全文走 `tunelab_help`
+  （同 `get_script_api` / `get_manual` 的渐进式披露）。**参数说明是例外，它留在 `tools/list` 里**：
+  `arguments` 是个自由 object，agent 不知道字段名就根本没法调用——那是"调用所必需"，与"什么时候该用它"
+  不是一回事。
+- **换名照 CLI 的办法**（`McpText`）：命令面的文本里引用别的命令时用的是 agent 工具面的名字
+  （`list_settings`），那些名字在这里不存在，故机械换成本入口的叫法
+  （`setting_read with subcommand "list"`）。表在注册表、换名在入口。
+- **授权：每次执行声明 auto 且 `canAsk=false`**。这不是提权——天花板是用户在 TuneLab 里设的档位
+  （`BridgeAuthorizationPolicy`），声明 auto 只是说"这个入口自己不再加码"；批准 UI 在 MCP 客户端那边，
+  annotation 已经如实标了哪些工具会改东西。用户设成 confirm 时，改动被如实拒绝
+  （"要确认，但这里没有 UI 可问"）而不是被偷偷做掉，也不会被说成"用户拒绝了"——实测验过这一条。
+- **连接懒连、断了重连一次**。server 的寿命是整个对话，而 TuneLab 可能中途才启动、也可能退出又开起来：
+  开机就连会把"宿主没开"变成启动失败，一次性连上不管则会在宿主重启后永远失败下去。只在**连接层面**
+  出问题时重试，命令自己失败不重跑（那既不会变对，还可能把一次写做成两次）。
+
+封条：`tests/TuneLab.Tests/McpToolsTests.cs`（工具名快照、每条命令恰好够得着一次、annotation 如实、
+参数在列表里而全文不在、换名彻底）+ `tests/headless/smoke.ps1` 第 14 段（真起一个 server 进程，
+**刻意不开 TuneLab**：initialize 协商、tools/list、`tunelab_help`、只读文档照答、要宿主的命令如实说
+"请先开桥"、未实现的方法回协议错误而不是工具结果）。
+
 ---
 
 ## 10. 分期
@@ -693,6 +725,7 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
 | **③** | headless + CI 用例 | CI 里无人值守跑一串命令并断言 |
 | | **已完成**：`HeadlessHost` + CLI 的 `--headless` / `--project` / `--commands` + `tests/headless/smoke.ps1`（见 §8.1–8.3）。反转了"起 Avalonia headless 平台"的原计划，理由记在 §8.1 | |
 | **④** | MCP server 壳 | 外部客户端连上，用已有订阅额度驱动 |
+| | **已完成**：`tunelab mcp`（`TuneLab.Cli/Mcp/`），19 个工具由注册表合成，宿主没开也列得出能力（见 §9.3 的落地小节） | |
 
 ①是大头且用户不可见；②开始有实感。**不建议把①②合并推进**——①的验证靠"内置 agent 行为不变"，
 掺进新入口会分不清是搬家搬坏了还是新入口的问题。

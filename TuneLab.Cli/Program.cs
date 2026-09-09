@@ -74,6 +74,25 @@ internal static class Program
         using var cancellation = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
 
+        // ── MCP：把这同一份命令面接到订阅式的外部 agent 上（docs/command-surface.md §9.3）。
+        // 它接管 stdin/stdout 作协议通道，故不能与别的模式混着跑：--headless 那条路每条命令都会起一个
+        // 新的无头宿主（工程互不相通），对一个持续的对话没有意义，故明说不行而不是装作支持。
+        if (positional.Length != 0 && positional[0] == "mcp")
+        {
+            if (positional.Length > 1 || options.Headless || options.ProjectPath != null)
+            {
+                Console.Error.WriteLine("tunelab: \"tunelab mcp\" takes no other arguments — it serves the command surface over MCP on stdin/stdout, "
+                    + "and runs the commands in the TuneLab the user has open.");
+                return ExitUsage;
+            }
+            if (wantsHelp)
+            {
+                PrintMcpHelp();
+                return ExitOk;
+            }
+            return await Mcp.McpServer.RunAsync(cancellation.Token);
+        }
+
         // ── 批量：一个进程跑一串命令（同一个工程连着跑，见 --commands 的帮助）
         if (options.CommandsFile != null)
         {
@@ -541,6 +560,7 @@ internal static class Program
         Console.Out.WriteLine("       tunelab <group> <verb> --help     what one command does and which parameters it takes");
         Console.Out.WriteLine("       tunelab --commands <file|->       run a list of commands (one per line, # comments) in one go");
         Console.Out.WriteLine("       tunelab --search <regex>          which command mentions this? (searches every command's help)");
+        Console.Out.WriteLine("       tunelab mcp                       serve these same commands to an MCP client over stdin/stdout");
         Console.Out.WriteLine();
         Console.Out.WriteLine("By default the commands run in the TuneLab you have open. With --headless they run in a");
         Console.Out.WriteLine("windowless TuneLab started right here: extensions load and synthesis works, but there is no");
@@ -565,6 +585,23 @@ internal static class Program
         Console.Out.WriteLine("--yes never gets more than the user's own authorization setting inside TuneLab: if that is set to confirm");
         Console.Out.WriteLine("you are still asked, and if it is set to read-only advice nothing is applied at all.");
         Console.Out.WriteLine("Exit codes: 0 ok, 1 the command failed, 2 wrong usage, 3 TuneLab is not reachable.");
+    }
+
+    // `tunelab mcp --help`：这条不是命令面上的命令（它是入口本身的一个模式），故自带一段帮助。
+    static void PrintMcpHelp()
+    {
+        Console.Out.WriteLine("tunelab mcp  —  serve TuneLab's commands to an MCP client over stdin/stdout.");
+        Console.Out.WriteLine();
+        Console.Out.WriteLine("Run it as an MCP server from the client's config, e.g.");
+        Console.Out.WriteLine("  { \"command\": \"" + Environment.ProcessPath?.Replace("\\", "\\\\") + "\", \"args\": [\"mcp\"] }");
+        Console.Out.WriteLine();
+        Console.Out.WriteLine("The same commands as this command line, presented as one tool per group and kind");
+        Console.Out.WriteLine("(project_read, project_edit, script_edit, ...), each taking a subcommand plus its arguments.");
+        Console.Out.WriteLine("Listing the tools works whether or not TuneLab is running; running one needs TuneLab open with");
+        Console.Out.WriteLine("the command bridge on (Settings -> General), and says so plainly when it is not.");
+        Console.Out.WriteLine("How much may be changed stays the user's setting inside TuneLab: this entry point cannot raise it,");
+        Console.Out.WriteLine("and it never asks on stdin (that is the protocol channel) — the MCP client's own approval UI is");
+        Console.Out.WriteLine("what the tool annotations are for.");
     }
 
     static void PrintCommandHelp(ICommand command)
