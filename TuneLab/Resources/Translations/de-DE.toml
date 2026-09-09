@@ -358,6 +358,8 @@
 "Toggle Waveform" = "Wellenform ein-/ausblenden"
 "Finer Quantization" = "Feinere Quantisierung"
 "Coarser Quantization" = "Gröbere Quantisierung"
+"Show Synthesized Parameter Track" = "Synthetisierte Parameterspur einblenden"
+"Hide Synthesized Parameter Track" = "Synthetisierte Parameterspur ausblenden"
 "Play" = "Abspielen"
 "Pause" = "Pausieren"
 "Settings" = "Einstellungen"

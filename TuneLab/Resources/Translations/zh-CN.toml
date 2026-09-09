@@ -358,6 +358,8 @@
 "Toggle Waveform" = "显示/隐藏波形"
 "Finer Quantization" = "量化更细"
 "Coarser Quantization" = "量化更粗"
+"Show Synthesized Parameter Track" = "显示合成参数轨"
+"Hide Synthesized Parameter Track" = "隐藏合成参数轨"
 "Play" = "播放"
 "Pause" = "暂停"
 "Settings" = "设置"

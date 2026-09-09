@@ -268,6 +268,33 @@ internal class MidiPart : Part, IMidiPart
         }
     }
 
+    // 参数面板【可钉选】的属性（动作面的值域自省用，见 TuneLab.Input.ActionParameter）：
+    // 当前声明面里有 lane 资格（有界数值）的 note / phoneme 属性，按声明序、phoneme 取首个合格声明
+    // ——口径与 RebuildPinnedLaneConfigs 同一份（全 part note 求值，不随选区闪），故值域里的每一项
+    // 钉上去都必然物化成一条 lane。
+    public IReadOnlyList<(ParameterPinKind Kind, PropertyKey Key)> PinnableProperties()
+    {
+        var result = new List<(ParameterPinKind, PropertyKey)>();
+        var context = new NotePropertyContext(new PartContext(this), mNotes.Select(n => new PartContext.PartNote(n)).ToList());
+        foreach (var kvp in mSource.GetNotePropertyConfig(context).Properties)
+        {
+            if (LaneEntry.TryGetBoundedNumber(kvp.Value, out _))
+                result.Add((ParameterPinKind.NoteProperty, kvp.Key));
+        }
+
+        var phonemeConfigs = mSource.GetPhonemePropertyConfigs(context);
+        var seen = new HashSet<string>();
+        foreach (int slot in phonemeConfigs.Keys.Order())
+        {
+            foreach (var kvp in phonemeConfigs[slot].Properties)
+            {
+                if (LaneEntry.TryGetBoundedNumber(kvp.Value, out _) && seen.Add(kvp.Key.Id))
+                    result.Add((ParameterPinKind.PhonemeProperty, kvp.Key));
+            }
+        }
+        return result;
+    }
+
     static void TryAddLaneEntry(OrderedMap<PropertyKey, LaneEntry> lanes, Dictionary<string, string> pinned, PropertyKey key, IControllerConfig config)
     {
         if (lanes.ContainsKey(key.Id))

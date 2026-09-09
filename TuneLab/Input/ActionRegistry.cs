@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace TuneLab.Input;
 
@@ -18,6 +19,10 @@ internal static class ActionRegistry
 
     public static void Register(EditorAction action)
     {
+        // 一条动作恰有一条执行路径：无参的 Execute，或带选择器参数的 Parameter.Execute。两条都填/都不填
+        // 都是注册方写错了，而那种错在运行期表现为"回报已执行、实际什么都没发生"——正是这个面最该避免的。
+        Debug.Assert((action.Execute == null) != (action.Parameter == null),
+            "An action must have exactly one execution path: Execute, or Parameter.Execute (id: " + action.Id + ")");
         mActions[action.Id] = action;
         if (!mOrder.ContainsKey(action.Id))
             mOrder[action.Id] = mNextOrder++;   // 首次注册序固定，重注册（脚本随文件监视器重建）不改次序
@@ -38,13 +43,35 @@ internal static class ActionRegistry
 
     // 触发一条动作：**先问可用性判据，不可用就不跑**并返回那句原因（null = 已执行）。
     // 键盘、菜单、命令面全走这里，故三条路径的判据是同一份（守卫不再各写一遍）。
-    public static string? Execute(string id)
+    // argument = 带【选择器参数】的动作要选的那个成员（见 ActionParameter），无参动作留空。
+    // 默认值让界面入口与键盘分发保持原样调用：它们从不触发带参动作（带参动作不进 Keymap、
+    // 界面入口自己就在那个成员上）。
+    public static string? Execute(string id, string argument = "")
     {
         if (!mActions.TryGetValue(id, out var action))
             return string.Format("there is no action with id \"{0}\"", id);
 
         if (action.Unavailable?.Invoke() is { } reason)
             return reason;
+
+        if (action.Parameter is { } parameter)
+        {
+            if (argument.Length == 0)
+                return string.Format("it needs a value for \"{0}\" — the thing to act on. Valid right now: {1}", parameter.Name, ActionParameter.Describe(parameter.Values()));
+            // 值域即判据（见 ActionParameter）：落在集合外就不跑，并把此刻的合法值说出来。
+            if (!parameter.TryResolve(argument, out var value, out var error))
+                return error;
+
+            parameter.Execute(value.Value);
+            return null;
+        }
+
+        if (argument.Length != 0)
+            return string.Format("it takes no argument, but \"{0}\" was given", argument);
+
+        // Execute 与 Parameter 恰有其一（注册时已校验）；仍不空跑一趟，免得写错的注册变成假装成功。
+        if (action.Execute == null)
+            return "it has no execution path registered (this is a bug in TuneLab)";
 
         action.Execute();
         return null;

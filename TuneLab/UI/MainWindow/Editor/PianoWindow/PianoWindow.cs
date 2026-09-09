@@ -14,6 +14,7 @@ using TuneLab.Utils;
 using TuneLab.SDK;
 using TuneLab.GUI.Components;
 using TuneLab.Configs;
+using TuneLab.Extensions.Effect;
 using TuneLab.I18N;
 using Avalonia.Threading;
 
@@ -271,6 +272,220 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         Keymap.Register(new() { Id = "note.octaveDown", DisplayName = () => "Octave Down".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.OctaveDown() }, KeyScope.PianoWindow, new(Key.Down, KeyModifiers.Shift));
         Keymap.Register(new() { Id = "note.transposeUp", DisplayName = () => "Semitone Up".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.ChangeKey(+1) }, KeyScope.PianoWindow, new(Key.Up));
         Keymap.Register(new() { Id = "note.transposeDown", DisplayName = () => "Semitone Down".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.ChangeKey(-1) }, KeyScope.PianoWindow, new(Key.Down));
+
+        RegisterParameterPanelActions();
+    }
+
+    // 参数面板里「有哪些轨」这四条：动作面上唯一的一批【带选择器参数】的动作（见 TuneLab.Input.ActionParameter）。
+    // 成员随 part 的声源与效果器链、随属性声明面而变（动态集）——逐成员开 id 会爆，而且那些 id 明天就不在了，
+    // 「一经发布不改」无从保证。故一个动词 + 一个闭集里的成员：加一条轨是加一个**值**，不是加一条动作。
+    //
+    // 四条都是**终态且幂等**（点亮已亮的轨、钉已钉的属性都什么都不做），外部因此不必先读一次状态才敢按；
+    // 此刻的实情由 `action list` 的值域（每个值带 shown / hidden / pinned…）与 `action run` 的回报给出。
+    // 都不进 Keymap：一条绑定只有手势没有参数，v1 刻意不做「绑定携带参数」（docs/keybinding-system.md §10）。
+    void RegisterParameterPanelActions()
+    {
+        // ── 合成参数轨（引擎产物、只读）的显隐：与标题栏那排 chip 是同一件事（同一个
+        // SetSynthesizedParameterVisible）。改的是编辑器自身的显示状态（内存集合，不随工程保存、
+        // 撤销栈里没有它）→ AppState、不过闸门。
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.showSynthesizedTrack",
+            DisplayName = () => "Show Synthesized Parameter Track".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = SynthesizedTrackUnavailable,
+            Parameter = new()
+            {
+                Name = "track",
+                Description = TrackParameterDescription,
+                Values = SynthesizedTrackValues,
+                Execute = token => SetSynthesizedParameterVisible(ParseTrackToken(token), true),
+            },
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.hideSynthesizedTrack",
+            DisplayName = () => "Hide Synthesized Parameter Track".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = SynthesizedTrackUnavailable,
+            Parameter = new()
+            {
+                Name = "track",
+                Description = TrackParameterDescription,
+                Values = SynthesizedTrackValues,
+                Execute = token => SetSynthesizedParameterVisible(ParseTrackToken(token), false),
+            },
+        });
+
+        // ── 参数面板钉选（把一个有界数值的 note / phoneme 属性物化成一条 lane）：显示名沿用界面两处右键
+        // 菜单的措辞（复用其翻译），执行也是同一个 ParameterPinning.SetPinned。
+        // 【为什么仍是 AppState】它写钉选存储（Configs/ParameterPins.json），但那是**界面自身状态的持久化**
+        // ——同 view.toggleWaveform 写 EditorState.json，不是 Destructive 说的"往磁盘写文件"（那一档指的是
+        // 写用户的文档或任意路径的文件）。分档判据没变：用户一眼看得见（参数栏多/少一条 tab）、自己就能改回来。
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.pinProperty",
+            DisplayName = () => "Edit in Parameter Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = () => PinUnavailable(pinned: true),
+            Parameter = new()
+            {
+                Name = "property",
+                Description = PinPropertyDescription,
+                Values = () => PinnableValues(),
+                Execute = token => SetPinned(token, true),
+            },
+        });
+        ActionRegistry.Register(new()
+        {
+            Id = "parameter.unpinProperty",
+            DisplayName = () => "Remove from Parameter Panel".Tr(TC.Menu),
+            Kind = ActionKind.AppState,
+            Unavailable = () => PinUnavailable(pinned: false),
+            Parameter = new()
+            {
+                Name = "property",
+                Description = UnpinPropertyDescription,
+                Values = () => PinnedValues(),
+                Execute = token => SetPinned(token, false),
+            },
+        });
+    }
+
+    const string TrackParameterDescription =
+        "Which synthesized parameter track (read-only engine output), written \"source:<id>\" for one the part's sound source declares, "
+        + "or \"effect<n>:<id>\" for the n-th effect in the chain (0-based, the same position as in part.effects()). The label works too.";
+
+    // pin 与 unpin 的值域是两个不同的集合（能钉的 / 已钉的），故说明也分开写：共用一句就必然对其中一条说反。
+    const string PinPropertyDescription =
+        "Which property to pin to the parameter panel, written \"note:<id>\" or \"phoneme:<id>\" (only bounded numeric properties can be pinned, so the values are exactly the ones that can). "
+        + "Each value says whether it is already pinned; pinning one that already is does nothing. The label works too.";
+
+    const string UnpinPropertyDescription =
+        "Which pinned property to remove from the parameter panel, written \"note:<id>\" or \"phoneme:<id>\". "
+        + "The values are the ones pinned right now for this part's sound source — including any whose engine no longer declares it (there is no tab left for those, so this is the only way to clear them). The label works too.";
+
+    string? SynthesizedTrackUnavailable()
+    {
+        if (Part == null)
+            return "no part is open in the piano roll, so there is no parameter panel to show tracks in";
+        if (SynthesizedParameterConfigs.Count == 0)
+            return "this part's sound source and effects declare no synthesized parameter tracks";
+        return null;
+    }
+
+    // 值域 = 标题栏那排 chip 的全集（含已亮的：终态动作幂等），序与界面一致（voice 在前、各 effect 按链序）。
+    IReadOnlyList<ActionArgument> SynthesizedTrackValues()
+    {
+        var part = Part;
+        var values = new List<ActionArgument>();
+        foreach (var kvp in SynthesizedParameterConfigs)
+            values.Add(new ActionArgument(TrackToken(kvp.Key), TrackLabel(part, kvp.Key, kvp.Value), IsSynthesizedParameterVisible(kvp.Key) ? "shown" : "hidden"));
+        return values;
+    }
+
+    // token 与它的解析成对写在一起（一处拼法）。id 里若真带冒号也无碍：只按第一个冒号切。
+    static string TrackToken(AutomationKey key) => (key.IsEffect ? "effect" + key.EffectIndex : "source") + ":" + key.Id;
+
+    static AutomationKey ParseTrackToken(string token)
+    {
+        int colon = token.IndexOf(':');
+        var source = token[..colon];
+        var id = token[(colon + 1)..];
+        return source.StartsWith("effect", StringComparison.Ordinal)
+            ? AutomationKey.Effect(int.Parse(source["effect".Length..]), id)
+            : AutomationKey.Voice(id);
+    }
+
+    // 人看的名字：轨名 + 它属于哪个源（同一个轨名可能在声源与多个 effect 里各出现一次）。
+    // 源名与"添加效果"菜单、侧栏 effect 块、标题栏源标签同一口径（manifest 声明名，缺失才回退 type id）。
+    static string TrackLabel(IMidiPart? part, AutomationKey key, AutomationConfigEntry entry)
+    {
+        var name = entry.Key.DisplayText ?? entry.Key.Id;
+        if (!key.IsEffect)
+            return name + " (sound source)";
+
+        string source = "effect";
+        if (part != null && key.EffectIndex < part.Effects.Count)
+        {
+            var type = part.Effects[key.EffectIndex].Type;
+            source = string.IsNullOrEmpty(type) ? "(empty)" : EffectManager.GetDisplayName(type);
+        }
+        return name + " (" + source + ")";
+    }
+
+    // pinned=true 问的是"现在能不能钉"（要有可钉的声明），false 问的是"能不能解钉"（要有已钉的）。
+    string? PinUnavailable(bool pinned)
+    {
+        if (Part == null)
+            return "no part is open in the piano roll, so there is no parameter panel to pin to";
+        if (pinned)
+            return Part.PinnableProperties().Count == 0
+                ? "this part's sound source declares no properties that can be pinned (only bounded numeric ones can)"
+                : null;
+        return PinnedValues().Count == 0 ? "nothing is pinned to the parameter panel for this part's sound source" : null;
+    }
+
+    // 可钉的全集（含已钉的：终态幂等），口径与 lane 物化同一份（IMidiPart.PinnableProperties）。
+    IReadOnlyList<ActionArgument> PinnableValues()
+    {
+        var part = Part;
+        var values = new List<ActionArgument>();
+        if (part == null)
+            return values;
+
+        foreach (var (kind, key) in part.PinnableProperties())
+        {
+            values.Add(new ActionArgument(PinToken(kind, key.Id), PinLabel(kind, key.DisplayText ?? key.Id),
+                ParameterPinning.IsPinned(part.SoundSource, kind, key.Id) ? "pinned" : "not pinned"));
+        }
+        return values;
+    }
+
+    // 已钉的全集，取自钉选存储而不是物化出来的 lane 集合：引擎不再声明的钉选（参数栏里连 tab 都没有的
+    // 孤儿）也必须够得着解钉，否则外部就出现了一处清不掉的残留。名字能从 lane 拿就拿，拿不到用 id。
+    IReadOnlyList<ActionArgument> PinnedValues()
+    {
+        var part = Part;
+        var values = new List<ActionArgument>();
+        if (part == null)
+            return values;
+
+        foreach (var kind in Enum.GetValues<ParameterPinKind>())
+        {
+            var lanes = kind == ParameterPinKind.PhonemeProperty ? part.PhonemeLaneConfigs : part.NoteLaneConfigs;
+            foreach (var id in ParameterPinning.GetPinned(part.SoundSource, kind).Keys)
+            {
+                var name = id;
+                foreach (var kvp in lanes)
+                {
+                    if (kvp.Key.Id == id)
+                    {
+                        name = kvp.Key.DisplayText ?? kvp.Key.Id;
+                        break;
+                    }
+                }
+                values.Add(new ActionArgument(PinToken(kind, id), PinLabel(kind, name), "pinned"));
+            }
+        }
+        return values;
+    }
+
+    static string PinToken(ParameterPinKind kind, string id)
+        => (kind == ParameterPinKind.PhonemeProperty ? "phoneme" : "note") + ":" + id;
+
+    static string PinLabel(ParameterPinKind kind, string name)
+        => name + (kind == ParameterPinKind.PhonemeProperty ? " (phoneme property)" : " (note property)");
+
+    void SetPinned(string token, bool pinned)
+    {
+        var part = Part;
+        if (part == null)
+            return;
+
+        int colon = token.IndexOf(':');
+        var kind = token[..colon] == "phoneme" ? ParameterPinKind.PhonemeProperty : ParameterPinKind.NoteProperty;
+        ParameterPinning.SetPinned(part, kind, token[(colon + 1)..], pinned);
     }
 
     // 剪贴板类命令仅在无进行中操作（拖动/缩放等）时生效——原本由 OnKeyDown 前置守卫，改由 Editor 路由后在此自守。

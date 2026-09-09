@@ -358,6 +358,8 @@
 "Toggle Waveform" = "Golfvorm tonen/verbergen"
 "Finer Quantization" = "Fijnere kwantisatie"
 "Coarser Quantization" = "Grovere kwantisatie"
+"Show Synthesized Parameter Track" = "Gesynthetiseerd parameterspoor weergeven"
+"Hide Synthesized Parameter Track" = "Gesynthetiseerd parameterspoor verbergen"
 "Play" = "afspelen"
 "Pause" = "pauzeren"
 "Settings" = "Instellingen"

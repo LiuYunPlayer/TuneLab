@@ -358,6 +358,8 @@
 "Toggle Waveform" = "Visa/dölj vågformen"
 "Finer Quantization" = "Finare kvantisering"
 "Coarser Quantization" = "Grövre kvantisering"
+"Show Synthesized Parameter Track" = "Visa syntetiserat parameterspår"
+"Hide Synthesized Parameter Track" = "Dölj syntetiserat parameterspår"
 "Play" = "Spela"
 "Pause" = "Pausa"
 "Settings" = "Inställningar"

@@ -146,11 +146,9 @@ internal class ParameterTabBar : Panel
                         return;
                     var scope = captured.IsPhonemeLane ? ParameterPinKind.PhonemeProperty : ParameterPinKind.NoteProperty;
                     var menu = new ContextMenu();
-                    menu.Items.Add(new MenuItem().SetName("Remove from Parameter Panel".Tr(TC.Menu)).SetAction(() =>
-                    {
-                        ParameterPinning.Unpin(part.SoundSource, scope, captured.Id);
-                        part.RefreshPinnedLaneConfigs();
-                    }));
+                    // 解钉收口在 ParameterPinning.SetPinned（同侧栏属性右键、同命令面的 parameter.unpinProperty）。
+                    menu.Items.Add(new MenuItem().SetName("Remove from Parameter Panel".Tr(TC.Menu))
+                        .SetAction(() => ParameterPinning.SetPinned(part, scope, captured.Id, false)));
                     menu.Open(capturedButton);
                     e.Handled = true;
                 };

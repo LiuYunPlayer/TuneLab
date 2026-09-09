@@ -358,6 +358,8 @@
 "Toggle Waveform" = "파형 표시 전환"
 "Finer Quantization" = "퀀타이즈 더 세밀하게"
 "Coarser Quantization" = "퀀타이즈 더 크게"
+"Show Synthesized Parameter Track" = "합성 파라미터 트랙 표시"
+"Hide Synthesized Parameter Track" = "합성 파라미터 트랙 숨기기"
 "Play" = "재생"
 "Pause" = "일시정지"
 "Settings" = "설정"

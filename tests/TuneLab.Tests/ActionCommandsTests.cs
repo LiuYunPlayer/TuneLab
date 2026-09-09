@@ -89,6 +89,43 @@ public class ActionCommandsTests
         public void Dispose() => ActionRegistry.Unregister(mId);
     }
 
+    // 带【选择器参数】的假动作。Last 记的是**执行真正拿到的那个值**：带参路径最容易错的地方就是
+    // 把外部原样给的串直接喂进去（调用方可以给 label），那样动作作用在一个它没校验过的东西上。
+    sealed class ParameterProbe : System.IDisposable
+    {
+        public int Ran;
+        public string Last = string.Empty;
+        readonly string mId;
+
+        public static readonly ActionArgument[] Tracks =
+        [
+            new("source:vol", "Volume (sound source)", "hidden"),
+            new("effect0:tension", "Tension (Reverb)", "shown"),
+        ];
+
+        public ParameterProbe(string id, ActionKind kind = ActionKind.AppState, ActionArgument[]? values = null, string? unavailable = null)
+        {
+            mId = id;
+            var list = values ?? Tracks;
+            ActionRegistry.Register(new()
+            {
+                Id = id,
+                DisplayName = () => "Probe " + id,
+                Kind = kind,
+                Unavailable = unavailable == null ? null : () => unavailable,
+                Parameter = new()
+                {
+                    Name = "track",
+                    Description = "Which synthesized parameter track.",
+                    Values = () => list,
+                    Execute = value => { Ran++; Last = value; },
+                },
+            });
+        }
+
+        public void Dispose() => ActionRegistry.Unregister(mId);
+    }
+
     // ── ① 没有编辑器
 
     [Fact]
@@ -218,6 +255,161 @@ public class ActionCommandsTests
         Assert.Contains("goes into the undo history", policy.Asked[0].ActionPhrase());
         Assert.Equal(WriteKind.EditorActionDestructive, policy.Asked[1].Kind);
         Assert.Contains("discard unsaved work", policy.Asked[1].ActionPhrase());
+    }
+
+    // ── ⑥ 带选择器参数的动作（动态成员集：值域即判据）
+
+    // 少了参数不去空跑一趟，并且把**此刻的合法值**说出来——那是调用方唯一能自救的信息
+    //（成员随工程变，它不可能预先知道）。
+    [Fact]
+    public void RunAsksForTheArgumentAndSaysWhatIsValidRightNow()
+    {
+        using var probe = new ParameterProbe("test.selector");
+        var result = Trigger("""{"id": "test.selector"}""", WithEditor());
+
+        Assert.True(result.IsError);
+        Assert.Equal("needs_argument", result.Error!.Value.Code);
+        Assert.Contains("needs a value for \"track\"", result.Error!.Value.Message);
+        Assert.Contains("source:vol \"Volume (sound source)\" (hidden)", result.Error!.Value.Message);
+        Assert.Contains("Nothing happened", result.Error!.Value.Message);
+        Assert.Equal(0, probe.Ran);
+    }
+
+    [Fact]
+    public void RunRefusesAValueOutsideTheSetAndListsTheOnesInIt()
+    {
+        using var probe = new ParameterProbe("test.selector");
+        var result = Trigger("""{"id": "test.selector", "argument": "source:nope"}""", WithEditor());
+
+        Assert.True(result.IsError);
+        Assert.Equal("invalid_argument", result.Error!.Value.Code);
+        Assert.Contains("\"source:nope\" is not one of the values", result.Error!.Value.Message);
+        Assert.Contains("effect0:tension", result.Error!.Value.Message);
+        Assert.Equal(0, probe.Ran);
+    }
+
+    // 回报要说清【作用在哪个成员上】：一句"跑了隐藏合成参数轨"看不出隐藏的是哪一条。
+    [Fact]
+    public void RunActsOnTheValueAndSaysWhichOne()
+    {
+        using var probe = new ParameterProbe("test.selector");
+        var result = Trigger("""{"id": "test.selector", "argument": "effect0:tension"}""", WithEditor());
+
+        Assert.False(result.IsError, result.Error?.Message);
+        Assert.Equal("ran", result.Data!["outcome"]!.GetValue<string>());
+        Assert.Equal("effect0:tension", result.Data!["argument"]!.GetValue<string>());
+        Assert.Equal(1, probe.Ran);
+        Assert.Equal("effect0:tension", probe.Last);
+        Assert.Contains("Ran \"Probe test.selector\" on \"Tension (Reverb)\" (test.selector effect0:tension).",
+            Run.Render(result.Data, CommandArgs.Empty));
+    }
+
+    // 认 label 也认 token（一处认一种写法、另一处不认，调用方就会来回试错），但交给动作的**恒是 token**。
+    [Fact]
+    public void RunAcceptsTheLabelButHandsTheActionTheValue()
+    {
+        using var probe = new ParameterProbe("test.selector");
+        var result = Trigger("""{"id": "test.selector", "argument": "Volume (sound source)"}""", WithEditor());
+
+        Assert.False(result.IsError, result.Error?.Message);
+        Assert.Equal("source:vol", probe.Last);
+    }
+
+    // 反过来：给一条无参动作塞参数是调用方搞错了动作，照跑会让它以为参数生效了。
+    [Fact]
+    public void RunRefusesAnArgumentForAnActionThatTakesNone()
+    {
+        using var probe = new Probe("test.appState", ActionKind.AppState);
+        var result = Trigger("""{"id": "test.appState", "argument": "source:vol"}""", WithEditor());
+
+        Assert.True(result.IsError);
+        Assert.Equal("unexpected_argument", result.Error!.Value.Code);
+        Assert.Equal(0, probe.Ran);
+    }
+
+    // "整条动作跑不动"排在参数之前：没开 part 的时候值域必然是空的，报"没有合法值"远不如报那个原因。
+    [Fact]
+    public void RunPrefersTheUnavailableReasonOverAskingForAnArgument()
+    {
+        using var probe = new ParameterProbe("test.selector", unavailable: "no part is open in the piano roll");
+        var result = Trigger("""{"id": "test.selector"}""", WithEditor());
+
+        Assert.Equal("unavailable", result.Error!.Value.Code);
+        Assert.Equal(0, probe.Ran);
+    }
+
+    // 键盘/菜单走的 ActionRegistry.Execute 是同一份判据：带参动作没给值同样不跑，且回那句原因。
+    [Fact]
+    public void RegistryExecuteRefusesAParameterActionWithoutAValue()
+    {
+        using var probe = new ParameterProbe("test.selector");
+
+        var reason = ActionRegistry.Execute("test.selector");
+        Assert.NotNull(reason);
+        Assert.Contains("source:vol", reason);
+        Assert.Equal(0, probe.Ran);
+
+        Assert.Null(ActionRegistry.Execute("test.selector", "source:vol"));
+        Assert.Equal(1, probe.Ran);
+    }
+
+    // 授权卡片也要点名成员（同 ExtensionActivationChange 要点名包）：用户在卡片上批的是"对哪一个"。
+    [Fact]
+    public void TheGateHearsWhichMemberTheActionWouldActOn()
+    {
+        var policy = new RecordingPolicy();
+        using (var probe = new ParameterProbe("test.selectorEdit", ActionKind.ProjectEdit))
+            Trigger("""{"id": "test.selectorEdit", "argument": "source:vol"}""", WithEditor(policy));
+
+        Assert.Single(policy.Asked);
+        Assert.Equal("Volume (sound source)", policy.Asked[0].NewValue);
+        Assert.Contains("on \"Volume (sound source)\"", policy.Asked[0].ActionPhrase());
+    }
+
+    // 值域随注册表一起报出去：调用方不必先跑一次失败的 run 才知道能填什么。
+    [Fact]
+    public void ListReportsTheParameterAndTheValuesValidRightNow()
+    {
+        using var probe = new ParameterProbe("test.selector");
+        var result = List.ExecuteAsync(CommandArgs.Parse("""{"query": "test.selector"}"""), WithEditor(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        var action = result.Data!["actions"]!.AsArray()[0]!.AsObject();
+        var parameter = action["parameter"]!.AsObject();
+        Assert.Equal("track", parameter["name"]!.GetValue<string>());
+        Assert.Equal(2, parameter["values"]!.AsArray().Count);
+        Assert.Equal("hidden", parameter["values"]![0]!["state"]!.GetValue<string>());
+        // 可绑是另一层筛选，而带参动作【不可绑】：一条绑定只有手势、没有参数（v1 的裁决）。
+        Assert.False(action["bindable"]!.GetValue<bool>());
+
+        var text = List.Render(result.Data, CommandArgs.Empty);
+        Assert.Contains("takes <track>: Which synthesized parameter track.", text);
+        Assert.Contains("valid now: source:vol \"Volume (sound source)\" (hidden), effect0:tension \"Tension (Reverb)\" (shown)", text);
+    }
+
+    // 值域为空时如实说，不装作"随便填一个也行"。
+    [Fact]
+    public void ListSaysSoWhenThereIsNothingToPick()
+    {
+        using var probe = new ParameterProbe("test.selector", values: []);
+        var result = List.ExecuteAsync(CommandArgs.Parse("""{"query": "test.selector"}"""), WithEditor(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Assert.Contains("(no valid values right now)", List.Render(result.Data, CommandArgs.Empty));
+    }
+
+    // 选项过多时截断并如实说是前几个（同 setting 的选项截断口径）——淹没上下文比少列几个更糟。
+    [Fact]
+    public void TheValueSummaryIsTruncatedHonestly()
+    {
+        var values = new ActionArgument[20];
+        for (int i = 0; i < values.Length; i++)
+            values[i] = new ActionArgument("source:p" + i, "P" + i);
+
+        var text = ActionParameter.Describe(values);
+        Assert.Contains("source:p11", text);
+        Assert.DoesNotContain("source:p12", text);
+        Assert.Contains("first 12 of 20", text);
     }
 
     // ── 身份与回报

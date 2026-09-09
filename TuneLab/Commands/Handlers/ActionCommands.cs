@@ -24,6 +24,7 @@ internal sealed class ActionListCommand : ICommand
     public string Documentation =>
         "List the actions of TuneLab's editor — the things a person can do in the window: transport (play/pause, go to start/end), tool selection, view toggles, the clipboard verbs, undo/redo, file actions. "
         + "Each entry gives: id (stable, pass it to run_action), label, kind, whether it can run right now and why not, whether triggering it stops on a dialog someone has to answer, and its keyboard shortcut if it has one. "
+        + "\nA few actions take one SELECTOR argument — the thing they act on, picked from a closed set that changes with the project (which synthesized parameter tracks this part's sound source and effects declare, which properties can be pinned to the parameter panel). Those entries carry a \"parameter\" with the values that are valid RIGHT NOW and each value's current state; pass one to run_action as \"argument\". Everything else takes no argument. "
         + "\nKinds: appState = changes only the app's/editor's own state, not the project (no authorization needed); projectEdit = edits project data and goes into the undo history; destructive = can discard unsaved work or write files to disk. "
         + "\nThis surface is for application and editor state. To READ or WRITE project data (notes, parameters, phonemes, tracks) use run_script (tl.*) — that is the write channel for the document itself, and it does not depend on where the keyboard focus is. "
         + "\nAsk get_editor_status what the state is right now (playing? which tool? which part?), and list_keybindings about the shortcuts. Read-only.";
@@ -78,6 +79,9 @@ internal sealed class ActionListCommand : ICommand
                 ["unavailable"] = unavailable,                       // null = 现在跑得动
                 ["prompts"] = action.Prompts?.Invoke() ?? false,     // true = 会弹需要人应答的对话框
                 ["runElsewhere"] = action.RunElsewhere,              // null = 就从这里跑
+                // 带选择器参数的动作把【此刻的合法值】一起报出去：成员是动态集，调用方不可能预先知道
+                // （同 setting list 报 allowed values 的理由）。无参动作这里恒 null。
+                ["parameter"] = Parameter(action),
                 // 手势那一半来自 Keymap：可绑的动作才有（bindable=false 的动作二期会有——进注册表但不值得
                 // 占一个手势），改绑走 set_keybinding。
                 ["bindable"] = bindable,
@@ -97,6 +101,29 @@ internal sealed class ActionListCommand : ICommand
             ["hasEditor"] = hasEditor,      // false = 这个进程没有编辑器，故 total 恒为 0
             ["query"] = query.Length == 0 ? null : query,
             ["actions"] = actions,
+        };
+    }
+
+    static JsonNode? Parameter(EditorAction action)
+    {
+        if (action.Parameter is not { } parameter)
+            return null;
+
+        var values = new JsonArray();
+        foreach (var value in parameter.Values())
+        {
+            values.Add(new JsonObject
+            {
+                ["value"] = value.Value,     // 原样传给 run_action 的 argument
+                ["label"] = value.Label,
+                ["state"] = value.State,     // 这个值此刻的相关状态（"shown" / "pinned"…）；null = 无可说的
+            });
+        }
+        return new JsonObject
+        {
+            ["name"] = parameter.Name,
+            ["description"] = parameter.Description,
+            ["values"] = values,
         };
     }
 
@@ -130,6 +157,7 @@ internal sealed class ActionListCommand : ICommand
         sb.Append("\nKinds: appState = only the app's/editor's own state (no authorization needed); projectEdit = edits the project, undo can take it back; destructive = can discard unsaved work or write files.");
         sb.Append("\nProject data (notes, parameters, phonemes, tracks) is edited with run_script (tl.*), not from here.");
         sb.Append("\nFormat: <id> \"<label>\" [kind] <shortcut> — anything you must know before running it");
+        sb.Append("\nA \"takes <name>\" line means that action needs one argument, picked from the values listed after it (they are what is valid right now).");
 
         if (shown.Count == 0)
             sb.Append("\n(nothing matches — try a shorter query, or call without one)");
@@ -150,6 +178,26 @@ internal sealed class ActionListCommand : ICommand
                 sb.Append(" — CANNOT RUN NOW: ").Append(reason);
             else if (action["prompts"]!.GetValue<bool>())
                 sb.Append(" — stops on a dialog someone has to answer; run_action refuses it unless you pass allowPrompt = true");
+
+            if (action["parameter"] is JsonObject parameter)
+            {
+                sb.Append("\n    takes <").Append(parameter["name"]!.GetValue<string>()).Append(">: ")
+                  .Append(parameter["description"]!.GetValue<string>());
+                var values = parameter["values"]!.AsArray();
+                sb.Append(values.Count == 0 ? "\n    (no valid values right now)" : "\n    valid now: ");
+                for (int i = 0; i < values.Count; i++)
+                {
+                    var value = values[i]!.AsObject();
+                    if (i > 0)
+                        sb.Append(", ");
+                    sb.Append(value["value"]!.GetValue<string>());
+                    var label = value["label"]?.GetValue<string>();
+                    if (!string.IsNullOrEmpty(label))
+                        sb.Append(" \"").Append(label).Append('"');
+                    if (value["state"]?.GetValue<string>() is { Length: > 0 } state)
+                        sb.Append(" (").Append(state).Append(')');
+                }
+            }
         }
         return sb.ToString();
     }
@@ -178,6 +226,7 @@ internal sealed class ActionRunCommand : ICommand
         "Trigger ONE of TuneLab's editor actions by id (get ids from list_actions). This is how you drive the application and the editor itself: play/pause, jump the playhead, pick a tool, toggle a panel, undo/redo, the clipboard verbs. "
         + "\nThe reply says what the editor's state is afterwards, so a fire-and-forget action (play/pause toggles; picking a tool) does not leave you guessing — same fields as get_editor_status. "
         + "\nIt refuses instead of pretending in four cases, each with the reason: there is no editor in this process; the action is not meant to be run from here (script tools: use run_saved_script, which takes parameters); it cannot run right now (nothing to undo, nothing selected, neither edit surface has keyboard focus — that last one is common, because TuneLab is usually not the foreground window while you work); or it would stop on a dialog a person has to answer — pass allowPrompt = true only if the user is at the machine, because otherwise the action never finishes and that dialog just sits on their screen. "
+        + "\nA few actions take one SELECTOR argument — the thing to act on, picked from a closed set that changes with the project (e.g. which synthesized parameter track to show, which property to pin to the parameter panel). list_actions gives those actions a \"parameter\" with the values valid right now; pass one of them as \"argument\". Passing a value that is not in that set changes nothing and reports what IS valid; the actions with no \"parameter\" take no argument at all. "
         + "\nActions of kind projectEdit or destructive need the user's authorization; an appState action does not. To edit project data prefer run_script (tl.*): it works regardless of keyboard focus and reports exactly what it changed.";
 
     public string ParametersJsonSchema => """
@@ -185,7 +234,8 @@ internal sealed class ActionRunCommand : ICommand
           "type": "object",
           "properties": {
             "id": { "type": "string", "description": "Action id exactly as listed by list_actions (e.g. \"transport.play\", \"tool.pitch\", \"edit.undo\")." },
-            "allowPrompt": { "type": "boolean", "description": "True = allow an action that opens a dialog someone must answer (file picker, unsaved-changes confirmation). Only pass it when the user is at the machine; the default refuses those." }
+            "allowPrompt": { "type": "boolean", "description": "True = allow an action that opens a dialog someone must answer (file picker, unsaved-changes confirmation). Only pass it when the user is at the machine; the default refuses those." },
+            "argument": { "type": "string", "description": "For the few actions that take a selector argument: the thing to act on, as one of the values list_actions reports under that action's \"parameter\" (its label works too). Leave it out for every other action." }
           },
           "required": ["id"],
           "additionalProperties": false
@@ -196,6 +246,7 @@ internal sealed class ActionRunCommand : ICommand
     {
         var given = (args.Json.GetString("id") ?? "").Trim();
         bool allowPrompt = args.Json.GetBoolOrNull("allowPrompt") ?? false;
+        var argument = (args.Json.GetStringOrNull("argument") ?? "").Trim();
 
         // 注册表在主线程被增删（脚本动作随目录监视器同步），可用性判据读的是实时界面状态 → id 归一 + 计划
         // 在主线程一次算出。
@@ -203,7 +254,7 @@ internal sealed class ActionRunCommand : ICommand
         var (id, plan) = await ctx.OnMainThread(() =>
         {
             var rid = ResolveId(given);
-            return (rid, Plan(rid, allowPrompt, hasEditor));
+            return (rid, Plan(rid, argument, allowPrompt, hasEditor));
         });
         if (plan.Error is { } error)
             return CommandResult.Fail(error.Code, error.Message);
@@ -211,7 +262,9 @@ internal sealed class ActionRunCommand : ICommand
         var note = string.Empty;
         if (plan.Gate is { } gate)
         {
-            var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(gate, 0, plan.Label), cancellationToken);
+            // 带参动作的卡片必须说出【作用在哪个成员上】："跑一下隐藏合成参数轨"没说清隐藏的是哪一条
+            //（同 ExtensionActivationChange 要点名包、KeybindingChange 要说清新手势的理由）。
+            var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(gate, 0, plan.Label, plan.ArgumentLabel), cancellationToken);
             if (!proceed)
                 return CommandResult.Ok(await ctx.OnMainThread(() => Result(id, plan, "refused", message, ctx)));
             note = message;
@@ -221,7 +274,7 @@ internal sealed class ActionRunCommand : ICommand
         {
             // 可用性按【触发这一刻】重查：闸门在等用户裁决期间，用户可能已经自己动过界面（撤销栈被清空、
             // 焦点离开了编辑面）。ActionRegistry.Execute 用的就是同一份判据，故它给出原因就等于没跑。
-            var reason = ActionRegistry.Execute(id);
+            var reason = ActionRegistry.Execute(id, plan.Argument);
             return Result(id, plan, reason == null ? "ran" : "unavailable_meanwhile", reason ?? note, ctx);
         }));
     }
@@ -239,11 +292,12 @@ internal sealed class ActionRunCommand : ICommand
     }
 
     // 一次触发的计划（主线程一次算出）：要不要过闸门、以及给回报的文案。
-    readonly record struct RunPlan(CommandError? Error, string Label, string Kind, bool Prompts, WriteKind? Gate);
+    // Argument = 已经过值域校验的那个值（不是外部原样给的串）；ArgumentLabel = 它人看的名字，null = 这条动作无参。
+    readonly record struct RunPlan(CommandError? Error, string Label, string Kind, bool Prompts, WriteKind? Gate, string Argument = "", string? ArgumentLabel = null);
 
     static RunPlan Fail(string code, string message) => new(new CommandError(code, message), "", "", false, null);
 
-    static RunPlan Plan(string id, bool allowPrompt, bool hasEditor)
+    static RunPlan Plan(string id, string argument, bool allowPrompt, bool hasEditor)
     {
         if (id.Length == 0)
             return Fail("empty_id", "\"id\" is empty. Call list_actions to see the action ids.");
@@ -264,20 +318,47 @@ internal sealed class ActionRunCommand : ICommand
         if (action.Unavailable?.Invoke() is { } reason)
             return Fail("unavailable", string.Format("\"{0}\" cannot run right now: {1}. Nothing happened.", label, reason));
 
+        // 参数那一闸，排在可用性之后：没开 part 的时候值域必然是空的，"没有合法值"远不如"钢琴窗里没开 part"
+        // 说得清。三种走不通各有各的下一步，故分开报。
+        string resolved = string.Empty;
+        string? argumentLabel = null;
+        if (action.Parameter is { } parameter)
+        {
+            var values = parameter.Values();
+            if (argument.Length == 0)
+                return Fail("needs_argument", string.Format(
+                    "\"{0}\" needs a value for \"{1}\" — the thing to act on, passed as \"argument\". Valid right now: {2}. Nothing happened.",
+                    label, parameter.Name, ActionParameter.Describe(values)));
+            if (!parameter.TryResolve(argument, out var value, out var error))
+                return Fail("invalid_argument", string.Format("{0}. Nothing happened.", error));
+            resolved = value.Value;
+            argumentLabel = value.Label;
+        }
+        else if (argument.Length != 0)
+        {
+            return Fail("unexpected_argument", string.Format(
+                "\"{0}\" takes no argument, but \"{1}\" was given. Nothing happened — call again without it (list_actions marks the few actions that do take one).", label, argument));
+        }
+
         bool prompts = action.Prompts?.Invoke() ?? false;
         if (prompts && !allowPrompt)
             return Fail("needs_user_present", string.Format(
                 "\"{0}\" stops on a dialog that a person has to answer (a file picker, or a confirmation about unsaved work). With nobody there it never finishes, and the dialog sits on the user's screen until they deal with it. Nothing happened. "
                 + "Ask the user to do it in TuneLab, or call again with allowPrompt = true if you know they are at the machine.", label));
 
-        return new RunPlan(null, label, kind, prompts, action.Kind switch
+        return new RunPlan(null, label, kind, prompts, Gate(action.Kind), resolved, argumentLabel);
+    }
+
+    static WriteKind? Gate(ActionKind kind)
+    {
+        return kind switch
         {
             // 只改应用自身状态的动作不过闸门：用户一眼看得见、自己就能改回来，而每次播放都弹一张确认卡片
             // 会让这个动作面根本没法用（同 Read 命令不过闸门的道理）。
             ActionKind.AppState => null,
             ActionKind.ProjectEdit => WriteKind.EditorAction,
             _ => WriteKind.EditorActionDestructive,
-        });
+        };
     }
 
     // 回报：动作的身份 + 结局 + **执行后的编辑器状态**（即发即忘的动作靠它才不瞎，见 IEditorStatusAccess）。
@@ -286,6 +367,8 @@ internal sealed class ActionRunCommand : ICommand
         ["id"] = id,
         ["label"] = plan.Label,
         ["kind"] = plan.Kind,
+        ["argument"] = string.IsNullOrEmpty(plan.Argument) ? null : plan.Argument,
+        ["argumentLabel"] = plan.ArgumentLabel,
         ["outcome"] = outcome,
         ["prompted"] = outcome == "ran" && plan.Prompts,
         ["note"] = string.IsNullOrEmpty(note) ? null : note,
@@ -307,7 +390,9 @@ internal sealed class ActionRunCommand : ICommand
             return string.Format("Nothing happened: \"{0}\" stopped being runnable while waiting for the user — {1}.", label, note);
 
         var sb = new StringBuilder(note);
-        sb.Append(string.Format("Ran \"{0}\" ({1}).", label, obj["id"]!.GetValue<string>()));
+        sb.Append(obj["argument"]?.GetValue<string>() is { } argument
+            ? string.Format("Ran \"{0}\" on \"{1}\" ({2} {3}).", label, obj["argumentLabel"]?.GetValue<string>() ?? argument, obj["id"]!.GetValue<string>(), argument)
+            : string.Format("Ran \"{0}\" ({1}).", label, obj["id"]!.GetValue<string>()));
         if (obj["prompted"]!.GetValue<bool>())
             sb.Append(" It is now waiting on a dialog in TuneLab: this action does not finish until someone answers it, and until then that dialog sits on the user's screen.");
         if (obj["kind"]!.GetValue<string>() == "projectEdit")

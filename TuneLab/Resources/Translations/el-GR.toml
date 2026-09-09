@@ -358,6 +358,8 @@
 "Toggle Waveform" = "Εμφάνιση/απόκρυψη κυματομορφής"
 "Finer Quantization" = "Λεπτομερέστερη κβάντιση"
 "Coarser Quantization" = "Χονδρότερη κβάντιση"
+"Show Synthesized Parameter Track" = "Εμφάνιση κομματιού συνθετικών παραμέτρων"
+"Hide Synthesized Parameter Track" = "Απόκρυψη κομματιού συνθετικών παραμέτρων"
 "Play" = "Αναπαραγωγή"
 "Pause" = "Παύση"
 "Settings" = "Ρυθμίσεις"

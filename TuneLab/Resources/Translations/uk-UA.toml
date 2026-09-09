@@ -358,6 +358,8 @@
 "Toggle Waveform" = "Показати/сховати форму хвилі"
 "Finer Quantization" = "Дрібніше квантування"
 "Coarser Quantization" = "Грубіше квантування"
+"Show Synthesized Parameter Track" = "Показати дорожку синтезованих параметрів"
+"Hide Synthesized Parameter Track" = "Приховати дорожку синтезованих параметрів"
 "Play" = "Відтворити"
 "Pause" = "Призупинити"
 "Settings" = "Налаштування"

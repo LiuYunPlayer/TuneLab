@@ -36,6 +36,7 @@
 | 用户在界面上能做的**一次操作**，及其穷尽注册表 | `action`（`EditorAction` / `ActionRegistry` / `ActionKind` / 命令面的 `action list`、`action run`） | 动作 | 别用 `command` 指它（那个词归命令面）；`KeyCommand` 已改名 `KeyBindingEntry`（它现在只是"引用某动作的一条绑定"） |
 | 命令面上一条**外部可调条目**（CLI / agent 工具 / MCP 的同一个末端） | `command`（`ICommand` / `CommandRegistry` / `CommandKind`） | 命令 | 「末端动作」（已改口"末端命令"）；别用 `action` 指它 |
 | 吸附网格的档位（1/16、三连的 1/12…） | `quantization`（`IQuantization` / `QuantizationBase` / `QuantizationDivision` / 动作 id `quantization.*`） | 量化 | 符号面别写 `snap` / `grid`（模型可见的句子里可以用 "the snap grid" 作解释性同位语，如 `editor status` 那行；**符号与 id 一律 quantization**） |
+| 一条动作要作用在哪个成员上（一个动词 × 一个闭集里的成员） | `argument`（`ActionParameter` / `ActionArgument` / `run_action` 的 `argument` 字段），那一批统称**选择器参数** selector parameter | 选择器参数 | 别写 `option` / `value` / `target` 指它；命令自己的入参仍叫 `parameter`（`ParametersJsonSchema`），动作的这一个是 `argument`——两个词分工见 command-surface.md §5.6 |
 | 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebar` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
 
 ### 三条边界的说明

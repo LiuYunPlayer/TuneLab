@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using Avalonia.Input;
@@ -62,6 +63,10 @@ internal static class Keymap
     // 只进穷尽面、不给手势的那些直接调 ActionRegistry.Register。
     public static void Register(EditorAction action, KeyScope scope, KeyBinding? defaultGesture = null)
     {
+        // 带【选择器参数】的动作不可绑：一条绑定只有手势、没有参数，按下去无从知道要作用在哪个成员上。
+        // "绑定携带参数"是 v2 的事（docs/keybinding-system.md §10），届时改这里与存储、不改动作那一侧。
+        Debug.Assert(action.Parameter == null,
+            "An action with a selector parameter cannot be bound to a gesture (id: " + action.Id + ")");
         ActionRegistry.Register(action);
         mBindings[action.Id] = new() { ActionId = action.Id, Scope = scope, DefaultGesture = defaultGesture };
         mIndex = null;

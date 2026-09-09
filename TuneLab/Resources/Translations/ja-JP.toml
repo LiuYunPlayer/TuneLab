@@ -358,6 +358,8 @@
 "Toggle Waveform" = "波形の表示切替"
 "Finer Quantization" = "クオンタイズを細かく"
 "Coarser Quantization" = "クオンタイズを粗く"
+"Show Synthesized Parameter Track" = "合成パラメータトラックを表示"
+"Hide Synthesized Parameter Track" = "合成パラメータトラックを非表示"
 "Play" = "再生"
 "Pause" = "一時停止"
 "Settings" = "設定"

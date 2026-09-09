@@ -358,6 +358,8 @@
 "Toggle Waveform" = "Dalga formunu göster/gizle"
 "Finer Quantization" = "Daha ince kuantizasyon"
 "Coarser Quantization" = "Daha kaba kuantizasyon"
+"Show Synthesized Parameter Track" = "Sentezlenmiş parametre kanalını göster"
+"Hide Synthesized Parameter Track" = "Sentezlenmiş parametre kanalını gizle"
 "Play" = "Oynat"
 "Pause" = "Duraklat"
 "Settings" = "Ayarlar"

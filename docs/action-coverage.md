@@ -72,22 +72,24 @@
 
 ## 4 后续项（`pending:*` 的去处）
 
-每个桶就是一处「判据已经清楚、通道还没补」的地方。**二期之后只剩两个**——剪贴板那 23 条改判成
-`script`（§3），另外三个桶各自补上了通道：选区写入进了脚本面（`isSelected` / `part.selectNotes` /
+每个桶就是一处「判据已经清楚、通道还没补」的地方。**今天只剩一个**——剪贴板那 23 条改判成
+`script`（§3），另外四个桶各自补上了通道：选区写入进了脚本面（`isSelected` / `part.selectNotes` /
 `tl.setTrackSelection`），音频导入进了 `track.addPart`（不给 `endOffset` 就按文件时长），
-打开工程与扩展装卸各成了命令（`project open` / `extension install` / `uninstall` / `cancel-uninstall`）。
+打开工程与扩展装卸各成了命令（`project open` / `extension install` / `uninstall` / `cancel-uninstall`），
+而 `selector-params` 那两条（外加侧栏那个钉选菜单项）由 `run_action` 的**选择器参数**接住：
+`parameter.showSynthesizedTrack` / `hideSynthesizedTrack` / `pinProperty` / `unpinProperty` 各带一个
+成员参数，`list_actions` 报出此刻的合法值（见 command-surface.md §5.5）。
 
 | 桶 | 条数 | 该补在哪 |
 |---|---|---|
 | `pending:preset` | 5 | part preset 的外部面。设计已定、暂缓，要点钉在 issue #141 |
-| `pending:selector-params` | 2 | 动作需要**选择器参数**：参数面板的回显轨显隐、参数栏钉选——成员随 part 的声源/效果器链而变（动态集），逐成员开 id 会爆。等 `run_action` 带参数（快捷键 v1 把「绑定携带参数」推到了 v2，见 keybinding-system.md §10） |
 
 ## 5 逐条认领
 
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**169 个入口**：`action` 24 · `command` 9 · `script` 74 · `pending` 7 · `dialog` 34 · `internal` 17 · `by-design` 4 · `todo` 0
+**169 个入口**：`action` 27 · `command` 9 · `script` 73 · `pending` 5 · `dialog` 34 · `internal` 17 · `by-design` 4 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -192,14 +194,14 @@
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | mWaveformToggle | toggle | `action:view.toggleWaveform` | 开关与动作都是切换：波形带显隐是一件事，人心里也是一件事 |
-| toggle | toggle | `pending:selector-params` | 回显轨显隐：成员随 part 的声源与效果器链而变（动态集），逐成员开两条 id 会爆 |
+| toggle | toggle | `action:parameter.showSynthesizedTrack` | 合成参数轨显隐。chip 是 toggle，动作面给**一对终态**（show / hide），成员则是那两条动作的**选择器参数**——随 part 的声源与效果器链而变，逐成员开 id 会爆 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/ParameterTabBar/ParameterTabBar.cs
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
 | mPanelToggle | toggle | `action:view.toggleParameterPanel` | 与 Ctrl+P 同一条动作 |
-| Remove from Parameter Panel | menu | `pending:selector-params` | 参数栏钉选：成员是 note / phoneme 的属性（动态集） |
+| Remove from Parameter Panel | menu | `action:parameter.unpinProperty` | 解钉（tab 右键）。与侧栏属性右键、与那条动作共用 `ParameterPinning.SetPinned`；解钉哪一个是它的选择器参数 |
 
 #### TuneLab/UI/MainWindow/Editor/PianoWindow/PianoScrollView/PianoScrollViewOperation.cs
 
@@ -308,7 +310,7 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| name | menu | `script` | 音素面板的右键项，改的是音素数据 |
+| name | menu | `action:parameter.pinProperty` | 属性右键的钉选项（note / phoneme 两 scope 共用这段构造）。同一菜单项按当前钉选态在「在参数栏编辑 / 从参数栏移除」两句间切换，对应 `parameter.pinProperty` / `unpinProperty` 那一对终态动作 |
 | Split | menu | `script` | 音素面板的右键项，改的是音素数据 |
 | Delete | menu | `script` | 音素面板的右键项，改的是音素数据 |
 

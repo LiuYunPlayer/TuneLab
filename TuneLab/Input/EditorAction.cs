@@ -23,7 +23,14 @@ internal sealed class EditorAction
 
     public required ActionKind Kind { get; init; }
 
-    public required Action Execute { get; init; }
+    // 无参动作的执行。带**选择器参数**的动作把执行放在 Parameter.Execute（那一个接值），故这里可空：
+    // 一条动作恰有一条执行路径，注册时校验（见 ActionRegistry.Register）。
+    public Action? Execute { get; init; }
+
+    // 非 null = 这条动作要一个【选择器参数】（一个动词 × 一个闭集里的成员），见 ActionParameter。
+    // 【不给手势】带参动作不进 Keymap：一条绑定只有手势没有参数，v1 刻意不做"绑定携带参数"
+    //（keybinding-system.md §10 把它留给 v2）。故这批动作只从命令面与界面入口触发。
+    public ActionParameter? Parameter { get; init; }
 
     // 现在跑得动吗：null = 跑得动；否则返回**为什么跑不动**的一句英文（原样进 `action list` 与 `action run` 的回报）。
     //

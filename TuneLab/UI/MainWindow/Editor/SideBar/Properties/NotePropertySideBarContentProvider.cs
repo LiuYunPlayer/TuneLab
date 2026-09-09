@@ -140,26 +140,10 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         bool pinned = ParameterPinning.IsPinned(part.SoundSource, scope, key.Id);
         string name = (pinned ? "Remove from Parameter Panel" : "Edit in Parameter Panel").Tr(TC.Menu);
-        return new Avalonia.Controls.MenuItem().SetName(name).SetAction(() =>
-        {
-            if (pinned)
-                ParameterPinning.Unpin(part.SoundSource, scope, key.Id);
-            else
-                ParameterPinning.Pin(part.SoundSource, scope, key.Id, OccupiedAutomationColors(part));
-            part.RefreshPinnedLaneConfigs();
-        });
-    }
-
-    // 参数面板当前已占用的 automation 轨色（voice + 各 effect）：钉选分配轨色时避开（lane 既有色由 Pin 内部并入）。
-    static IEnumerable<string> OccupiedAutomationColors(IMidiPart part)
-    {
-        foreach (var kvp in part.SoundSource.AutomationConfigs)
-            yield return kvp.Value.Color;
-        foreach (var effect in part.Effects)
-        {
-            foreach (var kvp in effect.AutomationConfigs)
-                yield return kvp.Value.Color;
-        }
+        // 钉/解钉这一件事收口在 ParameterPinning.SetPinned：这个入口、参数栏 tab 的右键、命令面的
+        // parameter.pin/unpinProperty（带参动作）按下去是同一件事，判据与轨色分配不各写一遍。
+        return new Avalonia.Controls.MenuItem().SetName(name).SetAction(
+            () => ParameterPinning.SetPinned(part, scope, key.Id, !pinned));
     }
 
     void OnConfigChnaged()

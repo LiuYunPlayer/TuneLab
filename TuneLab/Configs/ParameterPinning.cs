@@ -93,6 +93,35 @@ internal static class ParameterPinning
             Save();
     }
 
+    // 【钉/解钉一次】的收口：三个入口（侧栏属性右键、参数栏 tab 右键、命令面的 parameter.pin/unpinProperty
+    // 带参动作）按下去必须是同一件事——判据、轨色分配、通知 part 重算 lane 全在这里，不各写一遍。
+    // **终态语义、幂等**：已在目标态就什么都不做（重复 Pin 会重新分配轨色，那不是"什么都没变"）。
+    // 返回是否真的动了（回报与去抖用）。
+    public static bool SetPinned(IMidiPart part, ParameterPinKind kind, string id, bool pinned)
+    {
+        if (IsPinned(part.SoundSource, kind, id) == pinned)
+            return false;
+
+        if (pinned)
+            Pin(part.SoundSource, kind, id, OccupiedAutomationColors(part));
+        else
+            Unpin(part.SoundSource, kind, id);
+        part.RefreshPinnedLaneConfigs();
+        return true;
+    }
+
+    // 参数面板当前已占用的 automation 轨色（voice + 各 effect）：钉选分配轨色时避开（lane 既有色由 Pin 内部并入）。
+    static IEnumerable<string> OccupiedAutomationColors(IMidiPart part)
+    {
+        foreach (var kvp in part.SoundSource.AutomationConfigs)
+            yield return kvp.Value.Color;
+        foreach (var effect in part.Effects)
+        {
+            foreach (var kvp in effect.AutomationConfigs)
+                yield return kvp.Value.Color;
+        }
+    }
+
     // 键跟声源身份走（kind + Type + laneKind + 属性 id）、不跟工程走：用户偏好跨工程生效；换引擎后 id 对不上则自然不显示，无需清理。
     static string LaneKey(ISoundSource source, ParameterPinKind kind, string id)
         => (source.Kind == SourceKind.Voice ? "voice:" : "instrument:") + source.Type

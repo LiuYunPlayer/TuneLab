@@ -15,7 +15,8 @@ namespace TuneLab.Commands;
 //   故同样恒过闸门。
 // ExtensionSettingChange=改某扩展自己的设置（Target="扩展名 → 字段键"、NewValue=新值文本）：
 // 都不是工程数据、历史记录同样救不回，且是"改用户的应用配置"，故与前者同闸门、同样无预览。
-// EditorAction/EditorActionDestructive=从命令面触发一条编辑器动作（Target=动作显示名）：动作没法像脚本那样
+// EditorAction/EditorActionDestructive=从命令面触发一条编辑器动作（Target=动作显示名，NewValue=带选择器参数的
+// 动作作用在哪个成员上、无参动作留空）：动作没法像脚本那样
 // 先跑一遍预览"会改多少"（它就是一次界面操作），故走一问一答而非预览-裁决。分两档的理由同 ProjectExport 的
 // 分档：进撤销栈的（剪贴板动词、移调）Ctrl+Z 能救回，而新建/打开/保存可能丢掉未保存的工作或改写磁盘上的
 // 文件——后果不同就必须让卡片说出不同的话。只改应用自身状态的动作（播放、切工具、开合面板）**不过闸门**，
@@ -43,9 +44,12 @@ internal readonly record struct AuthorizationRequest(WriteKind Kind, int Count, 
         WriteKind.ExtensionActivationChange => string.IsNullOrEmpty(SecondaryTarget)
             ? string.Format("{0} the extension \"{1}\"", NewValue, Target)
             : string.Format("{0} the \"{1}\" capability of \"{2}\"", NewValue, Target, SecondaryTarget),
-        WriteKind.EditorAction => string.Format("run the editor action \"{0}\" (it edits the project and goes into the undo history)", Target),
-        WriteKind.EditorActionDestructive => string.Format(
-            "run the editor action \"{0}\" (it can discard unsaved work or write files to disk, and the undo history cannot bring that back)", Target),
+        WriteKind.EditorAction => string.IsNullOrEmpty(NewValue)
+            ? string.Format("run the editor action \"{0}\" (it edits the project and goes into the undo history)", Target)
+            : string.Format("run the editor action \"{0}\" on \"{1}\" (it edits the project and goes into the undo history)", Target, NewValue),
+        WriteKind.EditorActionDestructive => string.IsNullOrEmpty(NewValue)
+            ? string.Format("run the editor action \"{0}\" (it can discard unsaved work or write files to disk, and the undo history cannot bring that back)", Target)
+            : string.Format("run the editor action \"{0}\" on \"{1}\" (it can discard unsaved work or write files to disk, and the undo history cannot bring that back)", Target, NewValue),
         WriteKind.ExtensionInstall => string.Format(
             "install the extension \"{0}\" from \"{1}\" (it unpacks third-party code into the extensions folder and loads it right now)", Target, NewValue),
         WriteKind.ExtensionUninstall => NewValue == "uninstall"
