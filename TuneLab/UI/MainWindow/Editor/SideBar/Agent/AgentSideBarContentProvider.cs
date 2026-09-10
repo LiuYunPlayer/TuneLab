@@ -2322,35 +2322,9 @@ internal sealed class AgentSideBarContentProvider
     {
         var message = new SelectableTextBlock()
         {
-            Text = request.Kind switch
-            {
-                WriteKind.ScriptDelete => string.Format("The agent wants to delete the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
-                WriteKind.ScriptOverwrite => string.Format("The agent wants to overwrite the saved script \"{0}\". This can't be undone.".Tr(this), request.Target),
-                WriteKind.SettingChange => string.Format("The agent wants to change the setting \"{0}\" to {1}.".Tr(this), SettingDisplayLabel(request.Target), request.NewValue),
-                // 快捷键：绑/解绑两句；夺键时再补一句点名被解绑的命令（知情同意）。命令名用本地化显示名，模型侧才用 id。
-                WriteKind.KeybindingChange => (string.IsNullOrEmpty(request.NewValue)
-                        ? string.Format("The agent wants to remove the shortcut for \"{0}\".".Tr(this), KeybindingText.LabelOf(request.Target ?? ""))
-                        : string.Format("The agent wants to set the shortcut for \"{0}\" to {1}.".Tr(this), KeybindingText.LabelOf(request.Target ?? ""), request.NewValue))
-                    + (string.IsNullOrEmpty(request.SecondaryTarget) ? "" :
-                        " " + string.Format("This also unbinds the shortcut of \"{0}\".".Tr(this), request.SecondaryTarget)),
-                WriteKind.RoutingChange => string.Format("The agent wants \"{1}\" to be the package that provides \"{0}\" (takes effect after a restart).".Tr(this), request.Target, request.NewValue),
-                WriteKind.ExtensionSettingChange => string.Format("The agent wants to change the extension setting \"{0}\" to {1}.".Tr(this), request.Target, request.NewValue),
-                // 启停：整包与单个能力两种口径，开与关又各一句——四句都写全，不拿"设为 enable/disable"这种
-                // 机器味的通用句糊过去（关掉一个能力等于让它从本次运行里消失，用户得一眼看懂关的是什么）。
-                WriteKind.ExtensionActivationChange => string.IsNullOrEmpty(request.SecondaryTarget)
-                    ? (request.NewValue == "enable"
-                        ? string.Format("The agent wants to enable the extension \"{0}\" (takes effect after a restart).".Tr(this), request.Target)
-                        : string.Format("The agent wants to disable the extension \"{0}\" (takes effect after a restart).".Tr(this), request.Target))
-                    : (request.NewValue == "enable"
-                        ? string.Format("The agent wants to enable the \"{0}\" capability of \"{1}\" (takes effect after a restart).".Tr(this), request.Target, request.SecondaryTarget)
-                        : string.Format("The agent wants to disable the \"{0}\" capability of \"{1}\" (takes effect after a restart).".Tr(this), request.Target, request.SecondaryTarget)),
-                // 导出：卡片必须摆出【完整落地路径】——路径是任意的，用户只有看到它才能判断这一下写到哪。
-                // 覆盖另起一句，别把"替换掉已有文件"混在同一句里说轻了。
-                WriteKind.ProjectExport => string.Format("The agent wants to export the project as {1} to:\n{0}".Tr(this), request.Target, request.NewValue),
-                WriteKind.ProjectExportOverwrite => string.Format("The agent wants to export the project as {1} to:\n{0}".Tr(this), request.Target, request.NewValue)
-                    + "\n" + "A file already exists there and will be replaced. This can't be undone.".Tr(this),
-                _ => string.Format("The agent wants to apply {0} change(s) to the project.".Tr(this), request.Count),
-            },
+            // 卡片文案抽在 AuthorizationCardText：那里逐档写，且有封条遍历 WriteKind 的每个值——
+            // 这个 switch 从前就在这里内联，新增的档落进兜底后变成"想对工程应用 0 处改动"，没人发现。
+            Text = AuthorizationCardText.For(request, s => s.Tr(this)),
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             Foreground = Colors.White.ToBrush(),
