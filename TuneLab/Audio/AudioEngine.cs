@@ -36,16 +36,15 @@ internal static class AudioEngine
         mAudioPlaybackHandler.Init(mAudioSampleProvider);
         SetDriverToPlaybackHandler();
         SetDeviceToPlaybackHandler();
-        mAudioPlaybackHandler.ProgressChanged += () => { if (IsPlaying) ProgressChanged?.Invoke(); };
-        mAudioPlaybackHandler.CurrentDeviceChanged += () => 
-        {
-            CurrentDevice.Value = mAudioPlaybackHandler.CurrentDevice;
-            mAudioPlaybackHandler.Start();
-        };
-        mAudioPlaybackHandler.DevicesChanged += () =>
-        {
-            SetDeviceToPlaybackHandler();
-        };
+        // 【必须是具名方法，好在 Destroy 里退订】这三个事件都由 SDL 侧 marshal 回 UI 线程（context.Post）。
+        // Destroy 里 handler.Destroy() 会把设备切成"空设备"——那本身就是一次设备变更，于是又 Post 一个
+        // 回调进 UI 队列，而紧接着的下一行就把 mAudioPlaybackHandler 置空了。等 Dispatcher 轮到那个回调时，
+        // 回调里访问已为 null 的 handler → NullReferenceException，而它是在 Dispatcher 操作里抛的、无人
+        // 接管 → 退出期直接崩掉进程（用户看到的是关窗口时闪退，未保存的工作一并没了；因为要赶在进程真正
+        // 结束前被取到才会炸，所以表现成偶发）。原先这三个订阅是匿名 lambda、压根没法退订。
+        mAudioPlaybackHandler.ProgressChanged += OnHandlerProgressChanged;
+        mAudioPlaybackHandler.CurrentDeviceChanged += OnHandlerCurrentDeviceChanged;
+        mAudioPlaybackHandler.DevicesChanged += OnHandlerDevicesChanged;
 
         InitDefaultSoundFont();
 
@@ -68,13 +67,39 @@ internal static class AudioEngine
 
         mAudioPlaybackHandler.Stop();
 
+        // 【先退订，再销毁】顺序是判据本身：handler.Destroy() 切空设备会再 Post 一个设备变更回调，
+        // 而它执行时 handler 已被置空（见 Init 里那段注释）。退订之后那个回调 Invoke 时调用列表是空的，
+        // 故已经排在队列里的操作也无害——两者都在 UI 线程串行，不存在"退订与执行并发"。
+        mAudioPlaybackHandler.ProgressChanged -= OnHandlerProgressChanged;
+        mAudioPlaybackHandler.CurrentDeviceChanged -= OnHandlerCurrentDeviceChanged;
+        mAudioPlaybackHandler.DevicesChanged -= OnHandlerDevicesChanged;
+
         ProgressChanged -= OnProgressChanged;
         SampleRate.Modified.Unsubscribe(OnSampleRateModified);
+        BufferSize.Modified.Unsubscribe(OnBufferSizeModified);   // Init 订阅了四个，这一个原先漏在这里
         CurrentDriver.Modified.Unsubscribe(OnCurrentDriverModified);
         CurrentDevice.Modified.Unsubscribe(OnCurrentDeviceModified);
 
         mAudioPlaybackHandler.Destroy();
         mAudioPlaybackHandler = null;
+    }
+
+    // SDL 侧三个事件的落点（具名 = 可退订，理由见 Init 与 Destroy 里的注释）。
+    static void OnHandlerProgressChanged()
+    {
+        if (IsPlaying)
+            ProgressChanged?.Invoke();
+    }
+
+    static void OnHandlerCurrentDeviceChanged()
+    {
+        CurrentDevice.Value = mAudioPlaybackHandler!.CurrentDevice;
+        mAudioPlaybackHandler.Start();
+    }
+
+    static void OnHandlerDevicesChanged()
+    {
+        SetDeviceToPlaybackHandler();
     }
 
     public static void Play()
