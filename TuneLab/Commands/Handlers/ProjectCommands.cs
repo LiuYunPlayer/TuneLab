@@ -730,11 +730,22 @@ internal sealed class ProjectExportAudioCommand : ICommand
         // 时长取整个混音的长度（与界面上按导出键得到的同一口径：AudioGraph 的末端，自带一秒尾）。
         double duration = await ctx.OnMainThread(() => AudioEngine.EndTime);
 
-        // 渲染 + 编码放后台线程跑：它是纯计算，且占住数据线程几分钟会把界面彻底冻住
-        //（界面上那条导出也是这么跑的）。此刻合成已落定，没有别的东西在改图。
+        // 渲染 + 编码跑在后台线程上（纯计算，占住数据线程的话界面连进度框都画不出来），而**前面挡一个
+        // 模态框**——授权卡片写着"期间用户的窗口会被锁住"，用户是据那句话决定要不要现在交出机器的，
+        // 没有这个框那就是假话：混音是逐块算的，用户中途改一下工程就得到一个前后不同源的文件，
+        // 回报还说导出成功。界面上那条导出从来没这问题，正是因为它前面挡着同一个框。
+        // headless 没有窗口（ModalProgress 为 null），就地跑——那儿也没有第二双手会去改工程。
         try
         {
-            await Task.Run(() => AudioEngine.ExportMaster(fullPath, isStereo, sampleRate, settings, cancellationToken: cancellationToken), cancellationToken);
+            var render = (IProgress<double> progress, CancellationToken token) =>
+            {
+                AudioEngine.ExportMaster(fullPath, isStereo, sampleRate, settings, progress, token);
+                return true;
+            };
+            if (ctx.ModalProgress is { } modal)
+                await modal.RunBehindModalAsync(render, cancellationToken);
+            else
+                await Task.Run(() => render(new Progress<double>(), cancellationToken), cancellationToken);
         }
         catch (OperationCanceledException)
         {

@@ -72,6 +72,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         mSelectionWriter = new(this);
         mProjectFileAccess = new(this);
         mEditorViewAccess = new(this);
+        mModalProgressAccess = new(this);
 
         mPlayhead = new(this);
         if (Enum.TryParse<PlayScrollTarget>(Settings.AutoScrollTarget.Value, out var autoScrollTarget))
@@ -110,6 +111,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             ProjectFile = mProjectFileAccess,
             // 挪视野：把用户的视线带到 agent 说的那个地方去（见 IEditorViewAccess）。
             EditorView = mEditorViewAccess,
+            // 渲染音频那条要占住机器几分钟——授权卡片承诺了"窗口会被锁住"，这道口子让那句话成真。
+            ModalProgress = mModalProgressAccess,
             MainThread = UiThreadDispatcher.Instance,
         };
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
@@ -1964,6 +1967,44 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         public string? Save(string? path) => editor.SaveFromCommand(path);
     }
 
+    // 模态进度框那道口子（`project export-audio`）。**复用界面上那条导出用的同一个框**：
+    // 两条路占住机器的方式因此一模一样，而不是命令面另发明一种"忙"的样子。
+    sealed class ModalProgressAccess(Editor editor) : IModalProgressAccess
+    {
+        // 【整段都要在 UI 线程上】命令是在桥线程上跑的，而建窗口与 ShowDialog 只能在 UI 线程；
+        // 又不能用阻塞式 Invoke——ShowDialog 要一直等到框关掉，占住 UI 线程就是死锁（框自己也画不出来）。
+        // 故用 InvokeAsync 把整个 async 段送上去（它有接 Func<Task<T>> 的重载，直接给回可 await 的任务）。
+        public Task<T> RunBehindModalAsync<T>(Func<IProgress<double>, CancellationToken, T> work, CancellationToken cancellationToken)
+            => Dispatcher.UIThread.InvokeAsync(() => ShowAndRunAsync(work, cancellationToken));
+
+        async Task<T> ShowAndRunAsync<T>(Func<IProgress<double>, CancellationToken, T> work, CancellationToken cancellationToken)
+        {
+            var dialog = new ExportDialog();
+            dialog.SetTitle("Export".Tr(TC.Dialog));   // 与界面上那条导出同一句
+            dialog.SetMessage("Exporting...".Tr(TC.Dialog));
+            dialog.SetProgress(0);
+
+            T result = default!;
+            Exception? failure = null;
+            var progress = new Progress<double>(p => dialog.SetProgress(p));
+
+            // 活儿在后台线程上跑：占住 UI 线程的话这个框自己都画不出来（界面那条导出同理）。
+            _ = Task.Run(async () =>
+            {
+                try { result = work(progress, cancellationToken); }
+                catch (Exception ex) { failure = ex; }
+                await Dispatcher.UIThread.InvokeAsync(dialog.Close);
+            }, CancellationToken.None);
+
+            await dialog.ShowDialog(editor.Window());
+
+            // 框先关掉再抛：错误怎么说是命令自己的事，这里只负责把它原样带出去。
+            if (failure != null)
+                throw failure;
+            return result;
+        }
+    }
+
     // 挪视野的那道口子（`editor reveal`）。**只做转发**：轴的算术在各轴自己身上（AnimateReveal），
     // 这里只负责"哪两条轴该动"——那是 Editor 才知道的事（编排区与钢琴窗各有一条时间轴）。
     sealed class EditorViewAccess(Editor editor) : IEditorViewAccess
@@ -2013,6 +2054,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     readonly ScriptSelectionWriter mSelectionWriter;
     readonly ProjectFileAccess mProjectFileAccess;
     readonly EditorViewAccess mEditorViewAccess;
+    readonly ModalProgressAccess mModalProgressAccess;
 
     readonly FunctionBar mFunctionBar;
     readonly PianoWindow mPianoWindow;

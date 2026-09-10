@@ -33,6 +33,9 @@ internal sealed record CommandContext
 
     // 挪视野的能力（`editor reveal`）。只有有窗口的宿主给得出——见 IEditorViewAccess。
     public IEditorViewAccess? EditorView { get; init; }
+    // 在模态进度框后面跑一件耗时活儿的能力（`project export-audio`）。只有有窗口的宿主给得出——
+    // 见 IModalProgressAccess；headless 为 null，命令就地跑。
+    public IModalProgressAccess? ModalProgress { get; init; }
     // 旁路模型（可选）：`extension list` 补能力位摘要时要发一次一次性请求。**只有内置 agent 入口有**，
     // CLI / MCP / headless 一律 null——用到它的命令按 §5.3 降级（缓存能用就用、用不上如实标注），
     // 不是消失。

@@ -113,13 +113,18 @@ internal class AudioGraph()
     {
         get
         {
-            double endTime = 0;
-            foreach (var track in mTracks)
+            // 与 AddTrack / RemoveTrack / MixData 同一把锁。这里原先是本类里唯一不加锁的枚举，
+            // 于是「渲染期间加一条轨」能让它当场抛 Collection was modified。
+            lock (mTrackLockObject)
             {
-                endTime = Math.Max(endTime, track.EndTime);
+                double endTime = 0;
+                foreach (var track in mTracks)
+                {
+                    endTime = Math.Max(endTime, track.EndTime);
+                }
+                endTime += 1;
+                return endTime;
             }
-            endTime += 1;
-            return endTime;
         }
     }
 
