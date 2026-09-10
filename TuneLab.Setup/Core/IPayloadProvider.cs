@@ -14,7 +14,10 @@ internal interface IPayloadProvider
     /// <summary>载荷解压后总字节数（用于进度条；无法预知时返回 -1）。</summary>
     long UncompressedSize { get; }
 
-    /// <summary>载荷内的相对条目路径枚举（诊断/预览用）。</summary>
+    /// <summary>
+    /// 载荷内的相对条目路径枚举。安装清单据此认领"这些文件是我们铺的"（见 InstallManifest），
+    /// 故它必须与 <see cref="ExtractTo"/> 实际铺出去的那一批严格一致。
+    /// </summary>
     IEnumerable<string> EnumerateEntries();
 
     /// <summary>把全部条目铺到 <paramref name="targetDir"/>，逐条回报进度。</summary>

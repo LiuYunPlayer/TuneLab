@@ -124,6 +124,17 @@ public class SetupCliOptionsTests
         Assert.Contains("Exit codes", usage);
     }
 
+    // -dir 与向导的"浏览"按钮不同义：那个按钮往选中目录里再套一层 TuneLab\，命令行原样用。差异可以有，
+    // 瞒着不说不行——用法里曾把默认值写成"the per-user Programs folder"，那正好把这层差异藏了起来。
+    [Fact]
+    public void TheUsageIsHonestAboutWhatDirMeans()
+    {
+        var usage = CliOptions.Usage(SetupI18N.SupportedLanguages);
+
+        Assert.Contains("taken literally", usage);
+        Assert.Contains(@"%LocalAppData%\Programs\TuneLab", usage);
+    }
+
     [Fact]
     public void TheLanguageCodesTheCommandLineAcceptsAreTheOnesItShips()
     {

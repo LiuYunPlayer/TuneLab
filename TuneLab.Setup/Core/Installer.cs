@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.Versioning;
@@ -56,7 +57,7 @@ internal sealed class Installer
             // 2) `tunelab` 转发入口：命令面的文本里教的就是这个名字，它必须真的存在（见 CommandLineEntry）。
             //    每次安装与更新都重写——它是产品的一部分，不是按用户选择创建的快捷方式。
             progress?.Report(new InstallStatus(0.88, "Writing the tunelab command…"));
-            CommandLineEntry.Write(installDir);
+            bool commandLineWritten = CommandLineEntry.Write(installDir);
 
             // 3-4) 快捷方式 + 文件关联：仅首次安装。更新模式跳过，保留用户当初的选择。
             if (!mOptions.IsUpdate)
@@ -71,7 +72,12 @@ internal sealed class Installer
                 }
             }
 
-            // 5) 卸载注册表（0.96 → 1.0）
+            // 5) 安装清单：把"这次往这个目录里放了哪些文件"记下来，卸载照着它删。安装目录是调用方给的，
+            //    没有这份账就只能对整个目录做递归删除——那会连用户自己放在那儿的东西一起带走。
+            progress?.Report(new InstallStatus(0.96, "Recording what was installed…"));
+            InstallManifest.Write(installDir, CollectInstalledFiles(payload, installDir, commandLineWritten));
+
+            // 6) 卸载注册表（0.96 → 1.0）
             progress?.Report(new InstallStatus(0.98, "Registering uninstall entry…"));
             UninstallRegistry.Register(installDir, total, DateTime.Now.ToString("yyyyMMdd"));
 
@@ -81,6 +87,27 @@ internal sealed class Installer
         {
             (payload as IDisposable)?.Dispose();
         }
+    }
+
+    // 这次安装之后，安装目录里哪些文件是我们的。
+    // internal：认领错一个文件，卸载就少删或多删一个（多删的那头是用户的东西），值得单独钉住。
+    internal static IEnumerable<string> CollectInstalledFiles(IPayloadProvider payload, string installDir, bool commandLineWritten)
+    {
+        var files = new List<string>(payload.EnumerateEntries());
+
+        // tunelab.cmd 不在载荷里，是上一步现写的。
+        if (commandLineWritten)
+            files.Add(CommandLineEntry.FileName);
+
+        // 清单自己也算：不认领它，卸载完它会孤零零留在那儿，把本该消失的目录撑着删不掉。
+        files.Add(InstallManifest.FileName);
+
+        // 更新：上一版装过、这一版不再包含的文件仍然是我们装的（安装不清理旧文件，它们还躺在目录里）。
+        // 不并进来的话，一次更新就能把它们变成"来路不明、不敢删"的东西。
+        if (InstallManifest.Read(installDir) is { } previous)
+            files.AddRange(previous);
+
+        return files;
     }
 
     public void Launch()

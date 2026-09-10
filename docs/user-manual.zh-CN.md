@@ -78,7 +78,8 @@ Unblock-File $exe          # 去掉"从网上下载"标记，否则运行时可�
 几件事值得先知道：
 
 - **TuneLab 正开着时装不了**（文件被占用）。静默安装会等它 20 秒，然后如实报错退出，不会一直挂着。
-- **卸载**：`TuneLab-Setup-win-x64-v<版本>.exe -uninstall <安装目录>`，或安装目录里的 `TuneLab.Setup.exe -uninstall <安装目录>`。
+- **`-dir` 给的就是最终目录**：文件直接铺在这个路径里，不会再往下套一层 `TuneLab\`。向导里的"浏览"按钮会替你套一层（选 `D:\Apps` 得到 `D:\Apps\TuneLab`），命令行不替你做这个主。不给就是默认的 `%LocalAppData%\Programs\TuneLab`。
+- **卸载**：`TuneLab-Setup-win-x64-v<版本>.exe -uninstall <安装目录>`，或安装目录里的 `TuneLab.Setup.exe -uninstall <安装目录>`。它只删安装时记过账的那些文件（账本就是安装目录里的 `install-manifest.txt`）——你自己放进那个目录的东西会原样留着，目录也只在空了之后才删。
 - **同一台机器只支持一份安装**：快捷方式名、文件关联、卸载项都是产品级固定的，装第二份会覆盖第一份的这些登记。
 - 装完之后，脚本与 AI Agent 用 `tunelab --headless …` 就能直接干活（跑脚本改工程、批量导出），**不需要打开命令桥**；只有要驱动**用户正开着的那个窗口**时才需要他去设置里勾一下，见[命令行与外部工具](#17-命令行与外部工具)。
 

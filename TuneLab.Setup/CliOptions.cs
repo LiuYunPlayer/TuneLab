@@ -161,13 +161,18 @@ internal sealed class CliOptions
         sb.AppendLine("  -help                       this text");
         sb.AppendLine();
         sb.AppendLine("Options for -silent (defaults are what the wizard starts with):");
-        sb.AppendLine("  -dir <path>                 where to install                    (default: the per-user Programs folder)");
+        sb.AppendLine("  -dir <path>                 install into exactly this folder     (default: %LocalAppData%\\Programs\\TuneLab)");
         sb.AppendLine("  -desktop-shortcut <bool>    create a desktop shortcut            (default: true)");
         sb.AppendLine("  -start-menu-shortcut <bool> create a Start Menu shortcut         (default: true)");
         sb.AppendLine("  -file-assoc <bool>          associate .tlpx / .tlp / .tlx        (default: true)");
         sb.AppendLine("  -launch <bool>              start TuneLab when the install ends  (default: true)");
         sb.AppendLine("  -language <code>            the language TuneLab starts in       (default: leave it as it is)");
         sb.AppendLine("                              " + string.Join(" ", languages));
+        sb.AppendLine();
+        // -dir 与向导的"浏览"按钮不同义：那个按钮会往选中的目录里再套一层 TuneLab\，命令行不替调用方
+        // 做这个主。两边行为不一样是有意的，但不说出来就会变成"我以为装在 D:\Apps\TuneLab 里"。
+        sb.AppendLine("-dir is taken literally: the files land directly in <path>. The Browse button in the");
+        sb.AppendLine("wizard appends a TuneLab folder to the folder you pick; the command line does not.");
         sb.AppendLine();
         sb.AppendLine("Exit codes: 0 ok, 1 the install failed, 2 wrong usage.");
         sb.AppendLine("A silent run also writes what it did to %temp%\\TuneLab.Setup.log.");

@@ -35,13 +35,17 @@ internal static class CommandLineEntry
         + "\"%~dp0TuneLab.Cli.exe\" %*\r\n"
         + "exit /b %ERRORLEVEL%\r\n";
 
-    /// <summary>写入（或覆盖）安装目录下的转发入口。命令行本体缺席时什么也不做。</summary>
-    public static void Write(string installDir)
+    /// <summary>
+    /// 写入（或覆盖）安装目录下的转发入口。命令行本体缺席时什么也不做。
+    /// 返回是否真的写了——它不在载荷里，装了才该记进安装清单（见 InstallManifest）。
+    /// </summary>
+    public static bool Write(string installDir)
     {
         // 没铺上命令行本体就不留一个指向空处的入口——那比没有更糟（敲下去报的是"找不到文件"）。
         if (!File.Exists(Path.Combine(installDir, "TuneLab.Cli.exe")))
-            return;
+            return false;
 
         File.WriteAllText(Path.Combine(installDir, FileName), Script, new UTF8Encoding(false));
+        return true;
     }
 }

@@ -40,6 +40,12 @@ internal static class SilentRunner
         return true;
     }
 
+    static void Report(string message)
+    {
+        Console.Out.WriteLine(message);
+        Log(message);
+    }
+
     static int Install(CliOptions options)
     {
         if (!TryResolveLanguage(options, out var language))
@@ -96,7 +102,9 @@ internal static class SilentRunner
             switch (options.Mode)
             {
                 case SetupMode.Uninstall:
-                    Uninstaller.Run(options.TargetDir ?? ProductInfo.DefaultInstallDir);
+                    // 卸载的每一行结论都同时给控制台和日志：从"添加或删除程序"点进来时没有控制台，
+                    // 那份日志是"到底删了什么、留下了什么"的唯一去处。
+                    Uninstaller.Run(options.TargetDir ?? ProductInfo.DefaultInstallDir, Report);
                     Log("Uninstall done.");
                     return 0;
 
