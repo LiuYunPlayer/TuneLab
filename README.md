@@ -16,6 +16,11 @@ The binaries are not code-signed, so Windows may greet the first launch with a S
 ## User manual
 A full walkthrough of the editor - every area of the UI, the five editing tools and their mouse gestures, the sidebar, settings, shortcuts, files and extensions - is available in Chinese: [用户手册](docs/user-manual.zh-CN.md). An English translation is not written yet.
 The manual ships with the app: press `F1` (or **Help -> User Manual**) to read the same content in-app, and the built-in AI agent consults it when answering how-to questions.
+## Command line and external tools
+The packages ship with a command line: `tunelab.cmd` in the install directory (`TuneLab.Cli.exe` in the portable zip). It runs the **same commands as the built-in AI agent** - read the project, run scripts, change settings, trigger editor actions - either against the window you have open, or with `--headless` against a windowless instance for CI. `tunelab mcp` serves those same commands to any MCP-capable AI client over stdin/stdout.
+
+To reach a running TuneLab, first turn on the **command bridge** in **Settings -> General** (off by default). Usage is documented in the manual, chapter 17: [命令行与外部工具](docs/user-manual.zh-CN.md#17-命令行与外部工具); the design is in [command-surface.md](docs/command-surface.md).
+
 ## Extension installation
 Drag a `.tlx` extension package into the editor, or install one from the extensions sidebar.
 ## Extension development
