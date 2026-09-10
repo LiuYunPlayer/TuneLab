@@ -1868,38 +1868,10 @@ internal partial class PianoScrollView
             part.DiscardTo(mHead);
             part.BeginMergeDirty();
             part.Notes.BeginMergeNotify();
-            List<List<List<Point>>> pitchInfos = new();
-            Dictionary<string, List<List<Point>>> automationInfos = new();
-            if (Settings.ParameterSyncMode)
-            {
-                foreach (var note in mMoveNotes)
-                {
-                    var pitchInfo = part.Pitch.RangeInfo(note.StartPos(), note.EndPos());
-                    foreach (var line in pitchInfo)
-                    {
-                        for (int i = 0; i < line.Count; i++)
-                        {
-                            line[i] = new(line[i].X + note.StartPos() + posOffset, line[i].Y + pitchOffset);
-                        }
-                    }
-                    pitchInfos.Add(pitchInfo);
-
-                    foreach (var kvp in part.Automations)
-                    {
-                        var autoInfo = kvp.Value.RangeInfo(note.StartPos(), note.EndPos());
-                        for (int i = 0; i < autoInfo.Count; i++)
-                        {
-                            autoInfo[i] = new(autoInfo[i].X + note.StartPos() + posOffset, autoInfo[i].Y);
-                        }
-                        if (!automationInfos.TryGetValue(kvp.Key, out var list))
-                        {
-                            list = new List<List<Point>>();
-                            automationInfos[kvp.Key] = list;
-                        }
-                        list.Add(autoInfo);
-                    }
-                }
-            }
+            // 参数同步：必须在音符还在原处时抠曲线（来处只有此刻问得出来），故三步夹在移动两侧。
+            var parameterSync = Settings.ParameterSyncMode
+                ? ParameterSyncMove.Capture(part, mMoveNotes, posOffset, pitchOffset, Settings.ParameterBoundaryExtension)
+                : null;
 
             part.MoveNotes(mMoveNotes, () =>
             {
@@ -1908,40 +1880,9 @@ internal partial class PianoScrollView
                     note.Pos.Set(note.Pos.Value + posOffset);
                     note.Pitch.Set(note.Pitch.Value + pitchOffset);
                 }
-                if (Settings.ParameterSyncMode)
-                {
-                    foreach (var note in mMoveNotes)
-                    {
-                        part.Pitch.Clear(note.StartPos(), note.EndPos());
-                        foreach (var kvp in part.Automations)
-                        {
-                            kvp.Value.Clear(note.StartPos(), note.EndPos(), Settings.ParameterBoundaryExtension);
-                        }
-                    }
-                }
+                parameterSync?.ClearSources();
             });
-            if (Settings.ParameterSyncMode)
-            {
-                foreach (var info in pitchInfos)
-                {
-                    foreach (var line in info)
-                    {
-                        part.Pitch.AddLine(line, Settings.ParameterBoundaryExtension);
-                    }
-                }
-
-                foreach (var kvp in automationInfos)
-                {
-                    if (!part.Automations.TryGetValue(kvp.Key, out var automation))
-                        continue;
-
-                    var defaultValue = automation.DefaultValue.Value;
-                    foreach (var line in kvp.Value)
-                    {
-                        automation.AddLine(line.Convert(p => new Point(p.X, p.Y + defaultValue)), Settings.ParameterBoundaryExtension);
-                    }
-                }
-            }
+            parameterSync?.Apply();
             part.Notes.EndMergeNotify();
             part.EndMergeDirty();
         }

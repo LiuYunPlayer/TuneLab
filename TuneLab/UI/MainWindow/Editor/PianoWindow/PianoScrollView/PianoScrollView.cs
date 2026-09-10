@@ -1653,10 +1653,17 @@ internal partial class PianoScrollView : View, IPianoScrollView
         var selectedNotes = Part!.Notes.AllSelectedItems();
 
         Part.BeginMergeDirty();
+        // 参数同步模式下移调也搬参数（与拖动音符同一份搬运器）：音高线覆盖处曲线优先于音符音高，
+        // 曲线不跟着走的话，移调在那些段落上压根听不出变化。这里位移只有音高、没有时间。
+        var parameterSync = Settings.ParameterSyncMode
+            ? ParameterSyncMove.Capture(Part, selectedNotes, 0, offset, Settings.ParameterBoundaryExtension)
+            : null;
         foreach (var note in selectedNotes)
         {
             note.Pitch.Set(note.Pitch.Value + offset);
         }
+        parameterSync?.ClearSources();
+        parameterSync?.Apply();
         Part.EndMergeDirty();
         Part.Commit();
     }
