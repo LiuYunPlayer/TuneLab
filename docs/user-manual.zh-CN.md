@@ -47,6 +47,41 @@ Release 页面目前提供 Windows x64 两种包：
 
 其他平台请自行从源码构建。
 
+### 无人值守安装（脚本 / AI Agent）
+
+安装器自带命令行，向导上能勾的每一项都有对应参数，**缺省值与向导一致**（都建快捷方式、关联文件类型、装完启动）。`TuneLab-Setup-win-x64-v<版本>.exe -help` 会把参数与默认值全部列出来。
+
+一台干净机器上从零装好，大致是这几步（PowerShell）：
+
+```powershell
+# 1) 运行时（框架依赖构建，必须先有它）
+winget install --id Microsoft.DotNet.DesktopRuntime.8 --silent --accept-package-agreements
+
+# 2) 取最新安装器
+$api = Invoke-RestMethod https://api.github.com/repos/LiuYunPlayer/TuneLab/releases/latest
+$url = ($api.assets | Where-Object { $_.name -like 'TuneLab-Setup-win-x64-*.exe' }).browser_download_url
+$exe = Join-Path $env:TEMP (Split-Path $url -Leaf)
+Invoke-WebRequest $url -OutFile $exe
+Unblock-File $exe          # 去掉"从网上下载"标记，否则运行时可能被 SmartScreen 拦
+
+# 3) 静默安装（这里示范 CI 常用的一组：不建快捷方式、不关联文件类型、装完不启动）
+& $exe -silent -desktop-shortcut false -start-menu-shortcut false -file-assoc false -launch false
+#    想装成"给人用"的样子就直接 `& $exe -silent`，缺省与向导一致
+#    换目录 -dir <path>；指定界面语言 -language zh-CN
+
+# 4) 验证（命令行在安装目录里，装到别处就换成那个目录）
+& "$env:LOCALAPPDATA\Programs\TuneLab\tunelab.cmd" --headless app info
+```
+
+退出码：`0` 成功 / `1` 安装失败 / `2` 用法错。静默安装还会把过程写进 `%temp%\TuneLab.Setup.log`。
+
+几件事值得先知道：
+
+- **TuneLab 正开着时装不了**（文件被占用）。静默安装会等它 20 秒，然后如实报错退出，不会一直挂着。
+- **卸载**：`TuneLab-Setup-win-x64-v<版本>.exe -uninstall <安装目录>`，或安装目录里的 `TuneLab.Setup.exe -uninstall <安装目录>`。
+- **同一台机器只支持一份安装**：快捷方式名、文件关联、卸载项都是产品级固定的，装第二份会覆盖第一份的这些登记。
+- 装完之后，脚本与 AI Agent 用 `tunelab --headless …` 就能直接干活（跑脚本改工程、批量导出），**不需要打开命令桥**；只有要驱动**用户正开着的那个窗口**时才需要他去设置里勾一下，见[命令行与外部工具](#17-命令行与外部工具)。
+
 ### 用户数据放在哪
 
 除程序本体外，TuneLab 的一切用户数据都在 `%APPDATA%\TuneLab`：

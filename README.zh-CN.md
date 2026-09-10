@@ -15,6 +15,30 @@ TuneLab 是一款可扩展的歌声合成编辑器。
 二进制未做代码签名，首次启动 Windows 可能弹出 SmartScreen 提示（"Windows 已保护你的电脑"）。点**更多信息** -> **仍要运行**即可继续。
 ## 用户手册
 界面各区、五种编辑工具的操作手势、侧栏、设置、快捷键、文件与扩展管理，见[用户手册](docs/user-manual.zh-CN.md)。手册随软件发布，在软件内按 `F1`（或菜单**帮助 → 用户手册**）即可打开同一份内容；内置 AI Agent 也会查它来回答用法问题。
+## 无人值守安装（脚本 / AI Agent）
+安装器自带命令行：向导上能勾的每一项都有对应参数，缺省值与向导一致。`TuneLab-Setup-win-x64-v<版本>.exe -help` 列出全部参数与默认值。
+
+```powershell
+# 运行时（框架依赖构建，必须先有）
+winget install --id Microsoft.DotNet.DesktopRuntime.8 --silent --accept-package-agreements
+
+# 取最新安装器并去掉"从网上下载"标记
+$api = Invoke-RestMethod https://api.github.com/repos/LiuYunPlayer/TuneLab/releases/latest
+$url = ($api.assets | Where-Object { $_.name -like 'TuneLab-Setup-win-x64-*.exe' }).browser_download_url
+$exe = Join-Path $env:TEMP (Split-Path $url -Leaf)
+Invoke-WebRequest $url -OutFile $exe; Unblock-File $exe
+
+# 静默安装（缺省与向导一致；CI 常用下面这组开关）
+& $exe -silent -desktop-shortcut false -start-menu-shortcut false -file-assoc false -launch false
+
+# 验证
+& "$env:LOCALAPPDATA\Programs\TuneLab\tunelab.cmd" --headless app info
+```
+
+退出码 `0` 成功 / `1` 安装失败 / `2` 用法错；过程写在 `%temp%\TuneLab.Setup.log`。卸载用 `-uninstall <安装目录>`。TuneLab 正开着时装不了，静默安装等 20 秒后如实报错。
+
+装完之后脚本与 AI Agent 用 `tunelab --headless …` 就能直接干活，**不需要命令桥**；只有要驱动用户正开着的那个窗口才需要他去设置里打开它。详见[用户手册第 1 章](docs/user-manual.zh-CN.md#1-安装与启动)与[第 17 章](docs/user-manual.zh-CN.md#17-命令行与外部工具)。
+
 ## 命令行与外部工具
 安装包里带着一个命令行：安装目录下的 `tunelab.cmd`（免安装包里是 `TuneLab.Cli.exe`）。它跑的是与内置 AI Agent **同一批命令**——读工程、跑脚本、改设置、触发编辑器动作，既可以连上你正开着的窗口，也可以 `--headless` 起一个无界面的实例在 CI 里跑。`tunelab mcp` 还能把这批命令按 MCP 协议交给支持 MCP 的 AI 客户端。
 
