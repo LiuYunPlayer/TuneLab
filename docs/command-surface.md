@@ -390,6 +390,21 @@ internal interface IEditorStateAccess
   必须等重启**（运行中的进程锁着那些 dll），故卸载只是标记、装同名包直接拒绝——重启整个应用是用户的决定，
   命令面不替他做。
 
+**`preset` group（覆盖率清单的最后一个桶）**：`preset list` / `apply` / `save` / `delete` / `rename` ——
+Part 面板顶上那一行预设的外部面。一条 part preset 是**声音的快照**（声源 + part 属性 + 各自动化轨的
+默认值），刻意不含任何时间轴内容，故"应用一条预设"改的是这个 part 怎么唱，不是它唱什么。
+它**只能是命令**（同 `project open` 的判据）：动作面无参，而这一族每件事都要参数——哪条预设、
+用在哪个 part、存成什么名字。应用确实写工程数据（那本该归脚本面），但预设的内容在**用户的配置目录里**，
+脚本面读不到，故这条通道无可替代——与 `script run-saved` 同一个理由。part 按 1-based 轨号 + part 号定位，
+与 `project status` / `editor status` 报的号同一套。
+
+两处**知情差异**（不是漏做，是这个入口没法照抄界面）：`preset rename` 撞上已有的名字**直接拒绝**，
+而界面会弹确认框问要不要替换——这里没人可问，而替换掉用户的另一条预设不是能猜着做的事；
+`preset save` 只在**替换**已有的那条时过闸门（新建一条不拦，同 `save_script`）。
+
+effect 的实例 / 链 preset 实现暂缓（issue #141）**不构成挡住 part preset 的理由**：三种同住一个
+`Presets\` 文件夹、后缀名唯一声明种类，届时给这几条加一个 kind 参数即可（加性），不必回头改形状。
+
 **故意不塞进普通 group 的三样**（它们和原子命令不是一个物种）：
 
 - `script run` / `script run-saved` —— 图灵完备逃生口，参数是一段 JS

@@ -25,6 +25,8 @@ public class CommandRegistryTests
         "get_app_info", "list_actions", "run_action", "get_editor_status",
         // issue #150 的后续项：清单上"外部还够不着"的那几个桶各自补的命令。
         "open_project", "install_extension", "uninstall_extension", "cancel_extension_uninstall",
+        // part preset 的外部面（覆盖率清单最后一个桶）。
+        "list_presets", "apply_preset", "save_preset", "delete_preset", "rename_preset",
     ];
 
     [Fact]

@@ -30,9 +30,11 @@
 
 - **画布上的拖动与按住修饰键**：那是操作态，不是动作（`keybinding-system.md` §0 已划界）。外部的正解是
   带参数的终态动作（"把这个音符移到 X"），不是模拟一次拖拽。
-- **自绘的指针按钮**：用 `Border` + `PointerPressed` 手搓出来的按钮（今天只有一处：扩展条目的「卸载」）。
-  把 `PointerPressed` 纳入规则会把整片画布交互一起卷进来，得不偿失；那一处的外部通道是
-  `extension uninstall` 命令（与它旁边那个「取消卸载」菜单项成对）。
+- **自绘的指针按钮**：用 `Border` + `PointerPressed` 手搓出来的按钮。把 `PointerPressed` 纳入规则会把
+  整片画布交互一起卷进来，得不偿失，故这几处靠这里点名认领：扩展条目的「卸载」→ `extension uninstall`
+  命令（与它旁边那个「取消卸载」菜单项成对）；Part 面板预设列表里的每一行（点行=应用、行右 ✕=删除，
+  `FlyoutMenuRow`）→ `preset apply` / `preset delete`。**表里那两个 preset 按钮只是"点开列表/菜单"
+  （故判 `internal`），真正的动作在这些行上**——这正是这条规则的盲区，也是它必须被点名的理由。
 - **`.axaml` 里的 `Click="…"`**：今天是 0 处（界面全部代码构造）。真出现了，这条规则要补。
 
 设置窗里那些设置控件（音频驱动、缓冲区、字体…）也不在规则内：它们是 controller 绑到 `Settings` 上的，
@@ -72,24 +74,25 @@
 
 ## 4 后续项（`pending:*` 的去处）
 
-每个桶就是一处「判据已经清楚、通道还没补」的地方。**今天只剩一个**——剪贴板那 23 条改判成
-`script`（§3），另外四个桶各自补上了通道：选区写入进了脚本面（`isSelected` / `part.selectNotes` /
-`tl.setTrackSelection`），音频导入进了 `track.addPart`（不给 `endOffset` 就按文件时长），
-打开工程与扩展装卸各成了命令（`project open` / `extension install` / `uninstall` / `cancel-uninstall`），
-而 `selector-params` 那两条（外加侧栏那个钉选菜单项）由 `run_action` 的**选择器参数**接住：
-`parameter.showSynthesizedTrack` / `hideSynthesizedTrack` / `pinProperty` / `unpinProperty` 各带一个
-成员参数，`list_actions` 报出此刻的合法值（见 command-surface.md §5.5）。
+每个桶就是一处「判据已经清楚、通道还没补」的地方。**今天一个都不剩**，这一栏留着给下一批：
 
-| 桶 | 条数 | 该补在哪 |
-|---|---|---|
-| `pending:preset` | 5 | part preset 的外部面。设计已定、暂缓，要点钉在 issue #141 |
+- 剪贴板那 23 条改判成 `script`（§3）；
+- 选区写入进了脚本面（`isSelected` / `part.selectNotes` / `tl.setTrackSelection`）；
+- 音频导入进了 `track.addPart`（不给 `endOffset` 就按文件时长）；
+- 打开工程与扩展装卸各成了命令（`project open` / `extension install` / `uninstall` / `cancel-uninstall`）；
+- `selector-params` 那两条（外加侧栏那个钉选菜单项）由 `run_action` 的**选择器参数**接住：
+  `parameter.showSynthesizedTrack` / `hideSynthesizedTrack` / `pinProperty` / `unpinProperty` 各带一个
+  成员参数，`list_actions` 报出此刻的合法值（见 command-surface.md §5.6）；
+- `preset` 那 5 条成了 `preset list` / `apply` / `save` / `delete` / `rename`。**没等 effect preset**——
+  它的实现暂缓（issue #141），但那不构成挡住现役功能的理由：三种 preset 同住一个 `Presets\` 文件夹、
+  后缀名唯一声明种类，届时给这几条加一个 kind 参数即可，是加性的。
 
 ## 5 逐条认领
 
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**169 个入口**：`action` 27 · `command` 9 · `script` 73 · `pending` 5 · `dialog` 34 · `internal` 17 · `by-design` 4 · `todo` 0
+**169 个入口**：`action` 27 · `command` 12 · `script` 73 · `pending` 0 · `dialog` 34 · `internal` 19 · `by-design` 4 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -318,11 +321,11 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| mPresetMoreButton | button | `pending:preset` | part preset 的外部面待定（设计已钉在 issue #141，暂缓） |
-| mPresetButton | button | `pending:preset` | 同上 |
-| Save As | menu | `pending:preset` | 同上 |
-| Save | menu | `pending:preset` | 同上 |
-| Rename | menu | `pending:preset` | 同上 |
+| mPresetMoreButton | button | `internal` | 只是点开「更多」菜单，下面三项才是动作 |
+| mPresetButton | button | `internal` | 只是点开预设列表。列表里每一行（点行=应用、✕=删除）是自绘行、扫不到，通道是 `preset apply` / `preset delete`（见 §1） |
+| Save As | menu | `command:preset save` | 存成一条新预设。命令面一条 `preset save --name` 覆盖这两种：给的名字已存在就是回写、不存在就是新建 |
+| Save | menu | `command:preset save` | 回写当前关联的那条（同上） |
+| Rename | menu | `command:preset rename` | 命令面遇到重名【拒绝】而不是替换——那是知情差异，界面上有确认框，这里没人可问 |
 | confirmButton | button | `dialog` | 覆盖确认框的按钮 |
 
 #### TuneLab/UI/MainWindow/Editor/SideBar/Script/ScriptSideBarContentProvider.cs

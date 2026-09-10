@@ -365,13 +365,10 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         SavePreset(selectedPresetName);
     }
 
-    // 应用 preset / 恢复默认：扇出到所有目标 part（单选即 1 个），归为一个撤销步（共享文档，commit 一次）。
-    // None = 恢复默认；其余 = 设音源 + 重置属性 + 套 preset 属性/自动化默认。多选混源亦可——apply 会统一各 part 音源。
+    // 应用 preset / 恢复默认：名字落到已载入的那一条，怎么用在 part 上归 PartPresets（与命令面共用同一份，
+    // 见那里的说明）。None = 恢复默认；名字对不上（列表与磁盘之间被人动过）就什么都不做。
     void ApplyPresetToAll(string? presetName)
     {
-        if (mParts.Count == 0)
-            return;
-
         PartPreset? preset = null;
         if (presetName != null)
         {
@@ -379,128 +376,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             if (preset == null)
                 return;
         }
-
-        foreach (var part in mParts)
-            part.BeginMergeDirty();
-        foreach (var part in mParts)
-        {
-            if (preset == null)
-                ApplyDefaultPresetTo(part);
-            else
-                ApplyPresetTo(part, preset);
-        }
-        foreach (var part in mParts)
-            part.EndMergeDirty();
-        mParts[0].Commit();
-    }
-
-    // 单 part 的应用（config 按该 part 自身音源现算：apply 可能正在改音源，须 per-part 单元素 context）。
-    void ApplyDefaultPresetTo(IMidiPart part)
-    {
-        ResetPartPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
-        ResetAutomationDefaultsOf(part);
-    }
-
-    void ApplyPresetTo(IMidiPart part, PartPreset preset)
-    {
-        part.SoundSource.SetInfo(preset.Source);
-        ResetPartPropertiesToDefaults(part.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(part)), part.Properties);
-        ApplyPresetProperties(preset.Properties, part.Properties);
-        ApplyAutomationDefaultsTo(part, preset);
-    }
-
-    // 沿 ObjectConfig 结构与数据节点并行导航：嵌套 config 走 node.Object(key) 下降，叶子 config 写 node.SetValue。
-    static void ResetPartPropertiesToDefaults(ObjectConfig config, IDataPropertyObject node)
-    {
-        foreach (var kvp in config.Properties)
-        {
-            if (kvp.Value is ObjectConfig objectConfig)
-            {
-                ResetPartPropertiesToDefaults(objectConfig, node.Object(kvp.Key.Id));
-            }
-            else if (kvp.Value is ArrayConfig or ListConfig or ExtensibleObjectConfig)
-            {
-                // 数组/列表/变长键控容器：写入默认值（递归各元素/键 config 默认值拼成 PropertyArray/PropertyObject）。
-                // 显式重置即物化该值（变长键控 = 当前声明键的默认对象，替换整个容器值）。
-                node.SetValue(kvp.Key.Id, kvp.Value.GetDefaultValue());
-            }
-            else if (kvp.Value is IValueConfig valueConfig)
-            {
-                node.SetValue(kvp.Key.Id, valueConfig.DefaultValue);
-            }
-        }
-    }
-
-    // preset 抓取用：按 config 树把默认值物化进快照——显式值优先、absent 字段落抓取时的声明默认值。
-    // 默认值也是声音的一部分：引擎日后改默认值不应改变既存 preset 的声音（与 automations 的物化抓取同口径）。
-    // config 之外的既有键（孤儿/条件面板当前隐藏字段的存值）原样保留，与换引擎保留数据同判例。
-    static PropertyObject MaterializeProperties(ObjectConfig config, PropertyObject current)
-    {
-        var map = new Map<string, PropertyValue>();
-        foreach (var kvp in config.Properties)
-        {
-            var key = kvp.Key.Id;
-            bool hasCurrent = current.Map.TryGetValue(key, out var currentValue);
-            if (kvp.Value is ObjectConfig objectConfig)
-            {
-                var sub = hasCurrent && currentValue.ToObject(out var currentObject) ? currentObject : PropertyObject.Empty;
-                map.Add(key, MaterializeProperties(objectConfig, sub));
-            }
-            else if (kvp.Value is ArrayConfig or ListConfig or ExtensibleObjectConfig)
-            {
-                map.Add(key, hasCurrent ? currentValue : kvp.Value.GetDefaultValue());
-            }
-            else if (kvp.Value is IValueConfig valueConfig)
-            {
-                map.Add(key, hasCurrent ? currentValue : valueConfig.DefaultValue);
-            }
-        }
-        foreach (var kvp in current.Map)
-        {
-            if (!map.ContainsKey(kvp.Key))
-                map.Add(kvp.Key, kvp.Value);
-        }
-        return new PropertyObject(map);
-    }
-
-    static void ApplyPresetProperties(PropertyObject properties, IDataPropertyObject node)
-    {
-        foreach (var property in properties.Map)
-        {
-            if (property.Value.ToObject(out var propertyObject))
-            {
-                ApplyPresetProperties(propertyObject, node.Object(property.Key));
-            }
-            else
-            {
-                node.SetValue(property.Key, property.Value);
-            }
-        }
-    }
-
-    void ResetAutomationDefaultsOf(IMidiPart part)
-    {
-        foreach (var kvp in part.SoundSource.AutomationConfigs)
-        {
-            if (part.Automations.TryGetValue(kvp.Key.Id, out var automation))
-                automation.DefaultValue.Set(kvp.Value.DefaultValue);
-        }
-    }
-
-    void ApplyAutomationDefaultsTo(IMidiPart part, PartPreset preset)
-    {
-        foreach (var kvp in part.SoundSource.AutomationConfigs)
-        {
-            double value = preset.Automations.TryGetValue(kvp.Key.Id, out var info) ? info.DefaultValue : kvp.Value.DefaultValue;
-            if (part.Automations.TryGetValue(kvp.Key.Id, out var automation))
-            {
-                automation.DefaultValue.Set(value);
-            }
-            else if (value != kvp.Value.DefaultValue)
-            {
-                part.AddAutomation(kvp.Key.Id)?.DefaultValue.Set(value);
-            }
-        }
+        PartPresets.Apply(mParts, preset);
     }
 
     // 删除指定 preset（行内 ✕ 触发，先二次确认）；若删的是当前选中项，选中回落 None。
@@ -606,24 +482,7 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
         if (mPart == null)
             throw new InvalidOperationException("Part is null.");
 
-        var preset = new PartPreset()
-        {
-            Name = presetName,
-            Source = mPart.SoundSource.GetInfo(),
-            Properties = MaterializeProperties(
-                mPart.SoundSource.GetPartPropertyConfig(PartPropertyContext.Single(mPart)),
-                mPart.Properties.GetInfo()),
-        };
-
-        // 只抓默认值、Points 恒空（preset 口径：不含时间轴内容，见 PartPreset 头注释）。
-        foreach (var kvp in mPart.SoundSource.AutomationConfigs)
-        {
-            var key = kvp.Key.Id;
-            double value = mPart.Automations.TryGetValue(key, out var automation) ? automation.DefaultValue.Value : kvp.Value.DefaultValue;
-            preset.Automations.Add(key, new AutomationInfo() { DefaultValue = value });
-        }
-
-        return preset;
+        return PartPresets.Capture(mPart, presetName);
     }
 
     // 重载 preset 列表（下拉每次打开时按 mPresets 重建）+ 刷新钮文字。

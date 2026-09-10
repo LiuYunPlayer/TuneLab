@@ -21,7 +21,7 @@ public class McpToolsTests
     static readonly string[] ToolNames =
     [
         "app_read", "editor_read", "project_read", "project_edit", "script_read", "script_edit",
-        "sandbox_run", "docs_read", "setting_read", "setting_edit", "keybinding_read", "keybinding_edit",
+        "preset_read", "preset_edit", "sandbox_run", "docs_read", "setting_read", "setting_edit", "keybinding_read", "keybinding_edit",
         "action_read", "action_edit", "source_read", "effect_read", "extension_read", "extension_edit",
         "tunelab_help",
     ];
