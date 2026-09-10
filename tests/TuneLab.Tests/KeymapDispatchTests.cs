@@ -187,7 +187,7 @@ public class KeymapDispatchTests
     {
         using var probe = new Probe("test.fallback.editor", KeyScope.Editor, new(Key.Y, KeyModifiers.Control));
 
-        Assert.True(Keymap.TryHandleFallback(Press(Key.Y, KeyModifiers.Control)));
+        Assert.True(Keymap.TryHandleFallback(Press(Key.Y, KeyModifiers.Control), isTyping: false));
         Assert.Equal(1, probe.Ran);
     }
 
@@ -196,10 +196,44 @@ public class KeymapDispatchTests
     {
         using var probe = new Probe("test.fallback.global", KeyScope.Global, new(Key.F11));
 
-        Assert.True(Keymap.TryHandleFallback(Press(Key.F11)));
+        Assert.True(Keymap.TryHandleFallback(Press(Key.F11), isTyping: false));
         Assert.Equal(1, probe.Ran);
     }
 
+
+    // 【正在打字时兜底必须让路】这是 2.1.0 开发期真出过的回归：兜底从只分发 Global 域扩到 Editor 域之后，
+    // 忘了带上内层那道文本框闸——而内层命中文本框时是 return 且**不置 Handled**（它要的是让路而不是吃掉），
+    // 于是事件原样冒泡到最外层。后果是在歌词框 / 轨名框 / Agent 输入框里敲一个空格就开始播放、敲 1–5
+    // 换掉钢琴窗的工具（字符本身仍会照常输入，因为文字走的是另一条 TextInput 事件，所以现象很像"闹鬼"）。
+    //
+    // 【为什么喂 isTyping 而不是造一个真文本框】认"焦点在不在文本控件里"要走视觉树与焦点管理器，
+    // 无 UI 的测试进程里两者都没有（实测 new TextEditor() 在读平台 keymap 时就抛）。故那次观察留在
+    // 窗口、判定留在 Keymap，这条封条钉的正是判定这一半。
+    [Fact]
+    public void TheOutermostFallbackStandsAsideWhileSomeoneIsTyping()
+    {
+        using var play = new Probe("test.fallback.typing.play", KeyScope.Editor, new(Key.Space));
+        using var tool = new Probe("test.fallback.typing.tool", KeyScope.Editor, new(Key.D1));
+        using var global = new Probe("test.fallback.typing.global", KeyScope.Global, new(Key.F11));
+
+        foreach (var key in new[] { Key.Space, Key.D1, Key.F11 })
+            Assert.False(Keymap.TryHandleFallback(Press(key), isTyping: true),
+                "the fallback fired while the caret was in a text box: " + key);
+
+        Assert.Equal(0, play.Ran);
+        Assert.Equal(0, tool.Ran);
+        Assert.Equal(0, global.Ran);   // Global 域也一起让路：F11 全屏同样不该在打字时跳
+    }
+
+    // 反面：不在文本框里时，兜底照旧工作（别把闸修成"永远不兜"）。
+    [Fact]
+    public void TheFallbackStillWorksWhenNobodyIsTyping()
+    {
+        using var probe = new Probe("test.fallback.nottyping", KeyScope.Editor, new(Key.Space));
+
+        Assert.True(Keymap.TryHandleFallback(Press(Key.Space), isTyping: false));
+        Assert.Equal(1, probe.Ran);
+    }
     // 面内动作**不**兜：删音符/切工具那类事，在那个面没有焦点时执行才是错的。
     [Fact]
     public void TheOutermostFallbackLeavesSurfaceScopedActionsAlone()
@@ -207,8 +241,8 @@ public class KeymapDispatchTests
         using var piano = new Probe("test.fallback.piano", KeyScope.PianoWindow, new(Key.F9));
         using var track = new Probe("test.fallback.track", KeyScope.TrackWindow, new(Key.F10));
 
-        Assert.False(Keymap.TryHandleFallback(Press(Key.F9)));
-        Assert.False(Keymap.TryHandleFallback(Press(Key.F10)));
+        Assert.False(Keymap.TryHandleFallback(Press(Key.F9), isTyping: false));
+        Assert.False(Keymap.TryHandleFallback(Press(Key.F10), isTyping: false));
         Assert.Equal(0, piano.Ran);
         Assert.Equal(0, track.Ran);
     }

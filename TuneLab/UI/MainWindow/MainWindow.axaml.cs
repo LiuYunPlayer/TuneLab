@@ -343,7 +343,9 @@ public partial class MainWindow : Window
     void OnKeyDown(object? sender, KeyEventArgs args)
     {
         // 兜底分发（Editor 域 → Global 域）。判据与"为什么不兜面内域"见 Keymap.TryHandleFallback。
-        args.Handled = Keymap.TryHandleFallback(args);
+        // 「此刻是不是在打字」由这里观察（要走视觉树），判定归兜底——内层命中文本框时只是 return、
+        // 不置 Handled，事件仍会到这里，故这道闸少不了。
+        args.Handled = Keymap.TryHandleFallback(args, args.IsHandledByTextBox());
     }
 
     // Global 作用域的内置动作（跨全窗口生效，由最外层 Window.KeyDown 兜底分发）。

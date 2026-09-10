@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -82,8 +82,18 @@ internal static class Keymap
     // **刻意不兜** PianoWindow / TrackWindow 域——那些是面内动作（删音符、切工具），面没有焦点时
     // 执行才是错的。动作各自的 Unavailable 判据仍是守门人（剪贴板动词照旧回"两个编辑面都没焦点"）。
     // 内层优先不受影响：冒泡先到内层，已被内层处理的事件不会再进这里。
-    public static bool TryHandleFallback(KeyEventArgs e)
+    public static bool TryHandleFallback(KeyEventArgs e, bool isTyping)
     {
+        // 【正在打字时必须让路】内层三处（Editor / PianoWindow / PianoScrollView）命中文本框时都是
+        // return 且**不置 Handled**——它们要的是"让路"，不是"吃掉"。于是事件原样冒泡到最外层，而这里
+        // 若不同样让路，Editor 域里的裸键就会在用户打字时被触发：空格开始播放、1–5 换掉钢琴窗的工具
+        //（歌词框、轨名框、Agent 输入框都中）。2.1.0 开发期真踩过这一条。
+        // isTyping 由调用方观察后传入（认"焦点在不在文本控件里"要走视觉树，那是窗口的事，
+        // 见 IsHandledByTextBox）；**判定**留在这里，且这个参数没有默认值——新调用方必须为它
+        // 做一次决定，不能默认落进"照兜不误"。
+        if (isTyping)
+            return false;
+
         return TryHandle(KeyScope.Editor, e) || TryHandle(KeyScope.Global, e);
     }
 
