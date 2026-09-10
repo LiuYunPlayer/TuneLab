@@ -21,27 +21,28 @@ internal static class SilentRunner
 
     // 语言与向导右上角那个下拉同义：写回主程序设置里的 Language（安装完 TuneLab 首次启动就用它）。
     // 认不出的语言码不静默吞掉——那会让人以为设上了。
-    static bool TryApplyLanguage(CliOptions options)
+    // 【只认不写】校验与写盘拆成两步：用法错要在动任何东西之前就退，而写盘必须等到安装之后（见 Install）。
+    static bool TryResolveLanguage(CliOptions options, out string? language)
     {
-        if (options.Language is not { Length: > 0 } language)
+        language = null;
+        if (options.Language is not { Length: > 0 } requested)
             return true;
 
-        var match = SetupI18N.Match(language);
+        var match = SetupI18N.Match(requested);
         if (match == null)
         {
-            Console.Error.WriteLine($"TuneLab setup: unknown language \"{language}\". Known: {string.Join(" ", SetupI18N.SupportedLanguages)}");
-            Log($"Unknown language '{language}'.");
+            Console.Error.WriteLine($"TuneLab setup: unknown language \"{requested}\". Known: {string.Join(" ", SetupI18N.SupportedLanguages)}");
+            Log($"Unknown language '{requested}'.");
             return false;
         }
 
-        UserSettings.WriteLanguage(match);
-        Log($"Language set to {match}.");
+        language = match;
         return true;
     }
 
     static int Install(CliOptions options)
     {
-        if (!TryApplyLanguage(options))
+        if (!TryResolveLanguage(options, out var language))
             return 2;
 
         var installDir = options.TargetDir ?? ProductInfo.DefaultInstallDir;
@@ -62,6 +63,15 @@ internal static class SilentRunner
         installer.InstallAsync(progress, CancellationToken.None).GetAwaiter().GetResult();
         Log("Install done: " + installDir);
         Console.Out.WriteLine("TuneLab installed to " + installDir);
+
+        // 语言写在安装之后，理由与向导那边同一条：安装时 TuneLab 若正开着，它退出时会用自己内存里的
+        // 旧语言写一次 Settings.json，把先写进去的覆盖掉。InstallAsync 内部已等到锁释放（那次覆盖已
+        // 落盘），此刻再写才压得住。写在前面时 -language 在"装的时候 TuneLab 开着"这一路上静默失效。
+        if (language != null)
+        {
+            UserSettings.WriteLanguage(language);
+            Log($"Language set to {language}.");
+        }
 
         // 「立即启动」也照向导来（默认开）。无人值守跑的人给 -launch false 即可。
         if (options.LaunchAfterInstall)
