@@ -220,7 +220,7 @@ try {
     Check "editor status exits 0" ($r.Code -eq 0) "exit $($r.Code) $($r.Err)"
     Check "and reports no editor instead of inventing a state" ($r.Out -match "No editor is present in this process") $r.Out
 
-    # ── 13. issue #150 三期之后补的那两族命令，在无头下各自的实话：
+    # ── 13. issue #150 三期之后补的那几族命令，在无头下各自的实话：
     #      · project open 要的是"用户此刻开着的那份文档"，无头里根本没有那个概念 → 拒绝，
     #        且要指出去哪做（attach / --project），而不是报一个看不出所以的失败；
     #      · extension install 反过来——它**不**需要编辑器（解压 + 加载而已），故坐到路径那一层才报错，
@@ -230,6 +230,15 @@ try {
     Check "project open exits 1" ($r.Code -eq 1) "exit $($r.Code)"
     Check "and says there is no document to swap here" ($r.Err -match "no editor in this process") $r.Err
     Check "and points at attach / --project" (($r.Err -match "attach") -and ($r.Err -match "--project")) $r.Err
+    #      · project save / save-as 与 open 同一个道理，但拒绝之后要指向的是 **export**：
+    #        无头跑完想留下结果，要的本来就是"写一份到这个路径"那个语义。
+    $r = Invoke-Cli @("--headless", "--yes", "project", "save")
+    Check "project save exits 1" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and says there is no document to save here" ($r.Err -match "no editor in this process") $r.Err
+    Check "and points at export, not at attach alone" ($r.Err -match "project export") $r.Err
+    $r = Invoke-Cli @("--headless", "--yes", "project", "save-as", "--path", (Join-Path $sandbox "nope.tlpx"))
+    Check "project save-as exits 1" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and refuses on the missing document, not on the path" (($r.Err -match "no editor in this process") -and -not ($r.Err -match "no folder at")) $r.Err
     $r = Invoke-Cli @("--headless", "--yes", "extension", "install", "--path", (Join-Path $sandbox "nope.tlx"))
     Check "extension install exits 1" ($r.Code -eq 1) "exit $($r.Code)"
     Check "and fails on the path, not on the missing editor" (($r.Err -match "there is no file at") -and -not ($r.Err -match "no editor")) $r.Err

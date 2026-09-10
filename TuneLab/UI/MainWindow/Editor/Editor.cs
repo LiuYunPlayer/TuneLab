@@ -1214,10 +1214,14 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         RecentFilesManager.AddFile(path);
     }
 
-    void SaveToFile(string path)
+    // 返回 null = 存下了；否则是**为什么没存下**。
+    // 【为什么要返回值】从前这里把序列化失败与写盘失败都咽进日志，界面上看不出区别——那对着屏幕的人
+    // 还能发现"标题栏还带着星号"，而命令面照搬就会回报"已保存"而文件根本没写成。菜单那条路的行为不变
+    // （调用方忽略返回值，与从前一样只留日志），命令面则据此如实回话。
+    string? SaveToFile(string path)
     {
         if (mDocument.Project == null)
-            return;
+            return "no project is open";
 
         var file = new NativeProjectFile
         {
@@ -1228,7 +1232,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (!FormatsManager.SerializeNative(file, ConstantDefine.DefaultProjectExtension, out var stream, out var error))
         {
             Log.Error("Save file error: " + error);
-            return;
+            return error;
         }
 
         try
@@ -1241,11 +1245,32 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             ClearAutoSaveFile();
 
             mDocument.SetSavePath(path);
+            return null;
         }
         catch (Exception ex)
         {
             Log.Debug("Write file error: " + ex);
+            return ex.Message;
         }
+    }
+
+    // 命令面的保存（`project save` / `project save-as`）：**不弹任何框**——没有可保存的目标就如实报错，
+    // 由命令指向 save-as，而不是像菜单那条路那样转去弹一个没人应答的文件选择器。
+    // path 为空 = 存回当前路径；给了 path = 另存为（保存路径随之改到那里，与界面上的另存为同义）。
+    internal string? SaveFromCommand(string? path)
+    {
+        if (mDocument.Project == null)
+            return "no project is open";
+
+        var target = string.IsNullOrEmpty(path) ? (HasSaveTarget ? mDocument.Path : null) : path;
+        if (string.IsNullOrEmpty(target))
+            return "this project has never been saved, so there is no path to save it back to";
+
+        if (SaveToFile(target) is { } error)
+            return error;
+
+        RecentFilesManager.AddFile(target);
+        return null;
     }
 
     public async void ExportMix()
@@ -1928,7 +1953,9 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     {
         public bool IsSaved => editor.mDocument.IsSaved;
         public string? Path => editor.mDocument.Path;
+        public bool HasSaveTarget => editor.HasSaveTarget;
         public string? Open(string path) => editor.TryLoadProject(path);
+        public string? Save(string? path) => editor.SaveFromCommand(path);
     }
 
     // 脚本面写范围选区的那道口子（tl.setTrackSelection 等）。**只做转发**：选区各归两个视图自己持有，

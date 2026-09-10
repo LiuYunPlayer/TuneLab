@@ -18,6 +18,14 @@ internal interface IProjectFileAccess
     // 当前文档的落地路径；从未保存过则为空。
     string? Path { get; }
 
+    // 有没有可以直接存回去的目标（路径存在且是工程格式）。`project save` 据此在动手前就拒绝，
+    // 并指向 save-as——菜单那条路在这种情况下会转去弹文件选择器，而命令面没人应答那个框。
+    bool HasSaveTarget { get; }
+
     // 打开一个工程文件。成功返回 null，失败返回**为什么**（不弹窗——回报走命令的结果）。
     string? Open(string path);
+
+    // 保存。path 为空 = 存回当前路径；给了 path = 另存为，**工程的保存路径随之改到那里**
+    // （与界面上的另存为同义，不是 `project export` 那种只写一份副本）。成功返回 null，失败返回原因。
+    string? Save(string? path);
 }

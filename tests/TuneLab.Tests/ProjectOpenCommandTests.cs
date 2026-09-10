@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -31,6 +32,11 @@ public class ProjectOpenCommandTests
 
         public bool IsSaved => Saved;
         public string? Path => Opened;
+
+        // 换工程这条路上没有任何一步该去保存——真被调到就是接错了线，故这里炸而不是默默成功。
+        public bool HasSaveTarget => Opened != null;
+        public string? Save(string? path) => throw new NotSupportedException("project open must never save");
+
         public string? Open(string path)
         {
             if (Error != null)

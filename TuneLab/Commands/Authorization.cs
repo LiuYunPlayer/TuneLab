@@ -21,6 +21,11 @@ namespace TuneLab.Commands;
 // 分档：进撤销栈的（剪贴板动词、移调）Ctrl+Z 能救回，而新建/打开/保存可能丢掉未保存的工作或改写磁盘上的
 // 文件——后果不同就必须让卡片说出不同的话。只改应用自身状态的动作（播放、切工具、开合面板）**不过闸门**，
 // 故这里没有它们的档：见 ActionKind.AppState。
+// ProjectSave=把用户的工程存回它自己的文件（Target=路径）、ProjectSaveAs/ProjectSaveAsOverwrite=另存到新路径
+//（Target=新路径；Overwrite=那里已经有文件）：这是【真的保存】，不是 ProjectExport 那种写一份副本——
+// 它改写用户的工程文件、把工程的保存路径挪过去、清掉未保存标记，撤销栈救不回其中任何一件。故三档都恒过
+// 闸门，且措辞要把"这不是副本"说出来；另存撞上已有文件时单列一档说"替换"（同 ProjectExportOverwrite 的
+// 分档理由）。
 // PresetApply=把一条 part preset 用在某个 part 上（Target=preset 名，null=恢复声源默认；SecondaryTarget=part 定位）：
 // 它写的是工程数据、且是**一个撤销步**，故与 EditorAction 同档次的一问一答（没有预览可跑——preset 不是脚本，
 // 它就是一次赋值）。措辞要说清"改的是声音不是内容"：曲线/音符/音素一个都不动。
@@ -31,7 +36,7 @@ namespace TuneLab.Commands;
 // ProjectExport/ProjectExportOverwrite=把工程导出成文件（Target=落地绝对路径、NewValue=格式显示名）：
 // 与脚本库不同，导出路径是【任意的】——调用方能往用户磁盘任何地方写，故【恒】过闸门（不像 save_script 只有覆盖才拦）；
 // 落到已存路径会替换那个文件、历史记录救不回，故单列 Overwrite 一档让卡片把"替换"说出来（同 ScriptOverwrite 的分档理由）。
-internal enum WriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite, ExtensionActivationChange, EditorAction, EditorActionDestructive, ProjectOpen, ExtensionInstall, ExtensionUninstall, PresetApply, PresetOverwrite, PresetDelete, PresetRename }
+internal enum WriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite, ExtensionActivationChange, EditorAction, EditorActionDestructive, ProjectOpen, ExtensionInstall, ExtensionUninstall, PresetApply, PresetOverwrite, PresetDelete, PresetRename, ProjectSave, ProjectSaveAs, ProjectSaveAsOverwrite }
 
 // SecondaryTarget=定位/说明本次改动所需的第二个对象：夺键时是【被顺带解绑的那个动作】（供卡片给出知情同意）；
 // 启停单个能力时是【它所属的包名】（同一 kind:identity 跨包可并存，不点名包就说不清关的是哪一份）。
@@ -61,6 +66,12 @@ internal readonly record struct AuthorizationRequest(WriteKind Kind, int Count, 
             ? string.Format("reset {0} to its sound source's defaults (it changes how that part sounds, not what it sings — undo takes it back)", SecondaryTarget)
             : string.Format("apply the preset \"{0}\" to {1} (it changes how that part sounds, not what it sings — undo takes it back)", Target, SecondaryTarget),
         WriteKind.PresetOverwrite => string.Format("replace the existing preset \"{0}\"", Target),
+        WriteKind.ProjectSave => string.Format(
+            "save the user's project back to \"{0}\", overwriting what is in that file (this is a real save, not a copy — the undo history cannot bring the old file back)", Target),
+        WriteKind.ProjectSaveAs => string.Format(
+            "save the user's project as \"{0}\" — from then on that is the file their project saves to (this is a real save, not a copy)", Target),
+        WriteKind.ProjectSaveAsOverwrite => string.Format(
+            "save the user's project as \"{0}\", REPLACING the file already there — and from then on that is the file their project saves to (this is a real save, not a copy)", Target),
         WriteKind.PresetDelete => string.Format("delete the preset \"{0}\" (the file is gone for good; the undo history does not cover it)", Target),
         WriteKind.PresetRename => string.Format("rename the preset \"{0}\" to \"{1}\"", Target, NewValue),
         WriteKind.ExtensionInstall => string.Format(

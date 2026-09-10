@@ -20,6 +20,8 @@ internal static class CommandRegistry
         new EditorStatusCommand(),
         new ProjectStatusCommand(),
         new ProjectOpenCommand(),
+        new ProjectSaveCommand(),
+        new ProjectSaveAsCommand(),
         new ProjectExportCommand(),
         new ScriptListCommand(),
         new ScriptReadCommand(),

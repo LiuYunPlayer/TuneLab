@@ -27,6 +27,8 @@ public class CommandRegistryTests
         "open_project", "install_extension", "uninstall_extension", "cancel_extension_uninstall",
         // part preset 的外部面（覆盖率清单最后一个桶）。
         "list_presets", "apply_preset", "save_preset", "delete_preset", "rename_preset",
+        // 保存那一族：走用户口径的保存（改保存路径、清未保存态），与只写副本的 export_project 分开。
+        "save_project", "save_project_as",
     ];
 
     [Fact]

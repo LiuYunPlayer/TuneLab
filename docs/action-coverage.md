@@ -151,8 +151,8 @@
 | (chain)#5 | dialog | `dialog` | 各确认框的按钮（存回原位覆盖、切工程前保存、更新提示） |
 | New | menu | `action:file.new` |  |
 | Open | menu | `action:file.open` |  |
-| Save | menu | `action:file.save` |  |
-| Save As | menu | `action:file.saveAs` |  |
+| Save | menu | `action:file.save` | 无参那件事归动作面；「存到这个路径」是参数，故另有 `command:project save` / `save-as`（真的保存，不是 `project export` 那种副本） |
+| Save As | menu | `action:file.saveAs` | 同上：这条弹选择器让人自己挑，带路径的那件事是 `command:project save-as` |
 | Save to Original Location | menu | `action:file.saveToOriginal` |  |
 | Add Track | menu | `script` | project.addTrack |
 | Import Audio | menu | `script` | track.addPart({type:"audio", path, pos})——不给 endOffset 时长度取音频文件本身的时长 |

@@ -428,3 +428,158 @@ internal sealed class ProjectExportCommand : ICommand
          : bytes >= 1024 ? string.Format("{0:0.0} KB", bytes / 1024.0)
          : bytes + " bytes";
 }
+
+// 保存那一族：**走用户按 Ctrl+S 的同一条下游**（写文件 + 把工程的保存路径挪过去 + 清未保存标记），
+// 而不是另造一份"命令面自己维护的副本"。
+//
+// 【为什么不做副本】副本会造出两份真相：用户在标题栏上看到的仍是"未保存"，而调用方以为存过了。
+// 那是假装成功换了个形式。副本语义已经有人做了——`project export` 就是它，且它的文档明写着
+// 不要把导出说成保存。
+//
+// 【与动作面的关系】`file.save` 那条无参动作照旧（菜单与 Ctrl+S 走它）。这里两条是**带参数的形状**，
+// 与 `project open` / `file.open` 并存是同一个先例：动作面无参，而"存到这个路径"要一个参数；
+// 且命令面这条不弹任何框——菜单那条在没有保存目标时会转去弹文件选择器，而这里没人应答那个框。
+internal sealed class ProjectSaveCommand : ICommand
+{
+    public string Path => "project save";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "save_project";
+
+    public string Brief => "Save the project back to its own file";
+
+    public string Documentation =>
+        "Save the user's project back to the file it came from — exactly what Ctrl+S does: the file is overwritten, and the project stops being \"unsaved\". "
+        + "This is a REAL save, not a copy: use export_project when you want to write a copy somewhere without touching where their project lives. "
+        + "\nIt refuses when the project has never been saved (there is no path to save back to) — use save_project_as with a path for that. It also refuses in a headless process: saving is about the document a person has open in a window, and a headless run should write its result with export_project instead. "
+        + "\nThe undo history does not cover files, so this always needs the user's authorization.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        if (ctx.ProjectFile is not { } file)
+            return CommandResult.Fail("no_editor", ProjectSaveSupport.NoEditor);
+
+        if (!file.HasSaveTarget)
+            return CommandResult.Fail("never_saved",
+                "this project has never been saved, so there is no file to save it back to. Use save_project_as with a path.");
+
+        var target = file.Path!;
+        // 已经是保存状态就不写盘：那样既不动用户的文件，也不假装"我保存了什么"。
+        if (file.IsSaved)
+            return CommandResult.Ok(new JsonObject { ["path"] = target, ["outcome"] = "already_saved" });
+
+        var (proceed, message) = await ctx.Authorize(new AuthorizationRequest(WriteKind.ProjectSave, 0, target), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject { ["path"] = target, ["outcome"] = "refused", ["note"] = message });
+
+        return CommandResult.Ok(await ctx.OnMainThread(() => ProjectSaveSupport.Run(file, null, target, message)));
+    }
+
+    public string Render(JsonNode? data, CommandArgs args) => ProjectSaveSupport.Render(data, saveAs: false);
+}
+
+internal sealed class ProjectSaveAsCommand : ICommand
+{
+    public string Path => "project save-as";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "save_project_as";
+
+    public string Brief => "Save the project to a new path and keep working there";
+
+    public string Documentation =>
+        "Save the user's project to a path you give — exactly what Save As does: the file is written, and **from then on that is the file their project saves to**. "
+        + "That last part is the difference from export_project, which only writes a copy and leaves their project pointing at the old file; if a copy is what you want, use that one instead. "
+        + "\nThe format is TuneLab's own project format, so give the path a .tlpx extension (that is what the editor writes). An existing file at that path is replaced, which the authorization card says out loud. It refuses in a headless process — see save_project. "
+        + "\nThe undo history does not cover files, so this always needs the user's authorization.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Absolute local path to save to, e.g. C:\\Users\\me\\song.tlpx. The parent folder must already exist." }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var given = (args.Json.GetString("path") ?? "").Trim().Trim('"');
+        if (given.Length == 0)
+            return CommandResult.Fail("empty_path", "\"path\" is required.");
+
+        if (ctx.ProjectFile is not { } file)
+            return CommandResult.Fail("no_editor", ProjectSaveSupport.NoEditor);
+
+        string fullPath;
+        try { fullPath = System.IO.Path.GetFullPath(given); }
+        catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
+
+        var folder = System.IO.Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(folder) && !Directory.Exists(folder))
+            return CommandResult.Fail("missing_folder", string.Format("there is no folder at \"{0}\". Create it first, or pick another path.", folder));
+
+        bool overwrite = File.Exists(fullPath);
+        var (proceed, message) = await ctx.Authorize(
+            new AuthorizationRequest(overwrite ? WriteKind.ProjectSaveAsOverwrite : WriteKind.ProjectSaveAs, 0, fullPath), cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject { ["path"] = fullPath, ["outcome"] = "refused", ["note"] = message });
+
+        return CommandResult.Ok(await ctx.OnMainThread(() => ProjectSaveSupport.Run(file, fullPath, fullPath, message, overwrite)));
+    }
+
+    public string Render(JsonNode? data, CommandArgs args) => ProjectSaveSupport.Render(data, saveAs: true);
+}
+
+// 两条保存命令共用的落地与措辞（一处真源：两边说的"保存"必须是同一件事）。
+internal static class ProjectSaveSupport
+{
+    public const string NoEditor =
+        "There is no editor in this process, so there is no document to save. Saving is about the project a person has open in a window (attach to one); "
+        + "a headless run should write its result with export_project, which takes a path.";
+
+    public static JsonNode Run(IProjectFileAccess file, string? path, string target, string note, bool overwrite = false)
+    {
+        if (file.Save(path) is { } error)
+            return new JsonObject { ["path"] = target, ["outcome"] = "failed", ["note"] = error };
+
+        return new JsonObject
+        {
+            ["path"] = file.Path ?? target,
+            ["outcome"] = overwrite ? "replaced" : "saved",
+            ["note"] = string.IsNullOrEmpty(note) ? null : note,
+        };
+    }
+
+    public static string Render(JsonNode? data, bool saveAs)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var note = obj["note"]?.GetValue<string>() ?? string.Empty;
+        var path = obj["path"]!.GetValue<string>();
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "refused":
+                return note;
+            case "failed":
+                return string.Format("Could NOT save to \"{0}\": {1}. The project is still unsaved.", path, note);
+            case "already_saved":
+                return string.Format("Nothing to do: the project has no unsaved changes, and it is already saved at \"{0}\".", path);
+            default:
+                return note + string.Format(
+                    saveAs
+                        ? "Saved the project as \"{0}\". From now on that is the file it saves to; the project is no longer unsaved."
+                        : "Saved the project to \"{0}\". It is no longer unsaved.",
+                    path);
+        }
+    }
+}
