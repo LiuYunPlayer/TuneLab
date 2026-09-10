@@ -702,7 +702,7 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
   `{ "command": "<...>/TuneLab.Cli.exe", "args": ["mcp"] }`。仍然满足"独立进程、不由宿主 spawn"：
   `tools/list` 由 `CommandRegistry` 就地自省，**列能力不需要 TuneLab 开着**；真要执行才连桥，连不上时
   回的是"请先启动 TuneLab / 去设置里开桥"这句话本身（作为工具结果，不是从工具列表里消失）。
-- **19 个工具**：12 个 group × 各自有的类别 = 18，加一个 `tunelab_help`。后缀是 `read` / `edit` / `run`
+- **一个 group × 一个类别 = 一个工具**（今天 21 个：13 个 group 摊开成 20 个，加一个 `tunelab_help`）。后缀是 `read` / `edit` / `run`
   ——`sandbox` 那条既非只读也不碰用户数据，压进任何一边都会让安全标注说谎（见 `CommandKind`），故它
   自成一个后缀 `sandbox_run`。
 - **`tools/list` 带 Brief，全文按需**。33 条命令的 `Documentation` 合起来 24K 字符，全塞进去等于每次会话
@@ -740,7 +740,7 @@ agent 工具面上的名字（"Call `list_settings` to see the exact keys"、"Ch
 | **③** | headless + CI 用例 | CI 里无人值守跑一串命令并断言 |
 | | **已完成**：`HeadlessHost` + CLI 的 `--headless` / `--project` / `--commands` + `tests/headless/smoke.ps1`（见 §8.1–8.3）。反转了"起 Avalonia headless 平台"的原计划，理由记在 §8.1 | |
 | **④** | MCP server 壳 | 外部客户端连上，用已有订阅额度驱动 |
-| | **已完成**：`tunelab mcp`（`TuneLab.Cli/Mcp/`），19 个工具由注册表合成，宿主没开也列得出能力（见 §9.3 的落地小节） | |
+| | **已完成**：`tunelab mcp`（`TuneLab.Cli/Mcp/`），工具面由注册表合成（今天 21 个），宿主没开也列得出能力（见 §9.3 的落地小节） | |
 
 ①是大头且用户不可见；②开始有实感。**不建议把①②合并推进**——①的验证靠"内置 agent 行为不变"，
 掺进新入口会分不清是搬家搬坏了还是新入口的问题。
