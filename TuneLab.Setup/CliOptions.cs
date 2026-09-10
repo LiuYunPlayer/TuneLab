@@ -175,6 +175,11 @@ internal sealed class CliOptions
         sb.AppendLine("wizard appends a TuneLab folder to the folder you pick; the command line does not.");
         sb.AppendLine();
         sb.AppendLine("Exit codes: 0 ok, 1 the install failed, 2 wrong usage.");
+        // 这一段不是客套：安装器是 GUI 子系统的 exe，PowerShell 的 & 和 cmd 里的直接调用都不等它，
+        // 于是退出码取不到、后面的步骤会和安装并行地跑起来——照着上面那三个退出码写的脚本会静默失灵。
+        sb.AppendLine("This is a windowed program, so a caller that does not wait for it gets neither the exit");
+        sb.AppendLine("code nor a finished install. In PowerShell use Start-Process -Wait -PassThru and read");
+        sb.AppendLine(".ExitCode; in cmd use start /wait.");
         sb.AppendLine("A silent run also writes what it did to %temp%\\TuneLab.Setup.log.");
         return sb.ToString();
     }

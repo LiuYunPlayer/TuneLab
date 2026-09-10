@@ -65,15 +65,25 @@ Invoke-WebRequest $url -OutFile $exe
 Unblock-File $exe          # 去掉"从网上下载"标记，否则运行时可能被 SmartScreen 拦
 
 # 3) 静默安装（这里示范 CI 常用的一组：不建快捷方式、不关联文件类型、装完不启动）
-& $exe -silent -desktop-shortcut false -start-menu-shortcut false -file-assoc false -launch false
-#    想装成"给人用"的样子就直接 `& $exe -silent`，缺省与向导一致
+#    安装器是窗口程序，PowerShell 的 & 不会等它结束，必须用 Start-Process -Wait，
+#    否则第 4 步会在还没装完时就跑起来，退出码也读不到（见下）
+$setup = Start-Process $exe -Wait -PassThru -ArgumentList @(
+    '-silent',
+    '-desktop-shortcut', 'false',
+    '-start-menu-shortcut', 'false',
+    '-file-assoc', 'false',
+    '-launch', 'false')
+if ($setup.ExitCode -ne 0) {
+    throw "TuneLab 安装失败，退出码 $($setup.ExitCode)，详见 $env:TEMP\TuneLab.Setup.log"
+}
+#    想装成"给人用"的样子就把参数减成 @('-silent')，缺省与向导一致
 #    换目录 -dir <path>；指定界面语言 -language zh-CN
 
 # 4) 验证（命令行在安装目录里，装到别处就换成那个目录）
 & "$env:LOCALAPPDATA\Programs\TuneLab\tunelab.cmd" --headless app info
 ```
 
-退出码：`0` 成功 / `1` 安装失败 / `2` 用法错。静默安装还会把过程写进 `%temp%\TuneLab.Setup.log`。
+退出码：`0` 成功 / `1` 安装失败 / `2` 用法错——但**只有等得住它的调用方式才读得到**。安装器是 GUI 子系统的程序，PowerShell 的 `&` 与 cmd 里的直接调用都是发出去就返回：`$LASTEXITCODE` 是空的，后面的步骤会与安装并行地跑起来。PowerShell 用上面的 `Start-Process -Wait -PassThru` 取 `.ExitCode`，cmd 里用 `start /wait`。静默安装还会把过程写进 `%temp%\TuneLab.Setup.log`。
 
 几件事值得先知道：
 

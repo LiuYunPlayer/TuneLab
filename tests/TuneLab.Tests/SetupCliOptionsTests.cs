@@ -124,6 +124,17 @@ public class SetupCliOptionsTests
         Assert.Contains("Exit codes", usage);
     }
 
+    // 上一条断言的那三个退出码，只有等得住安装器的调用方才拿得到：它是 GUI 子系统的 exe，PowerShell
+    // 的 & 与 cmd 里的直接调用都是发出去就返回。用法里必须写清怎么等，否则"退出码 0/1/2"就是一句在
+    // 脚本里不成立的话——而失效的方式是安静的：$LASTEXITCODE 为空，下一步照跑。
+    [Fact]
+    public void TheUsageSaysHowToActuallyWaitForThoseExitCodes()
+    {
+        var usage = CliOptions.Usage(SetupI18N.SupportedLanguages);
+
+        Assert.Contains("Start-Process -Wait -PassThru", usage);
+    }
+
     // -dir 与向导的"浏览"按钮不同义：那个按钮往选中目录里再套一层 TuneLab\，命令行原样用。差异可以有，
     // 瞒着不说不行——用法里曾把默认值写成"the per-user Programs folder"，那正好把这层差异藏了起来。
     [Fact]
