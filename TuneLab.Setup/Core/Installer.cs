@@ -36,8 +36,11 @@ internal sealed class Installer
             string installDir = mOptions.InstallDir;
             Directory.CreateDirectory(installDir);
 
-            // 若目标目录里 TuneLab 正在运行，等它退出（复用主程序的 lock 文件约定）。
-            await WaitForAppExitAsync(ct);
+            // 若 TuneLab 正在运行，等它退出（复用主程序的 lock 文件约定）——不能覆盖正被占用的文件。
+            // 向导里这一步可能停留一会儿，故先把「在等什么」报出去，否则进度条看着像卡死了。
+            if (File.Exists(LockFilePath))
+                progress?.Report(new InstallStatus(0, "Waiting for TuneLab to close…"));
+            await WaitForAppExitAsync(ct, mOptions.WaitForAppExitTimeout);
 
             // 1) 铺文件（0 → 0.85）
             long total = payload.UncompressedSize;
@@ -129,11 +132,16 @@ internal sealed class Installer
         }
     }
 
-    static async Task WaitForAppExitAsync(CancellationToken ct)
+    // timeout = null 时一直等（向导：用户看得见，也能取消）；给了值就到点报错——见 InstallOptions。
+    static async Task WaitForAppExitAsync(CancellationToken ct, TimeSpan? timeout)
     {
+        var deadline = timeout is { } span ? DateTime.UtcNow + span : (DateTime?)null;
         while (File.Exists(LockFilePath))
         {
             ct.ThrowIfCancellationRequested();
+            if (deadline is { } due && DateTime.UtcNow > due)
+                throw new TimeoutException(
+                    "TuneLab is still running, so its files cannot be replaced. Close it and run this again.");
             // lock 文件可能只是残留（被独占则会抛），尝试独占打开判断是否真被占用。
             try
             {

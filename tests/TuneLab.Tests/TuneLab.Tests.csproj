@@ -17,6 +17,8 @@
     <ProjectReference Include="..\..\TuneLab\TuneLab.csproj" />
     <!-- 命令行：保留参数名与批量文件切词的封条要读它的唯一真源，不另抄一份。 -->
     <ProjectReference Include="..\..\TuneLab.Cli\TuneLab.Cli.csproj" />
+    <!-- 安装器：命令行是向导的镜像，"默认值与向导一致"这条约定由 SetupCliOptionsTests 机器可检。 -->
+    <ProjectReference Include="..\..\TuneLab.Setup\TuneLab.Setup.csproj" />
   </ItemGroup>
 
 </Project>

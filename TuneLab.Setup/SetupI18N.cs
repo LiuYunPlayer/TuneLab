@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Avalonia.Platform;
 using TuneLab.I18N;
@@ -22,6 +23,9 @@ internal static class SetupI18N
 
     // 翻译上下文分类（对应 toml 的 [Setup] 段）。
     public const string Ctx = "Setup";
+
+    /// <summary>随安装器分发的语言集。命令行的 -language 认这些码，用法里也照着列。</summary>
+    public static IReadOnlyList<string> SupportedLanguages => BundledLanguages;
 
     public static void Init()
     {
@@ -48,10 +52,13 @@ internal static class SetupI18N
         }
     }
 
-    // 在已登记的可选语言里按码不分大小写找一个匹配项，无则 null。
-    static string? Match(string language)
+    // 在【随包分发的语言集】里按码不分大小写找一个匹配项，无则 null。
+    // 【查 BundledLanguages 而不是 TranslationManager.Languages】后者要等 Init() 把 toml 解出来才有内容，
+    // 而静默安装（-silent）根本不起 Avalonia、也就不会调 Init——那条路上问"这个语言码认不认"时，
+    // 运行期列表还是空的，于是每个语言码都会被判成不认识。语言集本就是编译期常量，直接问它。
+    public static string? Match(string language)
     {
-        foreach (var available in TranslationManager.Languages)
+        foreach (var available in BundledLanguages)
             if (string.Equals(available, language, StringComparison.OrdinalIgnoreCase))
                 return available;
         return null;
