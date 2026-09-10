@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using TuneLab.Animation;
@@ -10,6 +11,7 @@ using TuneLab.Audio.NAudio;
 using TuneLab.Audio.SDL2;
 using TuneLab.Foundation;
 using TuneLab.Extensions;
+using TuneLab.Extensions.Formats;
 using TuneLab.SDK;
 using TuneLab.GUI;
 using TuneLab.Configs;
@@ -95,14 +97,10 @@ public partial class App : Application
                 // AI Agent 面板同一份命令。放在主窗口之后——编辑器在构造时才把宿主执行环境装上。
                 CommandBridge.Init();
 
-                // 检测启动参数
+                // 检测启动参数（args[0] 是可执行文件自身，不是参数）
                 var args = Environment.GetCommandLineArgs();
-                Log.Info($"Command line args:");
-                for (int i = 1; i < args.Length; i++)
-                {
-                    Log.Info(args[i]);
-                    HandleArg(args[i]);
-                }
+                Log.Info("Command line args: " + string.Join(" ", args, 1, Math.Max(0, args.Length - 1)));
+                HandleStartupArgs(args[1..]);
 
                 // 获取主线程SynchronizationContext
                 var context = SynchronizationContext.Current ?? throw new InvalidOperationException("SynchronizationContext.Current is null");
@@ -112,19 +110,24 @@ public partial class App : Application
                 {
                     while (true)
                     {
-                        var pipeServer = new NamedPipeServerStream("TuneLab", PipeDirection.In);
+                        using var pipeServer = new NamedPipeServerStream("TuneLab", PipeDirection.In);
                         pipeServer.WaitForConnection();
 
                         using var reader = new StreamReader(pipeServer);
-                        while (pipeServer.IsConnected)
+                        // 一次连接 = 另一个实例的一次启动：把它那一批参数**收齐**再统一分流。逐行处理会让
+                        // "一批里只认第一个工程"退化成"每一行都算第一个"，四个参数就又变回四个弹窗。
+                        var received = new List<string>();
+                        while (true)
                         {
                             var arg = reader.ReadLine();
                             if (arg == null)
-                                continue;
+                                break;   // 流到头了。原先写的是 continue，对方断开后这里会空转烧 CPU。
 
                             Log.Info($"Received from another instance: {arg}");
-                            context.Post(_ => HandleArg(arg), null);
+                            received.Add(arg);
                         }
+                        if (received.Count != 0)
+                            context.Post(_ => HandleStartupArgs(received), null);
                     }
                 });
             }
@@ -141,17 +144,40 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    public void HandleArg(string arg)
+    // 一批启动参数（命令行 / 双击关联文件 / 第二个实例转发过来的那一批）。规则与理由见 StartupArgs。
+    public void HandleStartupArgs(IReadOnlyList<string> args)
     {
         if (mMainWindow == null)
             return;
 
-        // 按扩展名分流：.tlx 是扩展包而不是工程，当工程打开只会报「打开失败」。
-        // 这条路同时服务命令行、双击关联文件、以及第二个实例转发过来的参数。
-        if (Path.GetExtension(arg).Equals(".tlx", StringComparison.OrdinalIgnoreCase))
-            mMainWindow.Editor.InstallExtensions([arg]);
-        else
-            mMainWindow.Editor.OpenProjectByPath(arg);
+        var plan = StartupArgs.Split(args, LooksLikeProjectFile);
+        foreach (var ignored in plan.Ignored)
+            Log.Info("Ignored startup argument (not a file we can open): " + ignored);
+
+        if (plan.ExtensionPackages.Count != 0)
+            mMainWindow.Editor.InstallExtensions(plan.ExtensionPackages);
+
+        if (plan.ProjectPath != null)
+            mMainWindow.Editor.OpenProjectByPath(plan.ProjectPath);
+    }
+
+    // 值不值得送去"打开工程"：文件在那儿，或者后缀是已注册的导入格式（那种情况下打不开要如实提示，
+    // 用户多半是双击了一个已被删除/移走的工程）。都不是就不该弹框——那不是他要打开的东西。
+    static bool LooksLikeProjectFile(string path)
+    {
+        if (File.Exists(path))
+            return true;
+
+        var suffix = Path.GetExtension(path).TrimStart('.');
+        if (suffix.Length == 0)
+            return false;
+
+        foreach (var format in FormatsManager.GetAllImportFormats())
+        {
+            if (string.Equals(format, suffix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     MainWindow? mMainWindow = null;

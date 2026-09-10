@@ -20,7 +20,7 @@ internal static class FileAssociation
 
     // .tlpx 与 .tlp 是同一族工程文件的两种编码（前者紧凑二进制、是默认另存格式；后者 JSON 文本）。
     // 每个后缀一个 ProgId 而不是共用一个：DefaultIcon 挂在 ProgId 上，共用就只能共用一枚图标。
-    // .tlx 是扩展包，双击即安装（App.HandleArg 按后缀分流到 InstallExtensions）。
+    // .tlx 是扩展包，双击即安装（App.HandleStartupArgs 按后缀分流到 InstallExtensions）。
     static readonly Association[] Associations =
     {
         new(".tlpx", "TuneLab.Project.Tlpx", "TuneLab Project File",
