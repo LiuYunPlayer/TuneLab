@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Avalonia;
 
 namespace TuneLab.Setup;
@@ -6,6 +7,12 @@ namespace TuneLab.Setup;
 internal static class Program
 {
     // Avalonia 初始化前不要用任何依赖 SynchronizationContext 的 API。
+    //
+    // 【Main 里不许出现 Avalonia 类型】JIT 编译一个方法时会解析这个方法体里提到的全部类型，不管那几行
+    // 会不会执行到。卸载走的是把卸载器搬到临时目录再从那里跑的路子（见 Uninstaller.RelocateSelf），
+    // 搬过去的只有 TuneLab.Setup 自己那几个文件——Avalonia 的 dll 不在旁边。Main 里只要还提着一个
+    // Avalonia 类型，那份副本就在进 Main 之前抛 FileNotFoundException，而它是 GUI 子系统的进程，
+    // 这一抛彻底静默：用户点了卸载，什么都不会发生。所以起窗口那一截必须待在下面那个不内联的方法里。
     [STAThread]
     public static int Main(string[] args)
     {
@@ -33,6 +40,14 @@ internal static class Program
         if (options.Mode is SetupMode.Uninstall or SetupMode.Silent)
             return SilentRunner.Run(options);
 
+        return RunWithWindow(options, args);
+    }
+
+    // 起窗口那一截。NoInlining 是要求，不是优化提示：内联回 Main 就等于把 Avalonia 类型搬回 Main，
+    // 卸载器的临时副本会重新变成一个静默起不来的进程（见 Main 上面那段）。
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static int RunWithWindow(CliOptions options, string[] args)
+    {
         // i18n 在 App.OnFrameworkInitializationCompleted 里初始化（需 Avalonia 起来后 AssetLoader 才能读内嵌 toml）。
 
         // -update：显示可视进度窗（填住主程序退出→覆盖→重启之间的空白，避免像崩溃）。

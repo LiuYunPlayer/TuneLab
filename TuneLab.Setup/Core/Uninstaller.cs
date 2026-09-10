@@ -25,18 +25,24 @@ internal static class Uninstaller
     {
         // 若不是从临时目录运行，则自我搬迁后重启，避免"目录被占用删不掉"。
         string self = Environment.ProcessPath ?? string.Empty;
-        string tempDir = Path.GetTempPath();
         bool runningFromInstallDir = self.StartsWith(Path.GetFullPath(installDir), StringComparison.OrdinalIgnoreCase);
 
         if (runningFromInstallDir)
         {
-            string relocated = Path.Combine(tempDir, $"TuneLab.Uninstall.{Guid.NewGuid():N}.exe");
-            File.Copy(self, relocated, overwrite: true);
-            Process.Start(new ProcessStartInfo(relocated)
+            string relocated = RelocateSelf(self);
+            var copy = Process.Start(new ProcessStartInfo(relocated)
             {
                 Arguments = $"-uninstall \"{installDir}\" -silent",
-                UseShellExecute = true,
+                UseShellExecute = false,
             });
+            report?.Invoke($"Handed the uninstall to a copy of this program in \"{Path.GetDirectoryName(relocated)}\".");
+
+            // 副本起不来是这条路上最坏的一种失败：GUI 子系统的进程，起不来一声不吭，用户点了卸载什么
+            // 都不会发生，连日志都停在上一行。等它一小会儿——真干活至少要删掉一整个目录，不可能这么快
+            // 就退——只要这么快就退了且退出码非零，就是没起来，如实说出来。
+            if (copy != null && copy.WaitForExit(HandoffFailureWindow) && copy.ExitCode != 0)
+                report?.Invoke($"That copy exited immediately with code {copy.ExitCode}, so nothing was removed "
+                    + $"from \"{installDir}\". The uninstall entry and shortcuts are gone; delete the folder by hand.");
             return; // 交棒给临时副本
         }
 
@@ -51,6 +57,65 @@ internal static class Uninstaller
         if (refusal != null)
             report?.Invoke(refusal);
         DeleteInstalledFiles(installDir, plan, report);
+
+        ScheduleTempCopyCleanup();
+    }
+
+    /// <summary>
+    /// 把卸载器搬到临时目录，返回搬过去那份的路径。
+    ///
+    /// 【搬的是一组文件，不是一个 exe】这是框架依赖构建：apphost 旁边必须有同名的 .dll 与
+    /// .runtimeconfig.json/.deps.json，少一个就起不来（"The application to execute does not exist"）。
+    /// 而它是 GUI 子系统的进程，起不来是彻底静默的——用户点了卸载，什么都不会发生，注册表登记和
+    /// 文件全留着，连一行错都看不到。所以要连着同名的那几个文件一起搬，并且搬进一个独立的目录，
+    /// 免得与临时目录里别人的同名文件撞上。
+    /// </summary>
+    static string RelocateSelf(string self)
+    {
+        string sourceDir = Path.GetDirectoryName(self) ?? string.Empty;
+        string baseName = Path.GetFileNameWithoutExtension(self);
+        string tempDir = Path.Combine(Path.GetTempPath(), TempCopyPrefix + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        foreach (var file in Directory.GetFiles(sourceDir, baseName + ".*"))
+            File.Copy(file, Path.Combine(tempDir, Path.GetFileName(file)), overwrite: true);
+
+        return Path.Combine(tempDir, Path.GetFileName(self));
+    }
+
+    const string TempCopyPrefix = "TuneLab.Uninstall.";
+
+    /// <summary>
+    /// 等临时副本这么久（毫秒）：这段时间里退出的只可能是根本没起来。
+    /// 别调大——这段时间里本进程还活着，它开着自己的 exe/dll，副本删这两个文件会一直失败
+    /// （靠 DeleteInstalledFiles 的重试兜住，但没必要让它多等）。
+    /// </summary>
+    const int HandoffFailureWindow = 2000;
+
+    /// <summary>空目录清理最多走几趟。见 DeleteInstalledFiles 里为什么不能只走一趟。</summary>
+    const int MaxPrunePasses = 8;
+
+    /// <summary>
+    /// 临时副本删不掉自己所在的那个目录——它正跑在里面。交给一个短命的 cmd，等本进程退出再清。
+    /// 不清的话每卸载一次就在 %temp% 里留下一份约 1 MB 的残骸。
+    /// </summary>
+    static void ScheduleTempCopyCleanup()
+    {
+        string dir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+
+        // 只清我们自己造的那种目录。这条判断是这段代码唯一的安全边界，别放宽。
+        if (!Path.GetFileName(dir).StartsWith(TempCopyPrefix, StringComparison.Ordinal))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping -n 4 127.0.0.1 >nul & rd /s /q \"{dir}\"")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch { /* best-effort：清不掉只是留下一份临时文件 */ }
     }
 
     /// <summary>
@@ -124,7 +189,24 @@ internal static class Uninstaller
         }
 
         // 只删空目录，且自底向上——安装目录本身也只在空了之后才消失。
-        PruneEmptyDirectories(installDir);
+        //
+        // 【为什么要走几趟】File.Delete 成功不等于目录里立刻少一条：文件若还被别的进程以共享删除方式
+        // 开着（交棒过来时那个进程还会活几秒，它开着自己的 exe 和 dll），删除是"待定"的，等最后一个
+        // 句柄关闭才真的落地。只走一趟就会看见一个"还不空"的目录而放过它，留下一副空壳。
+        for (int pass = 0; ; pass++)
+        {
+            PruneEmptyDirectories(installDir);
+
+            if (!Directory.Exists(installDir) || pass >= MaxPrunePasses - 1)
+                break;
+
+            // 我们的文件都真的不在了 → 目录不会再变空，不必再等（这是"目录里还有用户自己的东西"
+            // 那条常见路径，一趟就够）。
+            if (!plan.Delete.Any(rel => File.Exists(Path.Combine(installDir, rel))))
+                break;
+
+            Thread.Sleep(500);
+        }
 
         int deleted = plan.Delete.Count - pending.Count;
         if (!Directory.Exists(installDir))

@@ -119,8 +119,9 @@ internal static class SilentRunner
                 case SetupMode.Uninstall:
                     // 卸载的每一行结论都同时给控制台和日志：从"添加或删除程序"点进来时没有控制台，
                     // 那份日志是"到底删了什么、留下了什么"的唯一去处。
+                    // 每一行结论都同时给控制台和日志。这里不再补一句"Uninstall done."——
+                    // 卸载有一步是交棒给临时副本，那时本进程什么都还没干完，那句话是假的。
                     Uninstaller.Run(options.TargetDir ?? SelfInstallDir(), Report);
-                    Log("Uninstall done.");
                     return 0;
 
                 // 静默安装：向导那条路的等价物——同一个 Installer、同一批选项，只是选项来自命令行

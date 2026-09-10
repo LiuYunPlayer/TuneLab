@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
@@ -133,5 +134,45 @@ public class SetupUninstallTests : IDisposable
         Uninstall(mDir);
 
         Assert.False(Directory.Exists(mDir));
+    }
+
+    // 卸载器必须能在「身边只有它自己那几个文件」的目录里跑起来。
+    //
+    // 【这条钉的是一次真出过的事故】卸载要删的目录里就有卸载器自己，所以它先把自己搬到临时目录再从
+    // 那里删（Uninstaller.RelocateSelf）。搬过去的只有 TuneLab.Setup.* 那几个文件——Avalonia 的 dll
+    // 不在旁边。而 JIT 编译一个方法时会解析这个方法体里提到的全部类型，不管那几行执行不执行到：
+    // Program.Main 里只要还提着一个 Avalonia 类型，副本就在进 Main 之前抛 FileNotFoundException。
+    // 它是 GUI 子系统的进程，这一抛没有窗口、没有控制台、日志里也没有一行——用户点了卸载，什么都
+    // 不会发生，注册表登记和整个安装目录原封不动。已发布的 2.0.x 就是这样，卸载一直是空操作。
+    //
+    // 复现代价高（要打出安装包、真装一遍），而回归是静默的，所以在这里用最小的等价条件钉住：
+    // 把 TuneLab.Setup.* 单独复制到一个空目录，跑 -help（不碰注册表、不碰文件），起得来就算过。
+    // 它覆盖的是 Main 这一层；卸载路径再往下（SilentRunner.Run → Uninstaller）只依赖 Core，
+    // 那几个类不引 Avalonia。
+    [Fact]
+    public void TheUninstallerRunsWithNothingButItsOwnFilesBesideIt()
+    {
+        var exeInTestOutput = Path.Combine(AppContext.BaseDirectory, "TuneLab.Setup.exe");
+        Assert.True(File.Exists(exeInTestOutput), "TuneLab.Setup.exe is missing from the test output.");
+
+        var isolated = Path.Combine(mDir, "isolated");
+        Directory.CreateDirectory(isolated);
+        foreach (var file in Directory.GetFiles(AppContext.BaseDirectory, "TuneLab.Setup.*"))
+            File.Copy(file, Path.Combine(isolated, Path.GetFileName(file)));
+
+        using var process = Process.Start(new ProcessStartInfo(Path.Combine(isolated, "TuneLab.Setup.exe"), "-help")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        Assert.True(process.WaitForExit(30_000), "The isolated installer did not exit.");
+
+        // 起不来时 stderr 里是那句 "Could not load file or assembly 'Avalonia.…'"，一并抛出来，
+        // 免得只看到一个退出码还要再查一遍。
+        Assert.True(process.ExitCode == 0, $"exit {process.ExitCode}; stderr: {error}");
+        Assert.Contains("TuneLab installer.", output);
     }
 }
