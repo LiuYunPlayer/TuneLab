@@ -20,7 +20,7 @@ public class McpToolsTests
     // 那是一次对外部 agent 可见的表面变更，该由人认领。
     static readonly string[] ToolNames =
     [
-        "app_read", "editor_read", "project_read", "project_edit", "script_read", "script_edit",
+        "app_read", "editor_read", "editor_edit", "project_read", "project_edit", "script_read", "script_edit",
         "preset_read", "preset_edit", "sandbox_run", "docs_read", "setting_read", "setting_edit", "keybinding_read", "keybinding_edit",
         "action_read", "action_edit", "source_read", "effect_read", "extension_read", "extension_edit",
         "tunelab_help",

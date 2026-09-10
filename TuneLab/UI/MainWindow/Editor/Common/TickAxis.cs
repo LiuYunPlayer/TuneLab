@@ -48,9 +48,16 @@ internal class TickAxis : AnimationScalableScrollAxis
         AnimateMovePosToCoor(Tick2Pos(tick), x, millisec, curve);
     }
 
+    // 把 [startTick, endTick] 挪进视野（放不下才缩小，永不放大——见 AnimateReveal）。
+    // 返回挪完之后视野里的 tick 范围。
+    public (double Start, double End) AnimateRevealTicks(double startTick, double endTick, double millisec = 200)
+    {
+        var (min, max) = AnimateReveal(Tick2Pos(startTick), Tick2Pos(endTick), millisec: millisec);
+        return (Pos2Tick(min), Pos2Tick(max));
+    }
     protected override double ScaleLevel2Factor(double level)
     {
-        return DEFAULT_PPT * Math.Pow(SAMPLE_PPT / DEFAULT_PPT, ScaleLevel / SAMPLE_SCALE_LEVEL);
+        return DEFAULT_PPT * Math.Pow(SAMPLE_PPT / DEFAULT_PPT, level / SAMPLE_SCALE_LEVEL);
     }
 
     protected override double MinScaleLevel => MIN_SCALE_LEVEL;

@@ -40,9 +40,15 @@ internal class PitchAxis : AnimationScalableScrollAxis
         AnimateMovePosToCoor(Pitch2Pos(pitch), y, millisec, curve);
     }
 
+    // 把 [minPitch, maxPitch] 挪进视野。音高轴的位置与音高反向（上高下低），故两端在这里交换；
+    // 取到 maxPitch + 1 是因为一个音高占的是一整格键宽，不是一条线。
+    public void AnimateRevealPitches(double minPitch, double maxPitch, double millisec = 200)
+    {
+        AnimateReveal(Pitch2Pos(maxPitch + 1), Pitch2Pos(minPitch), millisec: millisec);
+    }
     protected override double ScaleLevel2Factor(double level)
     {
-        return DEFAULT_KEY_HEIGHT * Math.Pow(SAMPLE_KEY_HEIGHT / DEFAULT_KEY_HEIGHT, ScaleLevel / SAMPLE_SCALE_LEVEL); ;
+        return DEFAULT_KEY_HEIGHT * Math.Pow(SAMPLE_KEY_HEIGHT / DEFAULT_KEY_HEIGHT, level / SAMPLE_SCALE_LEVEL);
     }
 
     protected override double MinScaleLevel => MIN_SCALE_LEVEL;

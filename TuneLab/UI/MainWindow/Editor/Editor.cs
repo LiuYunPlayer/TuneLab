@@ -71,6 +71,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         // 而这里明明有）。
         mSelectionWriter = new(this);
         mProjectFileAccess = new(this);
+        mEditorViewAccess = new(this);
 
         mPlayhead = new(this);
         if (Enum.TryParse<PlayScrollTarget>(Settings.AutoScrollTarget.Value, out var autoScrollTarget))
@@ -104,6 +105,8 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null),
             // 换工程要连带换撤销栈 / 播放头 / 钢琴窗里开着的 part，那些只有 Editor 管得了（见 IProjectFileAccess）。
             ProjectFile = mProjectFileAccess,
+            // 挪视野：把用户的视线带到 agent 说的那个地方去（见 IEditorViewAccess）。
+            EditorView = mEditorViewAccess,
             MainThread = UiThreadDispatcher.Instance,
         };
         mScriptSideBarContentProvider.SetCurrentPartProvider(() => mPianoWindow.Part);
@@ -1958,6 +1961,35 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         public string? Save(string? path) => editor.SaveFromCommand(path);
     }
 
+    // 挪视野的那道口子（`editor reveal`）。**只做转发**：轴的算术在各轴自己身上（AnimateReveal），
+    // 这里只负责"哪两条轴该动"——那是 Editor 才知道的事（编排区与钢琴窗各有一条时间轴）。
+    sealed class EditorViewAccess(Editor editor) : IEditorViewAccess
+    {
+        public IPart? EditingPart => editor.mPianoWindow.Part;
+
+        // 两条时间轴一起走，同 GotoStart/GotoEnd——只挪一条的话，用户在另一个窗里看到的还是原处。
+        // 回报的是编排区那条的落点：它恒在，且它看得见整个工程。
+        public (double Start, double End) RevealTicks(double startTick, double endTick)
+        {
+            editor.mPianoWindow.TickAxis.AnimateRevealTicks(startTick, endTick);
+            return editor.mTrackWindow.TickAxis.AnimateRevealTicks(startTick, endTick);
+        }
+
+        // 1-based 轨号在这里换成视图的 0-based 行号（同 ScriptSelectionWriter 的边界）。
+        // 只滚不缩：轨高是用户自己调的。
+        public void RevealTrack(int trackNumber)
+        {
+            var axis = editor.mTrackWindow.TrackVerticalAxis;
+            axis.AnimateMovePosToCoor(trackNumber - 1 + 0.5, axis.ViewLength / 2);
+        }
+
+        public void RevealPitches(double minPitch, double maxPitch)
+            => editor.mPianoWindow.PitchAxis.AnimateRevealPitches(minPitch, maxPitch);
+
+        public void OpenPart(IPart part) => editor.SwitchEditingPart(part);
+
+    }
+
     // 脚本面写范围选区的那道口子（tl.setTrackSelection 等）。**只做转发**：选区各归两个视图自己持有，
     // 而只有 Editor 同时够得着它们。1-based 轨道号在这里换成视图的 0-based 行号——与上面读那两个方法
     // 是同一处边界，故两个方向的口径不会分叉。
@@ -1977,6 +2009,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
     // 建得早（三条脚本运行路径都要它），本身无状态、只在被调用时才碰视图。
     readonly ScriptSelectionWriter mSelectionWriter;
     readonly ProjectFileAccess mProjectFileAccess;
+    readonly EditorViewAccess mEditorViewAccess;
 
     readonly FunctionBar mFunctionBar;
     readonly PianoWindow mPianoWindow;

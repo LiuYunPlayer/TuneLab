@@ -31,6 +31,8 @@ public class CommandRegistryTests
         "save_project", "save_project_as",
         // 渲染音频：与 export_project 分开（那条写的是工程文件），且它是唯一一条要先等合成跑完的。
         "export_audio",
+        // 挪视野：唯一一条"只改用户此刻看到什么"的写命令（editor 组第一条非只读的）。
+        "reveal_in_editor",
     ];
 
     [Fact]

@@ -18,6 +18,7 @@ internal static class CommandRegistry
     {
         new AppInfoCommand(),
         new EditorStatusCommand(),
+        new EditorRevealCommand(),
         new ProjectStatusCommand(),
         new ProjectOpenCommand(),
         new ProjectSaveCommand(),
