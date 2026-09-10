@@ -163,4 +163,27 @@ public class ParameterSyncMoveTests
         document.SetProject(new Project(new ProjectInfo { Tracks = { track } }));
         return (IMidiPart)document.Project!.Tracks.First().Parts.First();
     }
+
+    // 水平移开一个音符时**不该**给落点的曲线焊一个收尾点：落点那一侧的 tick 上摆着的是别人的曲线，
+    // 硬接上去就是在音符尾部竖起一根 gap 宽（近乎垂直）的翘尾——实测撞到的正是这个。收尾点只在纯移调
+    // （来处 = 落点）时才有意义。
+    [Fact]
+    public void HorizontalMoveDoesNotWeldTheCurveToWhateverSitsAtTheLandingBoundary()
+    {
+        OnDataThread(() =>
+        {
+            var part = SamplePartWithContinuousCurve();
+            var notes = part.Notes.ToList();
+            // 第一个音符往右半拍、同时抬 6 个半音：落点右界 480+240=720 恰好落在第二个音符的曲线上
+            // （那里是 60），接错值一眼看得出来。
+            MoveNotes(part, new List<INote> { notes[0] }, 240, 6);
+
+            // 落点整段齐平在 66，末尾 5 tick 内不许朝邻居的 60 跳。
+            foreach (var v in ValuesAt(part, 240, 480, 700, 715, 719))
+                Assert.Equal(66, v, 1);
+            // 来处清空。
+            foreach (var v in ValuesAt(part, 0, 120))
+                Assert.True(double.IsNaN(v), "来处还留着音高线: " + v);
+        });
+    }
 }

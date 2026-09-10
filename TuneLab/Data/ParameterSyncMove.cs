@@ -33,14 +33,21 @@ internal sealed class ParameterSyncMove
             double start = note.StartPos();
             double noteEnd = note.EndPos();
 
-            // 紧邻的右邻不在本批里才有争用：同批一起走的邻居位移相同、写出的值一致，无从冲突。
+            // 让出与收尾只在【来处与落点重合】时才有意义，也就是纯移调（posOffset == 0）：那时 Clear 与
+            // AddLine 落在同一段上，不让出会把交界那个共有的锚点连搬两次（先后移动两个相邻音符 → 尖刺），
+            // 而收尾点取的是交界点的原值，正好把让出的缝接回右邻。
+            // 水平移动恰恰相反：落点在别处，落点那一侧的 tick 上摆着的是**别人的**曲线（或什么都没有），
+            // 把它的现值当收尾点就是在音符尾部竖起一根 gap 宽的翘尾；而来处的交界点由音高线 Clear 在域
+            // 右界补的封边点保住原值，本来就不需要让出。故水平移动一律不让出、不收尾。
+            // 紧邻的右邻还须不在本批里才算争用：同批一起走的邻居位移相同、写出的值一致，无从冲突。
             var next = note.Next;
-            bool contested = next != null && !moving.Contains(next) && next.StartPos() <= noteEnd;
+            bool contested = posOffset == 0
+                && next != null && !moving.Contains(next) && next.StartPos() <= noteEnd;
             // 至多让出域宽的一半，短音符也留得下形状。
             double gap = contested ? Math.Min(extension, (noteEnd - start) / 2) : 0;
             var entry = new Entry(start, noteEnd - gap, noteEnd, contested ? gap : extension);
-            // 让出后新曲线的收尾点：落点一侧的交界 tick。
-            double tail = noteEnd + posOffset;
+            // gap > 0 蕴含 posOffset == 0，故收尾点就落在来处的交界 tick 上。
+            double tail = noteEnd;
 
             var pitchInfo = part.Pitch.RangeInfo(entry.Start, entry.End);
             foreach (var line in pitchInfo)

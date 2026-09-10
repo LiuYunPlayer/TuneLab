@@ -1642,7 +1642,10 @@ internal partial class PianoScrollView : View, IPianoScrollView
             : Part.Notes.AllSelectedItems().IsEmpty() ? "no notes are selected in the piano roll"
             : null;
 
-    public void ChangeKey(int offset)
+    // syncParameters = 把音符底下的音高线与自动化曲线一起搬走。**显式收参**而不是自己读设置：
+    // 同一件事有两类调用者——键盘手势与界面菜单按用户的编辑器偏好（在入口处读 Settings.ParameterSyncMode），
+    // 命令面则要确定性行为、由调用方指定（见 note.transpose* 那四条动作的可选参数）。
+    public void ChangeKey(int offset, bool syncParameters)
     {
         if (TransposeUnavailable() != null)
             return;
@@ -1653,9 +1656,9 @@ internal partial class PianoScrollView : View, IPianoScrollView
         var selectedNotes = Part!.Notes.AllSelectedItems();
 
         Part.BeginMergeDirty();
-        // 参数同步模式下移调也搬参数（与拖动音符同一份搬运器）：音高线覆盖处曲线优先于音符音高，
-        // 曲线不跟着走的话，移调在那些段落上压根听不出变化。这里位移只有音高、没有时间。
-        var parameterSync = Settings.ParameterSyncMode
+        // 要搬参数就与拖动音符共用同一份搬运器：音高线覆盖处曲线优先于音符音高，曲线不跟着走的话，
+        // 移调在那些段落上压根听不出变化。这里位移只有音高、没有时间。
+        var parameterSync = syncParameters
             ? ParameterSyncMove.Capture(Part, selectedNotes, 0, offset, Settings.ParameterBoundaryExtension)
             : null;
         foreach (var note in selectedNotes)
@@ -1668,14 +1671,14 @@ internal partial class PianoScrollView : View, IPianoScrollView
         Part.Commit();
     }
 
-    public void OctaveUp()
+    public void OctaveUp(bool syncParameters)
     {
-        ChangeKey(+12);
+        ChangeKey(+12, syncParameters);
     }
 
-    public void OctaveDown()
+    public void OctaveDown(bool syncParameters)
     {
-        ChangeKey(-12);
+        ChangeKey(-12, syncParameters);
     }
 
     public void EnterInputLyric(INote note)

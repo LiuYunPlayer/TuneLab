@@ -140,4 +140,42 @@ public class KeymapDispatchTests
         Assert.Equal("no part is open in the piano roll", ActionRegistry.Execute("test.dispatch.menu"));
         Assert.Equal(0, probe.Ran);
     }
+
+    // 【可选修饰符参数的动作可以绑手势】必填参数的不行（一条绑定只有手势、没有参数，按下去无从知道
+    // 作用在哪个成员上），但可选的那种缺省路径就是"按用户设置来"，正是手势要的行为——四条移调动作
+    // 即是（command-surface.md §5.7）。这里连注册带分发一起验：Register 的断言放宽了，按下去也必须
+    // 落到缺省那条 Execute，而不是报"缺参数"。
+    [Fact]
+    public void AnActionWithAnOptionalParameterCanBeBoundAndTheGestureTakesTheDefaultPath()
+    {
+        int ranDefault = 0;
+        int ranWithValue = 0;
+        Keymap.Register(new()
+        {
+            Id = "test.dispatch.optional",
+            DisplayName = () => "test.dispatch.optional",
+            Kind = ActionKind.AppState,
+            Execute = () => ranDefault++,
+            Parameter = new()
+            {
+                Name = "parameters",
+                Description = "Whether the curves move along.",
+                Values = () => [new ActionArgument("sync", "Move them too"), new ActionArgument("keep", "Notes only")],
+                Execute = _ => ranWithValue++,
+                Optional = true,
+                DefaultBehavior = "follows the user's setting",
+            },
+        }, KeyScope.Editor, new(Key.F8));
+
+        try
+        {
+            Assert.True(Keymap.TryHandle(KeyScope.Editor, Press(Key.F8)));
+            Assert.Equal(1, ranDefault);
+            Assert.Equal(0, ranWithValue);
+        }
+        finally
+        {
+            Keymap.Unregister("test.dispatch.optional");
+        }
+    }
 }

@@ -636,4 +636,125 @@ public class ActionCommandsTests
 
         Assert.Contains("Quantization (the snap grid): 1/12 (triplets), i.e. quantization.1_12.", text);
     }
+
+    // 带【可选修饰符参数】的假动作：给值走 Parameter.Execute，不给值走 Execute 那条缺省路径
+    //（手势与界面菜单走的就是后者）。两条各记一份，才验得出"到底走了哪条"。
+    sealed class OptionalParameterProbe : System.IDisposable
+    {
+        public int RanDefault;
+        public int RanWithValue;
+        public string Last = string.Empty;
+        readonly string mId;
+
+        public OptionalParameterProbe(string id, ActionKind kind = ActionKind.ProjectEdit)
+        {
+            mId = id;
+            ActionRegistry.Register(new()
+            {
+                Id = id,
+                DisplayName = () => "Probe " + id,
+                Kind = kind,
+                Execute = () => RanDefault++,
+                Parameter = new()
+                {
+                    Name = "parameters",
+                    Description = "Whether the curves are transposed along with the notes.",
+                    Values = () =>
+                    [
+                        new ActionArgument("sync", "Transpose the parameters too", "current default"),
+                        new ActionArgument("keep", "Move the notes only, leave the curves"),
+                    ],
+                    Execute = value => { RanWithValue++; Last = value; },
+                    Optional = true,
+                    DefaultBehavior = "follows the user's \"Parameter Sync Mode\" setting",
+                },
+            });
+        }
+
+        public void Dispose() => ActionRegistry.Unregister(mId);
+    }
+
+    // ── 可选修饰符参数（command-surface.md §5.7）
+
+    // 不给值不是错：动作照样跑，走缺省路径。手势按下去就是这一条——键盘无从携带参数。
+    [Fact]
+    public void RunWithoutAValueTakesTheDefaultPath()
+    {
+        using var probe = new OptionalParameterProbe("test.optional");
+        var result = Trigger("""{"id": "test.optional"}""", WithEditor(new AutoPolicy()));
+
+        Assert.False(result.IsError);
+        Assert.Equal(1, probe.RanDefault);
+        Assert.Equal(0, probe.RanWithValue);
+    }
+
+    // 给了值就与用户的设置无关：走带参路径，且拿到的是**校验过**的 value。
+    [Fact]
+    public void RunWithAValueTakesTheParameterPath()
+    {
+        using var probe = new OptionalParameterProbe("test.optional");
+        var result = Trigger("""{"id": "test.optional", "argument": "Move the notes only, leave the curves"}""",
+            WithEditor(new AutoPolicy()));
+
+        Assert.False(result.IsError);
+        Assert.Equal("keep", probe.Last);   // 给的是 label，落到 value 上
+        Assert.Equal(1, probe.RanWithValue);
+        Assert.Equal(0, probe.RanDefault);
+    }
+
+    // 值域外的值仍然拒绝——可选不等于"随便填"，否则拼错一个字就会静默走成另一种行为。
+    [Fact]
+    public void RunRejectsAValueOutsideTheSetEvenWhenTheParameterIsOptional()
+    {
+        using var probe = new OptionalParameterProbe("test.optional");
+        var result = Trigger("""{"id": "test.optional", "argument": "yes"}""", WithEditor(new AutoPolicy()));
+
+        Assert.True(result.IsError);
+        Assert.Equal("invalid_argument", result.Error!.Value.Code);
+        Assert.Contains("sync", result.Error!.Value.Message);
+        Assert.Equal(0, probe.RanDefault);
+        Assert.Equal(0, probe.RanWithValue);
+    }
+
+    // 键盘与菜单走的是同一个 ActionRegistry.Execute：不带参数调它就该落到缺省路径，而不是报"缺参数"。
+    [Fact]
+    public void RegistryExecuteWithoutAValueTakesTheDefaultPath()
+    {
+        using var probe = new OptionalParameterProbe("test.optional");
+
+        Assert.Null(ActionRegistry.Execute("test.optional"));
+        Assert.Equal(1, probe.RanDefault);
+        Assert.Equal(0, probe.RanWithValue);
+    }
+
+    // 自省：可选性、不给值时的行为、以及此刻哪个值是缺省，都得报出去——否则调用方无从判断
+    // "要不要显式给值"。可绑也仍然是 true（与必填参数那批相反）。
+    [Fact]
+    public void ListReportsOptionalityAndWhatHappensWithoutAValue()
+    {
+        using var probe = new OptionalParameterProbe("test.optional");
+        var result = List.ExecuteAsync(CommandArgs.Parse("""{"query": "test.optional"}"""), WithEditor(), CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        var parameter = result.Data!["actions"]!.AsArray()[0]!.AsObject()["parameter"]!.AsObject();
+        Assert.True(parameter["optional"]!.GetValue<bool>());
+        Assert.Contains("Parameter Sync Mode", parameter["default"]!.GetValue<string>());
+
+        var text = List.Render(result.Data, CommandArgs.Empty);
+        Assert.Contains("optionally takes <parameters>:", text);
+        Assert.Contains("without a value: follows the user's \"Parameter Sync Mode\" setting", text);
+        Assert.Contains("sync \"Transpose the parameters too\" (current default)", text);
+    }
+
+    // 必填参数那一侧一个字都没变：不给值仍然是错，并且回列此刻的合法值。
+    [Fact]
+    public void RunStillNeedsAValueWhenTheParameterIsRequired()
+    {
+        using var probe = new ParameterProbe("test.selector");
+        var result = Trigger("""{"id": "test.selector"}""", WithEditor());
+
+        Assert.True(result.IsError);
+        Assert.Equal("needs_argument", result.Error!.Value.Code);
+        Assert.Equal(0, probe.Ran);
+    }
 }

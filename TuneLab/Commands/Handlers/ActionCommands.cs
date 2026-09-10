@@ -24,7 +24,7 @@ internal sealed class ActionListCommand : ICommand
     public string Documentation =>
         "List the actions of TuneLab's editor — the things a person can do in the window: transport (play/pause, go to start/end), tool selection, view toggles, the clipboard verbs, undo/redo, file actions. "
         + "Each entry gives: id (stable, pass it to run_action), label, kind, whether it can run right now and why not, whether triggering it stops on a dialog someone has to answer, and its keyboard shortcut if it has one. "
-        + "\nA few actions take one SELECTOR argument — the thing they act on, picked from a closed set that changes with the project (which synthesized parameter tracks this part's sound source and effects declare, which properties can be pinned to the parameter panel). Those entries carry a \"parameter\" with the values that are valid RIGHT NOW and each value's current state; pass one to run_action as \"argument\". Everything else takes no argument. "
+        + "\nA few actions take one SELECTOR argument — the thing they act on, picked from a closed set that changes with the project (which synthesized parameter tracks this part's sound source and effects declare, which properties can be pinned to the parameter panel). Those entries carry a \"parameter\" with the values that are valid RIGHT NOW and each value's current state; pass one to run_action as \"argument\". A few others take an OPTIONAL parameter — a modifier on the same action (e.g. whether transposing carries the pitch line along); those are marked optional and say what happens without a value, which is usually \"follows one of the user's settings\", so pass a value when you need a definite behavior. Everything else takes no argument. "
         + "\nKinds: appState = changes only the app's/editor's own state, not the project (no authorization needed); projectEdit = edits project data and goes into the undo history; destructive = can discard unsaved work or write files to disk. "
         + "\nThis surface is for application and editor state. To READ or WRITE project data (notes, parameters, phonemes, tracks) use run_script (tl.*) — that is the write channel for the document itself, and it does not depend on where the keyboard focus is. "
         + "\nAsk get_editor_status what the state is right now (playing? which tool? which part?), and list_keybindings about the shortcuts. Read-only.";
@@ -123,6 +123,10 @@ internal sealed class ActionListCommand : ICommand
         {
             ["name"] = parameter.Name,
             ["description"] = parameter.Description,
+            // optional = 不给值动作照样跑；default 说清那时的行为（缺省行为常依赖用户的设置，
+            // 不说出来调用方就不知道自己拿到的是哪一种——见 ActionParameter.DefaultBehavior）。
+            ["optional"] = parameter.Optional,
+            ["default"] = parameter.Optional ? parameter.DefaultBehavior : null,
             ["values"] = values,
         };
     }
@@ -158,6 +162,7 @@ internal sealed class ActionListCommand : ICommand
         sb.Append("\nProject data (notes, parameters, phonemes, tracks) is edited with run_script (tl.*), not from here.");
         sb.Append("\nFormat: <id> \"<label>\" [kind] <shortcut> — anything you must know before running it");
         sb.Append("\nA \"takes <name>\" line means that action needs one argument, picked from the values listed after it (they are what is valid right now).");
+        sb.Append("\n\"optionally takes <name>\" means it runs without one too: the \"without a value\" line says what that does, so pass a value when you need a definite behavior instead of whatever the user has configured.");
 
         if (shown.Count == 0)
             sb.Append("\n(nothing matches — try a shorter query, or call without one)");
@@ -181,8 +186,12 @@ internal sealed class ActionListCommand : ICommand
 
             if (action["parameter"] is JsonObject parameter)
             {
-                sb.Append("\n    takes <").Append(parameter["name"]!.GetValue<string>()).Append(">: ")
+                bool optional = parameter["optional"]?.GetValue<bool>() ?? false;
+                sb.Append(optional ? "\n    optionally takes <" : "\n    takes <")
+                  .Append(parameter["name"]!.GetValue<string>()).Append(">: ")
                   .Append(parameter["description"]!.GetValue<string>());
+                if (parameter["default"]?.GetValue<string>() is { Length: > 0 } withoutValue)
+                    sb.Append("\n    without a value: ").Append(withoutValue);
                 var values = parameter["values"]!.AsArray();
                 sb.Append(values.Count == 0 ? "\n    (no valid values right now)" : "\n    valid now: ");
                 for (int i = 0; i < values.Count; i++)
@@ -227,6 +236,7 @@ internal sealed class ActionRunCommand : ICommand
         + "\nThe reply says what the editor's state is afterwards, so a fire-and-forget action (play/pause toggles; picking a tool) does not leave you guessing — same fields as get_editor_status. "
         + "\nIt refuses instead of pretending in four cases, each with the reason: there is no editor in this process; the action is not meant to be run from here (script tools: use run_saved_script, which takes parameters); it cannot run right now (nothing to undo, nothing selected, neither edit surface has keyboard focus — that last one is common, because TuneLab is usually not the foreground window while you work); or it would stop on a dialog a person has to answer — pass allowPrompt = true only if the user is at the machine, because otherwise the action never finishes and that dialog just sits on their screen. "
         + "\nA few actions take one SELECTOR argument — the thing to act on, picked from a closed set that changes with the project (e.g. which synthesized parameter track to show, which property to pin to the parameter panel). list_actions gives those actions a \"parameter\" with the values valid right now; pass one of them as \"argument\". Passing a value that is not in that set changes nothing and reports what IS valid; the actions with no \"parameter\" take no argument at all. "
+        + "\nA few actions take an OPTIONAL parameter instead — a modifier on the same action (whether transposing moves the pitch line and automation curves along with the notes). Leaving it out runs the action the way the user's own setting says; pass a value when you need a definite behavior regardless of how their editor is configured. "
         + "\nActions of kind projectEdit or destructive need the user's authorization; an appState action does not. To edit project data prefer run_script (tl.*): it works regardless of keyboard focus and reports exactly what it changed.";
 
     public string ParametersJsonSchema => """
@@ -326,13 +336,20 @@ internal sealed class ActionRunCommand : ICommand
         {
             var values = parameter.Values();
             if (argument.Length == 0)
-                return Fail("needs_argument", string.Format(
-                    "\"{0}\" needs a value for \"{1}\" — the thing to act on, passed as \"argument\". Valid right now: {2}. Nothing happened.",
-                    label, parameter.Name, ActionParameter.Describe(values)));
-            if (!parameter.TryResolve(argument, out var value, out var error))
-                return Fail("invalid_argument", string.Format("{0}. Nothing happened.", error));
-            resolved = value.Value;
-            argumentLabel = value.Label;
+            {
+                // 可选参数不给值不是错：动作走那条缺省路径（ActionRegistry.Execute 里落到 Execute）。
+                if (!parameter.Optional)
+                    return Fail("needs_argument", string.Format(
+                        "\"{0}\" needs a value for \"{1}\" — the thing to act on, passed as \"argument\". Valid right now: {2}. Nothing happened.",
+                        label, parameter.Name, ActionParameter.Describe(values)));
+            }
+            else
+            {
+                if (!parameter.TryResolve(argument, out var value, out var error))
+                    return Fail("invalid_argument", string.Format("{0}. Nothing happened.", error));
+                resolved = value.Value;
+                argumentLabel = value.Label;
+            }
         }
         else if (argument.Length != 0)
         {

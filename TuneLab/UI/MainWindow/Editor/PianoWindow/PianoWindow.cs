@@ -268,13 +268,43 @@ internal class PianoWindow : DockPanel, PianoRoll.IDependency, PianoScrollView.I
         // 域 = 功能身份（note 音符级操作），非分发作用域（虽在 PianoWindow 分发）。见 docs/keybinding-system.md §1.1。
         // 四条都改音符音高、进撤销栈 → ProjectEdit；可用性判据（有没有 part、选中了没有）与 ChangeKey
         // 从前的内部守卫同一份，见 PianoScrollView.TransposeUnavailable。
-        Keymap.Register(new() { Id = "note.octaveUp", DisplayName = () => "Octave Up".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.OctaveUp() }, KeyScope.PianoWindow, new(Key.Up, KeyModifiers.Shift));
-        Keymap.Register(new() { Id = "note.octaveDown", DisplayName = () => "Octave Down".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.OctaveDown() }, KeyScope.PianoWindow, new(Key.Down, KeyModifiers.Shift));
-        Keymap.Register(new() { Id = "note.transposeUp", DisplayName = () => "Semitone Up".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.ChangeKey(+1) }, KeyScope.PianoWindow, new(Key.Up));
-        Keymap.Register(new() { Id = "note.transposeDown", DisplayName = () => "Semitone Down".Tr(TC.Menu), Kind = ActionKind.ProjectEdit, Unavailable = PianoScrollView.TransposeUnavailable, Execute = () => PianoScrollView.ChangeKey(-1) }, KeyScope.PianoWindow, new(Key.Down));
+        Keymap.Register(Transpose("note.octaveUp", () => "Octave Up".Tr(TC.Menu), +12), KeyScope.PianoWindow, new(Key.Up, KeyModifiers.Shift));
+        Keymap.Register(Transpose("note.octaveDown", () => "Octave Down".Tr(TC.Menu), -12), KeyScope.PianoWindow, new(Key.Down, KeyModifiers.Shift));
+        Keymap.Register(Transpose("note.transposeUp", () => "Semitone Up".Tr(TC.Menu), +1), KeyScope.PianoWindow, new(Key.Up));
+        Keymap.Register(Transpose("note.transposeDown", () => "Semitone Down".Tr(TC.Menu), -1), KeyScope.PianoWindow, new(Key.Down));
 
         RegisterParameterPanelActions();
     }
+
+    // 一条移调动作。带一个**可选修饰符参数**（动作面上第一个，见 TuneLab.Input.ActionParameter.Optional）：
+    // 移调要不要把音符底下的音高线与自动化曲线一起搬走。
+    //
+    // 【为什么是可选而不是逐值两条动作】这四条都带手势，而键盘按下去无从携带参数——手势与右键菜单要的
+    // 就是"按我在设置里选的来"。故缺省路径读 Settings.ParameterSyncMode，命令面要确定性行为时显式给值。
+    // 值域是固定二值，但它是修饰符、不是"作用对象"，逐值开会把四条翻成八条（判据见 ActionParameter）。
+    EditorAction Transpose(string id, Func<string> displayName, int offset) => new()
+    {
+        Id = id,
+        DisplayName = displayName,
+        Kind = ActionKind.ProjectEdit,   // 改音符音高、进撤销栈
+        // 可用性判据（有没有开 part、选中了没有）与 ChangeKey 从前的内部守卫同一份。
+        Unavailable = PianoScrollView.TransposeUnavailable,
+        Execute = () => PianoScrollView.ChangeKey(offset, Settings.ParameterSyncMode),
+        Parameter = new()
+        {
+            Name = "parameters",
+            Description = "Whether the pitch line and automation curves under the notes are transposed along with them.",
+            // State 报出此刻哪一个是缺省，调用方因此不必先去读设置才知道不给值会发生什么。
+            Values = () =>
+            [
+                new ActionArgument("sync", "Transpose the parameters too", Settings.ParameterSyncMode ? "current default" : null),
+                new ActionArgument("keep", "Move the notes only, leave the curves", Settings.ParameterSyncMode ? null : "current default"),
+            ],
+            Execute = value => PianoScrollView.ChangeKey(offset, value == "sync"),
+            Optional = true,
+            DefaultBehavior = "follows the user's \"Parameter Sync Mode\" setting (Settings > Editing), which is how the keyboard shortcut and the context menu behave",
+        },
+    };
 
     // 参数面板里「有哪些轨」这四条：动作面上唯一的一批【带选择器参数】的动作（见 TuneLab.Input.ActionParameter）。
     // 成员随 part 的声源与效果器链、随属性声明面而变（动态集）——逐成员开 id 会爆，而且那些 id 明天就不在了，
