@@ -55,10 +55,13 @@
 
 ## 3 刻意不收的（`by-design`）
 
-- **音频导出**（导出混音、单轨导出音频、导出侧栏的导出按钮）：渲染要跑完整合成+混音+编码，期间界面
-  必须锁住好几分钟（根因是渲染要求数据全程不变），而「要不要现在把这台机器占住」是用户的人在环决定。
-  外部能做的是**把参数备好**——导出设置是工程数据，脚本面可写——最后一下由用户按。这与 `project export`
-  拒绝干音频导出是同一条裁决（见 `ProjectExportCommand` 的注释），不要在动作面上绕过它。
+- ~~**音频导出**~~ —— **已翻案，现在是 `command:project export-audio`**。当初判它不收的理由只有一条：
+  渲染期界面锁住好几分钟，「要不要现在把这台机器占住」是人在环的决定。但 headless 根本没有界面可锁；
+  而连着窗口跑时，「人在环」恰恰是**授权闸门**该管的事——把代价写进卡片让用户自己决定，比替他决定
+  「你不能这么做」要诚实。真正的技术难点也不是渲染，而是**等**：界面上的导出直接拉 AudioGraph 此刻的
+  数据、不等任何人（用户看着状态带自己等到全绿才按），照搬会静默产出静音，故那条命令自己把合成驱动到
+  落定、超时不写、有失败段默认拒绝。命令一期只做**混音到一个文件**；单轨、选区、多文件还没有——那是
+  要不要做的问题，不是判据问题。
 - **关闭应用**：未保存确认必须人来答；而且真关掉之后连回报都送不出去（命令桥随进程一起没了）。
 - **宿主内部剪贴板**（含"把用户刚复制的那份粘到别处"）：TuneLab 的剪贴板不是系统剪贴板，而是钢琴窗与
   编排区**各自持有的一份 Info 列表**（音符 / 颤音 / 参数曲线 / part）。而"复制这几个音符、粘到那个 part 的
@@ -92,7 +95,7 @@
 一行一个入口。**入口**列是这个文件里的稳定 key（菜单项取显示名字面量、按钮/开关取变量名；同名的按出现
 次序加 `#2`），**不带行号**——行号天天变，那样这张表会因为无关改动天天红。
 
-**169 个入口**：`action` 27 · `command` 12 · `script` 73 · `pending` 0 · `dialog` 34 · `internal` 19 · `by-design` 4 · `todo` 0
+**169 个入口**：`action` 27 · `command` 15 · `script` 73 · `pending` 0 · `dialog` 34 · `internal` 19 · `by-design` 1 · `todo` 0
 
 #### TuneLab/App.axaml.cs
 
@@ -158,7 +161,7 @@
 | Import Audio | menu | `script` | track.addPart({type:"audio", path, pos})——不给 endOffset 时长度取音频文件本身的时长 |
 | Import Track | menu | `script` | project.importTracks |
 | format | menu | `command:project export` | 「导出为<工程格式>」的每一项 = 一个扩展名；那条命令按扩展名选格式，故整族都够得着 |
-| Export Mix | menu | `by-design` | 音频导出刻意不从外部驱动（渲染期界面锁住数分钟、占不占机器是人在环决定；见 ProjectExportCommand 的同一条裁决） |
+| Export Mix | menu | `command:project export-audio` | 混音导出，命令面已覆盖（它先把合成驱动到落定再渲染；界面这条不等，是用户自己看着状态带等） |
 | Undo | menu | `action:edit.undo` |  |
 | Redo | menu | `action:edit.redo` |  |
 | User Manual | menu | `action:app.manual` |  |
@@ -272,7 +275,7 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| exportBtn | button | `by-design` | 音频导出刻意不从外部驱动（同上）；外部能做的是把导出参数备好（那些是工程数据） |
+| exportBtn | button | `command:project export-audio` | 导出侧栏的落地按钮。命令一期只导混音到一个文件；这里的多轨/选区/分文件还没有对应参数（见 §3） |
 | selectAllBtn | button | `script` | track.exportEnabled |
 | deselectAllBtn | button | `script` | track.exportEnabled |
 | checkBox | toggle | `script` | track.exportEnabled / project.masterExportEnabled |
@@ -359,7 +362,7 @@
 
 | 入口 | 种类 | 裁决 | 说明 |
 |---|---|---|---|
-| Export Audio | menu | `by-design` | 单轨音频导出：同「导出混音」的裁决 |
+| Export Audio | menu | `command:project export-audio` | 单轨导出。命令一期只导混音，单轨还没有对应参数（见 §3）；导出设置本身是工程数据，脚本面可写 |
 | Move Up | menu | `script` | project.removeTrack + insertTrack（重排保 id） |
 | Move Down | menu | `script` | 同上 |
 | colorItem | menu | `script` | track.color（12 个色块是同一段构造） |

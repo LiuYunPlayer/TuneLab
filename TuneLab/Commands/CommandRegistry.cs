@@ -23,6 +23,7 @@ internal static class CommandRegistry
         new ProjectSaveCommand(),
         new ProjectSaveAsCommand(),
         new ProjectExportCommand(),
+        new ProjectExportAudioCommand(),
         new ScriptListCommand(),
         new ScriptReadCommand(),
         new ScriptInputsCommand(),

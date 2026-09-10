@@ -36,7 +36,11 @@ namespace TuneLab.Commands;
 // ProjectExport/ProjectExportOverwrite=把工程导出成文件（Target=落地绝对路径、NewValue=格式显示名）：
 // 与脚本库不同，导出路径是【任意的】——调用方能往用户磁盘任何地方写，故【恒】过闸门（不像 save_script 只有覆盖才拦）；
 // 落到已存路径会替换那个文件、历史记录救不回，故单列 Overwrite 一档让卡片把"替换"说出来（同 ScriptOverwrite 的分档理由）。
-internal enum WriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite, ExtensionActivationChange, EditorAction, EditorActionDestructive, ProjectOpen, ExtensionInstall, ExtensionUninstall, PresetApply, PresetOverwrite, PresetDelete, PresetRename, ProjectSave, ProjectSaveAs, ProjectSaveAsOverwrite }
+// ProjectExportAudio/ProjectExportAudioOverwrite=渲染音频写成文件（Target=落地绝对路径、NewValue=格式显示名）：
+// 分档理由同 ProjectExport（路径任意、覆盖救不回），但措辞要多说一句代价——它要把整个工程的合成跑完再混音，
+// 可能几分钟，且连着窗口跑时那段时间界面就锁住了。用户凭这句话决定「现在这台机器要不要交出去」，
+// 那正是当初把音频导出判为"人在环"的那件事，如今由闸门承担。
+internal enum WriteKind { ProjectEdit, ScriptDelete, ScriptOverwrite, SettingChange, KeybindingChange, RoutingChange, ExtensionSettingChange, ProjectExport, ProjectExportOverwrite, ExtensionActivationChange, EditorAction, EditorActionDestructive, ProjectOpen, ExtensionInstall, ExtensionUninstall, PresetApply, PresetOverwrite, PresetDelete, PresetRename, ProjectSave, ProjectSaveAs, ProjectSaveAsOverwrite, ProjectExportAudio, ProjectExportAudioOverwrite }
 
 // SecondaryTarget=定位/说明本次改动所需的第二个对象：夺键时是【被顺带解绑的那个动作】（供卡片给出知情同意）；
 // 启停单个能力时是【它所属的包名】（同一 kind:identity 跨包可并存，不点名包就说不清关的是哪一份）。
@@ -83,6 +87,10 @@ internal readonly record struct AuthorizationRequest(WriteKind Kind, int Count, 
             "open the project \"{0}\", closing the one the user has open right now (its undo history goes with it)", Target),
         WriteKind.ProjectExport => string.Format("export the project as {1} to \"{0}\"", Target, NewValue),
         WriteKind.ProjectExportOverwrite => string.Format("export the project as {1} to \"{0}\", replacing the file already there", Target, NewValue),
+        WriteKind.ProjectExportAudio => string.Format(
+            "render the project's audio and write it to \"{0}\" as {1} — this runs the FULL synthesis and mixdown first, which can take several minutes, and while it runs the user's TuneLab window is locked up", Target, NewValue),
+        WriteKind.ProjectExportAudioOverwrite => string.Format(
+            "render the project's audio and write it to \"{0}\" as {1}, REPLACING the file already there — this runs the FULL synthesis and mixdown first, which can take several minutes, and while it runs the user's TuneLab window is locked up", Target, NewValue),
         _ => string.Format("apply {0} change(s) to the project", Count),
     };
 }

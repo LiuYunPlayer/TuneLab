@@ -239,6 +239,16 @@ try {
     $r = Invoke-Cli @("--headless", "--yes", "project", "save-as", "--path", (Join-Path $sandbox "nope.tlpx"))
     Check "project save-as exits 1" ($r.Code -eq 1) "exit $($r.Code)"
     Check "and refuses on the missing document, not on the path" (($r.Err -match "no editor in this process") -and -not ($r.Err -match "no folder at")) $r.Err
+    #      · project export-audio 在无头里是**真能跑的**（渲染是纯计算，不碰音频设备），故这里不测"拒绝"，
+    #        测的是它拒绝的那两件该拒绝的事：扩展名不是音频格式（要指向 project export，不能含糊成
+    #        "格式不支持"）、以及空工程（混音长度自带一秒尾，不拦就会一本正经地渲出一秒静音并报成功）。
+    $r = Invoke-Cli @("--headless", "--yes", "project", "export-audio", "--path", (Join-Path $sandbox "mix.tlpx"))
+    Check "project export-audio rejects a project extension" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and points at project export instead" ($r.Err -match "project export") $r.Err
+    $r = Invoke-Cli @("--headless", "--yes", "project", "export-audio", "--path", (Join-Path $sandbox "mix.wav"))
+    Check "an empty project is refused rather than rendered as silence" ($r.Code -eq 1) "exit $($r.Code)"
+    Check "and says the project is empty" ($r.Err -match "this project is empty") $r.Err
+    Check "and wrote nothing" (-not (Test-Path (Join-Path $sandbox "mix.wav"))) "a file was written anyway"
     $r = Invoke-Cli @("--headless", "--yes", "extension", "install", "--path", (Join-Path $sandbox "nope.tlx"))
     Check "extension install exits 1" ($r.Code -eq 1) "exit $($r.Code)"
     Check "and fails on the path, not on the missing editor" (($r.Err -match "there is no file at") -and -not ($r.Err -match "no editor")) $r.Err

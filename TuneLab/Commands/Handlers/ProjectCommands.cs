@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TuneLab.Audio;
 using TuneLab.Data;
+using TuneLab.Data.Synthesis;
 using TuneLab.Extensions.Formats;
 using TuneLab.Extensions.Formats.TLP;
 using TuneLab.Foundation;
@@ -276,8 +277,8 @@ internal sealed class ProjectExportCommand : ICommand
         "plus whatever installed format plugins provide. The error message lists the supported extensions if you get it wrong. " +
         "This writes a file anywhere on the user's disk, so it ALWAYS needs the user's authorization; if a file is already at that path it gets replaced. " +
         "IMPORTANT: this is 'export a copy', NOT 'save' — it does not change which file the user's project is saved to and does not clear their unsaved changes, " +
-        "so never tell the user you saved their project. This cannot export AUDIO (wav/mp3/...): rendering audio locks the UI for a long time, " +
-        "so it's the user's call — set up what's needed and let them press export themselves.";
+        "so never tell the user you saved their project. This writes the PROJECT, not audio: to render wav/mp3/flac/ogg use export_audio, " +
+        "which waits for synthesis to finish first.";
 
     public string ParametersJsonSchema => """
         {
@@ -582,4 +583,270 @@ internal static class ProjectSaveSupport
                     path);
         }
     }
+}
+
+// 渲染音频并落地。
+//
+// 【这是对"音频导出刻意不收"的翻案】当初判它不收的理由只有一条：渲染期界面锁住几分钟，占不占这台机器
+// 是人在环的决定。但 headless 根本没有界面可锁，而 attach 下"人在环"恰恰是授权闸门该管的事——把代价
+// 写进卡片，让用户自己决定，比替他决定"你不能这么做"要诚实。
+//
+// 【真正的难点不是渲染，是等】AudioEngine.ExportMaster 拉的是 AudioGraph 此刻的数据，不等任何人。
+// 界面上的导出之所以行得通，是因为用户看着状态带自己等到全绿才按下去——那个"等"是人做的，不在代码里。
+// 照搬到命令面就会静默产出静音段，而回报仍说导出成功。故这条命令自己把合成驱动到落定
+//（SynthesisCompletion），再看链尾上到底是什么：
+//   · 超时  → 什么都不写，如实报还剩多少（半截音频比没有音频更坏：它看起来是成品）；
+//   · 有失败段 → 默认拒绝，因为那些范围会被导成【静音】；要 allowIncomplete 才导，且列出坏在哪；
+//   · 有降级段 → 只警告（那是能听的 passthrough，不是无声）。
+internal sealed class ProjectExportAudioCommand : ICommand
+{
+    // 默认等 5 分钟。这不是"渲染要多久"的估计（那取决于引擎与曲子长度），而是"卡住了多久算卡住"。
+    const int DefaultTimeoutSeconds = 300;
+    const int MinTimeoutSeconds = 10;
+    const int MaxTimeoutSeconds = 3600;
+
+    public string Path => "project export-audio";
+    public CommandKind Kind => CommandKind.Edit;
+    public string AgentToolName => "export_audio";
+
+    public string Brief => "Render the project's audio and write it to a file";
+
+    public string Documentation =>
+        "Render the current project down to ONE audio file (the mixdown of every track, exactly what the user hears on play). "
+        + "The format comes from the file extension: .wav, .mp3, .flac or .ogg. Sample rate, bit depth and bitrate come from the project's own export settings "
+        + "(a script can read and change them: project.exportSampleRate, project.exportBitDepth, project.exportBitrate, project.masterExportChannels). "
+        + "\nBEFORE writing anything this drives the whole project's synthesis to completion and waits for it, because the mix is only real once every part has finished — "
+        + "exporting early would silently write silence where a part had not been synthesized yet. That wait is the expensive part: it runs every voice and effect, "
+        + "which can take several minutes, and if the user has TuneLab open their window is locked up for that whole time. Say so before you call this. "
+        + "\nIf synthesis does not finish in time, NOTHING is written and you are told how much was left — half a render is worse than none, because it looks finished. "
+        + "\nIf any range failed to synthesize it would come out SILENT, so this refuses by default and names the ranges; pass allowIncomplete: true to export anyway. "
+        + "Ranges where an effect failed and its unprocessed audio is being played instead are only reported as a warning — they do have sound, just not the intended one. "
+        + "\nThis writes a file anywhere on the user's disk and the undo history does not cover files, so it ALWAYS needs the user's authorization. "
+        + "Exporting audio does NOT save the user's project — use save_project for that, and export_project to write a copy of the project itself.";
+
+    public string ParametersJsonSchema => """
+        {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Absolute local file path to write, including the extension, which picks the format: .wav, .mp3, .flac or .ogg. e.g. C:\\Users\\me\\song.wav. The parent folder must already exist." },
+            "timeoutSeconds": { "type": "integer", "description": "How long to wait for synthesis to finish before giving up and writing nothing. Default 300 (5 minutes), allowed 10-3600." },
+            "allowIncomplete": { "type": "boolean", "description": "Export even if some ranges failed to synthesize and will therefore be SILENT in the file. Default false. Only pass true if the user has been told which ranges are broken and wants the file anyway." }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        }
+        """;
+
+    public async Task<CommandResult> ExecuteAsync(CommandArgs args, CommandContext ctx, CancellationToken cancellationToken)
+    {
+        var given = (args.Json.GetString("path") ?? "").Trim().Trim('"');
+        if (given.Length == 0)
+            return CommandResult.Fail("empty_path", "\"path\" is required.");
+        if (ctx.Project is not { } project)
+            return CommandResult.Fail("no_project", "no project is open, so there is nothing to render.");
+
+        int timeoutSeconds = Math.Clamp(args.Json.GetIntOrNull("timeoutSeconds") ?? DefaultTimeoutSeconds, MinTimeoutSeconds, MaxTimeoutSeconds);
+        bool allowIncomplete = args.Json.GetBoolOrNull("allowIncomplete") ?? false;
+
+        // 路径与格式先行（不为坏请求打扰用户，同 `project export`）。
+        string fullPath;
+        try { fullPath = System.IO.Path.GetFullPath(given); }
+        catch (Exception ex) { return CommandResult.Fail("bad_path", string.Format("\"{0}\" is not a usable file path — {1}", given, ex.Message)); }
+        if (Directory.Exists(fullPath))
+            return CommandResult.Fail("path_is_folder", string.Format("\"{0}\" is a folder, not a file path. Give the full path including the file name and extension.", fullPath));
+
+        var extension = System.IO.Path.GetExtension(fullPath).TrimStart('.').ToLowerInvariant();
+        if (!AudioExportFormatExtensions.TryParseId(extension, out var format))
+            return CommandResult.Fail("unsupported_format", string.Format(
+                "cannot render audio as \"{0}\" — the extension picks the format and it has to be one of: {1}. (Project files go through export_project instead.)",
+                string.IsNullOrEmpty(extension) ? fullPath : "." + extension,
+                string.Join(", ", AudioExportFormatExtensions.AllIds.Select(id => "." + id))));
+
+        var folder = System.IO.Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+            return CommandResult.Fail("missing_folder", string.Format("the folder \"{0}\" does not exist. Create it first or pick an existing folder (this command won't create folders).", folder));
+
+        // 编码参数取工程自己的导出设置（用户在导出侧栏里设的那一份），格式则由扩展名定——
+        // 路径是这次调用说了算的东西，其余的是工程的属性。
+        int sampleRate = Math.Max(project.ExportSampleRate, 1);
+        bool isStereo = project.MasterExportChannels >= 2;
+        // 位深按格式收敛到编码器真正会用的那一档（flac 只有 16/24，wav 还有 32），好让回报里报的
+        // 就是文件里真正写下的——报一个编码器会悄悄改掉的数字等于说假话。
+        int bitDepth = format switch
+        {
+            AudioExportFormat.Flac => project.ExportBitDepth == 24 ? 24 : 16,
+            AudioExportFormat.Wav => project.ExportBitDepth is 24 or 32 ? project.ExportBitDepth : 16,
+            _ => project.ExportBitDepth,
+        };
+        var settings = new AudioEncodeSettings { Format = format, BitDepth = bitDepth, Bitrate = project.ExportBitrate };
+        var formatName = format.Id().ToUpperInvariant();
+
+        // 空工程在【闸门之前】拦下（但排在路径/格式之后：那两样是调用方自己拼错了，先说）。
+        // 混音的长度自带一秒尾，什么都不拦的话这条命令会一本正经地渲染出
+        // 一秒静音并回报成功——那是最难被发现的一种谎。判据用工程里有没有 part，而不是混音有多长。
+        if (!project.Tracks.Any(track => track.Parts.Count > 0))
+            return CommandResult.Fail("nothing_to_render", "this project is empty (no track has any part in it), so there is nothing to render.");
+        bool overwrite = File.Exists(fullPath);
+        // 恒过闸门：路径任意、覆盖救不回，且这一条还要占住用户的机器好几分钟——那句话必须在卡片上
+        //（见 WriteKind.ProjectExportAudio）。问在渲染【之前】：白等五分钟再被拒绝是最差的顺序。
+        var (proceed, message) = await ctx.Authorize(
+            new AuthorizationRequest(overwrite ? WriteKind.ProjectExportAudioOverwrite : WriteKind.ProjectExportAudio, 0, fullPath, formatName),
+            cancellationToken);
+        if (!proceed)
+            return CommandResult.Ok(new JsonObject { ["path"] = fullPath, ["outcome"] = "refused", ["note"] = message });
+
+        // ── 把合成驱动到落定。每一跳都上数据线程走一拍，跳与跳之间让出去，好让引擎的续体
+        //    （编辑器里是 UI 线程的 Dispatcher，headless 里是驱动循环的泵）跑起来。
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        SynthesisTick tick;
+        while (true)
+        {
+            tick = await ctx.OnMainThread(() => SynthesisCompletion.DriveOnce(project));
+            if (tick.Done)
+                break;
+            if (clock.Elapsed.TotalSeconds >= timeoutSeconds)
+                return CommandResult.Ok(new JsonObject
+                {
+                    ["path"] = fullPath,
+                    ["outcome"] = "timeout",
+                    ["seconds"] = timeoutSeconds,
+                    ["busy"] = tick.Busy,
+                    ["pending"] = tick.Pending,
+                });
+
+            try { await Task.Delay(50, cancellationToken); }
+            catch (OperationCanceledException) { return CommandResult.Fail("cancelled", "cancelled while waiting for synthesis; nothing was written."); }
+        }
+
+        var facts = await ctx.OnMainThread(() => SynthesisCompletion.Inspect(project));
+        if (facts.Silent.Count > 0 && !allowIncomplete)
+            return CommandResult.Ok(new JsonObject
+            {
+                ["path"] = fullPath,
+                ["outcome"] = "would_be_silent",
+                ["silent"] = Flaws(facts.Silent),
+            });
+
+        // 时长取整个混音的长度（与界面上按导出键得到的同一口径：AudioGraph 的末端，自带一秒尾）。
+        double duration = await ctx.OnMainThread(() => AudioEngine.EndTime);
+
+        // 渲染 + 编码放后台线程跑：它是纯计算，且占住数据线程几分钟会把界面彻底冻住
+        //（界面上那条导出也是这么跑的）。此刻合成已落定，没有别的东西在改图。
+        try
+        {
+            await Task.Run(() => AudioEngine.ExportMaster(fullPath, isStereo, sampleRate, settings, cancellationToken: cancellationToken), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return CommandResult.Fail("cancelled", string.Format("cancelled while rendering; \"{0}\" may be incomplete or missing.", fullPath));
+        }
+        catch (Exception ex)
+        {
+            return CommandResult.Fail("write_failed", string.Format("failed to render \"{0}\" — {1}", fullPath, ex.Message));
+        }
+
+        long bytes = 0;
+        try { bytes = new FileInfo(fullPath).Length; } catch { /* 大小只是回报里的一个数字，取不到就不报 */ }
+
+        return CommandResult.Ok(new JsonObject
+        {
+            ["path"] = fullPath,
+            ["outcome"] = "applied",
+            ["format"] = format.Id(),
+            ["formatName"] = formatName,
+            ["sampleRate"] = sampleRate,
+            ["channels"] = isStereo ? 2 : 1,
+            ["bitDepth"] = format.IsLossy() ? null : bitDepth,
+            ["bitrate"] = format.IsLossy() ? settings.Bitrate : null,
+            ["seconds"] = Math.Round(duration, 3),
+            ["bytes"] = bytes,
+            ["overwrite"] = overwrite,
+            ["waitedSeconds"] = Math.Round(clock.Elapsed.TotalSeconds, 1),
+            ["silent"] = facts.Silent.Count > 0 ? Flaws(facts.Silent) : null,
+            ["degraded"] = facts.Degraded.Count > 0 ? Flaws(facts.Degraded) : null,
+            ["note"] = string.IsNullOrEmpty(message) ? null : message,
+        });
+    }
+
+    static JsonArray Flaws(IReadOnlyList<SynthesisFlaw> flaws)
+    {
+        var array = new JsonArray();
+        foreach (var flaw in flaws)
+            array.Add(new JsonObject
+            {
+                ["where"] = flaw.Where,
+                ["startSeconds"] = Math.Round(flaw.StartTime, 3),
+                ["endSeconds"] = Math.Round(flaw.EndTime, 3),
+                ["message"] = string.IsNullOrEmpty(flaw.Message) ? null : flaw.Message,
+            });
+        return array;
+    }
+
+    static string DescribeFlaws(JsonNode? node)
+    {
+        if (node is not JsonArray array)
+            return string.Empty;
+
+        var text = new StringBuilder();
+        foreach (var item in array)
+        {
+            if (item is not JsonObject flaw)
+                continue;
+            text.AppendFormat("\n  · {0}, {1:0.###}s–{2:0.###}s",
+                flaw["where"]!.GetValue<string>(), flaw["startSeconds"]!.GetValue<double>(), flaw["endSeconds"]!.GetValue<double>());
+            if (flaw["message"]?.GetValue<string>() is { Length: > 0 } why)
+                text.Append(" — ").Append(why.Replace("\n", " "));
+        }
+        return text.ToString();
+    }
+
+    public string Render(JsonNode? data, CommandArgs args)
+    {
+        if (data is not JsonObject obj)
+            return string.Empty;
+
+        var path = obj["path"]!.GetValue<string>();
+        switch (obj["outcome"]!.GetValue<string>())
+        {
+            case "refused":
+                return obj["note"]?.GetValue<string>() ?? string.Empty;
+
+            case "timeout":
+                return string.Format(
+                    "Synthesis did not finish within {0}s ({1} part(s) still rendering, {2} still waiting), so NOTHING was written to \"{3}\". "
+                    + "The project is unchanged and whatever did get synthesized is still there — call this again to keep going, with a longer timeoutSeconds if the project is a big one.",
+                    obj["seconds"]!.GetValue<int>(), obj["busy"]!.GetValue<int>(), obj["pending"]!.GetValue<int>(), path);
+
+            case "would_be_silent":
+                return string.Format(
+                    "Did NOT export: synthesis finished, but these ranges failed and would come out SILENT in the file:{0}\n"
+                    + "Nothing was written to \"{1}\". Tell the user what is broken; if they want the file with those gaps anyway, call again with allowIncomplete: true.",
+                    DescribeFlaws(obj["silent"]), path);
+
+            default:
+                var text = new StringBuilder(obj["note"]?.GetValue<string>() ?? string.Empty);
+                text.AppendFormat("Rendered the mix to \"{0}\" — {1}, {2}, {3} Hz, {4}{5}.",
+                    path,
+                    obj["formatName"]!.GetValue<string>(),
+                    obj["channels"]!.GetValue<int>() >= 2 ? "stereo" : "mono",
+                    obj["sampleRate"]!.GetValue<int>(),
+                    obj["bitDepth"] is { } depth ? depth.GetValue<int>() + "-bit" : obj["bitrate"]!.GetValue<int>() + " kbps",
+                    obj["overwrite"]!.GetValue<bool>() ? ", replacing the file that was there" : "");
+                text.AppendFormat(" {0:0.#}s of audio, {1}. Synthesis took {2:0.#}s.",
+                    obj["seconds"]!.GetValue<double>(), FormatSize(obj["bytes"]!.GetValue<long>()), obj["waitedSeconds"]!.GetValue<double>());
+
+                if (obj["silent"] is { } silent)
+                    text.AppendFormat("\nWARNING — these ranges failed to synthesize and are SILENT in the file (you asked for it with allowIncomplete):{0}", DescribeFlaws(silent));
+                if (obj["degraded"] is { } degraded)
+                    text.AppendFormat("\nNote — an effect failed on these ranges, so the file has the unprocessed audio there rather than the intended sound:{0}", DescribeFlaws(degraded));
+
+                text.Append("\nThis did not save the user's project: it still has the same save file and unsaved changes as before.");
+                return text.ToString();
+        }
+    }
+
+    static string FormatSize(long bytes)
+        => bytes >= 1024 * 1024 ? string.Format("{0:0.0} MB", bytes / 1024.0 / 1024.0)
+         : bytes >= 1024 ? string.Format("{0:0.0} KB", bytes / 1024.0)
+         : bytes + " bytes";
 }

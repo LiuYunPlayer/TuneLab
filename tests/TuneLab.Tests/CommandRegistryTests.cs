@@ -29,6 +29,8 @@ public class CommandRegistryTests
         "list_presets", "apply_preset", "save_preset", "delete_preset", "rename_preset",
         // 保存那一族：走用户口径的保存（改保存路径、清未保存态），与只写副本的 export_project 分开。
         "save_project", "save_project_as",
+        // 渲染音频：与 export_project 分开（那条写的是工程文件），且它是唯一一条要先等合成跑完的。
+        "export_audio",
     ];
 
     [Fact]
