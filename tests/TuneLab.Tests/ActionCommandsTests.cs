@@ -36,6 +36,8 @@ public class ActionCommandsTests
         public bool IsWaveformVisible => false;
         public string? SidebarPanelActionId => "sidebar.showAgent";
         public string? FocusedSurface => "pianoRoll";
+        // 挡着界面的东西：这套用例里默认没有，个别用例自己塞。
+        public IReadOnlyList<string> BlockingDialogs { get; set; } = [];
     }
 
     sealed class AutoPolicy : IAuthorizationPolicy
@@ -606,6 +608,90 @@ public class ActionCommandsTests
         Assert.StartsWith("Playing, playhead at 0:00.00 of 0:00.00.", text);
         Assert.Contains("neither edit surface", text);
         Assert.Contains("until the user clicks into the arrangement or the piano roll", text);
+    }
+
+    // 挡着界面的东西要**排在最前面**说，而且要说清后果。
+    //
+    // 【为何值得一条】模态框期间 Avalonia 跑嵌套消息循环、Dispatcher 照常泵，故命令桥照常应答：
+    // 外部可以在用户屏幕被一个框锁着的时候跑一串命令、条条回报成功，而用户一个字都看不见。
+    // 那是最难被发现的一种假装成功（每一条单独看都没错），故这一句既要在、又要在最上面——
+    // 埋在工具与面板那几行后面就等于藏起来了。
+    [Fact]
+    public void EditorStatusLeadsWithWhateverIsBlockingTheScreen()
+    {
+        var text = EditorStatusText.Render(new JsonObject
+        {
+            ["hasEditor"] = true,
+            ["playing"] = false,
+            ["playheadTime"] = 0,
+            ["playheadTick"] = 0,
+            ["endTime"] = 0,
+            ["tool"] = new JsonObject { ["id"] = "tool.note", ["label"] = "Note Tool" },
+            ["parameterPanelVisible"] = true,
+            ["focusedSurface"] = "pianoRoll",
+            ["currentPart"] = null,
+            ["quantization"] = null,
+            ["blockingDialogs"] = new JsonArray("保存文件"),
+        });
+
+        Assert.StartsWith("BLOCKED:", text);
+        Assert.Contains("\"保存文件\"", text);           // 用户屏幕上看到的就是这几个字，原样报
+        Assert.Contains("still report success", text);   // 说清后果：命令照跑照成功
+        Assert.Contains("Only a person can dismiss it", text);
+    }
+
+    // 没东西挡着时一个字都不提：一句恒在的"没有弹窗"会把它变成噪音，读的人很快就不看了。
+    [Fact]
+    public void NothingBlockingMeansNothingIsSaidAboutIt()
+    {
+        var text = EditorStatusText.Render(new JsonObject
+        {
+            ["hasEditor"] = true,
+            ["playing"] = false,
+            ["playheadTime"] = 0,
+            ["playheadTick"] = 0,
+            ["endTime"] = 0,
+            ["tool"] = new JsonObject { ["id"] = "tool.note", ["label"] = "Note Tool" },
+            ["parameterPanelVisible"] = true,
+            ["focusedSurface"] = "pianoRoll",
+            ["currentPart"] = null,
+            ["quantization"] = null,
+            ["blockingDialogs"] = new JsonArray(),
+        });
+
+        Assert.DoesNotContain("BLOCKED", text);
+        Assert.StartsWith("Stopped,", text);
+    }
+
+    // 结构化那一半：空 = 空数组而不是缺字段。"问过了，没有"与"这一版不报这一条"对调用方是两件事。
+    [Fact]
+    public void TheBlockingFieldIsAlwaysThereEvenWhenEmpty()
+    {
+        var data = EditorStatusText.Build(new CommandContext { EditorStatus = new StubEditorStatus() });
+        Assert.NotNull(data["blockingDialogs"]);
+        Assert.Empty(data["blockingDialogs"]!.AsArray());
+
+        var blocked = EditorStatusText.Build(new CommandContext
+        {
+            EditorStatus = new StubEditorStatus { BlockingDialogs = ["Unsaved changes"] },
+        });
+        Assert.Equal("Unsaved changes", blocked["blockingDialogs"]!.AsArray()[0]!.GetValue<string>());
+    }
+
+    // `action run` 的回报与 `editor status` 共用同一份状态文本，故这一句在触发动作之后也必须出现——
+    // 那正是它最有用的时刻：动作按下去了，而用户屏幕上还杵着一个框。
+    [Fact]
+    public void RunningAnActionAlsoSaysTheScreenIsBlocked()
+    {
+        var ctx = new CommandContext
+        {
+            EditorStatus = new StubEditorStatus { BlockingDialogs = ["保存文件"] },
+            Authorization = new AutoPolicy(),
+        };
+        var sb = new System.Text.StringBuilder();
+        EditorStatusText.Append(sb, EditorStatusText.Build(ctx));
+
+        Assert.StartsWith("BLOCKED:", sb.ToString());
     }
 
     // 量化报的分母要与工具栏下拉、与 `quantization.*` 那 18 档对得上。

@@ -108,7 +108,7 @@ internal class TrackHead : DockPanel
                 if (topLevel == null)
                     return;
 
-                var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                var file = await topLevel.SaveFilePickerTracked(new FilePickerSaveOptions
                 {
                     Title = "Save File".Tr(TC.Dialog),
                     DefaultExtension = ".wav",

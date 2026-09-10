@@ -102,7 +102,10 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
                 isParameterPanelVisible: () => mPianoWindow.IsParameterPanelVisible,
                 isWaveformVisible: () => mPianoWindow.IsWaveformVisible,
                 sidebarPanelActionId: () => SidebarActionId(mRightSideTabBar.SelectedTab.Value),
-                focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null),
+                focusedSurface: () => mTrackWindow.IsKeyboardFocusWithin ? "arrangement" : mPianoWindow.IsKeyboardFocusWithin ? "pianoRoll" : null,
+                // 挡在界面前面的东西：模态框期间命令桥照常应答，不报这一条就会有"用户什么都看不见，
+                // 而外部条条回报成功"的一串命令（见 BlockingUi）。
+                blockingDialogs: BlockingUi.Current),
             // 换工程要连带换撤销栈 / 播放头 / 钢琴窗里开着的 part，那些只有 Editor 管得了（见 IProjectFileAccess）。
             ProjectFile = mProjectFileAccess,
             // 挪视野：把用户的视线带到 agent 说的那个地方去（见 IEditorViewAccess）。
@@ -270,7 +273,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             var topLevel = TopLevel.GetTopLevel(this);
             if (topLevel == null)
                 return;
-            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            var files = await topLevel.OpenFilePickerTracked(new FilePickerOpenOptions
             {
                 Title = "Open Tlx File",
                 AllowMultiple = true,
@@ -1113,7 +1116,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
             if (topLevel == null)
                 return;
 
-            var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            var files = await topLevel.OpenFilePickerTracked(new FilePickerOpenOptions
             {
                 Title = "Open File",
                 AllowMultiple = false,
@@ -1161,7 +1164,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (topLevel == null)
             return;
 
-        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var file = await topLevel.SaveFilePickerTracked(new FilePickerSaveOptions
         {
             Title = "Save File".Tr(TC.Dialog),
             DefaultExtension = "." + ConstantDefine.DefaultProjectExtension,
@@ -1186,7 +1189,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (topLevel == null)
             return;
 
-        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var file = await topLevel.SaveFilePickerTracked(new FilePickerSaveOptions
         {
             Title = "Export As".Tr(TC.Dialog),
             DefaultExtension = extension,
@@ -1282,7 +1285,7 @@ internal class Editor : DockPanel, PianoWindow.IDependency, TrackWindow.IDepende
         if (topLevel == null)
             return;
 
-        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var file = await topLevel.SaveFilePickerTracked(new FilePickerSaveOptions
         {
             Title = "Save File".Tr(TC.Dialog),
             DefaultExtension = ".wav",

@@ -623,7 +623,7 @@ internal sealed class ScriptSideBarContentProvider
         IReadOnlyList<IStorageFile> files;
         try
         {
-            files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            files = await top.OpenFilePickerTracked(new FilePickerOpenOptions
             {
                 Title = title,
                 AllowMultiple = allowMultiple,

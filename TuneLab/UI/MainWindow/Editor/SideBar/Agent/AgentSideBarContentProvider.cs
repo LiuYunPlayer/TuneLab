@@ -1432,7 +1432,7 @@ internal sealed class AgentSideBarContentProvider
         IReadOnlyList<Avalonia.Platform.Storage.IStorageFile> files;
         try
         {
-            files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+            files = await top.OpenFilePickerTracked(new Avalonia.Platform.Storage.FilePickerOpenOptions
             {
                 Title = "Attach image".Tr(this),
                 AllowMultiple = true,

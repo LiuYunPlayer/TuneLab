@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace TuneLab.Commands;
 
@@ -17,7 +18,8 @@ internal sealed class EditorStatusAccess(
     Func<bool> isParameterPanelVisible,
     Func<bool> isWaveformVisible,
     Func<string?> sidebarPanelActionId,
-    Func<string?> focusedSurface) : IEditorStatusAccess
+    Func<string?> focusedSurface,
+    Func<IReadOnlyList<string>> blockingDialogs) : IEditorStatusAccess
 {
     public bool IsPlaying => isPlaying();
     public double PlayheadTime => playheadTime();
@@ -28,4 +30,5 @@ internal sealed class EditorStatusAccess(
     public bool IsWaveformVisible => isWaveformVisible();
     public string? SidebarPanelActionId => sidebarPanelActionId();
     public string? FocusedSurface => focusedSurface();
+    public IReadOnlyList<string> BlockingDialogs => blockingDialogs();
 }

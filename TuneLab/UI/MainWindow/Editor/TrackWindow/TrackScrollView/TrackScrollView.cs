@@ -431,7 +431,7 @@ internal partial class TrackScrollView : View
         if (topLevel == null)
             return;
 
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var files = await topLevel.OpenFilePickerTracked(new FilePickerOpenOptions
         {
             Title = "Open File",
             AllowMultiple = false,
@@ -484,7 +484,7 @@ internal partial class TrackScrollView : View
         if (topLevel == null)
             return;
 
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var files = await topLevel.OpenFilePickerTracked(new FilePickerOpenOptions
         {
             Title = "Open File",
             AllowMultiple = false,

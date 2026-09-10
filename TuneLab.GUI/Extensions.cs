@@ -369,13 +369,32 @@ internal static class Extensions
         return files[0];
     }
 
+    // 系统文件选择器的带登记版本：**调用处一律用这两个，别直接调 StorageProvider**——
+    // 选择器挡着界面的那段时间要能被 `editor status` 看见（理由见 BlockingUi）。
+    // 作用域正好是这一次 await：包在调用方法里的话，选择器早关了标记还挂着，那是过报。
+    public static async Task<IReadOnlyList<IStorageFile>> OpenFilePickerTracked(this TopLevel top, FilePickerOpenOptions options)
+    {
+        using var blocking = BlockingUi.Track(PickerLabel(options.Title, "a file picker (open)"));
+        return await top.StorageProvider.OpenFilePickerAsync(options);
+    }
+
+    public static async Task<IStorageFile?> SaveFilePickerTracked(this TopLevel top, FilePickerSaveOptions options)
+    {
+        using var blocking = BlockingUi.Track(PickerLabel(options.Title, "a file picker (save)"));
+        return await top.StorageProvider.SaveFilePickerAsync(options);
+    }
+    // 挡着界面的那句说明：优先用选择器自己的标题（那是用户此刻屏幕上看到的字，且已本地化），
+    // 没有标题时退回一句通用的——报"有个框"总好过报"什么都没有"。
+    public static string PickerLabel(string? title, string fallback)
+        => string.IsNullOrEmpty(title) ? fallback : title;
+
     static async Task<IReadOnlyList<string>> OpenFilesInternal(this Avalonia.Visual visual, FilePickerOpenOptions options)
     {
         var toplevel = TopLevel.GetTopLevel(visual);
         if (toplevel == null)
             return [];
 
-        var files = await toplevel.StorageProvider.OpenFilePickerAsync(options);
+        var files = await toplevel.OpenFilePickerTracked(options);
         List<string> result = [];
         foreach (var file in files)
         {
@@ -394,6 +413,7 @@ internal static class Extensions
         if (toplevel == null)
             return [];
 
+        using var blocking = BlockingUi.Track(PickerLabel(options.Title, "a folder picker"));
         var files = await toplevel.StorageProvider.OpenFolderPickerAsync(options);
         List<string> result = [];
         foreach (var file in files)

@@ -47,6 +47,9 @@ internal static class EditorStatusText
                 ["label"] = ActionRegistry.LabelOf(sidebar),
             },
             ["focusedSurface"] = status.FocusedSurface,
+            // 挡在界面前面的东西（模态框 / 系统文件选择器）。空数组 = 没有——不省成 null：
+            // "问过了，没有"与"这版本不报这一条"对调用方是两件事。
+            ["blockingDialogs"] = new JsonArray(status.BlockingDialogs.Select(d => (JsonNode)d!).ToArray()),
             // 当前 part 与量化取自 EditorState（脚本面读的也是这两个访问器），故 status、脚本、agent 说的
             // 是同一个"当前"。
             ["currentPart"] = CurrentPart(ctx),
@@ -95,6 +98,16 @@ internal static class EditorStatusText
         {
             sb.Append(NoEditor);
             return;
+        }
+
+        // 【放在最前面】它决定"此刻做的任何事用户看不看得见"。排在工具、面板那些后面就等于藏起来，
+        // 而这一条恰恰是读的人最该先知道的。
+        if (data["blockingDialogs"] is JsonArray blocking && blocking.Count > 0)
+        {
+            sb.Append("BLOCKED: the user's screen has ")
+              .Append(string.Join(" and ", blocking.Select(d => "\"" + d!.GetValue<string>() + "\"")))
+              .Append(" in front of the editor, waiting to be answered. Commands still run and still report success, but the user cannot see or touch the editor until they answer it, ")
+              .Append("so anything you do now — including moving their view — happens behind that. Only a person can dismiss it.\n");
         }
 
         bool playing = data["playing"]!.GetValue<bool>();
