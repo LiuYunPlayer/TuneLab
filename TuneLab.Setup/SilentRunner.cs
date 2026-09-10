@@ -40,6 +40,21 @@ internal static class SilentRunner
         return true;
     }
 
+    /// <summary>
+    /// <c>-uninstall</c> 不带目录时卸载哪一份：卸载器自己所在的那一份。
+    ///
+    /// 注册表里的卸载入口总是显式带目录，正路走不到这里；手敲 <c>TuneLab.Setup.exe -uninstall</c> 的人
+    /// 指的显然是手边这一份，而手边这一份未必装在默认目录（<c>-dir</c> 装到别处就不是）。回落到默认目录
+    /// 会去动另一份安装。旁边没有主程序（例如自复制到临时目录的那个副本）才退回默认目录。
+    /// </summary>
+    static string SelfInstallDir()
+    {
+        var dir = Path.GetDirectoryName(Environment.ProcessPath ?? string.Empty);
+        return dir is { Length: > 0 } && File.Exists(Path.Combine(dir, ProductInfo.ExecutableName))
+            ? dir
+            : ProductInfo.DefaultInstallDir;
+    }
+
     static void Report(string message)
     {
         Console.Out.WriteLine(message);
@@ -104,7 +119,7 @@ internal static class SilentRunner
                 case SetupMode.Uninstall:
                     // 卸载的每一行结论都同时给控制台和日志：从"添加或删除程序"点进来时没有控制台，
                     // 那份日志是"到底删了什么、留下了什么"的唯一去处。
-                    Uninstaller.Run(options.TargetDir ?? ProductInfo.DefaultInstallDir, Report);
+                    Uninstaller.Run(options.TargetDir ?? SelfInstallDir(), Report);
                     Log("Uninstall done.");
                     return 0;
 
