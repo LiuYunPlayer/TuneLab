@@ -11,7 +11,7 @@ namespace TuneLab.Setup.Core;
 internal readonly record struct InstallStatus(double Fraction, string Message);
 
 /// <summary>
-/// 安装编排：铺文件 → 写卸载器副本 → 建快捷方式 → 关联扩展名 → 注册卸载表。
+/// 安装编排：铺文件 → 落 tunelab 转发入口 → 建快捷方式 → 关联扩展名 → 注册卸载表。
 /// 所有落地都在每用户目录 / HKCU，故全程无需管理员。
 /// </summary>
 [SupportedOSPlatform("windows")]
@@ -49,6 +49,11 @@ internal sealed class Installer
             await Task.Run(() => payload.ExtractTo(installDir, extractProgress, ct), ct);
 
             // 卸载器/更新器 TuneLab.Setup.exe 已随目录一并铺入安装目录，无需单独复制。
+
+            // 2) `tunelab` 转发入口：命令面的文本里教的就是这个名字，它必须真的存在（见 CommandLineEntry）。
+            //    每次安装与更新都重写——它是产品的一部分，不是按用户选择创建的快捷方式。
+            progress?.Report(new InstallStatus(0.88, "Writing the tunelab command…"));
+            CommandLineEntry.Write(installDir);
 
             // 3-4) 快捷方式 + 文件关联：仅首次安装。更新模式跳过，保留用户当初的选择。
             if (!mOptions.IsUpdate)
