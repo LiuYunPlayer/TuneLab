@@ -178,4 +178,38 @@ public class KeymapDispatchTests
             Keymap.Unregister("test.dispatch.optional");
         }
     }
+
+    // 【最外层兜底分发】焦点丢了（撤销把钢琴窗里的 part 删掉后，原先聚焦的控件随之从视觉树摘除）之后，
+    // 按键只在窗口上触发、冒泡不到 Editor，工程级快捷键因此失灵过（Ctrl+Y 没反应，而菜单里的重做照常）。
+    // 兜底把 Editor 域接住。
+    [Fact]
+    public void TheOutermostFallbackHandlesEditorScopeActions()
+    {
+        using var probe = new Probe("test.fallback.editor", KeyScope.Editor, new(Key.Y, KeyModifiers.Control));
+
+        Assert.True(Keymap.TryHandleFallback(Press(Key.Y, KeyModifiers.Control)));
+        Assert.Equal(1, probe.Ran);
+    }
+
+    [Fact]
+    public void TheOutermostFallbackHandlesGlobalScopeActions()
+    {
+        using var probe = new Probe("test.fallback.global", KeyScope.Global, new(Key.F11));
+
+        Assert.True(Keymap.TryHandleFallback(Press(Key.F11)));
+        Assert.Equal(1, probe.Ran);
+    }
+
+    // 面内动作**不**兜：删音符/切工具那类事，在那个面没有焦点时执行才是错的。
+    [Fact]
+    public void TheOutermostFallbackLeavesSurfaceScopedActionsAlone()
+    {
+        using var piano = new Probe("test.fallback.piano", KeyScope.PianoWindow, new(Key.F9));
+        using var track = new Probe("test.fallback.track", KeyScope.TrackWindow, new(Key.F10));
+
+        Assert.False(Keymap.TryHandleFallback(Press(Key.F9)));
+        Assert.False(Keymap.TryHandleFallback(Press(Key.F10)));
+        Assert.Equal(0, piano.Ran);
+        Assert.Equal(0, track.Ran);
+    }
 }

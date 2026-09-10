@@ -342,7 +342,8 @@ public partial class MainWindow : Window
 
     void OnKeyDown(object? sender, KeyEventArgs args)
     {
-        args.Handled = Keymap.TryHandle(KeyScope.Global, args);
+        // 兜底分发（Editor 域 → Global 域）。判据与"为什么不兜面内域"见 Keymap.TryHandleFallback。
+        args.Handled = Keymap.TryHandleFallback(args);
     }
 
     // Global 作用域的内置动作（跨全窗口生效，由最外层 Window.KeyDown 兜底分发）。

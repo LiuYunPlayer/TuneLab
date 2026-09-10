@@ -73,6 +73,20 @@ internal static class Keymap
         mIndex = null;
     }
 
+    // 最外层窗口的兜底分发。内层控件（钢琴窗 / 编排区 / Editor）借事件冒泡先各用自身 scope 处理，
+    // 走到这里意味着**没有任何内层收到**这个键——最常见的情形是焦点丢了：撤销把钢琴窗里的 part 删掉后，
+    // 原先聚焦的控件随之从视觉树摘除、焦点变成空，此后按键直接在窗口上触发、再也冒泡不到 Editor，
+    // 于是 Ctrl+Y 这类**工程级**快捷键失灵（而菜单里的重做照常——它走动作注册表、不看焦点）。
+    //
+    // 故兜到 Editor 域为止：撤销/重做/保存/播放这些是编辑器级的事，与哪个面聚焦无关。
+    // **刻意不兜** PianoWindow / TrackWindow 域——那些是面内动作（删音符、切工具），面没有焦点时
+    // 执行才是错的。动作各自的 Unavailable 判据仍是守门人（剪贴板动词照旧回"两个编辑面都没焦点"）。
+    // 内层优先不受影响：冒泡先到内层，已被内层处理的事件不会再进这里。
+    public static bool TryHandleFallback(KeyEventArgs e)
+    {
+        return TryHandle(KeyScope.Editor, e) || TryHandle(KeyScope.Global, e);
+    }
+
     // 注销一条可绑动作（动作与绑定条目一并消失——脚本没了，用户就够不着它了）。
     // 用户 override 存在 mOverrides 里、与注册独立，注销不丢：脚本回归即复活。
     public static void Unregister(string id)
