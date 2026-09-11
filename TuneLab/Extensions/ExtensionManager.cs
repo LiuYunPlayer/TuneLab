@@ -24,7 +24,9 @@ namespace TuneLab.Extensions;
 internal static class ExtensionManager
 {
     // host 提供的 SDK ABI 地板版本（V1）。插件 sdk-version 须 <= 此值方可加载。
-    public static readonly Version SdkVersion = new(1, 0);
+    // 每次发布含新 API 的版本就提一档，与 PublicAPI.Unshipped → Shipped 是同一个动作的两处台账
+    // （见 docs/sdk-api-evolution.md §0）。1.1 = 2.1.0 那批新增（PathPickerConfig 一族、多行 TextBox）。
+    public static readonly Version SdkVersion = new(1, 1);
 
     // 编进宿主的官方内置能力（无安装包）的包 id——用于扩展设置按包分桶。
     // 选含括号的保留标识：反向域名包 id 不可能长这样，撞键风险为零，且配置文件里一眼可辨「宿主内置」。

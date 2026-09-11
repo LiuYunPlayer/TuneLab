@@ -25,7 +25,7 @@
 - `version` (string) — semver，默认 `"1.0.0"`。
 - `author` (string)、`description` (string) — 展示在扩展侧边栏：`author` 显示在卡片上，`description` 在卡片悬浮 tooltip 里（详情窗头部也有）。`description` 讲的是**整个包**；具体某个能力是什么，写在该条目自己的 `introduction` 里；这句绝不顶替它。
 - `icon` (string, 选填) — 包内相对路径的图标，位图（`.png`/`.jpg` 等）或矢量（`.svg`）均可，在侧边栏卡片**原样展示**（宿主不加背景/不裁圆角，圆角与透明由图标自定）；建议方形（≥64×64）。省略则用名称首字母占位。
-- `sdk-version` (string, 含代码插件**必填**) — 如 `"1.0"`；宿主校验「插件要求 ≤ 宿主提供」。
+- `sdk-version` (string, 含代码插件**必填**) — 宿主校验「插件要求 ≤ 宿主提供」。写你实际用到的那一档：`"1.0"`（TuneLab 2.0.0 起，V1 初始面）；`"1.1"`（TuneLab 2.1.0 起，新增 `PathPickerConfig`/`FileTypeFilter` 与 `TextBoxConfig.WithMultiline`）。写高了只会被老宿主跳过，换不来任何东西。
 
 插件级字段（一个条目 = 一个具体能力，身份内联）。单插件写在顶层；多插件放进 `extensions[]` 数组的每个元素：
 - `type` (string, **必填**) — `"format"` | `"voice"` | `"instrument"` | `"effect"` | 资源类（如 `"voicebank"`）。**方向不进 type**：format 恒为一个值，读写各认哪些后缀由下面三个字段说。宿主不认识的 type 若还声明了 `assembly`/`class`，会被判为「本宿主不支持的插件类型」而跳过。

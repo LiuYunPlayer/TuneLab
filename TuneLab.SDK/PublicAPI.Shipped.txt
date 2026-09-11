@@ -101,6 +101,13 @@ TuneLab.SDK.EffectSynthesisSnapshot.Properties.init -> void
 TuneLab.SDK.ExtensibleObjectConfig
 TuneLab.SDK.ExtensibleObjectConfig.AddableElements.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.AddableKey>!
 TuneLab.SDK.ExtensibleObjectConfig.Properties.get -> TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.IControllerConfig!>!
+TuneLab.SDK.FileTypeFilter
+TuneLab.SDK.FileTypeFilter.FileTypeFilter() -> void
+TuneLab.SDK.FileTypeFilter.FileTypeFilter(string! name, System.Collections.Generic.IReadOnlyList<string!>! patterns) -> void
+TuneLab.SDK.FileTypeFilter.Name.get -> string!
+TuneLab.SDK.FileTypeFilter.Name.init -> void
+TuneLab.SDK.FileTypeFilter.Patterns.get -> System.Collections.Generic.IReadOnlyList<string!>!
+TuneLab.SDK.FileTypeFilter.Patterns.init -> void
 TuneLab.SDK.IAudioSegment
 TuneLab.SDK.IAudioSegment.Commit() -> void
 TuneLab.SDK.IAudioSegment.Resize(long sampleOffset, int sampleCount) -> void
@@ -381,6 +388,17 @@ TuneLab.SDK.PartInfo.Pos.get -> double
 TuneLab.SDK.PartInfo.Pos.set -> void
 TuneLab.SDK.PartInfo.StartOffset.get -> double
 TuneLab.SDK.PartInfo.StartOffset.set -> void
+TuneLab.SDK.PathPickerConfig
+TuneLab.SDK.PathPickerConfig.AppendFileType(TuneLab.SDK.FileTypeFilter fileType) -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.PathPickerConfig.AppendFileType(string! name, params string![]! patterns) -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.PathPickerConfig.DefaultValue.get -> string!
+TuneLab.SDK.PathPickerConfig.FileTypes.get -> System.Collections.Generic.IReadOnlyList<TuneLab.SDK.FileTypeFilter>!
+TuneLab.SDK.PathPickerConfig.PickerTitle.get -> string?
+TuneLab.SDK.PathPickerConfig.Target.get -> TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.PathPickerConfig.WithPickerTitle(string! title) -> TuneLab.SDK.PathPickerConfig!
+TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.PathPickerTarget.File = 0 -> TuneLab.SDK.PathPickerTarget
+TuneLab.SDK.PathPickerTarget.Folder = 1 -> TuneLab.SDK.PathPickerTarget
 TuneLab.SDK.PhonemeInfo
 TuneLab.SDK.PhonemeInfo.Duration.get -> double
 TuneLab.SDK.PhonemeInfo.Duration.set -> void
@@ -511,7 +529,10 @@ TuneLab.SDK.TempoInfo.Pos.set -> void
 TuneLab.SDK.TempoInfo.TempoInfo() -> void
 TuneLab.SDK.TextBoxConfig
 TuneLab.SDK.TextBoxConfig.DefaultValue.get -> string!
+TuneLab.SDK.TextBoxConfig.IsMultiline.get -> bool
 TuneLab.SDK.TextBoxConfig.IsPassword.get -> bool
+TuneLab.SDK.TextBoxConfig.MaxVisibleLines.get -> int
+TuneLab.SDK.TextBoxConfig.WithMultiline(int maxVisibleLines = 0) -> TuneLab.SDK.TextBoxConfig!
 TuneLab.SDK.TextBoxConfig.WithPassword(bool value = true) -> TuneLab.SDK.TextBoxConfig!
 TuneLab.SDK.TimeSignatureInfo
 TuneLab.SDK.TimeSignatureInfo.BarIndex.get -> int
@@ -665,6 +686,8 @@ static TuneLab.SDK.NormalizedScale.Rounded(TuneLab.SDK.INormalizedScale! scale) 
 static TuneLab.SDK.NumberFormat.Custom(System.Func<double, string!>! format, System.Func<string!, double?>! parse) -> TuneLab.SDK.INumberFormat!
 static TuneLab.SDK.NumberFormat.Decimals(int digits) -> TuneLab.SDK.INumberFormat!
 static TuneLab.SDK.ObjectConfig.Create(TuneLab.Foundation.IReadOnlyOrderedMap<TuneLab.SDK.PropertyKey, TuneLab.SDK.IControllerConfig!>! properties) -> TuneLab.SDK.ObjectConfig!
+static TuneLab.SDK.PathPickerConfig.CreateFile(string! defaultValue = "") -> TuneLab.SDK.PathPickerConfig!
+static TuneLab.SDK.PathPickerConfig.CreateFolder(string! defaultValue = "") -> TuneLab.SDK.PathPickerConfig!
 static TuneLab.SDK.PhonemeLayout.Resolve(System.Collections.Generic.IReadOnlyList<TuneLab.SDK.PhonemeLayoutNote>! notes) -> TuneLab.SDK.PhonemeTiming[]![]!
 static TuneLab.SDK.PhonemeSlots.PhonemeAt(this TuneLab.SDK.IVoiceSynthesisNoteView! note, int slot) -> TuneLab.SDK.IVoiceSynthesisPhonemeView?
 static TuneLab.SDK.PhonemeSlots.UnionSlots(this System.Collections.Generic.IReadOnlyList<TuneLab.SDK.IVoiceSynthesisNoteView!>! notes) -> System.Collections.Generic.IEnumerable<int>!

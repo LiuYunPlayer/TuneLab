@@ -35,7 +35,14 @@ Package level (top level):
 | `author` | | Author (shown in the extensions sidebar) |
 | `description` | | One line about **the package as a whole** (shown in the extensions sidebar tooltip and the detail window header). What an individual capability is belongs in that entry's own `introduction` — this line never stands in for it. |
 | `icon` | | An icon at a path relative to the package; bitmap (`.png`/`.jpg` etc.) or vector (`.svg`) both work. **Shown as-is** — the sidebar does not add a background or clip rounded corners, so rounding/transparency/padding are all up to you (draw rounded corners into the icon if you want them). A **square** icon (e.g. 64×64 or larger) is recommended. If omitted, the sidebar uses the name's first letter over a dark rounded square as a placeholder. |
-| `sdk-version` | ✅ for plugins with code | The SDK version you compiled against (e.g. `"1.0"`). TuneLab uses it for a compatibility check: a plugin requiring a higher version than the host provides is skipped. Resource packages may omit it. |
+| `sdk-version` | ✅ for plugins with code | The SDK version you compiled against (e.g. `"1.0"`). TuneLab uses it for a compatibility check: a plugin requiring a higher version than the host provides is skipped. Resource packages may omit it. **Declare the level you actually use, not the newest one** — asking for more than you need shuts you out of older hosts for nothing. The levels are below. |
+
+**What each SDK level adds** (the host's level rises with TuneLab; the one your plugin declares does not):
+
+| `sdk-version` | Since | What it adds |
+|---|---|---|
+| `1.0` | TuneLab 2.0.0 | Everything the V1 SDK shipped with |
+| `1.1` | TuneLab 2.1.0 | Path picker controls (`PathPickerConfig` / `FileTypeFilter`), multiline text boxes (`TextBoxConfig.WithMultiline`) |
 
 Plugin level (describing "what this package provides"). **Identity is inlined into the manifest**: one entry = one concrete registrable capability, carrying its own identity (engine id / file extension) + the full name of the implementing class. After reading the manifest the host knows what the plugin provides without loading assemblies and reflecting.
 
