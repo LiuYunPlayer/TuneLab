@@ -312,14 +312,15 @@ public class MyVoiceEngine : IVoiceSynthesisEngine    // engine id is declared i
     public void Init() { /* scan voicebanks to fill mVoiceInfos; load/warm up the model */ }
     public void Destroy() { /* release resident resources (unload the model, close the ONNX session, etc.) */ }
 
-    // One session per part: voiceId is a key of VoiceSourceInfos (which voicebank is selected);
-    // context is that part's input live view, living and dying with the session. The session is a lightweight handle — heavy model loading should be lazy.
-    public IVoiceSynthesisSession CreateSession(string voiceId, IVoiceSynthesisContext context)
-        => new MySession(voiceId, context);
+    // One session per part: the selected voicebank is baked into the context (context.VoiceId, a key of
+    // VoiceSourceInfos), so CreateSession does not list it separately; context is that part's input live view,
+    // living and dying with the session. The session is a lightweight handle — heavy model loading should be lazy.
+    public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context)
+        => new MySession(context);
 
     // —— Declaration side (property panels / automation tracks): see §5.2, all on the engine, independent of session instances ——
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
     public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mPartConfig;
     public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => mNoteConfig;
 
@@ -330,11 +331,11 @@ public class MyVoiceEngine : IVoiceSynthesisEngine    // engine id is declared i
 **`VoiceSourceInfo` fields** (voicebank catalog metadata; the session does not re-carry these):
 
 ```csharp
-public struct VoiceSourceInfo
+public sealed class VoiceSourceInfo
 {
-    public string Name;             // voicebank display name (localizable, see "Localization" at the end of §5.2)
-    public string Description;      // one-line summary
-    public ImageResource? Portrait; // optional portrait (shown in the piano window); null = none
+    public required string Name { get; init; }          // voicebank display name (localizable, see "Localization" at the end of §5.2)
+    public required string Description { get; init; }   // one-line summary
+    public ImageResource? Portrait { get; init; }       // optional portrait (shown in the piano window); null = none
 }
 ```
 
@@ -349,41 +350,38 @@ mVoiceInfos.Add(voiceId, new VoiceSourceInfo { Name = "Alice", Description = "..
 
 ### 5.2 Engine declaration side: property panels and automation tracks
 
-The four declaration-side methods are **on `IVoiceSynthesisEngine`** (not on the session) and are **all pure functions** (same input → same output, no side effects, lightweight); the host calls them on every parameter commit and diffs the result to the UI. A statically-declared plugin ignores `context` and returns a fixed map/config; for conditional UI (a control/track that appears only when some switch is on) read the current values from `context` to decide what to return; multi-voicebank engines (one engine with multiple `voiceId`s) branch on **`context.VoiceId`**.
+The four declaration-side methods are **on `IVoiceSynthesisEngine`** (not on the session) and are **all pure functions** (same input → same output, no side effects, lightweight); the host calls them on every parameter commit and diffs the result to the UI. A statically-declared plugin ignores `context` and returns a fixed map/config; for conditional UI (a control/track that appears only when some switch is on) read the current values from `context` to decide what to return; multi-voicebank engines (one engine with multiple `voiceId`s) branch on the part view's **`VoiceId`** (`context.Part.VoiceId` on the note side, `context.Parts[i].VoiceId` on the part side).
 
 > **Why on the engine and not the session**: Declaration depends only on `(voiceId, current part values)` and touches no synthesis runtime state — it is inherently a pure function. Putting it on the engine lets the host compute declarations (track set / panel) **before creating a session**, so the session returned by `CreateSession` can **subscribe in its constructor to the automation tracks it declared** (during construction `context.Automations` already contains the tracks you declared, retrievable via `TryGetValue` / enumerable — the declaration is ready). If declaration lived on the session it would be a deadlock: the session wants to subscribe to the tracks it declared, but the declaration is only available after the session finishes constructing — during construction `context.Automations` would not yet be filled with your declared tracks. `DefaultLyric` is the only value that stays on the session (it is used at runtime, see §5.3).
 
 ```csharp
-// Automation track set (part level): continuous tracks and piecewise tracks share one ordered map, declaration order = presentation order. context.VoiceId selects which voicebank.
-public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
+// Automation track set (part level): continuous tracks and piecewise tracks share one ordered map, declaration order = presentation order. context.Parts[i].VoiceId selects which voicebank.
+public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context) => mAutomationConfigs;
 // Read-only synthesized parameter track declarations (engine-produced, non-editable curves such as energy). Return an empty map if there are none.
-public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
-// Part-level property panel (depends only on the part's own sparse values + context.VoiceId).
+public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
+// Part-level property panel (depends only on the part's own sparse values + the part view's VoiceId).
 public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => mPartConfig;
 // Note-level property panel (depends on part settings + the merged values of the selected notes).
 public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => mNoteConfig;
 ```
 
-> `IVoiceSynthesisPartPropertyContext` (part panel / automation): `VoiceId` + **`IReadOnlyList<PropertyObject> PartProperties`** (the sparse snapshot of each selected part; multiple parts may be selected). `IVoiceSynthesisNotePropertyContext` (note panel, a **separate interface, not inheriting**): `VoiceId` + **`PropertyObject PartProperties`** (the **single** part the note belongs to — a note always belongs to one part) + **`IReadOnlyList<PropertyObject> NoteProperties`** (each selected note). If a list member doesn't care about multi-selection, call `.Merge()` (the `PropertyObjectExtensions` extension method, in `TuneLab.Foundation`) to reduce it to a single tri-state `PropertyObject` (same key all-equal → the value, unequal/partly-missing → `Multiple`) and write as if single-selected; if you need per-member truth (e.g. combining seeds of unequal-length arrays) iterate the list directly. Having voiceId in the context makes the voice context permanently diverge from effect's `IEffectSynthesisPropertyContext` (which has no equivalent) — this is intentional: effect is a single-type engine and has no notion of "which bank to pick".
+> `IVoiceSynthesisPartPropertyContext` (part panel / automation): **`IReadOnlyList<IVoiceSynthesisPartView> Parts`** (one value view per selected part; multiple parts may be selected). `IVoiceSynthesisNotePropertyContext` (note panel, a **separate interface, not inheriting**): **`IVoiceSynthesisPartView Part`** (the **single** part the notes belong to — a note always belongs to one part) + **`IReadOnlyList<IVoiceSynthesisNoteView> Notes`** (one view per selected note). A part view carries `VoiceId` / `PartProperties` (`PropertyObject`) / `Notes` / `Automations`; a note view carries `StartTime` / `EndTime` / `Pitch` / `Lyric` / `Properties` / `LeadingPhonemes` / `BodyPhonemes` / `BodyOffset`. If you don't care about multi-selection, reduce the values to one tri-state `PropertyObject` with `.Merge()` (the `PropertyObjectExtensions` extension method, in `TuneLab.Foundation`, taking an `IEnumerable<PropertyObject>`) — e.g. `context.Notes.Select(n => n.Properties).Merge()` (same key all-equal → the value, unequal/partly-missing → `Multiple`) — and write as if single-selected; if you need per-member truth (e.g. combining seeds of unequal-length arrays) iterate the list directly. Having voiceId in the context makes the voice context permanently diverge from effect's `IEffectSynthesisPropertyContext` (which has no equivalent) — this is intentional: effect is a single-type engine and has no notion of "which bank to pick".
 
 **Note / part property conventions (the keyed `Properties`, the sole channel for per-note/per-part parameters)**:
 
-- The fixed fields of `IVoiceSynthesisNote` are only the minimal common musical quantities (`StartTime`/`EndTime`/`Pitch`/`Lyric`/`Phonemes`). **All voice-specific per-note parameters (tension, breathiness, gender, etc.) go through `note.Properties` (keyed)** — adding a new parameter = adding a key in `GetNotePropertyConfig`'s `ObjectConfig.Properties`, without touching the fixed interface surface. Part-level specific parameters go through `GetPartPropertyConfig` the same way.
-- Build the panel from the control-config vocabulary (all in `TuneLab.SDK`): `SliderConfig` (constructors are sealed, use static factories only: `SliderConfig.Linear(default, min, max)` for continuous, `SliderConfig.Integer(default, min, max)` for integer, `SliderConfig.Create(default, scale)` for a custom `INormalizedScale`; fluent `.WithFormat(INumberFormat)` to customize value display/read-back, `.WithRandomizable()` to declare it randomizable — the host gives a random entry on the right, and clicking it re-picks the value uniformly on the scale in normalized space, suitable for random seeds and the like; `.WithMinLabel(text)` / `.WithMaxLabel(text)` add descriptive text at the ends of the range (e.g. min="Soft", max="Hard", translated by the plugin, may set only one end) — shown at the slider's ends, and when the user pins this property onto the parameter panel the same text serves as the bounds, sharing semantics with `AutomationConfig`'s same-named fields), `ComboBoxConfig.Create(options)` (value/display separated, so "UI in Chinese / stores the enum value underneath"; `.WithDefault(option)` sets the default selection, otherwise the first item), `CheckBoxConfig.Create(default)`, `TextBoxConfig.Create(default)` (`.WithPassword()` for masking; `.WithMultiline(maxVisibleLines)` for a multi-line box — the box grows with the content and stops at `maxVisibleLines` rows, scrolling beyond it (`0` = no cap, grow forever); the value stays ONE string with newlines inside it, so nothing about storage or undo changes. Masking has no multi-line form: declaring both keeps the field single-line), `PathPickerConfig.CreateFile(default)` / `PathPickerConfig.CreateFolder(default)` (a path box with a browse button that opens the system picker; the value is the picked path as a plain string — `.AppendFileType(name, "*.exe")` adds a file-type filter, `.WithPickerTitle(text)` sets the dialog title; the host does NOT check that the path exists — validate it yourself in `ApplySettings`/`Init`); all the above constructors are sealed, use static factories only. The container is `ObjectConfig { Properties = OrderedMap<string, IControllerConfig> }` (the composite type is not yet factory-ized).
+- The fixed fields of `IVoiceSynthesisNote` are only the minimal common musical quantities (`Id`/`StartTime`/`EndTime`/`Pitch`/`Lyric`/`LeadingPhonemes`/`BodyPhonemes`/`BodyOffset`). **All voice-specific per-note parameters (tension, breathiness, gender, etc.) go through `note.Properties` (keyed)** — adding a new parameter = adding a key in `GetNotePropertyConfig`'s `ObjectConfig.Properties`, without touching the fixed interface surface. Part-level specific parameters go through `GetPartPropertyConfig` the same way.
+- Build the panel from the control-config vocabulary (all in `TuneLab.SDK`): `SliderConfig` (constructors are sealed, use static factories only: `SliderConfig.Linear(default, min, max)` for continuous, `SliderConfig.Integer(default, min, max)` for integer, `SliderConfig.Create(default, scale)` for a custom `INormalizedScale`; fluent `.WithFormat(INumberFormat)` to customize value display/read-back, `.WithRandomizable()` to declare it randomizable — the host gives a random entry on the right, and clicking it re-picks the value uniformly on the scale in normalized space, suitable for random seeds and the like; `.WithMinLabel(text)` / `.WithMaxLabel(text)` add descriptive text at the ends of the range (e.g. min="Soft", max="Hard", translated by the plugin, may set only one end) — shown at the slider's ends, and when the user pins this property onto the parameter panel the same text serves as the bounds, sharing semantics with `AutomationConfig`'s same-named fields), `ComboBoxConfig.Create(options)` (value/display separated, so "UI in Chinese / stores the enum value underneath"; `.WithDefault(option)` sets the default selection, otherwise the first item), `CheckBoxConfig.Create(default)`, `TextBoxConfig.Create(default)` (`.WithPassword()` for masking; `.WithMultiline(maxVisibleLines)` for a multi-line box — the box grows with the content and stops at `maxVisibleLines` rows, scrolling beyond it (`0` = no cap, grow forever); the value stays ONE string with newlines inside it, so nothing about storage or undo changes. Masking has no multi-line form: declaring both keeps the field single-line), `PathPickerConfig.CreateFile(default)` / `PathPickerConfig.CreateFolder(default)` (a path box with a browse button that opens the system picker; the value is the picked path as a plain string — `.AppendFileType(name, "*.exe")` adds a file-type filter, `.WithPickerTitle(text)` sets the dialog title; the host does NOT check that the path exists — validate it yourself in `ApplySettings`/`Init`); all the above constructors are sealed, use static factories only. The container is `ObjectConfig.Create(IReadOnlyOrderedMap<PropertyKey, IControllerConfig>)` — like the value configs, its constructor is sealed and you go through the static factory. A `PropertyKey` is `(id, displayText?)` and converts implicitly from a bare string or from a tuple, so `{ ("tension", "Tension"), … }` gives the key its display name; a bare `"tension"` shows the id.
 
 ```csharp
-readonly ObjectConfig mNoteConfig = new()
+readonly ObjectConfig mNoteConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
 {
-    Properties = new OrderedMap<string, IControllerConfig>
-    {
-        { "tension",   SliderConfig.Linear(0, -1, 1) },
-        { "breathiness", SliderConfig.Linear(0, 0, 1) },
-    },
-};
+    { ("tension", "Tension"),         SliderConfig.Linear(0, -1, 1) },
+    { ("breathiness", "Breathiness"), SliderConfig.Linear(0, 0, 1) },
+});
 ```
 
 - **Reading values**: at synthesis time, read from `VoiceSynthesisNoteSnapshot.Properties` (a `PropertyObject` value copy) using `GetDouble(key, default)` / `GetBoolean` / `GetString`. **Sparse storage** — only fields the user has changed are present; if not found use the default you declared (`PropertyObject`'s `Get*` second argument is the fallback; pass the same default as declared).
-- **`AutomationConfig`**: `DisplayText` / `DefaultValue` / `MinValue` / `MaxValue` / `Color` (e.g. `"#E5A573"`) / `Randomizable` (adds a random entry to the right of the default-value panel's slider, best for continuous tracks). **`DefaultValue = double.NaN` ⇒ a piecewise track** (no default baseline, disconnected between segments, e.g. pitch-like, bend); a real number ⇒ a continuous track (has a value everywhere, has a baseline, e.g. growl). Synthesized parameter tracks are always piecewise (`DefaultValue = NaN`).
+- **`AutomationConfig`**: `DefaultValue` / `MinValue` / `MaxValue` / `Scale` / `Color` (e.g. `"#E5A573"`) / `Randomizable` (adds a random entry to the right of the default-value panel's slider, best for continuous tracks) / `MinLabel` / `MaxLabel` / `Format`, built by `AutomationConfig.Create(...)` plus the fluent `WithColor` / `WithDefault` / `WithRandomizable` / `WithMinLabel` / `WithMaxLabel` / `WithFormat`. The **track's display name is not on the config** — it rides on the map key (`PropertyKey`'s `DisplayText`), the same as property panels. **`DefaultValue = double.NaN` ⇒ a piecewise track** (no default baseline, disconnected between segments, e.g. pitch-like, bend); a real number ⇒ a continuous track (has a value everywhere, has a baseline, e.g. growl). Synthesized parameter tracks are always piecewise (`DefaultValue = NaN`).
 - **Value-axis scale**: `AutomationConfig.Create(minValue, maxValue)` is a linear axis; the `Create(INormalizedScale)` overload takes a custom scale (mirroring `SliderConfig.Create`) — e.g. `NormalizedScale.Integer(min, max)` makes it an integer track, or implement your own log axis etc. **A discrete scale ⇒ the signal lands on the grid everywhere**: beyond snapping anchors on write, the host projects the continuous Hermite output back onto the scale at **evaluation and rendering** time (the curve renders as a staircase, and `Evaluate` returns already-gridded final values), so the **engine need not round** and every edit path (load / preset / fed-back data) is covered. On a continuous scale the projection is the identity (up to ULP-level float round-trip noise — do not rely on values being passed through bit-for-bit).
   **The scale defines the shape and grid of the value axis, not a value-range guarantee.** The host does *not* clamp evaluated values into `[MinValue, MaxValue]` — that guarantee cannot be honoured, since monotonicity is only a documented convention (`INormalizedScale` is a public interface and `NormalizedScale.Custom` takes arbitrary lambdas), and for a non-monotonic scale the endpoints are not the extremes, so clamping would neither land inside the range the engine has in mind nor leave legitimate values intact. Out-of-range values do reach `Evaluate` — the realistic sources are projects saved before you changed a track's range, presets carried over from another source, and values your own engine fed back — so **validate in the engine to whatever degree your algorithm needs** (array indices, table lookups and divisors are the ones that bite). The host's **strokes** themselves stay in range (dragging and anchor entry are both clamped to the range), but the value model is **additive**, so ordinary use goes out of range too: anchors store an offset relative to `DefaultValue` (the user later moves the default-value slider ⇒ the whole set of anchors shifts out of range when evaluated), and vibrato deviation is likewise added on top of the track (a curve sitting near the upper bound ⇒ out of range once vibrato affects that track). Both are deliberate consequences of the additive model, not defects. The parameter panel clips its drawing to the pane, so an out-of-range anchor renders flush against the boundary.
 - **Binary interval track (band / toggle)**: for an on/off interval track (e.g. a breathiness switch, section mute), declare a **piecewise track with a degenerate range** — `AutomationConfig.Create(v, v)` (`Create` defaults to `DefaultValue=NaN` ⇒ piecewise; `min==max` ⇒ no value axis). The host recognizes this form and renders it as a **full-height toggle band** (segment = on-interval highlighted, gap = off/blank) instead of a curve, with interaction switched to horizontal drag = paint on / right-drag = paint off (vertical ignored, there is no height). Consumption is pure segment presence: `!double.IsNaN(evaluator.Evaluate(t)[i])` means "on"; the value inside a segment is irrelevant and need not be read. Interval boundaries = the segment's anchor span, dragged precisely by the user.
@@ -400,7 +398,7 @@ Beyond notes, the engine can also declare user-editable custom properties on **p
 ```csharp
 // per-phoneme property declaration (required, must be implemented just like GetNotePropertyConfig):
 // **reuses the note declaration context IVoiceSynthesisNotePropertyContext** (there is no separate phoneme context) —
-// each IVoiceSynthesisNoteView now carries Phonemes (that note's ordered phonemes). Return a schema map **keyed by
+// each IVoiceSynthesisNoteView carries the phoneme lists LeadingPhonemes / BodyPhonemes. Return a schema map **keyed by
 // nucleus-relative slot**: key = slot (0 = nucleus, <0 = leading consonants (closer to the nucleus = closer to −1), >0 = post-nucleus),
 // value = the schema of that slot (that "role") across the whole selection.
 public IReadOnlyMap<int, ObjectConfig> GetPhonemePropertyConfigs(IVoiceSynthesisNotePropertyContext context)
@@ -435,7 +433,7 @@ foreach (var ph in note.LeadingPhonemes.Concat(note.BodyPhonemes))   // note is 
 
 - Properties are only meaningful on **pinned phonemes** (user data); phonemes produced by the engine's automatic G2P have no properties.
 - The pinned phonemes of the input live view (`IVoiceSynthesisNote.LeadingPhonemes` / `BodyPhonemes`) carry **no properties** (see §5.3 / §5.7); properties only appear in the synthesis snapshot (`VoiceSynthesisPhonemeSnapshot.Properties`).
-- **Editing UI**: the sidebar phoneme-property panel is done — **one row per slot** (a symbol label + that slot's controllers); with multiple notes selected, each note's phoneme at the same slot merges into that row (three-state values, edits fan out). Still to be done is a phoneme **selection model** (a phoneme currently has no `ISelectable` selection state); until the selection model is complete, the host uses all phonemes of the selected notes as the panel scope.
+- **Editing UI**: the sidebar phoneme-property panel is done — **one row per slot** (a symbol label + that slot's controllers); with multiple notes selected, each note's phoneme at the same slot merges into that row (three-state values, edits fan out). Still to be done is a phoneme **selection model** (a phoneme has no selection state of its own yet — a host-side matter, not part of the SDK surface); until the selection model is complete, the host uses all phonemes of the selected notes as the panel scope.
 
 ### 5.3 Input live view `IVoiceSynthesisContext` and `IVoiceSynthesisNote`
 
@@ -446,12 +444,13 @@ The context is implemented by the host, is session-scoped (dies with the session
 ```csharp
 public interface IVoiceSynthesisContext
 {
+    string VoiceId { get; }   // the selected voicebank (a key of VoiceSourceInfos) — baked into the context, which is why CreateSession does not take it
     IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes { get; }   // linked list: consume in enumeration order, First/Last, note.Next/Previous neighbor navigation; WhenAny auto-wires member add/remove
     IReadOnlyNotifiablePropertyObject PartProperties { get; }
     IReadOnlyMap<string, ISynthesisAutomation> Automations { get; }   // get the editable tracks you declared (TryGetValue / enumerate)
     ISynthesisAutomation Pitch { get; }            // absolute pitch constraint (piecewise: has value = pinned, NaN = free), see §5.6
     ISynthesisAutomation PitchDeviation { get; }   // additive deviation (continuous, default 0, never NaN), see §5.6
-    VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime);  // see §5.5
+    VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes);  // see §5.5
     IAudioSegment CreateAudioSegment(long sampleOffset, int sampleCount, int sampleRate);             // see §5.8
     IActionEvent Committed { get; }            // logical-edit closure point, see §5.9
 }
@@ -459,7 +458,7 @@ public interface IVoiceSynthesisContext
 
 **`Notes` ordering and overlap**: total-order deterministic — `StartTime` ascending → same start, `EndTime` descending (long note first) → still tied, keep insertion order. Notes **may overlap** (chords): the sequence passes overlapping notes through as-is, and de-overlapping (e.g. "later covers earlier") is **your responsibility** (a monophonic plugin truncates as needed; a chord plugin consumes overlaps as-is).
 
-**`IVoiceSynthesisNote` fields** are all subscribable properties (`IReadOnlyNotifiableProperty<T>`, with `Value` / `WillModify` / `Modified`): `StartTime`/`EndTime` (global seconds), `Pitch` (`int` semitones), `Lyric` (`string` — the text this note sings: either the lyric the user typed or an explicit pronunciation override they set. **The host does not normalize it into any one phonology**, so a Han character can arrive as-is; G2P belongs to your engine, which is what lets it honor a dialect or any other non-pinyin phonology), `Phonemes` (`IReadOnlyList<SynthesizedPhoneme>`, see §5.7), `Properties` (keyed per-note parameters). There is also a `Next`/`Last` neighbor chain — **for data-thread chunking decisions only** (inside an event handler you have only the note's own reference, no list index); at synthesis time you must navigate neighbors by index over the snapshot's ordered list and never touch live notes again.
+**`IVoiceSynthesisNote` fields** are all subscribable properties (`IReadOnlyNotifiableProperty<T>`, with `Value` / `WillModify` / `Modified`): `StartTime`/`EndTime` (global seconds), `Pitch` (`int` semitones), `Lyric` (`string` — the text this note sings: either the lyric the user typed or an explicit pronunciation override they set. **The host does not normalize it into any one phonology**, so a Han character can arrive as-is; G2P belongs to your engine, which is what lets it honor a dialect or any other non-pinyin phonology), `Phonemes` (`IReadOnlyList<SynthesizedPhoneme>`, see §5.7), `LeadingPhonemes` / `BodyPhonemes` (`IReadOnlyNotifiableProperty<IReadOnlyList<SynthesizedPhoneme>>` each) + `BodyOffset` (see §5.7), `Properties` (keyed per-note parameters). Besides the properties there is a plain `string Id` — the note's run-time identity, which is what you key the phoneme product map by (§5.7). There is also a `Next`/`Previous` neighbor chain — **for data-thread chunking decisions only** (inside an event handler you have only the note's own reference, no list index); at synthesis time you must navigate neighbors by index over the snapshot's ordered list and never touch live notes again.
 
 ### 5.4 Scheduling: `GetNextPendingSynthesisRange` (peek) and `SynthesizeNext` (commit)
 
@@ -480,7 +479,7 @@ public async Task SynthesizeNext(double startTime, double endTime, CancellationT
 {
     // —— Synchronous prefix (still on the data thread): recompute chunking over the same window + pin down this block's notes + GetSnapshot to materialize a snapshot ——
     if (FindNextDirtyPiece(startTime, endTime) is not { } piece) return;
-    var snapshot = mContext.GetSnapshot(piece.Notes, piece.Notes[0].StartTime.Value, piece.Notes[^1].EndTime.Value);
+    var snapshot = mContext.GetSnapshot(piece.Notes);
     piece.Dirty = false;            // new changes arriving during synthesis re-mark dirty and naturally re-queue after completion
     mStatusChanged.Invoke();        // mark this segment as entering Synthesizing (mStatusChanged is the ActionEvent field behind the IActionEvent StatusChanged)
 
@@ -512,11 +511,11 @@ Scheduling pitfalls:
 The worker cannot touch the live view, so the synchronous prefix of `SynthesizeNext` must **materialize everything the synthesis needs into an immutable snapshot** before offloading. `GetSnapshot` returns one at a time:
 
 ```csharp
-VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes, double startTime, double endTime);
+VoiceSynthesisSnapshot GetSnapshot(IReadOnlyList<IVoiceSynthesisNote> notes);
 ```
 
-- **`notes`**: the notes this synthesis needs — **in-segment notes + coarticulation neighbors** — which you pin down freely (e.g. if you want to see the previous note's trailing consonant, include it too). The returned `snapshot.Notes` is **index-aligned** with the `notes` you passed in — this is the product-attribution contract (see §5.7: the `SynthesizedPhonemes` map keys back with `origins[i]`).
-- **`[startTime, endTime]`**: the windowing interval (seconds) for automation curves.
+- **`notes`**: the notes this synthesis needs — **in-segment notes + coarticulation neighbors** — which you pin down freely (e.g. if you want to see the previous note's trailing consonant, include it too). The returned `snapshot.Notes` is **index-aligned** with the `notes` you passed in — this is the product-attribution contract (see §5.7: the `SynthesizedPhonemes` map is keyed by `snapshot.Notes[i].Id`).
+- **Automation and pitch are frozen in full, never windowed**: the snapshot takes no time interval, because the range you actually sample depends on phoneme durations, which are only known during synthesis (after offload) — a window pinned down in the synchronous prefix would be wrong (too narrow and the sampling points for padding / onset consonants fall outside it and read wrong values). What is frozen is the raw control points (anchors), which is cheap — a densely drawn four-minute pitch curve is a few hundred kilobytes and sub-millisecond, far below one inference pass — and the worker interpolates at any query point, clamping past the ends exactly as the live curve does.
 - **You may pull multiple in one synthesis**: e.g. pull a phoneme-level small window to time phonemes, then pull an audio-level large window based on the phoneme results. But **it may only be called in the synchronous prefix (before offload, on the data thread)**.
 
 What `VoiceSynthesisSnapshot` carries (all immutable values, cross-thread safe; when this later goes cross-process it is the serialized message body):
@@ -533,9 +532,10 @@ public sealed class VoiceSynthesisSnapshot
 
 public sealed class VoiceSynthesisNoteSnapshot   // bottomed out to value types, no live reference whatsoever
 {
+    string Id { get; }                                    // the note's run-time identity — the key of the SynthesizedPhonemes product map (§5.7)
     double StartTime { get; }  double EndTime { get; }    // global seconds. EndTime = effective end (after the host de-overlaps by clamping later-covers-earlier to the next note's start, a monophonic audio measure); the host owns phoneme layout exclusively and does not expose the full end
     int Pitch { get; }         string Lyric { get; }
-    IReadOnlyList<VoiceSynthesisPhonemeSnapshot> LeadingPhonemes { get; }  BodyPhonemes { get; }   // pinned phonemes as two structured lists (leading = onset consonants / body = nucleus + coda); both empty = not pinned. Element { Symbol; Duration; StretchWeight; Properties } (geometry flat), see §5.7. Phonemes = Leading ++ Body read-only view
+    IReadOnlyList<VoiceSynthesisPhonemeSnapshot> LeadingPhonemes { get; }  BodyPhonemes { get; }   // pinned phonemes as two structured lists (leading = onset consonants / body = nucleus + coda); both empty = not pinned. Element { Symbol; Duration; StretchWeight; Properties } (geometry flat), see §5.7. There is deliberately no merged Phonemes projection — concatenate the two lists yourself
     double BodyOffset { get; }   // signed offset of the body start (the junction between the two lists) relative to the note head: junction = noteStart + BodyOffset (left negative / right positive)
     PropertyObject Properties { get; }                    // per-note parameter value copy
 }
@@ -583,7 +583,7 @@ for (int c = 0; c < controlCount; c++)
 The phoneme descriptor is **direction-agnostic** — read-in (the user's pinned constraints) and output (synthesis products) both use the same `SynthesizedPhoneme`: it reports only "nominal duration + weight", and **not absolute position, not before/after attribution**. Leading / body attribution is a **structured pair of lists** (`LeadingPhonemes` / `BodyPhonemes`, membership *is* the classification — engine-declared, jitter-proof, cross-beat phonemes attributed explicitly, no alternating-flag illegal states); geometry is a single signed **`BodyOffset`** (the body start = the junction between the two lists, relative to the note head). Classification and geometry are orthogonal. Positioning / cross-note de-overlap compression / melisma layout are all derived by the **host** via the same duration model (an engine reporting already-compressed absolute positions would make the host misjudge the adjacency criterion, so report only natural durations and let the host own layout exclusively).
 
 ```csharp
-public struct SynthesizedPhoneme { public string Symbol; public double Duration; public double StretchWeight; }
+public readonly struct SynthesizedPhoneme { public string Symbol { get; init; }  public double Duration { get; init; }  public double StretchWeight { get; init; } }
 ```
 
 **Input (host → engine): `note.LeadingPhonemes` / `note.BodyPhonemes` (`IReadOnlyList<SynthesizedPhoneme>` each, per note) + `BodyOffset`**
@@ -605,7 +605,7 @@ public struct SynthesizedPhoneme { public string Symbol; public double Duration;
 - **Audio layout (drive frame timing with `Resolve` — you basically must use it)**: if you lay frames in per-phoneme duration order to feed the acoustic model, use the `[Start,End]` output of `Resolve` to size the frames — overlaps are compressed away and the total frame length no longer overflows the real window. **Here the choice of `FillEnd` directly shapes the audio**: for audio == host display (WYSIWYG), `FillEnd` must use **the same measure as the host** — your own effective end + melisma laid only over **continuation passengers** (notes for which your session's `IsContinuation(note)` returns true, see "Continuation and rest" below); **stop at your own end in the gap between truly-voiced notes (the gap is silence) — don't lay the vowel across the gap to the next voiced note**. Once `FillEnd` deviates from this measure (e.g. filling across a gap), the audio and display diverge, and this is **audible**, not "non-fatal".
 - **Display alignment (optional)**: if you do **not** drive audio with `Resolve` and only want the phoneme lines the host draws to line up with your free audio, call it for consistency; if you don't call it, place freely — this **display-only** misalignment is the "at most the phoneme lines misalign with the waveform, non-fatal" case. That escape hatch **holds only for display, not for audio**.
 
-Calling: materialize each note into a `PhonemeLayoutNote` (`FillStart` = the note head; `FillEnd` see above; `Phonemes` = that note's phonemes, ordered leading consonant → nucleus → trailing consonant), pass the whole segment to `Resolve`, and it returns an isomorphic jagged array `PhonemeTiming[][]` (`{ Start, End, Duration }`, destructurable as `var (s,e)=`) — `result[i][j]` = the real placement of `notes[i].Phonemes[j]`. `Resolve` holds for any contiguous note range; the host display passes a window, you pass the whole segment, same function. What's frozen is only the I/O shape; the compression body can evolve host-side, and since you bind that copy at runtime it doesn't drift.
+Calling: materialize each note into a `PhonemeLayoutNote` (`FillStart` = the note head; `FillEnd` see above; `LeadingPhonemes` / `BodyPhonemes` / `BodyOffset` = that note's phoneme geometry), pass the whole segment to `Resolve`, and it returns an isomorphic jagged array `PhonemeTiming[][]` (`{ Start, End, Duration }`, destructurable as `var (s,e)=`) — `result[i][j]` = the real placement of the j-th phoneme of note i in the concatenated order (`LeadingPhonemes` ++ `BodyPhonemes`). `Resolve` holds for any contiguous note range; the host display passes a window, you pass the whole segment, same function. What's frozen is only the I/O shape; the compression body can evolve host-side, and since you bind that copy at runtime it doesn't drift.
 
 **Pinning override**: `snapshot.Notes[i]`'s `LeadingPhonemes` / `BodyPhonemes` non-empty = that note is user-pinned, so when materializing `PhonemeLayoutNote` use its pinned two lists + `BodyOffset` rather than your G2P prediction; only use the prediction when both are empty. The snapshot's list elements are `VoiceSynthesisPhonemeSnapshot`, so rebuild the geometry fed to layout as `SynthesizedPhoneme` from `ph`'s fields (`{ Symbol = ph.Symbol, Duration = ph.Duration, StretchWeight = ph.StretchWeight }`), set `PhonemeLayoutNote.LeadingPhonemes` / `BodyPhonemes` / `BodyOffset` from `snapshot.Notes[i]`, and take per-phoneme properties from `ph.Properties` (see "Phoneme properties" in §5.2 and the end of §5.7).
 
@@ -616,14 +616,17 @@ Calling: materialize each note into a `PhonemeLayoutNote` (`FillStart` = the not
 **Output (engine → host, returned at synthesis time): a phoneme map keyed by attribution note**
 
 ```csharp
-IReadOnlyMap<IVoiceSynthesisNote, SynthesizedSyllable> SynthesizedPhonemes { get; }
-// SynthesizedSyllable = { IReadOnlyList<SynthesizedPhoneme> LeadingPhonemes; IReadOnlyList<SynthesizedPhoneme> BodyPhonemes; double BodyOffset; IReadOnlyList<SynthesizedPhoneme> Phonemes /* = Leading ++ Body view */ }
+IReadOnlyMap<string, SynthesizedSyllable> SynthesizedPhonemes { get; }   // key = the attribution note's Id
+// SynthesizedSyllable: a sealed class ctor'd as new SynthesizedSyllable(leadingPhonemes, bodyPhonemes, bodyOffset),
+// exposing { IReadOnlyList<SynthesizedPhoneme> LeadingPhonemes; IReadOnlyList<SynthesizedPhoneme> BodyPhonemes; double BodyOffset }
+// (no merged Phonemes projection — the flat order is the host's business). A class rather than a struct so a TryGetValue
+// miss yields null instead of a struct with two null lists.
 // Each attribution note → its leading / body phoneme lists (reporting only Symbol / Duration / StretchWeight, no absolute position) + BodyOffset (junction = noteStart + BodyOffset; 0 ⇒ body start exactly on the head, supports cross-beat phonemes)
 ```
 
 - **Keyed by attribution note** (rather than a flat timeline + an origin field): the phoneme descriptor reports no absolute position, an ownerless phoneme has no anchor to be positioned and can't fall into a note's invalidation chain, so **there is no "ownerless phoneme" contract** — `SynthesizedPhoneme` has no `Note` field, and attribution is entirely expressed by the map key. Boundary crossings like a consonant invading the previous note's tail arise naturally when the host derives positions by the duration model, without you declaring positions. (Breath etc. will later be carried by "the attribution note's leading / trailing phonemes" or a dedicated event channel.)
-- **How to fill the map key**: use the **live note list** (`origins`) you passed to `GetSnapshot`, retrieved by **snapshot index alignment** — the product of `snapshot.Notes[i]` is attributed to `origins[i]`, so add that note's set of phonemes to the map keyed by `origins[i]`. The key is used only as an identity token (attribution); **you must not read its properties during synthesis** (that is the live view, and on the worker thread it is a violation). **Key presence is the semantics** (three states, and the host displays by them): **key absent** = no answer yet (the block is dirty / mid-synthesis) — the host leaves it blank **and leaves adjacent neighbors blank too** (a neighbor's layout boundary depends on this note's phoneme geometry; laying it out before that is known would make it jump when the data arrives); **key present, syllable with zero phonemes** = the answer is "this note has no phonemes" (already computed; the note voices nothing, or its voicing is not attributed to itself) — the host leaves this note blank but **neighbors display normally**; **key present with phonemes** = the normal case. The two empty states are not interchangeable: using "zero phonemes" to mean "not computed yet" makes the adjacent notes disappear along with it.
-- **`StretchWeight` (stretch / compress weight)**: after the user locks phonemes, the host fixes the product to the pinned geometry (`note.Phonemes`'s `StretchWeight` comes from this), and thereafter display / synthesis de-overlap allocates by the **scale ratio `len/d = r^w`**: **the vowel (w>0) absorbs stretch exponentially**, **the consonant (w=0) is rigid and doesn't move** (compressed proportionally to nominal length only when the space is too tight even for the consonants). A typical syllable is `[lead consonant w0, vowel w1, trailing consonant w0]`. **With no phonological knowledge, just fill the same positive value everywhere (e.g. `w = 1`)** — all phonemes scale proportionally, a safe default; distinguishing consonant=0/vowel=1 is an optimization done only with phonological knowledge, and to make a vowel stretch more drastically give a larger `w` (e.g. `w=2` for a diphthong's main vowel). All `w` = 0 (including unset, the struct default of all zeros) degenerates to scaling the whole thing proportionally by nominal length, with no division by zero.
+- **How to fill the map key**: the key is the attribution note's **`Id`** — a plain string carried by both the live note (`IVoiceSynthesisNote.Id`) and its snapshot (`VoiceSynthesisNoteSnapshot.Id`), so the product of `snapshot.Notes[i]` is attributed with `snapshot.Notes[i].Id` and the worker never needs a live reference at all (the id is a value: it is safe to hold and compare across threads). **Key presence is the semantics** (three states, and the host displays by them): **key absent** = no answer yet (the block is dirty / mid-synthesis) — the host leaves it blank **and leaves adjacent neighbors blank too** (a neighbor's layout boundary depends on this note's phoneme geometry; laying it out before that is known would make it jump when the data arrives); **key present, syllable with zero phonemes** = the answer is "this note has no phonemes" (already computed; the note voices nothing, or its voicing is not attributed to itself) — the host leaves this note blank but **neighbors display normally**; **key present with phonemes** = the normal case. The two empty states are not interchangeable: using "zero phonemes" to mean "not computed yet" makes the adjacent notes disappear along with it.
+- **`StretchWeight` (stretch / compress weight)**: after the user locks phonemes, the host fixes the product to the pinned geometry (the `StretchWeight` in `note.LeadingPhonemes` / `note.BodyPhonemes` comes from this), and thereafter display / synthesis de-overlap allocates by the **scale ratio `len/d = r^w`**: **the vowel (w>0) absorbs stretch exponentially**, **the consonant (w=0) is rigid and doesn't move** (compressed proportionally to nominal length only when the space is too tight even for the consonants). A typical syllable is `[lead consonant w0, vowel w1, trailing consonant w0]`. **With no phonological knowledge, just fill the same positive value everywhere (e.g. `w = 1`)** — all phonemes scale proportionally, a safe default; distinguishing consonant=0/vowel=1 is an optimization done only with phonological knowledge, and to make a vowel stretch more drastically give a larger `w` (e.g. `w=2` for a diphthong's main vowel). All `w` = 0 (including unset, the struct default of all zeros) degenerates to scaling the whole thing proportionally by nominal length, with no division by zero.
 - **The nucleus duration is a base ratio, cancelled out when single**: a nucleus's (`StretchWeight>0`) `Duration` is its original length — with **multiple nuclei** it sets the base ratio between them (each multiplied by `r^w`); with a **single nucleus** the original length is cancelled out and it degenerates to filling the nucleus space, so whatever you report is the same. A consonant's (w=0) `Duration` is its fixed length. Leading / body attribution is the list membership (structural, not derived), and `BodyOffset` places the junction (leading accumulates leftward from it, body rightward). Therefore the output **needs no positioning by you** — just honestly report each phoneme's duration + weight, its list, and the note's `BodyOffset`, and the host derives positions uniformly — zero jumping.
 - **Preview is display-only, never fed back to you as a constraint**: the authoritative durations are returned by a full re-timing synthesis (with new weights), overriding the preview. You just honestly output the current durations + weights each synthesis.
 
@@ -636,6 +639,7 @@ public interface IAudioSegment : IDisposable   // Dispose() = delete this segmen
 {
     void Write(int offset, ReadOnlySpan<float> samples);  // write in place within the segment [offset, offset+len); the span is borrow-semantics, reusable after return
     void Commit();                                        // mark this segment's audio as fixed — the [only gate] to the effect
+    void Resize(long sampleOffset, int sampleCount);      // content-continuous extend/trim: identity preserved (downstream caches survive) — intersecting content stays aligned by absolute position, new regions are zeroed, and the segment drops to uncommitted until re-Commit()ed
 }
 ```
 
@@ -648,12 +652,12 @@ public interface IAudioSegment : IDisposable   // Dispose() = delete this segmen
 **The status band `SynthesisStatusSegment`** (returned by `Status`, used by the host to color/progress/report errors):
 
 ```csharp
-public struct SynthesisStatusSegment
+public readonly struct SynthesisStatusSegment
 {
-    public double StartTime; public double EndTime;       // seconds
-    public SynthesisSegmentStatus Status;                 // Pending / Synthesizing / Synthesized / Failed
-    public string? Message;                               // Failed = error message; Synthesizing = optional stage text (e.g. "computing phoneme durations"), shown by the host as-is
-    public double Progress;                               // [0,1] while Synthesizing, kept at 0 if not reported
+    public double StartTime { get; init; }  public double EndTime { get; init; }   // seconds
+    public SynthesisSegmentStatus Status { get; init; }    // Pending / Synthesizing / Synthesized / Failed
+    public string? Message { get; init; }                  // Failed = error message; Synthesizing = optional stage text (e.g. "computing phoneme durations"), shown by the host as-is
+    public double Progress { get; init; }                  // [0,1] while Synthesizing, kept at 0 if not reported
 }
 ```
 
@@ -706,7 +710,7 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 - **Loading native libraries**: place the native `.dll` in the **same directory** as your managed `.dll` (the package root), and default probing can usually P/Invoke straight to it. If you use a NuGet package with a native backend like ONNX Runtime, just let its native libs output to the package root; for cross-platform, provide the corresponding native libs per target platform and filter with `platforms` in the manifest (e.g. a voicebank shipped for Windows only).
 - **Don't stuff large model weights into the `.tlx`**: the `.tlx` is an install-and-load-immediately package, and stuffing a several-hundred-MB model into it makes install/load heavy. Two recommended forms:
   - **Resource-package separation**: the model is a standalone resource package (no code, `type` declares its purpose), discovered by the engine at runtime; or
-  - **Let the user configure the model path via extension settings**: the engine implements `IExtensionSettings`, exposes a "model directory" setting with `PathPickerConfig.CreateFolder()` (a path box with a browse button — use `CreateFile()` plus `.AppendFileType(...)` when it is an executable or a single file), the user picks the path in "Settings → Extensions", and you receive it in `ApplySettings` and load from that path in `Init`/`CreateSession` (see §8). Secrets like API keys use `TextBoxConfig { IsPassword = true }`, which the host masks and stores securely.
+  - **Let the user configure the model path via extension settings**: the engine implements `IExtensionSettings`, exposes a "model directory" setting with `PathPickerConfig.CreateFolder()` (a path box with a browse button — use `CreateFile()` plus `.AppendFileType(...)` when it is an executable or a single file), the user picks the path in "Settings → Extensions", and you receive it in `ApplySettings` and load from that path in `Init`/`CreateSession` (see §8). Secrets like API keys use `TextBoxConfig.Create().WithPassword()`, which the host masks and stores securely.
 - **Load in `Init`, throw on failure**: put model/dictionary loading in `Init` (or lazier, on the first `CreateSession`). On load failure just throw an exception; the host catches at the call boundary, marks the plugin as failed to load, and reflects the reason in the sidebar, without crashing the host.
 
 ### 5.11 Interface responsibility quick reference
@@ -724,8 +728,8 @@ A voice engine often depends on a native runtime (ONNX Runtime, etc.), model wei
 | `IVoiceSynthesisSession.DefaultLyric` | data thread | default lyric for a new note (a session-level runtime value) |
 | `GetNextPendingSynthesisRange` | data thread | peek the next dirty block boundary (no side effects, deterministic) |
 | `SynthesizeNext` | synchronous prefix = data thread; then worker | pull snapshot → offload render → publish back on the data thread |
-| `GetSnapshot` | **synchronous prefix only** | materialize an immutable snapshot (pin notes + window) |
-| `CreateAudioSegment` / `IAudioSegment.Write/Commit` | data thread | request and write an audio segment; Commit is the gate to the effect |
+| `GetSnapshot` | **synchronous prefix only** | materialize an immutable snapshot (you pin the notes; automation/pitch are frozen in full, no window) |
+| `CreateAudioSegment` / `IAudioSegment.Write/Commit/Resize` | data thread | request and write an audio segment; Commit is the gate to the effect; Resize extends/trims it keeping its identity |
 | `SynthesizedPitch/Parameters/Phonemes`, `Status` | published on the data thread, readable cross-thread | products; publication = immutable |
 | `StatusChanged` | fired from any thread, host marshals | the only refresh signal |
 | `Dispose` | data thread | unsubscribe, release models and segment handles |
@@ -746,14 +750,15 @@ using TuneLab.SDK;
 
 public class MyEffectEngine : IEffectSynthesisEngine   // engine id is declared in the manifest's "engine"
 {
-    // Property panel / automation tracks / synthesized parameter tracks: all pure functions of the current parameter values (context.Properties) — the host recomputes on parameter commit
+    // Property panel / automation tracks / synthesized parameter tracks: all pure functions of the current parameter values
+    // (context.Effects — one read-only view per selected effect instance, each with Properties / Automations) — the host recomputes on parameter commit
     // and diffs to the UI, so controls/tracks may show/hide with parameters (conditional declaration). A static one ignores context and returns fixed values (as below).
     public ObjectConfig GetPropertyConfig(IEffectSynthesisPropertyContext context) => mPropertyConfig;
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mAutomationConfigs;
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IEffectSynthesisPropertyContext context) => mAutomationConfigs;
 
     // Synthesized-parameter synthesized parameter track declarations (read-only, independent of editable automation tracks): the read-only curves the processing produces (e.g. loudness) are exposed as first-class read-only tracks,
-    // piecewise (DefaultValue=NaN), with their own DisplayText/Min/Max/Color. An engine with no synthesized parameters returns an empty map.
-    public IReadOnlyOrderedMap<string, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mSynthesizedParameterConfigs;
+    // piecewise (DefaultValue=NaN), with their own Min/Max/Color (the display name rides on the PropertyKey). An engine with no synthesized parameters returns an empty map.
+    public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IEffectSynthesisPropertyContext context) => mSynthesizedParameterConfigs;
 
     // Parameterless: the package directory is self-located via Assembly.Location (no host-passed path). On failure just throw; the host catches at the call boundary → passthrough degradation.
     public void Init() { /* ... load the model ... */ }
@@ -762,13 +767,10 @@ public class MyEffectEngine : IEffectSynthesisEngine   // engine id is declared 
     // One persistent thick processor per "effect instance × one upstream audio segment"; the context is host-implemented, exposing this segment's input + parameters/automation + output ports + closure event.
     public IEffectSynthesisSession CreateSession(IEffectSynthesisContext context) => new MyEffectProcessor(context);
 
-    readonly ObjectConfig mPropertyConfig = new()
+    readonly ObjectConfig mPropertyConfig = ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>
     {
-        Properties = new OrderedMap<string, IControllerConfig>
-        {
-            { "amount", SliderConfig.Linear(1.0, 0.0, 2.0) },
-        },
-    };
+        { ("amount", "Amount"), SliderConfig.Linear(1.0, 0.0, 2.0) },
+    });
     readonly OrderedMap<PropertyKey, AutomationConfig> mAutomationConfigs = new();
     readonly OrderedMap<PropertyKey, AutomationConfig> mSynthesizedParameterConfigs = new()
     {
@@ -786,7 +788,7 @@ class MyEffectProcessor : IEffectSynthesisSession
     {
         mContext = context;
         // Optional cache-refresh hints (scheduling is the host's job; the simplest engine subscribes to nothing):
-        mContext.Input.Committed.Subscribe(OnDirty);          // upstream audio re-committed
+        mContext.Input.RangeModified.Subscribe(OnInputRangeModified);   // upstream content-change ledger (absolute sample positions)
         mContext.Properties.Modified.Subscribe(OnDirty);      // this effect's parameters changed
     }
 
@@ -813,14 +815,20 @@ class MyEffectProcessor : IEffectSynthesisSession
         input.Read(0, src);                            // copy-out into your own buffer (range reads are fine too)
         double amount = mContext.Properties.GetValue("amount", PropertyValue.Create(1.0)).ToDouble(out var a) ? a : 1.0;
 
-        // Automation (optional): sample values at sample time points, query axis = global seconds (same time system as audio).
+        // Automation (optional): the live ISynthesisAutomation only reports RangeModified — values come from a frozen
+        // snapshot, so pull one in the prefix and sample its evaluator. Query axis = global seconds (same time system as audio).
         double[]? env = null;
-        if (mContext.Automations.TryGetValue("intensity", out var automation) && count > 0)
+        if (count > 0)
         {
             double segStart = rate > 0 ? (double)offset / rate : 0;
-            var times = new double[count];
-            for (int i = 0; i < count; i++) times[i] = segStart + (double)i / rate;
-            env = automation.Evaluate(times);
+            double segEnd = rate > 0 ? (double)(offset + count) / rate : 0;
+            var snapshot = mContext.GetSnapshot(segStart, segEnd);   // EffectSynthesisSnapshot { Properties; Automations }
+            if (snapshot.Automations.TryGetValue("intensity", out var automation))
+            {
+                var times = new double[count];
+                for (int i = 0; i < count; i++) times[i] = segStart + (double)i / rate;
+                env = automation.Evaluator.Evaluate(times);   // Span overload available to avoid the array allocation
+            }
         }
 
         // —— After this you may offload to a worker (only reading the immutable values materialized above, never touching host live data) ——
@@ -838,10 +846,11 @@ class MyEffectProcessor : IEffectSynthesisSession
     }
 
     void OnDirty() => mDirty = true;   // consumed inside Process to decide what to recompute (cache refinement only)
+    void OnInputRangeModified(long start, int count) => mDirty = true;   // narrow the recompute window from the ledger if you keep caches
 
     public void Dispose()
     {
-        mContext.Input.Committed.Unsubscribe(OnDirty);
+        mContext.Input.RangeModified.Unsubscribe(OnInputRangeModified);
         mContext.Properties.Modified.Unsubscribe(OnDirty);
         /* release this segment's resident state, output segment handles */
     }
@@ -856,11 +865,12 @@ class MyEffectProcessor : IEffectSynthesisSession
 Key points:
 
 - **Thick session, host-owned invalidation**: `CreateSession(context)` builds a **session** for "this effect × this upstream segment" (the same family of persistent stateful entity as a voice session -- holds live views, keeps caches across `Process` calls, publishes claims and synthesized parameters; the scope difference is expressed by the context binding); the host `Dispose`s it on segment destruction / effect deletion / re-segmentation / sample-rate change. The host schedules conservatively on scoped signals (it performs the automation-range/segment intersection generically — an edit in another segment's interval never wakes this node); parameter-dependency and value-level dedup are the engine's optional early-out inside `Process` (return without re-committing → downstream skipped).
+- **Parameter and automation values come from a frozen snapshot**: `context.GetSnapshot(startTime, endTime)` returns an `EffectSynthesisSnapshot` (`Properties` value copy + `Automations` as frozen `SynthesisAutomationSnapshot`s) — callable **only in the synchronous prefix**, and the only cross-thread-safe way to read values after offload. Audio is not in it: copy that out yourself with `Input.Read`.
 - **The input is an indivisible whole segment**: `context.Input` (`IEffectSynthesisAudio`) exposes `SampleOffset/Count/Rate` + `Read(offset, span)` (copy-out; the host storage layout is an implementation detail). There is no "committed" pulse -- being called into `Process` means the input is ready (scheduling is the host's job). `Input.RangeModified(start, count)` is the content-change **ledger** (optional; `start` is an **absolute sample position** -- content is pinned to the absolute axis, so ranges accumulated before an upstream `Resize` need no rebasing): cache-savvy engines accumulate ranges, narrow the recompute window from the ledger (`Read`/recompute/write back only the changed region -- O(changed) work; see the Slow Gain reference implementation for the full pattern), and clear the ledger only after a successful commit of their own output (cancellation refunds it). The ledger is **complete and faithful to trims**: an upstream `Resize` reports its geometric symmetric difference (a trimmed-away region went "from something to nothing" on the absolute axis, and it was context feeding the neighboring output), so ranges may lie outside the current extent; **the recompute scope is the session's own decision** -- after collecting the ledger, expand by your own context margin (so new content joins up with old) and intersect with the extent; a pointwise engine decides zero (just `Resize` its output to follow and commit empty). Only a genuinely change-free commit is silent; whole-segment reports appear only on forced invalidation (first snapshot / project sample-rate change).
 - **Output via handles, registry semantics**: `context.CreateAudioSegment(offset, count, rate)` — segmentation of the product is free (**1-to-N is legal**: e.g. a silence **splitter** that re-establishes segment granularity so every downstream effect gets per-segment incrementality and parallelism for free); each output segment lives independently and each committed one feeds a downstream node. The input side stays single-segment (the consumption unit is the host's invalidation/scheduling/identity granularity). The only hard rule: **do not redistribute the time axis** (automation/synthesized parameters and the part display share the global-seconds axis); slight geometry differences (frame padding, added tails) are fine. The sample rate travels with the segment (when it differs from the project rate the host wraps a resample). **Geometry changes carry two distinct intents**: a semantic overhaul goes through `Dispose`+`Create` (downstream identity rebuilds); a content-continuous extension/trim goes through **`Resize(offset, count)`** (identity preserved, downstream caches survive -- intersecting content is kept aligned by absolute position, new regions are zeroed, the segment drops to uncommitted and is re-`Commit`ted after the new regions are written).
 - **Status claims (optional)**: publish a status timeline via `Status` (immutable list swap) and fire `StatusChanged` (any thread) -- a Synthesizing segment with `Progress` renders as a vertical fill on the strip; Synthesized segments are "claimed done" (soft, non-final). An engine that reports nothing gets a host default derived from scheduling facts.
 - **Synthesized parameter tracks (optional)**: the read-only curves the engine produces are declared via `GetSynthesizedParameterConfigs` + carried per-segment via `IEffectSynthesisSession.SynthesizedParameters` (the host stitches the segments of the same effect by key). Read-only, non-editable, not in the data layer, not serialized; isomorphic to voice synthesized parameters, shown/hidden by source in the parameter-area title bar.
-- **Conditional declaration**: `GetPropertyConfig` / `GetAutomationConfigs` / `GetSynthesizedParameterConfigs` are pure functions of the current parameter values (same input → same output, no side effects, lightweight), recomputed on parameter commit — so controls/tracks may show/hide with parameters. After a track disappears from the declaration the host **keeps its already-drawn curve** (hidden, not deleted), restored as-is when the parameter rolls back.
+- **Conditional declaration**: `GetPropertyConfig` / `GetAutomationConfigs` / `GetSynthesizedParameterConfigs` are pure functions of the current parameter values — `IEffectSynthesisPropertyContext` is just `IReadOnlyList<IEffectSynthesisView> Effects` (a multi-select shell: one view per selected instance, each carrying `Properties` and the evaluators of its drawn `Automations`; merge tri-state values yourself) — (same input → same output, no side effects, lightweight), recomputed on parameter commit — so controls/tracks may show/hide with parameters. After a track disappears from the declaration the host **keeps its already-drawn curve** (hidden, not deleted), restored as-is when the parameter rolls back.
 - **Effect chain**: multiple effects may hang on one MidiPart, **serial** in declaration order — the previous output is the next input; at the chain tail the segments are mixed by absolute time. Chain order, bypass, and add/remove are managed by the user in the property panel.
 - **Graceful degradation / cancellation on failure**: when an exception is thrown the host treats that segment as passthrough, without interrupting playback; cancellation is requested via `cancellation` and returns normally (**do not** throw `OperationCanceledException`), and the scheduling slot is released only when the `await` actually returns.
 - **Thread discipline**: the `context` (`Input` / `Properties` / automation) may be read only in the **synchronous prefix** (data thread) of `Process`; after offload read only the materialized immutable values; `SynthesizedParameters` and the output segment must be published on the data thread.
@@ -874,7 +884,7 @@ The related interfaces are all in `TuneLab.SDK`: `IEffectSynthesisEngine` / `IEf
 An instrument is a **polyphonic sound source** (synth / sampler / chord source). It is **mechanically isomorphic to voice** (engine lifecycle, peek/commit scheduling, isolated snapshot, audio-segment delivery, effect chain, extension settings are all the same), with the interface family paralleled by the `IInstrument*` prefix, not inheriting from the voice family. **It differs substantially from voice in only three places**:
 
 - **Notes go to full end, no de-overlap**: `IInstrumentSynthesisNote.EndTime` / `InstrumentSynthesisNoteSnapshot.EndTime` is the note's full end (`Pos+Dur`), and the host does **not** clamp it to the next note's start. `Notes` passes through the original overlappable notes (chords / polyphony), and the engine superimposes voicing itself (the reference implementation adds one waveform segment per note's pitch and mixes by sum).
-- **No lyrics / no phonemes**: `IInstrumentSynthesisNote` has no `Lyric` / `Phonemes`; the session has no `DefaultLyric` and produces no `SynthesizedPhonemes`.
+- **No lyrics / no phonemes**: `IInstrumentSynthesisNote` has no `Lyric`, and no phoneme surface at all (no `LeadingPhonemes` / `BodyPhonemes` / `BodyOffset`); the session has no `DefaultLyric` and produces no `SynthesizedPhonemes`.
 - **No pitch curve, product is audio only**: `IInstrumentSynthesisContext` has no `Pitch` / `PitchDeviation` (v1 voices purely by the note's integer `Pitch`); the session produces no `SynthesizedPitch`. It may still declare automation tracks and `SynthesizedParameters` synthesized parameters (none if the engine declares none).
 
 Manifest entry: `{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "class": "My.Ns.MyInstrumentEngine", "assembly": "MyInstrument.dll" }`.
@@ -924,7 +934,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
         mModelPath = settings.GetString("model_path", "");
         mApiKey    = settings.GetString("api_key", "");
         mUseGpu    = settings.GetBoolean("use_gpu", false);
-        // Then use these values in Init / CreateSession / CreateSession.
+        // Then use these values in Init / CreateSession.
     }
 
     // The rest of IVoiceSynthesisEngine's members……
@@ -933,7 +943,7 @@ public sealed class MyVoiceEngine : IVoiceSynthesisEngine, IExtensionSettings
 
 ### 8.2 Key points
 
-- **Secret fields**: mark them with `TextBoxConfig { IsPassword = true }`. The host masks the display accordingly and stores securely per platform: Windows uses DPAPI to store the ciphertext in place in the config file (decryptable only by the original user on the original machine); macOS stores it in the Keychain, leaving only an empty string in the config file. **When no secure storage is available, it does not save that secret field (never in plaintext) and warns**. Officially supported on Windows / macOS.
+- **Secret fields**: mark them with `TextBoxConfig.Create().WithPassword()`. The host masks the display accordingly and stores securely per platform: Windows uses DPAPI to store the ciphertext in place in the config file (decryptable only by the original user on the original machine); macOS stores it in the Keychain, leaving only an empty string in the config file. **When no secure storage is available, it does not save that secret field (never in plaintext) and warns**. Officially supported on Windows / macOS.
 - **The schema must be reachable before Init**: `GetSettingsConfig` must not depend on state that only exists after `Init` — the user must first fill the settings panel (e.g. the model path) before you `Init`. Write it as a pure function (same input → same output, no side effects, lightweight).
 - **Dynamic/conditional items**: `GetSettingsConfig(context)` is a pure function of `context.Settings` (the currently-filled values); after the user changes a value the host recomputes by the current values and diffs to the control tree, so it can show/hide fields based on the filled values (e.g. a field that appears only when some switch is on).
 - **Feedback timing**: the host feeds it once after loading all extensions at startup (before `Init`), and again after the user saves the settings. Whether a setting change affects **already-running** sessions/processors (whether they need rebuilding) is decided and handled by you.
