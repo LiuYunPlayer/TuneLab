@@ -15,6 +15,7 @@ namespace TuneLab.Tests;
 // 定位（哪个 part）、校验（名字合法性）、闸门措辞（用户凭它决定放不放行）、渲染（人与模型读到的话）。
 // "真的存下来 / 真的应用上去"由真实例实测覆盖——那条链路的关键不是这几个分支，而是与侧栏共用
 // 同一份 PartPresets（应用语义细到默认值算不算声音，两条路分叉就是同一条 preset 出两种声音）。
+[Collection("DataThreadProject")]   // 见 FinalPronunciationTests 的 CollectionDefinition
 public class PresetCommandsTests
 {
     static PresetCommandsTests()

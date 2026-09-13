@@ -15,6 +15,7 @@ namespace TuneLab.Tests;
 //
 // 不经 UI：直接建 Project + ScriptRunner.Run。故这里刻意只覆盖【不需要音源引擎 / 不需要合成产物】的面
 // （音素与自动化轨依赖音源声明，留给 tests/SCRIPT-API-SYMMETRY-TEST-CASES.md 的人工用例）。
+[Collection("DataThreadProject")]   // 见 FinalPronunciationTests 的 CollectionDefinition
 public class ScriptApiSurfaceTests
 {
     // 建 MidiPart 就会构造 SoundSource，而它要向 VoicesManager 求声明 config —— 那条路以「空引擎」兜底

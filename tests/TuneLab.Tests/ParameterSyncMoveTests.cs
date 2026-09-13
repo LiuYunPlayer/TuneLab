@@ -12,6 +12,7 @@ namespace TuneLab.Tests;
 // 参数同步模式（Settings.ParameterSyncMode）下移动音符时的参数搬运（ParameterSyncMove）。
 // 判据是【来处清空 + 落点得到平移后的曲线】两条同时成立：曾只清落点、来处的音高线原地留着不动，
 // 观感就是这个模式"没生效"（用户报的就是这个）——单看落点有曲线是查不出来的，故两条都断言。
+[Collection("DataThreadProject")]   // 见 FinalPronunciationTests 的 CollectionDefinition
 public class ParameterSyncMoveTests
 {
     static ParameterSyncMoveTests()

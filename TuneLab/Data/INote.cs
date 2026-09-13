@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using TuneLab.Configs;
 using TuneLab.Foundation;
 using TuneLab.Utils;
 using TuneLab.SDK;
@@ -819,13 +821,24 @@ internal static class INoteExtension
         return globalIndex < lc ? (note.LeadingPhonemes, globalIndex) : (note.BodyPhonemes, globalIndex - lc);
     }
 
-    // 发音覆盖口径（喂引擎 / note 上的发音显示共用）= **只看数据**：非空 Pronunciation 是显式写下的覆盖
-    // （用户手选，或 AutoGeneratePronunciation 开启时录入歌词那一刻编辑器 G2P 填的），null = 无覆盖
-    // → 歌词原文直达引擎，由引擎按自身音系 G2P（方言等非拼音音系的前提）。
-    // 刻意不再拿 note.Pronunciations（编辑器拼音候选表）首项兜底：那是读取期的第二层猜测，会让编辑器
-    // G2P 关掉后依然喂出拼音，且使"工程里存的空发音"与"猜一个拼音"无从区分。
+    // 发音覆盖口径（喂引擎 / note 上的发音显示共用）：非空 Pronunciation 是显式写下的覆盖（用户手选，
+    // 或录入歌词那一刻编辑器 G2P 填的），恒优先。空发音则看 AutoGeneratePronunciation ——
+    // 该开关是**编辑器层 G2P 的总闸**，不只管录入那一刻：
+    //   · 开（默认）→ 用 note.Pronunciations（编辑器拼音候选表）首项兜底，等价于"编辑器负责 G2P"；
+    //   · 关         → null = 无覆盖，歌词原文直达引擎，由引擎按自身音系 G2P（方言等非拼音音系的前提）。
+    //
+    // 兜底这条**不是**录入期判据的重复，而是唯一能覆盖「歌词没走过 Lyric.Set」的那类 note 的地方：
+    // 导入（format 插件 → NoteInfo.Pronunciation 默认空串）与存量工程里的 note 从未经过录入期挂闸，
+    // 它们的空发音只意味着"没人填过"，不意味着"用户要引擎自己 G2P"。少了兜底，汉字歌词会原样喂给
+    // 只认拼音的中文引擎，音素整片退成引擎的默认音素。
+    //
+    // 因此本口径进了**喂引擎的输入**（见 VoiceSynthesisContext 的 note.Lyric 派生属性），改开关等于
+    // 所有 note 的歌词变了 → MidiPart 在开关变化时整体重建会话（与换声源同量级，见 MidiPart.Activate）。
     public static string? FinalPronunciation(this INote note)
     {
-        return string.IsNullOrEmpty(note.Pronunciation.Value) ? null : note.Pronunciation.Value;
+        if (!string.IsNullOrEmpty(note.Pronunciation.Value))
+            return note.Pronunciation.Value;
+
+        return Settings.AutoGeneratePronunciation.Value ? note.Pronunciations.FirstOrDefault() : null;
     }
 }

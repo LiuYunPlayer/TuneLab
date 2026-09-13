@@ -134,12 +134,17 @@ internal static class SettingsRegistry
         "Parameter Boundary Extension (tick)", SliderConfig.Integer(D.ParameterBoundaryExtension, 1, 60), D.ParameterBoundaryExtension);
     public static readonly SettingItem<bool> ParameterSyncMode = Bool("ParameterSyncMode", SettingTab.Editing,
         "Parameter Sync Mode", CheckBoxConfig.Create(D.ParameterSyncMode), D.ParameterSyncMode);
-    // 编辑器层 G2P 的总闸（只作用于**录入歌词那一刻**的写入，不参与读取——见 Note.DataLyric.Set）。
+    // 编辑器层 G2P 的总闸，管两处：录入歌词那一刻的写入（Note.DataLyric.Set），以及空发音喂引擎时
+    // 的兜底（INote.FinalPronunciation）。后者是唯一覆盖「歌词没走过 Lyric.Set」那类 note 的地方
+    // ——导入进来的、以及存量工程里的 note，其空发音只意味着没人填过。因为它进了喂引擎的输入，
+    // 改这个开关会让所有已激活 part 整体重建合成会话（见 MidiPart.Activate）。
     public static readonly SettingItem<bool> AutoGeneratePronunciation = Bool("AutoGeneratePronunciation", SettingTab.Editing,
         "Auto Generate Pronunciation", CheckBoxConfig.Create(D.AutoGeneratePronunciation), D.AutoGeneratePronunciation,
-        description: "When entering lyrics, let the editor run G2P (Han characters to pinyin, kana to romaji) and fill the note's pronunciation field. " +
-            "Turn it off to send the lyric text itself to the voice engine, so the engine can do its own G2P (required for dialects and other non-pinyin phonologies). " +
-            "It only affects lyrics entered from then on; pronunciations already stored in the project are kept either way.");
+        description: "Let the editor run G2P (Han characters to pinyin, kana to romaji): it fills the pronunciation field when lyrics are entered, " +
+            "and supplies the pronunciation for notes whose pronunciation field is empty (imported projects, for example). " +
+            "Turn it off to send the lyric text itself to the voice engine, so the engine can do its own G2P (required for dialects and other non-pinyin phonologies) " +
+            "— note that engines which only accept pinyin will fall back to their default phoneme on Han characters. " +
+            "A pronunciation explicitly stored on a note always wins, either way; changing this resynthesizes every part.");
 
     // 命令桥：让本机的外部进程（CLI / MCP server）驱动这个 TuneLab。默认关。
     // 【agent 不可写】——不能让 agent 自己打开自己的远程通道；这是与授权档位同一类的防自我提权。

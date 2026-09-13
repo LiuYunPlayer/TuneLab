@@ -20,6 +20,7 @@ namespace TuneLab.Tests;
 //
 // 【不跑合成、不写盘】渲染要真引擎与真编码器，那是实机的事；这里只测判据与措辞，故所有用例要么在
 // 落地之前就返回，要么直接对着 Render 喂数据。
+[Collection("DataThreadProject")]   // 见 FinalPronunciationTests 的 CollectionDefinition
 public class ProjectExportAudioCommandTests
 {
     static ProjectExportAudioCommandTests()

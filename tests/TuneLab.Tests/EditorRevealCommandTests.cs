@@ -18,6 +18,7 @@ namespace TuneLab.Tests;
 //
 // 【不起窗口】轴的算术在 TuneLab.GUI 的 AnimateReveal 里，这里用替身把"哪几条轴被要求挪、挪到哪"
 // 记下来：命令负责的是解析定位、决定动哪条轴、以及如实回报。
+[Collection("DataThreadProject")]   // 见 FinalPronunciationTests 的 CollectionDefinition
 public class EditorRevealCommandTests
 {
     static EditorRevealCommandTests()

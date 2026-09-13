@@ -17,6 +17,7 @@ namespace TuneLab.Tests;
 //  · Data 的字段名与 1-based 编号——CI 与 --json 的消费者按它写断言，改了就是破坏性变更；
 //  · Render 的措辞【逐字】——搬家的验收标准是"内置 agent 行为不变"，措辞就是那个行为的可见部分。
 //    肉眼比对靠不住，故固定在这里。
+[Collection("DataThreadProject")]   // 见 FinalPronunciationTests 的 CollectionDefinition
 public class ProjectStatusCommandTests
 {
     // 内建空音源引擎（建 MidiPart 需要它兜底）。走共享 helper 而非直接 LoadBuiltIn：并发调用不安全，

@@ -65,6 +65,7 @@ internal class MidiPart : Part, IMidiPart
     public MidiPart(ITrack track, MidiPartInfo info) : base(track)
     {
         mOnTimebaseModified = OnTimebaseModified;
+        mOnPronunciationPolicyModified = OnPronunciationPolicyModified;
         Name = new(this, string.Empty);
         Pos = new(this);
         StartOffset = new(this);
@@ -605,10 +606,15 @@ internal class MidiPart : Part, IMidiPart
         // 并顺带失效延音判定缓存（秒轴是判定的契约合法输入域）。tempo 属工程级对象、寿命长于 part，
         // 订阅挂激活生命周期。
         TempoManager.Modified.Subscribe(mOnTimebaseModified);
+        // 编辑器 G2P 开关同理：它是喂引擎那个 lyric 的一部分（空发音时的兜底，见 INote.FinalPronunciation），
+        // 改它等于全部 note 的歌词同时变了——与换声源同量级，故整体重建而非逐 note 标脏。设置对象是
+        // 进程级、寿命远长于 part，订阅同挂激活生命周期。
+        Settings.AutoGeneratePronunciation.Modified.Subscribe(mOnPronunciationPolicyModified);
     }
 
     public override void Deactivate()
     {
+        Settings.AutoGeneratePronunciation.Modified.Unsubscribe(mOnPronunciationPolicyModified);
         TempoManager.Modified.Unsubscribe(mOnTimebaseModified);
         DisposeSynthesisPipeline();
     }
@@ -647,6 +653,14 @@ internal class MidiPart : Part, IMidiPart
     }
 
     void OnVoiceModified()
+    {
+        if (mPipeline != null)
+            RebuildSynthesisPipeline();
+    }
+
+    // 编辑器 G2P 开关变更 → 整体重建会话（喂引擎的 lyric 随之变，见 Activate 处的订阅说明）。
+    // 走与换声源同一条重建路径：钉死音素是用户数据、不受影响，被清的只有合成产物（SynthesizedSyllable）。
+    void OnPronunciationPolicyModified()
     {
         if (mPipeline != null)
             RebuildSynthesisPipeline();
@@ -944,6 +958,7 @@ internal class MidiPart : Part, IMidiPart
     readonly Dictionary<INote, bool> mContinuation = new();
     // 时基变更钩的稳定句柄（tempo 订阅/退订须同一实例，见 Activate/Deactivate；Pos 订阅共用）。
     readonly Action mOnTimebaseModified;
+    readonly Action mOnPronunciationPolicyModified;
     // 时基重建挂起位（调度轮内合并多次触发为一次重建，见 OnTimebaseModified）。
     bool mTimebaseRebuildPending;
 
