@@ -1,0 +1,9 @@
+{
+  "id": "com.tunelab.test.scriptedunknown",
+  "name": "V1 Scripted Unknown Type",
+  "version": "1.0.0",
+  "description": "未知 type + runtime 声明 → 预期 Skipped: unsupported extension type(声明了代码即非资源包，不静默吞)。",
+  "type": "sfx-scripted",
+  "runtime": "node>=18",
+  "entry": "main.js"
+}

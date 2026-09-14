@@ -1,6 +1,7 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿待评审**。基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
+> 状态：**定稿；M0 已落地**（manifest 脚本字段、`WireProtocol` 门、`RuntimeLocator` 四级探测+核验、
+> `ScriptedEntryGate`、runtime 资源包工具链、31 项单测）。基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
 
@@ -318,10 +319,13 @@ effect 同族：`effect.create_session {context绑定: 输入段几何+参数快
 
 ### 8.2 真跑核验（每一格都要过）
 
-候选以固定参数起进程一次，读版本+架构（`sys.version`/`platform.machine()`；`process.arch`；
+候选以固定参数起进程一次，读版本与 flavor（`sys.version`/`platform.machine()`；`process.arch`；
 `_VERSION` + `jit` 全局），超时 2s；结果按 `(exe路径, mtime)` 缓存。**防 spoof 硬要求**：
 Windows `WindowsApps\python.exe` 商店跳转桩、nvm/fnm shim——跑不过核验即换下一候选。
-版本/arch 不满足条目区间 ⇒ `Skipped: requires python>=3.10, found 3.8`（人话，同 `sdk-version` 门文案风格）。
+**版本**不满足条目 `runtime` 区间 ⇒ `Skipped: requires python>=3.10, found 3.8`（人话，同 `sdk-version` 门文案风格）。
+**arch 只记录、不作门禁**（实现定案）：跨进程子进程可借 OS 模拟层跑异架构（win-arm64 跑 x64 python、
+Rosetta 跑 x64 node），拒载反而挡死了合法组合；架构承诺由作者侧 `platforms` 字段声明、宿主 platforms 门执行。
+探测轨迹（每级候选 + 被拒原因 + 最终接受者）随成功/失败都回填，进侧栏 tooltip。
 
 ### 8.3 flavor 语义
 

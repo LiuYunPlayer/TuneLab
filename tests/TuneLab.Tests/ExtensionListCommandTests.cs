@@ -12,6 +12,8 @@ namespace TuneLab.Tests;
 // 这份清单的价值几乎全在那些【否定性事实】上：装了但被关掉、加载了但被别的包顶替、有摘要但那是
 // 转述不是作者原话。它们一旦被"顺手统一"掉，调用方就会理直气壮地向用户保证一个本次运行根本不存在
 // 的能力，故逐条钉住。
+// 读进程级静态表 ExtensionManager.LoadResults，与写它的 ScriptedLoadPipelineTests 串行（同 ActionRegistry 范式）。
+[Collection("ExtensionLoadResults")]
 public class ExtensionListCommandTests
 {
     static readonly ExtensionListCommand Command = new();

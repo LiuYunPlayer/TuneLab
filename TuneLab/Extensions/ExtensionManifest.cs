@@ -29,6 +29,21 @@ internal class ExtensionManifest : ExtensionInfo
     [JsonPropertyName("sdk-version")]
     public string? sdkVersion { get; set; }
 
+    // —— 脚本条目（sidecar；docs/scripted-plugin-sidecar-design.md）——
+    // wire 协议版本（独立于 sdk-version 的第三轴，§1.2）。高于宿主 WireProtocol.Version ⇒ 握手前
+    // Skipped（与 sdk-version 门同款语义）。缺省 = 本宿主最新轴，向后兼容（既有包不可能声明不存在的轴）。
+    [JsonPropertyName("protocol-version")]
+    public int? protocolVersion { get; set; }
+
+    // —— type:"runtime" 资源包（§8.4）：解释器分发单元 ——
+    // 零代码（无 assembly/class/runtime/entry），宿主只登记；RuntimeLocator 扫描消费。
+    // 老宿主对未知 type 一律当资源包，天然向后兼容。
+    public string? flavor { get; set; }
+
+    // runtime 包的精确解释器版本（如 "3.12.7"）。与基类 version（包自身发布版本）是两根轴，勿混。
+    [JsonPropertyName("runtime-version")]
+    public string? runtimeVersion { get; set; }
+
     public ExtensionInfo[] extensions { get; set; } = [];
 
     // 缺当前语言或缺字段则回退基础 description。

@@ -1,0 +1,11 @@
+{
+  "id": "com.tunelab.test.scriptedproto",
+  "name": "V1 Scripted Protocol Too High",
+  "version": "1.0.0",
+  "description": "protocol-version 高于宿主(1) → 预期包级 Skipped: Requires extension protocol 99, host provides 1（条目循前置，runtime 探测根本不跑）。",
+  "protocol-version": 99,
+  "type": "format",
+  "suffixes": ["tlproto"],
+  "runtime": "python>=3.10",
+  "entry": "plugin/main.py"
+}

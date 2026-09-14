@@ -17,6 +17,7 @@ using TuneLab.Extensions.Voices;
 using TuneLab.Extensions.Instruments;
 using TuneLab.Extensions.Effect;
 using TuneLab.Extensions.Agent;
+using TuneLab.Extensions.Scripted;
 namespace TuneLab.Extensions;
 
 // 扩展统一加载管线：发现 → 读 manifest 判代际 → 校验 → V1 per-folder ALC 加载 / Legacy fallback → 实例化。
@@ -191,6 +192,27 @@ internal static class ExtensionManager
             }
         }
 
+        // ── 校验：wire 协议兼容门（脚本 sidecar 专用第三轴，见 scripted-plugin-sidecar-design.md §1.2）。
+        // 资源包/纯 .NET 包不写此字段，零影响；写了就必须落在宿主支持面内——高于即握手前拒，
+        // 与 sdk-version 门同款语义（"用了新协议 × 老宿主"是唯一合法不兼容方向）。──
+        if (description.protocolVersion.HasValue)
+        {
+            if (description.protocolVersion.Value < 1)
+            {
+                result.Status = ExtensionLoadStatus.Failed;
+                result.Error = string.Format("Invalid protocol-version '{0}'", description.protocolVersion.Value);
+                Log.Error(string.Format("Extension {0}: invalid protocol-version '{1}'", description.name, description.protocolVersion.Value));
+                return;
+            }
+            if (description.protocolVersion.Value > WireProtocol.Version)
+            {
+                result.Status = ExtensionLoadStatus.Skipped;
+                result.Error = string.Format("Requires extension protocol {0}, host provides {1}", description.protocolVersion.Value, WireProtocol.Version);
+                Log.Warning(string.Format("Extension {0} skipped: requires extension protocol {1}, host provides {2}", description.name, description.protocolVersion.Value, WireProtocol.Version));
+                return;
+            }
+        }
+
         // ── 加载：per-folder ALC，遍历归一化后的各 extension ──
         PluginLoadContext? alc = null;
         int loaded = 0, failed = 0, skipped = 0, disabled = 0;
@@ -241,13 +263,14 @@ internal static class ExtensionManager
             {
                 // 但【声明了代码】的未知 type 不是资源包，而是本宿主还不支持的插件类型（如只在别的分支/
                 // 更高版本存在的 kind）。资源类 type 是开放集，宿主无从区分二者——除了这个判据：资源包
-                // 不写 assembly/classes。缺了它就会把这种包静默登记成 loaded，侧栏显示"已加载"而其代码
+                // 不写 assembly/classes，也不写 runtime/entry（脚本声明同样是"有代码"，M0 起）。
+                // 缺了它就会把这种包静默登记成 loaded，侧栏显示"已加载"而其代码
                 // 一行没跑，比报错更误导。故如实报跳过。
-                if (!string.IsNullOrEmpty(ext.assembly) || ext.EffectiveClass.Length > 0)
+                if (!string.IsNullOrEmpty(ext.assembly) || ext.EffectiveClass.Length > 0 || ext.IsScripted)
                 {
                     skipped++;
                     var unsupported = string.Format(
-                        "unsupported extension type '{0}': the entry declares code (assembly/class) but this host has no such plugin kind"
+                        "unsupported extension type '{0}': the entry declares code (assembly/class or runtime/entry) but this host has no such plugin kind"
                         + " (supported: format / voice / instrument / effect; see docs/plugin-development.md)",
                         string.IsNullOrEmpty(type) ? "(empty)" : type);
                     entry.Status = ExtensionEntryStatus.Skipped;
@@ -258,6 +281,31 @@ internal static class ExtensionManager
                 }
 
                 loaded++;
+                continue;
+            }
+
+            // ── 脚本条目（sidecar；docs/scripted-plugin-sidecar-design.md）：走加载门而非 ALC ──
+            // M0：结构校验 + runtime 探测，结局恒为如实 Skipped（sidecar 注册随 M1 替换本支的"RuntimeReady"）。
+            // 与程序集路径平行、互斥（runtime 声明即排除 class/assembly），注册表/路由/设置零感知。
+            if (ext.IsScripted)
+            {
+                var gate = ScriptedEntryGate.Evaluate(ext, path);
+                if (gate.Status == ScriptedGateStatus.Skipped)
+                {
+                    skipped++;
+                    entry.Status = ExtensionEntryStatus.Skipped;
+                    entry.Error = gate.Message;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), gate.Message));
+                    Log.Warning(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), gate.Message));
+                }
+                else
+                {
+                    failed++;
+                    entry.Status = ExtensionEntryStatus.Failed;
+                    entry.Error = gate.Message;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), gate.Message));
+                    Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), gate.Message));
+                }
                 continue;
             }
 
