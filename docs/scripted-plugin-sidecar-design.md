@@ -1,7 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M0 已落地**（manifest 脚本字段、`WireProtocol` 门、`RuntimeLocator` 四级探测+核验、
-> `ScriptedEntryGate`、runtime 资源包工具链、31 项单测）。基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
+> 状态：**定稿；M1 已落地**（帧协议 + SidecarHost 生命周期 + RemoteFormat + Python façade + 假 sidecar 封条 +
+> 真解释器 E2E；实现偏差见 §12.4）。此前：M0 已落地（manifest 字段、协议门、四级探测）。
+> 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
 
@@ -219,7 +220,8 @@ B 类接口**不逐项远程化**。判据：sidecar 只需要 (a) 一次性物�
 （曲线面）、(c) 就地写（音频面）。因此：
 
 - 值对象：`PropertyObject` / `ObjectConfig` / 快照族 / `Synthesized*` → JSON（字段名 = SDK 属性名 camelCase；
-  `NaN` 用字符串 `"nan"`——JSON 不合法 NaN 的机械修）。
+  NaN/±Infinity **一律字符串字面量** `"NaN"|"Infinity"|"-Infinity"`——net8 的 JsonDocument 不接受裸具名
+  token，宿主读侧对两种形态都宽容；规范真源 `scripting/wire/v1.json`）。
 - 句柄：`snapshot_id`（随会话 epoch 失效）、`evaluator` = `(snapshot_id, track_key)` 复合、
   `segment_id`（宿主 `IAudioSegment` 握柄的镜像；`Create/Write/Commit/Resize/Dispose` 一一对应）。
 - 活视图（context/note/automation 的通知流）→ **不镜像**，改为 §5.5 的推送事件流 + 快照拉取。
@@ -425,8 +427,9 @@ façade 内嵌 `wire=1` + `tunelab_sdk` 区间；版本随宿主台账发布，�
 
 ### 12.1 测试资产
 
-`tests/plugins/{PyFormat,NodeFormat,LuaFormat}/` = manifest+源码，无 csproj，直接进 `tests/packages`
-被 `pack-tlx.ps1` 收走（绕开三件套的 build 步）；`manifest-variants` 补脚本条目变异体；
+`tests/plugins/{PyFormat,NodeFormat,LuaFormat}/` = manifest+源码，无 csproj；`pack-tlx.ps1` 直接收编
+`tests/plugins` 下的无 csproj 目录（源即发行物，免三件套的 build 步）；
+`manifest-variants` 补脚本条目变异体；
 `tests/TuneLab.Tests/Scripted/*.cs` 用假 sidecar；E2E 标 `[Trait("runtime","needs-interpreter")]`
 CI 专属。协议封条：方法表 JSON schema 一份（`scripting/wire/v1.json`），三语言 façade 各自跑同一回放。
 
@@ -451,6 +454,23 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
 - 用户向：`docs/plugin-development-scripting.md`（英文源 + zh-CN，M1 起随能力增补）；
   `plugin-development.md` 增一节"脚本插件"指针。
 - `naming-glossary.md` 已随行增补（sidecar / runtime 资源包 / epoch / 三面 / 会话重建）。
+
+### 12.4 M1 落地注记（与设计差异/推迟项）
+
+- **落地**：`ScriptedWire`（值编码全族，含 `DoubleWireConverter` 字符串字面量、PartInfo `kind` 判别器）、
+  `WireFraming`、`SidecarHost`（握手/epoch/退避熔断/stderr 尾部/`ResetCircuit`）、
+  `ScriptedRuntimeLedger`+`SidecarRegistry`（防线 4 与关停编排，挂在 `LoadExtensions`/`Destroy`）、
+  Windows Job Object（防线 2 宿主侧半边）、`RemoteFormat`（文件交接）、`scripting/python/tunelab`、
+  `scripting/wire/v1.json`（规范真源）、`tests/ScriptedFakeSidecar`（协议封条执行体，CI 免解释器）、
+  真 Python E2E（`TUNELAB_REQUIRE_PYTHON=1` 强制，否则缺解释器 vacuous pass）。
+- **推迟到 M2**：【下载运行时】按钮（runtime 官方制品尚不存在，下载映射要随 release 起效）；
+  `IExtensionSettings` 远程代理；stderr 落盘滚动（M1 只在内存留 64KB 尾部）。
+- **实现差异**：
+  - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff 计数仍生效、熔断照常）——M1 消费方
+    format 是拉模式，自动重启只有缓存收益；effect 的 push 调度落地时（M2）再补后台重启环。
+  - 心跳（防线 3）未实现——M1 所有调用带超时（RPC 默认 2min、握手 30s、声明面缓存支随 M2），
+    挂起的 sidecar 在 format 面上被超时等价覆盖；M2 的 effect/voice 调度环接入时补真心跳。
+  - 开发隔离 `TUNELAB_DATA_DIR` **仓内已有**（`PathManager.cs:16`），§12.2 设想的 env 覆盖钩子无需新增。
 
 ---
 

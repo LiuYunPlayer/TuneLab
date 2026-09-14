@@ -9,4 +9,8 @@ namespace TuneLab.Extensions.Scripted;
 internal static class WireProtocol
 {
     public const int Version = 1;
+
+    // wire JSON 规范里 Multiple（三态哨兵）不占形态——PropertyType 注释原文"瞬态、永不序列化"，
+    // 它是 UI 多选合并层的概念，跨边界值恒为定值或 Null。
+    public const string PropertyTags = "b n s o a";
 }

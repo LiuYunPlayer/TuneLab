@@ -1,0 +1,64 @@
+{
+  "protocol-version": 1,
+  "status": "M1: control plane + format methods; effect/voice/audio-plane/shm sections land M2/M3",
+  "framing": {
+    "transport": "stdio (binary), one message per frame",
+    "frame": "Content-Length: <byte-length>\\r\\n\\r\\n<UTF-8 JSON body>",
+    "max-frame-bytes": 536870912,
+    "stdout-discipline": "child stdout is protocol-only; all logging goes through the log.write notification, stderr is captured by the host for diagnostics"
+  },
+  "jsonrpc": {
+    "version": "2.0",
+    "ids": "opaque strings (host uses GUID-n); notifications carry no id",
+    "error-codes": ["bad_request", "unsupported_protocol", "stale_epoch", "stale_handle", "runtime_error", "cancelled", "timeout", "io"]
+  },
+  "environment": {
+    "TUNELAB_PROTOCOL": "wire version the host speaks; child must refuse handshake otherwise",
+    "TUNELAB_EPOCH": "monotonic process-generation counter, 1 per (re)spawn",
+    "TUNELAB_PACKAGE_ID": "manifest package id"
+  },
+  "methods": {
+    "initialize": {
+      "direction": "host->sidecar",
+      "params": { "protocol": "int", "package_id": "string", "entries": [{ "type": "format", "entry": "manifest-relative path", "import_suffixes": ["..."], "export_suffixes": ["..."] }] },
+      "result": { "provides": [{ "type": "string", "entry": "string", "can_import": "bool", "can_export": "bool" }], "capabilities": { "audio_plane": "inline|shm", "curve_plane": "inline|shm" }, "runtime": { "exe": "string", "version": "string", "arch": "string", "flavor": "python|node|lua|luajit" }, "facade_version": "string" },
+      "notes": "every host-declared format entry MUST be answered in provides; a missing one is a protocol violation and the host kills the child"
+    },
+    "format.import": {
+      "direction": "host->sidecar",
+      "params": { "entry": "string", "stream_ref": "absolute path of a temp file holding the source bytes" },
+      "result": { "project": "ProjectInfo, see value-encoding" },
+      "temp-files": "under <TuneLabFolder>/Temp/io-<nonce>/; host deletes after the call; the child must not outlive them"
+    },
+    "format.export": {
+      "direction": "host->sidecar",
+      "params": { "entry": "string", "stream_ref": "absolute path the sidecar must write the exported bytes to", "project": "ProjectInfo, see value-encoding" },
+      "result": {},
+      "notes": "host owns the final output stream and copies stream_ref into it atomically"
+    },
+    "log.write": { "direction": "sidecar->host", "notification": true, "params": { "level": "info|warning|error", "message": "string" } },
+    "shutdown": { "direction": "host->sidecar", "params": { "reason": "string" }, "result": {} }
+  },
+  "value-encoding": {
+    "naming": "property names camelCase; public fields included (Point.X/Y); enums as camelCase strings, numbers accepted on read",
+    "property-value": {
+      "bool": { "b": true },
+      "number": { "n": 1.5 },
+      "string": { "s": "x" },
+      "object": { "o": { "key": "<property-value>" } },
+      "array": { "a": ["<property-value>"] },
+      "null": null,
+      "nan-or-infinity": "NEVER a bare JSON token — always the strings \"NaN\"|\"Infinity\"|\"-Infinity\" (inside n payloads and for any plain double field alike; legal JSON, host reads all forms, writers MUST write strings)",
+      "multiple": "never crosses the wire (UI tri-state)",
+      "reading-plain-values": "readers MAY accept untagged JSON natives (bool/number/string/array/object); bare objects under a properties map with exactly one reserved key b|n|s|o|a of matching value kind are treated as tagged — authors who need such single-underscore-free literal maps as property objects must nest them under another key"
+    },
+    "property-object": "JSON object of tagged values; appears at key \"properties\" inside notes/parts/effects/projects trees",
+    "foundation-map": "Map<string,T> ↔ JSON object (insertion order preserved)",
+    "partinfo-discriminator": "PartInfo (abstract) ↔ concrete fields plus \"kind\": \"midi\" | \"audio\""
+  },
+  "lifecycle": {
+    "parent-death": "child MUST exit on stdin EOF (all platforms) and additionally arm OS-level guards: Windows host-side Job Object, Linux PR_SET_PDEATHSIG, macOS ppid poll — all inside the facade/host",
+    "crash": "host discards the process generation (epoch++), fails the in-flight calls with runtime_error, respawns on the next call with backoff; 5 deaths in 10 minutes open the circuit",
+    "progress-events-settings": "reserved for M2/M3 method groups; unknown notifications MUST be ignored by both sides (forward compatibility)"
+  }
+}

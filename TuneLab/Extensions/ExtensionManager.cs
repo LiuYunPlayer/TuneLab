@@ -74,6 +74,8 @@ internal static class ExtensionManager
     public static void LoadExtensions()
     {
         PathManager.MakeSureExist(PathManager.ExtensionsFolder);
+        // 防遗留第 4 防线：先于一切加载，清掉上次宿主猝死留下的 sidecar 孤儿（持着包目录的文件锁）。
+        SidecarRegistry.SweepStaleProcesses();
         FormatsManager.LoadBuiltIn();
         VoicesManager.LoadBuiltIn();
         InstrumentsManager.LoadBuiltIn();
@@ -94,6 +96,9 @@ internal static class ExtensionManager
 
     public static void Destroy()
     {
+        // 脚本 sidecar 先退（§3.2：礼貌 shutdown → 限时 → Kill），再走 .NET 引擎 Destroy，
+        // 卸载器随后删目录时不会被活进程锁住。
+        SidecarRegistry.ShutdownAll();
         VoicesManager.Destroy();
         InstrumentsManager.Destroy();
         EffectManager.Destroy();
@@ -285,12 +290,36 @@ internal static class ExtensionManager
             }
 
             // ── 脚本条目（sidecar；docs/scripted-plugin-sidecar-design.md）：走加载门而非 ALC ──
-            // M0：结构校验 + runtime 探测，结局恒为如实 Skipped（sidecar 注册随 M1 替换本支的"RuntimeReady"）。
-            // 与程序集路径平行、互斥（runtime 声明即排除 class/assembly），注册表/路由/设置零感知。
+            // M1：format 条目 runtime 就位即注册 RemoteFormat（懒 spawn 的 RPC 代理，注册表零感知）；
+            // voice/effect 的注册支随 M2/M3，此前 runtime 就位也如实 Skipped。
             if (ext.IsScripted)
             {
                 var gate = ScriptedEntryGate.Evaluate(ext, path);
-                if (gate.Status == ScriptedGateStatus.Skipped)
+                if (gate.Status == ScriptedGateStatus.Ready && FormatsManager.IsFormatKind(kind))
+                {
+                    if (RegisterScriptedFormatEntry(description.id ?? string.Empty, path, ext, gate.Runtime, displayName: ext.LocalizedName(lang), out var scriptedError))
+                    {
+                        loaded++;
+                    }
+                    else
+                    {
+                        failed++;
+                        entry.Status = ExtensionEntryStatus.Failed;
+                        entry.Error = scriptedError;
+                        reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), scriptedError));
+                        Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), scriptedError));
+                    }
+                }
+                else if (gate.Status == ScriptedGateStatus.Ready)
+                {
+                    // 引擎类注册支未落地（effect=M2 / voice=M3）——如实 Skipped，不谎报。
+                    skipped++;
+                    var pending = string.Format("scripted {0} registration is not implemented by this host build yet ({1})", kind, gate.Message);
+                    entry.Status = ExtensionEntryStatus.Skipped;
+                    entry.Error = pending;
+                    reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), pending));
+                }
+                else if (gate.Status == ScriptedGateStatus.Skipped)
                 {
                     skipped++;
                     entry.Status = ExtensionEntryStatus.Skipped;
@@ -667,6 +696,42 @@ internal static class ExtensionManager
             hasImport ? (importSuffixes, () => (IImportFormat)ictor!.Invoke(null)) : null,
             hasExport ? (exportSuffixes, () => (IExportFormat)ector!.Invoke(null)) : null,
             declaresSettings, className);
+        error = null;
+        return true;
+    }
+
+    // 脚本 format 条目的注册（M1）：镜像 RegisterFormatEntry 的校验次序——后缀声明、身份集、
+    // 同实现禁止拆条目（脚本侧"实现"的身份键 = entry 路径）、然后交 FormatsManager。设置声明在
+    // 脚本侧来自握手字段（M2 接 IExtensionSettings 代理），M1 恒 false。工厂返回包级共享的
+    // RemoteFormat（无状态代理；spawn 与重启都藏在 SidecarHost 里）。
+    static bool RegisterScriptedFormatEntry(string packageId, string packageDir, ExtensionInfo ext, RuntimeInfo runtime, string displayName, out string? error)
+    {
+        if (!ext.ValidateSuffixDeclaration(out error))
+            return false;
+
+        var importSuffixes = ext.EffectiveImportSuffixes;
+        var exportSuffixes = ext.EffectiveExportSuffixes;
+        bool hasImport = importSuffixes.Length > 0;
+        bool hasExport = exportSuffixes.Length > 0;
+        var identity = ext.EffectiveIdentitySuffixes;
+
+        var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
+        var conflict = FormatsManager.FindConflictingEntry(packageId, entryPath, identity);
+        if (conflict != null)
+        {
+            error = string.Format(
+                "'entry' '{0}' is already declared by this package's format entry '{1}' with overlapping suffixes; one implementation must be one entry",
+                entryPath, conflict);
+            return false;
+        }
+
+        var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.ExpectFormat(entryPath, importSuffixes, exportSuffixes);
+        var proxy = new RemoteFormat(host, entryPath);
+        FormatsManager.RegisterFormat(packageId, FormatsManager.DeriveKind(hasImport, hasExport), identity, displayName,
+            hasImport ? (importSuffixes, () => (IImportFormat)proxy) : null,
+            hasExport ? (exportSuffixes, () => (IExportFormat)proxy) : null,
+            declaresSettings: false, className: entryPath);
         error = null;
         return true;
     }

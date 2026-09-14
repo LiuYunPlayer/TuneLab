@@ -1,0 +1,81 @@
+"""tunelab facade unit tests: python -m unittest discover -s scripting/python/tests"""
+import io
+import json
+import math
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from tunelab import _framing, _props  # noqa: E402
+
+
+class FramingTests(unittest.TestCase):
+    def test_roundtrip_utf8(self):
+        buf = io.BytesIO()
+        _framing.write_message(buf, {"m": "你好, NaN", "v": float("nan")})
+        buf.seek(0)
+        msg = _framing.read_message(buf)
+        self.assertEqual(msg["m"], "你好, NaN")
+        self.assertTrue(math.isnan(msg["v"]))
+
+    def test_content_length_is_bytes_not_chars(self):
+        buf = io.BytesIO()
+        _framing.write_message(buf, {"s": "汉字" * 50})
+        raw = buf.getvalue()
+        header, _, body = raw.partition(b"\r\n\r\n")
+        self.assertEqual(int(header.split(b":")[1]), len(body))
+
+    def test_eof_returns_none(self):
+        self.assertIsNone(_framing.read_message(io.BytesIO(b"")))
+
+
+class PropertyCodecTests(unittest.TestCase):
+    def test_tagged_roundtrip(self):
+        native = {"tension": 0.5, "mode": "normal", "on": True, "off": None,
+                  "list": [1, "a"], "obj": {"inner": 2.0}}
+        tagged = {k: _props.encode_value(v) for k, v in native.items()}
+        self.assertEqual(tagged["tension"], {"n": 0.5})
+        self.assertEqual(tagged["mode"], {"s": "normal"})
+        self.assertEqual(tagged["on"], {"b": True})
+        self.assertIsNone(tagged["off"])
+        self.assertEqual(tagged["list"], {"a": [{"n": 1}, {"s": "a"}]})
+        self.assertEqual(tagged["obj"], {"o": {"inner": {"n": 2.0}}})
+        back = _props.decode_map(tagged)
+        self.assertEqual(back["tension"], 0.5)
+        self.assertEqual(back["mode"], "normal")
+        self.assertIs(back["on"], True)
+        self.assertIsNone(back["off"])
+        self.assertEqual(back["list"], [1.0, "a"])
+        self.assertEqual(back["obj"], {"inner": 2.0})
+
+    def test_nan_literal(self):
+        raw = json.dumps(_props.encode_value(float("nan")))
+        self.assertIn("NaN", raw)  # bare JSON literal, host AllowNamedFloatingPointLiterals reads it
+        self.assertTrue(math.isnan(_props.decode_value(json.loads(raw, parse_constant=lambda c: float(c)))))
+
+    def test_project_walk_encodes_only_properties_maps(self):
+        project = {"tracks": [{"parts": [{"notes": [
+            {"pos": 960, "dur": 480, "pitch": 60, "properties": {"tension": 0.5}},
+        ]}]}]}
+        out = _props.walk_encode(project)
+        note = out["tracks"][0]["parts"][0]["notes"][0]
+        self.assertEqual(note["properties"], {"tension": {"n": 0.5}})
+        self.assertEqual(note["pitch"], 60)          # untouched
+        self.assertEqual(note["pos"], 960)           # untouched (numbers ride plain in DataInfo)
+        again = _props.walk_decode(out)
+        n2 = again["tracks"][0]["parts"][0]["notes"][0]
+        self.assertEqual(n2["properties"], {"tension": 0.5})
+        self.assertEqual(n2["pitch"], 60)
+        self.assertEqual(n2["pos"], 960)
+
+    def test_plain_values_tolerated_on_read(self):
+        # host always writes tagged; readers MAY accept plain natives (third-party payloads)
+        self.assertEqual(_props.decode_value(1.5), 1.5)
+        self.assertEqual(_props.decode_value("x"), "x")
+        self.assertIs(_props.decode_value(True), True)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -92,15 +92,16 @@ public class ScriptedEntryGateTests
     }
 
     [Fact]
-    public void ResolvedRuntimeStillSkippedInM0ButReportsResolution()
+    public void ResolvedRuntimeYieldsReadyWithResolutionInMessage()
     {
         Directory.CreateDirectory(mPkg);
         var prober = new FakeProber();
         var exe = FakeProber.FakeExe(mPkg, "python.exe", prober, "python", "3.12.7");
         var locator = new RuntimeLocator(prober, () => exe.Exe, () => "", () => "", _ => null, () => mPkg);
         var r = ScriptedEntryGate.Evaluate(Entry("python>=3.10"), mPkg, locator);
-        Assert.Equal(ScriptedGateStatus.Skipped, r.Status);        // M0 的诚实：runtime 就位也不谎报 Loaded
-        Assert.Contains("not implemented by this host build yet", r.Message);
+        Assert.Equal(ScriptedGateStatus.Ready, r.Status);
+        Assert.Equal("python", r.Runtime.Flavor);
+        Assert.Equal("3.12.7", r.Runtime.Version);
         Assert.Contains("3.12.7", r.Message);
     }
 }

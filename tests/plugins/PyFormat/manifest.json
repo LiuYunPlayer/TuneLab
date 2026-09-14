@@ -1,0 +1,14 @@
+{
+  "id": "com.tunelab.test.pyformat",
+  "name": "Py Format (txt notes)",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "脚本 format 样例：pitch pos dur lyric 一行一音符的 .pyt 文本格式。需要系统 Python>=3.10（PYTHONPATH 指 scripting/python）与真实 tuneLab 侧载。",
+  "sdk-version": "1.1",
+  "type": "format",
+  "suffixes": ["pyt"],
+  "introduction": "Introduction.md",
+  "runtime": "python>=3.10,<4",
+  "entry": "plugin/main.py",
+  "platforms": ["win", "osx", "linux"]
+}

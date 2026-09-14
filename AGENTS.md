@@ -15,15 +15,23 @@
      `%APPDATA%\TuneLab\Extensions\<manifest-name>\`, which is where the app actually loads from.
       **TuneLab must be closed** first — a running instance locks the extension dlls.
 
-## Scripted plugins (sidecar) — planned, see docs/scripted-plugin-sidecar-design.md
+## Scripted plugins (sidecar) — see docs/scripted-plugin-sidecar-design.md
 
-- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); the design doc is the source of
-  truth until sections of it land. Façade libraries will live under `scripting/{python,node,lua}/`
-  (not in the .sln; per-façade test commands will be listed here when M1 lands).
-- Sample scripted test plugins under `tests/plugins/` are manifest + sources only — **no csproj, no
-  build step**: they go straight into `tests/packages/<slug>/` and are covered by pack/install steps 2–3
-  above. `ProtocolVersion` (wire protocol) is a third, independent version axis — see design doc §1.2;
-  do not align it with `SdkVersion` or `AssemblyVersion`.
+- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); M1 landed (format only).
+  Façades live under `scripting/` (not in the .sln); wire spec: `scripting/wire/v1.json`.
+- Build & test (parallel to the dotnet pipeline):
+  - fake sidecar (protocol seal, no interpreter needed): built with the solution; the .NET test
+    project launches it via `dotnet exec`. Manual: `dotnet build tests/ScriptedFakeSidecar -c Debug`.
+  - Python façade: `python -m unittest discover -s scripting/python/tests` (pure stdlib).
+  - Real-interpreter E2E: `dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj --filter "runtime=needs-interpreter"`
+    (set `TUNELAB_REQUIRE_PYTHON=1` to fail-fast when no Python>=3.10 is discoverable, else it
+    passes vacuously; `TUNELAB_PYTHON=<path>` pins the interpreter — probing order: settings → env →
+    runtime packages → PATH).
+- Scripted test plugins (e.g. `tests/plugins/PyFormat/`) are manifest + sources only — **no csproj,
+  no build step**; `pack-tlx.ps1` picks csproj-less folders under `tests/plugins/` up directly.
+- `ProtocolVersion` (wire protocol, `Scripted/WireProtocol.cs`) is a third, independent version axis —
+  do not align it with `SdkVersion` or `AssemblyVersion`. Bump it together with a new
+  `scripting/wire/v<N>.json` only on incompatible frame/method changes (design doc §1.2).
 
 ## ⚠️ Frozen public ABI: TuneLab.SDK & TuneLab.Foundation
 

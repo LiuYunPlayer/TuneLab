@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Setup.Stub", "TuneL
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.Cli", "TuneLab.Cli\TuneLab.Cli.csproj", "{4E729D7F-E690-4E80-9D67-9B4C5D75C962}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuneLab.ScriptedFakeSidecar", "tests\ScriptedFakeSidecar\TuneLab.ScriptedFakeSidecar.csproj", "{5A860E05-D48C-4A56-8C52-CBECECBC040C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -169,12 +171,25 @@ Global
 		{4E729D7F-E690-4E80-9D67-9B4C5D75C962}.Release|x64.Build.0 = Release|Any CPU
 		{4E729D7F-E690-4E80-9D67-9B4C5D75C962}.Release|x86.ActiveCfg = Release|Any CPU
 		{4E729D7F-E690-4E80-9D67-9B4C5D75C962}.Release|x86.Build.0 = Release|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Debug|x64.Build.0 = Debug|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Debug|x86.Build.0 = Debug|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Release|x64.ActiveCfg = Release|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Release|x64.Build.0 = Release|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Release|x86.ActiveCfg = Release|Any CPU
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{4F18DBBE-C75D-4CF2-BD32-254D31F4FD4E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{5A860E05-D48C-4A56-8C52-CBECECBC040C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {96245EFE-B915-471B-AC1A-8290E843A5BE}
