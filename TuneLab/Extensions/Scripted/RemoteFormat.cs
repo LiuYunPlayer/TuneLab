@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using TuneLab.Foundation;
 using TuneLab.SDK;
 
 namespace TuneLab.Extensions.Scripted;
@@ -10,14 +11,38 @@ namespace TuneLab.Extensions.Scripted;
 // 不可分辨；每个方法体 = 一次 RPC（懒 spawn 由 SidecarHost 管）。
 // 字节流不进消息体：导入把源字节落到暂存文件再传路径，导出让 sidecar 写暂存文件、宿主读回
 // （FormatsManager 对输出流的"宿主拥有生命周期"约定因此原样成立）。
-internal sealed class RemoteFormat : IImportFormat, IExportFormat
+// 设置面（§5.7）：manifest `settings: true` 的条目才接 GetSettingsConfig/ApplySettings RPC；
+// 探测式消费链（GetSettingsEntries 用工厂建 probe 实例 + as IExtensionSettings）与 .NET 插件共用。
+internal sealed class RemoteFormat : IImportFormat, IExportFormat, IExtensionSettings
 {
     readonly SidecarHost mHost;
     readonly string mEntryId;   // = sidecar 侧注册键（握手 provides 的 id；M1 = 包内 entry 路径）
+    readonly bool mHasSettings;
 
-    public RemoteFormat(SidecarHost host, string entryId)
+    public RemoteFormat(SidecarHost host, string entryId, bool hasSettings = false)
     {
-        mHost = host; mEntryId = entryId;
+        mHost = host; mEntryId = entryId; mHasSettings = hasSettings;
+    }
+
+    ObjectConfig IExtensionSettings.GetSettingsConfig(IExtensionSettingsContext context)
+    {
+        if (!mHasSettings)
+            return ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
+        // schema 必须可先于 Init 调（设计 §5.7）：settings.* 方法不触发 spawn 预热之外的语义，
+        // sidecar 的 initialize 本就先发生——EnsureRunning 天然满足次序。
+        var reply = mHost.CallAsync("settings.get_config", new JsonObject { ["entry"] = mEntryId })
+            .GetAwaiter().GetResult();
+        return (IControllerConfig?)ScriptedConfigWire.ReadConfig(reply?["config"]) as ObjectConfig
+            ?? ObjectConfig.Create(new OrderedMap<PropertyKey, IControllerConfig>());
+    }
+
+    void IExtensionSettings.ApplySettings(PropertyObject settings)
+    {
+        if (!mHasSettings)
+            return;
+        // 未运行 = 值存宿主侧、下次握手随 entries[].settings 补发；运行中 = 即时通知。
+        // （两条路径都在 SetSettings 内——ApplyPersisted 早于任何 spawn 的时序被天然接住。）
+        mHost.SetSettings(mEntryId, ScriptedWire.SerializeNode(settings));
     }
 
     public ProjectInfo Deserialize(Stream stream)

@@ -26,13 +26,18 @@ internal sealed class SidecarHost
     // 测试注入点：每次 spawn 叠加的环境变量（生产不触碰）。
     public Dictionary<string, string?>? ExtraEnvironment { get; set; }
 
-    public SidecarHost(string packageId, string packageDir, RuntimeInfo runtime, string entry, TimeSpan? callTimeout = null)
+    public SidecarHost(string packageId, string packageDir, RuntimeInfo runtime, string entry,
+        TimeSpan? callTimeout = null, TimeSpan? heartbeat = null, TimeSpan? pingTimeout = null)
     {
         mPackageId = packageId; mPackageDir = packageDir; mRuntime = runtime; mEntry = entry;
         mCallTimeout = callTimeout ?? TimeSpan.FromMinutes(2);
+        mHeartbeatInterval = heartbeat ?? TimeSpan.FromSeconds(15);
+        mPingTimeout = pingTimeout ?? TimeSpan.FromSeconds(5);
     }
 
     readonly object mLock = new();
+    readonly TimeSpan mHeartbeatInterval;
+    readonly TimeSpan mPingTimeout;
     readonly ConcurrentDictionary<string, TaskCompletionSource<JsonNode?>> mPending = new();
     int mEpoch;
     Process? mProcess;
@@ -42,6 +47,8 @@ internal sealed class SidecarHost
     int mDeathsInWindow;
     bool mCircuitOpen;
     bool mDisposed;
+    Timer? mHeartbeat;
+    int mHeartbeatMisses;
 
     public int Epoch { get { lock (mLock) return mEpoch; } }
     public bool CircuitOpen { get { lock (mLock) return mCircuitOpen; } }
@@ -65,13 +72,53 @@ internal sealed class SidecarHost
 
     // 握手后必须兑现在这些期望（§2.3：manifest 承诺 ↔ sidecar 声明逐条核对，缺席 = 协议违例）。
     // 加载期注册（懒 spawn 之前），线程安全：只在注册后、spawn 前的窗口写。
-    sealed class ExpectedFormat { public string Entry = ""; public string[] Import = []; public string[] Export = []; }
+    sealed class ExpectedFormat
+    {
+        public string Entry = "";
+        public string[] Import = [];
+        public string[] Export = [];
+        public JsonNode? Settings;                              // 持久设置值（spawn 前灌的在这里随握手补发）
+    }
     readonly List<ExpectedFormat> mExpectedFormats = [];
 
     public void ExpectFormat(string entryId, string[] importSuffixes, string[] exportSuffixes)
     {
         lock (mExpectedFormats)
             mExpectedFormats.Add(new ExpectedFormat { Entry = entryId, Import = importSuffixes, Export = exportSuffixes });
+    }
+
+    public bool Running { get { lock (mLock) return mProcess != null && !mDisposed; } }
+
+    // 宿主已解好的设置值（ApplySettings 路径）：未运行则存着、下次握手随 entries[].settings 补发；
+    // 运行中则即时通知。密码解密发生在宿主侧——sidecar 拿到的与 .NET 插件同权。
+    public void SetSettings(string entryId, JsonNode? values)
+    {
+        bool notify = false;
+        lock (mExpectedFormats)
+            foreach (var ef in mExpectedFormats)
+                if (ef.Entry == entryId) { ef.Settings = values; notify = Running; break; }
+        if (notify)
+        {
+            try { Notify("settings.apply", new JsonObject { ["entry"] = entryId, ["values"] = values?.DeepClone() }); }
+            catch { /* 通知竞态（刚死）：下一次握手补发兜底 */ }
+        }
+    }
+
+    // 通知（不等应答）。未运行即抛（调用方按需吞——SetSettings 已包）。
+    public void Notify(string method, JsonNode? args)
+    {
+        Stream stdin;
+        lock (mLock)
+        {
+            if (mProcess == null || mStdin == null || mDisposed)
+                throw new SidecarRpcException("runtime_error", "sidecar not running");
+            stdin = mStdin;
+        }
+        lock (mLock)
+        {
+            if (mStdin != stdin) throw new SidecarRpcException("runtime_error", "sidecar restarted");
+            WireFraming.Write(stdin, new JsonObject { ["jsonrpc"] = "2.0", ["method"] = method, ["params"] = args }.ToJsonString());
+        }
     }
 
     public async Task EnsureRunningAsync()
@@ -172,13 +219,18 @@ internal sealed class SidecarHost
         var entriesNode = new JsonArray();
         lock (mExpectedFormats)
             foreach (var ef in mExpectedFormats)
-                entriesNode.Add((JsonNode)new JsonObject
+            {
+                var e = new JsonObject
                 {
                     ["type"] = "format",
                     ["entry"] = ef.Entry,
                     ["import_suffixes"] = JsonSerializer.SerializeToNode(ef.Import),
                     ["export_suffixes"] = JsonSerializer.SerializeToNode(ef.Export),
-                });
+                };
+                if (ef.Settings != null)
+                    e["settings"] = ef.Settings.DeepClone();    // 握手补发（spawn 前灌过的持久值）
+                entriesNode.Add((JsonNode)e);
+            }
         handshake["entries"] = entriesNode;
         try
         {
@@ -186,6 +238,7 @@ internal sealed class SidecarHost
             if (reply == null || reply["capabilities"] is not JsonObject)
                 throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, "sidecar for {0} completed handshake without capabilities", mPackageId));
             ValidateHandshake(reply);
+            StartHeartbeat(mEpoch);
         }
         catch (Exception ex)
         {
@@ -210,6 +263,46 @@ internal sealed class SidecarHost
         "dotnet-fake" => ["exec"],      // 协议封条测试执行体：dotnet exec <dll>（设计 §12.1，CI 免装解释器）
         _ => [],
     };
+
+    // 心跳（防线 3）：ping 一次带 5s 超时；连续 4 次失联（≈ interval×4+超时 已够判"半死"）杀树。
+    // 心跳只用于识别挂死的 sidecar——宿主自己挂起不影响这里（Timer 停了也只是少 ping）。
+    void StartHeartbeat(int epoch)
+    {
+        StopHeartbeat();
+        mHeartbeatMisses = 0;
+        var timer = new Timer(_ =>
+        {
+            lock (mLock)
+            {
+                if (mDisposed || epoch != mEpoch || mProcess == null) return;
+            }
+            _ = Task.Run(async () =>
+            {
+                try { await CallInternalAsync("ping", new JsonObject { ["epoch"] = epoch }, mPingTimeout, epoch).ConfigureAwait(false); Interlocked.Exchange(ref mHeartbeatMisses, 0); }
+                catch (SidecarRpcException ex) when (ex.Code == "runtime_error") { /* 进程已死：OnDeath 接管 */ }
+                catch
+                {
+                    if (Interlocked.Increment(ref mHeartbeatMisses) >= 4)
+                    {
+                        LastReaderFault ??= new TimeoutException("heartbeat: 4 consecutive ping failures (sidecar wedged?)");
+                        int pid;
+                        lock (mLock) { pid = epoch == mEpoch ? mProcess?.Id ?? -1 : -1; }
+                        if (pid > 0) KillTree(pid);
+                    }
+                }
+            });
+        }, null, mHeartbeatInterval, mHeartbeatInterval);
+        mHeartbeat = timer;
+    }
+
+    void StopHeartbeat()
+    {
+        mHeartbeat?.Dispose();
+        mHeartbeat = null;
+    }
+
+    Task<JsonNode?> CallInternalAsync(string method, JsonNode args, TimeSpan timeout, int epoch)
+        => Task.Run(() => CallInternal(method, args, timeout, epoch));
 
     // 握手后核对 provides（§2.3）：manifest 承诺的每个脚本条目，sidecar 必须自报支持，否则握手期
     // 就判死（"作者写了、sidecar 不认"是最容易静默失联的一类不匹配，拦在最前）。
@@ -236,6 +329,14 @@ internal sealed class SidecarHost
         if (tail.Length > Cap)
             tail = tail.Substring(tail.Length - Cap);
         StderrTail = tail;
+        // 滚动落盘（§3.4）：包目录 logs/stderr-<boot>.txt，尽力而为（只读目录等失败不致命）。
+        try
+        {
+            var dir = Path.Combine(mPackageDir, "logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "stderr-" + SidecarIo.Nonce + ".txt"), line + "\n");
+        }
+        catch { }
     }
 
     void ReadLoop(Process proc, int epoch)
@@ -297,6 +398,7 @@ internal sealed class SidecarHost
         {
             if (epoch != mEpoch || mDisposed)   // 旧世代的读者线程：尾包/尾死信号，忽略
                 return;
+            StopHeartbeat();
             foreach (var kv in mPending)
                 if (mPending.TryRemove(kv.Key, out var tcs))
                     tcs.TrySetException(new SidecarRpcException("runtime_error", string.Format(CultureInfo.InvariantCulture, "sidecar exited (code {0})", exitCode)));

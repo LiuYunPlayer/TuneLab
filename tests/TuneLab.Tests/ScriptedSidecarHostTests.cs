@@ -155,4 +155,65 @@ public class ScriptedSidecarHostTests
         host.Shutdown();   // 幂等，不抛
         await Assert.ThrowsAsync<ObjectDisposedException>(() => host.EnsureRunningAsync());
     }
+
+    [Fact]
+    public async Task HeartbeatKillsWedgedPeerAfterConsecutiveMisses()
+    {
+        // mute-ping：握手正常、之后吞掉一切 ping —— 正是"半死"形态（防线 3 的靶形）。
+        var runtime = new RuntimeInfo(Dotnet, "dotnet-fake", "0.0", "x64");
+        var host = new SidecarHost("com.test.wedge", sFakeDir, runtime, "TuneLab.ScriptedFakeSidecar.dll",
+            heartbeat: TimeSpan.FromMilliseconds(200), pingTimeout: TimeSpan.FromMilliseconds(300))
+        {
+            ExtraEnvironment = new() { ["TUNELAB_FAKE_MODE"] = "mute-ping" },
+        };
+        host.ExpectFormat("TuneLab.ScriptedFakeSidecar.dll", ["tst"], []);
+        var died = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.Died += () => died.TrySetResult(true);
+        try
+        {
+            await host.EnsureRunningAsync();
+            Assert.True(host.Running);
+            var winner = await Task.WhenAny(died.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            Assert.Same(died.Task, winner);          // 4 连失联 → 杀树 → Died
+            Assert.False(host.Running);
+        }
+        finally { host.Shutdown(); }
+    }
+
+    [Fact]
+    public async Task PendingSettingsRideHandshake_AndLiveSettingsNotify()
+    {
+        var settingsLog = Path.Combine(Path.GetTempPath(), "tl-settings-" + Path.GetRandomFileName() + ".log");
+        var runtime = new RuntimeInfo(Dotnet, "dotnet-fake", "0.0", "x64");
+        var host = new SidecarHost("com.test.settings", sFakeDir, runtime, "TuneLab.ScriptedFakeSidecar.dll")
+        {
+            ExtraEnvironment = new() { ["TUNELAB_FAKE_MODE"] = "normal", ["TUNELAB_FAKE_SETTINGS_LOG"] = settingsLog },
+        };
+        host.ExpectFormat("TuneLab.ScriptedFakeSidecar.dll", ["tst"], []);
+        // spawn 前灌值 → 必须随 initialize 补发（ApplyPersisted 天然早于任何调用）。
+        host.SetSettings("TuneLab.ScriptedFakeSidecar.dll", System.Text.Json.Nodes.JsonNode.Parse("""{"model":{"s":"m1"}}"""));
+        try
+        {
+            await host.EnsureRunningAsync();
+            // 握手补发 = 原样转发的 tagged 形（解码发生在 façade 侧，见 Python ServiceTests）。
+            Assert.Contains("handshake\t{\"model\":{\"s\":\"m1\"}}", File.ReadAllText(settingsLog));
+
+            // 运行中灌值 → 即时 settings.apply 通知。
+            host.SetSettings("TuneLab.ScriptedFakeSidecar.dll", System.Text.Json.Nodes.JsonNode.Parse("""{"model":{"s":"m2"}}"""));
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline && !File.ReadAllText(settingsLog).Contains("notify\t{\"model\":{\"s\":\"m2\"}}"))
+                await Task.Delay(50);
+            Assert.Contains("notify\t{\"model\":{\"s\":\"m2\"}}", File.ReadAllText(settingsLog));
+        }
+        finally
+        {
+            host.Shutdown();
+            TryDelete(settingsLog);
+        }
+    }
+
+    static void TryDelete(string path)
+    {
+        try { File.Delete(path); } catch { }
+    }
 }

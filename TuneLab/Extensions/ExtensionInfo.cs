@@ -172,6 +172,10 @@ internal class ExtensionInfo
     // 依赖策略："vendored"（缺省）| "pip"（已声明未实现 → Skipped）。
     public string? deps { get; set; }
 
+    // 脚本条目：本条目携带扩展设置面板（宿主经 settings.get_config/settings.apply 与 sidecar 往返；
+    // 缺省 false=零负担，与 .NET 侧"探测式接入 IExtensionSettings"同语义——只是脚本侧无法静态探测）。
+    public bool settings { get; set; }
+
     [JsonIgnore]
     public bool IsScripted => !string.IsNullOrEmpty(runtime);
 

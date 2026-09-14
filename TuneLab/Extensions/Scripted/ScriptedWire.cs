@@ -52,6 +52,12 @@ internal static class ScriptedWire
 
     public static T? DeserializeNode<T>(JsonNode? node) => node == null ? default : node.Deserialize<T>(Options);
 
+    // 供 config wire codec 复用 PropertyValue 的解析核（节点很小，经文本往返换 JsonElement）。
+    internal static PropertyValue ReadPropertyValue(JsonNode? node)
+        => node == null ? default : PropertyValueConverter.ReadValue(JsonDocument.Parse(node.ToJsonString()).RootElement);
+
+    internal static double ParseNumberString(string s) => PropertyValueConverter.ParseNumberLiteral(s);
+
     // ── 转换器 ──
 
     // wire 规范形态：NaN/±Infinity 一律 JSON 字符串 "NaN"|"Infinity"|"-Infinity"（合法 JSON，且
@@ -113,7 +119,7 @@ internal static class ScriptedWire
         }
     }
 
-    sealed class PropertyValueConverter : JsonConverter<PropertyValue>
+    internal sealed class PropertyValueConverter : JsonConverter<PropertyValue>
     {
         public override PropertyValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {

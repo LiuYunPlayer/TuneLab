@@ -1,42 +1,55 @@
-"""The serve loop: initialize handshake + format.import/export dispatch (wire §5.2/§5.4)."""
-import json
+"""The serve loop: initialize handshake + format/settings dispatch + heartbeat reply.
+
+Wire spec: scripting/wire/v1.json (design doc §5). Each request runs on its own
+worker thread so long user code (imports, synthesis later) never blocks `ping` —
+the host kills us after 4 heartbeat misses otherwise. Replies serialize through the
+stdout lock in _send; ordering across requests doesn't matter (id-routed).
+"""
 import os
 import platform
 import sys
 import threading
 
 from . import _framing
-from ._props import walk_encode, walk_decode
+from ._props import walk_encode, walk_decode, sanitize_numbers, decode_map
 
 WIRE_PROTOCOL = 1
 
-_entries = {}        # entry id (manifest-relative path) -> {"import": fn|None, "export": fn|None}
+_entries = {}          # entry id -> {"import","export","get_settings","apply_settings"}
+_settings_by_entry = {}
 _lock = threading.Lock()
 _stdout_stream = None
 
 
-def format(cls=None, *, import_fn=None, export_fn=None, entry=None):
+def format(cls=None, *, import_fn=None, export_fn=None, entry=None,
+           get_settings_fn=None, apply_settings_fn=None):
     """Register the format implementation for one scripted entry.
 
-    Decorator on a class exposing `import_project(stream_ref)` and/or
-    `export_project(stream_ref, project)`; or pass plain functions directly.
-    `entry` must match the manifest "entry" value when a package declares several.
+    Decorator on a class exposing any of `import_project(stream_ref)`,
+    `export_project(stream_ref, project)`, `get_settings_config()` /
+    `apply_settings(values)`; or pass plain functions directly. `entry` must
+    match the manifest "entry" value when a package declares several entries.
+    Settings callbacks speak the WIRE config form (plain dicts; see scripting/wire)
+    and native property values for apply_settings.
     """
-    def register(importer, exporter, key):
-        _entries[key] = {"import": importer, "export": exporter}
+    def register(rec, key):
+        _entries[key] = rec
+
+    def make_rec(imp, exp, gets, applies):
+        return {"import": imp, "export": exp, "get_settings": gets, "apply_settings": applies}
 
     if cls is not None:
         inst = cls()
-        importer = getattr(inst, "import_project", None)
-        exporter = getattr(inst, "export_project", None)
-        if importer is None and exporter is None:
-            raise ValueError("tunelab.format: neither import_project nor export_project defined")
-        register(importer, exporter, entry or _default_entry_id())
+        rec = make_rec(getattr(inst, "import_project", None), getattr(inst, "export_project", None),
+                       getattr(inst, "get_settings_config", None), getattr(inst, "apply_settings", None))
+        if rec["import"] is None and rec["export"] is None and rec["get_settings"] is None:
+            raise ValueError("tunelab.format: nothing to register")
+        register(rec, entry or _default_entry_id())
         return cls
 
-    if import_fn is None and export_fn is None:
+    if import_fn is None and export_fn is None and get_settings_fn is None:
         raise ValueError("tunelab.format: nothing to register")
-    register(import_fn, export_fn, entry or _default_entry_id())
+    register(make_rec(import_fn, export_fn, get_settings_fn, apply_settings_fn), entry or _default_entry_id())
     return import_fn if export_fn is None else export_fn
 
 
@@ -89,11 +102,9 @@ def _reply(req_id, result=None, err=None):
     _send(msg)
 
 
-def _handle_initialize(req):
-    params = req.get("params") or {}
-    declared = params.get("entries") or []
+def _handle_initialize(params):
     provides = []
-    for e in declared:
+    for e in params.get("entries") or []:
         entry_id = e.get("entry")
         handler = _entries.get(entry_id)
         if handler is None and len(_entries) == 1:
@@ -107,7 +118,14 @@ def _handle_initialize(req):
             "entry": entry_id,
             "can_import": handler.get("import") is not None,
             "can_export": handler.get("export") is not None,
+            "settings": handler.get("get_settings") is not None,
         })
+        settings = e.get("settings")
+        if settings is not None and handler.get("apply_settings") is not None:
+            try:
+                handler["apply_settings"](decode_map(settings))   # 整个设置包就是一张 property map
+            except Exception as ex:
+                error("apply_settings(handshake) failed: %s" % ex)
     return {
         "provides": provides,
         "capabilities": capabilities(),
@@ -121,45 +139,64 @@ def _handle_initialize(req):
     }
 
 
+def _find_entry(entry_id):
+    e = _entries.get(entry_id)
+    if e is None and len(_entries) == 1:
+        e = next(iter(_entries.values()))
+    return e
+
+
 def _dispatch(req):
     method = req.get("method")
     params = req.get("params") or {}
     req_id = req.get("id")
 
-    if method == "initialize":
-        _reply(req_id, _handle_initialize(req))
-    elif method == "shutdown":
-        _reply(req_id, {}) if req_id is not None else None
-        os._exit(0)
-    elif method == "format.import":
-        entry = _entries.get(params.get("entry")) or _single()
-        fn = entry and entry.get("import")
-        if fn is None:
-            _reply(req_id, err={"code": "bad_request", "message": "no importer for entry " + str(params.get("entry"))})
-            return
-        try:
-            project = fn(params["stream_ref"])
-            _reply(req_id, {"project": walk_encode(project)})
-        except Exception as ex:
-            _reply(req_id, err={"code": "runtime_error", "message": str(ex)})
-    elif method == "format.export":
-        entry = _entries.get(params.get("entry")) or _single()
-        fn = entry and entry.get("export")
-        if fn is None:
-            _reply(req_id, err={"code": "bad_request", "message": "no exporter for entry " + str(params.get("entry"))})
-            return
-        try:
+    try:
+        if method == "initialize":
+            _reply(req_id, _handle_initialize(params))
+        elif method == "ping":
+            _reply(req_id, {})
+        elif method == "shutdown":
+            if req_id is not None:
+                _reply(req_id, {})
+            os._exit(0)
+        elif method == "format.import":
+            entry = _find_entry(params.get("entry"))
+            fn = entry and entry.get("import")
+            if fn is None:
+                _reply(req_id, err={"code": "bad_request", "message": "no importer for entry " + str(params.get("entry"))})
+                return
+            _reply(req_id, {"project": walk_encode(fn(params["stream_ref"]))})
+        elif method == "format.export":
+            entry = _find_entry(params.get("entry"))
+            fn = entry and entry.get("export")
+            if fn is None:
+                _reply(req_id, err={"code": "bad_request", "message": "no exporter for entry " + str(params.get("entry"))})
+                return
             fn(params["stream_ref"], walk_decode(params.get("project") or {}))
             _reply(req_id, {})
-        except Exception as ex:
+        elif method == "settings.get_config":
+            entry = _find_entry(params.get("entry"))
+            fn = entry and entry.get("get_settings")
+            if fn is None:
+                _reply(req_id, err={"code": "bad_request", "message": "no settings for entry " + str(params.get("entry"))})
+                return
+            _reply(req_id, {"config": sanitize_numbers(fn())})
+        elif method == "settings.apply":
+            entry = _find_entry(params.get("entry"))
+            fn = entry and entry.get("apply_settings")
+            if fn is not None:
+                fn(decode_map(params.get("values") or {}))
+            if req_id is not None:
+                _reply(req_id, {})
+        elif req_id is not None:
+            _reply(req_id, err={"code": "bad_request", "message": "unknown method " + str(method)})
+    except Exception as ex:
+        if req_id is not None:
             _reply(req_id, err={"code": "runtime_error", "message": str(ex)})
-    elif req_id is not None:
-        _reply(req_id, err={"code": "bad_request", "message": "unknown method " + str(method)})
-    # notifications without id: ignore (forward-compatible)
-
-
-def _single():
-    return next(iter(_entries.values())) if len(_entries) == 1 else None
+        else:
+            error("while handling notification %s: %s" % (method, ex))
+        return
 
 
 def _arm_parent_death_guard():
@@ -177,10 +214,7 @@ def _arm_parent_death_guard():
 
     def watch():
         while True:
-            try:
-                threading.Event().wait(2.0)
-            except KeyboardInterrupt:
-                return
+            threading.Event().wait(2.0)
             if os.getppid() != parent:
                 os._exit(0)
 
@@ -190,8 +224,7 @@ def _arm_parent_death_guard():
 def serve():
     """Run the protocol loop until the host's pipe closes. Never returns before that."""
     global _stdout_stream
-    _stdout_stream = _framing.open_stdio()[1]
-    stdin, _ = _framing.open_stdio()
+    stdin, _stdout_stream = _framing.open_stdio()
     _arm_parent_death_guard()
     while True:
         try:
@@ -200,4 +233,4 @@ def serve():
             os._exit(1)          # broken frame = protocol violation; let the host respawn us
         if msg is None:
             os._exit(0)          # stdin EOF = host died (defense line 1)
-        _dispatch(msg)
+        threading.Thread(target=_dispatch, args=(msg,), daemon=True).start()

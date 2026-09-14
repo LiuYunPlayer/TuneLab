@@ -51,4 +51,39 @@ public class ScriptedRemoteFormatTests
         Assert.Equal("FAKE-EXPORT", Encoding.UTF8.GetString(output.ToArray()));
         SidecarRegistry.ShutdownAll();
     }
+
+    [Fact]
+    public void SettingsSchemaDecodesThroughConfigWire()
+    {
+        var dll = ScriptedSidecarHostTests.FakeDllPath;
+        var host = SidecarRegistry.For("com.test.rf-settings", Path.GetDirectoryName(dll)!,
+            new RuntimeInfo(ScriptedSidecarHostTests.Dotnet, "dotnet-fake", "0.0", "x64"), Path.GetFileName(dll));
+        host.ExpectFormat(Path.GetFileName(dll), [], ["tst"]);
+        var proxy = new RemoteFormat(host, Path.GetFileName(dll), hasSettings: true);
+
+        var cfg = ((TuneLab.SDK.IExtensionSettings)proxy).GetSettingsConfig(new NullSettingsContext());
+        var obj = Assert.IsType<ObjectConfig>(cfg);
+        Assert.Equal(7, obj.Properties.Count);   // fake 的 WidgetConfig fixture 全量落地
+        Assert.IsType<SliderConfig>(obj.Properties["gain"]);
+        SidecarRegistry.ShutdownAll();
+    }
+
+    [Fact]
+    public void UndeclaredSettingsYieldEmptyPanelAndNoRpc()
+    {
+        var dll = ScriptedSidecarHostTests.FakeDllPath;
+        var host = SidecarRegistry.For("com.test.rf-nosettings", Path.GetDirectoryName(dll)!,
+            new RuntimeInfo(ScriptedSidecarHostTests.Dotnet, "dotnet-fake", "0.0", "x64"), Path.GetFileName(dll));
+        host.ExpectFormat(Path.GetFileName(dll), [], ["tst"]);
+        var proxy = new RemoteFormat(host, Path.GetFileName(dll), hasSettings: false);
+
+        var cfg = ((TuneLab.SDK.IExtensionSettings)proxy).GetSettingsConfig(new NullSettingsContext());
+        Assert.Empty(((ObjectConfig)cfg).Properties);           // 未声明 = 空 schema，且从未 spawn
+        Assert.False(host.Running);
+    }
+
+    sealed class NullSettingsContext : TuneLab.SDK.IExtensionSettingsContext
+    {
+        public TuneLab.Foundation.PropertyObject Settings => TuneLab.Foundation.PropertyObject.Empty;
+    }
 }

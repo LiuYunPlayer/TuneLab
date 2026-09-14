@@ -1,7 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M1 已落地**（帧协议 + SidecarHost 生命周期 + RemoteFormat + Python façade + 假 sidecar 封条 +
-> 真解释器 E2E；实现偏差见 §12.4）。此前：M0 已落地（manifest 字段、协议门、四级探测）。
+> 状态：**定稿；M2a 已落地**（config wire codec + settings 远程代理 + 心跳 + stderr 落盘滚动；
+> effect 双向会话与 Node/Lua façade = M2b）。此前：M1（帧协议/SidecarHost/RemoteFormat/Python
+> façade/假 sidecar 封条/真解释器 E2E）、M0（manifest 字段、协议门、四级探测）。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -81,6 +82,7 @@ RemoteFormat / RemoteEffectEngine / RemoteVoiceEngine : SDK A 类接口的 RPC �
 | `runtime` | 声明即成脚本条目 | 运行时区间串：`"python>=3.10,<4"` / `"node>=18"` / `"lua>=5.4"` / `"luajit>=2.1"`（flavor 前缀参与判定，§8.3） |
 | `entry` | 与 `runtime` 成对 | 包内相对路径：`plugin/main.py` / `plugin/index.js` / `plugin/main.lua` |
 | `deps` | 选填 | `"vendored"`（默认，隐式）/ `"pip"`（**已声明未实现**：见到即 `Skipped: deps mode not supported`） |
+| `settings` | 选填 | `true` = 本条目携带扩展设置面板（宿主经 `settings.get_config`/`settings.apply` 往返，§5.7；.NET 侧可静态探测、脚本侧无法，故显式声明） |
 | `protocol-version` | 包级，选填 | 缺省按 1；高于宿主 `WireProtocol.Version` → 握手前 `Skipped`（与 `sdk-version` 门同款文案） |
 
 规则（全部是加载错误，不静默降级——延续 V1 纪律）：
@@ -208,10 +210,12 @@ None → ResolvingRuntime → Spawning → Handshake → Ready
 
 | 方法 | 方向 | 语义 |
 |---|---|---|
-| `initialize {protocol, sdk_version, package_id, entries[]}` → `{provides[], capabilities{audio_plane,curve_plane}, runtime{exe,version,arch,flavor}, facade_version}` | H→S / 应答 | 握手（§3.4 环境变量核对 epoch/protocol；不符即关管道） |
+| `initialize {protocol, package_id, entries[{type, entry, import_suffixes, export_suffixes, settings?}]}` → `{provides[], capabilities{audio_plane,curve_plane}, runtime{exe,version,arch,flavor}, facade_version}` | H→S / 应答 | 握手（§3.4 环境变量核对 epoch/protocol；不符即关管道）。`entries[].settings` = 宿主已持值（spawn 前灌过 → 握手补发，Python façade 解 tagged 后灌 apply_settings） |
 | `log.write {level, message}` | S→H n | 插件日志 → 宿主 ILogger（packageId 归因） |
-| `ping {}/pong {epoch}` | 双向 n | 心跳（§3.3-3） |
-| `shutdown {why}` | H→S c | 礼貌退出（§3.2） |
+| `ping {epoch}` → `{}` | H→S c | 心跳（§3.3-3）：15s 间隔 / 单 ping 5s 超时 / 连续 4 失联杀树；façade 必须把用户代码放工作线程跑，保 RPC 环应答 |
+| `settings.get_config {entry}` → `{config}` | H→S c | 设置 schema（config 族经工厂重建，自定义标度/格式拒之=人话）；manifest `settings: true` 的条目才发 |
+| `settings.apply {entry, values}` | H→S n/c | 持久值推送（运行中即时通知；未运行走握手补发）；密码字段宿主已解密，与 .NET 插件同权 |
+| `shutdown {reason}` | H→S c | 礼貌退出（§3.2） |
 | `capabilities.report {…}` | S→H n | 运行中能力变更（罕见，v2 预留） |
 
 ### 5.3 载荷编解码约定（"句柄化宿主实现面"）
@@ -273,9 +277,12 @@ effect 同族：`effect.create_session {context绑定: 输入段几何+参数快
 
 ### 5.7 settings
 
-`settings.get_config {engine_key}` → `ObjectConfig` JSON；`settings.apply {engine_key, values}`。
+`settings.get_config {entry}` → `{config: <ObjectConfig wire 形，§config>}`；`settings.apply {entry, values}`
+（通知；值 = tagged property map）。**懒 spawn 的时序接合**：宿主在 spawn 前收到 ApplySettings（ApplyPersisted
+必早于任何调用）时把值存下、随 `initialize.entries[].settings` 补发——与 .NET"Init 前必须可灌"同语义。
 宿主侧桶（`ExtensionSettingsStore`、DPAPI/Keychain 密码字段）**不动**：sidecar 永远收不到密码字段的
-密文之外形态，schema 里 `IsPassword` 字段值由宿主侧解出后才推给 `settings.apply`（与 .NET 插件同权）。
+密文之外形态，schema 的 `IsPassword` 判定由宿主读 config 树完成（config wire 的 textbox.password 字段）；
+推给 `settings.apply` 的是解出的终值（与 .NET 插件同权，M2a 已落地）。
 
 ---
 
@@ -455,21 +462,27 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   `plugin-development.md` 增一节"脚本插件"指针。
 - `naming-glossary.md` 已随行增补（sidecar / runtime 资源包 / epoch / 三面 / 会话重建）。
 
-### 12.4 M1 落地注记（与设计差异/推迟项）
+### 12.4 实现注记（与设计差异/进度）
 
-- **落地**：`ScriptedWire`（值编码全族，含 `DoubleWireConverter` 字符串字面量、PartInfo `kind` 判别器）、
+- **M1 落地**：`ScriptedWire`（值编码全族，含 `DoubleWireConverter` 字符串字面量、PartInfo `kind` 判别器）、
   `WireFraming`、`SidecarHost`（握手/epoch/退避熔断/stderr 尾部/`ResetCircuit`）、
-  `ScriptedRuntimeLedger`+`SidecarRegistry`（防线 4 与关停编排，挂在 `LoadExtensions`/`Destroy`）、
-  Windows Job Object（防线 2 宿主侧半边）、`RemoteFormat`（文件交接）、`scripting/python/tunelab`、
-  `scripting/wire/v1.json`（规范真源）、`tests/ScriptedFakeSidecar`（协议封条执行体，CI 免解释器）、
-  真 Python E2E（`TUNELAB_REQUIRE_PYTHON=1` 强制，否则缺解释器 vacuous pass）。
-- **推迟到 M2**：【下载运行时】按钮（runtime 官方制品尚不存在，下载映射要随 release 起效）；
-  `IExtensionSettings` 远程代理；stderr 落盘滚动（M1 只在内存留 64KB 尾部）。
+  `ScriptedRuntimeLedger`+`SidecarRegistry`（防线 1/2/4 与关停编排，挂在 `LoadExtensions`/`Destroy`）、
+  `RemoteFormat`（文件交接）、`scripting/python/tunelab`、`scripting/wire/v1.json`（规范真源）、
+  `tests/ScriptedFakeSidecar`（协议封条执行体，CI 免装解释器）、真 Python E2E
+  （`TUNELAB_REQUIRE_PYTHON=1` 强制，否则缺解释器 vacuous pass）。
+- **M2a 落地**：`ScriptedConfigWire`（config 族工厂重建；自定义标度/格式 = 人话拒绝）、
+  settings 远程代理（manifest `settings: true` 条目；schema 经工厂配置线、值经 tagged map；
+  **未 spawn 时值存宿主、随 initialize 的 `entries[].settings` 补发**——懒 spawn 与
+  "ApplySettings 早于 Init"时序的接合点）、心跳（15s/5s/4 连失联杀树，`SidecarHost(pingTimeout)`
+  注入测试加速）、stderr 包内 `logs/stderr-<boot>.txt` 滚动追加。façade 随改：请求逐条工作线程
+  （长导入不饿死 ping）、`sanitize_numbers` 兜 NaN、`get_settings_config/apply_settings` 注册位。
+- **推迟**：【下载运行时】按钮与 stderr 清理策略（M2b）；effect/voice 双向会话（M2b/M3——反向调用
+  派发环是共同前提）；Node/Lua façade（M2b，能力协商以 PUC Lua `inline` 面为首个真实用例）。
 - **实现差异**：
-  - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff 计数仍生效、熔断照常）——M1 消费方
-    format 是拉模式，自动重启只有缓存收益；effect 的 push 调度落地时（M2）再补后台重启环。
-  - 心跳（防线 3）未实现——M1 所有调用带超时（RPC 默认 2min、握手 30s、声明面缓存支随 M2），
-    挂起的 sidecar 在 format 面上被超时等价覆盖；M2 的 effect/voice 调度环接入时补真心跳。
+  - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
+    自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。
+  - NaN/±Infinity 规范形态 = **字符串字面量**（非裸具名 token——net8 JsonDocument 不吃），
+    读侧两种都宽容；§5.3 与 `scripting/wire/v1.json` 已按此定稿。
   - 开发隔离 `TUNELAB_DATA_DIR` **仓内已有**（`PathManager.cs:16`），§12.2 设想的 env 覆盖钩子无需新增。
 
 ---

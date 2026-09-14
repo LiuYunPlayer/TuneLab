@@ -69,6 +69,18 @@ def _special_str(v):
     return "Infinity" if v > 0 else "-Infinity"
 
 
+def sanitize_numbers(node):
+    """Any bare NaN/±Infinity float anywhere in a wire payload (config declarations too)
+    becomes its string literal — bare tokens are illegal JSON and the host reader rejects them."""
+    if isinstance(node, (list, tuple)):
+        return [sanitize_numbers(x) for x in node]
+    if isinstance(node, dict):
+        return {k: sanitize_numbers(v) for k, v in node.items()}
+    if _special(node):
+        return _special_str(node)
+    return node
+
+
 def walk_encode(node):
     """Encode a project tree on the way OUT to the host.
 

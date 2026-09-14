@@ -14,11 +14,18 @@ internal static class Program
     static int Main()
     {
         var mode = Environment.GetEnvironmentVariable("TUNELAB_FAKE_MODE") ?? "normal";
+        var settingsLog = Environment.GetEnvironmentVariable("TUNELAB_FAKE_SETTINGS_LOG");
         Console.Error.WriteLine($"fake-up mode={mode} pid={Environment.ProcessId}");
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             Console.Error.WriteLine("fake-unhandled: " + e.ExceptionObject);
         using var stdin = Console.OpenStandardInput();
         using var stdout = Console.OpenStandardOutput();
+
+        void LogSettings(string origin, JsonNode? values)
+        {
+            if (settingsLog != null)
+                File.AppendAllText(settingsLog, $"{origin}\t{values?.ToJsonString() ?? "<null>"}\n");
+        }
 
         while (TryRead(stdin, out var json))
         {
@@ -31,10 +38,17 @@ internal static class Program
             var id = req["id"]?.DeepClone();
             if (method == "format.import" && mode == "crash-on-import")
                 Environment.Exit(3);   // 模拟插件 native 崩溃：不留尾包，直接暴毙
+            if (method == "ping" && mode == "mute-ping")
+                continue;              // 心跳装死：只吞 ping，其余照常（测宿主 4 连失联杀树）
+            if (id == null && method == "settings.apply")
+            {
+                LogSettings("notify", req["params"]?["values"]);
+                continue;
+            }
 
             if (method == "initialize")
             {
-                var result = HandleInitialize(req["params"]?.AsObject() ?? new JsonObject(), mode);
+                var result = HandleInitialize(req["params"]?.AsObject() ?? new JsonObject(), mode, LogSettings);
                 if (mode == "no-capability")
                     result.AsObject().Remove("capabilities");
                 Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result });
@@ -48,6 +62,20 @@ internal static class Program
             switch (method)
             {
                 case "log.write":
+                    break;
+                case "ping":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
+                    break;
+                case "settings.get_config":
+                    Write(stdout, new JsonObject
+                    {
+                        ["jsonrpc"] = "2.0", ["id"] = id,
+                        ["result"] = new JsonObject { ["config"] = WidgetConfig() },
+                    });
+                    break;
+                case "settings.apply":
+                    LogSettings("request", p?["values"]);
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
                     break;
                 case "format.import":
                 {
@@ -76,7 +104,7 @@ internal static class Program
         return 0;   // stdin EOF（宿主死）→ 自卫退出（防线 1 的另一半：真 façade 也照此）
     }
 
-    static JsonNode HandleInitialize(JsonObject req, string mode)
+    static JsonNode HandleInitialize(JsonObject req, string mode, Action<string, JsonNode?> logSettings)
     {
         // req = initialize 的 params（宿主发 {protocol, package_id, entries[]}）
         var provides = new JsonArray();
@@ -84,7 +112,17 @@ internal static class Program
         {
             if (req["entries"] is JsonArray entries)
                 foreach (var e in entries)
-                    provides.Add((JsonNode)new JsonObject { ["type"] = (string?)e?["type"] ?? "format", ["entry"] = e?["entry"]?.DeepClone() });
+                {
+                    var hasSettings = e?["settings"] != null;
+                    if (hasSettings)
+                        logSettings("handshake", e!["settings"]);
+                    provides.Add((JsonNode)new JsonObject
+                    {
+                        ["type"] = (string?)e?["type"] ?? "format",
+                        ["entry"] = e?["entry"]?.DeepClone(),
+                        ["settings"] = hasSettings,
+                    });
+                }
         }
         return new JsonObject
         {
@@ -94,6 +132,32 @@ internal static class Program
             ["facade_version"] = "test",
         };
     }
+
+    // 一个尽量占满 config wire 各 type 的 ObjectConfig（codec 封条的 fixture 源）。
+    static JsonNode WidgetConfig() => new JsonObject
+    {
+        ["type"] = "object",
+        ["properties"] = new JsonArray
+        {
+            new JsonObject { ["id"] = "model_dir", ["displayText"] = "模型目录", ["config"] = new JsonObject
+                { ["type"] = "path", ["defaultValue"] = "", ["target"] = "folder" } },
+            new JsonObject { ["id"] = "gain", ["config"] = new JsonObject
+                { ["type"] = "slider", ["defaultValue"] = 0.0, ["scale"] = new JsonObject { ["kind"] = "linear", ["min"] = -12.0, ["max"] = 12.0 },
+                  ["format"] = new JsonObject { ["kind"] = "decimals", ["digits"] = 1 }, ["randomizable"] = true,
+                  ["minLabel"] = "Soft", ["maxLabel"] = "Hard" } },
+            new JsonObject { ["id"] = "seed_mode", ["config"] = new JsonObject
+                { ["type"] = "combo", ["items"] = new JsonArray
+                    { new JsonObject { ["value"] = new JsonObject { ["s"] = "fast" }, ["displayText"] = "Fast" },
+                      new JsonObject { ["separator"] = true, ["displayText"] = "advanced" },
+                      new JsonObject { ["value"] = new JsonObject { ["s"] = "full" } } },
+                  ["default"] = new JsonObject { ["s"] = "fast" } } },
+            new JsonObject { ["id"] = "denoise", ["config"] = new JsonObject { ["type"] = "checkbox", ["defaultValue"] = true } },
+            new JsonObject { ["id"] = "api_key", ["config"] = new JsonObject { ["type"] = "textbox", ["defaultValue"] = "", ["password"] = true } },
+            new JsonObject { ["id"] = "note", ["config"] = new JsonObject { ["type"] = "textbox", ["defaultValue"] = "", ["multiline"] = true, ["maxVisibleLines"] = 4 } },
+            new JsonObject { ["id"] = "steps", ["config"] = new JsonObject
+                { ["type"] = "number", ["defaultValue"] = 4.0, ["min"] = 1.0, ["max"] = 10.0, ["step"] = 1.0 } },
+        },
+    };
 
     // 与宿主 wire JSON 规范同形的合成工程：一个 track、一个 midi part、一个 note（带 properties，
     // 钉住 PropertyObject / Map / 具名浮点的往返）。数值用 1e18 之类以避开 camelCase 大小写敏感键。

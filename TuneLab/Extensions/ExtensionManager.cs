@@ -727,11 +727,11 @@ internal static class ExtensionManager
 
         var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
         host.ExpectFormat(entryPath, importSuffixes, exportSuffixes);
-        var proxy = new RemoteFormat(host, entryPath);
+        var proxy = new RemoteFormat(host, entryPath, ext.settings);
         FormatsManager.RegisterFormat(packageId, FormatsManager.DeriveKind(hasImport, hasExport), identity, displayName,
             hasImport ? (importSuffixes, () => (IImportFormat)proxy) : null,
             hasExport ? (exportSuffixes, () => (IExportFormat)proxy) : null,
-            declaresSettings: false, className: entryPath);
+            declaresSettings: ext.settings, className: entryPath);
         error = null;
         return true;
     }

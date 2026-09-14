@@ -76,6 +76,45 @@ class PropertyCodecTests(unittest.TestCase):
         self.assertEqual(_props.decode_value("x"), "x")
         self.assertIs(_props.decode_value(True), True)
 
+    def test_special_floats_never_ride_bare(self):
+        # sanitize_numbers applies to whole payloads (config declarations), not just property maps
+        node = {"defaultValue": float("nan"), "min": float("-inf"), "max": 1.0,
+                "list": [float("inf")], "untouched": "NaN-as-text-stays"}
+        out = _props.sanitize_numbers(node)
+        self.assertEqual(out["defaultValue"], "NaN")
+        self.assertEqual(out["min"], "-Infinity")
+        self.assertEqual(out["max"], 1.0)
+        self.assertEqual(out["list"], ["Infinity"])
+        self.assertEqual(out["untouched"], "NaN-as-text-stays")
+
+
+class ServiceTests(unittest.TestCase):
+    def test_initialize_binds_single_handler_and_resends_settings(self):
+        import tunelab._service as svc
+        applied = {}
+        svc._entries.clear()
+        svc._entries[""] = {"import": None, "export": None,
+                            "get_settings": lambda: {"type": "object", "properties": []},
+                            "apply_settings": lambda v: applied.update(v)}
+        reply = svc._handle_initialize({"entries": [{
+            "type": "format", "entry": "plugin/main.py",
+            "settings": {"model": {"n": 1.0}},
+        }]})
+        self.assertEqual([p["entry"] for p in reply["provides"]], ["plugin/main.py"])
+        self.assertTrue(reply["provides"][0]["settings"])
+        self.assertEqual(applied, {"model": 1.0})            # tagged 解回原生后灌给插件
+
+    def test_ping_replies_with_empty_result(self):
+        import tunelab._service as svc
+        sent = []
+        original, svc._send = svc._send, sent.append
+        try:
+            svc._dispatch({"jsonrpc": "2.0", "id": "p1", "method": "ping", "params": {}})
+        finally:
+            svc._send = original
+        self.assertEqual(sent[0]["id"], "p1")
+        self.assertEqual(sent[0]["result"], {})
+
 
 if __name__ == "__main__":
     unittest.main()
