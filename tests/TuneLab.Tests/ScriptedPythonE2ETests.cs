@@ -82,4 +82,48 @@ public class ScriptedPythonE2ETests
         Assert.True(RuntimeSpec.TryParse(s, out var spec, out _));
         return spec;
     }
+
+    [Fact(Timeout = 60_000)]
+    public void RealPythonEffectGainRoundTrip()
+    {
+        if (!RuntimeLocator.Default.TryResolve(ParseSpec("python>=3.10"), out var python, out var trail))
+        {
+            if (Environment.GetEnvironmentVariable("TUNELAB_REQUIRE_PYTHON") == "1")
+                Assert.Fail("python not resolved: " + trail);
+            return;   // 无解释器环境：vacuous pass
+        }
+        Environment.SetEnvironmentVariable("PYTHONPATH", LocateUp("scripting", "python"));
+
+        var pkgDir = LocateUp("tests", "plugins", "PyEffect");
+        var entry = "plugin/main.py";
+        var host = SidecarRegistry.For("com.tunelab.test.pyeffect", pkgDir, python, entry);
+        host.ExpectEngine("effect", "PyGain");
+        var engine = new RemoteEffectEngine(host, "PyGain", hasSettings: false);
+        var ctx = new EffectTestContext();
+        try
+        {
+            engine.Init();
+            // 声明面经真 config wire 重建
+            var cfg = Assert.IsType<TuneLab.SDK.ObjectConfig>(engine.GetPropertyConfig(new EffectTestPropContext()));
+            Assert.IsType<TuneLab.SDK.SliderConfig>(cfg.Properties["amount".AsKey()]);
+
+            var session = engine.CreateSession(ctx);
+            session.Process(System.Threading.CancellationToken.None).GetAwaiter().GetResult();
+
+            var seg = Assert.Single(ctx.Segments);
+            Assert.True(seg.Committed);
+            Assert.Equal(4410, seg.Written.Count);
+            for (int i = 0; i < seg.Written.Count; i += 701)     // 跨语言：python 写回 = 输入 × 0.5
+                Assert.Equal(ctx.Input.Buffer[i] * 0.5f, seg.Written[i], 6);
+            var loud = session.SynthesizedParameters["loudness"];
+            Assert.Single(loud.Segments);
+            Assert.Equal(2, loud.Segments[0].Count);
+            var status = Assert.Single(session.Status);
+            Assert.Equal(SynthesisSegmentStatus.Synthesized, status.Status);
+        }
+        finally
+        {
+            host.Shutdown();
+        }
+    }
 }

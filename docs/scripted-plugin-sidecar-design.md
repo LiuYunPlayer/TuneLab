@@ -476,8 +476,17 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   "ApplySettings 早于 Init"时序的接合点）、心跳（15s/5s/4 连失联杀树，`SidecarHost(pingTimeout)`
   注入测试加速）、stderr 包内 `logs/stderr-<boot>.txt` 滚动追加。façade 随改：请求逐条工作线程
   （长导入不饿死 ping）、`sanitize_numbers` 兜 NaN、`get_settings_config/apply_settings` 注册位。
-- **推迟**：【下载运行时】按钮与 stderr 清理策略（M2b）；effect/voice 双向会话（M2b/M3——反向调用
-  派发环是共同前提）；Node/Lua façade（M2b，能力协商以 PUC Lua `inline` 面为首个真实用例）。
+- **M2b 落地**：effect 垂直切片——`RemoteEffectEngine`（声明面缓存 RPC + `Destroy`/`Init` 直通、
+  Init 无超时=长模型加载）、`RemoteEffectSession`（`Process` 无限超时——应答即完成；取消经通知尽力；
+  段句柄表随会话 Dispose）、`SidecarHost` **反向通道**（`RegisterLocalCall`/`RegisterLocalNotify`，
+  读者线程零阻塞；`host.input_read/properties/evaluate/segment_*` 全部 marshal 回会话捕获的数据线程，
+  30s 上限）+ `effect.status/parameters` 发布（volatile 换引用 + ActionEvent，管线自 marshal）；
+  Python façade `@tunelab.effect`（`_effect.py`：ctx 的 input_read/evaluate/output/status/parameters，
+  f32/f64 base64-LE）+ 反向 `_call_host`；样例 `tests/plugins/PyEffect`（真 3.11 E2E 实测 467ms 全链）。
+  **规范缺口 = 实现漂移的教训已钉**：fake 与宿主对拍同一份 `scripting/wire/v1.json`。
+- **推迟**：【下载运行时】按钮与 stderr 清理策略（M3）；Node/Lua façade（M3，能力协商以 PUC Lua
+  `inline` 面为首个真实用例）；voice（M3——依赖同一反向通道 + shm 音频面）；心跳在 effect 面已可用
+  （façade 每请求独立线程保证环常活）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

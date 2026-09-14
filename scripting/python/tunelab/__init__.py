@@ -16,7 +16,7 @@ Usage (in the package's entry script, e.g. plugin/main.py):
     tunelab.serve()
 """
 
-from ._service import format, serve, info, warn, error, capabilities
+from ._service import format, effect, serve, info, warn, error, capabilities
 
-__all__ = ["format", "serve", "info", "warn", "error", "capabilities"]
+__all__ = ["format", "effect", "serve", "info", "warn", "error", "capabilities"]
 __version__ = "0.1.0"

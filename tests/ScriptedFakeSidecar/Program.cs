@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -26,6 +27,36 @@ internal static class Program
             if (settingsLog != null)
                 File.AppendAllText(settingsLog, $"{origin}\t{values?.ToJsonString() ?? "<null>"}\n");
         }
+
+        int reverseId = 0;
+        // 反向请求（fake→宿主）：写请求帧后同步读应答帧——宿主读者线程把处理甩到池线程，不会锁环。
+        JsonNode? Reverse(string method, JsonObject args)
+        {
+            var rid = "rev-" + ++reverseId;
+            Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = rid, ["method"] = method, ["params"] = args });
+            while (TryRead(stdin, out var respJson))
+            {
+                var resp = JsonNode.Parse(respJson)!.AsObject();
+                if (resp["method"]?.GetValue<string>() == "ping")
+                {
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = resp["id"]?.DeepClone(), ["result"] = new JsonObject() });
+                    continue;                                   // 反向途中回心跳
+                }
+                if (resp["method"] != null)
+                    continue;                                   // 跳过其他通知（不应有）
+                if (resp["id"]?.ToJsonString() == "\"" + rid + "\"")
+                {
+                    if (resp["error"] != null)
+                        throw new InvalidOperationException("reverse " + method + " failed: " + resp["error"]!.ToJsonString());
+                    return resp["result"];
+                }
+            }
+            Environment.Exit(4);                                // 宿主管道关了：随它去
+            return null;
+        }
+
+        void Notify(string method, JsonObject args)
+            => Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["method"] = method, ["params"] = args });
 
         while (TryRead(stdin, out var json))
         {
@@ -92,7 +123,106 @@ internal static class Program
                     Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
                     break;
                 }
+                case "engine.destroy":
+                case "session.dispose":
+                    if (id != null)
+                        Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
+                    break;
+                case "engine.init":
+                case "engine.create_session":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
+                    break;
+                case "effect.get_property_config":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["config"] = GainConfig() } });
+                    break;
+                case "effect.get_automation_configs":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id,
+                        ["result"] = new JsonObject { ["tracks"] = new JsonArray
+                        {
+                            new JsonObject { ["id"] = "intensity", ["displayText"] = "Intensity", ["config"] = new JsonObject
+                                { ["type"] = "automation", ["minValue"] = 0.0, ["maxValue"] = 1.0, ["defaultValue"] = 0.5 }, },
+                        } } });
+                    break;
+                case "effect.get_synthesized_parameter_configs":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id,
+                        ["result"] = new JsonObject { ["tracks"] = new JsonArray
+                        {
+                            new JsonObject { ["id"] = "loudness", ["config"] = new JsonObject
+                                { ["type"] = "automation", ["minValue"] = 0.0, ["maxValue"] = 2.0, ["defaultValue"] = "NaN" }, },
+                        } } });
+                    break;
+                case "effect.process":
+                {
+                    if (mode != "effect-gain")
+                        break;
+                    var engine = p!["engine"]!.GetValue<string>();
+                    var session = p["session"]!.GetValue<string>();
+                    var input = p["input"]!.AsObject();
+                    long baseOffset = input["sample_offset"]!.GetValue<long>();
+                    int count = input["sample_count"]!.GetValue<int>();
+                    int rate = input["sample_rate"]!.GetValue<int>();
+                    JsonObject Via(JsonObject extra)
+                    {
+                        extra["engine"] = engine;
+                        extra["session"] = session;
+                        return extra;
+                    }
+
+                    Notify("effect.status", Via(new JsonObject { ["segments"] = new JsonArray { new JsonObject
+                        { ["start"] = (double)baseOffset / rate, ["end"] = (double)(baseOffset + count) / rate, ["status"] = "synthesizing", ["progress"] = 0.0 } } }));
+                    var samples = new float[count];
+                    for (int pos = 0; pos < count;)
+                    {
+                        int take = Math.Min(count - pos, 1 << 20);
+                        var r = Reverse("host.input_read", Via(new JsonObject { ["offset"] = pos, ["count"] = take }));
+                        var bytes = Convert.FromBase64String(r!["data"]!.GetValue<string>());
+                        for (int i = 0; i < take; i++)
+                            samples[pos + i] = BinaryPrimitives.ReadSingleLittleEndian(bytes.AsSpan(i * 4));
+                        pos += take;
+                    }
+                    var pr = Reverse("host.properties", Via(new JsonObject { ["keys"] = new JsonArray { "amount" } }));
+                    double amount = pr!["values"]!.AsObject()["amount"] is { } av && av["n"] != null ? av["n"]!.GetValue<double>() : 1.0;
+                    if (engine == "FakeEval")
+                    {
+                        // 反向曲线求值：两个时刻的 f64-LE positions → 断言形如 {"values": b64}
+                        var pos = new byte[16];
+                        BinaryPrimitives.WriteDoubleLittleEndian(pos.AsSpan(0, 8), (double)baseOffset / rate);
+                        BinaryPrimitives.WriteDoubleLittleEndian(pos.AsSpan(8, 8), (double)(baseOffset + count) / rate);
+                        var ev = Reverse("host.evaluate", Via(new JsonObject { ["track"] = "intensity", ["positions"] = Convert.ToBase64String(pos) }));
+                        var first = BinaryPrimitives.ReadDoubleLittleEndian(Convert.FromBase64String(ev!["values"]!.GetValue<string>()).AsSpan(0, 8));
+                        if (first != 0.25)
+                            throw new InvalidOperationException("evaluate returned " + first);
+                    }
+                    var segId = Reverse("host.segment_create", Via(new JsonObject
+                    {
+                        ["sample_offset"] = baseOffset, ["sample_count"] = count, ["sample_rate"] = rate,
+                    }))!["segment"]!.GetValue<string>();
+                    for (int pos = 0; pos < count;)
+                    {
+                        int take = Math.Min(count - pos, 1 << 20);
+                        var bytes = new byte[take * 4];
+                        for (int i = 0; i < take; i++)
+                            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(i * 4), samples[pos + i] * (float)amount);
+                        Reverse("host.segment_write", Via(new JsonObject { ["segment"] = segId, ["offset"] = pos, ["data"] = Convert.ToBase64String(bytes) }));
+                        pos += take;
+                    }
+                    Reverse("host.segment_commit", Via(new JsonObject { ["segment"] = segId }));
+                    Notify("effect.parameters", Via(new JsonObject { ["parameters"] = new JsonObject { ["loudness"] = new JsonObject
+                    {
+                        ["segments"] = new JsonArray { new JsonArray
+                        {
+                            new JsonArray { (double)baseOffset / rate, 0.9 },
+                            new JsonArray { (double)(baseOffset + count) / rate, 0.9 },
+                        } },
+                    } } }));
+                    Notify("effect.status", Via(new JsonObject { ["segments"] = new JsonArray { new JsonObject
+                        { ["start"] = (double)baseOffset / rate, ["end"] = (double)(baseOffset + count) / rate, ["status"] = "synthesized", ["progress"] = 1.0 } } }));
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
+                    break;
+                }
                 default:
+                    if (id == null)
+                        break;   // 未知通知（effect.cancel 等）：吞掉，不发 id:null 的非法应答
                     Write(stdout, new JsonObject
                     {
                         ["jsonrpc"] = "2.0", ["id"] = id,
@@ -116,12 +246,13 @@ internal static class Program
                     var hasSettings = e?["settings"] != null;
                     if (hasSettings)
                         logSettings("handshake", e!["settings"]);
-                    provides.Add((JsonNode)new JsonObject
-                    {
-                        ["type"] = (string?)e?["type"] ?? "format",
-                        ["entry"] = e?["entry"]?.DeepClone(),
-                        ["settings"] = hasSettings,
-                    });
+                    var type = (string?)e?["type"] ?? "format";
+                    var prov = new JsonObject { ["type"] = type, ["settings"] = hasSettings };
+                    if (type == "format")
+                        prov["entry"] = e?["entry"]?.DeepClone();
+                    else
+                        prov["engine"] = e?["engine"]?.DeepClone();   // effect/voice 引擎期望按 engine id 兑现
+                    provides.Add((JsonNode)prov);
                 }
         }
         return new JsonObject
@@ -132,6 +263,17 @@ internal static class Program
             ["facade_version"] = "test",
         };
     }
+
+    // effect 声明面 fixture：一个 amount 滑条（codec 与宿主 RemoteEffectEngine 双向钉）。
+    static JsonNode GainConfig() => new JsonObject
+    {
+        ["type"] = "object",
+        ["properties"] = new JsonArray
+        {
+            new JsonObject { ["id"] = "amount", ["displayText"] = "Amount", ["config"] = new JsonObject
+                { ["type"] = "slider", ["defaultValue"] = 1.0, ["scale"] = new JsonObject { ["kind"] = "linear", ["min"] = 0.0, ["max"] = 2.0 } } },
+        },
+    };
 
     // 一个尽量占满 config wire 各 type 的 ObjectConfig（codec 封条的 fixture 源）。
     static JsonNode WidgetConfig() => new JsonObject
@@ -248,9 +390,15 @@ internal static class Program
             => b.Length > 0 && b[^1] == '\r' ? b.ToString(0, b.Length - 1) : b.ToString();
     }
 
+    static readonly JsonSerializerOptions WriteOptions = new()
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
+    };
+
     static void Write(Stream output, JsonNode node)
     {
-        var body = System.Text.Encoding.UTF8.GetBytes(node.ToJsonString(new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        var body = System.Text.Encoding.UTF8.GetBytes(node.ToJsonString(WriteOptions));
         var header = System.Text.Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
         output.Write(header);
         output.Write(body);

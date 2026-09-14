@@ -77,6 +77,7 @@ internal sealed class SidecarHost
         public string Entry = "";
         public string[] Import = [];
         public string[] Export = [];
+        public string? EngineType;                              // effect/voice 引擎期望（非 null 时 Entry 即 engine id）
         public JsonNode? Settings;                              // 持久设置值（spawn 前灌的在这里随握手补发）
     }
     readonly List<ExpectedFormat> mExpectedFormats = [];
@@ -85,6 +86,28 @@ internal sealed class SidecarHost
     {
         lock (mExpectedFormats)
             mExpectedFormats.Add(new ExpectedFormat { Entry = entryId, Import = importSuffixes, Export = exportSuffixes });
+    }
+
+    // effect/voice 引擎期望（§2.3 同款核对：provides 必须含 {type, engine}）。
+    public void ExpectEngine(string type, string engineId)
+    {
+        lock (mExpectedFormats)
+            mExpectedFormats.Add(new ExpectedFormat { Entry = engineId, Import = [], Export = [], EngineType = type });
+    }
+
+    // ── 反向调用（sidecar → 宿主请求）：方法 → 处理器表（§5.5，effect/voice 的地基）。
+    // 处理器在 RPC 工作线程上跑，绝不占读者线程；回写经单写锁。
+    readonly Dictionary<string, Func<JsonNode?, Task<JsonNode?>>> mLocalCalls = new();
+    readonly Dictionary<string, Action<JsonNode?>> mLocalNotifies = new();
+
+    public void RegisterLocalCall(string method, Func<JsonNode?, Task<JsonNode?>> handler)
+    {
+        lock (mLocalCalls) mLocalCalls[method] = handler;
+    }
+
+    public void RegisterLocalNotify(string method, Action<JsonNode?> handler)
+    {
+        lock (mLocalCalls) mLocalNotifies[method] = handler;
     }
 
     public bool Running { get { lock (mLock) return mProcess != null && !mDisposed; } }
@@ -118,6 +141,54 @@ internal sealed class SidecarHost
         {
             if (mStdin != stdin) throw new SidecarRpcException("runtime_error", "sidecar restarted");
             WireFraming.Write(stdin, new JsonObject { ["jsonrpc"] = "2.0", ["method"] = method, ["params"] = args }.ToJsonString());
+        }
+    }
+
+    void SendRaw(JsonObject message)
+    {
+        try
+        {
+            lock (mLock)
+            {
+                if (mProcess == null || mStdin == null || mDisposed) return;   // 半死途中丢应答：sidecar 端由超时/EOF 收敛
+                WireFraming.Write(mStdin, message.ToJsonString());
+            }
+        }
+        catch { }
+    }
+
+    void SendResult(JsonNode? id, JsonNode? result)
+        => SendRaw(new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id?.DeepClone(), ["result"] = result });
+
+    void SendError(JsonNode? id, string code, string message)
+        => SendRaw(new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id?.DeepClone(), ["error"] = new JsonObject { ["code"] = code, ["message"] = message } });
+
+    // 有界同步调用（声明面 §3.5 的宿主侧原语）：进程没起就不等——后台拉起、当前问立即落空
+    // （调用方拿缓存/空值）；进程活着则最多等 timeout（数据线程上的阻塞有上界）。
+    public bool TryCallRunning(string method, JsonNode? args, TimeSpan timeout, out JsonNode? result, out string? error)
+    {
+        result = null;
+        error = null;
+        int epoch;
+        lock (mLock)
+        {
+            if (mDisposed || mProcess == null)
+            {
+                var _ = EnsureRunningAsync();   // fire-and-forget：下一次问就有真值
+                error = "not running";
+                return false;
+            }
+            epoch = mEpoch;
+        }
+        try
+        {
+            result = CallInternal(method, args, timeout, epoch);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
         }
     }
 
@@ -210,7 +281,8 @@ internal sealed class SidecarHost
         reader.Start();
 
         // 握手（同步在本线程：EnsureRunning 已在池线程上）。失败即杀半死进程并计一次死亡。
-        // params.entries 携带宿主期望（entry 键 = manifest 的相对路径）——sidecar 按同一键兑现 provides。
+        // params.entries 携带宿主期望（format 键 = manifest 的相对路径；engine 键 = engine id）——
+        // sidecar 按同一键兑现 provides。
         var handshake = new JsonObject
         {
             ["protocol"] = WireProtocol.Version,
@@ -220,13 +292,15 @@ internal sealed class SidecarHost
         lock (mExpectedFormats)
             foreach (var ef in mExpectedFormats)
             {
-                var e = new JsonObject
+                var e = new JsonObject { ["type"] = ef.EngineType ?? "format" };
+                if (ef.EngineType == null)
                 {
-                    ["type"] = "format",
-                    ["entry"] = ef.Entry,
-                    ["import_suffixes"] = JsonSerializer.SerializeToNode(ef.Import),
-                    ["export_suffixes"] = JsonSerializer.SerializeToNode(ef.Export),
-                };
+                    e["entry"] = ef.Entry;
+                    e["import_suffixes"] = JsonSerializer.SerializeToNode(ef.Import);
+                    e["export_suffixes"] = JsonSerializer.SerializeToNode(ef.Export);
+                }
+                else
+                    e["engine"] = ef.Entry;
                 if (ef.Settings != null)
                     e["settings"] = ef.Settings.DeepClone();    // 握手补发（spawn 前灌过的持久值）
                 entriesNode.Add((JsonNode)e);
@@ -313,12 +387,17 @@ internal sealed class SidecarHost
             foreach (var item in arr)
                 if (item is JsonObject o && o["entry"]?.GetValue<string>() is { } e)
                     provided.Add(e);
+                else if (item is JsonObject eo && eo["engine"]?.GetValue<string>() is { } eng)
+                    provided.Add("engine:" + eng);
         lock (mExpectedFormats)
         {
             foreach (var ef in mExpectedFormats)
-                if (!provided.Contains(ef.Entry))
+            {
+                var key = ef.EngineType != null ? "engine:" + ef.Entry : ef.Entry;
+                if (!provided.Contains(key))
                     throw new InvalidOperationException(string.Format(CultureInfo.InvariantCulture,
-                        "sidecar for {0} handshake does not declare entry '{1}' that the manifest promised", mPackageId, ef.Entry));
+                        "sidecar for {0} handshake does not declare {1} '{2}' that the manifest promised", mPackageId, ef.EngineType ?? "entry", ef.Entry));
+            }
         }
     }
 
@@ -367,12 +446,50 @@ internal sealed class SidecarHost
         if (node == null) return;
         if (node.TryGetPropertyValue("method", out var m) && m != null)
         {
-            // sidecar → 宿主：M1 只有 log.write；其余通知忽略（前向兼容）。
-            if (m.GetValue<string>() == "log.write")
+            var method = m.GetValue<string>();
+            if (method == "log.write")
             {
                 var p = node["params"]?.AsObject();
                 LogReceived?.Invoke(p?["level"]?.GetValue<string>() ?? "info", p?["message"]?.GetValue<string>() ?? "");
+                return;
             }
+            var inId = node["id"];
+            var args = node["params"];
+            if (inId != null)
+            {
+                // 反向请求（sidecar→宿主）：必须在池线程完成——读者线程一被处理器卡住，
+                // sidecar 等反向应答 ↔ 宿主等 sidecar 的在途请求应答，锁环即成。
+                Func<JsonNode?, Task<JsonNode?>>? handler;
+                lock (mLocalCalls) mLocalCalls.TryGetValue(method, out handler);
+                if (handler == null)
+                {
+                    SendError(inId, "bad_request", "host has no handler for '" + method + "'");
+                    return;
+                }
+                var id = inId.DeepClone();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var result = await handler(args).ConfigureAwait(false);
+                        if (epoch == mEpoch)
+                            SendResult(id, result);
+                    }
+                    catch (SidecarRpcException ex)
+                    {
+                        if (epoch == mEpoch) SendError(id, ex.Code, ex.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (epoch == mEpoch) SendError(id, "runtime_error", ex.Message);
+                    }
+                });
+                return;
+            }
+            // 无 id 通知：本地表优先，未注册者忽略（前向兼容）。
+            Action<JsonNode?>? notifyHandler;
+            lock (mLocalCalls) mLocalNotifies.TryGetValue(method, out notifyHandler);
+            notifyHandler?.Invoke(args);
             return;
         }
         if (node.TryGetPropertyValue("id", out var idNode) && idNode != null)
@@ -422,12 +539,15 @@ internal sealed class SidecarHost
         }
     }
 
-    public async Task<JsonNode?> CallAsync(string method, JsonNode? args)
+    public Task<JsonNode?> CallAsync(string method, JsonNode? args) => CallAsync(method, args, mCallTimeout);
+
+    // timeout = Timeout.InfiniteTimeSpan：等到完成或死亡（engine.init 类长任务；死亡通道兜底）。
+    public async Task<JsonNode?> CallAsync(string method, JsonNode? args, TimeSpan timeout)
     {
         await EnsureRunningAsync().ConfigureAwait(false);
         int epoch;
         lock (mLock) epoch = mEpoch;
-        return await Task.Run(() => CallInternal(method, args, mCallTimeout, epoch)).ConfigureAwait(false);
+        return await Task.Run(() => CallInternal(method, args, timeout, epoch)).ConfigureAwait(false);
     }
 
     JsonNode? CallInternal(string method, JsonNode? args, TimeSpan timeout, int epoch)

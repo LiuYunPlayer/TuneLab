@@ -21,6 +21,54 @@ _lock = threading.Lock()
 _stdout_stream = None
 
 
+# ── reverse channel (sidecar → host requests; effect pulls input/segments through it) ──
+_pending_host_calls = {}
+_call_counter = [0]
+
+
+def _call_host(method, params):
+    """Blocking reverse request; the reader loop resolves the matching response frame."""
+    with _lock:
+        _call_counter[0] += 1
+        cid = "s%d" % _call_counter[0]
+        ev = threading.Event()
+        box = {}
+        _pending_host_calls[cid] = (ev, box)
+        _framing.write_message(_stdout_stream, {"jsonrpc": "2.0", "id": cid, "method": method, "params": params})
+    if not ev.wait(120):
+        _pending_host_calls.pop(cid, None)
+        raise RuntimeError("reverse call '%s' timed out" % method)
+    if "error" in box:
+        raise RuntimeError("host error on %s: %s" % (method, box["error"]))
+    return box.get("result") or {}
+
+
+def _notify(method, params):
+    _send({"jsonrpc": "2.0", "method": method, "params": params})
+
+
+def effect(engine_id=None):
+    """Decorator registering an effect engine object (class instance or class).
+
+    Recognized members: init()/destroy()/create_session(ctx) -> session;
+    get_property_config(effects), get_automation_configs(effects),
+    get_synthesized_parameter_configs(effects) — wire config dicts (see scripting/wire/v1.json).
+    Session: process(ctx) (level semantics), optional cancel()/dispose().
+    """
+    from . import _effect
+
+    def deco(obj):
+        inst = obj() if isinstance(obj, type) else obj
+        key = engine_id or obj.__name__
+        _effect.register_effect(inst, key)
+        return obj
+
+    if callable(engine_id):     # bare @tunelab.effect on a class
+        obj, engine_id = engine_id, None
+        return deco(obj)
+    return deco
+
+
 def format(cls=None, *, import_fn=None, export_fn=None, entry=None,
            get_settings_fn=None, apply_settings_fn=None):
     """Register the format implementation for one scripted entry.
@@ -103,29 +151,37 @@ def _reply(req_id, result=None, err=None):
 
 
 def _handle_initialize(params):
+    from . import _effect
+    _effect.set_channels(_call_host, _notify)
     provides = []
     for e in params.get("entries") or []:
-        entry_id = e.get("entry")
-        handler = _entries.get(entry_id)
-        if handler is None and len(_entries) == 1:
-            # single-handler package: bind it to whatever the manifest declared (1 条目 = 1 实现)
-            handler = next(iter(_entries.values()))
-            _entries[entry_id] = handler
-        if handler is None:
-            continue
-        provides.append({
-            "type": e.get("type", "format"),
-            "entry": entry_id,
-            "can_import": handler.get("import") is not None,
-            "can_export": handler.get("export") is not None,
-            "settings": handler.get("get_settings") is not None,
-        })
-        settings = e.get("settings")
-        if settings is not None and handler.get("apply_settings") is not None:
-            try:
-                handler["apply_settings"](decode_map(settings))   # 整个设置包就是一张 property map
-            except Exception as ex:
-                error("apply_settings(handshake) failed: %s" % ex)
+        if e.get("type") == "format":
+            entry_id = e.get("entry")
+            handler = _entries.get(entry_id)
+            if handler is None and len(_entries) == 1:
+                # single-handler package: bind it to whatever the manifest declared (1 条目 = 1 实现)
+                handler = next(iter(_entries.values()))
+                _entries[entry_id] = handler
+            if handler is None:
+                continue
+            provides.append({
+                "type": "format",
+                "entry": entry_id,
+                "can_import": handler.get("import") is not None,
+                "can_export": handler.get("export") is not None,
+                "settings": handler.get("get_settings") is not None,
+            })
+            settings = e.get("settings")
+            if settings is not None and handler.get("apply_settings") is not None:
+                try:
+                    handler["apply_settings"](decode_map(settings))   # 整个设置包就是一张 property map
+                except Exception as ex:
+                    error("apply_settings(handshake) failed: %s" % ex)
+        else:
+            engine_id = e.get("engine")
+            if engine_id in _effect.declared_engine_ids():
+                provides.append({"type": e.get("type", "effect"), "engine": engine_id,
+                                 "settings": engine_id in _effect.settings_engines()})
     return {
         "provides": provides,
         "capabilities": capabilities(),
@@ -147,6 +203,20 @@ def _find_entry(entry_id):
 
 
 def _dispatch(req):
+    # 应答帧（宿主对我们反向调用的回复）：先结算 pending，再谈其它。
+    if "method" not in req and "id" in req:
+        entry = _pending_host_calls.pop(str(req["id"]), None)
+        if entry is not None:
+            ev, box = entry
+            if req.get("error"):
+                box["error"] = req["error"]
+            else:
+                box["result"] = req.get("result") or {}
+            ev.set()
+        return
+
+    from . import _effect
+
     method = req.get("method")
     params = req.get("params") or {}
     req_id = req.get("id")
@@ -160,6 +230,24 @@ def _dispatch(req):
             if req_id is not None:
                 _reply(req_id, {})
             os._exit(0)
+        elif method in ("engine.init", "engine.destroy", "engine.create_session",
+                        "effect.get_property_config", "effect.get_automation_configs",
+                        "effect.get_synthesized_parameter_configs", "effect.process"):
+            if method == "engine.destroy":
+                try:
+                    _effect.handle(method, params)
+                except Exception:
+                    pass
+                if req_id is not None:
+                    _reply(req_id, {})
+                return
+            result = _effect.handle(method, params)
+            if req_id is not None:
+                _reply(req_id, result)
+        elif method in ("effect.cancel", "session.dispose"):
+            _effect.on_notification(method, params)
+            if req_id is not None:
+                _reply(req_id, {})
         elif method == "format.import":
             entry = _find_entry(params.get("entry"))
             fn = entry and entry.get("import")
@@ -176,15 +264,25 @@ def _dispatch(req):
             fn(params["stream_ref"], walk_decode(params.get("project") or {}))
             _reply(req_id, {})
         elif method == "settings.get_config":
-            entry = _find_entry(params.get("entry"))
+            key = params.get("entry")
+            entry = _find_entry(key)
             fn = entry and entry.get("get_settings")
             if fn is None:
-                _reply(req_id, err={"code": "bad_request", "message": "no settings for entry " + str(params.get("entry"))})
+                eng = _effect._effect_engines.get(key)
+                user_fn = getattr(eng, "get_settings_config", None)
+                if user_fn is not None:
+                    _reply(req_id, {"config": sanitize_numbers(user_fn())})
+                    return
+                _reply(req_id, err={"code": "bad_request", "message": "no settings for entry " + str(key)})
                 return
             _reply(req_id, {"config": sanitize_numbers(fn())})
         elif method == "settings.apply":
-            entry = _find_entry(params.get("entry"))
+            key = params.get("entry")
+            entry = _find_entry(key)
             fn = entry and entry.get("apply_settings")
+            if fn is None:
+                eng = _effect._effect_engines.get(key)
+                fn = getattr(eng, "apply_settings", None)
             if fn is not None:
                 fn(decode_map(params.get("values") or {}))
             if req_id is not None:

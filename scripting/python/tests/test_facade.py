@@ -116,5 +116,54 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(sent[0]["result"], {})
 
 
+class EffectChannelTests(unittest.TestCase):
+    """Reverse-call formatting: f32/f64 base64-LE payloads & the published shapes."""
+
+    def setUp(self):
+        from tunelab import _effect
+        self.calls = []
+        self.notifs = []
+        _effect.set_channels(lambda m, p: self._respond(m, p), lambda m, p: self.notifs.append((m, p)))
+        self._effect = _effect
+
+    def tearDown(self):
+        from tunelab import _effect
+        _effect.set_channels(None, None)
+
+    def _respond(self, method, params):
+        import base64, struct
+        self.calls.append((method, params))
+        if method == "host.input_read":
+            n = params["count"]
+            return {"data": base64.b64encode(struct.pack("<%df" % n, *[0.5] * n)).decode()}
+        if method == "host.evaluate":
+            raw = base64.b64decode(params["positions"])
+            k = len(raw) // 8
+            return {"values": base64.b64encode(struct.pack("<%dd" % k, *([0.25] * k))).decode()}
+        if method == "host.properties":
+            return {"values": {"amount": {"n": 0.5}}}
+        if method == "host.segment_create":
+            return {"segment": "seg1"}
+        return {}
+
+    def test_roundtrip_through_ctx(self):
+        import struct
+        ctx = self._effect._SessionCtx("Eng", "s1", None)
+        ctx.run_process({"sample_offset": 44100, "sample_count": 4, "sample_rate": 44100})
+        self.assertEqual(ctx.input_read(0, 4), [0.5, 0.5, 0.5, 0.5])
+        self.assertEqual(ctx.properties(["amount"]), {"amount": 0.5})
+        seg = ctx.output(0, 2, 44100)
+        seg.write(0, [1.0, -1.0])
+        write = [c for c in self.calls if c[0] == "host.segment_write"][0][1]
+        self.assertEqual(struct.unpack("<2f", __import__("base64").b64decode(write["data"])), (1.0, -1.0))
+        ctx.status([(0.0, 1.0, "synthesized", 1.0)])
+        name, payload = self.notifs[0]
+        self.assertEqual(name, "effect.status")
+        self.assertEqual(payload["segments"][0]["status"], "synthesized")
+        self.assertEqual(payload["engine"], "Eng")
+        vals = ctx.evaluate("intensity", [0.0, 1.0])
+        self.assertEqual(vals, [0.25, 0.25])
+
+
 if __name__ == "__main__":
     unittest.main()

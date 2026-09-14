@@ -310,9 +310,24 @@ internal static class ExtensionManager
                         Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), scriptedError));
                     }
                 }
+                else if (gate.Status == ScriptedGateStatus.Ready && kind == "effect")
+                {
+                    if (RegisterScriptedEffectEntry(description.id ?? string.Empty, path, ext, gate.Runtime, ext.LocalizedName(lang), out var effectError))
+                    {
+                        loaded++;
+                    }
+                    else
+                    {
+                        failed++;
+                        entry.Status = ExtensionEntryStatus.Failed;
+                        entry.Error = effectError;
+                        reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), effectError));
+                        Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), effectError));
+                    }
+                }
                 else if (gate.Status == ScriptedGateStatus.Ready)
                 {
-                    // 引擎类注册支未落地（effect=M2 / voice=M3）——如实 Skipped，不谎报。
+                    // 引擎类注册支未落地（voice=M3；instrument 明确不承诺）——如实 Skipped，不谎报。
                     skipped++;
                     var pending = string.Format("scripted {0} registration is not implemented by this host build yet ({1})", kind, gate.Message);
                     entry.Status = ExtensionEntryStatus.Skipped;
@@ -732,6 +747,25 @@ internal static class ExtensionManager
             hasImport ? (importSuffixes, () => (IImportFormat)proxy) : null,
             hasExport ? (exportSuffixes, () => (IExportFormat)proxy) : null,
             declaresSettings: ext.settings, className: entryPath);
+        error = null;
+        return true;
+    }
+
+    // 脚本 effect 条目的注册（M2b）：engine id 必填且不可跨包复制拆条目（一个条目 = 一个引擎实例）；
+    // 懒 spawn 语义与 .NET 引擎的"Init 按需"同构——EffectManager.GetInitedEngine 首次用到才调 Init，
+    // RemoteEffectEngine.Init 承担 spawn + engine.init（长任务无超时，失败上抛 = passthrough 触发点）。
+    static bool RegisterScriptedEffectEntry(string packageId, string packageDir, ExtensionInfo ext, RuntimeInfo runtime, string displayName, out string? error)
+    {
+        var engineId = (ext.engine ?? string.Empty).Trim();
+        if (engineId.Length == 0)
+        {
+            error = "scripted effect entries must declare 'engine' (the immutable id projects reference)";
+            return false;
+        }
+        var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
+        var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.ExpectEngine("effect", engineId);
+        EffectManager.RegisterEngine(packageId, engineId, displayName, new RemoteEffectEngine(host, engineId, ext.settings));
         error = null;
         return true;
     }

@@ -51,6 +51,33 @@
       "shape": "notification while running; also delivered as initialize.params.entries[].settings (key 'settings') when the host holds values before (re)spawn",
       "notes": "password fields are decrypted host-side before delivery — same trust level as an in-process plugin's ApplySettings"
     },
+    "engine.init": {
+      "direction": "host->sidecar", "params": { "engine": "string" }, "result": {},
+      "notes": "long task allowed (models): host waits without RPC timeout; death/error surfaces as passthrough; init_progress notification reserved"
+    },
+    "engine.destroy": { "direction": "host->sidecar", "params": { "engine": "string" }, "notification": true },
+    "engine.create_session": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "result": {} },
+    "session.dispose": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "notification": true },
+    "effect.cancel": { "direction": "host->sidecar", "params": { "engine": "string", "session": "string" }, "notification": true, "notes": "best-effort; a wedged user handler still faces heartbeat" },
+    "effect.get_property_config": { "direction": "host->sidecar", "params": { "engine": "string", "effects": ["<property-object map>"] }, "result": { "config": "<config>" } },
+    "effect.get_automation_configs": { "direction": "host->sidecar", "params": { "engine": "string", "effects": ["<property-object map>"] }, "result": { "tracks": "<automation-map>" } },
+    "effect.get_synthesized_parameter_configs": { "direction": "host->sidecar", "params": { "engine": "string", "effects": ["<property-object map>"] }, "result": { "tracks": "<automation-map>" } },
+    "effect.process": {
+      "direction": "host->sidecar", "params": { "engine": "string", "session": "string", "input": { "sample_offset": "i64", "sample_count": "i32", "sample_rate": "i32" } },
+      "result": {}, "timeout": "none (level semantics; the reply IS completion — the host released its data thread meanwhile)",
+      "notes": "sidecar publishes via host.* reverse calls + effect.status/effect.parameters notifications below"
+    },
+    "effect.status": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "segments": [{ "start": "d", "end": "d", "status": "pending|synthesizing|synthesized|failed", "progress": "d?", "message": "s?" }] } },
+    "effect.parameters": { "direction": "sidecar->host", "notification": true, "params": { "engine": "string", "session": "string", "parameters": { "<id>": { "segments": [[ [t, v], ... ], ...] } } } },
+    "host.input_read": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "offset": "i32 (segment-relative)", "count": "i32?" }, "result": { "data": "base64 f32-LE" }, "notes": "host executes on the data thread (live-view discipline) with a 30s marshal cap; chunk limit 1<<20 samples" },
+    "host.properties": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "keys": ["string"] }, "result": { "values": "<property-object map>" } },
+    "host.automation_tracks": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string" }, "result": { "tracks": ["string"] } },
+    "host.evaluate": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "track": "string", "positions": "base64 f64-LE (non-decreasing)" }, "result": { "values": "base64 f64-LE" }, "notes": "live automation evaluated on the host's data thread — interpolation stays host-side (§5.6)" },
+    "host.segment_create": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "sample_offset": "i64", "sample_count": "i32", "sample_rate": "i32" }, "result": { "segment": "string" } },
+    "host.segment_write": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "offset": "i32", "data": "base64 f32-LE" }, "result": {} },
+    "host.segment_commit": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {} },
+    "host.segment_resize": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "sample_offset": "i64", "sample_count": "i32" }, "result": {} },
+    "host.segment_dispose": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {} },
     "shutdown": { "direction": "host->sidecar", "params": { "reason": "string" }, "result": {} }
   },
   "value-encoding": {
