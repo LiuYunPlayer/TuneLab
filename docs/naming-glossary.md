@@ -38,6 +38,11 @@
 | 吸附网格的档位（1/16、三连的 1/12…） | `quantization`（`IQuantization` / `QuantizationBase` / `QuantizationDivision` / 动作 id `quantization.*`） | 量化 | 符号面别写 `snap` / `grid`（模型可见的句子里可以用 "the snap grid" 作解释性同位语，如 `editor status` 那行；**符号与 id 一律 quantization**） |
 | 一条动作要作用在哪个成员上（一个动词 × 一个闭集里的成员） | `argument`（`ActionParameter` / `ActionArgument` / `run_action` 的 `argument` 字段），那一批统称**选择器参数** selector parameter | 选择器参数 | 别写 `option` / `value` / `target` 指它；命令自己的入参仍叫 `parameter`（`ParametersJsonSchema`），动作的这一个是 `argument`——两个词分工见 command-surface.md §5.6 |
 | 右侧那条可开合的容器 + 它的页签 | `sidebar`（动作 id `sidebar.*` / `editor status` 的 `sidebar` 字段 / `SideTabBar`、`SideBarTab`） | 侧栏 | 「侧边栏」「抽屉」；容器叫**侧栏**，里面显示的那一块叫**面板**（`Part Panel`…），两个词别互换 |
+| 脚本插件（Python/Node/Lua）的**进程外执行单元**及其宿主侧管理对象 | `sidecar`（`SidecarHost` / `TuneLab\Extensions\Scripted\`） | 伴生进程 | 「子进程」「外部进程」不作术语用（`ExtensionInstaller` 才是真·外部进程） |
+| 解释器（python/node/lua）作为**零代码扩展包**分发 | `runtime` 资源包（manifest `type: "runtime"` + `flavor` / `runtime-version` 字段） | 运行时包 | 「语言包」（歧义：i18n 那边也叫语言包） |
+| 防尾包的**进程迭代计数**（sidecar 每次 spawn +1，旧迭代 publication 一律丢弃） | `epoch` | 世代 | 「代次」「版本号」（version 另有 SDK/wire 两轴，勿混） |
+| 宿主**弃会话、带新 context 重做**这一条恢复路径（tempo 变化既有；脚本崩溃复用） | rebuild（文档词；代码尚无统一符号） | 会话重建 | 与「重新加载」分工：**会话重建** = 崩溃/换源时宿主内部自动路径；**重新加载** = 用户重 spawn sidecar 的手动动作，别互换 |
+| 三面传输的**分道命名**（脚本插件协议） | control plane / audio plane / curve plane（方法组见 `scripting/wire/v1.json`） | 控制面 / 音频面 / 曲线面 | 「数据面」不用——它盖不住"曲线面也是数据"；三面各指各的 |
 
 ### 三条边界的说明
 

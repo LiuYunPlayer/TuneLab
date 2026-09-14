@@ -13,7 +13,17 @@
   2. **Pack**: `pwsh tests/pack-tlx.ps1` → bundles `tests/packages/*` into `tests/tlx/*.tlx`.
   3. **Install**: `pwsh tests/install-tlx.ps1 [names...]` → extracts each `.tlx` into
      `%APPDATA%\TuneLab\Extensions\<manifest-name>\`, which is where the app actually loads from.
-     **TuneLab must be closed** first — a running instance locks the extension dlls.
+      **TuneLab must be closed** first — a running instance locks the extension dlls.
+
+## Scripted plugins (sidecar) — planned, see docs/scripted-plugin-sidecar-design.md
+
+- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); the design doc is the source of
+  truth until sections of it land. Façade libraries will live under `scripting/{python,node,lua}/`
+  (not in the .sln; per-façade test commands will be listed here when M1 lands).
+- Sample scripted test plugins under `tests/plugins/` are manifest + sources only — **no csproj, no
+  build step**: they go straight into `tests/packages/<slug>/` and are covered by pack/install steps 2–3
+  above. `ProtocolVersion` (wire protocol) is a third, independent version axis — see design doc §1.2;
+  do not align it with `SdkVersion` or `AssemblyVersion`.
 
 ## ⚠️ Frozen public ABI: TuneLab.SDK & TuneLab.Foundation
 
