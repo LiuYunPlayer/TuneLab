@@ -166,6 +166,13 @@ internal class TrackWindow : DockPanel, TimelineView.IDependency, TrackScrollVie
     public void DeleteSelection()
     {
         if (!CanRunEditCommand) return;
+        // 轨道头有选中 ⇒ 焦点在轨道头那一侧，Delete 的对象是整条轨道。这条判据成立是因为在内容区
+        // 交互会清掉轨道头选中（见 TrackScrollViewOperation 的 PrimaryButton 分支），两侧的选中态互斥。
+        if (Project is { } project && project.Tracks.AllSelectedItems().Count > 0)
+        {
+            project.DeleteAllSelectedTracks();
+            return;
+        }
         if (TrackScrollView.CurrentSelection is { } region) TrackScrollView.DeleteRegion(region);
         else TrackScrollView.DeleteAllSelectedParts();
     }

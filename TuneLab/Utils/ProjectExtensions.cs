@@ -13,6 +13,21 @@ internal static class ProjectExtensions
         project.AddTrack(new TrackInfo() { Name = "Track".Tr(TC.Document) + "_" + (project.Tracks.Count + 1), Color = Style.GetNewColor(project.Tracks.Count) });
     }
 
+    // 删除全部选中轨道（右键菜单与 Delete 键共用一份，镜像 part 侧的 DeleteAllSelectedParts）：
+    // 一次提交 = 一步撤销，整批要回来就一次回来。
+    public static void DeleteAllSelectedTracks(this IProject project)
+    {
+        var selected = project.Tracks.AllSelectedItems();
+        if (selected.Count == 0)
+            return;
+
+        foreach (var track in selected)
+        {
+            project.RemoveTrack(track);
+        }
+        project.Commit();
+    }
+
     public static int PartsCount(this IProject project)
     {
         int count = 0;

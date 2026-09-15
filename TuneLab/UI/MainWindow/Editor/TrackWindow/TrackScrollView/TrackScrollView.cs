@@ -520,6 +520,9 @@ internal partial class TrackScrollView : View
             };
             trackSelector.TrackList.Items.Add(trackItem);
         }
+        // 默认全选：绝大多数导入是"把这个工程的轨道都拿过来"，让用户每次手点一遍才是例外情况。
+        // 不要的那几条取消勾选即可（SelectionMode 已是 Multiple | Toggle）。
+        trackSelector.TrackList.SelectAll();
         await trackSelector.ShowDialog(this.Window());
         if (!trackSelector.isOK) return;
         bool keepTempo = trackSelector.IsKeepTempo;
@@ -638,6 +641,10 @@ internal partial class TrackScrollView : View
                 parts.Add(partInfo);
             }
             srcTrackInfo.Parts=parts;
+            // 外部格式（mid 等）普遍不带轨道色，不补的话整批都落到 GetFixedColor 的兜底 = 调色板第一个颜色。
+            // 按当前工程的轨道数往下取，与新建 / 打开工程的配色口径同源（Editor.CreateProject、ProjectExtensions.NewTrack）。
+            if (string.IsNullOrEmpty(srcTrackInfo.Color))
+                srcTrackInfo.Color = Style.GetNewColor(dstProject.Tracks.Count);
             dstProject.AddTrack(srcTrackInfo);
         }
         dstProject.Commit();

@@ -171,7 +171,9 @@ Cmd 折叠成同一个，导致 Mac 的原生组合（凡要区分 ⌘/⌃ 的�
     按当前**键盘焦点**路由到 `PianoWindow.*Selection()` 或 `TrackWindow.*Selection()`。两面为兄弟节点、焦点至多落其一，
     不歧义；各面方法自带「操作进行中」守卫（原本在各自 OnKeyDown 前置，路由后下沉到方法内）。
   - 每个面内部再按场景细分：钢琴窗 `DeleteSelection` 按 Anchor 工具 + 悬停删锚点/否则删所选；`SelectAllInPiano`
-    按当前工具全选 Note/Vibrato/Anchor；编排区 `*Selection` 按有无范围选区走选区闸刀/整块 part。
+    按当前工具全选 Note/Vibrato/Anchor；编排区 `*Selection` 按有无范围选区走选区闸刀/整块 part。编排区的
+    `DeleteSelection` 还先看一眼**轨道头选中**（有则删整条轨道）——轨道头与片段区的选中态互斥（在片段区
+    交互会清掉轨道头选中），故「有轨道被选中」就等价于「焦点在轨道头那一侧」，不必再引入第三个作用域。
   - **为何不放 Global**：Global = 与上下文无关、任何时候都触发（如全屏）；剪贴板动词必须作用在当前聚焦的编辑面，
     侧栏文本框/对话框里不该触发——故归 Editor 域、按焦点路由，而非 Global。
 

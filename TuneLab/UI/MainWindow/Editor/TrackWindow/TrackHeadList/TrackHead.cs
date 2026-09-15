@@ -36,6 +36,10 @@ internal class TrackHead : DockPanel
 {
     public TrackHead()
     {
+        // 见 OnPointerPressed 里的 Focus()：轨道头要能成为"当前编辑面"，Delete 才有正确的作用对象。
+        // 只接受点击取焦，不进 Tab 序（与 Editor / SideBar 同一惯例），免得 Tab 逐条轨道头地走。
+        Focusable = true;
+        IsTabStop = false;
         mName.Bind(mTrackHolder.Select(track => track.Name), s);
         mGainSlider.SetRange(-24, 6);
         mGainSlider.Select((double value) => value <= mGainSlider.MinValue ? double.NegativeInfinity : value).Bind(mTrackHolder.Select(track => track.Gain), s);
@@ -244,15 +248,12 @@ internal class TrackHead : DockPanel
             };
         }
         {
+            // 作用于【全部选中轨道】而非仅右键那一条（镜像 part 右键删除）：右键落在未选中的轨道头时
+            // OnPointerPressed 已把它独占选中，故两种情形下"选中集"都正是用户看到的高亮那几条。
             var menuItem = new MenuItem().SetTrName("Delete").SetAction(() =>
             {
-                if (Track == null)
-                    return;
-
-                var project = Track.Project;
-                project.RemoveTrack(Track);
-                project.Commit();
-            });
+                Track?.Project.DeleteAllSelectedTracks();
+            }).SetInputGesture(Key.Delete);
             menu.Items.Add(menuItem);
         }
 
@@ -305,6 +306,12 @@ internal class TrackHead : DockPanel
         mDragCandidate = !IsOnInteractiveControl(e.Source, this);
         if (!mDragCandidate)
             return;
+
+        // 接管键盘焦点：Delete 这类通用动词按【当前聚焦的编辑面】路由（见 Editor.RouteEdit），不接管的话
+        // 点完轨道头再按 Delete，删掉的会是上一个聚焦面（钢琴窗）里选中的音符。滑条/开关已由 mDragCandidate
+        // 挡掉；只在单击时接管，双击的第二下不抢——名称 / 序号标签的就地改名要把焦点交给它自己的输入框。
+        if (e.ClickCount == 1)
+            Focus();
 
         var point = e.GetCurrentPoint(this);
         bool ctrl = (e.KeyModifiers & KeyModifiers.Control) != 0;
