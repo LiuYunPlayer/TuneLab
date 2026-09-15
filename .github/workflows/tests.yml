@@ -1,0 +1,66 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_call:
+
+jobs:
+  # 跨平台测试矩阵：脚本 sidecar 体系（fake sidecar + 真解释器 E2E）必须三平台都绿，
+  # 才能兑现"平台和 .NET 一致"的承诺。解释器经 setup 装上，needs-interpreter 用例才真跑
+  # （否则那条 vacuous pass，见 AGENTS.md 脚本节）。
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: "windows-latest"
+          - os: "ubuntu-latest"
+          - os: "macos-latest"
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Install Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install Node 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Restore and build
+      run: dotnet build TuneLab.sln -c Debug
+
+    # SetupCliOptions/SetupInstallManifest/SetupUninstall 三类走 TuneLab.Setup 程序集，
+    # 该工程带 RID 输出、测试二进制未必拷得进（本机三平台一致的既有环境问题）——先排除，
+    # 与脚本插件无关；单列跟进项修复拷盘后再纳入。
+    - name: Unit + scripted tests
+      run: >
+        dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj -c Debug --no-build
+        --filter "FullyQualifiedName!~SetupCliOptionsTests&FullyQualifiedName!~SetupInstallManifestTests&FullyQualifiedName!~SetupUninstallTests"
+
+    # 真解释器 E2E 强制断言（缺解释器即红，而不是 vacuous pass）——CI 保证了 setup 装了。
+    - name: Real-interpreter scripted E2E
+      env:
+        TUNELAB_REQUIRE_PYTHON: "1"
+      run: >
+        dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj -c Debug --no-build
+        --filter "runtime=needs-interpreter"
+
+    - name: Python facade unit tests
+      run: python -m unittest discover -s scripting/python/tests
+
+    - name: Legacy-compat tests
+      run: dotnet test legacy/compat/TuneLab.Hosting.Compat.Legacy.Tests/TuneLab.Hosting.Compat.Legacy.Tests.csproj -c Debug

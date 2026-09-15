@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -48,7 +49,12 @@ internal sealed class SidecarHost
     bool mCircuitOpen;
     bool mDisposed;
     Timer? mHeartbeat;
+    Timer? mRestartTimer;
     int mHeartbeatMisses;
+
+    // 常驻引擎（effect/voice）置 true：意外死亡后按退避自动后台拉起（§3.2 重启环）。
+    // format 保持 false（拉模式，下次调用驱动即可，不空转 spawn）。
+    public bool AutoRestart { get; set; }
 
     public int Epoch { get { lock (mLock) return mEpoch; } }
     public bool CircuitOpen { get { lock (mLock) return mCircuitOpen; } }
@@ -64,6 +70,12 @@ internal sealed class SidecarHost
             mDeathsInWindow = 0;
             mFirstStartUtc = DateTime.MinValue;
         }
+    }
+
+    // 停掉挂起的后台重启计时器（优雅关停/手动重启后不该再被旧环捞起）。
+    void CancelPendingRestart()
+    {
+        lock (mLock) { mRestartTimer?.Dispose(); mRestartTimer = null; }
     }
 
     // sidecar 侧被动事件（宿主拉模式，M1 只消费 log 与 diagnostics）。
@@ -223,6 +235,7 @@ internal sealed class SidecarHost
                 if (mProcess != null) { tcs.TrySetResult(true); return; }   // 单飞竞态兜底
             }
             StartAndHandshake();
+            CancelPendingRestart();   // 成功起来：清掉任何排着的旧重启环（若正被调用驱动重开）
             lock (mLock)
             {
                 if (mFirstStartUtc == DateTime.MinValue) mFirstStartUtc = DateTime.UtcNow;
@@ -411,9 +424,35 @@ internal sealed class SidecarHost
         // 滚动落盘（§3.4）：包目录 logs/stderr-<boot>.txt，尽力而为（只读目录等失败不致命）。
         try
         {
+            if (!mStderrPruned)
+            {
+                mStderrPruned = true;
+                PruneStderrLogs();
+            }
             var dir = Path.Combine(mPackageDir, "logs");
             Directory.CreateDirectory(dir);
             File.AppendAllText(Path.Combine(dir, "stderr-" + SidecarIo.Nonce + ".txt"), line + "\n");
+        }
+        catch { }
+    }
+
+    bool mStderrPruned;
+
+    // 保留策略（§3.4 滚动 2 份）：本次 boot 的文件不算——只留最近 2 个旧 boot，其余删除。
+    // 一次 spawn 清一回（mStderrPruned），崩溃风暴也不会反复枚举删表。
+    void PruneStderrLogs()
+    {
+        try
+        {
+            var dir = Path.Combine(mPackageDir, "logs");
+            if (!Directory.Exists(dir))
+                return;
+            var stale = new DirectoryInfo(dir).GetFiles("stderr-*.txt")
+                .Where(f => !f.Name.Contains(SidecarIo.Nonce))
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .Skip(2);
+            foreach (var f in stale)
+                try { f.Delete(); } catch { }
         }
         catch { }
     }
@@ -532,10 +571,16 @@ internal sealed class SidecarHost
         }
         started?.TrySetException(new SidecarRpcException("runtime_error", string.Format(CultureInfo.InvariantCulture, "sidecar exited during startup (code {0})", exitCode)));
         Died?.Invoke();
-        if (!fatal)
+        // 后台重启环（§3.2）：常驻引擎（effect/voice）声明 AutoRestart——非熔断死亡后按退避自动
+        // 拉起，warm 回来即可继续被 push 调度，不必等下一次调用驱动。format 拉模式默认关（省得空转）。
+        if (!fatal && AutoRestart)
         {
-            // 不自动复活进行中的调用（M1 语义）：失败如实抛给调用方；下一次调用触发 EnsureRunning 重开。
-            // 熔断窗口计数只随时间复位——下次调用若在窗口内仍死，很快 Open。
+            var due = TimeSpan.FromSeconds(backoffSeconds);
+            var timer = new Timer(_ =>
+            {
+                try { _ = EnsureRunningAsync(); } catch { }   // 失败经 OnDeath 再入环，直到熔断
+            }, null, due, Timeout.InfiniteTimeSpan);
+            lock (mLock) { mRestartTimer?.Dispose(); mRestartTimer = timer; }
         }
     }
 
@@ -597,6 +642,7 @@ internal sealed class SidecarHost
         lock (mLock)
         {
             mDisposed = true;
+            mRestartTimer?.Dispose(); mRestartTimer = null;   // 关停优先于任何在途重启环
             proc = mProcess; stdin = mStdin;
         }
         if (stdin != null)

@@ -778,6 +778,7 @@ internal static class ExtensionManager
         }
         var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
         var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.AutoRestart = true;   // effect 是被 push 调度的常驻引擎：崩溃后自动 warm 回来（§3.2）
         host.ExpectEngine("effect", engineId);
         EffectManager.RegisterEngine(packageId, engineId, displayName, new RemoteEffectEngine(host, engineId, ext.settings));
         error = null;

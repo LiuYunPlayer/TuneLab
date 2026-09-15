@@ -1,8 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M3a 已落地**（运行时镜像表 + 竞速自动判路 + 半自动/全自动/命令三档部署 + 详情窗
-> 「下载运行时」按钮；effect= M2b、M2a=声明/设置/心跳，均已落地）。
-> 剩余：voice + shm 音频面（M3b）、Node/Lua façade（M3c）。
+> 状态：**定稿；M3b 已落地**（后台重启环 + stderr 保留策略 + 三平台 CI 测试矩阵；运行时自动部署=M3a、
+> effect=M2b、声明/设置/心跳=M2a、format 全链=M1、manifest/探测=M0）。
+> 剩余：voice + shm（M3c）、Node/Lua façade（M3d）。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -512,8 +512,14 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   装好 python 3.13.3 embed，落地 exe 自报版本，③ 级探测即命中。顺手修：create_session 与
   process 的到达顺序竞态（握手 Task 先 await）、feed Match 的 struct-Nullable 陷阱、
   进程型测试类圈 `SidecarSpawns` 串行域（并行 spawn 风暴是抖动根因）。
-- **推迟**：stderr 保留/清理策略（M3b）；Node/Lua façade（M3c，能力协商以 PUC Lua `inline`
-  面为首个真实用例）；voice + shm（M3b——依赖已落地的反向通道）。
+- **M3b（宿主完备化）落地**：后台重启环（`SidecarHost.AutoRestart`——常驻引擎 effect/voice 崩溃后
+  按退避自动 warm 回、握手通过即 Running；优雅关停/成功起后撤环；真重启测试钉住）；stderr 保留策略
+  （每 boot 一清、只留最近 2 个旧文件，§3.4 兑现）；`.github/workflows/tests.yml` 三平台测试矩阵
+  （win/ubuntu/macos × setup-python 3.12 + node 20 × 真解释器 E2E 强制档 TUNELAB_REQUIRE_PYTHON=1 ×
+  façade 单测 × legacy 工程；Setup 三类因既有 RID 输出拷盘问题暂除，注释指回本仓）。
+- **仍推迟**：voice + shm 音频面（M3c——反向通道与快照/推送面协议大，需专轮设计：get_snapshot
+  反向拉、note/automation 事件推送流、peek 缓存、四路产物发布）；Node/Lua façade（M3d，
+  CI 已备 node——façade 落地即绿）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

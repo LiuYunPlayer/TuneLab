@@ -157,6 +157,33 @@ namespace TuneLab.Tests;
         await Assert.ThrowsAsync<ObjectDisposedException>(() => host.EnsureRunningAsync());
     }
 
+    [Fact(Timeout = 30_000)]
+    public async Task AutoRestartLoopRewarmsAfterUnexpectedDeath()
+    {
+        // §3.2 重启环：常驻引擎声明 AutoRestart → 崩溃后按退避自动 warm 回来，
+        // 无需下一次调用驱动（这里制造一次 crash-on-import，再等 Running 自己翻回 true）。
+        var runtime = new RuntimeInfo(Dotnet, "dotnet-fake", "0.0", "x64");
+        var host = new SidecarHost("com.test.rewarm", sFakeDir, runtime, "TuneLab.ScriptedFakeSidecar.dll",
+            heartbeat: TimeSpan.FromSeconds(30))
+        {
+            AutoRestart = true,
+            ExtraEnvironment = new() { ["TUNELAB_FAKE_MODE"] = "crash-on-import" },
+        };
+        host.ExpectFormat("TuneLab.ScriptedFakeSidecar.dll", ["tst"], []);
+        try
+        {
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                host.CallAsync("format.import", System.Text.Json.Nodes.JsonNode.Parse("{\"entry\":\"x\",\"stream_ref\":\"y\"}")));
+            Assert.False(host.Running);   // 刚死
+
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            while (DateTime.UtcNow < deadline && !host.Running)
+                await Task.Delay(150);
+            Assert.True(host.Running);    // 退避后自己爬回来了（握手已过）
+        }
+        finally { host.Shutdown(); }
+    }
+
     [Fact]
     public async Task HeartbeatKillsWedgedPeerAfterConsecutiveMisses()
     {
