@@ -20,6 +20,8 @@ internal static class CommandRegistry
         new EditorStatusCommand(),
         new EditorRevealCommand(),
         new ProjectStatusCommand(),
+        new ProjectSynthesisStatusCommand(),
+        new ProjectSynthesizeCommand(),
         new ProjectOpenCommand(),
         new ProjectSaveCommand(),
         new ProjectSaveAsCommand(),

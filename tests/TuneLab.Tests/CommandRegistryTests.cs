@@ -33,6 +33,10 @@ public class CommandRegistryTests
         "export_audio",
         // 挪视野：唯一一条"只改用户此刻看到什么"的写命令（editor 组第一条非只读的）。
         "reveal_in_editor",
+        // 合成这一族：让合成【发生】并等它落定，以及看此刻是什么状态。补的是命令面自己的一个空洞——
+        // 脚本能把合成产物固化成用户数据（lockPhonemes / lockPitch / lockAutomation），却没有任何办法
+        // 让合成发生，而 headless 里没人派活，于是那三条恒是空转。run_synthesis 只在 headless 可用。
+        "run_synthesis", "get_synthesis_status",
     ];
 
     [Fact]

@@ -600,11 +600,6 @@ internal static class ProjectSaveSupport
 //   · 有降级段 → 只警告（那是能听的 passthrough，不是无声）。
 internal sealed class ProjectExportAudioCommand : ICommand
 {
-    // 默认等 5 分钟。这不是"渲染要多久"的估计（那取决于引擎与曲子长度），而是"卡住了多久算卡住"。
-    const int DefaultTimeoutSeconds = 300;
-    const int MinTimeoutSeconds = 10;
-    const int MaxTimeoutSeconds = 3600;
-
     public string Path => "project export-audio";
     public CommandKind Kind => CommandKind.Edit;
     public string AgentToolName => "export_audio";
@@ -645,7 +640,7 @@ internal sealed class ProjectExportAudioCommand : ICommand
         if (ctx.Project is not { } project)
             return CommandResult.Fail("no_project", "no project is open, so there is nothing to render.");
 
-        int timeoutSeconds = Math.Clamp(args.Json.GetIntOrNull("timeoutSeconds") ?? DefaultTimeoutSeconds, MinTimeoutSeconds, MaxTimeoutSeconds);
+        int timeoutSeconds = SynthesisWaitSupport.ClampTimeout(args.Json.GetIntOrNull("timeoutSeconds"));
         bool allowIncomplete = args.Json.GetBoolOrNull("allowIncomplete") ?? false;
 
         // 路径与格式先行（不为坏请求打扰用户，同 `project export`）。
@@ -695,36 +690,35 @@ internal sealed class ProjectExportAudioCommand : ICommand
         if (!proceed)
             return CommandResult.Ok(new JsonObject { ["path"] = fullPath, ["outcome"] = "refused", ["note"] = message });
 
-        // ── 把合成驱动到落定。每一跳都上数据线程走一拍，跳与跳之间让出去，好让引擎的续体
-        //    （编辑器里是 UI 线程的 Dispatcher，headless 里是驱动循环的泵）跑起来。
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        // ── 把合成驱动到落定（全曲全轴：混音要的是「全都合成完」）。等法与 `project synthesize` 共用一份。
         SynthesisTick tick;
-        while (true)
+        double waitedSeconds;
+        try
         {
-            tick = await ctx.OnMainThread(() => SynthesisCompletion.DriveOnce(project));
-            if (tick.Done)
-                break;
-            if (clock.Elapsed.TotalSeconds >= timeoutSeconds)
-                return CommandResult.Ok(new JsonObject
-                {
-                    ["path"] = fullPath,
-                    ["outcome"] = "timeout",
-                    ["seconds"] = timeoutSeconds,
-                    ["busy"] = tick.Busy,
-                    ["pending"] = tick.Pending,
-                });
-
-            try { await Task.Delay(50, cancellationToken); }
-            catch (OperationCanceledException) { return CommandResult.Fail("cancelled", "cancelled while waiting for synthesis; nothing was written."); }
+            (tick, waitedSeconds) = await SynthesisWaitSupport.DriveAsync(ctx, project, SynthesisScope.All, timeoutSeconds, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return CommandResult.Fail("cancelled", "cancelled while waiting for synthesis; nothing was written.");
         }
 
-        var facts = await ctx.OnMainThread(() => SynthesisCompletion.Inspect(project));
+        if (!tick.Done)
+            return CommandResult.Ok(new JsonObject
+            {
+                ["path"] = fullPath,
+                ["outcome"] = "timeout",
+                ["seconds"] = timeoutSeconds,
+                ["busy"] = tick.Busy,
+                ["pending"] = tick.Pending,
+            });
+
+        var facts = await ctx.OnMainThread(() => SynthesisCompletion.Inspect(project, SynthesisScope.All));
         if (facts.Silent.Count > 0 && !allowIncomplete)
             return CommandResult.Ok(new JsonObject
             {
                 ["path"] = fullPath,
                 ["outcome"] = "would_be_silent",
-                ["silent"] = Flaws(facts.Silent),
+                ["silent"] = SynthesisWaitSupport.Flaws(facts.Silent),
             });
 
         // 时长取整个混音的长度（与界面上按导出键得到的同一口径：AudioGraph 的末端，自带一秒尾）。
@@ -772,43 +766,11 @@ internal sealed class ProjectExportAudioCommand : ICommand
             ["seconds"] = Math.Round(duration, 3),
             ["bytes"] = bytes,
             ["overwrite"] = overwrite,
-            ["waitedSeconds"] = Math.Round(clock.Elapsed.TotalSeconds, 1),
-            ["silent"] = facts.Silent.Count > 0 ? Flaws(facts.Silent) : null,
-            ["degraded"] = facts.Degraded.Count > 0 ? Flaws(facts.Degraded) : null,
+            ["waitedSeconds"] = Math.Round(waitedSeconds, 1),
+            ["silent"] = facts.Silent.Count > 0 ? SynthesisWaitSupport.Flaws(facts.Silent) : null,
+            ["degraded"] = facts.Degraded.Count > 0 ? SynthesisWaitSupport.Flaws(facts.Degraded) : null,
             ["note"] = string.IsNullOrEmpty(message) ? null : message,
         });
-    }
-
-    static JsonArray Flaws(IReadOnlyList<SynthesisFlaw> flaws)
-    {
-        var array = new JsonArray();
-        foreach (var flaw in flaws)
-            array.Add(new JsonObject
-            {
-                ["where"] = flaw.Where,
-                ["startSeconds"] = Math.Round(flaw.StartTime, 3),
-                ["endSeconds"] = Math.Round(flaw.EndTime, 3),
-                ["message"] = string.IsNullOrEmpty(flaw.Message) ? null : flaw.Message,
-            });
-        return array;
-    }
-
-    static string DescribeFlaws(JsonNode? node)
-    {
-        if (node is not JsonArray array)
-            return string.Empty;
-
-        var text = new StringBuilder();
-        foreach (var item in array)
-        {
-            if (item is not JsonObject flaw)
-                continue;
-            text.AppendFormat("\n  · {0}, {1:0.###}s–{2:0.###}s",
-                flaw["where"]!.GetValue<string>(), flaw["startSeconds"]!.GetValue<double>(), flaw["endSeconds"]!.GetValue<double>());
-            if (flaw["message"]?.GetValue<string>() is { Length: > 0 } why)
-                text.Append(" — ").Append(why.Replace("\n", " "));
-        }
-        return text.ToString();
     }
 
     public string Render(JsonNode? data, CommandArgs args)
@@ -832,7 +794,7 @@ internal sealed class ProjectExportAudioCommand : ICommand
                 return string.Format(
                     "Did NOT export: synthesis finished, but these ranges failed and would come out SILENT in the file:{0}\n"
                     + "Nothing was written to \"{1}\". Tell the user what is broken; if they want the file with those gaps anyway, call again with allowIncomplete: true.",
-                    DescribeFlaws(obj["silent"]), path);
+                    SynthesisWaitSupport.DescribeFlaws(obj["silent"]), path);
 
             default:
                 var text = new StringBuilder(obj["note"]?.GetValue<string>() ?? string.Empty);
@@ -847,9 +809,9 @@ internal sealed class ProjectExportAudioCommand : ICommand
                     obj["seconds"]!.GetValue<double>(), FormatSize(obj["bytes"]!.GetValue<long>()), obj["waitedSeconds"]!.GetValue<double>());
 
                 if (obj["silent"] is { } silent)
-                    text.AppendFormat("\nWARNING — these ranges failed to synthesize and are SILENT in the file (you asked for it with allowIncomplete):{0}", DescribeFlaws(silent));
+                    text.AppendFormat("\nWARNING — these ranges failed to synthesize and are SILENT in the file (you asked for it with allowIncomplete):{0}", SynthesisWaitSupport.DescribeFlaws(silent));
                 if (obj["degraded"] is { } degraded)
-                    text.AppendFormat("\nNote — an effect failed on these ranges, so the file has the unprocessed audio there rather than the intended sound:{0}", DescribeFlaws(degraded));
+                    text.AppendFormat("\nNote — an effect failed on these ranges, so the file has the unprocessed audio there rather than the intended sound:{0}", SynthesisWaitSupport.DescribeFlaws(degraded));
 
                 text.Append("\nThis did not save the user's project: it still has the same save file and unsaved changes as before.");
                 return text.ToString();
