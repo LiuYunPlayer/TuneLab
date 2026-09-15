@@ -84,6 +84,65 @@ namespace TuneLab.Tests;
         return spec;
     }
 
+    [Fact(Timeout = 120_000)]
+    public void RealPythonVoiceSynthesisRoundTrip()
+    {
+        if (!RuntimeLocator.Default.TryResolve(ParseSpec("python>=3.10"), out var python, out var trail))
+        {
+            if (Environment.GetEnvironmentVariable("TUNELAB_REQUIRE_PYTHON") == "1")
+                Assert.Fail("python not resolved: " + trail);
+            return;
+        }
+        Environment.SetEnvironmentVariable("PYTHONPATH", LocateUp("scripting", "python"));
+
+        var pkgDir = LocateUp("tests", "plugins", "PyVoice");
+        var entry = "plugin/main.py";
+        var host = SidecarRegistry.For("com.tunelab.test.pyvoice", pkgDir, python, entry);
+        host.AutoRestart = true;
+        host.ExpectEngine("voice", "PySine");
+        var engine = new RemoteVoiceEngine(host, "PySine", hasSettings: false);
+        var ctx = new VoiceTestContext(
+            new VoiceTestNote("n0", 0.0, 0.5, 60, "la"),
+            new VoiceTestNote("n1", 0.5, 1.0, 64, "du"));
+        IVoiceSynthesisSession? session = null;
+        try
+        {
+            engine.Init();
+            Assert.Equal("sine", Assert.Single(engine.VoiceSourceInfos.Keys));
+
+            session = engine.CreateSession(ctx);
+            Assert.Equal("la", session.DefaultLyric);
+            Assert.False(session.IsContinuation(ctx.Notes.First()!));
+
+            var first = session.GetNextPendingSynthesisRange(0, 1.0) ?? throw new Exception("expected first chunk");
+            Assert.Equal(0.0, first.StartTime, 6);
+            Assert.Equal(0.5, first.EndTime, 6);
+
+            session.SynthesizeNext(0, 0.5).GetAwaiter().GetResult();
+
+            var seg = Assert.Single(ctx.Segments);
+            Assert.True(seg.Committed);
+            Assert.Equal(22050, seg.Written.Count);
+            Assert.True(Math.Abs(seg.Written.Max(Math.Abs) - 0.2f) < 0.01f);        // 振幅 0.2 的正弦
+            var syll = session.SynthesizedPhonemes["n0"];
+            Assert.Equal("la", Assert.Single(syll.BodyPhonemes).Symbol);
+            var st = Assert.Single(session.Status);
+            Assert.Equal(SynthesisSegmentStatus.Synthesized, st.Status);
+            Assert.Equal(62.0, session.SynthesizedPitch.Segments[0][1].Y, 6);
+
+            // 第二拍：无事件则 peek 命中缓存（§3.5 设计语义）；触发 dirty 后重问 py 游标推进
+            session.SynthesizeNext(0.5, 1.0).GetAwaiter().GetResult();
+            Assert.Equal(2, ctx.Segments.Count);
+            ctx.TriggerPitchRange(0, 1);                       // dirty++ → peek 重问
+            Assert.Null(session.GetNextPendingSynthesisRange(0, 1.0));   // py 游标已到 1.0
+        }
+        finally
+        {
+            session?.Dispose();
+            host.Shutdown();
+        }
+    }
+
     [Fact(Timeout = 60_000)]
     public void RealPythonEffectGainRoundTrip()
     {

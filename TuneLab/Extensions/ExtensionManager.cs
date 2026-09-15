@@ -335,9 +335,24 @@ internal static class ExtensionManager
                         Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), effectError));
                     }
                 }
+                else if (gate.Status == ScriptedGateStatus.Ready && kind == "voice")
+                {
+                    if (RegisterScriptedVoiceEntry(description.id ?? string.Empty, path, ext, gate.Runtime, ext.LocalizedName(lang), out var voiceError))
+                    {
+                        loaded++;
+                    }
+                    else
+                    {
+                        failed++;
+                        entry.Status = ExtensionEntryStatus.Failed;
+                        entry.Error = voiceError;
+                        reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), voiceError));
+                        Log.Error(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), voiceError));
+                    }
+                }
                 else if (gate.Status == ScriptedGateStatus.Ready)
                 {
-                    // 引擎类注册支未落地（voice=M3；instrument 明确不承诺）——如实 Skipped，不谎报。
+                    // 引擎类注册支未落地（instrument 明确不承诺）——如实 Skipped，不谎报。
                     skipped++;
                     var pending = string.Format("scripted {0} registration is not implemented by this host build yet ({1})", kind, gate.Message);
                     entry.Status = ExtensionEntryStatus.Skipped;
@@ -781,6 +796,25 @@ internal static class ExtensionManager
         host.AutoRestart = true;   // effect 是被 push 调度的常驻引擎：崩溃后自动 warm 回来（§3.2）
         host.ExpectEngine("effect", engineId);
         EffectManager.RegisterEngine(packageId, engineId, displayName, new RemoteEffectEngine(host, engineId, ext.settings));
+        error = null;
+        return true;
+    }
+
+    // 脚本 voice 条目的注册（M3c）：同 effect 家族——engine id 必填；懒 spawn 由首次 Init 触发
+    // （VoicesManager 按需 Init 的既有语义原样成立）。AutoRestart：合成调度是 push 型，崩了自动 warm 回。
+    static bool RegisterScriptedVoiceEntry(string packageId, string packageDir, ExtensionInfo ext, RuntimeInfo runtime, string displayName, out string? error)
+    {
+        var engineId = (ext.engine ?? string.Empty).Trim();
+        if (engineId.Length == 0)
+        {
+            error = "scripted voice entries must declare 'engine' (the immutable id projects reference)";
+            return false;
+        }
+        var entryPath = (ext.entry ?? string.Empty).Trim().Replace('\\', '/');
+        var host = SidecarRegistry.For(packageId, packageDir, runtime, entryPath);
+        host.AutoRestart = true;
+        host.ExpectEngine("voice", engineId);
+        VoicesManager.RegisterEngine(packageId, engineId, displayName, new RemoteVoiceEngine(host, engineId, ext.settings));
         error = null;
         return true;
     }

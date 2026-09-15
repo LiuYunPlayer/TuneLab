@@ -1,0 +1,13 @@
+{
+  "id": "com.tunelab.test.pyvoice",
+  "name": "Py Voice (sine)",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "脚本 voice 样例：每 note 渲一段 440Hz 正弦。真解释器 E2E 靶（ScriptedPythonE2ETests）。",
+  "sdk-version": "1.1",
+  "type": "voice",
+  "engine": "PySine",
+  "runtime": "python>=3.10,<4",
+  "entry": "plugin/main.py",
+  "platforms": ["win", "osx", "linux"]
+}

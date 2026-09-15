@@ -151,8 +151,9 @@ def _reply(req_id, result=None, err=None):
 
 
 def _handle_initialize(params):
-    from . import _effect
+    from . import _effect, _voice
     _effect.set_channels(_call_host, _notify)
+    _voice.set_channels(_call_host, _notify)
     provides = []
     for e in params.get("entries") or []:
         if e.get("type") == "format":
@@ -179,9 +180,10 @@ def _handle_initialize(params):
                     error("apply_settings(handshake) failed: %s" % ex)
         else:
             engine_id = e.get("engine")
-            if engine_id in _effect.declared_engine_ids():
+            if engine_id in _effect.declared_engine_ids() or engine_id in _voice.declared_engine_ids():
+                settings_ok = engine_id in _effect.settings_engines() or engine_id in _voice.settings_engines()
                 provides.append({"type": e.get("type", "effect"), "engine": engine_id,
-                                 "settings": engine_id in _effect.settings_engines()})
+                                 "settings": settings_ok})
     return {
         "provides": provides,
         "capabilities": capabilities(),
@@ -202,6 +204,23 @@ def _find_entry(entry_id):
     return e
 
 
+def voice(engine_id=None):
+    """Decorator registering a scripted voice/singing engine. See tunelab._voice for the
+    recognized members; engine_id MUST match the manifest `engine` field."""
+    from . import _voice
+
+    def deco(obj):
+        inst = obj() if isinstance(obj, type) else obj
+        key = engine_id or obj.__name__
+        _voice.register_voice(inst, key)
+        return obj
+
+    if callable(engine_id):
+        obj, engine_id = engine_id, None
+        return deco(obj)
+    return deco
+
+
 def _dispatch(req):
     # 应答帧（宿主对我们反向调用的回复）：先结算 pending，再谈其它。
     if "method" not in req and "id" in req:
@@ -215,11 +234,14 @@ def _dispatch(req):
             ev.set()
         return
 
-    from . import _effect
+    from . import _effect, _voice
 
     method = req.get("method")
     params = req.get("params") or {}
     req_id = req.get("id")
+
+    def _engine_registry_is_voice():
+        return params.get("engine") in _voice.declared_engine_ids()
 
     try:
         if method == "initialize":
@@ -230,24 +252,44 @@ def _dispatch(req):
             if req_id is not None:
                 _reply(req_id, {})
             os._exit(0)
-        elif method in ("engine.init", "engine.destroy", "engine.create_session",
-                        "effect.get_property_config", "effect.get_automation_configs",
+        elif method == "engine.create_session":
+            # session 键自带命名空间前缀（effect:/voice:）——两族注册表互不猜测。
+            if str(params.get("session", "")).startswith("voice:"):
+                _voice.create_session(params)
+            else:
+                _effect.handle(method, params)
+            if req_id is not None:
+                _reply(req_id, {})
+        elif method == "session.dispose":
+            if str(params.get("session", "")).startswith("voice:"):
+                _voice.destroy_session(params)
+            else:
+                _effect.on_notification(method, params)
+        elif method == "effect.cancel":
+            _effect.on_notification(method, params)
+        elif method == "voice.dirty":
+            _voice.on_dirty(params)
+        elif method in ("engine.init", "engine.destroy"):
+            if _engine_registry_is_voice():
+                target = _voice
+            else:
+                target = _effect
+            try:
+                target.handle(method, params)
+            except Exception:
+                if method != "engine.destroy":   # destroy 是通知：吞错照常应答
+                    raise
+            if req_id is not None:
+                _reply(req_id, {})
+        elif method.startswith("voice."):
+            result = _voice.handle(method, params)
+            if req_id is not None:
+                _reply(req_id, result)
+        elif method in ("effect.get_property_config", "effect.get_automation_configs",
                         "effect.get_synthesized_parameter_configs", "effect.process"):
-            if method == "engine.destroy":
-                try:
-                    _effect.handle(method, params)
-                except Exception:
-                    pass
-                if req_id is not None:
-                    _reply(req_id, {})
-                return
             result = _effect.handle(method, params)
             if req_id is not None:
                 _reply(req_id, result)
-        elif method in ("effect.cancel", "session.dispose"):
-            _effect.on_notification(method, params)
-            if req_id is not None:
-                _reply(req_id, {})
         elif method == "format.import":
             entry = _find_entry(params.get("entry"))
             fn = entry and entry.get("import")

@@ -1,8 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M3b 已落地**（后台重启环 + stderr 保留策略 + 三平台 CI 测试矩阵；运行时自动部署=M3a、
-> effect=M2b、声明/设置/心跳=M2a、format 全链=M1、manifest/探测=M0）。
-> 剩余：voice + shm（M3c）、Node/Lua façade（M3d）。
+> 状态：**定稿；M3c 已落地**（voice 全表面：catalog/声明五件套/续延缓存/peek 缓存/合成调度/
+> 反向拉取/四路发布/事件推送，Python `@voice` + 真解释器 E2E；shm 音频面为后续快车道、inline 恒为兜底）。
+> 剩余：Node/Lua façade（M3d）、【下载运行时】stderr 清理策略与 shm（M4）。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -517,9 +517,20 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   （每 boot 一清、只留最近 2 个旧文件，§3.4 兑现）；`.github/workflows/tests.yml` 三平台测试矩阵
   （win/ubuntu/macos × setup-python 3.12 + node 20 × 真解释器 E2E 强制档 TUNELAB_REQUIRE_PYTHON=1 ×
   façade 单测 × legacy 工程；Setup 三类因既有 RID 输出拷盘问题暂除，注释指回本仓）。
-- **仍推迟**：voice + shm 音频面（M3c——反向通道与快照/推送面协议大，需专轮设计：get_snapshot
-  反向拉、note/automation 事件推送流、peek 缓存、四路产物发布）；Node/Lua façade（M3d，
-  CI 已备 node——façade 落地即绿）。
+- **M3c 落地**：voice 垂直切片——`RemotePullBus`（常驻会话共享的反向拉取/段/发布总线：
+  effect 迁入、voice 复用，wire 语义零变化——M2b 测试原样全绿作证）；`RemoteVoiceEngine`
+  （catalog/layout volatile 缓存 + engine.catalog_changed 重拉；声明五件套走"有界 + 指纹缓存"）;
+  `RemoteVoiceSession`（context 订阅→voice.dirty 粗粒度推送流；IsContinuation/peek 有界+缓存
+  （§3.5 的"晚一拍安全"由 synthesize 电平幂等兜底）；synthesize 无超时应答即完成；
+  反向 host.notes/host.snapshot/host.evaluate(pitch|pitch_deviation|track) + 段写回；
+  pitch/phonemes/parameters/status 四路 volatile 发布 + changed 事件）。Python façade `@voice`
+  （VoiceCtx：notes/snapshot/pitch evaluator/output/status/pitch/phonemes/parameters——求值器=句柄远程
+  拉，§5.6 (a) 决定的完整落地）。样例 `tests/plugins/PyVoice`（真 3.11 E2E：两段合成、
+  dirty 驱动 peek 游标推进、音素按 request_id 归属回指）。`scripting/wire/v1.json` 补齐
+  voice 方法表（46 方法）并加规范封条（可解析 + 方法覆盖 + 版本一致——期间就抓出两处
+  spec 自身 JSON 病灶）。
+- **仍推迟**：shm 音频面（M4——性能快车道，非正确性；voice 已全链可用）；
+  【下载运行时】按钮的 stderr 清理策略（M4）；Node/Lua façade（M3d）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

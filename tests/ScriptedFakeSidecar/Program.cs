@@ -123,15 +123,116 @@ internal static class Program
                     Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
                     break;
                 }
+                case "engine.init":
+                case "engine.create_session":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
+                    break;
                 case "engine.destroy":
                 case "session.dispose":
                     if (id != null)
                         Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
                     break;
-                case "engine.init":
-                case "engine.create_session":
+                case "voice.get_catalog":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject
+                    {
+                        ["sources"] = new JsonArray { new JsonObject { ["id"] = "sine", ["name"] = "Sine Bank", ["description"] = "fake catalog" } },
+                        ["layout"] = new JsonArray { new JsonObject { ["voice"] = "sine" } },
+                    } });
+                    break;
+                case "voice.get_automation_configs":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["tracks"] = new JsonArray
+                    {
+                        new JsonObject { ["id"] = "vibrato_rate", ["displayText"] = "VR", ["config"] = new JsonObject
+                            { ["type"] = "automation", ["minValue"] = 0.0, ["maxValue"] = 1.0, ["defaultValue"] = 0.5 } },
+                    } } });
+                    break;
+                case "voice.get_synthesized_parameter_configs":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["tracks"] = new JsonArray
+                    {
+                        new JsonObject { ["id"] = "energy", ["config"] = new JsonObject
+                            { ["type"] = "automation", ["minValue"] = 0.0, ["maxValue"] = 2.0, ["defaultValue"] = "NaN" } },
+                    } } });
+                    break;
+                case "voice.get_part_property_config":
+                case "voice.get_note_property_config":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["config"] = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonArray { new JsonObject { ["id"] = "tension", ["config"] = new JsonObject
+                            { ["type"] = "slider", ["defaultValue"] = 0.0, ["scale"] = new JsonObject { ["kind"] = "linear", ["min"] = -1.0, ["max"] = 1.0 } } } },
+                    } } });
+                    break;
+                case "voice.get_phoneme_property_configs":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["slots"] = new JsonArray() } });
+                    break;
+                case "voice.default_lyric":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["lyric"] = "la" } });
+                    break;
+                case "voice.is_continuation":
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["continuation"] = false } });
+                    break;
+                case "voice.peek":
+                {
+                    var session = p!["session"]!.GetValue<string>();
+                    var starts = p["start"]!.GetValue<double>();
+                    var ends = p["end"]!.GetValue<double>();
+                    var n = VoicePeeks.TryGetValue(session, out var old) ? old + 1 : 1;
+                    VoicePeeks[session] = n;
+                    JsonNode? range = n == 1
+                        ? new JsonArray { starts, Math.Min(starts + 0.5, ends) }
+                        : null;
+                    Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["range"] = range } });
+                    break;
+                }
+                case "voice.synthesize":
+                {
+                    if (mode != "voice-sine")
+                        break;
+                    var engine = p!["engine"]!.GetValue<string>();
+                    var session = p["session"]!.GetValue<string>();
+                    double start = p["start"]!.GetValue<double>(), end = p["end"]!.GetValue<double>();
+                    JsonObject Via2(JsonObject extra) { extra["engine"] = engine; extra["session"] = session; return extra; }
+
+                    var notesResp = Reverse("host.notes", Via2(new JsonObject()));
+                    var ids = ((JsonArray)notesResp!["notes"]!).Select(n => n!["id"]!.GetValue<string>()).ToList();
+                    if (ids.Count == 0)
+                        throw new InvalidOperationException("host.notes returned no notes");
+                    var snap = Reverse("host.snapshot", Via2(new JsonObject { ["note_ids"] = new JsonArray(ids.Select(i => (JsonNode)i).ToArray()) }));
+                    var snapNotes = (JsonArray)snap!["snapshot"]!["notes"]!;
+                    if (snapNotes.Count != ids.Count)
+                        throw new InvalidOperationException("snapshot misaligned");
+                    var pos = new byte[16];
+                    BinaryPrimitives.WriteDoubleLittleEndian(pos.AsSpan(0, 8), start);
+                    BinaryPrimitives.WriteDoubleLittleEndian(pos.AsSpan(8, 8), end);
+                    var ev = Reverse("host.evaluate", Via2(new JsonObject { ["track"] = "pitch", ["positions"] = Convert.ToBase64String(pos) }));
+                    var curve = Convert.FromBase64String(ev!["values"]!.GetValue<string>());
+                    if (BinaryPrimitives.ReadDoubleLittleEndian(curve.AsSpan(0, 8)) != 0.25)
+                        throw new InvalidOperationException("pitch evaluate wrong");
+
+                    const int rate = 44100;
+                    int count = (int)((end - start) * rate);
+                    var samples = new byte[count * 4];
+                    for (int i = 0; i < count; i++)
+                        BinaryPrimitives.WriteSingleLittleEndian(samples.AsSpan(i * 4), 0.25f * MathF.Sin(2 * MathF.PI * 440f * i / rate));
+                    var seg = Reverse("host.segment_create", Via2(new JsonObject
+                    { ["sample_offset"] = (long)(start * rate), ["sample_count"] = count, ["sample_rate"] = rate }))!["segment"]!.GetValue<string>();
+                    Reverse("host.segment_write", Via2(new JsonObject { ["segment"] = seg, ["offset"] = 0, ["data"] = Convert.ToBase64String(samples) }));
+                    Reverse("host.segment_commit", Via2(new JsonObject { ["segment"] = seg }));
+                    Notify("voice.status", Via2(new JsonObject { ["segments"] = new JsonArray { new JsonObject
+                        { ["start"] = start, ["end"] = end, ["status"] = "synthesized", ["progress"] = 1.0 } } }));
+                    Notify("voice.pitch", Via2(new JsonObject { ["segments"] = new JsonArray { new JsonArray
+                        { new JsonArray { start, 60.0 }, new JsonArray { end, 62.0 } } } }));
+                    Notify("voice.phonemes", Via2(new JsonObject { ["syllables"] = new JsonObject {
+                        [snapNotes[0]!["request_id"]!.GetValue<string>()] = new JsonObject {
+                            ["leading"] = new JsonArray(),
+                            ["body"] = new JsonArray { new JsonObject { ["symbol"] = "a", ["duration"] = end - start, ["stretch_weight"] = 1.0 } },
+                            ["body_offset"] = 0.0,
+                        } } }));
+                    Notify("voice.parameters", Via2(new JsonObject { ["parameters"] = new JsonObject { ["energy"] = new JsonObject
+                        { ["segments"] = new JsonArray { new JsonArray { new JsonArray { start, 0.7 }, new JsonArray { end, 0.7 } } } } } }));
                     Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject() });
                     break;
+                }
                 case "effect.get_property_config":
                     Write(stdout, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["config"] = GainConfig() } });
                     break;
@@ -233,6 +334,8 @@ internal static class Program
         }
         return 0;   // stdin EOF（宿主死）→ 自卫退出（防线 1 的另一半：真 façade 也照此）
     }
+
+    static readonly System.Collections.Generic.Dictionary<string, int> VoicePeeks = new();
 
     static JsonNode HandleInitialize(JsonObject req, string mode, Action<string, JsonNode?> logSettings)
     {
