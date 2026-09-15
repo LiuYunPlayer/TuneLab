@@ -23,6 +23,7 @@ public class ScriptedWireSpecTests
         "voice.get_catalog", "voice.get_automation_configs", "voice.get_synthesized_parameter_configs",
         "voice.get_part_property_config", "voice.get_note_property_config", "voice.get_phoneme_property_configs",
         "voice.default_lyric", "voice.is_continuation", "voice.peek", "voice.synthesize", "voice.dirty",
+        "voice.cancel",
         "voice.status", "voice.pitch", "voice.phonemes", "voice.parameters", "engine.catalog_changed",
         "host.input_read", "host.properties", "host.automation_tracks", "host.evaluate",
         "host.snapshot", "host.notes",

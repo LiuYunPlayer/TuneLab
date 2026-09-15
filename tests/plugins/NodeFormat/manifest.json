@@ -1,0 +1,13 @@
+{
+  "id": "com.tunelab.test.nodeformat",
+  "name": "Node Format (txt notes)",
+  "version": "1.0.0",
+  "author": "TuneLab Tests",
+  "description": "脚本 format 样例（Node）：一行一音符的 .ntxt 文本格式。真解释器 E2E 靶（ScriptedNodeE2ETests）。",
+  "sdk-version": "1.1",
+  "type": "format",
+  "suffixes": ["ntxt"],
+  "runtime": "node>=18",
+  "entry": "plugin/main.js",
+  "platforms": ["win", "osx", "linux"]
+}

@@ -40,6 +40,15 @@ jobs:
       with:
         node-version: "20"
 
+    # Lua 靶需要解释器：ubuntu/macos 装官方 5.4；windows 暂无打包（façade 逻辑单测在 posix 上跑，
+    # E2E 在 win 上 vacuous——见 ScriptedLuaE2ETests）。
+    - name: Install Lua (posix)
+      if: runner.os != 'Windows'
+      run: |
+        if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get update && sudo apt-get install -y lua5.4 && sudo ln -sf $(which lua5.4) /usr/local/bin/lua; fi
+        if [ "$RUNNER_OS" = "macOS" ]; then brew install lua; fi
+      shell: bash
+
     - name: Restore and build
       run: dotnet build TuneLab.sln -c Debug
 
@@ -51,16 +60,28 @@ jobs:
         dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj -c Debug --no-build
         --filter "FullyQualifiedName!~SetupCliOptionsTests&FullyQualifiedName!~SetupInstallManifestTests&FullyQualifiedName!~SetupUninstallTests"
 
-    # 真解释器 E2E 强制断言（缺解释器即红，而不是 vacuous pass）——CI 保证了 setup 装了。
+    # 真解释器 scripted E2E 强制断言（缺解释器即红，而不是 vacuous pass）——CI 保证了 setup 装了。
+    # node/lua 经环境变量指到 setup/系统安装位（RuntimeLocator ② 级）。
     - name: Real-interpreter scripted E2E
       env:
         TUNELAB_REQUIRE_PYTHON: "1"
+        TUNELAB_REQUIRE_NODE: "1"
+        TUNELAB_REQUIRE_LUA: "${{ runner.os != 'Windows' && '1' || '' }}"
       run: >
         dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj -c Debug --no-build
         --filter "runtime=needs-interpreter"
 
     - name: Python facade unit tests
       run: python -m unittest discover -s scripting/python/tests
+
+    - name: Node facade unit tests
+      run: node --test scripting/node/test
+
+    - name: Lua facade unit tests (posix)
+      if: runner.os != 'Windows'
+      working-directory: scripting/lua
+      run: lua tests/test_codec.lua
+
 
     - name: Legacy-compat tests
       run: dotnet test legacy/compat/TuneLab.Hosting.Compat.Legacy.Tests/TuneLab.Hosting.Compat.Legacy.Tests.csproj -c Debug

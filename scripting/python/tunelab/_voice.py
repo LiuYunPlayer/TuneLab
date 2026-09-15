@@ -75,6 +75,18 @@ def on_dirty(params):
                 pass
 
 
+def on_cancel(params):
+    ctx = _sessions.get(params.get("session"))
+    if ctx:
+        ctx.cancelled.set()
+        hook = getattr(ctx.user, "cancel", None)
+        if hook:
+            try:
+                hook()
+            except Exception:
+                pass
+
+
 def handle(method, params):
     engine_id = params.get("engine")
     if method == "engine.init":

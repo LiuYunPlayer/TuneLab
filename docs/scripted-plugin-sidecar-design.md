@@ -1,8 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M3c 已落地**（voice 全表面：catalog/声明五件套/续延缓存/peek 缓存/合成调度/
-> 反向拉取/四路发布/事件推送，Python `@voice` + 真解释器 E2E；shm 音频面为后续快车道、inline 恒为兜底）。
-> 剩余：Node/Lua façade（M3d）、【下载运行时】stderr 清理策略与 shm（M4）。
+> 状态：**定稿；M3d 已落地**（Node façade format+真解释器 E2E/握手冒烟；Lua façade 逻辑单测+CI
+> posix 真跑（windows 无打包 lua → 本地 vacuous）；voice=M3c、运行时自动部署=M3a）。
+> 剩余：M4 = shm 音频面、Lua windows 分发、stderr 清理策略。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -529,8 +529,18 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   dirty 驱动 peek 游标推进、音素按 request_id 归属回指）。`scripting/wire/v1.json` 补齐
   voice 方法表（46 方法）并加规范封条（可解析 + 方法覆盖 + 版本一致——期间就抓出两处
   spec 自身 JSON 病灶）。
+- **M3d 落地**：`scripting/node/`（@tunelab/plugin，零依赖 CommonJS：framing / 属性 tagged
+  codec / 特殊浮点出口统一字符串化 / format·effect·voice 三族 dispatch / 反向 callHost）+
+  `scripting/lua/`（单文件纯 Lua façade：内嵌 JSON codec、base64+f32 打包 5.1/5.2+ 双路、
+  三族 dispatch）+ 样例 `NodeFormat`/`LuaFormat` + 真解释器 E2E 与三语言共用的握手冒烟
+  （`ScriptedFacadeHandshakeTests`）。Node 全链本机真跑（20.17.0 经 npmmirror 下载、sha256
+  对 feed 钉——顺带自证 M3a 表）；Lua 无 windows 打包发行版，本机用 lupa（嵌入式 Lua 5.5）真跑
+  单测揪出 4 处 bug（`^` 锚点无视 pos、保留字 `.end`、json 数组循环双跳分隔符、坏 IIFE），
+  CI posix 再跑一遍（ubuntu apt lua5.4 / macos brew lua），windows 端 E2E vacuous。
+  交叉核对 spec×C#×三 façade 时补了 spec 漏记的 `voice.cancel`（47 方法）与三语言的
+  `voice.dirty`→`user.on_dirty`、`voice.cancel`→`user.cancel` 钩子一致性。
 - **仍推迟**：shm 音频面（M4——性能快车道，非正确性；voice 已全链可用）；
-  【下载运行时】按钮的 stderr 清理策略（M4）；Node/Lua façade（M3d）。
+  Lua 的 windows 分发（随 feed 加格，M4）；【下载运行时】按钮的 stderr 清理策略（M4）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

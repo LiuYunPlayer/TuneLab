@@ -1,0 +1,9 @@
+{
+  "name": "@tunelab/plugin",
+  "version": "0.1.0",
+  "description": "TuneLab scripted-plugin facade (Node.js, zero-dependency)",
+  "main": "index.js",
+  "license": "MIT",
+  "engines": { "node": ">=16.14" },
+  "scripts": { "test": "node --test test/" }
+}

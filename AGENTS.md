@@ -17,15 +17,21 @@
 
 ## Scripted plugins (sidecar) — see docs/scripted-plugin-sidecar-design.md
 
-- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); M1 landed (format only).
+- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); M0–M3d landed
+  (format/effect/voice, all three languages).
   Façades live under `scripting/` (not in the .sln); wire spec: `scripting/wire/v1.json`.
 - Build & test (parallel to the dotnet pipeline):
   - fake sidecar (protocol seal, no interpreter needed): built with the solution; the .NET test
     project launches it via `dotnet exec`. Manual: `dotnet build tests/ScriptedFakeSidecar -c Debug`.
   - Python façade: `python -m unittest discover -s scripting/python/tests` (pure stdlib).
+  - Node façade: `node --test scripting/node/test` (needs node>=18; zero-dependency package at
+    `scripting/node/tunelab/` — samples resolve it via `NODE_PATH=<repo>/scripting/node`).
+  - Lua façade: `lua tests/test_codec.lua` in `scripting/lua/` (pure Lua 5.1–5.4; no packaged
+    lua on windows — CI posix runs it; samples resolve via `LUA_PATH=<repo>/scripting/lua/?.lua;;`).
   - Real-interpreter E2E: `dotnet test tests/TuneLab.Tests/TuneLab.Tests.csproj --filter "runtime=needs-interpreter"`
-    (set `TUNELAB_REQUIRE_PYTHON=1` to fail-fast when no Python>=3.10 is discoverable, else it
-    passes vacuously; `TUNELAB_PYTHON=<path>` pins the interpreter — probing order: settings → env →
+    (set `TUNELAB_REQUIRE_PYTHON=1` / `TUNELAB_REQUIRE_NODE=1` / `TUNELAB_REQUIRE_LUA=1` to
+    fail-fast when the interpreter is not discoverable, else it passes vacuously;
+    `TUNELAB_PYTHON` / `TUNELAB_NODE` / `TUNELAB_LUA` pin the path — probing order: settings → env →
     runtime packages → PATH).
 - Scripted test plugins (e.g. `tests/plugins/PyFormat/`) are manifest + sources only — **no csproj,
   no build step**; `pack-tlx.ps1` picks csproj-less folders under `tests/plugins/` up directly.

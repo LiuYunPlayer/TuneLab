@@ -269,6 +269,8 @@ def _dispatch(req):
             _effect.on_notification(method, params)
         elif method == "voice.dirty":
             _voice.on_dirty(params)
+        elif method == "voice.cancel":
+            _voice.on_cancel(params)
         elif method in ("engine.init", "engine.destroy"):
             if _engine_registry_is_voice():
                 target = _voice
