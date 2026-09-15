@@ -1,8 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M3d 已落地**（Node façade format+真解释器 E2E/握手冒烟；Lua façade 逻辑单测+CI
-> posix 真跑（windows 无打包 lua → 本地 vacuous）；voice=M3c、运行时自动部署=M3a）。
-> 剩余：M4 = shm 音频面、Lua windows 分发、stderr 清理策略。
+> 状态：**定稿；M4 已落地**（shm 音频面：区域分配器/头布局/协商/fake 与 Python 直写/CI；
+> Node façade format+真解释器 E2E/握手冒烟；Lua façade 逻辑单测+CI posix 真跑）。
+> 剩余：M5 = 曲线面 shm 结果缓冲、Lua windows 分发、stderr 明细清理策略。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -539,8 +539,24 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   CI posix 再跑一遍（ubuntu apt lua5.4 / macos brew lua），windows 端 E2E vacuous。
   交叉核对 spec×C#×三 façade 时补了 spec 漏记的 `voice.cancel`（47 方法）与三语言的
   `voice.dirty`→`user.on_dirty`、`voice.cancel`→`user.cancel` 钩子一致性。
-- **仍推迟**：shm 音频面（M4——性能快车道，非正确性；voice 已全链可用）；
-  Lua 的 windows 分发（随 feed 加格，M4）；【下载运行时】按钮的 stderr 清理策略（M4）。
+- **M4 落地**：
+  - **M4a stderr 收口**：滚动落盘加单行截断（8KB，二进制 dump 类爆行不落全量）与 boot 文件
+    硬顶（2MB，到顶停落盘、内存 tail 继续滚）；旧 boot 仍只留 2 份。
+  - **M4b shm 音频面**：`ShmPlane`/`ShmRegion`（文件后备 MemoryMappedFile，命名
+    `tlx-<boot-nonce>-<slug>-<seq>`，头 24B：magic 'TLXA'/version/flags/sample_offset/
+    sample_count/sample_rate + 交织 f32 体；boot 残留启动清扫）。协商：façade 在 `initialize`
+    自报 `capabilities.audio_plane`，宿主仅在 `shm` 时于 `segment_create` 回 `region{path,
+    data_offset,…}`；façade 映射直写，`commit` 是唯一屏障（宿主拷 region→段缓冲）。
+    `segment_write` 在 shm 段透传进区域（否则 commit 会覆盖 inline 写）；`segment_resize`
+    先冲区域回段、宿主 Resize 后重铺新区域并在应答回新 region（façade 重映射）。
+    Python façade（stdlib `mmap` + `memoryview`/numpy 视图）声明 shm；Node/Lua 保持 inline。
+    封条：`ScriptedShmPlaneTests`（头布局/跨句柄共享/扩容保内容/清扫）+ fake `shm-sine` 模式
+    E2E + 真 3.11 voice/effect E2E 断言 `AudioPlaneShm`。
+  - 期间踩到 Windows 共享模式坑：宿主 FileStream 是 RW，sidecar 用 `CreateFromFile(path,…)`
+    重载（默认 `FileShare.Read`）会 ERROR_LOCK_VIOLATION——两侧都须 `FileShare.ReadWrite`
+    （SafeFileHandle 重载）。
+- **仍推迟**：曲线面 shm 结果缓冲（M5）；Lua 的 windows 分发（随 feed 加格，M5）；
+  【下载运行时】按钮的 stderr 明细清理策略（M5）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

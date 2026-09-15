@@ -240,7 +240,7 @@ class VoiceCtx:
         r = _call_host("host.segment_create", self._via({"sample_offset": sample_offset,
                                                          "sample_count": sample_count, "sample_rate": sample_rate}))
         from ._effect import _Segment
-        seg = _Segment(self.engine, self.key, r["segment"], sample_count)
+        seg = _Segment(self.engine, self.key, r["segment"], sample_count, r.get("region"))
         self._segments.append(seg)
         return seg
 

@@ -244,4 +244,70 @@ namespace TuneLab.Tests;
     {
         try { File.Delete(path); } catch { }
     }
+
+    // —— M4a: stderr 保留策略（单行截断 / boot 文件硬顶 / 旧 boot 只留 2 份）。
+    // AppendStderr 是纯落盘方法，不 spawn 进程，用临时包目录直接驱动。 ——
+
+    static SidecarHost StderrHost(string packageDir)
+        => new("com.test.stderr", packageDir, new RuntimeInfo(Dotnet, "dotnet-fake", "0.0", "x64"), "x.dll");
+
+    [Fact]
+    public void StderrLineIsTruncated()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "tlx-stderr-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            StderrHost(dir).AppendStderr(new string('x', SidecarHost.StderrLineCap * 3));
+            var file = Path.Combine(dir, "logs", "stderr-" + SidecarIo.Nonce + ".txt");
+            var written = File.ReadAllText(file);
+            Assert.Contains("[truncated]", written);
+            Assert.True(written.Length < SidecarHost.StderrLineCap * 2, "line must be cut to cap + marker");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void StderrBootFileStopsAtHardCap()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "tlx-stderr-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var host = StderrHost(dir);
+            var line = new string('y', SidecarHost.StderrLineCap - 64);
+            for (long written = 0; written <= SidecarHost.StderrBootCap; written += line.Length + 1)
+                host.AppendStderr(line);
+            var file = Path.Combine(dir, "logs", "stderr-" + SidecarIo.Nonce + ".txt");
+            var sizeAfterCap = new FileInfo(file).Length;
+            Assert.True(sizeAfterCap > SidecarHost.StderrBootCap, "cap not reached yet? " + sizeAfterCap);
+            host.AppendStderr("one more");
+            Assert.Equal(sizeAfterCap, new FileInfo(file).Length);   // 到顶后停写
+            Assert.EndsWith("one more\n", host.StderrTail);          // 内存 tail 继续滚动
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void StderrPruneKeepsTwoOlderBoots()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "tlx-stderr-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var logs = Path.Combine(dir, "logs");
+            Directory.CreateDirectory(logs);
+            for (int i = 1; i <= 5; i++)   // boot1 最旧 … boot5 最新（旧 nonce 形态）
+            {
+                var f = Path.Combine(logs, $"stderr-boot{i:D}-other.txt");
+                File.WriteAllText(f, "old");
+                File.SetLastWriteTimeUtc(f, DateTime.UtcNow.AddDays(-10 + i));
+            }
+            StderrHost(dir).AppendStderr("fresh");
+            var survivors = Directory.GetFiles(logs, "stderr-*.txt")
+                .Select(Path.GetFileName).OrderBy(n => n).ToArray();
+            Assert.Contains("stderr-boot5-other.txt", survivors);
+            Assert.Contains("stderr-boot4-other.txt", survivors);
+            Assert.DoesNotContain("stderr-boot3-other.txt", survivors);
+            Assert.Contains("stderr-" + SidecarIo.Nonce + ".txt", survivors);   // 本次 boot 不算进 2 份
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }

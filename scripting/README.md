@@ -8,10 +8,10 @@
 
 | 路径 | 内容 | 状态 |
 |---|---|---|
-| `wire/v1.json` | 线协议规范（帧、方法表、值编码） | M3d ✅（47 方法全表） |
-| `python/tunelab/` | Python façade（纯 stdlib，PyPI 名 `tunelab`） | M3c ✅（format/effect/voice） |
-| `node/tunelab/` | Node façade（零依赖 CommonJS，包名 `tunelab`，发布名 `@tunelab/plugin`） | M3d ✅（format/effect/voice） |
-| `lua/tunelab.lua` | Lua façade（纯 Lua 单文件，5.1–5.4；内嵌 JSON codec 与 f32 打包双路） | M3d ✅（CI posix 真跑） |
+| `wire/v1.json` | 线协议规范（帧、方法表、值编码、shm 纹理） | M4b ✅（47 方法 + 音频面协商） |
+| `python/tunelab/` | Python façade（纯 stdlib，PyPI 名 `tunelab`；`audio_plane: shm`） | M4b ✅（format/effect/voice + shm 音频面） |
+| `node/tunelab/` | Node façade（零依赖 CommonJS，包名 `tunelab`，发布名 `@tunelab/plugin`；inline） | M3d ✅（format/effect/voice） |
+| `lua/tunelab.lua` | Lua façade（纯 Lua 单文件，5.1–5.4；inline；内嵌 JSON codec 与 f32 打包双路） | M3d ✅（CI posix 真跑） |
 
 ## 构建与测试（不进 .sln；与 dotnet 管线平行）
 

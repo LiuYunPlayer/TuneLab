@@ -61,6 +61,10 @@ internal sealed class SidecarHost
     public string StderrTail { get; private set; } = string.Empty;
     internal Exception? LastReaderFault { get; private set; }   // 诊断（测试与失败文案用）
 
+    /// <summary>握手协商的音频面（§6：façade 自报 capabilities.audio_plane=="shm" 才开区域面）。</summary>
+    public bool AudioPlaneShm { get; private set; }
+    public string PackageId => mPackageId;
+
     // 熔断复位（侧栏"重新加载"的语义；测试亦用）。不复活进行中的调用，只放行下一次 spawn。
     public void ResetCircuit()
     {
@@ -268,6 +272,8 @@ internal sealed class SidecarHost
         psi.Environment["TUNELAB_PROTOCOL"] = WireProtocol.Version.ToString(CultureInfo.InvariantCulture);
         psi.Environment["TUNELAB_EPOCH"] = (mEpoch + 1).ToString(CultureInfo.InvariantCulture);
         psi.Environment["TUNELAB_PACKAGE_ID"] = mPackageId;
+        psi.Environment["TUNELAB_NONCE"] = ShmPlane.Nonce;                 // §7 命名域核对
+        psi.Environment["TUNELAB_SHM_DIR"] = ShmPlane.RegionsDir;          // 区域目录（façade 声明 shm 才用得到）
         if (ExtraEnvironment != null)
             foreach (var (k, v) in ExtraEnvironment)
             {
@@ -395,6 +401,8 @@ internal sealed class SidecarHost
     // 就判死（"作者写了、sidecar 不认"是最容易静默失联的一类不匹配，拦在最前）。
     void ValidateHandshake(JsonNode? reply)
     {
+        AudioPlaneShm = reply?["capabilities"] is JsonObject caps
+            && caps["audio_plane"]?.GetValue<string>() == "shm";
         var provided = new HashSet<string>(StringComparer.Ordinal);
         if (reply!["provides"] is JsonArray arr)
             foreach (var item in arr)
@@ -414,8 +422,15 @@ internal sealed class SidecarHost
         }
     }
 
-    void AppendStderr(string line)
+    // stderr 保留策略（§3.4 + M4a 收口）：单行截 8KB（二进制 dump 类爆行不落全量）；
+    // 本次 boot 文件硬顶 2MB（到顶停落盘，内存 tail 仍滚动供侧栏摘要）；旧 boot 只留 2 份。
+    internal const int StderrLineCap = 8 * 1024;
+    internal const long StderrBootCap = 2 * 1024 * 1024;
+
+    internal void AppendStderr(string line)
     {
+        if (line.Length > StderrLineCap)
+            line = line.Substring(0, StderrLineCap) + " …[truncated]";
         const int Cap = 64 * 1024;
         var tail = StderrTail + line + "\n";
         if (tail.Length > Cap)
@@ -431,7 +446,10 @@ internal sealed class SidecarHost
             }
             var dir = Path.Combine(mPackageDir, "logs");
             Directory.CreateDirectory(dir);
-            File.AppendAllText(Path.Combine(dir, "stderr-" + SidecarIo.Nonce + ".txt"), line + "\n");
+            var path = Path.Combine(dir, "stderr-" + SidecarIo.Nonce + ".txt");
+            if (File.Exists(path) && new FileInfo(path).Length > StderrBootCap)
+                return;   // boot 文件到硬顶：停写盘但不算失败
+            File.AppendAllText(path, line + "\n");
         }
         catch { }
     }

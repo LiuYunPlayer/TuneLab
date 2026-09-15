@@ -108,6 +108,7 @@ namespace TuneLab.Tests;
         try
         {
             engine.Init();
+            Assert.True(host.AudioPlaneShm, "python facade must negotiate the shm audio plane (M4b)");
             Assert.Equal("sine", Assert.Single(engine.VoiceSourceInfos.Keys));
 
             session = engine.CreateSession(ctx);
@@ -163,6 +164,7 @@ namespace TuneLab.Tests;
         try
         {
             engine.Init();
+            Assert.True(host.AudioPlaneShm, "python facade must negotiate the shm audio plane (M4b)");
             // 声明面经真 config wire 重建
             var cfg = Assert.IsType<TuneLab.SDK.ObjectConfig>(engine.GetPropertyConfig(new EffectTestPropContext()));
             Assert.IsType<TuneLab.SDK.SliderConfig>(cfg.Properties["amount".AsKey()]);

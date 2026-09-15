@@ -17,9 +17,14 @@
 
 ## Scripted plugins (sidecar) — see docs/scripted-plugin-sidecar-design.md
 
-- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); M0–M3d landed
-  (format/effect/voice, all three languages).
+- Python/Node/Lua plugins run **out of process** (JSON-RPC over stdio); M0–M4b landed
+  (format/effect/voice, all three languages; shm audio plane for Python).
   Façades live under `scripting/` (not in the .sln); wire spec: `scripting/wire/v1.json`.
+  The shm audio plane (M4b) is opt-in per façade: a façade declares `capabilities.audio_plane`
+  at handshake; only `shm` makes the host return a `region{path,data_offset,…}` from
+  `host.segment_create` (file-backed mapping under `TUNELAB_SHM_DIR`, body = interleaved f32-LE,
+  header 24B). On that plane the data body never crosses JSON — `commit` is the barrier.
+  Node/Lua stay `inline` (no stdlib mmap); Python maps via `mmap`/`memoryview` (numpy optional).
 - Build & test (parallel to the dotnet pipeline):
   - fake sidecar (protocol seal, no interpreter needed): built with the solution; the .NET test
     project launches it via `dotnet exec`. Manual: `dotnet build tests/ScriptedFakeSidecar -c Debug`.

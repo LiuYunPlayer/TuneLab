@@ -186,7 +186,7 @@ internal static class Program
                 }
                 case "voice.synthesize":
                 {
-                    if (mode != "voice-sine")
+                    if (mode != "voice-sine" && mode != "shm-sine")
                         break;
                     var engine = p!["engine"]!.GetValue<string>();
                     var session = p["session"]!.GetValue<string>();
@@ -211,13 +211,45 @@ internal static class Program
 
                     const int rate = 44100;
                     int count = (int)((end - start) * rate);
-                    var samples = new byte[count * 4];
+                    var samples = new float[count];
                     for (int i = 0; i < count; i++)
-                        BinaryPrimitives.WriteSingleLittleEndian(samples.AsSpan(i * 4), 0.25f * MathF.Sin(2 * MathF.PI * 440f * i / rate));
-                    var seg = Reverse("host.segment_create", Via2(new JsonObject
-                    { ["sample_offset"] = (long)(start * rate), ["sample_count"] = count, ["sample_rate"] = rate }))!["segment"]!.GetValue<string>();
-                    Reverse("host.segment_write", Via2(new JsonObject { ["segment"] = seg, ["offset"] = 0, ["data"] = Convert.ToBase64String(samples) }));
-                    Reverse("host.segment_commit", Via2(new JsonObject { ["segment"] = seg }));
+                        samples[i] = 0.25f * MathF.Sin(2 * MathF.PI * 440f * i / rate);
+                    var createResp = Reverse("host.segment_create", Via2(new JsonObject
+                    { ["sample_offset"] = (long)(start * rate), ["sample_count"] = count, ["sample_rate"] = rate }));
+                    var seg = createResp!["segment"]!.GetValue<string>();
+                    if (mode == "shm-sine")
+                    {
+                        // 区域协商验证：宿主应随应答回 region{path,data_offset,...}，façade 映射直写、只发 commit。
+                        var region = createResp["region"] as JsonObject
+                            ?? throw new InvalidOperationException("shm-sine: no region in segment_create reply");
+                        var path = region["path"]!.GetValue<string>();
+                        int dataOffset = region["data_offset"]!.GetValue<int>();
+                        int regionCount = region["sample_count"]!.GetValue<int>();
+                        long headerCheck = region["sample_offset"]!.GetValue<long>();
+                        if (regionCount != count || headerCheck != (long)(start * rate))
+                            throw new InvalidOperationException("shm-sine: region geometry mismatch");
+                        // FileShare 必须 ReadWrite：CreateFromFile(path,...) 重载默认 FileShare.Read，
+                        // 会跟宿主仍持有的 RW 文件句柄sharing 冲突（ERROR_LOCK_VIOLATION）。
+                        using var regFile = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                        using var mmf = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateFromFile(
+                            regFile.SafeFileHandle, null, 0, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.ReadWrite,
+                            System.IO.HandleInheritability.None, leaveOpen: true);
+                        using var acc = mmf.CreateViewAccessor(dataOffset, count * 4, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.ReadWrite);
+                        var bytes = new byte[count * 4];
+                        for (int i = 0; i < count; i++)
+                            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(i * 4), samples[i]);
+                        acc.WriteArray(0, bytes, 0, bytes.Length);
+                        acc.Flush();
+                        Reverse("host.segment_commit", Via2(new JsonObject { ["segment"] = seg }));
+                    }
+                    else
+                    {
+                        var raw = new byte[count * 4];
+                        for (int i = 0; i < count; i++)
+                            BinaryPrimitives.WriteSingleLittleEndian(raw.AsSpan(i * 4), samples[i]);
+                        Reverse("host.segment_write", Via2(new JsonObject { ["segment"] = seg, ["offset"] = 0, ["data"] = Convert.ToBase64String(raw) }));
+                        Reverse("host.segment_commit", Via2(new JsonObject { ["segment"] = seg }));
+                    }
                     Notify("voice.status", Via2(new JsonObject { ["segments"] = new JsonArray { new JsonObject
                         { ["start"] = start, ["end"] = end, ["status"] = "synthesized", ["progress"] = 1.0 } } }));
                     Notify("voice.pitch", Via2(new JsonObject { ["segments"] = new JsonArray { new JsonArray
@@ -361,7 +393,13 @@ internal static class Program
         return new JsonObject
         {
             ["provides"] = provides,
-            ["capabilities"] = new JsonObject { ["audio_plane"] = "inline", ["curve_plane"] = "inline" },
+            ["capabilities"] = new JsonObject
+            {
+                ["audio_plane"] = mode == "shm-sine" ? "shm" : "inline",
+                ["curve_plane"] = "inline",
+                ["env_nonce"] = Environment.GetEnvironmentVariable("TUNELAB_NONCE") ?? "",
+                ["env_shm_dir"] = Environment.GetEnvironmentVariable("TUNELAB_SHM_DIR") ?? "",
+            },
             ["runtime"] = new JsonObject { ["exe"] = Environment.ProcessPath ?? "fake", ["version"] = "0.0", ["arch"] = "x64", ["flavor"] = "dotnet-fake" },
             ["facade_version"] = "test",
         };

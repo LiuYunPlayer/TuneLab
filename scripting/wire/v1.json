@@ -1,6 +1,6 @@
 {
   "protocol-version": 1,
-  "status": "M2a: control plane + format + settings + heartbeat (all additive); effect/voice/audio-plane/shm sections land M2b/M3",
+  "status": "M4b: control plane + format + settings + effect + voice + inline/shm audio plane",
   "framing": {
     "transport": "stdio (binary), one message per frame",
     "frame": "Content-Length: <byte-length>\\r\\n\\r\\n<UTF-8 JSON body>",
@@ -15,7 +15,9 @@
   "environment": {
     "TUNELAB_PROTOCOL": "wire version the host speaks; child must refuse handshake otherwise",
     "TUNELAB_EPOCH": "monotonic process-generation counter, 1 per (re)spawn",
-    "TUNELAB_PACKAGE_ID": "manifest package id"
+    "TUNELAB_PACKAGE_ID": "manifest package id",
+    "TUNELAB_NONCE": "per-boot random string; the shm region name and stderr log carry it (stale leftovers stay identifiable)",
+    "TUNELAB_SHM_DIR": "absolute directory holding shm region files (file-backed, cross-platform); only meaningful when the facade declares audio_plane=shm"
   },
   "methods": {
     "initialize": {
@@ -92,10 +94,10 @@
     "host.properties": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "keys": ["string"] }, "result": { "values": "<property-object map>" } },
     "host.automation_tracks": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string" }, "result": { "tracks": ["string"] } },
     "host.evaluate": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "track": "string", "positions": "base64 f64-LE (non-decreasing)" }, "result": { "values": "base64 f64-LE" }, "notes": "live automation evaluated on the host's data thread — interpolation stays host-side (§5.6)" },
-    "host.segment_create": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "sample_offset": "i64", "sample_count": "i32", "sample_rate": "i32" }, "result": { "segment": "string" } },
-    "host.segment_write": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "offset": "i32", "data": "base64 f32-LE" }, "result": {} },
-    "host.segment_commit": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {} },
-    "host.segment_resize": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "sample_offset": "i64", "sample_count": "i32" }, "result": {} },
+    "host.segment_create": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "sample_offset": "i64", "sample_count": "i32", "sample_rate": "i32" }, "result": { "segment": "string", "region?": "{path, name, data_offset, sample_offset, sample_count, sample_rate} when the handshake negotiated audio_plane=shm" }, "notes": "shm plane (§7): the facade maps the region file and writes the body directly; the host copies region->segment buffer on commit (the commit control message is the only barrier)" },
+    "host.segment_write": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "offset": "i32", "data": "base64 f32-LE" }, "result": {}, "notes": "inline fallback (PUC Lua / non-mmap platforms). On the shm plane the facade normally skips this and writes the region; if it is sent for a shm segment the host proxies it into the region body" },
+    "host.segment_commit": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {}, "notes": "the sole barrier into the effect graph; on the shm plane this is where the host copies the region body into the segment buffer" },
+    "host.segment_resize": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string", "sample_offset": "i64", "sample_count": "i32" }, "result": { "region?": "the fresh region when the segment is shm-backed (the facade must re-map; the old view is invalid)" }, "notes": "identity-preserving geometry change (§6); on the shm plane content is flushed region->segment, the host resizes, and a new region is laid over the resized buffer" },
     "host.segment_dispose": { "direction": "sidecar->host", "params": { "engine": "string", "session": "string", "segment": "string" }, "result": {} },
     "shutdown": { "direction": "host->sidecar", "params": { "reason": "string" }, "result": {} }
   },

@@ -137,8 +137,10 @@ def error(message):
 
 
 def capabilities():
-    """What this facade declares at handshake (inline planes only until shm lands in M3)."""
-    return {"audio_plane": "inline", "curve_plane": "inline"}
+    """What this facade declares at handshake. The stdlib mmap gives the audio plane
+    its shm fast lane (segment_create then carries a region view); the curve plane
+    stays inline f64 (the 64KB threshold path)."""
+    return {"audio_plane": "shm", "curve_plane": "inline"}
 
 
 def _reply(req_id, result=None, err=None):

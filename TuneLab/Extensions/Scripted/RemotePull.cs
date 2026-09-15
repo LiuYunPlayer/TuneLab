@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using TuneLab.Data.Synthesis;
 using TuneLab.Foundation;
 using TuneLab.SDK;
 
@@ -45,6 +47,8 @@ internal static class RemotePullBus
     {
         public readonly ConcurrentDictionary<string, IPullSession> Sessions = new();
         public readonly ConcurrentDictionary<string, IAudioSegment> Segments = new();
+        // shm 面（M4b）：协商为 shm 后创建的段的共享区域（id→region）；体的唯一权威副本在区域里。
+        public readonly ConcurrentDictionary<string, ShmRegion> Regions = new();
         public int SegCounter;
         public int Attached;
     }
@@ -75,6 +79,8 @@ internal static class RemotePullBus
         foreach (var id in table.Segments.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
             if (table.Segments.TryRemove(id, out var seg))
             {
+                if (table.Regions.TryRemove(id, out var region))
+                    try { region.Dispose(); } catch { }
                 if (table.Sessions.TryGetValue(sessionKey, out var session))
                     _ = OnSessionThread(session, () => { try { seg.Dispose(); } catch { } return 0; });
                 else
@@ -168,30 +174,103 @@ internal static class RemotePullBus
         host.RegisterLocalCall("host.segment_create", args => NeedAsync(args, async s =>
         {
             var o = args!.AsObject();
+            var offset = o["sample_offset"]!.GetValue<long>();
+            var count = (int)o["sample_count"]!.GetValue<long>();
+            var rate = (int)o["sample_rate"]!.GetValue<long>();
             return await OnSessionThread(s, () =>
             {
-                var seg = s.CreateOutputSegment(o["sample_offset"]!.GetValue<long>(),
-                    (int)o["sample_count"]!.GetValue<long>(), (int)o["sample_rate"]!.GetValue<long>());
+                var seg = s.CreateOutputSegment(offset, count, rate);
                 var id = s.SessionKey + "/seg" + Interlocked.Increment(ref table.SegCounter);
                 table.Segments[id] = seg;
-                return (JsonNode)new JsonObject { ["segment"] = id };
+                var res = new JsonObject { ["segment"] = id };
+                if (host.AudioPlaneShm)
+                {
+                    var region = ShmPlane.Allocate(host.PackageId, offset, count, rate);
+                    table.Regions[id] = region;
+                    res["region"] = new JsonObject
+                    {
+                        ["path"] = region.FilePath,
+                        ["name"] = Path.GetFileName(region.FilePath),
+                        ["data_offset"] = ShmRegion.HeaderBytes,
+                        ["sample_offset"] = offset,
+                        ["sample_count"] = count,
+                        ["sample_rate"] = rate,
+                    };
+                }
+                return (JsonNode)res;
             }).ConfigureAwait(false);
         }));
 
-        host.RegisterLocalCall("host.segment_write", args => SegmentCall(args, table, (seg, o) =>
+        host.RegisterLocalCall("host.segment_write", args => SegmentCall(args, table, (seg, region, o) =>
         {
             var offset = (int)o["offset"]!.GetValue<long>();
-            seg.Write(offset, WireAudio.DecodeF32(o["data"]!.GetValue<string>()));
+            var samples = WireAudio.DecodeF32(o["data"]!.GetValue<string>());
+            if (region != null)
+            {
+                // shm 段的权威副本在区域里：宿主代理写也写区域（否则 commit 会拿 region 覆盖掉这次 inline 写）。
+                if (offset < 0 || offset + samples.Length > region.SampleCount)
+                    throw new SidecarRpcException("invalid_params", "segment_write out of range");
+                region.WriteBody(offset, samples);
+            }
+            else
+                seg.Write(offset, samples);
         }));
-        host.RegisterLocalCall("host.segment_commit", args => SegmentCall(args, table, (seg, _) => seg.Commit()));
-        host.RegisterLocalCall("host.segment_resize", args => SegmentCall(args, table, (seg, o) =>
-            seg.Resize(o["sample_offset"]!.GetValue<long>(), (int)o["sample_count"]!.GetValue<long>())));
+        host.RegisterLocalCall("host.segment_commit", args => SegmentCall(args, table, (seg, region, _) =>
+        {
+            if (region != null)
+            {
+                var buf = new float[region.SampleCount];
+                region.ReadBody(0, buf);
+                seg.Write(0, buf);
+            }
+            seg.Commit();
+        }));
+        host.RegisterLocalCall("host.segment_resize", args => NeedAsync(args, async s =>
+        {
+            var o = args!.AsObject();
+            var id = o["segment"]!.GetValue<string>();
+            if (!table.Segments.TryGetValue(id, out var seg))
+                throw new SidecarRpcException("stale_handle", "unknown segment " + id);
+            if (seg is not AudioSegment audio)
+                throw new SidecarRpcException("invalid_params", "resize needs host AudioSegment");
+            var newOffset = o["sample_offset"]!.GetValue<long>();
+            var newCount = (int)o["sample_count"]!.GetValue<long>();
+            return await OnSessionThread(s, () =>
+            {
+                var res = new JsonObject();
+                if (table.Regions.TryGetValue(id, out var region))
+                {
+                    // region 先冲回 buffer（Resize 保内容靠 buffer），改几何后重铺 region。
+                    var cur = new float[region.SampleCount];
+                    region.ReadBody(0, cur);
+                    seg.Write(0, cur);
+                    seg.Resize(newOffset, newCount);
+                    region.Dispose();
+                    var fresh = ShmPlane.Allocate(host.PackageId, newOffset, newCount, audio.SampleRate);
+                    fresh.WriteBody(0, audio.Samples);
+                    table.Regions[id] = fresh;
+                    res["region"] = new JsonObject
+                    {
+                        ["path"] = fresh.FilePath,
+                        ["name"] = Path.GetFileName(fresh.FilePath),
+                        ["data_offset"] = ShmRegion.HeaderBytes,
+                        ["sample_offset"] = newOffset,
+                        ["sample_count"] = newCount,
+                        ["sample_rate"] = audio.SampleRate,
+                    };
+                }
+                else seg.Resize(newOffset, newCount);
+                return (JsonNode)res;
+            }).ConfigureAwait(false);
+        }));
         host.RegisterLocalCall("host.segment_dispose", args =>
         {
             var o = args!.AsObject();
             var id = o["segment"]!.GetValue<string>();
             if (!table.Segments.TryRemove(id, out var seg))
                 throw new SidecarRpcException("stale_handle", "unknown segment " + id);
+            if (table.Regions.TryRemove(id, out var region))
+                try { region.Dispose(); } catch { }
             var (tbl, session) = Resolve(args);
             if (session == null)
                 throw new SidecarRpcException("stale_handle", "session gone");
@@ -207,16 +286,17 @@ internal static class RemotePullBus
         host.RegisterLocalNotify("voice.phonemes", args => Publish(args, (s, v) => s.PublishPhonemes(v), ParsePhonemes));
     }
 
-    static Task<JsonNode?> SegmentCall(JsonNode? args, Table table, Action<IAudioSegment, JsonObject> op)
+    static Task<JsonNode?> SegmentCall(JsonNode? args, Table table, Action<IAudioSegment, ShmRegion?, JsonObject> op)
     {
         var o = args!.AsObject();
         var id = o["segment"]!.GetValue<string>();
         if (!table.Segments.TryGetValue(id, out var seg))
             throw new SidecarRpcException("stale_handle", "unknown segment " + id);
+        table.Regions.TryGetValue(id, out var region);
         var (_, session) = Resolve(args);
         if (session == null)
             throw new SidecarRpcException("stale_handle", "session gone");
-        return OnSessionThread(session, () => { op(seg, o); return (JsonNode?)new JsonObject(); });
+        return OnSessionThread(session, () => { op(seg, region, o); return (JsonNode?)new JsonObject(); });
     }
 
     static void Publish<T>(JsonNode? args, Action<IPullSession, T> sink, Func<JsonNode?, T> parse)

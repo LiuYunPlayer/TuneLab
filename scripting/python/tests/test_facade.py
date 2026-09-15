@@ -3,7 +3,9 @@ import io
 import json
 import math
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -163,6 +165,88 @@ class EffectChannelTests(unittest.TestCase):
         self.assertEqual(payload["engine"], "Eng")
         vals = ctx.evaluate("intensity", [0.0, 1.0])
         self.assertEqual(vals, [0.25, 0.25])
+
+
+class SegmentShmPlaneTests(unittest.TestCase):
+    """M4b: mapped region writes bypass the JSON/base64 plane; commit is the only message."""
+
+    def setUp(self):
+        from tunelab import _effect
+        self.calls = []
+        self._segments = []
+        _effect.set_channels(lambda m, p: self._respond(m, p), lambda m, p: None)
+        self._effect = _effect
+        self._tmp = tempfile.mkdtemp(prefix="tlx-shm-test-")
+        self.path = os.path.join(self._tmp, "tlx-test-region")
+        self.count = 8
+        with open(self.path, "wb") as f:
+            f.write(b"\x41XLt" + b"\x01\x00\x00\x00" + (0).to_bytes(8, "little")
+                    + self.count.to_bytes(4, "little") + (44100).to_bytes(4, "little"))
+            f.write(b"\x00" * (self.count * 4))
+
+    def tearDown(self):
+        for seg in self._segments:
+            try:
+                seg.dispose()   # 关闭映射/文件句柄（也要覆盖断言失败路径）
+            except Exception:
+                pass
+        from tunelab import _effect
+        _effect.set_channels(None, None)
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _segment(self, seg_id, region=None):
+        seg = self._effect._Segment("Eng", "s1", seg_id, self.count, region)
+        self._segments.append(seg)
+        return seg
+
+    def _respond(self, method, params):
+        self.calls.append((method, params))
+        return {}
+
+    def _region(self):
+        return {"path": self.path, "data_offset": 24, "sample_count": self.count, "sample_rate": 44100}
+
+    def test_region_write_bypasses_wire(self):
+        import struct
+        seg = self._segment("seg1", self._region())
+        seg.write(2, [0.25, -1.5])
+        self.assertFalse(any(c[0] == "host.segment_write" for c in self.calls), "shm write must not hit the wire")
+        with open(self.path, "rb") as f:
+            f.read(24)
+            raw = f.read()
+        vals = struct.unpack("<8f", raw)
+        self.assertEqual(vals[2], 0.25)
+        self.assertEqual(vals[3], -1.5)
+
+    def test_commit_is_control_only(self):
+        seg = self._segment("seg1", self._region())
+        seg.write(0, [1.0] * self.count)
+        seg.commit()
+        commit = [c for c in self.calls if c[0] == "host.segment_commit"]
+        self.assertEqual(len(commit), 1)
+        self.assertNotIn("data", commit[0][1])
+
+    def test_plain_segment_still_uses_base64(self):
+        import base64, struct
+        seg = self._segment("seg2")
+        seg.write(0, [0.5, 0.5, 0.5, 0.5])
+        write = [c for c in self.calls if c[0] == "host.segment_write"][0][1]
+        self.assertEqual(struct.unpack("<4f", base64.b64decode(write["data"])), (0.5,) * 4)
+
+    def test_capabilities_declare_shm(self):
+        from tunelab import _service
+        self.assertEqual(_service.capabilities()["audio_plane"], "shm")
+
+    def test_shm_view_only_on_shm_segments(self):
+        plain = self._segment("seg3")
+        self.assertIsNone(plain.shm_view())
+        shm = self._segment("seg4", self._region())
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy not installed")
+        view = shm.shm_view()
+        self.assertEqual(view.shape, (self.count,))
 
 
 if __name__ == "__main__":

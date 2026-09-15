@@ -107,19 +107,70 @@ class _InputGeom:
 
 
 class _Segment:
-    """Output audio segment; write takes bytes/bytearray/list[float] (f32 samples)."""
+    """Output audio segment; write takes bytes/bytearray/memoryview/numpy/list[float] (f32 samples).
 
-    def __init__(self, engine, session, seg_id, count):
+    When the handshake negotiated the shm plane, segment_create carries a
+    region{name,path,data_offset,...} — we map it and writes go straight into
+    shared memory (the commit control message is the only barrier; the host
+    copies region -> segment buffer there, so zero serialization)."""
+
+    def __init__(self, engine, session, seg_id, count, region=None):
         self._k = (engine, session)
         self.id = seg_id
         self.count = count
         self._closed = False
+        self._region = None
+        self._file = None
+        self._view = None
+        self._data_offset = 0
+        if region:
+            self._map(region)
+
+    def _map(self, region):
+        import mmap
+        self._region = region
+        self._data_offset = int(region.get("data_offset", 24))
+        self._file = open(region["path"], "r+b")
+        self._view = mmap.mmap(self._file.fileno(), 0)
+
+    def _unmap(self):
+        try:
+            if self._view is not None:
+                self._view.close()
+            if self._file is not None:
+                self._file.close()
+        except Exception:
+            pass
+        self._view = self._file = self._region = None
+
+    def shm_view(self, sample_start=0, count=None):
+        """numpy float32 view over the region body (None on the inline plane)."""
+        if self._region is None:
+            return None
+        import numpy as np
+        n = self.count if count is None else count
+        mv = memoryview(self._view)[self._data_offset + sample_start * 4:
+                                    self._data_offset + (sample_start + n) * 4]
+        return np.ndarray(shape=(n,), dtype=np.float32, buffer=mv)
+
+    @staticmethod
+    def _to_payload(samples):
+        if isinstance(samples, (bytes, bytearray)):
+            return bytes(samples)
+        if isinstance(samples, memoryview):
+            return samples.cast("B").tobytes() if samples.format != "B" else samples.tobytes()
+        if hasattr(samples, "tobytes"):          # numpy / array 等
+            return samples.tobytes()
+        return struct.pack("<%df" % len(samples), *samples)
 
     def write(self, offset, samples):
-        if isinstance(samples, (bytes, bytearray)) and len(samples) % 4 == 0:
-            payload = bytes(samples)
-        else:
-            payload = struct.pack("<%df" % len(samples), *samples)
+        payload = self._to_payload(samples)
+        if self._region is not None:
+            start = self._data_offset + offset * 4
+            if offset < 0 or start + len(payload) > len(self._view):
+                raise ValueError("segment_write out of range")
+            self._view[start:start + len(payload)] = payload
+            return
         _call_host("host.segment_write", {"engine": self._k[0], "session": self._k[1],
                                            "segment": self.id, "offset": offset,
                                            "data": base64.b64encode(payload).decode("ascii")})
@@ -129,14 +180,18 @@ class _Segment:
 
     def resize(self, sample_offset, sample_count):
         self.count = sample_count
-        _call_host("host.segment_resize", {"engine": self._k[0], "session": self._k[1],
-                                           "segment": self.id, "sample_offset": sample_offset,
-                                           "sample_count": sample_count})
+        r = _call_host("host.segment_resize", {"engine": self._k[0], "session": self._k[1],
+                                               "segment": self.id, "sample_offset": sample_offset,
+                                               "sample_count": sample_count})
+        if self._region is not None and isinstance(r, dict) and r.get("region"):
+            self._unmap()          # 旧视图作废，重映射新区域（§7 身份保持、区域重铺）
+            self._map(r["region"])
 
     def dispose(self):
         if self._closed:
             return
         self._closed = True
+        self._unmap()
         _call_host("host.segment_dispose", {"engine": self._k[0], "session": self._k[1], "segment": self.id})
 
 
@@ -180,8 +235,8 @@ class _SessionCtx:
 
     def output(self, sample_offset, sample_count, sample_rate):
         r = _call_host("host.segment_create", self._via({"sample_offset": sample_offset,
-                                                         "sample_count": sample_count, "sample_rate": sample_rate}))
-        seg = _Segment(self.engine, self.session, r["segment"], sample_count)
+                                                          "sample_count": sample_count, "sample_rate": sample_rate}))
+        seg = _Segment(self.engine, self.session, r["segment"], sample_count, r.get("region"))
         self._segments.append(seg)
         return seg
 

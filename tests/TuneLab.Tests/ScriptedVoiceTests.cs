@@ -100,6 +100,41 @@ public class ScriptedVoiceTests
         Assert.True(ctx.Segments[0].Disposed);   // 会话终结收割未提交的段句柄
     }
 
+    [Fact(Timeout = 90_000)]
+    public async Task ShmPlaneSynthesizeRoundTrip()
+    {
+        // M4b：握手协商 audio_plane=shm → segment_create 带 region{path,data_offset}，
+        // fake 直写共享区域、只发 commit 控制消息；宿主在 commit 屏障处拷贝 region→段缓冲。
+        var dll = ScriptedSidecarHostTests.FakeDllPath;
+        var host = new SidecarHost("com.test.shmvoice", Path.GetDirectoryName(dll)!,
+            new RuntimeInfo(ScriptedSidecarHostTests.Dotnet, "dotnet-fake", "0.0", "x64"), Path.GetFileName(dll),
+            callTimeout: TimeSpan.FromSeconds(10), heartbeat: TimeSpan.FromSeconds(60))
+        {
+            ExtraEnvironment = new() { ["TUNELAB_FAKE_MODE"] = "shm-sine" },
+        };
+        host.ExpectEngine("voice", "FakeSine");
+        var engine = new RemoteVoiceEngine(host, "FakeSine", hasSettings: false);
+        var ctx = new VoiceTestContext(new VoiceTestNote("n0", 0.0, 0.5, 60, "la"));
+        try
+        {
+            engine.Init();
+            Assert.True(host.AudioPlaneShm, "capabilities.audio_plane=shm not honored");
+
+            var session = engine.CreateSession(ctx);
+            await session.SynthesizeNext(0, 0.5, CancellationToken.None);
+
+            var seg = Assert.Single(ctx.Segments);
+            Assert.True(seg.Committed);
+            Assert.Equal(22050, seg.Written.Count);
+            Assert.True(Math.Abs(seg.Written[50] - 0.25f * MathF.Sin(2 * MathF.PI * 440f * 50 / 44100f)) < 1e-4);
+            session.Dispose();
+        }
+        finally
+        {
+            host.Shutdown();
+        }
+    }
+
     sealed class VoiceTestPartContext : IVoiceSynthesisPartPropertyContext
     {
         public VoiceTestPartContext(VoiceTestContext ctx) => Parts = [new VoiceTestPartView(ctx)];
