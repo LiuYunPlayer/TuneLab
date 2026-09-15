@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "此处无值，颤音不生效"
 
 [Dialog]
+"Fetch Runtime" = "下载运行时"
 "OK" = "确认"
 "Cancel" = "取消"
 "Yes" = "是"

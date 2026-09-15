@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "Burada değer yok, vibrato etkili olmuyor"
 
 [Dialog]
+"Fetch Runtime" = "Çalışma zamanını indir"
 "OK" = "Tamam"
 "Cancel" = "İptal"
 "Yes" = "Evet"

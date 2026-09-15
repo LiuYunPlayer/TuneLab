@@ -11,7 +11,13 @@ internal enum ScriptedGateStatus { Ready, Skipped, Failed }
 // 并回填 entry.Error。错误文案 = 作者看得懂的人话（英文，日志/异常约定）。
 internal static class ScriptedEntryGate
 {
-    public readonly record struct Result(ScriptedGateStatus Status, string Message, RuntimeInfo Runtime);
+    public readonly record struct Result(ScriptedGateStatus Status, string Message, RuntimeInfo Runtime)
+    {
+        // runtime 声明合法但探测落空 → 供 ExtensionManager 触发可选的自动部署（与"deps 未实现"等
+        // 其它 Skipped 区分开）。Runtime 字段此时为 default。
+        public bool RuntimeMissing { get; init; }
+        public RuntimeSpec? Spec { get; init; }
+    }
 
     // locator 参数为测试注入点（假 prober/假扩展根，绝不在单测里跑真解释器）；生产走 Default。
     public static Result Evaluate(ExtensionInfo ext, string packageDir, RuntimeLocator? locator = null)
@@ -48,7 +54,8 @@ internal static class ScriptedEntryGate
         if (!locator.TryResolve(spec, out var info, out var trail))
             return new(ScriptedGateStatus.Skipped, string.Format(
                 "no matching runtime: {0}. To provide one, install a 'runtime' package (type \"runtime\"), set '{1}' in settings, or put a matching interpreter on PATH.",
-                trail, RuntimeLocator.SettingsKeyFor(spec.Flavor)), default);
+                trail, RuntimeLocator.SettingsKeyFor(spec.Flavor)), default)
+            { RuntimeMissing = true, Spec = spec };
 
         // runtime 就位：交给调用方按 kind 注册（format=M1；voice/effect 随 M2/M3 的注册支，此前如实 Skipped）。
         return new(ScriptedGateStatus.Ready, string.Format("runtime resolved: {0} {1} at '{2}'", info.Flavor, info.Version, info.Exe), info);

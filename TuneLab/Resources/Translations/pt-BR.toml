@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "Nenhum valor aqui, o vibrato não tem efeito"
 
 [Dialog]
+"Fetch Runtime" = "Baixar tempo de execução"
 "OK" = "OK"
 "Cancel" = "Cancelar"
 "Yes" = "Sim"

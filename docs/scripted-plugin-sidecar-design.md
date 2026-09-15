@@ -1,8 +1,8 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M2a 已落地**（config wire codec + settings 远程代理 + 心跳 + stderr 落盘滚动；
-> effect 双向会话与 Node/Lua façade = M2b）。此前：M1（帧协议/SidecarHost/RemoteFormat/Python
-> façade/假 sidecar 封条/真解释器 E2E）、M0（manifest 字段、协议门、四级探测）。
+> 状态：**定稿；M3a 已落地**（运行时镜像表 + 竞速自动判路 + 半自动/全自动/命令三档部署 + 详情窗
+> 「下载运行时」按钮；effect= M2b、M2a=声明/设置/心跳，均已落地）。
+> 剩余：voice + shm 音频面（M3b）、Node/Lua façade（M3c）。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -365,11 +365,30 @@ Rosetta 跑 x64 node），拒载反而挡死了合法组合；架构承诺由作
 
 ### 8.6 缺失时（**定稿：半自动**）
 
-侧栏 `Skipped · 未找到 Python 运行时` + 两按钮：【下载运行时】（走 `AppUpdateManager` 同款
-GitHub release + sha256 + 进度条通道，用户明示同意；落地即 `Editor.InstallExtensions` 热装，**无任何
-新安装路径**）与【选择已装位置】。设置项"自动获取脚本运行时"默认**关**（开了=免提示，其余同）。
-镜像/离线：源 URL 可覆写（与 §8.1-① 的自带编译版是同一条灵活政策的两个面）。
-macOS：runtime 资源包安装钩子负责剥 `com.apple.quarantine`；下载的包不进 .app，公证面不变。
+侧栏 `Skipped · 未找到 Python 运行时` + 动作入口；下载源不再是"我们发的 .tlx"而是
+**内置镜像表直发上游发行件**（M3 定案，见 §8.6.1），落地时本地组装成同款 `type:"runtime"`
+资源包 → 走既有登记路径。设置项"自动获取脚本运行时"默认**关**（开了 = 探测落空即后台拉取，
+成功后自动 Reload 该包；其余同上）。镜像/离线：`ScriptedRuntimeSource` 覆写基址
+（官方相对路径挂上去，内网镜像整树可用）；用户自带编译版走 ① 级路径（§8.1）或
+`tools/build-runtime-package/pack-runtime.ps1 -FromDir` 自制包。
+macOS：下载的二进制在启动前剥 `com.apple.quarantine`（安装钩子）。
+
+### 8.6.1 镜像表与竞速（M3a 已实现）
+
+- **表**：`RuntimeFeed.cs` 内置（flavor×版本×RID → 候选 URL 序 + sha256 + 归档布局）。
+  Windows 起步格：python embeddable（3.11.9/3.12.7/3.13.3×amd64、3.13.3×arm64）与
+  node dist（20.17.0×x64+arm64、18.20.4）。国内镜像在前（华为云 python、npmmirror/华为云 node），
+  官方源在尾兜底。
+- **钉**：已交叉核对钉死——python 3.13.3 embed amd64 与 node 20.17.0 win-x64 的 SHA256
+  由【华为云/npmmirror 与 python.org/nodejs.org 双下比对一致】得出（见常量）。未钉格：照下但
+  记警告（`trusting the source this once`），release 工具（`tools/build-runtime-package`）补钉。
+- **自动判路**：`PickFastestAsync` 对候选并发 HEAD（3s 超时）取最快可达者下载；全灭回退表内
+  首选（下载阶段自然报错，如实回报）。网络环境无关，不需要写死"国内=快"。
+- **三档触发**：全自动（`ScriptedAutoFetchRuntime` 开 → gate 探测落空即 `RuntimeInstallQueue`
+  后台一发、在途去重、成功自动 Reload）；手动（`extension fetch-runtime` 命令 / agent 工具
+  `fetch_scripted_runtime`，授权卡片 = ExtensionInstall 档）；纯手动（设置路径 / -FromDir 自制包）。
+- **实测**（真链路自证）：win-x64 格经华为云 4.3s 装好 python 3.13.3 embed，
+  校验通过后 `python.exe` 自报 `3.13.3 AMD64`；`RuntimeLocator` ③ 级即命中。
 
 ### 8.7 并存与回收
 
@@ -484,9 +503,17 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   Python façade `@tunelab.effect`（`_effect.py`：ctx 的 input_read/evaluate/output/status/parameters，
   f32/f64 base64-LE）+ 反向 `_call_host`；样例 `tests/plugins/PyEffect`（真 3.11 E2E 实测 467ms 全链）。
   **规范缺口 = 实现漂移的教训已钉**：fake 与宿主对拍同一份 `scripting/wire/v1.json`。
-- **推迟**：【下载运行时】按钮与 stderr 清理策略（M3）；Node/Lua façade（M3，能力协商以 PUC Lua
-  `inline` 面为首个真实用例）；voice（M3——依赖同一反向通道 + shm 音频面）；心跳在 effect 面已可用
-  （façade 每请求独立线程保证环常活）。
+- **M3a 落地**：`RuntimeFeed`（内置镜像表：华为云/npmmirror 在前、官方兜底，python 3.11.9–3.13.3 ×
+  amd64/arm64 与 node 20.17.0/18.20.4 起步；sha256 已钉两格——**镜像与官方双下比对一致**才入表）；
+  `ScriptedRuntimeFetcher`（HEAD 竞速判路 → 流式下载 → 校验（未钉格如实警告）→ 解包布局成
+  `type:"runtime"` 资源包 → 主线程登记）；`RuntimeInstallQueue`（按包在途去重 + 完成自动
+  Reload 该包）；`extension fetch-runtime` 命令 / agent 工具 `fetch_scripted_runtime`
+  （ExtensionInstall 授权档）；详情窗【下载运行时】按钮（15 语言已补）。实测：华为云 4.3s
+  装好 python 3.13.3 embed，落地 exe 自报版本，③ 级探测即命中。顺手修：create_session 与
+  process 的到达顺序竞态（握手 Task 先 await）、feed Match 的 struct-Nullable 陷阱、
+  进程型测试类圈 `SidecarSpawns` 串行域（并行 spawn 风暴是抖动根因）。
+- **推迟**：stderr 保留/清理策略（M3b）；Node/Lua façade（M3c，能力协商以 PUC Lua `inline`
+  面为首个真实用例）；voice + shm（M3b——依赖已落地的反向通道）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

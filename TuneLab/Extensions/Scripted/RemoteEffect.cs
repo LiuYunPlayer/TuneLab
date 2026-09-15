@@ -124,8 +124,10 @@ internal sealed class RemoteEffectEngine : IEffectSynthesisEngine, IExtensionSet
         var id = mEngineId + "#" + Interlocked.Increment(ref mSessionCounter);
         var session = new RemoteEffectSession(this, context, id);
         mSessions[id] = session;
-        _ = mHost.CallAsync("engine.create_session", new JsonObject { ["engine"] = mEngineId, ["session"] = id })
-            .ContinueWith(t => { session.CreateFault = t.Exception?.GetBaseException(); });
+        // 顺序要紧：process 请求不得先于 engine.create_session 到达 sidecar（façade 的会话表在
+        // create 里建）——故登记 Task，Process 首步 await 它；失败只记 CreateFault（首次使用面报错）。
+        session.CreateHandshake = mHost.CallAsync("engine.create_session", new JsonObject { ["engine"] = mEngineId, ["session"] = id })
+            .ContinueWith(t => { if (t.Exception != null) session.CreateFault = t.Exception.GetBaseException(); });
         return session;
     }
 
@@ -216,6 +218,7 @@ internal sealed class RemoteEffectEngine : IEffectSynthesisEngine, IExtensionSet
         bool mDisposed;
 
         public Exception? CreateFault;
+        public Task CreateHandshake = Task.CompletedTask;
 
         readonly ActionEvent mStatusChanged = new();
         readonly ActionEvent mParametersChanged = new();
@@ -239,6 +242,7 @@ internal sealed class RemoteEffectEngine : IEffectSynthesisEngine, IExtensionSet
             mSync = SynchronizationContext.Current ?? mSync;
             try
             {
+                await CreateHandshake.ConfigureAwait(false);   // create_session 必先于 process 到达 sidecar
                 if (CreateFault != null)
                     throw CreateFault;
                 var geometry = await OnData(() =>

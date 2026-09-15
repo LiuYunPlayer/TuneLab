@@ -12,7 +12,8 @@ namespace TuneLab.Tests;
 // 真进程 + 真 stdio 帧协议的生命周期封条（设计文档 §12.0 M1）。对端是 .NET 假 sidecar
 // （tests/ScriptedFakeSidecar），CI 无需任何解释器；测的是 SidecarHost 的握手/请求应答/
 // provides 核对/崩溃重生 epoch/退避熔断/优雅关停。
-public class ScriptedSidecarHostTests
+[Collection("SidecarSpawns")]
+    public class ScriptedSidecarHostTests
 {
     static readonly string sFakeDir = ResolveFakeDir();
     static readonly string sFakeDll = Path.Combine(sFakeDir, "TuneLab.ScriptedFakeSidecar.dll");

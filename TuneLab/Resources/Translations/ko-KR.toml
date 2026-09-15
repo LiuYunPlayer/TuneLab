@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "여기에는 값이 없어 비브라토가 적용되지 않습니다"
 
 [Dialog]
+"Fetch Runtime" = "런타임 다운로드"
 "OK" = "확인"
 "Cancel" = "취소"
 "Yes" = "예"

@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "Δεν υπάρχει τιμή εδώ, το vibrato δεν έχει αποτέλεσμα"
 
 [Dialog]
+"Fetch Runtime" = "Λήψη χρόνου εκτέλεσης"
 "OK" = "OK"
 "Cancel" = "Ακύρωση"
 "Yes" = "Ναί"

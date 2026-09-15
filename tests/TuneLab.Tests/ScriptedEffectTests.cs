@@ -13,7 +13,8 @@ namespace TuneLab.Tests;
 // M2b 垂直切片：脚本 effect 引擎的完整往返——正向声明/生命周期 + 反向数据线程调用
 // （input_read / properties / evaluate / segment 族）+ 发布（status/parameters）。
 // 对端是假 sidecar 的 effect-gain 靶形（读入 → ×amount → 写回 + 回显 + 状态声称）。
-public class ScriptedEffectTests
+[Collection("SidecarSpawns")]
+    public class ScriptedEffectTests
 {
     static SidecarHost MakeHost(string engineId)
     {

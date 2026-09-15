@@ -25,6 +25,8 @@ public class CommandRegistryTests
         "get_app_info", "list_actions", "run_action", "get_editor_status",
         // issue #150 的后续项：清单上"外部还够不着"的那几个桶各自补的命令。
         "open_project", "install_extension", "uninstall_extension", "cancel_extension_uninstall",
+        // 脚本插件的运行时自动部署（sidecar 设计 §8.6）：解释器不是插件，单独一条工具。
+        "fetch_scripted_runtime",
         // part preset 的外部面（覆盖率清单最后一个桶）。
         "list_presets", "apply_preset", "save_preset", "delete_preset", "rename_preset",
         // 保存那一族：走用户口径的保存（改保存路径、清未保存态），与只写副本的 export_project 分开。

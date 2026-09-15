@@ -143,6 +143,16 @@ internal static class ExtensionManager
             LoadLegacy(path, description, folderName);
     }
 
+    // 重载单包（runtime 自动部署落地后的回执路径）：摘旧结果再 Load。同包重复注册由
+    // FormatsManager（同后缀忽略）/EffectManager（同包警告+忽略）天然幂等，安全。
+    public static void Reload(string path)
+    {
+        var stale = mLoadResults.Where(r => string.Equals(r.DirectoryPath, path, StringComparison.Ordinal)).ToList();
+        foreach (var r in stale)
+            mLoadResults.Remove(r);
+        Load(path);
+    }
+
     static void LoadV1(string path, ExtensionManifest description)
     {
         var lang = TranslationManager.CurrentLanguage.Value;
@@ -341,6 +351,10 @@ internal static class ExtensionManager
                     entry.Error = gate.Message;
                     reasons.Add(string.Format("{0}: {1}", IdentityLabel(ext, kind), gate.Message));
                     Log.Warning(string.Format("Extension {0}: {1}: {2}", description.name, IdentityLabel(ext, kind), gate.Message));
+                    // 自动部署档（默认关）：仅"探测落空"这一种跳过触发（deps/未知格子不动），
+                    // 后台一次、成功即 Reload——绝不在此加载路径上等网络。
+                    if (gate.RuntimeMissing && gate.Spec is { } fetchSpec && Configs.SettingsRegistry.ScriptedAutoFetchRuntime.Property.Value)
+                        RuntimeInstallQueue.Schedule(description.id ?? string.Empty, path, fetchSpec);
                 }
                 else
                 {

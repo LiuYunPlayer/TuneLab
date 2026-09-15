@@ -10,7 +10,8 @@ namespace TuneLab.Tests;
 
 // RemoteFormat 的宿主侧全链：假 sidecar 走真管道，验文件交接（导入落 stream_ref、导出读回输出流）
 // 与 ProjectInfo wire 编解码在 RPC 两端的往返（设计 §5.4）。解释器缺席也覆盖。
-public class ScriptedRemoteFormatTests
+[Collection("SidecarSpawns")]
+    public class ScriptedRemoteFormatTests
 {
     static RemoteFormat MakeProxy(string pkgId)
     {

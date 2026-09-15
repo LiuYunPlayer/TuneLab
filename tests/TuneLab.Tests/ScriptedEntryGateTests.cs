@@ -89,6 +89,8 @@ public class ScriptedEntryGateTests
         Assert.Equal(ScriptedGateStatus.Skipped, r.Status);
         Assert.Contains("no matching runtime", r.Message);
         Assert.Contains("install a 'runtime' package", r.Message.ToLowerInvariant());
+        Assert.True(r.RuntimeMissing);                       // 自动部署只应答这一种 Skipped
+        Assert.NotNull(r.Spec);
     }
 
     [Fact]
@@ -103,5 +105,6 @@ public class ScriptedEntryGateTests
         Assert.Equal("python", r.Runtime.Flavor);
         Assert.Equal("3.12.7", r.Runtime.Version);
         Assert.Contains("3.12.7", r.Message);
+        Assert.False(r.RuntimeMissing);
     }
 }

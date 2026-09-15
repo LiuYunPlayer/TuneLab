@@ -107,6 +107,7 @@
 "No value here, vibrato has no effect" = "Inget värde här, vibratot har ingen effekt"
 
 [Dialog]
+"Fetch Runtime" = "Hämta runtime"
 "OK" = "OK"
 "Cancel" = "Avbryt"
 "Yes" = "Ja"

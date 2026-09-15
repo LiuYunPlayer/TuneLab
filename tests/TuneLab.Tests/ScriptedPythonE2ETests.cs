@@ -15,7 +15,8 @@ namespace TuneLab.Tests;
 // python 不在场即 vacuously pass（CI 由 needs-interpreter 任务真跑）。trait 标记，
 // 单独运行： dotnet test --filter "runtime=needs-interpreter"
 [Trait("runtime", "needs-interpreter")]
-public class ScriptedPythonE2ETests
+[Collection("SidecarSpawns")]
+    public class ScriptedPythonE2ETests
 {
     static readonly string sPackageDir = LocateUp("tests", "plugins", "PyFormat");
 
