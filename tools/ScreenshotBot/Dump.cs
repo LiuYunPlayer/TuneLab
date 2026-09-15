@@ -21,10 +21,11 @@ internal static class Dump
         sb.AppendLine();
         sb.AppendLine("| 命令 | 默认快捷键 | 作用域 | 命令 id |");
         sb.AppendLine("|------|-----------|--------|---------|");
-        foreach (var command in Keymap.Commands.OrderBy(c => Keymap.OrderOf(c.Id)))
+        // 注册序 = 表格行序（与 keybinding list 命令同一口径，见 KeybindingCommands 的排序）。
+        foreach (var command in Keymap.Bindings.OrderBy(c => ActionRegistry.OrderOf(c.ActionId)))
         {
-            var gesture = Keymap.Effective(command.Id);
-            sb.AppendLine($"| {command.DisplayName()} | {(gesture == null ? "—" : gesture.Value.ToDisplayString())} | {command.Scope} | `{command.Id}` |");
+            var gesture = Keymap.Effective(command.ActionId);
+            sb.AppendLine($"| {command.DisplayName()} | {(gesture == null ? "—" : gesture.Value.ToDisplayString())} | {command.Scope} | `{command.ActionId}` |");
         }
         File.WriteAllText(full, sb.ToString(), new UTF8Encoding(false));
         Console.WriteLine($"[dump] {full}");
