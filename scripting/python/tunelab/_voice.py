@@ -188,8 +188,8 @@ class Evaluator:
         pos = base64.b64encode(struct.pack("<%dd" % len(positions), *positions)).decode()
         r = _call_host("host.evaluate", {"engine": self._key[0], "session": self._key[1],
                                           "track": self.track, "positions": pos})
-        data = base64.b64decode(r["values"])
-        return list(struct.unpack("<%dd" % (len(data) // 8), data))
+        from ._effect import eval_results
+        return eval_results(r)
 
 
 class Snapshot:

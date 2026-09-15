@@ -83,6 +83,7 @@ internal sealed class ExtensionDetailWindow : Window
     public event Action? ActivationChanged;
 
     TextBlock? mFetchRuntimeText;
+    Border? mFetchRuntimeBtn;
     bool mFetchRuntimeBusy;
 
     // 下载在途：按钮文案变"…"且不再触发事件（防双击重复排队；queue 本身也按包去重）。
@@ -91,6 +92,13 @@ internal sealed class ExtensionDetailWindow : Window
         mFetchRuntimeBusy = busy;
         if (mFetchRuntimeText != null)
             mFetchRuntimeText.Text = busy ? "…" : "Fetch Runtime".Tr(TC.Dialog);
+    }
+
+    // M5c：下载失败时把原因透到按钮 tooltip（按钮保持可点=可重试），成功则交给 Reload 刷新窗口。
+    public void SetFetchRuntimeResult(bool ok, string message)
+    {
+        if (ok || mFetchRuntimeBtn == null) return;
+        ToolTip.SetTip(mFetchRuntimeBtn, string.IsNullOrEmpty(message) ? "runtime fetch failed" : message);
     }
 
     public ExtensionDetailWindow(ExtensionDetailInfo info)
@@ -386,6 +394,7 @@ internal sealed class ExtensionDetailWindow : Window
         btn.PointerEntered += (_, _) => { if (!mFetchRuntimeBusy) btn.Background = Style.BUTTON_NORMAL_HOVER.ToBrush(); };
         btn.PointerExited += (_, _) => { if (!mFetchRuntimeBusy) btn.Background = Style.BUTTON_NORMAL.ToBrush(); };
         btn.PointerPressed += (_, e) => { e.Handled = true; if (!mFetchRuntimeBusy) FetchRuntimeRequested?.Invoke(); };
+        mFetchRuntimeBtn = btn;
         return btn;
     }
 

@@ -1,8 +1,7 @@
 # 脚本插件 Sidecar 系统设计（Python / Node.js / Lua）
 
-> 状态：**定稿；M4 已落地**（shm 音频面：区域分配器/头布局/协商/fake 与 Python 直写/CI；
-> Node façade format+真解释器 E2E/握手冒烟；Lua façade 逻辑单测+CI posix 真跑）。
-> 剩余：M5 = 曲线面 shm 结果缓冲、Lua windows 分发、stderr 明细清理策略。
+> 状态：**定稿；M0–M5 全部落地**（M5 = 曲线面 shm 结果环、Lua-windows 关闭决策、fetch 失败原因
+> 透 UI）。剩余 = 纯工程化：release 工具补 pin、性能基准驱动的值编码平替评估（§6 预留位）。
 > 基线 = fork `master`（2.1.1，`cfa9fff7`），分支 `feat/scripted-extensions`。
 > 配套阅读：[plugin-development.md](plugin-development.md)（V1 插件契约）、[sdk-api-evolution.md](sdk-api-evolution.md)（冻结 ABI 纪律）、[naming-glossary.md](naming-glossary.md)。
 > 本文只设计**宿主侧与协议侧**；`TuneLab.SDK` / `TuneLab.Foundation` 一行不动（§1.3）。
@@ -389,6 +388,13 @@ macOS：下载的二进制在启动前剥 `com.apple.quarantine`（安装钩子�
   `fetch_scripted_runtime`，授权卡片 = ExtensionInstall 档）；纯手动（设置路径 / -FromDir 自制包）。
 - **实测**（真链路自证）：win-x64 格经华为云 4.3s 装好 python 3.13.3 embed，
   校验通过后 `python.exe` 自报 `3.13.3 AMD64`；`RuntimeLocator` ③ 级即命中。
+- **Lua 的 windows 格（M5b 定案：矩阵绿 ≠ feed 有格，feed 暂缺）**：§8.5 说 Windows 能**承载**
+  Lua（PUC C89 源码可便携编译），但**自动部署镜像表不发 Lua 的 windows 格**——因为拿不到
+  "可钉 sha256 的便携 zip"：官方只出源码；唯一预编译的 lua-for-windows 是 NSIS `.exe` 安装器，
+  §9 免执行纪律不允许后台静默跑第三方安装器；npmmirror/华为云无 lua 二进制树。故 windows 上
+  Lua 只经 ① 设置指定 / ② PATH / §8.6 的 `-FromDir` 自制包 / 作者 vendoring 命中；posix（apt/brew
+  出的是可 `lua` 命令）三平台 CI 真跑 façade 与 E2E。**未来若出现可信的便携 win64 lua 发行件**
+  （zip、可双源比对钉 hash），再补 feed 格，不改协议。
 
 ### 8.7 并存与回收
 
@@ -555,8 +561,21 @@ scripted.initTimeoutSec        int    = 0       # 0 = 无上限（§5.5 长任�
   - 期间踩到 Windows 共享模式坑：宿主 FileStream 是 RW，sidecar 用 `CreateFromFile(path,…)`
     重载（默认 `FileShare.Read`）会 ERROR_LOCK_VIOLATION——两侧都须 `FileShare.ReadWrite`
     （SafeFileHandle 重载）。
-- **仍推迟**：曲线面 shm 结果缓冲（M5）；Lua 的 windows 分发（随 feed 加格，M5）；
-  【下载运行时】按钮的 stderr 明细清理策略（M5）。
+- **M5 落地**：
+  - **M5a 曲线面结果环**（§5.6/§6）：`host.evaluate` 双形应答——小批量仍 `values` base64 f64；
+    shm 面下 ≥64KB 落 per-session 结果环（`ShmPlane.AllocateCurve`，`flags=curve-f64`、
+    元素 8B、只增扩容），应答改回 `region{path,data_offset,count}`。RPC 应答即内存屏障
+    （同会话调用串行，环复用安全）。Python `eval_results` 统一解码两形；Node/Lua 恒 inline
+    永不收 region（自动兼容）。封条：fake `shm-sine` 加 20000 点求值断言必走 region 且值对，
+    Python `CurveRingDecodeTests`。
+  - **M5b Lua windows 分发（关闭决策）**：矩阵绿 ≠ feed 有格——见 §8.6.1 新注，无便携可钉 zip
+    发行件、NSIS 安装器违 §9 免执行，故 feed 不发 windows-lua 格；windows 上 Lua 经 PATH/设置/
+    自制包/vendoring 命中，posix CI 真跑。将来有可信便携件再补格，不动协议。
+  - **M5c fetch 失败原因透 UI**：`RuntimeInstallQueue.Schedule` 的 executor/onDone 改带
+    `(ok, message)`；手动【下载运行时】失败时把原因挂回按钮 tooltip（按钮保持可重试），
+    自动档失败仍静默（仅日志）。
+- **剩余（纯工程化，非设计缺口）**：release 工具补未钉 sha256 的 feed 格；性能基准若要求再评估
+  值编码平替位（§6）。
 - **实现差异**：
   - 崩溃后不自动定时复活，**下一次调用驱动重 spawn**（backoff/熔断仍生效）——format 拉模式下
     自动重启只有缓存收益；effect push 调度落地时（M2b）再补后台重启环。

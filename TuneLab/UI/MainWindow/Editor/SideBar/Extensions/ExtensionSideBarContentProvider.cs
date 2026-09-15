@@ -413,11 +413,16 @@ internal class ExtensionSideBarContentProvider : ISideBarContentProvider
             return;
         win.SetFetchRuntimeBusy(true);
         var pkgId = result.Id ?? result.DirectoryPath;
-        RuntimeInstallQueue.Schedule(pkgId, result.DirectoryPath, spec, onDone: dir => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        RuntimeInstallQueue.Schedule(pkgId, result.DirectoryPath, spec, onDone: (dir, ok, message) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             win.SetFetchRuntimeBusy(false);
-            ExtensionManager.Reload(dir);
-            RefreshExtensions();
+            if (ok)
+            {
+                ExtensionManager.Reload(dir);
+                RefreshExtensions();
+            }
+            else
+                win.SetFetchRuntimeResult(false, message);   // M5c：失败原因回挂按钮 tooltip（可重试）
         }));
     }
 

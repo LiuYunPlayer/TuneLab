@@ -18,6 +18,9 @@ internal sealed class ShmRegion : IDisposable
     public const uint Magic = 0x41584C54;   // 写 LE 后盘上字节 = 'T','L','X','A'
     public const ushort LayoutVersion = 1;
 
+    public const ushort FlagsAudioF32 = 0;   // body = 交织 f32-LE，元素 4B（§6.2 音频段）
+    public const ushort FlagsCurveF64 = 1;   // body = f64-LE，元素 8B（§5.6 求值结果环）
+
     readonly FileStream m_file;
     MemoryMappedFile m_mapped;
 
@@ -25,6 +28,8 @@ internal sealed class ShmRegion : IDisposable
     public long SampleOffset { get; private set; }
     public int SampleCount { get; private set; }
     public int SampleRate { get; private set; }
+    public ushort Flags { get; private set; }
+    public int ElementBytes => Flags == FlagsCurveF64 ? 8 : 4;
     long m_capacity;
 
     ShmRegion(FileStream file, MemoryMappedFile mapped, string path)
@@ -34,16 +39,21 @@ internal sealed class ShmRegion : IDisposable
         FilePath = path;
     }
 
-    /// <summary>创建/重开区域并把容量设为 header + 4*sampleCount（不足则扩文件，body 交集内容保留）。</summary>
-    public static ShmRegion Open(string path, long sampleOffset, int sampleCount, int sampleRate)
+    /// <summary>创建/重开区域并把容量设为 header + element*count（不足则扩文件，body 交集内容保留）。</summary>
+    public static ShmRegion Open(string path, long sampleOffset, int sampleCount, int sampleRate, ushort flags = FlagsAudioF32)
     {
-        var capacity = (long)HeaderBytes + 4L * sampleCount;
+        var element = flags == FlagsCurveF64 ? 8 : 4;
+        var capacity = (long)HeaderBytes + (long)element * sampleCount;
         var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
         if (file.Length < capacity)
             file.SetLength(capacity);
         var mapped = MemoryMappedFile.CreateFromFile(file, null, capacity, MemoryMappedFileAccess.ReadWrite,
             HandleInheritability.None, leaveOpen: true);
-        var region = new ShmRegion(file, mapped, path) { SampleOffset = sampleOffset, SampleCount = sampleCount, SampleRate = sampleRate, m_capacity = capacity };
+        var region = new ShmRegion(file, mapped, path)
+        {
+            SampleOffset = sampleOffset, SampleCount = sampleCount, SampleRate = sampleRate,
+            Flags = flags, m_capacity = capacity,
+        };
         region.WriteHeader(sampleOffset, sampleCount, sampleRate);
         return region;
     }
@@ -51,7 +61,7 @@ internal sealed class ShmRegion : IDisposable
     /// <summary>改几何：先冲 header 进旧映射，再扩文件重开映射（body 内容留在文件里，映射须重建）。</summary>
     public void SetGeometry(long sampleOffset, int sampleCount, int sampleRate)
     {
-        var capacity = (long)HeaderBytes + 4L * sampleCount;
+        var capacity = (long)HeaderBytes + (long)ElementBytes * sampleCount;
         if (capacity > m_capacity)
         {
             WriteHeader(sampleOffset, sampleCount, sampleRate);   // header 经旧映射落文件
@@ -77,7 +87,7 @@ internal sealed class ShmRegion : IDisposable
         var span = header.AsSpan();
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(span[0..4], Magic);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(span[4..6], LayoutVersion);
-        // span[6..8] flags = 0（读视图位留 §6.2 input）
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(span[6..8], Flags);
         System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(span[8..16], sampleOffset);
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span[16..20], sampleCount);
         System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span[20..24], sampleRate);
@@ -108,6 +118,29 @@ internal sealed class ShmRegion : IDisposable
         view.WriteArray(0, bytes, 0, bytes.Length);
     }
 
+    /// <summary>曲线面结果缓冲：写 f64-LE body（§5.6 大批量求值应答）。</summary>
+    public void WriteF64(int start, ReadOnlySpan<double> values)
+    {
+        if (values.Length == 0) return;
+        var bytes = new byte[values.Length * 8];
+        for (int i = 0; i < values.Length; i++)
+            System.Buffers.Binary.BinaryPrimitives.WriteDoubleLittleEndian(bytes.AsSpan(i * 8, 8), values[i]);
+        using var view = m_mapped.CreateViewAccessor(HeaderBytes + 8L * start, bytes.Length, MemoryMappedFileAccess.ReadWrite);
+        view.WriteArray(0, bytes, 0, bytes.Length);
+    }
+
+    /// <summary>曲线面结果缓冲的 f64 读回（测试/诊断用；façade 侧自行映射读）。</summary>
+    public double[] ReadF64(int start, int count)
+    {
+        var bytes = new byte[count * 8];
+        using (var view = m_mapped.CreateViewAccessor(HeaderBytes + 8L * start, bytes.Length, MemoryMappedFileAccess.ReadWrite))
+            view.ReadArray(0, bytes, 0, bytes.Length);
+        var vals = new double[count];
+        for (int i = 0; i < count; i++)
+            vals[i] = System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes.AsSpan(i * 8, 8));
+        return vals;
+    }
+
     public void Dispose()
     {
         try { m_mapped.Dispose(); } catch { }
@@ -123,6 +156,9 @@ internal static class ShmPlane
     static int sSeq;
 
     public static string RegionsDir => Path.Combine(Path.GetTempPath(), "tunelab-regions");
+
+    /// <summary>曲线面结果的 inline/shm 阈值（§6：base64 inline <64KB，超出走 shm 结果缓冲）。</summary>
+    public const long CurveInlineBytes = 64 * 1024;
 
     public static string Slug(string packageId)
     {
@@ -160,6 +196,15 @@ internal static class ShmPlane
         Directory.CreateDirectory(RegionsDir);
         var name = $"tlx-{SidecarIo.Nonce}-{Slug(packageId)}-{Interlocked.Increment(ref sSeq)}";
         return ShmRegion.Open(Path.Combine(RegionsDir, name), sampleOffset, sampleCount, sampleRate);
+    }
+
+    /// <summary>曲线面结果环（§5.6/§7：复用分配器，按 (boot, seq) 命名）。</summary>
+    public static ShmRegion AllocateCurve(string packageId, int count)
+    {
+        EnsureSwept();
+        Directory.CreateDirectory(RegionsDir);
+        var name = $"tlx-{SidecarIo.Nonce}-{Slug(packageId)}-ev-{Interlocked.Increment(ref sSeq)}";
+        return ShmRegion.Open(Path.Combine(RegionsDir, name), 0, count, 0, ShmRegion.FlagsCurveF64);
     }
 
     public static string Nonce => SidecarIo.Nonce;

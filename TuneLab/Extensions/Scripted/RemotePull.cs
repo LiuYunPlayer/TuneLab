@@ -49,6 +49,8 @@ internal static class RemotePullBus
         public readonly ConcurrentDictionary<string, IAudioSegment> Segments = new();
         // shm 面（M4b）：协商为 shm 后创建的段的共享区域（id→region）；体的唯一权威副本在区域里。
         public readonly ConcurrentDictionary<string, ShmRegion> Regions = new();
+        // 曲线面结果环（M5a / §5.6）：per-session 一个 f64 区域，大批量求值走它；同一会话的 RPC 天然串行。
+        public readonly ConcurrentDictionary<string, ShmRegion> EvalRings = new();
         public int SegCounter;
         public int Attached;
     }
@@ -76,6 +78,8 @@ internal static class RemotePullBus
         if (!sTables.TryGetValue(host, out var table))
             return;
         var prefix = sessionKey + "/seg";
+        if (table.EvalRings.TryRemove(sessionKey, out var ring))
+            try { ring.Dispose(); } catch { }
         foreach (var id in table.Segments.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList())
             if (table.Segments.TryRemove(id, out var seg))
             {
@@ -159,6 +163,30 @@ internal static class RemotePullBus
                     throw new SidecarRpcException("stale_handle", "no automation track '" + track + "'");
                 return r;
             }).ConfigureAwait(false);
+
+            // §5.6/§6：小批量 inline f64 base64；shm 面下大批量（≥64KB）落 per-session 结果环，
+            // 应答改回 {region}（façade 映射读回）——序列化成本从 O(n) base64 降到 memcpy。
+            if (host.AudioPlaneShm && (long)results.Length * 8 >= ShmPlane.CurveInlineBytes)
+            {
+                var ring = await OnSessionThread(s, () =>
+                {
+                    var reg = table.EvalRings.GetOrAdd(s.SessionKey,
+                        _ => ShmPlane.AllocateCurve(host.PackageId, results.Length));
+                    if (results.Length > reg.SampleCount)
+                        reg.SetGeometry(0, results.Length, 0);   // 只增：扩容保内容
+                    reg.WriteF64(0, results);
+                    return reg;
+                }).ConfigureAwait(false);
+                return new JsonObject
+                {
+                    ["region"] = new JsonObject
+                    {
+                        ["path"] = ring.FilePath,
+                        ["data_offset"] = ShmRegion.HeaderBytes,
+                        ["count"] = results.Length,
+                    },
+                };
+            }
             return new JsonObject { ["values"] = WireAudio.EncodeF64(results) };
         }));
 

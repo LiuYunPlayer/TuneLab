@@ -192,20 +192,23 @@ public class RuntimeInstallQueueTests
     [Fact]
     public async Task DedupsInFlightAndCallsOnDoneAfterCompletion()
     {
-        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var dones = new List<string>();
+        var gate = new TaskCompletionSource<(bool, string)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dones = new List<(string, bool, string)>();
         var scheduled = RuntimeInstallQueue.Schedule("com.test.q-a", "C:\\pkg\\a", Parse("python>=3.10"),
-            executor: _ => gate.Task, onDone: d => dones.Add(d));
+            executor: _ => gate.Task, onDone: (d, ok, m) => dones.Add((d, ok, m)));
         Assert.True(scheduled);
         Assert.True(RuntimeInstallQueue.IsPending("com.test.q-a"));
         Assert.False(RuntimeInstallQueue.Schedule("com.test.q-a", "C:\\pkg\\a", Parse("python>=3.10"),
-            executor: _ => Task.FromResult(true), onDone: dones.Add));       // 同包在途去重
+            executor: _ => Task.FromResult((true, "")), onDone: (d, ok, m) => dones.Add((d, ok, m))));   // 同包在途去重
         Assert.True(RuntimeInstallQueue.Schedule("com.test.q-b", "C:\\pkg\\b", Parse("python>=3.10"),
-            executor: _ => Task.FromResult(true), onDone: dones.Add));       // 不同包不受影响
-        gate.SetResult(true);
+            executor: _ => Task.FromResult((false, "no mirror reachable")), onDone: (d, ok, m) => dones.Add((d, ok, m))));   // 不同包不受影响；M5c：失败带 message
+        gate.SetResult((true, "installed"));
         var spin = Task.Run(() => { while (dones.Count < 2) Thread.SpinWait(1000); });
         Assert.Same(spin, await Task.WhenAny(spin, Task.Delay(5000)));
-        Assert.Contains("C:\\pkg\\a", dones);
+        Assert.Contains("C:\\pkg\\a", dones.Select(x => x.Item1));
+        var failed = dones.First(x => x.Item1 == "C:\\pkg\\b");
+        Assert.False(failed.Item2);
+        Assert.Equal("no mirror reachable", failed.Item3);   // 失败原因透到回执
         Assert.False(RuntimeInstallQueue.IsPending("com.test.q-a"));
     }
 

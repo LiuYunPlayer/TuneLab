@@ -249,5 +249,32 @@ class SegmentShmPlaneTests(unittest.TestCase):
         self.assertEqual(view.shape, (self.count,))
 
 
+class CurveRingDecodeTests(unittest.TestCase):
+    """M5a: host.evaluate small batches stay inline base64; shm-plane big batches come back
+    as a region{path,data_offset,count} pointing at a curve ring read as f64-LE."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix="tlx-curve-test-")
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_inline_decode(self):
+        import base64, struct
+        from tunelab import _effect
+        r = {"values": base64.b64encode(struct.pack("<3d", 1.5, -2.5, 0.25)).decode()}
+        self.assertEqual(_effect.eval_results(r), [1.5, -2.5, 0.25])
+
+    def test_region_decode(self):
+        import struct
+        from tunelab import _effect
+        vals = [0.25] * 5 + [-1.0]
+        path = os.path.join(self._tmp, "curve")
+        with open(path, "wb") as f:
+            f.write(b"\x00" * 24 + struct.pack("<6d", *vals))
+        r = {"region": {"path": path, "data_offset": 24, "count": len(vals)}}
+        self.assertEqual(_effect.eval_results(r), vals)
+
+
 if __name__ == "__main__":
     unittest.main()

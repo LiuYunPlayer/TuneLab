@@ -209,6 +209,34 @@ internal static class Program
                     if (BinaryPrimitives.ReadDoubleLittleEndian(curve.AsSpan(0, 8)) != 0.25)
                         throw new InvalidOperationException("pitch evaluate wrong");
 
+                    if (mode == "shm-sine")
+                    {
+                        // M5a：大批量求值（>64KB）在 shm 面应走结果环 region 而非 inline base64。
+                        const int bigN = 20000;
+                        var bigPos = new byte[bigN * 8];
+                        for (int i = 0; i < bigN; i++)
+                            BinaryPrimitives.WriteDoubleLittleEndian(bigPos.AsSpan(i * 8, 8), start + (end - start) * i / bigN);
+                        var evBig = Reverse("host.evaluate", Via2(new JsonObject { ["track"] = "pitch", ["positions"] = Convert.ToBase64String(bigPos) }));
+                        if (evBig!.AsObject().ContainsKey("values"))
+                            throw new InvalidOperationException("big evaluate should have used the shm curve ring, not inline values");
+                        var creg = evBig["region"] as JsonObject ?? throw new InvalidOperationException("big evaluate: no region in reply");
+                        int cCount = creg["count"]!.GetValue<int>();
+                        int cDataOff = creg["data_offset"]!.GetValue<int>();
+                        if (cCount != bigN) throw new InvalidOperationException("curve ring count mismatch: " + cCount);
+                        // FileShare.ReadWrite：宿主结果环句柄是 RW，旁观读必须兼容其共享模式（同段区域纪律）。
+                        using (var cf = new FileStream(creg["path"]!.GetValue<string>(), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        using (var cmf = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateFromFile(
+                                   cf.SafeFileHandle, null, 0, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read,
+                                   System.IO.HandleInheritability.None, leaveOpen: true))
+                        using (var view = cmf.CreateViewAccessor(cDataOff, cCount * 8, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read))
+                        {
+                            var first = view.ReadDouble(0);
+                            var last = view.ReadDouble((cCount - 1) * 8);
+                            if (first != 0.25 || last != 0.25)
+                                throw new InvalidOperationException("curve ring values wrong: " + first + "/" + last);
+                        }
+                    }
+
                     const int rate = 44100;
                     int count = (int)((end - start) * rate);
                     var samples = new float[count];

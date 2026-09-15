@@ -19,6 +19,22 @@ def set_channels(call_host, notify_host):
     _call_host, _notify_host = call_host, notify_host
 
 
+def eval_results(r):
+    """Decode a host.evaluate reply. Small batches come back as inline base64 f64;
+    on the shm plane a large batch (>=64KB) comes back as {region:{path,data_offset,count}}
+    pointing at a per-session curve ring — the RPC response itself is the barrier, so we
+    just read the file bytes and copy them into a fresh list (§5.6/§6)."""
+    reg = r.get("region")
+    if reg is not None:
+        count = int(reg["count"])
+        with open(reg["path"], "rb") as f:
+            f.seek(int(reg.get("data_offset", 24)))
+            data = f.read(count * 8)
+        return list(struct.unpack("<%dd" % count, data))
+    data = base64.b64decode(r["values"])
+    return list(struct.unpack("<%dd" % (len(data) // 8), data))
+
+
 def register_effect(obj, engine_id):
     _effect_engines[engine_id] = obj
 
@@ -230,8 +246,7 @@ class _SessionCtx:
     def evaluate(self, track, positions):
         pos = base64.b64encode(struct.pack("<%dd" % len(positions), *positions)).decode("ascii")
         r = _call_host("host.evaluate", self._via({"track": track, "positions": pos}))
-        data = base64.b64decode(r["values"])
-        return list(struct.unpack("<%dd" % (len(data) // 8), data))
+        return eval_results(r)
 
     def output(self, sample_offset, sample_count, sample_rate):
         r = _call_host("host.segment_create", self._via({"sample_offset": sample_offset,
