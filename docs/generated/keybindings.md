@@ -29,3 +29,14 @@
 | 锚点工具 | 3 | Editor | `tool.anchor` |
 | 固定笔刷 | 4 | Editor | `tool.lock` |
 | 颤音工具 | 5 | Editor | `tool.vibrato` |
+| 设置 | — | Global | `app.settings` |
+| 片段面板 | — | Editor | `sidebar.showPart` |
+| 音符面板 | — | Editor | `sidebar.showNote` |
+| Agent 面板 | — | Editor | `sidebar.showAgent` |
+| 脚本面板 | — | Editor | `sidebar.showScript` |
+| 扩展面板 | — | Editor | `sidebar.showExtensions` |
+| 导出面板 | — | Editor | `sidebar.showExport` |
+| 隐藏侧栏 | — | Editor | `sidebar.hide` |
+| 显示/隐藏波形 | — | Editor | `view.toggleWaveform` |
+| 量化更细 | — | Editor | `quantization.finer` |
+| 量化更粗 | — | Editor | `quantization.coarser` |
