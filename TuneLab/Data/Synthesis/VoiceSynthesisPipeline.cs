@@ -25,6 +25,8 @@ internal sealed class VoiceSynthesisPipeline : ISynthesisPipeline
     public event Action? PitchChanged;
 
     public IVoiceSynthesisSession Session => mSession;
+    // 会话的宿主侧 context（插件手里的那个 IVoiceSynthesisContext）。
+    public VoiceSynthesisContext Context => mContext;
     public bool IsBusy => mIsBusy;
 
     // 各已完成音频段（工程率，链尾输出 + 波形）；播放/波形按段消费，不再拼整 part 单条 buffer。

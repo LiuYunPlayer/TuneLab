@@ -19,6 +19,9 @@ public interface IVoiceSynthesisPartView
 {
     // 该 part 选定声库（= IVoiceSynthesisEngine.VoiceSourceInfos 的 key）：引擎据此分流多声库。
     string VoiceId { get; }
+    // part 运行期身份（= IVoiceSynthesisContext.PartId，同一个号）：插件据此查回会话为该 part 算的派生状态。
+    // 声明求值不绑定具体 part 时（如无 part 的静态 schema 枚举）为空串——插件按"无派生状态"作答即可。
+    string PartId { get; }
     // 当前 note 集合（只读、宿主当前序）：原始几何，未经引擎口径的去重叠 / 钳位。
     IReadOnlyList<IVoiceSynthesisNoteView> Notes { get; }
     // part 属性值快照（多选 part 时各 part 一个，三态合并归插件：context.Parts.Select(p => p.PartProperties).Merge()）。
@@ -41,6 +44,8 @@ public interface IVoiceSynthesisPhonemeView
 // voice part 数据 note 的只读值视图（声明面；EndTime 取原始满末，未钳）。
 public interface IVoiceSynthesisNoteView
 {
+    // note 运行期身份（= IVoiceSynthesisNote.Id，同一个号）：插件据此查回会话为该 note 算的派生状态。
+    string Id { get; }
     double StartTime { get; }              // 全局秒
     double EndTime { get; }                // 全局秒（原始满末，未钳）
     int Pitch { get; }

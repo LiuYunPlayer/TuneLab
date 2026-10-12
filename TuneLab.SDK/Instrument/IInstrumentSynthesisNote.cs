@@ -14,6 +14,10 @@ namespace TuneLab.SDK;
 // tick 是宿主乐谱内部表示、不外露。
 public interface IInstrumentSynthesisNote
 {
+    // 运行期稳定身份（宿主发号的不透明 token、不持久）：note 对象存活期间恒定、宿主进程内唯一（跨会话重建不变）。
+    // 与声明面 IInstrumentSynthesisNoteView.Id 同一个号（见 IInstrumentSynthesisContext.InvalidateNotes）。
+    string Id { get; }
+
     IReadOnlyNotifiableProperty<double> StartTime { get; }
     // 满末：Pos+Dur 换算的全局秒，不钳到邻居起点——重叠的尾巴原样保留（和弦 / 多声部）。
     IReadOnlyNotifiableProperty<double> EndTime { get; }

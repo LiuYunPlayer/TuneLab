@@ -21,6 +21,8 @@ internal interface INote : IDataObject<NoteInfo>, ISelectable, ILinkedNode<INote
 {
     new INote? Next { get; }
     new INote? Previous { get; }
+    // 运行期身份（见 RuntimeId）：对象存活期间恒定、不持久；即 SDK 面的 note Id（会话活视图 / 快照 / 声明视图同一个号）。
+    string RuntimeId { get; }
     IMidiPart Part { get; }
     IDataProperty<double> Pos { get; }
     IDataProperty<double> Dur { get; }

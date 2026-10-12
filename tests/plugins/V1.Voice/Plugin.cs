@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -13,6 +14,8 @@ namespace TuneLab.TestPlugins.V1Voice;
 // 用于验证：引擎注册、声库列表、CreateSession、分块状态带（多段着色/进度）、变更标脏增量重合成、
 // snapshot.Notes 与 segment.Notes 的索引对齐契约（产物归属回活 note）。
 // 测试钩子：把某 note 歌词改成 "fail"，该块合成必失败并带报错文案——验证失败段红条 + hover 报错 + 右键复制。
+// 测试钩子：歌词以声调数字结尾（如 "ma3"），约 0.6 秒后 note / part 面板才出现解析出的选项——验证声明失效
+//（会话后台分析 → InvalidateNotes / InvalidatePart → 宿主重新询问声明），见 LyricAnalysis。
 
 public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 {
@@ -69,7 +72,8 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
 
     public void Destroy() { }
 
-    public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context) => new TestSession(context);
+    public IVoiceSynthesisSession CreateSession(IVoiceSynthesisContext context)
+        => new TestSession(context, mAnalyses.GetOrAdd(context.PartId, _ => new LyricAnalysis()));
 
     // 声明（引擎层、纯函数）：条件轨集合 = f(part 参数值)。声明先于会话求值，故会话构造期 Growl 轨已就绪、可订阅。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetAutomationConfigs(IVoiceSynthesisPartPropertyContext context)
@@ -95,8 +99,35 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     // 合成参数回显轨（只读）：恒声明一条 energy 回显轨（分段形、DefaultValue=NaN、自带色），合成前 key 即存在、可预声明。
     // 曲线数据经 IVoiceSynthesisSession.SynthesizedParameters 按同一 key（energy）承载；宿主作一等只读轨绘制。
     public IReadOnlyOrderedMap<PropertyKey, AutomationConfig> GetSynthesizedParameterConfigs(IVoiceSynthesisPartPropertyContext context) => mSynthesizedParameterConfigs;
-    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context) => ObjectConfig.Create(mPartProperties);
-    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context) => ObjectConfig.Create(mNoteProperties);
+    // part / note 面板除静态字段外，还依赖会话后台分析出的声调（插件自有派生状态，宿主看不见）：按 PartId / note Id 查回。
+    // 分析结果一变，会话就经 InvalidatePart / InvalidateNotes 宣告，宿主随即重新调用这两个方法——声明本身仍是纯查询。
+    // part 面板：任一 part 已分析出声调才出现 Tone Strength（多选时宽松呈现）。
+    public ObjectConfig GetPartPropertyConfig(IVoiceSynthesisPartPropertyContext context)
+    {
+        if (!context.Parts.Any(p => mAnalyses.TryGetValue(p.PartId, out var analysis) && analysis.HasTones))
+            return ObjectConfig.Create(mPartProperties);
+        return ObjectConfig.Create(With(mPartProperties, ("tone_strength", "Tone Strength (Analyzed)"), mToneStrengthConfig));
+    }
+
+    // note 面板：选中 note 全部分析出声调才出现 Tone Depth（任一未解析 / 无声调 = 混合态，不呈现）。
+    public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
+    {
+        bool allToned = context.Notes.Count > 0
+            && mAnalyses.TryGetValue(context.Part.PartId, out var analysis)
+            && context.Notes.All(n => analysis.Tones.ContainsKey(n.Id));
+        if (!allToned)
+            return ObjectConfig.Create(mNoteProperties);
+        return ObjectConfig.Create(With(mNoteProperties, ("tone_depth", "Tone Depth (Analyzed)"), mToneDepthConfig));
+    }
+
+    static OrderedMap<PropertyKey, IControllerConfig> With(OrderedMap<PropertyKey, IControllerConfig> properties, PropertyKey key, IControllerConfig config)
+    {
+        var map = new OrderedMap<PropertyKey, IControllerConfig>();
+        foreach (var kvp in properties)
+            map.Add(kvp.Key, kvp.Value);
+        map.Add(key, config);
+        return map;
+    }
     // 音素属性声明（复用 note 上下文）：按核相对 slot 键控授 schema——核（slot 0）= accent + offset、
     // 辅音（slot ≠ 0）= 仅 offset，验证按角色差异化。slot 遍历用 SDK 共享口径 PhonemeSlots.UnionSlots；
     // schema 若依赖当前属性值，在此对同 slot 各成员值做三态 Merge（同 GetNotePropertyConfig 契约）再条件化。
@@ -116,6 +147,12 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     readonly OrderedMap<PropertyKey, IControllerConfig> mNoteProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mCorePhonemeProperties = new();
     readonly OrderedMap<PropertyKey, IControllerConfig> mConsonantPhonemeProperties = new();
+    // 各 part 的后台分析结果（按 PartId）。存在引擎而非会话上：声明是引擎级调用、要按 id 查回；id 跨会话重建
+    //（换声库 / 时基变更）不变，故重建后旧结果仍可直接用（新会话也会重分析一遍、结果相同则不再宣告）。
+    // 不随会话 Dispose 移除——会话销毁分不清是重建还是删 part；测试引擎不计这点泄漏。
+    readonly ConcurrentDictionary<string, LyricAnalysis> mAnalyses = new();
+    static readonly IControllerConfig mToneStrengthConfig = SliderConfig.Linear(0.5, 0, 1);
+    static readonly IControllerConfig mToneDepthConfig = SliderConfig.Linear(0.5, 0, 1);
     // 分段轨（DefaultValue = NaN 表无基线）：验证声明/数据/路由/渲染/编辑/存盘链路；本参照实现的合成暂不消费它。
     static readonly AutomationConfig mBendConfig = AutomationConfig.Create(-100, 100).WithColor("#73C2E5");
     // 整数吸附标度连续轨（Create(INormalizedScale) 重载）：验证参数区绘制/拖锚点/双击键入锚点值全走标度吸附。
@@ -147,11 +184,19 @@ public sealed class TestVoiceEngine : IVoiceSynthesisEngine
     };
 }
 
+// 一个 part 的后台歌词分析结果（会话写、引擎声明读，跨线程）：note Id → 声调；无声调的 note 不在表内。
+public sealed class LyricAnalysis
+{
+    public readonly ConcurrentDictionary<string, int> Tones = new();
+    public bool HasTones => !Tones.IsEmpty;
+}
+
 public sealed class TestSession : IVoiceSynthesisSession
 {
-    public TestSession(IVoiceSynthesisContext context)
+    public TestSession(IVoiceSynthesisContext context, LyricAnalysis analysis)
     {
         mContext = context;
+        mAnalysis = analysis;
 
         // 变更接线（数据线程，handler 只做廉价标脏；重活延迟到 Committed 重分块）：
         // note 字段变化 → 标脏所在块 + 待重分块；增删 → 待重分块；
@@ -184,8 +229,59 @@ public sealed class TestSession : IVoiceSynthesisSession
         if (context.Automations.TryGetValue("energy_offset", out var energyOffset))
             energyOffset.RangeModified.Subscribe(OnEnergyRangeModified);
 
+        // 后台歌词分析接线：歌词变 / note 增 → 排一次分析；note 删 → 撤下其结果。已有 note 开局全分析一遍。
+        context.Notes.WhenAnyItem(n => n.Lyric.Modified).Subscribe(ScheduleAnalysis, mSubscriptions);
+        context.Notes.ItemAdded.Subscribe(ScheduleAnalysis, mSubscriptions);
+        context.Notes.ItemRemoved.Subscribe(note => { mAnalysisVersions.TryRemove(note.Id, out _); ApplyAnalysis(note.Id, 0); }, mSubscriptions);
+        foreach (var note in context.Notes)
+            ScheduleAnalysis(note);
+
         mNeedResegment = true;
     }
+
+    // —— 后台歌词分析（模拟耗时解析：延迟后取歌词末位数字为声调，如 "ma3" → 3）——
+    // 数据线程只取值（id + 歌词）后 offload；后台线程算完直接调 context.Invalidate*（契约允许任意线程、宿主合拍）。
+    // 版本号挡住过期结果：分析期间歌词又改了，只让最新那次落账。
+    void ScheduleAnalysis(IVoiceSynthesisNote note)
+    {
+        string id = note.Id;
+        string lyric = note.Lyric.Value ?? "";
+        int version = mAnalysisVersions.AddOrUpdate(id, 1, (_, v) => v + 1);
+        var token = mAnalysisCancellation.Token;
+        Task.Run(async () =>
+        {
+            await Task.Delay(AnalysisDelayMs, token);
+            if (mAnalysisVersions.TryGetValue(id, out int current) && current == version)
+                ApplyAnalysis(id, ToneOf(lyric));
+        }, token);
+    }
+
+    static int ToneOf(string lyric)
+        => lyric.Length > 1 && lyric[^1] is >= '1' and <= '5' ? lyric[^1] - '0' : 0;
+
+    // 落账并按变化范围宣告：结果没变不宣告；part 级派生量（有无声调）翻转 → InvalidatePart（向下级联，
+    // note 不必再报）；否则只报这一个 note。
+    void ApplyAnalysis(string id, int tone)
+    {
+        bool hadTones = mAnalysis.HasTones;
+        bool changed = tone > 0
+            ? !(mAnalysis.Tones.TryGetValue(id, out int previous) && previous == tone)
+            : mAnalysis.Tones.ContainsKey(id);
+        if (!changed)
+            return;
+
+        if (tone > 0)
+            mAnalysis.Tones[id] = tone;
+        else
+            mAnalysis.Tones.TryRemove(id, out _);
+
+        if (mAnalysis.HasTones != hadTones)
+            mContext.InvalidatePart();
+        else
+            mContext.InvalidateNotes([id]);
+    }
+
+    const int AnalysisDelayMs = 600;
 
     public string DefaultLyric => "la";
 
@@ -375,6 +471,8 @@ public sealed class TestSession : IVoiceSynthesisSession
 
     public void Dispose()
     {
+        mAnalysisCancellation.Cancel();
+        mAnalysisCancellation.Dispose();
         mSubscriptions.DisposeAll();
         mContext.Committed.Unsubscribe(OnCommitted);
         mContext.Pitch.RangeModified.Unsubscribe(OnPitchRangeModified);
@@ -751,6 +849,9 @@ public sealed class TestSession : IVoiceSynthesisSession
     const int kReleaseSamples = (int)(0.012 * kSampleRate);  // 12ms 渐出
 
     readonly IVoiceSynthesisContext mContext;
+    readonly LyricAnalysis mAnalysis;
+    readonly ConcurrentDictionary<string, int> mAnalysisVersions = new();
+    readonly CancellationTokenSource mAnalysisCancellation = new();
     readonly DisposableManager mSubscriptions = new();
     readonly List<Piece> mPieces = new();
     bool mNeedResegment;

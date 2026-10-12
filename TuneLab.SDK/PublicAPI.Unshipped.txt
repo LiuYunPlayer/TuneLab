@@ -1,1 +1,12 @@
 #nullable enable
+TuneLab.SDK.IInstrumentSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
+TuneLab.SDK.IInstrumentSynthesisContext.InvalidatePart() -> void
+TuneLab.SDK.IInstrumentSynthesisContext.PartId.get -> string!
+TuneLab.SDK.IInstrumentSynthesisNote.Id.get -> string!
+TuneLab.SDK.IInstrumentSynthesisNoteView.Id.get -> string!
+TuneLab.SDK.IInstrumentSynthesisPartView.PartId.get -> string!
+TuneLab.SDK.IVoiceSynthesisContext.InvalidateNotes(System.Collections.Generic.IEnumerable<string!>! noteIds) -> void
+TuneLab.SDK.IVoiceSynthesisContext.InvalidatePart() -> void
+TuneLab.SDK.IVoiceSynthesisContext.PartId.get -> string!
+TuneLab.SDK.IVoiceSynthesisNoteView.Id.get -> string!
+TuneLab.SDK.IVoiceSynthesisPartView.PartId.get -> string!

@@ -47,6 +47,8 @@ internal class Note : DataObject, INote
     INote? ILinkedNode<INote>.Previous { get; set; } = null;
     ILinkedList<INote>? ILinkedNode<INote>.LinkedList { get; set; }
 
+    public string RuntimeId { get; } = Data.RuntimeId.Next();
+
     public Note(IMidiPart part, NoteInfo info)
     {
         Pos = new(this);

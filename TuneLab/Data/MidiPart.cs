@@ -20,6 +20,8 @@ namespace TuneLab.Data;
 
 internal class MidiPart : Part, IMidiPart
 {
+    public string RuntimeId { get; } = Data.RuntimeId.Next();
+    public IActionEvent<DeclarationInvalidation> DeclarationsInvalidated => mDeclarationsInvalidated;
     public IActionEvent SynthesisStatusChanged => mSynthesisStatusChanged;
     // 分离产物信号（各自仅对应产物变化触发，不被进度/其它产物 tick 带动）：精确响应的消费者订阅这些、而非合并的 SynthesisStatusChanged。
     public IActionEvent SynthesizedPhonemesChanged => mSynthesizedPhonemesChanged;
@@ -31,6 +33,7 @@ internal class MidiPart : Part, IMidiPart
     // 参数面板属性 lane 集合（物化缓存，note / phoneme 两 scope）：钉选 ∩ 当前属性 config 的有界数值条目，按声明序。
     // 重建时机与 voice 轨集合同步（管线重建/换源/part 参数 commit）+ 钉选变更（RefreshPinnedLaneConfigs）
     // + 音素回填补算（phoneme lane 声明面依赖合成产物，见 OnPipelinePhonemesChanged）。
+    // + 插件宣告声明失效（InvalidateDeclarations）。
     // 刻意不订阅 note/音素增删/值变：schema 随内容漂移是罕见边角（值本体渲染时活读、无滞后），
     // 避免批量粘贴/拖拽时反复全量求值；漂移在下一次 part 参数 commit / 管线重建时自愈。
     public IReadOnlyOrderedMap<PropertyKey, LaneEntry> NoteLaneConfigs => mNoteLaneConfigs;
@@ -204,6 +207,24 @@ internal class MidiPart : Part, IMidiPart
         RebuildPinnedLaneConfigs();   // note/phoneme 属性 config 依赖 part 值，lane 集合/量程可能随之变
         if (RefreshAutomationConfigsSignatureChanged())
             mAutomationConfigsModified.Invoke();
+    }
+
+    // 插件宣告声明失效（会话 context 的 InvalidatePart / InvalidateNotes，经 DeclarationInvalidator 合拍、已在数据线程）。
+    // 先重算本 part 持有的声明物化缓存，再发 DeclarationsInvalidated 给常驻显示声明的 UI（属性面板各自按范围刷新）。
+    // · part 级：与 part 参数 commit 同一套（轨集合 + lane），note 声明随之级联（UI 侧按 Part 标志处理）；
+    // · note 级：只重算 lane——lane 按「全 part note」口径求值，任何 note 的声明变了都可能改它，与选区无关；
+    //   轨集合是 part 作用域声明、不向上级联，故不动。
+    // 不碰延音缓存、不标任何合成脏（契约：只作废插件自己的声明回答）。
+    internal void InvalidateDeclarations(DeclarationInvalidation invalidation)
+    {
+        if (mPipeline == null)
+            return;   // 已停用：context 随管线销毁，正常不会到这里；防御迟到的 flush
+        if (invalidation.Part)
+            mSource.RebuildAutomationConfigs(BuildPartPropertyContext());
+        RebuildPinnedLaneConfigs();
+        if (RefreshAutomationConfigsSignatureChanged())
+            mAutomationConfigsModified.Invoke();
+        mDeclarationsInvalidated.Invoke(invalidation);
     }
 
     // 钉选变更后由动作方（侧栏菜单）调用：重算两 scope 的 lane 集合，实变则通知参数面板 UI（tabbar/渲染器同批消费者）。
@@ -948,6 +969,7 @@ internal class MidiPart : Part, IMidiPart
     readonly ActionEvent mSynthesizedParametersChanged = new();
     readonly ActionEvent mSynthesizedPitchChanged = new();
     readonly ActionEvent mAutomationConfigsModified = new();
+    readonly ActionEvent<DeclarationInvalidation> mDeclarationsInvalidated = new();
     string mAutomationConfigsSignature = string.Empty;
     readonly OrderedMap<PropertyKey, LaneEntry> mNoteLaneConfigs = new();
     readonly OrderedMap<PropertyKey, LaneEntry> mPhonemeLaneConfigs = new();

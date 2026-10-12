@@ -70,6 +70,8 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
             mPart.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
             // 重合成回填新 SynthesizedPhonemes（精确信号，不被进度/参数/音高 tick 带动）→ 音素面板按显示音素签名变化才重建。
             mPart.SynthesizedPhonemesChanged.Subscribe(OnSynthesizedPhonemesChanged, s);
+            // 插件宣告声明失效（part 级向下级联 / note 级按选区交集）→ 两面板重算。
+            mPart.DeclarationsInvalidated.Subscribe(OnDeclarationsInvalidated, s);
 
             Setup(mPart);
         }
@@ -102,6 +104,21 @@ internal class NotePropertySideBarContentProvider : ISideBarContentProvider
 
         mNoteScheduler.InvalidateValues();        // note 面板：数据对象不变 → keyed-diff 复用控件
         mPhonemeScheduler.InvalidateStructure();  // 音素面板：part 值变可能改 schema/对齐，直接重建（编辑为 settled 触发，无活拖拽）
+    }
+
+    // 插件宣告声明失效：part 级（note 声明以 part 为上下文，向下级联）或作废的 note 与当前选中有交集时，
+    // note 面板值级重算（数据对象不变 → keyed-diff 复用控件）、音素面板结构级重建（音素属性 schema 可能变）。
+    // 未选中 note 的失效（后台解析逐 note 回来的常态）不碰面板——它们只影响 lane，已由 MidiPart 处理。
+    // 交集判定是对当前选区的整体扫描（不经构建时快照），不违反"订阅回调只标脏不读数"的纪律。
+    void OnDeclarationsInvalidated(DeclarationInvalidation invalidation)
+    {
+        if (mPart == null)
+            return;
+        if (!invalidation.Part && !mPart.Notes.AllSelectedItems().Any(invalidation.Affects))
+            return;
+
+        mNoteScheduler.InvalidateValues();
+        mPhonemeScheduler.InvalidateStructure();
     }
 
     // ---- 条件属性面板：config = f(context)，按当前值重算并 keyed-diff 到控件树 ----

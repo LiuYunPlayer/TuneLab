@@ -21,6 +21,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     public MidiPart Part => mPart;
 
     public string VoiceId => mVoiceId;
+    public string PartId => mPart.RuntimeId;
     public IReadOnlyNotifiableLinkedList<IVoiceSynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
     public ISynthesisAutomation Pitch => mPitch;
@@ -33,6 +34,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     {
         mPart = part;
         mVoiceId = voiceId;
+        mInvalidator = new DeclarationInvalidator(part);
         mDataThreadId = System.Environment.CurrentManagedThreadId;
         mTiming = new LiveTiming(this, part.TempoManager);
         // 音高双通道：Pitch = 纯用户绘制曲线（NaN=自由）；PitchDeviation = 宿主侧偏差源汇总
@@ -142,6 +144,10 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         }
     }
 
+    // 声明失效（插件 → 宿主，任意线程）：攒脏位、合拍 marshal 回数据线程，见 DeclarationInvalidator。
+    public void InvalidatePart() => mInvalidator.InvalidatePart();
+    public void InvalidateNotes(IEnumerable<string> noteIds) => mInvalidator.InvalidateNotes(noteIds);
+
     // 数据线程纪律断言（DEBUG）：活视图仅数据线程可用是纪律性约束，类型上无法强制——
     // 这里让违例插件在开发期第一次跨线程访问就炸响，而非静默数据竞争。v2 进程隔离后物理强制。
     [System.Diagnostics.Conditional("DEBUG")]
@@ -157,6 +163,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
             return;
         mDisposed = true;
 
+        mInvalidator.Dispose();
         s.DisposeAll();
         mBatchSignal.BatchEnd -= OnBatchEnd;
         foreach (var kvp in mAutomationSubscriptions)
@@ -235,12 +242,6 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     }
 
     internal VoiceNoteProxy? ProxyOf(INote? note) => note == null ? null : mNotes.ProxyOf(note);
-
-    // note 运行期身份发号（会话内单调计数器转 string、不持久）：每个 VoiceNoteProxy 建时取一个，供 SynthesizedPhonemes
-    // 产物键。会话内稳定即够（产物随会话重算）；仅数据线程调用，无需并发保护。SDK 面是 string——将来若需持久 note uuid，
-    // 此处换成产出持久 id 即可、不动 SDK。
-    internal string NextNoteId() => (mNextNoteId++).ToString();
-    int mNextNoteId;
 
     static void Guarded(Action action)
     {
@@ -428,6 +429,7 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
 
     readonly MidiPart mPart;
     readonly string mVoiceId;
+    readonly DeclarationInvalidator mInvalidator;
     readonly int mDataThreadId;
     readonly BatchSignal mBatchSignal;
     readonly LiveTiming mTiming;
@@ -576,8 +578,8 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
     {
         public INote Source => mNote;
 
-        // 会话内运行期身份（建时向 context 领号，恒定不变）：产物 SynthesizedPhonemes 按此键、宿主回填按此反查。
-        public string Id { get; }
+        // 运行期身份 = note 自身的 RuntimeId（跨会话重建不变，与声明视图同号）：产物 SynthesizedPhonemes 按此键、宿主回填按此反查。
+        public string Id => mNote.RuntimeId;
 
         public IReadOnlyNotifiableProperty<double> StartTime { get; }
         public IReadOnlyNotifiableProperty<double> EndTime { get; }
@@ -595,7 +597,6 @@ internal sealed class VoiceSynthesisContext : IVoiceSynthesisContext, ISynthesis
         {
             mContext = context;
             mNote = note;
-            Id = context.NextNoteId();
             var part = context.mPart;
             // source 只含 note 自身字段（note 在 part 内编辑）；part.Pos/tempo 变化走 session 重建，
             // getter 读 part.Pos.Value 当前值即可（session 生命周期内稳定）。

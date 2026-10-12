@@ -296,6 +296,7 @@ internal sealed class SoundSourceListCommand : ICommand
     sealed class VoicePartView(string voiceId) : IVoiceSynthesisPartView
     {
         public string VoiceId => voiceId;
+        public string PartId => string.Empty;   // 不绑定具体 part（契约：空串 = 无派生状态可查）
         public IReadOnlyList<IVoiceSynthesisNoteView> Notes => Array.Empty<IVoiceSynthesisNoteView>();
         public PropertyObject PartProperties => PropertyObject.Empty;
         public IReadOnlyMap<string, IAutomationEvaluator> Automations => Map<string, IAutomationEvaluator>.Empty;
@@ -315,6 +316,7 @@ internal sealed class SoundSourceListCommand : ICommand
     sealed class InstrumentPartView(string instrumentId) : IInstrumentSynthesisPartView
     {
         public string InstrumentId => instrumentId;
+        public string PartId => string.Empty;
         public IReadOnlyList<IInstrumentSynthesisNoteView> Notes => Array.Empty<IInstrumentSynthesisNoteView>();
         public PropertyObject PartProperties => PropertyObject.Empty;
         public IReadOnlyMap<string, IAutomationEvaluator> Automations => Map<string, IAutomationEvaluator>.Empty;

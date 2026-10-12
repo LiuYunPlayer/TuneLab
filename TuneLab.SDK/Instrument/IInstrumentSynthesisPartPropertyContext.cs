@@ -11,6 +11,8 @@ public interface IInstrumentSynthesisPartView
 {
     // 该 part 选定音源（= IInstrumentSynthesisEngine.InstrumentSourceInfos 的 key）：引擎据此分流多音源。
     string InstrumentId { get; }
+    // part 运行期身份（= IInstrumentSynthesisContext.PartId）；声明求值不绑定具体 part 时为空串。
+    string PartId { get; }
     // 当前 note 集合（只读、宿主当前序）：原始几何，instrument 不去重叠。
     IReadOnlyList<IInstrumentSynthesisNoteView> Notes { get; }
     PropertyObject PartProperties { get; }
@@ -22,6 +24,8 @@ public interface IInstrumentSynthesisPartView
 // instrument part 数据 note 的只读值视图（声明面；满末；【无 Lyric】）。
 public interface IInstrumentSynthesisNoteView
 {
+    // note 运行期身份（= IInstrumentSynthesisNote.Id）。
+    string Id { get; }
     double StartTime { get; }
     double EndTime { get; }
     int Pitch { get; }

@@ -17,6 +17,7 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
 {
     public string VoiceId => part.SoundSource.ID;          // IVoiceSynthesisPartView
     public string InstrumentId => part.SoundSource.ID;     // IInstrumentPartView（同一底层音源 id）
+    public string PartId => part.RuntimeId;                // 与会话 context.PartId 同号
     public PropertyObject PartProperties => part.Properties.GetInfo();
 
     IReadOnlyList<IVoiceSynthesisNoteView> IVoiceSynthesisPartView.Notes => Notes;
@@ -84,6 +85,7 @@ internal sealed class PartContext(IMidiPart part) : IVoiceSynthesisPartView, IIn
     // part 数据 note：同时满足 voice（带 Lyric）/ instrument（无 Lyric，多出的 Lyric 成员对其接口不可见）两域。EndTime 取原始满末。
     internal sealed class PartNote(INote note) : IVoiceSynthesisNoteView, IInstrumentSynthesisNoteView
     {
+        public string Id => note.RuntimeId;        // 与会话活视图 note.Id 同号
         public double StartTime => note.StartTime;
         public double EndTime => note.EndTime;     // = TempoManager.GetTime(GlobalEndPos)，原始满末
         public int Pitch => note.Pitch.Value;

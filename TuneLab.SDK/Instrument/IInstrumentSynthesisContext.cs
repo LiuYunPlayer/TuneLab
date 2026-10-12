@@ -18,6 +18,9 @@ public interface IInstrumentSynthesisContext
     // 选定音源（= IInstrumentSynthesisEngine.InstrumentSourceInfos 的 key）：context 生命内**不可变**（换音源 = 宿主重建 context + 会话），
     // 故烘入 context、CreateSession 不再单列 instrumentId。
     string InstrumentId { get; }
+    // 所属 part 的运行期身份（宿主发号的不透明 token、不持久）：part 对象存活期间恒定、宿主进程内唯一，跨会话重建不变。
+    // 与声明面 IInstrumentSynthesisPartView.PartId 同一个号（见 InvalidatePart）。
+    string PartId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走 First/Last、
     // 邻居导航走 note.Next/Previous；支持 WhenAny（成员增删自动接线）。
     //
@@ -44,4 +47,15 @@ public interface IInstrumentSynthesisContext
     // 逻辑编辑收口信号：每个逻辑编辑（一个 command）的全部变更通知发完后触发一次——让插件延迟昂贵状态修正
     //（每条变更廉价标脏，Committed 一次性做重活，如重分片）。出方向事件，宿主在数据线程触发。
     IActionEvent Committed { get; }
+
+    // —— 声明失效（插件 → 宿主）——
+    // 插件宣告它此前对本 part / 这些 note 给出的声明（IInstrumentSynthesisEngine 的 Get*Config 族）已过期，请宿主重新询问。
+    // 契约与 voice 的 IVoiceSynthesisContext.InvalidatePart / InvalidateNotes 相同：
+    // · 只作废插件自己的回答，不宣告用户数据变化、不使任何区段待重合成；
+    // · InvalidatePart = part 作用域全部声明，并向下级联到 note 声明；InvalidateNotes = 这些 note 的声明，不向上级联；
+    //   noteId = IInstrumentSynthesisNote.Id（= IInstrumentSynthesisNoteView.Id），未知 id 静默忽略；
+    // · 派生状态只能是用户数据的函数，不得依赖声明的输出；
+    // · 任意线程可调、可高频调用（宿主 marshal 并合拍）；会话销毁后的调用被忽略。
+    void InvalidatePart();
+    void InvalidateNotes(IEnumerable<string> noteIds);
 }

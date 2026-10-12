@@ -430,6 +430,38 @@ foreach (var ph in note.LeadingPhonemes.Concat(note.BodyPhonemes))   // note 为
 - 输入活视图的钉死音素（`IVoiceSynthesisNote.LeadingPhonemes` / `BodyPhonemes`）**不带属性**（见 §5.3 / §5.7）；属性只出现在合成快照（`VoiceSynthesisPhonemeSnapshot.Properties`）里。
 - **编辑 UI**：侧栏音素属性面板已落地——**逐 slot 一行**（符号标签 + 该 slot 的控制器），多选 note 时各 note 同 slot 音素并到同一行、值三态合并、编辑扇出。仍待做的是音素的**选中模型**（音素目前没有自己的选中态，这是宿主侧的事、不在 SDK 面上）；在选中模型补齐前，宿主以选中 note 的全体音素为面板范围。
 
+#### 声明依赖派生状态：`InvalidatePart` / `InvalidateNotes`
+
+有些面板选项取决于引擎**自己算出来**的东西，而不只是用户填的值——典型如后台解析歌词、分析声调：用户输入歌词后，解析完成才知道该给这个 note 暴露哪些选项。这类派生状态宿主看不见，宿主只在参数 commit / 选中变化时才重新询问声明，所以解析完成后要由你**宣告**一下：
+
+```csharp
+// 会话里（任意线程均可调；宿主 marshal 回数据线程并合拍，连调几十次也只刷新一次）
+mContext.InvalidateNotes([note.Id]);   // 这些 note 的 note / 音素声明过期了
+mContext.InvalidatePart();             // 本 part 的全部声明过期了（向下级联到 note，不必再逐个报 note）
+```
+
+声明方法是引擎级调用，要靠身份把会话里算出的结果查回来：`IVoiceSynthesisNoteView.Id` 与会话活视图的 `IVoiceSynthesisNote.Id` 是**同一个号**，`IVoiceSynthesisPartView.PartId` 与 `IVoiceSynthesisContext.PartId` 同号。两者都在对象存活期间恒定、跨会话重建（换声库 / 改速度）不变，所以结果存在引擎上按 id 查即可：
+
+```csharp
+public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
+{
+    bool analyzed = mAnalyses.TryGetValue(context.Part.PartId, out var a)
+        && context.Notes.All(n => a.Tones.ContainsKey(n.Id));
+    return analyzed ? mConfigWithToneOptions : mBaseConfig;
+}
+```
+
+要点：
+
+- **只作废你自己的回答**：不宣告用户数据变化，也不会让任何区段待重合成——解析结果若影响合成，按你原有的失效机制自己标脏。
+- **级联方向**：`InvalidatePart` 覆盖 part 属性面板、自动化轨集合、回显轨集合，并向下级联到 note / 音素声明；`InvalidateNotes` 只覆盖这些 note，**不向上级联**——note 的结果若也改变了 part 面板，另调 `InvalidatePart`。
+- **不含延音判定**：`IsContinuation` 必须由当前数据**同步**答出，不能"先给个答案、解析完再改"；本信号不会让宿主重问它。
+- **不得成环**：派生状态只能是用户数据（歌词 / 音高 / 时间 / 属性值）的函数，不能依赖声明的输出。
+- 未知 / 已删除的 id 静默忽略；会话销毁后的调用被忽略（新会话应自行重新分析）。`PartId` 为空串表示声明求值没有绑定具体 part（如静态 schema 枚举），按"无派生状态"作答。
+- 结果没变就别调——虽然宿主会合拍，不调最省。
+
+参考实现：`tests/plugins/V1.Voice` 的 `LyricAnalysis`（歌词以声调数字结尾如 `ma3`，约 0.6 秒后 note 面板出现 Tone Depth、part 面板出现 Tone Strength）。
+
 ### 5.3 输入活视图 `IVoiceSynthesisContext` 与 `IVoiceSynthesisNote`
 
 > 会话本身（`IVoiceSynthesisSession`）的声明只剩 **`DefaultLyric`**（`string`，新建 note 的默认歌词）——它是创建后才被取用的运行时值，不参与构造前声明，故留在会话实例上；其余声明（轨/面板）都在引擎上（§5.2）。
@@ -888,6 +920,8 @@ Instrument 是**多声部音源**（合成器 / 采样器 / 和弦音源）。�
 manifest 条目：`{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "class": "My.Ns.MyInstrumentEngine", "assembly": "MyInstrument.dll" }`。
 
 音源目录与 voice 同形：`IInstrumentSynthesisEngine.InstrumentSourceInfos`（按 id 键）。**一插件一乐器** = 单条目；**容器式**（如 Kontakt：一个引擎挂多个外置资源包乐器）在 `Init()` 扫描已装资源包、填多条目，`InstrumentId` 选具体乐器。音色多时可实现 `InstrumentSourceLayout`（与 voice 的 `VoiceSourceLayout` 同构）把选择器折成嵌套子菜单；不实现则平铺。
+
+声明依赖派生状态时同 voice（§5.2）：`IInstrumentSynthesisContext.InvalidatePart` / `InvalidateNotes`，身份经 `IInstrumentSynthesisNote.Id` / `IInstrumentSynthesisNoteView.Id` 与 `PartId` 对上；instrument 无音素，级联里少音素一项。
 
 > 完整接口契约与设计依据见 [instrument-sdk-design.md](instrument-sdk-design.md)；最小参考实现（一个引擎挂 sine/square 两音色、多声部叠加合成）见 `tests/plugins/V1.Instrument`。
 

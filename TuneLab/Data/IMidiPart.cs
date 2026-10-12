@@ -16,6 +16,11 @@ namespace TuneLab.Data;
 
 internal interface IMidiPart : IPart, IDataObject<MidiPartInfo>
 {
+    // 运行期身份（见 RuntimeId）：对象存活期间恒定、不持久；即 SDK 面的 PartId（会话 context / 声明视图同一个号）。
+    string RuntimeId { get; }
+    // 插件宣告声明过期（经会话 context 的 InvalidatePart / InvalidateNotes，已 marshal 回数据线程并合拍）：
+    // 本 part 先重算自身持有的声明物化缓存（轨集合 / 钉选 lane），再发本事件给常驻显示声明的 UI（属性面板）。
+    IActionEvent<DeclarationInvalidation> DeclarationsInvalidated { get; }
     // 合成状态/产物有更新（含会话重建），UI 收到直接刷新；区域信息看 GetSynthesisStatus()。
     IActionEvent SynthesisStatusChanged { get; }
     // 分离产物信号（各自仅对应产物变化触发，不被进度/其它产物 tick 带动）：精确响应的消费者订阅这些，而非合并的 SynthesisStatusChanged。

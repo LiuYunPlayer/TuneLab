@@ -187,6 +187,8 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             part.SoundSource.Modified.Subscribe(OnConfigChnaged, s);
             // part 属性 commit（结果态）→ 重算动态属性面板（自身联动）。
             part.Properties.Modified.Subscribe(OnPartPropertiesModified, s);
+            // 插件宣告 part 级声明失效 → 同一条重算路径（note 级失效不向上级联，不刷本面板）。
+            part.DeclarationsInvalidated.Subscribe(OnDeclarationsInvalidated, s);
             // 重命名 → 刷新大标题。
             part.Name.Modified.Subscribe(RaiseTitleChanged, s);
         }
@@ -254,6 +256,12 @@ internal class PartPropertySideBarContentProvider : ISideBarContentProvider
             return;
 
         ReconcilePartController();
+    }
+
+    void OnDeclarationsInvalidated(DeclarationInvalidation invalidation)
+    {
+        if (invalidation.Part)
+            OnPartPropertiesModified();
     }
 
     // ---- 条件属性面板：config = f(context)，按当前值重算并 keyed-diff 到控件树 ----

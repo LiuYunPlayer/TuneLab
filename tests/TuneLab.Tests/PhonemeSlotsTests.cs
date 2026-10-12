@@ -22,6 +22,7 @@ public class PhonemeSlotsTests
 
     sealed class FakeNoteView : IVoiceSynthesisNoteView
     {
+        public string Id { get; init; } = "";
         public double StartTime { get; init; }
         public double EndTime { get; init; }
         public int Pitch { get; init; }

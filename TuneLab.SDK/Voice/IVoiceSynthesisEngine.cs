@@ -33,6 +33,9 @@ public interface IVoiceSynthesisEngine
     // 与 instrument 持平行副本）——引擎可读 part 当前真值（含非属性字段：note 时间/音高/歌词、已声明自动化曲线、
     // note 集合）决定 schema。选哪个声库由 context.Parts[i].VoiceId 给。仅数据线程同步调用、只读不订阅。
     // 静态声明的插件忽略 context 返回固定值即可。
+    // 例外：声明可以另依赖插件**自有的派生状态**（如后台歌词解析结果，按 PartId / note Id 查回）——宿主看不见这类输入，
+    // 故派生状态一变，插件须经 IVoiceSynthesisContext.InvalidatePart / InvalidateNotes 宣告，宿主才会重新询问。
+    // 除此之外仍须是纯函数（无副作用、轻量、同输入同输出）。
 
     // 自动化轨配置（part 级）：连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），
     // 按声明序呈现。轨名/翻译随键（PropertyKey.DisplayText，缺省回退 Id）。

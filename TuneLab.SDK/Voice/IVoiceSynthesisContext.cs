@@ -24,6 +24,10 @@ public interface IVoiceSynthesisContext
     // 选定声库（= IVoiceSynthesisEngine.VoiceSourceInfos 的 key）：context 生命内**不可变**（换声库 = 宿主重建 context + 会话），
     // 故烘入 context、CreateSession 不再单列 voiceId。会话面本就是会话级生命周期，带身份不引入额外耦合。
     string VoiceId { get; }
+    // 所属 part 的运行期身份（宿主发号的不透明 token、不持久）：part 对象存活期间恒定、宿主进程内唯一——跨会话重建
+    //（换声库 / 时基变更）不变。与声明面 IVoiceSynthesisPartView.PartId 同一个号：插件据此把会话里算出的 part 级
+    // 派生状态（如后台分析结果）与声明求值时拿到的 part 对上（见 InvalidatePart）。
+    string PartId { get; }
     // 链表形态（无索引承诺，宿主数据层即双向链表）：顺序消费用枚举、头尾 O(1) 走
     // First/Last、邻居导航走 note.Next/Previous；支持 WhenAny（成员增删自动接线）。
     //
@@ -67,4 +71,20 @@ public interface IVoiceSynthesisContext
     // 收口点——每条变更通知里廉价记录/标脏，Committed 一次性做重活（如重分片）；批量编辑（移调几百个 note）
     // 因此只重分片一次。出方向事件，宿主在数据线程触发。
     IActionEvent Committed { get; }
+
+    // —— 声明失效（插件 → 宿主）——
+    // 插件宣告它此前对本 part / 这些 note 给出的声明（IVoiceSynthesisEngine 的 Get*Config 族）已过期，请宿主重新询问。
+    // 用于声明依赖插件自有派生状态的场景（如后台歌词解析、声调分析：解析完成后面板才出现某些选项）——派生状态
+    // 变化后必须调用，否则宿主不知道该重新询问，界面停在旧答案上。
+    //
+    // · 只作废插件自己的回答：不改动、也不宣告任何用户数据变化；不使任何区段待重合成（合成失效归插件自管）。
+    // · InvalidatePart：part 作用域全部声明（part 属性面板、自动化轨集合、回显轨集合），并向下级联到 note / 音素声明
+    //  （note 声明本就以 part 为上下文）——调它就够，不必再逐个报 note。
+    // · InvalidateNotes：这些 note 的 note / 音素声明；不向上级联——若 note 派生状态也影响 part 声明，另调 InvalidatePart。
+    //   noteId = IVoiceSynthesisNote.Id（= 声明面 IVoiceSynthesisNoteView.Id）；未知 / 已删除的 id 静默忽略。
+    // · 不含 IsContinuation：延音判定必须由当前数据同步决定（见其契约），本信号不使宿主的延音缓存失效。
+    // · 派生状态只能是用户数据（歌词 / 音高 / 时间 / 属性值）的函数，不得依赖声明的输出，否则成环。
+    // · 任意线程可调、可高频调用：宿主 marshal 到数据线程并合拍处理，调用方无需自行节流；会话销毁后的调用被忽略。
+    void InvalidatePart();
+    void InvalidateNotes(IEnumerable<string> noteIds);
 }

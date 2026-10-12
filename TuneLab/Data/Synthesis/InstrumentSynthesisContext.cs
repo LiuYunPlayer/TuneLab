@@ -19,6 +19,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     public MidiPart Part => mPart;
 
     public string InstrumentId => mInstrumentId;
+    public string PartId => mPart.RuntimeId;
     public IReadOnlyNotifiableLinkedList<IInstrumentSynthesisNote> Notes => mNotes;
     public IReadOnlyNotifiablePropertyObject PartProperties => mPartProperties;
 
@@ -29,6 +30,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     {
         mPart = part;
         mInstrumentId = instrumentId;
+        mInvalidator = new DeclarationInvalidator(part);
         mDataThreadId = System.Environment.CurrentManagedThreadId;
         mTiming = new LiveTiming(this, part.TempoManager);
         mNotes = new NoteProxyList(this);
@@ -116,6 +118,10 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
         }
     }
 
+    // 声明失效（插件 → 宿主，任意线程）：攒脏位、合拍 marshal 回数据线程，见 DeclarationInvalidator。
+    public void InvalidatePart() => mInvalidator.InvalidatePart();
+    public void InvalidateNotes(IEnumerable<string> noteIds) => mInvalidator.InvalidateNotes(noteIds);
+
     [System.Diagnostics.Conditional("DEBUG")]
     internal void AssertDataThread()
     {
@@ -129,6 +135,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
             return;
         mDisposed = true;
 
+        mInvalidator.Dispose();
         s.DisposeAll();
         mBatchSignal.BatchEnd -= OnBatchEnd;
         foreach (var kvp in mAutomationSubscriptions)
@@ -305,6 +312,7 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
 
     readonly MidiPart mPart;
     readonly string mInstrumentId;
+    readonly DeclarationInvalidator mInvalidator;
     readonly int mDataThreadId;
     readonly BatchSignal mBatchSignal;
     readonly LiveTiming mTiming;
@@ -437,6 +445,9 @@ internal sealed class InstrumentSynthesisContext : IInstrumentSynthesisContext, 
     internal sealed class InstrumentNoteProxy : IInstrumentSynthesisNote, IDisposable
     {
         public INote Source => mNote;
+
+        // 运行期身份 = note 自身的 RuntimeId（跨会话重建不变，与声明视图同号）。
+        public string Id => mNote.RuntimeId;
 
         public IReadOnlyNotifiableProperty<double> StartTime { get; }
         public IReadOnlyNotifiableProperty<double> EndTime { get; }

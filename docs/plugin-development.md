@@ -435,6 +435,38 @@ foreach (var ph in note.LeadingPhonemes.Concat(note.BodyPhonemes))   // note is 
 - The pinned phonemes of the input live view (`IVoiceSynthesisNote.LeadingPhonemes` / `BodyPhonemes`) carry **no properties** (see §5.3 / §5.7); properties only appear in the synthesis snapshot (`VoiceSynthesisPhonemeSnapshot.Properties`).
 - **Editing UI**: the sidebar phoneme-property panel is done — **one row per slot** (a symbol label + that slot's controllers); with multiple notes selected, each note's phoneme at the same slot merges into that row (three-state values, edits fan out). Still to be done is a phoneme **selection model** (a phoneme has no selection state of its own yet — a host-side matter, not part of the SDK surface); until the selection model is complete, the host uses all phonemes of the selected notes as the panel scope.
 
+#### Declarations that depend on derived state: `InvalidatePart` / `InvalidateNotes`
+
+Some panel options depend on something the engine **computes itself**, not just on values the user typed — typically background lyric parsing or tone analysis: only after parsing finishes do you know which options to expose for a note. The host cannot see such derived state and only re-asks for declarations on parameter commit / selection change, so when your analysis finishes you must **announce** it:
+
+```csharp
+// in the session (callable from any thread; the host marshals to the data thread and coalesces — dozens of calls refresh once)
+mContext.InvalidateNotes([note.Id]);   // the note / phoneme declarations of these notes are stale
+mContext.InvalidatePart();             // all declarations of this part are stale (cascades down to notes; no need to list them)
+```
+
+Declaration methods are engine-level calls, so identity is how you look up what the session computed: `IVoiceSynthesisNoteView.Id` is **the same token** as the live view's `IVoiceSynthesisNote.Id`, and `IVoiceSynthesisPartView.PartId` equals `IVoiceSynthesisContext.PartId`. Both stay constant for the object's lifetime and survive session rebuilds (voicebank switch / tempo change), so store results on the engine keyed by id:
+
+```csharp
+public ObjectConfig GetNotePropertyConfig(IVoiceSynthesisNotePropertyContext context)
+{
+    bool analyzed = mAnalyses.TryGetValue(context.Part.PartId, out var a)
+        && context.Notes.All(n => a.Tones.ContainsKey(n.Id));
+    return analyzed ? mConfigWithToneOptions : mBaseConfig;
+}
+```
+
+Key points:
+
+- **It only voids your own answers**: it announces no user-data change and makes no range pending re-synthesis — if the analysis affects synthesis, mark dirty through your own invalidation as usual.
+- **Cascade direction**: `InvalidatePart` covers the part property panel, the automation track set and the synthesized parameter track set, and cascades down to note / phoneme declarations; `InvalidateNotes` covers only those notes and **does not cascade up** — if a note result also changes the part panel, call `InvalidatePart` as well.
+- **Continuation is excluded**: `IsContinuation` must be answered **synchronously** from current data, never "answer now, change after parsing"; this signal does not make the host re-ask it.
+- **No cycles**: derived state may only be a function of user data (lyric / pitch / timing / property values), never of declaration output.
+- Unknown / deleted ids are silently ignored; calls after the session is disposed are ignored (the new session should re-analyze). An empty `PartId` means the declaration is evaluated without a concrete part (e.g. static schema enumeration) — answer as "no derived state".
+- Don't call when nothing changed — the host coalesces, but not calling is cheapest.
+
+Reference implementation: `LyricAnalysis` in `tests/plugins/V1.Voice` (a lyric ending in a tone digit such as `ma3` makes Tone Depth appear on the note panel and Tone Strength on the part panel after ~0.6 s).
+
 ### 5.3 Input live view `IVoiceSynthesisContext` and `IVoiceSynthesisNote`
 
 > The session itself (`IVoiceSynthesisSession`) now declares only **`DefaultLyric`** (`string`, the default lyric for a new note) — it is a runtime value consumed only after creation and does not participate in pre-construction declaration, so it stays on the session instance; all other declarations (tracks/panels) are on the engine (§5.2).
@@ -890,6 +922,8 @@ An instrument is a **polyphonic sound source** (synth / sampler / chord source).
 Manifest entry: `{ "type": "instrument", "engine": "MyInstrument", "name": "My Instrument", "class": "My.Ns.MyInstrumentEngine", "assembly": "MyInstrument.dll" }`.
 
 The sound-source catalog is the same shape as voice: `IInstrumentSynthesisEngine.InstrumentSourceInfos` (keyed by id). **One plugin, one instrument** = a single entry; a **container form** (e.g. Kontakt: one engine hosting multiple external resource-package instruments) scans the installed resource packages in `Init()` and fills multiple entries, with `InstrumentId` selecting the specific instrument. When there are many, implement `InstrumentSourceLayout` (isomorphic to voice's `VoiceSourceLayout`) to fold the picker into nested submenus; leave it unimplemented for a flat list.
+
+Declarations that depend on derived state work as in voice (§5.2): `IInstrumentSynthesisContext.InvalidatePart` / `InvalidateNotes`, matched through `IInstrumentSynthesisNote.Id` / `IInstrumentSynthesisNoteView.Id` and `PartId`; instrument has no phonemes, so the cascade has no phoneme step.
 
 > For the full interface contract and design rationale see [instrument-sdk-design.md](instrument-sdk-design.md); for a minimal reference implementation (one engine hosting sine/square timbres, polyphonic additive synthesis) see `tests/plugins/V1.Instrument`.
 

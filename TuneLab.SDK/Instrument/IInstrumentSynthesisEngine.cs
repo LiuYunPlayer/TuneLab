@@ -32,6 +32,8 @@ public interface IInstrumentSynthesisEngine
     // 全为当前 part 真值的纯函数（同输入同输出、无副作用、轻量）：宿主在值 commit 时按当前值重算并 diff 到 UI，
     // 故面板 / 轨集合可随参数显隐。声明面收**调用级只读活视图**（IInstrumentSynthesisPartView，instrument 专属、与 voice 持平行副本）——
     // 选哪个音源由 context.Parts[i].InstrumentId 给。仅数据线程同步调用、只读不订阅。
+    // 例外：声明可以另依赖插件自有的派生状态（按 PartId / note Id 查回）——派生状态一变，插件须经
+    // IInstrumentSynthesisContext.InvalidatePart / InvalidateNotes 宣告，宿主才会重新询问。
 
     // 自动化轨配置（part 级）：连续轨与分段轨同在此 map（由 AutomationConfig.DefaultValue 是否 NaN 区分形态），
     // 按声明序呈现。轨名 / 翻译随键（PropertyKey.DisplayText，缺省回退 Id）。
